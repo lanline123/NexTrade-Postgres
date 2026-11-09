@@ -62,9 +62,9 @@ fn json_ids(body: &Value) -> Vec<i64> {
     out
 }
 
-fn page_of(q: &Pg) -> (u64, u64, u64) {
-    let p = q.page.unwrap_or(1).max(1);
-    let s = q.size.unwrap_or(10).clamp(1, 100);
+fn page_of(q: &Pg) -> (i64, i64, i64) {
+    let p = q.page.unwrap_or(1).max(1) as i64;
+    let s = q.size.unwrap_or(10).clamp(1, 100) as i64;
     (p, s, (p - 1) * s)
 }
 
@@ -1052,7 +1052,7 @@ async fn h_staff_wallet_log_list(
     .await
     .map_err(db)?;
     ok(
-        serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "size": s, "current": p, "pages": (total as u64 + s - 1) / s}),
+        serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "size": s, "current": p, "pages": (total + s - 1) / s}),
     )
 }
 

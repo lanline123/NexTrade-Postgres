@@ -38,9 +38,9 @@ pub struct Pg {
     pub parent_id: Option<i32>,
 }
 
-fn page_of(q: &Pg) -> (u64, u64, u64) {
-    let p = q.page.unwrap_or(1).max(1);
-    let s = q.size.unwrap_or(10).clamp(1, 100);
+fn page_of(q: &Pg) -> (i64, i64, i64) {
+    let p = q.page.unwrap_or(1).max(1) as i64;
+    let s = q.size.unwrap_or(10).clamp(1, 100) as i64;
     (p, s, (p - 1) * s)
 }
 
