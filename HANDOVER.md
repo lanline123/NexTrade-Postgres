@@ -355,14 +355,17 @@ codegen-units = 16
 | 项 | 状态 |
 |---|---|
 | 生产库 | 49 列已转换；与 `pure.sql` 比对 `mismatch = 0` |
-| 线上二进制 | `2026-11-09 23:32` 构建，来自 `34a5659` |
-| 会员 `123/123` | 登录、购物车列表、订单列表、资料、站内信 均 200 |
-| 管理端 `admin/admin123` | 订单、优惠券、拼团、微信直播、微信菜单、类目费率、面板、操作日志 均 200 |
-| **遗留** | `/api/cart/cart/getCount` 仍 500 |
+| 线上二进制 | **staging 包**（thin LTO），72,584,488 字节，sha256 `88ff69…`，来自 `22ce67a`，00:05 部署 |
+| 会员 `123/123` | 登录、购物车列表、**getCount**、订单列表、资料、站内信 均 200 |
+| 管理端 `admin/admin123` | 订单、优惠券、拼团、微信直播、微信菜单、类目费率、面板、操作日志、商户进件 均 200 |
+| 遗留问题 | **无** |
 
-`getCount` 的根因是 `SUM(quantity)` 返回 `bigint`、代码按 `Decimal` 解码，已修复并提交 `22ce67a`
+`getCount` 的根因是 `SUM(quantity)` 返回 `bigint`、代码按 `Decimal` 解码；已在 `22ce67a` 修复
 （`cart_summary` / `proxy_shopping_cart` / `proxy_shopping_delivery` 三处改为 `Option<i64>`），
-`check-rust` 已通过。**待部署含该提交的二进制后即可恢复**。
+并已通过 staging 包验证恢复。
+
+> staging 包体积（72 MB）大于正式 release（54 MB），可临时顶替线上；正式上线仍建议用
+> `build-rust-backend` 产出与校验的 Release。
 
 ---
 
