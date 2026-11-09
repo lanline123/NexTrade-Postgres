@@ -1,0 +1,15 @@
+{
+  "page": "finance/fundSettings/Index.vue",
+  "info": "finance/fundSettings/Index.vue",
+  "component": "rust/web/admin-semi/src/pages/StaffFundSettings.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "配送员/服务员资金设置：旧版为原始 JSON 编辑器（后端自由 schema），新版保持同形态。",
+    "一个组件双变体：deliveryFundSettingsManage→/finance/deliveryFundManagement/settings/*，serverFundSettingsManage→/finance/serverFundManagement/settings/*。"
+  ]
+}

@@ -1,0 +1,95 @@
+/* 会员认证（UserCertifications）页样式 */
+
+.user-certifications-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.uc-status-card .semi-card-body {
+  padding: 12px 16px;
+}
+
+.uc-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* 状态点（对齐旧 StatusDot：6px 圆点 + 可选闪烁） */
+.uc-status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.uc-status-dot.is-flicker {
+  animation: uc-flicker 1.2s ease-in-out infinite;
+}
+
+@keyframes uc-flicker {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.uc-status-text {
+  display: inline-flex;
+  align-items: center;
+}
+
+.uc-apply-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  word-break: break-word;
+}
+
+/* 详情弹窗字段行 */
+.uc-detail {
+  display: flex;
+  flex-direction: column;
+  padding-top: 4px;
+}
+
+.uc-detail-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 8px 0;
+  font-size: 14px;
+  border-bottom: 1px dashed var(--semi-color-border);
+}
+
+.uc-detail-row:last-child {
+  border-bottom: none;
+}
+
+.uc-detail-row > label {
+  flex: 0 0 120px;
+  color: var(--semi-color-text-2);
+  line-height: 22px;
+}
+
+.uc-detail-value {
+  flex: 1;
+  min-width: 0;
+  line-height: 22px;
+  word-break: break-word;
+}
+
+/* 审核操作区（仅待审核） */
+.uc-audit {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

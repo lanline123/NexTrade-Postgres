@@ -1,0 +1,31 @@
+{
+  "page": "authority/adminUser/List.vue",
+  "info": "authority/adminUser/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/AdminUsers.tsx",
+  "drawer": {
+    "width": 700,
+    "labelWidth": "auto"
+  },
+  "filters": ["keyword"],
+  "columns": ["管理员名称", "权限组", "邮箱", "电话", "添加时间"],
+  "actions": ["edit", "delete", "logs"],
+  "batch": ["delete"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 150
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "当前为平台管理员视角，店铺/供应商管理员 Tab 未启用。",
+    "日志入口跳转操作日志页面，并携带管理员名称作为关键词。"
+  ]
+}

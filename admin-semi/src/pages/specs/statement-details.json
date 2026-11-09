@@ -1,0 +1,35 @@
+{
+  "page": "finance/shopFunds/statementDetails/List.vue",
+  "component": "rust/web/admin-semi/src/pages/FinanceStatementPages.tsx",
+  "filters": [],
+  "columns": ["类型", "入账时间", "店铺名称", "供应商名称", "业务单号", "入账类型", "金额（元）", "余额（元）", "支付方式"],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "widgets": {
+    "statementQueryConfig": {
+      "type": "config-driven-filters",
+      "component": "rust/web/admin-semi/src/pages/FinanceStatementPages.tsx",
+      "requires": ["getStatementQueryConfig", "exportStatement"],
+      "mcpChecks": ["DatePicker", "RadioGroup"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "对账单明细 statementDetails：自绘列表页（ListPage 无法承载配置驱动筛选+日期快捷+真实导出组合）。",
+    "筛选：timeType(1入账时间/2下单时间)、shopId、vendorId(vendor)、startDateTime/endDateTime(dateRange)+今天/昨天/近7天/近30天/近半年快捷、accountType/type/paymentType(getStatementQueryConfig 配置驱动)、recordSn。",
+    "端点(已核对 rust/crates/api/admin/src/routes/payment/statement.rs)：GET /finance/statement/getStatementList、GET /finance/statement/getStatementQueryConfig、GET /finance/statement/exportStatement(xlsx 流，导出对齐旧 orderExport 交互)。",
+    "Select/Table 等基础控件沿用 ListPage/MemberLevelPros 在库实现模式；mcpChecks 仅记录本会话经 Semi MCP 文档核实的组件。",
+    "旧页 getStatementConfig(对账单下载配置) 与 saveStatementDownload 属对账单下载页(statementDownload)，不在本页范围。"
+  ]
+}

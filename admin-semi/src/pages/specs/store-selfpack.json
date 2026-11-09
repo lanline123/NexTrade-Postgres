@@ -1,0 +1,25 @@
+{
+  "page": "store/adminPages/selfPackManage/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/SelfPackList.tsx",
+  "filters": ["keyword", "account", "mainAccount", "storeParentId"],
+  "columns": ["自提点LOGO", "自提点名称", "上级组织", "地址", "自提点状态", "创建时间"],
+  "actions": ["主账号管理", "编辑", "删除"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 180
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "自提点列表(storeSelfPackListManage)：ListPage + FormDrawer，接口 /shop/shop/list?shopType=3 + /shop/shop/*。"
+  ]
+}

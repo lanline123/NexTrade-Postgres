@@ -1,0 +1,40 @@
+{
+  "page": "promotion/productActivity/limitdiscount/List.vue",
+  "info": "promotion/productActivity/limitdiscount/List.vue",
+  "component": "rust/web/admin-semi/src/pages/TimeDiscounts.tsx",
+  "drawer": null,
+  "filters": ["keyword", "activeState"],
+  "columns": ["活动名称", "起始日期", "截止日期", "状态"],
+  "actions": ["edit", "delete"],
+  "batch": ["delete"],
+  "widgets": {
+    "timeDiscountForm": {
+      "type": "time-discount-form-drawer",
+      "component": "rust/web/admin-semi/src/pages/TimeDiscounts.tsx",
+      "requires": [
+        "/promotion/timeDiscount/create",
+        "/promotion/timeDiscount/update",
+        "/promotion/timeDiscount/detail"
+      ],
+      "mcpChecks": ["FormDrawer", "DatePicker", "InputNumber", "Select", "Modal", "Table"]
+    },
+    "discountProductPicker": {
+      "type": "time-discount-product-picker",
+      "component": "rust/web/admin-semi/src/pages/TimeDiscounts.tsx",
+      "requires": ["/product/product/list", "选择商品"],
+      "mcpChecks": ["Modal", "Table", "Image"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "backendReady": {
+    "sort": false
+  },
+  "notes": [
+    "限时折扣：自研列表(Table+toolbar+批量浮条)+FormDrawer 表单。列表列对齐旧 List.vue：活动名称/起始日期/截止日期/状态(statusName Tag:1 未开始 2 进行中 3 已结束)+编辑/删除。",
+    "端点(Rust 已核对 crates/api/admin/src/routes/marketing/time_discount.rs + time_discount_batch.rs + system/lowfreq_extra.rs h_58)：GET list(keyword/page/size)、GET detail?id、POST create/update(TimeDiscountCreateDTO: promotionName/startTime/endTime(Unix 秒)/productIds/item[{productId,skuIds,value,discountType}])、POST del{id}、POST batch{ids,type:'del'}、POST updateField{id,field,value}仅支持 status 字段(旧列表页未使用该能力，故 UI 未提供开关)。",
+    "时间处理差异：旧 Java 前端提交 'YYYY-MM-DD HH:mm:ss' 字符串；Rust DTO 的 startTime/endTime 为 i32 Unix 秒(de_opt_i32 无法解析日期串)，前端提交前 toTimestamp 转秒，展示时 formatDateTime 还原。",
+    "表单对齐 Info.vue + src/DiscountForm.vue：活动名称(required, 60 字上限 rules)、活动时间(双 DatePicker dateTime, 帮助文案与旧版一致)、活动商品(自研选择弹窗 /product/product/list + 明细表：商品编号/商品信息(图+名)/原价/优惠方式(打折1/减钱2/促销3)/优惠内容(打折 0.1-9.9 折, 减钱促销上限为商品原价 元)/删除)，校验文案沿用旧版(请输入0.1-9.9之间折扣 / 请输入大于0并且小于商品原价的折扣)。",
+    "与旧版差异：1) activeState 活动状态筛选为客户端过滤(仅作用于当前页)——Rust TimeDiscountListQuery 仅支持 keyword/shopId/分页，无状态筛选参数；2) 列排序(sortField/sortOrder)后端未提供，固定 discount_id desc；3) SendUserSelector 适用会员人群圈选与 memberRange/memberMarks 未迁移(Rust DTO 无对应字段，后端注释亦标注 member_scope 未迁移)；4) SKU 级规格选择弹窗(SelectSku)未迁移，skuIds 恒为空数组(语义=作用于商品全部规格)，明细如带 skuIds 会原样回传；5) 减钱/促销输入下限放宽为 0.01(旧版 TigInput min=1)，提交校验仍与旧版一致。",
+    "批量操作：POST /promotion/timeDiscount/batch 仅支持 type='del' 批量删除(与旧页 onBatchSubmit('del') 一致)。"
+  ]
+}

@@ -1,0 +1,38 @@
+[package]
+name = "nextrade-api"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+nextrade-core = { path = "../../core" }
+nextrade-common = { path = "../../common" }
+nextrade-infrastructure = { path = "../../infrastructure" }
+nextrade-security = { path = "../../security" }
+nextrade-services = { path = "../../services" }
+nextrade-openapi = { path = "../openapi" }
+axum.workspace = true
+axum-extra.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_urlencoded.workspace = true
+sqlx.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+rust_decimal.workspace = true
+reqwest.workspace = true
+hmac.workspace = true
+sha1.workspace = true
+base64.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+rsa.workspace = true
+sha2.workspace = true
+zip.workspace = true
+
+[lints]
+workspace = true

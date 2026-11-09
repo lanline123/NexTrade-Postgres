@@ -1,0 +1,26 @@
+{
+  "page": "order/aftersales/List.vue",
+  "info": "order/aftersales/List.vue",
+  "component": "rust/web/admin-semi/src/pages/AftersalesOrders.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "widgets": {
+    "aftersalesCardList": {
+      "type": "aftersales-card",
+      "component": "rust/web/admin-semi/src/pages/AftersalesOrders.tsx",
+      "requires": ["aftersales-card", "aftersales-head", "aftersales/update"],
+      "mcpChecks": ["Table", "Card", "Modal", "Select", "InputNumber", "Tag"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "售后申请：对应旧版 order/aftersales/List.vue，卡片式列表（订单编号/交易单号/售后编号/申请时间/发货时间/申请人 + 商品明细含退货数量 + 售后原因/服务类型/售后状态）。",
+    "筛选项（自定义卡片页，filters 记录于此）：keyword 订单号、outTradeNo 交易单号、aftersalesSn 售后编号、aftersaleType 申请类型(applyType 接口)、status 退换状态(returnGoodsStatus 接口)。",
+    "操作（平台后台，条件与旧版 ListBtn 一致）：退货退款 status=1 同意退货退款/拒绝退货退款（update {id,status:2|3,refundAmount,returnAddress,reply}）；仅退款 status=1 同意仅退款/拒绝仅退款；退货退款 status=5 确认收货(receive)/拒收(rejectReceive)。",
+    "详情：售后详情走 /order/aftersales/detail 弹窗，订单详情复用 OrderDetailModal；标记复用 order/order/setAdminNote。",
+    "与旧版差异：供应商(vendor)角色分支不适用平台后台；快捷回复语（PopForm 快捷短语）未迁移，拒绝说明手填。"
+  ]
+}

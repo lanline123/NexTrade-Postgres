@@ -1,0 +1,11 @@
+{
+  "page": "panel/newMembers/List.vue",
+  "component": "rust/web/admin-semi/src/pages/PanelChartPages.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "新增会员趋势(newMembers)：折线趋势图与明细报表，接口 /panel/statisticsUser/addUserTrends。"
+  ]
+}

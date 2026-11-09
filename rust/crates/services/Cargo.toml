@@ -1,0 +1,45 @@
+[package]
+name = "nextrade-services"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+nextrade-core = { path = "../core" }
+nextrade-common = { path = "../common" }
+nextrade-infrastructure = { path = "../infrastructure" }
+nextrade-security = { path = "../security" }
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+chrono.workspace = true
+rust_decimal.workspace = true
+validator.workspace = true
+uuid.workspace = true
+aes.workspace = true
+image.workspace = true
+qrcode.workspace = true
+base64.workspace = true
+rust_xlsxwriter.workspace = true
+calamine.workspace = true
+md-5.workspace = true
+hex.workspace = true
+tokio.workspace = true
+rand.workspace = true
+aes-gcm.workspace = true
+rsa.workspace = true
+sha2.workspace = true
+reqwest.workspace = true
+jieba-rs.workspace = true
+lettre.workspace = true
+sha1.workspace = true
+hmac.workspace = true
+
+[lints]
+workspace = true

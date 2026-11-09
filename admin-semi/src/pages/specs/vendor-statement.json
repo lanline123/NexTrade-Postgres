@@ -1,0 +1,23 @@
+{
+  "page": "rust/web/admin-semi/src/pages/FinanceStatementPages.tsx",
+  "component": "rust/web/admin-semi/src/pages/FinanceStatementPages.tsx",
+  "skipOldPage": true,
+  "filters": ["keyword"],
+  "columns": ["日期", "账户", "收入", "支出"],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "供应商对账单下载(vendorStatementDownload)：ListPage，接口 /finance/statement/getStatementStatisticsList?source=vendor。"
+  ]
+}

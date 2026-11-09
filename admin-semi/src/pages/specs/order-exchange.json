@@ -1,0 +1,16 @@
+{
+  "page": "order/orderExchange/List.vue",
+  "info": "order/orderExchange/List.vue",
+  "component": "rust/web/admin-semi/src/pages/DeliverOrders.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "积分订单：旧版为 9 行包装页（orderExchange/List.vue 复用 order/List.vue，路由含 exchange 时发送 isExchangeOrder=1）。",
+    "新版复用 DeliverOrders variant='exchange'：isExchangeOrder=1 + 全量状态 Tab（全部/待支付/待发货/已发货/已取消/无效/已完成/已删除，计数对齐 statusCount 的 allCount/pendingCount/confirmedCount/processingCount/cancelledCount/invalidCount/completedCount/deletedCount）。",
+    "与旧版差异：卡片布局沿用发货管理的订单卡（含商品/金额/收货人脱敏/操作列），非旧版全部订单的列布局。"
+  ]
+}

@@ -1,0 +1,132 @@
+/* 满减活动（ProductPromotions / fullReductionManage）页面样式。
+   独立文件：styles.css 为共享文件禁止修改。 */
+
+/* 活动类型卡片（旧 RadioType） */
+.promo-unit-options {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.promo-unit-option {
+  width: 268px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.promo-unit-option.is-active {
+  border-color: var(--semi-color-primary);
+  background: var(--semi-color-primary-light-default);
+}
+.promo-unit-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.promo-unit-desc {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+}
+
+/* 活动时间行 */
+.promo-time-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.promo-time-sep {
+  color: var(--semi-color-text-2);
+}
+.promo-time-quick {
+  margin-left: 8px;
+}
+
+/* 满减阶梯表（旧 stepTable） */
+.promo-rules-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.promo-step-wrap {
+  width: 100%;
+  max-width: 680px;
+}
+.promo-step-table {
+  border: 1px solid var(--semi-color-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.promo-step-head,
+.promo-step-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--semi-color-border);
+}
+.promo-step-head {
+  background: var(--semi-color-fill-0);
+  font-weight: 600;
+}
+.promo-step-row:last-child {
+  border-bottom: none;
+}
+.promo-step-col {
+  display: flex;
+  align-items: center;
+}
+.promo-step-level {
+  width: 48px;
+  flex-shrink: 0;
+  justify-content: center;
+}
+.promo-step-min {
+  width: 232px;
+  flex-shrink: 0;
+}
+.promo-step-reduce {
+  flex: 1;
+  min-width: 0;
+}
+.promo-step-op {
+  width: 72px;
+  flex-shrink: 0;
+  justify-content: center;
+}
+.promo-step-type-pop {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 适用范围 */
+.promo-range-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 说明性只读文本 */
+.promo-member-target {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+}
+
+/* 列表排序行内编辑 */
+.promo-sort-edit {
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+.promo-sort-pop {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 260px;
+}
+.promo-sort-tip {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+}

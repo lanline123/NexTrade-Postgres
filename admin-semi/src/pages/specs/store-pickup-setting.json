@@ -1,0 +1,12 @@
+{
+  "page": "storePickupSettingManage",
+  "component": "rust/web/admin-semi/src/pages/StorePickupSetting.tsx",
+  "skipOldPage": true,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "自提设置(storePickupSettingManage)：逆向自 5.8.60 o2o_admin 产物 Index-Dhri9_go.js + pickupSetting-CxHyOH13.js，接口 /o2o/shopPickupConfig/getShopPickupTpl 与 /saveShopPickupTpl。"
+  ]
+}

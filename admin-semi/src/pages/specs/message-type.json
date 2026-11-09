@@ -1,0 +1,24 @@
+{
+  "page": "setting/config/messageType/List.vue",
+  "component": "rust/web/admin-semi/src/pages/MessageTypes.tsx",
+  "filters": ["keyword"],
+  "columns": ["消息类型", "消息描述"],
+  "actions": ["编辑"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "width": 100
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "消息类型管理(messageTypeManage)：ListPage，接口 /setting/config/messageType/list 与 /updateField，支持模板消息生成与启停状态切换。"
+  ]
+}

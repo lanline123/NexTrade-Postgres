@@ -1,0 +1,15 @@
+{
+  "page": "user/messageLog/List.vue",
+  "info": "user/messageLog/List.vue",
+  "component": "rust/web/admin-semi/src/pages/MessageLogs.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": ["标题", "内容", "h5链接", "pc链接", "发送类型", "发送状态", "发送日期"],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "站内信：接口 /user/userMessageLog/*（list/create/del/batch(type=recall)/recall）。",
+    "发送表单：标题/内容/链接；发送会员 SendUserSelector 人群圈选未迁移，默认全部会员（sendUserTarget.rangeType=0）；旧版 SelectLink 链接选择器简化为文本输入。"
+  ]
+}

@@ -1,0 +1,28 @@
+[package]
+name = "nextrade-server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "nextrade"
+path = "src/main.rs"
+
+[dependencies]
+nextrade-core = { path = "../core" }
+nextrade-common = { path = "../common" }
+nextrade-infrastructure = { path = "../infrastructure" }
+nextrade-security = { path = "../security" }
+nextrade-services = { path = "../services" }
+nextrade-admin-api = { path = "../api/admin" }
+nextrade-api = { path = "../api/public" }
+tokio.workspace = true
+axum.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

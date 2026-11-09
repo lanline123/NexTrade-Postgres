@@ -1,0 +1,16 @@
+{
+  "page": "decorate/mobileDecorate/SplashAd.vue",
+  "component": "rust/web/admin-semi/src/pages/DecorateMobilePages.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [
+    "保存设置"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true
+  },
+  "notes": [
+    "开屏广告设置变体2"
+  ]
+}

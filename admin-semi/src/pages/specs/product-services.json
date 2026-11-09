@@ -1,0 +1,30 @@
+{
+  "page": "product/productServices/List.vue",
+  "info": "product/productServices/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/ProductServices.tsx",
+  "drawer": {
+    "width": 600,
+    "labelWidth": "auto"
+  },
+  "filters": ["keyword"],
+  "columns": ["服务名称", "图标", "简介", "默认显示", "排序"],
+  "actions": ["edit", "delete"],
+  "batch": ["delete"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 150
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "服务名称/简介/排序原版支持行内编辑，当前统一通过编辑抽屉修改。"
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "page": "adminMerchant/merchant/List.vue",
+  "info": "adminMerchant/merchant/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/Merchants.tsx",
+  "drawer": {
+    "width": 800,
+    "labelWidth": "auto"
+  },
+  "filters": [
+    "keyword"
+  ],
+  "columns": [
+    "商户所属单位",
+    "商户所属会员(ID)",
+    "商户类型",
+    "管理员",
+    "已绑定店铺",
+    "认证状态",
+    "认证日期"
+  ],
+  "actions": [
+    "edit",
+    "delete",
+    "详情"
+  ],
+  "batch": [
+    "delete"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 160
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "商户管理，支持关键词检索",
+    "支持商户详情弹窗展示",
+    "支持抽屉新增/编辑商户（/merchant/merchant/create、update、detail、del）",
+    "支持批量删除商户（/merchant/merchant/batch）"
+  ]
+}

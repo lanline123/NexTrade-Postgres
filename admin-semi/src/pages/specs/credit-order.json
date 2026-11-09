@@ -1,0 +1,12 @@
+{
+  "page": "order/termPay/termOrder/List.vue",
+  "info": "order/termPay/termOrder/List.vue(账期支付订单)",
+  "component": "rust/web/admin-semi/src/pages/CreditPages.tsx",
+  "drawer": null,
+  "filters": ["keyword"],
+  "columns": ["订单编号", "下单时间", "订单状态", "会员名称", "公司名称", "订单总额", "结算状态", "回款流水单号"],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": ["账期支付订单:GET /credit/order/list(只读列表)。"]
+}

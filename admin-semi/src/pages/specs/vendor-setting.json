@@ -1,0 +1,12 @@
+{
+  "page": "rust/web/admin-semi/src/pages/AutoConfigPage.tsx",
+  "component": "rust/web/admin-semi/src/pages/AutoConfigPage.tsx",
+  "skipOldPage": true,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "供应商设置(vendorSettingManage)：AutoConfigPage，接口 setting/config/vendorSettings + saveVendor。逆向自 5.8.60 Index-6P_8-Q_D.js。"
+  ]
+}

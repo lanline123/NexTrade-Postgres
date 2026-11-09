@@ -1,0 +1,25 @@
+{
+  "page": "store/adminPages/storeTipManage/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/StoreTips.tsx",
+  "filters": ["keyword", "status"],
+  "columns": ["序号", "标签名称", "创建时间", "状态"],
+  "actions": ["编辑", "删除"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 140
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "门店标签(storeTipManage)：ListPage + FormDrawer，接口 /o2o/tip/*。"
+  ]
+}

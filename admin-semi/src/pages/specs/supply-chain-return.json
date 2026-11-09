@@ -1,0 +1,23 @@
+{
+  "page": "purchaseReturnManage",
+  "component": "rust/web/admin-semi/src/pages/SupplyChainPurchasePages.tsx",
+  "skipOldPage": true,
+  "filters": ["keyword"],
+  "columns": ["退货单号", "原采购单", "供应商", "退货金额", "退货件数", "退货状态", "申请时间"],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "采购退货管理(purchaseReturnManage)：逆向自 5.8.60 purchaseReturn-Bg_tNmec.js，接口 /supplyChain/purchaseReturn/*。"
+  ]
+}

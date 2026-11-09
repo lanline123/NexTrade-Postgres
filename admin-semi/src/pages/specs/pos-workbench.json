@@ -1,0 +1,14 @@
+{
+  "page": "o2o_admin/cashier/workbench",
+  "info": "o2o_admin/cashier/workbench",
+  "columns": [],
+  "filters": [],
+  "component": "rust/web/admin-semi/src/pages/PosPages.tsx",
+  "skipOldPage": true,
+  "drawer": null,
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "参考 o2o_admin 编译前端实现。"
+  ]
+}

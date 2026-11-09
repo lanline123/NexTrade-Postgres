@@ -1,0 +1,31 @@
+{
+  "page": "finance/withdrawalSetting/Index.vue",
+  "info": "finance/withdrawalSetting/Index.vue",
+  "component": "rust/web/admin-semi/src/pages/WithdrawalSettings.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "widgets": {
+    "amountRange": {
+      "type": "withdrawal-amount-range",
+      "component": "rust/web/admin-semi/src/pages/WithdrawalSettings.tsx",
+      "requires": ["withdrawal-range", "rangeRenderer"],
+      "mcpChecks": ["InputNumber"]
+    },
+    "frequencyPair": {
+      "type": "withdrawal-frequency",
+      "component": "rust/web/admin-semi/src/pages/WithdrawalSettings.tsx",
+      "requires": ["withdrawal-frequency", "frequencyRenderer"],
+      "mcpChecks": ["Select", "InputNumber"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "提现设置：旧版为线下/线上双 Tab、同一接口 withdrawalSettings/saveWithdrawal；新版用单 AutoConfigPage 分组 sections（线下提现 / 线上提现设置）承载，字段与联动一致。",
+    "提现限额为 min~max 复合行、提现频次为单位+次数复合行，分别用 renderers(rangeRenderer/frequencyRenderer) 实现；伴生字段 maxAmount/withdrawalFrequencyCount/onlineMaxAmount/onlineWithdrawalFrequencyCount 由复合行代管并隐藏。",
+    "线下收款方式(1/2/3)与线上收款渠道(WECHAT/HUIFU/ALIPAY)用新增 multi 控件；提现说明用新增 textarea 控件；线上收款渠道旧版渲染为空组，新版按注释补齐三渠道选项，默认 WECHAT。",
+    "后端字段 omitempty 时由 defaults 补全（收款方式默认空数组、线上渠道默认 WECHAT、频次默认 1）。"
+  ]
+}

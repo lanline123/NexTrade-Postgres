@@ -1,0 +1,22 @@
+{
+  "page": "promotion/manage/List.vue",
+  "component": "rust/web/admin-semi/src/pages/PromotionExtraPages.tsx",
+  "filters": ["promotionName"],
+  "columns": ["活动名称", "活动类型", "活动时间", "状态", "操作"],
+  "actions": ["查看"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "查看",
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "营销概览：统计卡片 + 活动列表"
+  ]
+}

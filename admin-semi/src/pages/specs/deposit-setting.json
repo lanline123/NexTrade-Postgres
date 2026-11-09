@@ -1,0 +1,24 @@
+{
+  "page": "finance/deposit/setting/Index.vue",
+  "info": "finance/deposit/setting/Index.vue",
+  "component": "rust/web/admin-semi/src/pages/DepositSettings.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "widgets": {
+    "bufferLine": {
+      "type": "deposit-buffer-line",
+      "component": "rust/web/admin-semi/src/pages/DepositSettings.tsx",
+      "requires": ["deposit-buffer-line", "bufferRenderer"],
+      "mcpChecks": ["InputNumber", "Select"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "保证金设置：接口 deposit/setting/detail + deposit/setting/save。",
+    "缴存缓冲/补缴缓冲为引导语+天数+处理方式复合行（bufferRenderer），Action 字段由复合行代管并隐藏。",
+    "保证金协议内容用 richtext 控件；枚举值对齐旧版 deposit.d.ts（CollectNode 1/2、BufferAction 1/2）。"
+  ]
+}

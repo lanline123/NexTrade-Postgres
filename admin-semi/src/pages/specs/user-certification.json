@@ -1,0 +1,34 @@
+{
+  "page": "user/userCertification/List.vue",
+  "info": "user/userCertification/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/UserCertifications.tsx",
+  "drawer": null,
+  "filters": ["username"],
+  "columns": ["申请信息", "申请客户名称", "联系人姓名", "联系人电话", "申请状态", "申请日期"],
+  "actions": ["详情", "删除"],
+  "batch": ["delete"],
+  "widgets": {
+    "certAuditModal": {
+      "type": "certification-detail-audit",
+      "component": "rust/web/admin-semi/src/pages/UserCertifications.tsx",
+      "requires": ["/user/userCompany/detail", "/user/userCompany/audit"],
+      "mcpChecks": ["Modal", "Tabs", "Image", "TextArea", "Tag", "Popconfirm", "Avatar"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "backendReady": {
+    "list": true,
+    "detail": true,
+    "audit": true,
+    "del": true,
+    "batch": true,
+    "updateField": false
+  },
+  "notes": [
+    "会员认证（user_company）：List.vue 列表 + Info.vue 详情审核 + SelectConfig.vue 状态 Tab 合并为单页。",
+    "端点全部对齐 Rust 后端 routes/member/user_company.rs：GET /user/userCompany/list（status 0/缺省不过滤、username 空时后端回填 keyword）、GET /user/userCompany/detail、POST /user/userCompany/audit（{id,status:2|3,auditRemark}）、POST /user/userCompany/del（{id}，仅已拒绝行展示）、POST /user/userCompany/batch（{type:'del',ids}）。",
+    "状态 Tab：全部/待审核/审核通过/审核未通过（Tab 文案沿旧 SelectConfig「审核未通过」；行内状态文案取后端 statusText「审核不通过」）；状态点对齐旧 StatusDot 配色（1 蓝+闪烁、2 绿+闪烁、3 红常亮）。",
+    "详情弹窗：基础信息 Tab（认证资质/审核结果/审核备注/姓名/联系人手机/证件类型/证件号码/居住地址/出生日期/证件有效期/证件照正反面）+ 企业信息 Tab（type=2 时：企业名称/注册地址/经营范围/统一社会信用代码/营业期限/营业执照）；待审核状态展示 审核通过/审核不通过 按钮与审核备注输入框（不通过必填，前端校验文案「请输入审核备注」、后端兜底「请填写不通过说明」）。",
+    "与旧版差异：1) 旧版申请日期列 sortable=custom，ListPage 引擎未接列排序（Rust 后端已支持 sortField/sortOrder，待引擎支持后补）；2) 旧版电话经 MobileCard/后端 @Sensitive 脱敏，Rust 后端脱敏切面未实现、前端按原样展示；3) 旧 Info.vue 的「性别」一项旧版即已注释下线且后端 CompanyDataVO 不下发 sex，新版不展示；4) 注册地址旧版拼接 businessLicenseAddress，但 Java/Rust companyData 白名单均不含该键（实际恒为空），新版仅展示 licenseAddrProvinceName；5) 旧版图片经 imageFormat 拼 storageUrl 前缀，新版与其他迁移页一致直接使用后端返回的 picUrl；6) 旧版 detail 加载失败时弹窗关闭，新版一致；demo 模式直接用列表行数据展示详情；7) 旧版非弹窗模式的「提交」按钮（isDialog=false 分支）在本后台始终以弹窗打开，不迁移；8) updateField 旧 api 文件有导出但页面未使用，Rust 未实现（backendReady.updateField=false），无功能影响。"
+  ]
+}

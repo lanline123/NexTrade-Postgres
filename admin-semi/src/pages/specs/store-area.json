@@ -1,0 +1,25 @@
+{
+  "page": "store/adminPages/areaManage/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/StoreAreas.tsx",
+  "filters": ["keyword"],
+  "columns": ["序号", "区域名称", "区域门店数量", "排序"],
+  "actions": ["门店列表", "编辑", "删除"],
+  "batch": ["批量删除"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 200
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "区域管理(storeAreaManage)：ListPage + FormDrawer + 门店列表弹窗，接口 /o2o/areaStoreManager/*。"
+  ]
+}

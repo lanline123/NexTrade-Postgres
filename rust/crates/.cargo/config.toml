@@ -1,0 +1,17 @@
+# 本机构建环境（2026-10-13 双向验证）：
+#
+# 默认/活跃目标：x86_64-pc-windows-msvc（VS2022 MSVC 14.44 + WinSDK 10.0.26100 已安装，
+# rustc 经 vswhere 自动定位 link.exe/cl.exe，cargo check/test 已全绿）。
+#
+# GNU 目标备选：w64devkit（D:\w64devkit，gcc 16.2.0 + binutils 2.47）已加入用户级 PATH，
+# gcc/dlltool 均可按名解析，因此**无需**任何 [env] CC/DLLTOOL 覆盖 ——
+# [env] CC 强制为 gcc 会让 MSVC 目标的 C 依赖（ring 等 cc-rs build script）编译失败
+# （"GNU compiler is not supported" → windows.h 找不到）。
+#
+# GNU 构建步骤（按需）：
+#   rustup target add x86_64-pc-windows-gnu
+#   cargo build --target x86_64-pc-windows-gnu    # linker 见下方配置
+
+[target.x86_64-pc-windows-gnu]
+# 由 PATH 中的 w64devkit gcc 提供
+linker = "gcc"

@@ -1,0 +1,80 @@
+# NexTrade Rust 版 docker-compose
+# 对应原 Java docker-compose.yml（服务拓扑一致：mysql/redis/rabbitmq + 应用）
+# 用法：docker compose up -d --build
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: nextrade-rust-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nextrade-java}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+      # 兼容原 Hikari connection-init-sql：去除 ONLY_FULL_GROUP_BY
+      - --sql-mode=NO_ENGINE_SUBSTITUTION
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 首次启动导入已转换成有符号整型的 pure.sql（由 tools/compat/prepare_docker_mysql.py 生成）
+      # 直接挂 ../java/database 会执行大量 update/demo 脚本并因 INT UNSIGNED 解码失败
+      - ./deploy/mysql-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: nextrade-rust-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: nextrade-rust-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-admin}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nextrade-rust-app
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      RUST_LOG: info,nextrade=info,sqlx=warn
+      # 配置全部走环境变量（覆盖 config.yaml）
+      TIG_DATASOURCE__URL: "mysql://root:${MYSQL_ROOT_PASSWORD:-root}@mysql:3306/${MYSQL_DATABASE:-nextrade-java}"
+      TIG_REDIS__HOST: redis
+      TIG_RABBITMQ__HOST: rabbitmq
+      TIG_RABBITMQ__PASSWORD: ${RABBITMQ_DEFAULT_PASS:-admin}
+      TIG_JWT__SECRET: ${TIG_JWT_SECRET:-change-me-in-production-64-bytes-random-secret}
+      TIG_SERVER__ADMIN_PORT: "8080"
+      TIG_SERVER__API_PORT: "8181"
+    ports:
+      - "${ADMINAPI_PORT:-8080}:8080"
+      - "${API_PORT:-8181}:8181"
+    volumes:
+      - uploads:/app/uploads
+
+volumes:
+  mysql-data:
+  uploads:

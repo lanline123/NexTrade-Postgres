@@ -1,0 +1,26 @@
+{
+  "page": "decorate/mobileDecorate/Nav.vue",
+  "component": "rust/web/admin-semi/src/pages/DecorateMobilePages.tsx",
+  "filters": [
+    "decorateName"
+  ],
+  "columns": [
+    "ID",
+    "导航名称",
+    "发布状态",
+    "更新时间",
+    "操作"
+  ],
+  "actions": [
+    "编辑",
+    "删除"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "编辑"
+  },
+  "notes": [
+    "主导航栏配置"
+  ]
+}

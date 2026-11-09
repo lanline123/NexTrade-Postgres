@@ -1,0 +1,24 @@
+{
+  "page": "finance/deliveryStaffWithdraw/List.vue",
+  "component": "rust/web/admin-semi/src/pages/StaffWithdrawPages.tsx",
+  "filters": ["keyword", "status"],
+  "columns": ["提现单号", "员工", "手机号", "金额", "状态", "收款人", "收款账号", "申请时间"],
+  "actions": ["审核"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "width": 120
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "服务人员提现管理(serverStaffWithdrawManage)：ListPage，接口 /finance/serverStaffWithdraw/list 与 /audit。"
+  ]
+}

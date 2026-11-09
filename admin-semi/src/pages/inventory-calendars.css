@@ -1,0 +1,229 @@
+/* 库存日历（inventoryCalendar）页面专属样式 */
+
+/* 工具栏（筛选 + 周期切换 + 操作按钮） */
+.stock-calendar-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+
+.cal-total {
+  color: var(--semi-color-text-2);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* 商品信息单元格 */
+.cal-product {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+  min-width: 0;
+}
+
+.cal-product-name {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-ellipsis {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* 日期表头（周几 + MM-DD） */
+.cal-day-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 18px;
+  padding: 6px 0;
+}
+
+.cal-day-week {
+  font-weight: 600;
+}
+
+.cal-day-date {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+}
+
+/* 日期单元格 */
+.cal-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 58px;
+  padding: 6px 0;
+}
+
+.cal-cell-stock {
+  line-height: 18px;
+}
+
+.cal-cell-used {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.cal-cell-empty {
+  color: var(--semi-color-text-2);
+}
+
+/* 隐藏表头全选框（旧页为单选，无全选） */
+.stock-calendar-table .semi-table-thead .semi-table-column-selection {
+  visibility: hidden;
+}
+
+/* 日期列表头 hover 高亮（对齐旧 .day-cell） */
+.stock-calendar-table .semi-table-tbody .semi-table-row-cell:hover {
+  background-color: var(--semi-color-primary-light-default);
+}
+
+/* 弹窗内表单 */
+.cal-modal-tip {
+  background: var(--semi-color-primary-light-default);
+  border: 1px solid var(--semi-color-primary-light-active);
+  color: var(--semi-color-primary);
+  padding: 6px 10px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.cal-modal-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--semi-color-fill-0);
+  padding: 10px 12px;
+  border-radius: 4px;
+  margin-bottom: 14px;
+}
+
+.cal-modal-product {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cal-form-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.cal-form-label {
+  width: 90px;
+  flex-shrink: 0;
+  text-align: right;
+  line-height: 32px;
+  color: var(--semi-color-text-1);
+}
+
+.cal-form-control {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cal-form-control .semi-datepicker,
+.cal-form-control .semi-select {
+  align-self: flex-start;
+}
+
+.cal-unified-product {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cal-inline-field {
+  flex-direction: row;
+  align-items: center;
+}
+
+.cal-inline-text {
+  color: var(--semi-color-text-2);
+  font-size: 13px;
+}
+
+/* 排除时间块 */
+.cal-exclude-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.cal-exclude-block .semi-radio-group {
+  align-self: flex-start;
+}
+
+.cal-exclude-tip {
+  margin: 0;
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+}
+
+/* 弹窗内表格的表头提示 */
+.cal-table-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cal-help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--semi-color-border);
+  color: var(--semi-color-text-2);
+  font-size: 11px;
+  line-height: 1;
+  cursor: help;
+}
+
+@media only screen and (max-width: 767px) {
+  .stock-calendar-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .cal-form-field {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .cal-form-label {
+    width: auto;
+    text-align: left;
+    line-height: 22px;
+  }
+}

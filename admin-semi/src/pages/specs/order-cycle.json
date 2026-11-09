@@ -1,0 +1,21 @@
+{
+  "page": "order/order/List.vue",
+  "info": "cycleBuyManage 周期购订单（旧版菜单键存在但无独立页面源码；参考 5.8.60 o2o_admin 打包产物 List-WU4HGSAR.js 的实现）",
+  "component": "rust/web/admin-semi/src/pages/DeliverOrders.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "skipOldPage": true,
+  "backendReady": {
+    "cycleFilter": true
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "周期购订单：旧 5.8.57 后台无独立页面（菜单键来自权限表）；5.8.60 产物中为订单列表变体，发送 isCycleOrder=1，另有 payCode/cycleDeliveryType 筛选与分期详情弹窗(periodsList)。",
+    "本次为 Rust 后端补充 is_cycle_order 列表筛选（OrderListQuery + repo 条件，cargo check 通过，列 is_cycle_order 存在于订单表）。",
+    "新版复用 DeliverOrders variant='cycle'：isCycleOrder=1 + 全量状态 Tab。",
+    "待办：cycleDeliveryType/payCode 筛选与分期明细弹窗（periodsList 需独立后端接口）尚未实现，5.8.60 产物中分期信息随列表返回（cycleProgress 共N次）。"
+  ]
+}

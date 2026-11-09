@@ -1,0 +1,24 @@
+{
+  "page": "wholesale/wholesaler/List.vue",
+  "component": "rust/web/admin-semi/src/pages/Wholesalers.tsx",
+  "filters": ["keyword", "fromTag", "gradeId", "status"],
+  "columns": ["客户信息", "会员等级", "是否认证", "批发商等级", "状态", "添加时间"],
+  "actions": ["查看", "设置批发商等级", "删除"],
+  "batch": ["批量删除"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "width": 220
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "批发商列表(wholesalerManage)：ListPage，接口 /wholesale/wholesaler/page，支持添加、设置等级、启停状态、删除及批量删除。"
+  ]
+}

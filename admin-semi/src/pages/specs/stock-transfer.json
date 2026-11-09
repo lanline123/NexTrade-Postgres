@@ -1,0 +1,24 @@
+{
+  "page": "product/inventoryTransfer/List.vue",
+  "info": "product/inventoryTransfer/List.vue",
+  "component": "rust/web/admin-semi/src/pages/InventoryTransfers.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": ["单据号", "出库组织", "入库组织", "单据状态", "经办人", "创建时间"],
+  "actions": [],
+  "batch": [],
+  "widgets": {
+    "allocateForm": {
+      "type": "allocate-form-drawer",
+      "component": "rust/web/admin-semi/src/pages/InventoryTransfers.tsx",
+      "requires": ["product/stock/createAllocate", "stock-record-picker"],
+      "mcpChecks": ["FormDrawer", "Select", "InputNumber", "Table", "Modal"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "库存调拨：列表 productStockAllocateRecordPage；新建 createAllocate（出库/入库组织 getOrgList + 商品明细）；审核 auditAllocate(status=1)、调拨出库 stockOutAllocate(status=2)、作废 cancelAllocate；导出 exportAllocate、导入 batchImportAllocate + getAllocateTemplate。",
+    "状态机：1 待审核 2 待调出 3 待调入 4 已完成 5 审核驳回 6 已作废。",
+    "与旧版差异：审核/调出为确认弹窗（旧版 Detail/InAndOutOfTheWarehouse 大弹窗含逐商品数量核对，简化记录在案）；组织权限判断（仅当前组织可审/可出）未做前端限制，由后端接口校验。"
+  ]
+}

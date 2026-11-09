@@ -1,0 +1,21 @@
+{
+  "page": "finance/refundLog/List.vue",
+  "info": "finance/refundLog/List.vue",
+  "component": "rust/web/admin-semi/src/pages/RefundLogs.tsx",
+  "filters": [
+    "type",
+    "keyword"
+  ],
+  "columns": [
+    "退款信息",
+    "退款方式",
+    "退款金额",
+    "退款时间"
+  ],
+  "drawer": null,
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "只读日志列表。"
+  ]
+}

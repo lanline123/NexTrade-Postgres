@@ -1,0 +1,29 @@
+//! content 领域模型（DTO / Query / VO）。
+
+pub mod api_wechat_live;
+pub mod article;
+pub mod article_batch;
+pub mod article_category;
+pub mod decorate;
+pub mod decorate_promote;
+pub mod decorate_template;
+pub mod friend_links;
+pub mod gallery;
+pub mod gallery_pic;
+pub mod gallery_video;
+pub mod gallery_video_info;
+pub mod home;
+pub mod mobile_cat_nav;
+pub mod pc_cat_floor;
+pub mod pc_navigation;
+pub mod seo;
+pub mod share;
+pub mod wechat_auto_reply;
+pub mod wechat_kefu_capability;
+pub mod wechat_keyword_rule;
+pub mod wechat_live;
+pub mod wechat_live_goods;
+pub mod wechat_live_order_sync;
+pub mod wechat_live_sync_callback;
+pub mod wechat_menu;
+pub mod wechat_video_account;

@@ -1,0 +1,35 @@
+{
+  "page": "salesman/material/List.vue",
+  "component": "rust/web/admin-semi/src/pages/SalesmanContent.tsx",
+  "filters": [
+    "categoryId"
+  ],
+  "columns": [
+    "素材内容",
+    "相关商品",
+    "分类",
+    "操作"
+  ],
+  "actions": [
+    "取消置顶",
+    "编辑",
+    "失效",
+    "恢复",
+    "删除"
+  ],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right"
+    },
+    "longHeaders": []
+  },
+  "notes": [
+    "素材管理(materialManage/material):GET /salesman/material/list(行 {id,isTop,isAvailable,content,category{categoryName},product{productName}}),筛选 categoryId(下拉来自 /salesman/category/list,旧 selectCategory)。",
+    "操作:取消置顶/编辑/失效|恢复(updateField isAvailable 0|1)/删除(仅失效后);表单(旧 Info.vue):素材图片多图(ImageUploader)/素材分类/素材内容/选择商品(ProductPicker 单选,提交 join(\",\"))/是否置顶。",
+    "Rust 无 /salesman/material/config,旧版 getmaterialConfig 未被页面使用(记录);旧版推送时间筛选为注释死代码(记录)。",
+    "pics 以字符串数组提交(Rust SaveDTO.pics 为 JSON Value 透传,详情按字符串/对象双格式解析)。"
+  ]
+}

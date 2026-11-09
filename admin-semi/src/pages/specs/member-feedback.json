@@ -1,0 +1,16 @@
+{
+  "page": "user/feedback/List.vue",
+  "info": "user/feedback/List.vue",
+  "component": "rust/web/admin-semi/src/pages/Feedbacks.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": ["会员名称", "类型", "留言内容", "留言时间", "回复"],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "会员留言：接口 /user/feedback/*（list/detail/update/del/batch/recall/updateField）。",
+    "类型列含关联订单号（点击复用 OrderDetailModal 查看订单详情）/店铺名/商品名；回复走 update {id,parentId:0,content}。",
+    "与旧版差异：批量删除按钮受 canModifyFeedback 权限位控制，新版未接按钮级权限（与预警页同类差异）；留言图片 Image 预览未迁移（详情接口含图时以文本为准）。"
+  ]
+}

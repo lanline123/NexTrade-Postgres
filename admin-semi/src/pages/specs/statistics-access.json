@@ -1,0 +1,11 @@
+{
+  "page": "panel/statisticsAccess/List.vue",
+  "component": "rust/web/admin-semi/src/pages/PanelChartPages.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "访问统计(statisticsAccess)：点击量与访客数趋势图表，接口 /panel/statisticsAccess/accessStatistics。"
+  ]
+}

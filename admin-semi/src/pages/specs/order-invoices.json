@@ -1,0 +1,29 @@
+{
+  "page": "finance/orderInvoice/List.vue",
+  "info": "finance/orderInvoice/List.vue",
+  "component": "rust/web/admin-semi/src/pages/FinanceLists.tsx",
+  "filters": [
+    "keyword",
+    "status",
+    "invoiceType"
+  ],
+  "columns": [
+    "申请会员",
+    "公司名称/抬头",
+    "金额",
+    "申请日期",
+    "申请状态"
+  ],
+  "drawer": null,
+  "actions": [
+    "开票",
+    "已开",
+    "失败/作废",
+    "编辑",
+    "上传发票附件"
+  ],
+  "batch": [],
+  "notes": [
+    "2026-11-07 补齐开票/编辑弹窗：状态（0/1/2）+ 发票号 + 金额 + 附件上传，POST /finance/orderInvoice/update。"
+  ]
+}

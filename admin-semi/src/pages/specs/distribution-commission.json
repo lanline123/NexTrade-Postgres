@@ -1,0 +1,22 @@
+{
+  "page": "salesman/performanceSettlement/Index.vue",
+  "component": "rust/web/admin-semi/src/pages/FinanceOverviewPages.tsx",
+  "filters": ["keyword"],
+  "columns": ["分销佣金", "提现记录"],
+  "actions": ["搜索"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "分销佣金双Tab切换：分销佣金业绩明细 + 提现记录"
+  ]
+}

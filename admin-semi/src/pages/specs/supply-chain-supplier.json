@@ -1,0 +1,26 @@
+{
+  "page": "supplierManage",
+  "component": "rust/web/admin-semi/src/pages/SupplyChainSupplierPages.tsx",
+  "skipOldPage": true,
+  "filters": ["keyword"],
+  "columns": ["供应商编号", "供应商名称", "分类", "联系人", "联系电话", "状态", "操作"],
+  "actions": ["编辑"],
+  "batch": [],
+  "drawer": {
+    "width": 760
+  },
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "操作",
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "供应商管理(supplierManage)：逆向自 5.8.60 supplier-CQb0nS1X.js，接口 /supplyChain/supplier/*。"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "page": "panel/statisticsSale/List.vue",
+  "component": "rust/web/admin-semi/src/pages/PanelChartPages.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "销售统计(statisticsSale)：销售明细与销售商品明细，接口 /panel/salesStatistics/salesDetail 与 /salesProductDetail。"
+  ]
+}

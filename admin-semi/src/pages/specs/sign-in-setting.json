@@ -1,0 +1,25 @@
+{
+  "page": "promotion/signInSetting/List.vue",
+  "component": "rust/web/admin-semi/src/pages/PromotionExtraPages.tsx",
+  "filters": ["name"],
+  "columns": ["名称", "赠送积分", "排序", "操作"],
+  "actions": ["编辑", "删除"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "编辑",
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "drawer": {
+    "width": 600
+  },
+  "notes": [
+    "积分签到规则配置，端点 /promotion/signInSetting/*"
+  ]
+}

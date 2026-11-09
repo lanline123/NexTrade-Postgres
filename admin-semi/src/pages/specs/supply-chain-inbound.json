@@ -1,0 +1,23 @@
+{
+  "page": "purchaseInboundManage",
+  "component": "rust/web/admin-semi/src/pages/SupplyChainPurchasePages.tsx",
+  "skipOldPage": true,
+  "filters": ["keyword"],
+  "columns": ["入库单号", "关联采购单", "供应商", "入库件数", "操作人", "入库时间"],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "采购入库管理(purchaseInboundManage)：逆向自 5.8.60 purchaseInbound-P5qR5eG_.js，接口 /supplyChain/purchaseReceipt/*。"
+  ]
+}

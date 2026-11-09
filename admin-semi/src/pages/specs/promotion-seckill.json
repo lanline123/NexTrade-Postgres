@@ -1,0 +1,24 @@
+{
+  "page": "promotion/seckill/List.vue",
+  "info": "promotion/seckill/List.vue",
+  "component": "rust/web/admin-semi/src/pages/Seckills.tsx",
+  "drawer": null,
+  "filters": ["keyword"],
+  "columns": ["秒杀名称", "商品名称", "秒杀开始时间", "秒杀结束时间", "秒杀状态"],
+  "actions": ["edit"],
+  "batch": ["delete"],
+  "widgets": {
+    "seckillForm": {
+      "type": "seckill-form-drawer",
+      "component": "rust/web/admin-semi/src/pages/Seckills.tsx",
+      "requires": ["seckill-form-content", "promotion/seckill/create"],
+      "mcpChecks": ["InputNumber", "Table", "Modal", "SideSheet"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "限时秒杀：接口 /promotion/seckill/*（list/create/update/del/batch/detail/updateField），create/update 载荷对齐 Rust SeckillCreateDTO（seckillName/seckillStartTime/seckillEndTime 时间戳/seckillLimitNum/productId/seckillItem[{productId,skuId,seckillPrice,seckillStock}]）。",
+    "表单：单商品选择（ProductPicker + /product/product/detail 拉取 SKU 明细）→ 按 SKU 行设置秒杀价/秒杀库存 + 批量设置；编辑态价格库存禁改（与旧版一致）。",
+    "参与人群 SendUserSelector 已接入（提交 memberRange/memberMarks/sendUserTarget，对齐旧版 Info.vue）；活动日期为文本时间输入（YYYY-MM-DD HH:mm:ss），提交时转时间戳。"
+  ]
+}

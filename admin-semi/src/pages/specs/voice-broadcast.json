@@ -1,0 +1,23 @@
+{
+  "page": "voiceBroadcastManage",
+  "component": "rust/web/admin-semi/src/pages/WechatVoicePages.tsx",
+  "skipOldPage": true,
+  "filters": ["msgType"],
+  "columns": ["ID", "消息类型", "消息标题", "消息内容", "创建时间"],
+  "actions": ["搜索", "试听"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "语音播报管理：5项独立开关设置、试听能力及历史播报记录列表（端点 /msg/adminMsg/list）"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "page": "purchaseOrderManage",
+  "component": "rust/web/admin-semi/src/pages/SupplyChainPurchasePages.tsx",
+  "skipOldPage": true,
+  "filters": ["orderSn", "status"],
+  "columns": ["采购单号", "供应商", "采购总额", "采购件数", "订单状态", "下单时间", "操作"],
+  "actions": ["完结"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "操作",
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "采购订单管理(purchaseOrderManage)：逆向自 5.8.60 purchaseOrder-CBbaShMe.js，接口 /supplyChain/purchaseOrder/*。"
+  ]
+}

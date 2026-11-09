@@ -1,0 +1,45 @@
+{
+  "page": "salesman/product/List.vue",
+  "component": "rust/web/admin-semi/src/pages/SalesmanPromoteAndProducts.tsx",
+  "filters": [
+    "productName",
+    "status",
+    "salesmanProductType"
+  ],
+  "columns": [
+    "商品",
+    "金额",
+    "库存",
+    "是否参与推广",
+    "佣金",
+    "商品佣金",
+    "下级分销员邀请奖励",
+    "商品状态",
+    "操作时间",
+    "操作"
+  ],
+  "actions": [
+    "设置佣金"
+  ],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right"
+    },
+    "longHeaders": []
+  },
+  "backendReady": {
+    "del": false,
+    "updateField": false
+  },
+  "notes": [
+    "商品佣金管理(salesmanProductManage/salesmanProduct):GET /salesman/product/list,行 {productId,productName,picThumb,productPrice,productStock,productStatus,productType,commissionType,salesmanProduct{isJoin,productCommission{productCommission,subCommission},updateTime}}。",
+    "推广类型下拉来自 GET /salesman/product/config(Map<code,name>)。",
+    "设置佣金抽屉(旧 Info.vue):GET /salesman/product/detail + /salesman/config/detail 取等级,佣金计算 默认佣金比例/自定义佣金比例/自定义佣金金额,提交 POST /salesman/product/create|update {productId,isJoin(bool),commissionType,commissionData:[{levelArr:[{level,rate,downSalesmanRate}]}]}。",
+    "旧版行内 updateField(PopForm 商品名称)为注释死代码;Rust 亦无 /salesman/product/updateField,不实现(记录)。",
+    "旧版批量删除 Popconfirm 为空模板死代码;Rust /salesman/product/batch 仅支持 type=del,前端不渲染批量入口(记录)。",
+    "旧版商品列的 brandName/storeTitle/suppliersName(条件渲染)在 Rust SalesmanProductListVO 无对应字段(记录)。"
+  ]
+}

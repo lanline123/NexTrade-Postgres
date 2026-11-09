@@ -1,0 +1,36 @@
+{
+  "page": "premiumMemberRightManage",
+  "component": "rust/web/admin-semi/src/pages/PremiumMemberPages.tsx",
+  "skipOldPage": true,
+  "filters": [],
+  "columns": ["展示名称", "权益类型", "权益说明", "权益价值", "启用状态", "关联卡", "操作"],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "widgets": {
+    "rightsAggregateTable": {
+      "type": "aggregated-rights-table",
+      "component": "rust/web/admin-semi/src/pages/PremiumMemberPages.tsx",
+      "requires": ["listByPro"],
+      "mcpChecks": ["Banner", "Table", "Tag", "Input"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "backendReady": {
+    "batch": false,
+    "sort": false,
+    "premiumMemberRightApi": false
+  },
+  "notes": [
+    "权益中心 premiumMemberRightManage：无旧源码，逆向自 5.8.60 产物（List-lp4bZx7B.js → user_right/list；API premiumMemberRight-CWx7O0an.js：premiummember/right/list|detail|save|status|delete|sort|rules|rule/save|rule/delete；权益类型编辑 AddRight-DCu3zPN4.js / AddRights-B59Ji-Bc.js / DiscountRight / FreeShippingRight / PointsRight）。",
+    "旧页字段/文案（已留档）：消费折扣/倍积分/包邮/自定义权益/会员权益配置说明/可拖动权益列表进行排序，调整在用户端展示会员权益的顺序。/新建权益/展示名称/权益类型/权益说明/启用状态/关联卡/规则/设置规则/拖拽排序/删除。",
+    "backendReady：Rust admin 后端无 premiummember/right/* 端点（grep 全 routes 无命中）；按要求降级。",
+    "降级实现：从 GET /user/userRank/listByPro 聚合各等级权益（消费折扣 discount/倍积分 rankPoint/包邮 freeShipping/自定义权益 rights[isChecked]），展示关联卡；编辑引导至 userLevelProManage。拖拽排序（premiummember/right/sort）待后端补齐。"
+  ]
+}

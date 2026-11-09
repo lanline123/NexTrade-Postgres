@@ -1,0 +1,17 @@
+{
+  "page": "mobileSearchStyleManage",
+  "skipOldPage": true,
+  "component": "rust/web/admin-semi/src/pages/DecorateMobilePages.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [
+    "保存配置"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true
+  },
+  "notes": [
+    "移动端搜索风格配置"
+  ]
+}

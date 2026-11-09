@@ -1,0 +1,21 @@
+{
+  "page": "finance/deposit/audit/List.vue",
+  "info": "finance/deposit/audit/List.vue",
+  "columns": [
+    "组织名称",
+    "主体类型",
+    "交易金额",
+    "审核状态",
+    "提交时间"
+  ],
+  "component": "rust/web/admin-semi/src/pages/FinanceMoreLists.tsx",
+  "drawer": null,
+  "filters": [
+    "keyword"
+  ],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "当前为只读财务列表，后续补审核/导出操作。"
+  ]
+}

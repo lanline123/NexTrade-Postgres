@@ -1,0 +1,31 @@
+{
+  "page": "setting/region/List.vue",
+  "info": "setting/region/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/Regions.tsx",
+  "drawer": {
+    "width": 580,
+    "labelWidth": "auto"
+  },
+  "filters": [],
+  "columns": ["地区名称", "首字母", "是否热门"],
+  "actions": ["edit", "delete"],
+  "batch": ["delete"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 300
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "地区按 parentId 分层加载，支持返回上一级和钻取子地区。",
+    "原版地区名称/首字母行内编辑改为编辑抽屉。"
+  ]
+}

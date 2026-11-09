@@ -1,0 +1,14 @@
+{
+  "page": "order/termPay/termMember/List.vue",
+  "info": "order/termPay/termMember/List.vue(授信客户)",
+  "component": "rust/web/admin-semi/src/pages/CreditPages.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": ["会员名称", "授信额度", "可用额度", "已使用额度", "结算账期", "状态"],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "授信客户:/credit/user/*(list/create/update/delete/updateField/detail)。状态开关 updateField;actions 留空:新增/编辑授信表单已补齐（Modal：会员搜索选择 + 授信额度 + 结算账期 月结/季结 + 状态，走 credit/user/create|update）。"
+  ]
+}

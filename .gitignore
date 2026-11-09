@@ -1,0 +1,78 @@
+/target/
+**/target/
+**/target-verify/
+**/target-merge-*/
+crates.bak.*
+__pycache__/
+*.pyc
+_diag/
+_page.html
+# ���ر������ڲ�Ǩ��/����/Ѳ���ĵ������ύ
+rust/docs/
+rust/Rust-�ع��ֽ׶�Ǩ�Ƽƻ�.md
+rust/java����ϵͳRust��д��Ʊ��� V1.0.md
+rust/Java-to-Rust-Realistic-Tools-Guide.md
+rust/MIGRATION-TOOLS-SUMMARY.md
+rust/rust-migration-assessment.md
+rust/rust-migration-plan.md
+
+# 本地临时产物（不进版本库）
+scratch/
+.opencode/
+.workbuddy/
+1113738357_20260714_cert/
+**/.next.bak*/
+**/.next.bak-*/
+rust/web/pc-semi/.next/
+rust/web/pc-semi/.next-*/
+**/*.tsbuildinfo
+
+# Next.js ad-hoc check caches (local build artifacts)
+**/.next-check*/
+**/.next-check-*/
+
+# Windows redirect junk
+nul
+
+# local binaries / scratch captures (not for VCS)
+rustshop
+salesman-icon-*.txt
+tools/_tmp/
+
+# reference baseline, intentionally untracked
+java-b2b2c-overseas-v5.8.61/
+
+# local-only docs & AI collaboration config (kept on disk, removed from VCS 2026-11-06)
+docs/
+.skills/
+AGENTS.md
+.mcp.json
+
+# Craft Anything session artifacts & local-only captures (2026-11-07)
+craft.json
+feed.json
+transcript.json
+usage.json
+build-activity.log
+capture/
+inbox/
+investigation.cany/
+rust/web/admin-semi/dist-backup-*/
+rust/web/admin-semi/shot-*.png
+
+# electron/electron-builder noise logs
+debug.log
+
+# pc-semi local migration/audit scratch (2026-11-08, kept on disk only)
+.zcode/
+rust/web/pc-semi/.tmp-*
+rust/web/pc-semi/checks/
+rust/web/pc-semi/scripts/_*
+rust/web/pc-semi/m\[1\])
+
+# Migration audit and test logs
+*.log
+audit_*.py
+audit_*.json
+MIGRATION-AUDIT-*.md
+probe-pg-pks.sh

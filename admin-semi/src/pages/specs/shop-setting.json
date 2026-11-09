@@ -1,0 +1,15 @@
+{
+  "page": "shop/shopSettings/Info.vue",
+  "info": "shop/shopSettings/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/ShopSettings.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "店铺设置：接口 setting/config/shopSettings + saveShop。",
+    "店铺商品审核为反向勾选（勾选=商品默认审核通过=0），用 renderer 保持旧版语义。"
+  ]
+}

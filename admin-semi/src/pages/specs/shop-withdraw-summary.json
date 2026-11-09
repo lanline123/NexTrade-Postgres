@@ -1,0 +1,22 @@
+{
+  "page": "finance/shopFunds/withdrawSummary/List.vue",
+  "component": "rust/web/admin-semi/src/pages/FinanceOverviewPages.tsx",
+  "filters": ["keyword", "status"],
+  "columns": ["店铺名称", "店铺LOGO", "店铺状态", "店铺剩余资金", "已提现金额", "待提现金额", "开店时间", "操作"],
+  "actions": ["详情"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "详情",
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "店铺提现汇总列表，端点 /merchant/shopWithdraw/summaryList"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "name": "@nextrade/pc-semi",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/copy-semi-css.mjs",
+    "dev": "node scripts/run-next.mjs dev -p 3004",
+    "prebuild": "node scripts/copy-semi-css.mjs",
+    "build": "node scripts/run-next.mjs build && node scripts/static-snapshot.mjs",
+    "build:next": "node scripts/run-next.mjs build",
+    "snapshot": "node scripts/static-snapshot.mjs",
+    "start": "node scripts/run-next.mjs start -p 3004",
+    "typecheck": "tsc --noEmit",
+    "audit:pc": "node scripts/audit-pc-coverage.mjs",
+    "audit:i18n": "node scripts/audit-i18n-coverage.mjs",
+    "audit:links": "node scripts/check-links.mjs"
+  },
+  "dependencies": {
+    "@douyinfe/semi-icons": "^2.104.0",
+    "@douyinfe/semi-ui": "^2.104.0",
+    "@icon-park/react": "^1.4.2",
+    "@tanstack/react-query": "^5.59.0",
+    "@types/qrcode": "^1.5.6",
+    "i18next": "^26.7.1",
+    "next": "14.2.15",
+    "qrcode": "^1.5.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-i18next": "^17.1.12",
+    "sass": "^1.80.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.7",
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,0 +1,13 @@
+# Rust 构建产物
+crates/target/
+**/*.rs.bk
+
+# 运行时
+logs/
+uploads/
+backups/
+*.log
+
+# 环境配置（含密钥）
+.env
+config.local.yaml

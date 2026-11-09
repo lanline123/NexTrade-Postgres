@@ -1,0 +1,18 @@
+{
+  "page": "o2o_admin/cashier/order-setting",
+  "info": "o2o_admin/cashier/order-setting",
+  "columns": [
+    "收银设置",
+    "打印设置",
+    "商品设置"
+  ],
+  "filters": [],
+  "component": "rust/web/admin-semi/src/pages/PosPages.tsx",
+  "skipOldPage": true,
+  "drawer": null,
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "参考 o2o_admin 编译前端实现。"
+  ]
+}

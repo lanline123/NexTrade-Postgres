@@ -1,0 +1,15 @@
+{
+  "page": "product/enquiry/List.vue",
+  "info": "product/enquiry/List.vue",
+  "component": "rust/web/admin-semi/src/pages/Enquiries.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": ["商品名称", "询价内容", "状态", "联系电话", "创建时间"],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "商品询价：接口 /product/priceInquiry/*（list/detail/reply/del/batch）。",
+    "未回复可回复（reply {id,replyContent}），已回复只读展示；旧版 ProductCard 商品链接未迁移（后台无前台路由）。"
+  ]
+}

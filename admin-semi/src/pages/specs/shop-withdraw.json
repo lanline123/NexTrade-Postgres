@@ -1,0 +1,25 @@
+{
+  "page": "finance/shopFunds/shopAccountRaply/List.vue",
+  "component": "rust/web/admin-semi/src/pages/FinanceStatementPages.tsx",
+  "filters": ["status"],
+  "columns": ["申请时间", "金额", "手续费", "手续费率", "提现类型", "状态", "收款人", "收款账号", "到账方式", "备注"],
+  "actions": ["详情", "审核通过", "拒绝", "上传打款凭证"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 190
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "店铺提现申请(shopWithdrawApplyManage)：ListPage，接口 /merchant/shopWithdraw/*。"
+  ]
+}

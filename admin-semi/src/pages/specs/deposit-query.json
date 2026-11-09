@@ -1,0 +1,21 @@
+{
+  "page": "finance/deposit/shop/List.vue",
+  "info": "finance/deposit/shop/List.vue",
+  "columns": [
+    "组织名称",
+    "应缴金额",
+    "已缴金额",
+    "剩余待缴",
+    "保证金状态"
+  ],
+  "component": "rust/web/admin-semi/src/pages/FinanceMoreLists.tsx",
+  "drawer": null,
+  "filters": [
+    "keyword"
+  ],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "当前为只读财务列表，后续补审核/导出操作。"
+  ]
+}

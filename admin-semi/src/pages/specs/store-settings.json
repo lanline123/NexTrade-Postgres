@@ -1,0 +1,11 @@
+{
+  "page": "store/adminPages/storeSetting/settingStore.vue",
+  "component": "rust/web/admin-semi/src/pages/StoreSettings.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "门店设置(storeSettingsManage)：StoreSettings(包装 AutoConfigPage)，接口 setting/config/storeSettings + saveStore。"
+  ]
+}

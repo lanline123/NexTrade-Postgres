@@ -1,0 +1,28 @@
+/* 图文介绍 预览样式（逐条移植自 view/admin imageTextComponent/Preview.vue scoped less） */
+.module-ad-con {
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center top;
+    position: relative;
+}
+.imagetext .image-box {
+    overflow: hidden;
+}
+.imagetext .image-box .img {
+    width: 100%;
+    display: block;
+}
+.imagetext .intro-box {
+    padding: 15px 10px 5px;
+}
+.imagetext .intro-box .title {
+    font-size: 20px;
+    font-weight: 700;
+}
+.imagetext .intro-box .intro {
+    font-size: 14px;
+    line-height: 24px;
+    width: 100%;
+    overflow: hidden;
+    white-space: pre-wrap;
+}

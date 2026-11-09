@@ -1,0 +1,31 @@
+{
+  "page": "product/productGroup/List.vue",
+  "info": "product/productGroup/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/ProductGroups.tsx",
+  "drawer": {
+    "width": 600,
+    "labelWidth": "auto"
+  },
+  "filters": ["keyword"],
+  "columns": ["分组名称", "分组别名", "分组描述", "添加时间"],
+  "actions": ["edit", "delete"],
+  "batch": ["delete"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 150
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "分组商品通过远程商品列表多选接入。",
+    "添加时间排序后端未提供，暂未实现列排序。"
+  ]
+}

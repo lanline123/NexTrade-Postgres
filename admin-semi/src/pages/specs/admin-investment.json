@@ -1,0 +1,24 @@
+{
+  "page": "adminMerchant/investment/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/InvestmentContent.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [
+    "编辑描述"
+  ],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "招商内容配置页，4大Tab分类（招商首页、招商计划、招商标准、入驻流程）",
+    "调用接口 /decorate/decorateDiscrete/detail 与 update",
+    "支持各模块标题、流程图/轮播图、富文本/多行描述编辑与持久化"
+  ]
+}

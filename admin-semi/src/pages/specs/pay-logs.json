@@ -1,0 +1,23 @@
+{
+  "page": "finance/payLog/List.vue",
+  "info": "finance/payLog/List.vue",
+  "component": "rust/web/admin-semi/src/pages/PayLogs.tsx",
+  "filters": [
+    "payStatus",
+    "keyword"
+  ],
+  "columns": [
+    "订单编号",
+    "订单收件人",
+    "支付方式",
+    "支付金额",
+    "支付日期",
+    "支付状态"
+  ],
+  "drawer": null,
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "只读日志列表。"
+  ]
+}

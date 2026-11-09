@@ -1,0 +1,43 @@
+{
+  "page": "salesman/promoteMode/List.vue",
+  "component": "rust/web/admin-semi/src/pages/SalesmanPromoteAndProducts.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "widgets": {
+    "salesmanLevelTable": {
+      "type": "levels-step-table",
+      "component": "rust/web/admin-semi/src/pages/SalesmanPromoteAndProducts.tsx",
+      "requires": [
+        "升级条件",
+        "商品佣金",
+        "下级分销员邀请奖励"
+      ],
+      "mcpChecks": [
+        "Popover",
+        "Checkbox",
+        "InputNumber",
+        "Tooltip",
+        "Modal",
+        "Drawer"
+      ]
+    }
+  },
+  "interactionChecks": [
+    "rust/web/admin-semi/scripts/verify-engine.cjs"
+  ],
+  "notes": [
+    "分销模式(promoteModeManage/promoteMode):GET/POST /salesman/config/detail|save?code=salesmanConfig,JSON 透传(distributionMode/saleType/registerToSalesman/recruitMethods/viewCustomerInfo/level)。",
+    "分销员等级方案表(旧 stepTable.vue):≤10 级,等级名/升级条件(自购金额/推广金额/发展客户数,自绘 ConditionEditor 气泡,含上一等级禁用联动)/商品佣金比例/二级分销时下级分销员邀请奖励比例。",
+    "切换分销模式二次确认弹窗(旧 watch 拦截)与《功能对比》抽屉(模式差异表+FAQ)已实现。",
+    "微商模式下招募方式禁用联动、切出微商清空 recruitMethods 已对齐;旧版分销隐私示例图片(viewCustomerInfoExampleImg)未迁移(记录)。",
+    "旧版注释的 inviteSales(邀请分销员)升级条件为死代码,未迁移(记录)。"
+  ]
+}

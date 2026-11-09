@@ -1,0 +1,22 @@
+{
+  "page": "setting/wechat/autoReply/Index.vue",
+  "component": "rust/web/admin-semi/src/pages/WechatVoicePages.tsx",
+  "filters": [],
+  "columns": ["被关注回复", "登录成功回复", "收到消息回复"],
+  "actions": ["保存"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "公众号自动回复设置：被关注回复、登录成功回复、收到消息回复，端点 /wechat/autoReply/*"
+  ]
+}

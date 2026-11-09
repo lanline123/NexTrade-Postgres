@@ -1,0 +1,46 @@
+{
+  "page": "authority/adminRole/List.vue",
+  "info": "authority/adminRole/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/Roles.tsx",
+  "drawer": {
+    "width": 800,
+    "labelWidth": "auto"
+  },
+  "filters": ["keyword"],
+  "columns": ["角色名称", "描述"],
+  "actions": ["edit", "delete"],
+  "batch": ["delete"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 150
+    },
+    "longHeaders": []
+  },
+  "widgets": {
+    "authorityList": {
+      "type": "authority-select",
+      "component": "rust/web/admin-semi/src/components/AuthorityTree.tsx",
+      "requires": [
+        "authority-select-head",
+        "authority-row",
+        "authority-child-more",
+        "authority-grandchildren",
+        "useControlledField"
+      ],
+      "mcpChecks": ["Checkbox", "Dropdown"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-role-authority.cjs"],
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "系统内置角色不显示编辑/删除，只展示系统内置提示。",
+    "权限列表使用权限树多选，勾选父级会选中子权限。"
+  ]
+}

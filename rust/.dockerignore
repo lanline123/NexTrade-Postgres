@@ -1,0 +1,7 @@
+target/
+crates/target/
+logs/
+*.log
+uploads/
+deploy/mysql-init/
+.git/

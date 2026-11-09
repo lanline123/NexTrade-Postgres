@@ -1,0 +1,30 @@
+{
+  "page": "decorate/pcCustomPage/List.vue",
+  "component": "rust/web/admin-semi/src/pages/DecoratePcPages.tsx",
+  "filters": [
+    "decorateName"
+  ],
+  "columns": [
+    "ID",
+    "页面名称",
+    "发布状态",
+    "更新时间",
+    "排序",
+    "操作"
+  ],
+  "actions": [
+    "装修",
+    "删除"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "装修"
+  },
+  "drawer": {
+    "width": 600
+  },
+  "notes": [
+    "PC自定义页装修"
+  ]
+}

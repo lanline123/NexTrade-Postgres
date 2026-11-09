@@ -1,0 +1,27 @@
+{
+  "page": "salesman/overview/src/AnalysisTable.vue",
+  "component": "rust/web/admin-semi/src/pages/SalesmanOverview.tsx",
+  "filters": [],
+  "columns": [
+    "排名",
+    "商品",
+    "成交金额",
+    "支出佣金"
+  ],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "backendReady": {
+    "sort": false
+  },
+  "notes": [
+    "成交分析(analysisTableManage/analysisTable):GET /salesman/product/analysis,行 {productId,productName,productSn,picThumb,totalProductMoney,commissionExpenses}。",
+    "时间筛选(旧 SelectTime.vue 自然日/自然月/自定义 → dateType+startEndTime)以自绘 SalesmanTimeFilter 实现;startEndTime 提交 yyyy-MM-dd HH:mm:ss,yyyy-MM-dd HH:mm:ss。",
+    "排序 totalProductMoney/commissionExpenses 服务端白名单支持(sorter:true + onChange);货号:与旧版一致。"
+  ]
+}

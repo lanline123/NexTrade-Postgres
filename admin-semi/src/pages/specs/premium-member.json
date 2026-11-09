@@ -1,0 +1,37 @@
+{
+  "page": "premiumMemberManage",
+  "component": "rust/web/admin-semi/src/pages/PremiumMemberPages.tsx",
+  "skipOldPage": true,
+  "filters": [],
+  "columns": ["权益卡名称", "有效期/状态", "升级条件", "会员权益", "领卡会员", "操作"],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "widgets": {
+    "rankProTable": {
+      "type": "degraded-rank-table",
+      "component": "rust/web/admin-semi/src/pages/PremiumMemberPages.tsx",
+      "requires": ["listByPro"],
+      "mcpChecks": ["Banner", "Table", "Image", "Input"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "backendReady": {
+    "batch": false,
+    "sort": false,
+    "premiumMemberCardApi": false
+  },
+  "notes": [
+    "付费会员 premiumMemberManage：无 5.8.57 旧源码，逆向自 5.8.60 o2o_admin 产物（config 路由 chunk 定位 List-DRDd1KA2.js → user_type/list；列表主体 MemberList-Q_diXH-p.js；卡片表单 AddPremiumMember-BT6iXMy3.js；API premiumMemberCard-Dp5ptzVN.js：premiummember/card/list|detail|post|save|status|display|delete）。",
+    "旧页字段/文案（已在组件头注释留档）：权益卡名称/有效期状态/领卡奖励/领卡会员/是否展示/启用状态/新建付费会员卡/投放/付费会员卡详情/编辑付费会员卡/停用付费会员卡/付费记录/付费会员装修。",
+    "backendReady：Rust admin 后端无 premiummember/card/* 端点（grep 全 routes 无命中），5.8.60 产品契约存在但未迁移；按要求降级为只读列表。",
+    "降级实现：GET /user/userRank/listByPro（已有端点，routes/member/user_rank.rs）读取付费会员等级（Pro）方案；编辑引导至 userLevelProManage（POST /user/userRank/update）。关键字搜索为前端过滤。",
+    "领卡奖励/是否展示/投放/停用/卡面设置等依赖 premiummember/card 契约字段，后端补齐后需回补完整表单。"
+  ]
+}

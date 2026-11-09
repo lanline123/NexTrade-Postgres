@@ -1,0 +1,22 @@
+{
+  "page": "panel/statisticsGoods/List.vue",
+  "component": "rust/web/admin-semi/src/pages/PanelStatisticsPages.tsx",
+  "filters": ["keyword"],
+  "columns": ["商品名称", "商品编号", "总销量", "总销售额"],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "商品统计(statisticsGoods)：ListPage，接口 /panel/salesStatistics/salesRanking。"
+  ]
+}

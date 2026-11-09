@@ -1,0 +1,35 @@
+{
+  "page": "im/kefuList/List.vue",
+  "info": "im/kefuList/List.vue（客服列表）",
+  "component": "rust/web/admin-semi/src/pages/KefuList.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": ["ID", "头像/姓名", "员工身份", "手机号", "添加时间", "账号状态"],
+  "actions": [],
+  "batch": [],
+  "widgets": {
+    "kefuAccess": {
+      "type": "kefu-access-config",
+      "component": "rust/web/admin-semi/src/pages/KefuAccessSettings.tsx",
+      "requires": ["im/shopKefuConfig/accessConfig/save"],
+      "mcpChecks": ["RadioGroup", "Switch"]
+    },
+    "kefuReply": {
+      "type": "kefu-greeting-config",
+      "component": "rust/web/admin-semi/src/pages/KefuQuickReplies.tsx",
+      "requires": ["im/config/config/save"],
+      "mcpChecks": ["Tabs", "Checkbox", "TextArea"]
+    },
+    "kefuAccount": {
+      "type": "kefu-account-info",
+      "component": "rust/web/admin-semi/src/pages/KefuAccountInfo.tsx",
+      "requires": ["authority/adminUser/mineDetail"],
+      "mcpChecks": ["Tabs", "Input", "ImageUploader"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "客服模块四页：客服列表(/im/adminUserKefu/*,账号状态 updateField,人员增删在员工管理)、接入规则(/im/shopKefuConfig/accessConfig/*)、快捷回复三Tab(/im/config/config/*,code welcome/queue/end)、账户信息(/authority/adminUser/mineDetail+modifyManageAccounts,API Token 引导至管理员列表)。",
+    "后端缺失（挂起）：conversation/conversation/*(历史会话 kefuHistoryList、客服工作台 customerService0)与 servant/* 在 Rust 未实现，待后端补充后迁移。"
+  ]
+}

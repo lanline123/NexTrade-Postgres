@@ -1,0 +1,22 @@
+{
+  "page": "finance/staffFundWallet/Overview.vue",
+  "component": "rust/web/admin-semi/src/pages/FinanceOverviewPages.tsx",
+  "filters": ["keyword", "type"],
+  "columns": ["ID", "姓名", "手机号", "类型", "可用收益", "冻结收益", "累计收益"],
+  "actions": ["搜索"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "员工收益资金总览，端点 /finance/staffFundWallet/overview 与 staffList"
+  ]
+}

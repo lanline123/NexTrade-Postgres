@@ -1,0 +1,22 @@
+{
+  "page": "finance/userBalanceLog/List.vue",
+  "info": "finance/userBalanceLog/List.vue",
+  "component": "rust/web/admin-semi/src/pages/BalanceLogs.tsx",
+  "filters": [
+    "keyword",
+    "username"
+  ],
+  "columns": [
+    "账户变动时间",
+    "会员用户名",
+    "账户变动原因",
+    "变动资金账户",
+    "冻结资金账户"
+  ],
+  "drawer": null,
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "只读日志列表。"
+  ]
+}

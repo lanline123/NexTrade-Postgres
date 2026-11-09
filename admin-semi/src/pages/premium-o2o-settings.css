@@ -1,0 +1,117 @@
+/* 付费会员（PremiumMemberPages）与同城配送/上门服务（O2ODeliveryServicePages）独立样式 */
+
+.pmo-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pmo-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.pmo-card-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pmo-card-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: var(--semi-color-primary-light-default);
+  color: var(--semi-color-primary);
+  font-size: 12px;
+}
+
+.pmo-rights-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.pmo-bound-ranks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+/* —— 设置表单（同城配送 / 上门服务） —— */
+
+.pmo-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 760px;
+}
+
+.pmo-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pmo-section-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--semi-color-text-0);
+}
+
+.pmo-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pmo-option-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 6px;
+}
+
+.pmo-option-name {
+  font-weight: 500;
+}
+
+.pmo-help {
+  font-size: 13px;
+  color: var(--semi-color-text-2);
+  line-height: 1.6;
+}
+
+.pmo-form-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pmo-form-label {
+  color: var(--semi-color-text-1);
+  white-space: nowrap;
+}
+
+.pmo-unit {
+  color: var(--semi-color-text-1);
+}
+
+.pmo-pricing-block {
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px dashed var(--semi-color-border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

@@ -1,0 +1,20 @@
+{
+  "page": "finance/merchantApplication/ManageList.vue",
+  "info": "finance/merchantApplication/DetailForm.vue",
+  "columns": [
+    "商户名称",
+    "主体类型",
+    "状态",
+    "申请时间"
+  ],
+  "component": "rust/web/admin-semi/src/pages/FinanceMoreLists.tsx",
+  "drawer": null,
+  "filters": [
+    "keyword"
+  ],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "当前为只读财务列表，后续补审核/导出操作。"
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "page": "panel/statisticsOrder/List.vue",
+  "component": "rust/web/admin-semi/src/pages/PanelChartPages.tsx",
+  "filters": [
+    { "name": "statisticType", "type": "tabs", "options": ["订单金额统计(1)", "订单数统计(0)"] },
+    { "name": "dateType", "type": "select", "options": ["按年筛选(1)", "按月筛选(2)"], "note": "按年用 Select 年份下拉(Semi 无 year 类型面板)，按月用 DatePicker type=month format=yyyy-MM" },
+    { "name": "startEndTime", "type": "yearSelect/monthPicker", "note": "默认当前年；dateType 切换与搜索按钮都触发重新加载" }
+  ],
+  "columns": [],
+  "actions": ["搜索", "导出EXCEL"],
+  "batch": [],
+  "widgets": {
+    "statCards": {
+      "type": "custom",
+      "component": "rust/web/admin-semi/src/pages/PanelChartPages.tsx",
+      "requires": ["/panel/salesStatistics/list"],
+      "mcpChecks": ["人工核对 Semi 统计卡与趋势图数据契约"],
+      "note": "金额视图5卡(商品支付金额/商品退款金额/营业额/充值金额*/余额支付金额*，*仅平台admin)+口径Tooltip；数量视图4卡(支付订单数/退款订单数量/充值订单数/余额支付订单数)；环比>0红上箭头否则绿下箭头"
+    },
+    "trendChart": {
+      "type": "custom",
+      "component": "rust/web/admin-semi/src/components/TrendChart.tsx",
+      "requires": ["LineChart", "LegendComponent"],
+      "mcpChecks": ["人工核对 Semi 统计卡与趋势图数据契约"],
+      "note": "金额视图: name=订单金额 color=#1456f0 yAxisPrefix=¥ unit=''; 数量视图: name=订单数 color=#fac858 yAxisPrefix='' unit=件; 横轴标签按 dateType 加 月/日 后缀；底部图例"
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "接口 /panel/salesStatistics/list 接受 statisticType/dateType/startEndTime(camelCase)，Rust sales_range 按 dateType=1 解析 YYYY、=2 解析 YYYY-MM。",
+    "原版 api panel/salesStatistics/list + isExport=1 导出 arraybuffer；Rust 后端未实现导出，前端用当前图表数据导出 CSV(BOM)。",
+    "原版默认 dateType=1 + 当前年；金额视图 admin 多展示 充值金额/余额支付金额 两卡(adminType==='admin' 判断)。",
+    "TrendChart 新增 color/unit/legend props(向后兼容)，grid bottom 在 legend 时留 30px 防止图例与横轴重叠。"
+  ]
+}

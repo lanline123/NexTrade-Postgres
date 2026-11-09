@@ -1,0 +1,33 @@
+{
+  "page": "salesman/customerTransactions/List.vue",
+  "component": "rust/web/admin-semi/src/pages/SalesmanDetailedPages.tsx",
+  "filters": [
+    "keyword"
+  ],
+  "columns": [
+    "订单信息(下单时间排序)",
+    "所属分销员",
+    "客户名称",
+    "订单金额",
+    "订单状态"
+  ],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "backendReady": {
+    "export": false,
+    "keywordFilter": false
+  },
+  "notes": [
+    "客户成交(customerTransactionsManage/customerTransactions):GET /salesman/customerTransaction/list,行 {salesmanId,salesmanName,orderId,orderSn,userId,username,addTime,totalAmount,paidAmount,orderStatus}。",
+    "分销员筛选为远程搜索下拉(/salesman/salesman/salesmanList?nickname=,旧 selectsalesmanList),以 query.salesmanId 提交;时间筛选(旧 startTime/endTime)以 SalesmanTimeFilter → query 提交。",
+    "Rust 未实现 keyword 过滤(参数被忽略,已记录);订单状态按 orderStatus 映射(0待支付/1待发货/2已发货/3已取消/4无效/5已完成)。",
+    "旧版逐单商品明细卡表(items/收货人/收货时间/物流/支付方式/订单来源/积分兑换)依赖 Java 83 列订单快照,Rust CustomerTransactionVO 为精简子集,改为主表+订单金额列(记录)。",
+    "导出:旧版 GET list+isExport=1 Excel;Rust isExport 被忽略,导出按钮保留并给出明确提示(记录)。"
+  ]
+}

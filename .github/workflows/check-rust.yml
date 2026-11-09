@@ -1,0 +1,47 @@
+name: check-rust
+
+# 代码推送或 PR 时在 GitHub Actions 云端运行编译检查
+# 避免在本地占用内存与资源
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'rust/crates/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'rust/crates/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Cargo Check
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/crates -> target
+
+      - name: Run Cargo Check
+        working-directory: rust/crates
+        run: |
+          cargo check --workspace

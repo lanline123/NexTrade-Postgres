@@ -1,0 +1,19 @@
+{
+  "page": "setting/logisticsCompanyConfig/List.vue",
+  "info": "setting/logisticsCompanyConfig/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/LogisticsSettings.tsx",
+  "drawer": { "width": 620, "labelWidth": "auto" },
+  "filters": ["keyword"],
+  "columns": ["物流公司名称", "编号", "物流公司描述", "客户编码", "月结号", "网点编码", "网点名称", "是否启用"],
+  "actions": ["edit", "delete"],
+  "batch": ["delete"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": { "fixed": "right", "width": 200 },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": { "batch": true, "sort": false },
+  "notes": ["支持设为默认物流、启用/停用。"]
+}

@@ -1,0 +1,306 @@
+/* 分销模块(salesman)独立样式 —— 仅本模块组件使用,勿改 styles.css */
+
+/* ===== 概览:核心数据汇总 ===== */
+.salesman-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.salesman-summary-item {
+  background: #f7f8fa;
+  border: 1px solid #eef1f6;
+  border-radius: 8px;
+  padding: 18px 22px;
+}
+.salesman-summary-item .tit {
+  color: #646566;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+.salesman-summary-item .num {
+  font-size: 24px;
+  color: #323233;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.salesman-summary-item .num.is-empty {
+  color: #b9c0cc;
+  font-weight: 500;
+}
+
+/* ===== 时间筛选行(自然日/自然月/自定义) ===== */
+.salesman-time-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.salesman-time-filter .label {
+  color: #333;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* ===== 排行名次徽标 ===== */
+.salesman-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 12px;
+  color: #fff;
+  background: #c0c4cc;
+}
+.salesman-rank-badge.top1 { background: #f7ba2a; }
+.salesman-rank-badge.top2 { background: #a8b0bd; }
+.salesman-rank-badge.top3 { background: #d48b58; }
+
+/* ===== 分销模式页 ===== */
+.salesman-mode-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 28px 0 16px;
+}
+.salesman-mode-section-title:first-child { margin-top: 0; }
+.salesman-mode-tip {
+  color: #979797;
+  margin: 14px 0 4px;
+  font-size: 13px;
+}
+.salesman-mode-tip .link {
+  color: var(--semi-color-primary);
+  cursor: pointer;
+}
+.salesman-mode-tooltip {
+  max-width: 360px;
+  line-height: 1.7;
+  font-size: 13px;
+}
+.salesman-mode-tooltip .lead { margin-bottom: 6px; }
+.salesman-mode-tooltip .section { margin-top: 4px; }
+.salesman-mode-extra {
+  color: #8a94a6;
+  font-size: 12px;
+  margin-top: 6px;
+}
+.salesman-form-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.salesman-form-row > .row-label {
+  flex: 0 0 110px;
+  padding-top: 5px;
+  color: rgba(28, 31, 35, 0.8);
+}
+.salesman-form-row > .row-label.is-required::before {
+  content: '* ';
+  color: var(--semi-color-danger);
+}
+.salesman-form-row .row-body { flex: 1; min-width: 0; }
+
+/* ===== 分销员等级方案表(stepTable) ===== */
+.salesman-level-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--semi-color-border);
+}
+.salesman-level-table th,
+.salesman-level-table td {
+  border: 1px solid var(--semi-color-border);
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+  font-size: 13px;
+}
+.salesman-level-table th {
+  background: var(--semi-color-fill-0);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.salesman-level-table .condition-text { white-space: nowrap; }
+.salesman-level-table .condition-text .gray { color: #a4abb5; }
+.salesman-level-table .rate-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.salesman-level-table .rate-item:last-child { margin-bottom: 0; }
+.salesman-level-table .rate-item .rate-label {
+  flex: 0 0 auto;
+  color: rgba(28, 31, 35, 0.65);
+  white-space: nowrap;
+}
+.salesman-condition-popover-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--semi-color-border);
+}
+.salesman-condition-popover-row:last-child { border-bottom: none; }
+.salesman-condition-popover-row .inp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* ===== 商品佣金弹窗:等级佣金表 ===== */
+.salesman-commission-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+.salesman-commission-table th,
+.salesman-commission-table td {
+  border: 1px solid var(--semi-color-border);
+  padding: 8px 10px;
+  text-align: center;
+  font-size: 13px;
+}
+.salesman-commission-table th { background: var(--semi-color-fill-0); }
+
+/* ===== 分销员详情/佣金详情 ===== */
+.salesman-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.salesman-detail-head .name { font-weight: 600; font-size: 15px; }
+.salesman-detail-head .level-tag { color: #155bd4; border: 1px solid #356fd4; padding: 1px 6px; border-radius: 2px; font-size: 12px; }
+.salesman-detail-rows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  color: rgba(28, 31, 35, 0.75);
+  margin-bottom: 6px;
+}
+.salesman-detail-rows .item { min-width: 220px; font-size: 13px; }
+.salesman-detail-band {
+  background: #f7f7f7;
+  padding: 8px 10px;
+  margin: 14px 0;
+  font-size: 14px;
+}
+.salesman-detail-band .txt {
+  border-left: 3px solid #155bd4;
+  padding-left: 10px;
+  font-weight: 500;
+}
+.salesman-stat-list { display: flex; flex-wrap: wrap; gap: 12px 40px; }
+.salesman-stat-list .item .txt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #646566;
+  font-size: 13px;
+}
+.salesman-stat-list .item .num {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 10px 0 14px;
+}
+.salesman-stat-list .item .tips { color: #999; font-size: 12px; margin-top: -6px; }
+
+/* ===== 客户成交卡片 ===== */
+.salesman-transaction-card {
+  border: 1px solid var(--semi-color-border);
+  border-radius: 6px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  background: var(--semi-color-bg-0);
+}
+.salesman-transaction-card .card-head {
+  background: #f5f6fa;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.salesman-transaction-card .card-body { padding: 4px 14px 10px; }
+.salesman-transaction-card .row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--semi-color-border);
+}
+.salesman-transaction-card .row:last-child { border-bottom: none; }
+.salesman-transaction-card .thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 4px;
+  object-fit: cover;
+  border: 1px solid var(--semi-color-border);
+  flex: 0 0 auto;
+}
+.salesman-transaction-card .meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  font-size: 12px;
+  color: #8a94a6;
+  margin-top: 6px;
+}
+
+/* ===== 结算方案设置 ===== */
+.salesman-settle-radio-card {
+  border: 1px solid var(--semi-color-border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.salesman-settle-radio-card.is-active {
+  border-color: var(--semi-color-primary);
+  background: rgba(0, 100, 250, 0.03);
+}
+.salesman-settle-radio-card .title { font-weight: 600; margin-bottom: 6px; }
+.salesman-settle-radio-card .desc { color: #646566; font-size: 12px; line-height: 1.6; }
+.salesman-settle-radio-card .tips,
+.salesman-settle-radio-card-tips { color: #8a94a6; font-size: 12px; margin-top: 6px; }
+.salesman-radio-label-tag {
+  background: var(--semi-color-primary-light-default);
+  color: var(--semi-color-primary);
+  padding: 0 5px;
+  height: 20px;
+  line-height: 20px;
+  margin-left: 8px;
+  border-radius: 2px;
+  font-size: 12px;
+  display: inline-block;
+}
+.salesman-radio-desc {
+  color: #969799;
+  font-size: 12px;
+  margin-top: 4px;
+  line-height: 1.6;
+}
+
+/* ===== 通用小工具 ===== */
+.salesman-text-money { font-weight: 600; color: #165dff; }
+.salesman-text-commission { font-weight: 600; color: #eb2f96; }
+.salesman-muted { color: #8a94a6; font-size: 12px; }
+.salesman-user-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.salesman-user-cell .user-name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.salesman-tooltip-icon { margin-left: 4px; color: #c8c9cc; cursor: help; }

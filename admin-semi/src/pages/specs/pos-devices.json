@@ -1,0 +1,23 @@
+{
+  "page": "o2o_admin/cashier/cashier-manage/device-list",
+  "info": "o2o_admin/cashier/cashier-manage/device-list",
+  "columns": [
+    "设备名称",
+    "设备码",
+    "最后使用时间",
+    "添加时间",
+    "设备状态"
+  ],
+  "filters": [
+    "keyword",
+    "status"
+  ],
+  "component": "rust/web/admin-semi/src/pages/PosPages.tsx",
+  "skipOldPage": true,
+  "drawer": null,
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "参考 o2o_admin 编译前端实现。"
+  ]
+}

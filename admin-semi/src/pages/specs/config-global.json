@@ -1,0 +1,14 @@
+{
+  "page": "setting/config/base/src/GlobalSetting.vue",
+  "info": "setting/config/base/src/GlobalSetting.vue",
+  "component": "rust/web/admin-semi/src/pages/AutoConfigPage.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-config-regressions.cjs"],
+  "notes": [
+    "全局设置：通用配置页，字段按真实接口返回渲染。"
+  ]
+}

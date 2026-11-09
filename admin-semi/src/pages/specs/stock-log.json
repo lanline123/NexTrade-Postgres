@@ -1,0 +1,15 @@
+{
+  "page": "product/productInventoryLog/List.vue",
+  "info": "product/productInventoryLog/List.vue",
+  "component": "rust/web/admin-semi/src/pages/ProductInventoryLogs.tsx",
+  "drawer": null,
+  "filters": ["keyword"],
+  "columns": ["商品名称", "规格", "变化前库存", "变化后库存", "变化量", "操作"],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "库存日志：GET /product/productInventoryLog/list（type 0 全部/1 入库/2 出库，Tab 切换），删除走 batch。",
+    "与旧版差异：行内删除按钮新版保留；旧版筛选含商品选择器，此处用关键词（后端同参数）。"
+  ]
+}

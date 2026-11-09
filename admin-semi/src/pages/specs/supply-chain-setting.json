@@ -1,0 +1,23 @@
+{
+  "page": "purchaseSettingManage",
+  "component": "rust/web/admin-semi/src/pages/SupplyChainSupplierPages.tsx",
+  "skipOldPage": true,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "供应链设置(purchaseSettingManage)：逆向自 5.8.60 Index-BPWnEfCW.js，接口 /supplyChain/purchaseSetting/*。"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "page": "setting/config/base/src/weChatSetting.vue",
+  "component": "rust/web/admin-semi/src/pages/WechatLiveMiniAppSetting.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "小程序设置(wechatLiveMiniAppSetting)：WechatLiveMiniAppSetting，接口 /setting/config/wechatLiveSettings 与 /saveWechatLive 及风控设置。"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "page": "promotion/productActivity/rewardGift/List.vue",
+  "component": "rust/web/admin-semi/src/pages/PromotionExtraPages.tsx",
+  "filters": ["promotionName"],
+  "columns": ["活动名称", "满额条件", "赠品名称", "起止时间", "状态", "操作"],
+  "actions": ["编辑", "删除"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "编辑",
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "drawer": {
+    "width": 600
+  },
+  "notes": [
+    "满赠活动管理，端点 /promotion/productPromotion/list?promotionType=3"
+  ]
+}

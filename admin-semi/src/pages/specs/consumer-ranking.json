@@ -1,0 +1,22 @@
+{
+  "page": "panel/consumerRanking/List.vue",
+  "component": "rust/web/admin-semi/src/pages/PanelStatisticsPages.tsx",
+  "filters": ["keyword"],
+  "columns": ["会员名称", "手机号", "订单数", "消费总额"],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "消费排行(consumerRanking)：ListPage，接口 /panel/statisticsUser/userConsumptionRanking。"
+  ]
+}

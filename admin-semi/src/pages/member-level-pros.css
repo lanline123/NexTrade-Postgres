@@ -1,0 +1,283 @@
+/* 付费会员等级设置（MemberLevelPros / userLevelProManage）页面样式。
+   独立文件：styles.css 为共享文件禁止修改。 */
+
+.mlp-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+/* ——— 列表（旧 ProList.vue） ——— */
+.mlp-level {
+  font-weight: 600;
+  color: #c95a0a;
+  font-size: 14px;
+}
+.mlp-level-sm {
+  font-weight: 600;
+  color: #ed6a18;
+  font-size: 14px;
+}
+.mlp-rights-cell {
+  line-height: 20px;
+}
+
+/* ——— 会员卡面（旧 card.less card1..card10 渐变） ——— */
+.mlp-card {
+  border: 1px solid #fff;
+  border-radius: 3px;
+  width: 56px;
+  height: 30px;
+  overflow: visible;
+  background-repeat: no-repeat;
+  background-position: 0% 0%;
+  background-size: cover;
+  display: inline-block;
+  vertical-align: middle;
+}
+.mlp-card:hover {
+  border-color: var(--semi-color-primary);
+}
+.mlp-card-lg {
+  width: 343px;
+  height: 180px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: bold;
+  box-sizing: border-box;
+  padding: 17px 20px;
+  color: #fff;
+  position: relative;
+  overflow: visible;
+}
+.mlp-card-click {
+  cursor: pointer;
+  display: inline-block;
+  line-height: 0;
+}
+.mlp-card.card1,
+.mlp-swatch.card1 {
+  color: #75b06d;
+  background: linear-gradient(105.74deg, rgb(117, 176, 109) 19.91%, rgba(117, 176, 109, 0.455) 70.53%, rgb(117, 176, 109) 96.44%), linear-gradient(0deg, rgb(255, 255, 255), rgb(255, 255, 255));
+}
+.mlp-card.card2,
+.mlp-swatch.card2 {
+  color: #47a779;
+  background: linear-gradient(105.74deg, rgb(72, 169, 122) 19.91%, rgba(72, 169, 122, 0.455) 70.53%, rgb(72, 169, 122) 96.44%), linear-gradient(0deg, rgb(255, 255, 255), rgb(255, 255, 255));
+}
+.mlp-card.card3,
+.mlp-swatch.card3 {
+  color: #6ab7de;
+  background: linear-gradient(105.74deg, rgb(106, 183, 222) 19.91%, rgba(106, 183, 222, 0.455) 70.53%, rgb(106, 183, 222) 96.44%), linear-gradient(0deg, rgb(255, 255, 255), rgb(255, 255, 255));
+}
+.mlp-card.card4,
+.mlp-swatch.card4 {
+  color: #6385bd;
+  background: linear-gradient(105.74deg, rgb(99, 133, 189) 19.91%, rgba(99, 133, 189, 0.455) 70.53%, rgb(99, 133, 189) 96.44%), linear-gradient(0deg, rgb(255, 255, 255), rgb(255, 255, 255));
+}
+.mlp-card.card5,
+.mlp-swatch.card5 {
+  color: #9b6fc8;
+  background: linear-gradient(105.74deg, rgb(155, 111, 200) 19.91%, rgba(155, 111, 200, 0.455) 70.53%, rgb(155, 111, 200) 96.44%), linear-gradient(0deg, rgb(255, 255, 255), rgb(255, 255, 255));
+}
+.mlp-card.card6,
+.mlp-swatch.card6 {
+  color: #c0996f;
+  background: linear-gradient(105.74deg, rgb(192, 153, 111) 19.91%, rgba(192, 153, 111, 0.455) 70.53%, rgb(192, 153, 111) 96.44%), linear-gradient(0deg, rgb(255, 255, 255), rgb(255, 255, 255));
+}
+.mlp-card.card7,
+.mlp-swatch.card7 {
+  color: #eec154;
+  background: linear-gradient(105.74deg, rgb(238, 193, 84) 19.91%, rgba(238, 193, 84, 0.455) 70.53%, rgb(238, 193, 84) 96.44%), linear-gradient(0deg, rgb(255, 255, 255), rgb(255, 255, 255));
+}
+.mlp-card.card8,
+.mlp-swatch.card8 {
+  color: #de5850;
+  background: linear-gradient(105.74deg, rgb(222, 88, 80) 19.91%, rgba(222, 88, 80, 0.455) 70.53%, rgb(222, 88, 80) 96.44%), linear-gradient(0deg, rgb(255, 255, 255), rgb(255, 255, 255));
+}
+.mlp-card.card9,
+.mlp-swatch.card9,
+.mlp-card.card10 {
+  color: #798795;
+  background: linear-gradient(105.74deg, rgb(121, 135, 149) 19.91%, rgba(121, 135, 149, 0.455) 70.53%, rgb(121, 135, 149) 96.44%), linear-gradient(0deg, rgb(255, 255, 255), rgb(255, 255, 255));
+}
+
+/* ——— 编辑抽屉（旧 Info.vue） ——— */
+.mlp-drawer-body {
+  padding: 0 20px 20px;
+}
+.mlp-drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.mlp-section-title {
+  font-weight: bold;
+  font-size: 16px;
+  margin-bottom: 16px;
+}
+.mlp-mt24 {
+  margin-top: 24px;
+}
+.mlp-mb10 {
+  margin-bottom: 10px;
+}
+.mlp-mode-options {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.mlp-mode-option {
+  width: 250px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.mlp-mode-option.is-active {
+  border-color: var(--semi-color-primary);
+  background: var(--semi-color-primary-light-default);
+}
+.mlp-mode-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.mlp-mode-desc {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+}
+.mlp-form-row {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 14px;
+  gap: 8px;
+}
+.mlp-form-label {
+  width: 110px;
+  text-align: right;
+  flex-shrink: 0;
+  padding-top: 5px;
+  color: var(--semi-color-text-0);
+}
+.mlp-grow-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.mlp-extra {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  margin-top: 6px;
+}
+.mlp-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mlp-unit {
+  color: var(--semi-color-text-2);
+}
+.mlp-caret {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  color: var(--semi-color-text-1);
+}
+.mlp-logo-cell {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 1px dashed var(--semi-color-border);
+  border-radius: 4px;
+}
+.mlp-logo-cell img {
+  height: 20px;
+  max-width: 26px;
+  object-fit: contain;
+}
+.mlp-rights-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.mlp-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+}
+.mlp-col-head-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ——— 保级条件只读表 ——— */
+.mlp-keep-table {
+  width: 320px;
+  margin-top: 10px;
+}
+.mlp-keep-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.mlp-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--semi-color-text-2);
+  color: var(--semi-color-text-2);
+  font-size: 10px;
+  cursor: help;
+}
+
+/* ——— 会员卡面弹窗（旧 SetCardType.vue） ——— */
+.mlp-card-dialog {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.mlp-card-check {
+  width: 55px;
+  height: 28px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.mlp-card-check.is-active {
+  border-color: var(--semi-color-primary);
+}
+.mlp-card-check .mlp-card {
+  width: 45px;
+  height: 20px;
+  border: none;
+}
+.mlp-swatch-list {
+  width: 180px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.mlp-swatch {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--semi-color-border);
+  cursor: pointer;
+}
+.mlp-swatch:hover {
+  border-color: var(--semi-color-primary);
+}

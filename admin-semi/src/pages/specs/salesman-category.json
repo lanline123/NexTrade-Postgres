@@ -1,0 +1,32 @@
+{
+  "page": "salesman/category/List.vue",
+  "component": "rust/web/admin-semi/src/pages/SalesmanContent.tsx",
+  "filters": [
+    "categoryName"
+  ],
+  "columns": [
+    "分类名称",
+    "创建时间",
+    "排序",
+    "操作"
+  ],
+  "actions": [
+    "编辑",
+    "删除"
+  ],
+  "batch": [
+    "批量删除"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right"
+    },
+    "longHeaders": []
+  },
+  "notes": [
+    "素材分类(materialCategoryManage/materialCategory):GET /salesman/category/list|detail,POST create/update({categoryId})/del({id})/batch({type:del,ids});表单 分类名称(必填)/排序(默认 50)。",
+    "Rust 无 /salesman/category/config,旧版 getcategoryConfig 未被页面使用(记录)。"
+  ]
+}

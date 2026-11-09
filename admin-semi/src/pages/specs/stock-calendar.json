@@ -1,0 +1,70 @@
+{
+  "page": "product/inventoryCalendar/List.vue",
+  "info": "storeInventoryCalendarManage 库存日历（旧页 List.vue + SetInventory.vue + ModifyInventory.vue + BatchSetInventory.vue：按日期(周/月)查看商品×门店×SKU 的可预约库存，支持单元格设置/修改某日库存、统一设置库存、按时段设置库存）",
+  "component": "rust/web/admin-semi/src/pages/InventoryCalendars.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": ["商品信息", "规格", "门店"],
+  "actions": [],
+  "batch": [],
+  "widgets": {
+    "stockCalendarGrid": {
+      "type": "stock-calendar-grid",
+      "component": "rust/web/admin-semi/src/pages/InventoryCalendars.tsx",
+      "requires": ["/o2o/stockCalendar/pageList", "dateStockList", "dayMap"],
+      "mcpChecks": ["Table", "DatePicker", "Select", "Image", "Input"]
+    },
+    "dailyStockModal": {
+      "type": "stock-calendar-day-modal",
+      "component": "rust/web/admin-semi/src/pages/InventoryCalendars.tsx",
+      "requires": [
+        "/o2o/stockCalendar/getDailyStock",
+        "/o2o/stockCalendar/updateDailyStock",
+        "timeSlotStockChanges",
+        "当前可预约",
+        "实际可预约"
+      ],
+      "mcpChecks": ["Modal", "Table", "InputNumber", "Tooltip"]
+    },
+    "unifiedStockModal": {
+      "type": "stock-calendar-unified-modal",
+      "component": "rust/web/admin-semi/src/pages/InventoryCalendars.tsx",
+      "requires": [
+        "/o2o/stockCalendar/setUnifiedStock",
+        "shopSelection",
+        "dateExclusion",
+        "排除时间",
+        "排除门店",
+        "选择门店",
+        "全部门店"
+      ],
+      "mcpChecks": ["Modal", "RadioGroup", "DatePicker", "Select", "ProductPicker", "Checkbox", "InputNumber"]
+    },
+    "timeSlotStockModal": {
+      "type": "stock-calendar-timeslot-modal",
+      "component": "rust/web/admin-semi/src/pages/InventoryCalendars.tsx",
+      "requires": [
+        "/o2o/stockCalendar/getProductTimeList",
+        "/o2o/stockCalendar/setTimeSlotStock",
+        "timeSlotStockItems",
+        "可预约时段"
+      ],
+      "mcpChecks": ["Modal", "Table", "InputNumber", "DatePicker", "Checkbox", "RadioGroup"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "backendReady": {
+    "calendarEndpoints": true,
+    "unifiedSkuSelect": false
+  },
+  "notes": [
+    "端点核对（Rust 已全部实现，crates/api/admin/src/routes/o2o/stock_calendar.rs + services/src/o2o/stock_calendar.rs，6/6 覆盖旧 java/view/admin/src/api/product/inventoryCalendar.ts）：GET /o2o/stockCalendar/pageList（startDate/endDate/productName/shopIds/shopScopeType/page/size，camelCase，日期窗口最多 31 天）、GET getDailyStock（productId/skuId/shopId/stockDate）、POST updateDailyStock（timeSlotStockChanges[{productReservationTimeId,stockChange}]，stockChange 为增量，新可预约=max(0,旧可预约+增量)）、POST setUnifiedStock（productId/skuId/shopSelection/startDate/endDate/dateExclusion/quantity，语义=把区间内可预约数设为 quantity）、POST setTimeSlotStock（timeSlotStockItems[{productReservationTimeId,quantity}]）、GET getProductTimeList（productId）。后端缺失清单：无。",
+    "列表：动态日期列（按周 7 列显示周几+MM-DD / 按月按当月天数），列头 fixed left 商品信息(图+名)/规格(|→; 分隔)/门店；单元格：无库存→设置库存按钮，有库存→可预约数/已预约数+修改库存按钮；单选行（隐藏表头全选）+分页(page/size/total)。",
+    "工具栏：商品名称输入(回车/搜索)、选择门店(/merchant/shop/list shopType=2 size=99 + 全部门店选项，选中→shopScopeType=1&shopIds=)、按周/按月切换、上一周(月)/下一周(月)（上一周按钮在 startDate=今天 或当月时禁用）、按周开始日期 DatePicker(禁用今天之前，结束日期=开始+6 只读)、按月月份 DatePicker(禁用当月之前)。",
+    "某日库存弹窗（旧 SetInventory.vue）：getDailyStock 按时间段表格，edit 模式列=时间段/当前可预约/增加减少数量(Tooltip 正数为增加数量 负数为减少数量)/实际可预约(实时=可预约+增量)，set 模式列=时间段/可预约数量；当天已过结束时间的时段禁用输入；提交 updateDailyStock timeSlotStockChanges。",
+    "统一设置库存弹窗（旧 BatchSetInventory.vue，仅 admin 角色可见按钮）：提示文案、商品(ProductPicker 单选，/product/product/list?ids= 回显)、门店(RadioGroup 全部门店1/指定门店3 + 多选；全部门店+已选门店→提交 selectionType=2 排除模式)、日期范围(禁用今天之前)、排除时间(每周排除1→周一~周日/每月排除2→1~31号)、可预约数量(可正可负)。",
+    "按时段设置库存弹窗（旧 ModifyInventory.vue，需先勾选行）：商品图+名+门店头部、日期范围+排除时间、可预约时段表格(getProductTimeList 时间段+每段增加/减少数量)，提交 setTimeSlotStock shopSelection={selectionType:3,shopIds:[当前门店]}。",
+    "与旧版差异：1) 单元格 hover 切换文案的交互简化为常显（移动端旧版本就常显）；2) 统一设置库存的商品 SKU 级选择（SelectProduct isSku）未迁移，多规格商品作用于全部规格（skuId 不传），后端已有字段待补 SKU 弹窗；3) 选择门店由 OrganizePop 门店穿梭弹窗改为下拉多选(/merchant/shop/list)，排除门店语义保留；4) 旧 month 模式传 'YYYY-MM'，Rust date_range 仅解析 'YYYY-MM-DD'，新版按月发送首日/末日完整日期（语义一致）；5) timeType 参数照传但 Rust 未使用（范围由 startDate/endDate 表达）；6) 移动端专属布局/H5 分支未单独适配（Semi Table 自带横向滚动）。",
+    "排序参数 sortField/sortOrder 旧接口声明但列表未使用，未实现（与后端一致）。"
+  ]
+}

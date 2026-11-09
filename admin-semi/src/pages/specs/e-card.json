@@ -1,0 +1,25 @@
+{
+  "page": "promotion/eCard/List.vue",
+  "component": "rust/web/admin-semi/src/pages/PromotionExtraPages.tsx",
+  "filters": ["groupName"],
+  "columns": ["分组ID", "分组名称", "是否使用", "备注", "创建时间", "修改时间", "操作"],
+  "actions": ["编辑", "删除"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "编辑",
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "drawer": {
+    "width": 600
+  },
+  "notes": [
+    "电子卡券管理，端点 /product/eCardGroup/cardList"
+  ]
+}

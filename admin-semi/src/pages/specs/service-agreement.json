@@ -1,0 +1,21 @@
+{
+  "page": "content/agreement/ServiceAgreement.vue",
+  "info": "content/agreement/ServiceAgreement.vue",
+  "component": "rust/web/admin-semi/src/pages/AgreementPage.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "sort": [],
+  "widgets": {
+    "agreementEditor": {
+      "type": "rich-text",
+      "component": "rust/web/admin-semi/src/pages/AgreementPage.tsx",
+      "requires": ["RichTextEditor"],
+      "mcpChecks": ["Switch"]
+    }
+  },
+  "backendReady": { "sort": false },
+  "notes": ["协议内容使用富文本编辑器，保存 code=termsOfService。"]
+}

@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+const c = JSON.parse(fs.readFileSync('capture/capture.json', 'utf8'));
+const failed = (c.health && c.health.failed_requests) || [];
+console.log('title =', JSON.stringify(c.title || ''));
+console.log('text_len =', (c.text || '').length);
+console.log('headings =', (c.headings || []).length, 'images =', (c.images || []).length, 'links =', (c.links || []).length, 'fonts =', (c.fonts || []).length);
+console.log('failed_requests =', failed.length);
+console.log('sample failed =', failed.slice(0, 4).map((f) => (typeof f === 'string' ? f : f.url || f.path || JSON.stringify(f))));
+const layouts = c.layouts || [];
+console.log('layouts =', JSON.stringify(layouts.map((l) => ({ w: l.width || l.w, h: l.page_h || l.height, blocks: (l.blocks || []).length, type: l.type }))));
+const html = fs.existsSync('capture/page.html') ? fs.readFileSync('capture/page.html', 'utf8') : '';
+console.log('page.html bytes =', html.length, '| body =', (html.match(/<body[^>]*>([\s\S]*?)<\/body>/i) || ['', '(none)'])[1].replace(/\s+/g, ' ').trim().slice(0, 200));

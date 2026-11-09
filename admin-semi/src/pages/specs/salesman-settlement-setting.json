@@ -1,0 +1,19 @@
+{
+  "page": "salesman/performanceSettlement/setting/Index.vue",
+  "component": "rust/web/admin-semi/src/pages/SalesmanSettlementPages.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "notes": [
+    "结算方案设置(performanceSettlementSettingManage):GET/POST /salesman/config/detail|save?code=salesmanSettlement {settlementType,dateType,desc}。",
+    "结算方式双卡片(系统自动结算/线下人工结算)+自动结算时间(第15天/立即)+人工结算说明(TextArea ≤200 字)。",
+    "旧版销售额统计 isShow 整块为注释死代码,Rust 配置未落该字段,不渲染(记录)。"
+  ]
+}

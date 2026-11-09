@@ -1,0 +1,17 @@
+{
+  "page": "finance/profitsharingSetting/Index.vue",
+  "info": "finance/profitsharingSetting/Index.vue",
+  "component": "rust/web/admin-semi/src/pages/ProfitSharingSettings.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "分账设置：单 AutoConfigPage，接口 profitSharingSettings/saveProfitSharing。",
+    "入账方式(自动入账)与入账账户类型(余额)在旧版为只读展示项，用 renderers 静态文本渲染。",
+    "出账节点/入账节点/分账方式旧版均为单选项（其余选项被注释/因无可用渠道禁用），按旧版实际可选项渲染。",
+    "店铺/门店/供应商费率仅商家角色可见（旧版 isMerchant 条件），平台后台沿用旧版行为以 hiddenFields 隐藏，但保存时随 payload 原样回传，与旧版 formState 提交行为一致。"
+  ]
+}

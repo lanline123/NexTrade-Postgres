@@ -1,0 +1,26 @@
+{
+  "page": "promotion/live/List.vue",
+  "info": "promotion/live/List.vue(直播间)",
+  "component": "rust/web/admin-semi/src/pages/WechatLives.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [
+    "房间ID",
+    "直播名称",
+    "开始日期",
+    "结束日期",
+    "当前状态",
+    "直播封面",
+    "商品显示范围"
+  ],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": [
+    "rust/web/admin-semi/scripts/verify-engine.cjs"
+  ],
+  "notes": [
+    "直播间:接口 /promotion/wechatLive/*(list/refresh/update/updateField/batch/detail)。",
+    "从微信同步(refresh)、直播名称行内改(update);旧版Info内选择商品加入直播间改由直播商品页管理。actions留空:本页编辑为行内prompt而非FormDrawer。",
+    "与旧版差异:封面列旧版 prop 为 pointsDeductedAmount(复用列),新版按 coverImg 展示(见注释)。"
+  ]
+}

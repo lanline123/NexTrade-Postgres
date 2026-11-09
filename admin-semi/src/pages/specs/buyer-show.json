@@ -1,0 +1,14 @@
+{
+  "page": "promotion/buyerShow/buyerShowListings/List.vue",
+  "info": "promotion/buyerShow/buyerShowGroup/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/BuyerShow.tsx",
+  "drawer": null,
+  "filters": ["status", "goodsId", "keyword"],
+  "columns": ["买家秀内容", "分组", "商品数", "点赞数", "评论数", "创建时间", "发布人", "状态", "排序"],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "买家秀页内含四个 Tab：买家秀、分组、评论、设置。",
+    "分组使用 ListPage + 抽屉；评论和买家秀支持审核、显示隐藏、置顶。"
+  ]
+}

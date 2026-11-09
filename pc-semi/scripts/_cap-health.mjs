@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+const j = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const h = j.health || {};
+console.log('title:', JSON.stringify(j.title), 'lang:', JSON.stringify(j.lang), 'url:', j.url);
+console.log('page:', JSON.stringify(j.page), 'viewport:', JSON.stringify(j.viewport));
+console.log('counts: outline', (j.outline || []).length, 'images', (j.assets && j.assets.images || []).length, 'links', (j.links || []).length, 'headings', (j.headings || []).length, 'text len', String(j.text || '').length);
+console.log('health keys:', Object.keys(h).join(', '));
+console.log('failed_requests:', JSON.stringify(h.failed_requests || []).slice(0, 3000));
+console.log('console/errors:', JSON.stringify(h.console || h.errors || null).slice(0, 1200));
+const lay = Array.isArray(j.layouts) ? j.layouts : [j.layouts];
+for (const l of lay) console.log(`width ${l.width} page_w=${l.page_w} page_h=${l.page_h} blocks=${(l.blocks || []).length} type=${JSON.stringify(l.type).slice(0, 200)}`);

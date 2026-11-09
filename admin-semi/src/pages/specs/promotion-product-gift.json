@@ -1,0 +1,23 @@
+{
+  "page": "promotion/productGift/List.vue",
+  "info": "promotion/productGift/List.vue",
+  "component": "rust/web/admin-semi/src/pages/ProductGifts.tsx",
+  "drawer": null,
+  "filters": ["keyword"],
+  "columns": ["赠品名称", "商品信息", "赠品库存"],
+  "actions": ["edit"],
+  "batch": ["delete"],
+  "widgets": {
+    "productSelect": {
+      "type": "single-product-picker",
+      "component": "rust/web/admin-semi/src/pages/ProductGifts.tsx",
+      "requires": ["ProductPicker"],
+      "mcpChecks": ["Input", "InputNumber"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "活动赠品：接口 /promotion/productGift/*（list/create/update/del/batch/detail/updateField）。",
+    "选择商品用 SkuPicker（SKU 级选择，对齐旧版 SelectProduct isSku）：skuId + 赠品库存默认取所选 SKU 库存；无规格商品可选整件（skuId=0）。"
+  ]
+}

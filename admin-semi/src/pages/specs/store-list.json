@@ -1,0 +1,25 @@
+{
+  "page": "store/adminPages/store/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/StoreList.tsx",
+  "filters": ["keyword", "account", "mainAccount", "corporateName"],
+  "columns": ["门店LOGO", "门店名称", "商户名称", "门店状态", "主账号"],
+  "actions": ["编辑", "删除"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 160
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "门店列表(storeListManage)：ListPage + FormDrawer，接口 /shop/shop/list?shopType=2 + /shop/shop/*。"
+  ]
+}

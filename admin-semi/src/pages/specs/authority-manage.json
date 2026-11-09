@@ -1,0 +1,45 @@
+{
+  "page": "authority/authority/List.vue",
+  "info": "authority/authority/List.vue",
+  "component": "rust/web/admin-semi/src/pages/Authorities.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": ["权限名称", "权限图标", "唯一编码", "细分权限", "是否显示", "排序"],
+  "actions": ["edit", "delete"],
+  "batch": ["delete"],
+  "widgets": {
+    "authorityTreeTable": {
+      "type": "authority-tree-table",
+      "component": "rust/web/admin-semi/src/pages/Authorities.tsx",
+      "requires": ["/authority/authority/list", "rowSelection", "sortField", "返回上一级"],
+      "mcpChecks": ["Table", "Tabs", "Switch", "Popover", "Modal", "Button", "Card", "Toast"]
+    },
+    "authorityFormDrawer": {
+      "type": "authority-form-drawer",
+      "component": "rust/web/admin-semi/src/pages/Authorities.tsx",
+      "requires": [
+        "/authority/authority/create",
+        "/authority/authority/update",
+        "/authority/authority/detail",
+        "/authority/authority/getAllAuthority"
+      ],
+      "mcpChecks": ["FormDrawer", "SideSheet", "Select", "Input", "InputNumber", "RadioGroup"]
+    },
+    "inlineFieldEditor": {
+      "type": "authority-inline-edit",
+      "component": "rust/web/admin-semi/src/pages/Authorities.tsx",
+      "requires": ["/authority/authority/updateField", "/authority/authority/del", "/authority/authority/batch"],
+      "mcpChecks": ["Popover", "Switch", "InputNumber", "IconEdit", "IconDelete"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "权限目录：对应旧版 authority/authority/List.vue（477 行）+ Info.vue（197 行）。端点全部对齐 Rust routes/identity/authority.rs：list/create/update/del/batch/detail/updateField/getAllAuthority（getAuthority/getAuthorityParentName 为登录态/菜单接口，本页无需）。",
+    "树形展示沿用 Categories.tsx 的自绘展开方案（不依赖 Semi Table children 树形数据）：当前层 list?page&size&parentId&adminType&sortField 懒加载，行内 +/- 展开子级(size=100，Rust 上限 100)，点击权限名称钻取下级、工具栏返回上一级；管理后台/店铺后台 Tabs 对应 adminType 参数。",
+    "行内编辑等价旧版 PopForm：权限名称/唯一编码/排序为 编辑小图标+Popover(Input/InputNumber+取消/确认)，是否显示为 Switch；统一走 POST updateField {id, field, val}（注意值字段为 val 而非 value，白名单 authorityName/authoritySn/sortOrder/isShow）。",
+    "表单抽屉(FormDrawer width=580)对齐 Info.vue：权限名称(必填)、唯一编号(必填+仅英文字母校验)、上级分类(getAllAuthority 拍平缩进 Select，新增顶级时锁定为顶级目录，等价旧版 disabled=action=='add'&&parentId==0)、ICO编码(文本)、排序、权限所属系统(admin/shop radio 禁用)、是否显示(是/否)、细分权限(childAuth 动态行 authName+authSn，新增/删除)；create 载荷不传 authorityId，update 带 authorityId。",
+    "批量删除：旧版已注释的批量 UI 按后端 batch {ids, type:'del'} 实现；删除单条走 /del {id}（后端校验存在子级时拒绝）。",
+    "筛选（自绘页，不经 ListPage，filters 留空记录于此）：adminType Tabs + parentId 层级钻取 + isShow/sortOrder 服务端排序(sorter:true → sortField/sortOrder)；旧版 keyword 参数无 UI 输入，未迁移。",
+    "与旧版差异：①旧版权限图标列渲染 iconfont <em class>，新版未加载 ico 图标库，改为展示图标 class 文本；②ICO编码已补齐图标选择器（IcoPicker：读取全局设置 icoDefinedCss，拉取 CSS 解析 .icon-* 类名选择，仍支持手动输入）；③旧版点击名称钻取与 PopForm 点击并存，新版拆分为名称钻取+编辑图标；④旧版 el-table 懒加载树+钻取并存，新版两者保留但子级刷新策略为变更后整树重载（展开节点自动重新拉取）；⑤店铺后台 Tab 旧版仅商家角色可见(isMerchant)，新版平台后台固定展示两个 Tab；⑥路由地址(routeLink)列/表单项旧版已注释，保持隐藏（后端仍支持，代码注释与本 spec 记录）；⑦旧版保存后刷新左侧菜单(updateMenu)，新框架菜单为静态 adminMenu.tsx 无需刷新。"
+  ]
+}

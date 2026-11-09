@@ -1,0 +1,13 @@
+{
+  "page": "authority/accountManage/List.vue",
+  "info": "authority/accountManage/Password.vue",
+  "component": "rust/web/admin-semi/src/pages/AccountManage.tsx",
+  "drawer": null,
+  "filters": ["keyword"],
+  "columns": ["账号名称", "手机", "邮箱", "添加时间"],
+  "actions": [],
+  "batch": [],
+  "sort": [],
+  "backendReady": { "sort": false },
+  "notes": ["修改账号、修改密码使用弹窗；主账号不可删除。"]
+}

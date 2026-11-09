@@ -1,0 +1,38 @@
+{
+  "page": "homeServiceManage",
+  "component": "rust/web/admin-semi/src/pages/O2ODeliveryServicePages.tsx",
+  "skipOldPage": true,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "widgets": {
+    "distancePricingEditor": {
+      "type": "dynamic-rules-editor",
+      "component": "rust/web/admin-semi/src/pages/O2ODeliveryServicePages.tsx",
+      "requires": ["distancePricingList", "o2o/homeService/saveConfig"],
+      "mcpChecks": ["Switch", "InputNumber", "Table", "Banner", "RadioGroup"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "backendReady": {
+    "batch": false,
+    "sort": false,
+    "homeServiceReadWriteMismatch": true
+  },
+  "notes": [
+    "上门服务 homeServiceManage：无旧源码，逆向自 5.8.60 产物（路由 chunk 定位 Index-BP1Dj6g3.js → home-service；API serviceStaffConfig-Dd4b5rVi.js），并与旧版前端契约 java/view/admin/src/api/setting/homeService.ts + types/setting/homeService.d.ts 双重交叉验证。",
+    "字段（ShopHomeServiceConfigDetailVO/SaveParam）：enabled/serviceRadius（服务半径公里）/homeFee（上门服务费）/distancePricingEnabled（叠加溢价）/orderDispatchMode（1抢单模式,2手动派单）/beforeServicePhotoEnabled（服务开始拍照）/afterServicePhotoEnabled（服务完成拍照）/distancePricingList[{distanceThreshold,distanceUnit,additionalFee,sortOrder}]。",
+    "校验文案对齐 5.8.60：开启叠加溢价时，至少需要添加一条溢价规则/请输入距离/距离不能为空或为0/距离值必须大于前一条规则的值/距离值必须小于后一条规则的值/请输入距离单位/距离单位不能为空或为0/请输入附加费用/附加费用不能为空或为0/最多只能添加10条收费规则。",
+    "端点（已核对 Rust）：GET /o2o/homeService/getConfig（routes/o2o/home_service.rs，读 shop_home_service_config 表）；POST /o2o/homeService/saveConfig（routes/system/lowfreq_extra.rs h_10，写 config 键 o2oHomeServiceConfig）。",
+    "backendReady.homeServiceReadWriteMismatch：getConfig 读门店配置表而 saveConfig 写平台 config 表，读写目标不一致，保存后重拉可能不回显，待后端统一。",
+    "5.8.60 文案留档：上门服务功能/买家下单支持上门服务，门店服务人员可上门服务/发单模式设置/抢单模式/手动派单/抢单模式：客户预约的订单，将在抢单大厅保留，由服务人员手动抢单进行服务/服务信息设置/服务方：/门店地址：/服务区域以门店为中心设置服务半径，若要修改地址，请前往门店设置--门店信息进行编辑修改/收货地址在服务范围之外的买家将不可下单/上门价格：/上门服务费/请输入上门费/商家未设置叠加溢价规则时，则所有订单统一上门服务费标准/开启叠加溢价/商家可按服务半径设置叠加溢价规则/溢价规则/超过/每增加/服务费增加/添加收费规则/服务开始拍照/开启后服务人员开始服务时需要拍照上传服务前照片/服务完成拍照/开启后服务人员完成订单需拍照上传服务完成后照片/提交/修改成功。"
+  ]
+}

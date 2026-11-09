@@ -1,0 +1,25 @@
+{
+  "page": "setting/wechat/keywordReply/List.vue",
+  "component": "rust/web/admin-semi/src/pages/WechatVoicePages.tsx",
+  "filters": ["ruleName"],
+  "columns": ["规则名称", "关键字", "回复内容", "回复方式", "是否开启", "操作"],
+  "actions": ["编辑", "删除"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "编辑",
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "drawer": {
+    "width": 600
+  },
+  "notes": [
+    "公众号关键字回复列表与抽屉表单，端点 /wechat/keywordRule/*"
+  ]
+}

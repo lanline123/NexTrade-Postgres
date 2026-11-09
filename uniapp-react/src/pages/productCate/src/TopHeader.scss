@@ -1,0 +1,61 @@
+/*
+ * 自旧 pages/productCate/src/topHeader.vue <style lang="scss" scoped> 原样拷出（去 scoped）。
+ * 旧版搜索栏位于 mainHeader（fixed）的 navbar 插槽内；现 TopHeader 已实挂 MainHeader 承载，
+ * 定位/安全区/菜单抽屉样式由 MainHeader.scss 提供，这里仅保留搜索栏自身样式。
+ */
+.search-bar-box {
+    display: flex;
+    align-items: center;
+    gap: 21rpx;
+    position: relative;
+    padding: 0 28rpx;
+    height: 86rpx;
+    background: #fff;
+
+    .icon-houtui {
+        font-size: 36rpx;
+        font-weight: 600;
+    }
+
+    .search-input {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        padding: 0 21rpx;
+        height: 65rpx;
+        line-height: 61rpx;
+        color: #888b94;
+        font-size: 24.5rpx;
+        border: 1px solid #1a1a1a;
+        border-radius: 4px;
+        box-sizing: border-box;
+    }
+
+    .search-input__icon {
+        flex-shrink: 0;
+        margin-right: 8px;
+        font-size: 20px;
+        color: #999;
+    }
+
+    .search-input__text {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    .sousuo-icon {
+        position: absolute;
+        top: 25rpx;
+        right: 50rpx;
+
+        .taro-img,
+        image {
+            width: 36rpx;
+            height: 36rpx;
+        }
+    }
+}

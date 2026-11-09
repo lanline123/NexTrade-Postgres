@@ -1,0 +1,29 @@
+{
+  "page": "salesman/overview/src/RankingTable.vue",
+  "component": "rust/web/admin-semi/src/pages/SalesmanOverview.tsx",
+  "filters": [],
+  "columns": [
+    "排名",
+    "分销员昵称",
+    "新增销售额",
+    "新增客户数",
+    "支付客户数",
+    "开单邀请数"
+  ],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "backendReady": {
+    "sort": false
+  },
+  "notes": [
+    "分销员排行(rankingTableManage/rankingTable):GET /salesman/salesman/ranking,行 {salesmanId,nickname,username,totalSaleAmount,totalCustomers,totalPayCustomers,orderNum}。",
+    "Rust ranking 服务仅按 totalSaleAmount 升降序(sortField 忽略),各列 sorter 折算到 sortOrder。",
+    "旧版注释掉的操作列为死代码,不渲染(记录)。"
+  ]
+}

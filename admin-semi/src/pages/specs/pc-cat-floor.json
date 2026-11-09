@@ -1,0 +1,29 @@
+{
+  "page": "decorate/pcCatFloor/List.vue",
+  "component": "rust/web/admin-semi/src/pages/DecoratePcPages.tsx",
+  "filters": [
+    "catFloorName"
+  ],
+  "columns": [
+    "楼层图标",
+    "楼层名称",
+    "是否显示",
+    "排序",
+    "操作"
+  ],
+  "actions": [
+    "编辑",
+    "删除"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "编辑"
+  },
+  "drawer": {
+    "width": 600
+  },
+  "notes": [
+    "PC分类楼层抽屉"
+  ]
+}

@@ -1,0 +1,33 @@
+.seckill-form-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+.seckill-item-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px 160px;
+  gap: 12px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 6px;
+}
+.seckill-item-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.seckill-item-info img {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+.seckill-item-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+}

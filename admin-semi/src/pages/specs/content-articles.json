@@ -1,0 +1,30 @@
+{
+  "page": "content/article/List.vue",
+  "info": "content/article/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/Content.tsx",
+  "drawer": {
+    "width": 580,
+    "labelWidth": "auto"
+  },
+  "filters": ["keyword", "articleCategoryId", "isShow", "isHot"],
+  "columns": ["文章标题", "文章分类", "文章重要性", "发布时间", "是否热门", "是否显示"],
+  "actions": ["edit", "delete"],
+  "batch": ["delete", "show", "hide", "moveCat"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 110
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "Rust 文章列表 VO 不含 articleSn/articleType，列表未展示这两列。"
+  ]
+}

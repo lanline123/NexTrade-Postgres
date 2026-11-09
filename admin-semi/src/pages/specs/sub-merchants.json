@@ -1,0 +1,21 @@
+{
+  "page": "finance/subMerchant/List.vue",
+  "info": "finance/subMerchant/List.vue",
+  "columns": [
+    "商户名称",
+    "子商户号",
+    "支付渠道",
+    "状态",
+    "创建时间"
+  ],
+  "component": "rust/web/admin-semi/src/pages/FinanceMoreLists.tsx",
+  "drawer": null,
+  "filters": [
+    "keyword"
+  ],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "当前为只读财务列表，后续补审核/导出操作。"
+  ]
+}

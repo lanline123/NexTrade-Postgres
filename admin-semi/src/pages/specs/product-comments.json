@@ -1,0 +1,32 @@
+{
+  "page": "product/comment/List.vue",
+  "info": "product/comment/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/Comments.tsx",
+  "drawer": {
+    "width": 700,
+    "labelWidth": "auto"
+  },
+  "filters": ["keyword"],
+  "columns": ["用户名称", "评论对象", "评价内容", "晒单", "评论等级", "评论日期", "是否置顶", "是否推荐", "排序"],
+  "actions": ["edit", "delete"],
+  "batch": ["delete"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 180
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "全部评价 / 有晒单按 isShowed 参数切换，与原版参数保持一致。",
+    "评论日期暂未在表单中编辑，使用后端默认/原值。",
+    "标签使用逗号分隔输入，提交时转数组。"
+  ]
+}

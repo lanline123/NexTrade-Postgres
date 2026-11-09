@@ -1,0 +1,16 @@
+{
+  "page": "decorate/pcDecorate/ProductStyle.vue",
+  "component": "rust/web/admin-semi/src/pages/DecoratePcPages.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [
+    "保存风格"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true
+  },
+  "notes": [
+    "PC商品页风格"
+  ]
+}

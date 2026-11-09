@@ -1,0 +1,38 @@
+/* 对账单明细（statementDetails / vendorStatementDetails）独立样式 */
+
+.statement-filter-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.statement-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.statement-filter-item > label {
+  font-size: 13.5px;
+  color: var(--semi-color-text-1);
+  white-space: nowrap;
+}
+
+.statement-filter-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.statement-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.statement-pagination {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
+}

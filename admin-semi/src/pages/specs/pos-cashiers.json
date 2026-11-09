@@ -1,0 +1,19 @@
+{
+  "page": "o2o_admin/cashier/cashier-manage/cashier-list",
+  "info": "o2o_admin/cashier/cashier-manage/cashier-list",
+  "columns": [
+    "头像/姓名",
+    "手机号",
+    "账号状态",
+    "添加时间"
+  ],
+  "filters": [],
+  "component": "rust/web/admin-semi/src/pages/PosCashierList.tsx",
+  "skipOldPage": true,
+  "drawer": null,
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "参考 o2o_admin 编译前端实现。"
+  ]
+}

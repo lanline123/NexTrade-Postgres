@@ -1,0 +1,15 @@
+{
+  "page": "user/shopMember/Index.vue",
+  "info": "user/shopMember/Index.vue",
+  "component": "rust/web/admin-semi/src/pages/ShopMemberSettings.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "会员设置（客户能力门）：接口 /user/shopMember/setting/get + /setting/save（shopMemberEnabled/shopMemberDesensitize/shopMemberAllowAdd/shopMemberAllowImport）。",
+    "总开关关闭时三项子设置置灰（与旧版 settingsDisabled 一致）。"
+  ]
+}

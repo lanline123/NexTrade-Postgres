@@ -1,0 +1,24 @@
+{
+  "page": "setting/shippingTpl/List.vue",
+  "component": "rust/web/admin-semi/src/pages/ShippingTemplates.tsx",
+  "filters": ["keyword"],
+  "columns": ["模板名称", "是否包邮", "计价方式", "发货时间", "是否默认"],
+  "actions": ["编辑", "设为默认", "删除"],
+  "batch": ["批量删除"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "width": 220
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "运费模板(shippingTplManage)：ListPage，接口 /setting/shippingTpl/list，支持添加、编辑、设为默认与删除/批量删除。"
+  ]
+}

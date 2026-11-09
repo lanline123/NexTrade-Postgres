@@ -1,0 +1,50 @@
+/* 限时折扣（limitdiscount）页面专属样式 */
+.time-discount-extra {
+  margin-top: 4px;
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.time-discount-items {
+  width: 100%;
+  margin-top: 2px;
+}
+
+.time-discount-item-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.time-discount-item-info .semi-image {
+  flex-shrink: 0;
+}
+
+.time-discount-item-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  line-height: 18px;
+  word-break: break-all;
+}
+
+.time-discount-item-sn {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.time-discount-value-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.time-discount-picker-count {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+}

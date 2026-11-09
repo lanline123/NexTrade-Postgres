@@ -1,0 +1,19 @@
+{
+  "page": "setting/shippingType/List.vue",
+  "info": "setting/shippingType/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/ShippingTypes.tsx",
+  "drawer": { "width": 580, "labelWidth": "auto" },
+  "filters": ["keyword"],
+  "columns": ["分类名称", "分类描述", "默认物流", "货到付款", "排序"],
+  "actions": ["edit", "delete"],
+  "batch": ["delete"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": { "fixed": "right", "width": 150 },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": { "batch": true, "sort": false },
+  "notes": ["配送类型原为隐藏菜单，现已恢复到设置→配送设置组。"]
+}

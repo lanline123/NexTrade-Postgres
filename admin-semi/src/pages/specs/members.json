@@ -1,0 +1,44 @@
+{
+  "page": "user/user/List.vue",
+  "info": "user/user/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/Members.tsx",
+  "drawer": {
+    "width": 560,
+    "labelWidth": "auto"
+  },
+  "filters": ["keyword", "fromTag", "balance", "pointsGt", "pointsLt", "tagIds"],
+  "columns": [
+    "客户",
+    "等级 / 是否认证",
+    "资产",
+    "累计消费次数 / 累计消费金额",
+    "注册日期",
+    "是否启用"
+  ],
+  "actions": ["detail", "tags", "orders", "account"],
+  "batch": ["tags", "rank", "points", "balance"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 250
+    },
+    "longHeaders": [
+      {
+        "label": "累计消费次数 / 累计消费金额",
+        "minWidth": 270
+      }
+    ]
+  },
+  "sort": [],
+  "backendReady": {
+    "importUser": false,
+    "sort": false
+  },
+  "notes": [
+    "原版删除入口为注释状态，因此不实现删除。",
+    "原版排序依赖后端 UserController.list，Rust 当前未使用 sortField/sortOrder，暂不提供假排序。",
+    "导入客户依赖 /user/user/batchImport 的 Excel 解析，Rust 未迁移。"
+  ]
+}

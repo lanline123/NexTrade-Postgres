@@ -1,0 +1,22 @@
+{
+  "page": "product/product/vendor/ProductList.vue",
+  "component": "rust/web/admin-semi/src/pages/VendorProducts.tsx",
+  "filters": ["keyword", "isCanImport"],
+  "columns": ["商品名称", "商品分类", "供应商", "供货价", "商品状态"],
+  "actions": ["查看", "导入", "上架", "下架"],
+  "batch": ["批量导入"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 180
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  }
+}

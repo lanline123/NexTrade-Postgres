@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+const p = 'app/globals.scss';
+const t = fs.readFileSync(p, 'utf8');
+console.log('bytes', t.length);
+console.log('includes pc-container-width:', t.includes('pc-container-width'));
+console.log('includes article-container:', t.includes('article-container'));
+const i = t.indexOf('pc-container-width');
+console.log('first index', i);
+if (i > -1) console.log(JSON.stringify(t.slice(i - 120, i + 80)));
+console.log('cwd', process.cwd());

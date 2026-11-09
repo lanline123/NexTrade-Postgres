@@ -1,0 +1,31 @@
+{
+  "page": "salesman/subgroup/List.vue",
+  "component": "rust/web/admin-semi/src/pages/SalesmanSubgroup.tsx",
+  "filters": [
+    "groupName"
+  ],
+  "columns": [
+    "分组名称",
+    "创建时间",
+    "操作"
+  ],
+  "actions": [
+    "编辑",
+    "删除"
+  ],
+  "batch": [
+    "批量删除"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right"
+    },
+    "longHeaders": []
+  },
+  "notes": [
+    "分销员分组(subgroupManage/subgroup):GET /salesman/group/list|detail,POST create/update(groupId 主键)/del({id})/batch({type:del,ids})。",
+    "表单:分组名称(必填)/分组描述(TextArea);旧版操作人/排序为注释死代码且 Rust VO 无 sortOrder,不渲染(记录)。"
+  ]
+}

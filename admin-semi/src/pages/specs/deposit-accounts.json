@@ -1,0 +1,20 @@
+{
+  "page": "finance/deposit/account/List.vue",
+  "info": "finance/deposit/account/Info.vue",
+  "columns": [
+    "账户名称",
+    "账号",
+    "账户类型",
+    "创建时间"
+  ],
+  "component": "rust/web/admin-semi/src/pages/FinanceMoreLists.tsx",
+  "drawer": null,
+  "filters": [
+    "keyword"
+  ],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "当前为只读财务列表，后续补审核/导出操作。"
+  ]
+}

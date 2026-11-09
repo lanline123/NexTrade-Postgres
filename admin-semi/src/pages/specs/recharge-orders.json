@@ -1,0 +1,28 @@
+{
+  "page": "finance/userRechargeOrder/List.vue",
+  "info": "finance/userRechargeOrder/List.vue",
+  "component": "rust/web/admin-semi/src/pages/FinanceLists.tsx",
+  "filters": [
+    "keyword",
+    "status"
+  ],
+  "columns": [
+    "会员名称",
+    "手机号",
+    "金额",
+    "赠送金额",
+    "到款状态",
+    "操作时间"
+  ],
+  "drawer": null,
+  "actions": [
+    "审核",
+    "已支付",
+    "无效",
+    "查看"
+  ],
+  "batch": [],
+  "notes": [
+    "2026-11-07 补齐审核弹窗：管理员备注 + 到款状态（1 已支付 / 2 无效），POST /finance/userRechargeOrder/update。"
+  ]
+}

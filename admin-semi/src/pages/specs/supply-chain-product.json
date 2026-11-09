@@ -1,0 +1,23 @@
+{
+  "page": "supplierProductManage",
+  "component": "rust/web/admin-semi/src/pages/SupplyChainSupplierPages.tsx",
+  "skipOldPage": true,
+  "filters": ["keyword", "supplierId"],
+  "columns": ["商品名称", "供应商", "供货价", "供货库存", "更新时间"],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "供应商商品(supplierProductManage)：逆向自 5.8.60 supplierProduct-DTQcI4Zl.js，接口 /supplyChain/supplierProduct/*。"
+  ]
+}

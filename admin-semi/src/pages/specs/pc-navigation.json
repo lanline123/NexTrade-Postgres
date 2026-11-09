@@ -1,0 +1,31 @@
+{
+  "page": "decorate/pcNavigation/List.vue",
+  "component": "rust/web/admin-semi/src/pages/DecoratePcPages.tsx",
+  "filters": [
+    "title",
+    "type"
+  ],
+  "columns": [
+    "名称",
+    "位置",
+    "是否显示",
+    "是否新窗口",
+    "排序",
+    "操作"
+  ],
+  "actions": [
+    "编辑",
+    "删除"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "编辑"
+  },
+  "drawer": {
+    "width": 600
+  },
+  "notes": [
+    "PC导航栏管理"
+  ]
+}

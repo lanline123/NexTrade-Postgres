@@ -1,0 +1,11 @@
+{
+  "page": "wholesale/setting/Index.vue",
+  "component": "rust/web/admin-semi/src/pages/WholesaleSetting.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "批发商设置(wholesaleSettingManage)：WholesaleSetting，接口 /wholesale/setting/get 与 /wholesale/setting/save。"
+  ]
+}

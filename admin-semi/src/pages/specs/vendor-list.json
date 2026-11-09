@@ -1,0 +1,50 @@
+{
+  "page": "views/vendor/vendor/List.vue",
+  "skipOldPage": true,
+  "component": "rust/web/admin-semi/src/pages/VendorList.tsx",
+  "drawer": {
+    "width": 700,
+    "labelWidth": "auto"
+  },
+  "filters": [
+    "keyword",
+    "mainAccount",
+    "status"
+  ],
+  "columns": [
+    "供应商名称",
+    "企业属性",
+    "联系人姓名",
+    "联系方式",
+    "主账号",
+    "供应商状态",
+    "创建时间"
+  ],
+  "actions": [
+    "edit",
+    "delete",
+    "详情"
+  ],
+  "batch": [
+    "delete"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 160
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "供应商列表，逆向自 5.8.60 o2o_admin 产物 List-L9JNm4OB.js + suppliers-BVumaBiu.js",
+    "对应 Rust 接口: /vendor/vendor/list, detail, create, updateInfo, delVendor",
+    "支持关键词/主账号/状态检索、详情查看、主账号管理弹窗、抽屉新增与编辑、批量删除"
+  ]
+}

@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+const p = process.argv[2] || '.tmp-r28/cap-preview2/capture.json';
+const needle = process.argv[3] || '分类商品-简约';
+const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+const out = j.outline || [];
+console.log('outline sample:', JSON.stringify(out[0]));
+const hits = out.filter((o) => JSON.stringify(o).includes(needle));
+console.log(`\nmatches ${hits.length}:`);
+for (const h of hits) console.log(' ', JSON.stringify(h).slice(0, 300));
+const text = j.text || '';
+console.log(`\ntext contains ${needle}: ${text.includes(needle)}`);
+console.log('text head:', text.slice(0, 400));

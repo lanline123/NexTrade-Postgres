@@ -1,0 +1,33 @@
+{
+  "page": "finance/shopFunds/statementDetails/List.vue",
+  "component": "rust/web/admin-semi/src/pages/FinanceStatementPages.tsx",
+  "filters": [],
+  "columns": ["类型", "入账时间", "供应商名称", "业务单号", "入账类型", "金额（元）", "余额（元）", "支付方式"],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "widgets": {
+    "statementQueryConfig": {
+      "type": "config-driven-filters",
+      "component": "rust/web/admin-semi/src/pages/FinanceStatementPages.tsx",
+      "requires": ["getStatementQueryConfig", "exportStatement"],
+      "mcpChecks": ["DatePicker", "RadioGroup"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "供应商对账单明细 vendorStatementDetails：与 statementDetails 共用 StatementDetails 组件（source=vendor 第二实例），旧页同一 List.vue 按 props.source 区分。",
+    "vendor 变体差异：筛选标签 供应商、查询参数用 vendorId(而非 shopId)、列头 供应商名称、导出文件名 供应商对账单明细.xlsx。",
+    "端点同 statement-details.json（/finance/statement/*），Rust StatementListQuery 支持 vendorId 与 source=vendor。"
+  ]
+}

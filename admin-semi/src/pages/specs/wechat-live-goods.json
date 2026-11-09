@@ -1,0 +1,15 @@
+{
+  "page": "content/wechat-live/manageProduct.vue",
+  "info": "content/wechat-live/manageProduct.vue（直播商品）",
+  "component": "rust/web/admin-semi/src/pages/WechatLiveGoods.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": ["商品名称", "价格", "审核状态", "是否在直播间"],
+  "actions": [],
+  "batch": [],
+  "skipOldPage": true,
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "直播商品：接口 /content/wechatLiveGoods/*（list/import/addToRoom/removeFromRoom/query）。从微信导入 + 移除；加入直播间 addToRoom 待补商品多选入口（记录）。"
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "page": "setting/config/payment/Payment.vue",
+  "info": "setting/config/payment/Payment.vue",
+  "component": "rust/web/admin-semi/src/pages/PaymentSettings.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "widgets": {
+    "paymentOrder": {
+      "type": "payment-order-drag",
+      "component": "rust/web/admin-semi/src/components/PaymentOrderList.tsx",
+      "requires": ["payment-order-drag", "draggable"],
+      "mcpChecks": ["Tabs", "CheckboxGroup"]
+    },
+    "certUpload": {
+      "type": "cert-file-upload",
+      "component": "rust/web/admin-semi/src/components/CertFileUpload.tsx",
+      "requires": ["cert-file-upload", "uploadFile"],
+      "mcpChecks": ["Upload", "Button", "Toast"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "支付设置：旧版为 6 主 Tab（其他支付含 PayPal/汇付/拉卡拉/易宝 4 子 Tab）的多渠道配置页。",
+    "实现：Semi Tabs 容器 + 每 Tab 一个 AutoConfigPage 实例，对接后端分渠道端点 basicPaySettings/wechatPaySettings/aliPaySettings/offlinePaySettings/applePaySettings/payPalSettings/huifuSettings/lakalaSettings/yeepaySettings（Rust 后端均已实现）。",
+    "引擎增量扩展（向后兼容）：AutoConfigPage 新增 labels 覆盖、defaults 缺省合并、renderers 自定义渲染器，以及 multi/select/richtext 三种控件类型。",
+    "复杂控件：支付顺序拖拽排序（PaymentOrderList，HTML5 DnD）、支付证书上传（CertFileUpload，/setting/config/uploadFile?type=1..6 契约与旧版一致）、微信平台证书一键生成（createPlatformCertificate）。",
+    "线下支付：旧版汇款方式复选框由 4 个 Enable 开关表达，4 个富文本汇款说明按 Enable 联动显示，与旧版 selectedPaymentMethods 行为一致。",
+    "旧版右侧 PaymentPreviewAside 为装饰性收银台预览，未迁移（不涉及任何配置字段），后续可按需补充。",
+    "跨境版专属渠道（Stripe/YaBandPay/Antom/Xendit）在本版模板中未启用，与旧版 Payment.vue 保持一致。"
+  ]
+}

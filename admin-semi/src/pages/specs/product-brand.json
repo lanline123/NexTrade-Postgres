@@ -1,0 +1,32 @@
+{
+  "page": "product/brand/List.vue",
+  "info": "product/brand/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/Brands.tsx",
+  "drawer": {
+    "width": 600,
+    "labelWidth": "auto"
+  },
+  "filters": ["keyword", "isShow", "brandIsHot", "firstWord", "status"],
+  "columns": ["品牌名称", "品牌缩略图", "首字母", "是否热销", "是否显示", "排序", "审核状态", "审核备注"],
+  "actions": ["edit", "delete", "audit"],
+  "batch": ["delete"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 150
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "平台管理员视角：原版品牌审核 Tab 仅在商户/门店/S2B2C 账号显示，平台后台不显示。",
+    "原版行内编辑品牌名称/首字母/排序未做行内 PopForm，改为编辑抽屉统一修改。",
+    "批量更新品牌首字母为全量重算，与原版 updateFirstWord 接口一致。"
+  ]
+}

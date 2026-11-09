@@ -1,0 +1,22 @@
+{
+  "page": "salesman/overview/Index.vue",
+  "component": "rust/web/admin-semi/src/pages/SalesmanOverview.tsx",
+  "filters": [],
+  "columns": [
+    "核心数据汇总",
+    "核心指标趋势"
+  ],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "notes": [
+    "分销概览(salesman0/overviewManage):核心数据汇总(今日/累计 summaryType,GET /salesman/overview/coreSummary)+核心指标趋势(GET /salesman/overview/coreTrend,horizontalAxis/longitudinalAxis → TrendChart)+分销员排行+商品成交分析同屏聚合。",
+    "今日/累计金额列:后端金额为 0 时旧版展示 -,已对齐;刷新按钮保留更新时间展示。",
+    "adminType==admin 才显示的分销员数/销售额两项为店铺角色分支,新后台以平台账号为主,恒渲染(记录)。"
+  ]
+}

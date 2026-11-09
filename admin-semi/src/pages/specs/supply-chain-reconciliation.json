@@ -1,0 +1,23 @@
+{
+  "page": "purchaseReconciliationManage",
+  "component": "rust/web/admin-semi/src/pages/SupplyChainPurchasePages.tsx",
+  "skipOldPage": true,
+  "filters": ["keyword"],
+  "columns": ["对账批次号", "供应商", "应付账款", "实付金额", "对账状态", "对账周期", "操作"],
+  "actions": ["确认对账"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "操作",
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "采购对账结算管理(purchaseReconciliationManage)：逆向自 5.8.60 purchaseReconciliation-DB9wQX-b.js，接口 /supplyChain/purchaseReconciliation/*。"
+  ]
+}

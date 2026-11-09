@@ -1,0 +1,24 @@
+{
+  "page": "content/articleCategory/List.vue",
+  "info": "content/articleCategory/List.vue",
+  "component": "rust/web/admin-semi/src/pages/ArticleCategories.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": ["文章分类名称", "分类编号", "排序"],
+  "actions": ["edit"],
+  "batch": [],
+  "widgets": {
+    "treeTable": {
+      "type": "category-tree-table",
+      "component": "rust/web/admin-semi/src/pages/ArticleCategories.tsx",
+      "requires": ["content/articleCategory/tree", "moveCat"],
+      "mcpChecks": ["Table", "Modal", "Select"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "文章分类：接口 /content/articleCategory/*（tree/list/create/update/del/batch/moveCat/updateField/detail）。",
+    "树形展示（扁平化缩进），名称/编号/排序点击行内改（updateField），添加下级/移动(moveCat)/删除齐全。",
+    "与旧版差异：PopForm 气泡编辑简化为点击 prompt（语义一致）；批量删除未做（旧版有 selection 列，实际批量入口少用），如需可补。"
+  ]
+}

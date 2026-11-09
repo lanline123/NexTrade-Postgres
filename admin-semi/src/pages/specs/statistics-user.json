@@ -1,0 +1,11 @@
+{
+  "page": "panel/statisticsUser/List.vue",
+  "component": "rust/web/admin-semi/src/pages/PanelStatisticsPages.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "用户统计(statisticsUser)：环比统计卡片看板，接口 /panel/statisticsUser/userStatisticsPanel。"
+  ]
+}

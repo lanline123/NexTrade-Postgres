@@ -1,0 +1,26 @@
+{
+  "page": "rust/web/admin-semi/src/pages/VendorOrders.tsx",
+  "component": "rust/web/admin-semi/src/pages/VendorOrders.tsx",
+  "skipOldPage": true,
+  "filters": ["keyword", "transactionId", "vendorId", "shopId", "payStatus", "shippingStatus"],
+  "columns": ["订单信息(下单时间排序)", "订单金额", "会员名称", "收货人信息", "物流/支付信息", "订单状态"],
+  "actions": ["查看详情", "去发货", "添加标记"],
+  "batch": ["批量打印"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 200
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "供应商订单(vendorOrderManage)：ListPage，接口 /vendor/vendorShopBind/orderList。逆向自 5.8.60 List-gsME0q05.js。"
+  ]
+}

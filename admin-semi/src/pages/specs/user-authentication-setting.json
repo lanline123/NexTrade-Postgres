@@ -1,0 +1,15 @@
+{
+  "page": "setting/config/base/src/AuthenticationSettings.vue",
+  "info": "setting/config/base/src/AuthenticationSettings.vue",
+  "component": "rust/web/admin-semi/src/pages/UserAuthenticationSettings.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "认证设置：接口 /setting/config/authSettings + saveAuth（closeAuth/type/isIdentity/smsNote/tips）。",
+    "closeAuth=0 时认证类型与实名看价置灰（与旧版一致）；询价功能/批量采购项在旧版已注释，未迁移。"
+  ]
+}

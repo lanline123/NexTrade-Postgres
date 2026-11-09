@@ -1,0 +1,20 @@
+{
+  "page": "finance/deposit/rule/List.vue",
+  "info": "finance/deposit/rule/Info.vue",
+  "columns": [
+    "规则名称",
+    "保证金金额",
+    "规则状态",
+    "创建时间"
+  ],
+  "component": "rust/web/admin-semi/src/pages/FinanceMoreLists.tsx",
+  "drawer": null,
+  "filters": [
+    "keyword"
+  ],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "当前为只读财务列表，后续补审核/导出操作。"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "page": "product/productAttributesTpl/List.vue",
+  "info": "product/productAttributesTpl/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/AttributesTemplates.tsx",
+  "drawer": {
+    "width": 1030,
+    "labelWidth": "auto"
+  },
+  "filters": ["keyword"],
+  "columns": ["属性模板名称", "商品类目", "名称列表"],
+  "actions": ["edit", "delete"],
+  "batch": ["delete"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 150
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "属性配置使用统一的 TplDataEditor，支持属性项/规格项/附加服务的新增、删除和值维护。",
+    "原版行内编辑模板名称改为编辑抽屉。"
+  ]
+}

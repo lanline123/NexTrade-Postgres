@@ -1,0 +1,45 @@
+{
+  "page": "adminMerchant/apply/List.vue",
+  "info": "adminMerchant/apply/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/MerchantApplies.tsx",
+  "filters": [
+    "username"
+  ],
+  "columns": [
+    "申请信息",
+    "申请会员名称(ID)",
+    "联系人姓名",
+    "联系人电话",
+    "申请状态",
+    "申请日期",
+    "审核时间",
+    "审核人"
+  ],
+  "actions": [
+    "详情",
+    "delete"
+  ],
+  "batch": [
+    "delete"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 160
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "入驻申请管理，支持会员名称检索与状态Tab快速过滤 (全部/待审核/审核通过/审核未通过)",
+    "支持入驻详情查看（多Tab展示基础信息/企业信息/法人代表/商户与店铺）",
+    "待审核记录支持在线审核（通过/拒绝+原因录入），调用 /merchant/apply/audit",
+    "审核未通过记录支持单条删除与批量删除，调用 /merchant/apply/del 与 /merchant/apply/batch"
+  ]
+}

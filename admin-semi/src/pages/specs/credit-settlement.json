@@ -1,0 +1,22 @@
+{
+  "page": "order/termPay/termPay/List.vue",
+  "info": "order/termPay/termPay/List.vue(账期结算)",
+  "component": "rust/web/admin-semi/src/pages/CreditPages.tsx",
+  "drawer": null,
+  "filters": ["keyword", "settlementSn"],
+  "columns": ["客户名称", "授信额度", "可用额度", "已使用额度", "结算账期", "剩余账期天数", "结算建议"],
+  "actions": [],
+  "batch": [],
+  "widgets": {
+    "settleDialog": {
+      "type": "credit-settle-dialog",
+      "component": "rust/web/admin-semi/src/pages/CreditPages.tsx",
+      "requires": ["credit/settlement/pendingOrders", "credit/settlement/submit"],
+      "mcpChecks": ["Modal", "Table", "Button"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "账期结算:userList 列表 + 去结算弹窗(pendingOrders 勾选订单 → submit {userId,orderIds});结算历史(history/historyOrders)与撤回(cancel)待补(记录)。"
+  ]
+}

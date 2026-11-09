@@ -1,0 +1,13 @@
+{
+  "page": "setting/config/base/src/ShoppingSettings.vue",
+  "info": "setting/config/base/src/ShoppingSettings.vue",
+  "component": "rust/web/admin-semi/src/pages/AutoConfigPage.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "交易设置：通用配置页，字段按真实接口返回渲染。"
+  ]
+}

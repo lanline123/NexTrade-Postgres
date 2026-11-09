@@ -1,0 +1,52 @@
+{
+  "page": "product/stockWarning/List.vue",
+  "info": "product/stockWarning/List.vue",
+  "component": "rust/web/admin-semi/src/pages/StockWarnings.tsx",
+  "drawer": null,
+  "filters": ["keyword", "warnEnabled"],
+  "columns": ["商品名称", "规格", "相关商品", "实物库存", "在途库存", "库存下限", "库存上限", "库存状态", "库存预警"],
+  "actions": ["设置"],
+  "batch": ["设置库存预警", "导入库存预警", "批量导出"],
+  "widgets": {
+    "listTable": {
+      "type": "stock-warning-table",
+      "component": "rust/web/admin-semi/src/pages/StockWarnings.tsx",
+      "requires": ["/product/stockWarning/list", "rowSelection", "sortField"],
+      "mcpChecks": ["Table", "Tabs", "Tooltip", "Tag", "Image", "Select", "Input", "IconHelpCircle"]
+    },
+    "setWarningDrawer": {
+      "type": "stock-warning-set-drawer",
+      "component": "rust/web/admin-semi/src/pages/StockWarnings.tsx",
+      "requires": ["/product/stockWarning/save", "/product/stockWarning/batchSave", "FormDrawer"],
+      "mcpChecks": ["FormDrawer", "Switch", "InputNumber", "SideSheet"]
+    },
+    "importDialog": {
+      "type": "stock-warning-import",
+      "component": "rust/web/admin-semi/src/pages/StockWarnings.tsx",
+      "requires": ["/product/stockWarning/import", "/product/stockWarning/downloadTemplate", "/product/stockWarning/getBatchImportErrorData"],
+      "mcpChecks": ["Modal", "Upload", "Button"]
+    },
+    "exportFlow": {
+      "type": "stock-warning-export",
+      "component": "rust/web/admin-semi/src/pages/StockWarnings.tsx",
+      "requires": ["/product/stockWarning/export"],
+      "mcpChecks": ["Button", "Toast"]
+    },
+    "notifySwitch": {
+      "type": "stock-warning-notify-setting",
+      "component": "rust/web/admin-semi/src/pages/StockWarnings.tsx",
+      "requires": ["/product/stockWarning/setting"],
+      "mcpChecks": ["Switch", "Card"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "库存预警：库存预警通知总开关卡片(GET/POST /product/stockWarning/setting, notifyEnabled) + 商品预警设置列表(GET /product/stockWarning/list, 按 SKU 成行)。",
+    "列表按 SKU 成行、主键为 productId+skuId 组合，ListPage 行选择依赖单一 rowKey 字段无法表达，故本页为自绘 Table(Tabs 库存状态 + keyword/warnEnabled 筛选 + rowSelection 跨页保留 + 服务端排序 sorter:true -> sortField/sortOrder + 受控分页)。",
+    "库存状态 Tab：全部(-1=不传)/低库存(1)/高库存(2)/正常库存(0)；库存预警筛选：全部(-1=不传)/已开启(1)/已关闭(0)；未配置规则行上下限与开关留空，库存状态不展示。",
+    "设置库存预警：单个/批量共用自驱动 FormDrawer(库存预警开关 + 库存下限 + 库存上限，非负整数且上限>下限校验)；targets=1 走 POST /product/stockWarning/save{productId,skuId,warnEnabled,lowerLimit,upperLimit}，targets>1 走 POST /product/stockWarning/batchSave{targets[...]}，失败项逐条提示(productId:reason)。",
+    "导入库存预警：Modal 内下载模板(GET /product/stockWarning/downloadTemplate xlsx 流) + 拖拽/点击上传(.xls/.xlsx, 限10M) + POST /product/stockWarning/import(FormData file) + 部分失败可下载失败数据(POST /product/stockWarning/getBatchImportErrorData 回传原文件换 xlsx 流) + 导入规则说明；后端模板列为 商品编码/SKU编码/下限/上限。",
+    "批量导出：仅导出勾选行(GET /product/stockWarning/export?ids=productId_skuId,...，后端忽略筛选条件)，Rust 返回 xlsx 流，前端 Blob 下载为 库存预警导出.xlsx。",
+    "与旧版差异：①旧版点击相关商品数量跳转商品列表(relatedProductIds 经 history.state)，新框架商品列表页无 ids 过滤入口，仅展示数量；②旧版 el-table 列头排序文案升级为 Semi Table 服务端排序(sortField: currentStock/transitStock/lowerLimit/upperLimit, sort ascend/desc)；③权限位 stockWarningUpdateManage 的按钮级显隐未迁移(Rust 侧权限矩阵尚未实现)；④模板列以 Rust/Java 实际的 商品编码/SKU编码/下限/上限 为准(旧 List.vue 注释中的 规格编码/上限/下限 为过期注释)。"
+  ]
+}

@@ -1,0 +1,619 @@
+import { useEffect, useState } from 'react';
+import {
+  Button,
+  Card,
+  DatePicker,
+  Empty,
+  Input,
+  Modal,
+  Radio,
+  RadioGroup,
+  Select,
+  Space,
+  Spin,
+  Table,
+  Tabs,
+  Tag,
+  Toast,
+  Typography,
+} from '@douyinfe/semi-ui';
+import { IconRefresh, IconSearch } from '@douyinfe/semi-icons';
+import { apiGet, apiPost, isDemo } from '../api';
+import { useI18n } from '../i18n';
+import { mockOrderPage } from '../mock';
+import type { OrderRow, PageResult } from '../types';
+import OrderDetailModal from '../components/OrderDetailModal';
+import { WriteOffModal } from '../components/OrderExtraDialogs';
+import {
+  BatchDeliverImportModal,
+  BatchShipModal,
+  BatchSignModal,
+  ChangeStatusModal,
+} from '../components/OrderBatchDialogs';
+
+const { Text } = Typography;
+
+const statusTabs = [
+  { tab: '全部', key: '' },
+  { tab: '待付款', key: '0' },
+  { tab: '待发货', key: '1' },
+  { tab: '待收货', key: '2' },
+  { tab: '已完成', key: '5' },
+  { tab: '已取消', key: '3' },
+];
+
+const statusColor: Record<string, string> = {
+  待付款: 'orange',
+  待发货: 'blue',
+  待收货: 'cyan',
+  已完成: 'green',
+  已取消: 'grey',
+};
+
+type OrderFilters = {
+  keyword: string;
+  outTradeNo: string;
+  address: string;
+  email: string;
+  mobile: string;
+  payStatus: number | undefined;
+  shippingStatus: number | undefined;
+  addTime: string[];
+  mark: number; // -1 不限（旧版「订单标记」筛选）
+};
+
+const emptyFilters: OrderFilters = {
+  keyword: '',
+  outTradeNo: '',
+  address: '',
+  email: '',
+  mobile: '',
+  payStatus: undefined,
+  shippingStatus: undefined,
+  addTime: [],
+  mark: -1,
+};
+
+/** 会员标签筛选状态（对齐旧版「按会员标签筛选订单」弹窗）。 */
+type MemberTagFilter = {
+  memberTagIds: number[];
+  memberTagMatchMode: number; // 0 任一 / 1 全部
+};
+
+const emptyMemberTagFilter: MemberTagFilter = { memberTagIds: [], memberTagMatchMode: 0 };
+
+export default function Orders({ onNavigate }: { onNavigate?: (page: string) => void } = {}) {
+  const { t } = useI18n();
+  const [rows, setRows] = useState<OrderRow[]>(isDemo() ? mockOrderPage.records : []);
+  const [total, setTotal] = useState(isDemo() ? mockOrderPage.total : 0);
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState('');
+  const [filters, setFilters] = useState<OrderFilters>(emptyFilters);
+  const [applied, setApplied] = useState<OrderFilters>(emptyFilters);
+  const [loading, setLoading] = useState(!isDemo());
+  const [reloadKey, setReloadKey] = useState(0);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailId, setDetailId] = useState<number | undefined>(undefined);
+  const [writeOffOpen, setWriteOffOpen] = useState(false);
+  // 批量操作（对齐旧版：添加标记 / 订单批量发货 / Excel批量发货）
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [batchSignOpen, setBatchSignOpen] = useState(false);
+  const [batchShipOpen, setBatchShipOpen] = useState(false);
+  const [batchImportOpen, setBatchImportOpen] = useState(false);
+  const [logistics, setLogistics] = useState<Array<{ id: number; name: string }>>([]);
+  // 行级取消订单 / 取消发货（旧版 ChangeStatus，preOrderStatus 3/1）
+  const [changeStatus, setChangeStatus] = useState<{ orderId: number; preOrderStatus: number; title: string } | null>(null);
+  // 按会员标签筛选
+  const [memberTagFilter, setMemberTagFilter] = useState<MemberTagFilter>(emptyMemberTagFilter);
+  const [appliedMemberTagFilter, setAppliedMemberTagFilter] = useState<MemberTagFilter>(emptyMemberTagFilter);
+  const [memberTagDialogOpen, setMemberTagDialogOpen] = useState(false);
+  const [tagGroups, setTagGroups] = useState<Array<{ groupId: number; groupName: string; tags: Array<{ id: number; tagName: string }> }>>([]);
+  const [tagLoading, setTagLoading] = useState(false);
+
+  useEffect(() => {
+    if (isDemo()) return;
+    // 物流公司（批量发货弹窗用）
+    apiGet<{ records: Array<{ logisticsId: number; logisticsName: string }> }>('/setting/logisticsCompany/list', { page: 1, size: 100 })
+      .then((result) => setLogistics((result.records || []).map((item) => ({ id: item.logisticsId, name: item.logisticsName }))))
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (isDemo()) return;
+    let alive = true;
+    setLoading(true);
+    apiGet<PageResult<OrderRow>>('/order/order/list', {
+      page,
+      size: 10,
+      orderStatus: status || undefined,
+      keyword: applied.keyword || undefined,
+      outTradeNo: applied.outTradeNo || undefined,
+      address: applied.address || undefined,
+      email: applied.email || undefined,
+      mobile: applied.mobile || undefined,
+      payStatus: applied.payStatus,
+      mark: applied.mark !== -1 ? applied.mark : undefined,
+      shippingStatus: applied.shippingStatus,
+      addStartTime: applied.addTime?.[0] || undefined,
+      addEndTime: applied.addTime?.[1] || undefined,
+      memberTagIds: appliedMemberTagFilter.memberTagIds.length ? appliedMemberTagFilter.memberTagIds : undefined,
+      memberTagMatchMode: appliedMemberTagFilter.memberTagIds.length ? appliedMemberTagFilter.memberTagMatchMode : undefined,
+    })
+      .then((result) => {
+        if (!alive) return;
+        setRows(result.records || []);
+        setTotal(result.total || 0);
+      })
+      .catch((error) => alive && Toast.error({ content: error.message }))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [page, status, applied, appliedMemberTagFilter, reloadKey]);
+
+  const search = () => {
+    setPage(1);
+    setApplied({ ...filters });
+  };
+
+  const reset = () => {
+    setFilters(emptyFilters);
+    setApplied(emptyFilters);
+    setPage(1);
+  };
+
+  const reload = () => setReloadKey((key) => key + 1);
+
+  const openMemberTagDialog = () => {
+    setMemberTagDialogOpen(true);
+    if (tagGroups.length > 0) return;
+    setTagLoading(true);
+    apiGet<any>('/user/memberTagGroup/list', { page: 1, size: 100 })
+      .then((result) =>
+        setTagGroups(
+          (result?.records || []).map((group: any) => ({
+            groupId: group.groupId ?? group.id,
+            groupName: group.groupName || '',
+            tags: (group.tags || []).map((tag: any) => ({ id: tag.id, tagName: tag.tagName })),
+          })),
+        ),
+      )
+      .catch((error) => Toast.error({ content: error?.message || t('加载会员标签失败') }))
+      .finally(() => setTagLoading(false));
+  };
+
+  const toggleMemberTag = (tagId: number) => {
+    setMemberTagFilter((current) => ({
+      ...current,
+      memberTagIds: current.memberTagIds.includes(tagId)
+        ? current.memberTagIds.filter((id) => id !== tagId)
+        : [...current.memberTagIds, tagId],
+    }));
+  };
+
+  const remindDeliver = (row: OrderRow) => {
+    Modal.confirm({
+      title: t('确认催发货该订单吗？'),
+      okText: t('确定'),
+      cancelText: t('取消'),
+      onOk: async () => {
+        try {
+          await apiPost(`/order/order/remindDeliver?id=${row.orderId}`);
+          Toast.success({ content: t('催发货已通知供应商') });
+          reload();
+        } catch (error) {
+          Toast.error({ content: error instanceof Error ? error.message : t('操作失败') });
+        }
+      },
+    });
+  };
+
+  const confirmReceipt = (row: OrderRow) => {
+    const finished = row.shippingTypeId === 3;
+    Modal.confirm({
+      title: finished ? t('确认该订单已完成配送吗？') : t('确认订单已收货吗？'),
+      okText: t('确定'),
+      cancelText: t('取消'),
+      onOk: async () => {
+        try {
+          await apiPost('/order/order/confirmReceipt', { id: row.orderId });
+          Toast.success({ content: t('操作成功') });
+          reload();
+        } catch (error) {
+          Toast.error({ content: error instanceof Error ? error.message : t('操作失败') });
+        }
+      },
+    });
+  };
+
+  return (
+    <>
+      <Card className="table-card" shadows="hover">
+        <Tabs
+          type="line"
+          activeKey={status}
+          onChange={(key) => {
+            setStatus(String(key));
+            setPage(1);
+          }}
+          tabList={statusTabs.map((item) => ({ tab: t(item.tab), itemKey: item.key }))}
+        />
+
+        <div className="table-toolbar" style={{ marginTop: 16, flexWrap: 'wrap', gap: 8 }}>
+          <Space wrap>
+            <Input
+              prefix={<IconSearch />}
+              placeholder={t('搜索订单号 / 收货人 / 商品名称')}
+              value={filters.keyword}
+              onChange={(next) => setFilters((current) => ({ ...current, keyword: next }))}
+              onEnterPress={search}
+              style={{ width: 240 }}
+            />
+            <Input
+              placeholder={t('请输入交易单号')}
+              value={filters.outTradeNo}
+              onChange={(next) => setFilters((current) => ({ ...current, outTradeNo: next }))}
+              style={{ width: 160 }}
+            />
+            <Input
+              placeholder={t('详细地址')}
+              value={filters.address}
+              onChange={(next) => setFilters((current) => ({ ...current, address: next }))}
+              style={{ width: 150 }}
+            />
+            <Input
+              placeholder={t('手机号')}
+              value={filters.mobile}
+              onChange={(next) => setFilters((current) => ({ ...current, mobile: next }))}
+              style={{ width: 140 }}
+            />
+            <Input
+              placeholder="Email"
+              value={filters.email}
+              onChange={(next) => setFilters((current) => ({ ...current, email: next }))}
+              style={{ width: 150 }}
+            />
+            <Select
+              placeholder={t('支付状态')}
+              value={filters.payStatus}
+              optionList={[
+                { label: t('全部'), value: -1 },
+                { label: t('未付款'), value: 0 },
+                { label: t('已付款'), value: 1 },
+              ]}
+              onChange={(next) =>
+                setFilters((current) => ({
+                  ...current,
+                  payStatus: Number(next) === -1 ? undefined : Number(next),
+                }))
+              }
+              style={{ width: 130 }}
+            />
+            <Select
+              placeholder={t('订单标记：')}
+              value={filters.mark}
+              showClear
+              optionList={[
+                { label: t('全部订单'), value: -1 },
+                { label: <span style={{ color: '#ff5050' }}>●</span>, value: 1 },
+                { label: <span style={{ color: '#ffba1f' }}>●</span>, value: 2 },
+                { label: <span style={{ color: '#2ecf92' }}>●</span>, value: 3 },
+                { label: <span style={{ color: '#16afff' }}>●</span>, value: 4 },
+                { label: <span style={{ color: '#792dff' }}>●</span>, value: 5 },
+              ]}
+              onChange={(next) =>
+                setFilters((current) => ({ ...current, mark: Number(next ?? -1) }))
+              }
+              style={{ width: 120 }}
+            />
+            <Select
+              placeholder={t('发货状态')}
+              value={filters.shippingStatus}
+              optionList={[
+                { label: t('全部'), value: -1 },
+                { label: t('未发货'), value: 0 },
+                { label: t('部分发货'), value: 1 },
+                { label: t('已发货'), value: 2 },
+              ]}
+              onChange={(next) =>
+                setFilters((current) => ({
+                  ...current,
+                  shippingStatus: Number(next) === -1 ? undefined : Number(next),
+                }))
+              }
+              style={{ width: 130 }}
+            />
+            <DatePicker
+              type="dateRange"
+              value={filters.addTime as never}
+              onChange={(next) =>
+                setFilters((current) => ({ ...current, addTime: (next as string[]) || [] }))
+              }
+              style={{ width: 250 }}
+            />
+            <Button theme="solid" type="primary" icon={<IconSearch />} onClick={search}>
+              {t('搜索')}
+            </Button>
+            <Button onClick={reset}>{t('重置')}</Button>
+            <Button onClick={openMemberTagDialog}>
+              {t('按会员标签筛选')}
+              {appliedMemberTagFilter.memberTagIds.length > 0
+                ? ` (${appliedMemberTagFilter.memberTagIds.length})`
+                : ''}
+            </Button>
+          </Space>
+          <Space>
+            <Button icon={<IconRefresh />} onClick={reload}>
+              {t('刷新')}
+            </Button>
+            <Button onClick={() => setWriteOffOpen(true)}>{t('核销')}</Button>
+            <Button disabled={selectedIds.length === 0} onClick={() => setBatchShipOpen(true)}>
+              {t('订单批量发货')}
+              {selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
+            </Button>
+            <Button onClick={() => setBatchImportOpen(true)}>{t('Excel批量发货')}</Button>
+            <Button disabled={selectedIds.length === 0} onClick={() => setBatchSignOpen(true)}>
+              {t('添加标记')}
+              {selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
+            </Button>
+            <Button
+              onClick={() => {
+                if (onNavigate) onNavigate('orderExportManage');
+                else window.location.href = `${window.location.origin}/?page=orderExportManage`;
+              }}
+            >
+              {t('导出订单')}
+            </Button>
+          </Space>
+        </div>
+
+        <Table
+          loading={loading}
+          dataSource={rows}
+          rowKey="orderId"
+          rowSelection={{
+            selectedRowKeys: selectedIds,
+            onChange: (keys: any) => setSelectedIds((keys as Array<string | number>).map(String)),
+          }}
+          pagination={{
+            currentPage: page,
+            pageSize: 10,
+            total,
+            onChange: (nextPage: number) => setPage(nextPage),
+          }}
+          columns={[
+            {
+              title: t('订单号'),
+              dataIndex: 'orderSn',
+              render: (value: string) => <span className="mono">{value}</span>,
+            },
+            {
+              title: t('收货人'),
+              dataIndex: 'consignee',
+              render: (value: string, record: OrderRow) => (
+                <div>
+                  <div>{value || '-'}</div>
+                  <Text type="tertiary" size="small">
+                    {record.mobile || '-'}
+                  </Text>
+                </div>
+              ),
+            },
+            {
+              title: t('订单金额'),
+              dataIndex: 'totalAmount',
+              width: 140,
+              render: (value: string) => <span className="money">¥ {Number(value || 0).toLocaleString()}</span>,
+            },
+            {
+              title: t('支付状态'),
+              dataIndex: 'payStatusName',
+              width: 110,
+              render: (value: string) => <Tag color={value === '已付款' ? 'green' : 'orange'}>{value ? t(value) : '-'}</Tag>,
+            },
+            {
+              title: t('订单状态'),
+              dataIndex: 'orderStatusName',
+              width: 110,
+              render: (value: string) => <Tag color={(statusColor[value] || 'blue') as any}>{value ? t(value) : '-'}</Tag>,
+            },
+            { title: t('下单时间'), dataIndex: 'addTime', width: 180 },
+            {
+              title: t('操作'),
+              width: 250,
+              render: (_: unknown, record: OrderRow) => (
+                <Space>
+                  <Button
+                    theme="borderless"
+                    size="small"
+                    onClick={() => {
+                      setDetailId(record.orderId);
+                      setDetailOpen(true);
+                    }}
+                  >
+                    {t('查看详情')}
+                  </Button>
+                  {record.orderStatus === 1 && (
+                    <Button theme="borderless" size="small" onClick={() => remindDeliver(record)}>
+                      {t('催发货')}
+                    </Button>
+                  )}
+                  {record.orderStatus === 2 && !record.isPickup && (
+                    <Button theme="borderless" size="small" onClick={() => confirmReceipt(record)}>
+                      {record.shippingTypeId === 3 ? t('完成配送') : t('确认收货')}
+                    </Button>
+                  )}
+                  {/* 取消订单 / 取消发货（旧版 ChangeStatus：isChangeOrderStatus 时展示） */}
+                  {Number(record.isChangeOrderStatus) === 1 && record.availableActions?.deliver && (
+                    <Button
+                      theme="borderless"
+                      size="small"
+                      type="primary"
+                      onClick={() =>
+                        setChangeStatus({
+                          orderId: record.orderId,
+                          preOrderStatus: Number(record.preOrderStatus ?? 3),
+                          title: t('取消订单'),
+                        })
+                      }
+                    >
+                      {t('取消订单')}
+                    </Button>
+                  )}
+                  {Number(record.isChangeOrderStatus) === 1 && record.availableActions?.confirmReceipt && (
+                    <Button
+                      theme="borderless"
+                      size="small"
+                      type="primary"
+                      onClick={() =>
+                        setChangeStatus({
+                          orderId: record.orderId,
+                          preOrderStatus: Number(record.preOrderStatus ?? 1),
+                          title: t('取消发货'),
+                        })
+                      }
+                    >
+                      {t('取消发货')}
+                    </Button>
+                  )}
+                </Space>
+              ),
+            },
+          ]}
+        />
+      </Card>
+
+      <OrderDetailModal
+        visible={detailOpen}
+        orderId={detailId}
+        onCancel={() => setDetailOpen(false)}
+        onChanged={reload}
+      />
+
+      <WriteOffModal
+        visible={writeOffOpen}
+        onCancel={() => setWriteOffOpen(false)}
+        onSuccess={() => {
+          setWriteOffOpen(false);
+          reload();
+        }}
+      />
+
+      <BatchSignModal
+        visible={batchSignOpen}
+        ids={selectedIds.map(Number)}
+        onCancel={() => setBatchSignOpen(false)}
+        onSuccess={() => {
+          setBatchSignOpen(false);
+          setSelectedIds([]);
+          reload();
+        }}
+      />
+
+      <BatchShipModal
+        visible={batchShipOpen}
+        ids={selectedIds.map(Number)}
+        logistics={logistics}
+        onCancel={() => setBatchShipOpen(false)}
+        onSuccess={() => {
+          setBatchShipOpen(false);
+          setSelectedIds([]);
+          reload();
+        }}
+      />
+
+      <BatchDeliverImportModal
+        visible={batchImportOpen}
+        onCancel={() => setBatchImportOpen(false)}
+        onSuccess={reload}
+      />
+
+      <ChangeStatusModal
+        visible={Boolean(changeStatus)}
+        orderId={changeStatus?.orderId ?? 0}
+        preOrderStatus={changeStatus?.preOrderStatus ?? 3}
+        title={changeStatus?.title ?? ''}
+        onCancel={() => setChangeStatus(null)}
+        onSuccess={() => {
+          setChangeStatus(null);
+          reload();
+        }}
+      />
+
+      <Modal
+        title={t('按会员标签筛选订单')}
+        visible={memberTagDialogOpen}
+        width={720}
+        footer={
+          <Space>
+            <Button
+              onClick={() => {
+                setMemberTagFilter(emptyMemberTagFilter);
+                setAppliedMemberTagFilter(emptyMemberTagFilter);
+                setMemberTagDialogOpen(false);
+                setPage(1);
+              }}
+            >
+              {t('清除筛选')}
+            </Button>
+            <Button
+              onClick={() => {
+                setMemberTagDialogOpen(false);
+                setPage(1);
+              }}
+            >
+              {t('取消')}
+            </Button>
+            <Button
+              theme="solid"
+              type="primary"
+              onClick={() => {
+                setAppliedMemberTagFilter(memberTagFilter);
+                setMemberTagDialogOpen(false);
+                setPage(1);
+              }}
+            >
+              {t('确定')}
+            </Button>
+          </Space>
+        }
+      >
+        <Spin spinning={tagLoading}>
+          <RadioGroup
+            value={memberTagFilter.memberTagMatchMode}
+            onChange={(event) =>
+              setMemberTagFilter((current) => ({
+                ...current,
+                memberTagMatchMode: Number(event.target.value),
+              }))
+            }
+            style={{ marginBottom: 12 }}
+          >
+            <Radio value={0}>{t('匹配任一标签')}</Radio>
+            <Radio value={1}>{t('匹配全部标签')}</Radio>
+          </RadioGroup>
+          <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+            {tagGroups.map((group) => (
+              <div key={group.groupId} style={{ marginBottom: 12 }}>
+                <div style={{ fontWeight: 500, marginBottom: 6 }}>{group.groupName}</div>
+                <Space wrap>
+                  {group.tags.map((tag) => (
+                    <Tag
+                      key={tag.id}
+                      color={memberTagFilter.memberTagIds.includes(tag.id) ? 'blue' : 'white'}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => toggleMemberTag(tag.id)}
+                    >
+                      {tag.tagName}
+                    </Tag>
+                  ))}
+                </Space>
+              </div>
+            ))}
+            {!tagLoading && tagGroups.length === 0 && <Empty description={t('暂无标签')} />}
+          </div>
+        </Spin>
+      </Modal>
+    </>
+  );
+}

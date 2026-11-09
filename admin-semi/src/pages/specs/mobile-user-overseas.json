@@ -1,0 +1,17 @@
+{
+  "page": "mobileuserUserOverseasManage",
+  "skipOldPage": true,
+  "component": "rust/web/admin-semi/src/pages/DecorateMobilePages.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [
+    "进入可视化画布装修"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true
+  },
+  "notes": [
+    "海外版会员首页装修"
+  ]
+}

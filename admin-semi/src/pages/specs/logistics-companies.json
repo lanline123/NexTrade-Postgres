@@ -1,0 +1,32 @@
+{
+  "page": "setting/logisticsCompany/List.vue",
+  "info": "setting/logisticsCompany/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/LogisticsCompanies.tsx",
+  "drawer": {
+    "width": 600,
+    "labelWidth": "auto"
+  },
+  "filters": ["keyword"],
+  "columns": ["物流公司名称", "编号", "物流公司描述", "是否启用", "排序"],
+  "actions": ["edit", "delete"],
+  "batch": ["delete"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 150
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "快递鸟和快递100 编号同时展示与编辑，不依赖服务商切换。",
+    "提供同步快递鸟/同步快递100 两个入口。",
+    "原版物流公司名称/编号/描述行内编辑改为编辑抽屉。"
+  ]
+}

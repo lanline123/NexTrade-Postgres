@@ -1,0 +1,30 @@
+{
+  "page": "setting/friendLinks/List.vue",
+  "info": "setting/friendLinks/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/FriendLinks.tsx",
+  "drawer": {
+    "width": 580,
+    "labelWidth": "auto"
+  },
+  "filters": ["keyword"],
+  "columns": ["链接名称", "链接地址", "链接LOGO", "排序"],
+  "actions": ["edit", "delete"],
+  "batch": ["delete"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 150
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "原版链接名称/排序支持行内编辑，当前统一通过编辑抽屉修改。"
+  ]
+}

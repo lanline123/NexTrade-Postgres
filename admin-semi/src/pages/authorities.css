@@ -1,0 +1,77 @@
+/* 权限目录（Authorities.tsx）页内样式：行内编辑、树形名称列、细分权限表单行 */
+
+.auth-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+}
+
+.auth-name-link {
+  color: var(--semi-color-link);
+  cursor: pointer;
+}
+
+.auth-name-link:hover {
+  text-decoration: underline;
+}
+
+.auth-name-text {
+  color: var(--semi-color-text-0);
+}
+
+.auth-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+}
+
+.auth-inline-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth-inline-trigger.semi-button {
+  padding: 2px;
+  color: var(--semi-color-text-2);
+}
+
+.auth-inline-trigger.semi-button:hover {
+  color: var(--semi-color-primary);
+}
+
+.auth-icon-text {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.auth-inline-pop {
+  display: grid;
+  gap: 8px;
+  padding: 6px 2px;
+  width: 250px;
+}
+
+.auth-inline-pop .auth-inline-title {
+  font-weight: 600;
+  color: var(--semi-color-text-0);
+}
+
+.auth-child-list {
+  display: grid;
+  gap: 8px;
+}
+
+.auth-child-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.auth-child-label {
+  color: var(--semi-color-text-2);
+  white-space: nowrap;
+}

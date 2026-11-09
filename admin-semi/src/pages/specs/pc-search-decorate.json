@@ -1,0 +1,16 @@
+{
+  "page": "decorate/pcDecorate/SearchDecorate.vue",
+  "component": "rust/web/admin-semi/src/pages/DecoratePcPages.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [
+    "进入搜索页画布装修"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true
+  },
+  "notes": [
+    "PC搜索页装修"
+  ]
+}

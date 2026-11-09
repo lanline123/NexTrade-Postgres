@@ -1,0 +1,24 @@
+{
+  "page": "wholesale/product/List.vue",
+  "component": "rust/web/admin-semi/src/pages/WholesaleProducts.tsx",
+  "filters": ["keyword", "moqDimension"],
+  "columns": ["商品名称", "商品信息", "批发价", "起批维度", "起批数量", "倍数购买", "库存", "上下架状态"],
+  "actions": ["批发价", "起批量", "倍数购买", "删除"],
+  "batch": ["批量设置起批量", "批量删除"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "width": 280
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "批发商品列表(wholesaleProductManage)：ListPage，接口 /wholesale/product/page，支持添加、设置批发价、设置起批量、倍数购买、批量起批量与删除操作。"
+  ]
+}

@@ -1,0 +1,15 @@
+.next/
+.next-verify*/
+node_modules/
+out/
+*.tsbuildinfo
+app/semi.css
+.env
+.env.local
+.env*.local
+.DS_Store
+npm-debug.log*
+.next-dev/
+.next.bak*/
+tsc*.log
+pc-deploy-r*/

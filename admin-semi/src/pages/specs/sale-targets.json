@@ -1,0 +1,11 @@
+{
+  "page": "panel/saleTargets/List.vue",
+  "component": "rust/web/admin-semi/src/pages/PanelStatisticsPages.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "销售指标(saleTargets)：统计卡片看板，接口 /panel/salesStatistics/salesIndicators。"
+  ]
+}

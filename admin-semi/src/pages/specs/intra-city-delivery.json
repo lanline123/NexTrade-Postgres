@@ -1,0 +1,37 @@
+{
+  "page": "intraCityDeliveryManage",
+  "component": "rust/web/admin-semi/src/pages/O2ODeliveryServicePages.tsx",
+  "skipOldPage": true,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "widgets": {
+    "platformSwitchGroup": {
+      "type": "platform-config-form",
+      "component": "rust/web/admin-semi/src/pages/O2ODeliveryServicePages.tsx",
+      "requires": ["intraCityDeliveryEnabled", "platformConfig/saveConfig"],
+      "mcpChecks": ["Switch", "Banner", "Tag", "RadioGroup"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "backendReady": {
+    "batch": false,
+    "sort": false,
+    "shopLocalDeliverySave": false
+  },
+  "notes": [
+    "同城配送 intraCityDeliveryManage：无旧源码，逆向自 5.8.60 产物（路由 chunk 定位 Index-DxS6HNBh.js → intra-city-delivery；表单 DeliverySettingsTab-CpxMLPEz.js；API intraCityDelivery-CfD3lDKf.js），并与旧版前端契约 java/view/admin/src/api/setting/intraCityDelivery.ts + types/setting/intraCityDelivery.d.ts 双重交叉验证。",
+    "平台总控字段（IntraCityPlatformConfig）：intraCityDeliveryEnabled/intraCitySelfDeliveryEnabled/intraCityThirdPartyDeliveryEnabled（0/1）；校验：商家自配送、第三方配送至少启用一项。",
+    "端点（已核对 Rust）：GET/POST /o2o/intraCityDelivery/platformConfig/getConfig|saveConfig（routes/system/lowfreq_extra.rs h_12/h_13，config 键 o2oIntraCityDeliveryConfig，读写一致）；门店级 /o2o/localDelivery/getConfig（o2o/local_delivery.rs，仅 GET，门店配送参数读取）。",
+    "5.8.60 文案留档：同城配送功能/已开启/已关闭/买家下单支持同城配送，商家可自行配送/配送设置/商家自配送/启用商家自配送/平台启用后，商家同城配送订单，可选用平台已配置的任意配送渠道完成发货。/第三方配送/启用第三方配送/开启后，将由第三方物流进行配送，配送产生的费用，将在门店余额中进行扣除。/第三方配送管理/请先在第三方配送管理中开启至少一个物流商/第三方配送管理中暂无已开启的物流商，已取消启用第三方配送/自营门店配送/提交/修改成功。",
+    "差异：第三方配送管理（物流商开关列表）与自营门店配送表单依赖其它模块接口，本页以说明文案引导；门店级 saveConfig（/o2o/localDelivery/saveConfig）Rust 未实现，标注 backendReady.shopLocalDeliverySave=false。"
+  ]
+}

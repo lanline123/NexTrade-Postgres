@@ -1,0 +1,25 @@
+{
+  "page": "promotion/productStyle/List.vue",
+  "component": "rust/web/admin-semi/src/pages/PromotionExtraPages.tsx",
+  "filters": ["styleName"],
+  "columns": ["ID", "名称", "类型", "商品数", "活动状态", "起止时间", "是否开启", "创建时间", "操作"],
+  "actions": ["编辑", "删除"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "编辑",
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "drawer": {
+    "width": 600
+  },
+  "notes": [
+    "营销样式管理：商品边框、活动背景设置，端点 /promotion/productStyle/*"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "page": "user/levelManage/List.vue",
+  "info": "user/levelManage/List.vue",
+  "component": "rust/web/admin-semi/src/pages/MemberLevels.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": ["等级", "会员图标", "会员名称"],
+  "actions": [],
+  "batch": [],
+  "widgets": {
+    "levelBatchForm": {
+      "type": "member-level-batch-form",
+      "component": "rust/web/admin-semi/src/pages/MemberLevels.tsx",
+      "requires": ["member-level-rows", "user/userRank/update"],
+      "mcpChecks": ["InputNumber", "ImageUploader", "Table"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "会员等级：GET /user/userRank/list（返回 {userRank:{records},rankConfig}），批量编辑走 update/create {data:[{rankLevel,rankName,rankLogo}]}。",
+    "与旧版差异：等级图标 vipIcons 内置图未迁移（ImageUploader 手动上传）；rankConfig 相关展示未迁移（普通版仅基础等级）。"
+  ]
+}

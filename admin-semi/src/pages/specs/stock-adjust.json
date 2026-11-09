@@ -1,0 +1,23 @@
+{
+  "page": "product/inventoryAdjustment/List.vue",
+  "info": "product/inventoryAdjustment/List.vue",
+  "component": "rust/web/admin-semi/src/pages/InventoryAdjustments.tsx",
+  "drawer": null,
+  "filters": ["keyword"],
+  "columns": ["商品名称", "商品规格"],
+  "actions": [],
+  "batch": [],
+  "widgets": {
+    "stockAdjustDialog": {
+      "type": "stock-adjust-dialog",
+      "component": "rust/web/admin-semi/src/pages/InventoryAdjustments.tsx",
+      "requires": ["product/stock/stockAdjust", "stock-adjust-form"],
+      "mcpChecks": ["RadioGroup", "InputNumber", "Modal", "Table"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "库存调整：列表复用 /product/stock/page；调整弹窗 POST /product/stock/stockAdjust {adjustType(1 增量/0 覆盖),quantity,productId,skuId}；记录弹窗 GET /product/stock/adjustDetail。",
+    "增量模式调整数量上限为当前库存（与旧版 el-input-number :max 一致）；覆盖模式仅正整数。"
+  ]
+}

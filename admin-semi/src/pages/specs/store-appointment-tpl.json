@@ -1,0 +1,25 @@
+{
+  "page": "storeAppointmentTplManage",
+  "component": "rust/web/admin-semi/src/pages/StoreAppointmentTemplates.tsx",
+  "skipOldPage": true,
+  "filters": ["keyword"],
+  "columns": ["模板名称", "预约时间", "最长预约"],
+  "actions": ["编辑", "删除"],
+  "batch": ["批量删除"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "width": 150
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "预约模板(storeAppointmentTplManage)：逆向自 5.8.60 o2o_admin 产物 List-DnXLzHQd.js + appointmentTpl-D3c_oZ3G.js，接口 /o2o/reservationTpl/pageList 与 /create /update /del /batch。"
+  ]
+}

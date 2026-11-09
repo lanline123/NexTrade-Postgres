@@ -1,0 +1,24 @@
+{
+  "page": "wholesale/grade/List.vue",
+  "component": "rust/web/admin-semi/src/pages/WholesalerGrades.tsx",
+  "filters": [],
+  "columns": ["批发商等级", "已绑定客户数", "状态", "创建时间"],
+  "actions": ["编辑", "删除"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "width": 150
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "批发商等级管理(wholesalerGradeManage)：ListPage，接口 /wholesale/grade/list，支持新增、编辑、删除与即时启停状态。"
+  ]
+}

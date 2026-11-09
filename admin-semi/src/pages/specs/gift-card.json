@@ -1,0 +1,25 @@
+{
+  "page": "promotion/giftCard/List.vue",
+  "component": "rust/web/admin-semi/src/pages/PromotionExtraPages.tsx",
+  "filters": ["cardGroupName"],
+  "columns": ["礼品卡名称", "状态", "备注", "卡类型", "创建时间", "操作"],
+  "actions": ["编辑", "删除"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "编辑",
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "drawer": {
+    "width": 600
+  },
+  "notes": [
+    "礼品卡管理，端点 /promotion/giftCardGroup/*"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "page": "rust/web/admin-semi/src/pages/StaffPages.tsx",
+  "component": "rust/web/admin-semi/src/pages/StaffPages.tsx",
+  "skipOldPage": true,
+  "filters": ["keyword", "status"],
+  "columns": ["会员账号", "头像/姓名", "联系方式", "账号状态", "配送员状态", "添加时间"],
+  "actions": ["详情", "编辑", "删除"],
+  "batch": ["批量删除"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 180
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "配送员管理(deliverymanList)：ListPage + FormDrawer，接口 /o2o/serviceStaff/* (type=1)。逆向自 5.8.60 Index-DvNHKRI-.js。"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "page": "supplierCategoryManage",
+  "component": "rust/web/admin-semi/src/pages/SupplyChainSupplierPages.tsx",
+  "skipOldPage": true,
+  "filters": ["keyword"],
+  "columns": ["分类名称", "排序", "状态", "操作"],
+  "actions": ["编辑", "删除"],
+  "batch": [],
+  "drawer": {
+    "width": 760
+  },
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "操作",
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "供应商分类(supplierCategoryManage)：逆向自 5.8.60 supplierCategory-i5r5-1Rn.js，接口 /supplyChain/supplierCategory/*。"
+  ]
+}

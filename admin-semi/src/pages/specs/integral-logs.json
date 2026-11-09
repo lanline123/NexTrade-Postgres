@@ -1,0 +1,11 @@
+{
+  "page": "user/integralLog/List.vue",
+  "info": "user/integralLog/List.vue",
+  "component": "rust/web/admin-semi/src/pages/IntegralLogs.tsx",
+  "drawer": null,
+  "filters": ["keyword"],
+  "columns": ["操作时间", "会员名称", "操作备注", "积分"],
+  "actions": [],
+  "batch": [],
+  "notes": ["只读积分变动日志，增加蓝色 +，扣减红色 -。"]
+}

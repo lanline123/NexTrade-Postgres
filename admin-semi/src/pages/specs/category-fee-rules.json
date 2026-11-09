@@ -1,0 +1,20 @@
+{
+  "page": "finance/categoryServiceFeeRule/List.vue",
+  "info": "finance/categoryServiceFeeRule/List.vue",
+  "columns": [
+    "费率名称",
+    "适用类目",
+    "服务费率",
+    "规则状态"
+  ],
+  "component": "rust/web/admin-semi/src/pages/FinanceMoreLists.tsx",
+  "drawer": null,
+  "filters": [
+    "keyword"
+  ],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "当前为只读财务列表，后续补审核/导出操作。"
+  ]
+}

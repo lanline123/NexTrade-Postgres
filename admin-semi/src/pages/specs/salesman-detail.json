@@ -1,0 +1,43 @@
+{
+  "page": "salesman/salesmanDetailed/List.vue",
+  "component": "rust/web/admin-semi/src/pages/SalesmanDetailedPages.tsx",
+  "filters": [
+    "mobile",
+    "groupId",
+    "level"
+  ],
+  "columns": [
+    "手机号",
+    "昵称",
+    "等级",
+    "分组",
+    "已结算收益",
+    "累计收益",
+    "累计客户数",
+    "累计销售金额（元）",
+    "支付金额（元）",
+    "退款金额（元）",
+    "支付订单数",
+    "退款订单数"
+  ],
+  "actions": [
+    "导出EXCEL"
+  ],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "backendReady": {
+    "export": false
+  },
+  "notes": [
+    "分销员明细(salesmanDetailedManage/salesmanDetailed):GET /salesman/salesman/statisticalDetails(SalesmanStatisticalVO),筛选 mobile/groupId/level(下拉来自 /salesman/group/list 与 /salesman/config/detail)。",
+    "列头 tooltip 四条(累计业绩剔除退款/支付金额含退款/退款金额/支付与退款订单数,均注 2023.11 后数据)逐字保留。",
+    "Rust VO 未返回 totalCommission/totalAmountCommission/refundCount,已结算收益/累计收益/退款订单数显示 --(记录);分组列兼容 groupName(Rust)与 groupInfo.groupName(旧)。",
+    "累计收益弹窗(旧 cumulativeGain.vue):GET /salesman/salesman/commissionDetails,商品佣金/自动结算佣金(含待结算)/人工结算佣金(含待结算);Rust commission 为总额 Decimal,明细字段平铺,已按此解析(记录)。",
+    "导出EXCEL:旧版 isExport=1&size=-1;Rust isExport 被忽略,按钮保留并明确提示(记录)。"
+  ]
+}

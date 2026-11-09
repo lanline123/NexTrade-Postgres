@@ -1,0 +1,23 @@
+{
+  "page": "user/userTags/List.vue",
+  "info": "user/userTags/List.vue",
+  "component": "rust/web/admin-semi/src/pages/MemberTags.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": ["组名称", "标签值", "创建时间"],
+  "actions": ["edit"],
+  "batch": [],
+  "widgets": {
+    "tagGroupForm": {
+      "type": "member-tag-form",
+      "component": "rust/web/admin-semi/src/pages/MemberTags.tsx",
+      "requires": ["member-tag-values", "user/memberTagGroup/create"],
+      "mcpChecks": ["FormDrawer", "Input", "Modal"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "会员标签：接口 /user/memberTagGroup/*（list/detail/create/update/del/setTop/cancelTop）+ /user/memberTag/listByGroup。",
+    "标签值为动态行（≥2 项），编辑走 detail 回显 tags。"
+  ]
+}

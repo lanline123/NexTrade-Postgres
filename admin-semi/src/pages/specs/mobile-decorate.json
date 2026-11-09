@@ -1,0 +1,29 @@
+{
+  "page": "decorate/mobileDecorate/List.vue",
+  "component": "rust/web/admin-semi/src/pages/DecorateMobilePages.tsx",
+  "filters": [
+    "decorateName"
+  ],
+  "columns": [
+    "ID",
+    "页面名称",
+    "发布状态",
+    "更新时间",
+    "操作"
+  ],
+  "actions": [
+    "装修",
+    "删除"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "装修"
+  },
+  "drawer": {
+    "width": 600
+  },
+  "notes": [
+    "移动端页面管理微页面列表"
+  ]
+}

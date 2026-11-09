@@ -1,0 +1,32 @@
+{
+  "page": "promotion/coupon/List.vue",
+  "info": "promotion/coupon/List.vue",
+  "component": "rust/web/admin-semi/src/pages/Coupons.tsx",
+  "drawer": null,
+  "filters": ["keyword"],
+  "columns": ["优惠券名称", "发放类型", "优惠券金额(折扣)", "优惠门槛", "是否公开展示", "活动时间", "状态"],
+  "actions": ["edit"],
+  "batch": ["delete"],
+  "widgets": {
+    "couponForm": {
+      "type": "coupon-form-drawer",
+      "component": "rust/web/admin-semi/src/pages/Coupons.tsx",
+      "requires": ["coupon-form-content", "promotion/coupon/create"],
+      "mcpChecks": ["FormDrawer", "RadioGroup", "InputNumber", "Select", "ProductPicker", "Switch"]
+    },
+    "issueFlow": {
+      "type": "coupon-issue",
+      "component": "rust/web/admin-semi/src/pages/Coupons.tsx",
+      "requires": ["promotion/coupon/issue/preview", "promotion/coupon/issue/send"],
+      "mcpChecks": ["Modal", "Checkbox", "Table"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "优惠券：按使用场景快速创建 4 卡（满减/折扣/新人专享/会员专享，预置 couponType/isNewUser）+ ListPage 列表 + 自驱动 FormDrawer 表单。",
+    "列表行内能力：isShow 开关(updateField)、类型/门槛/有效期展示、状态(进行中/未开始/过期)、编辑/发放/发放记录/删除、批量删除(batch type=del)。",
+    "表单字段对齐 Info.vue：类型、名称、优惠内容(满X减/打Y 与 无门槛 复合行)、优惠上限(折扣券)、用券时间(固定时间段/领取后N天生效+有效期)、发放总量、领取次数限制、领取客户限制(无限制/新人/会员等级多选)、适用商品(全部/指定商品 ProductPicker)、公开展示、使用说明。",
+    "发放流程：issue/preview 预览张数确认后 issue/send（issueType USER/RANK），发放记录 issue/log 弹窗。",
+    "已补齐：SendUserSelector 领取人群圈选 + MultilingualField 多语言输入（名称 dataType=10/说明 dataType=11，对齐旧版 BusinessData）；SKU 无关。"
+  ]
+}

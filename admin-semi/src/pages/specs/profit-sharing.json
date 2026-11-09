@@ -1,0 +1,21 @@
+{
+  "page": "finance/profitSharing/List.vue",
+  "info": "finance/profitSharing/List.vue",
+  "columns": [
+    "分账单号",
+    "订单号",
+    "分账金额",
+    "分账状态",
+    "创建时间"
+  ],
+  "component": "rust/web/admin-semi/src/pages/FinanceMoreLists.tsx",
+  "drawer": null,
+  "filters": [
+    "keyword"
+  ],
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "当前为只读财务列表，后续补审核/导出操作。"
+  ]
+}

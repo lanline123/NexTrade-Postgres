@@ -1,0 +1,36 @@
+{
+  "page": "salesman/notice/List.vue",
+  "component": "rust/web/admin-semi/src/pages/SalesmanContent.tsx",
+  "filters": [
+    "title",
+    "status"
+  ],
+  "columns": [
+    "标题",
+    "推送时间",
+    "失效时间",
+    "状态",
+    "操作"
+  ],
+  "actions": [
+    "取消置顶",
+    "编辑",
+    "失效",
+    "删除"
+  ],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right"
+    },
+    "longHeaders": []
+  },
+  "notes": [
+    "分销攻略(salesmanNoticeManage/salesmanNotice):GET /salesman/content/list|config(状态下拉 未开始/展示中/已失效);行 {id,title,startTime,endTime,statusText,isTop,isAvailable}。",
+    "操作:取消置顶(updateField isTop=0)/编辑/失效(updateField isAvailable=0)/删除(仅失效后 /salesman/content/del);推送时间范围筛选以 dateRange → query.startTime/endTime 提交。",
+    "表单(旧 Info.vue 双 Tab):基础设置(页面名称/封面图片单图/推送时间/失效时间/页面描述/是否置顶)+正文内容(RichTextEditor);校验文案逐字(页面名称不能为空!/封面图片不能为空!/推送时间不能为空!/页面描述不能为空!/正文内容不能为空!)。",
+    "旧版批量栏死按钮(设置等级/分组/清退)未迁移(记录)。"
+  ]
+}

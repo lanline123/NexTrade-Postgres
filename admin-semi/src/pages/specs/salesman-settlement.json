@@ -1,0 +1,42 @@
+{
+  "page": "salesman/performanceSettlement/performanceSettlement/List.vue",
+  "component": "rust/web/admin-semi/src/pages/SalesmanSettlementPages.tsx",
+  "filters": [
+    "orderSn",
+    "status",
+    "timeType"
+  ],
+  "columns": [
+    "订单号",
+    "成交金额",
+    "收益类型",
+    "收益",
+    "结算状态",
+    "结算时间"
+  ],
+  "actions": [
+    "人工结算",
+    "导出"
+  ],
+  "batch": [
+    "批量人工结算"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right"
+    },
+    "longHeaders": []
+  },
+  "backendReady": {
+    "export": false
+  },
+  "notes": [
+    "业绩结算(performanceSettlementManage):GET /salesman/order/list,行 {salesmanOrderId,orderId,orderSn,salesmanId,amount,status,statusText,addTime,orderAmount,settlementTime};筛选 orderSn/status(未结算/已结算/已失效)/timeType(下单时间/退款时间)+起止日期。",
+    "人工结算(单条 Popconfirm + 批量,旧 Modal.confirm 文案逐字)POST /salesman/order/settlement {ids};旧版可结算条件含 settlementType===2,Rust VO 未返回该结构,按 status===0 判定(记录)。",
+    "旧列 分销员/客户/收益组成(profitComposition)/所属分组/结算方式(salesmanSettlementData)/退款时间(refundTime)依赖 Java 深层关联,Rust SalesmanOrderVO 精简子集未返回,不渲染(记录);收益类型恒为 商品佣金,照旧实现。",
+    "导出数据弹窗(导出维度：商品维度/订单维度,exportParams.range)已实现;Rust isExport/range 被忽略,导出给出明确提示(记录)。",
+    "结算状态文案:旧版 status=0 显示 未结算(Rust statusText 为 待结算),前端按状态映射(记录)。"
+  ]
+}

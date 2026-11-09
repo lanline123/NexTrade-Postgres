@@ -1,0 +1,76 @@
+{
+  "page": "content/material-center/Index.vue",
+  "info": "content/material-center/Index.vue",
+  "component": "rust/web/admin-semi/src/pages/MaterialCenter.tsx",
+  "drawer": null,
+  "filters": ["keyword"],
+  "columns": [],
+  "actions": ["编辑", "删除"],
+  "batch": ["批量下载", "批量删除", "移动到", "导出链接"],
+  "widgets": {
+    "groupTree": {
+      "type": "material-group-tree",
+      "component": "rust/web/admin-semi/src/pages/MaterialCenter.tsx",
+      "requires": [
+        "/setting/gallery/tree",
+        "/setting/galleryVideo/getAllCategory",
+        "/setting/gallery/create",
+        "/setting/gallery/update",
+        "/setting/gallery/del",
+        "/setting/gallery/move"
+      ],
+      "mcpChecks": ["Dropdown", "Input", "Modal", "RadioGroup", "Radio", "Select", "Toast"]
+    },
+    "materialGrid": {
+      "type": "material-grid",
+      "component": "rust/web/admin-semi/src/pages/MaterialCenter.tsx",
+      "requires": ["/setting/galleryPic/list", "/setting/galleryVideoInfo/list", "galleryPicPage", "galleryVideoInfoPage"],
+      "mcpChecks": ["Checkbox", "Pagination", "Spin", "Select", "Button", "Tooltip"]
+    },
+    "uploadImage": {
+      "type": "material-upload-image",
+      "component": "rust/web/admin-semi/src/pages/MaterialCenter.tsx",
+      "requires": ["/setting/galleryPic/uploadImg"],
+      "mcpChecks": ["Modal", "Upload", "Select", "Toast"]
+    },
+    "uploadVideo": {
+      "type": "material-upload-video",
+      "component": "rust/web/admin-semi/src/pages/MaterialCenter.tsx",
+      "requires": ["/setting/galleryVideoInfo/uploadVideo", "/setting/galleryVideoInfo/create", "/setting/galleryPic/uploadImg"],
+      "mcpChecks": ["Modal", "Upload", "Input", "Select", "Toast"]
+    },
+    "externalMaterial": {
+      "type": "material-external-add",
+      "component": "rust/web/admin-semi/src/pages/MaterialCenter.tsx",
+      "requires": ["/setting/galleryPic/createFromExternal", "/setting/galleryVideoInfo/create"],
+      "mcpChecks": ["Modal", "Input", "Select", "Toast"]
+    },
+    "previewAndEdit": {
+      "type": "material-preview-edit",
+      "component": "rust/web/admin-semi/src/pages/MaterialCenter.tsx",
+      "requires": [
+        "/setting/galleryPic/detail",
+        "/setting/galleryPic/updateField",
+        "/setting/galleryPic/transfer",
+        "/setting/galleryVideoInfo/detail",
+        "/setting/galleryVideoInfo/update"
+      ],
+      "mcpChecks": ["Modal", "Input", "TextArea", "Select", "Button"]
+    },
+    "batchOps": {
+      "type": "material-batch-ops",
+      "component": "rust/web/admin-semi/src/pages/MaterialCenter.tsx",
+      "requires": ["/setting/galleryPic/batchDel", "/setting/galleryPic/batchDownload"],
+      "mcpChecks": ["Modal", "Button", "Toast"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "素材中心：图片/视频双 Tab + 分组侧栏树 + 素材网格(卡片) + 上传/外部链接 + 批量操作 + 预览，自绘页面(旧版即为树+网格，无表格列，不使用 ListPage)。",
+    "分组数据源关键差异：图片分组走 GET /setting/gallery/tree?type=image(gallery 表)；视频分组在 gallery_video 表，/setting/gallery/tree 只读 gallery 表，必须走 GET /setting/galleryVideo/getAllCategory(旧版主路径 type=video 对 Rust 是读 gallery 表+视频计数，故改为专用端点)。",
+    "分组操作：新建/重命名(图片 /setting/gallery/create|update{parentId,galleryName}；视频 /setting/galleryVideo/create|update{parentId|id,name})、删除(/setting/gallery/del、/setting/galleryVideo/del，deleteMode only_group/group_and_files 策略弹窗)、分组管理=素材转移(POST /setting/gallery/move{sourceId,targetId,mode:move_and_delete|move_and_keep,type})。",
+    "素材列表：GET /setting/galleryPic/list(galleryId/page/size/sortField/sortOrder/keyword/format/source → galleryPicPage.records，过滤无缩略图行)；GET /setting/galleryVideoInfo/list(id/page/size/sortField/sortOrder/keyword/source → galleryVideoInfoPage.records)。排序 按更新时间desc/时间从先到后asc/按名称picName|videoName+asc。",
+    "上传：图片 POST /setting/galleryPic/uploadImg?galleryId=N(multipart file，多张串行)；视频 POST /setting/galleryVideoInfo/uploadVideo 先传文件，再 POST /setting/galleryVideoInfo/create{videoName,galleryId:[n],duration,size,videoCover,source:upload}；外部图片 POST /setting/galleryPic/createFromExternal{picUrl,picThumb,picName,galleryId,source:external}；外部视频 POST /setting/galleryVideoInfo/create{videoUrl,galleryId:[n],source:external}；分组内支持拖拽整批上传。",
+    "编辑：图片 updateField{field:picName} + 分组变更走 transfer；视频 galleryVideoInfo/update(全量回传 detail+galleryId:[n]+videoCover+description)。删除：单删 galleryPic/del、galleryVideoInfo/del；批删 galleryPic/batchDel{ids,type}。移动到：galleryPic/transfer{ids,targetGalleryId,type}。",
+    "批量下载 POST /setting/galleryPic/batchDownload{ids,type} 返回 zip 二进制(fetch 流下载)；导出链接：旧版用 XLSX 生成 xlsx，新后台无 xlsx 依赖(package.json 禁改)，降级为带 BOM 的 CSV(列名与旧版一致)，差异已记录。",
+    "降级清单已补齐：①分组排序改为上移/下移菜单项（POST /setting/gallery/sort，Rust 后端已有，Semi Tree 无拖拽手柄）；②上传大小上限改为读取全局设置 imageUploadMaxSize/uploadMaxSize（GET /setting/config/globalSettings）并在选文件时前置校验；③视频封面新增“从图库选择”（GET /setting/galleryPic/list 网格选择）。仍有差异：④视频时长格式化可能与旧版 formatDuration 存在显示差异(M:SS)；⑤el-tree-select 降级为扑平 Select。

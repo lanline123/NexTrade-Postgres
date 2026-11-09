@@ -1,0 +1,19 @@
+{
+  "page": "setting/taxRate/List.vue",
+  "info": "setting/taxRate/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/TaxRates.tsx",
+  "drawer": { "width": 480, "labelWidth": "auto" },
+  "filters": ["regionName", "isActive"],
+  "columns": ["国家/地区", "税率(%)", "是否生效", "备注", "创建时间"],
+  "actions": ["edit", "delete"],
+  "batch": ["delete"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": { "fixed": "right", "width": 150 },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": { "batch": true, "sort": false },
+  "notes": ["税率使用百分比，范围 0-100。"]
+}

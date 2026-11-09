@@ -1,0 +1,14 @@
+{
+  "page": "adminMerchant/merchantSettings/Info.vue",
+  "info": "adminMerchant/merchantSettings/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/AdminMerchantSettings.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "商户设置：接口 setting/config/merchantSettings + saveMerchant。入驻协议内容 richtext。"
+  ]
+}

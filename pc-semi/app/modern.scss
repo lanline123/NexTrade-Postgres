@@ -1,0 +1,469 @@
+/* =============================================================================
+ * modern.scss — PC 商城现代化视觉层（最后加载，覆盖旧样式）
+ * 设计语言：
+ *   · 大圆角（16 / 20 / 24）+ 柔和多层投影
+ *   · 中性灰阶 + 主题色点缀（--pc-primary，跟随装修主题）
+ *   · 玻璃拟态头部 / 悬浮卡片 / 悬停抬升 / 图片缓慢放大
+ *   · 排版：字重分层（700 标题 / 500 正文 / 400 辅助），行高 1.5~1.6
+ * ========================================================================== */
+
+:root {
+  --ui-r-sm: 12px;
+  --ui-r: 16px;
+  --ui-r-lg: 20px;
+  --ui-r-xl: 24px;
+  --ui-line: #eceef2;
+  --ui-line-soft: #f4f5f7;
+  --ui-bg: #f6f7f9;
+  --ui-bg-soft: #fafbfc;
+  --ui-text: #0f1728;
+  --ui-text-2: #475467;
+  --ui-text-3: #98a2b3;
+  --ui-shadow-1: 0 1px 2px rgba(16, 24, 40, .05);
+  --ui-shadow-2: 0 4px 12px rgba(16, 24, 40, .06);
+  --ui-shadow-3: 0 18px 40px -12px rgba(16, 24, 40, .18);
+  --ui-ring: 0 0 0 4px color-mix(in srgb, var(--pc-primary, #1456f0) 14%, transparent);
+  --ui-grad: linear-gradient(135deg, color-mix(in srgb, var(--pc-primary, #1456f0) 92%, #fff), color-mix(in srgb, var(--pc-primary, #1456f0) 68%, #7c3aed));
+}
+
+html, body { background: var(--ui-bg); }
+body { color: var(--ui-text); -webkit-font-smoothing: antialiased; }
+
+/* ---------- 头部：玻璃质感 + 胶囊搜索 ---------- */
+.benefit-bar-wrap { border-bottom: 0 !important; }
+.pc-header-runtime .page-container,
+.pc-header-runtime .page-container.pc-header-divider--shadow,
+.pc-header-runtime .page-container.pc-header-divider--border {
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+  background: rgba(255, 255, 255, .92) !important;
+  backdrop-filter: saturate(180%) blur(14px);
+}
+.pc-header-runtime { position: sticky; top: 0; z-index: 50; }
+
+.pc-header-runtime .top-search,
+.pc-shop-search .top-search {
+  border: 1px solid transparent !important;
+  background: var(--ui-bg) !important;
+  border-radius: 999px !important;
+  padding: 3px !important;
+  transition: background-color .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.pc-header-runtime .top-search:hover,
+.pc-shop-search .top-search:hover { background: #eef0f3 !important; }
+.pc-header-runtime .top-search:focus-within,
+.pc-shop-search .top-search:focus-within {
+  background: #fff !important;
+  border-color: color-mix(in srgb, var(--pc-primary, #1456f0) 40%, transparent) !important;
+  box-shadow: var(--ui-ring);
+}
+.pc-header-runtime .top-search .search-form { height: 42px; border-radius: 999px; background: transparent !important; }
+.pc-header-runtime .top-search .search-input { background: transparent !important; }
+.pc-header-runtime .top-search .search-submit {
+  height: 36px !important; padding: 0 22px !important;
+  border-radius: 999px !important;
+  background: var(--ui-grad) !important;
+  font-weight: 600;
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+.pc-header-runtime .top-search .search-submit:hover { transform: translateY(-1px); box-shadow: var(--ui-shadow-2); filter: brightness(1.04); }
+
+.pc-header-runtime .sub-nav li a { border-radius: 10px; padding: 2px 6px; transition: color .18s ease, background-color .18s ease; }
+.pc-header-runtime .sub-nav li a:hover { background: var(--ui-bg); }
+.pc-header-runtime .page-header-home__right .mine-bar .bar-wrap .content,
+.pc-header-runtime .page-header-home__right .car-bar .content {
+  padding: 6px 10px; border-radius: 999px; transition: background-color .18s ease;
+}
+.pc-header-runtime .page-header-home__right .mine-bar .bar-wrap .content:hover,
+.pc-header-runtime .page-header-home__right .car-bar .content:hover { background: var(--ui-bg); }
+
+/* 顶部公告条：已回归源码结构（每组多条为固定宽度竖向滚动 .pc-carousel），
+   原先的胶囊底色 + 10px 间距会与 40px 滚动步长冲突，故移除，间距交回源码的 40px */
+/* ---------- 通用容器与标题 ---------- */
+.pc-container { max-width: 1440px; margin: 0 auto; padding: 0 40px; }
+.pc-breadcrumb { color: var(--ui-text-3); font-size: 13px; }
+.pc-breadcrumb a { color: var(--ui-text-3); text-decoration: none; }
+.pc-breadcrumb a:hover { color: var(--pc-primary, #1456f0); }
+.pc-cart-title { font-size: 26px; font-weight: 700; letter-spacing: -.02em; color: var(--ui-text); }
+
+.pc-list-head {
+  padding: 26px 28px !important;
+  border: 0 !important;
+  border-radius: var(--ui-r-xl) !important;
+  background: linear-gradient(180deg, #fff, var(--ui-bg-soft)) !important;
+  box-shadow: var(--ui-shadow-1);
+}
+.pc-list-head h1 { font-size: 26px !important; letter-spacing: -.02em; }
+
+/* ---------- 商品卡：悬浮 + 图片缩放 + 加购浮层 ---------- */
+
+
+
+
+/* ---------- 搜索/列表页：胶囊筛选 + 分段排序 ---------- */
+.pc-search-tabs { gap: 8px !important; border: 0 !important; margin: 20px 0 14px !important; }
+.pc-search-tabs a, .pc-search-tabs button {
+  padding: 7px 18px !important; border-radius: 999px !important; border: 0 !important;
+  color: var(--ui-text-2) !important; font-size: 14px !important; font-weight: 500;
+  transition: background-color .18s ease, color .18s ease;
+}
+.pc-search-tabs a:hover, .pc-search-tabs button:hover { background: #fff; }
+.pc-search-tabs a.is-active, .pc-search-tabs button.is-active {
+  background: var(--ui-text) !important; color: #fff !important; font-weight: 600 !important;
+}
+
+.pc-search-filter-row { padding: 12px 18px !important; border-radius: var(--ui-r); background: #fff; margin-bottom: 10px; box-shadow: var(--ui-shadow-1); }
+.pc-search-filter-row__label { color: var(--ui-text-3) !important; font-weight: 500; }
+.pc-search-filter-row__values a { padding: 4px 14px !important; border-radius: 999px !important; line-height: 22px !important; }
+.pc-search-filter-row__values a.is-active { background: var(--ui-text) !important; color: #fff !important; font-weight: 600; }
+
+.pc-list-toolbar {
+  border: 0 !important; border-radius: var(--ui-r) !important;
+  background: #fff !important; box-shadow: var(--ui-shadow-1);
+  padding: 12px 18px !important;
+}
+.pc-list-sorts a { padding: 6px 14px !important; border-radius: 999px !important; }
+.pc-list-sorts a.is-active { background: var(--ui-text) !important; color: #fff !important; }
+
+.pc-search-price-input { height: 36px !important; border-radius: 10px !important; border-color: var(--ui-line) !important; background: var(--ui-bg-soft); }
+.pc-search-price-form button { height: 36px !important; border-radius: 10px !important; background: var(--ui-text) !important; color: #fff !important; border: 0 !important; }
+
+/* ---------- 会员中心：渐变用户卡 + 立体数字 ---------- */
+.mc-wrap { padding: 28px 0 56px !important; }
+.mc-user {
+  position: relative;
+  padding: 28px 32px !important;
+  border-radius: var(--ui-r-xl) !important;
+  background: var(--ui-grad) !important;
+  box-shadow: var(--ui-shadow-3);
+  overflow: hidden;
+}
+.mc-user::after {
+  content: ''; position: absolute; right: -60px; top: -80px;
+  width: 240px; height: 240px; border-radius: 50%;
+  background: rgba(255, 255, 255, .16);
+}
+.mc-user__avatar { width: 72px !important; height: 72px !important; border: 3px solid rgba(255, 255, 255, .7); }
+.mc-user__name { color: #fff !important; font-size: 26px !important; }
+.mc-user__auth { background: rgba(255, 255, 255, .18); border-color: rgba(255, 255, 255, .55) !important; color: #fff !important; }
+.mc-user__links a { color: rgba(255, 255, 255, .92) !important; font-size: 14px !important; }
+.mc-user__links a:hover { color: #fff !important; text-decoration: underline; }
+
+.mc-orders { margin-top: 20px !important; padding: 18px 20px !important; background: #fff !important; box-shadow: var(--ui-shadow-1); gap: 12px !important; }
+.mc-orders__item {
+  border: 0 !important; border-radius: var(--ui-r) !important; background: var(--ui-bg-soft) !important;
+  transition: transform .2s ease, box-shadow .2s ease, background-color .2s ease;
+}
+.mc-orders__item:hover { background: #fff !important; transform: translateY(-3px); box-shadow: var(--ui-shadow-2); }
+.mc-orders__item b { font-size: 26px !important; font-weight: 700 !important; letter-spacing: -.02em; }
+
+.mc-cards { gap: 20px !important; margin-top: 24px !important; }
+.mc-cards__item {
+  border: 0 !important; border-radius: var(--ui-r-lg) !important;
+  background: #fff !important; box-shadow: var(--ui-shadow-1);
+  padding: 24px !important; height: auto !important; min-height: 88px;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.mc-cards__item:hover { transform: translateY(-4px); box-shadow: var(--ui-shadow-3); background: #fff !important; }
+.mc-cards__top { font-size: 18px !important; }
+.mc-cards__sub { font-size: 13px !important; }
+
+/* 会员中心精选好物：卡片与标题统一走 src/components/product/product-card.scss，
+   此处不再覆盖（旧的 __grid gap / __card 阴影已下线） */
+.mc-recommend { margin-top: 44px !important; }
+
+/* ---------- 商品详情：大标题 + 玻璃购买面板 ---------- */
+.pdp { padding-top: 8px !important; }
+.pdp__crumb { color: var(--ui-text-3); }
+.pdp-price {
+  padding: 20px 22px !important;
+  border-radius: var(--ui-r-lg) !important;
+  background: linear-gradient(180deg, #fff, var(--ui-bg-soft)) !important;
+  box-shadow: inset 0 0 0 1px var(--ui-line-soft);
+}
+.pdp-price__value { font-size: 34px !important; letter-spacing: -.03em; }
+.pdp-pill { border: 0 !important; border-radius: 999px !important; background: color-mix(in srgb, var(--pc-primary, #1456f0) 10%, #fff) !important; }
+
+.pc-product-detail__info { border-radius: var(--ui-r-xl) !important; background: #fff; box-shadow: var(--ui-shadow-2); padding: 24px !important; }
+.pc-product-detail h1 { font-size: 24px !important; letter-spacing: -.02em; line-height: 1.35; }
+.pc-product-detail__gallery { border-radius: var(--ui-r-xl) !important; overflow: hidden; }
+.pc-product-detail__main-image { border-radius: var(--ui-r-lg) !important; background: var(--ui-bg) !important; }
+.pc-product-detail__thumbs button { border-radius: var(--ui-r-sm) !important; }
+.pc-product-detail__thumbs button.is-active { outline: 2px solid var(--pc-primary, #1456f0); outline-offset: 1px; }
+
+.pdp-stepper { border-radius: 999px !important; background: var(--ui-bg-soft); border: 0 !important; }
+.pdp-stepper button { background: transparent !important; }
+.pdp-stepper input { border-left: 0 !important; border-right: 0 !important; background: transparent; }
+
+.pdp-accordion { border-top: 0 !important; margin-top: 20px !important; }
+.pdp-accordion__row { border-bottom: 0 !important; border-radius: var(--ui-r-sm); }
+.pdp-accordion__row:hover { background: var(--ui-bg-soft); }
+
+.pc-product-detail__tabs { border-radius: var(--ui-r-xl) !important; }
+.pc-product-detail__tabs > div:first-child button { font-size: 15px !important; }
+
+.pdp-buybar { padding: 12px 16px !important; border-top: 1px solid var(--ui-line-soft) !important; background: rgba(255, 255, 255, .92) !important; }
+.pdp-buybar .semi-button-primary { background: var(--ui-grad) !important; border: 0 !important; box-shadow: var(--ui-shadow-2); }
+.pdp-buybar .semi-button { border-radius: 999px !important; height: 44px !important; }
+
+/* ---------- 按钮 / 输入统一 ---------- */
+.semi-button { border-radius: 12px; font-weight: 500; }
+.semi-button-primary { box-shadow: var(--ui-shadow-1); }
+.semi-button-primary:hover { box-shadow: var(--ui-shadow-2); }
+.semi-input-wrapper, .semi-select, .semi-inputnumber { border-radius: 12px; }
+
+/* ---------- 页脚 ---------- */
+.pc-footer, footer { background: #fff; border-top: 1px solid var(--ui-line-soft); }
+
+@media (max-width: 900px) {
+  .pc-container { padding: 0 16px; }
+  .mc-user { padding: 20px !important; }
+  .mc-user__name { font-size: 20px !important; }
+  .pdp-price__value { font-size: 26px !important; }
+  .pc-product-detail__info { padding: 16px !important; }
+  .pc-product-detail h1 { font-size: 20px !important; }
+}
+
+/* 商品卡悬浮快捷加购按钮 */
+
+/* ---------- 首页装修模块 ----------
+   说明：圆角/阴影不再覆盖——原版 PcHomeHero 的圆角由装修配置驱动
+  （--dec-panel-radius / --dec-card-radius / --dec-box-radius），必须保持原版一致性 */
+.dec-pc-home-hero__card-price { color: var(--pc-primary, #1456f0) !important; }
+.dec-pc-home-hero__card-header { padding: 0 14px !important; margin: 14px 0 10px !important; }
+.dec-pc-home-hero__card-title { color: var(--ui-text) !important; font-size: 14.5px !important; }
+
+/* 装修模块通用标题 */
+.module-ad-con h2, .module-ad-con h3 { letter-spacing: -.01em; }
+
+/* 二级分类/频道入口胶囊化 */
+.dec-pc-home-hero__shop-item { transition: background-color .18s ease; }
+.dec-pc-home-hero__shop-item:hover { background: var(--ui-bg); }
+.dec-pc-home-hero__cate-item:hover {
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .06);
+}
+
+/* 客服悬浮球 */
+.pc-service-float, .service-float, [class*="service-fixed"] { border-radius: 999px !important; box-shadow: var(--ui-shadow-3) !important; }
+
+/* =============================================================================
+ * 增票资质（member/userinvoice/info）
+ * 结构：卡内顶栏页签（发票申请 / 增票资质）→ 头卡（状态徽标）→ 温馨提示
+ *       → 驳回原因 → 资质信息 / 编辑表单
+ * 圆角策略：统一小圆角（卡片 8 / 区块 8 / 表单控件 6），不使用 16~24px 大圆角与胶囊形
+ * ========================================================================== */
+
+/* 卡片外壳：去掉 Semi 默认内边距，由内部区块各自控制 */
+.invq { padding: 0 !important; border: 0 !important; border-radius: 8px !important; box-shadow: var(--ui-shadow-2); }
+.invq > .semi-card-body { padding: 0 !important; }
+
+/* ---------- 卡内顶栏：页签与内容同属一张卡片 ---------- */
+.invq-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 28px;
+  border-bottom: 1px solid var(--ui-line-soft);
+  border-radius: 8px 8px 0 0;
+  background: #fff;
+}
+.invq-tabs { display: flex; gap: 4px; padding: 3px; border-radius: 8px; background: var(--ui-bg); }
+.invq-tabs__item {
+  padding: 6px 16px;
+  border-radius: 6px;
+  color: var(--ui-text-2);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  text-decoration: none;
+  transition: background-color .18s ease, color .18s ease, box-shadow .18s ease;
+}
+.invq-tabs__item:hover { color: var(--ui-text); background: rgba(255, 255, 255, .62); }
+.invq-tabs__item.is-active { background: #fff; color: var(--ui-text); font-weight: 600; box-shadow: var(--ui-shadow-1); }
+
+/* ---------- 头卡 ---------- */
+.invq-hero {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 28px 22px;
+  background: linear-gradient(180deg, var(--ui-bg-soft), #fff);
+  overflow: hidden;
+}
+.invq-hero__main { min-width: 0; }
+.invq-hero__eyebrow {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: color-mix(in srgb, var(--pc-primary, #1456f0) 82%, #0f1728);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .08em;
+}
+.invq-hero__title {
+  margin: 0 0 12px;
+  color: var(--ui-text);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1.25;
+}
+.invq-hero__desc { max-width: 620px; margin: 12px 0 0; color: var(--ui-text-3); font-size: 13.5px; line-height: 1.65; }
+.invq-hero__actions { flex: 0 0 auto; padding-top: 24px; }
+
+/* 状态徽标：小圆角标签，不用胶囊 */
+.invq-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.invq-badge__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 16%, transparent); }
+.invq-badge.is-idle { background: #f2f4f7; color: #475467; }
+.invq-badge.is-ok { background: #ecfdf3; color: #067647; }
+.invq-badge.is-wait { background: #fffaeb; color: #b54708; }
+.invq-badge.is-bad { background: #fef3f2; color: #b42318; }
+
+/* ---------- 温馨提示 ---------- */
+.invq-notice {
+  display: flex;
+  gap: 14px;
+  margin: 0 28px;
+  padding: 15px 18px;
+  border: 1px solid #f3e6c9;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fffcf4, #fffdf9);
+}
+.invq-notice__badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: #f7b955;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.invq-notice__body { min-width: 0; }
+.invq-notice__body b { display: block; margin-bottom: 5px; color: #8a5a00; font-size: 13.5px; font-weight: 600; }
+.invq-notice__body ul { margin: 0; padding-left: 16px; color: #8a6a33; font-size: 13px; line-height: 1.8; }
+.invq-notice__body li::marker { color: #d9b06a; }
+.invq-notice__body em { color: color-mix(in srgb, var(--pc-primary, #1456f0) 88%, #8a5a00); font-style: normal; font-weight: 600; }
+
+/* ---------- 审核驳回原因 ---------- */
+.invq-alert {
+  margin: 14px 28px 0;
+  padding: 13px 16px;
+  border: 1px solid #fbd5d1;
+  border-radius: 8px;
+  background: #fef5f4;
+}
+.invq-alert__label { display: block; margin-bottom: 4px; color: #b42318; font-size: 12.5px; font-weight: 600; letter-spacing: .02em; }
+.invq-alert__text { margin: 0; color: #7a271a; font-size: 13.5px; line-height: 1.7; }
+
+/* ---------- 面板（资质信息 / 编辑表单） ---------- */
+.invq-panel { padding: 22px 28px 26px; }
+.invq-panel__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.invq-panel__head h3 { margin: 0; color: var(--ui-text); font-size: 15.5px; font-weight: 600; letter-spacing: -.01em; }
+.invq-panel__head > span { color: var(--ui-text-3); font-size: 12.5px; }
+.invq-panel__head em { color: #b42318; font-style: normal; font-weight: 600; }
+
+/* 只读资质信息：两列网格 */
+.invq-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.invq-grid__item {
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: #f7f9fb;
+  box-shadow: inset 0 0 0 1px #eef1f5;
+  transition: background-color .18s ease, box-shadow .18s ease;
+}
+.invq-grid__item:hover { background: #fff; box-shadow: var(--ui-shadow-2); }
+.invq-grid__item.is-wide { grid-column: span 2; }
+.invq-grid__item dt { margin-bottom: 5px; color: var(--ui-text-3); font-size: 12px; letter-spacing: .02em; }
+.invq-grid__item dd { margin: 0; color: var(--ui-text); font-size: 14.5px; font-weight: 500; line-height: 1.55; word-break: break-word; }
+.invq-grid__item dd.is-mono { font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+
+/* 编辑表单：两列栅格 */
+.invq-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
+.invq-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.invq-field.is-wide { grid-column: span 2; }
+.invq-field__label { color: var(--ui-text-2); font-size: 13px; font-weight: 500; }
+.invq-field__label i { margin-left: 3px; color: #f04438; font-style: normal; }
+
+.invq .semi-input-wrapper {
+  border-color: transparent;
+  border-radius: 6px;
+  background: #f7f9fb;
+  transition: background-color .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.invq .semi-input-wrapper:hover { background: #eff2f6; }
+.invq .semi-input-wrapper-focus {
+  border-color: color-mix(in srgb, var(--pc-primary, #1456f0) 55%, transparent) !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc-primary, #1456f0) 12%, transparent);
+}
+.invq .semi-input-wrapper .semi-input { background: transparent; }
+
+/* 协议勾选 */
+.invq-agree { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-top: 18px; color: var(--ui-text-2); font-size: 13.5px; }
+.invq-agree__link { color: color-mix(in srgb, var(--pc-primary, #1456f0) 92%, #0f1728); font-weight: 500; text-decoration: none; }
+.invq-agree__link:hover { text-decoration: underline; }
+
+/* 底部操作条 */
+.invq-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--ui-line-soft); }
+.invq .semi-button { border-radius: 6px; height: 38px; padding: 0 22px; font-weight: 500; }
+.invq .semi-button-primary { border: 0 !important; background: var(--ui-grad) !important; box-shadow: var(--ui-shadow-1); }
+.invq .semi-button-primary:hover { filter: brightness(1.04); box-shadow: var(--ui-shadow-2); }
+/* 次级按钮（取消等）：Semi 默认 light+tertiary 依赖 --semi-color-fill-0 / --semi-color-text-*
+   若这些 token 被主题覆盖成浅色，会出现「白底白字」。此处显式定色，保证可见。 */
+.invq .semi-button:not(.semi-button-primary) {
+  border: 1px solid var(--ui-line) !important;
+  background: #fff !important;
+  color: var(--ui-text) !important;
+}
+.invq .semi-button:not(.semi-button-primary) .semi-button-content { color: inherit !important; }
+.invq .semi-button:not(.semi-button-primary):hover {
+  border-color: #d5dae2 !important;
+  background: var(--ui-bg-soft) !important;
+  color: var(--ui-text) !important;
+}
+.invq .semi-button:not(.semi-button-primary):active { background: #eef1f5 !important; }
+
+/* 骨架屏 */
+.invq-skeleton { display: flex; flex-direction: column; gap: 14px; padding: 28px; }
+.invq-skeleton__bar {
+  display: block;
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #f2f4f7 25%, #e9ecf1 37%, #f2f4f7 63%);
+  background-size: 400% 100%;
+  animation: invq-shimmer 1.4s ease infinite;
+}
+.invq-skeleton__bar--title { width: 220px; height: 22px; }
+.invq-skeleton__bar--short { width: 45%; }
+@keyframes invq-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+@media (max-width: 900px) {
+  .invq-head { padding: 10px 14px; }
+  .invq-hero { flex-direction: column; padding: 20px; }
+  .invq-hero__actions { padding-top: 0; }
+  .invq-hero__title { font-size: 20px; }
+  .invq-notice, .invq-alert { margin-left: 20px; margin-right: 20px; }
+  .invq-panel { padding: 18px 20px 20px; }
+  .invq-grid, .invq-form { grid-template-columns: minmax(0, 1fr); }
+  .invq-grid__item.is-wide, .invq-field.is-wide { grid-column: span 1; }
+}

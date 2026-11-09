@@ -1,0 +1,49 @@
+{
+  "page": "salesman/promoter/List.vue",
+  "component": "rust/web/admin-semi/src/pages/SalesmanPromoteAndProducts.tsx",
+  "filters": [
+    "mobile",
+    "addTimeStart",
+    "addTimeEnd",
+    "pidMobile",
+    "groupId",
+    "level"
+  ],
+  "columns": [
+    "昵称",
+    "等级",
+    "分组",
+    "邀请方",
+    "累计客户数",
+    "累计销售额",
+    "加入时间",
+    "操作"
+  ],
+  "actions": [
+    "详情",
+    "编辑"
+  ],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right"
+    },
+    "longHeaders": []
+  },
+  "backendReady": {
+    "batch": false,
+    "del": false,
+    "updateField": false
+  },
+  "notes": [
+    "分销员管理(promoterManage/promoter):GET /salesman/salesman/list(SalesmanVO),筛选 mobile/pidMobile/groupId/level/addTimeStart/addTimeEnd。",
+    "添加分销员(Modal):绑定账号远程搜索 /user/user/list,等级/分组下拉来自 /salesman/config/detail 与 /salesman/group/list,上级分销员按手机号远程搜索;POST /salesman/salesman/create {userId,level,groupId,pid}。",
+    "编辑分销员:GET /salesman/salesman/detail 回填,POST /salesman/salesman/update {salesmanId,level,groupId,pid}(Rust SalesmanEditDTO)。",
+    "分销员详情抽屉(旧 Detail.vue):salesmanVO+statistical,业绩概况(累计销售额/累计订单数/累计客户数/累计邀请数)+佣金统计(累计佣金/商品佣金,含 tooltip)。",
+    "累计客户数弹窗(旧 UserList.vue):GET /salesman/salesman/customerList,会员名称/会员手机/会员等级(rankLogo Rust 未返回,仅 rankName)/注册日期。",
+    "旧版批量栏按钮(设置等级/分组/清退)为无 handler 死代码,Rust 无 /salesman/salesman/batch|del|updateField,批量与清退不实现(记录)。",
+    "旧版注释的累计佣金(元)/累计邀请数列为死代码(记录)。"
+  ]
+}

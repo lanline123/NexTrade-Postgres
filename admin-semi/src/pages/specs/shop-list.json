@@ -1,0 +1,51 @@
+{
+  "page": "shop/shop/List.vue",
+  "info": "shop/shop/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/ShopList.tsx",
+  "drawer": {
+    "width": 700,
+    "labelWidth": "auto"
+  },
+  "filters": [
+    "keyword",
+    "mainAccount",
+    "status",
+    "corporateName"
+  ],
+  "columns": [
+    "店铺名称",
+    "店铺LOGO",
+    "商户名称",
+    "店铺状态",
+    "主账号"
+  ],
+  "actions": [
+    "edit",
+    "delete",
+    "店铺首页",
+    "主账号管理"
+  ],
+  "batch": [
+    "delete"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 180
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "店铺列表，支持店铺名称/主账号/状态/商户名称组合筛选",
+    "操作支持编辑店铺、店铺首页直达、主账号管理弹窗、删除店铺",
+    "批量操作支持批量删除 (/merchant/shop/batch)",
+    "支持商户认证状态查看与商户详情弹窗"
+  ]
+}

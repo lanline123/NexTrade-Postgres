@@ -1,0 +1,24 @@
+{
+  "page": "finance/staffFundWalletLog/List.vue",
+  "info": "finance/staffFundWalletLog/List.vue",
+  "component": "rust/web/admin-semi/src/pages/StaffWalletLogs.tsx",
+  "filters": [
+    "businessType"
+  ],
+  "columns": [
+    "流水ID",
+    "员工",
+    "金额",
+    "变动后余额",
+    "业务类型",
+    "类型",
+    "备注",
+    "时间"
+  ],
+  "drawer": null,
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "只读日志列表。"
+  ]
+}

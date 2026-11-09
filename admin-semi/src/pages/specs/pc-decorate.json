@@ -1,0 +1,56 @@
+{
+  "page": "decorate/pcDecorate/List.vue",
+  "component": "rust/web/admin-semi/src/pages/DecoratePcPages.tsx",
+  "filters": [],
+  "columns": [
+    {
+      "title": "页面名称",
+      "dataIndex": "decorateTitle",
+      "render": "isHome=1 首页标识 + 行内改名(updateField decorateTitle) + 旧版Tag(pageType=1 且 homeStyleVersion=old)"
+    },
+    {
+      "title": "发布状态",
+      "dataIndex": "status",
+      "render": "绿点已发布/灰点未发布",
+      "sorter": true
+    },
+    {
+      "title": "更新时间",
+      "dataIndex": "updateTime",
+      "render": "毫秒时间戳格式化",
+      "sorter": true
+    },
+    {
+      "title": "操作",
+      "dataIndex": "actions",
+      "render": "装修(新窗口新版 PcDecorateEditor) + 更换(isHome=1)"
+    }
+  ],
+  "actions": [
+    "搜索",
+    "新建页面",
+    "装修",
+    "删除",
+    "更换首页"
+  ],
+  "batch": [
+    "del"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "rowSelection": true
+  },
+  "widgets": {},
+  "interactionChecks": [
+    "rust/web/admin-semi/scripts/verify-engine.cjs"
+  ],
+  "notes": [
+    "接口全部真实接入: /decorate/decorate/list?decorateType=2 + del/updateField/batch/copy/setHome/create + decorateShare/share|import。",
+    "原版列表无 Tab(decorateType=2)；PC 列表请求不带 pageType。",
+    "编辑与原版一致，新窗口打开 /?page=pcDecorateEditor&id=；旧版内嵌编辑器已删除。",
+    "updateTime 为毫秒时间戳；排序 sortField=status|updateTime 传 asc/desc。",
+    "原版 PopForm 行内改名通过 updateField {id, field:'decorateTitle', val}。",
+    "筛选为自定义输入框(keyword)，非 ListPage filters。"
+  ]
+}

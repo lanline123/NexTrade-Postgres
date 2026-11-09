@@ -1,0 +1,14 @@
+{
+  "page": "content/videoNumber/List.vue",
+  "info": "content/videoNumber/List.vue",
+  "component": "rust/web/admin-semi/src/pages/VideoNumbers.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": ["视频号ID", "关联时间"],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "视频号：接口 /content/wechatVideoAccount/*（list/create/delete/detail/update）。关联/解除关联。"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "page": "rust/web/admin-semi/src/pages/FinanceStatementPages.tsx",
+  "component": "rust/web/admin-semi/src/pages/FinanceStatementPages.tsx",
+  "skipOldPage": true,
+  "filters": ["keyword"],
+  "columns": ["供应商名称", "提现总额", "已打款", "待审核", "统计时间"],
+  "actions": [],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "供应商提现汇总(vendorWithdrawApplySummary)：ListPage，接口 /vendor/vendorWithdraw/summaryList。"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "page": "finance/accountPanel/List.vue",
+  "component": "rust/web/admin-semi/src/pages/FinanceOverviewPages.tsx",
+  "filters": ["searchStartDate", "searchEndDate"],
+  "columns": ["会员充值总额", "提现金额", "会员余额变化金额", "会员冻结变化金额", "交易使用余额", "交易使用积分"],
+  "actions": ["搜索"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "会员账户信息与余额使用信息资金总览，端点 /finance/accountPanel/list"
+  ]
+}

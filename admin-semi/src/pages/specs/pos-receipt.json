@@ -1,0 +1,24 @@
+{
+  "page": "o2o_admin/cashier/order-setting/receipt-print",
+  "info": "o2o_admin/cashier/order-setting/receipt-print",
+  "columns": [
+    "打印机名称",
+    "打印机类型",
+    "打印机编码",
+    "绑定设备",
+    "纸张",
+    "状态",
+    "更新时间"
+  ],
+  "filters": [
+    "keyword"
+  ],
+  "component": "rust/web/admin-semi/src/pages/ReceiptPrinters.tsx",
+  "skipOldPage": true,
+  "drawer": null,
+  "actions": [],
+  "batch": [],
+  "notes": [
+    "参考 o2o_admin 编译前端实现。"
+  ]
+}

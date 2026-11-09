@@ -1,0 +1,29 @@
+{
+  "page": "decorate/mobileCatNav/List.vue",
+  "component": "rust/web/admin-semi/src/pages/DecorateMobilePages.tsx",
+  "filters": [
+    "categoryName"
+  ],
+  "columns": [
+    "首页分类栏名称",
+    "分类颜色",
+    "是否显示",
+    "排序",
+    "操作"
+  ],
+  "actions": [
+    "编辑",
+    "删除"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": "编辑"
+  },
+  "drawer": {
+    "width": 600
+  },
+  "notes": [
+    "分类导航配置"
+  ]
+}

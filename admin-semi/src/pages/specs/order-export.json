@@ -1,0 +1,16 @@
+{
+  "page": "order/orderExport/List.vue",
+  "info": "order/orderExport/List.vue",
+  "component": "rust/web/admin-semi/src/pages/OrderExport.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "订单导出：接口 getExportItemList(全部可选字段)/exportItemInfo(已保存字段)/saveExportItem(保存配置)/orderExport(导出,带 exportItem=字段key逗号串)。",
+    "导出项目(可移除)/可增加项(点击添加)双区 Tag 交互，保存/清空配置；筛选项含 订单信息/订单状态/支付状态/发货状态/详细地址/Email/手机号/下单时间(默认近15天)。",
+    "与旧版差异：选择店铺(商家角色)、配送物流下拉未含(平台后台可用字段一致)；导出为浏览器 Blob 下载，文件名固定'导出订单.xlsx'。"
+  ]
+}

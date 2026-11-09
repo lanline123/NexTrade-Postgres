@@ -1,0 +1,155 @@
+/* 库存预警（StockWarnings.tsx）页面样式 */
+
+.sw-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sw-switch-block .sw-switch-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sw-switch-label {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.sw-switch-desc {
+  color: var(--semi-color-text-1);
+  font-size: 13px;
+}
+
+.sw-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sw-section-title {
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 24px;
+}
+
+.sw-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sw-selected-total {
+  color: var(--semi-color-text-2);
+  font-size: 13px;
+}
+
+.sw-product-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sw-product-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sw-product-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sw-product-sn {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+}
+
+.sw-header-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--semi-color-text-2);
+}
+
+.sw-import-tip {
+  width: 100%;
+  display: inline-block;
+  font-size: 14px;
+  line-height: 22px;
+  background-color: var(--semi-color-fill-0);
+  border-radius: 2px;
+  margin: 0 0 20px;
+  padding: 11px 0 11px 12px;
+  box-sizing: border-box;
+}
+
+.sw-import-link {
+  color: var(--semi-color-primary);
+  cursor: pointer;
+}
+
+.sw-import-dropzone {
+  border: 1px dashed var(--semi-color-primary-light-active);
+  border-radius: 4px;
+  display: flex;
+  justify-content: center;
+  padding: 48px 20px;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.sw-import-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 24px;
+  max-width: 100%;
+}
+
+.sw-import-sub {
+  color: var(--semi-color-text-2);
+  font-size: 14px;
+}
+
+.sw-import-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.sw-import-error-text {
+  word-break: break-all;
+  white-space: normal;
+  line-height: 20px;
+}
+
+.sw-import-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--semi-color-text-1);
+  font-size: 14px;
+  padding: 20px 0 0;
+}
+
+.sw-import-footer-title {
+  color: var(--semi-color-text-0);
+  font-size: 15px;
+  font-weight: 600;
+}

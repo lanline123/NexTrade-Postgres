@@ -1,0 +1,22 @@
+{
+  "page": "setting/wechat/menu/Index.vue",
+  "component": "rust/web/admin-semi/src/pages/WechatVoicePages.tsx",
+  "filters": [],
+  "columns": ["菜单名称", "菜单内容", "排序"],
+  "actions": ["保存并发布", "添加主菜单", "添加子菜单", "删除"],
+  "batch": [],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": null,
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": false,
+    "sort": false
+  },
+  "notes": [
+    "公众号菜单管理，端点 /wechat/menu 与 /wechat/menu/saveAndPublish"
+  ]
+}

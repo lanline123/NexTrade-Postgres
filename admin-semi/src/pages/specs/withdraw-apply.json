@@ -1,0 +1,28 @@
+{
+  "page": "finance/userWithdrawApply/List.vue",
+  "info": "finance/userWithdrawApply/List.vue",
+  "component": "rust/web/admin-semi/src/pages/FinanceLists.tsx",
+  "filters": [
+    "keyword",
+    "status"
+  ],
+  "columns": [
+    "会员名称",
+    "金额",
+    "手续费(元)",
+    "手续费率",
+    "到款状态",
+    "操作时间"
+  ],
+  "drawer": null,
+  "actions": [
+    "审核",
+    "已完成",
+    "拒绝申请",
+    "查看"
+  ],
+  "batch": [],
+  "notes": [
+    "2026-11-07 补齐审核弹窗：管理员备注 postscript + 到款状态（1 已完成 / 2 拒绝申请），POST /finance/userWithdrawApply/update。"
+  ]
+}

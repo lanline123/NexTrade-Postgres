@@ -1,0 +1,32 @@
+{
+  "page": "product/category/List.vue",
+  "info": "product/category/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/Categories.tsx",
+  "drawer": {
+    "width": 600,
+    "labelWidth": "auto"
+  },
+  "filters": [],
+  "columns": ["分类名称", "分类图片", "单位", "是否热门", "是否显示", "排序"],
+  "actions": ["edit", "delete"],
+  "batch": ["delete"],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true,
+    "action": {
+      "fixed": "right",
+      "width": 230
+    },
+    "longHeaders": []
+  },
+  "sort": [],
+  "backendReady": {
+    "batch": true,
+    "sort": false
+  },
+  "notes": [
+    "商品类目采用一次性加载全部分类后前端建树，展开/收起不再懒加载请求。",
+    "原版返回上一级用于懒加载钻取；全量树模式下不需要。",
+    "商品转移调用 /product/category/moveCat。"
+  ]
+}

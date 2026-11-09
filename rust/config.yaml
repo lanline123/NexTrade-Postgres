@@ -1,0 +1,54 @@
+# NexTrade Rust 配置文件
+# 对应原 Java application.yaml
+# 所有字段均可用环境变量覆盖：TIG_<大写路径，层级用 __ 分隔>
+# 例：TIG_DATASOURCE__URL、TIG_SERVER__ADMIN_PORT、TIG_JWT__SECRET
+
+server:
+  # 管理端 API 端口（原 nextrade-adminapi:8080）
+  admin_port: 8080
+  # 商城端 API 端口（原 nextrade-api:8181）
+  api_port: 8181
+  host: 0.0.0.0
+
+datasource:
+  # postgres://user:pass@host:5432/dbname
+  url: "postgres://NexTrade:NexTrade@127.0.0.1:5432/nextrade"
+  username: NexTrade
+  password: NexTrade
+  max_connections: 20
+  # 启动时执行 migrations/ 目录（全新安装开启；复用原库可关闭）
+  auto_migrate: false
+
+redis:
+  host: 127.0.0.1
+  port: 6379
+  password: ""
+  database: 0
+
+jwt:
+  # 生产环境务必更换！
+  secret: "change-me-in-production-64-bytes-random-secret"
+  access_expire_secs: 7200      # 2 小时（原 Java 同）
+  refresh_expire_secs: 604800   # 7 天
+  issuer: "nextrade"
+
+rabbitmq:
+  host: 127.0.0.1
+  port: 5672
+  username: admin
+  password: ""
+  virtual_host: /
+
+elasticsearch:
+  url: "http://127.0.0.1:9200"
+  username: ""
+  password: ""
+  product_index: nextrade_products
+  timeout_secs: 30
+  retries: 3
+
+file:
+  upload_dir: "./uploads"
+
+storage:
+  kind: local   # local | oss | cos | s3 | qiniu

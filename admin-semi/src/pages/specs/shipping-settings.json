@@ -1,0 +1,16 @@
+{
+  "page": "setting/config/logistics/Index.vue",
+  "info": "setting/config/logistics/src/BaseLogistics.vue",
+  "component": "rust/web/admin-semi/src/pages/ShippingSettings.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "sort": [],
+  "backendReady": { "sort": false },
+  "notes": [
+    "配送设置是单表单页，包含快递发货、快递接口、发货信息、退货信息。",
+    "快递鸟/快递100 字段按 logisticsProvider 条件展示。"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "page": "setting/appVersion/List.vue",
+  "info": "setting/appVersion/List.vue",
+  "component": "rust/web/admin-semi/src/pages/AppVersion.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": [],
+  "actions": [],
+  "batch": [],
+  "sort": [],
+  "backendReady": {
+    "sort": false
+  },
+  "notes": [
+    "单表单页面，无列表、无抽屉。",
+    "Android 支持 APK/WGT 上传，iOS 支持 WGT 上传。"
+  ]
+}

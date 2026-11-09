@@ -1,0 +1,16 @@
+{
+  "page": "decorate/pcDecorate/LoginDecorate.vue",
+  "component": "rust/web/admin-semi/src/pages/DecoratePcPages.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [
+    "保存配置"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true
+  },
+  "notes": [
+    "PC登录页装修"
+  ]
+}

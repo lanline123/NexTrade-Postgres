@@ -1,0 +1,23 @@
+{
+  "page": "product/inventoryQuery/List.vue",
+  "info": "product/inventoryQuery/List.vue",
+  "component": "rust/web/admin-semi/src/pages/InventoryQuery.tsx",
+  "drawer": null,
+  "filters": ["keyword"],
+  "columns": ["商品名称", "商品规格", "可用库存", "成本"],
+  "actions": [],
+  "batch": [],
+  "widgets": {
+    "stockLogDialog": {
+      "type": "stock-log-dialog",
+      "component": "rust/web/admin-semi/src/pages/InventoryQuery.tsx",
+      "requires": ["product/stock/stockDetail"],
+      "mcpChecks": ["Table", "Modal", "Spin"]
+    }
+  },
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "库存查询：GET /product/stock/page，出入库明细弹窗 GET /product/stock/stockDetail（旧版 Logs.vue）。",
+    "与旧版差异：单位列在旧版已注释，未迁移。"
+  ]
+}

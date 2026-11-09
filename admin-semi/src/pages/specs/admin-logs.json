@@ -1,0 +1,16 @@
+{
+  "page": "authority/adminLog/List.vue",
+  "info": "authority/adminLog/Info.vue",
+  "component": "rust/web/admin-semi/src/pages/AdminLogs.tsx",
+  "drawer": null,
+  "filters": ["keyword"],
+  "columns": ["编号", "操作者", "IP地址", "操作日期", "操作记录"],
+  "actions": [],
+  "batch": [],
+  "sort": [],
+  "backendReady": { "sort": false },
+  "notes": [
+    "操作详情使用弹窗展示 requestLog。",
+    "只有存在 requestLog 的行才显示查看入口。"
+  ]
+}

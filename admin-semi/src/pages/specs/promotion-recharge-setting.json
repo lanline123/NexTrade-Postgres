@@ -1,0 +1,15 @@
+{
+  "page": "promotion/rechargeSetting/List.vue",
+  "info": "promotion/rechargeSetting/List.vue",
+  "component": "rust/web/admin-semi/src/pages/RechargeSettings.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": ["充值金额", "赠送金额", "是否显示", "排序"],
+  "actions": ["edit"],
+  "batch": ["delete"],
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "充值设置：接口 /promotion/rechargeSetting/*（list/create/update/del/batch/updateField）。",
+    "表单提示与旧版一致：充值附赠赠送余额时建议关闭会员余额提现（去关闭：财务-提现管理-提现设置，该页已迁移为 withdrawalSettingManage）。"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "page": "decorate/mobileDecorate/user/User.vue",
+  "component": "rust/web/admin-semi/src/pages/DecorateMobilePages.tsx",
+  "filters": [],
+  "columns": [],
+  "actions": [
+    "进入可视化画布装修"
+  ],
+  "table": {
+    "fillWidth": true,
+    "headerNowrap": true
+  },
+  "notes": [
+    "会员首页装修"
+  ]
+}

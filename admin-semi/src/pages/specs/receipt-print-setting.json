@@ -1,0 +1,15 @@
+{
+  "page": "setting/config/receiptPrintSetting/List.vue",
+  "info": "setting/config/receiptPrintSetting/List.vue（设置-小票打印，与 POS 小票打印共用 /print/print/*）",
+  "component": "rust/web/admin-semi/src/pages/ReceiptPrinters.tsx",
+  "drawer": null,
+  "filters": [],
+  "columns": ["名称", "打印机类型", "打印机编码", "绑定设备", "更新时间", "状态"],
+  "actions": ["edit"],
+  "batch": [],
+  "skipOldPage": true,
+  "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
+  "notes": [
+    "设置端小票打印与 POS 端打印设置完全同源（/print/print/* + printConfig），直接复用已迁移的 ReceiptPrintersPage；打印设计(Design)与配置(printConfig/update)由 POS 页承载。"
+  ]
+}

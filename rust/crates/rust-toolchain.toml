@@ -1,0 +1,11 @@
+[toolchain]
+# 活跃工具链：stable-x86_64-pc-windows-msvc（rustc 1.99.0）
+# 本机 MSVC 已安装：VS2022 Community / MSVC 14.44.35207 + WinSDK 10.0.26100，
+# rustc 通过 vswhere 自动定位 link.exe/cl.exe。
+#
+# 注意：channel 不能写成 "stable-x86_64-pc-windows-gnu" —— rustup 解析
+# rust-toolchain 文件时会报 "target tuple in channel name"，导致所有 cargo 命令失败。
+# 如需 GNU 目标：rustup target add x86_64-pc-windows-gnu 后用
+# `cargo build --target x86_64-pc-windows-gnu`（见 .cargo/config.toml）。
+channel = "stable"
+components = ["rustfmt", "clippy", "rust-analyzer"]
