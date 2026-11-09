@@ -232,7 +232,34 @@ proxy_read_timeout 3600s;
 
 **未改动、属有意适配**：39 列 `datetime/date → varchar(255)`、10 列 `json → text`。
 原因是 Rust 实体里这些字段是 `String`，改成 `timestamp` / `jsonb` 需要同步改代码与序列化，
-属于独立改造项，不是 schema bug。
+属于独立改造项，不是 schema bug。**这两类已单独准备，见 §4.3。**
+
+### 4.3 时间 / JSON 列切换（已备好，**尚未执行**）
+
+49 列（39 时间 + 10 JSON）要从 `varchar/text` 改为 `timestamp` / `date` / `jsonb`。
+
+| 项 | 状态 |
+|---|---|
+| 代码 | 已提交 `256b3eb`：读 `col::text AS col`、写 `NULLIF($n,'')::timestamp|date|jsonb`；`row_to_json` 增加 TIMESTAMP/DATE 分支 |
+| 迁移脚本 | `rust/deploy/pg/2026-11-09_time_json_align.sql`（49 条 ALTER） |
+| 生产库 | **未转换**，仍是 varchar/text |
+| 为何不能单独转 | 线上二进制按 `String` 解码这些列，单独转列会让 `cart` / `order` / `promotion` / `user` 立即报错 |
+
+切换步骤（预计 10–30 秒不可用）：
+
+```bash
+systemctl stop nextrade
+# 二进制必须是包含 256b3eb 的构建
+/www/server/pgsql/bin/psql -h 127.0.0.1 -U NexTrade -d nextrade -X -v ON_ERROR_STOP=1 \
+  -f /www/backup/2026-11-09_time_json_align.sql
+systemctl start nextrade
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/adminapi/health
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8181/api/health
+```
+
+回滚语句在脚本末尾（`timestamp -> varchar(255)` 用 `to_char(...)` 转换）。
+切换前预检已通过：空串 0、非法格式 0；当前只有 3 列有数据
+（`wechat_live.create_time`、`statistics_base.date`、`user.birthday`）。
 
 ---
 
