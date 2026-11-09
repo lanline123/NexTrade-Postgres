@@ -41,7 +41,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY --from=builder /app/crates/target/release/nextrade /usr/local/bin/nextrade
-COPY config.yaml ./config.yaml
+# 真实配置含口令、不入库；镜像里放模板作为基线，敏感值用 TIG_* 环境变量覆盖
+COPY config.example.yaml ./config.yaml
 COPY migrations ./migrations
 COPY template ./template
 
