@@ -218,7 +218,7 @@ impl StockWarningRepository {
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
-        r.map_err(|_| Error::Internal("自增主键溢出".into()))
+        Ok(r)
     }
 
     /// 按主键更新规则（Java `updateById`：写开关、上下限、最近预警状态与更新时间）。

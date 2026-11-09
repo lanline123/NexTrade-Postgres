@@ -361,7 +361,8 @@ impl LogisticsCompanyRepository {
             "INSERT INTO logistics_company ({}) VALUES ({placeholders})",
             columns.join(", ")
         ));
-        let mut query = sqlx::query_scalar(&format!("{} RETURNING logistics_id", &sql));
+        let sql = crate::db::to_pg_placeholders(&format!("{} RETURNING logistics_id", &sql));
+        let mut query = sqlx::query_scalar(&sql);
         for b in &binds {
             query = match b {
                 InsertValue::Text(t) => query.bind(*t),

@@ -258,7 +258,8 @@ impl TaxRateRepository {
             "INSERT INTO tax_rate ({}) VALUES ({placeholders})",
             columns.join(", ")
         ));
-        let mut query = sqlx::query_scalar(&format!("{} RETURNING tax_rate_id", &sql));
+        let sql = crate::db::to_pg_placeholders(&format!("{} RETURNING tax_rate_id", &sql));
+        let mut query = sqlx::query_scalar(&sql);
         for b in &binds {
             query = match b {
                 InsertValue::Text(t) => query.bind(*t),

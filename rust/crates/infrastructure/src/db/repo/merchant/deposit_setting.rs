@@ -31,6 +31,7 @@ impl DepositSettingRepository {
     pub async fn find_settings(&self) -> Result<Vec<(String, String)>> {
         let marks = vec!["?"; CODES.len()].join(", ");
         let sql = format!("SELECT biz_code, biz_val FROM config WHERE biz_code IN ({marks}) AND {ALIVE}");
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (String, Option<String>)>(&sql);
         for code in CODES {
             q = q.bind(code);

@@ -49,6 +49,7 @@ impl AppVersionAdminRepository {
             "SELECT biz_code, biz_val FROM config WHERE is_del = 0 AND biz_code IN ({})",
             placeholders(biz_codes.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (String, Option<String>)>(&sql);
         for code in biz_codes {
             q = q.bind(*code);
@@ -88,6 +89,7 @@ impl AppVersionAdminRepository {
             "UPDATE config SET is_del = 1 WHERE is_del = 0 AND biz_code IN ({})",
             placeholders(codes.len())
         );
+        let delete_sql = crate::db::to_pg_placeholders(&delete_sql);
         let mut del = sqlx::query(&delete_sql);
         for code in &codes {
             del = del.bind(*code);

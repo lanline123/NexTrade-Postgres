@@ -179,7 +179,7 @@ impl ExampleRepository {
         // 生成 `INSERT INTO example () VALUES ()` 并让 MySQL 用默认值。
         // MySQL 支持这种写法，因此这里不加特殊分支，保持一致。
         let sql = if columns.is_empty() {
-            "INSERT INTO example () VALUES ()".to_string()
+            "INSERT INTO example DEFAULT VALUES".to_string()
         } else {
             let placeholders = vec!["?"; columns.len()].join(", ");
             format!(
@@ -187,7 +187,8 @@ impl ExampleRepository {
                 columns.join(", ")
             )
         };
-        let mut query = sqlx::query_scalar(&format!("{} RETURNING example_id", &sql));
+        let sql = crate::db::to_pg_placeholders(&format!("{} RETURNING example_id", &sql));
+        let mut query = sqlx::query_scalar(&sql);
         for b in &binds {
             query = match b {
                 InsertValue::Text(t) => query.bind(*t),

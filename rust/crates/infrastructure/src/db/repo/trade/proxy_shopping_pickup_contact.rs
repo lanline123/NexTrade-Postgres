@@ -293,7 +293,8 @@ impl ProxyShoppingPickupContactRepository {
             cols.join(", "),
             vals.join(", ")
         );
-        let mut q = sqlx::query_scalar(&format!("{} RETURNING id", &sql));
+        let sql = crate::db::to_pg_placeholders(&format!("{} RETURNING id", &sql));
+        let mut q = sqlx::query_scalar(&sql);
         if let Some(v) = user_id {
             q = q.bind(v);
         }

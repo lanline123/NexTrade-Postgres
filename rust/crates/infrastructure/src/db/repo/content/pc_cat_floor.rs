@@ -288,7 +288,8 @@ impl PcCatFloorRepository {
             "INSERT INTO pc_cat_floor ({}) VALUES ({placeholders})",
             columns.join(", ")
         ));
-        let mut query = sqlx::query_scalar(&format!("{} RETURNING cat_floor_id", &sql));
+        let sql = crate::db::to_pg_placeholders(&format!("{} RETURNING cat_floor_id", &sql));
+        let mut query = sqlx::query_scalar(&sql);
         for b in &binds {
             query = match b {
                 SqlBind::Text(v) => query.bind(*v),

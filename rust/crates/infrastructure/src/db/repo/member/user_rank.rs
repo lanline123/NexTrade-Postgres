@@ -709,7 +709,8 @@ async fn upsert_config(
 /// 组装并执行 `INSERT INTO user_rank ...`，返回自增主键。
 async fn insert_row(conn: &mut sqlx::PgConnection, w: &UserRankWrite) -> Result<i32> {
     let (sql, binds) = build_insert(w);
-    let mut q = sqlx::query_scalar(&format!("{} RETURNING rank_id", &sql));
+    let sql = crate::db::to_pg_placeholders(&format!("{} RETURNING rank_id", &sql));
+    let mut q = sqlx::query_scalar(&sql);
     for b in &binds {
         q = match b {
             BindValue::Text(t) => q.bind(*t),

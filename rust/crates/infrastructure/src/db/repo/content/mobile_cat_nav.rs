@@ -242,7 +242,8 @@ impl MobileCatNavRepository {
         ));
 
         // 绑定顺序必须与 columns 完全一致：按同一判据再走一遍。
-        let mut query = sqlx::query_scalar(&format!("{} RETURNING mobile_cat_nav_id", &sql));
+        let sql = crate::db::to_pg_placeholders(&format!("{} RETURNING mobile_cat_nav_id", &sql));
+        let mut query = sqlx::query_scalar(&sql);
         if let Some(category_id) = v.category_id {
             query = query.bind(category_id);
         }

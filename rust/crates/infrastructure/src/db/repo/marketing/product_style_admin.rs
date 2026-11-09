@@ -620,7 +620,8 @@ impl ProductStyleAdminRepository {
             "INSERT INTO product_style ({}) VALUES ({placeholders})",
             columns.join(", ")
         ));
-        let mut query = sqlx::query_scalar(&format!("{} RETURNING style_id", &sql));
+        let sql = crate::db::to_pg_placeholders(&format!("{} RETURNING style_id", &sql));
+        let mut query = sqlx::query_scalar(&sql);
         for b in &binds {
             query = match b {
                 StyleInsertValue::Text(t) => query.bind(*t),

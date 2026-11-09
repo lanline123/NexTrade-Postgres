@@ -182,7 +182,8 @@ impl OrderConfigRepository {
             "INSERT INTO order_config ({}) VALUES ({placeholders})",
             columns.join(", ")
         ));
-        let mut query = sqlx::query_scalar(&format!("{} RETURNING id", &sql));
+        let sql = crate::db::to_pg_placeholders(&format!("{} RETURNING id", &sql));
+        let mut query = sqlx::query_scalar(&sql);
         for b in &binds {
             query = match b {
                 InsertValue::Text(t) => query.bind(*t),

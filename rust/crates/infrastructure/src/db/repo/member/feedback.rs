@@ -341,6 +341,7 @@ impl FeedbackRepository {
             "{FEEDBACK_SELECT} WHERE parent_id IN ({}) ORDER BY id DESC",
             placeholders(parent_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut query = sqlx::query_as::<_, Feedback>(&sql);
         for id in parent_ids {
             query = query.bind(*id);
@@ -390,6 +391,7 @@ impl FeedbackRepository {
             "SELECT user_id, nickname FROM \"user\" WHERE user_id IN ({})",
             placeholders(user_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut query = sqlx::query_as::<_, (i32, Option<String>)>(&sql);
         for id in user_ids {
             query = query.bind(*id);
@@ -411,6 +413,7 @@ impl FeedbackRepository {
             "SELECT order_id, order_sn FROM \"order\" WHERE order_id IN ({})",
             placeholders(order_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut query = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in order_ids {
             query = query.bind(*id);
@@ -430,6 +433,7 @@ impl FeedbackRepository {
             "SELECT product_id, product_name FROM product WHERE product_id IN ({})",
             placeholders(product_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut query = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in product_ids {
             query = query.bind(*id);
@@ -450,6 +454,7 @@ impl FeedbackRepository {
             "SELECT shop_id, shop_title FROM shop WHERE shop_id IN ({})",
             placeholders(shop_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut query = sqlx::query_as::<_, (i32, Option<String>)>(&sql);
         for id in shop_ids {
             query = query.bind(*id);
@@ -595,7 +600,8 @@ impl FeedbackRepository {
             columns.join(", "),
             placeholders(columns.len())
         );
-        let mut query = sqlx::query_scalar(&format!("{} RETURNING id", &sql));
+        let sql = crate::db::to_pg_placeholders(&format!("{} RETURNING id", &sql));
+        let mut query = sqlx::query_scalar(&sql);
         for b in &binds {
             query = match b {
                 InsertBind::Text(t) => query.bind(*t),
@@ -693,6 +699,7 @@ impl FeedbackRepository {
             "DELETE FROM feedback WHERE id IN ({})",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut query = sqlx::query(&sql);
         for id in ids {
             query = query.bind(*id);

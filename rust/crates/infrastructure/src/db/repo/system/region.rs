@@ -257,7 +257,8 @@ impl RegionRepository {
             "INSERT INTO region ({}) VALUES ({placeholders})",
             columns.join(", ")
         ));
-        let mut query = sqlx::query_scalar(&format!("{} RETURNING region_id", &sql));
+        let sql = crate::db::to_pg_placeholders(&format!("{} RETURNING region_id", &sql));
+        let mut query = sqlx::query_scalar(&sql);
         for b in &binds {
             query = match b {
                 InsertValue::Text(t) => query.bind(*t),
