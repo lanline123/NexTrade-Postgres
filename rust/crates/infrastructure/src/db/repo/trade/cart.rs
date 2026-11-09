@@ -18,7 +18,7 @@ impl CartRepository {
     /// 用户购物车列表（可按店铺过滤）。
     pub async fn find_by_user(&self, user_id: i32, shop_id: Option<i32>) -> Result<Vec<Cart>> {
         sqlx::query_as::<_, Cart>(
-            "SELECT * FROM cart WHERE user_id = $1 AND ($2 IS NULL OR shop_id = $3) ORDER BY cart_id DESC",
+            "SELECT \"cart_id\", \"user_id\", \"product_id\", \"product_sn\", \"pic_thumb\", \"market_price\", \"original_price\", \"quantity\", \"sku_id\", \"sku_data\", \"product_type\", \"is_checked\", \"shop_id\", \"table_id\", \"type\", \"update_time\", \"salesman_id\", \"extra_sku_data\", \"extra_data\"::text AS \"extra_data\", \"change_price_data\"::text AS \"change_price_data\", \"cycle_spec_id\", \"redeem_card_id\", \"is_wholesale_line\", \"wholesale_grade_id\" FROM cart WHERE user_id = $1 AND ($2 IS NULL OR shop_id = $3) ORDER BY cart_id DESC",
         )
         .bind(user_id)
         .bind(shop_id)
@@ -30,7 +30,7 @@ impl CartRepository {
 
     /// 按 ID 查询（校验归属）。
     pub async fn find_owned(&self, cart_id: i32, user_id: i32) -> Result<Option<Cart>> {
-        sqlx::query_as::<_, Cart>("SELECT * FROM cart WHERE cart_id = $1 AND user_id = $2 LIMIT 1")
+        sqlx::query_as::<_, Cart>("SELECT \"cart_id\", \"user_id\", \"product_id\", \"product_sn\", \"pic_thumb\", \"market_price\", \"original_price\", \"quantity\", \"sku_id\", \"sku_data\", \"product_type\", \"is_checked\", \"shop_id\", \"table_id\", \"type\", \"update_time\", \"salesman_id\", \"extra_sku_data\", \"extra_data\"::text AS \"extra_data\", \"change_price_data\"::text AS \"change_price_data\", \"cycle_spec_id\", \"redeem_card_id\", \"is_wholesale_line\", \"wholesale_grade_id\" FROM cart WHERE cart_id = $1 AND user_id = $2 LIMIT 1")
             .bind(cart_id)
             .bind(user_id)
             .fetch_optional(&self.pool)
@@ -46,7 +46,7 @@ impl CartRepository {
         sku_id: Option<i32>,
     ) -> Result<Option<Cart>> {
         sqlx::query_as::<_, Cart>(
-            "SELECT * FROM cart
+            "SELECT \"cart_id\", \"user_id\", \"product_id\", \"product_sn\", \"pic_thumb\", \"market_price\", \"original_price\", \"quantity\", \"sku_id\", \"sku_data\", \"product_type\", \"is_checked\", \"shop_id\", \"table_id\", \"type\", \"update_time\", \"salesman_id\", \"extra_sku_data\", \"extra_data\"::text AS \"extra_data\", \"change_price_data\"::text AS \"change_price_data\", \"cycle_spec_id\", \"redeem_card_id\", \"is_wholesale_line\", \"wholesale_grade_id\" FROM cart
              WHERE user_id = $1 AND product_id = $2
                AND (sku_id = $3 OR (sku_id IS NULL AND $4 IS NULL))
              LIMIT 1",

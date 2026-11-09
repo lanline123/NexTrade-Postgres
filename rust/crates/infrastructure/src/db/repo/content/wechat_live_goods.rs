@@ -36,7 +36,7 @@ impl WechatLiveGoodsRepository {
         size: u64,
     ) -> Result<(u64, Vec<WechatLiveGoods>)> {
         let mut count = QueryBuilder::<Postgres>::new("SELECT COUNT(*) FROM wechat_live_goods WHERE 1=1");
-        let mut rows = QueryBuilder::<Postgres>::new("SELECT * FROM wechat_live_goods WHERE 1=1");
+        let mut rows = QueryBuilder::<Postgres>::new("SELECT \"id\", \"room_id\", \"wechat_goods_id\", \"product_id\", \"product_sku_id\", \"goods_name\", \"cover_img\", \"price\", \"price_type\", \"url\", \"audit_status\", \"sort\", \"is_show\", \"create_time\"::text AS \"create_time\", \"update_time\"::text AS \"update_time\", \"shop_id\" FROM wechat_live_goods WHERE 1=1");
         for qb in [&mut count, &mut rows] {
             if let Some(room_id) = room_id {
                 qb.push(" AND room_id = ").push_bind(room_id);
@@ -72,7 +72,7 @@ impl WechatLiveGoodsRepository {
         wechat_goods_id: Option<i32>,
         product_id: Option<i64>,
     ) -> Result<Option<WechatLiveGoods>> {
-        let mut qb = QueryBuilder::<Postgres>::new("SELECT * FROM wechat_live_goods WHERE 1=1");
+        let mut qb = QueryBuilder::<Postgres>::new("SELECT \"id\", \"room_id\", \"wechat_goods_id\", \"product_id\", \"product_sku_id\", \"goods_name\", \"cover_img\", \"price\", \"price_type\", \"url\", \"audit_status\", \"sort\", \"is_show\", \"create_time\"::text AS \"create_time\", \"update_time\"::text AS \"update_time\", \"shop_id\" FROM wechat_live_goods WHERE 1=1");
         if let Some(id) = wechat_goods_id.filter(|v| *v > 0) {
             qb.push(" AND wechat_goods_id = ").push_bind(id);
         } else if let Some(id) = product_id.filter(|v| *v > 0) {

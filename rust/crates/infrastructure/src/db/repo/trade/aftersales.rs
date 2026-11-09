@@ -530,7 +530,7 @@ impl AftersalesRepository {
             return Ok(Vec::new());
         }
         let sql = format!(
-            "SELECT * FROM \"order\" WHERE order_id IN ({}) ORDER BY order_id ASC",
+            "SELECT \"order_id\", \"order_sn\", \"user_id\", \"parent_order_id\", \"parent_order_sn\", \"order_status\", \"shipping_status\", \"pay_status\", \"add_time\", \"consignee\", \"address\", \"region_ids\", \"region_names\", \"address_data\", \"mobile\", \"email\", \"buyer_note\", \"admin_note\", \"shipping_method\", \"logistics_id\", \"logistics_provider\", \"logistics_name\", \"shipping_type_id\", \"shipping_type_name\", \"tracking_no\", \"shipping_time\", \"received_time\", \"pay_type_id\", \"pay_time\", \"use_points\", \"is_need_commisson\", \"distribution_status\", \"referrer_user_id\", \"is_del\", \"shop_id\", \"is_store_splited\", \"is_valid\", \"comment_status\", \"total_amount\", \"paid_amount\", \"unpaid_amount\", \"unrefund_amount\", \"product_amount\", \"coupon_amount\", \"points_amount\", \"discount_amount\", \"balance\", \"credit_amount\", \"is_credit_order\", \"online_paid_amount\", \"offline_paid_amount\", \"service_fee\", \"shipping_fee\", \"invoice_fee\", \"order_extension\", \"order_source\", \"invoice_data\", \"out_trade_no\", \"is_settlement\", \"is_exchange_order\", \"order_type\", \"is_cycle_order\", \"is_card_order\", \"is_presale\", \"presale_type\", \"mark\", \"vendor_id\", \"cancel_remark\", \"cash_amount\", \"cash_change_amount\", \"round_off_dime_amount\", \"round_off_cents_amount\", \"pos_user_id\", \"device_code\", \"discount_change_price\", \"tax_rate\", \"tax_rate_amount\", \"change_price_data\"::text AS \"change_price_data\", \"gift_card_amount\", \"delivery_date\"::text AS \"delivery_date\", \"delivery_time_slot\", \"period_index\", \"time_index\", \"table_id\", \"table_no\", \"table_area_name\", \"dining_count\" FROM \"order\" WHERE order_id IN ({}) ORDER BY order_id ASC",
             placeholders(order_ids.len())
         );
         let mut q = sqlx::query_as::<_, Order>(&sql);
@@ -543,7 +543,7 @@ impl AftersalesRepository {
     /// 订单全部明细（对应 Java `orderItemMapper.selectList(eq("order_id", ...))`）。
     pub async fn find_order_items_by_order(&self, order_id: i32) -> Result<Vec<OrderItem>> {
         sqlx::query_as::<_, OrderItem>(
-            "SELECT * FROM order_item WHERE order_id = $1 ORDER BY item_id ASC",
+            "SELECT \"item_id\", \"order_id\", \"order_sn\", \"user_id\", \"price\", \"quantity\", \"product_id\", \"product_name\", \"product_sn\", \"pic_thumb\", \"sku_id\", \"sku_data\", \"delivery_quantity\", \"product_type\", \"is_gift\", \"shop_id\", \"is_pin\", \"prepay_price\", \"commission\", \"origin_price\", \"promotion_data\", \"is_seckill\", \"extra_sku_data\", \"suppliers_id\", \"card_group_name\", \"vendor_product_id\", \"vendor_product_sku_id\", \"vendor_id\", \"vendor_product_supply_price\", \"change_price_data\"::text AS \"change_price_data\", \"admin_change_pre_price\", \"gift_card_id\", \"delivery_service_fee\", \"server_service_fee\", \"is_wholesale_line\", \"wholesale_grade_id\", \"wholesale_base_price\" FROM order_item WHERE order_id = $1 ORDER BY item_id ASC",
         )
         .bind(order_id)
         .fetch_all(&self.pool)

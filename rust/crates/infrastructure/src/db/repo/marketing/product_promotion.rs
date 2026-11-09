@@ -234,7 +234,7 @@ impl ProductPromotionRepository {
 
     pub async fn find_promotion_row(&self, relation_id: i32) -> Result<Option<Promotion>> {
         sqlx::query_as::<_, Promotion>(
-            "SELECT * FROM promotion WHERE relation_id = $1 AND type IN (3, 4, 5) LIMIT 1",
+            "SELECT \"promotion_id\", \"promotion_name\", \"start_time\", \"end_time\", \"type\", \"shop_id\", \"relation_id\", \"range\", \"range_data\", \"sku_ids\", \"is_available\", \"is_delete\", \"member_range\", \"member_marks\", \"member_scope\"::text AS \"member_scope\" FROM promotion WHERE relation_id = $1 AND type IN (3, 4, 5) LIMIT 1",
         )
         .bind(relation_id)
         .fetch_optional(&self.pool)

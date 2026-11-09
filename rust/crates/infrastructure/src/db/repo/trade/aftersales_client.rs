@@ -605,9 +605,9 @@ impl AftersalesClientRepository {
         item_id: Option<i32>,
     ) -> Result<Vec<OrderItem>> {
         let sql = if item_id.is_some() {
-            "SELECT * FROM order_item WHERE order_id = $1 AND item_id = $2 ORDER BY item_id ASC"
+            "SELECT \"item_id\", \"order_id\", \"order_sn\", \"user_id\", \"price\", \"quantity\", \"product_id\", \"product_name\", \"product_sn\", \"pic_thumb\", \"sku_id\", \"sku_data\", \"delivery_quantity\", \"product_type\", \"is_gift\", \"shop_id\", \"is_pin\", \"prepay_price\", \"commission\", \"origin_price\", \"promotion_data\", \"is_seckill\", \"extra_sku_data\", \"suppliers_id\", \"card_group_name\", \"vendor_product_id\", \"vendor_product_sku_id\", \"vendor_id\", \"vendor_product_supply_price\", \"change_price_data\"::text AS \"change_price_data\", \"admin_change_pre_price\", \"gift_card_id\", \"delivery_service_fee\", \"server_service_fee\", \"is_wholesale_line\", \"wholesale_grade_id\", \"wholesale_base_price\" FROM order_item WHERE order_id = $1 AND item_id = $2 ORDER BY item_id ASC"
         } else {
-            "SELECT * FROM order_item WHERE order_id = $1 ORDER BY item_id ASC"
+            "SELECT \"item_id\", \"order_id\", \"order_sn\", \"user_id\", \"price\", \"quantity\", \"product_id\", \"product_name\", \"product_sn\", \"pic_thumb\", \"sku_id\", \"sku_data\", \"delivery_quantity\", \"product_type\", \"is_gift\", \"shop_id\", \"is_pin\", \"prepay_price\", \"commission\", \"origin_price\", \"promotion_data\", \"is_seckill\", \"extra_sku_data\", \"suppliers_id\", \"card_group_name\", \"vendor_product_id\", \"vendor_product_sku_id\", \"vendor_id\", \"vendor_product_supply_price\", \"change_price_data\"::text AS \"change_price_data\", \"admin_change_pre_price\", \"gift_card_id\", \"delivery_service_fee\", \"server_service_fee\", \"is_wholesale_line\", \"wholesale_grade_id\", \"wholesale_base_price\" FROM order_item WHERE order_id = $1 ORDER BY item_id ASC"
         };
         let mut q = sqlx::query_as::<_, OrderItem>(sql).bind(order_id);
         if let Some(id) = item_id {
@@ -622,7 +622,7 @@ impl AftersalesClientRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; item_ids.len()].join(", ");
-        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM order_item WHERE item_id IN ({ph})"));
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT \"item_id\", \"order_id\", \"order_sn\", \"user_id\", \"price\", \"quantity\", \"product_id\", \"product_name\", \"product_sn\", \"pic_thumb\", \"sku_id\", \"sku_data\", \"delivery_quantity\", \"product_type\", \"is_gift\", \"shop_id\", \"is_pin\", \"prepay_price\", \"commission\", \"origin_price\", \"promotion_data\", \"is_seckill\", \"extra_sku_data\", \"suppliers_id\", \"card_group_name\", \"vendor_product_id\", \"vendor_product_sku_id\", \"vendor_id\", \"vendor_product_supply_price\", \"change_price_data\"::text AS \"change_price_data\", \"admin_change_pre_price\", \"gift_card_id\", \"delivery_service_fee\", \"server_service_fee\", \"is_wholesale_line\", \"wholesale_grade_id\", \"wholesale_base_price\" FROM order_item WHERE item_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, OrderItem>(&sql);
         for id in item_ids {
             q = q.bind(*id);
@@ -639,7 +639,7 @@ impl AftersalesClientRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; order_ids.len()].join(", ");
-        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM order_item WHERE order_id IN ({ph}) ORDER BY item_id ASC"));
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT \"item_id\", \"order_id\", \"order_sn\", \"user_id\", \"price\", \"quantity\", \"product_id\", \"product_name\", \"product_sn\", \"pic_thumb\", \"sku_id\", \"sku_data\", \"delivery_quantity\", \"product_type\", \"is_gift\", \"shop_id\", \"is_pin\", \"prepay_price\", \"commission\", \"origin_price\", \"promotion_data\", \"is_seckill\", \"extra_sku_data\", \"suppliers_id\", \"card_group_name\", \"vendor_product_id\", \"vendor_product_sku_id\", \"vendor_id\", \"vendor_product_supply_price\", \"change_price_data\"::text AS \"change_price_data\", \"admin_change_pre_price\", \"gift_card_id\", \"delivery_service_fee\", \"server_service_fee\", \"is_wholesale_line\", \"wholesale_grade_id\", \"wholesale_base_price\" FROM order_item WHERE order_id IN ({ph}) ORDER BY item_id ASC"));
         let mut q = sqlx::query_as::<_, OrderItem>(&sql);
         for id in order_ids {
             q = q.bind(*id);
@@ -653,7 +653,7 @@ impl AftersalesClientRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; order_ids.len()].join(", ");
-        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM \"order\" WHERE order_id IN ({ph})"));
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT \"order_id\", \"order_sn\", \"user_id\", \"parent_order_id\", \"parent_order_sn\", \"order_status\", \"shipping_status\", \"pay_status\", \"add_time\", \"consignee\", \"address\", \"region_ids\", \"region_names\", \"address_data\", \"mobile\", \"email\", \"buyer_note\", \"admin_note\", \"shipping_method\", \"logistics_id\", \"logistics_provider\", \"logistics_name\", \"shipping_type_id\", \"shipping_type_name\", \"tracking_no\", \"shipping_time\", \"received_time\", \"pay_type_id\", \"pay_time\", \"use_points\", \"is_need_commisson\", \"distribution_status\", \"referrer_user_id\", \"is_del\", \"shop_id\", \"is_store_splited\", \"is_valid\", \"comment_status\", \"total_amount\", \"paid_amount\", \"unpaid_amount\", \"unrefund_amount\", \"product_amount\", \"coupon_amount\", \"points_amount\", \"discount_amount\", \"balance\", \"credit_amount\", \"is_credit_order\", \"online_paid_amount\", \"offline_paid_amount\", \"service_fee\", \"shipping_fee\", \"invoice_fee\", \"order_extension\", \"order_source\", \"invoice_data\", \"out_trade_no\", \"is_settlement\", \"is_exchange_order\", \"order_type\", \"is_cycle_order\", \"is_card_order\", \"is_presale\", \"presale_type\", \"mark\", \"vendor_id\", \"cancel_remark\", \"cash_amount\", \"cash_change_amount\", \"round_off_dime_amount\", \"round_off_cents_amount\", \"pos_user_id\", \"device_code\", \"discount_change_price\", \"tax_rate\", \"tax_rate_amount\", \"change_price_data\"::text AS \"change_price_data\", \"gift_card_amount\", \"delivery_date\"::text AS \"delivery_date\", \"delivery_time_slot\", \"period_index\", \"time_index\", \"table_id\", \"table_no\", \"table_area_name\", \"dining_count\" FROM \"order\" WHERE order_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, Order>(&sql);
         for id in order_ids {
             q = q.bind(*id);
@@ -702,7 +702,7 @@ impl AftersalesClientRepository {
             .map_err(map_err)?;
 
         let rows_sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT * FROM \"order\"{where_sql} ORDER BY order_id DESC LIMIT ? OFFSET ?"
+            "SELECT \"order_id\", \"order_sn\", \"user_id\", \"parent_order_id\", \"parent_order_sn\", \"order_status\", \"shipping_status\", \"pay_status\", \"add_time\", \"consignee\", \"address\", \"region_ids\", \"region_names\", \"address_data\", \"mobile\", \"email\", \"buyer_note\", \"admin_note\", \"shipping_method\", \"logistics_id\", \"logistics_provider\", \"logistics_name\", \"shipping_type_id\", \"shipping_type_name\", \"tracking_no\", \"shipping_time\", \"received_time\", \"pay_type_id\", \"pay_time\", \"use_points\", \"is_need_commisson\", \"distribution_status\", \"referrer_user_id\", \"is_del\", \"shop_id\", \"is_store_splited\", \"is_valid\", \"comment_status\", \"total_amount\", \"paid_amount\", \"unpaid_amount\", \"unrefund_amount\", \"product_amount\", \"coupon_amount\", \"points_amount\", \"discount_amount\", \"balance\", \"credit_amount\", \"is_credit_order\", \"online_paid_amount\", \"offline_paid_amount\", \"service_fee\", \"shipping_fee\", \"invoice_fee\", \"order_extension\", \"order_source\", \"invoice_data\", \"out_trade_no\", \"is_settlement\", \"is_exchange_order\", \"order_type\", \"is_cycle_order\", \"is_card_order\", \"is_presale\", \"presale_type\", \"mark\", \"vendor_id\", \"cancel_remark\", \"cash_amount\", \"cash_change_amount\", \"round_off_dime_amount\", \"round_off_cents_amount\", \"pos_user_id\", \"device_code\", \"discount_change_price\", \"tax_rate\", \"tax_rate_amount\", \"change_price_data\"::text AS \"change_price_data\", \"gift_card_amount\", \"delivery_date\"::text AS \"delivery_date\", \"delivery_time_slot\", \"period_index\", \"time_index\", \"table_id\", \"table_no\", \"table_area_name\", \"dining_count\" FROM \"order\"{where_sql} ORDER BY order_id DESC LIMIT ? OFFSET ?"
         ));
         let rows = sqlx::query_as::<_, Order>(&rows_sql)
             .bind(user_id)

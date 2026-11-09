@@ -96,7 +96,7 @@ impl WechatLiveRepository {
         };
         let (limit, offset) = page.limit_offset();
         let list_sql =
-            format!("SELECT * FROM wechat_live{wh} ORDER BY {column} {dir} LIMIT $1 OFFSET $2");
+            format!("SELECT \"wechat_live_id\", \"wechat_live_title\", \"wechat_live_data\", \"act_range\", \"act_range_ext\", \"room_id\", \"share_img\", \"live_type\", \"close_like\", \"close_goods\", \"close_comment\", \"close_kf\", \"close_replay\", \"is_feeds_public\", \"feeds_img\", \"cover_img\", \"anchor_id\", \"anchor_openid\", \"anchor_name\", \"anchor_img\", \"creator_openid\", \"live_status\", \"start_time\", \"end_time\", \"last_update_time\", \"product_data\", \"thumb_img\", \"live_sn\", \"shop_id\", \"sub_anchor_wechat\", \"audit_status\", \"create_time\"::text AS \"create_time\" FROM wechat_live{wh} ORDER BY {column} {dir} LIMIT $1 OFFSET $2");
         let mut lq = sqlx::query_as::<_, WechatLive>(&list_sql);
         for b in &binds {
             lq = lq.bind(b);
@@ -111,7 +111,7 @@ impl WechatLiveRepository {
     }
 
     pub async fn find_by_id(&self, id: i32) -> Result<Option<WechatLive>> {
-        sqlx::query_as::<_, WechatLive>("SELECT * FROM wechat_live WHERE wechat_live_id = $1 LIMIT 1")
+        sqlx::query_as::<_, WechatLive>("SELECT \"wechat_live_id\", \"wechat_live_title\", \"wechat_live_data\", \"act_range\", \"act_range_ext\", \"room_id\", \"share_img\", \"live_type\", \"close_like\", \"close_goods\", \"close_comment\", \"close_kf\", \"close_replay\", \"is_feeds_public\", \"feeds_img\", \"cover_img\", \"anchor_id\", \"anchor_openid\", \"anchor_name\", \"anchor_img\", \"creator_openid\", \"live_status\", \"start_time\", \"end_time\", \"last_update_time\", \"product_data\", \"thumb_img\", \"live_sn\", \"shop_id\", \"sub_anchor_wechat\", \"audit_status\", \"create_time\"::text AS \"create_time\" FROM wechat_live WHERE wechat_live_id = $1 LIMIT 1")
             .bind(id)
             .fetch_optional(&self.pool)
             .await
@@ -119,7 +119,7 @@ impl WechatLiveRepository {
     }
 
     pub async fn find_by_room_id(&self, room_id: i32) -> Result<Option<WechatLive>> {
-        sqlx::query_as::<_, WechatLive>("SELECT * FROM wechat_live WHERE room_id = $1 LIMIT 1")
+        sqlx::query_as::<_, WechatLive>("SELECT \"wechat_live_id\", \"wechat_live_title\", \"wechat_live_data\", \"act_range\", \"act_range_ext\", \"room_id\", \"share_img\", \"live_type\", \"close_like\", \"close_goods\", \"close_comment\", \"close_kf\", \"close_replay\", \"is_feeds_public\", \"feeds_img\", \"cover_img\", \"anchor_id\", \"anchor_openid\", \"anchor_name\", \"anchor_img\", \"creator_openid\", \"live_status\", \"start_time\", \"end_time\", \"last_update_time\", \"product_data\", \"thumb_img\", \"live_sn\", \"shop_id\", \"sub_anchor_wechat\", \"audit_status\", \"create_time\"::text AS \"create_time\" FROM wechat_live WHERE room_id = $1 LIMIT 1")
             .bind(room_id)
             .fetch_optional(&self.pool)
             .await
@@ -260,7 +260,7 @@ impl WechatLiveRepository {
     /// 直播间商品关联列表（Java `wechatLiveRoomGoodsService.getGoodsByRoomId`）。
     pub async fn find_room_goods(&self, room_id: i32) -> Result<Vec<WechatLiveRoomGoods>> {
         sqlx::query_as::<_, WechatLiveRoomGoods>(
-            "SELECT * FROM wechat_live_room_goods WHERE room_id = $1 ORDER BY sort ASC, id ASC",
+            "SELECT \"id\", \"room_id\", \"wechat_live_goods_id\", \"wechat_goods_id\", \"sort\", \"is_show\", \"create_time\"::text AS \"create_time\", \"update_time\"::text AS \"update_time\", \"shop_id\" FROM wechat_live_room_goods WHERE room_id = $1 ORDER BY sort ASC, id ASC",
         )
         .bind(room_id)
         .fetch_all(&self.pool)
@@ -274,7 +274,7 @@ impl WechatLiveRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM wechat_live_goods WHERE id IN ({placeholders})"));
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT \"id\", \"room_id\", \"wechat_goods_id\", \"product_id\", \"product_sku_id\", \"goods_name\", \"cover_img\", \"price\", \"price_type\", \"url\", \"audit_status\", \"sort\", \"is_show\", \"create_time\"::text AS \"create_time\", \"update_time\"::text AS \"update_time\", \"shop_id\" FROM wechat_live_goods WHERE id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, WechatLiveGoods>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -289,7 +289,7 @@ impl WechatLiveRepository {
         shop_id: i32,
     ) -> Result<Option<WechatLiveGoods>> {
         sqlx::query_as::<_, WechatLiveGoods>(
-            "SELECT * FROM wechat_live_goods WHERE id = $1 AND shop_id = $2 LIMIT 1",
+            "SELECT \"id\", \"room_id\", \"wechat_goods_id\", \"product_id\", \"product_sku_id\", \"goods_name\", \"cover_img\", \"price\", \"price_type\", \"url\", \"audit_status\", \"sort\", \"is_show\", \"create_time\"::text AS \"create_time\", \"update_time\"::text AS \"update_time\", \"shop_id\" FROM wechat_live_goods WHERE id = $1 AND shop_id = $2 LIMIT 1",
         )
         .bind(id)
         .bind(shop_id)
@@ -305,7 +305,7 @@ impl WechatLiveRepository {
         goods_id: i64,
     ) -> Result<Option<WechatLiveRoomGoods>> {
         sqlx::query_as::<_, WechatLiveRoomGoods>(
-            "SELECT * FROM wechat_live_room_goods WHERE room_id = $1 AND wechat_live_goods_id = $2 LIMIT 1",
+            "SELECT \"id\", \"room_id\", \"wechat_live_goods_id\", \"wechat_goods_id\", \"sort\", \"is_show\", \"create_time\"::text AS \"create_time\", \"update_time\"::text AS \"update_time\", \"shop_id\" FROM wechat_live_room_goods WHERE room_id = $1 AND wechat_live_goods_id = $2 LIMIT 1",
         )
         .bind(room_id)
         .bind(goods_id)

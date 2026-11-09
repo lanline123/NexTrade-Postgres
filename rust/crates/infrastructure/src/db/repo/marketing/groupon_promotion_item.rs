@@ -64,7 +64,7 @@ impl GrouponPromotionItemRepository {
 
     pub async fn find_item(&self, id: i64) -> Result<Option<GrouponPromotionItem>> {
         sqlx::query_as::<_, GrouponPromotionItem>(
-            "SELECT * FROM groupon_promotion_item WHERE groupon_promotion_item_id = $1 LIMIT 1",
+            "SELECT \"groupon_promotion_item_id\", \"groupon_promotion_id\", \"product_id\", \"group_type\", \"group_num\"::text AS \"group_num\", \"order_limit_num\", \"is_auto_group\", \"min_group_num\", \"sort\", \"add_time\", \"min_group_price\" FROM groupon_promotion_item WHERE groupon_promotion_item_id = $1 LIMIT 1",
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -137,7 +137,7 @@ impl GrouponPromotionItemRepository {
 
     pub async fn find_details_by_item(&self, item_id: i64) -> Result<Vec<GrouponPromotionDetail>> {
         sqlx::query_as::<_, GrouponPromotionDetail>(
-            "SELECT * FROM groupon_promotion_detail WHERE groupon_promotion_item_id = $1 ORDER BY groupon_detail_id ASC",
+            "SELECT \"groupon_detail_id\", \"groupon_promotion_id\", \"groupon_promotion_item_id\", \"product_id\", \"sku_id\", \"group_price\"::text AS \"group_price\", \"limit_num\", \"is_join\", \"add_time\" FROM groupon_promotion_detail WHERE groupon_promotion_item_id = $1 ORDER BY groupon_detail_id ASC",
         )
         .bind(item_id)
         .fetch_all(&self.pool)
@@ -153,7 +153,7 @@ impl GrouponPromotionItemRepository {
             return Ok(Vec::new());
         }
         let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new(
-            "SELECT * FROM groupon_promotion_detail WHERE groupon_promotion_item_id IN (",
+            "SELECT \"groupon_detail_id\", \"groupon_promotion_id\", \"groupon_promotion_item_id\", \"product_id\", \"sku_id\", \"group_price\"::text AS \"group_price\", \"limit_num\", \"is_join\", \"add_time\" FROM groupon_promotion_detail WHERE groupon_promotion_item_id IN (",
         );
         let mut sep = qb.separated(", ");
         for id in item_ids {
@@ -169,7 +169,7 @@ impl GrouponPromotionItemRepository {
         promotion_id: i64,
     ) -> Result<Vec<GrouponPromotionDetail>> {
         sqlx::query_as::<_, GrouponPromotionDetail>(
-            "SELECT * FROM groupon_promotion_detail WHERE groupon_promotion_id = $1 ORDER BY groupon_detail_id ASC",
+            "SELECT \"groupon_detail_id\", \"groupon_promotion_id\", \"groupon_promotion_item_id\", \"product_id\", \"sku_id\", \"group_price\"::text AS \"group_price\", \"limit_num\", \"is_join\", \"add_time\" FROM groupon_promotion_detail WHERE groupon_promotion_id = $1 ORDER BY groupon_detail_id ASC",
         )
         .bind(promotion_id)
         .fetch_all(&self.pool)
