@@ -173,7 +173,7 @@ impl ProfitSharingService {
                         .is_some_and(|s| s.eq_ignore_ascii_case("SUCCESS")) { 2 } else { 1 }
                 } else { 3 };
                 sqlx::query(
-                    "UPDATE profit_sharing_order SET status=$1,channel_order_id=$2,result_desc=$3,modify_time=NULLIF($4, '')::timestamp WHERE id=$5",
+                    "UPDATE profit_sharing_order SET status=$1,channel_order_id=$2,result_desc=$3,modify_time=NULLIF($4, '') WHERE id=$5",
                 )
                 .bind(new_status)
                 .bind(channel_id)

@@ -245,7 +245,7 @@ impl WechatKeywordRuleRepository {
                 }
                 sqlx::query(
                     "UPDATE wechat_keyword_rule SET rule_name = $1, reply_mode = $2, enabled = $3, \
-                     updated_at = NULLIF($4, '')::timestamp WHERE id = $5",
+                     updated_at = NULLIF($4, '') WHERE id = $5",
                 )
                 .bind(rule_name)
                 .bind(reply_mode)
@@ -376,7 +376,7 @@ impl WechatKeywordRuleRepository {
         qb.push_bind(enabled);
         qb.push(", updated_at = NULLIF(");
         qb.push_bind(now);
-        qb.push(", '')::timestamp");
+        qb.push(", '')");
         qb.push(" WHERE id IN (");
         let mut sep = qb.separated(", ");
         for id in ids {

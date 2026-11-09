@@ -75,7 +75,7 @@ impl SubMerchantRepository {
 
     /// 冻结（Java `unbind`：status=FROZEN + modify_time）。
     pub async fn freeze(&self, id: i64, modify_time: &str) -> Result<u64> {
-        let res = sqlx::query("UPDATE sub_merchant SET status = $1, modify_time = NULLIF($2, '')::timestamp WHERE id = $3")
+        let res = sqlx::query("UPDATE sub_merchant SET status = $1, modify_time = NULLIF($2, '') WHERE id = $3")
             .bind(STATUS_FROZEN)
             .bind(modify_time)
             .bind(id)

@@ -48,7 +48,11 @@ use nextrade_core::{Error, Result};
 /// `statistics_base` 按日聚合的一行。
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct DailyVisitRow {
-    /// 刻度（`TO_CHAR("date", 'YYYY-MM-DD')`，永不为 NULL）
+    /// 刻度（直接取 `"date"` 列；该列已是 `text` 且固定 `YYYY-MM-DD`，永不为 NULL）
+    ///
+    /// ⚠️ 不能写成 `TO_CHAR("date", 'YYYY-MM-DD')`：`statistics_base.date` 在 PG 里
+    /// 是 `text`（第二十四章的 datetime/date → text 回退），而 PG 没有
+    /// `to_char(text, text)` 重载，会报 `function to_char(text, unknown) does not exist`。
     pub period: String,
     /// 该日点击/浏览量合计
     pub click_count: i64,
@@ -131,7 +135,7 @@ impl StatisticsRepository {
         shop_id: i32,
     ) -> Result<Vec<DailyVisitRow>> {
         sqlx::query_as::<_, DailyVisitRow>(
-            "SELECT TO_CHAR(\"date\", 'YYYY-MM-DD') AS period, \
+            "SELECT \"date\" AS period, \
                     CAST(COALESCE(SUM(click_count), 0) AS BIGINT) AS click_count, \
                     CAST(COALESCE(SUM(visitor_count), 0) AS BIGINT) AS visitor_count \
              FROM statistics_base \
@@ -173,7 +177,7 @@ impl StatisticsRepository {
     /// `shopId == 0` 时 `.eq(shopId > 0, "shop_id", ...)` 条件不生效的口径。
     pub async fn fetch_daily_click_counts(&self, start: &str, end: &str) -> Result<Vec<DailyVisitRow>> {
         sqlx::query_as::<_, DailyVisitRow>(
-            "SELECT TO_CHAR(\"date\", 'YYYY-MM-DD') AS period, \
+            "SELECT \"date\" AS period, \
                     CAST(COALESCE(SUM(click_count), 0) AS BIGINT) AS click_count, \
                     CAST(COALESCE(SUM(visitor_count), 0) AS BIGINT) AS visitor_count \
              FROM statistics_base \

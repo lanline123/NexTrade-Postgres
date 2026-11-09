@@ -179,9 +179,9 @@ async fn update(State(state): State<AdminState>, Json(dto): Json<CurrencyDTO>) -
 /// `GET /adminapi/lang/currency/dictionary`：币种代码字典。
 async fn dictionary(State(state): State<AdminState>) -> ApiResult<serde_json::Value> {
     let rows: Vec<(i32, String, String, String)> = sqlx::query_as(
-        // `currency_dictionary.id` 在 PG 里被迁成 bigint，而这里按 i32 解码，
-        // 必须 CAST 回 INT（同表其余列都是 varchar，不受影响）。
-        "SELECT CAST(id AS INT) AS id, name, code, numeric_code FROM currency_dictionary ORDER BY code",
+        // `currency_dictionary.id` 原先被迁移工具放大成 bigint（MySQL 基线是 int），
+        // 曾用 `CAST(id AS INT)` 兜底；2026-11-10 已把列收窄回 integer，恢复裸列。
+        "SELECT id, name, code, numeric_code FROM currency_dictionary ORDER BY code",
     )
     .fetch_all(&state.repos.pool)
     .await

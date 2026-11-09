@@ -103,7 +103,7 @@ impl ProfitSharingRepository {
         now: &str,
     ) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE profit_sharing_order SET status = $1, finish_status = $2, finish_time = NULLIF($3, '')::timestamp, operator_id = $4, result_desc = $5, modify_time = NULLIF($6, '')::timestamp WHERE id = $7 AND status = $8 AND (transaction_id IS NULL OR transaction_id = '')",
+            "UPDATE profit_sharing_order SET status = $1, finish_status = $2, finish_time = NULLIF($3, ''), operator_id = $4, result_desc = $5, modify_time = NULLIF($6, '') WHERE id = $7 AND status = $8 AND (transaction_id IS NULL OR transaction_id = '')",
         )
         .bind(STATUS_CANCELLED)
         .bind(FINISH_FINISHED)
@@ -127,7 +127,7 @@ impl ProfitSharingRepository {
         now: &str,
     ) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE profit_sharing_order SET finish_status = $1, finish_time = NULLIF($2, '')::timestamp, operator_id = $3, modify_time = NULLIF($4, '')::timestamp WHERE id = $5",
+            "UPDATE profit_sharing_order SET finish_status = $1, finish_time = NULLIF($2, ''), operator_id = $3, modify_time = NULLIF($4, '') WHERE id = $5",
         )
         .bind(FINISH_FINISHED)
         .bind(now)

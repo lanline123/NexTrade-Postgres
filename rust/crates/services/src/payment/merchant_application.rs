@@ -246,7 +246,7 @@ impl MerchantApplicationService {
         })).await?;
         let status = resp.get("status").and_then(|v| v.as_str()).unwrap_or("SUBMITTED");
         let now = now_datetime();
-        sqlx::query("UPDATE merchant_application SET status=$1,audit_admin_id=$2,audit_time=NULLIF($3, '')::timestamp,modify_time=NULLIF($4, '')::timestamp WHERE id=$5")
+        sqlx::query("UPDATE merchant_application SET status=$1,audit_admin_id=$2,audit_time=NULLIF($3, ''),modify_time=NULLIF($4, '') WHERE id=$5")
             .bind(status).bind(0).bind(&now).bind(&now).bind(id)
             .execute(&self.repos.pool).await.map_err(|e| Error::Database(e.to_string()))?;
         Ok(())
@@ -275,7 +275,7 @@ impl MerchantApplicationService {
         let sub_mch = resp.get("subMchId").and_then(|v| v.as_str()).unwrap_or("");
         let sign_url = resp.get("signUrl").and_then(|v| v.as_str()).unwrap_or("");
         let now = now_datetime();
-        sqlx::query("UPDATE merchant_application SET status=$1,sub_mch_id=$2,sign_url=$3,modify_time=NULLIF($4, '')::timestamp WHERE id=$5")
+        sqlx::query("UPDATE merchant_application SET status=$1,sub_mch_id=$2,sign_url=$3,modify_time=NULLIF($4, '') WHERE id=$5")
             .bind(&status).bind(sub_mch).bind(sign_url).bind(&now).bind(id)
             .execute(&self.repos.pool).await.map_err(|e| Error::Database(e.to_string()))?;
         Ok(())
@@ -317,7 +317,7 @@ impl MerchantApplicationService {
             chrono::Utc::now().timestamp_subsec_micros() % 1_000_000
         );
         let r: i64 = sqlx::query_scalar(
-            "INSERT INTO merchant_application(shop_id,applicant_type,applicant_id,applicant_name,pay_channel,business_code,applyment_id,organization_type,merchant_name,contact_name,contact_phone,status,reject_reason,audit_admin_id,request_snapshot,is_del,create_time,modify_time,abandoned,submission_attempted) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, '', 0, $13, 0, NULLIF($14, '')::timestamp, NULLIF($15, '')::timestamp, 0, 1) RETURNING id",
+            "INSERT INTO merchant_application(shop_id,applicant_type,applicant_id,applicant_name,pay_channel,business_code,applyment_id,organization_type,merchant_name,contact_name,contact_phone,status,reject_reason,audit_admin_id,request_snapshot,is_del,create_time,modify_time,abandoned,submission_attempted) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, '', 0, $13, 0, NULLIF($14, ''), NULLIF($15, ''), 0, 1) RETURNING id",
         )
         .bind(shop_id)
         .bind(applicant.type_)

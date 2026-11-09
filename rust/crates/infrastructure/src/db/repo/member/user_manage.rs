@@ -543,7 +543,7 @@ impl UserManageRepository {
                 password, birthday, balance, frozen_balance, points, growth_points, address_id,
                 reg_time, rank_id, referrer_user_id, from_tag, is_svip, svip_expire_time,
                 is_distribution, wechat_img, is_company_auth, status, user_type, admin_note, mark)
-             VALUES ($1,  $2,  $3,  $4,  $5,  $6,  $7,  $8, NULLIF($9, '')::date,  $10,  $11,  $12,  $13,  $14,  $15,  $16,  $17,  $18,  $19,  $20,  $21,  $22,  $23,  $24,  $25,  $26,  $27) RETURNING user_id",
+             VALUES ($1,  $2,  $3,  $4,  $5,  $6,  $7,  $8, NULLIF($9, ''),  $10,  $11,  $12,  $13,  $14,  $15,  $16,  $17,  $18,  $19,  $20,  $21,  $22,  $23,  $24,  $25,  $26,  $27) RETURNING user_id",
         )
         .bind(p.username.as_deref().unwrap_or_default())
         .bind(p.avatar.as_deref().unwrap_or_default())

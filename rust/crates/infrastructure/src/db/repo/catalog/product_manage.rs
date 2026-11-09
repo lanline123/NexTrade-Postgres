@@ -2053,7 +2053,7 @@ impl ProductManageRepository {
     /// 汇总为「搜索词 + 出现次数」，对应 Java 侧的 ES 全量同步）。
     pub async fn upsert_keyword(&self, date: &str, engine: &str, keyword: &str) -> Result<u64> {
         let r = sqlx::query(
-            "INSERT INTO keywords (date, searchengine, keyword, count) VALUES (NULLIF($1, '')::date,  $2,  $3,  1) ON CONFLICT (date, searchengine, keyword) DO UPDATE SET count = keywords.count + 1",
+            "INSERT INTO keywords (date, searchengine, keyword, count) VALUES (NULLIF($1, ''),  $2,  $3,  1) ON CONFLICT (date, searchengine, keyword) DO UPDATE SET count = keywords.count + 1",
         )
         .bind(date)
         .bind(engine)

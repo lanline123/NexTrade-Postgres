@@ -171,7 +171,7 @@ impl MerchantApplicationRepository {
         now: &str,
     ) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE merchant_application SET status = 'REJECTED', reject_reason = $1, audit_admin_id = $2, audit_time = NULLIF($3, '')::timestamp, modify_time = NULLIF($4, '')::timestamp WHERE id = $5 AND is_del = 0",
+            "UPDATE merchant_application SET status = 'REJECTED', reject_reason = $1, audit_admin_id = $2, audit_time = NULLIF($3, ''), modify_time = NULLIF($4, '') WHERE id = $5 AND is_del = 0",
         )
         .bind(reject_reason)
         .bind(audit_admin_id)
