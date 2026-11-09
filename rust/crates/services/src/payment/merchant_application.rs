@@ -316,7 +316,7 @@ impl MerchantApplicationService {
             chrono::Utc::now().timestamp(),
             chrono::Utc::now().timestamp_subsec_micros() % 1_000_000
         );
-        let r: i32 = sqlx::query_scalar(
+        let r: i64 = sqlx::query_scalar(
             "INSERT INTO merchant_application(shop_id,applicant_type,applicant_id,applicant_name,pay_channel,business_code,applyment_id,organization_type,merchant_name,contact_name,contact_phone,status,reject_reason,audit_admin_id,request_snapshot,is_del,create_time,modify_time,abandoned,submission_attempted) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'',0,$13,0,$14,$15,0,1) RETURNING id",
         )
         .bind(shop_id)
@@ -337,7 +337,7 @@ impl MerchantApplicationService {
         .fetch_one(&self.repos.pool)
         .await
         .map_err(|e| Error::Database(e.to_string()))?;
-        let id = i64::from(r);
+        let id = r;
         self.detail(id, viewer)
             .await?
             .ok_or_else(|| Error::biz(500, "进件申请保存后读取失败"))

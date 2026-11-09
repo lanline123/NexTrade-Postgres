@@ -118,9 +118,9 @@ impl UserCenterRepository {
 
     /// 按主键查询用户。
     pub async fn find_user_by_id(&self, user_id: i32) -> Result<Option<User>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {USER_COLUMNS} FROM user WHERE user_id = ? LIMIT 1"
-        );
+        ));
         sqlx::query_as::<_, User>(&sql)
             .bind(user_id)
             .fetch_optional(&self.pool)
@@ -131,7 +131,7 @@ impl UserCenterRepository {
     /// 手机号是否被他人占用（Java `count(mobile = ? AND user_id <> ?)`）。
     pub async fn exists_by_mobile(&self, mobile: &str, except_user_id: i32) -> Result<bool> {
         let (c,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) AS c FROM user WHERE mobile = ? AND user_id <> ?",
+            "SELECT COUNT(*) AS c FROM user WHERE mobile = $1 AND user_id <> $2",
         )
         .bind(mobile)
         .bind(except_user_id)
@@ -144,7 +144,7 @@ impl UserCenterRepository {
     /// 邮箱是否被他人占用（Java `count(email = ? AND user_id <> ?)`）。
     pub async fn exists_by_email(&self, email: &str, except_user_id: i32) -> Result<bool> {
         let (c,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) AS c FROM user WHERE email = ? AND user_id <> ?",
+            "SELECT COUNT(*) AS c FROM user WHERE email = $1 AND user_id <> $2",
         )
         .bind(email)
         .bind(except_user_id)
@@ -186,10 +186,10 @@ impl UserCenterRepository {
             // 无字段可更新：Java \"updateById\" 同样不产生 UPDATE 语句
             return Ok(true);
         }
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE user SET {} WHERE user_id = ?",
             sets.join(", ")
-        );
+        ));
         let mut q = sqlx::query(&sql);
         if let Some(v) = dto.birthday.as_deref() {
             q = q.bind(v);
@@ -219,7 +219,7 @@ impl UserCenterRepository {
     /// `user.setEmail(...)` + `user.setEmailValidated(1)` + \"updateById\"）。
     pub async fn bind_email(&self, user_id: i32, email: &str) -> Result<bool> {
         let n = sqlx::query(
-            "UPDATE user SET email = ?, email_validated = 1 WHERE user_id = ?",
+            "UPDATE user SET email = $1, email_validated = 1 WHERE user_id = $2",
         )
         .bind(email)
         .bind(user_id)
@@ -232,7 +232,7 @@ impl UserCenterRepository {
 
     /// 更新头像。
     pub async fn update_avatar(&self, user_id: i32, avatar: &str) -> Result<bool> {
-        let n = sqlx::query("UPDATE user SET avatar = ? WHERE user_id = ?")
+        let n = sqlx::query("UPDATE user SET avatar = $1 WHERE user_id = $2")
             .bind(avatar)
             .bind(user_id)
             .execute(&self.pool)
@@ -244,7 +244,7 @@ impl UserCenterRepository {
 
     /// 更新手机号。
     pub async fn update_mobile(&self, user_id: i32, mobile: &str) -> Result<bool> {
-        let n = sqlx::query("UPDATE user SET mobile = ?, mobile_validated = 1 WHERE user_id = ?")
+        let n = sqlx::query("UPDATE user SET mobile = $1, mobile_validated = 1 WHERE user_id = $2")
             .bind(mobile)
             .bind(user_id)
             .execute(&self.pool)
@@ -256,7 +256,7 @@ impl UserCenterRepository {
 
     /// 更新邮箱。
     pub async fn update_email(&self, user_id: i32, email: &str) -> Result<bool> {
-        let n = sqlx::query("UPDATE user SET email = ?, email_validated = 1 WHERE user_id = ?")
+        let n = sqlx::query("UPDATE user SET email = $1, email_validated = 1 WHERE user_id = $2")
             .bind(email)
             .bind(user_id)
             .execute(&self.pool)
@@ -268,7 +268,7 @@ impl UserCenterRepository {
 
     /// 禁用用户（`close` 接口，Java `closeUser`：`status = 0`）。
     pub async fn disable_user(&self, user_id: i32) -> Result<bool> {
-        let n = sqlx::query("UPDATE user SET status = 0 WHERE user_id = ?")
+        let n = sqlx::query("UPDATE user SET status = 0 WHERE user_id = $1")
             .bind(user_id)
             .execute(&self.pool)
             .await
@@ -279,7 +279,7 @@ impl UserCenterRepository {
 
     /// 更新浏览历史（JSON 数组字符串）。
     pub async fn update_history(&self, user_id: i32, history: &str) -> Result<bool> {
-        let n = sqlx::query("UPDATE user SET history_product_ids = ? WHERE user_id = ?")
+        let n = sqlx::query("UPDATE user SET history_product_ids = $1 WHERE user_id = $2")
             .bind(history)
             .bind(user_id)
             .execute(&self.pool)
@@ -292,7 +292,7 @@ impl UserCenterRepository {
     /// 累加成长值（Java `user.setGrowthPoints(user.getGrowthPoints() + growthPoints)`）。
     pub async fn add_growth_points(&self, user_id: i32, delta: i32) -> Result<bool> {
         let n = sqlx::query(
-            "UPDATE user SET growth_points = growth_points + ? WHERE user_id = ?",
+            "UPDATE user SET growth_points = growth_points + $1 WHERE user_id = $2",
         )
         .bind(delta)
         .bind(user_id)
@@ -305,7 +305,7 @@ impl UserCenterRepository {
 
     /// 只回写会员等级 ID（Java \"updateUserRank\" 的 \"LambdaUpdateWrapper\"）。
     pub async fn set_rank_id(&self, user_id: i32, rank_id: i32) -> Result<bool> {
-        let n = sqlx::query("UPDATE user SET rank_id = ? WHERE user_id = ?")
+        let n = sqlx::query("UPDATE user SET rank_id = $1 WHERE user_id = $2")
             .bind(rank_id)
             .bind(user_id)
             .execute(&self.pool)
@@ -321,7 +321,7 @@ impl UserCenterRepository {
     /// `biz_code = ? AND is_del = 0`，缺行返回空串 → 这里返回 `None`）。
     pub async fn find_config_val(&self, biz_code: &str) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> = sqlx::query_as(
-            "SELECT biz_val FROM config WHERE biz_code = ? AND is_del = 0 LIMIT 1",
+            "SELECT biz_val FROM config WHERE biz_code = $1 AND is_del = 0 LIMIT 1",
         )
         .bind(biz_code)
         .fetch_optional(&self.pool)
@@ -345,9 +345,9 @@ impl UserCenterRepository {
 
     /// 按主键查询会员等级。
     pub async fn find_user_rank(&self, rank_id: i32) -> Result<Option<UserRank>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {USER_RANK_COLUMNS} FROM user_rank WHERE rank_id = ? LIMIT 1"
-        );
+        ));
         sqlx::query_as::<_, UserRank>(&sql)
             .bind(rank_id)
             .fetch_optional(&self.pool)
@@ -358,10 +358,10 @@ impl UserCenterRepository {
     /// 按成长值取匹配等级（Java \"updateUserRank\"：
     /// `min_growth_points <= growth` 且按 \"min_growth_points\" 降序取第一条）。
     pub async fn find_rank_by_growth(&self, growth_points: i32) -> Result<Option<UserRank>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {USER_RANK_COLUMNS} FROM user_rank WHERE min_growth_points <= ? \
              ORDER BY min_growth_points DESC LIMIT 1"
-        );
+        ));
         sqlx::query_as::<_, UserRank>(&sql)
             .bind(growth_points)
             .fetch_optional(&self.pool)
@@ -372,7 +372,7 @@ impl UserCenterRepository {
     /// 读取 `user_rank_config` 单行（Java `getOne(code = ? limit 1)`）。
     pub async fn find_rank_config(&self, code: &str) -> Result<Option<UserRankConfig>> {
         sqlx::query_as::<_, UserRankConfig>(
-            "SELECT id, code, rank_type, data FROM user_rank_config WHERE code = ? LIMIT 1",
+            "SELECT id, code, rank_type, data FROM user_rank_config WHERE code = $1 LIMIT 1",
         )
         .bind(code)
         .fetch_optional(&self.pool)
@@ -385,7 +385,7 @@ impl UserCenterRepository {
     /// 统计指定类型成长值日志条数（Java `rankGrowthLogService.count(userId, type)`）。
     pub async fn count_rank_growth_log(&self, user_id: i32, type_code: i32) -> Result<i64> {
         let (c,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) AS c FROM rank_growth_log WHERE user_id = ? AND type = ?",
+            "SELECT COUNT(*) AS c FROM rank_growth_log WHERE user_id = $1 AND type = $2",
         )
         .bind(user_id)
         .bind(type_code)
@@ -399,7 +399,7 @@ impl UserCenterRepository {
     pub async fn insert_rank_growth_log(&self, log: &RankGrowthLog) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO rank_growth_log (user_id, type, growth_points, change_type, \
-             create_time) VALUES (?, ?, ?, ?, ?) RETURNING id",
+             create_time) VALUES ($1, $2, $3, $4, $5) RETURNING id",
         )
         .bind(log.user_id)
         .bind(log.r#type)
@@ -416,7 +416,7 @@ impl UserCenterRepository {
     pub async fn insert_growth_points_log(&self, log: &UserGrowthPointsLog) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO user_growth_points_log (user_id, points, change_time, \
-             change_desc, change_type) VALUES (?, ?, ?, ?, ?) RETURNING log_id",
+             change_desc, change_type) VALUES ($1, $2, $3, $4, $5) RETURNING log_id",
         )
         .bind(log.user_id)
         .bind(log.points)
@@ -452,21 +452,21 @@ impl UserCenterRepository {
         let deleted_shop_cond = " AND (shop_id = 0 OR EXISTS (SELECT 1 FROM shop s \
              WHERE s.shop_id = collect_shop.shop_id AND (s.is_delete IS NULL OR s.is_delete = 0)))";
 
-        let count_sql = format!(
+        let count_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) AS c FROM collect_shop WHERE user_id = ?\
              {self_operated_cond}{deleted_shop_cond}"
-        );
+        ));
         let (total,): (i64,) = sqlx::query_as(&count_sql)
             .bind(user_id)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT collect_id, user_id, shop_id, add_time FROM collect_shop \
              WHERE user_id = ?{self_operated_cond}{deleted_shop_cond} ORDER BY {order_by} \
              LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = sqlx::query_as::<_, CollectShop>(&rows_sql)
             .bind(user_id)
             .bind(limit as i64)
@@ -480,7 +480,7 @@ impl UserCenterRepository {
     /// 收藏店铺（幂等：已存在则忽略；Java `CollectShopServiceImpl#save`）。
     pub async fn save_collect_shop(&self, user_id: i32, shop_id: i32) -> Result<()> {
         sqlx::query(
-            "INSERT INTO collect_shop (user_id, shop_id, add_time) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
+            "INSERT INTO collect_shop (user_id, shop_id, add_time) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
         )
         .bind(user_id)
         .bind(shop_id)
@@ -502,7 +502,7 @@ impl UserCenterRepository {
         shop_id: Option<i32>,
     ) -> Result<()> {
         if let Some(id) = collect_id.filter(|v| *v > 0) {
-            sqlx::query("DELETE FROM collect_shop WHERE user_id = ? AND collect_id = ?")
+            sqlx::query("DELETE FROM collect_shop WHERE user_id = $1 AND collect_id = $2")
                 .bind(user_id)
                 .bind(id)
                 .execute(&self.pool)
@@ -511,7 +511,7 @@ impl UserCenterRepository {
             return Ok(());
         }
         if let Some(sid) = shop_id.filter(|v| *v > 0) {
-            sqlx::query("DELETE FROM collect_shop WHERE user_id = ? AND shop_id = ?")
+            sqlx::query("DELETE FROM collect_shop WHERE user_id = $1 AND shop_id = $2")
                 .bind(user_id)
                 .bind(sid)
                 .execute(&self.pool)
@@ -547,7 +547,7 @@ impl UserCenterRepository {
     /// 店铺被收藏数量（Java `getShopCount`）。
     pub async fn count_shop_collects(&self, shop_id: i32) -> Result<i64> {
         let (c,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) AS c FROM collect_shop WHERE shop_id = ?")
+            sqlx::query_as("SELECT COUNT(*) AS c FROM collect_shop WHERE shop_id = $1")
                 .bind(shop_id)
                 .fetch_one(&self.pool)
                 .await
@@ -558,8 +558,8 @@ impl UserCenterRepository {
     /// 店铺在售商品数（Java `getProductCount`，非 O2O：不叠加 `store_product`）。
     pub async fn count_shop_on_sale_products(&self, shop_id: i32) -> Result<i64> {
         let (c,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) AS c FROM product WHERE shop_id = ? AND product_status = ? \
-             AND is_delete = ?",
+            "SELECT COUNT(*) AS c FROM product WHERE shop_id = $1 AND product_status = $2 \
+             AND is_delete = $3",
         )
         .bind(shop_id)
         .bind(1)
@@ -593,11 +593,11 @@ impl UserCenterRepository {
         flag: ProductFlag,
         limit: u32,
     ) -> Result<Vec<Product>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM product WHERE shop_id = ? AND product_status = 1 AND is_delete = 0 {} \
              LIMIT ?",
             flag.where_clause()
-        );
+        ));
         sqlx::query_as::<_, Product>(&sql)
             .bind(shop_id)
             .bind(i64::from(limit))
@@ -667,7 +667,7 @@ impl UserCenterRepository {
     /// 统计指定用户、指定 `order_status` 的订单数。
     pub async fn count_orders_by_status(&self, user_id: i32, status: i32) -> Result<i64> {
         let (c,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) AS c FROM \"order\" WHERE user_id = ? AND order_status = ?",
+            "SELECT COUNT(*) AS c FROM \"order\" WHERE user_id = $1 AND order_status = $2",
         )
         .bind(user_id)
         .bind(status)
@@ -685,8 +685,8 @@ impl UserCenterRepository {
         order_status: i32,
     ) -> Result<i64> {
         let (c,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) AS c FROM \"order\" WHERE user_id = ? AND comment_status = ? \
-             AND order_status = ?",
+            "SELECT COUNT(*) AS c FROM \"order\" WHERE user_id = $1 AND comment_status = $2 \
+             AND order_status = $3",
         )
         .bind(user_id)
         .bind(comment_status)
@@ -700,7 +700,7 @@ impl UserCenterRepository {
     /// 用户优惠券总数（Java `memberCenter.awaitCoupon`）。
     pub async fn count_user_coupons(&self, user_id: i32) -> Result<i64> {
         let (c,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) AS c FROM user_coupon WHERE user_id = ?")
+            sqlx::query_as("SELECT COUNT(*) AS c FROM user_coupon WHERE user_id = $1")
                 .bind(user_id)
                 .fetch_one(&self.pool)
                 .await
@@ -715,7 +715,7 @@ impl UserCenterRepository {
         sqlx::query_as::<_, CreditUser>(
             "SELECT credit_user_id, user_id, credit_limit, used_amount, available_amount, \
              settlement_type, status, period_start_time, create_time, update_time \
-             FROM credit_user WHERE user_id = ? LIMIT 1",
+             FROM credit_user WHERE user_id = $1 LIMIT 1",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
@@ -736,12 +736,12 @@ impl UserCenterRepository {
         } else {
             "order_time DESC"
         };
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT credit_order_id, order_id, order_sn, user_id, credit_user_id, credit_amount, \
              settlement_status, settlement_id, settlement_sn, order_time, settlement_time, \
              create_time, update_time FROM credit_order WHERE user_id = ? \
              AND settlement_status IN ({status_ph}) ORDER BY {order_by}"
-        );
+        ));
         let mut q = sqlx::query_as::<_, CreditOrder>(&sql).bind(user_id);
         for s in statuses {
             q = q.bind(*s);
@@ -757,10 +757,10 @@ impl UserCenterRepository {
         before_ts: i64,
     ) -> Result<i64> {
         let status_ph = placeholders(statuses.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) AS c FROM credit_order WHERE user_id = ? \
              AND settlement_status IN ({status_ph}) AND order_time < ?"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i64,)>(&sql).bind(user_id);
         for s in statuses {
             q = q.bind(*s);
@@ -777,7 +777,7 @@ impl UserCenterRepository {
     pub async fn sum_paid_order_amount(&self, user_id: i32) -> Result<Decimal> {
         let (s,): (Decimal,) = sqlx::query_as(
             "SELECT COALESCE(SUM(order_amount), 0) AS s FROM \"order\" \
-             WHERE user_id = ? AND order_status IN (2, 5)",
+             WHERE user_id = $1 AND order_status IN (2, 5)",
         )
         .bind(user_id)
         .fetch_one(&self.pool)

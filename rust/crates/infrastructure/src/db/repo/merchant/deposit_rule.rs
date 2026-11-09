@@ -61,6 +61,7 @@ impl DepositRuleRepository {
             binds.push(end.to_string());
         }
         let total_sql = format!("SELECT COUNT(*) FROM shop_deposit_rule{wh}");
+        let total_sql = crate::db::to_pg_placeholders(&total_sql);
         let mut tq = sqlx::query_as::<_, (i64,)>(&total_sql);
         for b in &binds {
             tq = tq.bind(b.as_str());
@@ -71,6 +72,7 @@ impl DepositRuleRepository {
         let list_sql = format!(
             "SELECT * FROM shop_deposit_rule{wh} ORDER BY shop_deposit_rule_id DESC LIMIT $1 OFFSET $2"
         );
+        let list_sql = crate::db::to_pg_placeholders(&list_sql);
         let mut lq = sqlx::query_as::<_, ShopDepositRule>(&list_sql);
         for b in &binds {
             lq = lq.bind(b.as_str());
@@ -223,7 +225,7 @@ impl DepositRuleRepository {
 
     /// 写入单条类目关联（Java `saveCategories`）。
     pub async fn insert_category(&self, rule_id: i32, category_id: i32) -> Result<i64> {
-        let r: i64 = sqlx::query_scalar(
+        let r: i32 = sqlx::query_scalar(
             "INSERT INTO shop_deposit_rule_category (rule_id, category_id) VALUES ($1, $2) RETURNING id",
         )
         .bind(rule_id)
@@ -231,7 +233,7 @@ impl DepositRuleRepository {
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(r)
+        Ok(i64::from(r))
     }
 
     /// 类目名映射（Java `loadCategoryNameMap`：`category.category_id → category_name`）。

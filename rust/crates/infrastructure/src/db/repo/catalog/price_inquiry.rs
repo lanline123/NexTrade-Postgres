@@ -273,7 +273,7 @@ impl PriceInquiryRepository {
         tx: &mut sqlx::Transaction<'_, Postgres>,
         record: &PriceInquiryReplyRecord,
     ) -> Result<u64> {
-        let res: i64 = sqlx::query_scalar(
+        let res: i32 = sqlx::query_scalar(
             "INSERT INTO price_inquiry_reply_record (inquiry_id, reply_type, reply_name, content, admin_id, user_id, create_time) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
         )
         .bind(record.inquiry_id)

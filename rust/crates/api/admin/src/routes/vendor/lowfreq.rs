@@ -206,10 +206,10 @@ async fn h_2(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<i6
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
-    let r: i64 = sqlx::query_scalar("INSERT INTO vendor_withdraw (vendor_id, amount, status, add_time, withdraw_sn) VALUES ($1, 0, 0, $2, $3) RETURNING vendor_withdraw_log_id")
+    let r: i32 = sqlx::query_scalar("INSERT INTO vendor_withdraw (vendor_id, amount, status, add_time, withdraw_sn) VALUES ($1, 0, 0, $2, $3) RETURNING vendor_withdraw_log_id")
         .bind(q.vendor_id.unwrap_or(0)).bind(now).bind(format!("WD{now}"))
         .fetch_one(&pool(&state)).await.map_err(db)?;
-    ok(r)
+    ok(i64::from(r))
 }
 
 // post /vendor/vendorWithdraw/audit
@@ -594,7 +594,7 @@ async fn h_vendor_user_create(
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
-    let r: i64 = sqlx::query_scalar(
+    let r: i32 = sqlx::query_scalar(
         "INSERT INTO admin_user_vendor (admin_id, user_id, vendor_id, username, email, avatar, auth_list, is_using, is_admin, add_time, role_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id",
     )
     .bind(json_i64(&body, "adminId")).bind(json_i64(&body, "userId")).bind(json_i64(&body, "vendorId"))
@@ -602,7 +602,7 @@ async fn h_vendor_user_create(
     .bind(json_str(&body, "authList")).bind(json_i64(&body, "isUsing")).bind(json_i64(&body, "isAdmin"))
     .bind(now).bind(json_i64(&body, "roleId"))
     .fetch_one(&pool(&state)).await.map_err(db)?;
-    ok(r)
+    ok(i64::from(r))
 }
 
 async fn h_vendor_user_update(
@@ -638,14 +638,14 @@ async fn h_vendor_account_create(
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
-    let r: i64 = sqlx::query_scalar(
+    let r: i32 = sqlx::query_scalar(
         "INSERT INTO vendor_account (vendor_id, account_type, account_name, account_no, bank_name, bank_branch, add_time) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING account_id",
     )
     .bind(json_i64(&body, "vendorId")).bind(json_i64(&body, "accountType"))
     .bind(json_str(&body, "accountName")).bind(json_str(&body, "accountNo"))
     .bind(json_str(&body, "bankName")).bind(json_str(&body, "bankBranch")).bind(now)
     .fetch_one(&pool(&state)).await.map_err(db)?;
-    ok(r)
+    ok(i64::from(r))
 }
 
 async fn h_vendor_account_update(
@@ -692,13 +692,13 @@ async fn h_vendor_product_create(
             .map_err(db)?;
         return ok(pid);
     }
-    let r: i64 = sqlx::query_scalar(
+    let r: i32 = sqlx::query_scalar(
         "INSERT INTO product (product_name, product_price, shop_id, vendor_id, add_time) VALUES ($1, $2, $3, $4, $5) RETURNING product_id",
     )
     .bind(json_str(&body, "productName")).bind(json_str(&body, "productPrice"))
     .bind(json_i64(&body, "shopId")).bind(json_i64(&body, "vendorId")).bind(now)
     .fetch_one(&pool(&state)).await.map_err(db)?;
-    ok(r)
+    ok(i64::from(r))
 }
 
 async fn h_vendor_product_detail(

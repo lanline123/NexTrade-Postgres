@@ -93,7 +93,7 @@ async fn group_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> Api
     .map_err(db)?;
     let rows = sqlx::query(
         "SELECT g.*, (SELECT COUNT(*) FROM shop_group_relation r WHERE r.group_id=g.group_id) AS shop_count \
-         FROM shop_group g WHERE g.shop_type=? AND (?='%%' OR g.group_name LIKE ?) ORDER BY g.group_id DESC LIMIT ? OFFSET ?",
+         FROM shop_group g WHERE g.shop_type=$1 AND ($2='%%' OR g.group_name LIKE $3) ORDER BY g.group_id DESC LIMIT $4 OFFSET $5",
     ).bind(shop_type).bind(&kw).bind(&kw).bind(size as i64).bind(offset)
         .fetch_all(&state.repos.pool).await.map_err(db)?;
     ok(
@@ -103,7 +103,7 @@ async fn group_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> Api
 
 async fn group_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
     let group_id = q.group_id.or(q.id).unwrap_or(0);
-    let row = sqlx::query("SELECT * FROM shop_group WHERE group_id=? LIMIT 1")
+    let row = sqlx::query("SELECT * FROM shop_group WHERE group_id=$1 LIMIT 1")
         .bind(group_id)
         .fetch_optional(&state.repos.pool)
         .await
@@ -113,7 +113,7 @@ async fn group_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> A
     };
     let mut value = row_to_json(&row);
     let ids: Vec<(i32,)> =
-        sqlx::query_as("SELECT shop_id FROM shop_group_relation WHERE group_id=? ORDER BY shop_id")
+        sqlx::query_as("SELECT shop_id FROM shop_group_relation WHERE group_id=$1 ORDER BY shop_id")
             .bind(group_id)
             .fetch_all(&state.repos.pool)
             .await
@@ -137,13 +137,14 @@ async fn group_create(State(state): State<AdminState>, Json(body): Json<Value>) 
         return Err(AppError(Error::biz(400, "分组名称不能为空")));
     }
     let now = nextrade_common::utils::now_seconds() as i64;
-    let r: i32 = sqlx::query_scalar("INSERT INTO shop_group(shop_type,group_name,remark,create_time,update_time) VALUES(?,?,?,?,?) RETURNING group_id")
+    let r: i64 = sqlx::query_scalar("INSERT INTO shop_group(shop_type,group_name,remark,create_time,update_time) VALUES($1,$2,$3,$4,$5) RETURNING group_id")
         .bind(body.get("shopType").and_then(Value::as_i64).unwrap_or(1) as i32)
         .bind(name)
         .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
         .bind(now).bind(now)
         .fetch_one(&state.repos.pool).await.map_err(db)?;
-    let id = r;
+    let id = i32::try_from(r)
+        .map_err(|_| Error::Database(format!("shop_group.group_id 超出 i32 范围: {r}")))?;
     replace_relations(&state, id, body.get("shopIds")).await?;
     ok(id)
 }
@@ -153,7 +154,7 @@ async fn group_update(State(state): State<AdminState>, Json(body): Json<Value>) 
     if id <= 0 {
         return Err(AppError(Error::biz(400, "分组不存在")));
     }
-    sqlx::query("UPDATE shop_group SET group_name=?, remark=?, update_time=? WHERE group_id=?")
+    sqlx::query("UPDATE shop_group SET group_name=$1, remark=$2, update_time=$3 WHERE group_id=$4")
         .bind(body.get("groupName").and_then(Value::as_str).unwrap_or(""))
         .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
         .bind(nextrade_common::utils::now_seconds() as i64)
@@ -170,7 +171,7 @@ async fn replace_relations(
     group_id: i32,
     shop_ids: Option<&Value>,
 ) -> Result<(), AppError> {
-    sqlx::query("DELETE FROM shop_group_relation WHERE group_id=?")
+    sqlx::query("DELETE FROM shop_group_relation WHERE group_id=$1")
         .bind(group_id)
         .execute(&state.repos.pool)
         .await
@@ -178,7 +179,7 @@ async fn replace_relations(
     if let Some(Value::Array(ids)) = shop_ids {
         for id in ids {
             if let Some(shop_id) = id.as_i64() {
-                sqlx::query("INSERT INTO shop_group_relation(group_id,shop_id) VALUES(?,?)")
+                sqlx::query("INSERT INTO shop_group_relation(group_id,shop_id) VALUES($1,$2)")
                     .bind(group_id)
                     .bind(shop_id as i32)
                     .execute(&state.repos.pool)
@@ -192,12 +193,12 @@ async fn replace_relations(
 
 async fn group_del(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
     let id = body.get("groupId").and_then(Value::as_i64).unwrap_or(0);
-    sqlx::query("DELETE FROM shop_group_relation WHERE group_id=?")
+    sqlx::query("DELETE FROM shop_group_relation WHERE group_id=$1")
         .bind(id)
         .execute(&state.repos.pool)
         .await
         .map_err(db)?;
-    sqlx::query("DELETE FROM shop_group WHERE group_id=?")
+    sqlx::query("DELETE FROM shop_group WHERE group_id=$1")
         .bind(id)
         .execute(&state.repos.pool)
         .await
@@ -209,12 +210,12 @@ async fn group_shop_list(State(state): State<AdminState>, Query(q): Query<Pg>) -
     let (page, size, offset) = pg(&q);
     let group_id = q.group_id.or(q.id).unwrap_or(0);
     let (total,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM shop_group_relation WHERE group_id=?")
+        sqlx::query_as("SELECT COUNT(*) FROM shop_group_relation WHERE group_id=$1")
             .bind(group_id)
             .fetch_one(&state.repos.pool)
             .await
             .map_err(db)?;
-    let ids: Vec<(i32,)> = sqlx::query_as("SELECT shop_id FROM shop_group_relation WHERE group_id=? ORDER BY shop_id LIMIT ? OFFSET ?")
+    let ids: Vec<(i32,)> = sqlx::query_as("SELECT shop_id FROM shop_group_relation WHERE group_id=$1 ORDER BY shop_id LIMIT $2 OFFSET $3")
         .bind(group_id).bind(size as i64).bind(offset).fetch_all(&state.repos.pool).await.map_err(db)?;
     let mut records = Vec::new();
     for (shop_id,) in ids {
@@ -222,7 +223,7 @@ async fn group_shop_list(State(state): State<AdminState>, Query(q): Query<Pg>) -
             records.push(json!({"shopId": 0, "shopTitle": "平台自营"}));
             continue;
         }
-        if let Some(row) = sqlx::query("SELECT * FROM shop WHERE shop_id=? LIMIT 1")
+        if let Some(row) = sqlx::query("SELECT * FROM shop WHERE shop_id=$1 LIMIT 1")
             .bind(shop_id)
             .fetch_optional(&state.repos.pool)
             .await
@@ -238,7 +239,7 @@ async fn group_select_list(
     State(state): State<AdminState>,
     Query(q): Query<Pg>,
 ) -> ApiResult<Value> {
-    let rows = sqlx::query("SELECT group_id, group_name, shop_type FROM shop_group WHERE shop_type=? ORDER BY group_id DESC")
+    let rows = sqlx::query("SELECT group_id, group_name, shop_type FROM shop_group WHERE shop_type=$1 ORDER BY group_id DESC")
         .bind(q.shop_type.unwrap_or(1)).fetch_all(&state.repos.pool).await.map_err(db)?;
     ok(json!(rows.iter().map(row_to_json).collect::<Vec<_>>()))
 }
@@ -248,14 +249,14 @@ async fn tip_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiRe
     let (page, size, offset) = pg(&q);
     let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
     let (total,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM tip WHERE (?='%%' OR tip_name LIKE ?)")
+        sqlx::query_as("SELECT COUNT(*) FROM tip WHERE ($1='%%' OR tip_name LIKE $2)")
             .bind(&kw)
             .bind(&kw)
             .fetch_one(&state.repos.pool)
             .await
             .map_err(db)?;
     let rows = sqlx::query(
-        "SELECT * FROM tip WHERE (?='%%' OR tip_name LIKE ?) ORDER BY tip_id DESC LIMIT ? OFFSET ?",
+        "SELECT * FROM tip WHERE ($1='%%' OR tip_name LIKE $2) ORDER BY tip_id DESC LIMIT $3 OFFSET $4",
     )
     .bind(&kw)
     .bind(&kw)
@@ -270,7 +271,7 @@ async fn tip_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiRe
 }
 
 async fn tip_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
-    let row = sqlx::query("SELECT * FROM tip WHERE tip_id=?")
+    let row = sqlx::query("SELECT * FROM tip WHERE tip_id=$1")
         .bind(q.id.unwrap_or(0))
         .fetch_optional(&state.repos.pool)
         .await
@@ -287,7 +288,7 @@ async fn tip_create(State(state): State<AdminState>, Json(body): Json<Value>) ->
     if name.is_empty() {
         return Err(AppError(Error::biz(400, "标签名称不能为空")));
     }
-    sqlx::query("INSERT INTO tip(tip_name,status,add_time) VALUES(?,?,?)")
+    sqlx::query("INSERT INTO tip(tip_name,status,add_time) VALUES($1,$2,$3)")
         .bind(name)
         .bind(body.get("status").and_then(Value::as_i64).unwrap_or(1) as i32)
         .bind(nextrade_common::utils::now_seconds() as i64)
@@ -298,7 +299,7 @@ async fn tip_create(State(state): State<AdminState>, Json(body): Json<Value>) ->
 }
 
 async fn tip_update(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
-    sqlx::query("UPDATE tip SET tip_name=?, status=? WHERE tip_id=?")
+    sqlx::query("UPDATE tip SET tip_name=$1, status=$2 WHERE tip_id=$3")
         .bind(body.get("tipName").and_then(Value::as_str).unwrap_or(""))
         .bind(body.get("status").and_then(Value::as_i64).unwrap_or(1) as i32)
         .bind(body.get("id").and_then(Value::as_i64).unwrap_or(0))
@@ -310,12 +311,12 @@ async fn tip_update(State(state): State<AdminState>, Json(body): Json<Value>) ->
 
 async fn tip_delete(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
     let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
-    sqlx::query("DELETE FROM tip WHERE tip_id=?")
+    sqlx::query("DELETE FROM tip WHERE tip_id=$1")
         .bind(id)
         .execute(&state.repos.pool)
         .await
         .map_err(db)?;
-    sqlx::query("DELETE FROM store_tip WHERE tip_id=?")
+    sqlx::query("DELETE FROM store_tip WHERE tip_id=$1")
         .bind(id)
         .execute(&state.repos.pool)
         .await
@@ -328,7 +329,7 @@ async fn tip_batch(State(state): State<AdminState>, Json(body): Json<Value>) -> 
         for id in ids {
             let id = id.as_i64().unwrap_or(0);
             if body.get("type").and_then(Value::as_str) == Some("del") {
-                sqlx::query("DELETE FROM tip WHERE tip_id=?")
+                sqlx::query("DELETE FROM tip WHERE tip_id=$1")
                     .bind(id)
                     .execute(&state.repos.pool)
                     .await
@@ -353,7 +354,7 @@ async fn tip_update_field(
         "status"
     };
     let value = body.get("val").cloned().unwrap_or(Value::Null);
-    let sql = format!("UPDATE tip SET {column}=? WHERE tip_id=?");
+    let sql = nextrade_infrastructure::db::to_pg_placeholders(&format!("UPDATE tip SET {column}=? WHERE tip_id=?"));
     if field == "status" {
         sqlx::query(&sql)
             .bind(
@@ -381,7 +382,7 @@ async fn tip_update_field(
 async fn tip_select_all(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
     let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
     let rows = sqlx::query(
-        "SELECT * FROM tip WHERE status=1 AND (?='%%' OR tip_name LIKE ?) ORDER BY tip_id DESC",
+        "SELECT * FROM tip WHERE status=1 AND ($1='%%' OR tip_name LIKE $2) ORDER BY tip_id DESC",
     )
     .bind(&kw)
     .bind(&kw)

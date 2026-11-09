@@ -139,7 +139,7 @@ impl AftersalesClientRepository {
     /// `SettingsEnum` 的 `defaultValue` 兜底）。
     pub async fn find_config_raw(&self, biz_code: &str) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> = sqlx::query_as(
-            "SELECT biz_val FROM config WHERE biz_code = ? AND is_del = 0 LIMIT 1",
+            "SELECT biz_val FROM config WHERE biz_code = $1 AND is_del = 0 LIMIT 1",
         )
         .bind(biz_code)
         .fetch_optional(&self.pool)
@@ -151,7 +151,7 @@ impl AftersalesClientRepository {
     /// 店铺订单配置原始 JSON（对应 Java `orderConfigMapper.selectOne(shop_id, code)`）。
     pub async fn find_order_config(&self, shop_id: i32, code: &str) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> = sqlx::query_as(
-            "SELECT data FROM order_config WHERE shop_id = ? AND code = ? LIMIT 1",
+            "SELECT data FROM order_config WHERE shop_id = $1 AND code = $2 LIMIT 1",
         )
         .bind(shop_id)
         .bind(code)
@@ -165,7 +165,7 @@ impl AftersalesClientRepository {
 
     /// 按主键查询售后单。
     pub async fn find_aftersales(&self, aftersale_id: i32) -> Result<Option<Aftersales>> {
-        let sql = format!("SELECT {AFTERSALES_COLUMNS} FROM aftersales WHERE aftersale_id = ? LIMIT 1");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT {AFTERSALES_COLUMNS} FROM aftersales WHERE aftersale_id = ? LIMIT 1"));
         sqlx::query_as::<_, Aftersales>(&sql)
             .bind(aftersale_id)
             .fetch_optional(&self.pool)
@@ -228,7 +228,7 @@ impl AftersalesClientRepository {
         let where_sql = format!(" WHERE {}", conds.join(" AND "));
         let (page_size, offset) = (q.page_size(), (q.page_no() - 1) * q.page_size());
 
-        let total_sql = format!("SELECT COUNT(*) FROM {from_sql}{where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM {from_sql}{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&total_sql), binds)
             .fetch_one(&self.pool)
             .await
@@ -238,10 +238,10 @@ impl AftersalesClientRepository {
             .split(',')
             .map(|c| format!("a.{}", c.trim()))
             .collect();
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {} FROM {from_sql}{where_sql} ORDER BY a.aftersale_id DESC LIMIT ? OFFSET ?",
             cols.join(", ")
-        );
+        ));
         let rows = bind_all!(sqlx::query_as::<_, Aftersales>(&rows_sql), binds)
             .bind(page_size as i64)
             .bind(offset as i64)
@@ -258,11 +258,11 @@ impl AftersalesClientRepository {
     /// 「`pics != null` 才覆盖」的语义（由服务层决定是否传入）。
     pub async fn update_aftersales(&self, a: &Aftersales) -> Result<u64> {
         let r = sqlx::query(
-            "UPDATE aftersales SET aftersale_type = ?, status = ?, pics = ?, description = ?, \
-             reply = ?, tracking_no = ?, logistics_name = ?, return_address = ?, \
-             aftersale_reason = ?, refund_amount = ?, audit_time = ?, deal_time = ?, \
-             final_time = ?, return_goods_tip = ?, close_type = ?, vendor_id = ? \
-             WHERE aftersale_id = ?",
+            "UPDATE aftersales SET aftersale_type = $1, status = $2, pics = $3, description = $4, \
+             reply = $5, tracking_no = $6, logistics_name = $7, return_address = $8, \
+             aftersale_reason = $9, refund_amount = $10, audit_time = $11, deal_time = $12, \
+             final_time = $13, return_goods_tip = $14, close_type = $15, vendor_id = $16 \
+             WHERE aftersale_id = $17",
         )
         .bind(a.aftersale_type)
         .bind(a.status)
@@ -358,7 +358,7 @@ impl AftersalesClientRepository {
 
         for it in items {
             sqlx::query(
-                "INSERT INTO aftersales_item (order_item_id, number, aftersale_id) VALUES (?, ?, ?)",
+                "INSERT INTO aftersales_item (order_item_id, number, aftersale_id) VALUES ($1, $2, $3)",
             )
             .bind(it.order_item_id)
             .bind(it.number)
@@ -385,11 +385,11 @@ impl AftersalesClientRepository {
         let mut tx = self.pool.begin().await.map_err(map_err)?;
 
         sqlx::query(
-            "UPDATE aftersales SET aftersale_type = ?, status = ?, pics = ?, description = ?, \
-             reply = ?, tracking_no = ?, logistics_name = ?, return_address = ?, \
-             aftersale_reason = ?, refund_amount = ?, audit_time = ?, deal_time = ?, \
-             final_time = ?, return_goods_tip = ?, close_type = ?, vendor_id = ? \
-             WHERE aftersale_id = ?",
+            "UPDATE aftersales SET aftersale_type = $1, status = $2, pics = $3, description = $4, \
+             reply = $5, tracking_no = $6, logistics_name = $7, return_address = $8, \
+             aftersale_reason = $9, refund_amount = $10, audit_time = $11, deal_time = $12, \
+             final_time = $13, return_goods_tip = $14, close_type = $15, vendor_id = $16 \
+             WHERE aftersale_id = $17",
         )
         .bind(a.aftersale_type)
         .bind(a.status)
@@ -412,7 +412,7 @@ impl AftersalesClientRepository {
         .await
         .map_err(map_err)?;
 
-        sqlx::query("DELETE FROM aftersales_item WHERE aftersale_id = ?")
+        sqlx::query("DELETE FROM aftersales_item WHERE aftersale_id = $1")
             .bind(a.aftersale_id)
             .execute(&mut *tx)
             .await
@@ -420,7 +420,7 @@ impl AftersalesClientRepository {
 
         for it in items {
             sqlx::query(
-                "INSERT INTO aftersales_item (order_item_id, number, aftersale_id) VALUES (?, ?, ?)",
+                "INSERT INTO aftersales_item (order_item_id, number, aftersale_id) VALUES ($1, $2, $3)",
             )
             .bind(it.order_item_id)
             .bind(it.number)
@@ -438,7 +438,7 @@ impl AftersalesClientRepository {
     /// 写入一条售后日志（对应 Java `aftersalesLogMapper.insert` / \"save\"），
     /// 返回自增 \"log_id\"。
     pub async fn insert_aftersales_log(&self, log: &AftersalesLog) -> Result<i32> {
-        let r: i32 = sqlx::query_scalar(&format!("{} RETURNING aftersales_item_id", AFTERSALES_LOG_INSERT))
+        let r: i32 = sqlx::query_scalar(&format!("{} RETURNING log_id", AFTERSALES_LOG_INSERT))
             .bind(log.aftersale_id)
             .bind(&log.log_info)
             .bind(log.add_time)
@@ -464,7 +464,7 @@ impl AftersalesClientRepository {
     pub async fn find_items(&self, aftersale_id: i32) -> Result<Vec<AftersalesItem>> {
         sqlx::query_as::<_, AftersalesItem>(
             "SELECT aftersales_item_id, order_item_id, number, aftersale_id \
-             FROM aftersales_item WHERE aftersale_id = ? ORDER BY aftersales_item_id ASC",
+             FROM aftersales_item WHERE aftersale_id = $1 ORDER BY aftersales_item_id ASC",
         )
         .bind(aftersale_id)
         .fetch_all(&self.pool)
@@ -481,10 +481,10 @@ impl AftersalesClientRepository {
             return Ok(HashMap::new());
         }
         let ph = vec!["?"; aftersale_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT aftersales_item_id, order_item_id, number, aftersale_id \
                FROM aftersales_item WHERE aftersale_id IN ({ph}) ORDER BY aftersales_item_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, AftersalesItem>(&sql);
         for id in aftersale_ids {
             q = q.bind(*id);
@@ -517,13 +517,13 @@ impl AftersalesClientRepository {
         } else {
             ""
         };
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT ai.order_item_id, CAST(COALESCE(SUM(ai.number), 0) AS BIGINT) AS n \
                FROM aftersales_item ai \
                JOIN aftersales a ON a.aftersale_id = ai.aftersale_id \
               WHERE a.order_id = ? AND a.status IN ({status_ph}) AND ai.order_item_id IS NOT NULL{exclude_sql} \
               GROUP BY ai.order_item_id"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql).bind(order_id);
         for s in statuses {
             q = q.bind(*s);
@@ -550,11 +550,11 @@ impl AftersalesClientRepository {
             return Ok(false);
         }
         let status_ph = vec!["?"; statuses.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM aftersales_item ai \
                JOIN aftersales a ON a.aftersale_id = ai.aftersale_id \
               WHERE a.order_id = ? AND a.status IN ({status_ph}) AND ai.order_item_id = ?"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i64,)>(&sql).bind(order_id);
         for s in statuses {
             q = q.bind(*s);
@@ -577,9 +577,9 @@ impl AftersalesClientRepository {
     /// `aftersales_log.add_time` 是 `int unsigned`，直接用实体
     /// `query_as` 会在运行时解码失败。
     pub async fn find_logs(&self, aftersale_id: i32) -> Result<Vec<AftersalesLogRow>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {AFTERSALES_LOG_COLUMNS} FROM aftersales_log WHERE aftersale_id = ? ORDER BY log_id ASC"
-        );
+        ));
         sqlx::query_as::<_, AftersalesLogRow>(&sql)
             .bind(aftersale_id)
             .fetch_all(&self.pool)
@@ -591,7 +591,7 @@ impl AftersalesClientRepository {
 
     /// 按订单ID查询订单。
     pub async fn find_order(&self, order_id: i32) -> Result<Option<Order>> {
-        sqlx::query_as::<_, Order>("SELECT * FROM \"order\" WHERE order_id = ? LIMIT 1")
+        sqlx::query_as::<_, Order>("SELECT * FROM \"order\" WHERE order_id = $1 LIMIT 1")
             .bind(order_id)
             .fetch_optional(&self.pool)
             .await
@@ -622,7 +622,7 @@ impl AftersalesClientRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; item_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM order_item WHERE item_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM order_item WHERE item_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, OrderItem>(&sql);
         for id in item_ids {
             q = q.bind(*id);
@@ -639,7 +639,7 @@ impl AftersalesClientRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; order_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM order_item WHERE order_id IN ({ph}) ORDER BY item_id ASC");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM order_item WHERE order_id IN ({ph}) ORDER BY item_id ASC"));
         let mut q = sqlx::query_as::<_, OrderItem>(&sql);
         for id in order_ids {
             q = q.bind(*id);
@@ -653,7 +653,7 @@ impl AftersalesClientRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; order_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM \"order\" WHERE order_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM \"order\" WHERE order_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, Order>(&sql);
         for id in order_ids {
             q = q.bind(*id);
@@ -677,16 +677,16 @@ impl AftersalesClientRepository {
         q: &AftersalesListQuery,
         user_id: i32,
     ) -> Result<(u64, Vec<Order>)> {
-        let where_sql = " WHERE is_del = 0 AND user_id = ? \
-             AND (order_type IS NULL OR order_type NOT IN (?, ?, ?, ?)) \
-             AND order_status IN (?, ?, ?) \
+        let where_sql = " WHERE is_del = 0 AND user_id = $1 \
+             AND (order_type IS NULL OR order_type NOT IN ($2, $3, $4, $5)) \
+             AND order_status IN ($6, $7, $8) \
              AND order_id NOT IN (SELECT order_id FROM order_item \
-                                   WHERE user_id = ? AND gift_card_id IS NOT NULL AND gift_card_id <> 0)"
+                                   WHERE user_id = $9 AND gift_card_id IS NOT NULL AND gift_card_id <> 0)"
             .to_string();
 
         let (page_size, offset) = (q.page_size(), (q.page_no() - 1) * q.page_size());
 
-        let total_sql = format!("SELECT COUNT(*) FROM \"order\"{where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM \"order\"{where_sql}"));
         let total: (i64,) = sqlx::query_as::<_, (i64,)>(&total_sql)
             .bind(user_id)
             .bind(EXCLUDED_ORDER_TYPE_PIN)
@@ -701,9 +701,9 @@ impl AftersalesClientRepository {
             .await
             .map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM \"order\"{where_sql} ORDER BY order_id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = sqlx::query_as::<_, Order>(&rows_sql)
             .bind(user_id)
             .bind(EXCLUDED_ORDER_TYPE_PIN)
@@ -736,10 +736,10 @@ impl AftersalesClientRepository {
             return Ok(Vec::new());
         }
         let status_ph = vec!["?"; statuses.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {AFTERSALES_COLUMNS} FROM aftersales \
               WHERE order_id = ? AND status IN ({status_ph}) ORDER BY aftersale_id DESC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, Aftersales>(&sql).bind(order_id);
         for s in statuses {
             q = q.bind(*s);
@@ -757,10 +757,10 @@ impl AftersalesClientRepository {
             return Ok(Vec::new());
         }
         let status_ph = vec!["?"; statuses.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {AFTERSALES_COLUMNS} FROM aftersales \
               WHERE order_id = ? AND status IN ({status_ph}) ORDER BY aftersale_id DESC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, Aftersales>(&sql).bind(order_id);
         for s in statuses {
             q = q.bind(*s);
@@ -776,7 +776,7 @@ impl AftersalesClientRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM product WHERE product_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM product WHERE product_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, Product>(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -787,7 +787,7 @@ impl AftersalesClientRepository {
     /// 按用户ID查用户名（Java `userMapper.selectById(userId).getUsername()`）。
     pub async fn find_username(&self, user_id: i32) -> Result<Option<String>> {
         let row: Option<(String,)> =
-            sqlx::query_as("SELECT username FROM user WHERE user_id = ? LIMIT 1")
+            sqlx::query_as("SELECT username FROM user WHERE user_id = $1 LIMIT 1")
                 .bind(user_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -809,10 +809,10 @@ impl AftersalesClientRepository {
             return Ok(false);
         }
         let ph = vec!["?"; pay_codes.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM paylog \
               WHERE order_id = ? AND order_type = 0 AND pay_status = 1 AND pay_code IN ({ph})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i64,)>(&sql).bind(order_id);
         for c in pay_codes {
             q = q.bind(*c);
@@ -826,7 +826,7 @@ impl AftersalesClientRepository {
     /// 订单全部明细数量合计（Java `orderItems.stream().mapToInt(getQuantity).sum()`）。
     pub async fn order_items_total_quantity(&self, order_id: i32) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT CAST(COALESCE(SUM(quantity), 0) AS BIGINT) FROM order_item WHERE order_id = ?",
+            "SELECT CAST(COALESCE(SUM(quantity), 0) AS BIGINT) FROM order_item WHERE order_id = $1",
         )
         .bind(order_id)
         .fetch_one(&self.pool)
@@ -842,13 +842,13 @@ const AFTERSALES_INSERT: &str = "INSERT INTO aftersales
       logistics_name, return_address, aftersale_reason, aftersales_sn, order_id,
       user_id, refund_amount, shop_id, audit_time, deal_time, final_time,
       return_goods_tip, vendor_id, close_type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING aftersale_id";
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING aftersale_id";
 
 /// 售后日志插入语句。
 const AFTERSALES_LOG_INSERT: &str = "INSERT INTO aftersales_log
      (aftersale_id, log_info, add_time, admin_name, refund_money, refund_type,
       refund_desc, user_name, return_pic, shop_id, vendor_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)";
 
 /// 事务内写入售后日志。
 async fn insert_log(
@@ -900,7 +900,7 @@ mod tests {
     fn bind_all_builds_query_for_all_variants() {
         // 只验证宏在两种 Bind 变体下都能展开（不连库）
         let binds = vec![Bind::I32(1), Bind::Str("x".into())];
-        let q = bind_all!(sqlx::query_as::<sqlx::Postgres, (i32,)>("SELECT ?"), binds);
+        let q = bind_all!(sqlx::query_as::<sqlx::Postgres, (i32,)>("SELECT $1"), binds);
         drop(q);
     }
 }

@@ -85,16 +85,16 @@ impl ShopManageRepository {
         let page = q.page_query();
         let (limit, offset) = page.limit_offset();
 
-        let total_sql = format!("SELECT COUNT(*) FROM \"shop\" s{where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM \"shop\" s{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&total_sql), binds)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM \"shop\" s{where_sql}{} LIMIT ? OFFSET ?",
             order_by_clause(q)
-        );
+        ));
         let rows = bind_all!(sqlx::query_as::<_, Shop>(&rows_sql), binds)
             .bind(limit)
             .bind(offset)
@@ -958,7 +958,7 @@ fn build_filter(
     if let Some(mid) = q.area_store_manager_id {
         sql.push_str(
             " AND EXISTS (SELECT 1 FROM area_store_manager_shop asm
-                           WHERE asm.shop_id = s.shop_id AND asm.area_store_manager_id = ?)",
+                           WHERE asm.shop_id = s.shop_id AND asm.area_store_manager_id = $1)",
         );
         binds.push(Bind::I32(mid));
     }
@@ -969,7 +969,7 @@ fn build_filter(
             " AND EXISTS (SELECT 1 FROM merchant m
                            WHERE m.merchant_id = s.merchant_id
                              AND (m.is_delete IS NULL OR m.is_delete = 0)
-                             AND m.corporate_name LIKE CONCAT('%', ?, '%'))",
+                             AND m.corporate_name LIKE CONCAT('%', $1, '%'))",
         );
         binds.push(Bind::Str(name.to_string()));
     }

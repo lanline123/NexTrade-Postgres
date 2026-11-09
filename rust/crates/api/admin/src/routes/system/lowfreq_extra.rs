@@ -371,14 +371,14 @@ async fn h_tip_create(State(state): State<AdminState>, Json(q): Json<Pg>) -> Api
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
-    let r: i64 = sqlx::query_scalar("INSERT INTO tip (tip_name, status, add_time) VALUES ($1, $2, $3) RETURNING tip_id")
+    let r: i32 = sqlx::query_scalar("INSERT INTO tip (tip_name, status, add_time) VALUES ($1, $2, $3) RETURNING tip_id")
         .bind(q.tip_name.unwrap_or_default())
         .bind(q.status.unwrap_or(1))
         .bind(now)
         .fetch_one(&pool(&state))
         .await
         .map_err(db)?;
-    ok(r)
+    ok(i64::from(r))
 }
 
 // post /o2o/tip/update
@@ -504,7 +504,7 @@ async fn h_staff_create(
             .to_string()
     };
     let gi = |k: &str| body.get(k).and_then(Value::as_i64).unwrap_or(0);
-    let r: i64 = sqlx::query_scalar(
+    let r: i32 = sqlx::query_scalar(
         "INSERT INTO service_staff (name, nickname, avatar, phone, member_id, store_id, type, status, create_time, update_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
     )
     .bind(gs("name"))
@@ -520,7 +520,7 @@ async fn h_staff_create(
     .fetch_one(&pool(&state))
     .await
     .map_err(db)?;
-    ok(r)
+    ok(i64::from(r))
 }
 
 // post /o2o/serviceStaff/update
@@ -703,7 +703,7 @@ async fn h_area_create(State(state): State<AdminState>, Json(body): Json<Value>)
         .and_then(Value::as_str)
         .unwrap_or_default();
     let sort = body.get("sortOrder").and_then(Value::as_i64).unwrap_or(50);
-    let r: i64 = sqlx::query_scalar("INSERT INTO area_store_manager (area_store_name, sort_order, create_time, update_time) VALUES ($1, $2, $3, $4) RETURNING area_store_manager_id")
+    let r: i32 = sqlx::query_scalar("INSERT INTO area_store_manager (area_store_name, sort_order, create_time, update_time) VALUES ($1, $2, $3, $4) RETURNING area_store_manager_id")
         .bind(name)
         .bind(sort)
         .bind(now)
@@ -711,7 +711,7 @@ async fn h_area_create(State(state): State<AdminState>, Json(body): Json<Value>)
         .fetch_one(&pool(&state))
         .await
         .map_err(db)?;
-    let id = r;
+    let id = i64::from(r);
     replace_area_shops(&state, id, &shop_ids_of(&body)).await?;
     ok(id)
 }
@@ -1388,13 +1388,13 @@ async fn h_supplier_save(
             .execute(&pool(&state)).await.map_err(db)?;
         return ok(id);
     }
-    let r: i64 = sqlx::query_scalar("INSERT INTO suppliers (suppliers_name, suppliers_desc, is_check, country, province, city, district, contact_name, contact_phone, contact_address, is_show, shop_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING suppliers_id")
+    let r: i32 = sqlx::query_scalar("INSERT INTO suppliers (suppliers_name, suppliers_desc, is_check, country, province, city, district, contact_name, contact_phone, contact_address, is_show, shop_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING suppliers_id")
         .bind(gs("suppliersName")).bind(gs("suppliersDesc")).bind(gi("isCheck"))
         .bind(gi("country")).bind(gi("province")).bind(gi("city")).bind(gi("district"))
         .bind(gs("contactName")).bind(gs("contactPhone")).bind(gs("contactAddress"))
         .bind(gi("isShow")).bind(gi("shopId"))
         .fetch_one(&pool(&state)).await.map_err(db)?;
-    ok(r)
+    ok(i64::from(r))
 }
 
 async fn h_supplier_update_field(

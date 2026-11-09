@@ -184,16 +184,16 @@ impl OrderAdminRepository {
         let (where_sql, binds) = build_filter(q, platform_view)?;
         let (limit, offset) = (q.page_size(), (q.page_no() - 1) * q.page_size());
 
-        let total_sql = format!("SELECT COUNT(*) FROM \"order\"{where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM \"order\"{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&total_sql), binds)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM \"order\"{where_sql}{} LIMIT ? OFFSET ?",
             order_by_clause(q)
-        );
+        ));
         let rows = bind_all!(sqlx::query_as::<_, Order>(&rows_sql), binds)
             .bind(limit as i64)
             .bind(offset as i64)
@@ -210,9 +210,9 @@ impl OrderAdminRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; order_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM order_item WHERE order_id IN ({placeholders}) ORDER BY order_id ASC, item_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, OrderItem>(&sql);
         for id in order_ids {
             q = q.bind(*id);
@@ -333,14 +333,14 @@ impl OrderAdminRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; statuses.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT CAST(COALESCE(SUM(ai.number), 0) AS BIGINT)
                FROM aftersales_item ai
                JOIN aftersales a ON a.aftersale_id = ai.aftersale_id
               WHERE a.order_id = $1
                 AND a.status IN ({placeholders})
                 AND ai.order_item_id IN (SELECT item_id FROM order_item WHERE order_id = $2)"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i64,)>(&sql).bind(order_id);
         for s in statuses {
             q = q.bind(*s);
@@ -379,7 +379,7 @@ impl OrderAdminRepository {
         }
         let order_ph = vec!["?"; order_ids.len()].join(", ");
         let status_ph = vec!["?"; statuses.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT a.order_id
                FROM aftersales_item ai
                JOIN aftersales a ON a.aftersale_id = ai.aftersale_id
@@ -393,7 +393,7 @@ impl OrderAdminRepository {
                     SELECT CAST(COALESCE(SUM(quantity), 0) AS BIGINT)
                       FROM order_item WHERE order_id = a.order_id
                 )"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32,)>(&sql);
         for id in order_ids {
             q = q.bind(*id);
@@ -411,9 +411,9 @@ impl OrderAdminRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT product_id FROM product WHERE product_status = 1 AND product_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32,)>(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -431,12 +431,12 @@ impl OrderAdminRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; order_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT order_id, groupon_promotion_record_id, join_status
                FROM groupon_promotion_record
               WHERE order_id IN ({placeholders})
               ORDER BY groupon_promotion_record_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i64, i64, i32)>(&sql);
         for id in order_ids {
             q = q.bind(*id);
@@ -464,7 +464,7 @@ impl OrderAdminRepository {
             return Ok(HashMap::new());
         }
         let placeholders = vec!["?"; statuses.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT ai.order_item_id, CAST(COALESCE(SUM(ai.number), 0) AS BIGINT) AS n
                FROM aftersales_item ai
                JOIN aftersales a ON a.aftersale_id = ai.aftersale_id
@@ -472,7 +472,7 @@ impl OrderAdminRepository {
                 AND a.status IN ({placeholders})
                 AND ai.order_item_id IS NOT NULL
               GROUP BY ai.order_item_id"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql).bind(order_id);
         for s in statuses {
             q = q.bind(*s);
@@ -495,14 +495,14 @@ impl OrderAdminRepository {
             return Ok(false);
         }
         let placeholders = vec!["?"; statuses.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*)
                FROM aftersales_item ai
                JOIN aftersales a ON a.aftersale_id = ai.aftersale_id
               WHERE a.order_id = $1
                 AND a.status IN ({placeholders})
                 AND ai.order_item_id = $2"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i64,)>(&sql).bind(order_id);
         for s in statuses {
             q = q.bind(*s);
@@ -632,7 +632,7 @@ impl OrderAdminRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; user_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM user WHERE user_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM user WHERE user_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, User>(&sql);
         for id in user_ids {
             q = q.bind(*id);
@@ -646,7 +646,7 @@ impl OrderAdminRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; shop_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM shop WHERE shop_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM shop WHERE shop_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, Shop>(&sql);
         for id in shop_ids {
             q = q.bind(*id);
@@ -704,7 +704,7 @@ impl OrderAdminRepository {
     ) -> Result<()> {
         sqlx::query(
             "INSERT INTO order_log (order_id, order_sn, admin_id, user_id, description, log_time, shop_id) \
-             VALUES (?, ?, ?, 0, ?, ?, ?)",
+             VALUES ($1, $2, $3, 0, $4, $5, $6)",
         )
         .bind(order_id)
         .bind(order_sn)
@@ -731,7 +731,7 @@ impl OrderAdminRepository {
 
     /// 按订单号查询（批量发货导入 / 换单号唯一性校验）。
     pub async fn find_order_by_sn(&self, order_sn: &str) -> Result<Option<Order>> {
-        sqlx::query_as::<_, Order>("SELECT * FROM \"order\" WHERE order_sn = ? LIMIT 1")
+        sqlx::query_as::<_, Order>("SELECT * FROM \"order\" WHERE order_sn = $1 LIMIT 1")
             .bind(order_sn)
             .fetch_optional(&self.pool)
             .await
@@ -817,10 +817,10 @@ impl OrderAdminRepository {
         print_template: &str,
         add_time: i32,
     ) -> Result<u64> {
-        let res: i64 = sqlx::query_scalar(
+        let res: i32 = sqlx::query_scalar(
             "INSERT INTO logistics_api_log \
              (order_id, provider_type, order_code, logistic_code, add_time, print_template) \
-             VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
         )
         .bind(order_id)
         .bind(provider_type)
@@ -840,9 +840,9 @@ impl OrderAdminRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; order_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT order_id, pay_code FROM paylog WHERE order_id IN ({placeholders}) ORDER BY paylog_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in order_ids {
             q = q.bind(*id);
@@ -856,7 +856,7 @@ impl OrderAdminRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM product WHERE product_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM product WHERE product_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, nextrade_core::entities::Product>(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -875,10 +875,10 @@ impl OrderAdminRepository {
             .map(|v| v.to_string())
             .collect::<Vec<_>>()
             .join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT region_id, region_name FROM region WHERE region_id IN ({placeholders}) \
              ORDER BY FIELD(region_id, {fields})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in region_ids {
             q = q.bind(*id);
@@ -893,14 +893,14 @@ impl OrderAdminRepository {
             return Ok(());
         }
         if sku_id > 0 {
-            sqlx::query("UPDATE product_sku SET sku_stock = sku_stock + ? WHERE sku_id = ?")
+            sqlx::query("UPDATE product_sku SET sku_stock = sku_stock + $1 WHERE sku_id = $2")
                 .bind(quantity)
                 .bind(sku_id)
                 .execute(&self.pool)
                 .await
                 .map_err(map_err)?;
         }
-        sqlx::query("UPDATE product SET product_stock = product_stock + ? WHERE product_id = ?")
+        sqlx::query("UPDATE product SET product_stock = product_stock + $1 WHERE product_id = $2")
             .bind(quantity)
             .bind(product_id)
             .execute(&self.pool)
@@ -925,7 +925,7 @@ impl OrderAdminRepository {
     ) -> Result<Option<(i32, Option<String>)>> {
         let row: Option<(i32, Option<String>)> = sqlx::query_as(
             "SELECT parent_order_id, parent_order_data FROM order_split_log \
-             WHERE order_id = ? ORDER BY log_id DESC LIMIT 1",
+             WHERE order_id = $1 ORDER BY log_id DESC LIMIT 1",
         )
         .bind(order_id)
         .fetch_optional(&self.pool)
@@ -943,9 +943,9 @@ impl OrderAdminRepository {
         let mut plain = q.clone();
         plain.order_status = None;
         let (where_sql, binds) = build_filter(&plain, platform_view)?;
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT order_status, COUNT(*) FROM \"order\"{where_sql} GROUP BY order_status"
-        );
+        ));
         let rows: Vec<(i32, i64)> = bind_all!(sqlx::query_as::<_, (i32, i64)>(&sql), binds)
             .fetch_all(&self.pool)
             .await
@@ -963,7 +963,7 @@ impl OrderAdminRepository {
         let mut copy = q.clone();
         copy.order_status = order_status.map(str::to_string);
         let (where_sql, binds) = build_filter(&copy, platform_view)?;
-        let sql = format!("SELECT COUNT(*) FROM \"order\"{where_sql}");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM \"order\"{where_sql}"));
         let row: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&sql), binds)
             .fetch_one(&self.pool)
             .await
@@ -983,15 +983,15 @@ impl OrderAdminRepository {
         let limit = size.max(1);
         let offset = page.saturating_sub(1) * limit;
         let count_binds = binds.clone();
-        let total_sql = format!("SELECT COUNT(*) FROM \"order\"{where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM \"order\"{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&total_sql), count_binds)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM \"order\"{where_sql}{} LIMIT ? OFFSET ?",
             order_by_clause(q)
-        );
+        ));
         let rows = bind_all!(sqlx::query_as::<_, Order>(&rows_sql), binds)
             .bind(limit as i64)
             .bind(offset as i64)
@@ -1402,7 +1402,7 @@ fn build_filter(q: &OrderListQuery, platform_view: bool) -> Result<(String, Vec<
             // 按支付日志筛选已支付订单（Java 用 leftJoin + groupBy 实现同一语义）
             conds.push(
                 "EXISTS (SELECT 1 FROM paylog p WHERE p.order_id = \"order\".order_id \
-                 AND p.order_type = 0 AND p.pay_code = ? AND p.pay_status = 2)"
+                 AND p.order_type = 0 AND p.pay_code = $1 AND p.pay_status = 2)"
                     .into(),
             );
             binds.push(Bind::Str(pay_code.to_string()));
@@ -1480,7 +1480,7 @@ fn build_filter(q: &OrderListQuery, platform_view: bool) -> Result<(String, Vec<
             Some(uid) => {
                 conds.push(
                     "EXISTS (SELECT 1 FROM comment c WHERE c.order_id = \"order\".order_id \
-                     AND c.user_id = ? AND c.is_showed = ?)"
+                     AND c.user_id = $1 AND c.is_showed = $2)"
                         .into(),
                 );
                 binds.push(Bind::I32(uid));
@@ -1496,7 +1496,7 @@ fn build_filter(q: &OrderListQuery, platform_view: bool) -> Result<(String, Vec<
             "order_sn LIKE ?".to_string(),
             "consignee LIKE ?".to_string(),
             "EXISTS (SELECT 1 FROM order_item oi WHERE oi.order_id = \"order\".order_id \
-             AND oi.product_name LIKE ?)"
+             AND oi.product_name LIKE $1)"
                 .to_string(),
         ];
         binds.push(Bind::Str(like.clone()));

@@ -346,7 +346,7 @@ async fn supplier_create(
         return Err(AppError(Error::biz(400, "供应商名称不能为空")));
     }
     let now = nextrade_common::utils::now_seconds() as i64;
-    let r: i64 = sqlx::query_scalar(
+    let r: i32 = sqlx::query_scalar(
         "INSERT INTO vendor(source_type, shop_id, vendor_code, vendor_name, contact_mobile, purchase_category_id, vendor_logo, description, status, add_time) VALUES(2,$1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING vendor_id",
     )
     .bind(body.get("shopId").and_then(Value::as_i64).unwrap_or(0) as i32)
@@ -359,7 +359,7 @@ async fn supplier_create(
     .bind(body.get("status").and_then(Value::as_i64).unwrap_or(1) as i32)
     .bind(now)
     .fetch_one(&state.repos.pool).await.map_err(db)?;
-    ok(r)
+    ok(i64::from(r))
 }
 async fn supplier_update(
     State(state): State<AdminState>,

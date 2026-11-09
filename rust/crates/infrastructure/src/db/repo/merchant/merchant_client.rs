@@ -69,14 +69,14 @@ const INSERT_APPLY_SQL: &str = "INSERT INTO merchant_apply
        (user_id, add_time, shop_title, status, \"type\",
         audit_time, audit_admin_id, shop_data, base_data,
         merchant_data, company_name, corporate_name)
-     VALUES (?, ?, COALESCE(?, ''), ?, COALESCE(?, 1),
-             ?, ?, ?, ?, ?, COALESCE(?, ''), COALESCE(?, ''))";
+     VALUES ($1, $2, COALESCE($3, ''), $4, COALESCE($5, 1),
+             $6, $7, $8, $9, $10, COALESCE($11, ''), COALESCE($12, ''))";
 
 /// 后台站内信 SQL（\"admin_msg\" 的非空列写死为 Java 实体默认值）。
 const INSERT_ADMIN_MSG_SQL: &str = "INSERT INTO admin_msg
        (msg_type, send_time, is_readed, shop_id, admin_id, order_id,
         product_id, title, content, msg_link, related_data, is_broadcast, vendor_id)
-     VALUES (?, ?, 0, 0, 0, 0, 0, ?, ?, '', ?, 1, 0)";
+     VALUES ($1, $2, 0, 0, 0, 0, 0, $3, $4, '', $5, 1, 0)";
 
 #[derive(Clone)]
 pub struct MerchantClientRepository {
@@ -110,7 +110,7 @@ impl MerchantClientRepository {
 
     /// 按主键查申请（Java `BaseServiceImpl#getById`）。
     pub async fn find_apply_by_id(&self, id: i32) -> Result<Option<MerchantApply>> {
-        let sql = format!("{MERCHANT_APPLY_SELECT} WHERE merchant_apply_id = ? LIMIT 1");
+        let sql = crate::db::to_pg_placeholders(&format!("{MERCHANT_APPLY_SELECT} WHERE merchant_apply_id = ? LIMIT 1"));
         sqlx::query_as::<_, MerchantApply>(&sql)
             .bind(id)
             .fetch_optional(&self.pool)
@@ -122,9 +122,9 @@ impl MerchantClientRepository {
     /// （Java `myApply` 的
     /// `eq(MerchantApply::getUserId, userId).orderByDesc(merchantApplyId).last("limit 1")`）。
     pub async fn find_latest_apply_by_user(&self, user_id: i32) -> Result<Option<MerchantApply>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "{MERCHANT_APPLY_SELECT} WHERE user_id = ? ORDER BY merchant_apply_id DESC LIMIT 1"
-        );
+        ));
         sqlx::query_as::<_, MerchantApply>(&sql)
             .bind(user_id)
             .fetch_optional(&self.pool)
@@ -162,7 +162,7 @@ impl MerchantClientRepository {
         tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         apply: &MerchantApply,
     ) -> Result<i32> {
-        let res: i32 = sqlx::query_scalar(&format!("{} RETURNING msg_id", INSERT_APPLY_SQL))
+        let res: i32 = sqlx::query_scalar(&format!("{} RETURNING merchant_apply_id", INSERT_APPLY_SQL))
             .bind(apply.user_id)
             .bind(apply.add_time)
             .bind(apply.shop_title.as_deref())
@@ -224,7 +224,7 @@ impl MerchantClientRepository {
     /// 从而保留该区别，不会把「值为空」误判成「配置不存在」。
     pub async fn find_config_val(&self, biz_code: &str) -> Result<Option<String>> {
         let row: Option<(String,)> = sqlx::query_as(
-            "SELECT COALESCE(biz_val, '') FROM config WHERE biz_code = ? AND is_del = 0 LIMIT 1",
+            "SELECT COALESCE(biz_val, '') FROM config WHERE biz_code = $1 AND is_del = 0 LIMIT 1",
         )
         .bind(biz_code)
         .fetch_optional(&self.pool)
@@ -248,7 +248,7 @@ impl MerchantClientRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; region_ids.len()].join(", ");
-        let sql = format!("{REGION_SELECT} WHERE region_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("{REGION_SELECT} WHERE region_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, Region>(&sql);
         for id in region_ids {
             q = q.bind(id);
@@ -261,7 +261,7 @@ impl MerchantClientRepository {
     /// 按主键取管理员（Java `resolveAuditAdminName` 的
     /// `adminUserService.getById(auditAdminId)`）。
     pub async fn find_admin_user_by_id(&self, admin_id: i32) -> Result<Option<AdminUser>> {
-        sqlx::query_as::<_, AdminUser>("SELECT * FROM admin_user WHERE admin_id = ? LIMIT 1")
+        sqlx::query_as::<_, AdminUser>("SELECT * FROM admin_user WHERE admin_id = $1 LIMIT 1")
             .bind(admin_id)
             .fetch_optional(&self.pool)
             .await
@@ -279,7 +279,7 @@ impl MerchantClientRepository {
     /// 也保证结果确定（差异已记入 \"uncertain_points\"）。
     pub async fn find_admin_user_by_mobile(&self, mobile: &str) -> Result<Option<AdminUser>> {
         sqlx::query_as::<_, AdminUser>(
-            "SELECT * FROM admin_user WHERE mobile = ? ORDER BY admin_id ASC LIMIT 1",
+            "SELECT * FROM admin_user WHERE mobile = $1 ORDER BY admin_id ASC LIMIT 1",
         )
         .bind(mobile)
         .fetch_optional(&self.pool)
@@ -349,8 +349,8 @@ mod tests {
         assert_eq!(marks, cols);
         // 四个可空列必须补列默认值：shop_title / type / company_name / corporate_name
         assert_eq!(sql.matches("IFNULL").count(), 4);
-        assert!(sql.contains("COALESCE(?, '')"));
-        assert!(sql.contains("COALESCE(?, 1)"));
+        assert!(sql.contains("COALESCE($1, '')"));
+        assert!(sql.contains("COALESCE($1, 1)"));
         // 主键（自增）不能出现在列清单里
         assert!(!sql.contains("merchant_apply_id"));
     }

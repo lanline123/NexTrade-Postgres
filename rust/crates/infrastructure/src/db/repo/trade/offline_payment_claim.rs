@@ -15,11 +15,11 @@ impl OfflinePaymentClaimRepository {
     }
 
     pub async fn insert(&self, c: &OfflinePaymentClaim) -> Result<i32> {
-        let r: i32 = sqlx::query_scalar(
+        let r: i64 = sqlx::query_scalar(
             "INSERT INTO offline_payment_claim(order_id,order_sn,user_id,shop_id,claimed_amount,pay_stage,\
              transfer_time,payer_name,payer_account,bank_serial_no,voucher_urls,remark,status,\
              review_admin_id,review_time,paid_time,audit_remark,reject_reason,add_time,update_time) \
-             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING claim_id",
+             VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING claim_id",
         )
         .bind(c.order_id)
         .bind(&c.order_sn)
@@ -44,12 +44,13 @@ impl OfflinePaymentClaimRepository {
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(r)
+        Ok(i32::try_from(r)
+            .map_err(|_| Error::Database(format!("offline_payment_claim.claim_id 超出 i32 范围: {r}")))?)
     }
 
     pub async fn find_by_id(&self, claim_id: i32) -> Result<Option<OfflinePaymentClaim>> {
         sqlx::query_as::<_, OfflinePaymentClaim>(
-            "SELECT * FROM offline_payment_claim WHERE claim_id = ? LIMIT 1",
+            "SELECT * FROM offline_payment_claim WHERE claim_id = $1 LIMIT 1",
         )
         .bind(claim_id)
         .fetch_optional(&self.pool)
@@ -59,7 +60,7 @@ impl OfflinePaymentClaimRepository {
 
     pub async fn latest_for_order(&self, order_id: i32) -> Result<Option<OfflinePaymentClaim>> {
         sqlx::query_as::<_, OfflinePaymentClaim>(
-            "SELECT * FROM offline_payment_claim WHERE order_id = ? ORDER BY claim_id DESC LIMIT 1",
+            "SELECT * FROM offline_payment_claim WHERE order_id = $1 ORDER BY claim_id DESC LIMIT 1",
         )
         .bind(order_id)
         .fetch_optional(&self.pool)
@@ -74,7 +75,7 @@ impl OfflinePaymentClaimRepository {
     ) -> Result<Vec<OfflinePaymentClaim>> {
         if let Some(user_id) = user_id {
             sqlx::query_as::<_, OfflinePaymentClaim>(
-                "SELECT * FROM offline_payment_claim WHERE order_id = ? AND user_id = ? ORDER BY claim_id DESC",
+                "SELECT * FROM offline_payment_claim WHERE order_id = $1 AND user_id = $2 ORDER BY claim_id DESC",
             )
             .bind(order_id)
             .bind(user_id)
@@ -83,7 +84,7 @@ impl OfflinePaymentClaimRepository {
             .map_err(map_err)
         } else {
             sqlx::query_as::<_, OfflinePaymentClaim>(
-                "SELECT * FROM offline_payment_claim WHERE order_id = ? ORDER BY claim_id DESC",
+                "SELECT * FROM offline_payment_claim WHERE order_id = $1 ORDER BY claim_id DESC",
             )
             .bind(order_id)
             .fetch_all(&self.pool)
@@ -103,8 +104,8 @@ impl OfflinePaymentClaimRepository {
     ) -> Result<bool> {
         let affected = if pass {
             sqlx::query(
-                "UPDATE offline_payment_claim SET status=1, review_admin_id=?, review_time=?, \
-                 audit_remark=?, update_time=? WHERE claim_id=? AND status=0",
+                "UPDATE offline_payment_claim SET status=1, review_admin_id=$1, review_time=$2, \
+                 audit_remark=$3, update_time=$4 WHERE claim_id=$5 AND status=0",
             )
             .bind(admin_id)
             .bind(now)
@@ -117,8 +118,8 @@ impl OfflinePaymentClaimRepository {
             .rows_affected()
         } else {
             sqlx::query(
-                "UPDATE offline_payment_claim SET status=2, review_admin_id=?, review_time=?, \
-                 audit_remark=?, reject_reason=?, update_time=? WHERE claim_id=? AND status=0",
+                "UPDATE offline_payment_claim SET status=2, review_admin_id=$1, review_time=$2, \
+                 audit_remark=$3, reject_reason=$4, update_time=$5 WHERE claim_id=$6 AND status=0",
             )
             .bind(admin_id)
             .bind(now)
@@ -135,7 +136,7 @@ impl OfflinePaymentClaimRepository {
     }
 
     pub async fn mark_paid(&self, claim_id: i32, now: i64) -> Result<()> {
-        sqlx::query("UPDATE offline_payment_claim SET paid_time=?, update_time=? WHERE claim_id=?")
+        sqlx::query("UPDATE offline_payment_claim SET paid_time=$1, update_time=$2 WHERE claim_id=$3")
             .bind(now)
             .bind(now)
             .bind(claim_id)

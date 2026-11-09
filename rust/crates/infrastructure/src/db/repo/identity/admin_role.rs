@@ -178,7 +178,7 @@ impl AdminRoleRepository {
         let (where_sql, like_bind) = build_where(visibility, keyword);
         let (limit, offset) = page.limit_offset();
 
-        let count_sql = format!("SELECT COUNT(*) FROM admin_role{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM admin_role{where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         if let Some(like) = like_bind.as_deref() {
             cq = cq.bind(like).bind(like);
@@ -193,9 +193,9 @@ impl AdminRoleRepository {
             ),
             None => String::new(),
         };
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {ROLE_COLUMNS} FROM admin_role{where_sql}{order_sql} LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, AdminRole>(&list_sql);
         if let Some(like) = like_bind.as_deref() {
             lq = lq.bind(like).bind(like);

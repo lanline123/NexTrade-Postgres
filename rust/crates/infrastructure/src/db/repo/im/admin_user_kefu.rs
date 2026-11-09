@@ -88,7 +88,7 @@ impl AdminUserKefuRepository {
     pub async fn find_kefu_role(&self, shop_id: i32) -> Result<Option<KefuRoleRow>> {
         sqlx::query_as::<_, KefuRoleRow>(
             "SELECT role_id, role_name, role_code, shop_id FROM admin_role \
-             WHERE role_code = 'kefu_agent' AND shop_id = ? LIMIT 1",
+             WHERE role_code = 'kefu_agent' AND shop_id = $1 LIMIT 1",
         )
         .bind(shop_id)
         .fetch_optional(&self.pool)
@@ -126,10 +126,10 @@ impl AdminUserKefuRepository {
         }
         let where_sql = conds.join(" AND ");
         let (size, offset) = q.limit_offset();
-        let base = format!(
+        let base = crate::db::to_pg_placeholders(&format!(
             " FROM admin_user_shop s LEFT JOIN admin_user u ON u.admin_id = s.admin_id \
              LEFT JOIN admin_role r ON r.role_id = s.role_id WHERE {where_sql}"
-        );
+        ));
 
         let count_sql = format!("SELECT COUNT(*){base}");
         let total = bind_all!(
@@ -141,11 +141,11 @@ impl AdminUserKefuRepository {
         .map_err(map_err)?
         .0;
 
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT s.id, s.admin_id, s.shop_id, s.username, s.email, s.avatar, s.is_using, \
              s.role_id, s.auth_list, s.add_time, r.role_name{base} \
              ORDER BY s.id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = bind_all!(sqlx::query_as::<_, AdminUserKefuRow>(&sql), &binds)
             .bind(i64::try_from(size).unwrap_or(15))
             .bind(i64::try_from(offset).unwrap_or(0))
@@ -166,11 +166,11 @@ impl AdminUserKefuRepository {
     }
 
     async fn find_binding_where(&self, key_cond: &str, key: i32, shop_id: i32) -> Result<Option<AdminUserKefuRow>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT s.id, s.admin_id, s.shop_id, s.username, s.email, s.avatar, s.is_using, \
              s.role_id, s.auth_list, s.add_time, r.role_name FROM admin_user_shop s \
              LEFT JOIN admin_role r ON r.role_id = s.role_id WHERE {key_cond} AND s.shop_id = ? LIMIT 1"
-        );
+        ));
         sqlx::query_as::<_, AdminUserKefuRow>(&sql)
             .bind(key)
             .bind(shop_id)
@@ -182,7 +182,7 @@ impl AdminUserKefuRepository {
     /// 管理员名称是否被占用（Java `admin_user.username` 唯一性校验）。
     pub async fn count_username(&self, username: &str, exclude_admin_id: Option<i32>) -> Result<u64> {
         let (n,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM admin_user WHERE username = ? AND (? IS NULL OR admin_id <> ?)",
+            "SELECT COUNT(*) FROM admin_user WHERE username = $1 AND ($2 IS NULL OR admin_id <> $3)",
         )
         .bind(username)
         .bind(exclude_admin_id)
@@ -196,7 +196,7 @@ impl AdminUserKefuRepository {
     /// 手机号是否被占用。
     pub async fn count_mobile(&self, mobile: &str, exclude_admin_id: Option<i32>) -> Result<u64> {
         let (n,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM admin_user WHERE mobile = ? AND (? IS NULL OR admin_id <> ?)",
+            "SELECT COUNT(*) FROM admin_user WHERE mobile = $1 AND ($2 IS NULL OR admin_id <> $3)",
         )
         .bind(mobile)
         .bind(exclude_admin_id)
@@ -211,7 +211,7 @@ impl AdminUserKefuRepository {
     pub async fn find_admin_by_mobile(&self, mobile: &str) -> Result<Option<KefuAdminUserRow>> {
         sqlx::query_as::<_, KefuAdminUserRow>(
             "SELECT admin_id, username, mobile, email, avatar, user_id FROM admin_user \
-             WHERE mobile = ? LIMIT 1",
+             WHERE mobile = $1 LIMIT 1",
         )
         .bind(mobile)
         .fetch_optional(&self.pool)
@@ -222,7 +222,7 @@ impl AdminUserKefuRepository {
     /// 按 ID 查管理员。
     pub async fn find_admin_by_id(&self, admin_id: i32) -> Result<Option<KefuAdminUserRow>> {
         sqlx::query_as::<_, KefuAdminUserRow>(
-            "SELECT admin_id, username, mobile, email, avatar, user_id FROM admin_user WHERE admin_id = ?",
+            "SELECT admin_id, username, mobile, email, avatar, user_id FROM admin_user WHERE admin_id = $1",
         )
         .bind(admin_id)
         .fetch_optional(&self.pool)
@@ -243,11 +243,11 @@ impl AdminUserKefuRepository {
         is_using: i32,
         now: i32,
     ) -> Result<i64> {
-        let r: i64 = sqlx::query_scalar(
+        let r: i32 = sqlx::query_scalar(
             "INSERT INTO admin_user \
              (username, admin_type, mobile, avatar, password, email, add_time, auth_list, user_id, \
               role_id, shop_id, is_using, initial_password, is_deleted) \
-             VALUES (?, '', ?, ?, '', ?, ?, '[\"all\"]', 0, ?, ?, ?, '', 0) RETURNING admin_id",
+             VALUES ($1, '', $2, $3, '', $4, $5, '[\"all\"]', 0, $6, $7, $8, '', 0) RETURNING admin_id",
         )
         .bind(username)
         .bind(mobile)
@@ -260,7 +260,7 @@ impl AdminUserKefuRepository {
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(r)
+        Ok(i64::from(r))
     }
 
     /// 更新管理员基础信息。
@@ -276,8 +276,8 @@ impl AdminUserKefuRepository {
         role_id: Option<i32>,
     ) -> Result<()> {
         sqlx::query(
-            "UPDATE admin_user SET username = ?, mobile = ?, email = ?, avatar = ?, \
-             is_using = ?, role_id = ? WHERE admin_id = ?",
+            "UPDATE admin_user SET username = $1, mobile = $2, email = $3, avatar = $4, \
+             is_using = $5, role_id = $6 WHERE admin_id = $7",
         )
         .bind(username)
         .bind(mobile)
@@ -310,7 +310,7 @@ impl AdminUserKefuRepository {
             "INSERT INTO admin_user_shop \
              (admin_id, user_id, shop_id, username, email, avatar, auth_list, is_using, is_admin, \
               add_time, role_id, work_on_time, default_pos_login) \
-             VALUES (?, ?, ?, ?, ?, ?, '[\"all\"]', ?, 0, ?, ?, 0, 0)",
+             VALUES ($1, $2, $3, $4, $5, $6, '[\"all\"]', $7, 0, $8, $9, 0, 0)",
         )
         .bind(admin_id)
         .bind(user_id)
@@ -340,8 +340,8 @@ impl AdminUserKefuRepository {
         role_id: Option<i32>,
     ) -> Result<u64> {
         let r = sqlx::query(
-            "UPDATE admin_user_shop SET username = ?, email = ?, avatar = ?, is_using = ?, role_id = ? \
-             WHERE id = ? AND shop_id = ?",
+            "UPDATE admin_user_shop SET username = $1, email = $2, avatar = $3, is_using = $4, role_id = $5 \
+             WHERE id = $6 AND shop_id = $7",
         )
         .bind(username)
         .bind(email)
@@ -358,7 +358,7 @@ impl AdminUserKefuRepository {
 
     /// 删除单个绑定（同店铺）。
     pub async fn delete_binding(&self, id: i32, shop_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM admin_user_shop WHERE id = ? AND shop_id = ?")
+        let r = sqlx::query("DELETE FROM admin_user_shop WHERE id = $1 AND shop_id = $2")
             .bind(id)
             .bind(shop_id)
             .execute(&self.pool)
@@ -373,7 +373,7 @@ impl AdminUserKefuRepository {
             return Ok(0);
         }
         let marks = vec!["?"; ids.len()].join(",");
-        let sql = format!("DELETE FROM admin_user_shop WHERE shop_id = ? AND id IN ({marks})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM admin_user_shop WHERE shop_id = ? AND id IN ({marks})"));
         let mut q = sqlx::query(&sql).bind(shop_id);
         for id in ids {
             q = q.bind(*id);
@@ -384,7 +384,7 @@ impl AdminUserKefuRepository {
 
     /// 按 admin_id 删绑定（联动删除时不需要，保留给批量场景）。
     pub async fn delete_binding_by_admin(&self, admin_id: i32, shop_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM admin_user_shop WHERE admin_id = ? AND shop_id = ?")
+        let r = sqlx::query("DELETE FROM admin_user_shop WHERE admin_id = $1 AND shop_id = $2")
             .bind(admin_id)
             .bind(shop_id)
             .execute(&self.pool)

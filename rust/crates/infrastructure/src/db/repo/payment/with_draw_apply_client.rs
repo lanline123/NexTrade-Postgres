@@ -118,17 +118,17 @@ impl WithDrawApplyClientRepository {
         let where_sql = conds.join(" AND ");
         let (size, offset) = q.limit_offset();
 
-        let total_sql = format!("SELECT COUNT(*) FROM user_withdraw_account WHERE {where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM user_withdraw_account WHERE {where_sql}"));
         let mut tq = sqlx::query_as::<_, (i64,)>(&total_sql);
         for b in &binds {
             tq = tq.bind(*b);
         }
         let total = tq.fetch_one(&self.pool).await.map_err(map_err)?.0;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT account_id, user_id, account_type, account_name, account_no, identity, bank_name \
              FROM user_withdraw_account WHERE {where_sql} ORDER BY account_id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let mut rq = sqlx::query_as::<_, WithdrawAccountRow>(&rows_sql);
         for b in &binds {
             rq = rq.bind(*b);
@@ -145,7 +145,7 @@ impl WithDrawApplyClientRepository {
     /// 该用户的提现账号数量（Java \"create\" 的上限校验）。
     pub async fn count_accounts(&self, user_id: i32) -> Result<u64> {
         let (n,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM user_withdraw_account WHERE user_id = ?")
+            sqlx::query_as("SELECT COUNT(*) FROM user_withdraw_account WHERE user_id = $1")
                 .bind(user_id)
                 .fetch_one(&self.pool)
                 .await
@@ -162,7 +162,7 @@ impl WithDrawApplyClientRepository {
     ) -> Result<bool> {
         let (n,): (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM user_withdraw_account \
-             WHERE user_id = ? AND account_type = ? AND account_no = ?",
+             WHERE user_id = $1 AND account_type = $2 AND account_no = $3",
         )
         .bind(user_id)
         .bind(account_type)
@@ -181,7 +181,7 @@ impl WithDrawApplyClientRepository {
     ) -> Result<()> {
         sqlx::query(
             "INSERT INTO user_withdraw_account (user_id, account_type, account_name, account_no, identity, bank_name) \
-             VALUES (?, ?, ?, ?, ?, ?)",
+             VALUES ($1, $2, $3, $4, $5, $6)",
         )
         .bind(user_id)
         .bind(dto.account_type)
@@ -225,10 +225,10 @@ impl WithDrawApplyClientRepository {
             sets.push("bank_name = ?".to_string());
             binds.push(v.clone());
         }
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE user_withdraw_account SET {} WHERE account_id = ? AND user_id = ?",
             sets.join(", ")
-        );
+        ));
         let mut q = sqlx::query(&sql);
         for (v, _) in &nums {
             q = q.bind(*v);
@@ -249,7 +249,7 @@ impl WithDrawApplyClientRepository {
     pub async fn find_account(&self, account_id: i32, user_id: i32) -> Result<Option<WithdrawAccountRow>> {
         sqlx::query_as::<_, WithdrawAccountRow>(
             "SELECT account_id, user_id, account_type, account_name, account_no, identity, bank_name \
-             FROM user_withdraw_account WHERE account_id = ? AND user_id = ?",
+             FROM user_withdraw_account WHERE account_id = $1 AND user_id = $2",
         )
         .bind(account_id)
         .bind(user_id)
@@ -260,7 +260,7 @@ impl WithDrawApplyClientRepository {
 
     /// 删除提现账号（必须同时匹配 user_id）。
     pub async fn delete_account(&self, account_id: i32, user_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM user_withdraw_account WHERE account_id = ? AND user_id = ?")
+        let r = sqlx::query("DELETE FROM user_withdraw_account WHERE account_id = $1 AND user_id = $2")
             .bind(account_id)
             .bind(user_id)
             .execute(&self.pool)
@@ -273,7 +273,7 @@ impl WithDrawApplyClientRepository {
     pub async fn find_wallet(&self, user_id: i32) -> Result<Option<UserWalletRow>> {
         sqlx::query_as::<_, UserWalletRow>(
             "SELECT balance, frozen_balance, commission_balance, frozen_commission_balance \
-             FROM user WHERE user_id = ?",
+             FROM user WHERE user_id = $1",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
@@ -283,7 +283,7 @@ impl WithDrawApplyClientRepository {
 
     /// 余额提现：冻结余额 `+= amount`（Java `user.frozenBalance.add(amount)`）。
     pub async fn freeze_balance(&self, user_id: i32, amount: Decimal) -> Result<()> {
-        sqlx::query("UPDATE user SET frozen_balance = frozen_balance + ? WHERE user_id = ?")
+        sqlx::query("UPDATE user SET frozen_balance = frozen_balance + $1 WHERE user_id = $2")
             .bind(amount)
             .bind(user_id)
             .execute(&self.pool)
@@ -296,8 +296,8 @@ impl WithDrawApplyClientRepository {
     /// （Java `incFrozenCommissionBalance` + `decCommissionBalance`）。
     pub async fn freeze_and_deduct_commission(&self, user_id: i32, amount: Decimal) -> Result<()> {
         sqlx::query(
-            "UPDATE user SET frozen_commission_balance = frozen_commission_balance + ?, \
-             commission_balance = commission_balance - ? WHERE user_id = ?",
+            "UPDATE user SET frozen_commission_balance = frozen_commission_balance + $1, \
+             commission_balance = commission_balance - $2 WHERE user_id = $3",
         )
         .bind(amount)
         .bind(amount)
@@ -318,10 +318,10 @@ impl WithDrawApplyClientRepository {
         status: i32,
         add_time: i32,
     ) -> Result<u64> {
-        let r: i64 = sqlx::query_scalar(
+        let r: i32 = sqlx::query_scalar(
             "INSERT INTO user_withdraw_apply \
              (user_id, wallet_type, amount, add_time, finished_time, postscript, status, account_data) \
-             VALUES (?, ?, ?, ?, 0, '', ?, ?) RETURNING id",
+             VALUES ($1, $2, $3, $4, 0, '', $5, $6) RETURNING id",
         )
         .bind(user_id)
         .bind(wallet_type)
@@ -341,7 +341,7 @@ impl WithDrawApplyClientRepository {
             "INSERT INTO user_balance_log \
              (user_id, before_balance, balance, after_balance, frozen_balance, before_frozen_balance, \
               after_frozen_balance, change_time, change_desc, change_type, wallet_type, new_balance, new_frozen_balance) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, $11, $12)",
         )
         .bind(log.user_id)
         .bind(log.before_balance)

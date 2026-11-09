@@ -388,7 +388,7 @@ impl GrouponPromotionRepository {
         size: u64,
     ) -> Result<(u64, Vec<GrouponPromotion>)> {
         let total: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM groupon_promotion WHERE start_time <= ? AND end_time >= ?",
+            "SELECT COUNT(*) FROM groupon_promotion WHERE start_time <= $1 AND end_time >= $2",
         )
         .bind(now)
         .bind(now)
@@ -396,8 +396,8 @@ impl GrouponPromotionRepository {
         .await
         .map_err(map_err)?;
         let rows = sqlx::query_as::<_, GrouponPromotion>(
-            "SELECT * FROM groupon_promotion WHERE start_time <= ? AND end_time >= ? \
-             ORDER BY start_time DESC LIMIT ? OFFSET ?",
+            "SELECT * FROM groupon_promotion WHERE start_time <= $1 AND end_time >= $2 \
+             ORDER BY start_time DESC LIMIT $3 OFFSET $4",
         )
         .bind(now)
         .bind(now)
@@ -412,7 +412,7 @@ impl GrouponPromotionRepository {
     /// 当前生效的拼团活动（`start_time < now && end_time > now`，严格不等式）。
     pub async fn list_active_promotions(&self, now: i64) -> Result<Vec<GrouponPromotion>> {
         sqlx::query_as::<_, GrouponPromotion>(
-            "SELECT * FROM groupon_promotion WHERE start_time < ? AND end_time > ?",
+            "SELECT * FROM groupon_promotion WHERE start_time < $1 AND end_time > $2",
         )
         .bind(now)
         .bind(now)
@@ -424,7 +424,7 @@ impl GrouponPromotionRepository {
     /// 未结束的拼团活动（`end_time >= now`，客户端商品列表用户过滤用）。
     pub async fn list_not_ended_promotions(&self, now: i64) -> Result<Vec<GrouponPromotion>> {
         sqlx::query_as::<_, GrouponPromotion>(
-            "SELECT * FROM groupon_promotion WHERE end_time >= ?",
+            "SELECT * FROM groupon_promotion WHERE end_time >= $1",
         )
         .bind(now)
         .fetch_all(&self.pool)
@@ -440,7 +440,7 @@ impl GrouponPromotionRepository {
         promotion_id: i64,
     ) -> Result<Option<GrouponPromotionShops>> {
         sqlx::query_as::<_, GrouponPromotionShops>(
-            "SELECT * FROM groupon_promotion_shops WHERE groupon_promotion_id = ? LIMIT 1",
+            "SELECT * FROM groupon_promotion_shops WHERE groupon_promotion_id = $1 LIMIT 1",
         )
         .bind(i32::try_from(promotion_id).unwrap_or(i32::MAX))
         .fetch_optional(&self.pool)
@@ -455,7 +455,7 @@ impl GrouponPromotionRepository {
         promotion_id: i64,
     ) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM groupon_promotion_shops WHERE groupon_promotion_id = ?",
+            "SELECT COUNT(*) FROM groupon_promotion_shops WHERE groupon_promotion_id = $1",
         )
         .bind(i32::try_from(promotion_id).unwrap_or(i32::MAX))
         .fetch_one(&mut **tx)
@@ -471,7 +471,7 @@ impl GrouponPromotionRepository {
         binding: &GrouponPromotionShops,
     ) -> Result<i32> {
         let res: i32 = sqlx::query_scalar(
-            "INSERT INTO groupon_promotion_shops (groupon_promotion_id, shop_ids) VALUES (?, ?) RETURNING groupon_shop_id",
+            "INSERT INTO groupon_promotion_shops (groupon_promotion_id, shop_ids) VALUES ($1, $2) RETURNING groupon_shop_id",
         )
         .bind(binding.groupon_promotion_id)
         .bind(&binding.shop_ids)
@@ -488,7 +488,7 @@ impl GrouponPromotionRepository {
         binding: &GrouponPromotionShops,
     ) -> Result<bool> {
         let affected = sqlx::query(
-            "UPDATE groupon_promotion_shops SET shop_ids = ? WHERE groupon_promotion_id = ?",
+            "UPDATE groupon_promotion_shops SET shop_ids = $1 WHERE groupon_promotion_id = $2",
         )
         .bind(&binding.shop_ids)
         .bind(binding.groupon_promotion_id)
@@ -526,7 +526,7 @@ impl GrouponPromotionRepository {
 
     /// 按主键查店铺（客户端详情/列表回填店铺名）。
     pub async fn find_shop(&self, shop_id: i32) -> Result<Option<Shop>> {
-        sqlx::query_as::<_, Shop>("SELECT * FROM shop WHERE shop_id = ? LIMIT 1")
+        sqlx::query_as::<_, Shop>("SELECT * FROM shop WHERE shop_id = $1 LIMIT 1")
             .bind(shop_id)
             .fetch_optional(&self.pool)
             .await
@@ -562,7 +562,7 @@ impl GrouponPromotionRepository {
             "INSERT INTO promotion
                (promotion_name, start_time, end_time, \"type\", shop_id, relation_id,
                 \"range\", member_range, member_marks, member_scope)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING promotion_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING promotion_id",
         )
         .bind(&row.promotion_name)
         .bind(row.start_time)
@@ -588,9 +588,9 @@ impl GrouponPromotionRepository {
         row: &Promotion,
     ) -> Result<u64> {
         let affected = sqlx::query(
-            "UPDATE promotion SET promotion_name = ?, start_time = ?, end_time = ?,
-               member_range = ?, member_marks = ?, member_scope = ?
-             WHERE relation_id = ? AND type = ?",
+            "UPDATE promotion SET promotion_name = $1, start_time = $2, end_time = $3,
+               member_range = $4, member_marks = $5, member_scope = $6
+             WHERE relation_id = $7 AND type = $8",
         )
         .bind(&row.promotion_name)
         .bind(row.start_time)
@@ -615,7 +615,7 @@ impl GrouponPromotionRepository {
         end_time: i32,
     ) -> Result<u64> {
         let affected = sqlx::query(
-            "UPDATE promotion SET end_time = ? WHERE relation_id = ? AND type = ?",
+            "UPDATE promotion SET end_time = $1 WHERE relation_id = $2 AND type = $3",
         )
         .bind(end_time)
         .bind(i32::try_from(relation_id).unwrap_or(i32::MAX))
@@ -634,7 +634,7 @@ impl GrouponPromotionRepository {
         relation_id: i64,
     ) -> Result<u64> {
         let affected =
-            sqlx::query("DELETE FROM promotion WHERE relation_id = ? AND type = ?")
+            sqlx::query("DELETE FROM promotion WHERE relation_id = $1 AND type = $2")
                 .bind(i32::try_from(relation_id).unwrap_or(i32::MAX))
                 .bind(7_i32)
                 .execute(&mut **tx)
@@ -647,7 +647,7 @@ impl GrouponPromotionRepository {
     /// 查营销活动（Java `selectOne(relationId, type).last("limit 1")`；`.one()` 多行会抛异常）。
     pub async fn find_promotion_row(&self, relation_id: i64) -> Result<Option<Promotion>> {
         sqlx::query_as::<_, Promotion>(
-            "SELECT * FROM promotion WHERE relation_id = ? AND type = ? LIMIT 1",
+            "SELECT * FROM promotion WHERE relation_id = $1 AND type = $2 LIMIT 1",
         )
         .bind(i32::try_from(relation_id).unwrap_or(i32::MAX))
         .bind(7_i32)
@@ -798,8 +798,8 @@ impl GrouponPromotionRepository {
             return Ok(0);
         }
         Ok(sqlx::query(
-            "UPDATE groupon_promotion_detail SET limit_num = limit_num + ? \
-             WHERE groupon_detail_id = ?",
+            "UPDATE groupon_promotion_detail SET limit_num = limit_num + $1 \
+             WHERE groupon_detail_id = $2",
         )
         .bind(quantity)
         .bind(groupon_detail_id)
@@ -816,7 +816,7 @@ impl GrouponPromotionRepository {
         promotion_id: i64,
     ) -> Result<Vec<GrouponPromotionDetail>> {
         sqlx::query_as::<_, GrouponPromotionDetail>(
-            "SELECT * FROM groupon_promotion_detail WHERE groupon_promotion_id = ?",
+            "SELECT * FROM groupon_promotion_detail WHERE groupon_promotion_id = $1",
         )
         .bind(promotion_id)
         .fetch_all(&self.pool)
@@ -832,7 +832,7 @@ impl GrouponPromotionRepository {
     ) -> Result<Vec<GrouponPromotionDetail>> {
         sqlx::query_as::<_, GrouponPromotionDetail>(
             "SELECT * FROM groupon_promotion_detail \
-             WHERE product_id = ? AND groupon_promotion_id <> ?",
+             WHERE product_id = $1 AND groupon_promotion_id <> $2",
         )
         .bind(product_id)
         .bind(exclude_promotion_id)
@@ -907,8 +907,8 @@ impl GrouponPromotionRepository {
     ) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM groupon_promotion_record \
-             WHERE groupon_promotion_id = ? AND join_type = 1 AND join_status = 2 \
-               AND product_id = ?",
+             WHERE groupon_promotion_id = $1 AND join_type = 1 AND join_status = 2 \
+               AND product_id = $2",
         )
         .bind(promotion_id)
         .bind(i64::from(product_id))
@@ -923,7 +923,7 @@ impl GrouponPromotionRepository {
     pub async fn count_wait_records_by_product(&self, product_id: i32) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM groupon_promotion_record \
-             WHERE product_id = ? AND join_status = 1",
+             WHERE product_id = $1 AND join_status = 1",
         )
         .bind(i64::from(product_id))
         .fetch_one(&self.pool)
@@ -935,7 +935,7 @@ impl GrouponPromotionRepository {
     /// 可用 SKU id 集合（Java `productSkuService.lambdaQuery().eq(isEnabled, YES)`）。
     pub async fn find_enabled_sku_ids(&self, product_id: i32) -> Result<Vec<i64>> {
         let rows: Vec<(i32,)> = sqlx::query_as(
-            "SELECT sku_id FROM product_sku WHERE product_id = ? AND is_enabled = 1",
+            "SELECT sku_id FROM product_sku WHERE product_id = $1 AND is_enabled = 1",
         )
         .bind(product_id)
         .fetch_all(&self.pool)
@@ -968,7 +968,7 @@ impl GrouponPromotionRepository {
     pub async fn find_product(&self, id: i32) -> Result<Option<ProductRow>> {
         sqlx::query_as::<_, ProductRow>(
             "SELECT product_id, product_name, product_sn, product_price, product_brief,
-                    pic_url, pic_thumb, virtual_sales FROM product WHERE product_id = ? LIMIT 1",
+                    pic_url, pic_thumb, virtual_sales FROM product WHERE product_id = $1 LIMIT 1",
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -979,7 +979,7 @@ impl GrouponPromotionRepository {
     /// 会员标记（Java `user.getMark()`，拼团人群旧口径）。
     pub async fn find_user_mark(&self, user_id: i32) -> Result<Option<i32>> {
         let row: Option<(i32,)> =
-            sqlx::query_as("SELECT mark FROM user WHERE user_id = ? LIMIT 1")
+            sqlx::query_as("SELECT mark FROM user WHERE user_id = $1 LIMIT 1")
                 .bind(user_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -990,7 +990,7 @@ impl GrouponPromotionRepository {
     /// 读取配置值（Java `ConfigService#getConfigVal`：行缺失/`biz_val` NULL → None）。
     pub async fn find_config_value(&self, biz_code: &str) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> = sqlx::query_as(
-            "SELECT biz_val FROM config WHERE biz_code = ? AND is_del = 0 LIMIT 1",
+            "SELECT biz_val FROM config WHERE biz_code = $1 AND is_del = 0 LIMIT 1",
         )
         .bind(biz_code)
         .fetch_optional(&self.pool)
