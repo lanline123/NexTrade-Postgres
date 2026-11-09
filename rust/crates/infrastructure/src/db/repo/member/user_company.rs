@@ -80,7 +80,7 @@ impl UserCompanyRepository {
         // `ESCAPE '\\'` 与 escape_like 配套：MySQL 默认转义符就是 `\`，
         // 这里显式声明以避免 sql_mode=NO_BACKSLASH_ESCAPES 下的行为差异。
         let sql = crate::db::to_pg_placeholders(&format!(
-            "{USER_SELECT} WHERE username LIKE ? ESCAPE '\\\\' OR mobile LIKE ? ESCAPE '\\\\'"
+            "{USER_SELECT} WHERE username LIKE ? ESCAPE '\\' OR mobile LIKE ? ESCAPE '\\'"
         ));
         let rows: Vec<User> = sqlx::query_as(&sql)
             .bind(&like)
@@ -158,13 +158,13 @@ impl UserCompanyRepository {
                     drop(sep);
                     qb.push(" OR contact_mobile LIKE ");
                     qb.push_bind(like);
-                    qb.push(" ESCAPE '\\\\'");
+                    qb.push(" ESCAPE '\\'");
                 }
                 // Java `else` 分支：userIds 为空（或查不到用户）时**只**看 contact_mobile
                 _ => {
                     qb.push("contact_mobile LIKE ");
                     qb.push_bind(like);
-                    qb.push(" ESCAPE '\\\\'");
+                    qb.push(" ESCAPE '\\'");
                 }
             }
             qb.push(")");

@@ -315,6 +315,7 @@ impl TranslationsIndexRepository {
             where_sql.push_str(&format!(" AND id IN ({placeholders})"));
         }
         let sql = Self::select_sql(&format!("{where_sql} ORDER BY id DESC LIMIT ? OFFSET ?"));
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, Translations>(&sql);
         for id in ids {
             q = q.bind(id);

@@ -218,6 +218,7 @@ impl GalleryRepository {
             return Ok(0);
         }
         let sql = format!("DELETE FROM gallery WHERE gallery_id IN ({})", placeholders(ids.len()));
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(id);
@@ -239,6 +240,7 @@ impl GalleryRepository {
                 "SELECT gallery_id FROM gallery WHERE parent_id IN ({})",
                 placeholders(frontier.len())
             );
+            let sql = crate::db::to_pg_placeholders(&sql);
             let mut q = sqlx::query_as::<_, (i32,)>(&sql);
             for id in &frontier {
                 q = q.bind(id);

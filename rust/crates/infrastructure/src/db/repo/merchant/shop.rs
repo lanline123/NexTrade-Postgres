@@ -172,6 +172,7 @@ impl ShopRepository {
             "SELECT * FROM \"merchant\" WHERE merchant_id IN ({})",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, Merchant>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -196,6 +197,7 @@ impl ShopRepository {
              WHERE s.is_admin = 1 AND s.shop_id IN ({})",
             placeholders(shop_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (i32, i32, String)>(&sql);
         for id in shop_ids {
             q = q.bind(id);
@@ -348,6 +350,7 @@ impl ShopRepository {
             "SELECT shop_id, shop_title FROM shop WHERE shop_id IN ({})",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (i32, Option<String>)>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -703,6 +706,7 @@ impl ShopRepository {
              WHERE parent_id IN ({}) GROUP BY parent_id",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in ids {
             q = q.bind(id);

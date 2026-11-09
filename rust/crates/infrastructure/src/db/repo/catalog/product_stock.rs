@@ -1062,6 +1062,7 @@ impl ProductStockRepository {
             let ph = vec!["?"; list.len()].join(", ");
             sql.push_str(&format!(" AND allocate_id IN ({ph})"));
         }
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, AllocateExportRow>(&sql)
             .bind(shop_id)
             .bind(shop_id);

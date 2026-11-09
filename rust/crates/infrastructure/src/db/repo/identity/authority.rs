@@ -166,6 +166,7 @@ impl AuthorityRepository {
             "SELECT {AUTHORITY_SELECT} FROM authority WHERE parent_id IN ({})",
             placeholders(parent_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, Authority>(&sql);
         for id in parent_ids {
             q = q.bind(*id);
@@ -289,6 +290,7 @@ impl AuthorityRepository {
             "SELECT {AUTHORITY_SELECT} FROM authority WHERE authority_id IN ({})",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, Authority>(&sql);
         for id in ids {
             q = q.bind(*id);

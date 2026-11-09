@@ -23,7 +23,7 @@ pub struct LocalesVO {
     pub locale_code: String,
     pub language: String,
     pub flag_picture: String,
-    pub last_updated: i64,
+    pub last_updated: i32,
     pub is_enabled: i32,
     pub is_default: i32,
     pub currency_id: i32,

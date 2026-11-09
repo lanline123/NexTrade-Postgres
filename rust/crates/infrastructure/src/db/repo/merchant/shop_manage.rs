@@ -337,6 +337,7 @@ impl ShopManageRepository {
             "DELETE FROM \"shop\" WHERE shop_id IN ({})",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -413,6 +414,7 @@ impl ShopManageRepository {
             "SELECT * FROM merchant WHERE merchant_id IN ({})",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, Merchant>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -465,6 +467,7 @@ impl ShopManageRepository {
             "SELECT * FROM admin_user WHERE admin_id IN ({})",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, AdminUser>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -519,6 +522,7 @@ impl ShopManageRepository {
               ORDER BY id ASC",
             placeholders(shop_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, AdminUserShop>(&sql);
         for id in shop_ids {
             q = q.bind(*id);
@@ -568,6 +572,7 @@ impl ShopManageRepository {
                 placeholders(exclude_role_ids.len())
             ));
         }
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, AdminUserShop>(&sql);
         q = q.bind(shop_id);
         for rid in exclude_role_ids {
@@ -599,6 +604,7 @@ impl ShopManageRepository {
                 placeholders(exclude_role_ids.len())
             ));
         }
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<i64>)>(&sql);
         q = q.bind(shop_id);
         for rid in exclude_role_ids {
@@ -718,9 +724,10 @@ impl ShopManageRepository {
             return Ok(Vec::new());
         }
         let sql = format!(
-            "SELECT * FROM admin_log WHERE user_id IN ({}) ORDER BY log_id DESC LIMIT $1",
+            "SELECT * FROM admin_log WHERE user_id IN ({}) ORDER BY log_id DESC LIMIT ?",
             placeholders(admin_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, AdminLog>(&sql);
         for id in admin_ids {
             q = q.bind(*id);
@@ -750,6 +757,7 @@ impl ShopManageRepository {
             "SELECT * FROM tip WHERE tip_id IN ({})",
             placeholders(tip_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, Tip>(&sql);
         for id in tip_ids {
             q = q.bind(*id);

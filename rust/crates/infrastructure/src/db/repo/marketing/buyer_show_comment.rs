@@ -109,6 +109,7 @@ impl BuyerShowCommentRepository {
             "SELECT user_id, COALESCE(nickname, username) FROM \"user\" WHERE user_id IN ({})",
             placeholders(user_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in user_ids {
             q = q.bind(*id);
@@ -156,6 +157,7 @@ impl BuyerShowCommentRepository {
             "UPDATE buyer_show_comment SET status = $1, is_show = $2 WHERE buyer_show_comment_id IN ({})",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query(&sql).bind(value).bind(is_show);
         for id in ids {
             q = q.bind(*id);

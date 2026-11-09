@@ -269,6 +269,7 @@ impl BuyerShowRepository {
             "SELECT * FROM \"buyer_show\" WHERE buyer_show_id IN ({}) ORDER BY buyer_show_id ASC FOR UPDATE",
             placeholders(sorted.len())
         );
+        let select_sql = crate::db::to_pg_placeholders(&select_sql);
         let mut q = sqlx::query_as::<_, BuyerShow>(&select_sql);
         for id in &sorted {
             q = q.bind(*id);
@@ -286,6 +287,7 @@ impl BuyerShowRepository {
             "SELECT buyer_show_comment_id FROM \"buyer_show_comment\" WHERE buyer_show_id IN ({})",
             placeholders(sorted.len())
         );
+        let comment_sql = crate::db::to_pg_placeholders(&comment_sql);
         let mut cq = sqlx::query_as::<_, (i32,)>(&comment_sql);
         for id in &sorted {
             cq = cq.bind(*id);
@@ -302,6 +304,7 @@ impl BuyerShowRepository {
                 "DELETE FROM \"comment_like\" WHERE comment_id IN ({})",
                 placeholders(comment_ids.len())
             );
+            let sql = crate::db::to_pg_placeholders(&sql);
             let mut d = sqlx::query(&sql);
             for id in &comment_ids {
                 d = d.bind(*id);
@@ -320,6 +323,7 @@ impl BuyerShowRepository {
                 "DELETE FROM \"{table}\" WHERE buyer_show_id IN ({})",
                 placeholders(sorted.len())
             );
+            let sql = crate::db::to_pg_placeholders(&sql);
             let mut d = sqlx::query(&sql);
             for id in &sorted {
                 d = d.bind(*id);
@@ -331,6 +335,7 @@ impl BuyerShowRepository {
             "DELETE FROM \"buyer_show\" WHERE buyer_show_id IN ({})",
             placeholders(sorted.len())
         );
+        let del_sql = crate::db::to_pg_placeholders(&del_sql);
         let mut d = sqlx::query(&del_sql);
         for id in &sorted {
             d = d.bind(*id);
@@ -434,6 +439,7 @@ impl BuyerShowRepository {
             "UPDATE \"buyer_show\" SET status = $1, is_show = $2 WHERE buyer_show_id IN ({})",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query(&sql).bind(status).bind(is_show);
         for id in ids {
             q = q.bind(*id);
@@ -491,6 +497,7 @@ impl BuyerShowRepository {
             "SELECT * FROM \"buyer_show_gallery\" WHERE buyer_show_id IN ({}) ORDER BY sort_order ASC, pic_id ASC",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, BuyerShowGallery>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -519,6 +526,7 @@ impl BuyerShowRepository {
             "SELECT * FROM \"buyer_show_video\" WHERE buyer_show_id IN ({}) ORDER BY sort_order ASC, id ASC",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, BuyerShowVideo>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -537,6 +545,7 @@ impl BuyerShowRepository {
             "SELECT buyer_show_id, COUNT(*) FROM \"buyer_show_comment\" WHERE buyer_show_id IN ({}) GROUP BY buyer_show_id",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -576,6 +585,7 @@ impl BuyerShowRepository {
             "SELECT buyer_show_id, COUNT(*) FROM \"buyer_show_like\" WHERE buyer_show_id IN ({}) GROUP BY buyer_show_id",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -605,6 +615,7 @@ impl BuyerShowRepository {
             "SELECT * FROM \"buyer_show_group\" WHERE buyer_show_group_id IN ({})",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, BuyerShowGroup>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -671,6 +682,7 @@ impl BuyerShowRepository {
             "SELECT user_id, username, avatar FROM \"user\" WHERE user_id IN ({})",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (i32, String, String)>(&sql);
         for id in ids {
             q = q.bind(*id);

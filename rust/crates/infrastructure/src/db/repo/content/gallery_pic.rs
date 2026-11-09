@@ -257,6 +257,7 @@ impl GalleryPicRepository {
             "DELETE FROM gallery_pic WHERE pic_id IN ({})",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -321,6 +322,7 @@ impl GalleryPicRepository {
             "DELETE FROM gallery_video_info WHERE id IN ({})",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -340,6 +342,7 @@ impl GalleryPicRepository {
             "SELECT * FROM gallery_video_info WHERE id IN ({})",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, GalleryVideoInfo>(&sql);
         for id in ids {
             q = q.bind(*id);

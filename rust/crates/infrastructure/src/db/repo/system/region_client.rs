@@ -142,7 +142,7 @@ impl RegionClientRepository {
         let pattern = format!("%{}%", escape_like(keyword));
         sqlx::query_as::<_, Region>(
             "SELECT * FROM region
-             WHERE region_name LIKE $1 ESCAPE '\\\\'
+             WHERE region_name LIKE $1 ESCAPE '\\'
                AND ($2 IS NULL OR level = $3)
              ORDER BY region_id ASC",
         )

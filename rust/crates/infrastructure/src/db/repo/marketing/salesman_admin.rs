@@ -297,6 +297,7 @@ impl SalesmanAdminRepository {
             "SELECT salesman_id, COUNT(DISTINCT order_id) AS order_num, COALESCE(SUM(amount),0) AS pay_money, COALESCE(SUM(amount),0) AS commission, COALESCE(SUM(order_amount),0) AS product_amount FROM salesman_order WHERE {} GROUP BY salesman_id",
             where_parts.join(" AND ")
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, SalesmanAggRow>(&sql);
         for id in salesman_ids {
             q = q.bind(*id);

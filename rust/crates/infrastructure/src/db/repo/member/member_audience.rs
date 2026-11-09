@@ -55,13 +55,14 @@ impl MemberAudienceRepository {
                 let ph = vec!["?"; tag_ids.len()].join(", ");
                 let sql = if *match_all {
                     format!(
-                        "SELECT COUNT(*) FROM (SELECT ut.user_id FROM user_member_tag ut JOIN \"user\" u ON u.user_id = ut.user_id AND u.user_type = $1 WHERE ut.tag_id IN ({ph}) GROUP BY ut.user_id HAVING COUNT(DISTINCT ut.tag_id) = $2) t"
+                        "SELECT COUNT(*) FROM (SELECT ut.user_id FROM user_member_tag ut JOIN \"user\" u ON u.user_id = ut.user_id AND u.user_type = ? WHERE ut.tag_id IN ({ph}) GROUP BY ut.user_id HAVING COUNT(DISTINCT ut.tag_id) = ?) t"
                     )
                 } else {
                     format!(
-                        "SELECT COUNT(DISTINCT ut.user_id) FROM user_member_tag ut JOIN \"user\" u ON u.user_id = ut.user_id AND u.user_type = $1 WHERE ut.tag_id IN ({ph})"
+                        "SELECT COUNT(DISTINCT ut.user_id) FROM user_member_tag ut JOIN \"user\" u ON u.user_id = ut.user_id AND u.user_type = ? WHERE ut.tag_id IN ({ph})"
                     )
                 };
+                let sql = crate::db::to_pg_placeholders(&sql);
                 let mut q = sqlx::query_as::<_, (i64,)>(&sql).bind(USER_TYPE_MEMBER);
                 for id in tag_ids {
                     q = q.bind(*id);
@@ -115,13 +116,14 @@ impl MemberAudienceRepository {
                 let ph = vec!["?"; tag_ids.len()].join(", ");
                 let sql = if *match_all {
                     format!(
-                        "SELECT ut.user_id FROM user_member_tag ut JOIN \"user\" u ON u.user_id = ut.user_id AND u.user_type = $1 WHERE ut.tag_id IN ({ph}) GROUP BY ut.user_id HAVING COUNT(DISTINCT ut.tag_id) = $2"
+                        "SELECT ut.user_id FROM user_member_tag ut JOIN \"user\" u ON u.user_id = ut.user_id AND u.user_type = ? WHERE ut.tag_id IN ({ph}) GROUP BY ut.user_id HAVING COUNT(DISTINCT ut.tag_id) = ?"
                     )
                 } else {
                     format!(
-                        "SELECT DISTINCT ut.user_id FROM user_member_tag ut JOIN \"user\" u ON u.user_id = ut.user_id AND u.user_type = $1 WHERE ut.tag_id IN ({ph})"
+                        "SELECT DISTINCT ut.user_id FROM user_member_tag ut JOIN \"user\" u ON u.user_id = ut.user_id AND u.user_type = ? WHERE ut.tag_id IN ({ph})"
                     )
                 };
+                let sql = crate::db::to_pg_placeholders(&sql);
                 let mut q = sqlx::query_as::<_, (i32,)>(&sql).bind(USER_TYPE_MEMBER);
                 for id in tag_ids {
                     q = q.bind(*id);

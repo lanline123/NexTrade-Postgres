@@ -219,6 +219,7 @@ impl ShopClientRepository {
             return Ok(Vec::new());
         }
         let sql = format!("SELECT * FROM shop WHERE shop_id IN ({})", placeholders(ids.len()));
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, Shop>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -339,9 +340,9 @@ impl ShopClientRepository {
                     " AND EXISTS (SELECT 1 FROM shop_local_delivery_config sldc \
                      WHERE sldc.shop_id = shop.shop_id AND sldc.enabled = 1 \
                        AND sldc.delivery_radius IS NOT NULL AND sldc.delivery_radius > 0 \
-                       AND (6371000 * acos(cos(radians($1)) * cos(radians(shop.shop_latitude)) \
-                            * cos(radians(shop.shop_longitude) - radians($2)) \
-                            + sin(radians($3)) * sin(radians(shop.shop_latitude)))) \
+                       AND (6371000 * acos(cos(radians(?)) * cos(radians(shop.shop_latitude)) \
+                            * cos(radians(shop.shop_longitude) - radians(?)) \
+                            + sin(radians(?)) * sin(radians(shop.shop_latitude)))) \
                            <= sldc.delivery_radius)",
                 );
                 binds.push(Bind::Dec(lat));
@@ -378,8 +379,8 @@ impl ShopClientRepository {
         if location.is_some() {
             // 经纬度变体：sortField=distance 时按距离，否则按评星
             if f.sort_field.as_deref() == Some("distance") {
-                orders.push("distance IS NULL".to_string());
-                orders.push(format!("distance {dir}"));
+                // PG forbids referencing a SELECT alias inside an ORDER BY expression.
+                orders.push(format!("distance {dir} NULLS LAST"));
             } else {
                 orders.push(format!("shop_star {dir}"));
             }
@@ -402,6 +403,7 @@ impl ShopClientRepository {
              ORDER BY product_id DESC",
             placeholders(shop_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, Product>(&sql);
         for id in shop_ids {
             q = q.bind(*id);
@@ -418,6 +420,7 @@ impl ShopClientRepository {
             "SELECT * FROM product WHERE product_id IN ({})",
             placeholders(product_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, Product>(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -435,6 +438,7 @@ impl ShopClientRepository {
              WHERE shop_id IN ({}) AND product_status = 1 AND is_delete = 0 GROUP BY shop_id",
             placeholders(shop_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in shop_ids {
             q = q.bind(*id);
@@ -500,6 +504,7 @@ impl ShopClientRepository {
             "SELECT COUNT(*) FROM product WHERE product_id IN ({}) AND is_new = 1",
             placeholders(product_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (i64,)>(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -556,6 +561,7 @@ impl ShopClientRepository {
              WHERE shop_id IN ({}) GROUP BY shop_id",
             placeholders(shop_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in shop_ids {
             q = q.bind(*id);
@@ -584,6 +590,7 @@ impl ShopClientRepository {
             "SELECT * FROM collect_shop WHERE shop_id IN ({})",
             placeholders(shop_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, CollectShop>(&sql);
         for id in shop_ids {
             q = q.bind(*id);
@@ -606,6 +613,7 @@ impl ShopClientRepository {
              WHERE shop_id IN ({}) GROUP BY shop_id",
             placeholders(shop_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (i32, Decimal)>(&sql);
         for id in shop_ids {
             q = q.bind(*id);
@@ -675,6 +683,7 @@ impl ShopClientRepository {
             "SELECT * FROM comment WHERE parent_id IN ({})",
             placeholders(parent_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, Comment>(&sql);
         for id in parent_ids {
             q = q.bind(*id);
@@ -691,6 +700,7 @@ impl ShopClientRepository {
             "SELECT * FROM \"order_item\" WHERE item_id IN ({})",
             placeholders(item_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, OrderItem>(&sql);
         for id in item_ids {
             q = q.bind(*id);
@@ -723,6 +733,7 @@ impl ShopClientRepository {
             "SELECT biz_code, biz_val FROM config WHERE is_del = 0 AND biz_code IN ({})",
             placeholders(biz_codes.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (String, Option<String>)>(&sql);
         for code in biz_codes {
             q = q.bind(*code);
@@ -828,6 +839,7 @@ impl ShopClientRepository {
             "SELECT region_id, region_name FROM region WHERE region_id IN ({}) ORDER BY region_id ASC",
             placeholders(ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -882,6 +894,7 @@ impl ShopClientRepository {
             "SELECT * FROM store_tip WHERE shop_id IN ({}) ORDER BY sort ASC",
             placeholders(shop_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, StoreTip>(&sql);
         for id in shop_ids {
             q = q.bind(*id);
@@ -909,6 +922,7 @@ impl ShopClientRepository {
             "SELECT * FROM tip WHERE tip_id IN ({}) ORDER BY tip_id ASC",
             placeholders(tip_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, Tip>(&sql);
         for id in tip_ids {
             q = q.bind(*id);
@@ -937,6 +951,7 @@ impl ShopClientRepository {
             "SELECT * FROM shop_local_delivery_config WHERE shop_id IN ({})",
             placeholders(shop_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, ShopLocalDeliveryConfig>(&sql);
         for id in shop_ids {
             q = q.bind(*id);
@@ -970,6 +985,7 @@ impl ShopClientRepository {
             "SELECT * FROM shop_home_service_config WHERE shop_id IN ({})",
             placeholders(shop_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, ShopHomeServiceConfig>(&sql);
         for id in shop_ids {
             q = q.bind(*id);
@@ -1099,7 +1115,7 @@ impl ShopClientRepository {
         location: Option<(Decimal, Decimal)>,
         page: &PageQuery,
     ) -> Result<(u64, Vec<PickupRow>)> {
-        let mut where_sql = String::from("WHERE shop_type = 3 AND status = 1 AND store_parent_id = $1");
+        let mut where_sql = String::from("WHERE shop_type = 3 AND status = 1 AND store_parent_id = ?");
         let mut where_binds: Vec<Bind> = vec![Bind::I32(parent_shop_id)];
         if let Some(region) = region_id.filter(|s| !s.is_empty()) {
             where_sql.push_str(" AND shop_region_id LIKE CONCAT('%', ?, '%')");
@@ -1146,7 +1162,7 @@ impl ShopClientRepository {
              shop_contact_json AS contact_json, shop_open_close_json AS open_close_json, \
              shop_region_id AS region_ids_json, shop_detailed_address AS address \
              FROM shop {where_sql} \
-             ORDER BY CASE WHEN ? IS NULL OR ? IS NULL THEN shop_id ELSE distance END ASC \
+             ORDER BY CASE WHEN ? IS NULL OR ? IS NULL THEN shop_id ELSE 0 END ASC, distance ASC \
              LIMIT ? OFFSET ?"
         ));
         let mut q = bind_all!(sqlx::query_as::<_, PickupRow>(&sql), &binds);

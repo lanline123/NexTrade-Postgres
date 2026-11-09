@@ -426,9 +426,10 @@ impl ProxyShoppingCartRepository {
         }
         // 多租户：店铺账号只能删除自身店铺的购物车行。
         let sql = format!(
-            "DELETE FROM cart WHERE cart_id IN ({}) AND ($1 IS NULL OR shop_id = $2)",
+            "DELETE FROM cart WHERE cart_id IN ({}) AND (? IS NULL OR shop_id = ?)",
             placeholders(cart_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query(&sql);
         for id in cart_ids {
             q = q.bind(*id);

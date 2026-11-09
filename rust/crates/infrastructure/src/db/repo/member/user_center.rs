@@ -579,6 +579,7 @@ impl UserCenterRepository {
             "SELECT * FROM shop WHERE shop_id IN ({})",
             placeholders(shop_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, Shop>(&sql);
         for id in shop_ids {
             q = q.bind(*id);
@@ -615,6 +616,7 @@ impl UserCenterRepository {
             "SELECT * FROM product WHERE product_id IN ({})",
             placeholders(product_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, Product>(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -635,6 +637,7 @@ impl UserCenterRepository {
              GROUP BY product_id",
             placeholders(product_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -655,6 +658,7 @@ impl UserCenterRepository {
             "SELECT * FROM order_item WHERE order_id IN ({}) ORDER BY order_id ASC, item_id ASC",
             placeholders(order_ids.len())
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, OrderItem>(&sql);
         for id in order_ids {
             q = q.bind(*id);

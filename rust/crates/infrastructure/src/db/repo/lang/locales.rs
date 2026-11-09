@@ -127,6 +127,7 @@ impl LocalesRepository {
         let sql = Self::select_sql(&format!(
             "WHERE id IN ({placeholders}) ORDER BY id ASC"
         ));
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, Locales>(&sql);
         for id in ids {
             q = q.bind(id);
