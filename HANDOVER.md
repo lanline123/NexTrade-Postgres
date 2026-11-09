@@ -194,8 +194,45 @@ proxy_read_timeout 3600s;
 | 主键导出脚本 | 仓库根 `probe-pg-pks.sh`，输出 `/www/backup/nextrade-pks.tsv` |
 | 已有导出副本 | `D:\tigshop\NexTrade\scratch\nextrade-pk-map.tsv`（342 张表，含列类型） |
 
-5432 **未对公网开放**，本地无法直连。需要查询时按 §1.5 上传脚本 + 计划任务执行，或用 `psql` 输出到
-`/www/backup/` 再用 `GetFileBody` 取回。
+5432 **未对公网开放**，本地无法直连。需要查询时按 §1.5 上传脚本 + 计划任务执行，或用 `psql` 输出
+到 `/www/backup/` 再用 `GetFileBody` 取回。
+
+> 实测补充：公网 :5432 是「TCP 能握手、协议无响应」的黑洞；`postgresql.conf` 里
+> `listen_addresses` 与 `port` 都是注释状态（默认只监听 127.0.0.1）。`pg_hba.conf` 里虽然有一条
+> `host nextrade NexTrade 0.0.0.0/0 md5`，但没有监听就无从连起。不要试图直连。
+
+### 4.1 已验证的服务器侧执行流程
+
+```text
+1. multipart 上传 <tag>.sql 与 <tag>.sh 到 /www/backup/
+2. crontab?action=AddCrontab 建一条 minute-n 任务（sBody=/bin/bash /www/backup/<tag>.sh）
+3. crontab?action=StartTask 立即执行（不必等 cron 触发）
+4. files?action=GetFileBody 轮询 /www/backup/<tag>.out，直到出现 ##FINISHED
+5. crontab?action=DelCrontab 删除任务
+6. files?action=DeleteFile 清理临时文件（path=/www/backup, filename=<name>）
+```
+
+脚本模板见 `scratch/run_pg_sql.py`（本机，未入库）。执行 SQL 时统一加
+`-v ON_ERROR_STOP=1`，写操作包在 `BEGIN; SET LOCAL lock_timeout='10s'; ... COMMIT;` 里，
+失败整体回滚。
+
+**注意**：脚本末尾会自动 `crontab -l | grep -v <tag> | crontab -` 自删系统 cron，
+但面板数据库里的任务记录仍需 `DelCrontab` 清理。
+
+### 4.2 Schema 对齐记录
+
+`rust/deploy/pg/2026-11-09_schema_align.sql`：生产库与 MySQL 基线（`database/pure.sql`）的
+一次性对齐脚本，198 条语句，已于 2026-11-09 执行完毕。内容包括：
+
+- 8 列 `smallint → integer`（`role_id`/`parent_id`/`article_category_id` 等）
+- 54 列 `numeric` 精度恢复（经纬度 `numeric(10,6)`、金额 `numeric(12..20,2)`、重量体积 `numeric(10,3)/(12,5)`）
+- 108 列 `varchar(255) → varchar(n)` 恢复原长度
+- 3 列 `DROP NOT NULL`、3 列 `SET NOT NULL`（`vendor*` 的 3 个 MySQL `GENERATED STORED` 列保持可空）
+- 16 个缺失索引、1 个冗余索引删除
+
+**未改动、属有意适配**：39 列 `datetime/date → varchar(255)`、10 列 `json → text`。
+原因是 Rust 实体里这些字段是 `String`，改成 `timestamp` / `jsonb` 需要同步改代码与序列化，
+属于独立改造项，不是 schema bug。
 
 ---
 
@@ -242,3 +279,4 @@ proxy_read_timeout 3600s;
 |---|---|
 | 2026-11-09 | 首次建立；记录面板 API 签名方式、凭证位置、已验证接口、GitHub 认证与 CI、生产 PG 入口、工具矩阵与安全项 |
 | 2026-11-09 | `rust/config.yaml` 移出仓库：新增 `config.example.yaml`，`.gitignore` 增加 `rust/config.yaml` / `rust/.env*`，同步修正 `rust/README.md` 的配置说明与 PG DSN 示例 |
+| 2026-11-09 | 生产 PG 与 MySQL 基线（`database/pure.sql`）全量比对：335 表 / 3927 列，0 表 0 列缺失；修复 198 条类型/索引/可空性差异，脚本见 `rust/deploy/pg/2026-11-09_schema_align.sql`；新增 §4.1 服务器侧执行流程、§4.2 对齐记录 |
