@@ -10,7 +10,7 @@ use nextrade_core::entities::promotion::{
 use nextrade_core::models::marketing::lottery::{LotteryRecordQuery, PRIZE_TYPE_PRODUCT};
 use nextrade_core::{Error, Result};
 
-const ACTIVITY_SELECT: &str = "SELECT activity_id, activity_name, start_time, end_time, cost_points, daily_limit, total_limit, win_limit, decorate_config, grid_config, no_win_name, no_win_image, no_win_tips, shop_id, is_delete, create_time, update_time, cost_type FROM lottery_activity";
+const ACTIVITY_SELECT: &str = "SELECT activity_id, activity_name, start_time, end_time, cost_points, daily_limit, total_limit, win_limit, decorate_config::text AS decorate_config, grid_config::text AS grid_config, no_win_name, no_win_image, no_win_tips, shop_id, is_delete, create_time, update_time, cost_type FROM lottery_activity";
 const PRIZE_SELECT: &str = "SELECT prize_id, activity_id, prize_name, prize_type, prize_value, prize_image, prize_stock, prize_stock_used, create_time, update_time FROM lottery_prize";
 const RECORD_SELECT: &str = "SELECT record_id, activity_id, user_id, prize_id, prize_name, prize_type, prize_value, prize_image, cost_points, is_win, status, receive_time, create_time FROM lottery_record";
 

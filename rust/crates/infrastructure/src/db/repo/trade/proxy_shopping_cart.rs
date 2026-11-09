@@ -331,7 +331,7 @@ impl ProxyShoppingCartRepository {
                (user_id, product_id, product_sn, pic_thumb, market_price, original_price,
                 quantity, sku_id, sku_data, product_type, is_checked, shop_id, type,
                 update_time, salesman_id, extra_data, is_wholesale_line, wholesale_grade_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, $11, $12, $13, 0, $14, 0, 0) RETURNING cart_id",
+             VALUES ($1,  $2,  $3,  $4,  $5,  $6,  $7,  $8,  $9,  $10,  1,  $11,  $12,  $13,  0, NULLIF($14, '')::jsonb,  0,  0) RETURNING cart_id",
         )
         .bind(user_id)
         .bind(product.product_id)

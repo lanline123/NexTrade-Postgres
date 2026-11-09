@@ -84,7 +84,7 @@ impl WechatKeywordRuleRepository {
             .map_err(map_err)?;
 
         let mut row_qb: QueryBuilder<'_, Postgres> = QueryBuilder::new(
-            "SELECT r.id, r.rule_name, r.reply_mode, r.enabled, r.created_at, r.updated_at, \
+            "SELECT r.id, r.rule_name, r.reply_mode, r.enabled, r.created_at::text AS created_at, r.updated_at::text AS updated_at, \
              (SELECT COUNT(1) FROM wechat_keyword_rule_keyword k WHERE k.rule_id = r.id) AS keyword_count, \
              (SELECT COUNT(1) FROM wechat_keyword_rule_reply p WHERE p.rule_id = r.id) AS reply_count, \
              (SELECT COUNT(1) FROM wechat_keyword_rule_reply p WHERE p.rule_id = r.id AND p.msg_type = 1) AS text_reply_count, \
@@ -127,7 +127,7 @@ impl WechatKeywordRuleRepository {
     /// 按主键查询规则。
     pub async fn find_by_id(&self, id: i64) -> Result<Option<WechatKeywordRule>> {
         sqlx::query_as::<_, WechatKeywordRule>(
-            "SELECT id, rule_name, reply_mode, enabled, created_at, updated_at \
+            "SELECT id, rule_name, reply_mode, enabled, created_at::text AS created_at, updated_at::text AS updated_at \
              FROM wechat_keyword_rule WHERE id = $1 LIMIT 1",
         )
         .bind(id)
@@ -245,7 +245,7 @@ impl WechatKeywordRuleRepository {
                 }
                 sqlx::query(
                     "UPDATE wechat_keyword_rule SET rule_name = $1, reply_mode = $2, enabled = $3, \
-                     updated_at = $4 WHERE id = $5",
+                     updated_at = NULLIF($4, '')::timestamp WHERE id = $5",
                 )
                 .bind(rule_name)
                 .bind(reply_mode)
@@ -374,8 +374,9 @@ impl WechatKeywordRuleRepository {
         let mut qb: QueryBuilder<'_, Postgres> =
             QueryBuilder::new("UPDATE wechat_keyword_rule SET enabled = ");
         qb.push_bind(enabled);
-        qb.push(", updated_at = ");
+        qb.push(", updated_at = NULLIF(");
         qb.push_bind(now);
+        qb.push(", '')::timestamp");
         qb.push(" WHERE id IN (");
         let mut sep = qb.separated(", ");
         for id in ids {

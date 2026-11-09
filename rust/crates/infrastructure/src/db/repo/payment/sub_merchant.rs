@@ -11,7 +11,7 @@ use nextrade_core::models::payment::sub_merchant::{
 };
 use nextrade_core::{Error, Result};
 
-const SELECT: &str = "SELECT id, shop_id, pay_channel, sub_mch_id, sub_appid, merchant_name, status, application_id, max_split_ratio, is_del, create_time, modify_time FROM sub_merchant";
+const SELECT: &str = "SELECT id, shop_id, pay_channel, sub_mch_id, sub_appid, merchant_name, status, application_id, max_split_ratio, is_del, create_time::text AS create_time, modify_time::text AS modify_time FROM sub_merchant";
 
 /// 子商户域仓储。
 #[derive(Clone)]
@@ -75,7 +75,7 @@ impl SubMerchantRepository {
 
     /// 冻结（Java `unbind`：status=FROZEN + modify_time）。
     pub async fn freeze(&self, id: i64, modify_time: &str) -> Result<u64> {
-        let res = sqlx::query("UPDATE sub_merchant SET status = $1, modify_time = $2 WHERE id = $3")
+        let res = sqlx::query("UPDATE sub_merchant SET status = $1, modify_time = NULLIF($2, '')::timestamp WHERE id = $3")
             .bind(STATUS_FROZEN)
             .bind(modify_time)
             .bind(id)

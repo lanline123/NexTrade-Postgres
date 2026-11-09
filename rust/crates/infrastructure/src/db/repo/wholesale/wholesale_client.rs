@@ -258,7 +258,7 @@ impl WholesaleClientRepository {
                 .map_err(map_err)?;
         }
 
-        let inserted: i32 = sqlx::query_scalar("INSERT INTO cart (user_id, product_id, product_sn, pic_thumb, market_price, original_price, quantity, sku_id, sku_data, product_type, is_checked, shop_id, \"type\", update_time, salesman_id, extra_sku_data, extra_data, is_wholesale_line, wholesale_grade_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, $11, 1, $12, 0, '', '{}', $13, $14) RETURNING cart_id")
+        let inserted: i32 = sqlx::query_scalar("INSERT INTO cart (user_id, product_id, product_sn, pic_thumb, market_price, original_price, quantity, sku_id, sku_data, product_type, is_checked, shop_id, \"type\", update_time, salesman_id, extra_sku_data, extra_data, is_wholesale_line, wholesale_grade_id) VALUES ($1,  $2,  $3,  $4,  $5,  $6,  $7,  $8,  $9,  $10,  1,  $11,  1,  $12,  0,  '', NULLIF('{}', '')::jsonb,  $13,  $14) RETURNING cart_id")
             .bind(line.user_id)
             .bind(line.product_id)
             .bind(&line.product_sn)

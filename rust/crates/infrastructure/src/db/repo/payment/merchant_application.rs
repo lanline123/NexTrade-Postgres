@@ -19,7 +19,7 @@ use nextrade_core::entities::MerchantApplication;
 use nextrade_core::{Error, Result};
 
 /// `merchant_application` 固定 SELECT 列清单（顺序与实体一致）。
-const APPLICATION_SELECT: &str = "SELECT id, shop_id, applicant_type, applicant_id, applicant_name, pay_channel, business_code, applyment_id, organization_type, merchant_name, contact_name, contact_phone, id_card_number_enc, bank_account_enc, status, sub_mch_id, sign_url, reject_reason, audit_admin_id, audit_time, request_snapshot, is_del, create_time, modify_time FROM merchant_application";
+const APPLICATION_SELECT: &str = "SELECT id, shop_id, applicant_type, applicant_id, applicant_name, pay_channel, business_code, applyment_id, organization_type, merchant_name, contact_name, contact_phone, id_card_number_enc, bank_account_enc, status, sub_mch_id, sign_url, reject_reason, audit_admin_id, audit_time::text AS audit_time, request_snapshot, is_del, create_time::text AS create_time, modify_time::text AS modify_time FROM merchant_application";
 
 /// `list` 的过滤条件（Java `listPage` 的 wrapper 集合）。
 #[derive(Debug, Clone, Default)]
@@ -171,7 +171,7 @@ impl MerchantApplicationRepository {
         now: &str,
     ) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE merchant_application SET status = 'REJECTED', reject_reason = $1, audit_admin_id = $2, audit_time = $3, modify_time = $4 WHERE id = $5 AND is_del = 0",
+            "UPDATE merchant_application SET status = 'REJECTED', reject_reason = $1, audit_admin_id = $2, audit_time = NULLIF($3, '')::timestamp, modify_time = NULLIF($4, '')::timestamp WHERE id = $5 AND is_del = 0",
         )
         .bind(reject_reason)
         .bind(audit_admin_id)

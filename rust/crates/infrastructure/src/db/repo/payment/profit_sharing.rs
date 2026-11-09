@@ -11,7 +11,7 @@ use nextrade_core::models::payment::profit_sharing::{
 };
 use nextrade_core::{Error, Result};
 
-const SELECT: &str = "SELECT id, out_order_no, order_id, order_sn, transaction_id, pay_channel, shop_id, vendor_id, settlement_type, sub_mch_id, settlement_id, operator_id, total_amount, sharing_base_amount, split_amount, service_fee, commission_fee, service_fee_rate, status, channel_order_id, finish_status, finish_time, trigger_type, result_desc, retry_count, is_del, create_time, modify_time FROM profit_sharing_order";
+const SELECT: &str = "SELECT id, out_order_no, order_id, order_sn, transaction_id, pay_channel, shop_id, vendor_id, settlement_type, sub_mch_id, settlement_id, operator_id, total_amount, sharing_base_amount, split_amount, service_fee, commission_fee, service_fee_rate, status, channel_order_id, finish_status, finish_time::text AS finish_time, trigger_type, result_desc, retry_count, is_del, create_time::text AS create_time, modify_time::text AS modify_time FROM profit_sharing_order";
 
 /// 分账结算域仓储。
 #[derive(Clone)]
@@ -103,7 +103,7 @@ impl ProfitSharingRepository {
         now: &str,
     ) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE profit_sharing_order SET status = $1, finish_status = $2, finish_time = $3, operator_id = $4, result_desc = $5, modify_time = $6 WHERE id = $7 AND status = $8 AND (transaction_id IS NULL OR transaction_id = '')",
+            "UPDATE profit_sharing_order SET status = $1, finish_status = $2, finish_time = NULLIF($3, '')::timestamp, operator_id = $4, result_desc = $5, modify_time = NULLIF($6, '')::timestamp WHERE id = $7 AND status = $8 AND (transaction_id IS NULL OR transaction_id = '')",
         )
         .bind(STATUS_CANCELLED)
         .bind(FINISH_FINISHED)
@@ -127,7 +127,7 @@ impl ProfitSharingRepository {
         now: &str,
     ) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE profit_sharing_order SET finish_status = $1, finish_time = $2, operator_id = $3, modify_time = $4 WHERE id = $5",
+            "UPDATE profit_sharing_order SET finish_status = $1, finish_time = NULLIF($2, '')::timestamp, operator_id = $3, modify_time = NULLIF($4, '')::timestamp WHERE id = $5",
         )
         .bind(FINISH_FINISHED)
         .bind(now)

@@ -192,7 +192,7 @@ impl VendorProductRepository {
             return Ok(Vec::new());
         }
         let mut qb: QueryBuilder<'_, sqlx::Postgres> = QueryBuilder::new(
-            "SELECT id, vendor_product_id, source_sku_id, min_purchase_qty, sku_attr_val, sku_attr_json, sku_sn, sku_tsn, sku_weight, sku_stock, supply_price, supply_price_limit_type, supply_price_limit_val, sales_volume, vendor_id, create_time, create_by_id, create_by_name, update_time, update_by_id, update_by_name, is_del, active_source_sku_key FROM vendor_product_sku WHERE is_del = 0 AND vendor_product_id IN (",
+            "SELECT id, vendor_product_id, source_sku_id, min_purchase_qty, sku_attr_val, sku_attr_json::text AS sku_attr_json, sku_sn, sku_tsn, sku_weight, sku_stock, supply_price, supply_price_limit_type, supply_price_limit_val, sales_volume, vendor_id, create_time, create_by_id, create_by_name, update_time, update_by_id, update_by_name, is_del, active_source_sku_key FROM vendor_product_sku WHERE is_del = 0 AND vendor_product_id IN (",
         );
         let mut sep = qb.separated(", ");
         for id in ids {
@@ -211,7 +211,7 @@ impl VendorProductRepository {
     /// 按 sku 主键取单个 SKU（`getVendorMaxPrice` 用）。
     pub async fn find_sku_by_id(&self, sku_id: i64) -> Result<Option<VendorProductSku>> {
         sqlx::query_as::<_, VendorProductSku>(
-            "SELECT id, vendor_product_id, source_sku_id, min_purchase_qty, sku_attr_val, sku_attr_json, sku_sn, sku_tsn, sku_weight, sku_stock, supply_price, supply_price_limit_type, supply_price_limit_val, sales_volume, vendor_id, create_time, create_by_id, create_by_name, update_time, update_by_id, update_by_name, is_del, active_source_sku_key FROM vendor_product_sku WHERE id = $1 LIMIT 1",
+            "SELECT id, vendor_product_id, source_sku_id, min_purchase_qty, sku_attr_val, sku_attr_json::text AS sku_attr_json, sku_sn, sku_tsn, sku_weight, sku_stock, supply_price, supply_price_limit_type, supply_price_limit_val, sales_volume, vendor_id, create_time, create_by_id, create_by_name, update_time, update_by_id, update_by_name, is_del, active_source_sku_key FROM vendor_product_sku WHERE id = $1 LIMIT 1",
         )
         .bind(sku_id)
         .fetch_optional(&self.pool)
@@ -222,7 +222,7 @@ impl VendorProductRepository {
     /// 按规格编码取单个 SKU（Excel 导入改价改库存用）。
     pub async fn find_sku_by_sn(&self, sku_sn: &str) -> Result<Option<VendorProductSku>> {
         sqlx::query_as::<_, VendorProductSku>(
-            "SELECT id, vendor_product_id, source_sku_id, min_purchase_qty, sku_attr_val, sku_attr_json, sku_sn, sku_tsn, sku_weight, sku_stock, supply_price, supply_price_limit_type, supply_price_limit_val, sales_volume, vendor_id, create_time, create_by_id, create_by_name, update_time, update_by_id, update_by_name, is_del, active_source_sku_key FROM vendor_product_sku WHERE sku_sn = $1 AND is_del = 0 LIMIT 1",
+            "SELECT id, vendor_product_id, source_sku_id, min_purchase_qty, sku_attr_val, sku_attr_json::text AS sku_attr_json, sku_sn, sku_tsn, sku_weight, sku_stock, supply_price, supply_price_limit_type, supply_price_limit_val, sales_volume, vendor_id, create_time, create_by_id, create_by_name, update_time, update_by_id, update_by_name, is_del, active_source_sku_key FROM vendor_product_sku WHERE sku_sn = $1 AND is_del = 0 LIMIT 1",
         )
         .bind(sku_sn)
         .fetch_optional(&self.pool)

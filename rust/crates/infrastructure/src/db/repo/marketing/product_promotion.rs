@@ -247,7 +247,7 @@ impl ProductPromotionRepository {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO promotion (promotion_name, start_time, end_time, type, shop_id,
                 relation_id, \"range\", range_data, is_available, member_range, member_marks, member_scope)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING promotion_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NULLIF($12, '')::jsonb) RETURNING promotion_id",
         )
         .bind(&p.promotion_name)
         .bind(p.start_time)
@@ -272,7 +272,7 @@ impl ProductPromotionRepository {
         let r = sqlx::query(
             "UPDATE promotion SET type = $1, start_time = $2, end_time = $3, promotion_name = $4,
                 is_available = 1, \"range\" = $5, range_data = $6, member_range = $7,
-                member_marks = $8, member_scope = $9
+                member_marks = $8, member_scope = NULLIF($9, '')::jsonb
              WHERE relation_id = $10 AND type IN (3, 4, 5)",
         )
         .bind(p.r#type)

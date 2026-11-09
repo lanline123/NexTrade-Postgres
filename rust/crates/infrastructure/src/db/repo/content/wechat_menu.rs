@@ -30,7 +30,7 @@ impl WechatMenuRepository {
     /// 单例读取（Java `getOne(... .last("LIMIT 1"))`）。
     pub async fn find_first(&self) -> Result<Option<WechatMenu>> {
         sqlx::query_as::<_, WechatMenu>(
-            "SELECT id, menu_json, published_at, created_at, updated_at \
+            "SELECT id, menu_json, published_at::text AS published_at, created_at::text AS created_at, updated_at::text AS updated_at \
              FROM wechat_menu ORDER BY id ASC LIMIT 1",
         )
         .fetch_optional(&self.pool)
@@ -43,7 +43,7 @@ impl WechatMenuRepository {
         let first = self.find_first().await?;
         if let Some(entity) = first {
             sqlx::query(
-                "UPDATE wechat_menu SET menu_json = $1, published_at = $2, updated_at = NOW() WHERE id = $3",
+                "UPDATE wechat_menu SET menu_json = $1, published_at = NULLIF($2, '')::timestamp, updated_at = NOW() WHERE id = $3",
             )
             .bind(menu_json)
             .bind(published_at)
@@ -53,7 +53,7 @@ impl WechatMenuRepository {
             .map_err(map_err)?;
         } else {
             sqlx::query(
-                "INSERT INTO wechat_menu (menu_json, published_at, created_at, updated_at) VALUES ($1, $2, NOW(), NOW())",
+                "INSERT INTO wechat_menu (menu_json, published_at, created_at, updated_at) VALUES ($1, NULLIF($2, '')::timestamp,  NOW(),  NOW())",
             )
             .bind(menu_json)
             .bind(published_at)

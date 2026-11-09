@@ -99,7 +99,7 @@ impl SubMerchantService {
                 return Err(Error::biz(1001, "该店铺已绑定此支付渠道的子商户"));
             }
             sqlx::query(
-                "UPDATE sub_merchant SET sub_mch_id=$1,sub_appid=$2,merchant_name=$3,status=1,modify_time=$4 WHERE id=$5",
+                "UPDATE sub_merchant SET sub_mch_id=$1,sub_appid=$2,merchant_name=$3,status=1,modify_time=NULLIF($4, '')::timestamp WHERE id=$5",
             )
             .bind(&input.sub_mch_id)
             .bind(input.sub_appid.as_deref().unwrap_or(""))
@@ -111,7 +111,7 @@ impl SubMerchantService {
             .map_err(|e| Error::Database(e.to_string()))?;
         } else {
             sqlx::query(
-                "INSERT INTO sub_merchant(shop_id,pay_channel,sub_mch_id,sub_appid,merchant_name,status,application_id,is_del,create_time,modify_time) VALUES($1,$2,$3,$4,$5,1,0,0,$6,$7)",
+                "INSERT INTO sub_merchant(shop_id,pay_channel,sub_mch_id,sub_appid,merchant_name,status,application_id,is_del,create_time,modify_time) VALUES($1, $2, $3, $4, $5, 1, 0, 0, NULLIF($6, '')::timestamp, NULLIF($7, '')::timestamp)",
             )
             .bind(input.shop_id)
             .bind(&input.pay_channel)

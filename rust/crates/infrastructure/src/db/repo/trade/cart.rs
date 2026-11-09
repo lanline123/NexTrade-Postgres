@@ -67,7 +67,7 @@ impl CartRepository {
              (user_id, product_id, product_sn, pic_thumb, market_price,
               original_price, quantity, sku_id, sku_data, product_type,
               is_checked, shop_id, \"type\", update_time, extra_data, extra_sku_data)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING cart_id",
+             VALUES ($1,  $2,  $3,  $4,  $5,  $6,  $7,  $8,  $9,  $10,  $11,  $12,  $13,  $14, NULLIF($15, '')::jsonb,  $16) RETURNING cart_id",
         )
         .bind(cart.user_id)
         .bind(cart.product_id)

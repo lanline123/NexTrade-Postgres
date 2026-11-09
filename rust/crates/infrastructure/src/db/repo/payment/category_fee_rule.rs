@@ -28,13 +28,13 @@ use nextrade_core::models::payment::category_fee_rule::CategoryFeeRulePageQuery;
 use nextrade_core::{Error, Result};
 
 /// `category_service_fee_rule` 固定 SELECT 列清单（顺序与实体一致）。
-const RULE_SELECT: &str = "SELECT id, rule_name, target_type, scope_type, service_fee_rate, remark, status, deleted, create_time, modify_time FROM category_service_fee_rule";
+const RULE_SELECT: &str = "SELECT id, rule_name, target_type, scope_type, service_fee_rate, remark, status, deleted, create_time::text AS create_time, modify_time::text AS modify_time FROM category_service_fee_rule";
 
 /// `category_service_fee_rule_category` 固定 SELECT 列清单。
-const RULE_CATEGORY_SELECT: &str = "SELECT id, rule_id, category_id, category_name, category_path, deleted, create_time, modify_time FROM category_service_fee_rule_category";
+const RULE_CATEGORY_SELECT: &str = "SELECT id, rule_id, category_id, category_name, category_path, deleted, create_time::text AS create_time, modify_time::text AS modify_time FROM category_service_fee_rule_category";
 
 /// `category_service_fee_rule_target` 固定 SELECT 列清单。
-const RULE_TARGET_SELECT: &str = "SELECT id, rule_id, target_id, deleted, create_time, modify_time FROM category_service_fee_rule_target";
+const RULE_TARGET_SELECT: &str = "SELECT id, rule_id, target_id, deleted, create_time::text AS create_time, modify_time::text AS modify_time FROM category_service_fee_rule_target";
 
 /// 品类闭包需要的只读行（Java `CategoryMapper.selectBatchIds`）。
 #[derive(Debug, Clone, Default, FromRow)]
@@ -183,7 +183,7 @@ impl CategoryFeeRuleRepository {
     /// 逻辑删除（`deleted = 1` + `modify_time`）。
     pub async fn soft_delete(&self, id: i32, modify_time: &str) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE category_service_fee_rule SET deleted = 1, modify_time = $1 WHERE id = $2",
+            "UPDATE category_service_fee_rule SET deleted = 1, modify_time = NULLIF($1, '')::timestamp WHERE id = $2",
         )
         .bind(modify_time)
         .bind(id)
@@ -196,7 +196,7 @@ impl CategoryFeeRuleRepository {
     /// 新增规则，返回自增主键。
     pub async fn insert(&self, rule: &CategoryServiceFeeRule) -> Result<i32> {
         let res: i32 = sqlx::query_scalar(
-            "INSERT INTO category_service_fee_rule (rule_name, target_type, scope_type, service_fee_rate, remark, status, deleted, create_time, modify_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id",
+            "INSERT INTO category_service_fee_rule (rule_name, target_type, scope_type, service_fee_rate, remark, status, deleted, create_time, modify_time) VALUES ($1,  $2,  $3,  $4,  $5,  $6,  $7, NULLIF($8, '')::timestamp, NULLIF($9, '')::timestamp) RETURNING id",
         )
         .bind(&rule.rule_name)
         .bind(rule.target_type)
@@ -216,7 +216,7 @@ impl CategoryFeeRuleRepository {
     /// 整行更新（Java `updateById`）。
     pub async fn update(&self, rule: &CategoryServiceFeeRule) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE category_service_fee_rule SET rule_name = $1, target_type = $2, scope_type = $3, service_fee_rate = $4, remark = $5, status = $6, modify_time = $7 WHERE id = $8",
+            "UPDATE category_service_fee_rule SET rule_name = $1, target_type = $2, scope_type = $3, service_fee_rate = $4, remark = $5, status = $6, modify_time = NULLIF($7, '')::timestamp WHERE id = $8",
         )
         .bind(&rule.rule_name)
         .bind(rule.target_type)
@@ -235,7 +235,7 @@ impl CategoryFeeRuleRepository {
     /// 更新状态（Java `updateById` 只写 status + modifyTime）。
     pub async fn update_status(&self, id: i32, status: i32, modify_time: &str) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE category_service_fee_rule SET status = $1, modify_time = $2 WHERE id = $3",
+            "UPDATE category_service_fee_rule SET status = $1, modify_time = NULLIF($2, '')::timestamp WHERE id = $3",
         )
         .bind(status)
         .bind(modify_time)
@@ -303,7 +303,7 @@ impl CategoryFeeRuleRepository {
         modify_time: &str,
     ) -> Result<i32> {
         let res: i32 = sqlx::query_scalar(
-            "INSERT INTO category_service_fee_rule_category (rule_id, category_id, category_name, category_path, deleted, create_time, modify_time) VALUES ($1, $2, $3, $4, 0, $5, $6) RETURNING id",
+            "INSERT INTO category_service_fee_rule_category (rule_id, category_id, category_name, category_path, deleted, create_time, modify_time) VALUES ($1,  $2,  $3,  $4,  0, NULLIF($5, '')::timestamp, NULLIF($6, '')::timestamp) RETURNING id",
         )
         .bind(rule_id)
         .bind(category_id)
@@ -372,7 +372,7 @@ impl CategoryFeeRuleRepository {
         modify_time: &str,
     ) -> Result<i32> {
         let res: i32 = sqlx::query_scalar(
-            "INSERT INTO category_service_fee_rule_target (rule_id, target_id, deleted, create_time, modify_time) VALUES ($1, $2, 0, $3, $4) RETURNING id",
+            "INSERT INTO category_service_fee_rule_target (rule_id, target_id, deleted, create_time, modify_time) VALUES ($1,  $2,  0, NULLIF($3, '')::timestamp, NULLIF($4, '')::timestamp) RETURNING id",
         )
         .bind(rule_id)
         .bind(target_id)

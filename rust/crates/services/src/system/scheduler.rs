@@ -248,7 +248,7 @@ async fn profit_sharing_schedule_loop(repos: Arc<Repositories>) {
         // 1. 超时预警（纯 DB，Java executeTimeoutWarning 全量移植）
         let cutoff = chrono::Utc::now().timestamp() - 150 * 24 * 3600;
         let timeout_rows: Vec<(i64, String, i64, String)> = sqlx::query_as(
-            "SELECT id, out_order_no, shop_id, status FROM profit_sharing_order              WHERE status = 0 AND create_time <= $1",
+            "SELECT id, out_order_no, shop_id, status FROM profit_sharing_order              WHERE status = 0 AND create_time <= NULLIF($1, '')::timestamp",
         )
         .bind(chrono::NaiveDateTime::from_timestamp_opt(cutoff, 0))
         .fetch_all(&repos.pool)

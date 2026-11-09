@@ -313,6 +313,16 @@ pub(crate) fn row_to_json(row: &PgRow) -> Value {
                 .ok()
                 .flatten()
                 .map(Value::from)
+        } else if type_name.contains("TIMESTAMP") {
+            row.try_get::<Option<sqlx::types::chrono::NaiveDateTime>, _>(idx)
+                .ok()
+                .flatten()
+                .map(|v| Value::String(v.format("%Y-%m-%d %H:%M:%S").to_string()))
+        } else if type_name == "DATE" {
+            row.try_get::<Option<sqlx::types::chrono::NaiveDate>, _>(idx)
+                .ok()
+                .flatten()
+                .map(|v| Value::String(v.format("%Y-%m-%d").to_string()))
         } else if type_name.contains("JSON") {
             row.try_get::<Option<Value>, _>(idx).ok().flatten()
         } else {

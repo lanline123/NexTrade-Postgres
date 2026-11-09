@@ -76,7 +76,7 @@ impl GrouponPromotionItemRepository {
         let r: i64 = sqlx::query_scalar(
             "INSERT INTO groupon_promotion_item (groupon_promotion_id, product_id, group_type,
                 group_num, order_limit_num, is_auto_group, min_group_num, sort, add_time, min_group_price)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING groupon_promotion_item_id",
+             VALUES ($1, $2, $3, NULLIF($4, '')::jsonb, $5, $6, $7, $8, $9, $10) RETURNING groupon_promotion_item_id",
         )
         .bind(item.groupon_promotion_id)
         .bind(item.product_id)
@@ -97,7 +97,7 @@ impl GrouponPromotionItemRepository {
     pub async fn update_item(&self, item: &GrouponPromotionItem) -> Result<u64> {
         let r = sqlx::query(
             "UPDATE groupon_promotion_item SET groupon_promotion_id = $1, product_id = $2,
-                group_type = $3, group_num = $4, order_limit_num = $5, is_auto_group = $6,
+                group_type = $3, group_num = NULLIF($4, '')::jsonb, order_limit_num = $5, is_auto_group = $6,
                 min_group_num = $7, sort = $8, min_group_price = $9
              WHERE groupon_promotion_item_id = $10",
         )
@@ -197,7 +197,7 @@ impl GrouponPromotionItemRepository {
         let r: i64 = sqlx::query_scalar(
             "INSERT INTO groupon_promotion_detail (groupon_promotion_id, groupon_promotion_item_id,
                 product_id, sku_id, group_price, limit_num, is_join, add_time)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING groupon_detail_id",
+             VALUES ($1, $2, $3, $4, NULLIF($5, '')::jsonb, $6, $7, $8) RETURNING groupon_detail_id",
         )
         .bind(d.groupon_promotion_id)
         .bind(d.groupon_promotion_item_id)
@@ -360,7 +360,7 @@ impl GrouponPromotionItemRepository {
         let dir = if q.ascending() { "ASC" } else { "DESC" };
         let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT gi.groupon_promotion_item_id, gi.groupon_promotion_id, gi.product_id,
-                gi.group_type, gi.group_num, gi.order_limit_num, gi.is_auto_group,
+                gi.group_type, gi.group_num::text AS group_num, gi.order_limit_num, gi.is_auto_group,
                 gi.min_group_num, gi.sort, gi.add_time, gi.min_group_price,
                 p.product_name, p.product_sn, p.pic_thumb, p.pic_large, p.pic_url,
                 p.product_price, p.product_brief

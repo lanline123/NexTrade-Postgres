@@ -197,7 +197,7 @@ impl PromotionRepository {
     /// 更新（Java `updateById`）。
     pub async fn update(&self, p: &Promotion) -> Result<bool> {
         let res = sqlx::query(
-            "UPDATE promotion SET promotion_name = $1, start_time = $2, end_time = $3, type = $4, shop_id = $5, relation_id = $6, \"range\" = $7, range_data = $8, sku_ids = $9, is_available = $10, is_delete = $11, member_range = $12, member_marks = $13, member_scope = $14 WHERE promotion_id = $15",
+            "UPDATE promotion SET promotion_name = $1, start_time = $2, end_time = $3, type = $4, shop_id = $5, relation_id = $6, \"range\" = $7, range_data = $8, sku_ids = $9, is_available = $10, is_delete = $11, member_range = $12, member_marks = $13, member_scope = NULLIF($14, '')::jsonb WHERE promotion_id = $15",
         )
         .bind(&p.promotion_name)
         .bind(p.start_time)

@@ -174,7 +174,7 @@ impl GrouponRecordsRepository {
             return Ok(Vec::new());
         }
         let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new(
-            "SELECT groupon_promotion_item_id, group_price FROM groupon_promotion_detail WHERE groupon_promotion_item_id IN (",
+            "SELECT groupon_promotion_item_id, group_price::text AS group_price FROM groupon_promotion_detail WHERE groupon_promotion_item_id IN (",
         );
         Self::push_i64_list(&mut qb, item_ids);
         qb.push(")");

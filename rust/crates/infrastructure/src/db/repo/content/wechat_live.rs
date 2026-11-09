@@ -134,7 +134,7 @@ impl WechatLiveRepository {
                 is_feeds_public, feeds_img, cover_img, anchor_id, anchor_openid, anchor_name,
                 anchor_img, creator_openid, live_status, start_time, end_time, last_update_time,
                 product_data, thumb_img, live_sn, shop_id, sub_anchor_wechat, audit_status, create_time
-             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31) RETURNING wechat_live_id",
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, NULLIF($31, '')::timestamp) RETURNING wechat_live_id",
         )
         .bind(&w.wechat_live_title)
         .bind(&w.wechat_live_data)
@@ -182,7 +182,7 @@ impl WechatLiveRepository {
                 is_feeds_public = $13, feeds_img = $14, cover_img = $15, anchor_id = $16, anchor_openid = $17,
                 anchor_name = $18, anchor_img = $19, creator_openid = $20, live_status = $21, start_time = $22,
                 end_time = $23, last_update_time = $24, product_data = $25, thumb_img = $26, live_sn = $27,
-                shop_id = $28, sub_anchor_wechat = $29, audit_status = $30, create_time = $31
+                shop_id = $28, sub_anchor_wechat = $29, audit_status = $30, create_time = NULLIF($31, '')::timestamp
              WHERE wechat_live_id = $32",
         )
         .bind(&w.wechat_live_title)
@@ -318,7 +318,7 @@ impl WechatLiveRepository {
         let res: i64 = sqlx::query_scalar(
             "INSERT INTO wechat_live_room_goods (room_id, wechat_live_goods_id, wechat_goods_id,
                 sort, is_show, create_time, update_time, shop_id)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id",
+             VALUES ($1, $2, $3, $4, $5, NULLIF($6, '')::timestamp, NULLIF($7, '')::timestamp, $8) RETURNING id",
         )
         .bind(r.room_id)
         .bind(r.wechat_live_goods_id)
@@ -336,7 +336,7 @@ impl WechatLiveRepository {
 
     pub async fn update_room_goods(&self, r: &WechatLiveRoomGoods) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE wechat_live_room_goods SET sort = $1, is_show = $2, update_time = $3 WHERE id = $4",
+            "UPDATE wechat_live_room_goods SET sort = $1, is_show = $2, update_time = NULLIF($3, '')::timestamp WHERE id = $4",
         )
         .bind(r.sort)
         .bind(r.is_show)

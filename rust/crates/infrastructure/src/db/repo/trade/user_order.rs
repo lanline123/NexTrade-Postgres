@@ -292,7 +292,7 @@ impl UserOrderRepository {
                (user_id, product_id, product_sn, pic_thumb, market_price, original_price,
                 quantity, sku_id, sku_data, product_type, is_checked, shop_id, type,
                 update_time, salesman_id, extra_data, is_wholesale_line, wholesale_grade_id)
-             VALUES ($1, $2, $3, $4, NULL, $5, $6, $7, $8, $9, 1, $10, $11, $12, 0, $13, 0, 0) RETURNING cart_id",
+             VALUES ($1,  $2,  $3,  $4,  NULL,  $5,  $6,  $7,  $8,  $9,  1,  $10,  $11,  $12,  0, NULLIF($13, '')::jsonb,  0,  0) RETURNING cart_id",
         )
         .bind(user_id)
         .bind(item.product_id)
