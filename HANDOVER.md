@@ -234,7 +234,7 @@ proxy_read_timeout 3600s;
 原因是 Rust 实体里这些字段是 `String`，改成 `timestamp` / `jsonb` 需要同步改代码与序列化，
 属于独立改造项，不是 schema bug。**这两类已单独准备，见 §4.3。**
 
-### 4.3 时间 / JSON 列切换（已备好，**尚未执行**）
+### 4.3 时间 / JSON 列切换（**已于 2026-11-09 执行**）
 
 49 列（39 时间 + 10 JSON）要从 `varchar/text` 改为 `timestamp` / `date` / `jsonb`。
 
@@ -242,10 +242,10 @@ proxy_read_timeout 3600s;
 |---|---|
 | 代码 | 已提交 `256b3eb`：读 `col::text AS col`、写 `NULLIF($n,'')::timestamp|date|jsonb`；`row_to_json` 增加 TIMESTAMP/DATE 分支 |
 | 迁移脚本 | `rust/deploy/pg/2026-11-09_time_json_align.sql`（49 条 ALTER） |
-| 生产库 | **未转换**，仍是 varchar/text |
+| 生产库 | **已转换**（49/49，`information_schema` 核验 `still_text=0`） |
 | 为何不能单独转 | 线上二进制按 `String` 解码这些列，单独转列会让 `cart` / `order` / `promotion` / `user` 立即报错 |
 
-切换步骤（预计 10–30 秒不可用）：
+切换步骤（已在 2026-11-09 执行；保留供环境重建时参考）：
 
 ```bash
 systemctl stop nextrade
