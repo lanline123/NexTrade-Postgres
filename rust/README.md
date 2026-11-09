@@ -45,7 +45,7 @@
 ```text
 .
 ├── Cargo.toml                  # workspace 与依赖版本
-├── config.yaml                 # 运行配置
+├── config.example.yaml         # 配置模板（复制为 config.yaml 后修改；config.yaml 不入库）
 ├── Dockerfile
 ├── docker-compose.yml
 ├── migrations/                 # 数据库初始化/升级脚本
@@ -81,7 +81,15 @@ GET /api/health
 
 ## 配置
 
-配置来自 `config.yaml`，也可用环境变量覆盖，格式为：
+仓库里只保留 `config.example.yaml`。首次运行先复制一份：
+
+```bash
+cp rust/config.example.yaml rust/config.yaml
+```
+
+`config.yaml` 已写入 `.gitignore`（含数据库口令、JWT secret 等），**不要提交**。
+
+配置来源为 `config.yaml`（可选），并可用环境变量覆盖，格式为：
 
 ```text
 TIG_<配置路径，层级用 __ 分隔>
@@ -106,7 +114,7 @@ server:
   host: 0.0.0.0
 
 datasource:
-  url: "mysql://user:password@127.0.0.1:3306/database"
+  url: "postgres://user:password@127.0.0.1:5432/database"
   max_connections: 20
 
 redis:
@@ -115,6 +123,8 @@ redis:
   password: ""
 
 jwt:
+  # 生产必须用 TIG_JWT__SECRET 覆盖（openssl rand -hex 32）；
+  # 回落到源码内置默认值等于签名密钥公开，任何人都能伪造 token。
   secret: "please-change-this-secret"
   access_expire_secs: 7200
   refresh_expire_secs: 604800

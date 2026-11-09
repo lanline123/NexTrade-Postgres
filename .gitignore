@@ -17,8 +17,7 @@ rust/rust-migration-assessment.md
 rust/rust-migration-plan.md
 
 # 本地临时产物（不进版本库）
-scratch/
-.opencode/
+scratch/.opencode/
 .workbuddy/
 1113738357_20260714_cert/
 **/.next.bak*/
@@ -76,3 +75,8 @@ audit_*.py
 audit_*.json
 MIGRATION-AUDIT-*.md
 probe-pg-pks.sh
+
+# 本地运行配置（含数据库口令、JWT secret 等），入库的只有 config.example.yaml
+rust/config.yaml
+rust/.env
+rust/.env.*

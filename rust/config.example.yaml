@@ -1,0 +1,69 @@
+# NexTrade Rust 配置示例
+#
+# 使用方式：复制为同目录下的 config.yaml 后修改
+#   cp rust/config.example.yaml rust/config.yaml
+# config.yaml 已被 .gitignore 排除，不会入库。
+#
+# 所有字段均可用环境变量覆盖：TIG_<大写路径，层级用 __ 分隔>
+#   TIG_DATASOURCE__URL、TIG_SERVER__ADMIN_PORT、TIG_JWT__SECRET
+#
+# 生产环境建议：config.yaml 只放非敏感项，口令/密钥全部走环境变量
+# 或 systemd 的 EnvironmentFile。
+
+server:
+  # 管理端 API 端口（原 nextrade-adminapi:8080）
+  admin_port: 8080
+  # 商城端 API 端口（原 nextrade-api:8181）
+  api_port: 8181
+  host: 0.0.0.0
+
+datasource:
+  # postgres://user:pass@host:5432/dbname
+  url: "postgres://CHANGE_ME:CHANGE_ME@127.0.0.1:5432/nextrade"
+  username: CHANGE_ME
+  password: CHANGE_ME
+  max_connections: 20
+  # 启动时执行 migrations/ 目录（全新安装开启；复用原库可关闭）
+  auto_migrate: false
+
+redis:
+  host: 127.0.0.1
+  port: 6379
+  password: ""
+  database: 0
+
+jwt:
+  # 生产必须覆盖：TIG_JWT__SECRET
+  # 生成：openssl rand -hex 32
+  # ⚠️ 未覆盖时程序会回落到源码里的内置默认值，等于签名密钥公开，任何人都能伪造 token。
+  secret: "CHANGE_ME__openssl_rand_hex_32"
+  access_expire_secs: 7200      # 2 小时（原 Java 同）
+  refresh_expire_secs: 604800   # 7 天
+  issuer: "nextrade"
+
+rabbitmq:
+  host: 127.0.0.1
+  port: 5672
+  username: admin
+  password: ""
+  virtual_host: /
+
+elasticsearch:
+  url: "http://127.0.0.1:9200"
+  username: ""
+  password: ""
+  product_index: nextrade_products
+  timeout_secs: 30
+  retries: 3
+
+file:
+  upload_dir: "./uploads"
+
+storage:
+  kind: local   # local | oss | cos | s3 | qiniu
+  # 选用云存储时在这里补对应段（oss / cos / s3），密钥同样建议走环境变量：
+  #   TIG_STORAGE__OSS__ACCESS_KEY_ID 等
+
+# 内部接口密钥（保护 /api/socket/send），留空则不校验
+internal:
+  api_key: ""
