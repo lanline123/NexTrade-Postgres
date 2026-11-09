@@ -362,8 +362,8 @@ impl SeckillRepository {
         let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM seckill_item
              WHERE product_id IN ({placeholders})
-               AND seckill_start_time <= $1
-               AND seckill_end_time >= $2
+               AND seckill_start_time <= ?
+               AND seckill_end_time >= ?
                AND seckill_stock > 0
              ORDER BY rec_id DESC"
         ));

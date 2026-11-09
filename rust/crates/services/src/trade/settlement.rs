@@ -131,8 +131,8 @@ impl SettlementService {
         // 3. 次卡子单完成时推进次卡主订单
         if let Some(parent_id) = order.parent_order_id.filter(|p| *p > 0) {
             let _ = sqlx::query(
-                "UPDATE \"order\" SET \"order_status\" = 5, \"received_time\" = ? \
-                 WHERE \"order_id\" = ? AND \"is_card_order\" = 1",
+                "UPDATE \"order\" SET \"order_status\" = 5, \"received_time\" = $1 \
+                 WHERE \"order_id\" = $2 AND \"is_card_order\" = 1",
             )
             .bind(now_i32())
             .bind(parent_id)

@@ -220,7 +220,7 @@ impl MerchantAccountRepository {
         // 多租户：店铺账号批量删除仅作用于本店账户。
         let ph = vec!["?"; ids.len()].join(", ");
         let sql = crate::db::to_pg_placeholders(&format!(
-            "DELETE FROM merchant_account WHERE account_id IN ({ph}) AND ($1 IS NULL OR shop_id = $2)"
+            "DELETE FROM merchant_account WHERE account_id IN ({ph}) AND (? IS NULL OR shop_id = ?)"
         ));
         let mut q = sqlx::query(&sql);
         for id in ids {

@@ -293,7 +293,9 @@ impl ProxyShoppingUserAddressRepository {
             .map(|c| format!("{c} = ?"))
             .collect::<Vec<_>>()
             .join(", ");
-        let sql = format!("UPDATE user_address SET {assignments} WHERE address_id = $1");
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "UPDATE user_address SET {assignments} WHERE address_id = ?"
+        ));
 
         let mut q = sqlx::query(&sql);
         if let Some(v) = &patch.address_tag {

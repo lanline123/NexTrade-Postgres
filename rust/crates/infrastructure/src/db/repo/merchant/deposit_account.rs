@@ -86,9 +86,9 @@ impl DepositAccountRepository {
                 .fetch_one(&self.pool)
                 .await
                 .map_err(map_err)?;
-        let rows = sqlx::query_as::<_, AccountRow>(&format!(
+        let rows = sqlx::query_as::<_, AccountRow>(&crate::db::to_pg_placeholders(&format!(
             "SELECT shop_deposit_id, owner_type, owner_id, paid, required_manual, required_snapshot, penalty_status, add_time FROM shop_deposit{where_sql} ORDER BY shop_deposit_id DESC LIMIT ? OFFSET ?"
-        ))
+        )))
         .bind(i64::try_from(size).unwrap_or(15))
         .bind(i64::try_from((page - 1) * size).unwrap_or(0))
         .fetch_all(&self.pool)

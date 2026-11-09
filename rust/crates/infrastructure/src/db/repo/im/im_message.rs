@@ -176,7 +176,7 @@ impl ImMessageRepository {
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
         let page_sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT {IM_MESSAGE_COLUMNS} FROM im_message WHERE servant_id = $1 AND \"type\" = 1 AND status = 1{shop_clause} ORDER BY send_time DESC, \"id\" DESC LIMIT $2 OFFSET $3"
+            "SELECT {IM_MESSAGE_COLUMNS} FROM im_message WHERE servant_id = ? AND \"type\" = 1 AND status = 1{shop_clause} ORDER BY send_time DESC, \"id\" DESC LIMIT ? OFFSET ?"
         ));
         let mut pq = sqlx::query_as::<_, MessageRow>(&page_sql).bind(servant_id);
         if with_shop {

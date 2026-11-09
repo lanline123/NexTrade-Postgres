@@ -43,7 +43,7 @@ impl WechatMenuRepository {
         let first = self.find_first().await?;
         if let Some(entity) = first {
             sqlx::query(
-                "UPDATE wechat_menu SET menu_json = $1, published_at = NULLIF($2, '')::timestamp, updated_at = NOW() WHERE id = $3",
+                "UPDATE wechat_menu SET menu_json = $1, published_at = NULLIF($2, '')::timestamp, updated_at = TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS') WHERE id = $3",
             )
             .bind(menu_json)
             .bind(published_at)
@@ -53,7 +53,7 @@ impl WechatMenuRepository {
             .map_err(map_err)?;
         } else {
             sqlx::query(
-                "INSERT INTO wechat_menu (menu_json, published_at, created_at, updated_at) VALUES ($1, NULLIF($2, '')::timestamp,  NOW(),  NOW())",
+                "INSERT INTO wechat_menu (menu_json, published_at, created_at, updated_at) VALUES ($1, NULLIF($2, '')::timestamp, TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS'), TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS'))",
             )
             .bind(menu_json)
             .bind(published_at)

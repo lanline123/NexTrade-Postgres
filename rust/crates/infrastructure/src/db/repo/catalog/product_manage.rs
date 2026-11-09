@@ -1691,7 +1691,7 @@ impl ProductManageRepository {
         }
         let ph = vec!["?"; product_ids.len()].join(", ");
         let sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT * FROM comment WHERE product_id IN ({ph}) AND ($1 IS NULL OR shop_id = $2)",
+            "SELECT * FROM comment WHERE product_id IN ({ph}) AND (? IS NULL OR shop_id = ?)",
         ));
         let mut q = sqlx::query_as::<_, Comment>(&sql);
         for id in product_ids {
@@ -1910,7 +1910,7 @@ impl ProductManageRepository {
         let total: (i64,) = count_q.fetch_one(&self.pool).await.map_err(map_err)?;
 
         let rows_sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT * FROM product WHERE product_id IN ({ph}) AND is_delete = 0 ORDER BY FIELD(product_id, {ph}) LIMIT $1 OFFSET $2",
+            "SELECT * FROM product WHERE product_id IN ({ph}) AND is_delete = 0 ORDER BY FIELD(product_id, {ph}) LIMIT ? OFFSET ?",
         ));
         let mut rows_q = sqlx::query_as::<_, Product>(&rows_sql);
         for id in ids {

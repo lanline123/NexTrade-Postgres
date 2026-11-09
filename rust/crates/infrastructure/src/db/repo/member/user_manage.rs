@@ -259,7 +259,7 @@ impl UserManageRepository {
                 "SELECT user_id FROM user_member_tag
                   WHERE tag_id IN ({placeholders})
                   GROUP BY user_id
-                 HAVING COUNT(DISTINCT tag_id) = $1"
+                 HAVING COUNT(DISTINCT tag_id) = ?"
             ));
             let mut q = sqlx::query_as::<_, (i64,)>(&sql);
             for id in tag_ids {

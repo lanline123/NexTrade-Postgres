@@ -78,13 +78,13 @@ impl ProductRepository {
         let total_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM product
              WHERE is_delete = 0
-               AND ($1 IS NULL OR product_name LIKE $2 OR product_sn LIKE $3)
+               AND (? IS NULL OR product_name LIKE ? OR product_sn LIKE ?)
                {category_clause}
-               AND ($4 IS NULL OR brand_id = $5)
-               AND ($6 IS NULL OR shop_id = $7)
-               AND ($8 IS NULL OR product_status = $9)
-               AND ($10 IS NULL OR product_price >= $11)
-               AND ($12 IS NULL OR product_price <= $13){sale_clause}{id_clause}"
+               AND (? IS NULL OR brand_id = ?)
+               AND (? IS NULL OR shop_id = ?)
+               AND (? IS NULL OR product_status = ?)
+               AND (? IS NULL OR product_price >= ?)
+               AND (? IS NULL OR product_price <= ?){sale_clause}{id_clause}"
         ));
         let mut total_q = sqlx::query_as::<_, (i64,)>(&total_sql)
             .bind(&keyword).bind(&keyword).bind(&keyword);
@@ -134,15 +134,15 @@ impl ProductRepository {
         let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM product
              WHERE is_delete = 0
-               AND ($1 IS NULL OR product_name LIKE $2 OR product_sn LIKE $3)
+               AND (? IS NULL OR product_name LIKE ? OR product_sn LIKE ?)
                {category_clause}
-               AND ($4 IS NULL OR brand_id = $5)
-               AND ($6 IS NULL OR shop_id = $7)
-               AND ($8 IS NULL OR product_status = $9)
-               AND ($10 IS NULL OR product_price >= $11)
-               AND ($12 IS NULL OR product_price <= $13){sale_clause}{id_clause}
+               AND (? IS NULL OR brand_id = ?)
+               AND (? IS NULL OR shop_id = ?)
+               AND (? IS NULL OR product_status = ?)
+               AND (? IS NULL OR product_price >= ?)
+               AND (? IS NULL OR product_price <= ?){sale_clause}{id_clause}
              ORDER BY {order_by} {dir}, product_id DESC
-             LIMIT $14 OFFSET $15"
+             LIMIT ? OFFSET ?"
         ));
 
         let mut rows_q = sqlx::query_as::<_, Product>(&sql)

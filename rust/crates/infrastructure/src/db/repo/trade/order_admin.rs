@@ -337,9 +337,9 @@ impl OrderAdminRepository {
             "SELECT CAST(COALESCE(SUM(ai.number), 0) AS BIGINT)
                FROM aftersales_item ai
                JOIN aftersales a ON a.aftersale_id = ai.aftersale_id
-              WHERE a.order_id = $1
+              WHERE a.order_id = ?
                 AND a.status IN ({placeholders})
-                AND ai.order_item_id IN (SELECT item_id FROM order_item WHERE order_id = $2)"
+                AND ai.order_item_id IN (SELECT item_id FROM order_item WHERE order_id = ?)"
         ));
         let mut q = sqlx::query_as::<_, (i64,)>(&sql).bind(order_id);
         for s in statuses {
@@ -499,9 +499,9 @@ impl OrderAdminRepository {
             "SELECT COUNT(*)
                FROM aftersales_item ai
                JOIN aftersales a ON a.aftersale_id = ai.aftersale_id
-              WHERE a.order_id = $1
+              WHERE a.order_id = ?
                 AND a.status IN ({placeholders})
-                AND ai.order_item_id = $2"
+                AND ai.order_item_id = ?"
         ));
         let mut q = sqlx::query_as::<_, (i64,)>(&sql).bind(order_id);
         for s in statuses {

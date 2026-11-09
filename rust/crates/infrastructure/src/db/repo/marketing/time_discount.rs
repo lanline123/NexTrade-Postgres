@@ -250,9 +250,9 @@ impl TimeDiscountRepository {
         let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM time_discount_item
              WHERE product_id IN ({placeholders})
-               AND start_time <= $1
-               AND end_time >= $2
-               AND ($3 IS NULL OR discount_id <> $4)"
+               AND start_time <= ?
+               AND end_time >= ?
+               AND (? IS NULL OR discount_id <> ?)"
         ));
         let mut q = sqlx::query_as::<_, (i64,)>(&sql);
         for pid in product_ids {
@@ -285,8 +285,8 @@ impl TimeDiscountRepository {
         let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM seckill_item
              WHERE product_id IN ({placeholders})
-               AND seckill_start_time <= $1
-               AND seckill_end_time >= $2"
+               AND seckill_start_time <= ?
+               AND seckill_end_time >= ?"
         ));
         let mut q = sqlx::query_as::<_, (i64,)>(&sql);
         for pid in product_ids {

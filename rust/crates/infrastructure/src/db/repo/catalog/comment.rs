@@ -322,7 +322,7 @@ impl CommentRepository {
         }
         let placeholders = vec!["?"; order_ids.len()].join(", ");
         let sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT COUNT(*) FROM comment WHERE order_id IN ({placeholders}) AND user_id = $1 AND parent_id = 0 AND is_showed = 0"
+            "SELECT COUNT(*) FROM comment WHERE order_id IN ({placeholders}) AND user_id = ? AND parent_id = 0 AND is_showed = 0"
         ));
         let mut q = sqlx::query_as::<_, (i64,)>(&sql);
         for id in order_ids {
