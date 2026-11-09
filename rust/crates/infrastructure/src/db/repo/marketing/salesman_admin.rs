@@ -688,8 +688,8 @@ impl SalesmanAdminRepository {
         salesman_id: i32,
         start: Option<i64>,
         end: Option<i64>,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<CustomerRow>)> {
         let mut where_parts = vec!["s.pid = ?".to_string()];
         if start.is_some() {
