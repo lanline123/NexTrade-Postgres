@@ -478,8 +478,11 @@ fn bind_warning<'q, O>(
     mut q: QueryAs<'q, Postgres, O, PgArguments>,
     spec: &'q WarningQuerySpec,
 ) -> QueryAs<'q, Postgres, O, PgArguments> {
-    let store_stock = i32::from(spec.use_store_stock);
-    let total_stock = i32::from(spec.use_total_stock);
+    // `CASE WHEN ? AND ...` 里的占位符处在**布尔上下文**，PG 要求实参是 boolean。
+    // 原来绑的是 `i32::from(bool)`（1/0），PG 报
+    // `argument of AND must be type boolean, not type integer`，所以这里必须绑 bool。
+    let store_stock = spec.use_store_stock;
+    let total_stock = spec.use_total_stock;
     // 内层库存口径 CASE：门店独立库存开关与总库存开关各出现两次
     q = q
         .bind(store_stock)

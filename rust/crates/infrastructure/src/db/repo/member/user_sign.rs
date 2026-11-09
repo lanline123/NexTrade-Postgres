@@ -86,8 +86,10 @@ impl UserSignRepository {
 
     /// 推荐商品（Java：热销 + 上架 + 未删除，limit 8）。
     pub async fn recommend_products(&self) -> Result<Vec<RecommendProductVO>> {
+        // `product_price` 是 NUMERIC，而 VO 里是 String（Java BigDecimal 序列化成字符串），
+        // 直接解成 String 会报 `String (TEXT) is not compatible with NUMERIC`，故显式转 text。
         let rows: Vec<(i32, String, String, String)> = sqlx::query_as(
-            "SELECT product_id, product_name, pic_thumb, product_price FROM product WHERE is_hot = 1 AND product_status = 1 AND is_delete = 0 LIMIT 8",
+            "SELECT product_id, product_name, pic_thumb, CAST(product_price AS TEXT) AS product_price FROM product WHERE is_hot = 1 AND product_status = 1 AND is_delete = 0 LIMIT 8",
         )
         .fetch_all(&self.pool)
         .await
