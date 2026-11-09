@@ -209,7 +209,8 @@ proxy_read_timeout 3600s;
 3. crontab?action=StartTask 立即执行（不必等 cron 触发）
 4. files?action=GetFileBody 轮询 /www/backup/<tag>.out，直到出现 ##FINISHED
 5. crontab?action=DelCrontab 删除任务
-6. files?action=DeleteFile 清理临时文件（path=/www/backup, filename=<name>）
+6. files?action=DeleteFile 清理临时文件（**path 必须是完整文件路径** /www/backup/<name>；
+   filename 参数不参与删除。曾误传 path=/www/backup 把整个目录移进回收站）
 ```
 
 脚本模板见 `scratch/run_pg_sql.py`（本机，未入库）。执行 SQL 时统一加
@@ -234,32 +235,21 @@ proxy_read_timeout 3600s;
 原因是 Rust 实体里这些字段是 `String`，改成 `timestamp` / `jsonb` 需要同步改代码与序列化，
 属于独立改造项，不是 schema bug。**这两类已单独准备，见 §4.3。**
 
-### 4.3 时间 / JSON 列切换（**已于 2026-11-09 执行**）
+### 4.3 时间 / JSON 列：切换后已回退（**当前生产 = text，最终态**）
 
-49 列（39 时间 + 10 JSON）要从 `varchar/text` 改为 `timestamp` / `date` / `jsonb`。
+> **本节曾记录「49 列转原生类型」，该切换已于 2026-11-09 22:51 整体回退。**
+> 回退的完整论证与执行记录见 `MIGRATION-AUDIT-2026-11-09.md` 第二十四章，此处只留结论。
 
 | 项 | 状态 |
 |---|---|
-| 代码 | 已提交 `256b3eb`：读 `col::text AS col`、写 `NULLIF($n,'')::timestamp|date|jsonb`；`row_to_json` 增加 TIMESTAMP/DATE 分支 |
-| 迁移脚本 | `rust/deploy/pg/2026-11-09_time_json_align.sql`（49 条 ALTER） |
-| 生产库 | **已转换**（49/49，`information_schema` 核验 `still_text=0`） |
-| 为何不能单独转 | 线上二进制按 `String` 解码这些列，单独转列会让 `cart` / `order` / `promotion` / `user` 立即报错 |
+| 生产库 | 49 列已全部回退为 `text`（`information_schema` 复核：jsonb=0、timestamp=4、date=2，剩余 6 列是 MySQL 原生时间类型且 Rust 实体未映射） |
+| 回退原因 | 回源**线上 MySQL** 核对：这 49 列在 MySQL 本就是 `varchar(19)/varchar(10)/text`（`pure.sql` 是另一套口径，与线上不一致）；Rust 实体全部按 `String` 建模，text 才是与数据源一致的类型 |
+| 代码侧 casts | `256b3eb` 的读 `col::text`、写 `NULLIF($n,'')::timestamp|date|jsonb` 在 text 列上**全部继续合法**（PG 允许这些表达式赋值给 text 列），无需回退代码 |
+| 例外修复 | 两处比较断言（`statistics_base.date = NULLIF(..)::date` 等）在 text 列上报 `text = date`，已在 `9b2f366` 去掉断言改字符串比较 |
+| 备份 | `/www/backup/nextrade_pre_typerevert_20261109_225242.dump`（md5 `3898638b13c4aef3ce205a5a6a03a8ac`） |
 
-切换步骤（已在 2026-11-09 执行；保留供环境重建时参考）：
-
-```bash
-systemctl stop nextrade
-# 二进制必须是包含 256b3eb 的构建
-/www/server/pgsql/bin/psql -h 127.0.0.1 -U NexTrade -d nextrade -X -v ON_ERROR_STOP=1 \
-  -f /www/backup/2026-11-09_time_json_align.sql
-systemctl start nextrade
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/adminapi/health
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8181/api/health
-```
-
-回滚语句在脚本末尾（`timestamp -> varchar(255)` 用 `to_char(...)` 转换）。
-切换前预检已通过：空串 0、非法格式 0；当前只有 3 列有数据
-（`wechat_live.create_time`、`statistics_base.date`、`user.birthday`）。
+历史脚本 `rust/deploy/pg/2026-11-09_time_json_align.sql` **不要再执行**（会把列重新转成原生类型，
+与当前 text 口径冲突）；仅作历史档案保留。环境重建时按「text 列 + 现有代码」即可。
 
 ### 4.4 构建通道与发布流程
 
@@ -339,33 +329,50 @@ codegen-units = 16
 预期：编译 16.4 → 5~7 分钟，缓存上传 2.3 → <0.5 分钟，**合计 20.7 → 6~8 分钟**。
 首次切换是冷缓存，从第二次起见效；保留 `--release` 作为回退开关。
 
-### 4.6 Schema 与二进制强耦合（维护约定）
+### 4.6 Schema 与二进制强耦合（维护约定，2026-11-10 修订）
 
-- 49 列已改为 `timestamp` / `date` / `jsonb`；**任何按 `String` 读取它们的二进制都会 500**。
-  改这些列必须与匹配的二进制同批部署。
-- 本仓库的 Rust 实体仍用 `String`，所以 SQL 必须显式转换：
-  - 读：`"col"::text AS "col"`
-  - 写：`NULLIF($n, '')::timestamp|date|jsonb`
-- **不要对这些表用 `SELECT *`**（已展开 38 处）。新增查询要显式列清单并加转换；
-  例外：`user` 表（实体无 `birthday` 字段）。
-- 聚合函数注意返回类型：`SUM(int)` → `bigint`（用 `i64` 接），`MAX(numeric)` / `AVG(int)` → `numeric`（用 `Decimal` 接）。
+当前生产口径（全量复核见审计第二十八章）：
 
-### 4.7 2026-11-09 部署与回归状态
+- 时间 / JSON 列 = **text**（§4.3 回退后）；`String` 实体直接解码，无需转换。
+  既有的 `col::text` 读、`NULLIF($n,'')::timestamp` 写在 text 列上合法，可保留；
+  但**不要新增 `col = $n::date` 之类的比较断言**（text 与 date 无比较运算符）。
+- 整数列：tinyint/smallint 已统一加宽为 `integer`（637 列，无损）；12 列 bigint 按实体
+  收窄为 `integer`（`9b2f366`，已核验线上最大值 < 2^31）。sqlx 整数宽度互相兼容，
+  但 **`NUMERIC` 与 `INT8` 严格**：`SUM(int)`→`bigint` 用 `i64` 接；`MAX(numeric)`/`AVG(int)`
+  →`numeric` 用 `Decimal` 接；`NUMERIC` 列要按 `String` 读必须 `CAST(col AS TEXT)`。
+- **布尔上下文占位符必须绑 `bool`**：`CASE WHEN $1 AND ...` 中 PG 把 `$1` 推断为 boolean，
+  绑 `i32::from(bool)` 会报 `argument of AND must be type boolean`（`3444a39` 修复的正是此类）。
+- 动态拼接 SQL **只用 `?`**，统一走 `to_pg_placeholders()`；禁止同一句混写硬编码 `$N` 与 `?`
+  （`?` 续编号从 `max($N)+1` 开始，文本顺序与 bind 顺序错位会导致分页恒空，见审计 24.1）。
+- `SELECT *` 在 text 口径下不再危险（38 处展开保留无害）；唯 6 列原生 `timestamp/date`
+  （`map_call_log` / `translation_call_log` / `merchant_application.abandon_time,delete_time` /
+  `label_*_pickup_date`）Rust 实体未映射，`FromRow` 按名取列会跳过它们，不要给实体加这些字段。
+
+### 4.7 2026-11-10 全量检查状态（00:45 实测）
 
 | 项 | 状态 |
 |---|---|
-| 生产库 | 49 列已转换；与 `pure.sql` 比对 `mismatch = 0` |
-| 线上二进制 | **staging 包**（thin LTO），72,584,488 字节，sha256 `88ff69…`，来自 `22ce67a`，00:05 部署 |
-| 会员 `123/123` | 登录、购物车列表、**getCount**、订单列表、资料、站内信 均 200 |
-| 管理端 `admin/admin123` | 订单、优惠券、拼团、微信直播、微信菜单、类目费率、面板、操作日志、商户进件 均 200 |
-| 遗留问题 | **无** |
+| 线上二进制 | **staging 包 `e48b882`**（含 `9b2f366` 全部 22 条修复），72,577,736 字节，sha256 `cc3ac9cb…`，00:37:56 部署（并行 agent 执行，审计 27.3） |
+| 生产库 | 49 列已回退 text（§4.3）；637 列 smallint→integer 加宽；12 列 bigint→integer 收窄；335 张 MySQL 表全在、3927 列 0 缺失 |
+| 与 `pure.sql` 比对 | 686 处差异**全部为有意改动**：637 整数加宽 + 49 时间/JSON 回退（线上 MySQL 本就是字符串）；无丢失性差异 |
+| 会员 `123/123` | 登录、购物车、getCount、订单、资料、站内信、商品分页（total=64 有记录）、签到 sign 均 200 |
+| 管理端 `admin/admin123` | 订单、优惠券、拼团、微信直播、菜单、类目费率、面板、操作日志、商户进件、userBalanceLog、accountPanel、pickupList、addUserTrends 均 200 |
+| 日志 | 仅 tower_http 对已知失败接口的 500 追踪，无 panic / 解码崩溃 |
+| 探针清理 | `cart_id=146` 的 `extra_data` 已为 NULL |
+| 备份 | `/www/backup/` 1103 项；回退前 dump、部署前二进制备份均在 |
+| 计划任务 | 282（Let's Encrypt，正常）+ 并行 agent 的 pgops/depb4m/sweepb4（同一 pgops 通道，勿动） |
 
-`getCount` 的根因是 `SUM(quantity)` 返回 `bigint`、代码按 `Decimal` 解码；已在 `22ce67a` 修复
-（`cart_summary` / `proxy_shopping_cart` / `proxy_shopping_delivery` 三处改为 `Option<i64>`），
-并已通过 staging 包验证恢复。
+**仅剩 2 个已知失败**（均已修复、待部署）：
+
+| 接口 | 根因 | 修复 |
+|---|---|---|
+| `/adminapi/product/stockWarning/list` | 布尔上下文占位符绑了 `i32` | `3444a39` 改绑 `bool` |
+| `/api/user/sign/index` | `product_price` NUMERIC 按 String 解码 | `3444a39` 加 `CAST AS TEXT` |
+
+`3444a39` 的 staging 构建 `42657079113` 进行中；部署后需复测这两个接口。
 
 > staging 包体积（72 MB）大于正式 release（54 MB），可临时顶替线上；正式上线仍建议用
-> `build-rust-backend` 产出与校验的 Release。
+> `build-rust-backend` 产出与校验的 Release（须用户明确授权，见 §4.4）。
 
 ---
 
