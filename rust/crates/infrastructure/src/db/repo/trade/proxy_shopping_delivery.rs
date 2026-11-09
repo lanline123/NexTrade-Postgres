@@ -3,7 +3,6 @@
 //! 表：`cart`；查询使用运行时 `sqlx::query_as`。配送计算本身未迁移，
 //! 仓储仅提供购物车存在性/数量校验。
 
-use rust_decimal::Decimal;
 use sqlx::PgPool;
 
 use nextrade_core::models::trade::proxy_shopping_delivery::CART_TYPE_ADMIN_SHOPPING;
@@ -48,7 +47,7 @@ impl ProxyShoppingDeliveryRepository {
 
     /// 代客下单购物车商品数量（校验用户是否有可配送商品）。
     pub async fn sum_cart_quantity(&self, user_id: i32, shop_id: Option<i32>) -> Result<i64> {
-        let row: Option<(Option<Decimal>,)> = sqlx::query_as(
+        let row: Option<(Option<i64>,)> = sqlx::query_as(
             "SELECT SUM(quantity) FROM cart
              WHERE user_id = $1 AND type = $2 AND ($3 IS NULL OR shop_id = $4)",
         )
@@ -59,10 +58,7 @@ impl ProxyShoppingDeliveryRepository {
         .fetch_optional(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(row
-            .and_then(|(sum,)| sum)
-            .map(|sum| i64::try_from(sum).unwrap_or(0))
-            .unwrap_or(0))
+        Ok(row.and_then(|(sum,)| sum).unwrap_or(0))
     }
 
     /// 查询代客下单购物车项

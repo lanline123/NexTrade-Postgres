@@ -2,7 +2,6 @@
 //!
 //! 表：`cart`；查询使用运行时 `sqlx::query_as`。
 
-use rust_decimal::Decimal;
 use sqlx::PgPool;
 
 use nextrade_core::{Error, Result};
@@ -28,7 +27,7 @@ impl CartSummaryRepository {
     /// 汇总用户购物车数量（Java `cartService.getCartCount(shopId, userId)`）：
     /// 排除代客下单购物车（`type = 15`），可选门店过滤。
     pub async fn sum_quantity(&self, user_id: i32, shop_id: Option<i32>) -> Result<i64> {
-        let row: Option<(Option<Decimal>,)> = sqlx::query_as(
+        let row: Option<(Option<i64>,)> = sqlx::query_as(
             "SELECT SUM(quantity) FROM cart
              WHERE user_id = $1 AND type <> 15 AND ($2 IS NULL OR shop_id = $3)",
         )
@@ -38,10 +37,7 @@ impl CartSummaryRepository {
         .fetch_optional(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(row
-            .and_then(|(sum,)| sum)
-            .map(|sum| i64::try_from(sum).unwrap_or(0))
-            .unwrap_or(0))
+        Ok(row.and_then(|(sum,)| sum).unwrap_or(0))
     }
 }
 

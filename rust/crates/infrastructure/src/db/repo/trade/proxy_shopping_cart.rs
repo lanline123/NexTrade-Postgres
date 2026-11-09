@@ -467,7 +467,7 @@ impl ProxyShoppingCartRepository {
 
     /// 汇总数量（Java `getCount`：过滤 `type = 15`，可选 shopId）。
     pub async fn sum_quantity(&self, user_id: i32, shop_id: Option<i32>) -> Result<i64> {
-        let row: Option<(Option<Decimal>,)> = sqlx::query_as(
+        let row: Option<(Option<i64>,)> = sqlx::query_as(
             "SELECT SUM(quantity) FROM cart
              WHERE user_id = $1 AND type = $2 AND ($3 IS NULL OR shop_id = $4)",
         )
@@ -478,10 +478,7 @@ impl ProxyShoppingCartRepository {
         .fetch_optional(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(row
-            .and_then(|(sum,)| sum)
-            .and_then(|sum| i64::try_from(sum).ok())
-            .unwrap_or(0))
+        Ok(row.and_then(|(sum,)| sum).unwrap_or(0))
     }
 }
 
