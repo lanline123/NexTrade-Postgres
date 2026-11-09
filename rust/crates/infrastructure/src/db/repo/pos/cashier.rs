@@ -534,7 +534,7 @@ impl PosCashierRepository {
         status: Option<i32>,
     ) -> Result<Vec<PosTable>> {
         sqlx::query_as::<_, PosTable>(
-            "SELECT CAST(table_id AS BIGINT) AS table_id, CAST(shop_id AS BIGINT) AS shop_id, CAST(area_id AS BIGINT) AS area_id, table_no, CAST(seat_count AS BIGINT) AS seat_count, CAST(sort_order AS BIGINT) AS sort_order, CAST(status AS BIGINT) AS status, CAST(table_status AS BIGINT) AS table_status, CAST(dining_count AS BIGINT) AS dining_count, CAST(user_id AS BIGINT) AS user_id, CAST(open_admin_id AS BIGINT) AS open_admin_id, CAST(open_time AS BIGINT) AS open_time, session_sn, CAST(last_order_id AS BIGINT) AS last_order_id, transfer_from_table_no, CAST(is_delete AS BIGINT) AS is_delete, CAST(add_time AS BIGINT) AS add_time, CAST(update_time AS BIGINT) AS update_time FROM pos_table \
+            "SELECT table_id, shop_id, area_id, table_no, seat_count, sort_order, status, table_status, dining_count, user_id, open_admin_id, open_time, session_sn, last_order_id, transfer_from_table_no, is_delete, add_time, update_time FROM pos_table \
              WHERE shop_id = $1 AND is_delete = 0 AND ($2 IS NULL OR area_id = $3) AND ($4 IS NULL OR table_status = $5) \
              ORDER BY sort_order, table_id DESC",
         )
@@ -550,7 +550,7 @@ impl PosCashierRepository {
 
     pub async fn table_find(&self, id: i32) -> Result<Option<PosTable>> {
         sqlx::query_as::<_, PosTable>(
-            "SELECT CAST(table_id AS BIGINT) AS table_id, CAST(shop_id AS BIGINT) AS shop_id, CAST(area_id AS BIGINT) AS area_id, table_no, CAST(seat_count AS BIGINT) AS seat_count, CAST(sort_order AS BIGINT) AS sort_order, CAST(status AS BIGINT) AS status, CAST(table_status AS BIGINT) AS table_status, CAST(dining_count AS BIGINT) AS dining_count, CAST(user_id AS BIGINT) AS user_id, CAST(open_admin_id AS BIGINT) AS open_admin_id, CAST(open_time AS BIGINT) AS open_time, session_sn, CAST(last_order_id AS BIGINT) AS last_order_id, transfer_from_table_no, CAST(is_delete AS BIGINT) AS is_delete, CAST(add_time AS BIGINT) AS add_time, CAST(update_time AS BIGINT) AS update_time FROM pos_table WHERE table_id = $1",
+            "SELECT table_id, shop_id, area_id, table_no, seat_count, sort_order, status, table_status, dining_count, user_id, open_admin_id, open_time, session_sn, last_order_id, transfer_from_table_no, is_delete, add_time, update_time FROM pos_table WHERE table_id = $1",
         )
         .bind(id)
         .fetch_optional(&self.pool)

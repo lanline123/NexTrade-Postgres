@@ -189,6 +189,7 @@ impl ProxyShoppingOrderCheckRepository {
         if q.keyword.is_some() {
             sql.push_str(" AND shop_detailed_address LIKE CONCAT('%', ?, '%')");
         }
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut query = sqlx::query_as::<_, (i64,)>(&sql);
         if let Some(v) = q.parent_shop_id {
             query = query.bind(v);
@@ -230,7 +231,12 @@ impl ProxyShoppingOrderCheckRepository {
         if q.keyword.is_some() {
             sql.push_str(" AND shop_detailed_address LIKE CONCAT('%', ?, '%')");
         }
-        sql.push_str(" ORDER BY CASE WHEN ? IS NULL OR ? IS NULL THEN shop_id ELSE distance END ASC LIMIT ? OFFSET ?");
+        // PG 的 ORDER BY 表达式内不能引用 SELECT 别名（MySQL 可以），
+        // 因此把投影包成子查询，再在外层用 `distance` / `shop_id` 排序。
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT * FROM ({sql}) pickup \
+             ORDER BY CASE WHEN ? IS NULL OR ? IS NULL THEN shop_id ELSE distance END ASC LIMIT ? OFFSET ?"
+        ));
 
         let mut query = sqlx::query_as::<_, PickupRow>(&sql);
         // 距离表达式占位符

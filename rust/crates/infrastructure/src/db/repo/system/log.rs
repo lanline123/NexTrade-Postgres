@@ -42,7 +42,7 @@ impl LogRepository {
     /// 就会命中并累加。本实现逐字保留该语义（`LIMIT 1` 取存储顺序首行）。
     pub async fn find_by_date(&self, date: &str) -> Result<Option<StatisticsBase>> {
         sqlx::query_as::<_, StatisticsBase>(
-            "SELECT id, date::text AS date, click_count, shop_id, visitor_count FROM statistics_base WHERE date = NULLIF($1, '')::date LIMIT 1",
+            "SELECT id, date::text AS date, click_count, shop_id, visitor_count FROM statistics_base WHERE date = NULLIF($1, '') LIMIT 1",
         )
         .bind(date)
         .fetch_optional(&self.pool)
@@ -59,7 +59,7 @@ impl LogRepository {
         shop_id: i32,
     ) -> Result<Option<StatisticsBase>> {
         sqlx::query_as::<_, StatisticsBase>(
-            "SELECT id, date::text AS date, click_count, shop_id, visitor_count FROM statistics_base WHERE date = NULLIF($1, '')::date AND shop_id = $2 LIMIT 1",
+            "SELECT id, date::text AS date, click_count, shop_id, visitor_count FROM statistics_base WHERE date = NULLIF($1, '') AND shop_id = $2 LIMIT 1",
         )
         .bind(date)
         .bind(shop_id)
@@ -82,7 +82,7 @@ impl LogRepository {
     ) -> Result<i32> {
         let res: i32 = sqlx::query_scalar(
             "INSERT INTO statistics_base (date, click_count, shop_id, visitor_count) \
-             VALUES (NULLIF($1, '')::date,  $2,  $3,  $4) RETURNING id",
+             VALUES (NULLIF($1, ''),  $2,  $3,  $4) RETURNING id",
         )
         .bind(date)
         .bind(click_count)

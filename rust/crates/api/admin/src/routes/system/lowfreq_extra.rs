@@ -80,11 +80,13 @@ macro_rules! list_pg {
         async fn $fn_name(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
             let (p, s, off) = page_of(&q);
             let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
+            // 同 vendor::lowfreq：整数列（`type` / `add_time` / `merchant_apply_id` 等）不能直接
+            // 用 `LIKE`，PG 报 `operator does not exist: integer ~~ text`，统一 CAST 成 text。
             let (total,): (i64,) = sqlx::query_as(
-                &format!("SELECT COUNT(*) FROM \"{}\" WHERE \"{}\" LIKE $1", $table, $like))
+                &format!("SELECT COUNT(*) FROM \"{}\" WHERE CAST(\"{}\" AS TEXT) LIKE $1", $table, $like))
                 .bind(&kw).fetch_one(&pool(&state)).await.map_err(db)?;
             let rows: Vec<(Value,)> = sqlx::query_as(&format!(
-                "SELECT json_build_object({}) FROM \"{}\" WHERE \"{}\" LIKE $1 ORDER BY \"{}\" DESC LIMIT $2 OFFSET $3",
+                "SELECT json_build_object({}) FROM \"{}\" WHERE CAST(\"{}\" AS TEXT) LIKE $1 ORDER BY \"{}\" DESC LIMIT $2 OFFSET $3",
                 $jo, $table, $like, $key))
                 .bind(&kw).bind(s).bind(off)
                 .fetch_all(&pool(&state)).await.map_err(db)?;
@@ -1019,7 +1021,8 @@ async fn h_staff_wallet_detail(
     .map_err(db)?;
     let (mut obj,) = row.unwrap_or((serde_json::json!({"walletId": 0, "staffId": staff_id, "balance": 0, "frozenBalance": 0, "totalIncome": 0, "createTime": 0, "updateTime": 0}),));
     let (withdrawn,): (Value,) = sqlx::query_as(
-        "SELECT COALESCE(ABS(SUM(amount)), 0) FROM service_staff_wallet_log WHERE staff_id = $1 AND type = 2",
+        // SUM(...) 在 PG 返回 NUMERIC，直接按 (Value,) 解码会报 `Value (JSONB) is not compatible with NUMERIC`；用 to_jsonb 包一层即可。
+        "SELECT to_jsonb(COALESCE(ABS(SUM(amount)), 0)) FROM service_staff_wallet_log WHERE staff_id = $1 AND type = 2",
     )
     .bind(staff_id)
     .fetch_one(&pool(&state))
@@ -1203,7 +1206,7 @@ async fn h_fin_wallet_overview(State(state): State<AdminState>) -> ApiResult<Val
         "SELECT json_build_object('totalIncome', COALESCE(SUM(total_income),0), 'availableBalance', COALESCE(SUM(balance),0), 'frozenBalance', COALESCE(SUM(frozen_balance),0)) FROM service_staff_wallet",
     ).fetch_optional(&pool(&state)).await.map_err(db)?;
     let (withdrawn,): (Value,) = sqlx::query_as(
-        "SELECT COALESCE(SUM(ABS(amount)),0) FROM service_staff_wallet_log WHERE type = 2",
+        "SELECT to_jsonb(COALESCE(SUM(ABS(amount)),0)) FROM service_staff_wallet_log WHERE type = 2",
     )
     .fetch_one(&pool(&state))
     .await

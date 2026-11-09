@@ -25,7 +25,7 @@ impl LogisticsRepository {
     /// 注意真实列名为 `shipping_tpl_id`（非 `tpl_id`）。
     pub async fn find_tpl(&self, tpl_id: i32) -> Result<Option<ShippingTpl>> {
         sqlx::query_as::<_, ShippingTpl>(
-            "SELECT shipping_tpl_id, shipping_time, shipping_tpl_name, is_free, CAST(pricing_type AS BIGINT) AS pricing_type, is_default, shop_id FROM shipping_tpl WHERE shipping_tpl_id = $1 LIMIT 1",
+            "SELECT shipping_tpl_id, shipping_time, shipping_tpl_name, is_free, pricing_type, is_default, shop_id FROM shipping_tpl WHERE shipping_tpl_id = $1 LIMIT 1",
         )
         .bind(tpl_id)
         .fetch_optional(&self.pool)
@@ -54,7 +54,7 @@ impl LogisticsRepository {
         .map_err(map_err)?;
 
         let rows = sqlx::query_as::<_, ShippingTpl>(
-            "SELECT shipping_tpl_id, shipping_time, shipping_tpl_name, is_free, CAST(pricing_type AS BIGINT) AS pricing_type, is_default, shop_id FROM shipping_tpl WHERE ($1 IS NULL OR shipping_tpl_name LIKE $2)
+            "SELECT shipping_tpl_id, shipping_time, shipping_tpl_name, is_free, pricing_type, is_default, shop_id FROM shipping_tpl WHERE ($1 IS NULL OR shipping_tpl_name LIKE $2)
              ORDER BY shipping_tpl_id DESC LIMIT $3 OFFSET $4",
         )
         .bind(&like)

@@ -247,10 +247,17 @@ async fn profit_sharing_schedule_loop(repos: Arc<Repositories>) {
 
         // 1. 超时预警（纯 DB，Java executeTimeoutWarning 全量移植）
         let cutoff = chrono::Utc::now().timestamp() - 150 * 24 * 3600;
+        // `profit_sharing_order.create_time` 在 MySQL 里是 `varchar(19)`，PG 迁移时曾被升成
+        // `timestamp`，后又按「回退原生类型」策略改回 `text`。因此这里必须绑定同格式的字符串
+        // 做字典序比较（`YYYY-MM-DD HH:MM:SS` 的字典序等于时间序），不能再绑 NaiveDateTime
+        // 走 `::timestamp` 断言——否则空串会触发 `invalid input syntax for type timestamp`。
+        let cutoff_text = chrono::DateTime::from_timestamp(cutoff, 0)
+            .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string())
+            .unwrap_or_default();
         let timeout_rows: Vec<(i64, String, i64, String)> = sqlx::query_as(
-            "SELECT id, out_order_no, shop_id, status FROM profit_sharing_order              WHERE status = 0 AND create_time <= NULLIF($1, '')::timestamp",
+            "SELECT id, out_order_no, shop_id, status FROM profit_sharing_order WHERE status = 0 AND create_time <= $1",
         )
-        .bind(chrono::NaiveDateTime::from_timestamp_opt(cutoff, 0))
+        .bind(cutoff_text)
         .fetch_all(&repos.pool)
         .await
         .unwrap_or_default();

@@ -36,8 +36,10 @@ impl AccountPanelRepository {
     async fn net(&self, column: &str, start: i64, end: i64) -> Result<Decimal> {
         // column 为内部常量（balance / frozen_balance），不拼接用户输入
         let sql = format!(
-            "SELECT COALESCE(SUM(CASE WHEN change_type = 1 THEN {column}
-                WHEN change_type = 2 THEN -{column} ELSE 0 END), 0)
+            // `balance` 是 decimal，但 `ELSE 0` 让聚合在部分路径上落到 bigint，
+            // 而 Rust 侧统一按 Option<Decimal> 解码，显式 CAST 成 NUMERIC 最稳。
+            "SELECT CAST(COALESCE(SUM(CASE WHEN change_type = 1 THEN {column}
+                WHEN change_type = 2 THEN -{column} ELSE 0 END), 0) AS NUMERIC)
              FROM user_balance_log WHERE change_time >= $1 AND change_time <= $2"
         );
         let row: (Option<Decimal>,) = sqlx::query_as(&sql)
@@ -52,7 +54,7 @@ impl AccountPanelRepository {
     /// 已支付充值金额合计（Java `getUserRechargeSurplusTotal`：status=1）。
     pub async fn recharge_total(&self, start: i64, end: i64) -> Result<Decimal> {
         let row: (Option<Decimal>,) = sqlx::query_as(
-            "SELECT COALESCE(SUM(amount),0) FROM user_recharge_order
+            "SELECT CAST(COALESCE(SUM(amount),0) AS NUMERIC) FROM user_recharge_order
              WHERE status = 1 AND add_time >= $1 AND add_time <= $2",
         )
         .bind(start)
@@ -66,7 +68,7 @@ impl AccountPanelRepository {
     /// 已完成提现金额合计（Java `getUserWithdrawTotal`：status=1）。
     pub async fn withdraw_total(&self, start: i64, end: i64) -> Result<Decimal> {
         let row: (Option<Decimal>,) = sqlx::query_as(
-            "SELECT COALESCE(SUM(amount),0) FROM user_withdraw_apply
+            "SELECT CAST(COALESCE(SUM(amount),0) AS NUMERIC) FROM user_withdraw_apply
              WHERE status = 1 AND add_time >= $1 AND add_time <= $2",
         )
         .bind(start)
@@ -85,7 +87,9 @@ impl AccountPanelRepository {
             _ => return Err(Error::Validation("参数缺失".into())),
         };
         let sql = format!(
-            "SELECT COALESCE(SUM({column}),0) FROM \"order\" WHERE add_time >= $1 AND add_time <= $2"
+            // `use_points` 在 PG 里是 integer，SUM 返回 bigint；`balance` 是 decimal。
+            // 两种口径都 CAST 成 NUMERIC，统一按 Option<Decimal> 解码。
+            "SELECT CAST(COALESCE(SUM({column}),0) AS NUMERIC) FROM \"order\" WHERE add_time >= $1 AND add_time <= $2"
         );
         let row: (Option<Decimal>,) = sqlx::query_as(&sql)
             .bind(start)

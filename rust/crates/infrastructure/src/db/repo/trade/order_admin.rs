@@ -877,7 +877,7 @@ impl OrderAdminRepository {
             .join(", ");
         let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT region_id, region_name FROM region WHERE region_id IN ({placeholders}) \
-             ORDER BY FIELD(region_id, {fields})"
+             ORDER BY array_position(ARRAY[{fields}], region_id)"
         ));
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in region_ids {

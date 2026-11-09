@@ -198,7 +198,7 @@ async fn products(state: &PublicState, ids: &[i64]) -> Result<Vec<Value>, AppErr
     let placeholders = vec!["?"; uniq.len()].join(",");
     let sale = nextrade_infrastructure::db::repo::catalog::product_sale::ProductSaleRepository::sale_condition();
     let sql = nextrade_infrastructure::db::to_pg_placeholders(&format!(
-        "SELECT json_build_object('productId',product_id,'productName',product_name,'productSn',product_sn,'picThumb',pic_thumb,'productPrice',product_price,'marketPrice',market_price,'seoLink',CONCAT('/product/',product_id)) FROM product WHERE product_id IN ({placeholders}) AND product_status=1 AND is_delete=0 {sale} ORDER BY FIELD(product_id,{})",
+        "SELECT json_build_object('productId',product_id,'productName',product_name,'productSn',product_sn,'picThumb',pic_thumb,'productPrice',product_price,'marketPrice',market_price,'seoLink',CONCAT('/product/',product_id)) FROM product WHERE product_id IN ({placeholders}) AND product_status=1 AND is_delete=0 {sale} ORDER BY array_position(ARRAY[{}], product_id)",
         uniq.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",")
     ));
     let mut q = sqlx::query_as::<_, (Value,)>(&sql);

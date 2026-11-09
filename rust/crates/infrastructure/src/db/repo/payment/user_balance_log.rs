@@ -155,7 +155,7 @@ impl UserBalanceLogRepository {
         let (size, offset) = q.limit_offset();
 
         let total_sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT COUNT(*) FROM user_balance_log LEFT JOIN \"user\" ON user.user_id = user_balance_log.user_id{where_sql}"
+            "SELECT COUNT(*) FROM user_balance_log LEFT JOIN \"user\" u ON u.user_id = user_balance_log.user_id{where_sql}"
         ));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&total_sql), binds)
             .fetch_one(&self.pool)
@@ -170,7 +170,7 @@ impl UserBalanceLogRepository {
             None => String::new(),
         };
         let rows_sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT user_balance_log.log_id, user_balance_log.user_id, user_balance_log.before_balance, user_balance_log.balance, user_balance_log.after_balance, user_balance_log.frozen_balance, user_balance_log.before_frozen_balance, user_balance_log.after_frozen_balance, user_balance_log.change_time, user_balance_log.change_desc, user_balance_log.change_type, user.username AS username FROM user_balance_log LEFT JOIN \"user\" ON user.user_id = user_balance_log.user_id{where_sql}{order_sql} LIMIT ? OFFSET ?"
+            "SELECT user_balance_log.log_id, user_balance_log.user_id, user_balance_log.before_balance, user_balance_log.balance, user_balance_log.after_balance, user_balance_log.frozen_balance, user_balance_log.before_frozen_balance, user_balance_log.after_frozen_balance, user_balance_log.change_time, user_balance_log.change_desc, user_balance_log.change_type, u.username AS username FROM user_balance_log LEFT JOIN \"user\" u ON u.user_id = user_balance_log.user_id{where_sql}{order_sql} LIMIT ? OFFSET ?"
         ));
         let rows = bind_all!(sqlx::query_as::<_, UserBalanceLogRow>(&rows_sql), binds)
             .bind(i64::try_from(size).unwrap_or(0))
@@ -234,7 +234,7 @@ fn build_where(q: &UserBalanceLogListQuery) -> (String, Vec<Bind>) {
         .map(str::trim)
         .filter(|s| !s.is_empty())
     {
-        conds.push("user.username LIKE ?".to_string());
+        conds.push("u.username LIKE ?".to_string());
         binds.push(Bind::Str(format!("%{name}%")));
     }
 
@@ -321,7 +321,7 @@ mod tests {
         let (sql, binds) = build_where(&q(serde_json::json!({"keyword": " 充值 ", "username": "bob"})));
         assert_eq!(
             sql,
-            " WHERE user_balance_log.change_desc LIKE $1 AND user.username LIKE $2"
+            " WHERE user_balance_log.change_desc LIKE $1 AND u.username LIKE $2"
         );
         assert!(matches!(&binds[0], Bind::Str(s) if s == "%充值%"));
         assert!(matches!(&binds[1], Bind::Str(s) if s == "%bob%"));
@@ -345,7 +345,7 @@ mod tests {
         })));
         assert_eq!(
             sql,
-            " WHERE user_balance_log.change_desc LIKE $1 AND user_balance_log.user_id = $2 AND user_balance_log.balance > 0 AND user_balance_log.wallet_type = $3 AND user_balance_log.change_desc NOT LIKE $4 AND user.username LIKE $5"
+            " WHERE user_balance_log.change_desc LIKE $1 AND user_balance_log.user_id = $2 AND user_balance_log.balance > 0 AND user_balance_log.wallet_type = $3 AND user_balance_log.change_desc NOT LIKE $4 AND u.username LIKE $5"
         );
     }
 

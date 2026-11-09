@@ -86,7 +86,7 @@ impl OrderLogRepository {
         }
         let total = cq.fetch_one(&self.pool).await.map_err(map_err)?.0;
         let rows_sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT log_id, order_id, order_sn, admin_id, user_id, description, log_time, shop_id \
+            "SELECT log_id, order_id, order_sn, admin_id, user_id, description, CAST(log_time AS BIGINT) AS log_time, shop_id \
              FROM order_log{where_sql} ORDER BY log_id DESC LIMIT ? OFFSET ?"
         ));
         let mut rq = sqlx::query_as::<_, OrderLogRow>(&rows_sql);
@@ -126,7 +126,7 @@ impl OrderLogRepository {
         .bind(admin_id)
         .bind(user_id)
         .bind(description)
-        .bind(log_time)
+        .bind(i32::try_from(log_time).unwrap_or(i32::MAX))
         .bind(shop_id)
         .execute(&self.pool)
         .await

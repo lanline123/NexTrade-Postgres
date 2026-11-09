@@ -156,7 +156,9 @@ impl UserRepository {
             .map(|k| format!("%{k}%"));
         let (limit, offset) = page.limit_offset();
 
-        let where_sql = "WHERE user_type = 1 AND ($1 IS NULL OR username LIKE $2 OR nickname LIKE $3 OR mobile LIKE $4 OR email LIKE $5) AND ($6 IS NULL OR EXISTS (SELECT 1 FROM shop_member m WHERE m.user_id = user.user_id AND m.shop_id = $7 AND m.is_del = 0))";
+        // `user` 在 PG 里是保留字（CURRENT_USER）：外层表名已加引号，子查询里也必须写成 `"user"`，
+        // 否则 `user.user_id` 会被解析成 CURRENT_USER 直接报 `syntax error at or near "."`。
+        let where_sql = "WHERE user_type = 1 AND ($1 IS NULL OR username LIKE $2 OR nickname LIKE $3 OR mobile LIKE $4 OR email LIKE $5) AND ($6 IS NULL OR EXISTS (SELECT 1 FROM shop_member m WHERE m.user_id = \"user\".user_id AND m.shop_id = $7 AND m.is_del = 0))";
 
         let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM \"user\" {where_sql}"));
         let (total,): (i64,) = sqlx::query_as(&count_sql)

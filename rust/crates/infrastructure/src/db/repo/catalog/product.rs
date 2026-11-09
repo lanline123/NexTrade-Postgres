@@ -112,8 +112,11 @@ impl ProductRepository {
         // 传了 `ids` 时按 IDs 给定顺序排序（Java `ORDER BY FIELD(product_id, ...)`），
         // 否则前端楼层里「第一个位置」的商品会随机换人。
         let order_by = match id_list.as_ref() {
+            // MySQL 专有 `FIELD()` 在 PG 不存在（`function field(integer, ...) does not exist`）。
+            // 等价写法是 `array_position(ARRAY[...], col)`，未命中时返回 NULL（排在最后），
+            // 而 FIELD 返回 0（排在最前）；此处 id 全部来自同一 IN 列表，不会出现未命中。
             Some(ids) => format!(
-                "FIELD(product_id, {})",
+                "array_position(ARRAY[{}], product_id)",
                 ids.iter().map(i32::to_string).collect::<Vec<_>>().join(", ")
             ),
             None => match q.sort_by.as_deref() {

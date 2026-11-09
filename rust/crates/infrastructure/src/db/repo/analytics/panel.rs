@@ -152,7 +152,9 @@ impl PanelRepository {
         let shop_sql = if shop_scope.is_some() { " AND shop_id = ?" } else { "" };
         let vendor_sql = if vendor_scope.is_some() { " AND vendor_id = ?" } else { "" };
         let sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT (add_time / 86400) AS day, COUNT(*), COALESCE(SUM(paid_amount), 0) FROM \"order\" WHERE add_time >= ? AND add_time < ?{shop_sql}{vendor_sql} GROUP BY day ORDER BY day ASC"
+            // PG 的整数除法返回 INT4（MySQL `/` 恒返回 DECIMAL），而 Rust 侧按 i64 解码，
+            // 不 CAST 会报 `Rust i64 (INT8) is not compatible with SQL type INT4`。
+            "SELECT CAST(add_time / 86400 AS BIGINT) AS day, COUNT(*), COALESCE(SUM(paid_amount), 0) FROM \"order\" WHERE add_time >= ? AND add_time < ?{shop_sql}{vendor_sql} GROUP BY day ORDER BY day ASC"
         ));
         let mut query = sqlx::query_as(&sql).bind(from).bind(to);
         if let Some(shop) = shop_scope {

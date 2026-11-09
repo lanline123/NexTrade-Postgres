@@ -253,7 +253,9 @@ impl StockWarningRepository {
         page: &PageQuery,
     ) -> Result<(u64, Vec<StockWarningRow>)> {
         let base = build_warning_sql(spec);
-        let count_sql = format!("SELECT COUNT(*) AS c FROM ({base}) cnt");
+        // `base` 里全是 `?`（内层 CASE 4 个 → sp/r/po/p/sp 的 shop_id 5 个 → 勾选行/商品类型/
+        // 关键词/外层筛选），必须统一编号，否则 `?` 会原样进 PG 被当成 jsonb 存在运算符。
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) AS c FROM ({base}) cnt"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         cq = bind_warning(cq, spec);
         let (total,): (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
@@ -277,10 +279,10 @@ impl StockWarningRepository {
     /// 库存预警不分页查询（Java `selectWarningList`，导出用）。
     pub async fn list_warning(&self, spec: &WarningQuerySpec) -> Result<Vec<StockWarningRow>> {
         let base = build_warning_sql(spec);
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "{base}ORDER BY {}, sku_id ASC",
             sort_expression(spec.sort_field.as_deref(), spec.sort_order.as_deref())
-        );
+        ));
         let mut q = sqlx::query_as::<_, StockWarningRow>(&sql);
         q = bind_warning(q, spec);
         q.fetch_all(&self.pool).await.map_err(map_err)
@@ -379,14 +381,14 @@ impl StockWarningRepository {
 pub fn build_warning_sql(spec: &WarningQuerySpec) -> String {
     let mut sql = String::from(concat!(
         "SELECT t.*, CAST(CASE WHEN t.rule_id IS NULL THEN 9 WHEN t.current_stock < t.lower_limit THEN 1 WHEN t.current_stock > t.upper_limit THEN 2 ELSE 0 END AS BIGINT) AS stock_status FROM ( ",
-        "SELECT CAST(p.product_id AS BIGINT) AS product_id, CAST(COALESCE(ps.sku_id, 0) AS BIGINT) AS sku_id, p.product_name AS product_name, ps.sku_value AS product_sku_name, p.pic_thumb AS product_pic_thumb, p.product_sn AS product_sn, ps.sku_sn AS sku_sn, p.product_tsn AS product_tsn, CAST(p.shop_id AS BIGINT) AS product_shop_id, sp.shop_id AS store_shop_id, p.product_related AS product_related, CAST(r.id AS BIGINT) AS rule_id, r.warn_enabled AS warn_enabled, r.lower_limit AS lower_limit, r.upper_limit AS upper_limit, CAST(r.update_time AS BIGINT) AS update_time, CAST(CASE WHEN $1 AND sp.store_product_id IS NOT NULL AND ps.sku_id IS NOT NULL THEN CASE WHEN $2 THEN LEAST(COALESCE(sps.sku_stock, 0), COALESCE(ps.sku_stock, 0)) ELSE COALESCE(sps.sku_stock, 0) END WHEN $3 AND sp.store_product_id IS NOT NULL THEN CASE WHEN $4 THEN LEAST(COALESCE(sp.product_stock, 0), COALESCE(p.product_stock, 0)) ELSE COALESCE(sp.product_stock, 0) END WHEN ps.sku_id IS NOT NULL THEN COALESCE(ps.sku_stock, 0) ELSE COALESCE(p.product_stock, 0) END AS BIGINT) AS current_stock, CAST(COALESCE(pt.transit_stock, 0) AS BIGINT) AS transit_stock ",
+        "SELECT CAST(p.product_id AS BIGINT) AS product_id, CAST(COALESCE(ps.sku_id, 0) AS BIGINT) AS sku_id, p.product_name AS product_name, ps.sku_value AS product_sku_name, p.pic_thumb AS product_pic_thumb, p.product_sn AS product_sn, ps.sku_sn AS sku_sn, p.product_tsn AS product_tsn, CAST(p.shop_id AS BIGINT) AS product_shop_id, sp.shop_id AS store_shop_id, p.product_related AS product_related, CAST(r.id AS BIGINT) AS rule_id, r.warn_enabled AS warn_enabled, r.lower_limit AS lower_limit, r.upper_limit AS upper_limit, CAST(r.update_time AS BIGINT) AS update_time, CAST(CASE WHEN ? AND sp.store_product_id IS NOT NULL AND ps.sku_id IS NOT NULL THEN CASE WHEN ? THEN LEAST(COALESCE(sps.sku_stock, 0), COALESCE(ps.sku_stock, 0)) ELSE COALESCE(sps.sku_stock, 0) END WHEN ? AND sp.store_product_id IS NOT NULL THEN CASE WHEN ? THEN LEAST(COALESCE(sp.product_stock, 0), COALESCE(p.product_stock, 0)) ELSE COALESCE(sp.product_stock, 0) END WHEN ps.sku_id IS NOT NULL THEN COALESCE(ps.sku_stock, 0) ELSE COALESCE(p.product_stock, 0) END AS BIGINT) AS current_stock, CAST(COALESCE(pt.transit_stock, 0) AS BIGINT) AS transit_stock ",
         "FROM product p ",
         "LEFT JOIN product_sku ps ON ps.product_id = p.product_id ",
         "LEFT JOIN store_product sp ON sp.product_id = p.product_id AND sp.shop_id = ? ",
         "LEFT JOIN store_product_sku sps ON sps.store_product_id = sp.store_product_id AND sps.product_sku_id = ps.sku_id ",
-        "LEFT JOIN stock_warning_rule r ON r.product_id = p.product_id AND r.sku_id = COALESCE(ps.sku_id, 0) AND r.shop_id = $1 AND r.is_delete = 0 ",
-        "LEFT JOIN ( SELECT poi.product_id AS product_id, poi.sku_id AS sku_id, SUM(GREATEST(poi.quantity - COALESCE(poi.received_quantity, 0), 0)) AS transit_stock FROM purchase_order_item poi INNER JOIN purchase_order po ON po.id = poi.order_id WHERE po.is_del = 0 AND poi.is_del = 0 AND po.type = 1 AND po.status IN (1, 2) AND po.shop_id = $1 GROUP BY poi.product_id, poi.sku_id ) pt ON pt.product_id = p.product_id AND pt.sku_id = COALESCE(ps.sku_id, 0) ",
-        "WHERE p.is_delete = 0 AND p.vendor_id IS NULL AND (p.shop_id = $1 OR sp.shop_id = $2) ",
+        "LEFT JOIN stock_warning_rule r ON r.product_id = p.product_id AND r.sku_id = COALESCE(ps.sku_id, 0) AND r.shop_id = ? AND r.is_delete = 0 ",
+        "LEFT JOIN ( SELECT poi.product_id AS product_id, poi.sku_id AS sku_id, SUM(GREATEST(poi.quantity - COALESCE(poi.received_quantity, 0), 0)) AS transit_stock FROM purchase_order_item poi INNER JOIN purchase_order po ON po.id = poi.order_id WHERE po.is_del = 0 AND poi.is_del = 0 AND po.type = 1 AND po.status IN (1, 2) AND po.shop_id = ? GROUP BY poi.product_id, poi.sku_id ) pt ON pt.product_id = p.product_id AND pt.sku_id = COALESCE(ps.sku_id, 0) ",
+        "WHERE p.is_delete = 0 AND p.vendor_id IS NULL AND (p.shop_id = ? OR sp.shop_id = ?) ",
     ));
 
     // 导出按勾选行取数；放在内层可先收窄结果集，主体与删除条件仍然生效。
@@ -578,7 +580,7 @@ mod tests {
         let sql = build_warning_sql(&spec);
         assert_eq!(sql.matches('?').count(), 19);
         assert!(sql
-            .contains("WHERE t.stock_status = $1 AND t.warn_enabled = 1 AND t.warn_enabled = $2"));
+            .contains("WHERE t.stock_status = ? AND t.warn_enabled = 1 AND t.warn_enabled = ?"));
     }
 
     #[test]
@@ -590,7 +592,7 @@ mod tests {
         };
         let sql = build_warning_sql(&spec);
         // stockStatus = 9 时不附加 warn_enabled = 1，未配置项仍可见
-        assert!(sql.contains("WHERE t.stock_status = $1 "));
+        assert!(sql.contains("WHERE t.stock_status = ? "));
         assert!(!sql.contains("t.warn_enabled = 1"));
 
         let spec = WarningQuerySpec {
@@ -610,7 +612,7 @@ mod tests {
             ..Default::default()
         };
         let sql = build_warning_sql(&spec);
-        assert!(sql.contains("AND (p.product_id, COALESCE(ps.sku_id, 0)) IN (($1, $2))"));
+        assert!(sql.contains("AND (p.product_id, COALESCE(ps.sku_id, 0)) IN ((?, ?))"));
     }
 
     #[test]

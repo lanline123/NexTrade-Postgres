@@ -398,7 +398,7 @@ impl ProductManageRepository {
             format!("ORDER BY {} {dir}, product_id DESC", f.order_column)
         } else {
             let ph = vec!["?"; f.field_order_ids.len()].join(", ");
-            format!("ORDER BY FIELD(product_id, {ph})")
+            format!("ORDER BY array_position(ARRAY[{ph}], product_id)")
         };
         let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM product {where_sql} {order_sql} LIMIT ? OFFSET ?",
@@ -1210,7 +1210,7 @@ impl ProductManageRepository {
         if !shop_ids.is_empty() {
             let ph = vec!["?"; shop_ids.len()].join(", ");
             let sql = crate::db::to_pg_placeholders(&format!(
-                "SELECT shipping_tpl_id, shipping_time, shipping_tpl_name, is_free, CAST(pricing_type AS BIGINT) AS pricing_type, is_default, shop_id FROM shipping_tpl WHERE shop_id IN ({ph}) ORDER BY shipping_tpl_id ASC",
+                "SELECT shipping_tpl_id, shipping_time, shipping_tpl_name, is_free, pricing_type, is_default, shop_id FROM shipping_tpl WHERE shop_id IN ({ph}) ORDER BY shipping_tpl_id ASC",
             ));
             let mut q = sqlx::query_as::<_, ShippingTpl>(&sql);
             for id in shop_ids {
@@ -1219,7 +1219,7 @@ impl ProductManageRepository {
             return q.fetch_all(&self.pool).await.map_err(map_err);
         }
         sqlx::query_as::<_, ShippingTpl>(
-            "SELECT shipping_tpl_id, shipping_time, shipping_tpl_name, is_free, CAST(pricing_type AS BIGINT) AS pricing_type, is_default, shop_id FROM shipping_tpl WHERE ($1 IS NULL OR shop_id = $2) ORDER BY shipping_tpl_id ASC",
+            "SELECT shipping_tpl_id, shipping_time, shipping_tpl_name, is_free, pricing_type, is_default, shop_id FROM shipping_tpl WHERE ($1 IS NULL OR shop_id = $2) ORDER BY shipping_tpl_id ASC",
         )
         .bind(shop_id)
         .bind(shop_id)
@@ -1910,7 +1910,7 @@ impl ProductManageRepository {
         let total: (i64,) = count_q.fetch_one(&self.pool).await.map_err(map_err)?;
 
         let rows_sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT * FROM product WHERE product_id IN ({ph}) AND is_delete = 0 ORDER BY FIELD(product_id, {ph}) LIMIT ? OFFSET ?",
+            "SELECT * FROM product WHERE product_id IN ({ph}) AND is_delete = 0 ORDER BY array_position(ARRAY[{ph}], product_id) LIMIT ? OFFSET ?",
         ));
         let mut rows_q = sqlx::query_as::<_, Product>(&rows_sql);
         for id in ids {

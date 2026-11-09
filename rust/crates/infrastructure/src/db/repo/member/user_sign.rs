@@ -18,7 +18,7 @@ impl UserSignRepository {
     /// 签到配置（Java：sort_order/create_time/id 升序）。
     pub async fn settings(&self) -> Result<Vec<SignInSettingVO>> {
         let rows: Vec<(i32, Option<String>, Option<i32>, Option<i32>, i32, i64)> = sqlx::query_as(
-            "SELECT id, name, points, day_num, sort_order, create_time FROM sign_in_setting ORDER BY sort_order ASC, create_time ASC, id ASC",
+            "SELECT id, name, points, day_num, sort_order, CAST(create_time AS BIGINT) AS create_time FROM sign_in_setting ORDER BY sort_order ASC, create_time ASC, id ASC",
         )
         .fetch_all(&self.pool)
         .await
