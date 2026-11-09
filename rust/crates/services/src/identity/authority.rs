@@ -571,7 +571,7 @@ impl AuthorityService {
             sort_field: q.sort_field.clone(),
             sort_order: q.sort_order.clone(),
         };
-        let (total, records) = self.repo.paginate(&filter, size, offset).await?;
+        let (total, records) = self.repo.paginate(&filter, size as i64, offset).await?;
         if records.is_empty() {
             return Ok(PageResult::new(total, Vec::new(), &page_query(page, size)));
         }

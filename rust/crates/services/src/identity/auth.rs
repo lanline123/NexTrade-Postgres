@@ -249,7 +249,7 @@ impl AuthService {
         self.repos
             .identity
             .auth
-            .paginate(keyword, admin_type, page.page, size)
+            .paginate(keyword, admin_type, page.page as i64, size)
             .await
     }
 
