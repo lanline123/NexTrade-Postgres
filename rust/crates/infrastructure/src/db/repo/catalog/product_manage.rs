@@ -67,8 +67,8 @@ pub struct ProductListFilter {
     /// 排序列表（白名单列名 + asc/desc），无 `ids` 时生效
     pub order_column: &'static str,
     pub order_asc: bool,
-    pub limit: u64,
-    pub offset: u64,
+    pub limit: i64,
+    pub offset: i64,
 }
 
 /// 「选择商品」列表（`product` × 启用 SKU）的过滤条件。
@@ -1295,8 +1295,8 @@ impl ProductManageRepository {
         stock_max: Option<i32>,
         order_column: &'static str,
         order_asc: bool,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<ProductSku>)> {
         let where_sql =
             "WHERE product_id = $1 AND ($2 IS NULL OR sku_sn LIKE $3 OR sku_tsn LIKE $4 OR sku_value LIKE $5) AND ($6 IS NULL OR sku_stock >= $7) AND ($8 IS NULL OR sku_stock <= $9)";

@@ -76,8 +76,8 @@ impl MerchantRepository {
         keyword: Option<&str>,
         sort_field: Option<&str>,
         sort_order: Option<&str>,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<Merchant>)> {
         let like = keyword
             .map(str::trim)

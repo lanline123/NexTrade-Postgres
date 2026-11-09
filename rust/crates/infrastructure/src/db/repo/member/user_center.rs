@@ -441,8 +441,8 @@ impl UserCenterRepository {
         user_id: i32,
         exclude_self_operated: bool,
         order_by: &str,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<CollectShop>)> {
         let self_operated_cond = if exclude_self_operated {
             " AND shop_id <> 0"

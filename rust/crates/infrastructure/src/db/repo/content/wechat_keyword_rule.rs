@@ -71,8 +71,8 @@ impl WechatKeywordRuleRepository {
         &self,
         rule_name: Option<&str>,
         enabled: Option<i32>,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<KeywordRuleListRow>)> {
         let mut count_qb: QueryBuilder<'_, Postgres> =
             QueryBuilder::new("SELECT COUNT(*) FROM wechat_keyword_rule WHERE 1 = 1");

@@ -73,8 +73,8 @@ impl SeckillBatchRepository {
     pub async fn find_active_items(
         &self,
         now: i32,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<SeckillItem>)> {
         let total: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM seckill_item WHERE seckill_start_time <= $1 AND seckill_end_time >= $2 AND seckill_stock > 0",

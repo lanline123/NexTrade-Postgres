@@ -67,8 +67,8 @@ impl ImServantRepository {
         servant_ids: Option<&[i32]>,
         sort_column: &str,
         dir: &str,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<ImServant>)> {
         // username 过滤命中为空 → 空页（不查库，对齐 Java 提前 return）
         if servant_ids.is_some_and(<[i32]>::is_empty) {
