@@ -22,14 +22,21 @@
 //! 全部使用运行时 `sqlx::query_as::<_, T>(...)`（本机无 `DATABASE_URL`，
 //! 不能用 `query!` 宏）。
 //!
-//! **unsigned 列必须 CAST**：sqlx 的 `i32` / `i64` 只与**有符号**整型列
-//! 兼容（`sqlx_mysql::types::int::int_compatible` 显式排除
-//! `ColumnFlags::UNSIGNED`），因此本模块对所有 unsigned 列
-//! （`product.product_id` / `product.shop_id`、`product_sku.sku_id`、
-//! `stock_warning_rule.id`、`*_time bigint unsigned`）以及
-//! `SUM()` / `COUNT()`（MySQL 返回 DECIMAL / BIGINT）统一写
-//! `CAST(... AS BIGINT)`。漏掉会编译通过、列名校验也过，但一接真库就报
-//! `mismatched types`。
+//! **输出列类型必须与 Rust 字段类型严格对应**（PG 下 sqlx 不做隐式放宽）：
+//!
+//! | Rust 字段 | 可接受的 PG 类型 | 需要 CAST 的场景 |
+//! | --- | --- | --- |
+//! | `i32` | **只接受 INT4** | `COUNT()` 返回 INT8、`SUM(int4)` 返回 INT8、`SUM(bigint)` 返回 NUMERIC → 要 `CAST(... AS INT)` |
+//! | `i64` | **只接受 INT8** | 整数聚合 → `CAST(... AS BIGINT)` |
+//!
+//! 反例（本模块踩过）：给 `i32` 字段套 `CAST(... AS BIGINT)`，报
+//! `Rust type i32 (as SQL type INT4) is not compatible with SQL type INT8`。
+//! **强转方向必须跟着 Rust 类型走，不能一律加宽**。
+//!
+//! **WHERE / JOIN 里的整数比较不需要 CAST**：PG 对 int2/int4/int8 之间的
+//! 比较有隐式转换，`bigint_col = $1(int4)` 合法；只在解码输出列时才需要对齐。
+//! 本模块为免歧义仍显式写了 `CAST(sp.shop_id AS INT)`（`store_product.shop_id`
+//! 是 bigint），代价是该列索引用不上 —— 数据量增大后可去掉。
 //!
 //! **书写约定**：SQL 字面量必须写在「行尾只剩 `,` 或 `)`」的位置，
 //! `tools/check_sql_columns.py` 的字符串提取逻辑才会把它当作一条独立语句
@@ -186,10 +193,11 @@ impl StockWarningRepository {
         product_id: i32,
         sku_id: i32,
     ) -> Result<Option<StockWarningRule>> {
-        // `id` 是 `int unsigned`，`last_warn_time` / `create_time` / `update_time`
-        // 是 `bigint unsigned`，均需 CAST 成有符号整型才能解码进 `i32` / `i64`。
+        // `id` / `shop_id` / `product_id` / `sku_id` 在 PG 均为 `integer`，裸列
+        // 即 INT4 可解码进 `i32`；`*_time` 是 bigint，`i64` 可直取，此处保留
+        // CAST 仅为显式表明输出类型。
         sqlx::query_as::<_, StockWarningRule>(
-            "SELECT CAST(id AS BIGINT) AS id, shop_id, product_id, sku_id, warn_enabled, lower_limit, upper_limit, last_warn_status, CAST(last_warn_time AS BIGINT) AS last_warn_time, is_delete, CAST(create_time AS BIGINT) AS create_time, CAST(update_time AS BIGINT) AS update_time FROM stock_warning_rule WHERE shop_id = $1 AND product_id = $2 AND sku_id = $3 AND is_delete = 0 LIMIT 1",
+            "SELECT id, shop_id, product_id, sku_id, warn_enabled, lower_limit, upper_limit, last_warn_status, CAST(last_warn_time AS BIGINT) AS last_warn_time, is_delete, CAST(create_time AS BIGINT) AS create_time, CAST(update_time AS BIGINT) AS update_time FROM stock_warning_rule WHERE shop_id = $1 AND product_id = $2 AND sku_id = $3 AND is_delete = 0 LIMIT 1",
         )
         .bind(shop_id)
         .bind(product_id)
@@ -305,7 +313,7 @@ impl StockWarningRepository {
         }
         let placeholders = vec!["?"; sn_list.len()].join(", ");
         let sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT ps.sku_sn AS sn, CAST(p.product_id AS BIGINT) AS product_id, CAST(ps.sku_id AS BIGINT) AS sku_id, CAST(1 AS BIGINT) AS match_type, CAST(0 AS BIGINT) AS sku_count FROM product_sku ps INNER JOIN product p ON p.product_id = ps.product_id LEFT JOIN store_product sp ON sp.product_id = p.product_id AND sp.shop_id = ? WHERE p.is_delete = 0 AND p.vendor_id IS NULL AND (p.shop_id = ? OR sp.shop_id = ?) AND ps.sku_sn IN ({placeholders}) UNION ALL SELECT p.product_sn AS sn, CAST(p.product_id AS BIGINT) AS product_id, CAST(0 AS BIGINT) AS sku_id, CAST(2 AS BIGINT) AS match_type, CAST((SELECT COUNT(*) FROM product_sku s WHERE s.product_id = p.product_id) AS BIGINT) AS sku_count FROM product p LEFT JOIN store_product sp ON sp.product_id = p.product_id AND sp.shop_id = ? WHERE p.is_delete = 0 AND p.vendor_id IS NULL AND (p.shop_id = ? OR sp.shop_id = ?) AND p.product_sn IN ({placeholders})"
+            "SELECT ps.sku_sn AS sn, CAST(p.product_id AS INT) AS product_id, CAST(ps.sku_id AS INT) AS sku_id, CAST(1 AS INT) AS match_type, CAST(0 AS INT) AS sku_count FROM product_sku ps INNER JOIN product p ON p.product_id = ps.product_id LEFT JOIN store_product sp ON sp.product_id = p.product_id AND CAST(sp.shop_id AS INT) = ? WHERE p.is_delete = 0 AND p.vendor_id IS NULL AND (p.shop_id = ? OR CAST(sp.shop_id AS INT) = ?) AND ps.sku_sn IN ({placeholders}) UNION ALL SELECT p.product_sn AS sn, CAST(p.product_id AS INT) AS product_id, CAST(0 AS INT) AS sku_id, CAST(2 AS INT) AS match_type, CAST((SELECT COUNT(*) FROM product_sku s WHERE s.product_id = p.product_id) AS INT) AS sku_count FROM product p LEFT JOIN store_product sp ON sp.product_id = p.product_id AND CAST(sp.shop_id AS INT) = ? WHERE p.is_delete = 0 AND p.vendor_id IS NULL AND (p.shop_id = ? OR CAST(sp.shop_id AS INT) = ?) AND p.product_sn IN ({placeholders})"
         ));
         let mut q = sqlx::query_as::<_, WarningSnTarget>(&sql);
         q = q.bind(shop_id).bind(shop_id).bind(shop_id);
@@ -333,7 +341,7 @@ impl StockWarningRepository {
         }
         let placeholders = vec!["?"; product_ids.len()].join(", ");
         let sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT DISTINCT CAST(p.product_id AS BIGINT) FROM product p LEFT JOIN store_product sp ON sp.product_id = p.product_id AND sp.shop_id = $1 AND sp.is_delete = 0 WHERE p.is_delete = 0 AND p.vendor_id IS NULL AND (p.shop_id = $2 OR (p.shop_id = 0 AND sp.shop_id = $3)) AND p.product_id IN ({placeholders})"
+            "SELECT DISTINCT CAST(p.product_id AS INT) FROM product p LEFT JOIN store_product sp ON sp.product_id = p.product_id AND CAST(sp.shop_id AS INT) = $1 AND sp.is_delete = 0 WHERE p.is_delete = 0 AND p.vendor_id IS NULL AND (p.shop_id = $2 OR (p.shop_id = 0 AND CAST(sp.shop_id AS INT) = $3)) AND p.product_id IN ({placeholders})"
         ));
         let mut q = sqlx::query_as::<_, (i32,)>(&sql);
         q = q.bind(shop_id).bind(shop_id).bind(shop_id);
@@ -380,15 +388,15 @@ impl StockWarningRepository {
 #[must_use]
 pub fn build_warning_sql(spec: &WarningQuerySpec) -> String {
     let mut sql = String::from(concat!(
-        "SELECT t.*, CAST(CASE WHEN t.rule_id IS NULL THEN 9 WHEN t.current_stock < t.lower_limit THEN 1 WHEN t.current_stock > t.upper_limit THEN 2 ELSE 0 END AS BIGINT) AS stock_status FROM ( ",
-        "SELECT CAST(p.product_id AS BIGINT) AS product_id, CAST(COALESCE(ps.sku_id, 0) AS BIGINT) AS sku_id, p.product_name AS product_name, ps.sku_value AS product_sku_name, p.pic_thumb AS product_pic_thumb, p.product_sn AS product_sn, ps.sku_sn AS sku_sn, p.product_tsn AS product_tsn, CAST(p.shop_id AS BIGINT) AS product_shop_id, sp.shop_id AS store_shop_id, p.product_related AS product_related, CAST(r.id AS BIGINT) AS rule_id, r.warn_enabled AS warn_enabled, r.lower_limit AS lower_limit, r.upper_limit AS upper_limit, CAST(r.update_time AS BIGINT) AS update_time, CAST(CASE WHEN ? AND sp.store_product_id IS NOT NULL AND ps.sku_id IS NOT NULL THEN CASE WHEN ? THEN LEAST(COALESCE(sps.sku_stock, 0), COALESCE(ps.sku_stock, 0)) ELSE COALESCE(sps.sku_stock, 0) END WHEN ? AND sp.store_product_id IS NOT NULL THEN CASE WHEN ? THEN LEAST(COALESCE(sp.product_stock, 0), COALESCE(p.product_stock, 0)) ELSE COALESCE(sp.product_stock, 0) END WHEN ps.sku_id IS NOT NULL THEN COALESCE(ps.sku_stock, 0) ELSE COALESCE(p.product_stock, 0) END AS BIGINT) AS current_stock, CAST(COALESCE(pt.transit_stock, 0) AS BIGINT) AS transit_stock ",
+        "SELECT t.*, CAST(CASE WHEN t.rule_id IS NULL THEN 9 WHEN t.current_stock < t.lower_limit THEN 1 WHEN t.current_stock > t.upper_limit THEN 2 ELSE 0 END AS INT) AS stock_status FROM ( ",
+        "SELECT p.product_id AS product_id, COALESCE(ps.sku_id, 0) AS sku_id, p.product_name AS product_name, ps.sku_value AS product_sku_name, p.pic_thumb AS product_pic_thumb, p.product_sn AS product_sn, ps.sku_sn AS sku_sn, p.product_tsn AS product_tsn, p.shop_id AS product_shop_id, sp.shop_id AS store_shop_id, p.product_related AS product_related, r.id AS rule_id, r.warn_enabled AS warn_enabled, r.lower_limit AS lower_limit, r.upper_limit AS upper_limit, CAST(r.update_time AS BIGINT) AS update_time, CAST(CASE WHEN ? AND sp.store_product_id IS NOT NULL AND ps.sku_id IS NOT NULL THEN CASE WHEN ? THEN LEAST(COALESCE(sps.sku_stock, 0), COALESCE(ps.sku_stock, 0)) ELSE COALESCE(sps.sku_stock, 0) END WHEN ? AND sp.store_product_id IS NOT NULL THEN CASE WHEN ? THEN LEAST(COALESCE(sp.product_stock, 0), COALESCE(p.product_stock, 0)) ELSE COALESCE(sp.product_stock, 0) END WHEN ps.sku_id IS NOT NULL THEN COALESCE(ps.sku_stock, 0) ELSE COALESCE(p.product_stock, 0) END AS INT) AS current_stock, CAST(COALESCE(pt.transit_stock, 0) AS BIGINT) AS transit_stock ",
         "FROM product p ",
         "LEFT JOIN product_sku ps ON ps.product_id = p.product_id ",
-        "LEFT JOIN store_product sp ON sp.product_id = p.product_id AND sp.shop_id = ? ",
+        "LEFT JOIN store_product sp ON sp.product_id = p.product_id AND CAST(sp.shop_id AS INT) = ? ",
         "LEFT JOIN store_product_sku sps ON sps.store_product_id = sp.store_product_id AND sps.product_sku_id = ps.sku_id ",
         "LEFT JOIN stock_warning_rule r ON r.product_id = p.product_id AND r.sku_id = COALESCE(ps.sku_id, 0) AND r.shop_id = ? AND r.is_delete = 0 ",
         "LEFT JOIN ( SELECT poi.product_id AS product_id, poi.sku_id AS sku_id, SUM(GREATEST(poi.quantity - COALESCE(poi.received_quantity, 0), 0)) AS transit_stock FROM purchase_order_item poi INNER JOIN purchase_order po ON po.id = poi.order_id WHERE po.is_del = 0 AND poi.is_del = 0 AND po.type = 1 AND po.status IN (1, 2) AND po.shop_id = ? GROUP BY poi.product_id, poi.sku_id ) pt ON pt.product_id = p.product_id AND pt.sku_id = COALESCE(ps.sku_id, 0) ",
-        "WHERE p.is_delete = 0 AND p.vendor_id IS NULL AND (p.shop_id = ? OR sp.shop_id = ?) ",
+        "WHERE p.is_delete = 0 AND p.vendor_id IS NULL AND (p.shop_id = ? OR CAST(sp.shop_id AS INT) = ?) ",
     ));
 
     // 导出按勾选行取数；放在内层可先收窄结果集，主体与删除条件仍然生效。
@@ -627,9 +635,9 @@ mod tests {
             ..Default::default()
         };
         let sql = build_warning_sql(&spec);
-        // 主体范围与删除条件
+        // 主体范围与删除条件（store_product.shop_id 是 bigint，需收窄后与 i32 参数比较）
         assert!(sql.contains("WHERE p.is_delete = 0 AND p.vendor_id IS NULL"));
-        assert!(sql.contains("AND (p.shop_id = ? OR sp.shop_id = ?)"));
+        assert!(sql.contains("AND (p.shop_id = ? OR CAST(sp.shop_id AS INT) = ?)"));
         // 规则 join 必须带 is_delete = 0 与主体条件
         assert!(sql.contains("r.is_delete = 0"));
         // 在途库存只统计 type=1 且状态 1/2 的采购单
