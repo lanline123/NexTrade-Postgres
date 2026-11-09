@@ -145,7 +145,7 @@ impl SeoRepository {
 
     /// 回写分类 SEO 标识。
     pub async fn update_category_seo(&self, category_id: i32, seo: &str) -> Result<u64> {
-        let res = sqlx::query("UPDATE category SET seo_identification = ? WHERE category_id = ?")
+        let res = sqlx::query("UPDATE category SET seo_identification = $1 WHERE category_id = $2")
             .bind(seo)
             .bind(category_id)
             .execute(&self.pool)
@@ -169,7 +169,7 @@ impl SeoRepository {
 
     /// 回写商品 SEO 标识。
     pub async fn update_product_seo(&self, product_id: i32, seo: &str) -> Result<u64> {
-        let res = sqlx::query("UPDATE product SET seo_identification = ? WHERE product_id = ?")
+        let res = sqlx::query("UPDATE product SET seo_identification = $1 WHERE product_id = $2")
             .bind(seo)
             .bind(product_id)
             .execute(&self.pool)
@@ -240,9 +240,9 @@ impl SeoRepository {
         let placeholders = std::iter::repeat_n("?", ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT brand_id, brand_name FROM brand WHERE brand_id IN ({placeholders}) AND is_show = 1 ORDER BY brand_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, SitemapBrandRow>(&sql);
         for id in ids {
             q = q.bind(*id);

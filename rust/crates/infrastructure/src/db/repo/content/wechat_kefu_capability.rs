@@ -31,7 +31,7 @@ impl WechatKefuCapabilityRepository {
     /// 公众号是否已完整配置（四个 bizCode 均存在且 `biz_val` 非空，`is_del = 0`）。
     pub async fn is_wechat_configured(&self) -> Result<bool> {
         let sql = "SELECT COUNT(*) FROM config \
-                   WHERE biz_code IN (?, ?, ?, ?) AND is_del = 0 \
+                   WHERE biz_code IN ($1, $2, $3, $4) AND is_del = 0 \
                      AND biz_val IS NOT NULL AND TRIM(biz_val) <> ''";
         let row: (i64,) = sqlx::query_as(sql)
             .bind(WECHAT_CONFIG_CODES[0])

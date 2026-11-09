@@ -175,14 +175,14 @@ impl CommentRepository {
 
         let binds = build_binds(f, kw.clone());
 
-        let count_sql = format!("SELECT COUNT(*) FROM comment{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM comment{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&count_sql), &binds)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
         let (limit, offset) = page.limit_offset();
-        let list_sql = format!("SELECT {COMMENT_COLUMNS} FROM comment{where_sql}{order_sql} LIMIT ? OFFSET ?");
+        let list_sql = crate::db::to_pg_placeholders(&format!("SELECT {COMMENT_COLUMNS} FROM comment{where_sql}{order_sql} LIMIT ? OFFSET ?"));
         let rows = bind_all!(sqlx::query_as::<_, Comment>(&list_sql), &binds)
             .bind(limit)
             .bind(offset)
@@ -199,9 +199,9 @@ impl CommentRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; parent_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {COMMENT_COLUMNS} FROM comment WHERE parent_id IN ({placeholders}) ORDER BY comment_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, Comment>(&sql);
         for id in parent_ids {
             q = q.bind(*id);
@@ -230,7 +230,7 @@ impl CommentRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM product WHERE product_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM product WHERE product_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, Product>(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -255,7 +255,7 @@ impl CommentRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; item_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM order_item WHERE item_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM order_item WHERE item_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, OrderItem>(&sql);
         for id in item_ids {
             q = q.bind(*id);
@@ -321,9 +321,9 @@ impl CommentRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; order_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM comment WHERE order_id IN ({placeholders}) AND user_id = $1 AND parent_id = 0 AND is_showed = 0"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i64,)>(&sql);
         for id in order_ids {
             q = q.bind(*id);
@@ -377,9 +377,9 @@ impl CommentRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; item_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM comment WHERE order_id = $1 AND parent_id = 0 AND user_id = $2 AND order_item_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i64,)>(&sql)
             .bind(order_id)
             .bind(user_id);
@@ -514,7 +514,7 @@ impl CommentRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; ids.len()].join(",");
-        let sql = format!("DELETE FROM comment WHERE comment_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM comment WHERE comment_id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(id);

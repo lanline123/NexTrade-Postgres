@@ -46,9 +46,9 @@ impl HomeRepository {
             return Ok(HashMap::new());
         }
         let placeholders = vec!["?"; codes.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT biz_code, biz_val FROM config WHERE is_del = 0 AND biz_code IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (String, Option<String>)>(&sql);
         for c in codes {
             q = q.bind(*c);

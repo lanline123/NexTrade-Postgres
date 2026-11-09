@@ -80,9 +80,9 @@ impl ProxyShoppingProductRepository {
         let placeholders = std::iter::repeat_n("?", attributes_ids.len())
             .collect::<Vec<_>>()
             .join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT attributes_id, attr_price FROM product_attributes WHERE attributes_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, Option<Decimal>)>(&sql);
         for id in attributes_ids {
             q = q.bind(*id);
@@ -110,9 +110,9 @@ impl ProxyShoppingProductRepository {
         let placeholders = std::iter::repeat_n("?", attributes_ids.len())
             .collect::<Vec<_>>()
             .join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT attributes_id, attr_name, attr_value, attr_price FROM product_attributes WHERE attributes_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, String, String, Option<Decimal>)>(&sql);
         for id in attributes_ids {
             q = q.bind(*id);

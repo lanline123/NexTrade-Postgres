@@ -46,7 +46,7 @@ impl SalesmanConfigRepository {
     ) -> Result<Option<SalesmanConfigRow>> {
         sqlx::query_as::<_, SalesmanConfigRow>(
             "SELECT id, shop_id, code, data FROM salesman_config \
-             WHERE code = ? AND shop_id = ? LIMIT 1",
+             WHERE code = $1 AND shop_id = $2 LIMIT 1",
         )
         .bind(code)
         .bind(shop_id)
@@ -60,7 +60,7 @@ impl SalesmanConfigRepository {
     /// 返回记录主键。
     pub async fn upsert(&self, code: &str, shop_id: i32, data: &str) -> Result<i32> {
         if let Some(row) = self.find_by_code(code, shop_id).await? {
-            sqlx::query("UPDATE salesman_config SET data = ?, shop_id = ? WHERE id = ?")
+            sqlx::query("UPDATE salesman_config SET data = $1, shop_id = $2 WHERE id = $3")
                 .bind(data)
                 .bind(shop_id)
                 .bind(row.id)
@@ -70,7 +70,7 @@ impl SalesmanConfigRepository {
             return Ok(row.id);
         }
         let res: i32 = sqlx::query_scalar(
-            "INSERT INTO salesman_config (shop_id, code, data) VALUES (?, ?, ?) RETURNING id",
+            "INSERT INTO salesman_config (shop_id, code, data) VALUES ($1, $2, $3) RETURNING id",
         )
         .bind(shop_id)
         .bind(code)

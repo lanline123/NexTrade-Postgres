@@ -210,9 +210,9 @@ impl ShippingTplRepository {
     ) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM shipping_tpl
-             WHERE shipping_tpl_name = ?
-               AND ((? IS NULL AND shop_id IS NULL) OR shop_id = ?)
-               AND (? IS NULL OR shipping_tpl_id <> ?)",
+             WHERE shipping_tpl_name = $1
+               AND (($2 IS NULL AND shop_id IS NULL) OR shop_id = $3)
+               AND ($4 IS NULL OR shipping_tpl_id <> $5)",
         )
         .bind(name)
         .bind(shop_id)
@@ -233,7 +233,7 @@ impl ShippingTplRepository {
     pub async fn find_default_tpl_id(&self, shop_id: i32) -> Result<Option<i32>> {
         let row: Option<(i32,)> = sqlx::query_as(
             "SELECT shipping_tpl_id FROM shipping_tpl
-             WHERE shop_id = ? AND is_default = ? LIMIT 1",
+             WHERE shop_id = $1 AND is_default = $2 LIMIT 1",
         )
         .bind(shop_id)
         .bind(YES)
@@ -254,7 +254,7 @@ impl ShippingTplRepository {
         let res: i32 = sqlx::query_scalar(
             "INSERT INTO shipping_tpl
                 (shipping_time, shipping_tpl_name, is_free, pricing_type, is_default, shop_id)
-             VALUES (?, ?, ?, ?, ?, ?) RETURNING shipping_tpl_id",
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING shipping_tpl_id",
         )
         .bind(&v.shipping_time)
         .bind(&v.shipping_tpl_name)
@@ -313,7 +313,7 @@ impl ShippingTplRepository {
             nextrade_core::models::logistics::shipping_tpl::SHIPPING_TPL_COLUMNS.contains(&column),
             "update_field 列名未经过白名单映射: {column}"
         );
-        let sql = format!("UPDATE shipping_tpl SET {column} = ? WHERE shipping_tpl_id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE shipping_tpl SET {column} = ? WHERE shipping_tpl_id = ?"));
         let res = sqlx::query(&sql)
             .bind(val)
             .bind(id)
@@ -351,7 +351,7 @@ impl ShippingTplRepository {
     /// 把指定模板置为默认（对应 Java \"setDefault\" 的第二步
     /// `lambdaUpdate().eq(shippingTplId, id).set(isDefault, 1).update()`）。
     pub async fn mark_default(&self, id: i32) -> Result<u64> {
-        let res = sqlx::query("UPDATE shipping_tpl SET is_default = ? WHERE shipping_tpl_id = ?")
+        let res = sqlx::query("UPDATE shipping_tpl SET is_default = $1 WHERE shipping_tpl_id = $2")
             .bind(YES)
             .bind(id)
             .execute(&self.pool)
@@ -368,7 +368,7 @@ impl ShippingTplRepository {
     /// 子表记录（无级联、无事务内的显式子表清理），会留下孤儿行。
     /// 本实现逐字复刻该行为（见 \"uncertain_points\"）。
     pub async fn delete_tpl(&self, id: i32) -> Result<bool> {
-        let res = sqlx::query("DELETE FROM shipping_tpl WHERE shipping_tpl_id = ?")
+        let res = sqlx::query("DELETE FROM shipping_tpl WHERE shipping_tpl_id = $1")
             .bind(id)
             .execute(&self.pool)
             .await
@@ -420,7 +420,7 @@ impl ShippingTplRepository {
     /// （对应 Java `ShippingTplInfoServiceImpl#updateShippingTplInfo` 的第一句
     /// `lambdaUpdate().eq(shippingTplId, ...).remove()`）。
     pub async fn delete_infos_by_tpl(&self, tpl_id: i32) -> Result<u64> {
-        let res = sqlx::query("DELETE FROM shipping_tpl_info WHERE shipping_tpl_id = ?")
+        let res = sqlx::query("DELETE FROM shipping_tpl_info WHERE shipping_tpl_id = $1")
             .bind(tpl_id)
             .execute(&self.pool)
             .await

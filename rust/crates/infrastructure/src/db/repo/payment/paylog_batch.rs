@@ -90,7 +90,7 @@ impl PaylogBatchRepository {
         let placeholders = std::iter::repeat_n("?", ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!("DELETE FROM paylog WHERE paylog_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM paylog WHERE paylog_id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -122,7 +122,7 @@ impl PaylogBatchRepository {
         let mut sql = String::with_capacity(64);
         sql.push_str("UPDATE paylog SET \"");
         sql.push_str(column);
-        sql.push_str("\" = ? WHERE paylog_id = ?");
+        sql.push_str("\" = $1 WHERE paylog_id = $2");
         let r = sqlx::query(&sql)
             .bind(val)
             .bind(paylog_id)

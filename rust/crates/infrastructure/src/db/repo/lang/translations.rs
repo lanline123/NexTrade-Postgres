@@ -45,7 +45,7 @@ impl TranslationsRepository {
 
     /// 按数据类型 + 数据 id 查询（Java `getData(dataType, dataId)`）。
     pub async fn find_by_data_id(&self, data_type: i32, data_id: i32) -> Result<Vec<TranslationsData>> {
-        let sql = Self::select_sql("WHERE data_type = ? AND data_id = ?");
+        let sql = Self::select_sql("WHERE data_type = $1 AND data_id = $2");
         sqlx::query_as::<_, TranslationsData>(&sql)
             .bind(data_type)
             .bind(data_id)
@@ -60,7 +60,7 @@ impl TranslationsRepository {
         data_type: i32,
         translation_name: &str,
     ) -> Result<Vec<TranslationsData>> {
-        let sql = Self::select_sql("WHERE data_type = ? AND translation_name = ?");
+        let sql = Self::select_sql("WHERE data_type = $1 AND translation_name = $2");
         sqlx::query_as::<_, TranslationsData>(&sql)
             .bind(data_type)
             .bind(translation_name)
@@ -78,7 +78,7 @@ impl TranslationsRepository {
         locale_id: i32,
     ) -> Result<Option<TranslationsData>> {
         let sql = Self::select_sql(
-            "WHERE translation_key = ? AND data_type = ? AND locale_id = ? LIMIT 1",
+            "WHERE translation_key = $1 AND data_type = $2 AND locale_id = $3 LIMIT 1",
         );
         sqlx::query_as::<_, TranslationsData>(&sql)
             .bind(translation_key)
@@ -156,7 +156,7 @@ impl TranslationsRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; data_ids.len()].join(", ");
-        let sql = format!("DELETE FROM translations_data WHERE data_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM translations_data WHERE data_id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in data_ids {
             q = q.bind(id);
@@ -219,7 +219,7 @@ impl TranslationsIndexRepository {
         } else {
             format!("WHERE {}", where_parts.join(" AND "))
         };
-        let count_sql = format!("SELECT COUNT(*) FROM translations {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM translations {where_sql}"));
         let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql);
         if let Some(name) = name_like {
             count_q = count_q.bind(format!("%{name}%"));
@@ -248,7 +248,7 @@ impl TranslationsIndexRepository {
 
     /// 按主键查单条（Java `getById`）。
     pub async fn find_by_id(&self, id: i32) -> Result<Option<Translations>> {
-        let sql = Self::select_sql("WHERE id = ? LIMIT 1");
+        let sql = Self::select_sql("WHERE id = $1 LIMIT 1");
         sqlx::query_as::<_, Translations>(&sql)
             .bind(id)
             .fetch_optional(&self.pool)
@@ -289,7 +289,7 @@ impl TranslationsIndexRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = format!("DELETE FROM translations WHERE id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM translations WHERE id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(id);

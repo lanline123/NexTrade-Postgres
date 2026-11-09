@@ -69,7 +69,7 @@ impl GalleryRepository {
         let (column, desc) = resolve_sort(q.sort_field.as_deref(), q.sort_order.as_deref());
         let order_sql = order_by(column, desc);
 
-        let count_sql = format!("SELECT COUNT(*) FROM gallery WHERE {SCOPE_WHERE} AND (? IS NULL OR parent_id = ?)");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM gallery WHERE {SCOPE_WHERE} AND (? IS NULL OR parent_id = ?)"));
         let total: (i64,) = sqlx::query_as(&count_sql)
             .bind(scope.shop_id)
             .bind(scope.shop_id)
@@ -81,11 +81,11 @@ impl GalleryRepository {
             .await
             .map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {GALLERY_COLUMNS} FROM gallery
              WHERE {SCOPE_WHERE} AND (? IS NULL OR parent_id = ?){order_sql}
              LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = sqlx::query_as::<_, Gallery>(&list_sql)
             .bind(scope.shop_id)
             .bind(scope.shop_id)
@@ -104,7 +104,7 @@ impl GalleryRepository {
 
     /// 按主键查询相册（Java `getById(id)`）。
     pub async fn find_by_id(&self, gallery_id: i32) -> Result<Option<Gallery>> {
-        let sql = format!("SELECT {GALLERY_COLUMNS} FROM gallery WHERE gallery_id = ? LIMIT 1");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT {GALLERY_COLUMNS} FROM gallery WHERE gallery_id = ? LIMIT 1"));
         sqlx::query_as::<_, Gallery>(&sql)
             .bind(gallery_id)
             .fetch_optional(&self.pool)
@@ -115,11 +115,11 @@ impl GalleryRepository {
     /// 全部分组（树用）：多租户过滤 + `gallery_sort ASC, gallery_id ASC`
     /// （Java `GalleryServiceImpl#tree` 的排序逐字一致）。
     pub async fn list_for_tree(&self, scope: GalleryScope) -> Result<Vec<Gallery>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {GALLERY_COLUMNS} FROM gallery
              WHERE {SCOPE_WHERE}
              ORDER BY gallery_sort ASC, gallery_id ASC"
-        );
+        ));
         sqlx::query_as::<_, Gallery>(&sql)
             .bind(scope.shop_id)
             .bind(scope.shop_id)
@@ -145,10 +145,10 @@ impl GalleryRepository {
 
     /// 同父级下下一个排序值（Java `nextGallerySort`：`max(gallery_sort) + 1`，无同级为 1）。
     pub async fn next_gallery_sort(&self, scope: GalleryScope, parent_id: i32) -> Result<i32> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT MAX(gallery_sort) FROM gallery
              WHERE parent_id = ? AND {SCOPE_WHERE}"
-        );
+        ));
         let row: (Option<i32>,) = sqlx::query_as(&sql)
             .bind(parent_id)
             .bind(scope.shop_id)
@@ -166,7 +166,7 @@ impl GalleryRepository {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO gallery
                (parent_id, gallery_admin_id, gallery_name, gallery_sort, gallery_thumb, shop_id, vendor_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING gallery_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING gallery_id",
         )
         .bind(g.parent_id)
         .bind(g.gallery_admin_id)
@@ -184,9 +184,9 @@ impl GalleryRepository {
     /// 按主键整行更新相册（Java \"updateById\"；非提交字段由服务层合并原值保证不变）。
     pub async fn update(&self, g: &Gallery) -> Result<u64> {
         let r = sqlx::query(
-            "UPDATE gallery SET parent_id = ?, gallery_admin_id = ?, gallery_name = ?,
-                gallery_sort = ?, gallery_thumb = ?, shop_id = ?, vendor_id = ?
-             WHERE gallery_id = ?",
+            "UPDATE gallery SET parent_id = $1, gallery_admin_id = $2, gallery_name = $3,
+                gallery_sort = $4, gallery_thumb = $5, shop_id = $6, vendor_id = $7
+             WHERE gallery_id = $8",
         )
         .bind(g.parent_id)
         .bind(g.gallery_admin_id)
@@ -204,7 +204,7 @@ impl GalleryRepository {
 
     /// 按主键删除单个相册（Java `BaseServiceImpl#del` → \"removeById\"）。
     pub async fn delete(&self, gallery_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM gallery WHERE gallery_id = ?")
+        let r = sqlx::query("DELETE FROM gallery WHERE gallery_id = $1")
             .bind(gallery_id)
             .execute(&self.pool)
             .await
@@ -273,7 +273,7 @@ impl GalleryRepository {
     pub async fn sort_groups(&self, ids: &[i32]) -> Result<()> {
         let mut tx = self.pool.begin().await.map_err(map_err)?;
         for (i, id) in ids.iter().enumerate() {
-            sqlx::query("UPDATE gallery SET gallery_sort = ? WHERE gallery_id = ?")
+            sqlx::query("UPDATE gallery SET gallery_sort = $1 WHERE gallery_id = $2")
                 .bind((i + 1) as i32)
                 .bind(id)
                 .execute(&mut *tx)
@@ -302,9 +302,9 @@ impl GalleryRepository {
         let ph = placeholders(ids.len());
 
         let table = if video { "gallery_video_info" } else { "gallery_pic" };
-        let move_sql = format!(
+        let move_sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE {table} SET gallery_id = ? WHERE gallery_id IN ({ph})"
-        );
+        ));
         let mut mv = sqlx::query(&move_sql).bind(target_id);
         for id in &ids {
             mv = mv.bind(id);
@@ -312,7 +312,7 @@ impl GalleryRepository {
         mv.execute(&mut *tx).await.map_err(map_err)?;
 
         if delete_source {
-            let del_sql = format!("DELETE FROM gallery WHERE gallery_id IN ({ph})");
+            let del_sql = crate::db::to_pg_placeholders(&format!("DELETE FROM gallery WHERE gallery_id IN ({ph})"));
             let mut del = sqlx::query(&del_sql);
             for id in &ids {
                 del = del.bind(id);
@@ -334,14 +334,14 @@ impl GalleryRepository {
         let mut tx = self.pool.begin().await.map_err(map_err)?;
 
         if delete_files {
-            let sql = format!("DELETE FROM gallery_pic WHERE gallery_id IN ({ph})");
+            let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM gallery_pic WHERE gallery_id IN ({ph})"));
             let mut q = sqlx::query(&sql);
             for id in &ids {
                 q = q.bind(id);
             }
             q.execute(&mut *tx).await.map_err(map_err)?;
         } else {
-            let sql = format!("UPDATE gallery_pic SET gallery_id = 0 WHERE gallery_id IN ({ph})");
+            let sql = crate::db::to_pg_placeholders(&format!("UPDATE gallery_pic SET gallery_id = 0 WHERE gallery_id IN ({ph})"));
             let mut q = sqlx::query(&sql);
             for id in &ids {
                 q = q.bind(id);
@@ -349,7 +349,7 @@ impl GalleryRepository {
             q.execute(&mut *tx).await.map_err(map_err)?;
         }
 
-        let sql = format!("DELETE FROM gallery WHERE gallery_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM gallery WHERE gallery_id IN ({ph})"));
         let mut q = sqlx::query(&sql);
         for id in &ids {
             q = q.bind(id);

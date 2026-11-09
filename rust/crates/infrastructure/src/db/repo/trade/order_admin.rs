@@ -632,7 +632,7 @@ impl OrderAdminRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; user_ids.len()].join(", ");
-        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM user WHERE user_id IN ({placeholders})"));
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM \"user\" WHERE user_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, User>(&sql);
         for id in user_ids {
             q = q.bind(*id);

@@ -129,7 +129,7 @@ impl SalesmanAdminRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!("SELECT {SALESMAN_COLUMNS} FROM salesman WHERE salesman_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT {SALESMAN_COLUMNS} FROM salesman WHERE salesman_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, Salesman>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -169,14 +169,14 @@ impl SalesmanAdminRepository {
         } else {
             "DESC"
         };
-        let count_sql = format!("SELECT COUNT(*) FROM salesman {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM salesman {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         cq = bind_salesman_filters(cq, shop_id, user_id, group_id, level);
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {SALESMAN_COLUMNS} FROM salesman {where_sql} ORDER BY {column} {dir} LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, Salesman>(&list_sql);
         lq = bind_salesman_filters(lq, shop_id, user_id, group_id, level);
         let rows = lq
@@ -234,9 +234,9 @@ impl SalesmanAdminRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
-            "SELECT user_id, username, nickname, mobile, avatar, reg_time, rank_id FROM user WHERE user_id IN ({ph})"
-        );
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT user_id, username, nickname, mobile, avatar, reg_time, rank_id FROM \"user\" WHERE user_id IN ({ph})"
+        ));
         let mut q = sqlx::query_as::<_, SalesmanUserRow>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -247,7 +247,7 @@ impl SalesmanAdminRepository {
     /// 按手机号/用户名精确查会员（Java `getUserByMobileOrUsername`）。
     pub async fn find_user_by_mobile_or_username(&self, keyword: &str) -> Result<Option<(i32,)>> {
         let row: Option<(i32,)> = sqlx::query_as(
-            "SELECT user_id FROM user WHERE mobile = $1 OR username = $2 LIMIT 1",
+            "SELECT user_id FROM \"user\" WHERE mobile = $1 OR username = $2 LIMIT 1",
         )
         .bind(keyword)
         .bind(keyword)
@@ -264,7 +264,7 @@ impl SalesmanAdminRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!("SELECT {SALESMAN_GROUP_COLUMNS} FROM salesman_group WHERE group_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT {SALESMAN_GROUP_COLUMNS} FROM salesman_group WHERE group_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, SalesmanGroup>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -316,9 +316,9 @@ impl SalesmanAdminRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; salesman_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT salesman_id, COUNT(*) FROM salesman_customer WHERE salesman_id IN ({ph}) GROUP BY salesman_id"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in salesman_ids {
             q = q.bind(*id);
@@ -361,9 +361,9 @@ impl SalesmanAdminRepository {
             ));
         }
         let where_sql = format!("WHERE {}", where_parts.join(" AND "));
-        let count_sql = format!(
+        let count_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(DISTINCT salesman_id) FROM salesman_order {where_sql}"
-        );
+        ));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         if let Some(v) = start {
             cq = cq.bind(v);
@@ -378,9 +378,9 @@ impl SalesmanAdminRepository {
         } else {
             "DESC"
         };
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT salesman_id, COALESCE(SUM(amount),0) AS total_sale_amount, COUNT(DISTINCT order_id) AS order_num, COUNT(DISTINCT order_id) AS buy_user_num FROM salesman_order {where_sql} GROUP BY salesman_id ORDER BY total_sale_amount {dir} LIMIT ? OFFSET ?"
-        );
+        ));
         let mut q = sqlx::query_as::<_, RankingAggRow>(&sql);
         if let Some(v) = start {
             q = q.bind(v);
@@ -421,9 +421,9 @@ impl SalesmanAdminRepository {
         } else {
             format!("WHERE {}", conds.join(" AND "))
         };
-        let sql = format!(
-            "SELECT s.salesman_id, s.user_id, s.level, s.group_id, s.pid, s.add_time, s.shop_id, s.sale_amount, u.user_id AS uid, u.username AS uname, u.nickname AS unickname, u.mobile AS umobile, u.avatar AS uavatar, u.reg_time AS ureg_time, u.rank_id AS urank_id FROM salesman s JOIN user u ON u.user_id = s.user_id {where_sql} ORDER BY s.salesman_id DESC LIMIT 200"
-        );
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT s.salesman_id, s.user_id, s.level, s.group_id, s.pid, s.add_time, s.shop_id, s.sale_amount, u.user_id AS uid, u.username AS uname, u.nickname AS unickname, u.mobile AS umobile, u.avatar AS uavatar, u.reg_time AS ureg_time, u.rank_id AS urank_id FROM salesman s JOIN \"user\" u ON u.user_id = s.user_id {where_sql} ORDER BY s.salesman_id DESC LIMIT 200"
+        ));
         #[derive(FromRow)]
         struct Row {
             salesman_id: i32,
@@ -493,7 +493,7 @@ impl SalesmanAdminRepository {
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
-        let sql = "SELECT u.user_id, u.username, u.avatar, u.mobile, u.nickname, u.reg_time, r.rank_name, c.channel, c.add_time AS bind_time FROM salesman_customer c JOIN user u ON u.user_id = c.user_id LEFT JOIN user_rank r ON r.rank_id = u.rank_id WHERE c.salesman_id = $1 ORDER BY c.salesman_customer_id DESC LIMIT $2 OFFSET $3";
+        let sql = "SELECT u.user_id, u.username, u.avatar, u.mobile, u.nickname, u.reg_time, r.rank_name, c.channel, c.add_time AS bind_time FROM salesman_customer c JOIN \"user\" u ON u.user_id = c.user_id LEFT JOIN user_rank r ON r.rank_id = u.rank_id WHERE c.salesman_id = $1 ORDER BY c.salesman_customer_id DESC LIMIT $2 OFFSET $3";
         let rows = sqlx::query_as::<_, CustomerRow>(sql)
             .bind(salesman_id)
             .bind(limit.max(1) as i64)
@@ -612,7 +612,7 @@ impl SalesmanAdminRepository {
     /// 公共端会员信息（`/api/salesman/salesman/userInfo`）。
     pub async fn find_public_user(&self, user_id: i32) -> Result<Option<PublicUserRow>> {
         sqlx::query_as::<_, PublicUserRow>(
-            "SELECT u.user_id, u.username, u.avatar, u.mobile, u.email, u.nickname, u.balance, u.points, r.rank_name FROM user u LEFT JOIN user_rank r ON r.rank_id = u.rank_id WHERE u.user_id = $1 LIMIT 1",
+            "SELECT u.user_id, u.username, u.avatar, u.mobile, u.email, u.nickname, u.balance, u.points, r.rank_name FROM \"user\" u LEFT JOIN user_rank r ON r.rank_id = u.rank_id WHERE u.user_id = $1 LIMIT 1",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
@@ -653,7 +653,7 @@ impl SalesmanAdminRepository {
         }
         let where_sql = format!("WHERE {} {order_exists}", where_parts.join(" AND "));
 
-        let count_sql = format!("SELECT COUNT(*) FROM salesman_customer c {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM salesman_customer c {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql).bind(salesman_id);
         if let Some(v) = start {
             cq = cq.bind(v);
@@ -663,9 +663,9 @@ impl SalesmanAdminRepository {
         }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let sql = format!(
-            "SELECT u.user_id, u.username, u.avatar, u.mobile, u.nickname, u.reg_time, r.rank_name, c.channel, c.add_time AS bind_time FROM salesman_customer c JOIN user u ON u.user_id = c.user_id LEFT JOIN user_rank r ON r.rank_id = u.rank_id {where_sql} ORDER BY c.salesman_customer_id DESC LIMIT ? OFFSET ?"
-        );
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT u.user_id, u.username, u.avatar, u.mobile, u.nickname, u.reg_time, r.rank_name, c.channel, c.add_time AS bind_time FROM salesman_customer c JOIN \"user\" u ON u.user_id = c.user_id LEFT JOIN user_rank r ON r.rank_id = u.rank_id {where_sql} ORDER BY c.salesman_customer_id DESC LIMIT ? OFFSET ?"
+        ));
         let mut q = sqlx::query_as::<_, CustomerRow>(&sql).bind(salesman_id);
         if let Some(v) = start {
             q = q.bind(v);
@@ -699,7 +699,7 @@ impl SalesmanAdminRepository {
             where_parts.push("s.add_time <= ?".into());
         }
         let where_sql = format!("WHERE {}", where_parts.join(" AND "));
-        let count_sql = format!("SELECT COUNT(*) FROM salesman s {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM salesman s {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql).bind(salesman_id);
         if let Some(v) = start {
             cq = cq.bind(v);
@@ -709,9 +709,9 @@ impl SalesmanAdminRepository {
         }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let sql = format!(
-            "SELECT u.user_id, u.username, u.avatar, u.mobile, u.nickname, u.reg_time, r.rank_name, 'salesman' AS channel, s.add_time AS bind_time FROM salesman s JOIN user u ON u.user_id = s.user_id LEFT JOIN user_rank r ON r.rank_id = u.rank_id {where_sql} ORDER BY s.salesman_id DESC LIMIT ? OFFSET ?"
-        );
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT u.user_id, u.username, u.avatar, u.mobile, u.nickname, u.reg_time, r.rank_name, 'salesman' AS channel, s.add_time AS bind_time FROM salesman s JOIN \"user\" u ON u.user_id = s.user_id LEFT JOIN user_rank r ON r.rank_id = u.rank_id {where_sql} ORDER BY s.salesman_id DESC LIMIT ? OFFSET ?"
+        ));
         let mut q = sqlx::query_as::<_, CustomerRow>(&sql).bind(salesman_id);
         if let Some(v) = start {
             q = q.bind(v);

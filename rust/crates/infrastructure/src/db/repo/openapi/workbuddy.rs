@@ -243,7 +243,7 @@ impl WorkbuddyRepository {
     /// 与「删除标记」的常规语义一致）。
     pub async fn find_config_value(&self, biz_code: &str) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> = sqlx::query_as(
-            "SELECT biz_val FROM config WHERE biz_code = ? AND (is_del IS NULL OR is_del = 0) \
+            "SELECT biz_val FROM config WHERE biz_code = $1 AND (is_del IS NULL OR is_del = 0) \
              ORDER BY id DESC LIMIT 1",
         )
         .bind(biz_code)
@@ -483,9 +483,9 @@ impl WorkbuddyRepository {
             .contains(&column),
             "update_product_field 只接受白名单列"
         );
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE product SET {column} = ?, last_update = ? WHERE product_id = ?"
-        );
+        ));
         // 数值列用无符号/有符号比较均可；此处统一以字符串绑定，
         // MySQL 会按目标列类型隐式转换（与 Java \"updateById\" 一致）。
         let affected = sqlx::query(&sql)
@@ -507,7 +507,7 @@ impl WorkbuddyRepository {
         now: i64,
     ) -> Result<u64> {
         let affected = sqlx::query(
-            "UPDATE product SET product_status = ?, last_update = ? WHERE product_id = ?",
+            "UPDATE product SET product_status = $1, last_update = $2 WHERE product_id = $3",
         )
         .bind(i32::from(on_sale))
         .bind(i32::try_from(now).unwrap_or(i32::MAX))
@@ -522,7 +522,7 @@ impl WorkbuddyRepository {
     /// 软删除（移入回收站，对应 Java `ProductManageServiceImpl.recycle`）。
     pub async fn recycle_product(&self, product_id: i32, now: i64) -> Result<u64> {
         let affected = sqlx::query(
-            "UPDATE product SET is_delete = 1, last_update = ? WHERE product_id = ?",
+            "UPDATE product SET is_delete = 1, last_update = $1 WHERE product_id = $2",
         )
         .bind(i32::try_from(now).unwrap_or(i32::MAX))
         .bind(product_id)
@@ -538,8 +538,8 @@ impl WorkbuddyRepository {
     /// Java 显式把 \"productStatus\" 置 0（还原后保持下架），故此处一并写入。
     pub async fn restore_product(&self, product_id: i32, now: i64) -> Result<u64> {
         let affected = sqlx::query(
-            "UPDATE product SET is_delete = 0, product_status = 0, last_update = ? \
-             WHERE product_id = ?",
+            "UPDATE product SET is_delete = 0, product_status = 0, last_update = $1 \
+             WHERE product_id = $2",
         )
         .bind(i32::try_from(now).unwrap_or(i32::MAX))
         .bind(product_id)
@@ -560,22 +560,22 @@ impl WorkbuddyRepository {
         tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         product_id: i32,
     ) -> Result<()> {
-        sqlx::query("DELETE FROM product_gallery WHERE product_id = ?")
+        sqlx::query("DELETE FROM product_gallery WHERE product_id = $1")
             .bind(product_id)
             .execute(&mut **tx)
             .await
             .map_err(map_err)?;
-        sqlx::query("DELETE FROM product_sku WHERE product_id = ?")
+        sqlx::query("DELETE FROM product_sku WHERE product_id = $1")
             .bind(product_id)
             .execute(&mut **tx)
             .await
             .map_err(map_err)?;
-        sqlx::query("DELETE FROM product_video WHERE product_id = ?")
+        sqlx::query("DELETE FROM product_video WHERE product_id = $1")
             .bind(product_id)
             .execute(&mut **tx)
             .await
             .map_err(map_err)?;
-        sqlx::query("DELETE FROM product WHERE product_id = ?")
+        sqlx::query("DELETE FROM product WHERE product_id = $1")
             .bind(product_id)
             .execute(&mut **tx)
             .await
@@ -683,8 +683,8 @@ impl WorkbuddyRepository {
              give_integral, rank_integral, virtual_sales, limit_number, \
              is_support_return, is_support_cod, card_group_id, is_shop_pickup, \
              is_logistics, is_shop_delivery) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, \
-             0, 0, 0, 0, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, 0, 0, 0, 0, 0, ?, '', 0, 0, ?, 0, \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 0, 0, 0, 0, \
+             0, 0, 0, 0, $18, $19, $20, $21, $22, $23, 0, 0, $24, $25, 0, 0, 0, 0, 0, $26, '', 0, 0, $27, 0, \
              0, 0, 0, 0, 0) RETURNING product_id",
         )
         .bind(&p.product_name)
@@ -725,7 +725,7 @@ impl WorkbuddyRepository {
         tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         product_id: i32,
     ) -> Result<()> {
-        sqlx::query("DELETE FROM product_gallery WHERE product_id = ?")
+        sqlx::query("DELETE FROM product_gallery WHERE product_id = $1")
             .bind(product_id)
             .execute(&mut **tx)
             .await
@@ -743,7 +743,7 @@ impl WorkbuddyRepository {
     ) -> Result<()> {
         sqlx::query(
             "INSERT INTO product_gallery (product_id, pic_url, pic_desc, pic_thumb, \
-             pic_original, pic_large, sort_order, shop_id) VALUES (?, ?, '', ?, ?, ?, ?, ?)",
+             pic_original, pic_large, sort_order, shop_id) VALUES ($1, $2, '', $3, $4, $5, $6, $7)",
         )
         .bind(product_id)
         .bind(pic_url)
@@ -768,7 +768,7 @@ impl WorkbuddyRepository {
     /// 表名为 MySQL 保留字，故用反引号包裹。
     pub async fn find_order_user_id(&self, order_id: i32) -> Result<Option<i32>> {
         let row: Option<(i32,)> =
-            sqlx::query_as("SELECT user_id FROM \"order\" WHERE order_id = ? LIMIT 1")
+            sqlx::query_as("SELECT user_id FROM \"order\" WHERE order_id = $1 LIMIT 1")
                 .bind(order_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -818,7 +818,7 @@ impl WorkbuddyRepository {
         loop {
             let page: Vec<CategoryRow> = sqlx::query_as(
                 "SELECT category_id, category_name, parent_id FROM category \
-                 ORDER BY category_id ASC LIMIT ? OFFSET ?",
+                 ORDER BY category_id ASC LIMIT $1 OFFSET $2",
             )
             .bind(page_size)
             .bind(offset)
@@ -847,7 +847,7 @@ impl WorkbuddyRepository {
     ) -> Result<Option<CategoryRow>> {
         sqlx::query_as::<_, CategoryRow>(
             "SELECT category_id, category_name, parent_id FROM category \
-             WHERE category_name = ? AND parent_id = ? ORDER BY category_id ASC LIMIT 1",
+             WHERE category_name = $1 AND parent_id = $2 ORDER BY category_id ASC LIMIT 1",
         )
         .bind(name)
         .bind(parent_id)
@@ -859,7 +859,7 @@ impl WorkbuddyRepository {
     /// 按主键查分类。
     pub async fn find_category(&self, category_id: i32) -> Result<Option<CategoryRow>> {
         sqlx::query_as::<_, CategoryRow>(
-            "SELECT category_id, category_name, parent_id FROM category WHERE category_id = ? LIMIT 1",
+            "SELECT category_id, category_name, parent_id FROM category WHERE category_id = $1 LIMIT 1",
         )
         .bind(category_id)
         .fetch_optional(&self.pool)
@@ -870,7 +870,7 @@ impl WorkbuddyRepository {
     /// 分类是否还有下级（`ProductCategoryVO.hasChildren`）。
     pub async fn has_child_category(&self, category_id: i32) -> Result<bool> {
         let (n,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM category WHERE parent_id = ?")
+            sqlx::query_as("SELECT COUNT(*) FROM category WHERE parent_id = $1")
                 .bind(category_id)
                 .fetch_one(&self.pool)
                 .await
@@ -916,7 +916,7 @@ impl WorkbuddyRepository {
             "INSERT INTO category (category_name, parent_id, sort_order, keywords, \
              category_desc, measure_unit, is_show, seo_title, short_name, category_pic, \
              category_ico, is_hot, search_keywords) \
-             VALUES (?, ?, ?, '', '', '', 1, ?, '', '', '', 0, '') RETURNING category_id",
+             VALUES ($1, $2, $3, '', '', '', 1, $4, '', '', '', 0, '') RETURNING category_id",
         )
         .bind(category_name)
         .bind(parent_id)
@@ -951,7 +951,7 @@ impl WorkbuddyRepository {
     /// 按主键取品牌名。
     pub async fn find_brand_name(&self, brand_id: i32) -> Result<Option<String>> {
         let row: Option<(String,)> =
-            sqlx::query_as("SELECT brand_name FROM brand WHERE brand_id = ? LIMIT 1")
+            sqlx::query_as("SELECT brand_name FROM brand WHERE brand_id = $1 LIMIT 1")
                 .bind(brand_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -1041,7 +1041,7 @@ impl WorkbuddyRepository {
     pub async fn find_galleries(&self, shop_id: i32) -> Result<Vec<GalleryRow>> {
         sqlx::query_as::<_, GalleryRow>(
             "SELECT gallery_id, parent_id, gallery_name FROM gallery \
-             WHERE shop_id = ? ORDER BY gallery_sort ASC, gallery_id ASC",
+             WHERE shop_id = $1 ORDER BY gallery_sort ASC, gallery_id ASC",
         )
         .bind(shop_id)
         .fetch_all(&self.pool)
@@ -1052,7 +1052,7 @@ impl WorkbuddyRepository {
     /// 按主键查素材分组（用于分组上下文的租户校验）。
     pub async fn find_gallery(&self, gallery_id: i32) -> Result<Option<(i32, i32)>> {
         let row: Option<(i32, i32)> =
-            sqlx::query_as("SELECT gallery_id, shop_id FROM gallery WHERE gallery_id = ? LIMIT 1")
+            sqlx::query_as("SELECT gallery_id, shop_id FROM gallery WHERE gallery_id = $1 LIMIT 1")
                 .bind(gallery_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -1063,7 +1063,7 @@ impl WorkbuddyRepository {
     /// 素材分组是否存在（`MediaManagementServiceImpl.isValidGroup`）。
     pub async fn gallery_exists(&self, gallery_id: i32, shop_id: i32) -> Result<bool> {
         let (n,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM gallery WHERE gallery_id = ? AND shop_id = ?",
+            "SELECT COUNT(*) FROM gallery WHERE gallery_id = $1 AND shop_id = $2",
         )
         .bind(gallery_id)
         .bind(shop_id)
@@ -1279,7 +1279,7 @@ impl WorkbuddyRepository {
     ) -> Result<std::collections::BTreeMap<i32, i32>> {
         let rows: Vec<(i32, i64)> = if media_type == "video" {
             sqlx::query_as(
-                "SELECT gallery_id, COUNT(*) FROM gallery_video_info WHERE shop_id = ? \
+                "SELECT gallery_id, COUNT(*) FROM gallery_video_info WHERE shop_id = $1 \
                  GROUP BY gallery_id",
             )
             .bind(shop_id)
@@ -1288,7 +1288,7 @@ impl WorkbuddyRepository {
             .map_err(map_err)?
         } else {
             sqlx::query_as(
-                "SELECT gallery_id, COUNT(*) FROM gallery_pic WHERE shop_id = ? GROUP BY gallery_id",
+                "SELECT gallery_id, COUNT(*) FROM gallery_pic WHERE shop_id = $1 GROUP BY gallery_id",
             )
             .bind(shop_id)
             .fetch_all(&self.pool)
@@ -1313,7 +1313,7 @@ impl WorkbuddyRepository {
         let res: i32 = sqlx::query_scalar(
             "INSERT INTO gallery_pic (shop_id, gallery_id, pic_ower_id, pic_url, pic_name, \
              pic_thumb, add_time, vendor_id, hidden, file_type, pic_sort, source) \
-             VALUES (?, ?, 0, ?, ?, ?, '', 0, 0, ?, 0, '') RETURNING pic_id",
+             VALUES ($1, $2, 0, $3, $4, $5, '', 0, 0, $6, 0, '') RETURNING pic_id",
         )
         .bind(shop_id)
         .bind(gallery_id)
@@ -1336,7 +1336,7 @@ impl WorkbuddyRepository {
     ) -> Result<i32> {
         let res: i32 = sqlx::query_scalar(
             "INSERT INTO gallery (parent_id, gallery_admin_id, gallery_name, gallery_sort, \
-             gallery_thumb, shop_id, vendor_id) VALUES (?, 0, ?, 0, '', ?, 0) RETURNING gallery_id",
+             gallery_thumb, shop_id, vendor_id) VALUES ($1, 0, $2, 0, '', $3, 0) RETURNING gallery_id",
         )
         .bind(parent_id)
         .bind(name)
@@ -1349,7 +1349,7 @@ impl WorkbuddyRepository {
 
     /// 重命名素材分组（对应 Java `GalleryService.update`）。
     pub async fn update_gallery_name(&self, gallery_id: i32, name: &str) -> Result<u64> {
-        Ok(sqlx::query("UPDATE gallery SET gallery_name = ? WHERE gallery_id = ?")
+        Ok(sqlx::query("UPDATE gallery SET gallery_name = $1 WHERE gallery_id = $2")
             .bind(name)
             .bind(gallery_id)
             .execute(&self.pool)
@@ -1360,7 +1360,7 @@ impl WorkbuddyRepository {
 
     /// 删除素材分组（对应 Java `GalleryService.remove`）。
     pub async fn delete_gallery(&self, gallery_id: i32) -> Result<u64> {
-        Ok(sqlx::query("DELETE FROM gallery WHERE gallery_id = ?")
+        Ok(sqlx::query("DELETE FROM gallery WHERE gallery_id = $1")
             .bind(gallery_id)
             .execute(&self.pool)
             .await
@@ -1371,7 +1371,7 @@ impl WorkbuddyRepository {
     /// 删除分组下的全部图片素材。
     pub async fn delete_gallery_pics_by_group(&self, gallery_id: i32) -> Result<u64> {
         Ok(
-            sqlx::query("DELETE FROM gallery_pic WHERE gallery_id = ?")
+            sqlx::query("DELETE FROM gallery_pic WHERE gallery_id = $1")
                 .bind(gallery_id)
                 .execute(&self.pool)
                 .await

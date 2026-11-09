@@ -126,7 +126,7 @@ impl ProxyShoppingOrderCheckRepository {
     /// 按 \"biz_code\" 取 \"biz_val\"，**缺失返回 \"None\"**（Java 返回 `""`，
     /// 由服务层用 `unwrap_or_default()` 还原空串语义）。
     pub async fn find_config_val(&self, biz_code: &str) -> Result<Option<String>> {
-        let row: Option<(Option<String>,)> = sqlx::query_as("SELECT biz_val FROM config WHERE biz_code = ? AND is_del = 0 LIMIT 1")
+        let row: Option<(Option<String>,)> = sqlx::query_as("SELECT biz_val FROM config WHERE biz_code = $1 AND is_del = 0 LIMIT 1")
             .bind(biz_code)
             .fetch_optional(&self.pool)
             .await
@@ -149,7 +149,7 @@ impl ProxyShoppingOrderCheckRepository {
         let placeholders = std::iter::repeat_n("?", biz_codes.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!("SELECT biz_code, biz_val FROM config WHERE is_del = 0 AND biz_code IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT biz_code, biz_val FROM config WHERE is_del = 0 AND biz_code IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, (String, Option<String>)>(&sql);
         for code in biz_codes {
             q = q.bind(*code);
@@ -168,7 +168,7 @@ impl ProxyShoppingOrderCheckRepository {
     ///
     /// 返回该门店是否存在（`is_delete = 0`，同 MyBatis-Plus 逻辑删除语义）。
     pub async fn shop_exists(&self, shop_id: i32) -> Result<bool> {
-        let row: Option<(i64,)> = sqlx::query_as("SELECT COUNT(*) FROM shop WHERE shop_id = ? AND is_delete = 0")
+        let row: Option<(i64,)> = sqlx::query_as("SELECT COUNT(*) FROM shop WHERE shop_id = $1 AND is_delete = 0")
             .bind(shop_id)
             .fetch_optional(&self.pool)
             .await
@@ -264,7 +264,7 @@ impl ProxyShoppingOrderCheckRepository {
         let placeholders = std::iter::repeat_n("?", ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!("SELECT region_id, region_name FROM region WHERE region_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT region_id, region_name FROM region WHERE region_id IN ({placeholders})"));
         let mut query = sqlx::query_as::<_, RegionNameRow>(&sql);
         for id in ids {
             query = query.bind(*id);

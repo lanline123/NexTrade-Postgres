@@ -194,7 +194,7 @@ impl ShopProductCategoryRepository {
     /// 本实现照抄：`WHERE parent_id = ?` 单条件。
     pub async fn count_children(&self, category_id: i32) -> Result<i64> {
         let row: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM shop_product_category WHERE parent_id = ?")
+            sqlx::query_as("SELECT COUNT(*) FROM shop_product_category WHERE parent_id = $1")
                 .bind(category_id)
                 .fetch_one(&self.pool)
                 .await
@@ -244,10 +244,10 @@ impl ShopProductCategoryRepository {
 
         debug_assert_eq!(columns.len(), binds.len());
         let placeholders = vec!["?"; columns.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "INSERT INTO shop_product_category ({}) VALUES ({placeholders})",
             columns.join(", ")
-        );
+        ));
         let mut query = sqlx::query_scalar(&format!("{} RETURNING category_id", &sql));
         for b in &binds {
             query = match b {
@@ -295,7 +295,7 @@ impl ShopProductCategoryRepository {
     /// 属于**有意的缺陷复刻**（见 `models::shop_product_category` 模块头与 \"uncertain_points\"），
     /// 因此这里**不能**用 \"debug_assert\" 把它们拦下（那会改变可观测行为）。
     pub async fn update_field(&self, id: i32, column: &str, val: &str) -> Result<u64> {
-        let sql = format!("UPDATE shop_product_category SET {column} = ? WHERE category_id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE shop_product_category SET {column} = ? WHERE category_id = ?"));
         let res = sqlx::query(&sql)
             .bind(val)
             .bind(id)
@@ -309,7 +309,7 @@ impl ShopProductCategoryRepository {
     ///
     /// \"shop_product_category\" 表**没有**软删标记列，因此就是 \"DELETE\"。
     pub async fn delete(&self, id: i32) -> Result<bool> {
-        let res = sqlx::query("DELETE FROM shop_product_category WHERE category_id = ?")
+        let res = sqlx::query("DELETE FROM shop_product_category WHERE category_id = $1")
             .bind(id)
             .execute(&self.pool)
             .await
@@ -328,7 +328,7 @@ impl ShopProductCategoryRepository {
     ///
     /// 返回受影响行数。
     pub async fn unbind_products(&self, category_id: i32) -> Result<u64> {
-        let res = sqlx::query("UPDATE product SET shop_category_id = 0 WHERE shop_category_id = ?")
+        let res = sqlx::query("UPDATE product SET shop_category_id = 0 WHERE shop_category_id = $1")
             .bind(category_id)
             .execute(&self.pool)
             .await
@@ -343,7 +343,7 @@ impl ShopProductCategoryRepository {
     /// 服务层的解绑走 [`Self::unbind_products`]。
     pub async fn find_products_by_category(&self, category_id: i32) -> Result<Vec<Product>> {
         sqlx::query_as::<_, Product>(
-            "SELECT * FROM product WHERE shop_category_id = ? ORDER BY product_id ASC",
+            "SELECT * FROM product WHERE shop_category_id = $1 ORDER BY product_id ASC",
         )
         .bind(category_id)
         .fetch_all(&self.pool)

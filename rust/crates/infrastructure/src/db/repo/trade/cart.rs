@@ -162,7 +162,7 @@ impl CartRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; cart_ids.len()].join(", ");
-        let sql = format!("DELETE FROM cart WHERE user_id = $1 AND cart_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM cart WHERE user_id = $1 AND cart_id IN ({placeholders})"));
         let mut q = sqlx::query(&sql).bind(user_id);
         for id in cart_ids {
             q = q.bind(id);

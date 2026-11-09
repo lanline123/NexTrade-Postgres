@@ -68,7 +68,7 @@ impl ShopRepository {
                 ("shopStar", "shop_star"),
             ],
         );
-        let count_sql = format!("SELECT COUNT(*) FROM \"shop\" {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM \"shop\" {where_sql}"));
 
         let total: (i64,) = sqlx::query_as(&count_sql)
             .bind(shop_type)
@@ -90,7 +90,7 @@ impl ShopRepository {
             .map_err(map_err)?;
 
         let (limit, offset) = page.limit_offset();
-        let rows_sql = format!("SELECT * FROM \"shop\" {where_sql} {order} LIMIT ? OFFSET ?");
+        let rows_sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM \"shop\" {where_sql} {order} LIMIT ? OFFSET ?"));
         let rows = sqlx::query_as::<_, Shop>(&rows_sql)
             .bind(shop_type)
             .bind(shop_type)
@@ -292,7 +292,7 @@ impl ShopRepository {
             "ORDER BY add_time DESC, shop_account_log_id DESC".to_string()
         };
 
-        let count_sql = format!("SELECT COUNT(*) FROM shop_account_log {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM shop_account_log {where_sql}"));
         let total: (i64,) = sqlx::query_as(&count_sql)
             .bind(balance_type)
             .bind(balance_type)
@@ -314,7 +314,7 @@ impl ShopRepository {
 
         let (limit, offset) = page.limit_offset();
         let rows_sql =
-            format!("SELECT * FROM shop_account_log {where_sql} {order} LIMIT ? OFFSET ?");
+            crate::db::to_pg_placeholders(&format!("SELECT * FROM shop_account_log {where_sql} {order} LIMIT ? OFFSET ?"));
         let rows = sqlx::query_as::<_, ShopAccountLog>(&rows_sql)
             .bind(balance_type)
             .bind(balance_type)
@@ -385,14 +385,14 @@ impl ShopRepository {
             }
             Some(_) => "AND withdraw_type = 2 AND pay_channel = ?",
         };
-        let where_sql = format!(
+        let where_sql = crate::db::to_pg_placeholders(&format!(
             "WHERE (? IS NULL OR status = ?)
               AND (? IS NULL OR withdraw_type = ?)
               AND (? IS NULL OR shop_id = ?)
               AND (? IS NULL OR add_time >= ?)
               AND (? IS NULL OR add_time <= ?)
               {channel_sql}"
-        );
+        ));
         let order = order_by(
             sort_field,
             sort_order,
@@ -405,7 +405,7 @@ impl ShopRepository {
             ],
         );
 
-        let count_sql = format!("SELECT COUNT(*) FROM shop_withdraw {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM shop_withdraw {where_sql}"));
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
         count_q = count_q
             .bind(status)
@@ -429,7 +429,7 @@ impl ShopRepository {
             .max(0) as u64;
 
         let (limit, offset) = page.limit_offset();
-        let rows_sql = format!("SELECT * FROM shop_withdraw {where_sql} {order} LIMIT ? OFFSET ?");
+        let rows_sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM shop_withdraw {where_sql} {order} LIMIT ? OFFSET ?"));
         let mut rows_q = sqlx::query_as::<_, ShopWithdraw>(&rows_sql);
         rows_q = rows_q
             .bind(status)
@@ -584,8 +584,8 @@ impl ShopRepository {
         };
 
         sqlx::query(
-            "UPDATE \"shop\" SET frozen_money = frozen_money - ? \
-             WHERE shop_id = ?",
+            "UPDATE \"shop\" SET frozen_money = frozen_money - $1 \
+             WHERE shop_id = $2",
         )
         .bind(withdraw.amount)
         .bind(withdraw.shop_id)
@@ -600,7 +600,7 @@ impl ShopRepository {
             "INSERT INTO shop_account_log \
                 (add_time, shop_money, frozen_money, \"type\", remarks, \
                  new_shop_money, new_frozen_money, shop_id, is_new, balance_type, change_amount) \
-             VALUES (?, ?, ?, '1', '线下提现打款完成', ?, ?, ?, 1, 1, ?)",
+             VALUES ($1, $2, $3, '1', '线下提现打款完成', $4, $5, $6, 1, 1, $7)",
         )
         .bind(now_seconds() as i64)
         .bind(old_shop)
@@ -646,9 +646,9 @@ impl ShopRepository {
             ],
         );
 
-        let count_sql = format!(
+        let count_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM shop_product_category {where_sql}"
-        );
+        ));
         let total: (i64,) = sqlx::query_as(&count_sql)
             .bind(parent_id)
             .bind(parent_id)
@@ -662,7 +662,7 @@ impl ShopRepository {
 
         let (limit, offset) = page.limit_offset();
         let rows_sql =
-            format!("SELECT * FROM shop_product_category {where_sql} {order} LIMIT ? OFFSET ?");
+            crate::db::to_pg_placeholders(&format!("SELECT * FROM shop_product_category {where_sql} {order} LIMIT ? OFFSET ?"));
         let rows = sqlx::query_as::<_, ShopProductCategory>(&rows_sql)
             .bind(parent_id)
             .bind(parent_id)
@@ -685,7 +685,7 @@ impl ShopRepository {
         id: i32,
     ) -> Result<Option<ShopProductCategory>> {
         sqlx::query_as::<_, ShopProductCategory>(
-            "SELECT * FROM shop_product_category WHERE category_id = ?",
+            "SELECT * FROM shop_product_category WHERE category_id = $1",
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -718,7 +718,7 @@ impl ShopRepository {
     ) -> Result<Vec<ShopProductCategory>> {
         sqlx::query_as::<_, ShopProductCategory>(
             "SELECT * FROM shop_product_category
-             WHERE shop_id = ? AND is_show = 1
+             WHERE shop_id = $1 AND is_show = 1
              ORDER BY parent_id ASC, sort_order ASC, category_id ASC",
         )
         .bind(shop_id)

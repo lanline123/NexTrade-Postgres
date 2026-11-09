@@ -132,14 +132,14 @@ impl ProxyShoppingUserAddressRepository {
         limit: u64,
         offset: u64,
     ) -> Result<(i64, Vec<UserAddress>)> {
-        let mut where_sql = String::from(" WHERE user_id = ?");
+        let mut where_sql = String::from(" WHERE user_id = $1");
         match is_system {
             Some(1) => where_sql.push_str(" AND is_system = 1"),
             Some(0) => where_sql.push_str(" AND (is_system = 0 OR is_system IS NULL)"),
             _ => {}
         }
 
-        let count_sql = format!("SELECT COUNT(*) FROM user_address{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM user_address{where_sql}"));
         let total: (i64,) = sqlx::query_as(&count_sql)
             .bind(user_id)
             .fetch_one(&self.pool)
@@ -148,9 +148,9 @@ impl ProxyShoppingUserAddressRepository {
 
         let dir = if desc { "DESC" } else { "ASC" };
         // `column` 来自 ADDRESS_SORT_COLUMNS（编译期常量），不存在注入面。
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM user_address{where_sql} ORDER BY {column} {dir}, address_id ASC LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = sqlx::query_as::<_, UserAddress>(&sql)
             .bind(user_id)
             .bind(limit as i64)
@@ -416,9 +416,9 @@ impl ProxyShoppingUserAddressRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; region_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM region WHERE region_id IN ({placeholders}) ORDER BY region_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, Region>(&sql);
         for id in region_ids {
             q = q.bind(*id);

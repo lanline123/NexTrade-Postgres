@@ -85,7 +85,7 @@ impl MemberTagRepository {
     /// —— 这正是 Java 里「删两次第二次报『标签不存在』」的原因。
     pub async fn find_tag_by_id(&self, id: i64) -> Result<Option<MemberTag>> {
         sqlx::query_as::<_, MemberTag>(&format!(
-            "{MEMBER_TAG_SELECT} WHERE id = ? AND is_del = ? LIMIT 1"
+            "{MEMBER_TAG_SELECT} WHERE id = $1 AND is_del = $2 LIMIT 1"
         ))
         .bind(id)
         .bind(IS_DEL_NO)
@@ -104,7 +104,7 @@ impl MemberTagRepository {
     /// \"uncertain_points\"。
     pub async fn list_tags_by_group(&self, shop_id: i32, group_id: i64) -> Result<Vec<MemberTag>> {
         sqlx::query_as::<_, MemberTag>(&format!(
-            "{MEMBER_TAG_SELECT} WHERE shop_id = ? AND group_id = ? AND is_del = ? ORDER BY id ASC"
+            "{MEMBER_TAG_SELECT} WHERE shop_id = $1 AND group_id = $2 AND is_del = $3 ORDER BY id ASC"
         ))
         .bind(shop_id)
         .bind(group_id)
@@ -123,7 +123,7 @@ impl MemberTagRepository {
     /// → `标签组不存在`）。同样自动带 `is_del = 0`。
     pub async fn find_group_by_id(&self, id: i64) -> Result<Option<MemberTagGroup>> {
         sqlx::query_as::<_, MemberTagGroup>(&format!(
-            "{MEMBER_TAG_GROUP_SELECT} WHERE id = ? AND is_del = ? LIMIT 1"
+            "{MEMBER_TAG_GROUP_SELECT} WHERE id = $1 AND is_del = $2 LIMIT 1"
         ))
         .bind(id)
         .bind(IS_DEL_NO)
@@ -165,7 +165,7 @@ impl MemberTagRepository {
             "INSERT INTO member_tag
                  (shop_id, group_id, tag_name, create_time, create_by_id, create_by_name,
                   update_time, update_by_id, update_by_name, is_del)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
         )
         .bind(shop_id)
         .bind(group_id)
@@ -204,8 +204,8 @@ impl MemberTagRepository {
     ) -> Result<u64> {
         let res = sqlx::query(
             "UPDATE member_tag
-                SET tag_name = ?, update_time = ?, update_by_id = ?, update_by_name = ?
-              WHERE id = ? AND is_del = ?",
+                SET tag_name = $1, update_time = $2, update_by_id = $3, update_by_name = $4
+              WHERE id = $5 AND is_del = $6",
         )
         .bind(tag_name)
         .bind(now_secs)
@@ -228,7 +228,7 @@ impl MemberTagRepository {
     ///
     /// 返回受影响行数（已删除/不存在的 id → 0）。
     pub async fn logical_delete_tag(&self, id: i64) -> Result<u64> {
-        let res = sqlx::query("UPDATE member_tag SET is_del = ? WHERE id = ? AND is_del = ?")
+        let res = sqlx::query("UPDATE member_tag SET is_del = $1 WHERE id = $2 AND is_del = $3")
             .bind(IS_DEL_YES)
             .bind(id)
             .bind(IS_DEL_NO)
@@ -252,7 +252,7 @@ impl MemberTagRepository {
     ///
     /// 返回删除的行数。
     pub async fn delete_user_tag_links(&self, shop_id: i32, tag_id: i64) -> Result<u64> {
-        let res = sqlx::query("DELETE FROM user_member_tag WHERE shop_id = ? AND tag_id = ?")
+        let res = sqlx::query("DELETE FROM user_member_tag WHERE shop_id = $1 AND tag_id = $2")
             .bind(shop_id)
             .bind(tag_id)
             .execute(&self.pool)

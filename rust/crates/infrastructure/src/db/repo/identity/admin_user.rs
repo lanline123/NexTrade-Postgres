@@ -125,10 +125,10 @@ impl AdminUserRepository {
         deleted_scope: Option<bool>,
     ) -> Result<Option<AdminUser>> {
         let sql = if deleted_scope.is_some() {
-            "SELECT * FROM admin_user WHERE username = ? AND is_deleted = 0 \
+            "SELECT * FROM admin_user WHERE username = $1 AND is_deleted = 0 \
              ORDER BY admin_id DESC LIMIT 1"
         } else {
-            "SELECT * FROM admin_user WHERE username = ? \
+            "SELECT * FROM admin_user WHERE username = $1 \
              ORDER BY admin_id DESC LIMIT 1"
         };
         sqlx::query_as::<_, AdminUser>(sql)
@@ -147,7 +147,7 @@ impl AdminUserRepository {
         deleted_scope: Option<bool>,
         exclude_admin_id: Option<i32>,
     ) -> Result<Option<AdminUser>> {
-        let mut sql = String::from("SELECT * FROM admin_user WHERE mobile = ?");
+        let mut sql = String::from("SELECT * FROM admin_user WHERE mobile = $1");
         let mut binds = vec![Bind::Str(mobile.to_string())];
         if deleted_scope.is_some() {
             sql.push_str(" AND is_deleted = 0");
@@ -167,7 +167,7 @@ impl AdminUserRepository {
     /// \"create\"：`eq(mobile).eq(isDeleted, 1)`），用于复用账号。
     pub async fn find_deleted_by_mobile(&self, mobile: &str) -> Result<Option<AdminUser>> {
         sqlx::query_as::<_, AdminUser>(
-            "SELECT * FROM admin_user WHERE mobile = ? AND is_deleted = 1 \
+            "SELECT * FROM admin_user WHERE mobile = $1 AND is_deleted = 1 \
              ORDER BY admin_id DESC LIMIT 1",
         )
         .bind(mobile)
@@ -184,7 +184,7 @@ impl AdminUserRepository {
         email: &str,
         exclude_admin_id: Option<i32>,
     ) -> Result<Option<AdminUser>> {
-        let mut sql = String::from("SELECT * FROM admin_user WHERE email = ?");
+        let mut sql = String::from("SELECT * FROM admin_user WHERE email = $1");
         let mut binds = vec![Bind::Str(email.to_string())];
         if let Some(id) = exclude_admin_id {
             sql.push_str(" AND admin_id <> ?");
@@ -200,7 +200,7 @@ impl AdminUserRepository {
     /// 修改密码（对应 Java `AdminUserServiceImpl#modifyManageAccounts`
     /// modifyType=2 的 \"updateById\"）。
     pub async fn update_password(&self, admin_id: i32, password_hash: &str) -> Result<bool> {
-        let affected = sqlx::query("UPDATE admin_user SET password = ? WHERE admin_id = ?")
+        let affected = sqlx::query("UPDATE admin_user SET password = $1 WHERE admin_id = $2")
             .bind(password_hash)
             .bind(admin_id)
             .execute(&self.pool)
@@ -219,7 +219,7 @@ impl AdminUserRepository {
         email: Option<&str>,
     ) -> Result<bool> {
         let affected =
-            sqlx::query("UPDATE admin_user SET avatar = ?, email = ? WHERE admin_id = ?")
+            sqlx::query("UPDATE admin_user SET avatar = $1, email = $2 WHERE admin_id = $3")
                 .bind(avatar)
                 .bind(email)
                 .bind(admin_id)
@@ -232,7 +232,7 @@ impl AdminUserRepository {
 
     /// 修改当前管理员手机号（Java \"modifyManageAccounts\" modifyType=3）。
     pub async fn update_mobile(&self, admin_id: i32, mobile: &str) -> Result<bool> {
-        let affected = sqlx::query("UPDATE admin_user SET mobile = ? WHERE admin_id = ?")
+        let affected = sqlx::query("UPDATE admin_user SET mobile = $1 WHERE admin_id = $2")
             .bind(mobile)
             .bind(admin_id)
             .execute(&self.pool)
@@ -250,15 +250,15 @@ impl AdminUserRepository {
     pub async fn paginate_users(&self, f: &AdminUserPageFilter) -> Result<(u64, Vec<AdminUser>)> {
         let (where_sql, binds) = build_user_filter(f);
 
-        let total_sql = format!("SELECT COUNT(*) FROM admin_user{where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM admin_user{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&total_sql), binds)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM admin_user{where_sql} ORDER BY admin_id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = bind_all!(sqlx::query_as::<_, AdminUser>(&rows_sql), binds)
             .bind(f.page_size as i64)
             .bind(f.offset as i64)
@@ -293,7 +293,7 @@ impl AdminUserRepository {
                 auth_list, user_id, suppliers_id, role_id, merchant_id, parent_id,
                 menu_tag, order_export, extra, shop_id, is_using, initial_password,
                 is_deleted)
-             VALUES (?, ?, ?, ?, ?, ?, ?, '[]', 0, ?, ?, 0, 0, NULL, NULL, NULL, 0, 0, '', 0) RETURNING admin_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, '[]', 0, $8, $9, 0, 0, NULL, NULL, NULL, 0, 0, '', 0) RETURNING admin_id",
         )
         .bind(username)
         .bind(admin_type)
@@ -316,12 +316,12 @@ impl AdminUserRepository {
     /// 服务层已按同样语义构造出「最终行」，这里的 \"UPDATE\" 覆盖全部可写列。
     pub async fn update_user(&self, u: &AdminUser) -> Result<bool> {
         let affected = sqlx::query(
-            "UPDATE admin_user SET username = ?, admin_type = ?, mobile = ?, avatar = ?,
-               password = ?, email = ?, add_time = ?, auth_list = ?, user_id = ?,
-               suppliers_id = ?, role_id = ?, merchant_id = ?, parent_id = ?,
-               menu_tag = ?, order_export = ?, extra = ?, shop_id = ?, is_using = ?,
-               is_deleted = ?
-             WHERE admin_id = ?",
+            "UPDATE admin_user SET username = $1, admin_type = $2, mobile = $3, avatar = $4,
+               password = $5, email = $6, add_time = $7, auth_list = $8, user_id = $9,
+               suppliers_id = $10, role_id = $11, merchant_id = $12, parent_id = $13,
+               menu_tag = $14, order_export = $15, extra = $16, shop_id = $17, is_using = $18,
+               is_deleted = $19
+             WHERE admin_id = $20",
         )
         .bind(&u.username)
         .bind(&u.admin_type)
@@ -353,7 +353,7 @@ impl AdminUserRepository {
     /// 软删除（`is_deleted = 1`，对应 Java \"removeById\"，见
     /// \"uncertain_points\"：Java 依赖 MyBatis-Plus 逻辑删除注解，本实现显式置位）。
     pub async fn soft_delete_user(&self, admin_id: i32) -> Result<bool> {
-        let affected = sqlx::query("UPDATE admin_user SET is_deleted = 1 WHERE admin_id = ?")
+        let affected = sqlx::query("UPDATE admin_user SET is_deleted = 1 WHERE admin_id = $1")
             .bind(admin_id)
             .execute(&self.pool)
             .await
@@ -366,7 +366,7 @@ impl AdminUserRepository {
 
     /// 按主键查询角色。
     pub async fn find_role(&self, role_id: i32) -> Result<Option<AdminRole>> {
-        sqlx::query_as::<_, AdminRole>("SELECT * FROM admin_role WHERE role_id = ? LIMIT 1")
+        sqlx::query_as::<_, AdminRole>("SELECT * FROM admin_role WHERE role_id = $1 LIMIT 1")
             .bind(role_id)
             .fetch_optional(&self.pool)
             .await
@@ -379,7 +379,7 @@ impl AdminUserRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; role_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM admin_role WHERE role_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM admin_role WHERE role_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, AdminRole>(&sql);
         for id in role_ids {
             q = q.bind(*id);
@@ -423,10 +423,10 @@ impl AdminUserRepository {
         } else {
             format!(" WHERE {}", conds.join(" AND "))
         };
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM admin_role{where_sql} {} ORDER BY role_id DESC",
             role_ordinary_condition(&where_sql)
-        );
+        ));
         bind_all!(sqlx::query_as::<_, AdminRole>(&sql), binds)
             .fetch_all(&self.pool)
             .await
@@ -439,7 +439,7 @@ impl AdminUserRepository {
     /// `admin_id = ? AND is_admin = 1 LIMIT 1`）。
     pub async fn find_shop_main_account(&self, admin_id: i32) -> Result<Option<AdminUserShop>> {
         sqlx::query_as::<_, AdminUserShop>(
-            "SELECT * FROM admin_user_shop WHERE admin_id = ? AND is_admin = 1 LIMIT 1",
+            "SELECT * FROM admin_user_shop WHERE admin_id = $1 AND is_admin = 1 LIMIT 1",
         )
         .bind(admin_id)
         .fetch_optional(&self.pool)
@@ -450,7 +450,7 @@ impl AdminUserRepository {
     /// 查询指定管理员的全部店铺绑定（`detail` 的 `userShop`）。
     pub async fn find_user_shops(&self, admin_id: i32) -> Result<Vec<AdminUserShop>> {
         sqlx::query_as::<_, AdminUserShop>(
-            "SELECT * FROM admin_user_shop WHERE admin_id = ? ORDER BY id ASC",
+            "SELECT * FROM admin_user_shop WHERE admin_id = $1 ORDER BY id ASC",
         )
         .bind(admin_id)
         .fetch_all(&self.pool)
@@ -462,7 +462,7 @@ impl AdminUserRepository {
     /// `admin_id = ? AND shop_id = 0`）。
     pub async fn find_platform_binding(&self, admin_id: i32) -> Result<Option<AdminUserShop>> {
         sqlx::query_as::<_, AdminUserShop>(
-            "SELECT * FROM admin_user_shop WHERE admin_id = ? AND shop_id = 0 LIMIT 1",
+            "SELECT * FROM admin_user_shop WHERE admin_id = $1 AND shop_id = 0 LIMIT 1",
         )
         .bind(admin_id)
         .fetch_optional(&self.pool)
@@ -472,7 +472,7 @@ impl AdminUserRepository {
 
     /// 删除平台工作台绑定（Java \"removePlatformWorkbenchBinding\" 的 SQL 部分）。
     pub async fn delete_platform_binding(&self, admin_id: i32) -> Result<u64> {
-        let affected = sqlx::query("DELETE FROM admin_user_shop WHERE admin_id = ? AND shop_id = 0")
+        let affected = sqlx::query("DELETE FROM admin_user_shop WHERE admin_id = $1 AND shop_id = 0")
             .bind(admin_id)
             .execute(&self.pool)
             .await
@@ -492,7 +492,7 @@ impl AdminUserRepository {
                (admin_id, user_id, shop_id, username, email, avatar, auth_list,
                 is_using, is_admin, add_time, role_id, work_on_time, default_pos_login,
                 last_login_system, device_code)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id",
         )
         .bind(b.admin_id)
         .bind(b.user_id)
@@ -518,11 +518,11 @@ impl AdminUserRepository {
     /// 按主键更新店铺员工绑定（Java `adminUserShopMapper.updateById`）。
     pub async fn update_user_shop(&self, b: &AdminUserShop) -> Result<bool> {
         let affected = sqlx::query(
-            "UPDATE admin_user_shop SET admin_id = ?, user_id = ?, shop_id = ?,
-               username = ?, email = ?, avatar = ?, auth_list = ?, is_using = ?,
-               is_admin = ?, add_time = ?, role_id = ?, work_on_time = ?,
-               default_pos_login = ?, last_login_system = ?, device_code = ?
-             WHERE id = ?",
+            "UPDATE admin_user_shop SET admin_id = $1, user_id = $2, shop_id = $3,
+               username = $4, email = $5, avatar = $6, auth_list = $7, is_using = $8,
+               is_admin = $9, add_time = $10, role_id = $11, work_on_time = $12,
+               default_pos_login = $13, last_login_system = $14, device_code = $15
+             WHERE id = $16",
         )
         .bind(b.admin_id)
         .bind(b.user_id)
@@ -551,7 +551,7 @@ impl AdminUserRepository {
 
     /// 按主键查询店铺（`getConfig` 店铺分支 / `detail` 的 `userShop`）。
     pub async fn find_shop(&self, shop_id: i32) -> Result<Option<Shop>> {
-        sqlx::query_as::<_, Shop>("SELECT * FROM shop WHERE shop_id = ? LIMIT 1")
+        sqlx::query_as::<_, Shop>("SELECT * FROM shop WHERE shop_id = $1 LIMIT 1")
             .bind(shop_id)
             .fetch_optional(&self.pool)
             .await
@@ -564,7 +564,7 @@ impl AdminUserRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; shop_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM shop WHERE shop_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM shop WHERE shop_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, Shop>(&sql);
         for id in shop_ids {
             q = q.bind(*id);
@@ -574,7 +574,7 @@ impl AdminUserRepository {
 
     /// 按主键查询商户。
     pub async fn find_merchant(&self, merchant_id: i32) -> Result<Option<Merchant>> {
-        sqlx::query_as::<_, Merchant>("SELECT * FROM merchant WHERE merchant_id = ? LIMIT 1")
+        sqlx::query_as::<_, Merchant>("SELECT * FROM merchant WHERE merchant_id = $1 LIMIT 1")
             .bind(merchant_id)
             .fetch_optional(&self.pool)
             .await
@@ -586,7 +586,7 @@ impl AdminUserRepository {
     /// 该管理员的有效 Token 数量（Java `generateToken` 的上限校验）。
     pub async fn count_active_tokens(&self, admin_id: i32) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM admin_api_token WHERE admin_id = ? AND is_active = 1",
+            "SELECT COUNT(*) FROM admin_api_token WHERE admin_id = $1 AND is_active = 1",
         )
         .bind(admin_id)
         .fetch_one(&self.pool)
@@ -609,7 +609,7 @@ impl AdminUserRepository {
             "INSERT INTO admin_api_token
                (admin_id, token_hash, token_prefix, name, created_at, last_used_at,
                 expires_at, is_active)
-             VALUES (?, ?, ?, ?, ?, NULL, ?, 1) RETURNING id",
+             VALUES ($1, $2, $3, $4, $5, NULL, $6, 1) RETURNING id",
         )
         .bind(admin_id)
         .bind(token_hash)
@@ -626,7 +626,7 @@ impl AdminUserRepository {
     /// 列出该管理员的全部 Token（Java \"listTokens\"：\"created_at\" 降序）。
     pub async fn find_api_tokens(&self, admin_id: i32) -> Result<Vec<AdminApiToken>> {
         sqlx::query_as::<_, AdminApiToken>(
-            "SELECT * FROM admin_api_token WHERE admin_id = ? ORDER BY created_at DESC",
+            "SELECT * FROM admin_api_token WHERE admin_id = $1 ORDER BY created_at DESC",
         )
         .bind(admin_id)
         .fetch_all(&self.pool)
@@ -637,7 +637,7 @@ impl AdminUserRepository {
     /// 按主键查询 Token（`revoke` 的归属校验）。
     pub async fn find_api_token(&self, id: i32) -> Result<Option<AdminApiToken>> {
         sqlx::query_as::<_, AdminApiToken>(
-            "SELECT * FROM admin_api_token WHERE id = ? LIMIT 1",
+            "SELECT * FROM admin_api_token WHERE id = $1 LIMIT 1",
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -647,7 +647,7 @@ impl AdminUserRepository {
 
     /// 吊销 Token（Java `revokeToken`：`is_active = 0`），返回是否命中。
     pub async fn revoke_api_token(&self, id: i32) -> Result<bool> {
-        let affected = sqlx::query("UPDATE admin_api_token SET is_active = 0 WHERE id = ?")
+        let affected = sqlx::query("UPDATE admin_api_token SET is_active = 0 WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await
@@ -664,7 +664,7 @@ impl AdminUserRepository {
         now: i64,
     ) -> Result<Option<AdminApiToken>> {
         sqlx::query_as::<_, AdminApiToken>(
-            "SELECT * FROM admin_api_token              WHERE token_hash = ? AND is_active = 1                AND (expires_at IS NULL OR expires_at > ?)              LIMIT 1",
+            "SELECT * FROM admin_api_token              WHERE token_hash = $1 AND is_active = 1                AND (expires_at IS NULL OR expires_at > $2)              LIMIT 1",
         )
         .bind(token_hash)
         .bind(now)
@@ -675,7 +675,7 @@ impl AdminUserRepository {
 
     /// 回写 Token 最后使用时间（Java `validateToken` 内联 touch）。
     pub async fn touch_api_token(&self, id: i32, now: i64) -> Result<()> {
-        sqlx::query("UPDATE admin_api_token SET last_used_at = ? WHERE id = ?")
+        sqlx::query("UPDATE admin_api_token SET last_used_at = $1 WHERE id = $2")
             .bind(now)
             .bind(id)
             .execute(&self.pool)
@@ -828,7 +828,7 @@ mod tests {
     #[test]
     fn ordinary_role_condition_keeps_java_is_null_branch() {
         // 有租户条件时用 AND 追加，且必须保留 role_code IS NULL 分支
-        let c = role_ordinary_condition(" WHERE shop_id = ?");
+        let c = role_ordinary_condition(" WHERE shop_id = $1");
         assert!(c.starts_with("AND ("));
         assert!(c.contains("role_code IS NULL"));
         assert!(c.contains("NOT IN ('pos_cashier', 'kefu_agent')"));

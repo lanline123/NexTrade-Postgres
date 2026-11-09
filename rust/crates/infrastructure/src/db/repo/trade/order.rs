@@ -314,11 +314,11 @@ impl OrderRepository {
         let kw = keyword.map(|s| format!("%{s}%"));
         // 待晒单：Java 先查 comment 表（user_id + is_showed）得到 orderId 集合
         let show_sql = if is_showed.is_some() && user_id.is_some() {
-            " AND order_id IN (SELECT order_id FROM \"comment\" WHERE user_id = ? AND is_showed = ?)"
+            " AND order_id IN (SELECT order_id FROM \"comment\" WHERE user_id = $1 AND is_showed = $2)"
         } else {
             ""
         };
-        let count_sql = format!(
+        let count_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM \"order\"
              WHERE is_del = 0
                AND ($1 IS NULL OR user_id = $2)
@@ -329,7 +329,7 @@ impl OrderRepository {
                      OR ($7 > 0 AND comment_status = $8)
                    )
                AND ($9 IS NULL OR order_sn LIKE $10 OR consignee LIKE $11){show_sql}"
-        );
+        ));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql)
             .bind(user_id).bind(user_id)
             .bind(order_status).bind(order_status)
@@ -340,7 +340,7 @@ impl OrderRepository {
         }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM \"order\"
              WHERE is_del = 0
                AND ($1 IS NULL OR user_id = $2)
@@ -353,7 +353,7 @@ impl OrderRepository {
                AND ($9 IS NULL OR order_sn LIKE $10 OR consignee LIKE $11){show_sql}
              ORDER BY order_id DESC
              LIMIT $12 OFFSET $13"
-        );
+        ));
         let mut rq = sqlx::query_as::<_, Order>(&rows_sql)
             .bind(user_id).bind(user_id)
             .bind(order_status).bind(order_status)
@@ -395,9 +395,9 @@ impl OrderRepository {
             return Err(Error::Validation("缺少源状态".into()));
         }
         let placeholders = vec!["?"; from_statuses.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE \"order\" SET order_status = $1 WHERE order_id = $2 AND order_status IN ({placeholders})"
-        );
+        ));
         let mut query = sqlx::query(&sql).bind(to_status).bind(order_id);
         for s in from_statuses {
             query = query.bind(s);

@@ -126,12 +126,12 @@ impl LogisticsCompanyConfigRepository {
                 return Ok((0, Vec::new()));
             }
             let placeholders = vec!["?"; ids.len()].join(", ");
-            let where_clause = format!(
+            let where_clause = crate::db::to_pg_placeholders(&format!(
                 "shop_id = ? AND vendor_id = ? AND (? IS NULL OR is_enabled = ?) \
                  AND logistics_id IN ({placeholders})"
-            );
+            ));
 
-            let count_sql = format!("SELECT COUNT(*) FROM logistics_company_config WHERE {where_clause}");
+            let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM logistics_company_config WHERE {where_clause}"));
             let mut q = sqlx::query_as::<_, (i64,)>(&count_sql)
                 .bind(shop_id)
                 .bind(vendor_id)
@@ -142,10 +142,10 @@ impl LogisticsCompanyConfigRepository {
             }
             let total: (i64,) = q.fetch_one(&self.pool).await.map_err(map_err)?;
 
-            let list_sql = format!(
+            let list_sql = crate::db::to_pg_placeholders(&format!(
                 "SELECT * FROM logistics_company_config WHERE {where_clause} \
                  ORDER BY is_default DESC, is_enabled DESC LIMIT ? OFFSET ?"
-            );
+            ));
             let mut q = sqlx::query_as::<_, LogisticsCompanyConfig>(&list_sql)
                 .bind(shop_id)
                 .bind(vendor_id)
@@ -166,8 +166,8 @@ impl LogisticsCompanyConfigRepository {
 
         let total: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM logistics_company_config
-             WHERE shop_id = ? AND vendor_id = ?
-               AND (? IS NULL OR is_enabled = ?)",
+             WHERE shop_id = $1 AND vendor_id = $2
+               AND ($3 IS NULL OR is_enabled = $4)",
         )
         .bind(shop_id)
         .bind(vendor_id)
@@ -179,10 +179,10 @@ impl LogisticsCompanyConfigRepository {
 
         let rows = sqlx::query_as::<_, LogisticsCompanyConfig>(
             "SELECT * FROM logistics_company_config
-             WHERE shop_id = ? AND vendor_id = ?
-               AND (? IS NULL OR is_enabled = ?)
+             WHERE shop_id = $1 AND vendor_id = $2
+               AND ($3 IS NULL OR is_enabled = $4)
              ORDER BY is_default DESC, is_enabled DESC
-             LIMIT ? OFFSET ?",
+             LIMIT $5 OFFSET $6",
         )
         .bind(shop_id)
         .bind(vendor_id)
@@ -208,7 +208,7 @@ impl LogisticsCompanyConfigRepository {
     ) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM logistics_company_config
-             WHERE shop_id = ? AND vendor_id = ? AND logistics_id = ?",
+             WHERE shop_id = $1 AND vendor_id = $2 AND logistics_id = $3",
         )
         .bind(shop_id)
         .bind(vendor_id)
@@ -231,8 +231,8 @@ impl LogisticsCompanyConfigRepository {
     ) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM logistics_company_config
-             WHERE shop_id = ? AND vendor_id = ? AND logistics_id = ?
-               AND config_id <> ?",
+             WHERE shop_id = $1 AND vendor_id = $2 AND logistics_id = $3
+               AND config_id <> $4",
         )
         .bind(shop_id)
         .bind(vendor_id)
@@ -257,7 +257,7 @@ impl LogisticsCompanyConfigRepository {
               kuaidi100_partner_secret, kuaidi100_net, kuaidi100_check_man, kuaidi100_exp_type,
               kuaidi100_temp_id, kuaidi100_child_temp_id, kuaidi100_back_temp_id,
               sort_order, is_default, is_enabled)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING config_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING config_id",
         )
         .bind(c.logistics_id)
         .bind(c.shop_id)
@@ -312,10 +312,10 @@ impl LogisticsCompanyConfigRepository {
             }
             set_parts.push(format!("{col} = ?"));
         }
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE logistics_company_config SET {} WHERE config_id = ?",
             set_parts.join(", ")
-        );
+        ));
 
         let mut q = sqlx::query(&sql);
         for (_, val) in columns {
@@ -335,7 +335,7 @@ impl LogisticsCompanyConfigRepository {
 
     /// 按 ID 删除配置（Java `BaseServiceImpl#del` → \"removeById\"）。
     pub async fn delete_config(&self, config_id: i32) -> Result<u64> {
-        let affected = sqlx::query("DELETE FROM logistics_company_config WHERE config_id = ?")
+        let affected = sqlx::query("DELETE FROM logistics_company_config WHERE config_id = $1")
             .bind(config_id)
             .execute(&self.pool)
             .await
@@ -351,7 +351,7 @@ impl LogisticsCompanyConfigRepository {
     pub async fn clear_default(&self, shop_id: i32, vendor_id: i32) -> Result<u64> {
         let affected = sqlx::query(
             "UPDATE logistics_company_config SET is_default = 0
-             WHERE shop_id = ? AND vendor_id = ?",
+             WHERE shop_id = $1 AND vendor_id = $2",
         )
         .bind(shop_id)
         .bind(vendor_id)
@@ -366,7 +366,7 @@ impl LogisticsCompanyConfigRepository {
     ///
     /// 对应 Java \"setDefault\" 的第二步：按主键 `set(is_default, 1)`。
     pub async fn mark_default(&self, config_id: i32) -> Result<u64> {
-        let affected = sqlx::query("UPDATE logistics_company_config SET is_default = 1 WHERE config_id = ?")
+        let affected = sqlx::query("UPDATE logistics_company_config SET is_default = 1 WHERE config_id = $1")
             .bind(config_id)
             .execute(&self.pool)
             .await
@@ -384,14 +384,14 @@ impl LogisticsCompanyConfigRepository {
         let mut tx = self.pool.begin().await.map_err(map_err)?;
         sqlx::query(
             "UPDATE logistics_company_config SET is_default = 0
-             WHERE shop_id = ? AND vendor_id = ?",
+             WHERE shop_id = $1 AND vendor_id = $2",
         )
         .bind(shop_id)
         .bind(vendor_id)
         .execute(&mut *tx)
         .await
         .map_err(map_err)?;
-        sqlx::query("UPDATE logistics_company_config SET is_default = 1 WHERE config_id = ?")
+        sqlx::query("UPDATE logistics_company_config SET is_default = 1 WHERE config_id = $1")
             .bind(config_id)
             .execute(&mut *tx)
             .await
@@ -411,7 +411,7 @@ impl LogisticsCompanyConfigRepository {
                 "update_field 列名未经过白名单映射: {column}"
             )));
         }
-        let sql = format!("UPDATE logistics_company_config SET {column} = ? WHERE config_id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE logistics_company_config SET {column} = ? WHERE config_id = ?"));
         let affected = sqlx::query(&sql)
             .bind(val)
             .bind(id)
@@ -429,7 +429,7 @@ impl LogisticsCompanyConfigRepository {
     /// 对应 Java `logisticsCompanyService.getById(logisticsId)`。
     pub async fn find_company_by_id(&self, logistics_id: i32) -> Result<Option<LogisticsCompany>> {
         sqlx::query_as::<_, LogisticsCompany>(
-            "SELECT * FROM logistics_company WHERE logistics_id = ? LIMIT 1",
+            "SELECT * FROM logistics_company WHERE logistics_id = $1 LIMIT 1",
         )
         .bind(logistics_id)
         .fetch_optional(&self.pool)
@@ -446,7 +446,7 @@ impl LogisticsCompanyConfigRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = format!("SELECT * FROM logistics_company WHERE logistics_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM logistics_company WHERE logistics_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, LogisticsCompany>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -477,11 +477,11 @@ impl LogisticsCompanyConfigRepository {
         let pt = provider_type;
         let rows: Vec<(i32,)> = sqlx::query_as(
             "SELECT logistics_id FROM logistics_company
-             WHERE (? IS NULL OR logistics_name LIKE ?)
+             WHERE ($1 IS NULL OR logistics_name LIKE $2)
                AND (
-                 ? IS NULL
-                 OR (? = 1 AND logistics_code IS NOT NULL AND TRIM(logistics_code) <> '')
-                 OR (? = 2 AND (
+                 $3 IS NULL
+                 OR ($4 = 1 AND logistics_code IS NOT NULL AND TRIM(logistics_code) <> '')
+                 OR ($5 = 2 AND (
                       (kuaidi100_code IS NOT NULL AND TRIM(kuaidi100_code) <> '')
                       OR (logistics_code IS NOT NULL
                           AND TRIM(logistics_code) COLLATE utf8mb4_bin REGEXP '^[a-z0-9]+$')

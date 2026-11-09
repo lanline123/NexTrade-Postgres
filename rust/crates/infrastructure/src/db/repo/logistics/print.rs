@@ -171,7 +171,7 @@ impl PrintRepository {
         let dir = resolve_sort_direction(sort_order);
         let (limit, offset) = page.limit_offset();
 
-        let count_sql = format!("SELECT COUNT(*) FROM print {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM print {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         cq = bind_filters(
             cq,
@@ -185,9 +185,9 @@ impl PrintRepository {
         );
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "{PRINT_SELECT} {where_sql} ORDER BY {column} {dir} LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, Print>(&list_sql);
         lq = bind_filters(
             lq,
@@ -226,9 +226,9 @@ impl PrintRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; print_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT print_id, paper_size FROM print_config WHERE print_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, i32)>(&sql);
         for id in print_ids {
             q = q.bind(*id);
@@ -254,9 +254,9 @@ impl PrintRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; print_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT print_id, device_code FROM print_pos_device WHERE shop_id = $1 AND print_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql).bind(shop_id);
         for id in print_ids {
             q = q.bind(*id);
@@ -627,9 +627,9 @@ impl PrintRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; print_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "{PRINT_POS_DEVICE_SELECT} WHERE shop_id = $1 AND print_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, nextrade_core::entities::PrintPosDevice>(&sql).bind(shop_id);
         for id in print_ids {
             q = q.bind(*id);

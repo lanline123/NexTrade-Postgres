@@ -236,7 +236,7 @@ impl SalesmanMaterialCategoryRepository {
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
         let sql =
-            format!("DELETE FROM salesman_material_category WHERE category_id IN ({placeholders})");
+            crate::db::to_pg_placeholders(&format!("DELETE FROM salesman_material_category WHERE category_id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(id);

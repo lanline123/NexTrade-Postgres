@@ -224,7 +224,7 @@ impl UserManageRepository {
     pub async fn paginate_users(&self, f: &UserPageFilter) -> Result<(u64, Vec<User>)> {
         let (where_sql, binds) = build_filter(f);
 
-        let total_sql = format!("SELECT COUNT(*) FROM \"user\"{where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM \"user\"{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&total_sql), binds)
             .fetch_one(&self.pool)
             .await
@@ -232,7 +232,7 @@ impl UserManageRepository {
 
         // Java `BaseServiceImpl#buildSortOrder` 未指定字段时按主键降序
         let rows_sql =
-            format!("SELECT * FROM \"user\"{where_sql} ORDER BY user_id DESC LIMIT ? OFFSET ?");
+            crate::db::to_pg_placeholders(&format!("SELECT * FROM \"user\"{where_sql} ORDER BY user_id DESC LIMIT ? OFFSET ?"));
         let rows = bind_all!(sqlx::query_as::<_, User>(&rows_sql), binds)
             .bind(f.size as i64)
             .bind(f.offset as i64)
@@ -255,12 +255,12 @@ impl UserManageRepository {
         }
         let placeholders = vec!["?"; tag_ids.len()].join(", ");
         let rows: Vec<(i64,)> = if match_all {
-            let sql = format!(
+            let sql = crate::db::to_pg_placeholders(&format!(
                 "SELECT user_id FROM user_member_tag
                   WHERE tag_id IN ({placeholders})
                   GROUP BY user_id
                  HAVING COUNT(DISTINCT tag_id) = $1"
-            );
+            ));
             let mut q = sqlx::query_as::<_, (i64,)>(&sql);
             for id in tag_ids {
                 q = q.bind(*id);
@@ -270,9 +270,9 @@ impl UserManageRepository {
                 .await
                 .map_err(map_err)?
         } else {
-            let sql = format!(
+            let sql = crate::db::to_pg_placeholders(&format!(
                 "SELECT DISTINCT user_id FROM user_member_tag WHERE tag_id IN ({placeholders})"
-            );
+            ));
             let mut q = sqlx::query_as::<_, (i64,)>(&sql);
             for id in tag_ids {
                 q = q.bind(*id);
@@ -381,7 +381,7 @@ impl UserManageRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; rank_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM user_rank WHERE rank_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM user_rank WHERE rank_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, UserRank>(&sql);
         for id in rank_ids {
             q = q.bind(*id);
@@ -396,10 +396,10 @@ impl UserManageRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; user_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM user_address WHERE user_id IN ({placeholders})
               ORDER BY user_id ASC, is_default DESC, address_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, UserAddress>(&sql);
         for id in user_ids {
             q = q.bind(*id);
@@ -416,13 +416,13 @@ impl UserManageRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; user_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT o.user_id, COUNT(*) AS cnt,
                     CAST(COALESCE(SUM(o.total_amount), 0) AS DECIMAL(20,2)) AS amt
                FROM \"order\" o
               WHERE o.pay_status = 2 AND o.user_id IN ({placeholders})
               GROUP BY o.user_id"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, i64, Decimal)>(&sql);
         for id in user_ids {
             q = q.bind(*id);
@@ -489,7 +489,7 @@ impl UserManageRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; user_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM user_member_tag WHERE user_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM user_member_tag WHERE user_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, UserMemberTag>(&sql);
         for id in user_ids {
             q = q.bind(*id);
@@ -503,7 +503,7 @@ impl UserManageRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; tag_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM member_tag WHERE id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM member_tag WHERE id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, MemberTag>(&sql);
         for id in tag_ids {
             q = q.bind(*id);
@@ -517,7 +517,7 @@ impl UserManageRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; group_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM member_tag_group WHERE id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM member_tag_group WHERE id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, MemberTagGroup>(&sql);
         for id in group_ids {
             q = q.bind(*id);
@@ -644,7 +644,7 @@ impl UserManageRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = format!("DELETE FROM \"user\" WHERE user_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM \"user\" WHERE user_id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -700,7 +700,7 @@ impl UserManageRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = format!("UPDATE \"user\" SET rank_id = $1 WHERE user_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE \"user\" SET rank_id = $1 WHERE user_id IN ({placeholders})"));
         let mut q = sqlx::query(&sql).bind(rank_id);
         for id in ids {
             q = q.bind(*id);
@@ -716,7 +716,7 @@ impl UserManageRepository {
         }
         let placeholders = vec!["?"; user_ids.len()].join(", ");
         let sql =
-            format!("UPDATE \"user\" SET admin_note = $1, mark = $2 WHERE user_id IN ({placeholders})");
+            crate::db::to_pg_placeholders(&format!("UPDATE \"user\" SET admin_note = $1, mark = $2 WHERE user_id IN ({placeholders})"));
         let mut q = sqlx::query(&sql).bind(&p.admin_note).bind(p.mark);
         for id in user_ids {
             q = q.bind(*id);
@@ -1288,7 +1288,7 @@ mod tests {
         let q = UserListQuery::default();
         let f = UserPageFilter::from_query(&q, None);
         let (sql, binds) = with_binds(f);
-        assert_eq!(sql, " WHERE user_type = ?");
+        assert_eq!(sql, " WHERE user_type = $1");
         assert_eq!(binds.len(), 1);
         match &binds[0] {
             Bind::I32(v) => assert_eq!(*v, 0),

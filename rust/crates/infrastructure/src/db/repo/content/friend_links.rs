@@ -59,10 +59,10 @@ impl FriendLinksRepository {
             .await
             .map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {LINK_COLUMNS} FROM friend_links \
              WHERE (? IS NULL OR link_title LIKE ?){order} LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = sqlx::query_as::<_, FriendLinks>(&list_sql)
             .bind(&like)
             .bind(&like)
@@ -76,7 +76,7 @@ impl FriendLinksRepository {
 
     /// 按主键查询（Java `getById`）。
     pub async fn find_by_id(&self, link_id: i32) -> Result<Option<FriendLinks>> {
-        let sql = format!("SELECT {LINK_COLUMNS} FROM friend_links WHERE link_id = ? LIMIT 1");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT {LINK_COLUMNS} FROM friend_links WHERE link_id = ? LIMIT 1"));
         sqlx::query_as::<_, FriendLinks>(&sql)
             .bind(link_id)
             .fetch_optional(&self.pool)
@@ -88,7 +88,7 @@ impl FriendLinksRepository {
     pub async fn insert(&self, row: &FriendLinks) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO friend_links (link_title, link_logo, link_url, sort_order) \
-             VALUES (?, ?, ?, ?) RETURNING link_id",
+             VALUES ($1, $2, $3, $4) RETURNING link_id",
         )
         .bind(&row.link_title)
         .bind(&row.link_logo)
@@ -103,8 +103,8 @@ impl FriendLinksRepository {
     /// 整行更新（Java \"updateById\"；未提交字段由服务层合并原值）。
     pub async fn update(&self, row: &FriendLinks) -> Result<u64> {
         let r = sqlx::query(
-            "UPDATE friend_links SET link_title = ?, link_logo = ?, link_url = ?, sort_order = ? \
-             WHERE link_id = ?",
+            "UPDATE friend_links SET link_title = $1, link_logo = $2, link_url = $3, sort_order = $4 \
+             WHERE link_id = $5",
         )
         .bind(&row.link_title)
         .bind(&row.link_logo)
@@ -130,7 +130,7 @@ impl FriendLinksRepository {
             _ => return Err(Error::Validation("field 的值有误".into())),
         };
         debug_assert!(FRIEND_LINKS_FIELDS.contains(&safe));
-        let sql = format!("UPDATE friend_links SET {safe} = ? WHERE link_id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE friend_links SET {safe} = ? WHERE link_id = ?"));
         let r = sqlx::query(&sql)
             .bind(val)
             .bind(id)
@@ -142,7 +142,7 @@ impl FriendLinksRepository {
 
     /// 删除（Java \"removeById\"）。
     pub async fn delete(&self, link_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM friend_links WHERE link_id = ?")
+        let r = sqlx::query("DELETE FROM friend_links WHERE link_id = $1")
             .bind(link_id)
             .execute(&self.pool)
             .await

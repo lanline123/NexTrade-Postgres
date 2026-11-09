@@ -146,7 +146,7 @@ impl GalleryVideoRepository {
     ) -> Result<bool> {
         let row: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM gallery_video \
-             WHERE parent_id = ? AND name = ? AND id <> ?",
+             WHERE parent_id = $1 AND name = $2 AND id <> $3",
         )
         .bind(parent_id)
         .bind(name)
@@ -164,7 +164,7 @@ impl GalleryVideoRepository {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO gallery_video \
              (shop_id, parent_id, name, sort, add_time, add_user_id, vendor_id) \
-             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
         )
         .bind(row.shop_id)
         .bind(row.parent_id)
@@ -188,7 +188,7 @@ impl GalleryVideoRepository {
     ) -> Result<u64> {
         let r = match sort {
             Some(sort) => {
-                sqlx::query("UPDATE gallery_video SET name = ?, sort = ? WHERE id = ?")
+                sqlx::query("UPDATE gallery_video SET name = $1, sort = $2 WHERE id = $3")
                     .bind(name)
                     .bind(sort)
                     .bind(id)
@@ -196,7 +196,7 @@ impl GalleryVideoRepository {
                     .await
             }
             None => {
-                sqlx::query("UPDATE gallery_video SET name = ? WHERE id = ?")
+                sqlx::query("UPDATE gallery_video SET name = $1 WHERE id = $2")
                     .bind(name)
                     .bind(id)
                     .execute(&self.pool)
@@ -209,7 +209,7 @@ impl GalleryVideoRepository {
 
     /// 删除单条（Java \"removeById\"）。
     pub async fn delete(&self, id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM gallery_video WHERE id = ?")
+        let r = sqlx::query("DELETE FROM gallery_video WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await
@@ -243,7 +243,7 @@ impl GalleryVideoRepository {
         let mut frontier = vec![root_id];
         while !frontier.is_empty() {
             let placeholders = vec!["?"; frontier.len()].join(", ");
-            let sql = format!("SELECT id FROM gallery_video WHERE parent_id IN ({placeholders})");
+            let sql = crate::db::to_pg_placeholders(&format!("SELECT id FROM gallery_video WHERE parent_id IN ({placeholders})"));
             let mut q = sqlx::query_as::<_, (i32,)>(&sql);
             for id in &frontier {
                 q = q.bind(*id);
@@ -269,23 +269,23 @@ impl GalleryVideoRepository {
         let placeholders = vec!["?"; ids.len()].join(", ");
         let mut tx = self.pool.begin().await.map_err(map_err)?;
         if delete_files {
-            let sql = format!("DELETE FROM gallery_video_info WHERE gallery_id IN ({placeholders})");
+            let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM gallery_video_info WHERE gallery_id IN ({placeholders})"));
             let mut q = sqlx::query(&sql);
             for id in &ids {
                 q = q.bind(*id);
             }
             q.execute(&mut *tx).await.map_err(map_err)?;
         } else {
-            let sql = format!(
+            let sql = crate::db::to_pg_placeholders(&format!(
                 "UPDATE gallery_video_info SET gallery_id = 0 WHERE gallery_id IN ({placeholders})"
-            );
+            ));
             let mut q = sqlx::query(&sql);
             for id in &ids {
                 q = q.bind(*id);
             }
             q.execute(&mut *tx).await.map_err(map_err)?;
         }
-        let sql = format!("DELETE FROM gallery_video WHERE id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM gallery_video WHERE id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in &ids {
             q = q.bind(*id);

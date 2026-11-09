@@ -273,7 +273,7 @@ impl ProductStyleAdminRepository {
     pub async fn find_ref_ids(&self, style_id: i32, item_type: i32) -> Result<Vec<i32>> {
         let rows: Vec<(i32,)> = sqlx::query_as(
             "SELECT ref_id FROM product_style_item \
-             WHERE style_id = ? AND item_type = ? ORDER BY item_id ASC",
+             WHERE style_id = $1 AND item_type = $2 ORDER BY item_id ASC",
         )
         .bind(style_id)
         .bind(item_type)
@@ -350,7 +350,7 @@ impl ProductStyleAdminRepository {
     /// ⚠️ Java 用的是 `lambdaUpdate()...remove()` —— `remove()` 是
     /// **物理删除**（\"DELETE\"），与 \"product_style_item\" 无软删列一致。
     pub async fn delete_items_by_style(&self, style_id: i32) -> Result<u64> {
-        let res = sqlx::query("DELETE FROM product_style_item WHERE style_id = ?")
+        let res = sqlx::query("DELETE FROM product_style_item WHERE style_id = $1")
             .bind(style_id)
             .execute(&self.pool)
             .await
@@ -363,7 +363,7 @@ impl ProductStyleAdminRepository {
     /// ⚠️ 该 Java 方法**没有被本切片的任何链路调用**，保留仅为方法齐全。
     pub async fn count_items_by_style(&self, style_id: i32) -> Result<i64> {
         let row: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM product_style_item WHERE style_id = ?")
+            sqlx::query_as("SELECT COUNT(*) FROM product_style_item WHERE style_id = $1")
                 .bind(style_id)
                 .fetch_one(&self.pool)
                 .await
@@ -616,10 +616,10 @@ impl ProductStyleAdminRepository {
 
         debug_assert_eq!(columns.len(), binds.len());
         let placeholders = vec!["?"; columns.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "INSERT INTO product_style ({}) VALUES ({placeholders})",
             columns.join(", ")
-        );
+        ));
         let mut query = sqlx::query_scalar(&format!("{} RETURNING style_id", &sql));
         for b in &binds {
             query = match b {
@@ -668,7 +668,7 @@ impl ProductStyleAdminRepository {
             nextrade_core::models::marketing::product_style_admin::PRODUCT_STYLE_COLUMNS.contains(&column),
             "update_field 列名未经过白名单映射: {column}"
         );
-        let sql = format!("UPDATE product_style SET {column} = ? WHERE style_id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE product_style SET {column} = ? WHERE style_id = ?"));
         let res = sqlx::query(&sql)
             .bind(val)
             .bind(style_id)
@@ -685,7 +685,7 @@ impl ProductStyleAdminRepository {
     /// 但 Java 的 \"del\" 走 \"removeById\"（\"DELETE\"），**不是软删除**。
     /// 本实现逐条复刻 Java 的物理删除行为（见 \"uncertain_points\"）。
     pub async fn delete(&self, style_id: i32) -> Result<bool> {
-        let res = sqlx::query("DELETE FROM product_style WHERE style_id = ?")
+        let res = sqlx::query("DELETE FROM product_style WHERE style_id = $1")
             .bind(style_id)
             .execute(&self.pool)
             .await
@@ -1060,9 +1060,9 @@ impl ProductStyleAdminRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; product_sns.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT product_id, product_sn FROM product WHERE product_sn IN ({ph}) AND is_delete = 0"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
         for sn in product_sns {
             q = q.bind(sn);

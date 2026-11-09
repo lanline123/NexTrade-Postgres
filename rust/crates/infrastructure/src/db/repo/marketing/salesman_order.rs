@@ -74,7 +74,7 @@ impl SalesmanOrderRepository {
         } else {
             format!("WHERE {}", where_parts.join(" AND "))
         };
-        let sql = format!("SELECT order_id FROM \"order\" {where_sql} LIMIT 5000");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT order_id FROM \"order\" {where_sql} LIMIT 5000"));
         let mut q = sqlx::query_as::<_, (i32,)>(&sql);
         if let Some(v) = start {
             q = q.bind(v);
@@ -132,7 +132,7 @@ impl SalesmanOrderRepository {
             "DESC"
         };
 
-        let count_sql = format!("SELECT COUNT(*) FROM salesman_order {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM salesman_order {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         if let Some(v) = salesman_id {
             cq = cq.bind(v);
@@ -147,9 +147,9 @@ impl SalesmanOrderRepository {
         }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {ORDER_COLUMNS} FROM salesman_order {where_sql} ORDER BY {column} {dir} LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, SalesmanOrder>(&list_sql);
         if let Some(v) = salesman_id {
             lq = lq.bind(v);
@@ -190,7 +190,7 @@ impl SalesmanOrderRepository {
             return Ok(HashMap::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!("SELECT order_id, order_sn FROM \"order\" WHERE order_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT order_id, order_sn FROM \"order\" WHERE order_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -208,9 +208,9 @@ impl SalesmanOrderRepository {
             return Ok(0);
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE salesman_order SET status = 1, settlement_time = $1 WHERE status = 0 AND salesman_order_id IN ({ph})"
-        );
+        ));
         let mut q = sqlx::query(&sql).bind(now);
         for id in ids {
             q = q.bind(*id);
@@ -225,7 +225,7 @@ impl SalesmanOrderRepository {
             return Ok(0);
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!("DELETE FROM salesman_order WHERE salesman_order_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM salesman_order WHERE salesman_order_id IN ({ph})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(*id);

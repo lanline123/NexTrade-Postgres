@@ -122,7 +122,7 @@ impl AdminAccountRepository {
 
     /// 按主键查询会员（Java `userMapper.selectById`）。
     pub async fn find_user(&self, user_id: i32) -> Result<Option<User>> {
-        sqlx::query_as::<_, User>("SELECT * FROM user WHERE user_id = $1 LIMIT 1")
+        sqlx::query_as::<_, User>("SELECT * FROM \"user\" WHERE user_id = $1 LIMIT 1")
             .bind(user_id)
             .fetch_optional(&self.pool)
             .await
@@ -153,7 +153,7 @@ impl AdminAccountRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; merchant_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM merchant WHERE merchant_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM merchant WHERE merchant_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, Merchant>(&sql);
         for id in merchant_ids {
             q = q.bind(*id);
@@ -172,7 +172,7 @@ impl AdminAccountRepository {
         shop_id: i32,
     ) -> Result<Option<AdminUserShop>> {
         sqlx::query_as::<_, AdminUserShop>(
-            "SELECT * FROM admin_user_shop WHERE admin_id = ? AND shop_id = ? \
+            "SELECT * FROM admin_user_shop WHERE admin_id = $1 AND shop_id = $2 \
              ORDER BY id ASC LIMIT 1",
         )
         .bind(admin_id)
@@ -185,7 +185,7 @@ impl AdminAccountRepository {
     /// 查询店铺主账号绑定（Java `eq(shop_id).eq(is_admin, 1)` + `LIMIT 1`）。
     pub async fn find_shop_main_account(&self, shop_id: i32) -> Result<Option<AdminUserShop>> {
         sqlx::query_as::<_, AdminUserShop>(
-            "SELECT * FROM admin_user_shop WHERE shop_id = ? AND is_admin = 1 \
+            "SELECT * FROM admin_user_shop WHERE shop_id = $1 AND is_admin = 1 \
              ORDER BY id ASC LIMIT 1",
         )
         .bind(shop_id)
@@ -198,7 +198,7 @@ impl AdminAccountRepository {
     /// `eq(admin_id).eq(is_admin, 1).last("limit 1")`）。
     pub async fn find_admin_main_binding(&self, admin_id: i32) -> Result<Option<AdminUserShop>> {
         sqlx::query_as::<_, AdminUserShop>(
-            "SELECT * FROM admin_user_shop WHERE admin_id = ? AND is_admin = 1 \
+            "SELECT * FROM admin_user_shop WHERE admin_id = $1 AND is_admin = 1 \
              ORDER BY id ASC LIMIT 1",
         )
         .bind(admin_id)
@@ -211,7 +211,7 @@ impl AdminAccountRepository {
     /// （Java `pageShops`：`eq(admin_id).eq(is_admin, 1)`）。
     pub async fn find_admin_main_shops(&self, admin_id: i32) -> Result<Vec<AdminUserShop>> {
         sqlx::query_as::<_, AdminUserShop>(
-            "SELECT * FROM admin_user_shop WHERE admin_id = ? AND is_admin = 1 ORDER BY id ASC",
+            "SELECT * FROM admin_user_shop WHERE admin_id = $1 AND is_admin = 1 ORDER BY id ASC",
         )
         .bind(admin_id)
         .fetch_all(&self.pool)
@@ -232,14 +232,14 @@ impl AdminAccountRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; shop_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT admin_user_shop.shop_id, admin_user.username \
              FROM admin_user_shop \
              JOIN admin_user ON admin_user.admin_id = admin_user_shop.admin_id \
              WHERE admin_user_shop.shop_id IN ({placeholders}) \
                AND admin_user_shop.is_admin = 1 \
              ORDER BY admin_user_shop.id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in shop_ids {
             q = q.bind(*id);
@@ -256,7 +256,7 @@ impl AdminAccountRepository {
         exclude_admin_id: i32,
     ) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM admin_user WHERE username = ? AND admin_id <> ?",
+            "SELECT COUNT(*) FROM admin_user WHERE username = $1 AND admin_id <> $2",
         )
         .bind(username)
         .bind(exclude_admin_id)
@@ -273,7 +273,7 @@ impl AdminAccountRepository {
         exclude_admin_id: i32,
     ) -> Result<i64> {
         let row: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM admin_user WHERE mobile = ? AND admin_id <> ?")
+            sqlx::query_as("SELECT COUNT(*) FROM admin_user WHERE mobile = $1 AND admin_id <> $2")
                 .bind(mobile)
                 .bind(exclude_admin_id)
                 .fetch_one(&self.pool)
@@ -285,7 +285,7 @@ impl AdminAccountRepository {
     /// 邮箱占用数（排除自身）。
     pub async fn count_admins_by_email(&self, email: &str, exclude_admin_id: i32) -> Result<i64> {
         let row: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM admin_user WHERE email = ? AND admin_id <> ?")
+            sqlx::query_as("SELECT COUNT(*) FROM admin_user WHERE email = $1 AND admin_id <> $2")
                 .bind(email)
                 .bind(exclude_admin_id)
                 .fetch_one(&self.pool)
@@ -325,14 +325,14 @@ impl AdminAccountRepository {
         }
         let where_sql = format!(" WHERE {}", conds.join(" AND "));
 
-        let total_sql = format!("SELECT COUNT(*) FROM shop{where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM shop{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&total_sql), binds)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
         let (limit, offset) = page.limit_offset();
-        let rows_sql = format!("SELECT * FROM shop{where_sql} ORDER BY shop_id DESC LIMIT ? OFFSET ?");
+        let rows_sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM shop{where_sql} ORDER BY shop_id DESC LIMIT ? OFFSET ?"));
         let rows = bind_all!(sqlx::query_as::<_, Shop>(&rows_sql), binds)
             .bind(limit)
             .bind(offset)
@@ -365,7 +365,7 @@ impl AdminAccountRepository {
         binds.push(Bind::I32(is_deleted));
         let where_sql = format!(" WHERE {}", conds.join(" AND "));
 
-        let total_sql = format!("SELECT COUNT(*) FROM admin_user{where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM admin_user{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&total_sql), binds)
             .fetch_one(&self.pool)
             .await
@@ -373,7 +373,7 @@ impl AdminAccountRepository {
 
         let (limit, offset) = page.limit_offset();
         let rows_sql =
-            format!("SELECT * FROM admin_user{where_sql} ORDER BY admin_id DESC LIMIT ? OFFSET ?");
+            crate::db::to_pg_placeholders(&format!("SELECT * FROM admin_user{where_sql} ORDER BY admin_id DESC LIMIT ? OFFSET ?"));
         let rows = bind_all!(sqlx::query_as::<_, AdminUser>(&rows_sql), binds)
             .bind(limit)
             .bind(offset)
@@ -401,14 +401,14 @@ impl AdminAccountRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; admin_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT admin_user_shop.admin_id, shop.shop_type, COUNT(*) \
              FROM admin_user_shop \
              LEFT JOIN shop ON shop.shop_id = admin_user_shop.shop_id \
              WHERE admin_user_shop.admin_id IN ({placeholders}) \
                AND admin_user_shop.is_admin = 1 \
              GROUP BY admin_user_shop.admin_id, shop.shop_type"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, Option<i32>, i64)>(&sql);
         for id in admin_ids {
             q = q.bind(*id);
@@ -423,10 +423,10 @@ impl AdminAccountRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; admin_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT admin_id, COUNT(*) FROM admin_user_vendor \
              WHERE admin_id IN ({placeholders}) AND is_admin = 1 GROUP BY admin_id"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in admin_ids {
             q = q.bind(*id);
@@ -446,8 +446,8 @@ impl AdminAccountRepository {
         shop_id: i32,
     ) -> Result<Option<AdminRole>> {
         sqlx::query_as::<_, AdminRole>(
-            "SELECT * FROM admin_role WHERE admin_type = ? AND merchant_id = ? \
-             AND shop_id = ? AND is_system = 1 ORDER BY role_id ASC LIMIT 1",
+            "SELECT * FROM admin_role WHERE admin_type = $1 AND merchant_id = $2 \
+             AND shop_id = $3 AND is_system = 1 ORDER BY role_id ASC LIMIT 1",
         )
         .bind(admin_type)
         .bind(merchant_id)
@@ -469,7 +469,7 @@ impl AdminAccountRepository {
         email: &str,
     ) -> Result<bool> {
         let affected =
-            sqlx::query("UPDATE admin_user SET username = ?, mobile = ?, email = ? WHERE admin_id = ?")
+            sqlx::query("UPDATE admin_user SET username = $1, mobile = $2, email = $3 WHERE admin_id = $4")
                 .bind(username)
                 .bind(mobile)
                 .bind(email)
@@ -483,7 +483,7 @@ impl AdminAccountRepository {
 
     /// 重置管理员密码（Java \"updateMainAccountPwd\" 的 \"updateById\"）。
     pub async fn update_admin_password(&self, admin_id: i32, password_hash: &str) -> Result<bool> {
-        let affected = sqlx::query("UPDATE admin_user SET password = ? WHERE admin_id = ?")
+        let affected = sqlx::query("UPDATE admin_user SET password = $1 WHERE admin_id = $2")
             .bind(password_hash)
             .bind(admin_id)
             .execute(&self.pool)
@@ -495,7 +495,7 @@ impl AdminAccountRepository {
 
     /// 软删除管理员（Java `adminUser.setIsDeleted(1); updateById`）。
     pub async fn soft_delete_admin(&self, admin_id: i32) -> Result<bool> {
-        let affected = sqlx::query("UPDATE admin_user SET is_deleted = 1 WHERE admin_id = ?")
+        let affected = sqlx::query("UPDATE admin_user SET is_deleted = 1 WHERE admin_id = $1")
             .bind(admin_id)
             .execute(&self.pool)
             .await
@@ -512,7 +512,7 @@ impl AdminAccountRepository {
         tx: &mut sqlx::Transaction<'_, Postgres>,
         admin_id: i32,
     ) -> Result<Option<AdminUser>> {
-        sqlx::query_as::<_, AdminUser>("SELECT * FROM admin_user WHERE admin_id = ? LIMIT 1")
+        sqlx::query_as::<_, AdminUser>("SELECT * FROM admin_user WHERE admin_id = $1 LIMIT 1")
             .bind(admin_id)
             .fetch_optional(&mut **tx)
             .await
@@ -526,7 +526,7 @@ impl AdminAccountRepository {
         mobile: &str,
     ) -> Result<Option<AdminUser>> {
         sqlx::query_as::<_, AdminUser>(
-            "SELECT * FROM admin_user WHERE mobile = ? ORDER BY admin_id ASC LIMIT 1",
+            "SELECT * FROM admin_user WHERE mobile = $1 ORDER BY admin_id ASC LIMIT 1",
         )
         .bind(mobile)
         .fetch_optional(&mut **tx)
@@ -540,7 +540,7 @@ impl AdminAccountRepository {
         tx: &mut sqlx::Transaction<'_, Postgres>,
         user_id: i32,
     ) -> Result<Option<User>> {
-        sqlx::query_as::<_, User>("SELECT * FROM user WHERE user_id = ? LIMIT 1")
+        sqlx::query_as::<_, User>("SELECT * FROM \"user\" WHERE user_id = $1 LIMIT 1")
             .bind(user_id)
             .fetch_optional(&mut **tx)
             .await
@@ -553,7 +553,7 @@ impl AdminAccountRepository {
         tx: &mut sqlx::Transaction<'_, Postgres>,
         shop_id: i32,
     ) -> Result<Option<Shop>> {
-        sqlx::query_as::<_, Shop>("SELECT * FROM shop WHERE shop_id = ? LIMIT 1")
+        sqlx::query_as::<_, Shop>("SELECT * FROM shop WHERE shop_id = $1 LIMIT 1")
             .bind(shop_id)
             .fetch_optional(&mut **tx)
             .await
@@ -568,7 +568,7 @@ impl AdminAccountRepository {
         shop_id: i32,
     ) -> Result<Option<AdminUserShop>> {
         sqlx::query_as::<_, AdminUserShop>(
-            "SELECT * FROM admin_user_shop WHERE admin_id = ? AND shop_id = ? \
+            "SELECT * FROM admin_user_shop WHERE admin_id = $1 AND shop_id = $2 \
              ORDER BY id ASC LIMIT 1",
         )
         .bind(admin_id)
@@ -585,7 +585,7 @@ impl AdminAccountRepository {
         shop_id: i32,
     ) -> Result<Option<AdminUserShop>> {
         sqlx::query_as::<_, AdminUserShop>(
-            "SELECT * FROM admin_user_shop WHERE shop_id = ? AND is_admin = 1 \
+            "SELECT * FROM admin_user_shop WHERE shop_id = $1 AND is_admin = 1 \
              ORDER BY id ASC LIMIT 1",
         )
         .bind(shop_id)
@@ -603,8 +603,8 @@ impl AdminAccountRepository {
         shop_id: i32,
     ) -> Result<Option<AdminRole>> {
         sqlx::query_as::<_, AdminRole>(
-            "SELECT * FROM admin_role WHERE admin_type = ? AND merchant_id = ? \
-             AND shop_id = ? AND is_system = 1 ORDER BY role_id ASC LIMIT 1",
+            "SELECT * FROM admin_role WHERE admin_type = $1 AND merchant_id = $2 \
+             AND shop_id = $3 AND is_system = 1 ORDER BY role_id ASC LIMIT 1",
         )
         .bind(admin_type)
         .bind(merchant_id)
@@ -677,7 +677,7 @@ impl AdminAccountRepository {
                (username, admin_type, mobile, avatar, password, email, add_time,
                 auth_list, user_id, suppliers_id, role_id, merchant_id, parent_id,
                 shop_id, is_using, initial_password, is_deleted)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING admin_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING admin_id",
         )
         .bind(&admin.username)
         .bind(&admin.admin_type)
@@ -716,7 +716,7 @@ impl AdminAccountRepository {
                (admin_id, user_id, shop_id, username, email, avatar, auth_list,
                 is_using, is_admin, add_time, role_id, work_on_time, default_pos_login,
                 last_login_system, device_code)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id",
         )
         .bind(row.admin_id)
         .bind(row.user_id)
@@ -746,11 +746,11 @@ impl AdminAccountRepository {
         row: &AdminUserShop,
     ) -> Result<bool> {
         let affected = sqlx::query(
-            "UPDATE admin_user_shop SET admin_id = ?, user_id = ?, shop_id = ?,
-               username = ?, email = ?, avatar = ?, auth_list = ?, is_using = ?,
-               is_admin = ?, add_time = ?, role_id = ?, work_on_time = ?,
-               default_pos_login = ?, last_login_system = ?, device_code = ?
-             WHERE id = ?",
+            "UPDATE admin_user_shop SET admin_id = $1, user_id = $2, shop_id = $3,
+               username = $4, email = $5, avatar = $6, auth_list = $7, is_using = $8,
+               is_admin = $9, add_time = $10, role_id = $11, work_on_time = $12,
+               default_pos_login = $13, last_login_system = $14, device_code = $15
+             WHERE id = $16",
         )
         .bind(row.admin_id)
         .bind(row.user_id)
@@ -787,7 +787,7 @@ impl AdminAccountRepository {
             "INSERT INTO admin_role
                (role_name, role_code, role_desc, authority_list, admin_type,
                 merchant_id, shop_id, vendor_id, is_system)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING role_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING role_id",
         )
         .bind(&role.role_name)
         .bind(&role.role_code)
@@ -812,7 +812,7 @@ impl AdminAccountRepository {
         role_id: i32,
         admin_type: &str,
     ) -> Result<bool> {
-        let affected = sqlx::query("UPDATE admin_role SET admin_type = ? WHERE role_id = ?")
+        let affected = sqlx::query("UPDATE admin_role SET admin_type = $1 WHERE role_id = $2")
             .bind(admin_type)
             .bind(role_id)
             .execute(&mut **tx)
@@ -873,7 +873,7 @@ mod tests {
         conds.push("is_deleted = ?".to_string());
         binds.push(Bind::I32(0));
         let where_sql = format!(" WHERE {}", conds.join(" AND "));
-        assert_eq!(where_sql, " WHERE is_deleted = ?");
+        assert_eq!(where_sql, " WHERE is_deleted = $1");
         assert_eq!(where_sql.matches('?').count(), binds.len());
 
         let like = "%root%".to_string();

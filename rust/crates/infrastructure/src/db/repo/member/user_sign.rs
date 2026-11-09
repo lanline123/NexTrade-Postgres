@@ -75,7 +75,7 @@ impl UserSignRepository {
 
     /// 增加用户积分（Java `userService.incPoints`）。
     pub async fn inc_points(&self, user_id: i32, points: i32) -> Result<()> {
-        sqlx::query("UPDATE user SET points = points + $1 WHERE user_id = $2")
+        sqlx::query("UPDATE \"user\" SET points = points + $1 WHERE user_id = $2")
             .bind(points)
             .bind(user_id)
             .execute(&self.pool)

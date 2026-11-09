@@ -128,7 +128,7 @@ impl WechatKeywordRuleRepository {
     pub async fn find_by_id(&self, id: i64) -> Result<Option<WechatKeywordRule>> {
         sqlx::query_as::<_, WechatKeywordRule>(
             "SELECT id, rule_name, reply_mode, enabled, created_at, updated_at \
-             FROM wechat_keyword_rule WHERE id = ? LIMIT 1",
+             FROM wechat_keyword_rule WHERE id = $1 LIMIT 1",
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -173,7 +173,7 @@ impl WechatKeywordRuleRepository {
     /// 某规则的回复载荷（`ORDER BY sort_order ASC, id ASC`）。
     pub async fn replies_by_rule_id(&self, rule_id: i64) -> Result<Vec<WechatKeywordRuleReply>> {
         sqlx::query_as::<_, WechatKeywordRuleReply>(
-            "SELECT * FROM wechat_keyword_rule_reply WHERE rule_id = ? ORDER BY sort_order ASC, id ASC",
+            "SELECT * FROM wechat_keyword_rule_reply WHERE rule_id = $1 ORDER BY sort_order ASC, id ASC",
         )
         .bind(rule_id)
         .fetch_all(&self.pool)
@@ -187,7 +187,7 @@ impl WechatKeywordRuleRepository {
         rule_id: i64,
     ) -> Result<Vec<WechatKeywordRuleKeyword>> {
         sqlx::query_as::<_, WechatKeywordRuleKeyword>(
-            "SELECT * FROM wechat_keyword_rule_keyword WHERE rule_id = ? ORDER BY sort_order ASC, id ASC",
+            "SELECT * FROM wechat_keyword_rule_keyword WHERE rule_id = $1 ORDER BY sort_order ASC, id ASC",
         )
         .bind(rule_id)
         .fetch_all(&self.pool)
@@ -235,7 +235,7 @@ impl WechatKeywordRuleRepository {
         let rule_id = match dto.id {
             Some(id) => {
                 let existing: Option<(i64,)> =
-                    sqlx::query_as("SELECT id FROM wechat_keyword_rule WHERE id = ? LIMIT 1")
+                    sqlx::query_as("SELECT id FROM wechat_keyword_rule WHERE id = $1 LIMIT 1")
                         .bind(id)
                         .fetch_optional(&mut *tx)
                         .await
@@ -244,8 +244,8 @@ impl WechatKeywordRuleRepository {
                     return Err(Error::biz_msg("规则不存在"));
                 }
                 sqlx::query(
-                    "UPDATE wechat_keyword_rule SET rule_name = ?, reply_mode = ?, enabled = ?, \
-                     updated_at = ? WHERE id = ?",
+                    "UPDATE wechat_keyword_rule SET rule_name = $1, reply_mode = $2, enabled = $3, \
+                     updated_at = $4 WHERE id = $5",
                 )
                 .bind(rule_name)
                 .bind(reply_mode)
@@ -261,7 +261,7 @@ impl WechatKeywordRuleRepository {
                 let r: i64 = sqlx::query_scalar(
                     "INSERT INTO wechat_keyword_rule \
                      (rule_name, reply_mode, enabled, created_at, updated_at) \
-                     VALUES (?, ?, ?, ?, ?) RETURNING id",
+                     VALUES ($1, $2, $3, $4, $5) RETURNING id",
                 )
                 .bind(rule_name)
                 .bind(reply_mode)
@@ -275,12 +275,12 @@ impl WechatKeywordRuleRepository {
             }
         };
 
-        sqlx::query("DELETE FROM wechat_keyword_rule_keyword WHERE rule_id = ?")
+        sqlx::query("DELETE FROM wechat_keyword_rule_keyword WHERE rule_id = $1")
             .bind(rule_id)
             .execute(&mut *tx)
             .await
             .map_err(map_err)?;
-        sqlx::query("DELETE FROM wechat_keyword_rule_reply WHERE rule_id = ?")
+        sqlx::query("DELETE FROM wechat_keyword_rule_reply WHERE rule_id = $1")
             .bind(rule_id)
             .execute(&mut *tx)
             .await
@@ -289,7 +289,7 @@ impl WechatKeywordRuleRepository {
         for (idx, k) in dto.keywords.iter().enumerate() {
             sqlx::query(
                 "INSERT INTO wechat_keyword_rule_keyword \
-                 (rule_id, keyword, match_type, sort_order) VALUES (?, ?, ?, ?)",
+                 (rule_id, keyword, match_type, sort_order) VALUES ($1, $2, $3, $4)",
             )
             .bind(rule_id)
             .bind(k.keyword.as_deref().map(str::trim).unwrap_or(""))
@@ -316,7 +316,7 @@ impl WechatKeywordRuleRepository {
             sqlx::query(
                 "INSERT INTO wechat_keyword_rule_reply \
                  (rule_id, sort_order, msg_type, content_text, news_title, news_cover_url, \
-                  news_description, news_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                  news_description, news_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
             )
             .bind(rule_id)
             .bind(idx as i32)

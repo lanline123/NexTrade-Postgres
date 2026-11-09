@@ -77,7 +77,7 @@ impl DepositRefundRepository {
     pub async fn sum_pending_refund(&self, owner_type: i32, owner_id: i32) -> Result<Decimal> {
         let row: (Option<Decimal>,) = sqlx::query_as(
             "SELECT SUM(amount) FROM shop_deposit_refund \
-             WHERE owner_type = ? AND owner_id = ? AND status = 0",
+             WHERE owner_type = $1 AND owner_id = $2 AND status = 0",
         )
         .bind(owner_type)
         .bind(owner_id)
@@ -91,7 +91,7 @@ impl DepositRefundRepository {
     pub async fn count_pending_refund(&self, owner_type: i32, owner_id: i32) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM shop_deposit_refund \
-             WHERE owner_type = ? AND owner_id = ? AND status = 0",
+             WHERE owner_type = $1 AND owner_id = $2 AND status = 0",
         )
         .bind(owner_type)
         .bind(owner_id)
@@ -104,10 +104,10 @@ impl DepositRefundRepository {
     /// 进行中订单数（Java `ONGOING_ORDER_STATUS = [0,1,2]` + `is_del = 0`）。
     pub async fn count_ongoing_orders(&self, owner_type: i32, owner_id: i32) -> Result<i64> {
         let sql = if owner_type == 2 {
-            "SELECT COUNT(*) FROM \"order\" WHERE vendor_id = ? AND is_del = 0 \
+            "SELECT COUNT(*) FROM \"order\" WHERE vendor_id = $1 AND is_del = 0 \
              AND order_status IN (0, 1, 2)"
         } else {
-            "SELECT COUNT(*) FROM \"order\" WHERE shop_id = ? AND is_del = 0 \
+            "SELECT COUNT(*) FROM \"order\" WHERE shop_id = $1 AND is_del = 0 \
              AND order_status IN (0, 1, 2)"
         };
         let row: (i64,) = sqlx::query_as(sql)
@@ -121,9 +121,9 @@ impl DepositRefundRepository {
     /// 未完结售后数（Java：`status NOT IN (6 已完成, 7 已取消)`）。
     pub async fn count_ongoing_aftersales(&self, owner_type: i32, owner_id: i32) -> Result<i64> {
         let sql = if owner_type == 2 {
-            "SELECT COUNT(*) FROM aftersales WHERE vendor_id = ? AND status NOT IN (6, 7)"
+            "SELECT COUNT(*) FROM aftersales WHERE vendor_id = $1 AND status NOT IN (6, 7)"
         } else {
-            "SELECT COUNT(*) FROM aftersales WHERE shop_id = ? AND status NOT IN (6, 7)"
+            "SELECT COUNT(*) FROM aftersales WHERE shop_id = $1 AND status NOT IN (6, 7)"
         };
         let row: (i64,) = sqlx::query_as(sql)
             .bind(owner_id)
@@ -140,10 +140,10 @@ impl DepositRefundRepository {
         owner_id: i32,
     ) -> Result<Option<i32>> {
         let sql = if owner_type == 2 {
-            "SELECT received_time FROM \"order\" WHERE vendor_id = ? AND is_del = 0 \
+            "SELECT received_time FROM \"order\" WHERE vendor_id = $1 AND is_del = 0 \
              AND received_time > 0 ORDER BY received_time DESC LIMIT 1"
         } else {
-            "SELECT received_time FROM \"order\" WHERE shop_id = ? AND is_del = 0 \
+            "SELECT received_time FROM \"order\" WHERE shop_id = $1 AND is_del = 0 \
              AND received_time > 0 ORDER BY received_time DESC LIMIT 1"
         };
         let row: Option<(i32,)> = sqlx::query_as(sql)
@@ -158,7 +158,7 @@ impl DepositRefundRepository {
     /// 行缺失或 `biz_val` 为 NULL 均返回 `None`；调用方按各自默认值兜底。
     pub async fn config_value(&self, biz_code: &str) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> = sqlx::query_as(
-            "SELECT biz_val FROM config WHERE biz_code = ? AND is_del = 0 LIMIT 1",
+            "SELECT biz_val FROM config WHERE biz_code = $1 AND is_del = 0 LIMIT 1",
         )
         .bind(biz_code)
         .fetch_optional(&self.pool)
@@ -169,7 +169,7 @@ impl DepositRefundRepository {
 
     /// 店铺（全额退还条件 1：`shop.status`）。
     pub async fn find_shop(&self, shop_id: i32) -> Result<Option<Shop>> {
-        sqlx::query_as::<_, Shop>("SELECT * FROM shop WHERE shop_id = ? LIMIT 1")
+        sqlx::query_as::<_, Shop>("SELECT * FROM shop WHERE shop_id = $1 LIMIT 1")
             .bind(shop_id)
             .fetch_optional(&self.pool)
             .await
@@ -179,7 +179,7 @@ impl DepositRefundRepository {
     /// 入驻供应商（Java `vendorMapper.selectOnboardedById`）。
     pub async fn find_vendor(&self, vendor_id: i32) -> Result<Option<Vendor>> {
         sqlx::query_as::<_, Vendor>(
-            "SELECT * FROM vendor WHERE vendor_id = ? AND source_type = 1 LIMIT 1",
+            "SELECT * FROM vendor WHERE vendor_id = $1 AND source_type = 1 LIMIT 1",
         )
         .bind(vendor_id)
         .fetch_optional(&self.pool)
@@ -189,7 +189,7 @@ impl DepositRefundRepository {
 
     /// 商户（展示富化：`merchant.type`）。
     pub async fn find_merchant(&self, merchant_id: i32) -> Result<Option<Merchant>> {
-        sqlx::query_as::<_, Merchant>("SELECT * FROM merchant WHERE merchant_id = ? LIMIT 1")
+        sqlx::query_as::<_, Merchant>("SELECT * FROM merchant WHERE merchant_id = $1 LIMIT 1")
             .bind(merchant_id)
             .fetch_optional(&self.pool)
             .await
@@ -205,7 +205,7 @@ impl DepositRefundRepository {
                (owner_type, owner_id, type, amount, payee_info, reason, status,
                 pay_voucher, audit_admin_id, audit_time, audit_remark, add_time,
                 update_time)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING shop_deposit_refund_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING shop_deposit_refund_id",
         )
         .bind(refund.owner_type)
         .bind(refund.owner_id)

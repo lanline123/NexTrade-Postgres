@@ -155,7 +155,7 @@ impl GalleryVideoInfoRepository {
 
     /// 按主键查询。
     pub async fn find_by_id(&self, id: i32) -> Result<Option<GalleryVideoInfo>> {
-        let sql = format!("SELECT {INFO_COLUMNS} FROM gallery_video_info WHERE id = ? LIMIT 1");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT {INFO_COLUMNS} FROM gallery_video_info WHERE id = ? LIMIT 1"));
         sqlx::query_as::<_, GalleryVideoInfo>(&sql)
             .bind(id)
             .fetch_optional(&self.pool)
@@ -197,9 +197,9 @@ impl GalleryVideoInfoRepository {
 
     /// 某相册的直接子相册（Java `eq(parent_id, id)`，未显式排序 → 本实现 `id ASC`）。
     pub async fn find_child_galleries(&self, gallery_id: i32) -> Result<Vec<GalleryVideo>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {GALLERY_COLUMNS} FROM gallery_video WHERE parent_id = ? ORDER BY id ASC"
-        );
+        ));
         sqlx::query_as::<_, GalleryVideo>(&sql)
             .bind(gallery_id)
             .fetch_all(&self.pool)
@@ -213,10 +213,10 @@ impl GalleryVideoInfoRepository {
         gallery_id: i32,
         limit: i64,
     ) -> Result<Vec<GalleryVideoInfo>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {INFO_COLUMNS} FROM gallery_video_info WHERE gallery_id = ? \
              ORDER BY id ASC LIMIT {limit}"
-        );
+        ));
         sqlx::query_as::<_, GalleryVideoInfo>(&sql)
             .bind(gallery_id)
             .fetch_all(&self.pool)
@@ -226,7 +226,7 @@ impl GalleryVideoInfoRepository {
 
     /// 按主键查相册（Java `galleryVideoService.getById`）。
     pub async fn find_gallery_by_id(&self, id: i32) -> Result<Option<GalleryVideo>> {
-        let sql = format!("SELECT {GALLERY_COLUMNS} FROM gallery_video WHERE id = ? LIMIT 1");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT {GALLERY_COLUMNS} FROM gallery_video WHERE id = ? LIMIT 1"));
         sqlx::query_as::<_, GalleryVideo>(&sql)
             .bind(id)
             .fetch_optional(&self.pool)
@@ -242,7 +242,7 @@ impl GalleryVideoInfoRepository {
             "INSERT INTO gallery_video_info \
              (shop_id, gallery_id, video_url, video_name, video_cover, add_time, add_user_id, \
               format, video_first_frame, duration, size, vendor_id, source, description) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id",
         )
         .bind(row.shop_id)
         .bind(row.gallery_id)
@@ -267,10 +267,10 @@ impl GalleryVideoInfoRepository {
     /// 整行更新（Java `lambdaUpdate().set(...)`，未提交字段由服务层合并原值）。
     pub async fn update(&self, row: &GalleryVideoInfo) -> Result<u64> {
         let r = sqlx::query(
-            "UPDATE gallery_video_info SET gallery_id = ?, video_url = ?, video_name = ?, \
-                video_cover = ?, description = ?, format = ?, duration = ?, size = ?, \
-                video_first_frame = ?, source = ?, add_time = ? \
-             WHERE id = ?",
+            "UPDATE gallery_video_info SET gallery_id = $1, video_url = $2, video_name = $3, \
+                video_cover = $4, description = $5, format = $6, duration = $7, size = $8, \
+                video_first_frame = $9, source = $10, add_time = $11 \
+             WHERE id = $12",
         )
         .bind(row.gallery_id)
         .bind(&row.video_url)
@@ -292,7 +292,7 @@ impl GalleryVideoInfoRepository {
 
     /// 删除（Java \"removeById\"）。
     pub async fn delete(&self, id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM gallery_video_info WHERE id = ?")
+        let r = sqlx::query("DELETE FROM gallery_video_info WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await

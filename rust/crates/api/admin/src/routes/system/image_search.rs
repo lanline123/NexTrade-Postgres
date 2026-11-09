@@ -413,7 +413,7 @@ async fn insert_job(
     let kind = if product_id > 0 { "PRODUCT" } else { "FULL" };
     let r: i64 = sqlx::query_scalar(
         "INSERT INTO image_search_sync_job(job_key,target_key,provider,index_name,kind,product_id,version,state,cursor_id,max_product_id,scanned,added,skipped,deleted,attempts,next_run_at,last_error,created_at,updated_at) \
-         VALUES(?, ?, 'aliyun', ?, ?, ?, 1, 'PENDING', 0, 0, 0, 0, 0, 0, 0, 0, '', ?, ?) \
+         VALUES($1, $2, 'aliyun', $3, $4, $5, 1, 'PENDING', 0, 0, 0, 0, 0, 0, 0, 0, '', $6, $7) \
          ON CONFLICT (job_key) DO UPDATE SET version=image_search_sync_job.version+1, state='PENDING', target_key=EXCLUDED.target_key, index_name=EXCLUDED.index_name, kind=EXCLUDED.kind, product_id=EXCLUDED.product_id, updated_at=EXCLUDED.updated_at RETURNING id",
     )
     .bind(job_key)
@@ -437,7 +437,7 @@ struct TaskQuery {
 
 async fn task(State(state): State<AdminState>, Query(q): Query<TaskQuery>) -> ApiResult<Value> {
     let task_id = q.task_id.unwrap_or(0);
-    let row = sqlx::query("SELECT * FROM image_search_sync_job WHERE id = ? LIMIT 1")
+    let row = sqlx::query("SELECT * FROM image_search_sync_job WHERE id = $1 LIMIT 1")
         .bind(task_id)
         .fetch_optional(&state.repos.pool)
         .await
@@ -447,13 +447,13 @@ async fn task(State(state): State<AdminState>, Query(q): Query<TaskQuery>) -> Ap
 
 async fn retry(State(state): State<AdminState>, Query(q): Query<TaskQuery>) -> ApiResult<()> {
     let task_id = q.task_id.unwrap_or(0);
-    sqlx::query("UPDATE image_search_sync_job SET state='PENDING', attempts=attempts+1, last_error='', updated_at=? WHERE id=?")
+    sqlx::query("UPDATE image_search_sync_job SET state='PENDING', attempts=attempts+1, last_error='', updated_at=$1 WHERE id=$2")
         .bind(nextrade_common::utils::now_seconds() as i64)
         .bind(task_id)
         .execute(&state.repos.pool)
         .await
         .map_err(|e| nextrade_security::web::AppError(Error::Database(e.to_string())))?;
-    let row = sqlx::query("SELECT product_id FROM image_search_sync_job WHERE id=? LIMIT 1")
+    let row = sqlx::query("SELECT product_id FROM image_search_sync_job WHERE id=$1 LIMIT 1")
         .bind(task_id)
         .fetch_optional(&state.repos.pool)
         .await
@@ -495,14 +495,14 @@ async fn run_build(state: AdminState, job_id: i64, product_id: i32) -> Result<()
         .build()
         .map_err(|e| e.to_string())?;
     set_job_state(&state, job_id, "RUNNING", 0).await;
-    sqlx::query("UPDATE image_search_sync_job SET last_error='', updated_at=? WHERE id=?")
+    sqlx::query("UPDATE image_search_sync_job SET last_error='', updated_at=$1 WHERE id=$2")
         .bind(nextrade_common::utils::now_seconds() as i64)
         .bind(job_id)
         .execute(&state.repos.pool)
         .await
         .ok();
     let sql = if product_id > 0 {
-        "SELECT product_id,product_status,is_delete,pic_url,pic_original,pic_large,pic_thumb FROM product WHERE product_id=? LIMIT 1"
+        "SELECT product_id,product_status,is_delete,pic_url,pic_original,pic_large,pic_thumb FROM product WHERE product_id=$1 LIMIT 1"
     } else {
         "SELECT product_id,product_status,is_delete,pic_url,pic_original,pic_large,pic_thumb FROM product WHERE is_delete=0 AND product_status=1 ORDER BY product_id"
     };
@@ -549,7 +549,7 @@ async fn run_build(state: AdminState, job_id: i64, product_id: i32) -> Result<()
                     Err(e) => {
                         skipped += 1;
                         let short = e.chars().take(120).collect::<String>();
-                        sqlx::query("UPDATE image_search_sync_job SET last_error=?, updated_at=? WHERE id=?")
+                        sqlx::query("UPDATE image_search_sync_job SET last_error=$1, updated_at=$2 WHERE id=$3")
                             .bind(&short).bind(nextrade_common::utils::now_seconds() as i64).bind(job_id)
                             .execute(&state.repos.pool).await.ok();
                         tracing::warn!(product_id = pid, error = %short, "图搜单商品同步失败");
@@ -559,12 +559,12 @@ async fn run_build(state: AdminState, job_id: i64, product_id: i32) -> Result<()
         } else {
             skipped += 1;
         }
-        sqlx::query("UPDATE image_search_sync_job SET scanned=?, added=?, skipped=?, cursor_id=?, updated_at=? WHERE id=?")
+        sqlx::query("UPDATE image_search_sync_job SET scanned=$1, added=$2, skipped=$3, cursor_id=$4, updated_at=$5 WHERE id=$6")
             .bind(scanned).bind(added).bind(skipped).bind(pid)
             .bind(nextrade_common::utils::now_seconds() as i64).bind(job_id)
             .execute(&state.repos.pool).await.ok();
     }
-    sqlx::query("UPDATE image_search_sync_job SET state='COMPLETED', scanned=?, added=?, skipped=?, updated_at=? WHERE id=?")
+    sqlx::query("UPDATE image_search_sync_job SET state='COMPLETED', scanned=$1, added=$2, skipped=$3, updated_at=$4 WHERE id=$5")
         .bind(scanned).bind(added).bind(skipped)
         .bind(nextrade_common::utils::now_seconds() as i64).bind(job_id)
         .execute(&state.repos.pool).await.map_err(|e| e.to_string())?;
@@ -572,7 +572,7 @@ async fn run_build(state: AdminState, job_id: i64, product_id: i32) -> Result<()
 }
 
 async fn set_job_state(state: &AdminState, job_id: i64, state_name: &str, attempts: i32) {
-    sqlx::query("UPDATE image_search_sync_job SET state=?, attempts=?, updated_at=? WHERE id=?")
+    sqlx::query("UPDATE image_search_sync_job SET state=$1, attempts=$2, updated_at=$3 WHERE id=$4")
         .bind(state_name)
         .bind(attempts)
         .bind(nextrade_common::utils::now_seconds() as i64)
@@ -585,7 +585,7 @@ async fn set_job_state(state: &AdminState, job_id: i64, state_name: &str, attemp
 async fn mark_job_failed(state: &AdminState, job_id: i64, error: &str) {
     let short = error.chars().take(120).collect::<String>();
     sqlx::query(
-        "UPDATE image_search_sync_job SET state='FAILED', last_error=?, updated_at=? WHERE id=?",
+        "UPDATE image_search_sync_job SET state='FAILED', last_error=$1, updated_at=$2 WHERE id=$3",
     )
     .bind(short)
     .bind(nextrade_common::utils::now_seconds() as i64)

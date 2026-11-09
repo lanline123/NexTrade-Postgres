@@ -99,10 +99,10 @@ impl CatalogRepository {
 
         // 排序方向只能是 ASC/DESC 字面量，列名来自白名单，无注入风险。
         let dir = if desc { "DESC" } else { "ASC" };
-        let sql_rows = format!(
+        let sql_rows = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM category WHERE (? IS NULL OR parent_id = ?) \
              ORDER BY {column} {dir} LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = sqlx::query_as::<_, Category>(&sql_rows)
             .bind(filter)
             .bind(filter)
@@ -129,10 +129,10 @@ impl CatalogRepository {
         let placeholders = std::iter::repeat_n("?", parent_ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT parent_id, COUNT(*) FROM category \
              WHERE parent_id IN ({placeholders}) GROUP BY parent_id"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in parent_ids {
             q = q.bind(id);
@@ -146,7 +146,7 @@ impl CatalogRepository {
     /// `lambdaQuery().eq(parentId, id).last("limit 1").one()`。
     pub async fn has_child(&self, parent_id: i32) -> Result<bool> {
         let row: Option<(i32,)> = sqlx::query_as(
-            "SELECT category_id FROM category WHERE parent_id = ? LIMIT 1",
+            "SELECT category_id FROM category WHERE parent_id = $1 LIMIT 1",
         )
         .bind(parent_id)
         .fetch_optional(&self.pool)
@@ -166,10 +166,10 @@ impl CatalogRepository {
         let placeholders = std::iter::repeat_n("?", excluded.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT category_id FROM category \
              WHERE parent_id = ? AND category_id NOT IN ({placeholders}) LIMIT 1"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32,)>(&sql).bind(parent_id);
         for id in excluded {
             q = q.bind(id);
@@ -182,7 +182,7 @@ impl CatalogRepository {
     /// 对应 `productService.lambdaQuery().eq(Product::getCategoryId, id).count()`。
     pub async fn count_products_in_category(&self, category_id: i32) -> Result<i64> {
         let row: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM product WHERE category_id = ?")
+            sqlx::query_as("SELECT COUNT(*) FROM product WHERE category_id = $1")
                 .bind(category_id)
                 .fetch_one(&self.pool)
                 .await
@@ -203,8 +203,8 @@ impl CatalogRepository {
         let actual_parent = parent_id.unwrap_or(0);
         let row: Option<(i32,)> = sqlx::query_as(
             "SELECT category_id FROM category \
-             WHERE category_name = ? AND parent_id = ? \
-             AND (? IS NULL OR category_id <> ?) LIMIT 1",
+             WHERE category_name = $1 AND parent_id = $2 \
+             AND ($3 IS NULL OR category_id <> $4) LIMIT 1",
         )
         .bind(category_name)
         .bind(actual_parent)
@@ -222,7 +222,7 @@ impl CatalogRepository {
             "INSERT INTO category (category_name, seo_identification, keywords, category_desc, \
              parent_id, sort_order, measure_unit, is_show, seo_title, short_name, \
              category_pic, category_ico, is_hot, search_keywords) \
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING category_id",
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING category_id",
         )
         .bind(&c.category_name)
         .bind(&c.seo_identification)
@@ -247,10 +247,10 @@ impl CatalogRepository {
     /// 全量更新分类（除主键外的所有列）。
     pub async fn update_category(&self, c: &Category) -> Result<()> {
         sqlx::query(
-            "UPDATE category SET category_name=?, seo_identification=?, keywords=?, \
-             category_desc=?, parent_id=?, sort_order=?, measure_unit=?, is_show=?, \
-             seo_title=?, short_name=?, category_pic=?, category_ico=?, is_hot=?, \
-             search_keywords=? WHERE category_id=?",
+            "UPDATE category SET category_name=$1, seo_identification=$2, keywords=$3, \
+             category_desc=$4, parent_id=$5, sort_order=$6, measure_unit=$7, is_show=$8, \
+             seo_title=$9, short_name=$10, category_pic=$11, category_ico=$12, is_hot=$13, \
+             search_keywords=$14 WHERE category_id=$15",
         )
         .bind(&c.category_name)
         .bind(&c.seo_identification)
@@ -275,7 +275,7 @@ impl CatalogRepository {
 
     /// 删除分类。
     pub async fn delete_category(&self, category_id: i32) -> Result<bool> {
-        let r = sqlx::query("DELETE FROM category WHERE category_id = ?")
+        let r = sqlx::query("DELETE FROM category WHERE category_id = $1")
             .bind(category_id)
             .execute(&self.pool)
             .await
@@ -291,7 +291,7 @@ impl CatalogRepository {
         let placeholders = std::iter::repeat_n("?", ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!("SELECT * FROM category WHERE category_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM category WHERE category_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, Category>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -313,7 +313,7 @@ impl CatalogRepository {
             return Err(Error::Validation(format!("不允许更新的字段: {field}")));
         }
         // 列名来自常量白名单，非用户输入拼接。
-        let sql = format!("UPDATE category SET \"{field}\" = ? WHERE category_id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE category SET \"{field}\" = ? WHERE category_id = ?"));
         let r = sqlx::query(&sql)
             .bind(val)
             .bind(category_id)
@@ -331,7 +331,7 @@ impl CatalogRepository {
         let placeholders = std::iter::repeat_n("?", ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!("DELETE FROM category WHERE category_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM category WHERE category_id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(id);

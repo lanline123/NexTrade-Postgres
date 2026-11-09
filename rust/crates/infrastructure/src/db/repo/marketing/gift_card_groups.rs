@@ -95,7 +95,7 @@ impl GiftCardGroupsRepository {
         offset: i64,
     ) -> Result<(i64, Vec<GiftCardGroups>)> {
         let (where_sql, binds) = build_where(q, shop_id);
-        let count_sql = format!("SELECT COUNT(*) FROM gift_card_groups{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM gift_card_groups{where_sql}"));
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
         for b in &binds {
             count_q = match b {
@@ -105,11 +105,11 @@ impl GiftCardGroupsRepository {
         }
         let total: (i64,) = count_q.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {} FROM gift_card_groups{where_sql}{} LIMIT {limit} OFFSET {offset}",
             GROUPS_COLUMNS.join(", "),
             q.order_clause()
-        );
+        ));
         let mut rows_q = sqlx::query_as::<_, GiftCardGroups>(&rows_sql);
         for b in &binds {
             rows_q = match b {
@@ -377,10 +377,10 @@ mod tests {
     #[test]
     fn where_filters_shop_and_optional_keyword() {
         let (sql, binds) = build_where(&q(serde_json::json!({})), 7);
-        assert_eq!(sql, " WHERE shop_id = ?");
+        assert_eq!(sql, " WHERE shop_id = $1");
         assert!(matches!(binds.as_slice(), [Bind::I32(7)]));
         let (sql, binds) = build_where(&q(serde_json::json!({"keyword": " 新年 "})), 7);
-        assert_eq!(sql, " WHERE shop_id = ? AND card_group_name LIKE ?");
+        assert_eq!(sql, " WHERE shop_id = $1 AND card_group_name LIKE $2");
         assert!(matches!(&binds[1], Bind::Str(s) if s == "%新年%"));
     }
 

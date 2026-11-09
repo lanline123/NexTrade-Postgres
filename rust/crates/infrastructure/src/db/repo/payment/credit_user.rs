@@ -377,11 +377,11 @@ mod tests {
     fn static_guards_for_sql_semantics() {
         let src = include_str!("credit_user.rs");
         // 删除前校验待结算订单（status = 0）
-        assert!(src.contains("FROM credit_order WHERE credit_user_id = ? AND settlement_status = ?"));
+        assert!(src.contains("FROM credit_order WHERE credit_user_id = $1 AND settlement_status = $2"));
         // 企业认证只取已通过
         assert!(src.contains("FROM user_company WHERE status = 2"));
         // 货币配置键读取
-        assert!(src.contains("FROM config WHERE biz_code = ?"));
+        assert!(src.contains("FROM config WHERE biz_code = $1"));
         // 物理删除（本表无逻辑删除列）
         assert!(src.contains("DELETE FROM credit_user WHERE credit_user_id = $1"));
     }

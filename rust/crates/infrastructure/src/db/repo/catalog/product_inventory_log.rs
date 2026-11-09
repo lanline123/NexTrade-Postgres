@@ -129,23 +129,23 @@ impl ProductInventoryLogRepository {
         } else {
             "DESC"
         };
-        let order_sql = format!(" ORDER BY l.{column_sql} {dir}");
+        let order_sql = crate::db::to_pg_placeholders(&format!(" ORDER BY l.{column_sql} {dir}"));
 
         let binds = build_binds(f, kw.clone());
 
         let from_sql = " FROM product_inventory_log l LEFT JOIN product p ON l.product_id = p.product_id";
-        let count_sql = format!("SELECT COUNT(*){from_sql}{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*){from_sql}{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&count_sql), &binds)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
         let (limit, offset) = page.limit_offset();
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT l.log_id, l.product_id, l.spec_id, l.number, l.add_time, l.old_number, \
              l.\"type\", l.change_number, l.\"desc\", l.shop_id, p.product_name AS product_name\
              {from_sql}{where_sql}{order_sql} LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = bind_all!(
             sqlx::query_as::<_, InventoryLogRow>(&list_sql),
             &binds
@@ -165,7 +165,7 @@ impl ProductInventoryLogRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; sku_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM product_sku WHERE sku_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM product_sku WHERE sku_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, ProductSku>(&sql);
         for id in sku_ids {
             q = q.bind(*id);
@@ -179,7 +179,7 @@ impl ProductInventoryLogRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM product WHERE product_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM product WHERE product_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, Product>(&sql);
         for id in product_ids {
             q = q.bind(*id);

@@ -270,7 +270,7 @@ mod tests {
     fn static_sql_guards() {
         let src = include_str!("product_gift.rs");
         assert!(src.contains("FROM product_gift WHERE shop_id ="));
-        assert!(src.contains("FROM gift_card_groups WHERE id = ?"));
+        assert!(src.contains("FROM gift_card_groups WHERE id = $1"));
         assert!(src.contains("INSERT INTO product_gift"));
     }
 }

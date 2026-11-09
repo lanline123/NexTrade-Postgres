@@ -167,7 +167,7 @@ impl ProxyShoppingCartRepository {
             return Ok(Vec::new());
         }
         let placeholders = placeholders(cart_ids.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT c.cart_id, c.user_id, c.product_id, c.sku_id, c.quantity, c.is_checked,
                     c.product_sn, c.pic_thumb, c.market_price, c.original_price, c.product_type,
                     c.shop_id, c.sku_data, c.update_time,
@@ -176,7 +176,7 @@ impl ProxyShoppingCartRepository {
              LEFT JOIN product p ON p.product_id = c.product_id
              LEFT JOIN shop s ON s.shop_id = c.shop_id
              WHERE c.cart_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, CartRow>(&sql);
         for id in cart_ids {
             q = q.bind(*id);

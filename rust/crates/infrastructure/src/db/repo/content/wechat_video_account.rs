@@ -138,7 +138,7 @@ impl WechatVideoAccountRepository {
     pub async fn insert(&self, row: &WechatVideoAccount) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO wechat_video_account (finder_id, add_time, update_time, shop_id) \
-             VALUES (?, ?, ?, ?) RETURNING id",
+             VALUES ($1, $2, $3, $4) RETURNING id",
         )
         .bind(&row.finder_id)
         .bind(row.add_time)
@@ -153,7 +153,7 @@ impl WechatVideoAccountRepository {
     /// 更新视频号 ID 与更新时间（Java \"updateById\"）。
     pub async fn update_finder(&self, id: i32, finder_id: &str, update_time: i64) -> Result<u64> {
         let r = sqlx::query(
-            "UPDATE wechat_video_account SET finder_id = ?, update_time = ? WHERE id = ?",
+            "UPDATE wechat_video_account SET finder_id = $1, update_time = $2 WHERE id = $3",
         )
         .bind(finder_id)
         .bind(update_time)
@@ -166,7 +166,7 @@ impl WechatVideoAccountRepository {
 
     /// 删除（Java \"removeById\"）。
     pub async fn delete(&self, id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM wechat_video_account WHERE id = ?")
+        let r = sqlx::query("DELETE FROM wechat_video_account WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await

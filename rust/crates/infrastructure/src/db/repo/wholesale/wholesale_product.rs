@@ -96,9 +96,9 @@ impl WholesaleProductRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "{CONFIG_SELECT} WHERE status = 1 AND is_delete = 0 AND product_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, ProductWholesaleConfig>(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -164,7 +164,7 @@ impl WholesaleProductRepository {
         }
         let where_sql = format!("WHERE {}", where_parts.join(" AND "));
 
-        let count_sql = format!("SELECT COUNT(*) FROM product_wholesale_config {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM product_wholesale_config {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql).bind(shop_id);
         if let Some(v) = moq_dimension {
             cq = cq.bind(v);
@@ -176,9 +176,9 @@ impl WholesaleProductRepository {
         }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "{CONFIG_SELECT} {where_sql} ORDER BY create_time DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, ProductWholesaleConfig>(&list_sql).bind(shop_id);
         if let Some(v) = moq_dimension {
             lq = lq.bind(v);
@@ -207,7 +207,7 @@ impl WholesaleProductRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!("{CONFIG_SELECT} WHERE is_delete = 0 AND product_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("{CONFIG_SELECT} WHERE is_delete = 0 AND product_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, ProductWholesaleConfig>(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -267,7 +267,7 @@ impl WholesaleProductRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!("DELETE FROM product_wholesale_config WHERE product_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM product_wholesale_config WHERE product_id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -300,9 +300,9 @@ impl WholesaleProductRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "{SKU_CONFIG_SELECT} WHERE is_delete = 0 AND product_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, ProductWholesaleSkuConfig>(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -377,9 +377,9 @@ impl WholesaleProductRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE product_wholesale_sku_config SET is_delete = 1, update_time = $1 WHERE is_delete = 0 AND product_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query(&sql).bind(now);
         for id in product_ids {
             q = q.bind(*id);
@@ -426,7 +426,7 @@ impl WholesaleProductRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!("DELETE FROM product_wholesale_price WHERE product_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM product_wholesale_price WHERE product_id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -546,7 +546,7 @@ impl WholesaleProductRepository {
         }
         let where_sql = format!("WHERE {}", where_parts.join(" AND "));
 
-        let count_sql = format!("SELECT COUNT(*) FROM product {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM product {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql).bind(shop_id).bind(product_status);
         if let Some(ids) = category_ids {
             for id in ids {
@@ -565,7 +565,7 @@ impl WholesaleProductRepository {
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
         let list_sql =
-            format!("SELECT * FROM product {where_sql} ORDER BY product_id DESC LIMIT ? OFFSET ?");
+            crate::db::to_pg_placeholders(&format!("SELECT * FROM product {where_sql} ORDER BY product_id DESC LIMIT ? OFFSET ?"));
         let mut lq = sqlx::query_as::<_, Product>(&list_sql).bind(shop_id).bind(product_status);
         if let Some(ids) = category_ids {
             for id in ids {
@@ -645,9 +645,9 @@ impl WholesaleProductRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM product_sku WHERE is_enabled = 1 AND product_id IN ({placeholders}) ORDER BY sku_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, ProductSku>(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -681,9 +681,9 @@ impl WholesaleProductRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; grade_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT grade_id, grade_name FROM wholesaler_grade WHERE is_delete = 0 AND grade_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in grade_ids {
             q = q.bind(*id);

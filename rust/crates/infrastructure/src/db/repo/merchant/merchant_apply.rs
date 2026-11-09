@@ -49,7 +49,7 @@ impl MerchantApplyRepository {
         let column = apply_field_to_column(q.sort_field.as_deref());
         let dir = q.sort_dir();
 
-        let count_sql = format!("SELECT COUNT(*) FROM merchant_apply{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM merchant_apply{where_sql}"));
         let total: (i64,) = if let Some(kw) = like.as_deref() {
             sqlx::query_as(&count_sql)
                 .bind(kw)
@@ -64,7 +64,7 @@ impl MerchantApplyRepository {
         };
 
         let list_sql =
-            format!("SELECT {APPLY_COLUMNS} FROM merchant_apply{where_sql} ORDER BY {column} {dir} LIMIT ? OFFSET ?");
+            crate::db::to_pg_placeholders(&format!("SELECT {APPLY_COLUMNS} FROM merchant_apply{where_sql} ORDER BY {column} {dir} LIMIT ? OFFSET ?"));
         let mut q_ = sqlx::query_as::<_, MerchantApply>(&list_sql);
         if let Some(kw) = like.as_deref() {
             q_ = q_.bind(kw);
@@ -106,9 +106,9 @@ impl MerchantApplyRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; user_ids.len()].join(", ");
-        let sql = format!(
-            "SELECT user_id, username, nickname, mobile, avatar FROM user WHERE user_id IN ({placeholders})"
-        );
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT user_id, username, nickname, mobile, avatar FROM \"user\" WHERE user_id IN ({placeholders})"
+        ));
         let mut q = sqlx::query_as::<_, (i32, String, Option<String>, String, String)>(&sql);
         for id in user_ids {
             q = q.bind(*id);
@@ -127,7 +127,7 @@ impl MerchantApplyRepository {
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
         let sql =
-            format!("SELECT admin_id, username FROM admin_user WHERE admin_id IN ({placeholders})");
+            crate::db::to_pg_placeholders(&format!("SELECT admin_id, username FROM admin_user WHERE admin_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -220,9 +220,9 @@ impl MerchantApplyRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "DELETE FROM merchant_apply WHERE merchant_apply_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -314,7 +314,7 @@ mod tests {
         let (sql, like) = build_where(&q);
         assert_eq!(
             sql,
-            " WHERE status = 1 AND (company_name LIKE ? OR contact_name LIKE ?)"
+            " WHERE status = 1 AND (company_name LIKE $1 OR contact_name LIKE $2)"
         );
         assert_eq!(like.as_deref(), Some("%abc%"));
     }

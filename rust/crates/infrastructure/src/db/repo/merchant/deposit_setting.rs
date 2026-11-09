@@ -57,7 +57,7 @@ impl DepositSettingRepository {
                 .map_err(map_err)?;
             sqlx::query(
                 "INSERT INTO config (biz_code, biz_val, create_time, update_time, is_del) \
-                 VALUES (?, ?, ?, ?, 0)",
+                 VALUES ($1, $2, $3, $4, 0)",
             )
             .bind(code)
             .bind(value)

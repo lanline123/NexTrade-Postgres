@@ -17,7 +17,7 @@ impl UserRepository {
 
     /// 按 ID 查询。
     pub async fn find_by_id(&self, user_id: i32) -> Result<Option<User>> {
-        sqlx::query_as::<_, User>("SELECT * FROM user WHERE user_id = $1 LIMIT 1")
+        sqlx::query_as::<_, User>("SELECT * FROM \"user\" WHERE user_id = $1 LIMIT 1")
             .bind(user_id)
             .fetch_optional(&self.pool)
             .await
@@ -27,7 +27,7 @@ impl UserRepository {
     /// 按手机号查询。
     /// 按用户名查询（前端「账号」登录兼容）。
     pub async fn find_by_username(&self, username: &str) -> Result<Option<User>> {
-        sqlx::query_as::<_, User>("SELECT * FROM user WHERE username = $1 LIMIT 1")
+        sqlx::query_as::<_, User>("SELECT * FROM \"user\" WHERE username = $1 LIMIT 1")
             .bind(username)
             .fetch_optional(&self.pool)
             .await
@@ -35,7 +35,7 @@ impl UserRepository {
     }
 
     pub async fn find_by_mobile(&self, mobile: &str) -> Result<Option<User>> {
-        sqlx::query_as::<_, User>("SELECT * FROM user WHERE mobile = $1 LIMIT 1")
+        sqlx::query_as::<_, User>("SELECT * FROM \"user\" WHERE mobile = $1 LIMIT 1")
             .bind(mobile)
             .fetch_optional(&self.pool)
             .await
@@ -45,7 +45,7 @@ impl UserRepository {
     /// 注册插入，返回 user_id。
     pub async fn insert(&self, user: &User) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
-            "INSERT INTO user
+            "INSERT INTO \"user\"
              (username, mobile, mobile_validated, nickname, password, balance,
               points, reg_time, status, user_type)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING user_id",
@@ -74,7 +74,7 @@ impl UserRepository {
         avatar: Option<&str>,
     ) -> Result<()> {
         let affected = sqlx::query(
-            "UPDATE user SET
+            "UPDATE \"user\" SET
                nickname = COALESCE($1, nickname),
                avatar = COALESCE($2, avatar)
              WHERE user_id = $3",
@@ -94,7 +94,7 @@ impl UserRepository {
 
     /// 余额入账（balance = balance + amount，结果不会为负）。
     pub async fn adjust_balance(&self, user_id: i32, amount: Decimal) -> Result<()> {
-        sqlx::query("UPDATE user SET balance = balance + $1 WHERE user_id = $2")
+        sqlx::query("UPDATE \"user\" SET balance = balance + $1 WHERE user_id = $2")
             .bind(amount)
             .bind(user_id)
             .execute(&self.pool)
@@ -106,7 +106,7 @@ impl UserRepository {
     /// 余额出账（原子条件扣减，余额不足时 rows_affected = 0）。
     pub async fn try_debit_balance(&self, user_id: i32, amount: Decimal) -> Result<bool> {
         let affected = sqlx::query(
-            "UPDATE user SET balance = balance - $1 WHERE user_id = $2 AND balance >= $3",
+            "UPDATE \"user\" SET balance = balance - $1 WHERE user_id = $2 AND balance >= $3",
         )
         .bind(amount)
         .bind(user_id)
@@ -127,7 +127,7 @@ impl UserRepository {
             return Ok(true);
         }
         let affected = sqlx::query(
-            "UPDATE user SET points = points - $1 WHERE user_id = $2 AND points >= $3",
+            "UPDATE \"user\" SET points = points - $1 WHERE user_id = $2 AND points >= $3",
         )
         .bind(points)
         .bind(user_id)
@@ -158,7 +158,7 @@ impl UserRepository {
 
         let where_sql = "WHERE user_type = 1 AND ($1 IS NULL OR username LIKE $2 OR nickname LIKE $3 OR mobile LIKE $4 OR email LIKE $5) AND ($6 IS NULL OR EXISTS (SELECT 1 FROM shop_member m WHERE m.user_id = user.user_id AND m.shop_id = $7 AND m.is_del = 0))";
 
-        let count_sql = format!("SELECT COUNT(*) FROM user {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM \"user\" {where_sql}"));
         let (total,): (i64,) = sqlx::query_as(&count_sql)
             .bind(&like)
             .bind(&like)
@@ -171,7 +171,7 @@ impl UserRepository {
             .await
             .map_err(map_err)?;
 
-        let list_sql = format!("SELECT * FROM user {where_sql} ORDER BY user_id DESC LIMIT ? OFFSET ?");
+        let list_sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM \"user\" {where_sql} ORDER BY user_id DESC LIMIT ? OFFSET ?"));
         let rows = sqlx::query_as::<_, User>(&list_sql)
             .bind(&like)
             .bind(&like)

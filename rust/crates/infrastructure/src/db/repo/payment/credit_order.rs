@@ -83,7 +83,7 @@ impl CreditOrderRepository {
         if q.username.as_deref().is_some_and(|s| !s.trim().is_empty())
             || q.mobile.as_deref().is_some_and(|s| !s.trim().is_empty())
         {
-            qb.push(" AND user_id IN (SELECT user_id FROM user WHERE 1 = 1");
+            qb.push(" AND user_id IN (SELECT user_id FROM \"user\" WHERE 1 = 1");
             if let Some(username) = q.username.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
                 qb.push(" AND username LIKE ");
                 qb.push_bind(format!("%{username}%"));
@@ -140,7 +140,7 @@ impl CreditOrderRepository {
             return Ok(HashMap::new());
         }
         let mut qb: QueryBuilder<'_, Postgres> =
-            QueryBuilder::new("SELECT user_id, username, mobile FROM user WHERE user_id IN (");
+            QueryBuilder::new("SELECT user_id, username, mobile FROM \"user\" WHERE user_id IN (");
         let mut sep = qb.separated(", ");
         for id in ids {
             sep.push_bind(*id);

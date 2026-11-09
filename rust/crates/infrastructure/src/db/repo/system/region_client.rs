@@ -61,7 +61,7 @@ impl RegionClientRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; region_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM region WHERE region_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM region WHERE region_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, Region>(&sql);
         for id in region_ids {
             q = q.bind(id);

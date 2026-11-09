@@ -108,7 +108,7 @@ impl AuthorityRepository {
 
     /// 按主键查询完整实体。
     pub async fn find_by_id(&self, authority_id: i32) -> Result<Option<Authority>> {
-        let sql = format!("SELECT {AUTHORITY_SELECT} FROM authority WHERE authority_id = ? LIMIT 1");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT {AUTHORITY_SELECT} FROM authority WHERE authority_id = ? LIMIT 1"));
         sqlx::query_as::<_, Authority>(&sql)
             .bind(authority_id)
             .fetch_optional(&self.pool)
@@ -149,7 +149,7 @@ impl AuthorityRepository {
 
     /// `parent_id = ?` 是否存在（Java `del`：不能有子级）。
     pub async fn count_children(&self, parent_id: i32) -> Result<i64> {
-        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM authority WHERE parent_id = ?")
+        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM authority WHERE parent_id = $1")
             .bind(parent_id)
             .fetch_one(&self.pool)
             .await
@@ -175,7 +175,7 @@ impl AuthorityRepository {
 
     /// 删除（Java `BaseServiceImpl#del`：\"removeById\"）。
     pub async fn delete_by_id(&self, authority_id: i32) -> Result<u64> {
-        let res = sqlx::query("DELETE FROM authority WHERE authority_id = ?")
+        let res = sqlx::query("DELETE FROM authority WHERE authority_id = $1")
             .bind(authority_id)
             .execute(&self.pool)
             .await
@@ -197,16 +197,16 @@ impl AuthorityRepository {
     ) -> Result<(u64, Vec<Authority>)> {
         let (where_sql, binds) = build_page_where(f);
 
-        let total_sql = format!("SELECT COUNT(*) FROM authority{where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM authority{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&total_sql), binds)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {AUTHORITY_SELECT} FROM authority{where_sql}{} LIMIT ? OFFSET ?",
             order_by_clause(f)
-        );
+        ));
         let rows = bind_all!(sqlx::query_as::<_, Authority>(&rows_sql), binds)
             .bind(limit as i64)
             .bind(offset as i64)
@@ -261,7 +261,7 @@ impl AuthorityRepository {
     /// 按 \"authority_id\" 取名称（Java \"getParentName\"，只 `select authority_name`）。
     pub async fn find_name_by_id(&self, authority_id: i32) -> Result<Option<String>> {
         let row: Option<(String,)> =
-            sqlx::query_as("SELECT authority_name FROM authority WHERE authority_id = ? LIMIT 1")
+            sqlx::query_as("SELECT authority_name FROM authority WHERE authority_id = $1 LIMIT 1")
                 .bind(authority_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -272,7 +272,7 @@ impl AuthorityRepository {
     /// 取 `parent_id`（Java `getAuthorityParentName` 先按 id 查父级 id）。
     pub async fn find_parent_id(&self, authority_id: i32) -> Result<Option<i32>> {
         let row: Option<(i32,)> =
-            sqlx::query_as("SELECT parent_id FROM authority WHERE authority_id = ? LIMIT 1")
+            sqlx::query_as("SELECT parent_id FROM authority WHERE authority_id = $1 LIMIT 1")
                 .bind(authority_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -305,18 +305,18 @@ impl AuthorityRepository {
     ) -> Result<Option<Authority>> {
         if excluded.is_empty() {
             let sql =
-                format!("SELECT {AUTHORITY_SELECT} FROM authority WHERE parent_id = ? LIMIT 1");
+                crate::db::to_pg_placeholders(&format!("SELECT {AUTHORITY_SELECT} FROM authority WHERE parent_id = ? LIMIT 1"));
             return sqlx::query_as::<_, Authority>(&sql)
                 .bind(parent_id)
                 .fetch_optional(&self.pool)
                 .await
                 .map_err(map_err);
         }
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {AUTHORITY_SELECT} FROM authority WHERE parent_id = ? \
              AND authority_id NOT IN ({}) LIMIT 1",
             placeholders(excluded.len())
-        );
+        ));
         let mut q = sqlx::query_as::<_, Authority>(&sql).bind(parent_id);
         for id in excluded {
             q = q.bind(*id);
@@ -332,7 +332,7 @@ impl AuthorityRepository {
             "INSERT INTO authority
                (authority_id, authority_sn, authority_name, parent_id, sort_order,
                 is_show, child_auth, route_link, authority_ico, is_system, admin_type)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING authority_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING authority_id",
         )
         .bind(a.authority_id)
         .bind(&a.authority_sn)
@@ -355,10 +355,10 @@ impl AuthorityRepository {
     pub async fn update(&self, a: &Authority) -> Result<u64> {
         let res = sqlx::query(
             "UPDATE authority SET
-               authority_sn = ?, authority_name = ?, parent_id = ?, sort_order = ?,
-               is_show = ?, child_auth = ?, route_link = ?, authority_ico = ?,
-               is_system = ?, admin_type = ?
-             WHERE authority_id = ?",
+               authority_sn = $1, authority_name = $2, parent_id = $3, sort_order = $4,
+               is_show = $5, child_auth = $6, route_link = $7, authority_ico = $8,
+               is_system = $9, admin_type = $10
+             WHERE authority_id = $11",
         )
         .bind(&a.authority_sn)
         .bind(&a.authority_name)
@@ -388,7 +388,7 @@ impl AuthorityRepository {
             AUTHORITY_COLUMN_FIELDS.contains(&column),
             "update_field 列名未经过白名单映射: {column}"
         );
-        let sql = format!("UPDATE authority SET {column} = ? WHERE authority_id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE authority SET {column} = ? WHERE authority_id = ?"));
         let res = sqlx::query(&sql)
             .bind(val)
             .bind(id)
@@ -409,7 +409,7 @@ impl AuthorityRepository {
     ) -> Result<Option<(i32, Option<String>)>> {
         let row: Option<(i32, Option<String>)> = sqlx::query_as(
             "SELECT role_id, auth_list FROM admin_user_shop \
-             WHERE admin_id = ? AND shop_id = ? LIMIT 1",
+             WHERE admin_id = $1 AND shop_id = $2 LIMIT 1",
         )
         .bind(admin_id)
         .bind(shop_id)
@@ -427,7 +427,7 @@ impl AuthorityRepository {
     ) -> Result<Option<(i32, Option<String>)>> {
         let row: Option<(i32, Option<String>)> = sqlx::query_as(
             "SELECT role_id, auth_list FROM admin_user_vendor \
-             WHERE admin_id = ? AND vendor_id = ? LIMIT 1",
+             WHERE admin_id = $1 AND vendor_id = $2 LIMIT 1",
         )
         .bind(admin_id)
         .bind(vendor_id)
@@ -440,7 +440,7 @@ impl AuthorityRepository {
     /// 角色授权列表（Java `AdminRoleService#getById` → `authority_list` JSON）。
     pub async fn find_role_authority_list(&self, role_id: i32) -> Result<Option<String>> {
         let row: Option<(String,)> =
-            sqlx::query_as("SELECT authority_list FROM admin_role WHERE role_id = ? LIMIT 1")
+            sqlx::query_as("SELECT authority_list FROM admin_role WHERE role_id = $1 LIMIT 1")
                 .bind(role_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -453,7 +453,7 @@ impl AuthorityRepository {
     /// 来源为 Redis 缓存的登录用户；Rust 侧直接读 `admin_user`）。
     pub async fn find_admin_auth(&self, admin_id: i32) -> Result<Option<(String, Option<String>)>> {
         let row: Option<(String, Option<String>)> =
-            sqlx::query_as("SELECT admin_type, auth_list FROM admin_user WHERE admin_id = ? LIMIT 1")
+            sqlx::query_as("SELECT admin_type, auth_list FROM admin_user WHERE admin_id = $1 LIMIT 1")
                 .bind(admin_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -616,7 +616,7 @@ mod tests {
             ..Default::default()
         };
         let (sql, binds) = build_page_where(&f);
-        assert_eq!(sql, " WHERE 1 = 1 AND admin_type = ? AND parent_id = ?");
+        assert_eq!(sql, " WHERE 1 = 1 AND admin_type = $1 AND parent_id = $2");
         assert_eq!(binds.len(), 2);
     }
 

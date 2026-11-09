@@ -74,7 +74,7 @@ impl SalesmanCustomerTransactionRepository {
         };
 
         let count_sql =
-            format!("SELECT COUNT(*) FROM salesman_order so JOIN \"order\" o ON o.order_id = so.order_id {where_sql}");
+            crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM salesman_order so JOIN \"order\" o ON o.order_id = so.order_id {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         if let Some(v) = salesman_id {
             cq = cq.bind(v);
@@ -87,9 +87,9 @@ impl SalesmanCustomerTransactionRepository {
         }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT so.salesman_id, o.order_id, o.order_sn, o.user_id, o.add_time, o.total_amount, o.paid_amount, o.order_status FROM salesman_order so JOIN \"order\" o ON o.order_id = so.order_id {where_sql} ORDER BY o.order_id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let mut q = sqlx::query_as::<_, CustomerTransactionRow>(&sql);
         if let Some(v) = salesman_id {
             q = q.bind(v);
@@ -116,9 +116,9 @@ impl SalesmanCustomerTransactionRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
-            "SELECT s.salesman_id, u.username FROM salesman s LEFT JOIN user u ON u.user_id = s.user_id WHERE s.salesman_id IN ({ph})"
-        );
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT s.salesman_id, u.username FROM salesman s LEFT JOIN \"user\" u ON u.user_id = s.user_id WHERE s.salesman_id IN ({ph})"
+        ));
         let mut q = sqlx::query_as::<_, (i32, Option<String>)>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -133,7 +133,7 @@ impl SalesmanCustomerTransactionRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!("SELECT user_id, username FROM user WHERE user_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT user_id, username FROM \"user\" WHERE user_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, (i32, Option<String>)>(&sql);
         for id in ids {
             q = q.bind(id);

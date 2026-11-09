@@ -82,7 +82,7 @@ impl LogRepository {
     ) -> Result<i32> {
         let res: i32 = sqlx::query_scalar(
             "INSERT INTO statistics_base (date, click_count, shop_id, visitor_count) \
-             VALUES (?, ?, ?, ?) RETURNING id",
+             VALUES ($1, $2, $3, $4) RETURNING id",
         )
         .bind(date)
         .bind(click_count)
@@ -107,7 +107,7 @@ impl LogRepository {
     ) -> Result<bool> {
         let affected = match visitor_count {
             Some(visitor_count) => sqlx::query(
-                "UPDATE statistics_base SET click_count = ?, visitor_count = ? WHERE id = ?",
+                "UPDATE statistics_base SET click_count = $1, visitor_count = $2 WHERE id = $3",
             )
             .bind(click_count)
             .bind(visitor_count)
@@ -116,7 +116,7 @@ impl LogRepository {
             .await
             .map_err(map_err)?
             .rows_affected(),
-            None => sqlx::query("UPDATE statistics_base SET click_count = ? WHERE id = ?")
+            None => sqlx::query("UPDATE statistics_base SET click_count = $1 WHERE id = $2")
                 .bind(click_count)
                 .bind(id)
                 .execute(&self.pool)
@@ -132,7 +132,7 @@ impl LogRepository {
         let res: i32 = sqlx::query_scalar(
             "INSERT INTO statistics_log \
              (access_time, shop_id, product_id, shop_category_id, user) \
-             VALUES (?, ?, ?, ?, ?) RETURNING id",
+             VALUES ($1, $2, $3, $4, $5) RETURNING id",
         )
         .bind(log.access_time)
         .bind(log.shop_id)

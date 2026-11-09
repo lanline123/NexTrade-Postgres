@@ -241,7 +241,7 @@ impl ShopClientRepository {
         let (where_sql, where_binds) = self.store_where(f, location);
         let (order_sql, order_binds) = self.store_order(f, location);
 
-        let count_sql = format!("SELECT COUNT(*) FROM shop {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM shop {where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&count_sql), &where_binds)
             .fetch_one(&self.pool)
             .await
@@ -252,7 +252,7 @@ impl ShopClientRepository {
         binds.extend(order_binds);
 
         let (limit, offset) = page.limit_offset();
-        let sql = format!("{select_sql} {where_sql} {order_sql} LIMIT ? OFFSET ?");
+        let sql = crate::db::to_pg_placeholders(&format!("{select_sql} {where_sql} {order_sql} LIMIT ? OFFSET ?"));
         let mut q = bind_all!(sqlx::query_as::<_, StoreListRow>(&sql), &binds);
         q = q.bind(limit).bind(offset);
         let rows = q.fetch_all(&self.pool).await.map_err(map_err)?;
@@ -339,9 +339,9 @@ impl ShopClientRepository {
                     " AND EXISTS (SELECT 1 FROM shop_local_delivery_config sldc \
                      WHERE sldc.shop_id = shop.shop_id AND sldc.enabled = 1 \
                        AND sldc.delivery_radius IS NOT NULL AND sldc.delivery_radius > 0 \
-                       AND (6371000 * acos(cos(radians(?)) * cos(radians(shop.shop_latitude)) \
-                            * cos(radians(shop.shop_longitude) - radians(?)) \
-                            + sin(radians(?)) * sin(radians(shop.shop_latitude)))) \
+                       AND (6371000 * acos(cos(radians($1)) * cos(radians(shop.shop_latitude)) \
+                            * cos(radians(shop.shop_longitude) - radians($2)) \
+                            + sin(radians($3)) * sin(radians(shop.shop_latitude)))) \
                            <= sldc.delivery_radius)",
                 );
                 binds.push(Bind::Dec(lat));
@@ -448,8 +448,8 @@ impl ShopClientRepository {
             return Ok(Vec::new());
         }
         sqlx::query_as::<_, Product>(
-            "SELECT * FROM product WHERE shop_id = ? AND product_status = 1 AND is_delete = 0 \
-             ORDER BY product_id DESC LIMIT ?",
+            "SELECT * FROM product WHERE shop_id = $1 AND product_status = 1 AND is_delete = 0 \
+             ORDER BY product_id DESC LIMIT $2",
         )
         .bind(shop_id)
         .bind(limit)
@@ -461,7 +461,7 @@ impl ShopClientRepository {
     /// 某店铺上架商品数。
     pub async fn count_shop_products_online(&self, shop_id: i32) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM product WHERE shop_id = ? AND product_status = 1 AND is_delete = 0",
+            "SELECT COUNT(*) FROM product WHERE shop_id = $1 AND product_status = 1 AND is_delete = 0",
         )
         .bind(shop_id)
         .fetch_one(&self.pool)
@@ -472,7 +472,7 @@ impl ShopClientRepository {
 
     /// 某店铺商品总数（Java `productService.count(eq(shop_id, id))`，**不限状态**）。
     pub async fn count_shop_products_all(&self, shop_id: i32) -> Result<i64> {
-        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM product WHERE shop_id = ?")
+        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM product WHERE shop_id = $1")
             .bind(shop_id)
             .fetch_one(&self.pool)
             .await
@@ -483,7 +483,7 @@ impl ShopClientRepository {
     /// 某店铺新品数（`is_new = 1`，不限状态）。
     pub async fn count_shop_new_products(&self, shop_id: i32) -> Result<i64> {
         let row: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM product WHERE shop_id = ? AND is_new = 1")
+            sqlx::query_as("SELECT COUNT(*) FROM product WHERE shop_id = $1 AND is_new = 1")
                 .bind(shop_id)
                 .fetch_one(&self.pool)
                 .await
@@ -513,7 +513,7 @@ impl ShopClientRepository {
     /// 查询某会员对某店铺的收藏记录。
     pub async fn find_collect(&self, user_id: i32, shop_id: i32) -> Result<Option<CollectShop>> {
         sqlx::query_as::<_, CollectShop>(
-            "SELECT * FROM collect_shop WHERE user_id = ? AND shop_id = ? LIMIT 1",
+            "SELECT * FROM collect_shop WHERE user_id = $1 AND shop_id = $2 LIMIT 1",
         )
         .bind(user_id)
         .bind(shop_id)
@@ -524,7 +524,7 @@ impl ShopClientRepository {
 
     /// 新增收藏（\"add_time\" 与原 Java 一致落库默认 0）。
     pub async fn insert_collect(&self, user_id: i32, shop_id: i32) -> Result<i32> {
-        let r: i32 = sqlx::query_scalar("INSERT INTO collect_shop (user_id, shop_id, add_time) VALUES (?, ?, 0) RETURNING collect_id")
+        let r: i32 = sqlx::query_scalar("INSERT INTO collect_shop (user_id, shop_id, add_time) VALUES ($1, $2, 0) RETURNING collect_id")
             .bind(user_id)
             .bind(shop_id)
             .fetch_one(&self.pool)
@@ -535,7 +535,7 @@ impl ShopClientRepository {
 
     /// 删除收藏。
     pub async fn delete_collect(&self, collect_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM collect_shop WHERE collect_id = ?")
+        let r = sqlx::query("DELETE FROM collect_shop WHERE collect_id = $1")
             .bind(collect_id)
             .execute(&self.pool)
             .await
@@ -566,7 +566,7 @@ impl ShopClientRepository {
     /// 某店铺收藏人数。
     pub async fn count_collect_users(&self, shop_id: i32) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(DISTINCT user_id) FROM collect_shop WHERE shop_id = ?",
+            "SELECT COUNT(DISTINCT user_id) FROM collect_shop WHERE shop_id = $1",
         )
         .bind(shop_id)
         .fetch_one(&self.pool)
@@ -616,7 +616,7 @@ impl ShopClientRepository {
     /// 单店铺商品评分均值（带 `GROUP BY shop_id`：无评价时返回 `None`）。
     pub async fn avg_comment_rank(&self, shop_id: i32) -> Result<Option<Decimal>> {
         let row: Option<(Decimal,)> = sqlx::query_as(
-            "SELECT AVG(comment_rank) FROM comment WHERE shop_id = ? GROUP BY shop_id",
+            "SELECT AVG(comment_rank) FROM comment WHERE shop_id = $1 GROUP BY shop_id",
         )
         .bind(shop_id)
         .fetch_optional(&self.pool)
@@ -636,7 +636,7 @@ impl ShopClientRepository {
         r#type: Option<i32>,
         page: &PageQuery,
     ) -> Result<(u64, Vec<Comment>)> {
-        let mut where_sql = String::from("WHERE shop_id = ? AND parent_id = 0");
+        let mut where_sql = String::from("WHERE shop_id = $1 AND parent_id = 0");
         let mut binds: Vec<Bind> = vec![Bind::I32(shop_id)];
         if let Some(showed) = is_showed {
             where_sql.push_str(" AND is_showed = ?");
@@ -649,7 +649,7 @@ impl ShopClientRepository {
             _ => {}
         }
 
-        let count_sql = format!("SELECT COUNT(*) FROM comment {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM comment {where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&count_sql), &binds)
             .fetch_one(&self.pool)
             .await
@@ -657,9 +657,9 @@ impl ShopClientRepository {
 
         let (limit, offset) = page.limit_offset();
         // Java：`buildSortOrder(page, "isTop", "desc")` + wrapper `orderByDesc(addTime)`
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM comment {where_sql} ORDER BY is_top DESC, add_time DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let mut q = bind_all!(sqlx::query_as::<_, Comment>(&sql), &binds);
         q = q.bind(limit).bind(offset);
         let rows = q.fetch_all(&self.pool).await.map_err(map_err)?;
@@ -761,7 +761,7 @@ impl ShopClientRepository {
     /// 店铺首页装修（`shop_id` + `is_home = 1` + `status = 1` + `decorate_type = 1`）。
     pub async fn find_shop_home_decorate(&self, shop_id: i32) -> Result<Option<Decorate>> {
         sqlx::query_as::<_, Decorate>(
-            "SELECT * FROM decorate WHERE shop_id = ? AND is_home = 1 AND status = 1 \
+            "SELECT * FROM decorate WHERE shop_id = $1 AND is_home = 1 AND status = 1 \
              AND decorate_type = 1 LIMIT 1",
         )
         .bind(shop_id)
@@ -772,7 +772,7 @@ impl ShopClientRepository {
 
     /// 按 locale_code 取语言（`X-Locale-Code` 头）。
     pub async fn find_locale_by_code(&self, locale_code: &str) -> Result<Option<Locales>> {
-        sqlx::query_as::<_, Locales>("SELECT * FROM locales WHERE locale_code = ? LIMIT 1")
+        sqlx::query_as::<_, Locales>("SELECT * FROM locales WHERE locale_code = $1 LIMIT 1")
             .bind(locale_code)
             .fetch_optional(&self.pool)
             .await
@@ -786,7 +786,7 @@ impl ShopClientRepository {
         locale_id: i32,
     ) -> Result<Option<Decorate>> {
         sqlx::query_as::<_, Decorate>(
-            "SELECT * FROM decorate WHERE parent_id = ? AND locale_id = ? LIMIT 1",
+            "SELECT * FROM decorate WHERE parent_id = $1 AND locale_id = $2 LIMIT 1",
         )
         .bind(parent_id)
         .bind(locale_id)
@@ -799,7 +799,7 @@ impl ShopClientRepository {
 
     /// 按 ID 取商户。
     pub async fn find_merchant(&self, merchant_id: i32) -> Result<Option<Merchant>> {
-        sqlx::query_as::<_, Merchant>("SELECT * FROM merchant WHERE merchant_id = ? LIMIT 1")
+        sqlx::query_as::<_, Merchant>("SELECT * FROM merchant WHERE merchant_id = $1 LIMIT 1")
             .bind(merchant_id)
             .fetch_optional(&self.pool)
             .await
@@ -809,7 +809,7 @@ impl ShopClientRepository {
     /// 取商户入驻申请状态（`getApprovedLicensePic` 的审核通过校验）。
     pub async fn find_merchant_apply_status(&self, apply_id: i32) -> Result<Option<i32>> {
         let row: Option<(Option<i32>,)> =
-            sqlx::query_as("SELECT status FROM merchant_apply WHERE merchant_apply_id = ? LIMIT 1")
+            sqlx::query_as("SELECT status FROM merchant_apply WHERE merchant_apply_id = $1 LIMIT 1")
                 .bind(apply_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -840,7 +840,7 @@ impl ShopClientRepository {
     /// 平台分配记录：按商品取门店列表（`store_product`）。
     pub async fn find_store_products_by_product(&self, product_id: i32) -> Result<Vec<StoreProduct>> {
         sqlx::query_as::<_, StoreProduct>(
-            "SELECT * FROM store_product WHERE product_id = ? AND is_delete = 0 \
+            "SELECT * FROM store_product WHERE product_id = $1 AND is_delete = 0 \
              AND product_status = 1",
         )
         .bind(product_id)
@@ -852,7 +852,7 @@ impl ShopClientRepository {
     /// 某门店的平台分配商品数（上架未删）。
     pub async fn count_store_products_of_shop(&self, shop_id: i32) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM store_product WHERE shop_id = ? AND product_status = 1 \
+            "SELECT COUNT(*) FROM store_product WHERE shop_id = $1 AND product_status = 1 \
              AND is_delete = 0",
         )
         .bind(i64::from(shop_id))
@@ -865,7 +865,7 @@ impl ShopClientRepository {
     /// 某门店的平台分配商品（上架未删）。
     pub async fn find_store_products_of_shop(&self, shop_id: i32) -> Result<Vec<StoreProduct>> {
         sqlx::query_as::<_, StoreProduct>(
-            "SELECT * FROM store_product WHERE shop_id = ? AND product_status = 1 AND is_delete = 0",
+            "SELECT * FROM store_product WHERE shop_id = $1 AND product_status = 1 AND is_delete = 0",
         )
         .bind(i64::from(shop_id))
         .fetch_all(&self.pool)
@@ -892,7 +892,7 @@ impl ShopClientRepository {
     /// 某门店的标签关联（按 `sort` 升序）。
     pub async fn find_shop_store_tips(&self, shop_id: i32) -> Result<Vec<StoreTip>> {
         sqlx::query_as::<_, StoreTip>(
-            "SELECT * FROM store_tip WHERE shop_id = ? ORDER BY sort ASC",
+            "SELECT * FROM store_tip WHERE shop_id = $1 ORDER BY sort ASC",
         )
         .bind(shop_id)
         .fetch_all(&self.pool)
@@ -918,7 +918,7 @@ impl ShopClientRepository {
 
     /// 某标签（自营门店标签名回填）。
     pub async fn find_tip(&self, tip_id: i32) -> Result<Option<Tip>> {
-        sqlx::query_as::<_, Tip>("SELECT * FROM tip WHERE tip_id = ? LIMIT 1")
+        sqlx::query_as::<_, Tip>("SELECT * FROM tip WHERE tip_id = $1 LIMIT 1")
             .bind(tip_id)
             .fetch_optional(&self.pool)
             .await
@@ -950,7 +950,7 @@ impl ShopClientRepository {
         shop_id: i32,
     ) -> Result<Option<ShopLocalDeliveryConfig>> {
         sqlx::query_as::<_, ShopLocalDeliveryConfig>(
-            "SELECT * FROM shop_local_delivery_config WHERE shop_id = ? LIMIT 1",
+            "SELECT * FROM shop_local_delivery_config WHERE shop_id = $1 LIMIT 1",
         )
         .bind(shop_id)
         .fetch_optional(&self.pool)
@@ -983,7 +983,7 @@ impl ShopClientRepository {
         shop_id: i32,
     ) -> Result<Option<ShopHomeServiceConfig>> {
         sqlx::query_as::<_, ShopHomeServiceConfig>(
-            "SELECT * FROM shop_home_service_config WHERE shop_id = ? LIMIT 1",
+            "SELECT * FROM shop_home_service_config WHERE shop_id = $1 LIMIT 1",
         )
         .bind(shop_id)
         .fetch_optional(&self.pool)
@@ -996,12 +996,12 @@ impl ShopClientRepository {
         if shop_ids.is_empty() {
             return Ok(Vec::new());
         }
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT DISTINCT relation_id FROM promotion \
              WHERE type = 2 AND is_available = 1 AND is_delete = 0 AND end_time > ? \
                AND relation_id IN ({})",
             placeholders(shop_ids.len())
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32,)>(&sql).bind(now);
         for id in shop_ids {
             q = q.bind(*id);
@@ -1026,7 +1026,7 @@ impl ShopClientRepository {
         if shop_ids.is_empty() {
             return Ok(HashMap::new());
         }
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT shop_id, CAST(6378137 * 2 * asin(sqrt( \
                  pow(sin((radians(?) - radians(shop_latitude)) / 2), 2) \
                  + cos(radians(?)) * cos(radians(shop_latitude)) \
@@ -1034,7 +1034,7 @@ impl ShopClientRepository {
              AS DECIMAL(20,6)) AS distance \
              FROM shop WHERE shop_id IN ({})",
             placeholders(shop_ids.len())
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, Option<Decimal>)>(&sql)
             .bind(lat)
             .bind(lat)
@@ -1054,7 +1054,7 @@ impl ShopClientRepository {
         let row: (i64,) = sqlx::query_as(
             "SELECT CAST(COALESCE(SUM(oi.quantity), 0) AS BIGINT) FROM \"order_item\" oi \
              LEFT JOIN \"order\" o ON o.order_id = oi.order_id \
-             WHERE oi.shop_id = ? AND o.is_valid = 1 AND o.order_status != 3 AND o.is_del = 0",
+             WHERE oi.shop_id = $1 AND o.is_valid = 1 AND o.order_status != 3 AND o.is_del = 0",
         )
         .bind(shop_id)
         .fetch_one(&self.pool)
@@ -1067,7 +1067,7 @@ impl ShopClientRepository {
 
     /// 按主键取商品（`storeList` 的 `productId` 分支）。
     pub async fn find_product(&self, product_id: i32) -> Result<Option<Product>> {
-        sqlx::query_as::<_, Product>("SELECT * FROM product WHERE product_id = ? LIMIT 1")
+        sqlx::query_as::<_, Product>("SELECT * FROM product WHERE product_id = $1 LIMIT 1")
             .bind(product_id)
             .fetch_optional(&self.pool)
             .await
@@ -1077,7 +1077,7 @@ impl ShopClientRepository {
     /// 选中门店置顶查询（`shop_type = 2` 且 `status IN (1, 10)`）。
     pub async fn find_selected_store(&self, shop_id: i32) -> Result<Option<Shop>> {
         sqlx::query_as::<_, Shop>(
-            "SELECT * FROM shop WHERE shop_id = ? AND shop_type = 2 \
+            "SELECT * FROM shop WHERE shop_id = $1 AND shop_type = 2 \
              AND (status = 1 OR status = 10) LIMIT 1",
         )
         .bind(shop_id)
@@ -1099,7 +1099,7 @@ impl ShopClientRepository {
         location: Option<(Decimal, Decimal)>,
         page: &PageQuery,
     ) -> Result<(u64, Vec<PickupRow>)> {
-        let mut where_sql = String::from("WHERE shop_type = 3 AND status = 1 AND store_parent_id = ?");
+        let mut where_sql = String::from("WHERE shop_type = 3 AND status = 1 AND store_parent_id = $1");
         let mut where_binds: Vec<Bind> = vec![Bind::I32(parent_shop_id)];
         if let Some(region) = region_id.filter(|s| !s.is_empty()) {
             where_sql.push_str(" AND shop_region_id LIKE CONCAT('%', ?, '%')");
@@ -1110,7 +1110,7 @@ impl ShopClientRepository {
             where_binds.push(Bind::Str(kw.to_string()));
         }
 
-        let count_sql = format!("SELECT COUNT(*) FROM shop {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM shop {where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&count_sql), &where_binds)
             .fetch_one(&self.pool)
             .await
@@ -1135,7 +1135,7 @@ impl ShopClientRepository {
         binds.push(Bind::Dec(lng.unwrap_or_default()));
 
         let (limit, offset) = page.limit_offset();
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT shop_id, shop_title, \
              CASE WHEN ? IS NULL OR ? IS NULL THEN CAST(0 AS DECIMAL(20,6)) \
                   ELSE CAST(6371000 * acos(cos(radians(?)) * cos(radians(shop_latitude)) \
@@ -1148,7 +1148,7 @@ impl ShopClientRepository {
              FROM shop {where_sql} \
              ORDER BY CASE WHEN ? IS NULL OR ? IS NULL THEN shop_id ELSE distance END ASC \
              LIMIT ? OFFSET ?"
-        );
+        ));
         let mut q = bind_all!(sqlx::query_as::<_, PickupRow>(&sql), &binds);
         q = q.bind(limit).bind(offset);
         let rows = q.fetch_all(&self.pool).await.map_err(map_err)?;

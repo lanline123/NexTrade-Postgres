@@ -114,7 +114,7 @@ impl CategoryRepository {
 
     /// 按主键查询分类（`getParentName` / `detail` 用）。
     pub async fn find_category(&self, category_id: i32) -> Result<Option<Category>> {
-        sqlx::query_as::<_, Category>("SELECT * FROM category WHERE category_id = ? LIMIT 1")
+        sqlx::query_as::<_, Category>("SELECT * FROM category WHERE category_id = $1 LIMIT 1")
             .bind(category_id)
             .fetch_optional(&self.pool)
             .await
@@ -140,7 +140,7 @@ impl CategoryRepository {
         let (limit, offset) = page.limit_offset();
 
         let total: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM category WHERE (? IS NULL OR parent_id = ?)")
+            sqlx::query_as("SELECT COUNT(*) FROM category WHERE ($1 IS NULL OR parent_id = $2)")
                 .bind(filter)
                 .bind(filter)
                 .fetch_one(&self.pool)
@@ -148,10 +148,10 @@ impl CategoryRepository {
                 .map_err(map_err)?;
 
         let dir = if desc { "DESC" } else { "ASC" };
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM category WHERE (? IS NULL OR parent_id = ?) \
              ORDER BY {column} {dir} LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = sqlx::query_as::<_, Category>(&sql)
             .bind(filter)
             .bind(filter)
@@ -178,10 +178,10 @@ impl CategoryRepository {
         let placeholders = std::iter::repeat_n("?", parent_ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT parent_id, COUNT(*) FROM category \
              WHERE parent_id IN ({placeholders}) GROUP BY parent_id"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in parent_ids {
             q = q.bind(id);
@@ -192,7 +192,7 @@ impl CategoryRepository {
     /// 是否存在直接子分类（Controller `del` 守卫，`LIMIT 1`）。
     pub async fn has_child(&self, parent_id: i32) -> Result<bool> {
         let row: Option<(i32,)> =
-            sqlx::query_as("SELECT category_id FROM category WHERE parent_id = ? LIMIT 1")
+            sqlx::query_as("SELECT category_id FROM category WHERE parent_id = $1 LIMIT 1")
                 .bind(parent_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -210,10 +210,10 @@ impl CategoryRepository {
         let placeholders = std::iter::repeat_n("?", excluded.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT category_id FROM category \
              WHERE parent_id = ? AND category_id NOT IN ({placeholders}) LIMIT 1"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32,)>(&sql).bind(parent_id);
         for id in excluded {
             q = q.bind(id);
@@ -224,7 +224,7 @@ impl CategoryRepository {
     /// 统计挂在该分类下的商品数量（删除守卫）。
     pub async fn count_products_in_category(&self, category_id: i32) -> Result<i64> {
         let row: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM product WHERE category_id = ?")
+            sqlx::query_as("SELECT COUNT(*) FROM product WHERE category_id = $1")
                 .bind(category_id)
                 .fetch_one(&self.pool)
                 .await
@@ -245,8 +245,8 @@ impl CategoryRepository {
         let actual_parent = parent_id.unwrap_or(0);
         let row: Option<(i32,)> = sqlx::query_as(
             "SELECT category_id FROM category \
-             WHERE category_name = ? AND parent_id = ? \
-             AND (? IS NULL OR category_id <> ?) LIMIT 1",
+             WHERE category_name = $1 AND parent_id = $2 \
+             AND ($3 IS NULL OR category_id <> $4) LIMIT 1",
         )
         .bind(category_name)
         .bind(actual_parent)
@@ -266,7 +266,7 @@ impl CategoryRepository {
             "INSERT INTO category (category_name, seo_identification, keywords, category_desc, \
              parent_id, sort_order, measure_unit, is_show, seo_title, short_name, \
              category_pic, category_ico, is_hot, search_keywords) \
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING category_id",
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING category_id",
         )
         .bind(&c.category_name)
         .bind(&c.seo_identification)
@@ -291,10 +291,10 @@ impl CategoryRepository {
     /// 全量更新分类（除主键外的所有列）。
     pub async fn update_category(&self, c: &Category) -> Result<bool> {
         let r = sqlx::query(
-            "UPDATE category SET category_name=?, seo_identification=?, keywords=?, \
-             category_desc=?, parent_id=?, sort_order=?, measure_unit=?, is_show=?, \
-             seo_title=?, short_name=?, category_pic=?, category_ico=?, is_hot=?, \
-             search_keywords=? WHERE category_id=?",
+            "UPDATE category SET category_name=$1, seo_identification=$2, keywords=$3, \
+             category_desc=$4, parent_id=$5, sort_order=$6, measure_unit=$7, is_show=$8, \
+             seo_title=$9, short_name=$10, category_pic=$11, category_ico=$12, is_hot=$13, \
+             search_keywords=$14 WHERE category_id=$15",
         )
         .bind(&c.category_name)
         .bind(&c.seo_identification)
@@ -319,7 +319,7 @@ impl CategoryRepository {
 
     /// 删除单个分类。
     pub async fn delete_category(&self, category_id: i32) -> Result<bool> {
-        let r = sqlx::query("DELETE FROM category WHERE category_id = ?")
+        let r = sqlx::query("DELETE FROM category WHERE category_id = $1")
             .bind(category_id)
             .execute(&self.pool)
             .await
@@ -335,7 +335,7 @@ impl CategoryRepository {
         let placeholders = std::iter::repeat_n("?", ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!("SELECT * FROM category WHERE category_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM category WHERE category_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, Category>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -351,10 +351,10 @@ impl CategoryRepository {
         let placeholders = std::iter::repeat_n("?", ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT category_id, category_name, parent_id, sort_order, is_show, category_pic, \
              category_ico FROM category WHERE category_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, CategoryRow>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -376,10 +376,10 @@ impl CategoryRepository {
         let placeholders = std::iter::repeat_n("?", ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM category WHERE category_id IN ({placeholders}) AND is_show = 1 \
              ORDER BY sort_order ASC LIMIT ?"
-        );
+        ));
         let mut q = sqlx::query_as::<_, Category>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -393,7 +393,7 @@ impl CategoryRepository {
     /// 热门分类（`getHotCategory`：`is_hot = 1`，按 `sort_order` 降序，`limit 20`）。
     pub async fn find_hot_categories(&self, limit: u32) -> Result<Vec<Category>> {
         sqlx::query_as::<_, Category>(
-            "SELECT * FROM category WHERE is_hot = 1 ORDER BY sort_order DESC LIMIT ?",
+            "SELECT * FROM category WHERE is_hot = 1 ORDER BY sort_order DESC LIMIT $1",
         )
         .bind(limit as i64)
         .fetch_all(&self.pool)
@@ -413,7 +413,7 @@ impl CategoryRepository {
         if !nextrade_core::models::catalog::category::CATEGORY_FIELDS.contains(&field) {
             return Err(Error::Validation(format!("不允许更新的字段: {field}")));
         }
-        let sql = format!("UPDATE category SET \"{field}\" = ? WHERE category_id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE category SET \"{field}\" = ? WHERE category_id = ?"));
         let r = sqlx::query(&sql)
             .bind(val)
             .bind(category_id)
@@ -468,12 +468,12 @@ impl CategoryRepository {
         let placeholders = std::iter::repeat_n("?", category_ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT product_id, product_name, product_sn, market_price, pic_thumb, pic_url, \
              shop_id, product_price, category_id, brand_id, sort_order FROM product \
              WHERE category_id IN ({placeholders}) AND is_delete = 0 AND product_status = 1 \
              AND {flag_column} = 1 ORDER BY sort_order ASC LIMIT ?"
-        );
+        ));
         let mut q = sqlx::query_as::<_, ProductRow>(&sql);
         for id in category_ids {
             q = q.bind(id);
@@ -501,13 +501,13 @@ impl CategoryRepository {
         let placeholders = std::iter::repeat_n("?", category_ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT product_id, product_name, product_sn, market_price, pic_thumb, pic_url, \
              shop_id, product_price, category_id, brand_id, sort_order FROM product \
              WHERE product_id <> ? AND is_delete = 0 AND product_status = 1 \
              AND category_id IN ({placeholders}) \
              ORDER BY ABS(market_price - ?) ASC LIMIT ?"
-        );
+        ));
         let mut q = sqlx::query_as::<_, ProductRow>(&sql)
             .bind(exclude_product_id)
             .bind(reference_price);
@@ -529,8 +529,8 @@ impl CategoryRepository {
         sqlx::query_as::<_, ProductRow>(
             "SELECT product_id, product_name, product_sn, market_price, pic_thumb, pic_url, \
              shop_id, product_price, category_id, brand_id, sort_order FROM product \
-             WHERE product_id <> ? AND is_delete = 0 AND product_status = 1 AND brand_id = ? \
-             ORDER BY sort_order ASC LIMIT ?",
+             WHERE product_id <> $1 AND is_delete = 0 AND product_status = 1 AND brand_id = $2 \
+             ORDER BY sort_order ASC LIMIT $3",
         )
         .bind(exclude_product_id)
         .bind(brand_id)
@@ -552,8 +552,8 @@ impl CategoryRepository {
         sqlx::query_as::<_, ProductRow>(
             "SELECT product_id, product_name, product_sn, market_price, pic_thumb, pic_url, \
              shop_id, product_price, category_id, brand_id, sort_order FROM product \
-             WHERE product_id <> ? AND is_delete = 0 AND product_status = 1 AND category_id = ? \
-             ORDER BY sort_order ASC LIMIT ?",
+             WHERE product_id <> $1 AND is_delete = 0 AND product_status = 1 AND category_id = $2 \
+             ORDER BY sort_order ASC LIMIT $3",
         )
         .bind(exclude_product_id)
         .bind(category_id)
@@ -581,11 +581,11 @@ impl CategoryRepository {
         let placeholders = std::iter::repeat_n("?", category_ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT brand_id FROM product \
              WHERE category_id IN ({placeholders}) AND is_delete = 0 AND product_status = 1 \
              GROUP BY brand_id ORDER BY MAX(product_id) DESC LIMIT ?"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32,)>(&sql);
         for id in category_ids {
             q = q.bind(id);
@@ -615,10 +615,10 @@ impl CategoryRepository {
         let placeholders = std::iter::repeat_n("?", brand_ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT brand_id, brand_name, brand_logo, site_url, first_word FROM brand \
              WHERE brand_id IN ({placeholders}) AND is_show = 1 ORDER BY sort_order ASC LIMIT ?"
-        );
+        ));
         let mut q = sqlx::query_as::<_, RelatedBrandRow>(&sql);
         for id in brand_ids {
             q = q.bind(id);
@@ -660,13 +660,13 @@ impl CategoryRepository {
             .collect::<Vec<_>>()
             .join(",");
         // 子查询取每个 product_id 下 sku_id 最小的启用 SKU。
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT product_id, sku_price FROM product_sku \
              WHERE is_enabled = 1 AND sku_id IN ( \
                SELECT MIN(sku_id) FROM product_sku \
                WHERE is_enabled = 1 AND product_id IN ({placeholders}) GROUP BY product_id \
              )"
-        );
+        ));
         let mut q = sqlx::query_as::<_, ProductSkuPriceRow>(&sql);
         for id in product_ids {
             q = q.bind(id);
@@ -681,7 +681,7 @@ impl CategoryRepository {
     /// 对应 `productArticleService.getProductArticleByProductId(productId)`。
     pub async fn find_article_ids_by_product(&self, product_id: i32) -> Result<Vec<i32>> {
         let rows: Vec<(i32,)> =
-            sqlx::query_as("SELECT article_id FROM product_article WHERE goods_id = ?")
+            sqlx::query_as("SELECT article_id FROM product_article WHERE goods_id = $1")
                 .bind(product_id)
                 .fetch_all(&self.pool)
                 .await
@@ -706,10 +706,10 @@ impl CategoryRepository {
         let placeholders = std::iter::repeat_n("?", article_ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM article WHERE article_id IN ({placeholders}) AND is_show = 1 \
              ORDER BY is_top DESC, add_time DESC, article_id DESC LIMIT ?"
-        );
+        ));
         let mut q = sqlx::query_as::<_, Article>(&sql);
         for id in article_ids {
             q = q.bind(id);

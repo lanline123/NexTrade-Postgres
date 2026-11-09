@@ -58,9 +58,9 @@ impl ConfigBasicRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; codes.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT biz_code, biz_val FROM config WHERE biz_code IN ({placeholders}) AND {ALIVE}"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (String, Option<String>)>(&sql);
         for code in codes {
             q = q.bind(*code);

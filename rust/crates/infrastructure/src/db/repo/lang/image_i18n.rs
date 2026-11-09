@@ -53,8 +53,9 @@ impl ImageI18nRepository {
         locale_id: i32,
     ) -> Result<Option<ImageI18n>> {
         let sql = Self::select_sql(
-            "WHERE original_key = ? AND data_type = ? AND locale_id = ? LIMIT 1",
+            "WHERE original_key = $1 AND data_type = $2 AND locale_id = $3 LIMIT 1",
         );
+        let sql = crate::db::to_pg_placeholders(&sql);
         sqlx::query_as::<_, ImageI18n>(&sql)
             .bind(original_key)
             .bind(data_type)
@@ -70,7 +71,8 @@ impl ImageI18nRepository {
         original_url: &str,
         data_type: i32,
     ) -> Result<Vec<ImageI18n>> {
-        let sql = Self::select_sql("WHERE original_url = ? AND data_type = ?");
+        let sql = Self::select_sql("WHERE original_url = $1 AND data_type = $2");
+        let sql = crate::db::to_pg_placeholders(&sql);
         sqlx::query_as::<_, ImageI18n>(&sql)
             .bind(original_url)
             .bind(data_type)
@@ -85,7 +87,8 @@ impl ImageI18nRepository {
         original_key: &str,
         data_type: i32,
     ) -> Result<Vec<ImageI18n>> {
-        let sql = Self::select_sql("WHERE original_key = ? AND data_type = ?");
+        let sql = Self::select_sql("WHERE original_key = $1 AND data_type = $2");
+        let sql = crate::db::to_pg_placeholders(&sql);
         sqlx::query_as::<_, ImageI18n>(&sql)
             .bind(original_key)
             .bind(data_type)
@@ -159,6 +162,7 @@ impl ImageI18nRepository {
         let sql = Self::select_sql(&format!(
             "WHERE data_type = ? AND locale_id = ? AND original_key IN ({placeholders})"
         ));
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, ImageI18n>(&sql)
             .bind(data_type)
             .bind(locale_id);

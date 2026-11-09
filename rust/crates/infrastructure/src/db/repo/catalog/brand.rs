@@ -136,7 +136,7 @@ impl BrandRepository {
         };
         let (limit, offset) = page.limit_offset();
 
-        let count_sql = format!("SELECT COUNT(*) FROM brand {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM brand {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         cq = bind_filters(
             cq,
@@ -149,9 +149,9 @@ impl BrandRepository {
         );
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {BRAND_COLUMNS} FROM brand {where_sql} ORDER BY {column} {dir} LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, Brand>(&list_sql);
         lq = bind_filters(
             lq,
@@ -212,7 +212,7 @@ impl BrandRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; shop_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM shop WHERE shop_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM shop WHERE shop_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, Shop>(&sql);
         for id in shop_ids {
             q = q.bind(id);
@@ -313,7 +313,7 @@ impl BrandRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; ids.len()].join(",");
-        let sql = format!("DELETE FROM brand WHERE brand_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM brand WHERE brand_id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(id);

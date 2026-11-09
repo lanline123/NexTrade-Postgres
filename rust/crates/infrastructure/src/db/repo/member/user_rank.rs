@@ -200,7 +200,7 @@ impl UserRankRepository {
     /// ⚠️ Java **没有**任何附加过滤（注释里说「正式会员 `user_type = 0`」
     /// 但代码并未实现），因此本查询同样只按 \"rank_id\" 过滤。
     pub async fn count_users_by_rank_id(&self, rank_id: i32) -> Result<i64> {
-        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM \"user\" WHERE rank_id = ?")
+        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM \"user\" WHERE rank_id = $1")
             .bind(rank_id)
             .fetch_one(&self.pool)
             .await
@@ -600,10 +600,10 @@ fn build_insert(w: &UserRankWrite) -> (String, Vec<BindValue<'_>>) {
 
     debug_assert_eq!(columns.len(), binds.len());
     let placeholders = vec!["?"; columns.len()].join(", ");
-    let sql = format!(
+    let sql = crate::db::to_pg_placeholders(&format!(
         "INSERT INTO user_rank ({}) VALUES ({placeholders})",
         columns.join(", ")
-    );
+    ));
     (sql, binds)
 }
 

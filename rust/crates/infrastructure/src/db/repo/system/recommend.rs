@@ -77,7 +77,7 @@ impl RecommendRepository {
         let page = q.page_query();
         let size = u64::from(page.page_size);
         let offset = u64::from(page.page - 1) * size;
-        let count_sql = format!("SELECT COUNT(*) FROM product{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM product{where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         for b in &binds {
             cq = cq.bind(*b);
@@ -90,10 +90,10 @@ impl RecommendRepository {
             Some("new") => format!(" ORDER BY add_time {dir}, product_id DESC"),
             _ => " ORDER BY is_best DESC, click_count DESC, product_id DESC".to_string(),
         };
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT product_id, product_name, product_sn, product_price, pic_url, pic_thumb, \
              shop_id, product_type, product_stock, virtual_sales FROM product{where_sql}{order_sql} LIMIT ? OFFSET ?"
-        );
+        ));
         let mut rq = sqlx::query_as::<_, RecommendProductRow>(&sql);
         for b in &binds {
             rq = rq.bind(*b);
@@ -111,7 +111,7 @@ impl RecommendRepository {
     pub async fn recommend_ids(&self, limit: u32) -> Result<Vec<i32>> {
         let rows: Vec<(i32,)> = sqlx::query_as(
             "SELECT product_id FROM product WHERE is_delete = 0 AND product_status = 1 \
-             ORDER BY is_best DESC, click_count DESC, product_id DESC LIMIT ?",
+             ORDER BY is_best DESC, click_count DESC, product_id DESC LIMIT $1",
         )
         .bind(i64::from(limit))
         .fetch_all(&self.pool)
@@ -129,7 +129,7 @@ impl RecommendRepository {
         let rows: Vec<(i32,)> = sqlx::query_as(
             "SELECT product_id FROM product WHERE is_delete = 0 AND product_status = 1 \
              AND (is_best = 1 OR is_hot = 1) \
-             ORDER BY is_best DESC, click_count DESC, product_id DESC LIMIT ?",
+             ORDER BY is_best DESC, click_count DESC, product_id DESC LIMIT $1",
         )
         .bind(i64::from(limit))
         .fetch_all(&self.pool)
@@ -144,7 +144,7 @@ impl RecommendRepository {
     /// 这里兼容可能出现的逗号分隔写法，解析失败一律当作空。
     pub async fn history_ids(&self, user_id: i32, limit: u32) -> Result<Vec<i32>> {
         let row: Option<(Option<String>,)> =
-            sqlx::query_as("SELECT history_product_ids FROM user WHERE user_id = ?")
+            sqlx::query_as("SELECT history_product_ids FROM \"user\" WHERE user_id = $1")
                 .bind(user_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -175,7 +175,7 @@ impl RecommendRepository {
     pub async fn popular_ids(&self, limit: u32) -> Result<Vec<i32>> {
         let rows: Vec<(i32,)> = sqlx::query_as(
             "SELECT product_id FROM product WHERE is_delete = 0 AND product_status = 1 \
-             ORDER BY click_count DESC, product_id DESC LIMIT ?",
+             ORDER BY click_count DESC, product_id DESC LIMIT $1",
         )
         .bind(i64::from(limit))
         .fetch_all(&self.pool)

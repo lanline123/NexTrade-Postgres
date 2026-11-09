@@ -273,13 +273,13 @@ impl ProductStockRepository {
         let page = q.page_query();
 
         let count_sql =
-            format!("SELECT COUNT(*) FROM product p LEFT JOIN product_sku ps ON ps.product_id = p.product_id{where_sql}");
+            crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM product p LEFT JOIN product_sku ps ON ps.product_id = p.product_id{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&count_sql), binds)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT p.product_id, p.product_name, p.product_stock, p.product_unit, \
                     p.pic_thumb AS product_pic_thumb, p.product_sn, p.product_tsn, \
                     p.product_type, p.cost_price AS product_cost, p.card_group_id, \
@@ -287,7 +287,7 @@ impl ProductStockRepository {
                     ps.sku_stock AS product_sku_stock, ps.cost_price AS product_sku_cost \
                FROM product p LEFT JOIN product_sku ps ON ps.product_id = p.product_id\
                {where_sql} ORDER BY p.add_time LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = bind_all!(sqlx::query_as::<_, StockPageRow>(&rows_sql), binds)
             .bind(page.page_size as i64)
             .bind(((page.page - 1) * page.page_size) as i64)
@@ -301,7 +301,7 @@ impl ProductStockRepository {
     /// 卡券分组是否有效（Java `eCardGroupMapper.selectOne(eq(groupId).eq(isUse, 1))`）。
     pub async fn find_card_group(&self, group_id: i32) -> Result<Option<i32>> {
         let row: Option<(i32,)> =
-            sqlx::query_as("SELECT group_id FROM e_card_group WHERE group_id = ? AND is_use = 1 LIMIT 1")
+            sqlx::query_as("SELECT group_id FROM e_card_group WHERE group_id = $1 AND is_use = 1 LIMIT 1")
                 .bind(group_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -312,7 +312,7 @@ impl ProductStockRepository {
     /// 分组下未使用卡券数量（Java `eCardService.count(eq(groupId).eq(isUse, 0))`）。
     pub async fn count_unused_cards(&self, group_id: i32) -> Result<i64> {
         let row: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM e_card WHERE group_id = ? AND is_use = 0")
+            sqlx::query_as("SELECT COUNT(*) FROM e_card WHERE group_id = $1 AND is_use = 0")
                 .bind(group_id)
                 .fetch_one(&self.pool)
                 .await
@@ -337,7 +337,7 @@ impl ProductStockRepository {
         let spec_id = sku_id.unwrap_or(0);
         let total: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM product_inventory_log \
-              WHERE product_id = ? AND shop_id = ? AND spec_id = ?",
+              WHERE product_id = $1 AND shop_id = $2 AND spec_id = $3",
         )
         .bind(product_id)
         .bind(shop_id)
@@ -346,11 +346,11 @@ impl ProductStockRepository {
         .await
         .map_err(map_err)?;
 
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {INVENTORY_LOG_COLUMNS} FROM product_inventory_log \
               WHERE product_id = ? AND shop_id = ? AND spec_id = ? \
               ORDER BY add_time DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = sqlx::query_as::<_, ProductInventoryLog>(&sql)
             .bind(product_id)
             .bind(shop_id)
@@ -369,7 +369,7 @@ impl ProductStockRepository {
         sqlx::query(
             "INSERT INTO product_inventory_log \
                (product_id, spec_id, number, add_time, old_number, type, change_number, \"desc\", shop_id) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
         )
         .bind(log.product_id)
         .bind(log.spec_id)
@@ -408,17 +408,17 @@ impl ProductStockRepository {
              LEFT JOIN product p ON p.product_id = psrd.product_id \
              LEFT JOIN product_sku ps ON ps.sku_id = psrd.sku_id";
 
-        let count_sql = format!("SELECT COUNT(DISTINCT pr.product_stock_id){from_sql}{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(DISTINCT pr.product_stock_id){from_sql}{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&count_sql), binds)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT pr.product_stock_id, pr.stock_code, pr.in_or_out, pr.\"type\", pr.add_time, \
                     pr.add_by, pr.\"comment\", pr.shop_id{from_sql}{where_sql} \
               GROUP BY pr.product_stock_id ORDER BY pr.add_time DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = bind_all!(sqlx::query_as::<_, ProductStockRecord>(&rows_sql), binds)
             .bind(page.page_size as i64)
             .bind(((page.page - 1) * page.page_size) as i64)
@@ -431,10 +431,10 @@ impl ProductStockRepository {
 
     /// 单条出入库记录（Java `this.getById(id)`）。
     pub async fn find_stock_record(&self, id: i32) -> Result<Option<ProductStockRecord>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {STOCK_RECORD_COLUMNS} FROM product_stock_record \
               WHERE product_stock_id = ? LIMIT 1"
-        );
+        ));
         sqlx::query_as::<_, ProductStockRecord>(&sql)
             .bind(id)
             .fetch_optional(&self.pool)
@@ -447,10 +447,10 @@ impl ProductStockRepository {
         &self,
         stock_record_id: i32,
     ) -> Result<Vec<ProductStockRecordDetail>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {STOCK_RECORD_DETAIL_COLUMNS} FROM product_stock_record_detail \
               WHERE stock_record_id = ?"
-        );
+        ));
         sqlx::query_as::<_, ProductStockRecordDetail>(&sql)
             .bind(stock_record_id)
             .fetch_all(&self.pool)
@@ -463,7 +463,7 @@ impl ProductStockRepository {
         let res: i32 = sqlx::query_scalar(
             "INSERT INTO product_stock_record \
                (stock_code, in_or_out, \"type\", add_time, add_by, \"comment\", shop_id) \
-             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING product_stock_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING product_stock_id",
         )
         .bind(&r.stock_code)
         .bind(r.in_or_out)
@@ -489,7 +489,7 @@ impl ProductStockRepository {
         for d in details {
             sqlx::query(
                 "INSERT INTO product_stock_record_detail \
-                   (stock_record_id, product_id, sku_id, quantity) VALUES (?, ?, ?, ?)",
+                   (stock_record_id, product_id, sku_id, quantity) VALUES ($1, $2, $3, $4)",
             )
             .bind(d.stock_record_id)
             .bind(d.product_id)
@@ -507,7 +507,7 @@ impl ProductStockRepository {
     /// 商品库存增加（Java `productService.incStock` 的 UPDATE 部分）。
     pub async fn inc_product_stock(&self, product_id: i32, quantity: i32) -> Result<u64> {
         let res =
-            sqlx::query("UPDATE product SET product_stock = product_stock + ? WHERE product_id = ?")
+            sqlx::query("UPDATE product SET product_stock = product_stock + $1 WHERE product_id = $2")
                 .bind(quantity)
                 .bind(product_id)
                 .execute(&self.pool)
@@ -520,8 +520,8 @@ impl ProductStockRepository {
     /// 返回受影响行数（0 = 库存不足）。
     pub async fn dec_product_stock(&self, product_id: i32, quantity: i32) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE product SET product_stock = product_stock - ? \
-              WHERE product_id = ? AND product_stock >= ?",
+            "UPDATE product SET product_stock = product_stock - $1 \
+              WHERE product_id = $2 AND product_stock >= $3",
         )
         .bind(quantity)
         .bind(product_id)
@@ -534,7 +534,7 @@ impl ProductStockRepository {
 
     /// SKU 库存增加（Java `productSkuService.incStock`）。
     pub async fn inc_sku_stock(&self, sku_id: i32, quantity: i32) -> Result<u64> {
-        let res = sqlx::query("UPDATE product_sku SET sku_stock = sku_stock + ? WHERE sku_id = ?")
+        let res = sqlx::query("UPDATE product_sku SET sku_stock = sku_stock + $1 WHERE sku_id = $2")
             .bind(quantity)
             .bind(sku_id)
             .execute(&self.pool)
@@ -546,8 +546,8 @@ impl ProductStockRepository {
     /// SKU 库存扣减：**原子条件更新**（`WHERE sku_stock >= ?`）。
     pub async fn dec_sku_stock(&self, sku_id: i32, quantity: i32) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE product_sku SET sku_stock = sku_stock - ? \
-              WHERE sku_id = ? AND sku_stock >= ?",
+            "UPDATE product_sku SET sku_stock = sku_stock - $1 \
+              WHERE sku_id = $2 AND sku_stock >= $3",
         )
         .bind(quantity)
         .bind(sku_id)
@@ -567,10 +567,10 @@ impl ProductStockRepository {
         product_id: i32,
         shop_id: i32,
     ) -> Result<Option<StoreProduct>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {STORE_PRODUCT_COLUMNS} FROM store_product \
               WHERE product_id = ? AND shop_id = ? AND is_delete = 0 LIMIT 1"
-        );
+        ));
         sqlx::query_as::<_, StoreProduct>(&sql)
             .bind(product_id)
             .bind(shop_id)
@@ -585,10 +585,10 @@ impl ProductStockRepository {
         store_product_id: i64,
         product_sku_id: i32,
     ) -> Result<Option<StoreProductSku>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {STORE_SKU_COLUMNS} FROM store_product_sku \
               WHERE store_product_id = ? AND product_sku_id = ? LIMIT 1"
-        );
+        ));
         sqlx::query_as::<_, StoreProductSku>(&sql)
             .bind(store_product_id)
             .bind(product_sku_id)
@@ -600,7 +600,7 @@ impl ProductStockRepository {
     /// 门店商品规格数量（`checkAllocateImportData` 判断门店商品是否多规格）。
     pub async fn count_store_skus(&self, store_product_id: i64) -> Result<i64> {
         let row: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM store_product_sku WHERE store_product_id = ?")
+            sqlx::query_as("SELECT COUNT(*) FROM store_product_sku WHERE store_product_id = $1")
                 .bind(store_product_id)
                 .fetch_one(&self.pool)
                 .await
@@ -615,8 +615,8 @@ impl ProductStockRepository {
         quantity: i32,
     ) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE store_product SET product_stock = product_stock + ? \
-              WHERE store_product_id = ? AND is_delete = 0",
+            "UPDATE store_product SET product_stock = product_stock + $1 \
+              WHERE store_product_id = $2 AND is_delete = 0",
         )
         .bind(quantity)
         .bind(store_product_id)
@@ -633,8 +633,8 @@ impl ProductStockRepository {
         quantity: i32,
     ) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE store_product SET product_stock = product_stock - ? \
-              WHERE store_product_id = ? AND is_delete = 0 AND product_stock >= ?",
+            "UPDATE store_product SET product_stock = product_stock - $1 \
+              WHERE store_product_id = $2 AND is_delete = 0 AND product_stock >= $3",
         )
         .bind(quantity)
         .bind(store_product_id)
@@ -652,8 +652,8 @@ impl ProductStockRepository {
         quantity: i32,
     ) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE store_product_sku SET sku_stock = sku_stock + ? \
-              WHERE store_product_sku_id = ?",
+            "UPDATE store_product_sku SET sku_stock = sku_stock + $1 \
+              WHERE store_product_sku_id = $2",
         )
         .bind(quantity)
         .bind(store_product_sku_id)
@@ -670,8 +670,8 @@ impl ProductStockRepository {
         quantity: i32,
     ) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE store_product_sku SET sku_stock = sku_stock - ? \
-              WHERE store_product_sku_id = ? AND sku_stock >= ?",
+            "UPDATE store_product_sku SET sku_stock = sku_stock - $1 \
+              WHERE store_product_sku_id = $2 AND sku_stock >= $3",
         )
         .bind(quantity)
         .bind(store_product_sku_id)
@@ -690,7 +690,7 @@ impl ProductStockRepository {
             "INSERT INTO product_stock_adjust_record \
                (sku_id, adjust_type, quantity, add_by, add_time, product_id, shop_id, \
                 change_before_quantity, change_after_quantity) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING adjust_record_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING adjust_record_id",
         )
         .bind(r.sku_id)
         .bind(r.adjust_type)
@@ -714,10 +714,10 @@ impl ProductStockRepository {
         sku_id: Option<i32>,
         shop_id: i32,
     ) -> Result<Vec<ProductStockAdjustRecord>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {ADJUST_COLUMNS} FROM product_stock_adjust_record WHERE product_id = ? AND shop_id = ?{} ORDER BY adjust_record_id DESC",
             if sku_id.is_some() { " AND sku_id = ?" } else { "" }
-        );
+        ));
 
         let mut q = sqlx::query_as::<_, ProductStockAdjustRecord>(&sql)
             .bind(product_id)
@@ -760,16 +760,16 @@ impl ProductStockRepository {
         let where_sql = format!(" WHERE {}", conds.join(" AND "));
         let page = q.page_query();
 
-        let count_sql = format!("SELECT COUNT(*) FROM product_stock_allocate_record{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM product_stock_allocate_record{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&count_sql), binds)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {ALLOCATE_COLUMNS} FROM product_stock_allocate_record{where_sql} \
               ORDER BY add_time DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = bind_all!(sqlx::query_as::<_, ProductStockAllocateRecord>(&rows_sql), binds)
             .bind(page.page_size as i64)
             .bind(((page.page - 1) * page.page_size) as i64)
@@ -782,10 +782,10 @@ impl ProductStockRepository {
 
     /// 单条调拨单（Java `this.getById(id)`）。
     pub async fn find_allocate_record(&self, id: i32) -> Result<Option<ProductStockAllocateRecord>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {ALLOCATE_COLUMNS} FROM product_stock_allocate_record \
               WHERE allocate_id = ? LIMIT 1"
-        );
+        ));
         sqlx::query_as::<_, ProductStockAllocateRecord>(&sql)
             .bind(id)
             .fetch_optional(&self.pool)
@@ -820,7 +820,7 @@ impl ProductStockRepository {
                FROM product_stock_allocate_record_detail d \
                LEFT JOIN product p ON p.product_id = d.product_id \
                LEFT JOIN product_sku ps ON ps.sku_id = d.sku_id \
-              WHERE d.allocate_id = ?",
+              WHERE d.allocate_id = $1",
         )
         .bind(allocate_id)
         .fetch_all(&self.pool)
@@ -864,10 +864,10 @@ impl ProductStockRepository {
         &self,
         allocate_id: i32,
     ) -> Result<Vec<ProductStockAllocateRecordDetail>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {ALLOCATE_DETAIL_COLUMNS} FROM product_stock_allocate_record_detail \
               WHERE allocate_id = ?"
-        );
+        ));
         sqlx::query_as::<_, ProductStockAllocateRecordDetail>(&sql)
             .bind(allocate_id)
             .fetch_all(&self.pool)
@@ -886,8 +886,8 @@ impl ProductStockRepository {
         };
         let res = sqlx::query(
             "UPDATE product_stock_allocate_record_detail \
-                SET stock_out_quantity = ?, stock_in_quantity = ? \
-              WHERE allocate_detail_id = ?",
+                SET stock_out_quantity = $1, stock_in_quantity = $2 \
+              WHERE allocate_detail_id = $3",
         )
         .bind(detail.stock_out_quantity.unwrap_or(0))
         .bind(detail.stock_in_quantity.unwrap_or(0))
@@ -904,7 +904,7 @@ impl ProductStockRepository {
             "INSERT INTO product_stock_allocate_record \
                (allocate_code, outbound_organization_id, warehousing_organization_id, status, \
                 add_by, add_time, stock_in_comment, stock_out_comment, stock_allocate_comment) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING allocate_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING allocate_id",
         )
         .bind(&r.allocate_code)
         .bind(r.outbound_organization_id)
@@ -935,7 +935,7 @@ impl ProductStockRepository {
             sqlx::query(
                 "INSERT INTO product_stock_allocate_record_detail \
                    (allocate_id, product_id, sku_id, quantity, stock_in_quantity, stock_out_quantity) \
-                 VALUES (?, ?, ?, ?, ?, ?)",
+                 VALUES ($1, $2, $3, $4, $5, $6)",
             )
             .bind(allocate_id)
             .bind(d.product_id)
@@ -968,10 +968,10 @@ impl ProductStockRepository {
         if stock_in_comment.is_some() {
             sets.push("stock_in_comment = ?");
         }
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE product_stock_allocate_record SET {} WHERE allocate_id = ?",
             sets.join(", ")
-        );
+        ));
         let mut q = sqlx::query(&sql).bind(status);
         if let Some(c) = stock_out_comment {
             q = q.bind(c);
@@ -998,7 +998,7 @@ impl ProductStockRepository {
         sqlx::query(
             "INSERT INTO product_stock_allocate_operation_record \
                (allocate_id, operation_type, add_time, review_rejected_reason, add_by) \
-             VALUES (?, ?, ?, ?, ?)",
+             VALUES ($1, $2, $3, $4, $5)",
         )
         .bind(allocate_id)
         .bind(operation_type)
@@ -1016,10 +1016,10 @@ impl ProductStockRepository {
         &self,
         allocate_id: i32,
     ) -> Result<Vec<ProductStockAllocateOperationRecord>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {ALLOCATE_OP_COLUMNS} FROM product_stock_allocate_operation_record \
               WHERE allocate_id = ? ORDER BY allocate_operation_id ASC"
-        );
+        ));
         sqlx::query_as::<_, ProductStockAllocateOperationRecord>(&sql)
             .bind(allocate_id)
             .fetch_all(&self.pool)
@@ -1055,7 +1055,7 @@ impl ProductStockRepository {
             "SELECT allocate_code, outbound_organization_id, warehousing_organization_id, \
                     status, add_by, add_time \
                FROM product_stock_allocate_record \
-              WHERE (warehousing_organization_id = ? OR outbound_organization_id = ?)",
+              WHERE (warehousing_organization_id = $1 OR outbound_organization_id = $2)",
         );
         let ids = allocate_ids.filter(|v| !v.is_empty());
         if let Some(list) = ids {
@@ -1087,7 +1087,7 @@ impl ProductStockRepository {
             "FROM product p \
                LEFT JOIN product_sku ps ON ps.product_id = p.product_id \
                INNER JOIN store_product sp ON sp.product_id = p.product_id \
-                    AND sp.shop_id = ? AND sp.is_delete = 0",
+                    AND sp.shop_id = $1 AND sp.is_delete = 0",
             "p.shop_id = 0 AND p.is_delete = 0 AND p.vendor_id IS NULL AND p.product_type = 1",
             keyword,
             target_shop_id,
@@ -1171,21 +1171,21 @@ impl ProductStockRepository {
         limit: u64,
         offset: u64,
     ) -> Result<(u64, Vec<StockPageRow>)> {
-        let count_sql = format!("SELECT COUNT(*) {from_sql}{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) {from_sql}{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&count_sql), binds)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
         // 列顺序必须与 [\"StockPageRow\"] 的字段顺序逐一对齐（\"FromRow\" 按位置取值）。
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT p.product_id, p.product_name, p.product_stock, p.product_unit, \
                     p.pic_thumb AS product_pic_thumb, p.product_sn, p.product_tsn, \
                     p.product_type, p.cost_price AS product_cost, p.card_group_id, \
                     ps.sku_id AS product_sku_id, ps.sku_value AS product_sku_name, \
                     ps.sku_stock AS product_sku_stock, ps.cost_price AS product_sku_cost \
                {from_sql}{where_sql} ORDER BY {order_col} DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = bind_all!(sqlx::query_as::<_, StockPageRow>(&rows_sql), binds)
             .bind(limit as i64)
             .bind(offset as i64)
@@ -1203,7 +1203,7 @@ impl ProductStockRepository {
     /// 此处返回 `None`，由服务层按同一语义处理（见 `uncertain_points`）。
     pub async fn find_shop_title(&self, shop_id: i32) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> =
-            sqlx::query_as("SELECT shop_title FROM shop WHERE shop_id = ? LIMIT 1")
+            sqlx::query_as("SELECT shop_title FROM shop WHERE shop_id = $1 LIMIT 1")
                 .bind(shop_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -1215,7 +1215,7 @@ impl ProductStockRepository {
     pub async fn find_allocate_orgs(&self) -> Result<Vec<(i32, Option<String>)>> {
         sqlx::query_as::<_, (i32, Option<String>)>(
             "SELECT shop_id, shop_title FROM shop \
-              WHERE shop_type = ? AND status = 1 AND store_parent_id IS NULL",
+              WHERE shop_type = $1 AND status = 1 AND store_parent_id IS NULL",
         )
         .bind(SHOP_TYPE_STORE)
         .fetch_all(&self.pool)
@@ -1228,7 +1228,7 @@ impl ProductStockRepository {
     pub async fn find_shop_by_title(&self, title: &str) -> Result<Option<i32>> {
         let row: Option<(i32,)> = sqlx::query_as(
             "SELECT shop_id FROM shop \
-              WHERE shop_title = ? AND status = 1 AND shop_type = ? LIMIT 1",
+              WHERE shop_title = $1 AND status = 1 AND shop_type = $2 LIMIT 1",
         )
         .bind(title)
         .bind(SHOP_TYPE_STORE)
@@ -1253,7 +1253,7 @@ impl ProductStockRepository {
     /// 商品所在门店 ID（库存调整记录落 \"shop_id\" 时用商品自身组织兜底）。
     pub async fn find_product_shop_id(&self, product_id: i32) -> Result<Option<i32>> {
         let row: Option<(i32,)> =
-            sqlx::query_as("SELECT shop_id FROM product WHERE product_id = ? LIMIT 1")
+            sqlx::query_as("SELECT shop_id FROM product WHERE product_id = $1 LIMIT 1")
                 .bind(product_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -1404,7 +1404,7 @@ mod tests {
     #[test]
     fn allocate_select_binds_org_before_keyword() {
         let (from_sql, where_sql, binds) = allocate_select_sql(
-            "FROM product p INNER JOIN store_product sp ON sp.shop_id = ?",
+            "FROM product p INNER JOIN store_product sp ON sp.shop_id = $1",
             "p.shop_id = 0",
             Some("手机"),
             3,

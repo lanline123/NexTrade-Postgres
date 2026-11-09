@@ -119,7 +119,7 @@ impl UserCenterRepository {
     /// 按主键查询用户。
     pub async fn find_user_by_id(&self, user_id: i32) -> Result<Option<User>> {
         let sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT {USER_COLUMNS} FROM user WHERE user_id = ? LIMIT 1"
+            "SELECT {USER_COLUMNS} FROM \"user\" WHERE user_id = ? LIMIT 1"
         ));
         sqlx::query_as::<_, User>(&sql)
             .bind(user_id)
@@ -131,7 +131,7 @@ impl UserCenterRepository {
     /// 手机号是否被他人占用（Java `count(mobile = ? AND user_id <> ?)`）。
     pub async fn exists_by_mobile(&self, mobile: &str, except_user_id: i32) -> Result<bool> {
         let (c,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) AS c FROM user WHERE mobile = $1 AND user_id <> $2",
+            "SELECT COUNT(*) AS c FROM \"user\" WHERE mobile = $1 AND user_id <> $2",
         )
         .bind(mobile)
         .bind(except_user_id)
@@ -144,7 +144,7 @@ impl UserCenterRepository {
     /// 邮箱是否被他人占用（Java `count(email = ? AND user_id <> ?)`）。
     pub async fn exists_by_email(&self, email: &str, except_user_id: i32) -> Result<bool> {
         let (c,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) AS c FROM user WHERE email = $1 AND user_id <> $2",
+            "SELECT COUNT(*) AS c FROM \"user\" WHERE email = $1 AND user_id <> $2",
         )
         .bind(email)
         .bind(except_user_id)
@@ -187,7 +187,7 @@ impl UserCenterRepository {
             return Ok(true);
         }
         let sql = crate::db::to_pg_placeholders(&format!(
-            "UPDATE user SET {} WHERE user_id = ?",
+            "UPDATE \"user\" SET {} WHERE user_id = ?",
             sets.join(", ")
         ));
         let mut q = sqlx::query(&sql);
@@ -219,7 +219,7 @@ impl UserCenterRepository {
     /// `user.setEmail(...)` + `user.setEmailValidated(1)` + \"updateById\"）。
     pub async fn bind_email(&self, user_id: i32, email: &str) -> Result<bool> {
         let n = sqlx::query(
-            "UPDATE user SET email = $1, email_validated = 1 WHERE user_id = $2",
+            "UPDATE \"user\" SET email = $1, email_validated = 1 WHERE user_id = $2",
         )
         .bind(email)
         .bind(user_id)
@@ -232,7 +232,7 @@ impl UserCenterRepository {
 
     /// 更新头像。
     pub async fn update_avatar(&self, user_id: i32, avatar: &str) -> Result<bool> {
-        let n = sqlx::query("UPDATE user SET avatar = $1 WHERE user_id = $2")
+        let n = sqlx::query("UPDATE \"user\" SET avatar = $1 WHERE user_id = $2")
             .bind(avatar)
             .bind(user_id)
             .execute(&self.pool)
@@ -244,7 +244,7 @@ impl UserCenterRepository {
 
     /// 更新手机号。
     pub async fn update_mobile(&self, user_id: i32, mobile: &str) -> Result<bool> {
-        let n = sqlx::query("UPDATE user SET mobile = $1, mobile_validated = 1 WHERE user_id = $2")
+        let n = sqlx::query("UPDATE \"user\" SET mobile = $1, mobile_validated = 1 WHERE user_id = $2")
             .bind(mobile)
             .bind(user_id)
             .execute(&self.pool)
@@ -256,7 +256,7 @@ impl UserCenterRepository {
 
     /// 更新邮箱。
     pub async fn update_email(&self, user_id: i32, email: &str) -> Result<bool> {
-        let n = sqlx::query("UPDATE user SET email = $1, email_validated = 1 WHERE user_id = $2")
+        let n = sqlx::query("UPDATE \"user\" SET email = $1, email_validated = 1 WHERE user_id = $2")
             .bind(email)
             .bind(user_id)
             .execute(&self.pool)
@@ -268,7 +268,7 @@ impl UserCenterRepository {
 
     /// 禁用用户（`close` 接口，Java `closeUser`：`status = 0`）。
     pub async fn disable_user(&self, user_id: i32) -> Result<bool> {
-        let n = sqlx::query("UPDATE user SET status = 0 WHERE user_id = $1")
+        let n = sqlx::query("UPDATE \"user\" SET status = 0 WHERE user_id = $1")
             .bind(user_id)
             .execute(&self.pool)
             .await
@@ -279,7 +279,7 @@ impl UserCenterRepository {
 
     /// 更新浏览历史（JSON 数组字符串）。
     pub async fn update_history(&self, user_id: i32, history: &str) -> Result<bool> {
-        let n = sqlx::query("UPDATE user SET history_product_ids = $1 WHERE user_id = $2")
+        let n = sqlx::query("UPDATE \"user\" SET history_product_ids = $1 WHERE user_id = $2")
             .bind(history)
             .bind(user_id)
             .execute(&self.pool)
@@ -292,7 +292,7 @@ impl UserCenterRepository {
     /// 累加成长值（Java `user.setGrowthPoints(user.getGrowthPoints() + growthPoints)`）。
     pub async fn add_growth_points(&self, user_id: i32, delta: i32) -> Result<bool> {
         let n = sqlx::query(
-            "UPDATE user SET growth_points = growth_points + $1 WHERE user_id = $2",
+            "UPDATE \"user\" SET growth_points = growth_points + $1 WHERE user_id = $2",
         )
         .bind(delta)
         .bind(user_id)
@@ -305,7 +305,7 @@ impl UserCenterRepository {
 
     /// 只回写会员等级 ID（Java \"updateUserRank\" 的 \"LambdaUpdateWrapper\"）。
     pub async fn set_rank_id(&self, user_id: i32, rank_id: i32) -> Result<bool> {
-        let n = sqlx::query("UPDATE user SET rank_id = $1 WHERE user_id = $2")
+        let n = sqlx::query("UPDATE \"user\" SET rank_id = $1 WHERE user_id = $2")
             .bind(rank_id)
             .bind(user_id)
             .execute(&self.pool)

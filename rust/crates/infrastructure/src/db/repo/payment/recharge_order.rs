@@ -76,6 +76,7 @@ impl RechargeOrderRepository {
             sql.push_str(" AND status = ?");
         }
         sql.push_str(" ORDER BY add_time DESC");
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, UserWithdrawApply>(&sql).bind(user_id);
         if let Some(status) = status {
             q = q.bind(status);
@@ -96,6 +97,7 @@ impl RechargeOrderRepository {
             sql.push_str(" AND status = ?");
         }
         sql.push_str(" ORDER BY add_time DESC");
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, UserRechargeOrder>(&sql).bind(user_id);
         if let Some(status) = status {
             q = q.bind(status);
@@ -143,7 +145,7 @@ impl RechargeOrderRepository {
     }
 
     pub async fn find_user(&self, user_id: i32) -> Result<Option<User>> {
-        sqlx::query_as::<_, User>("SELECT * FROM user WHERE user_id = $1 LIMIT 1")
+        sqlx::query_as::<_, User>("SELECT * FROM \"user\" WHERE user_id = $1 LIMIT 1")
             .bind(user_id)
             .fetch_optional(&self.pool)
             .await

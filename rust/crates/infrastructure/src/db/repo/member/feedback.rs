@@ -387,7 +387,7 @@ impl FeedbackRepository {
             return Ok(HashMap::new());
         }
         let sql = format!(
-            "SELECT user_id, nickname FROM user WHERE user_id IN ({})",
+            "SELECT user_id, nickname FROM \"user\" WHERE user_id IN ({})",
             placeholders(user_ids.len())
         );
         let mut query = sqlx::query_as::<_, (i32, Option<String>)>(&sql);
@@ -467,7 +467,7 @@ impl FeedbackRepository {
     /// 「`user == null` 就不 `setNickname`」的可观测行为一致，**不**报错。
     pub async fn find_user_nickname(&self, user_id: i32) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> =
-            sqlx::query_as("SELECT nickname FROM user WHERE user_id = $1 LIMIT 1")
+            sqlx::query_as("SELECT nickname FROM \"user\" WHERE user_id = $1 LIMIT 1")
                 .bind(user_id)
                 .fetch_optional(&self.pool)
                 .await

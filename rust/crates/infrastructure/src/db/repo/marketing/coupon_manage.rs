@@ -418,7 +418,7 @@ impl CouponManageRepository {
     /// 每级正式会员数（Java `select rank_id, COUNT(*) ... user_type = 0 group by rank_id`）。
     pub async fn count_users_by_rank(&self) -> Result<Vec<(i32, i64)>> {
         let rows: Vec<(i32, i64)> = sqlx::query_as(
-            "SELECT rank_id, COUNT(*) FROM user WHERE user_type = 0 GROUP BY rank_id",
+            "SELECT rank_id, COUNT(*) FROM \"user\" WHERE user_type = 0 GROUP BY rank_id",
         )
         .fetch_all(&self.pool)
         .await
@@ -475,7 +475,7 @@ impl CouponManageRepository {
                     l.issue_time, l.source_type, uc.used_time
              FROM coupon_issue_log l
              LEFT JOIN coupon c ON c.coupon_id = l.coupon_id
-             LEFT JOIN user u ON u.user_id = l.user_id
+             LEFT JOIN \"user\" u ON u.user_id = l.user_id
              LEFT JOIN user_coupon uc ON uc.id = l.user_coupon_id
              WHERE 1 = 1",
         );
@@ -553,7 +553,7 @@ impl CouponManageRepository {
             return Ok(Vec::new());
         }
         let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new(
-            "SELECT user_id, nickname, mobile, status FROM user \
+            "SELECT user_id, nickname, mobile, status FROM \"user\" \
              WHERE user_type = 0 AND user_id IN (",
         );
         let mut sep = qb.separated(", ");
@@ -588,7 +588,7 @@ impl CouponManageRepository {
             return Ok(Vec::new());
         }
         let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new(
-            "SELECT user_id, nickname, mobile, status FROM user \
+            "SELECT user_id, nickname, mobile, status FROM \"user\" \
              WHERE user_type = 0 AND rank_id IN (",
         );
         let mut sep = qb.separated(", ");
@@ -647,7 +647,7 @@ impl CouponManageRepository {
     /// 已发放张数（Java \"getRemainingIssueCount\" 的 \"user_coupon\" 计数）。
     pub async fn count_user_coupons(&self, coupon_id: i32) -> Result<i64> {
         let row: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM user_coupon WHERE coupon_id = ?")
+            sqlx::query_as("SELECT COUNT(*) FROM user_coupon WHERE coupon_id = $1")
                 .bind(coupon_id)
                 .fetch_one(&self.pool)
                 .await

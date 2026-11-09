@@ -91,7 +91,7 @@ impl SalesmanContentRepository {
 
     /// 按主键查询分销内容（对应 Java `getById(id)`）。
     pub async fn find_by_id(&self, id: i32) -> Result<Option<SalesmanContent>> {
-        let sql = format!("SELECT {CONTENT_COLUMNS} FROM salesman_content WHERE id = ? LIMIT 1");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT {CONTENT_COLUMNS} FROM salesman_content WHERE id = ? LIMIT 1"));
         sqlx::query_as::<_, SalesmanContent>(&sql)
             .bind(id)
             .fetch_optional(&self.pool)
@@ -112,7 +112,7 @@ impl SalesmanContentRepository {
         user_id: i32,
     ) -> Result<Option<Option<i32>>> {
         let row: Option<(Option<i32>,)> =
-            sqlx::query_as("SELECT shop_id FROM salesman WHERE user_id = ? LIMIT 1")
+            sqlx::query_as("SELECT shop_id FROM salesman WHERE user_id = $1 LIMIT 1")
                 .bind(user_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -132,7 +132,7 @@ impl SalesmanContentRepository {
             "INSERT INTO salesman_content \
              (title, img, start_time, end_time, \"describe\", is_top, content, is_available, \
               shop_id, pics) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
         )
         .bind(&c.title)
         .bind(&c.img)
@@ -153,9 +153,9 @@ impl SalesmanContentRepository {
     /// 整行更新分销内容（对应 Java \"updateById\"；未提交字段由服务层合并原值）。
     pub async fn update(&self, c: &SalesmanContent) -> Result<u64> {
         let r = sqlx::query(
-            "UPDATE salesman_content SET title = ?, img = ?, start_time = ?, end_time = ?, \
-             \"describe\" = ?, is_top = ?, content = ?, is_available = ?, shop_id = ?, pics = ? \
-             WHERE id = ?",
+            "UPDATE salesman_content SET title = $1, img = $2, start_time = $3, end_time = $4, \
+             \"describe\" = $5, is_top = $6, content = $7, is_available = $8, shop_id = $9, pics = $10 \
+             WHERE id = $11",
         )
         .bind(&c.title)
         .bind(&c.img)
@@ -192,7 +192,7 @@ impl SalesmanContentRepository {
             "is_available" => "is_available",
             _ => return Err(Error::Validation("field 的值有误".into())),
         };
-        let sql = format!("UPDATE salesman_content SET {safe} = ? WHERE id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE salesman_content SET {safe} = ? WHERE id = ?"));
         let r = sqlx::query(&sql)
             .bind(val)
             .bind(id)
@@ -204,7 +204,7 @@ impl SalesmanContentRepository {
 
     /// 只更新失效时间（`updateField(isAvailable, "0")` 的联动副作用）。
     pub async fn set_end_time(&self, id: i32, end_time: i32) -> Result<u64> {
-        let r = sqlx::query("UPDATE salesman_content SET end_time = ? WHERE id = ?")
+        let r = sqlx::query("UPDATE salesman_content SET end_time = $1 WHERE id = $2")
             .bind(end_time)
             .bind(id)
             .execute(&self.pool)
@@ -215,7 +215,7 @@ impl SalesmanContentRepository {
 
     /// 按主键删除（对应 `BaseServiceImpl#del` → \"removeById\"）。
     pub async fn delete(&self, id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM salesman_content WHERE id = ?")
+        let r = sqlx::query("DELETE FROM salesman_content WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await

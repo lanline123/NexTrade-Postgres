@@ -173,7 +173,7 @@ impl SettlementService {
     pub async fn salesman_settlement(&self, order_id: i32, settlement_type: i32) -> Result<()> {
         let rows: Vec<(i32, Option<i32>, Option<Decimal>, Option<Decimal>)> = sqlx::query_as(
             "SELECT salesman_order_id, salesman_id, amount, order_amount \
-             FROM salesman_order WHERE order_id = ?",
+             FROM salesman_order WHERE order_id = $1",
         )
         .bind(order_id)
         .fetch_all(self.pool())
@@ -183,8 +183,8 @@ impl SettlementService {
         for (sid, salesman_id, amount, order_amount) in rows {
             // 已结算（!=0）跳过；条件更新保证并发 / 重放安全
             let claimed = sqlx::query(
-                "UPDATE salesman_order SET status = 1, settlement_time = ? \
-                 WHERE salesman_order_id = ? AND status = 0",
+                "UPDATE salesman_order SET status = 1, settlement_time = $1 \
+                 WHERE salesman_order_id = $2 AND status = 0",
             )
             .bind(now)
             .bind(sid)
@@ -199,8 +199,8 @@ impl SettlementService {
             let Some(salesman_id) = salesman_id else { continue };
             // 累计推广金额
             let _ = sqlx::query(
-                "UPDATE salesman SET sale_amount = COALESCE(sale_amount, 0) + ? \
-                 WHERE salesman_id = ?",
+                "UPDATE salesman SET sale_amount = COALESCE(sale_amount, 0) + $1 \
+                 WHERE salesman_id = $2",
             )
             .bind(order_amount.unwrap_or(Decimal::ZERO))
             .bind(salesman_id)
@@ -230,7 +230,7 @@ impl SettlementService {
         amount: Decimal,
     ) -> Result<()> {
         let user_id: Option<i32> = sqlx::query_scalar(
-            "SELECT user_id FROM salesman WHERE salesman_id = ?",
+            "SELECT user_id FROM salesman WHERE salesman_id = $1",
         )
         .bind(salesman_id)
         .fetch_optional(self.pool())
@@ -242,7 +242,7 @@ impl SettlementService {
         if amount <= Decimal::ZERO {
             return Ok(());
         }
-        let order_sn: String = sqlx::query_scalar("SELECT order_sn FROM \"order\" WHERE order_id = ?")
+        let order_sn: String = sqlx::query_scalar("SELECT order_sn FROM \"order\" WHERE order_id = $1")
             .bind(order_id)
             .fetch_optional(self.pool())
             .await
@@ -279,7 +279,7 @@ impl SettlementService {
              (user_id, before_balance, balance, after_balance, frozen_balance, \
               before_frozen_balance, after_frozen_balance, change_time, change_desc, \
               change_type, wallet_type, new_balance, new_frozen_balance) \
-             VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 1, 1, ?, ?)",
+             VALUES ($1, $2, $3, $4, 0, $5, $6, $7, $8, 1, 1, $9, $10)",
         )
         .bind(user_id)
         .bind(before)
@@ -304,7 +304,7 @@ impl SettlementService {
         }
         let total: Decimal = sqlx::query_scalar(
             "SELECT COALESCE(SUM(amount), 0) FROM salesman_order \
-             WHERE order_id = ? AND status <> ?",
+             WHERE order_id = $1 AND status <> $2",
         )
         .bind(order.order_id)
         .bind(SALESMAN_ORDER_INVALID)
@@ -318,7 +318,7 @@ impl SettlementService {
             "INSERT INTO statement_output \
              (shop_id, vendor_id, income, expenditure, gmt_create, record_sn, \
               record_type, record_id, settlement_status, real_settlement) \
-             VALUES (?, ?, 0, ?, ?, ?, ?, ?, 0, 0)",
+             VALUES ($1, $2, 0, $3, $4, $5, $6, $7, 0, 0)",
         )
         .bind(order.shop_id)
         .bind(order.vendor_id)
@@ -346,7 +346,7 @@ impl SettlementService {
         }
         let Some((shop_money, frozen_money)) =
             sqlx::query_as::<_, (Option<Decimal>, Option<Decimal>)>(
-                "SELECT shop_money, frozen_money FROM shop WHERE shop_id = ?",
+                "SELECT shop_money, frozen_money FROM shop WHERE shop_id = $1",
             )
             .bind(order.shop_id)
             .fetch_optional(self.pool())
@@ -358,7 +358,7 @@ impl SettlementService {
         };
         // 原子抢占结算权（MQ 重投 / 多实例并发防护）
         let claimed = sqlx::query(
-            "UPDATE \"order\" SET is_settlement = 1 WHERE order_id = ? AND is_settlement = 0",
+            "UPDATE \"order\" SET is_settlement = 1 WHERE order_id = $1 AND is_settlement = 0",
         )
         .bind(order_id)
         .execute(self.pool())
@@ -373,7 +373,7 @@ impl SettlementService {
         // 已完成售后的退款额
         let aftersales: Vec<(i32, Option<Decimal>)> = sqlx::query_as(
             "SELECT aftersale_id, refund_amount FROM aftersales \
-             WHERE order_id = ? AND status = ?",
+             WHERE order_id = $1 AND status = $2",
         )
         .bind(order_id)
         .bind(AFTERSALES_COMPLETE)
@@ -397,7 +397,7 @@ impl SettlementService {
         // 分销佣金由店铺承担
         let commission: Decimal = sqlx::query_scalar(
             "SELECT COALESCE(SUM(amount), 0) FROM salesman_order \
-             WHERE order_id = ? AND status <> ?",
+             WHERE order_id = $1 AND status <> $2",
         )
         .bind(order_id)
         .bind(SALESMAN_ORDER_INVALID)
@@ -461,7 +461,7 @@ impl SettlementService {
         }
         let old_shop = shop_money.unwrap_or(Decimal::ZERO);
         let frozen = frozen_money.unwrap_or(Decimal::ZERO);
-        let _ = sqlx::query("UPDATE shop SET shop_money = shop_money + ? WHERE shop_id = ?")
+        let _ = sqlx::query("UPDATE shop SET shop_money = shop_money + $1 WHERE shop_id = $2")
             .bind(delta)
             .bind(order.shop_id)
             .execute(self.pool())
@@ -470,7 +470,7 @@ impl SettlementService {
             "INSERT INTO shop_account_log \
              (add_time, shop_money, frozen_money, \"type\", new_shop_money, \
               new_frozen_money, shop_id, is_new) \
-             VALUES (?, ?, ?, '4', ?, ?, ?, 1)",
+             VALUES ($1, $2, $3, '4', $4, $5, $6, 1)",
         )
         .bind(now_i32())
         .bind(old_shop)
@@ -496,7 +496,7 @@ impl SettlementService {
         }
         let old_shop = shop_money.unwrap_or(Decimal::ZERO);
         let frozen = frozen_money.unwrap_or(Decimal::ZERO);
-        let _ = sqlx::query("UPDATE shop SET shop_money = shop_money - ? WHERE shop_id = ?")
+        let _ = sqlx::query("UPDATE shop SET shop_money = shop_money - $1 WHERE shop_id = $2")
             .bind(delta)
             .bind(order.shop_id)
             .execute(self.pool())
@@ -505,7 +505,7 @@ impl SettlementService {
             "INSERT INTO shop_account_log \
              (add_time, shop_money, frozen_money, \"type\", new_shop_money, \
               new_frozen_money, shop_id, is_new) \
-             VALUES (?, ?, ?, '4', ?, ?, ?, 1)",
+             VALUES ($1, $2, $3, '4', $4, $5, $6, 1)",
         )
         .bind(now_i32())
         .bind(old_shop)
@@ -522,7 +522,7 @@ impl SettlementService {
     async fn vendor_order_amount(&self, order_id: i32) -> Result<Decimal> {
         let rows: Vec<(Option<Decimal>, i32)> = sqlx::query_as(
             "SELECT vendor_product_supply_price, quantity FROM order_item \
-             WHERE order_id = ? AND vendor_id IS NOT NULL",
+             WHERE order_id = $1 AND vendor_id IS NOT NULL",
         )
         .bind(order_id)
         .fetch_all(self.pool())
@@ -539,7 +539,7 @@ impl SettlementService {
         let ids: Vec<i32> = match aftersale_id {
             Some(id) => vec![id],
             None => sqlx::query_scalar(
-                "SELECT aftersale_id FROM aftersales WHERE order_id = ? AND status = ?",
+                "SELECT aftersale_id FROM aftersales WHERE order_id = $1 AND status = $2",
             )
             .bind(order_id)
             .bind(AFTERSALES_COMPLETE)
@@ -551,10 +551,10 @@ impl SettlementService {
             return Ok(Decimal::ZERO);
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
+        let sql = nextrade_infrastructure::db::to_pg_placeholders(&format!(
             "SELECT ai.order_item_id, SUM(ai.number) \
              FROM aftersales_item ai WHERE ai.aftersale_id IN ({ph}) GROUP BY ai.order_item_id"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in &ids {
             q = q.bind(id);
@@ -570,10 +570,10 @@ impl SettlementService {
         }
         let item_ids: Vec<i32> = refunded.keys().copied().collect();
         let ph2 = vec!["?"; item_ids.len()].join(", ");
-        let sql2 = format!(
+        let sql2 = nextrade_infrastructure::db::to_pg_placeholders(&format!(
             "SELECT item_id, vendor_product_supply_price FROM order_item \
              WHERE order_id = ? AND vendor_id IS NOT NULL AND item_id IN ({ph2})"
-        );
+        ));
         let mut q2 = sqlx::query_as::<_, (i32, Option<Decimal>)>(&sql2);
         q2 = q2.bind(order_id);
         for id in &item_ids {
@@ -612,7 +612,7 @@ impl SettlementService {
         }
         let paylogs: Vec<(String, Decimal)> = sqlx::query_as(
             "SELECT pay_code, pay_amount FROM paylog \
-             WHERE order_id = ? AND order_type = 0 AND pay_status = 1 AND pay_amount > 0 \
+             WHERE order_id = $1 AND order_type = 0 AND pay_status = 1 AND pay_amount > 0 \
              ORDER BY paylog_id DESC",
         )
         .bind(order.order_id)
@@ -625,7 +625,7 @@ impl SettlementService {
             };
             let active: Option<i64> = sqlx::query_scalar(
                 "SELECT id FROM sub_merchant \
-                 WHERE shop_id = ? AND pay_channel = ? AND status = 1 AND is_del = 0 \
+                 WHERE shop_id = $1 AND pay_channel = $2 AND status = 1 AND is_del = 0 \
                  LIMIT 1",
             )
             .bind(order.shop_id)
@@ -644,7 +644,7 @@ impl SettlementService {
     async fn shop_service_fee(&self, order_id: i32) -> Result<Decimal> {
         let rate: Option<Decimal> = sqlx::query_scalar(
             "SELECT shop_service_fee FROM record_rate \
-             WHERE record_id = ? AND record_type = ? ORDER BY record_rate_id DESC LIMIT 1",
+             WHERE record_id = $1 AND record_type = $2 ORDER BY record_rate_id DESC LIMIT 1",
         )
         .bind(order_id)
         .bind(statement_type::ORDER)
@@ -657,8 +657,8 @@ impl SettlementService {
     /// Java \"updateStatement2Settlement\"：出账单标记已结算。
     async fn mark_output_settled(&self, record_id: i32, record_type: i32) -> Result<()> {
         let n = sqlx::query(
-            "UPDATE statement_output SET real_settlement = 1, real_settlement_time = ? \
-             WHERE record_id = ? AND record_type = ?",
+            "UPDATE statement_output SET real_settlement = 1, real_settlement_time = $1 \
+             WHERE record_id = $2 AND record_type = $3",
         )
         .bind(now_i32())
         .bind(record_id)
@@ -695,7 +695,7 @@ impl SettlementService {
     /// Java `confirmReceipt` 末段：本单各分销记录 + 自购分销员的等级升级。
     async fn salesman_upgrade_fanout(&self, order: &Order) -> Result<()> {
         let salesman_ids: Vec<i32> = sqlx::query_scalar(
-            "SELECT DISTINCT salesman_id FROM salesman_order WHERE order_id = ?",
+            "SELECT DISTINCT salesman_id FROM salesman_order WHERE order_id = $1",
         )
         .bind(order.order_id)
         .fetch_all(self.pool())
@@ -705,7 +705,7 @@ impl SettlementService {
             let _ = self.salesman_update(salesman_id).await;
         }
         let self_buyer: Option<i32> =
-            sqlx::query_scalar("SELECT salesman_id FROM salesman WHERE user_id = ?")
+            sqlx::query_scalar("SELECT salesman_id FROM salesman WHERE user_id = $1")
                 .bind(order.user_id)
                 .fetch_optional(self.pool())
                 .await
@@ -727,7 +727,7 @@ impl SettlementService {
         };
         for _ in 0..=SALESMAN_MAX_UPGRADES {
             let Ok(Some((level, user_id))) = sqlx::query_as::<_, (Option<i32>, Option<i32>)>(
-                "SELECT level, user_id FROM salesman WHERE salesman_id = ?",
+                "SELECT level, user_id FROM salesman WHERE salesman_id = $1",
             )
             .bind(salesman_id)
             .fetch_optional(self.pool())
@@ -748,7 +748,7 @@ impl SettlementService {
             // 三个可选门槛：发展客户数 / 自购金额 / 推广金额（已结算口径）
             if let Some(required) = condition_threshold(condition, "salesInviteUsers") {
                 let invitees: i64 = sqlx::query_scalar(
-                    "SELECT COUNT(*) FROM salesman_customer WHERE salesman_id = ?",
+                    "SELECT COUNT(*) FROM salesman_customer WHERE salesman_id = $1",
                 )
                 .bind(salesman_id)
                 .fetch_one(self.pool())
@@ -762,7 +762,7 @@ impl SettlementService {
                 let Some(uid) = user_id else { return Ok(()) };
                 let self_buy: Decimal = sqlx::query_scalar(
                     "SELECT COALESCE(SUM(total_amount), 0) FROM \"order\" \
-                     WHERE user_id = ? AND order_status = 5",
+                     WHERE user_id = $1 AND order_status = 5",
                 )
                 .bind(uid)
                 .fetch_one(self.pool())
@@ -775,7 +775,7 @@ impl SettlementService {
             if let Some(required) = condition_threshold(condition, "salesAmount") {
                 let sales: Decimal = sqlx::query_scalar(
                     "SELECT COALESCE(SUM(order_amount), 0) FROM salesman_order \
-                     WHERE salesman_id = ? AND status = 1",
+                     WHERE salesman_id = $1 AND status = 1",
                 )
                 .bind(salesman_id)
                 .fetch_one(self.pool())
@@ -785,7 +785,7 @@ impl SettlementService {
                     return Ok(());
                 }
             }
-            let _ = sqlx::query("UPDATE salesman SET level = ? WHERE salesman_id = ?")
+            let _ = sqlx::query("UPDATE salesman SET level = $1 WHERE salesman_id = $2")
                 .bind(next_level)
                 .bind(salesman_id)
                 .execute(self.pool())
@@ -798,7 +798,7 @@ impl SettlementService {
     /// 读取 `salesman_config.data` JSON（code 命中且可解析时）。
     async fn salesman_config_data(&self, code: &str) -> Result<Option<Value>> {
         let raw: Option<String> = sqlx::query_scalar(
-            "SELECT data FROM salesman_config WHERE code = ? LIMIT 1",
+            "SELECT data FROM salesman_config WHERE code = $1 LIMIT 1",
         )
         .bind(code)
         .fetch_optional(self.pool())
@@ -817,7 +817,7 @@ impl SettlementService {
     /// 账期支付订单（\"credit_order\" 存在）跳过店铺退款结算（Java 同款门）。
     pub async fn on_refund_completed(&self, aftersale_id: i32) {
         let row: Option<(i32, Option<i32>, Option<Decimal>)> = sqlx::query_as(
-            "SELECT order_id, vendor_id, refund_amount FROM aftersales WHERE aftersale_id = ?",
+            "SELECT order_id, vendor_id, refund_amount FROM aftersales WHERE aftersale_id = $1",
         )
         .bind(aftersale_id)
         .fetch_optional(self.pool())
@@ -828,7 +828,7 @@ impl SettlementService {
             return;
         };
         let credit: Option<i32> = sqlx::query_scalar(
-            "SELECT credit_order_id FROM credit_order WHERE order_id = ? LIMIT 1",
+            "SELECT credit_order_id FROM credit_order WHERE order_id = $1 LIMIT 1",
         )
         .bind(order_id)
         .fetch_optional(self.pool())
@@ -843,7 +843,7 @@ impl SettlementService {
                     // Java generateStatement(aftersales)：退款出账单（type 7，record=售后）
                     let exists: i64 = sqlx::query_scalar(
                         "SELECT COUNT(*) FROM statement_output \
-                         WHERE record_id = ? AND record_type = ?",
+                         WHERE record_id = $1 AND record_type = $2",
                     )
                     .bind(aftersale_id)
                     .bind(statement_type::ORDER_REFUND)
@@ -855,7 +855,7 @@ impl SettlementService {
                             "INSERT INTO statement_output \
                              (shop_id, vendor_id, income, expenditure, gmt_create, record_sn, \
                               record_type, record_id, settlement_status, real_settlement) \
-                             VALUES (?, ?, 0, ?, ?, '', ?, ?, 0, 0)",
+                             VALUES ($1, $2, 0, $3, $4, '', $5, $6, 0, 0)",
                         )
                         .bind(order.shop_id)
                         .bind(order.vendor_id)
@@ -887,7 +887,7 @@ impl SettlementService {
     pub async fn dissolve_group_by_captain_refund(&self, captain_order_id: i32) -> Result<()> {
         let captain: Option<(i32, i64, i32, i32)> = sqlx::query_as(
             "SELECT join_type, open_group_record_id, join_status, min_group_num \
-             FROM groupon_promotion_record WHERE order_id = ? LIMIT 1",
+             FROM groupon_promotion_record WHERE order_id = $1 LIMIT 1",
         )
         .bind(captain_order_id)
         .fetch_optional(self.pool())
@@ -904,7 +904,7 @@ impl SettlementService {
         }
         let members: Vec<(i64, i64, Decimal)> = sqlx::query_as(
             "SELECT order_id, user_id, paid_amount FROM groupon_promotion_record \
-             WHERE open_group_record_id = ? AND join_status = ? AND order_id <> ? AND user_id <> 0",
+             WHERE open_group_record_id = $1 AND join_status = $2 AND order_id <> $3 AND user_id <> 0",
         )
         .bind(open_group_id)
         .bind(JOIN_STATUS_WAIT)
@@ -943,7 +943,7 @@ impl SettlementService {
     /// Java `RabbitMqConsumer#refundSettlementMessage`：售后完成后的店铺退款结算。
     pub async fn refund_settlement(&self, aftersale_id: i32) -> Result<()> {
         let Some((order_id, refund_amount)) = sqlx::query_as::<_, (i32, Option<Decimal>)>(
-            "SELECT order_id, refund_amount FROM aftersales WHERE aftersale_id = ?",
+            "SELECT order_id, refund_amount FROM aftersales WHERE aftersale_id = $1",
         )
         .bind(aftersale_id)
         .fetch_optional(self.pool())
@@ -962,7 +962,7 @@ impl SettlementService {
             return Ok(());
         }
         let shop_row = sqlx::query_as::<_, (Option<Decimal>, Option<Decimal>)>(
-            "SELECT shop_money, frozen_money FROM shop WHERE shop_id = ?",
+            "SELECT shop_money, frozen_money FROM shop WHERE shop_id = $1",
         )
         .bind(order.shop_id)
         .fetch_optional(self.pool())
@@ -976,7 +976,7 @@ impl SettlementService {
         let mut shop_refund = Decimal::ZERO;
         let rows: Vec<Option<Decimal>> = sqlx::query_scalar(
             "SELECT refund_amount FROM aftersales \
-             WHERE order_id = ? AND aftersale_id = ? AND status = ?",
+             WHERE order_id = $1 AND aftersale_id = $2 AND status = $3",
         )
         .bind(order_id)
         .bind(aftersale_id)
@@ -993,7 +993,7 @@ impl SettlementService {
         // 待结算佣金返还店铺（减少店铺扣减额）
         let pending: Decimal = sqlx::query_scalar(
             "SELECT COALESCE(SUM(expenditure), 0) FROM statement_output \
-             WHERE record_id = ? AND record_type = ? AND real_settlement = 0",
+             WHERE record_id = $1 AND record_type = $2 AND real_settlement = 0",
         )
         .bind(order_id)
         .bind(statement_type::DISTRIBUTION_COMMISSION)

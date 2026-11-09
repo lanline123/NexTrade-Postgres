@@ -58,10 +58,10 @@ impl LocalesRepository {
         offset: u64,
     ) -> Result<(u64, Vec<Locales>)> {
         let where_sql = match is_enabled {
-            Some(v) => "WHERE is_enabled = ?".to_string(),
+            Some(v) => "WHERE is_enabled = $1".to_string(),
             None => String::new(),
         };
-        let count_sql = format!("SELECT COUNT(*) FROM locales {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM locales {where_sql}"));
         let count: i64 = if is_enabled.is_some() {
             sqlx::query_scalar(&count_sql)
                 .bind(is_enabled.unwrap_or(1))
@@ -87,7 +87,7 @@ impl LocalesRepository {
 
     /// 按主键查单条（Java `getById`）。
     pub async fn find_by_id(&self, id: i32) -> Result<Option<Locales>> {
-        let sql = Self::select_sql("WHERE id = ? LIMIT 1");
+        let sql = Self::select_sql("WHERE id = $1 LIMIT 1");
         sqlx::query_as::<_, Locales>(&sql)
             .bind(id)
             .fetch_optional(&self.pool)
@@ -108,7 +108,7 @@ impl LocalesRepository {
     /// `is_enabled = 1 AND locale_code <> 'zh' LIMIT n`）。
     pub async fn find_enabled_non_zh_limit(&self, limit: u64) -> Result<Vec<Locales>> {
         let sql = Self::select_sql(
-            "WHERE is_enabled = 1 AND locale_code <> 'zh' ORDER BY id ASC LIMIT ?",
+            "WHERE is_enabled = 1 AND locale_code <> 'zh' ORDER BY id ASC LIMIT $1",
         );
         sqlx::query_as::<_, Locales>(&sql)
             .bind(limit as i64)
@@ -201,7 +201,7 @@ impl LocalesRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = format!("DELETE FROM locales WHERE id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM locales WHERE id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(id);

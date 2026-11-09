@@ -78,7 +78,7 @@ impl SalesmanProductRepository {
         offset: i64,
     ) -> Result<(i64, Vec<SalesmanProductRow>)> {
         let (from_where, binds) = build_from_where(q, shop_id);
-        let count_sql = format!("SELECT COUNT(*) FROM {from_where}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM {from_where}"));
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
         for b in &binds {
             count_q = match b {
@@ -88,9 +88,9 @@ impl SalesmanProductRepository {
         }
         let total: (i64,) = count_q.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT p.product_id, p.product_name, p.product_sn, p.product_tsn, p.product_stock, p.product_price, p.market_price, p.cost_price, p.product_status, p.product_type, p.pic_url, p.pic_thumb, p.is_delete, p.add_time, p.last_update, sp.salesman_product_id, sp.is_join, sp.commission_type, sp.commission_data, sp.add_time AS sp_add_time, sp.update_time AS sp_update_time FROM {from_where} ORDER BY p.product_id DESC LIMIT {limit} OFFSET {offset}"
-        );
+        ));
         let mut rows_q = sqlx::query_as::<_, SalesmanProductRow>(&rows_sql);
         for b in &binds {
             rows_q = match b {
@@ -168,9 +168,9 @@ impl SalesmanProductRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "DELETE FROM salesman_product WHERE salesman_product_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(*id);

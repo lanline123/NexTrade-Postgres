@@ -71,7 +71,7 @@ impl ShopAccountLogRepository {
     pub async fn find_shop(&self, shop_id: i32) -> Result<Option<ShopAccountRow>> {
         sqlx::query_as::<_, ShopAccountRow>(
             "SELECT shop_id, shop_title, shop_money, frozen_money, status FROM shop \
-             WHERE shop_id = ? LIMIT 1",
+             WHERE shop_id = $1 LIMIT 1",
         )
         .bind(shop_id)
         .fetch_optional(&self.pool)
@@ -96,7 +96,7 @@ impl ShopAccountLogRepository {
         let page = q.page_query();
         let size = u64::from(page.page_size);
         let offset = u64::from(page.page - 1) * size;
-        let count_sql = format!("SELECT COUNT(*) FROM user_balance_log{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM user_balance_log{where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         for b in &binds {
             cq = match b {
@@ -105,11 +105,11 @@ impl ShopAccountLogRepository {
             };
         }
         let total = cq.fetch_one(&self.pool).await.map_err(map_err)?.0;
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT log_id, user_id, before_balance, balance, after_balance, frozen_balance, \
              wallet_type, change_desc, change_type, change_time FROM user_balance_log{where_sql} \
              ORDER BY log_id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let mut rq = sqlx::query_as::<_, UserAccountLogRow>(&rows_sql);
         for b in &binds {
             rq = match b {

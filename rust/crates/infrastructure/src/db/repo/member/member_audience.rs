@@ -24,7 +24,7 @@ impl MemberAudienceRepository {
         match audience {
             Audience::All => {
                 let (n,): (i64,) =
-                    sqlx::query_as("SELECT COUNT(*) FROM user WHERE user_type = $1")
+                    sqlx::query_as("SELECT COUNT(*) FROM \"user\" WHERE user_type = $1")
                         .bind(USER_TYPE_MEMBER)
                         .fetch_one(&self.pool)
                         .await
@@ -36,9 +36,9 @@ impl MemberAudienceRepository {
                     return Ok(0);
                 }
                 let ph = vec!["?"; rank_ids.len()].join(", ");
-                let sql = format!(
-                    "SELECT COUNT(*) FROM user WHERE user_type = $1 AND rank_id IN ({ph})"
-                );
+                let sql = crate::db::to_pg_placeholders(&format!(
+                    "SELECT COUNT(*) FROM \"user\" WHERE user_type = $1 AND rank_id IN ({ph})"
+                ));
                 let mut q = sqlx::query_as::<_, (i64,)>(&sql).bind(USER_TYPE_MEMBER);
                 for id in rank_ids {
                     q = q.bind(*id);
@@ -55,11 +55,11 @@ impl MemberAudienceRepository {
                 let ph = vec!["?"; tag_ids.len()].join(", ");
                 let sql = if *match_all {
                     format!(
-                        "SELECT COUNT(*) FROM (SELECT ut.user_id FROM user_member_tag ut JOIN user u ON u.user_id = ut.user_id AND u.user_type = $1 WHERE ut.tag_id IN ({ph}) GROUP BY ut.user_id HAVING COUNT(DISTINCT ut.tag_id) = $2) t"
+                        "SELECT COUNT(*) FROM (SELECT ut.user_id FROM user_member_tag ut JOIN \"user\" u ON u.user_id = ut.user_id AND u.user_type = $1 WHERE ut.tag_id IN ({ph}) GROUP BY ut.user_id HAVING COUNT(DISTINCT ut.tag_id) = $2) t"
                     )
                 } else {
                     format!(
-                        "SELECT COUNT(DISTINCT ut.user_id) FROM user_member_tag ut JOIN user u ON u.user_id = ut.user_id AND u.user_type = $1 WHERE ut.tag_id IN ({ph})"
+                        "SELECT COUNT(DISTINCT ut.user_id) FROM user_member_tag ut JOIN \"user\" u ON u.user_id = ut.user_id AND u.user_type = $1 WHERE ut.tag_id IN ({ph})"
                     )
                 };
                 let mut q = sqlx::query_as::<_, (i64,)>(&sql).bind(USER_TYPE_MEMBER);
@@ -82,7 +82,7 @@ impl MemberAudienceRepository {
         match audience {
             Audience::All => {
                 let rows: Vec<(i32,)> =
-                    sqlx::query_as("SELECT user_id FROM user WHERE user_type = $1")
+                    sqlx::query_as("SELECT user_id FROM \"user\" WHERE user_type = $1")
                         .bind(USER_TYPE_MEMBER)
                         .fetch_all(&self.pool)
                         .await
@@ -94,9 +94,9 @@ impl MemberAudienceRepository {
                     return Ok(Vec::new());
                 }
                 let ph = vec!["?"; rank_ids.len()].join(", ");
-                let sql = format!(
-                    "SELECT user_id FROM user WHERE user_type = $1 AND rank_id IN ({ph})"
-                );
+                let sql = crate::db::to_pg_placeholders(&format!(
+                    "SELECT user_id FROM \"user\" WHERE user_type = $1 AND rank_id IN ({ph})"
+                ));
                 let mut q = sqlx::query_as::<_, (i32,)>(&sql).bind(USER_TYPE_MEMBER);
                 for id in rank_ids {
                     q = q.bind(*id);
@@ -115,11 +115,11 @@ impl MemberAudienceRepository {
                 let ph = vec!["?"; tag_ids.len()].join(", ");
                 let sql = if *match_all {
                     format!(
-                        "SELECT ut.user_id FROM user_member_tag ut JOIN user u ON u.user_id = ut.user_id AND u.user_type = $1 WHERE ut.tag_id IN ({ph}) GROUP BY ut.user_id HAVING COUNT(DISTINCT ut.tag_id) = $2"
+                        "SELECT ut.user_id FROM user_member_tag ut JOIN \"user\" u ON u.user_id = ut.user_id AND u.user_type = $1 WHERE ut.tag_id IN ({ph}) GROUP BY ut.user_id HAVING COUNT(DISTINCT ut.tag_id) = $2"
                     )
                 } else {
                     format!(
-                        "SELECT DISTINCT ut.user_id FROM user_member_tag ut JOIN user u ON u.user_id = ut.user_id AND u.user_type = $1 WHERE ut.tag_id IN ({ph})"
+                        "SELECT DISTINCT ut.user_id FROM user_member_tag ut JOIN \"user\" u ON u.user_id = ut.user_id AND u.user_type = $1 WHERE ut.tag_id IN ({ph})"
                     )
                 };
                 let mut q = sqlx::query_as::<_, (i32,)>(&sql).bind(USER_TYPE_MEMBER);
@@ -145,9 +145,9 @@ impl MemberAudienceRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; user_ids.len()].join(", ");
-        let sql = format!(
-            "SELECT user_id FROM user WHERE user_type = $1 AND user_id IN ({ph})"
-        );
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT user_id FROM \"user\" WHERE user_type = $1 AND user_id IN ({ph})"
+        ));
         let mut q = sqlx::query_as::<_, (i32,)>(&sql).bind(USER_TYPE_MEMBER);
         for id in user_ids {
             q = q.bind(*id);
@@ -180,7 +180,7 @@ impl MemberAudienceRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; rank_ids.len()].join(", ");
-        let sql = format!("SELECT rank_name FROM user_rank WHERE rank_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT rank_name FROM user_rank WHERE rank_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, (String,)>(&sql);
         for id in rank_ids {
             q = q.bind(*id);
@@ -199,7 +199,7 @@ impl MemberAudienceRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; tag_ids.len()].join(", ");
-        let sql = format!("SELECT tag_name FROM member_tag WHERE id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT tag_name FROM member_tag WHERE id IN ({ph})"));
         let mut q = sqlx::query_as::<_, (String,)>(&sql);
         for id in tag_ids {
             q = q.bind(*id);

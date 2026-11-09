@@ -25,9 +25,9 @@ use nextrade_core::{Error, Result};
 
 /// `user` 中「可自动重置密码」的候选行（Java `LIMIT 2` 用于判定唯一性）。
 const RESET_MOBILE_SQL: &str =
-    "SELECT user_id, status FROM user WHERE mobile = $1 LIMIT 2";
+    "SELECT user_id, status FROM \"user\" WHERE mobile = $1 LIMIT 2";
 const RESET_EMAIL_SQL: &str =
-    "SELECT user_id, status FROM user WHERE email = $1 LIMIT 2";
+    "SELECT user_id, status FROM \"user\" WHERE email = $1 LIMIT 2";
 
 /// 会员登录域仓储（持有连接池）。
 #[derive(Clone)]
@@ -96,7 +96,7 @@ impl LoginRepository {
         mobile: &str,
     ) -> Result<Option<(i32, String, i32)>> {
         let row: Option<(i32, String, Option<i32>)> = sqlx::query_as(
-            "SELECT user_id, username, status FROM user WHERE mobile = $1 LIMIT 1",
+            "SELECT user_id, username, status FROM \"user\" WHERE mobile = $1 LIMIT 1",
         )
         .bind(mobile)
         .fetch_optional(&self.pool)
@@ -111,7 +111,7 @@ impl LoginRepository {
     /// 数据库失败 → `Error::Database`。
     pub async fn username_exists(&self, username: &str) -> Result<bool> {
         let (count,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM user WHERE username = $1")
+            sqlx::query_as("SELECT COUNT(*) FROM \"user\" WHERE username = $1")
                 .bind(username)
                 .fetch_one(&self.pool)
                 .await
@@ -125,7 +125,7 @@ impl LoginRepository {
     /// 数据库失败 → `Error::Database`。
     pub async fn user_status(&self, user_id: i32) -> Result<Option<i32>> {
         let row: Option<(Option<i32>,)> =
-            sqlx::query_as("SELECT status FROM user WHERE user_id = $1 LIMIT 1")
+            sqlx::query_as("SELECT status FROM \"user\" WHERE user_id = $1 LIMIT 1")
                 .bind(user_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -140,7 +140,7 @@ impl LoginRepository {
     /// # Errors
     /// 数据库失败 → `Error::Database`。
     pub async fn update_password(&self, user_id: i32, password_hash: &str) -> Result<bool> {
-        let result = sqlx::query("UPDATE user SET password = $1 WHERE user_id = $2")
+        let result = sqlx::query("UPDATE \"user\" SET password = $1 WHERE user_id = $2")
             .bind(password_hash)
             .bind(user_id)
             .execute(&self.pool)
@@ -157,7 +157,7 @@ impl LoginRepository {
     /// # Errors
     /// 数据库失败 → `Error::Database`。
     pub async fn set_mobile_validated(&self, user_id: i32) -> Result<()> {
-        sqlx::query("UPDATE user SET mobile_validated = 1 WHERE user_id = $1")
+        sqlx::query("UPDATE \"user\" SET mobile_validated = 1 WHERE user_id = $1")
             .bind(user_id)
             .execute(&self.pool)
             .await
@@ -182,7 +182,7 @@ impl LoginRepository {
         referrer_user_id: i32,
     ) -> Result<i32> {
         let result: i32 = sqlx::query_scalar(
-            "INSERT INTO user (username, avatar, mobile, mobile_validated, nickname, password, reg_time, referrer_user_id) VALUES ($1, $2, $3, 1, $4, $5, $6, $7) RETURNING user_id",
+            "INSERT INTO \"user\" (username, avatar, mobile, mobile_validated, nickname, password, reg_time, referrer_user_id) VALUES ($1, $2, $3, 1, $4, $5, $6, $7) RETURNING user_id",
         )
         .bind(username)
         .bind(avatar)
@@ -202,7 +202,7 @@ impl LoginRepository {
     /// # Errors
     /// 数据库失败 → `Error::Database`。
     pub async fn touch_last_login(&self, user_id: i32, ip: &str, now: i32) -> Result<()> {
-        sqlx::query("UPDATE user SET last_login = $1, last_ip = $2 WHERE user_id = $3")
+        sqlx::query("UPDATE \"user\" SET last_login = $1, last_ip = $2 WHERE user_id = $3")
             .bind(now)
             .bind(ip)
             .bind(user_id)

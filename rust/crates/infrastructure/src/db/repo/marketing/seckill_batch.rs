@@ -107,9 +107,9 @@ impl SeckillBatchRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT seckill_id, seckill_name, seckill_limit_num FROM seckill WHERE seckill_id IN ({ph})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, Option<String>, Option<i32>)>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -124,7 +124,7 @@ impl SeckillBatchRepository {
             return Ok(HashMap::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!("SELECT product_id, product_name FROM product WHERE product_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT product_id, product_name FROM product WHERE product_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in ids {
             q = q.bind(id);

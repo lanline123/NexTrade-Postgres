@@ -164,13 +164,13 @@ impl RefundLogRepository {
         offset: i64,
     ) -> Result<(i64, Vec<RefundLog>)> {
         let (from, where_sql, binds) = build_from_where(q);
-        let count_sql = format!("SELECT COUNT(*) FROM {from}{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM {from}{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&count_sql), binds)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {} FROM {from}{where_sql}{} LIMIT {limit} OFFSET {offset}",
             REFUND_LOG_COLUMNS
                 .iter()
@@ -178,7 +178,7 @@ impl RefundLogRepository {
                 .collect::<Vec<_>>()
                 .join(", "),
             q.order_clause()
-        );
+        ));
         let rows: Vec<RefundLog> = bind_all!(
             sqlx::query_as::<_, RefundLog>(&rows_sql),
             binds
@@ -386,7 +386,7 @@ mod tests {
             from,
             "refund_log LEFT JOIN refund_apply ON refund_apply.refund_id = refund_log.refund_apply_id LEFT JOIN aftersales ON aftersales.aftersale_id = refund_apply.aftersale_id"
         );
-        assert_eq!(where_sql, " WHERE aftersales.aftersales_sn LIKE ?");
+        assert_eq!(where_sql, " WHERE aftersales.aftersales_sn LIKE $1");
         assert!(matches!(&binds[0], Bind::Str(s) if s == "%SH2024%"));
     }
 
@@ -398,14 +398,14 @@ mod tests {
         })));
         assert_eq!(
             where_sql,
-            " WHERE aftersales.aftersales_sn LIKE ? AND refund_log.refund_type = ?"
+            " WHERE aftersales.aftersales_sn LIKE $1 AND refund_log.refund_type = $2"
         );
         assert!(matches!(&binds[0], Bind::Str(s) if s == "%sn%"));
         assert!(matches!(binds[1], Bind::I32(2)));
 
         // type = 0 也要生效（Java `type != null`，不是 `> 0`）
         let (_f, where_sql, binds) = build_from_where(&q(serde_json::json!({"type": 0})));
-        assert_eq!(where_sql, " WHERE refund_log.refund_type = ?");
+        assert_eq!(where_sql, " WHERE refund_log.refund_type = $1");
         assert!(matches!(binds.as_slice(), [Bind::I32(0)]));
     }
 

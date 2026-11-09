@@ -104,9 +104,9 @@ impl DepositLogRepository {
         let page = q.page_query();
         let size = u64::from(page.page_size);
         let offset = u64::from(page.page - 1) * size;
-        let base = format!(
+        let base = crate::db::to_pg_placeholders(&format!(
             " FROM shop_deposit_log l LEFT JOIN shop s ON s.shop_id = l.owner_id AND l.owner_type = 1{where_sql}"
-        );
+        ));
         let count_sql = format!("SELECT COUNT(*){base}");
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         for b in &binds {
@@ -117,11 +117,11 @@ impl DepositLogRepository {
             };
         }
         let total = cq.fetch_one(&self.pool).await.map_err(map_err)?.0;
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT l.shop_deposit_log_id, l.owner_type, l.owner_id, l.type, l.change_amount, \
              l.before_paid, l.after_paid, l.related_id, l.order_id, l.admin_id, l.remark, l.add_time, \
              s.shop_title, s.shop_id{base} ORDER BY l.shop_deposit_log_id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let mut rq = sqlx::query_as::<_, DepositLogRow>(&rows_sql);
         for b in &binds {
             rq = match b {
@@ -146,7 +146,7 @@ impl DepositLogRepository {
              l.before_paid, l.after_paid, l.related_id, l.order_id, l.admin_id, l.remark, l.add_time, \
              s.shop_title, s.shop_id FROM shop_deposit_log l \
              LEFT JOIN shop s ON s.shop_id = l.owner_id AND l.owner_type = 1 \
-             WHERE l.shop_deposit_log_id = ?",
+             WHERE l.shop_deposit_log_id = $1",
         )
         .bind(id)
         .fetch_optional(&self.pool)

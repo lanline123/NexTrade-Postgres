@@ -65,7 +65,7 @@ impl WechatAutoReplyRepository {
         } else {
             sqlx::query(
                 "INSERT INTO config (biz_code, biz_val, create_time, update_time, is_del) \
-                 VALUES (?, ?, ?, ?, 0)",
+                 VALUES ($1, $2, $3, $4, 0)",
             )
             .bind(biz_code)
             .bind(biz_val)

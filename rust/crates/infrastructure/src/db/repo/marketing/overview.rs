@@ -53,6 +53,7 @@ impl OverviewRepository {
             binds.push(i32::try_from(start).unwrap_or_default());
             binds.push(i32::try_from(end).unwrap_or_default());
         }
+        let qb = crate::db::to_pg_placeholders(&qb);
         let mut query = sqlx::query_as::<_, (i64,)>(&qb);
         for bind in binds {
             query = query.bind(bind);

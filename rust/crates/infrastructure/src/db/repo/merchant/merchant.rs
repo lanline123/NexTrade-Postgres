@@ -101,14 +101,14 @@ impl MerchantRepository {
             "DESC"
         };
 
-        let count_sql = format!("SELECT COUNT(*) FROM merchant {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM merchant {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         cq = bind_filters(cq, merchant_id, status, like.as_deref());
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {MERCHANT_COLUMNS} FROM merchant {where_sql} ORDER BY {column} {dir} LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, Merchant>(&list_sql);
         lq = bind_filters(lq, merchant_id, status, like.as_deref());
         let rows = lq
@@ -188,9 +188,9 @@ impl MerchantRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE merchant SET is_delete = 1, add_time = add_time WHERE merchant_id IN ({placeholders})"
-        );
+        ));
         let _ = now;
         let mut q = sqlx::query(&sql);
         for id in ids {
@@ -234,9 +234,9 @@ impl MerchantRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; merchant_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT merchant_id, admin_user_id, user_id, is_admin FROM merchant_user WHERE is_admin = 1 AND merchant_id IN ({placeholders}) ORDER BY merchant_user_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, MerchantAdminRow>(&sql);
         for id in merchant_ids {
             q = q.bind(*id);
@@ -251,9 +251,9 @@ impl MerchantRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT admin_id, username FROM admin_user WHERE admin_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -268,9 +268,9 @@ impl MerchantRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
-            "SELECT user_id, username, nickname, mobile, avatar FROM user WHERE user_id IN ({placeholders})"
-        );
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT user_id, username, nickname, mobile, avatar FROM \"user\" WHERE user_id IN ({placeholders})"
+        ));
         let mut q = sqlx::query_as::<_, MerchantUserRow>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -284,9 +284,9 @@ impl MerchantRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; region_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT region_id, region_name FROM region WHERE region_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in region_ids {
             q = q.bind(*id);

@@ -54,7 +54,7 @@ impl LocalesRelationRepository {
 
     /// 按主键查单条（Java `getById`）。
     pub async fn find_by_id(&self, id: i32) -> Result<Option<LocalesRelation>> {
-        let sql = Self::select_sql("WHERE id = ? LIMIT 1");
+        let sql = Self::select_sql("WHERE id = $1 LIMIT 1");
         sqlx::query_as::<_, LocalesRelation>(&sql)
             .bind(id)
             .fetch_optional(&self.pool)
@@ -97,7 +97,7 @@ impl LocalesRelationRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = format!("DELETE FROM locales_relation WHERE id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM locales_relation WHERE id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(id);

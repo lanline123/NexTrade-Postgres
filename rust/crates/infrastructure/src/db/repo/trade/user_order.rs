@@ -50,6 +50,7 @@ impl UserOrderRepository {
     pub async fn count_orders(&self, user_id: i32, column: &'static str, value: i32) -> Result<i64> {
         let (sql, bind_completed) = order_count_sql(column)
             .ok_or_else(|| Error::Internal("非法统计列".into()))?;
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut query = sqlx::query_as::<_, (i64,)>(&sql).bind(user_id).bind(value);
         if bind_completed {
             query = query.bind(ORDER_STATUS_COMPLETED);
@@ -385,7 +386,7 @@ impl UserOrderRepository {
 
     pub async fn cycle_aftersales_check(&self, user_id: i32, order_id: i32) -> Result<serde_json::Value> {
         let row: Option<(serde_json::Value,)> = sqlx::query_as(
-            "SELECT json_build_object('orderId', order_id, 'canAftersales', IF(COUNT(*) > 0, 1, 0), 'cardCount', COUNT(*)) FROM order_cycle_card WHERE order_id = $1 AND user_id = $2",
+            "SELECT json_build_object('orderId', order_id, 'canAftersales', CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END, 'cardCount', COUNT(*)) FROM order_cycle_card WHERE order_id = $1 AND user_id = $2",
         )
         .bind(order_id)
         .bind(user_id)
@@ -401,7 +402,7 @@ fn map_err(e: sqlx::Error) -> Error {
 }
 
 /// Java `getOrderStatusCount` 的公共过滤条件（不含 type 专属条件）。
-const ORDER_COUNT_BASE: &str = "FROM \"order\" WHERE user_id = ? AND is_del = 0 AND is_valid = 1 \
+const ORDER_COUNT_BASE: &str = "FROM \"order\" WHERE user_id = $1 AND is_del = 0 AND is_valid = 1 \
      AND (parent_order_id IS NULL OR parent_order_id <= 0 OR pay_status <> 0 \
           OR is_cycle_order = 1 OR is_card_order = 1)";
 

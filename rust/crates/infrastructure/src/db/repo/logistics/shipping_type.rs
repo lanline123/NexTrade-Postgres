@@ -252,10 +252,10 @@ impl ShippingTypeRepository {
 
         debug_assert_eq!(columns.len(), binds.len());
         let placeholders = vec!["?"; columns.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "INSERT INTO shipping_type ({}) VALUES ({placeholders})",
             columns.join(", ")
-        );
+        ));
         let mut query = sqlx::query_scalar(&format!("{} RETURNING shipping_type_id", &sql));
         for b in &binds {
             query = match b {
@@ -307,7 +307,7 @@ impl ShippingTypeRepository {
             nextrade_core::models::logistics::shipping_type::SHIPPING_TYPE_COLUMNS.contains(&column),
             "update_field 列名未经过白名单映射: {column}"
         );
-        let sql = format!("UPDATE shipping_type SET {column} = ? WHERE shipping_type_id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE shipping_type SET {column} = ? WHERE shipping_type_id = ?"));
         let res = sqlx::query(&sql)
             .bind(val)
             .bind(id)
@@ -321,7 +321,7 @@ impl ShippingTypeRepository {
     ///
     /// \"shipping_type\" 表**没有**软删标记列，因此就是 \"DELETE\"。
     pub async fn delete(&self, id: i32) -> Result<bool> {
-        let res = sqlx::query("DELETE FROM shipping_type WHERE shipping_type_id = ?")
+        let res = sqlx::query("DELETE FROM shipping_type WHERE shipping_type_id = $1")
             .bind(id)
             .execute(&self.pool)
             .await

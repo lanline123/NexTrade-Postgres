@@ -29,14 +29,14 @@ impl UserFeedbackClientRepository {
         user_id: i32,
         q: &FeedbackListQuery,
     ) -> Result<(u64, Vec<UserFeedbackVO>)> {
-        let mut where_sql = String::from(" WHERE user_id = ? AND parent_id = 0");
+        let mut where_sql = String::from(" WHERE user_id = $1 AND parent_id = 0");
         if q.status.is_some() {
             where_sql.push_str(" AND status = ?");
         }
         if q.product_id.is_some() {
             where_sql.push_str(" AND product_id = ?");
         }
-        let total_sql = format!("SELECT COUNT(*) FROM feedback{where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM feedback{where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&total_sql).bind(user_id);
         if let Some(s) = q.status {
             cq = cq.bind(s);
@@ -48,7 +48,7 @@ impl UserFeedbackClientRepository {
 
         let (page, size) = q.page_params();
         let sql =
-            format!("SELECT {COLUMNS} FROM feedback{where_sql} ORDER BY id DESC LIMIT ? OFFSET ?");
+            crate::db::to_pg_placeholders(&format!("SELECT {COLUMNS} FROM feedback{where_sql} ORDER BY id DESC LIMIT ? OFFSET ?"));
         let mut lq = sqlx::query_as::<_, FeedbackRow>(&sql).bind(user_id);
         if let Some(s) = q.status {
             lq = lq.bind(s);
@@ -88,7 +88,7 @@ impl UserFeedbackClientRepository {
 
     /// 用户是否存在（Java `error.member.not.found`）。
     pub async fn user_exists(&self, user_id: i32) -> Result<Option<(String, String)>> {
-        sqlx::query_as("SELECT username, mobile FROM user WHERE user_id = $1 LIMIT 1")
+        sqlx::query_as("SELECT username, mobile FROM \"user\" WHERE user_id = $1 LIMIT 1")
             .bind(user_id)
             .fetch_optional(&self.pool)
             .await
@@ -168,9 +168,9 @@ impl UserFeedbackClientRepository {
             return Ok(std::collections::HashMap::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT id, parent_id, username, content, add_time FROM feedback WHERE parent_id IN ({ph}) ORDER BY id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, i32, String, String, i32)>(&sql);
         for id in ids {
             q = q.bind(id);

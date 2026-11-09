@@ -32,7 +32,7 @@ impl UserPriceInquiryRepository {
         user_id: i32,
         q: &PriceInquiryListQuery,
     ) -> Result<(u64, Vec<PriceInquiryVO>)> {
-        let mut where_sql = String::from(" WHERE user_id = ? AND user_is_del = 0");
+        let mut where_sql = String::from(" WHERE user_id = $1 AND user_is_del = 0");
         if q.status.is_some() {
             where_sql.push_str(" AND status = ?");
         }
@@ -45,7 +45,7 @@ impl UserPriceInquiryRepository {
         if like.is_some() {
             where_sql.push_str(" AND (content LIKE ? OR mobile LIKE ? OR email LIKE ?)");
         }
-        let total_sql = format!("SELECT COUNT(*) FROM price_inquiry{where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM price_inquiry{where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&total_sql).bind(user_id);
         if let Some(s) = q.status {
             cq = cq.bind(s);
@@ -55,9 +55,9 @@ impl UserPriceInquiryRepository {
         }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {INQUIRY_COLUMNS} FROM price_inquiry{where_sql} ORDER BY id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let (page, size) = q.page_params();
         let mut lq = sqlx::query_as::<_, InquiryRow>(&sql).bind(user_id);
         if let Some(s) = q.status {
@@ -173,9 +173,9 @@ impl UserPriceInquiryRepository {
             return Ok(std::collections::HashMap::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT product_id, product_name, product_sn, pic_thumb FROM product WHERE product_id IN ({ph})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, String, String, String)>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -200,7 +200,7 @@ impl UserPriceInquiryRepository {
 
     async fn contact_name(&self, user_id: i32) -> Result<String> {
         let row: Option<(String, Option<String>)> =
-            sqlx::query_as("SELECT username, nickname FROM user WHERE user_id = $1 LIMIT 1")
+            sqlx::query_as("SELECT username, nickname FROM \"user\" WHERE user_id = $1 LIMIT 1")
                 .bind(user_id)
                 .fetch_optional(&self.pool)
                 .await

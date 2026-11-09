@@ -979,7 +979,7 @@ impl GrouponPromotionRepository {
     /// 会员标记（Java `user.getMark()`，拼团人群旧口径）。
     pub async fn find_user_mark(&self, user_id: i32) -> Result<Option<i32>> {
         let row: Option<(i32,)> =
-            sqlx::query_as("SELECT mark FROM user WHERE user_id = $1 LIMIT 1")
+            sqlx::query_as("SELECT mark FROM \"user\" WHERE user_id = $1 LIMIT 1")
                 .bind(user_id)
                 .fetch_optional(&self.pool)
                 .await

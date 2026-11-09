@@ -76,7 +76,7 @@ impl OrderLogRepository {
             format!(" WHERE {}", conds.join(" AND "))
         };
         let (size, offset) = q.limit_offset();
-        let count_sql = format!("SELECT COUNT(*) FROM order_log{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM order_log{where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         for b in &binds {
             cq = match b {
@@ -85,10 +85,10 @@ impl OrderLogRepository {
             };
         }
         let total = cq.fetch_one(&self.pool).await.map_err(map_err)?.0;
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT log_id, order_id, order_sn, admin_id, user_id, description, log_time, shop_id \
              FROM order_log{where_sql} ORDER BY log_id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let mut rq = sqlx::query_as::<_, OrderLogRow>(&rows_sql);
         for b in &binds {
             rq = match b {
@@ -119,7 +119,7 @@ impl OrderLogRepository {
     ) -> Result<()> {
         sqlx::query(
             "INSERT INTO order_log (order_id, order_sn, admin_id, user_id, description, log_time, shop_id) \
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
         )
         .bind(order_id)
         .bind(order_sn)

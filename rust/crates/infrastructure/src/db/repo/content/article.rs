@@ -33,7 +33,7 @@ impl ArticleRepository {
 
     /// 按 ID 查询文章（含正文）。
     pub async fn find_by_id(&self, article_id: i32) -> Result<Option<Article>> {
-        let sql = format!("SELECT {ARTICLE_COLUMNS} FROM article WHERE article_id = ? LIMIT 1");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT {ARTICLE_COLUMNS} FROM article WHERE article_id = ? LIMIT 1"));
         sqlx::query_as::<_, Article>(&sql)
             .bind(article_id)
             .fetch_optional(&self.pool)
@@ -58,7 +58,7 @@ impl ArticleRepository {
                AND (? IS NULL OR article_category_id = ?)
                AND (? IS NULL OR is_show = ?)";
 
-        let count_sql = format!("SELECT COUNT(*) FROM article {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM article {where_sql}"));
         let total: (i64,) = sqlx::query_as(&count_sql)
             .bind(&like)
             .bind(&like)
@@ -72,10 +72,10 @@ impl ArticleRepository {
             .map_err(map_err)?;
 
         // 置顶优先，其次按添加时间倒序
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {ARTICLE_COLUMNS} FROM article {where_sql}
              ORDER BY is_top DESC, add_time DESC, article_id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = sqlx::query_as::<_, Article>(&list_sql)
             .bind(&like)
             .bind(&like)
@@ -99,11 +99,11 @@ impl ArticleRepository {
         category_id: i32,
         is_show: Option<i32>,
     ) -> Result<Vec<Article>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {ARTICLE_COLUMNS} FROM article
              WHERE article_category_id = ? AND (? IS NULL OR is_show = ?)
              ORDER BY is_top DESC, add_time DESC, article_id DESC"
-        );
+        ));
         sqlx::query_as::<_, Article>(&sql)
             .bind(category_id)
             .bind(is_show)
@@ -115,11 +115,11 @@ impl ArticleRepository {
 
     /// 热门文章（前台首页）。
     pub async fn find_hot(&self, limit: u32) -> Result<Vec<Article>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {ARTICLE_COLUMNS} FROM article
              WHERE is_hot = 1 AND is_show = 1
              ORDER BY click_count DESC, add_time DESC LIMIT ?"
-        );
+        ));
         sqlx::query_as::<_, Article>(&sql)
             .bind(limit as i64)
             .fetch_all(&self.pool)
@@ -129,7 +129,7 @@ impl ArticleRepository {
 
     /// 原子累加浏览次数（并发安全，不覆盖其他字段）。
     pub async fn increment_click(&self, article_id: i32) -> Result<()> {
-        sqlx::query("UPDATE article SET click_count = click_count + 1 WHERE article_id = ?")
+        sqlx::query("UPDATE article SET click_count = click_count + 1 WHERE article_id = $1")
             .bind(article_id)
             .execute(&self.pool)
             .await
@@ -144,7 +144,7 @@ impl ArticleRepository {
     /// 结果填充 `ArticleDetailVO.productIds`，旧 PC 文章详情「相关商品」区块使用。
     pub async fn find_product_ids_by_article(&self, article_id: i32) -> Result<Vec<i32>> {
         let rows: Vec<(i32,)> =
-            sqlx::query_as("SELECT goods_id FROM product_article WHERE article_id = ?")
+            sqlx::query_as("SELECT goods_id FROM product_article WHERE article_id = $1")
                 .bind(article_id)
                 .fetch_all(&self.pool)
                 .await
@@ -159,7 +159,7 @@ impl ArticleRepository {
                (article_title, article_category_id, article_sn, article_thumb, article_tag,
                 article_author, article_type, content, description, keywords, is_show,
                 add_time, is_hot, is_top, click_count, link)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING article_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING article_id",
         )
         .bind(&a.article_title)
         .bind(a.article_category_id)
@@ -186,11 +186,11 @@ impl ArticleRepository {
     /// 更新文章。
     pub async fn update(&self, a: &Article) -> Result<bool> {
         let r = sqlx::query(
-            "UPDATE article SET article_title = ?, article_category_id = ?, article_sn = ?,
-                article_thumb = ?, article_tag = ?, article_author = ?, article_type = ?,
-                content = ?, description = ?, keywords = ?, is_show = ?, is_hot = ?, is_top = ?,
-                link = ?
-             WHERE article_id = ?",
+            "UPDATE article SET article_title = $1, article_category_id = $2, article_sn = $3,
+                article_thumb = $4, article_tag = $5, article_author = $6, article_type = $7,
+                content = $8, description = $9, keywords = $10, is_show = $11, is_hot = $12, is_top = $13,
+                link = $14
+             WHERE article_id = $15",
         )
         .bind(&a.article_title)
         .bind(a.article_category_id)
@@ -215,7 +215,7 @@ impl ArticleRepository {
 
     /// 切换显示状态。
     pub async fn set_show(&self, article_id: i32, is_show: i32) -> Result<bool> {
-        let r = sqlx::query("UPDATE article SET is_show = ? WHERE article_id = ?")
+        let r = sqlx::query("UPDATE article SET is_show = $1 WHERE article_id = $2")
             .bind(is_show)
             .bind(article_id)
             .execute(&self.pool)
@@ -226,7 +226,7 @@ impl ArticleRepository {
 
     /// 删除文章。
     pub async fn delete(&self, article_id: i32) -> Result<bool> {
-        let r = sqlx::query("DELETE FROM article WHERE article_id = ?")
+        let r = sqlx::query("DELETE FROM article WHERE article_id = $1")
             .bind(article_id)
             .execute(&self.pool)
             .await
@@ -236,7 +236,7 @@ impl ArticleRepository {
 
     /// 批量转移文章分类。
     pub async fn set_category(&self, article_id: i32, category_id: i32) -> Result<bool> {
-        let r = sqlx::query("UPDATE article SET article_category_id = ? WHERE article_id = ?")
+        let r = sqlx::query("UPDATE article SET article_category_id = $1 WHERE article_id = $2")
             .bind(category_id)
             .bind(article_id)
             .execute(&self.pool)
@@ -261,9 +261,9 @@ impl ArticleRepository {
 
     /// 按 ID 查询分类。
     pub async fn find_category_by_id(&self, id: i32) -> Result<Option<ArticleCategory>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {CATEGORY_COLUMNS} FROM article_category WHERE article_category_id = ? LIMIT 1"
-        );
+        ));
         sqlx::query_as::<_, ArticleCategory>(&sql)
             .bind(id)
             .fetch_optional(&self.pool)
@@ -274,7 +274,7 @@ impl ArticleRepository {
     /// 统计某分类下的文章数（删除分类前的占用检查）。
     pub async fn count_articles_in_category(&self, category_id: i32) -> Result<i64> {
         let (n,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM article WHERE article_category_id = ?")
+            sqlx::query_as("SELECT COUNT(*) FROM article WHERE article_category_id = $1")
                 .bind(category_id)
                 .fetch_one(&self.pool)
                 .await
@@ -285,7 +285,7 @@ impl ArticleRepository {
     /// 统计某分类的子分类数（删除分类前的占用检查）。
     pub async fn count_children(&self, category_id: i32) -> Result<i64> {
         let (n,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM article_category WHERE parent_id = ?",
+            "SELECT COUNT(*) FROM article_category WHERE parent_id = $1",
         )
         .bind(category_id)
         .fetch_one(&self.pool)
@@ -300,7 +300,7 @@ impl ArticleRepository {
             "INSERT INTO article_category
                (article_category_name, category_sn, category_type, keywords, description,
                 sort_order, parent_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING article_category_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING article_category_id",
         )
         .bind(&c.article_category_name)
         .bind(&c.category_sn)
@@ -318,9 +318,9 @@ impl ArticleRepository {
     /// 更新分类。
     pub async fn update_category(&self, c: &ArticleCategory) -> Result<bool> {
         let r = sqlx::query(
-            "UPDATE article_category SET article_category_name = ?, category_sn = ?,
-                category_type = ?, keywords = ?, description = ?, sort_order = ?, parent_id = ?
-             WHERE article_category_id = ?",
+            "UPDATE article_category SET article_category_name = $1, category_sn = $2,
+                category_type = $3, keywords = $4, description = $5, sort_order = $6, parent_id = $7
+             WHERE article_category_id = $8",
         )
         .bind(&c.article_category_name)
         .bind(&c.category_sn)
@@ -338,7 +338,7 @@ impl ArticleRepository {
 
     /// 删除分类。
     pub async fn delete_category(&self, id: i32) -> Result<bool> {
-        let r = sqlx::query("DELETE FROM article_category WHERE article_category_id = ?")
+        let r = sqlx::query("DELETE FROM article_category WHERE article_category_id = $1")
             .bind(id)
             .execute(&self.pool)
             .await

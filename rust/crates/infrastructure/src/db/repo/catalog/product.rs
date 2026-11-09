@@ -75,7 +75,7 @@ impl ProductRepository {
             format!(" AND category_id IN ({})", vec!["?"; category_ids.len()].join(", "))
         };
 
-        let total_sql = format!(
+        let total_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM product
              WHERE is_delete = 0
                AND ($1 IS NULL OR product_name LIKE $2 OR product_sn LIKE $3)
@@ -85,7 +85,7 @@ impl ProductRepository {
                AND ($8 IS NULL OR product_status = $9)
                AND ($10 IS NULL OR product_price >= $11)
                AND ($12 IS NULL OR product_price <= $13){sale_clause}{id_clause}"
-        );
+        ));
         let mut total_q = sqlx::query_as::<_, (i64,)>(&total_sql)
             .bind(&keyword).bind(&keyword).bind(&keyword);
         if category_ids.is_empty() {
@@ -131,7 +131,7 @@ impl ProductRepository {
         } else {
             "DESC"
         };
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM product
              WHERE is_delete = 0
                AND ($1 IS NULL OR product_name LIKE $2 OR product_sn LIKE $3)
@@ -143,7 +143,7 @@ impl ProductRepository {
                AND ($12 IS NULL OR product_price <= $13){sale_clause}{id_clause}
              ORDER BY {order_by} {dir}, product_id DESC
              LIMIT $14 OFFSET $15"
-        );
+        ));
 
         let mut rows_q = sqlx::query_as::<_, Product>(&sql)
             .bind(&keyword).bind(&keyword).bind(&keyword);
@@ -184,7 +184,7 @@ impl ProductRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = format!("SELECT * FROM product WHERE product_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM product WHERE product_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, Product>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -323,9 +323,9 @@ impl ProductRepository {
         }
 
         let placeholders = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT product_id, product_price FROM product WHERE product_id IN ({placeholders})"
-        );
+        ));
         let mut query = sqlx::query_as::<_, (i32, Option<Decimal>)>(&sql);
         for pid in product_ids {
             query = query.bind(pid);

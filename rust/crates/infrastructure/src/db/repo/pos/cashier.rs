@@ -43,8 +43,8 @@ impl PosCashierRepository {
     ) -> Result<(i64, Vec<AdminUserPos>)> {
         let kw = format!("%{}%", keyword.unwrap_or_default().trim());
         let (total,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM admin_user_pos WHERE (? IS NULL OR is_using = ?) \
-             AND username LIKE ?",
+            "SELECT COUNT(*) FROM admin_user_pos WHERE ($1 IS NULL OR is_using = $2) \
+             AND username LIKE $3",
         )
         .bind(status)
         .bind(status)
@@ -55,8 +55,8 @@ impl PosCashierRepository {
         let rows = sqlx::query_as::<_, AdminUserPos>(
             "SELECT id, admin_id, shop_id, username, email, avatar, auth_list, is_using, \
              add_time, role_id FROM admin_user_pos \
-             WHERE (? IS NULL OR is_using = ?) AND username LIKE ? \
-             ORDER BY id DESC LIMIT ? OFFSET ?",
+             WHERE ($1 IS NULL OR is_using = $2) AND username LIKE $3 \
+             ORDER BY id DESC LIMIT $4 OFFSET $5",
         )
         .bind(status)
         .bind(status)
@@ -72,7 +72,7 @@ impl PosCashierRepository {
     pub async fn cashier_find(&self, id: i32) -> Result<Option<AdminUserPos>> {
         sqlx::query_as::<_, AdminUserPos>(
             "SELECT id, admin_id, shop_id, username, email, avatar, auth_list, is_using, \
-             add_time, role_id FROM admin_user_pos WHERE id = ?",
+             add_time, role_id FROM admin_user_pos WHERE id = $1",
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -83,7 +83,7 @@ impl PosCashierRepository {
     pub async fn cashier_insert(&self, e: &AdminUserPos) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO admin_user_pos (admin_id, shop_id, username, email, is_using, \
-             role_id, add_time) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
+             role_id, add_time) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
         )
         .bind(e.admin_id)
         .bind(e.shop_id)
@@ -104,7 +104,7 @@ impl PosCashierRepository {
             return Err(Error::Validation("非法字段".into()));
         }
         sqlx::query(&format!(
-            "UPDATE admin_user_pos SET {column} = ? WHERE id = ?"
+            "UPDATE admin_user_pos SET {column} = $1 WHERE id = $2"
         ))
         .bind(val)
         .bind(id)
@@ -115,7 +115,7 @@ impl PosCashierRepository {
     }
 
     pub async fn cashier_delete(&self, id: i32) -> Result<()> {
-        sqlx::query("DELETE FROM admin_user_pos WHERE id = ?")
+        sqlx::query("DELETE FROM admin_user_pos WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await
@@ -128,7 +128,7 @@ impl PosCashierRepository {
     /// 上下班时间戳存 config（code = posWork:{admin_id}，value = ISO 时间 JSON）。
     pub async fn work_flag(&self, admin_id: i32) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> = sqlx::query_as(
-            "SELECT content FROM config WHERE \"code\" = ? ORDER BY id DESC LIMIT 1",
+            "SELECT content FROM config WHERE \"code\" = $1 ORDER BY id DESC LIMIT 1",
         )
         .bind(format!("posWork:{admin_id}"))
         .fetch_optional(&self.pool)
@@ -165,7 +165,7 @@ impl PosCashierRepository {
                SELECT p.pending_id, COALESCE(SUM(i.price * i.quantity), 0) AS total \
                FROM pos_pending_order p \
                LEFT JOIN pos_pending_order_item i ON i.pending_id = p.pending_id \
-               WHERE p.admin_id = ? AND p.status = 1 AND p.update_time >= ? \
+               WHERE p.admin_id = $1 AND p.status = 1 AND p.update_time >= $2 \
                GROUP BY p.pending_id\
              ) t",
         )
@@ -184,7 +184,7 @@ impl PosCashierRepository {
         sqlx::query_as::<_, PosPendingOrder>(
             "SELECT pending_id, user_id, admin_id, shop_id, remark, status, add_time, \
              update_time, kind, table_id FROM pos_pending_order \
-             WHERE admin_id = ? AND kind = 0 AND status = 0 ORDER BY pending_id DESC LIMIT 1",
+             WHERE admin_id = $1 AND kind = 0 AND status = 0 ORDER BY pending_id DESC LIMIT 1",
         )
         .bind(admin_id)
         .fetch_optional(&self.pool)
@@ -204,7 +204,7 @@ impl PosCashierRepository {
         }
         sqlx::query(
             "INSERT INTO pos_pending_order (user_id, admin_id, shop_id, status, kind, \
-             table_id, add_time, update_time) VALUES (?, ?, ?, 0, 0, ?, ?, ?)",
+             table_id, add_time, update_time) VALUES ($1, $2, $3, 0, 0, $4, $5, $6)",
         )
         .bind(user_id)
         .bind(admin_id)
@@ -224,7 +224,7 @@ impl PosCashierRepository {
         sqlx::query_as::<_, PosPendingOrderItem>(
             "SELECT item_id, pending_id, product_id, sku_id, product_name, pic_thumb, price, \
              origin_price, quantity, is_checked, sku_data, add_time \
-             FROM pos_pending_order_item WHERE pending_id = ? ORDER BY item_id",
+             FROM pos_pending_order_item WHERE pending_id = $1 ORDER BY item_id",
         )
         .bind(pending_id)
         .fetch_all(&self.pool)
@@ -236,7 +236,7 @@ impl PosCashierRepository {
         sqlx::query_as::<_, PosPendingOrderItem>(
             "SELECT item_id, pending_id, product_id, sku_id, product_name, pic_thumb, price, \
              origin_price, quantity, is_checked, sku_data, add_time \
-             FROM pos_pending_order_item WHERE pending_id = ? AND item_id = ?",
+             FROM pos_pending_order_item WHERE pending_id = $1 AND item_id = $2",
         )
         .bind(pending_id)
         .bind(item_id)
@@ -261,7 +261,7 @@ impl PosCashierRepository {
         let r: i64 = sqlx::query_scalar(
             "INSERT INTO pos_pending_order_item (pending_id, product_id, sku_id, product_name, \
              pic_thumb, price, origin_price, quantity, is_checked, sku_data, add_time) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?) RETURNING item_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, $9, $10) RETURNING item_id",
         )
         .bind(pending_id)
         .bind(product_id)
@@ -288,7 +288,7 @@ impl PosCashierRepository {
     ) -> Result<Option<i64>> {
         let existing: Option<(i64, i32)> = sqlx::query_as(
             "SELECT item_id, quantity FROM pos_pending_order_item \
-             WHERE pending_id = ? AND product_id = ? AND sku_id = ? LIMIT 1",
+             WHERE pending_id = $1 AND product_id = $2 AND sku_id = $3 LIMIT 1",
         )
         .bind(pending_id)
         .bind(product_id)
@@ -298,7 +298,7 @@ impl PosCashierRepository {
         .map_err(map_err)?;
         if let Some((item_id, qty)) = existing {
             sqlx::query(
-                "UPDATE pos_pending_order_item SET quantity = quantity + ? WHERE item_id = ?",
+                "UPDATE pos_pending_order_item SET quantity = quantity + $1 WHERE item_id = $2",
             )
             .bind(quantity)
             .bind(item_id)
@@ -311,7 +311,7 @@ impl PosCashierRepository {
     }
 
     pub async fn item_update_quantity(&self, item_id: i64, quantity: i32) -> Result<()> {
-        sqlx::query("UPDATE pos_pending_order_item SET quantity = ? WHERE item_id = ?")
+        sqlx::query("UPDATE pos_pending_order_item SET quantity = $1 WHERE item_id = $2")
             .bind(quantity)
             .bind(item_id)
             .execute(&self.pool)
@@ -321,7 +321,7 @@ impl PosCashierRepository {
     }
 
     pub async fn item_update_checked(&self, item_id: i64, checked: bool) -> Result<()> {
-        sqlx::query("UPDATE pos_pending_order_item SET is_checked = ? WHERE item_id = ?")
+        sqlx::query("UPDATE pos_pending_order_item SET is_checked = $1 WHERE item_id = $2")
             .bind(i32::from(checked))
             .bind(item_id)
             .execute(&self.pool)
@@ -331,7 +331,7 @@ impl PosCashierRepository {
     }
 
     pub async fn item_update_price(&self, item_id: i64, price: Decimal) -> Result<()> {
-        sqlx::query("UPDATE pos_pending_order_item SET price = ? WHERE item_id = ?")
+        sqlx::query("UPDATE pos_pending_order_item SET price = $1 WHERE item_id = $2")
             .bind(price)
             .bind(item_id)
             .execute(&self.pool)
@@ -350,7 +350,7 @@ impl PosCashierRepository {
             .collect::<Vec<_>>()
             .join(",");
         sqlx::query(&format!(
-            "DELETE FROM pos_pending_order_item WHERE pending_id = ? AND item_id IN ({ids})"
+            "DELETE FROM pos_pending_order_item WHERE pending_id = $1 AND item_id IN ({ids})"
         ))
         .bind(pending_id)
         .execute(&self.pool)
@@ -360,7 +360,7 @@ impl PosCashierRepository {
     }
 
     pub async fn item_clear(&self, pending_id: i32) -> Result<()> {
-        sqlx::query("DELETE FROM pos_pending_order_item WHERE pending_id = ?")
+        sqlx::query("DELETE FROM pos_pending_order_item WHERE pending_id = $1")
             .bind(pending_id)
             .execute(&self.pool)
             .await
@@ -370,8 +370,8 @@ impl PosCashierRepository {
 
     pub async fn draft_touch(&self, pending_id: i32, user_id: i32, table_id: i32) -> Result<()> {
         sqlx::query(
-            "UPDATE pos_pending_order SET update_time = ?, user_id = ?, table_id = ? \
-             WHERE pending_id = ?",
+            "UPDATE pos_pending_order SET update_time = $1, user_id = $2, table_id = $3 \
+             WHERE pending_id = $4",
         )
         .bind(now())
         .bind(user_id)
@@ -386,8 +386,8 @@ impl PosCashierRepository {
     /// 挂单：把当前草稿转为已保存挂单（kind=1, status=0）。
     pub async fn save_pending(&self, pending_id: i32, remark: &str) -> Result<()> {
         sqlx::query(
-            "UPDATE pos_pending_order SET kind = 1, remark = ?, update_time = ? \
-             WHERE pending_id = ?",
+            "UPDATE pos_pending_order SET kind = 1, remark = $1, update_time = $2 \
+             WHERE pending_id = $3",
         )
         .bind(remark)
         .bind(now())
@@ -407,8 +407,8 @@ impl PosCashierRepository {
         sqlx::query_as::<_, PosPendingOrder>(
             "SELECT pending_id, user_id, admin_id, shop_id, remark, status, add_time, \
              update_time, kind, table_id FROM pos_pending_order \
-             WHERE kind = 1 AND status = 0 AND (? IS NULL OR admin_id = ?) \
-             AND (? IS NULL OR shop_id = ?) ORDER BY pending_id DESC LIMIT 50",
+             WHERE kind = 1 AND status = 0 AND ($1 IS NULL OR admin_id = $2) \
+             AND ($3 IS NULL OR shop_id = $4) ORDER BY pending_id DESC LIMIT 50",
         )
         .bind(shop_id)
         .bind(shop_id.map(|_| admin_id))
@@ -423,7 +423,7 @@ impl PosCashierRepository {
     pub async fn take_pending(&self, admin_id: i32, pending_id: i32) -> Result<()> {
         let src = sqlx::query_as::<_, PosPendingOrder>(
             "SELECT pending_id, user_id, admin_id, shop_id, remark, status, add_time, \
-             update_time, kind, table_id FROM pos_pending_order WHERE pending_id = ?",
+             update_time, kind, table_id FROM pos_pending_order WHERE pending_id = $1",
         )
         .bind(pending_id)
         .fetch_optional(&self.pool)
@@ -436,8 +436,8 @@ impl PosCashierRepository {
         sqlx::query(
             "INSERT INTO pos_pending_order_item (pending_id, product_id, sku_id, product_name, \
              pic_thumb, price, origin_price, quantity, is_checked, sku_data, add_time) \
-             SELECT ?, product_id, sku_id, product_name, pic_thumb, price, origin_price, \
-             quantity, is_checked, sku_data, ? FROM pos_pending_order_item WHERE pending_id = ?",
+             SELECT $1, product_id, sku_id, product_name, pic_thumb, price, origin_price, \
+             quantity, is_checked, sku_data, $2 FROM pos_pending_order_item WHERE pending_id = $3",
         )
         .bind(draft.pending_id)
         .bind(now())
@@ -445,7 +445,7 @@ impl PosCashierRepository {
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
-        sqlx::query("UPDATE pos_pending_order SET status = 1, update_time = ? WHERE pending_id = ?")
+        sqlx::query("UPDATE pos_pending_order SET status = 1, update_time = $1 WHERE pending_id = $2")
             .bind(now())
             .bind(pending_id)
             .execute(&self.pool)
@@ -456,7 +456,7 @@ impl PosCashierRepository {
 
     pub async fn cancel_pending(&self, pending_id: i32) -> Result<()> {
         sqlx::query(
-            "UPDATE pos_pending_order SET status = 2, update_time = ? WHERE pending_id = ?",
+            "UPDATE pos_pending_order SET status = 2, update_time = $1 WHERE pending_id = $2",
         )
         .bind(now())
         .bind(pending_id)
@@ -471,7 +471,7 @@ impl PosCashierRepository {
     pub async fn areas(&self, shop_id: i32) -> Result<Vec<PosTableArea>> {
         sqlx::query_as::<_, PosTableArea>(
             "SELECT * FROM pos_table_area \
-             WHERE shop_id = ? AND is_delete = 0 ORDER BY sort_order, area_id",
+             WHERE shop_id = $1 AND is_delete = 0 ORDER BY sort_order, area_id",
         )
         .bind(shop_id)
         .fetch_all(&self.pool)
@@ -481,7 +481,7 @@ impl PosCashierRepository {
 
     pub async fn area_find(&self, id: i32) -> Result<Option<PosTableArea>> {
         sqlx::query_as::<_, PosTableArea>(
-            "SELECT * FROM pos_table_area WHERE area_id = ?",
+            "SELECT * FROM pos_table_area WHERE area_id = $1",
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -491,7 +491,7 @@ impl PosCashierRepository {
 
     pub async fn area_insert(&self, shop_id: i32, name: &str, sort: i32) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
-            "INSERT INTO pos_table_area (shop_id, area_name, sort_order, status, add_time, update_time) VALUES (?, ?, ?, 1, ?, ?) RETURNING area_id",
+            "INSERT INTO pos_table_area (shop_id, area_name, sort_order, status, add_time, update_time) VALUES ($1, $2, $3, 1, $4, $5) RETURNING area_id",
         )
         .bind(shop_id)
         .bind(name)
@@ -505,7 +505,7 @@ impl PosCashierRepository {
     }
 
     pub async fn area_update(&self, id: i32, name: &str, sort: i32) -> Result<()> {
-        sqlx::query("UPDATE pos_table_area SET area_name = ?, sort_order = ?, update_time = ? WHERE area_id = ?")
+        sqlx::query("UPDATE pos_table_area SET area_name = $1, sort_order = $2, update_time = $3 WHERE area_id = $4")
             .bind(name)
             .bind(sort)
             .bind(sort)
@@ -518,7 +518,7 @@ impl PosCashierRepository {
     }
 
     pub async fn area_delete(&self, id: i32) -> Result<()> {
-        sqlx::query("UPDATE pos_table_area SET is_delete = 1, update_time = ? WHERE area_id = ?")
+        sqlx::query("UPDATE pos_table_area SET is_delete = 1, update_time = $1 WHERE area_id = $2")
             .bind(now())
             .bind(id)
             .execute(&self.pool)
@@ -535,7 +535,7 @@ impl PosCashierRepository {
     ) -> Result<Vec<PosTable>> {
         sqlx::query_as::<_, PosTable>(
             "SELECT CAST(table_id AS BIGINT) AS table_id, CAST(shop_id AS BIGINT) AS shop_id, CAST(area_id AS BIGINT) AS area_id, table_no, CAST(seat_count AS BIGINT) AS seat_count, CAST(sort_order AS BIGINT) AS sort_order, CAST(status AS BIGINT) AS status, CAST(table_status AS BIGINT) AS table_status, CAST(dining_count AS BIGINT) AS dining_count, CAST(user_id AS BIGINT) AS user_id, CAST(open_admin_id AS BIGINT) AS open_admin_id, CAST(open_time AS BIGINT) AS open_time, session_sn, CAST(last_order_id AS BIGINT) AS last_order_id, transfer_from_table_no, CAST(is_delete AS BIGINT) AS is_delete, CAST(add_time AS BIGINT) AS add_time, CAST(update_time AS BIGINT) AS update_time FROM pos_table \
-             WHERE shop_id = ? AND is_delete = 0 AND (? IS NULL OR area_id = ?) AND (? IS NULL OR table_status = ?) \
+             WHERE shop_id = $1 AND is_delete = 0 AND ($2 IS NULL OR area_id = $3) AND ($4 IS NULL OR table_status = $5) \
              ORDER BY sort_order, table_id DESC",
         )
         .bind(shop_id)
@@ -550,7 +550,7 @@ impl PosCashierRepository {
 
     pub async fn table_find(&self, id: i32) -> Result<Option<PosTable>> {
         sqlx::query_as::<_, PosTable>(
-            "SELECT CAST(table_id AS BIGINT) AS table_id, CAST(shop_id AS BIGINT) AS shop_id, CAST(area_id AS BIGINT) AS area_id, table_no, CAST(seat_count AS BIGINT) AS seat_count, CAST(sort_order AS BIGINT) AS sort_order, CAST(status AS BIGINT) AS status, CAST(table_status AS BIGINT) AS table_status, CAST(dining_count AS BIGINT) AS dining_count, CAST(user_id AS BIGINT) AS user_id, CAST(open_admin_id AS BIGINT) AS open_admin_id, CAST(open_time AS BIGINT) AS open_time, session_sn, CAST(last_order_id AS BIGINT) AS last_order_id, transfer_from_table_no, CAST(is_delete AS BIGINT) AS is_delete, CAST(add_time AS BIGINT) AS add_time, CAST(update_time AS BIGINT) AS update_time FROM pos_table WHERE table_id = ?",
+            "SELECT CAST(table_id AS BIGINT) AS table_id, CAST(shop_id AS BIGINT) AS shop_id, CAST(area_id AS BIGINT) AS area_id, table_no, CAST(seat_count AS BIGINT) AS seat_count, CAST(sort_order AS BIGINT) AS sort_order, CAST(status AS BIGINT) AS status, CAST(table_status AS BIGINT) AS table_status, CAST(dining_count AS BIGINT) AS dining_count, CAST(user_id AS BIGINT) AS user_id, CAST(open_admin_id AS BIGINT) AS open_admin_id, CAST(open_time AS BIGINT) AS open_time, session_sn, CAST(last_order_id AS BIGINT) AS last_order_id, transfer_from_table_no, CAST(is_delete AS BIGINT) AS is_delete, CAST(add_time AS BIGINT) AS add_time, CAST(update_time AS BIGINT) AS update_time FROM pos_table WHERE table_id = $1",
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -569,7 +569,7 @@ impl PosCashierRepository {
     ) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO pos_table (shop_id, area_id, table_no, seat_count, sort_order, status, table_status, dining_count, open_admin_id, open_time, session_sn, last_order_id, transfer_from_table_no, is_delete, add_time) \
-             VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, 0, '', 0, '', 0, ?) RETURNING table_id",
+             VALUES ($1, $2, $3, $4, $5, 0, 0, 0, 0, 0, '', 0, '', 0, $6) RETURNING table_id",
         )
         .bind(shop_id)
         .bind(area_id)
@@ -592,8 +592,8 @@ impl PosCashierRepository {
         sort_order: i32,
     ) -> Result<()> {
         sqlx::query(
-            "UPDATE pos_table SET table_no = ?, area_id = ?, seat_count = ?, sort_order = ?, update_time = ? \
-             WHERE table_id = ?",
+            "UPDATE pos_table SET table_no = $1, area_id = $2, seat_count = $3, sort_order = $4, update_time = $5 \
+             WHERE table_id = $6",
         )
         .bind(name)
         .bind(area_id)
@@ -612,7 +612,7 @@ impl PosCashierRepository {
         if !allowed.contains(&column) {
             return Err(Error::Validation("非法字段".into()));
         }
-        sqlx::query(&format!("UPDATE pos_table SET {column} = ?, update_time = ? WHERE table_id = ?"))
+        sqlx::query(&format!("UPDATE pos_table SET {column} = $1, update_time = $2 WHERE table_id = $3"))
             .bind(val)
             .bind(now())
             .bind(id)
@@ -623,7 +623,7 @@ impl PosCashierRepository {
     }
 
     pub async fn table_delete(&self, id: i32) -> Result<()> {
-        sqlx::query("UPDATE pos_table SET is_delete = 1, update_time = ? WHERE table_id = ?")
+        sqlx::query("UPDATE pos_table SET is_delete = 1, update_time = $1 WHERE table_id = $2")
             .bind(now())
             .bind(id)
             .execute(&self.pool)
@@ -646,8 +646,8 @@ impl PosCashierRepository {
             String::new()
         };
         sqlx::query(
-            "UPDATE pos_table SET status = ?, table_status = ?, user_id = ?, last_order_id = ?, \
-             open_time = ?, session_sn = ?, update_time = ? WHERE table_id = ?",
+            "UPDATE pos_table SET status = $1, table_status = $2, user_id = $3, last_order_id = $4, \
+             open_time = $5, session_sn = $6, update_time = $7 WHERE table_id = $8",
         )
         .bind(i32::from(occupied))
         .bind(if occupied { 1 } else { 0 })
@@ -677,7 +677,7 @@ impl PosCashierRepository {
         };
         sqlx::query(
             "UPDATE pos_table SET status = 0, table_status = 0, user_id = 0, last_order_id = 0, \
-             session_sn = '', update_time = ? WHERE table_id = ?",
+             session_sn = '', update_time = $1 WHERE table_id = $2",
         )
         .bind(ts)
         .bind(from)
@@ -685,8 +685,8 @@ impl PosCashierRepository {
         .await
         .map_err(map_err)?;
         sqlx::query(
-            "UPDATE pos_table SET status = 1, table_status = 1, user_id = ?, last_order_id = ?, \
-             open_time = ?, session_sn = ?, transfer_from_table_no = ?, update_time = ? WHERE table_id = ?",
+            "UPDATE pos_table SET status = 1, table_status = 1, user_id = $1, last_order_id = $2, \
+             open_time = $3, session_sn = $4, transfer_from_table_no = $5, update_time = $6 WHERE table_id = $7",
         )
         .bind(src.user_id)
         .bind(src.last_order_id)
@@ -713,8 +713,8 @@ impl PosCashierRepository {
     ) -> Result<(i64, Vec<serde_json::Value>)> {
         let kw = format!("%{}%", keyword.unwrap_or_default().trim());
         let (total,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM product WHERE product_status = 1 AND product_name LIKE ? \
-             AND (? IS NULL OR category_id = ?)",
+            "SELECT COUNT(*) FROM product WHERE product_status = 1 AND product_name LIKE $1 \
+             AND ($2 IS NULL OR category_id = $3)",
         )
         .bind(&kw)
         .bind(category_id)
@@ -726,8 +726,8 @@ impl PosCashierRepository {
             "SELECT json_build_object('productId', product_id, 'productName', product_name, \
              'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price, \
              'productStock', product_stock, 'productSn', product_sn, 'categoryId', category_id) \
-             FROM product WHERE product_status = 1 AND product_name LIKE ? \
-             AND (? IS NULL OR category_id = ?) ORDER BY product_id DESC LIMIT ? OFFSET ?",
+             FROM product WHERE product_status = 1 AND product_name LIKE $1 \
+             AND ($2 IS NULL OR category_id = $3) ORDER BY product_id DESC LIMIT $4 OFFSET $5",
         )
         .bind(&kw)
         .bind(category_id)
@@ -743,7 +743,7 @@ impl PosCashierRepository {
 
     pub async fn product_one(&self, product_id: i64) -> Result<Option<serde_json::Value>> {
         let row: Option<(serde_json::Value,)> = sqlx::query_as::<_, (serde_json::Value,)>(
-            "SELECT json_build_object('productId', product_id, 'productName', product_name,              'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price,              'productStock', product_stock, 'productSn', product_sn, 'productStatus',              product_status) FROM product WHERE product_id = ?",
+            "SELECT json_build_object('productId', product_id, 'productName', product_name,              'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price,              'productStock', product_stock, 'productSn', product_sn, 'productStatus',              product_status) FROM product WHERE product_id = $1",
         )
         .bind(product_id)
         .fetch_optional(&self.pool)
@@ -774,7 +774,7 @@ impl PosCashierRepository {
     ) -> Result<(i64, Vec<serde_json::Value>)> {
         let kw = format!("%{}%", keyword.unwrap_or_default().trim());
         let (total,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM user WHERE (? IS NOT NULL OR 1) AND (nickname LIKE ? OR mobile LIKE ? OR user_id = ?)",
+            "SELECT COUNT(*) FROM \"user\" WHERE ($1 IS NOT NULL OR 1) AND (nickname LIKE $2 OR mobile LIKE $3 OR user_id = $4)",
         )
         .bind(user_id)
         .bind(&kw)
@@ -786,8 +786,8 @@ impl PosCashierRepository {
         let rows = sqlx::query_as::<_, (serde_json::Value,)>(
             "SELECT json_build_object('userId', user_id, 'nickname', nickname, 'mobile', mobile, \
              'balance', balance, 'points', points, 'addTime', add_time) \
-             FROM user WHERE (nickname LIKE ? OR mobile LIKE ? OR user_id = ?) \
-             ORDER BY user_id DESC LIMIT ? OFFSET ?",
+             FROM \"user\" WHERE (nickname LIKE $1 OR mobile LIKE $2 OR user_id = $3) \
+             ORDER BY user_id DESC LIMIT $4 OFFSET $5",
         )
         .bind(&kw)
         .bind(&kw)
@@ -808,8 +808,8 @@ impl PosCashierRepository {
         password_hash: &str,
     ) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
-            "INSERT INTO user (username, avatar, mobile, mobile_validated, nickname, password, reg_time, referrer_user_id) \
-             VALUES (?, '', ?, 1, ?, ?, ?, 0) RETURNING user_id",
+            "INSERT INTO \"user\" (username, avatar, mobile, mobile_validated, nickname, password, reg_time, referrer_user_id) \
+             VALUES ($1, '', $2, 1, $3, $4, $5, 0) RETURNING user_id",
         )
         .bind(mobile)
         .bind(mobile)
@@ -826,7 +826,7 @@ impl PosCashierRepository {
         Ok(sqlx::query_as::<_, (serde_json::Value,)>(
             "SELECT json_build_object('addressId', address_id, 'consignee', consignee, \
              'mobile', mobile, 'address', address, 'isDefault', is_default) \
-             FROM user_address WHERE user_id = ? ORDER BY is_default DESC, address_id DESC",
+             FROM user_address WHERE user_id = $1 ORDER BY is_default DESC, address_id DESC",
         )
         .bind(user_id)
         .fetch_all(&self.pool)
@@ -839,7 +839,7 @@ impl PosCashierRepository {
 
     pub async fn order_remark(&self, user_id: i32) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> = sqlx::query_as(
-            "SELECT order_remark FROM \"order\" WHERE user_id = ? ORDER BY order_id DESC LIMIT 1",
+            "SELECT order_remark FROM \"order\" WHERE user_id = $1 ORDER BY order_id DESC LIMIT 1",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
@@ -853,7 +853,7 @@ impl PosCashierRepository {
         Ok(sqlx::query_as::<_, (serde_json::Value,)>(
             "SELECT json_build_object('rechargeOrderId', recharge_order_id, 'money', money, \
              'payStatus', pay_status, 'addTime', add_time) \
-             FROM user_recharge_order WHERE user_id = ? ORDER BY recharge_order_id DESC LIMIT 50",
+             FROM user_recharge_order WHERE user_id = $1 ORDER BY recharge_order_id DESC LIMIT 50",
         )
         .bind(user_id)
         .fetch_all(&self.pool)

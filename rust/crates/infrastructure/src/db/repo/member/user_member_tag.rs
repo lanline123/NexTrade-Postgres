@@ -74,9 +74,9 @@ impl UserMemberTagRepository {
             return Ok(Vec::new());
         }
         let placeholders = placeholders(tag_ids.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM member_tag WHERE shop_id = $1 AND id IN ({placeholders}) AND is_del = 0"
-        );
+        ));
         let mut q = sqlx::query_as::<_, MemberTag>(&sql).bind(shop_id);
         for id in tag_ids {
             q = q.bind(*id);
@@ -94,9 +94,9 @@ impl UserMemberTagRepository {
             return Ok(Vec::new());
         }
         let placeholders = placeholders(group_ids.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM member_tag_group WHERE shop_id = $1 AND id IN ({placeholders}) AND is_del = 0"
-        );
+        ));
         let mut q = sqlx::query_as::<_, MemberTagGroup>(&sql).bind(shop_id);
         for id in group_ids {
             q = q.bind(*id);
@@ -129,7 +129,7 @@ impl UserMemberTagRepository {
         for tag_id in insert_ids {
             sqlx::query(
                 "INSERT INTO user_member_tag (shop_id, user_id, tag_id, create_time) \
-                 VALUES (?, ?, ?, ?)",
+                 VALUES ($1, $2, $3, $4)",
             )
             .bind(shop_id)
             .bind(user_id)
@@ -154,9 +154,9 @@ impl UserMemberTagRepository {
             return Ok(0);
         }
         let placeholders = placeholders(tag_ids.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "DELETE FROM user_member_tag WHERE shop_id = ? AND user_id = ? AND tag_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query(&sql).bind(shop_id).bind(user_id);
         for id in tag_ids {
             q = q.bind(*id);
@@ -178,7 +178,7 @@ impl UserMemberTagRepository {
         for (user_id, delete_ids) in delete_map {
             for tag_id in delete_ids {
                 sqlx::query(
-                    "DELETE FROM user_member_tag WHERE shop_id = ? AND user_id = ? AND tag_id = ?",
+                    "DELETE FROM user_member_tag WHERE shop_id = $1 AND user_id = $2 AND tag_id = $3",
                 )
                 .bind(shop_id)
                 .bind(*user_id)
@@ -192,7 +192,7 @@ impl UserMemberTagRepository {
             for tag_id in insert_ids {
                 sqlx::query(
                     "INSERT INTO user_member_tag (shop_id, user_id, tag_id, create_time) \
-                     VALUES (?, ?, ?, ?)",
+                     VALUES ($1, $2, $3, $4)",
                 )
                 .bind(shop_id)
                 .bind(*user_id)
@@ -221,10 +221,10 @@ impl UserMemberTagRepository {
         }
         let user_ph = placeholders(user_ids.len());
         let tag_ph = placeholders(tag_ids.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "DELETE FROM user_member_tag \
              WHERE shop_id = ? AND user_id IN ({user_ph}) AND tag_id IN ({tag_ph})"
-        );
+        ));
         let mut q = sqlx::query(&sql).bind(shop_id);
         for id in user_ids {
             q = q.bind(*id);

@@ -125,7 +125,7 @@ impl MemberRepository {
 
         sqlx::query(
             "INSERT INTO user_points_log (user_id, points, change_time, change_desc, change_type, relation_type, relation_id) \
-             VALUES (?, ?, ?, ?, ?, NULL, NULL)"
+             VALUES ($1, $2, $3, $4, $5, NULL, NULL)"
         )
         .bind(user_id)
         .bind(delta.abs())
@@ -143,7 +143,7 @@ impl MemberRepository {
     /// 原子增加积分（余额不足扣减时返回 false，防负数并发）。
     pub async fn try_adjust_points(&self, user_id: i32, delta: i32) -> Result<bool> {
         let sql = if delta >= 0 {
-            "UPDATE \"user\" SET points = points + ? WHERE user_id = ?"
+            "UPDATE \"user\" SET points = points + $1 WHERE user_id = $2"
         } else {
             "UPDATE \"user\" SET points = points + $1 WHERE user_id = $2 AND points >= $3"
         };

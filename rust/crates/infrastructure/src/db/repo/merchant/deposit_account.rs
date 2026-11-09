@@ -165,6 +165,7 @@ impl DepositAccountRepository {
                         "UPDATE product SET product_status = 1 WHERE shop_id = $1 AND is_delete = 0 AND product_id IN ({})",
                         placeholders
                     );
+                    let sql = crate::db::to_pg_placeholders(&sql);
                     let mut q = sqlx::query(&sql).bind(owner_id);
                     for id in chunk {
                         q = q.bind(*id);
@@ -180,6 +181,7 @@ impl DepositAccountRepository {
                         "UPDATE vendor_product SET product_state = 1 WHERE is_del = 0 AND id IN ({})",
                         placeholders
                     );
+                    let sql = crate::db::to_pg_placeholders(&sql);
                     let mut q = sqlx::query(&sql);
                     for id in chunk {
                         q = q.bind(*id);

@@ -73,7 +73,7 @@ impl SalesmanGroupRepository {
         } else {
             "ASC"
         };
-        let count_sql = format!("SELECT COUNT(*) FROM salesman_group {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM salesman_group {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         if let Some(k) = like.as_deref() {
             cq = cq.bind(k);
@@ -83,9 +83,9 @@ impl SalesmanGroupRepository {
         }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {GROUP_COLUMNS} FROM salesman_group {where_sql} ORDER BY {column} {dir} LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, SalesmanGroup>(&list_sql);
         if let Some(k) = like.as_deref() {
             lq = lq.bind(k);

@@ -238,7 +238,7 @@ impl LogisticsCompanyRepository {
     ) -> Result<Vec<i32>> {
         let rows: Vec<(i32,)> = sqlx::query_as(
             "SELECT logistics_id FROM logistics_company_config
-             WHERE shop_id = ? AND vendor_id = ?",
+             WHERE shop_id = $1 AND vendor_id = $2",
         )
         .bind(shop_id)
         .bind(vendor_id)
@@ -259,7 +259,7 @@ impl LogisticsCompanyRepository {
     /// 见 `uncertain_points`）；若线上语义要求过滤，需主会话确认。
     pub async fn find_config_val(&self, biz_code: &str) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> =
-            sqlx::query_as("SELECT biz_val FROM config WHERE biz_code = ? LIMIT 1")
+            sqlx::query_as("SELECT biz_val FROM config WHERE biz_code = $1 LIMIT 1")
                 .bind(biz_code)
                 .fetch_optional(&self.pool)
                 .await
@@ -357,10 +357,10 @@ impl LogisticsCompanyRepository {
 
         debug_assert_eq!(columns.len(), binds.len());
         let placeholders = vec!["?"; columns.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "INSERT INTO logistics_company ({}) VALUES ({placeholders})",
             columns.join(", ")
-        );
+        ));
         let mut query = sqlx::query_scalar(&format!("{} RETURNING logistics_id", &sql));
         for b in &binds {
             query = match b {
@@ -521,7 +521,7 @@ impl LogisticsCompanyRepository {
             nextrade_core::models::logistics::logistics_company::LOGISTICS_COMPANY_COLUMNS.contains(&column),
             "update_field 列名未经过白名单映射: {column}"
         );
-        let sql = format!("UPDATE logistics_company SET {column} = ? WHERE logistics_id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE logistics_company SET {column} = ? WHERE logistics_id = ?"));
         let res = sqlx::query(&sql)
             .bind(val)
             .bind(id)
@@ -536,7 +536,7 @@ impl LogisticsCompanyRepository {
     /// ⚠️ \"LogisticsCompany\" 实体**没有** `@TableLogic` 注解，
     /// 因此 MyBatis-Plus 的 \"removeById\" 是**物理 DELETE**（不是软删）。
     pub async fn delete(&self, id: i32) -> Result<bool> {
-        let res = sqlx::query("DELETE FROM logistics_company WHERE logistics_id = ?")
+        let res = sqlx::query("DELETE FROM logistics_company WHERE logistics_id = $1")
             .bind(id)
             .execute(&self.pool)
             .await

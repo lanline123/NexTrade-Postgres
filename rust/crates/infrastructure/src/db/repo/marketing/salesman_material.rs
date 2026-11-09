@@ -82,7 +82,7 @@ impl SalesmanMaterialRepository {
         } else {
             "DESC"
         };
-        let count_sql = format!("SELECT COUNT(*) FROM salesman_material {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM salesman_material {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         if let Some(shop_id) = shop_id {
             cq = cq.bind(shop_id);
@@ -92,9 +92,9 @@ impl SalesmanMaterialRepository {
         }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {MATERIAL_COLUMNS} FROM salesman_material {where_sql} ORDER BY {column} {dir} LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, SalesmanMaterial>(&list_sql);
         if let Some(shop_id) = shop_id {
             lq = lq.bind(shop_id);
@@ -168,7 +168,7 @@ impl SalesmanMaterialRepository {
             return Ok(0);
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!("DELETE FROM salesman_material WHERE id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM salesman_material WHERE id IN ({ph})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -202,9 +202,9 @@ impl SalesmanMaterialRepository {
         match ids {
             Some(ids) if !ids.is_empty() => {
                 let ph = vec!["?"; ids.len()].join(", ");
-                let sql = format!(
+                let sql = crate::db::to_pg_placeholders(&format!(
                     "SELECT {CATEGORY_COLUMNS} FROM salesman_material_category WHERE category_id IN ({ph}) ORDER BY sort_order ASC"
-                );
+                ));
                 let mut q = sqlx::query_as::<_, SalesmanMaterialCategory>(&sql);
                 for id in ids {
                     q = q.bind(*id);
@@ -231,9 +231,9 @@ impl SalesmanMaterialRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT product_id, product_name, product_price FROM product WHERE product_id IN ({ph})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, MaterialProductRow>(&sql);
         for id in ids {
             q = q.bind(id);

@@ -59,7 +59,7 @@ impl UserMessageLogRepository {
             .map(|k| format!("%{k}%"));
 
         let count_sql =
-            "SELECT COUNT(*) FROM user_message_log WHERE (? IS NULL OR message_title LIKE ?)";
+            "SELECT COUNT(*) FROM user_message_log WHERE ($1 IS NULL OR message_title LIKE $2)";
         let total: (i64,) = sqlx::query_as(count_sql)
             .bind(&like)
             .bind(&like)
@@ -67,10 +67,10 @@ impl UserMessageLogRepository {
             .await
             .map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {LOG_COLUMNS} FROM user_message_log \
              WHERE (? IS NULL OR message_title LIKE ?){order} LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = sqlx::query_as::<_, UserMessageLog>(&list_sql)
             .bind(&like)
             .bind(&like)
@@ -84,7 +84,7 @@ impl UserMessageLogRepository {
 
     /// 按主键查（Java `getOne(eq message_log_id)`）。
     pub async fn find_by_id(&self, log_id: i32) -> Result<Option<UserMessageLog>> {
-        let sql = format!("SELECT {LOG_COLUMNS} FROM user_message_log WHERE message_log_id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT {LOG_COLUMNS} FROM user_message_log WHERE message_log_id = ?"));
         sqlx::query_as::<_, UserMessageLog>(&sql)
             .bind(log_id)
             .fetch_optional(&self.pool)
@@ -150,7 +150,7 @@ impl UserMessageLogRepository {
             "INSERT INTO user_message_log \
              (message_type, send_user_type, user_ids, user_rank, message_title, \
               message_content, message_link, send_time, is_recall) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING message_log_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING message_log_id",
         )
         .bind(log.message_type)
         .bind(log.send_user_type)
@@ -170,7 +170,7 @@ impl UserMessageLogRepository {
             sqlx::query(
                 "INSERT INTO user_message \
                  (message_log_id, user_id, user_rank, is_read, title, content, link, add_time) \
-                 VALUES (?, ?, 0, 0, ?, ?, ?, ?)",
+                 VALUES ($1, $2, 0, 0, $3, $4, $5, $6)",
             )
             .bind(log_id)
             .bind(*user_id)
@@ -190,12 +190,12 @@ impl UserMessageLogRepository {
     /// 并删除对应 `user_message`。
     pub async fn recall(&self, log_id: i32) -> Result<()> {
         let mut tx = self.pool.begin().await.map_err(map_err)?;
-        sqlx::query("UPDATE user_message_log SET is_recall = 1 WHERE message_log_id = ?")
+        sqlx::query("UPDATE user_message_log SET is_recall = 1 WHERE message_log_id = $1")
             .bind(log_id)
             .execute(&mut *tx)
             .await
             .map_err(map_err)?;
-        sqlx::query("DELETE FROM user_message WHERE message_log_id = ?")
+        sqlx::query("DELETE FROM user_message WHERE message_log_id = $1")
             .bind(log_id)
             .execute(&mut *tx)
             .await
@@ -206,7 +206,7 @@ impl UserMessageLogRepository {
 
     /// 删除单条日志（Java `BaseServiceImpl#del`，不级联）。
     pub async fn delete(&self, log_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM user_message_log WHERE message_log_id = ?")
+        let r = sqlx::query("DELETE FROM user_message_log WHERE message_log_id = $1")
             .bind(log_id)
             .execute(&self.pool)
             .await

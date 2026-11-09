@@ -135,7 +135,7 @@ impl SearchAdminRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!("SELECT * FROM category WHERE category_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM category WHERE category_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, Category>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -149,9 +149,9 @@ impl SearchAdminRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; brand_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM brand WHERE brand_id IN ({placeholders}) ORDER BY brand_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, Brand>(&sql);
         for id in brand_ids {
             q = q.bind(*id);
@@ -176,8 +176,8 @@ impl SearchAdminRepository {
         limit: i64,
     ) -> Result<Vec<Category>> {
         sqlx::query_as::<_, Category>(
-            "SELECT * FROM category WHERE parent_id = ? AND is_show = 1 \
-             ORDER BY sort_order ASC, category_id ASC LIMIT ?",
+            "SELECT * FROM category WHERE parent_id = $1 AND is_show = 1 \
+             ORDER BY sort_order ASC, category_id ASC LIMIT $2",
         )
         .bind(parent_id)
         .bind(limit)
@@ -188,7 +188,7 @@ impl SearchAdminRepository {
 
     /// 按 ID 取分类（已选项名称）。
     pub async fn find_category(&self, category_id: i32) -> Result<Option<Category>> {
-        sqlx::query_as::<_, Category>("SELECT * FROM category WHERE category_id = ? LIMIT 1")
+        sqlx::query_as::<_, Category>("SELECT * FROM category WHERE category_id = $1 LIMIT 1")
             .bind(category_id)
             .fetch_optional(&self.pool)
             .await

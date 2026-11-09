@@ -291,7 +291,7 @@ impl SalesmanRepository {
                 &mut wh,
                 &mut params,
                 "s.user_id IN (SELECT user_id FROM \"user\" \
-                 WHERE mobile LIKE ? OR username LIKE ? OR nickname LIKE ?)",
+                 WHERE mobile LIKE $1 OR username LIKE $2 OR nickname LIKE $3)",
                 &[
                     Bind::S(like.clone()),
                     Bind::S(like.clone()),
@@ -305,7 +305,7 @@ impl SalesmanRepository {
                 &mut wh,
                 &mut params,
                 "s.pid IN (SELECT s2.salesman_id FROM salesman s2 \
-                 JOIN \"user\" u2 ON u2.user_id = s2.user_id WHERE u2.mobile LIKE ?)",
+                 JOIN \"user\" u2 ON u2.user_id = s2.user_id WHERE u2.mobile LIKE $1)",
                 &[Bind::S(like)],
             );
         }
@@ -376,7 +376,7 @@ impl SalesmanRepository {
     pub async fn find_by_id(&self, salesman_id: i32) -> Result<Option<Salesman>> {
         fetch_one::<Salesman>(
             &self.pool,
-            "SELECT * FROM salesman WHERE salesman_id = ?",
+            "SELECT * FROM salesman WHERE salesman_id = $1",
             &[Bind::I(salesman_id)],
         )
         .await
@@ -402,7 +402,7 @@ impl SalesmanRepository {
     pub async fn find_by_user_id(&self, user_id: i32) -> Result<Option<Salesman>> {
         fetch_one::<Salesman>(
             &self.pool,
-            "SELECT * FROM salesman WHERE user_id = ? LIMIT 1",
+            "SELECT * FROM salesman WHERE user_id = $1 LIMIT 1",
             &[Bind::I(user_id)],
         )
         .await
@@ -412,7 +412,7 @@ impl SalesmanRepository {
     pub async fn count_by_group(&self, group_id: i32) -> Result<u64> {
         count(
             &self.pool,
-            "SELECT COUNT(*) FROM salesman WHERE group_id = ?",
+            "SELECT COUNT(*) FROM salesman WHERE group_id = $1",
             &[Bind::I(group_id)],
         )
         .await
@@ -422,7 +422,7 @@ impl SalesmanRepository {
     pub async fn count_by_pid(&self, pid: i32) -> Result<u64> {
         count(
             &self.pool,
-            "SELECT COUNT(*) FROM salesman WHERE pid = ?",
+            "SELECT COUNT(*) FROM salesman WHERE pid = $1",
             &[Bind::I(pid)],
         )
         .await
@@ -432,7 +432,7 @@ impl SalesmanRepository {
     pub async fn count_by_user(&self, user_id: i32) -> Result<u64> {
         count(
             &self.pool,
-            "SELECT COUNT(*) FROM salesman WHERE user_id = ?",
+            "SELECT COUNT(*) FROM salesman WHERE user_id = $1",
             &[Bind::I(user_id)],
         )
         .await
@@ -450,7 +450,7 @@ impl SalesmanRepository {
     ) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO salesman (user_id, level, group_id, pid, add_time, shop_id, sale_amount) \
-             VALUES (?, ?, ?, ?, ?, ?, 0) RETURNING salesman_id",
+             VALUES ($1, $2, $3, $4, $5, $6, 0) RETURNING salesman_id",
         )
         .bind(user_id)
         .bind(level)
@@ -468,8 +468,8 @@ impl SalesmanRepository {
     pub async fn update_salesman(&self, s: &Salesman) -> Result<u64> {
         exec(
             &self.pool,
-            "UPDATE salesman SET user_id = ?, level = ?, group_id = ?, pid = ?, \
-             add_time = ?, shop_id = ?, sale_amount = ? WHERE salesman_id = ?",
+            "UPDATE salesman SET user_id = $1, level = $2, group_id = $3, pid = $4, \
+             add_time = $5, shop_id = $6, sale_amount = $7 WHERE salesman_id = $8",
             &[
                 Bind::I(s.user_id.unwrap_or(0)),
                 Bind::I(s.level.unwrap_or(0)),
@@ -490,7 +490,7 @@ impl SalesmanRepository {
     pub async fn find_user(&self, user_id: i32) -> Result<Option<User>> {
         fetch_one::<User>(
             &self.pool,
-            "SELECT * FROM \"user\" WHERE user_id = ?",
+            "SELECT * FROM \"user\" WHERE user_id = $1",
             &[Bind::I(user_id)],
         )
         .await
@@ -519,7 +519,7 @@ impl SalesmanRepository {
     pub async fn sum_paid_amount_by_user(&self, user_id: i32) -> Result<Decimal> {
         let rows = fetch_rows::<(Option<Decimal>,)>(
             &self.pool,
-            "SELECT SUM(paid_amount) FROM \"order\" WHERE user_id = ?",
+            "SELECT SUM(paid_amount) FROM \"order\" WHERE user_id = $1",
             &[Bind::I(user_id)],
         )
         .await?;
@@ -569,7 +569,7 @@ impl SalesmanRepository {
     pub async fn find_group(&self, group_id: i32) -> Result<Option<SalesmanGroup>> {
         fetch_one::<SalesmanGroup>(
             &self.pool,
-            "SELECT * FROM salesman_group WHERE group_id = ?",
+            "SELECT * FROM salesman_group WHERE group_id = $1",
             &[Bind::I(group_id)],
         )
         .await
@@ -585,7 +585,7 @@ impl SalesmanRepository {
     ) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO salesman_group (group_name, \"describe\", shop_id, add_time) \
-             VALUES (?, ?, ?, ?) RETURNING group_id",
+             VALUES ($1, $2, $3, $4) RETURNING group_id",
         )
         .bind(group_name)
         .bind(describe)
@@ -601,8 +601,8 @@ impl SalesmanRepository {
     pub async fn update_group(&self, g: &SalesmanGroup) -> Result<u64> {
         exec(
             &self.pool,
-            "UPDATE salesman_group SET group_name = ?, \"describe\" = ?, shop_id = ?, \
-             add_time = ? WHERE group_id = ?",
+            "UPDATE salesman_group SET group_name = $1, \"describe\" = $2, shop_id = $3, \
+             add_time = $4 WHERE group_id = $5",
             &[
                 Bind::S(g.group_name.clone().unwrap_or_default()),
                 Bind::S(g.describe.clone().unwrap_or_default()),
@@ -618,7 +618,7 @@ impl SalesmanRepository {
     pub async fn delete_group(&self, group_id: i32) -> Result<u64> {
         exec(
             &self.pool,
-            "DELETE FROM salesman_group WHERE group_id = ?",
+            "DELETE FROM salesman_group WHERE group_id = $1",
             &[Bind::I(group_id)],
         )
         .await
@@ -630,7 +630,7 @@ impl SalesmanRepository {
     pub async fn count_customers(&self, salesman_id: i32) -> Result<u64> {
         count(
             &self.pool,
-            "SELECT COUNT(*) FROM salesman_customer WHERE salesman_id = ?",
+            "SELECT COUNT(*) FROM salesman_customer WHERE salesman_id = $1",
             &[Bind::I(salesman_id)],
         )
         .await
@@ -712,7 +712,7 @@ impl SalesmanRepository {
             push_cond(
                 &mut wh,
                 &mut params,
-                "so.order_id IN (SELECT order_id FROM \"order\" WHERE order_sn LIKE ?)",
+                "so.order_id IN (SELECT order_id FROM \"order\" WHERE order_sn LIKE $1)",
                 &[Bind::S(format!("%{sn}%"))],
             );
         }
@@ -764,7 +764,7 @@ impl SalesmanRepository {
     pub async fn find_orders_by_salesman(&self, salesman_id: i32) -> Result<Vec<SalesmanOrder>> {
         fetch_rows::<SalesmanOrder>(
             &self.pool,
-            "SELECT * FROM salesman_order WHERE salesman_id = ? \
+            "SELECT * FROM salesman_order WHERE salesman_id = $1 \
              ORDER BY salesman_order_id DESC",
             &[Bind::I(salesman_id)],
         )
@@ -800,7 +800,7 @@ impl SalesmanRepository {
         params.append(&mut where_params);
         exec(
             &self.pool,
-            &("UPDATE salesman_order SET status = 1, settlement_time = ?".to_string() + &wh),
+            &("UPDATE salesman_order SET status = 1, settlement_time = $1".to_string() + &wh),
             &params,
         )
         .await
@@ -818,7 +818,7 @@ impl SalesmanRepository {
         params.append(&mut where_params);
         exec(
             &self.pool,
-            &("UPDATE salesman_order SET status = ?".to_string() + &wh),
+            &("UPDATE salesman_order SET status = $1".to_string() + &wh),
             &params,
         )
         .await
@@ -904,7 +904,7 @@ impl SalesmanRepository {
     pub async fn find_order_item(&self, item_id: i32) -> Result<Option<OrderItem>> {
         fetch_one::<OrderItem>(
             &self.pool,
-            "SELECT * FROM order_item WHERE item_id = ?",
+            "SELECT * FROM order_item WHERE item_id = $1",
             &[Bind::I(item_id)],
         )
         .await
@@ -929,7 +929,7 @@ impl SalesmanRepository {
             push_cond(
                 &mut wh,
                 &mut params,
-                "sp.product_id IN (SELECT product_id FROM product WHERE product_name LIKE ?)",
+                "sp.product_id IN (SELECT product_id FROM product WHERE product_name LIKE $1)",
                 &[Bind::S(format!("%{name}%"))],
             );
         }
@@ -959,7 +959,7 @@ impl SalesmanRepository {
     pub async fn find_product(&self, id: i32) -> Result<Option<SalesmanProduct>> {
         fetch_one::<SalesmanProduct>(
             &self.pool,
-            "SELECT * FROM salesman_product WHERE salesman_product_id = ?",
+            "SELECT * FROM salesman_product WHERE salesman_product_id = $1",
             &[Bind::I(id)],
         )
         .await
@@ -972,7 +972,7 @@ impl SalesmanRepository {
     ) -> Result<Option<SalesmanProduct>> {
         fetch_one::<SalesmanProduct>(
             &self.pool,
-            "SELECT * FROM salesman_product WHERE product_id = ?",
+            "SELECT * FROM salesman_product WHERE product_id = $1",
             &[Bind::I(product_id)],
         )
         .await
@@ -1002,7 +1002,7 @@ impl SalesmanRepository {
         Ok(
             fetch_one::<(i32,)>(
                 &self.pool,
-                "SELECT product_id FROM product WHERE product_id = ?",
+                "SELECT product_id FROM product WHERE product_id = $1",
                 &[Bind::I(product_id)],
             )
             .await?
@@ -1023,7 +1023,7 @@ impl SalesmanRepository {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO salesman_product \
              (product_id, is_join, commission_type, commission_data, add_time, update_time, shop_id) \
-             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING salesman_product_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING salesman_product_id",
         )
         .bind(product_id)
         .bind(is_join)
@@ -1042,9 +1042,9 @@ impl SalesmanRepository {
     pub async fn update_product(&self, p: &SalesmanProduct) -> Result<u64> {
         exec(
             &self.pool,
-            "UPDATE salesman_product SET product_id = ?, is_join = ?, commission_type = ?, \
-             commission_data = ?, add_time = ?, update_time = ?, shop_id = ? \
-             WHERE salesman_product_id = ?",
+            "UPDATE salesman_product SET product_id = $1, is_join = $2, commission_type = $3, \
+             commission_data = $4, add_time = $5, update_time = $6, shop_id = $7 \
+             WHERE salesman_product_id = $8",
             &[
                 Bind::I(p.product_id.unwrap_or(0)),
                 Bind::I(p.is_join.unwrap_or(0)),
@@ -1109,7 +1109,7 @@ impl SalesmanRepository {
     pub async fn find_material(&self, id: i32) -> Result<Option<SalesmanMaterial>> {
         fetch_one::<SalesmanMaterial>(
             &self.pool,
-            "SELECT * FROM salesman_material WHERE id = ?",
+            "SELECT * FROM salesman_material WHERE id = $1",
             &[Bind::I(id)],
         )
         .await
@@ -1130,7 +1130,7 @@ impl SalesmanRepository {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO salesman_material \
              (add_time, is_top, content, is_available, shop_id, pics, category_id, product_id) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
         )
         .bind(add_time)
         .bind(is_top)
@@ -1150,9 +1150,9 @@ impl SalesmanRepository {
     pub async fn update_material(&self, m: &SalesmanMaterial) -> Result<u64> {
         exec(
             &self.pool,
-            "UPDATE salesman_material SET add_time = ?, is_top = ?, content = ?, \
-             is_available = ?, shop_id = ?, pics = ?, category_id = ?, share_num = ?, \
-             product_id = ? WHERE id = ?",
+            "UPDATE salesman_material SET add_time = $1, is_top = $2, content = $3, \
+             is_available = $4, shop_id = $5, pics = $6, category_id = $7, share_num = $8, \
+             product_id = $9 WHERE id = $10",
             &[
                 Bind::I(m.add_time),
                 Bind::I(m.is_top),
@@ -1173,7 +1173,7 @@ impl SalesmanRepository {
     pub async fn delete_material(&self, id: i32) -> Result<u64> {
         exec(
             &self.pool,
-            "DELETE FROM salesman_material WHERE id = ?",
+            "DELETE FROM salesman_material WHERE id = $1",
             &[Bind::I(id)],
         )
         .await
@@ -1183,7 +1183,7 @@ impl SalesmanRepository {
     pub async fn count_materials_by_category(&self, category_id: i32) -> Result<u64> {
         count(
             &self.pool,
-            "SELECT COUNT(*) FROM salesman_material WHERE category_id = ?",
+            "SELECT COUNT(*) FROM salesman_material WHERE category_id = $1",
             &[Bind::I(category_id)],
         )
         .await
@@ -1232,7 +1232,7 @@ impl SalesmanRepository {
     pub async fn find_category(&self, id: i32) -> Result<Option<SalesmanMaterialCategory>> {
         fetch_one::<SalesmanMaterialCategory>(
             &self.pool,
-            "SELECT * FROM salesman_material_category WHERE category_id = ?",
+            "SELECT * FROM salesman_material_category WHERE category_id = $1",
             &[Bind::I(id)],
         )
         .await
@@ -1264,7 +1264,7 @@ impl SalesmanRepository {
         shop_id: Option<i32>,
         exclude_id: Option<i32>,
     ) -> Result<u64> {
-        let mut wh = String::from(" WHERE category_name = ?");
+        let mut wh = String::from(" WHERE category_name = $1");
         let mut params: Vec<Bind> = vec![Bind::S(category_name.to_string())];
         if let Some(v) = shop_id {
             push_cond(&mut wh, &mut params, "shop_id = ?", &[Bind::I(v)]);
@@ -1285,7 +1285,7 @@ impl SalesmanRepository {
     ) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO salesman_material_category \
-             (category_name, sort_order, shop_id, add_time) VALUES (?, ?, ?, ?) RETURNING category_id",
+             (category_name, sort_order, shop_id, add_time) VALUES ($1, $2, $3, $4) RETURNING category_id",
         )
         .bind(category_name)
         .bind(sort_order)
@@ -1301,8 +1301,8 @@ impl SalesmanRepository {
     pub async fn update_category(&self, c: &SalesmanMaterialCategory) -> Result<u64> {
         exec(
             &self.pool,
-            "UPDATE salesman_material_category SET category_name = ?, sort_order = ?, \
-             shop_id = ?, add_time = ? WHERE category_id = ?",
+            "UPDATE salesman_material_category SET category_name = $1, sort_order = $2, \
+             shop_id = $3, add_time = $4 WHERE category_id = $5",
             &[
                 Bind::S(c.category_name.clone().unwrap_or_default()),
                 Bind::I(c.sort_order.unwrap_or(0)),
@@ -1318,7 +1318,7 @@ impl SalesmanRepository {
     pub async fn delete_category(&self, id: i32) -> Result<u64> {
         exec(
             &self.pool,
-            "DELETE FROM salesman_material_category WHERE category_id = ?",
+            "DELETE FROM salesman_material_category WHERE category_id = $1",
             &[Bind::I(id)],
         )
         .await
@@ -1414,7 +1414,7 @@ impl SalesmanRepository {
     pub async fn find_content(&self, id: i32) -> Result<Option<SalesmanContent>> {
         fetch_one::<SalesmanContent>(
             &self.pool,
-            "SELECT * FROM salesman_content WHERE id = ?",
+            "SELECT * FROM salesman_content WHERE id = $1",
             &[Bind::I(id)],
         )
         .await
@@ -1439,7 +1439,7 @@ impl SalesmanRepository {
             "INSERT INTO salesman_content \
              (title, img, start_time, end_time, \"describe\", is_top, content, is_available, \
               shop_id, pics) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
         )
         .bind(title)
         .bind(img)
@@ -1461,9 +1461,9 @@ impl SalesmanRepository {
     pub async fn update_content(&self, c: &SalesmanContent) -> Result<u64> {
         exec(
             &self.pool,
-            "UPDATE salesman_content SET title = ?, img = ?, start_time = ?, end_time = ?, \
-             \"describe\" = ?, is_top = ?, content = ?, is_available = ?, shop_id = ?, pics = ? \
-             WHERE id = ?",
+            "UPDATE salesman_content SET title = $1, img = $2, start_time = $3, end_time = $4, \
+             \"describe\" = $5, is_top = $6, content = $7, is_available = $8, shop_id = $9, pics = $10 \
+             WHERE id = $11",
             &[
                 Bind::S(c.title.clone()),
                 Bind::S(c.img.clone()),
@@ -1485,7 +1485,7 @@ impl SalesmanRepository {
     pub async fn delete_content(&self, id: i32) -> Result<u64> {
         exec(
             &self.pool,
-            "DELETE FROM salesman_content WHERE id = ?",
+            "DELETE FROM salesman_content WHERE id = $1",
             &[Bind::I(id)],
         )
         .await
@@ -1497,7 +1497,7 @@ impl SalesmanRepository {
     pub async fn find_config(&self, code: &str) -> Result<Option<SalesmanConfig>> {
         fetch_one::<SalesmanConfig>(
             &self.pool,
-            "SELECT * FROM salesman_config WHERE code = ? LIMIT 1",
+            "SELECT * FROM salesman_config WHERE code = $1 LIMIT 1",
             &[Bind::S(code.to_string())],
         )
         .await
@@ -1511,7 +1511,7 @@ impl SalesmanRepository {
     ) -> Result<Option<SalesmanConfig>> {
         fetch_one::<SalesmanConfig>(
             &self.pool,
-            "SELECT * FROM salesman_config WHERE code = ? AND shop_id = ? LIMIT 1",
+            "SELECT * FROM salesman_config WHERE code = $1 AND shop_id = $2 LIMIT 1",
             &[Bind::S(code.to_string()), Bind::I(shop_id.unwrap_or(0))],
         )
         .await
@@ -1525,7 +1525,7 @@ impl SalesmanRepository {
         data: &str,
     ) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
-            "INSERT INTO salesman_config (code, shop_id, data) VALUES (?, ?, ?) RETURNING id",
+            "INSERT INTO salesman_config (code, shop_id, data) VALUES ($1, $2, $3) RETURNING id",
         )
         .bind(code)
         .bind(shop_id)
@@ -1540,7 +1540,7 @@ impl SalesmanRepository {
     pub async fn update_config(&self, id: i32, data: &str) -> Result<u64> {
         exec(
             &self.pool,
-            "UPDATE salesman_config SET data = ? WHERE id = ?",
+            "UPDATE salesman_config SET data = $1 WHERE id = $2",
             &[Bind::S(data.to_string()), Bind::I(id)],
         )
         .await

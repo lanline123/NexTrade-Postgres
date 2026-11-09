@@ -199,18 +199,18 @@ impl ProxyShoppingPickupContactRepository {
         let limit = q.page_size();
         let offset = (q.page_no() - 1) * limit;
 
-        let total_sql = format!(
+        let total_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM pickup_contact WHERE is_del = 0{where_sql}"
-        );
+        ));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&total_sql), binds)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
         let order = order_by_clause(q).unwrap_or_default();
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT id, user_id, contact_name, contact_phone, create_time, update_time, is_del FROM pickup_contact WHERE is_del = 0{where_sql}{order} LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = bind_all!(
             sqlx::query_as::<_, PickupContact>(&rows_sql),
             binds

@@ -104,9 +104,9 @@ impl PromotionRepository {
     pub async fn count_buckets(&self, now: i64) -> Result<PromotionCountRow> {
         let sql = format!(
             "SELECT \
-             CAST(SUM(CASE WHEN (start_time <= ? AND end_time >= ?) OR (start_time = 0 AND end_time = 0) THEN 1 ELSE 0 END) AS BIGINT) AS time_type1_count, \
-             CAST(SUM(CASE WHEN start_time <= ? AND end_time >= ? AND end_time <= ? THEN 1 ELSE 0 END) AS BIGINT) AS time_type2_count, \
-             CAST(SUM(CASE WHEN end_time > 0 AND end_time < ? THEN 1 ELSE 0 END) AS BIGINT) AS time_type3_count \
+             CAST(SUM(CASE WHEN (start_time <= $1 AND end_time >= $2) OR (start_time = 0 AND end_time = 0) THEN 1 ELSE 0 END) AS BIGINT) AS time_type1_count, \
+             CAST(SUM(CASE WHEN start_time <= $3 AND end_time >= $4 AND end_time <= $5 THEN 1 ELSE 0 END) AS BIGINT) AS time_type2_count, \
+             CAST(SUM(CASE WHEN end_time > 0 AND end_time < $6 THEN 1 ELSE 0 END) AS BIGINT) AS time_type3_count \
              FROM promotion"
         );
         let row: (Option<i64>, Option<i64>, Option<i64>) = sqlx::query_as(&sql)
@@ -128,9 +128,9 @@ impl PromotionRepository {
 
     /// 按主键查询（Java `getById`）。
     pub async fn find_by_id(&self, promotion_id: i32) -> Result<Option<Promotion>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {PROMOTION_COLUMNS} FROM promotion WHERE promotion_id = ? LIMIT 1"
-        );
+        ));
         sqlx::query_as::<_, Promotion>(&sql)
             .bind(promotion_id)
             .fetch_optional(&self.pool)

@@ -438,7 +438,7 @@ impl MerchantApplyService {
             None => {
                 let r: i32 = sqlx::query_scalar(
                     "INSERT INTO admin_user(username,admin_type,mobile,avatar,password,email,add_time,auth_list,user_id,suppliers_id,role_id,merchant_id,parent_id,shop_id,is_using,initial_password,is_deleted) \
-                     VALUES(?, 'shop', ?, '', ?, ?, ?, '[]', ?, 0, 1, ?, 0, 0, 1, ?, 0) RETURNING admin_id",
+                     VALUES($1, 'shop', $2, '', $3, $4, $5, '[]', $6, 0, 1, $7, 0, 0, 1, $8, 0) RETURNING admin_id",
                 )
                 .bind(&phone)
                 .bind(&phone)
@@ -463,7 +463,7 @@ impl MerchantApplyService {
             .map_err(|e| Error::Database(e.to_string()))?;
         sqlx::query(
             "INSERT INTO shop(shop_id,shop_title,add_time,shop_logo,click_count,status,merchant_id,shop_money,frozen_money,contact_mobile,description,is_contact_kefu,last_login_time,auto_erase_zero,auto_deduction_points,default_collection_method,auto_add_cart_after_scan,auto_print_online_order,auto_print_offline_order,pos_industry_type,is_delete) \
-             VALUES(?,?,?,?,0,1,?,0,0,?,'',0,0,0,0,0,0,0,0,0,0)",
+             VALUES($1,$2,$3,$4,0,1,$5,0,0,$6,'',0,0,0,0,0,0,0,0,0,0)",
         )
         .bind(shop_id)
         .bind(&shop_title)
@@ -475,7 +475,7 @@ impl MerchantApplyService {
         .await
         .map_err(|e| Error::Database(e.to_string()))?;
         let store_role_id: i32 = sqlx::query_scalar(
-            "INSERT INTO admin_role(role_name,role_code,role_desc,authority_list,admin_type,merchant_id,shop_id,vendor_id,is_system) VALUES(?,?,?,?,?,?,?,0,0) RETURNING role_id",
+            "INSERT INTO admin_role(role_name,role_code,role_desc,authority_list,admin_type,merchant_id,shop_id,vendor_id,is_system) VALUES($1,$2,$3,$4,$5,$6,$7,0,0) RETURNING role_id",
         )
         .bind("店铺管理员")
         .bind("store_admin")
@@ -549,7 +549,7 @@ impl MerchantApplyService {
         }
         let _ = sqlx::query(
             "INSERT INTO merchant_user(merchant_user_id,user_id,admin_user_id,merchant_id,is_admin) \
-             SELECT COALESCE(MAX(merchant_user_id),0)+1, ?, ?, ?, 1 FROM merchant_user",
+             SELECT COALESCE(MAX(merchant_user_id),0)+1, $1, $2, $3, 1 FROM merchant_user",
         )
         .bind(apply.user_id.unwrap_or(0))
         .bind(admin_id)
@@ -558,7 +558,7 @@ impl MerchantApplyService {
         .await;
         sqlx::query(
             "INSERT INTO admin_user_shop(admin_id,user_id,shop_id,username,email,avatar,auth_list,is_using,is_admin,add_time,role_id,work_on_time,default_pos_login,last_login_system,device_code) \
-             VALUES(?,?,?,?,?,?,'[\"all\"]',1,1,?,?,0,0,'','')",
+             VALUES($1,$2,$3,$4,$5,$6,'[\"all\"]',1,1,$7,$8,0,0,'','')",
         )
         .bind(admin_id)
         .bind(apply.user_id.unwrap_or(0))

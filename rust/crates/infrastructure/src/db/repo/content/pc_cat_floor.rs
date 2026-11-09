@@ -284,10 +284,10 @@ impl PcCatFloorRepository {
 
         debug_assert_eq!(columns.len(), binds.len());
         let placeholders = vec!["?"; columns.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "INSERT INTO pc_cat_floor ({}) VALUES ({placeholders})",
             columns.join(", ")
-        );
+        ));
         let mut query = sqlx::query_scalar(&format!("{} RETURNING cat_floor_id", &sql));
         for b in &binds {
             query = match b {
@@ -334,7 +334,7 @@ impl PcCatFloorRepository {
             nextrade_core::models::content::pc_cat_floor::PC_CAT_FLOOR_COLUMNS.contains(&column),
             "update_floor_field 列名未经过白名单映射: {column}"
         );
-        let sql = format!("UPDATE pc_cat_floor SET {column} = ? WHERE cat_floor_id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE pc_cat_floor SET {column} = ? WHERE cat_floor_id = ?"));
         let res = sqlx::query(&sql)
             .bind(val)
             .bind(id)
@@ -346,7 +346,7 @@ impl PcCatFloorRepository {
 
     /// 按主键硬删除（对应 Java `BaseServiceImpl#del` → \"removeById\"）。
     pub async fn delete_floor(&self, id: i32) -> Result<bool> {
-        let res = sqlx::query("DELETE FROM pc_cat_floor WHERE cat_floor_id = ?")
+        let res = sqlx::query("DELETE FROM pc_cat_floor WHERE cat_floor_id = $1")
             .bind(id)
             .execute(&self.pool)
             .await

@@ -47,12 +47,12 @@ impl ImConfigRepository {
         let (sql, has_shop) = match shop_id {
             Some(_) => (
                 "SELECT id, code, data, shop_id FROM im_config \
-                 WHERE code = ? AND shop_id = ? ORDER BY id ASC LIMIT 1",
+                 WHERE code = $1 AND shop_id = $2 ORDER BY id ASC LIMIT 1",
                 true,
             ),
             None => (
                 "SELECT id, code, data, shop_id FROM im_config \
-                 WHERE code = ? ORDER BY id ASC LIMIT 1",
+                 WHERE code = $1 ORDER BY id ASC LIMIT 1",
                 false,
             ),
         };
@@ -76,7 +76,7 @@ impl ImConfigRepository {
         data: Option<&str>,
         shop_id: i32,
     ) -> Result<i32> {
-        let r: i32 = sqlx::query_scalar("INSERT INTO im_config (code, data, shop_id) VALUES (?, ?, ?) RETURNING id")
+        let r: i32 = sqlx::query_scalar("INSERT INTO im_config (code, data, shop_id) VALUES ($1, $2, $3) RETURNING id")
             .bind(code)
             .bind(data)
             .bind(shop_id)
@@ -94,7 +94,7 @@ impl ImConfigRepository {
     ///
     /// 返回受影响行数（\"0\" 表示行已被并发删除）。
     pub async fn update_config_data(&self, id: i32, data: Option<&str>) -> Result<u64> {
-        let r = sqlx::query("UPDATE im_config SET data = ? WHERE id = ?")
+        let r = sqlx::query("UPDATE im_config SET data = $1 WHERE id = $2")
             .bind(data)
             .bind(id)
             .execute(&self.pool)

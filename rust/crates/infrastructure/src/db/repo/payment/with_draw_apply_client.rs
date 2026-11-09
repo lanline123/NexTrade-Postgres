@@ -273,7 +273,7 @@ impl WithDrawApplyClientRepository {
     pub async fn find_wallet(&self, user_id: i32) -> Result<Option<UserWalletRow>> {
         sqlx::query_as::<_, UserWalletRow>(
             "SELECT balance, frozen_balance, commission_balance, frozen_commission_balance \
-             FROM user WHERE user_id = $1",
+             FROM \"user\" WHERE user_id = $1",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
@@ -283,7 +283,7 @@ impl WithDrawApplyClientRepository {
 
     /// 余额提现：冻结余额 `+= amount`（Java `user.frozenBalance.add(amount)`）。
     pub async fn freeze_balance(&self, user_id: i32, amount: Decimal) -> Result<()> {
-        sqlx::query("UPDATE user SET frozen_balance = frozen_balance + $1 WHERE user_id = $2")
+        sqlx::query("UPDATE \"user\" SET frozen_balance = frozen_balance + $1 WHERE user_id = $2")
             .bind(amount)
             .bind(user_id)
             .execute(&self.pool)
@@ -296,7 +296,7 @@ impl WithDrawApplyClientRepository {
     /// （Java `incFrozenCommissionBalance` + `decCommissionBalance`）。
     pub async fn freeze_and_deduct_commission(&self, user_id: i32, amount: Decimal) -> Result<()> {
         sqlx::query(
-            "UPDATE user SET frozen_commission_balance = frozen_commission_balance + $1, \
+            "UPDATE \"user\" SET frozen_commission_balance = frozen_commission_balance + $1, \
              commission_balance = commission_balance - $2 WHERE user_id = $3",
         )
         .bind(amount)

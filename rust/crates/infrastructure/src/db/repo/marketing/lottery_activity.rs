@@ -119,7 +119,7 @@ impl LotteryActivityRepository {
     // ————————————————————— 活动 —————————————————————
 
     pub async fn find_by_id(&self, activity_id: i32) -> Result<Option<LotteryActivity>> {
-        let sql = format!("{} WHERE activity_id = ? LIMIT 1", select_sql(&ACTIVITY_COLUMNS, "lottery_activity"));
+        let sql = crate::db::to_pg_placeholders(&format!("{} WHERE activity_id = ? LIMIT 1", select_sql(&ACTIVITY_COLUMNS, "lottery_activity")));
         sqlx::query_as::<_, LotteryActivity>(&sql)
             .bind(activity_id)
             .fetch_optional(&self.pool)
@@ -138,16 +138,16 @@ impl LotteryActivityRepository {
         offset: i64,
     ) -> Result<(i64, Vec<LotteryActivity>)> {
         let (where_sql, binds) = build_activity_where(q, now, shop_id);
-        let count_sql = format!("SELECT COUNT(*) FROM lottery_activity{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM lottery_activity{where_sql}"));
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
         for b in &binds {
             count_q = count_q.bind(b.as_str());
         }
         let total: (i64,) = count_q.fetch_one(&self.pool).await.map_err(map_err)?;
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "{} {where_sql} ORDER BY create_time DESC LIMIT {limit} OFFSET {offset}",
             select_sql(&ACTIVITY_COLUMNS, "lottery_activity")
-        );
+        ));
         let mut rows_q = sqlx::query_as::<_, LotteryActivity>(&rows_sql);
         for b in &binds {
             rows_q = rows_q.bind(b.as_str());
@@ -244,10 +244,10 @@ impl LotteryActivityRepository {
     // ————————————————————— 奖品 —————————————————————
 
     pub async fn prizes_by_activity(&self, activity_id: i32) -> Result<Vec<LotteryPrize>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "{} WHERE activity_id = ? ORDER BY prize_id ASC",
             select_sql(&PRIZE_COLUMNS, "lottery_prize")
-        );
+        ));
         sqlx::query_as::<_, LotteryPrize>(&sql)
             .bind(activity_id)
             .fetch_all(&self.pool)
@@ -256,10 +256,10 @@ impl LotteryActivityRepository {
     }
 
     pub async fn prize_by_id(&self, prize_id: i32) -> Result<Option<LotteryPrize>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "{} WHERE prize_id = ? LIMIT 1",
             select_sql(&PRIZE_COLUMNS, "lottery_prize")
-        );
+        ));
         sqlx::query_as::<_, LotteryPrize>(&sql)
             .bind(prize_id)
             .fetch_optional(&self.pool)
@@ -410,15 +410,15 @@ impl LotteryActivityRepository {
         if let Some(ts) = end_ts {
             where_sql.push_str(&format!(" AND last_lottery_time <= {ts}"));
         }
-        let count_sql = format!("SELECT COUNT(*) FROM lottery_user_stat{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM lottery_user_stat{where_sql}"));
         let total: (i64,) = sqlx::query_as(&count_sql)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "{} {where_sql} ORDER BY last_lottery_time DESC LIMIT {limit} OFFSET {offset}",
             select_sql(&USER_STAT_COLUMNS, "lottery_user_stat")
-        );
+        ));
         let rows = sqlx::query_as::<_, LotteryUserStat>(&rows_sql)
             .fetch_all(&self.pool)
             .await
@@ -437,15 +437,15 @@ impl LotteryActivityRepository {
         let user_id = q.user_id.unwrap_or(0);
         let where_sql =
             format!(" WHERE activity_id = {activity_id} AND user_id = {user_id}");
-        let count_sql = format!("SELECT COUNT(*) FROM lottery_record{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM lottery_record{where_sql}"));
         let total: (i64,) = sqlx::query_as(&count_sql)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "{} {where_sql} ORDER BY create_time DESC LIMIT {limit} OFFSET {offset}",
             select_sql(&RECORD_COLUMNS, "lottery_record")
-        );
+        ));
         let rows = sqlx::query_as::<_, LotteryRecord>(&rows_sql)
             .fetch_all(&self.pool)
             .await

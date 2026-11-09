@@ -787,7 +787,7 @@ impl AftersalesClientRepository {
     /// 按用户ID查用户名（Java `userMapper.selectById(userId).getUsername()`）。
     pub async fn find_username(&self, user_id: i32) -> Result<Option<String>> {
         let row: Option<(String,)> =
-            sqlx::query_as("SELECT username FROM user WHERE user_id = $1 LIMIT 1")
+            sqlx::query_as("SELECT username FROM \"user\" WHERE user_id = $1 LIMIT 1")
                 .bind(user_id)
                 .fetch_optional(&self.pool)
                 .await

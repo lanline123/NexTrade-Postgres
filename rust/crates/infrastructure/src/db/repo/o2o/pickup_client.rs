@@ -81,7 +81,7 @@ impl PickupClientRepository {
         sqlx::query_as::<_, UserPickupVO>(
             "SELECT user_pickup_id, user_id, consignee, mobile, mobile_area_code, \
              is_default, is_selected FROM user_pickup_info \
-             WHERE user_id = ? ORDER BY is_default DESC, user_pickup_id DESC",
+             WHERE user_id = $1 ORDER BY is_default DESC, user_pickup_id DESC",
         )
         .bind(user_id)
         .fetch_all(&self.pool)
@@ -94,7 +94,7 @@ impl PickupClientRepository {
         sqlx::query_as::<_, UserPickupVO>(
             "SELECT user_pickup_id, user_id, consignee, mobile, mobile_area_code, \
              is_default, is_selected FROM user_pickup_info \
-             WHERE user_id = ? AND user_pickup_id = ?",
+             WHERE user_id = $1 AND user_pickup_id = $2",
         )
         .bind(user_id)
         .bind(id)
@@ -114,7 +114,7 @@ impl PickupClientRepository {
     ) -> Result<i32> {
         let mut tx = self.pool.begin().await.map_err(map_err)?;
         if is_default {
-            sqlx::query("UPDATE user_pickup_info SET is_default = 0 WHERE user_id = ?")
+            sqlx::query("UPDATE user_pickup_info SET is_default = 0 WHERE user_id = $1")
                 .bind(user_id)
                 .execute(&mut *tx)
                 .await
@@ -122,7 +122,7 @@ impl PickupClientRepository {
         }
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO user_pickup_info (user_id, consignee, mobile, mobile_area_code, \
-             is_default, is_selected) VALUES (?, ?, ?, ?, ?, 0) RETURNING user_pickup_id",
+             is_default, is_selected) VALUES ($1, $2, $3, $4, $5, 0) RETURNING user_pickup_id",
         )
         .bind(user_id)
         .bind(consignee)
@@ -148,29 +148,29 @@ impl PickupClientRepository {
     ) -> Result<()> {
         let mut tx = self.pool.begin().await.map_err(map_err)?;
         if is_default == Some(true) {
-            sqlx::query("UPDATE user_pickup_info SET is_default = 0 WHERE user_id = ?")
+            sqlx::query("UPDATE user_pickup_info SET is_default = 0 WHERE user_id = $1")
                 .bind(user_id)
                 .execute(&mut *tx)
                 .await
                 .map_err(map_err)?;
         }
         if let Some(v) = consignee {
-            sqlx::query("UPDATE user_pickup_info SET consignee = ? WHERE user_id = ? AND user_pickup_id = ?")
+            sqlx::query("UPDATE user_pickup_info SET consignee = $1 WHERE user_id = $2 AND user_pickup_id = $3")
                 .bind(v).bind(user_id).bind(id)
                 .execute(&mut *tx).await.map_err(map_err)?;
         }
         if let Some(v) = mobile {
-            sqlx::query("UPDATE user_pickup_info SET mobile = ? WHERE user_id = ? AND user_pickup_id = ?")
+            sqlx::query("UPDATE user_pickup_info SET mobile = $1 WHERE user_id = $2 AND user_pickup_id = $3")
                 .bind(v).bind(user_id).bind(id)
                 .execute(&mut *tx).await.map_err(map_err)?;
         }
         if let Some(v) = area_code {
-            sqlx::query("UPDATE user_pickup_info SET mobile_area_code = ? WHERE user_id = ? AND user_pickup_id = ?")
+            sqlx::query("UPDATE user_pickup_info SET mobile_area_code = $1 WHERE user_id = $2 AND user_pickup_id = $3")
                 .bind(v).bind(user_id).bind(id)
                 .execute(&mut *tx).await.map_err(map_err)?;
         }
         if let Some(v) = is_default {
-            sqlx::query("UPDATE user_pickup_info SET is_default = ? WHERE user_id = ? AND user_pickup_id = ?")
+            sqlx::query("UPDATE user_pickup_info SET is_default = $1 WHERE user_id = $2 AND user_pickup_id = $3")
                 .bind(i32::from(v)).bind(user_id).bind(id)
                 .execute(&mut *tx).await.map_err(map_err)?;
         }
@@ -179,7 +179,7 @@ impl PickupClientRepository {
 
     /// 删除（校验归属）。
     pub async fn delete(&self, user_id: i32, id: i32) -> Result<()> {
-        sqlx::query("DELETE FROM user_pickup_info WHERE user_id = ? AND user_pickup_id = ?")
+        sqlx::query("DELETE FROM user_pickup_info WHERE user_id = $1 AND user_pickup_id = $2")
             .bind(user_id)
             .bind(id)
             .execute(&self.pool)
@@ -193,7 +193,7 @@ impl PickupClientRepository {
         let row = sqlx::query_as::<_, ShopPickupTplVO>(
             "SELECT shop_pickup_tpl_id, shop_id, tpl_name, stocking_status, stocking_json, \
              pickup_time_status, pickup_time_json, pickup_end_status, pickup_end_json, is_default \
-             FROM shop_pickup_tpl WHERE shop_id = ? ORDER BY is_default DESC LIMIT 1",
+             FROM shop_pickup_tpl WHERE shop_id = $1 ORDER BY is_default DESC LIMIT 1",
         )
         .bind(shop_id)
         .fetch_optional(&self.pool)
@@ -219,7 +219,7 @@ impl PickupClientRepository {
     ) -> Result<Option<OrderPickupShipmentVO>> {
         sqlx::query_as::<_, OrderPickupShipmentVO>(
             "SELECT shipment_id, order_id, pickup_sn, pickup_qr_code, shipment_status, check_time \
-             FROM order_pickup_shipment WHERE order_id = ? ORDER BY shipment_id DESC LIMIT 1",
+             FROM order_pickup_shipment WHERE order_id = $1 ORDER BY shipment_id DESC LIMIT 1",
         )
         .bind(order_id)
         .fetch_optional(&self.pool)
@@ -239,7 +239,7 @@ impl PickupClientRepository {
     ) -> Result<(i64, Vec<serde_json::Value>)> {
         let kw = format!("%{}%", keyword.trim());
         let (total,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM product WHERE shop_id = ? AND product_status = 1              AND product_name LIKE ?",
+            "SELECT COUNT(*) FROM product WHERE shop_id = $1 AND product_status = 1              AND product_name LIKE $2",
         )
         .bind(shop_id)
         .bind(&kw)
@@ -247,7 +247,7 @@ impl PickupClientRepository {
         .await
         .map_err(map_err)?;
         let rows = sqlx::query_as::<_, (serde_json::Value,)>(
-            "SELECT json_build_object('productId', product_id, 'productName', product_name,              'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price,              'productStock', product_stock)              FROM product WHERE shop_id = ? AND product_status = 1 AND product_name LIKE ?              ORDER BY product_id DESC LIMIT ? OFFSET ?",
+            "SELECT json_build_object('productId', product_id, 'productName', product_name,              'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price,              'productStock', product_stock)              FROM product WHERE shop_id = $1 AND product_status = 1 AND product_name LIKE $2              ORDER BY product_id DESC LIMIT $3 OFFSET $4",
         )
         .bind(shop_id)
         .bind(&kw)
@@ -275,7 +275,7 @@ impl PickupClientRepository {
         let rows: Vec<(String, i32, i32)> = match shop_id {
             Some(sid) => sqlx::query_as(
                 "SELECT stock_date, total_stock, used_stock FROM product_reservation_stock \
-                 WHERE product_id = ? AND shop_id = ? AND stock_date BETWEEN ? AND ? \
+                 WHERE product_id = $1 AND shop_id = $2 AND stock_date BETWEEN $3 AND $4 \
                  ORDER BY stock_date",
             )
             .bind(product_id)
@@ -288,7 +288,7 @@ impl PickupClientRepository {
             None => sqlx::query_as(
                 "SELECT stock_date, SUM(total_stock), SUM(used_stock) \
                  FROM product_reservation_stock \
-                 WHERE product_id = ? AND stock_date BETWEEN ? AND ? \
+                 WHERE product_id = $1 AND stock_date BETWEEN $2 AND $3 \
                  GROUP BY stock_date ORDER BY stock_date",
             )
             .bind(product_id)
@@ -314,7 +314,7 @@ impl PickupClientRepository {
     /// 当前会员绑定的服务人员。
     pub async fn staff_by_member(&self, member_id: i32) -> Result<Option<(i32, String, String, i32)>> {
         sqlx::query_as(
-            "SELECT id, name, phone, type FROM service_staff WHERE member_id = ? AND is_delete = 0 LIMIT 1",
+            "SELECT id, name, phone, type FROM service_staff WHERE member_id = $1 AND is_delete = 0 LIMIT 1",
         )
         .bind(member_id)
         .fetch_optional(&self.pool)
@@ -325,7 +325,7 @@ impl PickupClientRepository {
     /// 服务人员资料（C 端 myInfo）。
     pub async fn staff_info_by_member(&self, member_id: i32) -> Result<Option<Value>> {
         let row: Option<(Value,)> = sqlx::query_as(
-            "SELECT json_build_object('id', id, 'name', name, 'nickname', nickname, 'avatar', avatar, 'phone', phone, 'storeId', store_id, 'type', type, 'status', status, 'workStatus', work_status, 'completedOrderCount', completed_order_count, 'completedOrderAmount', completed_order_amount) FROM service_staff WHERE member_id = ? AND is_delete = 0 LIMIT 1",
+            "SELECT json_build_object('id', id, 'name', name, 'nickname', nickname, 'avatar', avatar, 'phone', phone, 'storeId', store_id, 'type', type, 'status', status, 'workStatus', work_status, 'completedOrderCount', completed_order_count, 'completedOrderAmount', completed_order_amount) FROM service_staff WHERE member_id = $1 AND is_delete = 0 LIMIT 1",
         )
         .bind(member_id)
         .fetch_optional(&self.pool)
@@ -336,7 +336,7 @@ impl PickupClientRepository {
 
     /// 更新工作状态（C 端上下班/空闲/忙碌）。
     pub async fn update_work_status(&self, member_id: i32, work_status: i32) -> Result<bool> {
-        let r = sqlx::query("UPDATE service_staff SET work_status = ? WHERE member_id = ? AND is_delete = 0")
+        let r = sqlx::query("UPDATE service_staff SET work_status = $1 WHERE member_id = $2 AND is_delete = 0")
             .bind(work_status)
             .bind(member_id)
             .execute(&self.pool)
@@ -348,7 +348,7 @@ impl PickupClientRepository {
     /// 个人钱包。
     pub async fn wallet_by_staff(&self, staff_id: i32) -> Result<Value> {
         let row: Option<(Value,)> = sqlx::query_as(
-            "SELECT json_build_object('walletId', wallet_id, 'staffId', staff_id, 'balance', balance, 'frozenBalance', frozen_balance, 'totalIncome', total_income, 'createTime', create_time, 'updateTime', update_time) FROM service_staff_wallet WHERE staff_id = ?",
+            "SELECT json_build_object('walletId', wallet_id, 'staffId', staff_id, 'balance', balance, 'frozenBalance', frozen_balance, 'totalIncome', total_income, 'createTime', create_time, 'updateTime', update_time) FROM service_staff_wallet WHERE staff_id = $1",
         )
         .bind(staff_id)
         .fetch_optional(&self.pool)
@@ -363,14 +363,14 @@ impl PickupClientRepository {
     pub async fn wallet_logs(&self, staff_id: i32, page: u64, size: u64) -> Result<(i64, Vec<Value>)> {
         let offset = (page.max(1) - 1) * size;
         let (total,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM service_staff_wallet_log WHERE staff_id = ?",
+            "SELECT COUNT(*) FROM service_staff_wallet_log WHERE staff_id = $1",
         )
         .bind(staff_id)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
         let rows: Vec<(Value,)> = sqlx::query_as(
-            "SELECT json_build_object('logId', log_id, 'staffId', staff_id, 'orderId', order_id, 'withdrawId', withdraw_id, 'transactionSn', transaction_sn, 'amount', amount, 'balanceAfter', balance_after, 'frozenAfter', frozen_after, 'businessType', business_type, 'type', type, 'remark', remark, 'createTime', create_time) FROM service_staff_wallet_log WHERE staff_id = ? ORDER BY log_id DESC LIMIT ? OFFSET ?",
+            "SELECT json_build_object('logId', log_id, 'staffId', staff_id, 'orderId', order_id, 'withdrawId', withdraw_id, 'transactionSn', transaction_sn, 'amount', amount, 'balanceAfter', balance_after, 'frozenAfter', frozen_after, 'businessType', business_type, 'type', type, 'remark', remark, 'createTime', create_time) FROM service_staff_wallet_log WHERE staff_id = $1 ORDER BY log_id DESC LIMIT $2 OFFSET $3",
         )
         .bind(staff_id)
         .bind(size as i64)
@@ -385,7 +385,7 @@ impl PickupClientRepository {
 
     pub async fn accounts_of_user(&self, user_id: i32) -> Result<Vec<Value>> {
         let rows: Vec<(Value,)> = sqlx::query_as(
-            "SELECT json_build_object('accountId', account_id, 'accountType', account_type, 'accountName', account_name, 'accountNo', account_no, 'bankName', bank_name, 'identity', identity) FROM user_withdraw_account WHERE user_id = ? ORDER BY account_id DESC",
+            "SELECT json_build_object('accountId', account_id, 'accountType', account_type, 'accountName', account_name, 'accountNo', account_no, 'bankName', bank_name, 'identity', identity) FROM user_withdraw_account WHERE user_id = $1 ORDER BY account_id DESC",
         )
         .bind(user_id)
         .fetch_all(&self.pool)
@@ -404,7 +404,7 @@ impl PickupClientRepository {
         bank_name: &str,
     ) -> Result<i32> {
         if account_id > 0 {
-            sqlx::query("UPDATE user_withdraw_account SET account_type = ?, account_name = ?, account_no = ?, bank_name = ? WHERE account_id = ? AND user_id = ?")
+            sqlx::query("UPDATE user_withdraw_account SET account_type = $1, account_name = $2, account_no = $3, bank_name = $4 WHERE account_id = $5 AND user_id = $6")
                 .bind(account_type)
                 .bind(account_name)
                 .bind(account_no)
@@ -416,7 +416,7 @@ impl PickupClientRepository {
                 .map_err(map_err)?;
             Ok(account_id)
         } else {
-            let r: i32 = sqlx::query_scalar("INSERT INTO user_withdraw_account (user_id, account_type, account_name, account_no, bank_name) VALUES (?, ?, ?, ?, ?) RETURNING account_id")
+            let r: i32 = sqlx::query_scalar("INSERT INTO user_withdraw_account (user_id, account_type, account_name, account_no, bank_name) VALUES ($1, $2, $3, $4, $5) RETURNING account_id")
                 .bind(user_id)
                 .bind(account_type)
                 .bind(account_name)
@@ -430,7 +430,7 @@ impl PickupClientRepository {
     }
 
     pub async fn delete_account(&self, user_id: i32, account_id: i32) -> Result<()> {
-        sqlx::query("DELETE FROM user_withdraw_account WHERE account_id = ? AND user_id = ?")
+        sqlx::query("DELETE FROM user_withdraw_account WHERE account_id = $1 AND user_id = $2")
             .bind(account_id)
             .bind(user_id)
             .execute(&self.pool)
@@ -449,7 +449,7 @@ impl PickupClientRepository {
         let offset = (page.max(1) - 1) * size;
         let status = status.unwrap_or(-1);
         let (total,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM service_staff_withdraw WHERE staff_id = ? AND is_delete = 0 AND (? = -1 OR status = ?)",
+            "SELECT COUNT(*) FROM service_staff_withdraw WHERE staff_id = $1 AND is_delete = 0 AND ($2 = -1 OR status = $3)",
         )
         .bind(staff_id)
         .bind(status)
@@ -458,7 +458,7 @@ impl PickupClientRepository {
         .await
         .map_err(map_err)?;
         let rows: Vec<(Value,)> = sqlx::query_as(
-            "SELECT json_build_object('withdrawId', withdraw_id, 'withdrawSn', withdraw_sn, 'staffId', staff_id, 'businessType', business_type, 'amount', amount, 'status', status, 'accountId', account_id, 'accountType', account_type, 'accountName', account_name, 'accountNo', account_no, 'bankName', bank_name, 'adminRemark', admin_remark, 'paymentVoucher', payment_voucher, 'rejectReason', reject_reason, 'applyTime', apply_time, 'auditTime', audit_time) FROM service_staff_withdraw WHERE staff_id = ? AND is_delete = 0 AND (? = -1 OR status = ?) ORDER BY withdraw_id DESC LIMIT ? OFFSET ?",
+            "SELECT json_build_object('withdrawId', withdraw_id, 'withdrawSn', withdraw_sn, 'staffId', staff_id, 'businessType', business_type, 'amount', amount, 'status', status, 'accountId', account_id, 'accountType', account_type, 'accountName', account_name, 'accountNo', account_no, 'bankName', bank_name, 'adminRemark', admin_remark, 'paymentVoucher', payment_voucher, 'rejectReason', reject_reason, 'applyTime', apply_time, 'auditTime', audit_time) FROM service_staff_withdraw WHERE staff_id = $1 AND is_delete = 0 AND ($2 = -1 OR status = $3) ORDER BY withdraw_id DESC LIMIT $4 OFFSET $5",
         )
         .bind(staff_id)
         .bind(status)
@@ -473,7 +473,7 @@ impl PickupClientRepository {
 
     pub async fn withdraw_detail(&self, staff_id: i32, id: i32) -> Result<Option<Value>> {
         let row: Option<(Value,)> = sqlx::query_as(
-            "SELECT json_build_object('withdrawId', withdraw_id, 'withdrawSn', withdraw_sn, 'staffId', staff_id, 'businessType', business_type, 'amount', amount, 'status', status, 'accountId', account_id, 'accountType', account_type, 'accountName', account_name, 'accountNo', account_no, 'bankName', bank_name, 'adminRemark', admin_remark, 'paymentVoucher', payment_voucher, 'rejectReason', reject_reason, 'applyTime', apply_time, 'auditTime', audit_time) FROM service_staff_withdraw WHERE withdraw_id = ? AND staff_id = ? AND is_delete = 0",
+            "SELECT json_build_object('withdrawId', withdraw_id, 'withdrawSn', withdraw_sn, 'staffId', staff_id, 'businessType', business_type, 'amount', amount, 'status', status, 'accountId', account_id, 'accountType', account_type, 'accountName', account_name, 'accountNo', account_no, 'bankName', bank_name, 'adminRemark', admin_remark, 'paymentVoucher', payment_voucher, 'rejectReason', reject_reason, 'applyTime', apply_time, 'auditTime', audit_time) FROM service_staff_withdraw WHERE withdraw_id = $1 AND staff_id = $2 AND is_delete = 0",
         )
         .bind(id)
         .bind(staff_id)
@@ -497,7 +497,7 @@ impl PickupClientRepository {
         }
         let mut tx = self.pool.begin().await.map_err(map_err)?;
         let account: Option<(i32, String, String, String)> = sqlx::query_as(
-            "SELECT account_type, account_name, account_no, bank_name FROM user_withdraw_account WHERE account_id = ?",
+            "SELECT account_type, account_name, account_no, bank_name FROM user_withdraw_account WHERE account_id = $1",
         )
         .bind(account_id)
         .fetch_optional(&mut *tx)
@@ -506,7 +506,7 @@ impl PickupClientRepository {
         let (account_type, account_name, account_no, bank_name) =
             account.ok_or_else(|| Error::Validation("收款账号不存在".into()))?;
         let balance: Option<(rust_decimal::Decimal,)> = sqlx::query_as(
-            "SELECT balance FROM service_staff_wallet WHERE staff_id = ? FOR UPDATE",
+            "SELECT balance FROM service_staff_wallet WHERE staff_id = $1 FOR UPDATE",
         )
         .bind(staff_id)
         .fetch_optional(&mut *tx)
@@ -521,7 +521,7 @@ impl PickupClientRepository {
         let now = nextrade_common::utils::now_seconds() as i64;
         let withdraw_sn = format!("WD{now}{staff_id}");
         let r: i32 = sqlx::query_scalar(
-            "INSERT INTO service_staff_withdraw (withdraw_sn, staff_id, business_type, amount, status, account_id, account_type, account_name, account_no, bank_name, apply_time, frequency_unit, period_start, period_end, create_time, update_time) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 'day', ?, ?, ?, ?) RETURNING withdraw_id",
+            "INSERT INTO service_staff_withdraw (withdraw_sn, staff_id, business_type, amount, status, account_id, account_type, account_name, account_no, bank_name, apply_time, frequency_unit, period_start, period_end, create_time, update_time) VALUES ($1, $2, $3, $4, 0, $5, $6, $7, $8, $9, $10, 'day', $11, $12, $13, $14) RETURNING withdraw_id",
         )
         .bind(&withdraw_sn)
         .bind(staff_id)
@@ -541,7 +541,7 @@ impl PickupClientRepository {
         .await
         .map_err(map_err)?;
         let withdraw_id = r;
-        sqlx::query("UPDATE service_staff_wallet SET balance = balance - ?, frozen_balance = frozen_balance + ?, update_time = ? WHERE staff_id = ?")
+        sqlx::query("UPDATE service_staff_wallet SET balance = balance - $1, frozen_balance = frozen_balance + $2, update_time = $3 WHERE staff_id = $4")
             .bind(amount)
             .bind(amount)
             .bind(now)
@@ -549,7 +549,7 @@ impl PickupClientRepository {
             .execute(&mut *tx)
             .await
             .map_err(map_err)?;
-        sqlx::query("INSERT INTO service_staff_wallet_log (staff_id, amount, balance_after, frozen_after, business_type, type, remark, create_time) VALUES (?, ?, ?, ?, ?, 4, ?, ?)")
+        sqlx::query("INSERT INTO service_staff_wallet_log (staff_id, amount, balance_after, frozen_after, business_type, type, remark, create_time) VALUES ($1, $2, $3, $4, $5, 4, $6, $7)")
             .bind(staff_id)
             .bind(-amount)
             .bind(balance - amount)
@@ -567,7 +567,7 @@ impl PickupClientRepository {
     /// 门店同城配送配置 + 距离溢价。
     pub async fn local_delivery_config(&self, shop_id: i32) -> Result<Value> {
         let row: Option<(Value,)> = sqlx::query_as(
-            "SELECT json_build_object('shopId', shop_id, 'enabled', enabled, 'deliveryRadius', delivery_radius, 'minOrderAmount', min_order_amount, 'baseDeliveryFee', base_delivery_fee, 'distancePricingEnabled', distance_pricing_enabled) FROM shop_local_delivery_config WHERE shop_id = ?",
+            "SELECT json_build_object('shopId', shop_id, 'enabled', enabled, 'deliveryRadius', delivery_radius, 'minOrderAmount', min_order_amount, 'baseDeliveryFee', base_delivery_fee, 'distancePricingEnabled', distance_pricing_enabled) FROM shop_local_delivery_config WHERE shop_id = $1",
         )
         .bind(shop_id)
         .fetch_optional(&self.pool)
@@ -575,7 +575,7 @@ impl PickupClientRepository {
         .map_err(map_err)?;
         let Some((mut obj,)) = row else { return Ok(Value::Null) };
         let rows: Vec<(Value,)> = sqlx::query_as(
-            "SELECT json_build_object('distanceThreshold', p.distance_threshold, 'distanceUnit', p.distance_unit, 'additionalFee', p.additional_fee) FROM shop_local_delivery_distance_pricing p JOIN shop_local_delivery_config c ON c.shop_local_delivery_config_id = p.shop_local_delivery_config_id WHERE c.shop_id = ? ORDER BY p.sort_order",
+            "SELECT json_build_object('distanceThreshold', p.distance_threshold, 'distanceUnit', p.distance_unit, 'additionalFee', p.additional_fee) FROM shop_local_delivery_distance_pricing p JOIN shop_local_delivery_config c ON c.shop_local_delivery_config_id = p.shop_local_delivery_config_id WHERE c.shop_id = $1 ORDER BY p.sort_order",
         )
         .bind(shop_id)
         .fetch_all(&self.pool)
@@ -588,7 +588,7 @@ impl PickupClientRepository {
     /// 门店上门服务配置 + 距离溢价。
     pub async fn home_service_config(&self, shop_id: i32) -> Result<Value> {
         let row: Option<(Value,)> = sqlx::query_as(
-            "SELECT json_build_object('shopId', shop_id, 'enabled', enabled, 'serviceRadius', service_radius, 'homeFee', home_fee, 'distancePricingEnabled', distance_pricing_enabled, 'orderDispatchMode', order_dispatch_mode, 'beforeServicePhotoEnabled', before_service_photo_enabled, 'afterServicePhotoEnabled', after_service_photo_enabled) FROM shop_home_service_config WHERE shop_id = ?",
+            "SELECT json_build_object('shopId', shop_id, 'enabled', enabled, 'serviceRadius', service_radius, 'homeFee', home_fee, 'distancePricingEnabled', distance_pricing_enabled, 'orderDispatchMode', order_dispatch_mode, 'beforeServicePhotoEnabled', before_service_photo_enabled, 'afterServicePhotoEnabled', after_service_photo_enabled) FROM shop_home_service_config WHERE shop_id = $1",
         )
         .bind(shop_id)
         .fetch_optional(&self.pool)
@@ -596,7 +596,7 @@ impl PickupClientRepository {
         .map_err(map_err)?;
         let Some((mut obj,)) = row else { return Ok(Value::Null) };
         let rows: Vec<(Value,)> = sqlx::query_as(
-            "SELECT json_build_object('distanceThreshold', p.distance_threshold, 'distanceUnit', p.distance_unit, 'additionalFee', p.additional_fee) FROM shop_home_service_distance_pricing p JOIN shop_home_service_config c ON c.shop_home_service_config_id = p.shop_home_service_config_id WHERE c.shop_id = ? ORDER BY p.sort_order",
+            "SELECT json_build_object('distanceThreshold', p.distance_threshold, 'distanceUnit', p.distance_unit, 'additionalFee', p.additional_fee) FROM shop_home_service_distance_pricing p JOIN shop_home_service_config c ON c.shop_home_service_config_id = p.shop_home_service_config_id WHERE c.shop_id = $1 ORDER BY p.sort_order",
         )
         .bind(shop_id)
         .fetch_all(&self.pool)
@@ -620,18 +620,18 @@ impl PickupClientRepository {
             _ => ("", None),
         };
         let offset = (page.max(1) - 1) * size;
-        let count_sql = format!(
+        let count_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM delivery_order WHERE staff_id = ? {status_cond}"
-        );
+        ));
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql)
         .bind(staff_id);
         if let Some(v) = status_val {
             count_q = count_q.bind(v);
         }
         let (total,) = count_q.fetch_one(&self.pool).await.map_err(map_err)?;
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'dispatchMode', dispatch_mode, 'status', status, 'staffId', staff_id, 'staffName', staff_name, 'staffPhone', staff_phone, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'orderAmount', order_amount, 'buyerNote', buyer_note, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'cancelReason', cancel_reason, 'createTime', create_time) FROM delivery_order WHERE staff_id = ? {status_cond} ORDER BY delivery_order_id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (Value,)>(&list_sql)
         .bind(staff_id);
         if let Some(v) = status_val {
@@ -644,7 +644,7 @@ impl PickupClientRepository {
     /// C 端派送订单详情（只允许本人订单）。
     pub async fn delivery_detail(&self, staff_id: i32, id: i32) -> Result<Option<Value>> {
         let row: Option<(Value,)> = sqlx::query_as(
-            "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'dispatchMode', dispatch_mode, 'status', status, 'staffId', staff_id, 'staffName', staff_name, 'staffPhone', staff_phone, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'latitude', latitude, 'longitude', longitude, 'pickupAddress', pickup_address, 'pickupPhone', pickup_phone, 'serviceTime', service_time, 'orderAmount', order_amount, 'buyerNote', buyer_note, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'cancelReason', cancel_reason, 'createTime', create_time) FROM delivery_order WHERE delivery_order_id = ? AND staff_id = ?",
+            "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'dispatchMode', dispatch_mode, 'status', status, 'staffId', staff_id, 'staffName', staff_name, 'staffPhone', staff_phone, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'latitude', latitude, 'longitude', longitude, 'pickupAddress', pickup_address, 'pickupPhone', pickup_phone, 'serviceTime', service_time, 'orderAmount', order_amount, 'buyerNote', buyer_note, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'cancelReason', cancel_reason, 'createTime', create_time) FROM delivery_order WHERE delivery_order_id = $1 AND staff_id = $2",
         )
         .bind(id)
         .bind(staff_id)
@@ -658,7 +658,7 @@ impl PickupClientRepository {
     pub async fn grab_delivery(&self, staff_id: i32, name: &str, phone: &str, id: i32) -> Result<bool> {
         let now = nextrade_common::utils::now_seconds() as i32;
         let r = sqlx::query(
-            "UPDATE delivery_order SET staff_id = ?, staff_name = ?, staff_phone = ?, status = 20, grab_time = ? WHERE delivery_order_id = ? AND status = 10 AND dispatch_mode = 1 AND staff_id IS NULL",
+            "UPDATE delivery_order SET staff_id = $1, staff_name = $2, staff_phone = $3, status = 20, grab_time = $4 WHERE delivery_order_id = $5 AND status = 10 AND dispatch_mode = 1 AND staff_id IS NULL",
         )
         .bind(staff_id)
         .bind(name)
@@ -675,7 +675,7 @@ impl PickupClientRepository {
     pub async fn confirm_pickup(&self, staff_id: i32, id: i32, photos: &str) -> Result<bool> {
         let now = nextrade_common::utils::now_seconds() as i32;
         let r = sqlx::query(
-            "UPDATE delivery_order SET status = 30, pickup_time = ?, pickup_photo = ? WHERE delivery_order_id = ? AND staff_id = ? AND status = 20",
+            "UPDATE delivery_order SET status = 30, pickup_time = $1, pickup_photo = $2 WHERE delivery_order_id = $3 AND staff_id = $4 AND status = 20",
         )
         .bind(now)
         .bind(photos)
@@ -691,7 +691,7 @@ impl PickupClientRepository {
     pub async fn complete_delivery(&self, staff_id: i32, id: i32, photos: &str) -> Result<bool> {
         let now = nextrade_common::utils::now_seconds() as i32;
         let r = sqlx::query(
-            "UPDATE delivery_order SET status = 40, complete_time = ?, complete_photo = ? WHERE delivery_order_id = ? AND staff_id = ? AND status = 30",
+            "UPDATE delivery_order SET status = 40, complete_time = $1, complete_photo = $2 WHERE delivery_order_id = $3 AND staff_id = $4 AND status = 30",
         )
         .bind(now)
         .bind(photos)
@@ -707,7 +707,7 @@ impl PickupClientRepository {
     pub async fn cancel_delivery(&self, staff_id: i32, id: i32, reason: &str) -> Result<bool> {
         let now = nextrade_common::utils::now_seconds() as i32;
         let r = sqlx::query(
-            "UPDATE delivery_order SET status = 50, cancel_reason = ?, cancel_time = ? WHERE delivery_order_id = ? AND staff_id = ? AND status IN (20,30)",
+            "UPDATE delivery_order SET status = 50, cancel_reason = $1, cancel_time = $2 WHERE delivery_order_id = $3 AND staff_id = $4 AND status IN (20,30)",
         )
         .bind(reason)
         .bind(now)
@@ -723,17 +723,17 @@ impl PickupClientRepository {
     pub async fn grab_list(&self, page: u64, size: u64, r#type: Option<i32>) -> Result<(i64, Vec<Value>)> {
         let offset = (page.max(1) - 1) * size;
         let type_cond = r#type.map(|_| "AND type = ?").unwrap_or("");
-        let count_sql = format!(
+        let count_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM delivery_order WHERE status = 10 AND dispatch_mode = 1 AND staff_id IS NULL {type_cond}"
-        );
+        ));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         if let Some(t) = r#type {
             cq = cq.bind(t);
         }
         let (total,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'status', status, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'orderAmount', order_amount, 'createTime', create_time) FROM delivery_order WHERE status = 10 AND dispatch_mode = 1 AND staff_id IS NULL {type_cond} ORDER BY delivery_order_id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (Value,)>(&list_sql);
         if let Some(t) = r#type {
             q = q.bind(t);

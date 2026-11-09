@@ -69,7 +69,7 @@ impl GalleryPicRepository {
             return Ok(Vec::new());
         }
         let placeholders = placeholders(ids.len());
-        let sql = format!("SELECT * FROM gallery_pic WHERE pic_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM gallery_pic WHERE pic_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, GalleryPic>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -103,14 +103,14 @@ impl GalleryPicRepository {
         } else {
             format!(" AND gallery_id IN ({})", placeholders(gallery_ids.len()))
         };
-        let where_sql = format!(
+        let where_sql = crate::db::to_pg_placeholders(&format!(
             " WHERE {SCOPE_WHERE}{gallery_filter} \
              AND (? IS NULL OR pic_name LIKE ?) \
              AND (? IS NULL OR file_type = ?) \
              AND (? IS NULL OR source = ?) \
              AND (hidden = 0 OR hidden IS NULL)"
-        );
-        let count_sql = format!("SELECT COUNT(*) FROM gallery_pic{where_sql}");
+        ));
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM gallery_pic{where_sql}"));
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql)
             .bind(shop_id)
             .bind(shop_id)
@@ -132,7 +132,7 @@ impl GalleryPicRepository {
             .map_err(map_err)?;
 
         let order = format!(" ORDER BY {column}{}", if desc { " DESC" } else { " ASC" });
-        let list_sql = format!("SELECT * FROM gallery_pic{where_sql}{order} LIMIT ? OFFSET ?");
+        let list_sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM gallery_pic{where_sql}{order} LIMIT ? OFFSET ?"));
         let mut q_rows = sqlx::query_as::<_, GalleryPic>(&list_sql)
             .bind(shop_id)
             .bind(shop_id)
@@ -160,7 +160,7 @@ impl GalleryPicRepository {
 
     /// 按主键查相册（Java `galleryService.detail`）。
     pub async fn find_gallery(&self, gallery_id: i32) -> Result<Option<Gallery>> {
-        sqlx::query_as::<_, Gallery>("SELECT * FROM gallery WHERE gallery_id = ? LIMIT 1")
+        sqlx::query_as::<_, Gallery>("SELECT * FROM gallery WHERE gallery_id = $1 LIMIT 1")
             .bind(gallery_id)
             .fetch_optional(&self.pool)
             .await
@@ -171,7 +171,7 @@ impl GalleryPicRepository {
     /// 不含 scope 过滤；按 `gallery_sort ASC, gallery_id ASC` 稳定输出）。
     pub async fn find_child_galleries(&self, parent_id: i32) -> Result<Vec<Gallery>> {
         sqlx::query_as::<_, Gallery>(
-            "SELECT * FROM gallery WHERE parent_id = ? ORDER BY gallery_sort ASC, gallery_id ASC",
+            "SELECT * FROM gallery WHERE parent_id = $1 ORDER BY gallery_sort ASC, gallery_id ASC",
         )
         .bind(parent_id)
         .fetch_all(&self.pool)
@@ -185,9 +185,9 @@ impl GalleryPicRepository {
         let mut frontier = vec![root_id];
         while !frontier.is_empty() {
             let placeholders = placeholders(frontier.len());
-            let sql = format!(
+            let sql = crate::db::to_pg_placeholders(&format!(
                 "SELECT gallery_id FROM gallery WHERE parent_id IN ({placeholders})"
-            );
+            ));
             let mut q = sqlx::query_as::<_, (i32,)>(&sql);
             for id in &frontier {
                 q = q.bind(*id);
@@ -212,7 +212,7 @@ impl GalleryPicRepository {
                (shop_id, gallery_id, pic_ower_id, pic_url, pic_name, pic_thumb,
                 add_time, vendor_id, hidden, pic_width, pic_height, pic_size,
                 file_type, pic_sort, source)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING pic_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING pic_id",
         )
         .bind(pic.shop_id)
         .bind(pic.gallery_id)
@@ -237,7 +237,7 @@ impl GalleryPicRepository {
 
     /// 单字段更新（Java `BaseServiceImpl#updateField`：白名单列 + 字符串值）。
     pub async fn update_pic_field(&self, id: i32, column: &'static str, value: &str) -> Result<u64> {
-        let sql = format!("UPDATE gallery_pic SET {column} = ? WHERE pic_id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE gallery_pic SET {column} = ? WHERE pic_id = ?"));
         let affected = sqlx::query(&sql)
             .bind(value)
             .bind(id)
@@ -271,7 +271,7 @@ impl GalleryPicRepository {
     pub async fn sort_pics(&self, ids: &[i32]) -> Result<()> {
         let mut tx = self.pool.begin().await.map_err(map_err)?;
         for (i, id) in ids.iter().enumerate() {
-            sqlx::query("UPDATE gallery_pic SET pic_sort = ? WHERE pic_id = ?")
+            sqlx::query("UPDATE gallery_pic SET pic_sort = $1 WHERE pic_id = $2")
                 .bind(i32::try_from(i + 1).unwrap_or(i32::MAX))
                 .bind(id)
                 .execute(&mut *tx)
@@ -286,7 +286,7 @@ impl GalleryPicRepository {
     pub async fn transfer_pics(&self, ids: &[i32], target_gallery_id: i32) -> Result<()> {
         let mut tx = self.pool.begin().await.map_err(map_err)?;
         for id in ids {
-            sqlx::query("UPDATE gallery_pic SET gallery_id = ? WHERE pic_id = ?")
+            sqlx::query("UPDATE gallery_pic SET gallery_id = $1 WHERE pic_id = $2")
                 .bind(target_gallery_id)
                 .bind(id)
                 .execute(&mut *tx)
@@ -301,7 +301,7 @@ impl GalleryPicRepository {
     pub async fn transfer_videos(&self, ids: &[i32], target_gallery_id: i32) -> Result<()> {
         let mut tx = self.pool.begin().await.map_err(map_err)?;
         for id in ids {
-            sqlx::query("UPDATE gallery_video_info SET gallery_id = ? WHERE id = ?")
+            sqlx::query("UPDATE gallery_video_info SET gallery_id = $1 WHERE id = $2")
                 .bind(target_gallery_id)
                 .bind(id)
                 .execute(&mut *tx)
@@ -350,7 +350,7 @@ impl GalleryPicRepository {
     /// 读取配置值（Java `ConfigService#getConfigVal`：缺失 → `None`）。
     pub async fn find_config_value(&self, biz_code: &str) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> = sqlx::query_as(
-            "SELECT biz_val FROM config WHERE biz_code = ? AND is_del = 0 LIMIT 1",
+            "SELECT biz_val FROM config WHERE biz_code = $1 AND is_del = 0 LIMIT 1",
         )
         .bind(biz_code)
         .fetch_optional(&self.pool)

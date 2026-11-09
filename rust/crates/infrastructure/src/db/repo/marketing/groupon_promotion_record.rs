@@ -278,7 +278,7 @@ impl GrouponPromotionRecordRepository {
     pub async fn cancel_waiting_by_order(&self, order_id: i64) -> Result<u64> {
         Ok(sqlx::query(
             "UPDATE groupon_promotion_record SET join_status = 4 \
-             WHERE order_id = ? AND join_status = 1",
+             WHERE order_id = $1 AND join_status = 1",
         )
         .bind(order_id)
         .execute(&self.pool)
@@ -290,7 +290,7 @@ impl GrouponPromotionRecordRepository {
     /// 团员（Java `groupMemberList`：`open_group_record_id = id`）。
     pub async fn members(&self, open_record_id: i64) -> Result<Vec<GrouponPromotionRecord>> {
         sqlx::query_as::<_, GrouponPromotionRecord>(&format!(
-            "{SELECT} WHERE open_group_record_id = ?"
+            "{SELECT} WHERE open_group_record_id = $1"
         ))
         .bind(open_record_id)
         .fetch_all(&self.pool)
@@ -300,7 +300,7 @@ impl GrouponPromotionRecordRepository {
 
     pub async fn find_by_id(&self, id: i64) -> Result<Option<GrouponPromotionRecord>> {
         sqlx::query_as::<_, GrouponPromotionRecord>(&format!(
-            "{SELECT} WHERE groupon_promotion_record_id = ? LIMIT 1"
+            "{SELECT} WHERE groupon_promotion_record_id = $1 LIMIT 1"
         ))
         .bind(id)
         .fetch_optional(&self.pool)
@@ -310,7 +310,7 @@ impl GrouponPromotionRecordRepository {
 
     pub async fn count_members(&self, open_record_id: i64) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM groupon_promotion_record WHERE open_group_record_id = ?",
+            "SELECT COUNT(*) FROM groupon_promotion_record WHERE open_group_record_id = $1",
         )
         .bind(open_record_id)
         .fetch_one(&self.pool)
@@ -325,7 +325,7 @@ impl GrouponPromotionRecordRepository {
         open_group_id: i64,
     ) -> Result<Vec<GrouponPromotionRecord>> {
         sqlx::query_as::<_, GrouponPromotionRecord>(&format!(
-            "{SELECT} WHERE open_group_record_id = ? ORDER BY groupon_promotion_record_id ASC"
+            "{SELECT} WHERE open_group_record_id = $1 ORDER BY groupon_promotion_record_id ASC"
         ))
         .bind(open_group_id)
         .fetch_all(&self.pool)
@@ -339,12 +339,12 @@ impl GrouponPromotionRecordRepository {
         tx: &mut sqlx::Transaction<'_, Postgres>,
         record_id: i64,
     ) -> Result<u64> {
-        let self_res = sqlx::query("UPDATE groupon_promotion_record SET join_status = 2 WHERE groupon_promotion_record_id = ?")
+        let self_res = sqlx::query("UPDATE groupon_promotion_record SET join_status = 2 WHERE groupon_promotion_record_id = $1")
             .bind(record_id)
             .execute(&mut **tx)
             .await
             .map_err(map_err)?;
-        sqlx::query("UPDATE groupon_promotion_record SET join_status = 2 WHERE open_group_record_id = ?")
+        sqlx::query("UPDATE groupon_promotion_record SET join_status = 2 WHERE open_group_record_id = $1")
             .bind(record_id)
             .execute(&mut **tx)
             .await
@@ -378,7 +378,7 @@ impl GrouponPromotionRecordRepository {
         now: i64,
     ) -> Result<()> {
         sqlx::query(
-            "INSERT INTO groupon_promotion_record (groupon_promotion_id, groupon_promotion_item_id, product_id, product_name, join_type, join_status, avatar, username, user_id, order_id, order_sn, is_virtual, paid_amount, open_group_record_id, open_group_time, group_captain_name, join_expiration_time, min_group_num, shop_id, add_time) VALUES (?, ?, ?, ?, 2, 2, '', ?, 0, 0, '0', 1, 0.00, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO groupon_promotion_record (groupon_promotion_id, groupon_promotion_item_id, product_id, product_name, join_type, join_status, avatar, username, user_id, order_id, order_sn, is_virtual, paid_amount, open_group_record_id, open_group_time, group_captain_name, join_expiration_time, min_group_num, shop_id, add_time) VALUES ($1, $2, $3, $4, 2, 2, '', $5, 0, 0, '0', 1, 0.00, $6, $7, $8, $9, $10, $11, $12)",
         )
         .bind(base.groupon_promotion_id)
         .bind(base.groupon_promotion_item_id)

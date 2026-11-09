@@ -123,14 +123,14 @@ impl ShopFundsRepository {
             "DESC"
         };
 
-        let count_sql = format!("SELECT COUNT(*) FROM shop {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM shop {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         cq = bind_filters(cq, status, shop_type, like.as_deref());
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {SHOP_FUNDS_COLUMNS} FROM shop {where_sql} ORDER BY {column} {dir} LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, ShopFundsRow>(&list_sql);
         lq = bind_filters(lq, status, shop_type, like.as_deref());
         let rows = lq
@@ -165,7 +165,7 @@ impl ShopFundsRepository {
         let now = nextrade_common::utils::now_seconds() as i32;
         let sql = "INSERT INTO shop (shop_id, shop_title, shop_logo, status, merchant_id, shop_money, \
                    frozen_money, contact_mobile, description, add_time) \
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)";
         let res: i32 = sqlx::query_scalar(&format!("{} RETURNING shop_id", sql))
             .bind(dto.shop_id.unwrap_or(0))
             .bind(dto.shop_title.as_deref().unwrap_or(""))
@@ -216,10 +216,10 @@ impl ShopFundsRepository {
         if sets.is_empty() {
             return Ok(false);
         }
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE shop SET {} WHERE shop_id = ? AND (is_delete IS NULL OR is_delete = 0)",
             sets.join(", ")
-        );
+        ));
         let mut q = sqlx::query(&sql);
         if let Some(v) = &f.shop_title {
             q = q.bind(v);
@@ -258,9 +258,9 @@ impl ShopFundsRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE shop SET is_delete = 1 WHERE (is_delete IS NULL OR is_delete = 0) AND shop_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -277,7 +277,7 @@ impl ShopFundsRepository {
         if !matches!(field, "status") {
             return Err(Error::Validation(MSG_INVALID_FIELD_VALUE.into()));
         }
-        let sql = format!("UPDATE shop SET \"{field}\" = ? WHERE shop_id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE shop SET \"{field}\" = ? WHERE shop_id = ?"));
         let res = sqlx::query(&sql)
             .bind(val)
             .bind(shop_id)

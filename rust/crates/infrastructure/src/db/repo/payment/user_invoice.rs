@@ -127,17 +127,17 @@ impl UserInvoiceRepository {
         };
         let (where_sql, binds) = build_where(q, q.effective_keyword(), &user_ids);
 
-        let count_sql = format!("SELECT COUNT(*) FROM user_invoice{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM user_invoice{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&count_sql), binds)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {} FROM user_invoice{where_sql}{} LIMIT {limit} OFFSET {offset}",
             USER_INVOICE_COLUMNS.join(", "),
             q.order_clause()
-        );
+        ));
         let rows: Vec<UserInvoice> =
             bind_all!(sqlx::query_as::<_, UserInvoice>(&rows_sql), binds)
                 .fetch_all(&self.pool)
@@ -367,7 +367,7 @@ mod tests {
     fn status_zero_applies_but_minus_one_is_ignored() {
         // Java: status != null && status > -1（0 是有效筛选值）
         let (sql, binds) = build_where(&q(serde_json::json!({"status": 0})), None, &[]);
-        assert_eq!(sql, " WHERE status = ?");
+        assert_eq!(sql, " WHERE status = $1");
         assert!(matches!(binds.as_slice(), [Bind::I32(0)]));
         let (sql, binds) = build_where(&q(serde_json::json!({"status": -1})), None, &[]);
         assert_eq!(sql, "");

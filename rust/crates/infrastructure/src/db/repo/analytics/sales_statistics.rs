@@ -71,7 +71,7 @@ impl SalesStatisticsRepository {
     ) -> Result<SalesTotals> {
         let mut sql = String::from(
             "SELECT COUNT(*), COALESCE(SUM(total_amount), 0) FROM \"order\" \
-             WHERE is_del = 0 AND pay_status > 0 AND add_time >= ? AND add_time <= ?",
+             WHERE is_del = 0 AND pay_status > 0 AND add_time >= $1 AND add_time <= $2",
         );
         if shop_id.filter(|v| *v > 0).is_some() {
             sql.push_str(" AND shop_id = ?");
@@ -99,7 +99,7 @@ impl SalesStatisticsRepository {
         let mut sql = String::from(
             "SELECT TO_CHAR(TO_TIMESTAMP(add_time), 'YYYY-MM-DD') AS date, COUNT(*) AS order_count, \
              COALESCE(SUM(total_amount), 0) AS total_amount FROM \"order\" \
-             WHERE is_del = 0 AND pay_status > 0 AND add_time >= ? AND add_time <= ?",
+             WHERE is_del = 0 AND pay_status > 0 AND add_time >= $1 AND add_time <= $2",
         );
         if shop_id.filter(|v| *v > 0).is_some() {
             sql.push_str(" AND shop_id = ?");
@@ -127,12 +127,12 @@ impl SalesStatisticsRepository {
     ) -> Result<(u64, Vec<ProductSalesSqlRow>)> {
         let mut where_sql = String::from(
             " FROM order_item i JOIN \"order\" o ON o.order_id = i.order_id \
-             WHERE o.is_del = 0 AND o.pay_status > 0 AND o.add_time >= ? AND o.add_time <= ?",
+             WHERE o.is_del = 0 AND o.pay_status > 0 AND o.add_time >= $1 AND o.add_time <= $2",
         );
         if shop_id.filter(|v| *v > 0).is_some() {
             where_sql.push_str(" AND o.shop_id = ?");
         }
-        let count_sql = format!("SELECT COUNT(DISTINCT i.product_id){where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(DISTINCT i.product_id){where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql).bind(start).bind(end);
         if let Some(sid) = shop_id.filter(|v| *v > 0) {
             cq = cq.bind(sid);
@@ -140,11 +140,11 @@ impl SalesStatisticsRepository {
         let total = cq.fetch_one(&self.pool).await.map_err(map_err)?.0;
         let col = if order_by_amount { "amount" } else { "quantity" };
         let dir = if ascending { "ASC" } else { "DESC" };
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT i.product_id, MAX(i.product_name) AS product_name, MAX(i.product_sn) AS product_sn, \
              CAST(SUM(i.quantity) AS BIGINT) AS quantity, SUM(i.price * i.quantity) AS amount{where_sql} \
              GROUP BY i.product_id ORDER BY {col} {dir} LIMIT ? OFFSET ?"
-        );
+        ));
         let mut rq = sqlx::query_as::<_, ProductSalesSqlRow>(&rows_sql)
             .bind(start)
             .bind(end);

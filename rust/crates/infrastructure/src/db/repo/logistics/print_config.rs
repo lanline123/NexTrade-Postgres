@@ -206,9 +206,9 @@ impl PrintConfigRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; print_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "{PRINT_POS_DEVICE_SELECT} WHERE shop_id = $1 AND print_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, PrintPosDevice>(&sql).bind(shop_id);
         for id in print_ids {
             q = q.bind(*id);

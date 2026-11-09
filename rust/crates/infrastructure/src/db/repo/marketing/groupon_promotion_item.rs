@@ -347,9 +347,9 @@ impl GrouponPromotionItemRepository {
         group_product_ids: Option<&[i32]>,
     ) -> Result<(u64, Vec<ItemPageRow>)> {
         let (where_sql, binds) = build_item_filters(q, group_product_ids);
-        let count_sql = format!(
+        let count_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(1) FROM groupon_promotion_item gi LEFT JOIN product p ON gi.product_id = p.product_id{where_sql}"
-        );
+        ));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         for b in &binds {
             cq = cq.bind(b.as_str());
@@ -358,7 +358,7 @@ impl GrouponPromotionItemRepository {
 
         let (limit, offset) = page.limit_offset();
         let dir = if q.ascending() { "ASC" } else { "DESC" };
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT gi.groupon_promotion_item_id, gi.groupon_promotion_id, gi.product_id,
                 gi.group_type, gi.group_num, gi.order_limit_num, gi.is_auto_group,
                 gi.min_group_num, gi.sort, gi.add_time, gi.min_group_price,
@@ -367,7 +367,7 @@ impl GrouponPromotionItemRepository {
              FROM groupon_promotion_item gi LEFT JOIN product p ON gi.product_id = p.product_id
              {where_sql} ORDER BY {} {dir} LIMIT ? OFFSET ?",
             q.sort_column()
-        );
+        ));
         let mut lq = sqlx::query_as::<_, ItemPageRow>(&list_sql);
         for b in &binds {
             lq = lq.bind(b.as_str());

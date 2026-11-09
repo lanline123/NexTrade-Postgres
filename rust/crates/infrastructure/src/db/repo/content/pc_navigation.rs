@@ -161,9 +161,9 @@ impl PcNavigationRepository {
         let placeholders = std::iter::repeat_n("?", parent_ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT parent_id, COUNT(*) FROM pc_navigation WHERE parent_id IN ({placeholders}) GROUP BY parent_id"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in parent_ids {
             q = q.bind(*id);
@@ -236,7 +236,7 @@ impl PcNavigationRepository {
         let placeholders = std::iter::repeat_n("?", ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!("DELETE FROM pc_navigation WHERE id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM pc_navigation WHERE id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(*id);

@@ -202,7 +202,7 @@ impl StatisticsRepository {
     pub async fn fetch_user_reg_times(&self, start_ts: i64, end_ts: i64) -> Result<Vec<i64>> {
         let rows: Vec<(i64,)> = sqlx::query_as(
             "SELECT CAST(reg_time AS BIGINT) FROM \"user\" \
-             WHERE reg_time >= ? AND reg_time <= ? ORDER BY reg_time ASC",
+             WHERE reg_time >= $1 AND reg_time <= $2 ORDER BY reg_time ASC",
         )
         .bind(start_ts)
         .bind(end_ts)
@@ -219,7 +219,7 @@ impl StatisticsRepository {
     /// toTimestampYmdHms(end + " 23:59:59")))`。
     pub async fn count_users_by_reg_time(&self, start_ts: i64, end_ts: i64) -> Result<i64> {
         let (n,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM \"user\" WHERE reg_time >= ? AND reg_time <= ?",
+            "SELECT COUNT(*) FROM \"user\" WHERE reg_time >= $1 AND reg_time <= $2",
         )
         .bind(start_ts)
         .bind(end_ts)
@@ -273,7 +273,7 @@ impl StatisticsRepository {
     pub async fn count_recharge_users(&self, start_ts: i64, end_ts: i64) -> Result<i64> {
         let (n,): (i64,) = sqlx::query_as(
             "SELECT COUNT(DISTINCT user_id) FROM user_recharge_order \
-             WHERE add_time >= ? AND add_time <= ?",
+             WHERE add_time >= $1 AND add_time <= $2",
         )
         .bind(start_ts)
         .bind(end_ts)

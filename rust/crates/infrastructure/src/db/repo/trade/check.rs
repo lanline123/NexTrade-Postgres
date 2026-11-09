@@ -54,9 +54,9 @@ impl CheckRepository {
             return Ok(std::collections::HashMap::new());
         }
         let placeholders = vec!["?"; biz_codes.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT biz_code, biz_val FROM config WHERE biz_code IN ({placeholders}) AND is_del = 0"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (String, Option<String>)>(&sql);
         for code in biz_codes {
             q = q.bind(*code);

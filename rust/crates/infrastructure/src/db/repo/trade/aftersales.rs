@@ -121,9 +121,9 @@ impl AftersalesRepository {
     ) -> Result<Vec<Aftersales>> {
         sqlx::query_as::<_, Aftersales>(
             "SELECT * FROM aftersales \
-             WHERE status IN (5, 22) AND deal_time > 0 AND deal_time <= ? \
+             WHERE status IN (5, 22) AND deal_time > 0 AND deal_time <= $1 \
                AND tracking_no <> '' \
-             ORDER BY deal_time ASC LIMIT ?",
+             ORDER BY deal_time ASC LIMIT $2",
         )
         .bind(cutoff)
         .bind(limit)
@@ -141,7 +141,7 @@ impl AftersalesRepository {
               logistics_name, return_address, aftersale_reason, aftersales_sn, order_id, \
               user_id, refund_amount, shop_id, audit_time, deal_time, final_time, \
               return_goods_tip, vendor_id, close_type) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING aftersale_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING aftersale_id",
         )
         .bind(a.aftersale_type)
         .bind(a.status)
@@ -208,15 +208,15 @@ impl AftersalesRepository {
         let page_size = q.page_size();
         let offset = (q.page_no() - 1) * page_size;
 
-        let total_sql = format!("SELECT COUNT(*) FROM aftersales{where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM aftersales{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&total_sql), binds)
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM aftersales{where_sql} ORDER BY aftersale_id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = bind_all!(sqlx::query_as::<_, Aftersales>(&rows_sql), binds)
             .bind(page_size as i64)
             .bind(offset as i64)
@@ -256,7 +256,7 @@ impl AftersalesRepository {
     /// \"add_time\" 升序）。
     pub async fn find_logs(&self, aftersale_id: i32) -> Result<Vec<AftersalesLog>> {
         sqlx::query_as::<_, AftersalesLog>(
-            "SELECT * FROM aftersales_log WHERE aftersale_id = ? \
+            "SELECT * FROM aftersales_log WHERE aftersale_id = $1 \
              ORDER BY add_time ASC, log_id ASC",
         )
         .bind(aftersale_id)
@@ -275,11 +275,11 @@ impl AftersalesRepository {
         if statuses.is_empty() {
             return Ok(Vec::new());
         }
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM aftersales WHERE order_id = ? AND status IN ({}) \
              ORDER BY aftersale_id ASC",
             placeholders(statuses.len())
-        );
+        ));
         let mut q = sqlx::query_as::<_, Aftersales>(&sql).bind(order_id);
         for s in statuses {
             q = q.bind(*s);
@@ -295,8 +295,8 @@ impl AftersalesRepository {
         before_aftersale_id: i32,
     ) -> Result<Vec<Aftersales>> {
         sqlx::query_as::<_, Aftersales>(
-            "SELECT * FROM aftersales WHERE order_id = ? AND aftersale_id < ? \
-             AND status NOT IN (?, ?) ORDER BY aftersale_id ASC",
+            "SELECT * FROM aftersales WHERE order_id = $1 AND aftersale_id < $2 \
+             AND status NOT IN ($3, $4) ORDER BY aftersale_id ASC",
         )
         .bind(order_id)
         .bind(before_aftersale_id)
@@ -309,7 +309,7 @@ impl AftersalesRepository {
 
     /// 按订单查询全部售后主单（幂等判断用）。
     pub async fn find_by_order(&self, order_id: i32) -> Result<Vec<Aftersales>> {
-        sqlx::query_as::<_, Aftersales>("SELECT * FROM aftersales WHERE order_id = ?")
+        sqlx::query_as::<_, Aftersales>("SELECT * FROM aftersales WHERE order_id = $1")
             .bind(order_id)
             .fetch_all(&self.pool)
             .await
@@ -320,7 +320,7 @@ impl AftersalesRepository {
     pub async fn insert_items(&self, items: &[nextrade_core::entities::AftersalesItem]) -> Result<()> {
         for item in items {
             sqlx::query(
-                "INSERT INTO aftersales_item (order_item_id, number, aftersale_id) VALUES (?, ?, ?)",
+                "INSERT INTO aftersales_item (order_item_id, number, aftersale_id) VALUES ($1, $2, $3)",
             )
             .bind(item.order_item_id)
             .bind(item.number)
@@ -414,7 +414,7 @@ impl AftersalesRepository {
             "INSERT INTO aftersales_log \
              (aftersale_id, log_info, add_time, admin_name, refund_money, refund_type, \
               refund_desc, user_name, return_pic, shop_id, vendor_id) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING log_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING log_id",
         )
         .bind(log.aftersale_id)
         .bind(&log.log_info)
@@ -441,7 +441,7 @@ impl AftersalesRepository {
         aftersale_id: i32,
     ) -> Result<Option<RefundApply>> {
         sqlx::query_as::<_, RefundApply>(
-            "SELECT * FROM refund_apply WHERE aftersale_id = ? ORDER BY refund_id DESC LIMIT 1",
+            "SELECT * FROM refund_apply WHERE aftersale_id = $1 ORDER BY refund_id DESC LIMIT 1",
         )
         .bind(aftersale_id)
         .fetch_optional(&self.pool)
@@ -487,7 +487,7 @@ impl AftersalesRepository {
     ) -> Result<rust_decimal::Decimal> {
         let row: (Option<rust_decimal::Decimal>,) = sqlx::query_as(
             "SELECT SUM(online_balance + refund_balance + offline_balance) FROM refund_apply \
-             WHERE order_id = ? AND aftersale_id <> ? AND refund_status IN (1, 2)",
+             WHERE order_id = $1 AND aftersale_id <> $2 AND refund_status IN (1, 2)",
         )
         .bind(order_id)
         .bind(exclude_aftersale_id)
@@ -503,7 +503,7 @@ impl AftersalesRepository {
     pub async fn find_order_ids_by_sn(&self, keyword: &str) -> Result<Vec<i32>> {
         let pat = format!("%{keyword}%");
         let rows: Vec<(i32,)> =
-            sqlx::query_as("SELECT order_id FROM \"order\" WHERE order_sn LIKE ? ORDER BY order_id ASC")
+            sqlx::query_as("SELECT order_id FROM \"order\" WHERE order_sn LIKE $1 ORDER BY order_id ASC")
                 .bind(pat)
                 .fetch_all(&self.pool)
                 .await
@@ -559,7 +559,7 @@ impl AftersalesRepository {
             return Ok(Vec::new());
         }
         let sql = format!(
-            "SELECT * FROM user WHERE user_id IN ({}) ORDER BY user_id ASC",
+            "SELECT * FROM \"user\" WHERE user_id IN ({}) ORDER BY user_id ASC",
             placeholders(user_ids.len())
         );
         let mut q = sqlx::query_as::<_, User>(&sql);
@@ -840,7 +840,7 @@ mod tests {
                 ..Default::default()
             };
             let (sql, binds) = sql_and_binds(&q, None, None, false, None);
-            assert_eq!(sql, " WHERE aftersale_type = ?");
+            assert_eq!(sql, " WHERE aftersale_type = $1");
             assert_eq!(binds, vec![t.to_string()]);
         }
     }
@@ -852,7 +852,7 @@ mod tests {
         let (sql, _) = sql_and_binds(&q, Some(0), Some(-1), false, None);
         assert_eq!(sql, "");
         let (sql, binds) = sql_and_binds(&q, Some(3), Some(7), false, None);
-        assert_eq!(sql, " WHERE shop_id = ? AND vendor_id = ?");
+        assert_eq!(sql, " WHERE shop_id = $1 AND vendor_id = $2");
         assert_eq!(binds, vec!["3".to_string(), "7".to_string()]);
     }
 
@@ -864,7 +864,7 @@ mod tests {
             ..Default::default()
         };
         let (sql, binds) = sql_and_binds(&q, None, None, false, None);
-        assert_eq!(sql, " WHERE status = ?");
+        assert_eq!(sql, " WHERE status = $1");
         assert_eq!(binds, vec!["2".to_string()]);
 
         let q = AftersalesListQuery {
@@ -880,7 +880,7 @@ mod tests {
         // 未传 status → 默认白名单 21/4/22/6
         let q = AftersalesListQuery::default();
         let (sql, binds) = sql_and_binds(&q, None, None, true, None);
-        assert_eq!(sql, " WHERE status IN (?, ?, ?, ?)");
+        assert_eq!(sql, " WHERE status IN ($1, $2, $3, $4)");
         assert_eq!(binds, vec!["21", "4", "22", "6"]);
 
         // 传了白名单内的状态 → 精确匹配
@@ -889,7 +889,7 @@ mod tests {
             ..Default::default()
         };
         let (sql, binds) = sql_and_binds(&q, None, None, true, None);
-        assert_eq!(sql, " WHERE status = ?");
+        assert_eq!(sql, " WHERE status = $1");
         assert_eq!(binds, vec!["6".to_string()]);
 
         // 传了白名单外的状态 → -999（必然查空）
@@ -898,7 +898,7 @@ mod tests {
             ..Default::default()
         };
         let (sql, binds) = sql_and_binds(&q, None, None, true, None);
-        assert_eq!(sql, " WHERE status = ?");
+        assert_eq!(sql, " WHERE status = $1");
         assert_eq!(binds, vec!["-999".to_string()]);
     }
 
@@ -909,7 +909,7 @@ mod tests {
             ..Default::default()
         };
         let (sql, binds) = sql_and_binds(&q, None, None, false, Some(&[5, 6]));
-        assert_eq!(sql, " WHERE aftersales_sn LIKE ? AND order_id IN (?, ?)");
+        assert_eq!(sql, " WHERE aftersales_sn LIKE $1 AND order_id IN ($2, $3)");
         assert_eq!(binds, vec!["%SN1%".to_string(), "5".to_string(), "6".to_string()]);
 
         // 空串不作为过滤条件
@@ -928,7 +928,7 @@ mod tests {
             ..Default::default()
         };
         let (sql, binds) = sql_and_binds(&q, None, None, false, None);
-        assert_eq!(sql, " WHERE user_id = ?");
+        assert_eq!(sql, " WHERE user_id = $1");
         assert_eq!(binds, vec!["9".to_string()]);
     }
 

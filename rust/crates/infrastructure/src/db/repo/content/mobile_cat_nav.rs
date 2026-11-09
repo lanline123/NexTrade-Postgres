@@ -180,7 +180,7 @@ impl MobileCatNavRepository {
     /// `create` 时补「分类必须存在」的校验；不影响覆盖率统计。
     pub async fn category_exists(&self, category_id: i32) -> Result<bool> {
         let row: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM category WHERE category_id = ?")
+            sqlx::query_as("SELECT COUNT(*) FROM category WHERE category_id = $1")
                 .bind(category_id)
                 .fetch_one(&self.pool)
                 .await
@@ -236,10 +236,10 @@ impl MobileCatNavRepository {
         }
 
         let placeholders = vec!["?"; columns.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "INSERT INTO mobile_cat_nav ({}) VALUES ({placeholders})",
             columns.join(", ")
-        );
+        ));
 
         // 绑定顺序必须与 columns 完全一致：按同一判据再走一遍。
         let mut query = sqlx::query_scalar(&format!("{} RETURNING mobile_cat_nav_id", &sql));
@@ -309,7 +309,7 @@ impl MobileCatNavRepository {
             nextrade_core::models::content::mobile_cat_nav::MOBILE_CAT_NAV_COLUMNS.contains(&column),
             "update_field 列名未经过白名单映射: {column}"
         );
-        let sql = format!("UPDATE mobile_cat_nav SET {column} = ? WHERE mobile_cat_nav_id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE mobile_cat_nav SET {column} = ? WHERE mobile_cat_nav_id = ?"));
         let res = sqlx::query(&sql)
             .bind(val)
             .bind(id)
@@ -323,7 +323,7 @@ impl MobileCatNavRepository {
     ///
     /// \"mobile_cat_nav\" 表**没有**软删标记列，因此就是 \"DELETE\"。
     pub async fn delete(&self, id: i32) -> Result<bool> {
-        let res = sqlx::query("DELETE FROM mobile_cat_nav WHERE mobile_cat_nav_id = ?")
+        let res = sqlx::query("DELETE FROM mobile_cat_nav WHERE mobile_cat_nav_id = $1")
             .bind(id)
             .execute(&self.pool)
             .await

@@ -47,10 +47,10 @@ impl CurrencyRepository {
         offset: u64,
     ) -> Result<(u64, Vec<Currency>)> {
         let where_sql = match name_like {
-            Some(_) => "WHERE name LIKE ?".to_string(),
+            Some(_) => "WHERE name LIKE $1".to_string(),
             None => String::new(),
         };
-        let count_sql = format!("SELECT COUNT(*) FROM currency {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM currency {where_sql}"));
         let count: i64 = if let Some(name) = name_like {
             sqlx::query_scalar(&count_sql)
                 .bind(format!("%{name}%"))
@@ -77,7 +77,7 @@ impl CurrencyRepository {
 
     /// 按主键查单条（Java `getById`）。
     pub async fn find_by_id(&self, id: i32) -> Result<Option<Currency>> {
-        let sql = Self::select_sql("WHERE id = ? LIMIT 1");
+        let sql = Self::select_sql("WHERE id = $1 LIMIT 1");
         sqlx::query_as::<_, Currency>(&sql)
             .bind(id)
             .fetch_optional(&self.pool)
@@ -189,7 +189,7 @@ impl CurrencyRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = format!("DELETE FROM currency WHERE id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM currency WHERE id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(id);

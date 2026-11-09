@@ -36,7 +36,7 @@ const USER_COMPANY_SELECT: &str = "SELECT id, user_id, type, contact_name, conta
 /// \"list\" 里用于反查 \"user_id\" 的 SELECT 列清单
 /// （Java `userService.list(userQueryWrapper)` 只用到 \"user_id\"，
 /// 但这里取全列以便复用实体映射）。
-const USER_SELECT: &str = "SELECT * FROM user";
+const USER_SELECT: &str = "SELECT * FROM \"user\"";
 
 #[derive(Clone)]
 pub struct UserCompanyRepository {
@@ -79,9 +79,9 @@ impl UserCompanyRepository {
         let like = format!("%{}%", escape_like(keyword));
         // `ESCAPE '\\'` 与 escape_like 配套：MySQL 默认转义符就是 `\`，
         // 这里显式声明以避免 sql_mode=NO_BACKSLASH_ESCAPES 下的行为差异。
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "{USER_SELECT} WHERE username LIKE ? ESCAPE '\\\\' OR mobile LIKE ? ESCAPE '\\\\'"
-        );
+        ));
         let rows: Vec<User> = sqlx::query_as(&sql)
             .bind(&like)
             .bind(&like)
@@ -192,7 +192,7 @@ impl UserCompanyRepository {
 
     /// 按 `user_id` 查询单条会员（对应 Java `userService.getById(userId)`）。
     pub async fn find_user_by_id(&self, user_id: i32) -> Result<Option<User>> {
-        sqlx::query_as::<_, User>("SELECT * FROM user WHERE user_id = ? LIMIT 1")
+        sqlx::query_as::<_, User>("SELECT * FROM \"user\" WHERE user_id = $1 LIMIT 1")
             .bind(user_id)
             .fetch_optional(&self.pool)
             .await
@@ -210,7 +210,7 @@ impl UserCompanyRepository {
             return Ok(Vec::new());
         }
         let mut qb: QueryBuilder<'_, Postgres> =
-            QueryBuilder::new("SELECT * FROM user WHERE user_id IN (");
+            QueryBuilder::new("SELECT * FROM \"user\" WHERE user_id IN (");
         let mut sep = qb.separated(", ");
         for id in ids {
             sep.push_bind(*id);
@@ -314,7 +314,7 @@ impl UserCompanyRepository {
         user_id: i32,
         value: i32,
     ) -> Result<u64> {
-        let res = sqlx::query("UPDATE user SET is_company_auth = ? WHERE user_id = ?")
+        let res = sqlx::query("UPDATE \"user\" SET is_company_auth = $1 WHERE user_id = $2")
             .bind(value)
             .bind(user_id)
             .execute(&mut **tx)
@@ -332,7 +332,7 @@ impl UserCompanyRepository {
     /// 否则 `removeById(id)` —— **不校验记录是否存在**（删不存在的 id 也算成功）。
     /// 本实现保持该语义（返回是否命中），不额外抛 404。
     pub async fn delete(&self, id: i32) -> Result<bool> {
-        let res = sqlx::query("DELETE FROM user_company WHERE id = ?")
+        let res = sqlx::query("DELETE FROM user_company WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await

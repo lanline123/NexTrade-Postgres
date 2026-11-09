@@ -274,7 +274,7 @@ impl WechatLiveRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = format!("SELECT * FROM wechat_live_goods WHERE id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM wechat_live_goods WHERE id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, WechatLiveGoods>(&sql);
         for id in ids {
             q = q.bind(*id);

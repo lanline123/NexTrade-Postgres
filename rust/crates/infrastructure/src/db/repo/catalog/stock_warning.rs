@@ -259,10 +259,10 @@ impl StockWarningRepository {
         let (total,): (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
         let (limit, offset) = page.limit_offset();
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "{base}ORDER BY {}, sku_id ASC LIMIT ? OFFSET ?",
             sort_expression(spec.sort_field.as_deref(), spec.sort_order.as_deref())
-        );
+        ));
         let mut lq = sqlx::query_as::<_, StockWarningRow>(&list_sql);
         lq = bind_warning(lq, spec);
         let rows = lq
@@ -302,9 +302,9 @@ impl StockWarningRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; sn_list.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT ps.sku_sn AS sn, CAST(p.product_id AS BIGINT) AS product_id, CAST(ps.sku_id AS BIGINT) AS sku_id, CAST(1 AS BIGINT) AS match_type, CAST(0 AS BIGINT) AS sku_count FROM product_sku ps INNER JOIN product p ON p.product_id = ps.product_id LEFT JOIN store_product sp ON sp.product_id = p.product_id AND sp.shop_id = $1 WHERE p.is_delete = 0 AND p.vendor_id IS NULL AND (p.shop_id = $2 OR sp.shop_id = $3) AND ps.sku_sn IN ({placeholders}) UNION ALL SELECT p.product_sn AS sn, CAST(p.product_id AS BIGINT) AS product_id, CAST(0 AS BIGINT) AS sku_id, CAST(2 AS BIGINT) AS match_type, CAST((SELECT COUNT(*) FROM product_sku s WHERE s.product_id = p.product_id) AS BIGINT) AS sku_count FROM product p LEFT JOIN store_product sp ON sp.product_id = p.product_id AND sp.shop_id = $4 WHERE p.is_delete = 0 AND p.vendor_id IS NULL AND (p.shop_id = $5 OR sp.shop_id = $6) AND p.product_sn IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, WarningSnTarget>(&sql);
         q = q.bind(shop_id).bind(shop_id).bind(shop_id);
         for sn in sn_list {
@@ -330,9 +330,9 @@ impl StockWarningRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT DISTINCT CAST(p.product_id AS BIGINT) FROM product p LEFT JOIN store_product sp ON sp.product_id = p.product_id AND sp.shop_id = $1 AND sp.is_delete = 0 WHERE p.is_delete = 0 AND p.vendor_id IS NULL AND (p.shop_id = $2 OR (p.shop_id = 0 AND sp.shop_id = $3)) AND p.product_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32,)>(&sql);
         q = q.bind(shop_id).bind(shop_id).bind(shop_id);
         for id in product_ids {
@@ -578,7 +578,7 @@ mod tests {
         let sql = build_warning_sql(&spec);
         assert_eq!(sql.matches('?').count(), 19);
         assert!(sql
-            .contains("WHERE t.stock_status = ? AND t.warn_enabled = 1 AND t.warn_enabled = ?"));
+            .contains("WHERE t.stock_status = $1 AND t.warn_enabled = 1 AND t.warn_enabled = $2"));
     }
 
     #[test]
@@ -590,7 +590,7 @@ mod tests {
         };
         let sql = build_warning_sql(&spec);
         // stockStatus = 9 时不附加 warn_enabled = 1，未配置项仍可见
-        assert!(sql.contains("WHERE t.stock_status = ? "));
+        assert!(sql.contains("WHERE t.stock_status = $1 "));
         assert!(!sql.contains("t.warn_enabled = 1"));
 
         let spec = WarningQuerySpec {
@@ -610,7 +610,7 @@ mod tests {
             ..Default::default()
         };
         let sql = build_warning_sql(&spec);
-        assert!(sql.contains("AND (p.product_id, COALESCE(ps.sku_id, 0)) IN ((?, ?))"));
+        assert!(sql.contains("AND (p.product_id, COALESCE(ps.sku_id, 0)) IN (($1, $2))"));
     }
 
     #[test]

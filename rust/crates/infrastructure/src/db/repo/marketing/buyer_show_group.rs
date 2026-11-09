@@ -220,9 +220,9 @@ impl BuyerShowGroupRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT product_group_id, product_group_name FROM product_group WHERE product_group_id IN ({placeholders}) ORDER BY product_group_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, Option<String>)>(&sql);
         for id in ids {
             q = q.bind(id);

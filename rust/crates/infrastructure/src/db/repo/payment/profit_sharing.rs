@@ -223,7 +223,7 @@ mod tests {
         let src = include_str!("profit_sharing.rs");
         assert!(src.contains("FROM profit_sharing_order WHERE is_del = 0"));
         assert!(src.contains("transaction_id IS NULL OR transaction_id = ''"));
-        assert!(src.contains("FROM \"order\" WHERE order_id = ?"));
+        assert!(src.contains("FROM \"order\" WHERE order_id = $1"));
         assert!(src.contains("FROM vendor WHERE vendor_id IN ("));
     }
 }

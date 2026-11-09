@@ -35,7 +35,7 @@ impl CouponRepository {
 
     /// 按 ID 查询优惠券定义（含已软删除记录，由调用方判定）。
     pub async fn find_by_id(&self, coupon_id: i32) -> Result<Option<Coupon>> {
-        let sql = format!("SELECT {COUPON_COLUMNS} FROM coupon WHERE coupon_id = ? LIMIT 1");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT {COUPON_COLUMNS} FROM coupon WHERE coupon_id = ? LIMIT 1"));
         sqlx::query_as::<_, Coupon>(&sql)
             .bind(coupon_id)
             .fetch_optional(&self.pool)
@@ -49,9 +49,9 @@ impl CouponRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; ids.len()].join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {COUPON_COLUMNS} FROM coupon WHERE coupon_id IN ({placeholders}) AND is_delete = 0"
-        );
+        ));
         let mut q = sqlx::query_as::<_, Coupon>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -88,11 +88,11 @@ impl CouponRepository {
         } else {
             ""
         };
-        let where_sql = format!(
+        let where_sql = crate::db::to_pg_placeholders(&format!(
             "WHERE is_delete = 0 AND (? IS NULL OR coupon_name LIKE ?){shop_clause}{status_clause}"
-        );
+        ));
 
-        let count_sql = format!("SELECT COUNT(*) FROM coupon {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM coupon {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql).bind(&like).bind(&like);
         if let Some(sid) = shop_id.filter(|v| *v > -1) {
             cq = cq.bind(sid);
@@ -108,9 +108,9 @@ impl CouponRepository {
         }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {COUPON_COLUMNS} FROM coupon {where_sql} ORDER BY coupon_id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, Coupon>(&list_sql).bind(&like).bind(&like);
         if let Some(sid) = shop_id.filter(|v| *v > -1) {
             lq = lq.bind(sid);
@@ -146,13 +146,13 @@ impl CouponRepository {
             ""
         };
         // 单次查询用条件聚合，避免三次往返
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT
                SUM(CASE WHEN send_type = 0 OR (use_start_date <= ? AND use_end_date >= ?) THEN 1 ELSE 0 END),
                SUM(CASE WHEN send_type <> 0 AND use_start_date > ? THEN 1 ELSE 0 END),
                SUM(CASE WHEN send_type <> 0 AND use_end_date > 0 AND use_end_date < ? THEN 1 ELSE 0 END)
              FROM coupon WHERE is_delete = 0{shop_clause}"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<i64>)>(&sql)
             .bind(now)
             .bind(now)
@@ -186,21 +186,21 @@ impl CouponRepository {
             ""
         };
         // 有效期：固定时间段未结束，或按领取后天数（send_type = 0）
-        let where_sql = format!(
+        let where_sql = crate::db::to_pg_placeholders(&format!(
             "WHERE is_delete = 0 AND is_show = 1 AND enabled_click_get = 1{shop_clause}
              AND (send_type = 0 OR use_end_date >= ?)"
-        );
+        ));
 
-        let count_sql = format!("SELECT COUNT(*) FROM coupon {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM coupon {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         if let Some(sid) = shop_id.filter(|v| *v > -1) {
             cq = cq.bind(sid);
         }
         let total: (i64,) = cq.bind(now).fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {COUPON_COLUMNS} FROM coupon {where_sql} ORDER BY add_time DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, Coupon>(&list_sql);
         if let Some(sid) = shop_id.filter(|v| *v > -1) {
             lq = lq.bind(sid);
@@ -219,7 +219,7 @@ impl CouponRepository {
     /// 统计某券的已领取（已发放）总量。
     pub async fn count_issued(&self, coupon_id: i32) -> Result<i64> {
         let (n,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM user_coupon WHERE coupon_id = ?")
+            sqlx::query_as("SELECT COUNT(*) FROM user_coupon WHERE coupon_id = $1")
                 .bind(coupon_id)
                 .fetch_one(&self.pool)
                 .await
@@ -237,9 +237,9 @@ impl CouponRepository {
             return Ok(map);
         }
         let placeholders = vec!["?"; coupon_ids.len()].join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT coupon_id, COUNT(*) FROM user_coupon WHERE coupon_id IN ({placeholders}) GROUP BY coupon_id"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in coupon_ids {
             q = q.bind(id);
@@ -253,7 +253,7 @@ impl CouponRepository {
     /// 统计某用户对某券的领取数量（限领校验）。
     pub async fn count_user_claimed(&self, user_id: i32, coupon_id: i32) -> Result<i64> {
         let (n,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM user_coupon WHERE user_id = ? AND coupon_id = ?",
+            "SELECT COUNT(*) FROM user_coupon WHERE user_id = $1 AND coupon_id = $2",
         )
         .bind(user_id)
         .bind(coupon_id)
@@ -273,9 +273,9 @@ impl CouponRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; coupon_ids.len()].join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT DISTINCT coupon_id FROM user_coupon WHERE user_id = ? AND coupon_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32,)>(&sql).bind(user_id);
         for id in coupon_ids {
             q = q.bind(id);
@@ -305,21 +305,21 @@ impl CouponRepository {
         } else {
             ""
         };
-        let where_sql = format!("WHERE user_id = ?{time_clause}");
+        let where_sql = crate::db::to_pg_placeholders(&format!("WHERE user_id = ?{time_clause}"));
 
-        let count_sql = format!("SELECT COUNT(*) FROM user_coupon {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM user_coupon {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql).bind(user_id);
         if let Some(t) = used_time {
             cq = cq.bind(t);
         }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {USER_COUPON_COLUMNS} FROM user_coupon {where_sql}
              ORDER BY CASE WHEN used_time = 0 AND start_date <= ? AND end_date >= ? THEN 0 ELSE 1 END,
                       start_date ASC
              LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, UserCoupon>(&list_sql).bind(user_id);
         if let Some(t) = used_time {
             lq = lq.bind(t);
@@ -342,12 +342,12 @@ impl CouponRepository {
         user_id: i32,
         now: i64,
     ) -> Result<Vec<UserCoupon>> {
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {USER_COUPON_COLUMNS} FROM user_coupon
              WHERE user_id = ? AND order_id = 0 AND used_time = 0
                AND start_date <= ? AND end_date >= ?
              ORDER BY end_date ASC"
-        );
+        ));
         sqlx::query_as::<_, UserCoupon>(&sql)
             .bind(user_id)
             .bind(now)
@@ -359,7 +359,7 @@ impl CouponRepository {
 
     /// 按主键查询用户券。
     pub async fn find_user_coupon_by_id(&self, id: i32) -> Result<Option<UserCoupon>> {
-        let sql = format!("SELECT {USER_COUPON_COLUMNS} FROM user_coupon WHERE id = ? LIMIT 1");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT {USER_COUPON_COLUMNS} FROM user_coupon WHERE id = ? LIMIT 1"));
         sqlx::query_as::<_, UserCoupon>(&sql)
             .bind(id)
             .fetch_optional(&self.pool)
@@ -372,7 +372,7 @@ impl CouponRepository {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO user_coupon
                (coupon_id, coupon_sn, user_id, used_time, order_id, start_date, end_date, source_type)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
         )
         .bind(uc.coupon_id)
         .bind(&uc.coupon_sn)
@@ -392,7 +392,7 @@ impl CouponRepository {
     ///
     /// 对应 Java `UserCouponServiceImpl#deleteByUser`。
     pub async fn delete_user_coupon(&self, id: i32, user_id: i32) -> Result<bool> {
-        let r = sqlx::query("DELETE FROM user_coupon WHERE id = ? AND user_id = ? AND order_id = 0")
+        let r = sqlx::query("DELETE FROM user_coupon WHERE id = $1 AND user_id = $2 AND order_id = 0")
             .bind(id)
             .bind(user_id)
             .execute(&self.pool)
@@ -413,9 +413,9 @@ impl CouponRepository {
         now: i64,
     ) -> Result<bool> {
         let r = sqlx::query(
-            "UPDATE user_coupon SET order_id = ?, used_time = ?
-             WHERE id = ? AND user_id = ? AND order_id = 0 AND used_time = 0
-               AND start_date <= ? AND end_date >= ?",
+            "UPDATE user_coupon SET order_id = $1, used_time = $2
+             WHERE id = $3 AND user_id = $4 AND order_id = 0 AND used_time = 0
+               AND start_date <= $5 AND end_date >= $6",
         )
         .bind(order_id)
         .bind(now as i32)
@@ -432,7 +432,7 @@ impl CouponRepository {
     /// 订单取消/退款时回退优惠券占用。
     pub async fn release_by_order(&self, order_id: i32) -> Result<u64> {
         let r = sqlx::query(
-            "UPDATE user_coupon SET order_id = 0, used_time = 0 WHERE order_id = ?",
+            "UPDATE user_coupon SET order_id = 0, used_time = 0 WHERE order_id = $1",
         )
         .bind(order_id)
         .execute(&self.pool)
@@ -445,8 +445,8 @@ impl CouponRepository {
     pub async fn count_user_usable(&self, user_id: i32, now: i64) -> Result<i64> {
         let (n,): (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM user_coupon
-             WHERE user_id = ? AND order_id = 0 AND used_time = 0
-               AND start_date <= ? AND end_date >= ?",
+             WHERE user_id = $1 AND order_id = 0 AND used_time = 0
+               AND start_date <= $2 AND end_date >= $3",
         )
         .bind(user_id)
         .bind(now)
@@ -467,10 +467,10 @@ impl CouponRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; ids.len()].join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {USER_COUPON_COLUMNS} FROM user_coupon
              WHERE user_id = ? AND id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, UserCoupon>(&sql).bind(user_id);
         for id in ids {
             q = q.bind(id);

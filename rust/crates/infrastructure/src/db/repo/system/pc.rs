@@ -52,7 +52,7 @@ impl PcRepository {
     pub async fn find_client_navs(&self, exclude_id: Option<i32>) -> Result<Vec<PcNavigation>> {
         match exclude_id {
             Some(id) => sqlx::query_as::<_, PcNavigation>(
-                "SELECT * FROM pc_navigation WHERE is_show = 1 AND id <> ? \
+                "SELECT * FROM pc_navigation WHERE is_show = 1 AND id <> $1 \
                  ORDER BY sort_order ASC, parent_id ASC",
             )
             .bind(id)
@@ -110,10 +110,10 @@ impl PcRepository {
         let placeholders = std::iter::repeat_n("?", ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM category WHERE category_id IN ({placeholders}) \
              ORDER BY category_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, Category>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -128,7 +128,7 @@ impl PcRepository {
     /// `None` ↔ Java 查不到记录（Java 此时返回空串，由调用方 `unwrap_or_default`）。
     pub async fn find_config_val(&self, biz_code: &str) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> =
-            sqlx::query_as("SELECT biz_val FROM config WHERE biz_code = ? AND is_del = 0 LIMIT 1")
+            sqlx::query_as("SELECT biz_val FROM config WHERE biz_code = $1 AND is_del = 0 LIMIT 1")
                 .bind(biz_code)
                 .fetch_optional(&self.pool)
                 .await

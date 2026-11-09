@@ -182,7 +182,7 @@ impl BuyerShowClientRepository {
         }
 
         let where_sql = format!(" WHERE {}", conds.join(" AND "));
-        let total_sql = format!("SELECT COUNT(*) FROM buyer_show{where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM buyer_show{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&total_sql), binds)
             .fetch_one(&self.pool)
             .await
@@ -190,10 +190,10 @@ impl BuyerShowClientRepository {
 
         let page_size = q.page_size();
         let offset = (q.page_no() - 1).saturating_mul(page_size);
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM buyer_show{where_sql} \
              ORDER BY sort_order ASC, add_time DESC, buyer_show_id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = bind_all!(sqlx::query_as::<_, BuyerShow>(&rows_sql), binds)
             .bind(page_size as i64)
             .bind(offset as i64)
@@ -305,7 +305,7 @@ impl BuyerShowClientRepository {
         sqlx::query(
             "INSERT INTO buyer_show_video \
              (video_id, buyer_show_id, video_url, video_cover, format, sort_order) \
-             VALUES (?, ?, ?, ?, ?, ?)",
+             VALUES ($1, $2, $3, $4, $5, $6)",
         )
         .bind(video_id)
         .bind(buyer_show_id)
@@ -322,7 +322,7 @@ impl BuyerShowClientRepository {
     /// 删除某买家秀的全部视频素材
     /// （Java \"saveOrUpdateBuyerShowVideo\" 第 1 步）。
     pub async fn delete_videos_of(&self, buyer_show_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM buyer_show_video WHERE buyer_show_id = ?")
+        let r = sqlx::query("DELETE FROM buyer_show_video WHERE buyer_show_id = $1")
             .bind(buyer_show_id)
             .execute(&self.pool)
             .await
@@ -348,7 +348,7 @@ impl BuyerShowClientRepository {
         sqlx::query(
             "INSERT INTO buyer_show_gallery \
              (buyer_show_id, pic_url, pic_desc, pic_thumb, pic_original, pic_large, sort_order) \
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
         )
         .bind(buyer_show_id)
         .bind(pic_url)
@@ -366,7 +366,7 @@ impl BuyerShowClientRepository {
     /// 删除某买家秀的全部相册图片
     /// （Java \"saveOrUpdateBuyerShowGallery\" 第 1 步）。
     pub async fn delete_gallery_of(&self, buyer_show_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM buyer_show_gallery WHERE buyer_show_id = ?")
+        let r = sqlx::query("DELETE FROM buyer_show_gallery WHERE buyer_show_id = $1")
             .bind(buyer_show_id)
             .execute(&self.pool)
             .await
@@ -396,7 +396,7 @@ impl BuyerShowClientRepository {
             "INSERT INTO buyer_show \
              (range_data, user_id, buyer_photo, buyer_name, content, group_data, \
               add_time, sort_order, status, is_show) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING buyer_show_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING buyer_show_id",
         )
         .bind(range_data)
         .bind(user_id)
@@ -429,20 +429,20 @@ impl BuyerShowClientRepository {
         }
         let ph = placeholders(ids.len());
 
-        let sql_video = format!(
+        let sql_video = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM buyer_show_video WHERE buyer_show_id IN ({ph}) \
              ORDER BY sort_order ASC, id ASC"
-        );
+        ));
         let mut vq = sqlx::query_as::<_, BuyerShowVideo>(&sql_video);
         for id in ids {
             vq = vq.bind(*id);
         }
         let videos = vq.fetch_all(&self.pool).await.map_err(map_err)?;
 
-        let sql_gallery = format!(
+        let sql_gallery = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM buyer_show_gallery WHERE buyer_show_id IN ({ph}) \
              ORDER BY sort_order ASC, pic_id ASC"
-        );
+        ));
         let mut gq = sqlx::query_as::<_, BuyerShowGallery>(&sql_gallery);
         for id in ids {
             gq = gq.bind(*id);
@@ -456,7 +456,7 @@ impl BuyerShowClientRepository {
     /// `eq(buyerShowId, ?).list()`，**无 ORDER BY**；这里按主键升序返回以保证确定）。
     pub async fn find_videos_of(&self, buyer_show_id: i32) -> Result<Vec<BuyerShowVideo>> {
         sqlx::query_as::<_, BuyerShowVideo>(
-            "SELECT * FROM buyer_show_video WHERE buyer_show_id = ? ORDER BY id ASC",
+            "SELECT * FROM buyer_show_video WHERE buyer_show_id = $1 ORDER BY id ASC",
         )
         .bind(buyer_show_id)
         .fetch_all(&self.pool)
@@ -468,7 +468,7 @@ impl BuyerShowClientRepository {
     /// 无 ORDER BY；这里按主键升序返回以保证确定）。
     pub async fn find_gallery_of(&self, buyer_show_id: i32) -> Result<Vec<BuyerShowGallery>> {
         sqlx::query_as::<_, BuyerShowGallery>(
-            "SELECT * FROM buyer_show_gallery WHERE buyer_show_id = ? ORDER BY pic_id ASC",
+            "SELECT * FROM buyer_show_gallery WHERE buyer_show_id = $1 ORDER BY pic_id ASC",
         )
         .bind(buyer_show_id)
         .fetch_all(&self.pool)
@@ -483,7 +483,7 @@ impl BuyerShowClientRepository {
         buyer_show_id: i32,
     ) -> Result<Option<BuyerShowGallery>> {
         sqlx::query_as::<_, BuyerShowGallery>(
-            "SELECT * FROM buyer_show_gallery WHERE buyer_show_id = ? \
+            "SELECT * FROM buyer_show_gallery WHERE buyer_show_id = $1 \
              ORDER BY sort_order ASC, pic_id ASC LIMIT 1",
         )
         .bind(buyer_show_id)
@@ -497,7 +497,7 @@ impl BuyerShowClientRepository {
     /// 这里按主键升序取第一条以保证确定）。
     pub async fn find_first_video(&self, buyer_show_id: i32) -> Result<Option<BuyerShowVideo>> {
         sqlx::query_as::<_, BuyerShowVideo>(
-            "SELECT * FROM buyer_show_video WHERE buyer_show_id = ? ORDER BY id ASC LIMIT 1",
+            "SELECT * FROM buyer_show_video WHERE buyer_show_id = $1 ORDER BY id ASC LIMIT 1",
         )
         .bind(buyer_show_id)
         .fetch_optional(&self.pool)
@@ -516,9 +516,9 @@ impl BuyerShowClientRepository {
             return Ok(Vec::new());
         }
         let ph = placeholders(ids.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM buyer_show_like WHERE buyer_show_id IN ({ph}) ORDER BY id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, BuyerShowLike>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -535,9 +535,9 @@ impl BuyerShowClientRepository {
             return Ok(Vec::new());
         }
         let ph = placeholders(ids.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM buyer_show_favorite WHERE buyer_show_id IN ({ph}) ORDER BY id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, BuyerShowFavorite>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -554,7 +554,7 @@ impl BuyerShowClientRepository {
         add_time: i64,
     ) -> Result<()> {
         sqlx::query(
-            "INSERT INTO buyer_show_like (buyer_show_id, user_id, add_time) VALUES (?, ?, ?)",
+            "INSERT INTO buyer_show_like (buyer_show_id, user_id, add_time) VALUES ($1, $2, $3)",
         )
         .bind(buyer_show_id)
         .bind(user_id)
@@ -567,7 +567,7 @@ impl BuyerShowClientRepository {
 
     /// 删除点赞行（Java `lambdaUpdate().eq(buyerShowId).eq(userId).remove()`）。
     pub async fn delete_like(&self, buyer_show_id: i32, user_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM buyer_show_like WHERE buyer_show_id = ? AND user_id = ?")
+        let r = sqlx::query("DELETE FROM buyer_show_like WHERE buyer_show_id = $1 AND user_id = $2")
             .bind(buyer_show_id)
             .bind(user_id)
             .execute(&self.pool)
@@ -579,7 +579,7 @@ impl BuyerShowClientRepository {
     /// 某买家秀的点赞总数（Java `detail` 的 `count()`）。
     pub async fn count_likes(&self, buyer_show_id: i32) -> Result<i64> {
         let row: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM buyer_show_like WHERE buyer_show_id = ?")
+            sqlx::query_as("SELECT COUNT(*) FROM buyer_show_like WHERE buyer_show_id = $1")
                 .bind(buyer_show_id)
                 .fetch_one(&self.pool)
                 .await
@@ -590,7 +590,7 @@ impl BuyerShowClientRepository {
     /// 某买家秀 + 用户是否已点赞（Java `detail` 的 `count()`）。
     pub async fn count_like_of_user(&self, buyer_show_id: i32, user_id: i32) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM buyer_show_like WHERE buyer_show_id = ? AND user_id = ?",
+            "SELECT COUNT(*) FROM buyer_show_like WHERE buyer_show_id = $1 AND user_id = $2",
         )
         .bind(buyer_show_id)
         .bind(user_id)
@@ -607,7 +607,7 @@ impl BuyerShowClientRepository {
         user_id: i32,
     ) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM buyer_show_favorite WHERE buyer_show_id = ? AND user_id = ?",
+            "SELECT COUNT(*) FROM buyer_show_favorite WHERE buyer_show_id = $1 AND user_id = $2",
         )
         .bind(buyer_show_id)
         .bind(user_id)
@@ -625,7 +625,7 @@ impl BuyerShowClientRepository {
         add_time: i64,
     ) -> Result<()> {
         sqlx::query(
-            "INSERT INTO buyer_show_favorite (buyer_show_id, user_id, add_time) VALUES (?, ?, ?)",
+            "INSERT INTO buyer_show_favorite (buyer_show_id, user_id, add_time) VALUES ($1, $2, $3)",
         )
         .bind(buyer_show_id)
         .bind(user_id)
@@ -639,7 +639,7 @@ impl BuyerShowClientRepository {
     /// 删除收藏行（Java `lambdaUpdate().eq(...).eq(...).remove()`）。
     pub async fn delete_favorite(&self, buyer_show_id: i32, user_id: i32) -> Result<u64> {
         let r =
-            sqlx::query("DELETE FROM buyer_show_favorite WHERE buyer_show_id = ? AND user_id = ?")
+            sqlx::query("DELETE FROM buyer_show_favorite WHERE buyer_show_id = $1 AND user_id = $2")
                 .bind(buyer_show_id)
                 .bind(user_id)
                 .execute(&self.pool)
@@ -651,7 +651,7 @@ impl BuyerShowClientRepository {
     /// 用户是否已关注该作者（Java `followAuthor` 的 `count() > 0`）。
     pub async fn count_follow(&self, user_id: i32, author_id: i32) -> Result<i64> {
         let row: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM user_follow WHERE user_id = ? AND author_id = ?")
+            sqlx::query_as("SELECT COUNT(*) FROM user_follow WHERE user_id = $1 AND author_id = $2")
                 .bind(user_id)
                 .bind(author_id)
                 .fetch_one(&self.pool)
@@ -671,9 +671,9 @@ impl BuyerShowClientRepository {
             return Ok(Vec::new());
         }
         let ph = placeholders(author_ids.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM user_follow WHERE user_id = ? AND author_id IN ({ph})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, UserFollow>(&sql).bind(user_id);
         for id in author_ids {
             q = q.bind(*id);
@@ -684,7 +684,7 @@ impl BuyerShowClientRepository {
 
     /// 插入关注关系（Java `userFollowService.save(...)`）。
     pub async fn insert_follow(&self, user_id: i32, author_id: i32, add_time: i64) -> Result<()> {
-        sqlx::query("INSERT INTO user_follow (user_id, author_id, add_time) VALUES (?, ?, ?)")
+        sqlx::query("INSERT INTO user_follow (user_id, author_id, add_time) VALUES ($1, $2, $3)")
             .bind(user_id)
             .bind(author_id)
             .bind(add_time)
@@ -696,7 +696,7 @@ impl BuyerShowClientRepository {
 
     /// 删除关注关系（Java `lambdaUpdate().eq(userId).eq(authorId).remove()`）。
     pub async fn delete_follow(&self, user_id: i32, author_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM user_follow WHERE user_id = ? AND author_id = ?")
+        let r = sqlx::query("DELETE FROM user_follow WHERE user_id = $1 AND author_id = $2")
             .bind(user_id)
             .bind(author_id)
             .execute(&self.pool)
@@ -716,7 +716,7 @@ impl BuyerShowClientRepository {
     ) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM buyer_show_comment \
-             WHERE buyer_show_id = ? AND (user_id = ? OR is_show = 1)",
+             WHERE buyer_show_id = $1 AND (user_id = $2 OR is_show = 1)",
         )
         .bind(buyer_show_id)
         .bind(user_id)
@@ -739,11 +739,11 @@ impl BuyerShowClientRepository {
             return Ok(Vec::new());
         }
         let ph = placeholders(ids.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT buyer_show_id, COUNT(*) FROM buyer_show_comment \
              WHERE buyer_show_id IN ({ph}) AND (user_id = ? OR is_show = 1) \
              GROUP BY buyer_show_id"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -763,11 +763,11 @@ impl BuyerShowClientRepository {
             return Ok(Vec::new());
         }
         let ph = placeholders(parent_ids.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT parent_id, COUNT(*) FROM buyer_show_comment \
              WHERE parent_id IN ({ph}) AND (user_id = ? OR is_show = 1) \
              GROUP BY parent_id"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in parent_ids {
             q = q.bind(*id);
@@ -785,9 +785,9 @@ impl BuyerShowClientRepository {
             return Ok(Vec::new());
         }
         let ph = placeholders(comment_ids.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM comment_like WHERE comment_id IN ({ph}) ORDER BY id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, CommentLike>(&sql);
         for id in comment_ids {
             q = q.bind(*id);
@@ -798,7 +798,7 @@ impl BuyerShowClientRepository {
     /// 删除某条评论的全部点赞（用于评论点踩场景，本切片暂未使用，
     /// 保留以便后续评论删除链路复用）。
     pub async fn delete_comment_likes(&self, comment_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM comment_like WHERE comment_id = ?")
+        let r = sqlx::query("DELETE FROM comment_like WHERE comment_id = $1")
             .bind(comment_id)
             .execute(&self.pool)
             .await
@@ -813,7 +813,7 @@ impl BuyerShowClientRepository {
         user_id: i32,
         add_time: i64,
     ) -> Result<()> {
-        sqlx::query("INSERT INTO comment_like (comment_id, user_id, add_time) VALUES (?, ?, ?)")
+        sqlx::query("INSERT INTO comment_like (comment_id, user_id, add_time) VALUES ($1, $2, $3)")
             .bind(comment_id)
             .bind(user_id)
             .bind(add_time)
@@ -825,7 +825,7 @@ impl BuyerShowClientRepository {
 
     /// 删除评论点赞（Java `lambdaUpdate().eq(commentId).eq(userId).remove()`）。
     pub async fn delete_comment_like(&self, comment_id: i32, user_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM comment_like WHERE comment_id = ? AND user_id = ?")
+        let r = sqlx::query("DELETE FROM comment_like WHERE comment_id = $1 AND user_id = $2")
             .bind(comment_id)
             .bind(user_id)
             .execute(&self.pool)
@@ -854,7 +854,7 @@ impl BuyerShowClientRepository {
             "INSERT INTO buyer_show_comment \
              (parent_id, buyer_show_id, status, is_top, is_show, user_id, user_name, \
               user_photo, content, add_time, comment_pic) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING buyer_show_comment_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING buyer_show_comment_id",
         )
         .bind(parent_id)
         .bind(buyer_show_id)
@@ -908,7 +908,7 @@ impl BuyerShowClientRepository {
         binds.push(Bind::I32(user_id));
 
         let where_sql = format!(" WHERE {}", conds.join(" AND "));
-        let total_sql = format!("SELECT COUNT(*) FROM buyer_show_comment{where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM buyer_show_comment{where_sql}"));
         let total: (i64,) = bind_all!(sqlx::query_as::<_, (i64,)>(&total_sql), binds)
             .fetch_one(&self.pool)
             .await
@@ -916,10 +916,10 @@ impl BuyerShowClientRepository {
 
         let page_size = q.page_size();
         let offset = (q.page_no() - 1).saturating_mul(page_size);
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM buyer_show_comment{where_sql} \
              ORDER BY is_top DESC, add_time DESC, buyer_show_comment_id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = bind_all!(sqlx::query_as::<_, BuyerShowComment>(&rows_sql), binds)
             .bind(page_size as i64)
             .bind(offset as i64)
@@ -934,7 +934,7 @@ impl BuyerShowClientRepository {
 
     /// 按 id 取用户（Java `userService.getById(id)`）。
     pub async fn find_user_by_id(&self, user_id: i32) -> Result<Option<User>> {
-        sqlx::query_as::<_, User>("SELECT * FROM \"user\" WHERE user_id = ? LIMIT 1")
+        sqlx::query_as::<_, User>("SELECT * FROM \"user\" WHERE user_id = $1 LIMIT 1")
             .bind(user_id)
             .fetch_optional(&self.pool)
             .await
@@ -948,9 +948,9 @@ impl BuyerShowClientRepository {
             return Ok(Vec::new());
         }
         let ph = placeholders(ids.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM \"user\" WHERE user_id IN ({ph}) ORDER BY user_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, User>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -968,9 +968,9 @@ impl BuyerShowClientRepository {
             return Ok(Vec::new());
         }
         let ph = placeholders(ids.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT user_id FROM buyer_show WHERE buyer_show_id IN ({ph}) AND user_id > 0"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32,)>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -999,10 +999,10 @@ impl BuyerShowClientRepository {
             return Ok(Vec::new());
         }
         let ph = placeholders(ids.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM buyer_show_group WHERE buyer_show_group_id IN ({ph}) \
              ORDER BY buyer_show_group_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, BuyerShowGroup>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -1070,12 +1070,12 @@ impl BuyerShowClientRepository {
             return Ok(Vec::new());
         }
         let ph = placeholders(ids.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT product_id, product_name, product_sn, product_price, market_price, \
              pic_url, pic_thumb, product_stock, is_delete, product_status, shop_id, \
              is_support_return \
              FROM product WHERE product_id IN ({ph}) ORDER BY product_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, ProductRow>(&sql);
         for id in ids {
             q = q.bind(*id);
@@ -1115,10 +1115,10 @@ impl BuyerShowClientRepository {
             return Ok(Vec::new());
         }
         let ph = placeholders(product_ids.len());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT product_id, COALESCE(SUM(sku_stock), 0) FROM product_sku \
              WHERE product_id IN ({ph}) GROUP BY product_id"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, Decimal)>(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -1135,7 +1135,7 @@ impl BuyerShowClientRepository {
     /// `None` ↔ Java 查不到记录（Java 此时返回空串，由调用方兜底）。
     pub async fn find_config_val(&self, biz_code: &str) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> =
-            sqlx::query_as("SELECT biz_val FROM config WHERE biz_code = ? AND is_del = 0 LIMIT 1")
+            sqlx::query_as("SELECT biz_val FROM config WHERE biz_code = $1 AND is_del = 0 LIMIT 1")
                 .bind(biz_code)
                 .fetch_optional(&self.pool)
                 .await

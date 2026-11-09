@@ -80,6 +80,7 @@ impl ProductPromotionRepository {
             }
         }
         let total_sql = format!("SELECT COUNT(*) FROM product_promotion{wh}");
+        let total_sql = crate::db::to_pg_placeholders(&total_sql);
         let mut tq = sqlx::query_as::<_, (i64,)>(&total_sql);
         for b in &binds {
             tq = tq.bind(b.as_str());
@@ -91,6 +92,7 @@ impl ProductPromotionRepository {
             "SELECT * FROM product_promotion{wh} ORDER BY {} {dir} LIMIT $1 OFFSET $2",
             sort_column(q.sort_field.as_deref())
         );
+        let list_sql = crate::db::to_pg_placeholders(&list_sql);
         let mut lq = sqlx::query_as::<_, ProductPromotion>(&list_sql);
         for b in &binds {
             lq = lq.bind(b.as_str());
@@ -194,6 +196,7 @@ impl ProductPromotionRepository {
     pub async fn update_field(&self, id: i32, column: &str, val: &str) -> Result<u64> {
         let sql =
             format!("UPDATE product_promotion SET {column} = $1 WHERE promotion_id = $2");
+        let sql = crate::db::to_pg_placeholders(&sql);
         let r = sqlx::query(&sql)
             .bind(val)
             .bind(id)

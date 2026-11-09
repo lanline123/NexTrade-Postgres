@@ -10,18 +10,60 @@ use nextrade_common::AppConfig;
 pub mod repo;
 
 /// 将 MySQL 风格的动态 SQL（含 `?` 占位符）转换为 PostgreSQL 原生序号占位符 `$1`, `$2`, ...
-/// 自动忽略单引号字符串内部的 `?`。
+///
+/// 用于**运行时拼接**的 SQL（条件分支、动态 `WHERE`/`IN` 片段），这类 SQL 的占位符数量
+/// 在编译期无法确定，只能在实际执行前转换。静态 SQL 已在源码中直接写成 `$N`。
+///
+/// 行为约定：
+/// - 若 SQL 中已存在 `$N`（静态段落），新占位符从 `max($N) + 1` 续编号，保证混合 SQL 不冲突；
+/// - 完全没有 `?` 时原样返回（幂等，重复调用无副作用）；
+/// - 跳过 SQL 单引号字面量内的 `?`（含 `''` 转义）；
+/// - 跳过 PG jsonb 操作符 `?|` / `?&`（不是占位符）。
 pub fn to_pg_placeholders(sql: &str) -> String {
+    use std::fmt::Write;
+
+    // 先扫描已有的 $N 最大值，作为续编号起点
+    let bytes = sql.as_bytes();
+    let mut i = 0;
+    let mut max_idx = 0usize;
+    while i < bytes.len() {
+        if bytes[i] == b'$' && i + 1 < bytes.len() && bytes[i + 1].is_ascii_digit() {
+            let mut j = i + 1;
+            let mut v = 0usize;
+            while j < bytes.len() && bytes[j].is_ascii_digit() {
+                v = v.saturating_mul(10).saturating_add((bytes[j] - b'0') as usize);
+                j += 1;
+            }
+            if v > max_idx {
+                max_idx = v;
+            }
+            i = j;
+            continue;
+        }
+        i += 1;
+    }
+
     let mut out = String::with_capacity(sql.len() + 16);
-    let mut idx = 1;
+    let mut idx = max_idx + 1;
     let mut in_quote = false;
     let mut chars = sql.chars().peekable();
     while let Some(c) = chars.next() {
         if c == '\'' {
+            // SQL 中 '' 表示一个字面单引号，不改变引号状态
+            if in_quote && chars.peek() == Some(&'\'') {
+                out.push('\'');
+                out.push('\'');
+                chars.next();
+                continue;
+            }
             in_quote = !in_quote;
             out.push(c);
         } else if c == '?' && !in_quote {
-            use std::fmt::Write;
+            // PG jsonb 存在性操作符 ?| / ?& 不是占位符
+            if matches!(chars.peek(), Some('|') | Some('&')) {
+                out.push(c);
+                continue;
+            }
             let _ = write!(&mut out, "${idx}");
             idx += 1;
         } else {
@@ -29,6 +71,43 @@ pub fn to_pg_placeholders(sql: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod to_pg_placeholders_tests {
+    use super::to_pg_placeholders;
+
+    #[test]
+    fn plain_placeholders() {
+        assert_eq!(to_pg_placeholders("SELECT * FROM t WHERE a=? AND b=?"),
+                   "SELECT * FROM t WHERE a=$1 AND b=$2");
+    }
+
+    #[test]
+    fn continues_after_existing_dollar() {
+        assert_eq!(to_pg_placeholders("SELECT * FROM t WHERE a=$1 AND b=?"),
+                   "SELECT * FROM t WHERE a=$1 AND b=$2");
+    }
+
+    #[test]
+    fn skips_quoted_literal() {
+        assert_eq!(to_pg_placeholders("SELECT 'a?b', x=? FROM t"),
+                   "SELECT 'a?b', x=$1 FROM t");
+        assert_eq!(to_pg_placeholders("SELECT 'it''s ?', x=? FROM t"),
+                   "SELECT 'it''s ?', x=$1 FROM t");
+    }
+
+    #[test]
+    fn skips_jsonb_operators() {
+        assert_eq!(to_pg_placeholders("SELECT * FROM t WHERE j ?| array['a'] AND x=?"),
+                   "SELECT * FROM t WHERE j ?| array['a'] AND x=$1");
+    }
+
+    #[test]
+    fn idempotent() {
+        let once = to_pg_placeholders("SELECT * FROM t WHERE a=? AND b=?");
+        assert_eq!(to_pg_placeholders(&once), once);
+    }
 }
 
 /// SQLx 连接池类型别名。

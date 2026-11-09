@@ -1653,7 +1653,7 @@ list_pg!(h_46, "merchant", "merchant_id", "'merchant_id', merchant_id, 'merchant
 
 // get /merchant/merchant/userCount
 async fn h_47(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
-    let (c,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM user")
+    let (c,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM \"user\"")
         .fetch_one(&pool(&state))
         .await
         .map_err(db)?;

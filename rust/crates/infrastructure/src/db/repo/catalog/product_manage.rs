@@ -273,8 +273,8 @@ impl ProductManageRepository {
     ) -> Result<Vec<nextrade_core::entities::ProductAutoStatus>> {
         sqlx::query_as::<_, nextrade_core::entities::ProductAutoStatus>(
             "SELECT * FROM product_auto_status \
-             WHERE status = 0 AND is_deleted = 0 AND scheduled_time <= ? AND retry_count < 3 \
-             ORDER BY scheduled_time DESC LIMIT ?",
+             WHERE status = 0 AND is_deleted = 0 AND scheduled_time <= $1 AND retry_count < 3 \
+             ORDER BY scheduled_time DESC LIMIT $2",
         )
         .bind(now)
         .bind(limit)
@@ -290,7 +290,7 @@ impl ProductManageRepository {
         status: i32,
     ) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE product SET product_status = ? WHERE product_id = ? AND is_delete = 0",
+            "UPDATE product SET product_status = $1 WHERE product_id = $2 AND is_delete = 0",
         )
         .bind(status)
         .bind(product_id)
@@ -310,8 +310,8 @@ impl ProductManageRepository {
         execute_time: i64,
     ) -> Result<()> {
         sqlx::query(
-            "UPDATE product_auto_status SET status = ?, error_message = ?, retry_count = ?, \
-             execute_time = ?, update_time = ? WHERE id = ?",
+            "UPDATE product_auto_status SET status = $1, error_message = $2, retry_count = $3, \
+             execute_time = $4, update_time = $5 WHERE id = $6",
         )
         .bind(status)
         .bind(error_message)
@@ -329,7 +329,7 @@ impl ProductManageRepository {
     /// `product_sn = sn OR product_tsn = sn`）。
     pub async fn find_product_by_sn(&self, sn: &str) -> Result<Option<Product>> {
         sqlx::query_as::<_, Product>(
-            "SELECT * FROM product WHERE (product_sn = ? OR product_tsn = ?) AND is_delete = 0 LIMIT 1",
+            "SELECT * FROM product WHERE (product_sn = $1 OR product_tsn = $2) AND is_delete = 0 LIMIT 1",
         )
         .bind(sn)
         .bind(sn)
@@ -340,7 +340,7 @@ impl ProductManageRepository {
 
     /// 商品点击量 +1（对应 Java \"detail\" 里 `setClickCount(+1)` 后 \"updateById\"）。
     pub async fn inc_click_count(&self, product_id: i32) -> Result<()> {
-        sqlx::query("UPDATE product SET click_count = click_count + 1 WHERE product_id = ?")
+        sqlx::query("UPDATE product SET click_count = click_count + 1 WHERE product_id = $1")
             .bind(product_id)
             .execute(&self.pool)
             .await
@@ -351,7 +351,7 @@ impl ProductManageRepository {
     /// 货号重复计数（`exclude_product_id` 非空时排除自身，供更新场景）。
     pub async fn count_product_sn(&self, sn: &str, exclude_product_id: Option<i32>) -> Result<u64> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM product WHERE product_sn = ? AND (? IS NULL OR product_id <> ?)",
+            "SELECT COUNT(*) FROM product WHERE product_sn = $1 AND ($2 IS NULL OR product_id <> $3)",
         )
         .bind(sn)
         .bind(exclude_product_id)
@@ -390,9 +390,9 @@ impl ProductManageRepository {
             }
         }
 
-        let count_sql = format!(
+        let count_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM product {where_sql}",
-        );
+        ));
         let order_sql = if f.field_order_ids.is_empty() {
             let dir = if f.order_asc { "ASC" } else { "DESC" };
             format!("ORDER BY {} {dir}, product_id DESC", f.order_column)
@@ -400,9 +400,9 @@ impl ProductManageRepository {
             let ph = vec!["?"; f.field_order_ids.len()].join(", ");
             format!("ORDER BY FIELD(product_id, {ph})")
         };
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM product {where_sql} {order_sql} LIMIT ? OFFSET ?",
-        );
+        ));
 
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
         count_q = bind_product_filters!(count_q, f);
@@ -426,7 +426,7 @@ impl ProductManageRepository {
     /// 新增商品（全列 INSERT，避免依赖库默认值），返回自增 \"product_id\"。
     pub async fn insert_product(&self, p: &Product) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
-            "INSERT INTO product (product_name, seo_identification, product_sn, product_tsn, product_stock, product_price, market_price, shipping_tpl_id, product_status, product_type, delivery_mode, sale_mode, category_id, brand_id, shop_id, keywords, shop_category_id, check_status, check_reason, click_count, product_weight, is_promote, is_promote_activity, promote_price, promote_start_date, promote_end_date, seckill_max_num, product_brief, product_desc, pic_url, pic_thumb, pic_original, pic_large, comment_tag, free_shipping, integral, add_time, sort_order, store_sort_order, is_delete, is_best, is_new, is_hot, last_update, remark, give_integral, rank_integral, suppliers_id, virtual_sales, limit_number, product_care, product_related, product_service_ids, is_support_return, is_support_cod, product_video, prepay_price, card_group_id, virtual_sample, paid_content, no_shipping, fixed_shipping_type, fixed_shipping_fee, vendor_product_id, vendor_id, shop_pickup_tpl_id, is_shop_pickup, is_logistics, is_shop_delivery, reservation_tpl_id, cost_price, product_unit, is_need_re_import_vendor_product, gift_card_groups_id, attributes_tpl_id, share_info, delivery_service_fee_type, delivery_service_fee_value, server_service_fee_type, server_service_fee_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING product_id",
+            "INSERT INTO product (product_name, seo_identification, product_sn, product_tsn, product_stock, product_price, market_price, shipping_tpl_id, product_status, product_type, delivery_mode, sale_mode, category_id, brand_id, shop_id, keywords, shop_category_id, check_status, check_reason, click_count, product_weight, is_promote, is_promote_activity, promote_price, promote_start_date, promote_end_date, seckill_max_num, product_brief, product_desc, pic_url, pic_thumb, pic_original, pic_large, comment_tag, free_shipping, integral, add_time, sort_order, store_sort_order, is_delete, is_best, is_new, is_hot, last_update, remark, give_integral, rank_integral, suppliers_id, virtual_sales, limit_number, product_care, product_related, product_service_ids, is_support_return, is_support_cod, product_video, prepay_price, card_group_id, virtual_sample, paid_content, no_shipping, fixed_shipping_type, fixed_shipping_fee, vendor_product_id, vendor_id, shop_pickup_tpl_id, is_shop_pickup, is_logistics, is_shop_delivery, reservation_tpl_id, cost_price, product_unit, is_need_re_import_vendor_product, gift_card_groups_id, attributes_tpl_id, share_info, delivery_service_fee_type, delivery_service_fee_value, server_service_fee_type, server_service_fee_value) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66, $67, $68, $69, $70, $71, $72, $73, $74, $75, $76, $77, $78, $79, $80) RETURNING product_id",
         )
         .bind(&p.product_name)
         .bind(&p.seo_identification)
@@ -513,7 +513,7 @@ impl ProductManageRepository {
         .map_err(map_err)?;
         let product_id = r;
         // v5.8.61 体积列：保留旧 INSERT 列清单，插入后补写，避免影响历史字段顺序。
-        sqlx::query("UPDATE product SET product_volume = ? WHERE product_id = ?")
+        sqlx::query("UPDATE product SET product_volume = $1 WHERE product_id = $2")
             .bind(p.product_volume)
             .bind(product_id)
             .execute(&self.pool)
@@ -526,7 +526,7 @@ impl ProductManageRepository {
     /// 等价于 Java \"updateById\" 的 \"NOT_NULL\" 字段策略）。
     pub async fn update_product(&self, p: &Product) -> Result<u64> {
         let r = sqlx::query(
-            "UPDATE product SET product_name = ?, seo_identification = ?, product_sn = ?, product_tsn = ?, product_stock = ?, product_price = ?, market_price = ?, shipping_tpl_id = ?, product_status = ?, product_type = ?, delivery_mode = ?, sale_mode = ?, category_id = ?, brand_id = ?, shop_id = ?, keywords = ?, shop_category_id = ?, check_status = ?, check_reason = ?, click_count = ?, product_weight = ?, is_promote = ?, is_promote_activity = ?, promote_price = ?, promote_start_date = ?, promote_end_date = ?, seckill_max_num = ?, product_brief = ?, product_desc = ?, pic_url = ?, pic_thumb = ?, pic_original = ?, pic_large = ?, comment_tag = ?, free_shipping = ?, integral = ?, add_time = ?, sort_order = ?, store_sort_order = ?, is_delete = ?, is_best = ?, is_new = ?, is_hot = ?, last_update = ?, remark = ?, give_integral = ?, rank_integral = ?, suppliers_id = ?, virtual_sales = ?, limit_number = ?, product_care = ?, product_related = ?, product_service_ids = ?, is_support_return = ?, is_support_cod = ?, product_video = ?, prepay_price = ?, card_group_id = ?, virtual_sample = ?, paid_content = ?, no_shipping = ?, fixed_shipping_type = ?, fixed_shipping_fee = ?, vendor_product_id = ?, vendor_id = ?, shop_pickup_tpl_id = ?, is_shop_pickup = ?, is_logistics = ?, is_shop_delivery = ?, reservation_tpl_id = ?, cost_price = ?, product_unit = ?, is_need_re_import_vendor_product = ?, gift_card_groups_id = ?, attributes_tpl_id = ?, share_info = ?, delivery_service_fee_type = ?, delivery_service_fee_value = ?, server_service_fee_type = ?, server_service_fee_value = ? WHERE product_id = ?",
+            "UPDATE product SET product_name = $1, seo_identification = $2, product_sn = $3, product_tsn = $4, product_stock = $5, product_price = $6, market_price = $7, shipping_tpl_id = $8, product_status = $9, product_type = $10, delivery_mode = $11, sale_mode = $12, category_id = $13, brand_id = $14, shop_id = $15, keywords = $16, shop_category_id = $17, check_status = $18, check_reason = $19, click_count = $20, product_weight = $21, is_promote = $22, is_promote_activity = $23, promote_price = $24, promote_start_date = $25, promote_end_date = $26, seckill_max_num = $27, product_brief = $28, product_desc = $29, pic_url = $30, pic_thumb = $31, pic_original = $32, pic_large = $33, comment_tag = $34, free_shipping = $35, integral = $36, add_time = $37, sort_order = $38, store_sort_order = $39, is_delete = $40, is_best = $41, is_new = $42, is_hot = $43, last_update = $44, remark = $45, give_integral = $46, rank_integral = $47, suppliers_id = $48, virtual_sales = $49, limit_number = $50, product_care = $51, product_related = $52, product_service_ids = $53, is_support_return = $54, is_support_cod = $55, product_video = $56, prepay_price = $57, card_group_id = $58, virtual_sample = $59, paid_content = $60, no_shipping = $61, fixed_shipping_type = $62, fixed_shipping_fee = $63, vendor_product_id = $64, vendor_id = $65, shop_pickup_tpl_id = $66, is_shop_pickup = $67, is_logistics = $68, is_shop_delivery = $69, reservation_tpl_id = $70, cost_price = $71, product_unit = $72, is_need_re_import_vendor_product = $73, gift_card_groups_id = $74, attributes_tpl_id = $75, share_info = $76, delivery_service_fee_type = $77, delivery_service_fee_value = $78, server_service_fee_type = $79, server_service_fee_value = $80 WHERE product_id = $81",
         )
         .bind(&p.product_name)
         .bind(&p.seo_identification)
@@ -612,7 +612,7 @@ impl ProductManageRepository {
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
-        sqlx::query("UPDATE product SET product_volume = ? WHERE product_id = ?")
+        sqlx::query("UPDATE product SET product_volume = $1 WHERE product_id = $2")
             .bind(p.product_volume)
             .bind(p.product_id)
             .execute(&self.pool)
@@ -630,7 +630,7 @@ impl ProductManageRepository {
         product_stock: i32,
         product_price: Decimal,
     ) -> Result<u64> {
-        let r = sqlx::query("UPDATE product SET product_stock = ?, product_price = ? WHERE product_id = ?")
+        let r = sqlx::query("UPDATE product SET product_stock = $1, product_price = $2 WHERE product_id = $3")
             .bind(product_stock)
             .bind(product_price)
             .bind(product_id)
@@ -655,7 +655,7 @@ impl ProductManageRepository {
             return Ok(0);
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let mut sql = format!("UPDATE product SET is_delete = 1 WHERE product_id IN ({ph})");
+        let mut sql = crate::db::to_pg_placeholders(&format!("UPDATE product SET is_delete = 1 WHERE product_id IN ({ph})"));
         if let Some(_sid) = shop_id {
             sql.push_str(" AND shop_id = ?");
         }
@@ -677,7 +677,7 @@ impl ProductManageRepository {
     /// 对应 Java `getProductSkusByPid(pid, includeDisabled)`）。
     pub async fn find_skus(&self, product_id: i32, include_disabled: bool) -> Result<Vec<ProductSku>> {
         sqlx::query_as::<_, ProductSku>(
-            "SELECT * FROM product_sku WHERE product_id = ? AND (? = 1 OR is_enabled = 1) ORDER BY sku_id ASC",
+            "SELECT * FROM product_sku WHERE product_id = $1 AND ($2 = 1 OR is_enabled = 1) ORDER BY sku_id ASC",
         )
         .bind(product_id)
         .bind(i32::from(include_disabled))
@@ -697,9 +697,9 @@ impl ProductManageRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM product_sku WHERE product_id IN ({ph}) AND (? = 1 OR is_enabled = 1) ORDER BY product_id ASC, sku_id ASC",
-        );
+        ));
         let mut q = sqlx::query_as::<_, ProductSku>(&sql);
         for id in product_ids {
             q = q.bind(id);
@@ -716,7 +716,7 @@ impl ProductManageRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; sku_ids.len()].join(", ");
-        let sql = format!("SELECT * FROM product_sku WHERE sku_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM product_sku WHERE sku_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, ProductSku>(&sql);
         for id in sku_ids {
             q = q.bind(id);
@@ -727,7 +727,7 @@ impl ProductManageRepository {
     /// 新增规格，返回 \"sku_id\"。
     pub async fn insert_sku(&self, s: &ProductSku) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
-            "INSERT INTO product_sku (product_id, sku_value, sku_data, sku_sn, sku_stock, sku_tsn, sku_price, is_enabled, market_price, cost_price, delivery_service_fee_type, delivery_service_fee_value, server_service_fee_type, server_service_fee_value, vendor_product_sku_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING sku_id",
+            "INSERT INTO product_sku (product_id, sku_value, sku_data, sku_sn, sku_stock, sku_tsn, sku_price, is_enabled, market_price, cost_price, delivery_service_fee_type, delivery_service_fee_value, server_service_fee_type, server_service_fee_value, vendor_product_sku_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING sku_id",
         )
         .bind(&s.product_id)
         .bind(&s.sku_value)
@@ -748,7 +748,7 @@ impl ProductManageRepository {
         .await
         .map_err(map_err)?;
         let sku_id = r;
-        sqlx::query("UPDATE product_sku SET sku_weight = ?, sku_volume = ? WHERE sku_id = ?")
+        sqlx::query("UPDATE product_sku SET sku_weight = $1, sku_volume = $2 WHERE sku_id = $3")
             .bind(s.sku_weight)
             .bind(s.sku_volume)
             .bind(sku_id)
@@ -761,7 +761,7 @@ impl ProductManageRepository {
     /// 按主键更新规格（全列写入，调用方先查后合并）。
     pub async fn update_sku(&self, s: &ProductSku) -> Result<u64> {
         let r = sqlx::query(
-            "UPDATE product_sku SET product_id = ?, sku_value = ?, sku_data = ?, sku_sn = ?, sku_stock = ?, sku_tsn = ?, sku_price = ?, is_enabled = ?, market_price = ?, cost_price = ?, delivery_service_fee_type = ?, delivery_service_fee_value = ?, server_service_fee_type = ?, server_service_fee_value = ?, vendor_product_sku_id = ? WHERE sku_id = ?",
+            "UPDATE product_sku SET product_id = $1, sku_value = $2, sku_data = $3, sku_sn = $4, sku_stock = $5, sku_tsn = $6, sku_price = $7, is_enabled = $8, market_price = $9, cost_price = $10, delivery_service_fee_type = $11, delivery_service_fee_value = $12, server_service_fee_type = $13, server_service_fee_value = $14, vendor_product_sku_id = $15 WHERE sku_id = $16",
         )
         .bind(&s.product_id)
         .bind(&s.sku_value)
@@ -782,7 +782,7 @@ impl ProductManageRepository {
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
-        sqlx::query("UPDATE product_sku SET sku_weight = ?, sku_volume = ? WHERE sku_id = ?")
+        sqlx::query("UPDATE product_sku SET sku_weight = $1, sku_volume = $2 WHERE sku_id = $3")
             .bind(s.sku_weight)
             .bind(s.sku_volume)
             .bind(s.sku_id)
@@ -795,7 +795,7 @@ impl ProductManageRepository {
     /// 批量更新规格编码（`sku_sn` 兜底生成，对应 Java
     /// `productSn + "-" + skuId`）。
     pub async fn update_sku_sn(&self, sku_id: i32, sku_sn: &str) -> Result<u64> {
-        let r = sqlx::query("UPDATE product_sku SET sku_sn = ? WHERE sku_id = ?")
+        let r = sqlx::query("UPDATE product_sku SET sku_sn = $1 WHERE sku_id = $2")
             .bind(sku_sn)
             .bind(sku_id)
             .execute(&self.pool)
@@ -810,7 +810,7 @@ impl ProductManageRepository {
             return Ok(0);
         }
         let ph = vec!["?"; sku_ids.len()].join(", ");
-        let sql = format!("DELETE FROM product_sku WHERE sku_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM product_sku WHERE sku_id IN ({ph})"));
         let mut q = sqlx::query(&sql);
         for id in sku_ids {
             q = q.bind(id);
@@ -821,7 +821,7 @@ impl ProductManageRepository {
 
     /// 删除某商品下全部**启用**规格（Java：SKU 列表为空时执行）。
     pub async fn delete_enabled_skus(&self, product_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM product_sku WHERE product_id = ? AND is_enabled = 1")
+        let r = sqlx::query("DELETE FROM product_sku WHERE product_id = $1 AND is_enabled = 1")
             .bind(product_id)
             .execute(&self.pool)
             .await
@@ -835,7 +835,7 @@ impl ProductManageRepository {
     /// `getProductGalleryList(productId)`）。
     pub async fn find_gallery(&self, product_id: i32) -> Result<Vec<ProductGallery>> {
         sqlx::query_as::<_, ProductGallery>(
-            "SELECT * FROM product_gallery WHERE product_id = ? AND shop_id = 0 ORDER BY sort_order ASC, pic_id ASC",
+            "SELECT * FROM product_gallery WHERE product_id = $1 AND shop_id = 0 ORDER BY sort_order ASC, pic_id ASC",
         )
         .bind(product_id)
         .fetch_all(&self.pool)
@@ -845,7 +845,7 @@ impl ProductManageRepository {
 
     /// 清空商品相册（`shop_id = 0`）。
     pub async fn delete_gallery(&self, product_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM product_gallery WHERE product_id = ? AND shop_id = 0")
+        let r = sqlx::query("DELETE FROM product_gallery WHERE product_id = $1 AND shop_id = 0")
             .bind(product_id)
             .execute(&self.pool)
             .await
@@ -856,7 +856,7 @@ impl ProductManageRepository {
     /// 新增相册图。
     pub async fn insert_gallery(&self, g: &ProductGallery) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
-            "INSERT INTO product_gallery (product_id, pic_url, pic_desc, pic_thumb, pic_original, pic_large, sort_order, shop_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING pic_id",
+            "INSERT INTO product_gallery (product_id, pic_url, pic_desc, pic_thumb, pic_original, pic_large, sort_order, shop_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING pic_id",
         )
         .bind(&g.product_id)
         .bind(&g.pic_url)
@@ -877,7 +877,7 @@ impl ProductManageRepository {
     /// 商品属性（按 \"sort_order\" 升序，对应 Java \"getAttributesByProductId\"）。
     pub async fn find_attributes(&self, product_id: i32) -> Result<Vec<ProductAttributes>> {
         sqlx::query_as::<_, ProductAttributes>(
-            "SELECT * FROM product_attributes WHERE product_id = ? ORDER BY sort_order ASC, attributes_id ASC",
+            "SELECT * FROM product_attributes WHERE product_id = $1 ORDER BY sort_order ASC, attributes_id ASC",
         )
         .bind(product_id)
         .fetch_all(&self.pool)
@@ -889,7 +889,7 @@ impl ProductManageRepository {
     /// `remove(product_id = $1 and attributes_id not in (...))`）。
     pub async fn delete_attributes_except(&self, product_id: i32, keep_ids: &[i32]) -> Result<u64> {
         let sql = if keep_ids.is_empty() {
-            "DELETE FROM product_attributes WHERE product_id = ?".to_string()
+            "DELETE FROM product_attributes WHERE product_id = $1".to_string()
         } else {
             let ph = vec!["?"; keep_ids.len()].join(", ");
             format!("DELETE FROM product_attributes WHERE product_id = ? AND attributes_id NOT IN ({ph})")
@@ -905,7 +905,7 @@ impl ProductManageRepository {
     /// 新增商品属性。
     pub async fn insert_attribute(&self, a: &ProductAttributes) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
-            "INSERT INTO product_attributes (product_id, attr_type, attr_name, attr_value, attr_price, attr_color, attr_pic, attr_pic_thumb, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING attributes_id",
+            "INSERT INTO product_attributes (product_id, attr_type, attr_name, attr_value, attr_price, attr_color, attr_pic, attr_pic_thumb, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING attributes_id",
         )
         .bind(&a.product_id)
         .bind(&a.attr_type)
@@ -925,7 +925,7 @@ impl ProductManageRepository {
     /// 更新商品属性。
     pub async fn update_attribute(&self, a: &ProductAttributes) -> Result<u64> {
         let r = sqlx::query(
-            "UPDATE product_attributes SET product_id = ?, attr_type = ?, attr_name = ?, attr_value = ?, attr_price = ?, attr_color = ?, attr_pic = ?, attr_pic_thumb = ?, sort_order = ? WHERE attributes_id = ?",
+            "UPDATE product_attributes SET product_id = $1, attr_type = $2, attr_name = $3, attr_value = $4, attr_price = $5, attr_color = $6, attr_pic = $7, attr_pic_thumb = $8, sort_order = $9 WHERE attributes_id = $10",
         )
         .bind(&a.product_id)
         .bind(&a.attr_type)
@@ -948,7 +948,7 @@ impl ProductManageRepository {
     /// 商品视频列表。
     pub async fn find_videos(&self, product_id: i32) -> Result<Vec<ProductVideo>> {
         sqlx::query_as::<_, ProductVideo>(
-            "SELECT * FROM product_video WHERE product_id = ? ORDER BY id ASC",
+            "SELECT * FROM product_video WHERE product_id = $1 ORDER BY id ASC",
         )
         .bind(product_id)
         .fetch_all(&self.pool)
@@ -958,7 +958,7 @@ impl ProductManageRepository {
 
     /// 清空商品视频。
     pub async fn delete_videos(&self, product_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM product_video WHERE product_id = ?")
+        let r = sqlx::query("DELETE FROM product_video WHERE product_id = $1")
             .bind(product_id)
             .execute(&self.pool)
             .await
@@ -969,7 +969,7 @@ impl ProductManageRepository {
     /// 新增商品视频。
     pub async fn insert_video(&self, v: &ProductVideo) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
-            "INSERT INTO product_video (video_id, product_id, video_url, video_cover, format) VALUES (?, ?, ?, ?, ?) RETURNING id",
+            "INSERT INTO product_video (video_id, product_id, video_url, video_cover, format) VALUES ($1, $2, $3, $4, $5) RETURNING id",
         )
         .bind(&v.video_id)
         .bind(&v.product_id)
@@ -985,7 +985,7 @@ impl ProductManageRepository {
     /// 商品关联文章 ID。
     pub async fn find_article_ids(&self, product_id: i32) -> Result<Vec<i32>> {
         let rows: Vec<(i32,)> =
-            sqlx::query_as("SELECT article_id FROM product_article WHERE goods_id = ? ORDER BY article_id ASC")
+            sqlx::query_as("SELECT article_id FROM product_article WHERE goods_id = $1 ORDER BY article_id ASC")
                 .bind(product_id)
                 .fetch_all(&self.pool)
                 .await
@@ -995,7 +995,7 @@ impl ProductManageRepository {
 
     /// 清空商品关联文章。
     pub async fn delete_articles(&self, product_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM product_article WHERE goods_id = ?")
+        let r = sqlx::query("DELETE FROM product_article WHERE goods_id = $1")
             .bind(product_id)
             .execute(&self.pool)
             .await
@@ -1011,7 +1011,7 @@ impl ProductManageRepository {
             return Ok(0);
         }
         let ph = vec!["?"; article_ids.len()].join(", ");
-        let sql = format!("DELETE FROM product_article WHERE goods_id = ? AND article_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM product_article WHERE goods_id = ? AND article_id IN ({ph})"));
         let mut q = sqlx::query(&sql).bind(product_id);
         for id in article_ids {
             q = q.bind(id);
@@ -1022,7 +1022,7 @@ impl ProductManageRepository {
 
     /// 新增商品关联文章。
     pub async fn insert_article(&self, a: &ProductArticle) -> Result<()> {
-        sqlx::query("INSERT INTO product_article (goods_id, article_id) VALUES (?, ?)")
+        sqlx::query("INSERT INTO product_article (goods_id, article_id) VALUES ($1, $2)")
             .bind(&a.goods_id)
             .bind(&a.article_id)
             .execute(&self.pool)
@@ -1064,7 +1064,7 @@ impl ProductManageRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!("SELECT * FROM product_services WHERE product_service_id IN ({ph}) ORDER BY sort_order ASC");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM product_services WHERE product_service_id IN ({ph}) ORDER BY sort_order ASC"));
         let mut q = sqlx::query_as::<_, ProductServices>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -1208,9 +1208,9 @@ impl ProductManageRepository {
     ) -> Result<Vec<ShippingTpl>> {
         if !shop_ids.is_empty() {
             let ph = vec!["?"; shop_ids.len()].join(", ");
-            let sql = format!(
+            let sql = crate::db::to_pg_placeholders(&format!(
                 "SELECT shipping_tpl_id, shipping_time, shipping_tpl_name, is_free, CAST(pricing_type AS BIGINT) AS pricing_type, is_default, shop_id FROM shipping_tpl WHERE shop_id IN ({ph}) ORDER BY shipping_tpl_id ASC",
-            );
+            ));
             let mut q = sqlx::query_as::<_, ShippingTpl>(&sql);
             for id in shop_ids {
                 q = q.bind(id);
@@ -1299,14 +1299,14 @@ impl ProductManageRepository {
         offset: u64,
     ) -> Result<(u64, Vec<ProductSku>)> {
         let where_sql =
-            "WHERE product_id = ? AND (? IS NULL OR sku_sn LIKE ? OR sku_tsn LIKE ? OR sku_value LIKE ?) AND (? IS NULL OR sku_stock >= ?) AND (? IS NULL OR sku_stock <= ?)";
+            "WHERE product_id = $1 AND ($2 IS NULL OR sku_sn LIKE $3 OR sku_tsn LIKE $4 OR sku_value LIKE $5) AND ($6 IS NULL OR sku_stock >= $7) AND ($8 IS NULL OR sku_stock <= $9)";
         let dir = if order_asc { "ASC" } else { "DESC" };
-        let count_sql = format!(
+        let count_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM product_sku {where_sql}",
-        );
-        let rows_sql = format!(
+        ));
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM product_sku {where_sql} ORDER BY {order_column} {dir}, sku_id ASC LIMIT ? OFFSET ?",
-        );
+        ));
 
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
         count_q = count_q
@@ -1369,12 +1369,12 @@ impl ProductManageRepository {
             .unwrap_or_else(|| "ORDER BY p.add_time DESC, p.product_id DESC, ps.sku_id ASC".to_string());
 
         let select_cols = "SELECT p.product_id, p.product_sn, p.product_name, p.product_stock, p.category_id, p.pic_url, p.shop_id, p.product_price, p.product_type, ps.sku_id, ps.sku_data, ps.sku_stock, ps.sku_price";
-        let count_sql = format!(
+        let count_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM product p LEFT JOIN product_sku ps ON ps.product_id = p.product_id AND ps.is_enabled = 1 {where_sql}",
-        );
-        let rows_sql = format!(
+        ));
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "{select_cols} FROM product p LEFT JOIN product_sku ps ON ps.product_id = p.product_id AND ps.is_enabled = 1 {where_sql} {order_by} LIMIT ? OFFSET ?",
-        );
+        ));
 
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
         count_q = count_q.bind(f.shop_id).bind(f.shop_id);
@@ -1463,10 +1463,10 @@ impl ProductManageRepository {
             return Ok(0);
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE product SET {} WHERE product_id IN ({ph})",
             sets.join(", ")
-        );
+        ));
         let mut q = sqlx::query(&sql);
         for v in &binds {
             q = q.bind(v);
@@ -1505,7 +1505,7 @@ impl ProductManageRepository {
             return Ok(0);
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!("DELETE FROM product WHERE product_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM product WHERE product_id IN ({ph})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(id);
@@ -1520,7 +1520,7 @@ impl ProductManageRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!("SELECT * FROM product WHERE product_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM product WHERE product_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, Product>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -1659,7 +1659,7 @@ impl ProductManageRepository {
 
     /// 用户会员等级 ID。
     pub async fn find_user_rank_id(&self, user_id: i32) -> Result<Option<i32>> {
-        let row: Option<(i32,)> = sqlx::query_as("SELECT rank_id FROM user WHERE user_id = $1 LIMIT 1")
+        let row: Option<(i32,)> = sqlx::query_as("SELECT rank_id FROM \"user\" WHERE user_id = $1 LIMIT 1")
             .bind(user_id)
             .fetch_optional(&self.pool)
             .await
@@ -1689,9 +1689,9 @@ impl ProductManageRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM comment WHERE product_id IN ({ph}) AND ($1 IS NULL OR shop_id = $2)",
-        );
+        ));
         let mut q = sqlx::query_as::<_, Comment>(&sql);
         for id in product_ids {
             q = q.bind(id);
@@ -1721,12 +1721,12 @@ impl ProductManageRepository {
             Some(4) => " AND comment_rank <= 2",
             _ => "",
         };
-        let where_sql = format!(
+        let where_sql = crate::db::to_pg_placeholders(&format!(
             "WHERE product_id IN ({ph}) AND parent_id = 0 AND (? IS NULL OR shop_id = ?){rank_cond} AND (? IS NULL OR is_showed = ?)",
-        );
-        let count_sql = format!(
+        ));
+        let count_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM comment {where_sql}",
-        );
+        ));
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
         for id in product_ids {
             count_q = count_q.bind(id);
@@ -1734,9 +1734,9 @@ impl ProductManageRepository {
         count_q = count_q.bind(shop_id).bind(shop_id).bind(is_showed).bind(is_showed);
         let total: (i64,) = count_q.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM comment {where_sql} ORDER BY is_top DESC, add_time DESC LIMIT ? OFFSET ?",
-        );
+        ));
         let mut rows_q = sqlx::query_as::<_, Comment>(&rows_sql);
         for id in product_ids {
             rows_q = rows_q.bind(id);
@@ -1761,9 +1761,9 @@ impl ProductManageRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; parent_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM comment WHERE parent_id IN ({ph}) ORDER BY add_time ASC",
-        );
+        ));
         let mut q = sqlx::query_as::<_, Comment>(&sql);
         for id in parent_ids {
             q = q.bind(id);
@@ -1783,10 +1783,10 @@ impl ProductManageRepository {
     ) -> Result<(u64, Vec<Feedback>)> {
         let dir = if order_asc { "ASC" } else { "DESC" };
         let where_sql =
-            "WHERE product_id = ? AND type = 2 AND parent_id = 0 AND (? IS NULL OR shop_id = ?)";
-        let count_sql = format!(
+            "WHERE product_id = $1 AND type = 2 AND parent_id = 0 AND ($2 IS NULL OR shop_id = $3)";
+        let count_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM feedback {where_sql}",
-        );
+        ));
         let total: (i64,) = sqlx::query_as::<_, (i64,)>(&count_sql)
             .bind(product_id)
             .bind(shop_id)
@@ -1794,9 +1794,9 @@ impl ProductManageRepository {
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM feedback {where_sql} ORDER BY {order_column} {dir}, id DESC LIMIT ? OFFSET ?",
-        );
+        ));
         let rows = sqlx::query_as::<_, Feedback>(&rows_sql)
             .bind(product_id)
             .bind(shop_id)
@@ -1815,9 +1815,9 @@ impl ProductManageRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; parent_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM feedback WHERE parent_id IN ({ph}) ORDER BY add_time ASC",
-        );
+        ));
         let mut q = sqlx::query_as::<_, Feedback>(&sql);
         for id in parent_ids {
             q = q.bind(id);
@@ -1831,9 +1831,9 @@ impl ProductManageRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; user_ids.len()].join(", ");
-        let sql = format!(
-            "SELECT user_id, nickname FROM user WHERE user_id IN ({ph})",
-        );
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT user_id, nickname FROM \"user\" WHERE user_id IN ({ph})",
+        ));
         let mut q = sqlx::query_as::<_, (i32, Option<String>)>(&sql);
         for id in user_ids {
             q = q.bind(id);
@@ -1899,18 +1899,18 @@ impl ProductManageRepository {
             return Ok((0, Vec::new()));
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let count_sql = format!(
+        let count_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM product WHERE product_id IN ({ph}) AND is_delete = 0",
-        );
+        ));
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
         for id in ids {
             count_q = count_q.bind(id);
         }
         let total: (i64,) = count_q.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM product WHERE product_id IN ({ph}) AND is_delete = 0 ORDER BY FIELD(product_id, {ph}) LIMIT $1 OFFSET $2",
-        );
+        ));
         let mut rows_q = sqlx::query_as::<_, Product>(&rows_sql);
         for id in ids {
             rows_q = rows_q.bind(id);
@@ -1968,9 +1968,9 @@ impl ProductManageRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT attr_name, attr_value, COUNT(*) AS total FROM product_attributes WHERE attr_type = 0 AND product_id IN ({ph}) GROUP BY attr_name, attr_value ORDER BY total DESC",
-        );
+        ));
         let mut q = sqlx::query_as::<_, (String, String, i64)>(&sql);
         for id in product_ids {
             q = q.bind(id);
@@ -1992,9 +1992,9 @@ impl ProductManageRepository {
         where_sql.push_str(" AND is_delete = ? AND (? IS NULL OR shop_id = ?) AND (? IS NULL OR product_status = ?) AND (? IS NULL OR check_status = ?) AND (? IS NULL OR product_price >= ?) AND (? IS NULL OR product_price <= ?) AND (? IS NULL OR is_new = ?)");
         where_sql.push_str(&in_clause("category_id", f.category_ids.len()));
         where_sql.push_str(&in_clause("brand_id", f.brand_ids.len()));
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT product_id FROM product {where_sql} ORDER BY product_id DESC LIMIT ?",
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32,)>(&sql);
         if f.keyword_like.is_some() {
             q = q
@@ -2037,9 +2037,9 @@ impl ProductManageRepository {
             return Ok(None);
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT MAX(product_price) FROM product WHERE product_id IN ({ph})",
-        );
+        ));
         let mut q = sqlx::query_as::<_, (Option<Decimal>,)>(&sql);
         for id in ids {
             q = q.bind(id);

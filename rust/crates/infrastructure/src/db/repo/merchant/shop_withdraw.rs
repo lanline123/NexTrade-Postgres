@@ -251,9 +251,9 @@ impl ShopWithdrawRepository {
             agg_binds.push(t);
         }
 
-        let join = format!(
+        let join = crate::db::to_pg_placeholders(&format!(
             " LEFT JOIN shop_withdraw t1 ON t1.shop_id = t.shop_id{agg_cond}"
-        );
+        ));
 
         // 店铺维度过滤
         let mut where_sql = String::from(" WHERE (t.is_delete IS NULL OR t.is_delete = 0)");
@@ -290,7 +290,7 @@ impl ShopWithdrawRepository {
             where_sql.push_str(" AND t1.shop_withdraw_log_id IS NOT NULL");
         }
 
-        let count_sql = format!("SELECT COUNT(DISTINCT t.shop_id) FROM shop t{join}{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(DISTINCT t.shop_id) FROM shop t{join}{where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         for b in &agg_binds {
             cq = cq.bind(*b);
@@ -300,7 +300,7 @@ impl ShopWithdrawRepository {
         }
         let total = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT t.shop_id, t.shop_title, t.shop_logo, t.status, t.shop_money, t.add_time,
                 COALESCE(SUM(CASE WHEN t1.status = 3{agg_cond} THEN t1.amount ELSE 0 END), 0) AS withdrawn_amount,
                 COALESCE(SUM(CASE WHEN t1.status IN (0, 4){agg_cond} THEN t1.amount ELSE 0 END), 0) AS pending_withdraw_amount
@@ -308,7 +308,7 @@ impl ShopWithdrawRepository {
              GROUP BY t.shop_id
              ORDER BY {sort_col} {dir}
              LIMIT ? OFFSET ?"
-        );
+        ));
         let (limit, offset) = page.limit_offset();
         let mut lq = sqlx::query_as::<_, WithdrawSummaryRow>(&list_sql);
         // 绑定顺序：SELECT 聚合条件（出现两次）→ JOIN 条件 → WHERE → 分页

@@ -97,7 +97,7 @@ impl UserMessageRepository {
 
     /// 按主键查询（Java `getById`）。
     pub async fn find_by_id(&self, message_id: i32) -> Result<Option<UserMessage>> {
-        let sql = format!("SELECT {MESSAGE_COLUMNS} FROM user_message WHERE message_id = ? LIMIT 1");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT {MESSAGE_COLUMNS} FROM user_message WHERE message_id = ? LIMIT 1"));
         sqlx::query_as::<_, UserMessage>(&sql)
             .bind(message_id)
             .fetch_optional(&self.pool)
@@ -107,7 +107,7 @@ impl UserMessageRepository {
 
     /// 全部置为已读（Java \"setAllMessageRead\"：`user_id = $1 AND is_read = 0`）。
     pub async fn update_all_read(&self, user_id: i32) -> Result<u64> {
-        let r = sqlx::query("UPDATE user_message SET is_read = 1 WHERE user_id = ? AND is_read = 0")
+        let r = sqlx::query("UPDATE user_message SET is_read = 1 WHERE user_id = $1 AND is_read = 0")
             .bind(user_id)
             .execute(&self.pool)
             .await
@@ -119,7 +119,7 @@ impl UserMessageRepository {
     pub async fn update_order_read(&self, user_id: i32) -> Result<u64> {
         let r = sqlx::query(
             "UPDATE user_message SET is_read = 1 \
-             WHERE user_id = ? AND is_read = 0 AND type = 1",
+             WHERE user_id = $1 AND is_read = 0 AND type = 1",
         )
         .bind(user_id)
         .execute(&self.pool)
@@ -131,7 +131,7 @@ impl UserMessageRepository {
     /// 单条消息置为已读（Java `setMessageRead`）。
     pub async fn set_read(&self, user_id: i32, message_id: i32) -> Result<u64> {
         let r = sqlx::query(
-            "UPDATE user_message SET is_read = 1 WHERE user_id = ? AND message_id = ?",
+            "UPDATE user_message SET is_read = 1 WHERE user_id = $1 AND message_id = $2",
         )
         .bind(user_id)
         .bind(message_id)
@@ -153,7 +153,7 @@ impl UserMessageRepository {
         let now = nextrade_common::utils::now_seconds() as i32;
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO user_message (message_log_id, user_id, user_rank, is_read, title, content, message_template, link, add_time, type) \
-             VALUES (0, ?, 0, 0, ?, ?, '', ?, ?, ?) RETURNING message_id",
+             VALUES (0, $1, 0, 0, $2, $3, '', $4, $5, $6) RETURNING message_id",
         )
         .bind(user_id)
         .bind(title)
@@ -169,7 +169,7 @@ impl UserMessageRepository {
 
     /// 删除单条（Java \"removeById\"）。
     pub async fn delete(&self, message_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM user_message WHERE message_id = ?")
+        let r = sqlx::query("DELETE FROM user_message WHERE message_id = $1")
             .bind(message_id)
             .execute(&self.pool)
             .await
@@ -180,7 +180,7 @@ impl UserMessageRepository {
     /// 全部类型未读数（Java `getUnreadMessageCount` 第 1 个 count）。
     pub async fn count_unread_all(&self, user_id: i32) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM user_message WHERE user_id = ? AND is_read = 0",
+            "SELECT COUNT(*) FROM user_message WHERE user_id = $1 AND is_read = 0",
         )
         .bind(user_id)
         .fetch_one(&self.pool)
@@ -192,7 +192,7 @@ impl UserMessageRepository {
     /// 订单通知未读数（type = 1）。
     pub async fn count_unread_order(&self, user_id: i32) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM user_message WHERE user_id = ? AND type = 1 AND is_read = 0",
+            "SELECT COUNT(*) FROM user_message WHERE user_id = $1 AND type = 1 AND is_read = 0",
         )
         .bind(user_id)
         .fetch_one(&self.pool)
@@ -205,7 +205,7 @@ impl UserMessageRepository {
     /// `im_message.user_id = ? AND type = 2 AND is_read = 0`）。
     pub async fn count_unread_im(&self, user_id: i32) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM im_message WHERE user_id = ? AND type = 2 AND is_read = 0",
+            "SELECT COUNT(*) FROM im_message WHERE user_id = $1 AND type = 2 AND is_read = 0",
         )
         .bind(user_id)
         .fetch_one(&self.pool)
@@ -219,7 +219,7 @@ impl UserMessageRepository {
     pub async fn update_all_im_read(&self, user_id: i32) -> Result<u64> {
         let r = sqlx::query(
             "UPDATE im_message SET is_read = 1 \
-             WHERE user_id = ? AND type = 2 AND is_read = 0",
+             WHERE user_id = $1 AND type = 2 AND is_read = 0",
         )
         .bind(user_id)
         .execute(&self.pool)

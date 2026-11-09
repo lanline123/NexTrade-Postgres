@@ -123,7 +123,7 @@ impl PrintLogRepository {
         let (limit, offset) = page.limit_offset();
         let order_by = order_clause(sort_field, sort_order);
 
-        let count_sql = format!("SELECT COUNT(*) FROM print_log {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM print_log {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         cq = bind_filters(
             cq,
@@ -138,7 +138,7 @@ impl PrintLogRepository {
         );
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!("{PRINT_LOG_SELECT} {where_sql} {order_by} LIMIT ? OFFSET ?");
+        let list_sql = crate::db::to_pg_placeholders(&format!("{PRINT_LOG_SELECT} {where_sql} {order_by} LIMIT ? OFFSET ?"));
         let mut lq = sqlx::query_as::<_, PrintLog>(&list_sql);
         lq = bind_filters(
             lq,

@@ -188,10 +188,10 @@ impl RefundApplyRepository {
         } else {
             ""
         };
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE refund_apply SET refund_status = $1{note_clause}
              WHERE refund_id = $2 AND refund_status IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query(&sql).bind(to_status);
         if let Some(n) = note {
             q = q.bind(n.to_string());

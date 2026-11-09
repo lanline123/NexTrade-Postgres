@@ -125,7 +125,7 @@ impl WholesalerRepository {
             if from_tag.is_some() {
                 sub.push("from_tag = ?".into());
             }
-            where_parts.push(format!("user_id IN (SELECT user_id FROM user WHERE {})", sub.join(" AND ")));
+            where_parts.push(format!("user_id IN (SELECT user_id FROM \"user\" WHERE {})", sub.join(" AND ")));
         }
         if grade_id.is_some() {
             where_parts.push("grade_id = ?".into());
@@ -145,14 +145,14 @@ impl WholesalerRepository {
         let where_sql = format!("WHERE {}", where_parts.join(" AND "));
         let (limit, offset) = (limit.max(1), offset);
 
-        let count_sql = format!("SELECT COUNT(*) FROM wholesaler {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM wholesaler {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         cq = bind_page_filters(cq, like.as_deref(), from_tag, grade_id, status, source, create_start, create_end);
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {WHOLESALER_COLUMNS} FROM wholesaler {where_sql} ORDER BY wholesaler_id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, Wholesaler>(&list_sql);
         lq = bind_page_filters(lq, like.as_deref(), from_tag, grade_id, status, source, create_start, create_end);
         let rows = lq
@@ -207,9 +207,9 @@ impl WholesalerRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; user_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {WHOLESALER_COLUMNS} FROM wholesaler WHERE user_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, Wholesaler>(&sql);
         for id in user_ids {
             q = q.bind(*id);
@@ -243,9 +243,9 @@ impl WholesalerRepository {
                     return Ok(Vec::new());
                 }
                 let placeholders = vec!["?"; ids.len()].join(", ");
-                let sql = format!(
+                let sql = crate::db::to_pg_placeholders(&format!(
                     "SELECT {WHOLESALER_COLUMNS} FROM wholesaler WHERE grade_id = $1 AND is_delete = 0 AND wholesaler_id IN ({placeholders})"
-                );
+                ));
                 let mut q = sqlx::query_as::<_, Wholesaler>(&sql).bind(grade_id);
                 for id in ids {
                     q = q.bind(*id);
@@ -264,9 +264,9 @@ impl WholesalerRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; wholesaler_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {WHOLESALER_COLUMNS} FROM wholesaler WHERE is_delete = 0 AND wholesaler_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, Wholesaler>(&sql);
         for id in wholesaler_ids {
             q = q.bind(*id);
@@ -355,9 +355,9 @@ impl WholesalerRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; user_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE wholesaler SET is_delete = 0, status = 1, grade_id = $1, source = $2, update_time = $3 WHERE is_delete = 1 AND user_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query(&sql).bind(grade_id).bind(source).bind(now);
         for id in user_ids {
             q = q.bind(*id);
@@ -381,9 +381,9 @@ impl WholesalerRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; user_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE wholesaler SET grade_id = $1, update_time = $2 WHERE is_delete = 0 AND user_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query(&sql).bind(grade_id).bind(now);
         for id in user_ids {
             q = q.bind(*id);
@@ -453,9 +453,9 @@ impl WholesalerRepository {
                     return Ok(0);
                 }
                 let placeholders = vec!["?"; ids.len()].join(", ");
-                let sql = format!(
+                let sql = crate::db::to_pg_placeholders(&format!(
                     "UPDATE wholesaler SET is_delete = 1, update_time = $1 WHERE grade_id = $2 AND is_delete = 0 AND wholesaler_id IN ({placeholders})"
-                );
+                ));
                 let mut q = sqlx::query(&sql).bind(now).bind(grade_id);
                 for id in ids {
                     q = q.bind(*id);
@@ -475,9 +475,9 @@ impl WholesalerRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; wholesaler_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "UPDATE wholesaler SET is_delete = 1, update_time = $1 WHERE is_delete = 0 AND wholesaler_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query(&sql).bind(now);
         for id in wholesaler_ids {
             q = q.bind(*id);
@@ -494,7 +494,7 @@ impl WholesalerRepository {
     /// 数据库执行失败时返回 `Error::Database`。
     pub async fn user_exists(&self, user_id: i32) -> Result<bool> {
         let row: Option<(i32,)> =
-            sqlx::query_as("SELECT user_id FROM user WHERE user_id = $1 LIMIT 1")
+            sqlx::query_as("SELECT user_id FROM \"user\" WHERE user_id = $1 LIMIT 1")
                 .bind(user_id)
                 .fetch_optional(&self.pool)
                 .await
@@ -511,9 +511,9 @@ impl WholesalerRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; user_ids.len()].join(", ");
-        let sql = format!(
-            "SELECT {USER_BRIEF_COLUMNS} FROM user WHERE user_id IN ({placeholders})"
-        );
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT {USER_BRIEF_COLUMNS} FROM \"user\" WHERE user_id IN ({placeholders})"
+        ));
         let mut q = sqlx::query_as::<_, UserBriefRow>(&sql);
         for id in user_ids {
             q = q.bind(*id);
@@ -531,7 +531,7 @@ impl WholesalerRepository {
         }
         let placeholders = vec!["?"; rank_ids.len()].join(", ");
         let sql =
-            format!("SELECT rank_id, rank_name FROM user_rank WHERE rank_id IN ({placeholders})");
+            crate::db::to_pg_placeholders(&format!("SELECT rank_id, rank_name FROM user_rank WHERE rank_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in rank_ids {
             q = q.bind(*id);
@@ -548,9 +548,9 @@ impl WholesalerRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; grade_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT grade_id, grade_name FROM wholesaler_grade WHERE is_delete = 0 AND grade_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in grade_ids {
             q = q.bind(*id);
@@ -599,7 +599,7 @@ impl WholesalerRepository {
     /// 数据库执行失败时返回 `Error::Database`。
     pub async fn list_active_user_ids(&self) -> Result<Vec<i32>> {
         let rows: Vec<(i32,)> =
-            sqlx::query_as("SELECT user_id FROM user WHERE status = 1 ORDER BY user_id ASC")
+            sqlx::query_as("SELECT user_id FROM \"user\" WHERE status = 1 ORDER BY user_id ASC")
                 .fetch_all(&self.pool)
                 .await
                 .map_err(map_err)?;
@@ -616,9 +616,9 @@ impl WholesalerRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; rank_ids.len()].join(", ");
-        let sql = format!(
-            "SELECT DISTINCT user_id FROM user WHERE status = 1 AND rank_id IN ({placeholders}) ORDER BY user_id ASC"
-        );
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT DISTINCT user_id FROM \"user\" WHERE status = 1 AND rank_id IN ({placeholders}) ORDER BY user_id ASC"
+        ));
         let mut q = sqlx::query_as::<_, (i32,)>(&sql);
         for id in rank_ids {
             q = q.bind(*id);
@@ -636,7 +636,7 @@ impl WholesalerRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; user_ids.len()].join(", ");
-        let sql = format!("SELECT user_id FROM user WHERE user_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT user_id FROM \"user\" WHERE user_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, (i32,)>(&sql);
         for id in user_ids {
             q = q.bind(*id);
@@ -683,14 +683,14 @@ impl WholesalerRepository {
         }
         let where_sql = format!("WHERE {}", where_parts.join(" AND "));
 
-        let count_sql = format!("SELECT COUNT(*) FROM user {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM \"user\" {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         cq = bind_user_filters(cq, like.as_deref(), from_tag, rank_id, status);
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
-            "SELECT {USER_BRIEF_COLUMNS} FROM user {where_sql} ORDER BY user_id DESC LIMIT ? OFFSET ?"
-        );
+        let list_sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT {USER_BRIEF_COLUMNS} FROM \"user\" {where_sql} ORDER BY user_id DESC LIMIT ? OFFSET ?"
+        ));
         let mut lq = sqlx::query_as::<_, UserBriefRow>(&list_sql);
         lq = bind_user_filters(lq, like.as_deref(), from_tag, rank_id, status);
         let rows = lq

@@ -107,9 +107,9 @@ impl ProductBatchRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM product_sku WHERE product_id IN ({placeholders}) ORDER BY sku_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, ProductSku>(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -123,11 +123,11 @@ impl ProductBatchRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT product_id, attr_name, attr_value, attr_pic FROM product_attributes \
              WHERE attr_type = 1 AND attr_pic IS NOT NULL AND attr_pic <> '' \
              AND product_id IN ({placeholders}) ORDER BY attributes_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, SpecAttrRow>(&sql);
         for id in product_ids {
             q = q.bind(*id);
@@ -150,7 +150,7 @@ impl ProductBatchRepository {
             .filter(|k| !k.is_empty())
             .map(|k| format!("%{k}%"));
         let where_sql = if kw.is_some() {
-            " WHERE product_service_name LIKE ?"
+            " WHERE product_service_name LIKE $1"
         } else {
             ""
         };
@@ -174,9 +174,9 @@ impl ProductBatchRepository {
             "DESC"
         };
         let (limit, offset) = page.limit_offset();
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM product_services{where_sql} ORDER BY {column} {dir} LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = if let Some(k) = &kw {
             sqlx::query_as::<_, ProductServices>(&list_sql)
                 .bind(k)

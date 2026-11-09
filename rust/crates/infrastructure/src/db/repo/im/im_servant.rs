@@ -94,7 +94,7 @@ impl ImServantRepository {
         };
 
         // —— COUNT ——
-        let count_sql = format!("SELECT COUNT(*) FROM im_servant {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM im_servant {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         if shop_id.is_some() {
             cq = cq.bind(shop_id);
@@ -107,9 +107,9 @@ impl ImServantRepository {
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
         // —— LIST ——
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {IM_SERVANT_COLUMNS} FROM im_servant {where_sql} ORDER BY {sort_column} {dir} LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, ImServant>(&list_sql);
         if shop_id.is_some() {
             lq = lq.bind(shop_id);
@@ -156,7 +156,7 @@ impl ImServantRepository {
         }
         let placeholders = vec!["?"; ids.len()].join(", ");
         let sql =
-            format!("SELECT admin_id, username, avatar FROM admin_user WHERE admin_id IN ({placeholders})");
+            crate::db::to_pg_placeholders(&format!("SELECT admin_id, username, avatar FROM admin_user WHERE admin_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, (i32, String, Option<String>)>(&sql);
         for id in ids {
             q = q.bind(id);

@@ -43,9 +43,9 @@ impl AdminUserShopRepository {
             .filter(|s| !s.is_empty())
             .map(|s| format!("%{s}%"));
         let where_sql = if kw.is_some() {
-            " WHERE shop_id = ? AND username LIKE ?"
+            " WHERE shop_id = $1 AND username LIKE $2"
         } else {
-            " WHERE shop_id = ?"
+            " WHERE shop_id = $1"
         };
         let (page, size) = q.page_params();
         let sort = sort_column(q);
@@ -63,9 +63,9 @@ impl AdminUserShopRepository {
                 .await
                 .map_err(map_err)?
         };
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {BINDING_COLUMNS} FROM admin_user_shop{where_sql} ORDER BY {sort} LIMIT ? OFFSET ?"
-        );
+        ));
         let mut query = sqlx::query_as::<_, AdminUserShop>(&sql);
         query = query.bind(shop_id);
         if let Some(v) = kw.as_deref() {
@@ -127,9 +127,9 @@ impl AdminUserShopRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
-            "SELECT user_id, username, nickname, mobile, avatar FROM user WHERE user_id IN ({ph})"
-        );
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT user_id, username, nickname, mobile, avatar FROM \"user\" WHERE user_id IN ({ph})"
+        ));
         let mut q = sqlx::query_as::<_, (i32, String, Option<String>, String, String)>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -150,9 +150,9 @@ impl AdminUserShopRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT admin_id, username, mobile, email, avatar, merchant_id FROM admin_user WHERE admin_id IN ({ph})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, String, String, String, Option<String>, i32)>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -173,7 +173,7 @@ impl AdminUserShopRepository {
             return Ok(Vec::new());
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!("SELECT role_id, role_name, authority_list FROM admin_role WHERE role_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT role_id, role_name, authority_list FROM admin_role WHERE role_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, (i32, String, Option<String>)>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -228,9 +228,9 @@ impl AdminUserShopRepository {
             return Ok(n);
         }
         let ph = vec!["?"; exclude_role_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM admin_user_shop WHERE shop_id = $1 AND is_admin = 0 AND role_id NOT IN ({ph})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i64,)>(&sql).bind(shop_id);
         for rid in exclude_role_ids {
             q = q.bind(*rid);
@@ -356,7 +356,7 @@ impl AdminUserShopRepository {
             return Ok(0);
         }
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!("DELETE FROM admin_user_shop WHERE id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM admin_user_shop WHERE id IN ({ph})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(*id);

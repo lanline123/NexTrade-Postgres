@@ -107,7 +107,7 @@ impl LocalesRepository {
                 "SELECT l.id, l.locale_code, l.language, l.flag_picture, l.last_updated, \
                  l.is_enabled, l.is_default, l.currency_id, l.sort \
                  FROM locales_relation r JOIN locales l ON l.id = r.locales_id \
-                 WHERE r.code = ? LIMIT 1",
+                 WHERE r.code = $1 LIMIT 1",
             )
             .bind(code.trim())
             .fetch_optional(&self.pool)
@@ -137,7 +137,7 @@ impl LocalesRepository {
             "SELECT t.translation_name, t.translation_value \
              FROM translations_data t \
              JOIN locales l ON l.id = t.locale_id \
-             WHERE l.locale_code = ? AND l.is_enabled = 1 AND t.data_type = 0",
+             WHERE l.locale_code = $1 AND l.is_enabled = 1 AND t.data_type = 0",
         )
         .bind(locale_code)
         .fetch_all(&self.pool)

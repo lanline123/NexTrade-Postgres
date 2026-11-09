@@ -132,7 +132,7 @@ impl ImMessageRepository {
             format!("WHERE {}", clauses.join(" AND "))
         };
 
-        let count_sql = format!("SELECT COUNT(*) AS total FROM im_message {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) AS total FROM im_message {where_sql}"));
         let vals = list_bind_values(f);
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         for v in &vals {
@@ -141,7 +141,7 @@ impl ImMessageRepository {
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
         let page_sql =
-            format!("SELECT {IM_MESSAGE_COLUMNS} FROM im_message {where_sql} ORDER BY {order_by} LIMIT ? OFFSET ?");
+            crate::db::to_pg_placeholders(&format!("SELECT {IM_MESSAGE_COLUMNS} FROM im_message {where_sql} ORDER BY {order_by} LIMIT ? OFFSET ?"));
         let mut pq = sqlx::query_as::<_, MessageRow>(&page_sql);
         for v in &vals {
             pq = pq.bind(*v);
@@ -166,18 +166,18 @@ impl ImMessageRepository {
         let with_shop = shop_id.is_some_and(|v| v > -1);
         let shop_clause = if with_shop { " AND shop_id = ?" } else { "" };
 
-        let count_sql = format!(
+        let count_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) AS total FROM im_message WHERE servant_id = $1 AND \"type\" = 1 AND status = 1{shop_clause}"
-        );
+        ));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql).bind(servant_id);
         if with_shop {
             cq = cq.bind(shop_id.unwrap_or(0));
         }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let page_sql = format!(
+        let page_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {IM_MESSAGE_COLUMNS} FROM im_message WHERE servant_id = $1 AND \"type\" = 1 AND status = 1{shop_clause} ORDER BY send_time DESC, \"id\" DESC LIMIT $2 OFFSET $3"
-        );
+        ));
         let mut pq = sqlx::query_as::<_, MessageRow>(&page_sql).bind(servant_id);
         if with_shop {
             pq = pq.bind(shop_id.unwrap_or(0));
@@ -431,7 +431,7 @@ impl ImMessageRepository {
             return Ok(Vec::new());
         }
         let ph = placeholders(ids.len());
-        let sql = format!("SELECT user_id, username, nickname, avatar FROM \"user\" WHERE user_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT user_id, username, nickname, avatar FROM \"user\" WHERE user_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, UserBrief>(&sql);
         for id in ids {
             q = q.bind(id);
@@ -445,7 +445,7 @@ impl ImMessageRepository {
             return Ok(Vec::new());
         }
         let ph = placeholders(ids.len());
-        let sql = format!("SELECT admin_id, username, avatar FROM admin_user WHERE admin_id IN ({ph})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT admin_id, username, avatar FROM admin_user WHERE admin_id IN ({ph})"));
         let mut q = sqlx::query_as::<_, AdminBrief>(&sql);
         for id in ids {
             q = q.bind(id);

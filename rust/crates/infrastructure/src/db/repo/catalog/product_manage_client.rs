@@ -92,21 +92,21 @@ impl ProductManageClientRepository {
         let size = u64::from(page.page_size);
         let offset = u64::from(page.page - 1) * size;
 
-        let count_sql = format!(
+        let count_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM product_sku s JOIN product p ON p.product_id = s.product_id{where_sql}"
-        );
+        ));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         for b in &binds {
             cq = cq.bind(*b);
         }
         let total = cq.fetch_one(&self.pool).await.map_err(map_err)?.0;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT s.sku_id, s.product_id, s.sku_price, s.sku_stock, p.product_name, p.product_sn, \
              p.pic_url, p.product_price, p.category_id, p.product_type, p.shop_id \
              FROM product_sku s JOIN product p ON p.product_id = s.product_id{where_sql} \
              ORDER BY s.sku_id DESC LIMIT ? OFFSET ?"
-        );
+        ));
         let mut rq = sqlx::query_as::<_, ProductSkuSelectRow>(&rows_sql);
         for b in &binds {
             rq = rq.bind(*b);
@@ -134,7 +134,7 @@ impl ProductManageClientRepository {
     ) -> Result<()> {
         sqlx::query(
             "INSERT INTO price_inquiry (mobile, email, content, product_id, remark, status, shop_id, user_id, user_is_del, create_time) \
-             VALUES (?, ?, ?, ?, '', 0, ?, ?, 0, ?)",
+             VALUES ($1, $2, $3, $4, '', 0, $5, $6, 0, $7)",
         )
         .bind(mobile)
         .bind(email)

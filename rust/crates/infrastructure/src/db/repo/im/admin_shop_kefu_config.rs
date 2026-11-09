@@ -44,7 +44,7 @@ impl AdminShopKefuConfigRepository {
     pub async fn find_by_shop_id(&self, shop_id: i32) -> Result<Option<ShopKefuAccessRow>> {
         sqlx::query_as::<_, ShopKefuAccessRow>(
             "SELECT id, shop_id, auto_access_mode, return_customer_access \
-             FROM shop_kefu_config WHERE shop_id = ? LIMIT 1",
+             FROM shop_kefu_config WHERE shop_id = $1 LIMIT 1",
         )
         .bind(shop_id)
         .fetch_optional(&self.pool)
@@ -59,7 +59,7 @@ impl AdminShopKefuConfigRepository {
              (shop_id, kefu_type, kefu_yzf_type, kefu_yzf_sign, kefu_workwx_id, corp_id, kefu_code, \
               kefu_code_blank, kefu_whatsapp_phone, kefu_phone, kefu_time, auto_access_mode, \
               return_customer_access, create_time, modify_time) \
-             VALUES (?, 0, 0, '', '', '', '', 0, '', '', '', ?, ?, ?, ?)",
+             VALUES ($1, 0, 0, '', '', '', '', 0, '', '', '', $2, $3, $4, $5)",
         )
         .bind(shop_id)
         .bind(auto_access_mode)
@@ -82,9 +82,9 @@ impl AdminShopKefuConfigRepository {
     ) -> Result<()> {
         sqlx::query(
             "UPDATE shop_kefu_config SET \
-             auto_access_mode = COALESCE(?, auto_access_mode), \
-             return_customer_access = COALESCE(?, return_customer_access), \
-             modify_time = ? WHERE id = ?",
+             auto_access_mode = COALESCE($1, auto_access_mode), \
+             return_customer_access = COALESCE($2, return_customer_access), \
+             modify_time = $3 WHERE id = $4",
         )
         .bind(auto_access_mode)
         .bind(return_customer_access)

@@ -99,7 +99,7 @@ impl ServicesRepository {
     ) -> Result<(u64, Vec<ProductServices>)> {
         let like = like_pattern(keyword);
         let where_sql = if like.is_some() {
-            "WHERE product_service_name LIKE ?"
+            "WHERE product_service_name LIKE $1"
         } else {
             ""
         };
@@ -107,16 +107,16 @@ impl ServicesRepository {
         let dir = resolve_sort_direction(sort_order);
         let (limit, offset) = page.limit_offset();
 
-        let count_sql = format!("SELECT COUNT(*) FROM product_services {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM product_services {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         if let Some(like) = like.as_deref() {
             cq = cq.bind(like);
         }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "{SERVICES_SELECT} {where_sql} ORDER BY {column} {dir} LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, ProductServices>(&list_sql);
         if let Some(like) = like.as_deref() {
             lq = lq.bind(like);
@@ -212,7 +212,7 @@ impl ServicesRepository {
             return Ok(0);
         }
         let placeholders = vec!["?"; ids.len()].join(",");
-        let sql = format!("DELETE FROM product_services WHERE product_service_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM product_services WHERE product_service_id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(*id);

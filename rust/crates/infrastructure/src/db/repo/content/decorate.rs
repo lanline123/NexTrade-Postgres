@@ -260,7 +260,7 @@ impl DecorateRepository {
         locale_id: Option<i32>,
         decorate_type: Option<i32>,
     ) -> Result<Option<Decorate>> {
-        let mut wh = String::from(" WHERE parent_id = ?");
+        let mut wh = String::from(" WHERE parent_id = $1");
         let mut params = vec![Bind::I(parent_id)];
         if let Some(locale_id) = locale_id {
             push_cond(&mut wh, &mut params, "locale_id = ?", &[Bind::I(locale_id)]);
@@ -348,7 +348,7 @@ impl DecorateRepository {
         shop_id: Option<i32>,
         except_id: i32,
     ) -> Result<u64> {
-        let mut wh = String::from(" WHERE is_home <> 0 AND decorate_id <> ?");
+        let mut wh = String::from(" WHERE is_home <> 0 AND decorate_id <> $1");
         let mut params = vec![Bind::I(except_id)];
         if let Some(t) = decorate_type {
             push_cond(&mut wh, &mut params, "decorate_type = ?", &[Bind::I(t)]);
@@ -372,7 +372,7 @@ impl DecorateRepository {
         decorate_type: Option<i32>,
         prefix: &str,
     ) -> Result<Vec<String>> {
-        let mut wh = String::from(" WHERE decorate_title LIKE ?");
+        let mut wh = String::from(" WHERE decorate_title LIKE $1");
         let mut params = vec![Bind::S(format!("{prefix}%"))];
         if let Some(shop_id) = shop_id {
             push_cond(&mut wh, &mut params, "shop_id = ?", &[Bind::I(shop_id)]);
@@ -395,7 +395,7 @@ impl DecorateRepository {
             "INSERT INTO decorate (decorate_title, data, draft_data, decorate_type, page_type, \
              is_home, shop_id, status, update_time, locale_id, parent_id, sort_order, \
              binded_h5_id, share_info) \
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING decorate_id",
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING decorate_id",
         )
         .bind(&d.decorate_title)
         .bind(&d.data)
@@ -420,10 +420,10 @@ impl DecorateRepository {
     /// 全量更新装修页（除主键外的所有列）。
     pub async fn update(&self, d: &Decorate) -> Result<()> {
         sqlx::query(
-            "UPDATE decorate SET decorate_title=?, data=?, draft_data=?, decorate_type=?, \
-             page_type=?, is_home=?, shop_id=?, status=?, update_time=?, locale_id=?, \
-             parent_id=?, sort_order=?, binded_h5_id=?, share_info=? \
-             WHERE decorate_id=?",
+            "UPDATE decorate SET decorate_title=$1, data=$2, draft_data=$3, decorate_type=$4, \
+             page_type=$5, is_home=$6, shop_id=$7, status=$8, update_time=$9, locale_id=$10, \
+             parent_id=$11, sort_order=$12, binded_h5_id=$13, share_info=$14 \
+             WHERE decorate_id=$15",
         )
         .bind(&d.decorate_title)
         .bind(&d.data)
@@ -451,7 +451,7 @@ impl DecorateRepository {
         Ok(
             exec(
                 &self.pool,
-                "DELETE FROM decorate WHERE decorate_id = ?",
+                "DELETE FROM decorate WHERE decorate_id = $1",
                 &[Bind::I(decorate_id)],
             )
             .await?
@@ -467,7 +467,7 @@ impl DecorateRepository {
         let placeholders = std::iter::repeat_n("?", ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!("DELETE FROM decorate WHERE decorate_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("DELETE FROM decorate WHERE decorate_id IN ({placeholders})"));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(id);
@@ -485,7 +485,7 @@ impl DecorateRepository {
             )));
         }
         // 列名来自常量白名单，非用户输入拼接。
-        let sql = format!("UPDATE decorate SET \"{column}\" = ? WHERE decorate_id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE decorate SET \"{column}\" = ? WHERE decorate_id = ?"));
         let r = sqlx::query(&sql)
             .bind(val)
             .bind(decorate_id)
@@ -570,7 +570,7 @@ impl DecorateRepository {
     pub async fn find_navigation(&self, id: i32) -> Result<Option<PcNavigation>> {
         fetch_one(
             &self.pool,
-            "SELECT * FROM pc_navigation WHERE id = ?",
+            "SELECT * FROM pc_navigation WHERE id = $1",
             &[Bind::I(id)],
         )
         .await
@@ -584,10 +584,10 @@ impl DecorateRepository {
         let placeholders = std::iter::repeat_n("?", parent_ids.len())
             .collect::<Vec<_>>()
             .join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT parent_id, COUNT(*) FROM pc_navigation \
              WHERE parent_id IN ({placeholders}) GROUP BY parent_id"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in parent_ids {
             q = q.bind(id);
@@ -599,7 +599,7 @@ impl DecorateRepository {
     pub async fn insert_navigation(&self, n: &PcNavigation) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO pc_navigation (title, is_show, sort_order, is_blank, link, \"type\", \
-             parent_id, icon) VALUES (?,?,?,?,?,?,?,?) RETURNING id",
+             parent_id, icon) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id",
         )
         .bind(&n.title)
         .bind(n.is_show)
@@ -618,8 +618,8 @@ impl DecorateRepository {
     /// 全量更新 PC 导航。
     pub async fn update_navigation(&self, n: &PcNavigation) -> Result<()> {
         sqlx::query(
-            "UPDATE pc_navigation SET title=?, is_show=?, sort_order=?, is_blank=?, link=?, \
-             \"type\"=?, parent_id=?, icon=? WHERE id=?",
+            "UPDATE pc_navigation SET title=$1, is_show=$2, sort_order=$3, is_blank=$4, link=$5, \
+             \"type\"=$6, parent_id=$7, icon=$8 WHERE id=$9",
         )
         .bind(&n.title)
         .bind(n.is_show)
@@ -641,7 +641,7 @@ impl DecorateRepository {
         Ok(
             exec(
                 &self.pool,
-                "DELETE FROM pc_navigation WHERE id = ?",
+                "DELETE FROM pc_navigation WHERE id = $1",
                 &[Bind::I(id)],
             )
             .await?
@@ -662,7 +662,7 @@ impl DecorateRepository {
                 "不允许更新的字段: {field}"
             )));
         }
-        let sql = format!("UPDATE pc_navigation SET \"{column}\" = ? WHERE id = ?");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE pc_navigation SET \"{column}\" = ? WHERE id = ?"));
         let r = sqlx::query(&sql)
             .bind(val)
             .bind(id)
@@ -722,7 +722,7 @@ impl DecorateRepository {
     pub async fn find_cat_floor(&self, id: i32) -> Result<Option<PcCatFloor>> {
         fetch_one(
             &self.pool,
-            "SELECT * FROM pc_cat_floor WHERE cat_floor_id = ?",
+            "SELECT * FROM pc_cat_floor WHERE cat_floor_id = $1",
             &[Bind::I(id)],
         )
         .await
@@ -733,7 +733,7 @@ impl DecorateRepository {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO pc_cat_floor (cat_floor_name, category_ids, category_names, floor_ico, \
              hot_cat, is_show, sort_order, floor_ico_font, brand_ids) \
-             VALUES (?,?,?,?,?,?,?,?,?) RETURNING cat_floor_id",
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING cat_floor_id",
         )
         .bind(&f.cat_floor_name)
         .bind(&f.category_ids)
@@ -753,9 +753,9 @@ impl DecorateRepository {
     /// 全量更新 PC 分类楼层。
     pub async fn update_cat_floor(&self, f: &PcCatFloor) -> Result<()> {
         sqlx::query(
-            "UPDATE pc_cat_floor SET cat_floor_name=?, category_ids=?, category_names=?, \
-             floor_ico=?, hot_cat=?, is_show=?, sort_order=?, floor_ico_font=?, brand_ids=? \
-             WHERE cat_floor_id=?",
+            "UPDATE pc_cat_floor SET cat_floor_name=$1, category_ids=$2, category_names=$3, \
+             floor_ico=$4, hot_cat=$5, is_show=$6, sort_order=$7, floor_ico_font=$8, brand_ids=$9 \
+             WHERE cat_floor_id=$10",
         )
         .bind(&f.cat_floor_name)
         .bind(&f.category_ids)
@@ -778,7 +778,7 @@ impl DecorateRepository {
         Ok(
             exec(
                 &self.pool,
-                "DELETE FROM pc_cat_floor WHERE cat_floor_id = ?",
+                "DELETE FROM pc_cat_floor WHERE cat_floor_id = $1",
                 &[Bind::I(id)],
             )
             .await?
@@ -836,7 +836,7 @@ impl DecorateRepository {
     pub async fn find_mobile_nav(&self, id: i32) -> Result<Option<MobileCatNav>> {
         fetch_one(
             &self.pool,
-            "SELECT * FROM mobile_cat_nav WHERE mobile_cat_nav_id = ?",
+            "SELECT * FROM mobile_cat_nav WHERE mobile_cat_nav_id = $1",
             &[Bind::I(id)],
         )
         .await
@@ -846,7 +846,7 @@ impl DecorateRepository {
     pub async fn insert_mobile_nav(&self, n: &MobileCatNav) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO mobile_cat_nav (category_id, cat_color, child_cat_ids, brand_ids, \
-             is_show, img_url, sort_order, cat_name_alias) VALUES (?,?,?,?,?,?,?,?) RETURNING mobile_cat_nav_id",
+             is_show, img_url, sort_order, cat_name_alias) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING mobile_cat_nav_id",
         )
         .bind(n.category_id)
         .bind(&n.cat_color)
@@ -865,8 +865,8 @@ impl DecorateRepository {
     /// 全量更新手机分类导航。
     pub async fn update_mobile_nav(&self, n: &MobileCatNav) -> Result<()> {
         sqlx::query(
-            "UPDATE mobile_cat_nav SET category_id=?, cat_color=?, child_cat_ids=?, brand_ids=?, \
-             is_show=?, img_url=?, sort_order=?, cat_name_alias=? WHERE mobile_cat_nav_id=?",
+            "UPDATE mobile_cat_nav SET category_id=$1, cat_color=$2, child_cat_ids=$3, brand_ids=$4, \
+             is_show=$5, img_url=$6, sort_order=$7, cat_name_alias=$8 WHERE mobile_cat_nav_id=$9",
         )
         .bind(n.category_id)
         .bind(&n.cat_color)
@@ -888,7 +888,7 @@ impl DecorateRepository {
         Ok(
             exec(
                 &self.pool,
-                "DELETE FROM mobile_cat_nav WHERE mobile_cat_nav_id = ?",
+                "DELETE FROM mobile_cat_nav WHERE mobile_cat_nav_id = $1",
                 &[Bind::I(id)],
             )
             .await?
@@ -905,7 +905,7 @@ impl DecorateRepository {
         let params = [Bind::I64(page.page_size as i64), Bind::I64(offset as i64)];
         let rows = fetch_rows::<DecorateShare>(
             &self.pool,
-            "SELECT * FROM decorate_share ORDER BY share_id DESC LIMIT ? OFFSET ?",
+            "SELECT * FROM decorate_share ORDER BY share_id DESC LIMIT $1 OFFSET $2",
             &params,
         )
         .await?;
@@ -916,7 +916,7 @@ impl DecorateRepository {
     pub async fn find_share(&self, share_id: i32) -> Result<Option<DecorateShare>> {
         fetch_one(
             &self.pool,
-            "SELECT * FROM decorate_share WHERE share_id = ?",
+            "SELECT * FROM decorate_share WHERE share_id = $1",
             &[Bind::I(share_id)],
         )
         .await
@@ -926,7 +926,7 @@ impl DecorateRepository {
     pub async fn find_share_by_sn(&self, sn: &str) -> Result<Option<DecorateShare>> {
         fetch_one(
             &self.pool,
-            "SELECT * FROM decorate_share WHERE share_sn = ? LIMIT 1",
+            "SELECT * FROM decorate_share WHERE share_sn = $1 LIMIT 1",
             &[Bind::S(sn.to_string())],
         )
         .await
@@ -941,8 +941,8 @@ impl DecorateRepository {
     ) -> Result<Option<DecorateShare>> {
         fetch_one(
             &self.pool,
-            "SELECT * FROM decorate_share WHERE share_sn = ? AND share_token = ? \
-             AND valid_time > ? LIMIT 1",
+            "SELECT * FROM decorate_share WHERE share_sn = $1 AND share_token = $2 \
+             AND valid_time > $3 LIMIT 1",
             &[Bind::S(sn.to_string()), Bind::S(token.to_string()), Bind::I(now)],
         )
         .await
@@ -952,7 +952,7 @@ impl DecorateRepository {
     pub async fn insert_share(&self, s: &DecorateShare) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO decorate_share (share_sn, share_token, decorate_id, valid_time, \
-             create_time, update_time) VALUES (?,?,?,?,?,?) RETURNING share_id",
+             create_time, update_time) VALUES ($1,$2,$3,$4,$5,$6) RETURNING share_id",
         )
         .bind(&s.share_sn)
         .bind(&s.share_token)
@@ -969,8 +969,8 @@ impl DecorateRepository {
     /// 全量更新分享记录（主键不变）。
     pub async fn update_share(&self, s: &DecorateShare) -> Result<()> {
         sqlx::query(
-            "UPDATE decorate_share SET share_sn=?, share_token=?, decorate_id=?, valid_time=?, \
-             create_time=?, update_time=? WHERE share_id=?",
+            "UPDATE decorate_share SET share_sn=$1, share_token=$2, decorate_id=$3, valid_time=$4, \
+             create_time=$5, update_time=$6 WHERE share_id=$7",
         )
         .bind(&s.share_sn)
         .bind(&s.share_token)
@@ -990,7 +990,7 @@ impl DecorateRepository {
         Ok(
             exec(
                 &self.pool,
-                "DELETE FROM decorate_share WHERE share_id = ?",
+                "DELETE FROM decorate_share WHERE share_id = $1",
                 &[Bind::I(share_id)],
             )
             .await?
@@ -1008,7 +1008,7 @@ impl DecorateRepository {
     ) -> Result<Option<DecorateDiscrete>> {
         fetch_one(
             &self.pool,
-            "SELECT * FROM decorate_discrete WHERE shop_id = ? AND decorate_sn = ? LIMIT 1",
+            "SELECT * FROM decorate_discrete WHERE shop_id = $1 AND decorate_sn = $2 LIMIT 1",
             &[Bind::I(shop_id), Bind::S(decorate_sn.to_string())],
         )
         .await
@@ -1018,7 +1018,7 @@ impl DecorateRepository {
     pub async fn find_discrete_by_id(&self, id: i32) -> Result<Option<DecorateDiscrete>> {
         fetch_one(
             &self.pool,
-            "SELECT * FROM decorate_discrete WHERE id = ?",
+            "SELECT * FROM decorate_discrete WHERE id = $1",
             &[Bind::I(id)],
         )
         .await
@@ -1030,7 +1030,7 @@ impl DecorateRepository {
             Some(shop_id) => {
                 fetch_rows(
                     &self.pool,
-                    "SELECT * FROM decorate_discrete WHERE shop_id = ? ORDER BY id ASC",
+                    "SELECT * FROM decorate_discrete WHERE shop_id = $1 ORDER BY id ASC",
                     &[Bind::I(shop_id)],
                 )
                 .await
@@ -1046,7 +1046,7 @@ impl DecorateRepository {
     pub async fn insert_discrete(&self, d: &DecorateDiscrete) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO decorate_discrete (decorate_sn, decorate_name, data, shop_id) \
-             VALUES (?,?,?,?) RETURNING id",
+             VALUES ($1,$2,$3,$4) RETURNING id",
         )
         .bind(&d.decorate_sn)
         .bind(&d.decorate_name)
@@ -1061,8 +1061,8 @@ impl DecorateRepository {
     /// 全量更新装修组件。
     pub async fn update_discrete(&self, d: &DecorateDiscrete) -> Result<()> {
         sqlx::query(
-            "UPDATE decorate_discrete SET decorate_sn=?, decorate_name=?, data=?, shop_id=? \
-             WHERE id=?",
+            "UPDATE decorate_discrete SET decorate_sn=$1, decorate_name=$2, data=$3, shop_id=$4 \
+             WHERE id=$5",
         )
         .bind(&d.decorate_sn)
         .bind(&d.decorate_name)
@@ -1080,7 +1080,7 @@ impl DecorateRepository {
         Ok(
             exec(
                 &self.pool,
-                "DELETE FROM decorate_discrete WHERE id = ?",
+                "DELETE FROM decorate_discrete WHERE id = $1",
                 &[Bind::I(id)],
             )
             .await?
@@ -1099,7 +1099,7 @@ impl DecorateRepository {
         };
         let row = fetch_one::<(Option<String>,)>(
             &self.pool,
-            "SELECT language FROM locales WHERE id = ?",
+            "SELECT language FROM locales WHERE id = $1",
             &[Bind::I(locale_id)],
         )
         .await?;
@@ -1152,7 +1152,7 @@ mod tests {
         let mut sql = String::from(" WHERE 1=1");
         let mut params = Vec::new();
         push_in(&mut sql, &mut params, "page_type", &[1, 3]);
-        assert_eq!(sql, " WHERE 1=1 AND page_type IN (?,?)");
+        assert_eq!(sql, " WHERE 1=1 AND page_type IN ($1,$2)");
         assert_eq!(params.len(), 2);
     }
 }

@@ -175,7 +175,7 @@ impl AdminMsgRepository {
 
         // 3. 管理员未读消息总数
         let where_sql = build_where(scope, &AdminMsgListQuery::default());
-        let unread_sql = format!("SELECT COUNT(*) FROM admin_msg{where_sql} AND is_readed = 0");
+        let unread_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM admin_msg{where_sql} AND is_readed = 0"));
         let unread_msg_count: i64 = sqlx::query_as::<_, (i64,)>(&unread_sql)
             .fetch_one(&self.pool)
             .await
@@ -183,9 +183,9 @@ impl AdminMsgRepository {
             .unwrap_or(0);
 
         // 4. 语音播报4类增量消息计数 (11 新订单 / 12 已付款 / 31 取消 / 32 售后)
-        let broadcast_sql = format!(
+        let broadcast_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT msg_type, COUNT(*) FROM admin_msg{where_sql} AND is_broadcast = 1 AND send_time >= ? AND msg_type IN (11, 12, 31, 32) GROUP BY msg_type"
-        );
+        ));
         let broadcast_rows: Vec<(i32, i64)> = sqlx::query_as::<_, (i32, i64)>(&broadcast_sql)
             .bind(start_time)
             .fetch_all(&self.pool)
@@ -238,7 +238,7 @@ impl AdminMsgRepository {
         let sort = sort_column(q);
         let like = like_value(q);
 
-        let count_sql = format!("SELECT COUNT(*) FROM admin_msg{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM admin_msg{where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         if let Some(v) = like.as_deref() {
             cq = cq.bind(v);
@@ -246,7 +246,7 @@ impl AdminMsgRepository {
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
         let sql =
-            format!("SELECT {COLUMNS} FROM admin_msg{where_sql} ORDER BY {sort} LIMIT ? OFFSET ?");
+            crate::db::to_pg_placeholders(&format!("SELECT {COLUMNS} FROM admin_msg{where_sql} ORDER BY {sort} LIMIT ? OFFSET ?"));
         let mut lq = sqlx::query_as::<_, AdminMsgRow>(&sql);
         if let Some(v) = like.as_deref() {
             lq = lq.bind(v);
@@ -266,9 +266,9 @@ impl AdminMsgRepository {
     /// 数据库失败 → `Error::Database`。
     pub async fn unread_by_type(&self, scope: MsgScope) -> Result<Vec<(i32, i64)>> {
         let where_sql = build_where(scope, &AdminMsgListQuery::default());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT msg_type, COUNT(*) FROM admin_msg{where_sql} AND is_readed = 0 GROUP BY msg_type"
-        );
+        ));
         sqlx::query_as::<_, (i32, i64)>(&sql)
             .fetch_all(&self.pool)
             .await
@@ -281,9 +281,9 @@ impl AdminMsgRepository {
     /// 数据库失败 → `Error::Database`。
     pub async fn latest(&self, scope: MsgScope) -> Result<Option<AdminMsgRow>> {
         let where_sql = build_where(scope, &AdminMsgListQuery::default());
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {COLUMNS} FROM admin_msg{where_sql} ORDER BY send_time DESC, msg_id DESC LIMIT 1"
-        );
+        ));
         sqlx::query_as::<_, AdminMsgRow>(&sql)
             .fetch_optional(&self.pool)
             .await
@@ -319,7 +319,7 @@ impl AdminMsgRepository {
     /// 数据库失败 → `Error::Database`。
     pub async fn set_all_readed(&self, scope: MsgScope) -> Result<u64> {
         let where_sql = build_where(scope, &AdminMsgListQuery::default());
-        let sql = format!("UPDATE admin_msg SET is_readed = 1{where_sql} AND is_readed = 0");
+        let sql = crate::db::to_pg_placeholders(&format!("UPDATE admin_msg SET is_readed = 1{where_sql} AND is_readed = 0"));
         Ok(sqlx::query(&sql)
             .execute(&self.pool)
             .await
@@ -342,7 +342,7 @@ impl AdminMsgRepository {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO admin_msg \
              (msg_type, send_time, is_readed, shop_id, admin_id, order_id, product_id, title, content, msg_link, related_data, is_broadcast, vendor_id) \
-             VALUES (?, ?, 0, ?, 0, ?, 0, ?, ?, '', ?, ?, 0) RETURNING msg_id",
+             VALUES ($1, $2, 0, $3, 0, $4, 0, $5, $6, '', $7, $8, 0) RETURNING msg_id",
         )
         .bind(msg_type)
         .bind(now)
@@ -373,7 +373,7 @@ impl AdminMsgRepository {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO admin_msg \
              (msg_type, send_time, is_readed, shop_id, admin_id, order_id, product_id, title, content, msg_link, related_data, is_broadcast, vendor_id) \
-             VALUES (?, ?, 0, ?, 0, ?, 0, ?, ?, '', ?, 0, ?) RETURNING msg_id",
+             VALUES ($1, $2, 0, $3, 0, $4, 0, $5, $6, '', $7, 0, $8) RETURNING msg_id",
         )
         .bind(msg_type)
         .bind(now)
@@ -486,7 +486,7 @@ mod tests {
         };
         assert_eq!(
             build_where(vendor, &q),
-            " WHERE vendor_id = 9 AND msg_type = 11 AND title LIKE ?"
+            " WHERE vendor_id = 9 AND msg_type = 11 AND title LIKE $1"
         );
         assert_eq!(like_value(&q).as_deref(), Some("%订单%"));
     }

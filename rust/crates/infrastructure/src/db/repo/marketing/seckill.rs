@@ -236,9 +236,9 @@ impl SeckillRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; sku_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM seckill_item WHERE seckill_id = $1 AND sku_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, SeckillItem>(&sql).bind(seckill_id);
         for id in sku_ids {
             q = q.bind(id);
@@ -359,14 +359,14 @@ impl SeckillRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; product_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM seckill_item
              WHERE product_id IN ({placeholders})
                AND seckill_start_time <= $1
                AND seckill_end_time >= $2
                AND seckill_stock > 0
              ORDER BY rec_id DESC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, SeckillItem>(&sql);
         for id in product_ids {
             q = q.bind(*id);

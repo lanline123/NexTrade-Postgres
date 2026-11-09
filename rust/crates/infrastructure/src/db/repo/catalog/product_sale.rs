@@ -194,7 +194,7 @@ impl ProductSaleRepository {
         }
         sqlx::query(
             "INSERT INTO product_sale_control(product_id, shop_id, sale_status, ban_at, recover_at, updated_at) \
-             VALUES (?, ?, ?, ?, ?, ?) \
+             VALUES ($1, $2, $3, $4, $5, $6) \
              ON CONFLICT (product_id, shop_id) DO UPDATE SET sale_status=EXCLUDED.sale_status, ban_at=EXCLUDED.ban_at, \
               recover_at=EXCLUDED.recover_at, updated_at=EXCLUDED.updated_at",
         )
@@ -220,7 +220,7 @@ impl ProductSaleRepository {
             return Err(Error::biz(400, "商品未分配给该门店".to_string()));
         }
         let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM store_product WHERE product_id = ? AND shop_id = ? AND is_delete = 0",
+            "SELECT COUNT(*) FROM store_product WHERE product_id = $1 AND shop_id = $2 AND is_delete = 0",
         )
         .bind(product_id)
         .bind(shop_id)
@@ -236,7 +236,7 @@ impl ProductSaleRepository {
     /// 供应商商品自身的禁售状态（作用于导入它的所有店铺/自营）。
     pub async fn vendor_setting(&self, vendor_product_id: i32) -> Result<ProductSaleState> {
         let (exists,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM vendor_product WHERE id = ? AND is_del = 0")
+            sqlx::query_as("SELECT COUNT(*) FROM vendor_product WHERE id = $1 AND is_del = 0")
                 .bind(vendor_product_id)
                 .fetch_one(&self.pool)
                 .await
@@ -273,7 +273,7 @@ impl ProductSaleRepository {
             return Err(Error::biz(400, "商品可售状态或定时禁售时间无效".to_string()));
         }
         let (exists,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM vendor_product WHERE id = ? AND is_del = 0")
+            sqlx::query_as("SELECT COUNT(*) FROM vendor_product WHERE id = $1 AND is_del = 0")
                 .bind(vendor_product_id)
                 .fetch_one(&self.pool)
                 .await
@@ -286,7 +286,7 @@ impl ProductSaleRepository {
             Self::settle(sale_status, ban_time.unwrap_or(0), recover_time.unwrap_or(0), now);
         sqlx::query(
             "INSERT INTO vendor_product_sale_control(vendor_product_id, sale_status, ban_at, recover_at, updated_at) \
-             VALUES (?, ?, ?, ?, ?) \
+             VALUES ($1, $2, $3, $4, $5) \
              ON CONFLICT (vendor_product_id) DO UPDATE SET sale_status=EXCLUDED.sale_status, ban_at=EXCLUDED.ban_at, \
               recover_at=EXCLUDED.recover_at, updated_at=EXCLUDED.updated_at",
         )

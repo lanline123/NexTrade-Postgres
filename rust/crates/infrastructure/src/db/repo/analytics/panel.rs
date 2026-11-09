@@ -32,9 +32,9 @@ impl PanelRepository {
     ) -> Result<(i64, String)> {
         let shop_sql = if shop_scope.is_some() { " AND shop_id = ?" } else { "" };
         let vendor_sql = if vendor_scope.is_some() { " AND vendor_id = ?" } else { "" };
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*), COALESCE(SUM(paid_amount), 0) FROM \"order\" WHERE add_time >= ? AND add_time < ?{shop_sql}{vendor_sql}"
-        );
+        ));
         let mut query = sqlx::query_as(&sql).bind(from).bind(to);
         if let Some(shop) = shop_scope {
             query = query.bind(shop);
@@ -64,7 +64,7 @@ impl PanelRepository {
         let (n,): (i64,) = match shop_scope {
             Some(shop) => {
                 sqlx::query_as(
-                    "SELECT COUNT(DISTINCT u.user_id) FROM user u JOIN shop_member m ON m.user_id = u.user_id AND m.is_del = 0 WHERE m.shop_id = $1 AND u.reg_time >= $2 AND u.reg_time < $3",
+                    "SELECT COUNT(DISTINCT u.user_id) FROM \"user\" u JOIN shop_member m ON m.user_id = u.user_id AND m.is_del = 0 WHERE m.shop_id = $1 AND u.reg_time >= $2 AND u.reg_time < $3",
                 )
                 .bind(shop)
                 .bind(from)
@@ -73,7 +73,7 @@ impl PanelRepository {
                 .await
                 .map_err(map_err)?
             }
-            None => sqlx::query_as("SELECT COUNT(*) FROM user WHERE reg_time >= $1 AND reg_time < $2")
+            None => sqlx::query_as("SELECT COUNT(*) FROM \"user\" WHERE reg_time >= $1 AND reg_time < $2")
                 .bind(from)
                 .bind(to)
                 .fetch_one(&self.pool)
@@ -95,7 +95,7 @@ impl PanelRepository {
     ) -> Result<i64> {
         let shop_sql = if shop_scope.is_some() { " AND shop_id = ?" } else { "" };
         let vendor_sql = if vendor_scope.is_some() { " AND vendor_id = ?" } else { "" };
-        let sql = format!("SELECT COUNT(*) FROM \"order\" WHERE order_status = ?{shop_sql}{vendor_sql}");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM \"order\" WHERE order_status = ?{shop_sql}{vendor_sql}"));
         let mut query = sqlx::query_as(&sql).bind(status);
         if let Some(shop) = shop_scope {
             query = query.bind(shop);
@@ -119,10 +119,10 @@ impl PanelRepository {
         let shop_sql = if shop_scope.is_some() { " AND shop_id = ?" } else { "" };
         let vendor_sql = if vendor_scope.is_some() { " AND vendor_id = ?" } else { "" };
         let total_sql =
-            format!("SELECT COUNT(*) FROM product WHERE is_delete = 0{shop_sql}{vendor_sql}");
-        let on_sale_sql = format!(
+            crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM product WHERE is_delete = 0{shop_sql}{vendor_sql}"));
+        let on_sale_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM product WHERE is_delete = 0 AND product_status = 1{shop_sql}{vendor_sql}"
-        );
+        ));
         let mut total_query = sqlx::query_as(&total_sql);
         let mut on_sale_query = sqlx::query_as(&on_sale_sql);
         if let Some(shop) = shop_scope {
@@ -151,9 +151,9 @@ impl PanelRepository {
     ) -> Result<Vec<(i64, i64, String)>> {
         let shop_sql = if shop_scope.is_some() { " AND shop_id = ?" } else { "" };
         let vendor_sql = if vendor_scope.is_some() { " AND vendor_id = ?" } else { "" };
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT (add_time DIV 86400) AS day, COUNT(*), COALESCE(SUM(paid_amount), 0) FROM \"order\" WHERE add_time >= ? AND add_time < ?{shop_sql}{vendor_sql} GROUP BY day ORDER BY day ASC"
-        );
+        ));
         let mut query = sqlx::query_as(&sql).bind(from).bind(to);
         if let Some(shop) = shop_scope {
             query = query.bind(shop);

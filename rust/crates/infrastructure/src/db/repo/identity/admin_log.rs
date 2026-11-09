@@ -94,7 +94,7 @@ impl AdminLogRepository {
         let (where_sql, kw_bind) = build_where(q, scope);
         let (size, offset) = q.limit_offset();
 
-        let total_sql = format!("SELECT COUNT(*) FROM admin_log{where_sql}");
+        let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM admin_log{where_sql}"));
         let total: (i64,) = if let Some(v) = kw_bind.as_ref() {
             sqlx::query_as::<_, (i64,)>(&total_sql)
                 .bind(v)
@@ -117,9 +117,9 @@ impl AdminLogRepository {
             ),
             None => String::new(),
         };
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT log_id, log_time, user_id, log_info, ip_address, request_log_id FROM admin_log{where_sql}{order_sql} LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = if let Some(v) = kw_bind.as_ref() {
             sqlx::query_as::<_, AdminLogRow>(&rows_sql)
                 .bind(v)
@@ -152,7 +152,7 @@ impl AdminLogRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; admin_ids.len()].join(", ");
-        let sql = format!("SELECT admin_id, username FROM admin_user WHERE admin_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT admin_id, username FROM admin_user WHERE admin_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, (i32, String)>(&sql);
         for id in admin_ids {
             q = q.bind(*id);
@@ -172,9 +172,9 @@ impl AdminLogRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; request_log_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT request_log_id, url, http_method, class_method, request_params, add_time, admin_username, admin_id, admin_ip, platform FROM request_log WHERE request_log_id IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, RequestLogRow>(&sql);
         for id in request_log_ids {
             q = q.bind(*id);

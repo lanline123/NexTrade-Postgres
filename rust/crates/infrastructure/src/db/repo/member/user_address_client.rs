@@ -59,9 +59,9 @@ impl UserAddressRepository {
         let page = q.page_query();
         let (limit, offset) = page.limit_offset();
         // count 与取行共用同一 WHERE
-        let where_sql = " WHERE user_id = ? AND (is_system = 0 OR is_system IS NULL)";
+        let where_sql = " WHERE user_id = $1 AND (is_system = 0 OR is_system IS NULL)";
 
-        let count_sql = format!("SELECT COUNT(*) FROM user_address{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM user_address{where_sql}"));
         let total: (i64,) = sqlx::query_as(&count_sql)
             .bind(user_id)
             .fetch_one(&self.pool)
@@ -69,9 +69,9 @@ impl UserAddressRepository {
             .map_err(map_err)?;
 
         let order = order_clause(sort);
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {ADDRESS_COLUMNS} FROM user_address{where_sql}{order} LIMIT ? OFFSET ?"
-        );
+        ));
         let rows = sqlx::query_as::<_, UserAddress>(&list_sql)
             .bind(user_id)
             .bind(limit)
@@ -84,7 +84,7 @@ impl UserAddressRepository {
 
     /// 按主键查询（Java `getById`）。
     pub async fn find_by_id(&self, address_id: i32) -> Result<Option<UserAddress>> {
-        let sql = format!("SELECT {ADDRESS_COLUMNS} FROM user_address WHERE address_id = ? LIMIT 1");
+        let sql = crate::db::to_pg_placeholders(&format!("SELECT {ADDRESS_COLUMNS} FROM user_address WHERE address_id = ? LIMIT 1"));
         sqlx::query_as::<_, UserAddress>(&sql)
             .bind(address_id)
             .fetch_optional(&self.pool)
@@ -131,7 +131,7 @@ impl UserAddressRepository {
     ) -> Result<i32> {
         let mut tx = self.pool.begin().await.map_err(map_err)?;
         if let Some(uid) = clear_default_user {
-            sqlx::query("UPDATE user_address SET is_default = 0 WHERE user_id = ?")
+            sqlx::query("UPDATE user_address SET is_default = 0 WHERE user_id = $1")
                 .bind(uid)
                 .execute(&mut *tx)
                 .await
@@ -143,7 +143,7 @@ impl UserAddressRepository {
               region_names, address, address_line_two, building_name, floor, unit, address_data, \
               formatted_address, position_address, postcode, telephone, mobile, is_default, \
               is_system, is_selected, mobile_area_code, international_mobile, latitude, longitude) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING address_id",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26) RETURNING address_id",
         )
         .bind(&entity.country_code)
         .bind(&entity.country_name)
@@ -176,12 +176,12 @@ impl UserAddressRepository {
         .map_err(map_err)?;
         let new_id = r;
         if set_selected {
-            sqlx::query("UPDATE user_address SET is_selected = 0 WHERE user_id = ?")
+            sqlx::query("UPDATE user_address SET is_selected = 0 WHERE user_id = $1")
                 .bind(current_user)
                 .execute(&mut *tx)
                 .await
                 .map_err(map_err)?;
-            sqlx::query("UPDATE user_address SET is_selected = 1 WHERE address_id = ? AND user_id = ?")
+            sqlx::query("UPDATE user_address SET is_selected = 1 WHERE address_id = $1 AND user_id = $2")
                 .bind(new_id)
                 .bind(current_user)
                 .execute(&mut *tx)
@@ -205,7 +205,7 @@ impl UserAddressRepository {
         if let Some((uid, exclude_id)) = clear_default_of {
             sqlx::query(
                 "UPDATE user_address SET is_default = 0 \
-                 WHERE user_id = ? AND address_id <> ?",
+                 WHERE user_id = $1 AND address_id <> $2",
             )
             .bind(uid)
             .bind(exclude_id)
@@ -214,13 +214,13 @@ impl UserAddressRepository {
             .map_err(map_err)?;
         }
         let r = sqlx::query(
-            "UPDATE user_address SET country_code = ?, country_name = ?, address_tag = ?, \
-                user_id = ?, consignee = ?, email = ?, region_ids = ?, region_names = ?, \
-                address = ?, address_line_two = ?, building_name = ?, floor = ?, unit = ?, \
-                address_data = ?, formatted_address = ?, position_address = ?, postcode = ?, \
-                telephone = ?, mobile = ?, is_default = ?, is_system = ?, is_selected = ?, \
-                mobile_area_code = ?, international_mobile = ?, latitude = ?, longitude = ? \
-             WHERE address_id = ?",
+            "UPDATE user_address SET country_code = $1, country_name = $2, address_tag = $3, \
+                user_id = $4, consignee = $5, email = $6, region_ids = $7, region_names = $8, \
+                address = $9, address_line_two = $10, building_name = $11, floor = $12, unit = $13, \
+                address_data = $14, formatted_address = $15, position_address = $16, postcode = $17, \
+                telephone = $18, mobile = $19, is_default = $20, is_system = $21, is_selected = $22, \
+                mobile_area_code = $23, international_mobile = $24, latitude = $25, longitude = $26 \
+             WHERE address_id = $27",
         )
         .bind(&entity.country_code)
         .bind(&entity.country_name)
@@ -259,12 +259,12 @@ impl UserAddressRepository {
     /// 设置选中地址（Java `#setSelected`，`@Transactional`）：先清后设。
     pub async fn set_selected(&self, user_id: i32, address_id: i32) -> Result<()> {
         let mut tx = self.pool.begin().await.map_err(map_err)?;
-        sqlx::query("UPDATE user_address SET is_selected = 0 WHERE user_id = ?")
+        sqlx::query("UPDATE user_address SET is_selected = 0 WHERE user_id = $1")
             .bind(user_id)
             .execute(&mut *tx)
             .await
             .map_err(map_err)?;
-        sqlx::query("UPDATE user_address SET is_selected = 1 WHERE address_id = ? AND user_id = ?")
+        sqlx::query("UPDATE user_address SET is_selected = 1 WHERE address_id = $1 AND user_id = $2")
             .bind(address_id)
             .bind(user_id)
             .execute(&mut *tx)
@@ -276,7 +276,7 @@ impl UserAddressRepository {
 
     /// 删除单条（Java \"del\" → \"removeById\"）。
     pub async fn delete(&self, address_id: i32) -> Result<u64> {
-        let r = sqlx::query("DELETE FROM user_address WHERE address_id = ?")
+        let r = sqlx::query("DELETE FROM user_address WHERE address_id = $1")
             .bind(address_id)
             .execute(&self.pool)
             .await

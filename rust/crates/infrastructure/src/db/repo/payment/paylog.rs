@@ -126,7 +126,7 @@ impl PaylogRepository {
             return Ok(None);
         }
         let placeholders = vec!["?"; channels.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM paylog
              WHERE order_id = $1
                AND order_type = $2
@@ -135,7 +135,7 @@ impl PaylogRepository {
                AND profit_sharing_channel IN ({placeholders})
              ORDER BY paylog_id DESC
              LIMIT 1"
-        );
+        ));
         let mut q = sqlx::query_as::<_, Paylog>(&sql)
             .bind(order_id)
             .bind(ORDER_TYPE_PRODUCT)

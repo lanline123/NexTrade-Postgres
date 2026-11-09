@@ -93,9 +93,9 @@ impl ProxyShoppingDeliveryRepository {
             return Ok(Vec::new());
         }
         let placeholders = product_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT product_id, product_name, pic_thumb, product_type, is_shop_pickup, is_logistics, no_shipping, is_shop_delivery FROM product WHERE product_id IN ({placeholders})"
-        );
+        ));
         let mut query = sqlx::query_as::<_, ProductDeliveryAttr>(&sql);
         for id in product_ids {
             query = query.bind(id);

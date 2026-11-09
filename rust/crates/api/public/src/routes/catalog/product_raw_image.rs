@@ -237,7 +237,7 @@ fn allowed_scopes(settings: &RawImageSettings, channel: &str) -> Result<Vec<Stri
 async fn load_product(state: &PublicState, product_id: i32) -> Result<RawImageProduct, AppError> {
     let row = sqlx::query(
         "SELECT product_name, product_sn, product_desc, pic_url, pic_original, shop_id \
-         FROM product WHERE product_id = ? AND is_delete = 0 AND product_status = 1 LIMIT 1",
+         FROM product WHERE product_id = $1 AND is_delete = 0 AND product_status = 1 LIMIT 1",
     )
     .bind(product_id)
     .fetch_optional(&state.repos.pool)
@@ -284,7 +284,7 @@ async fn galleries(
 ) -> Result<Vec<(Option<String>, Option<String>)>, AppError> {
     let rows = sqlx::query(
         "SELECT pic_url, pic_original FROM product_gallery \
-         WHERE product_id = ? AND shop_id = ? ORDER BY sort_order, pic_id",
+         WHERE product_id = $1 AND shop_id = $2 ORDER BY sort_order, pic_id",
     )
     .bind(product_id)
     .bind(shop_id)
@@ -372,7 +372,7 @@ async fn collect_entries(
     if scopes.iter().any(|s| s == "sku") {
         let rows = sqlx::query(
             "SELECT attr_name, attr_value, attr_pic FROM product_attributes \
-             WHERE product_id = ? AND attr_type = 1 ORDER BY sort_order, attributes_id",
+             WHERE product_id = $1 AND attr_type = 1 ORDER BY sort_order, attributes_id",
         )
         .bind(q.id.unwrap_or(0))
         .fetch_all(&state.repos.pool)

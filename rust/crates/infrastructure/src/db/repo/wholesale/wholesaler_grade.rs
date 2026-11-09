@@ -92,9 +92,9 @@ impl WholesalerGradeRepository {
         } else {
             "WHERE is_delete = 0"
         };
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "{GRADE_SELECT} {where_sql} ORDER BY sort_order ASC, grade_id ASC"
-        );
+        ));
         let mut q = sqlx::query_as::<_, WholesalerGrade>(&sql);
         if let Some(status) = status {
             q = q.bind(status);
@@ -126,9 +126,9 @@ impl WholesalerGradeRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; grade_ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT grade_id, COUNT(*) FROM wholesaler WHERE is_delete = 0 AND grade_id IN ({placeholders}) GROUP BY grade_id"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (i32, i64)>(&sql);
         for id in grade_ids {
             q = q.bind(*id);
@@ -158,7 +158,7 @@ impl WholesalerGradeRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; grade_ids.len()].join(", ");
-        let sql = format!("{GRADE_SELECT} WHERE is_delete = 0 AND grade_id IN ({placeholders})");
+        let sql = crate::db::to_pg_placeholders(&format!("{GRADE_SELECT} WHERE is_delete = 0 AND grade_id IN ({placeholders})"));
         let mut q = sqlx::query_as::<_, WholesalerGrade>(&sql);
         for id in grade_ids {
             q = q.bind(*id);

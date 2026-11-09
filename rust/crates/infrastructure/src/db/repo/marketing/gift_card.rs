@@ -150,7 +150,7 @@ impl GiftCardRepository {
             return Ok((0, Vec::new()));
         };
         let (where_sql, binds) = build_where(q, card_groups_id);
-        let count_sql = format!("SELECT COUNT(*) FROM gift_cards{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM gift_cards{where_sql}"));
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
         for b in &binds {
             count_q = match b {
@@ -163,11 +163,11 @@ impl GiftCardRepository {
             .await
             .map_err(map_err)?;
 
-        let rows_sql = format!(
+        let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {} FROM gift_cards{where_sql}{} LIMIT {limit} OFFSET {offset}",
             GIFT_CARDS_COLUMNS.join(", "),
             q.order_clause()
-        );
+        ));
         let mut rows_q = sqlx::query_as::<_, GiftCards>(&rows_sql);
         for b in &binds {
             rows_q = match b {
@@ -359,9 +359,9 @@ impl GiftCardRepository {
             return Ok(Vec::new());
         }
         let placeholders = vec!["?"; card_numbers.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT card_number FROM gift_cards WHERE card_number IN ({placeholders})"
-        );
+        ));
         let mut q = sqlx::query_as::<_, (String,)>(&sql);
         for no in card_numbers {
             q = q.bind(no);
@@ -448,16 +448,16 @@ mod tests {
     #[test]
     fn where_always_filters_group_and_optional_keyword() {
         let (sql, binds) = build_where(&q(serde_json::json!({})), 5);
-        assert_eq!(sql, " WHERE card_groups_id = ?");
+        assert_eq!(sql, " WHERE card_groups_id = $1");
         assert!(matches!(binds.as_slice(), [Bind::I32(5)]));
 
         // Java `keyword != null`：空串也参与 LIKE
         let (sql, binds) = build_where(&q(serde_json::json!({"keyword": ""})), 5);
-        assert_eq!(sql, " WHERE card_groups_id = ? AND card_number LIKE ?");
+        assert_eq!(sql, " WHERE card_groups_id = $1 AND card_number LIKE $2");
         assert!(matches!(&binds[1], Bind::Str(s) if s == "%%"));
 
         let (sql, binds) = build_where(&q(serde_json::json!({"keyword": "GC20"})), 9);
-        assert_eq!(sql, " WHERE card_groups_id = ? AND card_number LIKE ?");
+        assert_eq!(sql, " WHERE card_groups_id = $1 AND card_number LIKE $2");
         assert!(matches!(&binds[1], Bind::Str(s) if s == "%GC20%"));
     }
 
@@ -470,7 +470,7 @@ mod tests {
         // INSERT 充值单列清单与表结构一致
         let src = include_str!("gift_card.rs");
         assert!(src.contains("INSERT INTO user_recharge_order (user_id, amount, discount_money, add_time, paid_time, postscript, status)"));
-        assert!(src.contains("WHERE gift_card_id = ? LIMIT 1"));
+        assert!(src.contains("WHERE gift_card_id = $1 LIMIT 1"));
     }
 
     #[test]

@@ -73,7 +73,7 @@ impl ConfigClientRepository {
     /// 因此本实现按 `is_del = 0` 过滤，与前台实际取值一致。
     pub async fn find_all_configs(&self) -> Result<Vec<Config>> {
         sqlx::query_as::<_, Config>(&format!(
-            "{CONFIG_SELECT} WHERE {}.{} = ?",
+            "{CONFIG_SELECT} WHERE {}.{} = $1",
             "config", "is_del"
         ))
         .bind(IS_DEL_NO)
@@ -102,9 +102,9 @@ impl ConfigClientRepository {
         filter_is_del: bool,
     ) -> Result<Option<String>> {
         let sql = if filter_is_del {
-            "SELECT biz_val FROM config WHERE biz_code = ? AND is_del = ? LIMIT 1"
+            "SELECT biz_val FROM config WHERE biz_code = $1 AND is_del = $2 LIMIT 1"
         } else {
-            "SELECT biz_val FROM config WHERE biz_code = ? LIMIT 1"
+            "SELECT biz_val FROM config WHERE biz_code = $1 LIMIT 1"
         };
         let row: Option<(Option<String>,)> = if filter_is_del {
             sqlx::query_as(sql)
@@ -160,7 +160,7 @@ impl ConfigClientRepository {
     /// 本实现返回 `Option`，由服务层决定（见 `uncertain_points`）。
     pub async fn find_grow_config(&self) -> Result<Option<UserRankConfig>> {
         sqlx::query_as::<_, UserRankConfig>(&format!(
-            "{USER_RANK_CONFIG_SELECT} WHERE code = ? LIMIT 1"
+            "{USER_RANK_CONFIG_SELECT} WHERE code = $1 LIMIT 1"
         ))
         .bind(USER_RANK_CONFIG_GROW_CODE)
         .fetch_optional(&self.pool)
@@ -194,7 +194,7 @@ impl ConfigClientRepository {
     /// `getInitConfigSettings` 的 `previewId` 分支）。
     pub async fn find_decorate_by_id(&self, decorate_id: i32) -> Result<Option<Decorate>> {
         sqlx::query_as::<_, Decorate>(&format!(
-            "{DECORATE_SELECT} WHERE decorate_id = ? LIMIT 1"
+            "{DECORATE_SELECT} WHERE decorate_id = $1 LIMIT 1"
         ))
         .bind(decorate_id)
         .fetch_optional(&self.pool)
@@ -213,7 +213,7 @@ impl ConfigClientRepository {
     /// 本实现逐条照抄各自的原条件（见 `uncertain_points`）。
     pub async fn find_pc_home_decorate(&self, decorate_type: i32) -> Result<Option<Decorate>> {
         sqlx::query_as::<_, Decorate>(&format!(
-            "{DECORATE_SELECT} WHERE shop_id = 0 AND decorate_type = ? AND is_home = 1 \
+            "{DECORATE_SELECT} WHERE shop_id = 0 AND decorate_type = $1 AND is_home = 1 \
              AND status = 1 LIMIT 1"
         ))
         .bind(decorate_type)
@@ -236,7 +236,7 @@ impl ConfigClientRepository {
     /// 但本实现逐字符复刻（见 `uncertain_points`）。
     pub async fn find_pc_index_page_config(&self, decorate_type_h5: i32) -> Result<Option<Decorate>> {
         sqlx::query_as::<_, Decorate>(&format!(
-            "{DECORATE_SELECT} WHERE shop_id = 0 AND decorate_type = ? AND page_type = 1 \
+            "{DECORATE_SELECT} WHERE shop_id = 0 AND decorate_type = $1 AND page_type = 1 \
              AND is_home = 1 AND status = 1 AND locale_id = 0 LIMIT 1"
         ))
         .bind(decorate_type_h5)
@@ -256,7 +256,7 @@ impl ConfigClientRepository {
         page_type: i32,
     ) -> Result<bool> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM decorate WHERE decorate_type = ? AND page_type = ? \
+            "SELECT COUNT(*) FROM decorate WHERE decorate_type = $1 AND page_type = $2 \
              AND is_home = 1",
         )
         .bind(decorate_type)

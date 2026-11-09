@@ -52,7 +52,7 @@ impl MerchantAccountRepository {
         };
         let (page, size) = q.page_params();
         let sort = sort_column(q);
-        let count_sql = format!("SELECT COUNT(*) FROM merchant_account{where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM merchant_account{where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         if let Some(s) = shop_id.filter(|s| *s > 0) {
             cq = cq.bind(s);
@@ -63,7 +63,7 @@ impl MerchantAccountRepository {
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
         let list_sql =
-            format!("SELECT {COLUMNS} FROM merchant_account{where_sql} ORDER BY {sort} LIMIT ? OFFSET ?");
+            crate::db::to_pg_placeholders(&format!("SELECT {COLUMNS} FROM merchant_account{where_sql} ORDER BY {sort} LIMIT ? OFFSET ?"));
         let mut lq = sqlx::query_as::<_, MerchantAccount>(&list_sql);
         if let Some(s) = shop_id.filter(|s| *s > 0) {
             lq = lq.bind(s);
@@ -219,9 +219,9 @@ impl MerchantAccountRepository {
         }
         // 多租户：店铺账号批量删除仅作用于本店账户。
         let ph = vec!["?"; ids.len()].join(", ");
-        let sql = format!(
+        let sql = crate::db::to_pg_placeholders(&format!(
             "DELETE FROM merchant_account WHERE account_id IN ({ph}) AND ($1 IS NULL OR shop_id = $2)"
-        );
+        ));
         let mut q = sqlx::query(&sql);
         for id in ids {
             q = q.bind(*id);

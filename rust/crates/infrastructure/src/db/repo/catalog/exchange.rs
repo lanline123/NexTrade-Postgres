@@ -190,7 +190,7 @@ impl ExchangeRepository {
         let order_by = order_clause(sort_field, sort_order);
         let (limit, offset) = page.limit_offset();
 
-        let count_sql = format!("SELECT COUNT(*) {POINTS_EXCHANGE_FROM} {where_sql}");
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) {POINTS_EXCHANGE_FROM} {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
         cq = bind_filters(
             cq,
@@ -200,9 +200,9 @@ impl ExchangeRepository {
         );
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
-        let list_sql = format!(
+        let list_sql = crate::db::to_pg_placeholders(&format!(
             "{POINTS_EXCHANGE_ROW_SELECT} {POINTS_EXCHANGE_FROM} {where_sql} {order_by} LIMIT ? OFFSET ?"
-        );
+        ));
         let mut lq = sqlx::query_as::<_, PointsExchangeRow>(&list_sql);
         lq = bind_filters(
             lq,
