@@ -261,6 +261,99 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8181/api/health
 切换前预检已通过：空串 0、非法格式 0；当前只有 3 列有数据
 （`wechat_live.create_time`、`statistics_base.date`、`user.birthday`）。
 
+### 4.4 构建通道与发布流程
+
+仓库里有两条构建通道，产物都能直接在服务器运行（同为 `rockylinux:8` 容器、glibc 2.28、sccache）：
+
+| 通道 | workflow | profile | 产物 | 用途 |
+|---|---|---|---|---|
+| 正式 | `build-rust.yml` | `release`（fat LTO） | Release `build-<n>`：`nextrade` + `nextrade.sha256` | 上线 |
+| 测试 | `build-staging.yml` | `staging`（thin LTO + codegen-units 16 + incremental） | artifact `rustshop-staging-linux-x86_64`（zip，含 `rustshop-staging` + `.sha256`） | 验证 / 热修，**不发 Release** |
+
+**日常验证走 staging（快，不产正式版本）**：
+
+1. 触发：Actions → `build-rust-staging` → Run workflow（分支 `main`）
+2. 完成后在该运行页下载 Artifact `rustshop-staging-linux-x86_64`
+3. 部署：
+
+```bash
+sha256sum -c rustshop-staging.sha256
+systemctl stop nextrade
+cp -a /www/wwwroot/nextrade/nextrade /www/backup/nextrade.pre$(date +%Y%m%d%H%M).bak
+install -m755 rustshop-staging /www/wwwroot/nextrade/nextrade
+systemctl start nextrade
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/adminapi/health
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8181/api/health
+```
+
+**正式上线走 release**：同样三步，产物换成 Release 里的 `nextrade` + `nextrade.sha256`。
+注意 staging 包没有 tag、不记录版本，只用于验证；最终对外版本仍以 Release 为准。
+
+### 4.5 CI 构建耗时与优化方案（**尚未实施**）
+
+实测 `build-rust-backend` 最近两次成功运行的耗时：
+
+| 步骤 | 耗时 |
+|---|---:|
+| Build release binary（`cargo build --release`） | 980–992s（约 16.4 分钟） |
+| Post Cache（上传缓存） | 138–142s |
+| Install git & build deps | 38s |
+| Cache restore | 33s |
+| Rust 工具链 + sccache 安装 | 10s |
+| 其余（checkout/打包/发布） | <10s |
+| **合计** | **约 1240s（20.7 分钟）** |
+
+根因：
+
+1. `rust/crates/Cargo.toml` 的 `[profile.release]` 是 `lto = "fat"` + `codegen-units = 1`；20 个
+   workspace 成员、523 个依赖包，fat LTO 的全局优化与链接无法被 sccache 缓存。
+2. 缓存 key 带 `${{ github.run_id }}`，每次都是新条目，必然完整上传一次。
+3. `/tmp/cargo-target` 也进了缓存，体积大、收益低。
+4. 链接器用系统 `ld`。
+
+改动方案（下次构建前实施）：
+
+```toml
+# rust/crates/Cargo.toml
+[profile.release-ci]
+inherits = "release"
+lto = "thin"
+codegen-units = 16
+```
+
+- `cargo build --profile release-ci -p nextrade-server`，打包路径改为 `${CARGO_TARGET_DIR}/release-ci/nextrade`
+- 缓存 key 去掉 `run_id`；缓存只保留 registry / git / sccache，去掉 `/tmp/cargo-target`
+- `dnf install -y lld`，构建时 `RUSTFLAGS="-C link-arg=-fuse-ld=lld"`
+- 可选：更大 runner（8 vCPU）或先跑一次 `cargo build --timings` 定位重依赖
+
+预期：编译 16.4 → 5~7 分钟，缓存上传 2.3 → <0.5 分钟，**合计 20.7 → 6~8 分钟**。
+首次切换是冷缓存，从第二次起见效；保留 `--release` 作为回退开关。
+
+### 4.6 Schema 与二进制强耦合（维护约定）
+
+- 49 列已改为 `timestamp` / `date` / `jsonb`；**任何按 `String` 读取它们的二进制都会 500**。
+  改这些列必须与匹配的二进制同批部署。
+- 本仓库的 Rust 实体仍用 `String`，所以 SQL 必须显式转换：
+  - 读：`"col"::text AS "col"`
+  - 写：`NULLIF($n, '')::timestamp|date|jsonb`
+- **不要对这些表用 `SELECT *`**（已展开 38 处）。新增查询要显式列清单并加转换；
+  例外：`user` 表（实体无 `birthday` 字段）。
+- 聚合函数注意返回类型：`SUM(int)` → `bigint`（用 `i64` 接），`MAX(numeric)` / `AVG(int)` → `numeric`（用 `Decimal` 接）。
+
+### 4.7 2026-11-09 部署与回归状态
+
+| 项 | 状态 |
+|---|---|
+| 生产库 | 49 列已转换；与 `pure.sql` 比对 `mismatch = 0` |
+| 线上二进制 | `2026-11-09 23:32` 构建，来自 `34a5659` |
+| 会员 `123/123` | 登录、购物车列表、订单列表、资料、站内信 均 200 |
+| 管理端 `admin/admin123` | 订单、优惠券、拼团、微信直播、微信菜单、类目费率、面板、操作日志 均 200 |
+| **遗留** | `/api/cart/cart/getCount` 仍 500 |
+
+`getCount` 的根因是 `SUM(quantity)` 返回 `bigint`、代码按 `Decimal` 解码，已修复并提交 `22ce67a`
+（`cart_summary` / `proxy_shopping_cart` / `proxy_shopping_delivery` 三处改为 `Option<i64>`），
+`check-rust` 已通过。**待部署含该提交的二进制后即可恢复**。
+
 ---
 
 ## 5. 本机工具矩阵
@@ -307,3 +400,5 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8181/api/health
 | 2026-11-09 | 首次建立；记录面板 API 签名方式、凭证位置、已验证接口、GitHub 认证与 CI、生产 PG 入口、工具矩阵与安全项 |
 | 2026-11-09 | `rust/config.yaml` 移出仓库：新增 `config.example.yaml`，`.gitignore` 增加 `rust/config.yaml` / `rust/.env*`，同步修正 `rust/README.md` 的配置说明与 PG DSN 示例 |
 | 2026-11-09 | 生产 PG 与 MySQL 基线（`database/pure.sql`）全量比对：335 表 / 3927 列，0 表 0 列缺失；修复 198 条类型/索引/可空性差异，脚本见 `rust/deploy/pg/2026-11-09_schema_align.sql`；新增 §4.1 服务器侧执行流程、§4.2 对齐记录 |
+| 2026-11-09 | 记录两条构建通道（release / staging）与日常验证流程；补充 CI 构建耗时实测（20.7 min）与优化方案（目标 6~8 min，未实施）；新增 schema 与二进制强耦合的维护约定 |
+| 2026-11-09 | 部署与回归结果：会员/管理端主要接口 200；`cart/getCount` 因 `SUM(int)` 返回 bigint 而 500，修复提交 `22ce67a`，待部署 |
