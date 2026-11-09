@@ -484,7 +484,7 @@ impl LogisticsCompanyConfigRepository {
                  OR ($5 = 2 AND (
                       (kuaidi100_code IS NOT NULL AND TRIM(kuaidi100_code) <> '')
                       OR (logistics_code IS NOT NULL
-                          AND TRIM(logistics_code) COLLATE utf8mb4_bin REGEXP '^[a-z0-9]+$')
+                          AND TRIM(logistics_code) ~ '^[a-z0-9]+$')
                     ))
                )
              ORDER BY logistics_id ASC",

@@ -131,7 +131,7 @@ impl LogRepository {
     pub async fn insert_log(&self, log: &StatisticsLog) -> Result<i32> {
         let res: i32 = sqlx::query_scalar(
             "INSERT INTO statistics_log \
-             (access_time, shop_id, product_id, shop_category_id, user) \
+             (access_time, shop_id, product_id, shop_category_id, \"user\") \
              VALUES ($1, $2, $3, $4, $5) RETURNING id",
         )
         .bind(log.access_time)

@@ -164,7 +164,7 @@ impl ShopProductCategoryRepository {
     /// `getCategoryByParentId` / `getCategoryAllChildIds` 复用。
     pub async fn find_by_shop(&self, shop_id: i32) -> Result<Vec<ShopProductCategory>> {
         sqlx::query_as::<_, ShopProductCategory>(&format!(
-            "{CATEGORY_SELECT} WHERE shop_id = ?{TREE_ORDER}"
+            "{CATEGORY_SELECT} WHERE shop_id = $1{TREE_ORDER}"
         ))
         .bind(shop_id)
         .fetch_all(&self.pool)

@@ -201,7 +201,7 @@ impl LogisticsCompanyRepository {
                 // Java 结尾的 `.or().apply(REGEXP ...)`，用 `COLLATE utf8mb4_bin`
                 // 保证大小写敏感匹配（与 Java 原文逐字符一致）。
                 qb.push(
-                    " OR TRIM(logistics_code) COLLATE utf8mb4_bin REGEXP '^[a-z0-9]+$')",
+                    " OR TRIM(logistics_code) ~ '^[a-z0-9]+$')",
                 );
             }
             _ => {}

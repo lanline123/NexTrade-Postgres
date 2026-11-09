@@ -86,7 +86,7 @@ const STYLE_SELECT: &str = "SELECT ps.style_id, ps.style_name, ps.style_type, ps
 const PRODUCT_JOIN_CONDITION: &str = "(psi.item_type = 1 AND psi.ref_id = p.product_id) \
      OR (psi.item_type = 2 AND EXISTS (SELECT 1 FROM product_group pg \
          WHERE pg.product_group_id = psi.ref_id \
-           AND JSON_CONTAINS(pg.product_ids, CAST(p.product_id AS JSON)))) \
+           AND pg.product_ids::jsonb @> (p.product_id::text)::jsonb)) \
      OR (psi.item_type = 3 AND psi.ref_id = p.brand_id)";
 
 #[derive(Clone)]
@@ -954,7 +954,7 @@ mod tests {
         assert!(PRODUCT_JOIN_CONDITION.contains("psi.item_type = 1 AND psi.ref_id = p.product_id"));
         // 2=分组 走 product_group.product_ids 的 JSON_CONTAINS
         assert!(PRODUCT_JOIN_CONDITION.contains("psi.item_type = 2"));
-        assert!(PRODUCT_JOIN_CONDITION.contains("JSON_CONTAINS(pg.product_ids, CAST(p.product_id AS JSON))"));
+        assert!(PRODUCT_JOIN_CONDITION.contains("pg.product_ids::jsonb @> (p.product_id::text)::jsonb"));
         // 3=品牌 走 brand_id
         assert!(PRODUCT_JOIN_CONDITION.contains("psi.item_type = 3 AND psi.ref_id = p.brand_id"));
     }
@@ -1036,7 +1036,7 @@ impl ProductStyleAdminRepository {
         qb.push(" UNION ALL ");
         qb.push(columns);
         qb.push(ps_filter);
-        qb.push(" AND psi.item_type = 2 INNER JOIN product_group pg ON pg.product_group_id = psi.ref_id INNER JOIN product p ON JSON_CONTAINS(pg.product_ids, CAST(p.product_id AS JSON)) WHERE ps.status = 1 AND ps.is_delete = 0");
+        qb.push(" AND psi.item_type = 2 INNER JOIN product_group pg ON pg.product_group_id = psi.ref_id INNER JOIN product p ON pg.product_ids::jsonb @> (p.product_id::text)::jsonb WHERE ps.status = 1 AND ps.is_delete = 0");
         push_filter(&mut qb, product_ids, now);
         // ③ item_type = 3：命中品牌
         qb.push(" UNION ALL ");
@@ -1081,7 +1081,7 @@ mod active_style_sql_tests {
         assert!(src.contains("psi.item_type = 1"));
         assert!(src.contains("psi.item_type = 2"));
         assert!(src.contains("psi.item_type = 3"));
-        assert!(src.contains("JSON_CONTAINS(pg.product_ids, CAST(p.product_id AS JSON))"));
+        assert!(src.contains("pg.product_ids::jsonb @> (p.product_id::text)::jsonb"));
         assert!(src.contains("ps.status = 1"));
         assert!(src.contains("ps.is_delete = 0"));
         assert!(src.contains("ORDER BY add_time DESC"));

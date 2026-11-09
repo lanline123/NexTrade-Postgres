@@ -776,7 +776,7 @@ impl UserCenterRepository {
     /// 已支付订单累计金额（`memberCenter` 未使用；保留给用户中心扩展）。
     pub async fn sum_paid_order_amount(&self, user_id: i32) -> Result<Decimal> {
         let (s,): (Decimal,) = sqlx::query_as(
-            "SELECT COALESCE(SUM(order_amount), 0) AS s FROM \"order\" \
+            "SELECT COALESCE(SUM(total_amount), 0) AS s FROM \"order\" \
              WHERE user_id = $1 AND order_status IN (2, 5)",
         )
         .bind(user_id)

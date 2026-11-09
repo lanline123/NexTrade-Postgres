@@ -854,7 +854,7 @@ pub fn build_filter(
     }
 
     if let Some(goods_id) = q.goods_id {
-        conds.push(format!("JSON_CONTAINS(group_data, '{goods_id}')"));
+        conds.push(format!("group_data::jsonb @> '{goods_id}'::jsonb"));
     }
 
     if let (Some(start), Some(end)) = (start_ts, end_ts) {
@@ -1065,7 +1065,7 @@ mod tests {
     #[test]
     fn filter_goods_id_uses_json_contains_literal() {
         let (sql, binds) = build_filter(&query_with(None, None, Some(42)), None, None);
-        assert_eq!(sql, " WHERE JSON_CONTAINS(group_data, '42')");
+        assert_eq!(sql, " WHERE group_data::jsonb @> '42'::jsonb");
         assert!(binds.is_empty());
     }
 
@@ -1089,7 +1089,7 @@ mod tests {
         assert_eq!(
             sql,
             " WHERE status <> $1 AND is_show = $2 AND content LIKE CONCAT('%', $3, '%') \
-             AND JSON_CONTAINS(group_data, '7') AND add_time BETWEEN $4 AND $5"
+             AND group_data::jsonb @> '7'::jsonb AND add_time BETWEEN $4 AND $5"
         );
         assert_eq!(binds.len(), 5);
     }

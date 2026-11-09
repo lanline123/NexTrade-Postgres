@@ -196,7 +196,7 @@ impl BuyerShowGroupRepository {
     /// 同样与 Java 行为一致。
     pub async fn count_buyer_shows_in_group(&self, buyer_show_group_id: i32) -> Result<i64> {
         let row: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM buyer_show WHERE JSON_CONTAINS(group_data, $1)")
+            sqlx::query_as("SELECT COUNT(*) FROM buyer_show WHERE group_data::jsonb @> ($1::text)::jsonb")
                 .bind(buyer_show_group_id.to_string())
                 .fetch_one(&self.pool)
                 .await

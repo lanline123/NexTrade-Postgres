@@ -166,7 +166,7 @@ impl UserRankRepository {
 
     /// 按主键查询（对应 Java `getById`）。
     pub async fn find_by_id(&self, rank_id: i32) -> Result<Option<UserRank>> {
-        sqlx::query_as::<_, UserRank>(&format!("{USER_RANK_SELECT} WHERE rank_id = ? LIMIT 1"))
+        sqlx::query_as::<_, UserRank>(&format!("{USER_RANK_SELECT} WHERE rank_id = $1 LIMIT 1"))
             .bind(rank_id)
             .fetch_optional(&self.pool)
             .await

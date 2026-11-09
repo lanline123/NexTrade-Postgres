@@ -468,7 +468,7 @@ impl ImConversationRepository {
         num: i64,
     ) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE im_servant SET conversation_num = $1 WHERE servant_id = $2 AND shop_id = $3 LIMIT 1",
+            "UPDATE im_servant SET conversation_num = $1 WHERE servant_id = (SELECT servant_id FROM im_servant WHERE servant_id = $2 AND shop_id = $3 LIMIT 1)",
         )
         .bind(num)
         .bind(servant_id)

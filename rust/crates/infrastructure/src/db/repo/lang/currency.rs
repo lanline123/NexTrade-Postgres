@@ -62,6 +62,7 @@ impl CurrencyRepository {
         .map_err(map_err)?;
         let list_sql =
             Self::select_sql(&format!("{where_sql} ORDER BY {order_by} LIMIT ? OFFSET ?"));
+        let list_sql = crate::db::to_pg_placeholders(&list_sql);
         let mut q = sqlx::query_as::<_, Currency>(&list_sql);
         if let Some(name) = name_like {
             q = q.bind(format!("%{name}%"));

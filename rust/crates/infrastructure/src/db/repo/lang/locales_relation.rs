@@ -43,6 +43,7 @@ impl LocalesRelationRepository {
             .await
             .map_err(map_err)?;
         let sql = Self::select_sql(&format!("ORDER BY {order_by} LIMIT ? OFFSET ?"));
+        let sql = crate::db::to_pg_placeholders(&sql);
         let rows = sqlx::query_as::<_, LocalesRelation>(&sql)
             .bind(limit as i64)
             .bind(offset as i64)

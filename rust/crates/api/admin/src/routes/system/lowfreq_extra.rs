@@ -253,7 +253,7 @@ async fn h_5(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()
 // post /o2o/dispatch/assign
 async fn h_6(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
     // 简化：按 delivery_order 主键指派配送员（staff_id 经 id 传入）
-    sqlx::query("UPDATE delivery_order SET status = 1 WHERE id = $1")
+    sqlx::query("UPDATE delivery_order SET status = 1 WHERE delivery_order_id = $1")
         .bind(q.id.unwrap_or(0))
         .execute(&pool(&state))
         .await
@@ -270,7 +270,7 @@ async fn h_7(State(state): State<AdminState>) -> ApiResult<Value> {
 // post /order/dispatch/assign
 async fn h_8(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
     // 简化：按 delivery_order 主键指派配送员（staff_id 经 id 传入）
-    sqlx::query("UPDATE delivery_order SET status = 1 WHERE id = $1")
+    sqlx::query("UPDATE delivery_order SET status = 1 WHERE delivery_order_id = $1")
         .bind(q.id.unwrap_or(0))
         .execute(&pool(&state))
         .await
@@ -1267,7 +1267,7 @@ async fn h_fin_wallet_log_detail(
 
 async fn h_fin_wallet_income_trend(State(state): State<AdminState>) -> ApiResult<Value> {
     let rows: Vec<(Value,)> = sqlx::query_as(
-        "SELECT json_build_object('day', TO_CHAR(TO_TIMESTAMP(create_time), 'YYYY-MM-DD'), 'income', COALESCE(SUM(amount),0)) FROM service_staff_wallet_log WHERE create_time >= CAST(EXTRACT(EPOCH FROM (CURRENT_DATE - INTERVAL '30 day')) AS BIGINT) GROUP BY TO_CHAR(TO_TIMESTAMP(create_time), 'YYYY-MM-DD') ORDER BY day",
+        "SELECT json_build_object('day', TO_CHAR(TO_TIMESTAMP(create_time), 'YYYY-MM-DD'), 'income', COALESCE(SUM(amount),0)) FROM service_staff_wallet_log WHERE create_time >= CAST(EXTRACT(EPOCH FROM (CURRENT_DATE - INTERVAL '30 day')) AS BIGINT) GROUP BY TO_CHAR(TO_TIMESTAMP(create_time), 'YYYY-MM-DD') ORDER BY TO_CHAR(TO_TIMESTAMP(create_time), 'YYYY-MM-DD')",
     ).fetch_all(&pool(&state)).await.map_err(db)?;
     ok(Value::Array(rows.into_iter().map(|(v,)| v).collect()))
 }
@@ -1479,7 +1479,7 @@ async fn h_lottery_update_status(
         .and_then(Value::as_i64)
         .unwrap_or(0);
     let status = body.get("status").and_then(Value::as_i64).unwrap_or(0);
-    sqlx::query("UPDATE lottery_activity SET status = $1 WHERE activity_id = $2")
+    sqlx::query("UPDATE lottery_activity SET is_delete = CASE WHEN $1 = 0 THEN 1 ELSE 0 END WHERE activity_id = $2")
         .bind(status)
         .bind(id)
         .execute(&pool(&state))
@@ -1589,13 +1589,13 @@ async fn h_35(_state: State<AdminState>, Json(q): Json<Pg>) -> ApiResult<Value> 
 
 // get /setting/friendLinks/getAll
 async fn h_36(State(state): State<AdminState>) -> ApiResult<Value> {
-    let rows: Vec<(Value,)> = sqlx::query_as("SELECT json_build_object('linkId', link_id, 'linkTitle', link_title, 'linkUrl', link_url, 'isShow', is_show) FROM friend_link").fetch_all(&pool(&state)).await.map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as("SELECT json_build_object('linkId', link_id, 'linkTitle', link_title, 'linkUrl', link_url, 'isShow', true) FROM friend_links").fetch_all(&pool(&state)).await.map_err(db)?;
     ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>()}))
 }
 
 // get /setting/shippingTpl/getAll
 async fn h_37(State(state): State<AdminState>) -> ApiResult<Value> {
-    let rows: Vec<(Value,)> = sqlx::query_as("SELECT json_build_object('shippingTplId', shipping_tpl_id, 'tplName', tpl_name, 'isDefault', is_default) FROM shipping_tpl").fetch_all(&pool(&state)).await.map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as("SELECT json_build_object('shippingTplId', shipping_tpl_id, 'tplName', shipping_tpl_name, 'isDefault', is_default) FROM shipping_tpl").fetch_all(&pool(&state)).await.map_err(db)?;
     ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>()}))
 }
 
@@ -1635,8 +1635,8 @@ async fn h_43(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<(
 
 // post /merchant/shopProductCategory/moveCat
 async fn h_44(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
-    // shop 商品分类表按 shop_id 区分（表名 shop_product_category，主键 product_category_id）
-    sqlx::query("UPDATE shop_product_category SET parent_id = $1 WHERE product_category_id = $2")
+    // shop 商品分类表按 shop_id 区分（表名 shop_product_category，主键 category_id）
+    sqlx::query("UPDATE shop_product_category SET parent_id = $1 WHERE category_id = $2")
         .bind(q.parent_id.unwrap_or(0))
         .bind(q.id.unwrap_or(0))
         .execute(&pool(&state))

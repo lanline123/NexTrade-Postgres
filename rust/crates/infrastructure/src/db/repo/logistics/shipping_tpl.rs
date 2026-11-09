@@ -174,7 +174,7 @@ impl ShippingTplRepository {
 
     /// 按主键查询运费模板（对应 Java `getById`）。
     pub async fn find_tpl_by_id(&self, id: i32) -> Result<Option<ShippingTpl>> {
-        sqlx::query_as::<_, ShippingTpl>(&format!("{TPL_SELECT} WHERE shipping_tpl_id = ? LIMIT 1"))
+        sqlx::query_as::<_, ShippingTpl>(&format!("{TPL_SELECT} WHERE shipping_tpl_id = $1 LIMIT 1"))
             .bind(id)
             .fetch_optional(&self.pool)
             .await
@@ -185,7 +185,7 @@ impl ShippingTplRepository {
     /// 本切片未直接使用，供后续切片复用）。
     pub async fn find_tpls_by_shop(&self, shop_id: i32) -> Result<Vec<ShippingTpl>> {
         sqlx::query_as::<_, ShippingTpl>(&format!(
-            "{TPL_SELECT} WHERE shop_id = ? ORDER BY shipping_tpl_id DESC"
+            "{TPL_SELECT} WHERE shop_id = $1 ORDER BY shipping_tpl_id DESC"
         ))
         .bind(shop_id)
         .fetch_all(&self.pool)
@@ -483,7 +483,7 @@ impl ShippingTplRepository {
     /// 而是硬编码 `new ShippingType(1L)`。见服务层 `config` 的处理。
     pub async fn find_types_by_shop(&self, shop_id: i32) -> Result<Vec<ShippingType>> {
         sqlx::query_as::<_, ShippingType>(&format!(
-            "{TYPE_SELECT} WHERE shop_id = ? ORDER BY sort_order ASC, shipping_type_id ASC"
+            "{TYPE_SELECT} WHERE shop_id = $1 ORDER BY sort_order ASC, shipping_type_id ASC"
         ))
         .bind(shop_id)
         .fetch_all(&self.pool)

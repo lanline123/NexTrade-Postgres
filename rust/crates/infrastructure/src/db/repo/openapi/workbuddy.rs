@@ -378,7 +378,7 @@ impl WorkbuddyRepository {
 
     /// 按主键查商品（对应 Java `ProductService.detail` / `getById`）。
     pub async fn find_product(&self, product_id: i32) -> Result<Option<ProductRow>> {
-        sqlx::query_as::<_, ProductRow>(&format!("{PRODUCT_SELECT} WHERE product_id = ? LIMIT 1"))
+        sqlx::query_as::<_, ProductRow>(&format!("{PRODUCT_SELECT} WHERE product_id = $1 LIMIT 1"))
             .bind(product_id)
             .fetch_optional(&self.pool)
             .await

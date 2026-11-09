@@ -351,9 +351,9 @@ impl ProductPromotionRepository {
                 if i > 0 {
                     qb.push(" OR ");
                 }
-                qb.push("JSON_CONTAINS(range_data, ");
+                qb.push("range_data::jsonb @> ");
                 qb.push_bind(product_id.to_string());
-                qb.push(")");
+                qb.push("::text::jsonb");
             }
             qb.push(")");
         }
@@ -428,9 +428,9 @@ impl ProductPromotionRepository {
         }
         if q.range.unwrap_or(-1) == RANGE_PRODUCT {
             for pid in q.range_product_ids() {
-                qb.push(" AND JSON_CONTAINS(range_data, ");
+                qb.push(" AND range_data::jsonb @> ");
                 qb.push_bind(pid.to_string());
-                qb.push(")");
+                qb.push("::text::jsonb");
             }
         }
     }

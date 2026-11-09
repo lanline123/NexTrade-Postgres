@@ -157,6 +157,7 @@ impl AdminUserRepository {
             binds.push(Bind::I32(id));
         }
         sql.push_str(" ORDER BY admin_id DESC LIMIT 1");
+        let sql = crate::db::to_pg_placeholders(&sql);
         bind_all!(sqlx::query_as::<_, AdminUser>(&sql), binds)
             .fetch_optional(&self.pool)
             .await
@@ -191,6 +192,7 @@ impl AdminUserRepository {
             binds.push(Bind::I32(id));
         }
         sql.push_str(" ORDER BY admin_id DESC LIMIT 1");
+        let sql = crate::db::to_pg_placeholders(&sql);
         bind_all!(sqlx::query_as::<_, AdminUser>(&sql), binds)
             .fetch_optional(&self.pool)
             .await

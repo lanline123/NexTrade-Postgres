@@ -173,11 +173,11 @@ impl BuyerShowClientRepository {
             binds.push(Bind::Str(format!("%{keyword}%")));
         }
         if let Some(goods_id) = q.goods_id {
-            conds.push("JSON_CONTAINS(group_data, CAST(? AS JSON))".to_string());
+            conds.push("group_data::jsonb @> (?::text)::jsonb".to_string());
             binds.push(Bind::Str(goods_id.to_string()));
         }
         if let Some(product_id) = q.product_id {
-            conds.push("JSON_CONTAINS(range_data, CAST(? AS JSON))".to_string());
+            conds.push("range_data::jsonb @> (?::text)::jsonb".to_string());
             binds.push(Bind::Str(product_id.to_string()));
         }
 
@@ -261,7 +261,7 @@ impl BuyerShowClientRepository {
             binds.push(Bind::Str(format!("%{keyword}%")));
         }
         if let Some(group_id) = q.group_id {
-            sql.push_str(" AND JSON_CONTAINS(bs.group_data, CAST(? AS JSON))");
+            sql.push_str(" AND bs.group_data::jsonb @> (?::text)::jsonb");
             binds.push(Bind::Str(group_id.to_string()));
         }
         if let Some(a) = anchor {
@@ -281,6 +281,7 @@ impl BuyerShowClientRepository {
         }
 
         sql.push_str(" ORDER BY bs.sort_order ASC, bs.add_time DESC, bs.buyer_show_id DESC LIMIT ?");
+        let sql = crate::db::to_pg_placeholders(&sql);
         let rows = bind_all!(sqlx::query_as::<_, BuyerShow>(&sql), binds)
             .bind(limit)
             .fetch_all(&self.pool)
@@ -1032,8 +1033,9 @@ impl BuyerShowClientRepository {
             if i > 0 {
                 sql.push_str(" OR ");
             }
-            sql.push_str("JSON_CONTAINS(product_ids, CAST(? AS JSON))");
+            sql.push_str("product_ids::jsonb @> (?::text)::jsonb");
         }
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, ProductGroupRow>(&sql);
         for pid in product_ids {
             q = q.bind(pid.to_string());
@@ -1050,8 +1052,9 @@ impl BuyerShowClientRepository {
             if i > 0 {
                 sql.push_str(" OR ");
             }
-            sql.push_str("JSON_CONTAINS(product_group_id, CAST(? AS JSON))");
+            sql.push_str("product_group_id::jsonb @> (?::text)::jsonb");
         }
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query_as::<_, BuyerShowGroup>(&sql);
         for gid in &group_ids {
             q = q.bind(gid.to_string());

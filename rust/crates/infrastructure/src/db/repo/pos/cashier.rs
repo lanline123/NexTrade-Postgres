@@ -128,7 +128,7 @@ impl PosCashierRepository {
     /// 上下班时间戳存 config（code = posWork:{admin_id}，value = ISO 时间 JSON）。
     pub async fn work_flag(&self, admin_id: i32) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> = sqlx::query_as(
-            "SELECT content FROM config WHERE \"code\" = $1 ORDER BY id DESC LIMIT 1",
+            "SELECT biz_val FROM config WHERE biz_code = $1 ORDER BY id DESC LIMIT 1",
         )
         .bind(format!("posWork:{admin_id}"))
         .fetch_optional(&self.pool)
@@ -140,12 +140,12 @@ impl PosCashierRepository {
     pub async fn set_work_flag(&self, admin_id: i32, working: bool) -> Result<()> {
         let code = format!("posWork:{admin_id}");
         let value = serde_json::json!({ "working": working, "time": now() }).to_string();
-        sqlx::query("DELETE FROM config WHERE \"code\" = $1")
+        sqlx::query("DELETE FROM config WHERE biz_code = $1")
             .bind(&code)
             .execute(&self.pool)
             .await
             .map_err(map_err)?;
-        sqlx::query("INSERT INTO config (\"code\", content) VALUES ($1, $2)")
+        sqlx::query("INSERT INTO config (biz_code, biz_val) VALUES ($1, $2)")
             .bind(&code)
             .bind(&value)
             .execute(&self.pool)
@@ -774,7 +774,7 @@ impl PosCashierRepository {
     ) -> Result<(i64, Vec<serde_json::Value>)> {
         let kw = format!("%{}%", keyword.unwrap_or_default().trim());
         let (total,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM \"user\" WHERE ($1 IS NOT NULL OR 1) AND (nickname LIKE $2 OR mobile LIKE $3 OR user_id = $4)",
+            "SELECT COUNT(*) FROM \"user\" WHERE ($1 IS NOT NULL OR TRUE) AND (nickname LIKE $2 OR mobile LIKE $3 OR user_id = $4)",
         )
         .bind(user_id)
         .bind(&kw)
@@ -785,7 +785,7 @@ impl PosCashierRepository {
         .map_err(map_err)?;
         let rows = sqlx::query_as::<_, (serde_json::Value,)>(
             "SELECT json_build_object('userId', user_id, 'nickname', nickname, 'mobile', mobile, \
-             'balance', balance, 'points', points, 'addTime', add_time) \
+             'balance', balance, 'points', points, 'addTime', reg_time) \
              FROM \"user\" WHERE (nickname LIKE $1 OR mobile LIKE $2 OR user_id = $3) \
              ORDER BY user_id DESC LIMIT $4 OFFSET $5",
         )
@@ -839,7 +839,7 @@ impl PosCashierRepository {
 
     pub async fn order_remark(&self, user_id: i32) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> = sqlx::query_as(
-            "SELECT order_remark FROM \"order\" WHERE user_id = $1 ORDER BY order_id DESC LIMIT 1",
+            "SELECT buyer_note FROM \"order\" WHERE user_id = $1 ORDER BY order_id DESC LIMIT 1",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
@@ -851,9 +851,9 @@ impl PosCashierRepository {
     /// 充值单读取（按会员）。
     pub async fn recharge_orders(&self, user_id: i32) -> Result<Vec<serde_json::Value>> {
         Ok(sqlx::query_as::<_, (serde_json::Value,)>(
-            "SELECT json_build_object('rechargeOrderId', recharge_order_id, 'money', money, \
-             'payStatus', pay_status, 'addTime', add_time) \
-             FROM user_recharge_order WHERE user_id = $1 ORDER BY recharge_order_id DESC LIMIT 50",
+            "SELECT json_build_object('rechargeOrderId', order_id, 'money', amount, \
+             'payStatus', status, 'addTime', add_time) \
+             FROM user_recharge_order WHERE user_id = $1 ORDER BY order_id DESC LIMIT 50",
         )
         .bind(user_id)
         .fetch_all(&self.pool)

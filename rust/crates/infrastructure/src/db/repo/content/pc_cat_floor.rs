@@ -212,7 +212,7 @@ impl PcCatFloorRepository {
     ///
     /// JSON 文本列原样返回，由 VO 层决定是否解析（`list` 不解析、`detail` 解析）。
     pub async fn find_floor(&self, id: i32) -> Result<Option<PcCatFloor>> {
-        sqlx::query_as::<_, PcCatFloor>(&format!("{FLOOR_SELECT} WHERE cat_floor_id = ? LIMIT 1"))
+        sqlx::query_as::<_, PcCatFloor>(&format!("{FLOOR_SELECT} WHERE cat_floor_id = $1 LIMIT 1"))
             .bind(id)
             .fetch_optional(&self.pool)
             .await

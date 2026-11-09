@@ -74,7 +74,7 @@ impl SalesStatisticsRepository {
              WHERE is_del = 0 AND pay_status > 0 AND add_time >= $1 AND add_time <= $2",
         );
         if shop_id.filter(|v| *v > 0).is_some() {
-            sql.push_str(" AND shop_id = ?");
+            sql.push_str(" AND shop_id = $3");
         }
         let mut q = sqlx::query_as::<_, (i64, Option<Decimal>)>(&sql)
             .bind(start)
@@ -102,7 +102,7 @@ impl SalesStatisticsRepository {
              WHERE is_del = 0 AND pay_status > 0 AND add_time >= $1 AND add_time <= $2",
         );
         if shop_id.filter(|v| *v > 0).is_some() {
-            sql.push_str(" AND shop_id = ?");
+            sql.push_str(" AND shop_id = $3");
         }
         sql.push_str(" GROUP BY date ORDER BY date ASC");
         let mut q = sqlx::query_as::<_, DailySalesSqlRow>(&sql)

@@ -194,7 +194,7 @@ impl ProxyShoppingCartRepository {
     ) -> Result<Option<ExistingCart>> {
         let row = sqlx::query_as::<_, (i32, i32, i32, i32, i32)>(
             "SELECT cart_id, quantity, product_id, COALESCE(sku_id, 0) AS sku_id, product_type FROM cart
-             WHERE user_id = $1 AND product_id = $2 AND type = $3 AND (sku_id <=> $4) LIMIT 1",
+             WHERE user_id = $1 AND product_id = $2 AND type = $3 AND (sku_id IS NOT DISTINCT FROM $4) LIMIT 1",
         )
         .bind(user_id)
         .bind(product_id)

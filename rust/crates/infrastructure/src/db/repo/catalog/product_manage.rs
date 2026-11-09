@@ -894,6 +894,7 @@ impl ProductManageRepository {
             let ph = vec!["?"; keep_ids.len()].join(", ");
             format!("DELETE FROM product_attributes WHERE product_id = ? AND attributes_id NOT IN ({ph})")
         };
+        let sql = crate::db::to_pg_placeholders(&sql);
         let mut q = sqlx::query(&sql).bind(product_id);
         for id in keep_ids {
             q = q.bind(id);
@@ -1879,7 +1880,7 @@ impl ProductManageRepository {
     /// `order_status = 5` 已完成订单的明细，按下单时间倒序去重）。
     pub async fn find_history_product_ids(&self, user_id: i32) -> Result<Vec<i32>> {
         let rows: Vec<(i32,)> = sqlx::query_as(
-            "SELECT DISTINCT oi.product_id FROM order_item oi LEFT JOIN \"order\" o ON oi.order_id = o.order_id WHERE o.order_status = 5 AND o.user_id = $1 ORDER BY MAX(o.add_time) DESC",
+            "SELECT oi.product_id FROM order_item oi LEFT JOIN \"order\" o ON oi.order_id = o.order_id WHERE o.order_status = 5 AND o.user_id = $1 GROUP BY oi.product_id ORDER BY MAX(o.add_time) DESC",
         )
         .bind(user_id)
         .fetch_all(&self.pool)

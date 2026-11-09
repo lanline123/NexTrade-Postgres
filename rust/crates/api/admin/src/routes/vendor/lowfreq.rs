@@ -485,7 +485,7 @@ async fn h_38(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<(
 
 // get /vendor/product/shippingTplList
 async fn h_39(State(state): State<AdminState>) -> ApiResult<Value> {
-    let rows: Vec<(Value,)> = sqlx::query_as("SELECT json_build_object('shippingTplId', shipping_tpl_id, 'tplName', tpl_name) FROM shipping_tpl").fetch_all(&pool(&state)).await.map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as("SELECT json_build_object('shippingTplId', shipping_tpl_id, 'tplName', shipping_tpl_name) FROM shipping_tpl").fetch_all(&pool(&state)).await.map_err(db)?;
     ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>()}))
 }
 

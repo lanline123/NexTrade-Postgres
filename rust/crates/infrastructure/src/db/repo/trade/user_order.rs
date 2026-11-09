@@ -231,7 +231,7 @@ impl UserOrderRepository {
     ) -> Result<Option<i32>> {
         let row: Option<(i32,)> = sqlx::query_as(
             "SELECT cart_id FROM cart
-             WHERE user_id = $1 AND product_id = $2 AND type = $3 AND (sku_id <=> $4) LIMIT 1",
+             WHERE user_id = $1 AND product_id = $2 AND type = $3 AND (sku_id IS NOT DISTINCT FROM $4) LIMIT 1",
         )
         .bind(user_id)
         .bind(product_id)
@@ -386,7 +386,7 @@ impl UserOrderRepository {
 
     pub async fn cycle_aftersales_check(&self, user_id: i32, order_id: i32) -> Result<serde_json::Value> {
         let row: Option<(serde_json::Value,)> = sqlx::query_as(
-            "SELECT json_build_object('orderId', order_id, 'canAftersales', CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END, 'cardCount', COUNT(*)) FROM order_cycle_card WHERE order_id = $1 AND user_id = $2",
+            "SELECT json_build_object('orderId', order_id, 'canAftersales', CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END, 'cardCount', COUNT(*)) FROM order_cycle_card WHERE order_id = $1 AND user_id = $2 GROUP BY order_id",
         )
         .bind(order_id)
         .bind(user_id)
