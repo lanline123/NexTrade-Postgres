@@ -289,6 +289,16 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8181/api/health
 **正式上线走 release**：同样三步，产物换成 Release 里的 `nextrade` + `nextrade.sha256`。
 注意 staging 包没有 tag、不记录版本，只用于验证；最终对外版本仍以 Release 为准。
 
+> ⚠️ **构建策略（2026-11-09 起，长期有效）**
+>
+> **默认只触发 `build-rust-staging`。`build-rust-backend`（Release）必须由用户明确开口
+> 「发正式版 / 出 build-N / 可以发版」之后才允许触发，不得自行判断「这次修复比较重要
+> 就直接发正式」**。
+>
+> - 日常改代码 → push → `check-rust` 自动跑 → 手动 `build-rust-staging` → 下 artifact 部署验证；
+> - 只有在需要对外留档的节点，征得同意后才 `build-rust-backend` 产出 `build-<n>`；
+> - 已经误触发正式构建的，立即 `POST /actions/runs/<id>/cancel` 取消，再补一次 staging。
+
 ### 4.5 CI 构建耗时与优化方案（**尚未实施**）
 
 实测 `build-rust-backend` 最近两次成功运行的耗时：
