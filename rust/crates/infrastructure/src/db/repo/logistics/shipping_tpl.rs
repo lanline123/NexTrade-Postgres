@@ -622,4 +622,4 @@ mod tests {
         assert_eq!(order_column("nope"), KEY);
         assert_eq!(KEY, "shipping_tpl_id");
     }
-}"
+}

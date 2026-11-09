@@ -327,4 +327,4 @@ mod tests {
         assert!(USER_MEMBER_TAG_COLUMNS.contains(&"shop_id"));
         assert!(USER_MEMBER_TAG_COLUMNS.contains(&"tag_id"));
     }
-}"
+}

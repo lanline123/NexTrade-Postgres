@@ -308,4 +308,4 @@ mod tests {
         assert!(PICKUP_WHERE.contains("status = 1"));
         assert!(PICKUP_WHERE.contains("is_delete = 0"));
     }
-}"
+}

@@ -513,4 +513,4 @@ mod tests {
         }
         assert!(!SHIPPING_TYPE_SELECT.contains('*'));
     }
-}"
+}

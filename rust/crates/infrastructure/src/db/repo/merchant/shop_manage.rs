@@ -238,7 +238,7 @@ impl ShopManageRepository {
         .await
         .map_err(map_err)?;
         // `shop_id` 由服务层显式生成（Java `assignRandomShopId`），
-        // 直接用实体上的值，避免 last_insert_id 语义歧义。
+        // 直接用实体上的值，该列非自增，不走 RETURNING。
         Ok(shop.shop_id)
     }
 

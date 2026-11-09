@@ -166,7 +166,7 @@ impl ShopFundsRepository {
         let sql = "INSERT INTO shop (shop_id, shop_title, shop_logo, status, merchant_id, shop_money, \
                    frozen_money, contact_mobile, description, add_time) \
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        let res = sqlx::query(sql)
+        let res: i32 = sqlx::query_scalar(&format!("{} RETURNING shop_id", sql))
             .bind(dto.shop_id.unwrap_or(0))
             .bind(dto.shop_title.as_deref().unwrap_or(""))
             .bind(dto.shop_logo.as_deref().unwrap_or(""))
@@ -177,10 +177,10 @@ impl ShopFundsRepository {
             .bind(dto.contact_mobile.as_deref().unwrap_or(""))
             .bind(dto.description.as_deref().unwrap_or(""))
             .bind(now)
-            .execute(&self.pool)
+            .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
-        Ok(res.last_insert_id() as i32)
+        Ok(res)
     }
 
     /// 局部更新资金字段（见 models 模块头差异第 2 条）。

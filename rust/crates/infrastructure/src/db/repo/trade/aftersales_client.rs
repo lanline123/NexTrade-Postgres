@@ -290,7 +290,7 @@ impl AftersalesClientRepository {
     /// 写出售后单（对应 Java \"afterSalesApply\" 的 `this.save(aftersales)`），
     /// 返回自增 \"aftersale_id\"。
     pub async fn insert_aftersales(&self, a: &Aftersales) -> Result<i32> {
-        let r = sqlx::query(AFTERSALES_INSERT)
+        let r: i32 = sqlx::query_scalar(AFTERSALES_INSERT)
             .bind(a.aftersale_type)
             .bind(a.status)
             .bind(&a.pics)
@@ -312,10 +312,10 @@ impl AftersalesClientRepository {
             .bind(&a.return_goods_tip)
             .bind(a.vendor_id)
             .bind(a.close_type)
-            .execute(&self.pool)
+            .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
-        Ok(r.last_insert_id() as i32)
+        Ok(r)
     }
 
     /// 在同一事务内写入「售后单 + 售后明细 + 售后日志」，返回 \"aftersale_id\"。
@@ -329,7 +329,7 @@ impl AftersalesClientRepository {
     ) -> Result<i32> {
         let mut tx = self.pool.begin().await.map_err(map_err)?;
 
-        let r = sqlx::query(AFTERSALES_INSERT)
+        let r: i32 = sqlx::query_scalar(AFTERSALES_INSERT)
             .bind(a.aftersale_type)
             .bind(a.status)
             .bind(&a.pics)
@@ -351,10 +351,10 @@ impl AftersalesClientRepository {
             .bind(&a.return_goods_tip)
             .bind(a.vendor_id)
             .bind(a.close_type)
-            .execute(&mut *tx)
+            .fetch_one(&mut *tx)
             .await
             .map_err(map_err)?;
-        let aftersale_id = r.last_insert_id() as i32;
+        let aftersale_id = r;
 
         for it in items {
             sqlx::query(
@@ -842,7 +842,7 @@ const AFTERSALES_INSERT: &str = "INSERT INTO aftersales
       logistics_name, return_address, aftersale_reason, aftersales_sn, order_id,
       user_id, refund_amount, shop_id, audit_time, deal_time, final_time,
       return_goods_tip, vendor_id, close_type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING aftersale_id";
 
 /// 售后日志插入语句。
 const AFTERSALES_LOG_INSERT: &str = "INSERT INTO aftersales_log

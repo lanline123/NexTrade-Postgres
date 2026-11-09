@@ -150,7 +150,7 @@ const MSG_COMMENT_CONTENT_REQUIRED: &str = "评论内容不能为空";
 const MSG_BUYER_SHOW_NOT_FOUND: &str = "买家秀不存在";
 /// `getBuyerInfo` 查不到虚拟用户时（Java 会 NPE；这里给明确错误）
 const MSG_VIRTUAL_USER_NOT_FOUND: &str = "虚拟用户信息不存在";
-/// `create` 的 `last_insert_id` 异常（理论不可达，防御性）
+/// `create` 的 `INSERT ... RETURNING` 取不到主键（理论不可达，防御性）
 const MSG_CREATE_RETURNED_NO_ID: &str = "买家秀创建失败";
 /// `updateField` 的 `val` 不是合法整数（Java 交给 MySQL 隐式转换，会静默截断）
 const MSG_FIELD_VALUE_NOT_INTEGER: &str = "字段值必须为整数";

@@ -517,7 +517,7 @@ impl OrderAdminRepository {
 
     /// 写入售后申请单，返回 `aftersale_id`。
     pub async fn insert_aftersales(&self, a: &Aftersales) -> Result<i32> {
-        let r = sqlx::query(AFTERSALES_INSERT)
+        let r: i32 = sqlx::query_scalar(AFTERSALES_INSERT)
             .bind(a.aftersale_type)
             .bind(a.status)
             .bind(&a.pics)
@@ -539,10 +539,10 @@ impl OrderAdminRepository {
             .bind(&a.return_goods_tip)
             .bind(a.vendor_id)
             .bind(a.close_type)
-            .execute(&self.pool)
+            .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
-        Ok(r.last_insert_id() as i32)
+        Ok(r)
     }
 
     /// 在同一事务内写入「售后申请单 + 申请明细 + 售后日志」，返回 `aftersale_id`。
@@ -559,7 +559,7 @@ impl OrderAdminRepository {
     ) -> Result<i32> {
         let mut tx = self.pool.begin().await.map_err(map_err)?;
 
-        let r = sqlx::query(AFTERSALES_INSERT)
+        let r: i32 = sqlx::query_scalar(AFTERSALES_INSERT)
             .bind(a.aftersale_type)
             .bind(a.status)
             .bind(&a.pics)
@@ -581,10 +581,10 @@ impl OrderAdminRepository {
             .bind(&a.return_goods_tip)
             .bind(a.vendor_id)
             .bind(a.close_type)
-            .execute(&mut *tx)
+            .fetch_one(&mut *tx)
             .await
             .map_err(map_err)?;
-        let aftersale_id = r.last_insert_id() as i32;
+        let aftersale_id = r;
 
         for it in items {
             sqlx::query(
@@ -1196,7 +1196,7 @@ const AFTERSALES_INSERT: &str = "INSERT INTO aftersales
       logistics_name, return_address, aftersale_reason, aftersales_sn, order_id,
       user_id, refund_amount, shop_id, audit_time, deal_time, final_time,
       return_goods_tip, vendor_id, close_type)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)";
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING aftersale_id";
 
 /// 构造 WHERE 子句（含前导空格）与绑定参数列表。
 ///

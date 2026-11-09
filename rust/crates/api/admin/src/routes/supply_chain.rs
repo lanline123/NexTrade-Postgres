@@ -651,7 +651,7 @@ async fn save_supplier_product(state: &AdminState, body: &Value) -> ApiResult<i6
         if duplicate.0 > 0 {
             return Err(AppError(Error::biz(400, "该供应商已绑定此商品")));
         }
-        sqlx::query("INSERT INTO vendor_product(product_name,product_sn,product_category_id,product_sn_generate_type,product_brief,product_state,sku_type,audit_state,pic_url,pic_thumb,pic_original,pic_large,is_recycle,vendor_id,source_product_id,create_time,create_by_id,update_time,update_by_id,update_by_name,is_del) VALUES($1,$2,$3,0,$4,$5,$6,1,$7,$8,$9,$10,0,$11,$12,$13,0,$14,0,'',0)")
+        sqlx::query_scalar("INSERT INTO vendor_product(product_name,product_sn,product_category_id,product_sn_generate_type,product_brief,product_state,sku_type,audit_state,pic_url,pic_thumb,pic_original,pic_large,is_recycle,vendor_id,source_product_id,create_time,create_by_id,update_time,update_by_id,update_by_name,is_del) VALUES($1,$2,$3,0,$4,$5,$6,1,$7,$8,$9,$10,0,$11,$12,$13,0,$14,0,'',0) RETURNING id")
             .bind(product.try_get::<String, _>("product_name").unwrap_or_default())
             .bind(product.try_get::<Option<String>, _>("product_sn").unwrap_or_default())
             .bind(product.try_get::<i32, _>("category_id").unwrap_or(0))
@@ -664,7 +664,7 @@ async fn save_supplier_product(state: &AdminState, body: &Value) -> ApiResult<i6
             .bind(product.try_get::<String, _>("pic_large").unwrap_or_default())
             .bind(vendor_id).bind(product_id)
             .bind(now).bind(now)
-            .execute(&mut *tx).await.map_err(db)?.last_insert_id() as i64
+            .fetch_one(&mut *tx).await.map_err(db)?
     };
     for sku in skus {
         let source_sku_id = sku.get("skuId").and_then(Value::as_i64).filter(|v| *v > 0);
@@ -1164,11 +1164,11 @@ async fn save_reconciliation(state: &AdminState, body: Value, is_update: bool) -
             "contactMobile": vendor.try_get::<String,_>("contact_mobile").unwrap_or_default()
         })
         .to_string();
-        sqlx::query("INSERT INTO purchase_reconciliation(reconciliation_sn,shop_id,vendor_id,status,receipt_amount,return_amount,total_amount,supplier_snapshot,remark,version,create_time,update_time) VALUES($1,$2,$3,1,0,0,0,$4,$5,0,$6,$7)")
+        sqlx::query_scalar("INSERT INTO purchase_reconciliation(reconciliation_sn,shop_id,vendor_id,status,receipt_amount,return_amount,total_amount,supplier_snapshot,remark,version,create_time,update_time) VALUES($1,$2,$3,1,0,0,0,$4,$5,0,$6,$7) RETURNING id")
             .bind(&sn).bind(shop_id).bind(vendor_id).bind(snapshot)
             .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
             .bind(now).bind(now)
-            .execute(&mut *tx).await.map_err(db)?.last_insert_id() as i64
+            .fetch_one(&mut *tx).await.map_err(db)?
     };
     let mut receipt_amount = rust_decimal::Decimal::ZERO;
     let mut return_amount = rust_decimal::Decimal::ZERO;

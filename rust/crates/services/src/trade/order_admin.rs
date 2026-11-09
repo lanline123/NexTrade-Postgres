@@ -5102,4 +5102,4 @@ mod tests {
         assert_eq!(export_cell("productName", &row), "测试商品");
         assert_eq!(export_cell("unknown", &row), "");
     }
-}"
+}

@@ -553,4 +553,4 @@ mod tests {
             assert!(WRITABLE_COLUMNS.contains(&c), "缺少列: {c}");
         }
     }
-}"
+}

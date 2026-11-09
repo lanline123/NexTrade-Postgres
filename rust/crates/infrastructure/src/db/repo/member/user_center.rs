@@ -99,11 +99,6 @@ fn placeholders(n: usize) -> String {
     vec!["?"; n].join(", ")
 }
 
-/// 自增主键转 \"i32\"（超出范围时取 `i32::MAX`，避免裸 \"as\" 截断）。
-fn last_id(r: &sqlx::postgres::PgQueryResult) -> i32 {
-    i32::try_from(r.last_insert_id()).unwrap_or(i32::MAX)
-}
-
 #[derive(Clone)]
 pub struct UserCenterRepository {
     pool: PgPool,
@@ -402,36 +397,36 @@ impl UserCenterRepository {
 
     /// 写入成长值日志，返回自增 ID。
     pub async fn insert_rank_growth_log(&self, log: &RankGrowthLog) -> Result<i32> {
-        let r = sqlx::query(
+        let r: i32 = sqlx::query_scalar(
             "INSERT INTO rank_growth_log (user_id, type, growth_points, change_type, \
-             create_time) VALUES (?, ?, ?, ?, ?)",
+             create_time) VALUES (?, ?, ?, ?, ?) RETURNING id",
         )
         .bind(log.user_id)
         .bind(log.r#type)
         .bind(log.growth_points)
         .bind(log.change_type)
         .bind(log.create_time)
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(last_id(&r))
+        Ok(r)
     }
 
     /// 写入会员成长积分记录，返回自增 ID。
     pub async fn insert_growth_points_log(&self, log: &UserGrowthPointsLog) -> Result<i32> {
-        let r = sqlx::query(
+        let r: i32 = sqlx::query_scalar(
             "INSERT INTO user_growth_points_log (user_id, points, change_time, \
-             change_desc, change_type) VALUES (?, ?, ?, ?, ?)",
+             change_desc, change_type) VALUES (?, ?, ?, ?, ?) RETURNING log_id",
         )
         .bind(log.user_id)
         .bind(log.points)
         .bind(log.change_time)
         .bind(log.change_desc.as_str())
         .bind(log.change_type)
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(last_id(&r))
+        Ok(r)
     }
 
     // ————————————————————— collect_shop / shop / product —————————————————————

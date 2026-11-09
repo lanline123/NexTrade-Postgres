@@ -129,4 +129,4 @@ mod tests {
         let err = map_err(sqlx::Error::Protocol("boom".into()));
         assert!(matches!(err, Error::Database(_)));
     }
-}"
+}

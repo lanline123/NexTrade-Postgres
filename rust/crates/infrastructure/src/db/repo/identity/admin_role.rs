@@ -252,10 +252,10 @@ impl AdminRoleRepository {
     /// # Errors
     /// 数据库失败（如 `authority_list` 过长、唯一键冲突）→ `Error::Database`。
     pub async fn insert(&self, role: &NewRole) -> Result<i32> {
-        let result = match role.role_id {
+        let result: i32 = match role.role_id {
             Some(role_id) => {
-                sqlx::query(
-                    "INSERT INTO admin_role (role_id, role_name, role_code, role_desc, authority_list, admin_type, merchant_id, shop_id, vendor_id, is_system) VALUES ($1, $2, NULL, $3, $4, $5, 0, $6, $7, 0)",
+                sqlx::query_scalar(
+                    "INSERT INTO admin_role (role_id, role_name, role_code, role_desc, authority_list, admin_type, merchant_id, shop_id, vendor_id, is_system) VALUES ($1, $2, NULL, $3, $4, $5, 0, $6, $7, 0) RETURNING role_id",
                 )
                 .bind(role_id)
                 .bind(&role.role_name)
@@ -264,13 +264,13 @@ impl AdminRoleRepository {
                 .bind(&role.admin_type)
                 .bind(role.shop_id)
                 .bind(role.vendor_id)
-                .execute(&self.pool)
+                .fetch_one(&self.pool)
                 .await
                 .map_err(map_err)?
             }
             None => {
-                sqlx::query(
-                    "INSERT INTO admin_role (role_name, role_code, role_desc, authority_list, admin_type, merchant_id, shop_id, vendor_id, is_system) VALUES ($1, NULL, $2, $3, $4, 0, $5, $6, 0)",
+                sqlx::query_scalar(
+                    "INSERT INTO admin_role (role_name, role_code, role_desc, authority_list, admin_type, merchant_id, shop_id, vendor_id, is_system) VALUES ($1, NULL, $2, $3, $4, 0, $5, $6, 0) RETURNING role_id",
                 )
                 .bind(&role.role_name)
                 .bind(&role.role_desc)
@@ -278,12 +278,12 @@ impl AdminRoleRepository {
                 .bind(&role.admin_type)
                 .bind(role.shop_id)
                 .bind(role.vendor_id)
-                .execute(&self.pool)
+                .fetch_one(&self.pool)
                 .await
                 .map_err(map_err)?
             }
         };
-        Ok(i32::try_from(result.last_insert_id()).unwrap_or(0))
+        Ok(result)
     }
 
     /// 更新角色（Java `this.updateById(updated)`，`NOT_NULL` 策略）。

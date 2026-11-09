@@ -186,9 +186,9 @@ impl StatementRepository {
         remark: Option<&str>,
         gmt_create: i64,
     ) -> Result<i64> {
-        let r = sqlx::query(
+        let r: i64 = sqlx::query_scalar(
             "INSERT INTO statement_download (vendor_id, shop_id, gmt_create, start_time, end_time, remark)
-             VALUES ($1,$2,$3,$4,$5,$6)",
+             VALUES ($1,$2,$3,$4,$5,$6) RETURNING statement_download_id",
         )
         .bind(vendor_id)
         .bind(shop_id.map(|v| v as i32))
@@ -196,10 +196,10 @@ impl StatementRepository {
         .bind(start_time)
         .bind(end_time)
         .bind(remark)
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(r.last_insert_id() as i64)
+        Ok(r)
     }
 
     /// 下载记录（供调试/后续下载列表复用；本切片不注册端点）。

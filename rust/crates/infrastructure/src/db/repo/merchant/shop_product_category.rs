@@ -506,4 +506,4 @@ mod tests {
         .collect();
         assert!(pos.windows(2).all(|w| w[0] < w[1]), "SELECT 列顺序错乱");
     }
-}"
+}

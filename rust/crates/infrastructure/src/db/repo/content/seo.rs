@@ -254,4 +254,4 @@ impl SeoRepository {
 /// SQL 错误 → `nextrade_core::Error`。
 fn map_err(e: sqlx::Error) -> Error {
     Error::Database(e.to_string())
-}"
+}

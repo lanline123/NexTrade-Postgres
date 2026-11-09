@@ -484,4 +484,4 @@ fn map_err(e: sqlx::Error) -> Error {
         sqlx::Error::RowNotFound => Error::NotFound("优惠券不存在".into()),
         other => Error::Database(other.to_string()),
     }
-}"
+}

@@ -97,7 +97,7 @@
 //! # 返回结构
 //!
 //! Java `ProxyShoppingUserCouponController.claim` 返回 `void`（HTTP 200 +
-//! `data: null`）。本实现回传新建 `user_coupon.id`（`last_insert_id`），
+//! `data: null`）。本实现回传新建 `user_coupon.id`（`INSERT ... RETURNING id`），
 //! 与 buyer_show `create` 回传新建主键的既有约定一致，便于前端/运维核对。
 
 use std::sync::Arc;

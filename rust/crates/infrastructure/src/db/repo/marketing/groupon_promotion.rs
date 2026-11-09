@@ -557,12 +557,12 @@ impl GrouponPromotionRepository {
         tx: &mut sqlx::Transaction<'_, Postgres>,
         row: &Promotion,
     ) -> Result<i32> {
-        let res = sqlx::query(
+        let res: i32 = sqlx::query_scalar(
             // \"range\" 是 MySQL 8 保留字，必须加反引号（同表的 \"type\" 同理，历史写法已带引号时可保持）
             "INSERT INTO promotion
                (promotion_name, start_time, end_time, \"type\", shop_id, relation_id,
                 \"range\", member_range, member_marks, member_scope)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING promotion_id",
         )
         .bind(&row.promotion_name)
         .bind(row.start_time)
@@ -574,10 +574,10 @@ impl GrouponPromotionRepository {
         .bind(row.member_range)
         .bind(&row.member_marks)
         .bind(&row.member_scope)
-        .execute(&mut **tx)
+        .fetch_one(&mut **tx)
         .await
         .map_err(map_err)?;
-        Ok(i32::try_from(res.last_insert_id()).unwrap_or(i32::MAX))
+        Ok(res)
     }
 
     /// 事务内无条件更新营销活动（Java \"updatePromotion\"：人群三字段必须无条件 set）。

@@ -621,4 +621,4 @@ mod tests {
         headers.insert("X-Forwarded-For", "1.2.3.4, 5.6.7.8".parse().unwrap());
         assert_eq!(client_ip(&headers), "1.2.3.4");
     }
-}"
+}

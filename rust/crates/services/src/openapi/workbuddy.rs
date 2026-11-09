@@ -4971,4 +4971,4 @@ mod tests {
         assert_eq!(CATEGORY_IMPORT_PAGE_SIZE, 1000);
         assert_eq!(MAX_SKU_SN_LENGTH, 60);
     }
-}"
+}

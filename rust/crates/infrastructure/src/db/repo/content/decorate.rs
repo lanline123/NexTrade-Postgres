@@ -1155,4 +1155,4 @@ mod tests {
         assert_eq!(sql, " WHERE 1=1 AND page_type IN (?,?)");
         assert_eq!(params.len(), 2);
     }
-}"
+}

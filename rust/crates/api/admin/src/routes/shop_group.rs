@@ -137,13 +137,13 @@ async fn group_create(State(state): State<AdminState>, Json(body): Json<Value>) 
         return Err(AppError(Error::biz(400, "分组名称不能为空")));
     }
     let now = nextrade_common::utils::now_seconds() as i64;
-    let r = sqlx::query("INSERT INTO shop_group(shop_type,group_name,remark,create_time,update_time) VALUES(?,?,?,?,?)")
+    let r: i32 = sqlx::query_scalar("INSERT INTO shop_group(shop_type,group_name,remark,create_time,update_time) VALUES(?,?,?,?,?) RETURNING group_id")
         .bind(body.get("shopType").and_then(Value::as_i64).unwrap_or(1) as i32)
         .bind(name)
         .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
         .bind(now).bind(now)
-        .execute(&state.repos.pool).await.map_err(db)?;
-    let id = r.last_insert_id() as i32;
+        .fetch_one(&state.repos.pool).await.map_err(db)?;
+    let id = r;
     replace_relations(&state, id, body.get("shopIds")).await?;
     ok(id)
 }

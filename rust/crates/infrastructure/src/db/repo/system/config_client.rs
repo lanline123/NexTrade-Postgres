@@ -343,4 +343,4 @@ mod tests {
         let e = map_err(sqlx::Error::RowNotFound);
         assert!(matches!(e, Error::NotFound(_)));
     }
-}"
+}

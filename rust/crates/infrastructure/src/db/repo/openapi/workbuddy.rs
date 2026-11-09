@@ -1451,4 +1451,4 @@ pub struct NewProduct {
     pub sort_order: i32,
     pub last_update: i32,
     pub virtual_sales: i32,
-}"
+}

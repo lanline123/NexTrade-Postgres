@@ -617,4 +617,4 @@ mod tests {
         assert_eq!(distinct_user_ids(&comments), vec![5, 6]);
         assert!(distinct_user_ids(&[]).is_empty());
     }
-}"
+}

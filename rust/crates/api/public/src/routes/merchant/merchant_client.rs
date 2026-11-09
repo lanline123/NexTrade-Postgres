@@ -335,4 +335,4 @@ mod tests {
 //      `apply(user_id, &param)`（异步）。
 //    故 handler 直接按 services 真实签名编写，无签名偏差。
 // 4. `uploadLicense` 的 multipart 字段名取 `file` 或 `license`（前端常见命名）；
-//    若实际字段名不同，会退化为「空图片」校验路径，仍返回清晰业务错误，不崩接口。"
+//    若实际字段名不同，会退化为「空图片」校验路径，仍返回清晰业务错误，不崩接口。

@@ -1545,4 +1545,4 @@ impl SalesmanRepository {
         )
         .await
     }
-}"
+}

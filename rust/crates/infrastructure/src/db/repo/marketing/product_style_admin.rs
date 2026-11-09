@@ -1086,4 +1086,4 @@ mod active_style_sql_tests {
         assert!(src.contains("ORDER BY add_time DESC"));
         assert!(src.contains("is_delete = 0"));
     }
-}"
+}

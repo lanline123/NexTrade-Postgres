@@ -293,7 +293,7 @@ impl ProxyShoppingPickupContactRepository {
             cols.join(", "),
             vals.join(", ")
         );
-        let mut q = sqlx::query(&sql);
+        let mut q = sqlx::query_scalar(&format!("{} RETURNING id", &sql));
         if let Some(v) = user_id {
             q = q.bind(v);
         }
@@ -303,13 +303,13 @@ impl ProxyShoppingPickupContactRepository {
         if let Some(v) = contact_phone {
             q = q.bind(v);
         }
-        let r = q
+        let r: i64 = q
             .bind(now)
             .bind(now)
-            .execute(&self.pool)
+            .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
-        Ok(i64::try_from(r.last_insert_id()).unwrap_or(i64::MAX))
+        Ok(r)
     }
 
     /// 按主键更新（Java `PickupContactServiceImpl#update` 的 `this.updateById`）。

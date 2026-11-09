@@ -179,4 +179,4 @@ fn coverage_of_current_routes_is_reported_consistently() {
     assert_eq!(cov.missing.len(), cov.total - cov.implemented);
     assert_eq!(cov.extra_routes.len(), 1);
     assert!(cov.percent > 0.0 && cov.percent < 100.0);
-}"
+}

@@ -15,11 +15,11 @@ impl OfflinePaymentClaimRepository {
     }
 
     pub async fn insert(&self, c: &OfflinePaymentClaim) -> Result<i32> {
-        let r = sqlx::query(
+        let r: i32 = sqlx::query_scalar(
             "INSERT INTO offline_payment_claim(order_id,order_sn,user_id,shop_id,claimed_amount,pay_stage,\
              transfer_time,payer_name,payer_account,bank_serial_no,voucher_urls,remark,status,\
              review_admin_id,review_time,paid_time,audit_remark,reject_reason,add_time,update_time) \
-             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING claim_id",
         )
         .bind(c.order_id)
         .bind(&c.order_sn)
@@ -41,10 +41,10 @@ impl OfflinePaymentClaimRepository {
         .bind(&c.reject_reason)
         .bind(c.add_time)
         .bind(c.update_time)
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(r.last_insert_id() as i32)
+        Ok(r)
     }
 
     pub async fn find_by_id(&self, claim_id: i32) -> Result<Option<OfflinePaymentClaim>> {

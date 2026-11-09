@@ -1538,4 +1538,4 @@ mod tests {
         assert_eq!(dto.admin_id, Some(11));
         assert_eq!(dto.auth_list, None);
     }
-}"
+}

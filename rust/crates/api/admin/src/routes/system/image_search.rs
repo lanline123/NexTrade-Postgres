@@ -411,10 +411,10 @@ async fn insert_job(
     let index = cfg_get(rows, "imageSearchIndexName");
     let target = format!("aliyun:{index}");
     let kind = if product_id > 0 { "PRODUCT" } else { "FULL" };
-    let r = sqlx::query(
+    let r: i64 = sqlx::query_scalar(
         "INSERT INTO image_search_sync_job(job_key,target_key,provider,index_name,kind,product_id,version,state,cursor_id,max_product_id,scanned,added,skipped,deleted,attempts,next_run_at,last_error,created_at,updated_at) \
          VALUES(?, ?, 'aliyun', ?, ?, ?, 1, 'PENDING', 0, 0, 0, 0, 0, 0, 0, 0, '', ?, ?) \
-         ON CONFLICT (job_key) DO UPDATE SET version=image_search_sync_job.version+1, state='PENDING', target_key=EXCLUDED.target_key, index_name=EXCLUDED.index_name, kind=EXCLUDED.kind, product_id=EXCLUDED.product_id, updated_at=EXCLUDED.updated_at",
+         ON CONFLICT (job_key) DO UPDATE SET version=image_search_sync_job.version+1, state='PENDING', target_key=EXCLUDED.target_key, index_name=EXCLUDED.index_name, kind=EXCLUDED.kind, product_id=EXCLUDED.product_id, updated_at=EXCLUDED.updated_at RETURNING id",
     )
     .bind(job_key)
     .bind(target)
@@ -423,10 +423,10 @@ async fn insert_job(
     .bind(product_id)
     .bind(now)
     .bind(now)
-    .execute(&state.repos.pool)
+    .fetch_one(&state.repos.pool)
     .await
     .map_err(|e| Error::Database(e.to_string()))?;
-    Ok(r.last_insert_id() as i64)
+    Ok(r)
 }
 
 #[derive(Debug, Deserialize)]

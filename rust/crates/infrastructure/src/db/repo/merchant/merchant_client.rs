@@ -405,4 +405,4 @@ mod tests {
         let other = map_err(sqlx::Error::Io(std::io::Error::other("boom")));
         assert!(matches!(other, Error::Database(_)));
     }
-}"
+}
