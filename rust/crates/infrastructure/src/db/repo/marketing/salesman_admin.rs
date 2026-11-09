@@ -146,8 +146,8 @@ impl SalesmanAdminRepository {
         level: Option<i32>,
         sort_field: Option<&str>,
         sort_order: Option<&str>,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<Salesman>)> {
         let mut where_parts: Vec<String> = vec!["1 = 1".into()];
         if shop_id.is_some() {
@@ -344,8 +344,8 @@ impl SalesmanAdminRepository {
         end: Option<i64>,
         sort_order: Option<&str>,
         shop_id: Option<i32>,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<RankingAggRow>)> {
         let mut where_parts: Vec<String> = vec!["1 = 1".into()];
         if start.is_some() {
@@ -483,8 +483,8 @@ impl SalesmanAdminRepository {
     pub async fn paginate_customers(
         &self,
         salesman_id: i32,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<CustomerRow>)> {
         let count: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM salesman_customer WHERE salesman_id = $1",
@@ -630,8 +630,8 @@ impl SalesmanAdminRepository {
         customer_type: &str,
         start: Option<i64>,
         end: Option<i64>,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<CustomerRow>)> {
         if customer_type == "salesman" {
             return self

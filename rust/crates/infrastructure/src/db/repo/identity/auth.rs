@@ -50,8 +50,8 @@ impl AdminUserRepository {
         &self,
         keyword: Option<&str>,
         admin_type: Option<&str>,
-        page: u64,
-        page_size: u64,
+        page: i64,
+        page_size: i64,
     ) -> Result<(u64, Vec<AdminUser>)> {
         let offset = page.saturating_sub(1) * page_size;
         let kw = keyword.map(|s| format!("%{s}%"));

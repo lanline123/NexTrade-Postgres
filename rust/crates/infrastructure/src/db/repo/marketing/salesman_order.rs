@@ -96,8 +96,8 @@ impl SalesmanOrderRepository {
         status: Option<i32>,
         sort_field: Option<&str>,
         sort_order: Option<&str>,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<SalesmanOrder>)> {
         let mut where_parts: Vec<String> = Vec::new();
         if salesman_id.is_some() {

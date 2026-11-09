@@ -95,8 +95,8 @@ impl ShopFundsRepository {
         keyword: Option<&str>,
         sort_field: Option<&str>,
         sort_order: Option<&str>,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<ShopFundsRow>)> {
         let like = keyword
             .map(str::trim)

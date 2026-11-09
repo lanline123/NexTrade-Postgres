@@ -108,8 +108,8 @@ impl WholesalerRepository {
         source: Option<i32>,
         create_start: Option<i64>,
         create_end: Option<i64>,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<Wholesaler>)> {
         let keyword = keyword.map(str::trim).filter(|s| !s.is_empty());
         let like = keyword.map(|k| format!("%{k}%"));
@@ -659,8 +659,8 @@ impl WholesalerRepository {
         from_tag: Option<i32>,
         rank_id: Option<i32>,
         status: Option<i32>,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<UserBriefRow>)> {
         let like = keyword
             .map(str::trim)

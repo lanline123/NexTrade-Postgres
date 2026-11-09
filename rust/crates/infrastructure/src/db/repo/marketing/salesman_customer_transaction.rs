@@ -54,8 +54,8 @@ impl SalesmanCustomerTransactionRepository {
         salesman_id: Option<i32>,
         start: Option<i64>,
         end: Option<i64>,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<CustomerTransactionRow>)> {
         let mut where_parts: Vec<String> = Vec::new();
         if salesman_id.is_some() {

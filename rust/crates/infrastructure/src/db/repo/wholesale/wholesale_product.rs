@@ -146,8 +146,8 @@ impl WholesaleProductRepository {
         shop_id: i32,
         moq_dimension: Option<i32>,
         keyword_product_ids: Option<&[i32]>,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<ProductWholesaleConfig>)> {
         let mut where_parts: Vec<String> = vec!["is_delete = 0".into(), "shop_id = ?".into()];
         if moq_dimension.is_some() {
@@ -511,8 +511,8 @@ impl WholesaleProductRepository {
         category_ids: Option<&[i32]>,
         brand_id: Option<i32>,
         excluded_product_ids: &[i32],
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<Product>)> {
         let like = keyword
             .map(str::trim)

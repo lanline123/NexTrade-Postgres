@@ -192,8 +192,8 @@ impl AuthorityRepository {
     pub async fn paginate(
         &self,
         f: &AuthorityPageFilter,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<Authority>)> {
         let (where_sql, binds) = build_page_where(f);
 

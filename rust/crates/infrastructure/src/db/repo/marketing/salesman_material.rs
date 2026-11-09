@@ -58,8 +58,8 @@ impl SalesmanMaterialRepository {
         only_available: bool,
         sort_field: Option<&str>,
         sort_order: Option<&str>,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<SalesmanMaterial>)> {
         let mut where_parts: Vec<String> = Vec::new();
         if shop_id.is_some() {

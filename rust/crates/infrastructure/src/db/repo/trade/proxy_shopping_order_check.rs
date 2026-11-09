@@ -100,9 +100,9 @@ pub struct PickupQuery {
     /// 经度
     pub longitude: Option<Decimal>,
     /// \"LIMIT\"
-    pub limit: u64,
+    pub limit: i64,
     /// \"OFFSET\"
-    pub offset: u64,
+    pub offset: i64,
 }
 
 #[derive(Clone)]

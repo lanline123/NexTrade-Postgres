@@ -60,8 +60,8 @@ impl StockCalendarRepository {
         spec_value: Option<&str>,
         shop_ids: &[i32],
         shop_scope: Option<i32>,
-        limit: u64,
-        offset: u64,
+        limit: i64,
+        offset: i64,
     ) -> Result<(u64, Vec<(StockGroupKey, String)>)> {
         // —— 过滤片段（count 与取行共用）——
         let push_common = |qb: &mut QueryBuilder<'_, sqlx::Postgres>| -> Result<()> {

@@ -86,9 +86,9 @@ pub struct RankingQuery {
     /// （见 `StatisticsService::ranking_order_by`）
     pub order_by: Option<(&'static str, bool)>,
     /// `LIMIT`
-    pub limit: u64,
+    pub limit: i64,
     /// `OFFSET`
-    pub offset: u64,
+    pub offset: i64,
 }
 
 #[derive(Clone)]
