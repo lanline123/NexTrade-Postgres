@@ -442,7 +442,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 
 | 项 | 状态 |
 |---|---|
-| 线上二进制 | **staging 包 `f340698`**（含货号大小写不敏感查询），72,575,312 字节，sha256 `256a4385…9241`，13:37:39 部署（`scratch/deploy-f340698.sh`，备份 `nextrade.bak.20261110_133739`，`main_pid=3990008`，`proc_sha` 与磁盘一致；冒烟 12/12、回归 53/53+4/4） |
+| 线上二进制 | **staging 包 `4ca2484`**（MCP 第二批 + POS 并行提交），sha256 `b2d0c396…da16`，2026-11-11 00:20 部署（TAG `mcpm3`，`deploy_backend_unique.py` 唯一合并文件；健康 admin=200 / api=200；MCP 复测 24 工具 + 报表/文章/会员修复通过）。并行会话仍在推进打印相关提交，后续由其部署覆盖到更新 HEAD |
 | 生产库 | 49 列已回退 text（§4.3）；637 列 smallint→integer 加宽；12 列 bigint→integer 收窄；335 张 MySQL 表全在、3927 列 0 缺失 |
 | 与 `pure.sql` 比对 | 686 处差异**全部为有意改动**：637 整数加宽 + 49 时间/JSON 回退（线上 MySQL 本就是字符串）；无丢失性差异 |
 | 会员 `123/123` | 登录、购物车、getCount、订单、资料、站内信、商品分页（total=64 有记录）、签到 sign 均 200 |
@@ -543,6 +543,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | pos-semi 桌台/订单/结算/会员/核销（审计 43.11–43.14）：桌台开台/转台/清台（含人数/开台时间继承）、订单列表+详情+未支付取消、结算面板（余额/积分）、会员查询/充值、提货码核销；staging `040ae05` 部署（sha `563954fc…400d`），桌台冒烟与回归全绿 |
 | 2026-11-10 | pos-semi 生产验收环境 `/pos-next`（审计 43.15）：`VITE_BASE_PATH=/pos-next/` 构建并部署，nginx 新增 `^~ /pos-next` 兜底；生产浏览器实测收银（30/64 商品、加购/删除）、订单 31 条、桌台空态正常；`/pos` 仍保留 legacy，待设备/交班/打印/预约补齐后再切换 |
 | 2026-11-10 | pos-semi 设备/交班/优惠券（审计 43.16–43.17，`785d556` + `e896115` + `53b4baa`）：设备下拉与交班（workOff+work）上线并生产验证；优惠券选择 UI 接入（线上空态已验证）；`/pos-next` 刷新至最新构建；staging 二进制 `e9f2a085…1c39`，回归 53/53+4/4 |
+| 2026-11-10 | pos-semi 预约/打印（审计 43.18，`5dcf351` + `fe08ac2`）：预约列表复用并行路由并上线（空态 0 条），结账后按 `hasEnabled` 提交打印任务；staging 二进制 `374c1474…975b`，回归 53/53+4/4；`/pos-next` 更新至 `index-w2naU7qz.js` |
 | 2026-11-10 | 后台顶栏「查看商城」补图标（审计第四十章）：React 版顶栏按钮漏了 `icon`，原版 Vue 为 `icon-guanli`；补 `IconShoppingBag`（与账号下拉同名入口一致），上游 admin-semi 重建后全量上传，线上 DOM 已含 `semi-icon-shopping_bag`，回滚 index 存 `scratch/admin-index.online.20261110_170626.html` |
 | 2026-11-10 | 推送约定：后续**只推送 `NexTrade-Postgres`**；上游 `D:\tigshop\NexTrade` 仅作构建源码，改动同步到本仓库 `admin-semi/` / `pc-semi/` 后再提交，不再向上游 remote 推送（§2.2） |
 | 2026-11-10 | 素材中心「删除分组」弹窗现代化（审计第四十一章）：警示条显示分组名 + 两张可点击策略卡（选中蓝/危险红）+ 红色确认按钮；因上游有并行 WIP，改用 `git archive HEAD` 干净源码构建后全量上传，线上 `index-vGC7iQEf.js`，回滚 index 存 `scratch/admin-index.online.20261110_172540.html` |
@@ -557,7 +558,10 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 素材弹窗补全分组管理（审计第五十一章）：分组右键支持添加子分组/重命名/上移/下移/删除，删除时可选「仅删分组」或「分组及组内素材」（`gallery/del`、`galleryVideo/del`）；线上 `index-DbtAyZBl.js`，回滚 index 存 `scratch/admin-index.online.20261110_210247.html` |
 | 2026-11-10 | 素材弹窗分组自由拖拽（审计第五十二章）：分组行上/下边缘排序、中间变为子分组、拖到根移回顶级；修正 `gallery/sort` 的 `type` 误传数字（应为 `image`/`video`，同时修复素材中心页上移/下移）；线上 `index-BwJfAmNd.js`，回滚 index 存 `scratch/admin-index.online.20261110_211354.html` |
 | 2026-11-10 | 登录页与组织选择页统一布局 + 主题色跟随（审计第五十三章）：两步共用「安全登录」页脚，桌面卡片固定 580px 等高；登录页改用 `--primary`/`color-mix` 配色，`applyAndStore` 把主题色缓存到 `localStorage`，登录页挂载时读取（默认蓝，首次访问需登录过一次）；线上 `index-CMyogy2H.js`，回滚 index 存 `scratch/admin-index.online.20261110_212752.html` |
+| 2026-11-11 | WorkBuddy MCP 密钥迁入 AI 菜单（审计第五十六章）：后端 `/adminapi/openapi/mcp/v1/*` 仍用 `X-MCP-Api-Key` 鉴权且实现完整，但生产密钥未配置、全局设置里的旧块「生成后丢弃/有效期是时间戳/密钥明文」不可用；从 `globalSetting` 移除该分区与三个按钮，在 AI → MCP 管理新增「商品导入 MCP（WorkBuddy）」卡片：掩码显示、生成/复制、日期时间有效期、单独保存（`saveGlobal` 仅提交两个字段），并把 `workbuddyApiKey*` 加入 `hiddenFields` 防止未分组字段回灌；线上入口 `index-blwrcUF_.js`（sha256 `24dd6219…1219`） |
+| 2026-11-10 | 「地区设置」控件修复（审计第五十五章）：默认国家/商城默认地区在通用配置页退化成文本框（只显示 `1` 与 `1,370000,...`），且后端 `globalSettings` 不返回 `countries`；新增 `RegionSettingFields.tsx` 用 `/setting/region/getAllRegionTree` 渲染国家下拉与省市区级联（等树加载完再挂载，避免 Semi 把值显示成原始 ID），保存仍为 `defaultCountry` 数字 + `shopDefaultRegions` 逗号串；线上入口 `index-Dxf5r18R.js`（sha256 `1e6dcb9f…5138`），生产实测显示「中国」「中国 / 山东省 / 济南市 / 历城区」 |
 | 2026-11-10 | 「查看商城」不读域名设置修复（审计第五十四章）：原实现只读构建期 `VITE_MALL_URL`，未配置即回退 `/`，与后台 `pcDomain/h5Domain` 无关；新增 `admin-semi/src/mall.ts` 按旧版 `urlFormat/urlWapFormat` 解析（`clientDefaultUse` 为 1 走 H5），App 在登录后与「全局设置」保存后刷新并下传 `AdminLayout`，装修编辑器「打开商城首页」同源；隔离构建（HEAD + 4 文件，避开并行 WIP）整包上传，线上入口 `index-F84HWsFc.js`（sha256 `4f19cbd6…77c0`），生产实测点击跳 `https://battery.recy.cc/` |
+| 2026-11-11 | MCP 第二批权限（审计第五十七章）：新增报表/订单/会员/内容 4 个域开关 + 10 个工具（报表/会员/内容纯只读，订单仅后台备注可写），工具总数 14→24；生产冒烟发现并修复 `article.title` 列名、会员密码哈希外泄、`pay_time=0` 报表全 0 三处问题（`b5f30be`）；基于 `4ca2484` 构建部署（sha `b2d0c396…`，健康 200/200，复测 24 工具与三处修复）；客户手册同步 5.3–5.6 |
 
 ---
 
@@ -573,3 +577,5 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 6 | 安全整改 | `crates/common/src/config.rs:159` 内置默认 JWT secret；历史提交含明文口令 | JWT 守卫 ✅（2026-11-10，`6d099b0` 上线，生产 secret 已核非默认）；**历史明文口令轮换仍待人工**，见 §6 第 1 条 |
 | 7 | `shop_deposit(owner_type, owner_id)` 补唯一索引 | 现为非唯一索引 + 先查后插，并发可产生重复保证金账户（当前 0 行） | ✅ 已完成（2026-11-10）：唯一索引 `uk_shop_deposit_owner` 生效 + 两处 INSERT 改 `ON CONFLICT DO NOTHING`，部署 `1c05a25`，回归 53/53，见审计 33.6 |
 | 8 | `docker-compose.yml` / `deploy/README.md` 仍是 MySQL 口径 | 环境重建会踩坑 | ✅ 已完成（2026-11-10）：compose 改 `postgres:16-alpine`、`TIG_JWT_SECRET` 必填、`AUTO_MIGRATE=false`；Dockerfile/README/deploy 文档同步，`mysql-init/` 标注停用，见审计 35.4 |
+| 2026-11-10 | PC 全模块页阻塞修复（审计第五十六章）：`/category/category/hot` 改 camelCase（commit `980824f`），秒杀 `active_list` 批量回填商品名/图/价（commit `29f094f`）；创建优惠券 id6、秒杀 id2、拼团 id2 并绑定页面 10023，发布审批 #3 待批。部署踩坑：`29f094f` 构建因并行提交的重复 `OrderReservation/list` 路由启动 panic，已自动回滚；线上现跑并行构建 sha `374c1474…`，两接口实测正常 |
+| 2026-11-11 | 页面 10023 审批通过并上线（审计 56.6）：用户授权代批 approvalId=3，`/activity?id=10023` 20 模块正常；修正秒杀价 315000→279000（低于商品原价 284000，避免「优惠0%」），接口实测生效 |
