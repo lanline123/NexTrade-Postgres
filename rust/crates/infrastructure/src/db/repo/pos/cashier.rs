@@ -808,8 +808,10 @@ impl PosCashierRepository {
         password_hash: &str,
     ) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
-            "INSERT INTO \"user\" (username, avatar, mobile, mobile_validated, nickname, password, reg_time, referrer_user_id) \
-             VALUES ($1, '', $2, 1, $3, $4, $5, 0) RETURNING user_id",
+            // PG 对齐后 email/last_ip/wechat_img/admin_note 为 NOT NULL 且无默认值，必须显式给空串。
+            "INSERT INTO \"user\" (username, avatar, mobile, mobile_validated, email, email_validated, \
+             nickname, password, last_ip, wechat_img, admin_note, reg_time, referrer_user_id) \
+             VALUES ($1, '', $2, 1, '', 0, $3, $4, '', '', '', $5, 0) RETURNING user_id",
         )
         .bind(mobile)
         .bind(mobile)
