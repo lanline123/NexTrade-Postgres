@@ -1,16 +1,20 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Empty, Input, Modal, Pagination, Toast } from '@douyinfe/semi-ui';
-import { IconClose, IconGallery, IconSearch } from '@douyinfe/semi-icons';
-import { apiGet, apiUpload, isDemo } from '../api';
+import { IconClose, IconGallery, IconPlayCircle, IconSearch, IconVideo } from '@douyinfe/semi-icons';
+import { apiGet, apiPost, apiUpload, isDemo } from '../api';
 import { useI18n } from '../i18n';
 import './gallery-picker.css';
 
-interface GalleryPic {
-  picId?: number;
+interface MediaItem {
+  id?: number;
   galleryId?: number;
   picName?: string;
+  videoName?: string;
   picUrl?: string;
   picThumb?: string;
+  videoUrl?: string;
+  videoCover?: string;
+  videoFirstFrame?: string;
 }
 
 interface RawGalleryNode {
@@ -32,6 +36,7 @@ interface GalleryTreeNode {
 
 interface GalleryPickerModalProps {
   visible: boolean;
+  mediaType?: 'image' | 'video';
   multiple?: boolean;
   limit?: number;
   onCancel: () => void;
@@ -61,22 +66,42 @@ const filterTree = (nodes: GalleryTreeNode[], keyword: string): GalleryTreeNode[
   }, []);
 };
 
-const picUrlOf = (pic: GalleryPic) => pic.picUrl || pic.picThumb || '';
+const videoNameFromFile = (file: File) => {
+  const base = file.name.replace(/\.[^.]+$/, '');
+  return (base || file.name).slice(0, 20);
+};
+
+const readVideoDuration = (file: File) =>
+  new Promise<string>((resolve) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    const done = (value: string) => {
+      URL.revokeObjectURL(url);
+      video.remove();
+      resolve(value);
+    };
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => done(String(Math.round(video.duration || 0)));
+    video.onerror = () => done('');
+    video.src = url;
+  });
 
 export default function GalleryPickerModal({
   visible,
+  mediaType = 'image',
   multiple = true,
   limit,
   onCancel,
   onConfirm,
 }: GalleryPickerModalProps) {
   const { t } = useI18n();
+  const isVideo = mediaType === 'video';
   const [keyword, setKeyword] = useState('');
   const [groupKeyword, setGroupKeyword] = useState('');
   const [galleryId, setGalleryId] = useState(0);
   const [expandedIds, setExpandedIds] = useState<number[]>([]);
   const [page, setPage] = useState(1);
-  const [items, setItems] = useState<GalleryPic[]>([]);
+  const [items, setItems] = useState<MediaItem[]>([]);
   const [total, setTotal] = useState(0);
   const [tree, setTree] = useState<GalleryTreeNode[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -84,6 +109,11 @@ export default function GalleryPickerModal({
   const [uploading, setUploading] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const urlOf = (item: MediaItem) => (isVideo ? item.videoUrl || '' : item.picUrl || item.picThumb || '');
+  const thumbOf = (item: MediaItem) =>
+    isVideo ? item.videoCover || item.videoFirstFrame || '' : item.picThumb || item.picUrl || '';
+  const nameOf = (item: MediaItem) => (isVideo ? item.videoName || '' : item.picName || '');
 
   useEffect(() => {
     if (!visible) return;
@@ -93,28 +123,44 @@ export default function GalleryPickerModal({
     setGalleryId(0);
     setExpandedIds([]);
     setPage(1);
-    apiGet<{ records?: RawGalleryNode[] }>('/setting/gallery/tree', { type: 'image' })
-      .then((result) => setTree(normalizeTree(result?.records || [])))
-      .catch(() => undefined);
-  }, [visible]);
+    if (isVideo) {
+      apiGet<any>('/setting/galleryVideo/getAllCategory')
+        .then((result) => setTree(normalizeTree(Array.isArray(result) ? result : result?.records || [])))
+        .catch(() => undefined);
+    } else {
+      apiGet<{ records?: RawGalleryNode[] }>('/setting/gallery/tree', { type: 'image' })
+        .then((result) => setTree(normalizeTree(result?.records || [])))
+        .catch(() => undefined);
+    }
+  }, [visible, isVideo]);
 
   useEffect(() => {
     if (!visible || isDemo()) return;
     let alive = true;
     setLoading(true);
-    apiGet<any>('/setting/galleryPic/list', {
-      page,
-      size: PAGE_SIZE,
-      galleryId: galleryId || undefined,
-      keyword: keyword.trim() || undefined,
-      sortOrder: 'desc',
-    })
+    const endpoint = isVideo ? '/setting/galleryVideoInfo/list' : '/setting/galleryPic/list';
+    const params = isVideo
+      ? {
+          page,
+          size: PAGE_SIZE,
+          id: galleryId || undefined,
+          keyword: keyword.trim() || undefined,
+          sortOrder: 'desc',
+        }
+      : {
+          page,
+          size: PAGE_SIZE,
+          galleryId: galleryId || undefined,
+          keyword: keyword.trim() || undefined,
+          sortOrder: 'desc',
+        };
+    apiGet<any>(endpoint, params)
       .then((result) => {
         if (!alive) return;
-        const records: GalleryPic[] =
-          result?.galleryPicPage?.records || result?.records || result?.list || [];
-        setItems(records.filter((item) => picUrlOf(item)));
-        setTotal(Number(result?.galleryPicPage?.total ?? result?.total ?? records.length));
+        const pageData = isVideo ? result?.galleryVideoInfoPage : result?.galleryPicPage;
+        const records: MediaItem[] = pageData?.records || result?.records || result?.list || [];
+        setItems(records.filter((item) => urlOf(item)));
+        setTotal(Number(pageData?.total ?? result?.total ?? records.length));
       })
       .catch((error) => {
         if (alive) Toast.error({ content: error instanceof Error ? error.message : t('加载素材失败') });
@@ -125,15 +171,12 @@ export default function GalleryPickerModal({
     return () => {
       alive = false;
     };
-  }, [visible, page, galleryId, reloadKey, t]);
+  }, [visible, page, galleryId, reloadKey, isVideo, t]);
 
-  const visibleTree = useMemo(
-    () => filterTree(tree, groupKeyword),
-    [tree, groupKeyword],
-  );
+  const visibleTree = useMemo(() => filterTree(tree, groupKeyword), [tree, groupKeyword]);
 
   const selectedFolderName = useMemo(() => {
-    if (galleryId === 0) return t('全部图片');
+    if (galleryId === 0) return isVideo ? t('全部视频') : t('全部图片');
     const find = (nodes: GalleryTreeNode[]): string | undefined => {
       for (const node of nodes) {
         if (node.id === galleryId) return node.name;
@@ -142,8 +185,8 @@ export default function GalleryPickerModal({
       }
       return undefined;
     };
-    return find(tree) || t('全部图片');
-  }, [galleryId, tree, t]);
+    return find(tree) || (isVideo ? t('全部视频') : t('全部图片'));
+  }, [galleryId, tree, isVideo, t]);
 
   const toggleExpand = (id: number) => {
     setExpandedIds((current) =>
@@ -156,11 +199,11 @@ export default function GalleryPickerModal({
     setPage(1);
   };
 
-  const toggleSelect = (pic: GalleryPic) => {
-    const url = picUrlOf(pic);
+  const toggleSelect = (item: MediaItem) => {
+    const url = urlOf(item);
     if (!url) return;
     setSelected((current) => {
-      if (current.includes(url)) return current.filter((item) => item !== url);
+      if (current.includes(url)) return current.filter((entry) => entry !== url);
       if (!multiple) return [url];
       if (limit !== undefined && current.length >= limit) {
         Toast.warning({ content: t('最多选择 {count} 张', { count: limit }) });
@@ -170,8 +213,8 @@ export default function GalleryPickerModal({
     });
   };
 
-  const pickAndConfirm = (pic: GalleryPic) => {
-    const url = picUrlOf(pic);
+  const pickAndConfirm = (item: MediaItem) => {
+    const url = urlOf(item);
     if (!url) return;
     if (!multiple) {
       onConfirm([url]);
@@ -191,11 +234,26 @@ export default function GalleryPickerModal({
     try {
       const urls: string[] = [];
       for (const file of Array.from(files)) {
-        const result = await apiUpload<{ picUrl?: string }>(
-          '/setting/galleryPic/uploadImg?galleryId=0',
-          file,
-        );
-        if (result?.picUrl) urls.push(result.picUrl);
+        if (isVideo) {
+          const data = await apiUpload<Record<string, any>>('/setting/galleryVideoInfo/uploadVideo', file);
+          const duration = await readVideoDuration(file);
+          await apiPost('/setting/galleryVideoInfo/create', {
+            ...data,
+            videoName: videoNameFromFile(file),
+            duration,
+            size: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
+            videoCover: '',
+            galleryId: [galleryId || 0],
+            source: 'upload',
+          });
+          if (data?.videoUrl) urls.push(String(data.videoUrl));
+        } else {
+          const result = await apiUpload<{ picUrl?: string }>(
+            '/setting/galleryPic/uploadImg?galleryId=0',
+            file,
+          );
+          if (result?.picUrl) urls.push(result.picUrl);
+        }
       }
       if (urls.length) {
         setSelected((current) => {
@@ -209,10 +267,10 @@ export default function GalleryPickerModal({
         setGalleryId(0);
         setPage(1);
         setReloadKey((key) => key + 1);
-        Toast.success({ content: t('图片上传成功') });
+        Toast.success({ content: isVideo ? t('视频上传成功') : t('图片上传成功') });
       }
     } catch (error) {
-      Toast.error({ content: error instanceof Error ? error.message : t('图片上传失败') });
+      Toast.error({ content: error instanceof Error ? error.message : t('上传失败') });
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -250,12 +308,7 @@ export default function GalleryPickerModal({
   return (
     <Modal
       className="gallery-picker-modal"
-      title={
-        <div className="gp-heading">
-          <span className="gp-heading-title">{t('从素材中心选择')}</span>
-          <span className="gp-heading-sub">{t('选择已有图片，或直接上传新图片')}</span>
-        </div>
-      }
+      title={isVideo ? t('从素材中心选择视频') : t('从素材中心选择图片')}
       visible={visible}
       width="min(1280px, 94vw)"
       centered
@@ -281,7 +334,7 @@ export default function GalleryPickerModal({
       <div className="gp-layout">
         <aside className="gp-sidebar">
           <div className="gp-sidebar-head">
-            <span className="gp-sidebar-title">{t('图片分组')}</span>
+            <span className="gp-sidebar-title">{isVideo ? t('视频分组') : t('图片分组')}</span>
             <Input
               className="gp-group-search"
               size="small"
@@ -298,7 +351,7 @@ export default function GalleryPickerModal({
               onClick={() => selectFolder(0)}
             >
               <span className="gp-tree-arrow is-leaf" />
-              <span className="gp-tree-name">{t('全部图片')}</span>
+              <span className="gp-tree-name">{isVideo ? t('全部视频') : t('全部图片')}</span>
             </div>
             {renderTree(visibleTree)}
           </div>
@@ -308,16 +361,16 @@ export default function GalleryPickerModal({
             <Button
               type="primary"
               theme="solid"
-              icon={<IconGallery />}
+              icon={isVideo ? <IconVideo /> : <IconGallery />}
               loading={uploading}
               onClick={() => fileRef.current?.click()}
             >
-              {t('上传图片')}
+              {isVideo ? t('上传视频') : t('上传图片')}
             </Button>
             <input
               ref={fileRef}
               type="file"
-              accept="image/*"
+              accept={isVideo ? 'video/mp4' : 'image/*'}
               multiple
               hidden
               onChange={(event) => void upload(event.target.files)}
@@ -326,7 +379,7 @@ export default function GalleryPickerModal({
               className="gp-search"
               prefix={<IconSearch />}
               value={keyword}
-              placeholder={t('图片名称')}
+              placeholder={isVideo ? t('视频名称') : t('图片名称')}
               showClear
               onChange={setKeyword}
               onEnterPress={() => {
@@ -346,20 +399,33 @@ export default function GalleryPickerModal({
               </div>
             ) : items.length ? (
               <div className="gp-grid">
-                {items.map((pic, index) => {
-                  const url = picUrlOf(pic);
+                {items.map((item, index) => {
+                  const url = urlOf(item);
+                  const thumb = thumbOf(item);
+                  const name = nameOf(item);
                   const isSelected = selected.includes(url);
                   return (
                     <div
-                      key={`${pic.picId ?? index}-${url}`}
-                      className={`gp-item${isSelected ? ' is-selected' : ''}`}
-                      title={pic.picName || ''}
-                      onClick={() => toggleSelect(pic)}
-                      onDoubleClick={() => pickAndConfirm(pic)}
+                      key={`${item.id ?? item.galleryId ?? index}-${url}`}
+                      className={`gp-item${isVideo ? ' is-video' : ''}${isSelected ? ' is-selected' : ''}`}
+                      title={name}
+                      onClick={() => toggleSelect(item)}
+                      onDoubleClick={() => pickAndConfirm(item)}
                     >
-                      <img src={pic.picThumb || url} alt={pic.picName || ''} loading="lazy" />
+                      {thumb ? (
+                        <img src={thumb} alt={name} loading="lazy" />
+                      ) : (
+                        <div className="gp-video-placeholder">
+                          <IconVideo size="extra-large" />
+                        </div>
+                      )}
+                      {isVideo && (
+                        <span className="gp-play">
+                          <IconPlayCircle size="large" />
+                        </span>
+                      )}
                       <span className="gp-item-check">{isSelected ? '✓' : ''}</span>
-                      {pic.picName && <span className="gp-name">{pic.picName}</span>}
+                      {name && <span className="gp-name">{name}</span>}
                     </div>
                   );
                 })}
@@ -371,18 +437,22 @@ export default function GalleryPickerModal({
           {selected.length > 0 && (
             <div className="gp-tray">
               <div className="gp-tray-list">
-                {selected.map((url) => (
-                  <div className="gp-tray-item" key={url}>
-                    <img src={url} alt="" />
-                    <button
-                      type="button"
-                      aria-label={t('移除')}
-                      onClick={() => setSelected((current) => current.filter((item) => item !== url))}
-                    >
-                      <IconClose size="small" />
-                    </button>
-                  </div>
-                ))}
+                {selected.map((url) => {
+                  const picked = items.find((item) => urlOf(item) === url);
+                  const thumb = picked ? thumbOf(picked) : '';
+                  return (
+                    <div className="gp-tray-item" key={url}>
+                      {thumb ? <img src={thumb} alt="" /> : <span className="gp-tray-video"><IconVideo /></span>}
+                      <button
+                        type="button"
+                        aria-label={t('移除')}
+                        onClick={() => setSelected((current) => current.filter((item) => item !== url))}
+                      >
+                        <IconClose size="small" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
               <button type="button" className="gp-tray-clear" onClick={() => setSelected([])}>
                 {t('清空')}

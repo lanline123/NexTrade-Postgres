@@ -1181,6 +1181,35 @@ body {
   font-size: 12px;
 }
 
+.product-video-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.product-video-preview {
+  width: 280px;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #000;
+}
+
+.product-video-preview video {
+  display: block;
+  width: 100%;
+  height: 158px;
+  background: #000;
+}
+
+.product-video-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: #fff;
+}
+
 /* 多规格 SKU 编辑 */
 .sku-type-row {
   display: flex;

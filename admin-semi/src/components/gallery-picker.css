@@ -5,35 +5,23 @@
 }
 
 .gallery-picker-modal .semi-modal-header {
-  padding: 18px 24px 14px;
+  padding: 10px 20px 8px;
 }
 
-.gallery-picker-modal .semi-modal-footer {
-  padding: 14px 24px;
-  border-top: 1px solid var(--semi-color-border);
-}
-
-.gp-heading {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.gp-heading-title {
+.gallery-picker-modal .semi-modal-title {
   color: var(--semi-color-text-0);
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
 }
 
-.gp-heading-sub {
-  color: var(--semi-color-text-3);
-  font-size: 12px;
-  font-weight: 400;
+.gallery-picker-modal .semi-modal-footer {
+  padding: 8px 20px;
+  border-top: 1px solid var(--semi-color-border);
 }
 
 .gp-layout {
   display: flex;
-  height: clamp(560px, 72vh, 800px);
+  height: clamp(620px, 80vh, 900px);
   min-height: 0;
 }
 
@@ -142,14 +130,14 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  padding: 16px 22px 16px;
+  padding: 12px 18px 10px;
 }
 
 .gp-toolbar {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .gp-search {
@@ -189,8 +177,8 @@
 
 .gp-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
   padding: 2px;
 }
 
@@ -222,6 +210,40 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.gp-item.is-video img {
+  background: #000;
+}
+
+.gp-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  color: #fff;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.gp-video-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: #1f2329;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.gp-tray-video {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: #1f2329;
+  color: #fff;
 }
 
 .gp-item-check {

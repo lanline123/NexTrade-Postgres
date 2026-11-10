@@ -8,6 +8,7 @@ import FormDrawer from '../framework/FormDrawer';
 import ImageUploader from './ImageUploader';
 import RichTextEditor from './RichTextEditor';
 import ProductPicker from './ProductPicker';
+import ProductVideoField from './ProductVideoField';
 
 interface Option {
   id: number;
@@ -494,7 +495,17 @@ export default function ProductFormDrawer({
                   </div>
                 ),
               },
-              { field: 'productVideo', label: t('商品视频'), placeholder: t('视频地址，可留空') },
+              {
+                field: 'productVideo',
+                label: t('商品视频'),
+                type: 'custom',
+                render: ({ formApi, values }) => (
+                  <ProductVideoField
+                    value={values.productVideo || ''}
+                    onChange={(url) => formApi?.setValue('productVideo', url)}
+                  />
+                ),
+              },
               { field: 'keywords', label: t('搜索关键词'), placeholder: t('多个关键词用空格分隔') },
               { field: 'productBrief', label: t('商品描述'), type: 'textarea' },
             ],
@@ -652,6 +663,7 @@ export default function ProductFormDrawer({
               {
                 field: 'productDesc',
                 label: t('商品详情'),
+                hideLabel: true,
                 type: 'custom',
                 render: ({ formApi, values }) => (
                   <RichTextEditor
