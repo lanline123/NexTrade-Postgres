@@ -276,6 +276,8 @@ pub struct PosTableOperateDTO {
     pub target_table_id: Option<i32>,
     pub order_id: Option<i32>,
     pub remark: Option<String>,
+    #[serde(default)]
+    pub dining_count: Option<i32>,
 }
 
 // ————————————————————— 商品 / 订单 —————————————————————

@@ -663,6 +663,44 @@ impl PosCashierRepository {
         Ok(())
     }
 
+    /// 开台：占用桌台、写入就餐人数并进入「待下单」。
+    pub async fn table_open_state(
+        &self,
+        id: i32,
+        user_id: i32,
+        dining_count: i32,
+    ) -> Result<()> {
+        let ts = now();
+        let session = format!("T{ts}{id}");
+        sqlx::query(
+            "UPDATE pos_table SET status = 1, table_status = 1, user_id = $1, dining_count = $2,              open_time = $3, session_sn = $4, update_time = $5 WHERE table_id = $6",
+        )
+        .bind(user_id)
+        .bind(dining_count)
+        .bind(ts)
+        .bind(&session)
+        .bind(ts)
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 清台：复位占用/人数/会话/转台来源。
+    pub async fn table_clear_state(&self, id: i32) -> Result<()> {
+        let ts = now();
+        sqlx::query(
+            "UPDATE pos_table SET status = 0, table_status = 0, user_id = 0, last_order_id = 0,              open_time = 0, session_sn = '', dining_count = 0, transfer_from_table_no = '',              update_time = $1 WHERE table_id = $2",
+        )
+        .bind(ts)
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
     pub async fn table_transfer(&self, from: i32, to: i32) -> Result<()> {
         let src = self.table_find(from).await?;
         let dst = self.table_find(to).await?;

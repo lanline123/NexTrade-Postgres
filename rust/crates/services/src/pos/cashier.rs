@@ -779,6 +779,54 @@ impl PosCashierService {
         }
     }
 
+    /// 开台：仅未开台的桌台可开，写入人数并置「待下单」。
+    pub async fn table_open(&self, dto: &PosTableOperateDTO) -> Result<()> {
+        let table = self
+            .repo()
+            .table_find(dto.table_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("桌台不存在".into()))?;
+        if table.table_status != 0 || table.status != 0 {
+            return Err(Error::Conflict("桌台已开台".into()));
+        }
+        self.repo()
+            .table_open_state(
+                dto.table_id,
+                dto.user_id.unwrap_or(0),
+                dto.dining_count.unwrap_or(0).max(0),
+            )
+            .await
+    }
+
+    /// 清台：复位桌台状态。
+    pub async fn table_clear_table(&self, table_id: i32) -> Result<()> {
+        self.repo().table_clear_state(table_id).await
+    }
+
+    /// 转台：源桌台已开台且目标桌台空闲。
+    pub async fn table_transfer_to(&self, from: i32, to: i32) -> Result<()> {
+        if from <= 0 || to <= 0 || from == to {
+            return Err(Error::Validation("请选择要转出的桌台和目标桌台".into()));
+        }
+        let source = self
+            .repo()
+            .table_find(from)
+            .await?
+            .ok_or_else(|| Error::NotFound("源桌台不存在".into()))?;
+        let target = self
+            .repo()
+            .table_find(to)
+            .await?
+            .ok_or_else(|| Error::NotFound("目标桌台不存在".into()))?;
+        if source.table_status == 0 {
+            return Err(Error::Validation("请选择已开台的桌台".into()));
+        }
+        if target.table_status != 0 {
+            return Err(Error::Conflict("目标桌台已被占用".into()));
+        }
+        self.repo().table_transfer(from, to).await
+    }
+
     /// POS 收银下单：把当前草稿明细写入会员购物车，走真实下单管道，现金默认记已支付。
     pub async fn checkout(
         &self,

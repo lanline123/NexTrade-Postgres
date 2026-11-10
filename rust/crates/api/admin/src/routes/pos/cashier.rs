@@ -119,7 +119,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/pos/table/area/create", post(table_area_create))
         .route("/pos/table/area/update", post(table_area_update))
         .route("/pos/table/area/del", post(table_area_del))
-        .route("/pos/table/operate/open", post(table_operate))
+        .route("/pos/table/operate/open", post(table_open))
         .route("/pos/table/operate/bindUser", post(table_operate))
         .route("/pos/table/operate/cancel", post(table_operate))
         .route("/pos/table/operate/clear", post(table_clear))
@@ -1116,10 +1116,9 @@ async fn table_operate(
 
 async fn table_clear(
     State(state): State<AdminState>,
-    Json(mut dto): Json<PosTableOperateDTO>,
+    Json(dto): Json<PosTableOperateDTO>,
 ) -> ApiResult<()> {
-    dto.user_id = Some(0);
-    state.pos.cashier.table_operate(&dto).await?;
+    state.pos.cashier.table_clear_table(dto.table_id).await?;
     ok(())
 }
 
@@ -1127,7 +1126,11 @@ async fn table_transfer(
     State(state): State<AdminState>,
     Json(dto): Json<PosTableOperateDTO>,
 ) -> ApiResult<()> {
-    state.pos.cashier.table_operate(&dto).await?;
+    state
+        .pos
+        .cashier
+        .table_transfer_to(dto.table_id, dto.target_table_id.unwrap_or(0))
+        .await?;
     ok(())
 }
 
@@ -1136,6 +1139,14 @@ async fn table_board(
     Query(q): Query<PosIdQuery>,
 ) -> ApiResult<PosCartVO> {
     ok(state.pos.cashier.cart(0, 0, q.id.unwrap_or(0)).await?)
+}
+
+async fn table_open(
+    State(state): State<AdminState>,
+    Json(dto): Json<PosTableOperateDTO>,
+) -> ApiResult<()> {
+    state.pos.cashier.table_open(&dto).await?;
+    ok(())
 }
 
 async fn table_place_order(
