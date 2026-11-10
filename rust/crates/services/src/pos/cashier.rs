@@ -620,7 +620,7 @@ impl PosCashierService {
                 .await?;
         }
 
-        let shop_id = draft.shop_id;
+        let shop_id = draft.shop_id.unwrap_or(0);
         let now = chrono::Utc::now().timestamp() as i32;
         let mut cart_ids = Vec::with_capacity(items.len());
         for item in &items {
