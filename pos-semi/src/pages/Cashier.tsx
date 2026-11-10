@@ -114,6 +114,10 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
   const [memberMobile, setMemberMobile] = useState('');
   const [memberResult, setMemberResult] = useState<Member | null>(null);
   const [memberSearching, setMemberSearching] = useState(false);
+  const [priceOpen, setPriceOpen] = useState(false);
+  const [priceType, setPriceType] = useState<1 | 2>(1);
+  const [priceValue, setPriceValue] = useState('');
+  const [pricePreview, setPricePreview] = useState<string | number | null>(null);
 
   const loadProducts = useCallback(async (nextKeyword: string, nextCategory: number | undefined) => {
     setLoading(true);
@@ -293,6 +297,55 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
       setMember(null);
       setPendingOpen(false);
       toast('取单成功');
+    } catch (error) {
+      toast(message(error), 'error');
+    }
+  };
+
+  const openPrice = () => {
+    if (!items.length) {
+      toast('购物车为空', 'error');
+      return;
+    }
+    setPriceType(1);
+    setPriceValue('');
+    setPricePreview(null);
+    setPriceOpen(true);
+  };
+
+  const previewPrice = async () => {
+    const value = Number(priceValue);
+    if (!Number.isFinite(value) || value <= 0) {
+      toast('请输入正确的改价数值', 'error');
+      return;
+    }
+    try {
+      const result = await api.post<CartVO>('/pos/cart/changePriceShow', {
+        totalChangePriceType: priceType,
+        changePriceValue: value,
+        userId: member?.userId ?? 0,
+        tableId: 0,
+      });
+      setPricePreview(result?.total?.discountAfter ?? null);
+    } catch (error) {
+      toast(message(error), 'error');
+    }
+  };
+
+  const submitPrice = async () => {
+    const value = Number(priceValue);
+    if (!Number.isFinite(value) || value <= 0) {
+      toast('请输入正确的改价数值', 'error');
+      return;
+    }
+    try {
+      await api.post('/pos/cart/changePrice', {
+        totalChangePriceType: priceType,
+        changePriceValue: value,
+      });
+      await loadCart();
+      setPriceOpen(false);
+      toast('改价成功');
     } catch (error) {
       toast(message(error), 'error');
     }
@@ -506,7 +559,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
                 </button>
               </div>
               <div className="dialog-link" style={{ display: 'inline-flex' }}>
-                <button type="button" className="el-button btn" onClick={() => toast('改价功能接入中')}>
+                <button type="button" className="el-button btn" onClick={openPrice}>
                   <span>改价</span>
                 </button>
               </div>
@@ -767,6 +820,70 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
               </div>
             ))
           )}
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={priceOpen}
+        title="整单改价"
+        width={460}
+        onClose={() => setPriceOpen(false)}
+        footer={
+          <>
+            <button type="button" className="el-button" onClick={() => setPriceOpen(false)}>
+              <span>取消</span>
+            </button>
+            <button type="button" className="el-button" onClick={() => void previewPrice()}>
+              <span>预览</span>
+            </button>
+            <button type="button" className="el-button el-button--primary" style={primaryStyle} onClick={() => void submitPrice()}>
+              <span>确认</span>
+            </button>
+          </>
+        }
+      >
+        <div className="price-types">
+          <button
+            type="button"
+            className={priceType === 1 ? 'price-type is-active' : 'price-type'}
+            onClick={() => {
+              setPriceType(1);
+              setPricePreview(null);
+            }}
+          >
+            一口价
+          </button>
+          <button
+            type="button"
+            className={priceType === 2 ? 'price-type is-active' : 'price-type'}
+            onClick={() => {
+              setPriceType(2);
+              setPricePreview(null);
+            }}
+          >
+            折扣
+          </button>
+        </div>
+        <div className="price-input">
+          <div className="el-input">
+            <div className="el-input__wrapper">
+              <input
+                className="el-input__inner"
+                placeholder={priceType === 1 ? '请输入改价金额' : '请输入折扣（如 90 表示九折）'}
+                value={priceValue}
+                onChange={(event) => setPriceValue(event.target.value)}
+              />
+            </div>
+          </div>
+          <span className="price-unit">{priceType === 1 ? '元' : '%'}</span>
+        </div>
+        <div className="member-row">
+          <span>原金额</span>
+          <strong>¥{Number(totalAmount).toFixed(2)}</strong>
+        </div>
+        <div className="member-row">
+          <span>改价后金额</span>
+          <strong>{pricePreview === null ? '—' : `¥${Number(pricePreview).toFixed(2)}`}</strong>
         </div>
       </Dialog>
 
