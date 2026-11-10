@@ -68,6 +68,19 @@
 另发现：`createTourists` / `createMember` 因 `user.email` 等列 NOT NULL 且无默认值而 500
 （`null value in column "email"`）。已修 `user_insert_pos`，显式写入空串；待下一次 staging 部署。
 
+## 后端能力缺口（阻塞 100% 对齐）
+
+对照 legacy 请求体发现 Rust 侧尚未实现的部分：
+
+| 能力 | legacy 行为 | Rust 现状 |
+|---|---|---|
+| 整单改价 | `cart/changePriceShow` 传 `totalChangePriceType`（一口价/折扣）+ `changePriceValue` + `originalPrice` | 只按 `cartId/itemId` 改单行价格，忽略整单/折扣参数 |
+| 收银结账 | `order/check/submit` 支持无桌台收银（tableId=0）、优惠券/余额/积分/改价明细/买家备注 | 要求 `tableId>0`，走桌台结账；其余字段未消费 |
+| 会员充值 | `user/rechargeOrder/create|update` + 支付 | 路由存在，支付/到账流程未联调 |
+| 优惠券 | 可见列表/领取/下单核销 | 列表与领取已实现，下单核销未接 |
+
+结论：收银台剩余功能（改价、结账、充值、优惠券）需要先补后端，再回到前端对齐。
+
 ## 下一步
 
 1. 补齐收银页弹窗（确认框/备注/改价/挂单）并复用原 `DialogForm`/`PosPopup` 样式；
