@@ -478,7 +478,7 @@
   color: var(--semi-color-danger);
 }
 
-.mc-radio-card.mc-radio-card--danger.semi-radio-checked .semi-radio-inner-checked {
+.mc-radio-card.mc-radio-card--danger.semi-radio-checked .semi-radio-inner-display {
   border-color: var(--semi-color-danger);
   background-color: var(--semi-color-danger);
 }
