@@ -379,7 +379,8 @@ mod tests {
         assert!(RESET_MOBILE_SQL.contains("LIMIT 2"));
         assert!(RESET_EMAIL_SQL.contains("LIMIT 2"));
         assert!(RESET_MOBILE_SQL.contains("mobile = $1"));
-        assert!(RESET_EMAIL_SQL.contains("email = $1"));
+        // 邮箱按 MySQL utf8mb4_general_ci 语义做大小写不敏感匹配（PG 的 = 是区分大小写的）
+        assert!(RESET_EMAIL_SQL.contains("LOWER(email) = LOWER($1)"));
         assert!(RESET_MOBILE_SQL.contains("user_id"));
         assert!(RESET_MOBILE_SQL.contains("status"));
     }
