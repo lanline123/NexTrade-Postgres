@@ -49,6 +49,10 @@ use nextrade_infrastructure::db::Repositories;
 const PLATFORM_SHOP_ID: i32 = 0;
 /// 已发布状态（Java `Decorate.status = 1`）。
 const DECORATE_PUBLISHED: i32 = 1;
+/// 腾讯云客服地址前缀（Java `Constants.TENCENT_CUSTOMER_SERVICE_URL`）。
+const TENCENT_CUSTOMER_SERVICE_URL: &str = "https://yzf.qq.com/xv/web/static/chat/index.html?sign=";
+/// 企业微信客服地址前缀（Java `Constants.QY_CUSTOMER_SERVICE_URL`）。
+const QY_CUSTOMER_SERVICE_URL: &str = "https://work.weixin.qq.com/kfid/";
 
 /// 底部导航（pageType=7）默认数据（对齐 Java InitDecorateDataConstants.NAV_H5_DECORATE_DATA）
 pub const DEFAULT_NAV_H5_DECORATE_DATA: &str = r#"{
@@ -247,7 +251,10 @@ impl HomeService {
 
     /// `GET /api/home/home/getCustomerServiceConfig`：客服设置。
     ///
-    /// 对应 Java `ConfigService#getConfigCustomer`，字段与 `ConfigCustomerDTO` 一致。
+    /// 对应 Java `ConfigService#getConfigCustomer`：配置表里只有 `kefuType` 等
+    /// 客服设置项，`serviceType/openType/url/show` 是**派生字段**，不是独立配置。
+    /// 早期实现直接读同名键，导致后台已开客服（`kefuType=4`）时前台仍拿到
+    /// 全 null 而隐藏客服入口。
     pub async fn customer_service_config(&self) -> Result<ConfigCustomerVO> {
         let map = self
             .repos
@@ -256,20 +263,15 @@ impl HomeService {
             .config_vals(&[
                 "h5Domain",
                 "corpId",
-                "url",
-                "openType",
-                "serviceType",
-                "show",
+                "kefuType",
+                "kefuYzfType",
+                "kefuYzfSign",
+                "kefuWorkwxId",
+                "kefuCode",
+                "kefuWhatsappPhone",
             ])
             .await?;
-        Ok(ConfigCustomerVO {
-            h5_domain: cfg_str(&map, "h5Domain"),
-            corp_id: cfg_str(&map, "corpId"),
-            url: cfg_str(&map, "url"),
-            open_type: cfg_int(&map, "openType"),
-            service_type: cfg_int(&map, "serviceType"),
-            show: cfg_int(&map, "show"),
-        })
+        Ok(customer_service_vo(&map))
     }
 
     /// `GET /api/home/home/getRecommend`：首页推荐模块数据。
@@ -482,6 +484,45 @@ fn cfg_int(map: &std::collections::HashMap<String, Option<String>>, key: &str) -
         .and_then(|v| v.trim().parse::<i32>().ok())
 }
 
+/// 由客服设置派生 `ConfigCustomerDTO`（对齐 Java `ConfigService#getConfigCustomer`）。
+///
+/// `kefuType`：0 无客服 / 1 腾讯云 / 2 企业微信 / 3 自定义链接 / 4 TigChat / 5 WhatsApp；
+/// `show = kefuType > 0`，`openType = kefuYzfType`，`url` 按类型拼接或取自定义链接。
+fn customer_service_vo(
+    map: &std::collections::HashMap<String, Option<String>>,
+) -> ConfigCustomerVO {
+    let service_type = cfg_int(map, "kefuType").unwrap_or(0);
+    let open_type = cfg_int(map, "kefuYzfType").unwrap_or(0);
+    let corp_id = match service_type {
+        1 | 2 => cfg_str(map, "corpId").unwrap_or_default(),
+        _ => String::new(),
+    };
+    let url = match service_type {
+        1 => Some(format!(
+            "{TENCENT_CUSTOMER_SERVICE_URL}{}",
+            cfg_str(map, "kefuYzfSign").unwrap_or_default()
+        )),
+        2 => Some(format!(
+            "{QY_CUSTOMER_SERVICE_URL}{}",
+            cfg_str(map, "kefuWorkwxId").unwrap_or_default()
+        )),
+        3 => Some(cfg_str(map, "kefuCode").unwrap_or_default()),
+        5 => Some(format!(
+            "https://wa.me/{}",
+            cfg_str(map, "kefuWhatsappPhone").unwrap_or_default()
+        )),
+        _ => None,
+    };
+    ConfigCustomerVO {
+        h5_domain: cfg_str(map, "h5Domain"),
+        corp_id: Some(corp_id),
+        url: Some(url.unwrap_or_default()),
+        open_type: Some(open_type),
+        service_type: Some(service_type),
+        show: Some(i32::from(service_type > 0)),
+    }
+}
+
 /// 当前 H5 包没有 `account` 组件，把账号装修模块降级为 `myService` 列表，
 /// 账号模块在新版 H5 有独立 `account` 组件；这里只补默认标题和标签，
 /// 不再降级成 `myService`（否则会和服务模块重复，且丢失语言/地区入口）。
@@ -584,6 +625,75 @@ mod tests {
         d.data = None;
         let vo = module_vo(&d);
         assert!(vo.module_list.is_none());
+    }
+
+    fn cfg_map(pairs: &[(&str, &str)]) -> std::collections::HashMap<String, Option<String>> {
+        pairs
+            .iter()
+            .map(|(k, v)| ((*k).to_string(), Some((*v).to_string())))
+            .collect()
+    }
+
+    #[test]
+    fn customer_service_vo_derives_from_kefu_type() {
+        let vo = customer_service_vo(&cfg_map(&[
+            ("kefuType", "4"),
+            ("kefuYzfType", "0"),
+            ("h5Domain", "https://m.example.com"),
+        ]));
+        assert_eq!(vo.service_type, Some(4));
+        assert_eq!(vo.show, Some(1));
+        assert_eq!(vo.open_type, Some(0));
+        assert_eq!(vo.url.as_deref(), Some(""));
+        assert_eq!(vo.corp_id.as_deref(), Some(""));
+        assert_eq!(vo.h5_domain.as_deref(), Some("https://m.example.com"));
+    }
+
+    #[test]
+    fn customer_service_vo_builds_url_per_kefu_type() {
+        let tencent = customer_service_vo(&cfg_map(&[
+            ("kefuType", "1"),
+            ("kefuYzfSign", "abc"),
+            ("corpId", "corp1"),
+        ]));
+        assert_eq!(
+            tencent.url.as_deref(),
+            Some("https://yzf.qq.com/xv/web/static/chat/index.html?sign=abc")
+        );
+        assert_eq!(tencent.corp_id.as_deref(), Some("corp1"));
+
+        let wecom = customer_service_vo(&cfg_map(&[
+            ("kefuType", "2"),
+            ("kefuWorkwxId", "kf123"),
+        ]));
+        assert_eq!(
+            wecom.url.as_deref(),
+            Some("https://work.weixin.qq.com/kfid/kf123")
+        );
+
+        let custom = customer_service_vo(&cfg_map(&[
+            ("kefuType", "3"),
+            ("kefuCode", "https://kf.example.com"),
+        ]));
+        assert_eq!(custom.url.as_deref(), Some("https://kf.example.com"));
+
+        let whatsapp = customer_service_vo(&cfg_map(&[
+            ("kefuType", "5"),
+            ("kefuWhatsappPhone", "8613800000000"),
+        ]));
+        assert_eq!(whatsapp.url.as_deref(), Some("https://wa.me/8613800000000"));
+    }
+
+    #[test]
+    fn customer_service_vo_hides_when_disabled_or_missing() {
+        let disabled = customer_service_vo(&cfg_map(&[("kefuType", "0")]));
+        assert_eq!(disabled.service_type, Some(0));
+        assert_eq!(disabled.show, Some(0));
+
+        let missing = customer_service_vo(&std::collections::HashMap::new());
+        assert_eq!(missing.service_type, Some(0));
+        assert_eq!(missing.show, Some(0));
+        assert_eq!(missing.url.as_deref(), Some(""));
     }
 
     #[test]
