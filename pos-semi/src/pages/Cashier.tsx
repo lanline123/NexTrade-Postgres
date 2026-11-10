@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import Dialog from '../components/Dialog';
 import Price from '../components/Price';
@@ -102,6 +103,10 @@ function shopIdOf(): number | undefined {
 }
 
 export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties }) {
+  const [searchParams] = useSearchParams();
+  const tableId = Number(searchParams.get('tableId') || 0);
+  const tableNo = searchParams.get('tableNo') || '--';
+  const tableDiningCount = searchParams.get('diningCount') || '--';
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartVO | null>(null);
@@ -181,12 +186,12 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
 
   const loadCart = useCallback(async () => {
     try {
-      const result = await api.post<CartVO>('/pos/cart/list', { shopId: shopIdOf() });
+      const result = await api.post<CartVO>('/pos/cart/list', { shopId: shopIdOf(), tableId });
       setCart(result);
     } catch (error) {
       toast(message(error), 'error');
     }
-  }, []);
+  }, [tableId]);
 
   useEffect(() => {
     api
@@ -211,6 +216,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
         productId: product.productId,
         quantity: 1,
         shopId: shopIdOf(),
+        tableId,
       });
       await loadCart();
       toast(`${product.productName} 已加入购物车`);
@@ -245,7 +251,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
     setConfirmState({
       message: '清空该购物车后将无法恢复，确定要清空该购物车吗？',
       action: async () => {
-        await api.post('/pos/cart/clearCart');
+        await api.post('/pos/cart/clearCart', { tableId });
         await loadCart();
       },
     });
@@ -298,7 +304,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
       return;
     }
     try {
-      await api.post('/pos/cart/pendingOrder', { remark });
+      await api.post('/pos/cart/pendingOrder', { remark, tableId });
       await loadCart();
       await loadPending();
       toast('挂单成功');
@@ -371,7 +377,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
         totalChangePriceType: priceType,
         changePriceValue: value,
         userId: member?.userId ?? 0,
-        tableId: 0,
+        tableId,
       });
       setPricePreview(result?.total?.discountAfter ?? null);
     } catch (error) {
@@ -389,6 +395,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
       await api.post('/pos/cart/changePrice', {
         totalChangePriceType: priceType,
         changePriceValue: value,
+        tableId,
       });
       await loadCart();
       setPriceOpen(false);
@@ -451,6 +458,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
       const result = await api.post<{ orderId: number; orderSn: string; totalAmount: string | number }>(
         '/pos/order/check/submit',
         {
+          tableId,
           remark: remark || undefined,
           markPaid: true,
           useBalance: balanceInput ? useBalance : undefined,
@@ -566,11 +574,11 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
                 <div className="table-meta">
                   <span className="table-meta-item">
                     <span className="table-meta-label">桌号：</span>
-                    <span className="table-meta-value">--</span>
+                    <span className="table-meta-value">{tableNo}</span>
                   </span>
                   <span className="table-meta-item">
                     <span className="table-meta-label">就餐人数：</span>
-                    <span className="table-meta-value">--</span>
+                    <span className="table-meta-value">{tableDiningCount}</span>
                   </span>
                 </div>
               </div>

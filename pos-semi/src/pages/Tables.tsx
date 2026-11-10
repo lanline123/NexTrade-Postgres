@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import Dialog from '../components/Dialog';
 import { toast } from '../toast';
@@ -39,6 +40,7 @@ function minutesSince(openTime: number): number {
 }
 
 export default function Tables() {
+  const navigate = useNavigate();
   const [areas, setAreas] = useState<Area[]>([]);
   const [tables, setTables] = useState<TableRow[]>([]);
   const [areaId, setAreaId] = useState(0);
@@ -119,6 +121,7 @@ export default function Tables() {
       setOpenTable(null);
       await loadTables();
       toast('开台成功');
+      navigate(`/pos?tableId=${openTable.tableId}&tableNo=${encodeURIComponent(openTable.tableNo)}&diningCount=${count}`);
     } catch (error) {
       toast(error instanceof Error ? error.message : '开台失败', 'error');
     }
@@ -177,6 +180,12 @@ export default function Tables() {
     }
     if (table.tableStatus === 3) {
       setClearTable(table);
+      return;
+    }
+    if (table.tableStatus === 1 || table.tableStatus === 2) {
+      navigate(
+        `/pos?tableId=${table.tableId}&tableNo=${encodeURIComponent(table.tableNo)}&diningCount=${table.diningCount}`,
+      );
       return;
     }
     toast(`${table.tableNo}：${STATUS[table.tableStatus] || '未知状态'}`);
