@@ -1067,11 +1067,6 @@ pub static PERMISSIONS: &[(&str, &str, &[&str])] = &[
     ),
     (
         "GET",
-        "/adminapi/setting/config/workbuddySettings",
-        &["config"],
-    ),
-    (
-        "GET",
         "/adminapi/setting/config/yaBandPaySettings",
         &["config"],
     ),
@@ -3469,16 +3464,6 @@ pub static PERMISSIONS: &[(&str, &str, &[&str])] = &[
         "POST",
         "/adminapi/setting/config/createPlatformCertificate",
         &["uploadFileModifyManage"],
-    ),
-    (
-        "POST",
-        "/adminapi/setting/config/generateWorkbuddyKey",
-        &["saveSettingsGlobalManage"],
-    ),
-    (
-        "POST",
-        "/adminapi/setting/config/revealWorkbuddyKey",
-        &["isPlatformSuperAdmin"],
     ),
     (
         "POST",

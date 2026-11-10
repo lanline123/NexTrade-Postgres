@@ -84,7 +84,6 @@ export const configHelp: Record<string, Record<string, string>> = {
     "storageCosSecretKey": "编辑完成后，点击下方提交按钮确认修改，请确保填写正确的KeySecret",
     "storageQiniuSecretKey": "编辑完成后，点击下方提交按钮确认修改，请确保填写正确的SecretKey(SK)",
     "storageS3SecretKey": "编辑完成后，点击下方提交按钮确认修改，请确保填写正确的Secret access key",
-    "workbuddyApiKeyExpiresAt": "到期后 MCP 请求会被拒绝，请在到期前重新生成密钥。"
   },
   "loginSetting": {
     "openWechatOauth": "此项设置控制是否开启微信注册及注册绑定手机，若为否将不支持开启微信注册及注册绑定手机",

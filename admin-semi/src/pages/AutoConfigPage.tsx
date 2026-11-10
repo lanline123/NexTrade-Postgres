@@ -457,7 +457,6 @@ const labelMap: Record<string, string> = {
   langVolcengineSecret: '多语言火山 Secret',
   seoCategoryEnable: '商品类目使用 SEO 链接',
   seoProductEnable: '商品使用 SEO 链接',
-  workbuddyApiKey: 'Workbuddy API Key',
   smsProvider: '短信服务商',
   smsAliyunChannel: '阿里云短信通道',
   smsHuaweiAppKey: '华为云短信 App Key',

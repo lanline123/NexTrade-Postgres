@@ -52,7 +52,6 @@ pub mod marketing;
 pub mod member;
 pub mod merchant;
 pub mod o2o;
-pub mod openapi;
 pub mod payment;
 pub mod pos;
 pub mod serde_helpers;

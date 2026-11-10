@@ -216,7 +216,6 @@ pub struct Repositories {
     pub system: repo::system::Repositories,
     pub im: repo::im::Repositories,
     pub analytics: repo::analytics::Repositories,
-    pub openapi: repo::openapi::Repositories,
     pub lang: repo::lang::Repositories,
 }
 
@@ -241,7 +240,6 @@ impl Repositories {
             system: repo::system::Repositories::new(pool.clone()),
             im: repo::im::Repositories::new(pool.clone()),
             analytics: repo::analytics::Repositories::new(pool.clone()),
-            openapi: repo::openapi::Repositories::new(pool.clone()),
             lang: repo::lang::Repositories::new(pool.clone()),
         }
     }

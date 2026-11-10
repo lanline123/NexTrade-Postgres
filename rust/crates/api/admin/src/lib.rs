@@ -73,7 +73,6 @@ pub struct AdminState {
     pub system: std::sync::Arc<nextrade_services::system::Services>,
     pub im: std::sync::Arc<nextrade_services::im::Services>,
     pub analytics: std::sync::Arc<nextrade_services::analytics::Services>,
-    pub openapi: std::sync::Arc<nextrade_services::openapi::Services>,
     pub wholesale: std::sync::Arc<nextrade_services::wholesale::Services>,
     pub lang: std::sync::Arc<nextrade_services::lang::Services>,
     pub vendor: std::sync::Arc<nextrade_services::vendor::Services>,

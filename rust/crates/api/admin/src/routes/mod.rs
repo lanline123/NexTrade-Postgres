@@ -12,7 +12,6 @@ pub mod marketing;
 pub mod member;
 pub mod merchant;
 pub mod o2o;
-pub mod openapi;
 pub mod payment;
 pub mod pos;
 pub mod shop_group;
@@ -43,7 +42,6 @@ pub fn merge_all(state: &AdminState) -> Router<AdminState> {
         .merge(system::routes(state))
         .merge(im::routes(state))
         .merge(analytics::routes(state))
-        .merge(openapi::routes(state))
         .merge(lang::routes(state))
         .merge(vendor::routes(state))
         .merge(pos::routes(state))
@@ -70,7 +68,6 @@ pub fn merge_public(state: &AdminState) -> Router<AdminState> {
         .merge(system::public_routes(state))
         .merge(im::public_routes(state))
         .merge(analytics::public_routes(state))
-        .merge(openapi::public_routes(state))
         .merge(ai_mcp::public_routes(state))
 }
 
@@ -91,7 +88,6 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(system::implemented_routes());
     out.extend(im::implemented_routes());
     out.extend(analytics::implemented_routes());
-    out.extend(openapi::implemented_routes());
     out.extend(lang::implemented_routes());
     out.extend(vendor::implemented_routes());
     out.extend(pos::implemented_routes());

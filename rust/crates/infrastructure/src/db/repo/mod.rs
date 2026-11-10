@@ -18,5 +18,4 @@ pub mod content;
 pub mod system;
 pub mod im;
 pub mod analytics;
-pub mod openapi;
 pub mod lang;

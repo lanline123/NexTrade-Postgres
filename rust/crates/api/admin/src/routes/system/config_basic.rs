@@ -20,7 +20,7 @@
 //! 1. [`ROUTE_TABLE`] 声明全部 102 条契约（供覆盖率/测试）；
 //! 2. 用 [`nextrade_core::models::system::config_basic::endpoints`] 的规格表在
 //!    [`routes`] / [`public_routes`] 里循环注册闭包 handler（GET / POST 各一套）；
-//! 3. 特殊端点（`getBase` / 登录协议 / workbuddy / 上传 / 测试邮件 / 证书）由
+//! 3. 特殊端点（`getBase` / 登录协议 / 上传 / 测试邮件 / 证书）由
 //!    [`nextrade_services::system::config_basic::ConfigBasicService`] 按 `EndpointKind`
 //!    分支处理。
 //!
@@ -28,7 +28,7 @@
 //!
 //! - Java 方法级 `@PreAuthorize` 在 Rust 侧尚未实现权限矩阵（与其它模块一致）；
 //! - `getAdmin` 的 `shopLogo` 域名前缀、`getAdminBase` 的计算字段、`uploadFile`
-//!   （multipart）、`sendTestEmail`（邮件）、workbuddy（MCP 密钥服务）等未迁移，
+//!   （multipart）、`sendTestEmail`（邮件）等未迁移，
 //!   返回明确 1001 业务错误；详见 models 模块文档「与 Java 的差异」。
 
 use axum::{
@@ -121,21 +121,6 @@ const ROUTE_TABLE: [(&str, &str, &str); 108] = [
         "POST",
         "/setting/config/saveGlobal",
         "ConfigController.saveGlobalSettings",
-    ),
-    (
-        "GET",
-        "/setting/config/workbuddySettings",
-        "ConfigController.getWorkBuddySettings",
-    ),
-    (
-        "POST",
-        "/setting/config/generateWorkbuddyKey",
-        "ConfigController.generateWorkbuddyKey",
-    ),
-    (
-        "POST",
-        "/setting/config/revealWorkbuddyKey",
-        "ConfigController.revealWorkbuddyKey",
     ),
     (
         "GET",
@@ -832,9 +817,6 @@ mod tests {
             ("POST", "/adminapi/setting/config/saveShipping"),
             ("GET", "/adminapi/setting/config/globalSettings"),
             ("POST", "/adminapi/setting/config/saveGlobal"),
-            ("GET", "/adminapi/setting/config/workbuddySettings"),
-            ("POST", "/adminapi/setting/config/generateWorkbuddyKey"),
-            ("POST", "/adminapi/setting/config/revealWorkbuddyKey"),
             ("GET", "/adminapi/setting/config/loginSettings"),
             ("POST", "/adminapi/setting/config/saveLogin"),
             ("GET", "/adminapi/setting/config/basicPaySettings"),

@@ -28,7 +28,6 @@
 //! 2. `getAdmin` 的 `shopLogo` 域名前缀、`getAdminBase` 的 `storageUrl/version*` 等
 //!    **计算字段**未迁移（依赖 storage/version 域），返回空/默认值。
 //! 3. 依赖未迁移域的端点返回明确的 1001 业务错误（见 [`EndpointKind`]）：
-//!    `workbuddySettings` / `generateWorkbuddyKey` / `revealWorkbuddyKey`（MCP 密钥服务）、
 //!    `uploadFile`（multipart 文件上传）、`sendTestEmail`（邮件服务）、
 //!    `basicConfig`（地区/存储聚合）、`getIcon`（远程 CSS 图标缓存）。
 //! 4. `createPlatformCertificate`：Java 实现体全部被注释（空操作），本实现同样返回成功空响应。
@@ -114,12 +113,6 @@ pub enum EndpointKind {
     BasicConfig,
     /// `GET /getIcon`：图标配置解析（远程 CSS / 默认图标）。
     IconSettings,
-    /// `GET /workbuddySettings`：MCP 密钥服务状态与掩码。
-    WorkBuddySettings,
-    /// `POST /generateWorkbuddyKey`：MCP 密钥生成。
-    WorkBuddyGenerate,
-    /// `POST /revealWorkbuddyKey`：MCP 密钥查看。
-    WorkBuddyReveal,
     /// `POST /createPlatformCertificate`：Java 实现体被注释 → 空操作成功。
     CreatePlatformCertificate,
     /// `POST /uploadFile`：multipart 支付证书/密钥文件上传。
@@ -2279,7 +2272,7 @@ static EP11_FIELDS: [FieldSpec; 21] = [
     },
 ];
 
-static EP12_FIELDS: [FieldSpec; 57] = [
+static EP12_FIELDS: [FieldSpec; 55] = [
     FieldSpec {
         field: "navTheme",
         code: "navTheme",
@@ -2878,28 +2871,6 @@ static EP12_FIELDS: [FieldSpec; 57] = [
         field: "langVolcengineSecret",
         code: "langVolcengineSecret",
         ty: ValueType::Str,
-        default: None,
-        is_list: false,
-        label: None,
-        widget: None,
-        required: None,
-        group: None,
-    },
-    FieldSpec {
-        field: "workbuddyApiKey",
-        code: "workbuddyApiKey",
-        ty: ValueType::Str,
-        default: None,
-        is_list: false,
-        label: None,
-        widget: None,
-        required: None,
-        group: None,
-    },
-    FieldSpec {
-        field: "workbuddyApiKeyExpiresAt",
-        code: "workbuddyApiKeyExpiresAt",
-        ty: ValueType::Long,
         default: None,
         is_list: false,
         label: None,
@@ -2909,7 +2880,7 @@ static EP12_FIELDS: [FieldSpec; 57] = [
     },
 ];
 
-static EP13_FIELDS: [FieldSpec; 57] = [
+static EP13_FIELDS: [FieldSpec; 55] = [
     FieldSpec {
         field: "navTheme",
         code: "navTheme",
@@ -3508,28 +3479,6 @@ static EP13_FIELDS: [FieldSpec; 57] = [
         field: "langVolcengineSecret",
         code: "langVolcengineSecret",
         ty: ValueType::Str,
-        default: None,
-        is_list: false,
-        label: None,
-        widget: None,
-        required: None,
-        group: None,
-    },
-    FieldSpec {
-        field: "workbuddyApiKey",
-        code: "workbuddyApiKey",
-        ty: ValueType::Str,
-        default: None,
-        is_list: false,
-        label: None,
-        widget: None,
-        required: None,
-        group: None,
-    },
-    FieldSpec {
-        field: "workbuddyApiKeyExpiresAt",
-        code: "workbuddyApiKeyExpiresAt",
-        ty: ValueType::Long,
         default: None,
         is_list: false,
         label: None,
@@ -9969,9 +9918,6 @@ pub static ENDPOINTS: [EndpointSpec; 108] = [
     EndpointSpec { path: "/setting/config/saveShipping", verb: Verb::Post, kind: EndpointKind::Group, java_ref: "ConfigController.saveShippingSettings", summary: "保存配送设置-配送设置", fields: &EP11_FIELDS, nested: &[] },
     EndpointSpec { path: "/setting/config/globalSettings", verb: Verb::Get, kind: EndpointKind::Group, java_ref: "ConfigController.getGlobalSettings", summary: "获取系统设置-全局设置", fields: &EP12_FIELDS, nested: &[] },
     EndpointSpec { path: "/setting/config/saveGlobal", verb: Verb::Post, kind: EndpointKind::SaveReturningVo, java_ref: "ConfigController.saveGlobalSettings", summary: "保存系统设置-全局设置", fields: &EP13_FIELDS, nested: &[] },
-    EndpointSpec { path: "/setting/config/workbuddySettings", verb: Verb::Get, kind: EndpointKind::WorkBuddySettings, java_ref: "ConfigController.getWorkBuddySettings", summary: "获取 MCP 密钥设置", fields: &[], nested: &[] },
-    EndpointSpec { path: "/setting/config/generateWorkbuddyKey", verb: Verb::Post, kind: EndpointKind::WorkBuddyGenerate, java_ref: "ConfigController.generateWorkbuddyKey", summary: "生成 MCP 密钥", fields: &[], nested: &[] },
-    EndpointSpec { path: "/setting/config/revealWorkbuddyKey", verb: Verb::Post, kind: EndpointKind::WorkBuddyReveal, java_ref: "ConfigController.revealWorkbuddyKey", summary: "复制 MCP 密钥", fields: &[], nested: &[] },
     EndpointSpec { path: "/setting/config/loginSettings", verb: Verb::Get, kind: EndpointKind::Group, java_ref: "ConfigController.getLoginSettings", summary: "获取系统设置-登录设置", fields: &EP17_FIELDS, nested: &[] },
     EndpointSpec { path: "/setting/config/saveLogin", verb: Verb::Post, kind: EndpointKind::Group, java_ref: "ConfigController.saveLoginSettings", summary: "保存系统设置-登录设置", fields: &EP18_FIELDS, nested: &[] },
     EndpointSpec { path: "/setting/config/basicPaySettings", verb: Verb::Get, kind: EndpointKind::Group, java_ref: "ConfigController.getBasicPaySettings", summary: "获取系统设置-支付基础设置", fields: &EP19_FIELDS, nested: &[] },

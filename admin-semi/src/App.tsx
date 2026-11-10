@@ -731,11 +731,8 @@ const configPages: Record<string, ConfigPageDef> = {
       langType: '接口翻译',
       seoCategoryEnable: '商品类目链接使用',
       seoProductEnable: '商品链接使用',
-      workbuddyApiKey: 'MCP 密钥',
-      workbuddyApiKeyExpiresAt: '密钥有效期',
     },
-    // MCP 密钥已迁到 AI → MCP 管理（WorkBuddy 卡片），这里隐藏未分组字段，避免被追加到存储设置卡片
-    hiddenFields: ['storageSaveFullPath', 'workbuddyApiKey', 'workbuddyApiKeyExpiresAt'],
+    hiddenFields: ['storageSaveFullPath'],
     fieldHelp: {
       storageType: '开启云存储后，图片会直接通过接口上传至指定云存储，不会再保存在本地。',
       storageLocalUrl: '参考格式： https://oss.***.com/ ，域名结尾必须带斜杠 /',
@@ -754,8 +751,6 @@ const configPages: Record<string, ConfigPageDef> = {
       selectSearchType: '选择 Elasticsearch 后，点击「同步到搜索引擎」将一次性把所有商品数据同步到搜索引擎，异步执行预计需要几分钟，请勿重复点击。',
       seoCategoryEnable: '链接格式：域名/category/分类1/分类2；「批量更新商品类目链接」仅更新 SEO 链接为空的类目。',
       seoProductEnable: '链接格式：域名/product/分类1/分类2/商品英文名称.[sn]；「批量更新商品链接」仅更新 SEO 链接为空的商品。',
-      workbuddyApiKey: '密钥始终掩码显示，可随时复制；生成新密钥后请点击页面底部保存。',
-      workbuddyApiKeyExpiresAt: '到期后 MCP 请求会被拒绝，请在到期前重新生成密钥。',
     },
     renderers: {
       defaultCountry: (context) => <CountrySelectField {...context} />,

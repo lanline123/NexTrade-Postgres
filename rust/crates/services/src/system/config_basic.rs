@@ -23,7 +23,6 @@
 //! |------|------|--------|
 //! | `basicConfig` | 聚合地区表 + `base` 前缀配置 + 存储/敏感字段混淆 | 返回 1001（依赖 region/storage 域） |
 //! | `getIcon` | 远程 CSS + Redis 缓存解析图标 | 返回 1001（依赖远程配置） |
-//! | `workbuddySettings` / `generateWorkbuddyKey` / `revealWorkbuddyKey` | `WorkBuddyKeyService` | 返回 1001（openapi/workbuddy 域） |
 //! | `uploadFile` | `LocalStorageService` multipart 落盘 | 返回 1001（multipart/存储未迁移） |
 //! | `sendTestEmail` | 真实 SMTP 发信 | 已复用 `system::notify::send_test_email` |
 //! | `createPlatformCertificate` | 方法体全部注释（空操作） | 同样返回成功空响应 |
@@ -77,7 +76,6 @@ impl ConfigBasicService {
         match ep.kind {
             EndpointKind::BasicConfig => Ok(self.get_basic_config().await?),
             EndpointKind::IconSettings => Ok(self.get_icon_settings().await?),
-            EndpointKind::WorkBuddySettings => Ok(self.get_workbuddy_settings().await?),
             EndpointKind::Group | EndpointKind::SaveReturningVo => {
                 let rows = self.load_rows(ep.fields, ep.nested).await?;
                 Ok(build_group(ep.fields, ep.nested, &rows))
@@ -172,7 +170,7 @@ impl ConfigBasicService {
     }
 
     /// 无 JSON 请求体的 POST（Java 方法没有 `@RequestBody`）：
-    /// `createPlatformCertificate` / `uploadFile` / `sendTestEmail` / `generateWorkbuddyKey` / `revealWorkbuddyKey`。
+    /// `createPlatformCertificate` / `uploadFile` / `sendTestEmail`。
     ///
     /// # Errors
     /// 数据库失败 → `Error::Database`。
@@ -184,32 +182,6 @@ impl ConfigBasicService {
         match ep.kind {
             // Java `createPlatformCertificate` 方法体全部被注释 → 空操作成功
             EndpointKind::CreatePlatformCertificate => Ok(Value::Null),
-            EndpointKind::WorkBuddyGenerate => {
-                let mut bytes = [0u8; 24];
-                rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut bytes);
-                let key = format!("wb_{}", hex::encode(bytes));
-                Ok(serde_json::json!({
-                    "key": key,
-                    "expiresAt": Value::Null,
-                }))
-            }
-            EndpointKind::WorkBuddyReveal => {
-                let key = self
-                    .repo()
-                    .find_by_code("workbuddyApiKey")
-                    .await?
-                    .filter(|s| !s.trim().is_empty())
-                    .ok_or_else(|| Error::biz(401, "MCP密钥未配置"))?;
-                let expires_at = self
-                    .repo()
-                    .find_by_code("workbuddyApiKeyExpiresAt")
-                    .await?
-                    .and_then(|s| s.trim().parse::<i64>().ok());
-                Ok(serde_json::json!({
-                    "key": key,
-                    "expiresAt": expires_at,
-                }))
-            }
             EndpointKind::SendTestEmail => {
                 self.send_test_email(test_mail_address).await?;
                 Ok(Value::Null)
@@ -334,34 +306,6 @@ impl ConfigBasicService {
             "tigClass": tig_class,
             "icoDefined": ico_defined,
             "definedClass": defined_class,
-        }))
-    }
-
-    /// `GET /adminapi/setting/config/workbuddySettings`：MCP 密钥设置状态与掩码。
-    pub async fn get_workbuddy_settings(&self) -> Result<Value> {
-        let key = self
-            .repo()
-            .find_by_code("workbuddyApiKey")
-            .await?
-            .unwrap_or_default();
-        let expires_str = self
-            .repo()
-            .find_by_code("workbuddyApiKeyExpiresAt")
-            .await?
-            .unwrap_or_default();
-
-        let configured = !key.trim().is_empty();
-        let masked_key = if configured {
-            mask_secret(&key)
-        } else {
-            String::new()
-        };
-        let expires_at = expires_str.trim().parse::<i64>().ok();
-
-        Ok(serde_json::json!({
-            "configured": configured,
-            "maskedKey": masked_key,
-            "expiresAt": expires_at,
         }))
     }
 
@@ -595,7 +539,7 @@ mod tests {
     fn endpoint_kinds_partition_all_102_paths() {
         use nextrade_core::models::system::config_basic::endpoints;
         let all = endpoints();
-        assert_eq!(all.len(), 108);
+        assert_eq!(all.len(), 105);
         let with_body = all
             .iter()
             .filter(|ep| ep.verb == nextrade_core::models::system::config_basic::Verb::Post
@@ -610,7 +554,7 @@ mod tests {
             .iter()
             .filter(|ep| ep.verb == nextrade_core::models::system::config_basic::Verb::Get)
             .count();
-        assert_eq!(gets + with_body + without_body, 108);
-        assert_eq!(without_body, 5, "证书/上传/测试邮件 + 2 条 workbuddy POST 无请求体");
+        assert_eq!(gets + with_body + without_body, 105);
+        assert_eq!(without_body, 3, "证书/上传/测试邮件无请求体");
     }
 }

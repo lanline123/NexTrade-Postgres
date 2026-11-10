@@ -30,13 +30,15 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use nextrade_core::models::catalog::category::CategoryDTO;
 use nextrade_core::models::catalog::product_manage::{AdminProductListQuery, GalleryPicDTO, ProductSaveDTO};
 use nextrade_core::models::content::decorate::{DecorateListQuery, DecorateSaveDTO};
-use nextrade_core::models::openapi::workbuddy::{
-    audit_label, batch_block_reason, normalize_batch_operation, status_label, BATCH_MAX_IDS,
-    BATCH_SORT_LIMIT, MAX_PRODUCTS,
+use nextrade_core::models::content::gallery::{
+    GalleryDTO, GalleryDelDTO, GalleryScope, GalleryUpdateDTO,
 };
-use nextrade_infrastructure::db::repo::openapi::workbuddy::{BatchProductRow, WorkbuddyRepository};
+use nextrade_core::models::content::gallery_pic::{
+    GalleryPicBatchDTO, GalleryPicTransferDTO, UpdateFieldDTO,
+};
 use nextrade_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
@@ -671,6 +673,80 @@ fn tools_for(settings: &McpSettings) -> Vec<Value> {
                     "additionalProperties": false
                 }
             }),
+            json!({
+                "name": "product_import_validate",
+                "description": "导入前校验商品草稿（只读）：检查名称/价格必填、货号是否重复，返回逐条问题与整体可导入结论。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "products": {
+                            "type": "array",
+                            "items": { "type": "object" },
+                            "description": "与 product_import 的 products 同结构"
+                        }
+                    },
+                    "required": ["products"],
+                    "additionalProperties": false
+                }
+            }),
+            json!({
+                "name": "product_copy",
+                "description": "复制商品为新商品（货号追加 -copy-时间戳，库存 0，默认下架）。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": { "productId": { "type": "integer" } },
+                    "required": ["productId"],
+                    "additionalProperties": false
+                }
+            }),
+            json!({
+                "name": "product_analysis",
+                "description": "商品经营分析（只读）：overview/top_sellers/slow_movers/inventory_risk/price_bands/category_performance/recommend。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "operation": {
+                            "type": "string",
+                            "enum": ["overview", "top_sellers", "slow_movers", "inventory_risk",
+                                     "price_bands", "category_performance", "recommend"],
+                            "description": "默认 overview"
+                        },
+                        "keyword": { "type": "string" },
+                        "categoryId": { "type": "integer" },
+                        "limit": { "type": "integer", "description": "默认 20，最大 100" }
+                    },
+                    "additionalProperties": false
+                }
+            }),
+            json!({
+                "name": "product_context",
+                "description": "读取同类商品样本的价位/库存/销量统计（只读），用于导入前定价与选品参考。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "keyword": { "type": "string" },
+                        "categoryId": { "type": "integer" },
+                        "sampleSize": { "type": "integer", "description": "默认 100，最大 500" }
+                    },
+                    "additionalProperties": false
+                }
+            }),
+            json!({
+                "name": "product_category_create",
+                "description": "按路径批量创建商品分类（如 \"电池/锂电/18650\"），已存在的层级直接复用。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "paths": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "斜杠分隔的分类路径，单次最多 50 条"
+                        }
+                    },
+                    "required": ["paths"],
+                    "additionalProperties": false
+                }
+            }),
         ]);
     }
     if settings.product_enabled || settings.decorate_enabled {
@@ -685,6 +761,35 @@ fn tools_for(settings: &McpSettings) -> Vec<Value> {
                     "fileName": { "type": "string", "description": "文件名，缺省从 URL/类型推断" },
                     "galleryId": { "type": "integer", "description": "素材分组 ID，缺省 0（未分组）" }
                 },
+                "additionalProperties": false
+            }
+        }));
+        tools.push(json!({
+            "name": "media_manage",
+            "description": "素材管理：分组创建/重命名/删除，素材移动分组/重命名/删除。operation: group_create/group_update/group_delete/update/delete。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "operation": {
+                        "type": "string",
+                        "enum": ["group_create", "group_update", "group_delete", "update", "delete"]
+                    },
+                    "groupId": { "type": "integer", "description": "分组 ID（group_update/group_delete）" },
+                    "groupName": { "type": "string", "description": "分组名称（group_create/group_update）" },
+                    "deleteMode": {
+                        "type": "string",
+                        "enum": ["only_group", "group_and_files"],
+                        "description": "group_delete 模式，默认 only_group"
+                    },
+                    "picIds": {
+                        "type": "array",
+                        "items": { "type": "integer" },
+                        "description": "素材 ID（update/delete）"
+                    },
+                    "galleryId": { "type": "integer", "description": "目标分组（update 时移动）" },
+                    "picName": { "type": "string", "description": "新素材名（update 时重命名）" }
+                },
+                "required": ["operation"],
                 "additionalProperties": false
             }
         }));
@@ -886,6 +991,19 @@ fn require_i32(args: &Value, key: &str) -> Result<i32, String> {
     arg_i32(args, key).filter(|v| *v > 0).ok_or_else(|| format!("缺少参数 {key}"))
 }
 
+fn parse_i32_list(args: &Value, key: &str) -> Vec<i32> {
+    args.get(key)
+        .and_then(Value::as_array)
+        .map(|list| {
+            list.iter()
+                .filter_map(Value::as_i64)
+                .filter_map(|value| i32::try_from(value).ok())
+                .filter(|value| *value > 0)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn parse_product_ids(args: &Value) -> Result<Vec<i32>, String> {
     let list = args
         .get("productIds")
@@ -1083,9 +1201,150 @@ fn guess_image_mime(file_name: &str) -> Option<String> {
 }
 
 /// 批量操作可执行性判定（对齐旧版 batchBlockReason 的业务规则）。
+const BATCH_MAX_IDS: usize = 50;
+const BATCH_SORT_LIMIT: usize = 20;
+const MAX_IMPORT_PRODUCTS: usize = 50;
+const CHECK_STATUS_APPROVED: i32 = 0;
+
+/// `(product_id, product_name, product_sn, product_stock, product_price,
+///   product_status, check_status, is_delete, virtual_sales)`
+type BatchProductRow = (i32, String, String, i32, Decimal, i32, i32, i32, i32);
+
+fn normalize_batch_operation(operation: Option<&str>) -> Result<String, String> {
+    let raw = operation.ok_or_else(|| "缺少批量操作类型".to_string())?;
+    let op = raw.trim().to_lowercase();
+    if ["up", "down", "recycle", "restore", "del"].contains(&op.as_str()) {
+        Ok(op)
+    } else {
+        Err("仅支持 up、down、recycle、restore、del".into())
+    }
+}
+
+fn batch_block_reason(op: &str, check_status: i32, is_delete: bool) -> Option<&'static str> {
+    if op == "up" && check_status != CHECK_STATUS_APPROVED {
+        return Some("审核未通过或尚未审核，审核通过后才能上架");
+    }
+    if op == "del" && !is_delete {
+        return Some("需先移入回收站再删除");
+    }
+    if op == "restore" && !is_delete {
+        return Some("商品不在回收站，无需还原");
+    }
+    if op == "recycle" && is_delete {
+        return Some("商品已经在回收站");
+    }
+    None
+}
+
+fn status_label(code: i32) -> &'static str {
+    if code == 1 { "出售中" } else { "已下架" }
+}
+
+fn audit_label(code: i32) -> &'static str {
+    match code {
+        0 => "审核通过",
+        1 => "待审核",
+        2 => "审核未通过",
+        _ => "未知",
+    }
+}
+
+async fn find_batch_rows(
+    pool: &sqlx::PgPool,
+    ids: &[i32],
+) -> Result<Vec<BatchProductRow>, String> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut qb = sqlx::QueryBuilder::new(
+        "SELECT product_id, product_name, product_sn, product_stock, product_price, \
+         product_status, check_status, is_delete, virtual_sales FROM product WHERE product_id IN (",
+    );
+    let mut separated = qb.separated(", ");
+    for id in ids {
+        separated.push_bind(*id);
+    }
+    separated.push_unseparated(")");
+    qb.build_query_as()
+        .fetch_all(pool)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+async fn batch_set_status(pool: &sqlx::PgPool, ids: &[i32], on_sale: bool) -> Result<u64, String> {
+    if ids.is_empty() {
+        return Ok(0);
+    }
+    let mut qb = sqlx::QueryBuilder::new("UPDATE product SET product_status = ");
+    qb.push_bind(i32::from(on_sale));
+    qb.push(", last_update = ");
+    qb.push_bind(now_secs());
+    qb.push(" WHERE product_id IN (");
+    let mut separated = qb.separated(", ");
+    for id in ids {
+        separated.push_bind(*id);
+    }
+    separated.push_unseparated(")");
+    Ok(qb
+        .build()
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?
+        .rows_affected())
+}
+
+async fn batch_set_deleted(
+    pool: &sqlx::PgPool,
+    ids: &[i32],
+    deleted: bool,
+    reset_status: bool,
+) -> Result<u64, String> {
+    if ids.is_empty() {
+        return Ok(0);
+    }
+    let mut qb = sqlx::QueryBuilder::new("UPDATE product SET is_delete = ");
+    qb.push_bind(i32::from(deleted));
+    if reset_status {
+        qb.push(", product_status = 0");
+    }
+    qb.push(", last_update = ");
+    qb.push_bind(now_secs());
+    qb.push(" WHERE product_id IN (");
+    let mut separated = qb.separated(", ");
+    for id in ids {
+        separated.push_bind(*id);
+    }
+    separated.push_unseparated(")");
+    Ok(qb
+        .build()
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?
+        .rows_affected())
+}
+
+async fn delete_products_cascade(pool: &sqlx::PgPool, ids: &[i32]) -> Result<(), String> {
+    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+    for id in ids {
+        for sql in [
+            "DELETE FROM product_gallery WHERE product_id = $1",
+            "DELETE FROM product_sku WHERE product_id = $1",
+            "DELETE FROM product_video WHERE product_id = $1",
+            "DELETE FROM product WHERE product_id = $1",
+        ] {
+            sqlx::query(sql)
+                .bind(*id)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    tx.commit().await.map_err(|e| e.to_string())
+}
+
 fn eval_batch(op: &str, ids: &[i32], rows: &[BatchProductRow]) -> (Vec<i32>, Vec<Value>) {
     let by_id: std::collections::BTreeMap<i32, &BatchProductRow> =
-        rows.iter().map(|row| (row.product_id, row)).collect();
+        rows.iter().map(|row| (row.0, row)).collect();
     let mut executable = Vec::new();
     let mut blocked = Vec::new();
     for id in ids {
@@ -1094,10 +1353,10 @@ fn eval_batch(op: &str, ids: &[i32], rows: &[BatchProductRow]) -> (Vec<i32>, Vec
                 "productId": id,
                 "reason": "找不到该商品，可能已被彻底删除",
             })),
-            Some(row) => match batch_block_reason(op, row.check_status, row.is_delete == 1) {
+            Some(row) => match batch_block_reason(op, row.6, row.7 == 1) {
                 Some(reason) => blocked.push(json!({
                     "productId": id,
-                    "productName": row.product_name,
+                    "productName": row.1,
                     "reason": reason,
                 })),
                 None => executable.push(*id),
@@ -1305,22 +1564,15 @@ async fn call_tool(
             if !settings.product_enabled {
                 return Err("商品域未启用".into());
             }
-            let op = normalize_batch_operation(arg_str(args, "operation").as_deref())
-                .map_err(|(_, msg)| msg.to_string())?;
+            let op = normalize_batch_operation(arg_str(args, "operation").as_deref())?;
             let ids = parse_product_ids(args)?;
             if ids.len() > BATCH_MAX_IDS {
                 return Err(format!("一次最多处理 {BATCH_MAX_IDS} 个商品"));
             }
-            let rows = state
-                .repos
-                .openapi
-                .workbuddy
-                .find_products_for_batch(&ids)
-                .await
-                .map_err(|e| e.to_string())?;
+            let rows = find_batch_rows(&state.repos.pool, &ids).await?;
             let (ok_ids, blocked) = eval_batch(&op, &ids, &rows);
-            let by_id: std::collections::BTreeMap<i32, &_> =
-                rows.iter().map(|row| (row.product_id, row)).collect();
+            let by_id: std::collections::BTreeMap<i32, &BatchProductRow> =
+                rows.iter().map(|row| (row.0, row)).collect();
             let affected_total = ok_ids.len();
             let affected: Vec<Value> = ok_ids
                 .iter()
@@ -1328,14 +1580,14 @@ async fn call_tool(
                 .take(BATCH_SORT_LIMIT)
                 .map(|row| {
                     json!({
-                        "productId": row.product_id,
-                        "productName": row.product_name,
-                        "productSn": row.product_sn,
-                        "price": row.product_price.to_string(),
-                        "stock": row.product_stock,
-                        "status": status_label(Some(row.product_status)),
-                        "auditStatus": audit_label(Some(row.check_status)),
-                        "recycled": row.is_delete == 1,
+                        "productId": row.0,
+                        "productName": row.1,
+                        "productSn": row.2,
+                        "price": row.4.to_string(),
+                        "stock": row.3,
+                        "status": status_label(row.5),
+                        "auditStatus": audit_label(row.6),
+                        "recycled": row.7 == 1,
                     })
                 })
                 .collect();
@@ -1354,8 +1606,7 @@ async fn call_tool(
             if args.get("confirmation") != Some(&Value::Bool(true)) {
                 return Err("写入前必须传 confirmation: true".into());
             }
-            let op = normalize_batch_operation(arg_str(args, "operation").as_deref())
-                .map_err(|(_, msg)| msg.to_string())?;
+            let op = normalize_batch_operation(arg_str(args, "operation").as_deref())?;
             let ids = parse_product_ids(args)?;
             if ids.len() > BATCH_MAX_IDS {
                 return Err(format!("一次最多处理 {BATCH_MAX_IDS} 个商品"));
@@ -1364,62 +1615,24 @@ async fn call_tool(
                 let approval_id = create_approval(state, name, args).await?;
                 return Ok(pending(approval_id));
             }
-            let rows = state
-                .repos
-                .openapi
-                .workbuddy
-                .find_products_for_batch(&ids)
-                .await
-                .map_err(|e| e.to_string())?;
+            let rows = find_batch_rows(&state.repos.pool, &ids).await?;
             let (ok_ids, failed) = eval_batch(&op, &ids, &rows);
-            let now = now_millis();
             if !ok_ids.is_empty() {
                 match op.as_str() {
                     "up" => {
-                        state
-                            .repos
-                            .openapi
-                            .workbuddy
-                            .batch_set_status(&ok_ids, true, now)
-                            .await
-                            .map_err(|e| e.to_string())?;
+                        batch_set_status(&state.repos.pool, &ok_ids, true).await?;
                     }
                     "down" => {
-                        state
-                            .repos
-                            .openapi
-                            .workbuddy
-                            .batch_set_status(&ok_ids, false, now)
-                            .await
-                            .map_err(|e| e.to_string())?;
+                        batch_set_status(&state.repos.pool, &ok_ids, false).await?;
                     }
                     "recycle" => {
-                        state
-                            .repos
-                            .openapi
-                            .workbuddy
-                            .batch_set_deleted(&ok_ids, true, false, now)
-                            .await
-                            .map_err(|e| e.to_string())?;
+                        batch_set_deleted(&state.repos.pool, &ok_ids, true, false).await?;
                     }
                     "restore" => {
-                        state
-                            .repos
-                            .openapi
-                            .workbuddy
-                            .batch_set_deleted(&ok_ids, false, true, now)
-                            .await
-                            .map_err(|e| e.to_string())?;
+                        batch_set_deleted(&state.repos.pool, &ok_ids, false, true).await?;
                     }
                     "del" => {
-                        let pool = state.repos.openapi.workbuddy.pool_clone();
-                        let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
-                        for pid in &ok_ids {
-                            WorkbuddyRepository::delete_product_cascade(&mut tx, *pid)
-                                .await
-                                .map_err(|e| e.to_string())?;
-                        }
-                        tx.commit().await.map_err(|e| e.to_string())?;
+                        delete_products_cascade(&state.repos.pool, &ok_ids).await?;
                     }
                     _ => return Err("不支持的批量操作".into()),
                 }
@@ -1427,22 +1640,16 @@ async fn call_tool(
             let after = if op == "del" {
                 Vec::new()
             } else {
-                let refreshed = state
-                    .repos
-                    .openapi
-                    .workbuddy
-                    .find_products_for_batch(&ok_ids)
-                    .await
-                    .map_err(|e| e.to_string())?;
+                let refreshed = find_batch_rows(&state.repos.pool, &ok_ids).await?;
                 refreshed
                     .iter()
                     .map(|row| {
                         json!({
-                            "productId": row.product_id,
-                            "productName": row.product_name,
-                            "stock": row.product_stock,
-                            "status": status_label(Some(row.product_status)),
-                            "recycled": row.is_delete == 1,
+                            "productId": row.0,
+                            "productName": row.1,
+                            "stock": row.3,
+                            "status": status_label(row.5),
+                            "recycled": row.7 == 1,
                         })
                     })
                     .collect()
@@ -1468,8 +1675,8 @@ async fn call_tool(
             if products.is_empty() {
                 return Err("products 不能为空".into());
             }
-            if products.len() > usize::try_from(MAX_PRODUCTS).unwrap_or(usize::MAX) {
-                return Err(format!("一次最多导入 {MAX_PRODUCTS} 个商品"));
+            if products.len() > MAX_IMPORT_PRODUCTS {
+                return Err(format!("一次最多导入 {MAX_IMPORT_PRODUCTS} 个商品"));
             }
             if settings.require_approval_import && !approved {
                 let approval_id = create_approval(state, name, args).await?;
@@ -1551,6 +1758,481 @@ async fn call_tool(
                 "created": created,
                 "failed": failed,
             }))
+        }
+        "product_import_validate" => {
+            if !settings.product_enabled {
+                return Err("商品域未启用".into());
+            }
+            let products = args
+                .get("products")
+                .and_then(Value::as_array)
+                .ok_or_else(|| "缺少参数 products（数组）".to_string())?;
+            if products.is_empty() {
+                return Err("products 不能为空".into());
+            }
+            if products.len() > MAX_IMPORT_PRODUCTS {
+                return Err(format!("一次最多校验 {MAX_IMPORT_PRODUCTS} 个商品"));
+            }
+            let mut seen_sn = std::collections::HashSet::new();
+            let mut items = Vec::new();
+            let mut importable = true;
+            for (index, item) in products.iter().enumerate() {
+                let name = arg_str(item, "productName");
+                let mut errors: Vec<String> = Vec::new();
+                if name.is_none() {
+                    errors.push("缺少 productName".into());
+                }
+                if arg_dec(item, "productPrice").is_none() {
+                    errors.push("缺少 productPrice".into());
+                }
+                if let Some(sn) = arg_str(item, "productSn") {
+                    if !seen_sn.insert(sn.clone()) {
+                        errors.push("本批次货号重复".into());
+                    } else {
+                        let count: (i64,) = sqlx::query_as(
+                            "SELECT COUNT(*) FROM product WHERE product_sn = $1 AND is_delete = 0",
+                        )
+                        .bind(&sn)
+                        .fetch_one(&state.repos.pool)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                        if count.0 > 0 {
+                            errors.push("货号已存在".into());
+                        }
+                    }
+                }
+                if let Some(category_id) = arg_i32(item, "categoryId") {
+                    let exists: Option<(i32,)> =
+                        sqlx::query_as("SELECT category_id FROM category WHERE category_id = $1")
+                            .bind(category_id)
+                            .fetch_optional(&state.repos.pool)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                    if exists.is_none() {
+                        errors.push("分类不存在".into());
+                    }
+                }
+                if !errors.is_empty() {
+                    importable = false;
+                }
+                items.push(json!({
+                    "index": index,
+                    "productName": name,
+                    "valid": errors.is_empty(),
+                    "errors": errors,
+                }));
+            }
+            Ok(json!({
+                "importable": importable,
+                "total": products.len(),
+                "items": items,
+            }))
+        }
+        "product_copy" => {
+            if !settings.product_enabled {
+                return Err("商品域未启用".into());
+            }
+            let id = require_i32(args, "productId")?;
+            let pool = &state.repos.pool;
+            let row: Option<(String, String, Decimal, Decimal, i32, i32, String, String)> =
+                sqlx::query_as(
+                    "SELECT product_name, product_sn, product_price, market_price, category_id, \
+                     brand_id, COALESCE(product_brief, ''), COALESCE(pic_url, '') \
+                     FROM product WHERE product_id = $1 AND is_delete = 0",
+                )
+                .bind(id)
+                .fetch_optional(pool)
+                .await
+                .map_err(|e| e.to_string())?;
+            let (name, sn, price, market, category_id, brand_id, brief, pic) =
+                row.ok_or_else(|| "商品不存在".to_string())?;
+            let new_sn = format!("{sn}-copy-{}", now_secs());
+            let dto = ProductSaveDTO {
+                product_name: Some(format!("{name} 副本")),
+                product_sn: Some(new_sn.clone()),
+                product_price: Some(price),
+                market_price: Some(market),
+                category_id: Some(category_id),
+                brand_id: Some(brand_id),
+                product_brief: if brief.trim().is_empty() { None } else { Some(brief) },
+                pic_url: if pic.trim().is_empty() { None } else { Some(pic) },
+                product_stock: Some(0),
+                product_status: Some(0),
+                ..Default::default()
+            };
+            state
+                .catalog
+                .product_manage
+                .create(&dto)
+                .await
+                .map_err(|e| e.to_string())?;
+            let new_id: Option<(i32,)> = sqlx::query_as(
+                "SELECT product_id FROM product WHERE product_sn = $1 LIMIT 1",
+            )
+            .bind(&new_sn)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+            Ok(json!({
+                "newProductId": new_id.map(|row| row.0),
+                "productName": dto.product_name,
+                "productSn": new_sn,
+                "productStatus": 0,
+                "productStock": 0,
+            }))
+        }
+        "product_analysis" => {
+            if !settings.product_enabled {
+                return Err("商品域未启用".into());
+            }
+            let operation = arg_str(args, "operation")
+                .unwrap_or_else(|| "overview".to_string())
+                .to_lowercase();
+            let keyword = arg_str(args, "keyword");
+            let category = arg_i32(args, "categoryId");
+            let limit = args
+                .get("limit")
+                .and_then(Value::as_i64)
+                .unwrap_or(20)
+                .clamp(1, 100);
+            let pool = &state.repos.pool;
+            let filter = "is_delete = 0 \
+                AND ($1::text IS NULL OR product_name ILIKE '%' || $1 || '%') \
+                AND ($2::int IS NULL OR category_id = $2)";
+            let data = match operation.as_str() {
+                "overview" => {
+                    let row: (i64, Option<Decimal>, Option<i64>, Option<i64>) =
+                        sqlx::query_as(&format!(
+                            "SELECT COUNT(*), AVG(product_price), SUM(product_stock), \
+                             SUM(virtual_sales) FROM product WHERE {filter}"
+                        ))
+                        .bind(keyword.clone())
+                        .bind(category)
+                        .fetch_one(pool)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    json!({
+                        "productCount": row.0,
+                        "avgPrice": row.1.map(|value| value.to_string()),
+                        "totalStock": row.2.unwrap_or(0),
+                        "totalSales": row.3.unwrap_or(0),
+                    })
+                }
+                "top_sellers" | "slow_movers" | "inventory_risk" | "recommend" => {
+                    let (order, extra) = match operation.as_str() {
+                        "top_sellers" => ("virtual_sales DESC", ""),
+                        "slow_movers" => ("virtual_sales ASC, product_stock DESC", ""),
+                        "inventory_risk" => ("product_stock DESC", "AND product_stock > 0 AND virtual_sales = 0"),
+                        _ => ("virtual_sales DESC, product_stock ASC", "AND product_stock <= 20"),
+                    };
+                    let rows: Vec<(i32, String, Decimal, i32, i32)> = sqlx::query_as(&format!(
+                        "SELECT product_id, product_name, product_price, product_stock, \
+                         virtual_sales FROM product WHERE {filter} {extra} \
+                         ORDER BY {order} LIMIT $3"
+                    ))
+                    .bind(keyword.clone())
+                    .bind(category)
+                    .bind(limit)
+                    .fetch_all(pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                    json!(
+                        rows.iter()
+                            .map(|row| json!({
+                                "productId": row.0,
+                                "productName": row.1,
+                                "price": row.2.to_string(),
+                                "stock": row.3,
+                                "sales": row.4,
+                            }))
+                            .collect::<Vec<_>>()
+                    )
+                }
+                "price_bands" => {
+                    let rows: Vec<(String, i64)> = sqlx::query_as(&format!(
+                        "SELECT CASE WHEN product_price < 50 THEN '0-50' \
+                         WHEN product_price < 100 THEN '50-100' \
+                         WHEN product_price < 500 THEN '100-500' \
+                         WHEN product_price < 1000 THEN '500-1000' \
+                         ELSE '1000+' END AS band, COUNT(*) \
+                         FROM product WHERE {filter} GROUP BY band ORDER BY MIN(product_price) \
+                         LIMIT $3"
+                    ))
+                    .bind(keyword.clone())
+                    .bind(category)
+                    .bind(limit)
+                    .fetch_all(pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                    json!(
+                        rows.iter()
+                            .map(|row| json!({ "band": row.0, "count": row.1 }))
+                            .collect::<Vec<_>>()
+                    )
+                }
+                "category_performance" => {
+                    let rows: Vec<(i32, i64, Option<i64>, Option<Decimal>)> =
+                        sqlx::query_as(&format!(
+                            "SELECT category_id, COUNT(*), SUM(virtual_sales), \
+                             AVG(product_price) FROM product WHERE {filter} \
+                             GROUP BY category_id ORDER BY SUM(virtual_sales) DESC NULLS LAST \
+                             LIMIT $3"
+                        ))
+                        .bind(keyword.clone())
+                        .bind(category)
+                        .bind(limit)
+                        .fetch_all(pool)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    json!(
+                        rows.iter()
+                            .map(|row| json!({
+                                "categoryId": row.0,
+                                "productCount": row.1,
+                                "totalSales": row.2.unwrap_or(0),
+                                "avgPrice": row.3.map(|value| value.to_string()),
+                            }))
+                            .collect::<Vec<_>>()
+                    )
+                }
+                other => return Err(format!("不支持的分析操作: {other}")),
+            };
+            Ok(json!({ "operation": operation, "data": data }))
+        }
+        "product_context" => {
+            if !settings.product_enabled {
+                return Err("商品域未启用".into());
+            }
+            let keyword = arg_str(args, "keyword");
+            let category = arg_i32(args, "categoryId");
+            let size = args
+                .get("sampleSize")
+                .and_then(Value::as_i64)
+                .unwrap_or(100)
+                .clamp(1, 500);
+            let filter = "is_delete = 0 \
+                AND ($1::text IS NULL OR product_name ILIKE '%' || $1 || '%') \
+                AND ($2::int IS NULL OR category_id = $2)";
+            let rows: Vec<(i32, String, String, Decimal, i32, i32)> = sqlx::query_as(&format!(
+                "SELECT product_id, product_name, product_sn, product_price, product_stock, \
+                 virtual_sales FROM product WHERE {filter} ORDER BY product_id DESC LIMIT $3"
+            ))
+            .bind(keyword)
+            .bind(category)
+            .bind(size)
+            .fetch_all(&state.repos.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+            let sample_size = rows.len();
+            if sample_size == 0 {
+                return Ok(json!({
+                    "hasData": false,
+                    "sampleSize": 0,
+                    "metrics": null,
+                    "samples": [],
+                }));
+            }
+            let mut prices: Vec<Decimal> = rows.iter().map(|row| row.3).collect();
+            prices.sort();
+            let total_price: Decimal = prices.iter().copied().sum();
+            let count_dec = Decimal::from(i64::try_from(sample_size).unwrap_or(i64::MAX));
+            let avg_price = total_price / count_dec;
+            let median_price = prices[sample_size / 2];
+            let sales_avg = rows.iter().map(|row| i64::from(row.5)).sum::<i64>() as f64
+                / sample_size as f64;
+            let stock_avg = rows.iter().map(|row| i64::from(row.4)).sum::<i64>() as f64
+                / sample_size as f64;
+            let samples: Vec<Value> = rows
+                .iter()
+                .take(20)
+                .map(|row| json!({
+                    "productId": row.0,
+                    "productName": row.1,
+                    "productSn": row.2,
+                    "price": row.3.to_string(),
+                    "stock": row.4,
+                    "sales": row.5,
+                }))
+                .collect();
+            Ok(json!({
+                "hasData": true,
+                "sampleSize": sample_size,
+                "metrics": {
+                    "priceMin": prices.first().map(|value| value.to_string()),
+                    "priceAvg": avg_price.to_string(),
+                    "priceMedian": median_price.to_string(),
+                    "priceMax": prices.last().map(|value| value.to_string()),
+                    "stockAvg": stock_avg,
+                    "salesAvg": sales_avg,
+                },
+                "samples": samples,
+            }))
+        }
+        "product_category_create" => {
+            if !settings.product_enabled {
+                return Err("商品域未启用".into());
+            }
+            let paths = args
+                .get("paths")
+                .and_then(Value::as_array)
+                .ok_or_else(|| "缺少参数 paths（数组）".to_string())?;
+            if paths.is_empty() {
+                return Err("paths 不能为空".into());
+            }
+            if paths.len() > 50 {
+                return Err("一次最多创建 50 条分类路径".into());
+            }
+            let rows: Vec<(i32, String, i32)> =
+                sqlx::query_as("SELECT category_id, category_name, parent_id FROM category")
+                    .fetch_all(&state.repos.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            let mut index: std::collections::HashMap<(i32, String), i32> = rows
+                .iter()
+                .map(|row| ((row.2, row.1.clone()), row.0))
+                .collect();
+            let mut created_count = 0;
+            let mut items = Vec::new();
+            for value in paths {
+                let path = value
+                    .as_str()
+                    .map(str::trim)
+                    .filter(|text| !text.is_empty())
+                    .ok_or_else(|| "路径不能为空".to_string())?;
+                let mut parent = 0;
+                for segment in path.split('/').map(str::trim).filter(|part| !part.is_empty()) {
+                    let key = (parent, segment.to_string());
+                    parent = if let Some(id) = index.get(&key) {
+                        *id
+                    } else {
+                        let dto = CategoryDTO {
+                            category_name: Some(segment.to_string()),
+                            parent_id: Some(parent),
+                            is_show: Some(1),
+                            ..Default::default()
+                        };
+                        let id = state
+                            .catalog
+                            .category
+                            .create(&dto)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        index.insert(key, id);
+                        created_count += 1;
+                        id
+                    };
+                }
+                items.push(json!({ "path": path, "categoryId": parent }));
+            }
+            Ok(json!({ "createdCount": created_count, "items": items }))
+        }
+        "media_manage" => {
+            if !settings.product_enabled && !settings.decorate_enabled {
+                return Err("商品域与装修域均未启用，无法管理素材".into());
+            }
+            let operation = arg_str(args, "operation").ok_or_else(|| "缺少 operation".to_string())?;
+            match operation.as_str() {
+                "group_create" => {
+                    let name =
+                        arg_str(args, "groupName").ok_or_else(|| "缺少 groupName".to_string())?;
+                    let dto = GalleryDTO {
+                        gallery_name: Some(name.clone()),
+                        shop_id: Some(0),
+                        ..Default::default()
+                    };
+                    let group_id = state
+                        .content
+                        .gallery
+                        .create(GalleryScope::platform(), &dto)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    Ok(json!({ "groupId": group_id, "groupName": name }))
+                }
+                "group_update" => {
+                    let group_id = require_i32(args, "groupId")?;
+                    let name =
+                        arg_str(args, "groupName").ok_or_else(|| "缺少 groupName".to_string())?;
+                    let dto = GalleryUpdateDTO {
+                        id: Some(group_id),
+                        gallery_name: Some(name.clone()),
+                        shop_id: Some(0),
+                        ..Default::default()
+                    };
+                    state
+                        .content
+                        .gallery
+                        .update(GalleryScope::platform(), &dto)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    Ok(json!({ "groupId": group_id, "groupName": name }))
+                }
+                "group_delete" => {
+                    let group_id = require_i32(args, "groupId")?;
+                    let mode = arg_str(args, "deleteMode")
+                        .unwrap_or_else(|| "only_group".to_string());
+                    let dto = GalleryDelDTO {
+                        id: Some(group_id),
+                        delete_mode: Some(mode),
+                    };
+                    state
+                        .content
+                        .gallery
+                        .delete(&dto)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    Ok(json!({ "groupId": group_id, "deleted": true }))
+                }
+                "update" => {
+                    let ids = parse_i32_list(args, "picIds");
+                    if ids.is_empty() {
+                        return Err("picIds 不能为空".into());
+                    }
+                    if let Some(gallery_id) = arg_i32(args, "galleryId") {
+                        state
+                            .content
+                            .gallery_pic
+                            .transfer(&GalleryPicTransferDTO {
+                                ids: Some(ids.clone()),
+                                target_gallery_id: Some(gallery_id),
+                                r#type: Some("image".to_string()),
+                            })
+                            .await
+                            .map_err(|e| e.to_string())?;
+                    }
+                    if let Some(name) = arg_str(args, "picName") {
+                        for pic_id in &ids {
+                            state
+                                .content
+                                .gallery_pic
+                                .update_field(&UpdateFieldDTO {
+                                    id: *pic_id,
+                                    field: "pic_name".to_string(),
+                                    val: name.clone(),
+                                })
+                                .await
+                                .map_err(|e| e.to_string())?;
+                        }
+                    }
+                    Ok(json!({ "updatedCount": ids.len() }))
+                }
+                "delete" => {
+                    let ids = parse_i32_list(args, "picIds");
+                    if ids.is_empty() {
+                        return Err("picIds 不能为空".into());
+                    }
+                    state
+                        .content
+                        .gallery_pic
+                        .batch_del(&GalleryPicBatchDTO {
+                            ids: Some(ids.clone()),
+                            r#type: Some("image".to_string()),
+                        })
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    Ok(json!({ "deletedCount": ids.len() }))
+                }
+                other => Err(format!("不支持的素材操作: {other}")),
+            }
         }
         "media_upload" => {
             if !settings.product_enabled && !settings.decorate_enabled {

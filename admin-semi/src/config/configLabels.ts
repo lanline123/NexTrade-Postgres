@@ -100,7 +100,6 @@ export const configLabels: Record<string, string> = {
   "storageQiniuRegion": "存储区域",
   "storageS3Region": "Region",
   "storageS3Endpoint": "Endpoint URL",
-  "workbuddyApiKeyExpiresAt": "密钥有效期",
   "guestLikeGoodsName": "自定义名称",
   "isGuestLikeGoods": "猜你喜欢",
   "searchSelfStore": "搜门店",

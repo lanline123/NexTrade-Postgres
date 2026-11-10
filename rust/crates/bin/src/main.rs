@@ -182,7 +182,6 @@ use nextrade_services::merchant::shop_manage::ShopManageService;
 use nextrade_services::merchant::shop_product_category::ShopProductCategoryService;
 use nextrade_services::merchant::shop_withdraw::ShopWithdrawService;
 use nextrade_services::merchant::vendor_deposit_shop::VendorDepositShopService;
-use nextrade_services::openapi::workbuddy::WorkbuddyService;
 use nextrade_services::payment::account_panel::AccountPanelService;
 use nextrade_services::payment::apple_pay::ApplePayService;
 use nextrade_services::payment::apple_pay_config::ApplePayConfigService;
@@ -341,7 +340,6 @@ async fn main() -> anyhow::Result<()> {
     let config_client = Arc::new(ConfigClientService::new(repos.clone()));
     let tax_rate = Arc::new(TaxRateService::new(repos.clone()));
     let example = Arc::new(ExampleService::new(repos.clone()));
-    let workbuddy = Arc::new(WorkbuddyService::new(repos.clone()));
     let shop_product_category = Arc::new(ShopProductCategoryService::new(repos.clone()));
     let product_style_admin = Arc::new(ProductStyleAdminService::new(repos.clone()));
     let member_tag = Arc::new(MemberTagService::new(repos.clone()));
@@ -828,11 +826,6 @@ async fn main() -> anyhow::Result<()> {
         panel: panel.clone(),
         sales_statistics: sales_statistics.clone(),
     });
-    // ---- openapi 域 ----
-    let openapi = Arc::new(nextrade_services::openapi::Services {
-        workbuddy: workbuddy.clone(),
-    });
-
     // ---- lang 域（多语言业务翻译） ----
     let translations =
         Arc::new(nextrade_services::lang::translations::TranslationsService::new(repos.clone()));
@@ -899,7 +892,6 @@ async fn main() -> anyhow::Result<()> {
         system: system.clone(),
         im: im.clone(),
         analytics: analytics.clone(),
-        openapi: openapi.clone(),
         wholesale: wholesale.clone(),
         lang: lang.clone(),
         vendor: vendor.clone(),
