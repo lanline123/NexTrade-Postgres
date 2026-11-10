@@ -381,6 +381,108 @@
   margin-bottom: 12px;
 }
 
+/* 删除分组弹窗 */
+.mc-album-delete {
+  padding: 2px 0 6px;
+}
+
+.mc-album-delete-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 13px 15px;
+  background: var(--semi-color-warning-light-default);
+  border: 1px solid var(--semi-color-warning-light-active);
+  border-radius: 10px;
+}
+
+.mc-album-delete-banner-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--semi-color-warning);
+  font-size: 20px;
+}
+
+.mc-album-delete-tip {
+  color: var(--semi-color-text-1);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.mc-album-delete-name {
+  margin-top: 3px;
+  color: var(--semi-color-text-0);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  word-break: break-all;
+}
+
+.mc-album-delete-label {
+  margin-bottom: 10px;
+  color: var(--semi-color-text-1);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.mc-delete-mode-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.mc-radio-card.semi-radio {
+  align-items: flex-start;
+  column-gap: 12px;
+  width: 100%;
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 10px;
+  background: var(--semi-color-bg-0);
+  transition: border-color 0.18s, background-color 0.18s, box-shadow 0.18s;
+}
+
+.mc-radio-card.semi-radio:hover {
+  border-color: var(--semi-color-primary-light-active);
+}
+
+.mc-radio-card.semi-radio .semi-radio-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.mc-radio-card.semi-radio .semi-radio-addon {
+  display: block;
+}
+
+.mc-radio-card.semi-radio.semi-radio-checked {
+  border-color: var(--semi-color-primary);
+  background: var(--semi-color-primary-light-default);
+  box-shadow: 0 0 0 2px var(--semi-color-primary-light-default);
+}
+
+.mc-radio-card.mc-radio-card--danger.semi-radio:hover {
+  border-color: var(--semi-color-danger-light-active);
+}
+
+.mc-radio-card.mc-radio-card--danger.semi-radio.semi-radio-checked {
+  border-color: var(--semi-color-danger);
+  background: var(--semi-color-danger-light-default);
+  box-shadow: 0 0 0 2px var(--semi-color-danger-light-default);
+}
+
+.mc-radio-card.mc-radio-card--danger.semi-radio-checked .mc-radio-title {
+  color: var(--semi-color-danger);
+}
+
+.mc-radio-card.mc-radio-card--danger.semi-radio-checked .semi-radio-inner-checked {
+  border-color: var(--semi-color-danger);
+  background-color: var(--semi-color-danger);
+}
+
 .mc-radio-title {
   color: var(--semi-color-text-0);
   font-size: 14px;

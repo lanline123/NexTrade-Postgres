@@ -528,6 +528,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 管理端登录页 tab 切换高度跳动（审计第三十九章）：`.login-options` 无固定行高，密码行 19px / 手机提示行 17px，导致卡片与按钮跳动 2px。上游 `styles.css` 加 `min-height: 20px` 后重建部署，线上两模式卡片 579.8px、按钮位置完全一致 |
 | 2026-11-10 | 后台顶栏「查看商城」补图标（审计第四十章）：React 版顶栏按钮漏了 `icon`，原版 Vue 为 `icon-guanli`；补 `IconShoppingBag`（与账号下拉同名入口一致），上游 admin-semi 重建后全量上传，线上 DOM 已含 `semi-icon-shopping_bag`，回滚 index 存 `scratch/admin-index.online.20261110_170626.html` |
 | 2026-11-10 | 推送约定：后续**只推送 `NexTrade-Postgres`**；上游 `D:\tigshop\NexTrade` 仅作构建源码，改动同步到本仓库 `admin-semi/` / `pc-semi/` 后再提交，不再向上游 remote 推送（§2.2） |
+| 2026-11-10 | 素材中心「删除分组」弹窗现代化（审计第四十一章）：警示条显示分组名 + 两张可点击策略卡（选中蓝/危险红）+ 红色确认按钮；因上游有并行 WIP，改用 `git archive HEAD` 干净源码构建后全量上传，线上 `index-vGC7iQEf.js`，回滚 index 存 `scratch/admin-index.online.20261110_172540.html` |
 
 ---
 

@@ -17,6 +17,7 @@ import {
   Toast,
 } from '@douyinfe/semi-ui';
 import {
+  IconAlertCircle,
   IconDelete,
   IconDownload,
   IconEdit,
@@ -1671,30 +1672,33 @@ export default function MaterialCenter() {
         visible={albumDeleteOpen}
         okText={t('确定')}
         confirmLoading={albumDeleting}
+        okButtonProps={{ type: 'danger', theme: 'solid' }}
         onOk={submitAlbumDelete}
         onCancel={() => setAlbumDeleteOpen(false)}
         width={520}
       >
         <div className="mc-album-delete">
-          <div className="mc-album-delete-tip">{t('即将对当前分组进行删除')}</div>
+          <div className="mc-album-delete-banner">
+            <IconAlertCircle className="mc-album-delete-banner-icon" />
+            <div>
+              <div className="mc-album-delete-tip">{t('即将对当前分组进行删除')}</div>
+              <div className="mc-album-delete-name">{albumDeleteTarget.name}</div>
+            </div>
+          </div>
           <div className="mc-album-delete-label">{t('请选择删除策略')}</div>
-          <RadioGroup value={deleteMode} onChange={(event) => setDeleteMode(event.target.value)}>
-            <div className="mc-radio-block">
-              <Radio value="only_group">
-                <div>
-                  <div className="mc-radio-title">{t('仅删除分组(推荐)')}</div>
-                  <div className="mc-radio-desc">{t('仅删除分组，组内的素材会移出分组，仍可在全部列表中找到')}</div>
-                </div>
-              </Radio>
-            </div>
-            <div className="mc-radio-block">
-              <Radio value="group_and_files">
-                <div>
-                  <div className="mc-radio-title">{t('删除分组及组内素材')}</div>
-                  <div className="mc-radio-desc">{t('分组及组内素材将会一并删除，删除不会对已使用图片的业务产生影响。')}</div>
-                </div>
-              </Radio>
-            </div>
+          <RadioGroup
+            className="mc-delete-mode-group"
+            value={deleteMode}
+            onChange={(event) => setDeleteMode(event.target.value)}
+          >
+            <Radio className="mc-radio-card" value="only_group">
+              <div className="mc-radio-title">{t('仅删除分组(推荐)')}</div>
+              <div className="mc-radio-desc">{t('仅删除分组，组内的素材会移出分组，仍可在全部列表中找到')}</div>
+            </Radio>
+            <Radio className="mc-radio-card mc-radio-card--danger" value="group_and_files">
+              <div className="mc-radio-title">{t('删除分组及组内素材')}</div>
+              <div className="mc-radio-desc">{t('分组及组内素材将会一并删除，删除不会对已使用图片的业务产生影响。')}</div>
+            </Radio>
           </RadioGroup>
         </div>
       </Modal>
