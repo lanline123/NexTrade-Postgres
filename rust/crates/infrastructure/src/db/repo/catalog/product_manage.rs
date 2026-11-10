@@ -1439,6 +1439,98 @@ impl ProductManageRepository {
         Ok(r.rows_affected())
     }
 
+    /// AI 运营：按白名单更新商品基础字段（`None` 表示保持原值）。
+    pub async fn ai_update_fields(
+        &self,
+        product_id: i32,
+        product_name: Option<&str>,
+        product_brief: Option<&str>,
+        category_id: Option<i32>,
+        brand_id: Option<i32>,
+        product_unit: Option<&str>,
+    ) -> Result<u64> {
+        let r = sqlx::query(
+            "UPDATE product SET
+               product_name = COALESCE($1, product_name),
+               product_brief = COALESCE($2, product_brief),
+               category_id = COALESCE($3, category_id),
+               brand_id = COALESCE($4, brand_id),
+               product_unit = COALESCE($5, product_unit)
+             WHERE product_id = $6 AND is_delete = 0",
+        )
+        .bind(product_name)
+        .bind(product_brief)
+        .bind(category_id)
+        .bind(brand_id)
+        .bind(product_unit)
+        .bind(product_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r.rows_affected())
+    }
+
+    /// AI 运营：更新商品价格（市场价 `None` 时保持原值）。
+    pub async fn ai_update_price(
+        &self,
+        product_id: i32,
+        product_price: Decimal,
+        market_price: Option<Decimal>,
+    ) -> Result<u64> {
+        let r = sqlx::query(
+            "UPDATE product SET product_price = $1, market_price = COALESCE($2, market_price)
+             WHERE product_id = $3 AND is_delete = 0",
+        )
+        .bind(product_price)
+        .bind(market_price)
+        .bind(product_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r.rows_affected())
+    }
+
+    /// AI 运营：更新商品库存。
+    pub async fn ai_update_stock(&self, product_id: i32, product_stock: i32) -> Result<u64> {
+        let r = sqlx::query(
+            "UPDATE product SET product_stock = $1 WHERE product_id = $2 AND is_delete = 0",
+        )
+        .bind(product_stock)
+        .bind(product_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r.rows_affected())
+    }
+
+    /// AI 运营：读取商品当前价格（售价、市场价），用于改价阈值判断。
+    pub async fn ai_product_price(
+        &self,
+        product_id: i32,
+    ) -> Result<Option<(Decimal, Option<Decimal>)>> {
+        let row: Option<(Decimal, Option<Decimal>)> = sqlx::query_as(
+            "SELECT product_price, market_price FROM product
+             WHERE product_id = $1 AND is_delete = 0 LIMIT 1",
+        )
+        .bind(product_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row)
+    }
+
+    /// AI 运营：读取商品当前库存，用于库存变更上限判断。
+    pub async fn ai_product_stock(&self, product_id: i32) -> Result<Option<i32>> {
+        let row: Option<(i32,)> = sqlx::query_as(
+            "SELECT product_stock FROM product WHERE product_id = $1 AND is_delete = 0 LIMIT 1",
+        )
+        .bind(product_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.map(|r| r.0))
+    }
+
     /// 批量更新上下架 / 软删除 / 审核状态（`None` 表示该列不动）。
     pub async fn set_product_flags(
         &self,
