@@ -18,6 +18,7 @@ import './legacy/10-base-xMgyvGsX.css';
 import './legacy/10-PosPopup-Dd5TeEf4.css';
 import './legacy/10-DialogForm-Ddl0OvgM.css';
 import './legacy/10-SettleAccountsPopup-lIYH4o3c.css';
+import './legacy/Board-BK5Vvutd.css';
 import './styles.css';
 import App from './App';
 

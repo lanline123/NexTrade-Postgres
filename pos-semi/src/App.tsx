@@ -1,6 +1,8 @@
 import type { CSSProperties } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Cashier from './pages/Cashier';
+import Orders from './pages/Orders';
+import Tables from './pages/Tables';
 import Placeholder from './pages/Placeholder';
 import { readSession } from './session';
 
@@ -78,14 +80,8 @@ export default function App() {
               <div className="el-scrollbar__view">
                 <Routes>
                   <Route path="/" element={<Cashier primaryStyle={PRIMARY_STYLE} />} />
-                  <Route
-                    path="/tables"
-                    element={<Placeholder title="桌台" note="开台、并台、换台与结账，接口 /pos/table/*。" />}
-                  />
-                  <Route
-                    path="/orders"
-                    element={<Placeholder title="订单" note="挂单、取单与退单，接口 /pos/cart/pendingOrder*、/pos/order/*。" />}
-                  />
+                  <Route path="/tables" element={<Tables />} />
+                  <Route path="/orders" element={<Orders />} />
                   <Route
                     path="/reservation"
                     element={<Placeholder title="预约" note="预约与库存日历，接口 /pos/order/OrderReservation/*。" />}
