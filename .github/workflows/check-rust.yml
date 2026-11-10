@@ -22,6 +22,7 @@ jobs:
   check:
     name: Cargo Check
     runs-on: ubuntu-22.04
+    timeout-minutes: 60
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -45,3 +46,11 @@ jobs:
         working-directory: rust/crates
         run: |
           cargo check --workspace
+
+      # `cargo check` 不编译 test target，单测因此长期「假绿」：断言与实现早已不符也发现不了
+      # （2026-11-10 查出 3 处）。--no-fail-fast 让一次运行报出全部失败，避免逐个试错。
+      # 套件本身不依赖数据库/网络（无 sqlx::test、无 query! 宏、openapi 集成测试走 oneshot）。
+      - name: Run Cargo Test
+        working-directory: rust/crates
+        run: |
+          cargo test --workspace --no-fail-fast -j 1
