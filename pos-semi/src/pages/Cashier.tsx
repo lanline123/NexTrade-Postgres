@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
+import Dialog from '../components/Dialog';
 import Price from '../components/Price';
 import { toast } from '../toast';
 
@@ -53,6 +54,21 @@ interface CartVO {
   pendingId: number;
 }
 
+interface PendingOrder {
+  pendingId: number;
+  remark: string;
+  userId: number;
+  tableId: number;
+  addTime: string;
+  count: number;
+  amount: string | number;
+}
+
+interface ConfirmState {
+  message: string;
+  action: () => void | Promise<void>;
+}
+
 const PAGE_SIZE = 100;
 
 function message(error: unknown): string {
@@ -72,6 +88,13 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
   const [keyword, setKeyword] = useState('');
   const [categoryId, setCategoryId] = useState<number>();
   const [loading, setLoading] = useState(false);
+  const [remark, setRemark] = useState('');
+  const [remarkOpen, setRemarkOpen] = useState(false);
+  const [remarkDraft, setRemarkDraft] = useState('');
+  const [pendingOpen, setPendingOpen] = useState(false);
+  const [pendingList, setPendingList] = useState<PendingOrder[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
 
   const loadProducts = useCallback(async (nextKeyword: string, nextCategory: number | undefined) => {
     setLoading(true);
@@ -138,30 +161,94 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
     }
   };
 
-  const removeItem = async (item: CartItem) => {
-    if (!window.confirm(`确定要删除该购物车商品吗？\n${item.productName}`)) return;
-    try {
-      await api.post('/pos/cart/removeItem', { cartIds: [item.cartId] });
-      await loadCart();
-    } catch (error) {
-      toast(message(error), 'error');
-    }
+  const removeItem = (item: CartItem) => {
+    setConfirmState({
+      message: `确定要删除该购物车商品吗？\n${item.productName}`,
+      action: async () => {
+        await api.post('/pos/cart/removeItem', { cartIds: [item.cartId] });
+        await loadCart();
+      },
+    });
   };
 
-  const clearCart = async () => {
+  const clearCart = () => {
     if (!items.length) return;
-    if (!window.confirm('清空该购物车后将无法恢复，确定要清空该购物车吗？')) return;
+    setConfirmState({
+      message: '清空该购物车后将无法恢复，确定要清空该购物车吗？',
+      action: async () => {
+        await api.post('/pos/cart/clearCart');
+        await loadCart();
+      },
+    });
+  };
+
+  const runConfirm = async () => {
+    const current = confirmState;
+    setConfirmState(null);
+    if (!current) return;
     try {
-      await api.post('/pos/cart/clearCart');
-      await loadCart();
+      await current.action();
     } catch (error) {
       toast(message(error), 'error');
     }
   };
 
   const editRemark = () => {
-    const remark = window.prompt('整单备注', '');
-    if (remark !== null) toast(remark ? '备注已记录（下单时提交）' : '已清空整单备注');
+    setRemarkDraft(remark);
+    setRemarkOpen(true);
+  };
+
+  const saveRemark = () => {
+    setRemark(remarkDraft.trim());
+    setRemarkOpen(false);
+    toast('整单备注已保存');
+  };
+
+  const loadPending = async () => {
+    setPendingLoading(true);
+    try {
+      const result = await api.post<{ records: PendingOrder[] }>('/pos/cart/pendingOrderList', {
+        shopId: shopIdOf(),
+      });
+      setPendingList(result.records || []);
+    } catch (error) {
+      toast(message(error), 'error');
+    } finally {
+      setPendingLoading(false);
+    }
+  };
+
+  const openPending = () => {
+    setPendingOpen(true);
+    void loadPending();
+  };
+
+  const savePending = async () => {
+    if (!items.length) {
+      toast('购物车为空', 'error');
+      return;
+    }
+    try {
+      await api.post('/pos/cart/pendingOrder', { remark });
+      await loadCart();
+      await loadPending();
+      toast('挂单成功');
+    } catch (error) {
+      toast(message(error), 'error');
+    }
+  };
+
+  const takePending = async (pending: PendingOrder) => {
+    try {
+      const result = await api.post<CartVO>('/pos/cart/takePendingOrder', {
+        pendingId: pending.pendingId,
+      });
+      setCart(result);
+      setPendingOpen(false);
+      toast('取单成功');
+    } catch (error) {
+      toast(message(error), 'error');
+    }
   };
 
   const checkout = () => {
@@ -281,7 +368,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
                 </button>
               </div>
               <div className="badge-box">
-                <button type="button" className="el-button btn" onClick={() => toast('挂/取单接入中')}>
+                <button type="button" className="el-button btn" onClick={openPending}>
                   <span>挂/取单</span>
                 </button>
               </div>
@@ -409,6 +496,93 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
       </div>
 
       <div className="dialog-link" />
+
+      <Dialog
+        open={remarkOpen}
+        title="整单备注"
+        onClose={() => setRemarkOpen(false)}
+        footer={
+          <>
+            <button type="button" className="el-button" onClick={() => setRemarkOpen(false)}>
+              <span>取消</span>
+            </button>
+            <button type="button" className="el-button el-button--primary" style={primaryStyle} onClick={saveRemark}>
+              <span>确定</span>
+            </button>
+          </>
+        }
+      >
+        <textarea
+          className="el-textarea__inner"
+          rows={4}
+          value={remarkDraft}
+          placeholder="请输入整单备注"
+          onChange={(event) => setRemarkDraft(event.target.value)}
+        />
+      </Dialog>
+
+      <Dialog
+        open={pendingOpen}
+        title="挂/取单"
+        width={560}
+        onClose={() => setPendingOpen(false)}
+        footer={
+          <button type="button" className="el-button" onClick={() => setPendingOpen(false)}>
+            <span>关闭</span>
+          </button>
+        }
+      >
+        <div className="pending-toolbar">
+          <button type="button" className="el-button el-button--primary" style={primaryStyle} onClick={() => void savePending()}>
+            <span>挂单</span>
+          </button>
+          <span className="pending-tip">保存当前购物车{remark ? `（备注：${remark}）` : ''}</span>
+        </div>
+        <div className="pending-list">
+          {pendingLoading ? (
+            <div className="pending-empty">加载中…</div>
+          ) : pendingList.length === 0 ? (
+            <div className="pending-empty">暂无挂单</div>
+          ) : (
+            pendingList.map((pending) => (
+              <div className="pending-item" key={pending.pendingId}>
+                <div className="pending-meta">
+                  <strong>#{pending.pendingId}</strong>
+                  <span>{pending.remark || '无备注'}</span>
+                  <span>{pending.count} 件</span>
+                  <strong>¥{Number(pending.amount ?? 0).toFixed(2)}</strong>
+                </div>
+                <button
+                  type="button"
+                  className="el-button el-button--primary"
+                  style={primaryStyle}
+                  onClick={() => void takePending(pending)}
+                >
+                  <span>取单</span>
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={!!confirmState}
+        title="提示"
+        onClose={() => setConfirmState(null)}
+        footer={
+          <>
+            <button type="button" className="el-button" onClick={() => setConfirmState(null)}>
+              <span>取消</span>
+            </button>
+            <button type="button" className="el-button el-button--primary" style={primaryStyle} onClick={() => void runConfirm()}>
+              <span>确定</span>
+            </button>
+          </>
+        }
+      >
+        <p className="confirm-text">{confirmState?.message}</p>
+      </Dialog>
     </div>
   );
 }
