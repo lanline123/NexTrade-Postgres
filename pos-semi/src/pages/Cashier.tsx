@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import Dialog from '../components/Dialog';
 import Price from '../components/Price';
+import productEmpty from '../legacy/productEmpty-P1dhOWH0.png';
 import { toast } from '../toast';
 
 interface Category {
@@ -27,6 +28,7 @@ interface ProductPage {
 
 interface CartItem {
   cartId: number;
+  productId: number;
   productName: string;
   picThumb?: string;
   price: string | number;
@@ -77,7 +79,7 @@ interface Member {
   points: string | number;
 }
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 30;
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : '请求失败';
@@ -96,6 +98,10 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
   const [keyword, setKeyword] = useState('');
   const [categoryId, setCategoryId] = useState<number>();
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [displayMode, setDisplayMode] = useState<'imageText' | 'text'>('imageText');
   const [remark, setRemark] = useState('');
   const [remarkOpen, setRemarkOpen] = useState(false);
   const [remarkDraft, setRemarkDraft] = useState('');
@@ -120,12 +126,35 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
         size: PAGE_SIZE,
       });
       setProducts(result.records || []);
+      setTotal(result.total || 0);
+      setPage(1);
     } catch (error) {
       toast(message(error), 'error');
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const loadMore = async () => {
+    if (loading || loadingMore || products.length >= total) return;
+    setLoadingMore(true);
+    try {
+      const result = await api.get<ProductPage>('/pos/product/index', {
+        keyword: keyword.trim() || undefined,
+        categoryId,
+        shopId: shopIdOf(),
+        page: page + 1,
+        size: PAGE_SIZE,
+      });
+      setProducts((prev) => [...prev, ...(result.records || [])]);
+      setTotal(result.total || 0);
+      setPage(page + 1);
+    } catch (error) {
+      toast(message(error), 'error');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const loadCart = useCallback(async () => {
     try {
@@ -148,6 +177,10 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
   const items = cart?.cartList.flatMap((store) => store.carts) ?? [];
   const totalCount = cart?.total.totalCount ?? 0;
   const totalAmount = cart?.total.discountAfter ?? 0;
+  const quantityByProduct = new Map<number, number>();
+  for (const item of items) {
+    quantityByProduct.set(item.productId, (quantityByProduct.get(item.productId) ?? 0) + item.quantity);
+  }
 
   const addProduct = async (product: Product) => {
     try {
@@ -567,31 +600,90 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
               ))}
             </div>
           </div>
-          <div className="switch-view">
+          <div className="switch-view" onClick={() => setDisplayMode(displayMode === 'imageText' ? 'text' : 'imageText')}>
             <div className="icon">
-              <i className="iconfont-pos icon-tuwendaohang" />
+              {displayMode === 'imageText' ? (
+                <i className="iconfont-pos icon-sanhengxian" />
+              ) : (
+                <i className="iconfont-pos icon-tuwendaohang" />
+              )}
             </div>
           </div>
         </div>
 
-        <div className="product-content">
-          {loading ? <div className="product-loading">加载中…</div> : null}
-          <div className="product-list">
-            {products.map((product) => (
-              <div className="product-item-wrapper" key={product.productId}>
-                <div className="badge-box">
-                  <div className="product-item" onClick={() => void addProduct(product)}>
-                    <div className="img-box">{product.picThumb ? <img src={product.picThumb} alt="" /> : null}</div>
-                    <div className="product-info">
-                      <div className="name pos-ellipsis-1">{product.productName}</div>
-                      <div className="price">¥{Number(product.productPrice ?? 0).toFixed(2)}</div>
-                    </div>
+        <div
+          className="product-content"
+          onScroll={(event) => {
+            const el = event.currentTarget;
+            if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) void loadMore();
+          }}
+        >
+          <div className={products.length <= 4 && !loading ? 'product-list single-row' : 'product-list'}>
+            {products.map((product) => {
+              const quantity = quantityByProduct.get(product.productId) ?? 0;
+              const soldOut = (product.productStock ?? 1) <= 0;
+              const price = `¥${Number(product.productPrice ?? 0).toFixed(2)}`;
+              return (
+                <div
+                  className="product-item-wrapper"
+                  key={product.productId}
+                  onClick={() => {
+                    if (soldOut) {
+                      toast('该商品已售罄', 'error');
+                      return;
+                    }
+                    void addProduct(product);
+                  }}
+                >
+                  <div className="badge-box">
+                    {quantity > 0 ? (
+                      <div className="badge" style={{ top: -10, right: -10 }}>
+                        {quantity}
+                      </div>
+                    ) : null}
+                    {displayMode === 'imageText' ? (
+                      <div className={quantity > 0 ? 'product-item active' : 'product-item'}>
+                        <div className="img-box">
+                          {soldOut ? (
+                            <div className="sold-out">
+                              <div className="sold-out-img">已售罄</div>
+                            </div>
+                          ) : null}
+                          <img src={product.picThumb || productEmpty} alt="" />
+                        </div>
+                        <div className="product-info">
+                          <div className="name pos-ellipsis-1">{product.productName}</div>
+                          <div className="price">{price}</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={`product-item${quantity > 0 ? ' active' : ''}${soldOut ? ' soldout' : ''}`}>
+                        <div className="product-info2">
+                          <div className="name">
+                            {soldOut ? <span className="soldout">售罄</span> : null} {product.productName}
+                          </div>
+                          <div className="price">{price}</div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-          <div className="end-box">{products.length === 0 ? '暂无商品' : '没有更多了'}</div>
+          {products.length === 0 && !loading ? (
+            <div className="empty">
+              <img src={productEmpty} alt="" />
+            </div>
+          ) : null}
+          {loadingMore ? (
+            <div className="loading">
+              <div>
+                <span>加载中...</span>
+              </div>
+            </div>
+          ) : null}
+          {!loadingMore && !loading && products.length > 12 ? <div className="end-box">没有更多了~</div> : null}
         </div>
       </div>
 
