@@ -434,7 +434,8 @@ impl DepositRechargeRepository {
                (owner_type, owner_id, paid, required_manual, required_snapshot,
                 collect_due_time, supplement_due_time, collect_activated,
                 penalty_status, status, add_time, update_time)
-             VALUES ($1, $2, 0, NULL, 0, 0, 0, 0, 0, 1, $3, $4)",
+             VALUES ($1, $2, 0, NULL, 0, 0, 0, 0, 0, 1, $3, $4)
+             ON CONFLICT (owner_type, owner_id) DO NOTHING",
         )
         .bind(owner_type)
         .bind(owner_id)
@@ -443,8 +444,8 @@ impl DepositRechargeRepository {
         .execute(&mut **tx)
         .await
         .map_err(map_err)?;
-        // 并发下另一个事务可能已插入：重新加锁读取（Java `catch (DuplicateKeyException)`
-        // 后同样回读）。
+        // 并发下另一事务已插入时 ON CONFLICT 静默让路，这里回读同一条
+        // （等价 Java 的 catch (DuplicateKeyException) 后回读）。
         Self::select_account_for_update(tx, owner_type, owner_id)
             .await?
             .ok_or_else(|| Error::Database("保证金账户创建失败".into()))
