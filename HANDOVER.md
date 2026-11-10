@@ -1,6 +1,6 @@
 # NexTrade-Postgres 交接文档
 
-> 更新时间：2026-11-09
+> 更新时间：2026-11-10
 > 范围：PostgreSQL 迁移版仓库的**环境接入**——服务器、宝塔面板、GitHub、生产 PG。
 > 迁移进度与缺陷台账见 `MIGRATION-AUDIT-2026-11-09.md`（被 `.gitignore` 排除，仅存本地）。
 > 上游项目的功能/业务交接文档在 `D:\tigshop\NexTrade\docs\HANDOVER.md`，本文只补「怎么连上去、用什么工具」。
@@ -336,40 +336,60 @@ codegen-units = 16
 - 时间 / JSON 列 = **text**（§4.3 回退后）；`String` 实体直接解码，无需转换。
   既有的 `col::text` 读、`NULLIF($n,'')::timestamp` 写在 text 列上合法，可保留；
   但**不要新增 `col = $n::date` 之类的比较断言**（text 与 date 无比较运算符）。
-- 整数列：tinyint/smallint 已统一加宽为 `integer`（637 列，无损）；12 列 bigint 按实体
-  收窄为 `integer`（`9b2f366`，已核验线上最大值 < 2^31）。sqlx 整数宽度互相兼容，
+- 整数列：tinyint/smallint 已统一加宽为 `integer`（637 列，无损）；bigint 按实体收窄为
+  `integer` 共 **24 列**（`9b2f366` 12 列 + `dd25f09` 12 列，均核验线上值域 < 2^31）。sqlx 整数宽度互相兼容，
   但 **`NUMERIC` 与 `INT8` 严格**：`SUM(int)`→`bigint` 用 `i64` 接；`MAX(numeric)`/`AVG(int)`
   →`numeric` 用 `Decimal` 接；`NUMERIC` 列要按 `String` 读必须 `CAST(col AS TEXT)`。
 - **布尔上下文占位符必须绑 `bool`**：`CASE WHEN $1 AND ...` 中 PG 把 `$1` 推断为 boolean，
   绑 `i32::from(bool)` 会报 `argument of AND must be type boolean`（`3444a39` 修复的正是此类）。
 - 动态拼接 SQL **只用 `?`**，统一走 `to_pg_placeholders()`；禁止同一句混写硬编码 `$N` 与 `?`
   （`?` 续编号从 `max($N)+1` 开始，文本顺序与 bind 顺序错位会导致分页恒空，见审计 24.1）。
+- **text 化列上禁止任何原生日期函数/断言**：`TO_CHAR` / `EXTRACT` / `DATE_ADD` / `::date` /
+  `::timestamp` 写在 49 列 text 列上，轻则多一次无意义往返，重则报
+  `function to_char(text, unknown) does not exist` 直接 500（`dd25f09` 修的就是这类）。
+  值本身是 `YYYY-MM-DD HH:MM:SS`，**字典序等于时间序**，比较与排序直接用字符串。
 - `SELECT *` 在 text 口径下不再危险（38 处展开保留无害）；唯 6 列原生 `timestamp/date`
   （`map_call_log` / `translation_call_log` / `merchant_application.abandon_time,delete_time` /
   `label_*_pickup_date`）Rust 实体未映射，`FromRow` 按名取列会跳过它们，不要给实体加这些字段。
 
-### 4.7 2026-11-10 全量检查状态（00:45 实测）
+### 4.6.1 改代码后必跑的四道扫描（本地，不编译）
+
+| 脚本 | 作用 | 当前 |
+|---|---|---|
+| `scratch/audit_type_compat.py` | 实体字段类型 × PG 列类型全量比对 | 3782 列双匹配，0 不兼容 |
+| `scratch/audit_widen.py` | MySQL 基线 × PG 现状，按加宽/收窄/回退分类 | 差异全为有意 |
+| `scratch/scan_textdate.py` | 扫 text 化列上的 `TO_CHAR/EXTRACT/::date/::timestamp/DATE_ADD` | 0 命中（命中即退出码 1） |
+| `scratch/scan_bigint_i32.py` | 双向扫 `CAST(… AS BIGINT)→i32` 与 `CAST(… AS INT)→i64` | 0 冲突 |
+
+> 这四个脚本是这轮抓缺陷的主要手段，比 `cargo check` 有效——PG 的类型/语法问题**编译期全部通过**，
+> 只有真实 SQL 打到库里才暴露。另：`scratch/plan_fix.py`、`scratch/scan_mixed.py` 用于定位
+> 「占位符生成器 + 硬编码 `$N` 混用」。**不要用「扫源码字符串里有没有 `?`」来判裸占位符**，
+> `?` 是运行时 `to_pg_placeholders()` 注入的，源码字面量里只有 `{}`。
+
+### 4.7 2026-11-10 全量检查状态（03:10 实测，当前态）
 
 | 项 | 状态 |
 |---|---|
-| 线上二进制 | **staging 包 `e48b882`**（含 `9b2f366` 全部 22 条修复），72,577,736 字节，sha256 `cc3ac9cb…`，00:37:56 部署（并行 agent 执行，审计 27.3） |
+| 线上二进制 | **staging 包 `dd25f09`**（HEAD，含 text 化时间列日期函数清理 + 12 列 bigint 收窄回 integer），72,573,512 字节，sha256 `a55ee620…fba6`，03:05:05 部署（`scratch/deploy-dd25f09.sh`，备份 `nextrade.bak.20261110_030505`，`main_pid=3827592`，`proc_sha` 与磁盘一致；验证输出 `depd25.out`） |
 | 生产库 | 49 列已回退 text（§4.3）；637 列 smallint→integer 加宽；12 列 bigint→integer 收窄；335 张 MySQL 表全在、3927 列 0 缺失 |
 | 与 `pure.sql` 比对 | 686 处差异**全部为有意改动**：637 整数加宽 + 49 时间/JSON 回退（线上 MySQL 本就是字符串）；无丢失性差异 |
 | 会员 `123/123` | 登录、购物车、getCount、订单、资料、站内信、商品分页（total=64 有记录）、签到 sign 均 200 |
 | 管理端 `admin/admin123` | 订单、优惠券、拼团、微信直播、菜单、类目费率、面板、操作日志、商户进件、userBalanceLog、accountPanel、pickupList、addUserTrends 均 200 |
 | 日志 | 仅 tower_http 对已知失败接口的 500 追踪，无 panic / 解码崩溃 |
 | 探针清理 | `cart_id=146` 的 `extra_data` 已为 NULL |
-| 备份 | `/www/backup/` 1103 项；回退前 dump、部署前二进制备份均在 |
-| 计划任务 | 282（Let's Encrypt，正常）+ 并行 agent 的 pgops/depb4m/sweepb4（同一 pgops 通道，勿动） |
+| 备份 | `/www/backup/` 1122 项 / 4.5 GiB（实测）；回退前 dump、各次部署前二进制备份均在。**约 2.4 GiB 是历次部署残留的上传分片与被取代产物，可安全清理但未擅自删（共享目录，见审计 30.3）** |
+| 计划任务 | 282（Let's Encrypt，正常）+ 并行 agent 的 pgops/depb4m/sweepb4 与 findstg4b/c/d（**经 `GetFileBody` 复核均只读**：查 information_schema / ls·sha256sum 暂存，不装二进制不重启，勿动）。我的残留 `stgb8deploy`(731) 已删（见审计 30.2） |
 
-**仅剩 2 个已知失败**（均已修复、待部署）：
+**已知失败已全部修复并上线（03:10 复测）**：
 
-| 接口 | 根因 | 修复 |
-|---|---|---|
-| `/adminapi/product/stockWarning/list` | 布尔上下文占位符绑了 `i32` | `3444a39` 改绑 `bool` |
-| `/api/user/sign/index` | `product_price` NUMERIC 按 String 解码 | `3444a39` 加 `CAST AS TEXT` |
+| 接口 | 根因 | 修复 | 复测 |
+|---|---|---|---|
+| `/adminapi/product/stockWarning/list` | 输出列 `CAST AS BIGINT`→i32 解码 500 | `3444a39` 布尔绑定 + `b8a06a7` 输出列回裸列/`AS INT` | **HTTP 200 / code:0，返回真实行** |
+| `/api/user/sign/index` | `product_price` NUMERIC 按 String 解码 | `3444a39` 加 `CAST AS TEXT` | 200 |
+| `/adminapi/panel/statisticsAccess/accessStatistics` | text 列上写 `TO_CHAR("date",…)` → `function to_char(text,unknown) does not exist` | `dd25f09` 改裸列 `"date" AS period` | 200，返回完整横轴 |
+| `/adminapi/panel/panel/statisticalData` | 同一查询被 `unwrap_or_default()` 吞错 → **200 但纵轴全 0（静默丢数据）** | `dd25f09` 同上 | 200，`axisAccess` 有真实值（sum=402） |
 
-`3444a39` 的 staging 构建 `42657079113` 进行中；部署后需复测这两个接口。
+> `scratch/verify_stockwarning.py` 为该项的最小复测脚本（admin 登录后打三个 stockWarning 端点）。
 
 > staging 包体积（72 MB）大于正式 release（54 MB），可临时顶替线上；正式上线仍建议用
 > `build-rust-backend` 产出与校验的 Release（须用户明确授权，见 §4.4）。
@@ -422,3 +442,21 @@ codegen-units = 16
 | 2026-11-09 | 生产 PG 与 MySQL 基线（`database/pure.sql`）全量比对：335 表 / 3927 列，0 表 0 列缺失；修复 198 条类型/索引/可空性差异，脚本见 `rust/deploy/pg/2026-11-09_schema_align.sql`；新增 §4.1 服务器侧执行流程、§4.2 对齐记录 |
 | 2026-11-09 | 记录两条构建通道（release / staging）与日常验证流程；补充 CI 构建耗时实测（20.7 min）与优化方案（目标 6~8 min，未实施）；新增 schema 与二进制强耦合的维护约定 |
 | 2026-11-09 | 部署与回归结果：会员/管理端主要接口 200；`cart/getCount` 因 `SUM(int)` 返回 bigint 而 500，修复提交 `22ce67a`，待部署 |
+| 2026-11-10 | 建站策略变更：日常只发 staging，正式 Release 须用户明确授权（§4.4）；新增 §4.6 类型强耦合约定、§4.6.1 四道扫描门禁 |
+| 2026-11-10 | `dd25f09` 上线（03:05）：清理 text 化时间列上的 `TO_CHAR/::date/::timestamp`，修 `accessStatistics` 500 与 `statisticalData` 静默全 0；第二批 12 列 bigint 收窄；公开/管理端/会员端回归 0 失败 |
+
+---
+
+## 8. 剩余待办（按优先级，接手从这里开始）
+
+| # | 项 | 为什么重要 | 落点 |
+|---|---|---|---|
+| 1 | **正式发版 `build-rust-backend`** | 线上跑的是 72 MB staging 包（无 tag、无版本留档），对外版本应以 Release 为准 | §4.4；**必须先拿到用户「发正式版」授权** |
+| 2 | **`cargo test` 纳入 CI** | 现在只跑 `cargo check`，3 处单测断言早已与实现不符却一直「绿」 | `.github/workflows/check-rust.yml` 加 `cargo test --workspace -j 1` |
+| 3 | **171 个无 `RETURNING` 的 INSERT 甄别** | MySQL `LAST_INSERT_ID()` 语义在 PG 下取不到自增主键 | 审计第二十二章台账，优先「插入后立刻用 id」的路径 |
+| 4 | **2 处语义映射业务复核** | 迁移期人工改写过条件，需业务侧确认口径 | 审计台账标注处 |
+| 5 | **回归断言升级** | 只统计 HTTP 状态码会漏掉「吞错误」的接口（`statisticalData` 200 但全 0） | 关键接口加业务字段断言，见审计 30.3 |
+| 6 | CI 构建提速（未实施） | 20.7 min → 目标 6~8 min | §4.5 |
+| 7 | 安全整改 | `crates/common/src/config.rs:159` 内置默认 JWT secret；历史提交含明文口令 | §6 第 1 条 |
+| 8 | `/www/backup` 清理约 2.4 GiB 部署残留 | 磁盘只剩 ~13 GB | 共享目录，**动手前确认没有其他 agent 在用** |
+| 9 | `docker-compose.yml` / `deploy/README.md` 仍是 MySQL 口径 | 环境重建会踩坑 | §6 第 2、3 条 |
