@@ -366,6 +366,27 @@ codegen-units = 16
 > 「占位符生成器 + 硬编码 `$N` 混用」。**不要用「扫源码字符串里有没有 `?`」来判裸占位符**，
 > `?` 是运行时 `to_pg_placeholders()` 注入的，源码字面量里只有 `{}`。
 
+### 4.6.2 运行期业务字段断言（回归门禁，2026-11-10 已落地）
+
+四道扫描只能看**源码**，看不到「接口 200 但数据是空的」。补一个运行期套件：
+
+```bash
+python regress/api_assert.py            # 打生产；--member-base/--admin-base 打本机
+python regress/api_assert.py --self-test  # 离线自检断言原语
+```
+
+| 项 | 内容 |
+|---|---|
+| 位置 | `regress/api_assert.py` + `regress/baseline.json` + `regress/README.md`（已入库） |
+| 覆盖 | 53 个用例（会员 18 / 管理 35）+ 4 项跨接口一致性 |
+| 分层 | L0 HTTP 200 → L1 `code==0` → L2 结构（分页自洽、轴对齐、日期升序）→ L3 字段取值 → L4 基线守卫 |
+| 专治 | `unwrap_or_default()` 类静默失败：基线 > 0 而本次为 0 直接判失败 |
+| 跨接口 | `statisticalData` 访问量 ≈ `accessStatistics` 同区间点击量；`panel/index` 三处计数与订单/商品列表 total 对齐；`cart/getCount` 与 `cart/list.totalCount` 对齐 |
+| 退出码 | 0 通过 / 1 有失败 / 2 登录不可用（可直接做门禁） |
+
+**何时跑**：每次部署后打生产；改接口/改 SQL 后打本机。CI 里跑不了（GitHub runner 访问不到生产库与登录态）。
+
+
 ### 4.7 2026-11-10 全量检查状态（03:10 实测，当前态）
 
 | 项 | 状态 |
@@ -377,7 +398,7 @@ codegen-units = 16
 | 管理端 `admin/admin123` | 订单、优惠券、拼团、微信直播、菜单、类目费率、面板、操作日志、商户进件、userBalanceLog、accountPanel、pickupList、addUserTrends 均 200 |
 | 日志 | 仅 tower_http 对已知失败接口的 500 追踪，无 panic / 解码崩溃 |
 | 探针清理 | `cart_id=146` 的 `extra_data` 已为 NULL |
-| 备份 | `/www/backup/` 1122 项 / 4.5 GiB（实测）；回退前 dump、各次部署前二进制备份均在。**约 2.4 GiB 是历次部署残留的上传分片与被取代产物，可安全清理但未擅自删（共享目录，见审计 30.3）** |
+| 备份 | `/www/backup/` **741 项（676 文件 + 65 目录，09:13 实测）**；2026-11-10 09:12 已清理 433 项 / 2.4 GiB 纯碎片（审计第三十一章），磁盘可用 12.2 → 13.0 GB。回退 dump、部署前二进制备份、`nextrade.dd25f09` 源包均保留 |
 | 计划任务 | 282（Let's Encrypt，正常）+ 并行 agent 的 pgops/depb4m/sweepb4 与 findstg4b/c/d（**经 `GetFileBody` 复核均只读**：查 information_schema / ls·sha256sum 暂存，不装二进制不重启，勿动）。我的残留 `stgb8deploy`(731) 已删（见审计 30.2） |
 
 **已知失败已全部修复并上线（03:10 复测）**：
@@ -444,6 +465,8 @@ codegen-units = 16
 | 2026-11-09 | 部署与回归结果：会员/管理端主要接口 200；`cart/getCount` 因 `SUM(int)` 返回 bigint 而 500，修复提交 `22ce67a`，待部署 |
 | 2026-11-10 | 建站策略变更：日常只发 staging，正式 Release 须用户明确授权（§4.4）；新增 §4.6 类型强耦合约定、§4.6.1 四道扫描门禁 |
 | 2026-11-10 | `dd25f09` 上线（03:05）：清理 text 化时间列上的 `TO_CHAR/::date/::timestamp`，修 `accessStatistics` 500 与 `statisticalData` 静默全 0；第二批 12 列 bigint 收窄；公开/管理端/会员端回归 0 失败 |
+| 2026-11-10 | 回归门禁升级：新增 `regress/api_assert.py`（业务字段断言 + 基线守卫 + 跨接口一致性），补齐「200 但静默失败」这一盲区；首跑生产 53/53 + 跨接口 4/4 通过，见 §4.6.2 |
+| 2026-11-10 | `/www/backup` 清理（原待办第 8 项）：删除 433 项纯碎片 2,551,771,354 B，磁盘可用 12.2 → 13.0 GB；回滚资产与线上源包全部保留（`MIGRATION-AUDIT` 第三十一章） |
 
 ---
 
@@ -455,8 +478,7 @@ codegen-units = 16
 | 2 | **`cargo test` 纳入 CI** | 现在只跑 `cargo check`，3 处单测断言早已与实现不符却一直「绿」 | `.github/workflows/check-rust.yml` 加 `cargo test --workspace -j 1` |
 | 3 | **171 个无 `RETURNING` 的 INSERT 甄别** | MySQL `LAST_INSERT_ID()` 语义在 PG 下取不到自增主键 | 审计第二十二章台账，优先「插入后立刻用 id」的路径 |
 | 4 | **2 处语义映射业务复核** | 迁移期人工改写过条件，需业务侧确认口径 | 审计台账标注处 |
-| 5 | **回归断言升级** | 只统计 HTTP 状态码会漏掉「吞错误」的接口（`statisticalData` 200 但全 0） | 关键接口加业务字段断言，见审计 30.3 |
+| 5 | **回归断言升级** | 只统计 HTTP 状态码会漏掉「吞错误」的接口（`statisticalData` 200 但全 0） | ✅ 已完成（2026-11-10）：`regress/api_assert.py`，53 用例 + 4 项跨接口一致性 + 基线守卫，见 §4.6.2 与审计第三十二章 |
 | 6 | CI 构建提速（未实施） | 20.7 min → 目标 6~8 min | §4.5 |
 | 7 | 安全整改 | `crates/common/src/config.rs:159` 内置默认 JWT secret；历史提交含明文口令 | §6 第 1 条 |
-| 8 | `/www/backup` 清理约 2.4 GiB 部署残留 | 磁盘只剩 ~13 GB | 共享目录，**动手前确认没有其他 agent 在用** |
-| 9 | `docker-compose.yml` / `deploy/README.md` 仍是 MySQL 口径 | 环境重建会踩坑 | §6 第 2、3 条 |
+| 8 | `docker-compose.yml` / `deploy/README.md` 仍是 MySQL 口径 | 环境重建会踩坑 | §6 第 2、3 条 |
