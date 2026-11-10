@@ -19,6 +19,10 @@
 **首要原则：本仓库是公开仓库**（`https://github.com/lanline123/NexTrade-Postgres`，匿名 API 返回 200）。
 因此**面板 IP、API 密钥、数据库口令一律不写进本文件，也不提交**。本文只写机制与文件位置。
 
+**推送范围（2026-11-10 用户指令，长期有效）：后续只推送 `NexTrade-Postgres`。**
+上游 `D:\tigshop\NexTrade` 仅作为前端构建源码，改动同步到本仓库的 `admin-semi/` / `pc-semi/`
+后再提交，**不要向上游仓库的 remote 推送**。详见 §2.2。
+
 ---
 
 ## 1. 宝塔面板（HTTP API）
