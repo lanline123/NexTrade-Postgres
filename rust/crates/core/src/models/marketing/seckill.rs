@@ -151,6 +151,22 @@ pub struct SeckillPromotionVO {
     pub started: bool,
     /// 售罄进度百分比（0-100），用于前端进度条
     pub sold_percent: i32,
+    /// 商品名称（前台卡片展示，Java 口径由商品表回填）
+    pub product_name: String,
+    /// 商品货号
+    pub product_sn: String,
+    /// 商品简介
+    pub product_brief: String,
+    /// 商品主图
+    pub pic_url: String,
+    /// 商品缩略图
+    pub pic_thumb: String,
+    /// 商品原价
+    pub product_price: Decimal,
+    /// 市场价
+    pub market_price: Decimal,
+    /// 商品类型（1 实物 / 2 虚拟 / 3 卡密 ...）
+    pub product_type: Option<i32>,
 }
 
 /// 秒杀活动派生状态（非库列）。

@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use rust_decimal::Decimal;
 use nextrade_common::utils;
-use nextrade_core::entities::{Seckill, SeckillItem};
+use nextrade_core::entities::{Product, Seckill, SeckillItem};
 use nextrade_core::models::marketing::seckill::{
     SeckillCreateDTO, SeckillItemDTO, SeckillItemVO, SeckillListQuery, SeckillPromotionVO,
     SeckillStatus, SeckillUpdateDTO, SeckillVO,
@@ -324,7 +324,23 @@ impl SeckillService {
         };
         let now = utils::now_seconds() as i32;
         let (total, items) = self.repos.marketing.seckill.find_active_items(now, &page).await?;
-        let list = items.iter().map(|it| to_promotion_vo(it, now)).collect();
+        // 前台卡片需要商品名称/主图/原价，按商品 ID 批量回填，避免 N+1。
+        let product_ids: Vec<i32> = items
+            .iter()
+            .filter_map(|it| it.product_id)
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
+        let products = self.repos.catalog.product.find_by_ids(&product_ids).await?;
+        let product_map: HashMap<i32, Product> =
+            products.into_iter().map(|p| (p.product_id, p)).collect();
+        let list = items
+            .iter()
+            .map(|it| {
+                let product = it.product_id.and_then(|id| product_map.get(&id));
+                to_promotion_vo(it, now, product)
+            })
+            .collect();
         Ok(PageResult::new(total, list, &page))
     }
 
@@ -531,8 +547,12 @@ fn to_item_vo(it: &SeckillItem) -> SeckillItemVO {
     }
 }
 
-/// 明细实体 → 前台 VO（计算剩余时间与售罄进度）。
-fn to_promotion_vo(it: &SeckillItem, now: i32) -> SeckillPromotionVO {
+/// 明细实体 → 前台 VO（计算剩余时间与售罄进度，并回填商品展示字段）。
+fn to_promotion_vo(
+    it: &SeckillItem,
+    now: i32,
+    product: Option<&Product>,
+) -> SeckillPromotionVO {
     let start = it.seckill_start_time.unwrap_or(0);
     let end = it.seckill_end_time.unwrap_or(0);
     let stock = it.seckill_stock.unwrap_or(0);
@@ -569,6 +589,14 @@ fn to_promotion_vo(it: &SeckillItem, now: i32) -> SeckillPromotionVO {
         remain_seconds,
         started,
         sold_percent,
+        product_name: product.map(|p| p.product_name.clone()).unwrap_or_default(),
+        product_sn: product.map(|p| p.product_sn.clone()).unwrap_or_default(),
+        product_brief: product.map(|p| p.product_brief.clone()).unwrap_or_default(),
+        pic_url: product.map(|p| p.pic_url.clone()).unwrap_or_default(),
+        pic_thumb: product.map(|p| p.pic_thumb.clone()).unwrap_or_default(),
+        product_price: product.map(|p| p.product_price).unwrap_or_default(),
+        market_price: product.map(|p| p.market_price).unwrap_or_default(),
+        product_type: product.and_then(|p| p.product_type),
     }
 }
 
@@ -599,7 +627,7 @@ mod tests {
 
     #[test]
     fn promotion_vo_running_counts_down_to_end() {
-        let vo = to_promotion_vo(&item(100, 300, 10, 30), 200);
+        let vo = to_promotion_vo(&item(100, 300, 10, 30), 200, None);
         assert!(vo.started);
         assert_eq!(vo.remain_seconds, 100); // 距结束
         assert_eq!(vo.sold_percent, 75); // 30 / (30+10)
@@ -607,7 +635,7 @@ mod tests {
 
     #[test]
     fn promotion_vo_not_started_counts_down_to_start() {
-        let vo = to_promotion_vo(&item(100, 300, 10, 0), 40);
+        let vo = to_promotion_vo(&item(100, 300, 10, 0), 40, None);
         assert!(!vo.started);
         assert_eq!(vo.remain_seconds, 60); // 距开始
         assert_eq!(vo.sold_percent, 0);
@@ -615,7 +643,7 @@ mod tests {
 
     #[test]
     fn promotion_vo_finished_has_zero_remain() {
-        let vo = to_promotion_vo(&item(100, 300, 0, 50), 400);
+        let vo = to_promotion_vo(&item(100, 300, 0, 50), 400, None);
         assert_eq!(vo.remain_seconds, 0);
         // 库存与销量均为边界：总量 = 50，全部售出
         assert_eq!(vo.sold_percent, 100);
@@ -624,7 +652,7 @@ mod tests {
     #[test]
     fn promotion_vo_sold_out_when_total_zero() {
         // 库存与销量都为 0：视为售罄，进度 100%，避免除零
-        let vo = to_promotion_vo(&item(100, 300, 0, 0), 200);
+        let vo = to_promotion_vo(&item(100, 300, 0, 0), 200, None);
         assert_eq!(vo.sold_percent, 100);
     }
 
