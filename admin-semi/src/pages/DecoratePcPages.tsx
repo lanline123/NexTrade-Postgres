@@ -42,9 +42,11 @@ import {
   IconRefresh,
   IconMore,
   IconClose,
+  IconInfoCircle,
 } from '@douyinfe/semi-icons';
 import { apiGet, apiPost, isDemo } from '../api';
 import { useI18n } from '../i18n';
+import OptionSelectModal from '../components/OptionSelectModal';
 import ListPage from '../framework/ListPage';
 import { MobileDecoratePages } from './DecorateMobilePages';
 import type { ColumnConfig } from '../framework/types';
@@ -255,13 +257,14 @@ export function PcDecorateHome() {
     }
   };
 
-  const handleSwitchHome = async () => {
-    if (!switchChoice) {
+  const handleSwitchHome = async (targetId?: number) => {
+    const id = targetId ?? switchChoice;
+    if (!id) {
       Toast.warning(t('请选择要设为首页的页面'));
       return;
     }
     try {
-      await apiPost('/decorate/decorate/setHome', { id: switchChoice, pageType: switchTarget?.pageType ?? 1 });
+      await apiPost('/decorate/decorate/setHome', { id, pageType: switchTarget?.pageType ?? 1 });
       Toast.success(t('更换成功'));
       setSwitchTarget(null);
       loadList();
@@ -553,37 +556,47 @@ export function PcDecorateHome() {
         </div>
       </SideSheet>
 
-      {/* 更换首页弹窗（原版 SwitchDefaultPage 800px） */}
-      <Modal
-        title={t('更换首页')}
+      {/* 更换首页弹窗：通用卡片式单选组件（components/OptionSelectModal） */}
+      <OptionSelectModal
         visible={!!switchTarget}
-        width={620}
-        onOk={handleSwitchHome}
-        onCancel={() => setSwitchTarget(null)}
-        okText={t('确定')}
+        width={640}
+        title={t('更换首页')}
+        subtitle={t('选择要设为首页的页面，确认后立即生效')}
+        notice={
+          switchTarget ? (
+            <>
+              <IconInfoCircle />
+              <span>
+                {t('当前首页：')}
+                <b>{switchTarget.decorateTitle || '-'}</b>
+              </span>
+              <span className="osm-notice-sep" />
+              <span>{t('新页面将立即替换当前首页')}</span>
+            </>
+          ) : null
+        }
+        options={switchCandidates.map((c) => ({
+          value: c.decorateId,
+          label: c.decorateTitle,
+          description: c.updateTime ? t('更新于 {time}', { time: formatTime(c.updateTime) }) : undefined,
+          tag: (
+            <span className={`osm-status${Number(c.status) === 1 ? ' is-online' : ''}`}>
+              <i />
+              {Number(c.status) === 1 ? t('已发布') : t('未发布')}
+            </span>
+          ),
+        }))}
+        value={switchChoice}
+        onChange={(v) => setSwitchChoice(Number(v))}
+        loading={switchLoading}
+        searchable
+        emptyText={t('暂无其他可更换的同类型页面')}
+        searchPlaceholder={t('搜索页面名称')}
+        confirmText={t('确定')}
         cancelText={t('取消')}
-      >
-        {switchLoading ? (
-          <div style={{ padding: 32, textAlign: 'center' }}>
-            <Spin />
-          </div>
-        ) : switchCandidates.length === 0 ? (
-          <Text type="tertiary">{t('暂无其他可更换的同类型页面')}</Text>
-        ) : (
-          <RadioGroup
-            value={switchChoice ?? undefined}
-            onChange={(e: any) => setSwitchChoice(Number(e.target.value))}
-            style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}
-          >
-            {switchCandidates.map((c) => (
-              <Radio key={c.decorateId} value={c.decorateId}>
-                {c.decorateTitle}
-                {Number(c.status) === 1 ? t('（已发布）') : t('（未发布）')}
-              </Radio>
-            ))}
-          </RadioGroup>
-        )}
-      </Modal>
+        onCancel={() => setSwitchTarget(null)}
+        onConfirm={(v) => handleSwitchHome(Number(v))}
+      />
 
       {/* 导入装修模板弹窗（原版 ElMessageBox.prompt，接口 /decorate/decorateShare/import） */}
       <Modal

@@ -12220,5 +12220,12 @@
   "咽炎": "Pharyngitis",
   "失眠": "Insomnia",
   "肠胃": "Digestive health",
-  "肾虚": "Kidney deficiency"
+  "肾虚": "Kidney deficiency",
+  "请选择一个选项": "Please select an option",
+  "选择要设为首页的页面，确认后立即生效": "Choose the page to set as the new homepage; it takes effect immediately after confirmation",
+  "当前首页：": "Current homepage: ",
+  "新页面将立即替换当前首页": "The new page will replace the current homepage immediately",
+  "更新于 {time}": "Updated at {time}",
+  "搜索页面名称": "Search page name",
+  "没有匹配的选项": "No matching options"
 }
