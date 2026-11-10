@@ -69,6 +69,14 @@ interface ConfirmState {
   action: () => void | Promise<void>;
 }
 
+interface Member {
+  userId: number;
+  nickname: string;
+  mobile: string;
+  balance: string | number;
+  points: string | number;
+}
+
 const PAGE_SIZE = 100;
 
 function message(error: unknown): string {
@@ -95,6 +103,11 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
   const [pendingList, setPendingList] = useState<PendingOrder[]>([]);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+  const [member, setMember] = useState<Member | null>(null);
+  const [memberOpen, setMemberOpen] = useState(false);
+  const [memberMobile, setMemberMobile] = useState('');
+  const [memberResult, setMemberResult] = useState<Member | null>(null);
+  const [memberSearching, setMemberSearching] = useState(false);
 
   const loadProducts = useCallback(async (nextKeyword: string, nextCategory: number | undefined) => {
     setLoading(true);
@@ -244,6 +257,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
         pendingId: pending.pendingId,
       });
       setCart(result);
+      setMember(null);
       setPendingOpen(false);
       toast('取单成功');
     } catch (error) {
@@ -258,6 +272,80 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
     }
     toast('结算流程接入中');
   };
+
+  const openMember = () => {
+    setMemberOpen(true);
+    setMemberResult(null);
+    setMemberMobile('');
+  };
+
+  const searchMember = async () => {
+    const mobile = memberMobile.trim();
+    if (!mobile) {
+      toast('请输入手机号', 'error');
+      return;
+    }
+    setMemberSearching(true);
+    try {
+      const result = await api.get<Member | null>('/pos/user/getUserByMobile', { mobile });
+      if (!result) {
+        setMemberResult(null);
+        toast('未找到该会员', 'error');
+        return;
+      }
+      setMemberResult(result);
+    } catch (error) {
+      toast(message(error), 'error');
+    } finally {
+      setMemberSearching(false);
+    }
+  };
+
+  const bindMember = async (target: Member) => {
+    try {
+      const result = await api.post<CartVO>('/pos/cart/list', {
+        userId: target.userId,
+        tableId: 0,
+      });
+      setCart(result);
+      setMember(target);
+      setMemberOpen(false);
+      toast(`已绑定会员：${target.nickname || target.mobile}`);
+    } catch (error) {
+      toast(message(error), 'error');
+    }
+  };
+
+  const bindTourist = async () => {
+    if (member && member.nickname === '游客') {
+      setMemberOpen(false);
+      return;
+    }
+    try {
+      const userId = await api.post<number>('/pos/posManager/createTourists');
+      const result = await api.post<CartVO>('/pos/cart/list', { userId, tableId: 0 });
+      setCart(result);
+      setMember({ userId, nickname: '游客', mobile: '', balance: 0, points: 0 });
+      setMemberOpen(false);
+      toast('已切换游客模式');
+    } catch (error) {
+      toast(message(error), 'error');
+    }
+  };
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key !== 'F1') return;
+      event.preventDefault();
+      setMemberOpen(true);
+      setMemberResult(null);
+      setMemberMobile('');
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  const isMember = !!member && member.nickname !== '游客';
 
   return (
     <div className="cashier-desk-box">
@@ -346,19 +434,29 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
             </div>
 
             <div className="cart-btns flex-column">
-              <button type="button" className="el-button el-button--primary btn large" style={primaryStyle}>
+              <button type="button" className="el-button el-button--primary btn large" style={primaryStyle} onClick={openMember}>
                 <span>会员(F1)</span>
               </button>
               <button type="button" className="el-button btn" onClick={() => void clearCart()}>
                 <span>清空</span>
               </button>
               <div className="dialog-link" style={{ display: 'inline-flex' }}>
-                <button type="button" className="el-button is-disabled btn" disabled>
+                <button
+                  type="button"
+                  className={isMember ? 'el-button btn' : 'el-button is-disabled btn'}
+                  disabled={!isMember}
+                  onClick={() => toast('充值功能接入中')}
+                >
                   <span>充值</span>
                 </button>
               </div>
               <div className="dialog-link" style={{ display: 'inline-flex' }}>
-                <button type="button" className="el-button is-disabled btn" disabled>
+                <button
+                  type="button"
+                  className={isMember ? 'el-button btn' : 'el-button is-disabled btn'}
+                  disabled={!isMember}
+                  onClick={() => toast('优惠券功能接入中')}
+                >
                   <span>优惠券</span>
                 </button>
               </div>
@@ -380,16 +478,18 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
             <div className="order-info flex">
               <div className="info-left">
                 <div className="info-left-img">
-                  <span className="pos-avatar">游</span>
+                  <span className="pos-avatar">{member ? member.nickname.slice(0, 1) : '游'}</span>
                 </div>
                 <div className="info-left-content">
                   <div className="user-name">
-                    <span className="name">游客</span>
+                    <span className="name">{member?.nickname || '游客'}</span>
                   </div>
                 </div>
               </div>
               <div className="info-right flex-cloumn">
-                <div className="info-right-top" />
+                <div className="info-right-top">
+                  {isMember ? `余额 ¥${Number(member.balance ?? 0).toFixed(2)}` : ''}
+                </div>
                 <div className="total">
                   <div className="sum">
                     共<span>{totalCount}</span>件
@@ -564,6 +664,71 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
             ))
           )}
         </div>
+      </Dialog>
+
+      <Dialog
+        open={memberOpen}
+        title="会员"
+        width={460}
+        onClose={() => setMemberOpen(false)}
+        footer={
+          <>
+            <button type="button" className="el-button" onClick={() => void bindTourist()}>
+              <span>游客</span>
+            </button>
+            <button type="button" className="el-button" onClick={() => setMemberOpen(false)}>
+              <span>关闭</span>
+            </button>
+          </>
+        }
+      >
+        <div className="member-search">
+          <div className="el-input">
+            <div className="el-input__wrapper">
+              <input
+                className="el-input__inner"
+                placeholder="请输入手机号"
+                value={memberMobile}
+                onChange={(event) => setMemberMobile(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') void searchMember();
+                }}
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            className="el-button el-button--primary"
+            style={primaryStyle}
+            disabled={memberSearching}
+            onClick={() => void searchMember()}
+          >
+            <span>查询</span>
+          </button>
+        </div>
+
+        {memberResult ? (
+          <div className="member-card">
+            <div className="member-row">
+              <strong>{memberResult.nickname || '-'}</strong>
+              <span>{memberResult.mobile || '-'}</span>
+            </div>
+            <div className="member-row">
+              <span>余额 ¥{Number(memberResult.balance ?? 0).toFixed(2)}</span>
+              <span>积分 {memberResult.points ?? 0}</span>
+            </div>
+            <button
+              type="button"
+              className="el-button el-button--primary"
+              style={primaryStyle}
+              onClick={() => void bindMember(memberResult)}
+            >
+              <span>绑定会员</span>
+            </button>
+          </div>
+        ) : (
+          <div className="member-empty">输入手机号查询会员</div>
+        )}
       </Dialog>
 
       <Dialog

@@ -29,7 +29,7 @@
 | 数量修改 | 🟡 | 输入框失焦/回车提交，`/pos/cart/updateItem`；步进器禁用态未做 |
 | 删除商品 | ✅ | 原样式确认弹窗 + `/pos/cart/removeItem` |
 | 清空购物车 | ✅ | 原样式确认弹窗 + `/pos/cart/clearCart` |
-| 会员（F1） | ❌ | 会员选择弹窗、绑定/游客切换 |
+| 会员（F1） | 🟡 | 手机号查询/绑定/游客切换已实现；游客创建依赖后端修复 |
 | 充值 | ❌ | 会员充值 |
 | 优惠券 | ❌ | `/pos/user/coupon/*` |
 | 改价 | ❌ | `/pos/cart/changePrice` |
@@ -63,7 +63,10 @@
 导致购物车单价/小计/合计恒为 `0.00`（legacy 线上同样复现）。
 
 - 修复：`rust/crates/services/src/pos/cashier.rs` 新增 `json_decimal()`，同时兼容字符串与数字；
-- 验证：`productPrice` 实测为 `9.9`（number）；部署后购物车金额才会正确。
+- 验证：`productPrice` 实测为 `9.9`（number）；已部署并复核：加购 2 件 → 单价 9.90 / 小计 19.80 / 合计 19.80。
+
+另发现：`createTourists` / `createMember` 因 `user.email` 等列 NOT NULL 且无默认值而 500
+（`null value in column "email"`）。已修 `user_insert_pos`，显式写入空串；待下一次 staging 部署。
 
 ## 下一步
 
