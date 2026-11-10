@@ -145,9 +145,12 @@ impl PosCashierRepository {
             .execute(&self.pool)
             .await
             .map_err(map_err)?;
-        sqlx::query("INSERT INTO config (biz_code, biz_val) VALUES ($1, $2)")
-            .bind(&code)
-            .bind(&value)
+        // PG 对齐后 config 的 create_by_name/update_by_name/is_del 为 NOT NULL 且无默认值。
+        sqlx::query(
+            "INSERT INTO config (biz_code, biz_val, create_by_name, update_by_name, is_del)              VALUES ($1, $2, '', '', 0)",
+        )
+        .bind(&code)
+        .bind(&value)
             .execute(&self.pool)
             .await
             .map_err(map_err)?;
