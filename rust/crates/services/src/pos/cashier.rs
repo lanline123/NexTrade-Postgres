@@ -501,11 +501,7 @@ impl PosCashierService {
             .await
     }
 
-    pub async fn update_item(&self, admin_id: i32, dto: &PosCartUpdateDTO) -> Result<()> {
-        let draft = self.working_draft(admin_id).await?;
-        let Some(draft) = draft else {
-            return Ok(());
-        };
+    pub async fn update_item(&self, _admin_id: i32, dto: &PosCartUpdateDTO) -> Result<()> {
         let item_id = dto
             .item_id
             .or(dto.cart_id)
@@ -520,20 +516,21 @@ impl PosCashierService {
         Ok(())
     }
 
-    pub async fn remove_items(&self, admin_id: i32, dto: &PosCartRemoveDTO) -> Result<()> {
-        let Some(draft) = self.working_draft(admin_id).await? else {
-            return Ok(());
-        };
+    pub async fn remove_items(&self, _admin_id: i32, dto: &PosCartRemoveDTO) -> Result<()> {
         let ids = dto
             .item_ids
             .clone()
             .or_else(|| dto.cart_ids.clone())
             .unwrap_or_default();
-        self.repo().item_delete(draft.pending_id, &ids).await
+        self.repo().item_delete_ids(&ids).await
     }
 
     pub async fn clear_cart(&self, admin_id: i32) -> Result<()> {
-        if let Some(draft) = self.working_draft(admin_id).await? {
+        self.clear_cart_for(admin_id, 0).await
+    }
+
+    pub async fn clear_cart_for(&self, admin_id: i32, table_id: i32) -> Result<()> {
+        if let Some(draft) = self.working_draft_for(admin_id, table_id).await? {
             self.repo().item_clear(draft.pending_id).await?;
         }
         Ok(())
@@ -543,7 +540,10 @@ impl PosCashierService {
         if let (Some(change_type), Some(value)) =
             (dto.total_change_price_type, dto.change_price_value)
         {
-            let Some(draft) = self.working_draft(admin_id).await? else {
+            let Some(draft) = self
+                .working_draft_for(admin_id, dto.table_id.unwrap_or(0))
+                .await?
+            else {
                 return Ok(());
             };
             let rows: Vec<(i64, Decimal, i32)> = self
@@ -643,7 +643,10 @@ impl PosCashierService {
     }
 
     pub async fn pending_order(&self, admin_id: i32, dto: &PosPendingOrderDTO) -> Result<()> {
-        let Some(draft) = self.working_draft(admin_id).await? else {
+        let Some(draft) = self
+            .working_draft_for(admin_id, dto.table_id.unwrap_or(0))
+            .await?
+        else {
             return Ok(());
         };
         self.repo()
@@ -833,8 +836,9 @@ impl PosCashierService {
         admin_id: i32,
         dto: &PosCheckoutDTO,
     ) -> Result<serde_json::Value> {
+        let checkout_table_id = dto.table_id.unwrap_or(0);
         let draft = self
-            .working_draft(admin_id)
+            .working_draft_for(admin_id, checkout_table_id)
             .await?
             .ok_or_else(|| Error::Validation("购物车为空".into()))?;
         let items: Vec<_> = self
@@ -941,7 +945,7 @@ impl PosCashierService {
         }
 
         let _ = self.repos.trade.cart.delete(&cart_ids, user_id).await;
-        self.clear_cart(admin_id).await?;
+        self.clear_cart_for(admin_id, checkout_table_id).await?;
 
         Ok(serde_json::json!({
             "orderId": created.order_id,

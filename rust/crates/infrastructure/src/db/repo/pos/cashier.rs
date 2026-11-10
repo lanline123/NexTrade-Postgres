@@ -184,12 +184,23 @@ impl PosCashierRepository {
 
     /// 当前工作草稿（kind=0, status=0, 最新一条）。
     pub async fn working_draft(&self, admin_id: i32) -> Result<Option<PosPendingOrder>> {
+        self.working_draft_for(admin_id, 0).await
+    }
+
+    /// 指定桌台的工作草稿（table_id=0 为无桌台/柜台）。
+    pub async fn working_draft_for(
+        &self,
+        admin_id: i32,
+        table_id: i32,
+    ) -> Result<Option<PosPendingOrder>> {
         sqlx::query_as::<_, PosPendingOrder>(
             "SELECT pending_id, user_id, admin_id, shop_id, remark, status, add_time, \
              update_time, kind, table_id FROM pos_pending_order \
-             WHERE admin_id = $1 AND kind = 0 AND status = 0 ORDER BY pending_id DESC LIMIT 1",
+             WHERE admin_id = $1 AND kind = 0 AND status = 0 AND table_id = $2 \
+             ORDER BY pending_id DESC LIMIT 1",
         )
         .bind(admin_id)
+        .bind(table_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(map_err)
@@ -202,7 +213,7 @@ impl PosCashierRepository {
         shop_id: i32,
         table_id: i32,
     ) -> Result<PosPendingOrder> {
-        if let Some(d) = self.working_draft(admin_id).await? {
+        if let Some(d) = self.working_draft_for(admin_id, table_id).await? {
             return Ok(d);
         }
         sqlx::query(
@@ -218,7 +229,7 @@ impl PosCashierRepository {
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
-        self.working_draft(admin_id)
+        self.working_draft_for(admin_id, table_id)
             .await?
             .ok_or_else(|| Error::Internal("挂单草稿创建失败".into()))
     }
@@ -337,6 +348,20 @@ impl PosCashierRepository {
         sqlx::query("UPDATE pos_pending_order_item SET price = $1 WHERE item_id = $2")
             .bind(price)
             .bind(item_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 按明细 ID 直接删除（不限定草稿，供桌台/柜台通用）。
+    pub async fn item_delete_ids(&self, item_ids: &[i64]) -> Result<()> {
+        if item_ids.is_empty() {
+            return Ok(());
+        }
+        let ids: Vec<i32> = item_ids.iter().map(|id| *id as i32).collect();
+        sqlx::query("DELETE FROM pos_pending_order_item WHERE item_id = ANY($1)")
+            .bind(&ids)
             .execute(&self.pool)
             .await
             .map_err(map_err)?;

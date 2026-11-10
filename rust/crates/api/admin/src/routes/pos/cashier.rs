@@ -892,8 +892,13 @@ async fn cart_remove(
 async fn cart_clear(
     State(state): State<AdminState>,
     Extension(tenant): Extension<TenantContext>,
+    Json(dto): Json<PosCartAddDTO>,
 ) -> ApiResult<()> {
-    state.pos.cashier.clear_cart(admin_id_of(&tenant)).await?;
+    state
+        .pos
+        .cashier
+        .clear_cart_for(admin_id_of(&tenant), dto.table_id.unwrap_or(0))
+        .await?;
     ok(())
 }
 
