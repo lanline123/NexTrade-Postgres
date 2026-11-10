@@ -1,4 +1,5 @@
 node_modules
 dist
+pos-dist
 *.local
 .DS_Store

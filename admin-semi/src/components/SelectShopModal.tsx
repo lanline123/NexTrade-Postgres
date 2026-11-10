@@ -211,12 +211,8 @@ export default function SelectShopModal({ visible, onClose }: SelectShopModalPro
 
       // 4) POS 收银台入口（对齐原版 toIndex 的 posEntry 分支语义）
       //
-      //    原版此处是 router.push('/pos')，但经核查原版该分支实际不可用：
-      //      - src/router/index.ts 里 POS 路由的 import 是注释掉的
-      //      - 线上 admin 产物中不存在 path:"/pos" 路由定义
-      //      - /admin/pos/ 只是 SPA fallback，与 /admin/ 同一入口
-      //    本项目后台自带「收银工作台」页（pos0 → PosWorkbench），
-      //    所以这里直接跳该页，而不是打开一个并不存在的独立 POS 应用。
+      //    独立 POS 应用部署在站点根路径 /pos，由后台「收银工作台」
+      //    （pos0 → PosWorkbench）负责跳转；这里切到工作台页。
       if (posEntry) {
         window.location.replace(`${window.location.pathname}?page=pos0`);
         return;

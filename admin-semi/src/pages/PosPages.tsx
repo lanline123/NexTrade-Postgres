@@ -51,7 +51,7 @@ export function PosWorkbench() {
       return;
     }
     if (resolvedShopId) localStorage.setItem('shopId', String(resolvedShopId));
-    window.open('/admin/pos/?fromMenu=1', '_blank', 'noopener');
+    window.open('/pos/?fromMenu=1', '_blank', 'noopener');
   };
 
   useEffect(() => {

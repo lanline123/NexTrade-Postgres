@@ -3,7 +3,14 @@ import path from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
-const POS_ASSETS_DIR = 'D:\\nextrade\\前端页面\\5.8.60\\o2o_admin\\admin\\assets';
+const POS_ASSETS_DIR = process.env.POS_ASSETS_DIR || 'D:\\nextrade\\前端页面\\5.8.60\\o2o_admin\\admin\\assets';
+const POS_PUBLIC_PATH = '/pos';
+// POS 产物把路由 base 编译成了 `admin`，改空后以站点根为 base，才能稳定挂在 /pos。
+const POS_BASE_LITERAL = 'VITE_BASE_DIR:`admin`';
+const POS_BASE_PATCHED = 'VITE_BASE_DIR:``';
+function patchPosBase(code: string): string {
+  return code.split(POS_BASE_LITERAL).join(POS_BASE_PATCHED);
+}
 
 function posPreviewPlugin(): Plugin {
   return {
@@ -33,13 +40,12 @@ function posPreviewPlugin(): Plugin {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <base href="/admin/pos/" />
   <title>收银台</title>
-  ${cssFiles.map((file) => `<link rel="stylesheet" href="/admin/pos/assets/${file}" />`).join('\n  ')}
+  ${cssFiles.map((file) => `<link rel="stylesheet" href="${POS_PUBLIC_PATH}/assets/${file}" />`).join('\n  ')}
 </head>
 <body>
   <div id="app"></div>
-  <script type="module" src="/admin/pos/assets/${entry}"></script>
+  <script type="module" src="${POS_PUBLIC_PATH}/assets/${entry}"></script>
 </body>
 </html>`;
 
@@ -47,14 +53,17 @@ function posPreviewPlugin(): Plugin {
         const rawUrl = req.url || '/';
         const pathname = decodeURIComponent(rawUrl.split('?')[0]);
         const referer = req.headers.referer || '';
+        const isPosPath = pathname === POS_PUBLIC_PATH || pathname.startsWith(`${POS_PUBLIC_PATH}/`);
+        const isPosLogin =
+          (pathname === '/login/index' || pathname === '/admin/login/index') && rawUrl.includes('redirect=/pos');
         const isPosRedirect =
-          (pathname === '/admin/login/index' && rawUrl.includes('redirect=/pos')) ||
-          (pathname.startsWith('/admin/assets/') && (referer.includes('/admin/pos') || referer.includes('redirect=/pos')));
-        if (!pathname.startsWith('/admin/pos') && !isPosRedirect) return next();
+          isPosLogin ||
+          (pathname.startsWith('/admin/assets/') && (referer.includes(POS_PUBLIC_PATH) || referer.includes('redirect=/pos')));
+        if (!isPosPath && !isPosRedirect) return next();
 
-        if (pathname.startsWith('/admin/pos/assets/') || pathname.startsWith('/admin/assets/')) {
-          const relative = pathname.startsWith('/admin/pos/assets/')
-            ? pathname.slice('/admin/pos/assets/'.length)
+        if (pathname.startsWith(`${POS_PUBLIC_PATH}/assets/`) || pathname.startsWith('/admin/assets/')) {
+          const relative = pathname.startsWith(`${POS_PUBLIC_PATH}/assets/`)
+            ? pathname.slice(`${POS_PUBLIC_PATH}/assets/`.length)
             : pathname.slice('/admin/assets/'.length);
           let filePath = path.join(POS_ASSETS_DIR, relative);
           if (!fs.existsSync(filePath) && relative.startsWith('assets/')) {
@@ -76,7 +85,9 @@ function posPreviewPlugin(): Plugin {
               '.ttf': 'font/ttf',
             };
             res.setHeader('Content-Type', types[ext] || 'application/octet-stream');
-            res.end(fs.readFileSync(filePath));
+            res.setHeader('Cache-Control', 'no-store');
+            const raw = fs.readFileSync(filePath);
+            res.end(ext === '.js' ? patchPosBase(raw.toString('utf8')) : raw);
             return;
           }
         }
