@@ -61,6 +61,7 @@ export default function App() {
 
   const chooseDevice = (device: Device) => {
     localStorage.setItem('posDeviceId', String(device.id));
+    localStorage.setItem('posDeviceCode', device.deviceCode || '');
     setDeviceId(device.id);
     setDeviceMenuOpen(false);
     toast(`已选择设备：${device.deviceName || device.deviceCode || device.id}`);

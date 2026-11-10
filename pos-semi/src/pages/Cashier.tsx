@@ -459,6 +459,17 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
         },
       );
       setCheckoutOpen(false);
+      try {
+        const printEnabled = await api.post<boolean>('/print/print/hasEnabled');
+        if (printEnabled) {
+          await api.post('/print/printConfig/print', {
+            ids: [result.orderId],
+            deviceCode: localStorage.getItem('posDeviceCode') || undefined,
+          });
+        }
+      } catch {
+        // 打印失败不影响结账结果
+      }
       await loadCart();
       setMember(null);
       setRemark('');
