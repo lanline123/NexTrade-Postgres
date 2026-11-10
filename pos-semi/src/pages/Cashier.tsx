@@ -66,6 +66,16 @@ interface PendingOrder {
   amount: string | number;
 }
 
+interface Coupon {
+  couponId?: number;
+  id?: number;
+  couponName?: string;
+  name?: string;
+  couponMoney?: string | number;
+  couponDiscount?: string | number;
+  minOrderAmount?: string | number;
+}
+
 interface ConfirmState {
   message: string;
   action: () => void | Promise<void>;
@@ -123,6 +133,10 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [balanceInput, setBalanceInput] = useState('');
   const [pointsInput, setPointsInput] = useState('');
+  const [couponOpen, setCouponOpen] = useState(false);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [selectedCouponIds, setSelectedCouponIds] = useState<number[]>([]);
+  const [couponLoading, setCouponLoading] = useState(false);
 
   const loadProducts = useCallback(async (nextKeyword: string, nextCategory: number | undefined) => {
     setLoading(true);
@@ -384,6 +398,34 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
     }
   };
 
+  const openCoupons = async () => {
+    if (!isMember) {
+      toast('请先绑定会员', 'error');
+      return;
+    }
+    setCouponOpen(true);
+    setCouponLoading(true);
+    try {
+      const result = await api.post<Coupon[] | { records: Coupon[] }>('/pos/user/coupon/visible-list', {
+        userId: member?.userId,
+      });
+      setCoupons(Array.isArray(result) ? result : result.records || []);
+    } catch (error) {
+      toast(message(error), 'error');
+      setCoupons([]);
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const couponIdOf = (coupon: Coupon): number => Number(coupon.couponId ?? coupon.id ?? 0);
+
+  const toggleCoupon = (coupon: Coupon) => {
+    const id = couponIdOf(coupon);
+    if (!id) return;
+    setSelectedCouponIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
   const checkout = () => {
     if (!items.length) {
       toast('购物车为空', 'error');
@@ -413,6 +455,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
           markPaid: true,
           useBalance: balanceInput ? useBalance : undefined,
           usePoints: pointsInput ? usePoints : undefined,
+          useCouponIds: selectedCouponIds.length ? selectedCouponIds : undefined,
         },
       );
       setCheckoutOpen(false);
@@ -421,6 +464,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
       setRemark('');
       setBalanceInput('');
       setPointsInput('');
+      setSelectedCouponIds([]);
       toast(`结账成功：${result.orderSn}`);
     } catch (error) {
       toast(message(error), 'error');
@@ -880,6 +924,45 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
       </Dialog>
 
       <Dialog
+        open={couponOpen}
+        title="选择优惠券"
+        width={520}
+        onClose={() => setCouponOpen(false)}
+        footer={
+          <button type="button" className="el-button el-button--primary" style={primaryStyle} onClick={() => setCouponOpen(false)}>
+            <span>完成</span>
+          </button>
+        }
+      >
+        {couponLoading ? (
+          <div className="member-empty">加载中…</div>
+        ) : coupons.length === 0 ? (
+          <div className="member-empty">暂无可用优惠券</div>
+        ) : (
+          <div className="pos-coupon-list">
+            {coupons.map((coupon) => {
+              const id = couponIdOf(coupon);
+              const value = coupon.couponMoney
+                ? `¥${Number(coupon.couponMoney).toFixed(2)}`
+                : coupon.couponDiscount
+                  ? `${coupon.couponDiscount}%`
+                  : '';
+              return (
+                <label key={id} className="pos-coupon-item">
+                  <input type="checkbox" checked={selectedCouponIds.includes(id)} onChange={() => toggleCoupon(coupon)} />
+                  <span className="pos-coupon-name">{coupon.couponName || coupon.name || `优惠券 ${id}`}</span>
+                  <span className="pos-coupon-value">{value}</span>
+                  {coupon.minOrderAmount ? (
+                    <span className="pos-coupon-hurdle">满 ¥{Number(coupon.minOrderAmount).toFixed(2)} 可用</span>
+                  ) : null}
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </Dialog>
+
+      <Dialog
         open={checkoutOpen}
         title="结算"
         width={520}
@@ -938,6 +1021,15 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
             </div>
           </div>
           <span className="price-unit">分</span>
+        </div>
+        <div className="member-row">
+          <span>优惠券</span>
+          <span>
+            {selectedCouponIds.length ? `已选 ${selectedCouponIds.length} 张` : '未使用'}
+            <button type="button" className="el-button pos-coupon-btn" onClick={() => void openCoupons()}>
+              选择
+            </button>
+          </span>
         </div>
         <div className="member-row">
           <span>整单备注</span>

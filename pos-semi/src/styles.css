@@ -499,3 +499,41 @@ body {
   color: #909399;
   font-size: 13px;
 }
+
+.pos-coupon-btn {
+  margin-left: 10px;
+}
+
+.pos-coupon-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.pos-coupon-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.pos-coupon-name {
+  font-weight: 600;
+  color: #303133;
+}
+
+.pos-coupon-value {
+  color: #fe9b1c;
+  font-weight: 600;
+}
+
+.pos-coupon-hurdle {
+  margin-left: auto;
+  color: #909399;
+  font-size: 12px;
+}
