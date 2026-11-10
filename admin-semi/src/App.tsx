@@ -2,6 +2,11 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { apiGet, clearToken, enterDemo, getToken, isDemo } from './api';
 import { applyAppearance, saveAppearance, type AppearanceSettings } from './theme';
 import AdminLayout, { type PageKey } from './layout/AdminLayout';
+import {
+  resolveMallUrl,
+  setMallSettings as cacheMallSettings,
+  type MallSettings,
+} from './mall';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
@@ -888,6 +893,7 @@ export default function App() {
     primaryColor: 'blue',
     layout: 'default',
   });
+  const [mallSettings, setMallSettings] = useState<MallSettings | null>(null);
 
   const applyAndStore = (values: AppearanceSettings) => {
     const next = {
@@ -901,10 +907,16 @@ export default function App() {
     saveAppearance(next);
   };
 
+  const applyGlobalSettings = (values: Record<string, unknown>) => {
+    applyAndStore(values as unknown as AppearanceSettings);
+    setMallSettings(values as MallSettings);
+    cacheMallSettings(values as MallSettings);
+  };
+
   useEffect(() => {
     if (!authed) return;
-    apiGet<AppearanceSettings>('/setting/config/globalSettings')
-      .then((result) => applyAndStore(result || {}))
+    apiGet<Record<string, unknown>>('/setting/config/globalSettings')
+      .then((result) => applyGlobalSettings(result || {}))
       .catch(() => applyAppearance({}));
   }, [authed]);
 
@@ -984,6 +996,7 @@ export default function App() {
     <AdminLayout
       layout={appearance.layout}
       logo={appearance.adminLightLogo}
+      mallUrl={resolveMallUrl(mallSettings)}
       page={page as PageKey}
       onPageChange={changePage}
       onLogout={() => {
@@ -1258,7 +1271,7 @@ export default function App() {
       {configPages[page] && page !== 'storeSettingsManage' && page !== 'kefuSetting' && (
         <AutoConfigPage
           {...configPages[page]}
-          onSaved={page === 'globalSetting' ? (values) => applyAndStore(values) : undefined}
+          onSaved={page === 'globalSetting' ? applyGlobalSettings : undefined}
         />
       )}
       {page === 'kefuSetting' && <KefuSettings />}

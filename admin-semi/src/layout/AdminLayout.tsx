@@ -27,6 +27,7 @@ import { useI18n } from '../i18n';
 import { translatedLocales } from '../i18n/config';
 import { fetchUnreadSummary, startAdminMsgStream } from '../sse';
 import { dispatchVoiceDeltas, loadVoiceSettings } from '../voice';
+import { resolveMallUrl } from '../mall';
 
 export type PageKey = string;
 
@@ -68,12 +69,14 @@ interface AdminLayoutProps {
   page: PageKey;
   layout?: string;
   logo?: string;
+  /** 前台商城地址，由 App 从全局设置（pcDomain/h5Domain/clientDefaultUse）解析后传入。 */
+  mallUrl?: string;
   onPageChange: (page: PageKey) => void;
   onLogout: () => void;
   children: ReactNode;
 }
 
-export default function AdminLayout({ page, layout = 'default', logo, onPageChange, onLogout, children }: AdminLayoutProps) {
+export default function AdminLayout({ page, layout = 'default', logo, mallUrl: mallUrlProp, onPageChange, onLogout, children }: AdminLayoutProps) {
   const { locale, setLocale, t } = useI18n();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -214,7 +217,7 @@ export default function AdminLayout({ page, layout = 'default', logo, onPageChan
   );
   const hasThirdLevel = Boolean(activeParent?.children?.length);
 
-  const mallUrl = import.meta.env.VITE_MALL_URL || (import.meta.env.DEV ? 'http://127.0.0.1:3004/' : '/');
+  const mallUrl = mallUrlProp || resolveMallUrl();
   /**
    * 「切换组织」显示条件 —— 对齐跨境版 MsgCount.vue 的
    * `v-if="isMerchant() || isS2b2c() || isStore()"`。

@@ -542,6 +542,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | pos-semi 商品列表对齐（`d9b3699`）：30/页触底加载、售罄遮罩、数量角标、图文/列表切换、空态图；并记录结账后端缺口（`place_order` 为桩，审计 43.8） |
 | 2026-11-10 | pos-semi 桌台/订单/结算/会员/核销（审计 43.11–43.14）：桌台开台/转台/清台（含人数/开台时间继承）、订单列表+详情+未支付取消、结算面板（余额/积分）、会员查询/充值、提货码核销；staging `040ae05` 部署（sha `563954fc…400d`），桌台冒烟与回归全绿 |
 | 2026-11-10 | pos-semi 生产验收环境 `/pos-next`（审计 43.15）：`VITE_BASE_PATH=/pos-next/` 构建并部署，nginx 新增 `^~ /pos-next` 兜底；生产浏览器实测收银（30/64 商品、加购/删除）、订单 31 条、桌台空态正常；`/pos` 仍保留 legacy，待设备/交班/打印/预约补齐后再切换 |
+| 2026-11-10 | pos-semi 设备/交班/优惠券（审计 43.16–43.17，`785d556` + `e896115` + `53b4baa`）：设备下拉与交班（workOff+work）上线并生产验证；优惠券选择 UI 接入（线上空态已验证）；`/pos-next` 刷新至最新构建；staging 二进制 `e9f2a085…1c39`，回归 53/53+4/4 |
 | 2026-11-10 | 后台顶栏「查看商城」补图标（审计第四十章）：React 版顶栏按钮漏了 `icon`，原版 Vue 为 `icon-guanli`；补 `IconShoppingBag`（与账号下拉同名入口一致），上游 admin-semi 重建后全量上传，线上 DOM 已含 `semi-icon-shopping_bag`，回滚 index 存 `scratch/admin-index.online.20261110_170626.html` |
 | 2026-11-10 | 推送约定：后续**只推送 `NexTrade-Postgres`**；上游 `D:\tigshop\NexTrade` 仅作构建源码，改动同步到本仓库 `admin-semi/` / `pc-semi/` 后再提交，不再向上游 remote 推送（§2.2） |
 | 2026-11-10 | 素材中心「删除分组」弹窗现代化（审计第四十一章）：警示条显示分组名 + 两张可点击策略卡（选中蓝/危险红）+ 红色确认按钮；因上游有并行 WIP，改用 `git archive HEAD` 干净源码构建后全量上传，线上 `index-vGC7iQEf.js`，回滚 index 存 `scratch/admin-index.online.20261110_172540.html` |
@@ -556,6 +557,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 素材弹窗补全分组管理（审计第五十一章）：分组右键支持添加子分组/重命名/上移/下移/删除，删除时可选「仅删分组」或「分组及组内素材」（`gallery/del`、`galleryVideo/del`）；线上 `index-DbtAyZBl.js`，回滚 index 存 `scratch/admin-index.online.20261110_210247.html` |
 | 2026-11-10 | 素材弹窗分组自由拖拽（审计第五十二章）：分组行上/下边缘排序、中间变为子分组、拖到根移回顶级；修正 `gallery/sort` 的 `type` 误传数字（应为 `image`/`video`，同时修复素材中心页上移/下移）；线上 `index-BwJfAmNd.js`，回滚 index 存 `scratch/admin-index.online.20261110_211354.html` |
 | 2026-11-10 | 登录页与组织选择页统一布局 + 主题色跟随（审计第五十三章）：两步共用「安全登录」页脚，桌面卡片固定 580px 等高；登录页改用 `--primary`/`color-mix` 配色，`applyAndStore` 把主题色缓存到 `localStorage`，登录页挂载时读取（默认蓝，首次访问需登录过一次）；线上 `index-CMyogy2H.js`，回滚 index 存 `scratch/admin-index.online.20261110_212752.html` |
+| 2026-11-10 | 「查看商城」不读域名设置修复（审计第五十四章）：原实现只读构建期 `VITE_MALL_URL`，未配置即回退 `/`，与后台 `pcDomain/h5Domain` 无关；新增 `admin-semi/src/mall.ts` 按旧版 `urlFormat/urlWapFormat` 解析（`clientDefaultUse` 为 1 走 H5），App 在登录后与「全局设置」保存后刷新并下传 `AdminLayout`，装修编辑器「打开商城首页」同源；隔离构建（HEAD + 4 文件，避开并行 WIP）整包上传，线上入口 `index-F84HWsFc.js`（sha256 `4f19cbd6…77c0`），生产实测点击跳 `https://battery.recy.cc/` |
 
 ---
 

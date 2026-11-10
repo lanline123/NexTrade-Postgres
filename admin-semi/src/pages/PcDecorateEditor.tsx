@@ -47,6 +47,7 @@ import {
   IconRefresh,
 } from '@douyinfe/semi-icons';
 import { apiGet, apiPost } from '../api';
+import { loadMallSettings, resolveMallUrl } from '../mall';
 import i18nInstance, { useI18n } from '../i18n';
 
 /** 供模块级工具函数 / 字段定义使用的翻译（非组件作用域拿不到 useI18n，用 i18next 单例）。 */
@@ -1072,6 +1073,10 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   const isLoginPage = pageType === 5;
 
   useEffect(() => {
+    void loadMallSettings();
+  }, []);
+
+  useEffect(() => {
     let alive = true;
     setLoading(true);
     apiGet<{
@@ -1388,10 +1393,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
           onClick={() => {
             // 与 AdminLayout 的前台入口保持同一地址来源；不能再打开后台自身的 /?page=home
             // （该 key 不在 knownPages，只会落到「尚未迁移」占位页，属于假预览）。
-            const mallUrl =
-              import.meta.env.VITE_MALL_URL ||
-              (import.meta.env.DEV ? 'http://127.0.0.1:3004/' : '/');
-            window.open(mallUrl, '_blank');
+            window.open(resolveMallUrl(), '_blank');
           }}
         >
           {t('打开商城首页')}
