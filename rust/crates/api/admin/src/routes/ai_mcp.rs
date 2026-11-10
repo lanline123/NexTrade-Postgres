@@ -27,8 +27,13 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use nextrade_core::models::catalog::product_manage::AdminProductListQuery;
+use nextrade_core::models::catalog::product_manage::{AdminProductListQuery, GalleryPicDTO, ProductSaveDTO};
 use nextrade_core::models::content::decorate::{DecorateListQuery, DecorateSaveDTO};
+use nextrade_core::models::openapi::workbuddy::{
+    audit_label, batch_block_reason, normalize_batch_operation, status_label, BATCH_MAX_IDS,
+    BATCH_SORT_LIMIT, MAX_PRODUCTS,
+};
+use nextrade_infrastructure::db::repo::openapi::workbuddy::{BatchProductRow, WorkbuddyRepository};
 use nextrade_security::web::{ok, ApiResult, AppError, AuthUser};
 
 use crate::AdminState;
@@ -80,6 +85,10 @@ pub struct McpSettings {
     pub require_approval_price: bool,
     /// 发布装修是否需要审批
     pub require_approval_publish: bool,
+    /// 商品批量操作（回收站/彻底删除）是否需要审批
+    pub require_approval_batch: bool,
+    /// 商品批量导入是否需要审批
+    pub require_approval_import: bool,
 }
 
 impl Default for McpSettings {
@@ -98,6 +107,8 @@ impl Default for McpSettings {
             stock_change_cap: 1000,
             require_approval_price: true,
             require_approval_publish: true,
+            require_approval_batch: true,
+            require_approval_import: true,
         }
     }
 }
@@ -184,6 +195,8 @@ async fn settings_get(State(state): State<AdminState>) -> ApiResult<Value> {
         "stockChangeCap": settings.stock_change_cap,
         "requireApprovalPrice": settings.require_approval_price,
         "requireApprovalPublish": settings.require_approval_publish,
+        "requireApprovalBatch": settings.require_approval_batch,
+        "requireApprovalImport": settings.require_approval_import,
         "endpoint": "/adminapi/ai/mcp",
     }))
 }
@@ -572,6 +585,89 @@ fn tools_for(settings: &McpSettings) -> Vec<Value> {
                     "required": ["productId"]
                 }
             }),
+            json!({
+                "name": "product_batch_preview",
+                "description": "批量操作预览（只读）：返回可执行与不可执行商品清单。operation: up/down/recycle/restore/del，单次最多 50 个。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "productIds": {
+                            "type": "array",
+                            "items": { "type": "integer" },
+                            "description": "商品 ID 列表"
+                        },
+                        "operation": {
+                            "type": "string",
+                            "enum": ["up", "down", "recycle", "restore", "del"]
+                        }
+                    },
+                    "required": ["productIds", "operation"],
+                    "additionalProperties": false
+                }
+            }),
+            json!({
+                "name": "product_batch_execute",
+                "description": "执行批量操作（up/down/recycle/restore/del）。必须传 confirmation:true；移入回收站/彻底删除默认转审批。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "productIds": {
+                            "type": "array",
+                            "items": { "type": "integer" },
+                            "description": "商品 ID 列表"
+                        },
+                        "operation": {
+                            "type": "string",
+                            "enum": ["up", "down", "recycle", "restore", "del"]
+                        },
+                        "confirmation": {
+                            "type": "boolean",
+                            "description": "确认执行，必须为 true"
+                        }
+                    },
+                    "required": ["productIds", "operation", "confirmation"],
+                    "additionalProperties": false
+                }
+            }),
+            json!({
+                "name": "product_import",
+                "description": "批量创建商品（默认转审批，单次最多 50 个）。productName 与 productPrice 必填。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "products": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "productName": { "type": "string" },
+                                    "productSn": { "type": "string", "description": "货号，留空自动生成" },
+                                    "productPrice": { "type": "number" },
+                                    "marketPrice": { "type": "number" },
+                                    "productStock": { "type": "integer" },
+                                    "categoryId": { "type": "integer" },
+                                    "brandId": { "type": "integer" },
+                                    "productBrief": { "type": "string" },
+                                    "productStatus": { "type": "integer", "description": "1 上架 0 下架（默认 0）" },
+                                    "picUrl": { "type": "string", "description": "主图地址" },
+                                    "images": {
+                                        "type": "array",
+                                        "items": { "type": "string" },
+                                        "description": "相册图片地址，首张作为主图"
+                                    }
+                                },
+                                "required": ["productName", "productPrice"]
+                            }
+                        },
+                        "confirmation": {
+                            "type": "boolean",
+                            "description": "确认导入，必须为 true"
+                        }
+                    },
+                    "required": ["products", "confirmation"],
+                    "additionalProperties": false
+                }
+            }),
         ]);
     }
     if settings.decorate_enabled {
@@ -771,6 +867,51 @@ fn require_i32(args: &Value, key: &str) -> Result<i32, String> {
     arg_i32(args, key).filter(|v| *v > 0).ok_or_else(|| format!("缺少参数 {key}"))
 }
 
+fn parse_product_ids(args: &Value) -> Result<Vec<i32>, String> {
+    let list = args
+        .get("productIds")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "缺少参数 productIds（数组）".to_string())?;
+    let mut seen = std::collections::HashSet::new();
+    let mut ids = Vec::new();
+    for value in list {
+        if let Some(id) = value.as_i64().and_then(|n| i32::try_from(n).ok()) {
+            if id > 0 && seen.insert(id) {
+                ids.push(id);
+            }
+        }
+    }
+    if ids.is_empty() {
+        return Err("productIds 不能为空".into());
+    }
+    Ok(ids)
+}
+
+/// 批量操作可执行性判定（对齐旧版 batchBlockReason 的业务规则）。
+fn eval_batch(op: &str, ids: &[i32], rows: &[BatchProductRow]) -> (Vec<i32>, Vec<Value>) {
+    let by_id: std::collections::BTreeMap<i32, &BatchProductRow> =
+        rows.iter().map(|row| (row.product_id, row)).collect();
+    let mut executable = Vec::new();
+    let mut blocked = Vec::new();
+    for id in ids {
+        match by_id.get(id) {
+            None => blocked.push(json!({
+                "productId": id,
+                "reason": "找不到该商品，可能已被彻底删除",
+            })),
+            Some(row) => match batch_block_reason(op, row.check_status, row.is_delete == 1) {
+                Some(reason) => blocked.push(json!({
+                    "productId": id,
+                    "productName": row.product_name,
+                    "reason": reason,
+                })),
+                None => executable.push(*id),
+            },
+        }
+    }
+    (executable, blocked)
+}
+
 fn pending(approval_id: i32) -> Value {
     json!({ "status": "pending_approval", "approvalId": approval_id })
 }
@@ -964,6 +1105,257 @@ async fn call_tool(
                 .await
                 .map_err(|e| e.to_string())?;
             Ok(json!({ "updatedRows": rows, "productStatus": status }))
+        }
+        "product_batch_preview" => {
+            if !settings.product_enabled {
+                return Err("商品域未启用".into());
+            }
+            let op = normalize_batch_operation(arg_str(args, "operation").as_deref())
+                .map_err(|(_, msg)| msg.to_string())?;
+            let ids = parse_product_ids(args)?;
+            if ids.len() > BATCH_MAX_IDS {
+                return Err(format!("一次最多处理 {BATCH_MAX_IDS} 个商品"));
+            }
+            let rows = state
+                .repos
+                .openapi
+                .workbuddy
+                .find_products_for_batch(&ids)
+                .await
+                .map_err(|e| e.to_string())?;
+            let (ok_ids, blocked) = eval_batch(&op, &ids, &rows);
+            let by_id: std::collections::BTreeMap<i32, &_> =
+                rows.iter().map(|row| (row.product_id, row)).collect();
+            let affected_total = ok_ids.len();
+            let affected: Vec<Value> = ok_ids
+                .iter()
+                .filter_map(|id| by_id.get(id))
+                .take(BATCH_SORT_LIMIT)
+                .map(|row| {
+                    json!({
+                        "productId": row.product_id,
+                        "productName": row.product_name,
+                        "productSn": row.product_sn,
+                        "price": row.product_price.to_string(),
+                        "stock": row.product_stock,
+                        "status": status_label(Some(row.product_status)),
+                        "auditStatus": audit_label(Some(row.check_status)),
+                        "recycled": row.is_delete == 1,
+                    })
+                })
+                .collect();
+            Ok(json!({
+                "operation": op,
+                "affectedCount": affected_total,
+                "affected": affected,
+                "blocked": blocked,
+                "irreversible": op == "del",
+            }))
+        }
+        "product_batch_execute" => {
+            if !settings.product_enabled {
+                return Err("商品域未启用".into());
+            }
+            if args.get("confirmation") != Some(&Value::Bool(true)) {
+                return Err("写入前必须传 confirmation: true".into());
+            }
+            let op = normalize_batch_operation(arg_str(args, "operation").as_deref())
+                .map_err(|(_, msg)| msg.to_string())?;
+            let ids = parse_product_ids(args)?;
+            if ids.len() > BATCH_MAX_IDS {
+                return Err(format!("一次最多处理 {BATCH_MAX_IDS} 个商品"));
+            }
+            if (op == "recycle" || op == "del") && settings.require_approval_batch && !approved {
+                let approval_id = create_approval(state, name, args).await?;
+                return Ok(pending(approval_id));
+            }
+            let rows = state
+                .repos
+                .openapi
+                .workbuddy
+                .find_products_for_batch(&ids)
+                .await
+                .map_err(|e| e.to_string())?;
+            let (ok_ids, failed) = eval_batch(&op, &ids, &rows);
+            let now = now_millis();
+            if !ok_ids.is_empty() {
+                match op.as_str() {
+                    "up" => {
+                        state
+                            .repos
+                            .openapi
+                            .workbuddy
+                            .batch_set_status(&ok_ids, true, now)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                    }
+                    "down" => {
+                        state
+                            .repos
+                            .openapi
+                            .workbuddy
+                            .batch_set_status(&ok_ids, false, now)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                    }
+                    "recycle" => {
+                        state
+                            .repos
+                            .openapi
+                            .workbuddy
+                            .batch_set_deleted(&ok_ids, true, false, now)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                    }
+                    "restore" => {
+                        state
+                            .repos
+                            .openapi
+                            .workbuddy
+                            .batch_set_deleted(&ok_ids, false, true, now)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                    }
+                    "del" => {
+                        let pool = state.repos.openapi.workbuddy.pool_clone();
+                        let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+                        for pid in &ok_ids {
+                            WorkbuddyRepository::delete_product_cascade(&mut tx, *pid)
+                                .await
+                                .map_err(|e| e.to_string())?;
+                        }
+                        tx.commit().await.map_err(|e| e.to_string())?;
+                    }
+                    _ => return Err("不支持的批量操作".into()),
+                }
+            }
+            let after = if op == "del" {
+                Vec::new()
+            } else {
+                let refreshed = state
+                    .repos
+                    .openapi
+                    .workbuddy
+                    .find_products_for_batch(&ok_ids)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                refreshed
+                    .iter()
+                    .map(|row| {
+                        json!({
+                            "productId": row.product_id,
+                            "productName": row.product_name,
+                            "stock": row.product_stock,
+                            "status": status_label(Some(row.product_status)),
+                            "recycled": row.is_delete == 1,
+                        })
+                    })
+                    .collect()
+            };
+            Ok(json!({
+                "operation": op,
+                "successCount": ok_ids.len(),
+                "failed": failed,
+                "affected": after,
+            }))
+        }
+        "product_import" => {
+            if !settings.product_enabled {
+                return Err("商品域未启用".into());
+            }
+            if args.get("confirmation") != Some(&Value::Bool(true)) {
+                return Err("导入前必须传 confirmation: true".into());
+            }
+            let products = args
+                .get("products")
+                .and_then(Value::as_array)
+                .ok_or_else(|| "缺少参数 products（数组）".to_string())?;
+            if products.is_empty() {
+                return Err("products 不能为空".into());
+            }
+            if products.len() > usize::try_from(MAX_PRODUCTS).unwrap_or(usize::MAX) {
+                return Err(format!("一次最多导入 {MAX_PRODUCTS} 个商品"));
+            }
+            if settings.require_approval_import && !approved {
+                let approval_id = create_approval(state, name, args).await?;
+                return Ok(pending(approval_id));
+            }
+            let mut created = Vec::new();
+            let mut failed = Vec::new();
+            for (index, item) in products.iter().enumerate() {
+                let name_value = arg_str(item, "productName");
+                let price_value = arg_dec(item, "productPrice");
+                if name_value.is_none() || price_value.is_none() {
+                    failed.push(json!({
+                        "index": index,
+                        "error": "缺少 productName 或 productPrice",
+                    }));
+                    continue;
+                }
+                let mut images: Vec<String> = item
+                    .get("images")
+                    .and_then(Value::as_array)
+                    .map(|list| {
+                        list.iter()
+                            .filter_map(Value::as_str)
+                            .map(str::trim)
+                            .filter(|url| !url.is_empty())
+                            .map(str::to_string)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if let Some(pic) = arg_str(item, "picUrl") {
+                    images.insert(0, pic);
+                }
+                let mut seen = std::collections::HashSet::new();
+                images.retain(|url| seen.insert(url.clone()));
+                let img_list = if images.is_empty() {
+                    None
+                } else {
+                    Some(
+                        images
+                            .iter()
+                            .enumerate()
+                            .map(|(sort, url)| GalleryPicDTO {
+                                pic_url: Some(url.clone()),
+                                pic_sort: Some(i32::try_from(sort).unwrap_or(i32::MAX)),
+                                ..Default::default()
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                };
+                let dto = ProductSaveDTO {
+                    product_name: name_value,
+                    product_sn: arg_str(item, "productSn"),
+                    product_price: price_value,
+                    market_price: arg_dec(item, "marketPrice"),
+                    product_stock: arg_i32(item, "productStock"),
+                    category_id: arg_i32(item, "categoryId"),
+                    brand_id: arg_i32(item, "brandId"),
+                    product_brief: arg_str(item, "productBrief"),
+                    product_status: arg_i32(item, "productStatus"),
+                    pic_url: images.first().cloned(),
+                    img_list,
+                    ..Default::default()
+                };
+                match state.catalog.product_manage.create(&dto).await {
+                    Ok(_) => created.push(json!({
+                        "index": index,
+                        "productName": dto.product_name,
+                    })),
+                    Err(err) => failed.push(json!({
+                        "index": index,
+                        "productName": dto.product_name,
+                        "error": err.to_string(),
+                    })),
+                }
+            }
+            Ok(json!({
+                "total": products.len(),
+                "createdCount": created.len(),
+                "created": created,
+                "failed": failed,
+            }))
         }
         "decorate_list_pages" => {
             if !settings.decorate_enabled {

@@ -66,6 +66,7 @@ export const configHelp: Record<string, Record<string, string>> = {
     "selfStoreName": "比如：官方自营、NexTrade自营，仅对B2B2C多商户版本有效",
     "selectSearchType": "选择Elasticsearch后，点击按钮将一次性将所有商品数据同步到搜索引擎中。此操作为异步执行，预计需要几分钟完成，请勿重复点击。",
     "shopCountry": "此地区会在系统未判断出用户IP所在地域时，默认定位地区（仅影响PC端右上角送货地址）",
+    "shopDefaultRegions": "此地区会在系统未判断出用户IP所在地域时，默认定位地区（仅影响PC端右上角送货地址）",
     "defaultCountry": "如果选择了默认国家，则会员在选择地址时默认会显示该国家下的省份或地区，不再显示国家选择（修改设置对已经添加的会员地址不生效）",
     "icoDefinedCss": "自定义ico图标库，前往http://iconfont.cn添加，按本系统教程操作，这里只需填写如： https//at.alicdn.com/t/font_400590_y7t88bzlwhskbj4i.css 您也可以下载至本地服务器，只需填写能访问到iconfont的完整域名和存放路径",
     "storageType": "开启云存储后，图片会直接通过接口上传至指定云存储，不会再保存在本地。",

@@ -242,9 +242,8 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
     {
       "title": "地区设置",
       "fields": [
-        "shopCountry",
-        "defaultCountry",
-        "shopDefaultRegions"
+        "shopDefaultRegions",
+        "defaultCountry"
       ]
     },
     {
@@ -296,13 +295,6 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
         "storageQiniuRegion",
         "storageS3Region",
         "storageS3Endpoint"
-      ]
-    },
-    {
-      "title": "MCP 设置",
-      "fields": [
-        "workbuddyApiKey",
-        "workbuddyApiKeyExpiresAt"
       ]
     }
   ],

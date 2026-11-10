@@ -4,8 +4,21 @@
  * 所有开关都落库到 config.aiMcpSettings；MCP 总开关关闭时 /adminapi/ai/mcp 直接 403。
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Input, InputNumber, Switch, Toast, Spin } from '@douyinfe/semi-ui';
+import { Button, DatePicker, Input, InputNumber, Switch, Tag, Toast, Spin } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '../api';
+
+/** 旧版 views/setting/config/base/src/workbuddySettings.ts 的掩码规则。 */
+function maskKey(value: string): string {
+  if (!value) return '';
+  if (value.length <= 8) return '*'.repeat(value.length);
+  return `${value.slice(0, 3)}${'*'.repeat(Math.max(4, value.length - 7))}${value.slice(-4)}`;
+}
+
+interface WorkBuddySettings {
+  configured: boolean;
+  maskedKey: string;
+  expiresAt?: number | null;
+}
 
 interface McpSettings {
   enabled: boolean;
@@ -21,6 +34,8 @@ interface McpSettings {
   stockChangeCap: number;
   requireApprovalPrice: boolean;
   requireApprovalPublish: boolean;
+  requireApprovalBatch: boolean;
+  requireApprovalImport: boolean;
   endpoint?: string;
 }
 
@@ -38,6 +53,8 @@ const DEFAULTS: McpSettings = {
   stockChangeCap: 1000,
   requireApprovalPrice: true,
   requireApprovalPublish: true,
+  requireApprovalBatch: true,
+  requireApprovalImport: true,
 };
 
 const sectionStyle: React.CSSProperties = {
@@ -60,6 +77,11 @@ export default function AiMcpSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<McpSettings>(DEFAULTS);
+  const [wb, setWb] = useState<WorkBuddySettings>({ configured: false, maskedKey: '' });
+  const [wbExpiry, setWbExpiry] = useState<Date | null>(null);
+  const [wbPendingKey, setWbPendingKey] = useState('');
+  const [wbSaving, setWbSaving] = useState(false);
+  const [wbGenerating, setWbGenerating] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -72,9 +94,25 @@ export default function AiMcpSettings() {
     }
   }, []);
 
+  const loadWorkBuddy = useCallback(async () => {
+    try {
+      const data = await apiGet<WorkBuddySettings>('/setting/config/workbuddySettings');
+      setWb({
+        configured: Boolean(data?.configured),
+        maskedKey: data?.maskedKey || '',
+        expiresAt: data?.expiresAt || null,
+      });
+      setWbExpiry(data?.expiresAt ? new Date(data.expiresAt * 1000) : null);
+      setWbPendingKey('');
+    } catch {
+      // 商品导入 MCP 是独立能力，加载失败不影响上方 AI MCP 设置
+    }
+  }, []);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadWorkBuddy();
+  }, [load, loadWorkBuddy]);
 
   const patch = (next: Partial<McpSettings>) => setSettings((prev) => ({ ...prev, ...next }));
 
@@ -109,6 +147,67 @@ export default function AiMcpSettings() {
     );
   };
 
+  const generateWbKey = async () => {
+    setWbGenerating(true);
+    try {
+      const res = await apiPost<{ key?: string }>('/setting/config/generateWorkbuddyKey');
+      if (!res?.key) throw new Error('未返回密钥');
+      setWbPendingKey(res.key);
+      Toast.success({ content: '新密钥已生成，请设置有效期后保存' });
+    } catch (e) {
+      Toast.error({ content: (e as Error).message || '生成失败' });
+    } finally {
+      setWbGenerating(false);
+    }
+  };
+
+  const copyWbKey = async () => {
+    let key = wbPendingKey;
+    if (!key) {
+      try {
+        const res = await apiPost<{ key?: string }>('/setting/config/revealWorkbuddyKey');
+        key = res?.key || '';
+      } catch (e) {
+        Toast.error({ content: (e as Error).message || '读取密钥失败' });
+        return;
+      }
+    }
+    if (!key) {
+      Toast.error({ content: '当前没有可复制的密钥，请先生成' });
+      return;
+    }
+    copy(key);
+  };
+
+  const saveWorkBuddy = async () => {
+    if (!wbPendingKey && !wb.configured) {
+      Toast.error({ content: '请先生成密钥' });
+      return;
+    }
+    if (!wbExpiry || !Number.isFinite(wbExpiry.getTime())) {
+      Toast.error({ content: '请设置密钥有效期' });
+      return;
+    }
+    if (wbExpiry.getTime() <= Date.now()) {
+      Toast.error({ content: '有效期必须晚于当前时间' });
+      return;
+    }
+    setWbSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        workbuddyApiKeyExpiresAt: Math.floor(wbExpiry.getTime() / 1000),
+      };
+      if (wbPendingKey) payload.workbuddyApiKey = wbPendingKey;
+      await apiPost('/setting/config/saveGlobal', payload);
+      Toast.success({ content: '商品导入 MCP 密钥已保存' });
+      await loadWorkBuddy();
+    } catch (e) {
+      Toast.error({ content: (e as Error).message || '保存失败' });
+    } finally {
+      setWbSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
@@ -119,6 +218,8 @@ export default function AiMcpSettings() {
 
   const endpoint = settings.endpoint || '/adminapi/ai/mcp';
   const endpointUrl = `${window.location.origin}${endpoint}`;
+  const wbEndpoint = `${window.location.origin}/adminapi/openapi/mcp/v1`;
+  const wbKeyPreview = wbPendingKey ? maskKey(wbPendingKey) : wb.maskedKey;
 
   return (
     <div style={{ maxWidth: 980 }}>
@@ -150,7 +251,7 @@ export default function AiMcpSettings() {
         <div style={rowStyle}>
           <span style={labelStyle}>商品管理</span>
           <Switch checked={settings.productEnabled} onChange={(v) => patch({ productEnabled: v })} />
-          <span style={hintStyle}>搜索/详情/字段/价格/库存/上下架</span>
+          <span style={hintStyle}>搜索/详情/字段/价格/库存/上下架/批量操作/商品导入</span>
         </div>
         <div style={rowStyle}>
           <span style={labelStyle}>装修管理</span>
@@ -222,11 +323,75 @@ export default function AiMcpSettings() {
             onChange={(v) => patch({ requireApprovalPublish: v })}
           />
         </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>批量回收站/删除需审批</span>
+          <Switch
+            checked={settings.requireApprovalBatch}
+            onChange={(v) => patch({ requireApprovalBatch: v })}
+          />
+          <span style={hintStyle}>商品批量移入回收站、彻底删除前需审批</span>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>商品导入需审批</span>
+          <Switch
+            checked={settings.requireApprovalImport}
+            onChange={(v) => patch({ requireApprovalImport: v })}
+          />
+          <span style={hintStyle}>批量创建商品前需审批</span>
+        </div>
       </div>
 
       <Button theme="solid" type="primary" loading={saving} onClick={() => void save()}>
         保存设置
       </Button>
+
+      <div style={{ ...sectionStyle, marginTop: 16 }}>
+        <h3 style={{ margin: '0 0 8px' }}>商品导入 MCP（WorkBuddy）</h3>
+        <p style={hintStyle}>
+          供 WorkBuddy 商品导入/管理开放接口使用，请求头 <code>X-MCP-Api-Key</code> 校验；
+          与上方 AI 运营 MCP 的 Token 相互独立。
+        </p>
+        <div style={rowStyle}>
+          <span style={labelStyle}>MCP 密钥</span>
+          <Input value={wbKeyPreview} readOnly placeholder="尚未配置" style={{ flex: 1 }} />
+          {wbPendingKey && <Tag color="orange">未保存</Tag>}
+          <Button loading={wbGenerating} onClick={() => void generateWbKey()}>
+            生成密钥
+          </Button>
+          <Button disabled={!wbPendingKey && !wb.configured} onClick={() => void copyWbKey()}>
+            复制密钥
+          </Button>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>密钥有效期</span>
+          <DatePicker
+            type="dateTime"
+            value={wbExpiry ?? undefined}
+            onChange={(next) => setWbExpiry((next as Date) || null)}
+            style={{ width: 260 }}
+          />
+          <span style={hintStyle}>到期后 MCP 请求会被拒绝</span>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>接口前缀</span>
+          <Input value={wbEndpoint} readOnly style={{ flex: 1 }} />
+          <Button onClick={() => copy(wbEndpoint)}>复制</Button>
+        </div>
+        {wbPendingKey && (
+          <p style={{ ...hintStyle, color: '#d2691e' }}>
+            新密钥尚未保存，点击下方按钮后旧密钥才会失效。
+          </p>
+        )}
+        <Button
+          theme="solid"
+          type="primary"
+          loading={wbSaving}
+          onClick={() => void saveWorkBuddy()}
+          style={{ marginTop: 8 }}
+        >
+          保存密钥配置
+        </Button>
+      </div>
     </div>
   );
 }

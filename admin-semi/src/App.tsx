@@ -7,6 +7,7 @@ import {
   setMallSettings as cacheMallSettings,
   type MallSettings,
 } from './mall';
+import { CountrySelectField, ShopRegionCascaderField } from './components/RegionSettingFields';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
@@ -733,7 +734,8 @@ const configPages: Record<string, ConfigPageDef> = {
       workbuddyApiKey: 'MCP 密钥',
       workbuddyApiKeyExpiresAt: '密钥有效期',
     },
-    hiddenFields: ['storageSaveFullPath'],
+    // MCP 密钥已迁到 AI → MCP 管理（WorkBuddy 卡片），这里隐藏未分组字段，避免被追加到存储设置卡片
+    hiddenFields: ['storageSaveFullPath', 'workbuddyApiKey', 'workbuddyApiKeyExpiresAt'],
     fieldHelp: {
       storageType: '开启云存储后，图片会直接通过接口上传至指定云存储，不会再保存在本地。',
       storageLocalUrl: '参考格式： https://oss.***.com/ ，域名结尾必须带斜杠 /',
@@ -754,6 +756,10 @@ const configPages: Record<string, ConfigPageDef> = {
       seoProductEnable: '链接格式：域名/product/分类1/分类2/商品英文名称.[sn]；「批量更新商品链接」仅更新 SEO 链接为空的商品。',
       workbuddyApiKey: '密钥始终掩码显示，可随时复制；生成新密钥后请点击页面底部保存。',
       workbuddyApiKeyExpiresAt: '到期后 MCP 请求会被拒绝，请在到期前重新生成密钥。',
+    },
+    renderers: {
+      defaultCountry: (context) => <CountrySelectField {...context} />,
+      shopDefaultRegions: (context) => <ShopRegionCascaderField {...context} />,
     },
     rules: {
       storageLocalUrl: { visibleWhen: { field: 'storageType', equals: 0 } },

@@ -11,61 +11,8 @@ import type { ConfigAction } from '../pages/AutoConfigPage';
  * 前端不做「假成功」，由 AutoConfigPage 把后端返回的真实错误展示给用户。
  */
 
-/** 与旧版 views/setting/config/base/src/workbuddySettings.ts 的 MCP_CONNECTION_TEMPLATE 保持一致。 */
-const MCP_CONNECTION_TEMPLATE = `{
-  "mcpServers": {
-    "nextrade-mcp": {
-      "url": "http://你的NexTrade域名/adminapi/mcp",
-      "headers": {
-        "X-MCP-Api-Key": "你的MCP密钥"
-      },
-      "disabled": false
-    }
-  }
-}`;
-
-function pickWorkBuddyKey(data: unknown): string {
-  if (typeof data === 'string') return data;
-  if (!data || typeof data !== 'object') return '';
-  const record = data as Record<string, unknown>;
-  for (const key of ['workbuddyApiKey', 'plainKey', 'apiKey', 'key', 'rawKey']) {
-    if (typeof record[key] === 'string' && record[key]) return record[key] as string;
-  }
-  return '';
-}
-
 export const configActions: Record<string, ConfigAction[]> = {
   globalSetting: [
-    {
-      label: '生成密钥',
-      section: 'MCP 设置',
-      primary: true,
-      confirm: '生成新密钥会使旧密钥立即失效，确认继续？',
-      success: '密钥已生成，请设置有效期后点击保存',
-      reload: true,
-      run: async ({ apiPost }) => {
-        await apiPost('/setting/config/generateWorkbuddyKey');
-      },
-    },
-    {
-      label: '复制密钥',
-      section: 'MCP 设置',
-      success: '密钥已复制到剪贴板',
-      run: async ({ apiPost, copy }) => {
-        const data = await apiPost<unknown>('/setting/config/revealWorkbuddyKey');
-        const key = pickWorkBuddyKey(data);
-        if (!key) throw new Error('当前没有可复制的 MCP 密钥，请先生成密钥');
-        await copy(key);
-      },
-    },
-    {
-      label: '复制配置模板',
-      section: 'MCP 设置',
-      success: '配置模板已复制到剪贴板',
-      run: async ({ copy }) => {
-        await copy(MCP_CONNECTION_TEMPLATE);
-      },
-    },
     {
       label: '同步到搜索引擎',
       section: '搜索设置',
