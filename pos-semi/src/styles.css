@@ -456,3 +456,46 @@ body {
   border-radius: 8px;
   background: #fafbfc;
 }
+
+.pos-device-select {
+  position: relative;
+  cursor: pointer;
+}
+
+.pos-device-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 200;
+  min-width: 220px;
+  padding: 6px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.pos-device-item {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #303133;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pos-device-item:hover,
+.pos-device-item.is-active {
+  background: #fff4e6;
+  color: #fe9b1c;
+}
+
+.pos-device-empty {
+  padding: 10px;
+  color: #909399;
+  font-size: 13px;
+}

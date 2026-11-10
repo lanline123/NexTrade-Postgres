@@ -1,5 +1,8 @@
 import type { CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { api } from './api';
+import Dialog from './components/Dialog';
 import Cashier from './pages/Cashier';
 import Members from './pages/Members';
 import Orders from './pages/Orders';
@@ -7,6 +10,7 @@ import Tables from './pages/Tables';
 import Verification from './pages/Verification';
 import Placeholder from './pages/Placeholder';
 import { readSession } from './session';
+import { toast } from './toast';
 
 const PRIMARY_STYLE = {
   '--el-button-text-color': '#fff',
@@ -20,9 +24,70 @@ const PRIMARY_STYLE = {
   '--tig-primary': '#fe9b1c',
 } as CSSProperties;
 
+interface Device {
+  id: number;
+  deviceName?: string;
+  deviceCode?: string;
+  status?: number;
+}
+
+interface ShiftStats {
+  orderCount?: number;
+  totalAmount?: string | number;
+  today?: boolean;
+}
+
 export default function App() {
   const session = readSession();
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [deviceMenuOpen, setDeviceMenuOpen] = useState(false);
+  const [deviceId, setDeviceId] = useState(() => Number(localStorage.getItem('posDeviceId') || 0));
+  const [shiftOpen, setShiftOpen] = useState(false);
+  const [shiftStats, setShiftStats] = useState<ShiftStats | null>(null);
+  const [shiftBusy, setShiftBusy] = useState(false);
+
+  useEffect(() => {
+    if (!session) return;
+    api
+      .get<Device[]>('/pos/device/all')
+      .then((list) => setDevices(Array.isArray(list) ? list : []))
+      .catch(() => undefined);
+  }, [session]);
+
   if (!session) return <SessionGate />;
+
+  const selectedDevice = devices.find((item) => item.id === deviceId);
+
+  const chooseDevice = (device: Device) => {
+    localStorage.setItem('posDeviceId', String(device.id));
+    setDeviceId(device.id);
+    setDeviceMenuOpen(false);
+    toast(`已选择设备：${device.deviceName || device.deviceCode || device.id}`);
+  };
+
+  const openShift = async () => {
+    setShiftOpen(true);
+    try {
+      const stats = await api.get<ShiftStats>('/pos/posSwitch/posStatistics');
+      setShiftStats(stats || null);
+    } catch {
+      setShiftStats(null);
+    }
+  };
+
+  const confirmShift = async () => {
+    setShiftBusy(true);
+    try {
+      await api.post('/pos/posSwitch/workOff');
+      await api.post('/pos/posSwitch/work');
+      setShiftOpen(false);
+      toast('交班成功，已开始新班次');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '交班失败', 'error');
+    } finally {
+      setShiftBusy(false);
+    }
+  };
 
   return (
     <div className="layout-basic">
@@ -33,11 +98,22 @@ export default function App() {
               <div className="top-bar-left flex flex-align-center" />
               <div className="top-bar-right">
                 <div className="top-bar-right flex flex-align-center">
-                  <div className="el-select bound-device-select light">
+                  <div
+                    className="el-select bound-device-select light pos-device-select"
+                    onClick={() => {
+                      setDeviceMenuOpen((open) => !open);
+                      if (!devices.length) {
+                        api
+                          .get<Device[]>('/pos/device/all')
+                          .then((list) => setDevices(Array.isArray(list) ? list : []))
+                          .catch(() => undefined);
+                      }
+                    }}
+                  >
                     <div className="el-select__wrapper is-filterable">
                       <div className="el-select__selection">
                         <div className="el-select__selected-item el-select__placeholder is-transparent">
-                          <span>设备未绑定</span>
+                          <span>{selectedDevice?.deviceName || selectedDevice?.deviceCode || '设备未绑定'}</span>
                         </div>
                       </div>
                       <div className="el-select__suffix">
@@ -51,10 +127,32 @@ export default function App() {
                         </i>
                       </div>
                     </div>
+                    {deviceMenuOpen ? (
+                      <div className="pos-device-menu" onClick={(event) => event.stopPropagation()}>
+                        {devices.length === 0 ? (
+                          <div className="pos-device-empty">暂无设备，请到后台「设备管理」添加</div>
+                        ) : (
+                          devices.map((device) => (
+                            <button
+                              key={device.id}
+                              type="button"
+                              className={device.id === deviceId ? 'pos-device-item is-active' : 'pos-device-item'}
+                              onClick={() => chooseDevice(device)}
+                            >
+                              {device.deviceName || device.deviceCode || `设备 ${device.id}`}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="dialog-link" style={{ display: 'inline-flex' }}>
-                    <button type="button" className="el-button el-button--primary el-button--medium is-plain handover-btn light">
+                    <button
+                      type="button"
+                      className="el-button el-button--primary el-button--medium is-plain handover-btn light"
+                      onClick={() => void openShift()}
+                    >
                       <span>交班</span>
                     </button>
                   </div>
@@ -98,6 +196,43 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={shiftOpen}
+        title="交班"
+        width={460}
+        onClose={() => setShiftOpen(false)}
+        footer={
+          <>
+            <button type="button" className="el-button" onClick={() => setShiftOpen(false)}>
+              <span>取消</span>
+            </button>
+            <button
+              type="button"
+              className="el-button el-button--primary"
+              style={PRIMARY_STYLE}
+              disabled={shiftBusy}
+              onClick={() => void confirmShift()}
+            >
+              <span>确认交班</span>
+            </button>
+          </>
+        }
+      >
+        <div className="member-row">
+          <span>当前收银员</span>
+          <strong>{session.username}</strong>
+        </div>
+        <div className="member-row">
+          <span>今日订单</span>
+          <strong>{shiftStats?.orderCount ?? 0}</strong>
+        </div>
+        <div className="member-row">
+          <span>今日金额</span>
+          <strong>¥{Number(shiftStats?.totalAmount ?? 0).toFixed(2)}</strong>
+        </div>
+        <p className="confirm-text">交班后将结束当前班次并开始新班次，是否继续？</p>
+      </Dialog>
     </div>
   );
 }
