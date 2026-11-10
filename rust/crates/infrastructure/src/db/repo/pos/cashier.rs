@@ -716,7 +716,8 @@ impl PosCashierRepository {
         };
         sqlx::query(
             "UPDATE pos_table SET status = 0, table_status = 0, user_id = 0, last_order_id = 0, \
-             session_sn = '', update_time = $1 WHERE table_id = $2",
+             open_time = 0, session_sn = '', dining_count = 0, transfer_from_table_no = '', \
+             update_time = $1 WHERE table_id = $2",
         )
         .bind(ts)
         .bind(from)
@@ -725,13 +726,15 @@ impl PosCashierRepository {
         .map_err(map_err)?;
         sqlx::query(
             "UPDATE pos_table SET status = 1, table_status = 1, user_id = $1, last_order_id = $2, \
-             open_time = $3, session_sn = $4, transfer_from_table_no = $5, update_time = $6 WHERE table_id = $7",
+             open_time = $3, session_sn = $4, transfer_from_table_no = $5, dining_count = $6, \
+             update_time = $7 WHERE table_id = $8",
         )
         .bind(src.user_id)
         .bind(src.last_order_id)
-        .bind(ts)
+        .bind(if src.open_time > 0 { src.open_time } else { ts })
         .bind(&session)
         .bind(&src.table_no)
+        .bind(src.dining_count)
         .bind(ts)
         .bind(to)
         .execute(&self.pool)
