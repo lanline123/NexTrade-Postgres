@@ -545,6 +545,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 素材选择弹窗改版（审计第四十五章）：弹窗放大到 1080×560 并上下左右居中，左侧文件夹树默认只显示一级、箭头展开，右侧网格/搜索/上传保持；线上 `index--WLhioJJ.js`，回滚 index 存 `scratch/admin-index.online.20261110_191724.html` |
 | 2026-11-10 | 素材选择弹窗二次放大（审计第四十六章）：宽 `min(1280px,94vw)`、高 `clamp(560px,72vh,800px)`；加分组搜索、骨架屏、悬停动效、已选缩略图条/清空、双击直接确认；线上 `index-HWvtT8iA.js`，回滚 index 存 `scratch/admin-index.online.20261110_194032.html` |
 | 2026-11-10 | 商品图片删除失效修复 + 拖拽排序（审计第四十七章）：根因是 FormDrawer 对 Semi 原地修改的 `state.values` 同引用 setState 导致自定义字段不重渲染，改为浅拷贝；图片去掉「设为主图」，改原生拖拽排序、首图自动主图、圆形悬浮删除；线上 `index-XJYeonMz.js`，回滚 index 存 `scratch/admin-index.online.20261110_195059.html` |
+| 2026-11-10 | 图片入口统一素材中心（审计第四十八章）：`ImageUploader` 移除直接上传方块与 `gallery` 开关，所有图片字段点击即开素材中心（上传保留在弹窗内）；线上 `index-1or9PfYf.js`，回滚 index 存 `scratch/admin-index.online.20261110_202635.html` |
 
 ---
 

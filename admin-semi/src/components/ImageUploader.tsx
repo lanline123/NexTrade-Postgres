@@ -1,7 +1,5 @@
-import { useRef, useState } from 'react';
-import { Toast } from '@douyinfe/semi-ui';
-import { IconClose, IconGallery, IconPlus } from '@douyinfe/semi-icons';
-import { apiUpload, isDemo } from '../api';
+import { useState } from 'react';
+import { IconClose, IconGallery } from '@douyinfe/semi-icons';
 import { useI18n } from '../i18n';
 import GalleryPickerModal from './GalleryPickerModal';
 
@@ -10,13 +8,6 @@ interface ImageUploaderProps {
   onChange: (next: string[]) => void;
   max?: number;
   single?: boolean;
-  /** 显示「素材中心」入口，从图库选择已有图片 */
-  gallery?: boolean;
-}
-
-interface UploadResult {
-  picUrl: string;
-  picThumb?: string;
 }
 
 export default function ImageUploader({
@@ -24,48 +15,13 @@ export default function ImageUploader({
   onChange,
   max = 9,
   single = false,
-  gallery = false,
 }: ImageUploaderProps) {
   const { t } = useI18n();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
   const limit = single ? 1 : max;
   const remaining = limit - value.length;
-
-  const pick = () => {
-    if (isDemo()) {
-      Toast.warning({ content: t('演示模式不支持上传图片') });
-      return;
-    }
-    inputRef.current?.click();
-  };
-
-  const upload = async (files: FileList | null) => {
-    if (!files || !files.length) return;
-    const remainingSlots = limit - value.length;
-    if (remainingSlots <= 0) {
-      Toast.warning({ content: t('最多上传 {count} 张图片', { count: limit }) });
-      return;
-    }
-    setUploading(true);
-    try {
-      const next = [...value];
-      for (const file of Array.from(files).slice(0, remainingSlots)) {
-        const result = await apiUpload<UploadResult>('/setting/galleryPic/uploadImg?galleryId=0', file);
-        if (result?.picUrl) next.push(result.picUrl);
-      }
-      onChange(next);
-      Toast.success({ content: t('图片上传成功') });
-    } catch (error) {
-      Toast.error({ content: error instanceof Error ? error.message : t('图片上传失败') });
-    } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = '';
-    }
-  };
 
   const remove = (index: number) => {
     onChange(value.filter((_, i) => i !== index));
@@ -86,14 +42,6 @@ export default function ImageUploader({
 
   return (
     <div className="image-uploader">
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        hidden
-        onChange={(event) => upload(event.target.files)}
-      />
       <div className="image-uploader-list">
         {value.map((url, index) => (
           <div
@@ -149,22 +97,14 @@ export default function ImageUploader({
           </div>
         ))}
         {value.length < limit && (
-          <>
-            <button type="button" className="image-uploader-add" onClick={pick} disabled={uploading}>
-              <IconPlus />
-              <span>{uploading ? t('上传中...') : t('上传图片')}</span>
-            </button>
-            {gallery && (
-              <button
-                type="button"
-                className="image-uploader-add is-gallery"
-                onClick={() => setPickerOpen(true)}
-              >
-                <IconGallery />
-                <span>{t('素材中心')}</span>
-              </button>
-            )}
-          </>
+          <button
+            type="button"
+            className="image-uploader-add is-gallery"
+            onClick={() => setPickerOpen(true)}
+          >
+            <IconGallery />
+            <span>{t('素材中心')}</span>
+          </button>
         )}
       </div>
       <div className="image-uploader-tip">
@@ -174,22 +114,20 @@ export default function ImageUploader({
               count: max,
             })}
       </div>
-      {gallery && (
-        <GalleryPickerModal
-          visible={pickerOpen}
-          multiple={!single}
-          limit={Math.max(remaining, 0)}
-          onCancel={() => setPickerOpen(false)}
-          onConfirm={(urls) => {
-            const next = [...value];
-            urls.forEach((url) => {
-              if (next.length < limit && !next.includes(url)) next.push(url);
-            });
-            onChange(next);
-            setPickerOpen(false);
-          }}
-        />
-      )}
+      <GalleryPickerModal
+        visible={pickerOpen}
+        multiple={!single}
+        limit={Math.max(remaining, 0)}
+        onCancel={() => setPickerOpen(false)}
+        onConfirm={(urls) => {
+          const next = [...value];
+          urls.forEach((url) => {
+            if (next.length < limit && !next.includes(url)) next.push(url);
+          });
+          onChange(next);
+          setPickerOpen(false);
+        }}
+      />
     </div>
   );
 }
