@@ -1436,10 +1436,30 @@ export const navGroups: NavGroup[] = [
         ]
       }
     ]
+  },
+  {
+    key: 'ai',
+    label: 'AI',
+    icon: <IconApps />,
+    items: [
+      {
+        key: 'aiMcpManage',
+        label: 'MCP 管理',
+        children: [
+          { key: 'aiMcpSettings', label: '商品 MCP 设置' },
+          { key: 'aiMcpApprovals', label: '审批中心' },
+          { key: 'aiMcpLogs', label: '操作日志' }
+        ]
+      }
+    ]
   }
 ];
 
 export const pageTitles: Record<string, string> = {
+  "aiMcpManage": "MCP 管理",
+  "aiMcpSettings": "商品 MCP 设置",
+  "aiMcpApprovals": "审批中心",
+  "aiMcpLogs": "操作日志",
   "customerService0": "客服工作台",
   "imWorkbench": "客服工作台",
   "kefuHistoryList": "历史会话列表",

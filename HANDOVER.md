@@ -529,6 +529,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | PC 全站价格跟随换币（审计第三十八章，`695b0d00` build 24）：购物车/结算/订单/售后/优惠券/秒杀/拼团/换购/发票/聊天等剩余写死 `¥` 全部改为 `formatPrice`/`splitCurrencyPrice`；仅改展示，下单支付仍按人民币原值 |
 | 2026-11-10 | PC 收尾两处（`5c1d10e7` build 25，审计 38.4）：搜索价格输入占位符改用当前币种符号；商品/WebSite JSON-LD 的 priceCurrency、inLanguage 跟随换币与语言 |
 | 2026-11-10 | admin 装修编辑器白屏修复（审计第三十九章）：`formatImage` 工具函数误调 `useI18n` 触发 React #310；源码修复提交 `939c2f4`，线上以最小入口补丁 `index-fix310.js` 上线并同步修补旧入口，编辑器恢复正常 |
+| 2026-11-10 | 运营 MCP 上线（审计第四十章）：商品域+装修域共 14 个工具，Bearer Token + 总开关（关闭即 403）、商品/装修独立权限、改价/库存/发布装修审批、操作日志；后台一级 AI → MCP 管理 → 设置/审批/日志；后端 `257ad277`、admin 入口 `index-Cd7Z1fvZ.js` |
 | 2026-11-10 | 管理端登录页蓝线（审计第三十八章）：线上 admin 包是 11-08 11:49 旧构建，CSS 残留旧版 `.login-tabs .is-active::after`，在新 button 布局下泄漏为 1180×2px 通栏蓝线。按上游源码 `c7d49743` 重建 admin-semi 并全量上传 dist（97 资源 + index.html 最后切换），线上哈希一致、旧规则 0 命中；回滚副本 `scratch/admin-index.old.html` |
 | 2026-11-10 | 管理端登录页 tab 切换高度跳动（审计第三十九章）：`.login-options` 无固定行高，密码行 19px / 手机提示行 17px，导致卡片与按钮跳动 2px。上游 `styles.css` 加 `min-height: 20px` 后重建部署，线上两模式卡片 579.8px、按钮位置完全一致 |
 | 2026-11-10 | POS 收银台路径统一为 `/pos`（审计第四十章）：按钮由 `/admin/pos/` 改为 `/pos/`；dev 预览同步；产物路由 base 被编译成 `admin`，dev 服务与新增的 `npm run build:pos` 都会把 7 处 `VITE_BASE_DIR` 补丁为空并生成无 `<base>` 的 `pos-dist/`。已部署：POS 解压到站点 `/pos` + nginx `location ^~ /pos`，admin 入口打最小补丁 `index-15da4ad2.js`（线上 vendor 与本地不同，未整包重建） |
@@ -538,6 +539,8 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | pos-semi 弹窗/挂取单/会员（审计 43.6，`7a85dc8` + `c3c7995`）：确认/备注/挂取单弹窗、会员手机号绑定与游客切换；发现 `createTourists` 因 `user.email` NOT NULL 500，修 `cfe403c` 后重建部署 |
 | 2026-11-10 | 游客创建修复上线（审计 43.7）：staging `cfe403c` 部署，二进制 sha `4106b40c…8a3d`，备份 `nextrade.bak.20261110_194611`；`createTourists` code 0（userId 110）、绑定正常；回归 53/53+4/4 |
 | 2026-11-10 | pos-semi 商品列表对齐（`d9b3699`）：30/页触底加载、售罄遮罩、数量角标、图文/列表切换、空态图；并记录结账后端缺口（`place_order` 为桩，审计 43.8） |
+| 2026-11-10 | pos-semi 桌台/订单/结算/会员/核销（审计 43.11–43.14）：桌台开台/转台/清台（含人数/开台时间继承）、订单列表+详情+未支付取消、结算面板（余额/积分）、会员查询/充值、提货码核销；staging `040ae05` 部署（sha `563954fc…400d`），桌台冒烟与回归全绿 |
+| 2026-11-10 | pos-semi 生产验收环境 `/pos-next`（审计 43.15）：`VITE_BASE_PATH=/pos-next/` 构建并部署，nginx 新增 `^~ /pos-next` 兜底；生产浏览器实测收银（30/64 商品、加购/删除）、订单 31 条、桌台空态正常；`/pos` 仍保留 legacy，待设备/交班/打印/预约补齐后再切换 |
 | 2026-11-10 | 后台顶栏「查看商城」补图标（审计第四十章）：React 版顶栏按钮漏了 `icon`，原版 Vue 为 `icon-guanli`；补 `IconShoppingBag`（与账号下拉同名入口一致），上游 admin-semi 重建后全量上传，线上 DOM 已含 `semi-icon-shopping_bag`，回滚 index 存 `scratch/admin-index.online.20261110_170626.html` |
 | 2026-11-10 | 推送约定：后续**只推送 `NexTrade-Postgres`**；上游 `D:\tigshop\NexTrade` 仅作构建源码，改动同步到本仓库 `admin-semi/` / `pc-semi/` 后再提交，不再向上游 remote 推送（§2.2） |
 | 2026-11-10 | 素材中心「删除分组」弹窗现代化（审计第四十一章）：警示条显示分组名 + 两张可点击策略卡（选中蓝/危险红）+ 红色确认按钮；因上游有并行 WIP，改用 `git archive HEAD` 干净源码构建后全量上传，线上 `index-vGC7iQEf.js`，回滚 index 存 `scratch/admin-index.online.20261110_172540.html` |
