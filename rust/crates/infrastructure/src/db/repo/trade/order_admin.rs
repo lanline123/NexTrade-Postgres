@@ -668,7 +668,10 @@ impl OrderAdminRepository {
         if patch.is_empty() {
             return Ok(0);
         }
-        let sql = format!("UPDATE \"order\" SET {} WHERE order_id = $1", patch.sets_sql());
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "UPDATE \"order\" SET {} WHERE order_id = ?",
+            patch.sets_sql()
+        ));
         Ok(update_with_patch(&self.pool, &sql, patch, order_id, None)
             .await?
             .rows_affected())
@@ -684,10 +687,10 @@ impl OrderAdminRepository {
         if patch.is_empty() {
             return Ok(0);
         }
-        let sql = format!(
-            "UPDATE \"order\" SET {} WHERE order_id = $1 AND order_status = $2",
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "UPDATE \"order\" SET {} WHERE order_id = ? AND order_status = ?",
             patch.sets_sql()
-        );
+        ));
         Ok(update_with_patch(&self.pool, &sql, patch, order_id, Some(expected_status))
             .await?
             .rows_affected())
