@@ -138,6 +138,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
             "/pos/order/OrderReservation/getStockCalendar",
             get(pos_stock_calendar),
         )
+        .route(
+            "/pos/order/OrderReservation/list",
+            get(pos_reservation_list),
+        )
         .route("/pos/order/check/getOrderRemark", get(pos_order_remark))
         .route("/pos/order/check/index", post(pos_check_index))
         .route("/pos/order/check/update", post(pos_check_update))
@@ -1243,6 +1247,13 @@ async fn pos_stock_calendar(
         .stock_calendar(q.product_id.unwrap_or(0), q.shop_id, days)
         .await?;
     ok(serde_json::to_value(rows).unwrap_or(serde_json::Value::Null))
+}
+
+async fn pos_reservation_list(
+    State(state): State<AdminState>,
+    Query(q): Query<PosReservationQuery>,
+) -> ApiResult<serde_json::Value> {
+    ok(state.pos.cashier.reservations(&q).await?)
 }
 
 async fn pos_order_remark(

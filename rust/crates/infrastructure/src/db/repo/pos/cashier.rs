@@ -667,6 +667,36 @@ impl PosCashierRepository {
         Ok(())
     }
 
+    /// 预约订单列表（order_reservations 关联 order）。
+    pub async fn reservations(
+        &self,
+        keyword: Option<&str>,
+        limit: u64,
+        offset: u64,
+    ) -> Result<(i64, Vec<serde_json::Value>)> {
+        let kw = format!("%{}%", keyword.unwrap_or_default().trim());
+        let (total,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM order_reservations r              LEFT JOIN \"order\" o ON o.order_id = r.order_id              WHERE ($1 = '%%' OR o.order_sn ILIKE $1 OR o.consignee ILIKE $1 OR o.mobile ILIKE $1)",
+        )
+        .bind(&kw)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        let rows = sqlx::query_as::<_, (serde_json::Value,)>(
+            "SELECT json_build_object(                'orderReservationsId', r.order_reservations_id, 'orderId', r.order_id,                'orderSn', o.order_sn, 'consignee', o.consignee, 'mobile', o.mobile,                'reservationDate', r.reservation_date, 'startTime', r.start_time,                'endTime', r.end_time, 'timeSlotDescription', r.time_slot_description,                'addTime', r.add_time, 'orderStatus', o.order_status)              FROM order_reservations r LEFT JOIN \"order\" o ON o.order_id = r.order_id              WHERE ($1 = '%%' OR o.order_sn ILIKE $1 OR o.consignee ILIKE $1 OR o.mobile ILIKE $1)              ORDER BY r.order_reservations_id DESC LIMIT $2 OFFSET $3",
+        )
+        .bind(&kw)
+        .bind(limit as i64)
+        .bind(offset as i64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok((
+            total,
+            rows.into_iter().map(|(v,)| v).collect(),
+        ))
+    }
+
     /// 开台：占用桌台、写入就餐人数并进入「待下单」。
     pub async fn table_open_state(
         &self,

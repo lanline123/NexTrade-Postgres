@@ -157,7 +157,15 @@ pub struct PosCartChangePriceDTO {
     pub price: Option<Decimal>,
     /// 是否仅改展示价（changePriceShow：不改结算价）。
     pub show_only: Option<bool>,
-    /// 整单改价方式：1=一口价（总额），2=折扣（百分比，如 90 表示九折）。
+    #[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PosReservationQuery {
+    pub page: Option<u64>,
+    pub size: Option<u64>,
+    pub keyword: Option<String>,
+}
+
+/// 整单改价方式：1=一口价（总额），2=折扣（百分比，如 90 表示九折）。
     #[serde(default)]
     pub total_change_price_type: Option<i32>,
     #[serde(default)]
