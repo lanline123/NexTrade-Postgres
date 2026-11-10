@@ -83,10 +83,19 @@
   font-weight: 600;
 }
 
-.gp-tree-node.is-drop {
+.gp-tree-node.is-drop,
+.gp-tree-node.is-drop-inside {
   background: var(--semi-color-primary-light-default);
   box-shadow: inset 0 0 0 1.5px var(--semi-color-primary);
   color: var(--semi-color-primary);
+}
+
+.gp-tree-node.is-drop-before {
+  box-shadow: inset 0 2px 0 var(--semi-color-primary);
+}
+
+.gp-tree-node.is-drop-after {
+  box-shadow: inset 0 -2px 0 var(--semi-color-primary);
 }
 
 .gp-tree-add {

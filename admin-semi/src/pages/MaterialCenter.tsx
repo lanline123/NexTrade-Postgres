@@ -1306,7 +1306,7 @@ export default function MaterialCenter() {
     if (targetIndex < 0 || targetIndex >= siblings.length) return;
     const ids = siblings.map((item) => item.id);
     [ids[index], ids[targetIndex]] = [ids[targetIndex], ids[index]];
-    apiPost('/setting/gallery/sort', { ids, type: tab === 'video' ? 2 : 1 })
+    apiPost('/setting/gallery/sort', { ids, type: tab })
       .then(() => {
         Toast.success({ content: t('排序成功') });
         setReloadKey((key) => key + 1);

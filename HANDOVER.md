@@ -549,6 +549,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 素材弹窗单行标题 + 商品视频接入素材中心（审计第四十九章）：标题合并为「从素材中心选择图片/视频」，压缩头尾留白、主体增至 80vh；`GalleryPickerModal` 支持视频分组/列表/上传，商品表单「商品视频」改为视频选择 + 预览/更换/移除；线上 `index-DKiGZhf9.js`，回滚 index 存 `scratch/admin-index.online.20261110_203438.html` |
 | 2026-11-10 | 素材弹窗加宽 + 素材管理（审计第五十章）：宽 `min(1400px,96vw)`；素材可拖到左侧分组快速移动（`galleryPic/transfer`）；分组行 hover「+」可建子分组；右键菜单支持重命名/删除（图片 `updateField`/`galleryPic/del`，视频 `galleryVideoInfo/update`/`del`）；线上 `index-ZgXGoXyK.js`，回滚 index 存 `scratch/admin-index.online.20261110_204328.html` |
 | 2026-11-10 | 素材弹窗补全分组管理（审计第五十一章）：分组右键支持添加子分组/重命名/上移/下移/删除，删除时可选「仅删分组」或「分组及组内素材」（`gallery/del`、`galleryVideo/del`）；线上 `index-DbtAyZBl.js`，回滚 index 存 `scratch/admin-index.online.20261110_210247.html` |
+| 2026-11-10 | 素材弹窗分组自由拖拽（审计第五十二章）：分组行上/下边缘排序、中间变为子分组、拖到根移回顶级；修正 `gallery/sort` 的 `type` 误传数字（应为 `image`/`video`，同时修复素材中心页上移/下移）；线上 `index-BwJfAmNd.js`，回滚 index 存 `scratch/admin-index.online.20261110_211354.html` |
 
 ---
 

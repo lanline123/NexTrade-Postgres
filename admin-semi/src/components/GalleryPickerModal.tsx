@@ -124,6 +124,11 @@ export default function GalleryPickerModal({
   const [reloadKey, setReloadKey] = useState(0);
   const [dragId, setDragId] = useState<number | null>(null);
   const [dropFolderId, setDropFolderId] = useState<number | null>(null);
+  const [dragFolderId, setDragFolderId] = useState<number | null>(null);
+  const [dropHint, setDropHint] = useState<{
+    id: number;
+    zone: 'before' | 'after' | 'inside';
+  } | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<'create' | 'renameFolder' | 'renameItem'>('create');
   const [formParentId, setFormParentId] = useState(0);
@@ -370,7 +375,7 @@ export default function GalleryPickerModal({
     const ids = siblings.map((item) => item.id);
     [ids[index], ids[targetIndex]] = [ids[targetIndex], ids[index]];
     try {
-      await apiPost('/setting/gallery/sort', { ids, type: isVideo ? 2 : 1 });
+      await apiPost('/setting/gallery/sort', { ids, type: isVideo ? 'video' : 'image' });
       Toast.success({ content: t('排序成功') });
       void loadTree();
     } catch (error) {
@@ -504,36 +509,133 @@ export default function GalleryPickerModal({
     }
   };
 
-  const folderDropProps = (folderId: number) => ({
-    onDragOver: (event: ReactDragEvent) => {
-      if (dragId === null) return;
-      event.preventDefault();
-      event.dataTransfer.dropEffect = 'move';
-      setDropFolderId(folderId);
-    },
-    onDragLeave: () => {
-      setDropFolderId((current) => (current === folderId ? null : current));
-    },
-    onDrop: (event: ReactDragEvent) => {
-      if (dragId === null) return;
-      event.preventDefault();
-      event.stopPropagation();
-      void moveItemToFolder(folderId);
-    },
-  });
+  const findFolder = (nodes: GalleryTreeNode[], id: number): GalleryTreeNode | undefined => {
+    for (const node of nodes) {
+      if (node.id === id) return node;
+      const hit = findFolder(node.children, id);
+      if (hit) return hit;
+    }
+    return undefined;
+  };
+
+  const folderDropZone = (event: ReactDragEvent): 'before' | 'after' | 'inside' => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = (event.clientY - rect.top) / rect.height;
+    if (ratio < 0.3) return 'before';
+    if (ratio > 0.7) return 'after';
+    return 'inside';
+  };
+
+  const moveFolder = async (
+    target: GalleryTreeNode | null,
+    siblings: GalleryTreeNode[],
+    zone: 'before' | 'after' | 'inside',
+  ) => {
+    const sourceId = dragFolderId;
+    const source = sourceId ? findFolder(tree, sourceId) : undefined;
+    setDragFolderId(null);
+    setDropHint(null);
+    if (!sourceId || !source) return;
+    if (target && target.id === sourceId) return;
+    if (target && containsFolder(source.children, target.id)) {
+      Toast.warning({ content: t('不能移动到自身或子分组') });
+      return;
+    }
+    const parentId = target ? (zone === 'inside' ? target.id : target.parentId ?? 0) : 0;
+    try {
+      await apiPost(
+        isVideo ? '/setting/galleryVideo/update' : '/setting/gallery/update',
+        isVideo
+          ? { id: sourceId, parentId, name: source.name }
+          : { id: sourceId, parentId, galleryName: source.name },
+      );
+      const ids = (target ? siblings : tree).map((item) => item.id).filter((id) => id !== sourceId);
+      if (target && zone !== 'inside') {
+        const targetIndex = ids.indexOf(target.id);
+        if (targetIndex >= 0) {
+          ids.splice(zone === 'after' ? targetIndex + 1 : targetIndex, 0, sourceId);
+          await apiPost('/setting/gallery/sort', { ids, type: isVideo ? 'video' : 'image' });
+        }
+      } else if (!target) {
+        ids.push(sourceId);
+        await apiPost('/setting/gallery/sort', { ids, type: isVideo ? 'video' : 'image' });
+      }
+      Toast.success({ content: t('移动成功') });
+      if (parentId && !expandedIds.includes(parentId)) {
+        setExpandedIds((current) => [...current, parentId]);
+      }
+      void loadTree();
+      setReloadKey((key) => key + 1);
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('移动失败') });
+    }
+  };
+
+  const folderRowDragProps = (node: GalleryTreeNode | null, siblings: GalleryTreeNode[]) => {
+    const folderId = node ? node.id : 0;
+    return {
+      ...(node
+        ? {
+            draggable: true,
+            onDragStart: (event: ReactDragEvent) => {
+              setDragFolderId(node.id);
+              event.stopPropagation();
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', String(node.id));
+            },
+          }
+        : {}),
+      onDragEnd: () => {
+        setDragFolderId(null);
+        setDropHint(null);
+      },
+      onDragOver: (event: ReactDragEvent) => {
+        if (dragFolderId !== null) {
+          if (dragFolderId === folderId) return;
+          event.preventDefault();
+          event.stopPropagation();
+          event.dataTransfer.dropEffect = 'move';
+          setDropHint({ id: folderId, zone: folderDropZone(event) });
+        } else if (dragId !== null) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'move';
+          setDropFolderId(folderId);
+        }
+      },
+      onDragLeave: () => {
+        if (dragFolderId !== null) {
+          setDropHint((current) => (current && current.id === folderId ? null : current));
+        } else {
+          setDropFolderId((current) => (current === folderId ? null : current));
+        }
+      },
+      onDrop: (event: ReactDragEvent) => {
+        if (dragFolderId !== null) {
+          event.preventDefault();
+          event.stopPropagation();
+          void moveFolder(node, siblings, folderDropZone(event));
+        } else if (dragId !== null) {
+          event.preventDefault();
+          event.stopPropagation();
+          void moveItemToFolder(folderId);
+        }
+      },
+    };
+  };
 
   const renderTree = (nodes: GalleryTreeNode[], depth = 0) =>
     nodes.map((node) => {
       const hasChildren = node.children.length > 0;
       const expanded = groupKeyword.trim() !== '' || expandedIds.includes(node.id);
       const active = galleryId === node.id;
+      const hint = dropHint && dropHint.id === node.id ? ` is-drop-${dropHint.zone}` : '';
       const row = (
         <div
-          className={`gp-tree-node${active ? ' is-active' : ''}${dropFolderId === node.id ? ' is-drop' : ''}`}
+          className={`gp-tree-node${active ? ' is-active' : ''}${dropFolderId === node.id ? ' is-drop' : ''}${hint}`}
           style={{ paddingLeft: 10 + depth * 16 }}
           onClick={() => selectFolder(node.id)}
           title={node.name}
-          {...folderDropProps(node.id)}
+          {...folderRowDragProps(node, nodes)}
         >
           <span
             className={`gp-tree-arrow${hasChildren ? '' : ' is-leaf'}${expanded ? ' is-expanded' : ''}`}
@@ -630,9 +732,9 @@ export default function GalleryPickerModal({
           </div>
           <div className="gp-tree">
             <div
-              className={`gp-tree-node gp-tree-root${galleryId === 0 ? ' is-active' : ''}${dropFolderId === 0 ? ' is-drop' : ''}`}
+              className={`gp-tree-node gp-tree-root${galleryId === 0 ? ' is-active' : ''}${dropFolderId === 0 ? ' is-drop' : ''}${dropHint && dropHint.id === 0 ? ' is-drop-inside' : ''}`}
               onClick={() => selectFolder(0)}
-              {...folderDropProps(0)}
+              {...folderRowDragProps(null, tree)}
             >
               <span className="gp-tree-arrow is-leaf" />
               <span className="gp-tree-name">{isVideo ? t('全部视频') : t('全部图片')}</span>

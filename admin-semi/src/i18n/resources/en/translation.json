@@ -7933,6 +7933,7 @@
   "移除商品": "Remove product",
   "移除失败": "Removal failed",
   "移动成功": "Moved successfully",
+  "不能移动到自身或子分组": "Cannot move a folder into itself or its subfolder",
   "移动到": "Move to",
   "移动端链接：": "Mobile link:",
   "移动端页面": "Mobile page",
