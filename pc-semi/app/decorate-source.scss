@@ -9061,3 +9061,6 @@ position: relative;
 .price { font-size: 12px; font-weight: normal; }
 .price .util { font-size: 12px; }
 .align-bottom { display: flex; align-items: flex-end; }
+
+/* 热图模块的 item-img 被 imageBox 的全局 opacity:0 泄漏隐藏，恢复显示 */
+.image-hotarea-warp .item-img { opacity: 1; }
