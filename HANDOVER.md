@@ -516,6 +516,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 交接待办 3/5/6/8 处置（审计第三十五章）：语义映射复核结论（`order_remark` 为臆造列名，读 `buyer_note`；`lottery_activity` 无 `status` 列）；CI 提速实施（staging 热缓存 5m58s vs 冷 14m34s）；JWT 启动守卫上线（`6d099b0`，生产 secret 已核非默认，11:57 部署，回归 53/53+4/4）；docker-compose/Dockerfile/README 全面改 PG 口径 |
 | 2026-11-10 | PC 商品页 308 到 `localhost:3005` 修复（审计第三十六章）：middleware 改按 `x-forwarded-host/proto`（回退 `host`）构造绝对 URL，不再用 `nextUrl.clone()`；上游 `e743af82` 构建 build 18，13:12 部署（备份 `pc_pre_20261110_131241.tgz`），商品链接现 308 到 `https://battery.recy.cc/product/sn*` |
 | 2026-11-10 | 货号查询大小写不敏感（`f340698`，13:37 上线）：4 处 `product_sn/product_tsn` 精确比较改 `LOWER(...)`，修复 137 个大写货号商品页 404；回归 53/53+4/4 |
+| 2026-11-10 | PC 前端四项修复（审计第三十七章，线上 PC `a8141825` build 23）：① 已选条件用 `filterSelected` 显示分类/品牌名；② 换币覆盖营销通栏/商品卡/详情页（含装修数据的 `¥` 前缀解析），修复重复小数；③ 非中英语言生效（locale 短码映射 + SSR 翻译加载）；④ 商品服务说明改读 `serviceList` 图标、去掉假数据与点击展开 |
 
 ---
 
