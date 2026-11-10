@@ -10,7 +10,7 @@
 | 收银 | `/pos` | 🟡 | 分类/搜索/商品、购物车、数量/删除/清空、合计、备注入口、结账入口 |
 | 桌台 | `/pos/dining-table` | 🟡 | 区域筛选/状态统计/卡片 + 开台/转台/清台已实现；并台/换桌结账/点单联动待接 |
 | 订单 | `/pos/order` | 🟡 | 线下销售/商城订单列表 + 分页已实现；详情/操作待接 |
-| 预约 | `/pos/reservation` | ❌ | 预约与库存日历 |
+| 预约 | `/pos/reservation` | 🟡 | 预约订单列表（order_reservations）已实现；库存日历/状态流转待接 |
 | 核销 | `/pos/verification` | 🟡 | 提货码核销已接（/order/order/writeOff）；券码核销待接 |
 | 售后 | `/pos/return` | ❌ | 售后单 |
 | 会员 | `/pos/vip` | 🟡 | 会员查询/分页 + 现金充值已实现；优惠券/会员详情待接 |
@@ -72,7 +72,7 @@
 
 | 能力 | 现状 |
 |---|---|
-| 预约列表 | legacy 调 `pos/order/OrderReservation/list`，Rust 仅有库存日历接口，缺列表/状态流转 |
+| 预约列表 | ✅ 已补 `pos/order/OrderReservation/list`（order_reservations 关联订单，分页/关键词）；库存日历与状态流转未接 |
 | 售后（POS） | Java 规则「POS 订单不允许售后」（`order_source=pos`），legacy 页面保留但后端拒绝 |
 
 

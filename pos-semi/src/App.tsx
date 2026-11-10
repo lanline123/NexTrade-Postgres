@@ -9,6 +9,7 @@ import Orders from './pages/Orders';
 import Tables from './pages/Tables';
 import Verification from './pages/Verification';
 import Placeholder from './pages/Placeholder';
+import Reservations from './pages/Reservations';
 import { readSession } from './session';
 import { toast } from './toast';
 
@@ -182,10 +183,7 @@ export default function App() {
                   <Route path="/" element={<Cashier primaryStyle={PRIMARY_STYLE} />} />
                   <Route path="/tables" element={<Tables />} />
                   <Route path="/orders" element={<Orders />} />
-                  <Route
-                    path="/reservation"
-                    element={<Placeholder title="预约" note="预约与库存日历，接口 /pos/order/OrderReservation/*。" />}
-                  />
+                  <Route path="/reservation" element={<Reservations />} />
                   <Route path="/verification" element={<Verification />} />
                   <Route path="/returns" element={<Placeholder title="售后" note="退货退款与售后单。" />} />
                   <Route path="/members" element={<Members />} />
