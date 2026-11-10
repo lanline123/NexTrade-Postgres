@@ -91,7 +91,7 @@ impl OrderService {
             return Err(Error::Validation("未选择任何商品".into()));
         }
         // POS 收银：价格以购物车行（POS 改价后）为准，不叠加线上营销活动。
-        let pos_mode = dto.order_source.as_deref() == Some("POS");
+        let pos_mode = dto.order_source.as_deref() == Some("pos");
 
         // 金额计算
         let mut product_amount = Decimal::ZERO;

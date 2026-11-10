@@ -674,7 +674,7 @@ impl PosCashierService {
             use_balance: dto.use_balance,
             use_coupon_ids: dto.use_coupon_ids.clone(),
             invoice_data: None,
-            order_source: Some("POS".into()),
+            order_source: Some("pos".into()),
             pos_user_id: Some(admin_id),
         };
 
