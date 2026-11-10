@@ -264,7 +264,14 @@ async fn main() -> anyhow::Result<()> {
     log::init("logs");
     tracing::info!("NexTrade Rust 服务启动中...");
 
-    // 3. 数据库（最多重试 10 次，兼容 docker-compose 中 MySQL 慢启动）
+    // 2.1 安全守卫：release 构建禁止用内置默认 JWT 密钥启动
+    //     （密钥硬编码在源码里，等于公开；未覆盖时任何人都能自签 token）
+    if let Err(e) = nextrade_common::config::assert_secret_is_overridden(&cfg.jwt) {
+        tracing::error!("启动中止: {e}");
+        return Err(anyhow::anyhow!(e));
+    }
+
+    // 3. 数据库（最多重试 10 次，兼容 docker-compose 中数据库慢启动）
     let pool = {
         let mut attempt = 0;
         loop {

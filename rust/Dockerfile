@@ -9,7 +9,7 @@
 # cargo fmt                      # 格式化
 
 # ---------- Docker ----------
-# docker compose up -d --build   # 启动 mysql + redis + rabbitmq + 应用
+# docker compose up -d --build   # 启动 postgres + redis + rabbitmq + 应用
 
 FROM rust:bookworm AS builder
 WORKDIR /app
@@ -26,8 +26,9 @@ COPY crates/api/public/Cargo.toml ./crates/api/public/
 COPY crates/api/openapi/Cargo.toml ./crates/api/openapi/
 COPY crates/bin/Cargo.toml ./crates/bin/
 
+# sqlx 只启用了 postgres 驱动（纯 Rust 实现），不需要 libmysqlclient
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        pkg-config libssl-dev default-libmysqlclient-dev \
+        pkg-config libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # 预下载依赖（源码未就位时先构建空壳会失败，故直接全量拷贝后构建）
@@ -35,14 +36,17 @@ COPY crates ./crates
 RUN cargo build --release --manifest-path crates/Cargo.toml -p nextrade-server
 
 FROM debian:bookworm-slim
+# postgresql-client 供容器内手工导入 deploy/pg/*.sql（compose 已挂载到 /deploy/pg）
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates libssl3 default-mysql-client curl \
+        ca-certificates libssl3 postgresql-client curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=builder /app/crates/target/release/nextrade /usr/local/bin/nextrade
 # 真实配置含口令、不入库；镜像里放模板作为基线，敏感值用 TIG_* 环境变量覆盖
 COPY config.example.yaml ./config.yaml
+# migrations/ 是 MySQL 时代的 DDL（含 AUTO_INCREMENT / 反引号），对 PG 会语法报错。
+# 保留拷贝只为维持既有行为；TIG_DATASOURCE__AUTO_MIGRATE 必须保持 false。
 COPY migrations ./migrations
 COPY template ./template
 

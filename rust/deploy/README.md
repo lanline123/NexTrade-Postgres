@@ -1,21 +1,57 @@
 # 部署说明（Rust 版）
 
-## 1. Docker Compose（推荐先在有 Docker 的机器验证）
+## 1. Docker Compose（PostgreSQL 口径，2026-11-10 重写）
 
 ```bash
 cd rust
+export TIG_JWT_SECRET="$(openssl rand -base64 48)"   # 必填，见下
 docker compose up -d --build
 ```
 
-- MySQL 首次启动只执行 `deploy/mysql-init/00-pure.sql`（由
-  `python tools/compat/prepare_docker_mysql.py` 从 `../java/database/pure.sql`
-  生成，已去除 `INT UNSIGNED`，避免 sqlx 解码失败）。
-- 如需重新初始化数据库，删除 `mysql-data` volume 后重启。
-- 应用默认端口：管理端 `8080`、C 端 `8181`；健康检查 `/adminapi/health`，
-  指标 `/metrics`。
+- 数据库是 **`postgres:16-alpine`**（原 `mysql:8.0` 已废弃）。数据落在 `pg-data` volume。
+- `TIG_JWT_SECRET` 用 `${VAR:?}` 声明为**必填**：未设置时 `docker compose up` 会直接报错退出，
+  而不是悄悄用弱密钥跑起来。release 构建里另有兜底——密钥若仍是内置默认值，进程拒绝启动
+  （`crates/common/src/config.rs` 的 `assert_secret_is_overridden`）。
+- `TIG_DATASOURCE__AUTO_MIGRATE` 在 compose 里显式写成 `false`：`migrations/` 是 MySQL 时代的
+  DDL（`AUTO_INCREMENT`、反引号、`ENGINE=InnoDB`），对 PG 会直接语法报错。**不要打开。**
+- 如需重新初始化数据库，删掉 `pg-data` volume 后重启。
 
-> 注意：本仓库开发机没有 Docker，compose 文件已修正但尚未实际拉起验证；
-> 首次部署请保留 `docker compose logs -f mysql app` 观察初始化与迁移。
+### 全新安装：库结构从哪来
+
+仓库里**没有** PG 的基线 DDL（`deploy/mysql-init/*.sql` 是 MySQL 基线，`migrations/` 也是 MySQL 口径）。
+`deploy/pg/*.sql` 全是 `ALTER` 增量脚本，必须有基线结构才能执行，所以 initdb 阶段不挂载它们
+（只以 `/deploy/pg` 只读挂进去，供手工执行）。
+
+推荐顺序：
+
+```bash
+# 1) 从现存生产库导结构（不含数据）
+pg_dump --schema-only --no-owner --no-privileges \
+  "postgresql://<user>:<pwd>@<prod-host>:5432/nextrade" > schema.sql
+
+# 2) 首启前把 schema.sql 放进 pg-data 的初始化路径，或起库后手工导入
+docker compose up -d postgres
+docker compose exec -T postgres psql -U nextrade -d nextrade < schema.sql
+
+# 3) 再起应用
+docker compose up -d app
+```
+
+若是从更早的基线（未包含 `deploy/pg` 里那些修复）重建，按文件名日期顺序执行：
+
+```bash
+for f in $(ls /deploy/pg/*.sql | sort); do
+  docker compose exec -T postgres psql -U nextrade -d nextrade -f "$f" || break
+done
+```
+
+### 关于 `deploy/mysql-init/`
+
+MySQL 时代的建库脚本（`00-pure.sql` / `01-demo-signed.sql`），**compose 已不再挂载**。
+保留只为追溯历史基线（审计文档里引用过它的 `AUTO_INCREMENT` 列）。新部署不要用。
+
+> 注意：本仓库开发机没有 Docker，compose 文件已改为 PG 口径但尚未实际拉起验证；
+> 首次部署请保留 `docker compose logs -f postgres app` 观察初始化。
 
 ## 2. 前端 / Nginx
 
@@ -61,9 +97,10 @@ npm run build
 
 | 变量 | 说明 |
 |---|---|
-| `TIG_DATASOURCE__URL` | MySQL URL（compose 已注入） |
+| `TIG_DATASOURCE__URL` | **PostgreSQL** URL（`postgres://user:pwd@host:5432/db`，compose 已注入） |
+| `TIG_DATASOURCE__AUTO_MIGRATE` | 必须 `false`：`migrations/` 是 MySQL 口径 |
 | `TIG_REDIS__HOST` / `TIG_RABBITMQ__HOST` | Redis / RabbitMQ |
-| `TIG_JWT__SECRET` | 生产必须替换默认值 |
+| `TIG_JWT__SECRET` | **必填**。留空或用内置默认值时，release 构建拒绝启动 |
 | `TIG_SERVER__ADMIN_PORT` / `TIG_SERVER__API_PORT` | 8080 / 8181 |
 | `TIG_SCHEDULER__ENABLED` | 是否启用轮询任务 |
 | `OPEN_TEMPLATE_BASE_URL` | 装修模板 OpenTemplate API（缺省 `https://api.nextrade.com/index`） |
@@ -74,4 +111,4 @@ npm run build
 2. `curl http://127.0.0.1:8080/metrics` → Prometheus 文本
 3. 管理端登录（`admin/admin123`）→ token/adminType 正常
 4. 前端经 nginx 登录、商品列表、下单、支付回调、IM WS 正常
-5. `docker compose ps` 中 mysql/app 为 healthy/running
+5. `docker compose ps` 中 postgres/app 为 healthy/running

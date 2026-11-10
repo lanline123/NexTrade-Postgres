@@ -2,7 +2,7 @@
 
 这是一个面向 B2B2C 场景的多商户电商平台后端服务，提供商城前台 API 与管理后台 API 两套接口，覆盖商品、订单、用户、支付、营销、内容、商户、门店配送等核心业务。
 
-服务使用 Rust 编写，基于 Axum + SQLx + MySQL + Redis，支持 JWT 认证、异步任务、文件存储与 Elasticsearch 搜索扩展。
+服务使用 Rust 编写，基于 Axum + SQLx + PostgreSQL + Redis，支持 JWT 认证、异步任务、文件存储与 Elasticsearch 搜索扩展。
 
 ## 功能概览
 
@@ -22,7 +22,7 @@
   - JWT 登录与刷新
   - 统一响应结构与业务错误码
   - Redis 缓存
-  - MySQL 事务与原子库存扣减
+  - PostgreSQL 事务与原子库存扣减
   - 本地文件上传，可扩展对象存储
   - Elasticsearch 商品搜索扩展
 
@@ -31,7 +31,7 @@
 | 组件 | 技术 |
 |------|------|
 | Web 框架 | Axum 0.8 + Tokio |
-| 数据库 | MySQL + SQLx 0.8 |
+| 数据库 | PostgreSQL 16 + SQLx 0.8（仅启用 `postgres` 驱动） |
 | 缓存 | Redis |
 | 消息队列 | RabbitMQ |
 | 搜索 | Elasticsearch（可选） |
@@ -149,7 +149,7 @@ storage:
 ## 本地运行
 
 ```bash
-# 1. 准备 MySQL、Redis（可选 RabbitMQ / Elasticsearch）
+# 1. 准备 PostgreSQL、Redis（可选 RabbitMQ / Elasticsearch）
 # 2. 修改 config.yaml 中的连接信息
 # 3. 启动
 cargo run --release
@@ -172,10 +172,12 @@ target/release/ 下的可执行文件
 ## Docker
 
 ```bash
+export TIG_JWT_SECRET="$(openssl rand -base64 48)"   # 必填
 docker compose up -d --build
 ```
 
-默认包含 MySQL、Redis、RabbitMQ 与应用服务，具体端口与账号见 `docker-compose.yml`。
+默认包含 **PostgreSQL 16**、Redis、RabbitMQ 与应用服务，具体端口与账号见 `docker-compose.yml`。
+库结构需先从生产库 `pg_dump --schema-only` 导入，详见 `deploy/README.md`。
 
 ## 接口约定
 
@@ -206,7 +208,7 @@ Authorization: Bearer <token>
 ```ini
 [Unit]
 Description=E-commerce backend
-After=network.target mysql.service redis.service
+After=network.target postgresql.service redis.service
 
 [Service]
 Type=simple

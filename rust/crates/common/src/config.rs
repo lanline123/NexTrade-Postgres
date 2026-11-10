@@ -156,8 +156,14 @@ pub struct JwtConfig {
     pub issuer: String,
 }
 
+/// 内置默认 JWT 密钥。**源码里公开可见**，只允许用于本地开发。
+///
+/// 生产若没覆盖它，等于签名密钥公开——任何人都能自签 token 冒充任意用户。
+/// release 构建下由 [`assert_secret_is_overridden`] 拒绝启动。
+pub const DEFAULT_JWT_SECRET: &str = "nextrade-rust-dev-secret-change-me-in-production";
+
 fn default_jwt_secret() -> String {
-    "nextrade-rust-dev-secret-change-me-in-production".into()
+    DEFAULT_JWT_SECRET.into()
 }
 fn default_access_exp() -> i64 {
     7200
@@ -178,6 +184,46 @@ impl Default for JwtConfig {
             issuer: default_issuer(),
         }
     }
+}
+
+impl JwtConfig {
+    /// 密钥是否仍为空、或仍等于内置默认值（即「没有真正配置过」）。
+    #[must_use]
+    pub fn uses_builtin_secret(&self) -> bool {
+        self.secret.trim().is_empty() || self.secret == DEFAULT_JWT_SECRET
+    }
+}
+
+/// 启动守卫：release 构建拒绝用内置默认 JWT 密钥启动。
+///
+/// 分级行为：
+///
+/// * 已覆盖（`TIG_JWT__SECRET` 或 `config.yaml` 的 `jwt.secret`）→ 放行；
+/// * 未覆盖但设了 `TIG_JWT__ALLOW_DEFAULT_SECRET=1` → 放行 + 警告（给本地
+///   release 冒烟这类场景，生产不该设）；
+/// * 未覆盖且是 debug 构建（`cargo run`）→ 放行 + 警告；
+/// * 未覆盖且是 release 构建 → 拒绝。
+///
+/// # Errors
+///
+/// 当 `jwt` 仍使用内置默认密钥、且不满足上面任一放行条件时，返回说明原因的错误文本。
+pub fn assert_secret_is_overridden(jwt: &JwtConfig) -> Result<(), String> {
+    if !jwt.uses_builtin_secret() {
+        return Ok(());
+    }
+    let msg = "JWT 密钥仍是内置默认值（`DEFAULT_JWT_SECRET`，源码公开可见），任何人都能伪造 token。\
+               请设置 TIG_JWT__SECRET 环境变量或 config.yaml 的 jwt.secret";
+    let escaped = std::env::var("TIG_JWT__ALLOW_DEFAULT_SECRET")
+        .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+    if escaped {
+        tracing::warn!("{msg}；已由 TIG_JWT__ALLOW_DEFAULT_SECRET 放行，切勿用于生产");
+        return Ok(());
+    }
+    if cfg!(debug_assertions) {
+        tracing::warn!("{msg}；debug 构建放行（release 构建会拒绝启动）");
+        return Ok(());
+    }
+    Err(msg.to_string())
 }
 
 /// RabbitMQ 配置，对应 Spring `spring.rabbitmq`。
@@ -388,5 +434,45 @@ mod tests {
         assert_eq!(cfg.server.admin_port, 8080);
         assert_eq!(cfg.server.api_port, 8181);
         assert_eq!(cfg.jwt.access_expire_secs, 7200);
+    }
+
+    #[test]
+    fn builtin_secret_is_detected() {
+        // 默认构造出来的就是内置默认值 → 视为「没配过」
+        assert!(JwtConfig::default().uses_builtin_secret());
+
+        // 空串 / 纯空白同样算没配过
+        let blank = JwtConfig {
+            secret: "   ".into(),
+            ..JwtConfig::default()
+        };
+        assert!(blank.uses_builtin_secret());
+
+        // 任意自定义值都算配过
+        let custom = JwtConfig {
+            secret: "a".repeat(48),
+            ..JwtConfig::default()
+        };
+        assert!(!custom.uses_builtin_secret());
+    }
+
+    #[test]
+    fn guard_rejects_builtin_secret_only_in_release() {
+        let builtin = JwtConfig::default();
+        let res = assert_secret_is_overridden(&builtin);
+        if cfg!(debug_assertions) {
+            // debug 构建放行，只警告
+            assert!(res.is_ok(), "debug 构建应放行内置默认密钥");
+        } else {
+            let err = res.expect_err("release 构建必须拒绝内置默认密钥");
+            assert!(err.contains("JWT"), "错误信息应说明是 JWT 密钥问题: {err}");
+        }
+
+        // 自定义密钥在任何构建下都放行
+        let custom = JwtConfig {
+            secret: "x".repeat(48),
+            ..JwtConfig::default()
+        };
+        assert!(assert_secret_is_overridden(&custom).is_ok());
     }
 }

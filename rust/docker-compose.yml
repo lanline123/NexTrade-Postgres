@@ -1,29 +1,40 @@
-# NexTrade Rust 版 docker-compose
-# 对应原 Java docker-compose.yml（服务拓扑一致：mysql/redis/rabbitmq + 应用）
-# 用法：docker compose up -d --build
+# NexTrade Rust 版 docker-compose（PostgreSQL 口径）
+#
+# 2026-11-10 从 MySQL 口径改写：服务拓扑不变（db/redis/rabbitmq + 应用），
+# 数据库换成 postgres:16；`migrations/` 与 `deploy/mysql-init/` 是 MySQL 时代的
+# 遗留物，**不要**在这里启用 `TIG_DATASOURCE__AUTO_MIGRATE`（见 deploy/README.md）。
+#
+# 用法：
+#   export TIG_JWT_SECRET="$(openssl rand -base64 48)"   # 必填
+#   docker compose up -d --build
 
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: nextrade-rust-mysql
+  postgres:
+    image: postgres:16-alpine
+    container_name: nextrade-rust-postgres
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-nextrade-java}
+      POSTGRES_USER: ${POSTGRES_USER:-nextrade}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nextrade}
+      POSTGRES_DB: ${POSTGRES_DB:-nextrade}
       TZ: Asia/Shanghai
+      # 与线上时间列口径一致（生产库为 Asia/Shanghai）
+      PGTZ: Asia/Shanghai
     command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_general_ci
-      # 兼容原 Hikari connection-init-sql：去除 ONLY_FULL_GROUP_BY
-      - --sql-mode=NO_ENGINE_SUBSTITUTION
+      - postgres
+      - -c
+      - timezone=Asia/Shanghai
+      - -c
+      - log_min_duration_statement=1000
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - mysql-data:/var/lib/mysql
-      # 首次启动导入已转换成有符号整型的 pure.sql（由 tools/compat/prepare_docker_mysql.py 生成）
-      # 直接挂 ../java/database 会执行大量 update/demo 脚本并因 INT UNSIGNED 解码失败
-      - ./deploy/mysql-init:/docker-entrypoint-initdb.d:ro
+      - pg-data:/var/lib/postgresql/data
+      # 增量脚本只做参考挂载：initdb 阶段**不会**执行（它们是 ALTER，需要有基线结构）。
+      # 全新安装步骤见 deploy/README.md。
+      - ./deploy/pg:/deploy/pg:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      # $$ 由 compose 转义为 $，交给容器内 shell 展开
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -55,18 +66,24 @@ services:
       dockerfile: Dockerfile
     container_name: nextrade-rust-app
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_started
     environment:
       RUST_LOG: info,nextrade=info,sqlx=warn
       # 配置全部走环境变量（覆盖 config.yaml）
-      TIG_DATASOURCE__URL: "mysql://root:${MYSQL_ROOT_PASSWORD:-root}@mysql:3306/${MYSQL_DATABASE:-nextrade-java}"
+      TIG_DATASOURCE__URL: "postgres://${POSTGRES_USER:-nextrade}:${POSTGRES_PASSWORD:-nextrade}@postgres:5432/${POSTGRES_DB:-nextrade}"
+      # migrations/ 是 MySQL 时代 DDL，对 PG 会直接语法报错；库结构须先用 pg_dump 导入。
+      TIG_DATASOURCE__AUTO_MIGRATE: "false"
       TIG_REDIS__HOST: redis
       TIG_RABBITMQ__HOST: rabbitmq
       TIG_RABBITMQ__PASSWORD: ${RABBITMQ_DEFAULT_PASS:-admin}
-      TIG_JWT__SECRET: ${TIG_JWT_SECRET:-change-me-in-production-64-bytes-random-secret}
+      # 必填：release 构建在密钥仍为内置默认值时会拒绝启动（crates/common/src/config.rs）。
+      # `:?` 让 compose 在变量未设置时直接报错退出，而不是悄悄用弱密钥跑起来。
+      TIG_JWT__SECRET: "${TIG_JWT_SECRET:?必须设置 TIG_JWT_SECRET（例如 openssl rand -base64 48）}"
       TIG_SERVER__ADMIN_PORT: "8080"
       TIG_SERVER__API_PORT: "8181"
     ports:
@@ -76,5 +93,5 @@ services:
       - uploads:/app/uploads
 
 volumes:
-  mysql-data:
+  pg-data:
   uploads:
