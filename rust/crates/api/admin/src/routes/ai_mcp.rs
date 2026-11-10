@@ -13,7 +13,10 @@
 //!
 //! MCP 端点（免管理员 JWT，Bearer Token 鉴权）：`POST /adminapi/ai/mcp`（JSON-RPC 2.0）。
 
-use std::time::Instant;
+use std::net::IpAddr;
+use std::time::{Duration, Instant};
+
+use base64::Engine as _;
 
 use axum::{
     extract::State,
@@ -670,6 +673,22 @@ fn tools_for(settings: &McpSettings) -> Vec<Value> {
             }),
         ]);
     }
+    if settings.product_enabled || settings.decorate_enabled {
+        tools.push(json!({
+            "name": "media_upload",
+            "description": "把公网图片 URL 或 base64 图片保存到素材中心，返回图片地址与 picId（jpg/png/gif/webp/tiff，≤20MB）。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "url": { "type": "string", "description": "http/https 图片地址，与 base64 二选一" },
+                    "base64": { "type": "string", "description": "图片 base64，可带 data:image/png;base64, 前缀" },
+                    "fileName": { "type": "string", "description": "文件名，缺省从 URL/类型推断" },
+                    "galleryId": { "type": "integer", "description": "素材分组 ID，缺省 0（未分组）" }
+                },
+                "additionalProperties": false
+            }
+        }));
+    }
     if settings.decorate_enabled {
         tools.extend([
             json!({
@@ -885,6 +904,182 @@ fn parse_product_ids(args: &Value) -> Result<Vec<i32>, String> {
         return Err("productIds 不能为空".into());
     }
     Ok(ids)
+}
+
+const MAX_MEDIA_BYTES: usize = 20 * 1024 * 1024;
+
+fn is_private_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => {
+            v4.is_private()
+                || v4.is_loopback()
+                || v4.is_link_local()
+                || v4.is_broadcast()
+                || v4.is_unspecified()
+                || v4.is_documentation()
+        }
+        IpAddr::V6(v6) => {
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return is_private_ip(IpAddr::V4(v4));
+            }
+            v6.is_loopback()
+                || v6.is_unspecified()
+                || (v6.segments()[0] & 0xfe00) == 0xfc00
+                || (v6.segments()[0] & 0xffc0) == 0xfe80
+        }
+    }
+}
+
+/// 只允许公网 http/https：解析域名并拒绝内网/回环/链路本地地址（SSRF 防护）。
+async fn ensure_public_url(url: &reqwest::Url) -> Result<(), String> {
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err("仅支持 http/https 图片地址".into());
+    }
+    let host = url.host_str().ok_or_else(|| "URL 缺少主机名".to_string())?;
+    if host.eq_ignore_ascii_case("localhost") {
+        return Err("不允许访问本机地址".into());
+    }
+    let port = url.port_or_known_default().unwrap_or(443);
+    let mut resolved = false;
+    for addr in tokio::net::lookup_host((host, port))
+        .await
+        .map_err(|e| format!("解析域名失败: {e}"))?
+    {
+        resolved = true;
+        if is_private_ip(addr.ip()) {
+            return Err("不允许访问内网地址".into());
+        }
+    }
+    if !resolved {
+        return Err("域名无可用解析结果".into());
+    }
+    Ok(())
+}
+
+async fn download_image(url: &str) -> Result<(Vec<u8>, Option<String>), String> {
+    let mut current = reqwest::Url::parse(url).map_err(|e| format!("URL 不合法: {e}"))?;
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(20))
+        .build()
+        .map_err(|e| e.to_string())?;
+    for _ in 0..4 {
+        ensure_public_url(&current).await?;
+        let resp = client
+            .get(current.clone())
+            .send()
+            .await
+            .map_err(|e| format!("下载失败: {e}"))?;
+        if resp.status().is_redirection() {
+            let location = resp
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|value| value.to_str().ok())
+                .ok_or_else(|| "重定向缺少 Location".to_string())?;
+            current = current
+                .join(location)
+                .map_err(|e| format!("重定向地址不合法: {e}"))?;
+            continue;
+        }
+        if !resp.status().is_success() {
+            return Err(format!("下载失败: HTTP {}", resp.status()));
+        }
+        let mime = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .map(|value| value.split(';').next().unwrap_or(value).trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty());
+        let bytes = resp.bytes().await.map_err(|e| format!("读取图片失败: {e}"))?;
+        if bytes.is_empty() {
+            return Err("图片内容为空".into());
+        }
+        if bytes.len() > MAX_MEDIA_BYTES {
+            return Err("图片超过 20MB 限制".into());
+        }
+        return Ok((bytes.to_vec(), mime));
+    }
+    Err("重定向次数过多".into())
+}
+
+fn decode_base64_image(raw: &str) -> Result<(Vec<u8>, Option<String>), String> {
+    let trimmed = raw.trim();
+    let (mime, payload) = if let Some(rest) = trimmed.strip_prefix("data:") {
+        let (meta, data) = rest
+            .split_once(',')
+            .ok_or_else(|| "base64 data URL 格式不正确".to_string())?;
+        (
+            meta.split(';')
+                .next()
+                .map(|value| value.trim().to_ascii_lowercase())
+                .filter(|value| value.starts_with("image/")),
+            data,
+        )
+    } else {
+        (None, trimmed)
+    };
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(payload.trim())
+        .map_err(|_| "base64 解码失败".to_string())?;
+    if bytes.is_empty() {
+        return Err("图片内容为空".into());
+    }
+    if bytes.len() > MAX_MEDIA_BYTES {
+        return Err("图片超过 20MB 限制".into());
+    }
+    Ok((bytes, mime))
+}
+
+fn sanitize_file_name(name: &str) -> String {
+    let base = name.rsplit(['/', '\\']).next().unwrap_or(name).trim();
+    let cleaned: String = base
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_') {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if cleaned.is_empty() {
+        "ai-upload.jpg".to_string()
+    } else {
+        cleaned
+    }
+}
+
+fn build_media_name(explicit: Option<&str>, url: Option<&str>, mime: Option<&str>) -> String {
+    if let Some(name) = explicit {
+        return sanitize_file_name(name);
+    }
+    if let Some(link) = url {
+        if let Ok(parsed) = reqwest::Url::parse(link) {
+            if let Some(last) = parsed.path_segments().and_then(|mut segments| segments.next_back()) {
+                if !last.trim().is_empty() {
+                    return sanitize_file_name(last);
+                }
+            }
+        }
+    }
+    let ext = mime
+        .and_then(|value| value.split('/').nth(1))
+        .unwrap_or("jpg");
+    let ext = if ext == "jpeg" { "jpg" } else { ext };
+    format!("ai-upload.{ext}")
+}
+
+fn guess_image_mime(file_name: &str) -> Option<String> {
+    let ext = file_name.rsplit('.').next()?.to_ascii_lowercase();
+    let mime = match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "tif" | "tiff" => "image/tiff",
+        _ => return None,
+    };
+    Some(mime.to_string())
 }
 
 /// 批量操作可执行性判定（对齐旧版 batchBlockReason 的业务规则）。
@@ -1356,6 +1551,41 @@ async fn call_tool(
                 "created": created,
                 "failed": failed,
             }))
+        }
+        "media_upload" => {
+            if !settings.product_enabled && !settings.decorate_enabled {
+                return Err("商品域与装修域均未启用，无法上传素材".into());
+            }
+            let url = arg_str(args, "url");
+            let base64_raw = arg_str(args, "base64");
+            let (bytes, mime) = match (url.as_deref(), base64_raw.as_deref()) {
+                (Some(link), None) => download_image(link).await?,
+                (None, Some(raw)) => decode_base64_image(raw)?,
+                (Some(_), Some(_)) => return Err("url 与 base64 只能二选一".into()),
+                (None, None) => return Err("缺少 url 或 base64".into()),
+            };
+            let file_name = build_media_name(
+                arg_str(args, "fileName").as_deref(),
+                url.as_deref(),
+                mime.as_deref(),
+            );
+            let content_type = mime.or_else(|| guess_image_mime(&file_name));
+            let gallery_id = arg_i32(args, "galleryId").filter(|id| *id > 0);
+            let vo = state
+                .content
+                .gallery_pic
+                .upload_img(
+                    gallery_id,
+                    content_type.as_deref(),
+                    bytes.len() as u64,
+                    Some(&file_name),
+                    &bytes,
+                    0,
+                    0,
+                )
+                .await
+                .map_err(|e| e.to_string())?;
+            serde_json::to_value(vo).map_err(|e| e.to_string())
         }
         "decorate_list_pages" => {
             if !settings.decorate_enabled {
