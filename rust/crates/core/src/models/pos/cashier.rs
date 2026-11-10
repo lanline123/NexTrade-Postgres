@@ -170,14 +170,6 @@ pub struct PosCartChangePriceDTO {
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
-pub struct PosReservationQuery {
-    pub page: Option<u64>,
-    pub size: Option<u64>,
-    pub keyword: Option<String>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
 pub struct PosCheckoutDTO {
     pub table_id: Option<i32>,
     pub pay_type_id: Option<i32>,

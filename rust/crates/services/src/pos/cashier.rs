@@ -779,22 +779,6 @@ impl PosCashierService {
         }
     }
 
-    /// 预约订单列表（分页）。
-    pub async fn reservations(&self, q: &PosReservationQuery) -> Result<serde_json::Value> {
-        let page = q.page.unwrap_or(1).max(1);
-        let size = q.size.unwrap_or(15).clamp(1, 100);
-        let (total, rows) = self
-            .repo()
-            .reservations(q.keyword.as_deref(), size, (page - 1) * size)
-            .await?;
-        Ok(serde_json::json!({
-            "records": rows,
-            "total": total,
-            "page": page,
-            "size": size,
-        }))
-    }
-
     /// 开台：仅未开台的桌台可开，写入人数并置「待下单」。
     pub async fn table_open(&self, dto: &PosTableOperateDTO) -> Result<()> {
         let table = self
