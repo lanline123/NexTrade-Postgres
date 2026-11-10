@@ -85,6 +85,14 @@ impl PosCashierService {
         self.repo().working_draft(admin_id).await
     }
 
+    async fn working_draft_for(
+        &self,
+        admin_id: i32,
+        table_id: i32,
+    ) -> Result<Option<nextrade_core::entities::o2o::PosPendingOrder>> {
+        self.repo().working_draft_for(admin_id, table_id).await
+    }
+
     // ————————————————————— 收银员 —————————————————————
 
     pub async fn cashier_list(
@@ -512,7 +520,6 @@ impl PosCashierService {
         if let Some(checked) = dto.is_checked {
             self.repo().item_update_checked(item_id, checked).await?;
         }
-        self.repo().draft_touch(draft.pending_id, 0, 0).await?;
         Ok(())
     }
 
