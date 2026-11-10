@@ -467,6 +467,7 @@ export default function ProductFormDrawer({
                 render: ({ formApi, values }) => (
                   <div>
                     <ImageUploader
+                      gallery
                       value={values.gallery || []}
                       onChange={(urls) => formApi?.setValue('gallery', urls)}
                     />

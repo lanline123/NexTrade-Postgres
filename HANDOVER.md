@@ -530,11 +530,14 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | PC 收尾两处（`5c1d10e7` build 25，审计 38.4）：搜索价格输入占位符改用当前币种符号；商品/WebSite JSON-LD 的 priceCurrency、inLanguage 跟随换币与语言 |
 | 2026-11-10 | 管理端登录页蓝线（审计第三十八章）：线上 admin 包是 11-08 11:49 旧构建，CSS 残留旧版 `.login-tabs .is-active::after`，在新 button 布局下泄漏为 1180×2px 通栏蓝线。按上游源码 `c7d49743` 重建 admin-semi 并全量上传 dist（97 资源 + index.html 最后切换），线上哈希一致、旧规则 0 命中；回滚副本 `scratch/admin-index.old.html` |
 | 2026-11-10 | 管理端登录页 tab 切换高度跳动（审计第三十九章）：`.login-options` 无固定行高，密码行 19px / 手机提示行 17px，导致卡片与按钮跳动 2px。上游 `styles.css` 加 `min-height: 20px` 后重建部署，线上两模式卡片 579.8px、按钮位置完全一致 |
-| 2026-11-10 | POS 收银台路径统一为 `/pos`（审计第四十章）：按钮由 `/admin/pos/` 改为 `/pos/`；dev 预览同步；产物路由 base 被编译成 `admin`，dev 服务与新增的 `npm run build:pos` 都会把 7 处 `VITE_BASE_DIR` 补丁为空并生成无 `<base>` 的 `pos-dist/`。部署需把 `pos-dist` 传到站点 `/pos` 并加 nginx `location ^~ /pos` 兜底 |
+| 2026-11-10 | POS 收银台路径统一为 `/pos`（审计第四十章）：按钮由 `/admin/pos/` 改为 `/pos/`；dev 预览同步；产物路由 base 被编译成 `admin`，dev 服务与新增的 `npm run build:pos` 都会把 7 处 `VITE_BASE_DIR` 补丁为空并生成无 `<base>` 的 `pos-dist/`。已部署：POS 解压到站点 `/pos` + nginx `location ^~ /pos`，admin 入口打最小补丁 `index-15da4ad2.js`（线上 vendor 与本地不同，未整包重建） |
+| 2026-11-10 | POS 原生重写立项（审计第四十二章）：新增根目录 `pos-semi/`（React 18 + Vite + Semi UI），与 admin-semi/pc-semi 并列；M0 已打通登录态、分类/商品查询，支持 `VITE_BASE_PATH` 独立部署；`npm run build` 通过（473 KB JS / 678 KB CSS）。线上 `/pos` 暂仍为 legacy bundle，替换前 admin-semi 的 `build:pos` 保留 |
+| 2026-11-10 | pos-semi 收银页 1:1 重建（审计第四十三章，`3cd7af1`）：直接复用 5.8.60 产物组件 CSS（去 scoped）与原 DOM class 结构，收银页接通商品/分类/购物车（加购/改数量/删除/清空/合计），新增 `PARITY.md` 逐项状态；另修后端 `add_to_cart` 对 PG `numeric` 价格的解析（`a74c943`，legacy 端购物车金额 0.00 同因） |
 | 2026-11-10 | 后台顶栏「查看商城」补图标（审计第四十章）：React 版顶栏按钮漏了 `icon`，原版 Vue 为 `icon-guanli`；补 `IconShoppingBag`（与账号下拉同名入口一致），上游 admin-semi 重建后全量上传，线上 DOM 已含 `semi-icon-shopping_bag`，回滚 index 存 `scratch/admin-index.online.20261110_170626.html` |
 | 2026-11-10 | 推送约定：后续**只推送 `NexTrade-Postgres`**；上游 `D:\tigshop\NexTrade` 仅作构建源码，改动同步到本仓库 `admin-semi/` / `pc-semi/` 后再提交，不再向上游 remote 推送（§2.2） |
 | 2026-11-10 | 素材中心「删除分组」弹窗现代化（审计第四十一章）：警示条显示分组名 + 两张可点击策略卡（选中蓝/危险红）+ 红色确认按钮；因上游有并行 WIP，改用 `git archive HEAD` 干净源码构建后全量上传，线上 `index-vGC7iQEf.js`，回滚 index 存 `scratch/admin-index.online.20261110_172540.html` |
 | 2026-11-10 | 危险项圆点红色方块修复（审计 41.6）：红色误涂在无圆角外层 `.semi-radio-inner`，改为只给圆形 `.semi-radio-inner-display` 上色；线上 `index-DuI8xVsF.js` / `index-pH85wgPg.css`，回滚 index 存 `scratch/admin-index.online.20261110_180852.html` |
+| 2026-11-10 | 新增商品「商品图片」恢复素材中心选择（审计第四十四章）：新增 `GalleryPickerModal`（分组/搜索/多选/上传），`ImageUploader` 增加 `gallery` 入口，商品表单启用；线上 `index-CPlPAlV0.js`，验证选中 2 张可回填。跨仓库同步改为定向编辑，避免把 Tigshop/NexTrade 品牌差异带进上游 |
 
 ---
 

@@ -1,14 +1,17 @@
 import { useRef, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import { IconClose, IconPlus } from '@douyinfe/semi-icons';
+import { IconClose, IconGallery, IconPlus } from '@douyinfe/semi-icons';
 import { apiUpload, isDemo } from '../api';
 import { useI18n } from '../i18n';
+import GalleryPickerModal from './GalleryPickerModal';
 
 interface ImageUploaderProps {
   value: string[];
   onChange: (next: string[]) => void;
   max?: number;
   single?: boolean;
+  /** 显示「素材中心」入口，从图库选择已有图片 */
+  gallery?: boolean;
 }
 
 interface UploadResult {
@@ -16,10 +19,19 @@ interface UploadResult {
   picThumb?: string;
 }
 
-export default function ImageUploader({ value, onChange, max = 9, single = false }: ImageUploaderProps) {
+export default function ImageUploader({
+  value,
+  onChange,
+  max = 9,
+  single = false,
+  gallery = false,
+}: ImageUploaderProps) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const limit = single ? 1 : max;
+  const remaining = limit - value.length;
 
   const pick = () => {
     if (isDemo()) {
@@ -31,7 +43,6 @@ export default function ImageUploader({ value, onChange, max = 9, single = false
 
   const upload = async (files: FileList | null) => {
     if (!files || !files.length) return;
-    const limit = single ? 1 : max;
     const remaining = limit - value.length;
     if (remaining <= 0) {
       Toast.warning({ content: t('最多上传 {count} 张图片', { count: limit }) });
@@ -93,13 +104,41 @@ export default function ImageUploader({ value, onChange, max = 9, single = false
             </div>
           </div>
         ))}
-        {value.length < (single ? 1 : max) && (
-          <button type="button" className="image-uploader-add" onClick={pick} disabled={uploading}>
-            <IconPlus />
-            <span>{uploading ? t('上传中...') : t('上传图片')}</span>
-          </button>
+        {value.length < limit && (
+          <>
+            <button type="button" className="image-uploader-add" onClick={pick} disabled={uploading}>
+              <IconPlus />
+              <span>{uploading ? t('上传中...') : t('上传图片')}</span>
+            </button>
+            {gallery && (
+              <button
+                type="button"
+                className="image-uploader-add is-gallery"
+                onClick={() => setPickerOpen(true)}
+              >
+                <IconGallery />
+                <span>{t('素材中心')}</span>
+              </button>
+            )}
+          </>
         )}
       </div>
+      {gallery && (
+        <GalleryPickerModal
+          visible={pickerOpen}
+          multiple={!single}
+          limit={Math.max(remaining, 0)}
+          onCancel={() => setPickerOpen(false)}
+          onConfirm={(urls) => {
+            const next = [...value];
+            urls.forEach((url) => {
+              if (next.length < limit && !next.includes(url)) next.push(url);
+            });
+            onChange(next);
+            setPickerOpen(false);
+          }}
+        />
+      )}
       <div className="image-uploader-tip">
         {single
           ? t('支持 JPG / PNG / WebP，单张图片。')
