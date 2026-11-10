@@ -153,6 +153,7 @@ git push origin main
 | 组件 | 路径 / 单元 | 端口 |
 |---|---|---|
 | PC 商城 `battery.recy.cc` | `/www/wwwroot/battery.recy.cc`（Next.js SSR，`nextrade-pc`） | 3005 |
+| PC 前端源码 | **上游仓库** `D:\tigshop\NexTrade\rust\web\pc-semi`（本仓库 `pc-semi/` 是旧快照，`build-pc.yml` 指向不存在的 `rust/web/pc-semi`，**不可用于生产构建**）；构建走上游 `build-pc-frontend`，产物 `nextrade-pc.tgz` | — |
 | 后台 `admin.recy.cc` | `/www/wwwroot/admin.recy.cc`（admin-semi 静态） | — |
 | Rust 后端 | `/www/wwwroot/nextrade/nextrade`（systemd `nextrade`） | 8080 `/adminapi`、8181 `/api` `/static` |
 | nginx 主配置 | `/www/server/panel/vhost/nginx/html_<域名>.conf`（面板生成） | 80/443 |
@@ -432,7 +433,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 
 | 项 | 状态 |
 |---|---|
-| 线上二进制 | **staging 包 `6d099b0`**（含 JWT 启动守卫、ILIKE 大小写不敏感、唯一键恢复、语义映射复核），72,575,288 字节，sha256 `53d2c5ab…aab2`，11:57:23 部署（`scratch/deploy-6d099b0.sh`，部署前 live 备份 `nextrade.bak.20261110_115723`，`main_pid=3964687`，`proc_sha` 与磁盘一致，健康失败自动回滚；冒烟 12/12、回归 53/53+4/4） |
+| 线上二进制 | **staging 包 `f340698`**（含货号大小写不敏感查询），72,575,312 字节，sha256 `256a4385…9241`，13:37:39 部署（`scratch/deploy-f340698.sh`，备份 `nextrade.bak.20261110_133739`，`main_pid=3990008`，`proc_sha` 与磁盘一致；冒烟 12/12、回归 53/53+4/4） |
 | 生产库 | 49 列已回退 text（§4.3）；637 列 smallint→integer 加宽；12 列 bigint→integer 收窄；335 张 MySQL 表全在、3927 列 0 缺失 |
 | 与 `pure.sql` 比对 | 686 处差异**全部为有意改动**：637 整数加宽 + 49 时间/JSON 回退（线上 MySQL 本就是字符串）；无丢失性差异 |
 | 会员 `123/123` | 登录、购物车、getCount、订单、资料、站内信、商品分页（total=64 有记录）、签到 sign 均 200 |
@@ -486,11 +487,12 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
      - 历史提交里仍有明文（`git log -p -- rust/config.yaml`）。原值为「用户名/口令相同」，
        JWT 为占位串。**凡是在任何环境用过的，都需要轮换**；JWT secret 一换，现有登录态全部失效，
        建议低峰期执行。
-     - `crates/common/src/config.rs:159` 还有一个内置默认 JWT secret（源码公开）。生产若未覆盖
-       `TIG_JWT__SECRET`，等于签名密钥公开、任何人可伪造 token。建议后续改成「非 debug 构建且使用
-       默认值时拒绝启动」。
-2. `rust/docker-compose.yml` 仍是 `mysql:8.0` + `mysql://` DSN，与 PG 迁移不符。
-3. `rust/deploy/README.md` 与 `rust/deploy/mysql-init/` 仍是 MySQL 口径。
+     - `crates/common/src/config.rs:159` 的内置默认 JWT secret 已加启动守卫（2026-11-10，`aaa407f`）：
+       release 构建仍用默认值/空值时**拒绝启动**，debug 告警放行，`TIG_JWT__ALLOW_DEFAULT_SECRET=1`
+       仅供本地 release 冒烟。已随 `6d099b0` 上线；生产 `config.yaml` 的 secret 实测为 63 字符自定义值。
+2. `rust/docker-compose.yml` 已改 `postgres:16-alpine`（`TIG_JWT_SECRET` 必填、`AUTO_MIGRATE=false`），
+   `rust/Dockerfile` 去掉 MySQL 客户端、换 `postgresql-client`（2026-11-10）。
+3. `rust/deploy/README.md` 已改 PG 口径并补全新安装流程；`rust/deploy/mysql-init/` 已标注为停用遗留物。
 4. 若面板地址或 API 密钥发生轮换，只需改 `C:\Users\Public\bt2api.ps1`，本文无需变更（本文不含具体值）。
 
 ---
@@ -512,6 +514,8 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 单测门禁落地（原待办第 2 项）：`cargo test --workspace --no-fail-fast -j 1` 进 `check-rust.yml`；**首次真跑暴露 82 处失败**（此前只发现 3 处），全部修完，含 5 处「硬编码 `$N` 混进 `?` 拼接」的真实占位符编号 bug；全 workspace 约 4600 用例 0 失败，见 §4.6.3 |
 | 2026-11-10 | `shop_deposit` 并发创建加固（审计 33.4/33.6）：恢复 MySQL 唯一键 `uk_owner(owner_type,owner_id)`，两处 INSERT 改 `ON CONFLICT DO NOTHING`；staging `1c05a25` 上线（10:14，备份 `nextrade.bak.20261110_101415`），回归 53/53 + 跨接口 4/4 |
 | 2026-11-10 | 交接待办 3/5/6/8 处置（审计第三十五章）：语义映射复核结论（`order_remark` 为臆造列名，读 `buyer_note`；`lottery_activity` 无 `status` 列）；CI 提速实施（staging 热缓存 5m58s vs 冷 14m34s）；JWT 启动守卫上线（`6d099b0`，生产 secret 已核非默认，11:57 部署，回归 53/53+4/4）；docker-compose/Dockerfile/README 全面改 PG 口径 |
+| 2026-11-10 | PC 商品页 308 到 `localhost:3005` 修复（审计第三十六章）：middleware 改按 `x-forwarded-host/proto`（回退 `host`）构造绝对 URL，不再用 `nextUrl.clone()`；上游 `e743af82` 构建 build 18，13:12 部署（备份 `pc_pre_20261110_131241.tgz`），商品链接现 308 到 `https://battery.recy.cc/product/sn*` |
+| 2026-11-10 | 货号查询大小写不敏感（`f340698`，13:37 上线）：4 处 `product_sn/product_tsn` 精确比较改 `LOWER(...)`，修复 137 个大写货号商品页 404；回归 53/53+4/4 |
 
 ---
 
