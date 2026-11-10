@@ -3,6 +3,7 @@ import { Button, Form, Toast, Typography } from '@douyinfe/semi-ui';
 import { IconArrowLeft, IconHome, IconLock, IconPhone, IconUser } from '@douyinfe/semi-icons';
 import { apiGet, login, loginMobile, sendMobileCode, setToken } from '../api';
 import { useI18n } from '../i18n';
+import { applyAppearance, getStoredAppearance } from '../theme';
 
 const { Title, Text } = Typography;
 
@@ -34,6 +35,10 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
   const [mobileValue, setMobileValue] = useState('');
   const [sending, setSending] = useState(false);
   const [countdown, setCountdown] = useState(0);
+
+  useEffect(() => {
+    applyAppearance(getStoredAppearance() || {});
+  }, []);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -316,10 +321,6 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
                   <a href="javascript:;">《用户隐私协议》</a>
                 </div>
 
-                <div className="login-safe">
-                  <IconLock />
-                  <span>安全登录 · 数据全程加密传输</span>
-                </div>
               </>
             ) : (
               <div className="login-org">
@@ -371,6 +372,10 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
                 </div>
               </div>
             )}
+            <div className="login-safe">
+              <IconLock />
+              <span>安全登录 · 数据全程加密传输</span>
+            </div>
           </div>
         </main>
       </div>

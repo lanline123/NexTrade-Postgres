@@ -9173,3 +9173,107 @@ body[theme-mode='dark'] .kefu-setting-actions {
   border-radius: 6px;
   border: 1px solid var(--semi-color-border);
 }
+
+/* ============================================================
+   登录页：跟随后台「全局设置 → 主题色」，并统一两步卡片高度
+   ============================================================ */
+.login-card {
+  display: flex;
+  flex-direction: column;
+  height: 580px;
+  overflow-y: auto;
+}
+.login-safe {
+  margin-top: auto;
+}
+.login-org {
+  flex: 1;
+}
+
+.login-page {
+  background:
+    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--primary, #165dff) 16%, transparent) 0, transparent 34%),
+    radial-gradient(circle at 88% 82%, color-mix(in srgb, var(--primary, #165dff) 10%, transparent) 0, transparent 38%),
+    linear-gradient(160deg, #f8fbff 0%, #f4f8ff 55%, #f8fbff 100%);
+}
+.login-aurora--one {
+  background: color-mix(in srgb, var(--primary, #165dff) 24%, #fff);
+}
+.login-aurora--two {
+  background: color-mix(in srgb, var(--primary, #165dff) 14%, #fff);
+}
+.login-hero {
+  background:
+    radial-gradient(circle at 82% 28%, color-mix(in srgb, var(--primary, #165dff) 14%, transparent) 0, transparent 42%),
+    linear-gradient(150deg, color-mix(in srgb, var(--primary, #165dff) 7%, #fff) 0%, color-mix(in srgb, var(--primary, #165dff) 4%, #fff) 48%, #f5f8ff 100%);
+}
+.login-hero-grid {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--primary, #165dff) 10%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--primary, #165dff) 10%, transparent) 1px, transparent 1px);
+}
+.login-hero-rings span {
+  border-color: color-mix(in srgb, var(--primary, #165dff) 14%, transparent);
+}
+.login-hero-rings span:nth-child(2) {
+  border-color: color-mix(in srgb, var(--primary, #165dff) 20%, transparent);
+}
+.login-hero-rings span:nth-child(3) {
+  border-color: color-mix(in srgb, var(--primary, #165dff) 28%, transparent);
+  box-shadow: 0 0 80px color-mix(in srgb, var(--primary, #165dff) 16%, transparent);
+}
+.login-hero-eyebrow,
+.login-hero-copy h1 em,
+.login-card-eyebrow {
+  color: var(--primary, #165dff);
+}
+.login-hero-copy h1 em::after {
+  background: linear-gradient(90deg, var(--primary, #165dff), transparent);
+}
+.login-ai-tag {
+  border-color: color-mix(in srgb, var(--primary, #165dff) 32%, transparent);
+  background: color-mix(in srgb, var(--primary, #165dff) 10%, #fff);
+  color: var(--primary, #165dff);
+}
+.login-ai-tag i {
+  background: var(--primary, #165dff);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--primary, #165dff) 70%, transparent);
+}
+.login-card .semi-input-wrapper-focus {
+  border-color: var(--primary, #165dff);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary, #165dff) 12%, transparent);
+}
+.login-remember input,
+.login-agreement input {
+  accent-color: var(--primary, #165dff);
+}
+.login-forgot,
+.login-agreement a,
+.login-code-btn {
+  color: var(--primary, #165dff) !important;
+}
+.login-submit {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary, #165dff) 80%, #000) 0%, var(--primary, #165dff) 50%, color-mix(in srgb, var(--primary, #165dff) 72%, #fff) 100%) !important;
+  box-shadow: 0 12px 24px color-mix(in srgb, var(--primary, #165dff) 24%, transparent);
+}
+.login-submit:hover {
+  box-shadow: 0 16px 30px color-mix(in srgb, var(--primary, #165dff) 30%, transparent);
+}
+.login-org-back:hover {
+  color: var(--primary, #165dff);
+}
+.login-org-card:hover {
+  border-color: color-mix(in srgb, var(--primary, #165dff) 32%, #fff);
+  background: color-mix(in srgb, var(--primary, #165dff) 6%, #fff);
+}
+.login-org-avatar {
+  background: var(--primary-soft, #e8f2ff);
+  color: var(--primary, #165dff);
+}
+
+@media (max-width: 960px) {
+  .login-card {
+    height: auto;
+    overflow-y: visible;
+  }
+}

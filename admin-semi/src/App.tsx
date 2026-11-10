@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { apiGet, clearToken, enterDemo, getToken, isDemo } from './api';
-import { applyAppearance, type AppearanceSettings } from './theme';
+import { applyAppearance, saveAppearance, type AppearanceSettings } from './theme';
 import AdminLayout, { type PageKey } from './layout/AdminLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -895,6 +895,7 @@ export default function App() {
     };
     setAppearance(next);
     applyAppearance(next);
+    saveAppearance(next);
   };
 
   useEffect(() => {
