@@ -12,7 +12,7 @@ use nextrade_core::models::logistics::print::mask_middle_half;
 use nextrade_core::models::logistics::print_config::{
     PrintTemplateItem, PrintTemplateOption, PAPER_SIZE_58, PAPER_SIZE_80,
 };
-use nextrade_core::models::payment::pay_method_name;
+use nextrade_core::models::payment::pay::pay_method_name;
 use rust_decimal::Decimal;
 
 /// 渲染上下文（订单详情、模板、纸张与关联数据）。
