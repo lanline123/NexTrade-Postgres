@@ -1281,31 +1281,14 @@ async fn pos_check_update(
 
 async fn pos_check_submit(
     State(state): State<AdminState>,
-    Json(body): Json<serde_json::Value>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(dto): Json<PosCheckoutDTO>,
 ) -> ApiResult<serde_json::Value> {
-    let table_id = pos_check_table_id(&body);
-    if table_id <= 0 {
-        return Err(nextrade_security::web::AppError(
-            nextrade_core::Error::Validation("缺少 tableId".into()),
-        ));
-    }
-    let dto = PosTableOperateDTO {
-        table_id,
-        user_id: body
-            .get("userId")
-            .and_then(serde_json::Value::as_i64)
-            .map(|v| v as i32),
-        target_table_id: None,
-        order_id: body
-            .get("orderId")
-            .and_then(serde_json::Value::as_i64)
-            .map(|v| v as i32),
-        remark: body
-            .get("remark")
-            .and_then(serde_json::Value::as_str)
-            .map(ToString::to_string),
-    };
-    ok(state.pos.cashier.place_order(&dto).await?)
+    ok(state
+        .pos
+        .cashier
+        .checkout(admin_id_of(&tenant), &dto)
+        .await?)
 }
 
 // ————————————————————— 支付 / 门店 / 账号 —————————————————————

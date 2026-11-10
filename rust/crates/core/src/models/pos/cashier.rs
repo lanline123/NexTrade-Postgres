@@ -161,6 +161,19 @@ pub struct PosCartChangePriceDTO {
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+pub struct PosCheckoutDTO {
+    pub table_id: Option<i32>,
+    pub pay_type_id: Option<i32>,
+    pub use_balance: Option<Decimal>,
+    pub use_points: Option<i32>,
+    pub use_coupon_ids: Option<Vec<i32>>,
+    pub remark: Option<String>,
+    /// 线下现金收银默认直接记已支付；线上支付传 false。
+    pub mark_paid: Option<bool>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct PosPendingOrderDTO {
     pub remark: Option<String>,
     pub user_id: Option<i32>,

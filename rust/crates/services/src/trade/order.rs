@@ -90,6 +90,8 @@ impl OrderService {
         if lines.is_empty() {
             return Err(Error::Validation("未选择任何商品".into()));
         }
+        // POS 收银：价格以购物车行（POS 改价后）为准，不叠加线上营销活动。
+        let pos_mode = dto.order_source.as_deref() == Some("POS");
 
         // 金额计算
         let mut product_amount = Decimal::ZERO;
@@ -112,15 +114,18 @@ impl OrderService {
 
         // 秒杀活动价（与结算页同一映射）
         let now_activity = utils::now_seconds() as i32;
-        let seckill = crate::trade::check::load_seckill_prices(&self.repos, &lines, now_activity)
-            .await?;
+        let seckill = if pos_mode {
+            std::collections::HashMap::new()
+        } else {
+            crate::trade::check::load_seckill_prices(&self.repos, &lines, now_activity).await?
+        };
         // 拼团活动价（购物车 extra_data 携带 grouponData）
-        let groupon_prices = crate::trade::check::load_groupon_prices(
-            &self.repos,
-            &lines,
-            i64::from(now_activity),
-        )
-        .await?;
+        let groupon_prices = if pos_mode {
+            std::collections::HashMap::new()
+        } else {
+            crate::trade::check::load_groupon_prices(&self.repos, &lines, i64::from(now_activity))
+                .await?
+        };
         let mut seckill_discount = Decimal::ZERO;
         // (rec_id, 数量, 商品ID, 活动开始, 活动结束, 活动ID)
         let mut seckill_lines: Vec<(i32, i32, i32, i32, i32, i32)> = Vec::new();
@@ -133,11 +138,17 @@ impl OrderService {
         for line in &lines {
             let pid = line.product_id;
             let sku_id = line.sku_id.unwrap_or(0);
-            let base_price = prices
-                .get(&pid)
-                .and_then(|p| *p)
-                .unwrap_or(line.original_price);
-            let mut price = if let Some(g) = groupon_prices.get(&line.cart_id) {
+            let base_price = if pos_mode {
+                line.original_price
+            } else {
+                prices
+                    .get(&pid)
+                    .and_then(|p| *p)
+                    .unwrap_or(line.original_price)
+            };
+            let mut price = if pos_mode {
+                base_price
+            } else if let Some(g) = groupon_prices.get(&line.cart_id) {
                 g.price.min(base_price)
             } else {
                 seckill
@@ -147,14 +158,16 @@ impl OrderService {
                     .map(|p| p.min(base_price))
                     .unwrap_or(base_price)
             };
-            // 限时折扣：在秒杀/拼团价基础上取更低者
-            let time_service =
-                crate::marketing::time_discount::TimeDiscountService::new(self.repos.clone());
-            if let Some(time_price) = time_service
-                .current_discount_price(pid, line.sku_id, price)
-                .await?
-            {
-                price = time_price.min(price);
+            if !pos_mode {
+                // 限时折扣：在秒杀/拼团价基础上取更低者
+                let time_service =
+                    crate::marketing::time_discount::TimeDiscountService::new(self.repos.clone());
+                if let Some(time_price) = time_service
+                    .current_discount_price(pid, line.sku_id, price)
+                    .await?
+                {
+                    price = time_price.min(price);
+                }
             }
             line_prices.insert(line.cart_id, price);
         }
@@ -165,24 +178,33 @@ impl OrderService {
             .find_by_id(user_id)
             .await?
             .map(|u| u.rank_id);
-        let (_, _, applied_gifts) = crate::trade::check::apply_full_reductions(
-            &self.repos,
-            &lines,
-            &products,
-            &mut line_prices,
-            now_activity,
-            user_rank_id,
-        )
-        .await?;
+        let applied_gifts = if pos_mode {
+            Vec::new()
+        } else {
+            crate::trade::check::apply_full_reductions(
+                &self.repos,
+                &lines,
+                &products,
+                &mut line_prices,
+                now_activity,
+                user_rank_id,
+            )
+            .await?
+            .2
+        };
 
         for line in &lines {
             let pid = line.product_id;
             let sku_id = line.sku_id.unwrap_or(0);
             let qty = line.quantity.max(1);
-            let base_price = prices
-                .get(&pid)
-                .and_then(|p| *p)
-                .unwrap_or(line.original_price);
+            let base_price = if pos_mode {
+                line.original_price
+            } else {
+                prices
+                    .get(&pid)
+                    .and_then(|p| *p)
+                    .unwrap_or(line.original_price)
+            };
             let seckill_item = seckill
                 .get(&(pid, sku_id))
                 .or_else(|| seckill.get(&(pid, 0)));

@@ -587,6 +587,125 @@ impl PosCashierService {
         }
     }
 
+    /// POS 收银下单：把当前草稿明细写入会员购物车，走真实下单管道，现金默认记已支付。
+    pub async fn checkout(
+        &self,
+        admin_id: i32,
+        dto: &PosCheckoutDTO,
+    ) -> Result<serde_json::Value> {
+        let draft = self
+            .working_draft(admin_id)
+            .await?
+            .ok_or_else(|| Error::Validation("购物车为空".into()))?;
+        let items: Vec<_> = self
+            .repo()
+            .items(draft.pending_id)
+            .await?
+            .into_iter()
+            .filter(|item| item.is_checked != 0)
+            .collect();
+        if items.is_empty() {
+            return Err(Error::Validation("购物车为空".into()));
+        }
+
+        // 未绑定会员时自动落一个游客账号，保证订单有真实 user_id。
+        let user_id = if draft.user_id > 0 {
+            draft.user_id
+        } else {
+            self.create_tourists().await?
+        };
+        if draft.user_id != user_id || dto.table_id.unwrap_or(0) != draft.table_id {
+            self.repo()
+                .draft_touch(draft.pending_id, user_id, dto.table_id.unwrap_or(draft.table_id))
+                .await?;
+        }
+
+        let shop_id = draft.shop_id;
+        let now = chrono::Utc::now().timestamp() as i32;
+        let mut cart_ids = Vec::with_capacity(items.len());
+        for item in &items {
+            let product = self.repo().product_one(item.product_id).await?;
+            let product_sn = product
+                .as_ref()
+                .and_then(|p| p.get("productSn"))
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            let cart = nextrade_core::entities::Cart {
+                cart_id: 0,
+                user_id,
+                product_id: item.product_id as i32,
+                product_sn,
+                pic_thumb: item.pic_thumb.clone(),
+                market_price: None,
+                original_price: item.price,
+                quantity: item.quantity.max(1),
+                sku_id: (item.sku_id > 0).then_some(item.sku_id as i32),
+                sku_data: item.sku_data.clone(),
+                product_type: 1,
+                is_checked: 1,
+                shop_id,
+                r#type: 0,
+                update_time: now,
+                salesman_id: 0,
+                extra_sku_data: None,
+                extra_data: None,
+                change_price_data: None,
+                cycle_spec_id: None,
+                redeem_card_id: None,
+                is_wholesale_line: 0,
+                wholesale_grade_id: 0,
+            };
+            cart_ids.push(self.repos.trade.cart.insert(&cart).await?);
+        }
+
+        let order_dto = nextrade_core::models::OrderCreateDTO {
+            cart_ids: cart_ids.clone(),
+            address_id: None,
+            shipping_method: Some(2),
+            delivery_type: Some(2),
+            pickup_id: None,
+            pickup_contact_name: None,
+            pickup_contact_mobile: None,
+            coupon_id: None,
+            use_points: dto.use_points,
+            buyer_note: dto.remark.clone(),
+            pay_type_id: dto.pay_type_id,
+            use_balance: dto.use_balance,
+            use_coupon_ids: dto.use_coupon_ids.clone(),
+            invoice_data: None,
+            order_source: Some("POS".into()),
+            pos_user_id: Some(admin_id),
+        };
+
+        let order_service = crate::trade::order::OrderService::from_repos(self.repos.clone());
+        let created = match order_service.create(user_id, &order_dto).await {
+            Ok(value) => value,
+            Err(error) => {
+                let _ = self.repos.trade.cart.delete(&cart_ids, user_id).await;
+                return Err(error);
+            }
+        };
+
+        let mark_paid = dto.mark_paid.unwrap_or(true);
+        if mark_paid {
+            order_service
+                .on_payment_success(created.order_id, created.total_amount, None)
+                .await?;
+        }
+
+        let _ = self.repos.trade.cart.delete(&cart_ids, user_id).await;
+        self.clear_cart(admin_id).await?;
+
+        Ok(serde_json::json!({
+            "orderId": created.order_id,
+            "orderSn": created.order_sn,
+            "totalAmount": created.total_amount,
+            "onlineAmount": created.online_amount,
+            "markPaid": mark_paid,
+        }))
+    }
+
     pub async fn place_order(&self, dto: &PosTableOperateDTO) -> Result<serde_json::Value> {
         let table = self
             .repo()
