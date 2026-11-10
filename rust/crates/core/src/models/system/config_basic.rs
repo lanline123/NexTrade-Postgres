@@ -10290,7 +10290,7 @@ mod tests {
 
     #[test]
     fn route_specs_count_and_uniqueness() {
-        assert_eq!(ENDPOINTS.len(), 108, "契约共 108 条");
+        assert_eq!(ENDPOINTS.len(), 105, "契约共 105 条");
         assert_eq!(PUBLIC_PATHS.len(), 3, "匿名白名单 3 条");
         let mut seen = std::collections::HashSet::new();
         for ep in ENDPOINTS.iter() {
