@@ -120,6 +120,9 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
   const [pricePreview, setPricePreview] = useState<string | number | null>(null);
   const [rechargeOpen, setRechargeOpen] = useState(false);
   const [rechargeValue, setRechargeValue] = useState('');
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [balanceInput, setBalanceInput] = useState('');
+  const [pointsInput, setPointsInput] = useState('');
 
   const loadProducts = useCallback(async (nextKeyword: string, nextCategory: number | undefined) => {
     setLoading(true);
@@ -386,19 +389,42 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
       toast('购物车为空', 'error');
       return;
     }
-    setConfirmState({
-      message: `确认收款 ¥${Number(totalAmount).toFixed(2)} 并完成结账？`,
-      action: async () => {
-        const result = await api.post<{ orderId: number; orderSn: string; totalAmount: string | number }>(
-          '/pos/order/check/submit',
-          { remark: remark || undefined, markPaid: true },
-        );
-        await loadCart();
-        setMember(null);
-        setRemark('');
-        toast(`结账成功：${result.orderSn}`);
-      },
-    });
+    setBalanceInput('');
+    setPointsInput('');
+    setCheckoutOpen(true);
+  };
+
+  const submitCheckout = async () => {
+    const useBalance = Number(balanceInput || 0);
+    const usePoints = Number(pointsInput || 0);
+    if (balanceInput && (!Number.isFinite(useBalance) || useBalance <= 0)) {
+      toast('请输入正确的余额抵扣金额', 'error');
+      return;
+    }
+    if (pointsInput && (!Number.isFinite(usePoints) || usePoints <= 0)) {
+      toast('请输入正确的积分数量', 'error');
+      return;
+    }
+    try {
+      const result = await api.post<{ orderId: number; orderSn: string; totalAmount: string | number }>(
+        '/pos/order/check/submit',
+        {
+          remark: remark || undefined,
+          markPaid: true,
+          useBalance: balanceInput ? useBalance : undefined,
+          usePoints: pointsInput ? usePoints : undefined,
+        },
+      );
+      setCheckoutOpen(false);
+      await loadCart();
+      setMember(null);
+      setRemark('');
+      setBalanceInput('');
+      setPointsInput('');
+      toast(`结账成功：${result.orderSn}`);
+    } catch (error) {
+      toast(message(error), 'error');
+    }
   };
 
   const openMember = () => {
@@ -850,6 +876,72 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
               </div>
             ))
           )}
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={checkoutOpen}
+        title="结算"
+        width={520}
+        onClose={() => setCheckoutOpen(false)}
+        footer={
+          <>
+            <button type="button" className="el-button" onClick={() => setCheckoutOpen(false)}>
+              <span>取消</span>
+            </button>
+            <button type="button" className="el-button el-button--primary" style={primaryStyle} onClick={() => void submitCheckout()}>
+              <span>确认收款</span>
+            </button>
+          </>
+        }
+      >
+        <div className="member-row">
+          <span>应收金额</span>
+          <strong>¥{Number(totalAmount).toFixed(2)}</strong>
+        </div>
+        <div className="member-row">
+          <span>支付方式</span>
+          <span>现金（线下收银）</span>
+        </div>
+        <div className="member-row">
+          <span>会员余额</span>
+          <span>{isMember ? `¥${Number(member?.balance ?? 0).toFixed(2)}` : '未绑定会员'}</span>
+        </div>
+        <div className="price-input">
+          <div className="el-input">
+            <div className="el-input__wrapper">
+              <input
+                className="el-input__inner"
+                placeholder={isMember ? '使用余额抵扣（可留空）' : '绑定会员后可用'}
+                value={balanceInput}
+                disabled={!isMember}
+                onChange={(event) => setBalanceInput(event.target.value)}
+              />
+            </div>
+          </div>
+          <span className="price-unit">元</span>
+        </div>
+        <div className="member-row">
+          <span>会员积分</span>
+          <span>{isMember ? `${Number(member?.points ?? 0)}` : '-'}</span>
+        </div>
+        <div className="price-input">
+          <div className="el-input">
+            <div className="el-input__wrapper">
+              <input
+                className="el-input__inner"
+                placeholder={isMember ? '使用积分（可留空）' : '绑定会员后可用'}
+                value={pointsInput}
+                disabled={!isMember}
+                onChange={(event) => setPointsInput(event.target.value)}
+              />
+            </div>
+          </div>
+          <span className="price-unit">分</span>
+        </div>
+        <div className="member-row">
+          <span>整单备注</span>
+          <span>{remark || '-'}</span>
         </div>
       </Dialog>
 

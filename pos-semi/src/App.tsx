@@ -1,8 +1,10 @@
 import type { CSSProperties } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Cashier from './pages/Cashier';
+import Members from './pages/Members';
 import Orders from './pages/Orders';
 import Tables from './pages/Tables';
+import Verification from './pages/Verification';
 import Placeholder from './pages/Placeholder';
 import { readSession } from './session';
 
@@ -86,12 +88,9 @@ export default function App() {
                     path="/reservation"
                     element={<Placeholder title="预约" note="预约与库存日历，接口 /pos/order/OrderReservation/*。" />}
                   />
-                  <Route path="/verification" element={<Placeholder title="核销" note="券码与提货核销。" />} />
+                  <Route path="/verification" element={<Verification />} />
                   <Route path="/returns" element={<Placeholder title="售后" note="退货退款与售后单。" />} />
-                  <Route
-                    path="/members"
-                    element={<Placeholder title="会员" note="会员查询、充值与优惠券，接口 /pos/posManager/*、/pos/user/*。" />}
-                  />
+                  <Route path="/members" element={<Members />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </div>
