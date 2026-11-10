@@ -528,6 +528,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | PC 前端四项修复（审计第三十七章，线上 PC `a8141825` build 23）：① 已选条件用 `filterSelected` 显示分类/品牌名；② 换币覆盖营销通栏/商品卡/详情页（含装修数据的 `¥` 前缀解析），修复重复小数；③ 非中英语言生效（locale 短码映射 + SSR 翻译加载）；④ 商品服务说明改读 `serviceList` 图标、去掉假数据与点击展开 |
 | 2026-11-10 | PC 全站价格跟随换币（审计第三十八章，`695b0d00` build 24）：购物车/结算/订单/售后/优惠券/秒杀/拼团/换购/发票/聊天等剩余写死 `¥` 全部改为 `formatPrice`/`splitCurrencyPrice`；仅改展示，下单支付仍按人民币原值 |
 | 2026-11-10 | PC 收尾两处（`5c1d10e7` build 25，审计 38.4）：搜索价格输入占位符改用当前币种符号；商品/WebSite JSON-LD 的 priceCurrency、inLanguage 跟随换币与语言 |
+| 2026-11-10 | admin 装修编辑器白屏修复（审计第三十九章）：`formatImage` 工具函数误调 `useI18n` 触发 React #310；源码修复提交 `939c2f4`，线上以最小入口补丁 `index-fix310.js` 上线并同步修补旧入口，编辑器恢复正常 |
 | 2026-11-10 | 管理端登录页蓝线（审计第三十八章）：线上 admin 包是 11-08 11:49 旧构建，CSS 残留旧版 `.login-tabs .is-active::after`，在新 button 布局下泄漏为 1180×2px 通栏蓝线。按上游源码 `c7d49743` 重建 admin-semi 并全量上传 dist（97 资源 + index.html 最后切换），线上哈希一致、旧规则 0 命中；回滚副本 `scratch/admin-index.old.html` |
 | 2026-11-10 | 管理端登录页 tab 切换高度跳动（审计第三十九章）：`.login-options` 无固定行高，密码行 19px / 手机提示行 17px，导致卡片与按钮跳动 2px。上游 `styles.css` 加 `min-height: 20px` 后重建部署，线上两模式卡片 579.8px、按钮位置完全一致 |
 | 2026-11-10 | POS 收银台路径统一为 `/pos`（审计第四十章）：按钮由 `/admin/pos/` 改为 `/pos/`；dev 预览同步；产物路由 base 被编译成 `admin`，dev 服务与新增的 `npm run build:pos` 都会把 7 处 `VITE_BASE_DIR` 补丁为空并生成无 `<base>` 的 `pos-dist/`。已部署：POS 解压到站点 `/pos` + nginx `location ^~ /pos`，admin 入口打最小补丁 `index-15da4ad2.js`（线上 vendor 与本地不同，未整包重建） |
