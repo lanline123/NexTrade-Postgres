@@ -538,6 +538,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 素材中心「删除分组」弹窗现代化（审计第四十一章）：警示条显示分组名 + 两张可点击策略卡（选中蓝/危险红）+ 红色确认按钮；因上游有并行 WIP，改用 `git archive HEAD` 干净源码构建后全量上传，线上 `index-vGC7iQEf.js`，回滚 index 存 `scratch/admin-index.online.20261110_172540.html` |
 | 2026-11-10 | 危险项圆点红色方块修复（审计 41.6）：红色误涂在无圆角外层 `.semi-radio-inner`，改为只给圆形 `.semi-radio-inner-display` 上色；线上 `index-DuI8xVsF.js` / `index-pH85wgPg.css`，回滚 index 存 `scratch/admin-index.online.20261110_180852.html` |
 | 2026-11-10 | 新增商品「商品图片」恢复素材中心选择（审计第四十四章）：新增 `GalleryPickerModal`（分组/搜索/多选/上传），`ImageUploader` 增加 `gallery` 入口，商品表单启用；线上 `index-CPlPAlV0.js`，验证选中 2 张可回填。跨仓库同步改为定向编辑，避免把 Tigshop/NexTrade 品牌差异带进上游 |
+| 2026-11-10 | 素材选择弹窗改版（审计第四十五章）：弹窗放大到 1080×560 并上下左右居中，左侧文件夹树默认只显示一级、箭头展开，右侧网格/搜索/上传保持；线上 `index--WLhioJJ.js`，回滚 index 存 `scratch/admin-index.online.20261110_191724.html` |
 
 ---
 

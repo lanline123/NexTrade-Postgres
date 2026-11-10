@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Empty, Input, Modal, Pagination, Select, Spin, Toast } from '@douyinfe/semi-ui';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Empty, Input, Modal, Pagination, Spin, Toast } from '@douyinfe/semi-ui';
 import { IconGallery, IconSearch } from '@douyinfe/semi-icons';
 import { apiGet, apiUpload, isDemo } from '../api';
 import { useI18n } from '../i18n';
@@ -19,7 +19,15 @@ interface RawGalleryNode {
   parentId?: number;
   name?: string;
   galleryName?: string;
+  picCount?: number;
   children?: RawGalleryNode[];
+}
+
+interface GalleryTreeNode {
+  id: number;
+  name: string;
+  count: number;
+  children: GalleryTreeNode[];
 }
 
 interface GalleryPickerModalProps {
@@ -32,18 +40,13 @@ interface GalleryPickerModalProps {
 
 const PAGE_SIZE = 30;
 
-const flattenGroups = (
-  nodes: RawGalleryNode[],
-  depth = 0,
-): Array<{ label: string; value: number }> => {
-  const options: Array<{ label: string; value: number }> = [];
-  (nodes || []).forEach((node) => {
-    const id = Number(node.galleryId ?? node.id ?? 0);
-    options.push({ label: `${'　'.repeat(depth)}${node.galleryName || node.name || ''}`, value: id });
-    if (node.children?.length) options.push(...flattenGroups(node.children, depth + 1));
-  });
-  return options;
-};
+const normalizeTree = (nodes: RawGalleryNode[]): GalleryTreeNode[] =>
+  (nodes || []).map((node) => ({
+    id: Number(node.galleryId ?? node.id ?? 0),
+    name: node.galleryName || node.name || '',
+    count: Number(node.picCount ?? 0),
+    children: normalizeTree(node.children || []),
+  }));
 
 const picUrlOf = (pic: GalleryPic) => pic.picUrl || pic.picThumb || '';
 
@@ -57,10 +60,11 @@ export default function GalleryPickerModal({
   const { t } = useI18n();
   const [keyword, setKeyword] = useState('');
   const [galleryId, setGalleryId] = useState(0);
+  const [expandedIds, setExpandedIds] = useState<number[]>([]);
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<GalleryPic[]>([]);
   const [total, setTotal] = useState(0);
-  const [groups, setGroups] = useState<RawGalleryNode[]>([]);
+  const [tree, setTree] = useState<GalleryTreeNode[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -72,9 +76,10 @@ export default function GalleryPickerModal({
     setSelected([]);
     setKeyword('');
     setGalleryId(0);
+    setExpandedIds([]);
     setPage(1);
     apiGet<{ records?: RawGalleryNode[] }>('/setting/gallery/tree', { type: 'image' })
-      .then((result) => setGroups(result?.records || []))
+      .then((result) => setTree(normalizeTree(result?.records || [])))
       .catch(() => undefined);
   }, [visible]);
 
@@ -107,12 +112,31 @@ export default function GalleryPickerModal({
     };
   }, [visible, page, galleryId, reloadKey, t]);
 
-  const groupOptions = useMemo(
-    () => [{ label: t('全部图片'), value: 0 }, ...flattenGroups(groups)],
-    [groups, t],
-  );
+  const selectedFolderName = useMemo(() => {
+    if (galleryId === 0) return t('全部图片');
+    const find = (nodes: GalleryTreeNode[]): string | undefined => {
+      for (const node of nodes) {
+        if (node.id === galleryId) return node.name;
+        const hit = find(node.children);
+        if (hit) return hit;
+      }
+      return undefined;
+    };
+    return find(tree) || t('全部图片');
+  }, [galleryId, tree, t]);
 
-  const toggle = (pic: GalleryPic) => {
+  const toggleExpand = (id: number) => {
+    setExpandedIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
+  };
+
+  const selectFolder = (id: number) => {
+    setGalleryId(id);
+    setPage(1);
+  };
+
+  const toggleSelect = (pic: GalleryPic) => {
     const url = picUrlOf(pic);
     if (!url) return;
     setSelected((current) => {
@@ -151,6 +175,7 @@ export default function GalleryPickerModal({
           });
           return next;
         });
+        setGalleryId(0);
         setPage(1);
         setReloadKey((key) => key + 1);
         Toast.success({ content: t('图片上传成功') });
@@ -163,12 +188,42 @@ export default function GalleryPickerModal({
     }
   };
 
+  const renderTree = (nodes: GalleryTreeNode[], depth = 0) =>
+    nodes.map((node) => {
+      const hasChildren = node.children.length > 0;
+      const expanded = expandedIds.includes(node.id);
+      const active = galleryId === node.id;
+      return (
+        <Fragment key={node.id}>
+          <div
+            className={`gp-tree-node${active ? ' is-active' : ''}`}
+            style={{ paddingLeft: 10 + depth * 16 }}
+            onClick={() => selectFolder(node.id)}
+            title={node.name}
+          >
+            <span
+              className={`gp-tree-arrow${hasChildren ? '' : ' is-leaf'}${expanded ? ' is-expanded' : ''}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (hasChildren) toggleExpand(node.id);
+              }}
+            />
+            <span className="gp-tree-name">{node.name}</span>
+            {node.count > 0 && <span className="gp-tree-count">{node.count}</span>}
+          </div>
+          {hasChildren && expanded && renderTree(node.children, depth + 1)}
+        </Fragment>
+      );
+    });
+
   return (
     <Modal
       className="gallery-picker-modal"
       title={t('从素材中心选择')}
       visible={visible}
-      width={860}
+      width={1080}
+      centered
+      bodyStyle={{ padding: 0 }}
       footer={
         <div className="gp-footer">
           <span className="gp-selected">{t('已选 {count} 张', { count: selected.length })}</span>
@@ -187,78 +242,89 @@ export default function GalleryPickerModal({
       }
       onCancel={onCancel}
     >
-      <div className="gp-toolbar">
-        <Button
-          icon={<IconGallery />}
-          loading={uploading}
-          onClick={() => fileRef.current?.click()}
-        >
-          {t('上传图片')}
-        </Button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          onChange={(event) => void upload(event.target.files)}
-        />
-        <Input
-          className="gp-search"
-          prefix={<IconSearch />}
-          value={keyword}
-          placeholder={t('图片名称')}
-          showClear
-          onChange={setKeyword}
-          onEnterPress={() => {
-            setPage(1);
-            setReloadKey((key) => key + 1);
-          }}
-        />
-        <Select
-          className="gp-group"
-          value={galleryId}
-          optionList={groupOptions}
-          onChange={(value) => {
-            setGalleryId(Number(value));
-            setPage(1);
-          }}
-        />
-      </div>
-      <Spin spinning={loading}>
-        {items.length ? (
-          <div className="gp-grid">
-            {items.map((pic, index) => {
-              const url = picUrlOf(pic);
-              const isSelected = selected.includes(url);
-              return (
-                <div
-                  key={`${pic.picId ?? index}-${url}`}
-                  className={`gp-item${isSelected ? ' is-selected' : ''}`}
-                  title={pic.picName || ''}
-                  onClick={() => toggle(pic)}
-                >
-                  <img src={pic.picThumb || url} alt={pic.picName || ''} />
-                  {isSelected && <span className="gp-check">✓</span>}
-                  {pic.picName && <span className="gp-name">{pic.picName}</span>}
-                </div>
-              );
-            })}
+      <div className="gp-layout">
+        <aside className="gp-sidebar">
+          <div className="gp-sidebar-head">{t('图片分组')}</div>
+          <div className="gp-tree">
+            <div
+              className={`gp-tree-node gp-tree-root${galleryId === 0 ? ' is-active' : ''}`}
+              onClick={() => selectFolder(0)}
+            >
+              <span className="gp-tree-arrow is-leaf" />
+              <span className="gp-tree-name">{t('全部图片')}</span>
+            </div>
+            {renderTree(tree)}
           </div>
-        ) : (
-          !loading && <Empty description={t('图库暂无图片')} />
-        )}
-      </Spin>
-      {total > PAGE_SIZE && (
-        <div className="gp-pagination">
-          <Pagination
-            total={total}
-            pageSize={PAGE_SIZE}
-            currentPage={page}
-            onPageChange={(next) => setPage(next)}
-          />
-        </div>
-      )}
+        </aside>
+        <section className="gp-main">
+          <div className="gp-toolbar">
+            <Button
+              icon={<IconGallery />}
+              loading={uploading}
+              onClick={() => fileRef.current?.click()}
+            >
+              {t('上传图片')}
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(event) => void upload(event.target.files)}
+            />
+            <Input
+              className="gp-search"
+              prefix={<IconSearch />}
+              value={keyword}
+              placeholder={t('图片名称')}
+              showClear
+              onChange={setKeyword}
+              onEnterPress={() => {
+                setPage(1);
+                setReloadKey((key) => key + 1);
+              }}
+            />
+            <span className="gp-current-folder">{selectedFolderName}</span>
+          </div>
+          <div className="gp-grid-wrap">
+            <Spin spinning={loading}>
+              {items.length ? (
+                <div className="gp-grid">
+                  {items.map((pic, index) => {
+                    const url = picUrlOf(pic);
+                    const isSelected = selected.includes(url);
+                    return (
+                      <div
+                        key={`${pic.picId ?? index}-${url}`}
+                        className={`gp-item${isSelected ? ' is-selected' : ''}`}
+                        title={pic.picName || ''}
+                        onClick={() => toggleSelect(pic)}
+                      >
+                        <img src={pic.picThumb || url} alt={pic.picName || ''} />
+                        {isSelected && <span className="gp-check">✓</span>}
+                        {pic.picName && <span className="gp-name">{pic.picName}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                !loading && <Empty description={t('图库暂无图片')} />
+              )}
+            </Spin>
+          </div>
+          {total > PAGE_SIZE && (
+            <div className="gp-pagination">
+              <Pagination
+                total={total}
+                pageSize={PAGE_SIZE}
+                currentPage={page}
+                onPageChange={(next) => setPage(next)}
+              />
+            </div>
+          )}
+        </section>
+      </div>
     </Modal>
   );
 }
