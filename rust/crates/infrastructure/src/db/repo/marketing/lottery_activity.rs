@@ -158,7 +158,7 @@ impl LotteryActivityRepository {
 
     pub async fn insert(&self, a: &LotteryActivity) -> Result<i32> {
         let res: i32 = sqlx::query_scalar(
-            "INSERT INTO lottery_activity (activity_name, start_time, end_time, cost_points, daily_limit, total_limit, win_limit, decorate_config, grid_config, no_win_name, no_win_image, no_win_tips, shop_id, is_delete, create_time, update_time, cost_type) VALUES ($1,  $2,  $3,  $4,  $5,  $6,  $7, NULLIF($8, '')::jsonb, NULLIF($9, '')::jsonb,  $10,  $11,  $12,  $13,  $14,  $15,  $16,  $17) RETURNING activity_id",
+            "INSERT INTO lottery_activity (activity_name, start_time, end_time, cost_points, daily_limit, total_limit, win_limit, decorate_config, grid_config, no_win_name, no_win_image, no_win_tips, shop_id, is_delete, create_time, update_time, cost_type) VALUES ($1,  $2,  $3,  $4,  $5,  $6,  $7, $8, $9,  $10,  $11,  $12,  $13,  $14,  $15,  $16,  $17) RETURNING activity_id",
         )
         .bind(&a.activity_name)
         .bind(a.start_time)
@@ -185,7 +185,7 @@ impl LotteryActivityRepository {
 
     pub async fn update(&self, a: &LotteryActivity) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE lottery_activity SET activity_name = $1, start_time = $2, end_time = $3, cost_points = $4, daily_limit = $5, total_limit = $6, win_limit = $7, decorate_config = NULLIF($8, '')::jsonb, grid_config = NULLIF($9, '')::jsonb, no_win_name = $10, no_win_image = $11, no_win_tips = $12, update_time = $13, cost_type = $14 WHERE activity_id = $15",
+            "UPDATE lottery_activity SET activity_name = $1, start_time = $2, end_time = $3, cost_points = $4, daily_limit = $5, total_limit = $6, win_limit = $7, decorate_config = $8, grid_config = $9, no_win_name = $10, no_win_image = $11, no_win_tips = $12, update_time = $13, cost_type = $14 WHERE activity_id = $15",
         )
         .bind(&a.activity_name)
         .bind(a.start_time)

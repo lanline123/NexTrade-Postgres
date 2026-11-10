@@ -589,7 +589,7 @@ impl GrouponPromotionRepository {
     ) -> Result<u64> {
         let affected = sqlx::query(
             "UPDATE promotion SET promotion_name = $1, start_time = $2, end_time = $3,
-               member_range = $4, member_marks = $5, member_scope = NULLIF($6, '')::jsonb
+               member_range = $4, member_marks = $5, member_scope = $6
              WHERE relation_id = $7 AND type = $8",
         )
         .bind(&row.promotion_name)

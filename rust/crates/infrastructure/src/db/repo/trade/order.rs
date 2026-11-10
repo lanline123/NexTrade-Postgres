@@ -458,7 +458,7 @@ impl OrderRepository {
         let affected = sqlx::query(
             "UPDATE \"order\" SET
                paid_amount = paid_amount + $1,
-               unpaid_amount = GREATEST(CAST(unpaid_amount AS BIGINT) - $2, 0)
+               unpaid_amount = GREATEST(unpaid_amount - $2, 0)
              WHERE order_id = $3 AND pay_status <> 2",
         )
         .bind(amount)
