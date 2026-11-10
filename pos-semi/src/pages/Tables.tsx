@@ -52,10 +52,11 @@ export default function Tables() {
 
   const loadAreas = async () => {
     try {
-      const result = await api.post<Area[] | { records: Area[] }>('/pos/table/area/list', {
+      const result = await api.post<Array<Area & { area_id?: number; area_name?: string }> | { records: Array<Area & { area_id?: number; area_name?: string }> }>('/pos/table/area/list', {
         shopId: shopIdOf(),
       });
-      setAreas(Array.isArray(result) ? result : result.records || []);
+      const list = Array.isArray(result) ? result : result.records || [];
+      setAreas(list.map((area) => ({ areaId: area.areaId ?? area.area_id ?? 0, areaName: area.areaName ?? area.area_name ?? '' })));
     } catch (error) {
       toast(error instanceof Error ? error.message : '区域加载失败', 'error');
     }
@@ -64,12 +65,25 @@ export default function Tables() {
   const loadTables = async () => {
     setLoading(true);
     try {
-      const result = await api.get<TableRow[] | { records: TableRow[] }>('/pos/table/list', {
+      const result = await api.get<Array<TableRow & Record<string, unknown>> | { records: Array<TableRow & Record<string, unknown>> }>('/pos/table/list', {
         shopId: shopIdOf(),
         areaId: areaId > 0 ? areaId : undefined,
         status: statusFilter >= 0 ? statusFilter : undefined,
       });
-      setTables(Array.isArray(result) ? result : result.records || []);
+      const list = Array.isArray(result) ? result : result.records || [];
+      setTables(
+        list.map((raw) => ({
+          tableId: Number(raw.tableId ?? raw.table_id ?? 0),
+          tableNo: String(raw.tableNo ?? raw.table_no ?? ''),
+          areaId: Number(raw.areaId ?? raw.area_id ?? 0),
+          status: Number(raw.status ?? 0),
+          tableStatus: Number(raw.tableStatus ?? raw.table_status ?? 0),
+          diningCount: Number(raw.diningCount ?? raw.dining_count ?? 0),
+          openTime: Number(raw.openTime ?? raw.open_time ?? 0),
+          sessionSn: String(raw.sessionSn ?? raw.session_sn ?? ''),
+          transferFromTableNo: String(raw.transferFromTableNo ?? raw.transfer_from_table_no ?? ''),
+        })),
+      );
     } catch (error) {
       toast(error instanceof Error ? error.message : '桌台加载失败', 'error');
     } finally {
