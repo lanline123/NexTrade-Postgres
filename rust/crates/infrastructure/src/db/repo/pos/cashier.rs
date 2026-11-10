@@ -837,6 +837,21 @@ impl PosCashierRepository {
         .collect::<Vec<_>>())
     }
 
+    /// 该会员最近一单的**买家备注**（POS 收银台展示）。
+    ///
+    /// 列选 `buyer_note` 的依据（2026-11-10 语义映射复核）：
+    /// * 迁移前这里写的是 `order.order_remark`，但该列在 Java 基线
+    ///   （`java-b2b2c-overseas-v5.8.61`）的 `Order` 模型与 `pure.sql` 里都不存在，
+    ///   属迁移时臆造的列名；
+    /// * Java 的 `Order.buyerNote` 注释即「买家备注」，小票打印
+    ///   （`FeieyunReceiptRenderer` / `SunmiReceiptRenderer`）也是按「买家备注」渲染，
+    ///   语义与「收银台展示该会员最近一次下单留言」一致；
+    /// * 同表另有 `admin_note`（后台备注，买家不可见）与 `cancel_remark`（取消原因），
+    ///   两者都不是这个用途。
+    ///
+    /// 注：POS 收银台本身不在 Java 基线（属新增能力），没有可对照的原始实现，
+    /// 这是按业务语义做的取舍。若产品定义另有约定（比如要展示收银员侧备注），
+    /// 改这里并同步 `api/admin/src/routes/pos/cashier.rs` 的响应字段说明。
     pub async fn order_remark(&self, user_id: i32) -> Result<Option<String>> {
         let row: Option<(Option<String>,)> = sqlx::query_as(
             "SELECT buyer_note FROM \"order\" WHERE user_id = $1 ORDER BY order_id DESC LIMIT 1",
@@ -862,5 +877,24 @@ impl PosCashierRepository {
         .into_iter()
         .map(|(v,)| v)
         .collect::<Vec<_>>())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// `order_remark` 是迁移期臆造的列名（PG 生产库与 Java 基线的 `Order` 模型里都不存在）。
+    /// 「最近订单备注」必须读 `buyer_note`，理由见 `order_remark()` 的文档注释。
+    #[test]
+    fn order_remark_reads_buyer_note() {
+        let src = include_str!("cashier.rs");
+        assert!(
+            src.contains(
+                r#"SELECT buyer_note FROM \"order\" WHERE user_id = $1 ORDER BY order_id DESC LIMIT 1"#
+            ),
+            "最近订单备注必须读 buyer_note（Java Order.buyerNote = 买家备注）"
+        );
+        // 否定断言的 needle 必须运行期拼接，否则 include_str! 会把本测试自身也算命中
+        let fabricated = format!("SELECT {}", "order_remark");
+        assert!(!src.contains(&fabricated), "不许再引用臆造列 order_remark");
     }
 }
