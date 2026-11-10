@@ -19,8 +19,8 @@
 
 | 功能 | 状态 | 说明 |
 |---|---|---|
-| 顶栏：设备选择 | 🟡 | 静态「设备未绑定」，未接 `/pos/device/*` |
-| 顶栏：交班 | ❌ | `/pos/posSwitch/workOff` 未接 |
+| 顶栏：设备选择 | ✅ | `/pos/device/all` 下拉、选择持久化到 localStorage |
+| 顶栏：交班 | ✅ | 显示今日订单/金额，确认后 workOff + work |
 | 顶栏：收银员 | ✅ | 从 JWT 读取 |
 | 搜索（扫码/名称） | 🟡 | 接 `/pos/product/index`，扫码枪连续输入/回车搜索待补 |
 | 分类栏 | ✅ | `/pos/product/getCategoryInfo`，原样式 |
@@ -89,7 +89,7 @@
 
 ## 生产验收环境
 
-- `https://admin.recy.cc/pos-next/` 已部署 pos-semi（`/pos` 仍为 legacy）。
+- `https://admin.recy.cc/pos-next/` 已部署最新 pos-semi（含设备/交班）；`/pos` 仍为 legacy。
 - 验收通过后，补齐设备绑定/交班/打印/优惠券/预约后端，再切换 `/pos`。
 
 ## 下一步
