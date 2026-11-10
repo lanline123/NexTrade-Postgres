@@ -9056,3 +9056,8 @@ position: relative;
 .dec-product-group__tabs-wrapper { padding: 0; }
 .dec-product-group__tabs { margin-bottom: 0; }
 .dec-recommend-product__end { display: none; }
+
+/* ==== Java global.css 价格排版（FormatPrice 依赖） ==== */
+.price { font-size: 12px; font-weight: normal; }
+.price .util { font-size: 12px; }
+.align-bottom { display: flex; align-items: flex-end; }
