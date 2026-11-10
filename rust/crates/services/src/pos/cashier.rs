@@ -15,6 +15,15 @@ use nextrade_core::models::pos::cashier::*;
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::Repositories;
 
+/// 兼容 MySQL 口径（字符串）与 PostgreSQL `numeric`（JSON 数字）两种价格形态。
+fn json_decimal(value: Option<&serde_json::Value>) -> Decimal {
+    match value {
+        Some(serde_json::Value::String(text)) => text.parse().unwrap_or_default(),
+        Some(serde_json::Value::Number(number)) => number.to_string().parse().unwrap_or_default(),
+        _ => Decimal::default(),
+    }
+}
+
 /// POS 收银域服务（挂载于 `AdminState.pos.cashier`）。
 pub struct PosCashierService {
     repos: Arc<Repositories>,
@@ -366,11 +375,7 @@ impl PosCashierService {
             .and_then(serde_json::Value::as_str)
             .unwrap_or_default()
             .to_string();
-        let price = product
-            .get("productPrice")
-            .and_then(serde_json::Value::as_str)
-            .and_then(|s| s.parse::<Decimal>().ok())
-            .unwrap_or_default();
+        let price = json_decimal(product.get("productPrice"));
         let sku_id = dto.sku_id.unwrap_or(0);
         if let Some(existing) = self
             .repo()
