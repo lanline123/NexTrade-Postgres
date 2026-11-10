@@ -12,6 +12,10 @@ interface McpSettings {
   token: string;
   productEnabled: boolean;
   decorateEnabled: boolean;
+  analyticsEnabled: boolean;
+  orderEnabled: boolean;
+  memberEnabled: boolean;
+  contentEnabled: boolean;
   priceChangePct: number;
   priceChangeAmount: number;
   stockChangeCap: number;
@@ -25,6 +29,10 @@ const DEFAULTS: McpSettings = {
   token: '',
   productEnabled: true,
   decorateEnabled: false,
+  analyticsEnabled: true,
+  orderEnabled: false,
+  memberEnabled: false,
+  contentEnabled: false,
   priceChangePct: 10,
   priceChangeAmount: 1000,
   stockChangeCap: 1000,
@@ -148,6 +156,26 @@ export default function AiMcpSettings() {
           <span style={labelStyle}>装修管理</span>
           <Switch checked={settings.decorateEnabled} onChange={(v) => patch({ decorateEnabled: v })} />
           <span style={hintStyle}>装修页列表/详情/保存草稿/发布</span>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>报表分析（只读）</span>
+          <Switch checked={settings.analyticsEnabled} onChange={(v) => patch({ analyticsEnabled: v })} />
+          <span style={hintStyle}>销售汇总、销量 Top、库存预警</span>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>订单管理</span>
+          <Switch checked={settings.orderEnabled} onChange={(v) => patch({ orderEnabled: v })} />
+          <span style={hintStyle}>订单查询/详情、后台备注（不含退款/取消）</span>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>会员查询（只读）</span>
+          <Switch checked={settings.memberEnabled} onChange={(v) => patch({ memberEnabled: v })} />
+          <span style={hintStyle}>会员搜索、会员详情</span>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>内容查询（只读）</span>
+          <Switch checked={settings.contentEnabled} onChange={(v) => patch({ contentEnabled: v })} />
+          <span style={hintStyle}>文章/公告列表与详情</span>
         </div>
       </div>
 

@@ -62,6 +62,14 @@ pub struct McpSettings {
     pub product_enabled: bool,
     /// 装修域权限
     pub decorate_enabled: bool,
+    /// 报表域权限（只读）
+    pub analytics_enabled: bool,
+    /// 订单域权限（查询 + 后台备注）
+    pub order_enabled: bool,
+    /// 会员域权限（只读）
+    pub member_enabled: bool,
+    /// 内容域权限（只读）
+    pub content_enabled: bool,
     /// 改价幅度阈值（百分比，0=不限制）
     pub price_change_pct: f64,
     /// 改价金额阈值（0=不限制）
@@ -81,6 +89,10 @@ impl Default for McpSettings {
             token: String::new(),
             product_enabled: true,
             decorate_enabled: false,
+            analytics_enabled: true,
+            order_enabled: false,
+            member_enabled: false,
+            content_enabled: false,
             price_change_pct: 10.0,
             price_change_amount: 1000.0,
             stock_change_cap: 1000,
@@ -163,6 +175,10 @@ async fn settings_get(State(state): State<AdminState>) -> ApiResult<Value> {
         "token": settings.token,
         "productEnabled": settings.product_enabled,
         "decorateEnabled": settings.decorate_enabled,
+        "analyticsEnabled": settings.analytics_enabled,
+        "orderEnabled": settings.order_enabled,
+        "memberEnabled": settings.member_enabled,
+        "contentEnabled": settings.content_enabled,
         "priceChangePct": settings.price_change_pct,
         "priceChangeAmount": settings.price_change_amount,
         "stockChangeCap": settings.stock_change_cap,
@@ -604,6 +620,128 @@ fn tools_for(settings: &McpSettings) -> Vec<Value> {
             }),
         ]);
     }
+    if settings.analytics_enabled {
+        tools.extend([
+            json!({
+                "name": "analytics_sales_summary",
+                "description": "统计近 N 天已支付订单数/金额，只读。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": { "days": { "type": "integer", "description": "默认 7，最大 365" } }
+                }
+            }),
+            json!({
+                "name": "analytics_top_products",
+                "description": "近 N 天销量 Top 商品（按件数），只读。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "days": { "type": "integer", "description": "默认 30" },
+                        "limit": { "type": "integer", "description": "默认 10，最大 50" }
+                    }
+                }
+            }),
+            json!({
+                "name": "analytics_low_stock",
+                "description": "在售且库存低于阈值的商品，只读。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "threshold": { "type": "integer", "description": "默认 10" },
+                        "limit": { "type": "integer", "description": "默认 20，最大 100" }
+                    }
+                }
+            }),
+        ]);
+    }
+    if settings.order_enabled {
+        tools.extend([
+            json!({
+                "name": "order_search",
+                "description": "分页查询订单（订单号/收货人关键词、订单状态），只读。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "keyword": { "type": "string" },
+                        "orderStatus": { "type": "integer" },
+                        "page": { "type": "integer" },
+                        "size": { "type": "integer" }
+                    }
+                }
+            }),
+            json!({
+                "name": "order_get",
+                "description": "按订单 ID 读取订单与商品明细，只读。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": { "orderId": { "type": "integer" } },
+                    "required": ["orderId"]
+                }
+            }),
+            json!({
+                "name": "order_update_remark",
+                "description": "修改订单后台备注（admin_note），不影响买家备注。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "orderId": { "type": "integer" },
+                        "remark": { "type": "string" }
+                    },
+                    "required": ["orderId", "remark"]
+                }
+            }),
+        ]);
+    }
+    if settings.member_enabled {
+        tools.extend([
+            json!({
+                "name": "member_search",
+                "description": "分页查询会员（用户名/昵称/手机号关键词），只读。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "keyword": { "type": "string" },
+                        "page": { "type": "integer" },
+                        "size": { "type": "integer" }
+                    }
+                }
+            }),
+            json!({
+                "name": "member_get",
+                "description": "按会员 ID 读取会员信息，只读。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": { "userId": { "type": "integer" } },
+                    "required": ["userId"]
+                }
+            }),
+        ]);
+    }
+    if settings.content_enabled {
+        tools.extend([
+            json!({
+                "name": "content_article_list",
+                "description": "分页查询文章/公告（标题关键词），只读。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "keyword": { "type": "string" },
+                        "page": { "type": "integer" },
+                        "size": { "type": "integer" }
+                    }
+                }
+            }),
+            json!({
+                "name": "content_article_get",
+                "description": "按文章 ID 读取详情，只读。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": { "articleId": { "type": "integer" } },
+                    "required": ["articleId"]
+                }
+            }),
+        ]);
+    }
     tools
 }
 
@@ -916,6 +1054,237 @@ async fn call_tool(
                 .await
                 .map_err(|e| e.to_string())?;
             Ok(json!({ "published": published }))
+        }
+        "analytics_sales_summary" => {
+            if !settings.analytics_enabled {
+                return Err("报表域未启用".into());
+            }
+            let days = args.get("days").and_then(Value::as_i64).unwrap_or(7).clamp(1, 365);
+            let since = now_secs() - (days as i32) * 86400;
+            let row: (Value,) = sqlx::query_as(
+                "SELECT to_jsonb(t) FROM (SELECT COUNT(*)::bigint AS orders,
+                     COALESCE(SUM(total_amount), 0)::text AS amount
+                     FROM \"order\" WHERE pay_status = 1 AND pay_time >= $1) t",
+            )
+            .bind(since)
+            .fetch_one(&state.repos.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+            Ok(json!({ "days": days, "summary": row.0 }))
+        }
+        "analytics_top_products" => {
+            if !settings.analytics_enabled {
+                return Err("报表域未启用".into());
+            }
+            let days = args.get("days").and_then(Value::as_i64).unwrap_or(30).clamp(1, 365);
+            let limit = args.get("limit").and_then(Value::as_i64).unwrap_or(10).clamp(1, 50);
+            let since = now_secs() - (days as i32) * 86400;
+            let rows: Vec<(Value,)> = sqlx::query_as(
+                "SELECT to_jsonb(t) FROM (
+                     SELECT p.product_id, p.product_name, p.product_sn,
+                            SUM(oi.quantity)::bigint AS qty,
+                            COUNT(DISTINCT o.order_id)::bigint AS orders,
+                            SUM(oi.price * oi.quantity)::text AS amount
+                     FROM order_item oi
+                     JOIN \"order\" o ON o.order_id = oi.order_id
+                     JOIN product p ON p.product_id = oi.product_id
+                     WHERE o.pay_status = 1 AND o.pay_time >= $1
+                     GROUP BY p.product_id, p.product_name, p.product_sn
+                     ORDER BY SUM(oi.quantity) DESC
+                     LIMIT $2) t",
+            )
+            .bind(since)
+            .bind(limit)
+            .fetch_all(&state.repos.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+            Ok(json!({ "days": days, "records": rows.into_iter().map(|r| r.0).collect::<Vec<_>>() }))
+        }
+        "analytics_low_stock" => {
+            if !settings.analytics_enabled {
+                return Err("报表域未启用".into());
+            }
+            let threshold = args.get("threshold").and_then(Value::as_i64).unwrap_or(10).clamp(0, 100000);
+            let limit = args.get("limit").and_then(Value::as_i64).unwrap_or(20).clamp(1, 100);
+            let rows: Vec<(Value,)> = sqlx::query_as(
+                "SELECT to_jsonb(p) FROM (
+                     SELECT product_id, product_name, product_sn, product_stock, product_price, product_status
+                     FROM product
+                     WHERE is_delete = 0 AND product_status = 1 AND product_stock <= $1
+                     ORDER BY product_stock ASC LIMIT $2) p",
+            )
+            .bind(threshold)
+            .bind(limit)
+            .fetch_all(&state.repos.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+            Ok(json!({ "threshold": threshold, "records": rows.into_iter().map(|r| r.0).collect::<Vec<_>>() }))
+        }
+        "order_search" => {
+            if !settings.order_enabled {
+                return Err("订单域未启用".into());
+            }
+            let kw = arg_str(args, "keyword").map(|s| format!("%{s}%"));
+            let status = arg_i32(args, "orderStatus");
+            let page = args.get("page").and_then(Value::as_i64).unwrap_or(1).max(1);
+            let size = args.get("size").and_then(Value::as_i64).unwrap_or(20).clamp(1, 100);
+            let offset = (page - 1) * size;
+            let rows: Vec<(Value,)> = sqlx::query_as(
+                "SELECT to_jsonb(o) FROM \"order\" o
+                 WHERE ($1::text IS NULL OR o.order_sn ILIKE $1 OR o.consignee ILIKE $1)
+                   AND ($2::int IS NULL OR o.order_status = $2)
+                 ORDER BY o.order_id DESC LIMIT $3 OFFSET $4",
+            )
+            .bind(kw.clone())
+            .bind(status)
+            .bind(size)
+            .bind(offset)
+            .fetch_all(&state.repos.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+            let total: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM \"order\" o
+                 WHERE ($1::text IS NULL OR o.order_sn ILIKE $1 OR o.consignee ILIKE $1)
+                   AND ($2::int IS NULL OR o.order_status = $2)",
+            )
+            .bind(kw)
+            .bind(status)
+            .fetch_one(&state.repos.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+            Ok(json!({ "records": rows.into_iter().map(|r| r.0).collect::<Vec<_>>(),
+                       "total": total.0, "page": page, "size": size }))
+        }
+        "order_get" => {
+            if !settings.order_enabled {
+                return Err("订单域未启用".into());
+            }
+            let id = require_i32(args, "orderId")?;
+            let head: Option<(Value,)> = sqlx::query_as(
+                "SELECT to_jsonb(o) FROM \"order\" o WHERE o.order_id = $1",
+            )
+            .bind(id)
+            .fetch_optional(&state.repos.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+            let Some((head,)) = head else {
+                return Err("订单不存在".into());
+            };
+            let items: Vec<(Value,)> = sqlx::query_as(
+                "SELECT to_jsonb(i) FROM order_item i WHERE i.order_id = $1 ORDER BY i.item_id",
+            )
+            .bind(id)
+            .fetch_all(&state.repos.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+            Ok(json!({ "order": head, "items": items.into_iter().map(|r| r.0).collect::<Vec<_>>() }))
+        }
+        "order_update_remark" => {
+            if !settings.order_enabled {
+                return Err("订单域未启用".into());
+            }
+            let id = require_i32(args, "orderId")?;
+            let remark = args
+                .get("remark")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            let r = sqlx::query("UPDATE \"order\" SET admin_note = $1 WHERE order_id = $2")
+                .bind(&remark)
+                .bind(id)
+                .execute(&state.repos.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok(json!({ "updatedRows": r.rows_affected() }))
+        }
+        "member_search" => {
+            if !settings.member_enabled {
+                return Err("会员域未启用".into());
+            }
+            let kw = arg_str(args, "keyword").map(|s| format!("%{s}%"));
+            let page = args.get("page").and_then(Value::as_i64).unwrap_or(1).max(1);
+            let size = args.get("size").and_then(Value::as_i64).unwrap_or(20).clamp(1, 100);
+            let offset = (page - 1) * size;
+            let rows: Vec<(Value,)> = sqlx::query_as(
+                "SELECT to_jsonb(u) FROM \"user\" u
+                 WHERE ($1::text IS NULL OR u.username ILIKE $1
+                        OR u.nickname ILIKE $1 OR u.mobile ILIKE $1)
+                 ORDER BY u.user_id DESC LIMIT $2 OFFSET $3",
+            )
+            .bind(kw.clone())
+            .bind(size)
+            .bind(offset)
+            .fetch_all(&state.repos.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+            let total: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM \"user\" u
+                 WHERE ($1::text IS NULL OR u.username ILIKE $1
+                        OR u.nickname ILIKE $1 OR u.mobile ILIKE $1)",
+            )
+            .bind(kw)
+            .fetch_one(&state.repos.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+            Ok(json!({ "records": rows.into_iter().map(|r| r.0).collect::<Vec<_>>(),
+                       "total": total.0, "page": page, "size": size }))
+        }
+        "member_get" => {
+            if !settings.member_enabled {
+                return Err("会员域未启用".into());
+            }
+            let id = require_i32(args, "userId")?;
+            let row: Option<(Value,)> = sqlx::query_as(
+                "SELECT to_jsonb(u) FROM \"user\" u WHERE u.user_id = $1",
+            )
+            .bind(id)
+            .fetch_optional(&state.repos.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+            row.map(|r| r.0).ok_or_else(|| "会员不存在".to_string())
+        }
+        "content_article_list" => {
+            if !settings.content_enabled {
+                return Err("内容域未启用".into());
+            }
+            let kw = arg_str(args, "keyword").map(|s| format!("%{s}%"));
+            let page = args.get("page").and_then(Value::as_i64).unwrap_or(1).max(1);
+            let size = args.get("size").and_then(Value::as_i64).unwrap_or(20).clamp(1, 100);
+            let offset = (page - 1) * size;
+            let rows: Vec<(Value,)> = sqlx::query_as(
+                "SELECT to_jsonb(a) FROM article a
+                 WHERE ($1::text IS NULL OR a.title ILIKE $1)
+                 ORDER BY a.article_id DESC LIMIT $2 OFFSET $3",
+            )
+            .bind(kw.clone())
+            .bind(size)
+            .bind(offset)
+            .fetch_all(&state.repos.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+            let total: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM article a WHERE ($1::text IS NULL OR a.title ILIKE $1)",
+            )
+            .bind(kw)
+            .fetch_one(&state.repos.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+            Ok(json!({ "records": rows.into_iter().map(|r| r.0).collect::<Vec<_>>(),
+                       "total": total.0, "page": page, "size": size }))
+        }
+        "content_article_get" => {
+            if !settings.content_enabled {
+                return Err("内容域未启用".into());
+            }
+            let id = require_i32(args, "articleId")?;
+            let row: Option<(Value,)> = sqlx::query_as(
+                "SELECT to_jsonb(a) FROM article a WHERE a.article_id = $1",
+            )
+            .bind(id)
+            .fetch_optional(&state.repos.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+            row.map(|r| r.0).ok_or_else(|| "文章不存在".to_string())
         }
         other => Err(format!("未知工具: {other}")),
     }
