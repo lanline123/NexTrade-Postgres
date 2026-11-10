@@ -1,6 +1,16 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
-import { Button, Dropdown, Empty, Input, Modal, Pagination, Toast } from '@douyinfe/semi-ui';
+import {
+  Button,
+  Dropdown,
+  Empty,
+  Input,
+  Modal,
+  Pagination,
+  Radio,
+  RadioGroup,
+  Toast,
+} from '@douyinfe/semi-ui';
 import { IconClose, IconGallery, IconPlayCircle, IconSearch, IconVideo } from '@douyinfe/semi-icons';
 import { apiGet, apiPost, apiUpload, isDemo } from '../api';
 import { useI18n } from '../i18n';
@@ -31,6 +41,7 @@ interface RawGalleryNode {
 
 interface GalleryTreeNode {
   id: number;
+  parentId: number;
   name: string;
   count: number;
   children: GalleryTreeNode[];
@@ -51,6 +62,7 @@ const SKELETON_COUNT = 15;
 const normalizeTree = (nodes: RawGalleryNode[]): GalleryTreeNode[] =>
   (nodes || []).map((node) => ({
     id: Number(node.galleryId ?? node.id ?? 0),
+    parentId: Number(node.parentId ?? 0),
     name: node.galleryName || node.name || '',
     count: Number(node.picCount ?? 0),
     children: normalizeTree(node.children || []),
@@ -113,8 +125,9 @@ export default function GalleryPickerModal({
   const [dragId, setDragId] = useState<number | null>(null);
   const [dropFolderId, setDropFolderId] = useState<number | null>(null);
   const [formOpen, setFormOpen] = useState(false);
-  const [formMode, setFormMode] = useState<'create' | 'rename'>('create');
+  const [formMode, setFormMode] = useState<'create' | 'renameFolder' | 'renameItem'>('create');
   const [formParentId, setFormParentId] = useState(0);
+  const [formFolder, setFormFolder] = useState<GalleryTreeNode | null>(null);
   const [formTarget, setFormTarget] = useState<MediaItem | null>(null);
   const [formName, setFormName] = useState('');
   const [formSaving, setFormSaving] = useState(false);
@@ -267,14 +280,24 @@ export default function GalleryPickerModal({
   const openCreateFolder = (parentId: number) => {
     setFormMode('create');
     setFormParentId(parentId);
+    setFormFolder(null);
     setFormTarget(null);
     setFormName('');
     setFormOpen(true);
   };
 
-  const openRename = (item: MediaItem) => {
-    setFormMode('rename');
+  const openRenameFolder = (node: GalleryTreeNode) => {
+    setFormMode('renameFolder');
+    setFormFolder(node);
+    setFormTarget(null);
+    setFormName(node.name);
+    setFormOpen(true);
+  };
+
+  const openRenameItem = (item: MediaItem) => {
+    setFormMode('renameItem');
     setFormTarget(item);
+    setFormFolder(null);
     setFormName(nameOf(item));
     setFormOpen(true);
   };
@@ -284,7 +307,7 @@ export default function GalleryPickerModal({
     if (!name) {
       Toast.warning({
         content:
-          formMode === 'create'
+          formMode === 'create' || formMode === 'renameFolder'
             ? t('请输入分组名称')
             : isVideo
               ? t('请输入视频名称')
@@ -301,6 +324,18 @@ export default function GalleryPickerModal({
         );
         setExpandedIds((current) =>
           current.includes(formParentId) ? current : [...current, formParentId],
+        );
+        void loadTree();
+      } else if (formMode === 'renameFolder' && formFolder) {
+        await apiPost(
+          isVideo ? '/setting/galleryVideo/update' : '/setting/gallery/update',
+          isVideo
+            ? { id: formFolder.id, parentId: formFolder.parentId ?? 0, name }
+            : {
+                id: formFolder.id,
+                parentId: formFolder.parentId ?? 0,
+                galleryName: name,
+              },
         );
         void loadTree();
       } else if (formTarget) {
@@ -322,6 +357,78 @@ export default function GalleryPickerModal({
     } finally {
       setFormSaving(false);
     }
+  };
+
+  const sortFolder = async (
+    node: GalleryTreeNode,
+    direction: 'up' | 'down',
+    siblings: GalleryTreeNode[],
+  ) => {
+    const index = siblings.findIndex((item) => item.id === node.id);
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= siblings.length) return;
+    const ids = siblings.map((item) => item.id);
+    [ids[index], ids[targetIndex]] = [ids[targetIndex], ids[index]];
+    try {
+      await apiPost('/setting/gallery/sort', { ids, type: isVideo ? 2 : 1 });
+      Toast.success({ content: t('排序成功') });
+      void loadTree();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('排序失败') });
+    }
+  };
+
+  const containsFolder = (nodes: GalleryTreeNode[], targetId: number): boolean =>
+    nodes.some((node) => node.id === targetId || containsFolder(node.children, targetId));
+
+  const deleteFolder = async (node: GalleryTreeNode, deleteMode: string) => {
+    try {
+      await apiPost(isVideo ? '/setting/galleryVideo/del' : '/setting/gallery/del', {
+        id: node.id,
+        deleteMode,
+      });
+      Toast.success({ content: t('删除成功') });
+      if (galleryId === node.id || containsFolder(node.children, galleryId)) {
+        setGalleryId(0);
+        setPage(1);
+      }
+      void loadTree();
+      setReloadKey((key) => key + 1);
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('删除失败') });
+    }
+  };
+
+  const openDeleteFolder = (node: GalleryTreeNode) => {
+    const choice = { mode: 'only_group' };
+    Modal.confirm({
+      title: `${t('删除分组')}「${node.name}」`,
+      okType: 'danger',
+      content: (
+        <div className="gp-delete-body">
+          <RadioGroup
+            defaultValue="only_group"
+            onChange={(event) => {
+              choice.mode = String(event.target.value);
+            }}
+          >
+            <Radio value="only_group">
+              <div className="gp-delete-option">
+                <b>{t('仅删除分组(推荐)')}</b>
+                <span>{t('仅删除分组，组内的素材会移出分组，仍可在全部列表中找到')}</span>
+              </div>
+            </Radio>
+            <Radio value="group_and_files">
+              <div className="gp-delete-option">
+                <b>{t('删除分组及组内素材')}</b>
+                <span>{t('分组及组内素材将会一并删除，删除不会对已使用图片的业务产生影响。')}</span>
+              </div>
+            </Radio>
+          </RadioGroup>
+        </div>
+      ),
+      onOk: () => deleteFolder(node, choice.mode),
+    });
   };
 
   const confirmDeleteItem = (item: MediaItem) => {
@@ -420,35 +527,62 @@ export default function GalleryPickerModal({
       const hasChildren = node.children.length > 0;
       const expanded = groupKeyword.trim() !== '' || expandedIds.includes(node.id);
       const active = galleryId === node.id;
+      const row = (
+        <div
+          className={`gp-tree-node${active ? ' is-active' : ''}${dropFolderId === node.id ? ' is-drop' : ''}`}
+          style={{ paddingLeft: 10 + depth * 16 }}
+          onClick={() => selectFolder(node.id)}
+          title={node.name}
+          {...folderDropProps(node.id)}
+        >
+          <span
+            className={`gp-tree-arrow${hasChildren ? '' : ' is-leaf'}${expanded ? ' is-expanded' : ''}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (hasChildren && !groupKeyword.trim()) toggleExpand(node.id);
+            }}
+          />
+          <span className="gp-tree-name">{node.name}</span>
+          {node.count > 0 && <span className="gp-tree-count">{node.count}</span>}
+          <span
+            className="gp-tree-add"
+            title={t('新建分组')}
+            onClick={(event) => {
+              event.stopPropagation();
+              openCreateFolder(node.id);
+            }}
+          >
+            +
+          </span>
+        </div>
+      );
       return (
         <Fragment key={node.id}>
-          <div
-            className={`gp-tree-node${active ? ' is-active' : ''}${dropFolderId === node.id ? ' is-drop' : ''}`}
-            style={{ paddingLeft: 10 + depth * 16 }}
-            onClick={() => selectFolder(node.id)}
-            title={node.name}
-            {...folderDropProps(node.id)}
+          <Dropdown
+            trigger="contextMenu"
+            position="bottomLeft"
+            render={
+              <Dropdown.Menu>
+                <Dropdown.Item onClick={() => openCreateFolder(node.id)}>
+                  {t('添加子分组')}
+                </Dropdown.Item>
+                <Dropdown.Item onClick={() => openRenameFolder(node)}>
+                  {t('重命名')}
+                </Dropdown.Item>
+                <Dropdown.Item onClick={() => void sortFolder(node, 'up', nodes)}>
+                  {t('上移')}
+                </Dropdown.Item>
+                <Dropdown.Item onClick={() => void sortFolder(node, 'down', nodes)}>
+                  {t('下移')}
+                </Dropdown.Item>
+                <Dropdown.Item onClick={() => openDeleteFolder(node)}>
+                  {t('删除')}
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            }
           >
-            <span
-              className={`gp-tree-arrow${hasChildren ? '' : ' is-leaf'}${expanded ? ' is-expanded' : ''}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                if (hasChildren && !groupKeyword.trim()) toggleExpand(node.id);
-              }}
-            />
-            <span className="gp-tree-name">{node.name}</span>
-            {node.count > 0 && <span className="gp-tree-count">{node.count}</span>}
-            <span
-              className="gp-tree-add"
-              title={t('新建分组')}
-              onClick={(event) => {
-                event.stopPropagation();
-                openCreateFolder(node.id);
-              }}
-            >
-              +
-            </span>
-          </div>
+            {row}
+          </Dropdown>
           {hasChildren && expanded && renderTree(node.children, depth + 1)}
         </Fragment>
       );
@@ -571,7 +705,7 @@ export default function GalleryPickerModal({
                       position="bottomLeft"
                       render={
                         <Dropdown.Menu>
-                          <Dropdown.Item onClick={() => openRename(item)}>
+                          <Dropdown.Item onClick={() => openRenameItem(item)}>
                             {t('重命名')}
                           </Dropdown.Item>
                           <Dropdown.Item onClick={() => confirmDeleteItem(item)}>
@@ -659,7 +793,13 @@ export default function GalleryPickerModal({
         </section>
       </div>
       <Modal
-        title={formMode === 'create' ? t('新建分组') : t('重命名')}
+        title={
+          formMode === 'create'
+            ? t('新建分组')
+            : formMode === 'renameFolder'
+              ? t('重命名分组')
+              : t('重命名')
+        }
         visible={formOpen}
         width={420}
         confirmLoading={formSaving}
@@ -669,7 +809,7 @@ export default function GalleryPickerModal({
       >
         <div className="gp-form">
           <label>
-            {formMode === 'create'
+            {formMode !== 'renameItem'
               ? t('分组名称')
               : isVideo
                 ? t('视频名称')
@@ -679,7 +819,7 @@ export default function GalleryPickerModal({
             value={formName}
             maxLength={40}
             placeholder={
-              formMode === 'create'
+              formMode !== 'renameItem'
                 ? t('请输入分组名称')
                 : isVideo
                   ? t('请输入视频名称')

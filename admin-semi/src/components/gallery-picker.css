@@ -427,6 +427,45 @@
   padding: 4px 0 8px;
 }
 
+.gp-delete-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.gp-delete-body .semi-radio {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 8px;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.gp-delete-body .semi-radio-checked {
+  border-color: var(--semi-color-primary);
+  background: var(--semi-color-primary-light-default);
+}
+
+.gp-delete-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gp-delete-option b {
+  color: var(--semi-color-text-0);
+  font-size: 13px;
+}
+
+.gp-delete-option span {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .gp-form label {
   color: var(--semi-color-text-1);
   font-size: 13px;
