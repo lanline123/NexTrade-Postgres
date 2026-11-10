@@ -5,7 +5,7 @@
 //!
 //! # 已实现（与 Java 逐条对齐）
 //!
-//! - `list`：`is_delete=0` + 名称 LIKE + 状态 + 生效窗口交集 + 主键倒序；
+//! - `list`：`is_delete=0` + 名称 ILIKE + 状态 + 生效窗口交集 + 主键倒序；
 //!   批量回填类目关联与类目名（避免 N+1）。
 //! - `detail`：软删除视为不存在（`规则不存在`）。
 //! - `create` / `update`：`validateBase` 全部逐字校验、去重保序（LinkedHashSet 语义）、

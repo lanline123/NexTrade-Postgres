@@ -56,7 +56,7 @@ impl TimeDiscountRepository {
 
         let total: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM time_discount
-             WHERE ($1 IS NULL OR promotion_name LIKE $2)
+             WHERE ($1 IS NULL OR promotion_name ILIKE $2)
                AND ($3 IS NULL OR shop_id = $4)",
         )
         .bind(&like)
@@ -69,7 +69,7 @@ impl TimeDiscountRepository {
 
         let rows = sqlx::query_as::<_, TimeDiscount>(
             "SELECT * FROM time_discount
-             WHERE ($1 IS NULL OR promotion_name LIKE $2)
+             WHERE ($1 IS NULL OR promotion_name ILIKE $2)
                AND ($3 IS NULL OR shop_id = $4)
              ORDER BY discount_id DESC
              LIMIT $5 OFFSET $6",
@@ -214,7 +214,7 @@ impl TimeDiscountRepository {
     /// 查询某活动下适用于指定 SKU 的明细（结算页取价）。
     ///
     /// `sku_ids` 为 JSON 数组字符串（空/`null` 表示作用于该商品全部规格）。
-    /// SQL 层用 `LIKE` 粗筛，精确匹配在服务层用 JSON 解析完成 ——
+    /// SQL 层用 `ILIKE` 粗筛，精确匹配在服务层用 JSON 解析完成 ——
     /// 避免 MySQL JSON 函数对非法值的容错差异。
     pub async fn find_items_for_product(
         &self,

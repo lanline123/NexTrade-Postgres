@@ -54,7 +54,7 @@ pub struct PrintLogFilters<'a> {
     pub trigger_type: Option<i32>,
     /// 订单 ID 精确（`order_id = ?`）
     pub order_id: Option<i32>,
-    /// 打印机 SN 模糊（`print_sn LIKE ?`）
+    /// 打印机 SN 模糊（`print_sn ILIKE ?`）
     pub print_sn: Option<&'a str>,
     /// 开始时间（`add_time >= ?`，Unix 秒）
     pub start_time: Option<i32>,
@@ -111,7 +111,7 @@ impl PrintLogRepository {
             where_parts.push("order_id = ?".into());
         }
         if like.is_some() {
-            where_parts.push("print_sn LIKE ?".into());
+            where_parts.push("print_sn ILIKE ?".into());
         }
         if filters.start_time.is_some() {
             where_parts.push("add_time >= ?".into());
@@ -162,7 +162,7 @@ impl PrintLogRepository {
     }
 }
 
-/// LIKE 通配模式（Java `wrapper.like(column, value)` 等价物）。
+/// ILIKE 通配模式（Java `wrapper.like(column, value)` 等价物）。
 ///
 /// Java 先 `StrUtil.isNotBlank(printSn)` 再 `like`：空白串**不**加条件。
 #[must_use]
@@ -337,7 +337,7 @@ mod tests {
         }
     }
 
-    /// LIKE 模式：`None` / 空白不加条件，其余 trim 后包 `%`
+    /// ILIKE 模式：`None` / 空白不加条件，其余 trim 后包 `%`
     /// （Java `isNotBlank` + `like`）。
     #[test]
     fn like_pattern_matches_java_like() {

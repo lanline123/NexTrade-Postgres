@@ -150,7 +150,7 @@ impl ProductBatchRepository {
             .filter(|k| !k.is_empty())
             .map(|k| format!("%{k}%"));
         let where_sql = if kw.is_some() {
-            " WHERE product_service_name LIKE $1"
+            " WHERE product_service_name ILIKE $1"
         } else {
             ""
         };

@@ -4,7 +4,7 @@
 //! `python tools/schema_parser.py --table friend_links`：
 //! `link_id` / `link_title` / `link_logo` / `link_url` / `sort_order`。
 //!
-//! 列表：keyword 作用于 `link_title LIKE`；排序由 Java `buildSortOrder` 归一
+//! 列表：keyword 作用于 `link_title ILIKE`；排序由 Java `buildSortOrder` 归一
 //! （缺省主键降序），列名来自 models 白名单，无注入面。
 
 use sqlx::{Postgres,PgPool, QueryBuilder};
@@ -51,7 +51,7 @@ impl FriendLinksRepository {
             .map(|k| format!("%{k}%"));
 
         let count_sql =
-            "SELECT COUNT(*) FROM friend_links WHERE ($1 IS NULL OR link_title LIKE $2)";
+            "SELECT COUNT(*) FROM friend_links WHERE ($1 IS NULL OR link_title ILIKE $2)";
         let total: (i64,) = sqlx::query_as(count_sql)
             .bind(&like)
             .bind(&like)
@@ -61,7 +61,7 @@ impl FriendLinksRepository {
 
         let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {LINK_COLUMNS} FROM friend_links \
-             WHERE (? IS NULL OR link_title LIKE ?){order} LIMIT ? OFFSET ?"
+             WHERE (? IS NULL OR link_title ILIKE ?){order} LIMIT ? OFFSET ?"
         ));
         let rows = sqlx::query_as::<_, FriendLinks>(&list_sql)
             .bind(&like)

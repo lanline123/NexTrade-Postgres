@@ -201,7 +201,7 @@ async fn abandon(
         .get("reason")
         .and_then(serde_json::Value::as_str)
         .unwrap_or("");
-    sqlx::query("UPDATE merchant_application SET abandoned=1, abandon_reason=$1, abandon_admin_id=$2, abandon_time=NOW(), status='ABANDONED' WHERE id=$3 AND is_del=0")
+    sqlx::query("UPDATE merchant_application SET abandoned=1, abandon_reason=$1, abandon_admin_id=$2, abandon_time=TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS'), status='ABANDONED' WHERE id=$3 AND is_del=0")
         .bind(reason).bind(auth.id).bind(id)
         .execute(&state.repos.pool).await.map_err(|e| nextrade_security::web::AppError(Error::Database(e.to_string())))?;
     ok(())
@@ -217,7 +217,7 @@ async fn delete_application(
         .and_then(serde_json::Value::as_i64)
         .unwrap_or(0);
     sqlx::query(
-        "UPDATE merchant_application SET is_del=1, delete_admin_id=$1, delete_time=NOW() WHERE id=$2",
+        "UPDATE merchant_application SET is_del=1, delete_admin_id=$1, delete_time=TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS') WHERE id=$2",
     )
     .bind(auth.id)
     .bind(id)

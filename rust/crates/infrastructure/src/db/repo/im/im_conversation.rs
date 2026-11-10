@@ -210,7 +210,7 @@ impl ImConversationRepository {
             qb.push_bind(end);
         }
         if let Some(remark) = q.remark.as_deref() {
-            qb.push(" AND remark LIKE ");
+            qb.push(" AND remark ILIKE ");
             qb.push_bind(format!("%{remark}%"));
         }
         if let Some(ids) = username_user_ids {
@@ -308,7 +308,7 @@ impl ImConversationRepository {
         }
         if let Some(username) = q.username.as_deref().filter(|s| !s.is_empty()) {
             qb.push(
-                " AND EXISTS (SELECT 1 FROM \"user\" u WHERE u.user_id = im_conversation.user_id AND u.username LIKE ",
+                " AND EXISTS (SELECT 1 FROM \"user\" u WHERE u.user_id = im_conversation.user_id AND u.username ILIKE ",
             );
             qb.push_bind(format!("%{username}%"));
             qb.push(")");
@@ -326,7 +326,7 @@ impl ImConversationRepository {
             qb.push_bind(status);
         }
         if let Some(remark) = q.remark.as_deref() {
-            qb.push(" AND remark LIKE ");
+            qb.push(" AND remark ILIKE ");
             qb.push_bind(format!("%{remark}%"));
         }
     }
@@ -615,7 +615,7 @@ impl ImConversationRepository {
     /// 本实现保留同样绑定，见模块头说明。
     pub async fn find_text_messages_by_content(&self, keyword: &str) -> Result<Vec<ImMessage>> {
         sqlx::query_as::<_, ImMessage>(&format!(
-            "{MESSAGE_SELECT} WHERE content LIKE $1 AND \"type\" = $2 ORDER BY id ASC"
+            "{MESSAGE_SELECT} WHERE content ILIKE $1 AND \"type\" = $2 ORDER BY id ASC"
         ))
         .bind(format!("%{keyword}%"))
         .bind("text")
@@ -625,14 +625,14 @@ impl ImConversationRepository {
     }
 
     /// 按内容搜用户文本消息（前台 `frontSearch`）：
-    /// `user_id = ? AND content LIKE ? AND status = 1 AND message_type = 'text'`。
+    /// `user_id = ? AND content ILIKE ? AND status = 1 AND message_type = 'text'`。
     pub async fn find_text_messages_by_user_content(
         &self,
         user_id: i32,
         keyword: &str,
     ) -> Result<Vec<ImMessage>> {
         sqlx::query_as::<_, ImMessage>(&format!(
-            "{MESSAGE_SELECT} WHERE user_id = $1 AND content LIKE $2 AND status = 1 AND message_type = 'text' ORDER BY id ASC"
+            "{MESSAGE_SELECT} WHERE user_id = $1 AND content ILIKE $2 AND status = 1 AND message_type = 'text' ORDER BY id ASC"
         ))
         .bind(user_id)
         .bind(format!("%{keyword}%"))
@@ -733,7 +733,7 @@ impl ImConversationRepository {
     pub async fn find_user_ids_by_keyword(&self, keyword: &str) -> Result<Vec<i32>> {
         let like = format!("%{keyword}%");
         let rows: Vec<(i32,)> = sqlx::query_as(
-            "SELECT user_id FROM \"user\" WHERE username LIKE $1 OR mobile LIKE $2 OR nickname LIKE $3",
+            "SELECT user_id FROM \"user\" WHERE username ILIKE $1 OR mobile ILIKE $2 OR nickname ILIKE $3",
         )
         .bind(&like)
         .bind(&like)
@@ -761,10 +761,10 @@ impl ImConversationRepository {
         qb.build_query_as().fetch_all(&self.pool).await.map_err(map_err)
     }
 
-    /// 前台搜索用户（`username LIKE`，返回 user_id + 展示字段）。
+    /// 前台搜索用户（`username ILIKE`，返回 user_id + 展示字段）。
     pub async fn find_users_by_username_like(&self, keyword: &str) -> Result<Vec<ConvUserBrief>> {
         sqlx::query_as::<_, ConvUserBrief>(
-            "SELECT user_id, username, nickname, avatar, mobile FROM \"user\" WHERE username LIKE $1",
+            "SELECT user_id, username, nickname, avatar, mobile FROM \"user\" WHERE username ILIKE $1",
         )
         .bind(format!("%{keyword}%"))
         .fetch_all(&self.pool)
@@ -806,7 +806,7 @@ impl ImConversationRepository {
         }
         sep.push_unseparated(")");
         drop(sep);
-        qb.push(" AND shop_title LIKE ");
+        qb.push(" AND shop_title ILIKE ");
         qb.push_bind(format!("%{keyword}%"));
         qb.build_query_as().fetch_all(&self.pool).await.map_err(map_err)
     }

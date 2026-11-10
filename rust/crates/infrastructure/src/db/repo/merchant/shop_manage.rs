@@ -120,8 +120,8 @@ impl ShopManageRepository {
               WHERE shop_type = $1
                 AND (is_delete IS NULL OR is_delete = 0)
                 AND (
-                      ($2 IS NULL OR shop_title LIKE CONCAT('%', $3, '%'))
-                   OR ($4 IS NULL OR shop_title LIKE CONCAT('%', $5, '%'))
+                      ($2 IS NULL OR shop_title ILIKE CONCAT('%', $3, '%'))
+                   OR ($4 IS NULL OR shop_title ILIKE CONCAT('%', $5, '%'))
                 )
               ORDER BY shop_id DESC",
         )
@@ -433,11 +433,11 @@ impl ShopManageRepository {
         let sql = if only_admin {
             "SELECT s.shop_id FROM admin_user u
                JOIN admin_user_shop s ON s.admin_id = u.admin_id
-              WHERE u.username LIKE CONCAT('%', $1, '%') AND s.is_admin = 1"
+              WHERE u.username ILIKE CONCAT('%', $1, '%') AND s.is_admin = 1"
         } else {
             "SELECT s.shop_id FROM admin_user u
                JOIN admin_user_shop s ON s.admin_id = u.admin_id
-              WHERE u.username LIKE CONCAT('%', $1, '%')"
+              WHERE u.username ILIKE CONCAT('%', $1, '%')"
         };
         let rows: Vec<(i32,)> = sqlx::query_as(sql)
             .bind(account)
@@ -904,7 +904,7 @@ fn build_filter(
     // 关键字：Java `list` 只用父类 `keyword`；`shopList` 接口用 `shopTitle`。
     // 两者取并集（任一命中即匹配）。
     if let Some(kw) = first_non_empty(&[q.keyword.as_deref(), q.shop_title.as_deref()]) {
-        sql.push_str(" AND shop_title LIKE CONCAT('%', ?, '%')");
+        sql.push_str(" AND shop_title ILIKE CONCAT('%', ?, '%')");
         binds.push(Bind::Str(kw.to_string()));
     }
 
@@ -924,7 +924,7 @@ fn build_filter(
     }
 
     if let Some(region) = q.shop_region_id.as_deref().filter(|s| !s.trim().is_empty()) {
-        sql.push_str(" AND shop_region_id LIKE CONCAT('%', ?, '%')");
+        sql.push_str(" AND shop_region_id ILIKE CONCAT('%', ?, '%')");
         binds.push(Bind::Str(region.to_string()));
     }
 
@@ -977,7 +977,7 @@ fn build_filter(
             " AND EXISTS (SELECT 1 FROM merchant m
                            WHERE m.merchant_id = s.merchant_id
                              AND (m.is_delete IS NULL OR m.is_delete = 0)
-                             AND m.corporate_name LIKE CONCAT('%', ?, '%'))",
+                             AND m.corporate_name ILIKE CONCAT('%', ?, '%'))",
         );
         binds.push(Bind::Str(name.to_string()));
     }

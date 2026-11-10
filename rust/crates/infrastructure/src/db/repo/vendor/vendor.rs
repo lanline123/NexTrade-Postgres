@@ -43,7 +43,7 @@ impl VendorRepository {
 
     /// 供应商分页（对应 Java `VendorServiceImpl#list`）。
     ///
-    /// 过滤条件：`status` 等值、`keyword`（vendor_name / contact_mobile LIKE）、
+    /// 过滤条件：`status` 等值、`keyword`（vendor_name / contact_mobile ILIKE）、
     /// `vendorIds IN (...)`；`mainAccount` / `account` 由服务层先解析成
     /// vendor id 集合后传入 `extra_vendor_ids`（Java 经 adminUserService 两段查询）。
     ///
@@ -104,9 +104,9 @@ impl VendorRepository {
         }
         if let Some(keyword) = q.keyword.as_deref().filter(|s| !s.trim().is_empty()) {
             let like = format!("%{}%", keyword.trim());
-            qb.push(" AND (vendor_name LIKE ");
+            qb.push(" AND (vendor_name ILIKE ");
             qb.push_bind(like.clone());
-            qb.push(" OR contact_mobile LIKE ");
+            qb.push(" OR contact_mobile ILIKE ");
             qb.push_bind(like);
             qb.push(")");
         }
@@ -250,7 +250,7 @@ impl VendorRepository {
     /// 按登录名精确查管理员 id 集合（Java `adminUserService.getBindMainVendorIds` 的第一段）。
     pub async fn find_admin_ids_by_username(&self, username: &str) -> Result<Vec<i32>> {
         let rows: Vec<(i32,)> =
-            sqlx::query_as("SELECT admin_id FROM admin_user WHERE username = $1 LIMIT 20")
+            sqlx::query_as("SELECT admin_id FROM admin_user WHERE LOWER(username) = LOWER($1) LIMIT 20")
                 .bind(username)
                 .fetch_all(&self.pool)
                 .await

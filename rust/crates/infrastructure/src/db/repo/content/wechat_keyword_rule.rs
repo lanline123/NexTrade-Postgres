@@ -92,7 +92,7 @@ impl WechatKeywordRuleRepository {
              FROM wechat_keyword_rule r WHERE 1 = 1",
         );
         if let Some(name) = rule_name {
-            row_qb.push(" AND r.rule_name LIKE ");
+            row_qb.push(" AND r.rule_name ILIKE ");
             row_qb.push_bind(format!("%{name}%"));
         }
         if let Some(enabled) = enabled {
@@ -115,7 +115,7 @@ impl WechatKeywordRuleRepository {
         enabled: Option<i32>,
     ) {
         if let Some(name) = rule_name {
-            qb.push(" AND rule_name LIKE ");
+            qb.push(" AND rule_name ILIKE ");
             qb.push_bind(format!("%{name}%"));
         }
         if let Some(enabled) = enabled {

@@ -264,7 +264,7 @@ pub struct CategoryFeeRulePageQuery {
     /// 状态 1 启用 0 禁用（前端可能传 `""`）
     #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub status: Option<i32>,
-    /// 规则名称关键字（`LIKE`）
+    /// 规则名称关键字（`ILIKE`）
     pub keyword: Option<String>,
     /// 页码
     #[serde(default, deserialize_with = "de_opt_i64_lenient")]

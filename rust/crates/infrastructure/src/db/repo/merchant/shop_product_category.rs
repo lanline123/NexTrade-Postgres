@@ -91,7 +91,7 @@ impl ShopProductCategoryRepository {
     ///   服务层再套这个条件；因此平台账号（`shopId = 0`）时**不加**过滤
     ///   ⇒ 能跨店铺看到全部分类（Java 的实际可观测行为）。
     /// - `category_name`：见 [`ShopProductCategoryListQuery::effective_keyword`]
-    ///   —— Java 条件写反，非空关键字**不过滤**，空串才产生 `LIKE '%%'`（恒真）。
+    ///   —— Java 条件写反，非空关键字**不过滤**，空串才产生 `ILIKE '%%'`（恒真）。
     ///
     /// 返回 `(总数, 当前页行)`。
     pub async fn paginate(&self, q: &ShopProductCategoryListQuery, shop_id: Option<i32>) -> Result<(u64, Vec<ShopProductCategory>)> {
@@ -138,9 +138,9 @@ impl ShopProductCategoryRepository {
             qb.push(" AND shop_id = ");
             qb.push_bind(sid);
         }
-        // Java 第 152 行的取反条件：只有「非 null 且空串」才拼 LIKE（恒真）
+        // Java 第 152 行的取反条件：只有「非 null 且空串」才拼 ILIKE（恒真）
         if let Some(kw) = q.effective_keyword() {
-            qb.push(" AND category_name LIKE ");
+            qb.push(" AND category_name ILIKE ");
             qb.push_bind(format!("%{kw}%"));
         }
     }

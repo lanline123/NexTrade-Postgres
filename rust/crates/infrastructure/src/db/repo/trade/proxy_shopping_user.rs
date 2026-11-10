@@ -3,7 +3,7 @@
 //! 对应原 Java `com.nextrade.adminapi.controller.proxyshopping.ProxyShoppingUserController`
 //! （`@RequestMapping("/adminapi/proxyShopping/user")`）两条只读链路背后的
 //! `UserMapper` 查询：
-//! - `list` → `UserServiceImpl#list`（关键词 `=` / `LIKE` 两种模式）
+//! - `list` → `UserServiceImpl#list`（关键词 `=` / `ILIKE` 两种模式）
 //! - `detail` → `UserServiceImpl#getUserAndUserRank`（按 `user_id` 取单条）
 //!
 //! 列名严格对齐权威 schema
@@ -83,7 +83,7 @@ impl ProxyShoppingUserRepository {
         // 两种模式各写一条**单行** SQL 字面量，便于静态列名校验。
         let row: (i64,) = if exact {
             sqlx::query_as(
-                "SELECT COUNT(*) FROM \"user\" WHERE username = $1 OR email = $2 OR mobile = $3",
+                "SELECT COUNT(*) FROM \"user\" WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2) OR mobile = $3",
             )
             .bind(kw)
             .bind(kw)
@@ -94,7 +94,7 @@ impl ProxyShoppingUserRepository {
         } else {
             let pattern = format!("%{kw}%");
             sqlx::query_as(
-                "SELECT COUNT(*) FROM \"user\" WHERE username LIKE $1 OR email LIKE $2 OR mobile LIKE $3",
+                "SELECT COUNT(*) FROM \"user\" WHERE username ILIKE $1 OR email ILIKE $2 OR mobile ILIKE $3",
             )
             .bind(&pattern)
             .bind(&pattern)

@@ -158,7 +158,7 @@ impl ShippingTplService {
     ///
     /// 语义（逐条对照 Java）：
     /// - `shopId != null` ⇒ `AND shop_id = ?`
-    /// - `keyword` 非空 ⇒ `AND shipping_tpl_name LIKE %keyword%`
+    /// - `keyword` 非空 ⇒ `AND shipping_tpl_name ILIKE %keyword%`
     /// - 排序走 `buildSortOrder(page, sortField, sortOrder)`
     /// - **不使用** `isShow`（表无该列，Java 也从未拼进 wrapper）
     ///

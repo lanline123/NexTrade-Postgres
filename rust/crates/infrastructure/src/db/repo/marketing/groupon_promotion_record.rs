@@ -102,7 +102,7 @@ impl GrouponPromotionRecordRepository {
             qb.push_bind(status);
         }
         if let Some(name) = q.product_name.as_deref().filter(|s| !s.is_empty()) {
-            qb.push(" AND product_name LIKE ");
+            qb.push(" AND product_name ILIKE ");
             qb.push_bind(format!("%{name}%"));
         }
     }
@@ -146,11 +146,11 @@ impl GrouponPromotionRecordRepository {
         }
         if let Some(keyword) = q.keyword.as_deref().filter(|s| !s.is_empty()) {
             let like = format!("%{keyword}%");
-            qb.push(" AND (gpr.product_name LIKE ");
+            qb.push(" AND (gpr.product_name ILIKE ");
             qb.push_bind(like.clone());
-            qb.push(" OR u.username LIKE ");
+            qb.push(" OR u.username ILIKE ");
             qb.push_bind(like.clone());
-            qb.push(" OR o.order_sn LIKE ");
+            qb.push(" OR o.order_sn ILIKE ");
             qb.push_bind(like);
             qb.push(")");
         }

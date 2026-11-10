@@ -282,15 +282,15 @@ impl GrouponPromotionRepository {
     /// 管理端列表 WHERE 片段（COUNT 与行查询共用）。
     fn push_admin_filters(qb: &mut QueryBuilder<'_, Postgres>, f: &AdminPromotionListFilter) {
         if let Some(name) = f.groupon_name.as_deref().filter(|v| !v.is_empty()) {
-            qb.push(" AND gp.name LIKE ").push_bind(format!("%{name}%"));
+            qb.push(" AND gp.name ILIKE ").push_bind(format!("%{name}%"));
         }
         // 注：Java XML 写作 `p.name`（product 表无该列），本实现用真实列 `product_name`
         if let Some(name) = f.product_name.as_deref().filter(|v| !v.is_empty()) {
-            qb.push(" AND p.product_name LIKE ")
+            qb.push(" AND p.product_name ILIKE ")
                 .push_bind(format!("%{name}%"));
         }
         if let Some(sn) = f.product_sn.as_deref().filter(|v| !v.is_empty()) {
-            qb.push(" AND p.product_sn LIKE ")
+            qb.push(" AND p.product_sn ILIKE ")
                 .push_bind(format!("%{sn}%"));
         }
         if let Some(shop_id) = f.shop_id {
@@ -359,7 +359,7 @@ impl GrouponPromotionRepository {
 
     fn push_client_filters(qb: &mut QueryBuilder<'_, Postgres>, f: &ClientPromotionListFilter) {
         if let Some(name) = f.groupon_name.as_deref().filter(|v| !v.is_empty()) {
-            qb.push(" AND gp.name LIKE ").push_bind(format!("%{name}%"));
+            qb.push(" AND gp.name ILIKE ").push_bind(format!("%{name}%"));
         }
         match f.status {
             Some(1) => {
@@ -754,7 +754,7 @@ impl GrouponPromotionRepository {
 
     fn push_item_filters(qb: &mut QueryBuilder<'_, Postgres>, f: &GrouponItemListFilter) {
         if let Some(keyword) = f.keyword.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
-            qb.push(" AND p.product_name LIKE ")
+            qb.push(" AND p.product_name ILIKE ")
                 .push_bind(format!("%{keyword}%"));
         }
         qb.push(" AND gpi.groupon_promotion_id IN (");

@@ -361,7 +361,7 @@ impl BuyerShowRepository {
     ///
     /// 条件顺序与 Java 完全一致：
     /// 1. `status` 三态（见 [`ListStatusView`]）
-    /// 2. `content LIKE %keyword%`（仅当 keyword 非空白）
+    /// 2. `content ILIKE %keyword%`（仅当 keyword 非空白）
     /// 3. `JSON_CONTAINS(group_data, '<goodsId>')`（仅当 `goodsId != null`）
     /// 4. `add_time BETWEEN toTimestampYmd(startTime) AND toTimestampYmd(endTime)`
     ///    （仅当 start/end **同时**非空白）
@@ -861,7 +861,7 @@ pub fn build_filter(
     }
 
     if let Some(kw) = q.keyword_opt() {
-        conds.push("content LIKE CONCAT('%', ?, '%')".into());
+        conds.push("content ILIKE CONCAT('%', ?, '%')".into());
         binds.push(Bind::Str(kw.to_string()));
     }
 
@@ -1067,7 +1067,7 @@ mod tests {
     #[test]
     fn filter_keyword_uses_concat_like() {
         let (sql, binds) = build_filter(&query_with(None, Some("鞋"), None), None, None);
-        assert_eq!(sql, " WHERE content LIKE CONCAT('%', ?, '%')");
+        assert_eq!(sql, " WHERE content ILIKE CONCAT('%', ?, '%')");
         match &binds[0] {
             Bind::Str(s) => assert_eq!(s, "鞋"),
             other => panic!("应为字符串绑定，实际 {other:?}"),
@@ -1100,7 +1100,7 @@ mod tests {
             build_filter(&query_with(Some(1), Some("k"), Some(7)), Some(10), Some(20));
         assert_eq!(
             sql,
-            " WHERE status <> ? AND is_show = ? AND content LIKE CONCAT('%', ?, '%') \
+            " WHERE status <> ? AND is_show = ? AND content ILIKE CONCAT('%', ?, '%') \
              AND group_data::jsonb @> '7'::jsonb AND add_time BETWEEN ? AND ?"
         );
         assert_eq!(binds.len(), 5);

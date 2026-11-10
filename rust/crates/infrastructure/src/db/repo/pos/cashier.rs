@@ -44,7 +44,7 @@ impl PosCashierRepository {
         let kw = format!("%{}%", keyword.unwrap_or_default().trim());
         let (total,): (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM admin_user_pos WHERE ($1 IS NULL OR is_using = $2) \
-             AND username LIKE $3",
+             AND username ILIKE $3",
         )
         .bind(status)
         .bind(status)
@@ -55,7 +55,7 @@ impl PosCashierRepository {
         let rows = sqlx::query_as::<_, AdminUserPos>(
             "SELECT id, admin_id, shop_id, username, email, avatar, auth_list, is_using, \
              add_time, role_id FROM admin_user_pos \
-             WHERE ($1 IS NULL OR is_using = $2) AND username LIKE $3 \
+             WHERE ($1 IS NULL OR is_using = $2) AND username ILIKE $3 \
              ORDER BY id DESC LIMIT $4 OFFSET $5",
         )
         .bind(status)
@@ -713,7 +713,7 @@ impl PosCashierRepository {
     ) -> Result<(i64, Vec<serde_json::Value>)> {
         let kw = format!("%{}%", keyword.unwrap_or_default().trim());
         let (total,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM product WHERE product_status = 1 AND product_name LIKE $1 \
+            "SELECT COUNT(*) FROM product WHERE product_status = 1 AND product_name ILIKE $1 \
              AND ($2 IS NULL OR category_id = $3)",
         )
         .bind(&kw)
@@ -726,7 +726,7 @@ impl PosCashierRepository {
             "SELECT json_build_object('productId', product_id, 'productName', product_name, \
              'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price, \
              'productStock', product_stock, 'productSn', product_sn, 'categoryId', category_id) \
-             FROM product WHERE product_status = 1 AND product_name LIKE $1 \
+             FROM product WHERE product_status = 1 AND product_name ILIKE $1 \
              AND ($2 IS NULL OR category_id = $3) ORDER BY product_id DESC LIMIT $4 OFFSET $5",
         )
         .bind(&kw)
@@ -774,7 +774,7 @@ impl PosCashierRepository {
     ) -> Result<(i64, Vec<serde_json::Value>)> {
         let kw = format!("%{}%", keyword.unwrap_or_default().trim());
         let (total,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM \"user\" WHERE ($1 IS NOT NULL OR TRUE) AND (nickname LIKE $2 OR mobile LIKE $3 OR user_id = $4)",
+            "SELECT COUNT(*) FROM \"user\" WHERE ($1 IS NOT NULL OR TRUE) AND (nickname ILIKE $2 OR mobile ILIKE $3 OR user_id = $4)",
         )
         .bind(user_id)
         .bind(&kw)
@@ -786,7 +786,7 @@ impl PosCashierRepository {
         let rows = sqlx::query_as::<_, (serde_json::Value,)>(
             "SELECT json_build_object('userId', user_id, 'nickname', nickname, 'mobile', mobile, \
              'balance', balance, 'points', points, 'addTime', reg_time) \
-             FROM \"user\" WHERE (nickname LIKE $1 OR mobile LIKE $2 OR user_id = $3) \
+             FROM \"user\" WHERE (nickname ILIKE $1 OR mobile ILIKE $2 OR user_id = $3) \
              ORDER BY user_id DESC LIMIT $4 OFFSET $5",
         )
         .bind(&kw)

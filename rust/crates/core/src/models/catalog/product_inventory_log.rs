@@ -25,7 +25,7 @@ pub const MAX_PAGE_SIZE: u64 = 100;
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ProductInventoryLogQuery {
-    /// 关键词（Java `BasePage.keyword`，按 `product.product_name` LIKE）
+    /// 关键词（Java `BasePage.keyword`，按 `product.product_name` ILIKE）
     pub keyword: Option<String>,
     /// 页码
     pub page: Option<u64>,

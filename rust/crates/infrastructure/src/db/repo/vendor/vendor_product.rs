@@ -147,7 +147,7 @@ impl VendorProductRepository {
             qb.push(" AND is_recycle = 0");
         }
         if let Some(keyword) = q.keyword.as_deref().filter(|s| !s.trim().is_empty()) {
-            qb.push(" AND product_name LIKE ");
+            qb.push(" AND product_name ILIKE ");
             qb.push_bind(format!("%{}%", keyword.trim()));
         }
     }

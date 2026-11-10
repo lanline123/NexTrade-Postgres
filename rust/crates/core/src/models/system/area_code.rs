@@ -163,7 +163,7 @@ impl From<AreaCode> for AreaCodeVO {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AreaCodeListQuery {
-    /// 地区名称（Java `name`，`LIKE %name%`）
+    /// 地区名称（Java `name`，`ILIKE %name%`）
     pub name: Option<String>,
     /// 排序字段（Java `sortField`；属性名或列名，无法识别时回退主键列）
     pub sort_field: Option<String>,

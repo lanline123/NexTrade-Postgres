@@ -130,7 +130,7 @@ impl PriceInquiryQuery {
 
     /// 有效关键字（Java `StrUtil.isNotBlank(keyword)`：**去空白后**为空则不过滤）。
     ///
-    /// 注意 Java 判空用 `isNotBlank`，但 `LIKE` 绑定的是**原始值**
+    /// 注意 Java 判空用 `isNotBlank`，但 `ILIKE` 绑定的是**原始值**
     /// （不 trim），故返回原始切片。
     #[must_use]
     pub fn effective_keyword(&self) -> Option<&str> {
@@ -138,7 +138,7 @@ impl PriceInquiryQuery {
     }
 
     /// 有效手机号过滤值（Java `like(StrUtil.isNotBlank(mobile), mobile)`：
-    /// **去空白后**为空则不过滤；`LIKE` 绑定原始值，不 trim）。
+    /// **去空白后**为空则不过滤；`ILIKE` 绑定原始值，不 trim）。
     #[must_use]
     pub fn effective_mobile(&self) -> Option<&str> {
         self.mobile.as_deref().filter(|s| !s.trim().is_empty())

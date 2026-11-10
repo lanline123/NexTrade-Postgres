@@ -28,7 +28,7 @@
 //! }
 //! ```
 //!
-//! 即：`status` 与 keyword 可叠加；keyword 的 IN 集合来自 `user.username LIKE`，
+//! 即：`status` 与 keyword 可叠加；keyword 的 IN 集合来自 `user.username ILIKE`，
 //! 集合为空时**只**按 `company_name` 过滤（不产生空 `IN ()`）。
 
 use sqlx::{Postgres,PgPool, QueryBuilder};
@@ -146,9 +146,9 @@ impl UserInvoiceRepository {
         Ok((total.0, rows))
     }
 
-    /// 用户名模糊命中的 `user_id`（`user.username LIKE %kw%`）。
+    /// 用户名模糊命中的 `user_id`（`user.username ILIKE %kw%`）。
     pub async fn find_user_ids_by_username(&self, keyword: &str) -> Result<Vec<i32>> {
-        let rows: Vec<(i32,)> = sqlx::query_as("SELECT user_id FROM \"user\" WHERE username LIKE $1")
+        let rows: Vec<(i32,)> = sqlx::query_as("SELECT user_id FROM \"user\" WHERE username ILIKE $1")
             .bind(format!("%{keyword}%"))
             .fetch_all(&self.pool)
             .await
@@ -275,8 +275,8 @@ impl UserInvoiceRepository {
 
 /// 拼装 WHERE 与绑定参数（对应 Java wrapper 链；返回的 SQL 以 `" WHERE "` 开头）。
 ///
-/// `user_ids` 是 `user.username LIKE keyword` 命中的集合：
-/// 非空时生成 `(company_name LIKE ? OR user_id IN (?, ...))`，空时只按
+/// `user_ids` 是 `user.username ILIKE keyword` 命中的集合：
+/// 非空时生成 `(company_name ILIKE ? OR user_id IN (?, ...))`，空时只按
 /// `company_name` 过滤（与 Java 分支一致）。
 #[must_use]
 pub fn build_where(
@@ -289,11 +289,11 @@ pub fn build_where(
 
     if let Some(keyword) = keyword {
         if user_ids.is_empty() {
-            conds.push("(company_name LIKE ?)".to_string());
+            conds.push("(company_name ILIKE ?)".to_string());
         } else {
             let placeholders = vec!["?"; user_ids.len()].join(", ");
             conds.push(format!(
-                "(company_name LIKE ? OR user_id IN ({placeholders}))"
+                "(company_name ILIKE ? OR user_id IN ({placeholders}))"
             ));
         }
         binds.push(Bind::Str(format!("%{keyword}%")));
@@ -341,7 +341,7 @@ mod tests {
             Some("NexTrade"),
             &[],
         );
-        assert_eq!(sql, " WHERE (company_name LIKE ?)");
+        assert_eq!(sql, " WHERE (company_name ILIKE ?)");
         assert!(matches!(&binds[0], Bind::Str(s) if s == "%NexTrade%"));
     }
 
@@ -354,7 +354,7 @@ mod tests {
         );
         assert_eq!(
             sql,
-            " WHERE (company_name LIKE ? OR user_id IN (?, ?)) AND status = ?"
+            " WHERE (company_name ILIKE ? OR user_id IN (?, ?)) AND status = ?"
         );
         // 绑定顺序：keyword → user_ids → status
         assert!(matches!(&binds[0], Bind::Str(s) if s == "%bob%"));
@@ -381,7 +381,7 @@ mod tests {
         // insert 使用 [1..] 跳过自增主键
         assert!(!USER_INVOICE_COLUMNS[1..].contains(&"invoice_id"));
         let src = include_str!("user_invoice.rs");
-        assert!(src.contains(r#"SELECT user_id FROM \"user\" WHERE username LIKE $1"#));
+        assert!(src.contains(r#"SELECT user_id FROM \"user\" WHERE username ILIKE $1"#));
         assert!(src.contains("OR user_id IN ({placeholders})"));
     }
 }

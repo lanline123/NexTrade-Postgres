@@ -345,7 +345,7 @@ impl PaylogRepository {
 
         let total: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM paylog
-             WHERE ($1 IS NULL OR order_sn LIKE $2)
+             WHERE ($1 IS NULL OR order_sn ILIKE $2)
                AND ($3 IS NULL OR pay_status = $4)
                AND ($5 IS NULL OR order_type = $6)",
         )
@@ -361,7 +361,7 @@ impl PaylogRepository {
 
         let rows = sqlx::query_as::<_, Paylog>(
             "SELECT * FROM paylog
-             WHERE ($1 IS NULL OR order_sn LIKE $2)
+             WHERE ($1 IS NULL OR order_sn ILIKE $2)
                AND ($3 IS NULL OR pay_status = $4)
                AND ($5 IS NULL OR order_type = $6)
              ORDER BY paylog_id DESC

@@ -42,7 +42,7 @@ impl SalesmanOrderRepository {
     pub async fn order_ids_by_sn(&self, order_sn: &str) -> Result<Vec<i32>> {
         let like = format!("%{order_sn}%");
         let rows: Vec<(i32,)> =
-            sqlx::query_as("SELECT order_id FROM \"order\" WHERE order_sn LIKE $1 LIMIT 5000")
+            sqlx::query_as("SELECT order_id FROM \"order\" WHERE order_sn ILIKE $1 LIMIT 5000")
                 .bind(like)
                 .fetch_all(&self.pool)
                 .await

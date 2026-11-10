@@ -136,7 +136,7 @@ pub struct KeywordRuleListQuery {
     pub sort_order: Option<String>,
     /// 关键字（Java `BasePage.keyword`；未使用）。
     pub keyword: Option<String>,
-    /// 规则名（LIKE 过滤，trim 后使用）。
+    /// 规则名（ILIKE 过滤，trim 后使用）。
     pub rule_name: Option<String>,
     /// 启用状态（精确）。
     pub enabled: Option<i32>,

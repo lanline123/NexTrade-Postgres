@@ -33,7 +33,7 @@ impl ProductPromotionRepository {
 
     // ————————————————————— 商品促销 CRUD —————————————————————
 
-    /// 分页（Java `list`：关键词 LIKE + 类型 IN + 店铺租户 + 时间状态 + 排序白名单）。
+    /// 分页（Java `list`：关键词 ILIKE + 类型 IN + 店铺租户 + 时间状态 + 排序白名单）。
     ///
     /// `shop_id`：`None`（平台账号）不过滤；`Some(id)` 强制 `WHERE shop_id = ?`。
     pub async fn paginate(
@@ -46,7 +46,7 @@ impl ProductPromotionRepository {
         let mut wh = String::from(" WHERE 1 = 1");
         let mut binds: Vec<String> = Vec::new();
         if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-            wh.push_str(" AND promotion_name LIKE ?");
+            wh.push_str(" AND promotion_name ILIKE ?");
             binds.push(format!("%{kw}%"));
         }
         let types = q.promotion_types();

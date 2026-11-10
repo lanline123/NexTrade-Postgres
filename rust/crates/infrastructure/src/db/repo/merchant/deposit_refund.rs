@@ -319,12 +319,12 @@ impl DepositRefundRepository {
         qb.push("(owner_type = ").push_bind(owner_type);
         if let Some(like) = name_like {
             if owner_type == 1 {
-                qb.push(" AND owner_id IN (SELECT shop_id FROM shop WHERE shop_title LIKE ")
+                qb.push(" AND owner_id IN (SELECT shop_id FROM shop WHERE shop_title ILIKE ")
                     .push_bind(like.to_string())
                     .push(")");
             } else {
                 qb.push(
-                    " AND owner_id IN (SELECT vendor_id FROM vendor WHERE source_type = 1 AND vendor_name LIKE ",
+                    " AND owner_id IN (SELECT vendor_id FROM vendor WHERE source_type = 1 AND vendor_name ILIKE ",
                 )
                 .push_bind(like.to_string())
                 .push(")");

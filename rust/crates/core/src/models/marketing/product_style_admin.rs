@@ -387,7 +387,7 @@ pub struct ProductStyleListQuery {
     pub start_time: Option<String>,
     /// 生效结束时间上界（`yyyy-MM-dd`，筛选 `end_time <= 该值`）
     pub end_time: Option<String>,
-    /// 样式名称模糊匹配（Java `BasePage.keyword`，`LIKE %keyword%`）
+    /// 样式名称模糊匹配（Java `BasePage.keyword`，`ILIKE %keyword%`）
     pub keyword: Option<String>,
     /// 排序字段（Java `sortField`）
     pub sort_field: Option<String>,

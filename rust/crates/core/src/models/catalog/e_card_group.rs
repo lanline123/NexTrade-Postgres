@@ -16,7 +16,7 @@
 //!
 //! - `ECardGroupListDTO` 有 `groupId` / `groupName` / `isDownload` / `file`
 //!   四个业务字段，但 `ECardGroupServiceImpl#list` **只读 `keyword`** 做
-//!   `group_name LIKE`；`groupId` / `groupName` 未被读取。本实现保留字段
+//!   `group_name ILIKE`；`groupId` / `groupName` 未被读取。本实现保留字段
 //!   以兼容请求，过滤仍只认 `keyword`（Java 原样）。
 //! - `isDownload > 0` 时 Java 会先向 `HttpServletResponse` 写 xlsx 模板流，
 //!   再继续查库返回 `Page`（响应已提交）。Rust 侧未迁移 Excel 能力，
@@ -131,7 +131,7 @@ pub struct ECardGroupListQuery {
     pub group_name: Option<String>,
     /// 是否下载导入模板：`> 0` 时 Java 写 xlsx 流（Rust 未迁移，返回业务错误）
     pub is_download: Option<i32>,
-    /// 搜索关键字（`BasePage.keyword`，对 `group_name` 做 `LIKE`）
+    /// 搜索关键字（`BasePage.keyword`，对 `group_name` 做 `ILIKE`）
     pub keyword: Option<String>,
     /// 排序字段
     pub sort_field: Option<String>,
@@ -154,7 +154,7 @@ impl ECardGroupListQuery {
     }
 
     /// 有效关键字（Java `StrUtil.isNotEmpty(keyword)`：只判 null/空串，
-    /// 不 trim；`LIKE` 绑定原始值）。
+    /// 不 trim；`ILIKE` 绑定原始值）。
     #[must_use]
     pub fn effective_keyword(&self) -> Option<&str> {
         self.keyword.as_deref().filter(|s| !s.is_empty())

@@ -291,7 +291,7 @@ impl SalesmanRepository {
                 &mut wh,
                 &mut params,
                 "s.user_id IN (SELECT user_id FROM \"user\" \
-                 WHERE mobile LIKE $1 OR username LIKE $2 OR nickname LIKE $3)",
+                 WHERE mobile ILIKE $1 OR username ILIKE $2 OR nickname ILIKE $3)",
                 &[
                     Bind::S(like.clone()),
                     Bind::S(like.clone()),
@@ -305,7 +305,7 @@ impl SalesmanRepository {
                 &mut wh,
                 &mut params,
                 "s.pid IN (SELECT s2.salesman_id FROM salesman s2 \
-                 JOIN \"user\" u2 ON u2.user_id = s2.user_id WHERE u2.mobile LIKE $1)",
+                 JOIN \"user\" u2 ON u2.user_id = s2.user_id WHERE u2.mobile ILIKE $1)",
                 &[Bind::S(like)],
             );
         }
@@ -541,7 +541,7 @@ impl SalesmanRepository {
             push_cond(
                 &mut wh,
                 &mut params,
-                "group_name LIKE ?",
+                "group_name ILIKE ?",
                 &[Bind::S(format!("%{name}%"))],
             );
         }
@@ -712,7 +712,7 @@ impl SalesmanRepository {
             push_cond(
                 &mut wh,
                 &mut params,
-                "so.order_id IN (SELECT order_id FROM \"order\" WHERE order_sn LIKE $1)",
+                "so.order_id IN (SELECT order_id FROM \"order\" WHERE order_sn ILIKE $1)",
                 &[Bind::S(format!("%{sn}%"))],
             );
         }
@@ -929,7 +929,7 @@ impl SalesmanRepository {
             push_cond(
                 &mut wh,
                 &mut params,
-                "sp.product_id IN (SELECT product_id FROM product WHERE product_name LIKE $1)",
+                "sp.product_id IN (SELECT product_id FROM product WHERE product_name ILIKE $1)",
                 &[Bind::S(format!("%{name}%"))],
             );
         }
@@ -1204,7 +1204,7 @@ impl SalesmanRepository {
             push_cond(
                 &mut wh,
                 &mut params,
-                "category_name LIKE ?",
+                "category_name ILIKE ?",
                 &[Bind::S(format!("%{name}%"))],
             );
         }
@@ -1340,7 +1340,7 @@ impl SalesmanRepository {
             push_cond(
                 &mut wh,
                 &mut params,
-                "title LIKE ?",
+                "title ILIKE ?",
                 &[Bind::S(format!("%{title}%"))],
             );
         }

@@ -83,7 +83,7 @@ async fn group_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> Api
     let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
     let shop_type = q.shop_type.unwrap_or(1);
     let (total,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM shop_group WHERE shop_type=$1 AND ($2='%%' OR group_name LIKE $3)",
+        "SELECT COUNT(*) FROM shop_group WHERE shop_type=$1 AND ($2='%%' OR group_name ILIKE $3)",
     )
     .bind(shop_type)
     .bind(&kw)
@@ -93,7 +93,7 @@ async fn group_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> Api
     .map_err(db)?;
     let rows = sqlx::query(
         "SELECT g.*, (SELECT COUNT(*) FROM shop_group_relation r WHERE r.group_id=g.group_id) AS shop_count \
-         FROM shop_group g WHERE g.shop_type=$1 AND ($2='%%' OR g.group_name LIKE $3) ORDER BY g.group_id DESC LIMIT $4 OFFSET $5",
+         FROM shop_group g WHERE g.shop_type=$1 AND ($2='%%' OR g.group_name ILIKE $3) ORDER BY g.group_id DESC LIMIT $4 OFFSET $5",
     ).bind(shop_type).bind(&kw).bind(&kw).bind(size as i64).bind(offset)
         .fetch_all(&state.repos.pool).await.map_err(db)?;
     ok(
@@ -249,14 +249,14 @@ async fn tip_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiRe
     let (page, size, offset) = pg(&q);
     let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
     let (total,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM tip WHERE ($1='%%' OR tip_name LIKE $2)")
+        sqlx::query_as("SELECT COUNT(*) FROM tip WHERE ($1='%%' OR tip_name ILIKE $2)")
             .bind(&kw)
             .bind(&kw)
             .fetch_one(&state.repos.pool)
             .await
             .map_err(db)?;
     let rows = sqlx::query(
-        "SELECT * FROM tip WHERE ($1='%%' OR tip_name LIKE $2) ORDER BY tip_id DESC LIMIT $3 OFFSET $4",
+        "SELECT * FROM tip WHERE ($1='%%' OR tip_name ILIKE $2) ORDER BY tip_id DESC LIMIT $3 OFFSET $4",
     )
     .bind(&kw)
     .bind(&kw)
@@ -382,7 +382,7 @@ async fn tip_update_field(
 async fn tip_select_all(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
     let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
     let rows = sqlx::query(
-        "SELECT * FROM tip WHERE status=1 AND ($1='%%' OR tip_name LIKE $2) ORDER BY tip_id DESC",
+        "SELECT * FROM tip WHERE status=1 AND ($1='%%' OR tip_name ILIKE $2) ORDER BY tip_id DESC",
     )
     .bind(&kw)
     .bind(&kw)

@@ -282,7 +282,7 @@ pub struct AdminRoleListQuery {
     pub sort_field: Option<String>,
     /// 排序方向 `asc` / `desc`（空串等价 `desc`，其它值不排序）
     pub sort_order: Option<String>,
-    /// 关键词（`role_name LIKE` 或 `role_desc LIKE`）
+    /// 关键词（`role_name ILIKE` 或 `role_desc ILIKE`）
     pub keyword: Option<String>,
     /// **Rust 侧替代请求头** `x-admin-type` 的查询参数（仅在请求头与 JWT
     /// 都没有 `adminType` 时兜底）。

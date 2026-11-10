@@ -9,7 +9,7 @@
 //! productMapper.selectList(queryWrapper);
 //! ```
 //!
-//! 即：`is_delete = 0` 且 `product_name LIKE %词元1% AND ... AND %词元n%`。
+//! 即：`is_delete = 0` 且 `product_name ILIKE %词元1% AND ... AND %词元n%`。
 //! 全部 SQL 为运行时 `sqlx::query_as` / `QueryBuilder`（禁止 `query!` 宏）。
 
 use sqlx::PgPool;
@@ -44,7 +44,7 @@ impl ProductSearchRepository {
             "SELECT product_id, product_name, keywords FROM product WHERE is_delete = 0",
         );
         for token in tokens {
-            qb.push(" AND product_name LIKE ");
+            qb.push(" AND product_name ILIKE ");
             qb.push_bind(format!("%{token}%"));
         }
         qb.push(" ORDER BY product_id ASC");
@@ -72,13 +72,13 @@ mod tests {
             "SELECT product_id, product_name, keywords FROM product WHERE is_delete = 0",
         );
         for token in ["苹果", "手机"] {
-            qb.push(" AND product_name LIKE ");
+            qb.push(" AND product_name ILIKE ");
             qb.push_bind(format!("%{token}%"));
         }
         let sql = qb.sql().to_string();
         qb.build();
         assert!(sql.contains("is_delete = 0"));
-        assert_eq!(sql.matches("product_name LIKE $").count(), 2);
-        assert!(!sql.contains("苹果"), "LIKE 值必须走绑定参数");
+        assert_eq!(sql.matches("product_name ILIKE $").count(), 2);
+        assert!(!sql.contains("苹果"), "ILIKE 值必须走绑定参数");
     }
 }

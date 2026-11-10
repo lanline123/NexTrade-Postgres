@@ -296,7 +296,7 @@ impl MobileCatNavVO {
 /// 但 `MobileCatNavServiceImpl#list` 又调用了
 /// `listDTO.getKeyword()`（`LambdaQueryWrapper.like(categoryId, keyword)`）
 /// —— `getKeyword()` 来自父类 `BasePage`。本实现按服务层的**可观测行为**
-/// 保留 `keyword`（与 `category_id` 列做 `LIKE`），见 `uncertain_points`。
+/// 保留 `keyword`（与 `category_id` 列做 `ILIKE`），见 `uncertain_points`。
 ///
 /// ⚠️ HTTP 查询参数在 Java 侧是 `size`（`BasePage`），而项目统一 `PageQuery`
 /// 用的是 `pageSize`。本结构体是**入参**，按 Java 契约用 `size`；
@@ -306,7 +306,7 @@ impl MobileCatNavVO {
 pub struct MobileCatNavListQuery {
     /// 是否展示（Java `isShow`；只有 0 / 1 才参与过滤）
     pub is_show: Option<i32>,
-    /// 搜索关键字（Java `BasePage.keyword`，与 `category_id` 列做 `LIKE`）
+    /// 搜索关键字（Java `BasePage.keyword`，与 `category_id` 列做 `ILIKE`）
     pub keyword: Option<String>,
     /// 排序字段（Java `sortField`；属性名或列名，无法识别时回退主键列）
     pub sort_field: Option<String>,

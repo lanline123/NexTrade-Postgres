@@ -150,7 +150,7 @@ pub struct ImConversationPageQuery {
     pub user_from: Option<String>,
     /// 状态：`-2` ⇒ 不过滤；`-1` ⇒ 会话中 + 已结束
     pub status: Option<i32>,
-    /// 会话备注（`LIKE`）
+    /// 会话备注（`ILIKE`）
     pub remark: Option<String>,
     /// 店铺 ID（控制器用请求头覆盖）
     pub shop_id: Option<i32>,

@@ -14,7 +14,7 @@
 //! ## 迁移要点（逐条对照 Java 源）
 //!
 //! ### `list`
-//! - `regionName` 走 `LIKE %regionName%`（`StrUtil.isNotBlank` 口径：
+//! - `regionName` 走 `ILIKE %regionName%`（`StrUtil.isNotBlank` 口径：
 //!   `"   "` 视为空，**不加**过滤）。
 //! - `isActive != null` 才 `eq`。
 //! - `startTime` / `endTime` 经 `StringUtils.dateToTimestampExample` 转

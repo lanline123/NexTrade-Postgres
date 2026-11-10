@@ -49,7 +49,7 @@
 //!     queryWrapper.like(ShopProductCategory::getCategoryName, listDTO.getKeyword());
 //! }
 //! ```
-//! 「非 null **且** 空串」才拼 `LIKE '%%'`（恒真 ⇒ 等价不过滤）；
+//! 「非 null **且** 空串」才拼 `ILIKE '%%'`（恒真 ⇒ 等价不过滤）；
 //! 真正的关键字（非空）**反而不过滤**。净效果：**关键字搜索完全失效**。
 //! 本实现逐字复刻（`effective_keyword()` 只在空串时返回 `Some("")`），
 //! 见 `uncertain_points`。

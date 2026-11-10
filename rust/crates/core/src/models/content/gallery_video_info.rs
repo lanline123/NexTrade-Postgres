@@ -128,7 +128,7 @@ pub struct GalleryVideoInfoListQuery {
     pub sort_field: Option<String>,
     /// 排序方向（同上，忽略）。
     pub sort_order: Option<String>,
-    /// 名称关键字（`video_name LIKE`）。
+    /// 名称关键字（`video_name ILIKE`）。
     pub keyword: Option<String>,
     /// 相册 ID 过滤（`> 0` 时含该相册及全部子孙相册）。
     pub id: Option<i32>,

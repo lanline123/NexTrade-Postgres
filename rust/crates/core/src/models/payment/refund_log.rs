@@ -131,7 +131,7 @@ pub struct RefundLogListQuery {
     pub sort_field: Option<String>,
     /// 排序方向
     pub sort_order: Option<String>,
-    /// 关键字（售后单号 `aftersales.aftersales_sn LIKE`）
+    /// 关键字（售后单号 `aftersales.aftersales_sn ILIKE`）
     pub keyword: Option<String>,
     /// 退款类型：1 接口原路退回 / 2 余额退回 / 3 线下退回
     pub r#type: Option<i32>,

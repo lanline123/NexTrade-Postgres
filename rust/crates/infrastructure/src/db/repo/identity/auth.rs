@@ -17,7 +17,7 @@ impl AdminUserRepository {
     /// 按登录名查询（含已删除/停用，由调用方判断）。
     pub async fn find_by_username(&self, username: &str) -> Result<Option<AdminUser>> {
         sqlx::query_as::<_, AdminUser>(
-            "SELECT * FROM admin_user WHERE username = $1 AND is_deleted = 0 LIMIT 1",
+            "SELECT * FROM admin_user WHERE LOWER(username) = LOWER($1) AND is_deleted = 0 LIMIT 1",
         )
         .bind(username)
         .fetch_optional(&self.pool)
@@ -59,7 +59,7 @@ impl AdminUserRepository {
         let total: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM admin_user
              WHERE is_deleted = 0
-               AND ($1 IS NULL OR username LIKE $2)
+               AND ($1 IS NULL OR username ILIKE $2)
                AND ($3 IS NULL OR admin_type = $4)",
         )
         .bind(&kw)
@@ -73,7 +73,7 @@ impl AdminUserRepository {
         let rows = sqlx::query_as::<_, AdminUser>(
             "SELECT * FROM admin_user
              WHERE is_deleted = 0
-               AND ($1 IS NULL OR username LIKE $2)
+               AND ($1 IS NULL OR username ILIKE $2)
                AND ($3 IS NULL OR admin_type = $4)
              ORDER BY admin_id DESC
              LIMIT $5 OFFSET $6",

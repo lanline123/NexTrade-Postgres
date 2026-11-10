@@ -50,9 +50,9 @@ impl ShopRepository {
             WHERE (is_delete IS NULL OR is_delete = 0)
               AND ($1 IS NULL OR shop_type = $2)
               AND ($3 IS NULL OR status = $4)
-              AND ($5 IS NULL OR shop_title LIKE CONCAT('%', $6, '%'))
+              AND ($5 IS NULL OR shop_title ILIKE CONCAT('%', $6, '%'))
               AND ($7 IS NULL OR store_parent_id = $8)
-              AND ($9 IS NULL OR shop_region_id LIKE CONCAT('%', $10, '%'))
+              AND ($9 IS NULL OR shop_region_id ILIKE CONCAT('%', $10, '%'))
               AND ($11 IS NULL OR add_time >= $12)
               AND ($13 IS NULL OR add_time <= $14)";
         let order = order_by(
@@ -275,7 +275,7 @@ impl ShopRepository {
               AND ($5 IS NULL OR shop_id = $6)
               AND ($7 IS NULL OR shop_id IN (SELECT shop_id FROM shop WHERE shop_type = $8))
               AND ($9 IS NULL OR shop_id IN
-                        (SELECT shop_id FROM shop WHERE shop_title LIKE CONCAT('%', $10, '%')))
+                        (SELECT shop_id FROM shop WHERE shop_title ILIKE CONCAT('%', $10, '%')))
               AND ($11 IS NULL OR add_time >= $12)
               AND ($13 IS NULL OR add_time <= $14)";
         let order = if sort_field.map(str::trim).is_some_and(|f| !f.is_empty()) {
@@ -635,7 +635,7 @@ impl ShopRepository {
         let where_sql = "
             WHERE (? IS NULL OR parent_id = ?)
               AND (? IS NULL OR shop_id = ?)
-              AND (? IS NULL OR category_name LIKE CONCAT('%', ?, '%'))";
+              AND (? IS NULL OR category_name ILIKE CONCAT('%', ?, '%'))";
         let order = order_by(
             sort_field,
             sort_order,

@@ -12,7 +12,7 @@
 //! 2. `trim()`；若匹配 `^[0-9]$`（单个数字）→ 视为空；
 //! 3. 空 → 空列表；
 //! 4. `StringUtils.cutForSearch(keyword)` 分词后用空格连接 → 按空格拆成多个
-//!    `LIKE` 条件（AND）查 `product`：`is_delete = 0`；
+//!    `ILIKE` 条件（AND）查 `product`：`is_delete = 0`；
 //! 5. 对命中的每个商品：把 `keywords` 字段按空格拆分，与原始 keyword 做双向包含
 //!    匹配（`keyword.contains(val) || val.contains(keyword)`），按关键词累计
 //!    **去重后的商品数**；

@@ -4,7 +4,7 @@
 //!
 //! 迁移要点（逐条对照 Java 源）：
 //! - `list`：`groupId` 必填（`@NotNull`）→ 按 `group_id` 过滤 +
-//!   `keyword` 对 `card_number` 做 `LIKE` + `buildSortOrder(BasePage)`
+//!   `keyword` 对 `card_number` 做 `ILIKE` + `buildSortOrder(BasePage)`
 //!   （支持 `sortItems`）；**无店铺过滤**（`e_card` 无 `shop_id` 列）。
 //!   记录为空时 Java 返回 `new Page<>()`（total = 0），本实现返回
 //!   `PageResult::empty`。

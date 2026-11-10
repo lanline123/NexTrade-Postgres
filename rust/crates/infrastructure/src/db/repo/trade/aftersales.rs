@@ -507,7 +507,7 @@ impl AftersalesRepository {
     pub async fn find_order_ids_by_sn(&self, keyword: &str) -> Result<Vec<i32>> {
         let pat = format!("%{keyword}%");
         let rows: Vec<(i32,)> =
-            sqlx::query_as("SELECT order_id FROM \"order\" WHERE order_sn LIKE $1 ORDER BY order_id ASC")
+            sqlx::query_as("SELECT order_id FROM \"order\" WHERE order_sn ILIKE $1 ORDER BY order_id ASC")
                 .bind(pat)
                 .fetch_all(&self.pool)
                 .await
@@ -519,7 +519,7 @@ impl AftersalesRepository {
     pub async fn find_order_ids_by_out_trade_no(&self, out_trade_no: &str) -> Result<Vec<i32>> {
         let pat = format!("%{out_trade_no}%");
         let rows: Vec<(i32,)> = sqlx::query_as(
-            "SELECT order_id FROM \"order\" WHERE out_trade_no LIKE $1 ORDER BY order_id ASC",
+            "SELECT order_id FROM \"order\" WHERE out_trade_no ILIKE $1 ORDER BY order_id ASC",
         )
         .bind(pat)
         .fetch_all(&self.pool)
@@ -729,7 +729,7 @@ fn build_filter(
         binds.push(Bind::I32(vid));
     }
     if let Some(sn) = q.aftersales_sn.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-        conds.push("aftersales_sn LIKE ?");
+        conds.push("aftersales_sn ILIKE ?");
         binds.push(Bind::Str(format!("%{sn}%")));
     }
     // 供应商后台的状态白名单（Java `List.of(21, 4, 22, 6)`）
@@ -916,7 +916,7 @@ mod tests {
             ..Default::default()
         };
         let (sql, binds) = sql_and_binds(&q, None, None, false, Some(&[5, 6]));
-        assert_eq!(sql, " WHERE aftersales_sn LIKE ? AND order_id IN (?, ?)");
+        assert_eq!(sql, " WHERE aftersales_sn ILIKE ? AND order_id IN (?, ?)");
         assert_eq!(binds, vec!["%SN1%".to_string(), "5".to_string(), "6".to_string()]);
 
         // 空串不作为过滤条件

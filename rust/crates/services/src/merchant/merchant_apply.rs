@@ -7,7 +7,7 @@
 //!
 //! # 已实现
 //!
-//! - `list`：分页 + 状态过滤 + 关键字（companyName/contactName LIKE）+ 默认主键降序；
+//! - `list`：分页 + 状态过滤 + 关键字（companyName/contactName ILIKE）+ 默认主键降序；
 //!   批量补会员展示信息与审核管理员名称、状态文案、时间格式化（与 Java 一致）。
 //! - `detail`：`getById` → 不存在「商户申请信息不存在」；JSON 申请资料反序列化返回。
 //! - `update`：Java `MerchantApplyUpdateDTO` 是空类 → 本实现同样无操作成功。

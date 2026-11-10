@@ -81,7 +81,7 @@ impl ReservationTplRepository {
             qb.push_bind(shop_id);
         }
         if let Some(keyword) = q.keyword.as_deref().filter(|s| !s.trim().is_empty()) {
-            qb.push(" AND template_name LIKE ");
+            qb.push(" AND template_name ILIKE ");
             qb.push_bind(format!("%{}%", keyword.trim()));
         }
     }

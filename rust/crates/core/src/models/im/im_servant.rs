@@ -73,7 +73,7 @@ pub struct ImServantListQuery {
     pub sort_field: Option<String>,
     /// 排序方向（`asc` / `desc`；缺省 / 其它 → `desc`）。
     pub sort_order: Option<String>,
-    /// 用户名模糊过滤（对应 Java `username`，`LIKE %username%`）。
+    /// 用户名模糊过滤（对应 Java `username`，`ILIKE %username%`）。
     pub username: Option<String>,
 }
 

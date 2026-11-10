@@ -329,7 +329,7 @@ pub struct LogisticsCompanyListQuery {
     pub is_enabled: Option<i32>,
     /// 物流服务商类型：1 快递鸟，2 快递100；不传或非法值不过滤
     pub provider_type: Option<i32>,
-    /// 搜索关键字（Java `keyword`，`LIKE %keyword%` 作用于 `logistics_name`）
+    /// 搜索关键字（Java `keyword`，`ILIKE %keyword%` 作用于 `logistics_name`）
     pub keyword: Option<String>,
     /// 排序字段（Java `sortField`；属性名或列名，无法识别时回退主键列）
     pub sort_field: Option<String>,

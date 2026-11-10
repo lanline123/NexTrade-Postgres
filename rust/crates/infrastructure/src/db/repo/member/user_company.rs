@@ -69,7 +69,7 @@ impl UserCompanyRepository {
     /// ⚠️ Java 用的是 `LambdaQueryWrapper` 的
     /// `.like(User::getUsername, keyword).or().like(User::getMobile, keyword)`，
     /// **没有加括号**。在 MyBatis-Plus 里这段是
-    /// `username LIKE ? OR mobile LIKE ?`，与外层其它条件拼接时会出现
+    /// `username ILIKE ? OR mobile ILIKE ?`，与外层其它条件拼接时会出现
     /// 「OR 逃逸」问题 —— 但此处它是**独立的一次 `userService.list(...)` 调用**，
     /// 不存在与外层条件拼接，因此就是纯粹的 `OR`，本实现按此复刻。
     ///
@@ -80,7 +80,7 @@ impl UserCompanyRepository {
         // `ESCAPE '\\'` 与 escape_like 配套：MySQL 默认转义符就是 `\`，
         // 这里显式声明以避免 sql_mode=NO_BACKSLASH_ESCAPES 下的行为差异。
         let sql = crate::db::to_pg_placeholders(&format!(
-            "{USER_SELECT} WHERE username LIKE ? ESCAPE '\\' OR mobile LIKE ? ESCAPE '\\'"
+            "{USER_SELECT} WHERE username ILIKE ? ESCAPE '\\' OR mobile ILIKE ? ESCAPE '\\'"
         ));
         let rows: Vec<User> = sqlx::query_as(&sql)
             .bind(&like)
@@ -96,8 +96,8 @@ impl UserCompanyRepository {
     /// 过滤条件与 Java 逐条对齐（**顺序也一致**）：
     /// 1. 关键字（Java 只有 `keyword` 非空时才加这一整段）：
     ///    - 反查出的 `userIds` **非空** ⇒
-    ///      `(user_id IN (...) OR contact_mobile LIKE %kw%)`
-    ///    - `userIds` **为空** ⇒ 仅 `contact_mobile LIKE %kw%`
+    ///      `(user_id IN (...) OR contact_mobile ILIKE %kw%)`
+    ///    - `userIds` **为空** ⇒ 仅 `contact_mobile ILIKE %kw%`
     ///      （Java 的 `if (!userIds.isEmpty()) { ... } else { ... }`）
     /// 2. `status`：`status != null && status != 0` ⇒ `status = ?`
     /// 3. ORDER BY：由 [`UserCompanyListQuery::order_clause`] 生成
@@ -156,13 +156,13 @@ impl UserCompanyRepository {
                     }
                     sep.push_unseparated(")");
                     drop(sep);
-                    qb.push(" OR contact_mobile LIKE ");
+                    qb.push(" OR contact_mobile ILIKE ");
                     qb.push_bind(like);
                     qb.push(" ESCAPE '\\'");
                 }
                 // Java `else` 分支：userIds 为空（或查不到用户）时**只**看 contact_mobile
                 _ => {
-                    qb.push("contact_mobile LIKE ");
+                    qb.push("contact_mobile ILIKE ");
                     qb.push_bind(like);
                     qb.push(" ESCAPE '\\'");
                 }
@@ -372,7 +372,7 @@ impl CompanyAuditPatch {
     }
 }
 
-/// 转义 \"LIKE\" 模式串里的通配符，使其按字面匹配
+/// 转义 \"ILIKE\" 模式串里的通配符，使其按字面匹配
 /// （Java MyBatis-Plus 的 `like(column, val)` 会拼成 `%val%`，
 /// **不对 val 内的 `%` / \"_\" 转义**）。
 ///
@@ -425,7 +425,7 @@ mod tests {
         assert!(!p.is_empty());
     }
 
-    /// LIKE 转义：`%` / \"_\" / `\` 都按字面匹配。
+    /// ILIKE 转义：`%` / \"_\" / `\` 都按字面匹配。
     #[test]
     fn escape_like_escapes_wildcards() {
         assert_eq!(escape_like("alice"), "alice");

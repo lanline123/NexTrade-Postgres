@@ -85,7 +85,7 @@ impl CurrencyService {
         &self.repos.lang.currency
     }
 
-    /// 分页列表（Java `list`：`name` LIKE）。
+    /// 分页列表（Java `list`：`name` ILIKE）。
     ///
     /// # Errors
     /// 数据库错误 → `Error::Database`。

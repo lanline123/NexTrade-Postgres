@@ -9,7 +9,7 @@
 //!
 //! 列表过滤条件逐字复刻 `SalesmanContentServiceImpl#list`：
 //! 1. `shop_id = ?`（Java 无条件 `eq`，`null` 时 SQL `= NULL` 恒不命中）
-//! 2. `title LIKE ?`
+//! 2. `title ILIKE ?`
 //! 3. 时间范围：两者都给 → `start_time BETWEEN`；只给开始 → `start_time >=`；
 //!    只给结束 → `end_time <=`（Java 原样，注意结束条件落在 `end_time`）
 //! 4. 状态筛选：
@@ -247,7 +247,7 @@ impl SalesmanContentRepository {
         qb.push_bind(f.shop_id);
 
         if let Some(title) = f.title.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-            qb.push(" AND title LIKE ");
+            qb.push(" AND title ILIKE ");
             qb.push_bind(format!("%{title}%"));
         }
 

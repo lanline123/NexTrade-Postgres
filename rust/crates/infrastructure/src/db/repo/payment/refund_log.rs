@@ -342,7 +342,7 @@ pub fn build_from_where(q: &RefundLogListQuery) -> (String, String, Vec<Bind>) {
         from.push_str(
             " LEFT JOIN aftersales ON aftersales.aftersale_id = refund_apply.aftersale_id",
         );
-        conds.push("aftersales.aftersales_sn LIKE ?".to_string());
+        conds.push("aftersales.aftersales_sn ILIKE ?".to_string());
         binds.push(Bind::Str(format!("%{keyword}%")));
     }
     // if (type != null) eq(refundType, type)
@@ -386,7 +386,7 @@ mod tests {
             from,
             "refund_log LEFT JOIN refund_apply ON refund_apply.refund_id = refund_log.refund_apply_id LEFT JOIN aftersales ON aftersales.aftersale_id = refund_apply.aftersale_id"
         );
-        assert_eq!(where_sql, " WHERE aftersales.aftersales_sn LIKE ?");
+        assert_eq!(where_sql, " WHERE aftersales.aftersales_sn ILIKE ?");
         assert!(matches!(&binds[0], Bind::Str(s) if s == "%SH2024%"));
     }
 
@@ -398,7 +398,7 @@ mod tests {
         })));
         assert_eq!(
             where_sql,
-            " WHERE aftersales.aftersales_sn LIKE ? AND refund_log.refund_type = ?"
+            " WHERE aftersales.aftersales_sn ILIKE ? AND refund_log.refund_type = ?"
         );
         assert!(matches!(&binds[0], Bind::Str(s) if s == "%sn%"));
         assert!(matches!(binds[1], Bind::I32(2)));
@@ -416,9 +416,9 @@ mod tests {
         assert_eq!(REFUND_LOG_COLUMNS.len(), 10);
         assert_eq!(REFUND_APPLY_COLUMNS.len(), 17);
         assert_eq!(AFTERSALES_COLUMNS.len(), 22);
-        // 静态守卫：查询必须真的用到两级 LEFT JOIN 与 LIKE（防被重构悄悄改掉）
+        // 静态守卫：查询必须真的用到两级 LEFT JOIN 与 ILIKE（防被重构悄悄改掉）
         let src = include_str!("refund_log.rs");
         assert!(src.contains("LEFT JOIN refund_apply ON refund_apply.refund_id = refund_log.refund_apply_id"));
-        assert!(src.contains("aftersales.aftersales_sn LIKE ?"));
+        assert!(src.contains("aftersales.aftersales_sn ILIKE ?"));
     }
 }

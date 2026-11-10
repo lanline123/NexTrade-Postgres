@@ -231,7 +231,7 @@ impl From<ProductAttributesTpl> for AttributesTplDTO {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AttributesTplListQuery {
-    /// 搜索关键字（Java `BasePage.keyword`，对 `tpl_name` 做 `LIKE %kw%`）
+    /// 搜索关键字（Java `BasePage.keyword`，对 `tpl_name` 做 `ILIKE %kw%`）
     pub keyword: Option<String>,
     /// 排序字段（属性名或列名，无法识别时回退主键列）
     pub sort_field: Option<String>,
@@ -247,8 +247,8 @@ impl AttributesTplListQuery {
     /// 有效关键字（去空白后为空则不过滤）。
     ///
     /// Java 的判据是 `basePage.getKeyword() != null`（**只判 null，不判空串**），
-    /// 即 `keyword=""` 会生成 `tpl_name LIKE '%%'`（等价全匹配，结果相同但多一次
-    /// 无谓的 LIKE）。本实现统一按「去空白后非空才过滤」处理，
+    /// 即 `keyword=""` 会生成 `tpl_name ILIKE '%%'`（等价全匹配，结果相同但多一次
+    /// 无谓的 ILIKE）。本实现统一按「去空白后非空才过滤」处理，
     /// 结果集完全一致（见 `uncertain_points`）。
     #[must_use]
     pub fn effective_keyword(&self) -> Option<&str> {

@@ -70,7 +70,7 @@ impl AreaCodeRepository {
     /// 区号分页（对应 Java `AreaCodeServiceImpl#list`）。
     ///
     /// 过滤条件与 Java 逐条对齐：
-    /// - `name`：`name LIKE %name%`（Java `StrUtil.isNotEmpty(name)`）
+    /// - `name`：`name ILIKE %name%`（Java `StrUtil.isNotEmpty(name)`）
     /// - ORDER BY：由 [`AreaCodeListQuery::order_clause`] 生成
     ///   （Java `buildSortOrder(page, sortField, sortOrder)`，
     ///   未识别字段回退主键列，非法 `sortOrder` 不追加排序）
@@ -110,7 +110,7 @@ impl AreaCodeRepository {
     /// 追加 `list` 的 WHERE 片段（`count` 与取行两条 SQL 共用，保证条件一致）。
     fn push_filters(qb: &mut QueryBuilder<'_, sqlx::Postgres>, q: &AreaCodeListQuery) {
         if let Some(name) = q.effective_name() {
-            qb.push(" AND name LIKE ");
+            qb.push(" AND name ILIKE ");
             qb.push_bind(format!("%{name}%"));
         }
     }

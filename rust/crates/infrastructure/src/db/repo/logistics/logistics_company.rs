@@ -110,7 +110,7 @@ impl LogisticsCompanyRepository {
     /// - \"shopId\"：**仅当取值是合法 \"IsShowType\" 码（0/1）时**才
     ///   `shop_id = ?`（Java `IsShowType.fromTypeCode(shopId) != null`），
     ///   其它值静默忽略 —— 见 `models::nextrade_core::models::logistics::logistics_company::LogisticsCompanyListQuery::effective_shop_id`
-    /// - \"keyword\"：`logistics_name LIKE %keyword%`
+    /// - \"keyword\"：`logistics_name ILIKE %keyword%`
     /// - \"isEnabled\"：`is_enabled = ?`
     /// - \"providerType\"：[`Self::push_provider_filter`] 复刻 Java
     ///   \"applyProviderFilter\"
@@ -153,7 +153,7 @@ impl LogisticsCompanyRepository {
             qb.push_bind(shop_id);
         }
         if let Some(keyword) = q.effective_keyword() {
-            qb.push(" AND logistics_name LIKE ");
+            qb.push(" AND logistics_name ILIKE ");
             qb.push_bind(format!("%{keyword}%"));
         }
         if let Some(is_enabled) = q.is_enabled {

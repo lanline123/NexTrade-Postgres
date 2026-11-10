@@ -86,7 +86,7 @@ impl AttributesTplRepository {
     /// - `shop_id = ?`：**恒定的归属过滤**，值由服务层传入
     ///   （Java `queryWrapper.eq(AttributesTpl::getShopId, shopId)`，
     ///   `shopId = Optional.ofNullable(HeaderUtils.getShopId()).orElse(0)`）
-    /// - `tpl_name LIKE %keyword%`：仅当 `keyword` 非空
+    /// - `tpl_name ILIKE %keyword%`：仅当 `keyword` 非空
     ///   （Java `if (basePage.getKeyword() != null) queryWrapper.like(tplName, keyword)`）
     /// - ORDER BY：由 [`AttributesTplListQuery::order_clause`] 生成
     ///   （Java `buildSortOrder(page, sortField, sortOrder)`，
@@ -138,7 +138,7 @@ impl AttributesTplRepository {
         qb.push(" AND shop_id = ");
         qb.push_bind(shop_id);
         if let Some(keyword) = q.effective_keyword() {
-            qb.push(" AND tpl_name LIKE ");
+            qb.push(" AND tpl_name ILIKE ");
             qb.push_bind(format!("%{keyword}%"));
         }
     }

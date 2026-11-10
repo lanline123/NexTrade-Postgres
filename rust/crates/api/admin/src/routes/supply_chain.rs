@@ -234,8 +234,8 @@ async fn list_table(
         } else {
             "category_name"
         };
-        cq.push(format!(" AND {col} LIKE ")).push_bind(like.clone());
-        rq.push(format!(" AND {col} LIKE ")).push_bind(like);
+        cq.push(format!(" AND {col} ILIKE ")).push_bind(like.clone());
+        rq.push(format!(" AND {col} ILIKE ")).push_bind(like);
     }
     rq.push(" ORDER BY ")
         .push(if table == "vendor" { "vendor_id" } else { "id" })

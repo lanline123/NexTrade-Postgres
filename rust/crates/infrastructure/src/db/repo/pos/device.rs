@@ -99,9 +99,9 @@ impl PosDeviceRepository {
         }
         if let Some(keyword) = q.keyword.as_deref().filter(|s| !s.trim().is_empty()) {
             let like = format!("%{}%", keyword.trim());
-            qb.push(" AND (device_name LIKE ");
+            qb.push(" AND (device_name ILIKE ");
             qb.push_bind(like.clone());
-            qb.push(" OR device_code LIKE ");
+            qb.push(" OR device_code ILIKE ");
             qb.push_bind(like);
             qb.push(")");
         }

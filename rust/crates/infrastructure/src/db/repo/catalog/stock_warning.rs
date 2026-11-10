@@ -66,7 +66,7 @@ pub struct WarningQuerySpec {
     pub targets: Vec<(i32, i32)>,
     /// 商品类型
     pub product_type: Option<i32>,
-    /// 关键词的 LIKE 模式（`%kw%`）
+    /// 关键词的 ILIKE 模式（`%kw%`）
     pub keyword_like: Option<String>,
     /// 库存状态筛选
     pub stock_status: Option<i32>,
@@ -414,7 +414,7 @@ pub fn build_warning_sql(spec: &WarningQuerySpec) -> String {
         sql.push_str("AND p.product_type = ? ");
     }
     if spec.keyword_like.is_some() {
-        sql.push_str("AND (p.product_name LIKE ? OR p.product_sn LIKE ? OR ps.sku_sn LIKE ?) ");
+        sql.push_str("AND (p.product_name ILIKE ? OR p.product_sn ILIKE ? OR ps.sku_sn ILIKE ?) ");
     }
     sql.push_str(") t ");
 

@@ -135,7 +135,7 @@ impl GalleryVideoInfoRepository {
             drop(sep);
         }
         if let Some(keyword) = keyword {
-            qb.push(" AND video_name LIKE ");
+            qb.push(" AND video_name ILIKE ");
             qb.push_bind(keyword.to_string());
         }
         if let Some(format) = format {

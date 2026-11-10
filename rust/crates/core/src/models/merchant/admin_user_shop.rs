@@ -107,7 +107,7 @@ pub struct AdminUserShopPageQuery {
     pub is_show: Option<i32>,
     /// 用户名（Java 实体字段，实现未使用；实际过滤用 `keyword`）
     pub username: Option<String>,
-    /// 关键字（`LIKE admin_user_shop.username`）
+    /// 关键字（`ILIKE admin_user_shop.username`）
     pub keyword: Option<String>,
     /// 当前店铺（Rust 兜底 `x-shop-id` 请求头）
     pub shop_id: Option<i32>,

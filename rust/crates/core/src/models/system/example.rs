@@ -235,7 +235,7 @@ pub struct ExampleListQuery {
     ///
     /// ⚠️ 只有 `0` / `1` 会产生过滤条件（见 [`is_show_filterable`]）。
     pub is_show: Option<i32>,
-    /// 搜索关键字（Java `BasePage.keyword`，`LIKE %keyword%` 作用于名称）
+    /// 搜索关键字（Java `BasePage.keyword`，`ILIKE %keyword%` 作用于名称）
     pub keyword: Option<String>,
     /// 排序字段（Java `sortField`；属性名或列名，无法识别时回退主键列）
     pub sort_field: Option<String>,
@@ -251,7 +251,7 @@ impl ExampleListQuery {
     /// 有效关键字（去空白后为空则不过滤，Java `StrUtil.isNotEmpty`）。
     ///
     /// ⚠️ Java 这里用的是 **`isNotEmpty`**（不是 `isNotBlank`），
-    /// 因此 `"   "`（纯空白）**会**被当作有效关键字，生成 `LIKE '%   %'`。
+    /// 因此 `"   "`（纯空白）**会**被当作有效关键字，生成 `ILIKE '%   %'`。
     /// 本方法逐字符复刻该口径（与 area_code 的 `isNotBlank` **不同**）。
     #[must_use]
     pub fn effective_keyword(&self) -> Option<&str> {

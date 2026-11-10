@@ -356,7 +356,7 @@ pub fn build_where(q: &GiftCardGroupsListQuery, shop_id: i32) -> (String, Vec<Bi
     let mut conds = vec!["shop_id = ?".to_string()];
     let mut binds = vec![Bind::I32(shop_id)];
     if let Some(keyword) = q.effective_keyword() {
-        conds.push("card_group_name LIKE ?".to_string());
+        conds.push("card_group_name ILIKE ?".to_string());
         binds.push(Bind::Str(format!("%{keyword}%")));
     }
     (format!(" WHERE {}", conds.join(" AND ")), binds)
@@ -380,7 +380,7 @@ mod tests {
         assert_eq!(sql, " WHERE shop_id = ?");
         assert!(matches!(binds.as_slice(), [Bind::I32(7)]));
         let (sql, binds) = build_where(&q(serde_json::json!({"keyword": " 新年 "})), 7);
-        assert_eq!(sql, " WHERE shop_id = ? AND card_group_name LIKE ?");
+        assert_eq!(sql, " WHERE shop_id = ? AND card_group_name ILIKE ?");
         assert!(matches!(&binds[1], Bind::Str(s) if s == "%新年%"));
     }
 

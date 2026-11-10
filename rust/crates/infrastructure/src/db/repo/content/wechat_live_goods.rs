@@ -45,7 +45,7 @@ impl WechatLiveGoodsRepository {
                 qb.push(" AND audit_status = ").push_bind(status);
             }
             if let Some(kw) = keyword.filter(|v| !v.trim().is_empty()) {
-                qb.push(" AND goods_name LIKE ").push_bind(format!("%{kw}%"));
+                qb.push(" AND goods_name ILIKE ").push_bind(format!("%{kw}%"));
             }
         }
         let total: (i64,) = count

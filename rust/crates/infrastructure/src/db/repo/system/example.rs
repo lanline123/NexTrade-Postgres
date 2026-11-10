@@ -81,7 +81,7 @@ impl ExampleRepository {
     /// - `isShow`：**仅当**值为 0 或 1 时 `eq(is_show, ?)`
     ///   （Java `IsShowType.fromTypeCode(isShow) != null`；
     ///   其它值含 null 都**不加**条件）
-    /// - `keyword`：`example_name LIKE %keyword%`
+    /// - `keyword`：`example_name ILIKE %keyword%`
     ///   （Java `StrUtil.isNotEmpty` —— 纯空白**仍**算有效关键字）
     ///
     /// ORDER BY 由 [`ExampleListQuery::order_clause`] 生成
@@ -126,7 +126,7 @@ impl ExampleRepository {
             qb.push_bind(q.is_show);
         }
         if let Some(keyword) = q.effective_keyword() {
-            qb.push(" AND example_name LIKE ");
+            qb.push(" AND example_name ILIKE ");
             qb.push_bind(format!("%{keyword}%"));
         }
     }

@@ -457,7 +457,7 @@ impl LogisticsCompanyConfigRepository {
     /// 按关键词 / 服务商类型筛选出物流公司 ID 集合。
     ///
     /// 对应 Java `list` 中在 `logistics_company` 上执行的子查询：
-    /// - `keyword` 非空 → `logistics_name LIKE %keyword%`
+    /// - `keyword` 非空 → `logistics_name ILIKE %keyword%`
     /// - `provider_type == 1`（快递鸟）→ `logistics_code` 非空且 `TRIM <> ''`
     /// - `provider_type == 2`（快递100）→ `kuaidi100_code` 非空且 `TRIM <> ''`
     ///   **或** `UPPER(TRIM(logistics_code))` 命中内置映射表
@@ -477,7 +477,7 @@ impl LogisticsCompanyConfigRepository {
         let pt = provider_type;
         let rows: Vec<(i32,)> = sqlx::query_as(
             "SELECT logistics_id FROM logistics_company
-             WHERE ($1 IS NULL OR logistics_name LIKE $2)
+             WHERE ($1 IS NULL OR logistics_name ILIKE $2)
                AND (
                  $3 IS NULL
                  OR ($4 = 1 AND logistics_code IS NOT NULL AND TRIM(logistics_code) <> '')

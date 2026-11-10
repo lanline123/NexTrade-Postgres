@@ -14,7 +14,7 @@
 //! # 过滤口径（逐条对照 Java `buildListQueryWrapper`）
 //! - `shop_type <> 3`（排除自提点，Java `ShopTypeEnum.PICKUP`）
 //! - `(is_delete IS NULL OR is_delete = 0)`（排除已归档门店）
-//! - `status > 0` 时按状态过滤；`shop_type` 精确；`keyword` LIKE `shop_title`
+//! - `status > 0` 时按状态过滤；`shop_type` 精确；`keyword` ILIKE `shop_title`
 //!
 //! # 软删
 //! Java `del(id)` 走 `BaseServiceImpl#del` → `removeById`；`shop.is_delete`
@@ -113,7 +113,7 @@ impl ShopFundsRepository {
             where_parts.push("shop_type = ?".into());
         }
         if like.is_some() {
-            where_parts.push("shop_title LIKE ?".into());
+            where_parts.push("shop_title ILIKE ?".into());
         }
         let where_sql = format!("WHERE {}", where_parts.join(" AND "));
         let column = resolve_sort_column(sort_field);

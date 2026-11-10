@@ -160,7 +160,7 @@ impl PcCatFloorRepository {
     ///
     /// 过滤条件与 Java 逐条对齐：
     /// - \"is_show\"：仅当值为 0/1 时生效（不合法值整体忽略该条件）
-    /// - \"keyword\"：`cat_floor_name LIKE %kw%`（Java `StrUtil.isNotEmpty`）
+    /// - \"keyword\"：`cat_floor_name ILIKE %kw%`（Java `StrUtil.isNotEmpty`）
     /// - ORDER BY：由 [`PcCatFloorListQuery::order_clause`] 生成
     ///   （Java \"buildSortOrder\"，未识别字段回退主键列）
     ///
@@ -203,7 +203,7 @@ impl PcCatFloorRepository {
             qb.push_bind(v);
         }
         if let Some(kw) = q.effective_keyword() {
-            qb.push(" AND cat_floor_name LIKE ");
+            qb.push(" AND cat_floor_name ILIKE ");
             qb.push_bind(format!("%{kw}%"));
         }
     }

@@ -45,7 +45,7 @@ impl LogisticsRepository {
         let offset = (page.page.max(1) - 1) * page.page_size;
 
         let total: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM shipping_tpl WHERE ($1 IS NULL OR shipping_tpl_name LIKE $2)",
+            "SELECT COUNT(*) FROM shipping_tpl WHERE ($1 IS NULL OR shipping_tpl_name ILIKE $2)",
         )
         .bind(&like)
         .bind(&like)
@@ -54,7 +54,7 @@ impl LogisticsRepository {
         .map_err(map_err)?;
 
         let rows = sqlx::query_as::<_, ShippingTpl>(
-            "SELECT shipping_tpl_id, shipping_time, shipping_tpl_name, is_free, pricing_type, is_default, shop_id FROM shipping_tpl WHERE ($1 IS NULL OR shipping_tpl_name LIKE $2)
+            "SELECT shipping_tpl_id, shipping_time, shipping_tpl_name, is_free, pricing_type, is_default, shop_id FROM shipping_tpl WHERE ($1 IS NULL OR shipping_tpl_name ILIKE $2)
              ORDER BY shipping_tpl_id DESC LIMIT $3 OFFSET $4",
         )
         .bind(&like)

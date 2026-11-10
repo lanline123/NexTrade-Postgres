@@ -105,7 +105,7 @@ impl GalleryPicRepository {
         };
         let where_sql = crate::db::to_pg_placeholders(&format!(
             " WHERE {SCOPE_WHERE}{gallery_filter} \
-             AND (? IS NULL OR pic_name LIKE ?) \
+             AND (? IS NULL OR pic_name ILIKE ?) \
              AND (? IS NULL OR file_type = ?) \
              AND (? IS NULL OR source = ?) \
              AND (hidden = 0 OR hidden IS NULL)"

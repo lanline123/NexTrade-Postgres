@@ -224,7 +224,7 @@ impl FeedbackRepository {
     /// 追加 `list` 的 WHERE 片段（`COUNT` 与取行两条 SQL 共用，保证条件一致）。
     ///
     /// 逐条对照 Java `FeedbackServiceImpl#list`：
-    /// - `like(isNotBlank(keyword), content, keyword)` → `content LIKE %kw%`
+    /// - `like(isNotBlank(keyword), content, keyword)` → `content ILIKE %kw%`
     ///   （`"   "` 视为空 ⇒ **不加**条件，`effective_keyword()` 已按该口径实现）
     /// - `in(isNotEmpty(types), type, types)` → `type IN (...)`
     /// - `apply(scopedTypeRequested && isEmpty(types), "1 = 0")` → 恒假条件
@@ -242,7 +242,7 @@ impl FeedbackRepository {
         f: &FeedbackListFilter,
     ) {
         if let Some(keyword) = q.effective_keyword() {
-            qb.push(" AND content LIKE ");
+            qb.push(" AND content ILIKE ");
             qb.push_bind(format!("%{keyword}%"));
         }
         if !f.types.is_empty() {
@@ -934,7 +934,7 @@ mod tests {
         assert!(sql.contains(" AND 1 = 0"), "{sql}");
     }
 
-    /// `keyword` 走 `LIKE %kw%`；纯空白视为空 ⇒ **不加**条件
+    /// `keyword` 走 `ILIKE %kw%`；纯空白视为空 ⇒ **不加**条件
     /// （Java `StrUtil.isNotBlank` 口径）。
     #[test]
     fn keyword_like_follows_is_blank() {
@@ -942,13 +942,13 @@ mod tests {
             &query(serde_json::json!({"keyword": "你好"})),
             &FeedbackListFilter::platform(vec![], None),
         );
-        assert!(sql.contains("content LIKE "), "{sql}");
+        assert!(sql.contains("content ILIKE "), "{sql}");
 
         let sql = build(
             &query(serde_json::json!({"keyword": "   "})),
             &FeedbackListFilter::platform(vec![], None),
         );
-        assert!(!sql.contains("content LIKE"), "{sql}");
+        assert!(!sql.contains("content ILIKE"), "{sql}");
     }
 
     /// `isOrder` 的三档：`1` → `order_id = 0`；`>1` → `order_id > 0`；

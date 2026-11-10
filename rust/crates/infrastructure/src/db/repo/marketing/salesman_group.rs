@@ -37,7 +37,7 @@ impl SalesmanGroupRepository {
         self.pool.clone()
     }
 
-    /// 分页（Java `list`：`groupName` LIKE + `add_time ASC`；`buildSortOrder`
+    /// 分页（Java `list`：`groupName` ILIKE + `add_time ASC`；`buildSortOrder`
     /// 若显式传 `sortField` 则以白名单列覆盖排序）。
     ///
     /// `shop_id` 为租户过滤值：`None`（平台账号）不过滤，`Some(id)` 强制
@@ -57,7 +57,7 @@ impl SalesmanGroupRepository {
             .map(|k| format!("%{k}%"));
         let mut where_parts: Vec<&str> = Vec::new();
         if like.is_some() {
-            where_parts.push("group_name LIKE ?");
+            where_parts.push("group_name ILIKE ?");
         }
         if shop_id.is_some() {
             where_parts.push("shop_id = ?");

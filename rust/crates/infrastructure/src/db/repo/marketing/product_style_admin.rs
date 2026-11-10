@@ -114,7 +114,7 @@ impl ProductStyleAdminRepository {
     /// - `ps.shop_id = $1`（Java `HeaderUtils.getShopId()`，平台账号为 0）
     /// - `ps.is_delete = 0`
     /// - \"styleType\" / \"status\" 非空才过滤
-    /// - \"keyword\" 非空 → `ps.style_name LIKE CONCAT('%', $2, '%')`
+    /// - \"keyword\" 非空 → `ps.style_name ILIKE CONCAT('%', $2, '%')`
     /// - \"activityStatus\"：1 ⇒ `ps.start_time > now`；
     ///   2 ⇒ `ps.start_time <= now AND ps.end_time >= now`；
     ///   3 ⇒ `ps.end_time < now`（**其它值不过滤**）
@@ -207,7 +207,7 @@ impl ProductStyleAdminRepository {
             qb.push(" AND ps.status = ").push_bind(status);
         }
         if let Some(keyword) = q.effective_keyword() {
-            qb.push(" AND ps.style_name LIKE ")
+            qb.push(" AND ps.style_name ILIKE ")
                 .push_bind(format!("%{keyword}%"));
         }
         // Java mapper 的三个 `<if>` 分支：只认 1 / 2 / 3，其它值不过滤
@@ -542,7 +542,7 @@ impl ProductStyleAdminRepository {
     /// FROM brand b LEFT JOIN product p ON b.brand_id = p.brand_id
     ///      AND p.is_delete = 0 AND p.product_status = 1
     /// WHERE b.is_show = 1
-    ///   [AND b.brand_name LIKE CONCAT('%', keyword, '%')]
+    ///   [AND b.brand_name ILIKE CONCAT('%', keyword, '%')]
     /// GROUP BY b.brand_id, b.brand_name
     /// ORDER BY productCount DESC, b.sort_order ASC
     /// ```
@@ -558,7 +558,7 @@ impl ProductStyleAdminRepository {
              WHERE b.is_show = 1",
         );
         if let Some(keyword) = keyword {
-            qb.push(" AND b.brand_name LIKE ")
+            qb.push(" AND b.brand_name ILIKE ")
                 .push_bind(format!("%{keyword}%"));
         }
         qb.push(" GROUP BY b.brand_id, b.brand_name ORDER BY product_count DESC, b.sort_order ASC");

@@ -82,12 +82,12 @@ impl StockCalendarRepository {
                 qb.push(")");
             }
             if let Some(name) = product_name.filter(|s| !s.trim().is_empty()) {
-                qb.push(" AND EXISTS (SELECT 1 FROM product p WHERE p.product_id = s.product_id AND p.product_name LIKE ");
+                qb.push(" AND EXISTS (SELECT 1 FROM product p WHERE p.product_id = s.product_id AND p.product_name ILIKE ");
                 qb.push_bind(format!("%{}%", name.trim()));
                 qb.push(")");
             }
             if let Some(spec) = spec_value.filter(|s| !s.trim().is_empty()) {
-                qb.push(" AND EXISTS (SELECT 1 FROM product_sku k WHERE k.sku_id = s.sku_id AND k.sku_value LIKE ");
+                qb.push(" AND EXISTS (SELECT 1 FROM product_sku k WHERE k.sku_id = s.sku_id AND k.sku_value ILIKE ");
                 qb.push_bind(format!("%{}%", spec.trim()));
                 qb.push(")");
             }

@@ -51,7 +51,7 @@ impl ImServantService {
     ///
     /// 对应 Java `ImServantServiceImpl#list`：
     /// - `shop_id`（请求头覆盖）非空时 `shop_id = ?` 过滤；
-    /// - `username` 非空时先在 `admin_user` 里 `LIKE %username%` 取 `admin_id`，
+    /// - `username` 非空时先在 `admin_user` 里 `ILIKE %username%` 取 `admin_id`，
     ///   命中为空 → 直接返回空页（对应 Java 提前 `return new Page<>()`），
     ///   否则 `servant_id IN (命中id)` 过滤；
     /// - 排序走白名单（缺省主键 `id`，缺省方向 `desc`）；

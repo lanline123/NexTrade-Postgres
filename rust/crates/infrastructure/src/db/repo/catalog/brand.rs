@@ -73,7 +73,7 @@ impl BrandRepository {
     /// 品牌分页（管理端列表 / 审核列表共用）。
     ///
     /// 对应 Java `getBrandQueryWrapper` + `buildSortOrder`：
-    /// - `keyword` -> `brand_name LIKE`；`first_word` -> `LIKE`
+    /// - `keyword` -> `brand_name ILIKE`；`first_word` -> `ILIKE`
     /// - `status` 为 `-1` / `None` 不过滤
     /// - `shop_id`：`Some(0)` 视为 `None`（平台账号语义）；`shopId>0` 强制本店；
     ///   `audit_only = true` 时强制 `shop_id <> 0`（对应 Java `isAudit==1` -> `.ne(shopId, 0)`）
@@ -110,10 +110,10 @@ impl BrandRepository {
 
         let mut where_parts: Vec<String> = vec![];
         if like.is_some() {
-            where_parts.push("brand_name LIKE ?".into());
+            where_parts.push("brand_name ILIKE ?".into());
         }
         if fw.is_some() {
-            where_parts.push("first_word LIKE ?".into());
+            where_parts.push("first_word ILIKE ?".into());
         }
         if status.is_some() {
             where_parts.push("status = ?".into());

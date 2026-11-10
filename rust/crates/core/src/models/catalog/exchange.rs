@@ -33,7 +33,7 @@
 //!
 //! - `list`：控制器**强制** `isEnabled = 1`；服务层再叠加
 //!   `product_status=1 AND is_delete=0` 的商品有效过滤（Java 用 innerJoin /
-//!   商品 ID 子查询，净效果相同）、`isHot`、`keyword`（商品名 LIKE）、
+//!   商品 ID 子查询，净效果相同）、`isHot`、`keyword`（商品名 ILIKE）、
 //!   以及「SKU 启用或未指定 SKU」条件；商品平铺字段（名称/图/价/库存/销量/
 //!   SN）回填，SKU 价优先于商品价，`discountsPrice = productPrice -
 //!   pointsDeductedAmount`。

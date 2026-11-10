@@ -195,7 +195,7 @@ fn build_where(q: &UserBalanceLogListQuery) -> (String, Vec<Bind>) {
         .map(str::trim)
         .filter(|s| !s.is_empty())
     {
-        conds.push("user_balance_log.change_desc LIKE ?".to_string());
+        conds.push("user_balance_log.change_desc ILIKE ?".to_string());
         binds.push(Bind::Str(format!("%{kw}%")));
     }
 
@@ -220,7 +220,7 @@ fn build_where(q: &UserBalanceLogListQuery) -> (String, Vec<Bind>) {
 
     // .notLike(excludeDistribution == 1, UserBalanceLog::getChangeDesc, "结算佣金")
     if q.exclude_distribution_on() {
-        conds.push("user_balance_log.change_desc NOT LIKE ?".to_string());
+        conds.push("user_balance_log.change_desc NOT ILIKE ?".to_string());
         binds.push(Bind::Str(format!(
             "%{}%",
             nextrade_core::models::payment::user_balance_log::DISTRIBUTION_SETTLE_KEYWORD
@@ -234,7 +234,7 @@ fn build_where(q: &UserBalanceLogListQuery) -> (String, Vec<Bind>) {
         .map(str::trim)
         .filter(|s| !s.is_empty())
     {
-        conds.push("u.username LIKE ?".to_string());
+        conds.push("u.username ILIKE ?".to_string());
         binds.push(Bind::Str(format!("%{name}%")));
     }
 
@@ -321,7 +321,7 @@ mod tests {
         let (sql, binds) = build_where(&q(serde_json::json!({"keyword": " 充值 ", "username": "bob"})));
         assert_eq!(
             sql,
-            " WHERE user_balance_log.change_desc LIKE ? AND u.username LIKE ?"
+            " WHERE user_balance_log.change_desc ILIKE ? AND u.username ILIKE ?"
         );
         assert!(matches!(&binds[0], Bind::Str(s) if s == "%充值%"));
         assert!(matches!(&binds[1], Bind::Str(s) if s == "%bob%"));
@@ -330,7 +330,7 @@ mod tests {
     #[test]
     fn exclude_distribution_not_like_pattern_uses_java_literal() {
         let (sql, binds) = build_where(&q(serde_json::json!({"excludeDistribution": 1})));
-        assert_eq!(sql, " WHERE user_balance_log.change_desc NOT LIKE ?");
+        assert_eq!(sql, " WHERE user_balance_log.change_desc NOT ILIKE ?");
         assert!(
             matches!(&binds[0], Bind::Str(s) if s == &format!("%{DISTRIBUTION_SETTLE_KEYWORD}%")),
             "{binds:?}"
@@ -345,7 +345,7 @@ mod tests {
         })));
         assert_eq!(
             sql,
-            " WHERE user_balance_log.change_desc LIKE ? AND user_balance_log.user_id = ? AND user_balance_log.balance > 0 AND user_balance_log.wallet_type = ? AND user_balance_log.change_desc NOT LIKE ? AND u.username LIKE ?"
+            " WHERE user_balance_log.change_desc ILIKE ? AND user_balance_log.user_id = ? AND user_balance_log.balance > 0 AND user_balance_log.wallet_type = ? AND user_balance_log.change_desc NOT ILIKE ? AND u.username ILIKE ?"
         );
     }
 

@@ -81,12 +81,12 @@ macro_rules! list_pg {
             let (p, s, off) = page_of(&q);
             let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
             // 同 vendor::lowfreq：整数列（`type` / `add_time` / `merchant_apply_id` 等）不能直接
-            // 用 `LIKE`，PG 报 `operator does not exist: integer ~~ text`，统一 CAST 成 text。
+            // 用 `ILIKE`，PG 报 `operator does not exist: integer ~~ text`，统一 CAST 成 text。
             let (total,): (i64,) = sqlx::query_as(
-                &format!("SELECT COUNT(*) FROM \"{}\" WHERE CAST(\"{}\" AS TEXT) LIKE $1", $table, $like))
+                &format!("SELECT COUNT(*) FROM \"{}\" WHERE CAST(\"{}\" AS TEXT) ILIKE $1", $table, $like))
                 .bind(&kw).fetch_one(&pool(&state)).await.map_err(db)?;
             let rows: Vec<(Value,)> = sqlx::query_as(&format!(
-                "SELECT json_build_object({}) FROM \"{}\" WHERE CAST(\"{}\" AS TEXT) LIKE $1 ORDER BY \"{}\" DESC LIMIT $2 OFFSET $3",
+                "SELECT json_build_object({}) FROM \"{}\" WHERE CAST(\"{}\" AS TEXT) ILIKE $1 ORDER BY \"{}\" DESC LIMIT $2 OFFSET $3",
                 $jo, $table, $like, $key))
                 .bind(&kw).bind(s).bind(off)
                 .fetch_all(&pool(&state)).await.map_err(db)?;
@@ -437,7 +437,7 @@ async fn h_staff_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> A
     let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
     let status = q.status.unwrap_or(-1);
     let (total,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM service_staff WHERE is_delete = 0 AND ($1 = -1 OR status = $2) AND (name LIKE $3 OR phone LIKE $4)",
+        "SELECT COUNT(*) FROM service_staff WHERE is_delete = 0 AND ($1 = -1 OR status = $2) AND (name ILIKE $3 OR phone ILIKE $4)",
     )
     .bind(status)
     .bind(status)
@@ -447,7 +447,7 @@ async fn h_staff_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> A
     .await
     .map_err(db)?;
     let rows: Vec<(Value,)> = sqlx::query_as(
-        "SELECT json_build_object('id', id, 'name', name, 'nickname', nickname, 'avatar', avatar, 'phone', phone, 'memberId', member_id, 'storeId', store_id, 'type', type, 'status', status, 'workStatus', work_status, 'completedOrderCount', completed_order_count, 'completedOrderAmount', completed_order_amount, 'createTime', create_time) FROM service_staff WHERE is_delete = 0 AND ($1 = -1 OR status = $2) AND (name LIKE $3 OR phone LIKE $4) ORDER BY id DESC LIMIT $5 OFFSET $6",
+        "SELECT json_build_object('id', id, 'name', name, 'nickname', nickname, 'avatar', avatar, 'phone', phone, 'memberId', member_id, 'storeId', store_id, 'type', type, 'status', status, 'workStatus', work_status, 'completedOrderCount', completed_order_count, 'completedOrderAmount', completed_order_amount, 'createTime', create_time) FROM service_staff WHERE is_delete = 0 AND ($1 = -1 OR status = $2) AND (name ILIKE $3 OR phone ILIKE $4) ORDER BY id DESC LIMIT $5 OFFSET $6",
     )
     .bind(status)
     .bind(status)
@@ -811,7 +811,7 @@ async fn h_delivery_list(State(state): State<AdminState>, Query(q): Query<Pg>) -
     let status = q.status.unwrap_or(-1);
     let staff_id = q.staff_id.unwrap_or(0);
     let (total,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM delivery_order WHERE ($1 = 0 OR shop_id = $2) AND ($3 = 0 OR type = $4) AND ($5 = -1 OR status = $6) AND ($7 = 0 OR staff_id = $8) AND (delivery_order_sn LIKE $9 OR order_sn LIKE $10 OR consignee LIKE $11)",
+        "SELECT COUNT(*) FROM delivery_order WHERE ($1 = 0 OR shop_id = $2) AND ($3 = 0 OR type = $4) AND ($5 = -1 OR status = $6) AND ($7 = 0 OR staff_id = $8) AND (delivery_order_sn ILIKE $9 OR order_sn ILIKE $10 OR consignee ILIKE $11)",
     )
     .bind(shop_id).bind(shop_id)
     .bind(dtype).bind(dtype)
@@ -822,7 +822,7 @@ async fn h_delivery_list(State(state): State<AdminState>, Query(q): Query<Pg>) -
     .await
     .map_err(db)?;
     let rows: Vec<(Value,)> = sqlx::query_as(&format!(
-        "SELECT json_build_object({DELIVERY_JSON}) FROM delivery_order WHERE ($1 = 0 OR shop_id = $2) AND ($3 = 0 OR type = $4) AND ($5 = -1 OR status = $6) AND ($7 = 0 OR staff_id = $8) AND (delivery_order_sn LIKE $9 OR order_sn LIKE $10 OR consignee LIKE $11) ORDER BY delivery_order_id DESC LIMIT $12 OFFSET $13"
+        "SELECT json_build_object({DELIVERY_JSON}) FROM delivery_order WHERE ($1 = 0 OR shop_id = $2) AND ($3 = 0 OR type = $4) AND ($5 = -1 OR status = $6) AND ($7 = 0 OR staff_id = $8) AND (delivery_order_sn ILIKE $9 OR order_sn ILIKE $10 OR consignee ILIKE $11) ORDER BY delivery_order_id DESC LIMIT $12 OFFSET $13"
     ))
     .bind(shop_id).bind(shop_id)
     .bind(dtype).bind(dtype)
@@ -1071,7 +1071,7 @@ async fn finance_withdraw_list(
     let btype = business_type.or(q.business_type).unwrap_or(0);
     let status = q.status.unwrap_or(-1);
     let staff_id = q.staff_id.unwrap_or(0);
-    let count_sql = "SELECT COUNT(*) FROM service_staff_withdraw w LEFT JOIN service_staff s ON s.id = w.staff_id WHERE w.is_delete = 0 AND ($1 = 0 OR w.business_type = $2) AND ($3 = -1 OR w.status = $4) AND ($5 = 0 OR w.staff_id = $6) AND (w.withdraw_sn LIKE $7 OR s.name LIKE $8)".to_string();
+    let count_sql = "SELECT COUNT(*) FROM service_staff_withdraw w LEFT JOIN service_staff s ON s.id = w.staff_id WHERE w.is_delete = 0 AND ($1 = 0 OR w.business_type = $2) AND ($3 = -1 OR w.status = $4) AND ($5 = 0 OR w.staff_id = $6) AND (w.withdraw_sn ILIKE $7 OR s.name ILIKE $8)".to_string();
     let (total,): (i64,) = sqlx::query_as(&count_sql)
         .bind(btype)
         .bind(btype)
@@ -1084,7 +1084,7 @@ async fn finance_withdraw_list(
         .fetch_one(&pool(state))
         .await
         .map_err(db)?;
-    let list_sql = "SELECT json_build_object('withdrawId', w.withdraw_id, 'withdrawSn', w.withdraw_sn, 'staffId', w.staff_id, 'staffName', s.name, 'staffPhone', s.phone, 'businessType', w.business_type, 'amount', w.amount, 'status', w.status, 'accountId', w.account_id, 'accountType', w.account_type, 'accountName', w.account_name, 'accountNo', w.account_no, 'bankName', w.bank_name, 'adminRemark', w.admin_remark, 'paymentVoucher', w.payment_voucher, 'rejectReason', w.reject_reason, 'applyTime', w.apply_time, 'auditTime', w.audit_time) FROM service_staff_withdraw w LEFT JOIN service_staff s ON s.id = w.staff_id WHERE w.is_delete = 0 AND ($1 = 0 OR w.business_type = $2) AND ($3 = -1 OR w.status = $4) AND ($5 = 0 OR w.staff_id = $6) AND (w.withdraw_sn LIKE $7 OR s.name LIKE $8) ORDER BY w.withdraw_id DESC LIMIT $9 OFFSET $10".to_string();
+    let list_sql = "SELECT json_build_object('withdrawId', w.withdraw_id, 'withdrawSn', w.withdraw_sn, 'staffId', w.staff_id, 'staffName', s.name, 'staffPhone', s.phone, 'businessType', w.business_type, 'amount', w.amount, 'status', w.status, 'accountId', w.account_id, 'accountType', w.account_type, 'accountName', w.account_name, 'accountNo', w.account_no, 'bankName', w.bank_name, 'adminRemark', w.admin_remark, 'paymentVoucher', w.payment_voucher, 'rejectReason', w.reject_reason, 'applyTime', w.apply_time, 'auditTime', w.audit_time) FROM service_staff_withdraw w LEFT JOIN service_staff s ON s.id = w.staff_id WHERE w.is_delete = 0 AND ($1 = 0 OR w.business_type = $2) AND ($3 = -1 OR w.status = $4) AND ($5 = 0 OR w.staff_id = $6) AND (w.withdraw_sn ILIKE $7 OR s.name ILIKE $8) ORDER BY w.withdraw_id DESC LIMIT $9 OFFSET $10".to_string();
     let rows: Vec<(Value,)> = sqlx::query_as(&list_sql)
         .bind(btype)
         .bind(btype)
@@ -1224,10 +1224,10 @@ async fn h_fin_wallet_staff_list(
     let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
     let btype = q.business_type.unwrap_or(0);
     let (total,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM service_staff s LEFT JOIN service_staff_wallet w ON w.staff_id = s.id WHERE s.is_delete = 0 AND ($1 = 0 OR s.type = $2) AND s.name LIKE $3",
+        "SELECT COUNT(*) FROM service_staff s LEFT JOIN service_staff_wallet w ON w.staff_id = s.id WHERE s.is_delete = 0 AND ($1 = 0 OR s.type = $2) AND s.name ILIKE $3",
     ).bind(btype).bind(btype).bind(&kw).fetch_one(&pool(&state)).await.map_err(db)?;
     let rows: Vec<(Value,)> = sqlx::query_as(
-        "SELECT json_build_object('staffId', s.id, 'staffName', s.name, 'staffPhone', s.phone, 'type', s.type, 'status', s.status, 'workStatus', s.work_status, 'balance', COALESCE(w.balance,0), 'frozenBalance', COALESCE(w.frozen_balance,0), 'totalIncome', COALESCE(w.total_income,0)) FROM service_staff s LEFT JOIN service_staff_wallet w ON w.staff_id = s.id WHERE s.is_delete = 0 AND ($1 = 0 OR s.type = $2) AND s.name LIKE $3 ORDER BY s.id DESC LIMIT $4 OFFSET $5",
+        "SELECT json_build_object('staffId', s.id, 'staffName', s.name, 'staffPhone', s.phone, 'type', s.type, 'status', s.status, 'workStatus', s.work_status, 'balance', COALESCE(w.balance,0), 'frozenBalance', COALESCE(w.frozen_balance,0), 'totalIncome', COALESCE(w.total_income,0)) FROM service_staff s LEFT JOIN service_staff_wallet w ON w.staff_id = s.id WHERE s.is_delete = 0 AND ($1 = 0 OR s.type = $2) AND s.name ILIKE $3 ORDER BY s.id DESC LIMIT $4 OFFSET $5",
     ).bind(btype).bind(btype).bind(&kw).bind(s).bind(off).fetch_all(&pool(&state)).await.map_err(db)?;
     ok(
         serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}),
@@ -1283,14 +1283,14 @@ async fn h_statement_download_list(
     let (p, s, off) = page_of(&q);
     let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
     let (total,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM statement_download WHERE ($1 = '%%' OR remark LIKE $2)")
+        sqlx::query_as("SELECT COUNT(*) FROM statement_download WHERE ($1 = '%%' OR remark ILIKE $2)")
             .bind(&kw)
             .bind(&kw)
             .fetch_one(&pool(&state))
             .await
             .map_err(db)?;
     let rows: Vec<(Value,)> = sqlx::query_as(
-        "SELECT json_build_object('statementDownloadId', statement_download_id, 'vendorId', vendor_id, 'shopId', shop_id, 'gmtCreate', gmt_create, 'startTime', start_time, 'endTime', end_time, 'remark', remark) FROM statement_download WHERE ($1 = '%%' OR remark LIKE $2) ORDER BY statement_download_id DESC LIMIT $3 OFFSET $4",
+        "SELECT json_build_object('statementDownloadId', statement_download_id, 'vendorId', vendor_id, 'shopId', shop_id, 'gmtCreate', gmt_create, 'startTime', start_time, 'endTime', end_time, 'remark', remark) FROM statement_download WHERE ($1 = '%%' OR remark ILIKE $2) ORDER BY statement_download_id DESC LIMIT $3 OFFSET $4",
     )
     .bind(&kw)
     .bind(&kw)
@@ -1345,7 +1345,7 @@ async fn h_supplier_list(State(state): State<AdminState>, Query(q): Query<Pg>) -
     let (p, s, off) = page_of(&q);
     let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
     let (total,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM suppliers WHERE suppliers_name LIKE $1 OR contact_name LIKE $2",
+        "SELECT COUNT(*) FROM suppliers WHERE suppliers_name ILIKE $1 OR contact_name ILIKE $2",
     )
     .bind(&kw)
     .bind(&kw)
@@ -1353,7 +1353,7 @@ async fn h_supplier_list(State(state): State<AdminState>, Query(q): Query<Pg>) -
     .await
     .map_err(db)?;
     let rows: Vec<(Value,)> = sqlx::query_as(
-        "SELECT json_build_object('suppliersId', suppliers_id, 'suppliersName', suppliers_name, 'suppliersDesc', suppliers_desc, 'isCheck', is_check, 'country', country, 'province', province, 'city', city, 'district', district, 'contactName', contact_name, 'contactPhone', contact_phone, 'contactAddress', contact_address, 'isShow', is_show, 'shopId', shop_id) FROM suppliers WHERE suppliers_name LIKE $1 OR contact_name LIKE $2 ORDER BY suppliers_id DESC LIMIT $3 OFFSET $4",
+        "SELECT json_build_object('suppliersId', suppliers_id, 'suppliersName', suppliers_name, 'suppliersDesc', suppliers_desc, 'isCheck', is_check, 'country', country, 'province', province, 'city', city, 'district', district, 'contactName', contact_name, 'contactPhone', contact_phone, 'contactAddress', contact_address, 'isShow', is_show, 'shopId', shop_id) FROM suppliers WHERE suppliers_name ILIKE $1 OR contact_name ILIKE $2 ORDER BY suppliers_id DESC LIMIT $3 OFFSET $4",
     ).bind(&kw).bind(&kw).bind(s).bind(off).fetch_all(&pool(&state)).await.map_err(db)?;
     ok(
         serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}),
@@ -1767,7 +1767,7 @@ upd_field!(
 async fn h_71(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
     let (p, s, off) = page_of(&q);
     let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
-    let rows: Vec<(Value,)> = sqlx::query_as("SELECT json_build_object('productId', product_id, 'productName', product_name, 'picThumb', pic_thumb, 'productPrice', product_price) FROM product WHERE product_name LIKE $1 ORDER BY product_id DESC LIMIT $2 OFFSET $3")
+    let rows: Vec<(Value,)> = sqlx::query_as("SELECT json_build_object('productId', product_id, 'productName', product_name, 'picThumb', pic_thumb, 'productPrice', product_price) FROM product WHERE product_name ILIKE $1 ORDER BY product_id DESC LIMIT $2 OFFSET $3")
         .bind(&kw).bind(s).bind(off).fetch_all(&pool(&state)).await.map_err(db)?;
     ok(
         serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "page": p, "size": s}),

@@ -108,7 +108,7 @@ pub struct FriendLinksListQuery {
     pub sort_field: Option<String>,
     /// 排序方向。
     pub sort_order: Option<String>,
-    /// 标题关键字（Java `BasePage.keyword`，作用于 `link_title LIKE`）。
+    /// 标题关键字（Java `BasePage.keyword`，作用于 `link_title ILIKE`）。
     pub keyword: Option<String>,
     /// 是否展示（Java `FriendLinksListDTO.isShow`；服务未使用）。
     pub is_show: Option<i32>,

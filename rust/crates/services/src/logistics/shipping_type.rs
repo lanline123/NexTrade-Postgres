@@ -22,7 +22,7 @@
 //! ### `list`
 //! - **强制**按 `shop_id` 过滤，值来自请求头解析的 `getShopId()`
 //!   （`ShippingTypeListDTO.shopId` 参数被 Java **忽略**）。
-//! - `keyword` 走 `LIKE %keyword%`，判据是 **`StrUtil.isNotEmpty`**
+//! - `keyword` 走 `ILIKE %keyword%`，判据是 **`StrUtil.isNotEmpty`**
 //!   （纯空白算有效关键字，与 area_code 的 `isNotBlank` 口径不同）。
 //! - 排序**无条件**调 `buildSortOrder` ⇒ `sortField` 空时是主键列降序。
 //! - 逐行查物流公司名补 `logisticsName`（Java N+1）。

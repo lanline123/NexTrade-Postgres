@@ -395,7 +395,7 @@ impl GrouponPromotionItemRepository {
             .map(str::trim)
             .filter(|s| !s.is_empty())
         {
-            wh.push_str(" AND product_name LIKE ?");
+            wh.push_str(" AND product_name ILIKE ?");
             binds.push(format!("%{name}%"));
         }
         if let Some(brand) = q.brand_id {
@@ -484,7 +484,7 @@ fn build_item_filters(
         binds.push(promotion_id.to_string());
     }
     if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-        wh.push_str(" AND p.product_name LIKE ?");
+        wh.push_str(" AND p.product_name ILIKE ?");
         binds.push(format!("%{kw}%"));
     }
     if let Some(sn) = q
@@ -493,7 +493,7 @@ fn build_item_filters(
         .map(str::trim)
         .filter(|s| !s.is_empty())
     {
-        wh.push_str(" AND p.product_sn LIKE ?");
+        wh.push_str(" AND p.product_sn ILIKE ?");
         binds.push(format!("%{sn}%"));
     }
     if let Some(name) = q
@@ -502,7 +502,7 @@ fn build_item_filters(
         .map(str::trim)
         .filter(|s| !s.is_empty())
     {
-        wh.push_str(" AND p.product_name LIKE ?");
+        wh.push_str(" AND p.product_name ILIKE ?");
         binds.push(format!("%{name}%"));
     }
     if let Some(brand) = q.brand_id {

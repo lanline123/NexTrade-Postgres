@@ -187,7 +187,7 @@ impl PanelRepository {
             .map(|s| format!("%{s}%"));
         if let Some(v) = like.as_deref() {
             sqlx::query_as::<_, (i32, String, String, Option<String>)>(
-                "SELECT authority_id, authority_sn, authority_name, route_link FROM authority WHERE authority_name LIKE $1 AND is_show = 1 LIMIT 50",
+                "SELECT authority_id, authority_sn, authority_name, route_link FROM authority WHERE authority_name ILIKE $1 AND is_show = 1 LIMIT 50",
             )
             .bind(v)
             .fetch_all(&self.pool)

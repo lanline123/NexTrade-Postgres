@@ -275,7 +275,7 @@ pub struct ShopProductCategoryListQuery {
 }
 
 impl ShopProductCategoryListQuery {
-    /// 有效关键字（用于 `LIKE`）。
+    /// 有效关键字（用于 `ILIKE`）。
     ///
     /// ⚠️ **Java 原代码的已确认缺陷（本域第 1 个）**：
     /// `ShopProductCategoryServiceImpl#list` 第 152 行写的是
@@ -284,15 +284,15 @@ impl ShopProductCategoryListQuery {
     ///     queryWrapper.like(ShopProductCategory::getCategoryName, listDTO.getKeyword());
     /// }
     /// ```
-    /// 即「非 null **且** 为空串」才加 `LIKE`。此时 `keyword` 必然是空串，
-    /// 生成的 SQL 是 `category_name LIKE '%%'`（恒真），**等价于不过滤**；
+    /// 即「非 null **且** 为空串」才加 `ILIKE`。此时 `keyword` 必然是空串，
+    /// 生成的 SQL 是 `category_name ILIKE '%%'`（恒真），**等价于不过滤**；
     /// 而真正的关键字（非空串）反而**不会**被过滤。
     /// 净效果：**关键字搜索在 Java 里完全失效**。
     ///
     /// 本实现的选择：把这一条件**逐字符翻译成 Rust 的等价判定**
     /// （见 [`Self::java_keyword_filter_is_active`]），即只在
     /// 「`Some("")`（或全空白被 `StringUtils.isEmpty` 视为空后）」时返回
-    /// `Some("")`，由仓储层拼出 `LIKE '%%'`；非空关键字返回 `None`（不过滤）。
+    /// `Some("")`，由仓储层拼出 `ILIKE '%%'`；非空关键字返回 `None`（不过滤）。
     /// 这是**有意的缺陷复刻**，不是简化；如需修正请先确认产品意图
     /// （见 `uncertain_points`）。
     #[must_use]
@@ -820,7 +820,7 @@ mod tests {
 
     #[test]
     fn keyword_filter_replicates_java_inverted_condition() {
-        // keyword == null ⇒ Java 不加 LIKE
+        // keyword == null ⇒ Java 不加 ILIKE
         let q = ShopProductCategoryListQuery {
             keyword: None,
             ..Default::default()
@@ -828,7 +828,7 @@ mod tests {
         assert!(!q.java_keyword_filter_is_active());
         assert_eq!(q.effective_keyword(), None);
 
-        // keyword == "" ⇒ Java 加 `LIKE '%%'`（恒真，等价于不过滤）
+        // keyword == "" ⇒ Java 加 `ILIKE '%%'`（恒真，等价于不过滤）
         let q = ShopProductCategoryListQuery {
             keyword: Some(String::new()),
             ..Default::default()
@@ -836,7 +836,7 @@ mod tests {
         assert!(q.java_keyword_filter_is_active());
         assert_eq!(q.effective_keyword(), Some(""));
 
-        // keyword 非空 ⇒ Java **不**加 LIKE（搜索失效的根因）
+        // keyword 非空 ⇒ Java **不**加 ILIKE（搜索失效的根因）
         let q = ShopProductCategoryListQuery {
             keyword: Some("服装".into()),
             ..Default::default()

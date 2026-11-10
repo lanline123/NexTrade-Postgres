@@ -3,7 +3,7 @@
 //! 列名严格对齐 `python tools/schema_parser.py --table wechat_video_account`：
 //! `id` / `finder_id` / `add_time` / `update_time` / `shop_id`。
 //!
-//! 列表（Java `buildQueryWrapper`）：`finder_id LIKE`、`add_time >= / <=`、
+//! 列表（Java `buildQueryWrapper`）：`finder_id ILIKE`、`add_time >= / <=`、
 //! `shop_id`（仅当 `Some(>0)`；Java `getShopId()!=null && >0`），`id DESC`。
 
 use sqlx::{Postgres,PgPool, QueryBuilder};
@@ -84,7 +84,7 @@ impl WechatVideoAccountRepository {
         end: Option<i64>,
     ) {
         if let Some(finder) = finder {
-            qb.push(" AND finder_id LIKE ");
+            qb.push(" AND finder_id ILIKE ");
             qb.push_bind(finder.to_string());
         }
         if let Some(start) = start {

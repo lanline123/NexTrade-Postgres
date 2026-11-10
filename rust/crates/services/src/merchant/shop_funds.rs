@@ -6,7 +6,7 @@
 //!
 //! # 语义（逐条对照 Java）
 //! - `list`：排除自提点（`shop_type<>3`）与已归档（`is_delete` 空/0）→
-//!   `status>0` / `shop_type` / `keyword`(shop_title LIKE) → 白名单列排序
+//!   `status>0` / `shop_type` / `keyword`(shop_title ILIKE) → 白名单列排序
 //!   （缺省 `shop_id DESC`；`unSettlementOrder` 派生排序未迁移，回退主键）。
 //! - `detail`：`getById`，缺失返回 `null`（Java 同样返回 null）。
 //! - `create`：`ShopFundsCreateDTO` → `shop` 表插入（Java `save` 语义）。

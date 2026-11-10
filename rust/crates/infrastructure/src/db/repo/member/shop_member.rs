@@ -126,7 +126,7 @@ impl ShopMemberRepository {
 
     // ————————————————————— 店铺列表 —————————————————————
 
-    /// 平台端店铺分页（Java `shopList`：`LIKE shop_title` + `shop_type` +
+    /// 平台端店铺分页（Java `shopList`：`ILIKE shop_title` + `shop_type` +
     /// `ORDER BY shop_id DESC`）。
     pub async fn paginate_shops(
         &self,
@@ -162,7 +162,7 @@ impl ShopMemberRepository {
         q: &nextrade_core::models::member::shop_member::ShopMemberShopQueryPage,
     ) {
         if let Some(title) = q.effective_shop_title() {
-            qb.push(" AND shop_title LIKE ");
+            qb.push(" AND shop_title ILIKE ");
             qb.push_bind(format!("%{title}%"));
         }
         if let Some(shop_type) = q.shop_type {
@@ -239,11 +239,11 @@ impl ShopMemberRepository {
         }
         if let Some(keyword) = q.effective_keyword() {
             let like = format!("%{keyword}%");
-            qb.push(" AND (u.nickname LIKE ");
+            qb.push(" AND (u.nickname ILIKE ");
             qb.push_bind(like.clone());
-            qb.push(" OR u.mobile LIKE ");
+            qb.push(" OR u.mobile ILIKE ");
             qb.push_bind(like.clone());
-            qb.push(" OR u.email LIKE ");
+            qb.push(" OR u.email ILIKE ");
             qb.push_bind(like);
             qb.push(")");
         }

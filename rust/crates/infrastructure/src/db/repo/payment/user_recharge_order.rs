@@ -201,11 +201,11 @@ impl UserRechargeOrderRepository {
 
     // ————————————————————— 装配 / 关键字 —————————————————————
 
-    /// 关键字命中的会员 ID（`username LIKE` OR `nickname LIKE`）。
+    /// 关键字命中的会员 ID（`username ILIKE` OR `nickname ILIKE`）。
     pub async fn find_user_ids_by_keyword(&self, keyword: &str) -> Result<Vec<i32>> {
         let like = format!("%{keyword}%");
         let rows: Vec<(i32,)> = sqlx::query_as(
-            "SELECT user_id FROM \"user\" WHERE username LIKE $1 OR nickname LIKE $2",
+            "SELECT user_id FROM \"user\" WHERE username ILIKE $1 OR nickname ILIKE $2",
         )
         .bind(&like)
         .bind(&like)
@@ -327,6 +327,6 @@ mod tests {
         assert!(src.contains("INSERT INTO user_recharge_order"));
         assert!(src.contains("INSERT INTO user_balance_log"));
         assert!(src.contains("wallet_type, new_balance"));
-        assert!(src.contains("username LIKE ? OR nickname LIKE ?"));
+        assert!(src.contains("username ILIKE ? OR nickname ILIKE ?"));
     }
 }

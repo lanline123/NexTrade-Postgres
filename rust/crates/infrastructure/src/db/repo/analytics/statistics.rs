@@ -84,7 +84,7 @@ pub struct RankingQuery {
     pub end_ts: Option<i64>,
     /// `order.shop_id = shop_id`（`Some` 即过滤，含 `0`）
     pub shop_id: Option<i32>,
-    /// 关键字（`username LIKE %k%` OR `mobile LIKE %k%`）
+    /// 关键字（`username ILIKE %k%` OR `mobile ILIKE %k%`）
     pub keyword: Option<String>,
     /// 排序：`(列名, 是否升序)`；列名只允许是白名单常量
     /// （见 `StatisticsService::ranking_order_by`）
@@ -300,7 +300,7 @@ impl StatisticsRepository {
     ///   [AND t.shop_id = $2]        -- shopId != null 即过滤
     ///   [AND t.add_time >= $3]      -- startTime 非空
     ///   [AND t.add_time <= $4]
-    ///   [AND (t1.username LIKE $5 OR t1.mobile LIKE $6)]
+    ///   [AND (t1.username ILIKE $5 OR t1.mobile ILIKE $6)]
     /// GROUP BY t1.user_id
     /// [ORDER BY order_num|order_amount ASC|DESC]
     /// ```
@@ -375,9 +375,9 @@ fn push_ranking_filters(qb: &mut QueryBuilder<'_, Postgres>, q: &RankingQuery) {
     }
     if let Some(k) = q.keyword.as_deref() {
         let like = format!("%{k}%");
-        qb.push(" AND (u.username LIKE ");
+        qb.push(" AND (u.username ILIKE ");
         qb.push_bind(like.clone());
-        qb.push(" OR u.mobile LIKE ");
+        qb.push(" OR u.mobile ILIKE ");
         qb.push_bind(like);
         qb.push(")");
     }

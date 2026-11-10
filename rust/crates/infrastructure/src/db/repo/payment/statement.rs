@@ -47,7 +47,7 @@ impl StatementRepository {
 
     fn push_filters<'a>(&self, qb: &mut QueryBuilder<'a, Postgres>, q: &StatementListQuery) {
         if let Some(sn) = q.record_sn.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-            qb.push(" AND record_sn LIKE ");
+            qb.push(" AND record_sn ILIKE ");
             qb.push_bind(format!("%{sn}%"));
         }
         if let (Some(start), Some(end)) = (q.start_date_time.as_deref(), q.end_date_time.as_deref()) {

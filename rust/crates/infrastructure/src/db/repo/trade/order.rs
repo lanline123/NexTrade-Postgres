@@ -328,7 +328,7 @@ impl OrderRepository {
                      OR ($6 = 0 AND comment_status = 0 AND order_status = 5)
                      OR ($7 > 0 AND comment_status = $8)
                    )
-               AND ($9 IS NULL OR order_sn LIKE $10 OR consignee LIKE $11){show_sql}"
+               AND ($9 IS NULL OR order_sn ILIKE $10 OR consignee ILIKE $11){show_sql}"
         ));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql)
             .bind(user_id).bind(user_id)
@@ -350,7 +350,7 @@ impl OrderRepository {
                      OR ($6 = 0 AND comment_status = 0 AND order_status = 5)
                      OR ($7 > 0 AND comment_status = $8)
                    )
-               AND ($9 IS NULL OR order_sn LIKE $10 OR consignee LIKE $11){show_sql}
+               AND ($9 IS NULL OR order_sn ILIKE $10 OR consignee ILIKE $11){show_sql}
              ORDER BY order_id DESC
              LIMIT $12 OFFSET $13"
         ));

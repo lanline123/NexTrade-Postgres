@@ -97,7 +97,7 @@ pub struct HomePreviewQuery {
     pub size: Option<u64>,
 }
 
-/// 百分号 LIKE 包装（关键词过滤用）。
+/// 百分号 ILIKE 包装（关键词过滤用）。
 #[must_use]
 pub fn like_pattern(keyword: &str) -> String {
     format!("%{}%", keyword.trim())

@@ -30,7 +30,7 @@ use nextrade_core::{Error, Result};
 /// 分类子孙展开；仓储层只负责拼 SQL。
 #[derive(Debug, Clone, Default)]
 pub struct ProductListFilter {
-    /// LIKE 模式（`%kw%`），未传关键词时为 `None`
+    /// ILIKE 模式（`%kw%`），未传关键词时为 `None`
     pub keyword_like: Option<String>,
     /// `product_id IN (...)`：与关键词组成 OR 分组（对应 Java `idList`）
     pub id_list: Vec<i32>,
@@ -78,7 +78,7 @@ pub struct ProductListFilter {
 #[derive(Debug, Clone, Default)]
 pub struct SelectProductFilter {
     pub shop_id: Option<i32>,
-    /// LIKE 模式（`%kw%`），未传关键词时为 `None`
+    /// ILIKE 模式（`%kw%`），未传关键词时为 `None`
     pub keyword_like: Option<String>,
     pub category_ids: Vec<i32>,
     pub product_types: Vec<i32>,
@@ -124,7 +124,7 @@ pub struct SelectProductRow {
 /// 抽成函数便于单测（拼串规格化）。
 fn keyword_group_sql(has_keyword: bool, id_count: usize) -> String {
     const KEYWORD_LIKES: &str =
-        "(product_name LIKE ? OR keywords LIKE ? OR product_sn LIKE ? OR product_tsn LIKE ?)";
+        "(product_name ILIKE ? OR keywords ILIKE ? OR product_sn ILIKE ? OR product_tsn ILIKE ?)";
     match (has_keyword, id_count) {
         (false, 0) => String::new(),
         (true, 0) => format!(" AND {KEYWORD_LIKES}"),
@@ -162,7 +162,7 @@ fn not_in_clause(column: &str, count: usize) -> String {
 macro_rules! bind_product_filters {
     ($q:expr, $f:expr) => {{
         let mut q = $q;
-        // keyword_group_sql：仅 keyword 存在时生成 4 个 LIKE 占位符；
+        // keyword_group_sql：仅 keyword 存在时生成 4 个 ILIKE 占位符；
         // 随后 id_list 的 IN 占位符（两者同组时 keyword 在前）
         if $f.keyword_like.is_some() {
             q = q.bind(&$f.keyword_like);
@@ -1300,7 +1300,7 @@ impl ProductManageRepository {
         offset: i64,
     ) -> Result<(u64, Vec<ProductSku>)> {
         let where_sql =
-            "WHERE product_id = $1 AND ($2 IS NULL OR sku_sn LIKE $3 OR sku_tsn LIKE $4 OR sku_value LIKE $5) AND ($6 IS NULL OR sku_stock >= $7) AND ($8 IS NULL OR sku_stock <= $9)";
+            "WHERE product_id = $1 AND ($2 IS NULL OR sku_sn ILIKE $3 OR sku_tsn ILIKE $4 OR sku_value ILIKE $5) AND ($6 IS NULL OR sku_stock >= $7) AND ($8 IS NULL OR sku_stock <= $9)";
         let dir = if order_asc { "ASC" } else { "DESC" };
         let count_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM product_sku {where_sql}",
@@ -1349,7 +1349,7 @@ impl ProductManageRepository {
             "WHERE p.is_delete = 0 AND p.product_status = 1 AND ($1 IS NULL OR p.shop_id = $2) ",
         );
         if f.keyword_like.is_some() {
-            where_sql.push_str("AND (p.product_name LIKE ? OR p.product_sn LIKE ?) ");
+            where_sql.push_str("AND (p.product_name ILIKE ? OR p.product_sn ILIKE ?) ");
         }
         where_sql.push_str(&in_clause("p.category_id", f.category_ids.len()));
         where_sql.push_str(&in_clause("p.product_type", f.product_types.len()));
@@ -1930,7 +1930,7 @@ impl ProductManageRepository {
 
     // ————————————————— 搜索 / 关键词（ES 降级） —————————————————
 
-    /// 关键词命中商品（对应 `searchGuess`：`product_name LIKE 任一分词`）。
+    /// 关键词命中商品（对应 `searchGuess`：`product_name ILIKE 任一分词`）。
     pub async fn find_products_for_guess(
         &self,
         keyword_likes: &[String],
@@ -1942,7 +1942,7 @@ impl ProductManageRepository {
         }
         let mut conds: Vec<String> = Vec::with_capacity(keyword_likes.len());
         for _ in keyword_likes {
-            conds.push("product_name LIKE ?".to_string());
+            conds.push("product_name ILIKE ?".to_string());
         }
         let mut sql = String::from("SELECT product_id, product_name, keywords FROM product WHERE is_delete = 0");
         sql.push_str(&not_in_clause("product_type", exclude_types.len()));
@@ -2133,10 +2133,10 @@ mod tests {
 
     #[test]
     fn keyword_group_without_ids() {
-        // 仅 keyword：4 个 LIKE 占位符，独立分组
+        // 仅 keyword：4 个 ILIKE 占位符，独立分组
         assert_eq!(
             keyword_group_sql(true, 0),
-            " AND (product_name LIKE ? OR keywords LIKE ? OR product_sn LIKE ? OR product_tsn LIKE ?)"
+            " AND (product_name ILIKE ? OR keywords ILIKE ? OR product_sn ILIKE ? OR product_tsn ILIKE ?)"
         );
         // 两者皆无：不生成任何片段
         assert_eq!(keyword_group_sql(false, 0), "");
@@ -2147,7 +2147,7 @@ mod tests {
         // 两者都有：同一 nested 块内 OR（Java buildQueryWrapper 语义）
         assert_eq!(
             keyword_group_sql(true, 3),
-            " AND ((product_name LIKE ? OR keywords LIKE ? OR product_sn LIKE ? OR product_tsn LIKE ?) OR product_id IN (?, ?, ?))"
+            " AND ((product_name ILIKE ? OR keywords ILIKE ? OR product_sn ILIKE ? OR product_tsn ILIKE ?) OR product_id IN (?, ?, ?))"
         );
     }
 

@@ -33,13 +33,13 @@ impl SignInSettingRepository {
         let mut cq: QueryBuilder<'_, Postgres> =
             QueryBuilder::new("SELECT COUNT(*) FROM sign_in_setting WHERE 1 = 1");
         if let Some(keyword) = keyword {
-            cq.push(" AND name LIKE ");
+            cq.push(" AND name ILIKE ");
             cq.push_bind(format!("%{keyword}%"));
         }
         let total: (i64,) = cq.build_query_as().fetch_one(&self.pool).await.map_err(map_err)?;
         let mut rq: QueryBuilder<'_, Postgres> = QueryBuilder::new(format!("{SELECT} WHERE 1 = 1"));
         if let Some(keyword) = keyword {
-            rq.push(" AND name LIKE ");
+            rq.push(" AND name ILIKE ");
             rq.push_bind(format!("%{keyword}%"));
         }
         rq.push(q.order_clause());

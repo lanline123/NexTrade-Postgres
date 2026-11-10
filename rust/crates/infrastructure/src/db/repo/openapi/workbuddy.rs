@@ -187,7 +187,7 @@ pub struct BatchProductRow {
 /// 商品搜索的查询条件（由服务层从 \"ProductSearchDTO\" 归一化而来）。
 #[derive(Debug, Clone, Default)]
 pub struct ProductSearchQuery {
-    /// 关键词：命中 \"product_name\" 或 \"product_sn\"（`LIKE %kw%`）。
+    /// 关键词：命中 \"product_name\" 或 \"product_sn\"（`ILIKE %kw%`）。
     pub keyword: Option<String>,
     pub category_id: Option<i32>,
     pub scope: ProductScope,
@@ -295,9 +295,9 @@ impl WorkbuddyRepository {
         if let Some(kw) = q.keyword.as_deref() {
             let kw = kw.trim();
             if !kw.is_empty() {
-                qb.push(" AND (product_name LIKE ");
+                qb.push(" AND (product_name ILIKE ");
                 qb.push_bind(format!("%{kw}%"));
-                qb.push(" OR product_sn LIKE ");
+                qb.push(" OR product_sn ILIKE ");
                 qb.push_bind(format!("%{kw}%"));
                 qb.push(")");
             }
@@ -778,7 +778,7 @@ impl WorkbuddyRepository {
 
     // ————————————————————— category（分类检索 / 导入） —————————————————————
     /// 按名称检索分类（对应 Java `ProductImportServiceImpl.categories` 的
-    /// `keyword` 分支，`LIKE %keyword%`）。
+    /// `keyword` 分支，`ILIKE %keyword%`）。
     ///
     /// `parent_id` 非空时按其过滤。
     pub async fn find_categories(
@@ -792,7 +792,7 @@ impl WorkbuddyRepository {
         if let Some(kw) = keyword {
             let kw = kw.trim();
             if !kw.is_empty() {
-                qb.push(" AND category_name LIKE ");
+                qb.push(" AND category_name ILIKE ");
                 qb.push_bind(format!("%{kw}%"));
             }
         }
@@ -1125,7 +1125,7 @@ impl WorkbuddyRepository {
         if let Some(kw) = keyword {
             let kw = kw.trim();
             if !kw.is_empty() {
-                qb.push(" AND pic_name LIKE ");
+                qb.push(" AND pic_name ILIKE ");
                 qb.push_bind(format!("%{kw}%"));
             }
         }
@@ -1242,7 +1242,7 @@ impl WorkbuddyRepository {
         if let Some(kw) = keyword {
             let kw = kw.trim();
             if !kw.is_empty() {
-                qb.push(" AND video_name LIKE ");
+                qb.push(" AND video_name ILIKE ");
                 qb.push_bind(format!("%{kw}%"));
             }
         }

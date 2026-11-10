@@ -229,7 +229,7 @@ impl ShippingTypeVO {
 pub struct ShippingTypeListQuery {
     /// 店铺id（**Java 忽略此字段**，见类型级说明）
     pub shop_id: Option<i32>,
-    /// 搜索关键字（Java `BasePage.keyword`，`LIKE %keyword%` 作用于名称）
+    /// 搜索关键字（Java `BasePage.keyword`，`ILIKE %keyword%` 作用于名称）
     pub keyword: Option<String>,
     /// 排序字段（Java `sortField`；属性名或列名，无法识别时回退主键列）
     pub sort_field: Option<String>,
@@ -246,7 +246,7 @@ impl ShippingTypeListQuery {
     ///
     /// ⚠️ Java 这里用的是 **`isNotEmpty`**（不是 `isNotBlank`），
     /// 因此 `"   "`（纯空白）**会**被当作有效关键字，
-    /// 生成 `LIKE '%   %'`。本方法逐字符复刻该口径
+    /// 生成 `ILIKE '%   %'`。本方法逐字符复刻该口径
     /// （与 area_code 的 `isNotBlank` 处理**不同**，不要照抄那边）。
     #[must_use]
     pub fn effective_keyword(&self) -> Option<&str> {

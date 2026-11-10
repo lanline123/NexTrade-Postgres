@@ -4,7 +4,7 @@
 //! `self.repos.system.admin_msg.<method>()`。对应 Java `AdminMsgServiceImpl`。
 //!
 //! # 已实现
-//! `list`（身份可见性 + msgType + title LIKE + 排序）、`msgTypeArr`（分类树 + 未读累加）、
+//! `list`（身份可见性 + msgType + title ILIKE + 排序）、`msgTypeArr`（分类树 + 未读累加）、
 //! `homeSummary`（未读总数 + 最新一条）、`setReaded`、`setAllReaded`。
 //!
 //! # 已实现 / 简化

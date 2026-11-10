@@ -266,7 +266,7 @@ impl PcNavigationService {
     /// PC 导航分页，对应 Java `PcNavigationServiceImpl#list`。
     ///
     /// - `type` 合法（1..=4）才过滤；`type == 2` 且 `parentId >= 0` 时按父级过滤；
-    /// - `keyword` 非空则 `title LIKE %kw%`；
+    /// - `keyword` 非空则 `title ILIKE %kw%`；
     /// - `hasChildren`：恒 0，仅 `type == 2` 时回填真实子级数。
     pub async fn list(&self, q: &PcNavigationListDTO) -> Result<PageResult<PcNavigationVO>> {
         let page = q.page_query();

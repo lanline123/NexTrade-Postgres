@@ -56,14 +56,14 @@ macro_rules! list_pg {
         async fn $fn_name(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
             let (p, s, off) = page_of(&q);
             let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
-            // PG 里 `LIKE` 只能作用于 text：`vendor_id` / `add_time` / `admin_id` /
+            // PG 里 `ILIKE` 只能作用于 text：`vendor_id` / `add_time` / `admin_id` /
             // `merchant_apply_id` / `type` 等列在 MySQL 时代可以隐式转字符串，PG 直接报
             // `operator does not exist: integer ~~ text`。统一 CAST 成 text（对 text 列是零成本直通）。
             let (total,): (i64,) = sqlx::query_as(
-                &format!("SELECT COUNT(*) FROM \"{}\" WHERE CAST(\"{}\" AS TEXT) LIKE $1", $table, $like))
+                &format!("SELECT COUNT(*) FROM \"{}\" WHERE CAST(\"{}\" AS TEXT) ILIKE $1", $table, $like))
                 .bind(&kw).fetch_one(&pool(&state)).await.map_err(db)?;
             let rows: Vec<(Value,)> = sqlx::query_as(&format!(
-                "SELECT json_build_object({}) FROM \"{}\" WHERE CAST(\"{}\" AS TEXT) LIKE $1 ORDER BY \"{}\" DESC LIMIT $2 OFFSET $3",
+                "SELECT json_build_object({}) FROM \"{}\" WHERE CAST(\"{}\" AS TEXT) ILIKE $1 ORDER BY \"{}\" DESC LIMIT $2 OFFSET $3",
                 $jo, $table, $like, $key))
                 .bind(&kw).bind(s).bind(off)
                 .fetch_all(&pool(&state)).await.map_err(db)?;
@@ -419,13 +419,13 @@ async fn h_37(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult
     let (p, s, off) = page_of(&q);
     let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
     let (total,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM vendor_product WHERE audit_state = 0 AND product_name LIKE $1",
+        "SELECT COUNT(*) FROM vendor_product WHERE audit_state = 0 AND product_name ILIKE $1",
     )
     .bind(&kw)
     .fetch_one(&pool(&state))
     .await
     .map_err(db)?;
-    let rows: Vec<(Value,)> = sqlx::query_as("SELECT json_build_object('id', id, 'productName', product_name, 'vendorId', vendor_id, 'auditState', audit_state, 'picThumb', pic_thumb) FROM vendor_product WHERE audit_state = 0 AND product_name LIKE $1 ORDER BY id DESC LIMIT $2 OFFSET $3")
+    let rows: Vec<(Value,)> = sqlx::query_as("SELECT json_build_object('id', id, 'productName', product_name, 'vendorId', vendor_id, 'auditState', audit_state, 'picThumb', pic_thumb) FROM vendor_product WHERE audit_state = 0 AND product_name ILIKE $1 ORDER BY id DESC LIMIT $2 OFFSET $3")
         .bind(&kw).bind(s).bind(off).fetch_all(&pool(&state)).await.map_err(db)?;
     ok(
         serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}),

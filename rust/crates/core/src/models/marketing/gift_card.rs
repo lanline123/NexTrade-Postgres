@@ -225,7 +225,7 @@ pub struct GiftCardsListQuery {
     pub sort_field: Option<String>,
     /// 排序方向
     pub sort_order: Option<String>,
-    /// 关键字（卡号 LIKE，Java 判 `keyword != null`，空串会 LIKE '%%'）
+    /// 关键字（卡号 ILIKE，Java 判 `keyword != null`，空串会 ILIKE '%%'）
     pub keyword: Option<String>,
     /// 卡组 ID（Java `.eq(cardGroupsId, ...)`，为 null 时 SQL 条件匹配不到行）
     pub card_groups_id: Option<i32>,

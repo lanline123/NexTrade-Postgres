@@ -334,9 +334,9 @@ impl ShopWithdrawRepository {
     }
 }
 
-/// 追加 `AND col LIKE ?`（`%value%`），与 `where_binds` 同步（避免闭包同时借用两个局部）。
+/// 追加 `AND col ILIKE ?`（`%value%`），与 `where_binds` 同步（避免闭包同时借用两个局部）。
 fn push_like(where_sql: &mut String, where_binds: &mut Vec<String>, col: &str, value: &str) {
-    where_sql.push_str(&format!(" AND {col} LIKE ?"));
+    where_sql.push_str(&format!(" AND {col} ILIKE ?"));
     where_binds.push(format!("%{}%", value.trim()));
 }
 

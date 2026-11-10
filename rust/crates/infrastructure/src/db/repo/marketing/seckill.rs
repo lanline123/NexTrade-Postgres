@@ -55,7 +55,7 @@ impl SeckillRepository {
 
         let total: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM seckill
-             WHERE ($1 IS NULL OR seckill_name LIKE $2)
+             WHERE ($1 IS NULL OR seckill_name ILIKE $2)
                AND ($3 IS NULL OR shop_id = $4)",
         )
         .bind(&like)
@@ -68,7 +68,7 @@ impl SeckillRepository {
 
         let rows = sqlx::query_as::<_, Seckill>(
             "SELECT * FROM seckill
-             WHERE ($1 IS NULL OR seckill_name LIKE $2)
+             WHERE ($1 IS NULL OR seckill_name ILIKE $2)
                AND ($3 IS NULL OR shop_id = $4)
              ORDER BY seckill_id DESC
              LIMIT $5 OFFSET $6",

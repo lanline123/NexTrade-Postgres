@@ -247,7 +247,7 @@ impl SalesmanAdminRepository {
     /// 按手机号/用户名精确查会员（Java `getUserByMobileOrUsername`）。
     pub async fn find_user_by_mobile_or_username(&self, keyword: &str) -> Result<Option<(i32,)>> {
         let row: Option<(i32,)> = sqlx::query_as(
-            "SELECT user_id FROM \"user\" WHERE mobile = $1 OR username = $2 LIMIT 1",
+            "SELECT user_id FROM \"user\" WHERE mobile = $1 OR LOWER(username) = LOWER($2) LIMIT 1",
         )
         .bind(keyword)
         .bind(keyword)
@@ -398,7 +398,7 @@ impl SalesmanAdminRepository {
         Ok((total.0.max(0) as u64, rows))
     }
 
-    /// 下拉列表：`salesman JOIN user`，按 nickname/username/mobile LIKE 过滤
+    /// 下拉列表：`salesman JOIN user`，按 nickname/username/mobile ILIKE 过滤
     /// （Java 为全表 user 扫描 + 逐条查询，本实现纠偏为 JOIN，见 models 差异 5）。
     pub async fn select_salesmen(
         &self,
@@ -411,7 +411,7 @@ impl SalesmanAdminRepository {
             .map(|k| format!("%{k}%"));
         let mut conds: Vec<String> = Vec::new();
         if kw.is_some() {
-            conds.push("(u.nickname LIKE ? OR u.username LIKE ? OR u.mobile LIKE ?)".into());
+            conds.push("(u.nickname ILIKE ? OR u.username ILIKE ? OR u.mobile ILIKE ?)".into());
         }
         // 多租户：店铺账号只返回本店分销员（i32 内部值）
         if let Some(shop_id) = shop_id {

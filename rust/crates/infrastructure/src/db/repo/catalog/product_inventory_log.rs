@@ -112,7 +112,7 @@ impl ProductInventoryLogRepository {
 
         let mut where_sql = String::from(" WHERE 1 = 1");
         if kw.is_some() {
-            where_sql.push_str(" AND p.product_name LIKE ?");
+            where_sql.push_str(" AND p.product_name ILIKE ?");
         }
         if f.r#type.is_some_and(|t| t != 0) {
             where_sql.push_str(" AND l.\"type\" = ?");

@@ -4,7 +4,7 @@
 //! （`com.nextrade.service.product.impl`，管理端 8 个端点背后的方法）。
 //!
 //! 迁移要点（逐条对照 Java 源）：
-//! - `list`：`keyword` 对 `group_name` 做 `LIKE`（`isNotEmpty`，不 trim）+
+//! - `list`：`keyword` 对 `group_name` 做 `ILIKE`（`isNotEmpty`，不 trim）+
 //!   **恒定** `shop_id = getShopId()` + 三参 `buildSortOrder`（不读
 //!   `sortItems`）；`isDownload > 0` 时 Java 向响应写 xlsx 模板流。
 //! - `detail`：`getById`；不存在时 Java 在 `BeanUtils.copyProperties(null)`

@@ -19,8 +19,8 @@
 //!   等于主键属性名 `mobileCatNavId` 时用主键列；未识别的字段名**静默回退
 //!   主键列**（MyBatis-Plus 的安全修复，不是报错）；`sortOrder` 为 `asc` 升序、
 //!   为空或 `desc` 降序，**其它非法值完全不追加 ORDER BY**（`else if` 的缺口）。
-//!   `isShow` 只有 0 / 1 参与过滤；`keyword` 走 `category_id LIKE %keyword%`
-//!   （对整型列做 LIKE，靠 MySQL 隐式转换）。查询后用
+//!   `isShow` 只有 0 / 1 参与过滤；`keyword` 走 `category_id ILIKE %keyword%`
+//!   （对整型列做 ILIKE，靠 MySQL 隐式转换）。查询后用
 //!   `getCategoryByIds` 批量补 `categoryName`。
 //! - `detail`：`getById(id)` 后 `BeanUtils.copyProperties`，再把
 //!   `imgUrl` / `brandIds` / `childCatIds` 三列 `JsonUtil.fromJson` 成数组。

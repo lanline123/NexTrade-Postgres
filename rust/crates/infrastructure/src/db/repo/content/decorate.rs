@@ -187,7 +187,7 @@ impl DecorateRepository {
             push_cond(
                 &mut wh,
                 &mut params,
-                "decorate_title LIKE ?",
+                "decorate_title ILIKE ?",
                 &[Bind::S(format!("%{kw}%"))],
             );
         }
@@ -372,7 +372,7 @@ impl DecorateRepository {
         decorate_type: Option<i32>,
         prefix: &str,
     ) -> Result<Vec<String>> {
-        let mut wh = String::from(" WHERE decorate_title LIKE $1");
+        let mut wh = String::from(" WHERE decorate_title ILIKE $1");
         let mut params = vec![Bind::S(format!("{prefix}%"))];
         if let Some(shop_id) = shop_id {
             push_cond(&mut wh, &mut params, "shop_id = ?", &[Bind::I(shop_id)]);
@@ -540,7 +540,7 @@ impl DecorateRepository {
                 &mut params,
                 // `pc_navigation` 的标题列是 `title`（**不是** `decorate_title`，
                 // 那是 `decorate` 表的列）。写错会在运行时报 Unknown column。
-                "title LIKE ?",
+                "title ILIKE ?",
                 &[Bind::S(format!("%{kw}%"))],
             );
         }
@@ -693,7 +693,7 @@ impl DecorateRepository {
             push_cond(
                 &mut wh,
                 &mut params,
-                "cat_floor_name LIKE ?",
+                "cat_floor_name ILIKE ?",
                 &[Bind::S(format!("%{kw}%"))],
             );
         }
@@ -807,7 +807,7 @@ impl DecorateRepository {
             push_cond(
                 &mut wh,
                 &mut params,
-                "cat_name_alias LIKE ?",
+                "cat_name_alias ILIKE ?",
                 &[Bind::S(format!("%{kw}%"))],
             );
         }

@@ -5,7 +5,7 @@
 //!
 //! # 已实现（本地库操作，行为对齐 Java）
 //!
-//! - `list`：标题/关键词 LIKE、状态、创建日期范围、排序、分页；
+//! - `list`：标题/关键词 ILIKE、状态、创建日期范围、排序、分页；
 //!   VO 附加 `liveStatusText` / `auditStatusText` / `orderCount` / `syncFailedCount`
 //!   （对应 Java `convert` + `fillStats`）。
 //! - `detail`：同上转换；不存在返回 `null`（Java `getById` 为空时同样返回空）。

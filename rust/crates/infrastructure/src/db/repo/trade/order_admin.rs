@@ -1330,18 +1330,18 @@ fn build_filter(q: &OrderListQuery, platform_view: bool) -> Result<(String, Vec<
 
     if let Some(addr) = non_empty(&q.address) {
         let like = format!("%{addr}%");
-        conds.push("(address LIKE ? OR region_names LIKE ?)".into());
+        conds.push("(address ILIKE ? OR region_names ILIKE ?)".into());
         binds.push(Bind::Str(like.clone()));
         binds.push(Bind::Str(like));
     }
 
     if let Some(email) = non_empty(&q.email) {
-        conds.push("email LIKE ?".into());
+        conds.push("email ILIKE ?".into());
         binds.push(Bind::Str(format!("%{email}%")));
     }
 
     if let Some(mobile) = non_empty(&q.mobile) {
-        conds.push("mobile LIKE ?".into());
+        conds.push("mobile ILIKE ?".into());
         binds.push(Bind::Str(format!("%{mobile}%")));
     }
 
@@ -1468,7 +1468,7 @@ fn build_filter(q: &OrderListQuery, platform_view: bool) -> Result<(String, Vec<
     }
 
     if let Some(sn) = non_empty(&q.out_trade_no) {
-        conds.push("out_trade_no LIKE ?".into());
+        conds.push("out_trade_no ILIKE ?".into());
         binds.push(Bind::Str(format!("%{sn}%")));
     }
 
@@ -1493,10 +1493,10 @@ fn build_filter(q: &OrderListQuery, platform_view: bool) -> Result<(String, Vec<
     if let Some(kw) = non_empty(&q.keyword) {
         let like = format!("%{kw}%");
         let mut parts = vec![
-            "order_sn LIKE ?".to_string(),
-            "consignee LIKE ?".to_string(),
+            "order_sn ILIKE ?".to_string(),
+            "consignee ILIKE ?".to_string(),
             "EXISTS (SELECT 1 FROM order_item oi WHERE oi.order_id = \"order\".order_id \
-             AND oi.product_name LIKE ?)"
+             AND oi.product_name ILIKE ?)"
                 .to_string(),
         ];
         binds.push(Bind::Str(like.clone()));
@@ -1693,8 +1693,8 @@ mod tests {
     fn keyword_without_numeric_id_has_no_id_condition() {
         let q: OrderListQuery = serde_json::from_str(r#"{"keyword":"TIG"}"#).unwrap();
         let (sql, _) = build_filter(&q, true).unwrap();
-        assert!(sql.contains("order_sn LIKE ?"));
-        assert!(sql.contains("oi.product_name LIKE ?"));
+        assert!(sql.contains("order_sn ILIKE ?"));
+        assert!(sql.contains("oi.product_name ILIKE ?"));
         assert!(!sql.contains("order_id = ?"));
 
         let q: OrderListQuery = serde_json::from_str(r#"{"keyword":"10086"}"#).unwrap();

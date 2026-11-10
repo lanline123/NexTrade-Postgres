@@ -256,7 +256,7 @@ impl AdminAccountRepository {
         exclude_admin_id: i32,
     ) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM admin_user WHERE username = $1 AND admin_id <> $2",
+            "SELECT COUNT(*) FROM admin_user WHERE LOWER(username) = LOWER($1) AND admin_id <> $2",
         )
         .bind(username)
         .bind(exclude_admin_id)
@@ -285,7 +285,7 @@ impl AdminAccountRepository {
     /// 邮箱占用数（排除自身）。
     pub async fn count_admins_by_email(&self, email: &str, exclude_admin_id: i32) -> Result<i64> {
         let row: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM admin_user WHERE email = $1 AND admin_id <> $2")
+            sqlx::query_as("SELECT COUNT(*) FROM admin_user WHERE LOWER(email) = LOWER($1) AND admin_id <> $2")
                 .bind(email)
                 .bind(exclude_admin_id)
                 .fetch_one(&self.pool)
@@ -299,7 +299,7 @@ impl AdminAccountRepository {
     /// \"pageShopOrVendor\" 的店铺分页（Java \"pageShops\"）。
     ///
     /// 条件：`shop_id IN (...)` + 可选 `shop_type = $2` + 未删除
-    /// （`is_delete IS NULL OR is_delete = 0`）+ 可选 `shop_title LIKE $3`，
+    /// （`is_delete IS NULL OR is_delete = 0`）+ 可选 `shop_title ILIKE $3`，
     /// 排序固定 `shop_id DESC`。
     pub async fn paginate_shops(
         &self,
@@ -320,7 +320,7 @@ impl AdminAccountRepository {
         }
         conds.push("(is_delete IS NULL OR is_delete = 0)".to_string());
         if let Some(keyword) = keyword {
-            conds.push("shop_title LIKE ?".to_string());
+            conds.push("shop_title ILIKE ?".to_string());
             binds.push(Bind::Str(format!("%{keyword}%")));
         }
         let where_sql = format!(" WHERE {}", conds.join(" AND "));
@@ -345,7 +345,7 @@ impl AdminAccountRepository {
 
     /// \"pageAdminUser\" 的管理员分页（Java \"pageAdminUser\"）。
     ///
-    /// 条件：可选 `(username LIKE $2 OR mobile LIKE $3)` + `is_deleted = $4`，
+    /// 条件：可选 `(username ILIKE $2 OR mobile ILIKE $3)` + `is_deleted = $4`，
     /// 排序固定 `admin_id DESC`。\"is_deleted\" 由控制器恒置 0。
     pub async fn paginate_admin_users(
         &self,
@@ -357,7 +357,7 @@ impl AdminAccountRepository {
         let mut binds: Vec<Bind> = Vec::new();
         if let Some(keyword) = keyword {
             let like = format!("%{keyword}%");
-            conds.push("(username LIKE ? OR mobile LIKE ?)".to_string());
+            conds.push("(username ILIKE ? OR mobile ILIKE ?)".to_string());
             binds.push(Bind::Str(like.clone()));
             binds.push(Bind::Str(like));
         }
@@ -857,7 +857,7 @@ mod tests {
         conds.push("shop_type = ?".to_string());
         binds.push(Bind::I32(1));
         conds.push("(is_delete IS NULL OR is_delete = 0)".to_string());
-        conds.push("shop_title LIKE ?".to_string());
+        conds.push("shop_title ILIKE ?".to_string());
         binds.push(Bind::Str("%店%".into()));
         let where_sql = format!(" WHERE {}", conds.join(" AND "));
         assert_eq!(where_sql.matches('?').count(), binds.len());
@@ -877,7 +877,7 @@ mod tests {
         assert_eq!(where_sql.matches('?').count(), binds.len());
 
         let like = "%root%".to_string();
-        let mut conds: Vec<String> = vec!["(username LIKE ? OR mobile LIKE ?)".to_string()];
+        let mut conds: Vec<String> = vec!["(username ILIKE ? OR mobile ILIKE ?)".to_string()];
         let mut binds: Vec<Bind> = vec![Bind::Str(like.clone()), Bind::Str(like)];
         conds.push("is_deleted = ?".to_string());
         binds.push(Bind::I32(0));

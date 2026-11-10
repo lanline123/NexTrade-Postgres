@@ -2,8 +2,8 @@
 //!
 //! `GET /adminapi/credit/order/list`：账期支付订单分页（Java `CreditOrderServiceImpl#list`）。
 //!
-//! 过滤：订单号 LIKE、会员 ID、用户名/手机号（子查询 user）、订单状态（子查询 order）、
-//! 结算状态（单值/列表）、回款流水单号 LIKE、结算记录 ID、下单时间区间；按 `order_time` 倒序。
+//! 过滤：订单号 ILIKE、会员 ID、用户名/手机号（子查询 user）、订单状态（子查询 order）、
+//! 结算状态（单值/列表）、回款流水单号 ILIKE、结算记录 ID、下单时间区间；按 `order_time` 倒序。
 //! VO 回填：用户名/手机号、企业名称、订单金额/状态文案、已退款金额、结算状态文案、
 //! 下单/结算时间字符串。
 //!

@@ -378,9 +378,9 @@ impl ProxyShoppingPickupContactRepository {
 /// ```
 /// 因此：
 /// - `userId` 非空 → `user_id = ?`；
-/// - `keyword` 非 `null` 且**非空串** → `AND (contact_name LIKE ? OR contact_phone LIKE ?)`；
+/// - `keyword` 非 `null` 且**非空串** → `AND (contact_name ILIKE ? OR contact_phone ILIKE ?)`；
 /// - ⚠️ Java 用的是 `isEmpty()` **不是** `isBlank()`，所以纯空白串（如 `"  "`）
-///   **会**参与 LIKE 过滤（`'%  %'`），此处不得 trim、不得当成空。
+///   **会**参与 ILIKE 过滤（`'%  %'`），此处不得 trim、不得当成空。
 ///
 /// `is_del = 0` 不在这里拼接 —— 它由调用方的 SQL 模板固定写入，
 /// 便于 `tools/check_sql_columns.py` 静态校验该列。
@@ -396,7 +396,7 @@ fn build_filter(q: &PickupContactListQuery) -> (String, Vec<Bind>) {
     if let Some(keyword) = q.keyword.as_deref().filter(|k| !k.is_empty()) {
         // MyBatis-Plus `like` 默认 `SqlLike.DEFAULT`：两侧加 `%`，不做转义。
         let pattern = format!("%{keyword}%");
-        conds.push("(contact_name LIKE ? OR contact_phone LIKE ?)".into());
+        conds.push("(contact_name ILIKE ? OR contact_phone ILIKE ?)".into());
         binds.push(Bind::Str(pattern.clone()));
         binds.push(Bind::Str(pattern));
     }
@@ -473,7 +473,7 @@ mod tests {
     #[test]
     fn filter_keyword_wraps_in_parentheses_and_double_like() {
         let (sql, binds) = build_filter(&query(r#"{"keyword":"138"}"#));
-        assert_eq!(sql, " AND (contact_name LIKE ? OR contact_phone LIKE ?)");
+        assert_eq!(sql, " AND (contact_name ILIKE ? OR contact_phone ILIKE ?)");
         assert_eq!(
             binds,
             vec![
@@ -496,7 +496,7 @@ mod tests {
         // ⚠️ Java 用 isEmpty 而非 isBlank：纯空白串**会**参与过滤。
         // 禁止"顺手"改成 trim/isBlank，否则与线上行为不一致。
         let (sql, binds) = build_filter(&query(r#"{"keyword":"  "}"#));
-        assert_eq!(sql, " AND (contact_name LIKE ? OR contact_phone LIKE ?)");
+        assert_eq!(sql, " AND (contact_name ILIKE ? OR contact_phone ILIKE ?)");
         assert_eq!(binds, vec![Bind::Str("%  %".into()), Bind::Str("%  %".into())]);
     }
 
@@ -506,7 +506,7 @@ mod tests {
         let (sql, binds) = build_filter(&query(r#"{"userId":3,"keyword":"张"}"#));
         assert_eq!(
             sql,
-            " AND user_id = ? AND (contact_name LIKE ? OR contact_phone LIKE ?)"
+            " AND user_id = ? AND (contact_name ILIKE ? OR contact_phone ILIKE ?)"
         );
         assert_eq!(
             binds,

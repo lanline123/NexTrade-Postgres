@@ -18,7 +18,7 @@
 //!
 //! - `ECardPageQuery` 同时有 `cardNumber` 与继承自 `BasePage` 的 `keyword`，
 //!   但 `ECardServiceImpl#list` **只用 `keyword`** 对 `card_number` 做
-//!   `LIKE`（`cardNumber` 字段未被读取）。本实现保留两字段，`card_number`
+//!   `ILIKE`（`cardNumber` 字段未被读取）。本实现保留两字段，`card_number`
 //!   仅作反序列化兼容。
 //! - `ECardServiceImpl#list` 用 `buildSortOrder(BasePage)`（**会读
 //!   `sortItems`**）；本域 `sort_items` 逐项追加 `ORDER BY`，为空时回退
@@ -135,7 +135,7 @@ pub struct ECardPageQuery {
     pub card_number: Option<String>,
     /// 卡券分组 ID（`@NotNull(message = "电子卡券分组id不能为空")`）
     pub group_id: Option<i32>,
-    /// 搜索关键字（`BasePage.keyword`，对 `card_number` 做 `LIKE`）
+    /// 搜索关键字（`BasePage.keyword`，对 `card_number` 做 `ILIKE`）
     pub keyword: Option<String>,
     /// 排序字段
     pub sort_field: Option<String>,
@@ -160,7 +160,7 @@ impl ECardPageQuery {
     }
 
     /// 有效关键字（Java `StrUtil.isNotBlank(keyword)`：去空白后判空，
-    /// `LIKE` 绑定原始值）。
+    /// `ILIKE` 绑定原始值）。
     #[must_use]
     pub fn effective_keyword(&self) -> Option<&str> {
         self.keyword.as_deref().filter(|s| !s.trim().is_empty())

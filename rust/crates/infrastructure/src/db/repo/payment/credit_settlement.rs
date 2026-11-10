@@ -188,7 +188,7 @@ impl CreditSettlementRepository {
             qb.push_bind(user_id);
         }
         if let Some(sn) = q.effective_settlement_sn() {
-            qb.push(" AND settlement_sn LIKE ");
+            qb.push(" AND settlement_sn ILIKE ");
             qb.push_bind(format!("%{sn}%"));
         }
         if let Some(status) = q.settlement_status {
@@ -539,7 +539,7 @@ impl CreditSettlementRepository {
         end_epoch: Option<i64>,
     ) {
         if let Some(sn) = q.effective(&q.order_sn) {
-            qb.push(" AND order_sn LIKE ");
+            qb.push(" AND order_sn ILIKE ");
             qb.push_bind(format!("%{sn}%"));
         }
         if let Some(user_id) = q.user_id {
@@ -565,7 +565,7 @@ impl CreditSettlementRepository {
             qb.push_bind(status);
         }
         if let Some(sn) = q.effective(&q.settlement_sn) {
-            qb.push(" AND settlement_sn LIKE ");
+            qb.push(" AND settlement_sn ILIKE ");
             qb.push_bind(format!("%{sn}%"));
         }
         if let Some(settlement_id) = q.settlement_id {
@@ -803,10 +803,10 @@ impl CreditSettlementRepository {
 
     // ————————————————————— 用户 / 订单筛选辅助 —————————————————————
 
-    /// 用户名模糊匹配的会员 ID（`user.username LIKE`）。
+    /// 用户名模糊匹配的会员 ID（`user.username ILIKE`）。
     pub async fn find_user_ids_by_username_like(&self, keyword: &str) -> Result<Vec<i32>> {
         let rows: Vec<(i32,)> =
-            sqlx::query_as("SELECT user_id FROM \"user\" WHERE username LIKE $1")
+            sqlx::query_as("SELECT user_id FROM \"user\" WHERE username ILIKE $1")
                 .bind(format!("%{keyword}%"))
                 .fetch_all(&self.pool)
                 .await
@@ -822,11 +822,11 @@ impl CreditSettlementRepository {
     ) -> Result<Vec<i32>> {
         let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new("SELECT user_id FROM \"user\" WHERE 1 = 1");
         if let Some(username) = username {
-            qb.push(" AND username LIKE ");
+            qb.push(" AND username ILIKE ");
             qb.push_bind(format!("%{username}%"));
         }
         if let Some(mobile) = mobile {
-            qb.push(" AND mobile LIKE ");
+            qb.push(" AND mobile ILIKE ");
             qb.push_bind(format!("%{mobile}%"));
         }
         let rows: Vec<(i32,)> = qb

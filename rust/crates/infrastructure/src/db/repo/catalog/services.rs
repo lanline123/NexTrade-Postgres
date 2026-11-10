@@ -84,7 +84,7 @@ impl ServicesRepository {
     /// 商品服务分页（对应 Java `ServicesServiceImpl#list`）。
     ///
     /// Java 过滤条件只有 `keyword`（`like(productServiceName, keyword)`，
-    /// 且判空口径是 `keyword != null` —— 空串会生成 `LIKE '%%'`，
+    /// 且判空口径是 `keyword != null` —— 空串会生成 `ILIKE '%%'`，
     /// 净效果等同不过滤）；排序走 `BaseServiceImpl#buildSortOrder`
     /// （空 `sortField` 视为主键、`desc` 或空 `sortOrder` 一律降序）。
     ///
@@ -99,7 +99,7 @@ impl ServicesRepository {
     ) -> Result<(u64, Vec<ProductServices>)> {
         let like = like_pattern(keyword);
         let where_sql = if like.is_some() {
-            "WHERE product_service_name LIKE $1"
+            "WHERE product_service_name ILIKE $1"
         } else {
             ""
         };
@@ -248,9 +248,9 @@ impl ServicesRepository {
     }
 }
 
-/// LIKE 通配模式（Java `queryWrapper.like(column, keyword)` 等价物）。
+/// ILIKE 通配模式（Java `queryWrapper.like(column, keyword)` 等价物）。
 ///
-/// Java 判空口径是 `keyword != null`：空串会生成 `LIKE '%%'`（等价不过滤），
+/// Java 判空口径是 `keyword != null`：空串会生成 `ILIKE '%%'`（等价不过滤），
 /// 因此这里只在 `None` 时返回 `None`。
 #[must_use]
 pub fn like_pattern(raw: Option<&str>) -> Option<String> {
@@ -353,7 +353,7 @@ mod tests {
         assert_eq!(resolve_sort_direction(None), "DESC");
     }
 
-    /// LIKE 模式：`None` 不加条件；空串仍生成 `%%`（Java `keyword != null`）。
+    /// ILIKE 模式：`None` 不加条件；空串仍生成 `%%`（Java `keyword != null`）。
     #[test]
     fn like_pattern_matches_java_like() {
         assert_eq!(like_pattern(None), None);

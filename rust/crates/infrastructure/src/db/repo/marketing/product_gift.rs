@@ -63,14 +63,14 @@ impl ProductGiftRepository {
             QueryBuilder::new("SELECT COUNT(*) FROM product_gift WHERE shop_id = ");
         cq.push_bind(shop_id);
         if let Some(keyword) = keyword {
-            cq.push(" AND gift_name LIKE ");
+            cq.push(" AND gift_name ILIKE ");
             cq.push_bind(format!("%{keyword}%"));
         }
         let total: (i64,) = cq.build_query_as().fetch_one(&self.pool).await.map_err(map_err)?;
         let mut rq: QueryBuilder<'_, Postgres> = QueryBuilder::new(format!("{SELECT} WHERE shop_id = "));
         rq.push_bind(shop_id);
         if let Some(keyword) = keyword {
-            rq.push(" AND gift_name LIKE ");
+            rq.push(" AND gift_name ILIKE ");
             rq.push_bind(format!("%{keyword}%"));
         }
         rq.push(q.order_clause());

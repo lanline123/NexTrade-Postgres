@@ -116,7 +116,7 @@ impl ShippingTplRepository {
     ///
     /// 过滤条件与 Java 逐条对齐：
     /// - `shopId != null` 时 `AND shop_id = ?`
-    /// - `keyword` 非空时 `AND shipping_tpl_name LIKE %keyword%`
+    /// - `keyword` 非空时 `AND shipping_tpl_name ILIKE %keyword%`
     /// - ORDER BY 由 [`ShippingTplListQuery::order_clause`] 生成
     ///
     /// ⚠️ Java `list` **完全不使用** `listDTO.getIsShow()`（且表无该列）。
@@ -167,7 +167,7 @@ impl ShippingTplRepository {
             qb.push_bind(shop_id);
         }
         if let Some(kw) = q.effective_keyword() {
-            qb.push(" AND shipping_tpl_name LIKE ");
+            qb.push(" AND shipping_tpl_name ILIKE ");
             qb.push_bind(format!("%{kw}%"));
         }
     }

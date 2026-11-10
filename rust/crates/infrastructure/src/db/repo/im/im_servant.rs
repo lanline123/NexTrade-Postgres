@@ -55,7 +55,7 @@ impl ImServantRepository {
     /// 列表分页（对应 Java `ImServantServiceImpl#list` 的 `this.page(...)`）。
     ///
     /// - `shop_id`：`Some(v)` → 追加 `shop_id = v`；`None`（Java 返回 null）→ 不加条件；
-    /// - `servant_ids`：用户名 LIKE 命中的客服 id 集合。`Some(非空)` → 追加
+    /// - `servant_ids`：用户名 ILIKE 命中的客服 id 集合。`Some(非空)` → 追加
     ///   `servant_id IN (...)`；`Some(空)` 或 `None`：
     ///   * `None` 表示未提供 username 过滤（不加 IN 条件）；
     ///   * `Some(空)` 表示有 username 但无匹配 → 直接返回 `(0, [])`
@@ -134,7 +134,7 @@ impl ImServantRepository {
     pub async fn find_admin_ids_by_username(&self, username: &str) -> Result<Vec<i32>> {
         let like = format!("%{username}%");
         let rows: Vec<(i32,)> = sqlx::query_as(
-            "SELECT admin_id FROM admin_user WHERE username LIKE $1",
+            "SELECT admin_id FROM admin_user WHERE username ILIKE $1",
         )
         .bind(&like)
         .fetch_all(&self.pool)

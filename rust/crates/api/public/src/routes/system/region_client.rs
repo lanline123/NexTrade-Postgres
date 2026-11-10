@@ -293,7 +293,7 @@ async fn get_city_region(
 /// `like(regionName, cityName) AND level = 3`。
 ///
 /// Java 未标注 `required = false`，缺参时绑定为 `null` → `like(regionName, null)`
-/// 在 MyBatis-Plus 中生成 `region_name LIKE NULL`（恒假）→ 返回空列表；
+/// 在 MyBatis-Plus 中生成 `region_name ILIKE NULL`（恒假）→ 返回空列表；
 /// 本实现同样对缺参返回空列表，行为一致。
 async fn get_city_list_by_city_name(
     State(state): State<PublicState>,
@@ -428,7 +428,7 @@ async fn get_regeo_detail(
 }
 
 /// `GET /api/sys/region/searchByKeywords?keywords=...`：
-/// 地区名模糊搜索（`region_name LIKE`，不限层级）。
+/// 地区名模糊搜索（`region_name ILIKE`，不限层级）。
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct KeywordsQuery {

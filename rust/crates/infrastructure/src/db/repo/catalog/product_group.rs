@@ -116,7 +116,7 @@ impl ProductGroupRepository {
     /// 分组分页（对应 Java `ProductGroupServiceImpl#list`）。
     ///
     /// - `shop_id = ?`：**恒定**归属过滤（值由服务层按请求头解析）
-    /// - `product_group_name LIKE %keyword%`：仅当 keyword 非空
+    /// - `product_group_name ILIKE %keyword%`：仅当 keyword 非空
     /// - `product_group_id IN (...)`：仅当 `productGroupIds` 解析出有效 ID
     /// - ORDER BY 由 [`ProductGroupListQuery::order_clause`] 生成（白名单列）
     pub async fn paginate(
@@ -162,7 +162,7 @@ impl ProductGroupRepository {
         qb.push(" AND shop_id = ");
         qb.push_bind(shop_id);
         if let Some(keyword) = q.effective_keyword() {
-            qb.push(" AND product_group_name LIKE ");
+            qb.push(" AND product_group_name ILIKE ");
             qb.push_bind(format!("%{keyword}%"));
         }
         if let Some(ids) = q.effective_group_ids() {
@@ -186,7 +186,7 @@ impl ProductGroupRepository {
         let mut qb: QueryBuilder<'_, Postgres> =
             QueryBuilder::new(format!("{GROUP_SELECT} WHERE 1 = 1"));
         if let Some(name) = name {
-            qb.push(" AND product_group_name LIKE ");
+            qb.push(" AND product_group_name ILIKE ");
             qb.push_bind(format!("%{name}%"));
         }
         qb.push(" ORDER BY product_group_id ASC");

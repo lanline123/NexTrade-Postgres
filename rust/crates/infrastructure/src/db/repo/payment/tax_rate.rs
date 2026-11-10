@@ -81,7 +81,7 @@ impl TaxRateRepository {
     /// 税率分页（对应 Java `TaxRateServiceImpl#list`）。
     ///
     /// 过滤条件与 Java 逐条对齐：
-    /// - `regionName`：`region_name LIKE %regionName%`（`StrUtil.isNotBlank`）
+    /// - `regionName`：`region_name ILIKE %regionName%`（`StrUtil.isNotBlank`）
     /// - `isActive`：`is_active = ?`（`!= null` 才加）
     /// - `startTime`：`create_time >= ?`（转时间戳，`isNotBlank`）
     /// - `endTime`：`create_time <= ?`（转时间戳，`isNotBlank`）
@@ -140,7 +140,7 @@ impl TaxRateRepository {
         end_ts: Option<i64>,
     ) {
         if let Some(region_name) = q.effective_region_name() {
-            qb.push(" AND region_name LIKE ");
+            qb.push(" AND region_name ILIKE ");
             qb.push_bind(format!("%{region_name}%"));
         }
         if let Some(is_active) = q.is_active {

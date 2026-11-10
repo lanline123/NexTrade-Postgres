@@ -203,7 +203,7 @@ impl AftersalesClientRepository {
             binds.push(Bind::I32(s));
         }
         if let Some(sn) = non_blank(&q.aftersales_sn) {
-            conds.push("a.aftersales_sn LIKE ?".into());
+            conds.push("a.aftersales_sn ILIKE ?".into());
             binds.push(Bind::Str(format!("%{sn}%")));
         }
 
@@ -211,12 +211,12 @@ impl AftersalesClientRepository {
         let out_trade_no = non_blank(&q.out_trade_no);
         let join_order = keyword.is_some() || out_trade_no.is_some();
         if let Some(kw) = keyword {
-            conds.push("o.order_sn LIKE ?".into());
+            conds.push("o.order_sn ILIKE ?".into());
             binds.push(Bind::Str(format!("%{kw}%")));
         }
         // Java `outTradeNo`：按 out_trade_no 模糊过滤
         if let Some(no) = out_trade_no {
-            conds.push("o.out_trade_no LIKE ?".into());
+            conds.push("o.out_trade_no ILIKE ?".into());
             binds.push(Bind::Str(format!("%{no}%")));
         }
 

@@ -5,7 +5,7 @@
 //! 但 `salesmanId` 强制为当前登录分销员）。
 //!
 //! # 语义（逐条对照 Java）
-//! - `list`：`salesmanId` + `orderSn`（先查 `order.order_sn` LIKE 得到
+//! - `list`：`salesmanId` + `orderSn`（先查 `order.order_sn` ILIKE 得到
 //!   orderIds）+ `status != -1` + `timeType`（1 下单 / 2 支付 / 3 收货，
 //!   对应 `order.add_time/pay_time/received_time` 区间）+ 排序白名单。
 //! - `batch`：仅 `type=del` → 物理删除。

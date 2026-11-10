@@ -23,7 +23,7 @@
 //! - `isShow` 过滤走 `IsShowType.fromTypeCode(isShow) != null`
 //!   ⇒ **只有 0 和 1 生效**；`null` 与其它值（如 2）都**不加条件**
 //!   （Java 返回全部数据，不是返回空）。这是本域最易误实现的一处。
-//! - `keyword` 走 `LIKE %keyword%`，判据是 **`StrUtil.isNotEmpty`**
+//! - `keyword` 走 `ILIKE %keyword%`，判据是 **`StrUtil.isNotEmpty`**
 //!   （纯空白算有效关键字，与 area_code 的 `isNotBlank` 不同）。
 //! - 排序**无条件**调 `buildSortOrder` ⇒ `sortField` 空时是主键列降序。
 //!

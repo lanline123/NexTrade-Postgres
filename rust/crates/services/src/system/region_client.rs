@@ -215,7 +215,7 @@ impl RegionClientService {
     ///
     /// `like(regionName, cityName) AND level = 3`。
     ///
-    /// 差异：Java 未对 LIKE 通配符转义，输入含 `%` / `_` 会撑开匹配；
+    /// 差异：Java 未对 ILIKE 通配符转义，输入含 `%` / `_` 会撑开匹配；
     /// 本实现对 `\` `%` `_` 做转义（`ESCAPE '\\'`），更严格。
     pub async fn city_list_by_name(&self, city_name: &str) -> Result<Vec<Region>> {
         self.regions()
@@ -341,7 +341,7 @@ impl RegionClientService {
         self.user_region().await
     }
 
-    /// 关键词搜索地区（`searchByKeywords`：`region_name LIKE`，
+    /// 关键词搜索地区（`searchByKeywords`：`region_name ILIKE`，
     /// 不限层级，上限 50 条）。
     pub async fn search_by_keywords(&self, keywords: &str) -> Result<Vec<Region>> {
         self.regions().find_by_name_like(keywords, None).await

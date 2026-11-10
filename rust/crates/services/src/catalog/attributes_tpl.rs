@@ -97,8 +97,8 @@
 //! ### A. `list` 的 `keyword` 判据是 `!= null` 而不是 `isNotEmpty`
 //!
 //! Java：`if (basePage.getKeyword() != null) queryWrapper.like(tplName, keyword)`。
-//! 传 `keyword=""` 会生成 `tpl_name LIKE '%%'`（全匹配，**不报错**）。
-//! 本实现用「去空白后非空才过滤」，**结果集完全一致**，只是少一次无谓 LIKE。
+//! 传 `keyword=""` 会生成 `tpl_name ILIKE '%%'`（全匹配，**不报错**）。
+//! 本实现用「去空白后非空才过滤」，**结果集完全一致**，只是少一次无谓 ILIKE。
 //!
 //! ### B. `detail` 在记录不存在时 Java 抛 NPE 而非业务异常
 //!

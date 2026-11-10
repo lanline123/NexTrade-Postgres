@@ -6,7 +6,7 @@
 //! 构造签名固定：`pub fn new(repos: Arc<Repositories>) -> Self`。
 //!
 //! ## 已迁移（5）
-//! - `list`：`ruleName LIKE` + `enabled` 过滤 + 四个统计列 + 当前页关键字回填
+//! - `list`：`ruleName ILIKE` + `enabled` 过滤 + 四个统计列 + 当前页关键字回填
 //! - `detail`：主表 + 关键字 + 回复
 //! - `save`：深度校验 → 规则名唯一（忽略大小写）→ 新增 200 条上限 →
 //!   主表 upsert + 子表先删后插（事务）

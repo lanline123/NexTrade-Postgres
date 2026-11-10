@@ -125,11 +125,11 @@ impl GrouponRecordsRepository {
             qb.push(")");
         }
         if let Some(keyword) = q.keyword.as_deref().filter(|s| !s.is_empty()) {
-            qb.push(" AND (EXISTS (SELECT 1 FROM \"order\" o WHERE o.order_id = groupon_promotion_record.order_id AND (o.order_sn LIKE ");
+            qb.push(" AND (EXISTS (SELECT 1 FROM \"order\" o WHERE o.order_id = groupon_promotion_record.order_id AND (o.order_sn ILIKE ");
             qb.push_bind(format!("%{keyword}%"));
-            qb.push(" OR o.consignee LIKE ");
+            qb.push(" OR o.consignee ILIKE ");
             qb.push_bind(format!("%{keyword}%"));
-            qb.push(")) OR EXISTS (SELECT 1 FROM order_item oi WHERE oi.order_id = groupon_promotion_record.order_id AND oi.product_name LIKE ");
+            qb.push(")) OR EXISTS (SELECT 1 FROM order_item oi WHERE oi.order_id = groupon_promotion_record.order_id AND oi.product_name ILIKE ");
             qb.push_bind(format!("%{keyword}%"));
             qb.push("))");
         }

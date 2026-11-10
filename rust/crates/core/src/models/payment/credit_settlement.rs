@@ -473,7 +473,7 @@ pub fn limit_offset(page: Option<i64>, size: Option<i64>) -> (i64, i64) {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CreditSettlementUserListQuery {
-    /// 搜索关键字（Java 代码只匹配 `user.username LIKE`）
+    /// 搜索关键字（Java 代码只匹配 `user.username ILIKE`）
     pub keyword: Option<String>,
     /// 页码
     pub page: Option<i64>,

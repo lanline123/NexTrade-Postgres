@@ -98,7 +98,7 @@ pub struct WechatVideoAccountListQuery {
     pub sort_order: Option<String>,
     /// 关键字（Java `BasePage.keyword`；服务未使用）。
     pub keyword: Option<String>,
-    /// 视频号 ID（LIKE 过滤）。
+    /// 视频号 ID（ILIKE 过滤）。
     pub finder_id: Option<String>,
     /// 关联开始时间（`yyyy-MM-dd` 或 `yyyy-MM-dd HH:mm:ss`）。
     pub relation_time_start: Option<String>,

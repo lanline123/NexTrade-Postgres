@@ -89,7 +89,7 @@ impl CouponRepository {
             ""
         };
         let where_sql = crate::db::to_pg_placeholders(&format!(
-            "WHERE is_delete = 0 AND (? IS NULL OR coupon_name LIKE ?){shop_clause}{status_clause}"
+            "WHERE is_delete = 0 AND (? IS NULL OR coupon_name ILIKE ?){shop_clause}{status_clause}"
         ));
 
         let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM coupon {where_sql}"));

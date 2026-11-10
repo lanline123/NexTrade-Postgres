@@ -109,7 +109,7 @@ impl ECardGroupRepository {
     /// 分组分页（对应 Java `ECardGroupServiceImpl#list`）。
     ///
     /// - `shop_id = ?`：**恒定**归属过滤（Java `eq(shopId, getShopId())`）
-    /// - `group_name LIKE %keyword%`：仅当 keyword 非空
+    /// - `group_name ILIKE %keyword%`：仅当 keyword 非空
     /// - ORDER BY 由 [`ECardGroupListQuery::order_clause`] 生成
     pub async fn paginate(
         &self,
@@ -150,7 +150,7 @@ impl ECardGroupRepository {
         qb.push(" AND shop_id = ");
         qb.push_bind(shop_id);
         if let Some(keyword) = q.effective_keyword() {
-            qb.push(" AND group_name LIKE ");
+            qb.push(" AND group_name ILIKE ");
             qb.push_bind(format!("%{keyword}%"));
         }
     }

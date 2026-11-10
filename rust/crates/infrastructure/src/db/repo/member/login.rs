@@ -27,7 +27,7 @@ use nextrade_core::{Error, Result};
 const RESET_MOBILE_SQL: &str =
     "SELECT user_id, status FROM \"user\" WHERE mobile = $1 LIMIT 2";
 const RESET_EMAIL_SQL: &str =
-    "SELECT user_id, status FROM \"user\" WHERE email = $1 LIMIT 2";
+    "SELECT user_id, status FROM \"user\" WHERE LOWER(email) = LOWER($1) LIMIT 2";
 
 /// 会员登录域仓储（持有连接池）。
 #[derive(Clone)]
@@ -111,7 +111,7 @@ impl LoginRepository {
     /// 数据库失败 → `Error::Database`。
     pub async fn username_exists(&self, username: &str) -> Result<bool> {
         let (count,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM \"user\" WHERE username = $1")
+            sqlx::query_as("SELECT COUNT(*) FROM \"user\" WHERE LOWER(username) = LOWER($1)")
                 .bind(username)
                 .fetch_one(&self.pool)
                 .await

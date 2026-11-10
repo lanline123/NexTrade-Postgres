@@ -196,7 +196,7 @@ impl PcCatFloorVO {
 pub struct PcCatFloorListQuery {
     /// 是否展示（仅 0/1 生效，其余值忽略该条件）
     pub is_show: Option<i32>,
-    /// 搜索关键字（`cat_floor_name LIKE %kw%`）
+    /// 搜索关键字（`cat_floor_name ILIKE %kw%`）
     pub keyword: Option<String>,
     /// 排序字段（Java 走 `getColumnByPropertyName`：属性名或列名，无法识别时回退主键）
     pub sort_field: Option<String>,

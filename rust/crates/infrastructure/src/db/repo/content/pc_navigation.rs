@@ -87,7 +87,7 @@ impl PcNavigationRepository {
     ///
     /// - `type_filter`：已按 `PcNavigationType.isValidCode` 过滤后的类型；
     /// - `parent_id_filter`：仅 `type == 2` 且 `parent_id >= 0` 时由服务层传入；
-    /// - `keyword`：`title LIKE %kw%`；
+    /// - `keyword`：`title ILIKE %kw%`；
     /// - 排序：`buildSortOrder(page, sortField, sortOrder)` 单列排序。
     ///
     /// 三个可选条件用 `(? IS NULL OR col = ?)` 表达（与 `repo::decorate` 的
@@ -109,7 +109,7 @@ impl PcNavigationRepository {
         let (limit, offset) = page.limit_offset();
 
         let total: (i64,) = sqlx::query_as::<_, (i64,)>(
-            "SELECT COUNT(*) FROM pc_navigation WHERE ($1 IS NULL OR \"type\" = $2) AND ($3 IS NULL OR parent_id = $4) AND ($5 IS NULL OR title LIKE $6)",
+            "SELECT COUNT(*) FROM pc_navigation WHERE ($1 IS NULL OR \"type\" = $2) AND ($3 IS NULL OR parent_id = $4) AND ($5 IS NULL OR title ILIKE $6)",
         )
         .bind(type_filter)
         .bind(type_filter)
@@ -122,7 +122,7 @@ impl PcNavigationRepository {
         .map_err(map_err)?;
 
         let rows_sql = format!(
-            "SELECT {NAV_COLUMNS} FROM pc_navigation WHERE ($1 IS NULL OR \"type\" = $2) AND ($3 IS NULL OR parent_id = $4) AND ($5 IS NULL OR title LIKE $6) ORDER BY {column} {dir} LIMIT $7 OFFSET $8"
+            "SELECT {NAV_COLUMNS} FROM pc_navigation WHERE ($1 IS NULL OR \"type\" = $2) AND ($3 IS NULL OR parent_id = $4) AND ($5 IS NULL OR title ILIKE $6) ORDER BY {column} {dir} LIMIT $7 OFFSET $8"
         );
         let rows = sqlx::query_as::<_, PcNavigation>(&rows_sql)
             .bind(type_filter)

@@ -78,7 +78,7 @@ impl ProductRepository {
         let total_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT COUNT(*) FROM product
              WHERE is_delete = 0
-               AND (? IS NULL OR product_name LIKE ? OR product_sn LIKE ?)
+               AND (? IS NULL OR product_name ILIKE ? OR product_sn ILIKE ?)
                {category_clause}
                AND (? IS NULL OR brand_id = ?)
                AND (? IS NULL OR shop_id = ?)
@@ -137,7 +137,7 @@ impl ProductRepository {
         let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT * FROM product
              WHERE is_delete = 0
-               AND (? IS NULL OR product_name LIKE ? OR product_sn LIKE ?)
+               AND (? IS NULL OR product_name ILIKE ? OR product_sn ILIKE ?)
                {category_clause}
                AND (? IS NULL OR brand_id = ?)
                AND (? IS NULL OR shop_id = ?)

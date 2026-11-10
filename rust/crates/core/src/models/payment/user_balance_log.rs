@@ -39,14 +39,14 @@ pub struct UserBalanceLogListQuery {
     pub sort_field: Option<String>,
     /// 排序方向（`asc` / `desc`；其它值 Java 不设 ORDER BY）
     pub sort_order: Option<String>,
-    /// 关键字（Java `BasePage.keyword` → `change_desc LIKE`）
+    /// 关键字（Java `BasePage.keyword` → `change_desc ILIKE`）
     pub keyword: Option<String>,
     /// 用户ID（Java `userId`，`> 0` 才生效）
     pub user_id: Option<i32>,
     /// 金额（Java `balance`，类型是 `Integer`；只用作「`balance > 0`」开关，
     /// 值本身不进 SQL）
     pub balance: Option<i64>,
-    /// 会员用户名（Java `username` → `user.username LIKE`）
+    /// 会员用户名（Java `username` → `user.username ILIKE`）
     pub username: Option<String>,
     /// 是否排除分销佣金结算明细，1-排除（Java `excludeDistribution`，D1107）
     pub exclude_distribution: Option<i32>,
@@ -182,7 +182,7 @@ pub fn format_change_time(secs: i32) -> String {
     }
 }
 
-/// Java `notLike(changeDesc, "结算佣金")` 的 LIKE 模式串。
+/// Java `notLike(changeDesc, "结算佣金")` 的 ILIKE 模式串。
 pub const DISTRIBUTION_SETTLE_KEYWORD: &str = "结算佣金";
 
 #[cfg(test)]

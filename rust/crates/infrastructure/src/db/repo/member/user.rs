@@ -27,7 +27,7 @@ impl UserRepository {
     /// 按手机号查询。
     /// 按用户名查询（前端「账号」登录兼容）。
     pub async fn find_by_username(&self, username: &str) -> Result<Option<User>> {
-        sqlx::query_as::<_, User>("SELECT * FROM \"user\" WHERE username = $1 LIMIT 1")
+        sqlx::query_as::<_, User>("SELECT * FROM \"user\" WHERE LOWER(username) = LOWER($1) LIMIT 1")
             .bind(username)
             .fetch_optional(&self.pool)
             .await
@@ -158,7 +158,7 @@ impl UserRepository {
 
         // `user` 在 PG 里是保留字（CURRENT_USER）：外层表名已加引号，子查询里也必须写成 `"user"`，
         // 否则 `user.user_id` 会被解析成 CURRENT_USER 直接报 `syntax error at or near "."`。
-        let where_sql = "WHERE user_type = 1 AND ($1 IS NULL OR username LIKE $2 OR nickname LIKE $3 OR mobile LIKE $4 OR email LIKE $5) AND ($6 IS NULL OR EXISTS (SELECT 1 FROM shop_member m WHERE m.user_id = \"user\".user_id AND m.shop_id = $7 AND m.is_del = 0))";
+        let where_sql = "WHERE user_type = 1 AND ($1 IS NULL OR username ILIKE $2 OR nickname ILIKE $3 OR mobile ILIKE $4 OR email ILIKE $5) AND ($6 IS NULL OR EXISTS (SELECT 1 FROM shop_member m WHERE m.user_id = \"user\".user_id AND m.shop_id = $7 AND m.is_del = 0))";
 
         let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM \"user\" {where_sql}"));
         let (total,): (i64,) = sqlx::query_as(&count_sql)

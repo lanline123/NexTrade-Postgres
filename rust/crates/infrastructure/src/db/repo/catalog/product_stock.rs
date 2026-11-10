@@ -734,7 +734,7 @@ impl ProductStockRepository {
     ///
     /// WHERE 与 Java 同构：
     /// `(outbound_organization_id = ? OR warehousing_organization_id = ?)`
-    /// + 可选 `allocate_code LIKE` / `status =` / `add_by =`，`ORDER BY add_time DESC`。
+    /// + 可选 `allocate_code ILIKE` / `status =` / `add_by =`，`ORDER BY add_time DESC`。
     pub async fn paginate_allocate_records(
         &self,
         q: &AllocatePageQuery,
@@ -745,7 +745,7 @@ impl ProductStockRepository {
         let mut binds: Vec<Bind> = vec![Bind::I32(shop_id), Bind::I32(shop_id)];
 
         if let Some(kw) = non_empty(&q.keyword) {
-            conds.push("allocate_code LIKE ?".into());
+            conds.push("allocate_code ILIKE ?".into());
             binds.push(Bind::Str(format!("%{kw}%")));
         }
         if let Some(s) = q.status {
@@ -1139,7 +1139,7 @@ impl ProductStockRepository {
             "p.product_type = 1".into(),
         ];
         if let Some(kw) = keyword.map(str::trim).filter(|s| !s.is_empty()) {
-            conds.push("(p.product_name LIKE ? OR ps.sku_value LIKE ?)".into());
+            conds.push("(p.product_name ILIKE ? OR ps.sku_value ILIKE ?)".into());
             let like = format!("%{kw}%");
             binds.push(Bind::Str(like.clone()));
             binds.push(Bind::Str(like));
@@ -1279,7 +1279,7 @@ fn allocate_select_sql(
         .collect();
     let mut binds: Vec<Bind> = vec![Bind::I32(shop_id)];
     if let Some(kw) = keyword.map(str::trim).filter(|s| !s.is_empty()) {
-        conds.push("(p.product_name LIKE ? OR ps.sku_value LIKE ?)".into());
+        conds.push("(p.product_name ILIKE ? OR ps.sku_value ILIKE ?)".into());
         let like = format!("%{kw}%");
         binds.push(Bind::Str(like.clone()));
         binds.push(Bind::Str(like));
@@ -1302,7 +1302,7 @@ fn build_stock_page_filter(q: &StockPageQuery, shop_id: i32) -> (String, Vec<Bin
     }
     if let Some(kw) = non_empty(&q.keyword) {
         conds.push(
-            "(p.product_name LIKE ? OR ps.sku_value LIKE ? OR ps.sku_tsn = ? OR p.product_tsn = ?)"
+            "(p.product_name ILIKE ? OR ps.sku_value ILIKE ? OR ps.sku_tsn = ? OR p.product_tsn = ?)"
                 .into(),
         );
         let like = format!("%{kw}%");
@@ -1342,7 +1342,7 @@ fn build_record_filter(
     }
     if let Some(kw) = non_empty(&q.keyword) {
         conds.push(
-            "(pr.stock_code LIKE ? OR p.product_name LIKE ? OR p.product_sn LIKE ? OR ps.sku_value LIKE ?)"
+            "(pr.stock_code ILIKE ? OR p.product_name ILIKE ? OR p.product_sn ILIKE ? OR ps.sku_value ILIKE ?)"
                 .into(),
         );
         let like = format!("%{kw}%");
@@ -1381,7 +1381,7 @@ mod tests {
             serde_json::from_str(r#"{"productType":1,"keyword":"手机"}"#).unwrap();
         let (sql, binds) = build_stock_page_filter(&q, 7);
         assert!(sql.contains("p.product_type = ?"));
-        assert!(sql.contains("p.product_name LIKE ?"));
+        assert!(sql.contains("p.product_name ILIKE ?"));
         assert!(sql.contains("ps.sku_tsn = ?"));
         assert_eq!(binds.len(), 6); // shop + productType + 4 关键词
         assert_eq!(sql.matches('?').count(), binds.len());
@@ -1396,10 +1396,10 @@ mod tests {
             ..Default::default()
         };
         let (sql, binds) = build_record_filter(&q, 0, Some(100), Some(200));
-        // shop + inOrOut + type + begin + end + 4 个 LIKE = 9
+        // shop + inOrOut + type + begin + end + 4 个 ILIKE = 9
         assert_eq!(binds.len(), 9);
         assert_eq!(sql.matches('?').count(), binds.len());
-        assert!(sql.contains("pr.stock_code LIKE ?"));
+        assert!(sql.contains("pr.stock_code ILIKE ?"));
     }
 
     #[test]
@@ -1411,8 +1411,8 @@ mod tests {
             3,
         );
         assert!(from_sql.contains("sp.shop_id = $1"));
-        assert!(where_sql.contains("p.product_name LIKE ?"));
-        assert_eq!(binds.len(), 3); // 组织 + 两个 LIKE
+        assert!(where_sql.contains("p.product_name ILIKE ?"));
+        assert_eq!(binds.len(), 3); // 组织 + 两个 ILIKE
         assert!(matches!(binds[0], Bind::I32(3)));
     }
 

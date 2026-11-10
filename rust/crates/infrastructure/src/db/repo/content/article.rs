@@ -54,7 +54,7 @@ impl ArticleRepository {
         let like = keyword.map(|k| format!("%{k}%"));
         let (limit, offset) = page.limit_offset();
 
-        let where_sql = "WHERE (? IS NULL OR article_title LIKE ? OR article_author LIKE ?)
+        let where_sql = "WHERE (? IS NULL OR article_title ILIKE ? OR article_author ILIKE ?)
                AND (? IS NULL OR article_category_id = ?)
                AND (? IS NULL OR is_show = ?)";
 

@@ -164,7 +164,7 @@ impl AdminRoleRepository {
     /// 角色分页（对应 Java `this.page(page, queryWrapper)`）。
     ///
     /// WHERE = 租户可见性 **AND** `(role_code IS NULL OR role_code <> 'kefu_agent')`
-    /// **AND** 关键词 `(role_name LIKE ? OR role_desc LIKE ?)`。
+    /// **AND** 关键词 `(role_name ILIKE ? OR role_desc ILIKE ?)`。
     ///
     /// # Errors
     /// 数据库失败 → `Error::Database`。
@@ -447,7 +447,7 @@ impl AdminRoleRepository {
 
 /// 拼装 WHERE（含前导空格；无条件时返回空串）。
 ///
-/// 第二个返回值是关键词 LIKE 的绑定值：Java 的
+/// 第二个返回值是关键词 ILIKE 的绑定值：Java 的
 /// `and(qw -> qw.like(roleName, kw).or().like(roleDesc, kw))` 两个 `like`
 /// 共用同一个 `%kw%`。
 ///
@@ -488,7 +488,7 @@ fn build_where(visibility: &RoleVisibility, keyword: Option<&str>) -> (String, O
         .filter(|k| !k.is_empty())
         .map(|k| format!("%{k}%"));
     if like.is_some() {
-        conds.push("(role_name LIKE ? OR role_desc LIKE ?)".to_string());
+        conds.push("(role_name ILIKE ? OR role_desc ILIKE ?)".to_string());
     }
 
     (format!(" WHERE {}", conds.join(" AND ")), like)
@@ -570,16 +570,16 @@ mod tests {
     #[test]
     fn keyword_becomes_two_like_binds() {
         let (sql, bind) = build_where(&RoleVisibility::Admin { shop_id: 0 }, Some("客服"));
-        assert!(sql.ends_with("(role_name LIKE ? OR role_desc LIKE ?)"));
+        assert!(sql.ends_with("(role_name ILIKE ? OR role_desc ILIKE ?)"));
         assert_eq!(bind.as_deref(), Some("%客服%"));
 
-        // Java `StringUtils.isNotEmpty`：只排除空串，空白串也要参与 LIKE
+        // Java `StringUtils.isNotEmpty`：只排除空串，空白串也要参与 ILIKE
         let (sql, bind) = build_where(&RoleVisibility::Admin { shop_id: 0 }, Some("  "));
-        assert!(sql.contains("role_name LIKE ?"));
+        assert!(sql.contains("role_name ILIKE ?"));
         assert_eq!(bind.as_deref(), Some("%  %"));
 
         let (sql, bind) = build_where(&RoleVisibility::Admin { shop_id: 0 }, Some(""));
-        assert!(!sql.contains("role_name LIKE"));
+        assert!(!sql.contains("role_name ILIKE"));
         assert!(bind.is_none());
     }
 

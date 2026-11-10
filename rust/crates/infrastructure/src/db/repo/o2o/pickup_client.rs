@@ -239,7 +239,7 @@ impl PickupClientRepository {
     ) -> Result<(i64, Vec<serde_json::Value>)> {
         let kw = format!("%{}%", keyword.trim());
         let (total,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM product WHERE shop_id = $1 AND product_status = 1              AND product_name LIKE $2",
+            "SELECT COUNT(*) FROM product WHERE shop_id = $1 AND product_status = 1              AND product_name ILIKE $2",
         )
         .bind(shop_id)
         .bind(&kw)
@@ -247,7 +247,7 @@ impl PickupClientRepository {
         .await
         .map_err(map_err)?;
         let rows = sqlx::query_as::<_, (serde_json::Value,)>(
-            "SELECT json_build_object('productId', product_id, 'productName', product_name,              'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price,              'productStock', product_stock)              FROM product WHERE shop_id = $1 AND product_status = 1 AND product_name LIKE $2              ORDER BY product_id DESC LIMIT $3 OFFSET $4",
+            "SELECT json_build_object('productId', product_id, 'productName', product_name,              'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price,              'productStock', product_stock)              FROM product WHERE shop_id = $1 AND product_status = 1 AND product_name ILIKE $2              ORDER BY product_id DESC LIMIT $3 OFFSET $4",
         )
         .bind(shop_id)
         .bind(&kw)

@@ -113,7 +113,7 @@ impl SalesmanMaterialCategoryRepository {
 
         let total: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM salesman_material_category
-             WHERE ($1 IS NULL OR category_name LIKE $2)
+             WHERE ($1 IS NULL OR category_name ILIKE $2)
                AND ($3 IS NULL OR shop_id = $4)",
         )
         .bind(&like)
@@ -128,7 +128,7 @@ impl SalesmanMaterialCategoryRepository {
         // 不能用绑定参数占位（MySQL 不允许 ORDER BY 用占位符）。
         let sql = format!(
             "SELECT * FROM salesman_material_category
-             WHERE ($1 IS NULL OR category_name LIKE $2)
+             WHERE ($1 IS NULL OR category_name ILIKE $2)
                AND ($3 IS NULL OR shop_id = $4)
              ORDER BY {column} {direction}
              LIMIT $5 OFFSET $6"

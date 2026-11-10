@@ -105,7 +105,7 @@ pub const OPERATION_TYPE_REQUIRED: &str = "操作类型不能为空";
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ProductGroupListQuery {
-    /// 分组名称（`clientList` 用它做 `LIKE`；`list` 用的是 `keyword`）
+    /// 分组名称（`clientList` 用它做 `ILIKE`；`list` 用的是 `keyword`）
     pub product_group_name: Option<String>,
     /// 逗号分隔的分组 ID 串（`list` 用它做 `IN`）
     pub product_group_ids: Option<String>,
@@ -113,7 +113,7 @@ pub struct ProductGroupListQuery {
     pub sort_field: Option<String>,
     /// `asc` / `desc`（空 ⇒ 降序）
     pub sort_order: Option<String>,
-    /// 搜索关键字（Java `BasePage.keyword`，`list` 对 `product_group_name` 做 `LIKE`）
+    /// 搜索关键字（Java `BasePage.keyword`，`list` 对 `product_group_name` 做 `ILIKE`）
     pub keyword: Option<String>,
     /// 页码，从 1 开始（Java `BasePage.page`，null ⇒ 1）
     pub page: Option<u64>,
@@ -132,7 +132,7 @@ impl ProductGroupListQuery {
     }
 
     /// `list` 的有效关键字（Java `StringUtils.isNotEmpty(keyword)`：
-    /// **只判空串/null，不 trim**；`LIKE` 绑定原始值）。
+    /// **只判空串/null，不 trim**；`ILIKE` 绑定原始值）。
     #[must_use]
     pub fn effective_keyword(&self) -> Option<&str> {
         self.keyword.as_deref().filter(|s| !s.is_empty())
@@ -140,7 +140,7 @@ impl ProductGroupListQuery {
 
     /// `clientList` 的有效分组名（Java
     /// `StrUtil.isNotBlank(listDTO.getProductGroupName())`：去空白后判空；
-    /// `LIKE` 绑定原始值）。
+    /// `ILIKE` 绑定原始值）。
     #[must_use]
     pub fn effective_group_name(&self) -> Option<&str> {
         self.product_group_name

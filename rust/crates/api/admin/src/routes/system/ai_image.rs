@@ -641,9 +641,9 @@ async fn locales_list(
         .filter(|s| !s.is_empty())
     {
         let like = format!("%{k}%");
-        qb.push(" AND (l.locale_code LIKE ")
+        qb.push(" AND (l.locale_code ILIKE ")
             .push_bind(like.clone())
-            .push(" OR l.language LIKE ")
+            .push(" OR l.language ILIKE ")
             .push_bind(like)
             .push(")");
     }

@@ -222,7 +222,7 @@ impl StatisticsService {
     /// - `WHERE pay_status = 2`（**等于**，不是 `>=`）
     /// - `shopId != null` 才 `eq(shop_id, shopId)`（含 `0`）
     /// - `between(add_time, toTimestampYmd(start), toTimestampYmd(end))`
-    /// - `keyword` 非空时 `username LIKE %k% OR mobile LIKE %k%`
+    /// - `keyword` 非空时 `username ILIKE %k% OR mobile ILIKE %k%`
     /// - `sortField` 白名单映射（`orderNum`/`order_num` → `order_num`，
     ///   `orderAmount`/`order_amount` → `order_amount`；其它原样拼进 ORDER BY）
     /// - `GROUP BY t1.user_id`

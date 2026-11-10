@@ -18,7 +18,7 @@
 //!
 //! # 语义（逐条对照 Java 源）
 //!
-//! - `list`：`keyword != null` 时 `LIKE product_service_name`；排序走
+//! - `list`：`keyword != null` 时 `ILIKE product_service_name`；排序走
 //!   `BaseServiceImpl#buildSortOrder` → 空 `sortField` 视为主键、
 //!   `desc` / 空 `sortOrder` 一律降序（默认 `product_service_id DESC`）。
 //! - `detail`：`getById`，不存在抛 `商品服务不存在`。

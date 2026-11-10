@@ -364,7 +364,7 @@ impl CatalogRepository {
         let offset = (page.page.max(1) - 1) * page.page_size;
 
         let total: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM brand WHERE ($1 IS NULL OR brand_name LIKE $2)")
+            sqlx::query_as("SELECT COUNT(*) FROM brand WHERE ($1 IS NULL OR brand_name ILIKE $2)")
                 .bind(&like)
                 .bind(&like)
                 .fetch_one(&self.pool)
@@ -372,7 +372,7 @@ impl CatalogRepository {
                 .map_err(map_err)?;
 
         let rows = sqlx::query_as::<_, Brand>(
-            "SELECT * FROM brand WHERE ($1 IS NULL OR brand_name LIKE $2)
+            "SELECT * FROM brand WHERE ($1 IS NULL OR brand_name ILIKE $2)
              ORDER BY brand_id DESC LIMIT $3 OFFSET $4",
         )
         .bind(&like)

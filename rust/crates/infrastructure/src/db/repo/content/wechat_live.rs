@@ -36,7 +36,7 @@ impl WechatLiveRepository {
 
     // ————————————————————— 直播间 —————————————————————
 
-    /// 直播间分页（Java `list`：关键词/标题 LIKE、状态、店铺、创建时间范围）。
+    /// 直播间分页（Java `list`：关键词/标题 ILIKE、状态、店铺、创建时间范围）。
     ///
     /// 排序：Java `buildSortOrder` 空排序字段 → 主键 `wechat_live_id` 降序；
     /// `sortField` 支持 `createTime` / `liveStatus` / `wechatLiveId`。
@@ -54,7 +54,7 @@ impl WechatLiveRepository {
             binds.push(shop_id.to_string());
         }
         if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-            push_like(&mut wh, &mut binds, " AND wechat_live_title LIKE ?", &kw);
+            push_like(&mut wh, &mut binds, " AND wechat_live_title ILIKE ?", &kw);
         }
         if let Some(t) = q
             .wechat_live_title
@@ -62,7 +62,7 @@ impl WechatLiveRepository {
             .map(str::trim)
             .filter(|s| !s.is_empty())
         {
-            push_like(&mut wh, &mut binds, " AND wechat_live_title LIKE ?", t);
+            push_like(&mut wh, &mut binds, " AND wechat_live_title ILIKE ?", t);
         }
         let live_status = q.valid_live_status();
         if let Some(s) = live_status {
@@ -386,7 +386,7 @@ fn map_err(e: sqlx::Error) -> Error {
     }
 }
 
-/// 追加一个 `LIKE ?` 条件并记录 `%value%` 绑定（避免闭包同时借用 wh/binds）。
+/// 追加一个 `ILIKE ?` 条件并记录 `%value%` 绑定（避免闭包同时借用 wh/binds）。
 fn push_like(wh: &mut String, binds: &mut Vec<String>, cond: &str, value: &str) {
     wh.push_str(cond);
     binds.push(format!("%{value}%"));

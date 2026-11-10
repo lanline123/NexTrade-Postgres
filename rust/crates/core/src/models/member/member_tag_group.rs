@@ -413,7 +413,7 @@ pub fn non_blank(s: Option<&str>) -> Option<&str> {
 ///
 /// ⚠️ 与 [`non_blank`] 不同：`"   "` 在这里**算非空**。
 /// `MemberTagGroupServiceImpl#list` 的 `keyword` / `groupName` 判断用的是
-/// `isNotEmpty`，因此纯空白关键字**会**产生 `LIKE '%   %'` 过滤条件。
+/// `isNotEmpty`，因此纯空白关键字**会**产生 `ILIKE '%   %'` 过滤条件。
 #[must_use]
 pub fn is_not_empty(s: Option<&str>) -> bool {
     matches!(s, Some(v) if !v.is_empty())

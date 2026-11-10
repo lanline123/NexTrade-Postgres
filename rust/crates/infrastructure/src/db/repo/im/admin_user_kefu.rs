@@ -112,7 +112,7 @@ impl AdminUserKefuRepository {
             binds.push(Bind::I32(v));
         }
         if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-            conds.push("(s.username LIKE ? OR u.mobile LIKE ?)".to_string());
+            conds.push("(s.username ILIKE ? OR u.mobile ILIKE ?)".to_string());
             binds.push(Bind::Str(format!("%{kw}%")));
             binds.push(Bind::Str(format!("%{kw}%")));
         }
@@ -182,7 +182,7 @@ impl AdminUserKefuRepository {
     /// 管理员名称是否被占用（Java `admin_user.username` 唯一性校验）。
     pub async fn count_username(&self, username: &str, exclude_admin_id: Option<i32>) -> Result<u64> {
         let (n,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM admin_user WHERE username = $1 AND ($2 IS NULL OR admin_id <> $3)",
+            "SELECT COUNT(*) FROM admin_user WHERE LOWER(username) = LOWER($1) AND ($2 IS NULL OR admin_id <> $3)",
         )
         .bind(username)
         .bind(exclude_admin_id)

@@ -144,7 +144,7 @@ impl UserCenterRepository {
     /// 邮箱是否被他人占用（Java `count(email = ? AND user_id <> ?)`）。
     pub async fn exists_by_email(&self, email: &str, except_user_id: i32) -> Result<bool> {
         let (c,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) AS c FROM \"user\" WHERE email = $1 AND user_id <> $2",
+            "SELECT COUNT(*) AS c FROM \"user\" WHERE LOWER(email) = LOWER($1) AND user_id <> $2",
         )
         .bind(email)
         .bind(except_user_id)

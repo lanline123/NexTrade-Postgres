@@ -67,9 +67,9 @@ impl OrderInvoiceRepository {
 
     /// 分页（Java `orderInvoicePage`）。
     ///
-    /// - `keyword` 命中 `user.username LIKE` 或 `oi.company_name LIKE`
+    /// - `keyword` 命中 `user.username ILIKE` 或 `oi.company_name ILIKE`
     ///   （2 步查询：先取用户名命中的 user_id 列表，再拼 `user_id IN (...) OR
-    ///   company_name LIKE ?`；无命中用户时仅按 `company_name` 过滤）
+    ///   company_name ILIKE ?`；无命中用户时仅按 `company_name` 过滤）
     /// - `status` / `invoice_type` 可选
     /// - ORDER BY 由 [`OrderInvoicePageQuery::order_clause`] 生成
     pub async fn paginate(
@@ -120,8 +120,8 @@ impl OrderInvoiceRepository {
             qb.push(" AND m.is_del = 0)");
         }
         if let Some(keyword) = keyword {
-            // Java：`(u.username LIKE ? OR oi.company_name LIKE ?)`
-            qb.push(" AND (company_name LIKE ");
+            // Java：`(u.username ILIKE ? OR oi.company_name ILIKE ?)`
+            qb.push(" AND (company_name ILIKE ");
             qb.push_bind(format!("%{keyword}%"));
             if !user_ids.is_empty() {
                 qb.push(" OR user_id IN (");
@@ -144,9 +144,9 @@ impl OrderInvoiceRepository {
         }
     }
 
-    /// 用户名模糊命中的 user_id（`user.username LIKE %kw%`）。
+    /// 用户名模糊命中的 user_id（`user.username ILIKE %kw%`）。
     pub async fn find_user_ids_by_username(&self, keyword: &str) -> Result<Vec<i32>> {
-        let rows: Vec<(i32,)> = sqlx::query_as("SELECT user_id FROM \"user\" WHERE username LIKE $1")
+        let rows: Vec<(i32,)> = sqlx::query_as("SELECT user_id FROM \"user\" WHERE username ILIKE $1")
             .bind(format!("%{keyword}%"))
             .fetch_all(&self.pool)
             .await
@@ -319,8 +319,8 @@ mod tests {
     fn keyword_filter_uses_username_and_company_name() {
         // 静态守卫：keyword 过滤必须同时覆盖用户名与单位名称
         let src = include_str!("order_invoice.rs");
-        assert!(src.contains("AND (company_name LIKE "));
-        assert!(src.contains(r#"SELECT user_id FROM \"user\" WHERE username LIKE $1"#));
+        assert!(src.contains("AND (company_name ILIKE "));
+        assert!(src.contains(r#"SELECT user_id FROM \"user\" WHERE username ILIKE $1"#));
         assert!(src.contains(r#"SELECT order_id, order_sn FROM \"order\" WHERE order_id IN ("#));
     }
 }

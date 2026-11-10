@@ -293,7 +293,7 @@ pub struct GalleryPicListQuery {
     pub format: Option<String>,
     /// 来源筛选：local/upload/external
     pub source: Option<String>,
-    /// 关键词（`pic_name LIKE`）
+    /// 关键词（`pic_name ILIKE`）
     pub keyword: Option<String>,
     pub page: Option<u64>,
     pub size: Option<u64>,
@@ -315,7 +315,7 @@ impl GalleryPicListQuery {
         self.gallery_id.filter(|id| *id > 0)
     }
 
-    /// 有效关键词（Java `StrUtil.isNotBlank`，LIKE 用原始值不 trim）。
+    /// 有效关键词（Java `StrUtil.isNotBlank`，ILIKE 用原始值不 trim）。
     #[must_use]
     pub fn effective_keyword(&self) -> Option<&str> {
         self.keyword.as_deref().filter(|kw| !kw.trim().is_empty())

@@ -6,7 +6,7 @@
 //!
 //! # 语义（逐条对照 Java）
 //! - `list`：`(is_delete is null or 0)` + `merchantId` 精确 + `keyword`
-//!   （companyName/corporateName LIKE）→ 回填 `user`（会员精简）、`admin`
+//!   （companyName/corporateName ILIKE）→ 回填 `user`（会员精简）、`admin`
 //!   （`merchant_user.is_admin=1` + `admin_user.username`）、`shopCount`
 //!   （`shop` 表按 merchant，排除自提点）、`statusText` / `typeText` / `addTime`。
 //! - `detail`：同 VO + 解析 `baseData`/`shopData`/`merchantData` JSON，并用

@@ -109,7 +109,7 @@ pub struct PointsExchangeRow {
 /// 列表过滤条件（`None` 表示不过滤）。
 #[derive(Debug, Clone, Default)]
 pub struct ExchangeFilters<'a> {
-    /// 商品名称模糊（`p.product_name LIKE ?`）
+    /// 商品名称模糊（`p.product_name ILIKE ?`）
     pub keyword: Option<&'a str>,
     /// 是否热门（`pe.is_hot = ?`）
     pub is_hot: Option<i32>,
@@ -156,7 +156,7 @@ impl ExchangeRepository {
     /// 过滤条件与 Java 的净效果一致：
     /// - 商品有效：`product_status = 1 AND is_delete = 0`（Java 用 innerJoin
     ///   或「先查商品 ID 再 IN」两条路径，净效果相同）
-    /// - `is_enabled` / `is_hot` / `keyword`（商品名 LIKE）
+    /// - `is_enabled` / `is_hot` / `keyword`（商品名 ILIKE）
     /// - `is_enabled == Some(1)` 时追加
     ///   `pe.sku_id IS NULL OR pe.sku_id <= 0 OR s.is_enabled = 1`
     ///   （Java `leftJoin + and(...)` 的等价物）
@@ -180,7 +180,7 @@ impl ExchangeRepository {
             where_parts.push("pe.is_hot = ?".into());
         }
         if like.is_some() {
-            where_parts.push("p.product_name LIKE ?".into());
+            where_parts.push("p.product_name ILIKE ?".into());
         }
         if filters.is_enabled == Some(1) {
             // Java：leftJoin(ProductSku) + and(pe.skuId is null or <=0 or isEnabled=YES)
@@ -247,7 +247,7 @@ impl ExchangeRepository {
     }
 }
 
-/// LIKE 通配模式（Java `StrUtil.isNotEmpty(keyword)` + `like`）。
+/// ILIKE 通配模式（Java `StrUtil.isNotEmpty(keyword)` + `like`）。
 ///
 /// Java 先判 `isNotEmpty`：`None` / 空串都不加条件。
 #[must_use]
@@ -292,7 +292,7 @@ pub fn order_clause(sort_field: Option<&str>, sort_order: Option<&str>) -> Strin
 }
 
 /// 把 WHERE 片段按 [`ExchangeRepository::paginate`] 的拼接顺序绑定：
-/// `pe.is_enabled` → `pe.is_hot` → `p.product_name`（LIKE）。
+/// `pe.is_enabled` → `pe.is_hot` → `p.product_name`（ILIKE）。
 fn bind_filters<'q, O>(
     q: sqlx::query::QueryAs<'q, sqlx::Postgres, O, sqlx::postgres::PgArguments>,
     is_enabled: Option<i32>,
@@ -386,7 +386,7 @@ mod tests {
         );
     }
 
-    /// LIKE 模式：`None` / 空串不加条件（Java `isNotEmpty`），其余包 `%`。
+    /// ILIKE 模式：`None` / 空串不加条件（Java `isNotEmpty`），其余包 `%`。
     #[test]
     fn like_pattern_matches_java_is_not_empty() {
         assert_eq!(like_pattern(None), None);

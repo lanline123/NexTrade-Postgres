@@ -23,11 +23,11 @@
 //! Java 先按店铺/供应商名与商户性质解析出 ownerId 集合再拼 `IN`；本实现用
 //! **等价子查询**（同一类型内多个约束 = `AND`，多类型之间 = `OR`），
 //! 语义一致且避免 N 次额外查询：
-//! - 店铺：`owner_id IN (SELECT shop_id FROM shop WHERE shop_title LIKE ?)`
+//! - 店铺：`owner_id IN (SELECT shop_id FROM shop WHERE shop_title ILIKE ?)`
 //! - 店铺主体：`owner_id IN (SELECT shop_id FROM shop WHERE merchant_id IN
 //!   (SELECT merchant_id FROM merchant WHERE type = ?))`
 //! - 供应商：`owner_id IN (SELECT vendor_id FROM vendor WHERE source_type = 1
-//!   AND vendor_name LIKE ? / type = ?)`
+//!   AND vendor_name ILIKE ? / type = ?)`
 
 use rust_decimal::Decimal;
 use sqlx::{Postgres,PgPool, QueryBuilder};
@@ -82,9 +82,9 @@ impl DepositRechargeRepository {
         }
         if let Some(keyword) = keyword.map(str::trim).filter(|k| !k.is_empty()) {
             let like = format!("%{keyword}%");
-            qb.push(" AND (account_name LIKE ")
+            qb.push(" AND (account_name ILIKE ")
                 .push_bind(like.clone())
-                .push(" OR account_no LIKE ")
+                .push(" OR account_no ILIKE ")
                 .push_bind(like)
                 .push(")");
         }
@@ -253,13 +253,13 @@ impl DepositRechargeRepository {
         if let Some(like) = name_like {
             if owner_type == 1 {
                 qb.push(
-                    " AND owner_id IN (SELECT shop_id FROM shop WHERE shop_title LIKE ",
+                    " AND owner_id IN (SELECT shop_id FROM shop WHERE shop_title ILIKE ",
                 )
                 .push_bind(like.to_string())
                 .push(")");
             } else {
                 qb.push(
-                    " AND owner_id IN (SELECT vendor_id FROM vendor WHERE source_type = 1 AND vendor_name LIKE ",
+                    " AND owner_id IN (SELECT vendor_id FROM vendor WHERE source_type = 1 AND vendor_name ILIKE ",
                 )
                 .push_bind(like.to_string())
                 .push(")");

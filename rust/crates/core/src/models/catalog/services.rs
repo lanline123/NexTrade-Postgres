@@ -110,7 +110,7 @@ pub const MSG_FIELD_VALUE_REQUIRED: &str = "值不能为空";
 /// 商品服务列表查询参数（Java `BasePage`：`page` / `size` /
 /// `sortField` / `sortOrder` / `keyword`）。
 ///
-/// Java 只使用 `keyword`（LIKE `product_service_name`）与排序分页，
+/// Java 只使用 `keyword`（ILIKE `product_service_name`）与排序分页，
 /// 其余 `BasePage` 字段（`sortItems`）未迁移，见模块头。
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]

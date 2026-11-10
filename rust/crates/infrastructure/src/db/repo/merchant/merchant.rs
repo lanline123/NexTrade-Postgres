@@ -91,7 +91,7 @@ impl MerchantRepository {
             where_parts.push("status = ?".into());
         }
         if like.is_some() {
-            where_parts.push("(company_name LIKE ? OR corporate_name LIKE ?)".into());
+            where_parts.push("(company_name ILIKE ? OR corporate_name ILIKE ?)".into());
         }
         let where_sql = format!("WHERE {}", where_parts.join(" AND "));
         let column = resolve_sort_column(sort_field);

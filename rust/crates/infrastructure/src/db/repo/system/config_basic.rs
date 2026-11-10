@@ -93,7 +93,7 @@ impl ConfigBasicRepository {
     /// 数据库失败 → `Error::Database`。
     pub async fn find_by_code_like(&self, pattern: &str) -> Result<Vec<(String, String)>> {
         let sql = format!(
-            "SELECT biz_code, biz_val FROM config WHERE biz_code LIKE $1 AND {ALIVE}"
+            "SELECT biz_code, biz_val FROM config WHERE biz_code ILIKE $1 AND {ALIVE}"
         );
         let like = format!("%{pattern}%");
         let rows = sqlx::query_as::<_, (String, Option<String>)>(&sql)

@@ -246,7 +246,7 @@ fn civil_from_unix_secs(secs: i64) -> String {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct TaxRateListQuery {
-    /// 国家和地区名称（Java `regionName`，`LIKE %regionName%`）
+    /// 国家和地区名称（Java `regionName`，`ILIKE %regionName%`）
     pub region_name: Option<String>,
     /// 是否生效（Java `isActive`，`eq`）
     pub is_active: Option<i32>,

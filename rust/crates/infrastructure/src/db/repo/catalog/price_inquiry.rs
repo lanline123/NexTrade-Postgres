@@ -90,7 +90,7 @@ impl PriceInquiryRepository {
     /// 过滤条件与 Java 逐条对齐：
     /// - `product_id IN (...)`：由服务层先用 `keyword` 查商品 ID 得到；
     ///   `Some(&[])` 表示关键词没有匹配商品 —— Java 直接返回空页，绝不发 SQL
-    /// - `mobile LIKE %mobile%`
+    /// - `mobile ILIKE %mobile%`
     /// - `status = ?` / `user_id = ?` / `user_is_del = ?` / `shop_id = ?`
     ///   （均为「传了才过滤」，Java 的 `eq(x != null, ...)`）
     /// - ORDER BY 由 [`PriceInquiryQuery::order_clause`] 生成（白名单列）
@@ -150,7 +150,7 @@ impl PriceInquiryRepository {
         }
         // Java `like(StrUtil.isNotBlank(mobile), mobile)`
         if let Some(mobile) = q.effective_mobile() {
-            qb.push(" AND mobile LIKE ");
+            qb.push(" AND mobile ILIKE ");
             qb.push_bind(format!("%{mobile}%"));
         }
         // Java `eq(listDTO.getStatus() != null, ...)` 等四个「传了才过滤」
@@ -176,11 +176,11 @@ impl PriceInquiryRepository {
     /// `.like(productName, kw).or().like(productSn, kw).or().like(productTsn, kw)`）。
     ///
     /// 只返回 `product.product_id`，供列表 `IN` 过滤。`keyword` 原样绑定
-    /// （Java 判空用 `isNotBlank`，但 `LIKE` 用原始值，不 trim）。
+    /// （Java 判空用 `isNotBlank`，但 `ILIKE` 用原始值，不 trim）。
     pub async fn find_product_ids_by_keyword(&self, keyword: &str) -> Result<Vec<i32>> {
         let like = format!("%{keyword}%");
         let rows: Vec<(i32,)> = sqlx::query_as(
-            "SELECT product_id FROM product WHERE product_name LIKE $1 OR product_sn LIKE $2 OR product_tsn LIKE $3",
+            "SELECT product_id FROM product WHERE product_name ILIKE $1 OR product_sn ILIKE $2 OR product_tsn ILIKE $3",
         )
         .bind(&like)
         .bind(&like)

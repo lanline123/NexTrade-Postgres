@@ -42,7 +42,7 @@ impl UserMessageLogRepository {
     // ————————————————————— 读 —————————————————————
 
     /// 日志分页（Java `UserMessageLogServiceImpl#list`：
-    /// `message_title LIKE keyword` + `buildSortOrder` 分页）。
+    /// `message_title ILIKE keyword` + `buildSortOrder` 分页）。
     pub async fn paginate(
         &self,
         q: &UserMessageLogListQuery,
@@ -59,7 +59,7 @@ impl UserMessageLogRepository {
             .map(|k| format!("%{k}%"));
 
         let count_sql =
-            "SELECT COUNT(*) FROM user_message_log WHERE ($1 IS NULL OR message_title LIKE $2)";
+            "SELECT COUNT(*) FROM user_message_log WHERE ($1 IS NULL OR message_title ILIKE $2)";
         let total: (i64,) = sqlx::query_as(count_sql)
             .bind(&like)
             .bind(&like)
@@ -69,7 +69,7 @@ impl UserMessageLogRepository {
 
         let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {LOG_COLUMNS} FROM user_message_log \
-             WHERE (? IS NULL OR message_title LIKE ?){order} LIMIT ? OFFSET ?"
+             WHERE (? IS NULL OR message_title ILIKE ?){order} LIMIT ? OFFSET ?"
         ));
         let rows = sqlx::query_as::<_, UserMessageLog>(&list_sql)
             .bind(&like)

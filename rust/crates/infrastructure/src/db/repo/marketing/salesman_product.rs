@@ -291,7 +291,7 @@ pub fn build_from_where(q: &SalesmanProductPageQuery, shop_id: i32) -> (String, 
         binds.push(Bind::I32(shop_id));
     }
     if let Some(name) = q.effective_name() {
-        conds.push("p.product_name LIKE ?".to_string());
+        conds.push("p.product_name ILIKE ?".to_string());
         binds.push(Bind::Str(format!("%{name}%")));
     }
     if let Some(status) = q.status {

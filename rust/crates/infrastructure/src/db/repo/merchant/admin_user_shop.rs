@@ -43,7 +43,7 @@ impl AdminUserShopRepository {
             .filter(|s| !s.is_empty())
             .map(|s| format!("%{s}%"));
         let where_sql = if kw.is_some() {
-            " WHERE shop_id = $1 AND username LIKE $2"
+            " WHERE shop_id = $1 AND username ILIKE $2"
         } else {
             " WHERE shop_id = $1"
         };
@@ -392,7 +392,7 @@ impl AdminUserShopRepository {
     /// 数据库失败 → `Error::Database`。
     pub async fn count_username_conflict(&self, username: &str, exclude_mobile: &str) -> Result<i64> {
         let (n,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM admin_user WHERE username = $1 AND mobile <> $2",
+            "SELECT COUNT(*) FROM admin_user WHERE LOWER(username) = LOWER($1) AND mobile <> $2",
         )
         .bind(username)
         .bind(exclude_mobile)
@@ -412,7 +412,7 @@ impl AdminUserShopRepository {
         admin_id: i32,
     ) -> Result<i64> {
         let (n,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM admin_user WHERE username = $1 AND admin_id <> $2")
+            sqlx::query_as("SELECT COUNT(*) FROM admin_user WHERE LOWER(username) = LOWER($1) AND admin_id <> $2")
                 .bind(username)
                 .bind(admin_id)
                 .fetch_one(&self.pool)

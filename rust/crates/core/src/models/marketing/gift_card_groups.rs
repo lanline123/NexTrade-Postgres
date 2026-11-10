@@ -124,7 +124,7 @@ pub struct GiftCardGroupsListQuery {
     pub sort_field: Option<String>,
     /// 排序方向
     pub sort_order: Option<String>,
-    /// 关键字（卡组名 LIKE）
+    /// 关键字（卡组名 ILIKE）
     pub keyword: Option<String>,
 }
 

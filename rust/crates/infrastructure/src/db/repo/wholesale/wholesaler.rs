@@ -119,7 +119,7 @@ impl WholesalerRepository {
             let mut sub = vec!["1 = 1".to_string()];
             if like.is_some() {
                 sub.push(
-                    "(username LIKE ? OR mobile LIKE ? OR email LIKE ? OR nickname LIKE ?)".into(),
+                    "(username ILIKE ? OR mobile ILIKE ? OR email ILIKE ? OR nickname ILIKE ?)".into(),
                 );
             }
             if from_tag.is_some() {
@@ -647,7 +647,7 @@ impl WholesalerRepository {
 
     /// 「可选为批发商的会员」分页（Java `userService.list` 的子集口径）。
     ///
-    /// 过滤：`keyword`（用户名/手机/邮箱/昵称 LIKE）+ `fromTag` + `rankId`
+    /// 过滤：`keyword`（用户名/手机/邮箱/昵称 ILIKE）+ `fromTag` + `rankId`
     /// + `status`；按 `user_id DESC` 排序（与会员列表一致）。
     ///
     /// # Errors
@@ -669,7 +669,7 @@ impl WholesalerRepository {
         let mut where_parts: Vec<String> = vec!["1 = 1".into()];
         if like.is_some() {
             where_parts.push(
-                "(username LIKE ? OR mobile LIKE ? OR email LIKE ? OR nickname LIKE ?)".into(),
+                "(username ILIKE ? OR mobile ILIKE ? OR email ILIKE ? OR nickname ILIKE ?)".into(),
             );
         }
         if from_tag.is_some() {

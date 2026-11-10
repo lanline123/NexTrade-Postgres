@@ -105,7 +105,7 @@ impl PointsExchangeRepository {
     /// 已上架未删除且名称命中的商品 id（关键字为空由服务层跳过）。
     pub async fn find_valid_product_ids_by_name(&self, keyword: &str) -> Result<Vec<i32>> {
         let rows: Vec<(i32,)> = sqlx::query_as(
-            "SELECT product_id FROM product WHERE product_status = 1 AND is_delete = 0 AND product_name LIKE $1",
+            "SELECT product_id FROM product WHERE product_status = 1 AND is_delete = 0 AND product_name ILIKE $1",
         )
         .bind(format!("%{keyword}%"))
         .fetch_all(&self.pool)

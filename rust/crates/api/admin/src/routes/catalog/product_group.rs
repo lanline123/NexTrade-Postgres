@@ -249,7 +249,7 @@ async fn product_group_batch(
 /// `GET /adminapi/product/productGroup/clientList`：前台选择器分组列表。
 ///
 /// 对应 Java `client(ProductGroupListDTO)`：**无店铺过滤、无分页**，
-/// 只按 `productGroupName` 做 `LIKE`。
+/// 只按 `productGroupName` 做 `ILIKE`。
 async fn product_group_client_list(
     State(state): State<AdminState>,
     Query(q): Query<ProductGroupListQuery>,

@@ -7,7 +7,7 @@
 //! ```
 //!
 //! ⚠️ Java 用的是 **`like`（模糊匹配）** 而不是 `eq`，即
-//! `short_code LIKE '%<code>%' LIMIT 1`。这是原系统既有行为（短码通常是
+//! `short_code ILIKE '%<code>%' LIMIT 1`。这是原系统既有行为（短码通常是
 //! 定长随机串，模糊匹配在实践中等价于精确匹配，但确实不是 `=`）。
 //! 本仓储**忠实照抄**，不擅自改成 `=`（改了会让历史短链的解析结果与 Java 不一致）。
 //!
@@ -48,7 +48,7 @@ impl ShortUrlRepository {
     /// 只取控制器实际用到的两列（`long_url` / `type`），元组列数必须与
     /// `query_as::<_, (String, Option<i32>)>` 一致。
     pub async fn find_by_code(&self, code: &str) -> Result<Option<ShortUrlRow>> {
-        let sql = "SELECT long_url, type FROM short_url WHERE short_code LIKE CONCAT('%', $1, '%') LIMIT 1";
+        let sql = "SELECT long_url, type FROM short_url WHERE short_code ILIKE CONCAT('%', $1, '%') LIMIT 1";
         let row: Option<(String, Option<i32>)> = sqlx::query_as(sql)
             .bind(code)
             .fetch_optional(&self.pool)

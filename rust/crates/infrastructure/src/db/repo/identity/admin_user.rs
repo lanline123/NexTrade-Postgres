@@ -30,7 +30,7 @@ use nextrade_core::{Error, Result};
 /// （对应 Java `AdminUserPageQuery` + `AdminUserServiceImpl#list`）。
 #[derive(Debug, Clone, Default)]
 pub struct AdminUserPageFilter {
-    /// 关键词：`username LIKE %kw% OR mobile LIKE %kw%`
+    /// 关键词：`username ILIKE %kw% OR mobile ILIKE %kw%`
     /// （Java `StrUtil.isNotBlank(keyword)`）
     pub keyword: Option<String>,
     /// `admin_type IN (...)`；空表示不过滤
@@ -125,10 +125,10 @@ impl AdminUserRepository {
         deleted_scope: Option<bool>,
     ) -> Result<Option<AdminUser>> {
         let sql = if deleted_scope.is_some() {
-            "SELECT * FROM admin_user WHERE username = $1 AND is_deleted = 0 \
+            "SELECT * FROM admin_user WHERE LOWER(username) = LOWER($1) AND is_deleted = 0 \
              ORDER BY admin_id DESC LIMIT 1"
         } else {
-            "SELECT * FROM admin_user WHERE username = $1 \
+            "SELECT * FROM admin_user WHERE LOWER(username) = LOWER($1) \
              ORDER BY admin_id DESC LIMIT 1"
         };
         sqlx::query_as::<_, AdminUser>(sql)
@@ -185,7 +185,7 @@ impl AdminUserRepository {
         email: &str,
         exclude_admin_id: Option<i32>,
     ) -> Result<Option<AdminUser>> {
-        let mut sql = String::from("SELECT * FROM admin_user WHERE email = $1");
+        let mut sql = String::from("SELECT * FROM admin_user WHERE LOWER(email) = LOWER($1)");
         let mut binds = vec![Bind::Str(email.to_string())];
         if let Some(id) = exclude_admin_id {
             sql.push_str(" AND admin_id <> ?");
@@ -703,7 +703,7 @@ fn role_ordinary_condition(where_sql: &str) -> String {
 /// 构造 \"admin_user\" 的 WHERE 子句（含前导空格）与绑定参数。
 ///
 /// 对照 Java `AdminUserServiceImpl#list`：
-/// - \"keyword\"：`username LIKE %kw% OR mobile LIKE %kw%`
+/// - \"keyword\"：`username ILIKE %kw% OR mobile ILIKE %kw%`
 /// - \"adminUserType\" 非空时：`admin_type IN (...)`
 /// - 恒有 `is_deleted = 0`
 /// - \"suppliersId\" 非空时：`suppliers_id = $1`
@@ -718,7 +718,7 @@ fn build_user_filter(f: &AdminUserPageFilter) -> (String, Vec<Bind>) {
         .filter(|s| !s.is_empty())
     {
         let like = format!("%{kw}%");
-        conds.push("(username LIKE ? OR mobile LIKE ?)".to_string());
+        conds.push("(username ILIKE ? OR mobile ILIKE ?)".to_string());
         binds.push(Bind::Str(like.clone()));
         binds.push(Bind::Str(like));
     }
@@ -783,7 +783,7 @@ mod tests {
         };
         let (sql, binds) = build_user_filter(&f);
         assert!(sql.contains("is_deleted = 0"));
-        assert!(sql.contains("(username LIKE ? OR mobile LIKE ?)"));
+        assert!(sql.contains("(username ILIKE ? OR mobile ILIKE ?)"));
         assert!(sql.contains("admin_type IN (?, ?)"));
         assert!(sql.contains("suppliers_id = ?"));
         assert_eq!(sql.matches('?').count(), binds.len());

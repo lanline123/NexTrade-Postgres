@@ -81,7 +81,7 @@ impl ShippingTypeRepository {
     /// 过滤条件与 Java 逐条对齐：
     /// - **强制** `shop_id = ?`（Java `queryWrapper.eq(shopId, getShopId())`，
     ///   值来自请求头，请求参数里的 `shopId` 被忽略）
-    /// - `keyword`：`shipping_type_name LIKE %keyword%`
+    /// - `keyword`：`shipping_type_name ILIKE %keyword%`
     ///   （Java `StrUtil.isNotEmpty(keyword)` —— 纯空白**仍**算有效关键字）
     ///
     /// ORDER BY 由 [`ShippingTypeListQuery::order_clause`] 生成
@@ -131,7 +131,7 @@ impl ShippingTypeRepository {
         qb.push_bind(shop_id);
 
         if let Some(keyword) = q.effective_keyword() {
-            qb.push(" AND shipping_type_name LIKE ");
+            qb.push(" AND shipping_type_name ILIKE ");
             qb.push_bind(format!("%{keyword}%"));
         }
     }

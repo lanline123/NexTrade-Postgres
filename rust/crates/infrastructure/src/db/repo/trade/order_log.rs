@@ -66,7 +66,7 @@ impl OrderLogRepository {
             binds.push(Bind::I32(order_id));
         }
         if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-            conds.push("(order_sn LIKE ? OR description LIKE ?)".to_string());
+            conds.push("(order_sn ILIKE ? OR description ILIKE ?)".to_string());
             binds.push(Bind::Str(format!("%{kw}%")));
             binds.push(Bind::Str(format!("%{kw}%")));
         }

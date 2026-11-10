@@ -483,7 +483,7 @@ impl WholesaleProductRepository {
     pub async fn product_ids_by_keyword(&self, keyword: &str) -> Result<Vec<i32>> {
         let like = format!("%{keyword}%");
         let rows: Vec<(i32,)> = sqlx::query_as(
-            "SELECT product_id FROM product WHERE is_delete = 0 AND (product_name LIKE $1 OR product_sn LIKE $2)",
+            "SELECT product_id FROM product WHERE is_delete = 0 AND (product_name ILIKE $1 OR product_sn ILIKE $2)",
         )
         .bind(&like)
         .bind(&like)
@@ -536,7 +536,7 @@ impl WholesaleProductRepository {
             where_parts.push("brand_id = ?".into());
         }
         if like.is_some() {
-            where_parts.push("(product_name LIKE ? OR product_sn LIKE ? OR product_tsn LIKE ?)".into());
+            where_parts.push("(product_name ILIKE ? OR product_sn ILIKE ? OR product_tsn ILIKE ?)".into());
         }
         if !excluded_product_ids.is_empty() {
             where_parts.push(format!(

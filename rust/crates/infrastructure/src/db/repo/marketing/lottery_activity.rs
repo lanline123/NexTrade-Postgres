@@ -127,7 +127,7 @@ impl LotteryActivityRepository {
             .map_err(map_err)
     }
 
-    /// 活动分页（Java `getList`：is_delete=0 + keyword/activityName LIKE + 时间状态 +
+    /// 活动分页（Java `getList`：is_delete=0 + keyword/activityName ILIKE + 时间状态 +
     /// 店铺租户过滤 + create_time DESC）。
     pub async fn paginate(
         &self,
@@ -513,7 +513,7 @@ pub fn build_activity_where(
     }
     let mut binds: Vec<String> = Vec::new();
     if let Some(keyword) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-        conds.push("activity_name LIKE ?".to_string());
+        conds.push("activity_name ILIKE ?".to_string());
         binds.push(format!("%{keyword}%"));
     }
     if let Some(name) = q
@@ -522,7 +522,7 @@ pub fn build_activity_where(
         .map(str::trim)
         .filter(|s| !s.is_empty())
     {
-        conds.push("activity_name LIKE ?".to_string());
+        conds.push("activity_name ILIKE ?".to_string());
         binds.push(format!("%{name}%"));
     }
     match q.status {
@@ -562,7 +562,7 @@ mod tests {
         );
         assert_eq!(
             sql,
-            " WHERE is_delete = 0 AND activity_name LIKE ? AND activity_name LIKE ?"
+            " WHERE is_delete = 0 AND activity_name ILIKE ? AND activity_name ILIKE ?"
         );
         assert_eq!(binds, vec!["%抽奖%".to_string(), "%元旦%".to_string()]);
 

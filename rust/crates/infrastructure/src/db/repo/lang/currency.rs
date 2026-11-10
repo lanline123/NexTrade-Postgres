@@ -38,7 +38,7 @@ impl CurrencyRepository {
         )
     }
 
-    /// 分页列表（Java `list`：`name` LIKE 过滤 + 排序白名单）。
+    /// 分页列表（Java `list`：`name` ILIKE 过滤 + 排序白名单）。
     pub async fn paginate(
         &self,
         name_like: Option<&str>,
@@ -47,7 +47,7 @@ impl CurrencyRepository {
         offset: u64,
     ) -> Result<(u64, Vec<Currency>)> {
         let where_sql = match name_like {
-            Some(_) => "WHERE name LIKE $1".to_string(),
+            Some(_) => "WHERE name ILIKE $1".to_string(),
             None => String::new(),
         };
         let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM currency {where_sql}"));

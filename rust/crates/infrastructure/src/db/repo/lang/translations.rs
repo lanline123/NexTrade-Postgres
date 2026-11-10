@@ -199,7 +199,7 @@ impl TranslationsIndexRepository {
     }
 
     /// 分页列表（Java `TranslationsServiceImpl#list`：
-    /// `translation_name` LIKE + `data_type` 等值；平台侧 `shop_id = 0`）。
+    /// `translation_name` ILIKE + `data_type` 等值；平台侧 `shop_id = 0`）。
     pub async fn paginate(
         &self,
         name_like: Option<&str>,
@@ -210,7 +210,7 @@ impl TranslationsIndexRepository {
     ) -> Result<(u64, Vec<Translations>)> {
         let mut where_parts: Vec<String> = Vec::new();
         if name_like.is_some() {
-            where_parts.push("translation_name LIKE ?".into());
+            where_parts.push("translation_name ILIKE ?".into());
         }
         if data_type.is_some() {
             where_parts.push("data_type = ?".into());

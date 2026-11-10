@@ -416,14 +416,14 @@ impl GiftCardRepository {
 
 /// 拼装卡列表 WHERE（Java：`.like(keyword != null, cardNumber, kw).eq(cardGroupsId)`）。
 ///
-/// 注意 Java 判的是 `keyword != null`（**空串也会 LIKE '%%'**，与 `isNotEmpty`
+/// 注意 Java 判的是 `keyword != null`（**空串也会 ILIKE '%%'**，与 `isNotEmpty`
 /// 的其它域不同），此处逐字保持。
 #[must_use]
 pub fn build_where(q: &GiftCardsListQuery, card_groups_id: i32) -> (String, Vec<Bind>) {
     let mut conds = vec!["card_groups_id = ?".to_string()];
     let mut binds = vec![Bind::I32(card_groups_id)];
     if let Some(keyword) = q.keyword.as_deref() {
-        conds.push("card_number LIKE ?".to_string());
+        conds.push("card_number ILIKE ?".to_string());
         binds.push(Bind::Str(format!("%{keyword}%")));
     }
     (format!(" WHERE {}", conds.join(" AND ")), binds)
@@ -451,13 +451,13 @@ mod tests {
         assert_eq!(sql, " WHERE card_groups_id = ?");
         assert!(matches!(binds.as_slice(), [Bind::I32(5)]));
 
-        // Java `keyword != null`：空串也参与 LIKE
+        // Java `keyword != null`：空串也参与 ILIKE
         let (sql, binds) = build_where(&q(serde_json::json!({"keyword": ""})), 5);
-        assert_eq!(sql, " WHERE card_groups_id = ? AND card_number LIKE ?");
+        assert_eq!(sql, " WHERE card_groups_id = ? AND card_number ILIKE ?");
         assert!(matches!(&binds[1], Bind::Str(s) if s == "%%"));
 
         let (sql, binds) = build_where(&q(serde_json::json!({"keyword": "GC20"})), 9);
-        assert_eq!(sql, " WHERE card_groups_id = ? AND card_number LIKE ?");
+        assert_eq!(sql, " WHERE card_groups_id = ? AND card_number ILIKE ?");
         assert!(matches!(&binds[1], Bind::Str(s) if s == "%GC20%"));
     }
 

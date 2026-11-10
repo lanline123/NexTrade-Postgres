@@ -13,7 +13,7 @@
 //!
 //! - `list` 的 SQL 来自 `UserInvoiceServiceImpl#list`（MP LambdaQueryWrapper）：
 //!   `status` 仅在 `!= null && > -1` 时过滤；`keyword` 匹配
-//!   `(company_name LIKE ? OR user_id IN (username LIKE ? 的 user_id))`
+//!   `(company_name ILIKE ? OR user_id IN (username ILIKE ? 的 user_id))`
 //!   （Java 先查用户名命中集，集合为空时只按 `company_name` 过滤）。
 //! - `addTime` 在 list 的 VO 里由秒级时间戳格式化为 `yyyy-MM-dd HH:mm:ss`；
 //!   detail 只做 `copyProperties`（VO 是 String、实体是 Integer，类型不符被跳过）

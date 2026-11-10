@@ -480,7 +480,7 @@ pub struct ShippingTplListQuery {
     /// ⚠️ `shipping_tpl` 表**没有 `is_show` 列**，Java `list` 也**从未使用**
     /// 这个字段做过滤 —— 它只是接收了却不拼进 `queryWrapper`）
     pub is_show: Option<i32>,
-    /// 搜索关键字（Java `BasePage.keyword`，走 `shipping_tpl_name LIKE %kw%`）
+    /// 搜索关键字（Java `BasePage.keyword`，走 `shipping_tpl_name ILIKE %kw%`）
     pub keyword: Option<String>,
     /// 排序字段
     pub sort_field: Option<String>,

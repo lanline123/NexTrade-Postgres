@@ -233,7 +233,7 @@ impl SearchAdminRepository {
 }
 
 /// 属性值归一化：支持逗号分隔（`","` / `"，"`），去空白、去空串，
-/// 返回 \"LIKE\" 绑定参数 `%value%`（对应 Java ES 属性查询的 wildcard）。
+/// 返回 \"ILIKE\" 绑定参数 `%value%`（对应 Java ES 属性查询的 wildcard）。
 #[must_use]
 fn normalize_attr_values(values: &Option<Vec<String>>) -> Vec<String> {
     let mut out = Vec::new();
@@ -256,11 +256,11 @@ fn push_filters(qb: &mut QueryBuilder<'_, Postgres>, f: &ProductSearchFilter) {
         qb.push(" AND product_status = ").push_bind(status);
     }
     if let Some(kw) = &f.keyword_like {
-        qb.push(" AND (product_name LIKE ")
+        qb.push(" AND (product_name ILIKE ")
             .push_bind(kw.clone())
-            .push(" OR keywords LIKE ")
+            .push(" OR keywords ILIKE ")
             .push_bind(kw.clone())
-            .push(" OR product_sn LIKE ")
+            .push(" OR product_sn ILIKE ")
             .push_bind(kw.clone())
             .push(")");
     }
@@ -313,7 +313,7 @@ fn push_filters(qb: &mut QueryBuilder<'_, Postgres>, f: &ProductSearchFilter) {
     // - 每个 attrName 一条 EXISTS（多属性之间 AND）；
     // - 同一属性多值之间 OR；
     // - 值支持逗号分隔（Java 对 `,` / `，` 拆分后 trim）；
-    // - 只匹配普通属性 `attr_type = 0`，名称/值均为 `LIKE %...%`（ES wildcard 等价）。
+    // - 只匹配普通属性 `attr_type = 0`，名称/值均为 `ILIKE %...%`（ES wildcard 等价）。
     for attr in &f.attrs {
         let Some(name) = attr
             .attr_name
@@ -327,14 +327,14 @@ fn push_filters(qb: &mut QueryBuilder<'_, Postgres>, f: &ProductSearchFilter) {
         if values.is_empty() {
             continue;
         }
-        qb.push(" AND EXISTS (SELECT 1 FROM product_attributes pa WHERE pa.product_id = product.product_id AND pa.attr_type = 0 AND pa.attr_name LIKE ")
+        qb.push(" AND EXISTS (SELECT 1 FROM product_attributes pa WHERE pa.product_id = product.product_id AND pa.attr_type = 0 AND pa.attr_name ILIKE ")
             .push_bind(format!("%{name}%"))
             .push(" AND (");
         for (i, v) in values.iter().enumerate() {
             if i > 0 {
                 qb.push(" OR ");
             }
-            qb.push("pa.attr_value LIKE ").push_bind(v.clone());
+            qb.push("pa.attr_value ILIKE ").push_bind(v.clone());
         }
         qb.push("))");
     }
@@ -473,9 +473,9 @@ mod attr_filter_tests {
         let sql = build_sql(&f);
         assert!(sql.contains("EXISTS (SELECT 1 FROM product_attributes pa"));
         assert!(sql.contains("pa.attr_type = 0"));
-        assert!(sql.contains("pa.attr_name LIKE $"));
+        assert!(sql.contains("pa.attr_name ILIKE $"));
         // 两个属性值各一个占位，编号由 QueryBuilder 顺序生成
-        assert_eq!(sql.matches("pa.attr_value LIKE $").count(), 2);
+        assert_eq!(sql.matches("pa.attr_value ILIKE $").count(), 2);
         // 属性名 1 + 两个值 = 3 个绑定参数，且值不能内联
         assert_eq!(sql.matches('$').count(), 3);
         assert!(!sql.contains("颜色"));

@@ -83,7 +83,7 @@ impl DepositLogRepository {
             binds.push(Bind::I64(e));
         }
         if let Some(kw) = q.shop_title.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-            conds.push("s.shop_title LIKE ?".to_string());
+            conds.push("s.shop_title ILIKE ?".to_string());
             binds.push(Bind::Str(format!("%{kw}%")));
         }
         if let Some(kw) = q.trade_no.as_deref().map(str::trim).filter(|s| !s.is_empty()) {

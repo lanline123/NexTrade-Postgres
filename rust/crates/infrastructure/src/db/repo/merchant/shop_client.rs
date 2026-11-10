@@ -177,7 +177,7 @@ impl ShopClientRepository {
     ) -> Result<(u64, Vec<Shop>)> {
         let count_sql = "SELECT COUNT(*) FROM shop
              WHERE status = 1
-               AND ($1 IS NULL OR shop_title LIKE CONCAT('%', $2, '%'))";
+               AND ($1 IS NULL OR shop_title ILIKE CONCAT('%', $2, '%'))";
         let total: (i64,) = sqlx::query_as(count_sql)
             .bind(keyword)
             .bind(keyword)
@@ -190,7 +190,7 @@ impl ShopClientRepository {
         let sql = format!(
             "SELECT * FROM shop
              WHERE status = 1
-               AND ($1 IS NULL OR shop_title LIKE CONCAT('%', $2, '%'))
+               AND ($1 IS NULL OR shop_title ILIKE CONCAT('%', $2, '%'))
              {order} LIMIT $3 OFFSET $4"
         );
         let rows = sqlx::query_as::<_, Shop>(&sql)
@@ -299,11 +299,11 @@ impl ShopClientRepository {
         let mut binds = Vec::new();
 
         if let Some(region) = f.region_id.as_deref().filter(|s| !s.is_empty()) {
-            sql.push_str(" AND shop_region_id LIKE CONCAT('%', ?, '%')");
+            sql.push_str(" AND shop_region_id ILIKE CONCAT('%', ?, '%')");
             binds.push(Bind::Str(region.to_string()));
         }
         if let Some(kw) = f.keyword.as_deref().filter(|s| !s.is_empty()) {
-            sql.push_str(" AND shop_title LIKE CONCAT('%', ?, '%')");
+            sql.push_str(" AND shop_title ILIKE CONCAT('%', ?, '%')");
             binds.push(Bind::Str(kw.to_string()));
         }
         if !f.shop_ids.is_empty() {
@@ -1118,11 +1118,11 @@ impl ShopClientRepository {
         let mut where_sql = String::from("WHERE shop_type = 3 AND status = 1 AND store_parent_id = ?");
         let mut where_binds: Vec<Bind> = vec![Bind::I32(parent_shop_id)];
         if let Some(region) = region_id.filter(|s| !s.is_empty()) {
-            where_sql.push_str(" AND shop_region_id LIKE CONCAT('%', ?, '%')");
+            where_sql.push_str(" AND shop_region_id ILIKE CONCAT('%', ?, '%')");
             where_binds.push(Bind::Str(region.to_string()));
         }
         if let Some(kw) = keyword.filter(|s| !s.is_empty()) {
-            where_sql.push_str(" AND shop_detailed_address LIKE CONCAT('%', ?, '%')");
+            where_sql.push_str(" AND shop_detailed_address ILIKE CONCAT('%', ?, '%')");
             where_binds.push(Bind::Str(kw.to_string()));
         }
 

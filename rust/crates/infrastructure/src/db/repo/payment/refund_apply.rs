@@ -98,7 +98,7 @@ impl RefundApplyRepository {
 
         let total: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM refund_apply
-             WHERE ($1 IS NULL OR order_id IN (SELECT order_id FROM \"order\" WHERE order_sn LIKE $2))
+             WHERE ($1 IS NULL OR order_id IN (SELECT order_id FROM \"order\" WHERE order_sn ILIKE $2))
                AND ($3 IS NULL OR refund_status = $4)
                AND ($5 IS NULL OR shop_id = $6)",
         )
@@ -114,7 +114,7 @@ impl RefundApplyRepository {
 
         let rows = sqlx::query_as::<_, RefundApply>(
             "SELECT * FROM refund_apply
-             WHERE ($1 IS NULL OR order_id IN (SELECT order_id FROM \"order\" WHERE order_sn LIKE $2))
+             WHERE ($1 IS NULL OR order_id IN (SELECT order_id FROM \"order\" WHERE order_sn ILIKE $2))
                AND ($3 IS NULL OR refund_status = $4)
                AND ($5 IS NULL OR shop_id = $6)
              ORDER BY refund_id DESC

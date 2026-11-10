@@ -520,7 +520,7 @@ pub struct UserRankListQuery {
     pub show_price: Option<i32>,
     /// 会员等级类型（`> 0` 时才加 `rank_type = ?`）
     pub rank_type: Option<i32>,
-    /// 等级名称模糊匹配（Java `BasePage.keyword`，`LIKE %keyword%`）
+    /// 等级名称模糊匹配（Java `BasePage.keyword`，`ILIKE %keyword%`）
     pub keyword: Option<String>,
     /// 排序字段（驼峰属性名或数据库列名）
     pub sort_field: Option<String>,
@@ -534,7 +534,7 @@ pub struct UserRankListQuery {
 
 impl UserRankListQuery {
     /// 有效关键字（Java `StrUtil.isNotEmpty`：**不 trim**，
-    /// 因此 `"   "` 仍会参与 `LIKE '%   %'`，与 area_code 的 `isNotBlank` 不同）。
+    /// 因此 `"   "` 仍会参与 `ILIKE '%   %'`，与 area_code 的 `isNotBlank` 不同）。
     #[must_use]
     pub fn effective_keyword(&self) -> Option<&str> {
         self.keyword.as_deref().filter(|s| !s.is_empty())

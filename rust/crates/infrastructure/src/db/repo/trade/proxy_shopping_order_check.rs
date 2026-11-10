@@ -184,10 +184,10 @@ impl ProxyShoppingOrderCheckRepository {
             sql.push_str(" AND store_parent_id = ?");
         }
         if q.region_id.is_some() {
-            sql.push_str(" AND shop_region_id LIKE CONCAT('%', ?, '%')");
+            sql.push_str(" AND shop_region_id ILIKE CONCAT('%', ?, '%')");
         }
         if q.keyword.is_some() {
-            sql.push_str(" AND shop_detailed_address LIKE CONCAT('%', ?, '%')");
+            sql.push_str(" AND shop_detailed_address ILIKE CONCAT('%', ?, '%')");
         }
         let sql = crate::db::to_pg_placeholders(&sql);
         let mut query = sqlx::query_as::<_, (i64,)>(&sql);
@@ -208,7 +208,7 @@ impl ProxyShoppingOrderCheckRepository {
     ///
     /// 与 Java XML 一致：
     /// - 固定条件 `shop_type = 3 AND status = 1 AND store_parent_id = #{query.shopId}`；
-    /// - \"regionId\" / \"keyword\" 走 `<if>` 动态拼接（`LIKE CONCAT('%', ?, '%')`）；
+    /// - \"regionId\" / \"keyword\" 走 `<if>` 动态拼接（`ILIKE CONCAT('%', ?, '%')`）；
     /// - 排序 `CASE WHEN 经纬度为空 THEN shop_id ELSE distance END ASC`。
     ///
     /// 经纬度为 \"None\" 时以 \"NULL\" 绑定，SQL 内 `? IS NULL` 判定成立 → 距离 0、
@@ -226,10 +226,10 @@ impl ProxyShoppingOrderCheckRepository {
             sql.push_str(" AND store_parent_id = ?");
         }
         if q.region_id.is_some() {
-            sql.push_str(" AND shop_region_id LIKE CONCAT('%', ?, '%')");
+            sql.push_str(" AND shop_region_id ILIKE CONCAT('%', ?, '%')");
         }
         if q.keyword.is_some() {
-            sql.push_str(" AND shop_detailed_address LIKE CONCAT('%', ?, '%')");
+            sql.push_str(" AND shop_detailed_address ILIKE CONCAT('%', ?, '%')");
         }
         // PG 的 ORDER BY 表达式内不能引用 SELECT 别名（MySQL 可以），
         // 因此把投影包成子查询，再在外层用 `distance` / `shop_id` 排序。

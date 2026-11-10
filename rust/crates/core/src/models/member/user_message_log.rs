@@ -137,7 +137,7 @@ pub struct UserMessageLogListQuery {
     pub sort_field: Option<String>,
     /// 排序方向。
     pub sort_order: Option<String>,
-    /// 标题关键字（Java `BasePage.keyword`，作用于 `message_title LIKE`）。
+    /// 标题关键字（Java `BasePage.keyword`，作用于 `message_title ILIKE`）。
     pub keyword: Option<String>,
     /// 是否未读（Java `UserMessageListPageQuery.unread`；日志列表未使用）。
     pub unread: Option<i32>,

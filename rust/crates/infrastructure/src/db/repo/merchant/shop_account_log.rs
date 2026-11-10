@@ -89,7 +89,7 @@ impl ShopAccountLogRepository {
         let mut conds = vec!["user_id = ?".to_string(), "wallet_type = ?".to_string()];
         let mut binds: Vec<Bind> = vec![Bind::I32(user_id), Bind::I32(wallet_type)];
         if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-            conds.push("change_desc LIKE ?".to_string());
+            conds.push("change_desc ILIKE ?".to_string());
             binds.push(Bind::Str(format!("%{kw}%")));
         }
         let where_sql = format!(" WHERE {}", conds.join(" AND "));

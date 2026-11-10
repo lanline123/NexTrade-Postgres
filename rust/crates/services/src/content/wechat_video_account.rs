@@ -5,7 +5,7 @@
 //! 构造签名固定：`pub fn new(repos: Arc<Repositories>) -> Self`。
 //!
 //! ## 已迁移（5）
-//! `list`（finderId LIKE + 关联时间范围 + 店铺范围 + 动态排序）、`detail`、
+//! `list`（finderId ILIKE + 关联时间范围 + 店铺范围 + 动态排序）、`detail`、
 //! `create`（finderId 唯一性校验 + 审计时间）、`update`（存在性 + 唯一性）、
 //! `delete`（存在性校验）。
 //!

@@ -299,7 +299,7 @@ impl UserManageRepository {
     /// 按用户名 / 手机号精确命中一个会员（对应 Java `SalesmanServiceImpl
     /// #getUserByMobileOrUsername` 的 `eq(mobile).or().eq(username)`）。
     pub async fn find_user_by_mobile_or_username(&self, search: &str) -> Result<Option<User>> {
-        sqlx::query_as::<_, User>("SELECT * FROM \"user\" WHERE mobile = $1 OR username = $2 LIMIT 1")
+        sqlx::query_as::<_, User>("SELECT * FROM \"user\" WHERE mobile = $1 OR LOWER(username) = LOWER($2) LIMIT 1")
             .bind(search)
             .bind(search)
             .fetch_optional(&self.pool)
@@ -309,7 +309,7 @@ impl UserManageRepository {
 
     /// 统计用户名重复数（Java `checkUserInfo("username", value)`）。
     pub async fn count_by_username(&self, username: &str) -> Result<i64> {
-        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM \"user\" WHERE username = $1")
+        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM \"user\" WHERE LOWER(username) = LOWER($1)")
             .bind(username)
             .fetch_one(&self.pool)
             .await
@@ -332,14 +332,14 @@ impl UserManageRepository {
     pub async fn count_by_email(&self, email: &str, exclude_user_id: Option<i32>) -> Result<i64> {
         let row: (i64,) = match exclude_user_id {
             Some(id) => {
-                sqlx::query_as("SELECT COUNT(*) FROM \"user\" WHERE email = $1 AND user_id <> $2")
+                sqlx::query_as("SELECT COUNT(*) FROM \"user\" WHERE LOWER(email) = LOWER($1) AND user_id <> $2")
                     .bind(email)
                     .bind(id)
                     .fetch_one(&self.pool)
                     .await
             }
             None => {
-                sqlx::query_as("SELECT COUNT(*) FROM \"user\" WHERE email = $1")
+                sqlx::query_as("SELECT COUNT(*) FROM \"user\" WHERE LOWER(email) = LOWER($1)")
                     .bind(email)
                     .fetch_one(&self.pool)
                     .await
@@ -1116,7 +1116,7 @@ fn build_filter(f: &UserPageFilter) -> (String, Vec<Bind>) {
         let (op, value) = if f.exact {
             ("=", kw.to_string())
         } else {
-            ("LIKE", format!("%{kw}%"))
+            ("ILIKE", format!("%{kw}%"))
         };
         conds.push(format!("(username {op} ? OR email {op} ? OR mobile {op} ?)"));
         binds.push(Bind::Str(value.clone()));
@@ -1301,7 +1301,7 @@ mod tests {
         let q: UserListQuery = serde_json::from_str(r#"{"keyword":"tig"}"#).unwrap();
         let f = UserPageFilter::from_query(&q, None);
         let (sql, binds) = with_binds(f);
-        assert!(sql.contains("username LIKE ? OR email LIKE ? OR mobile LIKE ?"));
+        assert!(sql.contains("username ILIKE ? OR email ILIKE ? OR mobile ILIKE ?"));
         assert_eq!(sql.matches('?').count(), binds.len());
     }
 
@@ -1312,7 +1312,7 @@ mod tests {
         let f = UserPageFilter::from_query(&q, None);
         let (sql, _) = with_binds(f);
         assert!(sql.contains("username = ? OR email = ? OR mobile = ?"));
-        assert!(!sql.contains("LIKE"));
+        assert!(!sql.contains("ILIKE"));
     }
 
     #[test]

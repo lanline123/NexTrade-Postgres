@@ -73,7 +73,7 @@ impl CreditOrderRepository {
             qb.push(" AND m.is_del = 0)");
         }
         if let Some(sn) = q.order_sn.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-            qb.push(" AND order_sn LIKE ");
+            qb.push(" AND order_sn ILIKE ");
             qb.push_bind(format!("%{sn}%"));
         }
         if let Some(user_id) = q.user_id {
@@ -85,11 +85,11 @@ impl CreditOrderRepository {
         {
             qb.push(" AND user_id IN (SELECT user_id FROM \"user\" WHERE 1 = 1");
             if let Some(username) = q.username.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-                qb.push(" AND username LIKE ");
+                qb.push(" AND username ILIKE ");
                 qb.push_bind(format!("%{username}%"));
             }
             if let Some(mobile) = q.mobile.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-                qb.push(" AND mobile LIKE ");
+                qb.push(" AND mobile ILIKE ");
                 qb.push_bind(format!("%{mobile}%"));
             }
             qb.push(")");
@@ -117,7 +117,7 @@ impl CreditOrderRepository {
             .map(str::trim)
             .filter(|s| !s.is_empty())
         {
-            qb.push(" AND settlement_sn LIKE ");
+            qb.push(" AND settlement_sn ILIKE ");
             qb.push_bind(format!("%{sn}%"));
         }
         if let Some(id) = q.settlement_id {

@@ -68,7 +68,7 @@ impl DepositPayeeAccountRepository {
             binds.push(Bind::I32(s));
         }
         if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-            conds.push("(account_name LIKE ? OR account_no LIKE ?)".to_string());
+            conds.push("(account_name ILIKE ? OR account_no ILIKE ?)".to_string());
             binds.push(Bind::Str(format!("%{kw}%")));
             binds.push(Bind::Str(format!("%{kw}%")));
         }

@@ -26,7 +26,7 @@ impl DepositRuleRepository {
         Self { pool }
     }
 
-    /// 规则分页（Java `list`：`is_delete = 0` + 名称 LIKE + 状态 + 生效窗口交集）。
+    /// 规则分页（Java `list`：`is_delete = 0` + 名称 ILIKE + 状态 + 生效窗口交集）。
     ///
     /// 生效窗口交集条件（逐条照抄 Java）：
     /// - 查询给了 start_time → `(rule.end_time = 0 OR rule.end_time >= start_time)`
@@ -45,7 +45,7 @@ impl DepositRuleRepository {
             .map(str::trim)
             .filter(|s| !s.is_empty())
         {
-            wh.push_str(" AND rule_name LIKE ?");
+            wh.push_str(" AND rule_name ILIKE ?");
             binds.push(format!("%{name}%"));
         }
         if let Some(status) = q.status {

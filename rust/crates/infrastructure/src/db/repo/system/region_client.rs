@@ -133,7 +133,7 @@ impl RegionClientRepository {
     /// 可选叠加层级过滤（`getCityListByCityName` 会带 `level = 3`）。
     ///
     /// 反斜杠转义与 Java `SqlLike.like(..., SqlLike.DEFAULT_ESCAPE)` 对齐，
-    /// 避免用户输入 `%` / `_` 时把 LIKE 语义撑开。
+    /// 避免用户输入 `%` / `_` 时把 ILIKE 语义撑开。
     pub async fn find_by_name_like(
         &self,
         keyword: &str,
@@ -142,7 +142,7 @@ impl RegionClientRepository {
         let pattern = format!("%{}%", escape_like(keyword));
         sqlx::query_as::<_, Region>(
             "SELECT * FROM region
-             WHERE region_name LIKE $1 ESCAPE '\\'
+             WHERE region_name ILIKE $1 ESCAPE '\\'
                AND ($2 IS NULL OR level = $3)
              ORDER BY region_id ASC",
         )
@@ -182,7 +182,7 @@ impl RegionClientRepository {
     }
 }
 
-/// 对 LIKE 模式里的 `\` `%` `_` 做转义（配合 SQL 的 `ESCAPE '\\'`）。
+/// 对 ILIKE 模式里的 `\` `%` `_` 做转义（配合 SQL 的 `ESCAPE '\\'`）。
 pub fn escape_like(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len());
     for ch in raw.chars() {

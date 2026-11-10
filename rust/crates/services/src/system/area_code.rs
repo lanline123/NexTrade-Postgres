@@ -19,7 +19,7 @@
 //!   等于主键属性名 `id` 时用主键列；未识别的字段名**静默回退主键列**
 //!   （MyBatis-Plus 的安全修复，不是报错）；`sortOrder` 为 `asc` 升序、
 //!   为空或 `desc` 降序，**其它非法值完全不追加 ORDER BY**（`else if` 的缺口）。
-//!   `name` 走 `LIKE %name%`。
+//!   `name` 走 `ILIKE %name%`。
 //! - VO 的 `label` 一律由 `code` 派生为 `+{code}`
 //!   （Java `vo.setLabel(StrUtil.format("+{}", code))`）。
 //! - `create`：先 `checkAreaCode(param, null)`，再把其它记录的

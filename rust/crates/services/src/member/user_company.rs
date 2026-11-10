@@ -20,9 +20,9 @@
 //! 2. `buildSortOrder(page, sortField, sortOrder)` 三分支，见
 //!    [`UserCompanyListQuery::order_clause`]。
 //! 3. 关键字过滤（`StrUtil.isNotEmpty(keyword)` 才整段生效）：
-//!    - 先 `userService.list(username LIKE %kw% OR mobile LIKE %kw%)` 取 `userIds`
-//!    - `userIds` **非空** ⇒ `(user_id IN (...) OR contact_mobile LIKE %kw%)`
-//!    - `userIds` **为空** ⇒ 仅 `contact_mobile LIKE %kw%`
+//!    - 先 `userService.list(username ILIKE %kw% OR mobile ILIKE %kw%)` 取 `userIds`
+//!    - `userIds` **非空** ⇒ `(user_id IN (...) OR contact_mobile ILIKE %kw%)`
+//!    - `userIds` **为空** ⇒ 仅 `contact_mobile ILIKE %kw%`
 //! 4. `status != null && status != 0` ⇒ `status = ?`。
 //! 5. 每条记录补 `user` / `username` / `isCompanyAuth` / `statusText` /
 //!    `typeText` / `companyData` / `addTime` / `auditTime`。

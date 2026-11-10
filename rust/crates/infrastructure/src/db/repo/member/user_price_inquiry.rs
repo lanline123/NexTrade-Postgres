@@ -43,7 +43,7 @@ impl UserPriceInquiryRepository {
             .filter(|s| !s.is_empty())
             .map(|s| format!("%{s}%"));
         if like.is_some() {
-            where_sql.push_str(" AND (content LIKE ? OR mobile LIKE ? OR email LIKE ?)");
+            where_sql.push_str(" AND (content ILIKE ? OR mobile ILIKE ? OR email ILIKE ?)");
         }
         let total_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM price_inquiry{where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&total_sql).bind(user_id);

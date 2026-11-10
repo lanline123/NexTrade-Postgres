@@ -26,7 +26,7 @@
 //!    Rust 侧无 demo 开关，统一返回原文（与默认生产行为一致）。
 //! 3. **排序**：Java 两层 ORDER BY（`buildSortOrder` + 时间列 DESC）；本实现以
 //!   时间列 DESC 为主序、`sortField` 为次序。
-//! 4. **`userList` 关键字**：按 Java 实现只匹配 `user.username LIKE`（DTO 注释
+//! 4. **`userList` 关键字**：按 Java 实现只匹配 `user.username ILIKE`（DTO 注释
 //!    提到手机号但代码未实现手机号匹配）。
 //! 5. **企业认证 `limit 1`**：Java 无 ORDER BY（不确定行）；本实现固定取
 //!    `id` 最小的一行（`ORDER BY user_id, id`）以保证分页稳定。

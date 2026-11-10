@@ -59,12 +59,12 @@ const PRINT_POS_DEVICE_SELECT: &str =
 ///
 /// 由服务层从
 /// [`nextrade_core::models::logistics::print::PrintPageQuery`] 归一后传入：
-/// LIKE 通配符已在服务层/本仓储内部拼好，SQL 只负责拼接与绑定。
+/// ILIKE 通配符已在服务层/本仓储内部拼好，SQL 只负责拼接与绑定。
 #[derive(Debug, Clone, Default)]
 pub struct PrintFilters<'a> {
-    /// 打印机名称模糊（`print_name LIKE ?`）
+    /// 打印机名称模糊（`print_name ILIKE ?`）
     pub print_name: Option<&'a str>,
-    /// 打印机 SN 模糊（`print_sn LIKE ?`）
+    /// 打印机 SN 模糊（`print_sn ILIKE ?`）
     pub print_sn: Option<&'a str>,
     /// 状态精确（`status = ?`）
     pub status: Option<i32>,
@@ -72,7 +72,7 @@ pub struct PrintFilters<'a> {
     pub platform: Option<i32>,
     /// 收银台设备码（子查询 `print_pos_device`）
     pub device_code: Option<&'a str>,
-    /// 关键词（`print_name LIKE ? OR print_sn LIKE ?`）
+    /// 关键词（`print_name ILIKE ? OR print_sn ILIKE ?`）
     pub keyword: Option<&'a str>,
 }
 
@@ -145,10 +145,10 @@ impl PrintRepository {
 
         let mut where_parts: Vec<String> = vec!["shop_id = ?".into()];
         if name.is_some() {
-            where_parts.push("print_name LIKE ?".into());
+            where_parts.push("print_name ILIKE ?".into());
         }
         if sn.is_some() {
-            where_parts.push("print_sn LIKE ?".into());
+            where_parts.push("print_sn ILIKE ?".into());
         }
         if filters.status.is_some() {
             where_parts.push("status = ?".into());
@@ -163,7 +163,7 @@ impl PrintRepository {
             );
         }
         if keyword.is_some() {
-            where_parts.push("(print_name LIKE ? OR print_sn LIKE ?)".into());
+            where_parts.push("(print_name ILIKE ? OR print_sn ILIKE ?)".into());
         }
         let where_sql = format!("WHERE {}", where_parts.join(" AND "));
 
@@ -638,7 +638,7 @@ impl PrintRepository {
     }
 }
 
-/// LIKE 通配模式（Java `queryWrapper.like(column, value)` 等价物）。
+/// ILIKE 通配模式（Java `queryWrapper.like(column, value)` 等价物）。
 ///
 /// Java 的 `like` 是 `value → %value%`；`isNotEmpty` 只排除 `null` 与空串。
 /// `None` / 空串 → `None`（不加条件）。
@@ -783,13 +783,13 @@ mod tests {
         assert_eq!(resolve_sort_direction(None), "DESC");
     }
 
-    /// LIKE 模式：`None` / 空串不加条件，其余包 `%`。
+    /// ILIKE 模式：`None` / 空串不加条件，其余包 `%`。
     #[test]
     fn like_pattern_matches_java_like() {
         assert_eq!(like_pattern(None), None);
         assert_eq!(like_pattern(Some("")), None);
         assert_eq!(like_pattern(Some("前台")).as_deref(), Some("%前台%"));
-        // Java `isNotEmpty` 不 trim：空白串仍会生成 LIKE
+        // Java `isNotEmpty` 不 trim：空白串仍会生成 ILIKE
         assert_eq!(like_pattern(Some(" ")).as_deref(), Some("% %"));
     }
 

@@ -76,8 +76,8 @@ impl MobileCatNavRepository {
     /// 过滤条件与 Java 逐条对齐：
     /// - `isShow`：**只有 0 / 1** 才 `eq`（Java 的双重判断，由
     ///   [`MobileCatNavListQuery::effective_is_show`] 表达）
-    /// - `keyword`：`category_id LIKE %keyword%`（Java
-    ///   `like(MobileCatNav::getCategoryId, keyword)` —— **拿整型列做 LIKE**，
+    /// - `keyword`：`category_id ILIKE %keyword%`（Java
+    ///   `like(MobileCatNav::getCategoryId, keyword)` —— **拿整型列做 ILIKE**，
     ///   靠 MySQL 把 `category_id` 隐式转成字符串比较，照抄不改）
     /// - ORDER BY：由 [`MobileCatNavListQuery::order_clause`] 生成
     ///
@@ -121,8 +121,8 @@ impl MobileCatNavRepository {
         }
         if let Some(keyword) = q.effective_keyword() {
             // Java `like(MobileCatNav::getCategoryId, keyword)`：
-            // 对 `category_id`（int unsigned）做 LIKE，MySQL 隐式转字符串。
-            qb.push(" AND category_id LIKE ");
+            // 对 `category_id`（int unsigned）做 ILIKE，MySQL 隐式转字符串。
+            qb.push(" AND category_id ILIKE ");
             qb.push_bind(format!("%{keyword}%"));
         }
     }

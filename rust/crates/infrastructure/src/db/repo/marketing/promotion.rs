@@ -47,7 +47,7 @@ impl PromotionRepository {
         self.pool.clone()
     }
 
-    /// 分页（Java `list`：keyword LIKE + type IN + timeType 条件 +
+    /// 分页（Java `list`：keyword ILIKE + type IN + timeType 条件 +
     /// 排序白名单，缺省 `promotion_id DESC`）。
     pub async fn paginate(
         &self,
@@ -231,7 +231,7 @@ fn push_filters(
     now: i64,
 ) {
     if let Some(k) = like {
-        qb.push(" AND promotion_name LIKE ");
+        qb.push(" AND promotion_name ILIKE ");
         qb.push_bind(k.to_string());
     }
     // 多租户：店铺账号强制 `WHERE shop_id = ?`；平台账号不过滤

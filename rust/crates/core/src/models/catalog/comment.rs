@@ -91,7 +91,7 @@ pub const MAX_PAGE_SIZE: u64 = 100;
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CommentListQuery {
-    /// 关键词（Java `BasePage.keyword`；按 `comment.content` LIKE 过滤）
+    /// 关键词（Java `BasePage.keyword`；按 `comment.content` ILIKE 过滤）
     pub keyword: Option<String>,
     /// 页码，从 1 开始（Java 缺省 1）
     pub page: Option<u64>,

@@ -11,7 +11,7 @@
 //!   但 `consoleData`/`realTimeData` 等深度嵌套聚合、访问量/浏览量（需埋点表）、
 //!   供应商结算域指标未迁移，对应值为 0 / 空对象。
 //! - `statisticalData`：按天聚合订单数与支付金额（真实 SQL）；访问量/浏览量曲线恒 0。
-//! - `searchMenu`：真实查询 `authority`（LIKE 名称），返回 `authorityId/authorityName/routeLink` 子集。
+//! - `searchMenu`：真实查询 `authority`（ILIKE 名称），返回 `authorityId/authorityName/routeLink` 子集。
 //! - `shortcutMenu` / `saveShortcutMenu`：读写 `panel_shortcut_menu`（`admin_id + shop_id` 维度），
 //!   与 Java `PanelShortcutMenuServiceImpl` 的去空/去重/保序/上限 20 一致。
 

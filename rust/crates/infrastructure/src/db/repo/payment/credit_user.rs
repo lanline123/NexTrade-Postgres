@@ -233,10 +233,10 @@ impl CreditUserRepository {
 
     // ————————————————————— 装配 / 过滤 —————————————————————
 
-    /// 用户名模糊匹配的会员 ID（`user.username LIKE`）。
+    /// 用户名模糊匹配的会员 ID（`user.username ILIKE`）。
     pub async fn find_user_ids_by_username_like(&self, keyword: &str) -> Result<Vec<i32>> {
         let rows: Vec<(i32,)> =
-            sqlx::query_as("SELECT user_id FROM \"user\" WHERE username LIKE $1")
+            sqlx::query_as("SELECT user_id FROM \"user\" WHERE username ILIKE $1")
                 .bind(format!("%{keyword}%"))
                 .fetch_all(&self.pool)
                 .await

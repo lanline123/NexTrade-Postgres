@@ -393,7 +393,7 @@ impl AdminMsgRepository {
 /// 可见性 + 可选过滤 WHERE（含前导空格）。
 ///
 /// 供应商 → `vendor_id = {id}`；其它 → `shop_id = {id} AND vendor_id = 0`；
-/// 平台额外 `is_broadcast = 1`；\"msg_type\" 可选；\"keyword\" → `title LIKE $2`。
+/// 平台额外 `is_broadcast = 1`；\"msg_type\" 可选；\"keyword\" → `title ILIKE $2`。
 #[must_use]
 fn build_where(scope: MsgScope, q: &AdminMsgListQuery) -> String {
     let mut conds: Vec<String> = Vec::new();
@@ -410,12 +410,12 @@ fn build_where(scope: MsgScope, q: &AdminMsgListQuery) -> String {
         conds.push(format!("msg_type = {t}"));
     }
     if like_value(q).is_some() {
-        conds.push("title LIKE ?".to_string());
+        conds.push("title ILIKE ?".to_string());
     }
     format!(" WHERE {}", conds.join(" AND "))
 }
 
-/// 关键字 LIKE 绑定值。
+/// 关键字 ILIKE 绑定值。
 #[must_use]
 fn like_value(q: &AdminMsgListQuery) -> Option<String> {
     q.keyword
@@ -486,7 +486,7 @@ mod tests {
         };
         assert_eq!(
             build_where(vendor, &q),
-            " WHERE vendor_id = 9 AND msg_type = 11 AND title LIKE ?"
+            " WHERE vendor_id = 9 AND msg_type = 11 AND title ILIKE ?"
         );
         assert_eq!(like_value(&q).as_deref(), Some("%订单%"));
     }

@@ -111,7 +111,7 @@ impl UserRankRepository {
     /// `this.page(page, queryWrapper)`）。
     ///
     /// 过滤条件与 Java 逐条对齐：
-    /// - `keyword`：`rank_name LIKE %keyword%`（`StrUtil.isNotEmpty` 口径，
+    /// - `keyword`：`rank_name ILIKE %keyword%`（`StrUtil.isNotEmpty` 口径，
     ///   见 [`UserRankListQuery::effective_keyword`]）
     /// - `rankType`：`rank_type = ?`（仅 `!= null && > 0` 时加，
     ///   见 [`UserRankListQuery::effective_rank_type`]）
@@ -155,7 +155,7 @@ impl UserRankRepository {
     /// 追加 \"list\" 的 WHERE 片段（\"count\" 与取行两条 SQL 共用，保证条件一致）。
     fn push_filters(qb: &mut QueryBuilder<'_, sqlx::Postgres>, q: &UserRankListQuery) {
         if let Some(keyword) = q.effective_keyword() {
-            qb.push(" AND rank_name LIKE ");
+            qb.push(" AND rank_name ILIKE ");
             qb.push_bind(format!("%{keyword}%"));
         }
         if let Some(rank_type) = q.effective_rank_type() {

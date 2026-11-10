@@ -83,7 +83,7 @@ impl AdminLogRepository {
     /// 管理员日志分页（对应 Java `AdminLogServiceImpl#adminLogPage` 的
     /// `this.page(page, queryWrapper)`）。
     ///
-    /// WHERE = `keyword` 的 `(log_info LIKE OR ip_address LIKE)` **AND**
+    /// WHERE = `keyword` 的 `(log_info ILIKE OR ip_address ILIKE)` **AND**
     /// 作用域条件（[`Scope::All`] 不加条件）。
     pub async fn paginate(
         &self,
@@ -252,21 +252,21 @@ impl From<RequestLogRow> for AdminLogRequestLogVO {
     }
 }
 
-/// 拼装 WHERE。第二个返回值是关键字 LIKE 的绑定值
+/// 拼装 WHERE。第二个返回值是关键字 ILIKE 的绑定值
 /// （Java 的 `and(w -> w.like(logInfo, kw).or().like(ipAddress, kw))`
 /// 里两个 `like` 共用同一个 keyword）。
 fn build_where(q: &AdminLogPageQuery, scope: &Scope) -> (String, Option<String>) {
     let mut conds: Vec<String> = Vec::new();
     let mut kw_bind: Option<String> = None;
 
-    // 关键字：log_info LIKE 或 ip_address LIKE（同一个 %kw%）
+    // 关键字：log_info ILIKE 或 ip_address ILIKE（同一个 %kw%）
     if let Some(kw) = q
         .keyword
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty())
     {
-        conds.push("(log_info LIKE ? OR ip_address LIKE ?)".to_string());
+        conds.push("(log_info ILIKE ? OR ip_address ILIKE ?)".to_string());
         kw_bind = Some(format!("%{kw}%"));
     }
 
@@ -332,7 +332,7 @@ mod tests {
     #[test]
     fn keyword_becomes_single_bind_shared_by_two_likes() {
         let (sql, bind) = build_where(&q(serde_json::json!({"keyword": " 10.0.0.1 " })), &Scope::All);
-        assert_eq!(sql, " WHERE (log_info LIKE ? OR ip_address LIKE ?)");
+        assert_eq!(sql, " WHERE (log_info ILIKE ? OR ip_address ILIKE ?)");
         assert_eq!(bind.as_deref(), Some("%10.0.0.1%"));
     }
 
@@ -351,7 +351,7 @@ mod tests {
         );
         assert_eq!(
             sql,
-            " WHERE (log_info LIKE ? OR ip_address LIKE ?) AND scope_type = 'shop' AND scope_id = 7"
+            " WHERE (log_info ILIKE ? OR ip_address ILIKE ?) AND scope_type = 'shop' AND scope_id = 7"
         );
 
         let (sql, _) = build_where(&q(serde_json::json!({})), &Scope::Vendor { vendor_id: 3 });
@@ -391,7 +391,7 @@ mod tests {
         let (sql, _) = build_where(&q(serde_json::json!({"keyword": "k"})), &Scope::Nothing);
         assert_eq!(
             sql,
-            " WHERE (log_info LIKE ? OR ip_address LIKE ?) AND 1 = 0"
+            " WHERE (log_info ILIKE ? OR ip_address ILIKE ?) AND 1 = 0"
         );
     }
 }

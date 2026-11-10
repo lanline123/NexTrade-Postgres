@@ -4,7 +4,7 @@
 //! `list` / `getCount` / `create` / `update`。
 //!
 //! # 语义（逐条对照 Java）
-//! - `list`：keyword LIKE（`promotion_name`）+ `type` csv IN + `timeType`
+//! - `list`：keyword ILIKE（`promotion_name`）+ `type` csv IN + `timeType`
 //!   （1 进行中 / 2 7 天内到期 / 3 已结束）+ 排序白名单。
 //! - `getCount`：`PromotionCountVO` 三个时间桶计数（SQL `SUM(CASE …)`）。
 //! - `create`：校验名称必填；`range_data`/`sku_ids`/`member_marks` 序列化为

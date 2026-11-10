@@ -93,7 +93,7 @@ impl CategoryFeeRuleRepository {
     ///
     /// - `deleted = 0` 恒定
     /// - `target_type = ?` 恒定（`@NotNull` 已校验）
-    /// - `status` / `keyword`（`rule_name LIKE`）可选
+    /// - `status` / `keyword`（`rule_name ILIKE`）可选
     /// - ORDER BY 由 [`CategoryFeeRulePageQuery::order_clause`] 生成
     pub async fn paginate(
         &self,
@@ -138,7 +138,7 @@ impl CategoryFeeRuleRepository {
             .map(str::trim)
             .filter(|s| !s.is_empty())
         {
-            qb.push(" AND rule_name LIKE ");
+            qb.push(" AND rule_name ILIKE ");
             qb.push_bind(format!("%{keyword}%"));
         }
     }

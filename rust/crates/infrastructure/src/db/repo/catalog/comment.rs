@@ -80,7 +80,7 @@ pub struct CommentFilters<'a> {
     pub product_id: Option<i32>,
     /// 查询参数 `shopId`
     pub shop_id: Option<i32>,
-    /// 关键词（`content LIKE %keyword%`）
+    /// 关键词（`content ILIKE %keyword%`）
     pub keyword: Option<&'a str>,
     pub user_id: Option<i32>,
     pub rank: Option<RankFilter>,
@@ -117,7 +117,7 @@ impl CommentRepository {
     /// 对应 Java `CommentServiceImpl#list` 的 `LambdaQueryWrapper`：
     /// - `is_showed != null && != -1` → `eq`
     /// - `product_id != null` / `user_id != null` → `eq`
-    /// - `keyword` 非空白 → `content LIKE`
+    /// - `keyword` 非空白 → `content ILIKE`
     /// - `type` 2/3/4 → `comment_rank >= 4` / `= 3` / `<= 2`
     /// - 请求头店铺 `> 0` → `eq(shop_id)`
     /// - **恒有** `parent_id = 0`（只列父评价）
@@ -148,7 +148,7 @@ impl CommentRepository {
             where_sql.push_str(" AND shop_id = ?");
         }
         if kw.is_some() {
-            where_sql.push_str(" AND content LIKE ?");
+            where_sql.push_str(" AND content ILIKE ?");
         }
         if f.user_id.is_some() {
             where_sql.push_str(" AND user_id = ?");

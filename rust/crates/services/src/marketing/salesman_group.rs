@@ -4,7 +4,7 @@
 //! `list` / `detail` / `create` / `update` / `del`）。
 //!
 //! # 语义（逐条对照 Java）
-//! - `list`：`groupName` LIKE，默认 `add_time ASC`（可显式排序白名单列）。
+//! - `list`：`groupName` ILIKE，默认 `add_time ASC`（可显式排序白名单列）。
 //! - `detail`：`getById`，缺失返回 `null`。
 //! - `create`：`groupName` 必填；`add_time=now`、`shop_id=0`。
 //! - `update`：不存在 → `未知的分销员分组`。

@@ -6,7 +6,7 @@
 //!
 //! # 已实现（与 Java 逐条对齐）
 //!
-//! - `list`：关键词 LIKE + `promotionType` CSV IN + 店铺 + 时间状态 + 排序白名单；
+//! - `list`：关键词 ILIKE + `promotionType` CSV IN + 店铺 + 时间状态 + 排序白名单；
 //!   VO 回填时间字符串 / `productTime` / 状态文案 / 类型文案 / 类型数据 / 赠品。
 //! - `detail`：同上，并从 `promotion` 表回填会员范围/标记/人群 JSON。
 //! - `create` / `update`：`@Valid` 名称校验、冲突校验（时间重叠 + 店铺 + 类型 +

@@ -270,7 +270,7 @@ fn build_where(q: &MerchantApplyListQuery) -> (String, Option<String>) {
         .filter(|s| !s.is_empty())
         .map(|kw| format!("%{kw}%"));
     if like.is_some() {
-        conds.push("(company_name LIKE ? OR contact_name LIKE ?)".to_string());
+        conds.push("(company_name ILIKE ? OR contact_name ILIKE ?)".to_string());
     }
     if conds.is_empty() {
         (String::new(), None)
@@ -314,7 +314,7 @@ mod tests {
         let (sql, like) = build_where(&q);
         assert_eq!(
             sql,
-            " WHERE status = 1 AND (company_name LIKE ? OR contact_name LIKE ?)"
+            " WHERE status = 1 AND (company_name ILIKE ? OR contact_name ILIKE ?)"
         );
         assert_eq!(like.as_deref(), Some("%abc%"));
     }

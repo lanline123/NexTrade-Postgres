@@ -143,7 +143,7 @@ impl BuyerShowClientRepository {
     /// Java 查询构造器（`LambdaQueryWrapper`）：
     /// ```text
     /// (user_id = currentUserId OR is_show = 1)
-    /// [keyword 非空] content LIKE %keyword%
+    /// [keyword 非空] content ILIKE %keyword%
     /// [goodsId 非空] JSON_CONTAINS(group_data, goodsId)
     /// [productId 非空] JSON_CONTAINS(range_data, productId)
     /// ORDER BY sort_order ASC, add_time DESC, buyer_show_id DESC
@@ -169,7 +169,7 @@ impl BuyerShowClientRepository {
         binds.push(Bind::I32(current_user_id));
 
         if let Some(keyword) = q.keyword.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
-            conds.push("content LIKE ?".to_string());
+            conds.push("content ILIKE ?".to_string());
             binds.push(Bind::Str(format!("%{keyword}%")));
         }
         if let Some(goods_id) = q.goods_id {
@@ -257,7 +257,7 @@ impl BuyerShowClientRepository {
         }
 
         if let Some(keyword) = q.keyword.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
-            sql.push_str(" AND bs.content LIKE ?");
+            sql.push_str(" AND bs.content ILIKE ?");
             binds.push(Bind::Str(format!("%{keyword}%")));
         }
         if let Some(group_id) = q.group_id {

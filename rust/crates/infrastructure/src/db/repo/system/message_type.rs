@@ -137,7 +137,7 @@ impl MessageTypeRepository {
 
     /// 消息分类分页，对应 Java `list(page, queryWrapper)`。
     ///
-    /// `keyword` 走 `LIKE '%kw%'`（Java `like(MessageType::getName, keyword)`），
+    /// `keyword` 走 `ILIKE '%kw%'`（Java `like(MessageType::getName, keyword)`），
     /// `send_type` 精确匹配（Java `eq(MessageType::getSendType, sendType)`）。
     ///
     /// `order_column` / `dir` 必须由调用方经
@@ -163,7 +163,7 @@ impl MessageTypeRepository {
 
         let total: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM message_type
-             WHERE ($1 IS NULL OR name LIKE $2)
+             WHERE ($1 IS NULL OR name ILIKE $2)
                AND ($3 IS NULL OR send_type = $4)",
         )
         .bind(&like)
@@ -177,7 +177,7 @@ impl MessageTypeRepository {
         // `order_column` / `dir` 为白名单内字面量（调用方已校验），可用 format! 拼接。
         let sql = format!(
             "SELECT * FROM message_type
-             WHERE ($1 IS NULL OR name LIKE $2)
+             WHERE ($1 IS NULL OR name ILIKE $2)
                AND ($3 IS NULL OR send_type = $4)
              ORDER BY {order_column} {}
              LIMIT $5 OFFSET $6",
@@ -377,7 +377,7 @@ impl MessageTypeRepository {
                FROM message_template t
                JOIN message_type mt ON mt.message_id = t.message_id
               WHERE t.type = 3
-                AND mt.name LIKE CONCAT($1, '%')
+                AND mt.name ILIKE CONCAT($1, '%')
                 AND t.template_id IS NOT NULL
                 AND t.template_id <> ''
               ORDER BY t.id ASC

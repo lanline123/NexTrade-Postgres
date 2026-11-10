@@ -230,7 +230,7 @@ pub struct ShopOrVendorPageParam {
     /// 每页条数（Java `BasePage.size`，缺省 15、上限 100）
     #[serde(alias = "pageSize")]
     pub size: Option<u64>,
-    /// 关键词（`shop_title LIKE %kw%`）
+    /// 关键词（`shop_title ILIKE %kw%`）
     pub keyword: Option<String>,
 }
 
@@ -245,7 +245,7 @@ impl ShopOrVendorPageParam {
         base_page_query(self.page, self.size)
     }
 
-    /// 有效关键词（Java `StrUtil.isNotBlank(keyword)`，`LIKE` 用原始值不 trim）。
+    /// 有效关键词（Java `StrUtil.isNotBlank(keyword)`，`ILIKE` 用原始值不 trim）。
     #[must_use]
     pub fn effective_keyword(&self) -> Option<&str> {
         self.keyword.as_deref().filter(|kw| !kw.trim().is_empty())
@@ -263,7 +263,7 @@ pub struct AdminUserPageParam {
     /// 每页条数（Java `BasePage.size`，缺省 15、上限 100）
     #[serde(alias = "pageSize")]
     pub size: Option<u64>,
-    /// 关键词（`username LIKE %kw% OR mobile LIKE %kw%`）
+    /// 关键词（`username ILIKE %kw% OR mobile ILIKE %kw%`）
     pub keyword: Option<String>,
 }
 

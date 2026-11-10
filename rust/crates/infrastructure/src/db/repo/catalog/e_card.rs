@@ -12,7 +12,7 @@
 //! # Java 语义对照
 //!
 //! - `list`：`eq(group_id, pageQuery.groupId)`（**无店铺过滤** —— `e_card`
-//!   没有 `shop_id` 列）+ `keyword` 对 `card_number` 做 `LIKE` +
+//!   没有 `shop_id` 列）+ `keyword` 对 `card_number` 做 `ILIKE` +
 //!   `buildSortOrder(BasePage)`（支持 `sortItems`，见 models）。
 //! - `create` / `update`：MyBatis-Plus `save` / `updateById` 的
 //!   `FieldStrategy.NOT_NULL` —— 只写非 null 字段。`ECardEditParam.createECard`
@@ -113,7 +113,7 @@ impl ECardRepository {
     /// 卡券分页（对应 Java `ECardServiceImpl#list`）。
     ///
     /// - `group_id = ?`：**恒定**过滤（Java 校验 `groupId @NotNull` 后必传）
-    /// - `card_number LIKE %keyword%`：仅当 keyword 非空
+    /// - `card_number ILIKE %keyword%`：仅当 keyword 非空
     /// - ORDER BY 由 [`ECardPageQuery::order_clause`] 生成（支持 sortItems）
     pub async fn paginate(
         &self,
@@ -154,7 +154,7 @@ impl ECardRepository {
         qb.push(" AND group_id = ");
         qb.push_bind(group_id);
         if let Some(keyword) = q.effective_keyword() {
-            qb.push(" AND card_number LIKE ");
+            qb.push(" AND card_number ILIKE ");
             qb.push_bind(format!("%{keyword}%"));
         }
     }
