@@ -122,9 +122,11 @@ impl OrderRepository {
               shipping_fee, referrer_user_id, order_source, vendor_id, order_extension,
               email, use_points, points_amount, balance, is_presale, presale_type,
               discount_amount, tax_rate, tax_rate_amount, parent_order_id, parent_order_sn,
-              is_store_splited, pos_user_id)
+              is_store_splited, pos_user_id, admin_note, logistics_name, shipping_type_name,
+              tracking_no, table_no, table_area_name)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-                     $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41) RETURNING order_id",
+                     $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41,
+                     $42, $43, $44, $45, $46, $47) RETURNING order_id",
         )
         .bind(order.order_type.unwrap_or(0))
         .bind(&order.order_sn)
@@ -168,6 +170,13 @@ impl OrderRepository {
         .bind(order.parent_order_sn.as_deref().unwrap_or(""))
         .bind(order.is_store_splited)
         .bind(order.pos_user_id)
+        // PG 对齐后这些文本列 NOT NULL 且无默认值，必须显式写空串。
+        .bind(&order.admin_note)
+        .bind(&order.logistics_name)
+        .bind(&order.shipping_type_name)
+        .bind(&order.tracking_no)
+        .bind("")
+        .bind("")
         .fetch_one(&mut **tx)
         .await
         .map_err(map_err)?;
@@ -178,8 +187,8 @@ impl OrderRepository {
                 "INSERT INTO order_item
                  (order_id, order_sn, user_id, price, quantity, product_id,
                   product_name, product_sn, pic_thumb, sku_id, sku_data,
-                  product_type, shop_id, origin_price, is_pin, promotion_data)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)",
+                  product_type, shop_id, origin_price, is_pin, promotion_data, card_group_name)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)",
             )
             .bind(order_id)
             .bind(&item.order_sn)
@@ -197,6 +206,7 @@ impl OrderRepository {
             .bind(item.origin_price)
             .bind(item.is_pin)
             .bind(&item.promotion_data)
+            .bind(&item.card_group_name)
             .execute(&mut **tx)
             .await
             .map_err(map_err)?;
