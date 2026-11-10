@@ -39,13 +39,12 @@ use axum::{
     routing::get,
     Router,
 };
-use serde::Deserialize;
-use nextrade_core::entities::Category;
 use nextrade_core::models::catalog::category::{
     CategoryParentTreeVO, CategoryTreeVO, ProductLookAlsoVO, ProductRelateQuery, RelateArticleVO,
     RelateBrandVO, RelateCategoryVO, RelateRankVO,
 };
 use nextrade_security::web::{ok, ApiResult};
+use serde::Deserialize;
 
 use crate::PublicState;
 
@@ -150,8 +149,20 @@ async fn relate_look_also(
 /// `GET /api/category/category/hot`：热门分类（`is_hot = 1`，最多 20 条）。
 ///
 /// 对应 Java `CategoryController.getHotCategory` → `CategoryServiceImpl.getHotCategory`。
-async fn hot_category(State(state): State<PublicState>) -> ApiResult<Vec<Category>> {
-    ok(state.catalog.category.hot_categories().await?)
+async fn hot_category(State(state): State<PublicState>) -> ApiResult<Vec<CategoryTreeVO>> {
+    let rows = state.catalog.category.hot_categories().await?;
+    ok(rows
+        .into_iter()
+        .map(|c| CategoryTreeVO {
+            category_id: c.category_id,
+            parent_id: c.parent_id,
+            category_name: c.category_name,
+            sort_order: c.sort_order,
+            is_show: c.is_show,
+            category_pic: c.category_pic,
+            children: Vec::new(),
+        })
+        .collect())
 }
 
 /// `GET /api/category/category/relateRank`：相关排行（相同价位 / 品牌 / 类别）。
