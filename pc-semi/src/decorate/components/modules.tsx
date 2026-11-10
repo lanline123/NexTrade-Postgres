@@ -1177,6 +1177,7 @@ function CategoryNav({ module }: ModuleProps) {
   const radius = px(frame.boxRadius);
   const showTitle = Number(module.showTitle ?? 1) !== 0;
   const displayNum = Math.min(10, Math.max(1, px(module.displayNum ?? module.rowNum, 6)));
+  const canScroll = categories.length > 5;
 
   useEffect(() => {
     let cancelled = false;
@@ -1215,21 +1216,15 @@ function CategoryNav({ module }: ModuleProps) {
               </div>
             ) : null}
             <div className="seckill_list_wrap">
-              <SwiperNav visible={categories.length > displayNum} onPrev={() => cateListRef.current?.scrollBy({ left: -cateListRef.current.clientWidth * 0.6, behavior: 'smooth' })} onNext={() => cateListRef.current?.scrollBy({ left: cateListRef.current.clientWidth * 0.6, behavior: 'smooth' })} />
+              <SwiperNav visible={canScroll} onPrev={() => cateListRef.current?.scrollBy({ left: -cateListRef.current.clientWidth * 0.6, behavior: 'smooth' })} onNext={() => cateListRef.current?.scrollBy({ left: cateListRef.current.clientWidth * 0.6, behavior: 'smooth' })} />
               <div
-                className={`seckill_list${categories.length > displayNum ? ' is-scroll' : ''}`}
+                className={`seckill_list${canScroll ? ' is-scroll' : ''}`}
                 ref={cateListRef}
-                style={categories.length > displayNum ? undefined : { gridTemplateColumns: `repeat(${displayNum}, minmax(0, 1fr))` }}
               >
                 {categories.map((item, index) => (
                   <div
                     className="proditem"
                     key={item.categoryId ?? index}
-                    style={
-                      categories.length > displayNum
-                        ? { flex: `0 0 calc((100% - ${(displayNum - 1) * 12}px) / ${displayNum})` }
-                        : undefined
-                    }
                   >
                     <a
                       href={item.seoLink || `/list?categoryId=${item.categoryId ?? ''}`}
@@ -1949,6 +1944,18 @@ function Coupon({ module }: ModuleProps) {
  * buyBtnStyle、textAlign/textWeight/goodsNamePadding、title{showTitle,titleStyle,titleText,descText,descColor,
  * titleColor,titleRadius,titlePaddingTop,titlePaddingBottom,titleBackground,titleBackground2,titleBackgroundPic,
  * showMore,moreLink,moreColor,countdownLabel}、backgroundColor/boxRadius、seckillTitle（旧字段兼容）。 */
+
+/** Java PcSeckillLegacy/PcGrouponLegacy.getItemWidth：flex 列宽需扣掉列间距。 */
+function decorateGoodsItemWidth(style: number, gap: number): string {
+  const g = Math.max(0, Number.isFinite(gap) ? gap : 0);
+  if (style === 1) return g > 0 ? `calc(25% - ${(g * 3) / 4}px)` : '25%';
+  if (style === 2) return g > 0 ? `calc(25% - ${(g * 3) / 4}px)` : '25%';
+  if (style === 3) return g > 0 ? `calc(20% - ${(g * 4) / 5}px)` : '20%';
+  if (style === 4) return g > 0 ? `calc(16.6667% - ${(g * 5) / 6}px)` : '16.6667%';
+  if (style === 6) return g > 0 ? `calc(16.6667% - ${(g * 5) / 6}px)` : '16.6667%';
+  return g > 0 ? `calc(16.6667% - ${(g * 5) / 6}px)` : '16.6667%';
+}
+
 function Seckill({ module }: ModuleProps) {
     const { t } = useTranslation();
   const [products, setProducts] = useState<any[]>([]);
@@ -2077,7 +2084,7 @@ function Seckill({ module }: ModuleProps) {
                 style={{ gap: `${goodsGap}px`, gridTemplateColumns: style === 6 ? undefined : `repeat(${columns}, minmax(0, 1fr))` }}
               >
                 {products.map((product, index) => (
-                  <div className="proditem goods-ad-item" key={product.productId ?? index}>
+                  <div className="proditem goods-ad-item" key={product.productId ?? index} style={{ width: decorateGoodsItemWidth(style, goodsGap) }}>
                     <div className="item-content">
                       <div className="item-con">
                         <Link href={product.seoLink || `/product/${product.productId ?? ''}`} target="_blank" className="item-image-a" title={product.productName}>
@@ -2111,10 +2118,10 @@ function Seckill({ module }: ModuleProps) {
                             <div className="item-action seckill-item__price">
                               <div className="price-stack">
                                 <div className="item-price">
-                                  <span className="price price-miaosha">{formatPrice(product.seckillPrice ?? product.productPrice)}</span>
+                                  <FormatPrice className="price-miaosha" value={product.seckillPrice ?? product.productPrice} />
                                 </div>
                                 {Number(product.productPrice || product.marketPrice) > 0 ? (
-                                  <span className="price price-origin">{formatPrice(product.productPrice ?? product.marketPrice)}</span>
+                                  <FormatPrice className="price-origin" value={product.productPrice ?? product.marketPrice} />
                                 ) : null}
                               </div>
                             </div>
@@ -2330,7 +2337,7 @@ function Groupon({ module }: ModuleProps) {
                 style={{ gap: `${goodsPadding}px`, gridTemplateColumns: style === 6 ? undefined : `repeat(${columns}, minmax(0, 1fr))` }}
               >
                 {notEnded.map((item, index) => (
-                  <div className="proditem goods-ad-item" key={item.productId ?? index}>
+                  <div className="proditem goods-ad-item" key={item.productId ?? index} style={{ width: decorateGoodsItemWidth(style, goodsPadding) }}>
                     <div className="item-content">
                       <div className="item-con">
                         <Link href={item.seoLink || `/product/${item.productId ?? ''}`} target="_blank" className="g-item-warp" title={item.productName}>
@@ -2376,8 +2383,8 @@ function Groupon({ module }: ModuleProps) {
                           ) : (
                             <div className="groupon-item__price" style={{ flexDirection: Number(module.textAlign) === 1 ? 'row' : 'column' }}>
                               <div className="price-wrapper">
-                                <span className="price price-miaosha">{formatPrice(item.minGrouponPrice ?? item.grouponPrice)}</span>
-                                {Number(item.productPrice) > 0 ? <span className="price price-origin">{formatPrice(item.productPrice)}</span> : null}
+                                <FormatPrice className="price-miaosha" value={item.minGrouponPrice ?? item.grouponPrice} />
+                                {Number(item.productPrice) > 0 ? <FormatPrice className="price-origin" value={item.productPrice} /> : null}
                               </div>
                               <div className="buy">
                                 <button
@@ -2765,6 +2772,7 @@ function Notice({ module }: ModuleProps) {
     borderRadius: `${px(frame.itemRadius, 4)}px`,
     height: `${px(frame.itemHeight, 35)}px`,
     color: frame.textColor ?? '#555555',
+    boxSizing: 'content-box',
   };
   return (
     <Container module={containerModule} className="module-ad-con module-notice">

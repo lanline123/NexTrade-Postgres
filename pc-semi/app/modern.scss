@@ -227,22 +227,8 @@ body { color: var(--ui-text); -webkit-font-smoothing: antialiased; }
 /* 商品卡悬浮快捷加购按钮 */
 
 /* ---------- 首页装修模块 ----------
-   说明：圆角/阴影不再覆盖——原版 PcHomeHero 的圆角由装修配置驱动
-  （--dec-panel-radius / --dec-card-radius / --dec-box-radius），必须保持原版一致性 */
-.dec-pc-home-hero__card-price { color: var(--pc-primary, #1456f0) !important; }
-.dec-pc-home-hero__card-header { padding: 0 14px !important; margin: 14px 0 10px !important; }
-.dec-pc-home-hero__card-title { color: var(--ui-text) !important; font-size: 14.5px !important; }
-
-/* 装修模块通用标题 */
-.module-ad-con h2, .module-ad-con h3 { letter-spacing: -.01em; }
-
-/* 二级分类/频道入口胶囊化 */
-.dec-pc-home-hero__shop-item { transition: background-color .18s ease; }
-.dec-pc-home-hero__shop-item:hover { background: var(--ui-bg); }
-.dec-pc-home-hero__cate-item:hover {
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(16, 24, 40, .06);
-}
+   说明：装修模块样式全部由 Java 迁移的 decorate-source.scss 控制，
+   modern 层不得覆盖，否则与 Java 基线不一致。 */
 
 /* 客服悬浮球 */
 .pc-service-float, .service-float, [class*="service-fixed"] { border-radius: 999px !important; box-shadow: var(--ui-shadow-3) !important; }
