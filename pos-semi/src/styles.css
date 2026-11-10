@@ -390,3 +390,21 @@ body {
   color: #b45309;
   font-size: 13px;
 }
+
+.pos-order-row {
+  cursor: pointer;
+}
+
+.pos-order-row:hover {
+  background: #fff8ef;
+}
+
+.pos-order-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pos-order-items {
+  margin: 6px 0;
+}
