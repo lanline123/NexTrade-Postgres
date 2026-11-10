@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Empty, Input, Modal, Pagination, Toast } from '@douyinfe/semi-ui';
+import type { DragEvent as ReactDragEvent } from 'react';
+import { Button, Dropdown, Empty, Input, Modal, Pagination, Toast } from '@douyinfe/semi-ui';
 import { IconClose, IconGallery, IconPlayCircle, IconSearch, IconVideo } from '@douyinfe/semi-icons';
 import { apiGet, apiPost, apiUpload, isDemo } from '../api';
 import { useI18n } from '../i18n';
@@ -7,6 +8,7 @@ import './gallery-picker.css';
 
 interface MediaItem {
   id?: number;
+  picId?: number;
   galleryId?: number;
   picName?: string;
   videoName?: string;
@@ -108,12 +110,37 @@ export default function GalleryPickerModal({
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [dropFolderId, setDropFolderId] = useState<number | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState<'create' | 'rename'>('create');
+  const [formParentId, setFormParentId] = useState(0);
+  const [formTarget, setFormTarget] = useState<MediaItem | null>(null);
+  const [formName, setFormName] = useState('');
+  const [formSaving, setFormSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const urlOf = (item: MediaItem) => (isVideo ? item.videoUrl || '' : item.picUrl || item.picThumb || '');
   const thumbOf = (item: MediaItem) =>
     isVideo ? item.videoCover || item.videoFirstFrame || '' : item.picThumb || item.picUrl || '';
   const nameOf = (item: MediaItem) => (isVideo ? item.videoName || '' : item.picName || '');
+  const idOf = (item: MediaItem) => Number(isVideo ? item.id ?? 0 : item.picId ?? 0);
+
+  const loadTree = async () => {
+    try {
+      if (isVideo) {
+        const result = await apiGet<any>('/setting/galleryVideo/getAllCategory');
+        setTree(normalizeTree(Array.isArray(result) ? result : result?.records || []));
+      } else {
+        const result = await apiGet<{ records?: RawGalleryNode[] }>('/setting/gallery/tree', {
+          type: 'image',
+        });
+        setTree(normalizeTree(result?.records || []));
+      }
+    } catch {
+      // 分组加载失败不阻塞素材列表
+    }
+  };
 
   useEffect(() => {
     if (!visible) return;
@@ -123,15 +150,8 @@ export default function GalleryPickerModal({
     setGalleryId(0);
     setExpandedIds([]);
     setPage(1);
-    if (isVideo) {
-      apiGet<any>('/setting/galleryVideo/getAllCategory')
-        .then((result) => setTree(normalizeTree(Array.isArray(result) ? result : result?.records || [])))
-        .catch(() => undefined);
-    } else {
-      apiGet<{ records?: RawGalleryNode[] }>('/setting/gallery/tree', { type: 'image' })
-        .then((result) => setTree(normalizeTree(result?.records || [])))
-        .catch(() => undefined);
-    }
+    void loadTree();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, isVideo]);
 
   useEffect(() => {
@@ -171,6 +191,7 @@ export default function GalleryPickerModal({
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, page, galleryId, reloadKey, isVideo, t]);
 
   const visibleTree = useMemo(() => filterTree(tree, groupKeyword), [tree, groupKeyword]);
@@ -222,6 +243,105 @@ export default function GalleryPickerModal({
     }
     const next = selected.includes(url) ? selected : [...selected, url];
     onConfirm(limit !== undefined ? next.slice(0, limit) : next);
+  };
+
+  const moveItemToFolder = async (folderId: number) => {
+    const itemId = dragId;
+    setDragId(null);
+    setDropFolderId(null);
+    if (!itemId || folderId === galleryId) return;
+    try {
+      await apiPost('/setting/galleryPic/transfer', {
+        ids: [itemId],
+        targetGalleryId: folderId,
+        type: isVideo ? 'video' : 'image',
+      });
+      Toast.success({ content: t('移动成功') });
+      setReloadKey((key) => key + 1);
+      void loadTree();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('移动失败') });
+    }
+  };
+
+  const openCreateFolder = (parentId: number) => {
+    setFormMode('create');
+    setFormParentId(parentId);
+    setFormTarget(null);
+    setFormName('');
+    setFormOpen(true);
+  };
+
+  const openRename = (item: MediaItem) => {
+    setFormMode('rename');
+    setFormTarget(item);
+    setFormName(nameOf(item));
+    setFormOpen(true);
+  };
+
+  const submitForm = async () => {
+    const name = formName.trim();
+    if (!name) {
+      Toast.warning({
+        content:
+          formMode === 'create'
+            ? t('请输入分组名称')
+            : isVideo
+              ? t('请输入视频名称')
+              : t('请输入图片名称'),
+      });
+      return;
+    }
+    setFormSaving(true);
+    try {
+      if (formMode === 'create') {
+        await apiPost(
+          isVideo ? '/setting/galleryVideo/create' : '/setting/gallery/create',
+          isVideo ? { parentId: formParentId, name } : { parentId: formParentId, galleryName: name },
+        );
+        setExpandedIds((current) =>
+          current.includes(formParentId) ? current : [...current, formParentId],
+        );
+        void loadTree();
+      } else if (formTarget) {
+        if (isVideo) {
+          await apiPost('/setting/galleryVideoInfo/update', { ...formTarget, videoName: name });
+        } else {
+          await apiPost('/setting/galleryPic/updateField', {
+            id: idOf(formTarget),
+            field: 'picName',
+            val: name,
+          });
+        }
+      }
+      Toast.success({ content: t('保存成功') });
+      setFormOpen(false);
+      setReloadKey((key) => key + 1);
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('保存失败') });
+    } finally {
+      setFormSaving(false);
+    }
+  };
+
+  const confirmDeleteItem = (item: MediaItem) => {
+    Modal.confirm({
+      title: t('确认删除该{type}吗?', { type: isVideo ? t('视频') : t('图片') }),
+      onOk: async () => {
+        try {
+          await apiPost(
+            isVideo ? '/setting/galleryVideoInfo/del' : '/setting/galleryPic/del',
+            { id: idOf(item) },
+          );
+          Toast.success({ content: t('删除成功') });
+          setSelected((current) => current.filter((url) => url !== urlOf(item)));
+          setReloadKey((key) => key + 1);
+          void loadTree();
+        } catch (error) {
+          Toast.error({ content: error instanceof Error ? error.message : t('删除失败') });
+        }
+      },
+    });
   };
 
   const upload = async (files: FileList | null) => {
@@ -277,6 +397,24 @@ export default function GalleryPickerModal({
     }
   };
 
+  const folderDropProps = (folderId: number) => ({
+    onDragOver: (event: ReactDragEvent) => {
+      if (dragId === null) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      setDropFolderId(folderId);
+    },
+    onDragLeave: () => {
+      setDropFolderId((current) => (current === folderId ? null : current));
+    },
+    onDrop: (event: ReactDragEvent) => {
+      if (dragId === null) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void moveItemToFolder(folderId);
+    },
+  });
+
   const renderTree = (nodes: GalleryTreeNode[], depth = 0) =>
     nodes.map((node) => {
       const hasChildren = node.children.length > 0;
@@ -285,10 +423,11 @@ export default function GalleryPickerModal({
       return (
         <Fragment key={node.id}>
           <div
-            className={`gp-tree-node${active ? ' is-active' : ''}`}
+            className={`gp-tree-node${active ? ' is-active' : ''}${dropFolderId === node.id ? ' is-drop' : ''}`}
             style={{ paddingLeft: 10 + depth * 16 }}
             onClick={() => selectFolder(node.id)}
             title={node.name}
+            {...folderDropProps(node.id)}
           >
             <span
               className={`gp-tree-arrow${hasChildren ? '' : ' is-leaf'}${expanded ? ' is-expanded' : ''}`}
@@ -299,6 +438,16 @@ export default function GalleryPickerModal({
             />
             <span className="gp-tree-name">{node.name}</span>
             {node.count > 0 && <span className="gp-tree-count">{node.count}</span>}
+            <span
+              className="gp-tree-add"
+              title={t('新建分组')}
+              onClick={(event) => {
+                event.stopPropagation();
+                openCreateFolder(node.id);
+              }}
+            >
+              +
+            </span>
           </div>
           {hasChildren && expanded && renderTree(node.children, depth + 1)}
         </Fragment>
@@ -310,7 +459,7 @@ export default function GalleryPickerModal({
       className="gallery-picker-modal"
       title={isVideo ? t('从素材中心选择视频') : t('从素材中心选择图片')}
       visible={visible}
-      width="min(1280px, 94vw)"
+      width="min(1400px, 96vw)"
       centered
       bodyStyle={{ padding: 0 }}
       footer={
@@ -347,11 +496,22 @@ export default function GalleryPickerModal({
           </div>
           <div className="gp-tree">
             <div
-              className={`gp-tree-node gp-tree-root${galleryId === 0 ? ' is-active' : ''}`}
+              className={`gp-tree-node gp-tree-root${galleryId === 0 ? ' is-active' : ''}${dropFolderId === 0 ? ' is-drop' : ''}`}
               onClick={() => selectFolder(0)}
+              {...folderDropProps(0)}
             >
               <span className="gp-tree-arrow is-leaf" />
               <span className="gp-tree-name">{isVideo ? t('全部视频') : t('全部图片')}</span>
+              <span
+                className="gp-tree-add"
+                title={t('新建分组')}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openCreateFolder(0);
+                }}
+              >
+                +
+              </span>
             </div>
             {renderTree(visibleTree)}
           </div>
@@ -405,28 +565,55 @@ export default function GalleryPickerModal({
                   const name = nameOf(item);
                   const isSelected = selected.includes(url);
                   return (
-                    <div
-                      key={`${item.id ?? item.galleryId ?? index}-${url}`}
-                      className={`gp-item${isVideo ? ' is-video' : ''}${isSelected ? ' is-selected' : ''}`}
-                      title={name}
-                      onClick={() => toggleSelect(item)}
-                      onDoubleClick={() => pickAndConfirm(item)}
+                    <Dropdown
+                      key={`${item.id ?? item.picId ?? index}-${url}`}
+                      trigger="contextMenu"
+                      position="bottomLeft"
+                      render={
+                        <Dropdown.Menu>
+                          <Dropdown.Item onClick={() => openRename(item)}>
+                            {t('重命名')}
+                          </Dropdown.Item>
+                          <Dropdown.Item onClick={() => confirmDeleteItem(item)}>
+                            {t('删除')}
+                          </Dropdown.Item>
+                        </Dropdown.Menu>
+                      }
                     >
-                      {thumb ? (
-                        <img src={thumb} alt={name} loading="lazy" />
-                      ) : (
-                        <div className="gp-video-placeholder">
-                          <IconVideo size="extra-large" />
-                        </div>
-                      )}
-                      {isVideo && (
-                        <span className="gp-play">
-                          <IconPlayCircle size="large" />
-                        </span>
-                      )}
-                      <span className="gp-item-check">{isSelected ? '✓' : ''}</span>
-                      {name && <span className="gp-name">{name}</span>}
-                    </div>
+                      <div
+                        className={`gp-item${isVideo ? ' is-video' : ''}${isSelected ? ' is-selected' : ''}${dragId === idOf(item) ? ' is-dragging' : ''}`}
+                        title={name}
+                        draggable
+                        onClick={() => toggleSelect(item)}
+                        onDoubleClick={() => pickAndConfirm(item)}
+                        onDragStart={(event) => {
+                          const id = idOf(item);
+                          if (!id) return;
+                          setDragId(id);
+                          event.dataTransfer.effectAllowed = 'move';
+                          event.dataTransfer.setData('text/plain', String(id));
+                        }}
+                        onDragEnd={() => {
+                          setDragId(null);
+                          setDropFolderId(null);
+                        }}
+                      >
+                        {thumb ? (
+                          <img src={thumb} alt={name} loading="lazy" />
+                        ) : (
+                          <div className="gp-video-placeholder">
+                            <IconVideo size="extra-large" />
+                          </div>
+                        )}
+                        {isVideo && (
+                          <span className="gp-play">
+                            <IconPlayCircle size="large" />
+                          </span>
+                        )}
+                        <span className="gp-item-check">{isSelected ? '✓' : ''}</span>
+                        {name && <span className="gp-name">{name}</span>}
+                      </div>
+                    </Dropdown>
                   );
                 })}
               </div>
@@ -471,6 +658,38 @@ export default function GalleryPickerModal({
           )}
         </section>
       </div>
+      <Modal
+        title={formMode === 'create' ? t('新建分组') : t('重命名')}
+        visible={formOpen}
+        width={420}
+        confirmLoading={formSaving}
+        okText={t('确定')}
+        onOk={submitForm}
+        onCancel={() => setFormOpen(false)}
+      >
+        <div className="gp-form">
+          <label>
+            {formMode === 'create'
+              ? t('分组名称')
+              : isVideo
+                ? t('视频名称')
+                : t('图片名称')}
+          </label>
+          <Input
+            value={formName}
+            maxLength={40}
+            placeholder={
+              formMode === 'create'
+                ? t('请输入分组名称')
+                : isVideo
+                  ? t('请输入视频名称')
+                  : t('请输入图片名称')
+            }
+            onChange={setFormName}
+            onEnterPress={submitForm}
+          />
+        </div>
+      </Modal>
     </Modal>
   );
 }
