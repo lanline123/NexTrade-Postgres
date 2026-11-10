@@ -118,6 +118,8 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
   const [priceType, setPriceType] = useState<1 | 2>(1);
   const [priceValue, setPriceValue] = useState('');
   const [pricePreview, setPricePreview] = useState<string | number | null>(null);
+  const [rechargeOpen, setRechargeOpen] = useState(false);
+  const [rechargeValue, setRechargeValue] = useState('');
 
   const loadProducts = useCallback(async (nextKeyword: string, nextCategory: number | undefined) => {
     setLoading(true);
@@ -297,6 +299,34 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
       setMember(null);
       setPendingOpen(false);
       toast('取单成功');
+    } catch (error) {
+      toast(message(error), 'error');
+    }
+  };
+
+  const openRecharge = () => {
+    if (!isMember) {
+      toast('请先绑定会员', 'error');
+      return;
+    }
+    setRechargeValue('');
+    setRechargeOpen(true);
+  };
+
+  const submitRecharge = async () => {
+    const value = Number(rechargeValue);
+    if (!Number.isFinite(value) || value <= 0) {
+      toast('请输入正确的充值金额', 'error');
+      return;
+    }
+    try {
+      await api.post('/pos/user/rechargeOrder/create', { userId: member?.userId, money: value });
+      if (member?.mobile) {
+        const refreshed = await api.get<Member | null>('/pos/user/getUserByMobile', { mobile: member.mobile });
+        if (refreshed) setMember(refreshed);
+      }
+      setRechargeOpen(false);
+      toast('充值成功');
     } catch (error) {
       toast(message(error), 'error');
     }
@@ -543,7 +573,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
                   type="button"
                   className={isMember ? 'el-button btn' : 'el-button is-disabled btn'}
                   disabled={!isMember}
-                  onClick={() => toast('充值功能接入中')}
+                  onClick={openRecharge}
                 >
                   <span>充值</span>
                 </button>
@@ -820,6 +850,45 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
               </div>
             ))
           )}
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={rechargeOpen}
+        title="会员充值"
+        width={460}
+        onClose={() => setRechargeOpen(false)}
+        footer={
+          <>
+            <button type="button" className="el-button" onClick={() => setRechargeOpen(false)}>
+              <span>取消</span>
+            </button>
+            <button type="button" className="el-button el-button--primary" style={primaryStyle} onClick={() => void submitRecharge()}>
+              <span>确认充值</span>
+            </button>
+          </>
+        }
+      >
+        <div className="member-row">
+          <span>会员</span>
+          <strong>{member?.nickname || member?.mobile || '-'}</strong>
+        </div>
+        <div className="member-row">
+          <span>当前余额</span>
+          <strong>¥{Number(member?.balance ?? 0).toFixed(2)}</strong>
+        </div>
+        <div className="price-input">
+          <div className="el-input">
+            <div className="el-input__wrapper">
+              <input
+                className="el-input__inner"
+                placeholder="请输入充值金额"
+                value={rechargeValue}
+                onChange={(event) => setRechargeValue(event.target.value)}
+              />
+            </div>
+          </div>
+          <span className="price-unit">元</span>
         </div>
       </Dialog>
 
