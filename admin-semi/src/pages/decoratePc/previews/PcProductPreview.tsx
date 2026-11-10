@@ -128,7 +128,6 @@ function productImage(source?: ProductItem | null): string {
 }
 
 function formatImage(url?: string): string {
-    const { t } = useI18n();
   if (!url) {
     return 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect fill="%23f5f5f5" width="100" height="100"/></svg>';
   }
