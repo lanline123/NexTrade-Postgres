@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Empty, Input, Modal, Pagination, Spin, Toast } from '@douyinfe/semi-ui';
-import { IconGallery, IconSearch } from '@douyinfe/semi-icons';
+import { Button, Empty, Input, Modal, Pagination, Toast } from '@douyinfe/semi-ui';
+import { IconClose, IconGallery, IconSearch } from '@douyinfe/semi-icons';
 import { apiGet, apiUpload, isDemo } from '../api';
 import { useI18n } from '../i18n';
 import './gallery-picker.css';
@@ -39,6 +39,7 @@ interface GalleryPickerModalProps {
 }
 
 const PAGE_SIZE = 30;
+const SKELETON_COUNT = 15;
 
 const normalizeTree = (nodes: RawGalleryNode[]): GalleryTreeNode[] =>
   (nodes || []).map((node) => ({
@@ -47,6 +48,18 @@ const normalizeTree = (nodes: RawGalleryNode[]): GalleryTreeNode[] =>
     count: Number(node.picCount ?? 0),
     children: normalizeTree(node.children || []),
   }));
+
+const filterTree = (nodes: GalleryTreeNode[], keyword: string): GalleryTreeNode[] => {
+  const text = keyword.trim().toLowerCase();
+  if (!text) return nodes;
+  return nodes.reduce<GalleryTreeNode[]>((acc, node) => {
+    const children = filterTree(node.children, keyword);
+    if (node.name.toLowerCase().includes(text) || children.length) {
+      acc.push({ ...node, children });
+    }
+    return acc;
+  }, []);
+};
 
 const picUrlOf = (pic: GalleryPic) => pic.picUrl || pic.picThumb || '';
 
@@ -59,6 +72,7 @@ export default function GalleryPickerModal({
 }: GalleryPickerModalProps) {
   const { t } = useI18n();
   const [keyword, setKeyword] = useState('');
+  const [groupKeyword, setGroupKeyword] = useState('');
   const [galleryId, setGalleryId] = useState(0);
   const [expandedIds, setExpandedIds] = useState<number[]>([]);
   const [page, setPage] = useState(1);
@@ -75,6 +89,7 @@ export default function GalleryPickerModal({
     if (!visible) return;
     setSelected([]);
     setKeyword('');
+    setGroupKeyword('');
     setGalleryId(0);
     setExpandedIds([]);
     setPage(1);
@@ -112,6 +127,11 @@ export default function GalleryPickerModal({
     };
   }, [visible, page, galleryId, reloadKey, t]);
 
+  const visibleTree = useMemo(
+    () => filterTree(tree, groupKeyword),
+    [tree, groupKeyword],
+  );
+
   const selectedFolderName = useMemo(() => {
     if (galleryId === 0) return t('全部图片');
     const find = (nodes: GalleryTreeNode[]): string | undefined => {
@@ -148,6 +168,17 @@ export default function GalleryPickerModal({
       }
       return [...current, url];
     });
+  };
+
+  const pickAndConfirm = (pic: GalleryPic) => {
+    const url = picUrlOf(pic);
+    if (!url) return;
+    if (!multiple) {
+      onConfirm([url]);
+      return;
+    }
+    const next = selected.includes(url) ? selected : [...selected, url];
+    onConfirm(limit !== undefined ? next.slice(0, limit) : next);
   };
 
   const upload = async (files: FileList | null) => {
@@ -191,7 +222,7 @@ export default function GalleryPickerModal({
   const renderTree = (nodes: GalleryTreeNode[], depth = 0) =>
     nodes.map((node) => {
       const hasChildren = node.children.length > 0;
-      const expanded = expandedIds.includes(node.id);
+      const expanded = groupKeyword.trim() !== '' || expandedIds.includes(node.id);
       const active = galleryId === node.id;
       return (
         <Fragment key={node.id}>
@@ -205,7 +236,7 @@ export default function GalleryPickerModal({
               className={`gp-tree-arrow${hasChildren ? '' : ' is-leaf'}${expanded ? ' is-expanded' : ''}`}
               onClick={(event) => {
                 event.stopPropagation();
-                if (hasChildren) toggleExpand(node.id);
+                if (hasChildren && !groupKeyword.trim()) toggleExpand(node.id);
               }}
             />
             <span className="gp-tree-name">{node.name}</span>
@@ -219,9 +250,14 @@ export default function GalleryPickerModal({
   return (
     <Modal
       className="gallery-picker-modal"
-      title={t('从素材中心选择')}
+      title={
+        <div className="gp-heading">
+          <span className="gp-heading-title">{t('从素材中心选择')}</span>
+          <span className="gp-heading-sub">{t('选择已有图片，或直接上传新图片')}</span>
+        </div>
+      }
       visible={visible}
-      width={1080}
+      width="min(1280px, 94vw)"
       centered
       bodyStyle={{ padding: 0 }}
       footer={
@@ -244,7 +280,18 @@ export default function GalleryPickerModal({
     >
       <div className="gp-layout">
         <aside className="gp-sidebar">
-          <div className="gp-sidebar-head">{t('图片分组')}</div>
+          <div className="gp-sidebar-head">
+            <span className="gp-sidebar-title">{t('图片分组')}</span>
+            <Input
+              className="gp-group-search"
+              size="small"
+              prefix={<IconSearch />}
+              value={groupKeyword}
+              placeholder={t('搜索分组')}
+              showClear
+              onChange={setGroupKeyword}
+            />
+          </div>
           <div className="gp-tree">
             <div
               className={`gp-tree-node gp-tree-root${galleryId === 0 ? ' is-active' : ''}`}
@@ -253,12 +300,14 @@ export default function GalleryPickerModal({
               <span className="gp-tree-arrow is-leaf" />
               <span className="gp-tree-name">{t('全部图片')}</span>
             </div>
-            {renderTree(tree)}
+            {renderTree(visibleTree)}
           </div>
         </aside>
         <section className="gp-main">
           <div className="gp-toolbar">
             <Button
+              type="primary"
+              theme="solid"
               icon={<IconGallery />}
               loading={uploading}
               onClick={() => fileRef.current?.click()}
@@ -285,34 +334,61 @@ export default function GalleryPickerModal({
                 setReloadKey((key) => key + 1);
               }}
             />
-            <span className="gp-current-folder">{selectedFolderName}</span>
+            <span className="gp-folder-chip">{selectedFolderName}</span>
+            <span className="gp-total">{total}</span>
           </div>
           <div className="gp-grid-wrap">
-            <Spin spinning={loading}>
-              {items.length ? (
-                <div className="gp-grid">
-                  {items.map((pic, index) => {
-                    const url = picUrlOf(pic);
-                    const isSelected = selected.includes(url);
-                    return (
-                      <div
-                        key={`${pic.picId ?? index}-${url}`}
-                        className={`gp-item${isSelected ? ' is-selected' : ''}`}
-                        title={pic.picName || ''}
-                        onClick={() => toggleSelect(pic)}
-                      >
-                        <img src={pic.picThumb || url} alt={pic.picName || ''} />
-                        {isSelected && <span className="gp-check">✓</span>}
-                        {pic.picName && <span className="gp-name">{pic.picName}</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                !loading && <Empty description={t('图库暂无图片')} />
-              )}
-            </Spin>
+            {loading && !items.length ? (
+              <div className="gp-grid">
+                {Array.from({ length: SKELETON_COUNT }).map((_, index) => (
+                  <div className="gp-skeleton" key={index} />
+                ))}
+              </div>
+            ) : items.length ? (
+              <div className="gp-grid">
+                {items.map((pic, index) => {
+                  const url = picUrlOf(pic);
+                  const isSelected = selected.includes(url);
+                  return (
+                    <div
+                      key={`${pic.picId ?? index}-${url}`}
+                      className={`gp-item${isSelected ? ' is-selected' : ''}`}
+                      title={pic.picName || ''}
+                      onClick={() => toggleSelect(pic)}
+                      onDoubleClick={() => pickAndConfirm(pic)}
+                    >
+                      <img src={pic.picThumb || url} alt={pic.picName || ''} loading="lazy" />
+                      <span className="gp-item-check">{isSelected ? '✓' : ''}</span>
+                      {pic.picName && <span className="gp-name">{pic.picName}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              !loading && <Empty description={t('暂无素材')} />
+            )}
           </div>
+          {selected.length > 0 && (
+            <div className="gp-tray">
+              <div className="gp-tray-list">
+                {selected.map((url) => (
+                  <div className="gp-tray-item" key={url}>
+                    <img src={url} alt="" />
+                    <button
+                      type="button"
+                      aria-label={t('移除')}
+                      onClick={() => setSelected((current) => current.filter((item) => item !== url))}
+                    >
+                      <IconClose size="small" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button type="button" className="gp-tray-clear" onClick={() => setSelected([])}>
+                {t('清空')}
+              </button>
+            </div>
+          )}
           {total > PAGE_SIZE && (
             <div className="gp-pagination">
               <Pagination
