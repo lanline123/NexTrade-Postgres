@@ -207,6 +207,13 @@ codegen-units = 1
 panic = "abort"
 strip = true
 
+# CI 正式构建 profile：thin LTO + 并行 codegen，避免 fat LTO 把 CI 拖到 20 分钟。
+# 需要最强优化时仍可显式 `cargo build --release` 回退。
+[profile.release-ci]
+inherits = "release"
+lto = "thin"
+codegen-units = 16
+
 # 测试/预发布构建：可运行，但比 fat LTO release 快很多。
 [profile.staging]
 inherits = "release"

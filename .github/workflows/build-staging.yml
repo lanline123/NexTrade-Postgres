@@ -31,7 +31,7 @@ jobs:
                  -e 's|^#baseurl=http://dl.rockylinux.org|baseurl=https://dl.rockylinux.org|g' \
                  /etc/yum.repos.d/Rocky-*.repo 2>/dev/null || true
           dnf install -y --setopt=install_weak_deps=False --nodocs \
-            git gcc gcc-c++ make pkgconfig openssl-devel perl which tar xz curl
+            git gcc gcc-c++ make pkgconfig openssl-devel perl which tar xz curl lld
           dnf clean all
 
       - uses: actions/checkout@v4
@@ -51,23 +51,23 @@ jobs:
           tar -xzf /tmp/sccache.tar.gz -C /tmp
           install -m 755 "/tmp/sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl/sccache" /usr/local/bin/sccache
 
-      - name: Cache cargo registry, target & sccache
+      # key 不带 run_id：同 Cargo.lock 命中同一份缓存；target 目录不入缓存。
+      - name: Cache cargo registry & sccache
         uses: actions/cache@v4
         with:
           path: |
             /github/home/.cargo/registry
             /github/home/.cargo/git
-            /tmp/cargo-target
             /tmp/sccache
-          key: staging-cargo-${{ runner.os }}-${{ hashFiles('rust/crates/Cargo.lock') }}-${{ github.run_id }}
+          key: staging-cargo-v2-${{ runner.os }}-${{ hashFiles('rust/crates/Cargo.lock') }}
           restore-keys: |
-            staging-cargo-${{ runner.os }}-${{ hashFiles('rust/crates/Cargo.lock') }}-
-            staging-cargo-${{ runner.os }}-
+            staging-cargo-v2-${{ runner.os }}-
 
       - name: Build staging binary
         working-directory: rust/crates
         env:
           PKG_CONFIG_PATH: /usr/lib64/pkgconfig:/usr/share/pkgconfig
+          RUSTFLAGS: "-C link-arg=-fuse-ld=lld"
         run: |
           . "$HOME/.cargo/env"
           sccache --start-server || true
