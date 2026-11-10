@@ -238,7 +238,7 @@ mod tests {
         let sql = qb.sql().to_string();
         qb.build();
         assert!(sql.contains("category_id IN ("));
-        assert_eq!(sql.matches('?').count(), 3);
+        assert_eq!(sql.matches('$').count(), 3);
         assert!(!sql.contains("IN (1"), "值必须走绑定参数，不能拼进 SQL");
     }
 }

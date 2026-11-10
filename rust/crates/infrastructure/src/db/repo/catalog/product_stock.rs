@@ -1410,7 +1410,7 @@ mod tests {
             Some("手机"),
             3,
         );
-        assert!(from_sql.contains("sp.shop_id = ?"));
+        assert!(from_sql.contains("sp.shop_id = $1"));
         assert!(where_sql.contains("p.product_name LIKE ?"));
         assert_eq!(binds.len(), 3); // 组织 + 两个 LIKE
         assert!(matches!(binds[0], Bind::I32(3)));

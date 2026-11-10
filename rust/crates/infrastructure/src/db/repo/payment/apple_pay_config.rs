@@ -91,8 +91,8 @@ mod tests {
     #[test]
     fn upsert_statements_are_parameterized() {
         let update = "UPDATE config SET biz_val = $1, update_time = $2 WHERE id = $3";
-        assert_eq!(update.matches('?').count(), 3);
+        assert_eq!(update.matches('$').count(), 3);
         let insert = "INSERT INTO config (biz_code, biz_val, create_time, update_time) VALUES ($1,$2,$3,$4)";
-        assert_eq!(insert.matches('?').count(), 4);
+        assert_eq!(insert.matches('$').count(), 4);
     }
 }

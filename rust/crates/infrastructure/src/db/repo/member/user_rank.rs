@@ -794,7 +794,7 @@ mod tests {
             assert!(pos >= last, "列顺序异常: {c} 出现在 {sql}");
             last = pos;
         }
-        assert_eq!(sql.matches('?').count(), 15, "sql={sql}");
+        assert_eq!(sql.matches('$').count(), 15, "sql={sql}");
         assert!(!sql.contains("SELECT *"));
     }
 
@@ -810,7 +810,7 @@ mod tests {
         assert!(sql.contains("rank_name"));
         assert!(!sql.contains("discount"));
         assert!(!sql.contains("rank_id"), "rank_id 为 None 时不写主键: {sql}");
-        assert_eq!(sql.matches('?').count(), 1);
+        assert_eq!(sql.matches('$').count(), 1);
     }
 
     /// 空串与 0 都必须照常写入（不能按「空就跳过」简化）。

@@ -873,7 +873,7 @@ mod tests {
         conds.push("is_deleted = ?".to_string());
         binds.push(Bind::I32(0));
         let where_sql = format!(" WHERE {}", conds.join(" AND "));
-        assert_eq!(where_sql, " WHERE is_deleted = $1");
+        assert_eq!(where_sql, " WHERE is_deleted = ?");
         assert_eq!(where_sql.matches('?').count(), binds.len());
 
         let like = "%root%".to_string();

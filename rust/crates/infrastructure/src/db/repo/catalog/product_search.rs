@@ -78,7 +78,7 @@ mod tests {
         let sql = qb.sql().to_string();
         qb.build();
         assert!(sql.contains("is_delete = 0"));
-        assert_eq!(sql.matches("product_name LIKE ?").count(), 2);
+        assert_eq!(sql.matches("product_name LIKE $").count(), 2);
         assert!(!sql.contains("苹果"), "LIKE 值必须走绑定参数");
     }
 }

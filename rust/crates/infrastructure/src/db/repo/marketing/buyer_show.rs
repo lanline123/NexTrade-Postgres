@@ -1046,7 +1046,7 @@ mod tests {
     #[test]
     fn filter_status_pending_equals_zero() {
         let (sql, binds) = build_filter(&query_with(Some(-1), None, None), None, None);
-        assert_eq!(sql, " WHERE status = $1");
+        assert_eq!(sql, " WHERE status = ?");
         assert_eq!(binds.len(), 1);
         assert!(matches!(binds[0], Bind::I32(0)));
     }
@@ -1054,20 +1054,20 @@ mod tests {
     #[test]
     fn filter_status_public_is_ne_zero_and_is_show_eq() {
         let (sql, binds) = build_filter(&query_with(Some(1), None, None), None, None);
-        assert_eq!(sql, " WHERE status <> $1 AND is_show = $2");
+        assert_eq!(sql, " WHERE status <> ? AND is_show = ?");
         assert_eq!(binds.len(), 2);
         assert!(matches!(binds[0], Bind::I32(0)));
         assert!(matches!(binds[1], Bind::I32(1)));
 
         let (sql, binds) = build_filter(&query_with(Some(0), None, None), None, None);
-        assert_eq!(sql, " WHERE status <> $1 AND is_show = $2");
+        assert_eq!(sql, " WHERE status <> ? AND is_show = ?");
         assert!(matches!(binds[1], Bind::I32(0)));
     }
 
     #[test]
     fn filter_keyword_uses_concat_like() {
         let (sql, binds) = build_filter(&query_with(None, Some("鞋"), None), None, None);
-        assert_eq!(sql, " WHERE content LIKE CONCAT('%', $1, '%')");
+        assert_eq!(sql, " WHERE content LIKE CONCAT('%', ?, '%')");
         match &binds[0] {
             Bind::Str(s) => assert_eq!(s, "鞋"),
             other => panic!("应为字符串绑定，实际 {other:?}"),
@@ -1085,7 +1085,7 @@ mod tests {
     fn filter_time_range_requires_both_bounds() {
         let q = query_with(None, None, None);
         let (sql, binds) = build_filter(&q, Some(100), Some(200));
-        assert_eq!(sql, " WHERE add_time BETWEEN $1 AND $2");
+        assert_eq!(sql, " WHERE add_time BETWEEN ? AND ?");
         assert_eq!(binds.len(), 2);
 
         // Java 只在 startTime 与 endTime 都非空时才 between
@@ -1100,8 +1100,8 @@ mod tests {
             build_filter(&query_with(Some(1), Some("k"), Some(7)), Some(10), Some(20));
         assert_eq!(
             sql,
-            " WHERE status <> $1 AND is_show = $2 AND content LIKE CONCAT('%', $3, '%') \
-             AND group_data::jsonb @> '7'::jsonb AND add_time BETWEEN $4 AND $5"
+            " WHERE status <> ? AND is_show = ? AND content LIKE CONCAT('%', ?, '%') \
+             AND group_data::jsonb @> '7'::jsonb AND add_time BETWEEN ? AND ?"
         );
         assert_eq!(binds.len(), 5);
     }

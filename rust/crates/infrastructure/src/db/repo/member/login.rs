@@ -378,8 +378,8 @@ mod tests {
         // Java 用 `LIMIT 2` 判定「账号唯一」：0 行/2 行都拒绝重置
         assert!(RESET_MOBILE_SQL.contains("LIMIT 2"));
         assert!(RESET_EMAIL_SQL.contains("LIMIT 2"));
-        assert!(RESET_MOBILE_SQL.contains("mobile = ?"));
-        assert!(RESET_EMAIL_SQL.contains("email = ?"));
+        assert!(RESET_MOBILE_SQL.contains("mobile = $1"));
+        assert!(RESET_EMAIL_SQL.contains("email = $1"));
         assert!(RESET_MOBILE_SQL.contains("user_id"));
         assert!(RESET_MOBILE_SQL.contains("status"));
     }

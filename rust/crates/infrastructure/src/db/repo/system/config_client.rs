@@ -328,12 +328,12 @@ mod tests {
             let sql = build(&codes).expect("非空切片应生成 SQL");
             // 占位符 = is_del 的 1 个 + IN 的 n 个
             assert_eq!(
-                sql.matches('?').count(),
+                sql.matches('$').count(),
                 n + 1,
                 "占位符个数应与绑定个数一致（is_del + n），SQL = {sql}"
             );
             assert!(sql.contains("biz_code IN ("), "SQL = {sql}");
-            assert!(sql.contains("is_del = ?"), "SQL = {sql}");
+            assert!(sql.contains("is_del = $1"), "SQL = {sql}");
         }
     }
 

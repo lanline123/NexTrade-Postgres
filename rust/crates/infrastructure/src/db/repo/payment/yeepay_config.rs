@@ -80,14 +80,29 @@ fn map_err(e: sqlx::Error) -> Error {
 
 #[cfg(test)]
 mod tests {
+    /// 静态守卫：配置读写一律 `$N` 绑参。
+    ///
+    /// 原断言是在测试里自造一个字符串、再断言它自己含 MySQL 占位符 `?`，
+    /// 既恒假又与被测代码无关；改为校验真实源码里的语句形态。
     #[test]
     fn upsert_statements_are_parameterized() {
-        assert!(r"SELECT id FROM config WHERE biz_code = $1 LIMIT 1".contains("?"));
-        assert_eq!(
-            "INSERT INTO config (biz_code, biz_val, create_time, update_time) VALUES ($1,$2,$3,$4)"
-                .matches('?')
-                .count(),
-            4
+        let src = include_str!("yeepay_config.rs");
+        assert!(
+            src.contains("SELECT id FROM config WHERE biz_code = $1 LIMIT 1"),
+            "按 biz_code 查询必须绑参"
+        );
+        assert!(
+            src.contains("UPDATE config SET biz_val = $1, update_time = $2 WHERE id = $3"),
+            "更新必须绑参"
+        );
+        assert!(
+            src.contains("INSERT INTO config (biz_code, biz_val, create_time, update_time) VALUES ($1,$2,$3,$4)"),
+            "插入必须绑参"
+        );
+        // 批量读走 QueryBuilder，值只能通过 push_bind 下发
+        assert!(
+            src.contains("WHERE biz_code IN ("),
+            "批量读必须走 IN + push_bind"
         );
     }
 }

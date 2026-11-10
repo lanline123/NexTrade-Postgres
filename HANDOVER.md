@@ -360,6 +360,7 @@ codegen-units = 16
 | `scratch/audit_widen.py` | MySQL 基线 × PG 现状，按加宽/收窄/回退分类 | 差异全为有意 |
 | `scratch/scan_textdate.py` | 扫 text 化列上的 `TO_CHAR/EXTRACT/::date/::timestamp/DATE_ADD` | 0 命中（命中即退出码 1） |
 | `scratch/scan_bigint_i32.py` | 双向扫 `CAST(… AS BIGINT)→i32` 与 `CAST(… AS INT)→i64` | 0 冲突 |
+| `scratch/scan_insert_no_returning.py` | 分类无 `RETURNING` 的 INSERT，标记「插入后回查/用 pk」的站点供人工复核 | 129 条生产语句，0 例丢自增主键（审计第三十三章） |
 
 > 这四个脚本是这轮抓缺陷的主要手段，比 `cargo check` 有效——PG 的类型/语法问题**编译期全部通过**，
 > 只有真实 SQL 打到库里才暴露。另：`scratch/plan_fix.py`、`scratch/scan_mixed.py` 用于定位
@@ -387,11 +388,38 @@ python regress/api_assert.py --self-test  # 离线自检断言原语
 **何时跑**：每次部署后打生产；改接口/改 SQL 后打本机。CI 里跑不了（GitHub runner 访问不到生产库与登录态）。
 
 
+### 4.6.3 单测门禁（`cargo test` 进 CI，2026-11-10 已落地）
+
+`cargo check` **不编译 test target**，单测里的断言错了也永远不会报警——长期「假绿」。
+2026-11-10 把 `cargo test --workspace --no-fail-fast -j 1` 加进 `check-rust.yml`，
+**首次真跑就暴露 82 处失败**（此前手工估计的「3 处」严重偏低，说明这个盲区一直没人能量化）。
+按成因归为下表 7 类——同一处失败可能同时命中两类（例如既是自造串的假测试、占位符风格也写错），
+故分类计数仅供参考，总量以 82 为准：
+
+| 失败类型 | 处数 | 根因 | 修法 |
+|---|---|---|---|
+| 断言写 MySQL `?`、实现返回 PG `$N` | 35 | `build_*` 返回的是**转换前**的 `?` 中间产物，随后统一交 `to_pg_placeholders()` | 断言改 `?` |
+| 实现里硬编码 `$N` 混进 `?` 拼接 | 5（共 6 个占位符） | 后续 `?` 续编号会与已存在的 `$N` 撞号 → 占位符重复，**真实 SQL bug** | 实现改 `?`（`order_admin` 的 `pay_code`/`product_name`/`is_showed` 三处、`shop_manage` 的 `area_store_manager_id`/`corporate_name` 两处） |
+| `QueryBuilder` 产出 `$N`、断言却在数 `?` | 24 | 断言用 `matches('?')` 计占位符个数 | 改数 `$`；注意 `product_stock` / `order_admin` 是 `?` 风格，不能一刀切 |
+| 静态守卫与源码差一个转义反斜杠 | 5 | `include_str!` 读到的是**文件原文**（`\"user\"`），断言写的是转义后的真实引号 | 改原始字符串 `r#"…"#` |
+| 断言在测试里自造串再断言它自己 | 4 | `huifu/lakala/yeepay_config`、`apple_pay`、`statement` 恒真或恒假，与被测代码毫无关系 | 改 `include_str!` 源码守卫 |
+| 否定断言自我命中 | 2 | `include_str!` 会把测试自身一起读进来，字面 needle 天然「命中」 | needle 改用 `format!` 运行期拼接 |
+| 期望值算错 | 1 | `7.2464 / 0.8999` 写成 `8.052228`；真值 `8.05245027…`，按 `RATE_SCALE=6` 取整后为 `8.05245` | 修期望值并补推导注释 |
+
+**openapi 契约类断言**：`docs/api-contract.json` 由仓库外的 Java 基线解析生成（`docs/` 在
+`.gitignore`），CI 里必然不存在，14 个集成用例会全红。`contract_integrity.rs` /
+`http_endpoints.rs` 改为「无契约时打印 `[skip]` 显式跳过」——不假绿、也不长期红灯；
+本地有契约时照常断言。
+
+**结果**：全 workspace `cargo test` 通过，11 个测试二进制、**4600 个用例、0 失败**
+（599 / 142 / 6 / 1617 / 30 / 567 / 8 / 9 / 5 / 19 / 1598）。
+
+
 ### 4.7 2026-11-10 全量检查状态（03:10 实测，当前态）
 
 | 项 | 状态 |
 |---|---|
-| 线上二进制 | **staging 包 `dd25f09`**（HEAD，含 text 化时间列日期函数清理 + 12 列 bigint 收窄回 integer），72,573,512 字节，sha256 `a55ee620…fba6`，03:05:05 部署（`scratch/deploy-dd25f09.sh`，备份 `nextrade.bak.20261110_030505`，`main_pid=3827592`，`proc_sha` 与磁盘一致；验证输出 `depd25.out`） |
+| 线上二进制 | **staging 包 `1c05a25`**（含 `99d7da5` + 保证金账户唯一约束/`ON CONFLICT` 兜底），72,573,512 字节，sha256 `052adfc3…04da3`，10:14:15 部署（`scratch/deploy-1c05a25.sh`，部署前 live 备份 `nextrade.bak.20261110_101415`，`main_pid=3937380`，`proc_sha` 与磁盘一致；公开冒烟 12/12、回归 53/53+4/4） |
 | 生产库 | 49 列已回退 text（§4.3）；637 列 smallint→integer 加宽；12 列 bigint→integer 收窄；335 张 MySQL 表全在、3927 列 0 缺失 |
 | 与 `pure.sql` 比对 | 686 处差异**全部为有意改动**：637 整数加宽 + 49 时间/JSON 回退（线上 MySQL 本就是字符串）；无丢失性差异 |
 | 会员 `123/123` | 登录、购物车、getCount、订单、资料、站内信、商品分页（total=64 有记录）、签到 sign 均 200 |
@@ -467,6 +495,9 @@ python regress/api_assert.py --self-test  # 离线自检断言原语
 | 2026-11-10 | `dd25f09` 上线（03:05）：清理 text 化时间列上的 `TO_CHAR/::date/::timestamp`，修 `accessStatistics` 500 与 `statisticalData` 静默全 0；第二批 12 列 bigint 收窄；公开/管理端/会员端回归 0 失败 |
 | 2026-11-10 | 回归门禁升级：新增 `regress/api_assert.py`（业务字段断言 + 基线守卫 + 跨接口一致性），补齐「200 但静默失败」这一盲区；首跑生产 53/53 + 跨接口 4/4 通过，见 §4.6.2 |
 | 2026-11-10 | `/www/backup` 清理（原待办第 8 项）：删除 433 项纯碎片 2,551,771,354 B，磁盘可用 12.2 → 13.0 GB；回滚资产与线上源包全部保留（`MIGRATION-AUDIT` 第三十一章） |
+| 2026-11-10 | 无 `RETURNING` 的 INSERT 甄别（原待办第 3 项，129 条生产语句）：0 例丢自增主键；线上 329 个自增序列与 max(id) 对齐（0 落后）；新发现 `shop_deposit` 唯一索引缺口，见审计第三十三章 |
+| 2026-11-10 | 单测门禁落地（原待办第 2 项）：`cargo test --workspace --no-fail-fast -j 1` 进 `check-rust.yml`；**首次真跑暴露 82 处失败**（此前只发现 3 处），全部修完，含 5 处「硬编码 `$N` 混进 `?` 拼接」的真实占位符编号 bug；全 workspace 约 4600 用例 0 失败，见 §4.6.3 |
+| 2026-11-10 | `shop_deposit` 并发创建加固（审计 33.4/33.6）：恢复 MySQL 唯一键 `uk_owner(owner_type,owner_id)`，两处 INSERT 改 `ON CONFLICT DO NOTHING`；staging `1c05a25` 上线（10:14，备份 `nextrade.bak.20261110_101415`），回归 53/53 + 跨接口 4/4 |
 
 ---
 
@@ -475,10 +506,10 @@ python regress/api_assert.py --self-test  # 离线自检断言原语
 | # | 项 | 为什么重要 | 落点 |
 |---|---|---|---|
 | 1 | **正式发版 `build-rust-backend`** | 线上跑的是 72 MB staging 包（无 tag、无版本留档），对外版本应以 Release 为准 | §4.4；**必须先拿到用户「发正式版」授权** |
-| 2 | **`cargo test` 纳入 CI** | 现在只跑 `cargo check`，3 处单测断言早已与实现不符却一直「绿」 | `.github/workflows/check-rust.yml` 加 `cargo test --workspace -j 1` |
-| 3 | **171 个无 `RETURNING` 的 INSERT 甄别** | MySQL `LAST_INSERT_ID()` 语义在 PG 下取不到自增主键 | 审计第二十二章台账，优先「插入后立刻用 id」的路径 |
-| 4 | **2 处语义映射业务复核** | 迁移期人工改写过条件，需业务侧确认口径 | 审计台账标注处 |
-| 5 | **回归断言升级** | 只统计 HTTP 状态码会漏掉「吞错误」的接口（`statisticalData` 200 但全 0） | ✅ 已完成（2026-11-10）：`regress/api_assert.py`，53 用例 + 4 项跨接口一致性 + 基线守卫，见 §4.6.2 与审计第三十二章 |
-| 6 | CI 构建提速（未实施） | 20.7 min → 目标 6~8 min | §4.5 |
-| 7 | 安全整改 | `crates/common/src/config.rs:159` 内置默认 JWT secret；历史提交含明文口令 | §6 第 1 条 |
+| 2 | **`cargo test` 纳入 CI** | 现在只跑 `cargo check`，单测断言早已与实现不符却一直「绿」 | ✅ 已完成（2026-11-10）：`check-rust.yml` 加 `cargo test --workspace --no-fail-fast -j 1`；首跑暴露 82 处失败，已全部修完（含 5 处占位符编号真实 bug），见 §4.6.3 |
+| 3 | **2 处语义映射业务复核** | 迁移期人工改写过条件，需业务侧确认口径 | 审计台账标注处 |
+| 4 | **回归断言升级** | 只统计 HTTP 状态码会漏掉「吞错误」的接口（`statisticalData` 200 但全 0） | ✅ 已完成（2026-11-10）：`regress/api_assert.py`，53 用例 + 4 项跨接口一致性 + 基线守卫，见 §4.6.2 与审计第三十二章 |
+| 5 | CI 构建提速（未实施） | 20.7 min → 目标 6~8 min | §4.5 |
+| 6 | 安全整改 | `crates/common/src/config.rs:159` 内置默认 JWT secret；历史提交含明文口令 | §6 第 1 条 |
+| 7 | `shop_deposit(owner_type, owner_id)` 补唯一索引 | 现为非唯一索引 + 先查后插，并发可产生重复保证金账户（当前 0 行） | ✅ 已完成（2026-11-10）：唯一索引 `uk_shop_deposit_owner` 生效 + 两处 INSERT 改 `ON CONFLICT DO NOTHING`，部署 `1c05a25`，回归 53/53，见审计 33.6 |
 | 8 | `docker-compose.yml` / `deploy/README.md` 仍是 MySQL 口径 | 环境重建会踩坑 | §6 第 2、3 条 |

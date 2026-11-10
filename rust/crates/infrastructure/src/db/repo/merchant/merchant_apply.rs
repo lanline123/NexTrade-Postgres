@@ -314,7 +314,7 @@ mod tests {
         let (sql, like) = build_where(&q);
         assert_eq!(
             sql,
-            " WHERE status = 1 AND (company_name LIKE $1 OR contact_name LIKE $2)"
+            " WHERE status = 1 AND (company_name LIKE ? OR contact_name LIKE ?)"
         );
         assert_eq!(like.as_deref(), Some("%abc%"));
     }

@@ -887,7 +887,7 @@ mod tests {
         // 静态守卫：这些 SQL 只读少量列，避免 SELECT * 拖慢列表
         let src = include_str!("im_conversation.rs");
         assert!(src.contains(
-            "SELECT user_id, username, nickname, avatar, mobile FROM \"user\" WHERE user_id IN ("
+            r#"SELECT user_id, username, nickname, avatar, mobile FROM \"user\" WHERE user_id IN ("#
         ));
         assert!(src.contains("SELECT shop_id, shop_title, shop_logo FROM shop WHERE shop_id IN ("));
         assert!(src.contains(

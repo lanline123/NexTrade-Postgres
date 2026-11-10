@@ -386,7 +386,7 @@ mod tests {
             from,
             "refund_log LEFT JOIN refund_apply ON refund_apply.refund_id = refund_log.refund_apply_id LEFT JOIN aftersales ON aftersales.aftersale_id = refund_apply.aftersale_id"
         );
-        assert_eq!(where_sql, " WHERE aftersales.aftersales_sn LIKE $1");
+        assert_eq!(where_sql, " WHERE aftersales.aftersales_sn LIKE ?");
         assert!(matches!(&binds[0], Bind::Str(s) if s == "%SH2024%"));
     }
 
@@ -398,14 +398,14 @@ mod tests {
         })));
         assert_eq!(
             where_sql,
-            " WHERE aftersales.aftersales_sn LIKE $1 AND refund_log.refund_type = $2"
+            " WHERE aftersales.aftersales_sn LIKE ? AND refund_log.refund_type = ?"
         );
         assert!(matches!(&binds[0], Bind::Str(s) if s == "%sn%"));
         assert!(matches!(binds[1], Bind::I32(2)));
 
         // type = 0 也要生效（Java `type != null`，不是 `> 0`）
         let (_f, where_sql, binds) = build_from_where(&q(serde_json::json!({"type": 0})));
-        assert_eq!(where_sql, " WHERE refund_log.refund_type = $1");
+        assert_eq!(where_sql, " WHERE refund_log.refund_type = ?");
         assert!(matches!(binds.as_slice(), [Bind::I32(0)]));
     }
 

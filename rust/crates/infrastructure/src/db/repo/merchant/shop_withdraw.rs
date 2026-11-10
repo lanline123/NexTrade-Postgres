@@ -357,7 +357,7 @@ mod tests {
                 withdraw_sn, withdraw_type, pay_channel, offline_frozen_amount,
                 channel_withdraw_id, channel_status
              ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'','')";
-        let opens = sql.matches('?').count();
+        let opens = sql.matches('$').count();
         assert_eq!(opens, 11, "shop_withdraw 插入占位符数量");
     }
 }

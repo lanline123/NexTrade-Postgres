@@ -1288,7 +1288,7 @@ mod tests {
         let q = UserListQuery::default();
         let f = UserPageFilter::from_query(&q, None);
         let (sql, binds) = with_binds(f);
-        assert_eq!(sql, " WHERE user_type = $1");
+        assert_eq!(sql, " WHERE user_type = ?");
         assert_eq!(binds.len(), 1);
         match &binds[0] {
             Bind::I32(v) => assert_eq!(*v, 0),

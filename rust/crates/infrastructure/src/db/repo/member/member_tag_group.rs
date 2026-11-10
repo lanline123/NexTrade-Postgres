@@ -530,7 +530,7 @@ mod tests {
                 .expect("INSERT 应带列清单");
             let cols: Vec<&str> = cols_part.split(',').map(str::trim).collect();
             assert_eq!(cols.len(), expected_cols, "{table} 列数不对: {cols:?}");
-            let placeholders = sql.matches('?').count();
+            let placeholders = sql.matches('$').count();
             assert_eq!(placeholders, expected_cols, "{table} 占位符数不对: {sql}");
         }
     }

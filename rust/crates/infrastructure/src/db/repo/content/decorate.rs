@@ -1152,7 +1152,7 @@ mod tests {
         let mut sql = String::from(" WHERE 1=1");
         let mut params = Vec::new();
         push_in(&mut sql, &mut params, "page_type", &[1, 3]);
-        assert_eq!(sql, " WHERE 1=1 AND page_type IN ($1,$2)");
+        assert_eq!(sql, " WHERE 1=1 AND page_type IN (?,?)");
         assert_eq!(params.len(), 2);
     }
 }

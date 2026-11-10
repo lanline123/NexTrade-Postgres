@@ -260,8 +260,15 @@ fn map_err(e: sqlx::Error) -> Error {
 mod tests {
     #[test]
     fn aggregate_query_is_parameterized() {
-        let sql = "SELECT COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END),0) FROM statement WHERE statement_year = $1 AND statement_month = $2";
-        assert!(sql.contains("statement_year = ?"));
-        assert!(!sql.contains("statement_year = 2026"));
+        // 聚合走 QueryBuilder.push_bind，占位符由 sqlx 生成（`$N`）。
+        // 原断言在测试里自造字符串，恒假；改为断言真实实现形态。
+        let src = include_str!("statement.rs");
+        assert!(
+            src.contains("FROM statement WHERE statement_year = "),
+            "年份必须是 QueryBuilder 的绑定位"
+        );
+        // 同 apple_pay：否定断言的 needle 必须运行期拼接，避免自我命中。
+        let hardcoded = format!("statement_year = {}", 2026);
+        assert!(!src.contains(&hardcoded), "不许写死年份");
     }
 }

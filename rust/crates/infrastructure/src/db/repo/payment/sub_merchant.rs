@@ -135,7 +135,14 @@ mod tests {
             .split(" FROM ")
             .next()
             .unwrap();
-        assert_eq!(selected, SUB_MERCHANT_COLUMNS.join(", "));
+        // PG 里 text 化时间列写成 `create_time::text AS create_time`，
+        // 断言只看「逻辑列是否覆盖齐全」，不绑死某一种 cast 写法。
+        let logical = selected
+            .split(", ")
+            .map(|c| c.rsplit(" AS ").next().unwrap().trim())
+            .collect::<Vec<_>>()
+            .join(", ");
+        assert_eq!(logical, SUB_MERCHANT_COLUMNS.join(", "));
     }
 
     #[test]

@@ -166,6 +166,6 @@ mod tests {
     fn insert_placeholder_count() {
         let sql = "INSERT INTO user_recharge_order (user_id, amount, discount_money, add_time, paid_time, postscript, status)
              VALUES ($1,$2,$3,$4,0,$5,0)";
-        assert_eq!(sql.matches('?').count(), 5);
+        assert_eq!(sql.matches('$').count(), 5);
     }
 }

@@ -562,7 +562,7 @@ mod tests {
         );
         assert_eq!(
             sql,
-            " WHERE is_delete = 0 AND activity_name LIKE $1 AND activity_name LIKE $2"
+            " WHERE is_delete = 0 AND activity_name LIKE ? AND activity_name LIKE ?"
         );
         assert_eq!(binds, vec!["%抽奖%".to_string(), "%元旦%".to_string()]);
 

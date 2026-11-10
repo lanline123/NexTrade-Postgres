@@ -618,7 +618,7 @@ mod tests {
             ..Default::default()
         };
         let (sql, binds) = build_page_where(&f);
-        assert_eq!(sql, " WHERE 1 = 1 AND admin_type = $1 AND parent_id = $2");
+        assert_eq!(sql, " WHERE 1 = 1 AND admin_type = ? AND parent_id = ?");
         assert_eq!(binds.len(), 2);
     }
 

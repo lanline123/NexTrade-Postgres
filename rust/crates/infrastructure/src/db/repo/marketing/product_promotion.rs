@@ -527,13 +527,13 @@ mod tests {
                 \"range\", range_data, min_order_amount, max_order_amount, promotion_type,
                 promotion_type_data, is_available, sort_order, shop_id, rules_type, unit)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)";
-        assert_eq!(insert.matches('?').count(), 15);
+        assert_eq!(insert.matches('$').count(), 15);
         let update = "UPDATE product_promotion SET promotion_name = $1, start_time = $2, end_time = $3,
                 limit_user_rank = $4, \"range\" = $5, range_data = $6, min_order_amount = $7,
                 max_order_amount = $8, promotion_type = $9, promotion_type_data = $10,
                 is_available = $11, sort_order = $12, shop_id = $13, rules_type = $14, unit = $15
              WHERE promotion_id = $16";
-        assert_eq!(update.matches('?').count(), 16);
+        assert_eq!(update.matches('$').count(), 16);
         assert_eq!(GAIN_TYPES, [3, 4, 5]);
         let _ = empty_entity();
     }

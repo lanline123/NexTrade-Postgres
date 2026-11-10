@@ -377,10 +377,10 @@ mod tests {
     #[test]
     fn where_filters_shop_and_optional_keyword() {
         let (sql, binds) = build_where(&q(serde_json::json!({})), 7);
-        assert_eq!(sql, " WHERE shop_id = $1");
+        assert_eq!(sql, " WHERE shop_id = ?");
         assert!(matches!(binds.as_slice(), [Bind::I32(7)]));
         let (sql, binds) = build_where(&q(serde_json::json!({"keyword": " 新年 "})), 7);
-        assert_eq!(sql, " WHERE shop_id = $1 AND card_group_name LIKE $2");
+        assert_eq!(sql, " WHERE shop_id = ? AND card_group_name LIKE ?");
         assert!(matches!(&binds[1], Bind::Str(s) if s == "%新年%"));
     }
 

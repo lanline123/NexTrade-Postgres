@@ -576,12 +576,14 @@ mod tests {
             .collect();
         assert_eq!(sets, vec!["consignee", "is_default", "latitude"]);
         let sql = format!(
-            "UPDATE user_address SET {} WHERE address_id = $1",
+            "UPDATE user_address SET {} WHERE address_id = ?",
             sets.iter().map(|c| format!("{c} = ?")).collect::<Vec<_>>().join(", ")
         );
+        // 实现里是 MySQL 风格 `?` 拼好后再交 `to_pg_placeholders()` 转换，
+        // 这里断言的是「转换前」的形态。
         assert_eq!(
             sql,
-            "UPDATE user_address SET consignee = $1, is_default = $2, latitude = $3 WHERE address_id = $4"
+            "UPDATE user_address SET consignee = ?, is_default = ?, latitude = ? WHERE address_id = ?"
         );
 
         // 全 None → 无 SET 子句（仓储据此返回 Ok(false)，不执行 SQL）

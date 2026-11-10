@@ -1402,7 +1402,7 @@ fn build_filter(q: &OrderListQuery, platform_view: bool) -> Result<(String, Vec<
             // 按支付日志筛选已支付订单（Java 用 leftJoin + groupBy 实现同一语义）
             conds.push(
                 "EXISTS (SELECT 1 FROM paylog p WHERE p.order_id = \"order\".order_id \
-                 AND p.order_type = 0 AND p.pay_code = $1 AND p.pay_status = 2)"
+                 AND p.order_type = 0 AND p.pay_code = ? AND p.pay_status = 2)"
                     .into(),
             );
             binds.push(Bind::Str(pay_code.to_string()));
@@ -1480,7 +1480,7 @@ fn build_filter(q: &OrderListQuery, platform_view: bool) -> Result<(String, Vec<
             Some(uid) => {
                 conds.push(
                     "EXISTS (SELECT 1 FROM comment c WHERE c.order_id = \"order\".order_id \
-                     AND c.user_id = $1 AND c.is_showed = $2)"
+                     AND c.user_id = ? AND c.is_showed = ?)"
                         .into(),
                 );
                 binds.push(Bind::I32(uid));
@@ -1496,7 +1496,7 @@ fn build_filter(q: &OrderListQuery, platform_view: bool) -> Result<(String, Vec<
             "order_sn LIKE ?".to_string(),
             "consignee LIKE ?".to_string(),
             "EXISTS (SELECT 1 FROM order_item oi WHERE oi.order_id = \"order\".order_id \
-             AND oi.product_name LIKE $1)"
+             AND oi.product_name LIKE ?)"
                 .to_string(),
         ];
         binds.push(Bind::Str(like.clone()));

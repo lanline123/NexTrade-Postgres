@@ -448,16 +448,16 @@ mod tests {
     #[test]
     fn where_always_filters_group_and_optional_keyword() {
         let (sql, binds) = build_where(&q(serde_json::json!({})), 5);
-        assert_eq!(sql, " WHERE card_groups_id = $1");
+        assert_eq!(sql, " WHERE card_groups_id = ?");
         assert!(matches!(binds.as_slice(), [Bind::I32(5)]));
 
         // Java `keyword != null`：空串也参与 LIKE
         let (sql, binds) = build_where(&q(serde_json::json!({"keyword": ""})), 5);
-        assert_eq!(sql, " WHERE card_groups_id = $1 AND card_number LIKE $2");
+        assert_eq!(sql, " WHERE card_groups_id = ? AND card_number LIKE ?");
         assert!(matches!(&binds[1], Bind::Str(s) if s == "%%"));
 
         let (sql, binds) = build_where(&q(serde_json::json!({"keyword": "GC20"})), 9);
-        assert_eq!(sql, " WHERE card_groups_id = $1 AND card_number LIKE $2");
+        assert_eq!(sql, " WHERE card_groups_id = ? AND card_number LIKE ?");
         assert!(matches!(&binds[1], Bind::Str(s) if s == "%GC20%"));
     }
 

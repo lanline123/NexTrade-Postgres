@@ -491,9 +491,23 @@ mod tests {
                 .unwrap()
                 .to_string()
         }
-        assert_eq!(selected(RULE_SELECT), RULE_COLUMNS.join(", "));
-        assert_eq!(selected(RULE_CATEGORY_SELECT), CATEGORY_COLUMNS.join(", "));
-        assert_eq!(selected(RULE_TARGET_SELECT), TARGET_COLUMNS.join(", "));
+        // PG 里 text 化时间列写成 `create_time::text AS create_time`，
+        // 断言只看「逻辑列是否覆盖齐全」，不绑死某一种 cast 写法。
+        fn logical(s: &str) -> String {
+            s.split(", ")
+                .map(|c| c.rsplit(" AS ").next().unwrap().trim())
+                .collect::<Vec<_>>()
+                .join(", ")
+        }
+        assert_eq!(logical(&selected(RULE_SELECT)), RULE_COLUMNS.join(", "));
+        assert_eq!(
+            logical(&selected(RULE_CATEGORY_SELECT)),
+            CATEGORY_COLUMNS.join(", ")
+        );
+        assert_eq!(
+            logical(&selected(RULE_TARGET_SELECT)),
+            TARGET_COLUMNS.join(", ")
+        );
         assert_eq!(RULE_COLUMNS.len(), 10);
     }
 

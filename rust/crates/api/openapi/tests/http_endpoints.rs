@@ -39,8 +39,19 @@ async fn get_json(path: &str) -> (StatusCode, serde_json::Value) {
     (status, json)
 }
 
+/// 无契约时跳过（原因见 contract_integrity.rs 的同名说明）。
+macro_rules! skip_without_contract {
+    () => {
+        if !Contract::embedded().is_available() {
+            eprintln!("[skip] 未嵌入 API 契约（缺 docs/api-contract.json），跳过该用例");
+            return;
+        }
+    };
+}
+
 #[tokio::test]
 async fn summary_reports_totals_and_percent() {
+    skip_without_contract!();
     let (status, body) = get_json("/summary").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["contract_available"], true);
@@ -61,6 +72,7 @@ async fn summary_reports_totals_and_percent() {
 
 #[tokio::test]
 async fn coverage_lists_missing_and_by_module() {
+    skip_without_contract!();
     let (status, body) = get_json("/coverage").await;
     assert_eq!(status, StatusCode::OK);
     let missing = body["missing"].as_array().expect("missing is an array");
@@ -84,6 +96,7 @@ async fn coverage_lists_missing_and_by_module() {
 
 #[tokio::test]
 async fn contract_query_paginates_and_filters() {
+    skip_without_contract!();
     let (status, body) = get_json("/contract?module=api&pageSize=5&page=1").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["page"], 1);
@@ -110,6 +123,7 @@ async fn contract_query_paginates_and_filters() {
 
 #[tokio::test]
 async fn contract_keyword_search_matches_path_or_summary() {
+    skip_without_contract!();
     let (status, body) = get_json("/contract?keyword=adminUser&pageSize=50").await;
     assert_eq!(status, StatusCode::OK);
     let list = body["list"].as_array().expect("list is an array");
@@ -130,6 +144,7 @@ async fn contract_keyword_search_matches_path_or_summary() {
 
 #[tokio::test]
 async fn missing_endpoint_respects_limit() {
+    skip_without_contract!();
     let (status, body) = get_json("/missing?limit=10").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["returned"], 10);

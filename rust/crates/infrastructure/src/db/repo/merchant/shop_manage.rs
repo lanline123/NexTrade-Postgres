@@ -966,7 +966,7 @@ fn build_filter(
     if let Some(mid) = q.area_store_manager_id {
         sql.push_str(
             " AND EXISTS (SELECT 1 FROM area_store_manager_shop asm
-                           WHERE asm.shop_id = s.shop_id AND asm.area_store_manager_id = $1)",
+                           WHERE asm.shop_id = s.shop_id AND asm.area_store_manager_id = ?)",
         );
         binds.push(Bind::I32(mid));
     }
@@ -977,7 +977,7 @@ fn build_filter(
             " AND EXISTS (SELECT 1 FROM merchant m
                            WHERE m.merchant_id = s.merchant_id
                              AND (m.is_delete IS NULL OR m.is_delete = 0)
-                             AND m.corporate_name LIKE CONCAT('%', $1, '%'))",
+                             AND m.corporate_name LIKE CONCAT('%', ?, '%'))",
         );
         binds.push(Bind::Str(name.to_string()));
     }

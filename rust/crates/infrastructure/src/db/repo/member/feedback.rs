@@ -867,13 +867,13 @@ mod tests {
         assert!(!sql.contains("type IN"), "{sql}");
         // 平台账号 ⇒ 追加可见性条件，且只有一个占位符（SHOP_FEEDBACK_TYPES 长度 1）
         assert!(
-            sql.contains(" AND (shop_id = 0 OR type NOT IN (?))"),
+            sql.contains(" AND (shop_id = 0 OR type NOT IN ($"),
             "{sql}"
         );
         // 占位符数量必须与绑定参数数量一致：`push` 里的字面量 `?` 会导致
         // MySQL 1064 `near '?'`（2026-10-21 `/adminapi/user/feedback/list` 500）。
         assert_eq!(
-            sql.matches('?').count(),
+            sql.matches('$').count(),
             1,
             "平台可见性条件只应有 1 个占位符: {sql}"
         );
@@ -886,10 +886,10 @@ mod tests {
         let f = FeedbackListFilter::platform(vec![2, 3], None);
         let sql = build(&query(serde_json::json!({})), &f);
         // `type IN (?, ?)` + `NOT IN (?)`
-        assert_eq!(sql.matches('?').count(), 3, "占位符数量不符: {sql}");
-        assert!(sql.contains("type IN (?, ?)"), "{sql}");
-        // 不得出现 `()) ?`、`(?) ?` 这类重复占位
-        assert!(!sql.contains(") ?"), "疑似重复占位符: {sql}");
+        assert_eq!(sql.matches('$').count(), 3, "占位符数量不符: {sql}");
+        assert!(sql.contains("type IN ($1, $2)"), "{sql}");
+        // 不得出现 `()) $`、`($) $` 这类重复占位
+        assert!(!sql.contains(") $"), "疑似重复占位符: {sql}");
     }
 
     /// `type` 为 `null` / `""` 时（平台账号）**不加**类型条件。
@@ -912,13 +912,13 @@ mod tests {
         );
         let sql = build(&q, &FeedbackListFilter::shop(types, 7, false));
         // `type IN (?)` 的占位由 push_bind 生成（字面量 `?` 会重复绑定）
-        assert!(sql.contains(" AND type IN (?)"), "{sql}");
+        assert!(sql.contains(" AND type IN ($1)"), "{sql}");
         assert_eq!(
-            sql.matches('?').count(),
+            sql.matches('$').count(),
             2,
             "IN + shop_id 共 2 个占位: {sql}"
         );
-        assert!(!sql.contains(") ?"), "疑似重复占位符: {sql}");
+        assert!(!sql.contains(") $"), "疑似重复占位符: {sql}");
         assert!(!sql.contains("OR type NOT IN"), "{sql}");
     }
 

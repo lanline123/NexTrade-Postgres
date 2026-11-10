@@ -320,7 +320,7 @@ mod tests {
         // 静态守卫：keyword 过滤必须同时覆盖用户名与单位名称
         let src = include_str!("order_invoice.rs");
         assert!(src.contains("AND (company_name LIKE "));
-        assert!(src.contains("SELECT user_id FROM \"user\" WHERE username LIKE $1"));
-        assert!(src.contains("SELECT order_id, order_sn FROM \"order\" WHERE order_id IN ("));
+        assert!(src.contains(r#"SELECT user_id FROM \"user\" WHERE username LIKE $1"#));
+        assert!(src.contains(r#"SELECT order_id, order_sn FROM \"order\" WHERE order_id IN ("#));
     }
 }

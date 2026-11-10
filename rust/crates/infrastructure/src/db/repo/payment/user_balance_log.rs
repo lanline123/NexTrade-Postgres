@@ -296,7 +296,7 @@ mod tests {
     fn wallet_type_zero_still_filters() {
         // Java `.eq(walletType != null, ...)` —— 0 不是「未传」
         let (sql, binds) = build_where(&q(serde_json::json!({"walletType": 0})));
-        assert_eq!(sql, " WHERE user_balance_log.wallet_type = $1");
+        assert_eq!(sql, " WHERE user_balance_log.wallet_type = ?");
         assert!(matches!(binds.as_slice(), [Bind::I32(0)]));
     }
 
@@ -305,7 +305,7 @@ mod tests {
         assert_eq!(build_where(&q(serde_json::json!({"userId": 0}))).0, "");
         assert_eq!(build_where(&q(serde_json::json!({"userId": -1}))).0, "");
         let (sql, binds) = build_where(&q(serde_json::json!({"userId": 8})));
-        assert_eq!(sql, " WHERE user_balance_log.user_id = $1");
+        assert_eq!(sql, " WHERE user_balance_log.user_id = ?");
         assert!(matches!(binds.as_slice(), [Bind::I32(8)]));
     }
 
@@ -321,7 +321,7 @@ mod tests {
         let (sql, binds) = build_where(&q(serde_json::json!({"keyword": " 充值 ", "username": "bob"})));
         assert_eq!(
             sql,
-            " WHERE user_balance_log.change_desc LIKE $1 AND u.username LIKE $2"
+            " WHERE user_balance_log.change_desc LIKE ? AND u.username LIKE ?"
         );
         assert!(matches!(&binds[0], Bind::Str(s) if s == "%充值%"));
         assert!(matches!(&binds[1], Bind::Str(s) if s == "%bob%"));
@@ -330,7 +330,7 @@ mod tests {
     #[test]
     fn exclude_distribution_not_like_pattern_uses_java_literal() {
         let (sql, binds) = build_where(&q(serde_json::json!({"excludeDistribution": 1})));
-        assert_eq!(sql, " WHERE user_balance_log.change_desc NOT LIKE $1");
+        assert_eq!(sql, " WHERE user_balance_log.change_desc NOT LIKE ?");
         assert!(
             matches!(&binds[0], Bind::Str(s) if s == &format!("%{DISTRIBUTION_SETTLE_KEYWORD}%")),
             "{binds:?}"
@@ -345,7 +345,7 @@ mod tests {
         })));
         assert_eq!(
             sql,
-            " WHERE user_balance_log.change_desc LIKE $1 AND user_balance_log.user_id = $2 AND user_balance_log.balance > 0 AND user_balance_log.wallet_type = $3 AND user_balance_log.change_desc NOT LIKE $4 AND u.username LIKE $5"
+            " WHERE user_balance_log.change_desc LIKE ? AND user_balance_log.user_id = ? AND user_balance_log.balance > 0 AND user_balance_log.wallet_type = ? AND user_balance_log.change_desc NOT LIKE ? AND u.username LIKE ?"
         );
     }
 

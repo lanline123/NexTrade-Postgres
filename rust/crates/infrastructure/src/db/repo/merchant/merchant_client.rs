@@ -332,8 +332,9 @@ mod tests {
         assert!(MERCHANT_APPLY_SELECT.contains("\"type\""));
     }
 
-    /// INSERT 的列数与占位符数必须一致（12 列 / 12 个 `$1`），
-    /// 且必须用 \"IFNULL\" 复刻 MyBatis-Plus \"NOT_NULL\" 策略下的列默认值。
+    /// INSERT 的列数与占位符数必须一致（12 列 / 12 个 `$N`），
+    /// 且可空列必须补列默认值（JSON 迁移后统一用 `COALESCE`，
+    /// 原 MySQL 的 `IFNULL` 在 PG 不存在）。
     ///
     /// 直接断言实际下发的 \"INSERT_APPLY_SQL\" 常量（而非测试里另抄一份），
     /// 这样常量一改测试就会失败。
@@ -344,13 +345,21 @@ mod tests {
             .split(',')
             .filter(|s| !s.trim().is_empty())
             .count();
-        let marks = sql[sql.find("VALUES").unwrap()..].matches('?').count();
+        // PG 占位符是 `$N`，不是 MySQL 的 `?`
+        let values = &sql[sql.find("VALUES").unwrap()..];
+        let marks = values.matches('$').count();
         assert_eq!(cols, 12);
-        assert_eq!(marks, cols);
+        assert_eq!(marks, cols, "12 列必须配 12 个 $N 占位符");
+        assert!(
+            values.contains("$12"),
+            "占位符编号应连续到 $12：{values}"
+        );
         // 四个可空列必须补列默认值：shop_title / type / company_name / corporate_name
-        assert_eq!(sql.matches("IFNULL").count(), 4);
-        assert!(sql.contains("COALESCE($1, '')"));
-        assert!(sql.contains("COALESCE($1, 1)"));
+        assert_eq!(sql.matches("COALESCE").count(), 4);
+        assert!(sql.contains("COALESCE($3, '')"));
+        assert!(sql.contains("COALESCE($5, 1)"));
+        assert!(sql.contains("COALESCE($11, '')"));
+        assert!(sql.contains("COALESCE($12, '')"));
         // 主键（自增）不能出现在列清单里
         assert!(!sql.contains("merchant_apply_id"));
     }
@@ -374,7 +383,7 @@ mod tests {
         assert_eq!(cols, values, "列数与值数必须一致");
         assert_eq!(cols, 13);
         // 绑定参数个数 = 下发时 `.bind(...)` 的次数
-        assert_eq!(sql.matches('?').count(), 5);
+        assert_eq!(sql.matches('$').count(), 5);
     }
 
     /// \"region\" 列清单与实体 8 字段一致。

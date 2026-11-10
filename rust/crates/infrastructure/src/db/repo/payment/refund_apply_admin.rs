@@ -74,12 +74,12 @@ mod tests {
     fn delete_and_update_statements_are_parameterized() {
         assert_eq!(
             "UPDATE refund_apply SET refund_status = $1 WHERE refund_id = $2"
-                .matches('?')
+                .matches('$')
                 .count(),
             2
         );
         let delete = "DELETE FROM refund_apply WHERE refund_id IN ($1, $2)";
-        assert_eq!(delete.matches('?').count(), 2);
+        assert_eq!(delete.matches('$').count(), 2);
         assert!(!delete.contains("refund_id IN (1"));
     }
 }

@@ -491,9 +491,11 @@ mod tests {
 
     #[test]
     fn compute_rate_divides_and_strips_trailing_zeros() {
-        // 1 USD = 7.2464 CNY，1 USD = 0.8999 EUR → 1 EUR = 8.052229 CNY
+        // 1 USD = 7.2464 CNY，1 USD = 0.8999 EUR → 1 EUR = 7.2464 / 0.8999
+        //   = 8.052450272... 按 RATE_SCALE=6（对齐 Java BigDecimal.setScale(6)）
+        //   四舍五入得 8.052450，normalize() 去尾 0 后为 "8.05245"。
         let rate = compute_rate(d("7.2464"), d("0.8999")).unwrap();
-        assert_eq!(rate, "8.052228");
+        assert_eq!(rate, "8.05245");
         // 精确整除后末尾 0 去除
         assert_eq!(compute_rate(d("2"), d("4")).unwrap(), "0.5");
         assert_eq!(compute_rate(d("1"), d("2")).unwrap(), "0.5");

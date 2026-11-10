@@ -847,7 +847,7 @@ mod tests {
                 ..Default::default()
             };
             let (sql, binds) = sql_and_binds(&q, None, None, false, None);
-            assert_eq!(sql, " WHERE aftersale_type = $1");
+            assert_eq!(sql, " WHERE aftersale_type = ?");
             assert_eq!(binds, vec![t.to_string()]);
         }
     }
@@ -859,7 +859,7 @@ mod tests {
         let (sql, _) = sql_and_binds(&q, Some(0), Some(-1), false, None);
         assert_eq!(sql, "");
         let (sql, binds) = sql_and_binds(&q, Some(3), Some(7), false, None);
-        assert_eq!(sql, " WHERE shop_id = $1 AND vendor_id = $2");
+        assert_eq!(sql, " WHERE shop_id = ? AND vendor_id = ?");
         assert_eq!(binds, vec!["3".to_string(), "7".to_string()]);
     }
 
@@ -871,7 +871,7 @@ mod tests {
             ..Default::default()
         };
         let (sql, binds) = sql_and_binds(&q, None, None, false, None);
-        assert_eq!(sql, " WHERE status = $1");
+        assert_eq!(sql, " WHERE status = ?");
         assert_eq!(binds, vec!["2".to_string()]);
 
         let q = AftersalesListQuery {
@@ -887,7 +887,7 @@ mod tests {
         // 未传 status → 默认白名单 21/4/22/6
         let q = AftersalesListQuery::default();
         let (sql, binds) = sql_and_binds(&q, None, None, true, None);
-        assert_eq!(sql, " WHERE status IN ($1, $2, $3, $4)");
+        assert_eq!(sql, " WHERE status IN (?, ?, ?, ?)");
         assert_eq!(binds, vec!["21", "4", "22", "6"]);
 
         // 传了白名单内的状态 → 精确匹配
@@ -896,7 +896,7 @@ mod tests {
             ..Default::default()
         };
         let (sql, binds) = sql_and_binds(&q, None, None, true, None);
-        assert_eq!(sql, " WHERE status = $1");
+        assert_eq!(sql, " WHERE status = ?");
         assert_eq!(binds, vec!["6".to_string()]);
 
         // 传了白名单外的状态 → -999（必然查空）
@@ -905,7 +905,7 @@ mod tests {
             ..Default::default()
         };
         let (sql, binds) = sql_and_binds(&q, None, None, true, None);
-        assert_eq!(sql, " WHERE status = $1");
+        assert_eq!(sql, " WHERE status = ?");
         assert_eq!(binds, vec!["-999".to_string()]);
     }
 
@@ -916,7 +916,7 @@ mod tests {
             ..Default::default()
         };
         let (sql, binds) = sql_and_binds(&q, None, None, false, Some(&[5, 6]));
-        assert_eq!(sql, " WHERE aftersales_sn LIKE $1 AND order_id IN ($2, $3)");
+        assert_eq!(sql, " WHERE aftersales_sn LIKE ? AND order_id IN (?, ?)");
         assert_eq!(binds, vec!["%SN1%".to_string(), "5".to_string(), "6".to_string()]);
 
         // 空串不作为过滤条件
@@ -935,7 +935,7 @@ mod tests {
             ..Default::default()
         };
         let (sql, binds) = sql_and_binds(&q, None, None, false, None);
-        assert_eq!(sql, " WHERE user_id = $1");
+        assert_eq!(sql, " WHERE user_id = ?");
         assert_eq!(binds, vec!["9".to_string()]);
     }
 

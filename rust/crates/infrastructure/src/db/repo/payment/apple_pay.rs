@@ -65,8 +65,13 @@ fn map_err(e: sqlx::Error) -> Error {
 mod tests {
     #[test]
     fn queries_are_parameterized() {
-        let sql = "SELECT * FROM paylog WHERE pay_sn = $1 ORDER BY paylog_id DESC LIMIT 1";
-        assert!(sql.contains("pay_sn = ?"));
-        assert!(!sql.contains("pay_sn = '"));
+        // 原断言在测试里自造字符串再断言它，恒真且与被测代码无关；
+        // 改为校验真实源码：pay_sn 必须绑参，不许内联。
+        let src = include_str!("apple_pay.rs");
+        assert!(src.contains("WHERE pay_sn = $1"), "pay_sn 必须绑参");
+        // 注意：include_str! 会连本测试自身一起读入，否定断言若直接写字面
+        // needle 会自我命中，故在运行期拼出来。
+        let inlined = format!("pay_sn = {}", '\'');
+        assert!(!src.contains(&inlined), "不许把 pay_sn 内联进 SQL");
     }
 }

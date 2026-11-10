@@ -367,7 +367,7 @@ mod tests {
     fn status_zero_applies_but_minus_one_is_ignored() {
         // Java: status != null && status > -1（0 是有效筛选值）
         let (sql, binds) = build_where(&q(serde_json::json!({"status": 0})), None, &[]);
-        assert_eq!(sql, " WHERE status = $1");
+        assert_eq!(sql, " WHERE status = ?");
         assert!(matches!(binds.as_slice(), [Bind::I32(0)]));
         let (sql, binds) = build_where(&q(serde_json::json!({"status": -1})), None, &[]);
         assert_eq!(sql, "");
@@ -381,7 +381,7 @@ mod tests {
         // insert 使用 [1..] 跳过自增主键
         assert!(!USER_INVOICE_COLUMNS[1..].contains(&"invoice_id"));
         let src = include_str!("user_invoice.rs");
-        assert!(src.contains("SELECT user_id FROM \"user\" WHERE username LIKE $1"));
+        assert!(src.contains(r#"SELECT user_id FROM \"user\" WHERE username LIKE $1"#));
         assert!(src.contains("OR user_id IN ({placeholders})"));
     }
 }

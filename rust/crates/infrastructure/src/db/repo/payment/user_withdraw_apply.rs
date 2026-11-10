@@ -453,6 +453,6 @@ mod tests {
         assert!(src.contains("INSERT INTO user_withdraw_apply"));
         assert!(src.contains("INSERT INTO user_balance_log"));
         assert!(src.contains("SELECT COUNT(*) FROM user_withdraw_apply WHERE status = 0 AND id IN ("));
-        assert!(src.contains("frozen_commission_balance FROM \"user\""));
+        assert!(src.contains(r#"frozen_commission_balance FROM \"user\""#));
     }
 }

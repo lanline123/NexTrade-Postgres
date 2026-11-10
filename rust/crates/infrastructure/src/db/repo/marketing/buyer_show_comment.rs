@@ -358,7 +358,7 @@ mod tests {
     fn filter_pending_status_maps_to_status_zero() {
         // Java：status == -1 → status = 0（待审核）；此分支**不**看 is_show
         let (sql, binds) = build_filter(&query(r#"{"status":-1}"#)).unwrap();
-        assert_eq!(sql, " WHERE status = $1");
+        assert_eq!(sql, " WHERE status = ?");
         assert_eq!(binds, vec![Bind::I32(0)]);
     }
 
@@ -366,7 +366,7 @@ mod tests {
     fn filter_show_status_maps_to_is_show() {
         for s in [0, 1] {
             let (sql, binds) = build_filter(&query(&format!(r#"{{"status":{s}}}"#))).unwrap();
-            assert_eq!(sql, " WHERE status <> 0 AND is_show = $1");
+            assert_eq!(sql, " WHERE status <> 0 AND is_show = ?");
             assert_eq!(binds, vec![Bind::I32(s)]);
         }
     }
@@ -382,7 +382,7 @@ mod tests {
     #[test]
     fn filter_combines_buyer_show_and_status_in_java_order() {
         let (sql, binds) = build_filter(&query(r#"{"buyerShowId":7,"status":1}"#)).unwrap();
-        assert_eq!(sql, " WHERE buyer_show_id = $1 AND status <> 0 AND is_show = $2");
+        assert_eq!(sql, " WHERE buyer_show_id = ? AND status <> 0 AND is_show = ?");
         assert_eq!(binds, vec![Bind::I32(7), Bind::I32(1)]);
     }
 
@@ -405,7 +405,7 @@ mod tests {
         // 两端都有 → 闭区间，两边界都是当日 00:00:00
         let (sql, binds) =
             build_filter(&query(r#"{"startTime":"2026-01-01","endTime":"2026-01-31"}"#)).unwrap();
-        assert_eq!(sql, " WHERE add_time BETWEEN $1 AND $2");
+        assert_eq!(sql, " WHERE add_time BETWEEN ? AND ?");
         assert_eq!(binds.len(), 2);
         let (Bind::I64(s), Bind::I64(e)) = (&binds[0], &binds[1]) else {
             panic!("时间条件必须绑定 i64: {binds:?}");

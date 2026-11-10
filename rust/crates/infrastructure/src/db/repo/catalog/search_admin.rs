@@ -393,19 +393,19 @@ mod tests {
         };
         let sql = build_sql(&f);
         assert!(sql.contains("is_delete = 0"));
-        assert!(sql.contains("product_status = ?"));
-        assert!(sql.contains("category_id IN (?, ?)"));
-        assert!(sql.contains("brand_id IN (?)"));
+        assert!(sql.contains("product_status = $"));
+        assert!(sql.contains("category_id IN ($"));
+        assert!(sql.contains("brand_id IN ($"));
         assert!(sql.contains("is_new = 1"));
         assert!(!sql.contains("%手机%"), "关键词必须走绑定参数");
         // product_status(1) + keyword(3) + category(2) + brand(1) + min(1) + max(1) + shop(1)
-        assert_eq!(sql.matches('?').count(), 10);
+        assert_eq!(sql.matches('$').count(), 10);
     }
 
     #[test]
     fn default_filter_only_excludes_deleted() {
         let sql = build_sql(&ProductSearchFilter::default());
-        assert_eq!(sql.matches('?').count(), 0);
+        assert_eq!(sql.matches('$').count(), 0);
         assert!(sql.contains("WHERE is_delete = 0"));
     }
 
@@ -473,10 +473,11 @@ mod attr_filter_tests {
         let sql = build_sql(&f);
         assert!(sql.contains("EXISTS (SELECT 1 FROM product_attributes pa"));
         assert!(sql.contains("pa.attr_type = 0"));
-        assert!(sql.contains("pa.attr_name LIKE ?"));
-        assert!(sql.contains("pa.attr_value LIKE ? OR pa.attr_value LIKE ?"));
+        assert!(sql.contains("pa.attr_name LIKE $"));
+        // 两个属性值各一个占位，编号由 QueryBuilder 顺序生成
+        assert_eq!(sql.matches("pa.attr_value LIKE $").count(), 2);
         // 属性名 1 + 两个值 = 3 个绑定参数，且值不能内联
-        assert_eq!(sql.matches('?').count(), 3);
+        assert_eq!(sql.matches('$').count(), 3);
         assert!(!sql.contains("颜色"));
         assert!(!sql.contains("红"));
     }
@@ -503,7 +504,7 @@ mod attr_filter_tests {
         let sql = build_sql(&f);
         assert_eq!(sql.matches("EXISTS (SELECT 1 FROM product_attributes pa").count(), 2);
         // 2 属性名 + 2 值
-        assert_eq!(sql.matches('?').count(), 4);
+        assert_eq!(sql.matches('$').count(), 4);
     }
 
     #[test]
@@ -515,6 +516,6 @@ mod attr_filter_tests {
             ],
             ..Default::default()
         };
-        assert_eq!(build_sql(&f).matches('?').count(), 0);
+        assert_eq!(build_sql(&f).matches('$').count(), 0);
     }
 }

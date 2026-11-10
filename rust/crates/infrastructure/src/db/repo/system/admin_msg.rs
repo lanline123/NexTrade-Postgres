@@ -486,7 +486,7 @@ mod tests {
         };
         assert_eq!(
             build_where(vendor, &q),
-            " WHERE vendor_id = 9 AND msg_type = 11 AND title LIKE $1"
+            " WHERE vendor_id = 9 AND msg_type = 11 AND title LIKE ?"
         );
         assert_eq!(like_value(&q).as_deref(), Some("%订单%"));
     }

@@ -301,12 +301,12 @@ mod tests {
         let insert = "INSERT INTO shop_deposit_rule (rule_name, merchant_types, shop_types, deposit_amount,
                 start_time, end_time, status, is_delete, add_time, update_time)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)";
-        assert_eq!(insert.matches('?').count(), 10);
+        assert_eq!(insert.matches('$').count(), 10);
         let update = "UPDATE shop_deposit_rule SET rule_name = $1, merchant_types = $2, shop_types = $3,
                 deposit_amount = $4, start_time = $5, end_time = $6, status = $7, is_delete = $8,
                 add_time = $9, update_time = $10
              WHERE shop_deposit_rule_id = $11";
-        assert_eq!(update.matches('?').count(), 11);
+        assert_eq!(update.matches('$').count(), 11);
         // 关联表实体字段与 SQL 对齐（编译期占位，防重构漏改）
         let _ = std::mem::size_of::<nextrade_core::entities::ShopDepositRuleCategory>();
     }
