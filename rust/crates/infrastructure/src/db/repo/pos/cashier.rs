@@ -568,11 +568,12 @@ impl PosCashierRepository {
         sort_order: i32,
     ) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
-            "INSERT INTO pos_table (shop_id, area_id, table_no, seat_count, sort_order, status, table_status, dining_count, open_admin_id, open_time, session_sn, last_order_id, transfer_from_table_no, is_delete, add_time) \
-             VALUES ($1, $2, $3, $4, $5, 0, 0, 0, 0, 0, '', 0, '', 0, $6) RETURNING table_id",
+            "INSERT INTO pos_table (shop_id, area_id, table_name, table_no, seat_count, sort_order, status, table_status, dining_count, open_admin_id, open_time, session_sn, last_order_id, transfer_from_table_no, is_delete, add_time) \
+             VALUES ($1, $2, $3, $4, $5, $6, 0, 0, 0, 0, 0, '', 0, '', 0, $7) RETURNING table_id",
         )
         .bind(shop_id)
         .bind(area_id)
+        .bind(name)
         .bind(name)
         .bind(capacity)
         .bind(sort_order)
