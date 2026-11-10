@@ -1062,9 +1062,12 @@ async fn call_tool(
             let days = args.get("days").and_then(Value::as_i64).unwrap_or(7).clamp(1, 365);
             let since = now_secs() - (days as i32) * 86400;
             let row: (Value,) = sqlx::query_as(
+                // pay_time=0 的历史/导入订单按 add_time 计入，避免整份报表静默为 0
                 "SELECT to_jsonb(t) FROM (SELECT COUNT(*)::bigint AS orders,
                      COALESCE(SUM(total_amount), 0)::text AS amount
-                     FROM \"order\" WHERE pay_status = 1 AND pay_time >= $1) t",
+                     FROM \"order\"
+                     WHERE pay_status = 1
+                       AND COALESCE(NULLIF(pay_time, 0), add_time) >= $1) t",
             )
             .bind(since)
             .fetch_one(&state.repos.pool)
@@ -1088,7 +1091,8 @@ async fn call_tool(
                      FROM order_item oi
                      JOIN \"order\" o ON o.order_id = oi.order_id
                      JOIN product p ON p.product_id = oi.product_id
-                     WHERE o.pay_status = 1 AND o.pay_time >= $1
+                     WHERE o.pay_status = 1
+                       AND COALESCE(NULLIF(o.pay_time, 0), o.add_time) >= $1
                      GROUP BY p.product_id, p.product_name, p.product_sn
                      ORDER BY SUM(oi.quantity) DESC
                      LIMIT $2) t",
@@ -1206,7 +1210,7 @@ async fn call_tool(
             let size = args.get("size").and_then(Value::as_i64).unwrap_or(20).clamp(1, 100);
             let offset = (page - 1) * size;
             let rows: Vec<(Value,)> = sqlx::query_as(
-                "SELECT to_jsonb(u) FROM \"user\" u
+                "SELECT to_jsonb(u) - 'password' FROM \"user\" u
                  WHERE ($1::text IS NULL OR u.username ILIKE $1
                         OR u.nickname ILIKE $1 OR u.mobile ILIKE $1)
                  ORDER BY u.user_id DESC LIMIT $2 OFFSET $3",
@@ -1235,7 +1239,7 @@ async fn call_tool(
             }
             let id = require_i32(args, "userId")?;
             let row: Option<(Value,)> = sqlx::query_as(
-                "SELECT to_jsonb(u) FROM \"user\" u WHERE u.user_id = $1",
+                "SELECT to_jsonb(u) - 'password' FROM \"user\" u WHERE u.user_id = $1",
             )
             .bind(id)
             .fetch_optional(&state.repos.pool)
@@ -1253,7 +1257,7 @@ async fn call_tool(
             let offset = (page - 1) * size;
             let rows: Vec<(Value,)> = sqlx::query_as(
                 "SELECT to_jsonb(a) FROM article a
-                 WHERE ($1::text IS NULL OR a.title ILIKE $1)
+                 WHERE ($1::text IS NULL OR a.article_title ILIKE $1)
                  ORDER BY a.article_id DESC LIMIT $2 OFFSET $3",
             )
             .bind(kw.clone())
@@ -1263,7 +1267,7 @@ async fn call_tool(
             .await
             .map_err(|e| e.to_string())?;
             let total: (i64,) = sqlx::query_as(
-                "SELECT COUNT(*) FROM article a WHERE ($1::text IS NULL OR a.title ILIKE $1)",
+                "SELECT COUNT(*) FROM article a WHERE ($1::text IS NULL OR a.article_title ILIKE $1)",
             )
             .bind(kw)
             .fetch_one(&state.repos.pool)
