@@ -517,6 +517,8 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | PC 商品页 308 到 `localhost:3005` 修复（审计第三十六章）：middleware 改按 `x-forwarded-host/proto`（回退 `host`）构造绝对 URL，不再用 `nextUrl.clone()`；上游 `e743af82` 构建 build 18，13:12 部署（备份 `pc_pre_20261110_131241.tgz`），商品链接现 308 到 `https://battery.recy.cc/product/sn*` |
 | 2026-11-10 | 货号查询大小写不敏感（`f340698`，13:37 上线）：4 处 `product_sn/product_tsn` 精确比较改 `LOWER(...)`，修复 137 个大写货号商品页 404；回归 53/53+4/4 |
 | 2026-11-10 | PC 前端四项修复（审计第三十七章，线上 PC `a8141825` build 23）：① 已选条件用 `filterSelected` 显示分类/品牌名；② 换币覆盖营销通栏/商品卡/详情页（含装修数据的 `¥` 前缀解析），修复重复小数；③ 非中英语言生效（locale 短码映射 + SSR 翻译加载）；④ 商品服务说明改读 `serviceList` 图标、去掉假数据与点击展开 |
+| 2026-11-10 | PC 全站价格跟随换币（审计第三十八章，`695b0d00` build 24）：购物车/结算/订单/售后/优惠券/秒杀/拼团/换购/发票/聊天等剩余写死 `¥` 全部改为 `formatPrice`/`splitCurrencyPrice`；仅改展示，下单支付仍按人民币原值 |
+| 2026-11-10 | 管理端登录页蓝线（审计第三十八章）：线上 admin 包是 11-08 11:49 旧构建，CSS 残留旧版 `.login-tabs .is-active::after`，在新 button 布局下泄漏为 1180×2px 通栏蓝线。按上游源码 `c7d49743` 重建 admin-semi 并全量上传 dist（97 资源 + index.html 最后切换），线上哈希一致、旧规则 0 命中；回滚副本 `scratch/admin-index.old.html` |
 
 ---
 
