@@ -1,5 +1,4 @@
 import react from '@vitejs/plugin-react';
-import { fileURLToPath, URL } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
 
 export default defineConfig(({ mode }) => {
@@ -10,13 +9,6 @@ export default defineConfig(({ mode }) => {
   return {
     base,
     plugins: [react()],
-    resolve: {
-      alias: {
-        '@semi-css': fileURLToPath(
-          new URL('./node_modules/@douyinfe/semi-ui/dist/css/semi.min.css', import.meta.url),
-        ),
-      },
-    },
     server: {
       port: 3003,
       proxy: {

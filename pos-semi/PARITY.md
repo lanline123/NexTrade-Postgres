@@ -1,0 +1,73 @@
+# POS 100% 对齐清单
+
+以 5.8.60 `o2o_admin` 产物为基准，逐项对齐 `pos-semi`。
+状态：✅ 已一致 / 🟡 部分实现 / ❌ 未开始。
+
+## 页面与路由
+
+| 原页面 | 路由 | 状态 | 说明 |
+|---|---|---|---|
+| 收银 | `/pos` | 🟡 | 分类/搜索/商品、购物车、数量/删除/清空、合计、备注入口、结账入口 |
+| 桌台 | `/pos/dining-table` | ❌ | `/pos/table/*` |
+| 订单 | `/pos/order` | ❌ | 挂单/取单、订单列表 |
+| 预约 | `/pos/reservation` | ❌ | 预约与库存日历 |
+| 核销 | `/pos/verification` | ❌ | 券码/提货核销 |
+| 售后 | `/pos/return` | ❌ | 售后单 |
+| 会员 | `/pos/vip` | ❌ | 会员查询/充值/优惠券 |
+
+## 收银页（/pos）
+
+| 功能 | 状态 | 说明 |
+|---|---|---|
+| 顶栏：设备选择 | 🟡 | 静态「设备未绑定」，未接 `/pos/device/*` |
+| 顶栏：交班 | ❌ | `/pos/posSwitch/workOff` 未接 |
+| 顶栏：收银员 | ✅ | 从 JWT 读取 |
+| 搜索（扫码/名称） | 🟡 | 接 `/pos/product/index`，扫码枪连续输入/回车搜索待补 |
+| 分类栏 | ✅ | `/pos/product/getCategoryInfo`，原样式 |
+| 商品卡片 | 🟡 | 图片/名称/价格；售罄角标、切换视图、触底加载未做 |
+| 购物车列表 | ✅ | 序号/商品/编码/售价/数量/小计，原样式 |
+| 数量修改 | 🟡 | 输入框失焦/回车提交，`/pos/cart/updateItem`；步进器禁用态未做 |
+| 删除商品 | 🟡 | `window.confirm` + `/pos/cart/removeItem`；原 ElMessageBox 弹窗未还原 |
+| 清空购物车 | 🟡 | `window.confirm` + `/pos/cart/clearCart` |
+| 会员（F1） | ❌ | 会员选择弹窗、绑定/游客切换 |
+| 充值 | ❌ | 会员充值 |
+| 优惠券 | ❌ | `/pos/user/coupon/*` |
+| 改价 | ❌ | `/pos/cart/changePrice` |
+| 挂/取单 | ❌ | `/pos/cart/pendingOrder*` |
+| 游客/会员信息 | 🟡 | 固定游客；未接会员 |
+| 整单备注 | 🟡 | `window.prompt` 暂存；下单时未提交 |
+| 结账 | ❌ | `/pos/order/check/index|update|submit`、支付方式 |
+| 桌台上下文 | 🟡 | 静态桌号/人数 |
+| 键盘快捷键 | ❌ | F1 等 |
+| 打印机检查 | ❌ | `/pos/device/*` |
+
+## 样式对齐
+
+- 直接复用原产物 CSS：`src/legacy/`（去掉了 Vue scoped `[data-v-*]`），
+  class 结构与原 DOM 保持一致，包括 `.cashier-desk-box`、`.pos-cart-box`、
+  `.pos-product-box`、`.product-item`、`.cart-num-box` 等。
+- 图标：沿用原站 `at.alicdn.com` 的 iconfont 字体链接（见 `index.html`）。
+- 主题色：收银端 `--tig-primary` 覆盖为 `#fe9b1c`（原样）。
+
+## 已知差异（待消除）
+
+1. 删除/清空/备注使用浏览器原生 `confirm/prompt`，与原 Element Plus 弹窗不一致。
+2. 商品列表未实现触底分页/售罄标记/视图切换。
+3. 顶栏设备下拉、交班、会员与结账弹窗均为占位。
+4. 未接入支付、打印、挂单、桌台、订单、会员等后续页面。
+5. 切换分类时保留搜索关键词（原版行为待核对）。
+
+## 对照中发现的后端缺陷（已修代码，待部署）
+
+`add_to_cart` 读取 `productPrice` 时只按字符串解析；PostgreSQL `numeric` 在 JSON 中返回**数字**，
+导致购物车单价/小计/合计恒为 `0.00`（legacy 线上同样复现）。
+
+- 修复：`rust/crates/services/src/pos/cashier.rs` 新增 `json_decimal()`，同时兼容字符串与数字；
+- 验证：`productPrice` 实测为 `9.9`（number）；部署后购物车金额才会正确。
+
+## 下一步
+
+1. 补齐收银页弹窗（确认框/备注/改价/挂单）并复用原 `DialogForm`/`PosPopup` 样式；
+2. 接入会员选择与优惠券；
+3. 接入结账提交与支付；
+4. 按页面推进桌台 → 订单 → 预约 → 核销 → 售后 → 会员。
