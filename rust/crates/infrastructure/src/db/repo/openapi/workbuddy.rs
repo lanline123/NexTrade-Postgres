@@ -644,8 +644,9 @@ impl WorkbuddyRepository {
     /// `exclude_id` 用于更新场景排除自身。
     pub async fn product_sn_exists(&self, product_sn: &str, exclude_id: Option<i32>) -> Result<bool> {
         let mut qb: QueryBuilder<'_, sqlx::Postgres> =
-            QueryBuilder::new("SELECT COUNT(*) FROM product WHERE product_sn = ");
+            QueryBuilder::new("SELECT COUNT(*) FROM product WHERE LOWER(product_sn) = LOWER(");
         qb.push_bind(product_sn);
+        qb.push(")");
         if let Some(id) = exclude_id {
             qb.push(" AND product_id <> ");
             qb.push_bind(id);

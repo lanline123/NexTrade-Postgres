@@ -327,9 +327,12 @@ impl ProductManageRepository {
 
     /// 按货号或条形码查询商品（对应 Java `getProductBySn`：
     /// `product_sn = sn OR product_tsn = sn`）。
+    ///
+    /// MySQL 基线是 `utf8mb4_general_ci`，`=` 本来大小写不敏感；PC 路由又会把
+    /// URL 归一化成小写，因此这里必须用 `LOWER(...)` 比较，否则大写货号的商品页 404。
     pub async fn find_product_by_sn(&self, sn: &str) -> Result<Option<Product>> {
         sqlx::query_as::<_, Product>(
-            "SELECT * FROM product WHERE (product_sn = $1 OR product_tsn = $2) AND is_delete = 0 LIMIT 1",
+            "SELECT * FROM product WHERE (LOWER(product_sn) = LOWER($1) OR LOWER(product_tsn) = LOWER($2)) AND is_delete = 0 LIMIT 1",
         )
         .bind(sn)
         .bind(sn)
@@ -349,9 +352,10 @@ impl ProductManageRepository {
     }
 
     /// 货号重复计数（`exclude_product_id` 非空时排除自身，供更新场景）。
+    /// MySQL 的 `=` 大小写不敏感，这里用 `LOWER(...)` 保持同一判定。
     pub async fn count_product_sn(&self, sn: &str, exclude_product_id: Option<i32>) -> Result<u64> {
         let row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM product WHERE product_sn = $1 AND ($2 IS NULL OR product_id <> $3)",
+            "SELECT COUNT(*) FROM product WHERE LOWER(product_sn) = LOWER($1) AND ($2 IS NULL OR product_id <> $3)",
         )
         .bind(sn)
         .bind(exclude_product_id)

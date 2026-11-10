@@ -155,15 +155,17 @@ impl ProductStockRepository {
     ) -> Result<Option<Product>> {
         let id: Option<(i32,)> = match with_shop {
             Some(shop_id) => sqlx::query_as(
-                "SELECT product_id FROM product WHERE product_sn = $1 AND shop_id = $2 LIMIT 1",
+                "SELECT product_id FROM product WHERE LOWER(product_sn) = LOWER($1) AND shop_id = $2 LIMIT 1",
             )
             .bind(product_sn)
             .bind(shop_id)
             .fetch_optional(&self.pool)
             .await
             .map_err(map_err)?,
-            None => sqlx::query_as("SELECT product_id FROM product WHERE product_sn = $1 LIMIT 1")
-                .bind(product_sn)
+            None => sqlx::query_as(
+                "SELECT product_id FROM product WHERE LOWER(product_sn) = LOWER($1) LIMIT 1",
+            )
+            .bind(product_sn)
                 .fetch_optional(&self.pool)
                 .await
                 .map_err(map_err)?,
