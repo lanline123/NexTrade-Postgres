@@ -289,7 +289,18 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8181/api/health
 > - 只有在需要对外留档的节点，征得同意后才 `build-rust-backend` 产出 `build-<n>`；
 > - 已经误触发正式构建的，立即 `POST /actions/runs/<id>/cancel` 取消，再补一次 staging。
 
-### 4.5 CI 构建耗时与优化方案（**尚未实施**）
+### 4.5 CI 构建耗时与优化（**已实施 2026-11-10**）
+
+**实施结果（提交 `1445dd0`）**：
+
+- 新增 `[profile.release-ci]`（`inherits="release"`、`lto="thin"`、`codegen-units=16`），
+  `build-rust.yml` 改用 `--profile release-ci`，产物路径 `release-ci/nextrade`；
+  `--release`（fat LTO）保留为回退开关。
+- 两条工作流统一：缓存 key 去掉 `run_id`、缓存不再包含 `/tmp/cargo-target`、安装 `lld`
+  并加 `RUSTFLAGS="-C link-arg=-fuse-ld=lld"`。
+- 实测（staging，同一 commit `6d099b0`）：冷缓存首跑 **14m34s**，热缓存二跑 **5m58s**；
+  正式 release-ci 构建待用户授权发版后验证（预期由 20.7 min 降到 6~8 min）。
+- 下面是实施前的历史耗时分析，留作对照。
 
 实测 `build-rust-backend` 最近两次成功运行的耗时：
 
@@ -421,7 +432,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 
 | 项 | 状态 |
 |---|---|
-| 线上二进制 | **staging 包 `1c05a25`**（含 `99d7da5` + 保证金账户唯一约束/`ON CONFLICT` 兜底），72,573,512 字节，sha256 `052adfc3…04da3`，10:14:15 部署（`scratch/deploy-1c05a25.sh`，部署前 live 备份 `nextrade.bak.20261110_101415`，`main_pid=3937380`，`proc_sha` 与磁盘一致；公开冒烟 12/12、回归 53/53+4/4） |
+| 线上二进制 | **staging 包 `6d099b0`**（含 JWT 启动守卫、ILIKE 大小写不敏感、唯一键恢复、语义映射复核），72,575,288 字节，sha256 `53d2c5ab…aab2`，11:57:23 部署（`scratch/deploy-6d099b0.sh`，部署前 live 备份 `nextrade.bak.20261110_115723`，`main_pid=3964687`，`proc_sha` 与磁盘一致，健康失败自动回滚；冒烟 12/12、回归 53/53+4/4） |
 | 生产库 | 49 列已回退 text（§4.3）；637 列 smallint→integer 加宽；12 列 bigint→integer 收窄；335 张 MySQL 表全在、3927 列 0 缺失 |
 | 与 `pure.sql` 比对 | 686 处差异**全部为有意改动**：637 整数加宽 + 49 时间/JSON 回退（线上 MySQL 本就是字符串）；无丢失性差异 |
 | 会员 `123/123` | 登录、购物车、getCount、订单、资料、站内信、商品分页（total=64 有记录）、签到 sign 均 200 |
@@ -500,6 +511,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 无 `RETURNING` 的 INSERT 甄别（原待办第 3 项，129 条生产语句）：0 例丢自增主键；线上 329 个自增序列与 max(id) 对齐（0 落后）；新发现 `shop_deposit` 唯一索引缺口，见审计第三十三章 |
 | 2026-11-10 | 单测门禁落地（原待办第 2 项）：`cargo test --workspace --no-fail-fast -j 1` 进 `check-rust.yml`；**首次真跑暴露 82 处失败**（此前只发现 3 处），全部修完，含 5 处「硬编码 `$N` 混进 `?` 拼接」的真实占位符编号 bug；全 workspace 约 4600 用例 0 失败，见 §4.6.3 |
 | 2026-11-10 | `shop_deposit` 并发创建加固（审计 33.4/33.6）：恢复 MySQL 唯一键 `uk_owner(owner_type,owner_id)`，两处 INSERT 改 `ON CONFLICT DO NOTHING`；staging `1c05a25` 上线（10:14，备份 `nextrade.bak.20261110_101415`），回归 53/53 + 跨接口 4/4 |
+| 2026-11-10 | 交接待办 3/5/6/8 处置（审计第三十五章）：语义映射复核结论（`order_remark` 为臆造列名，读 `buyer_note`；`lottery_activity` 无 `status` 列）；CI 提速实施（staging 热缓存 5m58s vs 冷 14m34s）；JWT 启动守卫上线（`6d099b0`，生产 secret 已核非默认，11:57 部署，回归 53/53+4/4）；docker-compose/Dockerfile/README 全面改 PG 口径 |
 
 ---
 
@@ -509,9 +521,9 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 |---|---|---|---|
 | 1 | **正式发版 `build-rust-backend`** | 线上跑的是 72 MB staging 包（无 tag、无版本留档），对外版本应以 Release 为准 | §4.4；**必须先拿到用户「发正式版」授权** |
 | 2 | **`cargo test` 纳入 CI** | 现在只跑 `cargo check`，单测断言早已与实现不符却一直「绿」 | ✅ 已完成（2026-11-10）：`check-rust.yml` 加 `cargo test --workspace --no-fail-fast -j 1`；首跑暴露 82 处失败，已全部修完（含 5 处占位符编号真实 bug），见 §4.6.3 |
-| 3 | **2 处语义映射业务复核** | 迁移期人工改写过条件，需业务侧确认口径 | 审计台账标注处 |
+| 3 | **2 处语义映射业务复核** | 迁移期人工改写过条件，需业务侧确认口径 | ✅ 已完成（2026-11-10）：`lottery_activity` 基线无 `status` 列（软删除即 `is_delete`）；`order.order_remark` 是臆造列名，基线只有 `buyer_note`。现实现已正确，补文档+单测锁定，见审计 35.1 |
 | 4 | **回归断言升级** | 只统计 HTTP 状态码会漏掉「吞错误」的接口（`statisticalData` 200 但全 0） | ✅ 已完成（2026-11-10）：`regress/api_assert.py`，53 用例 + 4 项跨接口一致性 + 基线守卫，见 §4.6.2 与审计第三十二章 |
-| 5 | CI 构建提速（未实施） | 20.7 min → 目标 6~8 min | §4.5 |
-| 6 | 安全整改 | `crates/common/src/config.rs:159` 内置默认 JWT secret；历史提交含明文口令 | §6 第 1 条 |
+| 5 | CI 构建提速 | 20.7 min → 目标 6~8 min | ✅ 已实施（2026-11-10）：`release-ci`（thin LTO+cgu16+lld）、缓存去 run_id/去 target；staging 热缓存实测 **5m58s**（冷 14m34s），见 §4.5 与审计 35.2 |
+| 6 | 安全整改 | `crates/common/src/config.rs:159` 内置默认 JWT secret；历史提交含明文口令 | JWT 守卫 ✅（2026-11-10，`6d099b0` 上线，生产 secret 已核非默认）；**历史明文口令轮换仍待人工**，见 §6 第 1 条 |
 | 7 | `shop_deposit(owner_type, owner_id)` 补唯一索引 | 现为非唯一索引 + 先查后插，并发可产生重复保证金账户（当前 0 行） | ✅ 已完成（2026-11-10）：唯一索引 `uk_shop_deposit_owner` 生效 + 两处 INSERT 改 `ON CONFLICT DO NOTHING`，部署 `1c05a25`，回归 53/53，见审计 33.6 |
-| 8 | `docker-compose.yml` / `deploy/README.md` 仍是 MySQL 口径 | 环境重建会踩坑 | §6 第 2、3 条 |
+| 8 | `docker-compose.yml` / `deploy/README.md` 仍是 MySQL 口径 | 环境重建会踩坑 | ✅ 已完成（2026-11-10）：compose 改 `postgres:16-alpine`、`TIG_JWT_SECRET` 必填、`AUTO_MIGRATE=false`；Dockerfile/README/deploy 文档同步，`mysql-init/` 标注停用，见审计 35.4 |
