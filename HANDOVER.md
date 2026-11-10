@@ -126,6 +126,11 @@ git commit -m "..."
 git push origin main
 ```
 
+> **推送范围（2026-11-10 用户指令，长期有效）**：后续**只推送本仓库
+> `NexTrade-Postgres`**。上游 `D:\tigshop\NexTrade` 仅作为前端构建源码使用，
+> 改动需同步到本仓库的 `admin-semi/`（或 `pc-semi/`）后再提交；
+> **不要向上游仓库的 remote 推送**。
+
 ### 2.3 CI
 
 | workflow | 触发 | 内容 |
@@ -522,6 +527,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 管理端登录页蓝线（审计第三十八章）：线上 admin 包是 11-08 11:49 旧构建，CSS 残留旧版 `.login-tabs .is-active::after`，在新 button 布局下泄漏为 1180×2px 通栏蓝线。按上游源码 `c7d49743` 重建 admin-semi 并全量上传 dist（97 资源 + index.html 最后切换），线上哈希一致、旧规则 0 命中；回滚副本 `scratch/admin-index.old.html` |
 | 2026-11-10 | 管理端登录页 tab 切换高度跳动（审计第三十九章）：`.login-options` 无固定行高，密码行 19px / 手机提示行 17px，导致卡片与按钮跳动 2px。上游 `styles.css` 加 `min-height: 20px` 后重建部署，线上两模式卡片 579.8px、按钮位置完全一致 |
 | 2026-11-10 | 后台顶栏「查看商城」补图标（审计第四十章）：React 版顶栏按钮漏了 `icon`，原版 Vue 为 `icon-guanli`；补 `IconShoppingBag`（与账号下拉同名入口一致），上游 admin-semi 重建后全量上传，线上 DOM 已含 `semi-icon-shopping_bag`，回滚 index 存 `scratch/admin-index.online.20261110_170626.html` |
+| 2026-11-10 | 推送约定：后续**只推送 `NexTrade-Postgres`**；上游 `D:\tigshop\NexTrade` 仅作构建源码，改动同步到本仓库 `admin-semi/` / `pc-semi/` 后再提交，不再向上游 remote 推送（§2.2） |
 
 ---
 
