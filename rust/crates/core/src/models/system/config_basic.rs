@@ -9902,7 +9902,7 @@ static EP106_FIELDS: [FieldSpec; 9] = [
 ];
 
 /// 全部 108 个 `ConfigController` 管理端点（顺序 = Java 方法声明顺序）。
-pub static ENDPOINTS: [EndpointSpec; 108] = [
+pub static ENDPOINTS: [EndpointSpec; 105] = [
 
     EndpointSpec { path: "/setting/config/basicSettings", verb: Verb::Get, kind: EndpointKind::Group, java_ref: "ConfigController.getBasicSettings", summary: "获取商城设置-基础信息", fields: &EP0_FIELDS, nested: &[] },
     EndpointSpec { path: "/setting/config/saveBasic", verb: Verb::Post, kind: EndpointKind::Group, java_ref: "ConfigController.saveBasic", summary: "保存商城设置-基础信息", fields: &EP1_FIELDS, nested: &[] },
