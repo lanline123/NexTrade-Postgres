@@ -36,7 +36,7 @@
 | 挂/取单 | 🟡 | 挂单、取单已通；取消挂单/筛选待补 |
 | 游客/会员信息 | 🟡 | 固定游客；未接会员 |
 | 整单备注 | 🟡 | 原样式弹窗保存，挂单时提交；结账时提交待接 |
-| 结账 | ❌ | `/pos/order/check/index|update|submit`、支付方式 |
+| 结账 | 🟡 | 现金结账已接真实下单（`/pos/order/check/submit` + 自动记已支付）；CheckPanel/优惠券/余额/积分/支付方式待接 |
 | 桌台上下文 | 🟡 | 静态桌号/人数 |
 | 键盘快捷键 | ❌ | F1 等 |
 | 打印机检查 | ❌ | `/pos/device/*` |
@@ -75,7 +75,7 @@
 | 能力 | legacy 行为 | Rust 现状 |
 |---|---|---|
 | 整单改价 | `cart/changePriceShow` 传 `totalChangePriceType`（一口价/折扣）+ `changePriceValue` + `originalPrice` | 只按 `cartId/itemId` 改单行价格，忽略整单/折扣参数 |
-| 收银结账 | `order/check/submit` 支持无桌台收银（tableId=0）、优惠券/余额/积分/改价明细/买家备注 | 要求 `tableId>0`，走桌台结账；其余字段未消费 |
+| 收银结账 | `order/check/submit` 支持无桌台收银（tableId=0）、优惠券/余额/积分/改价明细/买家备注 | 已实现 `checkout`：无桌台可下单，支持优惠券/余额/积分/备注；桌台占用状态机待接 |
 | 会员充值 | `user/rechargeOrder/create|update` + 支付 | 路由存在，支付/到账流程未联调 |
 | 优惠券 | 可见列表/领取/下单核销 | 列表与领取已实现，下单核销未接 |
 

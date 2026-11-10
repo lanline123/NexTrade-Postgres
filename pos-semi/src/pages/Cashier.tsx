@@ -303,7 +303,19 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
       toast('购物车为空', 'error');
       return;
     }
-    toast('结算流程接入中');
+    setConfirmState({
+      message: `确认收款 ¥${Number(totalAmount).toFixed(2)} 并完成结账？`,
+      action: async () => {
+        const result = await api.post<{ orderId: number; orderSn: string; totalAmount: string | number }>(
+          '/pos/order/check/submit',
+          { remark: remark || undefined, markPaid: true },
+        );
+        await loadCart();
+        setMember(null);
+        setRemark('');
+        toast(`结账成功：${result.orderSn}`);
+      },
+    });
   };
 
   const openMember = () => {
