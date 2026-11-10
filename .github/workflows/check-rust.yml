@@ -55,8 +55,9 @@ jobs:
       # `$N` 混进 `?` 拼接（会致占位符编号重复，属真实 SQL bug）。
       # --no-fail-fast 让一次运行报出全部失败，避免逐个试错。
       # 套件不依赖数据库/网络（无 sqlx::test、无 query! 宏，openapi 集成测试
-      # 走 tower oneshot）；契约类断言在缺 docs/api-contract.json 时打印
-      # `[skip]` 显式跳过，不会假绿。
+      # 走 tower oneshot）；契约类断言在缺 docs/api-contract.json 时跳过
+      # （libtest 捕获输出，日志里看不到 `[skip]`，只是计为 passed——
+      #  要真正校验契约须先把契约 JSON 入库）。
       - name: Run Cargo Test
         working-directory: rust/crates
         run: |

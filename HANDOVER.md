@@ -408,8 +408,10 @@ python regress/api_assert.py --self-test  # 离线自检断言原语
 
 **openapi 契约类断言**：`docs/api-contract.json` 由仓库外的 Java 基线解析生成（`docs/` 在
 `.gitignore`），CI 里必然不存在，14 个集成用例会全红。`contract_integrity.rs` /
-`http_endpoints.rs` 改为「无契约时打印 `[skip]` 显式跳过」——不假绿、也不长期红灯；
-本地有契约时照常断言。
+`http_endpoints.rs` 改为「无契约时跳过、有契约时照常断言」。注意 libtest 默认捕获
+stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` 提示要本地加
+`-- --nocapture` 才看得到——这是有意取舍：缺的是仓库外产物，不该长期红灯；
+想让它真正生效，只能把契约 JSON 入库（并解除 `docs/` 的 ignore）。
 
 **结果**：全 workspace `cargo test` 通过，11 个测试二进制、**4600 个用例、0 失败**
 （599 / 142 / 6 / 1617 / 30 / 567 / 8 / 9 / 5 / 19 / 1598）。

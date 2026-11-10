@@ -10,8 +10,9 @@ use nextrade_openapi::{coverage, Contract};
 /// 不在本仓库（`.gitignore` 里的 `java-b2b2c-overseas-v5.8.61/`），
 /// 所以 CI 构建里通常「没有契约」。
 ///
-/// 这里显式跳过并打印原因：既不让这些断言在无契约时假装通过（假绿），
-/// 也不让 CI 因为缺一个仓库外产物而长期红灯。
+/// 这里改为「无契约则跳过」，既不让 CI 因为缺一个仓库外产物而长期红灯，
+/// 也不假装校验过——但要注意 libtest 会捕获 stdout/stderr，那句 `[skip]`
+/// 只有本地加 `-- --nocapture` 才看得到；CI 报告里该用例只是计为 passed。
 fn contract_opt() -> Option<Contract> {
     let c = Contract::embedded();
     c.is_available().then_some(c)
