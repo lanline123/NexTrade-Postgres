@@ -93,6 +93,29 @@ impl PaylogRepository {
         .map_err(map_err)
     }
 
+    /// 取该业务单据最新一笔「已支付」支付日志。
+    ///
+    /// 对应 Java `FeieyunReceiptRenderer` 的
+    /// `eq(payStatus, PAID).eq(orderId).eq(orderType, 0).orderByDesc(paylogId).last("limit 1")`。
+    pub async fn find_last_paid_by_order(
+        &self,
+        order_id: i32,
+        order_type: i32,
+    ) -> Result<Option<Paylog>> {
+        sqlx::query_as::<_, Paylog>(
+            "SELECT * FROM paylog
+             WHERE pay_status = $1 AND order_id = $2 AND order_type = $3
+             ORDER BY paylog_id DESC
+             LIMIT 1",
+        )
+        .bind(PAYLOG_STATUS_PAID)
+        .bind(order_id)
+        .bind(order_type)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
     /// 查询「同订单 + 同支付方式」的最新支付日志（`creatPayLog` 复用判定用）。
     pub async fn find_latest_by_order_and_code(
         &self,

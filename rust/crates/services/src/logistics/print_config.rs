@@ -72,14 +72,17 @@ use sha2::Sha256;
 
 use nextrade_core::entities::Print;
 use nextrade_core::models::logistics::print_config::{
-    build_vo_template, format_time, normalize_device_code, paper_size_code, paper_size_desc,
-    type_desc, validate_print, validate_update, PrintConfigUpdateDTO, PrintConfigVO,
-    PrintOrdersDTO, DEFAULT_SHOP_ID, MSG_CONFIG_NOT_FOUND, MSG_DEVICE_NO_PRINTER,
-    MSG_NO_ENABLED_PRINTER, MSG_UPDATE_FAILED_PREFIX, TRIGGER_TYPE_MANUAL,
+    build_vo_template, default_receipt_template, format_time, normalize_device_code,
+    paper_size_code, paper_size_desc, type_desc, validate_print, validate_update,
+    PrintConfigUpdateDTO, PrintConfigVO, PrintOrdersDTO, PrintTemplateItem, DEFAULT_SHOP_ID,
+    MSG_CONFIG_NOT_FOUND, MSG_DEVICE_NO_PRINTER, MSG_NO_ENABLED_PRINTER,
+    MSG_UPDATE_FAILED_PREFIX, TRIGGER_TYPE_MANUAL,
 };
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::repo::logistics::print_config::{PrintConfigRow, PrintConfigRepository};
 use nextrade_infrastructure::db::Repositories;
+
+use crate::logistics::receipt::{render_feieyun, render_sunmi, ReceiptContext};
 
 /// 打印机配置管理域服务（挂载于 `AdminState.print_config`）。
 pub struct PrintConfigService {
@@ -255,6 +258,99 @@ impl PrintConfigService {
         Ok(true)
     }
 
+    /// 渲染小票内容（按 print_config.template / paper_size，平台决定输出协议）。
+    ///
+    /// 对应 Java `RabbitMqConsumer#receivePrintOrderMessage` 的
+    /// 「取配置 → rendererFactory.of(platform).render(orderId, template, paperSize)」。
+    async fn build_receipt(&self, printer: &Print, order_id: i32) -> Result<(String, i32)> {
+        let order = self
+            .repos
+            .trade
+            .order
+            .find_by_id(order_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("订单不存在".into()))?;
+        let items = self.repos.trade.order.find_items(order_id).await?;
+        let configs = self.repo().find_configs_by_print_id(printer.print_id).await?;
+        let config = configs
+            .first()
+            .ok_or_else(|| Error::Validation("未找到打印机配置".into()))?;
+        let template: Vec<PrintTemplateItem> = config
+            .template
+            .as_deref()
+            .and_then(|raw| serde_json::from_str(raw).ok())
+            .unwrap_or_else(default_receipt_template);
+        let paper = config.paper_size;
+        let currency = self
+            .repos
+            .system
+            .config_basic
+            .find_by_code("dollarSign")
+            .await?
+            .unwrap_or_else(|| "￥".into())
+            .replace('¥', "￥");
+        let default_shop_name = self
+            .repos
+            .system
+            .config_basic
+            .find_by_code("shopName")
+            .await?
+            .unwrap_or_default();
+        let shop = self
+            .repos
+            .merchant
+            .shop
+            .find_by_id(order.shop_id)
+            .await
+            .ok()
+            .flatten();
+        let user = self
+            .repos
+            .member
+            .user
+            .find_by_id(order.user_id)
+            .await
+            .ok()
+            .flatten();
+        let paylog = self
+            .repos
+            .payment
+            .paylog
+            .find_last_paid_by_order(order_id, 0)
+            .await
+            .ok()
+            .flatten();
+        let reservation = self
+            .repos
+            .payment
+            .pay
+            .find_reservation_by_order_id(order_id)
+            .await
+            .ok()
+            .flatten();
+
+        let ctx = ReceiptContext {
+            order: &order,
+            items: &items,
+            template: &template,
+            paper_size: paper,
+            currency: &currency,
+            default_shop_name: &default_shop_name,
+            shop_title: shop.as_ref().and_then(|s| s.shop_title.as_deref()),
+            shop_address: shop.as_ref().and_then(|s| s.shop_detailed_address.as_deref()),
+            user_name: user.as_ref().map(|u| u.username.as_str()),
+            user_mobile: user.as_ref().map(|u| u.mobile.as_str()),
+            paylog: paylog.as_ref(),
+            reservation: reservation.as_ref(),
+        };
+        let content = if printer.platform == Some(2) {
+            render_sunmi(&ctx)
+        } else {
+            render_feieyun(&ctx)
+        };
+        Ok((content, printer.print_number.unwrap_or(1).max(1)))
+    }
+
     /// 投递打印任务给打印平台（商米云 / 飞鹅云），并回写状态到 print_log
     async fn dispatch_print_task(
         &self,
@@ -263,6 +359,26 @@ impl PrintConfigService {
         order_id: i32,
     ) -> Result<()> {
         let now = now_secs_i32();
+        let (receipt, copies) = match self.build_receipt(printer, order_id).await {
+            Ok(v) => v,
+            Err(e) => {
+                let msg = e.to_string();
+                self.repos
+                    .logistics
+                    .print_config
+                    .update_print_log_status(
+                        log_id,
+                        2,
+                        None,
+                        Some("RENDER_ERR"),
+                        Some(&msg),
+                        None,
+                        None,
+                    )
+                    .await?;
+                return Ok(());
+            }
+        };
         if printer.platform == Some(2) {
             // 商米云
             let appid = printer.third_account.as_deref().unwrap_or_default().trim();
@@ -280,8 +396,8 @@ impl PrintConfigService {
                 "sn": sn,
                 "trade_no": &trade_no,
                 "order_type": 1,
-                "content": format!("订单小票 #{order_id}"),
-                "count": 1,
+                "content": receipt,
+                "count": copies,
             });
             let body = payload.to_string();
             let timestamp = nextrade_common::utils::now_seconds().to_string();
@@ -354,7 +470,7 @@ impl PrintConfigService {
             let stime = nextrade_common::utils::now_seconds().to_string();
             let sig_str = format!("{user}{ukey}{stime}");
             let sig = format!("{:x}", <Md5 as Digest>::digest(sig_str.as_bytes()));
-            let content = format!("<CB>订单小票</CB><BR>订单号：{}<BR>", order_id);
+            let content = receipt.clone();
 
             let client = reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(10))
@@ -368,7 +484,7 @@ impl PrintConfigService {
                 ("apiname", "Open_printMsg"),
                 ("sn", sn),
                 ("content", &content),
-                ("times", "1"),
+                ("times", &copies.to_string()),
             ];
 
             let res = client
