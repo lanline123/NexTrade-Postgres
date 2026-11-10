@@ -99,7 +99,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/pos/cart/removeItem", post(cart_remove))
         .route("/pos/cart/clearCart", post(cart_clear))
         .route("/pos/cart/changePrice", post(cart_change_price))
-        .route("/pos/cart/changePriceShow", post(cart_change_price))
+        .route("/pos/cart/changePriceShow", post(cart_change_price_show))
         .route("/pos/cart/pendingOrder", post(cart_pending))
         .route(
             "/pos/cart/pendingOrderList",
@@ -674,21 +674,7 @@ async fn recharge_create(
     State(state): State<AdminState>,
     Json(dto): Json<PosRechargeCreateDTO>,
 ) -> ApiResult<i32> {
-    // 线下现金充值：直接建已支付充值单（status=1 已支付）
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i32;
-    let e = nextrade_core::entities::finance::UserRechargeOrder {
-        user_id: dto.user_id,
-        amount: dto.money,
-        add_time: now,
-        paid_time: now,
-        postscript: "POS 收银充值".into(),
-        status: 1,
-        ..Default::default()
-    };
-    ok(state.pos.cashier.recharge_insert(e).await?)
+    ok(state.pos.cashier.recharge(&dto).await?)
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -922,6 +908,18 @@ async fn cart_change_price(
         .change_price(admin_id_of(&tenant), &dto)
         .await?;
     ok(())
+}
+
+async fn cart_change_price_show(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(dto): Json<PosCartChangePriceDTO>,
+) -> ApiResult<serde_json::Value> {
+    ok(state
+        .pos
+        .cashier
+        .change_price_preview(admin_id_of(&tenant), &dto)
+        .await?)
 }
 
 async fn cart_pending(

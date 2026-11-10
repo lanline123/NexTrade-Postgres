@@ -15,6 +15,45 @@ use nextrade_core::models::pos::cashier::*;
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::Repositories;
 
+/// 整单改价：按当前行金额比例摊分到每一行（type 1=一口价总额，2=折扣百分比）。
+fn total_change_prices(
+    items: &[(i64, Decimal, i32)],
+    change_type: i32,
+    value: Decimal,
+) -> Result<Vec<(i64, Decimal)>> {
+    if value < Decimal::ZERO {
+        return Err(Error::Validation("改价金额不能为负".into()));
+    }
+    let sum: Decimal = items
+        .iter()
+        .map(|(_, price, qty)| *price * Decimal::from((*qty).max(1)))
+        .sum();
+    if sum <= Decimal::ZERO {
+        return Err(Error::Validation("购物车为空".into()));
+    }
+    let target = match change_type {
+        1 => value,
+        2 => (sum * value / Decimal::from(100)).round_dp(2),
+        _ => return Err(Error::Validation("不支持的改价方式".into())),
+    };
+    if target > sum {
+        return Err(Error::Validation("改价金额不能大于原金额".into()));
+    }
+    let mut out = Vec::with_capacity(items.len());
+    let mut allocated = Decimal::ZERO;
+    for (idx, (item_id, price, qty)) in items.iter().enumerate() {
+        let quantity = (*qty).max(1);
+        let new_price = if idx + 1 == items.len() {
+            ((target - allocated) / Decimal::from(quantity)).round_dp(2)
+        } else {
+            (*price * target / sum).round_dp(2)
+        };
+        allocated += new_price * Decimal::from(quantity);
+        out.push((*item_id, new_price));
+    }
+    Ok(out)
+}
+
 /// 兼容 MySQL 口径（字符串）与 PostgreSQL `numeric`（JSON 数字）两种价格形态。
 fn json_decimal(value: Option<&serde_json::Value>) -> Decimal {
     match value {
@@ -256,6 +295,69 @@ impl PosCashierService {
         self.repos.payment.user_recharge_order.insert(&e).await
     }
 
+    /// POS 线下现金充值：建已支付充值单并给会员余额入账 + 流水。
+    pub async fn recharge(&self, dto: &PosRechargeCreateDTO) -> Result<i32> {
+        if dto.user_id <= 0 {
+            return Err(Error::Validation("请先选择会员".into()));
+        }
+        if dto.money <= Decimal::ZERO {
+            return Err(Error::Validation("充值金额必须大于 0".into()));
+        }
+        let user = self
+            .repos
+            .member
+            .user_manage
+            .find_user(dto.user_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("会员不存在".into()))?;
+        let before = user.balance;
+        let updated = self
+            .repos
+            .member
+            .user_manage
+            .apply_balance_delta(
+                dto.user_id,
+                nextrade_core::models::member::user_manage::CHANGE_TYPE_INC,
+                dto.money,
+            )
+            .await?;
+        if updated == 0 {
+            return Err(Error::Conflict("余额入账失败，请重试".into()));
+        }
+        let now = chrono::Utc::now().timestamp() as i32;
+        let _ = self
+            .repos
+            .member
+            .user_manage
+            .insert_balance_log(&nextrade_core::entities::UserBalanceLog {
+                log_id: 0,
+                user_id: dto.user_id,
+                before_balance: before,
+                balance: dto.money,
+                after_balance: before + dto.money,
+                frozen_balance: Decimal::ZERO,
+                before_frozen_balance: Decimal::ZERO,
+                after_frozen_balance: Decimal::ZERO,
+                change_time: now,
+                change_desc: "POS 收银充值".into(),
+                change_type: nextrade_core::models::member::user_manage::CHANGE_TYPE_INC,
+                wallet_type: 0,
+                new_balance: before + dto.money,
+                new_frozen_balance: Decimal::ZERO,
+            })
+            .await;
+        let order = nextrade_core::entities::finance::UserRechargeOrder {
+            user_id: dto.user_id,
+            amount: dto.money,
+            add_time: now,
+            paid_time: now,
+            postscript: "POS 收银充值".into(),
+            status: 1,
+            ..Default::default()
+        };
+        self.repos.payment.user_recharge_order.insert(&order).await
+    }
+
     /// 最近订单备注（POS 收银台展示）。
     pub async fn order_remark(&self, user_id: i32) -> Result<Option<String>> {
         self.repos.pos.cashier.order_remark(user_id).await
@@ -438,6 +540,25 @@ impl PosCashierService {
     }
 
     pub async fn change_price(&self, admin_id: i32, dto: &PosCartChangePriceDTO) -> Result<()> {
+        if let (Some(change_type), Some(value)) =
+            (dto.total_change_price_type, dto.change_price_value)
+        {
+            let Some(draft) = self.working_draft(admin_id).await? else {
+                return Ok(());
+            };
+            let rows: Vec<(i64, Decimal, i32)> = self
+                .repo()
+                .items(draft.pending_id)
+                .await?
+                .into_iter()
+                .filter(|item| item.is_checked != 0)
+                .map(|item| (item.item_id, item.price, item.quantity))
+                .collect();
+            for (item_id, new_price) in total_change_prices(&rows, change_type, value)? {
+                self.repo().item_update_price(item_id, new_price).await?;
+            }
+            return Ok(());
+        }
         let Some(price) = dto.price else {
             return Ok(());
         };
@@ -448,6 +569,77 @@ impl PosCashierService {
             .ok_or_else(|| Error::Validation("缺少明细ID".into()))?;
         let _ = self.working_draft(admin_id).await?;
         self.repo().item_update_price(item_id, price).await
+    }
+
+    /// 整单改价预览：不落库，返回调整后的购物车。
+    pub async fn change_price_preview(
+        &self,
+        admin_id: i32,
+        dto: &PosCartChangePriceDTO,
+    ) -> Result<serde_json::Value> {
+        let cart = self
+            .cart(
+                admin_id,
+                dto.user_id.unwrap_or(0),
+                dto.table_id.unwrap_or(0),
+            )
+            .await?;
+        let mut value = serde_json::to_value(cart).unwrap_or(serde_json::Value::Null);
+        let (Some(change_type), Some(change_value)) =
+            (dto.total_change_price_type, dto.change_price_value)
+        else {
+            return Ok(value);
+        };
+        let Some(draft) = self.working_draft(admin_id).await? else {
+            return Ok(value);
+        };
+        let rows: Vec<(i64, Decimal, i32)> = self
+            .repo()
+            .items(draft.pending_id)
+            .await?
+            .into_iter()
+            .filter(|item| item.is_checked != 0)
+            .map(|item| (item.item_id, item.price, item.quantity))
+            .collect();
+        let prices = total_change_prices(&rows, change_type, change_value)?;
+        let mut map = std::collections::HashMap::new();
+        for (item_id, price) in &prices {
+            map.insert(*item_id, *price);
+        }
+        let mut total = Decimal::ZERO;
+        if let Some(stores) = value.get_mut("cartList").and_then(|v| v.as_array_mut()) {
+            for store in stores {
+                if let Some(carts) = store.get_mut("carts").and_then(|v| v.as_array_mut()) {
+                    for item in carts {
+                        let Some(id) = item.get("cartId").and_then(serde_json::Value::as_i64)
+                        else {
+                            continue;
+                        };
+                        let Some(price) = map.get(&id) else {
+                            continue;
+                        };
+                        let qty = item
+                            .get("quantity")
+                            .and_then(serde_json::Value::as_i64)
+                            .unwrap_or(1);
+                        item["price"] = serde_json::json!(price);
+                        item["subtotal"] = serde_json::json!(*price * Decimal::from(qty));
+                        if item
+                            .get("isChecked")
+                            .and_then(serde_json::Value::as_bool)
+                            .unwrap_or(false)
+                        {
+                            total += *price * Decimal::from(qty);
+                        }
+                    }
+                }
+            }
+        }
+        if let Some(t) = value.get_mut("total") {
+            t["productAmount"] = serde_json::json!(total);
+            t["discountAfter"] = serde_json::json!(total);
+        }
+        Ok(value)
     }
 
     pub async fn pending_order(&self, admin_id: i32, dto: &PosPendingOrderDTO) -> Result<()> {
@@ -692,6 +884,12 @@ impl PosCashierService {
             order_service
                 .on_payment_success(created.order_id, created.total_amount, None)
                 .await?;
+        }
+        if let Some(table_id) = dto.table_id.filter(|id| *id > 0) {
+            let _ = self
+                .repo()
+                .table_set_occupied(table_id, false, 0, created.order_id)
+                .await;
         }
 
         let _ = self.repos.trade.cart.delete(&cart_ids, user_id).await;
