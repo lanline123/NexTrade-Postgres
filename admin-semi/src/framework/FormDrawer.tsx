@@ -99,7 +99,7 @@ export default function FormDrawer({
         labelPosition={config.labelPosition || 'left'}
         labelWidth={config.labelWidth === 'auto' ? 120 : config.labelWidth || 110}
         labelAlign="right"
-        onChange={(state) => setValues(state.values)}
+        onChange={(state) => setValues({ ...state.values })}
         className="product-form"
       >
         {config.sections.map((section) => {

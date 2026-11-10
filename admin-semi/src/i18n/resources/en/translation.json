@@ -11866,6 +11866,7 @@
   "上传中...": "Uploading...",
   "支持 JPG / PNG / WebP，单张图片。": "JPG / PNG / WebP, single image.",
   "支持 JPG / PNG / WebP，最多 {count} 张；第一张作为商品主图，可通过“设为主图”调整顺序。": "JPG / PNG / WebP, up to {count} images. The first one is the product main image; use \"Set as main image\" to change the order.",
+  "支持 JPG / PNG / WebP，最多 {count} 张；拖拽可调整顺序，第一张自动作为商品主图。": "JPG / PNG / WebP, up to {count} images. Drag to reorder; the first image is the product main image.",
   "属性名，如颜色": "Attribute name, e.g. Color",
   "+ 增加{valueLabel}": "+ Add {valueLabel}",
   "删除属性": "Delete attribute",

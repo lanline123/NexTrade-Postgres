@@ -535,6 +535,8 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | pos-semi 收银页 1:1 重建（审计第四十三章，`3cd7af1`）：直接复用 5.8.60 产物组件 CSS（去 scoped）与原 DOM class 结构，收银页接通商品/分类/购物车（加购/改数量/删除/清空/合计），新增 `PARITY.md` 逐项状态；另修后端 `add_to_cart` 对 PG `numeric` 价格的解析（`a74c943`，legacy 端购物车金额 0.00 同因） |
 | 2026-11-10 | 价格修复上线（审计 43.5）：staging `2f89ab3` 构建（9 分钟）部署，二进制 sha `a4372416…18c9`，备份 `nextrade.bak.20261110_192151`；购物车单价恢复 9.90、小计 19.80；回归 53/53 + 跨接口 4/4 |
 | 2026-11-10 | pos-semi 弹窗/挂取单/会员（审计 43.6，`7a85dc8` + `c3c7995`）：确认/备注/挂取单弹窗、会员手机号绑定与游客切换；发现 `createTourists` 因 `user.email` NOT NULL 500，修 `cfe403c` 后重建部署 |
+| 2026-11-10 | 游客创建修复上线（审计 43.7）：staging `cfe403c` 部署，二进制 sha `4106b40c…8a3d`，备份 `nextrade.bak.20261110_194611`；`createTourists` code 0（userId 110）、绑定正常；回归 53/53+4/4 |
+| 2026-11-10 | pos-semi 商品列表对齐（`d9b3699`）：30/页触底加载、售罄遮罩、数量角标、图文/列表切换、空态图；并记录结账后端缺口（`place_order` 为桩，审计 43.8） |
 | 2026-11-10 | 后台顶栏「查看商城」补图标（审计第四十章）：React 版顶栏按钮漏了 `icon`，原版 Vue 为 `icon-guanli`；补 `IconShoppingBag`（与账号下拉同名入口一致），上游 admin-semi 重建后全量上传，线上 DOM 已含 `semi-icon-shopping_bag`，回滚 index 存 `scratch/admin-index.online.20261110_170626.html` |
 | 2026-11-10 | 推送约定：后续**只推送 `NexTrade-Postgres`**；上游 `D:\tigshop\NexTrade` 仅作构建源码，改动同步到本仓库 `admin-semi/` / `pc-semi/` 后再提交，不再向上游 remote 推送（§2.2） |
 | 2026-11-10 | 素材中心「删除分组」弹窗现代化（审计第四十一章）：警示条显示分组名 + 两张可点击策略卡（选中蓝/危险红）+ 红色确认按钮；因上游有并行 WIP，改用 `git archive HEAD` 干净源码构建后全量上传，线上 `index-vGC7iQEf.js`，回滚 index 存 `scratch/admin-index.online.20261110_172540.html` |
@@ -542,6 +544,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 新增商品「商品图片」恢复素材中心选择（审计第四十四章）：新增 `GalleryPickerModal`（分组/搜索/多选/上传），`ImageUploader` 增加 `gallery` 入口，商品表单启用；线上 `index-CPlPAlV0.js`，验证选中 2 张可回填。跨仓库同步改为定向编辑，避免把 Tigshop/NexTrade 品牌差异带进上游 |
 | 2026-11-10 | 素材选择弹窗改版（审计第四十五章）：弹窗放大到 1080×560 并上下左右居中，左侧文件夹树默认只显示一级、箭头展开，右侧网格/搜索/上传保持；线上 `index--WLhioJJ.js`，回滚 index 存 `scratch/admin-index.online.20261110_191724.html` |
 | 2026-11-10 | 素材选择弹窗二次放大（审计第四十六章）：宽 `min(1280px,94vw)`、高 `clamp(560px,72vh,800px)`；加分组搜索、骨架屏、悬停动效、已选缩略图条/清空、双击直接确认；线上 `index-HWvtT8iA.js`，回滚 index 存 `scratch/admin-index.online.20261110_194032.html` |
+| 2026-11-10 | 商品图片删除失效修复 + 拖拽排序（审计第四十七章）：根因是 FormDrawer 对 Semi 原地修改的 `state.values` 同引用 setState 导致自定义字段不重渲染，改为浅拷贝；图片去掉「设为主图」，改原生拖拽排序、首图自动主图、圆形悬浮删除；线上 `index-XJYeonMz.js`，回滚 index 存 `scratch/admin-index.online.20261110_195059.html` |
 
 ---
 

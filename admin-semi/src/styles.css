@@ -1070,10 +1070,28 @@ body {
   position: relative;
   width: 96px;
   height: 96px;
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
   border: 1px solid var(--border);
   background: #f8fafc;
+  transition: transform 0.16s, box-shadow 0.16s, opacity 0.16s;
+}
+
+.image-uploader-item.is-sortable {
+  cursor: grab;
+}
+
+.image-uploader-item.is-sortable:active {
+  cursor: grabbing;
+}
+
+.image-uploader-item.is-dragging {
+  opacity: 0.45;
+}
+
+.image-uploader-item.is-drop-target {
+  box-shadow: 0 0 0 2px var(--primary);
+  transform: translateY(-4px);
 }
 
 .image-uploader-item img {
@@ -1096,12 +1114,9 @@ body {
 .image-uploader-actions {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
   opacity: 0;
-  background: rgba(15, 23, 42, 0.55);
+  pointer-events: none;
+  background: linear-gradient(transparent 55%, rgba(15, 23, 42, 0.35));
   transition: opacity 0.15s ease;
 }
 
@@ -1109,24 +1124,27 @@ body {
   opacity: 1;
 }
 
-.image-uploader-actions button {
-  border: 0;
-  border-radius: 4px;
-  padding: 3px 6px;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.18);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.image-uploader-actions button:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
 .image-uploader-actions button.is-danger {
+  position: absolute;
+  top: 6px;
+  right: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.62);
+  color: #fff;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.image-uploader-actions button.is-danger:hover {
+  background: var(--semi-color-danger, #f93920);
 }
 
 .image-uploader-add {
