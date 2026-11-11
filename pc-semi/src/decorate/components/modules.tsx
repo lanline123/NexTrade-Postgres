@@ -484,24 +484,23 @@ function useHeroCatItems(): HeroCatItem[] {
 }
 
 /** 旧版 `buildSubCataFixedStyle`：子类目弹层紧贴左侧面板右边缘、顶部对齐（fixed 视口坐标）。
- *  高度取左侧面板（= 营销通栏 --dec-height）实测高度，与通栏齐平。 */
+ *  高度取左侧面板（= 营销通栏 --dec-height）实测高度，与通栏严格等高；不加任何间隙。 */
 function subCataFixedStyle(rect: DOMRect): Record<string, string> {
   if (!rect || !Number.isFinite(rect.top) || !Number.isFinite(rect.right)) return {};
-  const panelWidth = 680;
-  const gap = 8;
+  const panelWidth = 744;
   const viewportWidth = typeof window === 'undefined' ? 1440 : window.innerWidth;
   const viewportHeight = typeof window === 'undefined' ? 900 : window.innerHeight;
-  const preferredLeft = rect.right + gap;
-  const left = preferredLeft + panelWidth > viewportWidth - gap ? Math.max(gap, rect.left - panelWidth - gap) : preferredLeft;
-  const maxHeight = Math.max(240, viewportHeight - rect.top - gap);
-  const height = Math.min(rect.height || maxHeight, maxHeight);
+  const left = rect.right + panelWidth > viewportWidth ? Math.max(0, rect.left - panelWidth) : rect.right;
+  const height = rect.height > 0 ? rect.height : Math.max(240, viewportHeight - rect.top);
   return {
     position: 'fixed',
     top: `${Math.round(rect.top)}px`,
     left: `${Math.round(left)}px`,
     height: `${Math.round(height)}px`,
-    maxHeight: `${Math.round(maxHeight)}px`,
-    overflowY: 'auto',
+    minHeight: '0',
+    maxHeight: 'none',
+    padding: '0',
+    overflow: 'visible',
     zIndex: '1000',
   };
 }
@@ -1178,6 +1177,23 @@ function CategoryNav({ module }: ModuleProps) {
   const showTitle = Number(module.showTitle ?? 1) !== 0;
   const displayNum = Math.min(10, Math.max(1, px(module.displayNum ?? module.rowNum, 6)));
   const canScroll = categories.length > displayNum;
+  const hoverRef = useRef(false);
+
+  useEffect(() => {
+    if (!canScroll) return undefined;
+    // 对齐旧版 Swiper：5 秒自动翻一页、悬停暂停、到末尾回到开头
+    const timer = window.setInterval(() => {
+      const el = cateListRef.current;
+      if (!el || hoverRef.current) return;
+      const max = el.scrollWidth - el.clientWidth;
+      if (el.scrollLeft >= max - 2) {
+        el.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        el.scrollBy({ left: el.clientWidth, behavior: 'smooth' });
+      }
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [canScroll, categories.length, displayNum]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1216,10 +1232,30 @@ function CategoryNav({ module }: ModuleProps) {
               </div>
             ) : null}
             <div className="seckill_list_wrap">
-              <SwiperNav visible={canScroll} onPrev={() => cateListRef.current?.scrollBy({ left: -cateListRef.current.clientWidth * 0.6, behavior: 'smooth' })} onNext={() => cateListRef.current?.scrollBy({ left: cateListRef.current.clientWidth * 0.6, behavior: 'smooth' })} />
+              <SwiperNav
+                visible={canScroll}
+                onPrev={() => {
+                  const el = cateListRef.current;
+                  if (!el) return;
+                  if (el.scrollLeft <= 2) el.scrollTo({ left: el.scrollWidth - el.clientWidth, behavior: 'smooth' });
+                  else el.scrollBy({ left: -el.clientWidth, behavior: 'smooth' });
+                }}
+                onNext={() => {
+                  const el = cateListRef.current;
+                  if (!el) return;
+                  if (el.scrollLeft >= el.scrollWidth - el.clientWidth - 2) el.scrollTo({ left: 0, behavior: 'smooth' });
+                  else el.scrollBy({ left: el.clientWidth, behavior: 'smooth' });
+                }}
+              />
               <div
                 className={`seckill_list${canScroll ? ' is-scroll' : ''}`}
                 ref={cateListRef}
+                onMouseEnter={() => {
+                  hoverRef.current = true;
+                }}
+                onMouseLeave={() => {
+                  hoverRef.current = false;
+                }}
               >
                 {categories.map((item, index) => (
                   <div
@@ -2786,7 +2822,7 @@ function Notice({ module }: ModuleProps) {
                   <div className="item-notice-ico"><img className="item-img" src={module.icoPic.picUrl} alt="" /></div>
                 ) : null}
                 <div className="item-notice-list">
-                  <div className="item-notice-input" style={{ color: frame.textColor ?? '#555555' }}>{module.text || ''}</div>
+                  <div className="item-notice-input" style={{ color: frame.textColor ?? '#555555', fontSize: `${px(frame.fontSize, 14)}px` }}>{module.text || ''}</div>
                 </div>
               </div>
             </div>

@@ -75,6 +75,7 @@ import PcGrouponPreview from './decoratePc/previews/PcGrouponPreview';
 import PcHomeHeroPreview from './decoratePc/previews/PcHomeHeroPreview';
 import PcNoticePreview from './decoratePc/previews/PcNoticePreview';
 import ImageUploader from '../components/ImageUploader';
+import GalleryPickerModal from '../components/GalleryPickerModal';
 import { LinkField } from '../components/LinkPicker';
 import type { Icon as IconParkIcon } from '@icon-park/react/es/runtime';
 import Carousel from '@icon-park/react/es/icons/Carousel';
@@ -272,6 +273,8 @@ interface SettingFieldDef {
   hintFor?: (m: Record<string, any>) => string;
   /** 输入框占位文案（对齐旧版 Settings.vue 各 el-input 的 placeholder） */
   placeholder?: string;
+  rows?: number;
+  defaultValue?: number;
   options?: Array<{ label: string; value: number | string }>;
   max?: number;
   min?: number;
@@ -867,12 +870,13 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     defaults: () => ({
       text: '公告内容',
       icoPic: { picUrl: NOTICE_ICON, picThumb: NOTICE_ICON },
-      frame: { textColor: '#555555', itemBackgroundColor: '#fff8e6', backgroundColor: '#ffffff', innerPadding: 0, itemHeight: 35, itemRadius: 4, boxRadius: 0, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5 },
+      frame: { textColor: '#555555', fontSize: 14, itemBackgroundColor: '#fff8e6', backgroundColor: '#ffffff', innerPadding: 0, itemHeight: 35, itemRadius: 4, boxRadius: 0, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5 },
     }),
     settings: [
-      { kind: 'input', key: 'text', label: '公告内容', placeholder: '请输入公告内容' },
+      { kind: 'textarea', key: 'text', label: '公告内容', placeholder: '请输入公告内容', rows: 3 },
       { kind: 'pic', key: 'icoPic', label: '公告图标', resetValue: { picUrl: NOTICE_ICON, picThumb: NOTICE_ICON } },
       { kind: 'color', key: 'frame.textColor', label: '文字颜色', resetValue: '#555555', extend: false },
+      { kind: 'slider', key: 'frame.fontSize', label: '文字大小', min: 12, max: 24, defaultValue: 14 },
       { kind: 'color', key: 'frame.itemBackgroundColor', label: '组件背景', resetValue: '#ffffff', extend: false },
       { kind: 'slider', key: 'frame.itemRadius', label: '组件圆角', max: 50, extend: false },
       { kind: 'slider', key: 'frame.itemHeight', label: '组件高度', min: 20, max: 80, extend: false },
@@ -5004,7 +5008,7 @@ function ModuleSettingsPanel({
   const visibleSettings = tabbed
     ? def.settings.filter((field) => (activeTab === 'extend' ? isExtendField(field) : !isExtendField(field)))
     : def.settings;
-  const blockKinds = new Set(['picList', 'pic', 'products', 'title', 'container', 'hotarea', 'news', 'groupon', 'squareTemplate']);
+  const blockKinds = new Set(['picList', 'pic', 'textarea', 'products', 'title', 'container', 'hotarea', 'news', 'groupon', 'squareTemplate']);
   const contentTabLabel = def.type === 'pc-product-group' ? t('商品设置') : '内容设置';
   const SECTION_LEVELS: Record<string, 1 | 2> = {
     // 模块级 / 内容级 / 扩展级
@@ -5388,6 +5392,78 @@ function GrouponPickerModal({
   );
 }
 
+
+/** 单图字段（公告图标 / LOGO 等）：缩略图 + 素材中心直选 + 恢复默认。 */
+function SinglePicField({
+  value,
+  onChange,
+  resetValue,
+  hint,
+}: {
+  value: unknown;
+  onChange: (next: PicItem) => void;
+  resetValue?: unknown;
+  hint?: string;
+}) {
+  const { t } = useI18n();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const current = (value && typeof value === 'object' ? value : {}) as PicItem;
+  const url = current.picUrl || current.picThumb || '';
+  const fallback = (resetValue && typeof resetValue === 'object' ? resetValue : null) as PicItem | null;
+  const defaultUrl = fallback?.picUrl || fallback?.picThumb || '';
+  const isDefault = Boolean(defaultUrl) && url === defaultUrl;
+  const applyUrls = (urls: string[]) => {
+    const nextUrl = urls[0] || '';
+    onChange({ ...current, picUrl: nextUrl, picThumb: nextUrl });
+    setPickerOpen(false);
+  };
+  return (
+    <div className="dec-single-pic">
+      <button
+        type="button"
+        className="dec-single-pic__thumb"
+        onClick={() => setPickerOpen(true)}
+        title={t('从素材中心选择')}
+      >
+        {url ? (
+          <>
+            <img src={url} alt="" />
+            <span className="dec-single-pic__mask">{t('更换')}</span>
+          </>
+        ) : (
+          <IconPlus />
+        )}
+      </button>
+      <div className="dec-single-pic__body">
+        <div className="dec-single-pic__name">{url ? t('已选择图片') : t('未设置图片')}</div>
+        <div className="dec-single-pic__hint">{hint || t('支持 JPG / PNG / WebP，建议使用透明底图标')}</div>
+        <div className="dec-single-pic__actions">
+          <Button size="small" onClick={() => setPickerOpen(true)}>
+            {url ? t('更换图片') : t('从素材中心选择')}
+          </Button>
+          {url ? (
+            <Button size="small" theme="borderless" type="danger" onClick={() => onChange({ picUrl: '', picThumb: '' })}>
+              {t('删除')}
+            </Button>
+          ) : null}
+          {fallback && !isDefault ? (
+            <Button size="small" theme="borderless" onClick={() => onChange({ ...fallback })}>
+              {t('恢复默认')}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      <GalleryPickerModal
+        visible={pickerOpen}
+        multiple={false}
+        limit={1}
+        onCancel={() => setPickerOpen(false)}
+        onConfirm={applyUrls}
+      />
+    </div>
+  );
+}
+
 function PicListEditor({
   value,
   onChange,
@@ -5532,7 +5608,7 @@ function SettingsFieldRows({
   onChange: (next: Record<string, any>) => void;
 }) {
   const { t } = useI18n();
-  const blockKinds = new Set(['picList', 'pic', 'products', 'title', 'container', 'hotarea', 'news', 'groupon', 'squareTemplate']);
+  const blockKinds = new Set(['picList', 'pic', 'textarea', 'products', 'title', 'container', 'hotarea', 'news', 'groupon', 'squareTemplate']);
   return (
     <>
       {fields.map((field) => {
@@ -5605,7 +5681,7 @@ function FieldControl({
     case 'input':
       return <Input value={String(value ?? '')} onChange={(v) => set(v)} placeholder={field.placeholder ? t(field.placeholder) : undefined} />;
     case 'textarea':
-      return <TextArea value={String(value ?? '')} onChange={(v: string) => set(v)} rows={2} maxLength={500} placeholder={field.placeholder ? t(field.placeholder) : undefined} />;
+      return <TextArea value={String(value ?? '')} onChange={(v: string) => set(v)} rows={field.rows ?? 2} maxLength={500} placeholder={field.placeholder ? t(field.placeholder) : undefined} />;
     case 'number':
       return (
         <InputNumber
@@ -5619,7 +5695,7 @@ function FieldControl({
     case 'slider':
       return (
         <SliderWithInput
-          value={typeof value === 'number' ? value : 0}
+          value={typeof value === 'number' ? value : (field.defaultValue ?? 0)}
           min={field.min ?? 0}
           max={field.max ?? 30}
           step={1}
@@ -5705,13 +5781,7 @@ function FieldControl({
     case 'picList':
       return <PicListEditor value={(value as PicItem[]) || []} onChange={(v) => set(v)} showDesc={field.picDesc} addText={field.picAddTextFor ? field.picAddTextFor(moduleData) : field.picAddText} showLink={!field.picNoLink} showText={!field.picNoText} max={field.picMaxFor ? field.picMaxFor(moduleData) : field.picMax} />;
     case 'pic':
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {/* 原版单图控件（如 pc-notice 公告图标）隐藏标题/描述/链接输入 */}
-          <PicListEditor value={value && (value as PicItem).picUrl ? [value as PicItem] : []} onChange={(v) => set(v[0] || { picUrl: '', picThumb: '' })} showText={false} showLink={false} showDesc={false} />
-          <Button size="small" onClick={() => set((field.resetValue as PicItem) || { picUrl: '', picThumb: '' })}>{t('重置')}</Button>
-        </div>
-      );
+      return <SinglePicField value={value} onChange={(v) => set(v)} resetValue={field.resetValue} />;
     case 'link': {
       const link = (value && typeof value === 'object' ? value : {}) as Record<string, any>;
       return (

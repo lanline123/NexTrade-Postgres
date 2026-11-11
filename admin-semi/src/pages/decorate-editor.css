@@ -2608,3 +2608,86 @@
   line-height: 17px;
   text-align: center;
 }
+
+/* 单图字段（公告图标 / LOGO 等）：缩略图 + 素材中心直选 + 恢复默认 */
+.dec-single-pic {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+  border: 1px solid var(--semi-color-border, #ebedf0);
+  border-radius: 10px;
+  background: var(--semi-color-fill-0, #fafbfc);
+}
+.dec-single-pic__thumb {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  overflow: hidden;
+  border: 1px dashed var(--semi-color-border, #d7dbe0);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--semi-color-text-3, #b6bcc6);
+  cursor: pointer;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.dec-single-pic__thumb:hover {
+  border-color: var(--semi-color-primary);
+  box-shadow: 0 0 0 2px var(--semi-color-primary-light-default, rgba(0, 100, 250, .08));
+}
+.dec-single-pic__thumb .semi-icon { font-size: 22px; }
+.dec-single-pic__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #fff;
+}
+.dec-single-pic__mask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(17, 24, 39, .5);
+  color: #fff;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+.dec-single-pic__thumb:hover .dec-single-pic__mask { opacity: 1; }
+.dec-single-pic__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dec-single-pic__name {
+  color: var(--semi-color-text-0, #1f2329);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+.dec-single-pic__hint {
+  color: var(--semi-color-text-2, #8f959e);
+  font-size: 12px;
+  line-height: 18px;
+}
+.dec-single-pic__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* 多行文本字段：标签下方整行输入，便于长公告编辑 */
+.pc-module-settings .dec-edit-group-block .semi-textArea-wrapper,
+.pc-module-settings .dec-edit-group-block textarea { width: 100%; box-sizing: border-box; }
+.pc-module-settings .dec-edit-group-block textarea { min-height: 72px; resize: vertical; line-height: 1.6; border-radius: 8px; }

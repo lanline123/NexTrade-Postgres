@@ -26,6 +26,7 @@ export default function PcNoticePreview({ data }: { data: Record<string, any> })
         '--dec-item-height': `${Number(frame.itemHeight ?? 35)}px`,
         '--dec-item-radius': `${Number(frame.itemRadius ?? 4)}px`,
         '--dec-text-color': frame.textColor || '#555555',
+        '--dec-text-size': `${Number(frame.fontSize ?? 14)}px`,
       } as CSSProperties}
     >
       <div className="dec-pc-notice__wrapper">
