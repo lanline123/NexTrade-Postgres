@@ -2075,7 +2075,16 @@ function Coupon({ module }: ModuleProps) {
   return (
     <div style={{ padding: px(module.itemPadding) }}>
       <Container module={containerModule} className="module-ad-con module-pc-coupon">
-        <div className="dec-coupon" style={{ ['--dec-coupon-cols' as any]: cols }}>
+        <div
+          className="dec-coupon"
+          style={{
+            ['--dec-coupon-cols' as any]: cols,
+            // 颜色 / 圆角由后台装修模块注入；空值回退到主题色与默认直角
+            ['--dec-coupon-accent' as any]: module.accentColor || undefined,
+            ['--dec-coupon-surface' as any]: module.itemBackgroundColor || undefined,
+            ['--dec-coupon-radius' as any]: module.boxRadius != null ? `${px(module.boxRadius)}px` : undefined,
+          }}
+        >
           {showTitle ? (
             <div className="dec-coupon__header">
               <p className="dec-coupon__header-title" style={{ color: module.titleColor || undefined }}>

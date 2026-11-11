@@ -35,10 +35,11 @@ const COUPON_DEFAULTS = {
   title: '每日领券',
   desc: '天天优惠领不停',
   colorStyle: 0,
+  accentColor: '#16a34a',
   itemBackgroundColor: '#ffffff',
   backgroundColor: '#ffffff',
   itemPadding: 10,
-  boxRadius: 8,
+  boxRadius: 0,
   boxPadding: 10,
   boxPaddingTop: 5,
   boxPaddingBottom: 5,
@@ -155,9 +156,12 @@ export default function PcCouponPreview({ data }: { data: Record<string, any> })
           paddingTop: boxPaddingTop,
           paddingBottom: boxPaddingBottom,
           borderRadius: boxRadius,
-          background: moduleConfig.backgroundColor || undefined,
+          background: (moduleConfig as any).frame?.backgroundColor || moduleConfig.backgroundColor || undefined,
           overflow: 'hidden',
           ['--dec-coupon-cols' as any]: cols,
+          ['--dec-coupon-accent' as any]: moduleConfig.accentColor || undefined,
+          ['--dec-coupon-surface' as any]: moduleConfig.itemBackgroundColor || undefined,
+          ['--dec-coupon-radius' as any]: `${boxRadius}px`,
         }}
       >
         {showTitle && (

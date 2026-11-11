@@ -777,13 +777,16 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     note: '优惠券内容由营销-优惠券"首页显示"决定',
     defaults: () => ({
       showTitle: 0, title: '每日领券', desc: '天天优惠领不停', colorStyle: 0,
-      itemBackgroundColor: '#ffffff', backgroundColor: '#ffffff',
-      itemPadding: 10, boxRadius: 8, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5,
+      accentColor: '#16a34a', itemBackgroundColor: '#ffffff', backgroundColor: '#ffffff',
+      itemPadding: 10, boxRadius: 0, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5,
     }),
     settings: [
       { kind: 'switch', key: 'showTitle', label: '显示标题栏' },
       { kind: 'input', key: 'title', label: '标题内容', placeholder: '请输入标题内容', showIf: (m) => Number(m.showTitle) === 1 },
       { kind: 'textarea', key: 'desc', label: '描述内容', placeholder: '请输入描述内容, 字数不超过500', showIf: (m) => Number(m.showTitle) === 1 },
+      { kind: 'color', key: 'accentColor', label: '券主色（面额/按钮）', resetValue: '#16a34a' },
+      { kind: 'color', key: 'itemBackgroundColor', label: '券卡背景色', resetValue: '#ffffff' },
+      { kind: 'color', key: 'frame.backgroundColor', label: '模块背景色', resetValue: '#ffffff' },
       { kind: 'slider', key: 'itemPadding', label: '组件边距', max: 30, extend: true },
       { kind: 'slider', key: 'boxRadius', label: '圆角', max: 30, extend: true },
       { kind: 'slider', key: 'boxPadding', label: '左右边距', max: 30, extend: true },
