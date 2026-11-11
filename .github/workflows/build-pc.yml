@@ -1,7 +1,11 @@
 name: build-pc-frontend
 
-# 在 GitHub Actions（Linux）上构建 PC 商城（pc-semi），产出可部署的 standalone 包。
+# 在 GitHub Actions（Linux）上构建 PC 商城（pc-semi），产出可部署的精简包。
 # 手动触发，产物同时上传 Artifact 和 Release 资产。
+#
+# 2026-11-12 修正：源码已从 rust/web/pc-semi 迁到仓库根 pc-semi/，
+# 且依赖锁文件改为 npm（package-lock.json）。原 workflow 的 rust/web 路径已不存在，
+# 首次运行必然失败，这里改为根目录 + npm ci。
 on:
   workflow_dispatch:
 
@@ -14,32 +18,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Install workspace deps
-        working-directory: rust/web
-        env:
-          # pnpm 默认用软链接；Next standalone 需要真实文件，官方建议 hoisted
-          NPM_CONFIG_NODE_LINKER: hoisted
-        run: pnpm install --no-frozen-lockfile
+      - name: Install deps
+        working-directory: pc-semi
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
 
       - name: Build pc-semi
-        working-directory: rust/web/pc-semi
+        working-directory: pc-semi
         env:
           PC_API_BASE: https://battery.recy.cc
           NODE_ENV: production
+          NEXT_TELEMETRY_DISABLED: "1"
         run: |
           node scripts/copy-semi-css.mjs
           npx next build
 
       - name: Package slim runtime bundle
-        working-directory: rust/web/pc-semi
+        working-directory: pc-semi
         run: |
           set -euo pipefail
           OUT=/tmp/pc-out

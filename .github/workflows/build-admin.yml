@@ -1,0 +1,70 @@
+name: build-admin-frontend
+
+# 在 GitHub Actions（Linux）上构建后台管理端（admin-semi），产出可部署的静态 dist 包。
+# 手动触发，产物同时上传 Artifact 和 Release 资产。
+#
+# 2026-11-12 新增：此前 admin 没有任何 CI 出包通道，线上 admin 只能本地 build 后上传。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install deps
+        working-directory: admin-semi
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      - name: Build admin-semi
+        working-directory: admin-semi
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npm run build
+
+      - name: Package dist
+        working-directory: admin-semi
+        run: |
+          set -euo pipefail
+          test -f dist/index.html || { echo "dist/index.html missing"; ls -la; exit 1; }
+          tar -czf /tmp/nextrade-admin.tgz -C dist .
+          sha256sum /tmp/nextrade-admin.tgz > /tmp/nextrade-admin.tgz.sha256
+          ls -lh /tmp/nextrade-admin.tgz
+          cat /tmp/nextrade-admin.tgz.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nextrade-admin-dist
+          path: |
+            /tmp/nextrade-admin.tgz
+            /tmp/nextrade-admin.tgz.sha256
+          if-no-files-found: error
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="admin-build-${GITHUB_RUN_NUMBER}"
+          AUTH="Authorization: Bearer ${GH_TOKEN}"
+          API="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          curl -fsS -X POST -H "${AUTH}" -H "Accept: application/vnd.github+json" \
+            "${API}/releases" \
+            -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"body\":\"admin-semi commit ${GITHUB_SHA}\"}" \
+            -o /tmp/release.json
+          RID=$(node -e "console.log(require('/tmp/release.json').id)")
+          curl -fsS -X POST -H "${AUTH}" -H "Content-Type: application/octet-stream" \
+            --data-binary @/tmp/nextrade-admin.tgz \
+            "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RID}/assets?name=nextrade-admin.tgz"
+          curl -fsS -X POST -H "${AUTH}" -H "Content-Type: application/octet-stream" \
+            --data-binary @/tmp/nextrade-admin.tgz.sha256 \
+            "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RID}/assets?name=nextrade-admin.tgz.sha256"
+          echo "release: ${TAG}"
