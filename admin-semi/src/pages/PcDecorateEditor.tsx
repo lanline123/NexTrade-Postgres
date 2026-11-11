@@ -320,6 +320,13 @@ interface SettingFieldDef {
   /** 字段写入后的附加行为（如切换拼团类型时清空活动） */
   onChangeExtra?: (moduleData: Record<string, any>, newValue: unknown) => Record<string, any>;
   showIf?: (m: Record<string, any>) => boolean;
+  /**
+   * radio 字段渲染成原版的「图标按钮组」：每个选项显示 `ico-decorate` 字形并带 tooltip 文案。
+   * 原版 el-radio-button + el-tooltip 的形态（如 选择模板 / 指示器样式）。
+   */
+  iconRadio?: boolean;
+  /** 选项对应的装饰图标 code point（配合 iconRadio，与 options 等长或按 value 映射） */
+  optionIcons?: Record<string | number, string>;
 }
 
 interface ModuleDef {
@@ -377,42 +384,52 @@ const containerFields = (opts: { showInnerPadding?: boolean } = {}): SettingFiel
  * 显示标题 → 标题样式 → 标题对齐 → 标题内容 → 标题颜色 → 描述内容 → 描述颜色 → 背景颜色
  * → 标题圆角 → [标题上/下边距] → 显示右侧内容/显示更多链接 → [右侧内容二选]
  * → 链接模式：[链接文字] → 链接颜色 → 链接地址 ｜ 倒计时模式：前缀文字 → 文字颜色
+ *
+ * `rootKey`：数据对象里标题对象的挂载路径。
+ * - `'title'`（缺省）：字段挂在整模块对象上，key 形如 `title.showTitle`，showIf 走 `getPath(m,'title.x')`；
+ * - `''`：字段挂在**标题对象本身**上（`kind:'title'` 渲染时会剥掉 `title.` 前缀并把 data 换成 titleData），
+ *   showIf 直接读 `m.x`。
+ *
+ * 历史 bug：`kind:'title'` 分支把 data 换成了标题对象，但 showIf 仍按 `title.x` 取值，
+ * 于是 `showTitleOn` 恒为 false，除「显示标题」外所有子项全部被隐藏（表现为标题设置缺项）。
  */
-const titleFields = (opts: { moreType?: boolean; verticalPadding?: boolean; hideAlign?: boolean } = {}): SettingFieldDef[] => {
+const titleFields = (opts: { moreType?: boolean; verticalPadding?: boolean; hideAlign?: boolean; rootKey?: string } = {}): SettingFieldDef[] => {
+  const base = opts.rootKey === undefined ? 'title' : opts.rootKey;
+  const at = (sub: string) => (base ? `${base}.${sub}` : sub);
   const moreColorDefault = opts.moreType ? '#1a1a1a' : '#969799';
-  const showTitleOn = (m: Record<string, any>) => Number(getPath(m, 'title.showTitle')) === 1;
-  const showMoreOn = (m: Record<string, any>) => showTitleOn(m) && Number(getPath(m, 'title.showMore')) === 1;
+  const showTitleOn = (m: Record<string, any>) => Number(getPath(m, at('showTitle'))) === 1;
+  const showMoreOn = (m: Record<string, any>) => showTitleOn(m) && Number(getPath(m, at('showMore'))) === 1;
   const countdownMode = (m: Record<string, any>) =>
-    showMoreOn(m) && !!opts.moreType && Number(getPath(m, 'title.moreType')) === 2;
+    showMoreOn(m) && !!opts.moreType && Number(getPath(m, at('moreType'))) === 2;
   const linkMode = (m: Record<string, any>) =>
-    showMoreOn(m) && (!opts.moreType || Number(getPath(m, 'title.moreType')) !== 2);
+    showMoreOn(m) && (!opts.moreType || Number(getPath(m, at('moreType'))) !== 2);
   return [
-    { kind: 'switch', key: 'title.showTitle', label: '显示标题' },
-    { kind: 'radio', key: 'title.titleStyle', label: '标题样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }], showIf: showTitleOn },
-    { kind: 'radio', key: 'title.titleAlign', label: '标题对齐', options: [{ label: '左对齐', value: 1 }, { label: '居中', value: 2 }, { label: '右对齐', value: 3 }], showIf: (m) => showTitleOn(m) && !opts.hideAlign },
-    { kind: 'input', key: 'title.titleText', label: '标题内容', showIf: showTitleOn },
-    { kind: 'color', key: 'title.titleColor', label: '标题颜色', resetValue: '#2a3145', showIf: showTitleOn },
-    { kind: 'input', key: 'title.descText', label: '描述内容', showIf: showTitleOn },
-    { kind: 'color', key: 'title.descColor', label: '描述颜色', resetValue: '#aaaaaa', showIf: showTitleOn },
-    { kind: 'color', key: 'title.titleBackground', label: '背景颜色', showIf: showTitleOn },
-    { kind: 'slider', key: 'title.titleRadius', label: '标题圆角', max: 30, showIf: showTitleOn },
+    { kind: 'switch', key: at('showTitle'), label: '显示标题' },
+    { kind: 'radio', key: at('titleStyle'), label: '标题样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }], showIf: showTitleOn },
+    { kind: 'radio', key: at('titleAlign'), label: '标题对齐', options: [{ label: '左对齐', value: 1 }, { label: '居中', value: 2 }, { label: '右对齐', value: 3 }], showIf: (m) => showTitleOn(m) && !opts.hideAlign },
+    { kind: 'input', key: at('titleText'), label: '标题内容', showIf: showTitleOn },
+    { kind: 'color', key: at('titleColor'), label: '标题颜色', resetValue: '#2a3145', showIf: showTitleOn },
+    { kind: 'input', key: at('descText'), label: '描述内容', showIf: showTitleOn },
+    { kind: 'color', key: at('descColor'), label: '描述颜色', resetValue: '#aaaaaa', showIf: showTitleOn },
+    { kind: 'color', key: at('titleBackground'), label: '背景颜色', showIf: showTitleOn },
+    { kind: 'slider', key: at('titleRadius'), label: '标题圆角', max: 30, showIf: showTitleOn },
     ...(opts.verticalPadding
       ? [
-          { kind: 'slider' as const, key: 'title.titlePaddingTop', label: '标题上边距', max: 60 },
-          { kind: 'slider' as const, key: 'title.titlePaddingBottom', label: '标题下边距', max: 60 },
+          { kind: 'slider' as const, key: at('titlePaddingTop'), label: '标题上边距', max: 60 },
+          { kind: 'slider' as const, key: at('titlePaddingBottom'), label: '标题下边距', max: 60 },
         ]
       : []),
-    { kind: 'switch', key: 'title.showMore', label: opts.moreType ? tl('显示右侧内容') : '显示更多链接', showIf: showTitleOn },
+    { kind: 'switch', key: at('showMore'), label: opts.moreType ? tl('显示右侧内容') : '显示更多链接', showIf: showTitleOn },
     ...(opts.moreType
       ? [
-          { kind: 'radio' as const, key: 'title.moreType', label: '右侧内容', options: [{ label: '显示更多', value: 1 }, { label: '显示倒计时', value: 2 }], showIf: showMoreOn },
-          { kind: 'input' as const, key: 'title.countdownLabel', label: '前缀文字', showIf: countdownMode },
+          { kind: 'radio' as const, key: at('moreType'), label: '右侧内容', options: [{ label: '显示更多', value: 1 }, { label: '显示倒计时', value: 2 }], showIf: showMoreOn },
+          { kind: 'input' as const, key: at('countdownLabel'), label: '前缀文字', showIf: countdownMode },
         ]
       : []),
-    { kind: 'input', key: 'title.moreLink.title', label: '链接文字', showIf: linkMode },
-    { kind: 'color', key: 'title.moreColor', label: opts.moreType ? tl('文字颜色') : '链接颜色', resetValue: moreColorDefault, showIf: countdownMode },
-    { kind: 'color', key: 'title.moreColor', label: '链接颜色', resetValue: moreColorDefault, showIf: (m) => linkMode(m) && (!opts.moreType || Number(getPath(m, 'title.moreType')) !== 2) },
-    { kind: 'link', key: 'title.moreLink', label: '链接地址', showIf: linkMode },
+    { kind: 'input', key: at('moreLink.title'), label: '链接文字', showIf: linkMode },
+    { kind: 'color', key: at('moreColor'), label: opts.moreType ? tl('文字颜色') : '链接颜色', resetValue: moreColorDefault, showIf: countdownMode },
+    { kind: 'color', key: at('moreColor'), label: '链接颜色', resetValue: moreColorDefault, showIf: (m) => linkMode(m) && (!opts.moreType || Number(getPath(m, at('moreType'))) !== 2) },
+    { kind: 'link', key: at('moreLink'), label: '链接地址', showIf: linkMode },
   ];
 };
 
@@ -461,7 +478,16 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       title: standardTitle(),
     }),
     settings: [
-      { kind: 'radio', key: 'picType', label: '选择模板', options: [{ label: '一行一个', value: 1 }, { label: '轮播', value: 2 }, { label: '一行两个', value: 5 }, { label: '一行三个', value: 6 }, { label: '一行四个', value: 7 }] },
+      { kind: 'radio', key: 'picType', label: '选择模板', iconRadio: true,
+        // 原版 pc-image-ad/Settings.vue：el-radio-button 内为 ico-decorate 图标 + el-tooltip 文案
+        optionIcons: { 1: '\ue603', 2: '\ue601', 5: '\ue61c', 6: '\ue61d', 7: '\ue61b' },
+        options: [
+          { label: '一行一个', value: 1 },
+          { label: '轮播', value: 2 },
+          { label: '一行两个', value: 5 },
+          { label: '一行三个', value: 6 },
+          { label: '一行四个', value: 7 },
+        ] },
       { kind: 'picList', key: 'picList', label: '图片列表', section: '添加图片',
         // 原版按 picType 显示不同提示文案（仅一行一个 / 轮播两种布局有提示）
         hintFor: (m) => {
@@ -470,7 +496,10 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
           if (picType === 1) return '提示：您可以通过拖拽进行图片排序，单图占宽为100%，建议宽1500px，高度自适应';
           return '';
         } },
-      { kind: 'radio', key: 'picPageType', label: '指示器样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }], showIf: (m) => Number(m.picType) === 2 },
+      { kind: 'radio', key: 'picPageType', label: '指示器样式', iconRadio: true, showIf: (m) => Number(m.picType) === 2,
+        // 原版：el-radio-button + ico-decorate icon-dec-indicator-1/2/3 + el-tooltip「样式一/二/三」
+        optionIcons: { 1: '\ue604', 2: '\ue606', 3: '\ue605' },
+        options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }] },
       { kind: 'color', key: 'swiperPageColor', label: '指示器颜色', resetValue: '#333333', showIf: (m) => Number(m.picType) === 2 },
       { kind: 'select', key: 'swiperPreView', label: '轮播一行显示', options: [1, 2, 3, 4].map((n) => ({ label: `${n}个`, value: n })), showIf: (m) => Number(m.picType) === 2 },
       { kind: 'slider', key: 'imgPadding', label: '图片边距', max: 30 },
@@ -5836,6 +5865,31 @@ function FieldControl({
 
   switch (field.kind) {
     case 'radio':
+      if (field.iconRadio) {
+        // 原版 el-radio-button + el-tooltip：以 ico-decorate 图标直观看模板/指示器样式
+        const current = (value ?? field.options?.[0]?.value) as string | number | undefined;
+        return (
+          <div className="dec-icon-radio-group">
+            {(field.options || []).map((o) => {
+              const icon = field.optionIcons?.[o.value as string | number];
+              const active = String(current) === String(o.value);
+              return (
+                <Tooltip key={String(o.value)} content={t(o.label)} position="bottom">
+                  <button
+                    type="button"
+                    className={`dec-icon-radio${active ? ' is-active' : ''}`}
+                    onClick={() => set(Number(o.value))}
+                    aria-label={t(o.label)}
+                    aria-pressed={active}
+                  >
+                    {icon ? <i className="ico-decorate" style={{ fontSize: 18 }}>{icon}</i> : t(o.label)}
+                  </button>
+                </Tooltip>
+              );
+            })}
+          </div>
+        );
+      }
       return (
         <RadioGroup value={(value ?? field.options?.[0]?.value) as string | number | undefined} onChange={(e: any) => set(Number(e.target.value))}>
           {(field.options || []).map((o) => (
@@ -6092,13 +6146,16 @@ function FieldControl({
     }
     case 'title': {
       const titleData = (value && typeof value === 'object' ? value : standardTitle()) as Record<string, any>;
+      // rootKey:'' —— fields 的 key 与 showIf 都基于「标题对象本身」，与下面 data={titleData} 一致。
+      // 不要再套 title. 前缀，否则 showIf 恒 false、标题子项全部隐藏。
       return (
         <SettingsFieldRows
           fields={titleFields({
+            rootKey: '',
             moreType: !field.titleHideMoreType,
-            verticalPadding: !field.titleHideVerticalPadding && Object.prototype.hasOwnProperty.call(titleData, 'titlePaddingTop'),
+            verticalPadding: !field.titleHideVerticalPadding,
             hideAlign: field.titleHideAlign,
-          }).map((f) => ({ ...f, key: f.key.replace('title.', '') }))}
+          })}
           data={titleData}
           onChange={(next) => set(next)}
         />
