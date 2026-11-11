@@ -2638,9 +2638,17 @@
     height: 100%;
     overflow-x: auto;
     scrollbar-width: none;
+    cursor: grab;
+    user-select: none;
+    touch-action: pan-y;
 
     &::-webkit-scrollbar {
       display: none;
+    }
+
+    &.is-dragging {
+      cursor: grabbing;
+      scroll-snap-type: none;
     }
   }
 
@@ -2648,7 +2656,7 @@
     box-sizing: border-box;
     position: relative;
     z-index: 1;
-    flex: 0 0 248px;
+    flex: 0 0 calc(100% / 6);
     min-width: 0;
     padding: 0 14px;
 
@@ -2723,12 +2731,10 @@
   }
 
   &__hot {
-    padding: 0 4px;
-    border-radius: 2px;
-    background: #fff1f0;
-    color: var(--pc-primary);
-    font-size: 10px;
-    line-height: 14px;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    color: #f56c6c;
   }
 }
 

@@ -2958,6 +2958,48 @@ function CategoryNav3({ module }: ModuleProps) {
     borderRadius: `${radius}px`,
     overflow: radius ? 'hidden' : undefined,
   };
+  const [canScroll, setCanScroll] = useState(false);
+  const dragRef = useRef<{ startX: number; startLeft: number; moved: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
+  const hoveringRef = useRef(false);
+
+  useEffect(() => {
+    const el = nav3Ref.current;
+    if (!el) return;
+    const update = () => setCanScroll(el.scrollWidth - el.clientWidth > 1);
+    update();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    observer?.observe(el);
+    window.addEventListener('resize', update);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, [pics.length]);
+
+  useEffect(() => {
+    if (!canScroll) return;
+    const timer = window.setInterval(() => {
+      const el = nav3Ref.current;
+      if (!el || hoveringRef.current) return;
+      const max = el.scrollWidth - el.clientWidth;
+      if (el.scrollLeft >= max - 2) {
+        el.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        el.scrollBy({ left: el.clientWidth, behavior: 'smooth' });
+      }
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [canScroll]);
+
+  const endDrag = () => {
+    dragRef.current = null;
+    nav3Ref.current?.classList.remove('is-dragging');
+    window.setTimeout(() => {
+      suppressClickRef.current = false;
+    }, 0);
+  };
+
   return (
     <div className="dec-category-nav3" style={style}>
       <div className="dec-category-nav3__top">
@@ -2965,14 +3007,52 @@ function CategoryNav3({ module }: ModuleProps) {
         {Number(module.showMore) === 1 ? (
           <a className="dec-category-nav3__more" href={navHref(module.moreLink) || '#'} target="_blank" rel="noreferrer">
             {module.showMoreText || t('更多')}
-            <span className="dec-category-nav3__more-icon" aria-hidden>›</span>
+            <svg className="dec-category-nav3__more-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </a>
         ) : null}
       </div>
       {pics.length ? (
         <div className="dec-category-nav3__list-wrap">
-          <SwiperNav visible={pics.length > 6} onPrev={() => nav3Ref.current?.scrollBy({ left: -nav3Ref.current.clientWidth * 0.6, behavior: 'smooth' })} onNext={() => nav3Ref.current?.scrollBy({ left: nav3Ref.current.clientWidth * 0.6, behavior: 'smooth' })} />
-          <div className="dec-category-nav3__list" ref={nav3Ref}>
+          <SwiperNav visible={canScroll} onPrev={() => nav3Ref.current?.scrollBy({ left: -nav3Ref.current.clientWidth * 0.6, behavior: 'smooth' })} onNext={() => nav3Ref.current?.scrollBy({ left: nav3Ref.current.clientWidth * 0.6, behavior: 'smooth' })} />
+          <div
+            className="dec-category-nav3__list"
+            ref={nav3Ref}
+            onPointerDown={(event) => {
+              const el = nav3Ref.current;
+              if (!el || event.button !== 0) return;
+              dragRef.current = { startX: event.clientX, startLeft: el.scrollLeft, moved: false };
+              el.classList.add('is-dragging');
+              el.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              const el = nav3Ref.current;
+              const drag = dragRef.current;
+              if (!el || !drag) return;
+              const dx = event.clientX - drag.startX;
+              if (Math.abs(dx) > 4) {
+                drag.moved = true;
+                suppressClickRef.current = true;
+                el.scrollLeft = drag.startLeft - dx;
+              }
+            }}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            onLostPointerCapture={endDrag}
+            onClickCapture={(event) => {
+              if (suppressClickRef.current) {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            }}
+            onMouseEnter={() => {
+              hoveringRef.current = true;
+            }}
+            onMouseLeave={() => {
+              hoveringRef.current = false;
+            }}
+          >
           {pics.map((pic, i) => (
             <div className="dec-category-nav3__item" key={i}>
               <a href={navHref(pic.picLink) || '#'} target="_blank" rel="noreferrer" title={pic.picTitle}>
@@ -2982,7 +3062,9 @@ function CategoryNav3({ module }: ModuleProps) {
                 <div className="dec-category-nav3__name">{pic.picTitle}</div>
                 {pic.picDesc ? (
                   <div className="dec-category-nav3__desc">
-                    <span className="dec-category-nav3__hot">HOT</span>
+                    <svg className="dec-category-nav3__hot" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 2c1.2 3.4-2.6 5.1-2.6 8.4a2.6 2.6 0 0 0 5.2 0c0-1-.2-1.8-.7-2.6 2.2 1.3 3.6 3.4 3.6 5.9a5.5 5.5 0 0 1-11 0c0-3.6 1.9-5.6 3.6-7.4C11 4.7 11.7 3.4 12 2Z" fill="currentColor" />
+                    </svg>
                     <div className="dec-category-nav3__desc-text">{pic.picDesc}</div>
                   </div>
                 ) : null}

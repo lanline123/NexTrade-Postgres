@@ -5593,18 +5593,27 @@ img {
   scrollbar-width: none;
   padding: 0 12px;
   box-sizing: border-box;
+  cursor: grab;
+  user-select: none;
+  touch-action: pan-y;
+}
+
+.dec-category-nav3__list.is-dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
 }
 .dec-category-nav3__list::-webkit-scrollbar { display: none; }
 .dec-category-nav3__item {
   box-sizing: border-box;
-  flex: 0 0 248px;
+  /* 对齐原版 Swiper slidesPerView:6：每卡 = 内容宽 / 6，6 张正好铺满 */
+  flex: 0 0 calc(100% / 6);
   height: 100%;
   padding: 0 14px;
   scroll-snap-align: start;
 }
 .dec-category-nav3__item a { display: flex; flex-direction: column; height: 100%; }
 .dec-category-nav3__item:hover .dec-category-nav3__img { filter: brightness(105%); }
-.dec-category-nav3__item:hover .dec-category-nav3__name { color: var(--pc-primary); }
+.dec-category-nav3__item:hover .dec-category-nav3__name { color: var(--main-bg, var(--pc-primary)); }
 .dec-category-nav3__image {
   width: 100%;
   aspect-ratio: 1;
@@ -5612,7 +5621,7 @@ img {
   min-height: 0;
   border-radius: 4px;
   overflow: hidden;
-  background: #eef4ff;
+  background: var(--primary-light-9, #eef4ff);
 }
 .dec-category-nav3__img {
   display: block;
@@ -5636,7 +5645,12 @@ img {
   white-space: nowrap;
 }
 .dec-category-nav3__desc { display: flex; flex: none; justify-content: center; align-items: center; width: 100%; }
-.dec-category-nav3__hot { color: #f56c6c; font-size: 12px; font-weight: 700; }
+.dec-category-nav3__hot {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  color: #f56c6c;
+}
 .dec-category-nav3__desc-text {
   margin-left: 4px;
   overflow: hidden;
@@ -5664,11 +5678,6 @@ img {
 .dec-category-nav3__arrow:hover { background: rgba(0, 0, 0, 0.239); }
 .dec-category-nav3__arrow--prev { left: 0; border-radius: 0 24px 24px 0; }
 .dec-category-nav3__arrow--next { right: 0; border-radius: 24px 0 0 24px; }
-
-@media (max-width: 1440px) {
-  .dec-category-nav3__item { flex-basis: 20%; min-width: 180px; }
-}
-
 
 /* ===== 限时秒杀列表（对齐 view/pc/pages/seckill/List.vue） ===== */
 .seckill-page { background: #f9f9f9; }

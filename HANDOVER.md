@@ -569,6 +569,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-11 | MCP 第二批权限（审计第五十七章）：新增报表/订单/会员/内容 4 个域开关 + 10 个工具（报表/会员/内容纯只读，订单仅后台备注可写），工具总数 14→24；生产冒烟发现并修复 `article.title` 列名、会员密码哈希外泄、`pay_time=0` 报表全 0 三处问题（`b5f30be`）；基于 `4ca2484` 构建部署（sha `b2d0c396…`，健康 200/200，复测 24 工具与三处修复）；客户手册同步 5.3–5.6 |
 | 2026-11-11 | PC 热门分类模块不跟随后台设置修复（审计第五十八章）：C 端 `CategoryNav` 计算了 `displayNum` 却从未使用，CSS 又写死 216px 卡片宽 + 180px 图标，8 个热门分类被压到 119px、图标互相溢出，后台改「一屏显示数量」完全无效。改为按 `100%/displayNum` 计算卡片宽度、图标 `min(180px,100%)` 自适应、滚动箭头按 `分类数 > displayNum` 显示；构建 `ef25606` 上线（包 sha `bb43d02c…`，备份 `pc_pre_20261111_093517.tgz`，健康 200），实测一屏 5 个、无溢出，后台 5→6 发布后 C 端 5 秒内跟随并已恢复 5 |
 | 2026-11-11 | 分类导航3 编辑器预览高度修复：预览列表容器缺 `min-height:0`，flex 子项被内容固有高度撑到约 277px，叠加顶栏后超出配置的 300px 外框，被 `overflow:hidden` 裁掉名称/描述。补 `min-height:0 + display:flex + overflow:hidden`，与 PC 前台 `.dec-category-nav3__list-wrap` 一致；实测 `scrollHeight === clientHeight === 203`。线上入口 `index-CBB1teH9.js`（回滚 index 存 `scratch/admin-index.online.20261111_101613.html`）；排查方法见 §11 |
+| 2026-11-11 | PC 分类导航3 对齐旧版（审计第六十章）：单卡 248px→1/6 列宽、箭头按实际溢出显示、补拖拽与 5s 自动轮播、HOT/更多改 SVG、占位色跟随主题；本地构建包 sha `fb69cd84…1958` 部署，备份 `pc_pre_20261111_102631.tgz`，健康 200，6 张实测 189px/无溢出；维护要点见 §10 |
 
 ---
 
@@ -638,6 +639,102 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 - 输入框聚焦：去掉「1px 浅色边 + 3px 光晕」的双层效果，改为单层
   `border-color: transparent; box-shadow: inset 0 0 0 2px var(--primary)`。
 - 左侧装饰圆：三处 `.login-hero-rings span:nth-child(3)` 的 `box-shadow` 全部删除，只保留细边框。
+
+---
+
+## 10. PC 前端：分类导航3 与旧版对齐（2026-11-11）
+
+> 适用于 `pc-semi` 的「分类导航3」模块（装修模块 `pcCategoryNav3` / `pc-category-nav3`）。
+> 本次修复见审计第六十章；后续调这个模块先读本节。
+
+### 10.1 原版契约（Java `view/pc/decorate/components/pc/PcCategoryNav3.vue`）
+
+- Swiper：`slidesPerView: 6`、`slidesPerGroup: 6`、`autoplay 5000ms`、`pauseOnMouseEnter: true`、`loop: true`
+  （6 张时 `minSlidesForLoop = 12` 不满足，loop 实际关闭，所以 6 张正好一屏）。
+- 间距：`.swiper` 内边距 `0 12px`，每个 `__item` 内边距 `0 14px`，图片 `aspect-ratio: 1`。
+- 高度：模块高度取装修数据 `frame.boxHeight`，缺省 352px；线上当前配置 300px。
+- 图标：HOT 为 16px 图标；「更多」为 16px arrow-right；左右箭头 40×48 半圆黑底。
+
+### 10.2 新实现必须保持的规则
+
+`pc-semi/src/decorate/components/modules.tsx` → `CategoryNav3`：
+
+1. **单卡宽度** = 列表内容宽 ÷ 6：CSS `flex: 0 0 calc(100% / 6)`。不要再写死 `248px` 或 `20%`。
+2. **箭头显示**按真实溢出：`scrollWidth - clientWidth > 1`（`ResizeObserver` + resize 监听），
+   不要再用 `pics.length > 6`（6 张时固定 248px 曾溢出但箭头不显示）。
+3. **拖拽滑动**：Pointer 事件改 `scrollLeft`，拖动超过 4px 后抑制链接点击；
+   `.is-dragging` 时 `cursor: grabbing`、关闭 scroll-snap。
+4. **自动轮播**：仅在溢出时启用，每 5s 滚一屏，到底回 0，鼠标悬停暂停。
+5. **图标**：HOT 用 16px 火焰 SVG，更多用 16px chevron SVG。
+6. **配色**：图片占位 `var(--primary-light-9)`；名称 hover `var(--main-bg)`。
+
+### 10.3 样式有三份副本，改一份不生效
+
+同名规则同时存在于：
+
+| 文件 | 作用 |
+|---|---|
+| `pc-semi/app/decorate-source.scss` | 基础结构（最早加载） |
+| `pc-semi/app/globals.scss` | 布局补充（如 list-wrap、item） |
+| `pc-semi/app/modules-source.scss` | **最后加载**，会覆盖前两者 |
+
+历史坑：只改了 `globals.scss` 的 `flex: 0 0 calc(100% / 6)`，但 `modules-source.scss` 里
+仍有 `flex: 0 0 248px`，构建后 248px 胜出，线上看起来没变化。**三处必须同步核对**。
+
+### 10.4 本地构建与部署（已验证可复现）
+
+```bash
+cd D:/tigshop/NexTrade/rust/web/pc-semi
+node scripts/copy-semi-css.mjs
+PC_API_BASE=https://battery.recy.cc NODE_ENV=production \
+  PC_NEXT_DIST_DIR=.next-local npx next build
+
+# 本地验收（换端口避开残留进程）
+PC_NEXT_DIST_DIR=.next-local npx next start -p 3014
+# 浏览器打开 http://127.0.0.1:3014/ 检查 DOM 尺寸
+```
+
+打包（排除 `.next/cache`，否则 544MB）：
+
+```bash
+# scratch/pc-out 内含 .next（排除 cache/standalone/trace）+ public + next.config.mjs
+# + 最小 runtime package.json + DEPLOY_INFO.txt
+tar -czf scratch/nextrade-pc-nav3.tgz -C scratch/pc-out .
+sha256sum scratch/nextrade-pc-nav3.tgz
+```
+
+上传与服务器切换：
+
+```bash
+# 注意 Git Bash 会把 /www/backup 转成 Windows 路径，必须加 MSYS_NO_PATHCONV=1
+MSYS_NO_PATHCONV=1 pwsh tools/upload-to-bt.ps1 \
+  -File D:\tigshop\NexTrade-Postgres\scratch\nextrade-pc-nav3.tgz \
+  -RemoteDir /www/backup/ -PartPrefix pcnav3z_
+
+python scratch/run_shell.py scratch/dep-pcnav3.sh depnav3
+```
+
+部署脚本逻辑：合并分片 → 校验 sha/字节数 → 备份
+`.next public next.config.mjs package.json DEPLOY_INFO.txt` 到
+`/www/backup/pc_pre_<ts>.tgz` → `systemctl stop/start nextrade-pc` → 3005 健康检查 →
+失败自动回滚 → 清理分片。本次备份：`pc_pre_20261111_102631.tgz`（50.9MB）。
+
+### 10.5 验收指标（6 张图的当前线上数据）
+
+| 项 | 期望 |
+|---|---|
+| 模块高度 | 300px（取 `frame.boxHeight`） |
+| 单卡宽度 | `listClientWidth / 6` ≈ 189px |
+| 滚动宽度 | `scrollWidth == clientWidth`（6 张无溢出） |
+| 箭头 | 0 个（刚好一屏）；>6 张时自动出现 |
+| 图片 | 约 161×143（列宽减 28px padding） |
+| HOT / 更多 | 均为 `<svg>` |
+
+### 10.6 其他坑
+
+- `GetDir /www/backup` 分页：新上传分片可能在第二页，不要只看第一页就判断上传失败。
+- 本地 `next start` 端口残留会导致 `EADDRINUSE`；换端口或确认旧进程退出。
+- 本机 `git push` 依赖 `127.0.0.1:20705` 代理，代理未起时推送会失败。
 
 ---
 
