@@ -3025,7 +3025,13 @@ function Banner2({ module }: ModuleProps) {
   const pics: any[] = Array.isArray(module.picList) ? module.picList : [];
   const frame = module.frame || {};
   const perView = Math.min(3, Math.max(1, Number(module.number) || 1));
-  const gap = Number.isFinite(Number(module.slideGap)) ? Math.max(0, Number(module.slideGap)) : 12;
+  // 原版 Java swiper：spaceBetween 仅在每屏 >1 张时生效（num==1 → 0）。
+  // translateX 按 100%/perView 步进不含 gap，若 num==1 仍保留 12px 的 flex gap，
+  // 每翻一页整体错位 gap 像素（第 3 张时左侧露出上一张残影 + 背景缝隙）。
+  const rawGap = Number.isFinite(Number(module.slideGap)) ? Math.max(0, Number(module.slideGap)) : 12;
+  const gap = perView > 1 ? rawGap : 0;
+  /** 编辑器「组件高度」：0 / 未设置 = 高度跟随图片比例（原版行为） */
+  const boxHeight = Number(frame.boxHeight) > 0 ? Number(frame.boxHeight) : 0;
   const trackRef = useRef<HTMLDivElement | null>(null);
   const pages = Math.max(1, pics.length - perView + 1);
   const { index, setIndex } = useCarousel(pages, 5000);
@@ -3043,12 +3049,18 @@ function Banner2({ module }: ModuleProps) {
   return (
     <div className={`dec-banner2 dec-banner2--num-${perView}`} style={style}>
       <div className="dec-banner2__inner">
-        <div className={`dec-banner2__track${banner2Swipe.dragging ? ' is-dragging' : ''}`} ref={trackRef} {...banner2Swipe.handlers} style={{ transform: `translateX(calc(-${index * (100 / perView)}% + ${banner2Swipe.offset}px))` }}>
+        <div className={`dec-banner2__track${banner2Swipe.dragging ? ' is-dragging' : ''}`} ref={trackRef} {...banner2Swipe.handlers} style={{ transform: `translateX(calc(-${index * (100 / perView)}% - ${(index * gap) / perView}px + ${banner2Swipe.offset}px))` }}>
           {pics.map((pic, i) => (
             <div className="dec-banner2__item" key={i} style={{ width: `calc((100% - ${(perView - 1) * gap}px) / ${perView})` }}>
               <a className="dec-banner2__link" href={navHref(pic.picLink) || '#'} target="_blank" rel="noreferrer">
                 {/* 轮播项在视口外且模块高度依赖图片自身比例：用 lazy 时后几张高度恒为 0，永远不加载 */}
-                <img className="dec-banner2__image" src={pic.picUrl || ''} alt={pic.picTitle || pic.picName || ''} loading="eager" />
+                <img
+                  className="dec-banner2__image"
+                  src={pic.picUrl || ''}
+                  alt={pic.picTitle || pic.picName || ''}
+                  loading="eager"
+                  style={boxHeight ? { height: `${boxHeight}px`, objectFit: 'cover' } : undefined}
+                />
               </a>
             </div>
           ))}
@@ -3304,6 +3316,9 @@ function GroupBanner({ module }: ModuleProps) {
   const frame = module.frame || {};
   const perView = Math.min(3, Math.max(1, Number(module.number) || 3));
   const height = px(frame.slideHeight) > 0 ? px(frame.slideHeight) : 195;
+  // 原版 PcGroupBanner swiper：spaceBetween: 30。此前 item 宽度按 30 计算、
+  // CSS flex gap 却取到共享规则的默认 12px，一行短 (p-1)*18px 且每页错位 18/p px。
+  const gap = 30;
   const pages = Math.max(1, pics.length - perView + 1);
   const { index, setIndex } = useCarousel(pages, 5000);
   const groupBannerSwipe = useSwipeDrag(index, pages, setIndex);
@@ -3315,13 +3330,14 @@ function GroupBanner({ module }: ModuleProps) {
     '--dec-box-radius': `${px(frame.boxRadius)}px`,
     '--dec-bg-color': frame.backgroundColor || 'transparent',
     '--dec-slide-height': `${height}px`,
+    '--dec-slide-gap': `${gap}px`,
   };
   return (
     <div className="dec-group-banner" style={style}>
       <div className="dec-group-banner__inner">
-        <div className={`dec-group-banner__track${groupBannerSwipe.dragging ? ' is-dragging' : ''}`} {...groupBannerSwipe.handlers} style={{ transform: `translateX(calc(-${index * (100 / perView)}% + ${groupBannerSwipe.offset}px))` }}>
+        <div className={`dec-group-banner__track${groupBannerSwipe.dragging ? ' is-dragging' : ''}`} {...groupBannerSwipe.handlers} style={{ transform: `translateX(calc(-${index * (100 / perView)}% - ${(index * gap) / perView}px + ${groupBannerSwipe.offset}px))` }}>
           {pics.map((pic, i) => (
-            <div className="dec-group-banner__item" key={i} style={{ width: `calc((100% - ${(perView - 1) * 30}px) / ${perView})` }}>
+            <div className="dec-group-banner__item" key={i} style={{ width: `calc((100% - ${(perView - 1) * gap}px) / ${perView})` }}>
               <a className="dec-group-banner__link" href={navHref(pic.picLink) || '#'} target="_blank" rel="noreferrer" title={pic.picTitle || ''}>
                 <img className="dec-group-banner__image" src={pic.picUrl || ''} alt={pic.picTitle || ''} loading="lazy" />
               </a>

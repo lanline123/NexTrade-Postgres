@@ -123,6 +123,9 @@ export default function PcBanner2Preview({ data }: { data: Record<string, any> }
   const perView = displayNum;
   const count = picList.length;
   const pages = Math.max(1, Math.ceil(count / perView));
+  /** 编辑器「组件高度」：0 / 未设置 = 高度跟随图片比例（与前台一致） */
+  const frameBox = (moduleConfig.frame || {}) as AnyRecord;
+  const boxHeight = Number(frameBox.boxHeight) > 0 ? Number(frameBox.boxHeight) : 0;
 
   // loop：图片足够时在尾部追加首组图片，翻到末页再回到首页可保持视觉连续
   const slides = useMemo(() => {
@@ -183,7 +186,12 @@ export default function PcBanner2Preview({ data }: { data: Record<string, any> }
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <img className="dec-pc-banner2__img" src={formatImage(item?.picUrl)} alt="" />
+                    <img
+                      className="dec-pc-banner2__img"
+                      src={formatImage(item?.picUrl)}
+                      alt=""
+                      style={boxHeight ? { height: `${boxHeight}px`, objectFit: 'cover' } : undefined}
+                    />
                   </a>
                 </div>
               ))}

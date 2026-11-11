@@ -429,6 +429,9 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     }),
     settings: [
       { kind: 'picList', key: 'picList', label: '轮播图', hint: '可拖拽排序，建议尺寸 1264*280' },
+      // 组件高度：原版无此设置（高度跟随图片比例），按用户要求新增。
+      // 0 = 跟随图片比例自适应（线上老数据无 frame.boxHeight，默认即 0）。
+      { kind: 'slider', key: 'frame.boxHeight', label: '组件高度', min: 0, max: 600, defaultValue: 0, hint: '0 = 高度跟随图片比例自适应' },
       ...containerFields(),
     ],
     summary: (m) => `${((m.picList || []) as PicItem[]).length} 图`,
@@ -5055,7 +5058,8 @@ function ModuleSettingsPanel({
     `dec-edit-title-box${SECTION_LEVELS[name] === 1 ? ' dec-edit-title-box--primary' : ' dec-edit-title-box--secondary'}`
   );
   const EXTEND_TITLES: Record<string, string> = {
-    'pc-banner2': '外边距',
+    // pc-banner2：原版为「外边距」，新增「组件高度」后改「容器设置」（与分类导航3 同款，组件高度在标题下第一项）
+    'pc-banner2': '容器设置',
     'pc-group-banner': '外边距',
     'pc-category-nav': '外边距',
     'pc-category-nav3': '容器设置',
