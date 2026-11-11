@@ -5495,15 +5495,17 @@ img {
 .dec-banner2__track {
   display: grid;
   grid-auto-flow: column;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
+  /* 不能用 overflow-x:auto：track 宽=容器宽(1431)，3 个 item 横排在 1469/2901，
+     会被 track 自己的裁剪框裁掉；而 transform 移动的是整个 track（连裁剪框一起移），
+     所以第 2/3 张永远落在可见区之外 → 纯白、点不到。裁剪窗口交给外层
+     .dec-banner2__inner 的 overflow:hidden。 */
+  overflow: visible;
   scrollbar-width: none;
 }
 .dec-banner2__track::-webkit-scrollbar { display: none; }
 .dec-banner2__item {
   display: block;
   width: 100%;
-  scroll-snap-align: start;
   position: relative;
   overflow: hidden;
   border-radius: var(--dec-box-radius, 8px);
