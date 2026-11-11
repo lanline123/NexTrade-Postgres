@@ -1177,7 +1177,7 @@ function CategoryNav({ module }: ModuleProps) {
   const radius = px(frame.boxRadius);
   const showTitle = Number(module.showTitle ?? 1) !== 0;
   const displayNum = Math.min(10, Math.max(1, px(module.displayNum ?? module.rowNum, 6)));
-  const canScroll = categories.length > 5;
+  const canScroll = categories.length > displayNum;
 
   useEffect(() => {
     let cancelled = false;
@@ -1225,6 +1225,7 @@ function CategoryNav({ module }: ModuleProps) {
                   <div
                     className="proditem"
                     key={item.categoryId ?? index}
+                    style={{ flex: `0 0 calc(100% / ${displayNum})`, maxWidth: `calc(100% / ${displayNum})` }}
                   >
                     <a
                       href={item.seoLink || `/list?categoryId=${item.categoryId ?? ''}`}
