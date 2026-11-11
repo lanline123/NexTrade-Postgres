@@ -1249,9 +1249,9 @@ AND (send_type = 0 OR use_end_date >= now)
 
 - [x] ~~统一两端取数口径~~ → **已完成**（§14.3）：新增 `claimableList`，后台预览与前台同源。
 - [x] ~~修 §14.4 两个后端缺陷~~ → **已完成并上线**（§14.4 / §14.9）。
-- [ ] **后台券列表的重复券整理**：由于修复前「改已存在券」不可用，当时用「新建替代编辑」
-      重建了 3 张券，因此列表里存在新旧同名券（新的在线、旧的仍失效）。现在 `update`
-      已可用，可直接删掉重复的新券或启用旧的，二选一即可。**需要先确认再动生产数据。**
+- [x] ~~**后台券列表的重复券整理**~~ → **已完成**（2026-11-12）：软删旧券 id=1/2/3，
+      保留在线的 id=10/11/12；后台列表 10 → 7 张，前台可见集合与模块取前 4 均未变。
+      （当时因「改已存在券」不可用才用「新建替代编辑」重建，现已无此约束。）
 - [x] ~~**拼团接口 500**~~ → **已修复并上线**（§14.10）。
 - [ ] **同类「数值列按 text 绑定」隐患（本次未修，已登记）**：扫描全仓发现同一模式还存在于
       `catalog/product_manage.rs`（大量 `brand_id = ?` / `product_id IN (?)` / 数值区间比较）、
@@ -1262,7 +1262,36 @@ AND (send_type = 0 OR use_end_date >= now)
       `Temporary failure resolving 'azure.archive.ubuntu.com'`，`Cargo Check`/`Cargo Test` 被 skipped
       （属 runner 基础设施故障，非代码问题）。**该步骤失败时不要误判为代码错**；
       可直接重跑，或改用 `build-staging`（它在 rockylinux 容器内装依赖，走 dnf，不受影响）。
-- [ ] 券数据当前 10 张（含历史失效券），如需精简可软删。
+- [ ] 券数据当前 **7 张**（均为在线券：万物新生·满50000减1000 / 满1000减50 / 满10000减200 /
+      全场95折 / 满100减20 / 满100减30 / 九五折），已无重复；如需精简可软删。
+
+### 14.8 独立验证记录（2026-11-11，teammate `verifier`，只读实测）
+
+> 由独立验证者用 Playwright（msedge + CDP 禁缓存）在生产复测，**不采信开发方自述**。
+> 证据 JSON/截图在 `scratch/verifier-*.json|png`。
+
+| 断言 | 结论 | 关键原始数字 |
+|---|---|---|
+| 两端 DOM 统一 `dec-coupon__*`、旧类名消失 | 成立 | 旧类名命中 PC 0 / 后台 0；24 个断点类计数两端逐项一致 |
+| 两端相同 4 张真券 | 成立 | 券名逐项 4/4 相同；PC `getCoupon` 200→7 条、后台 `promotion/coupon/list` 200→10 条 |
+| 按钮不溢出 / 不折行 | 成立 | PC `btn.right-item.right = -17.00px`、后台 `-12.41px`；`offsetHeight 32 / lineHeight 32 = 1.00` 行 |
+| 券少时不留大片空白 | 成立（**间接**验证） | 线上真实数据固定取前 4，无法直接观测 N<4；按组件规则（`--dec-coupon-cols = max(1,min(券数,4))`）复现后 PC N=1 → grid `1120px`、trailingGap 0 |
+| 主色跟随主题 | 成立 | PC `--dec-coupon-accent=#65c4aa`；后台 `#1456f0` |
+| 卡片圆角 12px | 成立 | 两端四角均 `12px 12px 12px 12px` |
+| 无横向溢出 | 成立 | PC list `scrollWidth=clientWidth=1120`（4×271+3×12）；后台 `1324` |
+
+**验证者提出的注意点（已采纳）**：
+1. **后台预览量高度不要用 `getBoundingClientRect`**：`.pc-decorate-window` 施加的是
+   CSS `zoom: 0.713125`（不是 transform），用 rect 算「高度/行高」会得到 `22.8/32 = 0.71` 的**假折行**；
+   判断行数要用不受 zoom 影响的 `offsetHeight`（得 `32/32 = 1.00`）。
+2. **热图绘制工具栏默认不在 DOM**：`.hotarea-painter` 只在**选中热图模块进入绘制态**时挂载。
+   本项由 Lead 补测：点击选中 `.dec-image-hotarea` 后 `.hotarea-painter` = 1、可见、351×34，
+   面板文本含「热区绘制 / 添加热区 / 清空热区 / 共 2 个热区」，全程无非 GET 请求 → **他人成果未被破坏**。
+3. 与本次无关的既有问题：拼团接口 500（§14.7）、后台偶发 `ERR_CONNECTION_RESET`（网络抖动，
+   同期 `curl` 该域名 200/0.31s）、PC 上 `premium-member-entry.png` 与
+   `/api/search/imageSearch/capabilities` 的 404。
+
+---
 
 ### 14.9 后端上线记录（2026-11-11，staging 通道）
 
@@ -1324,34 +1353,6 @@ AND (send_type = 0 OR use_end_date >= now)
 | `item/list?...&productSn=x` | — | 200 |
 | `item/list?productGroupId=1&grouponPromotionId=2` | — | 200（`p.product_id IN (...)` cast） |
 | 装修编辑器整页加载 | 1 条控制台 500 | **0 条 4xx/5xx** |
-
-### 14.8 独立验证记录（2026-11-11，teammate `verifier`，只读实测）
-
-> 由独立验证者用 Playwright（msedge + CDP 禁缓存）在生产复测，**不采信开发方自述**。
-> 证据 JSON/截图在 `scratch/verifier-*.json|png`。
-
-| 断言 | 结论 | 关键原始数字 |
-|---|---|---|
-| 两端 DOM 统一 `dec-coupon__*`、旧类名消失 | 成立 | 旧类名命中 PC 0 / 后台 0；24 个断点类计数两端逐项一致 |
-| 两端相同 4 张真券 | 成立 | 券名逐项 4/4 相同；PC `getCoupon` 200→7 条、后台 `promotion/coupon/list` 200→10 条 |
-| 按钮不溢出 / 不折行 | 成立 | PC `btn.right-item.right = -17.00px`、后台 `-12.41px`；`offsetHeight 32 / lineHeight 32 = 1.00` 行 |
-| 券少时不留大片空白 | 成立（**间接**验证） | 线上真实数据固定取前 4，无法直接观测 N<4；按组件规则（`--dec-coupon-cols = max(1,min(券数,4))`）复现后 PC N=1 → grid `1120px`、trailingGap 0 |
-| 主色跟随主题 | 成立 | PC `--dec-coupon-accent=#65c4aa`；后台 `#1456f0` |
-| 卡片圆角 12px | 成立 | 两端四角均 `12px 12px 12px 12px` |
-| 无横向溢出 | 成立 | PC list `scrollWidth=clientWidth=1120`（4×271+3×12）；后台 `1324` |
-
-**验证者提出的注意点（已采纳）**：
-1. **后台预览量高度不要用 `getBoundingClientRect`**：`.pc-decorate-window` 施加的是
-   CSS `zoom: 0.713125`（不是 transform），用 rect 算「高度/行高」会得到 `22.8/32 = 0.71` 的**假折行**；
-   判断行数要用不受 zoom 影响的 `offsetHeight`（得 `32/32 = 1.00`）。
-2. **热图绘制工具栏默认不在 DOM**：`.hotarea-painter` 只在**选中热图模块进入绘制态**时挂载。
-   本项由 Lead 补测：点击选中 `.dec-image-hotarea` 后 `.hotarea-painter` = 1、可见、351×34，
-   面板文本含「热区绘制 / 添加热区 / 清空热区 / 共 2 个热区」，全程无非 GET 请求 → **他人成果未被破坏**。
-3. 与本次无关的既有问题：拼团接口 500（§14.7）、后台偶发 `ERR_CONNECTION_RESET`（网络抖动，
-   同期 `curl` 该域名 200/0.31s）、PC 上 `premium-member-entry.png` 与
-   `/api/search/imageSearch/capabilities` 的 404。
-
----
 
 ## 15. 分组轮播Banner：图片圆角不可控的根因与「图片边角」独立控件（2026-11-11）
 
