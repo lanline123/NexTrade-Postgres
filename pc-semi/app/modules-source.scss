@@ -1602,151 +1602,9 @@
 }
 
 /* ===================== pc-home-coupon ===================== */
-
-.module-pc-coupon {
-  .dec-pc-coupon__header {
-    display: flex;
-    align-items: center;
-    padding: 10px 0;
-    box-sizing: border-box;
-
-    &-title {
-      line-height: 20px;
-      font-size: 16px;
-      font-weight: bold;
-      color: #2a3145;
-    }
-
-    &-desc {
-      margin-left: 5px;
-      line-height: 18px;
-      color: #8c8c8c;
-      font-size: 12px;
-    }
-  }
-}
-
-.mod_coupon {
-  width: 100%;
-  box-sizing: border-box;
-
-  .coupon_tit {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 20px;
-
-    a {
-      display: flex;
-      align-items: baseline;
-      gap: 8px;
-      text-decoration: none;
-      color: inherit;
-    }
-
-    h4 {
-      margin: 0;
-      font-size: 20px;
-      font-weight: 700;
-      color: #1a1a1a;
-    }
-
-    .en_tit,
-    .go_coupon {
-      margin: 0;
-      font-size: 12px;
-      color: #999;
-      letter-spacing: 1px;
-    }
-
-    .go_coupon em {
-      font-style: normal;
-    }
-  }
-
-  .coupon_list {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 10px;
-    padding: 0 20px 16px;
-
-    .item {
-      min-width: 0;
-      border-radius: 8px;
-      background: #fff5f5;
-      overflow: hidden;
-    }
-
-    .coupon_detail {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 12px 10px 4px;
-    }
-
-    .price {
-      flex-shrink: 0;
-      color: var(--pc-primary);
-      font-size: 26px;
-      font-weight: 700;
-      line-height: 1;
-
-      .coupon_discount {
-        font-size: 26px;
-
-        span {
-          font-size: 12px;
-        }
-      }
-    }
-
-    .direction {
-      min-width: 0;
-
-      p {
-        margin: 0;
-        font-size: 12px;
-        color: #666;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .coupon_sort {
-        color: #333;
-        font-size: 13px;
-        font-weight: 600;
-      }
-    }
-
-    .use_btn {
-      margin: 6px 10px 10px;
-      padding: 4px 0;
-      border-radius: 12px;
-      background: var(--pc-primary);
-      color: #fff;
-      font-size: 12px;
-      text-align: center;
-      cursor: pointer;
-
-      em {
-        font-style: normal;
-      }
-    }
-
-    .more_coupon {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-
-      a {
-        color: var(--pc-primary);
-        font-size: 13px;
-        text-decoration: none;
-      }
-    }
-  }
-}
+/* 旧 .mod_coupon 结构样式已整体迁移到 src/decorate/coupon/coupon.scss（单一数据源），
+   与后台预览共用同一份 SCSS。此处不再保留任何优惠券规则，避免与 decorate-source.scss
+   的旧版移植互相覆盖（历史上正因为三处规则叠加，use_btn 溢出了 128px）。 */
 
 /* ===================== pc-home-seckill / pc-home-groupon ===================== */
 
@@ -3551,16 +3409,6 @@
   gap: 6px;
 }
 
-/* Coupon：领取按钮状态 */
-.mod_coupon .coupon_list .use_btn.is-disabled {
-  background: #f0f0f0;
-  color: #999;
-  cursor: not-allowed;
-}
-
-.mod_coupon .coupon_list .use_btn.is-loading {
-  opacity: 0.7;
-}
 
 /* 交易按钮：禁用态与 button 元素 reset */
 .dec-buy-btn.is-disabled,
@@ -4576,3 +4424,8 @@ img {
   top: 50%;
   margin-top: -24px;
 }
+
+/* ===================== 优惠券模块（单一数据源） =====================
+   必须放在文件末尾：globals.scss 先 import modules-source 再 import decorate-source，
+   本文件在两者中靠后加载，才能压过 decorate-source 里残留的通用规则。 */
+@import '../src/decorate/coupon/coupon.scss';

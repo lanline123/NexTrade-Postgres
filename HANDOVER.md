@@ -1,6 +1,6 @@
 # NexTrade-Postgres 交接文档
 
-> 更新时间：2026-11-10
+> 更新时间：2026-11-11
 > 范围：PostgreSQL 迁移版仓库的**环境接入**——服务器、宝塔面板、GitHub、生产 PG。
 > 迁移进度与缺陷台账见 `MIGRATION-AUDIT-2026-11-09.md`（被 `.gitignore` 排除，仅存本地）。
 > 上游项目的功能/业务交接文档在 `D:\tigshop\NexTrade\docs\HANDOVER.md`，本文只补「怎么连上去、用什么工具」。
@@ -630,6 +630,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-11 | 公告图标与图片大小（审计 58.9）：图标被全局 `.item-img{opacity:0}` 隐藏，前台/SSR chunk 加 opacity:1 并新增 `frame.iconSize`（12–48，默认16）滑块，预览同步；后台直写部署入口 `index-D4g_k_Bl.js`，PC 实测图标 16×16 可见；提交 `3a8428b` |
 | 2026-11-11 | 公告现代风格+全局重置（审计 58.10）：设置面板新增“全局重置”二次确认；默认圆角12/浅蓝渐变/细边框/柔和阴影/白色图标衬底，PC 与 admin 预览同步；线上 admin 入口 `index-B0HrmCb7.js`，PC CSS `*-mod11.css` 已生效；提交 `311048e` |
 | 2026-11-11 | 热门分类翻页箭头对齐（用户报「未贴紧左右两侧、未在图片位置的中间」，详见 §12）：实测 `left:0/right:0` 本就贴模块边，真 bug 是 `top:50%` 让箭头中心比 180px 图片中心低 27.5px；改 `top:calc(var(--dec-cat-image-size)/2)` + 加深底色；本地提交 `62f35cf`，线上按 §12.4 做 **CSS 热更新**（只在服务器 CSS 末尾追加规则，不整体替换 `.next` 包、不重启服务） |
+| 2026-11-11 | 装修编辑器「图片广告」设置面板对齐原版（详见 §13，提交 `188baa9`，**未部署**）：① **标题设置缺项是真 bug**——`kind:'title'` 把 `data` 换成标题对象本身，但 `showIf` 仍按 `title.showTitle` 取值，恒为 false，导致除「显示标题」外 9 项全被隐藏；给 `titleFields` 加 `rootKey` 参数、`kind:'title'` 传 `rootKey:''` 使 key/showIf/data 三层级一致，标题恢复完整 10 行。② **选择模板 / 指示器样式**改图标按钮组（新增 `iconRadio`/`optionIcons`，码点取自线上已有 `ico-decorate` 字体 `font_3378474`，无需新增字体）；顺带修掉「标题上下边距要数据里已存在才显示」的隐式判断。本地 dev server + 页面 10023 实测通过，`tsc --noEmit` 通过 |
 
 ---
 
@@ -966,4 +967,132 @@ CODEBUDDY_SAFE_DELETE_ENABLED=0 PC_SKIP_BUILD_TRACE=1 \
   PC_API_BASE=https://battery.recy.cc NODE_ENV=production \
   PC_NEXT_DIST_DIR=.next-arrow npx next build
 ```
+
+---
+
+## 13. 装修编辑器「标题设置缺项」修复方案（图片广告案例，2026-11-11）
+
+> 用户反馈 `admin.recy.cc/?page=pcDecorateEditor&id=10023` 的「图片广告」模块设置不对：
+> **选择模板**、**指示器样式** 后面应是图标而非文字；**标题设置缺很多项**。
+> 结论先行：**标题缺项不是"少写了字段"，而是 `showIf` 取值路径与传入数据错位，导致除第一行外全部被隐藏。**
+> 改动提交 `188baa9`（`admin-semi/src/pages/PcDecorateEditor.tsx` + `decorate-editor.css`），**尚未部署**。
+
+### 13.1 三处问题的定位结论
+
+| 用户描述 | 实际含义 | 根因 | 状态 |
+|---|---|---|---|
+| 「选择目标」 | 实为**选择模板**（`picType`） | 原版是图标按钮组，当前是文字单选 | ✅ 已改图标 |
+| 「指示器样式不对」 | 设置行里跟的是文字 | 同上，缺 `ico-decorate` 字形 | ✅ 已改图标 |
+| 「标题设置缺少很多项」 | 展开后只剩「显示标题」一行 | **`showIf` 路径错位**（真实 bug） | ✅ 已修 |
+
+### 13.2 标题设置根因（重点，同类模块通用）
+
+`PcDecorateEditor.tsx` 的 `kind:'title'` 渲染分支会**把数据换成标题对象本身**：
+
+```tsx
+case 'title': {
+  const titleData = value;                    // 已是 { showTitle, titleText, ... }
+  return <SettingsFieldRows
+    fields={titleFields({...}).map(f => ({ ...f, key: f.key.replace('title.', '') }))}
+    data={titleData}                          // ← 数据被"降了一层"
+  />;
+}
+```
+
+但 `titleFields()` 内部的 `showIf` 闭包仍按**整模块对象**取值：
+
+```ts
+const showTitleOn = (m) => Number(getPath(m, 'title.showTitle')) === 1;
+```
+
+于是 `getPath(titleData, 'title.showTitle')` → `titleData.title` 是 `undefined` → **`showTitleOn` 恒为 `false`**，
+所有 `showIf: showTitleOn` 的行（标题样式/对齐/内容/颜色/描述/背景/圆角/显示更多链接）**全部被隐藏**。
+只有第一行「显示标题」（无 `showIf`）能显示 —— 正是用户看到的「只剩一行」。
+
+> 注意：`key` 上的 `title.` 前缀被 `replace` 剥掉了，所以**写值是对的、只有显隐判断是错的**，
+> 表现为「能改、但看不到大部分设置项」，极易误判成"字段没实现"。
+
+### 13.3 修法
+
+给 `titleFields()` 增加 `rootKey` 参数，由调用方声明「字段挂在哪个层级」：
+
+```ts
+const titleFields = (opts: { ..., rootKey?: string } = {}): SettingFieldDef[] => {
+  const base = opts.rootKey === undefined ? 'title' : opts.rootKey;
+  const at = (sub: string) => (base ? `${base}.${sub}` : sub);   // key 与 showIf 用同一套路径
+  const showTitleOn = (m) => Number(getPath(m, at('showTitle'))) === 1;
+  ...
+  { kind: 'switch', key: at('showTitle'), label: '显示标题' },
+  { kind: 'radio',  key: at('titleStyle'), label: '标题样式', showIf: showTitleOn },
+};
+```
+
+`kind:'title'` 分支传 `rootKey: ''`，**字段 key、`showIf`、`data` 三者层级从此一致**：
+
+```tsx
+fields={titleFields({ rootKey: '', moreType: !titleHideMoreType, verticalPadding: !titleHideVerticalPadding, hideAlign })}
+data={titleData}
+```
+
+顺带修掉另一处隐式判断：标题上/下边距原先要求「数据里**已经存在** `titlePaddingTop`」才显示，
+导致新建模块永远是隐藏的；改为只看模块配置开关（原版 `enable-title-vertical-padding`）。
+
+**校验口径**：`pc-image-ad` 原版（`_shared/ModuleTitleSettings.vue`）就是完整 10 行，且**不含**上下边距
+（全 PC 模块只有 `pc-home-groupon` / `pc-home-seckill` 传了 `enable-title-vertical-padding`）。
+所以「补齐到 10 行」即为对齐，不要凭感觉再加边距项。
+
+### 13.4 「选择模板 / 指示器样式」改图标按钮组
+
+原版是 `el-radio-button` + `ico-decorate` 字体图标 + `el-tooltip` 文案。React 版给字段加了两项能力：
+
+```ts
+iconRadio?: boolean;                                  // radio 渲染成图标按钮组
+optionIcons?: Record<string | number, string>;        // value → 字形
+```
+
+**字形来源**：线上 admin 已加载阿里 iconfont `https://at.alicdn.com/t/c/font_3378474_nv3pk6rxn7f.css`
+（含 `ico-decorate`），**无需新增字体文件**。码点从该 CSS 直接提取：
+
+| 用途 | class | 码点 |
+|---|---|---|
+| 一行一个 | `icon-dec-up2end` | `\e603` |
+| 轮播 | `icon-dec-carousel` | `\e601` |
+| 一行两个 | `icon-dec-cuberow` | `\e61c` |
+| 一行三个 | `icon-dec-cuberow2` | `\e61d` |
+| 一行四个 | `icon-dec-cuberow1` | `\e61b` |
+| 指示器样式一/二/三 | `icon-dec-indicator-1/2/3` | `\e604` / `\e606` / `\e605` |
+
+> 注意 `cuberow` 三个码点与「两/三/四」的对应关系**不是按数字顺序**，照抄上表，勿自行推断。
+
+样式复刻原版 `.dec-radio-group .el-radio-button`（首尾 2px 圆角、选中 `#e0edff` 底 + `#155bd4` 描边），
+落在 `admin-semi/src/pages/decorate-editor.css` 的 `.dec-icon-radio-group` / `.dec-icon-radio`。
+
+### 13.5 验证方法（本地，不部署也能验）
+
+`vite preview` **不带 proxy**，必须用 dev server（`vite.config.ts` 把 `/adminapi` 代理到 `https://battery.recy.cc`）：
+
+```bash
+cd admin-semi && npx vite --port 3002 --host 127.0.0.1
+# Playwright 注入 token 后打开 http://127.0.0.1:3002/?page=pcDecorateEditor&id=10023
+# 点一下 .dec-image-ad 激活右侧面板，再读 .dec-icon-radio-group / 面板行标签
+```
+
+- token：`python scratch/refresh_nt_token.py` 写到 `%TEMP%/nt.token`，Playwright 注入 `localStorage.admin_access_token`
+- `playwright-core` 在 `admin-semi/node_modules`，脚本放 `scratch/` 跑时需 `NODE_PATH=admin-semi/node_modules`
+- 验收：面板行标签应依次出现「选择模板 … 标题设置 → 显示标题/标题样式/标题对齐/标题内容/标题颜色/描述内容/描述颜色/背景颜色/标题圆角/显示更多链接」，开启「显示更多链接」后再多出「链接文字/链接颜色/链接地址」
+
+### 13.6 部署注意（本次未执行）
+
+核对结论：线上 vendor chunk 与本地构建**完全一致（同源）**，但 `PcDecorateEditor.tsx` 被打进 **2.1 MB 主入口 chunk**
+`index-*.js`，因此入口与 `index-*.css` 的 hash 都会变 —— **"只上传变更小文件"不可行**，
+会指向不存在的 chunk。上线只能走历次做法：上传新增资源 → **最后**切换 `index.html`，旧文件留作回滚点。
+
+### 13.7 同类模块排查清单
+
+设置面板「某一块只剩一行 / 显隐不跟着开关走」时，优先怀疑 `showIf` 与 `data` 层级不一致：
+
+1. 找到渲染该块的 `case`，确认传进去的 `data` 是哪一层对象；
+2. 看字段生成函数里的 `getPath(m, 'xxx.yyy')` 前缀是否与该层一致；
+3. `kind:'container'` 分支同理（它会把 data 换成 `frame` 对象，字段 key 也已剥掉 `frame.` 前缀）；
+4. 修完用面板实际行标签验收，**不要只看源码里"字段定义了"就认为会显示**。
 

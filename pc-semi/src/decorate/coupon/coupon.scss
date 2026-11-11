@@ -1,0 +1,425 @@
+/**
+ * 优惠券模块公共样式 —— 单一数据源。
+ *
+ * 【为什么单独成文件】
+ * 优惠券模块在两端各有一份渲染器：
+ *   - PC 前台：pc-semi/src/decorate/components/modules.tsx 里的 Coupon
+ *   - 后台预览：admin-semi/src/pages/decoratePc/previews/PcCouponPreview.tsx
+ * 历史上两边各写一套 DOM（.mod_coupon/* vs .pc-coupon__*）、各写一套 CSS，
+ * 结果必然漂移：后台看到 4 张假券、前台只有 1 张真券，且两边卡片尺寸完全对不上。
+ * 现在统一为 `dec-coupon-*` 一套类名 + 这一份 SCSS，两端只允许 import 本文件，
+ * **不要在任何一端另写优惠券样式**。
+ *
+ * 【加载顺序（pc-semi 侧）】
+ * globals.scss: @import './modules-source.scss' → @import './decorate-source.scss'
+ * 本文件由 modules-source.scss 末尾 import，因此晚于 globals.scss 的通用规则；
+ * decorate-source.scss 里为旧版逐字搬运的 .module-pc-coupon 规则已全部删除，
+ * 不会再覆盖本文件。
+ *
+ * 【零外部资源】
+ * 旧票根缺口用的是 /assets/images/index/indexbody_sprite.png，该图线上已 404，
+ * 因此缺口、分隔线全部改用 CSS 渐变/伪元素实现。
+ *
+ * 【自适应】
+ * 券数 N ∈ 1..4 时按可用宽度等分（grid auto-fit），券少时每张更宽，
+ * 不再固定 246px 导致右侧大片空白。桌面宽度用 --dec-coupon-cols 控制列数，
+ * 窄屏（< 1200px）与超宽屏分别收敛。
+ */
+
+$dec-coupon-breakpoint-narrow: 1200px;
+$dec-coupon-breakpoint-wide: 1500px;
+
+.dec-coupon {
+  /* --- 可调尺寸，两端与后台配置共用同一组变量 --- */
+  --dec-coupon-radius: 12px;
+  --dec-coupon-gap: 12px;
+  --dec-coupon-stub-w: 132px; /* 左侧票根（领券中心）宽度 */
+  --dec-coupon-accent: var(--pc-primary, #1456f0);
+  --dec-coupon-accent-soft: var(--primary-light-9, #eef5ff);
+  --dec-coupon-ink: #101828;
+  --dec-coupon-muted: #667085;
+  --dec-coupon-line: #eaecf0;
+  --dec-coupon-surface: #ffffff;
+
+  box-sizing: border-box;
+  width: 100%;
+  color: var(--dec-coupon-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.dec-coupon *,
+.dec-coupon *::before,
+.dec-coupon *::after {
+  box-sizing: border-box;
+}
+
+/* ---------------- 标题栏 ---------------- */
+
+.dec-coupon__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 4px 0 12px;
+}
+
+.dec-coupon__header-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 26px;
+  color: var(--dec-coupon-ink);
+}
+
+.dec-coupon__header-desc {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dec-coupon-muted);
+}
+
+/* ---------------- 主体：左票根 + 右券列表 ---------------- */
+
+.dec-coupon__main {
+  display: flex;
+  gap: var(--dec-coupon-gap);
+  align-items: stretch;
+  min-width: 0;
+}
+
+/* 左侧「领券中心」票根：用于进入券中心 */
+.dec-coupon__stub {
+  position: relative;
+  display: flex;
+  flex: 0 0 var(--dec-coupon-stub-w);
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 16px 18px;
+  border-radius: var(--dec-coupon-radius) 0 0 var(--dec-coupon-radius);
+  background: linear-gradient(135deg, var(--dec-coupon-accent) 0%, color-mix(in srgb, var(--dec-coupon-accent) 72%, #000 28%) 100%);
+  color: #fff;
+  text-decoration: none;
+  overflow: hidden;
+}
+
+/**
+ * 票根右侧的两个半圆缺口：
+ * 用 ::before/::after 画两个与容器背景同色的圆，压在右边缘上下各 50% 位置，
+ * 形成「撕票」视觉。不依赖图片，颜色跟随容器背景（--dec-coupon-page-bg）。
+ */
+.dec-coupon__stub::before,
+.dec-coupon__stub::after {
+  content: '';
+  position: absolute;
+  right: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--dec-coupon-page-bg, transparent);
+}
+
+.dec-coupon__stub::before {
+  top: -7px;
+}
+
+.dec-coupon__stub::after {
+  bottom: -7px;
+}
+
+.dec-coupon__stub-zh {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 30px;
+  letter-spacing: 1px;
+}
+
+.dec-coupon__stub-en {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.dec-coupon__stub-action {
+  margin: 6px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 18px;
+  opacity: 0.92;
+  transition: transform 0.24s ease;
+}
+
+.dec-coupon__stub:hover .dec-coupon__stub-action {
+  transform: translateX(4px);
+}
+
+.dec-coupon__stub:hover {
+  text-decoration: none;
+  color: #fff;
+}
+
+/* ---------------- 券列表：券数自适应等分 ---------------- */
+
+.dec-coupon__list {
+  display: grid;
+  /* auto-fit + minmax：N 张券时尽量铺满可用宽度，N 越大每张越窄，不会留大片空白 */
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: var(--dec-coupon-gap);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 明确列数上限，避免 1 张券被拉成整行宽度（读数会失真） */
+@media (min-width: $dec-coupon-breakpoint-narrow) {
+  .dec-coupon__list {
+    grid-template-columns: repeat(var(--dec-coupon-cols, 4), minmax(0, 1fr));
+  }
+}
+
+/* ---------------- 单张券 ---------------- */
+
+.dec-coupon__item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--dec-coupon-line);
+  border-radius: var(--dec-coupon-radius);
+  background: var(--dec-coupon-surface);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px rgba(16, 24, 40, 0.04);
+  transition: box-shadow 0.24s ease, transform 0.24s ease, border-color 0.24s ease;
+}
+
+.dec-coupon__item:hover {
+  border-color: color-mix(in srgb, var(--dec-coupon-accent) 32%, #eaecf0);
+  box-shadow: 0 6px 20px rgba(16, 24, 40, 0.1);
+  transform: translateY(-2px);
+}
+
+/** 券左侧的强调竖条 + 两个半圆缺口，形成票根语义（纯 CSS，无图片） */
+.dec-coupon__item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--dec-coupon-accent);
+}
+
+.dec-coupon__item::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 52px;
+  height: 0;
+  border-top: 1px dashed var(--dec-coupon-line);
+  pointer-events: none;
+}
+
+/* 金额 / 折扣区 */
+.dec-coupon__amount {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  min-width: 0;
+  color: var(--dec-coupon-accent);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.dec-coupon__amount-currency {
+  font-size: 18px;
+  line-height: 22px;
+}
+
+.dec-coupon__amount-value {
+  font-size: 32px;
+  line-height: 34px;
+  letter-spacing: -0.5px;
+}
+
+.dec-coupon__amount-unit {
+  margin-left: 3px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 22px;
+  color: var(--dec-coupon-accent);
+}
+
+/* 折扣券（8 折） */
+.dec-coupon__discount {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  color: var(--dec-coupon-accent);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.dec-coupon__discount-value {
+  font-size: 32px;
+  line-height: 34px;
+  letter-spacing: -0.5px;
+}
+
+.dec-coupon__discount-unit {
+  font-size: 14px;
+  line-height: 22px;
+}
+
+/* 券名 / 说明 */
+.dec-coupon__info {
+  min-width: 0;
+}
+
+.dec-coupon__name {
+  margin: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--dec-coupon-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dec-coupon__desc {
+  margin: 2px 0 0;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dec-coupon-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 领取按钮 */
+.dec-coupon__action {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--dec-coupon-accent-soft);
+  color: var(--dec-coupon-accent);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 32px;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.dec-coupon__action-arrow {
+  font-style: normal;
+  transition: transform 0.2s ease;
+}
+
+.dec-coupon__action:hover:not(.is-disabled) {
+  background: var(--dec-coupon-accent);
+  color: #fff;
+}
+
+.dec-coupon__action:hover:not(.is-disabled) .dec-coupon__action-arrow {
+  transform: translateX(2px);
+}
+
+.dec-coupon__action.is-disabled {
+  background: #f5f6f8;
+  color: #98a2b3;
+  cursor: not-allowed;
+}
+
+.dec-coupon__action.is-loading {
+  color: #98a2b3;
+  cursor: progress;
+}
+
+/* ---------------- 查看更多 ---------------- */
+
+.dec-coupon__more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 8px;
+  border-radius: var(--dec-coupon-radius);
+  background: #f8f9fb;
+  color: var(--dec-coupon-muted);
+  font-size: 13px;
+  line-height: 18px;
+  text-decoration: none;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.dec-coupon__more:hover {
+  background: var(--dec-coupon-accent-soft);
+  color: var(--dec-coupon-accent);
+  text-decoration: none;
+}
+
+/* 券较多时「查看更多」占整行，避免被挤成细条 */
+@media (max-width: $dec-coupon-breakpoint-narrow) {
+  .dec-coupon__more {
+    grid-column: 1 / -1;
+    max-height: 44px;
+  }
+}
+
+/* 超宽屏：单张券不再继续变宽，靠上限保持读数合理 */
+@media (min-width: $dec-coupon-breakpoint-wide) {
+  .dec-coupon__list {
+    grid-template-columns: repeat(var(--dec-coupon-cols, 4), minmax(0, 1fr));
+  }
+}
+
+/* ---------------- 空态 ---------------- */
+
+.dec-coupon__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 16px;
+  border: 1px dashed var(--dec-coupon-line);
+  border-radius: var(--dec-coupon-radius);
+  background: #fcfcfd;
+  color: var(--dec-coupon-muted);
+  font-size: 13px;
+}
+
+.dec-coupon__empty-icon {
+  position: relative;
+  width: 64px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--dec-coupon-accent-soft);
+}
+
+.dec-coupon__empty-icon::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 50%;
+  border-top: 1px dashed color-mix(in srgb, var(--dec-coupon-accent) 40%, transparent);
+}
