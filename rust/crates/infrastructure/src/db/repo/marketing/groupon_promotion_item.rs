@@ -399,7 +399,9 @@ impl GrouponPromotionItemRepository {
             binds.push(format!("%{name}%"));
         }
         if let Some(brand) = q.brand_id {
-            wh.push_str(" AND brand_id = ?");
+            // 同 build_item_filters：binds 一律按 text 绑定，数值列需两步 cast，
+            // 否则 `brand_id = $1` 在 PG 上报 `operator does not exist: integer = text`。
+            wh.push_str(" AND brand_id = CAST(? AS text)::integer");
             binds.push(brand.to_string());
         }
         let total_sql = format!("SELECT COUNT(*) FROM product{wh}");
@@ -477,10 +479,18 @@ fn build_item_filters(
     q: &ItemPageQuery,
     group_product_ids: Option<&[i32]>,
 ) -> (String, Vec<String>) {
+    // ⚠️ 数值列必须显式 cast，原因：本函数的 binds 是 `Vec<String>`，
+    // `page_items` 一律 `.bind(b.as_str())`（即 text）。PG 是严格类型，
+    // 直接写 `gi.groupon_promotion_id = ?` 会报
+    // `operator does not exist: bigint = text`（2026-11-11 实测的生产 500）。
+    //
+    // 写法必须是 **两步** `CAST(? AS text)::bigint`：
+    // 只写 `?::bigint` 会让 PG 把参数本身推断成 bigint，而 sqlx 发的是 text，依旧不匹配。
+    // （同类缺陷见本文件 `page_products` 的 brand_id，以及 HANDOVER §14.4 优惠券两处。）
     let mut wh = String::from(" WHERE 1 = 1");
     let mut binds: Vec<String> = Vec::new();
     if let Some(promotion_id) = q.groupon_promotion_id {
-        wh.push_str(" AND gi.groupon_promotion_id = ?");
+        wh.push_str(" AND gi.groupon_promotion_id = CAST(? AS text)::bigint");
         binds.push(promotion_id.to_string());
     }
     if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
@@ -506,14 +516,14 @@ fn build_item_filters(
         binds.push(format!("%{name}%"));
     }
     if let Some(brand) = q.brand_id {
-        wh.push_str(" AND p.brand_id = ?");
+        wh.push_str(" AND p.brand_id = CAST(? AS text)::integer");
         binds.push(brand.to_string());
     }
     if let Some(ids) = group_product_ids {
         if ids.is_empty() {
             wh.push_str(" AND p.product_id IN (0)");
         } else {
-            let placeholders = vec!["?"; ids.len()].join(", ");
+            let placeholders = vec!["CAST(? AS text)::bigint"; ids.len()].join(", ");
             wh.push_str(&format!(" AND p.product_id IN ({placeholders})"));
             binds.extend(ids.iter().map(|id| id.to_string()));
         }
@@ -548,8 +558,12 @@ mod tests {
             ..Default::default()
         };
         let (wh, binds) = build_item_filters(&q, Some(&[1, 2]));
-        assert!(wh.contains("gi.groupon_promotion_id = ?"));
-        assert!(wh.contains("p.product_id IN (?, ?)"));
+        // 数值列必须带两步 cast，否则 binds 按 text 绑定会在 PG 上炸
+        // （`operator does not exist: bigint = text`，2026-11-11 生产 500）。
+        assert!(wh.contains("gi.groupon_promotion_id = CAST(? AS text)::bigint"));
+        assert!(wh.contains("p.brand_id = CAST(? AS text)::integer"));
+        assert!(wh.contains("p.product_id IN (CAST(? AS text)::bigint, CAST(? AS text)::bigint)"));
+        assert!(!wh.contains("groupon_promotion_id = ?"), "数值列不得裸写占位符");
         assert_eq!(binds.len(), 5); // 活动 + keyword + 品牌 + 2 商品
         // 空分组 → IN (0) 兜底（Java `List.of(0)`）
         let (wh, _) = build_item_filters(&ItemPageQuery::default(), Some(&[]));
