@@ -3095,7 +3095,8 @@ function CategoryNav3({ module }: ModuleProps) {
 
   const metrics = () => {
     const el = nav3Ref.current;
-    if (!el) return null;
+    // 首帧布局未完成时 clientWidth 可能为 0，算出的 page 会把首屏定位到克隆区
+    if (!el || el.clientWidth < 100) return null;
     const cs = window.getComputedStyle(el);
     const pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
     const cell = Math.max(1, (el.clientWidth - pad) / DISPLAY_NUM);
@@ -3178,6 +3179,28 @@ function CategoryNav3({ module }: ModuleProps) {
       suppressClickRef.current = false;
     }, 0);
   };
+
+  // 布局稳定后补一次定位：首帧 clientWidth 为 0 时上面的 useLayoutEffect 会跳过
+  useEffect(() => {
+    const el = nav3Ref.current;
+    if (!el) return;
+    let lastWidth = 0;
+    const reflow = () => {
+      const m = metrics();
+      if (!m) return;
+      if (Math.abs(m.el.clientWidth - lastWidth) < 2) return;
+      lastWidth = m.el.clientWidth;
+      m.el.scrollTo({ left: canLoop ? m.page : 0, behavior: 'instant' as ScrollBehavior });
+    };
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(reflow) : null;
+    observer?.observe(el);
+    const timer = window.setTimeout(reflow, 300);
+    return () => {
+      observer?.disconnect();
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pics.length, canLoop]);
 
   // 无缝循环：首尾各克隆一屏（6 张），真实内容夹在中间
   const renderItems = canLoop
