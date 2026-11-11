@@ -189,6 +189,11 @@
     border: none;
     box-shadow: none;
     overflow-y: visible;
+    /* 与左侧类目面板严格等高、无缝贴合：高度由 JS 写入，去掉固定最小高与内边距 */
+    padding: 0;
+    min-height: 0;
+    min-width: 0;
+    max-width: none;
 
     &.is-positioned {
         visibility: visible;
@@ -202,8 +207,9 @@
     border-radius: var(--dec-panel-radius, 8px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
     display: none;
-    max-height: 630px;
-    min-height: 436px;
+    height: 100%;
+    max-height: none;
+    min-height: 0;
     padding: 14px 0;
     box-sizing: border-box;
     overflow: hidden;
@@ -8750,6 +8756,8 @@ position: relative;
     overflow: hidden;
     width: 100%;
     display: flex;
+    /* 间距由卡片内 padding 提供；这里若保留 gap，一屏 N 个会因 gap 溢出只露出 N-0.5 个 */
+    gap: 0;
 }
 
     .dec-category-nav-wrapper .mod_seckill .seckill_list .swiper-slide {
@@ -9070,3 +9078,40 @@ position: relative;
 
 /* 热图模块的 item-img 被 imageBox 的全局 opacity:0 泄漏隐藏，恢复显示 */
 .image-hotarea-warp .item-img { opacity: 1; }
+
+/* ==== pc-category-nav：按 5.8.61 components/home/CategoryNew.vue scoped 逐项对齐 ==== */
+/* 原版整块固定 328px、内容层 8px 圆角；标题 20/24 内边距 + 24px 字号；
+   Swiper 容器左右 12px、一屏 displayNum 个；图片 180×180（el-image 默认 fill）。 */
+.dec-category-nav-wrapper .mod_seckill {
+    display: flex;
+    flex-direction: column;
+    height: 328px;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.dec-category-nav-wrapper .mod_seckill .seckill-top {
+    padding: 20px 24px;
+}
+
+.dec-category-nav-wrapper .mod_seckill .seckill-title {
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.dec-category-nav-wrapper .mod_seckill .seckill_list_wrap {
+    padding: 0;
+    flex: 1;
+    min-height: 0;
+}
+
+.dec-category-nav-wrapper .mod_seckill .seckill_list {
+    gap: 0;
+    padding: 0 12px;
+    box-sizing: border-box;
+}
+
+.dec-category-nav-wrapper .mod_seckill .seckill_list .pro_pic {
+    object-fit: fill;
+}
