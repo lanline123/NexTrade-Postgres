@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const LEGACY = 'D:/nextrade/NexTrade/java-b2b2c-overseas-v5.8.61/view/pc';
+const LEGACY = 'D:/tigshop/NexTrade/java-b2b2c-overseas-v5.8.61/view/pc';
 
 // 每个旧版 .vue 的 <style> 块原样搬运，包一层页面选择器代替旧版的 scoped（data-v）隔离。
 const PAGES = [

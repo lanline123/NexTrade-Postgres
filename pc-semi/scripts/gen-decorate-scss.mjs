@@ -14,8 +14,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const LEGACY = 'D:/nextrade/NexTrade/java-b2b2c-overseas-v5.8.61/view/pc/decorate/components';
-const LEGACY_HOME = 'D:/nextrade/NexTrade/java-b2b2c-overseas-v5.8.61/view/pc/components/home';
+const LEGACY = 'D:/tigshop/NexTrade/java-b2b2c-overseas-v5.8.61/view/pc/decorate/components';
+const LEGACY_HOME = 'D:/tigshop/NexTrade/java-b2b2c-overseas-v5.8.61/view/pc/components/home';
 const OUT = 'app/decorate-source.scss';
 
 /** 顺序按旧版装饰器注册顺序排，方便对照 */
@@ -165,7 +165,7 @@ function prefixTopLevelRules(css, homeScope, rootClass) {
  * ——那份 .price 必须保持全局作用域，不许包进 .pc-home。第 26 轮曾在这里重复搬了一份
  * `.pc-home .floor-wide__box .price`，与裁决冲突且与全局那份逐字相同，第 27 轮移除。
  */
-const LEGACY_COMPONENTS = 'D:/nextrade/NexTrade/java-b2b2c-overseas-v5.8.61/view/pc/components';
+const LEGACY_COMPONENTS = 'D:/tigshop/NexTrade/java-b2b2c-overseas-v5.8.61/view/pc/components';
 const HOME_CHILD_FILES = [
   'swiper/SpecialSwiper.vue',
 ];

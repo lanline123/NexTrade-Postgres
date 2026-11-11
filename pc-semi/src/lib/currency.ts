@@ -8,6 +8,8 @@
  */
 
 interface CurrencyCookieData {
+  id?: number;
+  name?: string;
   symbol?: string;
   rate?: string | number;
 }
@@ -42,24 +44,111 @@ export function readCurrencyCookie(): CurrencyCookieData | null {
   }
 }
 
-/** 价格已自带货币符号时透传 */
+/** 价格已自带货币符号时透传（但平台基准人民币的 `¥/￥` 前缀要先剥掉再换算） */
 const HAS_CURRENCY_SIGN = /[¥￥$€£]/;
+const CNY_PREFIX = /^\s*[¥￥]\s*/;
+
+/** 当前币种符号与汇率（SSR 用 layout 注入的快照，客户端读 cookie）。 */
+function resolveCurrency(): { symbol: string; rate: number } {
+  const cookie = typeof document !== 'undefined' ? readCurrencyCookie() : null;
+  const symbol = (typeof document !== 'undefined' ? cookie?.symbol : SSR_SYMBOL) || SSR_SYMBOL || '¥';
+  const rate = Number(typeof document !== 'undefined' ? cookie?.rate : SSR_RATE);
+  return { symbol, rate: Number.isFinite(rate) && rate > 0 ? rate : 1 };
+}
+
+/** 币种名称/符号 → ISO 代码（JSON-LD / 结构化数据用；按名称优先，避免 ¥/JPY 与 ￥/CNY 混淆）。 */
+const NAME_TO_CODE: Record<string, string> = {
+  美元: 'USD',
+  人民币: 'CNY',
+  欧元: 'EUR',
+  英镑: 'GBP',
+  日元: 'JPY',
+  瑞士法郎: 'CHF',
+  加拿大元: 'CAD',
+  澳大利亚元: 'AUD',
+  新加坡元: 'SGD',
+  港元: 'HKD',
+  韩元: 'KRW',
+};
+
+const SYMBOL_TO_CODE: Record<string, string> = {
+  $: 'USD',
+  '￥': 'CNY',
+  '¥': 'JPY',
+  '€': 'EUR',
+  '£': 'GBP',
+  CHF: 'CHF',
+  'C$': 'CAD',
+  'A$': 'AUD',
+  'S$': 'SGD',
+  'HK$': 'HKD',
+  '₩': 'KRW',
+};
+
+export function currencyCodeFrom(name?: string | null, symbol?: string | null): string {
+  const byName = NAME_TO_CODE[String(name || '').trim()];
+  if (byName) return byName;
+  return SYMBOL_TO_CODE[String(symbol || '').trim()] || 'CNY';
+}
+
+/** 当前币种的 ISO 代码（客户端读 cookie；SSR 场景请直接读 cookie 快照）。 */
+export function currencyCode(): string {
+  const cookie = typeof document !== 'undefined' ? readCurrencyCookie() : null;
+  return cookie ? currencyCodeFrom(cookie.name, cookie.symbol) : 'CNY';
+}
+
+/** 仅取符号（价格输入框、独立 `.util` 前缀等场景）。 */
+export function currencySymbol(): string {
+  return resolveCurrency().symbol;
+}
+
+/** 只取换算后的数字（两位小数、不带符号），供保留旧版 `.util`/`.num` 三段结构的组件使用。 */
+export function formatAmount(value: unknown): string {
+  if (value === undefined || value === null || value === '') return '';
+  const text = String(value).replace(CNY_PREFIX, '');
+  const num = Number(extractNumeric(text));
+  if (!Number.isFinite(num)) return '';
+  const { rate } = resolveCurrency();
+  return (num * rate).toFixed(2);
+}
+
+/** 从「¥123.00」「$123.00」等文本里取出数字；纯数字原样返回。 */
+function extractNumeric(text: string): string {
+  const match = text.match(/-?\d+(?:,\d{3})*(?:\.\d+)?/);
+  return match ? match[0].replace(/,/g, '') : text;
+}
 
 /**
  * 格式化价格：符号 + 汇率换算 + 两位小数。
  * 返回纯文本（旧版 Price.vue 是 DOM 结构，新版调用处按需拆分）。
+ *
+ * 装修数据里管理员录入的价格是「¥123.00」这种基准人民币预格式化文本；
+ * 去掉 `¥/￥` 后照常按当前币种换算，不能直接透传，否则换币不生效。
  */
 export function formatPrice(value: unknown): string {
   if (value === undefined || value === null || value === '') return '';
-  const text = String(value);
-  if (HAS_CURRENCY_SIGN.test(text)) return text;
-  const num = Number(value);
-  if (!Number.isFinite(num)) return text;
+  let text = String(value);
+  if (CNY_PREFIX.test(text)) {
+    text = text.replace(CNY_PREFIX, '');
+  } else if (HAS_CURRENCY_SIGN.test(text)) {
+    return text;
+  }
+  const num = Number(extractNumeric(text));
+  if (!Number.isFinite(num)) return String(value);
+  const { symbol, rate } = resolveCurrency();
+  return `${symbol}${(num * rate).toFixed(2)}`;
+}
 
-  const cookie = typeof document !== 'undefined' ? readCurrencyCookie() : null;
-  // SSR（document 不存在）用 layout 注入的服务端 cookie 快照；客户端读实时 cookie
-  const symbol = (typeof document !== 'undefined' ? cookie?.symbol : SSR_SYMBOL) || SSR_SYMBOL || '¥';
-  const rate = Number(typeof document !== 'undefined' ? cookie?.rate : SSR_RATE);
-  const converted = Number.isFinite(rate) && rate > 0 ? num * rate : num;
-  return `${symbol}${converted.toFixed(2)}`;
+/** 三段式价格（符号 / 整数 / 小数），供保留旧版排版结构的组件使用。 */
+export function splitCurrencyPrice(value: unknown): {
+  symbol: string;
+  integer: string;
+  decimals: string;
+} {
+  const formatted = formatPrice(value);
+  const match = formatted.match(/^([^\d\s-]*?)\s*(-?[\d,]+(?:\.(\d+))?)$/);
+  if (!match) return { symbol: '', integer: formatted, decimals: '' };
+  const [integer, rawDecimals = ''] = match[2].replace(/,/g, '').split('.');
+  const decimals = `.${(rawDecimals || match[3] || '00').padEnd(2, '0').slice(0, 2)}`;
+  return { symbol: match[1], integer, decimals };
 }

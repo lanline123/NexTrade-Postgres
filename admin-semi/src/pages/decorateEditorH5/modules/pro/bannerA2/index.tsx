@@ -7,8 +7,8 @@ import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultModuleStyle } from "../../../contract/sharedDefaults";
 
 const picList = [
-    { picUrl: "https://oss.nextrade.com/img/gallery/202411/1730957947YV2lncqLSOSg8OvpbK.png", picThumb: "", picLink: { link: "", title: "" } },
-    { picUrl: "https://oss.nextrade.com/img/gallery/202411/1730957948LcXRbvCuwlCHyHy7Y0.png", picThumb: "", picLink: { link: "", title: "" } }
+    { picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957947YV2lncqLSOSg8OvpbK.png", picThumb: "", picLink: { link: "", title: "" } },
+    { picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957948LcXRbvCuwlCHyHy7Y0.png", picThumb: "", picLink: { link: "", title: "" } }
 ];
 
 /** 与旧 mobilePro/bannerA2/index.ts 逐字段一致（契约） */

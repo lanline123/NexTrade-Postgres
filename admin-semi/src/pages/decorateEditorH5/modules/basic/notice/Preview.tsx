@@ -13,7 +13,7 @@ export default function NoticePreview({ data }: { data: Record<string, any> }) {
         // 旧 View.vue 渲染时的全局副作用，原样保留（契约）
         defaultFrame.backgroundColor = "transparent";
         mergeDefaultModule(merged, noticeDefaults);
-        merged.icoPic.picUrl = "https://oss.nextrade.com/img/gallery/202508/1754895669bP3iJSUiXSBoRB1VQq.png";
+        merged.icoPic.picUrl = "https://oss.tigshop.com/img/gallery/202508/1754895669bP3iJSUiXSBoRB1VQq.png";
         return merged;
     }, [data]);
 

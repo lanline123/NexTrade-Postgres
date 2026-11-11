@@ -6,9 +6,9 @@ import { cloneDeep, defaultAnimation, defaultModuleStyle, defaultContentStyle, d
 
 /** 演示分类（与旧 categoryRec/index.ts categoryList 结构一致） */
 const categoryList = [
-    { title: "小零食", titleColor: "", backgroundColor: "", catPic: { picUrl: "https://oss.nextrade.com/img/gallery/202411/1730957948LcXRbvCuwlCHyHy7Y0.png", picThumb: "" } },
-    { title: "粮油米面", titleColor: "", backgroundColor: "", catPic: { picUrl: "https://oss.nextrade.com/img/gallery/202411/1730957949mTiXqnQpGXzYHnNV.png", picThumb: "" } },
-    { title: "洗发水", titleColor: "", backgroundColor: "", catPic: { picUrl: "https://oss.nextrade.com/img/gallery/202411/1730957951pDjgKRAwAEZTKNwv.png", picThumb: "" } }
+    { title: "小零食", titleColor: "", backgroundColor: "", catPic: { picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957948LcXRbvCuwlCHyHy7Y0.png", picThumb: "" } },
+    { title: "粮油米面", titleColor: "", backgroundColor: "", catPic: { picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957949mTiXqnQpGXzYHnNV.png", picThumb: "" } },
+    { title: "洗发水", titleColor: "", backgroundColor: "", catPic: { picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957951pDjgKRAwAEZTKNwv.png", picThumb: "" } }
 ];
 
 /** 与旧 mobilePro/categoryRec/index.ts 逐字段一致（契约） */

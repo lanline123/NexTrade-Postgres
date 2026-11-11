@@ -161,7 +161,7 @@ const EMOJI_CODES: Array<[string, string]> = [
 
 const EMOJI_ID_BY_NAME = new Map<string, string>(EMOJI_CODES);
 
-const emojiImgSrc = (id: string) => `https://oss.nextrade.com/official/emoji/${id}.png`;
+const emojiImgSrc = (id: string) => `https://oss.tigshop.com/official/emoji/${id}.png`;
 
 /** 文本切分：白名单 `[表情名]` 段 vs 普通文本段（未识别的码保持原样文本）。 */
 interface EmojiSegment {

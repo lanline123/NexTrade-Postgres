@@ -32,7 +32,7 @@ const { Text } = Typography;
    无 5.8.57 旧 Vue 源码；契约来源（双交叉验证）：
    1. 旧版前端 API/类型（java/view/admin/src/api/setting/intraCityDelivery.ts、
       homeService.ts 与 types/setting/intraCityDelivery.d.ts、homeService.d.ts）；
-   2. 5.8.60 o2o_admin 打包产物（D:/nextrade/前端页面/5.8.60/o2o_admin/admin/assets）：
+   2. 5.8.60 o2o_admin 打包产物（D:/tigshop/前端页面/5.8.60/o2o_admin/admin/assets）：
       - intraCityDeliveryManage → Index-DxS6HNBh.js + DeliverySettingsTab-CpxMLPEz.js
         + intraCityDelivery-CfD3lDKf.js（API chunk）
       - homeServiceManage → Index-BP1Dj6g3.js + serviceStaffConfig-Dd4b5rVi.js（API chunk）

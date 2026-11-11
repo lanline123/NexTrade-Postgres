@@ -6,10 +6,10 @@ import { cloneDeep, defaultModuleStyle, defaultContentStyle } from "../../../con
 
 /** 图片橱窗演示图（与旧 shared defaultImageShowcaseDemoPics 一致） */
 export const imageShowcaseDemoPics = [
-    "https://oss.nextrade.com/official/img/pc/202605/1779261324QXU5nLdH8b4qUF4CM9.png",
-    "https://oss.nextrade.com/official/img/pc/202605/1779261403hf5gGaRtlmALGOCmT6.png",
-    "https://oss.nextrade.com/official/img/pc/202605/1779261407JZ1O44iECmXJHhfmiL.png",
-    "https://oss.nextrade.com/official/img/pc/202605/1779261410fhPHeqONn0LxCVgtRZ.png",
+    "https://oss.tigshop.com/official/img/pc/202605/1779261324QXU5nLdH8b4qUF4CM9.png",
+    "https://oss.tigshop.com/official/img/pc/202605/1779261403hf5gGaRtlmALGOCmT6.png",
+    "https://oss.tigshop.com/official/img/pc/202605/1779261407JZ1O44iECmXJHhfmiL.png",
+    "https://oss.tigshop.com/official/img/pc/202605/1779261410fhPHeqONn0LxCVgtRZ.png",
 ].map((url) => ({ picUrl: url, picThumb: url, picLink: { link: "", title: "" } }));
 
 /** 与旧 shared defaultImageShowcase 逐字段一致（契约） */

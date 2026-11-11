@@ -2045,9 +2045,9 @@ export function PcCustomPage() {
 export function PcProductStyle() {
   const { t } = useI18n();
   const styles = [
-    { type: 1, title: t('经典版'), img: 'https://oss.nextrade.com/img/gallery/202606/1781513292MtmcDCoVzXOJw2sZOz.jpeg' },
-    { type: 2, title: t('国内标准版'), img: 'https://oss.nextrade.com/img/gallery/202606/1781513292tAqsibp0zeM6sYNmQK.jpeg' },
-    { type: 3, title: t('跨境简约版'), img: 'https://oss.nextrade.com/img/gallery/202607/1783574567CDREPpLfzfMd4RYqqx.jpeg' },
+    { type: 1, title: t('经典版'), img: 'https://oss.tigshop.com/img/gallery/202606/1781513292MtmcDCoVzXOJw2sZOz.jpeg' },
+    { type: 2, title: t('国内标准版'), img: 'https://oss.tigshop.com/img/gallery/202606/1781513292tAqsibp0zeM6sYNmQK.jpeg' },
+    { type: 3, title: t('跨境简约版'), img: 'https://oss.tigshop.com/img/gallery/202607/1783574567CDREPpLfzfMd4RYqqx.jpeg' },
   ];
   const [styleType, setStyleType] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -2111,8 +2111,8 @@ export function PcProductStyle() {
 export function PcSearchStyle() {
   const { t } = useI18n();
   const styles = [
-    { type: 1, title: t('样式一（经典版）'), img: 'https://oss.nextrade.com/img/gallery/202606/1782373674JqSs1sxbDajftKgthu.jpeg' },
-    { type: 2, title: t('样式二（新版）'), img: 'https://oss.nextrade.com/img/gallery/202606/1782373674PUhO83DhgZKLxbXOuQ.jpeg' },
+    { type: 1, title: t('样式一（经典版）'), img: 'https://oss.tigshop.com/img/gallery/202606/1782373674JqSs1sxbDajftKgthu.jpeg' },
+    { type: 2, title: t('样式二（新版）'), img: 'https://oss.tigshop.com/img/gallery/202606/1782373674PUhO83DhgZKLxbXOuQ.jpeg' },
   ];
   const [styleType, setStyleType] = useState(1);
   const [loading, setLoading] = useState(false);

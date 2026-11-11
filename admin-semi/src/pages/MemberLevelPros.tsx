@@ -116,7 +116,7 @@ const DEFAULT_FORM: RankFormState = {
     {
       rankLevel: 1,
       rankName: '黄金会员',
-      rankLogo: 'https://oss.nextrade.com/img/gallery/202501/1735803176Yh9mCaE2r9ebXK3bGm.png',
+      rankLogo: 'https://oss.tigshop.com/img/gallery/202501/1735803176Yh9mCaE2r9ebXK3bGm.png',
       rankCardType: 1,
       rankIco: 'card1',
       rankBg: '',
@@ -140,16 +140,16 @@ const RANK_NAME_LIST: Record<number, string> = {
 
 /** 新增等级的默认会员图标（旧 Info.vue vipIcons） */
 const VIP_ICONS = [
-  'https://oss.nextrade.com/img/gallery/202501/1737524324ro1DJxNm3aQowZKnPU.png',
-  'https://oss.nextrade.com/img/gallery/202501/1737524324ZUrDWMFqTPMBTCOlhg.png',
-  'https://oss.nextrade.com/img/gallery/202501/1737524324ptLNB2WynLJBBwSHHj.png',
-  'https://oss.nextrade.com/img/gallery/202501/1737524324hhmoz188M0ejyXEBhT.png',
-  'https://oss.nextrade.com/img/gallery/202501/1737524324O1BXVeurAyDMj9QG8f.png',
-  'https://oss.nextrade.com/img/gallery/202501/1737524324T7eKXTpMiCeVQOyFb6.png',
-  'https://oss.nextrade.com/img/gallery/202501/1737524324bUufpiVaGcaUad1CWd.png',
-  'https://oss.nextrade.com/img/gallery/202501/1737524324NhZbUn45wj1eSaIbjY.png',
-  'https://oss.nextrade.com/img/gallery/202501/1737524324bv68MBsoQXa2rLUO9i.png',
-  'https://oss.nextrade.com/img/gallery/202501/1737524324urqONY3QDjaTqW7d56.png',
+  'https://oss.tigshop.com/img/gallery/202501/1737524324ro1DJxNm3aQowZKnPU.png',
+  'https://oss.tigshop.com/img/gallery/202501/1737524324ZUrDWMFqTPMBTCOlhg.png',
+  'https://oss.tigshop.com/img/gallery/202501/1737524324ptLNB2WynLJBBwSHHj.png',
+  'https://oss.tigshop.com/img/gallery/202501/1737524324hhmoz188M0ejyXEBhT.png',
+  'https://oss.tigshop.com/img/gallery/202501/1737524324O1BXVeurAyDMj9QG8f.png',
+  'https://oss.tigshop.com/img/gallery/202501/1737524324T7eKXTpMiCeVQOyFb6.png',
+  'https://oss.tigshop.com/img/gallery/202501/1737524324bUufpiVaGcaUad1CWd.png',
+  'https://oss.tigshop.com/img/gallery/202501/1737524324NhZbUn45wj1eSaIbjY.png',
+  'https://oss.tigshop.com/img/gallery/202501/1737524324bv68MBsoQXa2rLUO9i.png',
+  'https://oss.tigshop.com/img/gallery/202501/1737524324urqONY3QDjaTqW7d56.png',
 ];
 
 /** 会员卡面预设背景色（旧 SetCardType cardList + card.less） */

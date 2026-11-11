@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const legacy = 'D:/nextrade/NexTrade/java-b2b2c-overseas-v5.8.61/view/pc/assets/images/common/icon-star.png';
+const legacy = 'D:/tigshop/NexTrade/java-b2b2c-overseas-v5.8.61/view/pc/assets/images/common/icon-star.png';
 const target = path.resolve(process.cwd(), 'public/assets/images/common/icon-star.png');
 
 if (!fs.existsSync(legacy)) {

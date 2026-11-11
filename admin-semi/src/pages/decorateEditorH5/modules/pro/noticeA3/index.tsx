@@ -16,8 +16,8 @@ export const noticeA3Defaults = {
     headerImageWidth: 48,
     textColor: "#666666",
     headerImage: {
-        picUrl: "https://oss.nextrade.com/official/img/pc/202605/1779266900kyNhWWRQpNHEigvIfz.png",
-        picThumb: "https://oss.nextrade.com/official/img/pc/202605/1779266900kyNhWWRQpNHEigvIfz.png?x-oss-process=image/resize,m_pad,h_200,h_200"
+        picUrl: "https://oss.tigshop.com/official/img/pc/202605/1779266900kyNhWWRQpNHEigvIfz.png",
+        picThumb: "https://oss.tigshop.com/official/img/pc/202605/1779266900kyNhWWRQpNHEigvIfz.png?x-oss-process=image/resize,m_pad,h_200,h_200"
     },
     borderColor: "",
     contentBgColor: "",

@@ -78,9 +78,9 @@ interface LotteryForm {
   decorateConfig: DecorateConfig;
 }
 
-const DEFAULT_BG = 'https://oss.nextrade.com/img/gallery/202512/1766469537jXrMsUPDXoszzk0KCC.jpeg';
-const DEFAULT_ENTRY = 'https://oss.nextrade.com/img/gallery/202601/1769405706W6G6mAb5dVkUxQIN7g.jpeg';
-const DEFAULT_NO_WIN_IMAGE = 'https://oss.nextrade.com/img/gallery/202512/1766467150H93CwsgU07PQfSqwj4.jpeg';
+const DEFAULT_BG = 'https://oss.tigshop.com/img/gallery/202512/1766469537jXrMsUPDXoszzk0KCC.jpeg';
+const DEFAULT_ENTRY = 'https://oss.tigshop.com/img/gallery/202601/1769405706W6G6mAb5dVkUxQIN7g.jpeg';
+const DEFAULT_NO_WIN_IMAGE = 'https://oss.tigshop.com/img/gallery/202512/1766467150H93CwsgU07PQfSqwj4.jpeg';
 
 const initialForm = (): LotteryForm => ({
   activityName: '',

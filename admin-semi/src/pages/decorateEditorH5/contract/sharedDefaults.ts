@@ -248,8 +248,8 @@ export const defaultNewcomerCombo = {
     boxGradientStart: "#FF3630",
     boxGradientEnd: "#FF7A45",
     containerBgImage: {
-        picUrl: "https://oss.nextrade.com/official/img/pc/202605/1779692078Y9XiHswWUHUVbVb9Aw.webp",
-        picThumb: "https://oss.nextrade.com/official/img/pc/202605/1779692078Y9XiHswWUHUVbVb9Aw.webp"
+        picUrl: "https://oss.tigshop.com/official/img/pc/202605/1779692078Y9XiHswWUHUVbVb9Aw.webp",
+        picThumb: "https://oss.tigshop.com/official/img/pc/202605/1779692078Y9XiHswWUHUVbVb9Aw.webp"
     },
     contentBgColor: "#FFFFFF",
     decorationBgColor: "#FFFFFF",
@@ -408,23 +408,23 @@ export const getDemoList = (list: any) => {
 // 图片橱窗模块默认演示图片（运营首次拖入时预填；用户删除/替换后不会被填回）
 export const defaultImageShowcaseDemoPics = [
     {
-        picUrl: "https://oss.nextrade.com/official/img/pc/202605/1779261324QXU5nLdH8b4qUF4CM9.png",
-        picThumb: "https://oss.nextrade.com/official/img/pc/202605/1779261324QXU5nLdH8b4qUF4CM9.png",
+        picUrl: "https://oss.tigshop.com/official/img/pc/202605/1779261324QXU5nLdH8b4qUF4CM9.png",
+        picThumb: "https://oss.tigshop.com/official/img/pc/202605/1779261324QXU5nLdH8b4qUF4CM9.png",
         picLink: { link: "", title: "" }
     },
     {
-        picUrl: "https://oss.nextrade.com/official/img/pc/202605/1779261403hf5gGaRtlmALGOCmT6.png",
-        picThumb: "https://oss.nextrade.com/official/img/pc/202605/1779261403hf5gGaRtlmALGOCmT6.png",
+        picUrl: "https://oss.tigshop.com/official/img/pc/202605/1779261403hf5gGaRtlmALGOCmT6.png",
+        picThumb: "https://oss.tigshop.com/official/img/pc/202605/1779261403hf5gGaRtlmALGOCmT6.png",
         picLink: { link: "", title: "" }
     },
     {
-        picUrl: "https://oss.nextrade.com/official/img/pc/202605/1779261407JZ1O44iECmXJHhfmiL.png",
-        picThumb: "https://oss.nextrade.com/official/img/pc/202605/1779261407JZ1O44iECmXJHhfmiL.png",
+        picUrl: "https://oss.tigshop.com/official/img/pc/202605/1779261407JZ1O44iECmXJHhfmiL.png",
+        picThumb: "https://oss.tigshop.com/official/img/pc/202605/1779261407JZ1O44iECmXJHhfmiL.png",
         picLink: { link: "", title: "" }
     },
     {
-        picUrl: "https://oss.nextrade.com/official/img/pc/202605/1779261410fhPHeqONn0LxCVgtRZ.png",
-        picThumb: "https://oss.nextrade.com/official/img/pc/202605/1779261410fhPHeqONn0LxCVgtRZ.png",
+        picUrl: "https://oss.tigshop.com/official/img/pc/202605/1779261410fhPHeqONn0LxCVgtRZ.png",
+        picThumb: "https://oss.tigshop.com/official/img/pc/202605/1779261410fhPHeqONn0LxCVgtRZ.png",
         picLink: { link: "", title: "" }
     }
 ];
@@ -601,7 +601,7 @@ export const defaultProductCarouselDemoItems = [
         productDesc: "",
         productPrice: 899.0,
         marketPrice: 1299.0,
-        picThumb: "https://oss.nextrade.com/img/gallery/202411/17319190474y0XWFxO8GJZF0dg64.jpg"
+        picThumb: "https://oss.tigshop.com/img/gallery/202411/17319190474y0XWFxO8GJZF0dg64.jpg"
     },
     {
         productId: 0,
@@ -609,7 +609,7 @@ export const defaultProductCarouselDemoItems = [
         productDesc: "",
         productPrice: 899.0,
         marketPrice: 1299.0,
-        picThumb: "https://oss.nextrade.com/img/gallery/202411/1731919071axvkfUDkQNFbIzF1iY.jpg"
+        picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071axvkfUDkQNFbIzF1iY.jpg"
     },
     {
         productId: 0,
@@ -617,7 +617,7 @@ export const defaultProductCarouselDemoItems = [
         productDesc: "",
         productPrice: 899.0,
         marketPrice: 1299.0,
-        picThumb: "https://oss.nextrade.com/img/gallery/202411/1731919071lOa0ZBx2mYlvq1lgjr.jpg"
+        picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071lOa0ZBx2mYlvq1lgjr.jpg"
     },
     {
         productId: 0,
@@ -625,7 +625,7 @@ export const defaultProductCarouselDemoItems = [
         productDesc: "",
         productPrice: 899.0,
         marketPrice: 1299.0,
-        picThumb: "https://oss.nextrade.com/img/gallery/202411/1731919071xUnObq2LokKPFecwXq.jpg"
+        picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071xUnObq2LokKPFecwXq.jpg"
     }
 ];
 export const defaultProductCarousel = {

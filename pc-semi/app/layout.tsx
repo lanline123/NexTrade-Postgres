@@ -33,6 +33,8 @@ import { getHeaderBootstrap } from '@/lib/api';
 import { PC_HEADER_BOOTSTRAP_ID } from '@/lib/header-bootstrap';
 import { loadTheme } from '@/lib/theme-server';
 import { setServerCurrency } from '@/lib/currency';
+import { normalizeLocale } from '@/i18n/locale';
+import { loadServerLocale } from '@/i18n/server';
 import { setStorageUrl } from '@/lib/image';
 
 const SITE_URL = (process.env.PC_SITE_URL || 'https://battery.recy.cc').replace(/\/$/, '');
@@ -128,19 +130,21 @@ const organizationJsonLd = {
   areaServed: 'CN',
 };
 
-const websiteJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'WebSite',
-  name: SITE_NAME,
-  url: SITE_URL,
-  inLanguage: 'zh-CN',
-  description: SITE_DESCRIPTION,
-  potentialAction: {
-    '@type': 'SearchAction',
-    target: `${SITE_URL}/search?keyword={search_term_string}`,
-    'query-input': 'required name=search_term_string',
-  },
-};
+function websiteJsonLd(lang: string) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: SITE_NAME,
+    url: SITE_URL,
+    inLanguage: lang,
+    description: SITE_DESCRIPTION,
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: `${SITE_URL}/search?keyword={search_term_string}`,
+      'query-input': 'required name=search_term_string',
+    },
+  };
+}
 
 /** 转义 `<` 与行分隔符，避免 JSON 提前结束内联 script */
 function serializeHeaderBootstrap(data: unknown): string {
@@ -162,21 +166,27 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const base = headerBootstrap?.base;
   setStorageUrl(base?.storageUrl);
   let serverRate: string | number | null = null;
+  let serverSymbol: string | null = null;
   let serverLang = 'zh-CN';
   try {
     const { cookies } = await import('next/headers');
     // html lang SSR 输出（对齐旧版 app.vue htmlAttrs.lang = XLocaleCode）
     const localeCookie = cookies().get('locale')?.value || '';
-    serverLang = localeCookie.toLowerCase().startsWith('en') ? 'en-US' : 'zh-CN';
+    serverLang = normalizeLocale(localeCookie);
     const raw = cookies().get('currentCurrencyData')?.value;
     if (raw) {
       const parsed = JSON.parse(decodeURIComponent(raw));
       serverRate = parsed?.rate ?? null;
+      // 换币后的符号也要用于 SSR，否则首屏先渲染默认 ¥、hydration 后才变成所选币种
+      serverSymbol = parsed?.symbol ?? null;
     }
   } catch {
     /* cookie 缺失时按默认汇率 1 处理 */
   }
-  setServerCurrency(base?.dollarSign, serverRate);
+  setServerCurrency(serverSymbol || base?.dollarSign, serverRate);
+
+  // 非 zh/en 的翻译不在构建产物里，先按当前语言拉取，保证 SSR 文案即为所选语言
+  await loadServerLocale(serverLang);
 
   return (
     <html lang={serverLang}>
@@ -195,7 +205,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           type="application/json"
           dangerouslySetInnerHTML={{ __html: serializeHeaderBootstrap(headerBootstrap) }}
         />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify([organizationJsonLd, websiteJsonLd]) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify([organizationJsonLd, websiteJsonLd(serverLang)]) }} />
         <I18nProvider>
           {children}
           {/* 移动端浏览器自动跳 H5（autoRedirect=1 时，对齐旧版 app.vue handlerToMobile） */}

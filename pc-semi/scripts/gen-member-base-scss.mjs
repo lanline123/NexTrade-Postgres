@@ -25,7 +25,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const LEGACY = 'D:/nextrade/NexTrade/java-b2b2c-overseas-v5.8.61/view/pc/assets/css/member/member.less';
+const LEGACY = 'D:/tigshop/NexTrade/java-b2b2c-overseas-v5.8.61/view/pc/assets/css/member/member.less';
 const SCOPE = '.pc-member-shell__main';
 
 let source = fs.readFileSync(LEGACY, 'utf8').replace(/^\uFEFF/, '');
@@ -123,7 +123,7 @@ const header = [
  * （.tig-button.theme-button.big-button 邀请好友参团）。按选择器白名单原样搬运，值不改。
  * 其它页面没有被这几个 class 影响（站内其它地方不用它们，实测 0 处）。
  */
-const GLOBAL_CSS = 'D:/nextrade/NexTrade/java-b2b2c-overseas-v5.8.61/view/pc/assets/css/global.css';
+const GLOBAL_CSS = 'D:/tigshop/NexTrade/java-b2b2c-overseas-v5.8.61/view/pc/assets/css/global.css';
 const GLOBAL_WHITELIST = ['.tig-input', '.tig-button', '.theme-button'];
 
 function parseFlatCss(text) {

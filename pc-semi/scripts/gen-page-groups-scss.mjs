@@ -11,7 +11,7 @@
  */
 import fs from 'node:fs';
 
-const LEGACY = 'D:/nextrade/NexTrade/java-b2b2c-overseas-v5.8.61/view/pc/';
+const LEGACY = 'D:/tigshop/NexTrade/java-b2b2c-overseas-v5.8.61/view/pc/';
 
 /** group → 输出文件 */
 const OUT = {
