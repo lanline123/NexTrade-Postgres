@@ -5540,6 +5540,7 @@ function PicListEditor({
           value={currentUrl ? [currentUrl] : []}
           onChange={(urls) => updateItem(index, { picUrl: urls[0] || '', picThumb: urls[0] || '' })}
         />
+        <div className="dec-pic-modal__preview-hint">{t('点击图片从素材中心更换')}</div>
       </div>
       {showText && (
         <label className="dec-pic-modal__field">
