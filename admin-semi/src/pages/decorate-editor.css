@@ -497,6 +497,8 @@
 .pc-decorate-module {
   position: relative;
   cursor: pointer;
+  /* 与 C 端 .decorate-renderer__module 的 18px 间距一致，避免相邻白色模块吞掉通栏圆角 */
+  margin-bottom: 18px;
 }
 .pc-decorate-module:hover {
   outline: 1px dashed var(--semi-color-primary);
