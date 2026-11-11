@@ -13,11 +13,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Button,
-  Popconfirm,
   ColorPicker,
   Input,
   InputNumber,
   Modal,
+  Popconfirm,
   Popover,
   Radio,
   RadioGroup,
@@ -43,6 +43,7 @@ import {
   IconEyeClosed,
   IconEyeOpened,
   IconGlobe,
+  IconHandle,
   IconUser,
   IconPlus,
   IconRefresh,
@@ -5499,26 +5500,61 @@ function PicListEditor({
 }) {
   const { t } = useI18n();
   const list = Array.isArray(value) ? value : [];
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
   const updateItem = (index: number, patch: Record<string, any>) => {
     onChange(list.map((it, i) => (i === index ? { ...it, ...patch } : it)));
   };
-  const move = (index: number, delta: number) => {
+  const reorder = (from: number, to: number) => {
+    if (from === to) return;
     const next = [...list];
-    const target = index + delta;
-    if (target < 0 || target >= next.length) return;
-    [next[index], next[target]] = [next[target], next[index]];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
     onChange(next);
+  };
+  const endDrag = () => {
+    setDragIndex(null);
+    setOverIndex(null);
   };
   return (
     <div className="dec-pic-list">
       {list.map((item, index) => (
-        <div className="dec-pic-list__item" key={String(item.picId || index)}>
+        <div
+          className={`dec-pic-list__item${dragIndex === index ? ' is-dragging' : ''}${
+            overIndex === index && dragIndex !== null && dragIndex !== index ? ' is-drop-target' : ''
+          }`}
+          key={String(item.picId || index)}
+          onDragOver={(event) => {
+            if (dragIndex === null) return;
+            event.preventDefault();
+            if (overIndex !== index) setOverIndex(index);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            if (dragIndex !== null) reorder(dragIndex, index);
+            endDrag();
+          }}
+        >
+          <span
+            className="dec-pic-list__handle"
+            draggable
+            title={t('拖拽排序')}
+            onDragStart={(event) => {
+              setDragIndex(index);
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', String(index));
+            }}
+            onDragEnd={endDrag}
+          >
+            <IconHandle />
+          </span>
           <div className="dec-pic-list__image">
             <ImageUploader
               single
               value={item.picUrl || item.picThumb ? [String(item.picUrl || item.picThumb)] : []}
               onChange={(urls) => updateItem(index, { picUrl: urls[0] || '', picThumb: urls[0] || '' })}
             />
+            <span className="dec-pic-list__index">{index + 1}</span>
           </div>
           <div className="dec-pic-list__info">
             {showText && (
@@ -5553,11 +5589,15 @@ function PicListEditor({
               </div>
             )}
           </div>
-          <div className="dec-pic-list__actions">
-            <Button size="small" theme="borderless" icon={<IconChevronUp />} disabled={index === 0} onClick={() => move(index, -1)} />
-            <Button size="small" theme="borderless" icon={<IconChevronDown />} disabled={index === list.length - 1} onClick={() => move(index, 1)} />
-            <Button size="small" theme="borderless" type="danger" icon={<IconClose />} onClick={() => onChange(list.filter((_, i) => i !== index))} />
-          </div>
+          <Button
+            className="dec-pic-list__remove"
+            size="small"
+            theme="borderless"
+            type="danger"
+            icon={<IconClose />}
+            aria-label={t('删除')}
+            onClick={() => onChange(list.filter((_, i) => i !== index))}
+          />
         </div>
       ))}
       {(!max || list.length < max) && (
