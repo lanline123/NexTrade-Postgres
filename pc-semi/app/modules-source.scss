@@ -4563,3 +4563,16 @@ img {
 .dec-category-nav-wrapper .seckill_list_wrap .dec-swiper-nav--next {
   right: 0;
 }
+
+/* 分类导航3 翻页箭头（2026-11-11 用户要求）：贴模块左右外边缘 + 模块整体垂直居中。
+   箭头节点已从 .dec-category-nav3__list-wrap 移到 .dec-category-nav3 根节点内，
+   定位祖先从列表区提升为模块本身。此前 list-wrap 在 16px 内边距以内、又位于标题栏下方，
+   1440 视口实测左右各偏内 16px、垂直向下偏 36px。 */
+.dec-category-nav3 {
+  position: relative;
+}
+
+.dec-category-nav3 > .dec-swiper-nav {
+  top: 50%;
+  margin-top: -24px;
+}

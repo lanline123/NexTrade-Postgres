@@ -124,10 +124,6 @@ interface PicItem {
 const DEMO_PIC_1 = 'https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/1731301937REbUnsSmPehWiBMaFd.webp';
 const DEMO_PIC_2 = 'https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/1731301941uaSjIShOBNL2VBSr0y.webp';
 const NOTICE_ICON = 'https://oss.vortmall.com/upload/c4ca4238/img/gallery/202508/1754895669bP3iJSUiXSBoRB1VQq.png';
-/** 分类导航3 描述行火苗图标（对齐原版 preview.less 内联 hot.svg 渐变） */
-const HOT_FLAME_ICON =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none'%3E%3Cdefs%3E%3ClinearGradient id='fa' x1='3.563' x2='12.438' y1='8.398' y2='8.398' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%23FF475D'/%3E%3Cstop offset='1' stop-color='%23FF0F23'/%3E%3C/linearGradient%3E%3ClinearGradient id='fb' x1='8' x2='8' y1='1.008' y2='14.988' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%23FFB78A'/%3E%3Cstop offset='1' stop-color='%23FF3449'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23fa)' d='M11.516 6.855q-.226.364-.538.712a1.14 1.14 0 0 1-.797.381 1.15 1.15 0 0 1-1.132-.717 1.16 1.16 0 0 1-.083-.51c.047-.741-.194-1.612-.716-2.59-.264-.49-.58-.91-.956-1.256a3.8 3.8 0 0 1-.19.727 5.5 5.5 0 0 1-.909 1.578q-.406.497-.915.887a4.4 4.4 0 0 0-1.263 1.53 4.3 4.3 0 0 0-.454 1.937c0 1.17.46 2.27 1.296 3.1A4.43 4.43 0 0 0 8 13.922a4.43 4.43 0 0 0 3.14-1.288 4.34 4.34 0 0 0 1.297-3.1c0-.612-.126-1.207-.374-1.767a4.3 4.3 0 0 0-.547-.912'/%3E%3Cpath fill='url(%23fb)' d='M13.033 7.334a5.4 5.4 0 0 0-1.295-1.8l-.455-.417a.126.126 0 0 0-.203.052l-.203.583c-.127.365-.36.739-.69 1.106a.1.1 0 0 1-.064.031.09.09 0 0 1-.067-.023.1.1 0 0 1-.031-.075c.058-.941-.223-2.002-.84-3.157-.508-.959-1.216-1.707-2.1-2.23l-.646-.379a.125.125 0 0 0-.187.114l.034.75c.023.513-.036.966-.177 1.342-.171.461-.418.89-.734 1.274q-.331.401-.742.72a5.5 5.5 0 0 0-1.567 1.898 5.43 5.43 0 0 0-.133 4.536 5.49 5.49 0 0 0 2.928 2.9A5.5 5.5 0 0 0 8 14.988c.742 0 1.46-.144 2.14-.427a5.45 5.45 0 0 0 1.747-1.167A5.4 5.4 0 0 0 13.5 9.536c0-.763-.156-1.503-.467-2.202m-1.892 5.302A4.43 4.43 0 0 1 8 13.923a4.43 4.43 0 0 1-3.14-1.287 4.34 4.34 0 0 1-1.298-3.1c0-.68.154-1.331.455-1.938a4.4 4.4 0 0 1 1.263-1.53c.338-.258.646-.556.915-.887.39-.476.697-1.008.91-1.578a3.8 3.8 0 0 0 .189-.726c.376.346.692.765.956 1.256.522.978.762 1.848.716 2.589a1.156 1.156 0 0 0 2.012.847q.313-.349.538-.713.328.42.547.913a4.3 4.3 0 0 1 .374 1.767c0 1.17-.46 2.272-1.296 3.1'/%3E%3C/svg%3E";
-
 const demoPic = (id: string, url: string, name: string, title: string): PicItem => ({
   picId: id,
   picUrl: url,
@@ -2735,8 +2731,7 @@ function CategoryNav3Preview({ data }: { data: Record<string, any> }) {
                   </div>
                   {item.picDesc ? (
                     <div style={{ display: 'flex', flex: 'none', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
-                      <img src={HOT_FLAME_ICON} alt="" style={{ width: 16, height: 16 }} />
-                      <span style={{ marginLeft: 4, color: '#888b94', fontSize: 16, lineHeight: '20px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{item.picDesc}</span>
+                      <span style={{ color: '#888b94', fontSize: 16, lineHeight: '20px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{item.picDesc}</span>
                     </div>
                   ) : null}
                 </div>

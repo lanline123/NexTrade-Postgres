@@ -3084,39 +3084,92 @@ function CategoryNav3({ module }: ModuleProps) {
     borderRadius: `${radius}px`,
     overflow: radius ? 'hidden' : undefined,
   };
-  const [canScroll, setCanScroll] = useState(false);
+  // 对齐原版 Swiper：slidesPerView / slidesPerGroup = 6
+  const DISPLAY_NUM = 6;
+  const canScroll = pics.length > DISPLAY_NUM;
+  // 原版 loop 条件：slides >= 2 * slidesPerView，即 12 张起才做无缝循环
+  const canLoop = pics.length >= DISPLAY_NUM * 2;
   const dragRef = useRef<{ startX: number; startLeft: number; moved: boolean } | null>(null);
   const suppressClickRef = useRef(false);
   const hoveringRef = useRef(false);
 
-  useEffect(() => {
+  const metrics = () => {
     const el = nav3Ref.current;
-    if (!el) return;
-    const update = () => setCanScroll(el.scrollWidth - el.clientWidth > 1);
-    update();
-    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
-    observer?.observe(el);
-    window.addEventListener('resize', update);
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener('resize', update);
+    if (!el) return null;
+    const cs = window.getComputedStyle(el);
+    const pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+    const cell = Math.max(1, (el.clientWidth - pad) / DISPLAY_NUM);
+    return { el, page: cell * DISPLAY_NUM, cycle: cell * pics.length };
+  };
+
+  /** 滚到克隆区时无感跳到对应真实位置；首尾克隆内容一致，视觉无跳动。 */
+  const normalizeScroll = () => {
+    if (!canLoop) return;
+    const m = metrics();
+    if (!m) return;
+    const max = m.el.scrollWidth - m.el.clientWidth;
+    if (m.el.scrollLeft >= max - 1) {
+      m.el.scrollTo({ left: m.el.scrollLeft - m.cycle, behavior: 'instant' as ScrollBehavior });
+    } else if (m.el.scrollLeft <= 1) {
+      m.el.scrollTo({ left: m.el.scrollLeft + m.cycle, behavior: 'instant' as ScrollBehavior });
+    }
+  };
+
+  /** 平滑滚动没有可靠的完成事件：连续检测一小段时间，落到克隆区就即时归位。 */
+  const settleAfterScroll = () => {
+    let tries = 0;
+    const tick = () => {
+      normalizeScroll();
+      tries += 1;
+      if (tries < 12) window.setTimeout(tick, 120);
     };
-  }, [pics.length]);
+    window.setTimeout(tick, 120);
+  };
+
+  // 初始定位到真实列表第一屏（左侧是克隆的末尾一屏）
+  useLayoutEffect(() => {
+    const apply = () => {
+      const m = metrics();
+      if (!m) return;
+      // 必须 instant：CSS smooth 会让 scrollLeft 赋值走动画，首屏会滑入且无法即时归位
+      m.el.scrollTo({ left: canLoop ? m.page : 0, behavior: 'instant' as ScrollBehavior });
+    };
+    apply();
+    const raf = window.requestAnimationFrame(apply);
+    return () => window.cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pics.length, canLoop]);
 
   useEffect(() => {
-    if (!canScroll) return;
+    const onResize = () => {
+      const m = metrics();
+      if (!m) return;
+      m.el.scrollTo({ left: canLoop ? m.page : 0, behavior: 'instant' as ScrollBehavior });
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pics.length, canLoop]);
+
+  useEffect(() => {
+    if (!canScroll) return undefined;
+    // 对齐原版 Swiper：5 秒自动翻一屏（整屏 6 张）、悬停或拖拽时暂停
     const timer = window.setInterval(() => {
-      const el = nav3Ref.current;
-      if (!el || hoveringRef.current) return;
-      const max = el.scrollWidth - el.clientWidth;
-      if (el.scrollLeft >= max - 2) {
-        el.scrollTo({ left: 0, behavior: 'smooth' });
-      } else {
-        el.scrollBy({ left: el.clientWidth, behavior: 'smooth' });
-      }
+      const m = metrics();
+      if (!m || hoveringRef.current || dragRef.current) return;
+      m.el.scrollBy({ left: m.page, behavior: 'smooth' });
+      settleAfterScroll();
     }, 5000);
     return () => window.clearInterval(timer);
-  }, [canScroll]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canScroll, pics.length]);
+
+  const stepPage = (direction: 1 | -1) => {
+    const m = metrics();
+    if (!m) return;
+    m.el.scrollBy({ left: direction * m.page, behavior: 'smooth' });
+    settleAfterScroll();
+  };
 
   const endDrag = () => {
     dragRef.current = null;
@@ -3125,6 +3178,15 @@ function CategoryNav3({ module }: ModuleProps) {
       suppressClickRef.current = false;
     }, 0);
   };
+
+  // 无缝循环：首尾各克隆一屏（6 张），真实内容夹在中间
+  const renderItems = canLoop
+    ? [
+        ...pics.slice(-DISPLAY_NUM).map((pic, index) => ({ pic, key: `left-${index}` })),
+        ...pics.map((pic, index) => ({ pic, key: `real-${index}` })),
+        ...pics.slice(0, DISPLAY_NUM).map((pic, index) => ({ pic, key: `right-${index}` })),
+      ]
+    : pics.map((pic, index) => ({ pic, key: `real-${index}` }));
 
   return (
     <div className="dec-category-nav3" style={style}>
@@ -3141,16 +3203,20 @@ function CategoryNav3({ module }: ModuleProps) {
       </div>
       {pics.length ? (
         <div className="dec-category-nav3__list-wrap">
-          <SwiperNav visible={canScroll} onPrev={() => nav3Ref.current?.scrollBy({ left: -nav3Ref.current.clientWidth * 0.6, behavior: 'smooth' })} onNext={() => nav3Ref.current?.scrollBy({ left: nav3Ref.current.clientWidth * 0.6, behavior: 'smooth' })} />
           <div
             className="dec-category-nav3__list"
             ref={nav3Ref}
+            onScroll={normalizeScroll}
             onPointerDown={(event) => {
               const el = nav3Ref.current;
               if (!el || event.button !== 0) return;
               dragRef.current = { startX: event.clientX, startLeft: el.scrollLeft, moved: false };
               el.classList.add('is-dragging');
-              el.setPointerCapture(event.pointerId);
+              try {
+                el.setPointerCapture(event.pointerId);
+              } catch {
+                /* 合成事件可能不支持 pointer capture */
+              }
             }}
             onPointerMove={(event) => {
               const el = nav3Ref.current;
@@ -3160,7 +3226,8 @@ function CategoryNav3({ module }: ModuleProps) {
               if (Math.abs(dx) > 4) {
                 drag.moved = true;
                 suppressClickRef.current = true;
-                el.scrollLeft = drag.startLeft - dx;
+                el.scrollTo({ left: drag.startLeft - dx, behavior: 'instant' as ScrollBehavior });
+                normalizeScroll();
               }
             }}
             onPointerUp={endDrag}
@@ -3179,27 +3246,26 @@ function CategoryNav3({ module }: ModuleProps) {
               hoveringRef.current = false;
             }}
           >
-          {pics.map((pic, i) => (
-            <div className="dec-category-nav3__item" key={i}>
-              <a href={navHref(pic.picLink) || '#'} target="_blank" rel="noreferrer" title={pic.picTitle}>
-                <div className="dec-category-nav3__image" style={{ backgroundColor: pic.imageBackgroundColor || module.imageBackgroundColor || undefined }}>
-                  <img className="dec-category-nav3__img" src={pic.picUrl || pic.picThumb || ''} alt={pic.picTitle || ''} loading="lazy" />
-                </div>
-                <div className="dec-category-nav3__name">{pic.picTitle}</div>
-                {pic.picDesc ? (
-                  <div className="dec-category-nav3__desc">
-                    <svg className="dec-category-nav3__hot" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M12 2c1.2 3.4-2.6 5.1-2.6 8.4a2.6 2.6 0 0 0 5.2 0c0-1-.2-1.8-.7-2.6 2.2 1.3 3.6 3.4 3.6 5.9a5.5 5.5 0 0 1-11 0c0-3.6 1.9-5.6 3.6-7.4C11 4.7 11.7 3.4 12 2Z" fill="currentColor" />
-                    </svg>
-                    <div className="dec-category-nav3__desc-text">{pic.picDesc}</div>
+            {renderItems.map(({ pic, key }) => (
+              <div className="dec-category-nav3__item" key={key}>
+                <a href={navHref(pic.picLink) || '#'} target="_blank" rel="noreferrer" title={pic.picTitle}>
+                  <div className="dec-category-nav3__image" style={{ backgroundColor: pic.imageBackgroundColor || module.imageBackgroundColor || undefined }}>
+                    <img className="dec-category-nav3__img" src={pic.picUrl || pic.picThumb || ''} alt={pic.picTitle || ''} loading="lazy" draggable={false} />
                   </div>
-                ) : null}
-              </a>
-            </div>
-          ))}
+                  <div className="dec-category-nav3__name">{pic.picTitle}</div>
+                  {pic.picDesc ? (
+                    <div className="dec-category-nav3__desc">
+                      <div className="dec-category-nav3__desc-text">{pic.picDesc}</div>
+                    </div>
+                  ) : null}
+                </a>
+              </div>
+            ))}
           </div>
         </div>
       ) : null}
+      {/* 箭头挂模块根节点：贴左右外边缘 + 整块垂直居中（原先在 __list-wrap 内，受 16px 内边距与标题栏影响偏移） */}
+      <SwiperNav visible={canScroll} onPrev={() => stepPage(-1)} onNext={() => stepPage(1)} />
     </div>
   );
 }

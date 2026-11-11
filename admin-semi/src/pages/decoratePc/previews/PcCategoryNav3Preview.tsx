@@ -8,12 +8,13 @@
  *   .dec-pc-category-nav3__list-wrap        列表区
  *   .dec-pc-category-nav3__empty            空态（请在设置中添加内容）
  *   .dec-pc-category-nav3__list/scroll      列表（横向滚动，一屏 6 卡）
- *   .dec-pc-category-nav3__item/link/image/img/name/desc/desc-icon/desc-text
+ *   .dec-pc-category-nav3__item/link/image/img/name/desc/desc-text
  *
- * 说明：旧版图片仅原样返回 URL（不补 storageUrl 前缀），本组件保持一致；
- * 「火苗」描述图标来自 preview.less 内联 data URI，见 pcCategoryNav3.css。
+ * 说明：旧版图片仅原样返回 URL（不补 storageUrl 前缀），本组件保持一致。
+ * 超过一屏（6 张）时显示左右翻屏箭头 + 页码，让运营一眼看出后面还有卡片；
+ * 编辑态**不做**自动轮播（会干扰编辑），自动轮播只在前台 C 端。
  */
-import { type CSSProperties } from 'react';
+import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { useI18n } from '../../../i18n';
 import './pcCategoryNav3.css';
 
@@ -91,6 +92,42 @@ export default function PcCategoryNav3Preview({ data }: { data: Record<string, a
   const config = mergeConfig(data);
   const frame = config.frame || {};
   const picList = Array.isArray(config.picList) ? config.picList : [];
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [nav, setNav] = useState({ canScroll: false, page: 1, pages: 1 });
+
+  const update = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const width = Math.max(1, el.clientWidth);
+    const max = el.scrollWidth - el.clientWidth;
+    const pages = Math.max(1, Math.ceil(el.scrollWidth / width));
+    // 按可滚动距离归一化：两屏时 max 略小于一屏宽，直接用 scrollLeft/width 会永远算成第 1 页
+    const page = max > 1 ? Math.min(pages, Math.round((el.scrollLeft / max) * (pages - 1)) + 1) : 1;
+    const canScroll = max > 1;
+    setNav((prev) => (prev.canScroll === canScroll && prev.page === page && prev.pages === pages
+      ? prev
+      : { canScroll, page, pages }));
+  };
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    update();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    observer?.observe(el);
+    window.addEventListener('resize', update);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', update);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picList.length]);
+
+  const step = (direction: 1 | -1) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction * el.clientWidth, behavior: 'smooth' });
+  };
 
   // backgroundColor 优先于 frame.backgroundColor（同旧版）
   const bgColor = config.backgroundColor || frame.backgroundColor || 'rgba(0, 0, 0, 0.02)';
@@ -115,19 +152,26 @@ export default function PcCategoryNav3Preview({ data }: { data: Record<string, a
         <div className="dec-pc-category-nav3__title">
           {config.titleText || t('热门推荐')}
         </div>
-        {Number(config.showMore) === 1 && (
-          <a
-            className="dec-pc-category-nav3__more"
-            href={toHref(config.moreLink)}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <span className="dec-pc-category-nav3__more-text">
-              {config.showMoreText || t('更多')}
+        <div className="dec-pc-category-nav3__top-right">
+          {nav.canScroll ? (
+            <span className="dec-pc-category-nav3__pager">
+              {nav.page} / {nav.pages}
             </span>
-            <span className="dec-pc-category-nav3__more-arrow">&gt;</span>
-          </a>
-        )}
+          ) : null}
+          {Number(config.showMore) === 1 && (
+            <a
+              className="dec-pc-category-nav3__more"
+              href={toHref(config.moreLink)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span className="dec-pc-category-nav3__more-text">
+                {config.showMoreText || t('更多')}
+              </span>
+              <span className="dec-pc-category-nav3__more-arrow">&gt;</span>
+            </a>
+          )}
+        </div>
       </div>
 
       <div className="dec-pc-category-nav3__list-wrap">
@@ -136,44 +180,79 @@ export default function PcCategoryNav3Preview({ data }: { data: Record<string, a
             <div className="dec-pc-category-nav3__empty-text">{t('请在设置中添加内容')}</div>
           </div>
         ) : (
-          <div className="dec-pc-category-nav3__list">
-            <div className="dec-pc-category-nav3__scroll" aria-label={t('分类导航列表')}>
-              {picList.map((item, index) => (
-                <div
-                  className="dec-pc-category-nav3__item"
-                  key={String(item.picId || index)}
-                >
-                  <a
-                    className="dec-pc-category-nav3__link"
-                    href={toHref(item.picLink)}
-                    title={String(item.productName || item.picTitle || '')}
-                    target="_blank"
-                    rel="noopener noreferrer"
+          <>
+            <div className="dec-pc-category-nav3__list">
+              <div className="dec-pc-category-nav3__scroll" ref={scrollRef} onScroll={update}>
+                {picList.map((item, index) => (
+                  <div
+                    className="dec-pc-category-nav3__item"
+                    key={String(item.picId || index)}
                   >
-                    <div
-                      className="dec-pc-category-nav3__image"
-                      style={{ backgroundColor: getImageBg(item) }}
+                    <a
+                      className="dec-pc-category-nav3__link"
+                      href={toHref(item.picLink)}
+                      title={String(item.productName || item.picTitle || '')}
+                      target="_blank"
+                      rel="noopener noreferrer"
                     >
-                      <img
-                        className="dec-pc-category-nav3__img"
-                        src={formatImage(item.picUrl || item.picThumb)}
-                        alt={String(item.picTitle || '')}
-                      />
-                    </div>
-                    <div className="dec-pc-category-nav3__name">{item.picTitle}</div>
-                    {item.picDesc ? (
-                      <div className="dec-pc-category-nav3__desc">
-                        <span className="dec-pc-category-nav3__desc-icon" aria-hidden="true" />
-                        <span className="dec-pc-category-nav3__desc-text">{item.picDesc}</span>
+                      <div
+                        className="dec-pc-category-nav3__image"
+                        style={{ backgroundColor: getImageBg(item) }}
+                      >
+                        <img
+                          className="dec-pc-category-nav3__img"
+                          src={formatImage(item.picUrl || item.picThumb)}
+                          alt={String(item.picTitle || '')}
+                        />
                       </div>
-                    ) : null}
-                  </a>
-                </div>
-              ))}
+                      <div className="dec-pc-category-nav3__name">{item.picTitle}</div>
+                      {item.picDesc ? (
+                        <div className="dec-pc-category-nav3__desc">
+                          <span className="dec-pc-category-nav3__desc-text">{item.picDesc}</span>
+                        </div>
+                      ) : null}
+                    </a>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          </>
         )}
       </div>
+      {/* 箭头挂在模块根节点：贴模块左右外边缘 + 整块垂直居中（此前在 __list-wrap 内，
+          受 16px 内边距和标题栏影响，左右各偏内 16px、垂直偏下约 36px） */}
+      {nav.canScroll && picList.length > 0 ? (
+        <>
+          <button
+            type="button"
+            className="dec-pc-category-nav3__nav dec-pc-category-nav3__nav--prev"
+            aria-label={t('上一屏')}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              step(-1);
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="dec-pc-category-nav3__nav dec-pc-category-nav3__nav--next"
+            aria-label={t('下一屏')}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              step(1);
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </>
+      ) : null}
     </div>
   );
 }
