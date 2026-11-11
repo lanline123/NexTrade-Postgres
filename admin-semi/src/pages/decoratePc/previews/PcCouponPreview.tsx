@@ -13,8 +13,15 @@
  *  - 样式不在本目录另写，直接 import `pcCoupon.generated.css`
  *    （由 admin-semi/scripts/gen-coupon-css.mjs 从
  *     pc-semi/src/decorate/coupon/coupon.scss 生成，单一数据源）。
- *  - 数据走真实接口：dev 环境 /adminapi 有代理，取后台券列表并套用与 C 端
- *    getCoupon 完全相同的可见性规则，所以「后台预览 == 前台看到的券」。
+ *  - 数据走 `GET /adminapi/promotion/coupon/claimableList?page=1&size=20`
+ *    （2026-11-11 起）：该接口在 backend 直接复用与 C 端
+ *    `GET /api/home/home/getCoupon` 相同的 `CouponService::claimable_list`，
+ *    同样强制 is_show=1 / valid_date=1 / receive_flag=1，返回 `CouponClientVO`
+ *    （camelCase，逐字段与 getCoupon 相同；`data` 直接是数组，无 records 包装）。
+ *    可见性判定因此**只由后端负责**，本文件不再复刻任何过滤规则
+ *    （旧的可见性判定函数已整体删除），从根上消除「后台看到 A、前台显示 B」的漂移。
+ *    这是游客口径（isReceive 恒 0），与未登录访客在首页所见一致。
+ *  - 接口失败时展示错误态，不回退 mock 假券；后端未部署时该接口 404/400 属预期。
  */
 import './pcCoupon.generated.css';
 
@@ -39,7 +46,12 @@ const COUPON_DEFAULTS = {
 
 type CouponConfig = typeof COUPON_DEFAULTS;
 
-interface CouponRow {
+/**
+ * `CouponClientVO`（claimableList / getCoupon 同源返回体）。
+ * 这里只声明预览渲染实际用到的字段；可见性相关字段（is_show / 有效期 / 可点击领取）
+ * 由后端在 claimable_list 内过滤，前端不再读取、不再判定。
+ */
+interface CouponClientVO {
   couponId?: number;
   couponName?: string;
   couponDesc?: string;
@@ -47,11 +59,6 @@ interface CouponRow {
   couponMoney?: string | number;
   couponDiscount?: string | number;
   minOrderAmount?: string | number;
-  isShow?: number;
-  enabledClickGet?: number;
-  isDelete?: number;
-  sendType?: number;
-  useEndDate?: number;
   receiveNum?: number;
   sendNum?: number;
 }
@@ -78,22 +85,9 @@ function deepMerge<T extends Record<string, any>>(defaults: T, data?: Record<str
 }
 
 /**
- * 复刻 C 端可见性：后端 `paginate_claimable` 的 WHERE 只有这四项
- * （rust/crates/infrastructure/src/db/repo/marketing/coupon.rs）：
- *   is_delete = 0 AND is_show = 1 AND enabled_click_get = 1
- *   AND (send_type = 0 OR use_end_date >= now)
- * 不看 send_num / limit_num / receive_num / use_start_date。
+ * 前台模块同样只取前 4 张 —— 这是模块展示上限（语义），不是可见性过滤规则。
+ * 过滤发生在后端 claimable_list 内，前端只做 slice 截断。
  */
-function isVisibleOnPc(c: CouponRow): boolean {
-  const now = Math.floor(Date.now() / 1000);
-  if (Number(c.isDelete ?? 0) !== 0) return false;
-  if (Number(c.isShow ?? 0) !== 1) return false;
-  if (Number(c.enabledClickGet ?? 0) !== 1) return false;
-  if (Number(c.sendType ?? 0) === 0) return true;
-  return Number(c.useEndDate ?? 0) >= now;
-}
-
-/** 前台 `getCoupon` 按 add_time DESC 返回，模块再取前 4 张。 */
 const MAX_SHOWN = 4;
 
 export default function PcCouponPreview({ data }: { data: Record<string, any> }) {
@@ -101,21 +95,22 @@ export default function PcCouponPreview({ data }: { data: Record<string, any> })
   const moduleConfig = deepMerge<CouponConfig>(COUPON_DEFAULTS, data);
   const isEmpty = !data || Object.keys(data).length === 0;
 
-  const [rows, setRows] = useState<CouponRow[]>([]);
+  const [rows, setRows] = useState<CouponClientVO[]>([]);
   const [source, setSource] = useState<'loading' | 'live' | 'empty' | 'error'>('loading');
 
   useEffect(() => {
     let alive = true;
     setSource('loading');
-    apiGet<{ records?: CouponRow[]; list?: CouponRow[] }>('/promotion/coupon/list', {
+    // 与 C 端 getCoupon 同源的「可领取券」接口，可见性由后端过滤，前端不再复刻
+    apiGet<CouponClientVO[]>('/promotion/coupon/claimableList', {
       page: 1,
-      size: 100,
+      size: 20,
     })
       .then((res) => {
         if (!alive) return;
-        const all = res?.records || res?.list || [];
-        // 后台列表默认按 add_time DESC，与 C 端 getCoupon 同序；再套前台可见性规则
-        const visible = all.filter(isVisibleOnPc).slice(0, MAX_SHOWN);
+        // 契约：data 直接是 CouponClientVO[]（无 records 包装）；对包装体做一次兜底
+        const all = Array.isArray(res) ? res : ((res as any)?.records ?? []);
+        const visible = all.slice(0, MAX_SHOWN);
         setRows(visible);
         setSource(visible.length ? 'live' : 'empty');
       })
