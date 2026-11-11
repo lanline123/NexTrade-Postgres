@@ -473,7 +473,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 **第一步：拿到原版源码，而不是凭截图猜**
 
 - 原版 Java 前台组件（**本机只读参考素材，不是代码仓库**，仅用于 1:1 对照）：
-  `D:\tigshop\NexTrade\java-b2b2c-overseas-v5.8.61\view\pc\components\home\CategoryNew.vue`
+  `<原版 Java 源码目录>\java-b2b2c-overseas-v5.8.61\view\pc\components\home\CategoryNew.vue`
 - 装修包装：同目录 `view\pc\decorate\components\pc\PcCategoryNavWrapper.vue`
 - 后台预览（React 迁移版，注释里保留了旧版 DOM 结构）：
   `admin-semi/src/pages/decoratePc/previews/PcCategoryNavPreview.tsx`
@@ -602,7 +602,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 推送约定：**只推送本仓库 `NexTrade-Postgres`**，前端源码就在本仓库 `pc-semi/` / `admin-semi/`，不再维护第二份源码副本、也不存在需要避开的其它 remote（§2.2） |
 | 2026-11-10 | 素材中心「删除分组」弹窗现代化（审计第四十一章）：警示条显示分组名 + 两张可点击策略卡（选中蓝/危险红）+ 红色确认按钮；因当时有并行 WIP，改用 `git archive HEAD` 干净源码构建后全量上传，线上 `index-vGC7iQEf.js`，回滚 index 存 `scratch/admin-index.online.20261110_172540.html` |
 | 2026-11-10 | 危险项圆点红色方块修复（审计 41.6）：红色误涂在无圆角外层 `.semi-radio-inner`，改为只给圆形 `.semi-radio-inner-display` 上色；线上 `index-DuI8xVsF.js` / `index-pH85wgPg.css`，回滚 index 存 `scratch/admin-index.online.20261110_180852.html` |
-| 2026-11-10 | 新增商品「商品图片」恢复素材中心选择（审计第四十四章）：新增 `GalleryPickerModal`（分组/搜索/多选/上传），`ImageUploader` 增加 `gallery` 入口，商品表单启用；线上 `index-CPlPAlV0.js`，验证选中 2 张可回填。改动一律在本仓库内定向编辑，避免把 Tigshop 品牌差异带进来 |
+| 2026-11-10 | 新增商品「商品图片」恢复素材中心选择（审计第四十四章）：新增 `GalleryPickerModal`（分组/搜索/多选/上传），`ImageUploader` 增加 `gallery` 入口，商品表单启用；线上 `index-CPlPAlV0.js`，验证选中 2 张可回填。改动一律在本仓库内定向编辑，避免把厂商品牌差异带进来 |
 | 2026-11-10 | 素材选择弹窗改版（审计第四十五章）：弹窗放大到 1080×560 并上下左右居中，左侧文件夹树默认只显示一级、箭头展开，右侧网格/搜索/上传保持；线上 `index--WLhioJJ.js`，回滚 index 存 `scratch/admin-index.online.20261110_191724.html` |
 | 2026-11-10 | 素材选择弹窗二次放大（审计第四十六章）：宽 `min(1280px,94vw)`、高 `clamp(560px,72vh,800px)`；加分组搜索、骨架屏、悬停动效、已选缩略图条/清空、双击直接确认；线上 `index-HWvtT8iA.js`，回滚 index 存 `scratch/admin-index.online.20261110_194032.html` |
 | 2026-11-10 | 商品图片删除失效修复 + 拖拽排序（审计第四十七章）：根因是 FormDrawer 对 Semi 原地修改的 `state.values` 同引用 setState 导致自定义字段不重渲染，改为浅拷贝；图片去掉「设为主图」，改原生拖拽排序、首图自动主图、圆形悬浮删除；线上 `index-XJYeonMz.js`，回滚 index 存 `scratch/admin-index.online.20261110_195059.html` |
@@ -665,7 +665,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-12 | **登记 CI 基础设施故障**：`check-rust` 的 `Install system dependencies` 连续两次因 runner 无法解析 `azure.archive.ubuntu.com` 失败，`Cargo Check`/`Cargo Test` 被 skipped（非代码问题）。该步骤失败不要误判为代码错，可直接重跑或改走 `build-staging`（容器内 dnf，不受影响）。 |
 | 2026-11-11 | **分组轮播Banner 图片圆角不可控修复 + 新增「图片边角」独立控件**（详见 §15，提交 `990106e`）：后台把「容器圆角」设 0 也改不动图片圆角（`globals.scss` 的 `.dec-group-banner a{border-radius:var(--pc-radius)}`(0,1,1) 压过 `__link`(0,1,0)，写死 12px；编辑器预览 `__link` 又写死 8px）。改为图片圆角走 `--dec-item-radius`，并新增「图片边角」直角/圆角（老数据回退容器圆角）。admin 入口 `index-BrRNhaWB.js`、PC `YOw5lnBPjaQx14UN9JNOb`，公网实测 12px → 0px，装修数据未改动。 |
 | 2026-11-11 | **banner2 冷缓存空白根治（数据热替换 + 轮播就绪门控）**：用户复报「只显示第一张、第二三张没加载、点不进去」。实测根因**不是图片 404、也不是 §7 里 58.10 的 `loading` 没改对**，而是 `useCarousel` 是纯 5 秒 `setInterval`、**从不检查下一张图是否就绪**；冷缓存下首页约 85 张图抢带宽，第 2/3 张分别要 **18.1s / 36.2s** 才就绪，而轮播 **14.1s / 19.1s** 就翻过去了 → 整屏纯白（`elementFromPoint` 只命中容器 `dec-banner2__inner`，图与 `<a>` 都不在那一点，所以「点不进去」）。两手修复：① **数据**（已生效、零构建零重启）装修页 10023 的 `pc-banner2` 三个 `picUrl` 换成 `?x-oss-process=image/resize,m_fill,w_1364,h_600/format,webp/quality,q_80`，合计 1.19 MB → **89 KB**（第 2 张原图 858 KB，其「缩略」变体还是 318 KB 的 PNG），冷缓存三张就绪时刻 **5.0/18.1/36.2s → 2.0/2.0/2.0s**，早于 8.2s 的首次翻页；② **代码** `useCarousel(length, delay, allowAdvance?)` 新增可选门控（目标帧未就绪则原地不动、下周期再试，门控放 ref 不重建定时器）+ `Banner2` 用 `onLoad/onError` 记账 + **8 秒兜底**（坏图不会把轮播卡死）+ 未就绪项占位底色 `#f5f6f8`。部署 PC 构建 `OPmsTCUT3ykC-Z2WvOmGD`（替换 `lBoAEJXL_XOK5_oApvmtm`；包 sha256 `9950939f…ab3d` / 3,837,869 B，含当前工作区未提交的 `globals.scss`/`modules-source.scss`；备份 `/www/backup/pc_pre_20261111_234146.tgz`），3005 健康 200、`service=active`、公网 buildId 已切新、20 模块完好。**门控确定性验证**：把三张图人为延迟 6s，`ready=0` 期间 `idx` 始终停在 0（5 秒定时器被挡住），图到位后才翻到 1。脚本 `scratch/banner2-timeline.cjs`（冷/热时间线）、`banner2-webp-fix.py`（数据改动，默认 dry-run）、`verify-banner2-gate.cjs`（门控实验）、`diag-banner2-visible.cjs`（可见性判定）；排查陷阱见 §4.8 第 9 条 |
-| 2026-11-12 | **仓库收敛为单一来源 + 同步状态盘点**（详见 §16）：本仓库 `NexTrade-Postgres` 定为唯一代码仓库，交接文档中所有「上游仓库 / `D:\tigshop\NexTrade` 构建源 / 不要向上游 remote 推送」的表述**全部移除**，构建路径改写为本仓库 `pc-semi/`、`admin-semi/`；`tools/upload-to-bt.ps1`、`tools/deploy-rust-bt.ps1`、`tools/README-upload-to-bt.md` 复制入库。盘点：本地与 `origin/main` 完全一致（`664c854`）、无未推送提交；唯一未提交的已跟踪文件是本文件。**发现 54 个文件的最新版本只在旧构建树里、没进 GitHub**（`pc-semi/` 52 + `admin-semi/` 2，集中在 11-10 13:02–16:59 的换币/多语言/middleware/会员订单一批改动），已在 §16.2 列为待办，并明确警示「从仓库直接构建 ≠ 线上版本」 |
+| 2026-11-12 | **仓库收敛为单一来源 + 同步状态盘点**（详见 §16）：本仓库 `NexTrade-Postgres` 定为唯一代码仓库，交接文档中所有「上游仓库 / 另一套构建源 / 不要向上游 remote 推送」的表述**全部移除**，构建路径改写为本仓库 `pc-semi/`、`admin-semi/`；`tools/upload-to-bt.ps1`、`tools/deploy-rust-bt.ps1`、`tools/README-upload-to-bt.md` 复制入库。盘点：本地与 `origin/main` 完全一致（`664c854`）、无未推送提交；唯一未提交的已跟踪文件是本文件。**发现 `pc-semi/` 有 52 个文件的最新版本没进 GitHub**（11-10 的换币/多语言/middleware/会员订单一批修复；三重证据：这 52 个文件在本仓库自 `a88258d` 初次导入后再无提交、11-10 的 8 个修复提交在本仓库 0 存在、`middleware.ts` 内容比对为本仓库缺 `x-forwarded-host`），已在 §16.2 列为待办并警示「从仓库直接构建 ≠ 线上版本」；`admin-semi` 单独核对后确认**不受影响** |
 
 ---
 
@@ -758,7 +758,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 ### 10.4 本地构建与部署（已验证可复现）
 
 ```bash
-cd D:/tigshop/NexTrade-Postgres/pc-semi
+cd <仓库根>/pc-semi
 node scripts/copy-semi-css.mjs
 PC_API_BASE=https://battery.recy.cc NODE_ENV=production \
   PC_NEXT_DIST_DIR=.next-local npx next build
@@ -782,7 +782,7 @@ sha256sum scratch/nextrade-pc-nav3.tgz
 ```bash
 # 注意 Git Bash 会把 /www/backup 转成 Windows 路径，必须加 MSYS_NO_PATHCONV=1
 MSYS_NO_PATHCONV=1 pwsh tools/upload-to-bt.ps1 \
-  -File D:\tigshop\NexTrade-Postgres\scratch\nextrade-pc-nav3.tgz \
+  -File <仓库根>\scratch\nextrade-pc-nav3.tgz \
   -RemoteDir /www/backup/ -PartPrefix pcnav3z_
 
 python scratch/run_shell.py scratch/dep-pcnav3.sh depnav3
@@ -975,7 +975,7 @@ python scratch/run_shell.py scratch/dep-pcnav3.sh depnav3
 | `EADDRINUSE :::3014` | 本地 `next start` 端口被残留进程占用，换端口（本次 3031） |
 
 ```bash
-cd D:/tigshop/NexTrade-Postgres/pc-semi
+cd <仓库根>/pc-semi
 CODEBUDDY_SAFE_DELETE_ENABLED=0 PC_SKIP_BUILD_TRACE=1 \
   PC_API_BASE=https://battery.recy.cc NODE_ENV=production \
   PC_NEXT_DIST_DIR=.next-arrow npx next build
@@ -1437,28 +1437,45 @@ AND (send_type = 0 OR use_end_date >= now)
 
 ### 16.2 尚未入库的内容（**待办，优先级高**）
 
-2026-11-12 逐文件比对发现：**54 个文件的最新版本只存在于旧构建树，没有进 GitHub**。
+2026-11-12 用 `git ls-tree` 比两边 HEAD 的 blob（字节级，无 CRLF 干扰），
+再对每个差异文件在对方仓库里**回溯历史**判定方向：
+仓库当前内容**在对方历史中出现过** ⇒ 只是落后（可同步）；
+**从未出现过** ⇒ 有意分叉（不可覆盖）。
 
-| 目录 | 文件数 | 说明 |
+| 目录 | 文件数 | 结论 |
 |---|---:|---|
-| `pc-semi/` | **52** | 集中在 2026-11-10 13:02–16:59 的一批改动 |
-| `admin-semi/` | **2** | `src/pages/PcDecorateEditor.tsx`、`src/components/ProductFormDrawer.tsx` |
+| `pc-semi/` | **51** | **确认落后**，可安全同步到最新版 |
+| `pc-semi/` | **2** | **本仓库缺失**：`src/i18n/locale.ts`、`DEPLOY.md` |
+| `pc-semi/` | 17 | **有意分叉，勿覆盖**（纯品牌/路径改名）：`package.json`、`package-lock.json`、`README.md`、`server.js`、`scripts/gen-*-scss.mjs`(6)、`app/install/page.tsx`、`app/pc-global-utils.scss`、`src/decorate/components/contract.ts`、`src/i18n/locales/{en_us,zh_cn}.json`、`src/components/emojiElements.ts` |
+| `pc-semi/` | 1 | **混合体，已手工合并（2026-11-12）**：`app/layout.tsx` = 品牌改名 **+ 7 处真实修复**。做法：整份取最新版，再把 2 处厂商品牌串回改成 `powered by nextrade`（校验：该文件只剩 `nextrade`，厂商名 0 处），合并前原版备份在 `scratch/layout.tsx.pre-merge.bak`。含的修复：`normalizeLocale(localeCookie)`（多语言）、`loadServerLocale()`（非 zh/en 的 SSR 文案）、`serverSymbol`（修首屏先渲染 ¥ 再跳币种的 hydration 闪烁）、`websiteJsonLd(lang)` 的 `inLanguage` |
 
-`pc-semi` 受影响的关键文件：
+**执行状态（2026-11-12）**：51 个落后文件 + 2 个缺文件 + `app/layout.tsx` 已同步进本仓库工作区
+（MD5 逐文件校验 53/53 一致，17 个纯分叉文件零改动），**尚未提交**。
+提交前必须先构建验证：`pc-semi/node_modules` 未入库，需要先装依赖再构建，
+否则「仓库原生 17 个分叉文件 + 同步进来的修复」这个组合从未被编译过。
+| `admin-semi/` | 0 落后 / 24 有意分叉 | 已核对：仓库副本**不在**对方历史中，属有意分叉，**不受影响** |
 
-- `middleware.ts` —— 商品页 308 到 `localhost:3005` 的修复（§7 2026-11-10 行，`e743af82`）
-- `src/lib/currency.ts`、`src/components/FormatPrice.tsx` —— 换币
-- `src/i18n/index.ts`、`src/i18n/server.ts` —— 多语言
-- `src/components/product/ProductCard.tsx`、`ShopProductCard.tsx`
-- 会员 / 订单 / 售后 / 购物车 / 结算 / 优惠券中心等约 20 个 `*Client.tsx`
-- `app/layout.tsx`、`app/product/product-view.tsx`、`app/order/pay/PayChannelClient.tsx` 等
+**落后的 51 个里"欠账最多"的**（括号内 = 缺少的提交次数）：
 
-> ⚠️ **这批改动已经上线并生效**（线上跑的就是它们构建出来的包），
-> 但仓库里的同名文件仍是改动前的版本 —— 即**现在从本仓库 `pc-semi/` 直接构建，会得到一个缺少这批修复的前端**。
+- `src/lib/currency.ts`（4 次）、`src/components/ProductDetailClient.tsx`（3 次）、
+  `src/components/SearchLayoutVariants.tsx`（2 次）
+- `middleware.ts`（§7 的 308 修复）、`src/i18n/index.ts`、`app/search/page.tsx`、
+  `src/components/SeckillListClient.tsx`、`src/components/product/ShopProductCard.tsx`、
+  `src/components/CouponDetailClient.tsx` 等（各 1 次）
+
+**交叉验证**：构建树仓库 2026-11-10 的 8 个 pc-semi 修复提交
+（`e743af82`、`d4bf4e85`、`b7836814`、`adab8395`、`8610b1b3`、`a8141825`、`695b0d00`、`5c1d10e7`）
+在本仓库中**一个都不存在**（0 存在 / 8 缺失）；
+`middleware.ts` 内容比对：本仓库 `x-forwarded-host` **0 处** / `nextUrl.clone()` **2 处**（修复前），
+构建树 **2 处** / **1 处**（修复后）。
+
+> ⚠️ **这批修复已经上线并生效**（线上跑的就是它们构建出来的包），
+> 但仓库里的文件仍是改动前的版本 —— 即**现在从本仓库 `pc-semi/` 直接构建，会得到一个缺少这批修复的前端**。
 >
-> 处理办法（二选一）：① 用最新版本覆盖进本仓库并提交（推荐，动作小、可核对）；
-> ② 在仓库内按线上行为重新实现。
-> **在这批文件补齐之前，「从仓库构建 PC 前端」≠「线上版本」，不要互相当作等价物。**
+> 但**不能整棵覆盖**：上表 18 个 + admin-semi 24 个是有意分叉，覆盖会把品牌名和迁移专用脚本冲掉。
+> 正确做法是**只同步那 51 个 + 补 2 个缺文件**，且同步后**必须真跑一次构建验证混合树**
+> （`pc-semi/node_modules` 未入库，需先 `pnpm install`）——
+> 「仓库原生 18 个分叉文件」＋「对方的 51 个修复文件」这个组合此前从未被构建过，不能想当然。
 
 ### 16.3 从本仓库构建 PC 前端的前置条件
 
@@ -1478,5 +1495,37 @@ PC_API_BASE=https://battery.recy.cc NODE_ENV=production npx next build
 `tools/upload-to-bt.ps1`、`tools/deploy-rust-bt.ps1`、`tools/README-upload-to-bt.md`
 已于 2026-11-12 复制进本仓库（此前只存在于本机另一目录）。凭据仍走
 `C:\Users\Public\bt2api.ps1`（§1.2），**不在仓库内、也不要提交**。
+
+### 16.5 失效引用修复与残留清理（2026-11-12）
+
+**① 修掉"本仓库那侧确定失效"的引用**（品牌文案一律保留）
+
+| 失效内容 | 判定依据 | 修复 |
+|---|---|---|
+| 8 个文件的 `LEGACY`/`legacy` 本地路径 `D:/nextrade/NexTrade/…` | 该路径**不存在**；另一处的值指向真实存在的本机原版源码目录 | 替换 10 处 |
+| `pc-semi/src/components/emojiElements.ts` 的 `EMOJI_BASE` | `oss.nextrade.com` **HTTP 000 不可达**；已改为可达域名（当前值见 `src/components/emojiElements.ts`） | 替换 1 处 |
+| admin-semi 13 个预览/页面文件的演示图 URL | 同上，域名不可达 | 替换 64 处 |
+
+涉及文件：`scripts/gen-*-scss.mjs`、`scripts/copy-icon-star.mjs`、`app/pc-global-utils.scss`、
+`src/components/emojiElements.ts`、`admin-semi` 的 `decorateEditorH5/**` 与
+`Lottery/GiftCards/KefuWorkbench/MemberLevelPros/DecoratePcPages/O2ODeliveryServicePages/PORTING-GUIDE`。
+**未改动任何品牌文案**（`NexTrade` 保留）。
+
+**② 删除确定的构建残留（204.1 MB + 17 个日志）**
+
+| 位置 | 内容 | 大小 |
+|---|---|---:|
+| 旧构建树 `pc-semi/` | `investigation.cany`、`out`、`checks`、`.tmp-r24…r33` | 110.6 MB |
+| 旧构建树 `admin-semi/` | `pos-dist`、`dist`、`dist-nav3`、`dist-backup-buybtn` | 82.6 MB |
+| 本仓库 `admin-semi/` | `dist.prev-20261111_234052`（旧 dist 备份） | 10.5 MB |
+| 本仓库根目录 | 17 个 `*.out` 部署日志 | — |
+
+> ⚠️ 删掉 `admin-semi/dist` 后，**下一次 admin 前端部署前必须先 `npm run build` 重新产出 dist**，
+> 否则部署脚本没有可上传的产物。产物可重建，但别漏这一步。
+
+**③ 仍未处理**：另有 24 个开发脚本（`pc-semi/scripts/_legacy-*.mjs`、`_cp-*.mjs`、
+`admin-semi/scripts/build-pos.mjs` 等）也写着同一条死路径 `D:/nextrade/NexTrade/…`。
+它们**两棵树内容一致、不属于"分叉"**，故未纳入本次范围；其中 `build-pos.mjs` 是 POS 构建脚本，
+用到时需一并修正。
 
 

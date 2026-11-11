@@ -71,7 +71,7 @@
 
 ## 参考源码路径
 
-- Vue 版：`D:\nextrade\java-b2b2b-pro-v5.8.57\java-b2b2c-overseas-v5.8.61\view\admin\src\views\decorate\decorate\editor\modules\<桶>\<模块>\{index.ts,types.ts,Preview.vue,Settings.vue}`
+- Vue 版：`D:/tigshop/java-b2b2b-pro-v5.8.57\java-b2b2c-overseas-v5.8.61\view\admin\src\views\decorate\decorate\editor\modules\<桶>\<模块>\{index.ts,types.ts,Preview.vue,Settings.vue}`
 - uniapp 端（行为参照）：`...\view\uniapp\src\pages\customPage\modules\<模块>\index.vue`
 - 旧版（字段参照，Settings 字段找不到时看这里）：
   `...\view\admin\src\views\decorate\decorate\src\modules\<桶>\<模块>\{View.vue,Edit.vue}`
