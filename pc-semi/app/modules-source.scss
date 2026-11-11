@@ -2412,6 +2412,14 @@
   }
 }
 
+/* 全局 globals.scss 的 `.dec-group-banner a{border-radius:...}` 优先级 (0,1,1) 高于
+   下面 `&__link`(0,1,0)，会把图片圆角写死（曾为 12px），使后台「容器圆角」=0 时图片
+   仍是圆角。这里用 (0,2,0) 显式拉回模块设置：图片圆角走 `--dec-item-radius`
+   （后台「图片边角」独立控件；老数据该变量由容器圆角派生）。 */
+.dec-group-banner .dec-group-banner__link {
+  border-radius: var(--dec-item-radius, var(--dec-box-radius, 0));
+}
+
 .dec-group-banner {
   background-color: var(--dec-bg-color, transparent);
   border-radius: var(--dec-box-radius, 0);

@@ -70,7 +70,9 @@
   overflow: hidden;
   position: relative;
   user-select: none;
-  border-radius: 8px;
+  /* 旧版 preview.less 这里写死 8px，导致画布里图片圆角不跟设置走。
+     改为：优先「图片边角」(--dec-item-radius)，老数据回退「容器圆角」，最后才 8px。 */
+  border-radius: var(--dec-item-radius, var(--dec-box-radius, 8px));
 }
 
 .dec-pc-group-banner__img {

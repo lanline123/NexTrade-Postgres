@@ -110,15 +110,20 @@ export default function PcGroupBannerPreview({ data }: { data: Record<string, an
   const cssVars = useMemo(() => {
     const frame = (moduleConfig.frame || {}) as AnyRecord;
     const backgroundColor = frame.backgroundColor;
+    // 「图片边角」独立控件：2=圆角(8px)、1=直角(0px)。注意取**原始数据**而不是 deepMerge 后的
+    // moduleConfig——这样老数据（无该字段）与前台一样回退「容器圆角」，画布与线上不会不一致。
+    const rawStyle = Number((data || {}).picRadioStyle);
+    const itemRadius = rawStyle === 2 ? 8 : rawStyle === 1 ? 0 : Number(frame.boxRadius ?? 8);
     return {
       '--dec-box-padding': `${frame.boxPadding ?? 10}px`,
       '--dec-box-padding-top': `${frame.boxPaddingTop ?? 0}px`,
       '--dec-box-padding-bottom': `${frame.boxPaddingBottom ?? 0}px`,
       '--dec-box-radius': `${frame.boxRadius ?? 8}px`,
+      '--dec-item-radius': `${itemRadius}px`,
       '--dec-bg-color': backgroundColor || 'transparent',
       '--dec-slide-height': `${frame.slideHeight ?? 195}px`,
     } as CSSProperties;
-  }, [moduleConfig.frame]);
+  }, [moduleConfig.frame, data]);
 
   const count = picList.length;
 

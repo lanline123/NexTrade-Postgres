@@ -5459,7 +5459,11 @@ img {
   display: block;
   aspect-ratio: 3 / 1;
   overflow: hidden;
-  border-radius: var(--pc-radius);
+  /* 这里原为 var(--pc-radius)=12px：优先级 (0,1,1) 压过 modules-source 的
+     `.dec-group-banner__link`(0,1,0)，把分组轮播图片圆角写死 12px，
+     后台「容器圆角」设 0（直角）也不生效。改为跟模块设置走：
+     优先「图片边角」(--dec-item-radius)，老数据回退容器圆角/全局圆角。 */
+  border-radius: var(--dec-item-radius, var(--dec-box-radius, var(--pc-radius)));
 }
 
 .dec-group-banner img {

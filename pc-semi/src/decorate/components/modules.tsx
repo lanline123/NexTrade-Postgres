@@ -3390,11 +3390,16 @@ function GroupBanner({ module }: ModuleProps) {
   const { index, setIndex } = useCarousel(pages, 5000);
   const groupBannerSwipe = useSwipeDrag(index, pages, setIndex);
   if (!pics.length) return null;
+  // 「图片边角」独立控件：2=圆角(8px)、1=直角(0px)；老数据无此字段时跟随「容器圆角」
+  // （原版 PcGroupBanner.vue 的 __link 用的就是 --dec-box-radius，避免老数据跳变）。
+  const picRadioStyle = Number(module.picRadioStyle);
+  const itemRadius = picRadioStyle === 2 ? 8 : picRadioStyle === 1 ? 0 : px(frame.boxRadius);
   const style: Record<string, any> = {
     '--dec-box-padding': `${px(frame.boxPadding)}px`,
     '--dec-box-padding-top': `${px(frame.boxPaddingTop)}px`,
     '--dec-box-padding-bottom': `${px(frame.boxPaddingBottom)}px`,
     '--dec-box-radius': `${px(frame.boxRadius)}px`,
+    '--dec-item-radius': `${itemRadius}px`,
     '--dec-bg-color': frame.backgroundColor || 'transparent',
     '--dec-slide-height': `${height}px`,
     '--dec-slide-gap': `${gap}px`,
