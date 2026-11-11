@@ -508,6 +508,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 6. **拖拽与点击冲突**：拖动超过 4px 记为拖拽，`pointerup` 后在捕获阶段 `preventDefault/stopPropagation` 一次，避免松手误打开分类链接；`img draggable=false` 防止浏览器原生图片拖拽。
 7. **无头浏览器验证陷阱**：Chrome 后台页面对 smooth 滚动不推进、程序化滚动也不派发 `scroll` 事件。验证时把 `scrollBy/scrollTo` 临时改写成 `instant` 并记录调用，或用 `initScript` 包裹 `setInterval` 统计 5000ms 定时器；不要因为「页面没动」就判定逻辑错误。
 8. **`loading="lazy"` + 高度自适应的轮播会互相锁死**：轮播项在视口外、图片高度又决定容器高度时，后几张图片元素高度恒为 0，IntersectionObserver 永远不触发加载，表现就是「只有第一张」。banner2 的修复是改为 `loading="eager"`；同类模块（GroupBanner、CategoryNav3、Hero 多图）排查时先看 `img.complete / naturalWidth` 与首项高度。
+9. **Playwright 元素截图在 transform 图层上会截出纯白，别据此判定「没渲染」**：`.dec-banner2` 这类内部有 `transform` 轨道的模块，`elementHandle.screenshot()` 可能只截到空白——实测同一模块、不同元素两次截出的 PNG **字节完全相同**（9,163 B），只有纯白图才会如此，而页面其实完全正常。要判定「到底有没有绘制」，用 `document.elementFromPoint(cx, cy)`（命中 `IMG.dec-banner2__image` 即已绘制且可点）或 `page.screenshot({ clip: 视口坐标 })`（594 KB 真实照片）。2026-11-11 排查 banner2 时曾被这个伪影误导，一度误判为「图没加载」。
 
 **验证清单（上线前逐项打勾）**
 
@@ -659,6 +660,8 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-11 | **发现两个后端缺陷（未修，补丁存档）**（§14.4）：① 后台编辑优惠券必 500 —— `update_coupon_in_tx` 把 SET 拼成 `$1coupon_name`（缺逗号，PG 报 trailing junk），补丁 `scratch/PATCH-coupon-update-bugfix.patch`；② `updateField` 键名需 `val`（前端传 `value` 会 422）且即便传对也因把值绑成 text 而 500（`column "is_show" is of type integer but expression is of type text`）。因「改已存在券」两条路都不通，本次以「新建替代编辑」绕行。 |
 | 2026-11-11 | **发现拼团接口 500（与本次改动无关）**：`GET /adminapi/promotion/groupon/item/list?grouponPromotionId=2` 返回 `operator does not exist: bigint = text`，装修编辑器加载含拼团模块的页面时会触发一条控制台 500（§14.7）。 |
 | 2026-11-11 | **两端取数口径统一 + 两个后端缺陷修复并上线**（详见 §14.3/§14.4/§14.9）：新增 `GET /adminapi/promotion/coupon/claimableList`，复用与公开 `getCoupon` 完全相同的 `claimable_list`，后台预览改调它并删掉前端复刻的 `isVisibleOnPc()`；修 `update_coupon_in_tx` 的 `$1coupon_name` 拼接缺陷、`updateField` 的键名（`val`/`value` 双收）与类型（`CAST($1 AS text)::<type>` 两步转换）问题。提交 `f7338ef`+`f1e2a6b`+`26c01de`；staging 二进制 sha `74ff1b2a…8d7cb` 部署（备份 `nextrade.bak.20261111_221347`），admin 入口 `index-VvcaJpjU.js`（备份 `admin_site_pre_20261111_221619.tgz`）。生产实测：新端点与前台返回同一组券；`updateField` 四种键名×类型组合与全量 `update` 全部由 422/500 变为 200，且幂等。 |
+| 2026-11-11 | **分组轮播Banner 图片圆角不可控修复 + 新增「图片边角」独立控件**（详见 §15，提交 `990106e`）：后台把「容器圆角」设 0 也改不动图片圆角（`globals.scss` 的 `.dec-group-banner a{border-radius:var(--pc-radius)}`(0,1,1) 压过 `__link`(0,1,0)，写死 12px；编辑器预览 `__link` 又写死 8px）。改为图片圆角走 `--dec-item-radius`，并新增「图片边角」直角/圆角（老数据回退容器圆角）。admin 入口 `index-BrRNhaWB.js`、PC `YOw5lnBPjaQx14UN9JNOb`，公网实测 12px → 0px，装修数据未改动。 |
+| 2026-11-11 | **banner2 冷缓存空白根治（数据热替换 + 轮播就绪门控）**：用户复报「只显示第一张、第二三张没加载、点不进去」。实测根因**不是图片 404、也不是 §7 里 58.10 的 `loading` 没改对**，而是 `useCarousel` 是纯 5 秒 `setInterval`、**从不检查下一张图是否就绪**；冷缓存下首页约 85 张图抢带宽，第 2/3 张分别要 **18.1s / 36.2s** 才就绪，而轮播 **14.1s / 19.1s** 就翻过去了 → 整屏纯白（`elementFromPoint` 只命中容器 `dec-banner2__inner`，图与 `<a>` 都不在那一点，所以「点不进去」）。两手修复：① **数据**（已生效、零构建零重启）装修页 10023 的 `pc-banner2` 三个 `picUrl` 换成 `?x-oss-process=image/resize,m_fill,w_1364,h_600/format,webp/quality,q_80`，合计 1.19 MB → **89 KB**（第 2 张原图 858 KB，其「缩略」变体还是 318 KB 的 PNG），冷缓存三张就绪时刻 **5.0/18.1/36.2s → 2.0/2.0/2.0s**，早于 8.2s 的首次翻页；② **代码** `useCarousel(length, delay, allowAdvance?)` 新增可选门控（目标帧未就绪则原地不动、下周期再试，门控放 ref 不重建定时器）+ `Banner2` 用 `onLoad/onError` 记账 + **8 秒兜底**（坏图不会把轮播卡死）+ 未就绪项占位底色 `#f5f6f8`。部署 PC 构建 `OPmsTCUT3ykC-Z2WvOmGD`（替换 `lBoAEJXL_XOK5_oApvmtm`；包 sha256 `9950939f…ab3d` / 3,837,869 B，含当前工作区未提交的 `globals.scss`/`modules-source.scss`；备份 `/www/backup/pc_pre_20261111_234146.tgz`），3005 健康 200、`service=active`、公网 buildId 已切新、20 模块完好。**门控确定性验证**：把三张图人为延迟 6s，`ready=0` 期间 `idx` 始终停在 0（5 秒定时器被挡住），图到位后才翻到 1。脚本 `scratch/banner2-timeline.cjs`（冷/热时间线）、`banner2-webp-fix.py`（数据改动，默认 dry-run）、`verify-banner2-gate.cjs`（门控实验）、`diag-banner2-visible.cjs`（可见性判定）；排查陷阱见 §4.8 第 9 条 |
 
 ---
 
@@ -1291,4 +1294,69 @@ AND (send_type = 0 OR use_end_date >= now)
 3. 与本次无关的既有问题：拼团接口 500（§14.7）、后台偶发 `ERR_CONNECTION_RESET`（网络抖动，
    同期 `curl` 该域名 200/0.31s）、PC 上 `premium-member-entry.png` 与
    `/api/search/imageSearch/capabilities` 的 404。
+
+---
+
+## 15. 分组轮播Banner：图片圆角不可控的根因与「图片边角」独立控件（2026-11-11）
+
+> 用户反馈：装修页 `?page=pcDecorateEditor&id=10023` 的「分组轮播Banner」缺少一个
+> 「把图片圆角改成直角」的设置。结论：**控件没丢，是图片圆角被一条全局 CSS 写死了**，
+> 同时编辑器画布里也写死 8px，所以「改了没反应」。提交 `990106e`。
+
+### 15.1 症状与根因（线上实测）
+
+- 公网 1440 视口（Playwright + CDP 禁缓存）：该模块 `frame.boxRadius = 0`（用户已设直角），
+  而 `.dec-group-banner__link` 计算圆角 = **12px**。
+- 根因：`pc-semi/app/globals.scss` 的 `.dec-group-banner a{ border-radius: var(--pc-radius) }`
+  特异性 **(0,1,1)**，压过 `modules-source.scss` 的 `.dec-group-banner__link` **(0,1,0)**，
+  把图片圆角写死 12px；原版 `PcGroupBanner.vue` 的 `__link` 用的是 `--dec-box-radius`，
+  属迁移期被全局规则覆盖。
+- 编辑器画布同样看不出变化：`pcGroupBanner.css` 的 `__link` 写死 `8px`（旧版 `preview.less` 同款）。
+
+### 15.2 修法（样式三副本 + 预览，副本规则见 §10.3）
+
+| 文件 | 改动 |
+|---|---|
+| `pc-semi/app/modules-source.scss` | 加 (0,2,0) 规则 `.dec-group-banner .dec-group-banner__link{ border-radius: var(--dec-item-radius, var(--dec-box-radius, 0)) }`（最后加载，胜出） |
+| `pc-semi/app/globals.scss` | 原规则改 `var(--dec-item-radius, var(--dec-box-radius, var(--pc-radius)))` |
+| `pc-semi/src/decorate/components/modules.tsx` | `GroupBanner` 派生 `--dec-item-radius` |
+| `admin-semi/src/pages/decoratePc/previews/pcGroupBanner.css` | `__link` 用同一变量链 |
+| `admin-semi/.../PcGroupBannerPreview.tsx` | cssVars 增加 `--dec-item-radius` |
+| `admin-semi/src/pages/PcDecorateEditor.tsx` | 内容设置新增「图片边角」单选（直角=1 / 圆角=2），新模块 defaults `picRadioStyle: 2` |
+
+**控件语义（重要）**：
+
+- 「容器圆角」= 外框/整体裁切（`--dec-box-radius`）；
+- 「图片边角」= 单张图片圆角：**1 = 直角(0px)、2 = 圆角(8px)**，与容器圆角互不干扰；
+- **老数据无 `picRadioStyle` 时，图片圆角回退「容器圆角」**（= 原版行为，不产生跳变）；
+  编辑器单选缺省取第一项（直角），与线上该模块 `boxRadius=0` 的实际渲染一致。
+
+### 15.3 部署与验收（2026-11-11 23:4x）
+
+| 项 | 结果 |
+|---|---|
+| admin 入口 | `index-BrRNhaWB.js` / `index-IhQgojTP.css`；备份 `/www/backup/admin_site_pre_20261111_234253.tgz` |
+| 后台实测 | 分组轮播Banner 内容设置出现「图片边角（直角/圆角）」；画布 0px → 点「圆角」8px → 点「直角」0px（**未保存，线上数据未改**） |
+| PC 构建 | buildId `YOw5lnBPjaQx14UN9JNOb`（`DEPLOY_INFO=group-banner-image-corner`）；备份 `/www/backup/pc_pre_20261111_234642.tgz` |
+| PC 健康 | 3005=200、`service=active`；SSR 含 `dec-item-radius:0px` |
+| 公网实测 | `.dec-group-banner__link` 计算圆角 **12px → 0px**，`--dec-item-radius=0px`；banner2 / 图片广告圆角未变 |
+| 兼容性 | 包内仍含并行会话的 banner2 门控标记 `f5f6f8`（banner2 修复未被本次发版回退） |
+| 数据 | 装修页未写入 `picRadioStyle`，`boxRadius` 仍 0 |
+
+脚本：`scratch/lead-probe-groupbanner-radius{,2}.cjs`（只读测量 + 注入补丁前后对照）、
+`scratch/lead-verify-groupbanner.cjs`（前台 + 编辑器端到端）、
+`scratch/pack-admin-groupbanner.py`、`scratch/pack-pc-gbr.py`、`scratch/gen-dep-pc-gbr.py`、
+`scratch/lead-sync-groupbanner-patch*.py`（上游构建树定向同步）。
+
+### 15.4 排查经验（可复用）
+
+1. 「后台改了没反应」先量**计算值**（`getComputedStyle`），别只看源码里的规则；
+   同名规则的**多份副本 + 特异性**都要算：`.x a{}`(0,1,1) 会赢过 `.x__link{}`(0,1,0)。
+2. 编辑器画布与前台必须用**同一套变量与取值口径**。预览里 `deepMerge` 出来的默认值会把
+   「数据里没有的字段」伪装成已设置 —— 这类字段要读**原始 `data`**，否则画布与线上不一致。
+3. 画布模块已无 `.pc-decorate-module__tag`（标签类改版）：用
+   「`.pc-decorate-module` 内是否含目标预览根节点」定位更稳。
+4. 同工作区并行会话会各自发 PC 包、**后发者覆盖前者**：发版前先看线上 `.next/BUILD_ID` 与
+   `DEPLOY_INFO.txt`，并把对方的修复标记（如 banner2 的 `f5f6f8`）列入回归检查点。
+
 
