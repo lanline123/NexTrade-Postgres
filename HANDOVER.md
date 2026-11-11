@@ -626,6 +626,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-11 | PC banner2 轮播只显示第一张修复（审计 58.10，经验见 §4.8 第 8 条）：3 张图均为 `loading="lazy"`，而模块高度由图片自身比例决定；第 2/3 张在视口外且高度恒为 0，懒加载永不触发，轮播切过去就是空白。改为 `loading="eager"` 后三张全部加载；包 sha `e70a51c6…`，备份 `pc_pre_20261111_104723.tgz`，健康 200；线上实测 3 张 `complete=true`、每项高 282px、5 秒后 index=1、transform `-100%` |
 | 2026-11-11 | 分类导航3 编辑器预览高度修复：预览列表容器缺 `min-height:0`，flex 子项被内容固有高度撑到约 277px，叠加顶栏后超出配置的 300px 外框，被 `overflow:hidden` 裁掉名称/描述。补 `min-height:0 + display:flex + overflow:hidden`，与 PC 前台 `.dec-category-nav3__list-wrap` 一致；实测 `scrollHeight === clientHeight === 203`。线上入口 `index-CBB1teH9.js`（回滚 index 存 `scratch/admin-index.online.20261111_101613.html`）；排查方法见 §11 |
 | 2026-11-11 | PC 分类导航3 对齐旧版（审计第六十章）：单卡 248px→1/6 列宽、箭头按实际溢出显示、补拖拽与 5s 自动轮播、HOT/更多改 SVG、占位色跟随主题；本地构建包 sha `fb69cd84…1958` 部署，备份 `pc_pre_20261111_102631.tgz`，健康 200，6 张实测 189px/无溢出；维护要点见 §10 |
+| 2026-11-11 | 装修编辑器「一组显示的数量」行布局修复（审计第六十一章）：设置行单行 flex 不换行，导致 hint 作为第三列被挤成窄条；`.dec-edit-group` 加 `flex-wrap:wrap`、`.dec-edit-group-desc` 改 `flex:0 0 100%`；线上 `index-CdPYOO_n.js`，回滚 index 存 `scratch/admin-index.online.20261111_105513.html` |
 
 ---
 
