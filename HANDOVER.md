@@ -3,7 +3,7 @@
 > 更新时间：2026-11-11
 > 范围：PostgreSQL 迁移版仓库的**环境接入**——服务器、宝塔面板、GitHub、生产 PG。
 > 迁移进度与缺陷台账见 `MIGRATION-AUDIT-2026-11-09.md`（被 `.gitignore` 排除，仅存本地）。
-> 上游项目的功能/业务交接文档在 `D:\tigshop\NexTrade\docs\HANDOVER.md`，本文只补「怎么连上去、用什么工具」。
+> **本仓库是唯一来源**：业务口径、前端源码、构建产物、部署与运维全部以本仓库为准，不存在第二个代码仓库。
 
 ---
 
@@ -19,9 +19,9 @@
 **首要原则：本仓库是公开仓库**（`https://github.com/lanline123/NexTrade-Postgres`，匿名 API 返回 200）。
 因此**面板 IP、API 密钥、数据库口令一律不写进本文件，也不提交**。本文只写机制与文件位置。
 
-**推送范围（2026-11-10 用户指令，长期有效）：后续只推送 `NexTrade-Postgres`。**
-上游 `D:\tigshop\NexTrade` 仅作为前端构建源码，改动同步到本仓库的 `admin-semi/` / `pc-semi/`
-后再提交，**不要向上游仓库的 remote 推送**。详见 §2.2。
+**推送范围（2026-11-12 用户指令，长期有效）：只推送本仓库 `NexTrade-Postgres`。**
+前端源码就是本仓库的 `pc-semi/` / `admin-semi/` / `pos-semi/`，构建直接在仓库内进行；
+`admin-semi` / `pc-semi` 之外不再有第二份源码副本。详见 §2.2 与 §16。
 
 ---
 
@@ -59,11 +59,11 @@ request_token = md5_hex(request_time + api_md5)
 
 调用方：
 
-- `D:\tigshop\NexTrade\tools\upload-to-bt.ps1` —— 分片上传（`/files?action=UploadFile`）
-- `D:\tigshop\NexTrade\tools\deploy-rust-bt.ps1` —— 后端发布：上传 → 合并 → 停服 → 备份 → 切换 → 探活 → 失败回滚
+- `tools/upload-to-bt.ps1`（本仓库）—— 分片上传（`/files?action=UploadFile`）
+- `tools/deploy-rust-bt.ps1`（本仓库）—— 后端发布：上传 → 合并 → 停服 → 备份 → 切换 → 探活 → 失败回滚
 
 > ⚠️ 该文件位于 `C:\Users\Public\`，本机所有用户可读。建议移到 `%USERPROFILE%\.bt\bt2api.ps1` 并收紧 ACL，同时同步修改上述两个脚本里 `. 'C:\Users\Public\bt2api.ps1'` 的路径。
-> 上游 `tools/README-upload-to-bt.md` 第 108 行也写明「不要把宝塔 API token 写进脚本或提交到仓库」。
+> `tools/README-upload-to-bt.md` 第 108 行也写明「不要把宝塔 API token 写进脚本或提交到仓库」。
 
 ### 1.3 快速验证（只读）
 
@@ -89,7 +89,7 @@ Invoke-BTPost 'system?action=GetSystemTotal' @{}
 
 「待验证」表示来自宝塔通用 API，首次使用前先用只读调用确认一次。
 
-**已知行为**：`SaveFileBody` 按 `utf-8` 处理，且会被 WAF 剥离请求体里的双引号；需要写含引号的 JSON 时改走 multipart `UploadFile`（详见上游 `docs/HANDOVER.md` §5.5 第 2 条）。
+**已知行为**：`SaveFileBody` 按 `utf-8` 处理，且会被 WAF 剥离请求体里的双引号；需要写含引号的 JSON 时改走 multipart `UploadFile`（见 `tools/README-upload-to-bt.md`）。
 
 ### 1.5 没有 shell 怎么执行命令
 
@@ -99,7 +99,7 @@ Invoke-BTPost 'system?action=GetSystemTotal' @{}
 2. **本地执行、只传产物**（部署场景推荐）。
 
 > 任何写操作（改文件、加计划任务、重启服务）都会影响线上，执行前必须先确认。
-> 上游有 `/www/backup/pc-*.sh` 每分钟把部署回滚成旧包的历史坑——**动手前先 `crontab?action=GetCrontab` 查一遍**。
+> 历史上有 `/www/backup/pc-*.sh` 每分钟把部署回滚成旧包的历史坑——**动手前先 `crontab?action=GetCrontab` 查一遍**。
 
 ---
 
@@ -130,10 +130,9 @@ git commit -m "..."
 git push origin main
 ```
 
-> **推送范围（2026-11-10 用户指令，长期有效）**：后续**只推送本仓库
-> `NexTrade-Postgres`**。上游 `D:\tigshop\NexTrade` 仅作为前端构建源码使用，
-> 改动需同步到本仓库的 `admin-semi/`（或 `pc-semi/`）后再提交；
-> **不要向上游仓库的 remote 推送**。
+> **推送范围（2026-11-12 用户指令，长期有效）**：**只推送本仓库 `NexTrade-Postgres`**。
+> `pc-semi/` / `admin-semi/` / `pos-semi/` 就在本仓库内，改完直接 `git add <具体文件>` 提交推送；
+> 不要再维护第二份源码副本，也不存在需要避开的其它 remote。
 
 ### 2.3 CI
 
@@ -156,13 +155,13 @@ git push origin main
 
 ## 3. 服务器结构
 
-以下为上游 `docs/SERVER-MIGRATION-2026-11-06.md` §11 与 `docs/HANDOVER.md` §10 的记录，
-末尾「实测差异」是 2026-11-09 通过面板 `GetDir` 核对的结果。
+下表为 2026-11-09 通过面板 `GetDir` 实测核对的结果，
+末尾「实测差异」是与更早记录的出入。
 
 | 组件 | 路径 / 单元 | 端口 |
 |---|---|---|
 | PC 商城 `battery.recy.cc` | `/www/wwwroot/battery.recy.cc`（Next.js SSR，`nextrade-pc`） | 3005 |
-| PC 前端源码 | **上游仓库** `D:\tigshop\NexTrade\rust\web\pc-semi`（本仓库 `pc-semi/` 是旧快照，`build-pc.yml` 指向不存在的 `rust/web/pc-semi`，**不可用于生产构建**）；构建走上游 `build-pc-frontend`，产物 `nextrade-pc.tgz` | — |
+| PC 前端源码 | 本仓库 `pc-semi/`（唯一源码与生产构建源；差距与待办见 §16） | — |
 | 后台 `admin.recy.cc` | `/www/wwwroot/admin.recy.cc`（admin-semi 静态） | — |
 | Rust 后端 | `/www/wwwroot/nextrade/nextrade`（systemd `nextrade`） | 8080 `/adminapi`、8181 `/api` `/static` |
 | nginx 主配置 | `/www/server/panel/vhost/nginx/html_<域名>.conf`（面板生成） | 80/443 |
@@ -187,11 +186,11 @@ proxy_cache off;
 proxy_read_timeout 3600s;
 ```
 
-**实测差异（与上游文档不一致，待确认）**：
+**实测差异（与更早记录不一致，待确认）**：
 
 - `/www/wwwroot/battery.recy.cc` 属主是 `lighthouse`（文档写 `www`）
 - `/www/wwwroot/nextrade` 属主是 `root`（文档写 `www`）
-- 多出 `battery.recy.cc.bak.20261109005101`（11-09 00:51 的备份，上游文档未记录）
+- 多出 `battery.recy.cc.bak.20261109005101`（11-09 00:51 的备份，早期记录未记）
 
 ---
 
@@ -202,7 +201,7 @@ proxy_read_timeout 3600s;
 | 客户端 | `/www/server/pgsql/bin/psql` |
 | 连接 | `-h 127.0.0.1 -U NexTrade -d nextrade`（本机 trust/peer，脚本中无明文口令） |
 | 主键导出脚本 | 仓库根 `probe-pg-pks.sh`，输出 `/www/backup/nextrade-pks.tsv` |
-| 已有导出副本 | `D:\tigshop\NexTrade\scratch\nextrade-pk-map.tsv`（342 张表，含列类型） |
+| 已有导出副本 | 未入库（仅本机）；需要时用本仓库根 `probe-pg-pks.sh` 重新导出 |
 
 5432 **未对公网开放**，本地无法直连。需要查询时按 §1.5 上传脚本 + 计划任务执行，或用 `psql` 输出
 到 `/www/backup/` 再用 `GetFileBody` 取回。
@@ -473,7 +472,8 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 
 **第一步：拿到原版源码，而不是凭截图猜**
 
-- 前台组件：`D:\tigshop\NexTrade\java-b2b2c-overseas-v5.8.61\view\pc\components\home\CategoryNew.vue`
+- 原版 Java 前台组件（**本机只读参考素材，不是代码仓库**，仅用于 1:1 对照）：
+  `D:\tigshop\NexTrade\java-b2b2c-overseas-v5.8.61\view\pc\components\home\CategoryNew.vue`
 - 装修包装：同目录 `view\pc\decorate\components\pc\PcCategoryNavWrapper.vue`
 - 后台预览（React 迁移版，注释里保留了旧版 DOM 结构）：
   `admin-semi/src/pages/decoratePc/previews/PcCategoryNavPreview.tsx`
@@ -577,7 +577,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 单测门禁落地（原待办第 2 项）：`cargo test --workspace --no-fail-fast -j 1` 进 `check-rust.yml`；**首次真跑暴露 82 处失败**（此前只发现 3 处），全部修完，含 5 处「硬编码 `$N` 混进 `?` 拼接」的真实占位符编号 bug；全 workspace 约 4600 用例 0 失败，见 §4.6.3 |
 | 2026-11-10 | `shop_deposit` 并发创建加固（审计 33.4/33.6）：恢复 MySQL 唯一键 `uk_owner(owner_type,owner_id)`，两处 INSERT 改 `ON CONFLICT DO NOTHING`；staging `1c05a25` 上线（10:14，备份 `nextrade.bak.20261110_101415`），回归 53/53 + 跨接口 4/4 |
 | 2026-11-10 | 交接待办 3/5/6/8 处置（审计第三十五章）：语义映射复核结论（`order_remark` 为臆造列名，读 `buyer_note`；`lottery_activity` 无 `status` 列）；CI 提速实施（staging 热缓存 5m58s vs 冷 14m34s）；JWT 启动守卫上线（`6d099b0`，生产 secret 已核非默认，11:57 部署，回归 53/53+4/4）；docker-compose/Dockerfile/README 全面改 PG 口径 |
-| 2026-11-10 | PC 商品页 308 到 `localhost:3005` 修复（审计第三十六章）：middleware 改按 `x-forwarded-host/proto`（回退 `host`）构造绝对 URL，不再用 `nextUrl.clone()`；上游 `e743af82` 构建 build 18，13:12 部署（备份 `pc_pre_20261110_131241.tgz`），商品链接现 308 到 `https://battery.recy.cc/product/sn*` |
+| 2026-11-10 | PC 商品页 308 到 `localhost:3005` 修复（审计第三十六章）：middleware 改按 `x-forwarded-host/proto`（回退 `host`）构造绝对 URL，不再用 `nextUrl.clone()`；提交 `e743af82` 构建 build 18，13:12 部署（备份 `pc_pre_20261110_131241.tgz`），商品链接现 308 到 `https://battery.recy.cc/product/sn*` |
 | 2026-11-10 | 货号查询大小写不敏感（`f340698`，13:37 上线）：4 处 `product_sn/product_tsn` 精确比较改 `LOWER(...)`，修复 137 个大写货号商品页 404；回归 53/53+4/4 |
 | 2026-11-10 | PC 前端四项修复（审计第三十七章，线上 PC `a8141825` build 23）：① 已选条件用 `filterSelected` 显示分类/品牌名；② 换币覆盖营销通栏/商品卡/详情页（含装修数据的 `¥` 前缀解析），修复重复小数；③ 非中英语言生效（locale 短码映射 + SSR 翻译加载）；④ 商品服务说明改读 `serviceList` 图标、去掉假数据与点击展开 |
 | 2026-11-10 | PC 全站价格跟随换币（审计第三十八章，`695b0d00` build 24）：购物车/结算/订单/售后/优惠券/秒杀/拼团/换购/发票/聊天等剩余写死 `¥` 全部改为 `formatPrice`/`splitCurrencyPrice`；仅改展示，下单支付仍按人民币原值 |
@@ -585,8 +585,8 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | admin 装修编辑器白屏修复（审计第三十九章）：`formatImage` 工具函数误调 `useI18n` 触发 React #310；源码修复提交 `939c2f4`，线上以最小入口补丁 `index-fix310.js` 上线并同步修补旧入口，编辑器恢复正常 |
 | 2026-11-10 | 运营 MCP 上线（审计第四十章）：商品域+装修域共 14 个工具，Bearer Token + 总开关（关闭即 403）、商品/装修独立权限、改价/库存/发布装修审批、操作日志；后台一级 AI → MCP 管理 → 设置/审批/日志；后端 `257ad277`、admin 入口 `index-Cd7Z1fvZ.js` |
 | 2026-11-10 | 新增客户版 MCP 用户手册 `用户手册-MCP.md`（开启步骤、14 个工具、审批与安全、常见问题） |
-| 2026-11-10 | 管理端登录页蓝线（审计第三十八章）：线上 admin 包是 11-08 11:49 旧构建，CSS 残留旧版 `.login-tabs .is-active::after`，在新 button 布局下泄漏为 1180×2px 通栏蓝线。按上游源码 `c7d49743` 重建 admin-semi 并全量上传 dist（97 资源 + index.html 最后切换），线上哈希一致、旧规则 0 命中；回滚副本 `scratch/admin-index.old.html` |
-| 2026-11-10 | 管理端登录页 tab 切换高度跳动（审计第三十九章）：`.login-options` 无固定行高，密码行 19px / 手机提示行 17px，导致卡片与按钮跳动 2px。上游 `styles.css` 加 `min-height: 20px` 后重建部署，线上两模式卡片 579.8px、按钮位置完全一致 |
+| 2026-11-10 | 管理端登录页蓝线（审计第三十八章）：线上 admin 包是 11-08 11:49 旧构建，CSS 残留旧版 `.login-tabs .is-active::after`，在新 button 布局下泄漏为 1180×2px 通栏蓝线。按提交 `c7d49743` 的源码重建 admin-semi 并全量上传 dist（97 资源 + index.html 最后切换），线上哈希一致、旧规则 0 命中；回滚副本 `scratch/admin-index.old.html` |
+| 2026-11-10 | 管理端登录页 tab 切换高度跳动（审计第三十九章）：`.login-options` 无固定行高，密码行 19px / 手机提示行 17px，导致卡片与按钮跳动 2px。`styles.css` 加 `min-height: 20px` 后重建部署，线上两模式卡片 579.8px、按钮位置完全一致 |
 | 2026-11-10 | POS 收银台路径统一为 `/pos`（审计第四十章）：按钮由 `/admin/pos/` 改为 `/pos/`；dev 预览同步；产物路由 base 被编译成 `admin`，dev 服务与新增的 `npm run build:pos` 都会把 7 处 `VITE_BASE_DIR` 补丁为空并生成无 `<base>` 的 `pos-dist/`。已部署：POS 解压到站点 `/pos` + nginx `location ^~ /pos`，admin 入口打最小补丁 `index-15da4ad2.js`（线上 vendor 与本地不同，未整包重建） |
 | 2026-11-10 | POS 原生重写立项（审计第四十二章）：新增根目录 `pos-semi/`（React 18 + Vite + Semi UI），与 admin-semi/pc-semi 并列；M0 已打通登录态、分类/商品查询，支持 `VITE_BASE_PATH` 独立部署；`npm run build` 通过（473 KB JS / 678 KB CSS）。线上 `/pos` 暂仍为 legacy bundle，替换前 admin-semi 的 `build:pos` 保留 |
 | 2026-11-10 | pos-semi 收银页 1:1 重建（审计第四十三章，`3cd7af1`）：直接复用 5.8.60 产物组件 CSS（去 scoped）与原 DOM class 结构，收银页接通商品/分类/购物车（加购/改数量/删除/清空/合计），新增 `PARITY.md` 逐项状态；另修后端 `add_to_cart` 对 PG `numeric` 价格的解析（`a74c943`，legacy 端购物车金额 0.00 同因） |
@@ -598,11 +598,11 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | pos-semi 生产验收环境 `/pos-next`（审计 43.15）：`VITE_BASE_PATH=/pos-next/` 构建并部署，nginx 新增 `^~ /pos-next` 兜底；生产浏览器实测收银（30/64 商品、加购/删除）、订单 31 条、桌台空态正常；`/pos` 仍保留 legacy，待设备/交班/打印/预约补齐后再切换 |
 | 2026-11-10 | pos-semi 设备/交班/优惠券（审计 43.16–43.17，`785d556` + `e896115` + `53b4baa`）：设备下拉与交班（workOff+work）上线并生产验证；优惠券选择 UI 接入（线上空态已验证）；`/pos-next` 刷新至最新构建；staging 二进制 `e9f2a085…1c39`，回归 53/53+4/4 |
 | 2026-11-10 | pos-semi 预约/打印（审计 43.18，`5dcf351` + `fe08ac2`）：预约列表复用并行路由并上线（空态 0 条），结账后按 `hasEnabled` 提交打印任务；staging 二进制 `374c1474…975b`，回归 53/53+4/4；`/pos-next` 更新至 `index-w2naU7qz.js` |
-| 2026-11-10 | 后台顶栏「查看商城」补图标（审计第四十章）：React 版顶栏按钮漏了 `icon`，原版 Vue 为 `icon-guanli`；补 `IconShoppingBag`（与账号下拉同名入口一致），上游 admin-semi 重建后全量上传，线上 DOM 已含 `semi-icon-shopping_bag`，回滚 index 存 `scratch/admin-index.online.20261110_170626.html` |
-| 2026-11-10 | 推送约定：后续**只推送 `NexTrade-Postgres`**；上游 `D:\tigshop\NexTrade` 仅作构建源码，改动同步到本仓库 `admin-semi/` / `pc-semi/` 后再提交，不再向上游 remote 推送（§2.2） |
-| 2026-11-10 | 素材中心「删除分组」弹窗现代化（审计第四十一章）：警示条显示分组名 + 两张可点击策略卡（选中蓝/危险红）+ 红色确认按钮；因上游有并行 WIP，改用 `git archive HEAD` 干净源码构建后全量上传，线上 `index-vGC7iQEf.js`，回滚 index 存 `scratch/admin-index.online.20261110_172540.html` |
+| 2026-11-10 | 后台顶栏「查看商城」补图标（审计第四十章）：React 版顶栏按钮漏了 `icon`，原版 Vue 为 `icon-guanli`；补 `IconShoppingBag`（与账号下拉同名入口一致），admin-semi 重建后全量上传，线上 DOM 已含 `semi-icon-shopping_bag`，回滚 index 存 `scratch/admin-index.online.20261110_170626.html` |
+| 2026-11-10 | 推送约定：**只推送本仓库 `NexTrade-Postgres`**，前端源码就在本仓库 `pc-semi/` / `admin-semi/`，不再维护第二份源码副本、也不存在需要避开的其它 remote（§2.2） |
+| 2026-11-10 | 素材中心「删除分组」弹窗现代化（审计第四十一章）：警示条显示分组名 + 两张可点击策略卡（选中蓝/危险红）+ 红色确认按钮；因当时有并行 WIP，改用 `git archive HEAD` 干净源码构建后全量上传，线上 `index-vGC7iQEf.js`，回滚 index 存 `scratch/admin-index.online.20261110_172540.html` |
 | 2026-11-10 | 危险项圆点红色方块修复（审计 41.6）：红色误涂在无圆角外层 `.semi-radio-inner`，改为只给圆形 `.semi-radio-inner-display` 上色；线上 `index-DuI8xVsF.js` / `index-pH85wgPg.css`，回滚 index 存 `scratch/admin-index.online.20261110_180852.html` |
-| 2026-11-10 | 新增商品「商品图片」恢复素材中心选择（审计第四十四章）：新增 `GalleryPickerModal`（分组/搜索/多选/上传），`ImageUploader` 增加 `gallery` 入口，商品表单启用；线上 `index-CPlPAlV0.js`，验证选中 2 张可回填。跨仓库同步改为定向编辑，避免把 Tigshop/NexTrade 品牌差异带进上游 |
+| 2026-11-10 | 新增商品「商品图片」恢复素材中心选择（审计第四十四章）：新增 `GalleryPickerModal`（分组/搜索/多选/上传），`ImageUploader` 增加 `gallery` 入口，商品表单启用；线上 `index-CPlPAlV0.js`，验证选中 2 张可回填。改动一律在本仓库内定向编辑，避免把 Tigshop 品牌差异带进来 |
 | 2026-11-10 | 素材选择弹窗改版（审计第四十五章）：弹窗放大到 1080×560 并上下左右居中，左侧文件夹树默认只显示一级、箭头展开，右侧网格/搜索/上传保持；线上 `index--WLhioJJ.js`，回滚 index 存 `scratch/admin-index.online.20261110_191724.html` |
 | 2026-11-10 | 素材选择弹窗二次放大（审计第四十六章）：宽 `min(1280px,94vw)`、高 `clamp(560px,72vh,800px)`；加分组搜索、骨架屏、悬停动效、已选缩略图条/清空、双击直接确认；线上 `index-HWvtT8iA.js`，回滚 index 存 `scratch/admin-index.online.20261110_194032.html` |
 | 2026-11-10 | 商品图片删除失效修复 + 拖拽排序（审计第四十七章）：根因是 FormDrawer 对 Semi 原地修改的 `state.values` 同引用 setState 导致自定义字段不重渲染，改为浅拷贝；图片去掉「设为主图」，改原生拖拽排序、首图自动主图、圆形悬浮删除；线上 `index-XJYeonMz.js`，回滚 index 存 `scratch/admin-index.online.20261110_195059.html` |
@@ -649,7 +649,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 8 | `docker-compose.yml` / `deploy/README.md` 仍是 MySQL 口径 | 环境重建会踩坑 | ✅ 已完成（2026-11-10）：compose 改 `postgres:16-alpine`、`TIG_JWT_SECRET` 必填、`AUTO_MIGRATE=false`；Dockerfile/README/deploy 文档同步，`mysql-init/` 标注停用，见审计 35.4 |
 | 2026-11-10 | PC 全模块页阻塞修复（审计第五十六章）：`/category/category/hot` 改 camelCase（commit `980824f`），秒杀 `active_list` 批量回填商品名/图/价（commit `29f094f`）；创建优惠券 id6、秒杀 id2、拼团 id2 并绑定页面 10023，发布审批 #3 待批。部署踩坑：`29f094f` 构建因并行提交的重复 `OrderReservation/list` 路由启动 panic，已自动回滚；线上现跑并行构建 sha `374c1474…`，两接口实测正常 |
 | 2026-11-11 | 页面 10023 审批通过并上线（审计 56.6）：用户授权代批 approvalId=3，`/activity?id=10023` 20 模块正常；修正秒杀价 315000→279000（低于商品原价 284000，避免「优惠0%」），接口实测生效 |
-| 2026-11-11 | PC 首页装修模块对齐 Java（审计第五十八章）：核对 19 个 pc/*.vue 样式确认已逐字一致，补齐 CategoryNew/Coupon 组件 CSS 与雪碧图，清理 globals 对图片广告的高度覆盖，补秒杀/拼团/商品分组内联列宽，价格改 FormatPrice；同一页 20 模块中 12 个高度与 Java 完全一致，其余 ≤16px（秒杀 -40 为商品名换行）。上游本地构建部署 `local-pc-module-parity`，生产 3005=200；仓库提交 `3fc44bc` |
+| 2026-11-11 | PC 首页装修模块对齐 Java（审计第五十八章）：核对 19 个 pc/*.vue 样式确认已逐字一致，补齐 CategoryNew/Coupon 组件 CSS 与雪碧图，清理 globals 对图片广告的高度覆盖，补秒杀/拼团/商品分组内联列宽，价格改 FormatPrice；同一页 20 模块中 12 个高度与 Java 完全一致，其余 ≤16px（秒杀 -40 为商品名换行）。本地构建部署 `local-pc-module-parity`，生产 3005=200；仓库提交 `3fc44bc` |
 | 2026-11-11 | 恢复 PC 首页（审计 58.5）：展示页 10023 被发现 isHome=1，原首页 10009 被置 0；已 `setHome` 回 10009，`pcIndex` 复测 10009/19 模块。10023 保留为预览页；首页有短时 Next 缓存，强刷或 `?cb=` 生效 |
 | 2026-11-11 | 演示页设为首页并修热图空白（审计 58.6）：10023 重新发布并设为首页，20 模块全量展示；素材换真实设备图；热图空白是 imageBox 全局 `.item-img{opacity:0}` 泄漏，线上复制 CSS 为 `*-hf11.css` 加覆盖并替换引用，重启后 hotarea `opacity=1` 正常。仓库提交 `dbff7c2` |
 | 2026-11-11 | 装修编辑器画布模块加 18px 间距（审计 58.7）：编辑器模块无外边距导致营销通栏白面板与上下模块贴死、圆角被吞；`.pc-decorate-module` 补 `margin-bottom:18px`，线上以新 CSS `index-CMBEL7ET-m18.css` 替换入口引用，admin 健康 200；仓库提交 `c928a2f` |
@@ -658,10 +658,14 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-11 | **优惠券模块现代化 + 后台预览与前台一致**（详见 §14）：两端统一为 `dec-coupon__*` 一套结构与一份共用样式源码（`pc-semi/src/decorate/coupon/coupon.scss`，后台经 `gen-coupon-css.mjs` 生成只读 CSS，因 admin-semi 无 sass）。修掉线上实测的按钮溢出 **+128.3px**、文字折 **2.47 行**、固定 246px 留白、票根精灵图 404；主色改跟随主题。PC 构建 `lBoAEJXL_XOK5_oApvmtm` 上线（包 sha `f4ad37be…47c5`，备份 `pc_pre_20261111_194001.tgz`），admin 入口 `index-spGNAEI2.js` 上线（包 sha `32493c19…94e`，备份 `admin_site_pre_20261111_195202.tgz`）。两端实测 4 张真券一致、无溢出、旧类名 0 命中。 |
 | 2026-11-11 | **优惠券数据补齐**（§14.3）：生产库原有 5 张券仅 1 张可见（其余因 `is_show`/`enabled_click_get`/有效期被 `getCoupon` 硬编码条件过滤）。新建 6 张真券（满1000减50、满10000减200、全场95折、满100减20、满100减30、九五折），软删 Swagger 脏数据券（`couponName='string'`）；前台可见券 1 → 7 张（模块取前 4）。备份 `scratch/coupon-backup-*.json`。 |
 | 2026-11-11 | **发现两个后端缺陷（未修，补丁存档）**（§14.4）：① 后台编辑优惠券必 500 —— `update_coupon_in_tx` 把 SET 拼成 `$1coupon_name`（缺逗号，PG 报 trailing junk），补丁 `scratch/PATCH-coupon-update-bugfix.patch`；② `updateField` 键名需 `val`（前端传 `value` 会 422）且即便传对也因把值绑成 text 而 500（`column "is_show" is of type integer but expression is of type text`）。因「改已存在券」两条路都不通，本次以「新建替代编辑」绕行。 |
-| 2026-11-11 | **发现拼团接口 500（与本次改动无关）**：`GET /adminapi/promotion/groupon/item/list?grouponPromotionId=2` 返回 `operator does not exist: bigint = text`，装修编辑器加载含拼团模块的页面时会触发一条控制台 500（§14.7）。 |
+| 2026-11-11 | **发现拼团接口 500（与本次改动无关）**：`GET /adminapi/promotion/groupon/item/list?grouponPromotionId=2` 返回 `operator does not exist: bigint = text`，装修编辑器加载含拼团模块的页面时会触发一条控制台 500（§14.7）。**已于 2026-11-12 修复，见下方行**。 |
 | 2026-11-11 | **两端取数口径统一 + 两个后端缺陷修复并上线**（详见 §14.3/§14.4/§14.9）：新增 `GET /adminapi/promotion/coupon/claimableList`，复用与公开 `getCoupon` 完全相同的 `claimable_list`，后台预览改调它并删掉前端复刻的 `isVisibleOnPc()`；修 `update_coupon_in_tx` 的 `$1coupon_name` 拼接缺陷、`updateField` 的键名（`val`/`value` 双收）与类型（`CAST($1 AS text)::<type>` 两步转换）问题。提交 `f7338ef`+`f1e2a6b`+`26c01de`；staging 二进制 sha `74ff1b2a…8d7cb` 部署（备份 `nextrade.bak.20261111_221347`），admin 入口 `index-VvcaJpjU.js`（备份 `admin_site_pre_20261111_221619.tgz`）。生产实测：新端点与前台返回同一组券；`updateField` 四种键名×类型组合与全量 `update` 全部由 422/500 变为 200，且幂等。 |
+| 2026-11-11 | **重复券清理**（§14.7）：修复前「改已存在券」不可用导致用「新建替代编辑」重建了 3 张券，后台列表出现新旧同名。软删旧券 id=1/2/3（它们本就 `status=3 已失效`、`is_show/click_get` 均关、前台不可见），保留在线的 id=10/11/12。后台列表 10 → 7 张；**前台可见集合 `[12,11,10,9,8,7,6]` 与模块取前 4 均未变**。备份 `scratch/coupon-backup-before-dedup-20261111_233957.json`。 |
+| 2026-11-12 | **拼团商品列表 500 修复并上线**（详见 §14.10）：`GET /adminapi/promotion/groupon/item/list?grouponPromotionId=2` 报 `operator does not exist: bigint = text` —— `build_item_filters` 把数值比较的值按 text 绑定；数值列改两步 `CAST(? AS text)::bigint\|integer`，共修 4 处（活动ID/品牌ID/商品ID IN/可选商品brand_id），并加防回归断言。提交 `d913a51`，staging 二进制 sha `55838158…ca087b` 部署（备份 `nextrade.bak.20261112_001133`）。实测该接口与 keyword/brandId/productSn/productGroupId 各组合全部 200，装修编辑器整页 **0 条 4xx/5xx**。 |
+| 2026-11-12 | **登记 CI 基础设施故障**：`check-rust` 的 `Install system dependencies` 连续两次因 runner 无法解析 `azure.archive.ubuntu.com` 失败，`Cargo Check`/`Cargo Test` 被 skipped（非代码问题）。该步骤失败不要误判为代码错，可直接重跑或改走 `build-staging`（容器内 dnf，不受影响）。 |
 | 2026-11-11 | **分组轮播Banner 图片圆角不可控修复 + 新增「图片边角」独立控件**（详见 §15，提交 `990106e`）：后台把「容器圆角」设 0 也改不动图片圆角（`globals.scss` 的 `.dec-group-banner a{border-radius:var(--pc-radius)}`(0,1,1) 压过 `__link`(0,1,0)，写死 12px；编辑器预览 `__link` 又写死 8px）。改为图片圆角走 `--dec-item-radius`，并新增「图片边角」直角/圆角（老数据回退容器圆角）。admin 入口 `index-BrRNhaWB.js`、PC `YOw5lnBPjaQx14UN9JNOb`，公网实测 12px → 0px，装修数据未改动。 |
 | 2026-11-11 | **banner2 冷缓存空白根治（数据热替换 + 轮播就绪门控）**：用户复报「只显示第一张、第二三张没加载、点不进去」。实测根因**不是图片 404、也不是 §7 里 58.10 的 `loading` 没改对**，而是 `useCarousel` 是纯 5 秒 `setInterval`、**从不检查下一张图是否就绪**；冷缓存下首页约 85 张图抢带宽，第 2/3 张分别要 **18.1s / 36.2s** 才就绪，而轮播 **14.1s / 19.1s** 就翻过去了 → 整屏纯白（`elementFromPoint` 只命中容器 `dec-banner2__inner`，图与 `<a>` 都不在那一点，所以「点不进去」）。两手修复：① **数据**（已生效、零构建零重启）装修页 10023 的 `pc-banner2` 三个 `picUrl` 换成 `?x-oss-process=image/resize,m_fill,w_1364,h_600/format,webp/quality,q_80`，合计 1.19 MB → **89 KB**（第 2 张原图 858 KB，其「缩略」变体还是 318 KB 的 PNG），冷缓存三张就绪时刻 **5.0/18.1/36.2s → 2.0/2.0/2.0s**，早于 8.2s 的首次翻页；② **代码** `useCarousel(length, delay, allowAdvance?)` 新增可选门控（目标帧未就绪则原地不动、下周期再试，门控放 ref 不重建定时器）+ `Banner2` 用 `onLoad/onError` 记账 + **8 秒兜底**（坏图不会把轮播卡死）+ 未就绪项占位底色 `#f5f6f8`。部署 PC 构建 `OPmsTCUT3ykC-Z2WvOmGD`（替换 `lBoAEJXL_XOK5_oApvmtm`；包 sha256 `9950939f…ab3d` / 3,837,869 B，含当前工作区未提交的 `globals.scss`/`modules-source.scss`；备份 `/www/backup/pc_pre_20261111_234146.tgz`），3005 健康 200、`service=active`、公网 buildId 已切新、20 模块完好。**门控确定性验证**：把三张图人为延迟 6s，`ready=0` 期间 `idx` 始终停在 0（5 秒定时器被挡住），图到位后才翻到 1。脚本 `scratch/banner2-timeline.cjs`（冷/热时间线）、`banner2-webp-fix.py`（数据改动，默认 dry-run）、`verify-banner2-gate.cjs`（门控实验）、`diag-banner2-visible.cjs`（可见性判定）；排查陷阱见 §4.8 第 9 条 |
+| 2026-11-12 | **仓库收敛为单一来源 + 同步状态盘点**（详见 §16）：本仓库 `NexTrade-Postgres` 定为唯一代码仓库，交接文档中所有「上游仓库 / `D:\tigshop\NexTrade` 构建源 / 不要向上游 remote 推送」的表述**全部移除**，构建路径改写为本仓库 `pc-semi/`、`admin-semi/`；`tools/upload-to-bt.ps1`、`tools/deploy-rust-bt.ps1`、`tools/README-upload-to-bt.md` 复制入库。盘点：本地与 `origin/main` 完全一致（`664c854`）、无未推送提交；唯一未提交的已跟踪文件是本文件。**发现 54 个文件的最新版本只在旧构建树里、没进 GitHub**（`pc-semi/` 52 + `admin-semi/` 2，集中在 11-10 13:02–16:59 的换币/多语言/middleware/会员订单一批改动），已在 §16.2 列为待办，并明确警示「从仓库直接构建 ≠ 线上版本」 |
 
 ---
 
@@ -688,7 +692,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
      溢出滚动交给内部 `.dec-pc-home-hero__nav_cata_bd`（`overflow-y: auto`）。
 
 **产物与部署**
-- 源码同步到上游构建树 `D:\tigshop\NexTrade\rust\web\pc-semi`，`node scripts/copy-semi-css.mjs` + `npx next build`。
+- 源码就在本仓库 `pc-semi/`，`node scripts/copy-semi-css.mjs` + `npx next build`。
 - 精简包只带 `.next`（排除 cache/standalone/trace）、`public`、`next.config.mjs`、`package.json`、`DEPLOY_INFO.txt`，
   不含 `node_modules`（服务器上常驻）；tar 包约 3.8 MB。
 - **打包坑**：把 `.next` 解包到 `pc-out/.next` 再打包会生成 `.next/.next/...` 嵌套，线上解压后旧构建不变；
@@ -754,7 +758,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 ### 10.4 本地构建与部署（已验证可复现）
 
 ```bash
-cd D:/tigshop/NexTrade/rust/web/pc-semi
+cd D:/tigshop/NexTrade-Postgres/pc-semi
 node scripts/copy-semi-css.mjs
 PC_API_BASE=https://battery.recy.cc NODE_ENV=production \
   PC_NEXT_DIST_DIR=.next-local npx next build
@@ -971,7 +975,7 @@ python scratch/run_shell.py scratch/dep-pcnav3.sh depnav3
 | `EADDRINUSE :::3014` | 本地 `next start` 端口被残留进程占用，换端口（本次 3031） |
 
 ```bash
-cd D:/tigshop/NexTrade/rust/web/pc-semi
+cd D:/tigshop/NexTrade-Postgres/pc-semi
 CODEBUDDY_SAFE_DELETE_ENABLED=0 PC_SKIP_BUILD_TRACE=1 \
   PC_API_BASE=https://battery.recy.cc NODE_ENV=production \
   PC_NEXT_DIST_DIR=.next-arrow npx next build
@@ -1135,7 +1139,7 @@ pc-semi/src/decorate/coupon/coupon.scss      ← 唯一数据源（类名前缀 
 
 - **为什么后台要生成一份**：`admin-semi` 只装了 `less`、没有 `sass`（离线环境不新增依赖），
   无法直接 import `.scss`。生成脚本按顺序探测 `$SASS_BIN` → `pc-semi/node_modules/sass`
-  → 上游构建树，产物**只读不手改**；`npm run build` 前有 `prebuild` 钩子自动生成，
+  → 系统 `sass`，产物**只读不手改**；`npm run build` 前有 `prebuild` 钩子自动生成，
   `npm run check:coupon-css` 可校验产物是否与源码同步。
 - **DOM 必须同构**：两端都是 `dec-coupon` / `__header` / `__main` / `__stub` / `__list` / `__item` /
   `__amount` / `__info` / `__name` / `__desc` / `__action` / `__more` / `__empty`。
@@ -1248,9 +1252,16 @@ AND (send_type = 0 OR use_end_date >= now)
 - [ ] **后台券列表的重复券整理**：由于修复前「改已存在券」不可用，当时用「新建替代编辑」
       重建了 3 张券，因此列表里存在新旧同名券（新的在线、旧的仍失效）。现在 `update`
       已可用，可直接删掉重复的新券或启用旧的，二选一即可。**需要先确认再动生产数据。**
-- [ ] **拼团接口 500**：`GET /adminapi/promotion/groupon/item/list?grouponPromotionId=2`
-      → `operator does not exist: bigint = text`（服务端，**与优惠券改动无关**，
-      装修编辑器加载含拼团模块的页面时会触发一条控制台 500）。同样属 PG 严格类型家族，待修。
+- [x] ~~**拼团接口 500**~~ → **已修复并上线**（§14.10）。
+- [ ] **同类「数值列按 text 绑定」隐患（本次未修，已登记）**：扫描全仓发现同一模式还存在于
+      `catalog/product_manage.rs`（大量 `brand_id = ?` / `product_id IN (?)` / 数值区间比较）、
+      `catalog/product.rs`、`catalog/category.rs`、`wholesale/wholesale_product.rs` 等。
+      这些走的是各自的 `binds: Vec<String>` + `.bind(x.as_str())` 路径，**只要用户传了对应的数值筛选参数就会 500**。
+      建议统一改造为「按类型绑定」（把 `Vec<String>` 换成带类型的枚举），而不是继续逐个加 `CAST`。
+- [ ] **CI `check-rust` 的 `Install system dependencies` 步骤偶发 DNS 失败**：2026-11-11 连续两次
+      `Temporary failure resolving 'azure.archive.ubuntu.com'`，`Cargo Check`/`Cargo Test` 被 skipped
+      （属 runner 基础设施故障，非代码问题）。**该步骤失败时不要误判为代码错**；
+      可直接重跑，或改用 `build-staging`（它在 rockylinux 容器内装依赖，走 dnf，不受影响）。
 - [ ] 券数据当前 10 张（含历史失效券），如需精简可软删。
 
 ### 14.9 后端上线记录（2026-11-11，staging 通道）
@@ -1268,6 +1279,51 @@ AND (send_type = 0 OR use_end_date >= now)
 
 > 注意：本次走的是 **staging 通道**（不发 Release，符合 §4.4 的「默认只发 staging」约定）；
 > 生产此前本就跑 staging 包，最终对外版本仍应由 `build-rust-backend` 出 Release（§8 待办 #1）。
+
+### 14.10 拼团商品列表 500 修复与上线（2026-11-12）
+
+**现象**：`GET /adminapi/promotion/groupon/item/list?grouponPromotionId=2`
+→ `500 数据库错误: operator does not exist: bigint = text`。
+装修编辑器加载含拼团模块的页面时会打这条接口，因此页面上会出现一条控制台 500。
+
+**根因**：`infrastructure/.../repo/marketing/groupon_promotion_item.rs::build_item_filters`
+把「活动 ID / 品牌 ID / 商品 ID」这些**数值**比较的值也塞进 `Vec<String>`，
+而 `page_items` 一律 `.bind(b.as_str())`（即 text）。PG 严格类型下
+`gi.groupon_promotion_id = $1` 就成了 `bigint = text`。
+对照：不带 `grouponPromotionId` 调用同一接口返回 200 —— 只有数值过滤路径坏。
+
+**修法**：数值列写成**两步** `CAST(? AS text)::bigint|integer`（只写 `?::bigint` 会让 PG 把参数
+本身推断成 bigint，而 sqlx 发的是 text，依旧不匹配）。本次共修 4 处：
+
+| 位置 | 列 | cast |
+|---|---|---|
+| `build_item_filters` | `gi.groupon_promotion_id` | `::bigint` |
+| `build_item_filters` | `p.brand_id` | `::integer` |
+| `build_item_filters` | `p.product_id IN (...)` | `::bigint` |
+| `page_products` | `brand_id` | `::integer` |
+
+同步更新了断言旧 SQL 文本的单测，并加了一条「数值列不得裸写占位符」的防回归断言。
+
+**上线记录**：
+
+| 项 | 值 |
+|---|---|
+| 提交 | `d913a51`（含在 `990106e` 中；`990106e` 只改前端，不影响二进制） |
+| 构建 | `build-staging.yml` run #41（10 分） |
+| 二进制 | sha256 `55838158a358033548643d8e9b79e8982068ae4e80612a6d1d863a1431ca087b` |
+| 部署 | `deploy_backend_unique.py <sha> stgcp2`；上传/安装/运行进程三者 sha 全等；健康 admin=200 / api=200 |
+| 备份 | `/www/wwwroot/nextrade/nextrade.bak.20261112_001133` |
+
+**修复前后实测**：
+
+| 调用 | 修复前 | 修复后 |
+|---|---|---|
+| `item/list?grouponPromotionId=2` | **500** `bigint = text` | **200**，total=1（`itemId=2 / productId=1562 电解液（回收）纯化与发电系统`） |
+| `item/list?...&keyword=电` | — | 200 |
+| `item/list?...&brandId=1` | — | 200（走的是本次同修的 `p.brand_id` cast） |
+| `item/list?...&productSn=x` | — | 200 |
+| `item/list?productGroupId=1&grouponPromotionId=2` | — | 200（`p.product_id IN (...)` cast） |
+| 装修编辑器整页加载 | 1 条控制台 500 | **0 条 4xx/5xx** |
 
 ### 14.8 独立验证记录（2026-11-11，teammate `verifier`，只读实测）
 
@@ -1346,7 +1402,7 @@ AND (send_type = 0 OR use_end_date >= now)
 脚本：`scratch/lead-probe-groupbanner-radius{,2}.cjs`（只读测量 + 注入补丁前后对照）、
 `scratch/lead-verify-groupbanner.cjs`（前台 + 编辑器端到端）、
 `scratch/pack-admin-groupbanner.py`、`scratch/pack-pc-gbr.py`、`scratch/gen-dep-pc-gbr.py`、
-`scratch/lead-sync-groupbanner-patch*.py`（上游构建树定向同步）。
+`scratch/lead-sync-groupbanner-patch*.py`（补丁定向应用到本仓库源码）。
 
 ### 15.4 排查经验（可复用）
 
@@ -1358,5 +1414,68 @@ AND (send_type = 0 OR use_end_date >= now)
    「`.pc-decorate-module` 内是否含目标预览根节点」定位更稳。
 4. 同工作区并行会话会各自发 PC 包、**后发者覆盖前者**：发版前先看线上 `.next/BUILD_ID` 与
    `DEPLOY_INFO.txt`，并把对方的修复标记（如 banner2 的 `f5f6f8`）列入回归检查点。
+
+---
+
+## 16. 仓库与同步状态（2026-11-12）
+
+> **本仓库 `NexTrade-Postgres` 是唯一的代码仓库**：前端源码、后端源码、构建产物、部署脚本、文档全在这里。
+> 不存在"上游仓库"，也不存在第二份需要同步的源码副本。
+
+### 16.1 与 GitHub 的同步状态（2026-11-12 00:15 实测）
+
+| 项 | 状态 |
+|---|---|
+| 本地 `main` vs `origin/main` | **完全一致**（`664c854`），无未推送提交 |
+| 远端领先本地的提交 | 无（`git fetch origin main` 后确认） |
+| 唯一未提交的**已跟踪**文件 | `HANDOVER.md`（本文件，文档改动） |
+| 未跟踪文件 | 464 项：`scratch/` 446、根目录 `*.out` 部署日志 16、`admin-semi/dist.prev-*` 1 |
+
+**约定**：`scratch/` 与 `*.out` 部署日志按设计不入库（§2.2 明确禁止 `git add -A`，
+避免带上日志和半成品）。需要长期留存的证据请移到仓库内的正式位置，再 `git add <具体文件>`。
+
+### 16.2 尚未入库的内容（**待办，优先级高**）
+
+2026-11-12 逐文件比对发现：**54 个文件的最新版本只存在于旧构建树，没有进 GitHub**。
+
+| 目录 | 文件数 | 说明 |
+|---|---:|---|
+| `pc-semi/` | **52** | 集中在 2026-11-10 13:02–16:59 的一批改动 |
+| `admin-semi/` | **2** | `src/pages/PcDecorateEditor.tsx`、`src/components/ProductFormDrawer.tsx` |
+
+`pc-semi` 受影响的关键文件：
+
+- `middleware.ts` —— 商品页 308 到 `localhost:3005` 的修复（§7 2026-11-10 行，`e743af82`）
+- `src/lib/currency.ts`、`src/components/FormatPrice.tsx` —— 换币
+- `src/i18n/index.ts`、`src/i18n/server.ts` —— 多语言
+- `src/components/product/ProductCard.tsx`、`ShopProductCard.tsx`
+- 会员 / 订单 / 售后 / 购物车 / 结算 / 优惠券中心等约 20 个 `*Client.tsx`
+- `app/layout.tsx`、`app/product/product-view.tsx`、`app/order/pay/PayChannelClient.tsx` 等
+
+> ⚠️ **这批改动已经上线并生效**（线上跑的就是它们构建出来的包），
+> 但仓库里的同名文件仍是改动前的版本 —— 即**现在从本仓库 `pc-semi/` 直接构建，会得到一个缺少这批修复的前端**。
+>
+> 处理办法（二选一）：① 用最新版本覆盖进本仓库并提交（推荐，动作小、可核对）；
+> ② 在仓库内按线上行为重新实现。
+> **在这批文件补齐之前，「从仓库构建 PC 前端」≠「线上版本」，不要互相当作等价物。**
+
+### 16.3 从本仓库构建 PC 前端的前置条件
+
+`pc-semi/node_modules` 未入库（体积原因），从干净克隆构建前先装依赖：
+
+```bash
+cd pc-semi
+pnpm install                                    # 或 npm install
+node scripts/copy-semi-css.mjs
+PC_API_BASE=https://battery.recy.cc NODE_ENV=production npx next build
+```
+
+`admin-semi` 同理（`npx vite build`）。构建产物目录 `.next-*` / `dist*` 一律不入库。
+
+### 16.4 部署工具已入库
+
+`tools/upload-to-bt.ps1`、`tools/deploy-rust-bt.ps1`、`tools/README-upload-to-bt.md`
+已于 2026-11-12 复制进本仓库（此前只存在于本机另一目录）。凭据仍走
+`C:\Users\Public\bt2api.ps1`（§1.2），**不在仓库内、也不要提交**。
 
 
