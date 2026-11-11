@@ -580,6 +580,9 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'slider', key: 'displayNum', label: '一屏显示数量', min: 1, max: 10 },
       { kind: 'color', key: 'backgroundColor', label: '背景颜色', resetValue: '#f7f7f7' },
       ...containerFields(),
+      // 组件高度：线上老数据无 frame.boxHeight，缺省显示 328（与前台 CSS 固定值一致）。
+      // pc-semi 的 CategoryNav 同步改为读取 frame.boxHeight，避免「后台可改、C 端不跟随」。
+      { kind: 'slider', key: 'frame.boxHeight', label: '组件高度', min: 200, max: 600, defaultValue: 328 },
     ],
     summary: (m) => `${m.titleName || ''} · 每屏 ${m.displayNum}`,
   },
@@ -599,6 +602,11 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'input', key: 'showMoreText', label: '查看更多文字', placeholder: '请输入查看更多文字', showIf: (m) => Number(m.showMore) === 1 },
       { kind: 'link', key: 'moreLink', label: '更多链接', showIf: (m) => Number(m.showMore) === 1 },
       { kind: 'color', key: 'backgroundColor', label: '模块背景颜色', resetValue: 'rgba(0, 0, 0, 0.02)' },
+      // 扩展设置：frame.* 自动归入「扩展设置」Tab。前台/预览均读取 frame.boxHeight 与容器边距，
+      // 此前编辑器无入口，线上 10023 的 boxHeight=300 只能在数据层修改。
+      // 模块已有独立的「模块背景颜色」（前台 backgroundColor 优先于 frame.backgroundColor），容器背景色不再重复。
+      { kind: 'slider', key: 'frame.boxHeight', label: '组件高度', min: 200, max: 600, defaultValue: 352 },
+      ...containerFields().filter((f) => f.key !== 'frame.backgroundColor'),
     ],
     summary: (m) => `${m.titleText || ''} · ${((m.picList || []) as PicItem[]).length} 卡`,
   },
@@ -5053,6 +5061,7 @@ function ModuleSettingsPanel({
     'pc-banner2': '外边距',
     'pc-group-banner': '外边距',
     'pc-category-nav': '外边距',
+    'pc-category-nav3': '容器设置',
     'pc-home-coupon': '容器设置',
     'pc-home-groupon': '容器设置',
     'pc-home-hero': '外边距',

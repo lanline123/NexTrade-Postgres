@@ -1345,7 +1345,7 @@ function CategoryNav({ module }: ModuleProps) {
     >
       <div className="dec-category-nav-wrapper__inner">
         {categories.length ? (
-          <div className="mod_seckill" style={{ backgroundColor: module.backgroundColor || undefined }}>
+          <div className="mod_seckill" style={{ backgroundColor: module.backgroundColor || undefined, height: px(frame.boxHeight) > 0 ? px(frame.boxHeight) : 328 }}>
             {showTitle ? (
               <div className="seckill-top">
                 <div className="seckill-title">{module.titleName || t('热门分类')}</div>
