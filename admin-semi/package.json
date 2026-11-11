@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "gen:coupon-css": "node scripts/gen-coupon-css.mjs", "check:coupon-css": "node scripts/gen-coupon-css.mjs --check", "prebuild": "node scripts/gen-coupon-css.mjs", "build": "tsc -b && vite build",
     "build:pos": "node scripts/build-pos.mjs",
     "preview": "vite preview",
     "verify:ui": "node scripts/verify-ui.cjs",

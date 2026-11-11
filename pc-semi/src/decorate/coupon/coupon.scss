@@ -167,9 +167,13 @@ $dec-coupon-breakpoint-wide: 1500px;
 
 .dec-coupon__list {
   display: grid;
-  /* auto-fit + minmax：N 张券时尽量铺满可用宽度，N 越大每张越窄，不会留大片空白 */
+  /* 券数 N 由组件写入 --dec-coupon-cols（1..4），这里按 N 等分可用宽度：
+     N=4 时每张 ≈ (可用宽 - 3*gap)/4；N=1 时单券会占满，用 --dec-coupon-item-max
+     设上限并在剩余空间居中，避免一张券被拉成整行显得空荡。 */
   grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   gap: var(--dec-coupon-gap);
+  /* 券数少时（单张被 max-width 限制）让列靠左整齐对齐，不居中留大白边 */
+  justify-content: start;
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -196,6 +200,30 @@ $dec-coupon-breakpoint-wide: 1500px;
   background: var(--dec-coupon-surface);
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px rgba(16, 24, 40, 0.04);
   transition: box-shadow 0.24s ease, transform 0.24s ease, border-color 0.24s ease;
+}
+
+/* 单张券（N=1）时横向排布，避免一杯券占满整行还只剩一行字的高度：
+   价格居中偏左、信息在中间、按钮靠右，像一条横幅券 */
+@media (min-width: 1200px) {
+  .dec-coupon__list:has(> .dec-coupon__item:only-child) .dec-coupon__item {
+    flex-direction: row;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .dec-coupon__list:has(> .dec-coupon__item:only-child) .dec-coupon__info {
+    flex: 1 1 auto;
+  }
+
+  .dec-coupon__list:has(> .dec-coupon__item:only-child) .dec-coupon__action {
+    flex: 0 0 auto;
+    min-width: 120px;
+  }
+
+  /* 单张横幅形态下分隔虚线移到左侧竖线位置，不再横贯底部 */
+  .dec-coupon__list:has(> .dec-coupon__item:only-child) .dec-coupon__item::after {
+    display: none;
+  }
 }
 
 .dec-coupon__item:hover {

@@ -89,17 +89,29 @@ function normalizeBuyBtnStyle(raw: unknown): { show: boolean; style: number } {
   return { show: false, style: 0 };
 }
 
-/** 简易自动轮播：translate 横向切换 + 圆点，支持 hover 暂停（替代旧版 Swiper）。 */
-function useCarousel(length: number, delay = 3000) {
+/** 简易自动轮播：translate 横向切换 + 圆点，支持 hover 暂停（替代旧版 Swiper）。
+ *
+ *  allowAdvance（可选门控）：定时器到点时先问「目标帧能不能看」。返回 false 就原地不动，
+ *  下个周期再试。背景：冷缓存下首页约 85 张图抢带宽，banner2 第 2/3 张实测分别要
+ *  18.1s / 36.2s 才就绪，而固定 5s 定时器 14.1s / 19.1s 就翻过去了 —— 用户看到的是
+ *  整屏空白（2026-11-11 线上实测）。调用方必须自带兜底，避免坏图把轮播卡死。 */
+function useCarousel(length: number, delay = 3000, allowAdvance?: (nextIndex: number) => boolean) {
     const { t } = useTranslation();
   const [index, setIndexRaw] = useState(0);
   const [paused, setPaused] = useState(false);
+  // 门控放 ref：每次渲染刷新，但不参与 effect 依赖，避免重建定时器打断轮播节奏。
+  const allowRef = useRef(allowAdvance);
+  allowRef.current = allowAdvance;
   useEffect(() => {
     setIndexRaw(0);
   }, [length]);
   useEffect(() => {
     if (length <= 1 || paused) return undefined;
-    const timer = window.setInterval(() => setIndexRaw((i) => (i + 1) % length), delay);
+    const timer = window.setInterval(() => setIndexRaw((i) => {
+      const next = (i + 1) % length;
+      const gate = allowRef.current;
+      return gate && !gate(next) ? i : next;
+    }), delay);
     return () => window.clearInterval(timer);
   }, [length, paused, delay]);
   const setIndex = (value: number) => setIndexRaw(length ? ((value % length) + length) % length : 0);
@@ -1972,8 +1984,23 @@ function HomeHero({ module }: ModuleProps) {
 
 /* ======================= 6. pc-home-coupon ======================= */
 
-/** PcCoupon.vue：itemPadding、frame{boxPaddingTop,boxPaddingBottom,boxPadding,backgroundColor,boxRadius 默认 8}、
- * showTitle==1、title、desc、titleColor；内部委托 home/Coupon.vue（/api/home/home/getCoupon）。 */
+/**
+ * PcCoupon.vue：itemPadding、frame{boxPaddingTop,boxPaddingBottom,boxPadding,backgroundColor,boxRadius 默认 8}、
+ * showTitle==1、title、desc、titleColor；内部委托 home/Coupon.vue（/api/home/home/getCoupon）。
+ *
+ * 【2026-11-11 重做】结构改写为 dec-coupon__* 体系，与后台预览
+ * admin-semi/src/pages/decoratePc/previews/PcCouponPreview.tsx 逐层同构，
+ * 样式统一来自 src/decorate/coupon/coupon.scss（单一数据源，两端共用）。
+ *
+ * 旧实现的三个量测缺陷（线上实测）已消除：
+ *  1. .use_btn 与 .coupon_detail 同为 .item 的 flex 横向子项 → 按钮被挤成 23.3×74px、
+ *     文字折成 2.47 行、右边缘溢出容器 128.3px。新结构 item 为纵向 flex，按钮独占一行。
+ *  2. .item 固定 max-width:246px，券少时右侧大片空白。新结构 grid 等分可用宽度。
+ *  3. .coupon_edge 依赖 indexbody_sprite.png（线上 404）。新结构缺口改用纯 CSS 绘制。
+ *
+ * 券数不固定：接口当前可能只返回 1 张，故按实际条数（上限 4）渲染，
+ * 通过 --dec-coupon-cols 让 grid 列数与券数一致。
+ */
 function Coupon({ module }: ModuleProps) {
     const { t } = useTranslation();
   const [coupons, setCoupons] = useState<any[]>([]);
@@ -1994,6 +2021,7 @@ function Coupon({ module }: ModuleProps) {
     apiGet<any>('home/home/getCoupon')
       .then((data) => {
         const list = Array.isArray(data) ? data : (data as any)?.records ?? [];
+        // 上限 4 张；实际条数可能更少（当前生产只有 1 张），布局按真实条数自适应
         setCoupons(Array.isArray(list) ? list.slice(0, 4) : []);
       })
       .catch(() => undefined)
@@ -2042,56 +2070,76 @@ function Coupon({ module }: ModuleProps) {
 
   if (loading || !coupons.length) return null;
 
+  const cols = Math.max(1, Math.min(coupons.length, 4));
+
   return (
     <div style={{ padding: px(module.itemPadding) }}>
       <Container module={containerModule} className="module-ad-con module-pc-coupon">
-        {showTitle ? (
-          <div className="dec-pc-coupon__header">
-            <div className="dec-pc-coupon__header-title" style={{ color: module.titleColor ?? '#2a3145' }}>{module.title || ''}</div>
-            {module.desc ? <div className="dec-pc-coupon__header-desc">{module.desc}</div> : null}
-          </div>
-        ) : null}
-        <div className="mod_coupon">
-          <div className="coupon_tit">
-            <Link href="/coupon/list" target="_blank">
-              <h4>{t('领券中心')}</h4>
-              <p className="en_tit">COUPON</p>
-              <p className="go_coupon">GO <em>&gt;&gt;</em></p>
-            </Link>
-            <div className="coupon_edge" />
-          </div>
-          <div className="coupon_list">
-            {coupons.map((coupon, index) => (
-              <div className="item" key={coupon.couponId ?? index}>
-                <div className="coupon_detail">
-                  <div className="price">
-                    {Number(coupon.couponType) === 2 ? (
-                      <div className="coupon_discount">{coupon.couponDiscount}<span>{t('折')}</span></div>
-                    ) : (
-                      <b>¥{Number(coupon.couponMoney || 0).toFixed(0)}</b>
-                    )}
-                  </div>
-                  <div className="direction">
-                    <p className="coupon_sort">{coupon.couponName}</p>
-                    <p>{coupon.couponDesc}</p>
-                  </div>
-                </div>
-                <p
-                  className={`use_btn${claimable(coupon) ? '' : ' is-disabled'}${claimingId === Number(coupon.couponId) ? ' is-loading' : ''}`}
-                  aria-disabled={!claimable(coupon) || claimingId !== null}
-                  onClick={() => {
-                    if (!claimable(coupon) || claimingId !== null) return;
-                    void claim(coupon);
-                  }}
-                >
-                  {claimingId === Number(coupon.couponId) ? t('领取中') : statusText(coupon)}<em>&nbsp;&gt;</em>
-                </p>
-                <div className="coupon_edge" />
-              </div>
-            ))}
-            <div className="more_coupon">
-              <Link href="/coupon/list" target="_blank">{t('查看更多')}</Link>
+        <div className="dec-coupon" style={{ ['--dec-coupon-cols' as any]: cols }}>
+          {showTitle ? (
+            <div className="dec-coupon__header">
+              <p className="dec-coupon__header-title" style={{ color: module.titleColor || undefined }}>
+                {module.title || ''}
+              </p>
+              {module.desc ? <span className="dec-coupon__header-desc">{module.desc}</span> : null}
             </div>
+          ) : null}
+
+          <div className="dec-coupon__main">
+            <Link className="dec-coupon__stub" href="/coupon/list" target="_blank">
+              <p className="dec-coupon__stub-zh">{t('领券中心')}</p>
+              <p className="dec-coupon__stub-en">COUPON</p>
+              <p className="dec-coupon__stub-action">
+                GO <em className="dec-coupon__action-arrow">&gt;&gt;</em>
+              </p>
+            </Link>
+
+            <div className="dec-coupon__list">
+              {coupons.map((coupon, index) => {
+                const isDiscount = Number(coupon.couponType) === 2;
+                const busy = claimingId === Number(coupon.couponId);
+                const enabled = claimable(coupon) && claimingId === null;
+                return (
+                  <div className="dec-coupon__item" key={coupon.couponId ?? index}>
+                    <div className="dec-coupon__amount">
+                      {isDiscount ? (
+                        <span className="dec-coupon__discount">
+                          <span className="dec-coupon__discount-value">{coupon.couponDiscount}</span>
+                          <span className="dec-coupon__discount-unit">{t('折')}</span>
+                        </span>
+                      ) : (
+                        <>
+                          <span className="dec-coupon__amount-currency">¥</span>
+                          <span className="dec-coupon__amount-value">
+                            {Number(coupon.couponMoney || 0).toFixed(0)}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <div className="dec-coupon__info">
+                      <p className="dec-coupon__name">{coupon.couponName}</p>
+                      {coupon.couponDesc ? <p className="dec-coupon__desc">{coupon.couponDesc}</p> : null}
+                    </div>
+                    <button
+                      type="button"
+                      className={`dec-coupon__action${enabled ? '' : ' is-disabled'}${busy ? ' is-loading' : ''}`}
+                      aria-disabled={!enabled}
+                      onClick={() => {
+                        if (!enabled) return;
+                        void claim(coupon);
+                      }}
+                    >
+                      {busy ? t('领取中') : statusText(coupon)}
+                      <em className="dec-coupon__action-arrow">&gt;</em>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <Link className="dec-coupon__more" href="/coupon/list" target="_blank">
+              {t('查看更多')}
+            </Link>
           </div>
         </div>
       </Container>
@@ -3034,7 +3082,23 @@ function Banner2({ module }: ModuleProps) {
   const boxHeight = Number(frame.boxHeight) > 0 ? Number(frame.boxHeight) : 0;
   const trackRef = useRef<HTMLDivElement | null>(null);
   const pages = Math.max(1, pics.length - perView + 1);
-  const { index, setIndex } = useCarousel(pages, 5000);
+  // 图片就绪门控：冷缓存下后几张要十几秒才到，未就绪就不翻页，避免翻到纯白帧。
+  // gateExpired 是 8 秒兜底——图片 404/加载失败时照常轮播，绝不把轮播卡死。
+  const [readyMap, setReadyMap] = useState<Record<number, boolean>>({});
+  const [gateExpired, setGateExpired] = useState(false);
+  useEffect(() => {
+    setGateExpired(false);
+    const timer = window.setTimeout(() => setGateExpired(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [pics.length]);
+  const markReady = (i: number) => setReadyMap((prev) => (prev[i] ? prev : { ...prev, [i]: true }));
+  const slideReady = (next: number) => {
+    for (let k = 0; k < perView; k += 1) {
+      if (!readyMap[next + k]) return false;
+    }
+    return true;
+  };
+  const { index, setIndex } = useCarousel(pages, 5000, (next) => gateExpired || slideReady(next));
   const banner2Swipe = useSwipeDrag(index, pages, setIndex);
   if (!pics.length) return null;
   const style: Record<string, any> = {
@@ -3051,14 +3115,17 @@ function Banner2({ module }: ModuleProps) {
       <div className="dec-banner2__inner">
         <div className={`dec-banner2__track${banner2Swipe.dragging ? ' is-dragging' : ''}`} ref={trackRef} {...banner2Swipe.handlers} style={{ transform: `translateX(calc(-${index * (100 / perView)}% - ${(index * gap) / perView}px + ${banner2Swipe.offset}px))` }}>
           {pics.map((pic, i) => (
-            <div className="dec-banner2__item" key={i} style={{ width: `calc((100% - ${(perView - 1) * gap}px) / ${perView})` }}>
+            <div className="dec-banner2__item" key={i} style={{ width: `calc((100% - ${(perView - 1) * gap}px) / ${perView})`, background: '#f5f6f8' }}>
               <a className="dec-banner2__link" href={navHref(pic.picLink) || '#'} target="_blank" rel="noreferrer">
-                {/* 轮播项在视口外且模块高度依赖图片自身比例：用 lazy 时后几张高度恒为 0，永远不加载 */}
+                {/* 轮播项在视口外且模块高度依赖图片自身比例：用 lazy 时后几张高度恒为 0，永远不加载。
+                    用 eager 触发加载，再由上面的 allowAdvance 门控「没就绪不翻页」。 */}
                 <img
                   className="dec-banner2__image"
                   src={pic.picUrl || ''}
                   alt={pic.picTitle || pic.picName || ''}
                   loading="eager"
+                  onLoad={() => markReady(i)}
+                  onError={() => markReady(i)}
                   style={boxHeight ? { height: `${boxHeight}px`, objectFit: 'cover' } : undefined}
                 />
               </a>
