@@ -472,8 +472,9 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 
 **第一步：拿到原版源码，而不是凭截图猜**
 
-- 原版 Java 前台组件（**本机只读参考素材，不是代码仓库**，仅用于 1:1 对照）：
-  `<原版 Java 源码目录>\java-b2b2c-overseas-v5.8.61\view\pc\components\home\CategoryNew.vue`
+- ~~原版 Java 前台组件（本机只读参考素材，仅用于 1:1 对照）~~：
+  **该素材已于 2026-11-12 随旧构建树一并删除（用户指令），本机不再有原版 Java 源码。**
+  本节的方法仍适用，但「第二步」的对照基准只能改用线上真实渲染 + `pc-semi/` 现有实现。
 - 装修包装：同目录 `view\pc\decorate\components\pc\PcCategoryNavWrapper.vue`
 - 后台预览（React 迁移版，注释里保留了旧版 DOM 结构）：
   `admin-semi/src/pages/decoratePc/previews/PcCategoryNavPreview.tsx`
@@ -1527,5 +1528,28 @@ PC_API_BASE=https://battery.recy.cc NODE_ENV=production npx next build
 `admin-semi/scripts/build-pos.mjs` 等）也写着同一条死路径 `D:/nextrade/NexTrade/…`。
 它们**两棵树内容一致、不属于"分叉"**，故未纳入本次范围；其中 `build-pos.mjs` 是 POS 构建脚本，
 用到时需一并修正。
+
+### 16.6 旧构建树已删除：本机只剩本仓库（2026-11-12）
+
+按用户指令，`D:\tigshop\NexTrade`（另一棵树，365,785 个文件 / **40.77 GB**）**已整树删除**，
+含被 gitignore、GitHub 上没有的 `java-b2b2c-overseas-v5.8.61`（0.56 GB 原版 Java 源码）。
+
+**删除前的安全核对（都已通过）**
+
+| 检查 | 结果 |
+|---|---|
+| 它自己的提交是否都推到远端 | 未推送 **0**（`lanline123/NexTrade` 上有完整历史，可重新克隆） |
+| 其 10 个未跟踪文件是否已在本仓库 | **全部存在**，且其中 2 个（`AiMcpSettings.tsx`、`build-pos.mjs`）**本仓库的版本更新** |
+| 其 34 个已修改文件 | 逐项判定：13 个不同，**每一个都是本仓库更新**（`PcDecorateEditor.tsx` 经 `rootKey`/`iconRadio`/热区标记确认是 §13 修复后的版本） |
+| 删除时锁定目录的进程 | 3 个今早遗留的 `next start`（3004/3014/3031），二进制就在被删树里、已失效，杀掉后删除成功 |
+
+**删除后的影响（需要知道）**
+
+1. `pc-semi/scripts/gen-*-scss.mjs` 等 8 个脚本的 `LEGACY` 常量指向的原版 Java 源码**已不存在** ——
+   这些生成脚本只在需要重新生成 SCSS 时才用，日常构建不受影响（本仓库 `pc-semi/` 已验证可独立构建）。
+2. §4.8 的「1:1 对照」基准改用线上真实渲染为准。
+3. `D:\tigshop\` 下与本仓库并列的其它目录（`_deploy_*`、`前端页面`、`人工备份`、`scratch`、若干 `.zip`/`.log`）
+   **未在本次范围内，保持原样**。
+4. 本机现在只有 `D:\tigshop\NexTrade-Postgres` 一个代码仓库：HEAD = `origin/main` = `a83ba7a`。
 
 
