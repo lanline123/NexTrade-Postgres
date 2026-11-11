@@ -3047,7 +3047,8 @@ function Banner2({ module }: ModuleProps) {
           {pics.map((pic, i) => (
             <div className="dec-banner2__item" key={i} style={{ width: `calc((100% - ${(perView - 1) * gap}px) / ${perView})` }}>
               <a className="dec-banner2__link" href={navHref(pic.picLink) || '#'} target="_blank" rel="noreferrer">
-                <img className="dec-banner2__image" src={pic.picUrl || ''} alt={pic.picTitle || pic.picName || ''} loading="lazy" />
+                {/* 轮播项在视口外且模块高度依赖图片自身比例：用 lazy 时后几张高度恒为 0，永远不加载 */}
+                <img className="dec-banner2__image" src={pic.picUrl || ''} alt={pic.picTitle || pic.picName || ''} loading="eager" />
               </a>
             </div>
           ))}

@@ -507,6 +507,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 5. **平滑滚动没有可靠的完成事件**：用短轮询（约 1.2 秒）在动画结束后检查并归位；同时保留 `onScroll` 归位，真实浏览器滚动事件会正常触发。
 6. **拖拽与点击冲突**：拖动超过 4px 记为拖拽，`pointerup` 后在捕获阶段 `preventDefault/stopPropagation` 一次，避免松手误打开分类链接；`img draggable=false` 防止浏览器原生图片拖拽。
 7. **无头浏览器验证陷阱**：Chrome 后台页面对 smooth 滚动不推进、程序化滚动也不派发 `scroll` 事件。验证时把 `scrollBy/scrollTo` 临时改写成 `instant` 并记录调用，或用 `initScript` 包裹 `setInterval` 统计 5000ms 定时器；不要因为「页面没动」就判定逻辑错误。
+8. **`loading="lazy"` + 高度自适应的轮播会互相锁死**：轮播项在视口外、图片高度又决定容器高度时，后几张图片元素高度恒为 0，IntersectionObserver 永远不触发加载，表现就是「只有第一张」。banner2 的修复是改为 `loading="eager"`；同类模块（GroupBanner、CategoryNav3、Hero 多图）排查时先看 `img.complete / naturalWidth` 与首项高度。
 
 **验证清单（上线前逐项打勾）**
 
@@ -621,6 +622,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-11 | MCP 第二批权限（审计第五十七章）：新增报表/订单/会员/内容 4 个域开关 + 10 个工具（报表/会员/内容纯只读，订单仅后台备注可写），工具总数 14→24；生产冒烟发现并修复 `article.title` 列名、会员密码哈希外泄、`pay_time=0` 报表全 0 三处问题（`b5f30be`）；基于 `4ca2484` 构建部署（sha `b2d0c396…`，健康 200/200，复测 24 工具与三处修复）；客户手册同步 5.3–5.6 |
 | 2026-11-11 | PC 热门分类模块不跟随后台设置修复（审计第五十八章）：C 端 `CategoryNav` 计算了 `displayNum` 却从未使用，CSS 又写死 216px 卡片宽 + 180px 图标，8 个热门分类被压到 119px、图标互相溢出，后台改「一屏显示数量」完全无效。改为按 `100%/displayNum` 计算卡片宽度、图标 `min(180px,100%)` 自适应、滚动箭头按 `分类数 > displayNum` 显示；构建 `ef25606` 上线（包 sha `bb43d02c…`，备份 `pc_pre_20261111_093517.tgz`，健康 200），实测一屏 5 个、无溢出，后台 5→6 发布后 C 端 5 秒内跟随并已恢复 5 |
 | 2026-11-11 | PC 热门分类 1:1 收官（审计 58.9，对比方法见 §4.8）：按 5.8.61 `CategoryNew.vue` 对齐 328px 高/8px 圆角/24px 标题/20×24 内边距/图片 fill/20% 卡片宽；补 **5 秒自动轮播（悬停暂停）+ 首尾克隆无缝循环 + 鼠标 Pointer 拖拽（拖后抑制误点击）**；关键坑：`scroll-behavior:smooth` 会让 `scrollLeft` 赋值走动画，定位/归位/拖拽必须 `behavior:'instant'`；CSS 后置 `gap:32px` 是「只露 4.5 个」的真凶。包 sha `ca11901d…`，备份 `pc_pre_20261111_103907.tgz`，健康 200；线上实测 18 节点（5+8+5）、首屏真实第 1 个、拖拽 1148→1348、越界 0→1837 无缝回卷、拖后点击被拦截 |
+| 2026-11-11 | PC banner2 轮播只显示第一张修复（审计 58.10，经验见 §4.8 第 8 条）：3 张图均为 `loading="lazy"`，而模块高度由图片自身比例决定；第 2/3 张在视口外且高度恒为 0，懒加载永不触发，轮播切过去就是空白。改为 `loading="eager"` 后三张全部加载；包 sha `e70a51c6…`，备份 `pc_pre_20261111_104723.tgz`，健康 200；线上实测 3 张 `complete=true`、每项高 282px、5 秒后 index=1、transform `-100%` |
 | 2026-11-11 | 分类导航3 编辑器预览高度修复：预览列表容器缺 `min-height:0`，flex 子项被内容固有高度撑到约 277px，叠加顶栏后超出配置的 300px 外框，被 `overflow:hidden` 裁掉名称/描述。补 `min-height:0 + display:flex + overflow:hidden`，与 PC 前台 `.dec-category-nav3__list-wrap` 一致；实测 `scrollHeight === clientHeight === 203`。线上入口 `index-CBB1teH9.js`（回滚 index 存 `scratch/admin-index.online.20261111_101613.html`）；排查方法见 §11 |
 | 2026-11-11 | PC 分类导航3 对齐旧版（审计第六十章）：单卡 248px→1/6 列宽、箭头按实际溢出显示、补拖拽与 5s 自动轮播、HOT/更多改 SVG、占位色跟随主题；本地构建包 sha `fb69cd84…1958` 部署，备份 `pc_pre_20261111_102631.tgz`，健康 200，6 张实测 189px/无溢出；维护要点见 §10 |
 
@@ -841,3 +843,4 @@ python scratch/run_shell.py scratch/dep-pcnav3.sh depnav3
 
 回归时用「`scrollHeight > clientHeight`」判定，而不是只看截图是否顺眼。
 | 2026-11-11 | 公告图标与图片大小（审计 58.9）：图标被全局 `.item-img{opacity:0}` 隐藏，前台/SSR chunk 加 opacity:1 并新增 `frame.iconSize`（12–48，默认16）滑块，预览同步；后台直写部署入口 `index-D4g_k_Bl.js`，PC 实测图标 16×16 可见；提交 `3a8428b` |
+| 2026-11-11 | 公告现代风格+全局重置（审计 58.10）：设置面板新增“全局重置”二次确认；默认圆角12/浅蓝渐变/细边框/柔和阴影/白色图标衬底，PC 与 admin 预览同步；线上 admin 入口 `index-B0HrmCb7.js`，PC CSS `*-mod11.css` 已生效；提交 `311048e` |
