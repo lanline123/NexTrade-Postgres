@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { Toast } from '@douyinfe/semi-ui';
@@ -1171,29 +1172,133 @@ function QuickNav({ module }: ModuleProps) {
 function CategoryNav({ module }: ModuleProps) {
     const { t } = useTranslation();
   const [categories, setCategories] = useState<any[]>([]);
+  const [dragging, setDragging] = useState(false);
   const cateListRef = useRef<HTMLDivElement | null>(null);
   const frame = module.frame || {};
   const radius = px(frame.boxRadius);
   const showTitle = Number(module.showTitle ?? 1) !== 0;
   const displayNum = Math.min(10, Math.max(1, px(module.displayNum ?? module.rowNum, 6)));
   const canScroll = categories.length > displayNum;
+  // Swiper loop：分类数超过一屏时，首尾各克隆一屏，实现无缝循环
+  const canLoop = canScroll;
   const hoverRef = useRef(false);
+  const dragRef = useRef<{ startX: number; startScroll: number; moved: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
+
+  const metrics = () => {
+    const el = cateListRef.current;
+    if (!el) return null;
+    const cs = window.getComputedStyle(el);
+    const pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+    const cell = Math.max(1, (el.clientWidth - pad) / displayNum);
+    return { el, page: cell * displayNum, cycle: cell * categories.length };
+  };
+
+  // 初始定位到真实列表第一屏（左侧是克隆的末尾一屏）
+  useLayoutEffect(() => {
+    const apply = () => {
+      const m = metrics();
+      if (!m) return;
+      // 必须用 instant：CSS scroll-behavior:smooth 会让 scrollLeft 赋值走动画，首屏会滑入且无法即时归位
+      m.el.scrollTo({ left: canLoop ? m.page : 0, behavior: 'instant' as ScrollBehavior });
+    };
+    apply();
+    // 首帧布局完成后（克隆节点/字体尺寸稳定）再校正一次，避免被浏览器钳到 0
+    const raf = window.requestAnimationFrame(apply);
+    return () => window.cancelAnimationFrame(raf);
+  }, [categories.length, displayNum, canLoop]);
 
   useEffect(() => {
-    if (!canScroll) return undefined;
-    // 对齐旧版 Swiper：5 秒自动翻一页、悬停暂停、到末尾回到开头
+    const onResize = () => {
+      const m = metrics();
+      if (!m) return;
+      m.el.scrollTo({ left: canLoop ? m.page : 0, behavior: 'instant' as ScrollBehavior });
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [categories.length, displayNum, canLoop]);
+
+  useEffect(() => {
+    if (!canLoop) return undefined;
+    // 对齐旧版 Swiper：5 秒自动翻一页、悬停/拖拽暂停、末端无缝回卷
     const timer = window.setInterval(() => {
-      const el = cateListRef.current;
-      if (!el || hoverRef.current) return;
-      const max = el.scrollWidth - el.clientWidth;
-      if (el.scrollLeft >= max - 2) {
-        el.scrollTo({ left: 0, behavior: 'smooth' });
-      } else {
-        el.scrollBy({ left: el.clientWidth, behavior: 'smooth' });
-      }
+      const m = metrics();
+      if (!m || hoverRef.current || dragRef.current) return;
+      m.el.scrollBy({ left: m.page, behavior: 'smooth' });
+      settleAfterScroll();
     }, 5000);
     return () => window.clearInterval(timer);
-  }, [canScroll, categories.length, displayNum]);
+  }, [canLoop, categories.length, displayNum]);
+
+  /** 平滑滚动没有可靠的完成事件：连续检测一小段时间，落到克隆区就即时归位。 */
+  const settleAfterScroll = () => {
+    let tries = 0;
+    const tick = () => {
+      normalizeScroll();
+      tries += 1;
+      if (tries < 12) window.setTimeout(tick, 120);
+    };
+    window.setTimeout(tick, 120);
+  };
+
+  /** 滚到克隆区时无感跳到对应真实位置；因为首尾克隆内容相同，视觉无跳动。 */
+  const normalizeScroll = () => {
+    const m = metrics();
+    if (!m || !canLoop) return;
+    const max = m.el.scrollWidth - m.el.clientWidth;
+    if (m.el.scrollLeft >= max - 1) m.el.scrollTo({ left: m.el.scrollLeft - m.cycle, behavior: 'instant' as ScrollBehavior });
+    else if (m.el.scrollLeft <= 1) m.el.scrollTo({ left: m.el.scrollLeft + m.cycle, behavior: 'instant' as ScrollBehavior });
+  };
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!canScroll) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const el = cateListRef.current;
+    if (!el) return;
+    dragRef.current = { startX: event.clientX, startScroll: el.scrollLeft, moved: false };
+    suppressClickRef.current = false;
+    setDragging(true);
+    try {
+      el.setPointerCapture(event.pointerId);
+    } catch {
+      /* 部分浏览器/合成事件不支持 pointer capture */
+    }
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    const el = cateListRef.current;
+    if (!drag || !el) return;
+    const dx = event.clientX - drag.startX;
+    if (Math.abs(dx) > 4) drag.moved = true;
+    el.scrollTo({ left: drag.startScroll - dx, behavior: 'instant' as ScrollBehavior });
+    normalizeScroll();
+  };
+
+  const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    const el = cateListRef.current;
+    if (!drag) return;
+    dragRef.current = null;
+    setDragging(false);
+    suppressClickRef.current = drag.moved;
+    try {
+      el?.releasePointerCapture(event.pointerId);
+    } catch {
+      /* 同上 */
+    }
+    // 拖拽结束正常不会触发 click；若浏览器仍派发，下一次 pointerdown 也会重置
+    window.setTimeout(() => {
+      suppressClickRef.current = false;
+    }, 120);
+  };
+
+  const handleClickCapture = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (suppressClickRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -1209,6 +1314,21 @@ function CategoryNav({ module }: ModuleProps) {
       cancelled = true;
     };
   }, []);
+
+  const renderItems = canLoop
+    ? [
+        ...categories.slice(-displayNum).map((item, index) => ({ item, key: `left-${index}` })),
+        ...categories.map((item, index) => ({ item, key: `real-${index}` })),
+        ...categories.slice(0, displayNum).map((item, index) => ({ item, key: `right-${index}` })),
+      ]
+    : categories.map((item, index) => ({ item, key: `real-${index}` }));
+
+  const stepPage = (direction: 1 | -1) => {
+    const m = metrics();
+    if (!m) return;
+    m.el.scrollBy({ left: direction * m.page, behavior: 'smooth' });
+    settleAfterScroll();
+  };
 
   return (
     <div
@@ -1232,35 +1352,27 @@ function CategoryNav({ module }: ModuleProps) {
               </div>
             ) : null}
             <div className="seckill_list_wrap">
-              <SwiperNav
-                visible={canScroll}
-                onPrev={() => {
-                  const el = cateListRef.current;
-                  if (!el) return;
-                  if (el.scrollLeft <= 2) el.scrollTo({ left: el.scrollWidth - el.clientWidth, behavior: 'smooth' });
-                  else el.scrollBy({ left: -el.clientWidth, behavior: 'smooth' });
-                }}
-                onNext={() => {
-                  const el = cateListRef.current;
-                  if (!el) return;
-                  if (el.scrollLeft >= el.scrollWidth - el.clientWidth - 2) el.scrollTo({ left: 0, behavior: 'smooth' });
-                  else el.scrollBy({ left: el.clientWidth, behavior: 'smooth' });
-                }}
-              />
+              <SwiperNav visible={canScroll} onPrev={() => stepPage(-1)} onNext={() => stepPage(1)} />
               <div
-                className={`seckill_list${canScroll ? ' is-scroll' : ''}`}
+                className={`seckill_list${canScroll ? ' is-scroll' : ''}${dragging ? ' is-dragging' : ''}`}
                 ref={cateListRef}
+                onScroll={normalizeScroll}
                 onMouseEnter={() => {
                   hoverRef.current = true;
                 }}
                 onMouseLeave={() => {
                   hoverRef.current = false;
                 }}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+                onClickCapture={handleClickCapture}
               >
-                {categories.map((item, index) => (
+                {renderItems.map(({ item, key }) => (
                   <div
                     className="proditem"
-                    key={item.categoryId ?? index}
+                    key={key}
                     style={{ flex: `0 0 calc(100% / ${displayNum})`, maxWidth: `calc(100% / ${displayNum})` }}
                   >
                     <a
@@ -1270,7 +1382,20 @@ function CategoryNav({ module }: ModuleProps) {
                       title={item.categoryName || ''}
                     >
                       <div className="seckill-item-image">
-                        {item.categoryPic ? <img className="pro_pic" src={item.categoryPic} alt={item.categoryName || ''} loading="lazy" /> : <div className="seckill-img-placeholder" />}
+                        {item.categoryPic ? (
+                          <img
+                            className="pro_pic"
+                            src={item.categoryPic}
+                            alt={item.categoryName || ''}
+                            loading="lazy"
+                            draggable={false}
+                            onError={(event) => {
+                              event.currentTarget.style.visibility = 'hidden';
+                            }}
+                          />
+                        ) : (
+                          <div className="seckill-img-placeholder" />
+                        )}
                       </div>
                       <div className="seckill-item__name">{item.categoryName}</div>
                     </a>

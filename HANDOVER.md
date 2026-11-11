@@ -466,6 +466,58 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 > staging 包体积（72 MB）大于正式 release（54 MB），可临时顶替线上；正式上线仍建议用
 > `build-rust-backend` 产出与校验的 Release（须用户明确授权，见 §4.4）。
 
+### 4.8 PC 装修模块 1:1 对比方法与修复经验（以「热门分类」为例）
+
+> 适用：后台装修模块在前台表现与旧版不一致、或后台设置不生效时。热门分类（`pc-category-nav`）
+> 2026-11-11 按此流程完成 1:1 对齐，可作为其它模块的模板。
+
+**第一步：拿到原版源码，而不是凭截图猜**
+
+- 前台组件：`D:\tigshop\NexTrade\java-b2b2c-overseas-v5.8.61\view\pc\components\home\CategoryNew.vue`
+- 装修包装：同目录 `view\pc\decorate\components\pc\PcCategoryNavWrapper.vue`
+- 后台预览（React 迁移版，注释里保留了旧版 DOM 结构）：
+  `admin-semi/src/pages/decoratePc/previews/PcCategoryNavPreview.tsx`
+- 后台字段定义：`admin-semi/src/pages/PcDecorateEditor.tsx` 的模块 `defaults/settings`
+
+**第二步：把「数据」和「渲染」分开验证**
+
+1. 后台发布数据：`/adminapi/decorate/decorate/detail?id=<装修页ID>&decorateType=2`（同时看 `data` 与 `draftData`，确认用户改的是已发布数据）
+2. 前台装修数据：`/api/home/home/pcIndex`，确认后台字段确实到了 C 端
+3. 浏览器 DOM 实测：模块高度、标题字号/内边距、每张卡片宽度、图片宽度、一屏可见数量、`gap`、`object-fit`
+4. 以上三者一致但「设置不生效」，问题一定在渲染器没有消费某个字段，或 CSS 被后置规则覆盖
+
+**第三步：逐字段对照，不要只对「看起来差不多」**
+
+| 原版（`CategoryNew.vue`） | 本项目修复后 |
+|---|---|
+| `height:328px` + `border-radius:8px` + 内容层背景 | 一致 |
+| 标题 `padding:20px 24px`、`font-size:24px` | 一致 |
+| Swiper `slidesPerView=displayNum`、`slidesPerGroup=displayNum` | 卡片 `flex:0 0 100%/displayNum`，箭头整页翻 |
+| `autoplay.delay=5000`、`pauseOnMouseEnter`、`loop`（`分类数>displayNum`） | 5 秒定时 + 悬停/拖拽暂停 + 首尾克隆无缝循环 |
+| Swiper 鼠标/触摸拖拽 | Pointer Events 拖拽 + 拖后抑制误点击 |
+| 图片 180×180，`el-image` 默认 `fill` | 180×180、`object-fit:fill`、失败隐藏 |
+| 标题/名称两行截断、hover 名称变色 | 一致 |
+
+**踩坑与修复经验（可复用）**
+
+1. **CSS 后置规则覆盖**：热门分类曾同时存在 `.is-scroll{gap:12px}`、后置 `gap:32px`、内联 `flex-basis:100%/N`，三者叠加后一屏只露出 4.5 个。排查时以浏览器 `getComputedStyle` 的最终值为准，不要只看源码第一条规则；修复用更高优先级/文件末尾的专属规则落地。
+2. **`displayNum` 只算不用**：组件里算出变量不等于使用了它，必须确认它进入了 `style`/切片/布局。
+3. **`scroll-behavior:smooth` 会接管 `scrollLeft` 赋值**：`el.scrollLeft = x` 在 smooth 下变成动画，首屏会滑入、无缝归位会抖动。**定位、克隆区归位、拖拽跟手必须用 `scrollTo({behavior:'instant'})`**；只有自动轮播/箭头翻页用 smooth。
+4. **无缝循环的克隆数学**：首尾各克隆 `displayNum` 个；初始位置 = 一屏宽；`cycle = 分类数 × 单卡宽`；滚到 `max` 立即 `-=cycle`，滚到 `0` 立即 `+=cycle`。因为克隆内容与对应真实内容一致，跳转瞬间视觉无变化。
+5. **平滑滚动没有可靠的完成事件**：用短轮询（约 1.2 秒）在动画结束后检查并归位；同时保留 `onScroll` 归位，真实浏览器滚动事件会正常触发。
+6. **拖拽与点击冲突**：拖动超过 4px 记为拖拽，`pointerup` 后在捕获阶段 `preventDefault/stopPropagation` 一次，避免松手误打开分类链接；`img draggable=false` 防止浏览器原生图片拖拽。
+7. **无头浏览器验证陷阱**：Chrome 后台页面对 smooth 滚动不推进、程序化滚动也不派发 `scroll` 事件。验证时把 `scrollBy/scrollTo` 临时改写成 `instant` 并记录调用，或用 `initScript` 包裹 `setInterval` 统计 5000ms 定时器；不要因为「页面没动」就判定逻辑错误。
+
+**验证清单（上线前逐项打勾）**
+
+- [ ] 首屏从真实第一个分类开始（左侧克隆不可见）
+- [ ] 一屏正好 `displayNum` 个，最后一张完整露出
+- [ ] 自动轮播 5 秒翻一页，悬停暂停
+- [ ] 滚到末尾继续向前是无缝循环，无倒回动画
+- [ ] 鼠标拖拽跟手，能越过首尾；拖拽松手不误点链接
+- [ ] 后台改「一屏显示数量」并发布，C 端 5 秒内跟随
+- [ ] 模块高度/标题/圆角/图标与原版一致
+
 ---
 
 ## 5. 本机工具矩阵
@@ -568,6 +620,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 「查看商城」不读域名设置修复（审计第五十四章）：原实现只读构建期 `VITE_MALL_URL`，未配置即回退 `/`，与后台 `pcDomain/h5Domain` 无关；新增 `admin-semi/src/mall.ts` 按旧版 `urlFormat/urlWapFormat` 解析（`clientDefaultUse` 为 1 走 H5），App 在登录后与「全局设置」保存后刷新并下传 `AdminLayout`，装修编辑器「打开商城首页」同源；隔离构建（HEAD + 4 文件，避开并行 WIP）整包上传，线上入口 `index-F84HWsFc.js`（sha256 `4f19cbd6…77c0`），生产实测点击跳 `https://battery.recy.cc/` |
 | 2026-11-11 | MCP 第二批权限（审计第五十七章）：新增报表/订单/会员/内容 4 个域开关 + 10 个工具（报表/会员/内容纯只读，订单仅后台备注可写），工具总数 14→24；生产冒烟发现并修复 `article.title` 列名、会员密码哈希外泄、`pay_time=0` 报表全 0 三处问题（`b5f30be`）；基于 `4ca2484` 构建部署（sha `b2d0c396…`，健康 200/200，复测 24 工具与三处修复）；客户手册同步 5.3–5.6 |
 | 2026-11-11 | PC 热门分类模块不跟随后台设置修复（审计第五十八章）：C 端 `CategoryNav` 计算了 `displayNum` 却从未使用，CSS 又写死 216px 卡片宽 + 180px 图标，8 个热门分类被压到 119px、图标互相溢出，后台改「一屏显示数量」完全无效。改为按 `100%/displayNum` 计算卡片宽度、图标 `min(180px,100%)` 自适应、滚动箭头按 `分类数 > displayNum` 显示；构建 `ef25606` 上线（包 sha `bb43d02c…`，备份 `pc_pre_20261111_093517.tgz`，健康 200），实测一屏 5 个、无溢出，后台 5→6 发布后 C 端 5 秒内跟随并已恢复 5 |
+| 2026-11-11 | PC 热门分类 1:1 收官（审计 58.9，对比方法见 §4.8）：按 5.8.61 `CategoryNew.vue` 对齐 328px 高/8px 圆角/24px 标题/20×24 内边距/图片 fill/20% 卡片宽；补 **5 秒自动轮播（悬停暂停）+ 首尾克隆无缝循环 + 鼠标 Pointer 拖拽（拖后抑制误点击）**；关键坑：`scroll-behavior:smooth` 会让 `scrollLeft` 赋值走动画，定位/归位/拖拽必须 `behavior:'instant'`；CSS 后置 `gap:32px` 是「只露 4.5 个」的真凶。包 sha `ca11901d…`，备份 `pc_pre_20261111_103907.tgz`，健康 200；线上实测 18 节点（5+8+5）、首屏真实第 1 个、拖拽 1148→1348、越界 0→1837 无缝回卷、拖后点击被拦截 |
 | 2026-11-11 | 分类导航3 编辑器预览高度修复：预览列表容器缺 `min-height:0`，flex 子项被内容固有高度撑到约 277px，叠加顶栏后超出配置的 300px 外框，被 `overflow:hidden` 裁掉名称/描述。补 `min-height:0 + display:flex + overflow:hidden`，与 PC 前台 `.dec-category-nav3__list-wrap` 一致；实测 `scrollHeight === clientHeight === 203`。线上入口 `index-CBB1teH9.js`（回滚 index 存 `scratch/admin-index.online.20261111_101613.html`）；排查方法见 §11 |
 | 2026-11-11 | PC 分类导航3 对齐旧版（审计第六十章）：单卡 248px→1/6 列宽、箭头按实际溢出显示、补拖拽与 5s 自动轮播、HOT/更多改 SVG、占位色跟随主题；本地构建包 sha `fb69cd84…1958` 部署，备份 `pc_pre_20261111_102631.tgz`，健康 200，6 张实测 189px/无溢出；维护要点见 §10 |
 
@@ -787,3 +840,4 @@ python scratch/run_shell.py scratch/dep-pcnav3.sh depnav3
 3. 内部有图片/文本等固有高度内容。
 
 回归时用「`scrollHeight > clientHeight`」判定，而不是只看截图是否顺眼。
+| 2026-11-11 | 公告图标与图片大小（审计 58.9）：图标被全局 `.item-img{opacity:0}` 隐藏，前台/SSR chunk 加 opacity:1 并新增 `frame.iconSize`（12–48，默认16）滑块，预览同步；后台直写部署入口 `index-D4g_k_Bl.js`，PC 实测图标 16×16 可见；提交 `3a8428b` |
