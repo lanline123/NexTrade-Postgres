@@ -1164,6 +1164,15 @@ AND (send_type = 0 OR use_end_date >= now)
 或 `2`（折扣，`couponDiscount` 如 `9.5`）。
 > 后台券列表接口是 `GET /adminapi/promotion/coupon/list`；`detail` 用 `?id=`。
 
+> ⚠️ **已知脆弱点：两端取数口径分叉**（独立验证者 2026-11-11 指出，实测确认）。
+> PC 前台走 `GET /api/home/home/getCoupon`（后端 `paginate_claimable` 过滤），
+> 后台预览走 `GET /adminapi/promotion/coupon/list` 后由前端 `PcCouponPreview.tsx`
+> 的 `isVisibleOnPc()` **复刻**同一套过滤条件。
+> 二者今日结果恰好一致（同为 couponId 12/11/10/9），但**规则是两份实现**：
+> 后端一旦改可见性条件（例如新增 status / 库存 / 人群过滤），后台预览不会自动跟随，
+> 又会回到「后台看到 A、前台显示 B」。**根治办法**是让后台预览也调 `getCoupon`
+> （或抽一个共用接口），彻底消除这份复刻。
+
 ### 14.4 本次发现的两个**后端真实缺陷**（未修，补丁已存档）
 
 > 二者都属 HANDOVER §4.6 的 PG 严格类型问题家族；本次为不阻塞前端上线而绕过，**建议单独发版修复**。
@@ -1216,10 +1225,38 @@ AND (send_type = 0 OR use_end_date >= now)
 
 ### 14.7 遗留与待办
 
+- [ ] **统一两端取数口径**（§14.3 的脆弱点）：让后台预览改调 `getCoupon`，或抽共用接口，
+      替掉 `PcCouponPreview.tsx` 里复刻的 `isVisibleOnPc()`。
 - [ ] **修 §14.4 两个后端缺陷并发版**（补丁已存档，未编译未部署）；修好后可删除「新建替代编辑」产生的重复券。
 - [ ] **拼团接口 500**：`GET /adminapi/promotion/groupon/item/list?grouponPromotionId=2`
       → `operator does not exist: bigint = text`（服务端，**与本次前端改动无关**，
       装修编辑器加载含拼团模块的页面时会触发一条控制台 500）。同样属 PG 严格类型家族，待修。
 - [ ] 后台券列表的重复券整理（新建替代编辑的副作用）。
 - [ ] 券数据当前 10 张（含历史失效券），如需精简可软删。
+
+### 14.8 独立验证记录（2026-11-11，teammate `verifier`，只读实测）
+
+> 由独立验证者用 Playwright（msedge + CDP 禁缓存）在生产复测，**不采信开发方自述**。
+> 证据 JSON/截图在 `scratch/verifier-*.json|png`。
+
+| 断言 | 结论 | 关键原始数字 |
+|---|---|---|
+| 两端 DOM 统一 `dec-coupon__*`、旧类名消失 | 成立 | 旧类名命中 PC 0 / 后台 0；24 个断点类计数两端逐项一致 |
+| 两端相同 4 张真券 | 成立 | 券名逐项 4/4 相同；PC `getCoupon` 200→7 条、后台 `promotion/coupon/list` 200→10 条 |
+| 按钮不溢出 / 不折行 | 成立 | PC `btn.right-item.right = -17.00px`、后台 `-12.41px`；`offsetHeight 32 / lineHeight 32 = 1.00` 行 |
+| 券少时不留大片空白 | 成立（**间接**验证） | 线上真实数据固定取前 4，无法直接观测 N<4；按组件规则（`--dec-coupon-cols = max(1,min(券数,4))`）复现后 PC N=1 → grid `1120px`、trailingGap 0 |
+| 主色跟随主题 | 成立 | PC `--dec-coupon-accent=#65c4aa`；后台 `#1456f0` |
+| 卡片圆角 12px | 成立 | 两端四角均 `12px 12px 12px 12px` |
+| 无横向溢出 | 成立 | PC list `scrollWidth=clientWidth=1120`（4×271+3×12）；后台 `1324` |
+
+**验证者提出的注意点（已采纳）**：
+1. **后台预览量高度不要用 `getBoundingClientRect`**：`.pc-decorate-window` 施加的是
+   CSS `zoom: 0.713125`（不是 transform），用 rect 算「高度/行高」会得到 `22.8/32 = 0.71` 的**假折行**；
+   判断行数要用不受 zoom 影响的 `offsetHeight`（得 `32/32 = 1.00`）。
+2. **热图绘制工具栏默认不在 DOM**：`.hotarea-painter` 只在**选中热图模块进入绘制态**时挂载。
+   本项由 Lead 补测：点击选中 `.dec-image-hotarea` 后 `.hotarea-painter` = 1、可见、351×34，
+   面板文本含「热区绘制 / 添加热区 / 清空热区 / 共 2 个热区」，全程无非 GET 请求 → **他人成果未被破坏**。
+3. 与本次无关的既有问题：拼团接口 500（§14.7）、后台偶发 `ERR_CONNECTION_RESET`（网络抖动，
+   同期 `curl` 该域名 200/0.31s）、PC 上 `premium-member-entry.png` 与
+   `/api/search/imageSearch/capabilities` 的 404。
 
