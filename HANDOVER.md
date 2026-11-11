@@ -658,6 +658,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-11 | **优惠券数据补齐**（§14.3）：生产库原有 5 张券仅 1 张可见（其余因 `is_show`/`enabled_click_get`/有效期被 `getCoupon` 硬编码条件过滤）。新建 6 张真券（满1000减50、满10000减200、全场95折、满100减20、满100减30、九五折），软删 Swagger 脏数据券（`couponName='string'`）；前台可见券 1 → 7 张（模块取前 4）。备份 `scratch/coupon-backup-*.json`。 |
 | 2026-11-11 | **发现两个后端缺陷（未修，补丁存档）**（§14.4）：① 后台编辑优惠券必 500 —— `update_coupon_in_tx` 把 SET 拼成 `$1coupon_name`（缺逗号，PG 报 trailing junk），补丁 `scratch/PATCH-coupon-update-bugfix.patch`；② `updateField` 键名需 `val`（前端传 `value` 会 422）且即便传对也因把值绑成 text 而 500（`column "is_show" is of type integer but expression is of type text`）。因「改已存在券」两条路都不通，本次以「新建替代编辑」绕行。 |
 | 2026-11-11 | **发现拼团接口 500（与本次改动无关）**：`GET /adminapi/promotion/groupon/item/list?grouponPromotionId=2` 返回 `operator does not exist: bigint = text`，装修编辑器加载含拼团模块的页面时会触发一条控制台 500（§14.7）。 |
+| 2026-11-11 | **两端取数口径统一 + 两个后端缺陷修复并上线**（详见 §14.3/§14.4/§14.9）：新增 `GET /adminapi/promotion/coupon/claimableList`，复用与公开 `getCoupon` 完全相同的 `claimable_list`，后台预览改调它并删掉前端复刻的 `isVisibleOnPc()`；修 `update_coupon_in_tx` 的 `$1coupon_name` 拼接缺陷、`updateField` 的键名（`val`/`value` 双收）与类型（`CAST($1 AS text)::<type>` 两步转换）问题。提交 `f7338ef`+`f1e2a6b`+`26c01de`；staging 二进制 sha `74ff1b2a…8d7cb` 部署（备份 `nextrade.bak.20261111_221347`），admin 入口 `index-VvcaJpjU.js`（备份 `admin_site_pre_20261111_221619.tgz`）。生产实测：新端点与前台返回同一组券；`updateField` 四种键名×类型组合与全量 `update` 全部由 422/500 变为 200，且幂等。 |
 
 ---
 
@@ -1164,33 +1165,47 @@ AND (send_type = 0 OR use_end_date >= now)
 或 `2`（折扣，`couponDiscount` 如 `9.5`）。
 > 后台券列表接口是 `GET /adminapi/promotion/coupon/list`；`detail` 用 `?id=`。
 
-> ⚠️ **已知脆弱点：两端取数口径分叉**（独立验证者 2026-11-11 指出，实测确认）。
-> PC 前台走 `GET /api/home/home/getCoupon`（后端 `paginate_claimable` 过滤），
-> 后台预览走 `GET /adminapi/promotion/coupon/list` 后由前端 `PcCouponPreview.tsx`
-> 的 `isVisibleOnPc()` **复刻**同一套过滤条件。
-> 二者今日结果恰好一致（同为 couponId 12/11/10/9），但**规则是两份实现**：
-> 后端一旦改可见性条件（例如新增 status / 库存 / 人群过滤），后台预览不会自动跟随，
-> 又会回到「后台看到 A、前台显示 B」。**根治办法**是让后台预览也调 `getCoupon`
-> （或抽一个共用接口），彻底消除这份复刻。
+> ✅ **取数口径已统一（2026-11-11 根治）**。原先 PC 前台走 `GET /api/home/home/getCoupon`、
+> 后台预览走 `GET /adminapi/promotion/coupon/list` + 前端复刻过滤，是同一规则两份实现
+> （独立验证者 task-5 指出的脆弱点）。现新增 **`GET /adminapi/promotion/coupon/claimableList`**，
+> 在 backend 里直接复用与公开端 `getCoupon` **完全相同**的 `CouponService::claimable_list`
+> 及同样的强制过滤（`is_show/valid_date/receive_flag = 1`），后台预览只调这一个接口，
+> `PcCouponPreview.tsx` 里的 `isVisibleOnPc()` 复刻函数已删除。
+> 实测两端返回同一组券（ids 12,11,10,9,8,7,6）。
+> 该端点**刻意不加入** `ROUTE_TABLE`（那张表是 Java 契约对照表，加进去会谎报覆盖率）。
+> 返回为**游客口径**（`isReceive` 恒 0），与未登录访客在首页所见一致。
 
-### 14.4 本次发现的两个**后端真实缺陷**（未修，补丁已存档）
+### 14.4 两个后端缺陷：已修复并上线（2026-11-11）
 
-> 二者都属 HANDOVER §4.6 的 PG 严格类型问题家族；本次为不阻塞前端上线而绕过，**建议单独发版修复**。
+> 二者都属 HANDOVER §4.6 的 PG 严格类型问题家族。**修复提交 `f7338ef` + `f1e2a6b`，
+> 已随 staging 二进制 `74ff1b2a…8d7cb` 部署到生产**（见 §14.9）。
+> 修复前为不阻塞前端上线曾用「新建替代编辑」绕行，现在「改已存在券」功能已可用。
 
-1. **后台「编辑优惠券」必然 500**：`POST /adminapi/promotion/coupon/update`
-   → `error: trailing junk after parameter at or near "$1coupon_name"`。
+1. **后台「编辑优惠券」必 500**：`POST /adminapi/promotion/coupon/update`
+   报 `trailing junk after parameter at or near "$1coupon_name"`。
    根因：`infrastructure/.../repo/marketing/coupon_manage.rs::update_coupon_in_tx` 先
    `qb.push_bind(id)` 生成 `$1`，随后 `separated()` 直接 `push("coupon_name = ")`，**缺逗号分隔**。
-   修法（已存档 `scratch/PATCH-coupon-update-bugfix.patch`）：SET 子句不要重复写 `coupon_id = $1`
-   （WHERE 已按 id 过滤），让 `separated` 从空状态起拼。
-2. **单字段更新 `updateField` 也不可用**（`POST /adminapi/promotion/coupon/updateField`）：
-   ① 键名必须是 `val` 不是 `value`（传 `value` 直接 422 `missing field \`val\``，而前端
-   `Coupons.tsx` 传的正是 `value`）；② 即便传对也 500：
-   `column "is_show" is of type integer but expression is of type text` ——
-   `update_coupon_field` 把值统一 `.bind(&str)` 绑成 text，遇到 integer / timestamp 列就炸。
+   修法：SET 子句不再重复写 `coupon_id = $1`（WHERE 已按 id 过滤），让 `separated` 从空状态起拼。
+2. **单字段更新 `updateField` 不可用**（`POST /adminapi/promotion/coupon/updateField`），两处独立缺陷：
+   - **键名**：DTO 只认 `val`，而后台 `Coupons.tsx` 的 `updateField()` 发的是 `value`
+     → 必然 422 `missing field \`val\``。修法：`val` 加 `#[serde(alias = "value")]`，两个键名都接受
+     （这样不必为改一个键名再发一版前端）。
+   - **类型**：`update_coupon_field` 把值统一按 `&str` 绑成 text，遇到 integer/numeric 列即报
+     `column "is_show" is of type integer but expression is of type text`。
+     修法：按白名单列显式转换，SQL 写成 **`CAST($1 AS text)::<目标类型>`**。
+     **必须两步 cast**：只写 `$1::numeric` 会让 PG 把参数本身推断成 numeric，
+     而 sqlx 发的是 text，依旧不匹配。类型映射见 `coupon_field_cast()`：
+     `coupon_money`/`coupon_discount`/`min_order_amount` → numeric，`is_show` → integer，其余 → text。
 
-**绕行方式（本次采用）**：因为「改已存在券」两条路都不通，改用「**新建替代编辑**」——
-把要启用的券按原语义重新 `create` 一遍。副作用：后台券列表会出现新旧同名的历史券（旧的那张仍失效）。
+**修复后生产实测（幂等写入，未改变数据）**：
+
+| 调用 | 修复前 | 修复后 |
+|---|---|---|
+| `updateField` `value` 键 + integer 列 | 422 | **200** |
+| `updateField` `val` 键 + integer 列 | 500 | **200** |
+| `updateField` `value` 键 + numeric 列 | 500 | **200** |
+| `updateField` `value` 键 + text 列 | 500 | **200** |
+| 全量 `update`（回传当前 26 字段） | 500 | **200**，关键字段写入前后一致 |
 
 ### 14.5 上线记录与验证口径
 
@@ -1225,14 +1240,31 @@ AND (send_type = 0 OR use_end_date >= now)
 
 ### 14.7 遗留与待办
 
-- [ ] **统一两端取数口径**（§14.3 的脆弱点）：让后台预览改调 `getCoupon`，或抽共用接口，
-      替掉 `PcCouponPreview.tsx` 里复刻的 `isVisibleOnPc()`。
-- [ ] **修 §14.4 两个后端缺陷并发版**（补丁已存档，未编译未部署）；修好后可删除「新建替代编辑」产生的重复券。
+- [x] ~~统一两端取数口径~~ → **已完成**（§14.3）：新增 `claimableList`，后台预览与前台同源。
+- [x] ~~修 §14.4 两个后端缺陷~~ → **已完成并上线**（§14.4 / §14.9）。
+- [ ] **后台券列表的重复券整理**：由于修复前「改已存在券」不可用，当时用「新建替代编辑」
+      重建了 3 张券，因此列表里存在新旧同名券（新的在线、旧的仍失效）。现在 `update`
+      已可用，可直接删掉重复的新券或启用旧的，二选一即可。**需要先确认再动生产数据。**
 - [ ] **拼团接口 500**：`GET /adminapi/promotion/groupon/item/list?grouponPromotionId=2`
-      → `operator does not exist: bigint = text`（服务端，**与本次前端改动无关**，
+      → `operator does not exist: bigint = text`（服务端，**与优惠券改动无关**，
       装修编辑器加载含拼团模块的页面时会触发一条控制台 500）。同样属 PG 严格类型家族，待修。
-- [ ] 后台券列表的重复券整理（新建替代编辑的副作用）。
 - [ ] 券数据当前 10 张（含历史失效券），如需精简可软删。
+
+### 14.9 后端上线记录（2026-11-11，staging 通道）
+
+| 项 | 值 |
+|---|---|
+| 触发 | `python scratch/trigger_staging.py`（`build-staging.yml`，run #40，耗时 10 分） |
+| 构建 commit | `f1e2a6b`（含 `f7338ef` 的两个缺陷修复 + 新端点） |
+| 二进制 | `rustshop-staging` 71,950,800 B / sha256 `74ff1b2a7b6f2ef707cf6ae07e1e1635b46bdc65814e893b134fd35a64c8d7cb` |
+| 下载校验 | `python scratch/fetch_staging.py f1e2a6b`（zip 内 `.sha256` 与实际一致，verify OK） |
+| 上传 | `python scratch/upload_chunks.py scratch/stg_latest/rustshop-staging stgcp1`（18 片） |
+| 部署 | `python scratch/deploy_backend_unique.py <sha> stgcp1` |
+| 备份 | `/www/wwwroot/nextrade/nextrade.bak.20261111_221347` |
+| 部署后校验 | 上传/安装/**运行进程** `/proc/<pid>/exe` 三者 sha 全等；ELF 头 `7f 45 4c 46`；健康 admin=200 / api=200 |
+
+> 注意：本次走的是 **staging 通道**（不发 Release，符合 §4.4 的「默认只发 staging」约定）；
+> 生产此前本就跑 staging 包，最终对外版本仍应由 `build-rust-backend` 出 Release（§8 待办 #1）。
 
 ### 14.8 独立验证记录（2026-11-11，teammate `verifier`，只读实测）
 
