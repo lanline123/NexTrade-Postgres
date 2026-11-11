@@ -568,6 +568,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 「查看商城」不读域名设置修复（审计第五十四章）：原实现只读构建期 `VITE_MALL_URL`，未配置即回退 `/`，与后台 `pcDomain/h5Domain` 无关；新增 `admin-semi/src/mall.ts` 按旧版 `urlFormat/urlWapFormat` 解析（`clientDefaultUse` 为 1 走 H5），App 在登录后与「全局设置」保存后刷新并下传 `AdminLayout`，装修编辑器「打开商城首页」同源；隔离构建（HEAD + 4 文件，避开并行 WIP）整包上传，线上入口 `index-F84HWsFc.js`（sha256 `4f19cbd6…77c0`），生产实测点击跳 `https://battery.recy.cc/` |
 | 2026-11-11 | MCP 第二批权限（审计第五十七章）：新增报表/订单/会员/内容 4 个域开关 + 10 个工具（报表/会员/内容纯只读，订单仅后台备注可写），工具总数 14→24；生产冒烟发现并修复 `article.title` 列名、会员密码哈希外泄、`pay_time=0` 报表全 0 三处问题（`b5f30be`）；基于 `4ca2484` 构建部署（sha `b2d0c396…`，健康 200/200，复测 24 工具与三处修复）；客户手册同步 5.3–5.6 |
 | 2026-11-11 | PC 热门分类模块不跟随后台设置修复（审计第五十八章）：C 端 `CategoryNav` 计算了 `displayNum` 却从未使用，CSS 又写死 216px 卡片宽 + 180px 图标，8 个热门分类被压到 119px、图标互相溢出，后台改「一屏显示数量」完全无效。改为按 `100%/displayNum` 计算卡片宽度、图标 `min(180px,100%)` 自适应、滚动箭头按 `分类数 > displayNum` 显示；构建 `ef25606` 上线（包 sha `bb43d02c…`，备份 `pc_pre_20261111_093517.tgz`，健康 200），实测一屏 5 个、无溢出，后台 5→6 发布后 C 端 5 秒内跟随并已恢复 5 |
+| 2026-11-11 | 分类导航3 编辑器预览高度修复：预览列表容器缺 `min-height:0`，flex 子项被内容固有高度撑到约 277px，叠加顶栏后超出配置的 300px 外框，被 `overflow:hidden` 裁掉名称/描述。补 `min-height:0 + display:flex + overflow:hidden`，与 PC 前台 `.dec-category-nav3__list-wrap` 一致；实测 `scrollHeight === clientHeight === 203`。线上入口 `index-CBB1teH9.js`（回滚 index 存 `scratch/admin-index.online.20261111_101613.html`）；排查方法见 §11 |
 
 ---
 
@@ -637,3 +638,55 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 - 输入框聚焦：去掉「1px 浅色边 + 3px 光晕」的双层效果，改为单层
   `border-color: transparent; box-shadow: inset 0 0 0 2px var(--primary)`。
 - 左侧装饰圆：三处 `.login-hero-rings span:nth-child(3)` 的 `box-shadow` 全部删除，只保留细边框。
+
+---
+
+## 11. 装修编辑器预览高度排查方法（分类导航3 案例，2026-11-11）
+
+> 适用：后台装修编辑器里模块「高度不对 / 内容被裁 / 与前台不一致」。
+> 结论先行：**不要只对照旧版 Vue `preview.less`**——旧版本身可能有同样的缺陷；
+> 以 PC 前台同名模块的真实渲染与 CSS 为基准。
+
+### 11.1 三步定位
+
+1. **取模块真实配置**
+   - 管理员 token 调 `GET /adminapi/decorate/decorate/detail?id=<id>&decorateType=2`。
+   - 模块在 `data.moduleList[i]`，配置在 `module` 字段（不是顶层）：
+     `frame.boxHeight` 是外框固定高度，`frame.boxPadding*` 是内边距。
+
+2. **在真实编辑器里量尺寸，不靠截图猜**
+   - Playwright 无头 Edge（`--no-proxy-server`）先打开站点，把生产 token 写入
+     `localStorage.admin_access_token`、`localStorage.adminType='admin'`，再进
+     `?page=pcDecorateEditor&id=<id>`，可绕开登录态不稳定的问题。
+   - 关键指标：`offsetHeight / clientHeight / scrollHeight`（布局尺寸，不受画布缩放影响）；
+     `getBoundingClientRect()` 含画布 `transform: scale()`，只能看相对位置。
+   - `scrollHeight > clientHeight` 即内容溢出，再看子元素 `bottom` 是否超出外框。
+   - 本版编辑器画布内部宽 1600px 再整体缩放，**判断高度一律用 client/scroll/offset，
+     不要用 boundingRect 反推**。
+
+3. **对比 PC 前台同名模块 CSS**
+   - 预览：`admin-semi/src/pages/decoratePc/previews/pc<Module>.css`
+   - 前台：`pc-semi/app/globals.scss`（`.dec-<module>`；注意 §10.3 的三份样式副本）
+   - 逐条 diff 同名选择器；本次唯一差异是前台 `.dec-category-nav3__list-wrap`
+     有 `min-height: 0`，预览没有。
+
+### 11.2 本次根因与修法
+
+- `.dec-pc-category-nav3__list-wrap` 是 flex 子项，默认 `min-height: auto`，
+  会撑到内容固有高度（实测 277px）；顶栏 74px + 列表 277px = 351px，
+  超过配置 `boxHeight: 300`，外层 `overflow:hidden` 把名称/描述裁掉。
+- 修法：补 `min-height: 0`（并加 `display:flex; overflow:hidden` 与前台一致），
+  列表收缩到剩余 203px，图片按 `flex: 0 1 auto; min-height: 0` 压扁，
+  名称/描述完整保留。
+- 验证：`scrollHeight === clientHeight === 203`，描述底部在模块外框内；
+  生产截图 `scratch/editor-catnav3.png`。
+
+### 11.3 同类模块检查清单
+
+预览模块同时满足以下条件时，优先怀疑缺 `min-height: 0`：
+
+1. 外层固定高度（`height: var(--dec-box-height)` / `height: 100%`）；
+2. 中间层是 flex 子项（`flex: 1` 或 `height: 100%`）；
+3. 内部有图片/文本等固有高度内容。
+
+回归时用「`scrollHeight > clientHeight`」判定，而不是只看截图是否顺眼。
