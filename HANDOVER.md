@@ -1548,8 +1548,13 @@ PC_API_BASE=https://battery.recy.cc NODE_ENV=production npx next build
 1. `pc-semi/scripts/gen-*-scss.mjs` 等 8 个脚本的 `LEGACY` 常量指向的原版 Java 源码**已不存在** ——
    这些生成脚本只在需要重新生成 SCSS 时才用，日常构建不受影响（本仓库 `pc-semi/` 已验证可独立构建）。
 2. §4.8 的「1:1 对照」基准改用线上真实渲染为准。
-3. `D:\tigshop\` 下与本仓库并列的其它目录（`_deploy_*`、`前端页面`、`人工备份`、`scratch`、若干 `.zip`/`.log`）
-   **未在本次范围内，保持原样**。
-4. 本机现在只有 `D:\tigshop\NexTrade-Postgres` 一个代码仓库：HEAD = `origin/main` = `a83ba7a`。
+3. `D:\tigshop\` 下与本仓库并列的内容**同日做过一次清理**（29.02 GB → 5.12 GB，释放 23.9 GB）：
+   删掉了 `rust/crates/target` 构建缓存（17.55 GB）、`baseline-check`（陈旧一个月 6.03 GB）、
+   `pc-semi/.next-verify`、`rustshop-publish`、`前端页面`、`scratch`、6 个 `deploy*` 暂存、
+   39 个根目录 `.log`/`tmp_*` 零碎文件。
+   **按用户指令保留**：`admin-full`、`admin-adv2`（并行会话暂存）、
+   `java-b2b2c-overseas-v5.8.61-…`（**§4.8 的 1:1 对照基准仍在**，含同名 zip）、
+   `java-b2b2c-pro-v5.8.37-…`、`mysql_data`、`人工备份`、其余厂商 zip。
+4. 本机现在只有 `D:\tigshop\NexTrade-Postgres` 一个代码仓库（体积 1.12 GB）：HEAD = `origin/main`。
 
 
