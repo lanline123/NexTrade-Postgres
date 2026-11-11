@@ -154,7 +154,12 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
           </div>
 
           <div className="login-hero-brand">
-            <span className="login-hero-mark"><img src={`${import.meta.env.BASE_URL}admin-assets/nextrade-mark.svg`} alt="NexTrade" /></span>
+            <span className="login-hero-mark">
+              <svg viewBox="0 0 40 40" fill="none" role="img" aria-label="NexTrade">
+                <rect width="40" height="40" rx="12" fill="var(--primary)" />
+                <path d="M11 28V12h4.9l8.2 10.7V12H29v16h-4.9l-8.2-10.7V28H11Z" fill="#fff" />
+              </svg>
+            </span>
             <div>
               <strong>NexTrade</strong>
               <small>数字化交易底座</small>
@@ -194,7 +199,12 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
 
         <main className="login-panel">
           <div className="login-mobile-brand">
-            <span><img src={`${import.meta.env.BASE_URL}admin-assets/nextrade-mark.svg`} alt="" /></span>
+            <span>
+              <svg viewBox="0 0 40 40" fill="none" aria-hidden="true">
+                <rect width="40" height="40" rx="12" fill="var(--primary)" />
+                <path d="M11 28V12h4.9l8.2 10.7V12H29v16h-4.9l-8.2-10.7V28H11Z" fill="#fff" />
+              </svg>
+            </span>
             <strong>NexTrade</strong>
           </div>
           <div className="login-card">

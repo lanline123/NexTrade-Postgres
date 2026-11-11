@@ -558,6 +558,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 素材弹窗补全分组管理（审计第五十一章）：分组右键支持添加子分组/重命名/上移/下移/删除，删除时可选「仅删分组」或「分组及组内素材」（`gallery/del`、`galleryVideo/del`）；线上 `index-DbtAyZBl.js`，回滚 index 存 `scratch/admin-index.online.20261110_210247.html` |
 | 2026-11-10 | 素材弹窗分组自由拖拽（审计第五十二章）：分组行上/下边缘排序、中间变为子分组、拖到根移回顶级；修正 `gallery/sort` 的 `type` 误传数字（应为 `image`/`video`，同时修复素材中心页上移/下移）；线上 `index-BwJfAmNd.js`，回滚 index 存 `scratch/admin-index.online.20261110_211354.html` |
 | 2026-11-10 | 登录页与组织选择页统一布局 + 主题色跟随（审计第五十三章）：两步共用「安全登录」页脚，桌面卡片固定 580px 等高；登录页改用 `--primary`/`color-mix` 配色，`applyAndStore` 把主题色缓存到 `localStorage`，登录页挂载时读取（默认蓝，首次访问需登录过一次）；线上 `index-CMyogy2H.js`，回滚 index 存 `scratch/admin-index.online.20261110_212752.html` |
+| 2026-11-11 | 登录页视觉微调（审计第六十章）：Logo 改为内联 SVG（圆角方块 `fill=var(--primary)`，跟随主题色，已用绿色主题实测）；输入框聚焦由硬编码青色 4px 光晕改为主题色 65% 边框 + 3px 10% 柔光环；左侧装饰圆 80px/16% 光晕降到 32px/7%。线上入口 `index-BrkiQysR.js` / `index-Bv_iV66h.css` |
 | 2026-11-11 | WorkBuddy 能力全量并入 AI MCP 并移除 WorkBuddy（审计第五十九章）：新增 `product_import_validate`、`product_copy`、`product_analysis`（7 种分析）、`product_context`、`product_category_create`、`media_manage`（分组建改删、素材移动/重命名/删除），工具 28→34；删除 `/adminapi/openapi/mcp/v1/*` 路由、WorkBuddy 服务/仓储/模型、`workbuddySettings` 配置端点与 AI 设置页卡片；批量操作改直连 SQL，不再依赖 WorkBuddy 仓储 |
 | 2026-11-11 | AI MCP 新增图片素材上传（审计第五十八章）：`media_upload` 支持公网 URL 或 base64，落素材中心（复用 `gallery_pic.upload_img`），jpg/png/gif/webp/tiff、≤20MB，含内网/回环 SSRF 防护与重定向逐跳校验；工具总数 27→28，商品或装修任一开启即列出 |
 | 2026-11-11 | AI MCP 并入商品批量/导入能力（审计第五十七章）：新增 `product_batch_preview`、`product_batch_execute`（up/down/recycle/restore/del，单次≤50）、`product_import`（≤50，名称+价格必填，可带相册图）；批量回收站/删除与导入默认转审批，新增 `requireApprovalBatch`/`requireApprovalImport` 开关；工具总数 24→27；WorkBuddy 的媒体上传/分类准备留作第二批 |
@@ -584,3 +585,5 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-11 | 页面 10023 审批通过并上线（审计 56.6）：用户授权代批 approvalId=3，`/activity?id=10023` 20 模块正常；修正秒杀价 315000→279000（低于商品原价 284000，避免「优惠0%」），接口实测生效 |
 | 2026-11-11 | PC 首页装修模块对齐 Java（审计第五十八章）：核对 19 个 pc/*.vue 样式确认已逐字一致，补齐 CategoryNew/Coupon 组件 CSS 与雪碧图，清理 globals 对图片广告的高度覆盖，补秒杀/拼团/商品分组内联列宽，价格改 FormatPrice；同一页 20 模块中 12 个高度与 Java 完全一致，其余 ≤16px（秒杀 -40 为商品名换行）。上游本地构建部署 `local-pc-module-parity`，生产 3005=200；仓库提交 `3fc44bc` |
 | 2026-11-11 | 恢复 PC 首页（审计 58.5）：展示页 10023 被发现 isHome=1，原首页 10009 被置 0；已 `setHome` 回 10009，`pcIndex` 复测 10009/19 模块。10023 保留为预览页；首页有短时 Next 缓存，强刷或 `?cb=` 生效 |
+| 2026-11-11 | 演示页设为首页并修热图空白（审计 58.6）：10023 重新发布并设为首页，20 模块全量展示；素材换真实设备图；热图空白是 imageBox 全局 `.item-img{opacity:0}` 泄漏，线上复制 CSS 为 `*-hf11.css` 加覆盖并替换引用，重启后 hotarea `opacity=1` 正常。仓库提交 `dbff7c2` |
+| 2026-11-11 | 装修编辑器画布模块加 18px 间距（审计 58.7）：编辑器模块无外边距导致营销通栏白面板与上下模块贴死、圆角被吞；`.pc-decorate-module` 补 `margin-bottom:18px`，线上以新 CSS `index-CMBEL7ET-m18.css` 替换入口引用，admin 健康 200；仓库提交 `c928a2f` |
