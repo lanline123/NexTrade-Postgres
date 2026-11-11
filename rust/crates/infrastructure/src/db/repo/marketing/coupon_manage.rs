@@ -169,8 +169,12 @@ impl CouponManageRepository {
         id: i32,
         patch: &CouponUpdatePatch,
     ) -> Result<bool> {
-        let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new("UPDATE coupon SET coupon_id = ");
-        qb.push_bind(id);
+        // 注意：`separated()` 的 `push()` 会自行插入分隔符，但只要先 `push_bind` 一次，
+        // 首个分隔项就会被拼成 `$1coupon_name`（缺逗号，PG 报
+        // `trailing junk after parameter at or near "$1coupon_name"`）。
+        // 因此这里不再在 SET 子句里重复写 `coupon_id = $1`（WHERE 已按 id 过滤），
+        // 让 `separated` 从空状态起拼，第一项自带绑定参数 `$1`。
+        let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new("UPDATE coupon SET ");
         let mut sep = qb.separated(", ");
         if let Some(v) = &patch.coupon_name {
             sep.push("coupon_name = ").push_bind_unseparated(v.clone());
@@ -264,6 +268,22 @@ impl CouponManageRepository {
         Ok(affected > 0)
     }
 
+    /// 白名单列 → 绑定值需要转换成的 SQL 类型。
+    ///
+    /// PG 是严格类型：`UPDATE coupon SET is_show = $1` 中 sqlx 把 `&str` 绑成 text，
+    /// 赋值给 integer / numeric 列会直接报
+    /// `column "is_show" is of type integer but expression is of type text`。
+    /// 因此显式加 cast。注意必须写成 `CAST($1 AS text)::目标类型` 两步：
+    /// 若只写 `$1::numeric`，PG 会把参数本身推断成 numeric，而 sqlx 发的是 text，
+    /// 依旧类型不匹配。列名来自 `resolve_coupon_field()` 的白名单，无注入面。
+    fn coupon_field_cast(column: &str) -> &'static str {
+        match column {
+            "coupon_money" | "coupon_discount" | "min_order_amount" => "numeric",
+            "is_show" => "integer",
+            _ => "text",
+        }
+    }
+
     /// 单个字段更新（Java `updateField`：白名单列 + 字符串值）。
     pub async fn update_coupon_field(
         &self,
@@ -271,7 +291,8 @@ impl CouponManageRepository {
         column: &'static str,
         value: &str,
     ) -> Result<bool> {
-        let sql = format!("UPDATE coupon SET {column} = $1 WHERE coupon_id = $2");
+        let cast = coupon_field_cast(column);
+        let sql = format!("UPDATE coupon SET {column} = CAST($1 AS text)::{cast} WHERE coupon_id = $2");
         let affected = sqlx::query(&sql)
             .bind(value)
             .bind(id)

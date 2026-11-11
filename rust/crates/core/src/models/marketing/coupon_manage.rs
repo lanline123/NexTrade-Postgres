@@ -310,12 +310,16 @@ where
 ///
 /// 后台开关组件可能把 `val` 传成 boolean/number（如公开显示开关），
 /// 这里统一接受并转成列值字符串，避免直接 422。
+///
+/// `value` 是 `val` 的别名：后台 `Coupons.tsx` 的 `updateField()` 发的是 `{ id, field, value }`，
+/// 而本 DTO 原本只认 `val`，导致前端调用必然 422（`missing field \`val\``）。
+/// 两个键名都接受，避免为了一个字段名再发一版前端。
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateFieldDTO {
     pub id: i32,
     pub field: String,
-    #[serde(deserialize_with = "deserialize_field_val")]
+    #[serde(alias = "value", deserialize_with = "deserialize_field_val")]
     pub val: String,
 }
 

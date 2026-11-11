@@ -30,6 +30,7 @@ use axum::{
     routing::{get, post},
     Extension, Json, Router,
 };
+use nextrade_core::models::marketing::coupon::{CouponClientVO, CouponListQuery};
 use nextrade_core::models::marketing::coupon_manage::{
     BatchDTO, CouponConfigRankVO, CouponDTO, CouponIssueBatchPageQuery, CouponIssueBatchVO,
     CouponIssueLogPageQuery, CouponIssueLogVO, CouponManualIssueParam, CouponManualIssuePreviewVO,
@@ -91,6 +92,31 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/promotion/coupon/issue/preview", post(issue_preview))
         .route("/promotion/coupon/issue/log", get(issue_log))
         .route("/promotion/coupon/issue/batch", get(issue_batch))
+        // 非 Java 对照端点：给后台装修预览提供与 C 端前台**同源**的可领取券列表。
+        // 刻意不进 ROUTE_TABLE —— 那张表是 Java 契约对照表，加进来会谎报覆盖率。
+        .route("/promotion/coupon/claimableList", get(claimable_list))
+}
+
+/// `GET /adminapi/promotion/coupon/claimableList`：前台首页「优惠券」模块的同源预览数据。
+///
+/// **为什么要有这个端点**：后台装修预览原先自己调 `/promotion/coupon/list`，
+/// 再由前端复刻一遍 C 端的可见性过滤规则 —— 同一套规则两份实现，后端一改就会漂移，
+/// 表现为「后台看到的券」≠「前台显示的券」。
+/// 这里直接复用与公开端 `GET /api/home/home/getCoupon` **完全相同**的实现
+/// （`CouponService::claimable_list` + 同样强制 `is_show/valid_date/receive_flag = 1`），
+/// 从此两端只有一个数据来源。
+///
+/// 备注：返回的是**游客口径**（`claimable_list`，`isReceive` 恒为 0），
+/// 与未登录访客在首页看到的一致；`claimable_list_for_user` 是登录会员口径，预览不使用。
+async fn claimable_list(
+    State(state): State<AdminState>,
+    Query(mut q): Query<CouponListQuery>,
+) -> ApiResult<Vec<CouponClientVO>> {
+    q.is_show = Some(1);
+    q.valid_date = Some(1);
+    q.receive_flag = Some(1);
+    let page = state.marketing.coupon.claimable_list(&q).await?;
+    ok(page.list)
 }
 
 /// 本模块已实现路由（用于 `/openapi/coverage` 覆盖率统计，完整契约路径）。
@@ -344,6 +370,14 @@ mod tests {
         let dto: UpdateFieldDTO =
             serde_json::from_str(r#"{"id":1,"field":"is_show","val":"0"}"#).unwrap();
         assert_eq!(dto.field, "is_show");
+        assert_eq!(dto.val, "0");
+
+        // 后台 Coupons.tsx 的 updateField() 发的是 `value` 而不是 `val`；两个键名都必须接受，
+        // 否则前端调用必然 422 `missing field \`val\``（2026-11-11 实测的生产缺陷）。
+        let dto: UpdateFieldDTO =
+            serde_json::from_str(r#"{"id":1,"field":"is_show","value":1}"#).unwrap();
+        assert_eq!(dto.field, "is_show");
+        assert_eq!(dto.val, "1", "value 别名 + 数字值应被转成列值字符串");
 
         let q: CouponIssueLogPageQuery =
             serde_json::from_str(r#"{"couponId":1,"batchId":2,"page":1,"size":10}"#).unwrap();
