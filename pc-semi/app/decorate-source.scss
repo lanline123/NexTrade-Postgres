@@ -9130,3 +9130,38 @@ position: relative;
 
 /* 公告图标同样被 imageBox 的全局 .item-img{opacity:0} 泄漏隐藏 */
 .notice-ad-warp .item-img { opacity: 1; }
+
+/* ================= 公告组件现代系统默认风格 ================= */
+.module-notice .item-notice-con {
+    border: 1px solid rgba(20, 86, 240, .10);
+    box-shadow: 0 2px 10px rgba(16, 24, 40, .05);
+    background-image: linear-gradient(90deg, rgba(20, 86, 240, .07) 0%, rgba(20, 86, 240, 0) 62%);
+    padding: 0 14px;
+    transition: box-shadow .2s ease, border-color .2s ease;
+}
+.module-notice .item-notice-con:hover {
+    box-shadow: 0 6px 18px rgba(16, 24, 40, .09);
+    border-color: rgba(20, 86, 240, .20);
+}
+.module-notice .item-notice-ico {
+    margin-left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, .10);
+    overflow: hidden;
+}
+.module-notice .item-notice-ico .item-img {
+    opacity: 1;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+.module-notice .item-notice-list { margin-left: 10px; }
+.module-notice .item-notice-input {
+    font-weight: 500;
+    line-height: 1.4;
+    letter-spacing: .005em;
+}

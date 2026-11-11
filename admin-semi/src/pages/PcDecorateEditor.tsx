@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Button,
+  Popconfirm,
   ColorPicker,
   Input,
   InputNumber,
@@ -870,7 +871,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     defaults: () => ({
       text: '公告内容',
       icoPic: { picUrl: NOTICE_ICON, picThumb: NOTICE_ICON },
-      frame: { textColor: '#555555', fontSize: 14, iconSize: 16, itemBackgroundColor: '#fff8e6', backgroundColor: '#ffffff', innerPadding: 0, itemHeight: 35, itemRadius: 4, boxRadius: 0, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5 },
+      frame: { textColor: '#344054', fontSize: 14, iconSize: 20, itemBackgroundColor: '#f3f7ff', backgroundColor: '#ffffff', innerPadding: 0, itemHeight: 46, itemRadius: 12, boxRadius: 12, boxPadding: 0, boxPaddingTop: 0, boxPaddingBottom: 0 },
     }),
     settings: [
       { kind: 'textarea', key: 'text', label: '公告内容', placeholder: '请输入公告内容', rows: 3 },
@@ -5066,6 +5067,7 @@ function ModuleSettingsPanel({
     'pc-title-ad': '容器设置',
   };
   const extendTitle = EXTEND_TITLES[def.type];
+  const resetModuleToDefaults = () => onChange(JSON.parse(JSON.stringify(def.defaults())));
   const CONTENT_TITLES: Record<string, string> = {
     'pc-banner2': '添加轮播图片',
     'pc-group-banner': '添加分组Banner轮播大图',
@@ -5080,9 +5082,22 @@ function ModuleSettingsPanel({
 
   return (
     <div className="pc-module-settings">
-      <div className="dec-edit-title">
-        <h3>{t(def.label)}</h3>
-        {def.desc && <div className="dec-edit-desc">{t(def.desc)}</div>}
+      <div className="dec-edit-title" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <h3>{t(def.label)}</h3>
+          {def.desc && <div className="dec-edit-desc">{t(def.desc)}</div>}
+        </div>
+        {def.type === 'pc-notice' && (
+          <Popconfirm
+            title={t('恢复系统默认风格？')}
+            content={t('公告文字、图标与样式将重置为默认值')}
+            okText={t('重置')}
+            cancelText={t('取消')}
+            onConfirm={resetModuleToDefaults}
+          >
+            <Button size="small" theme="borderless" icon={<IconRefresh />}>{t('全局重置')}</Button>
+          </Popconfirm>
+        )}
       </div>
       {tabbed && (
         <div className="settings-tabs-nav">
