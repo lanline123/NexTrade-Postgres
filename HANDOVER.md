@@ -558,6 +558,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 素材弹窗补全分组管理（审计第五十一章）：分组右键支持添加子分组/重命名/上移/下移/删除，删除时可选「仅删分组」或「分组及组内素材」（`gallery/del`、`galleryVideo/del`）；线上 `index-DbtAyZBl.js`，回滚 index 存 `scratch/admin-index.online.20261110_210247.html` |
 | 2026-11-10 | 素材弹窗分组自由拖拽（审计第五十二章）：分组行上/下边缘排序、中间变为子分组、拖到根移回顶级；修正 `gallery/sort` 的 `type` 误传数字（应为 `image`/`video`，同时修复素材中心页上移/下移）；线上 `index-BwJfAmNd.js`，回滚 index 存 `scratch/admin-index.online.20261110_211354.html` |
 | 2026-11-10 | 登录页与组织选择页统一布局 + 主题色跟随（审计第五十三章）：两步共用「安全登录」页脚，桌面卡片固定 580px 等高；登录页改用 `--primary`/`color-mix` 配色，`applyAndStore` 把主题色缓存到 `localStorage`，登录页挂载时读取（默认蓝，首次访问需登录过一次）；线上 `index-CMyogy2H.js`，回滚 index 存 `scratch/admin-index.online.20261110_212752.html` |
+| 2026-11-11 | PC 营销通栏左侧分类弹层对齐（审计第六十一章）：弹层改为一律紧贴左侧类目面板右边缘（去掉 8px 间距与 16px 内边距），高度严格等于面板实测高度（336px），内层去掉固定 `min-height:436`/`max-height:630`，改 `height:100%`；实测左栏 `290/336`、弹层 `x=290 h=336` 完全贴合 |
 | 2026-11-11 | 登录页视觉微调（审计第六十章）：Logo 改为内联 SVG（圆角方块 `fill=var(--primary)`，跟随主题色，已用绿色主题实测）；输入框聚焦由硬编码青色 4px 光晕改为主题色 65% 边框 + 3px 10% 柔光环；左侧装饰圆 80px/16% 光晕降到 32px/7%。线上入口 `index-BrkiQysR.js` / `index-Bv_iV66h.css` |
 | 2026-11-11 | WorkBuddy 能力全量并入 AI MCP 并移除 WorkBuddy（审计第五十九章）：新增 `product_import_validate`、`product_copy`、`product_analysis`（7 种分析）、`product_context`、`product_category_create`、`media_manage`（分组建改删、素材移动/重命名/删除），工具 28→34；删除 `/adminapi/openapi/mcp/v1/*` 路由、WorkBuddy 服务/仓储/模型、`workbuddySettings` 配置端点与 AI 设置页卡片；批量操作改直连 SQL，不再依赖 WorkBuddy 仓储 |
 | 2026-11-11 | AI MCP 新增图片素材上传（审计第五十八章）：`media_upload` 支持公网 URL 或 base64，落素材中心（复用 `gallery_pic.upload_img`），jpg/png/gif/webp/tiff、≤20MB，含内网/回环 SSRF 防护与重定向逐跳校验；工具总数 27→28，商品或装修任一开启即列出 |
@@ -588,3 +589,51 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-11 | 恢复 PC 首页（审计 58.5）：展示页 10023 被发现 isHome=1，原首页 10009 被置 0；已 `setHome` 回 10009，`pcIndex` 复测 10009/19 模块。10023 保留为预览页；首页有短时 Next 缓存，强刷或 `?cb=` 生效 |
 | 2026-11-11 | 演示页设为首页并修热图空白（审计 58.6）：10023 重新发布并设为首页，20 模块全量展示；素材换真实设备图；热图空白是 imageBox 全局 `.item-img{opacity:0}` 泄漏，线上复制 CSS 为 `*-hf11.css` 加覆盖并替换引用，重启后 hotarea `opacity=1` 正常。仓库提交 `dbff7c2` |
 | 2026-11-11 | 装修编辑器画布模块加 18px 间距（审计 58.7）：编辑器模块无外边距导致营销通栏白面板与上下模块贴死、圆角被吞；`.pc-decorate-module` 补 `margin-bottom:18px`，线上以新 CSS `index-CMBEL7ET-m18.css` 替换入口引用，admin 健康 200；仓库提交 `c928a2f` |
+| 2026-11-11 | 公告设置改造（审计 58.8）：新增单图控件（缩略图+素材中心直选+删除/恢复默认），公告内容改标签下方多行输入，新增 12–24px“文字大小”并让前台/预览生效；admin 隔离构建后逐文件直写部署（入口 index-CyMYiM3v.js），PC 线上对 Notice chunk 打 fs14 补丁；提交 d70aaaa/3f7122d |
+
+---
+
+## 9. 前端修复方案（2026-11-11）
+
+### 9.1 PC 营销通栏左侧分类弹层：等高 + 贴边
+
+**现象**：`battery.recy.cc` 首页营销通栏，悬停最左侧类目时弹出的子类目面板比左侧类目栏高，且与类目栏之间有明显缝隙。
+
+**根因**（Playwright 实测）
+- 左栏 `section.dec-pc-home-hero__left`：`x=38 / right=290 / height=336`；
+- 弹层外框 `left = right + 8`，再叠加 `padding: 16px`，视觉间距 24px；
+- 内层 `.dec-pc-home-hero__subView` 有固定 `min-height: 436px` / `max-height: 630px`，
+  实际高度 436 > 左栏 336，底部溢出通栏。
+
+**方案**
+1. `pc-semi/src/decorate/components/modules.tsx` → `subCataFixedStyle()`：
+   - 水平间距 `8 → 0`，直接贴 `rect.right`；右侧空间不足时改为 `rect.left - 744`（弹层宽 744）；
+   - 高度直接取 `rect.height`，不再按视口截断；
+   - 内联 `minHeight: 0 / maxHeight: none / padding: 0 / overflow: visible`。
+2. `pc-semi/app/decorate-source.scss`：
+   - `.dec-pc-home-hero__subCata` 增加 `padding: 0; min-height: 0; min-width: 0; max-width: none`；
+   - `.dec-pc-home-hero__subView` 删除固定 `min-height: 436px` / `max-height: 630px`，改 `height: 100%`；
+     溢出滚动交给内部 `.dec-pc-home-hero__nav_cata_bd`（`overflow-y: auto`）。
+
+**产物与部署**
+- 源码同步到上游构建树 `D:\tigshop\NexTrade\rust\web\pc-semi`，`node scripts/copy-semi-css.mjs` + `npx next build`。
+- 精简包只带 `.next`（排除 cache/standalone/trace）、`public`、`next.config.mjs`、`package.json`、`DEPLOY_INFO.txt`，
+  不含 `node_modules`（服务器上常驻）；tar 包约 3.8 MB。
+- **打包坑**：把 `.next` 解包到 `pc-out/.next` 再打包会生成 `.next/.next/...` 嵌套，线上解压后旧构建不变；
+  正确做法是解包到 `pc-out` 根目录，包内路径必须是 `.next/BUILD_ID` 这一层。
+- 部署脚本：备份 `APP/.next public next.config.mjs package.json DEPLOY_INFO.txt` → 停服 → 删除旧 `.next` →
+  解压 → 启动 → 3005 健康检查，失败自动回滚。
+- 部署时如遇 `/www/backup/pc_pre_*` 连续出现，说明有并行会话也在发 PC 包；最终以线上实测为准。
+
+**验收（线上量取）**
+- 左栏：`x=38, right=290, height=336`；
+- 弹层：`x=290, y=210, width=742, height=336`；
+- 内层白面板：`x=290, height=336`；
+- 截图确认左上角与左栏右边缘齐平、上下边与通栏完全一致，内容超出时弹层内部滚动。
+
+### 9.2 登录页视觉
+
+- Logo：`Login.tsx` 改内联 SVG，圆角方块 `fill="var(--primary)"`，跟随主题色（绿色主题实测 `rgb(82,196,26)`）。
+- 输入框聚焦：去掉「1px 浅色边 + 3px 光晕」的双层效果，改为单层
+  `border-color: transparent; box-shadow: inset 0 0 0 2px var(--primary)`。
+- 左侧装饰圆：三处 `.login-hero-rings span:nth-child(3)` 的 `box-shadow` 全部删除，只保留细边框。
