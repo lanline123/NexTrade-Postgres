@@ -291,7 +291,8 @@ impl CouponManageRepository {
         column: &'static str,
         value: &str,
     ) -> Result<bool> {
-        let cast = coupon_field_cast(column);
+        // 关联函数需带 `Self::` 前缀，否则在方法体内解析不到（CI 实测 E0425）。
+        let cast = Self::coupon_field_cast(column);
         let sql = format!("UPDATE coupon SET {column} = CAST($1 AS text)::{cast} WHERE coupon_id = $2");
         let affected = sqlx::query(&sql)
             .bind(value)
