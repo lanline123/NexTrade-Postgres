@@ -24,6 +24,12 @@ jobs:
         working-directory: admin-semi
         run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
 
+      # admin-semi 的 prebuild（gen-coupon-css.mjs）复用 pc-semi 的 sass 编译两端共用的优惠券 SCSS，
+      # admin-semi 自身不装 sass。这里补一个不落锁的 sass（--no-save 不污染 package.json/lock）。
+      - name: Provide sass for coupon CSS prebuild
+        working-directory: pc-semi
+        run: npm install sass --no-save --no-audit --no-fund
+
       - name: Build admin-semi
         working-directory: admin-semi
         env:
