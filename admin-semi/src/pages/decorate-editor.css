@@ -2963,3 +2963,125 @@
   background: #e0edff;
   color: #3773da;
 }
+
+/* ===== 热区绘制器（现代化重写，替代原「手填数字」表格） ===== */
+.hotarea-painter { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+
+/* 多图切换 */
+.hotarea-painter__tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.hotarea-painter__tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--semi-color-border);
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-1); font-size: 12px; line-height: 18px;
+  transition: all .18s ease;
+}
+.hotarea-painter__tab:hover { border-color: var(--semi-color-primary); color: var(--semi-color-primary); }
+.hotarea-painter__tab.is-active {
+  border-color: var(--semi-color-primary);
+  background: var(--semi-color-primary-light-default);
+  color: var(--semi-color-primary); font-weight: 600;
+}
+.hotarea-painter__tab em {
+  font-style: normal; min-width: 16px; padding: 0 4px; border-radius: 999px;
+  background: var(--semi-color-primary); color: #fff; font-size: 11px;
+  text-align: center; line-height: 16px;
+}
+.hotarea-painter__tab:not(.is-active) em { background: var(--semi-color-fill-2); color: var(--semi-color-text-2); }
+
+/* 画板 */
+.hotarea-painter__board {
+  position: relative; width: 100%; border-radius: 10px; overflow: hidden;
+  background: repeating-conic-gradient(#f2f3f5 0% 25%, #fafbfc 0% 50%) 50% / 16px 16px;
+  box-shadow: inset 0 0 0 1px var(--semi-color-border);
+  cursor: crosshair; user-select: none; touch-action: none;
+}
+.hotarea-painter__board.is-drawing { cursor: crosshair; }
+.hotarea-painter__img { display: block; width: 100%; height: auto; pointer-events: none; -webkit-user-drag: none; }
+.hotarea-painter__placeholder {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 160px; color: var(--semi-color-text-2); font-size: 12px;
+}
+.hotarea-painter__hint {
+  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
+  padding: 4px 12px; border-radius: 999px; font-size: 12px; white-space: nowrap;
+  background: rgba(0, 0, 0, .55); color: #fff; pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+
+/* 热区框 */
+.hotarea-painter__box {
+  position: absolute; box-sizing: border-box; cursor: move;
+  border: 1px solid rgba(255, 255, 255, .9);
+  background: rgba(21, 91, 212, .34);
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .16s ease, box-shadow .16s ease;
+}
+.hotarea-painter__box:hover { background: rgba(21, 91, 212, .48); }
+.hotarea-painter__box.is-selected {
+  background: rgba(21, 91, 212, .5);
+  box-shadow: 0 0 0 2px var(--semi-color-primary), 0 4px 14px rgba(21, 91, 212, .3);
+  z-index: 2;
+}
+.hotarea-painter__box.is-draft {
+  border: 1px dashed var(--semi-color-primary);
+  background: rgba(21, 91, 212, .2);
+  pointer-events: none;
+}
+.hotarea-painter__label {
+  padding: 0 6px; max-width: 100%; font-size: 12px; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .35); pointer-events: none;
+}
+
+/* 四角缩放控制点 */
+.hotarea-painter__handle {
+  position: absolute; width: 10px; height: 10px; border-radius: 3px;
+  background: #fff; border: 1px solid var(--semi-color-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+}
+.hotarea-painter__handle--nw { left: -5px; top: -5px; cursor: nwse-resize; }
+.hotarea-painter__handle--ne { right: -5px; top: -5px; cursor: nesw-resize; }
+.hotarea-painter__handle--sw { left: -5px; bottom: -5px; cursor: nesw-resize; }
+.hotarea-painter__handle--se { right: -5px; bottom: -5px; cursor: nwse-resize; }
+
+/* 右键菜单 */
+.hotarea-painter__menu {
+  position: absolute; z-index: 30; min-width: 120px; padding: 4px;
+  border-radius: 8px; background: var(--semi-color-bg-3);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .16);
+  border: 1px solid var(--semi-color-border);
+  display: flex; flex-direction: column;
+}
+.hotarea-painter__menu button {
+  border: none; background: transparent; text-align: left; cursor: pointer;
+  padding: 7px 10px; border-radius: 6px; font-size: 13px;
+  color: var(--semi-color-text-0);
+}
+.hotarea-painter__menu button:hover { background: var(--semi-color-fill-0); }
+.hotarea-painter__menu button.is-danger { color: var(--semi-color-danger); }
+.hotarea-painter__menu button.is-danger:hover { background: var(--semi-color-danger-light-default); }
+
+/* 工具条 */
+.hotarea-painter__toolbar { display: flex; align-items: center; gap: 8px; }
+.hotarea-painter__count { margin-right: auto; font-size: 12px; color: var(--semi-color-text-2); }
+
+/* 选中热区属性面板 */
+.hotarea-painter__inspector {
+  border-radius: 10px; padding: 10px 12px;
+  background: var(--semi-color-fill-0);
+  border: 1px solid var(--semi-color-border);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.hotarea-painter__inspector-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 13px; font-weight: 600; color: var(--semi-color-text-0);
+}
+.hotarea-painter__fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hotarea-painter__fields label { display: flex; align-items: center; gap: 6px; }
+.hotarea-painter__fields label > span { width: 16px; font-size: 12px; color: var(--semi-color-text-2); flex: none; }
+.hotarea-painter__fields label > .semi-input-number { flex: 1; width: 100%; }
+.hotarea-painter__link { display: flex; flex-direction: column; gap: 4px; }
+.hotarea-painter__link > span { font-size: 12px; color: var(--semi-color-text-2); }

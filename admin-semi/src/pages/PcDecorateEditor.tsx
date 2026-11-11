@@ -80,7 +80,7 @@ import ImageUploader from '../components/ImageUploader';
 import ProductImagePickerModal from '../components/ProductImagePicker';
 import type { PickedImage } from '../components/ProductImagePicker';
 import GalleryPickerModal from '../components/GalleryPickerModal';
-import { LinkField } from '../components/LinkPicker';
+import LinkPickerModal, { LinkField } from '../components/LinkPicker';
 import type { Icon as IconParkIcon } from '@icon-park/react/es/runtime';
 import Carousel from '@icon-park/react/es/icons/Carousel';
 import MultiPictureCarousel from '@icon-park/react/es/icons/MultiPictureCarousel';
@@ -567,8 +567,8 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       title: standardTitle(),
     }),
     settings: [
-      { kind: 'picList', key: 'picList', label: '热图', hint: '添加图片后在每张图下绘制热区（宽/高/上/左 为像素，基准 500px 宽）' },
-      { kind: 'hotarea', key: 'hotarea', label: '热区' },
+      { kind: 'picList', key: 'picList', label: '热图', hint: '添加图片后，在下方「热区绘制」中直接在图上拖拽框选热区' },
+      { kind: 'hotarea', key: 'hotarea', label: '热区绘制' },
       { kind: 'title', key: 'title', label: '标题设置', titleHideMoreType: true, titleHideVerticalPadding: true },
       ...containerFields({ showInnerPadding: true }),
     ],
@@ -5839,6 +5839,361 @@ function SettingsFieldRows({
   );
 }
 
+/** 热区基准：热区坐标一律按 500px 宽的虚拟画布存储，渲染时按实际宽度等比缩放。 */
+const HOTAREA_BASE = 500;
+/** 新建热区的默认尺寸（基准坐标）。 */
+const HOTAREA_DEFAULT_SIZE = 100;
+/** 新建/拖拽时允许的最小尺寸（基准坐标）。 */
+const HOTAREA_MIN_SIZE = 20;
+
+type HotareaRect = { width?: number; height?: number; top?: number; left?: number; link?: Record<string, any> };
+
+const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), Math.max(min, max));
+
+/**
+ * 可视化热区绘制器（现代化重写，替代原先只能手填数字的表格）。
+ *
+ * - 在图片上直接**拖拽框选**新建热区；
+ * - 拖动热区内部移动位置，拖动四角控制点缩放；
+ * - 点击热区选中，下方出现浮动的属性条（链接 / 尺寸 / 删除），也可右键打开操作菜单；
+ * - 内部坐标按 500px 基准换算，与 C 端 `width/height/top/left` 契约保持一致。
+ */
+function HotareaPainter({
+  picList,
+  onChange,
+}: {
+  picList: Array<PicItem & { hotarea?: HotareaRect[] }>;
+  onChange: (next: Array<PicItem & { hotarea?: HotareaRect[] }>) => void;
+}) {
+  const { t } = useI18n();
+  const [activePic, setActivePic] = useState(0);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [drag, setDrag] = useState<{ kind: 'create' | 'move' | 'resize'; corner?: string; startX: number; startY: number; origin: HotareaRect } | null>(null);
+  const [menu, setMenu] = useState<{ index: number; x: number; y: number } | null>(null);
+  const [linkTarget, setLinkTarget] = useState<{ index: number; link: Record<string, any> } | null>(null);
+  const boardRef = useRef<HTMLDivElement | null>(null);
+
+  const pic = picList[activePic];
+  const hotareas: HotareaRect[] = (pic?.hotarea || []) as HotareaRect[];
+  const picUrl = pic ? String(pic.picUrl || pic.picThumb || '') : '';
+
+  const updatePic = (patch: Partial<{ hotarea: HotareaRect[] }>) => {
+    onChange(picList.map((item, i) => (i === activePic ? { ...item, ...patch } : item)));
+  };
+  /**
+   * 热区写入统一走「按最新 picList 计算」的函数式更新：
+   * pointermove 高频触发时若直接闭包 `hotareas`，会读写到过期数组，导致拖拽位移被覆盖（表现为"拖不动"）。
+   */
+  const mutatePic = (fn: (list: Array<PicItem & { hotarea?: HotareaRect[] }>, index: number) => Array<PicItem & { hotarea?: HotareaRect[] }>) => {
+    onChange(fn(picList, activePic));
+  };
+  const updateHotarea = (index: number, patch: Partial<HotareaRect>) => {
+    mutatePic((list, pi) =>
+      list.map((item, i) => {
+        if (i !== pi) return item;
+        const hs = (item.hotarea || []) as HotareaRect[];
+        return { ...item, hotarea: hs.map((h, j) => (j === index ? { ...h, ...patch } : h)) };
+      }),
+    );
+  };
+  const removeHotarea = (index: number) => {
+    updatePic({ hotarea: hotareas.filter((_, i) => i !== index) });
+    setSelected(null);
+    setMenu(null);
+  };
+
+  // 拖拽会话：统一在 window 上监听，鼠标移出画板也不断开
+  // 所有坐标换算都实时读 boardRef 的 rect（不用 state），避免与 pointer 事件基准不一致
+  useEffect(() => {
+    if (!drag) return;
+    const toBase = (clientX: number, clientY: number) => {
+      const rect = boardRef.current?.getBoundingClientRect();
+      if (!rect || !rect.width || !rect.height) return { x: 0, y: 0 };
+      return {
+        x: ((clientX - rect.left) / rect.width) * HOTAREA_BASE,
+        y: ((clientY - rect.top) / rect.height) * HOTAREA_BASE,
+      };
+    };
+    const onMove = (ev: PointerEvent) => {
+      const cur = toBase(ev.clientX, ev.clientY);
+      const o = drag.origin;
+      if (drag.kind === 'create') {
+        const x1 = clamp(Math.round(drag.startX), 0, HOTAREA_BASE);
+        const y1 = clamp(Math.round(drag.startY), 0, HOTAREA_BASE);
+        const x2 = clamp(Math.round(cur.x), 0, HOTAREA_BASE);
+        const y2 = clamp(Math.round(cur.y), 0, HOTAREA_BASE);
+        const next: HotareaRect = {
+          left: Math.min(x1, x2),
+          top: Math.min(y1, y2),
+          width: Math.max(HOTAREA_MIN_SIZE, Math.abs(x2 - x1)),
+          height: Math.max(HOTAREA_MIN_SIZE, Math.abs(y2 - y1)),
+        };
+        setDrag((d) => (d ? { ...d, origin: { ...d.origin, ...next } } : d));
+        return;
+      }
+      const dx = cur.x - drag.startX;
+      const dy = cur.y - drag.startY;
+      if (drag.kind === 'move') {
+        updateHotarea(selected ?? 0, {
+          left: clamp(Math.round((o.left || 0) + dx), 0, HOTAREA_BASE - (o.width || 0)),
+          top: clamp(Math.round((o.top || 0) + dy), 0, HOTAREA_BASE - (o.height || 0)),
+        });
+        return;
+      }
+      // resize：以起始矩形为基准，按拖动的角调整对应边
+      let left = o.left || 0;
+      let top = o.top || 0;
+      let width = o.width || 0;
+      let height = o.height || 0;
+      const corner = drag.corner || 'se';
+      if (corner.includes('w')) {
+        const nl = clamp(Math.round(left + dx), 0, left + width - HOTAREA_MIN_SIZE);
+        width = width + (left - nl);
+        left = nl;
+      }
+      if (corner.includes('n')) {
+        const nt = clamp(Math.round(top + dy), 0, top + height - HOTAREA_MIN_SIZE);
+        height = height + (top - nt);
+        top = nt;
+      }
+      if (corner.includes('e')) width = clamp(Math.round(width + dx), HOTAREA_MIN_SIZE, HOTAREA_BASE - left);
+      if (corner.includes('s')) height = clamp(Math.round(height + dy), HOTAREA_MIN_SIZE, HOTAREA_BASE - top);
+      updateHotarea(selected ?? 0, { left, top, width, height });
+    };
+    const onUp = () => {
+      if (drag.kind === 'create') {
+        const o = drag.origin;
+        const w = o.width || 0;
+        const h = o.height || 0;
+        // 单击未拖动：落一个默认大小的热区，避免"点了没反应"
+        const nextRect: HotareaRect =
+          w < HOTAREA_MIN_SIZE + 2 || h < HOTAREA_MIN_SIZE + 2
+            ? {
+                left: clamp(Math.round(drag.startX), 0, HOTAREA_BASE - HOTAREA_DEFAULT_SIZE),
+                top: clamp(Math.round(drag.startY), 0, HOTAREA_BASE - HOTAREA_DEFAULT_SIZE),
+                width: HOTAREA_DEFAULT_SIZE,
+                height: HOTAREA_DEFAULT_SIZE,
+              }
+            : { ...o };
+        let addedIndex = 0;
+        mutatePic((list, pi) => {
+          addedIndex = ((list[pi]?.hotarea || []) as HotareaRect[]).length;
+          return list.map((item, i) =>
+            i === pi
+              ? { ...item, hotarea: [...(((item.hotarea || []) as HotareaRect[])), { ...nextRect, link: { link: '', name: '' } }] }
+              : item,
+          );
+        });
+        setSelected(addedIndex);
+      }
+      setDrag(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drag, selected, hotareas, activePic]);
+
+  if (!picList.length) {
+    return <Text type="tertiary" size="small">{t('请先在上方添加热图')}</Text>;
+  }
+
+  const pct = (v?: number) => `${((Number(v) || 0) / HOTAREA_BASE) * 100}%`;
+  const sel = selected !== null ? hotareas[selected] : null;
+
+  return (
+    <div className="hotarea-painter">
+      {picList.length > 1 && (
+        <div className="hotarea-painter__tabs">
+          {picList.map((item, i) => (
+            <button
+              key={i}
+              type="button"
+              className={`hotarea-painter__tab${i === activePic ? ' is-active' : ''}`}
+              onClick={() => { setActivePic(i); setSelected(null); setMenu(null); }}
+            >
+              {t('图 {index}', { index: i + 1 })}
+              <em>{(item.hotarea || []).length}</em>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div
+        className={`hotarea-painter__board${drag?.kind === 'create' ? ' is-drawing' : ''}`}
+        ref={boardRef}
+        onPointerDown={(e) => {
+          if (e.button !== 0) return;
+          if ((e.target as HTMLElement).closest('.hotarea-painter__box')) return;
+          setMenu(null);
+          setSelected(null);
+          const rect = boardRef.current?.getBoundingClientRect();
+          if (!rect || !rect.width) return;
+          const startX = ((e.clientX - rect.left) / rect.width) * HOTAREA_BASE;
+          const startY = ((e.clientY - rect.top) / rect.height) * HOTAREA_BASE;
+          setDrag({ kind: 'create', startX, startY, origin: {} });
+        }}
+        onPointerLeave={() => setMenu(null)}
+      >
+        {picUrl ? (
+          <img src={picUrl} alt="" className="hotarea-painter__img" draggable={false} />
+        ) : (
+          <div className="hotarea-painter__placeholder">{t('该图暂无图片，请先在「热图」中上传')}</div>
+        )}
+
+        {hotareas.map((h, i) => {
+          const rect = h;
+          const isSel = selected === i;
+          return (
+            <div
+              key={i}
+              className={`hotarea-painter__box${isSel ? ' is-selected' : ''}`}
+              style={{ left: pct(rect.left), top: pct(rect.top), width: pct(rect.width), height: pct(rect.height) }}
+              onPointerDown={(e) => {
+                if ((e.target as HTMLElement).dataset.corner) return;
+                e.stopPropagation();
+                if (e.button !== 0) return;
+                setSelected(i);
+                setMenu(null);
+                const host = boardRef.current?.getBoundingClientRect();
+                if (!host || !host.width || !host.height) return;
+                setDrag({
+                  kind: 'move',
+                  startX: ((e.clientX - host.left) / host.width) * HOTAREA_BASE,
+                  startY: ((e.clientY - host.top) / host.height) * HOTAREA_BASE,
+                  origin: { ...rect },
+                });
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setSelected(i);
+                const host = boardRef.current?.getBoundingClientRect();
+                setMenu({ index: i, x: e.clientX - (host?.left || 0), y: e.clientY - (host?.top || 0) });
+              }}
+            >
+              <span className="hotarea-painter__label">{rect.link?.name || rect.link?.label || t('热区 {index}', { index: i + 1 })}</span>
+              {isSel &&
+                ['nw', 'ne', 'sw', 'se'].map((corner) => (
+                  <i
+                    key={corner}
+                    data-corner={corner}
+                    className={`hotarea-painter__handle hotarea-painter__handle--${corner}`}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      const host = boardRef.current?.getBoundingClientRect();
+                      if (!host) return;
+                      setDrag({
+                        kind: 'resize',
+                        corner,
+                        startX: ((e.clientX - host.left) / host.width) * HOTAREA_BASE,
+                        startY: ((e.clientY - host.top) / host.height) * HOTAREA_BASE,
+                        origin: { ...rect },
+                      });
+                    }}
+                  />
+                ))}
+            </div>
+          );
+        })}
+
+        {drag?.kind === 'create' && (
+          <div
+            className="hotarea-painter__box is-draft"
+            style={{ left: pct(drag.origin.left), top: pct(drag.origin.top), width: pct(drag.origin.width), height: pct(drag.origin.height) }}
+          />
+        )}
+
+        {!hotareas.length && !drag && (
+          <div className="hotarea-painter__hint">{t('在图片上按住并拖动即可绘制热区')}</div>
+        )}
+
+        {menu && (
+          <div className="hotarea-painter__menu" style={{ left: menu.x, top: menu.y }} onPointerDown={(e) => e.stopPropagation()}>
+            <button type="button" onClick={() => { setLinkTarget({ index: menu.index, link: hotareas[menu.index]?.link || {} }); setMenu(null); }}>
+              {t('编辑链接')}
+            </button>
+            <button type="button" className="is-danger" onClick={() => removeHotarea(menu.index)}>
+              {t('删除热区')}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="hotarea-painter__toolbar">
+        <span className="hotarea-painter__count">{t('共 {n} 个热区', { n: hotareas.length })}</span>
+        <Button
+          size="small"
+          type="primary"
+          theme="light"
+          icon={<IconRefresh />}
+          onClick={() => {
+            updatePic({
+              hotarea: [
+                ...hotareas,
+                { left: 20, top: 20 + hotareas.length * 20, width: HOTAREA_DEFAULT_SIZE, height: HOTAREA_DEFAULT_SIZE, link: { link: '', name: '' } },
+              ],
+            });
+            setSelected(hotareas.length);
+          }}
+        >
+          {t('添加热区')}
+        </Button>
+        {hotareas.length > 0 && (
+          <Button size="small" theme="borderless" type="danger" onClick={() => { updatePic({ hotarea: [] }); setSelected(null); }}>
+            {t('清空热区')}
+          </Button>
+        )}
+      </div>
+
+      {sel && selected !== null && (
+        <div className="hotarea-painter__inspector">
+          <div className="hotarea-painter__inspector-head">
+            <span>{t('热区 {index}', { index: selected + 1 })}</span>
+            <Button size="small" theme="borderless" type="danger" icon={<IconDelete />} onClick={() => removeHotarea(selected)} />
+          </div>
+          <div className="hotarea-painter__fields">
+            <label>
+              <span>{t('宽')}</span>
+              <InputNumber min={HOTAREA_MIN_SIZE} max={HOTAREA_BASE} value={sel.width} onChange={(v) => updateHotarea(selected, { width: Number(v) || HOTAREA_MIN_SIZE })} />
+            </label>
+            <label>
+              <span>{t('高')}</span>
+              <InputNumber min={HOTAREA_MIN_SIZE} max={HOTAREA_BASE} value={sel.height} onChange={(v) => updateHotarea(selected, { height: Number(v) || HOTAREA_MIN_SIZE })} />
+            </label>
+            <label>
+              <span>{t('左')}</span>
+              <InputNumber min={0} max={HOTAREA_BASE} value={sel.left} onChange={(v) => updateHotarea(selected, { left: Number(v) || 0 })} />
+            </label>
+            <label>
+              <span>{t('上')}</span>
+              <InputNumber min={0} max={HOTAREA_BASE} value={sel.top} onChange={(v) => updateHotarea(selected, { top: Number(v) || 0 })} />
+            </label>
+          </div>
+          <div className="hotarea-painter__link">
+            <span>{t('跳转链接')}</span>
+            <LinkField value={sel.link} onChange={(link) => updateHotarea(selected, { link })} />
+          </div>
+        </div>
+      )}
+
+      <LinkPickerModal
+        visible={!!linkTarget}
+        value={linkTarget?.link}
+        onCancel={() => setLinkTarget(null)}
+        onOk={(link) => {
+          if (linkTarget) updateHotarea(linkTarget.index, { link });
+          setLinkTarget(null);
+        }}
+      />
+    </div>
+  );
+}
+
 function FieldControl({
   field,
   moduleData,
@@ -6394,44 +6749,11 @@ function FieldControl({
     }
     case 'hotarea': {
       const pics = (getPath(moduleData, 'picList') || []) as Array<PicItem & { hotarea?: Array<Record<string, any>> }>;
-      const updatePics = (nextPics: Array<PicItem & { hotarea?: Array<Record<string, any>> }>) => {
-        onChange(setPath(moduleData, 'picList', nextPics));
-      };
       return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {pics.length === 0 && <Text type="tertiary" size="small">{t('请先在上方添加热图')}</Text>}
-          {pics.map((pic, pi) => {
-            const hotareas = pic.hotarea || [];
-            const updateHotareas = (next: Array<Record<string, any>>) => {
-              updatePics(pics.map((p, i) => (i === pi ? { ...p, hotarea: next } : p)));
-            };
-            return (
-              <div key={pi} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 8 }}>
-                <Text strong size="small">{t('图 {index} 的热区', { index: pi + 1 })}</Text>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
-                  {hotareas.map((h, index) => (
-                    <div key={index} style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <InputNumber value={h.width} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, width: v ?? 0 } : x)))} placeholder={t('宽')} style={{ width: 70 }} />
-                      <InputNumber value={h.height} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, height: v ?? 0 } : x)))} placeholder={t('高')} style={{ width: 70 }} />
-                      <InputNumber value={h.top} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, top: v ?? 0 } : x)))} placeholder={t('上')} style={{ width: 70 }} />
-                      <InputNumber value={h.left} onChange={(v) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, left: v ?? 0 } : x)))} placeholder={t('左')} style={{ width: 70 }} />
-                      <div style={{ flex: 1, minWidth: 220 }}>
-                        <LinkField
-                          value={h.link}
-                          onChange={(link) => updateHotareas(hotareas.map((x, i) => (i === index ? { ...x, link } : x)))}
-                        />
-                      </div>
-                      <Button size="small" theme="borderless" type="danger" icon={<IconClose />} onClick={() => updateHotareas(hotareas.filter((_, i) => i !== index))} />
-                    </div>
-                  ))}
-                  <Button size="small" icon={<IconPlus />} onClick={() => updateHotareas([...hotareas, { width: 100, height: 60, top: 0, left: 0, link: { link: '', name: '' } }])}>
-                    {t('添加热区')}
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <HotareaPainter
+          picList={pics}
+          onChange={(nextPics) => onChange(setPath(moduleData, 'picList', nextPics))}
+        />
       );
     }
     case 'groupList': {
