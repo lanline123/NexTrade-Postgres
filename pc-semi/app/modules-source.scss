@@ -4532,3 +4532,34 @@ img {
     }
   }
 }
+
+/* ================= 热门分类（pc-category-nav）翻页箭头对齐 =================
+ * 需求：箭头贴模块左右两侧，且垂直居中于分类图片，而不是整个列表区。
+ * 列表区高 235px = 图片 180px + 名称/留白 55px；原 top:50% 让箭头中心落在
+ * 117.5px，比图片中心 90px 低 27.5px。这里改用图片尺寸的一半定位。
+ * 仅作用于本模块，不影响 Banner2 / GroupBanner / ImageNav / CategoryNav3。
+ */
+.dec-category-nav-wrapper .seckill_list_wrap {
+  --dec-cat-image-size: 180px; /* 与 .seckill-item-image 的 min(180px, 100%) 保持一致 */
+}
+
+.dec-category-nav-wrapper .seckill_list_wrap .dec-swiper-nav {
+  top: calc(var(--dec-cat-image-size) / 2);
+  margin-top: -24px;
+  z-index: 6;
+  background-color: rgba(0, 0, 0, 0.32);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.dec-category-nav-wrapper .seckill_list_wrap .dec-swiper-nav:hover {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.dec-category-nav-wrapper .seckill_list_wrap .dec-swiper-nav--prev {
+  left: 0;
+}
+
+.dec-category-nav-wrapper .seckill_list_wrap .dec-swiper-nav--next {
+  right: 0;
+}
