@@ -3387,7 +3387,21 @@ function GroupBanner({ module }: ModuleProps) {
   // CSS flex gap 却取到共享规则的默认 12px，一行短 (p-1)*18px 且每页错位 18/p px。
   const gap = 30;
   const pages = Math.max(1, pics.length - perView + 1);
-  const { index, setIndex } = useCarousel(pages, 5000);
+  // 横向轮播里视口外的图用 lazy 不会触发（第 2/3 张及翻页后的原图永不加载）；
+  // 改 eager 强制加载，再用门控「目标帧未就绪不翻页」，8 秒兜底防坏图卡死轮播（与 Banner2 同策略）。
+  const [readyMap, setReadyMap] = useState<Record<number, boolean>>({});
+  const [gateExpired, setGateExpired] = useState(false);
+  useEffect(() => {
+    setGateExpired(false);
+    const timer = window.setTimeout(() => setGateExpired(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [pics.length]);
+  const markReady = (i: number) => setReadyMap((prev) => (prev[i] ? prev : { ...prev, [i]: true }));
+  const slideReady = (next: number) => {
+    for (let k = 0; k < perView; k += 1) if (!readyMap[next + k]) return false;
+    return true;
+  };
+  const { index, setIndex } = useCarousel(pages, 5000, (next) => gateExpired || slideReady(next));
   const groupBannerSwipe = useSwipeDrag(index, pages, setIndex);
   if (!pics.length) return null;
   // 「图片边角」独立控件：2=圆角(8px)、1=直角(0px)；老数据无此字段时跟随「容器圆角」
@@ -3411,7 +3425,7 @@ function GroupBanner({ module }: ModuleProps) {
           {pics.map((pic, i) => (
             <div className="dec-group-banner__item" key={i} style={{ width: `calc((100% - ${(perView - 1) * gap}px) / ${perView})` }}>
               <a className="dec-group-banner__link" href={navHref(pic.picLink) || '#'} target="_blank" rel="noreferrer" title={pic.picTitle || ''}>
-                <img className="dec-group-banner__image" src={pic.picUrl || ''} alt={pic.picTitle || ''} loading="lazy" />
+                <img className="dec-group-banner__image" src={pic.picUrl || ''} alt={pic.picTitle || ''} loading="eager" onLoad={() => markReady(i)} onError={() => markReady(i)} />
               </a>
             </div>
           ))}
