@@ -55,9 +55,15 @@
 .dec-pc-category-nav3__list-wrap {
   position: relative;
   z-index: 1;
+  display: flex;
   flex: 1;
+  /* flex 子项默认 min-height:auto，会撑到内容固有高度（约 277px）后溢出
+     固定高度的外框并被 overflow:hidden 裁掉；必须允许收缩到剩余空间。
+     与 PC 前台 .dec-category-nav3__list-wrap 保持一致。 */
+  min-height: 0;
   height: 100%;
   width: 100%;
+  overflow: hidden;
 }
 
 .dec-pc-category-nav3__empty {
