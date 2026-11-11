@@ -922,12 +922,35 @@ python scratch/run_shell.py scratch/dep-pcnav3.sh depnav3
    脚本内：① `cp` 备份到 `/www/backup/pc_css_<ts>.css`；② `cat >> "$CSS" <<'HOTFIX'` 追加单行规则
    （无双引号、无 `$`，避开 WAF 剥离引号）；③ `grep -c 'dec-cat-image-size'` 自检，失败自动用备份还原；
    ④ 带幂等保护，重复执行会直接 ABORT。
-4. **缓存坑（重要）**：`/_next/` 由 nginx `proxy_pass` 到 3005（§3），该 CSS 响应头是
-   `Cache-Control: public, max-age=31536000, immutable`。**同名 patch 不改 URL，已访问过的浏览器一年内不会重新请求**，
-   只有新访客 / 无缓存 / Ctrl+F5 能立刻看到。彻底解决二选一：
-   ① nginx 对该文件加 `proxy_hide_header Cache-Control; add_header Cache-Control "no-cache" always;` 后 reload
-   （不重启 Next）；② 下次完整构建时 CSS 换新 hash 文件名，自然破缓存。本次按用户要求只做热更新，未改 nginx。
-5. **回滚**：`cp /www/backup/pc_css_<ts>.css <目标 CSS>`，秒级、无需重启。
+4. **两层缓存，必须一起处理**（2026-11-11 实测）：
+   - **nginx 层**：`/www/server/nginx/conf/proxy.conf:12` 全局 `proxy_cache cache_one`，
+     而 `/_next/` 的 location（`extension/battery.recy.cc/custom.conf:128`）**没有** `proxy_cache off`，
+     同名 URL 会一直返回旧副本（响应头 `Last-Modified`/`ETag` 都是旧值，带 `?v=xxx` 才回源拿新内容）。
+     清理方法：`grep -rl '<css 文件名>' /www/server/nginx/proxy_cache_dir/` → `mv` 到
+     `/www/backup/nginx_cache_<ts>/`（用移动不用删除，可回滚）。**顺序必须是先改源站、再清缓存**，
+     否则清完立刻又被旧内容重新填充。
+   - **浏览器层**：该 CSS 响应头 `Cache-Control: public, max-age=31536000, immutable`。
+     同名 patch 不改 URL，**已访问过的浏览器一年内不会重新请求**，只有新访客 / 无缓存 / Ctrl+F5 能立刻看到。
+     彻底解决二选一：① nginx 对该文件加 `proxy_hide_header Cache-Control; add_header Cache-Control "no-cache" always;`
+     后 reload（不重启 Next）；② 下次完整构建时 CSS 换新 hash 文件名，自然破缓存。
+     本次按用户要求只做热更新，**未改 nginx 配置**。
+5. **回滚**：`cp /www/backup/pc_css_<ts>.css <目标 CSS>` + 清一次 proxy_cache，秒级、无需重启。
+6. **验证要三处一致**：服务器 `curl http://127.0.0.1:3005/<css>`、`curl https://battery.recy.cc/<css>`、
+   本机 `curl` 都 `grep -c 'dec-cat-image-size'` ≥1；再用 Playwright **全新 context**
+   （`Network.setCacheDisabled` + `Network.clearBrowserCache`）读 `getComputedStyle`。
+   默认 context 会命中浏览器内存缓存，出现「文件已是新的、页面还是旧样式」的假失败。
+
+**实际执行记录（2026-11-11 13:25–13:35，两次才成功）**
+
+| 时间 | 事件 |
+|---|---|
+| 13:25 | `hotfix-nav-css.sh` 首次追加成功（556539→557048B，marker=1），但只改了源站、没清 nginx 缓存 |
+| 13:28 | 源站 CSS 被外部写回旧内容（556483B，marker=0）；系统 crontab 有 `*/1` 宝塔任务，最近的 `pc_pre_*.tgz` 是 10:48，**未定位到明确写入方**，疑似并行会话/面板任务。热更新后必须立即复验，备份不能省 |
+| 13:31 | 用 **`scratch/hotfix-nav-css-v2.sh`**（幂等追加 + 备份 + 清 proxy_cache + 三处自检）重做：556483→556992B、marker=1、清 3 个缓存条目；3005 直连与公网 URL 均 marker=1 |
+| 13:33 | 线上无缓存 context 实测：`arrowCenter === imageCenter === 735`（delta 0）、`top:90px`、底色 0.32、z-index 6、`prevLeft=38` / `nextRight=1385` 贴边；截图 `scratch/category-nav-online-after.png` |
+
+> 最终可复用脚本是 `scratch/hotfix-nav-css-v2.sh`；`hotfix-nav-css.sh` 是只改源站的首版，
+> **不要单独使用**（会留下 nginx 旧缓存）。备份：源站 `/www/backup/pc_css_*.css`、缓存 `/www/backup/nginx_cache_*`。
 
 ### 12.5 需要重新打包时才看：本地 `next build` 的三个坑
 
