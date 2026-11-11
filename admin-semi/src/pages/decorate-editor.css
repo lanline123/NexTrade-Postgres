@@ -547,7 +547,9 @@
 }
 .pc-decorate-rail-operate {
   position: absolute;
-  left: 2px;
+  /* 画布 .pc-decorate-window 有 12px 左右 margin，实际右边界会溢出外层容器；
+     偏移 12px 保证任意缩放比例下悬浮条都不压住模块内容，同时不超出 56px 轨道 */
+  left: 12px;
   width: 44px;
   background: #fff;
   box-shadow: 0 2px 8px 0 rgba(200, 201, 204, 0.5);
@@ -2775,3 +2777,139 @@
 .pc-module-settings .dec-edit-group-block .semi-textArea-wrapper,
 .pc-module-settings .dec-edit-group-block textarea { width: 100%; box-sizing: border-box; }
 .pc-module-settings .dec-edit-group-block textarea { min-height: 72px; resize: vertical; line-height: 1.6; border-radius: 8px; }
+
+/* 编辑图片弹窗：商品选图 */
+.dec-pic-modal__toolbar { display: flex; align-items: center; gap: 10px; }
+.dec-pic-modal__toolbar-hint { flex: 1; color: #8a94a3; font-size: 12px; }
+.prod-img-picker { display: flex; gap: 16px; height: 600px; }
+.prod-img-picker__left { display: flex; flex-direction: column; gap: 10px; width: 340px; flex-shrink: 0; }
+.prod-img-picker__search { display: flex; gap: 8px; }
+.prod-img-picker__rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
+}
+.prod-img-picker__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  flex-shrink: 0;
+  padding: 8px;
+  border: 1px solid #eef0f3;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.prod-img-picker__row:hover { border-color: #dfe5ec; background: #fafbfd; }
+.prod-img-picker__row.is-active { border-color: var(--primary); background: var(--primary-soft); }
+.prod-img-picker__row img,
+.prod-img-picker__no-pic {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #f3f5f8;
+}
+.prod-img-picker__row .name {
+  min-width: 0;
+  color: #1f2937;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.prod-img-picker__pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #8a94a3;
+  font-size: 12px;
+}
+.prod-img-picker__right {
+  flex: 1;
+  min-width: 0;
+  border-left: 1px solid #f0f2f5;
+  padding-left: 16px;
+  overflow-y: auto;
+}
+.prod-img-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+.prod-img-picker__thumb {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  border: 1px solid #eef0f3;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f7f9fb;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.prod-img-picker__thumb:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+.prod-img-picker__thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.prod-img-picker__thumb .badge {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.6);
+  color: #fff;
+  font-size: 11px;
+}
+.prod-img-picker__empty {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  height: 100%;
+  color: #98a2b3;
+  font-size: 13px;
+}
+
+/* 多选批量：勾选框 / 全选本页 / 底部批量按钮 */
+.prod-img-picker__check { display: flex; flex-shrink: 0; }
+.prod-img-picker__row.is-checked { border-color: var(--primary); }
+.prod-img-picker__pager > div { display: flex; gap: 6px; }
+.prod-img-picker__tip {
+  flex-shrink: 0;
+  margin-bottom: 10px;
+  color: #8a94a3;
+  font-size: 12px;
+  line-height: 18px;
+}
+.prod-img-picker__right > .prod-img-picker__empty { height: calc(100% - 28px); }
+.prod-img-picker__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.prod-img-picker__footer > span { color: #667085; font-size: 13px; }
+.prod-img-picker__footer > div { display: flex; gap: 8px; }
+
+
+/* 中间画布：隐藏纵向滚动条外观，仍可用滚轮/触控板滚动 */
+.pc-decorate-canvas-viewport {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.pc-decorate-canvas-viewport::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}

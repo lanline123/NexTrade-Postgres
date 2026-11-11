@@ -77,6 +77,8 @@ import PcGrouponPreview from './decoratePc/previews/PcGrouponPreview';
 import PcHomeHeroPreview from './decoratePc/previews/PcHomeHeroPreview';
 import PcNoticePreview from './decoratePc/previews/PcNoticePreview';
 import ImageUploader from '../components/ImageUploader';
+import ProductImagePickerModal from '../components/ProductImagePicker';
+import type { PickedImage } from '../components/ProductImagePicker';
 import GalleryPickerModal from '../components/GalleryPickerModal';
 import { LinkField } from '../components/LinkPicker';
 import type { Icon as IconParkIcon } from '@icon-park/react/es/runtime';
@@ -1468,7 +1470,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
             <Button size="small" onClick={() => { setPanelTab('pcHeader'); setActiveIndex(-1); }}>{t('PC头部装修')}</Button>
             <Text type="tertiary" size="small">{t('画布按窗口宽度等比缩放，与前台首页渲染一致')}</Text>
           </div>
-          <div ref={canvasViewportRef} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+          <div ref={canvasViewportRef} className="pc-decorate-canvas-viewport" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: '24px 0 60px', position: 'relative' }}>
               {/* 1600px 整页窗口（等比缩放到容器宽度，背景取页面设置）。
                   外层宽 = 1600 * scale：flex 用缩放后的实际宽度居中，
@@ -5512,6 +5514,7 @@ function PicListEditor({
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
   const [editIndex, setEditIndex] = useState<number | null>(null);
+  const [productPickerOpen, setProductPickerOpen] = useState(false);
   const updateItem = (index: number, patch: Record<string, any>) => {
     onChange(list.map((it, i) => (i === index ? { ...it, ...patch } : it)));
   };
@@ -5543,6 +5546,22 @@ function PicListEditor({
   const currentUrl = current ? String(current.picUrl || current.picThumb || '') : '';
   const renderEditor = (index: number) => (
     <div className="dec-pic-modal">
+      <div className="dec-pic-modal__toolbar">
+        <Button size="small" icon={<IconPlus />} onClick={() => setProductPickerOpen(true)}>
+          {t('从商品选择图片')}
+        </Button>
+        <span className="dec-pic-modal__toolbar-hint">{t('可用商品头图或商品相册图片')}</span>
+        {currentUrl ? (
+          <Button
+            size="small"
+            theme="borderless"
+            type="danger"
+            onClick={() => updateItem(index, { picUrl: '', picThumb: '' })}
+          >
+            {t('清除图片')}
+          </Button>
+        ) : null}
+      </div>
       <div className="dec-pic-modal__preview">
         <ImageUploader
           single
@@ -5664,6 +5683,51 @@ function PicListEditor({
       >
         {editIndex !== null ? renderEditor(editIndex) : null}
       </Modal>
+      <ProductImagePickerModal
+        visible={productPickerOpen}
+        onCancel={() => setProductPickerOpen(false)}
+        onPick={(url) => {
+          if (editIndex !== null) updateItem(editIndex, { picUrl: url, picThumb: url });
+          setProductPickerOpen(false);
+        }}
+        onPickMany={(items) => {
+          if (editIndex === null || !items.length) return;
+          const currentItem = list[editIndex];
+          const hasPic = !!String(currentItem?.picUrl || currentItem?.picThumb || '');
+          const capacity = max ? Math.max(0, max - list.length) : Number.POSITIVE_INFINITY;
+          // 当前卡片为空时第一张直接填它，不占用新增名额
+          const allowance = hasPic ? capacity : capacity + 1;
+          const usable = items.slice(0, allowance);
+          if (items.length > usable.length) Toast.warning(t('最多只能添加 {max} 张图片', { max: max ?? 0 }));
+          if (!usable.length) {
+            setProductPickerOpen(false);
+            return;
+          }
+          // 商品名做标题，链接指向 PC 前台商品详情页 /product/{id}
+          const makeItem = (p: PickedImage): PicItem => ({
+            picUrl: p.url,
+            picThumb: p.url,
+            picName: p.productName,
+            picTitle: p.productName,
+            picDesc: '',
+            picLink: {
+              link: `/product/${p.productId}`,
+              name: p.productName,
+              label: t('商品详情页'),
+            },
+          } as PicItem);
+          const next = [...list];
+          if (!hasPic) {
+            next[editIndex] = { ...currentItem, ...makeItem(usable[0]) };
+            next.splice(editIndex + 1, 0, ...usable.slice(1).map(makeItem));
+          } else {
+            next.splice(editIndex + 1, 0, ...usable.map(makeItem));
+          }
+          onChange(next);
+          Toast.success(t('已带入 {count} 张商品图片（含标题和链接）', { count: usable.length }));
+          setProductPickerOpen(false);
+        }}
+      />
     </div>
   );
 }
