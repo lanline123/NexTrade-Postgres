@@ -5502,6 +5502,7 @@ function PicListEditor({
   const list = Array.isArray(value) ? value : [];
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
+  const [editIndex, setEditIndex] = useState<number | null>(null);
   const updateItem = (index: number, patch: Record<string, any>) => {
     onChange(list.map((it, i) => (i === index ? { ...it, ...patch } : it)));
   };
@@ -5516,97 +5517,143 @@ function PicListEditor({
     setDragIndex(null);
     setOverIndex(null);
   };
-  return (
-    <div className="dec-pic-list">
-      {list.map((item, index) => (
-        <div
-          className={`dec-pic-list__item${dragIndex === index ? ' is-dragging' : ''}${
-            overIndex === index && dragIndex !== null && dragIndex !== index ? ' is-drop-target' : ''
-          }`}
-          key={String(item.picId || index)}
-          onDragOver={(event) => {
-            if (dragIndex === null) return;
-            event.preventDefault();
-            if (overIndex !== index) setOverIndex(index);
-          }}
-          onDrop={(event) => {
-            event.preventDefault();
-            if (dragIndex !== null) reorder(dragIndex, index);
-            endDrag();
-          }}
-        >
-          <span
-            className="dec-pic-list__handle"
-            draggable
-            title={t('拖拽排序')}
-            onDragStart={(event) => {
-              setDragIndex(index);
-              event.dataTransfer.effectAllowed = 'move';
-              event.dataTransfer.setData('text/plain', String(index));
-            }}
-            onDragEnd={endDrag}
-          >
-            <IconHandle />
-          </span>
-          <div className="dec-pic-list__image">
-            <ImageUploader
-              single
-              value={item.picUrl || item.picThumb ? [String(item.picUrl || item.picThumb)] : []}
-              onChange={(urls) => updateItem(index, { picUrl: urls[0] || '', picThumb: urls[0] || '' })}
-            />
-            <span className="dec-pic-list__index">{index + 1}</span>
-          </div>
-          <div className="dec-pic-list__info">
-            {showText && (
-              <div className="dec-pic-list__row">
-                <span className="dec-pic-list__label">{t('标题')}</span>
-                <Input
-                  size="small"
-                  value={item.picTitle || ''}
-                  placeholder={t('建议10个字以内，可不填')}
-                  onChange={(v) => updateItem(index, { picTitle: v })}
-                />
-              </div>
-            )}
-            {showDesc && (
-              <div className="dec-pic-list__row">
-                <span className="dec-pic-list__label">{t('描述')}</span>
-                <Input
-                  size="small"
-                  value={item.picDesc || ''}
-                  placeholder={t('可不填')}
-                  onChange={(v) => updateItem(index, { picDesc: v })}
-                />
-              </div>
-            )}
-            {showLink && (
-              <div className="dec-pic-list__row">
-                <span className="dec-pic-list__label">{t('链接')}</span>
-                <LinkField
-                  value={item.picLink}
-                  onChange={(link) => updateItem(index, { picLink: link })}
-                />
-              </div>
-            )}
-          </div>
-          <Button
-            className="dec-pic-list__remove"
-            size="small"
-            theme="borderless"
-            type="danger"
-            icon={<IconClose />}
-            aria-label={t('删除')}
-            onClick={() => onChange(list.filter((_, i) => i !== index))}
+  const removeAt = (index: number) => {
+    onChange(list.filter((_, i) => i !== index));
+    if (editIndex === index) setEditIndex(null);
+    else if (editIndex !== null && editIndex > index) setEditIndex(editIndex - 1);
+  };
+  const addItem = () => {
+    const next = [
+      ...list,
+      { picUrl: '', picThumb: '', picName: '', picTitle: '', picLink: { link: '', name: '' } } as PicItem,
+    ];
+    onChange(next);
+    setEditIndex(next.length - 1);
+  };
+  const current = editIndex !== null ? list[editIndex] : undefined;
+  const currentUrl = current ? String(current.picUrl || current.picThumb || '') : '';
+  const renderEditor = (index: number) => (
+    <div className="dec-pic-modal">
+      <div className="dec-pic-modal__preview">
+        <ImageUploader
+          single
+          value={currentUrl ? [currentUrl] : []}
+          onChange={(urls) => updateItem(index, { picUrl: urls[0] || '', picThumb: urls[0] || '' })}
+        />
+      </div>
+      {showText && (
+        <label className="dec-pic-modal__field">
+          <span>{t('标题')}</span>
+          <Input
+            value={current?.picTitle || ''}
+            placeholder={t('建议10个字以内，可不填')}
+            onChange={(v) => updateItem(index, { picTitle: v })}
+          />
+        </label>
+      )}
+      {showDesc && (
+        <label className="dec-pic-modal__field">
+          <span>{t('描述')}</span>
+          <Input
+            value={current?.picDesc || ''}
+            placeholder={t('可不填')}
+            onChange={(v) => updateItem(index, { picDesc: v })}
+          />
+        </label>
+      )}
+      {showLink && (
+        <div className="dec-pic-modal__field">
+          <span>{t('链接')}</span>
+          <LinkField
+            value={current?.picLink}
+            onChange={(link) => updateItem(index, { picLink: link })}
           />
         </div>
-      ))}
-      {(!max || list.length < max) && (
-        <div className="dec-pic-list__add">
-          <Button size="small" icon={<IconPlus />} onClick={() => onChange([...list, { picUrl: '', picThumb: '', picName: '', picTitle: '', picLink: { link: '', name: '' } } as PicItem])}>
-            {t(addText || t('添加图片'))}
-          </Button>
-        </div>
       )}
+    </div>
+  );
+  return (
+    <div className="dec-pic-grid">
+      {list.map((item, index) => {
+        const url = String(item.picUrl || item.picThumb || '');
+        return (
+          <div
+            className={`dec-pic-grid__card${dragIndex === index ? ' is-dragging' : ''}${
+              overIndex === index && dragIndex !== null && dragIndex !== index ? ' is-drop-target' : ''
+            }`}
+            key={String(item.picId || index)}
+            role="button"
+            tabIndex={0}
+            onClick={() => setEditIndex(index)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') setEditIndex(index);
+            }}
+            onDragOver={(event) => {
+              if (dragIndex === null) return;
+              event.preventDefault();
+              if (overIndex !== index) setOverIndex(index);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              if (dragIndex !== null) reorder(dragIndex, index);
+              endDrag();
+            }}
+          >
+            <div className="dec-pic-grid__thumb">
+              {url ? <img src={url} alt="" /> : <div className="dec-pic-grid__empty"><IconPlus /></div>}
+              <span className="dec-pic-grid__index">{index + 1}</span>
+              <span
+                className="dec-pic-grid__handle"
+                draggable
+                title={t('拖拽排序')}
+                onClick={(event) => event.stopPropagation()}
+                onDragStart={(event) => {
+                  event.stopPropagation();
+                  setDragIndex(index);
+                  event.dataTransfer.effectAllowed = 'move';
+                  event.dataTransfer.setData('text/plain', String(index));
+                }}
+                onDragEnd={endDrag}
+              >
+                <IconHandle />
+              </span>
+            </div>
+            <div className="dec-pic-grid__meta">
+              <div className="dec-pic-grid__title">{item.picTitle || t('未命名')}</div>
+              {showDesc && item.picDesc ? <div className="dec-pic-grid__desc">{item.picDesc}</div> : null}
+            </div>
+          </div>
+        );
+      })}
+      {(!max || list.length < max) && (
+        <button type="button" className="dec-pic-grid__add" onClick={addItem}>
+          <span className="dec-pic-grid__add-icon"><IconPlus /></span>
+          <span>{t(addText || '添加图片')}</span>
+        </button>
+      )}
+      <Modal
+        title={t('编辑图片')}
+        visible={editIndex !== null}
+        onCancel={() => setEditIndex(null)}
+        width={560}
+        footer={
+          <div className="dec-pic-modal__footer">
+            <Button
+              type="danger"
+              theme="borderless"
+              icon={<IconClose />}
+              onClick={() => editIndex !== null && removeAt(editIndex)}
+            >
+              {t('删除')}
+            </Button>
+            <Button theme="solid" type="primary" onClick={() => setEditIndex(null)}>
+              {t('完成')}
+            </Button>
+          </div>
+        }
+      >
+        {editIndex !== null ? renderEditor(editIndex) : null}
+      </Modal>
     </div>
   );
 }

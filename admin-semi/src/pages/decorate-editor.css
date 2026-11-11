@@ -1905,129 +1905,154 @@
 
 
 /* 图片列表：对齐原版 components/decorate/src/PicList.vue */
-.dec-pic-list { display: flex; flex-direction: column; gap: 12px; width: 100%; }
-.dec-pic-list__item {
-  position: relative;
-  display: flex;
+.dec-pic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 12px;
-  padding: 12px 40px 12px 10px;
-  border: 1px solid #eef0f3;
-  border-radius: 12px;
-  background: #fff;
-  align-items: flex-start;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  width: 100%;
 }
-.dec-pic-list__item:hover {
-  border-color: #dfe4ea;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+.dec-pic-grid__card {
+  position: relative;
+  border: 1px solid #edf0f4;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #f7f9fb;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
-.dec-pic-list__item.is-dragging { opacity: 0.5; }
-.dec-pic-list__item.is-drop-target {
+.dec-pic-grid__card:hover {
+  transform: translateY(-2px);
+  border-color: #dfe5ec;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+}
+.dec-pic-grid__card.is-dragging { opacity: 0.5; }
+.dec-pic-grid__card.is-drop-target {
   border-color: var(--primary);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 14%, transparent);
 }
-.dec-pic-list__handle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  align-self: stretch;
-  flex-shrink: 0;
-  color: #b9c0ca;
-  cursor: grab;
-  border-radius: 6px;
-  transition: color 0.15s ease, background 0.15s ease;
+.dec-pic-grid__thumb {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #eef2f6;
 }
-.dec-pic-list__handle:hover { color: var(--primary); background: var(--primary-soft); }
-.dec-pic-list__handle:active { cursor: grabbing; }
-.dec-pic-list__image { position: relative; width: 64px; flex-shrink: 0; }
-.dec-pic-list__image .semi-upload { width: 64px; }
-.dec-pic-list__image .semi-upload-file-card { width: 64px; height: 64px; }
-.dec-pic-list__index {
+.dec-pic-grid__thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.25s ease;
+}
+.dec-pic-grid__card:hover .dec-pic-grid__thumb img { transform: scale(1.03); }
+.dec-pic-grid__empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: #b6bec9;
+  font-size: 22px;
+}
+.dec-pic-grid__index {
   position: absolute;
-  left: 4px;
-  top: 4px;
-  z-index: 1;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
+  left: 8px;
+  top: 8px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.62);
+  background: rgba(15, 23, 42, 0.55);
   color: #fff;
   font-size: 11px;
-  font-weight: 600;
-  line-height: 18px;
+  line-height: 20px;
   text-align: center;
+  backdrop-filter: blur(4px);
 }
-.dec-pic-list__info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-.dec-pic-list__row { display: flex; align-items: center; gap: 8px; }
-.dec-pic-list__label { width: 32px; flex-shrink: 0; color: #8a9099; font-size: 13px; line-height: 32px; }
-.dec-pic-list__row .semi-input-wrapper { flex: 1; }
-.dec-pic-list__remove { position: absolute; top: 8px; right: 8px; }
-.dec-pic-list__add { padding-top: 2px; }
-.dec-pic-list__add .semi-button {
-  width: 100%;
-  height: 44px;
-  border: 1px dashed #d7dce4;
-  border-radius: 10px;
-  background: #fafbfc;
-  color: #5b6472;
+.dec-pic-grid__handle {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.45);
+  color: #fff;
+  opacity: 0;
+  cursor: grab;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  backdrop-filter: blur(4px);
 }
-.dec-pic-list__add .semi-button:hover {
-  border-color: var(--primary);
-  color: var(--primary);
-  background: var(--primary-soft);
-}
-
-
-
-/* 营销通栏卡位商品选择 */
-.hero-product-pick {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 52px;
-  padding: 4px 8px;
-  border: 1px dashed #dcdfe6;
-  border-radius: 4px;
-  background: #fafafa;
-  cursor: pointer;
-  box-sizing: border-box;
-}
-.hero-product-pick__img {
-  width: 44px;
-  height: 44px;
-  object-fit: contain;
-  background: #fff;
-}
-.hero-product-pick__empty {
-  color: #909399;
-  font-size: 12px;
-}
-.hero-product-pick__name {
-  flex: 1;
-  overflow: hidden;
-  color: #333;
-  font-size: 12px;
+.dec-pic-grid__card:hover .dec-pic-grid__handle { opacity: 1; }
+.dec-pic-grid__handle:hover { background: var(--primary); }
+.dec-pic-grid__handle:active { cursor: grabbing; }
+.dec-pic-grid__meta { padding: 10px 12px 12px; }
+.dec-pic-grid__title {
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 600;
   white-space: nowrap;
+  overflow: hidden;
   text-overflow: ellipsis;
 }
-
-/* 图片列表缩略图：对齐旧版 PicList 60x60 图片框，不展示上传组件说明 */
-.dec-pic-list__image .image-uploader-tip { display: none; }
-.dec-pic-list__image .image-uploader-list { display: block; }
-.dec-pic-list__image .image-uploader-item,
-.dec-pic-list__image .image-uploader-add {
-  width: 64px;
-  height: 64px;
-  min-width: 64px;
-  padding: 0;
-  border-radius: 8px;
+.dec-pic-grid__desc {
+  margin-top: 3px;
+  color: #8a94a3;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.dec-pic-list__image .image-uploader-item img { width: 64px; height: 64px; object-fit: cover; }
-.dec-pic-list__image .image-uploader-add span { display: none; }
-.dec-pic-list__image .image-uploader-actions { display: none; }
-
+.dec-pic-grid__add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 120px;
+  border: 1.5px dashed #d7dee8;
+  border-radius: 14px;
+  background: #fbfcfe;
+  color: #7c8796;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+}
+.dec-pic-grid__add:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.dec-pic-grid__add-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  font-size: 16px;
+}
+.dec-pic-modal { display: flex; flex-direction: column; gap: 16px; }
+.dec-pic-modal__preview {
+  display: flex;
+  justify-content: center;
+  padding: 14px;
+  border-radius: 12px;
+  background: #f7f9fb;
+}
+.dec-pic-modal__preview .image-uploader-tip { display: none; }
+.dec-pic-modal__preview .image-uploader-list { display: flex; justify-content: center; }
+.dec-pic-modal__preview .image-uploader-item,
+.dec-pic-modal__preview .image-uploader-add {
+  width: 120px;
+  height: 120px;
+  min-width: 120px;
+  border-radius: 12px;
+}
+.dec-pic-modal__preview .image-uploader-item img { width: 120px; height: 120px; object-fit: cover; }
+.dec-pic-modal__field { display: flex; flex-direction: column; gap: 6px; }
+.dec-pic-modal__field > span { color: #6b7280; font-size: 12px; }
+.dec-pic-modal__footer { display: flex; align-items: center; justify-content: space-between; width: 100%; }
 
 /* 营销通栏卡位设置：复刻 pc-home-hero/Settings.vue 自定义结构 */
 .dec-hero-card-editor {
@@ -2369,6 +2394,7 @@
   padding: 12px 14px;
   border-bottom: 1px solid #f2f4f6;
   align-items: center;
+  flex-wrap: wrap;
   transition: background 0.15s ease;
 }
 .pc-module-settings .dec-edit-group:last-child { border-bottom: none; }
@@ -2392,6 +2418,7 @@
 .pc-module-settings .dec-edit-group-con > .semi-slider,
 .pc-module-settings .dec-edit-group-con > .pchead-slider-with-input { width: 100%; }
 .pc-module-settings .dec-edit-group-desc {
+  flex: 0 0 100%;
   margin-top: 6px;
   color: #98a2b3;
   font-size: 12px;
