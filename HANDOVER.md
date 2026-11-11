@@ -566,6 +566,7 @@ stdout/stderr，所以 CI 日志里这些用例只是计为 passed，`[skip]` �
 | 2026-11-10 | 「地区设置」控件修复（审计第五十五章）：默认国家/商城默认地区在通用配置页退化成文本框（只显示 `1` 与 `1,370000,...`），且后端 `globalSettings` 不返回 `countries`；新增 `RegionSettingFields.tsx` 用 `/setting/region/getAllRegionTree` 渲染国家下拉与省市区级联（等树加载完再挂载，避免 Semi 把值显示成原始 ID），保存仍为 `defaultCountry` 数字 + `shopDefaultRegions` 逗号串；线上入口 `index-Dxf5r18R.js`（sha256 `1e6dcb9f…5138`），生产实测显示「中国」「中国 / 山东省 / 济南市 / 历城区」 |
 | 2026-11-10 | 「查看商城」不读域名设置修复（审计第五十四章）：原实现只读构建期 `VITE_MALL_URL`，未配置即回退 `/`，与后台 `pcDomain/h5Domain` 无关；新增 `admin-semi/src/mall.ts` 按旧版 `urlFormat/urlWapFormat` 解析（`clientDefaultUse` 为 1 走 H5），App 在登录后与「全局设置」保存后刷新并下传 `AdminLayout`，装修编辑器「打开商城首页」同源；隔离构建（HEAD + 4 文件，避开并行 WIP）整包上传，线上入口 `index-F84HWsFc.js`（sha256 `4f19cbd6…77c0`），生产实测点击跳 `https://battery.recy.cc/` |
 | 2026-11-11 | MCP 第二批权限（审计第五十七章）：新增报表/订单/会员/内容 4 个域开关 + 10 个工具（报表/会员/内容纯只读，订单仅后台备注可写），工具总数 14→24；生产冒烟发现并修复 `article.title` 列名、会员密码哈希外泄、`pay_time=0` 报表全 0 三处问题（`b5f30be`）；基于 `4ca2484` 构建部署（sha `b2d0c396…`，健康 200/200，复测 24 工具与三处修复）；客户手册同步 5.3–5.6 |
+| 2026-11-11 | PC 热门分类模块不跟随后台设置修复（审计第五十八章）：C 端 `CategoryNav` 计算了 `displayNum` 却从未使用，CSS 又写死 216px 卡片宽 + 180px 图标，8 个热门分类被压到 119px、图标互相溢出，后台改「一屏显示数量」完全无效。改为按 `100%/displayNum` 计算卡片宽度、图标 `min(180px,100%)` 自适应、滚动箭头按 `分类数 > displayNum` 显示；构建 `ef25606` 上线（包 sha `bb43d02c…`，备份 `pc_pre_20261111_093517.tgz`，健康 200），实测一屏 5 个、无溢出，后台 5→6 发布后 C 端 5 秒内跟随并已恢复 5 |
 
 ---
 
