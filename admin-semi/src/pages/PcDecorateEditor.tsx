@@ -870,11 +870,12 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     defaults: () => ({
       text: '公告内容',
       icoPic: { picUrl: NOTICE_ICON, picThumb: NOTICE_ICON },
-      frame: { textColor: '#555555', fontSize: 14, itemBackgroundColor: '#fff8e6', backgroundColor: '#ffffff', innerPadding: 0, itemHeight: 35, itemRadius: 4, boxRadius: 0, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5 },
+      frame: { textColor: '#555555', fontSize: 14, iconSize: 16, itemBackgroundColor: '#fff8e6', backgroundColor: '#ffffff', innerPadding: 0, itemHeight: 35, itemRadius: 4, boxRadius: 0, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5 },
     }),
     settings: [
       { kind: 'textarea', key: 'text', label: '公告内容', placeholder: '请输入公告内容', rows: 3 },
       { kind: 'pic', key: 'icoPic', label: '公告图标', resetValue: { picUrl: NOTICE_ICON, picThumb: NOTICE_ICON } },
+      { kind: 'slider', key: 'frame.iconSize', label: '公告图片大小', min: 12, max: 48, defaultValue: 16 },
       { kind: 'color', key: 'frame.textColor', label: '文字颜色', resetValue: '#555555', extend: false },
       { kind: 'slider', key: 'frame.fontSize', label: '文字大小', min: 12, max: 24, defaultValue: 14 },
       { kind: 'color', key: 'frame.itemBackgroundColor', label: '组件背景', resetValue: '#ffffff', extend: false },

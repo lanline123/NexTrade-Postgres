@@ -9115,3 +9115,18 @@ position: relative;
 .dec-category-nav-wrapper .mod_seckill .seckill_list .pro_pic {
     object-fit: fill;
 }
+
+/* 热门分类：支持按住拖动（对齐 Swiper 的鼠标/触摸拖拽） */
+.dec-category-nav-wrapper .seckill_list.is-scroll {
+    cursor: grab;
+    touch-action: pan-y;
+}
+
+.dec-category-nav-wrapper .seckill_list.is-dragging {
+    cursor: grabbing;
+    scroll-behavior: auto !important;
+    user-select: none;
+}
+
+/* 公告图标同样被 imageBox 的全局 .item-img{opacity:0} 泄漏隐藏 */
+.notice-ad-warp .item-img { opacity: 1; }

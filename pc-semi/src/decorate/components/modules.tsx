@@ -2819,7 +2819,7 @@ function Notice({ module }: ModuleProps) {
             <div className="item-content">
               <div className="item-notice-con" style={itemStyle}>
                 {module.icoPic?.picUrl ? (
-                  <div className="item-notice-ico"><img className="item-img" src={module.icoPic.picUrl} alt="" /></div>
+                  <div className="item-notice-ico" style={{ width: `${px(frame.iconSize, 16)}px`, height: `${px(frame.iconSize, 16)}px` }}><img className="item-img" src={module.icoPic.picUrl} alt="" style={{ opacity: 1 }} /></div>
                 ) : null}
                 <div className="item-notice-list">
                   <div className="item-notice-input" style={{ color: frame.textColor ?? '#555555', fontSize: `${px(frame.fontSize, 14)}px` }}>{module.text || ''}</div>
