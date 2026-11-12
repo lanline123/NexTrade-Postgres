@@ -13,9 +13,9 @@
 |---|---|
 | 迁移方式 | **在 `pc/` 原地重写**：Vue 源码保留作 1:1 参照，React 代码写在 `src/`，两者互不参与对方构建 |
 | 技术栈 | React 18.3 + Next 14.2（App Router，真 SSR）+ Semi UI 2.104 + react-i18next |
-| 已完成 | 会员中心 **23 个路由** + 订单结算/收银台核心版 + 首页迁移看板 |
-| 验证 | `npm run build` 通过，29 条路由全部 `ƒ Dynamic`；抽查会员路由与新页 curl 均 200 |
-| 尚未完成 | 会员零散子页；`/order` 其余分支（优惠券/发票/配送/预售）、`/shop`、`/activity`、`/search`、`/cart` 未动 |
+| 已完成 | 会员中心 23 路由 + 订单结算/收银台 + 购物车/商品详情/列表/搜索/秒杀/领券/文章 |
+| 验证 | `npm run build` 通过，35 条路由全部 `ƒ Dynamic`；商品板块 8 条路径 curl 全 200 |
+| 尚未完成 | `/shop`、`/activity`、`/join`、`/install`、`/exchange`、`/category`、文章详情；结算页优惠券/发票/配送分支 |
 | 本地启动 | `cd pc && npm run dev` → http://127.0.0.1:3006 |
 
 **注意别混淆两套 React 前端**：
@@ -45,6 +45,7 @@ pc/
 │   │   ├── page.tsx            # 迁移看板（force-dynamic，展示 SSR 时间戳）
 │   │   ├── globals.css         # 全局样式（pc-* 前缀）
 │   │   ├── semi.css            # Semi 主题 CSS 本地副本（见 §4.3）
+│   │   ├── cart/ product/ list/ search/ seckill/ coupon/ article/   # 购物车与商品浏览
 │   │   ├── order/              # 订单：check 结算（核心版）+ pay 收银台（只读）
 │   │   └── member/             # 会员中心：layout + 23 个路由 + [...slug] 兜底
 │   ├── components/
@@ -212,6 +213,13 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | `/member/termPay/list` | `CreditList` | `pages/member/termPay/list.vue` | `user/user/creditDetail` |
 | `/order/check` | `CheckoutCore` | `pages/order/check.vue` | `user/address/list`、`order/check/{index,submit}` |
 | `/order/pay` | `PayCore` | `pages/order/pay.vue` | `order/pay/index`（**不调 `pay/create`**） |
+| `/cart` | `CartCore` | `pages/cart/index.vue`（2249 行） | `cart/cart/{list,updateCheck,updateItem,removeItem,clear}` |
+| `/product/[...slug]` | `ProductDetail` | `pages/product/[...slug].vue` | `product/product/detail`、`cart/cart/addToCart` |
+| `/list` | `ProductResults` | `pages/list/index.vue` | `search/search/getProduct` |
+| `/search` | `ProductResults` | `pages/search/components/search.vue` | `search/search/getProduct`（筛选栏未迁） |
+| `/seckill/list` | `SeckillList` | `pages/seckill/List.vue` | `home/home/getSeckill` |
+| `/coupon/list` | `CouponCenter` | `pages/coupon/index.vue` | `home/home/getCoupon`、`user/coupon/claim` |
+| `/article/news/list` | `ArticleList` | `pages/article/news/List.vue` | `article/article/list` |
 
 ### 6.2 基础模块
 
@@ -236,7 +244,7 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | 1 | 会员剩余零散子页 | 发票抬头（`user/invoice/*` 表单）、入驻申请（`joining`）、登录/注册/找回密码（`Login/Register/reset`）、账户卡管理（`account/CardManagement`）。`pages/member/contact/` 在 Vue 版是空目录，菜单项已移除 |
 | 2 | 登录态真实数据校准 | 当前无 token 只验到「请先登录」；拿到登录态后要核对字段名（组件里用了多候选 `a ?? b ?? '-'` 兜底） |
 | 3 | 订单结算未迁分支 | 优惠券选择、发票、配送方式切换、积分/余额抵扣、账期支付、预售定金（走 `order/check/update`、`updateCoupon`）；收银台支付渠道刻意未接 `order/pay/create` |
-| 4 | 顶层页 | `/order`（20 个 `.vue`）、`/shop`（18）、`/activity`（16）、`/search`（13）、`/cart`（7）等 |
+| 4 | 剩余顶层页 | `/shop`（18 个 `.vue`）、`/activity`（16）、`/join`（9）、`/install`（5）、`/exchange`（2）、`/category`、`/article` 详情、`/oauth` |
 | 5 | i18n 补齐 | 新增文案的英文 key；`<title>` 目前是静态中文 |
 | 6 | 样式对齐 | 尚未逐像素对照 Vue/线上，`globals.css` 只做了骨架级布局 |
 | 7 | 登录守卫 | 目前列表页判断 token 显示提示，未做路由级跳转（Vue 版用 `middleware: auth`） |
