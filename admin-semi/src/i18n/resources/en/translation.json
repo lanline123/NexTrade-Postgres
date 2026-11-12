@@ -12227,5 +12227,19 @@
   "新页面将立即替换当前首页": "The new page will replace the current homepage immediately",
   "更新于 {time}": "Updated at {time}",
   "搜索页面名称": "Search page name",
-  "没有匹配的选项": "No matching options"
+  "没有匹配的选项": "No matching options",
+  "最低拼团价": "Lowest group price",
+  "添加拼团商品": "Add group product",
+  "活动已结束，不可再添加商品": "This activity has ended; no more products can be added.",
+  "添加后可设置成团人数、阶梯价与虚拟成团": "After adding, set group size, tiered prices and virtual groups.",
+  "成团": "Group of",
+  "阶梯": "Tiered",
+  "档": "levels",
+  "省": "Save",
+  "推广海报": "Poster",
+  "没有匹配的商品": "No matching products",
+  "还没有拼团商品": "No group products yet",
+  "换个关键词试试": "Try another keyword",
+  "清空搜索": "Clear search",
+  "确认移除该拼团商品？": "Remove this group product?"
 }

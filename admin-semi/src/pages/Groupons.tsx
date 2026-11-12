@@ -23,6 +23,7 @@ import ListPage from '../framework/ListPage';
 import FormDrawer from '../framework/FormDrawer';
 import ImageUploader from '../components/ImageUploader';
 import MultilingualField from '../components/MultilingualField';
+import GrouponItemManager from '../components/GrouponItemManager';
 import SendUserSelector, { type SendUserTarget } from '../components/SendUserSelector';
 import type { ColumnConfig, FormDrawerConfig } from '../framework/types';
 
@@ -68,8 +69,7 @@ export default function Groupons() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [itemTarget, setItemTarget] = useState<GrouponRow | null>(null);
-  const [itemRows, setItemRows] = useState<any[]>([]);
-  const [itemLoading, setItemLoading] = useState(false);
+  const [itemRefreshKey, setItemRefreshKey] = useState(0);
   const [recordTarget, setRecordTarget] = useState<GrouponRow | null>(null);
   const [recordRows, setRecordRows] = useState<any[]>([]);
   const [recordLoading, setRecordLoading] = useState(false);
@@ -192,22 +192,6 @@ export default function Groupons() {
         }
       },
     });
-  };
-
-  const loadItems = async (row: GrouponRow) => {
-    setItemLoading(true);
-    try {
-      const result = await apiGet<any>('/promotion/groupon/item/list', {
-        grouponPromotionId: row.grouponPromotionId,
-        page: 1,
-        size: 50,
-      });
-      setItemRows(result?.records || result?.list || []);
-    } catch (error) {
-      Toast.error({ content: error instanceof Error ? error.message : t('加载失败') });
-    } finally {
-      setItemLoading(false);
-    }
   };
 
   const loadRecords = async (row: GrouponRow, tab = recordTab) => {
@@ -545,7 +529,6 @@ export default function Groupons() {
               size="small"
               onClick={() => {
                 setItemTarget(row);
-                loadItems(row);
               }}
             >
               {t('管理商品')}
@@ -589,94 +572,15 @@ export default function Groupons() {
         onSubmit={saveGroupon}
       />
 
-      {/* 拼团商品管理 */}
-      <Modal
-        title={itemTarget ? `${t('管理商品')}：${itemTarget.name || ''}` : t('管理商品')}
+      {/* 拼团商品管理（现代化弹窗，见 components/GrouponItemManager.tsx） */}
+      <GrouponItemManager
         visible={Boolean(itemTarget) && !itemEditOpen}
-        footer={null}
-        onCancel={() => setItemTarget(null)}
-        width={820}
-      >
-        <Spin spinning={itemLoading}>
-          <Space style={{ marginBottom: 10 }}>
-            <Button
-              theme="solid"
-              type="primary"
-              disabled={Number(itemTarget?.status) === 2}
-              onClick={() => itemTarget && openItemEdit(itemTarget)}
-            >
-              {t('添加拼团商品')}
-            </Button>
-            <Text type="tertiary" size="small">
-              {t('活动结束后不可添加拼团商品')}
-            </Text>
-          </Space>
-          <Table
-            size="small"
-            pagination={false}
-            rowKey={(record: any) => String(record.itemId ?? record.grouponPromotionItemId ?? record.productId)}
-            dataSource={itemRows}
-            columns={[
-              {
-                title: t('商品名称'),
-                dataIndex: 'productName',
-                render: (v: any, r: any) => v || r.name || '-',
-              },
-              {
-                title: t('拼团价'),
-                dataIndex: 'grouponPrice',
-                render: (v: any, r: any) =>
-                  v ?? (r.minGroupPrice ? `¥${r.minGroupPrice} ~ ¥${r.maxGroupPrice}` : '-'),
-              },
-              {
-                title: t('成团人数'),
-                dataIndex: 'minGroupNum',
-                render: (v: any, r: any) =>
-                  v ?? (r.minGroupNum ? `${r.minGroupNum} ~ ${r.maxGroupNum}` : '-'),
-              },
-              { title: t('虚拟成团数'), dataIndex: 'virtualGroupCount', render: (v: any) => v ?? '-' },
-              {
-                title: t('操作'),
-                width: 200,
-                render: (_v: any, r: any) => (
-                  <Space spacing={2}>
-                    <Button theme="borderless" size="small" onClick={() => itemTarget && openItemEdit(itemTarget, r)}>
-                      {t('编辑')}
-                    </Button>
-                    <Button theme="borderless" size="small" onClick={() => showPost(r)}>
-                      {t('海报')}
-                    </Button>
-                    <Button
-                      theme="borderless"
-                      type="danger"
-                      size="small"
-                      onClick={() => {
-                        Modal.confirm({
-                          title: t('确认移除该拼团商品？'),
-                          onOk: async () => {
-                            try {
-                              await apiPost('/promotion/groupon/item/del', {
-                                id: r.itemId ?? r.grouponPromotionItemId,
-                              });
-                              Toast.success({ content: t('删除成功') });
-                              if (itemTarget) loadItems(itemTarget);
-                            } catch (error) {
-                              Toast.error({ content: error instanceof Error ? error.message : t('删除失败') });
-                            }
-                          },
-                        });
-                      }}
-                    >
-                      {t('删除')}
-                    </Button>
-                  </Space>
-                ),
-              },
-            ]}
-          />
-          {!itemRows.length && !itemLoading ? <Text type="tertiary">{t('暂无拼团商品')}</Text> : null}
-        </Spin>
-      </Modal>
+        groupon={itemTarget}
+        refreshToken={itemRefreshKey}
+        onClose={() => setItemTarget(null)}
+        onEdit={(item) => itemTarget && openItemEdit(itemTarget, item)}
+        onPoster={(item) => showPost(item)}
+      />
 
       {/* 参与记录 */}
       <Modal
@@ -855,7 +759,7 @@ export default function Groupons() {
             setItemEditOpen(false);
             setItemEditInitial(null);
             setItemSaving(false);
-            if (itemTarget) loadItems(itemTarget);
+            setItemRefreshKey((key) => key + 1);
           }}
           onSavingChange={setItemSaving}
         />
