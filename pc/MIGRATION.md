@@ -13,7 +13,7 @@
 |---|---|
 | 迁移方式 | **在 `pc/` 原地重写**：Vue 源码保留作 1:1 参照，React 代码写在 `src/`，两者互不参与对方构建 |
 | 技术栈 | React 18.3 + Next 14.2（App Router，真 SSR）+ Semi UI 2.104 + react-i18next |
-| 已完成 | **71 个页面路由 + 25 条旧 URL 重定向**，Vue 111 条路由 **100% 有落点**（页面 / 重定向 / 根 404） |
+| 已完成 | **71 个页面路由 + 25 条旧 URL 重定向**（Vue 111 条路由 100% 有落点）+ **全局 Header/Footer** |
 | 验证 | `npm run build` 通过，全部 `ƒ Dynamic`；盘点脚本差集仅剩 `pages/[...slug].vue`（对应 `app/not-found.tsx`） |
 | 尚未完成 | 功能深度：秒杀/拼团完整模块、IM 客服、第三方登录、账户充值/银行卡/账期还款、结算页账期与预售 |
 | 本地启动 | `cd pc && npm run dev` → http://127.0.0.1:3006 |
@@ -49,6 +49,7 @@ pc/
 │   │   ├── order/              # 订单：check 结算（核心版）+ pay 收银台（只读）
 │   │   └── member/             # 会员中心：layout + 23 个路由 + [...slug] 兜底
 │   ├── components/
+│   │   ├── layout/             # SiteHeader（导航/搜索/购物车角标/登录态）+ SiteFooter
 │   │   ├── HomeClient.tsx      # 看板（'use client'）
 │   │   ├── MemberShell.tsx     # 会员中心外壳：Semi Layout + 侧栏 + 语言切换
 │   │   ├── LocaleSwitch.tsx
@@ -237,6 +238,8 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | `src/lib/member-menu.ts` | 侧栏分组 + 路径↔Vue 文件映射 + `findMemberSource` |
 | `src/lib/routes.ts` | 顶层路由迁移进度（`done` / `in_progress` / `pending`） |
 | `src/components/member/RemoteList.tsx` | 同构列表：分页 + 登录守卫 + 空/错态，9 个页面复用它 |
+| `src/components/layout/SiteHeader.tsx` | 全局头：`common/pc/getNav`（topBarNav）、`common/pc/getCatFloor`（分类下拉）、`cart/cart/getCount`（角标）、`user/user/memberCenter`（昵称）；`mainNav` 为空时用 5 项兜底导航 |
+| `src/components/layout/SiteFooter.tsx` | 全局脚：四列链接全部指向已迁路由，无死链 |
 | `src/components/decorate/DecorateModules.tsx` | 装修模块渲染器：`type → 渲染函数` 注册表，支持 pcImageAd/pcImageSquareAd/pcImageHotarea/pcImageNav/pcProduct/pcCoupon/pcNotice/pcTitleAd/pcWhiteLine/pcWhiteBlank；秒杀/拼团/商品分组降级为入口卡；未知 type 静默跳过。活动页与店铺装修共用 |
 
 ### 6.3 路由覆盖率（2026-11-12 盘点）
@@ -281,7 +284,8 @@ Vue 侧 `pages/` 共 **111 条路由**（已排除 `src/`、`components/` 子目
 | 1 | 会员剩余零散子页 | 发票抬头（`user/invoice/*` 表单）、入驻申请（`joining`）、登录/注册/找回密码（`Login/Register/reset`）、账户卡管理（`account/CardManagement`）。`pages/member/contact/` 在 Vue 版是空目录，菜单项已移除 |
 | 2 | 登录态真实数据校准 | 当前无 token 只验到「请先登录」；拿到登录态后要核对字段名（组件里用了多候选 `a ?? b ?? '-'` 兜底） |
 | 3 | 订单结算剩余 | 已补：优惠券、发票（简化版）、配送方式、积分/余额抵扣；仍缺：账期支付、预售定金、支付方式选择（提交时 `payTypeId=0`）；收银台支付渠道刻意未接 `order/pay/create` |
-| 4 | 功能深度（路由已无缺口） | 秒杀/拼团模块内部逻辑、IM 客服、第三方登录、账户充值/银行卡/账期还款、结算页账期与预售；会员详情页的真实字段以联调结果为准（配置表里已给多候选键，显示「-」不报错） |
+| 4 | 模块缺口 | 装修模块还剩约 10 个 type 无渲染分支（`PcBanner2`/`PcCategoryNav3`/`PcCategoryNavWrapper`/`PcDivider`/`PcGroupBanner`/`PcHomeHero`/`PcQuickNav`/`PcRecommendProduct`/`PcSpacer`/`pcHeaderRuntime`，未知 type 静默跳过）；`components/region`（地区级联，地址只能用纯文本）、`components/captcha`（图形验证码）、`components/invoice`（完整发票弹窗）、`components/imageSearch`（拍照搜索） |
+| 5 | 功能深度 | 秒杀/拼团内部逻辑、IM 客服、第三方登录、账户充值/银行卡/账期还款、结算页账期与预售；会员详情页字段以联调结果为准（配置表已给多候选键，显示「-」不报错） |
 | 5 | i18n 补齐 | 新增文案的英文 key；`<title>` 目前是静态中文 |
 | 6 | 样式对齐 | 尚未逐像素对照 Vue/线上，`globals.css` 只做了骨架级布局 |
 | 7 | 登录守卫 | 目前列表页判断 token 显示提示，未做路由级跳转（Vue 版用 `middleware: auth`） |

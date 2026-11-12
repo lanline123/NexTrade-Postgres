@@ -3,9 +3,8 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Layout, Tag, Typography } from '@douyinfe/semi-ui';
+import { Layout, Typography } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import LocaleSwitch from '@/components/LocaleSwitch';
 import { MEMBER_MENU } from '@/lib/member-menu';
 
 /** 会员中心外壳：对 /member/** 所有路由生效，侧栏按 Vue 版 25 个子目录组织。 */
@@ -15,19 +14,7 @@ export default function MemberShell({ children }: { children: ReactNode }) {
 
     return (
         <Layout className="pc-member">
-            <Layout.Header className="pc-topbar">
-                <div className="pc-brand">
-                    NexTrade PC
-                    <small>{t('会员中心')}</small>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <Tag size="small" color="blue">
-                        React + Semi SSR
-                    </Tag>
-                    <LocaleSwitch />
-                </div>
-            </Layout.Header>
-
+            {/* 站点 Header 由根 layout 统一提供，会员区只保留侧栏 + 内容 */}
             <div className="pc-member-body">
                 <aside className="pc-member-sider">
                     {MEMBER_MENU.map((group) => (

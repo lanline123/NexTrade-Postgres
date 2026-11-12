@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import { cookies } from 'next/headers';
 import I18nProvider from '@/i18n/I18nProvider';
 import { LOCALE_COOKIE, normalizeLocale } from '@/i18n';
+import SiteHeader from '@/components/layout/SiteHeader';
+import SiteFooter from '@/components/layout/SiteFooter';
 // Semi UI 的 dist/css 未在 package.json exports 中导出，直接 import 会编译失败。
 // 与 pc-semi 一致：把 semi.min.css 落到本地再引入。
 import './semi.css';
@@ -24,7 +26,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     return (
         <html lang={locale}>
             <body>
-                <I18nProvider locale={locale}>{children}</I18nProvider>
+                <I18nProvider locale={locale}>
+                    <SiteHeader />
+                    <main className="pc-main">{children}</main>
+                    <SiteFooter />
+                </I18nProvider>
             </body>
         </html>
     );
