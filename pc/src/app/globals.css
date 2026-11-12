@@ -1555,3 +1555,150 @@ body {
     flex-direction: column;
     gap: 10px;
 }
+
+/* ---------- 商品筛选栏（components/catalog/FilterBar） ---------- */
+.pc-catalog {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.pc-filter {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #ebeef5;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.pc-filter-sort {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    background: #f7f8fa;
+    border-radius: 6px 6px 0 0;
+    border-bottom: 1px solid #ebeef5;
+}
+
+.pc-filter-sort-tabs {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+}
+
+.pc-sort-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 13px;
+    color: var(--pc-text, #1f2329);
+    cursor: pointer;
+    user-select: none;
+}
+
+.pc-sort-tab.is-active {
+    color: #155bd4;
+    font-weight: 600;
+}
+
+.pc-sort-arrows {
+    display: inline-flex;
+    flex-direction: column;
+    line-height: 7px;
+    font-size: 9px;
+    color: #c9cdd4;
+}
+
+.pc-sort-arrows i {
+    font-style: normal;
+}
+
+.pc-sort-arrows i.is-on {
+    color: #155bd4;
+}
+
+.pc-filter-total {
+    font-size: 12px;
+    color: var(--pc-muted);
+}
+
+.pc-filter-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 14px;
+    border-top: 1px dashed #f0f1f3;
+}
+
+.pc-filter-row:first-of-type {
+    border-top: none;
+}
+
+.pc-filter-label {
+    flex: 0 0 52px;
+    padding-top: 3px;
+    font-size: 13px;
+    color: var(--pc-muted);
+}
+
+.pc-filter-values {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+.pc-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 13px;
+    color: var(--pc-text, #1f2329);
+    cursor: pointer;
+    user-select: none;
+}
+
+.pc-filter-chip:hover {
+    background: #f2f3f5;
+}
+
+.pc-filter-chip.is-active {
+    background: #e8f0fe;
+    color: #155bd4;
+}
+
+.pc-filter-count {
+    font-style: normal;
+    font-size: 11px;
+    color: var(--pc-muted);
+}
+
+.pc-filter-x {
+    font-style: normal;
+    margin-left: 4px;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.pc-filter-more {
+    font-size: 12px;
+    color: #155bd4;
+    cursor: pointer;
+}
+
+.pc-filter-price {
+    gap: 6px;
+}
+
+.pc-filter-selected {
+    background: #fafbfc;
+    border-radius: 0 0 6px 6px;
+}
+
+.pc-catalog-shop {
+    display: block;
+}

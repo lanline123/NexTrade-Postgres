@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import ProductResults from '@/components/catalog/ProductResults';
+import CatalogResults from '@/components/catalog/CatalogResults';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '分类 · NexTrade PC' };
@@ -17,8 +17,12 @@ export default function Page({
     searchParams?: { cat?: string };
 }) {
     const fromQuery = Number(searchParams?.cat);
-    const lastSegment = (params.slug ?? []).slice(-1)[0];
-    const fromSlug = Number(lastSegment);
-    const categoryId = Number.isFinite(fromQuery) && fromQuery > 0 ? fromQuery : Number.isFinite(fromSlug) && fromSlug > 0 ? fromSlug : undefined;
-    return <ProductResults categoryId={categoryId} emptyText="该分类暂无商品" />;
+    const fromSlug = Number((params.slug ?? []).slice(-1)[0]);
+    const cat =
+        Number.isFinite(fromQuery) && fromQuery > 0
+            ? String(fromQuery)
+            : Number.isFinite(fromSlug) && fromSlug > 0
+              ? String(fromSlug)
+              : undefined;
+    return <CatalogResults initialCat={cat} emptyText="该分类暂无商品" />;
 }
