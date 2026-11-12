@@ -1557,4 +1557,49 @@ PC_API_BASE=https://battery.recy.cc NODE_ENV=production npx next build
    `java-b2b2c-pro-v5.8.37-…`、`mysql_data`、`人工备份`、其余厂商 zip。
 4. 本机现在只有 `D:\tigshop\NexTrade-Postgres` 一个代码仓库（体积 1.12 GB）：HEAD = `origin/main`。
 
+---
+
+## 17. 热区绘制器纵轴契约修复（2026-11-12，**未部署**）
+
+> 用户反馈：装修编辑器（id=10023）「热图绘制」模块里，图上画的热区与下方「热区1/热区2」参数对不起来。
+> 结论先行：**绘制器纵轴按画板高度归一化，违反了「500px 宽基准画布」契约**——非正方形图片必错位。
+
+### 17.1 根因
+
+热区的存储契约（前台 PC `pc-semi/src/decorate/components/modules.tsx`、编辑器画布预览
+`HotareaPreview`、模块预览 `PcImageHotareaPreview` 三处一致）是：坐标按 **500px 宽**虚拟画布存储，
+渲染时**两轴都乘** `容器宽度/500`。
+
+而 `HotareaPainter`（`PcDecorateEditor.tsx`）有两处按**画板高度**处理纵轴：
+
+1. 指针坐标换算 `y = (clientY-rect.top)/rect.height*500`（画板 onPointerDown、move/resize 起点、toBase）；
+2. 渲染 `top/height` 用 `pct()`＝画板高度百分比。
+
+画板高宽比 ≠ 1 时（本例图片 ratio=0.35），纵轴刻度差近 3 倍：画出来居下的框，存储的
+`top/height` 却被放大，前台按宽度契约渲染就跑到了图片外（实测既有热区 fy 最高 1.87，即图片高度 187% 处）。
+
+### 17.2 修法（提交见 git log，仅 `admin-semi/src/pages/PcDecorateEditor.tsx`）
+
+- 新增 `boardSize` state（ResizeObserver 实测画板宽高）+ `baseHeight = 500 × (高/宽)`（纵轴基准上限）；
+- 所有指针纵轴换算分母 `rect.height → rect.width`（4 处）；
+- 渲染纵轴改 `vy()`＝基准坐标 × 画板宽度/500（px），横轴 `pct()` 不变；
+- move/resize/单击落点的纵轴钳制上限 `HOTAREA_BASE → maxY/baseHeight`；
+- 检查器「上」字段 `max` 改 `Math.round(baseHeight)`。
+
+### 17.3 验证（`scratch/verify-hotarea-axis.cjs`，本地 vite 3012 + Playwright msedge）
+
+| 断言 | 结果 |
+|---|---|
+| 拖拽新建 (10%,55%)→(45%,85%)：检查器 左=50/宽=175/上=96/高=53（500 宽基准公式值） | ✅ 精确命中 |
+| 新热区在画布预览的占比 fy=0.55/fh=0.30/fx=0.10/fw=0.35 == 拖拽占比 | ✅ |
+| 既有 4 个热区：绘制器占比 == 画布预览占比（逐项 <0.02） | ✅（含 1 个 fy=1.87 的出界数据，两端一致地出界） |
+
+`tsc --noEmit` 通过；未保存任何线上数据（清空/拖拽均为内存态）。
+
+### 17.4 遗留
+
+- **既有热区 1~3 是旧版绘制器画出来的**，存储的纵坐标本身已被旧 bug 扭曲（有出界：fy=1.87）。
+  部署本修复后，绘制器会按真实契约显示它们（位置会变），**需要用户重新拖拽调整这 3 个热区并保存**。
+- 部署走 admin「增量铺 assets + 最后切 index.html」流程（§13.6：入口 chunk 变更，小文件热替换不可行）。
+
 

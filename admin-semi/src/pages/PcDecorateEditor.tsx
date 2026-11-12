@@ -5801,6 +5801,26 @@ function HotareaPainter({
   const pic = picList[activePic];
   const hotareas: HotareaRect[] = (pic?.hotarea || []) as HotareaRect[];
   const picUrl = pic ? String(pic.picUrl || pic.picThumb || '') : '';
+  /**
+   * 画板实测尺寸。热区契约是「500px 宽基准画布」：纵轴与横轴共用同一刻度
+   * （前台 PC / 编辑器画布预览 / 模块预览三处都按 容器宽度/500 缩放）。
+   * 因此绘制器纵轴的换算与渲染都必须以画板**宽度**为参照，不能按画板高度归一化——
+   * 否则非正方形图片上画出的热区与存储参数、前台渲染全部错位。
+   */
+  const [boardSize, setBoardSize] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = boardRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setBoardSize({ w: entry.contentRect.width, h: entry.contentRect.height });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePic, picUrl, picList.length]);
+  /** 纵轴在基准坐标下的上限 = 500 × 画板高宽比（宽图 < 500，竖图 > 500）。 */
+  const baseHeight = boardSize.w ? (boardSize.h / boardSize.w) * HOTAREA_BASE : HOTAREA_BASE;
 
   const updatePic = (patch: Partial<{ hotarea: HotareaRect[] }>) => {
     onChange(picList.map((item, i) => (i === activePic ? { ...item, ...patch } : item)));
@@ -5836,17 +5856,24 @@ function HotareaPainter({
       if (!rect || !rect.width || !rect.height) return { x: 0, y: 0 };
       return {
         x: ((clientX - rect.left) / rect.width) * HOTAREA_BASE,
-        y: ((clientY - rect.top) / rect.height) * HOTAREA_BASE,
+        // 纵轴同样按宽度归一（500px 宽基准画布），与存储契约/前台渲染一致
+        y: ((clientY - rect.top) / rect.width) * HOTAREA_BASE,
       };
+    };
+    /** 纵轴上限（基准坐标），每次事件实时取画板矩形，避免用 state 的过期值。 */
+    const maxYBase = () => {
+      const rect = boardRef.current?.getBoundingClientRect();
+      return rect && rect.width ? (rect.height / rect.width) * HOTAREA_BASE : HOTAREA_BASE;
     };
     const onMove = (ev: PointerEvent) => {
       const cur = toBase(ev.clientX, ev.clientY);
+      const maxY = maxYBase();
       const o = drag.origin;
       if (drag.kind === 'create') {
         const x1 = clamp(Math.round(drag.startX), 0, HOTAREA_BASE);
-        const y1 = clamp(Math.round(drag.startY), 0, HOTAREA_BASE);
+        const y1 = clamp(Math.round(drag.startY), 0, maxY);
         const x2 = clamp(Math.round(cur.x), 0, HOTAREA_BASE);
-        const y2 = clamp(Math.round(cur.y), 0, HOTAREA_BASE);
+        const y2 = clamp(Math.round(cur.y), 0, maxY);
         const next: HotareaRect = {
           left: Math.min(x1, x2),
           top: Math.min(y1, y2),
@@ -5861,7 +5888,7 @@ function HotareaPainter({
       if (drag.kind === 'move') {
         updateHotarea(selected ?? 0, {
           left: clamp(Math.round((o.left || 0) + dx), 0, HOTAREA_BASE - (o.width || 0)),
-          top: clamp(Math.round((o.top || 0) + dy), 0, HOTAREA_BASE - (o.height || 0)),
+          top: clamp(Math.round((o.top || 0) + dy), 0, Math.max(0, maxY - (o.height || 0))),
         });
         return;
       }
@@ -5882,7 +5909,7 @@ function HotareaPainter({
         top = nt;
       }
       if (corner.includes('e')) width = clamp(Math.round(width + dx), HOTAREA_MIN_SIZE, HOTAREA_BASE - left);
-      if (corner.includes('s')) height = clamp(Math.round(height + dy), HOTAREA_MIN_SIZE, HOTAREA_BASE - top);
+      if (corner.includes('s')) height = clamp(Math.round(height + dy), HOTAREA_MIN_SIZE, Math.max(HOTAREA_MIN_SIZE, maxY - top));
       updateHotarea(selected ?? 0, { left, top, width, height });
     };
     const onUp = () => {
@@ -5895,7 +5922,7 @@ function HotareaPainter({
           w < HOTAREA_MIN_SIZE + 2 || h < HOTAREA_MIN_SIZE + 2
             ? {
                 left: clamp(Math.round(drag.startX), 0, HOTAREA_BASE - HOTAREA_DEFAULT_SIZE),
-                top: clamp(Math.round(drag.startY), 0, HOTAREA_BASE - HOTAREA_DEFAULT_SIZE),
+                top: clamp(Math.round(drag.startY), 0, Math.max(0, maxYBase() - HOTAREA_DEFAULT_SIZE)),
                 width: HOTAREA_DEFAULT_SIZE,
                 height: HOTAREA_DEFAULT_SIZE,
               }
@@ -5927,6 +5954,9 @@ function HotareaPainter({
   }
 
   const pct = (v?: number) => `${((Number(v) || 0) / HOTAREA_BASE) * 100}%`;
+  /** 纵向渲染值：基准坐标 × 画板宽度/500（与横轴同刻度），不能按画板高度取百分比。 */
+  const vy = (v?: number) =>
+    boardSize.w ? `${((((Number(v) || 0) / HOTAREA_BASE) * boardSize.w)).toFixed(2)}px` : pct(v);
   const sel = selected !== null ? hotareas[selected] : null;
 
   return (
@@ -5958,7 +5988,7 @@ function HotareaPainter({
           const rect = boardRef.current?.getBoundingClientRect();
           if (!rect || !rect.width) return;
           const startX = ((e.clientX - rect.left) / rect.width) * HOTAREA_BASE;
-          const startY = ((e.clientY - rect.top) / rect.height) * HOTAREA_BASE;
+          const startY = ((e.clientY - rect.top) / rect.width) * HOTAREA_BASE;
           setDrag({ kind: 'create', startX, startY, origin: {} });
         }}
         onPointerLeave={() => setMenu(null)}
@@ -5976,7 +6006,7 @@ function HotareaPainter({
             <div
               key={i}
               className={`hotarea-painter__box${isSel ? ' is-selected' : ''}`}
-              style={{ left: pct(rect.left), top: pct(rect.top), width: pct(rect.width), height: pct(rect.height) }}
+              style={{ left: pct(rect.left), top: vy(rect.top), width: pct(rect.width), height: vy(rect.height) }}
               onPointerDown={(e) => {
                 if ((e.target as HTMLElement).dataset.corner) return;
                 e.stopPropagation();
@@ -5988,7 +6018,7 @@ function HotareaPainter({
                 setDrag({
                   kind: 'move',
                   startX: ((e.clientX - host.left) / host.width) * HOTAREA_BASE,
-                  startY: ((e.clientY - host.top) / host.height) * HOTAREA_BASE,
+                  startY: ((e.clientY - host.top) / host.width) * HOTAREA_BASE,
                   origin: { ...rect },
                 });
               }}
@@ -6016,7 +6046,7 @@ function HotareaPainter({
                         kind: 'resize',
                         corner,
                         startX: ((e.clientX - host.left) / host.width) * HOTAREA_BASE,
-                        startY: ((e.clientY - host.top) / host.height) * HOTAREA_BASE,
+                        startY: ((e.clientY - host.top) / host.width) * HOTAREA_BASE,
                         origin: { ...rect },
                       });
                     }}
@@ -6029,7 +6059,7 @@ function HotareaPainter({
         {drag?.kind === 'create' && (
           <div
             className="hotarea-painter__box is-draft"
-            style={{ left: pct(drag.origin.left), top: pct(drag.origin.top), width: pct(drag.origin.width), height: pct(drag.origin.height) }}
+            style={{ left: pct(drag.origin.left), top: vy(drag.origin.top), width: pct(drag.origin.width), height: vy(drag.origin.height) }}
           />
         )}
 
@@ -6096,7 +6126,7 @@ function HotareaPainter({
             </label>
             <label>
               <span>{t('上')}</span>
-              <InputNumber min={0} max={HOTAREA_BASE} value={sel.top} onChange={(v) => updateHotarea(selected, { top: Number(v) || 0 })} />
+              <InputNumber min={0} max={Math.round(baseHeight)} value={sel.top} onChange={(v) => updateHotarea(selected, { top: Number(v) || 0 })} />
             </label>
           </div>
           <div className="hotarea-painter__link">
