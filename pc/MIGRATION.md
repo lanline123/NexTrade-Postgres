@@ -249,6 +249,9 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | `src/lib/aes-ecb.ts` | 纯 JS AES-128-ECB/PKCS7 + Base64（仅加密），用于验证码点位与 `verifyToken`，免掉 crypto-js 依赖 |
 | `src/components/invoice/InvoiceDialog.tsx` | 完整发票弹窗：不开发票/普通/增值税专用 × 个人/企业，`check` 模式只回传、`apply` 模式落库 |
 | `src/components/catalog/ImageSearchPage.tsx` | 以图搜图：能力探测 + multipart 上传拿 `searchToken`，复用 `ProductResults` |
+| `src/lib/catalog.ts` | 检索统一口径：`getProduct` / `getFilter` / `getAttributeSuggestions` 的字段映射（**分类是 `cat`**） |
+| `src/components/catalog/FilterBar.tsx` | 筛选栏：排序（综合/销量/价格升降/新品）+ 分类单选 + 品牌多选 + 价格区间 + 属性多选 + 已选 chips |
+| `src/components/catalog/CatalogResults.tsx` | 检索外壳：筛选状态 + 筛选项联动重拉 + 结果网格，`/search` `/list` `/category` `/shopcategory` `/shop/search` 共用 |
 
 ### 6.3 路由覆盖率（2026-11-13 盘点，覆盖率 100%）
 
@@ -309,6 +312,16 @@ Vue 侧 `pages/` 共 **111 条路由**（已排除 `src/`、`components/` 子目
 
 **教训**：Vue 里凡是「`action`/`operation` 二次映射」的地方（如 `add → create`），一定要用真实接口打一遍确认，`api/*.ts` 里的 url 拼接常常把动词藏起来。
 
+### 6.7 第三批真实接口校准（2026-11-13：商品检索 / 筛选）
+
+| 接口 | 真实行为 | 处理 |
+|---|---|---|
+| `search/search/getProduct` 的分类字段 | **是 `cat`，不是 `categoryId`**。传 `categoryId` 后端直接忽略，返回全站商品 | `lib/catalog.ts` 统一用 `cat`；顺带修掉了 `/list?categoryId=x` 一直显示全站商品的旧 bug |
+| 同接口可用字段 | `page` `size` `keyword` `cat` `pId` `brand`(逗号分隔) `sort`(sale\|price\|time) `order`(asc\|desc) `min` `max` `attrs[{attrName,attrValue[]}]` `searchToken` `shopId` `shopCategoryId` | 全部实测生效（`sort=price&order=asc` 返回价升序；`attrs` 传不存在的值 total=0） |
+| `search/search/getFilter` | `{ filter: { category[], brand[], shopCategory, maxPrice }, filterSelected }`；分类返回的是**当前条件下的同层分类**（无 keyword 时给顶级，带 keyword 时给命中的叶子） | `fetchFilterOptions` |
+| 同上 + `shopId` | **HTTP 500**，该接口不认店铺维度 | 不给 getFilter 传 shopId；店铺内检索（`/shop/search/[id]`、`/shopcategory/[id]`）直接 `showFilter={false}`，店铺筛选属于另一套 ShopFilter |
+| `search/search/getAttributeSuggestions` | GET，参数 `keyword` / `cat` → `{ attributes: [{ name, values: [{count, value}] }] }` | `fetchAttrSuggestions` |
+
 ---
 
 ## 7. 待办（按建议顺序）
@@ -319,7 +332,7 @@ Vue 侧 `pages/` 共 **111 条路由**（已排除 `src/`、`components/` 子目
 | 2 | 订单结算剩余 | 已补：优惠券、**完整发票（普通/专用 × 个人/企业）**、配送方式、积分/余额抵扣；仍缺：账期支付、预售定金、支付方式选择（提交时 `payTypeId=0`）；收银台支付渠道刻意未接 `order/pay/create` |
 | 3 | 功能深度 | 秒杀/拼团内部逻辑（时间轴、库存进度、成团状态机）、IM 客服（`/chat` 仍是占位）、第三方登录（`/oauth/callback` 占位）、账户充值/银行卡/账期还款 |
 | 4 | 数据获取时机 | 当前全部页面都是 **SSR 骨架 + 浏览器端取数**（`apiGet/apiPost` 依赖 `localStorage`，Node 侧拿不到 token）。如需真正的「首屏带数据」，要把商品详情、首页装修这类公开接口搬到 `generateMetadata`/服务端 fetch，并统一 `/api` 转发 |
-| 5 | 筛选栏 | 列表/搜索的分类、品牌、属性筛选（`search/search/getFilter`、`getAttributeSuggestions`）未迁，结果流已通 |
+| 5 | 筛选栏 URL 同步 | 筛选栏已迁（分类/品牌/价格/属性/排序），但状态在组件内、未写回 URL query（Vue 会同步路由）。要支持「分享带筛选的链接」需父级接管 |
 | 6 | i18n 补齐 | 新增文案的英文 key；`<title>` 目前是静态中文 |
 | 7 | 样式对齐 | 尚未逐像素对照 Vue/线上，`globals.css` 只做了骨架级布局 |
 | 8 | 登录守卫 | 目前列表页判断 token 显示提示，未做路由级跳转（Vue 版用 `middleware: auth`）；`/order/check` 已在组件内做 token 判定 |
