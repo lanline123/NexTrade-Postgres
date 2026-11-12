@@ -1,0 +1,522 @@
+.ui-tips-main :deep(.swiper-button-prev),
+.ui-tips-main :deep(.swiper-button-next) {
+  z-index: 2;
+  border: none;
+  outline: none;
+  transition: background-color 0.2s ease;
+}
+.ui-tips-main :deep(.swiper-button-prev) {
+  left: -5px;
+  border-top-right-radius: 2px;
+  border-bottom-right-radius: 2px;
+}
+.ui-tips-main :deep(.swiper-button-next) {
+  right: -2px;
+  border-top-left-radius: 2px;
+  border-bottom-left-radius: 2px;
+}
+.ui-tips-main :deep(.swiper-button-prev:after),
+.ui-tips-main :deep(.swiper-button-next:after) {
+  color: #666;
+  font-size: 14px;
+  font-weight: bolder;
+}
+.cart-top {
+  background-color: #ffffff;
+  position: relative;
+  z-index: 79;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 20px;
+}
+.cart-top .cart-cont {
+  width: 1190px;
+  padding: 15px 0 20px 0;
+}
+.orderConfirmCon {
+  border: 1px solid #ddd;
+  color: #333333;
+  margin: 0 auto;
+  padding: 10px 20px;
+  background: #fff;
+  border-radius: 3px;
+}
+.orderConfirmCon .form_item {
+  border-bottom: 1px solid #e6e6e6;
+  padding: 15px 0px;
+  background: #fff;
+}
+.orderConfirmCon .form_item .top_row {
+  padding-bottom: 10px;
+}
+.orderConfirmCon .form_item .top_row .tit {
+  font-size: 14px;
+  font-weight: bold;
+}
+.orderConfirmCon .form_item .top_row .tips {
+  color: #999;
+  margin-left: 10px;
+}
+.orderConfirmCon .form_item .top_row .back {
+  color: var(--general);
+}
+.orderConfirmCon .form_item .invoice-box {
+  color: #666;
+  margin-top: 10px;
+}
+.orderConfirmCon .form_item .invoice-box .title {
+  line-height: 16px;
+}
+.orderConfirmCon .form_item .invoice-box .title i {
+  margin-left: 2px;
+  color: #999;
+}
+.orderConfirmCon .form_item .invoice-box .title,
+.orderConfirmCon .form_item .invoice-box .type {
+  margin-right: 20px;
+}
+.orderConfirmCon .form_item .invoice-box .btn {
+  color: var(--general);
+}
+.orderConfirmCon .form_item .address-more {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.orderConfirmCon .form_item .address-more span {
+  font-size: 12px;
+  padding-left: 3px;
+  line-height: 19px;
+}
+.orderConfirmCon .form_item .address-more.more span {
+  transform: rotate(180deg);
+}
+.orderConfirmCon .form_item .address_info {
+  height: 50px;
+  overflow: hidden;
+}
+.orderConfirmCon .form_item .address_info .address_item {
+  margin: 12px 0;
+}
+.orderConfirmCon .form_item .address_info .address_item .btn {
+  width: 120px;
+  font-size: 12px;
+  padding: 5px 14px;
+  height: 20px;
+  line-height: 20px;
+  border: 1px solid #ddd;
+  color: #666;
+  border-radius: 2px;
+  background: #fff;
+  text-align: center;
+  cursor: pointer;
+  position: relative;
+}
+.orderConfirmCon .form_item .address_info .address_item .item {
+  flex: 1;
+  height: 30px;
+  line-height: 30px;
+  color: #999;
+  padding-left: 15px;
+  padding-right: 15px;
+}
+.orderConfirmCon .form_item .address_info .address_item .item .set {
+  display: flex;
+  cursor: pointer;
+  color: var(--general);
+}
+.orderConfirmCon .form_item .address_info .address_item .item .set .set-text {
+  display: none;
+}
+.orderConfirmCon .form_item .address_info .address_item:hover .item {
+  background-color: #f8f8f8;
+}
+.orderConfirmCon .form_item .address_info .address_item:hover .item .set .set-text {
+  display: inline-block;
+  margin-left: 10px;
+}
+.orderConfirmCon .form_item .address_info .active .btn {
+  border-color: var(--general);
+}
+.orderConfirmCon .form_item .address_info .active .btn .icon-gou {
+  display: block;
+}
+.orderConfirmCon .form_item .address_info .active .item {
+  color: #666;
+}
+.orderConfirmCon .form_item .address_info .add_btn {
+  color: #333;
+}
+.orderConfirmCon .form_item .address_info .add_btn i {
+  font-size: 16px;
+  font-weight: bold;
+  margin-right: 3px;
+}
+.orderConfirmCon .form_item .address_info.more {
+  height: auto;
+  max-height: 500px;
+  overflow-y: auto;
+}
+.orderConfirmCon .form_item .inp_box .inp {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+.orderConfirmCon .form_item .inp_box .inp .points_amount {
+  flex: none;
+}
+.orderConfirmCon .form_item .pay_type .pay_tab {
+  cursor: pointer;
+  font-size: 12px;
+  padding: 5px 22px;
+  height: 20px;
+  line-height: 20px;
+  border: 1px solid #ddd;
+  color: #666;
+  vertical-align: middle;
+  border-radius: 2px;
+  position: relative;
+  margin-right: 15px;
+}
+.orderConfirmCon .form_item .pay_type .pay_tab:hover {
+  border-color: var(--general);
+}
+.orderConfirmCon .form_item .pay_type .pay_tab:hover .tig-tips {
+  opacity: 1;
+}
+.orderConfirmCon .form_item .pay_type .pay_tab img {
+  margin-left: 3px;
+}
+.orderConfirmCon .form_item .pay_type .active {
+  border-color: var(--general);
+}
+.orderConfirmCon .form_item .pay_type .active .icon-gou {
+  display: block;
+}
+.orderConfirmCon .form_item .pay_type .disabled {
+  border-color: #eee !important;
+  color: #b9b9b9;
+}
+.orderConfirmCon .form_item .product_detail {
+  padding: 0px 10px 0px 20px;
+  background-color: #fafafa;
+  border: 1px solid #e6e6e6;
+  border-radius: 2px;
+  margin-bottom: 20px;
+}
+.orderConfirmCon .form_item .product_detail .delivery {
+  width: 40%;
+  padding: 8px 15px 10px 0px;
+  box-sizing: border-box;
+}
+.orderConfirmCon .form_item .product_detail .delivery .tit {
+  color: #666;
+  font-weight: bold;
+  height: 40px;
+  line-height: 40px;
+}
+.orderConfirmCon .form_item .product_detail .delivery .delivery_tags .pay_tab {
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 5px 22px;
+  height: 20px;
+  line-height: 20px;
+  border: 1px solid #ddd;
+  color: #666;
+  vertical-align: middle;
+  border-radius: 2px;
+  position: relative;
+  margin-right: 15px;
+  margin-bottom: 15px;
+}
+.orderConfirmCon .form_item .product_detail .delivery .delivery_tags .pay_tab img {
+  display: none;
+  width: 13px;
+  height: 13px;
+  position: absolute;
+  right: 5px;
+}
+.orderConfirmCon .form_item .product_detail .delivery .delivery_tags .pay_tab:hover {
+  border-color: var(--general);
+}
+.orderConfirmCon .form_item .product_detail .delivery .delivery_tags .pay_tab:hover img {
+  display: block;
+}
+.orderConfirmCon .form_item .product_detail .delivery .delivery_tags .active {
+  border-color: var(--general);
+}
+.orderConfirmCon .form_item .product_detail .delivery .delivery_tags .active .icon-gou {
+  display: block;
+}
+.orderConfirmCon .form_item .product_detail .delivery .tips {
+  color: #666;
+  margin-top: 20px;
+}
+.orderConfirmCon .form_item .product_detail .delivery .no_delivery {
+  margin-top: 5px;
+}
+.orderConfirmCon .form_item .product_detail .detail {
+  width: 80%;
+  padding: 8px 0px 10px 20px;
+  border-left: 1px solid #ddd;
+}
+.orderConfirmCon .form_item .product_detail .detail .shop_name {
+  height: 40px;
+  line-height: 40px;
+  color: #666;
+  font-weight: bold;
+}
+.orderConfirmCon .form_item .product_detail .detail .list {
+  margin-bottom: 20px;
+  justify-content: space-between;
+}
+.orderConfirmCon .form_item .product_detail .detail .list .pic {
+  border: 1px solid #ddd;
+}
+.orderConfirmCon .form_item .product_detail .detail .list .pic img {
+  width: 80px;
+  height: 80px;
+  display: block;
+}
+.orderConfirmCon .form_item .product_detail .detail .list .describe {
+  width: 240px;
+  min-height: 80px;
+  margin-left: 12px;
+}
+.orderConfirmCon .form_item .product_detail .detail .list .describe .noReason {
+  color: #999;
+  line-height: 26px;
+}
+.orderConfirmCon .form_item .product_detail .detail .list .describe .noReason i {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-top: 6px;
+  margin-right: 4px;
+  background: url("/assets/images/common/odr_cfm_spt.png") no-repeat -14px -20px;
+}
+.orderConfirmCon .form_item .product_detail .detail .list .describe .noReason .disable {
+  background-position: -28px -20px;
+}
+.orderConfirmCon .form_item .product_detail .detail .list .describe .sku-name {
+  font-weight: 600;
+}
+.orderConfirmCon .form_item .product_detail .detail .list .money {
+  width: 100px;
+  text-align: right;
+  font-weight: 500;
+  color: var(--price);
+}
+.orderConfirmCon .form_item .product_detail .detail .list .quantity {
+  font-size: 11px;
+  min-width: 30px;
+  margin-left: 80px;
+}
+.orderConfirmCon .form_item .add_remark {
+  display: flex;
+}
+.orderConfirmCon .form_item .add_remark .a_rmk_tit {
+  color: #666;
+  margin-bottom: 10px;
+  padding-top: 3px;
+}
+.orderConfirmCon .form_item .add_remark .a_rmk_con input {
+  height: 14px;
+  width: 428px;
+  padding: 5px 10px;
+  line-height: 14px;
+  border: 1px solid #dedede;
+  color: #333;
+}
+.orderConfirmCon .form_item .add_remark .a_rmk_con .fl {
+  line-height: 14px;
+  color: #999;
+  margin-top: 10px;
+}
+.orderConfirmCon .money_info .total_list {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 10px;
+  font-size: 12px;
+  line-height: 28px;
+  text-align: right;
+  border-bottom: 1px solid #e6e6e6;
+  padding-right: 15px;
+  padding-top: 15px;
+}
+.orderConfirmCon .money_info .total_list .item {
+  position: relative;
+  display: flex;
+  justify-content: right;
+}
+.orderConfirmCon .money_info .total_list .item .value {
+  width: fit-content;
+  min-width: 50px;
+  text-align: left;
+}
+.orderConfirmCon .money_info .total_list .item .freight-icon {
+  display: inline-block;
+  cursor: pointer;
+  width: 26px;
+  height: 18px;
+  vertical-align: middle;
+  background: url("/assets/images/flow/freight-icon.png") center top no-repeat;
+}
+.orderConfirmCon .money_info .total_list .item .ui-tips {
+  display: none;
+  z-index: 100119;
+  width: 330px;
+  background: #fff;
+  position: absolute;
+  top: 32px;
+  box-shadow: 0 0 2px 2px #eee;
+  border: 1px solid #ddd;
+  padding: 10px 15px;
+  right: 68px;
+  margin-left: -300px;
+  text-align: left;
+}
+.orderConfirmCon .money_info .total_list .item .ui-tips .ui-tips-arrow {
+  z-index: 100119;
+  position: absolute;
+  display: block;
+  width: 11px;
+  height: 6px;
+  background-position: 0 0;
+  background-image: url("/assets/images/flow/tips-arrow-new.png");
+  top: -6px;
+  right: 42px;
+}
+.orderConfirmCon .money_info .total_list .item .ui-tips .ui-tips-main .tit {
+  line-height: 18px;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+.orderConfirmCon .money_info .total_list .item .ui-tips .ui-tips-main .goods_list {
+  position: relative;
+  border: 1px solid #ddd;
+  margin-bottom: 10px;
+}
+.orderConfirmCon .money_info .total_list .item .ui-tips .ui-tips-main .goods_list .goods_col .shop_name {
+  border-bottom: 1px solid #ddd;
+  color: #333;
+  padding: 8px 15px;
+}
+.orderConfirmCon .money_info .total_list .item .ui-tips .ui-tips-main .goods_list .goods_col .list .txt {
+  padding: 10px 0;
+  line-height: 18px;
+  padding-left: 15px;
+  color: #666;
+}
+.orderConfirmCon .money_info .total_list .item .ui-tips .ui-tips-main .goods_list .goods_col .list .item {
+  height: 55px;
+  background: #f2f2f2;
+  padding: 10px 0 10px 0px;
+  position: relative;
+}
+.orderConfirmCon .money_info .total_list .item .ui-tips .ui-tips-main .goods_list .goods_col .list .item .img_box {
+  display: flex;
+}
+.orderConfirmCon .money_info .total_list .item .ui-tips .ui-tips-main .goods_list .goods_col .list .item .img_box img {
+  width: 55px;
+  height: 55px;
+  margin-right: 0px;
+}
+.orderConfirmCon .money_info .total_list .item .tip-item:hover .ui-tips {
+  display: block;
+}
+.orderConfirmCon .money_info .complete {
+  color: #999;
+  font-size: 12px;
+  line-height: 28px;
+  background: #f4f4f4;
+  padding-right: 15px;
+  padding-top: 5px;
+  text-align: end;
+}
+.orderConfirmCon .money_info .total_fee {
+  font-size: 12px;
+  line-height: 28px;
+  padding: 10px 0;
+  font-family: verdana, Helvetica, Arial, sans-serif;
+  background: #f4f4f4;
+  padding-right: 15px;
+  margin-bottom: 20px;
+}
+.orderConfirmCon .money_info .total_fee :deep(.price) {
+  vertical-align: bottom;
+}
+.orderConfirmCon .money_info .total_fee :deep(.price) .util {
+  color: var(--general);
+  font-size: 16px;
+  margin-top: 5px;
+}
+.orderConfirmCon .money_info .total_fee :deep(.price) .num,
+.orderConfirmCon .money_info .total_fee :deep(.price) .decimals {
+  color: var(--general);
+  font-size: 30px;
+}
+.orderConfirmCon .money_info .submit {
+  padding: 0 0 20px;
+}
+.orderConfirmCon .money_info .submit .btn {
+  padding: 0 35px;
+  font-size: 18px;
+  cursor: pointer;
+  height: 48px;
+  line-height: 48px;
+}
+.orderConfirmCon .money_info .submit :disabled {
+  cursor: not-allowed;
+}
+.errInfo {
+  background: url("/assets/images/flow/orderIcons.gif") no-repeat scroll 5px 6px #fdfdd1;
+  border: 1px solid #ed3714;
+  color: #ed3714;
+  display: none;
+  line-height: 25px;
+  margin-left: 10px;
+  padding: 5px 15px 5px 28px;
+  vertical-align: middle;
+}
+.check-box {
+  line-height: 40px;
+}
+.check-box .tit {
+  color: #333;
+}
+.check-box p {
+  margin-left: 10px;
+  color: #333;
+}
+.check-box .red {
+  margin: 0;
+  color: #ff4040;
+}
+.from_list {
+  position: relative;
+  border-radius: 3px;
+  background-color: #fafafa;
+  border: 1px solid #e6e6e6;
+  padding: 20px 20px;
+  margin-bottom: 10px;
+  margin-top: 15px;
+}
+.from_list .arrow {
+  position: absolute;
+  left: 20px;
+  top: -10px;
+  height: 20px;
+  width: 20px;
+  background: url("/assets/images/flow/ioc_arrow.gif") no-repeat 0 0;
+}
+.from_list .integral .tit {
+  height: 26px;
+  line-height: 26px;
+  color: #666;
+  margin-left: 10px;
+}
+.from_list .integral .tips {
+  margin-top: 10px;
+}

@@ -1,0 +1,84 @@
+/**
+ * PC 头部装修运行时图标（svg mask，照搬 vortmall）
+ * 图标 svg 已拷入 assets/icons；通过 mask-image + currentColor 着色，可随父级文字色变化。
+ */
+.pc-icon {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    background: currentColor;
+    opacity: 1;
+    mask-image: url("~/assets/icons/gou.svg");
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    -webkit-mask-image: url("~/assets/icons/gou.svg");
+    -webkit-mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    border-radius: 2px;
+}
+
+.pc-icon--menu {
+    width: 14px;
+    height: 14px;
+    mask-image: url("~/assets/icons/overseas-cat.svg");
+    -webkit-mask-image: url("~/assets/icons/overseas-cat.svg");
+}
+
+.pc-icon--arrow {
+    width: 14px;
+    height: 14px;
+    opacity: 0.8;
+    mask-image: url("~/assets/icons/overseas-arrowdown.svg");
+    -webkit-mask-image: url("~/assets/icons/overseas-arrowdown.svg");
+}
+
+.pc-icon--search {
+    width: 18px;
+    height: 18px;
+    mask-image: url("~/assets/icons/overseas-search.svg");
+    -webkit-mask-image: url("~/assets/icons/overseas-search.svg");
+}
+
+.pc-icon--language {
+    width: 18px;
+    height: 18px;
+    mask-image: url("~/assets/icons/overseas-earth.svg");
+    -webkit-mask-image: url("~/assets/icons/overseas-earth.svg");
+}
+
+.pc-icon--mine {
+    width: 18px;
+    height: 18px;
+    mask-image: url("~/assets/icons/overseas-user.svg");
+    -webkit-mask-image: url("~/assets/icons/overseas-user.svg");
+}
+
+.pc-icon--cart {
+    width: 18px;
+    height: 18px;
+    mask-image: url("~/assets/icons/overseas-cart.svg");
+    -webkit-mask-image: url("~/assets/icons/overseas-cart.svg");
+}
+
+.pc-icon--check {
+    width: 18px;
+    height: 18px;
+    mask-image: url("~/assets/icons/gou.svg");
+    -webkit-mask-image: url("~/assets/icons/gou.svg");
+}
+
+.pc-icon--search-simple {
+    width: 18px;
+    height: 18px;
+    mask-image: url("~/assets/icons/overseas-search.svg");
+    -webkit-mask-image: url("~/assets/icons/overseas-search.svg");
+}
+
+.pc-icon--cart-simple {
+    width: 18px;
+    height: 18px;
+    mask-image: url("~/assets/icons/overseas-cart.svg");
+    -webkit-mask-image: url("~/assets/icons/overseas-cart.svg");
+}

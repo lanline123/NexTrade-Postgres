@@ -1,0 +1,29 @@
+# Nuxt dev/build outputs
+.output
+.data
+.nuxt
+.nuxt-dev
+.nitro
+.cache
+dist
+.svn
+# Node dependencies
+node_modules
+.vscode
+# Logs
+logs
+*.log
+
+# Misc
+.DS_Store
+.fleet
+.idea
+.env
+.env.development
+.github
+
+*.tsbuildinfo
+.workbuddy/
+
+# Next.js (React SSR) build output
+.next-react/

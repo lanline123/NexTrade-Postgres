@@ -1,0 +1,644 @@
+@import "https://at.alicdn.com/t/c/font_4441878_79ndpblv9x9.css";
+@import "https://at.alicdn.com/t/c/font_4389188_4gtbloa6zjm.css";
+html {
+    color: #666;
+    font-size: 12px;
+    font-family: Arial, Helvetica, sans-serif;
+    text-align: left;
+    word-break: break-all;
+    -webkit-font-smoothing: antialiased;
+}
+body,
+div,
+dl,
+dt,
+dd,
+ul,
+ol,
+li,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+pre,
+code,
+form,
+fieldset,
+legend,
+input,
+textarea,
+p,
+blockquote,
+th,
+td,
+hr,
+button,
+article,
+aside,
+details,
+figcaption,
+figure,
+footer,
+header,
+hgroup,
+menu,
+nav,
+section {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+body {
+    cursor: inherit;
+    background-color: #f2f3f5;
+    overflow-y: scroll;
+}
+blockquote,
+q {
+    quotes: none;
+}
+blockquote:before,
+blockquote:after,
+q:before,
+q:after {
+    content: "";
+    content: none;
+}
+:focus {
+    outline: 0;
+}
+ins {
+    text-decoration: none;
+}
+del {
+    text-decoration: line-through;
+}
+li {
+    list-style: none;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    border-spacing: 0;
+}
+address,
+caption,
+cite,
+code,
+dfn,
+em,
+th,
+var,
+i,
+b {
+    font-style: normal;
+    font-weight: normal;
+}
+code,
+kbd,
+samp,
+pre,
+tt,
+var,
+button,
+input,
+select,
+textarea {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 100%;
+}
+hr {
+    background: #ddd;
+    color: #ddd;
+    clear: both;
+    float: none;
+    width: 100%;
+    height: 0.1em;
+    margin: 0.5em 0;
+    border: none;
+}
+hr.space {
+    background: #fff;
+    color: #fff;
+}
+/********************文本格式************************/
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+b {
+    font-size: 100%;
+    font-weight: normal;
+}
+cite,
+em,
+dfn {
+    font-style: normal;
+}
+.fs14 {
+    font-size: 14px;
+}
+.blue,
+.blue a,
+a.blue:link,
+a.blue:visited {
+    color: var(--general);
+    cursor: pointer;
+}
+a {
+    color: #333333;
+    text-decoration: none;
+    outline: none;
+    transition: color 0.2s ease 0s;
+}
+a:hover {
+    color: var(--general) !important;
+    background: var(--main-btn-hover-bg);
+    text-decoration: none;
+}
+::selection {
+    background: var(--main-bg);
+    color: var(--main-text);
+    /* Safari */
+}
+::-moz-selection {
+    background: var(--main-bg);
+    color: var(--main-text);
+    /* Firefox */
+}
+.price {
+    font-size: 12px;
+    font-weight: normal;
+}
+.price .util {
+    font-size: 12px;
+}
+.mr10 {
+    margin-right: 10px;
+}
+.ml10 {
+    margin-left: 10px;
+}
+.mt10 {
+    margin-top: 10px;
+}
+.mb10 {
+    margin-bottom: 10px;
+}
+.gif-loading {
+    background: url("/assets/images/common/loading.gif") no-repeat;
+    background-size: 100% 100%;
+    width: 20px;
+    height: 20px;
+}
+.container {
+    width: 1190px;
+    margin: 0px auto;
+    padding: 0;
+    clear: both;
+}
+.red {
+    color: #ff4040;
+}
+.btn-css3 {
+    background: #ff6c6c;
+    border: 1px solid #ff5e5e;
+    color: #fff;
+    cursor: pointer;
+    border-radius: 2px;
+    display: inline-block;
+    height: 16px;
+    line-height: 16px;
+    padding: 5px 12px;
+    text-align: center;
+    text-decoration: none;
+}
+.btn-css3:hover {
+    text-decoration: none;
+    box-shadow: 0 1px 1px rgba(0, 1, 1, 0.08);
+    cursor: pointer;
+    color: #fff;
+}
+.flex {
+    display: flex;
+}
+.flex-column {
+    flex-direction: column;
+}
+.justify-start {
+    justify-content: flex-start;
+}
+.justify-end {
+    justify-content: flex-end;
+}
+.justify-center {
+    justify-content: center;
+}
+.justify-between {
+    justify-content: space-between;
+}
+.justify-around {
+    justify-content: space-around;
+}
+.align-start {
+    align-items: flex-start !important;
+}
+.align-end {
+    align-items: flex-end;
+}
+.align-center {
+    align-items: center;
+}
+.align-baseline {
+    align-items: baseline;
+}
+.flex-wrap {
+    display: flex;
+    flex-wrap: wrap;
+}
+.hand-pointer,
+a {
+    cursor: pointer;
+}
+.ellipsis {
+    white-space: nowrap;
+    /* 防止文本换行 */
+    overflow: hidden;
+    /* 隐藏超出容器的部分 */
+    text-overflow: ellipsis;
+    /* 当文本溢出时显示省略号 */
+}
+.ellipsis2 {
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+.sticky-element {
+    position: sticky;
+    top: -0.5px;
+    z-index: 1;
+}
+.icon-star {
+    background-image: url("/assets/images/common/icon-star.png");
+    background-repeat: no-repeat;
+    display: inline-block;
+    height: 14px;
+    overflow: hidden;
+    width: 65px;
+}
+.icon-star-5 {
+    background-position: 0 1px;
+}
+.icon-star-4half {
+    background-position: 0 -15px;
+}
+.icon-star-4 {
+    background-position: 0 -32px;
+}
+.icon-star-3half {
+    background-position: 0 -45px;
+}
+.icon-star-3 {
+    background-position: 0 -67px;
+}
+.icon-star-2half {
+    background-position: 0 -74px;
+}
+.icon-star-2 {
+    background-position: 0 -100px;
+}
+.icon-star-1half {
+    background-position: 0 -104px;
+}
+.icon-star-1 {
+    background-position: 0 -132px;
+}
+.icon-star-half {
+    background-position: 0 -133px;
+}
+.icon-star-0 {
+    background-position: 0 -149px;
+}
+.icon-gou {
+    display: none;
+    /* 三角形 */
+    /* 三角形勾 */
+}
+.icon-gou::after {
+    content: "";
+    position: absolute;
+    bottom: 0px;
+    right: 0px;
+    color: var(--main-text);
+    border-bottom: 15px solid var(--general);
+    border-left: 15px solid transparent;
+}
+.icon-gou::before {
+    content: "";
+    position: absolute;
+    width: 3px;
+    height: 5px;
+    background: transparent;
+    bottom: 2px;
+    right: 2px;
+    border: 2px solid white;
+    border-top: none;
+    border-right: none;
+    transform: rotate(332deg);
+    z-index: 1;
+    transform: rotateY(180deg) rotate(329deg);
+}
+.lyecs-share a {
+    background: url("/assets/images/common/share-ico.png") no-repeat scroll 0 0;
+    cursor: pointer;
+    display: block;
+    height: 24px;
+    margin-right: 9px;
+    position: relative;
+    width: 24px;
+}
+.lyecs-share a.weixin {
+    background-position: 0 -26px;
+}
+.lyecs-share a.sina {
+    background-position: -76px -26px;
+}
+.lyecs-share a.renren {
+    background-position: -189px -26px;
+}
+.lyecs-share a.zone {
+    background-position: -38px -26px;
+}
+.lyecs-share a.qq {
+    background-position: -152px -26px;
+}
+.lyecs-share a.weibo {
+    background-position: -114px -26px;
+}
+.lyecs-share a.baidu {
+    background-position: -303px -26px;
+}
+.lyecs-share a:hover {
+    color: #fff;
+    text-decoration: none;
+    opacity: 0.8;
+}
+.tig-loading-1 {
+    font-size: 22px !important;
+    color: var(--general);
+}
+.ant-spin-nested-loading {
+    font-family: inherit !important;
+}
+.ir {
+    background: url("/assets/images/user/icon-rank.png") no-repeat scroll 0 0 transparent;
+    display: inline-block;
+    font-size: 0;
+    height: 17px;
+    line-height: 0;
+    margin-right: 10px;
+    overflow: hidden;
+    vertical-align: middle;
+    width: 126px;
+    margin-bottom: 1px;
+}
+.icon-s-01 {
+    background-position: 0 -17px;
+}
+.icon-s-02 {
+    background-position: 0 -33px;
+}
+.icon-s-03 {
+    background-position: 0 -49px;
+}
+.tig-input {
+    display: inline-block;
+    vertical-align: middle;
+    border: none;
+}
+.tig-input[type="text"],
+.tig-input[type="password"],
+.tig-input[type="number"],
+.tig-input {
+    background-color: #ffffff;
+    background-image: none;
+    border: 1px solid #d9d9d9;
+    border-radius: 2px;
+    color: #3a3f51;
+    display: inline-block;
+    transition: all 0.3s;
+    font-size: 12px;
+    height: 22px;
+    line-height: 22px;
+    padding: 4px 10px;
+    vertical-align: middle;
+    box-sizing: initial;
+    margin: 0;
+}
+.tig-input[type="text"],
+.tig-input[type="password"] {
+    width: 15em;
+}
+.tig-input:hover,
+.tig-input[type="text"]:hover,
+.tig-input[type="password"]:hover,
+.tig-input[type="number"]:hover,
+.tig-input:hover,
+.tig-input.text:hover {
+    border-color: #1890ff;
+}
+.tig-input:focus,
+.tig-input[type="text"]:focus,
+.tig-input[type="password"]:focus,
+.tig-input[type="number"]:focus,
+.tig-input:focus,
+.tig-input.text:focus {
+    border-color: #1890ff;
+    border-right-width: 1px !important;
+    outline: 0;
+    box-shadow: 0 0 0 2px #1890ff33;
+}
+.tig-input,
+.tig-input {
+    cursor: pointer;
+}
+.tig-input[type="text"],
+.tig-input[type="password"] {
+    cursor: text;
+}
+.ant-spin-nested-loading .ant-spin-blur {
+    opacity: 1 !important;
+}
+.ant-spin-nested-loading .ant-spin-blur::after {
+    opacity: 0.3 !important;
+}
+.sign {
+    background: url("/assets/images/signs.png") no-repeat scroll 0 0 #fff;
+    display: inline-block;
+}
+.sign1 {
+    background-position: 0 -150px;
+    height: 40px;
+    width: 41px;
+}
+/* elm调整 */
+.app {
+    --el-color-primary: var(--main-bg);
+    --el-color-primary-light-3: var(--primary-light-3);
+    --el-color-primary-light-5: var(--primary-light-5);
+    --el-color-primary-light-7: var(--primary-light-7);
+    --el-color-primary-light-8: var(--primary-light-8);
+    --el-color-primary-light-9: var(--primary-light-9);
+    --el-color-primary-dark-2: var(--primary-dark-2);
+}
+.app .el-rate .el-rate__icon.is-active,
+.app .el-rate .el-rate__decimal {
+    color: var(--general);
+}
+.app .el-loading-mask {
+    background-color: transparent !important;
+}
+.app .el-loading-spinner .circular {
+    width: 26px;
+    height: 26px;
+}
+.app .el-loading-spinner .path {
+    stroke-width: 3px;
+    stroke: var(--general);
+}
+.app .el-image__inner {
+    transition: opacity 0.2s linear 0s;
+}
+.app .el-image__placeholder {
+    background-color: transparent;
+}
+.app .el-image__error {
+    display: none;
+}
+.app .el-image.ease {
+    transition: transform 0.4s ease;
+}
+.app .el-checkbox__label {
+    font-size: 12px;
+    font-weight: normal;
+}
+.app .el-input__inner {
+    font-size: 12px;
+}
+.app .el-checkbox__input.is-checked .el-checkbox__inner {
+    background-color: var(--main-bg);
+    border-color: var(--main-bg);
+}
+.app .el-checkbox__inner:hover {
+    border-color: var(--main-bg);
+}
+.app .el-checkbox__input.is-checked .el-checkbox__inner::after {
+    border-color: var(--main-text);
+}
+.app .el-checkbox__input.is-checked + .el-checkbox__label {
+    color: inherit;
+}
+.app .el-dialog {
+    border-radius: 8px;
+}
+.app .el-dialog__title {
+    margin: 0;
+    color: rgba(0, 0, 0, 0.88);
+    font-weight: 600;
+    font-size: 16px;
+    line-height: 1.5;
+    word-wrap: break-word;
+}
+.app .el-form-item__label {
+    font-size: 12px;
+}
+.app .el-pagination {
+    font-size: 12px;
+}
+.app .el-pagination .number {
+    font-size: 12px;
+}
+.app .el-button {
+    transition:
+        background-color 0.3s,
+        color 0.3s;
+}
+.app .el-button.is-text {
+    font-size: 12px;
+    font-weight: normal;
+}
+.app .el-button.is-link {
+    color: inherit;
+    font-size: 12px;
+    font-weight: normal;
+}
+.app .el-button.is-link:hover {
+    color: var(--general);
+}
+.app .el-select-dropdown__wrap .el-select-dropdown__item.is-selected {
+    color: var(--general);
+}
+.tig-normal-loading.is-fullscreen {
+    width: 140px;
+    left: 50%;
+    height: 90px;
+    top: 50%;
+    margin-left: -70px;
+    margin-top: -90px;
+    background: rgba(0, 0, 0, 0.5) !important;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 14px;
+    position: relative;
+    text-align: center;
+}
+.tig-normal-loading.is-fullscreen .el-loading-spinner {
+    margin-top: 0 !important;
+    top: 15px;
+}
+.tig-normal-loading.is-fullscreen .el-loading-spinner .circular {
+    width: 35px !important;
+    height: 35px !important;
+}
+.tig-normal-loading.is-fullscreen .el-loading-spinner .el-loading-text {
+    color: #fff !important;
+}
+.tig-normal-loading.is-fullscreen .el-loading-spinner .path {
+    stroke: #fff !important;
+}
+.tig-button {
+    background: #f7f7f7;
+    border: 1px solid #ddd;
+    color: #666;
+    display: inline-block;
+    border-radius: 2px;
+    cursor: pointer;
+    height: 20px;
+    line-height: 20px;
+    padding: 3px 12px;
+    text-align: center;
+    transition:
+        background-color 0.3s,
+        color 0.3s;
+    text-decoration: none;
+}
+.theme-button {
+    background-color: var(--general);
+    border: 1px solid var(--general);
+    color: var(--main-text);
+}
+.theme-button:hover {
+    background-color: var(--primary-light-3);
+    border-color: var(--primary-light-3);
+    color: #fff;
+}
+.font-color {
+    color: var(--general);
+}
