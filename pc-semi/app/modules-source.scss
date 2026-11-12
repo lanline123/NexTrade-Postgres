@@ -4463,3 +4463,18 @@ img {
     border-color: var(--main-bg, #ee0a24);
   }
 }
+
+/* ================= 拼团模块卡片悬停描边（2026-11-13） =================
+ * 对齐「商品分组」模块的悬停效果（.dec-product-group__card：1px 透明边框 +
+ * hover 时 border-color 切主题色）。拼团卡片（旧版 proditem 结构）原本无任何
+ * hover 反馈。放在文件末尾压过 decorate-source.scss 中同选择器的背景/内边距规则。
+ * 主题色取全局 --main-bg（battery.recy.cc 注入 #65c4aa）。 */
+.mod_groupon .groupon_list .proditem {
+  border: 1px solid transparent;
+  border-radius: 4px;
+  transition: border-color 0.3s;
+
+  &:hover {
+    border-color: var(--main-bg, #ee0a24);
+  }
+}

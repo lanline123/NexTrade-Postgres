@@ -5414,41 +5414,100 @@ function GrouponPickerModal({
 }) {
   const { t } = useI18n();
   const [rows, setRows] = useState<Array<Record<string, any>>>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [picked, setPicked] = useState<Record<string, any> | null>(current || null);
 
-  useEffect(() => {
-    if (!visible) return;
+  const rowId = (row: Record<string, any>) => row.grouponPromotionId ?? row.grouponId ?? row.id;
+
+  const load = (nextPage = 1) => {
     setLoading(true);
-    apiGet<{ records?: Array<Record<string, any>>; list?: Array<Record<string, any>> }>('/promotion/groupon/list', { page: 1, size: 20 })
-      .then((res) => setRows(res.records || res.list || []))
+    apiGet<{ records?: Array<Record<string, any>>; list?: Array<Record<string, any>>; total?: number }>('/promotion/groupon/list', { page: nextPage, size: 20 })
+      .then((res) => {
+        const list = res.records || res.list || [];
+        setRows(list);
+        setTotal(Number(res.total ?? list.length));
+      })
       .catch(() => setRows([]))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (!visible) return;
+    setPicked(current || null);
+    setPage(1);
+    load(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
+  /** 活动时间描述：未开始/进行中/已结束 + 起止时间。 */
+  const activityTime = (row: Record<string, any>): { label: string; range: string } => {
+    const fmt = (v: unknown) => String(v ?? '').slice(0, 16);
+    const start = fmt(row.startTime);
+    const end = fmt(row.endTime);
+    const ts = (v: unknown) => {
+      const ms = new Date(String(v ?? '').replace(/-/g, '/')).getTime();
+      return Number.isFinite(ms) ? ms : 0;
+    };
+    const now = Date.now();
+    const s = ts(row.startTime);
+    const e = ts(row.endTime);
+    const label = s && now < s ? t('未开始') : e && now > e ? t('已结束') : t('进行中');
+    return { label, range: start && end ? `${start} ~ ${end}` : start || end || '' };
+  };
+
   return (
-    <Modal title={t('选择拼团活动')} visible={visible} width={640} onOk={() => onOk(picked)} onCancel={onCancel} okText={t('确定')} cancelText={t('取消')}>
-      <div style={{ maxHeight: 380, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {loading && <Spin />}
-        {!loading && rows.length === 0 && <Text type="tertiary">{t('暂无拼团活动')}</Text>}
-        {rows.map((row) => {
-          const id = row.grouponPromotionId ?? row.grouponId ?? row.id;
-          const name = row.name || row.title || t('活动#{id}', { id });
-          const isPicked = picked && (picked.grouponPromotionId ?? picked.grouponId ?? picked.id) === id;
-          return (
-            <div
-              key={id}
-              onClick={() => setPicked({ grouponPromotionId: id, name, groupType: row.groupType, startTime: row.startTime, endTime: row.endTime })}
-              style={{
-                padding: 10, borderRadius: 6, cursor: 'pointer',
-                border: `1px solid ${isPicked ? 'var(--semi-color-primary)' : 'var(--semi-color-border)'}`,
-              }}
-            >
-              <div>{name}</div>
-              <Text type="tertiary" size="small">{Number(row.groupType) === 2 ? t('阶梯拼团') : t('普通拼团')}</Text>
-            </div>
-          );
-        })}
+    <Modal
+      title={t('选择拼团活动')}
+      visible={visible}
+      width={640}
+      onOk={() => onOk(picked)}
+      onCancel={onCancel}
+      okText={t('确定')}
+      cancelText={t('取消')}
+      okButtonProps={{ disabled: !picked }}
+    >
+      <div className="dec-groupon-picker">
+        <div className="dec-groupon-picker__list">
+          {loading && <div className="dec-groupon-picker__loading"><Spin /></div>}
+          {!loading && rows.length === 0 && <Text type="tertiary">{t('暂无拼团活动')}</Text>}
+          {!loading && rows.map((row) => {
+            const id = rowId(row);
+            const name = row.name || row.title || t('活动#{id}', { id });
+            const isPicked = picked && (picked.grouponPromotionId ?? picked.grouponId ?? picked.id) === id;
+            const isLadder = Number(row.groupType) === 2;
+            const time = activityTime(row);
+            return (
+              <div
+                key={String(id)}
+                className={`dec-groupon-picker__item${isPicked ? ' is-active' : ''}`}
+                onClick={() => setPicked({ grouponPromotionId: id, name, groupType: row.groupType, startTime: row.startTime, endTime: row.endTime })}
+              >
+                <div className="dec-groupon-picker__main">
+                  <div className="dec-groupon-picker__name">{name}</div>
+                  <div className="dec-groupon-picker__meta">
+                    <span className={`dec-groupon-picker__type${isLadder ? ' is-ladder' : ''}`}>{isLadder ? t('阶梯拼团') : t('普通拼团')}</span>
+                    <span className={`dec-groupon-picker__status is-${time.label === t('进行中') ? 'on' : 'off'}`}>{time.label}</span>
+                    {time.range && <span className="dec-groupon-picker__time">{time.range}</span>}
+                  </div>
+                </div>
+                {isPicked && <span className="dec-groupon-picker__check">✓</span>}
+              </div>
+            );
+          })}
+        </div>
+        {total > 20 && (
+          <div className="dec-groupon-picker__pager">
+            <Pagination
+              currentPage={page}
+              pageSize={20}
+              total={total}
+              onPageChange={(p) => { setPage(p); load(p); }}
+              size="small"
+            />
+          </div>
+        )}
       </div>
     </Modal>
   );

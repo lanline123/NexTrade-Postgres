@@ -2717,6 +2717,69 @@
 .dec-group-picker__id { flex: none; font-size: 12px; color: #98a2b3; }
 .dec-group-picker__check { flex: none; color: var(--semi-color-primary); font-size: 13px; font-weight: 700; }
 
+/* 选择拼团活动弹窗（与商品分组选择器同一形态 + 活动元信息） */
+.dec-groupon-picker__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.dec-groupon-picker__loading { display: grid; place-items: center; padding: 32px 0; }
+.dec-groupon-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.dec-groupon-picker__item:hover { border-color: #d5dde6; background: #fafbfd; }
+.dec-groupon-picker__item.is-active {
+  border-color: var(--semi-color-primary);
+  background: color-mix(in srgb, var(--semi-color-primary) 5%, #fff);
+}
+.dec-groupon-picker__main { flex: 1; min-width: 0; }
+.dec-groupon-picker__name {
+  font-size: 13px;
+  color: #2a3145;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dec-groupon-picker__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #98a2b3;
+  min-width: 0;
+}
+.dec-groupon-picker__type {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #eef4ff;
+  color: #3562d6;
+}
+.dec-groupon-picker__type.is-ladder { background: #fff7e8; color: #b26b00; }
+.dec-groupon-picker__status { flex: none; }
+.dec-groupon-picker__status.is-on { color: #12b76a; }
+.dec-groupon-picker__status.is-off { color: #98a2b3; }
+.dec-groupon-picker__time {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dec-groupon-picker__check { flex: none; color: var(--semi-color-primary); font-size: 13px; font-weight: 700; }
+.dec-groupon-picker__pager { display: flex; justify-content: flex-end; padding-top: 12px; }
+
 
 /* 图片魔方：布局模板选择 */
 .square-template { width: 100%; }

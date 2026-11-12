@@ -156,6 +156,9 @@
   box-sizing: border-box;
   position: relative;
   background: #ffffff;
+  /* 对齐 PC 前台 .mod_groupon .groupon_list .proditem 的 padding-bottom:10px：
+     价格条与模块底部之间保留呼吸空间（admin 预览此前价格标签贴底） */
+  padding-bottom: 10px;
 }
 
 .pc-groupon__switch {
@@ -210,6 +213,14 @@
   flex-direction: column;
   width: 100%;
   background: #ffffff;
+  /* 悬停细线描边，对齐「商品分组」模块卡片（1px 透明边框 + hover 切主题色） */
+  border: 1px solid transparent;
+  border-radius: 4px;
+  transition: border-color 0.3s;
+}
+
+.pc-groupon-card:hover {
+  border-color: var(--main-bg, #ee0a24);
 }
 
 .pc-groupon-card__image-wrap {
