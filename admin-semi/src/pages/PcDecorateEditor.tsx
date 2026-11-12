@@ -5247,6 +5247,8 @@ function ProductPickerModal({
   const [rows, setRows] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [picked, setPicked] = useState<number[]>(selectedIds);
+  /** 已选行的信息缓存：onOk 时按 picked 顺序回传，调用方（商品/图集/主图卡）才能拿到缩略图与价格。 */
+  const rowsByIdRef = useRef<Map<number, ProductRow>>(new Map());
 
   useEffect(() => {
     if (visible) setPicked(selectedIds);
@@ -5261,7 +5263,11 @@ function ProductPickerModal({
       size: 20,
       productType: 1,
     })
-      .then((res) => setRows(res.records || res.list || []))
+      .then((res) => {
+        const list = res.records || res.list || [];
+        list.forEach((row) => rowsByIdRef.current.set(row.productId, row));
+        setRows(list);
+      })
       .catch(() => setRows([]))
       .finally(() => setLoading(false));
   };
@@ -5272,6 +5278,7 @@ function ProductPickerModal({
   }, [visible]);
 
   const toggle = (row: ProductRow) => {
+    rowsByIdRef.current.set(row.productId, row);
     setPicked((prev) => {
       if (prev.includes(row.productId)) return prev.filter((id) => id !== row.productId);
       if (!multiple) return [row.productId];
@@ -5284,7 +5291,14 @@ function ProductPickerModal({
       title={t('选择商品')}
       visible={visible}
       width={720}
-      onOk={() => onOk(picked, [])}
+      onOk={() =>
+        onOk(
+          picked,
+          picked
+            .map((id) => rowsByIdRef.current.get(id))
+            .filter((row): row is ProductRow => !!row),
+        )
+      }
       onCancel={onCancel}
       okText={t('确定')}
       cancelText={t('取消')}
@@ -6149,6 +6163,268 @@ function HotareaPainter({
   );
 }
 
+/**
+ * 商品设置（选品）字段 —— 现代化重写（2026-11-12）。
+ *
+ * 旧实现是「一行 RadioGroup + 一个裸按钮 + 纯 id Tag」，选了什么商品完全不可见。
+ * 现在的数据契约不变（`productIds` 是唯一事实来源，顺序即展示顺序；
+ * `productItems` 只是编辑器本地的展示信息缓存，前台不读）：
+ *
+ * - 选品方式改为分段按钮（Semi RadioGroup type='button'）；
+ * - 「选商品」渲染已选商品缩略图卡片（图/名/价/移除），支持拖拽排序，
+ *   末尾是虚线「添加商品」卡，点击打开商品选择弹窗；
+ * - 「按分类 / 按标签」为带标签的整行控件 + 商品数量步进器。
+ */
+function ProductsSettingField({
+  value,
+  onChange,
+  field,
+  categoryOptions,
+}: {
+  value: Record<string, any>;
+  onChange: (next: Record<string, any>) => void;
+  field: SettingFieldDef;
+  categoryOptions: Array<{ value: string | number; label: string }>;
+}) {
+  const { t } = useI18n();
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
+  const ids = (Array.isArray(value.productIds) ? value.productIds : []) as number[];
+  const items = (Array.isArray(value.productItems) ? value.productItems : []) as Array<{
+    productId: number;
+    productName?: string;
+    productPrice?: number | string;
+    picUrl?: string;
+    picThumb?: string;
+  }>;
+  const infoById = new Map(items.map((it) => [Number(it.productId), it]));
+
+  // 历史数据没有 productItems 缓存时，按 ids 一次性拉商品信息补全缩略图/名称/价格
+  // （与 usePreviewProducts 同一取数口径：ids + size + 上架/审核过滤）。
+  const missingKey = ids.filter((id) => !infoById.has(Number(id))).join(',');
+  const fillingRef = useRef(false);
+  useEffect(() => {
+    if (Number(value.productSelectType ?? 1) !== 1 || !missingKey || fillingRef.current) return;
+    fillingRef.current = true;
+    const missing = missingKey.split(',').map(Number);
+    apiGet<{ records?: ProductRow[]; list?: ProductRow[] }>('/product/product/list', {
+      ids: missing.join(','),
+      size: missing.length,
+      page: 1,
+      productStatus: 1,
+      checkStatus: 1,
+    })
+      .then((res) => {
+        const list = res.records || res.list || [];
+        const found = new Map(list.map((row) => [row.productId, row]));
+        if (!found.size) return;
+        onChange({
+          ...value,
+          productItems: ids.map((id) => {
+            const row = found.get(Number(id)) || infoById.get(Number(id));
+            return row
+              ? {
+                  productId: Number(id),
+                  productName: row.productName ?? (infoById.get(Number(id))?.productName),
+                  productPrice: row.productPrice ?? (infoById.get(Number(id))?.productPrice),
+                  picUrl: row.picUrl ?? (infoById.get(Number(id))?.picUrl),
+                  picThumb: row.picThumb ?? (infoById.get(Number(id))?.picThumb),
+                }
+              : undefined;
+          }).filter((it): it is NonNullable<typeof it> => !!it),
+        });
+      })
+      .catch(() => {
+        // 拉取失败就保持占位显示，不打断编辑
+      })
+      .finally(() => {
+        fillingRef.current = false;
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missingKey, value.productSelectType]);
+
+  const emit = (nextIds: number[], nextItems?: typeof items) => {
+    const cache = nextItems ?? items;
+    onChange({
+      ...value,
+      productIds: nextIds,
+      // 缓存只保留当前 id 集合，按 ids 顺序输出，保证卡片渲染与 productIds 严格对齐
+      productItems: nextIds
+        .map((id) => cache.find((it) => Number(it.productId) === Number(id)))
+        .filter((it): it is NonNullable<typeof it> => !!it),
+    });
+  };
+
+  const reorder = (from: number, to: number) => {
+    if (from === to) return;
+    const next = [...ids];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    emit(next);
+  };
+  const removeAt = (index: number) => emit(ids.filter((_, i) => i !== index));
+
+  const selectType = Number(value.productSelectType ?? 1);
+
+  return (
+    <div className="dec-prod-pick">
+      <div className="dec-prod-pick__mode">
+        <RadioGroup
+          type="button"
+          buttonSize="small"
+          value={selectType}
+          onChange={(e: any) => onChange({ ...value, productSelectType: Number(e.target.value) })}
+        >
+          <Radio value={1}>{t('选商品')}</Radio>
+          <Radio value={2}>{t('按分类')}</Radio>
+          <Radio value={3}>{t('按标签')}</Radio>
+        </RadioGroup>
+      </div>
+
+      {selectType === 1 && (
+        <div className="dec-prod-pick__grid">
+          {ids.map((id, index) => {
+            const info = infoById.get(Number(id));
+            const url = String(info?.picUrl || info?.picThumb || '');
+            return (
+              <div
+                key={String(id)}
+                className={`dec-prod-pick__card${dragIndex === index ? ' is-dragging' : ''}${
+                  overIndex === index && dragIndex !== null && dragIndex !== index ? ' is-drop-target' : ''
+                }`}
+                draggable
+                onDragStart={() => setDragIndex(index)}
+                onDragOver={(event) => {
+                  if (dragIndex === null) return;
+                  event.preventDefault();
+                  if (overIndex !== index) setOverIndex(index);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (dragIndex !== null) reorder(dragIndex, index);
+                  setDragIndex(null);
+                  setOverIndex(null);
+                }}
+                onDragEnd={() => {
+                  setDragIndex(null);
+                  setOverIndex(null);
+                }}
+                title={t('拖动调整顺序')}
+              >
+                {url ? (
+                  <img className="dec-prod-pick__thumb" src={url} alt="" loading="lazy" />
+                ) : (
+                  <span className="dec-prod-pick__thumb dec-prod-pick__thumb--empty">#{id}</span>
+                )}
+                <span className="dec-prod-pick__index">{index + 1}</span>
+                <button
+                  type="button"
+                  className="dec-prod-pick__remove"
+                  aria-label={t('移除')}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    removeAt(index);
+                  }}
+                >
+                  ×
+                </button>
+                <div className="dec-prod-pick__meta">
+                  <div className="dec-prod-pick__name">
+                    {info?.productName || t('商品#{id}', { id })}
+                  </div>
+                  {info?.productPrice !== undefined && info?.productPrice !== null && (
+                    <div className="dec-prod-pick__price">¥{info.productPrice}</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          <button type="button" className="dec-prod-pick__add" onClick={() => setPickerVisible(true)}>
+            <IconPlus />
+            <span>{t('添加商品')}</span>
+          </button>
+          {pickerVisible && (
+            <ProductPickerModal
+              visible
+              selectedIds={ids}
+              onOk={(nextIds, rows) => {
+                // 合并缓存：旧信息保留，本次弹窗带回的行刷新/补齐
+                const merged = [...items];
+                rows.forEach((row) => {
+                  const at = merged.findIndex((it) => Number(it.productId) === Number(row.productId));
+                  const entry = {
+                    productId: row.productId,
+                    productName: row.productName,
+                    productPrice: row.productPrice,
+                    picUrl: row.picUrl,
+                    picThumb: row.picThumb,
+                  };
+                  if (at >= 0) merged[at] = entry;
+                  else merged.push(entry);
+                });
+                emit(nextIds, merged);
+                setPickerVisible(false);
+              }}
+              onCancel={() => setPickerVisible(false)}
+            />
+          )}
+        </div>
+      )}
+
+      {selectType === 2 && (
+        <div className="dec-prod-pick__row">
+          <label className="dec-prod-pick__field">
+            <span>{t('商品分类')}</span>
+            <Select
+              value={value.productCategoryId || undefined}
+              optionList={categoryOptions}
+              showClear
+              filter
+              style={{ width: '100%' }}
+              placeholder={t('选择分类')}
+              onChange={(v) => onChange({ ...value, productCategoryId: v ? Number(v) : 0 })}
+            />
+          </label>
+          <label className="dec-prod-pick__field">
+            <span>{t('商品数量')}</span>
+            <InputNumber
+              value={value.productNumber ?? 10}
+              onChange={(v) => onChange({ ...value, productNumber: v ?? 10 })}
+              min={field.numberMin ?? 1}
+              max={field.numberMax}
+              style={{ width: '100%' }}
+            />
+          </label>
+        </div>
+      )}
+
+      {selectType === 3 && (
+        <div className="dec-prod-pick__row">
+          <label className="dec-prod-pick__field">
+            <span>{t('商品标签')}</span>
+            <Input
+              value={value.productTag || ''}
+              onChange={(v) => onChange({ ...value, productTag: v })}
+              placeholder={t('输入商品标签')}
+            />
+          </label>
+          <label className="dec-prod-pick__field">
+            <span>{t('商品数量')}</span>
+            <InputNumber
+              value={value.productNumber ?? 10}
+              onChange={(v) => onChange({ ...value, productNumber: v ?? 10 })}
+              min={field.numberMin ?? 1}
+              max={field.numberMax}
+              style={{ width: '100%' }}
+            />
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FieldControl({
   field,
   moduleData,
@@ -6397,42 +6673,7 @@ function FieldControl({
       const products = (value && typeof value === 'object' ? value : productsDefaults()) as Record<string, any>;
       const setProducts = (next: Record<string, any>) => set(next);
       return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div>
-            <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>{t('选品方式')}</Text>
-            <RadioGroup value={products.productSelectType ?? 1} onChange={(e: any) => setProducts({ ...products, productSelectType: Number(e.target.value) })}>
-              <Radio value={1}>{t('选商品')}</Radio>
-              <Radio value={2}>{t('按分类')}</Radio>
-              <Radio value={3}>{t('按标签')}</Radio>
-            </RadioGroup>
-          </div>
-          {Number(products.productSelectType) === 1 && (
-            <div>
-              <Button icon={<IconPlus />} onClick={() => setPickerVisible(true)}>{t('选择商品（已选 {count}）', { count: ((products.productIds || []) as number[]).length })}</Button>
-              {pickerVisible && (
-                <ProductPickerModal visible selectedIds={(products.productIds || []) as number[]} onOk={(nextIds) => { setProducts({ ...products, productIds: nextIds }); setPickerVisible(false); }} onCancel={() => setPickerVisible(false)} />
-              )}
-            </div>
-          )}
-          {Number(products.productSelectType) === 2 && (
-            <Select value={products.productCategoryId || undefined} optionList={categoryOptions} showClear filter placeholder={t('选择分类')} onChange={(v) => setProducts({ ...products, productCategoryId: v ? Number(v) : 0 })} />
-          )}
-          {Number(products.productSelectType) === 3 && (
-            <Input value={products.productTag || ''} onChange={(v) => setProducts({ ...products, productTag: v })} placeholder={t('商品标签')} />
-          )}
-          {[2, 3].includes(Number(products.productSelectType)) && (
-            <div>
-              <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>{t('商品数量')}</Text>
-              <InputNumber
-                value={products.productNumber ?? 10}
-                onChange={(v) => setProducts({ ...products, productNumber: v ?? 10 })}
-                min={field.numberMin ?? 1}
-                max={field.numberMax}
-                style={{ width: 140 }}
-              />
-            </div>
-          )}
-        </div>
+        <ProductsSettingField value={products} onChange={setProducts} field={field} categoryOptions={categoryOptions} />
       );
     }
     case 'groupon': {
