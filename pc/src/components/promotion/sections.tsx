@@ -18,6 +18,8 @@ interface SectionProps {
     countdownLabel?: string;
     moreHref?: string;
     limit?: number;
+    /** 服务端预取的商品：给了就不再客户端请求（首页首屏 SSR 用） */
+    items?: SeckillItem[] | GrouponItem[];
 }
 
 function SectionShell({
@@ -45,17 +47,25 @@ function SectionShell({
     );
 }
 
-export function SeckillSection({ title, countdownLabel, moreHref = '/seckill/list', limit = 5 }: SectionProps) {
+export function SeckillSection({
+    title,
+    countdownLabel,
+    moreHref = '/seckill/list',
+    limit = 5,
+    items,
+}: SectionProps) {
     const { t } = useTranslation();
-    const [rows, setRows] = useState<SeckillItem[]>([]);
-    const [loading, setLoading] = useState(true);
+    const preloaded = Array.isArray(items);
+    const [rows, setRows] = useState<SeckillItem[]>((items as SeckillItem[]) ?? []);
+    const [loading, setLoading] = useState(!preloaded);
 
     useEffect(() => {
+        if (preloaded) return;
         fetchSeckillList(1, limit)
             .then((result) => setRows((result.records ?? []).slice(0, limit)))
             .catch(() => setRows([]))
             .finally(() => setLoading(false));
-    }, [limit]);
+    }, [limit, preloaded]);
 
     if (loading || rows.length === 0) return null;
 
@@ -71,16 +81,24 @@ export function SeckillSection({ title, countdownLabel, moreHref = '/seckill/lis
     );
 }
 
-export function GrouponSection({ title, countdownLabel, moreHref = '/joining/list', limit = 5 }: SectionProps) {
-    const [rows, setRows] = useState<GrouponItem[]>([]);
-    const [loading, setLoading] = useState(true);
+export function GrouponSection({
+    title,
+    countdownLabel,
+    moreHref = '/joining/list',
+    limit = 5,
+    items,
+}: SectionProps) {
+    const preloaded = Array.isArray(items);
+    const [rows, setRows] = useState<GrouponItem[]>((items as GrouponItem[]) ?? []);
+    const [loading, setLoading] = useState(!preloaded);
 
     useEffect(() => {
+        if (preloaded) return;
         fetchGrouponList(1, limit)
             .then((result) => setRows((result.records ?? []).slice(0, limit)))
             .catch(() => setRows([]))
             .finally(() => setLoading(false));
-    }, [limit]);
+    }, [limit, preloaded]);
 
     if (loading || rows.length === 0) return null;
 

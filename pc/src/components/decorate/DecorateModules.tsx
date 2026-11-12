@@ -17,6 +17,12 @@ import { GrouponSection, SeckillSection } from '@/components/promotion/sections'
  * 秒杀/拼团楼层：装修数据里只有标题与倒计时文案，商品另取（getSeckill / groupon/itemList）；
  * 优惠券仍是入口卡（券数据需登录态，放首页会白跑一次请求）。
  */
+export interface DecoratePreload {
+    /** 首页首屏由服务端预取的秒杀/拼团商品，避免楼层等客户端请求 */
+    seckill?: unknown[];
+    groupon?: unknown[];
+}
+
 export interface DecorateModule {
     moduleIndex?: number;
     type?: string;
@@ -197,16 +203,6 @@ const RENDERERS: Record<string, (module: Data) => ReactNode> = {
     ),
     'pc-coupon': (m) => <EntryCard module={m} label="领券中心" href="/coupon/list" />,
     'pc-home-coupon': (m) => <EntryCard module={m} label="领券中心" href="/coupon/list" />,
-    'pc-seckill': (m) => (
-        <SeckillSection title={sectionTitle(m, '限时秒杀')} countdownLabel={sectionCountdownLabel(m)} />
-    ),
-    'pc-home-seckill': (m) => (
-        <SeckillSection title={sectionTitle(m, '限时秒杀')} countdownLabel={sectionCountdownLabel(m)} />
-    ),
-    'pc-groupon': (m) => <GrouponSection title={sectionTitle(m, '拼团')} countdownLabel={sectionCountdownLabel(m)} />,
-    'pc-home-groupon': (m) => (
-        <GrouponSection title={sectionTitle(m, '拼团')} countdownLabel={sectionCountdownLabel(m)} />
-    ),
     'pc-notice': (m) => {
         const texts = asList(m.noticeList).map((item) => str(item.title ?? item.content));
         const single = str(m.text);
@@ -231,7 +227,13 @@ const RENDERERS: Record<string, (module: Data) => ReactNode> = {
     'pc-custom-ad2': (m) => <ImageRow items={asList(m.picList)} ratio="calc(50% - 6px)" />
 };
 
-export default function DecorateModules({ modules }: { modules: DecorateModule[] }) {
+export default function DecorateModules({
+    modules,
+    preload,
+}: {
+    modules: DecorateModule[];
+    preload?: DecoratePreload;
+}) {
     const { t } = useTranslation();
     const visible = (modules ?? []).filter((item) => {
         const flag = item.isShow as unknown;
@@ -242,11 +244,36 @@ export default function DecorateModules({ modules }: { modules: DecorateModule[]
     return (
         <div className="pc-dec-wrap">
             {visible.map((item, index) => {
-                const renderer = item.type ? RENDERERS[normalizeType(item.type)] : undefined;
-                if (!renderer) return null;
+                const key = item.type ? normalizeType(item.type) : '';
+                const module = (item.module ?? {}) as Data;
+
+                // 秒杀/拼团楼层：商品不在装修数据里，需要 preload（服务端）或组件内自行请求
+                let content: ReactNode = null;
+                if (key === 'pc-home-seckill' || key === 'pc-seckill') {
+                    content = (
+                        <SeckillSection
+                            title={sectionTitle(module, '限时秒杀')}
+                            countdownLabel={sectionCountdownLabel(module)}
+                            items={preload?.seckill as never}
+                        />
+                    );
+                } else if (key === 'pc-home-groupon' || key === 'pc-groupon') {
+                    content = (
+                        <GrouponSection
+                            title={sectionTitle(module, '拼团')}
+                            countdownLabel={sectionCountdownLabel(module)}
+                            items={preload?.groupon as never}
+                        />
+                    );
+                } else {
+                    const renderer = key ? RENDERERS[key] : undefined;
+                    content = renderer ? renderer(module) : null;
+                }
+
+                if (!content) return null;
                 return (
                     <section className="pc-dec-section" key={`${item.type}-${item.moduleIndex ?? index}`}>
-                        {renderer(item.module ?? {})}
+                        {content}
                     </section>
                 );
             })}

@@ -1893,3 +1893,42 @@ body {
 .pc-cd-ended {
     color: var(--pc-muted);
 }
+
+/* ---------- 结算页拼团提示 ---------- */
+.pc-checkout-groupon {
+    display: flex;
+    gap: 12px;
+    padding: 10px 14px;
+    border: 1px solid #ffd8d8;
+    border-radius: 6px;
+    background: #fff7f7;
+    font-size: 13px;
+}
+
+.pc-checkout-groupon-label {
+    flex: 0 0 auto;
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: #e03131;
+    color: #fff;
+    font-size: 12px;
+    height: 20px;
+    line-height: 18px;
+}
+
+/* ---------- 商品详情活动角标 ---------- */
+.pc-pd-activities {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.pc-pd-groupon {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: #fff7f7;
+    border: 1px solid #ffd8d8;
+}

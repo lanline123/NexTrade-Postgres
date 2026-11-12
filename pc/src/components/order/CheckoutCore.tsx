@@ -13,6 +13,8 @@ import InvoiceDialog, { EMPTY_INVOICE, type InvoiceValue } from '@/components/in
  * Vue 基准：pages/order/check.vue（1679 行）+ src/{Address,PayType,CouponInfo,InvoiceInfo}.vue
  * 已实现：地址选择、配送方式、商品清单、优惠券、发票（普通/专用/个人/企业完整表单）、
  *         积分/余额抵扣、金额重算、提交。
+ * 拼团单：购物车条目 activityInfo 里含 type=7 时提示拼团，提交后按后端 returnType 分流
+ * （returnType=2 不走收银台，带 grouponPromotionRecordId 时跳「我的拼团」详情）。
  * 未迁：预售定金、账期支付、支付方式选择（提交时 payTypeId=0）、定金预售步骤条。
  * 所有计价变更统一走 order/check/update；优惠券走 order/check/updateCoupon。
  * 提交会创建真实待支付订单，因此必须二次确认。
@@ -27,6 +29,14 @@ interface AddressRow {
     isDefault?: number;
 }
 
+interface CartActivity {
+    promotionId?: number;
+    promotionName?: string;
+    /** 2=优惠券 7=拼团（结算页据此识别拼团单） */
+    type?: number;
+    typeText?: string;
+}
+
 interface CartItem {
     cartId?: number;
     productId?: number;
@@ -35,6 +45,7 @@ interface CartItem {
     productPrice?: number | string;
     quantity?: number;
     skuData?: unknown;
+    activityInfo?: CartActivity[];
 }
 
 interface CartGroup {
@@ -258,11 +269,26 @@ export default function CheckoutCore({ flowType = 1 }: { flowType?: number }) {
     const submit = async () => {
         setSubmitting(true);
         try {
-            const result = await apiPost<{ orderSn?: string }>('order/check/submit', buildPayload());
-            const orderSn = result?.orderSn ?? '';
+            const result = await apiPost<{
+                returnType?: number;
+                orderId?: number | string;
+                orderSn?: string;
+                grouponPromotionRecordId?: number;
+            }>('order/check/submit', buildPayload());
             Toast.success(t('下单成功'));
             setConfirmOpen(false);
-            router.push(`/order/pay${orderSn ? `?id=${orderSn}` : ''}`);
+
+            // returnType=2：订单不进收银台（Vue 同口径）。拼团单带着团记录 ID 时去成团详情。
+            if (result?.returnType === 2) {
+                if (result.grouponPromotionRecordId) {
+                    router.push(`/member/group/info?id=${result.grouponPromotionRecordId}`);
+                } else {
+                    router.push('/member/order/list');
+                }
+                return;
+            }
+            const orderKey = result?.orderId ?? result?.orderSn ?? '';
+            router.push(`/order/pay${orderKey ? `?id=${orderKey}` : ''}`);
         } catch (e) {
             Toast.error((e as Error).message);
         } finally {
@@ -271,6 +297,21 @@ export default function CheckoutCore({ flowType = 1 }: { flowType?: number }) {
     };
 
     const coupons = useMemo(() => check?.couponList?.enableCoupons ?? [], [check]);
+
+    /** 拼团活动（type=7）：Vue 从购物车首个条目的 activityInfo 判断，这里同口径。 */
+    const grouponActivities = useMemo(() => {
+        const carts = (check?.cartList ?? []).flatMap((group) => group.carts ?? []);
+        const seen = new Set<number>();
+        return carts
+            .flatMap((item) => item.activityInfo ?? [])
+            .filter((row) => {
+                if (row.type !== 7) return false;
+                const key = Number(row.promotionId ?? 0);
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+    }, [check]);
     const total = check?.total ?? {};
     const totalAmount = total.totalAmount ?? total.unpaidAmount ?? 0;
 
@@ -307,6 +348,23 @@ export default function CheckoutCore({ flowType = 1 }: { flowType?: number }) {
                     </div>
                 )}
             </Card>
+
+            {grouponActivities.length > 0 ? (
+                <div className="pc-checkout-groupon">
+                    <span className="pc-checkout-groupon-label">{t('拼团')}</span>
+                    <div>
+                        {grouponActivities.map((row) => (
+                            <div key={row.promotionId}>
+                                {row.promotionName || t('拼团活动')}
+                                <span className="pc-muted">
+                                    {' · '}
+                                    {t('提交后将进入拼团，成团进度可在「我的拼团」查看')}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : null}
 
             {(check.cartList ?? []).map((group, groupIndex) => {
                 const shopId = group.shopId ?? 0;

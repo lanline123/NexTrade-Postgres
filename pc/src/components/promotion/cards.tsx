@@ -13,12 +13,19 @@ import {
     type SeckillItem,
 } from '@/lib/promotion';
 
-/** 每秒刷新的倒计时：目标时间戳 -> Countdown。 */
-export function useCountdown(target?: number | string | null): Countdown {
+/**
+ * 每秒刷新的倒计时：目标时间戳 -> Countdown。
+ *
+ * `ready` 在挂载后才为 true：服务端渲染时无法保证与浏览器同一秒，
+ * 直接输出秒数会触发 hydration 文本不一致告警，因此水合前只渲染占位。
+ */
+export function useCountdown(target?: number | string | null): Countdown & { ready: boolean } {
     const targetMs = toTimestamp(target ?? 0);
-    const [state, setState] = useState<Countdown>(() => splitCountdown(targetMs ? targetMs - Date.now() : 0));
+    const [state, setState] = useState<Countdown>(() => splitCountdown(0));
+    const [ready, setReady] = useState(false);
 
     useEffect(() => {
+        setReady(true);
         if (!targetMs) {
             setState(splitCountdown(0));
             return;
@@ -29,11 +36,22 @@ export function useCountdown(target?: number | string | null): Countdown {
         return () => clearInterval(timer);
     }, [targetMs]);
 
-    return state;
+    return { ...state, ready };
 }
 
 /** 倒计时数字块（天/时/分/秒），到点显示「已结束」。 */
-export function CountdownBoxes({ cd, endedText }: { cd: Countdown; endedText: string }) {
+export function CountdownBoxes({ cd, endedText }: { cd: Countdown & { ready?: boolean }; endedText: string }) {
+    if (cd.ready === false) {
+        return (
+            <span className="pc-cd">
+                <em>--</em>
+                <i>:</i>
+                <em>--</em>
+                <i>:</i>
+                <em>--</em>
+            </span>
+        );
+    }
     if (cd.remain <= 0) return <span className="pc-cd-ended">{endedText}</span>;
     return (
         <span className="pc-cd">
