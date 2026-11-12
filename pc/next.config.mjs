@@ -42,7 +42,6 @@ const nextConfig = {
      */
     async redirects() {
         return [
-            { source: '/item/:id', destination: '/product/:id', permanent: true },
             { source: '/coupon', destination: '/coupon/list', permanent: false },
             { source: '/search.v1', destination: '/search', permanent: true },
             { source: '/cart/index.v1', destination: '/cart', permanent: false },

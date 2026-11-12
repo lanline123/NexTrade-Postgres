@@ -2618,3 +2618,349 @@ body {
 .pc-chat-input .semi-input-wrapper {
     flex: 1;
 }
+
+/* ---------- 充值支付结果 / 二维码（components/member/RechargeChannelPage） ---------- */
+.pc-pay-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.pc-pay-qr {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 0 8px;
+    font-size: 13px;
+    text-align: center;
+}
+
+.pc-pay-qr img {
+    width: 220px;
+    height: 220px;
+    border: 1px solid #ebeef5;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.pc-pay-result {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 40px 0;
+    text-align: center;
+}
+
+.pc-pay-result-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    font-size: 28px;
+    color: #fff;
+    background: #16a34a;
+}
+
+/* ---------- 商品详情三套布局（components/product/ProductShell） ---------- */
+.pc-pd-style-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    border: 1px dashed #c9d7f5;
+    border-radius: 6px;
+    background: #f5f9ff;
+}
+
+/* 跨境版独有：分类导航面包屑 */
+.pc-pd-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--pc-muted);
+    margin-bottom: 10px;
+    min-width: 0;
+}
+
+.pc-pd-breadcrumb a {
+    color: var(--pc-muted);
+    text-decoration: none;
+}
+
+.pc-pd-breadcrumb a:hover {
+    color: #155bd4;
+}
+
+.pc-pd-breadcrumb > .pc-ellipsis {
+    color: var(--pc-text, #1f2329);
+    max-width: 320px;
+}
+
+/* 跨境版独有：分享行 */
+.pc-pd-share-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.pc-pd-share-links {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pc-pd-share-links a {
+    font-size: 12px;
+    color: #155bd4;
+    text-decoration: none;
+}
+
+.pc-pd-shop-bar {
+    padding: 10px 14px;
+    border: 1px solid #ebeef5;
+    border-radius: 6px;
+    background: #fff;
+    margin-bottom: 12px;
+    font-size: 13px;
+}
+
+/* 图集（三套共用） */
+.pc-pd-gallery-block {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pc-pd-stage {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #f7f8fa;
+}
+
+.pc-pd-stage img,
+.pc-pd-stage video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+.pc-pd-video-toggle {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    padding: 4px 12px;
+    border-radius: 14px;
+    border: none;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.pc-pd-thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.pc-pd-thumb {
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    border: 1px solid #e5e6eb;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #fff;
+    cursor: pointer;
+}
+
+.pc-pd-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.pc-pd-thumb.is-active {
+    border-color: #155bd4;
+    box-shadow: 0 0 0 1px #155bd4 inset;
+}
+
+.pc-pd-thumbs-hint {
+    font-size: 11px;
+}
+
+/* 购买面板补充 */
+.pc-pd-name h1 {
+    margin: 0 0 6px;
+    font-size: 18px;
+    line-height: 1.5;
+    color: var(--pc-text, #1f2329);
+}
+
+.pc-pd-name p {
+    margin: 0 0 6px;
+    font-size: 13px;
+}
+
+.pc-pd-price-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.pc-pd-sn {
+    font-size: 12px;
+    margin: 8px 0;
+}
+
+.pc-pd-services {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--pc-muted);
+}
+
+.pc-pd-services span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pc-pd-services img {
+    width: 14px;
+    height: 14px;
+}
+
+/* 锚点 Tab（跨境版） */
+.pc-pd-anchor {
+    display: flex;
+    gap: 22px;
+    padding: 10px 14px;
+    background: #fff;
+    border: 1px solid #ebeef5;
+    border-radius: 6px;
+    margin: 14px 0;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.pc-pd-anchor a {
+    font-size: 13px;
+    color: var(--pc-text, #1f2329);
+    text-decoration: none;
+}
+
+.pc-pd-anchor a:hover {
+    color: #155bd4;
+}
+
+/* 章节 */
+.pc-pd-sec-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    padding-left: 8px;
+    border-left: 3px solid #155bd4;
+}
+
+section + section {
+    margin-top: 24px;
+}
+
+/* 图文详情 / 规格参数 */
+.pc-pd-desc img,
+.pc-pd-desc video {
+    display: block;
+    max-width: 100%;
+    margin: 0 auto 8px;
+    border-radius: 4px;
+}
+
+.pc-pd-desc p {
+    margin: 0 0 8px;
+    line-height: 1.8;
+    color: var(--pc-text, #1f2329);
+}
+
+.pc-pd-spec-group {
+    margin-bottom: 14px;
+}
+
+.pc-pd-spec-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.pc-pd-spec table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.pc-pd-spec td {
+    border: 1px solid #f0f1f3;
+    padding: 8px 12px;
+}
+
+.pc-pd-spec td:first-child {
+    width: 160px;
+    color: var(--pc-muted);
+    background: #fafbfc;
+}
+
+/* 新版店铺横幅 */
+.pc-pd-shop-banner {
+    margin-bottom: 14px;
+}
+
+.pc-pd-shop-banner-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.pc-pd-shop-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--pc-text, #1f2329);
+}
+
+/* 经典版左右分栏 */
+.pc-pd-tools-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 4px 0;
+    font-size: 12px;
+}
+
+.pc-pd-old-body {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 14px;
+    margin-top: 14px;
+}
+
+@media (max-width: 1000px) {
+    .pc-pd-old-body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

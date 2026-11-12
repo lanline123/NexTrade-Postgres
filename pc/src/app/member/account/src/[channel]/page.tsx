@@ -19,7 +19,7 @@ export default function Page({
         <RechargeChannelPage
             channel={(params.channel ?? '').toLowerCase()}
             orderId={Number(searchParams?.id) || 0}
-            payCode={searchParams?.payCode}
+            query={{ type: searchParams?.type, payCode: searchParams?.payCode }}
         />
     );
 }
