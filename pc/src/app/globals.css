@@ -526,3 +526,67 @@ body {
 .pc-code-row > :first-child {
     flex: 1 1 auto;
 }
+
+/* 结算 / 收银台 */
+.pc-address-pick {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 13px;
+}
+
+.pc-address-option {
+    display: block;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #e9ebef;
+    border-radius: 8px;
+    background: #fff;
+    text-align: left;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.pc-address-option.is-active {
+    border-color: #155bd4;
+    background: #f2f7ff;
+}
+
+.pc-amount-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-size: 13px;
+}
+
+.pc-amount-row.is-total {
+    margin-top: 6px;
+    padding-top: 12px;
+    border-top: 1px solid #f0f2f5;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.pc-pay-channels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.pc-pay-channel {
+    padding: 10px 18px;
+    border: 1px solid #e9ebef;
+    border-radius: 8px;
+    background: #fff;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.pc-pay-channel.is-active {
+    border-color: #155bd4;
+    background: #f2f7ff;
+    color: #155bd4;
+    font-weight: 600;
+}

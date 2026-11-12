@@ -13,9 +13,9 @@
 |---|---|
 | 迁移方式 | **在 `pc/` 原地重写**：Vue 源码保留作 1:1 参照，React 代码写在 `src/`，两者互不参与对方构建 |
 | 技术栈 | React 18.3 + Next 14.2（App Router，真 SSR）+ Semi UI 2.104 + react-i18next |
-| 已完成 | 会员中心 **23 个路由**（共 66 个 `.vue` 的主体）+ 首页迁移看板 |
-| 验证 | `npm run build` 通过，27 条路由全部 `ƒ Dynamic`；抽查全部会员路由 curl 均 200 |
-| 尚未完成 | 会员中心零散子页（发票抬头、入驻、登录注册、账户卡管理）；`/order`、`/shop`、`/activity` 等顶层页整体未动 |
+| 已完成 | 会员中心 **23 个路由** + 订单结算/收银台核心版 + 首页迁移看板 |
+| 验证 | `npm run build` 通过，29 条路由全部 `ƒ Dynamic`；抽查会员路由与新页 curl 均 200 |
+| 尚未完成 | 会员零散子页；`/order` 其余分支（优惠券/发票/配送/预售）、`/shop`、`/activity`、`/search`、`/cart` 未动 |
 | 本地启动 | `cd pc && npm run dev` → http://127.0.0.1:3006 |
 
 **注意别混淆两套 React 前端**：
@@ -45,6 +45,7 @@ pc/
 │   │   ├── page.tsx            # 迁移看板（force-dynamic，展示 SSR 时间戳）
 │   │   ├── globals.css         # 全局样式（pc-* 前缀）
 │   │   ├── semi.css            # Semi 主题 CSS 本地副本（见 §4.3）
+│   │   ├── order/              # 订单：check 结算（核心版）+ pay 收银台（只读）
 │   │   └── member/             # 会员中心：layout + 23 个路由 + [...slug] 兜底
 │   ├── components/
 │   │   ├── HomeClient.tsx      # 看板（'use client'）
@@ -209,6 +210,8 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | `/member/userCertification/info` | `CertificationPanel` | `userCertification/Info.vue` | `user/company/{myApply,detail,apply}` |
 | `/member/pin/list` | `PinList` | `pages/member/pin/List.vue` | `promotion/groupon/record/list` |
 | `/member/termPay/list` | `CreditList` | `pages/member/termPay/list.vue` | `user/user/creditDetail` |
+| `/order/check` | `CheckoutCore` | `pages/order/check.vue` | `user/address/list`、`order/check/{index,submit}` |
+| `/order/pay` | `PayCore` | `pages/order/pay.vue` | `order/pay/index`（**不调 `pay/create`**） |
 
 ### 6.2 基础模块
 
@@ -232,7 +235,7 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 |---|---|---|
 | 1 | 会员剩余零散子页 | 发票抬头（`user/invoice/*` 表单）、入驻申请（`joining`）、登录/注册/找回密码（`Login/Register/reset`）、账户卡管理（`account/CardManagement`）。`pages/member/contact/` 在 Vue 版是空目录，菜单项已移除 |
 | 2 | 登录态真实数据校准 | 当前无 token 只验到「请先登录」；拿到登录态后要核对字段名（组件里用了多候选 `a ?? b ?? '-'` 兜底） |
-| 3 | 订单复杂分支 | 预售定金、拼团、礼品卡、线下认款、物流/取消原因弹窗 |
+| 3 | 订单结算未迁分支 | 优惠券选择、发票、配送方式切换、积分/余额抵扣、账期支付、预售定金（走 `order/check/update`、`updateCoupon`）；收银台支付渠道刻意未接 `order/pay/create` |
 | 4 | 顶层页 | `/order`（20 个 `.vue`）、`/shop`（18）、`/activity`（16）、`/search`（13）、`/cart`（7）等 |
 | 5 | i18n 补齐 | 新增文案的英文 key；`<title>` 目前是静态中文 |
 | 6 | 样式对齐 | 尚未逐像素对照 Vue/线上，`globals.css` 只做了骨架级布局 |
