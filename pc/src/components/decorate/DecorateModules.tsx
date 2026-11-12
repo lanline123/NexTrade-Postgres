@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Card, Typography } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { formatPrice, productImage } from '@/lib/format';
+import { GrouponSection, SeckillSection } from '@/components/promotion/sections';
 
 /**
  * 装修模块渲染器（React 版）。
@@ -12,7 +13,9 @@ import { formatPrice, productImage } from '@/lib/format';
  *
  * 关键：真实数据里 type 是 kebab-case（pc-image-ad），旧装修数据是 camelCase（pcImageAd）。
  * 统一 normalize 成 kebab 再查表，两种数据都能渲染。
- * 未知 type 静默跳过（生产不出现红块）；秒杀/拼团/优惠券模块内部数据需各自接口，这里只出标题 + 入口。
+ * 未知 type 静默跳过（生产不出现红块）。
+ * 秒杀/拼团楼层：装修数据里只有标题与倒计时文案，商品另取（getSeckill / groupon/itemList）；
+ * 优惠券仍是入口卡（券数据需登录态，放首页会白跑一次请求）。
  */
 export interface DecorateModule {
     moduleIndex?: number;
@@ -117,6 +120,16 @@ function Title({ module }: { module: Data }) {
     );
 }
 
+/** 楼标题：真实数据在 module.title.titleText（对象），旧数据可能是字符串。 */
+function sectionTitle(module: Data, fallback = ''): string {
+    const nested = (module.title ?? {}) as Data;
+    return str(nested.titleText) || str(module.title) || str(module.seckillTitle) || str(module.titleName) || fallback;
+}
+function sectionCountdownLabel(module: Data): string {
+    const nested = (module.title ?? {}) as Data;
+    return str(nested.countdownLabel);
+}
+
 function EntryCard({ module, label, href }: { module: Data; label: string; href: string }) {
     const title = str(module.title) || str(module.seckillTitle) || label;
     return (
@@ -184,10 +197,16 @@ const RENDERERS: Record<string, (module: Data) => ReactNode> = {
     ),
     'pc-coupon': (m) => <EntryCard module={m} label="领券中心" href="/coupon/list" />,
     'pc-home-coupon': (m) => <EntryCard module={m} label="领券中心" href="/coupon/list" />,
-    'pc-seckill': (m) => <EntryCard module={m} label="秒杀" href="/seckill/list" />,
-    'pc-home-seckill': (m) => <EntryCard module={m} label="秒杀" href="/seckill/list" />,
-    'pc-groupon': (m) => <EntryCard module={m} label="拼团" href="/member/pin/list" />,
-    'pc-home-groupon': (m) => <EntryCard module={m} label="拼团" href="/member/pin/list" />,
+    'pc-seckill': (m) => (
+        <SeckillSection title={sectionTitle(m, '限时秒杀')} countdownLabel={sectionCountdownLabel(m)} />
+    ),
+    'pc-home-seckill': (m) => (
+        <SeckillSection title={sectionTitle(m, '限时秒杀')} countdownLabel={sectionCountdownLabel(m)} />
+    ),
+    'pc-groupon': (m) => <GrouponSection title={sectionTitle(m, '拼团')} countdownLabel={sectionCountdownLabel(m)} />,
+    'pc-home-groupon': (m) => (
+        <GrouponSection title={sectionTitle(m, '拼团')} countdownLabel={sectionCountdownLabel(m)} />
+    ),
     'pc-notice': (m) => {
         const texts = asList(m.noticeList).map((item) => str(item.title ?? item.content));
         const single = str(m.text);

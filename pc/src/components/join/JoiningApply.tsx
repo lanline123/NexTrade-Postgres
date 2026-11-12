@@ -6,7 +6,8 @@ import { useTranslation } from 'react-i18next';
 import { apiGet } from '@/lib/client-api';
 import { formatDateTime } from '@/lib/format';
 
-/** Vue 基准：pages/joining/List.vue；接口 merchant/merchant/myApply。 */
+/** Vue 基准：pages/member/joining/List.vue；接口 merchant/merchant/myApply。
+ *  注意：`/joining/list` 是拼团商品列表（pages/joining/List.vue），不是入驻申请，两者别混。 */
 interface ApplyRow {
     id?: number;
     status?: number;
@@ -25,7 +26,7 @@ const STATUS_TEXT: Record<number, string> = {
     3: '已驳回'
 };
 
-export default function JoiningList() {
+export default function JoiningApply() {
     const { t } = useTranslation();
     const [apply, setApply] = useState<ApplyRow | null>(null);
     const [loading, setLoading] = useState(true);

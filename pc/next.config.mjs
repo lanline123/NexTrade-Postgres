@@ -48,7 +48,6 @@ const nextConfig = {
             { source: '/join/plan', destination: '/join', permanent: false },
             { source: '/join/process', destination: '/join', permanent: false },
             { source: '/join/standard', destination: '/join', permanent: false },
-            { source: '/member/joining/list', destination: '/joining/list', permanent: false },
             { source: '/member/reset', destination: '/member/login', permanent: false },
             { source: '/member/security/dialoginfo', destination: '/member/security/info', permanent: false },
             { source: '/member/bindmobilephone', destination: '/member/security/info', permanent: false },
