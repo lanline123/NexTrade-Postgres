@@ -239,7 +239,9 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | `/member/account/deposit` | `DepositPage` | `pages/member/account/Deposit.vue` | `user/rechargeOrder/{setting,paymentList,update}` |
 | `/member/account/raplytocard` | `WithdrawPage` | `pages/member/account/Raplytocard.vue` | `user/withdrawApply/{list,apply}` |
 | `/member/account/cardmanagement` | `CardManagement` | `pages/member/account/CardManagement.vue` | `user/withdrawApply/{list,createAccount,updateAccount,delAccount}` |
-| `/member/account/src/[channel]` | `RechargeChannelPage` | `pages/member/account/src/{alipay,paypal,wechat,yabanpay,yunpay,lakala}.vue` | `user/rechargeOrder/create` → `payInfo.html` 自动提交表单 |
+| `/member/account/src/[channel]` | `RechargeChannelPage` | `pages/member/account/src/{alipay,paypal,wechat,yabanpay,yunpay,lakala}.vue` | `user/rechargeOrder/create` 按 `payInfo` 三种拉起：html 表单 / url 跳转 / codeUrl 二维码（qrcode 生成 + 2s 轮询 checkStatus，payStatus=1 成功） |
+| `/product/[...slug]` | `ProductShell`（**跨境版**） | `pages/product/[...slug].vue` | Vue 写死 `ui-version="overseas"` |
+| `/item/:id` | `ProductShell`（**按后台风格**） | `pages/item/[id].vue` | `common/config/productDetailStyle`：1=old 2=new 3=overseas（此前被重定向吞掉，已恢复） |
 | `/member/account/src/serviceagreement` | 静态页 | `pages/member/account/src/serviceAgreement.vue` | 协议入口 |
 | `/shop/license` | `ShopLicense` | `pages/shop/license.vue` | `shop/shop/detail` 的 `businessLicensePic`，白页无头尾 |
 | `/chat` | `ChatPage` | `pages/chat/index.vue` | `im/conversation/*` + WebSocket `/ws?token=&platform=pc` |
@@ -449,6 +451,29 @@ Node 侧拿不到）。要扩展这套做法，只需：接口公开 → `server
 
 **刻意没做的**：发图片/视频/商品卡/订单卡（Vue 要走上传与商品选择器，这里只做**展示**兼容）、表情面板、语音。
 
+### 6.12 第八批：商品详情三套 UI（2026-11-13）
+
+**后台「商品页风格」`common/config/productDetailStyle` 下发 1/2/3，对应三套模板**（都在
+`pages/item/src/Product.vue` 一个文件里，约 1500 行）：
+
+| 版本 | 触发 | 头部 | 独有区块 |
+|---|---|---|---|
+| overseas 跨境版（3） | `/product/[...slug]` **写死**；`/item/:id` 当配置=3 | CommonPageHeader | 分类导航面包屑、「分享至」社交行、店铺信息条、吸顶锚点 Tab |
+| new 新版（2） | `/item/:id` 当配置=2 | PcHeaderTopBarRuntime | ProductHead 店铺横幅、店铺信息卡 |
+| old 经典版（1） | `/item/:id` 当配置=1 | CommonPageHeader | 商品编号/收藏工具行、左侧竞品栏、下方左右分栏 |
+
+**实现**：一份取数（`useProductDetail`）+ 三套布局（`ProductShell` 内按版本分发），积木
+（图集/购买面板/图文详情/规格参数表）抽到 `parts.tsx` 共用。切套**不重新请求数据**。
+
+**踩坑**：
+- `/item/:id` 之前被「旧 URL 重定向」吞掉，导致后台切风格无效——已恢复为真实页面并删除重定向；
+- `?uiStyle=old|new|overseas` 预览参数 Vue 只在 dev 放开，这里常开（验收三套最方便的方式）；
+- 详情数据仍走客户端取数（要登录态的商品字段），SSR 是骨架屏——与 Vue 的
+  ProductSkeleton 语义一致。
+
+**仍简化/未接**：收藏与原图下载（`product/productStyle/activeStyle` 边框/背景）、B2B 批发价、
+预售定金分支、评价列表（评论接口另批）、`ProductCompetitorsList` 竞品栏、跨境「相关文章」。
+
 ---
 
 ## 7. 待办（按建议顺序）
@@ -457,7 +482,7 @@ Node 侧拿不到）。要扩展这套做法，只需：接口公开 → `server
 |---|---|---|
 | 1 | 会员剩余零散子页 | 发票抬头（`user/invoice/*` 表单）、找回密码（`reset`）、账户卡管理（`account/CardManagement`）。入驻申请已迁到 `/member/joining/list`；登录/注册已完成；`pages/member/contact/` 在 Vue 版是空目录，菜单项已移除 |
 | 2 | 订单结算剩余 | 已补：优惠券、**完整发票（普通/专用 × 个人/企业）**、配送方式、积分/余额抵扣；仍缺：账期支付、预售定金、支付方式选择（提交时 `payTypeId=0`）；收银台支付渠道刻意未接 `order/pay/create` |
-| 3 | 功能深度 | IM 客服（`/chat` 仍是占位）、第三方登录（`/oauth/callback` 占位）、账户充值/银行卡/账期还款；拼团「开团/参团」下单链路（`order/check` 的 groupon 分支）未接 |
+| 3 | 功能深度 | 第三方登录（`/oauth/callback` 占位）、账期支付；商品详情的收藏/原图下载/B2B 批发价/评价列表（见 §6.12）；拼团「开团/参团」下单已通（`/joining/groupbyinvited` → 详情参团 → 结算分流） |
 | 4 | 数据获取时机 | **首页已改为真 SSR**（三接口服务端预取，见 §6.3.1）。其余页面仍是「SSR 骨架 + 浏览器取数」，因为要登录态。下一步可搬：商品详情（`product/product/detail` 公开）、分类/搜索首屏（`getFilter`+`getProduct` 公开） |
 | 5 | 筛选栏 URL 同步 | 筛选栏已迁（分类/品牌/价格/属性/排序），但状态在组件内、未写回 URL query（Vue 会同步路由）。要支持「分享带筛选的链接」需父级接管 |
 | 6 | i18n 补齐 | 新增文案的英文 key；`<title>` 目前是静态中文 |
