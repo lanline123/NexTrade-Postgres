@@ -229,6 +229,7 @@ impl SeckillBatchService {
                     seckill_start_time: it.seckill_start_time,
                     seckill_end_time: it.seckill_end_time,
                     seckill_limit_num: activity_limit,
+                    ..Default::default()
                 }
             })
             .collect())
