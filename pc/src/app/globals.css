@@ -443,3 +443,62 @@ body {
     gap: 4px;
     font-size: 13px;
 }
+
+/* 账户 / 表单 */
+.pc-balance-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.pc-balance-value {
+    margin-top: 6px;
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.pc-balance-grid {
+    display: flex;
+    gap: 32px;
+    font-size: 14px;
+}
+
+.pc-flow-row {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f2f5;
+    font-size: 13px;
+}
+
+.pc-flow-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pc-log-row {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr 2fr 1fr;
+    gap: 12px;
+    align-items: center;
+    font-size: 13px;
+}
+
+.pc-form-label {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--pc-muted);
+    font-size: 12px;
+}
+
+.pc-profile-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 16px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #f0f2f5;
+}

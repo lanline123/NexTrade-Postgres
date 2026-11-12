@@ -13,9 +13,9 @@
 |---|---|
 | 迁移方式 | **在 `pc/` 原地重写**：Vue 源码保留作 1:1 参照，React 代码写在 `src/`，两者互不参与对方构建 |
 | 技术栈 | React 18.3 + Next 14.2（App Router，真 SSR）+ Semi UI 2.104 + react-i18next |
-| 已完成 | 会员中心 **15 个路由**（共 66 个 `.vue` 的子集）+ 首页迁移看板 |
-| 验证 | `npm run build` 通过，19 条路由全部 `ƒ Dynamic`；16 条路径 curl 全 200 |
-| 尚未完成 | 会员中心剩余 7 个子页；`/order`、`/shop`、`/activity` 等顶层页整体未动 |
+| 已完成 | 会员中心 **19 个路由**（共 66 个 `.vue` 的子集）+ 首页迁移看板 |
+| 验证 | `npm run build` 通过，23 条路由全部 `ƒ Dynamic`；抽查全部会员路由 curl 均 200 |
+| 尚未完成 | 会员中心剩余 2 个（账号安全、实名认证）；`/order`、`/shop`、`/activity` 等顶层页整体未动 |
 | 本地启动 | `cd pc && npm run dev` → http://127.0.0.1:3006 |
 
 **注意别混淆两套 React 前端**：
@@ -45,12 +45,12 @@ pc/
 │   │   ├── page.tsx            # 迁移看板（force-dynamic，展示 SSR 时间戳）
 │   │   ├── globals.css         # 全局样式（pc-* 前缀）
 │   │   ├── semi.css            # Semi 主题 CSS 本地副本（见 §4.3）
-│   │   └── member/             # 会员中心：layout + 15 个路由 + [...slug] 兜底
+│   │   └── member/             # 会员中心：layout + 19 个路由 + [...slug] 兜底
 │   ├── components/
 │   │   ├── HomeClient.tsx      # 看板（'use client'）
 │   │   ├── MemberShell.tsx     # 会员中心外壳：Semi Layout + 侧栏 + 语言切换
 │   │   ├── LocaleSwitch.tsx
-│   │   └── member/             # 16 个会员业务组件（见 §6）
+│   │   └── member/             # 20 个会员业务组件（见 §6）
 │   ├── i18n/                   # react-i18next：index / I18nProvider / server / locales
 │   └── lib/                    # client-api / format / api / routes / member-menu
 ├── pages/  components/  decorate/  composables/  store/  api/  ...
@@ -201,6 +201,10 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | `/member/userMessage/list` | `MessageList` | `pages/member/userMessage/List.vue` | `user/message/list` |
 | `/member/feedback/list` | `FeedbackList` | `pages/member/feedback/List.vue` | `user/feedback/list` |
 | `/member/inquiry/list` | `InquiryList` | `pages/member/inquiry/List.vue` | `user/priceInquiry/list` |
+| `/member/account/detail` | `AccountDetail` | `pages/member/account/Detail.vue` | `user/user/detail`、`user/account/list` |
+| `/member/account/log` | `AccountLog` | `pages/member/account/Log.vue` | `user/rechargeOrder/list` |
+| `/member/giftCard/exchange` | `GiftCardExchange` | `pages/member/giftCard/exchange.vue` | `promotion/giftCardGroups/exchange` |
+| `/member/profile/info` | `ProfileForm` | `pages/member/profile/Info.vue` | `user/user/detail`、`user/user/updateInformation` |
 
 ### 6.2 基础模块
 
@@ -222,7 +226,7 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 
 | # | 项 | 说明 |
 |---|---|---|
-| 1 | 会员剩余 7 个子页 | 账户余额、资金明细、礼品卡、个人资料、账号安全、实名认证、联系人（含表单/上传，比列表页重） |
+| 1 | 会员剩余 2 个子页 | 账号安全（手机/密码/邮箱多步验证码）、实名认证（企业资料 + 上传）。`pages/member/contact/` 在 Vue 版是空目录，菜单项已移除 |
 | 2 | 登录态真实数据校准 | 当前无 token 只验到「请先登录」；拿到登录态后要核对字段名（组件里用了多候选 `a ?? b ?? '-'` 兜底） |
 | 3 | 订单复杂分支 | 预售定金、拼团、礼品卡、线下认款、物流/取消原因弹窗 |
 | 4 | 顶层页 | `/order`（20 个 `.vue`）、`/shop`（18）、`/activity`（16）、`/search`（13）、`/cart`（7）等 |

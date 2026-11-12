@@ -51,8 +51,7 @@ export const MEMBER_MENU: MemberMenuGroup[] = [
         items: [
             { label: '我的消息', path: '/member/userMessage/list', source: 'pages/member/userMessage/List.vue' },
             { label: '反馈与咨询', path: '/member/feedback/list', source: 'pages/member/feedback/List.vue' },
-            { label: '询价单', path: '/member/inquiry/list', source: 'pages/member/inquiry/List.vue' },
-            { label: '联系人', path: '/member/contact/list', source: 'pages/member/contact/List.vue' }
+            { label: '询价单', path: '/member/inquiry/list', source: 'pages/member/inquiry/List.vue' }
         ]
     }
 ];
