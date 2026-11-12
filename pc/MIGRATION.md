@@ -255,6 +255,23 @@ Vue 侧 `pages/` 共 **111 条路由**（已排除 `src/`、`components/` 子目
 
 订单列表 Vue 版 672 行，含预售定金、拼团、礼品卡、线下认款、物流弹窗等分支。当前只实现**核心链路**：状态 Tab + 角标、关键词搜索、订单卡片、分页、取消/确认收货/再买/删除。其余分支未迁，不是遗漏，是刻意分期。
 
+### 6.5 真实接口校准（2026-11-12，联调后修正）
+
+用测试账号登录后端（`user/login/signin` 拿 token），逐个接口比对真实返回，纠正了 6 处凭 Vue 类型推断出的偏差：
+
+| 接口 | 原假设 | 实际返回 | 影响与处理 |
+|---|---|---|---|
+| `user/user/detail` | `{ item: {...} }` | **直接返回用户对象**，无 `item` | 账户余额、个人资料、账号安全三页会全空，已改为直接读返回体 |
+| `user/order/list` 的 `availableActions` | `cancel` / `confirmReceipt` / `del` | `cancelOrder` / `confirmReceipt` / `delOrder` / `rebuy` / `toPay` | 订单操作按钮不显示，键名已对齐 |
+| `user/pointsLog/list` | 时间字段 `addTime` | `changeTime` | 积分列表时间列空白，已加候选 |
+| `article/article/list` | 摘要 `summary` | `description` | 文章摘要不显示，已加候选 |
+| `user/aftersales/list` | 售后单列表 | **可申请售后的订单**（`orderSn` / `shippingTime` / `items`） | 售后页字段全错，已按订单维度重写，并注明售后单进度从订单详情进入 |
+| `user/user/memberCenter` | 有 `couponCount` / `rankName` | 无（只有 `balance` / `points` / `rankId`） | 会员首页两处留空，用兜底显示 |
+
+请求参数侧也已验证被后端接受（`order/status0` 过滤生效、`account/list` 10 条、`aftersales/list` 8 条、`message/list` 1 条、`pointsLog` 1 条，均 `code: 0`）。
+
+**校准方法**（下次接口有变时照做）：登录拿 token → `curl` 打接口 → 打印 `data` 的 keys 与首个数组项的 keys → 与组件里的字段/候选比对。联调账号由负责人提供，**不写入仓库**。
+
 ---
 
 ## 7. 待办（按建议顺序）

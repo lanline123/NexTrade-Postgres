@@ -166,11 +166,12 @@ export default function OrderList({ initialType = 'all' }: { initialType?: strin
                     {rows.map((order) => {
                         const actions = order.availableActions ?? {};
                         const quantity = (order.items ?? []).reduce((sum, item) => sum + Number(item.quantity ?? 0), 0);
+                        // 实测 availableActions 的键：cancelOrder / confirmReceipt / delOrder / rebuy
                         const buttons = [
-                            { key: 'cancel', label: t('取消订单'), show: actions.cancel ?? order.orderStatus === 0 },
+                            { key: 'cancel', label: t('取消订单'), show: actions.cancelOrder ?? order.orderStatus === 0 },
                             { key: 'confirm', label: t('确认收货'), show: actions.confirmReceipt ?? order.orderStatus === 2 },
-                            { key: 'buyAgain', label: t('再次购买'), show: true },
-                            { key: 'del', label: t('删除订单'), show: actions.del ?? order.orderStatus === 5 }
+                            { key: 'buyAgain', label: t('再次购买'), show: actions.rebuy ?? true },
+                            { key: 'del', label: t('删除订单'), show: actions.delOrder ?? order.orderStatus === 5 }
                         ].filter((item) => item.show);
 
                         return (

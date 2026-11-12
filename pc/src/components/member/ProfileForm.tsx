@@ -23,8 +23,9 @@ export default function ProfileForm() {
     const [error, setError] = useState('');
 
     useEffect(() => {
-        apiGet<{ item?: ProfileData }>('user/user/detail')
-            .then((result) => setForm(result.item ?? {}))
+        // 实测：user/user/detail 直接返回用户对象，没有 item 包裹
+        apiGet<ProfileData>('user/user/detail')
+            .then((result) => setForm(result ?? {}))
             .catch((e: Error) => setError(e.message))
             .finally(() => setLoading(false));
     }, []);

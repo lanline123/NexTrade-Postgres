@@ -11,6 +11,8 @@ interface Row {
     articleId?: number;
     title?: string;
     articleTitle?: string;
+    /** 实测字段：description（摘要） */
+    description?: string;
     summary?: string;
     addTime?: string | number;
     publishTime?: string | number;
@@ -56,7 +58,9 @@ export default function ArticleList() {
                 rows.map((row, index) => (
                     <Card key={row.articleId ?? index} className="pc-article-card">
                         <div className="pc-article-title">{row.title ?? row.articleTitle ?? '-'}</div>
-                        {row.summary ? <div className="pc-muted">{row.summary}</div> : null}
+                        {(row.description ?? row.summary) ? (
+                            <div className="pc-muted">{row.description ?? row.summary}</div>
+                        ) : null}
                         <div className="pc-muted">{formatDateTime(row.addTime ?? row.publishTime)}</div>
                     </Card>
                 ))

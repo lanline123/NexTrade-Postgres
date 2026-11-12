@@ -33,8 +33,9 @@ export default function SecurityPanel() {
     const [submitting, setSubmitting] = useState(false);
 
     const loadInfo = useCallback(() => {
-        apiGet<{ item?: UserInfo }>('user/user/detail')
-            .then((result) => setInfo(result.item ?? {}))
+        // 实测：user/user/detail 直接返回用户对象，没有 item 包裹
+        apiGet<UserInfo>('user/user/detail')
+            .then((result) => setInfo(result ?? {}))
             .catch(() => setInfo({}));
     }, []);
 

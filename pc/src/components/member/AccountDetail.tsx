@@ -33,8 +33,9 @@ export default function AccountDetail() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        apiGet<{ item?: BalanceInfo }>('user/user/detail')
-            .then((result) => setBalance(result.item ?? {}))
+        // 实测：user/user/detail 直接返回用户对象，没有 item 包裹
+        apiGet<BalanceInfo>('user/user/detail')
+            .then((result) => setBalance(result ?? {}))
             .catch(() => setBalance({}));
     }, []);
 

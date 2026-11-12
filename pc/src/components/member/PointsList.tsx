@@ -14,6 +14,8 @@ interface PointRow {
     points?: number;
     changeDesc?: string;
     description?: string;
+    /** 实测字段：changeTime（不是 addTime） */
+    changeTime?: string | number;
     addTime?: string | number;
 }
 
@@ -57,7 +59,7 @@ export default function PointsList() {
                         <div className="pc-point-row" key={row.logId ?? row.id ?? index}>
                             <div>
                                 <div>{row.changeDesc ?? row.description ?? t('积分变动')}</div>
-                                <div className="pc-muted">{formatDateTime(row.addTime)}</div>
+                                <div className="pc-muted">{formatDateTime(row.changeTime ?? row.addTime)}</div>
                             </div>
                             <div className={Number(row.changeValue ?? row.points ?? 0) >= 0 ? 'pc-point-plus' : 'pc-point-minus'}>
                                 {Number(row.changeValue ?? row.points ?? 0) >= 0 ? '+' : ''}
