@@ -83,6 +83,47 @@ pub struct SeckillPromotionVO {
     pub seckill_start_time: Option<i32>,
     pub seckill_end_time: Option<i32>,
     pub seckill_limit_num: Option<i32>,
+    // —— 装修预览扩展字段（对齐 Java `SeckillListVO`：编辑器预览需要商品图 /
+    //    原价 / 划线价 / 活动起止时间；`listForDecorate` / `listForHomePreview`
+    //    由服务层回填，缺数据时保持 None，JSON 里省略）——
+    /// 商品主图（product.pic_url，全量 URL）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pic_url: Option<String>,
+    /// 商品缩略图（product.pic_thumb，全量 URL）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pic_thumb: Option<String>,
+    /// 商品价格（Java 口径：与 marketPrice 交叉赋值，编辑器取它做划线价/折扣基数）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub product_price: Option<Decimal>,
+    /// 市场价（划线价）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub market_price: Option<Decimal>,
+    /// 秒杀活动概要（字段名保留 Java 双 k 拼写 `seckkillData`）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seckkill_data: Option<SeckkillData>,
+}
+
+/// 秒杀活动概要（Java `SeckillListVO.SeckillData`）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SeckkillData {
+    pub seckill_id: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seckill_name: Option<String>,
+    /// 格式化开始时间（`YYYY-MM-DD HH:mm:ss`，与 Java 返回一致）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seckill_start_time: Option<String>,
+    /// 格式化结束时间（`YYYY-MM-DD HH:mm:ss`，装修预览倒计时取它）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seckill_end_time: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seckill_limit_num: Option<i32>,
+    /// 距开始/结束的剩余秒数（进行中为距结束）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remain_seconds: Option<i64>,
+    /// 活动是否已开始
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub started: Option<bool>,
 }
 
 /// 首页预览 VO（Java `SeckillListVO` 精简版，字段同装修预览）。

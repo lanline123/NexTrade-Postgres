@@ -15,12 +15,13 @@
 //! # 金额
 //! `seckill_price` 为 `Decimal`；`seckill_start_time/end_time` 为 Unix 秒。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use nextrade_core::entities::SeckillItem;
+use nextrade_core::entities::{Product, SeckillItem};
 use nextrade_core::models::marketing::seckill_batch::{
     is_delete, validate_batch, BatchDTO, HomePreviewQuery, SeckillListVO, SeckillPromotionVO,
+    SeckkillData,
 };
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
@@ -82,7 +83,8 @@ impl SeckillBatchService {
         let now = now_secs_i32();
         // Java 不分页（`Page` 默认 size 较大）；取前 200 条以贴合装修场景。
         let (_total, items) = self.repo().find_active_items(now, 200, 0).await?;
-        self.assemble(&items).await
+        let list = self.assemble(&items).await?;
+        self.enrich_for_preview(list).await
     }
 
     /// 首页装修预览（Java `listForHomePreview` → C 端 `getSeckillProductList`）。
@@ -101,7 +103,94 @@ impl SeckillBatchService {
         let (limit, offset) = page.limit_offset();
         let (total, items) = self.repo().find_active_items(now, limit, offset).await?;
         let list = self.assemble(&items).await?;
+        let list = self.enrich_for_preview(list).await?;
         Ok(PageResult::new(total, list, &page))
+    }
+
+    /// 回填装修预览扩展字段：商品图 / 商品价 / 市场价 + 秒杀活动概要
+    /// （格式化起止时间、剩余秒数、开始状态）。
+    ///
+    /// Java `listForHomePreview` 复用 C 端 `getSeckillProductList` 的富结构
+    /// （`SeckillListVO` 30+ 字段），编辑器预览的商品图、划线价、折扣角标、
+    /// 倒计时都依赖这些字段；此前 Rust 精简 VO 缺失导致预览图空白、
+    /// 倒计时恒 00:00:00。此处按 id 批量回填（避免 N+1），缺数据时保持
+    /// `None`（JSON 省略），不影响既有消费方。
+    ///
+    /// # Errors
+    /// 数据库错误 → `Error::Database`。
+    async fn enrich_for_preview(
+        &self,
+        list: Vec<SeckillPromotionVO>,
+    ) -> Result<Vec<SeckillPromotionVO>> {
+        if list.is_empty() {
+            return Ok(list);
+        }
+        let product_ids: Vec<i32> = list
+            .iter()
+            .map(|v| v.product_id)
+            .filter(|id| *id > 0)
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        let products: HashMap<i32, Product> = if product_ids.is_empty() {
+            HashMap::new()
+        } else {
+            self.repos
+                .catalog
+                .product
+                .find_by_ids(&product_ids)
+                .await?
+                .into_iter()
+                .map(|p| (p.product_id, p))
+                .collect()
+        };
+        let seckill_ids: Vec<i32> = list
+            .iter()
+            .map(|v| v.seckill_id)
+            .filter(|id| *id > 0)
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        let mut activities: HashMap<i32, nextrade_core::entities::Seckill> = HashMap::new();
+        for sid in &seckill_ids {
+            if let Some(a) = self.repos.marketing.seckill.find_by_id(*sid).await? {
+                activities.insert(a.seckill_id, a);
+            }
+        }
+        let now = now_secs_i32();
+        Ok(list
+            .into_iter()
+            .map(|mut vo| {
+                if let Some(p) = products.get(&vo.product_id) {
+                    vo.pic_url = Some(p.pic_url.clone());
+                    vo.pic_thumb = Some(p.pic_thumb.clone());
+                    vo.product_price = Some(p.product_price);
+                    vo.market_price = Some(p.market_price);
+                }
+                if let Some(a) = activities.get(&vo.seckill_id) {
+                    let start = a.seckill_start_time.unwrap_or(0);
+                    let end = a.seckill_end_time.unwrap_or(0);
+                    let started = now >= start;
+                    let remain_seconds = if now > end {
+                        0
+                    } else if started {
+                        i64::from(end - now)
+                    } else {
+                        i64::from(start - now)
+                    };
+                    vo.seckkill_data = Some(SeckkillData {
+                        seckill_id: a.seckill_id,
+                        seckill_name: a.seckill_name.clone(),
+                        seckill_start_time: a.seckill_start_time.and_then(format_secs),
+                        seckill_end_time: a.seckill_end_time.and_then(format_secs),
+                        seckill_limit_num: a.seckill_limit_num,
+                        remain_seconds: Some(remain_seconds),
+                        started: Some(started),
+                    });
+                }
+                vo
+            })
+            .collect())
     }
 
     /// 批量组装 VO：回填活动名/限购数 + 商品名。
@@ -150,6 +239,15 @@ fn now_secs_i32() -> i32 {
     i32::try_from(nextrade_common::utils::now_seconds()).unwrap_or(i32::MAX)
 }
 
+/// Unix 秒 → `YYYY-MM-DD HH:mm:ss`（本地时区，与 Java 返回口径一致）。
+fn format_secs(secs: i32) -> Option<String> {
+    use chrono::TimeZone;
+    chrono::Local
+        .timestamp_opt(i64::from(secs), 0)
+        .single()
+        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -158,7 +256,10 @@ mod tests {
     fn batch_validation_texts() {
         let empty = BatchDTO::default();
         assert_eq!(
-            validate_batch(&empty).map_err(Error::Validation).unwrap_err().to_string(),
+            validate_batch(&empty)
+                .map_err(Error::Validation)
+                .unwrap_err()
+                .to_string(),
             "参数校验失败: 未选择项目"
         );
     }
@@ -179,12 +280,16 @@ mod tests {
             with_tenant_scope, TenantScope,
         };
         let shop = TenantScope::for_shop(8);
-        assert!(with_tenant_scope(shop, async { TenantScope::current_ensure_access(9) })
-            .await
-            .is_err());
-        assert!(with_tenant_scope(shop, async { TenantScope::current_ensure_access(8) })
-            .await
-            .is_ok());
+        assert!(
+            with_tenant_scope(shop, async { TenantScope::current_ensure_access(9) })
+                .await
+                .is_err()
+        );
+        assert!(
+            with_tenant_scope(shop, async { TenantScope::current_ensure_access(8) })
+                .await
+                .is_ok()
+        );
     }
 
     #[test]

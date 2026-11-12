@@ -357,3 +357,29 @@
   padding-left: 7px;
   border-radius: 24px 0 0 24px;
 }
+
+/* ================= 悬停细节补齐（2026-11-12，对齐原版 preview.less） =================
+ * 原版在编辑器预览里也有这些 hover 反馈；主题变量在编辑器预览区不保证注入，
+ * 统一带兜底色（原版同款注释约定）。 */
+.pc-seckill__img img {
+  transition: transform 0.4s ease;
+}
+.pc-seckill__item:hover .pc-seckill__img img {
+  filter: brightness(105%);
+}
+.pc-seckill__name {
+  cursor: pointer;
+}
+.pc-seckill__name:hover {
+  color: var(--main-bg, #ee0a24);
+}
+.pc-seckill__add-btn:hover {
+  background: rgba(255, 63, 79, 0.16);
+  color: #ff3f4f;
+}
+.pc-seckill__countdown-box:hover .pc-seckill__countdown-label {
+  color: var(--main-bg, #ee0a24);
+}
+.pc-seckill__countdown-box:hover .pc-seckill__countdown-item {
+  background-color: var(--primary-dark-2, #be081d);
+}
