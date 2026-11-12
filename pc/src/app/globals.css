@@ -2260,3 +2260,146 @@ body {
     align-items: center;
     gap: 10px;
 }
+
+/* ---------- 独立白页（无站点头尾） ---------- */
+.pc-main-bare {
+    max-width: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* ---------- 营业执照公示（components/shop/ShopLicense） ---------- */
+.pc-license {
+    position: relative;
+    min-height: 100vh;
+    background: #fff;
+    overflow: hidden;
+}
+
+.pc-license-watermark {
+    position: absolute;
+    inset: -40px;
+    z-index: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 80px 40px;
+    pointer-events: none;
+    transform: rotate(-22deg);
+    user-select: none;
+}
+
+.pc-license-watermark span {
+    font-size: 14px;
+    line-height: 1;
+    white-space: nowrap;
+    color: rgba(0, 0, 0, 0.06);
+}
+
+.pc-license-inner {
+    position: relative;
+    z-index: 1;
+    max-width: 920px;
+    padding: 28px 40px 48px;
+}
+
+.pc-license-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 26px;
+    color: #111;
+}
+
+.pc-license-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 16px 0 28px;
+    font-size: 13px;
+    line-height: 20px;
+    color: #999;
+}
+
+.pc-license-notice-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    margin-top: 3px;
+    border-radius: 50%;
+    background: #409eff;
+    color: #fff;
+    font-size: 10px;
+    font-style: normal;
+    flex-shrink: 0;
+}
+
+.pc-license-section {
+    margin: 0 0 16px;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 22px;
+    color: #111;
+}
+
+.pc-license-cert img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+}
+
+.pc-license-notes {
+    margin-top: 40px;
+    font-size: 13px;
+    line-height: 22px;
+    font-weight: 600;
+    color: #111;
+}
+
+.pc-license-notes p {
+    margin: 0 0 10px;
+}
+
+/* ---------- 会员表格（卡管理等） ---------- */
+.pc-table {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #ebeef5;
+    border-radius: 6px;
+    overflow: hidden;
+    font-size: 14px;
+}
+
+.pc-table-head,
+.pc-table-row {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr 1.4fr 1.4fr 120px;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    text-align: center;
+}
+
+.pc-table-head {
+    background: #f5f6fa;
+    font-weight: 700;
+}
+
+.pc-table-row {
+    border-top: 1px solid #f2f2f2;
+    color: var(--pc-text, #1f2329);
+}
+
+.pc-table-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.pc-table-actions i {
+    font-style: normal;
+    color: #e5e6eb;
+}

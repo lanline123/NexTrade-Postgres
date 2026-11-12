@@ -27,3 +27,4 @@ logs
 
 # Next.js (React SSR) build output
 .next-react/
+.next-dev/
