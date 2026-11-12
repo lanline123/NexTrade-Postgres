@@ -782,3 +782,61 @@ body {
     font-weight: 600;
     margin-bottom: 6px;
 }
+
+/* 店铺 / 入驻 */
+.pc-shop-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    background: #fff;
+    border: 1px solid #e9ebef;
+    border-radius: 10px;
+    color: inherit;
+    text-decoration: none;
+}
+
+.pc-shop-card:hover {
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+.pc-shop-card img {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: #f5f6f8;
+}
+
+.pc-shop-name {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.pc-shop-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px;
+    background: #fff;
+    border: 1px solid #e9ebef;
+    border-radius: 10px;
+    margin-bottom: 16px;
+}
+
+.pc-shop-head img {
+    width: 64px;
+    height: 64px;
+    border-radius: 10px;
+    object-fit: cover;
+    background: #f5f6f8;
+}
+
+.pc-join-list {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 2;
+    color: #4b5563;
+}

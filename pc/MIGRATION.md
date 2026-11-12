@@ -13,9 +13,9 @@
 |---|---|
 | 迁移方式 | **在 `pc/` 原地重写**：Vue 源码保留作 1:1 参照，React 代码写在 `src/`，两者互不参与对方构建 |
 | 技术栈 | React 18.3 + Next 14.2（App Router，真 SSR）+ Semi UI 2.104 + react-i18next |
-| 已完成 | 会员中心 23 路由 + 订单结算/收银台 + 购物车/商品详情/列表/搜索/秒杀/领券/文章 |
-| 验证 | `npm run build` 通过，35 条路由全部 `ƒ Dynamic`；商品板块 8 条路径 curl 全 200 |
-| 尚未完成 | `/shop`、`/activity`、`/join`、`/install`、`/exchange`、`/category`、文章详情；结算页优惠券/发票/配送分支 |
+| 已完成 | 会员中心 23 路由 + 订单结算/收银台 + 商品浏览/购物车 + 店铺/入驻 |
+| 验证 | `npm run build` 通过，37 条路由全部 `ƒ Dynamic`；商品与店铺板块 curl 全 200 |
+| 尚未完成 | `/activity`（装修模块容器，单独一轮）、`/category`、`/exchange`、`/install`、`/oauth`；结算页优惠券/发票/配送分支 |
 | 本地启动 | `cd pc && npm run dev` → http://127.0.0.1:3006 |
 
 **注意别混淆两套 React 前端**：
@@ -220,6 +220,10 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | `/seckill/list` | `SeckillList` | `pages/seckill/List.vue` | `home/home/getSeckill` |
 | `/coupon/list` | `CouponCenter` | `pages/coupon/index.vue` | `home/home/getCoupon`、`user/coupon/claim` |
 | `/article/news/list` | `ArticleList` | `pages/article/news/List.vue` | `article/article/list` |
+| `/shop/list` | `ShopList` | `pages/shop/List.vue` | `shop/shop/list` |
+| `/shop/[id]` | `ShopHome` | `pages/shop/[id].vue` | `shop/shop/decorate` + `search/search/getProduct` |
+| `/joining/list` | `JoiningList` | `pages/joining/List.vue` | `merchant/merchant/myApply` |
+| `/join` | `JoinIntro` | `pages/join/index.vue` | 静态流程说明（申请表单待接 `merchant/merchant/apply`） |
 
 ### 6.2 基础模块
 
@@ -244,7 +248,7 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | 1 | 会员剩余零散子页 | 发票抬头（`user/invoice/*` 表单）、入驻申请（`joining`）、登录/注册/找回密码（`Login/Register/reset`）、账户卡管理（`account/CardManagement`）。`pages/member/contact/` 在 Vue 版是空目录，菜单项已移除 |
 | 2 | 登录态真实数据校准 | 当前无 token 只验到「请先登录」；拿到登录态后要核对字段名（组件里用了多候选 `a ?? b ?? '-'` 兜底） |
 | 3 | 订单结算未迁分支 | 优惠券选择、发票、配送方式切换、积分/余额抵扣、账期支付、预售定金（走 `order/check/update`、`updateCoupon`）；收银台支付渠道刻意未接 `order/pay/create` |
-| 4 | 剩余顶层页 | `/shop`（18 个 `.vue`）、`/activity`（16）、`/join`（9）、`/install`（5）、`/exchange`（2）、`/category`、`/article` 详情、`/oauth` |
+| 4 | 剩余顶层页 | `/activity`（16 个装修模块容器，需先定装修组件体系）、`/category`、`/exchange`、`/install`、`/oauth`；店铺装修模块、文章详情 |
 | 5 | i18n 补齐 | 新增文案的英文 key；`<title>` 目前是静态中文 |
 | 6 | 样式对齐 | 尚未逐像素对照 Vue/线上，`globals.css` 只做了骨架级布局 |
 | 7 | 登录守卫 | 目前列表页判断 token 显示提示，未做路由级跳转（Vue 版用 `middleware: auth`） |
