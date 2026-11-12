@@ -13,9 +13,9 @@
 |---|---|
 | 迁移方式 | **在 `pc/` 原地重写**：Vue 源码保留作 1:1 参照，React 代码写在 `src/`，两者互不参与对方构建 |
 | 技术栈 | React 18.3 + Next 14.2（App Router，真 SSR）+ Semi UI 2.104 + react-i18next |
-| 已完成 | **72 个页面路由 + 24 条旧 URL 重定向**（Vue 111 条路由 100% 有落点）+ 全局 Header/Footer + 装修首页 + 地区级联 + 滑动验证码 + 完整发票 + 以图搜图 |
-| 验证 | `npm run build` 通过，全部 `ƒ Dynamic`；`next start` 抽查 `/`、`/search/image`、`/member/address/list`、`/member/address/editregion`、`/order/check`、`/migration` 全 200 |
-| 尚未完成 | 功能深度：秒杀/拼团完整模块、IM 客服、第三方登录、账户充值/银行卡/账期还款、结算页账期与预售；首屏数据仍在浏览器端取（见 §7 第 4 项） |
+| 已完成 | **73 个页面路由 + 23 条旧 URL 重定向**（Vue 111 条路由 100% 有落点）+ 全局 Header/Footer + 装修首页 + 地区级联 + 滑动验证码 + 完整发票 + 以图搜图 + 筛选栏 + 秒杀/拼团 |
+| 验证 | `npm run build` 通过，全部 `ƒ Dynamic`；`next start` 抽查 `/`、`/seckill/list`、`/joining/list`、`/member/joining/list`、`/list?cat=975`、`/search`、`/search/image`、`/member/address/editregion`、`/order/check` 全 200 |
+| 尚未完成 | 功能深度：IM 客服、第三方登录、账户充值/银行卡/账期还款、结算页账期与预售；首屏数据仍在浏览器端取（见 §7 第 4 项） |
 | 本地启动 | `cd pc && npm run dev` → http://127.0.0.1:3006 |
 
 **注意别混淆两套 React 前端**：
@@ -220,12 +220,13 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | `/product/[...slug]` | `ProductDetail` | `pages/product/[...slug].vue` | `product/product/detail`、`cart/cart/addToCart` |
 | `/list` | `ProductResults` | `pages/list/index.vue` | `search/search/getProduct` |
 | `/search` | `ProductResults` | `pages/search/components/search.vue` | `search/search/getProduct`（筛选栏未迁） |
-| `/seckill/list` | `SeckillList` | `pages/seckill/List.vue` | `home/home/getSeckill` |
+| `/seckill/list` | `SeckillList` | `pages/seckill/List.vue` | `home/home/getSeckill`；倒计时/进度/已抢完/即将开始 |
 | `/coupon/list` | `CouponCenter` | `pages/coupon/index.vue` | `home/home/getCoupon`、`user/coupon/claim` |
 | `/article/news/list` | `ArticleList` | `pages/article/news/List.vue` | `article/article/list` |
 | `/shop/list` | `ShopList` | `pages/shop/List.vue` | `shop/shop/list` |
 | `/shop/[id]` | `ShopHome` | `pages/shop/[id].vue` | `shop/shop/decorate` + `search/search/getProduct` |
-| `/joining/list` | `JoiningList` | `pages/joining/List.vue` | `merchant/merchant/myApply` |
+| `/joining/list` | `GrouponList` | `pages/joining/List.vue` + `components/common/JoiningGoodsList.vue` | `promotion/groupon/itemList`（**拼团**，不是入驻） |
+| `/member/joining/list` | `JoiningApply` | `pages/member/joining/List.vue` | `merchant/merchant/myApply`（入驻申请，从旧重定向拆出） |
 | `/join` | `JoinIntro` | `pages/join/index.vue` | 静态流程说明（申请表单待接 `merchant/merchant/apply`） |
 | `/activity` | `DecoratePage` | `pages/activity/index.vue` | `home/home/pcIndex`（`?id` / `?previewId`） |
 
@@ -252,6 +253,9 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | `src/lib/catalog.ts` | 检索统一口径：`getProduct` / `getFilter` / `getAttributeSuggestions` 的字段映射（**分类是 `cat`**） |
 | `src/components/catalog/FilterBar.tsx` | 筛选栏：排序（综合/销量/价格升降/新品）+ 分类单选 + 品牌多选 + 价格区间 + 属性多选 + 已选 chips |
 | `src/components/catalog/CatalogResults.tsx` | 检索外壳：筛选状态 + 筛选项联动重拉 + 结果网格，`/search` `/list` `/category` `/shopcategory` `/shop/search` 共用 |
+| `src/lib/promotion.ts` | 秒杀/拼团口径 + 纯函数：`splitCountdown` / `maxGroupNum` / `soldPercentOf` / `toTimestamp` |
+| `src/components/promotion/cards.tsx` | `SeckillCard`（倒计时+进度+已抢完/即将开始）、`GrouponCard`（N人团/已拼/仅限会员）、`useCountdown`、`CountdownBoxes` |
+| `src/components/promotion/sections.tsx` | 装修楼层 `SeckillSection` / `GrouponSection`（装修只给标题配置，商品另取接口） |
 
 ### 6.3 路由覆盖率（2026-11-13 盘点，覆盖率 100%）
 
@@ -259,8 +263,8 @@ Vue 侧 `pages/` 共 **111 条路由**（已排除 `src/`、`components/` 子目
 
 | 方式 | 说明 |
 |---|---|
-| React 页面（72） | 真实实现，见 §6.1。会员详情页用 `src/lib/member-details.ts` 配置表（接口 + 字段 + 多候选键）+ `components/member/EntityDetail.tsx` 通用壳批量承接：12 个详情页、2 个复用列表、4 个说明页。另有 `/migration`（迁移看板，非 Vue 路由），故 `src/app/**/page.tsx` 共 73 个 |
-| 旧 URL 重定向（24 条规则） | `next.config.mjs` 的 `redirects`，覆盖约 38 个旧路径：`*.v1` 旧版页、`/item/:id`→`/product/:id`、`/exchange/:id`→`/product/:id`、9 条旧支付渠道→`/order/pay`、14 条 `/activity/pcXxx`→`/activity`、`/join/*`→`/join`、`/member/reset`→`/member/login`、`/member/bindMobilePhone`→`/member/security/info`。**`/search/image` 已从重定向升级为真实页面** |
+| React 页面（73） | 真实实现，见 §6.1。会员详情页用 `src/lib/member-details.ts` 配置表（接口 + 字段 + 多候选键）+ `components/member/EntityDetail.tsx` 通用壳批量承接：12 个详情页、2 个复用列表、4 个说明页。另有 `/migration`（迁移看板，非 Vue 路由），故 `src/app/**/page.tsx` 共 74 个 |
+| 旧 URL 重定向（23 条规则） | `next.config.mjs` 的 `redirects`，覆盖约 38 个旧路径：`*.v1` 旧版页、`/item/:id`→`/product/:id`、`/exchange/:id`→`/product/:id`、9 条旧支付渠道→`/order/pay`、14 条 `/activity/pcXxx`→`/activity`、`/join/*`→`/join`、`/member/reset`→`/member/login`、`/member/bindMobilePhone`→`/member/security/info`。**`/search/image` 已从重定向升级为真实页面** |
 | 兜底 404 | `app/not-found.tsx` + `member/[...slug]`，覆盖原 `pages/[...slug].vue` 与 `pages/member/[...].vue` |
 
 盘点脚本思路：遍历 `pages/**/*.vue` 生成路由集（`index.vue` 折成父路径、`src`/`components` 目录排除），与 `src/app/**/page.tsx` 求差集，再按 redirects 规则过滤。
@@ -322,15 +326,30 @@ Vue 侧 `pages/` 共 **111 条路由**（已排除 `src/`、`components/` 子目
 | 同上 + `shopId` | **HTTP 500**，该接口不认店铺维度 | 不给 getFilter 传 shopId；店铺内检索（`/shop/search/[id]`、`/shopcategory/[id]`）直接 `showFilter={false}`，店铺筛选属于另一套 ShopFilter |
 | `search/search/getAttributeSuggestions` | GET，参数 `keyword` / `cat` → `{ attributes: [{ name, values: [{count, value}] }] }` | `fetchAttrSuggestions` |
 
+### 6.8 第四批真实接口校准（2026-11-13：秒杀 / 拼团）
+
+| 接口 | 真实行为 | 处理 |
+|---|---|---|
+| `home/home/getSeckill?page=&size=` | `records[{ seckillId, skuId, seckillPrice, seckillStock, seckillSales, seckillStartTime(秒), seckillEndTime(秒), remainSeconds, started, soldPercent, ...商品 }]`，免登录 | `fetchSeckillList`；卡片用 `soldPercent` 画进度、`seckillEndTime` 倒计时、`stock<=0` 显示已抢完 |
+| `promotion/groupon/itemList?page=&size=` | `records[{ grouponPromotionItemId, minGrouponPrice, minGroupNum, productPrice, groupNum(**JSON 字符串**), joinNumCount, canJoin, restrictTip, startTime, endTime }]` | `fetchGrouponList`；`maxGroupNum()` 取 `groupNum` 里最大档 |
+| `home/home/getGroupon` | **404 不存在**（名字很像，但拼团列表只能走 `promotion/groupon/itemList`） | 不要写这个接口 |
+| `promotion/groupon/record/list` | 拼团记录分页，当前库为空 | 未接（会员「我的拼团」仍走 `pin/*`） |
+| `promotion/groupon/detail?id=` | 传不存在/错误的 id 直接 **HTTP 400**，不是 `code!=0` | 需要时先确认 id 来源 |
+
+**顺手纠正的一处语义错位**：Vue 的 `pages/joining/List.vue` 是**拼团**（用 `promotion/groupon/itemList`），
+而入驻申请是 `pages/member/joining/List.vue`（`merchant/merchant/myApply`）。
+早期迁移把 `/joining/list` 当成了入驻申请，且把 `/member/joining/list` 重定向到它——两件事被压成了一个页面。
+本次已拆开：`/joining/list` = 拼团，`/member/joining/list` = 入驻申请，重定向删除，页脚「入驻申请」链接同步改正。
+
 ---
 
 ## 7. 待办（按建议顺序）
 
 | # | 项 | 说明 |
 |---|---|---|
-| 1 | 会员剩余零散子页 | 发票抬头（`user/invoice/*` 表单）、入驻申请（`joining`）、找回密码（`reset`）、账户卡管理（`account/CardManagement`）。登录/注册已完成；`pages/member/contact/` 在 Vue 版是空目录，菜单项已移除 |
+| 1 | 会员剩余零散子页 | 发票抬头（`user/invoice/*` 表单）、找回密码（`reset`）、账户卡管理（`account/CardManagement`）。入驻申请已迁到 `/member/joining/list`；登录/注册已完成；`pages/member/contact/` 在 Vue 版是空目录，菜单项已移除 |
 | 2 | 订单结算剩余 | 已补：优惠券、**完整发票（普通/专用 × 个人/企业）**、配送方式、积分/余额抵扣；仍缺：账期支付、预售定金、支付方式选择（提交时 `payTypeId=0`）；收银台支付渠道刻意未接 `order/pay/create` |
-| 3 | 功能深度 | 秒杀/拼团内部逻辑（时间轴、库存进度、成团状态机）、IM 客服（`/chat` 仍是占位）、第三方登录（`/oauth/callback` 占位）、账户充值/银行卡/账期还款 |
+| 3 | 功能深度 | IM 客服（`/chat` 仍是占位）、第三方登录（`/oauth/callback` 占位）、账户充值/银行卡/账期还款；拼团「开团/参团」下单链路（`order/check` 的 groupon 分支）未接 |
 | 4 | 数据获取时机 | 当前全部页面都是 **SSR 骨架 + 浏览器端取数**（`apiGet/apiPost` 依赖 `localStorage`，Node 侧拿不到 token）。如需真正的「首屏带数据」，要把商品详情、首页装修这类公开接口搬到 `generateMetadata`/服务端 fetch，并统一 `/api` 转发 |
 | 5 | 筛选栏 URL 同步 | 筛选栏已迁（分类/品牌/价格/属性/排序），但状态在组件内、未写回 URL query（Vue 会同步路由）。要支持「分享带筛选的链接」需父级接管 |
 | 6 | i18n 补齐 | 新增文案的英文 key；`<title>` 目前是静态中文 |
