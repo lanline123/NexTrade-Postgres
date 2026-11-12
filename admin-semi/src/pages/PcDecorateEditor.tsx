@@ -17,6 +17,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  Pagination,
   Popconfirm,
   Popover,
   Radio,
@@ -307,6 +308,8 @@ interface SettingFieldDef {
   section?: string;
   /** 不渲染字段级分组标题（如原版 pc-product-group 的「购买按钮」直接以行 label 呈现） */
   hideSection?: boolean;
+  /** 不渲染字段行 label（如 pc-product-group 的分组列表：内容本身就是完整块，无需再占一行标题） */
+  hideLabel?: boolean;
   /** 同一字段前连续多个分组标题（如营销通栏 中间焦点区 → 轮播广告） */
   sections?: string[];
   /** 图片列表最大数量（原版 ModulePicList max-count） */
@@ -737,7 +740,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       };
     },
     settings: [
-      { kind: 'groupList', key: 'productGroups', label: '分组列表' },
+      { kind: 'groupList', key: 'productGroups', label: '分组列表', hideLabel: true },
       { kind: 'radio', key: 'productCardStyle', label: '商品样式', options: [{ label: '扁平', value: 1 }, { label: '卡片', value: 2 }, { label: '描边', value: 3 }], section: '商品参数设置' },
       { kind: 'radio', key: 'listStyle', label: '展示样式', options: [{ label: '一行四个', value: 4 }, { label: '一行五个', value: 6 }, { label: '一行六个', value: 7 }] },
       { kind: 'slider', key: 'cardPadding', label: '商品内部边距', max: 10 },
@@ -759,18 +762,28 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     summary: (m) => `${((m.productGroups || []) as Array<Record<string, any>>).length} 组 · 样式${m.listStyle}`,
   },
   {
-    type: 'pc-recommend-product', label: '推荐商品', group: '商品', hiddenInLibrary: true,
+    type: 'pc-recommend-product', label: '推荐商品', group: '商品',
+    // 2026-11-12 用户指令：模块选单里要能看到推荐商品（此前 hiddenInLibrary: true 导致它只存在于老页面数据中，选不出来）。
     defaults: () => ({
       frame: { boxPadding: 10, boxPaddingTop: 10, boxPaddingBottom: 50, boxRadius: 0, backgroundColor: 'transparent', itemGap: 16, columns: 5 },
       titleName: '猜你喜欢',
+      // 标题设置块（与 pc-product 同款）。老数据只有 titleName、没有 title 键：
+      // 预览/前台按「data 里有 title 键才走标题块，否则回退 titleName」判断，避免双重渲染。
+      title: standardTitle({ showTitle: 1, titleText: '猜你喜欢', titleColor: '#2a3145' }),
+      showProductName: 1,
+      showProductPrice: 1,
       products: { ...productsDefaults(), productNumber: 20 },
     }),
     settings: [
-      { kind: 'input', key: 'titleName', label: '标题', placeholder: '请输入标题（可不填）' },
+      { kind: 'radio', key: 'frame.columns', label: '展示样式', extend: false, options: [{ label: '一行三个', value: 3 }, { label: '一行四个', value: 4 }, { label: '一行五个', value: 5 }, { label: '一行六个', value: 6 }], section: '商品参数设置' },
+      { kind: 'slider', key: 'frame.itemGap', label: '商品间距', extend: false, max: 40, section: '商品参数设置' },
+      { kind: 'radio', key: 'showProductName', label: '显示商品名称', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }], section: '商品参数设置' },
+      { kind: 'radio', key: 'showProductPrice', label: '显示商品价格', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }], section: '商品参数设置' },
       { kind: 'products', key: 'products', label: '选择商品', section: '商品设置', numberMax: 50 },
+      { kind: 'title', key: 'title', label: '标题设置', titleHideMoreType: true, titleHideVerticalPadding: true },
       ...containerFields(),
     ],
-    summary: (m) => `${m.titleName || ''} · ${((m.products?.productIds || []) as number[]).length} 商品`,
+    summary: (m) => `${getPath(m, 'title.titleText') || m.titleName || ''} · 一行${Number(getPath(m, 'frame.columns')) || 5}列 · ${((m.products?.productIds || []) as number[]).length} 商品`,
   },
   {
     type: 'pc-home-coupon', label: '优惠券', group: '营销活动',
@@ -5194,6 +5207,9 @@ function ProductGroupPickerModal({
   const [keyword, setKeyword] = useState('');
   const [rows, setRows] = useState<Array<{ productGroupId: number; productGroupName: string }>>([]);
   const [loading, setLoading] = useState(false);
+  const [picked, setPicked] = useState<{ productGroupId: number; productGroupName: string } | null>(
+    current && current.productGroupId ? { productGroupId: Number(current.productGroupId), productGroupName: String(current.productGroupName ?? '') } : null,
+  );
   const load = () => {
     setLoading(true);
     apiGet<{ records?: any[]; list?: any[] }>('/product/productGroup/list', { page: 1, size: 50, keyword: keyword || undefined })
@@ -5202,28 +5218,49 @@ function ProductGroupPickerModal({
       .finally(() => setLoading(false));
   };
   useEffect(() => {
-    if (visible) load();
+    if (visible) {
+      setPicked(
+        current && current.productGroupId
+          ? { productGroupId: Number(current.productGroupId), productGroupName: String(current.productGroupName ?? '') }
+          : null,
+      );
+      load();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
   return (
-    <Modal title={t('选择商品分组')} visible={visible} onCancel={onCancel} footer={null} width={560}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <Input value={keyword} onChange={setKeyword} placeholder={t('输入分组名称')} onEnterPress={load} />
-        <Button onClick={load} loading={loading}>{t('搜索')}</Button>
-      </div>
-      <div style={{ maxHeight: 420, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {rows.map((row) => (
-          <Button
-            key={row.productGroupId}
-            theme={current?.productGroupId === row.productGroupId ? 'solid' : 'borderless'}
-            onClick={() => onOk(row)}
-            style={{ justifyContent: 'space-between', width: '100%' }}
-          >
-            <span>{row.productGroupName}</span>
-            <span>{row.productGroupId}</span>
-          </Button>
-        ))}
-        {!rows.length && !loading && <Text type="tertiary">{t('暂无商品分组')}</Text>}
+    <Modal
+      title={t('选择商品分组')}
+      visible={visible}
+      onCancel={onCancel}
+      width={560}
+      onOk={() => { if (picked) onOk(picked); }}
+      okText={t('确定')}
+      cancelText={t('取消')}
+      okButtonProps={{ disabled: !picked }}
+    >
+      <div className="dec-group-picker">
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <Input value={keyword} onChange={setKeyword} placeholder={t('输入分组名称')} onEnterPress={load} showClear onClear={() => { setKeyword(''); setTimeout(load, 0); }} />
+          <Button onClick={load} loading={loading}>{t('搜索')}</Button>
+        </div>
+        <div className="dec-group-picker__list">
+          {rows.map((row) => {
+            const active = picked?.productGroupId === row.productGroupId;
+            return (
+              <div
+                key={row.productGroupId}
+                className={`dec-group-picker__item${active ? ' is-active' : ''}`}
+                onClick={() => setPicked(row)}
+              >
+                <span className="dec-group-picker__name">{row.productGroupName}</span>
+                <span className="dec-group-picker__id">ID {row.productGroupId}</span>
+                {active && <span className="dec-group-picker__check">✓</span>}
+              </div>
+            );
+          })}
+          {!rows.length && !loading && <Text type="tertiary">{t('暂无商品分组')}</Text>}
+        </div>
       </div>
     </Modal>
   );
@@ -5245,21 +5282,26 @@ function ProductPickerModal({
   const { t } = useI18n();
   const [keyword, setKeyword] = useState('');
   const [rows, setRows] = useState<ProductRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [picked, setPicked] = useState<number[]>(selectedIds);
   /** 已选行的信息缓存：onOk 时按 picked 顺序回传，调用方（商品/图集/主图卡）才能拿到缩略图与价格。 */
   const rowsByIdRef = useRef<Map<number, ProductRow>>(new Map());
 
   useEffect(() => {
-    if (visible) setPicked(selectedIds);
+    if (visible) {
+      setPicked(selectedIds);
+      setPage(1);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
-  const load = () => {
+  const load = (nextPage = page, nextKeyword = keyword) => {
     setLoading(true);
-    apiGet<{ records?: ProductRow[]; list?: ProductRow[] }>('/product/product/list', {
-      keyword: keyword || undefined,
-      page: 1,
+    apiGet<{ records?: ProductRow[]; list?: ProductRow[]; total?: number }>('/product/product/list', {
+      keyword: nextKeyword || undefined,
+      page: nextPage,
       size: 20,
       productType: 1,
     })
@@ -5267,6 +5309,7 @@ function ProductPickerModal({
         const list = res.records || res.list || [];
         list.forEach((row) => rowsByIdRef.current.set(row.productId, row));
         setRows(list);
+        setTotal(Number(res.total ?? list.length));
       })
       .catch(() => setRows([]))
       .finally(() => setLoading(false));
@@ -5303,32 +5346,56 @@ function ProductPickerModal({
       okText={t('确定')}
       cancelText={t('取消')}
     >
-      <Space style={{ marginBottom: 12, width: '100%' }}>
-        <Input value={keyword} onChange={setKeyword} onEnterPress={load} placeholder={t('输入商品名称搜索')} style={{ width: 260 }} showClear onClear={() => setKeyword('')} />
-        <Button onClick={load}>{t('搜索')}</Button>
-        <Text type="tertiary" size="small">{t('已选 {count} 个', { count: picked.length })}</Text>
-      </Space>
-      <div style={{ maxHeight: 380, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {loading && <Spin />}
-        {!loading && rows.length === 0 && <Text type="tertiary">{t('暂无数据')}</Text>}
-        {rows.map((row) => (
-          <div
-            key={row.productId}
-            onClick={() => toggle(row)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10, padding: 8,
-              border: `1px solid ${picked.includes(row.productId) ? 'var(--semi-color-primary)' : 'var(--semi-color-border)'}`,
-              borderRadius: 6, cursor: 'pointer',
-            }}
-          >
-            {(row.picThumb || row.picUrl) && <img src={row.picThumb || row.picUrl} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} />}
-            <div style={{ flex: 1 }}>
-              <div>{row.productName || t('商品#{id}', { id: row.productId })}</div>
-              <Text type="tertiary" size="small">¥{row.productPrice ?? '-'}</Text>
-            </div>
-            {picked.includes(row.productId) && <Tag color="blue">{t('已选')}</Tag>}
+      <div className="dec-prod-picker">
+        <Space style={{ marginBottom: 12, width: '100%' }} align="center">
+          <Input
+            value={keyword}
+            onChange={setKeyword}
+            onEnterPress={() => { setPage(1); load(1); }}
+            placeholder={t('输入商品名称搜索')}
+            style={{ width: 260 }}
+            showClear
+            onClear={() => { setKeyword(''); setPage(1); load(1, ''); }}
+          />
+          <Button onClick={() => { setPage(1); load(1); }}>{t('搜索')}</Button>
+          <span className="dec-prod-picker__count">{t('已选 {count} 个', { count: picked.length })}</span>
+        </Space>
+        <div className="dec-prod-picker__body">
+          {loading && <div className="dec-prod-picker__loading"><Spin /></div>}
+          {!loading && rows.length === 0 && <Text type="tertiary">{t('暂无数据')}</Text>}
+          {!loading && rows.map((row) => {
+            const active = picked.includes(row.productId);
+            const url = String(row.picThumb || row.picUrl || '');
+            return (
+              <div
+                key={row.productId}
+                className={`dec-prod-picker__card${active ? ' is-active' : ''}`}
+                onClick={() => toggle(row)}
+                title={row.productName || t('商品#{id}', { id: row.productId })}
+              >
+                <div className="dec-prod-picker__pic">
+                  {url ? <img src={url} alt="" loading="lazy" /> : <span className="dec-prod-picker__pic-empty">#{row.productId}</span>}
+                  {active && <span className="dec-prod-picker__check">✓</span>}
+                </div>
+                <div className="dec-prod-picker__meta">
+                  <div className="dec-prod-picker__name">{row.productName || t('商品#{id}', { id: row.productId })}</div>
+                  <div className="dec-prod-picker__price">¥{row.productPrice ?? '-'}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {total > 20 && (
+          <div className="dec-prod-picker__pager">
+            <Pagination
+              currentPage={page}
+              pageSize={20}
+              total={total}
+              onPageChange={(p) => { setPage(p); load(p); }}
+              size="small"
+            />
           </div>
-        ))}
+        )}
       </div>
     </Modal>
   );
@@ -5752,7 +5819,7 @@ function SettingsFieldRows({
   onChange: (next: Record<string, any>) => void;
 }) {
   const { t } = useI18n();
-  const blockKinds = new Set(['picList', 'pic', 'textarea', 'products', 'title', 'container', 'hotarea', 'news', 'groupon', 'squareTemplate']);
+  const blockKinds = new Set(['picList', 'pic', 'textarea', 'products', 'title', 'container', 'hotarea', 'news', 'groupon', 'squareTemplate', 'groupList']);
   return (
     <>
       {fields.map((field) => {
@@ -5760,9 +5827,11 @@ function SettingsFieldRows({
         const block = blockKinds.has(field.kind);
         return (
           <div className={`dec-edit-group${block ? ' dec-edit-group-block' : ''}`} key={field.key}>
-            <div className="dec-edit-group-title">
-              <div className="label">{t(field.label)}</div>
-            </div>
+            {!field.hideLabel && (
+              <div className="dec-edit-group-title">
+                <div className="label">{t(field.label)}</div>
+              </div>
+            )}
             <div className="dec-edit-group-con">
               <FieldControl
                 field={{ ...field, key: field.key }}
@@ -6403,11 +6472,18 @@ function ProductsSettingField({
         <div className="dec-prod-pick__row">
           <label className="dec-prod-pick__field">
             <span>{t('商品标签')}</span>
-            <Input
-              value={value.productTag || ''}
-              onChange={(v) => onChange({ ...value, productTag: v })}
-              placeholder={t('输入商品标签')}
-            />
+            {/* 后端只认 best/new/hot（映射 product.is_best/is_new/is_hot）。
+                此前是自由文本输入，任意文字会被后端静默丢弃 → 按标签恒返回最新商品。 */}
+            <RadioGroup
+              type="button"
+              buttonSize="small"
+              value={value.productTag || 'best'}
+              onChange={(e: any) => onChange({ ...value, productTag: String(e.target.value) })}
+            >
+              <Radio value="best">{t('精品推荐')}</Radio>
+              <Radio value="new">{t('上新品')}</Radio>
+              <Radio value="hot">{t('热销')}</Radio>
+            </RadioGroup>
           </label>
           <label className="dec-prod-pick__field">
             <span>{t('商品数量')}</span>
@@ -6954,9 +7030,36 @@ function FieldControl({
     }
     case 'groupList': {
       const groups = (Array.isArray(value) ? value : []) as Array<Record<string, any>>;
+      /** 按 ids 顺序从「已有缓存 + 弹窗带回行」合并商品信息，写入 productList（预览组件按 productList 取数）。 */
+      const mergeGroupProducts = (
+        group: Record<string, any>,
+        nextIds: number[],
+        rows: ProductRow[],
+      ): Record<string, any> => {
+        const cache = new Map<number, Record<string, any>>(
+          (((group.productList || []) as Array<Record<string, any>>))
+            .filter((p) => Number(p.productId) > 0)
+            .map((p) => [Number(p.productId), p]),
+        );
+        rows.forEach((row) => cache.set(Number(row.productId), row as unknown as Record<string, any>));
+        return {
+          ...group,
+          productIds: nextIds,
+          productList: nextIds
+            .map((id) => cache.get(Number(id)))
+            .filter((p): p is Record<string, any> => !!p),
+        };
+      };
       return (
         <div className="dec-group-list">
-          {groups.map((g, index) => (
+          {groups.map((g, index) => {
+            const groupIds = (g.productIds || []) as number[];
+            const rowsById = new Map<number, Record<string, any>>(
+              (((g.productList || []) as Array<Record<string, any>>))
+                .filter((p) => Number(p.productId) > 0)
+                .map((p) => [Number(p.productId), p]),
+            );
+            return (
             <div key={index} className="dec-group-list__item">
               <div className="dec-group-list__title">{t('第【{index}】组', { index: index + 1 })}{index === 0 ? t('（固定，不可删除/拖动）') : ''}</div>
               <div>
@@ -6971,41 +7074,87 @@ function FieldControl({
                   onChange={(nextGroup) => set(groups.map((x, i) => (i === index ? nextGroup : x)))}
                 />
               </div>
-              <RadioGroup value={g.sourceType || 'products'} onChange={(e: any) => {
-                const type = e.target.value;
-                if ((g.sourceType || 'products') === type) return;
-                // 对齐原版 handleSourceTypeChange：切换来源时清空对应数据
-                set(groups.map((x, i) => (i === index
-                  ? (type === 'products'
-                    ? { ...x, sourceType: type, productGroupId: undefined, productGroupName: undefined }
-                    : { ...x, sourceType: type, productList: [] })
-                  : x)));
-              }}>
-                <Radio value="products">{t('选择商品')}</Radio>
-                <Radio value="productGroup">{t('商品分组')}</Radio>
-              </RadioGroup>
+              <div className="dec-group-list__mode">
+                <RadioGroup type="button" buttonSize="small" value={g.sourceType || 'products'} onChange={(e: any) => {
+                  const type = e.target.value;
+                  if ((g.sourceType || 'products') === type) return;
+                  // 对齐原版 handleSourceTypeChange：切换来源时清空对应数据
+                  set(groups.map((x, i) => (i === index
+                    ? (type === 'products'
+                      ? { ...x, sourceType: type, productGroupId: undefined, productGroupName: undefined }
+                      : { ...x, sourceType: type, productList: [] })
+                    : x)));
+                }}>
+                  <Radio value="products">{t('选择商品')}</Radio>
+                  <Radio value="productGroup">{t('商品分组')}</Radio>
+                </RadioGroup>
+              </div>
               {(g.sourceType || 'products') === 'products' ? (
-                <div>
-                  <Button
-                    size="small"
-                    icon={<IconPlus />}
-                    onClick={() => setPickerVisible(true)}
-                  >
-                    {t('选择商品（已选 {count}）', { count: ((g.productIds || []) as number[]).length })}
-                  </Button>
+                <div className="dec-prod-pick__grid dec-group-list__grid">
+                  {groupIds.map((id, idx) => {
+                    const info = rowsById.get(Number(id));
+                    const url = String(info?.picUrl || info?.picThumb || '');
+                    return (
+                      <div key={String(id)} className="dec-prod-pick__card" title={t('商品#{id}', { id })}>
+                        {url ? (
+                          <img className="dec-prod-pick__thumb" src={url} alt="" loading="lazy" />
+                        ) : (
+                          <span className="dec-prod-pick__thumb dec-prod-pick__thumb--empty">#{id}</span>
+                        )}
+                        <span className="dec-prod-pick__index">{idx + 1}</span>
+                        <button
+                          type="button"
+                          className="dec-prod-pick__remove"
+                          aria-label={t('移除')}
+                          onClick={() => {
+                            const nextIds = groupIds.filter((_, i) => i !== idx);
+                            set(groups.map((x, i) => (i === index ? mergeGroupProducts(x, nextIds, []) : x)));
+                          }}
+                        >
+                          ×
+                        </button>
+                        <div className="dec-prod-pick__meta">
+                          <div className="dec-prod-pick__name">{info?.productName || t('商品#{id}', { id })}</div>
+                          {info?.productPrice !== undefined && info?.productPrice !== null && (
+                            <div className="dec-prod-pick__price">¥{info.productPrice}</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button type="button" className="dec-prod-pick__add" onClick={() => setPickerVisible(true)}>
+                    <IconPlus />
+                    <span>{t('选择商品（已选 {count}）', { count: groupIds.length })}</span>
+                  </button>
                   {pickerVisible && (
-                    <ProductPickerModal visible selectedIds={(g.productIds || []) as number[]} onOk={(nextIds) => { set(groups.map((x, i) => (i === index ? { ...x, productIds: nextIds } : x))); setPickerVisible(false); }} onCancel={() => setPickerVisible(false)} />
+                    <ProductPickerModal
+                      visible
+                      selectedIds={groupIds}
+                      onOk={(nextIds, rows) => {
+                        set(groups.map((x, i) => (i === index ? mergeGroupProducts(x, nextIds, rows) : x)));
+                        setPickerVisible(false);
+                      }}
+                      onCancel={() => setPickerVisible(false)}
+                    />
                   )}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <Button size="small" icon={<IconPlus />} onClick={() => setGroupPickerIndex(index)}>
-                    {g.productGroupName ? t('更换商品分组') : t('添加商品分组')}
-                  </Button>
+                  <button type="button" className="dec-prod-pick__add dec-group-list__group-add" onClick={() => setGroupPickerIndex(index)}>
+                    <IconPlus />
+                    <span>{g.productGroupName ? t('更换商品分组') : t('添加商品分组')}</span>
+                  </button>
                   {g.productGroupName ? (
-                    <div className="dec-edit-group dec-edit-group-block" style={{ padding: 0 }}>
-                      <div className="dec-edit-group-title"><div className="label">{t('已选分组')}</div></div>
-                      <div className="dec-edit-group-con"><span className="selected-group-name">{g.productGroupName}</span></div>
+                    <div className="dec-group-list__selected">
+                      <span className="dec-group-list__selected-name">{g.productGroupName}</span>
+                      <button
+                        type="button"
+                        className="dec-group-list__selected-remove"
+                        aria-label={t('移除')}
+                        onClick={() => set(groups.map((x, i) => (i === index ? { ...x, productGroupId: undefined, productGroupName: undefined } : x)))}
+                      >
+                        ×
+                      </button>
                     </div>
                   ) : null}
                 </div>
@@ -7016,7 +7165,8 @@ function FieldControl({
                 </Button>
               )}
             </div>
-          ))}
+            );
+          })}
           <Button size="small" icon={<IconPlus />} onClick={() => set([...groups, { sourceType: 'products', title: '', titlePic: { picUrl: '', picThumb: '' }, titleLink: { link: '', name: '' }, bannerPic: { picUrl: '', picThumb: '' }, bannerLink: { link: '', name: '' }, productIds: [], productList: [] }])}>
             {t('添加一组')}
           </Button>

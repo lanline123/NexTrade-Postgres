@@ -37,6 +37,12 @@ pub struct ProductListQuery {
     pub ids: Option<String>,
     /// 商品分组 ID（装修 pc-product-group 的 productGroup 数据源）。
     pub product_group_id: Option<i32>,
+    /// 标签筛选（装修推荐商品「按标签」的 productTag → introType）。
+    ///
+    /// 原版 Java `ProductListDTO.introType`：best=精品(is_best=1)、new=新品(is_new=1)、
+    /// hot=热销(is_hot=1)。此前 Rust 缺这个字段，serde 静默丢弃 → 「按标签」恒返回
+    /// 无过滤的最新商品（2026-11-12 排查确认）。
+    pub intro_type: Option<String>,
 }
 
 /// 商品列表 VO（含原 Java `@TableField(exist = false)` 的门店扩展字段）。
@@ -94,5 +100,15 @@ mod tests {
         assert_eq!(q.product_group_id, Some(25));
         let q2: ProductListQuery = serde_json::from_str(r#"{"page":1}"#).unwrap();
         assert!(q2.product_group_id.is_none());
+    }
+
+    /// 装修推荐商品「按标签」：productTag → introType 必须被解析进查询，
+    /// 否则按标签恒返回无过滤的最新商品（serde 静默丢弃）。
+    #[test]
+    fn product_list_query_accepts_intro_type() {
+        let q: ProductListQuery = serde_json::from_str(r#"{"introType":"best","page":1,"size":20}"#).unwrap();
+        assert_eq!(q.intro_type.as_deref(), Some("best"));
+        let q2: ProductListQuery = serde_json::from_str(r#"{"page":1}"#).unwrap();
+        assert!(q2.intro_type.is_none());
     }
 }

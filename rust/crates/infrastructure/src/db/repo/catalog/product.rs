@@ -62,6 +62,17 @@ impl ProductRepository {
 
         let sale_clause = super::product_sale::ProductSaleRepository::sale_condition();
 
+        // —— `introType` 标签筛选（装修推荐商品「按标签」）——
+        // 原版 Java `ProductListDTO.introType`：best=精品(is_best=1)、new=新品(is_new=1)、
+        // hot=热销(is_hot=1)。白名单映射，未知值一律忽略（不放宽成全表）。
+        // 常量子句无占位符，count/list 两段 SQL 直接复用。
+        let intro_clause = match q.intro_type.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            Some("best") => " AND is_best = 1",
+            Some("new") => " AND is_new = 1",
+            Some("hot") => " AND is_hot = 1",
+            _ => "",
+        };
+
         // 分类筛选：服务层展开后的 category_ids 优先（包含子分类）；
         // 没有展开时保持原来的精确 category_id 语义。
         let category_ids: Vec<i32> = if q.category_ids.is_empty() {
@@ -84,7 +95,7 @@ impl ProductRepository {
                AND (? IS NULL OR shop_id = ?)
                AND (? IS NULL OR product_status = ?)
                AND (? IS NULL OR product_price >= ?)
-               AND (? IS NULL OR product_price <= ?){sale_clause}{id_clause}"
+               AND (? IS NULL OR product_price <= ?){sale_clause}{intro_clause}{id_clause}"
         ));
         let mut total_q = sqlx::query_as::<_, (i64,)>(&total_sql)
             .bind(&keyword).bind(&keyword).bind(&keyword);
@@ -143,7 +154,7 @@ impl ProductRepository {
                AND (? IS NULL OR shop_id = ?)
                AND (? IS NULL OR product_status = ?)
                AND (? IS NULL OR product_price >= ?)
-               AND (? IS NULL OR product_price <= ?){sale_clause}{id_clause}
+               AND (? IS NULL OR product_price <= ?){sale_clause}{intro_clause}{id_clause}
              ORDER BY {order_by} {dir}, product_id DESC
              LIMIT ? OFFSET ?"
         ));

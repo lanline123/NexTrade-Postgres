@@ -147,6 +147,47 @@ function handleImgError(e: SyntheticEvent<HTMLImageElement>) {
   img.src = EMPTY_IMG;
 }
 
+/** 模块标题（对齐旧版 _shared/ModuleTitle.vue：样式一/二/三装饰、对齐、背景、圆角、更多链接）。 */
+function ModuleTitle({ title }: { title?: AnyRecord }) {
+  const { t } = useI18n();
+  if (!title || Number(title.showTitle) !== 1) return null;
+  const align = Number(title.titleAlign ?? 1);
+  const style = Number(title.titleStyle ?? 1);
+  const titleIcon = String(title.titleBackgroundPic?.picUrl || '');
+
+  const containerStyle: CSSProperties = {};
+  if (title.titleBackground) {
+    containerStyle.backgroundColor = title.titleBackground;
+  }
+  if (title.titleRadius) {
+    containerStyle.borderRadius = `${Number(title.titleRadius)}px ${Number(title.titleRadius)}px 0 0`;
+  }
+
+  return (
+    <div className={`dec-module-title dec-module-title--style-${style} dec-module-title--align-${align}`} style={containerStyle}>
+      <div className="dec-module-title__left">
+        {titleIcon ? <img className="dec-module-title__icon" src={titleIcon} alt="" /> : null}
+        <div className="dec-module-title__text" style={{ color: title.titleColor || '#2a3145' }}>
+          {title.titleText}
+        </div>
+        {title.descText ? (
+          <div className="dec-module-title__desc" style={{ color: title.descColor || '#aaaaaa' }}>
+            {title.descText}
+          </div>
+        ) : null}
+      </div>
+      {Number(title.showMore) === 1 ? (
+        <div className="dec-module-title__right">
+          <a className="dec-module-title__more" href={title.moreLink?.link || 'javascript:;'} style={{ color: title.moreColor || '#969799' }}>
+            <span>{title.moreLink?.title || t('更多')}</span>
+            <i>›</i>
+          </a>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** 按选品配置拉取商品列表（参数映射与旧版 Preview.vue 完全一致）。 */
 function useProductList(config: AnyRecord) {
     const { t } = useI18n();
@@ -283,6 +324,11 @@ export default function PcRecommendProductPreview({ data }: { data: Record<strin
   } as CSSProperties;
 
   const hasProducts = productList.length > 0;
+  // 标题：data 里有 title 键（新版数据/新模块）→ 走标题设置块；
+  // 老数据只有 titleName → 回退旧标题渲染，避免「标题块 + 旧标题」双重渲染。
+  const hasTitleObject = data && data.title !== undefined;
+  const showName = Number(config.showProductName ?? 1) === 1;
+  const showPrice = Number(config.showProductPrice ?? 1) === 1;
 
   return (
     <div className="dec-pc-recommend-product" style={cssVars}>
@@ -293,10 +339,12 @@ export default function PcRecommendProductPreview({ data }: { data: Record<strin
         </div>
       ) : (
         <>
-          {config.titleName ? (
+          {hasTitleObject ? (
+            <ModuleTitle title={config.title as AnyRecord} />
+          ) : config.titleName ? (
             <h3 className="dec-pc-recommend-product__title">{config.titleName}</h3>
           ) : null}
-          <div className={`dec-pc-recommend-product__list${config.titleName ? '' : ' is-no-title'}`}>
+          <div className={`dec-pc-recommend-product__list${config.titleName || (hasTitleObject && Number((config.title as AnyRecord)?.showTitle) === 1) ? '' : ' is-no-title'}`}>
             {productList.map((item, index) => {
               const priceParts = formatPriceParts(getPrice(item));
               const soldOut = isSoldOut(item);
@@ -318,33 +366,37 @@ export default function PcRecommendProductPreview({ data }: { data: Record<strin
                   </div>
 
                   <div className="center-wrap">
-                    <div className="pro_name">{item.productName}</div>
+                    {showName ? <div className="pro_name">{item.productName}</div> : null}
 
-                    <div className="desc-wrap desc-wrap--sales">
-                      <div className="virtual-sales">已售 {getVirtualSales(item)}</div>
-                    </div>
-
-                    {/* 状态占位：不管有没有状态都占一行，保证价格/按钮对齐 */}
-                    <div className={`desc-wrap desc-wrap--status${soldOut ? '' : ' is-empty'}`}>
-                      <div className="virtual-sales">{soldOut ? t('已售罄') : ''}</div>
-                    </div>
-
-                    <div className="tag-wrap" />
-
-                    <div className="price-wrap">
-                      <div className="box">
-                        <div className="seckill-price">
-                          <span className="price-currency">¥</span>
-                          <span className="price-int">{priceParts.int}</span>
-                          <span className="price-dec">.{priceParts.dec}</span>
+                    {showPrice ? (
+                      <>
+                        <div className="desc-wrap desc-wrap--sales">
+                          <div className="virtual-sales">已售 {getVirtualSales(item)}</div>
                         </div>
-                      </div>
-                      <div className="buy">
-                        <div className={`view_detail${soldOut ? ' disabled' : ''}`}>
-                          <span className="add-icon" />
+
+                        {/* 状态占位：不管有没有状态都占一行，保证价格/按钮对齐 */}
+                        <div className={`desc-wrap desc-wrap--status${soldOut ? '' : ' is-empty'}`}>
+                          <div className="virtual-sales">{soldOut ? t('已售罄') : ''}</div>
                         </div>
-                      </div>
-                    </div>
+
+                        <div className="tag-wrap" />
+
+                        <div className="price-wrap">
+                          <div className="box">
+                            <div className="seckill-price">
+                              <span className="price-currency">¥</span>
+                              <span className="price-int">{priceParts.int}</span>
+                              <span className="price-dec">.{priceParts.dec}</span>
+                            </div>
+                          </div>
+                          <div className="buy">
+                            <div className={`view_detail${soldOut ? ' disabled' : ''}`}>
+                              <span className="add-icon" />
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : null}
 
                     <div className="other-wrap">
                       <span className="link">{getShopTitle(item)}</span>

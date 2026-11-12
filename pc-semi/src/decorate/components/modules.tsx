@@ -3557,9 +3557,35 @@ function RecommendProduct({ module }: ModuleProps) {
     return '立即购买';
   };
 
+  // 标题：module 里有 title 对象（新版装修数据）→ 按标题设置块渲染；否则回退旧 titleName。
+  const titleObj = (module as any).title;
+  const hasTitleObj = titleObj && typeof titleObj === 'object';
+  const legacyName = module.titleName;
+  const showTitle = hasTitleObj ? Number(titleObj.showTitle) === 1 : Boolean(legacyName);
+  const titleText = hasTitleObj ? titleObj.titleText : legacyName;
+  const titleAlign = hasTitleObj ? Number(titleObj.titleAlign ?? 1) : 1;
+  // 商品内容开关（老数据缺省 = 显示，保持原行为）
+  const showName = Number((module as any).showProductName ?? 1) === 1;
+  const showPrice = Number((module as any).showProductPrice ?? 1) === 1;
+
   return (
     <div className="dec-recommend-product" style={cssVars}>
-      {module.titleName ? <h3 className="dec-recommend-product__title">{module.titleName}</h3> : null}
+      {showTitle && titleText ? (
+        <h3
+          className="dec-recommend-product__title"
+          style={{
+            textAlign: titleAlign === 2 ? 'center' : titleAlign === 3 ? 'right' : 'left',
+            color: hasTitleObj && titleObj.titleColor ? titleObj.titleColor : undefined,
+          }}
+        >
+          {titleText}
+          {hasTitleObj && titleObj.descText ? (
+            <span style={{ fontSize: 12, color: titleObj.descColor || '#aaaaaa', marginLeft: 5, fontWeight: 400 }}>
+              {titleObj.descText}
+            </span>
+          ) : null}
+        </h3>
+      ) : null}
       <div className="dec-recommend-product__list" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: `${itemGap}px` }}>
         {products.map((product, index) => (
           <div className="dec-recommend-product__item" key={product.productSn || product.productId || index}>
@@ -3570,18 +3596,20 @@ function RecommendProduct({ module }: ModuleProps) {
                     <img src={product.picUrl || product.picThumb || ''} alt={product.productName || ''} loading="lazy" />
                   </Link>
                 </div>
-                <div className="dec-recommend-product__name">
-                  <Link href={productDetailHref(product)} target="_blank">
-                    {Number((product as any).deliveryMode) === 2 && Number((product as any).deliveryType) === 1 ? (
-                      <span className="dec-recommend-product__tag">{t('周期购')}</span>
-                    ) : null}
-                    {Number((product as any).deliveryMode) === 2 && Number((product as any).deliveryType) === 2 ? (
-                      <span className="dec-recommend-product__tag">{t('次卡兑换')}</span>
-                    ) : null}
-                    {product.productName}
-                  </Link>
-                </div>
-                <div className="dec-recommend-product__price">{formatPrice(product.productPrice)}</div>
+                {showName ? (
+                  <div className="dec-recommend-product__name">
+                    <Link href={productDetailHref(product)} target="_blank">
+                      {Number((product as any).deliveryMode) === 2 && Number((product as any).deliveryType) === 1 ? (
+                        <span className="dec-recommend-product__tag">{t('周期购')}</span>
+                      ) : null}
+                      {Number((product as any).deliveryMode) === 2 && Number((product as any).deliveryType) === 2 ? (
+                        <span className="dec-recommend-product__tag">{t('次卡兑换')}</span>
+                      ) : null}
+                      {product.productName}
+                    </Link>
+                  </div>
+                ) : null}
+                {showPrice ? <div className="dec-recommend-product__price">{formatPrice(product.productPrice)}</div> : null}
               </div>
               <div className="dec-recommend-product__operate">
                 <Link className="dec-recommend-product__detail" href={productDetailHref(product)} target="_blank">{t('查看详情')}</Link>
