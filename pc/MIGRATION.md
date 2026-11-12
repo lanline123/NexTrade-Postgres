@@ -16,7 +16,7 @@
 | 已完成 | **73 个页面路由 + 23 条旧 URL 重定向**（Vue 111 条路由 100% 有落点）+ 全局 Header/Footer + 装修首页 + 地区级联 + 滑动验证码 + 完整发票 + 以图搜图 + 筛选栏 + 秒杀/拼团 |
 | 验证 | `npm run build` 通过，全部 `ƒ Dynamic`；`next start` 抽查 `/`、`/seckill/list`、`/joining/list`、`/member/joining/list`、`/list?cat=975`、`/search`、`/search/image`、`/member/address/editregion`、`/order/check` 全 200 |
 | 尚未完成 | 功能深度：IM 客服、第三方登录、账户充值/银行卡/账期还款、结算页账期与预售；首屏数据仍在浏览器端取（见 §7 第 4 项） |
-| 本地启动 | `cd pc && npm run dev` → http://127.0.0.1:3006 |
+| 本地启动 | `cd pc && npm run dev` → http://127.0.0.1:3006（**热构建**，产物在 `.next-dev`，不碰 prod 的 `.next-react`） |
 
 **注意别混淆两套 React 前端**：
 
@@ -229,6 +229,12 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | `/member/joining/list` | `MyGrouponList` | `pages/member/joining/List.vue` + `components/member/joining/JoiningOrderList.vue` | `promotion/groupon/record/list`（**我的拼团**，joinType 1=我发起 / 2=我参与） |
 | `/member/group/list` | `MyGrouponList` | `pages/member/group/List.vue` | 同上（Vue 里跨境站走这条路径，内容一致） |
 | `/joining/groupbyinvited` | `GroupInvitePage` | `pages/joining/groupByInvited.vue` | `promotion/groupon/record/details?id=` 拼团邀请落地页 |
+| `/member/account/deposit` | `DepositPage` | `pages/member/account/Deposit.vue` | `user/rechargeOrder/{setting,paymentList,update}` |
+| `/member/account/raplytocard` | `WithdrawPage` | `pages/member/account/Raplytocard.vue` | `user/withdrawApply/{list,apply}` |
+| `/member/account/cardmanagement` | `CardManagement` | `pages/member/account/CardManagement.vue` | `user/withdrawApply/{list,createAccount,updateAccount,delAccount}` |
+| `/member/account/src/[channel]` | `RechargeChannelPage` | `pages/member/account/src/{alipay,paypal,wechat,yabanpay,yunpay,lakala}.vue` | `user/rechargeOrder/create` → `payInfo.html` 自动提交表单 |
+| `/member/account/src/serviceagreement` | 静态页 | `pages/member/account/src/serviceAgreement.vue` | 协议入口 |
+| `/shop/license` | `ShopLicense` | `pages/shop/license.vue` | `shop/shop/detail` 的 `businessLicensePic`，白页无头尾 |
 | `/join` | `JoinIntro` | `pages/join/index.vue` | 静态流程说明（申请表单待接 `merchant/merchant/apply`） |
 | `/activity` | `DecoratePage` | `pages/activity/index.vue` | `home/home/pcIndex`（`?id` / `?previewId`） |
 
@@ -277,12 +283,11 @@ Vue 侧 `pages/` 共 **111 条路由**（已排除 `src/`、`components/` 子目
 
 | 占位页 | 现状 | 备注 |
 |---|---|---|
-| `/chat` | 占位 | IM 客服需要 WebSocket（Vue 侧 `VITE_SOCKET_URL`） |
-| `/oauth/callback` | 占位 | 第三方登录回调，依赖各渠道 appId |
-| `/member/account/deposit` | 占位 | 账户充值 |
-| `/member/account/raplytocard` | 占位 | 余额提现/转账到卡 |
-| `/member/account/cardmanagement` | 占位 | 银行卡管理 |
-| `/shop/license` | 占位 | 店铺资质公示 |
+| `/chat` | 占位 | IM 客服需要 WebSocket（Vue 侧 `VITE_SOCKET_URL`），是唯一剩下的整页缺口 |
+| `/oauth/callback` | 占位 | 第三方登录回调，依赖各渠道 appId 与后端回调配置 |
+
+账户充值 / 提现 / 卡管理 / 充值支付渠道 / 营业执照公示 已于 2026-11-13 补齐，见 §6.10。
+仍在「部分实现」的：微信、亚万、云支付、拉卡拉四个**扫码**渠道页（要渲染二维码，需引入 qrcode 依赖）。
 
 盘点脚本思路：遍历 `pages/**/*.vue` 生成路由集（`index.vue` 折成父路径、`src`/`components` 目录排除），与 `src/app/**/page.tsx` 求差集，再按 redirects 规则过滤。
 **注意**：Vue 侧文件名是 PascalCase（`member/address/List.vue` → `/member/address/list`），React 侧是小写目录，直接字符串差集会误报一堆“未迁”，比对前必须统一小写。
@@ -392,6 +397,25 @@ Node 侧拿不到）。要扩展这套做法，只需：接口公开 → `server
 
 教训：`joining` 这个词在 Vue 里同时表示「拼团」和「入驻」，**不能按词义猜**，必须看页面实际调用的接口。
 
+### 6.10 第六批真实接口校准（2026-11-13：账户 / 充值 / 提现 / 执照）
+
+| 接口 | 真实行为 | 处理 |
+|---|---|---|
+| `user/rechargeOrder/setting` | `records[{ rechargeId, money, discountMoney, sortOrder, isShow }]`，本环境 5 档（20/50/100/200/500） | 充值档位；`rechargeId=0` 表示自定义金额 |
+| `user/rechargeOrder/paymentList` | 本环境只返回 **`["alipay"]`** | 支付方式按后端列表渲染，不硬编码渠道 |
+| `user/rechargeOrder/update` | 创建充值订单，返回 `{ orderId }` | 跳渠道页；渠道页再调 `create` |
+| `user/rechargeOrder/create` | `{ id, type }` → `payInfo.html`（自动提交的第三方表单） | `RechargeChannelPage` 注入 DOM 后 `form.submit()` |
+| `user/withdrawApply/list?accountType` | 1 银行卡 / 2 支付宝 / 3 微信；返回 `accountId/accountNo/accountName/bankName` | 卡管理 + 提现共用 |
+| `user/withdrawApply/{createAccount,updateAccount,delAccount}` | 新增/编辑/删除收款账号（注意不是 `user/account/*`） | `CardManagement` |
+| `user/withdrawApply/apply` | `{ accountData:{accountType,accountNo,accountName,bankName}, amount }` | `WithdrawPage`，前端校验两位小数 + 不超余额 |
+| `common/config/initConfigSettings` 的提现字段 | `memberWithdrawalEnabled`（0/1）、`memberWithdrawalReceiptMethod`（**数组**，null=后端未下发按全显示，[]=全部取消）、`memberWithdrawalDescription`（富文本） | 开关关闭时整页降级为提示 |
+| `shop/shop/detail` | `businessLicensePic` 是执照图；为空就显示「暂无营业执照」 | `/shop/license` |
+
+**路由盘点又踩了一个坑**：`pages/**/src/**` 里的 `.vue` 在 Nuxt 里**同样是路由**。
+之前盘点脚本把所有 `src` 目录当组件排除，漏掉了 7 个真实页面——
+`/member/account/src/{alipay,paypal,wechat,yabanpay,yunpay,lakala}` 与 `serviceAgreement`
+（充值的支付渠道页就是跳这些路径）。已补齐，其余 `src` 目录确实是组件（ChatInput、OrderProductTable 等）。
+
 ---
 
 ## 7. 待办（按建议顺序）
@@ -414,7 +438,8 @@ Node 侧拿不到）。要扩展这套做法，只需：接口公开 → `server
 ```bash
 cd pc
 npm install                                   # 本机需带 CODEBUDDY_SAFE_DELETE_ENABLED=0，否则被安全删除钩子拦停
-npm run dev                                   # http://127.0.0.1:3006
+npm run dev                                   # 热构建 http://127.0.0.1:3006，产物 .next-dev
+                                              # 本机需带 CODEBUDDY_SAFE_DELETE_ENABLED=0，否则 dev 清缓存时被安全删除钩子拦停
 npm run build                                 # 产物 .next-react，构建前自动打 trace 补丁
 npm run start                                 # 生产预览，3006
 npm run typecheck                             # tsc -p tsconfig.react.json
@@ -424,7 +449,7 @@ npm run typecheck                             # tsc -p tsconfig.react.json
 |---|---|---|
 | `PC_API_BASE` | `https://battery.recy.cc` | 后端地址，供 `rewrites` 与 `env` 用 |
 | `PC_API_PREFIX` | `/api` | 接口前缀 |
-| `PC_NEXT_DIST_DIR` | `.next-react` | 构建输出目录，多会话并行时隔离 |
+| `PC_NEXT_DIST_DIR` | `.next-react`（`npm run dev` 里设为 `.next-dev`） | 构建输出目录；dev 与 build 分开，互不清理 |
 | `PC_SKIP_BUILD_TRACE` | 构建脚本自动置 1 | 跳过 Windows 上有问题的 trace 写入 |
 
 ---
