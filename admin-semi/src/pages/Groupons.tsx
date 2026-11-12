@@ -1,19 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
   Button,
-  Checkbox,
   Input,
   InputNumber,
   Modal,
-  Radio,
-  RadioGroup,
-  Select,
   Space,
   Spin,
   Table,
   Tabs,
   Tag,
-  TextArea,
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
@@ -23,7 +18,8 @@ import ListPage from '../framework/ListPage';
 import FormDrawer from '../framework/FormDrawer';
 import ImageUploader from '../components/ImageUploader';
 import MultilingualField from '../components/MultilingualField';
-import GrouponItemManager from '../components/GrouponItemManager';
+import GrouponItemManager, { type GrouponItemRow } from '../components/GrouponItemManager';
+import GrouponItemEditor from '../components/GrouponItemEditor';
 import SendUserSelector, { type SendUserTarget } from '../components/SendUserSelector';
 import type { ColumnConfig, FormDrawerConfig } from '../framework/types';
 
@@ -80,6 +76,7 @@ export default function Groupons() {
   const [memberTarget, setMemberTarget] = useState<any | null>(null);
   const [itemEditOpen, setItemEditOpen] = useState(false);
   const [itemEditInitial, setItemEditInitial] = useState<Record<string, any> | null>(null);
+  const [itemEditSeq, setItemEditSeq] = useState(0);
   const [itemSaving, setItemSaving] = useState(false);
   const [postTarget, setPostTarget] = useState<any | null>(null);
   const [postInfo, setPostInfo] = useState<Record<string, any> | null>(null);
@@ -215,31 +212,41 @@ export default function Groupons() {
     }
   };
 
-  const openItemEdit = async (groupon: GrouponRow, item?: any) => {
+  /** 打开添加/编辑弹窗。
+   * 修复点：
+   * 1. 详情参数是 `grouponPromotionItemId`（旧代码传 `id`，后端必 500「未知的拼团活动商品」）；
+   * 2. 详情拉齐后才打开弹窗（旧实现先开再异步回填，state 只初始化一次，连续新建/编辑会串数据）；
+   * 3. 每次打开都重置 initial，编辑器组件以 key 重建，保证状态干净。 */
+  const openItemEdit = async (groupon: GrouponRow, item?: GrouponItemRow) => {
     setItemTarget(groupon);
-    setItemEditOpen(true);
+    setItemEditOpen(false);
+    setItemEditInitial(null);
+    let next: Record<string, any> | null;
     if (item) {
-      // 编辑：拉详情回填（详情含 SKU 明细与阶梯价）
+      const itemId = item.grouponPromotionItemId ?? item.itemId;
       try {
-        const detail = await apiGet<any>('/promotion/groupon/item/detail', { id: item.itemId ?? item.grouponPromotionItemId });
-        setItemEditInitial({ ...(item || {}), ...(detail || {}) });
-      } catch {
-        setItemEditInitial(item);
+        const detail = await apiGet<any>('/promotion/groupon/item/detail', {
+          grouponPromotionItemId: itemId,
+        });
+        next = { ...item, ...detail };
+      } catch (error) {
+        Toast.error({ content: error instanceof Error ? error.message : t('详情加载失败') });
+        next = { ...item };
       }
     } else {
-      setItemEditInitial({
+      next = {
         grouponPromotionId: groupon.grouponPromotionId,
         groupType: Number(groupon.groupType ?? 1),
         orderLimitNum: 0,
         isAutoGroup: 0,
         minGroupNum: 2,
-        minGroupPrice: undefined,
         sort: 0,
         groupNums: [{ groupNumKey: 0, groupNum: 2 }],
-        product: null,
-        details: [],
-      });
+      };
     }
+    setItemEditInitial(next);
+    setItemEditSeq((seq) => seq + 1);
+    setItemEditOpen(true);
   };
 
   const showPost = async (item: any) => {
@@ -744,9 +751,11 @@ export default function Groupons() {
         </Spin>
       </Modal>
 
-      {/* 拼团商品添加/编辑 */}
-      {itemTarget && (
-        <GrouponItemEditDrawer
+      {/* 拼团商品添加/编辑（现代化弹窗，见 components/GrouponItemEditor.tsx）。
+          key=itemEditSeq：每次打开强制重建，杜绝旧 state 串数据。 */}
+      {itemTarget && itemEditInitial && (
+        <GrouponItemEditor
+          key={itemEditSeq}
           visible={itemEditOpen}
           groupon={itemTarget}
           initial={itemEditInitial}
@@ -767,451 +776,3 @@ export default function Groupons() {
     </div>
   );
 }
-
-/* ============================== 拼团商品编辑 ============================== */
-
-interface GrouponProductSku {
-  skuId?: number;
-  skuValue?: string;
-  skuPrice?: number | string;
-}
-
-interface GrouponProduct {
-  productId?: number;
-  productName?: string;
-  productSn?: string;
-  picThumb?: string;
-  picUrl?: string;
-  productPrice?: number | string;
-  productSkus?: GrouponProductSku[];
-  isAdded?: boolean;
-  isOtherGrouponProduct?: boolean;
-  isReservationProduct?: boolean;
-  isPresaleProduct?: boolean;
-  isSeckillProduct?: boolean;
-  isTimeDiscountProduct?: boolean;
-}
-
-function GrouponItemEditDrawer({
-  visible,
-  groupon,
-  initial,
-  saving,
-  onCancel,
-  onSaved,
-  onSavingChange,
-}: {
-  visible: boolean;
-  groupon: GrouponRow;
-  initial: Record<string, any> | null;
-  saving: boolean;
-  onCancel: () => void;
-  onSaved: () => void;
-  onSavingChange: (saving: boolean) => void;
-}) {
-  const { t } = useI18n();
-  const groupType = Number(groupon.groupType ?? initial?.groupType ?? 1);
-  // 成团人数阶梯（普通团 1 档；阶梯团可多档）
-  const [groupNums, setGroupNums] = useState<Array<{ groupNumKey: number; groupNum: number }>>(
-    initial?.groupNums?.length
-      ? initial.groupNums.map((item: any, index: number) => ({
-          groupNumKey: Number(item.groupNumKey ?? index),
-          groupNum: Number(item.groupNum ?? 2),
-        }))
-      : [{ groupNumKey: 0, groupNum: 2 }],
-  );
-  const [keyword, setKeyword] = useState('');
-  const [productRows, setProductRows] = useState<GrouponProduct[]>([]);
-  const [productLoading, setProductLoading] = useState(false);
-  const [product, setProduct] = useState<GrouponProduct | null>(initial?.product || null);
-  /** SKU 明细：skuId → {isJoin, limitNum, prices: Record<groupNumKey, price>} */
-  const [details, setDetails] = useState<Record<number, { isJoin: number; limitNum: number; prices: Record<number, string> }>>(
-    () => {
-      const map: Record<number, { isJoin: number; limitNum: number; prices: Record<number, string> }> = {};
-      const skuList = initial?.product?.productSkus || initial?.productSkus || [];
-      const detailList = initial?.grouponPromotionDetails || initial?.details || [];
-      skuList.forEach((sku: any) => {
-        const skuId = Number(sku.skuId);
-        const matched = detailList.find((d: any) => Number(d.skuId) === skuId);
-        const prices: Record<number, string> = {};
-        (matched?.groupPromotionDetailPrices || []).forEach((price: any) => {
-          prices[Number(price.groupNumKey ?? 0)] = String(price.price ?? '');
-        });
-        map[skuId] = {
-          isJoin: Number(matched?.isJoin ?? 1),
-          limitNum: Number(matched?.limitNum ?? sku.skuStock ?? 0),
-          prices,
-        };
-      });
-      return map;
-    },
-  );
-  const [orderLimitNum, setOrderLimitNum] = useState<number>(Number(initial?.orderLimitNum ?? 0));
-  const [isAutoGroup, setIsAutoGroup] = useState<number>(Number(initial?.isAutoGroup ?? 0));
-  const [virtualGroupCount, setVirtualGroupCount] = useState<number>(Number(initial?.virtualGroupCount ?? 0));
-  const [sort, setSort] = useState<number>(Number(initial?.sort ?? 0));
-
-  const isEdit = Boolean(initial?.itemId ?? initial?.grouponPromotionItemId);
-
-  const searchProducts = async () => {
-    setProductLoading(true);
-    try {
-      const result = await apiGet<any>('/promotion/groupon/item/productList', {
-        keyword: keyword.trim() || undefined,
-        grouponPromotionId: groupon.grouponPromotionId,
-        page: 1,
-        size: 10,
-      });
-      setProductRows(result?.records || result?.list || []);
-    } catch (error) {
-      Toast.error({ content: error instanceof Error ? error.message : t('商品加载失败') });
-    } finally {
-      setProductLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (visible && !initial?.product) searchProducts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
-
-  const productFlags = (product: GrouponProduct | null) => {
-    if (!product) return [];
-    const flags: string[] = [];
-    if (product.isOtherGrouponProduct) flags.push(t('已参加其它拼团'));
-    if (product.isReservationProduct) flags.push(t('预约商品'));
-    if (product.isPresaleProduct) flags.push(t('预售商品'));
-    if (product.isSeckillProduct) flags.push(t('正在秒杀'));
-    if (product.isTimeDiscountProduct) flags.push(t('正在限时折扣'));
-    return flags;
-  };
-
-  const submit = async () => {
-    if (!product?.productId) {
-      Toast.warning({ content: t('请选择商品') });
-      return;
-    }
-    const skuList = product.productSkus || [];
-    const activeDetails = skuList.filter((sku) => {
-      const state = details[Number(sku.skuId)];
-      return state && state.isJoin === 1;
-    });
-    if (skuList.length > 0 && activeDetails.length === 0) {
-      Toast.warning({ content: t('请至少选择一个参加拼团的规格') });
-      return;
-    }
-    if (groupNums.some((item) => item.groupNum < 2)) {
-      Toast.warning({ content: t('成团人数不能小于2') });
-      return;
-    }
-    const minGroupNum = Math.min(...groupNums.map((item) => item.groupNum));
-    onSavingChange(true);
-    try {
-      const payload = {
-        grouponPromotionItemId: initial?.itemId ?? initial?.grouponPromotionItemId,
-        grouponPromotionId: groupon.grouponPromotionId,
-        productId: product.productId,
-        groupType,
-        orderLimitNum,
-        isAutoGroup,
-        minGroupNum,
-        minGroupPrice: null,
-        sort,
-        groupNums: groupNums.map((item, index) => ({ groupNumKey: index, groupNum: item.groupNum })),
-        grouponPromotionDetails: activeDetails.map((sku) => {
-          const skuId = Number(sku.skuId);
-          const state = details[skuId];
-          return {
-            grouponDetailId: undefined,
-            productId: product.productId,
-            skuId,
-            limitNum: state.limitNum,
-            isJoin: 1,
-            groupPromotionDetailPrices: groupNums.map((tier, index) => ({
-              groupNumKey: index,
-              price: Number(state.prices[index] ?? sku.skuPrice ?? 0),
-            })),
-          };
-        }),
-      };
-      const itemId = initial?.itemId ?? initial?.grouponPromotionItemId;
-      await apiPost(itemId ? '/promotion/groupon/item/update' : '/promotion/groupon/item/create', payload);
-      Toast.success({ content: itemId ? t('更新成功') : t('创建成功') });
-      onSaved();
-    } catch (error) {
-      Toast.error({ content: error instanceof Error ? error.message : t('保存失败') });
-      onSavingChange(false);
-    }
-  };
-
-  return (
-    <Modal
-      title={isEdit ? t('编辑拼团商品') : t('添加拼团商品')}
-      visible={visible}
-      onCancel={onCancel}
-      onOk={submit}
-      okButtonProps={{ loading: saving }}
-      okText={t('保存')}
-      cancelText={t('取消')}
-      width={860}
-    >
-      <div className="groupon-item-form">
-        {/* 商品选择 */}
-        {!initial?.product && (
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontWeight: 500, marginBottom: 8 }}>{t('选择商品')}</div>
-            <Space style={{ marginBottom: 8 }}>
-              <Input
-                style={{ width: 240 }}
-                placeholder={t('搜索商品名称 / 编号')}
-                value={keyword}
-                showClear
-                onClear={() => setKeyword('')}
-                onChange={setKeyword}
-                onEnterPress={searchProducts}
-              />
-              <Button theme="solid" type="primary" onClick={searchProducts}>
-                {t('搜索')}
-              </Button>
-            </Space>
-            <Table
-              loading={productLoading}
-              dataSource={productRows}
-              rowKey={(record?: GrouponProduct) => String(record?.productId ?? Math.random())}
-              pagination={false}
-              onRow={(record?: GrouponProduct) => ({ onClick: () => record && setProduct(record) })}
-              rowClassName={(record?: GrouponProduct) =>
-                Number(product?.productId) === Number(record?.productId) ? 'groupon-product-row is-active' : 'groupon-product-row'
-              }
-              columns={[
-                {
-                  title: t('商品'),
-                  dataIndex: 'product',
-                  render: (_v: unknown, record: GrouponProduct) => (
-                    <div className="product-picker-info">
-                      {record.picThumb || record.picUrl ? (
-                        <img src={record.picThumb || record.picUrl} alt="" style={{ width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }} />
-                      ) : null}
-                      <div>
-                        <div>{record.productName}</div>
-                        <Text type="tertiary" size="small">{record.productSn || ''}</Text>
-                      </div>
-                    </div>
-                  ),
-                },
-                {
-                  title: t('状态'),
-                  dataIndex: 'flags',
-                  width: 240,
-                  render: (_v: unknown, record: GrouponProduct) => {
-                    const flags = productFlags(record);
-                    return (
-                      <Space wrap spacing={4}>
-                        {record.isAdded ? <Tag color="green">{t('已加入')}</Tag> : null}
-                        {flags.map((flag) => (
-                          <Tag key={flag} color="orange">
-                            {flag}
-                          </Tag>
-                        ))}
-                      </Space>
-                    );
-                  },
-                },
-              ] as any}
-            />
-          </div>
-        )}
-
-        {product && (
-          <>
-            <div style={{ fontWeight: 500, margin: '8px 0' }}>
-              {product.productName}
-              {productFlags(product).map((flag) => (
-                <Tag key={flag} color="orange" style={{ marginLeft: 8 }}>
-                  {flag}
-                </Tag>
-              ))}
-            </div>
-
-            {/* 成团人数设置 */}
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontWeight: 500, marginBottom: 6 }}>{t('成团人数设置')}</div>
-              {groupNums.map((tier, index) => (
-                <Space key={index} style={{ marginBottom: 6 }}>
-                  <span>{t('成团人数')}</span>
-                  <InputNumber
-                    style={{ width: 110 }}
-                    min={2}
-                    precision={0}
-                    value={tier.groupNum}
-                    onChange={(next) =>
-                      setGroupNums((current) =>
-                        current.map((item, i) => (i === index ? { ...item, groupNum: Number(next ?? 2) } : item)),
-                      )
-                    }
-                  />
-                  {groupType === 2 && groupNums.length > 1 && (
-                    <Button
-                      theme="borderless"
-                      type="danger"
-                      size="small"
-                      onClick={() => setGroupNums((current) => current.filter((_, i) => i !== index))}
-                    >
-                      {t('删除')}
-                    </Button>
-                  )}
-                </Space>
-              ))}
-              {groupType === 2 && (
-                <Button
-                  size="small"
-                  onClick={() =>
-                    setGroupNums((current) => [
-                      ...current,
-                      { groupNumKey: current.length, groupNum: (current[current.length - 1]?.groupNum ?? 2) + 1 },
-                    ])
-                  }
-                >
-                  {t('添加阶梯人数')}
-                </Button>
-              )}
-            </div>
-
-            {/* SKU 明细与拼团价 */}
-            <div>
-              <div style={{ fontWeight: 500, marginBottom: 6 }}>{t('规格与拼团价')}</div>
-              <Table
-                size="small"
-                pagination={false}
-                rowKey="skuId"
-                dataSource={product.productSkus || []}
-                columns={[
-                  {
-                    title: t('参加'),
-                    dataIndex: 'isJoin',
-                    width: 70,
-                    render: (_v: unknown, record: GrouponProductSku) => (
-                      <Checkbox
-                        checked={details[Number(record.skuId)]?.isJoin === 1}
-                        onChange={(event) =>
-                          setDetails((current) => ({
-                            ...current,
-                            [Number(record.skuId)]: {
-                              ...current[Number(record.skuId)],
-                              isJoin: event.target.checked ? 1 : 0,
-                              limitNum: current[Number(record.skuId)]?.limitNum ?? Number(record.skuPrice ? 999 : 0),
-                              prices: current[Number(record.skuId)]?.prices ?? {},
-                            },
-                          }))
-                        }
-                      />
-                    ),
-                  },
-                  { title: t('规格'), dataIndex: 'skuValue', render: (v: string) => v || t('默认规格') },
-                  {
-                    title: t('原价'),
-                    dataIndex: 'skuPrice',
-                    width: 100,
-                    render: (v: unknown) => `¥ ${Number(v || 0).toFixed(2)}`,
-                  },
-                  ...groupNums.map((tier, index) => ({
-                    title: groupType === 2 ? `${t('拼团价')}（${tier.groupNum}${t('人团')}）` : t('拼团价'),
-                    dataIndex: `price-${index}`,
-                    width: 150,
-                    render: (_v: unknown, record: GrouponProductSku) => (
-                      <InputNumber
-                        style={{ width: 120 }}
-                        min={0}
-                        precision={2}
-                        value={Number(details[Number(record.skuId)]?.prices?.[index] ?? '') || undefined}
-                        onChange={(next) =>
-                          setDetails((current) => ({
-                            ...current,
-                            [Number(record.skuId)]: {
-                              isJoin: current[Number(record.skuId)]?.isJoin ?? 1,
-                              limitNum: current[Number(record.skuId)]?.limitNum ?? 999,
-                              prices: {
-                                ...(current[Number(record.skuId)]?.prices || {}),
-                                [index]: String(next ?? ''),
-                              },
-                            },
-                          }))
-                        }
-                      />
-                    ),
-                  })),
-                  {
-                    title: t('可售数量'),
-                    dataIndex: 'limitNum',
-                    width: 130,
-                    render: (_v: unknown, record: GrouponProductSku) => (
-                      <InputNumber
-                        style={{ width: 110 }}
-                        min={0}
-                        precision={0}
-                        value={details[Number(record.skuId)]?.limitNum ?? 999}
-                        onChange={(next) =>
-                          setDetails((current) => ({
-                            ...current,
-                            [Number(record.skuId)]: {
-                              isJoin: current[Number(record.skuId)]?.isJoin ?? 1,
-                              limitNum: Number(next ?? 999),
-                              prices: current[Number(record.skuId)]?.prices ?? {},
-                            },
-                          }))
-                        }
-                      />
-                    ),
-                  },
-                ] as any}
-              />
-            </div>
-
-            <Space wrap style={{ marginTop: 14 }}>
-              <span>{t('每单限购数量')}</span>
-              <InputNumber
-                style={{ width: 110 }}
-                min={0}
-                precision={0}
-                value={orderLimitNum}
-                onChange={(next) => setOrderLimitNum(Number(next ?? 0))}
-              />
-              <Text type="tertiary" size="small">{t('0 为不限购')}</Text>
-            </Space>
-            <div style={{ marginTop: 8 }}>
-              <Checkbox checked={isAutoGroup === 1} onChange={(event) => setIsAutoGroup(event.target.checked ? 1 : 0)}>
-                {t('是否自动成团（虚拟成团）')}
-              </Checkbox>
-              {isAutoGroup === 1 && (
-                <Space style={{ marginLeft: 12 }}>
-                  <span>{t('虚拟成团数')}</span>
-                  <InputNumber
-                    style={{ width: 110 }}
-                    min={0}
-                    precision={0}
-                    value={virtualGroupCount}
-                    onChange={(next) => setVirtualGroupCount(Number(next ?? 0))}
-                  />
-                </Space>
-              )}
-            </div>
-            <Space wrap style={{ marginTop: 8 }}>
-              <span>{t('排序')}</span>
-              <InputNumber
-                style={{ width: 110 }}
-                precision={0}
-                value={sort}
-                onChange={(next) => setSort(Number(next ?? 0))}
-              />
-            </Space>
-          </>
-        )}
-      </div>
-    </Modal>
-  );
-}
-
-// Radio/RadioGroup/Select 引用保留（活动表单类型扩展用）
-void Radio;
-void RadioGroup;
-void Select;

@@ -1,0 +1,561 @@
+/* ============================================================
+   拼团商品 添加 / 编辑 弹窗（现代化版）
+   与「管理商品」弹窗同一套设计语言（--primary 主题色、18px 圆角）。
+   ============================================================ */
+
+.gie-modal .semi-modal {
+  overflow: hidden;
+  border-radius: 18px;
+  box-shadow: 0 32px 84px rgba(15, 23, 42, 0.24);
+}
+
+.gie-modal .semi-modal-content,
+.gie-modal .semi-modal-body {
+  padding: 0;
+}
+
+.gie {
+  display: flex;
+  flex-direction: column;
+  height: min(86vh, 820px);
+}
+
+/* ---------------------------- 头部 ---------------------------- */
+
+.gie-hero {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex: none;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--semi-color-border);
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--primary, #165dff) 12%, transparent) 0%, transparent 62%),
+    linear-gradient(180deg, color-mix(in srgb, var(--primary, #165dff) 4%, #fff) 0%, #fff 100%);
+}
+
+.gie-hero-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.gie-hero-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  letter-spacing: 0.3px;
+}
+
+.gie-hero-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary, #165dff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #165dff) 16%, transparent);
+}
+
+.gie-hero-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--semi-color-border);
+}
+
+.gie-hero-title {
+  margin: 8px 0 0;
+  overflow: hidden;
+  color: var(--semi-color-text-0);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gie-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  color: var(--semi-color-text-2);
+  font-size: 12.5px;
+}
+
+.gie-hero-meta em {
+  margin: 0 4px;
+  font-style: normal;
+  color: var(--semi-color-text-3);
+}
+
+.gie-close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: var(--semi-color-text-2);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.gie-close:hover {
+  background: var(--semi-color-fill-1);
+  color: var(--semi-color-text-0);
+}
+
+.gie-close .semi-button-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: -2px;
+}
+
+/* ---------------------------- 主体 ---------------------------- */
+
+.gie-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 24px 20px;
+  background: var(--semi-color-fill-0);
+}
+
+/* —— 选品 —— */
+
+.gie-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+.gie-search-bar .semi-input-wrapper {
+  flex: 1;
+  max-width: 420px;
+  border-radius: 10px;
+}
+
+.gie-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.gie-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 12px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.gie-pick-row:hover:not(.is-disabled) {
+  border-color: color-mix(in srgb, var(--primary, #165dff) 38%, var(--semi-color-border));
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.gie-pick-row.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gie-pick-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 10px;
+  background: var(--semi-color-fill-0);
+}
+
+.gie-pick-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gie-pick-thumb i {
+  color: color-mix(in srgb, var(--primary, #165dff) 70%, #fff);
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.gie-pick-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.gie-pick-name {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--semi-color-text-0);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.gie-pick-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+}
+
+.gie-pick-price {
+  color: var(--semi-color-danger);
+  font-weight: 600;
+}
+
+.gie-pick-go {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  color: var(--primary, #165dff);
+  font-size: 12.5px;
+}
+
+.gie-picker-empty {
+  padding: 40px 0;
+  color: var(--semi-color-text-3);
+  font-size: 13px;
+  text-align: center;
+}
+
+.gie-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex: none;
+  padding-top: 4px;
+  color: var(--semi-color-text-2);
+  font-size: 12.5px;
+}
+
+.gie-pager-info {
+  min-width: 46px;
+  text-align: center;
+}
+
+/* —— 配置 —— */
+
+.gie-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  padding: 12px 14px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.gie-summary-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 12px;
+  background: var(--semi-color-fill-0);
+}
+
+.gie-summary-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gie-summary-thumb i {
+  color: color-mix(in srgb, var(--primary, #165dff) 70%, #fff);
+  font-size: 18px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.gie-summary-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.gie-summary-name {
+  overflow: hidden;
+  color: var(--semi-color-text-0);
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gie-summary-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+}
+
+.gie-card {
+  flex: none;
+  padding: 14px 16px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.gie-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.gie-card-head h3 {
+  margin: 0;
+  color: var(--semi-color-text-0);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.gie-card-desc {
+  color: var(--semi-color-text-3);
+  font-size: 12px;
+}
+
+.gie-card-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gie-tier-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.gie-tier {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 10px;
+  background: var(--semi-color-fill-0);
+}
+
+.gie-tier-label {
+  color: var(--semi-color-text-2);
+  font-size: 12.5px;
+}
+
+.gie-tier-unit {
+  color: var(--semi-color-text-3);
+  font-size: 12.5px;
+}
+
+.gie-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--semi-color-warning) 34%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--semi-color-warning) 8%, #fff);
+  color: color-mix(in srgb, var(--semi-color-warning) 72%, #000);
+  font-size: 12.5px;
+}
+
+/* —— 自绘规格网格表（避开 Semi Table 在受控输入列的无限更新循环） —— */
+
+.gie-grid {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.gie-grid-head,
+.gie-grid-row {
+  display: grid;
+  grid-template-columns:
+    52px
+    minmax(0, 1.4fr)
+    96px
+    repeat(var(--gie-price-cols, 1), minmax(132px, 1fr))
+    116px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+}
+
+.gie-grid-head {
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.gie-grid-row {
+  border-top: 1px solid var(--semi-color-border);
+  background: #fff;
+  font-size: 12.5px;
+  transition: background-color 0.15s ease;
+}
+
+.gie-grid-row:hover {
+  background: color-mix(in srgb, var(--primary, #165dff) 3%, #fff);
+}
+
+.gie-grid-row.is-off {
+  opacity: 0.55;
+}
+
+.gie-grid-row.is-off .gie-sku-name {
+  text-decoration: line-through;
+  text-decoration-color: var(--semi-color-text-3);
+}
+
+.gie-grid-empty {
+  padding: 34px 0;
+  border: 1px dashed var(--semi-color-border);
+  border-radius: 10px;
+  color: var(--semi-color-text-3);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.gie-sku-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.gie-sku-name {
+  color: var(--semi-color-text-1);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.gie-muted {
+  color: var(--semi-color-text-3);
+}
+
+.gie-price-input {
+  width: 124px;
+}
+
+.gie-sn {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--semi-color-fill-1);
+  color: var(--semi-color-text-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.gie-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+}
+
+.gie-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gie-field-label {
+  color: var(--semi-color-text-1);
+  font-size: 12.5px;
+}
+
+.gie-field-hint {
+  color: var(--semi-color-text-3);
+  font-size: 12px;
+}
+
+/* ---------------------------- 底部 ---------------------------- */
+
+.gie-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: none;
+  padding: 12px 24px;
+  border-top: 1px solid var(--semi-color-border);
+  background: #fff;
+}
+
+.gie-footer-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--semi-color-text-3);
+  font-size: 12px;
+}
+
+.gie-ok {
+  color: var(--semi-color-success);
+}
+
+.gie-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 880px) {
+  .gie {
+    height: min(92vh, 820px);
+  }
+
+  .gie-body {
+    padding: 14px 16px;
+  }
+
+  .gie-footer {
+    padding: 10px 16px;
+  }
+}
