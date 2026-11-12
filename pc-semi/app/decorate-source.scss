@@ -6572,6 +6572,19 @@
             margin-right: auto;
         }
     }
+
+    // 副标题另起一行（title.descLayout === 2）：left-title 允许换行，描述占满一整行
+    &.top-bar--desc-below {
+        .left-title {
+            flex-wrap: wrap;
+        }
+
+        .left-title .desc-text {
+            flex: 0 0 100%;
+            margin-left: 0;
+            margin-top: 2px;
+        }
+    }
 }
 
 /* ==== shop/ShopTitle.vue scoped ==== */

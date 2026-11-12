@@ -4478,3 +4478,165 @@ img {
     border-color: var(--main-bg, #ee0a24);
   }
 }
+
+/* ================= 装修标题设置块（DecModuleTitle，2026-11-13） =================
+ * PC 前台与 admin 预览（previews/shared/module-title.shared.css）共用同一套规则，
+ * 保证两端样式一/二/三、对齐、背景、圆角、字号、描述排版完全同款。
+ * 放文件末尾胜出（§10.3）；数值基准 = ShopTitle（decorate-source.scss .top-bar）。
+ */
+/* ============================================================
+   模块标题共享样式（单一来源）
+   基准 = PC 前台 ShopTitle（pc-semi decorate-source.scss `.top-bar`）：
+   padding 10px / 行高 32px / 主标题 18px 700 / 描述 13px / 图标 32px。
+   此前该规则在 6 个 pc*.css 里各有一份副本（16px/30px 的旧值 + 全局同名互相覆盖），
+   现已全部移除，统一走本文件。改这里 = 同时改编辑器里所有「标题设置」模块。
+   ============================================================ */
+
+.dec-module-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+  line-height: 32px;
+  position: relative;
+}
+
+.dec-module-title__left {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dec-module-title__icon {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.dec-module-title__text {
+  font-weight: 700;
+  color: #2a3145;
+  font-size: 18px;
+  position: relative;
+}
+
+.dec-module-title__desc {
+  color: #aaa;
+  font-size: 13px;
+  position: relative;
+  top: 1px;
+}
+
+/* 副标题另起一行：left-title 允许换行，描述占满一整行落到主标题下方 */
+.dec-module-title__left--wrap {
+  flex-wrap: wrap;
+}
+
+.dec-module-title__left--wrap .dec-module-title__desc {
+  flex: 0 0 100%;
+  margin-left: 0;
+  margin-top: 2px;
+}
+
+.dec-module-title__right {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.dec-module-title__more {
+  display: flex;
+  align-items: center;
+  color: #969799;
+  text-decoration: none;
+}
+
+.dec-module-title__arrow {
+  margin-left: 2px;
+  font-size: 12px;
+  font-style: normal;
+}
+
+/* —— 样式二：左侧竖线装饰 —— */
+.dec-module-title.dec-module-title--style-2 .dec-module-title__text {
+  padding-left: 10px;
+}
+
+.dec-module-title.dec-module-title--style-2 .dec-module-title__text::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 16px;
+  background: linear-gradient(180deg, #155bd4 0%, #64b5f6 100%);
+  border-radius: 2px;
+}
+
+/* —— 样式三：下划线装饰 —— */
+.dec-module-title.dec-module-title--style-3 .dec-module-title__text::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, #155bd4 0%, transparent 100%);
+  border-radius: 1px;
+}
+
+/* —— 对齐一：左对齐（默认，两端分布） —— */
+.dec-module-title.dec-module-title--align-1 {
+  justify-content: space-between;
+}
+
+/* —— 对齐二：居中（主标题纵向堆叠，更多链接绝对定位右侧） —— */
+.dec-module-title.dec-module-title--align-2 {
+  justify-content: center;
+}
+
+.dec-module-title.dec-module-title--align-2 .dec-module-title__left {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.dec-module-title.dec-module-title--align-2 .dec-module-title__desc {
+  margin-left: 0;
+  margin-top: 2px;
+}
+
+.dec-module-title.dec-module-title--align-2 .dec-module-title__right {
+  position: absolute;
+  right: 10px;
+}
+
+/* —— 对齐三：右对齐（整行反转） —— */
+.dec-module-title.dec-module-title--align-3 {
+  flex-direction: row-reverse;
+}
+
+.dec-module-title.dec-module-title--align-3 .dec-module-title__left {
+  flex-direction: row-reverse;
+}
+
+.dec-module-title.dec-module-title--align-3 .dec-module-title__icon {
+  margin-right: 0;
+  margin-left: 5px;
+}
+
+.dec-module-title.dec-module-title--align-3 .dec-module-title__desc {
+  margin-left: 0;
+  margin-right: 5px;
+}
+
+.dec-module-title.dec-module-title--align-3 .dec-module-title__right {
+  margin-right: auto;
+}

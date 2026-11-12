@@ -590,14 +590,21 @@ function ShopTitle({ title, rightText }: { title?: Record<string, any> | null; r
     style.background = title.titleBackground;
   }
   const moreText = title?.moreLink?.title || rightText || t('查看更多');
+  // 主/副标题字号与描述排版（新增设置，老数据缺省回退前台原值，无视觉跳变）
+  const titleFontSize = px(title.titleFontSize, 18);
+  const descFontSize = px(title.descFontSize, 13);
+  const descBelow = Number(title.descLayout ?? 1) === 2;
   return (
-    <div className={`top-bar top-bar--style-${title.titleStyle || 1} top-bar--align-${title.titleAlign || 1}`} style={style}>
+    <div
+      className={`top-bar top-bar--style-${title.titleStyle || 1} top-bar--align-${title.titleAlign || 1}${descBelow ? ' top-bar--desc-below' : ''}`}
+      style={style}
+    >
       <div className="left-title">
         {title.titleBackgroundPic?.picUrl ? (
           <img className="image-size" src={title.titleBackgroundPic.picUrl} alt="" />
         ) : null}
-        <div className="title-text" style={{ color: title.titleColor }}>{title.titleText}</div>
-        {title.descText ? <div className="desc-text" style={{ color: title.descColor }}>{title.descText}</div> : null}
+        <div className="title-text" style={{ color: title.titleColor, fontSize: `${titleFontSize}px` }}>{title.titleText}</div>
+        {title.descText ? <div className="desc-text" style={{ color: title.descColor, fontSize: `${descFontSize}px` }}>{title.descText}</div> : null}
       </div>
       {Number(title.showMore) === 1 ? (
         <a className="right-title" href={navHref(title.moreLink) || '#'} target="_blank" rel="noreferrer" style={{ color: title.moreColor }}>
@@ -2951,8 +2958,8 @@ function TitleAd({ module }: ModuleProps) {
                   style={{ borderRadius: `${px(title.titleRadius)}px`, padding: `10px ${leftRight}px`, background: background || undefined }}
                 >
                   <div className="image-ad-title-l">
-                    <div className="image-ad-title-h" style={{ color: title.titleColor || undefined }}>{title.titleText}</div>
-                    {title.descText ? <div className="image-ad-title-d" style={{ color: title.descColor || undefined }}>{title.descText}</div> : null}
+                    <div className="image-ad-title-h" style={{ color: title.titleColor || undefined, fontSize: `${px(title.titleFontSize, 16)}px` }}>{title.titleText}</div>
+                    {title.descText ? <div className="image-ad-title-d" style={{ color: title.descColor || undefined, fontSize: `${px(title.descFontSize, 12)}px` }}>{title.descText}</div> : null}
                   </div>
                   {Number(title.showMore) === 1 ? (
                     <div className="image-ad-title-r">
@@ -3445,6 +3452,74 @@ function GroupBanner({ module }: ModuleProps) {
   );
 }
 
+/**
+ * 装修标题设置块 —— PC 前台版（与 admin 预览 shared/ModuleTitlePreview.tsx 逐字段同构：
+ * 样式一=无装饰、样式二=左侧蓝竖条、样式三=文字底部渐变下划线；对齐 1左/2中/3右；
+ * 背景(含 titleBackground2 渐变)、圆角（只切顶部两角）、描述(字号/排版)、更多链接）。
+ * 数值基准 = ShopTitle（decorate-source.scss .top-bar）：padding 10px、行高 32px、
+ * 主标题 18px/700、描述 13px、图标 32px。CSS 见 modules-source.scss 末尾 dec-module-title 段。
+ * 消费方：推荐商品（pc-recommend-product）等带 kind:'title' 设置的模块。
+ */
+function DecModuleTitle({ title }: { title: Record<string, any> }) {
+  const { t } = useTranslation();
+  if (Number(title.showTitle) !== 1) return null;
+  const titleStyle = Number(title.titleStyle) || 1;
+  const align = Number(title.titleAlign) || 1;
+  const descLayout = Number(title.descLayout ?? 1);
+  const titleFontSize = Number(title.titleFontSize) || 18;
+  const descFontSize = Number(title.descFontSize) || 13;
+  const titleIcon = title.titleBackgroundPic?.picUrl || title.titleBackgroundPic?.picThumb || '';
+  const descBelow = descLayout === 2;
+
+  const containerStyle: Record<string, any> = {};
+  if (title.titleBackground2 && title.titleBackground) {
+    containerStyle.background = `linear-gradient(to right, ${title.titleBackground}, ${title.titleBackground2})`;
+  } else if (title.titleBackground) {
+    containerStyle.backgroundColor = title.titleBackground;
+  }
+  if (px(title.titleRadius) > 0) {
+    containerStyle.borderRadius = `${px(title.titleRadius)}px ${px(title.titleRadius)}px 0 0`;
+  }
+
+  return (
+    <div
+      className={[
+        'dec-module-title',
+        `dec-module-title--style-${titleStyle}`,
+        `dec-module-title--align-${align}`,
+        descBelow ? 'dec-module-title--desc-below' : '',
+      ].filter(Boolean).join(' ')}
+      style={containerStyle}
+    >
+      <div className={`dec-module-title__left${descBelow ? ' dec-module-title__left--wrap' : ''}`}>
+        {titleIcon ? <img className="dec-module-title__icon" src={titleIcon} alt="" /> : null}
+        <div
+          className="dec-module-title__text"
+          style={{ color: title.titleColor || '#2a3145', fontSize: `${titleFontSize}px` }}
+        >
+          {title.titleText}
+        </div>
+        {title.descText ? (
+          <div
+            className="dec-module-title__desc"
+            style={{ color: title.descColor || '#aaaaaa', fontSize: `${descFontSize}px` }}
+          >
+            {title.descText}
+          </div>
+        ) : null}
+      </div>
+      {Number(title.showMore) === 1 ? (
+        <div className="dec-module-title__right">
+          <a className="dec-module-title__more" href={title.moreLink?.link || 'javascript:;'} style={{ color: title.moreColor || '#969799' }}>
+            <span>{title.moreLink?.title || t('更多')}</span>
+            <i className="dec-module-title__arrow">›</i>
+          </a>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** PcRecommendProduct.vue：titleName、products{productSelectType,productIds,productCategoryId,
  * productTag,productNumber}、frame{columns 默认5,itemGap,boxPadding,boxPaddingTop,boxPaddingBottom,
  * boxRadius,backgroundColor}；滚动分页（本实现按 productNumber 一次取满，见报告）。 */
@@ -3557,34 +3632,22 @@ function RecommendProduct({ module }: ModuleProps) {
     return '立即购买';
   };
 
-  // 标题：module 里有 title 对象（新版装修数据）→ 按标题设置块渲染；否则回退旧 titleName。
-  const titleObj = (module as any).title;
-  const hasTitleObj = titleObj && typeof titleObj === 'object';
-  const legacyName = module.titleName;
-  const showTitle = hasTitleObj ? Number(titleObj.showTitle) === 1 : Boolean(legacyName);
-  const titleText = hasTitleObj ? titleObj.titleText : legacyName;
-  const titleAlign = hasTitleObj ? Number(titleObj.titleAlign ?? 1) : 1;
-  // 商品内容开关（老数据缺省 = 显示，保持原行为）
-  const showName = Number((module as any).showProductName ?? 1) === 1;
-  const showPrice = Number((module as any).showProductPrice ?? 1) === 1;
+  // 标题：module 里有 title 对象（新版装修数据）→ 按标题设置块渲染（样式一/二/三装饰与
+// admin 预览 dec-module-title 同款）；否则回退旧 titleName，避免双重渲染。
+const titleObj = (module as any).title;
+const hasTitleObj = titleObj && typeof titleObj === 'object';
+const legacyName = module.titleName;
+const showLegacyTitle = !hasTitleObj && Boolean(legacyName);
+// 商品内容开关（老数据缺省 = 显示，保持原行为）
+const showName = Number((module as any).showProductName ?? 1) === 1;
+const showPrice = Number((module as any).showProductPrice ?? 1) === 1;
 
   return (
     <div className="dec-recommend-product" style={cssVars}>
-      {showTitle && titleText ? (
-        <h3
-          className="dec-recommend-product__title"
-          style={{
-            textAlign: titleAlign === 2 ? 'center' : titleAlign === 3 ? 'right' : 'left',
-            color: hasTitleObj && titleObj.titleColor ? titleObj.titleColor : undefined,
-          }}
-        >
-          {titleText}
-          {hasTitleObj && titleObj.descText ? (
-            <span style={{ fontSize: 12, color: titleObj.descColor || '#aaaaaa', marginLeft: 5, fontWeight: 400 }}>
-              {titleObj.descText}
-            </span>
-          ) : null}
-        </h3>
+      {hasTitleObj ? (
+        <DecModuleTitle title={titleObj} />
+      ) : showLegacyTitle && legacyName ? (
+        <h3 className="dec-recommend-product__title">{legacyName}</h3>
       ) : null}
       <div className="dec-recommend-product__list" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: `${itemGap}px` }}>
         {products.map((product, index) => (
