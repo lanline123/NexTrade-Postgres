@@ -447,7 +447,8 @@ pub fn is_public_ipv4(ip: &str) -> bool {
 }
 
 /// 解析 xdb 查询结果（v2 文本格式 `国家|区域|省份|城市|ISP`），
-/// 取「城市，缺则省份」作为用于模糊匹配的地名；`0` / 空段视为缺失。
+/// 取「城市，缺则省份」作为用于模糊匹配的地名；`0` / 空段 /
+/// `内网IP` 等占位值视为缺失。
 ///
 /// 例：`"中国|0|山东省|青岛市|电信"` → `Some("青岛市")`；
 ///     `"中国|0|北京市||"`（直辖市城市段可能为空）→ `Some("北京市")`。
@@ -457,7 +458,7 @@ pub fn parse_xdb_region_name(raw: &str) -> Option<&str> {
         raw.split('|')
             .nth(i)
             .map(str::trim)
-            .filter(|s| !s.is_empty() && *s != "0")
+            .filter(|s| !s.is_empty() && *s != "0" && *s != "内网IP")
     };
     seg(3).or_else(|| seg(2))
 }
