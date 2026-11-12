@@ -255,7 +255,8 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | `src/components/catalog/CatalogResults.tsx` | 检索外壳：筛选状态 + 筛选项联动重拉 + 结果网格，`/search` `/list` `/category` `/shopcategory` `/shop/search` 共用 |
 | `src/lib/promotion.ts` | 秒杀/拼团口径 + 纯函数：`splitCountdown` / `maxGroupNum` / `soldPercentOf` / `toTimestamp` |
 | `src/components/promotion/cards.tsx` | `SeckillCard`（倒计时+进度+已抢完/即将开始）、`GrouponCard`（N人团/已拼/仅限会员）、`useCountdown`、`CountdownBoxes` |
-| `src/components/promotion/sections.tsx` | 装修楼层 `SeckillSection` / `GrouponSection`（装修只给标题配置，商品另取接口） |
+| `src/components/promotion/sections.tsx` | 装修楼层 `SeckillSection` / `GrouponSection`（装修只给标题配置，商品另取接口；支持 `items` 服务端预取） |
+| `src/lib/server-api.ts` | 服务端取数（RSC 用）：直连 `PC_API_BASE` 的公开接口，失败返回 null 由调用方兜底 |
 
 ### 6.3 路由覆盖率（2026-11-13 盘点，覆盖率 100%）
 
@@ -267,8 +268,38 @@ Vue 侧 `pages/` 共 **111 条路由**（已排除 `src/`、`components/` 子目
 | 旧 URL 重定向（23 条规则） | `next.config.mjs` 的 `redirects`，覆盖约 38 个旧路径：`*.v1` 旧版页、`/item/:id`→`/product/:id`、`/exchange/:id`→`/product/:id`、9 条旧支付渠道→`/order/pay`、14 条 `/activity/pcXxx`→`/activity`、`/join/*`→`/join`、`/member/reset`→`/member/login`、`/member/bindMobilePhone`→`/member/security/info`。**`/search/image` 已从重定向升级为真实页面** |
 | 兜底 404 | `app/not-found.tsx` + `member/[...slug]`，覆盖原 `pages/[...slug].vue` 与 `pages/member/[...].vue` |
 
+**2026-11-13 复检结论：没有未迁移的页面**（111 条 Vue 路由 = 73 页 + 23 条重定向规则 + 兜底 404）。
+但仍有 **7 个页面是占位/说明页**，属于「有落点、没内容」，不是遗漏而是待做：
+
+| 占位页 | 现状 | 备注 |
+|---|---|---|
+| `/chat` | 占位 | IM 客服需要 WebSocket（Vue 侧 `VITE_SOCKET_URL`） |
+| `/oauth/callback` | 占位 | 第三方登录回调，依赖各渠道 appId |
+| `/member/account/deposit` | 占位 | 账户充值 |
+| `/member/account/raplytocard` | 占位 | 余额提现/转账到卡 |
+| `/member/account/cardmanagement` | 占位 | 银行卡管理 |
+| `/joining/groupbyinvited` | 占位 | 被邀请参团落地页（拼团邀请链路） |
+| `/shop/license` | 占位 | 店铺资质公示 |
+
 盘点脚本思路：遍历 `pages/**/*.vue` 生成路由集（`index.vue` 折成父路径、`src`/`components` 目录排除），与 `src/app/**/page.tsx` 求差集，再按 redirects 规则过滤。
 **注意**：Vue 侧文件名是 PascalCase（`member/address/List.vue` → `/member/address/list`），React 侧是小写目录，直接字符串差集会误报一堆“未迁”，比对前必须统一小写。
+
+### 6.3.1 首页首屏 SSR（2026-11-13）
+
+`app/page.tsx` 是 async 服务端组件，并行取三个公开接口后把结果当 props 下发：
+
+```
+home/home/pcIndex              → moduleList（20 个装修楼层）
+home/home/getSeckill?size=5    → 秒杀卡片
+promotion/groupon/itemList?size=5 → 拼团卡片
+```
+
+实测效果：`/` 的 HTML 从 9 KB（空壳）变成 **94 KB**，含 20 个 `pc-dec-section` 与秒杀/拼团卡片。
+其余页面仍是「SSR 骨架 + 浏览器取数」，因为它们的接口都要登录态（`localStorage` 里的 token，
+Node 侧拿不到）。要扩展这套做法，只需：接口公开 → `serverGet` → props 下发。
+
+**踩坑**：倒计时组件在服务端和浏览器不会落在同一秒，直接输出秒数会触发 hydration 文本不一致。
+`useCountdown` 增加了 `ready` 标记，水合前渲染 `--:--:--` 占位，挂载后才走真实倒计时。
 
 ### 6.4 复杂度取舍
 
@@ -336,6 +367,16 @@ Vue 侧 `pages/` 共 **111 条路由**（已排除 `src/`、`components/` 子目
 | `promotion/groupon/record/list` | 拼团记录分页，当前库为空 | 未接（会员「我的拼团」仍走 `pin/*`） |
 | `promotion/groupon/detail?id=` | 传不存在/错误的 id 直接 **HTTP 400**，不是 `code!=0` | 需要时先确认 id 来源 |
 
+### 6.9 第五批真实接口校准（2026-11-13：购物车 / 拼团下单）
+
+| 接口 | 真实行为 | 处理 |
+|---|---|---|
+| `cart/cart/addToCart` | 参数是 **`{ id, number, skuId }`**（`id`=商品ID、`number`=数量），返回 `data` = cartId。原来传 `{ productId, quantity }` 是错的 | `ProductDetail` 已改；`cart/cart/updateItem` 用 `{ cartId, quantity }` |
+| 库存不足 | 不是 `code!=0`，而是 **HTTP 409** + `{code:409,msg:"商品 X 库存不足，剩余 0"}` | `ApiError` 已带上 code，文案能正常透出 |
+| 购物车条目 | 带 `activityInfo[{ promotionId, promotionName, type, typeText, startTime, endTime, relationId }]`；**type=2 优惠券、type=7 拼团** | 结算页据 `type===7` 显示拼团提示 |
+| `order/check/submit` | 返回 `{ returnType, orderId, orderSn, grouponPromotionRecordId? }`；**`returnType=2` 表示不进收银台** | 拼团单带 `grouponPromotionRecordId` 时跳 `/member/group/info?id=`，否则回订单列表 |
+| `product/product/detail` 的 `grouponDetail` | 当前库里该字段恒为 `null`（拼团商品 1562 实测），`seckillDetail` 同理 | 详情页按「有则展示拼团价/团人数/倒计时」实现，无则正常显示普通价；不依赖它做分支 |
+
 **顺手纠正的一处语义错位**：Vue 的 `pages/joining/List.vue` 是**拼团**（用 `promotion/groupon/itemList`），
 而入驻申请是 `pages/member/joining/List.vue`（`merchant/merchant/myApply`）。
 早期迁移把 `/joining/list` 当成了入驻申请，且把 `/member/joining/list` 重定向到它——两件事被压成了一个页面。
@@ -350,7 +391,7 @@ Vue 侧 `pages/` 共 **111 条路由**（已排除 `src/`、`components/` 子目
 | 1 | 会员剩余零散子页 | 发票抬头（`user/invoice/*` 表单）、找回密码（`reset`）、账户卡管理（`account/CardManagement`）。入驻申请已迁到 `/member/joining/list`；登录/注册已完成；`pages/member/contact/` 在 Vue 版是空目录，菜单项已移除 |
 | 2 | 订单结算剩余 | 已补：优惠券、**完整发票（普通/专用 × 个人/企业）**、配送方式、积分/余额抵扣；仍缺：账期支付、预售定金、支付方式选择（提交时 `payTypeId=0`）；收银台支付渠道刻意未接 `order/pay/create` |
 | 3 | 功能深度 | IM 客服（`/chat` 仍是占位）、第三方登录（`/oauth/callback` 占位）、账户充值/银行卡/账期还款；拼团「开团/参团」下单链路（`order/check` 的 groupon 分支）未接 |
-| 4 | 数据获取时机 | 当前全部页面都是 **SSR 骨架 + 浏览器端取数**（`apiGet/apiPost` 依赖 `localStorage`，Node 侧拿不到 token）。如需真正的「首屏带数据」，要把商品详情、首页装修这类公开接口搬到 `generateMetadata`/服务端 fetch，并统一 `/api` 转发 |
+| 4 | 数据获取时机 | **首页已改为真 SSR**（三接口服务端预取，见 §6.3.1）。其余页面仍是「SSR 骨架 + 浏览器取数」，因为要登录态。下一步可搬：商品详情（`product/product/detail` 公开）、分类/搜索首屏（`getFilter`+`getProduct` 公开） |
 | 5 | 筛选栏 URL 同步 | 筛选栏已迁（分类/品牌/价格/属性/排序），但状态在组件内、未写回 URL query（Vue 会同步路由）。要支持「分享带筛选的链接」需父级接管 |
 | 6 | i18n 补齐 | 新增文案的英文 key；`<title>` 目前是静态中文 |
 | 7 | 样式对齐 | 尚未逐像素对照 Vue/线上，`globals.css` 只做了骨架级布局 |
