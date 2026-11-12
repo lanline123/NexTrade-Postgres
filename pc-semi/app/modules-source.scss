@@ -4437,3 +4437,15 @@ img {
    必须放在文件末尾：globals.scss 先 import modules-source 再 import decorate-source，
    本文件在两者中靠后加载，才能压过 decorate-source 里残留的通用规则。 */
 @import '../src/decorate/coupon/coupon.scss';
+
+/* ================= ImageNav 轮播分页宽度（2026-11-12） =================
+ * 根因：轨道 __carousel-track 是 flex，旧版由 Swiper 库给每页 slide 设定 100% 宽；
+ * React 重写后没有任何规则给 __swiper-page 设宽，flex 子项按内容收缩、多页并排
+ * 挤进视口 —— 「一行显示 3 个」实际一行挤下 pageNum×rowNum 个（colNum=2 时即 6 个）。
+ * 修法：每页强制占满视口宽，translateX(-index * 100%) 的分页假设才成立。
+ * 仅作用于 ImageNav 轮播，不影响 __grid（navType=1 固定栅格）。
+ */
+.dec-pc-image-nav__carousel-track .dec-pc-image-nav__swiper-page {
+  flex: 0 0 100%;
+  max-width: 100%;
+}
