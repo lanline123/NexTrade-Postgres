@@ -8,10 +8,11 @@ import { formatPrice, productImage } from '@/lib/format';
 
 /**
  * 装修模块渲染器（React 版）。
- * Vue 基准：pages/activity/index.vue 的 module.type 分发 + 各 pcXxx/index.vue。
- * 设计：一个 type → 一个渲染函数，未知类型静默跳过（生产不出现红块）。
- * 秒杀/拼团/商品分组三个模块内部逻辑极重（Vue 侧 2000+ 行），这里降级为入口卡片，
- * 等业务确认后再逐模块补，不在渲染器里堆逻辑。
+ * Vue 基准：pages/index.vue（首页 20 个模块）+ pages/activity/index.vue（12 个模块）+ decorate/components/pc/*。
+ *
+ * 关键：真实数据里 type 是 kebab-case（pc-image-ad），旧装修数据是 camelCase（pcImageAd）。
+ * 统一 normalize 成 kebab 再查表，两种数据都能渲染。
+ * 未知 type 静默跳过（生产不出现红块）；秒杀/拼团/优惠券模块内部数据需各自接口，这里只出标题 + 入口。
  */
 export interface DecorateModule {
     moduleIndex?: number;
@@ -20,46 +21,55 @@ export interface DecorateModule {
     module?: Record<string, unknown>;
 }
 
-type ModuleData = Record<string, unknown>;
+type Data = Record<string, unknown>;
 
-const list = (value: unknown): ModuleData[] => (Array.isArray(value) ? (value as ModuleData[]) : []);
-const text = (value: unknown): string => (typeof value === 'string' ? value : '');
+const asList = (value: unknown): Data[] => (Array.isArray(value) ? (value as Data[]) : []);
+const str = (value: unknown): string => (typeof value === 'string' ? value : '');
+const normalizeType = (type: string) => type.replace(/([A-Z])/g, '-$1').toLowerCase();
 
-function Images({ module }: { module: ModuleData }) {
-    const images = list(module.imageList ?? module.picList ?? module.images);
-    if (images.length === 0 && (module.picUrl || module.imageUrl)) {
-        images.push({ picUrl: module.picUrl ?? module.imageUrl, link: module.link ?? module.url });
-    }
-    if (images.length === 0) return null;
+/** 图片项统一取图与跳转：picUrl / picThumb 是图，picLink 是跳转。 */
+function imageOf(item: Data): string {
+    return str(item.picUrl) || str(item.picThumb) || str(item.imageUrl) || str(item.img);
+}
+function linkOf(item: Data): string {
+    return str(item.picLink) || str(item.link) || str(item.url) || '#';
+}
+
+/** 横滑图片区（banner / 广告 / 宫格通用）。 */
+function ImageRow({ items, ratio }: { items: Data[]; ratio?: string }) {
+    if (items.length === 0) return null;
     return (
-        <div className="pc-dec-images">
-            {images.map((image, index) => {
-                const src = text(image.picUrl ?? image.imageUrl ?? image.url);
+        <div className="pc-dec-scroller">
+            {items.map((item, index) => {
+                const src = imageOf(item);
                 if (!src) return null;
-                const content = <img src={src} alt="" />;
-                return image.link ? (
-                    <a key={index} href={String(image.link)}>
-                        {content}
+                return (
+                    <a
+                        key={index}
+                        href={linkOf(item)}
+                        className="pc-dec-slide"
+                        style={ratio ? { flex: `0 0 ${ratio}` } : undefined}
+                        title={str(item.picTitle) || str(item.picName)}
+                    >
+                        <img src={src} alt={str(item.picTitle) || str(item.picName)} />
                     </a>
-                ) : (
-                    <span key={index}>{content}</span>
                 );
             })}
         </div>
     );
 }
 
-function NavIcons({ module }: { module: ModuleData }) {
-    const items = list(module.navList ?? module.list ?? module.items);
+/** 图标导航（quick-nav / image-nav / category-nav3 共用）。 */
+function NavIcons({ items }: { items: Data[] }) {
     if (items.length === 0) return null;
     return (
         <div className="pc-dec-nav">
             {items.map((item, index) => {
-                const icon = text(item.picUrl ?? item.icon ?? item.imageUrl);
+                const icon = imageOf(item);
                 return (
-                    <a key={index} href={String(item.link ?? '#')} className="pc-dec-nav-item">
+                    <a key={index} href={linkOf(item)} className="pc-dec-nav-item">
                         {icon ? <img src={icon} alt="" /> : null}
-                        <span>{text(item.name ?? item.title)}</span>
+                        <span>{str(item.picTitle) || str(item.picName)}</span>
                     </a>
                 );
             })}
@@ -67,105 +77,153 @@ function NavIcons({ module }: { module: ModuleData }) {
     );
 }
 
-function ProductBlock({ module }: { module: ModuleData }) {
-    const products = list(module.productList ?? module.goodsList ?? module.list);
+/** 商品网格。products 项字段在不同模块里可能是 productName / goodsName。 */
+function ProductGrid({ products }: { products: Data[] }) {
     if (products.length === 0) return null;
     return (
         <div className="pc-product-grid">
-            {products.map((product, index) => (
-                <a
-                    key={index}
-                    className="pc-product-card"
-                    href={`/product/${product.productSn ?? product.productId ?? ''}`}
-                >
-                    <img
-                        src={productImage(product as { picThumb?: string; productPicThumb?: string; productImage?: string })}
-                        alt={text(product.productName)}
-                    />
-                    <div className="pc-product-name">{text(product.productName)}</div>
-                    <div className="pc-product-price">{formatPrice(product.productPrice ?? product.price)}</div>
-                </a>
-            ))}
+            {products.map((product, index) => {
+                const name = str(product.productName) || str(product.goodsName);
+                const href = str(product.productLink) || `/product/${product.productSn ?? product.productId ?? ''}`;
+                return (
+                    <a key={index} className="pc-product-card" href={href}>
+                        <img
+                            src={productImage(
+                                product as { picThumb?: string; productPicThumb?: string; productImage?: string }
+                            )}
+                            alt={name}
+                        />
+                        <div className="pc-product-name">{name}</div>
+                        <div className="pc-product-price">
+                            {formatPrice(product.productPrice ?? product.price ?? product.goodsPrice)}
+                        </div>
+                    </a>
+                );
+            })}
         </div>
     );
 }
 
-function CouponBlock({ module }: { module: ModuleData }) {
-    const coupons = list(module.couponList ?? module.list);
-    if (coupons.length === 0) return null;
+function Title({ module }: { module: Data }) {
+    const title = str(module.title) || str(module.titleName) || str(module.titleText);
+    const more = str(module.moreLink);
+    if (!title) return null;
     return (
-        <div className="pc-card-grid">
-            {coupons.map((coupon, index) => (
-                <Card key={index} className="pc-coupon-card">
-                    <div className="pc-coupon-amount">
-                        {coupon.couponDiscount ? `${coupon.couponDiscount} 折` : formatPrice(coupon.couponMoney)}
-                    </div>
-                    <div className="pc-coupon-name">{text(coupon.couponName)}</div>
-                    <div className="pc-muted">满 {formatPrice(coupon.minOrderAmount)} 可用</div>
-                </Card>
-            ))}
+        <div className="pc-dec-title">
+            <Typography.Title heading={4}>{title}</Typography.Title>
+            {module.subtitle ? <span className="pc-muted">{str(module.subtitle)}</span> : null}
+            {more ? <Link href={more}>{'更多 →'}</Link> : null}
         </div>
     );
 }
 
-function NoticeBlock({ module }: { module: ModuleData }) {
-    const notices = list(module.noticeList ?? module.list);
-    if (notices.length === 0) return null;
-    return (
-        <Card className="pc-dec-notice">
-            {notices.map((notice, index) => (
-                <div key={index} className="pc-dec-notice-item">
-                    <span>{text(notice.title ?? notice.content)}</span>
-                    <span className="pc-muted">{text(notice.addTime ?? notice.time)}</span>
-                </div>
-            ))}
-        </Card>
-    );
-}
-
-function EntryCard({ module, label, href }: { module: ModuleData; label: string; href: string }) {
+function EntryCard({ module, label, href }: { module: Data; label: string; href: string }) {
+    const title = str(module.title) || str(module.seckillTitle) || label;
     return (
         <Card className="pc-dec-entry">
-            <Typography.Title heading={4}>{text(module.title) || label}</Typography.Title>
+            <Typography.Title heading={4}>{title}</Typography.Title>
             <Typography.Paragraph type="tertiary">
-                {text(module.subtitle) || `进入${label}`}
+                {str(module.desc) || `进入${label}`}
             </Typography.Paragraph>
             <Link href={href}>{`去${label} →`}</Link>
         </Card>
     );
 }
 
-const RENDERERS: Record<string, (module: ModuleData) => ReactNode> = {
-    pcImageAd: (module) => <Images module={module} />,
-    pcImageSquareAd: (module) => <Images module={module} />,
-    pcImageHotarea: (module) => <Images module={module} />,
-    pcImageNav: (module) => <NavIcons module={module} />,
-    pcProduct: (module) => <ProductBlock module={module} />,
-    pcCoupon: (module) => <CouponBlock module={module} />,
-    pcNotice: (module) => <NoticeBlock module={module} />,
-    pcTitleAd: (module) => (
+function HeroBlock({ module }: { module: Data }) {
+    const parts = [module.left, module.center, module.right].filter(Boolean) as Data[];
+    const items = parts.map((part) => (part.image ? (part.image as Data) : part)).filter((part) => imageOf(part));
+    if (items.length === 0) return null;
+    return <ImageRow items={items} ratio="1" />;
+}
+
+const RENDERERS: Record<string, (module: Data) => ReactNode> = {
+    'pc-image-ad': (m) => <ImageRow items={asList(m.picList)} />,
+    'pc-image-square-ad': (m) => <ImageRow items={asList(m.picList)} ratio="calc(50% - 6px)" />,
+    'pc-image-hotarea': (m) => <ImageRow items={asList(m.picList)} />,
+    'pc-banner2': (m) => (
+        <ImageRow items={[...asList(m.picList), ...asList(m.picList2), ...asList(m.picList3)]} />
+    ),
+    'pc-group-banner': (m) => (
+        <ImageRow items={[...asList(m.picList), ...asList(m.picList2), ...asList(m.picList3)]} />
+    ),
+    'pc-home-hero': (m) => <HeroBlock module={m} />,
+    'pc-image-nav': (m) => <NavIcons items={asList(m.picList)} />,
+    'pc-home-quick-nav': (m) => <NavIcons items={asList(m.items ?? m.picList)} />,
+    'pc-category-nav3': (m) => <NavIcons items={asList(m.picList)} />,
+    'pc-category-nav': (m) => (
         <div className="pc-dec-title">
-            <Typography.Title heading={4}>{text(module.title)}</Typography.Title>
-            {text(module.subtitle) ? <span className="pc-muted">{text(module.subtitle)}</span> : null}
-            {module.moreLink ? <a href={String(module.moreLink)}>更多 →</a> : null}
+            <Typography.Title heading={4}>{str(m.titleName) || '商品分类'}</Typography.Title>
+            <Link href="/list">全部 →</Link>
         </div>
     ),
-    pcWhiteLine: () => <div className="pc-dec-line" />,
-    pcWhiteBlank: (module) => <div style={{ height: Number(module.height ?? 24) }} />,
-    pcSeckill: (module) => <EntryCard module={module} label="秒杀" href="/seckill/list" />,
-    pcGroupon: (module) => <EntryCard module={module} label="拼团" href="/activity" />,
-    pcProductGrouping: (module) => <ProductBlock module={module} />
+    'pc-product': (m) => <ProductGrid products={asList(m.products ?? m.goodsList)} />,
+    'pc-recommend-product': (m) => (
+        <>
+            {str(m.titleName) ? (
+                <div className="pc-dec-title">
+                    <Typography.Title heading={4}>{str(m.titleName)}</Typography.Title>
+                </div>
+            ) : null}
+            <ProductGrid products={asList(m.products ?? m.goodsList)} />
+        </>
+    ),
+    'pc-product-group': (m) => (
+        <>
+            {asList(m.productGroups).map((group, index) => (
+                <div key={index} className="pc-dec-group">
+                    {str(group.title) ? (
+                        <div className="pc-dec-title">
+                            <Typography.Title heading={4}>{str(group.title)}</Typography.Title>
+                        </div>
+                    ) : null}
+                    <ProductGrid products={asList(group.productList)} />
+                </div>
+            ))}
+        </>
+    ),
+    'pc-coupon': (m) => <EntryCard module={m} label="领券中心" href="/coupon/list" />,
+    'pc-home-coupon': (m) => <EntryCard module={m} label="领券中心" href="/coupon/list" />,
+    'pc-seckill': (m) => <EntryCard module={m} label="秒杀" href="/seckill/list" />,
+    'pc-home-seckill': (m) => <EntryCard module={m} label="秒杀" href="/seckill/list" />,
+    'pc-groupon': (m) => <EntryCard module={m} label="拼团" href="/member/pin/list" />,
+    'pc-home-groupon': (m) => <EntryCard module={m} label="拼团" href="/member/pin/list" />,
+    'pc-notice': (m) => {
+        const texts = asList(m.noticeList).map((item) => str(item.title ?? item.content));
+        const single = str(m.text);
+        const lines = texts.length > 0 ? texts : single ? [single] : [];
+        if (lines.length === 0) return null;
+        return (
+            <Card className="pc-dec-notice">
+                {lines.map((line, index) => (
+                    <div key={index} className="pc-dec-notice-item">
+                        <span>{line}</span>
+                    </div>
+                ))}
+            </Card>
+        );
+    },
+    'pc-title-ad': (m) => <Title module={m} />,
+    'pc-white-line': () => <div className="pc-dec-line" />,
+    'pc-divider': () => <div className="pc-dec-line" />,
+    'pc-white-blank': (m) => <div style={{ height: Number(m.height ?? 24) }} />,
+    'pc-spacer': (m) => <div style={{ height: Number(m.blankHeight ?? 24) }} />,
+    'pc-custom-ad1': (m) => <ImageRow items={asList(m.picList)} />,
+    'pc-custom-ad2': (m) => <ImageRow items={asList(m.picList)} ratio="calc(50% - 6px)" />
 };
 
 export default function DecorateModules({ modules }: { modules: DecorateModule[] }) {
     const { t } = useTranslation();
-    const visible = (modules ?? []).filter((item) => item.isShow !== false);
+    const visible = (modules ?? []).filter((item) => {
+        const flag = item.isShow as unknown;
+        return flag !== false && flag !== 0;
+    });
     if (visible.length === 0) return <div className="pc-muted">{t('暂无装修内容')}</div>;
 
     return (
         <div className="pc-dec-wrap">
             {visible.map((item, index) => {
-                const renderer = item.type ? RENDERERS[item.type] : undefined;
+                const renderer = item.type ? RENDERERS[normalizeType(item.type)] : undefined;
                 if (!renderer) return null;
                 return (
                     <section className="pc-dec-section" key={`${item.type}-${item.moduleIndex ?? index}`}>

@@ -6,11 +6,13 @@ import { Button, Card, Empty, Input, Modal, Toast, Typography } from '@douyinfe/
 import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost, type Paged } from '@/lib/client-api';
 import { formatPrice, productImage, skuText } from '@/lib/format';
+import InvoiceDialog, { EMPTY_INVOICE, type InvoiceValue } from '@/components/invoice/InvoiceDialog';
 
 /**
  * 订单结算页。
  * Vue 基准：pages/order/check.vue（1679 行）+ src/{Address,PayType,CouponInfo,InvoiceInfo}.vue
- * 已实现：地址选择、配送方式、商品清单、优惠券、发票（简化）、积分/余额抵扣、金额重算、提交。
+ * 已实现：地址选择、配送方式、商品清单、优惠券、发票（普通/专用/个人/企业完整表单）、
+ *         积分/余额抵扣、金额重算、提交。
  * 未迁：预售定金、账期支付、支付方式选择（提交时 payTypeId=0）、定金预售步骤条。
  * 所有计价变更统一走 order/check/update；优惠券走 order/check/updateCoupon。
  * 提交会创建真实待支付订单，因此必须二次确认。
@@ -93,11 +95,8 @@ export default function CheckoutCore({ flowType = 1 }: { flowType?: number }) {
     const [useBalance, setUseBalance] = useState(0);
     const [couponIds, setCouponIds] = useState<number[]>([]);
     const [userCouponIds, setUserCouponIds] = useState<number[]>([]);
-    const [invoice, setInvoice] = useState<{ invoiceType: number; titleType: number; companyName: string }>({
-        invoiceType: 0,
-        titleType: 1,
-        companyName: ''
-    });
+    const [invoice, setInvoice] = useState<InvoiceValue>(EMPTY_INVOICE);
+    const [invoiceAdded, setInvoiceAdded] = useState(false);
     const [loading, setLoading] = useState(true);
     const [needLogin, setNeedLogin] = useState(false);
     const [recalculating, setRecalculating] = useState(false);
@@ -158,6 +157,10 @@ export default function CheckoutCore({ flowType = 1 }: { flowType?: number }) {
             setLoading(false);
             return;
         }
+        // 发票开关：invoiceAdded === 1 才允许开增值税专用发票
+        apiGet<{ invoiceAdded?: number; canInvoice?: number }>('common/config/initConfigSettings')
+            .then((config) => setInvoiceAdded(Number(config?.invoiceAdded) === 1))
+            .catch(() => setInvoiceAdded(false));
         (async () => {
             try {
                 const [list, shippingResult] = await Promise.all([
@@ -359,7 +362,9 @@ export default function CheckoutCore({ flowType = 1 }: { flowType?: number }) {
                         <div className="pc-muted">
                             {invoice.invoiceType === 0
                                 ? t('不开发票')
-                                : `${t('电子普通发票')}${invoice.companyName ? ` · ${invoice.companyName}` : ''}`}
+                                : `${invoice.invoiceType === 2 ? t('增值税专用发票') : t('电子普通发票')}${
+                                      invoice.companyName ? ` · ${invoice.companyName}` : ''
+                                  }`}
                         </div>
                     </div>
                     <Button size="small" theme="light" onClick={() => setPickInvoice(true)}>
@@ -485,41 +490,17 @@ export default function CheckoutCore({ flowType = 1 }: { flowType?: number }) {
                 </div>
             </Modal>
 
-            <Modal
+            <InvoiceDialog
                 visible={pickInvoice}
-                title={t('发票')}
-                onOk={() => {
-                    setPickInvoice(false);
-                    void recalc({ invoiceData: invoice });
+                value={invoice}
+                invoiceAdded={invoiceAdded}
+                mode="check"
+                onClose={() => setPickInvoice(false)}
+                onConfirm={(next) => {
+                    setInvoice(next);
+                    void recalc({ invoiceData: next });
                 }}
-                onCancel={() => setPickInvoice(false)}
-            >
-                <div className="pc-form">
-                    <div className="pc-tabs">
-                        <button
-                            type="button"
-                            className={invoice.invoiceType === 0 ? 'is-active' : ''}
-                            onClick={() => setInvoice({ ...invoice, invoiceType: 0 })}
-                        >
-                            {t('不开发票')}
-                        </button>
-                        <button
-                            type="button"
-                            className={invoice.invoiceType === 1 ? 'is-active' : ''}
-                            onClick={() => setInvoice({ ...invoice, invoiceType: 1 })}
-                        >
-                            {t('电子普通发票')}
-                        </button>
-                    </div>
-                    {invoice.invoiceType === 1 ? (
-                        <Input
-                            value={invoice.companyName}
-                            onChange={(value) => setInvoice({ ...invoice, companyName: String(value) })}
-                            placeholder={t('发票抬头')}
-                        />
-                    ) : null}
-                </div>
-            </Modal>
+            />
 
             <Modal
                 visible={confirmOpen}

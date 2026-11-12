@@ -25,11 +25,20 @@ type ProductResultsProps = {
     keyword?: string;
     categoryId?: number;
     shopId?: number;
+    /** 图搜会话编号：带上它时结果限定在这次图片召回的商品内 */
+    searchToken?: string;
     emptyText?: string;
     pageSize?: number;
 };
 
-export default function ProductResults({ keyword = '', categoryId, shopId, emptyText, pageSize = 20 }: ProductResultsProps) {
+export default function ProductResults({
+    keyword = '',
+    categoryId,
+    shopId,
+    searchToken,
+    emptyText,
+    pageSize = 20
+}: ProductResultsProps) {
     const { t } = useTranslation();
     const [rows, setRows] = useState<ProductRow[]>([]);
     const [total, setTotal] = useState(0);
@@ -45,7 +54,8 @@ export default function ProductResults({ keyword = '', categoryId, shopId, empty
                 size: pageSize,
                 keyword: keyword || undefined,
                 categoryId,
-                shopId
+                shopId,
+                searchToken
             });
             const list = (result.records ?? result.list ?? result.data ?? []) as ProductRow[];
             const rowsArray = Array.isArray(list) ? list : [];
@@ -59,7 +69,7 @@ export default function ProductResults({ keyword = '', categoryId, shopId, empty
         } finally {
             setLoading(false);
         }
-    }, [page, pageSize, keyword, categoryId, shopId]);
+    }, [page, pageSize, keyword, categoryId, shopId, searchToken]);
 
     useEffect(() => {
         void load();

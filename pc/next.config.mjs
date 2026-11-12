@@ -40,7 +40,6 @@ const nextConfig = {
             { source: '/item/:id', destination: '/product/:id', permanent: true },
             { source: '/coupon', destination: '/coupon/list', permanent: false },
             { source: '/search.v1', destination: '/search', permanent: true },
-            { source: '/search/image', destination: '/search', permanent: false },
             { source: '/cart/index.v1', destination: '/cart', permanent: false },
             { source: '/chat/index.v1', destination: '/', permanent: false },
             { source: '/pcmobile', destination: '/', permanent: false },

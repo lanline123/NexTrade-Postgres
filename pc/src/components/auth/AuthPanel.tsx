@@ -4,13 +4,15 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Card, Input, Toast, Typography } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import { apiGet, apiPost } from '@/lib/client-api';
+import { apiGet, apiPost, errorCode } from '@/lib/client-api';
+import SlideCaptcha from '@/components/captcha/SlideCaptcha';
 
 /**
  * 登录 / 注册。
  * Vue 基准：pages/member/Login.vue、Register.vue + components/member/login/BaseLogin.vue。
- * 登录参数照 BaseLogin：{ loginType: 'password'|'mobile', username, password, mobile, mobileCode }，
+ * 登录参数照 BaseLogin：{ loginType: 'password'|'mobile', username, password, mobile, mobileCode, verifyToken }，
  * 登录前先打 common/csrf/create。
+ * 业务码 1002 = 需要滑动验证码：弹 SlideCaptcha，拿到 verifyToken 后原样重试（Vue 版同逻辑）。
  * 注册参数后端未在 Vue 类型里写死，这里用 mobile/mobileCode/password/username 的常见组合，
  * 联调时若字段不符只需改这一处。
  */
@@ -28,6 +30,8 @@ export default function AuthPanel({ mode: initialMode = 'login' }: { mode?: Mode
     const [code, setCode] = useState('');
     const [countdown, setCountdown] = useState(0);
     const [submitting, setSubmitting] = useState(false);
+    const [captchaVisible, setCaptchaVisible] = useState(false);
+    const [verifyToken, setVerifyToken] = useState('');
 
     useEffect(() => {
         if (countdown <= 0) return;
@@ -59,7 +63,7 @@ export default function AuthPanel({ mode: initialMode = 'login' }: { mode?: Mode
         }
     };
 
-    const submit = async () => {
+    const submit = async (token?: string) => {
         setSubmitting(true);
         try {
             if (mode === 'register') {
@@ -71,7 +75,8 @@ export default function AuthPanel({ mode: initialMode = 'login' }: { mode?: Mode
                     mobile: mobile.trim(),
                     mobileCode: code.trim(),
                     password,
-                    username: mobile.trim()
+                    username: mobile.trim(),
+                    verifyToken: token ?? verifyToken
                 });
                 persistToken(result ?? {});
                 Toast.success(t('注册成功'));
@@ -82,14 +87,33 @@ export default function AuthPanel({ mode: initialMode = 'login' }: { mode?: Mode
             await apiGet('common/csrf/create').catch(() => null);
             const payload =
                 tab === 'password'
-                    ? { loginType: 'password', username: username.trim(), password }
-                    : { loginType: 'mobile', mobile: mobile.trim(), mobileCode: code.trim() };
+                    ? {
+                          loginType: 'password',
+                          username: username.trim(),
+                          password,
+                          mobile: '',
+                          mobileCode: '',
+                          verifyToken: token ?? verifyToken
+                      }
+                    : {
+                          loginType: 'mobile',
+                          username: '',
+                          password: '',
+                          mobile: mobile.trim(),
+                          mobileCode: code.trim(),
+                          verifyToken: token ?? verifyToken
+                      };
             const result = await apiPost<Record<string, unknown>>('user/login/signin', payload);
             persistToken(result ?? {});
             Toast.success(t('登录成功'));
             const returnUrl = new URLSearchParams(window.location.search).get('returnUrl');
             router.push(returnUrl || '/member');
         } catch (e) {
+            // 1002：本次登录要求图形验证码
+            if (errorCode(e) === 1002) {
+                setCaptchaVisible(true);
+                return;
+            }
             Toast.error((e as Error).message);
         } finally {
             setSubmitting(false);
@@ -158,6 +182,16 @@ export default function AuthPanel({ mode: initialMode = 'login' }: { mode?: Mode
                     </div>
                 </div>
             </Card>
+
+            <SlideCaptcha
+                visible={captchaVisible}
+                onClose={() => setCaptchaVisible(false)}
+                onSuccess={(token) => {
+                    setCaptchaVisible(false);
+                    setVerifyToken(token);
+                    void submit(token);
+                }}
+            />
         </div>
     );
 }
