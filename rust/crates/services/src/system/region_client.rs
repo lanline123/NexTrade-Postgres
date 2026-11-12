@@ -178,7 +178,7 @@ impl RegionClientService {
             if let Some(name) = lookup_region_name(ip) {
                 if let Some(hit) = self
                     .regions()
-                    .find_by_name_like(name, None)
+                    .find_by_name_like(&name, None)
                     .await?
                     .into_iter()
                     .next()
