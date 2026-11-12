@@ -15,7 +15,7 @@
 | 技术栈 | React 18.3 + Next 14.2（App Router，真 SSR）+ Semi UI 2.104 + react-i18next |
 | 已完成 | 会员中心 23 路由 + 订单结算/收银台 + 商品浏览/购物车 + 店铺/入驻 |
 | 验证 | `npm run build` 通过，37 条路由全部 `ƒ Dynamic`；商品与店铺板块 curl 全 200 |
-| 尚未完成 | `/activity`（装修模块容器，单独一轮）、`/category`、`/exchange`、`/install`、`/oauth`；结算页优惠券/发票/配送分支 |
+| 尚未完成 | `/activity`（装修模块容器）、`/category`、`/exchange`、`/install`、`/oauth`；结算页账期支付、预售定金、支付方式选择 |
 | 本地启动 | `cd pc && npm run dev` → http://127.0.0.1:3006 |
 
 **注意别混淆两套 React 前端**：
@@ -211,7 +211,7 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | `/member/userCertification/info` | `CertificationPanel` | `userCertification/Info.vue` | `user/company/{myApply,detail,apply}` |
 | `/member/pin/list` | `PinList` | `pages/member/pin/List.vue` | `promotion/groupon/record/list` |
 | `/member/termPay/list` | `CreditList` | `pages/member/termPay/list.vue` | `user/user/creditDetail` |
-| `/order/check` | `CheckoutCore` | `pages/order/check.vue` | `user/address/list`、`order/check/{index,submit}` |
+| `/order/check` | `CheckoutCore` | `pages/order/check.vue` | `order/check/{index,update,updateCoupon,submit,getStoreShippingType}`、`user/address/list` |
 | `/order/pay` | `PayCore` | `pages/order/pay.vue` | `order/pay/index`（**不调 `pay/create`**） |
 | `/cart` | `CartCore` | `pages/cart/index.vue`（2249 行） | `cart/cart/{list,updateCheck,updateItem,removeItem,clear}` |
 | `/product/[...slug]` | `ProductDetail` | `pages/product/[...slug].vue` | `product/product/detail`、`cart/cart/addToCart` |
@@ -247,7 +247,7 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 |---|---|---|
 | 1 | 会员剩余零散子页 | 发票抬头（`user/invoice/*` 表单）、入驻申请（`joining`）、登录/注册/找回密码（`Login/Register/reset`）、账户卡管理（`account/CardManagement`）。`pages/member/contact/` 在 Vue 版是空目录，菜单项已移除 |
 | 2 | 登录态真实数据校准 | 当前无 token 只验到「请先登录」；拿到登录态后要核对字段名（组件里用了多候选 `a ?? b ?? '-'` 兜底） |
-| 3 | 订单结算未迁分支 | 优惠券选择、发票、配送方式切换、积分/余额抵扣、账期支付、预售定金（走 `order/check/update`、`updateCoupon`）；收银台支付渠道刻意未接 `order/pay/create` |
+| 3 | 订单结算剩余 | 已补：优惠券、发票（简化版）、配送方式、积分/余额抵扣；仍缺：账期支付、预售定金、支付方式选择（提交时 `payTypeId=0`）；收银台支付渠道刻意未接 `order/pay/create` |
 | 4 | 剩余顶层页 | `/activity`（16 个装修模块容器，需先定装修组件体系）、`/category`、`/exchange`、`/install`、`/oauth`；店铺装修模块、文章详情 |
 | 5 | i18n 补齐 | 新增文案的英文 key；`<title>` 目前是静态中文 |
 | 6 | 样式对齐 | 尚未逐像素对照 Vue/线上，`globals.css` 只做了骨架级布局 |
