@@ -166,7 +166,14 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 - 响应信封 `{ code, data, msg }`，`code !== 0` 即抛错；
 - 列表统一是 `{ records, total }`（`Paged<T>`）。
 
-**SSR 不直接打业务接口**，页面壳服务端渲染，数据由客户端按需拉取（面板按需取数，登录态留在浏览器）。
+例外与补充：
+
+- **IM 接口不在 `/api` 下**：Vue 用 `asyncRequest({ prefix: '/im/' })` 换掉 baseURL，
+  所以路径是 `/im/conversation/...`。`src/lib/im.ts` 单独封装，`next.config.mjs` 加了一条 `/im/:path*` 转发。
+- **公开接口走服务端**：`src/lib/server-api.ts` 直连 `PC_API_BASE`（不带凭证），
+  首页装修/秒杀/拼团已这样取（见 §6.3.1）。
+
+**SSR 不直接打需要登录的接口**，页面壳服务端渲染，这类数据由客户端按需拉取（登录态留在浏览器）。
 
 ### 5.4 多语言（统一 react-i18next）
 
@@ -235,6 +242,7 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | `/member/account/src/[channel]` | `RechargeChannelPage` | `pages/member/account/src/{alipay,paypal,wechat,yabanpay,yunpay,lakala}.vue` | `user/rechargeOrder/create` → `payInfo.html` 自动提交表单 |
 | `/member/account/src/serviceagreement` | 静态页 | `pages/member/account/src/serviceAgreement.vue` | 协议入口 |
 | `/shop/license` | `ShopLicense` | `pages/shop/license.vue` | `shop/shop/detail` 的 `businessLicensePic`，白页无头尾 |
+| `/chat` | `ChatPage` | `pages/chat/index.vue` | `im/conversation/*` + WebSocket `/ws?token=&platform=pc` |
 | `/join` | `JoinIntro` | `pages/join/index.vue` | 静态流程说明（申请表单待接 `merchant/merchant/apply`） |
 | `/activity` | `DecoratePage` | `pages/activity/index.vue` | `home/home/pcIndex`（`?id` / `?previewId`） |
 
@@ -283,8 +291,9 @@ Vue 侧 `pages/` 共 **111 条路由**（已排除 `src/`、`components/` 子目
 
 | 占位页 | 现状 | 备注 |
 |---|---|---|
-| `/chat` | 占位 | IM 客服需要 WebSocket（Vue 侧 `VITE_SOCKET_URL`），是唯一剩下的整页缺口 |
 | `/oauth/callback` | 占位 | 第三方登录回调，依赖各渠道 appId 与后端回调配置 |
+
+`/chat`（IM 客服）已于 2026-11-13 补齐，见 §6.11。**至此 111 条 Vue 路由里只剩 `/oauth/callback` 一个占位页。**
 
 账户充值 / 提现 / 卡管理 / 充值支付渠道 / 营业执照公示 已于 2026-11-13 补齐，见 §6.10。
 仍在「部分实现」的：微信、亚万、云支付、拉卡拉四个**扫码**渠道页（要渲染二维码，需引入 qrcode 依赖）。
@@ -416,6 +425,30 @@ Node 侧拿不到）。要扩展这套做法，只需：接口公开 → `server
 `/member/account/src/{alipay,paypal,wechat,yabanpay,yunpay,lakala}` 与 `serviceAgreement`
 （充值的支付渠道页就是跳这些路径）。已补齐，其余 `src` 目录确实是组件（ChatInput、OrderProductTable 等）。
 
+### 6.11 第七批：IM 客服（2026-11-13）
+
+`lib/im.ts` + `components/chat/ChatPage.tsx` 复刻了 `pages/chat/index.vue` 的核心链路。
+
+**接口口径**（实测有 1 个会话 / 15 条消息）：
+- `GET /im/conversation/conversation/list` → `records[{ conversationId, shopId, unreadMessageCount,
+  lastServantId, lastUpdateTime, user{avatar,nickname}, lastMessage[] }]`
+- `GET /im/conversation/message/list?shopId&conversationId&firstId&sortOrder`（desc，`firstId=-1` 是最新一页）
+- `POST /im/conversation/message/send { content:{messageType,content}, shopId, conversationId }`
+- `POST /im/conversation/message/setRead { shopId, servantId }`
+
+**消息形状**：`type` 1=客服 2=用户（决定气泡左右），`messageType` text/image/product/order/video，
+正文在 `content.content`，图片在 `content.pic`，商品卡在 `content.product`，订单卡在 `content.order`。
+
+**WebSocket**：`ws(s)://host/ws?token=<token>&platform=pc`，心跳 15s `{type:'heartBeat'}`，
+下行 `{type:'message',data:[msg]}`、已读回执 `{type:'read'}`，最多重连 5 次（1s 起指数退避）。
+
+**部署必须做的一件事**：Next 的 rewrites **不能**代理 WebSocket（不支持 upgrade），
+线上要么让 nginx 把 `/ws` 转到 IM 服务，要么用 `PC_IM_WS=wss://xxx/ws` 显式指定地址
+（会以 `NEXT_PUBLIC_IM_WS` 注入客户端）。**没配也不会白屏**——连不上时自动降级为 8s 轮询，
+页面右上角会显示「轮询模式」而不是「实时连接」。
+
+**刻意没做的**：发图片/视频/商品卡/订单卡（Vue 要走上传与商品选择器，这里只做**展示**兼容）、表情面板、语音。
+
 ---
 
 ## 7. 待办（按建议顺序）
@@ -450,6 +483,7 @@ npm run typecheck                             # tsc -p tsconfig.react.json
 | `PC_API_BASE` | `https://battery.recy.cc` | 后端地址，供 `rewrites` 与 `env` 用 |
 | `PC_API_PREFIX` | `/api` | 接口前缀 |
 | `PC_NEXT_DIST_DIR` | `.next-react`（`npm run dev` 里设为 `.next-dev`） | 构建输出目录；dev 与 build 分开，互不清理 |
+| `PC_IM_WS` | 空 | IM WebSocket 地址；空则按当前域名拼 `/ws`（需 nginx 转发，见 §6.11） |
 | `PC_SKIP_BUILD_TRACE` | 构建脚本自动置 1 | 跳过 Windows 上有问题的 trace 写入 |
 
 ---
