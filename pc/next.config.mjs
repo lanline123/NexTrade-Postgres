@@ -51,6 +51,12 @@ const nextConfig = {
             { source: '/join/standard', destination: '/join', permanent: false },
             { source: '/member/joining/list', destination: '/joining/list', permanent: false },
             { source: '/member/reset', destination: '/member/login', permanent: false },
+            { source: '/member/security/dialoginfo', destination: '/member/security/info', permanent: false },
+            { source: '/member/bindmobilephone', destination: '/member/security/info', permanent: false },
+            { source: '/member/bindMobilePhone', destination: '/member/security/info', permanent: false },
+            { source: '/exchange/:id', destination: '/product/:id', permanent: false },
+            { source: '/join/joinheader', destination: '/join', permanent: false },
+            { source: '/join/joinHeader', destination: '/join', permanent: false },
             {
                 source: '/order/:channel(alipay|wechat|paypal|stripe|huifu|lakala|yabanpay|yeepay|yunpay)',
                 destination: '/order/pay',

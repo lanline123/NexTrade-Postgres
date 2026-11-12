@@ -13,9 +13,9 @@
 |---|---|
 | 迁移方式 | **在 `pc/` 原地重写**：Vue 源码保留作 1:1 参照，React 代码写在 `src/`，两者互不参与对方构建 |
 | 技术栈 | React 18.3 + Next 14.2（App Router，真 SSR）+ Semi UI 2.104 + react-i18next |
-| 已完成 | **51 个页面路由 + 19 条旧 URL 重定向**：会员 25 / 交易 4 / 商品浏览 9 / 店铺入驻 6 / 装修体系 1 / 登录注册 2 / 说明页 4 |
-| 验证 | `npm run build` 通过，全部 `ƒ Dynamic`；Vue 111 条路由中除 19 个会员详情页由 `[...slug]` 兜底外均有对应落点 |
-| 尚未完成 | 秒杀/拼团完整模块逻辑、IM 客服 `/chat`、第三方登录回调、会员详情页（return/comment/feedback/inquiry 的 info 与 log）、结算页账期/预售 |
+| 已完成 | **71 个页面路由 + 25 条旧 URL 重定向**，Vue 111 条路由 **100% 有落点**（页面 / 重定向 / 根 404） |
+| 验证 | `npm run build` 通过，全部 `ƒ Dynamic`；盘点脚本差集仅剩 `pages/[...slug].vue`（对应 `app/not-found.tsx`） |
+| 尚未完成 | 功能深度：秒杀/拼团完整模块、IM 客服、第三方登录、账户充值/银行卡/账期还款、结算页账期与预售 |
 | 本地启动 | `cd pc && npm run dev` → http://127.0.0.1:3006 |
 
 **注意别混淆两套 React 前端**：
@@ -245,9 +245,8 @@ Vue 侧 `pages/` 共 **111 条路由**（已排除 `src/`、`components/` 子目
 
 | 方式 | 说明 |
 |---|---|
-| React 页面（51） | 真实实现，见 §6.1 |
-| 旧 URL 重定向（19） | `next.config.mjs` 的 `redirects`：`*.v1` 旧版页、`/item/:id`→`/product/:id`、`/order/{alipay,wechat,paypal,stripe,huifu,lakala,yabanpay,yeepay,yunpay}`→`/order/pay`、`/activity/pcXxx`→`/activity`、`/join/{intro,plan,process,standard}`→`/join`、`/member/reset`→`/member/login` |
-| 兜底承接（19） | 会员详情/日志页，由 `/member/[...slug]` 渲染「待迁移 + 原 Vue 文件路径」，不 404 |
+| React 页面（71） | 真实实现，见 §6.1。会员详情页用 `src/lib/member-details.ts` 配置表（接口 + 字段 + 多候选键）+ `components/member/EntityDetail.tsx` 通用壳批量承接：12 个详情页、2 个复用列表、4 个说明页 |
+| 旧 URL 重定向（25） | `next.config.mjs` 的 `redirects`：`*.v1` 旧版页、`/item/:id`→`/product/:id`、`/exchange/:id`→`/product/:id`、9 条旧支付渠道→`/order/pay`、`/activity/pcXxx`→`/activity`、`/join/*`→`/join`、`/member/reset`→`/member/login`、`/member/bindMobilePhone`→`/member/security/info` |
 | 根 404 | `app/not-found.tsx`，覆盖原 `pages/[...slug].vue` |
 
 盘点脚本思路：遍历 `pages/**/*.vue` 生成路由集（`index.vue` 折成父路径、`src`/`components` 目录排除），与 `src/app/**/page.tsx` 求差集，再按 redirects 规则过滤。
@@ -265,7 +264,7 @@ Vue 侧 `pages/` 共 **111 条路由**（已排除 `src/`、`components/` 子目
 | 1 | 会员剩余零散子页 | 发票抬头（`user/invoice/*` 表单）、入驻申请（`joining`）、登录/注册/找回密码（`Login/Register/reset`）、账户卡管理（`account/CardManagement`）。`pages/member/contact/` 在 Vue 版是空目录，菜单项已移除 |
 | 2 | 登录态真实数据校准 | 当前无 token 只验到「请先登录」；拿到登录态后要核对字段名（组件里用了多候选 `a ?? b ?? '-'` 兜底） |
 | 3 | 订单结算剩余 | 已补：优惠券、发票（简化版）、配送方式、积分/余额抵扣；仍缺：账期支付、预售定金、支付方式选择（提交时 `payTypeId=0`）；收银台支付渠道刻意未接 `order/pay/create` |
-| 4 | 剩余细节 | 会员详情页 19 个（`return/{info,log,loginfo}`、`comment/info`、`feedback/{info,asklist}`、`inquiry/info`、`group/{info,list}`、`pin/group`、`account/{deposit,cardmanagement,raplytocard}`、`order/claiminfo`、`orderInvoice/info`、`userInvoice/{info,confirminfo}`、`address/editregion`、`security/dialoginfo`，现由 `/member/[...slug]` 兜底）；IM 客服 `/chat`；第三方登录 `/oauth/callback`；装修模块秒杀/拼团内部逻辑 |
+| 4 | 功能深度（路由已无缺口） | 秒杀/拼团模块内部逻辑、IM 客服、第三方登录、账户充值/银行卡/账期还款、结算页账期与预售；会员详情页的真实字段以联调结果为准（配置表里已给多候选键，显示「-」不报错） |
 | 5 | i18n 补齐 | 新增文案的英文 key；`<title>` 目前是静态中文 |
 | 6 | 样式对齐 | 尚未逐像素对照 Vue/线上，`globals.css` 只做了骨架级布局 |
 | 7 | 登录守卫 | 目前列表页判断 token 显示提示，未做路由级跳转（Vue 版用 `middleware: auth`） |
