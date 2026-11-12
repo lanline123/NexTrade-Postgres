@@ -4,6 +4,9 @@
  * 每迁移完一个路由，把 status 改成 'done'，并在 src/app/<path>/page.tsx 落地实现。
  * 约定：Vue 源码只作 1:1 参照（运行时依赖已移除，不再参与构建）；
  *       多语言统一 react-i18next 的 useTranslation() / t()，不再用 Vue 的 $t。
+ *
+ * 进度（2026-11-12）：/member 已迁 15 个子路由（首页、订单列表/详情、地址、优惠券、积分、售后、
+ * 评价、发票、收藏商品、收藏店铺、浏览记录、消息、反馈、询价），其余子页由 [...slug] 兜底承接。
  */
 export type MigrationRoute = {
     path: string;
