@@ -40,6 +40,8 @@ jieba-rs.workspace = true
 lettre.workspace = true
 sha1.workspace = true
 hmac.workspace = true
+# 离线 IP 定位（ip2region v2 xdb，替代 Java Ip2RegionUtil；xdb 文件运行时按路径加载）
+ip2region = "0.1"
 
 [lints]
 workspace = true

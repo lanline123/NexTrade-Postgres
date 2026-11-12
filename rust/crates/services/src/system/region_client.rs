@@ -39,14 +39,22 @@
 //!    但那时 `currentId` 已是 0，该分支实际不生效（见 [`collect_region_path`]）。
 //!
 //! **未迁移**：
-//! - `getUserRegion` 的 IP 定位（Java `Ip2RegionUtil.getRegionByIp()`，
-//!   依赖 ip2region 数据库文件）。Rust 侧无该依赖，[`RegionClientService::user_region`]
-//!   固定按 Java 的兜底分支走（IP 为空 → `"北京"`），**不是**真实 IP 定位。
 //! - `getCityRegion` 的 Redis 缓存（`city_pinying_list`）。
 //! - Java 的 `@JsonTranslate` 地区名多语言翻译。
+//!
+//! **IP 定位（2026-11-13 补齐）**：原 Java `Ip2RegionUtil.getRegionByIp()`
+//! 依赖 ip2region 数据库文件；本切片现接入 Rust 侧 ip2region v2 xdb
+//! （crate `ip2region`），xdb 文件在运行时按以下顺序查找：
+//!
+//! 1. 环境变量 `NEXTRADE_IP2REGION_XDB` 指定的路径；
+//! 2. `/www/wwwroot/nextrade/ip2region.xdb`（生产部署目录）；
+//! 3. `./data/ip2region.xdb`（本地/容器相对路径）。
+//!
+//! 文件不存在或查询失败时，沿用 Java 的兜底分支（`"北京"`），
+//! 与迁移期行为一致 —— 即**定位失败永远不报错，只降级**。
 
 use std::cmp::Ordering;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use nextrade_core::entities::Region;
 use nextrade_core::models::system::region_client::{
@@ -162,11 +170,23 @@ impl RegionClientService {
     /// 2. `like(regionName, 地名).getFirst()` —— **全表**模糊匹配取第一条。
     /// 3. 抛异常时兜底 `this.list().getFirst()`（全表第一条）。
     ///
-    /// **未迁移**：IP 定位（依赖 Java 侧 `ip2region` 库）。本实现固定按
-    /// 「IP 为空 → `"北京"`」分支走，与 Java 在内网/定位失败时的结果一致，
-    /// 但**不会**按访客真实 IP 给出不同城市。若需要真实定位，
-    /// 应由上层解析出城市名后调用 [`RegionClientService::region_by_name_like`]。
-    pub async fn user_region(&self) -> Result<Region> {
+    /// 2026-11-13 起补齐第 1 步：xdb 存在时按 IP 离线定位，
+    /// 取 xdb 的 `city`（缺则 `province`）做模糊匹配；xdb 缺失 /
+    /// IP 为内网或 `unknown` / 查询失败时，与 Java 一致回落 `"北京"`。
+    pub async fn user_region(&self, ip: Option<&str>) -> Result<Region> {
+        if let Some(ip) = ip {
+            if let Some(name) = lookup_region_name(ip) {
+                if let Some(hit) = self
+                    .regions()
+                    .find_by_name_like(name, None)
+                    .await?
+                    .into_iter()
+                    .next()
+                {
+                    return Ok(hit);
+                }
+            }
+        }
         self.region_by_name_like(DEFAULT_REGION_NAME).await
     }
 
@@ -309,10 +329,10 @@ impl RegionClientService {
 
     /// 按 IP 定位（`getLocationByIp`）。
     ///
-    /// 未接入 ip2region / 高德 IP 库 → 固定走 Java `getUserRegion` 的
-    /// 兜底分支（默认城市「北京」，查不到再取全表第一条）。
-    pub async fn location_by_ip(&self, _ip: Option<&str>) -> Result<Region> {
-        self.user_region().await
+    /// xdb 已接入：显式传入 `ip` 或缺省（`None`）时均可离线定位；
+    /// 失败 → 兜底城市（Java `getUserRegion` 的兜底分支）。
+    pub async fn location_by_ip(&self, ip: Option<&str>) -> Result<Region> {
+        self.user_region(ip).await
     }
 
     /// 按经纬度定位（`getLocationByLocation`）。
@@ -324,7 +344,7 @@ impl RegionClientService {
         _longitude: Option<&str>,
         _latitude: Option<&str>,
     ) -> Result<Region> {
-        self.user_region().await
+        self.user_region(None).await
     }
 
     /// 按 regionId 取定位详情（`getLocationByRegionId`：主键查询，
@@ -338,7 +358,7 @@ impl RegionClientService {
     /// 未配置凭据 → 返回默认城市的降级结果
     /// （`{ regionId, regionName, ... }`，`regeo: false` 标记非真实逆编码）。
     pub async fn regeo_detail(&self) -> Result<Region> {
-        self.user_region().await
+        self.user_region(None).await
     }
 
     /// 关键词搜索地区（`searchByKeywords`：`region_name ILIKE`，
@@ -364,6 +384,91 @@ pub fn parse_default_country(raw: Option<&str>) -> Option<i32> {
     raw.map(str::trim)
         .filter(|s| !s.is_empty())
         .and_then(|s| s.parse::<i32>().ok())
+}
+
+// ————————————————————— IP 离线定位（ip2region xdb） —————————————————————
+
+/// xdb 文件的候选路径（按序尝试）。第一个来自环境变量
+/// `NEXTRADE_IP2REGION_XDB`；其余为部署目录与本地/容器相对路径的约定值。
+const XDB_PATH_ENV: &str = "NEXTRADE_IP2REGION_XDB";
+const XDB_PATH_DEPLOY: &str = "/www/wwwroot/nextrade/ip2region.xdb";
+const XDB_PATH_LOCAL: &str = "./data/ip2region.xdb";
+
+/// 进程内单例：xdb 整体载入内存后可安全并发查询（crate 行为）。
+/// `None` 表示「找不到 xdb 或载入失败」，此后不再重试读盘。
+static IP_SEARCHER: OnceLock<Option<ip2region::Searcher>> = OnceLock::new();
+
+/// 取（或初始化）进程级 xdb 搜索器。找不到文件返回 `None` 并记忆，
+/// 避免每个请求都空跑一遍文件系统。
+fn ip_searcher() -> Option<&'static ip2region::Searcher> {
+    IP_SEARCHER
+        .get_or_init(|| {
+            let mut candidates = Vec::new();
+            if let Ok(p) = std::env::var(XDB_PATH_ENV) {
+                let p = p.trim().to_string();
+                if !p.is_empty() {
+                    candidates.push(p);
+                }
+            }
+            candidates.push(XDB_PATH_DEPLOY.to_string());
+            candidates.push(XDB_PATH_LOCAL.to_string());
+
+            for path in candidates {
+                match ip2region::Searcher::new(&path) {
+                    Ok(s) => {
+                        tracing::info!("ip2region xdb 已加载: {path}");
+                        return Some(s);
+                    }
+                    Err(e) => {
+                        tracing::debug!("ip2region xdb 加载失败 {path}: {e}");
+                    }
+                }
+            }
+            tracing::warn!("ip2region xdb 未找到（候选路径均失败），IP 定位降级为默认城市");
+            None
+        })
+        .as_ref()
+}
+
+/// 判定「值得查询」的 IP：仅公网 IPv4。`unknown` / 回环 / 内网段 /
+/// IPv6（v2 xdb 的 0.1 crate 只支持 v4）一律返回 `false` → 走兜底分支。
+#[must_use]
+pub fn is_public_ipv4(ip: &str) -> bool {
+    let Ok(v4) = ip.trim().parse::<std::net::Ipv4Addr>() else {
+        return false;
+    };
+    let o = v4.octets();
+    !(o[0] == 10
+        || o[0] == 127
+        || (o[0] == 172 && (16..=31).contains(&o[1]))
+        || (o[0] == 192 && o[1] == 168)
+        || (o[0] == 169 && o[1] == 254)
+        || o[0] == 0)
+}
+
+/// 解析 xdb 查询结果（v2 文本格式 `国家|区域|省份|城市|ISP`），
+/// 取「城市，缺则省份」作为用于模糊匹配的地名；`0` / 空段视为缺失。
+///
+/// 例：`"中国|0|山东省|青岛市|电信"` → `Some("青岛市")`；
+///     `"中国|0|北京市||"`（直辖市城市段可能为空）→ `Some("北京市")`。
+#[must_use]
+pub fn parse_xdb_region_name(raw: &str) -> Option<&str> {
+    let seg = |i: usize| {
+        raw.split('|')
+            .nth(i)
+            .map(str::trim)
+            .filter(|s| !s.is_empty() && *s != "0")
+    };
+    seg(3).or_else(|| seg(2))
+}
+
+/// IP → 地名（xdb 离线查询）。任一环节失败 → `None`（调用方走兜底）。
+fn lookup_region_name(ip: &str) -> Option<String> {
+    if !is_public_ipv4(ip) {
+        return None;
+    }
+    let raw = ip_searcher()?.search(ip.trim()).ok()?;
+    parse_xdb_region_name(&raw).map(str::to_owned)
 }
 
 /// 省份名精简（Java `getProvinceList` 的链式 `replace`）。
@@ -702,5 +807,35 @@ mod tests {
             .filter_map(|seg| seg.trim().parse::<i32>().ok())
             .collect();
         assert_eq!(parsed, vec![1, 110000, 110100]);
+    }
+
+    // ————————————————————— IP 定位 —————————————————————
+
+    #[test]
+    fn is_public_ipv4_accepts_only_public_v4() {
+        assert!(is_public_ipv4("120.24.78.129"));
+        assert!(is_public_ipv4("223.104.3.7"));
+        assert!(!is_public_ipv4("unknown"));
+        assert!(!is_public_ipv4(""));
+        assert!(!is_public_ipv4("127.0.0.1")); // 回环
+        assert!(!is_public_ipv4("10.0.8.13")); // A 内网
+        assert!(!is_public_ipv4("172.16.0.1")); // B 内网（16..=31）
+        assert!(is_public_ipv4("172.32.0.1")); // B 段之外（32）→ 公网
+        assert!(!is_public_ipv4("192.168.1.1")); // C 内网
+        assert!(!is_public_ipv4("169.254.1.1")); // 链路本地
+        assert!(!is_public_ipv4("::1")); // IPv6 暂不支持
+        assert!(!is_public_ipv4("0.1.2.3")); // 保留段
+    }
+
+    #[test]
+    fn parse_xdb_region_name_prefers_city_then_province() {
+        assert_eq!(parse_xdb_region_name("中国|0|山东省|青岛市|电信"), Some("青岛市"));
+        assert_eq!(parse_xdb_region_name("中国|0|北京市|北京市|联通"), Some("北京市"));
+        // 直辖市城市段可能为空/0 → 回落省份段
+        assert_eq!(parse_xdb_region_name("中国|0|北京市||联通"), Some("北京市"));
+        assert_eq!(parse_xdb_region_name("中国|0|天津市|0|电信"), Some("天津市"));
+        // 内网 IP 的 xdb 原始返回：全 0 → None
+        assert_eq!(parse_xdb_region_name("0|0|0|内网IP|内网IP"), None);
+        assert_eq!(parse_xdb_region_name(""), None);
     }
 }

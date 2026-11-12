@@ -261,11 +261,17 @@ async fn get_province_list(
 /// 对应 Java `RegionController.getUserRegion()`（`RegionController.java:48`）→
 /// `RegionServiceImpl#getUserRegion`。
 ///
-/// ⚠️ Java 会先按来访 IP 定位城市名（`Ip2RegionUtil.getRegionByIp()`），
-/// 定位不到/内网时兜底 `"北京"`。Rust 侧未接入 ip2region，
-/// 目前**固定走兜底分支**（等价于 Java 在 IP 为空时的行为）。
-async fn get_user_region(State(state): State<PublicState>) -> ApiResult<serde_json::Value> {
-    let region = state.system.region_client.user_region().await?;
+/// Java 先按来访 IP 定位城市名（`Ip2RegionUtil.getRegionByIp()`），
+/// 定位不到/内网时兜底 `"北京"`。2026-11-13 起对齐：取
+/// `X-Forwarded-For` / `X-Real-IP` 客户端 IP（`client_ip`），
+/// 经 ip2region xdb 离线定位；xdb 缺失/内网/失败 → 兜底 `"北京"`。
+async fn get_user_region(
+    State(state): State<PublicState>,
+    headers: axum::http::HeaderMap,
+) -> ApiResult<serde_json::Value> {
+    let ip = nextrade_security::web::client_ip(&headers);
+    let ip = (ip != "unknown").then_some(ip.as_str());
+    let region = state.system.region_client.user_region(ip).await?;
     ok(region_json(&region))
 }
 
@@ -356,7 +362,8 @@ async fn get_country_list(
 
 /// `GET /api/sys/region/getLocationByIp?ip=...`：按 IP 定位。
 ///
-/// 未接入 ip2region → 固定返回默认城市（Java `getUserRegion` 兜底分支）。
+/// 显式 `ip` 优先；缺省时回退到来访客户端 IP（`client_ip`）。
+/// xdb 已接入，失败 → 兜底默认城市。
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct LocationByIpQuery {
@@ -365,12 +372,20 @@ struct LocationByIpQuery {
 
 async fn get_location_by_ip(
     State(state): State<PublicState>,
+    headers: axum::http::HeaderMap,
     Query(q): Query<LocationByIpQuery>,
 ) -> ApiResult<serde_json::Value> {
+    let header_ip = nextrade_security::web::client_ip(&headers);
+    let ip = q
+        .ip
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .or_else(|| (header_ip != "unknown").then_some(header_ip));
     let region = state
         .system
         .region_client
-        .location_by_ip(q.ip.as_deref())
+        .location_by_ip(ip.as_deref())
         .await?;
     ok(region_json(&region))
 }

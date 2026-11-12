@@ -15,9 +15,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
-import Local from '@icon-park/react/es/icons/Local';
-import Message from '@icon-park/react/es/icons/Message';
-import FileText from '@icon-park/react/es/icons/FileText';
 import PcHeaderNoticeCarousel from '@/components/PcHeaderNoticeCarousel';
 import PcSmartLink from '@/components/PcSmartLink';
 import AuthBadge from '@/components/AuthBadge';
@@ -325,9 +322,9 @@ export default function PcHeaderTopBar({
                   onMouseEnter={() => setRegionOpen(true)}
                   onMouseLeave={() => setRegionOpen(false)}
                 >
-                  <span className="iconfont-pc icon-dizhi benefit-bar__location-ico">
-                    <Local size={14} />
-                  </span>
+                  {/* 地区图标走 iconfont-pc 字形（alicdn 字体已全局加载）。
+                      旧实现曾在此嵌 IconPark <Local/>，与 ::before 字形叠加成双图标，已移除 */}
+                  <span className="iconfont-pc icon-dizhi benefit-bar__location-ico" />
                   <span className="benefit-bar__region">{regionDisplayText}</span>
                   {regionOpen && regions.length > 0 ? (
                     <div
@@ -493,9 +490,7 @@ export default function PcHeaderTopBar({
                 <div className="top-links">
                   {showTopMessage ? (
                     <Link className="top-link top-link--icon" href="/member/usermessage/list/">
-                      <span className="iconfont-pc icon-xiaoxi">
-                        <Message size={15} />
-                      </span>
+                      <span className="iconfont-pc icon-xiaoxi" />
                       <span>
                         {t('站内消息')}
                         {msgUnread > 0 ? `(${msgUnread})` : ''}
@@ -504,9 +499,7 @@ export default function PcHeaderTopBar({
                   ) : null}
                   {showTopOrders ? (
                     <Link className="top-link top-link--icon" href="/member/order/list/">
-                      <span className="iconfont-pc icon-dingdan">
-                        <FileText size={15} />
-                      </span>
+                      <span className="iconfont-pc icon-dingdan" />
                       <span>{t('我的订单')}</span>
                     </Link>
                   ) : null}
