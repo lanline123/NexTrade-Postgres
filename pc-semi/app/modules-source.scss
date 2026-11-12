@@ -4449,3 +4449,17 @@ img {
   flex: 0 0 100%;
   max-width: 100%;
 }
+
+/* ================= 商品模块悬停描边（2026-11-12） =================
+ * 对齐「商品分组」模块的悬停效果（.dec-product-group__card：1px 透明边框 +
+ * hover 时 border-color 切主题色）。商品模块卡片原本只有静态 1px 灰边、无 hover。
+ * 放在文件末尾以压过上方 .product-card-border-2/3/4 的 border-color 变体
+ * （同等特异性 (0,2,0)，后者先加载，本规则靠后者胜出）。
+ * 主题色取全局 --main-bg（battery.recy.cc 注入 #65c4aa），与商品分组一致。 */
+.dec-pc-product__card {
+  transition: border-color 0.3s;
+
+  &:hover {
+    border-color: var(--main-bg, #ee0a24);
+  }
+}
