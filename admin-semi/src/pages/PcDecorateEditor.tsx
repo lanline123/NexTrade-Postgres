@@ -10,7 +10,7 @@
  * - 加载: GET decorate/decorate/detail?id&decorateType=2&localeId=0&parentId=0
  * - 保存: POST decorate/decorate/saveDraft | publish  body {id, decorateType:2, pageType:1, localeId:0, parentId:0, data}
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   Button,
   ColorPicker,
@@ -153,6 +153,11 @@ const standardTitle = (extra: Record<string, unknown> = {}) => ({
   showTitle: 0,
   titleStyle: 1,
   titleAlign: 1,
+  // 主/副标题字号与描述排版：前台 ShopTitle 与编辑器共享 ModuleTitlePreview 同步消费。
+  // 默认值 = 前台现状（18px / 13px / 跟随主标题后），老数据无字段时不产生视觉跳变。
+  titleFontSize: 18,
+  descFontSize: 13,
+  descLayout: 1,
   titleBackground: '',
   titleBackground2: '',
   titleBackgroundPic: { picUrl: '', picThumb: '' },
@@ -406,14 +411,18 @@ const titleFields = (opts: { moreType?: boolean; verticalPadding?: boolean; hide
     showMoreOn(m) && !!opts.moreType && Number(getPath(m, at('moreType'))) === 2;
   const linkMode = (m: Record<string, any>) =>
     showMoreOn(m) && (!opts.moreType || Number(getPath(m, at('moreType'))) !== 2);
+  const descVisible = (m: Record<string, any>) => showTitleOn(m) && Boolean(getPath(m, at('descText')));
   return [
     { kind: 'switch', key: at('showTitle'), label: '显示标题' },
     { kind: 'radio', key: at('titleStyle'), label: '标题样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }], showIf: showTitleOn },
     { kind: 'radio', key: at('titleAlign'), label: '标题对齐', options: [{ label: '左对齐', value: 1 }, { label: '居中', value: 2 }, { label: '右对齐', value: 3 }], showIf: (m) => showTitleOn(m) && !opts.hideAlign },
+    { kind: 'slider', key: at('titleFontSize'), label: '标题字号', min: 12, max: 36, defaultValue: 18, showIf: showTitleOn },
     { kind: 'input', key: at('titleText'), label: '标题内容', showIf: showTitleOn },
     { kind: 'color', key: at('titleColor'), label: '标题颜色', resetValue: '#2a3145', showIf: showTitleOn },
     { kind: 'input', key: at('descText'), label: '描述内容', showIf: showTitleOn },
     { kind: 'color', key: at('descColor'), label: '描述颜色', resetValue: '#aaaaaa', showIf: showTitleOn },
+    { kind: 'slider', key: at('descFontSize'), label: '描述字号', min: 10, max: 28, defaultValue: 13, showIf: descVisible },
+    { kind: 'radio', key: at('descLayout'), label: '描述排版', options: [{ label: '跟随标题后', value: 1 }, { label: '另起一行', value: 2 }], showIf: descVisible },
     { kind: 'color', key: at('titleBackground'), label: '背景颜色', showIf: showTitleOn },
     { kind: 'slider', key: at('titleRadius'), label: '标题圆角', max: 30, showIf: showTitleOn },
     ...(opts.verticalPadding
@@ -953,6 +962,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
         showTitle: 1, titleStyle: 1, titleAlign: 1, titleBackground: '', titleBackground2: '',
         titleBackgroundPic: { picUrl: '', picThumb: '' }, titleRadius: 0, titleText: '标题内容',
         titleColor: '#2a3145', descText: '', descColor: '#aaaaaa', showMore: 0,
+        titleFontSize: 16, descFontSize: 12,
         moreLink: { link: '', title: '' }, moreColor: '#969799',
       },
       frame: standardFrame(),
@@ -964,8 +974,10 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'slider', key: 'title.titleRadius', label: '标题圆角', max: 30 },
       { kind: 'input', key: 'title.titleText', label: '标题内容', onChangeExtra: (m) => setPath(m, 'title.showTitle', 1) },
       { kind: 'color', key: 'title.titleColor', label: '标题颜色', resetValue: '#2a3145' },
+      { kind: 'slider', key: 'title.titleFontSize', label: '标题字号', min: 12, max: 36, defaultValue: 16 },
       { kind: 'input', key: 'title.descText', label: '描述内容' },
       { kind: 'color', key: 'title.descColor', label: '描述颜色', resetValue: '#aaaaaa' },
+      { kind: 'slider', key: 'title.descFontSize', label: '描述字号', min: 10, max: 28, defaultValue: 12 },
       { kind: 'radio', key: 'title.showMore', label: '显示查看更多', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
       { kind: 'color', key: 'title.moreColor', label: '更多文字颜色', resetValue: '#969799' },
       { kind: 'link', key: 'title.moreLink', label: '更多链接' },
@@ -1140,6 +1152,37 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
 
   useEffect(() => {
     void loadMallSettings();
+  }, []);
+
+  // 画布主题变量：与 PC 前台同源（后台「主题风格」themeStyle，PC 端 SSR 注入 :root 的同一份数据）。
+  // 只注入到 .pc-decorate-window 画布容器（作用域收窄，不影响 admin 自身 UI），
+  // 预览里 var(--main-bg) 等主色消费（如商品卡 hover 描边）自动跟随后台设置的 PC 主题色。
+  const [themeVars, setThemeVars] = useState<CSSProperties>({});
+  useEffect(() => {
+    let alive = true;
+    apiGet<{ themeStyle?: string | Record<string, any> }>('/setting/config/themeStyleSettings')
+      .then((res) => {
+        if (!alive) return;
+        let parsed: Record<string, any> = {};
+        try {
+          parsed = typeof res?.themeStyle === 'string' ? JSON.parse(res.themeStyle) : res?.themeStyle || {};
+        } catch {
+          return;
+        }
+        const vars: Record<string, string> = {};
+        Object.entries(parsed).forEach(([k, v]) => {
+          if (!k.startsWith('--')) return;
+          if (typeof v !== 'string' && typeof v !== 'number') return;
+          const text = String(v).trim();
+          if (!text || /[;{}<>\\]/.test(text)) return; // 防 CSS 注入，口径同 pc-semi theme-style.ts
+          vars[k] = text;
+        });
+        setThemeVars(vars as CSSProperties);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -1531,6 +1574,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
                   zoom: canvasScale,
                   flexShrink: 0,
                   background: pageModule.backgroundColor || '#fff',
+                  ...themeVars,
                   ...(pageModule.backgroundImage?.picUrl
                     ? {
                         backgroundImage: `url(${pageModule.backgroundImage.picUrl})`,
