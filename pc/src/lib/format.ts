@@ -1,6 +1,7 @@
 /** 展示层格式化。金额按人民币原值展示，不做换币换算（支付仍走原值）。 */
 
-export function formatPrice(value: number | string | null | undefined): string {
+/** 金额格式化。入参放宽到 unknown，便于装修模块等动态数据结构直接传入。 */
+export function formatPrice(value: unknown): string {
     const raw = String(value ?? '').replace(/[^\d.-]/g, '');
     const amount = Number(raw);
     return Number.isFinite(amount) ? `¥${amount.toFixed(2)}` : '¥0.00';

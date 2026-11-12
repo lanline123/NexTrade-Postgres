@@ -861,3 +861,99 @@ body {
     border-bottom: 1px dashed #f0f2f5;
     font-size: 13px;
 }
+
+/* 装修模块 */
+.pc-dec-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.pc-dec-section {
+    overflow: hidden;
+}
+
+.pc-dec-images {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.pc-dec-images img {
+    width: 100%;
+    border-radius: 10px;
+    display: block;
+    object-fit: cover;
+}
+
+.pc-dec-images > a,
+.pc-dec-images > span {
+    flex: 1 1 280px;
+    min-width: 0;
+}
+
+.pc-dec-nav {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.pc-dec-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 88px;
+    padding: 12px 8px;
+    border-radius: 10px;
+    background: #fff;
+    border: 1px solid #e9ebef;
+    color: inherit;
+    text-decoration: none;
+    font-size: 12px;
+}
+
+.pc-dec-nav-item img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+}
+
+.pc-dec-title {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 6px 0;
+}
+
+.pc-dec-title a {
+    margin-left: auto;
+    color: #155bd4;
+    font-size: 13px;
+}
+
+.pc-dec-line {
+    height: 1px;
+    background: #e9ebef;
+}
+
+.pc-dec-notice {
+    font-size: 13px;
+}
+
+.pc-dec-notice-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px dashed #f0f2f5;
+}
+
+.pc-dec-notice-item:last-child {
+    border-bottom: none;
+}
+
+.pc-dec-entry a {
+    color: #155bd4;
+    font-size: 13px;
+}

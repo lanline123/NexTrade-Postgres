@@ -5,6 +5,7 @@ import { Empty, Typography } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { apiGet } from '@/lib/client-api';
 import ProductResults from '@/components/catalog/ProductResults';
+import DecorateModules, { type DecorateModule } from '@/components/decorate/DecorateModules';
 
 /**
  * 店铺主页。
@@ -24,6 +25,7 @@ interface ShopInfo {
 export default function ShopHome({ shopId }: { shopId: number }) {
     const { t } = useTranslation();
     const [info, setInfo] = useState<ShopInfo | null>(null);
+    const [modules, setModules] = useState<DecorateModule[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -35,6 +37,8 @@ export default function ShopHome({ shopId }: { shopId: number }) {
             .then((result) => {
                 const data = (result.shopInfo ?? result.shop ?? result) as ShopInfo;
                 setInfo(data ?? null);
+                // 店铺装修模块与活动页同构，交给统一渲染器
+                setModules((result.moduleList ?? result.modules ?? []) as DecorateModule[]);
             })
             .catch(() => setInfo(null))
             .finally(() => setLoading(false));
@@ -53,8 +57,17 @@ export default function ShopHome({ shopId }: { shopId: number }) {
                 </div>
             </div>
 
-            <Typography.Title heading={4}>{t('店内商品')}</Typography.Title>
-            <ProductResults shopId={shopId} emptyText={t('该店铺暂无商品')} />
+            {modules.length > 0 ? (
+                <>
+                    <Typography.Title heading={4}>{t('店铺首页')}</Typography.Title>
+                    <DecorateModules modules={modules} />
+                </>
+            ) : (
+                <>
+                    <Typography.Title heading={4}>{t('店内商品')}</Typography.Title>
+                    <ProductResults shopId={shopId} emptyText={t('该店铺暂无商品')} />
+                </>
+            )}
         </div>
     );
 }
