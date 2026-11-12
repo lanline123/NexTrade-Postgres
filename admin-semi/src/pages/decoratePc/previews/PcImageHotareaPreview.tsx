@@ -12,6 +12,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useI18n } from '../../../i18n';
+import ModuleTitlePreview from './shared/ModuleTitlePreview';
 import './pcImageHotarea.css';
 
 type AnyRecord = Record<string, any>;
@@ -87,60 +88,6 @@ function formatImage(url?: string): string {
   return url;
 }
 
-/**
- * 模块标题预览（对齐旧版 `_shared/ModuleTitle.vue`：样式一/二/三、对齐、背景色、圆角、更多）。
- */
-function ModuleTitle({ title }: { title?: AnyRecord }): ReactNode {
-  const { t } = useI18n();
-  if (!title || !title.showTitle) return null;
-
-  const titleStyle = Number(title.titleStyle) || 1;
-  const align = Number(title.titleAlign) || 1;
-  const titleIcon = title.titleBackgroundPic?.picUrl || title.titleBackgroundPic?.picThumb || '';
-
-  const containerStyle: CSSProperties = {};
-  if (title.titleBackground2 && title.titleBackground) {
-    containerStyle.background = `linear-gradient(to right, ${title.titleBackground}, ${title.titleBackground2})`;
-  } else if (title.titleBackground) {
-    containerStyle.backgroundColor = title.titleBackground;
-  }
-  if (title.titleRadius) {
-    containerStyle.borderRadius = `${title.titleRadius}px ${title.titleRadius}px 0 0`;
-  }
-
-  return (
-    <div
-      className={`dec-module-title dec-module-title--style-${titleStyle} dec-module-title--align-${align}`}
-      style={containerStyle}
-    >
-      <div className="dec-module-title__left">
-        {titleIcon ? <img className="dec-module-title__icon" src={titleIcon} alt="" /> : null}
-        <div className="dec-module-title__text" style={{ color: title.titleColor || '#2a3145' }}>
-          {title.titleText}
-        </div>
-        {title.descText ? (
-          <div className="dec-module-title__desc" style={{ color: title.descColor || '#aaaaaa' }}>
-            {title.descText}
-          </div>
-        ) : null}
-      </div>
-
-      {title.showMore ? (
-        <div className="dec-module-title__right">
-          <a
-            className="dec-module-title__more"
-            href={title.moreLink?.link || 'javascript:;'}
-            style={{ color: title.moreColor || '#969799' }}
-          >
-            <span>{title.moreLink?.title || t('更多')}</span>
-            <i className="dec-module-title__arrow">›</i>
-          </a>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 /** 单张热图（独立 ResizeObserver，按容器宽度缩放 500px 基准热区）。 */
 function HotareaPic({ pic }: { pic: AnyRecord }) {
   const [wrapWidth, setWrapWidth] = useState(0);
@@ -214,7 +161,7 @@ export default function PcImageHotareaPreview({ data }: { data: Record<string, a
   return (
     <div className="dec-image-hotarea" style={cssVars}>
       <div className="dec-image-hotarea__content">
-        <ModuleTitle title={moduleConfig.title as AnyRecord} />
+        <ModuleTitlePreview title={moduleConfig.title as AnyRecord} />
 
         {!picList.length ? (
           <div className="dec-image-hotarea__empty">

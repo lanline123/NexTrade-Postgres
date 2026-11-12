@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { apiGet } from '../../../api';
+import ModuleTitlePreview from './shared/ModuleTitlePreview';
 import './pcProduct.css';
 
 import { useI18n } from '../../../i18n';
@@ -141,48 +142,6 @@ function formatPrice(price?: number | string): string {
 }
 
 /** 模块标题（对齐旧版 _shared/ModuleTitle.vue：样式一/二/三装饰、对齐、背景、圆角、更多链接）。 */
-function ModuleTitle({ title }: { title?: AnyRecord }) {
-    const { t } = useI18n();
-  if (!title || Number(title.showTitle) !== 1) return null;
-  const align = Number(title.titleAlign ?? 1);
-  const style = Number(title.titleStyle ?? 1);
-  const titleIcon = productImage(title.titleBackgroundPic as ProductItem);
-
-  const containerStyle: CSSProperties = {};
-  if (title.titleBackground2 && title.titleBackground) {
-    containerStyle.background = `linear-gradient(to right, ${title.titleBackground}, ${title.titleBackground2})`;
-  } else if (title.titleBackground) {
-    containerStyle.backgroundColor = title.titleBackground;
-  }
-  if (title.titleRadius) {
-    containerStyle.borderRadius = `${Number(title.titleRadius)}px ${Number(title.titleRadius)}px 0 0`;
-  }
-
-  return (
-    <div className={`dec-module-title dec-module-title--style-${style} dec-module-title--align-${align}`} style={containerStyle}>
-      <div className="dec-module-title__left">
-        {titleIcon ? <img className="dec-module-title__icon" src={titleIcon} alt="" /> : null}
-        <div className="dec-module-title__text" style={{ color: title.titleColor || '#2a3145' }}>
-          {title.titleText}
-        </div>
-        {title.descText ? (
-          <div className="dec-module-title__desc" style={{ color: title.descColor || '#aaaaaa' }}>
-            {title.descText}
-          </div>
-        ) : null}
-      </div>
-      {Number(title.showMore) === 1 ? (
-        <div className="dec-module-title__right">
-          <a className="dec-module-title__more" href={title.moreLink?.link || 'javascript:;'} style={{ color: title.moreColor || '#969799' }}>
-            <span>{title.moreLink?.title || t('更多')}</span>
-            <i>›</i>
-          </a>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 /** 按选品配置拉取商品列表（参数映射与旧版 Preview.vue 完全一致）。 */
 function useProductList(config: AnyRecord) {
     const { t } = useI18n();
@@ -321,7 +280,7 @@ export default function PcProductPreview({ data }: { data: Record<string, any> }
           </div>
         ) : null}
 
-        <ModuleTitle title={config.title as AnyRecord} />
+        <ModuleTitlePreview title={config.title as AnyRecord} />
 
         {hasProducts ? (
           <div className="dec-pc-product__wrapper">
