@@ -25,6 +25,7 @@ export const MEMBER_MENU: MemberMenuGroup[] = [
             { label: '资金明细', path: '/member/account/log', source: 'pages/member/account/Log.vue' },
             { label: '我的优惠券', path: '/member/coupon/list', source: 'pages/member/coupon/List.vue' },
             { label: '积分', path: '/member/point/list', source: 'pages/member/point/List.vue' },
+            { label: '账期明细', path: '/member/termPay/list', source: 'pages/member/termPay/list.vue' },
             { label: '礼品卡', path: '/member/giftCard/exchange', source: 'pages/member/giftCard/exchange.vue' }
         ]
     },

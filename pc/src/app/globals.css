@@ -502,3 +502,27 @@ body {
     margin-bottom: 8px;
     border-bottom: 1px solid #f0f2f5;
 }
+
+.pc-security-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid #f0f2f5;
+    font-size: 14px;
+}
+
+.pc-security-row:last-child {
+    border-bottom: none;
+}
+
+.pc-code-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pc-code-row > :first-child {
+    flex: 1 1 auto;
+}
