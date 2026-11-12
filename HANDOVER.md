@@ -1602,4 +1602,68 @@ PC_API_BASE=https://battery.recy.cc NODE_ENV=production npx next build
   部署本修复后，绘制器会按真实契约显示它们（位置会变），**需要用户重新拖拽调整这 3 个热区并保存**。
 - 部署走 admin「增量铺 assets + 最后切 index.html」流程（§13.6：入口 chunk 变更，小文件热替换不可行）。
 
+### 17.5 部署记录（2026-11-12 22:4x，增量热修通道）
 
+> 用户指令：**不走 GitHub CI 包，本地构建后只上传变更部分**。
+
+| 项 | 值 |
+|---|---|
+| 本地构建 | `admin-semi` `npm run build`（commit `37dd89e`；构建时临时还原并行会话未提交的 `groupon-item-manager.css`，避免带上他人半成品，构建后已恢复） |
+| 差异判定 | 线上 assets 全量清单（3245 个文件名）vs 本地 `dist/assets`：**哈希名不在清单 = 新增/变更**，共 60 个文件 / 7.24 MB |
+| 已核实不回退 | 线上 `index-CulUAYZK.css` 的 `.gpm` 规则仍是旧版 `max-height`（并行会话修复未上线），本包不含它无副作用；`vendor-charts-BaplRDjJ.js` / `vendor-semi-DzDCr06l.css` 与线上同名同内容 |
+| 上传 | `scratch/upload_admin_hotfix.py`（multipart UploadFile 逐个传 assets → 备份线上 index.html 到 `/www/backup/admin_index_pre_*.html` → 最后覆盖 index.html） |
+| 线上入口 | `index-Blc7Ii9o.js` → **`index-BL6MriCU.js`**（css `index-D7SZIS3U.css`）；公网 200，大小与本地一致 |
+| 验证 | `scratch/verify-hotarea-prod.cjs` 6/6 通过：拖拽新建落在空白区 → 检查器 左125/宽100/上9/高44（宽度基准公式值，旧算法会得 上=25）+ 画布预览占比逐项一致 + 热区数 4→5 |
+| 回滚 | 用 `/www/backup/admin_index_pre_*.html` 覆盖回 index.html 即可（旧 assets 未删） |
+| 顺带 | `build-admin.yml` run #4（admin-build-4，sha `37dd89e`）已构建但未采用，Release 资产留在仓库备用 |
+
+> 60 个新文件里除入口外还有一批 `Preview-*/Settings-*` 懒加载 chunk——线上部署源落后于 `37dd89e` 所致，属正常增量。
+> 可复用脚本：`scratch/trigger_admin_build.py`（CI 触发）、`scratch/upload_admin_hotfix.py`（增量热修）。
+
+
+
+---
+
+## 18. PC 商品模块悬停描边（2026-11-12，已上线）
+
+> 需求：首页「商品」模块鼠标悬停时，被选中商品外围显示主题色描边，效果对齐「商品分组」模块。
+> 提交 `a7afd53`（源码）+ CSS 热更新上线（`scratch/hotfix-prod-card-hover.sh`）。
+
+- **基准**：商品分组 = `.dec-product-group__card{ border:1px solid transparent; transition:border-color .3s; &:hover{ border-color:var(--main-bg,#ee0a24) } }`（decorate-source.scss）。
+- **改动**：modules-source.scss 末尾追加 `.dec-pc-product__card{transition:border-color .3s; &:hover{border-color:var(--main-bg,#ee0a24)}}`——文件末尾加载胜出，压过 `.product-card-border-2/3/4` 变体（同特异性 (0,2,0)）。首页商品模块走旧链 `pc-product`（PcProduct），无 shop-card，规则只影响该模块。
+- **热更新**：目标 CSS `41f4dfd4af90f2d9.css`（556987→557102 B，marker `dec-pc-product__card:hover`=1）；备份 `/www/backup/pc_css_20261112_225422.css`；清 3 个 nginx proxy_cache 条目（备份 `/www/backup/nginx_cache_20261112_225422`）；3005 直连与公网 URL marker 均=1。
+- **验证**（`scratch/verify-card-hover.cjs`，全新 context 禁缓存）：商品卡片 hover 前 `rgba(50,50,51,.08)` → hover 后 `rgb(101,196,170)`（=#65c4aa 主题色），与商品分组 hover 值完全一致。
+- **遗留**：同 §12.4 的 immutable Cache-Control——老访客需 Ctrl+F5 或等下次完整构建换 hash 才可见；下次完整构建后此热修规则会自然进入新包（源码已入库）。
+
+---
+
+## 19. 编辑器「商品设置」选品字段现代化（2026-11-12，已上线）
+
+> 需求：`?page=pcDecorateEditor` 商品模块内容设置里的「商品设置」需要现代化设计，参考站内已有组件风格。
+> 提交 `ad99f23`；本地构建 + 增量上传（55 assets / 3.39MB）+ 最后切 index.html；入口 `index-xGySEWav.js`。
+
+- **新组件 `ProductsSettingField`**（对齐 HotareaPainter 的独立组件做法，避免在 FieldControl 的 case 里挂 hooks）：
+  - 选品方式 → Semi RadioGroup `type='button'` 分段按钮；
+  - 选商品 → 已选商品**缩略图卡片**（图/名称/价格/序号/悬停 × 移除），**可拖拽排序**（dragIndex/overIndex 模式同 PicGrid），末尾虚线「添加商品」卡；
+  - 按分类/按标签 → 带标签整行控件 + 商品数量步进器；
+  - CSS `dec-prod-pick*`，token 对齐 `dec-pic-grid`（#edf0f4 描边 / 14px 圆角 / 悬浮上移 / 落点高亮）。
+- **数据契约不变**：`productIds` 是唯一事实来源（顺序=展示顺序）；新增 `productItems` 仅编辑器本地展示缓存，前台不读。历史数据缺缓存时**按 ids 一次性自动补全**（`/product/product/list?ids=..&size=n&productStatus=1&checkStatus=1`，与 `usePreviewProducts` 同口径；fetchingRef 防重入）。
+- **顺带修复**：`ProductPickerModal` 的 `onOk` 恒传 `rows: []`——heroCards 单选回调依赖 rows，此前永远拿不到商品信息（静默失效）；现在按 picked 顺序回传真实行。
+- **验证**：本地 + 生产各一轮（`scratch/verify-products-field3.cjs` / `verify-products-prod.cjs`）：11/11 卡片真实缩略图+名称+价格自动补全、拖拽排序集合不变、移除 11→10、添加卡/分段按钮在位；`tsc --noEmit` 通过。全程内存态，未保存线上数据。
+- 回滚：`/www/backup/admin_index_pre_*.html`（22:28 与 23:5x 各一份）覆盖回 index.html。
+
+---
+
+## 20. 编辑器「限时秒杀」预览修复（2026-11-13 凌晨，已上线）
+
+> 用户反馈：编辑器 id=10023 的「限时秒杀」模块有问题（画布中图空白、倒计时恒 00:00:00、无折扣角标/划线价）。
+> 提交 `b01d592` + `2ba60b9`；staging 二进制 `3706fb7`（含并行会话 region 修复）已部署。
+
+- **根因（后端）**：admin `listForHomePreview` 的 Rust VO 是精简版，缺 `picUrl/picThumb/productPrice/marketPrice/seckkillData` —— 原版 Java 该接口复用 C 端 `getSeckillProductList` 富结构（`SeckillListVO` 30+ 字段），编辑器预览的图/划线价/折扣角标/倒计时全依赖它。C 端 `getSeckill` 本身数据是全的。
+- **修法**：`SeckillPromotionVO`（batch 版）增量补 5 个可选字段 + `SeckkillData`（格式化起止时间 `YYYY-MM-DD HH:mm:ss` / remainSeconds / started；字段名保留 Java 双 k 拼写）；服务层 `enrich_for_preview` 按 id 批量回填（find_by_ids + find_by_id，避免 N+1），`listForDecorate` 同步受益。缺数据时字段省略，不破坏既有消费方。
+- **编辑器侧**：`pcSeckill.css` 补齐原版 preview.less 的悬停细节（图片增亮 / 名称变色 / 加购钮加深 / 倒计时 hover 主题色，均带兜底色）。CSS 本体此前就是逐行忠实迁移，无其它偏差。
+- **数据事实**：活动只有 1 个（productId 1568），画布只显示 1 张卡是正确表现，不是 bug。
+- **验证**：接口返回全字段（OSS 全量 URL / 284000 划线价 / endTime 2026-11-17）；编辑器截图确认图/角标/划线价/倒计时（4天22:14:27）全部正常。
+- **部署轨迹**：check-rust 首跑失败（E0063：assemble 字面量缺新字段，补 `..Default::default()`）→ 全绿；staging #43 失败是并行会话 644dc95 的 E0308（region_client.rs `&name`，其 3706fb7 已自修），#44（3706fb7）成功；`deploy_backend_unique.py` 部署 sha `dfb312eb…`，备份 `/www/wwwroot/nextrade/nextrade.bak.20261113_010346`。
+- **死代码登记**：`PcDecorateEditor.tsx` 内 `SeckillPreview`(3140) 及 `SeckillGrouponTitleBar` 等为不可达旧实现（路由走 `PcSeckillPreview`），待后续清理。
+- CI 日志下载要点：jobs logs 接口 302 → Azure 需「重定向剥离 Authorization」（NoAuthRedirect，同 deploy_from_run.py）。
