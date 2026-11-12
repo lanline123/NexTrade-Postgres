@@ -31,6 +31,40 @@ const nextConfig = {
         ]
     },
 
+    /**
+     * 旧 URL → 新路由。Vue 侧这些路径要么是废弃版本（*.v1）、要么是 PC 端不再使用的支付渠道页。
+     * 未列入的旧路径由根 404 / member 的 [...slug] 兜底承接，不会白屏。
+     */
+    async redirects() {
+        return [
+            { source: '/item/:id', destination: '/product/:id', permanent: true },
+            { source: '/coupon', destination: '/coupon/list', permanent: false },
+            { source: '/search.v1', destination: '/search', permanent: true },
+            { source: '/search/image', destination: '/search', permanent: false },
+            { source: '/cart/index.v1', destination: '/cart', permanent: false },
+            { source: '/chat/index.v1', destination: '/', permanent: false },
+            { source: '/pcmobile', destination: '/', permanent: false },
+            { source: '/giftcard/transfer/:id', destination: '/member/giftCard/exchange', permanent: false },
+            { source: '/join/intro', destination: '/join', permanent: false },
+            { source: '/join/plan', destination: '/join', permanent: false },
+            { source: '/join/process', destination: '/join', permanent: false },
+            { source: '/join/standard', destination: '/join', permanent: false },
+            { source: '/member/joining/list', destination: '/joining/list', permanent: false },
+            { source: '/member/reset', destination: '/member/login', permanent: false },
+            {
+                source: '/order/:channel(alipay|wechat|paypal|stripe|huifu|lakala|yabanpay|yeepay|yunpay)',
+                destination: '/order/pay',
+                permanent: false
+            },
+            {
+                source:
+                    '/activity/:module(pcImageAd|pcImageSquareAd|pcImageHotarea|pcImageNav|pcProduct|pcTitleAd|pcNotice|pcWhiteLine|pcWhiteBlank|pcCoupon|pcSeckill|pcGroupon|pcProductGrouping)',
+                destination: '/activity',
+                permanent: false
+            }
+        ];
+    },
+
     async rewrites() {
         return [
             { source: '/api/:path*', destination: `${apiBase}/api/:path*` },

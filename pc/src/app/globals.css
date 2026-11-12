@@ -957,3 +957,50 @@ body {
     color: #155bd4;
     font-size: 13px;
 }
+
+/* 登录注册 / 文章详情 */
+.pc-auth {
+    max-width: 420px;
+    margin: 60px auto;
+    padding: 0 24px;
+}
+
+.pc-link-btn {
+    margin-left: 6px;
+    border: none;
+    background: transparent;
+    color: #155bd4;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.pc-article-detail {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 32px 24px 64px;
+}
+
+.pc-article-body {
+    margin-top: 20px;
+    font-size: 15px;
+    line-height: 1.9;
+    color: #1c1f23;
+}
+
+.pc-article-body img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+}
+
+.pc-article-body table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.pc-article-body td,
+.pc-article-body th {
+    border: 1px solid #e9ebef;
+    padding: 8px;
+}
