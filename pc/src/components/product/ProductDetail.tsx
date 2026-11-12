@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button, Card, Empty, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { apiGet, apiPost } from '@/lib/client-api';
@@ -77,6 +77,10 @@ interface DetailResult {
 export default function ProductDetail({ idOrSn }: { idOrSn: string }) {
     const { t } = useTranslation();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    // 被邀请参团进入时带 recordId：透传给详情接口，按钮文案变「参与拼团」（Vue 同口径）
+    const grouponRecordId = Number(searchParams?.get('grouponPromotionRecordId')) || 0;
+    const invited = (searchParams?.get('type') ?? '') === 'invited';
     const [detail, setDetail] = useState<DetailResult | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -94,7 +98,10 @@ export default function ProductDetail({ idOrSn }: { idOrSn: string }) {
             return;
         }
         const numeric = Number(idOrSn);
-        const params = Number.isFinite(numeric) && numeric > 0 ? { sn: undefined, id: numeric } : { sn: idOrSn };
+        const params =
+            Number.isFinite(numeric) && numeric > 0
+                ? { id: numeric, grouponPromotionRecordId: grouponRecordId || undefined }
+                : { sn: idOrSn, grouponPromotionRecordId: grouponRecordId || undefined };
         apiGet<DetailResult>('product/product/detail', params)
             .then((result) => {
                 setDetail(result);
@@ -103,7 +110,7 @@ export default function ProductDetail({ idOrSn }: { idOrSn: string }) {
             })
             .catch((e: Error) => setError(e.message))
             .finally(() => setLoading(false));
-    }, [idOrSn, t]);
+    }, [idOrSn, t, grouponRecordId]);
 
     const addToCart = async (thenCheckout = false) => {
         const productId = detail?.item?.productId;
@@ -235,7 +242,7 @@ export default function ProductDetail({ idOrSn }: { idOrSn: string }) {
                                 disabled={soldOut}
                                 onClick={() => void addToCart(true)}
                             >
-                                {groupon ? t('我要开团') : t('立即购买')}
+                                {groupon ? (invited ? t('参与拼团') : t('我要开团')) : t('立即购买')}
                             </Button>
                             <a href="/cart">
                                 <Button theme="borderless">{t('去购物车')}</Button>

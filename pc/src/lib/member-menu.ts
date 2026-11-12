@@ -15,7 +15,8 @@ export const MEMBER_MENU: MemberMenuGroup[] = [
             { label: '售后退款', path: '/member/return/list', source: 'pages/member/return/List.vue' },
             { label: '我的评价', path: '/member/comment/list', source: 'pages/member/comment/List.vue' },
             { label: '订单发票', path: '/member/orderInvoice/list', source: 'pages/member/orderInvoice/List.vue' },
-            { label: '拼团', path: '/member/pin/list', source: 'pages/member/pin/List.vue' }
+            { label: '我的拼团', path: '/member/joining/list', source: 'pages/member/joining/List.vue' },
+            { label: '我的团购', path: '/member/pin/list', source: 'pages/member/pin/List.vue' }
         ]
     },
     {

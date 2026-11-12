@@ -32,7 +32,7 @@ export default function SiteFooter() {
             title: t('商家服务'),
             links: [
                 { label: t('商家入驻'), href: '/join' },
-                { label: t('入驻申请'), href: '/member/joining/list' },
+                { label: t('入驻申请'), href: '/join' },
                 { label: t('全部店铺'), href: '/shop/list' },
                 { label: t('在线客服'), href: '/chat' }
             ]

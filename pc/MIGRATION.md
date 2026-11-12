@@ -226,7 +226,9 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | `/shop/list` | `ShopList` | `pages/shop/List.vue` | `shop/shop/list` |
 | `/shop/[id]` | `ShopHome` | `pages/shop/[id].vue` | `shop/shop/decorate` + `search/search/getProduct` |
 | `/joining/list` | `GrouponList` | `pages/joining/List.vue` + `components/common/JoiningGoodsList.vue` | `promotion/groupon/itemList`（**拼团**，不是入驻） |
-| `/member/joining/list` | `JoiningApply` | `pages/member/joining/List.vue` | `merchant/merchant/myApply`（入驻申请，从旧重定向拆出） |
+| `/member/joining/list` | `MyGrouponList` | `pages/member/joining/List.vue` + `components/member/joining/JoiningOrderList.vue` | `promotion/groupon/record/list`（**我的拼团**，joinType 1=我发起 / 2=我参与） |
+| `/member/group/list` | `MyGrouponList` | `pages/member/group/List.vue` | 同上（Vue 里跨境站走这条路径，内容一致） |
+| `/joining/groupbyinvited` | `GroupInvitePage` | `pages/joining/groupByInvited.vue` | `promotion/groupon/record/details?id=` 拼团邀请落地页 |
 | `/join` | `JoinIntro` | `pages/join/index.vue` | 静态流程说明（申请表单待接 `merchant/merchant/apply`） |
 | `/activity` | `DecoratePage` | `pages/activity/index.vue` | `home/home/pcIndex`（`?id` / `?previewId`） |
 
@@ -257,6 +259,8 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | `src/components/promotion/cards.tsx` | `SeckillCard`（倒计时+进度+已抢完/即将开始）、`GrouponCard`（N人团/已拼/仅限会员）、`useCountdown`、`CountdownBoxes` |
 | `src/components/promotion/sections.tsx` | 装修楼层 `SeckillSection` / `GrouponSection`（装修只给标题配置，商品另取接口；支持 `items` 服务端预取） |
 | `src/lib/server-api.ts` | 服务端取数（RSC 用）：直连 `PC_API_BASE` 的公开接口，失败返回 null 由调用方兜底 |
+| `src/components/join/MyGrouponList.tsx` | 我的拼团：我发起/我参与双 Tab + 状态 + 邀请链接复制 + 拼团详情 |
+| `src/components/join/GroupInvitePage.tsx` | 拼团邀请落地页：商品、成团进度、参团人头像（团长标记）、倒计时、去参团 |
 
 ### 6.3 路由覆盖率（2026-11-13 盘点，覆盖率 100%）
 
@@ -278,7 +282,6 @@ Vue 侧 `pages/` 共 **111 条路由**（已排除 `src/`、`components/` 子目
 | `/member/account/deposit` | 占位 | 账户充值 |
 | `/member/account/raplytocard` | 占位 | 余额提现/转账到卡 |
 | `/member/account/cardmanagement` | 占位 | 银行卡管理 |
-| `/joining/groupbyinvited` | 占位 | 被邀请参团落地页（拼团邀请链路） |
 | `/shop/license` | 占位 | 店铺资质公示 |
 
 盘点脚本思路：遍历 `pages/**/*.vue` 生成路由集（`index.vue` 折成父路径、`src`/`components` 目录排除），与 `src/app/**/page.tsx` 求差集，再按 redirects 规则过滤。
@@ -364,7 +367,8 @@ Node 侧拿不到）。要扩展这套做法，只需：接口公开 → `server
 | `home/home/getSeckill?page=&size=` | `records[{ seckillId, skuId, seckillPrice, seckillStock, seckillSales, seckillStartTime(秒), seckillEndTime(秒), remainSeconds, started, soldPercent, ...商品 }]`，免登录 | `fetchSeckillList`；卡片用 `soldPercent` 画进度、`seckillEndTime` 倒计时、`stock<=0` 显示已抢完 |
 | `promotion/groupon/itemList?page=&size=` | `records[{ grouponPromotionItemId, minGrouponPrice, minGroupNum, productPrice, groupNum(**JSON 字符串**), joinNumCount, canJoin, restrictTip, startTime, endTime }]` | `fetchGrouponList`；`maxGroupNum()` 取 `groupNum` 里最大档 |
 | `home/home/getGroupon` | **404 不存在**（名字很像，但拼团列表只能走 `promotion/groupon/itemList`） | 不要写这个接口 |
-| `promotion/groupon/record/list` | 拼团记录分页，当前库为空 | 未接（会员「我的拼团」仍走 `pin/*`） |
+| `promotion/groupon/record/list` | 参数 `page/size/sortField/sortOrder/dateType/joining/isMine/joinType`（joinType 1=我发起、2=我参与）；当前库为空 | `MyGrouponList`（`/member/joining/list`、`/member/group/list`） |
+| `promotion/groupon/record/details?grouponPromotionRecordId=` | 不存在时返回 **code=500「拼团记录不存在」**（HTTP 200）；**免登录可读** | `GroupInvitePage`（`/joining/groupbyinvited?id=`） |
 | `promotion/groupon/detail?id=` | 传不存在/错误的 id 直接 **HTTP 400**，不是 `code!=0` | 需要时先确认 id 来源 |
 
 ### 6.9 第五批真实接口校准（2026-11-13：购物车 / 拼团下单）
@@ -377,10 +381,16 @@ Node 侧拿不到）。要扩展这套做法，只需：接口公开 → `server
 | `order/check/submit` | 返回 `{ returnType, orderId, orderSn, grouponPromotionRecordId? }`；**`returnType=2` 表示不进收银台** | 拼团单带 `grouponPromotionRecordId` 时跳 `/member/group/info?id=`，否则回订单列表 |
 | `product/product/detail` 的 `grouponDetail` | 当前库里该字段恒为 `null`（拼团商品 1562 实测），`seckillDetail` 同理 | 详情页按「有则展示拼团价/团人数/倒计时」实现，无则正常显示普通价；不依赖它做分支 |
 
-**顺手纠正的一处语义错位**：Vue 的 `pages/joining/List.vue` 是**拼团**（用 `promotion/groupon/itemList`），
-而入驻申请是 `pages/member/joining/List.vue`（`merchant/merchant/myApply`）。
-早期迁移把 `/joining/list` 当成了入驻申请，且把 `/member/joining/list` 重定向到它——两件事被压成了一个页面。
-本次已拆开：`/joining/list` = 拼团，`/member/joining/list` = 入驻申请，重定向删除，页脚「入驻申请」链接同步改正。
+**顺手纠正的语义错位（两次修正才对）**：
+
+1. `pages/joining/List.vue` 是**拼团商品列表**（`promotion/groupon/itemList`），被误当成入驻申请 → 已改为 `/joining/list` = 拼团。
+2. `pages/member/joining/List.vue` 是**我的拼团**（`promotion/groupon/record/list`），不是入驻申请。
+   第一次修正时误判为入驻，现已改为 `MyGrouponList`；`pages/member/group/List.vue` 内容相同（跨境站路径），一并复用它。
+3. 入驻申请在 PC 端**没有独立页面**：`merchant/merchant/myApply` 在 Vue 里是**死代码**（全仓无调用），
+   入驻入口是 `/join`（`pages/join/index.vue` 的流程说明 + 申请表单）。页脚「入驻申请」已指回 `/join`，
+   之前为它建的 `JoiningApply` 组件已删除。
+
+教训：`joining` 这个词在 Vue 里同时表示「拼团」和「入驻」，**不能按词义猜**，必须看页面实际调用的接口。
 
 ---
 
