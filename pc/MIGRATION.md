@@ -1,6 +1,6 @@
 # PC 前端技术栈迁移交接
 
-> 更新时间：2026-11-12　｜　代码位置：`pc/`　｜　当前基线：`995fa09`
+> 更新时间：2026-11-13　｜　代码位置：`pc/`　｜　当前基线：`faffbbb`
 >
 > 本文只讲 **PC 前端从 Vue 3 / Nuxt 3 迁到 React 18 + Next 14 + Semi Design** 这件事。
 > PostgreSQL / 后端 / 运维的交接见仓库根 `HANDOVER.md`。
@@ -13,9 +13,9 @@
 |---|---|
 | 迁移方式 | **在 `pc/` 原地重写**：Vue 源码保留作 1:1 参照，React 代码写在 `src/`，两者互不参与对方构建 |
 | 技术栈 | React 18.3 + Next 14.2（App Router，真 SSR）+ Semi UI 2.104 + react-i18next |
-| 已完成 | **71 个页面路由 + 25 条旧 URL 重定向**（Vue 111 条路由 100% 有落点）+ **全局 Header/Footer** |
-| 验证 | `npm run build` 通过，全部 `ƒ Dynamic`；盘点脚本差集仅剩 `pages/[...slug].vue`（对应 `app/not-found.tsx`） |
-| 尚未完成 | 功能深度：秒杀/拼团完整模块、IM 客服、第三方登录、账户充值/银行卡/账期还款、结算页账期与预售 |
+| 已完成 | **72 个页面路由 + 24 条旧 URL 重定向**（Vue 111 条路由 100% 有落点）+ 全局 Header/Footer + 装修首页 + 地区级联 + 滑动验证码 + 完整发票 + 以图搜图 |
+| 验证 | `npm run build` 通过，全部 `ƒ Dynamic`；`next start` 抽查 `/`、`/search/image`、`/member/address/list`、`/member/address/editregion`、`/order/check`、`/migration` 全 200 |
+| 尚未完成 | 功能深度：秒杀/拼团完整模块、IM 客服、第三方登录、账户充值/银行卡/账期还款、结算页账期与预售；首屏数据仍在浏览器端取（见 §7 第 4 项） |
 | 本地启动 | `cd pc && npm run dev` → http://127.0.0.1:3006 |
 
 **注意别混淆两套 React 前端**：
@@ -240,19 +240,28 @@ src/components/**.tsx         'use client'：Semi 组件、hooks、事件、取�
 | `src/components/member/RemoteList.tsx` | 同构列表：分页 + 登录守卫 + 空/错态，9 个页面复用它 |
 | `src/components/layout/SiteHeader.tsx` | 全局头：`common/pc/getNav`（topBarNav）、`common/pc/getCatFloor`（分类下拉）、`cart/cart/getCount`（角标）、`user/user/memberCenter`（昵称）；`mainNav` 为空时用 5 项兜底导航 |
 | `src/components/layout/SiteFooter.tsx` | 全局脚：四列链接全部指向已迁路由，无死链 |
-| `src/components/decorate/DecorateModules.tsx` | 装修模块渲染器：`type → 渲染函数` 注册表，支持 pcImageAd/pcImageSquareAd/pcImageHotarea/pcImageNav/pcProduct/pcCoupon/pcNotice/pcTitleAd/pcWhiteLine/pcWhiteBlank；秒杀/拼团/商品分组降级为入口卡；未知 type 静默跳过。活动页与店铺装修共用 |
+| `src/components/decorate/DecorateModules.tsx` | 装修模块渲染器：`type → 渲染函数` 注册表（**27 个 type，kebab-case 归一化**），活动页与店铺装修、首页共用 |
+| `src/components/home/HomePage.tsx` | 商城首页：`home/home/pcIndex` → `DecorateModules`（`/` 用它，迁移看板已移到 `/migration`） |
+| `src/lib/region.ts` | 地区三级级联数据层（`getProvinceList` / `getRegionListByRegionId` / `getRegion`），根节点 `regionId=1`（中国） |
+| `src/components/region/RegionPicker.tsx` | 地区级联选择器（分层 Tab + 末层自动提交 + 已有值按 `getRegion` 一次性还原） |
+| `src/components/member/AddressForm.tsx` | 地址表单（新增/编辑共用），`user/address/{create,update,detail}` |
+| `src/components/captcha/SlideCaptcha.tsx` | 滑动拼图验证码（`common/verification/{captcha,check}`），登录遇 `code=1002` 时弹出 |
+| `src/lib/aes-ecb.ts` | 纯 JS AES-128-ECB/PKCS7 + Base64（仅加密），用于验证码点位与 `verifyToken`，免掉 crypto-js 依赖 |
+| `src/components/invoice/InvoiceDialog.tsx` | 完整发票弹窗：不开发票/普通/增值税专用 × 个人/企业，`check` 模式只回传、`apply` 模式落库 |
+| `src/components/catalog/ImageSearchPage.tsx` | 以图搜图：能力探测 + multipart 上传拿 `searchToken`，复用 `ProductResults` |
 
-### 6.3 路由覆盖率（2026-11-12 盘点）
+### 6.3 路由覆盖率（2026-11-13 盘点，覆盖率 100%）
 
 Vue 侧 `pages/` 共 **111 条路由**（已排除 `src/`、`components/` 子目录），当前处理方式：
 
 | 方式 | 说明 |
 |---|---|
-| React 页面（71） | 真实实现，见 §6.1。会员详情页用 `src/lib/member-details.ts` 配置表（接口 + 字段 + 多候选键）+ `components/member/EntityDetail.tsx` 通用壳批量承接：12 个详情页、2 个复用列表、4 个说明页 |
-| 旧 URL 重定向（25） | `next.config.mjs` 的 `redirects`：`*.v1` 旧版页、`/item/:id`→`/product/:id`、`/exchange/:id`→`/product/:id`、9 条旧支付渠道→`/order/pay`、`/activity/pcXxx`→`/activity`、`/join/*`→`/join`、`/member/reset`→`/member/login`、`/member/bindMobilePhone`→`/member/security/info` |
-| 根 404 | `app/not-found.tsx`，覆盖原 `pages/[...slug].vue` |
+| React 页面（72） | 真实实现，见 §6.1。会员详情页用 `src/lib/member-details.ts` 配置表（接口 + 字段 + 多候选键）+ `components/member/EntityDetail.tsx` 通用壳批量承接：12 个详情页、2 个复用列表、4 个说明页。另有 `/migration`（迁移看板，非 Vue 路由），故 `src/app/**/page.tsx` 共 73 个 |
+| 旧 URL 重定向（24 条规则） | `next.config.mjs` 的 `redirects`，覆盖约 38 个旧路径：`*.v1` 旧版页、`/item/:id`→`/product/:id`、`/exchange/:id`→`/product/:id`、9 条旧支付渠道→`/order/pay`、14 条 `/activity/pcXxx`→`/activity`、`/join/*`→`/join`、`/member/reset`→`/member/login`、`/member/bindMobilePhone`→`/member/security/info`。**`/search/image` 已从重定向升级为真实页面** |
+| 兜底 404 | `app/not-found.tsx` + `member/[...slug]`，覆盖原 `pages/[...slug].vue` 与 `pages/member/[...].vue` |
 
 盘点脚本思路：遍历 `pages/**/*.vue` 生成路由集（`index.vue` 折成父路径、`src`/`components` 目录排除），与 `src/app/**/page.tsx` 求差集，再按 redirects 规则过滤。
+**注意**：Vue 侧文件名是 PascalCase（`member/address/List.vue` → `/member/address/list`），React 侧是小写目录，直接字符串差集会误报一堆“未迁”，比对前必须统一小写。
 
 ### 6.4 复杂度取舍
 
@@ -275,20 +284,45 @@ Vue 侧 `pages/` 共 **111 条路由**（已排除 `src/`、`components/` 子目
 
 **校准方法**（下次接口有变时照做）：登录拿 token → `curl` 打接口 → 打印 `data` 的 keys 与首个数组项的 keys → 与组件里的字段/候选比对。联调账号由负责人提供，**不写入仓库**。
 
+### 6.6 第二批真实接口校准（2026-11-13：地区 / 地址 / 验证码 / 发票 / 图搜）
+
+| 接口 | 真实形状 / 行为 | 落到的实现 |
+|---|---|---|
+| `sys/region/getProvinceList` | 省级节点**扁平数组**（34 条，`level=2`，`parentId=1`），不是树 | `lib/region.ts` |
+| `sys/region/getRegionListByRegionId?regionId=` | 下一级节点数组；上海市的市层只有 1 条（`310100`），区层 16 条 | `RegionPicker` 逐层加载 |
+| `sys/region/getRegion?regionIds=1,310000,310100,310120` | **按层分组的二维数组**（`[国家], [省], [市], [区], []`），末层为空数组 | `RegionPicker` 一次还原已有值 |
+| 地址 `regionIds` | 首项恒为 `1`（中国根节点），如 `[1,310000,310100,310120]`；列表额外带 `regionNames[]` | `AddressForm` 提交时补 `1` |
+| `user/address/add` | **404 不存在**。新增是 `user/address/create`（Vue 里 `action=add → operation=create`），返回新 `addressId` | `AddressForm` |
+| `user/address/update` | 需带 `addressId`，返回 `data: null` | 同上 |
+| `user/address/del` | 同时传 `{ id, addressId }` | `AddressList` |
+| `user/address/setSelected` | `{ id }` 即设为默认 | `AddressList`「设为默认」 |
+| `verification/tpCaptcha` | **404 不存在**（Vue 里 `components/captcha/Captcha.vue` 是死代码） | 未迁，改用滑动验证码 |
+| `common/verification/captcha`（POST `{captchaType:'blockPuzzle'}`） | `{ originalImageBase64(310×155), jigsawImageBase64(47×155), token, secretKey }` | `SlideCaptcha` |
+| `common/verification/check` | 失败 `code=1001`；成功 `code=0`。`pointJson` 必须用 `secretKey` 做 **AES/ECB/PKCS7** 加密，明文 `{"x":…,"y":5.0}` | `lib/aes-ecb.ts`（实现与 `openssl enc -aes-128-ecb` 对拍一致） |
+| 登录 `verifyToken` | 不是服务端 `token`，而是 `AES(token + "---" + JSON.stringify({x,y}), secretKey)` | `AuthPanel` 原样回传 |
+| 登录 `code=1002` | 表示本次登录要求图形验证码 | `client-api.ts` 的 `ApiError.code` + `errorCode()` |
+| `common/config/initConfigSettings` | `canInvoice=1`、`invoiceAdded=1` → 允许开增值税专用发票 | 结算页发票入口 |
+| `user/orderInvoice/create` | 发票落库（`update` 同形，带 `id`） | `InvoiceDialog` 的 `apply` 模式 |
+| `search/image/capabilities` | `{ enabled, pcEnabled, h5Enabled, appEnabled, shopEnabled, formats[] }`，当前全开 | `ImageSearchPage` 入口守卫 |
+| `search/image/search`（multipart） | `file` + `client=pc` + `size` → `{ searchToken }`；图片预处理在云端，超时给到 90s | `apiUpload` |
+| `search/search/getProduct` | 带 `searchToken` 时结果限定在图片召回集合内 | `ProductResults` 新增 `searchToken` |
+
+**教训**：Vue 里凡是「`action`/`operation` 二次映射」的地方（如 `add → create`），一定要用真实接口打一遍确认，`api/*.ts` 里的 url 拼接常常把动词藏起来。
+
 ---
 
 ## 7. 待办（按建议顺序）
 
 | # | 项 | 说明 |
 |---|---|---|
-| 1 | 会员剩余零散子页 | 发票抬头（`user/invoice/*` 表单）、入驻申请（`joining`）、登录/注册/找回密码（`Login/Register/reset`）、账户卡管理（`account/CardManagement`）。`pages/member/contact/` 在 Vue 版是空目录，菜单项已移除 |
-| 2 | 登录态真实数据校准 | 当前无 token 只验到「请先登录」；拿到登录态后要核对字段名（组件里用了多候选 `a ?? b ?? '-'` 兜底） |
-| 3 | 订单结算剩余 | 已补：优惠券、发票（简化版）、配送方式、积分/余额抵扣；仍缺：账期支付、预售定金、支付方式选择（提交时 `payTypeId=0`）；收银台支付渠道刻意未接 `order/pay/create` |
-| 4 | 模块缺口 | 装修模块还剩约 10 个 type 无渲染分支（`PcBanner2`/`PcCategoryNav3`/`PcCategoryNavWrapper`/`PcDivider`/`PcGroupBanner`/`PcHomeHero`/`PcQuickNav`/`PcRecommendProduct`/`PcSpacer`/`pcHeaderRuntime`，未知 type 静默跳过）；`components/region`（地区级联，地址只能用纯文本）、`components/captcha`（图形验证码）、`components/invoice`（完整发票弹窗）、`components/imageSearch`（拍照搜索） |
-| 5 | 功能深度 | 秒杀/拼团内部逻辑、IM 客服、第三方登录、账户充值/银行卡/账期还款、结算页账期与预售；会员详情页字段以联调结果为准（配置表已给多候选键，显示「-」不报错） |
-| 5 | i18n 补齐 | 新增文案的英文 key；`<title>` 目前是静态中文 |
-| 6 | 样式对齐 | 尚未逐像素对照 Vue/线上，`globals.css` 只做了骨架级布局 |
-| 7 | 登录守卫 | 目前列表页判断 token 显示提示，未做路由级跳转（Vue 版用 `middleware: auth`） |
+| 1 | 会员剩余零散子页 | 发票抬头（`user/invoice/*` 表单）、入驻申请（`joining`）、找回密码（`reset`）、账户卡管理（`account/CardManagement`）。登录/注册已完成；`pages/member/contact/` 在 Vue 版是空目录，菜单项已移除 |
+| 2 | 订单结算剩余 | 已补：优惠券、**完整发票（普通/专用 × 个人/企业）**、配送方式、积分/余额抵扣；仍缺：账期支付、预售定金、支付方式选择（提交时 `payTypeId=0`）；收银台支付渠道刻意未接 `order/pay/create` |
+| 3 | 功能深度 | 秒杀/拼团内部逻辑（时间轴、库存进度、成团状态机）、IM 客服（`/chat` 仍是占位）、第三方登录（`/oauth/callback` 占位）、账户充值/银行卡/账期还款 |
+| 4 | 数据获取时机 | 当前全部页面都是 **SSR 骨架 + 浏览器端取数**（`apiGet/apiPost` 依赖 `localStorage`，Node 侧拿不到 token）。如需真正的「首屏带数据」，要把商品详情、首页装修这类公开接口搬到 `generateMetadata`/服务端 fetch，并统一 `/api` 转发 |
+| 5 | 筛选栏 | 列表/搜索的分类、品牌、属性筛选（`search/search/getFilter`、`getAttributeSuggestions`）未迁，结果流已通 |
+| 6 | i18n 补齐 | 新增文案的英文 key；`<title>` 目前是静态中文 |
+| 7 | 样式对齐 | 尚未逐像素对照 Vue/线上，`globals.css` 只做了骨架级布局 |
+| 8 | 登录守卫 | 目前列表页判断 token 显示提示，未做路由级跳转（Vue 版用 `middleware: auth`）；`/order/check` 已在组件内做 token 判定 |
 
 ---
 
@@ -324,6 +358,10 @@ npm run typecheck                             # tsc -p tsconfig.react.json
 | Git 大量 `LF will be replaced by CRLF` | Windows 换行符转换提示 | 仅警告，不影响；提交时保持现状即可 |
 | 英文页面首屏先闪中文 | 语言只在 `useEffect` 里切换 | `I18nProvider` 组件体同步 `changeLanguage` |
 | 根 `tsconfig.json` 被 Next 改写 | Next 默认用根 tsconfig | `typescript.tsconfigPath: 'tsconfig.react.json'` |
+| 装修模块整片空白 | 渲染表按 camelCase（`pcImageAd`）写，真实数据是 kebab-case（`pc-image-ad`），全部匹配不上 | 注册表前先 `normalizeType()` 归一化 |
+| 地址新增报 404 | 调了 `user/address/add`；真实动词是 `create` | 见 §6.6 |
+| 验证码点位后端不收 | 浏览器 WebCrypto **不支持 AES-ECB**，直接 `crypto.subtle` 找不到算法 | 用 `lib/aes-ecb.ts`（S-box 由 GF(2^8) 逆元现算，已与 `openssl enc -aes-128-ecb` 对拍） |
+| 路由盘点出现大量“未迁” | Vue 文件名 PascalCase（`List.vue`），React 目录小写 | 比对前统一 `.toLowerCase()` |
 
 ---
 
@@ -338,8 +376,9 @@ npm run typecheck                             # tsc -p tsconfig.react.json
 
 ## 11. 接手建议
 
-1. 先 `npm install && npm run dev` 跑起来，打开 `/` 看板确认 SSR 时间戳每次刷新都变。
+1. 先 `npm install && npm run dev` 跑起来，打开 `/` 看首页装修是否渲染；SSR 自检看 `curl -s localhost:3006/ | head`。
 2. 挑一个待迁页，先读对应 `.vue`，再在 `src/app/member/...` 建 page + `src/components/member/...` 建客户端组件。
 3. 列表页优先复用 `RemoteList`；新接口只加 `path` 和 `renderItem`。
-4. 每次改完 `npm run build` 必须过，再看 curl 状态码，最后 `git add pc && git commit`（只提交 `pc/`，别 `git add -A`）。
+4. 每次改完 `npx tsc -p tsconfig.react.json --noEmit`（秒级）→ `npm run build` → curl 状态码 → `git add pc && git commit`（只提交 `pc/`，别 `git add -A`）。
 5. 不要复制 `pc-semi/` 的组件进来——两条线独立演进，跨目录复制会把两套依赖和样式纠缠在一起。
+6. **任何新接口先用测试账号打一遍真实返回**，再写组件。Vue 的 `api/*.ts` 与 `.d.ts` 类型都靠不住（§6.5、§6.6 的 20 多处偏差全是这么发现的）。
