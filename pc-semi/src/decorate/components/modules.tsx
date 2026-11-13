@@ -590,6 +590,17 @@ function ShopTitle({ title, rightText }: { title?: Record<string, any> | null; r
   } else if (title.titleBackground) {
     style.background = title.titleBackground;
   }
+  // 标题四边距（与 DecModuleTitle / admin 预览 ModuleTitlePreview 同口径，此前 ShopTitle 完全不读，
+  // 全靠 .top-bar 的固定 padding:10px）：上/下未配置（0）时不写内联、沿用 CSS 10px；
+  // 左/右始终写内联（未配置 = 10px 旧值，配置 0 = 紧贴模块最左/最右），否则会被 .top-bar 的 padding 覆盖。
+  const padTop = Number(title.titlePaddingTop) || 0;
+  const padBottom = Number(title.titlePaddingBottom) || 0;
+  if (padTop) style.paddingTop = `${padTop}px`;
+  if (padBottom) style.paddingBottom = `${padBottom}px`;
+  const padLeft = title.titlePaddingLeft == null || title.titlePaddingLeft === '' ? 10 : Number(title.titlePaddingLeft);
+  const padRight = title.titlePaddingRight == null || title.titlePaddingRight === '' ? 10 : Number(title.titlePaddingRight);
+  style.paddingLeft = `${Number.isFinite(padLeft) ? padLeft : 10}px`;
+  style.paddingRight = `${Number.isFinite(padRight) ? padRight : 10}px`;
   const moreText = title?.moreLink?.title || rightText || t('查看更多');
   // 主/副标题字号与描述排版（新增设置，老数据缺省回退前台原值，无视觉跳变）
   const titleFontSize = px(title.titleFontSize, 18);
