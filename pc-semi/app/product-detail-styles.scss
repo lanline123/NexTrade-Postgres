@@ -189,16 +189,16 @@
     del { color: #98a2b3; }
   }
 
-  /* 领券面板：纵向票券行（面额 | 券名+说明 | 领取按钮），主题绿浅底，不横滚、不截断 */
+  /* 领券面板：纵向票券行（面额 | 券名+说明 | 领取按钮），粉色卡券底，不横滚、不截断 */
   .pds-coupons { display: flex; flex-direction: column; gap: 8px; }
   .pds-coupon {
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 8px 12px;
-    border: 1px solid rgba(var(--general-rgb, 101, 196, 170), 0.35);
+    border: 1px solid #ffe0e3;
     border-radius: 8px;
-    background: rgba(var(--general-rgb, 101, 196, 170), 0.07);
+    background: #fff5f6;
     &.is-received { border-color: var(--pds-line); background: var(--pds-soft); }
     &__value { flex: 0 0 auto; min-width: 74px; color: var(--pds-primary); font-size: 17px; font-weight: 700; white-space: nowrap; }
     &__value small { font-size: 12px; font-weight: 600; }

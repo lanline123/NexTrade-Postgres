@@ -1198,18 +1198,7 @@ export default function ProductDetailClient({
             </div>
           ) : null}
         </div>
-        {coupons.length ? (
-          <div className="item">
-            <div className="tit">{t('优惠活动')}：</div>
-            <div className="coupon-list-wrap">
-              {coupons.map((coupon: any, index: number) => (
-                <span className="lyecsquan" key={coupon.couponId ?? index}>
-                  {coupon.couponName || coupon.name || t('优惠券')}
-                </span>
-              ))}
-            </div>
-          </div>
-        ) : null}
+        {/* 优惠券只在营销面板展示（可领取），此处不再重复一排不可点的券名标签 */}
       </div>
       <div className="basic-info">
         <div className="item">
