@@ -6286,7 +6286,10 @@
     &__card {
         display: block;
         box-sizing: border-box;
-        height: 299px;
+        // 原版 .pc-home .mod_you_like .item 的 299px 为 content-box 内容高，
+        // 加上 8px*2 padding 后总高 315px；本站全局 border-box 下必须写总高，
+        // 否则内容盒只剩 283px，295px 的内容会把价格裁掉。
+        height: 315px;
         padding: 8px;
         overflow: hidden;
         background-color: #fff;

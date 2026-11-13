@@ -105,6 +105,24 @@ jobs:
           path: /tmp/out/
           if-no-files-found: error
 
+      # 从 CHANGELOG.md 抽取最新版本块作为 Release 说明书（无 python 依赖，仅用 awk/jq）。
+      # 约定：CHANGELOG 顶部第一个 '## 版本' 块 = 本次发版内容；块到 '---' 分隔符结束。
+      - name: Prepare release notes from CHANGELOG
+        run: |
+          set -euo pipefail
+          awk '
+            /^## / { if (started) exit; started=1; print; next }
+            /^---/ { if (started) exit }
+            started { print }
+          ' CHANGELOG.md > release_notes.md
+          echo "----- release_notes.md -----"
+          cat release_notes.md
+          echo "---------------------------"
+          if [ ! -s release_notes.md ]; then
+            echo "WARN: empty changelog block, fallback to commit info"
+            echo "commit ${GITHUB_SHA}" > release_notes.md
+          fi
+
       # 发布 Release：上传资产必须用 release ID 路径（tags 路径会 400）
       - name: Publish release
         env:
@@ -115,12 +133,16 @@ jobs:
           AUTH="Authorization: Bearer ${GH_TOKEN}"
           API="https://api.github.com/repos/${GITHUB_REPOSITORY}"
 
+          # 页脚保留构建元数据，正文来自 CHANGELOG 对应版本块
+          printf '\n\n---\n_Built from `%s` on rockylinux:8 (glibc 2.28)._\n' "${GITHUB_SHA}" >> release_notes.md
+          PAYLOAD=$(jq -n --arg tag "$TAG" --rawfile body release_notes.md '{tag_name:$tag, name:$tag, body:$body}')
+
           echo "creating release ${TAG}"
           curl -fsS -X POST \
             -H "${AUTH}" \
             -H "Accept: application/vnd.github+json" \
             "${API}/releases" \
-            -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"body\":\"commit ${GITHUB_SHA} / rockylinux:8 glibc 2.28\"}" \
+            -d "$PAYLOAD" \
             -o /tmp/release.json
           cat /tmp/release.json
           RID=$(jq -r .id /tmp/release.json)
