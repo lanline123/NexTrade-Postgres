@@ -3606,7 +3606,7 @@ function RecommendProduct({ module }: ModuleProps) {
   const algoPoolRef = useRef<ProductItem[]>([]);
   const algoSeenRef = useRef<Set<number>>(new Set());
   const algoCatWeightRef = useRef<Map<number, number>>(new Map());
-  const algoStreamsRef = useRef<Array<{ categoryId?: number; page: number; done: boolean }>>([]);
+  const algoStreamsRef = useRef<Array<{ categoryId?: number; kind?: 'hot'; page: number; done: boolean }>>([]);
   const algoShownRef = useRef(0);
 
   const [products, setProducts] = useState<ProductItem[]>([]);
@@ -3669,12 +3669,18 @@ function RecommendProduct({ module }: ModuleProps) {
       for (const stream of algoStreamsRef.current) {
         if (stream.done) continue;
         progressed = true;
-        const params: Record<string, unknown> = { page: stream.page, size: 24 };
-        if (stream.categoryId) params.categoryId = stream.categoryId;
         let records: ProductItem[] = [];
         try {
-          const data = await apiGet<{ records?: ProductItem[] }>('product/product/list', params);
-          records = Array.isArray(data?.records) ? data.records : [];
+          if (stream.kind === 'hot') {
+            // 热销流：服务端按 virtual_sales 降序（common/recommend/guessLike sortField=sales，裸数组返回）
+            const data = await apiGet<any>('common/recommend/guessLike', { page: stream.page, size: 24, sortField: 'sales' });
+            records = Array.isArray(data) ? data : (data?.records || []);
+          } else {
+            const params: Record<string, unknown> = { page: stream.page, size: 24 };
+            if (stream.categoryId) params.categoryId = stream.categoryId;
+            const data = await apiGet<{ records?: ProductItem[] }>('product/product/list', params);
+            records = Array.isArray(data?.records) ? data.records : [];
+          }
         } catch {
           records = [];
         }
@@ -3687,7 +3693,9 @@ function RecommendProduct({ module }: ModuleProps) {
           algoSeenRef.current.add(id);
           const catWeight = item.categoryId ? (algoCatWeightRef.current.get(Number(item.categoryId)) || 0) : 0;
           const sales = Number(item.virtualSales ?? item.sales ?? 0) || 0;
-          batch.push({ item, score: catWeight * 100 + Math.min(sales, 500) / 10 });
+          // 相关性（分类权重）> 热销加成（30）> 普通兜底，同级再比销量
+          const hotBonus = stream.kind === 'hot' ? 30 : 0;
+          batch.push({ item, score: catWeight * 100 + hotBonus + Math.min(sales, 500) / 10 });
         }
         batch.sort((a, b) => b.score - a.score);
         for (const entry of batch) {
@@ -3746,10 +3754,10 @@ function RecommendProduct({ module }: ModuleProps) {
       algoSeenRef.current = new Set(seedIds);
       algoCatWeightRef.current = catWeight;
       const topCats = [...catWeight.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([categoryId]) => categoryId);
-      algoStreamsRef.current = [
-        ...topCats.map((categoryId) => ({ categoryId, page: 1, done: false })),
-        { categoryId: undefined, page: 1, done: false },
-      ];
+      const streams: Array<{ categoryId?: number; kind?: 'hot'; page: number; done: boolean }> = topCats.map((categoryId) => ({ categoryId, page: 1, done: false }));
+      if (Number(algo.useHot ?? 1) === 1) streams.push({ kind: 'hot', page: 1, done: false });
+      streams.push({ categoryId: undefined, page: 1, done: false });
+      algoStreamsRef.current = streams;
       await algoFetchMore();
       if (!algoReveal()) {
         noMoreRef.current = true;

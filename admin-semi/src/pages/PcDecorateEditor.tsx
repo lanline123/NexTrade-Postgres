@@ -23,6 +23,7 @@ import {
   Radio,
   RadioGroup,
   Select,
+  SideSheet,
   Slider,
   Space,
   Spin,
@@ -840,7 +841,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
         productNumber: 20,
         // 智能推荐（千人千面）：前台按访客行为（购物车/浏览/已购/收藏）实时算偏好分类并排序；
         // 默认关闭，老页面模块不受影响，开启后「选择商品」的取数方式让位于算法（无行为时热门兜底）。
-        algorithm: { enabled: 0, useCart: 1, useHistory: 1, usePurchased: 1, useFavorite: 1, defaultRows: 2, maxRows: 10, infiniteScroll: 0 },
+        algorithm: { enabled: 0, useCart: 1, useHistory: 1, usePurchased: 1, useFavorite: 1, useHot: 1, defaultRows: 2, maxRows: 10, infiniteScroll: 0 },
       },
     }),
     settings: [
@@ -854,6 +855,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'switch', key: 'products.algorithm.useHistory', label: '参考浏览记录', section: '算法设置', showIf: (d) => Number(getPath(d, 'products.algorithm.enabled')) === 1 },
       { kind: 'switch', key: 'products.algorithm.usePurchased', label: '参考已购商品', section: '算法设置', showIf: (d) => Number(getPath(d, 'products.algorithm.enabled')) === 1 },
       { kind: 'switch', key: 'products.algorithm.useFavorite', label: '参考收藏商品', section: '算法设置', showIf: (d) => Number(getPath(d, 'products.algorithm.enabled')) === 1 },
+      { kind: 'switch', key: 'products.algorithm.useHot', label: '参考热销商品', section: '算法设置', showIf: (d) => Number(getPath(d, 'products.algorithm.enabled')) === 1, hint: '全站销量最高的商品会掺入推荐流（排在与访客兴趣相关的商品之后）。' },
       { kind: 'number', key: 'products.algorithm.defaultRows', label: '默认显示行数', min: 1, max: 20, section: '算法设置', showIf: (d) => Number(getPath(d, 'products.algorithm.enabled')) === 1, hint: '首屏展示的行数（行数 × 每行列数 = 商品数），继续下拉按此行数逐段加载。' },
       { kind: 'number', key: 'products.algorithm.maxRows', label: '最多显示行数', min: 1, max: 100, section: '算法设置', showIf: (d) => Number(getPath(d, 'products.algorithm.enabled')) === 1 && Number(getPath(d, 'products.algorithm.infiniteScroll')) !== 1, hint: '下拉加载到这个行数就停；不足时以实际商品数为准。' },
       { kind: 'switch', key: 'products.algorithm.infiniteScroll', label: '无限下拉加载', section: '算法设置', showIf: (d) => Number(getPath(d, 'products.algorithm.enabled')) === 1, hint: '开启后不限制行数，一直下拉直至全部可推荐商品加载完。' },
@@ -6440,6 +6442,240 @@ function HotareaPainter({
   );
 }
 
+/* ===================== 商品分类选择（右抽屉） ===================== */
+
+/**
+ * 分类原始树（GET /product/category/getAllCategory 的树形数据）。
+ * 旧的 useCategoryOptions 把这棵树拍平成带「└─」缩进前缀的下拉选项，
+ * 层级深时既难找也难看；抽屉选择器直接消费原始树，保留真实层级。
+ */
+interface CategoryTreeNode {
+  categoryId: number;
+  categoryName: string;
+  children?: CategoryTreeNode[];
+}
+
+let categoryTreeCache: CategoryTreeNode[] | null = null;
+
+function useCategoryTree() {
+  const [tree, setTree] = useState<CategoryTreeNode[]>(categoryTreeCache || []);
+  useEffect(() => {
+    if (categoryTreeCache) return;
+    apiGet<any[]>('/product/category/getAllCategory')
+      .then((raw) => {
+        const normalize = (nodes: any[]): CategoryTreeNode[] =>
+          (Array.isArray(nodes) ? nodes : [])
+            .map((n) => ({
+              categoryId: Number(n.categoryId),
+              categoryName: String(n.categoryName || ''),
+              children:
+                Array.isArray(n.children) && n.children.length > 0 ? normalize(n.children) : undefined,
+            }))
+            .filter((n) => n.categoryId > 0);
+        categoryTreeCache = normalize(Array.isArray(raw) ? raw : []);
+        setTree(categoryTreeCache);
+      })
+      .catch(() => setTree([]));
+  }, []);
+  return tree;
+}
+
+/** 在树中查分类的完整路径（名称数组，根在前）；找不到返回 null */
+function findCategoryPath(tree: CategoryTreeNode[], id: number, trail: string[] = []): string[] | null {
+  for (const node of tree) {
+    const path = [...trail, node.categoryName];
+    if (node.categoryId === id) return path;
+    if (node.children) {
+      const found = findCategoryPath(node.children, id, path);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function flattenCategoryTree(
+  tree: CategoryTreeNode[],
+  trail: string[] = [],
+): Array<{ id: number; name: string; path: string }> {
+  const out: Array<{ id: number; name: string; path: string }> = [];
+  tree.forEach((node) => {
+    const names = [...trail, node.categoryName];
+    out.push({ id: node.categoryId, name: node.categoryName, path: names.join(' / ') });
+    if (node.children) out.push(...flattenCategoryTree(node.children, names));
+  });
+  return out;
+}
+
+/**
+ * 商品分类选择抽屉（右侧滑出）—— 替代「按分类」模式下拍平的 Select 下拉。
+ * - 浏览模式：按真实树层级展开/收起，选中行高亮；
+ * - 搜索模式：按名称过滤，候选直接显示完整路径，避免同名子分类分不清；
+ * - 选择先落在抽屉内部状态，点「确定」才写回模块数据，取消不改数据；
+ * - 数据契约不变：仍是单个 productCategoryId。
+ */
+function CategoryPickerDrawer({
+  visible,
+  currentId,
+  tree,
+  onOk,
+  onCancel,
+}: {
+  visible: boolean;
+  currentId: number;
+  tree: CategoryTreeNode[];
+  onOk: (id: number) => void;
+  onCancel: () => void;
+}) {
+  const { t } = useI18n();
+  const [keyword, setKeyword] = useState('');
+  const [pickedId, setPickedId] = useState<number>(currentId || 0);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (!visible) return;
+    setKeyword('');
+    setPickedId(currentId || 0);
+    // 默认展开一级分类，并展开当前已选分类的全部祖先，保证打开即能看到已选项
+    const next = new Set<number>();
+    tree.forEach((n) => {
+      if (n.children?.length) next.add(n.categoryId);
+    });
+    if (currentId) {
+      const collectAncestors = (nodes: CategoryTreeNode[], trail: number[]): boolean => {
+        for (const node of nodes) {
+          if (node.categoryId === currentId) {
+            trail.forEach((id) => next.add(id));
+            return true;
+          }
+          if (node.children && collectAncestors(node.children, [...trail, node.categoryId])) return true;
+        }
+        return false;
+      };
+      collectAncestors(tree, []);
+    }
+    setExpanded(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  const pickedPath = pickedId ? findCategoryPath(tree, pickedId)?.join(' / ') : '';
+  const searching = keyword.trim().length > 0;
+  const searchResults = searching
+    ? flattenCategoryTree(tree).filter((item) => item.name.includes(keyword.trim()))
+    : [];
+
+  const toggleExpand = (id: number) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const renderNodes = (nodes: CategoryTreeNode[], depth: number): ReactNode => (
+    <>
+      {nodes.map((node) => {
+        const hasChildren = !!node.children?.length;
+        const isOpen = expanded.has(node.categoryId);
+        const isPicked = pickedId === node.categoryId;
+        return (
+          <div key={node.categoryId}>
+            <div
+              className={`dec-cat-row${isPicked ? ' is-picked' : ''}`}
+              style={{ paddingLeft: 10 + depth * 20 }}
+              onClick={() => setPickedId(node.categoryId)}
+              role="button"
+              aria-pressed={isPicked}
+            >
+              {hasChildren ? (
+                <button
+                  type="button"
+                  className={`dec-cat-row__toggle${isOpen ? ' is-open' : ''}`}
+                  aria-label={isOpen ? t('收起') : t('展开')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleExpand(node.categoryId);
+                  }}
+                >
+                  <IconChevronDown size="small" />
+                </button>
+              ) : (
+                <span className="dec-cat-row__toggle-placeholder" />
+              )}
+              <span className="dec-cat-row__name">{node.categoryName}</span>
+              {isPicked && <span className="dec-cat-row__check">{t('已选')}</span>}
+            </div>
+            {hasChildren && isOpen && renderNodes(node.children!, depth + 1)}
+          </div>
+        );
+      })}
+    </>
+  );
+
+  return (
+    <SideSheet
+      title={t('选择商品分类')}
+      visible={visible}
+      onCancel={onCancel}
+      placement="right"
+      width={560}
+      className="dec-cat-sheet"
+      footer={
+        <div className="dec-cat-sheet__footer">
+          <span className="dec-cat-sheet__current" title={pickedPath || undefined}>
+            {pickedPath || t('未选择分类')}
+          </span>
+          {pickedId > 0 && (
+            <Button theme="borderless" type="tertiary" onClick={() => setPickedId(0)}>
+              {t('清除')}
+            </Button>
+          )}
+          <Button onClick={onCancel}>{t('取消')}</Button>
+          <Button theme="solid" type="primary" onClick={() => onOk(pickedId)}>
+            {t('确定')}
+          </Button>
+        </div>
+      }
+    >
+      <div className="dec-cat-picker">
+        <Input
+          value={keyword}
+          onChange={setKeyword}
+          placeholder={t('搜索分类名称')}
+          showClear
+          className="dec-cat-picker__search"
+        />
+        {tree.length === 0 ? (
+          <div className="dec-cat-picker__empty">
+            <Spin />
+          </div>
+        ) : searching ? (
+          <div className="dec-cat-picker__list">
+            {searchResults.length === 0 ? (
+              <div className="dec-cat-picker__empty">{t('没有匹配的分类')}</div>
+            ) : (
+              searchResults.map((item) => (
+                <div
+                  key={item.id}
+                  className={`dec-cat-row${pickedId === item.id ? ' is-picked' : ''}`}
+                  onClick={() => setPickedId(item.id)}
+                  role="button"
+                  aria-pressed={pickedId === item.id}
+                >
+                  <span className="dec-cat-row__name">{item.path}</span>
+                  {pickedId === item.id && <span className="dec-cat-row__check">{t('已选')}</span>}
+                </div>
+              ))
+            )}
+          </div>
+        ) : (
+          <div className="dec-cat-picker__list">{renderNodes(tree, 0)}</div>
+        )}
+      </div>
+    </SideSheet>
+  );
+}
+
 /**
  * 商品设置（选品）字段 —— 现代化重写（2026-11-12）。
  *
@@ -6465,6 +6701,8 @@ function ProductsSettingField({
 }) {
   const { t } = useI18n();
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [catPickerVisible, setCatPickerVisible] = useState(false);
+  const categoryTree = useCategoryTree();
   const ids = (Array.isArray(value.productIds) ? value.productIds : []) as number[];
   const items = (Array.isArray(value.productItems) ? value.productItems : []) as ProductPickItem[];
   const selectType = Number(value.productSelectType ?? 1);
@@ -6521,15 +6759,54 @@ function ProductsSettingField({
         <div className="dec-prod-pick__row">
           <label className="dec-prod-pick__field">
             <span>{t('商品分类')}</span>
-            <Select
-              value={value.productCategoryId || undefined}
-              optionList={categoryOptions}
-              showClear
-              filter
-              style={{ width: '100%' }}
-              placeholder={t('选择分类')}
-              onChange={(v) => onChange({ ...value, productCategoryId: v ? Number(v) : 0 })}
-            />
+            {(() => {
+              const catId = Number(value.productCategoryId) || 0;
+              // 优先用树算完整路径；树还没加载完时退回拍平选项并清掉缩进装饰符
+              const pathLabel = catId
+                ? findCategoryPath(categoryTree, catId)?.join(' / ') ||
+                  categoryOptions
+                    .find((o) => Number(o.value) === catId)
+                    ?.label.replace(/^[\s　]*└─\s*/, '')
+                : '';
+              return (
+                <div
+                  className="dec-cat-field"
+                  onClick={() => setCatPickerVisible(true)}
+                  role="button"
+                  title={pathLabel || undefined}
+                >
+                  <span className={`dec-cat-field__text${pathLabel ? '' : ' is-placeholder'}`}>
+                    {pathLabel || t('选择分类')}
+                  </span>
+                  {catId > 0 && (
+                    <button
+                      type="button"
+                      className="dec-cat-field__clear"
+                      aria-label={t('清除')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onChange({ ...value, productCategoryId: 0 });
+                      }}
+                    >
+                      <IconClose size="small" />
+                    </button>
+                  )}
+                  <IconChevronDown size="small" className="dec-cat-field__chev" />
+                </div>
+              );
+            })()}
+            {catPickerVisible && (
+              <CategoryPickerDrawer
+                visible
+                currentId={Number(value.productCategoryId) || 0}
+                tree={categoryTree}
+                onOk={(id) => {
+                  onChange({ ...value, productCategoryId: id });
+                  setCatPickerVisible(false);
+                }}
+                onCancel={() => setCatPickerVisible(false)}
+              />
+            )}
           </label>
           <label className="dec-prod-pick__field">
             <span>{t('商品数量')}</span>

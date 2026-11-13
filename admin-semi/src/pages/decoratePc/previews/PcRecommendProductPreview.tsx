@@ -67,7 +67,7 @@ const pcRecommendProductDefaults: AnyRecord = {
     productCategoryId: undefined,
     productTag: '',
     productNumber: 20,
-    algorithm: { enabled: 0, useCart: 1, useHistory: 1, usePurchased: 1, useFavorite: 1, defaultRows: 2, maxRows: 10, infiniteScroll: 0 },
+    algorithm: { enabled: 0, useCart: 1, useHistory: 1, usePurchased: 1, useFavorite: 1, useHot: 1, defaultRows: 2, maxRows: 10, infiniteScroll: 0 },
   },
 };
 
