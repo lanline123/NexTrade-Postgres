@@ -13,6 +13,17 @@
   border-radius: var(--dec-box-radius, 0);
 }
 
+.dec-pc-recommend-product__algo-note {
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border: 1px dashed #65c4aa;
+  border-radius: 6px;
+  background: #f0f9f7;
+  color: #3d8b74;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .dec-pc-recommend-product__empty {
   min-height: 120px;
   border-radius: 6px;

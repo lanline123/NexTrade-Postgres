@@ -734,6 +734,8 @@ function ImageAdCarousel({ pics, perView }: { pics: any[]; perView: number }) {
 
 interface ProductItem {
   productId?: number;
+  categoryId?: number;
+  sales?: number | string;
   productSn?: string;
   seoLink?: string;
   productName?: string;
@@ -3510,6 +3512,74 @@ function DecModuleTitle({
   );
 }
 
+/** 行为信号权重：已购 > 购物车 ≈ 收藏 > 浏览（浏览按新鲜度衰减） */
+const ALGO_SOURCE_WEIGHT = { purchased: 3, cart: 2, favorite: 2, history: 1 } as const;
+
+/**
+ * 智能推荐（千人千面）信号采集：从购物车 / 浏览记录 / 已购订单 / 收藏四类行为取种子商品，
+ * 再用商品列表接口把种子换算成「偏好分类 → 权重」。任一来源未登录或失败都静默跳过；
+ * 全部为空时分类权重为空集，前台仅走热门兜底流。
+ */
+async function collectRecommendSignals(algo: Record<string, any>): Promise<{ seedIds: Set<number>; catWeight: Map<number, number> }> {
+  const seedWeight = new Map<number, number>();
+  const push = (id: unknown, weight: number) => {
+    const n = Number(id);
+    if (!n) return;
+    seedWeight.set(n, Math.max(seedWeight.get(n) || 0, weight));
+  };
+  const jobs: Array<Promise<void>> = [];
+  if (Number(algo.useCart ?? 1) === 1) jobs.push((async () => {
+    try {
+      const data: any = await apiGet<any>('cart/cart/list');
+      const groups = Array.isArray(data?.cartList) ? data.cartList : [];
+      for (const group of groups) {
+        const items = group?.items || group?.list || group?.products || group?.cartItems || [];
+        for (const item of items) push(item?.productId, ALGO_SOURCE_WEIGHT.cart);
+      }
+    } catch { /* 未登录/无购物车时跳过 */ }
+  })());
+  if (Number(algo.useHistory ?? 1) === 1) jobs.push((async () => {
+    try {
+      const data: any = await apiGet<any>('user/user/historyProduct', { page: 1, size: 20 });
+      const rows = Array.isArray(data) ? data : (data?.records || []);
+      rows.forEach((row: any, index: number) => push(row?.productId, ALGO_SOURCE_WEIGHT.history * Math.pow(0.95, index)));
+    } catch { /* 跳过 */ }
+  })());
+  if (Number(algo.usePurchased ?? 1) === 1) jobs.push((async () => {
+    try {
+      const data: any = await apiGet<any>('user/order/list', { page: 1, size: 10 });
+      const rows = Array.isArray(data) ? data : (data?.records || []);
+      for (const row of rows) {
+        const items = row?.items || row?.orderItems || row?.products || [];
+        for (const item of items) push(item?.productId, ALGO_SOURCE_WEIGHT.purchased);
+      }
+    } catch { /* 跳过 */ }
+  })());
+  if (Number(algo.useFavorite ?? 1) === 1) jobs.push((async () => {
+    try {
+      const data: any = await apiGet<any>('user/collectProduct/list', { page: 1, size: 20 });
+      const rows = Array.isArray(data) ? data : (data?.records || []);
+      for (const row of rows) push(row?.productId, ALGO_SOURCE_WEIGHT.favorite);
+    } catch { /* 跳过 */ }
+  })());
+  await Promise.all(jobs);
+
+  const catWeight = new Map<number, number>();
+  const seedIds = [...seedWeight.keys()].slice(0, 24);
+  if (seedIds.length) {
+    try {
+      const data = await apiGet<{ records?: ProductItem[] }>('product/product/list', { ids: seedIds.join(','), page: 1, size: seedIds.length });
+      const records = Array.isArray(data?.records) ? data.records : [];
+      for (const item of records) {
+        const cat = Number(item.categoryId);
+        const weight = seedWeight.get(Number(item.productId)) || 0;
+        if (cat && weight) catWeight.set(cat, (catWeight.get(cat) || 0) + weight);
+      }
+    } catch { /* 无分类权重时仅热门兜底 */ }
+  }
+  return { seedIds: new Set(seedIds), catWeight };
+}
+
 /** PcRecommendProduct.vue：titleName、products{productSelectType,productIds,productCategoryId,
  * productTag,productNumber}、frame{columns 默认5,itemGap,boxPadding,boxPaddingTop,boxPaddingBottom,
  * boxRadius,backgroundColor}；滚动分页（本实现按 productNumber 一次取满，见报告）。 */
@@ -3524,6 +3594,20 @@ function RecommendProduct({ module }: ModuleProps) {
   const maxNum = selectType === 1
     ? (Array.isArray(config.productIds) ? config.productIds.length : 0)
     : Math.max(0, px(config.productNumber, 0));
+
+  // —— 智能推荐（千人千面）：编辑器「算法设置」开启后接管取数（见 collectRecommendSignals） ——
+  const algo = (config.algorithm || {}) as Record<string, any>;
+  const algoEnabled = Number(algo.enabled) === 1;
+  const algoRows = Math.min(20, Math.max(1, Number(algo.defaultRows) || 2));
+  const algoMaxRows = Math.min(100, Math.max(1, Number(algo.maxRows) || 10));
+  const algoInfinite = Number(algo.infiniteScroll) === 1;
+  const algoCap = algoInfinite ? Number.MAX_SAFE_INTEGER : columns * algoMaxRows;
+  const algoChunk = columns * algoRows;
+  const algoPoolRef = useRef<ProductItem[]>([]);
+  const algoSeenRef = useRef<Set<number>>(new Set());
+  const algoCatWeightRef = useRef<Map<number, number>>(new Map());
+  const algoStreamsRef = useRef<Array<{ categoryId?: number; page: number; done: boolean }>>([]);
+  const algoShownRef = useRef(0);
 
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -3577,6 +3661,109 @@ function RecommendProduct({ module }: ModuleProps) {
     }
   };
 
+  /** 智能推荐补货：依次推进各偏好分类流 + 热门兜底流，按「分类权重×100 + 销量」打分入池 */
+  const algoFetchMore = async (): Promise<number> => {
+    let added = 0;
+    for (let round = 0; round < 3 && added < algoChunk; round++) {
+      let progressed = false;
+      for (const stream of algoStreamsRef.current) {
+        if (stream.done) continue;
+        progressed = true;
+        const params: Record<string, unknown> = { page: stream.page, size: 24 };
+        if (stream.categoryId) params.categoryId = stream.categoryId;
+        let records: ProductItem[] = [];
+        try {
+          const data = await apiGet<{ records?: ProductItem[] }>('product/product/list', params);
+          records = Array.isArray(data?.records) ? data.records : [];
+        } catch {
+          records = [];
+        }
+        if (records.length < 24) stream.done = true;
+        stream.page += 1;
+        const batch: Array<{ item: ProductItem; score: number }> = [];
+        for (const item of records) {
+          const id = Number(item.productId);
+          if (!id || algoSeenRef.current.has(id)) continue;
+          algoSeenRef.current.add(id);
+          const catWeight = item.categoryId ? (algoCatWeightRef.current.get(Number(item.categoryId)) || 0) : 0;
+          const sales = Number(item.virtualSales ?? item.sales ?? 0) || 0;
+          batch.push({ item, score: catWeight * 100 + Math.min(sales, 500) / 10 });
+        }
+        batch.sort((a, b) => b.score - a.score);
+        for (const entry of batch) {
+          algoPoolRef.current.push(entry.item);
+          added++;
+        }
+        if (added >= algoChunk) break;
+      }
+      if (!progressed) break;
+    }
+    return added;
+  };
+
+  /** 从候选池揭示下一段（一"屏" = 默认行数 × 列数），受最多行数上限约束（无限模式无上限） */
+  const algoReveal = (): boolean => {
+    const remain = algoCap - algoShownRef.current;
+    if (remain <= 0) {
+      noMoreRef.current = true;
+      setNoMore(true);
+      return false;
+    }
+    const take = algoPoolRef.current.splice(0, Math.min(algoChunk, remain));
+    if (!take.length) return false;
+    algoShownRef.current += take.length;
+    setProducts((previous) => [...previous, ...take]);
+    if (algoShownRef.current >= algoCap) {
+      noMoreRef.current = true;
+      setNoMore(true);
+    }
+    return true;
+  };
+
+  const loadNextAlgo = async (): Promise<void> => {
+    if (loadingRef.current || noMoreRef.current) return;
+    loadingRef.current = true;
+    setLoading(true);
+    try {
+      if (!algoReveal()) {
+        const added = await algoFetchMore();
+        if (!algoReveal() && added === 0) {
+          noMoreRef.current = true;
+          setNoMore(true);
+        }
+      }
+    } finally {
+      loadingRef.current = false;
+      setLoading(false);
+    }
+  };
+
+  const initAlgo = async (): Promise<void> => {
+    loadingRef.current = true;
+    setLoading(true);
+    try {
+      const { seedIds, catWeight } = await collectRecommendSignals(algo);
+      algoSeenRef.current = new Set(seedIds);
+      algoCatWeightRef.current = catWeight;
+      const topCats = [...catWeight.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([categoryId]) => categoryId);
+      algoStreamsRef.current = [
+        ...topCats.map((categoryId) => ({ categoryId, page: 1, done: false })),
+        { categoryId: undefined, page: 1, done: false },
+      ];
+      await algoFetchMore();
+      if (!algoReveal()) {
+        noMoreRef.current = true;
+        setNoMore(true);
+      }
+    } catch {
+      noMoreRef.current = true;
+      setNoMore(true);
+    } finally {
+      loadingRef.current = false;
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     products.length; // 保持 lint 关闭时的显式引用
     setProducts([]);
@@ -3585,12 +3772,18 @@ function RecommendProduct({ module }: ModuleProps) {
     noMoreRef.current = false;
     countRef.current = 0;
     pageRef.current = 1;
-    void requestPage(1);
+    algoPoolRef.current = [];
+    algoSeenRef.current = new Set();
+    algoCatWeightRef.current = new Map();
+    algoStreamsRef.current = [];
+    algoShownRef.current = 0;
+    if (algoEnabled) void initAlgo();
+    else void requestPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(config)]);
 
   const requestRef = useRef(requestPage);
-  requestRef.current = requestPage;
+  requestRef.current = algoEnabled ? loadNextAlgo : requestPage;
 
   useEffect(() => {
     const onScroll = () => {

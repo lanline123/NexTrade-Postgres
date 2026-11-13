@@ -67,6 +67,7 @@ const pcRecommendProductDefaults: AnyRecord = {
     productCategoryId: undefined,
     productTag: '',
     productNumber: 20,
+    algorithm: { enabled: 0, useCart: 1, useHistory: 1, usePurchased: 1, useFavorite: 1, defaultRows: 2, maxRows: 10, infiniteScroll: 0 },
   },
 };
 
@@ -158,6 +159,30 @@ function useProductList(config: AnyRecord) {
     const run = async () => {
       if (!products) {
         if (alive) setProductList([]);
+        return;
+      }
+
+      // 智能推荐开启时：后台没有访客行为上下文，预览展示「热门兜底」样本
+      // （按销量排序、取首屏行数 × 列数），前台则按每位访客的行为实时个性化。
+      const algorithm = (products.algorithm || {}) as AnyRecord;
+      if (Number(algorithm.enabled) === 1) {
+        try {
+          const columns = Math.max(1, Number((config.frame as AnyRecord | undefined)?.columns) || 5);
+          const size = Math.max(1, Number(algorithm.defaultRows) || 2) * columns;
+          const result = await apiGet<{ records?: PreviewProductItem[]; list?: PreviewProductItem[] }>('/product/product/list', {
+            productStatus: 1,
+            checkStatus: 1,
+            page: 1,
+            size,
+          });
+          if (!alive) return;
+          const rows = [...(result.records || result.list || [])].sort(
+            (a, b) => Number(b.virtualSales || 0) - Number(a.virtualSales || 0),
+          );
+          setProductList(rows);
+        } catch {
+          if (alive) setProductList([]);
+        }
         return;
       }
 
@@ -295,6 +320,7 @@ export default function PcRecommendProductPreview({ data }: { data: Record<strin
   const titleVisible = Number(titleObj.showTitle) === 1;
   const showName = Number(config.showProductName ?? 1) === 1;
   const showPrice = Number(config.showProductPrice ?? 1) === 1;
+  const algoOn = Number(((config.products as AnyRecord | undefined)?.algorithm as AnyRecord | undefined)?.enabled) === 1;
 
   return (
     <div className="dec-pc-recommend-product" style={cssVars}>
@@ -306,6 +332,9 @@ export default function PcRecommendProductPreview({ data }: { data: Record<strin
       ) : (
         <>
           <ModuleTitlePreview title={titleObj} />
+          {algoOn ? (
+            <div className="dec-pc-recommend-product__algo-note">{t('智能推荐已启用：前台按访客的购物车 / 浏览 / 已购 / 收藏个性化排序，此处为热门兜底预览')}</div>
+          ) : null}
           <div className={`dec-pc-recommend-product__list${titleVisible ? '' : ' is-no-title'}`}>
             {productList.map((item, index) => {
               const soldOut = isSoldOut(item);

@@ -835,7 +835,13 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       title: standardTitle({ showTitle: 1, titleText: '猜你喜欢', titleColor: '#2a3145', titleStyle: 1, titleAlign: 2, titleFontSize: 24 }),
       showProductName: 1,
       showProductPrice: 1,
-      products: { ...productsDefaults(), productNumber: 20 },
+      products: {
+        ...productsDefaults(),
+        productNumber: 20,
+        // 智能推荐（千人千面）：前台按访客行为（购物车/浏览/已购/收藏）实时算偏好分类并排序；
+        // 默认关闭，老页面模块不受影响，开启后「选择商品」的取数方式让位于算法（无行为时热门兜底）。
+        algorithm: { enabled: 0, useCart: 1, useHistory: 1, usePurchased: 1, useFavorite: 1, defaultRows: 2, maxRows: 10, infiniteScroll: 0 },
+      },
     }),
     settings: [
       { kind: 'radio', key: 'frame.columns', label: '展示样式', extend: false, options: [{ label: '一行三个', value: 3 }, { label: '一行四个', value: 4 }, { label: '一行五个', value: 5 }, { label: '一行六个', value: 6 }], section: '商品参数设置' },
@@ -843,6 +849,14 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'radio', key: 'showProductName', label: '显示商品名称', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }], section: '商品参数设置' },
       { kind: 'radio', key: 'showProductPrice', label: '显示商品价格', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }], section: '商品参数设置' },
       { kind: 'products', key: 'products', label: '选择商品', section: '商品设置', numberMax: 50 },
+      { kind: 'switch', key: 'products.algorithm.enabled', label: '智能推荐（千人千面）', section: '算法设置', hint: '开启后，前台按每位访客的购物车、浏览、已购、收藏行为实时推荐相关商品；未登录或无行为记录时展示热门商品。「选择商品」的取数设置在开启时不生效。' },
+      { kind: 'switch', key: 'products.algorithm.useCart', label: '参考购物车商品', section: '算法设置', showIf: (d) => Number(getPath(d, 'products.algorithm.enabled')) === 1 },
+      { kind: 'switch', key: 'products.algorithm.useHistory', label: '参考浏览记录', section: '算法设置', showIf: (d) => Number(getPath(d, 'products.algorithm.enabled')) === 1 },
+      { kind: 'switch', key: 'products.algorithm.usePurchased', label: '参考已购商品', section: '算法设置', showIf: (d) => Number(getPath(d, 'products.algorithm.enabled')) === 1 },
+      { kind: 'switch', key: 'products.algorithm.useFavorite', label: '参考收藏商品', section: '算法设置', showIf: (d) => Number(getPath(d, 'products.algorithm.enabled')) === 1 },
+      { kind: 'number', key: 'products.algorithm.defaultRows', label: '默认显示行数', min: 1, max: 20, section: '算法设置', showIf: (d) => Number(getPath(d, 'products.algorithm.enabled')) === 1, hint: '首屏展示的行数（行数 × 每行列数 = 商品数），继续下拉按此行数逐段加载。' },
+      { kind: 'number', key: 'products.algorithm.maxRows', label: '最多显示行数', min: 1, max: 100, section: '算法设置', showIf: (d) => Number(getPath(d, 'products.algorithm.enabled')) === 1 && Number(getPath(d, 'products.algorithm.infiniteScroll')) !== 1, hint: '下拉加载到这个行数就停；不足时以实际商品数为准。' },
+      { kind: 'switch', key: 'products.algorithm.infiniteScroll', label: '无限下拉加载', section: '算法设置', showIf: (d) => Number(getPath(d, 'products.algorithm.enabled')) === 1, hint: '开启后不限制行数，一直下拉直至全部可推荐商品加载完。' },
       { kind: 'title', key: 'title', label: '标题设置', titleHideMoreType: true, titleHideVerticalPadding: true },
       ...containerFields(),
     ],
