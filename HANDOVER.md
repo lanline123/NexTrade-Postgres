@@ -1752,3 +1752,14 @@ PC_API_BASE=https://battery.recy.cc NODE_ENV=production npx next build
 - admin 走 CI 包同时规避了 §21.5 的 0700 权限坑（Ubuntu runner umask 022）；`dep-admin-*.sh` 仍保留「铺完 assets 立刻 chmod 644/755」的防御步骤。
 
 **验证**：PC buildId `0nYo1M62GXJOSy2lwFEPd`（首页 200、`js_titlepad=1`、线上 CSS 里 `.seckill-item__name` 新规则位于旧规则之后、`.seckill-item-discount` 已无 `position:absolute`）；admin 入口 `index-D8JvhJZ8.js`（2,163,620B、entry/css http 200、`titlePaddingLeft`/`titlePaddingRight` 均在包内）。
+
+---
+
+## 23. 装修编辑器进入动画颜色跟随 admin 主题色（2026-11-13，已上线）
+
+- **对象**：进入 `?page=pcDecorateEditor&id=10023` 时看到的加载动画 = `DecorateLoading`（`admin-semi/src/pages/components/DecorateLoading.tsx`，`PcDecorateEditor.tsx` 的 `loading` 态直接 return 它；移动装修 `MobileDecorateEditor` 共用）。样式在 `admin-semi/src/pages/decorate-editor.css` 的 `装修编辑器加载态` 段，原先整套品牌色**写死 teal**（`#0f766e → #14b8a6`、`#ccfbf1`、以及两团 teal/蓝光晕）。
+- **主题变量**：admin 主色是 `--primary`（浅色衬底 `--primary-soft`），由 `theme.ts:43 applyAppearance()` 用 `document.documentElement.style.setProperty` 设在 `<html>` 上；设置项是 globalSettings 的 `primaryColor`，本地缓存 key `admin_appearance_v1`。**注意别用 `--main-bg` 等 PC 画布变量**（那是 `themeStyleSettings` 的另一套，加载动画阶段尚未注入）。
+- **改动**：logo / 进度条 / 转圈环 / spinner 内核 / 全屏光晕全部改 `var(--primary)`、环底改 `var(--primary-soft)`（回退值取 `styles.css` 的默认 `#1456f0`）。变量在 `<html>` 上，因此**改主题色即自动重绘**，无需 JS。光晕用 `color-mix(in srgb, var(--primary) 14%, transparent)` 稀释；为防 `color-mix` 不被支持时整条 `background-image` 失效，底色另用 `background: linear-gradient(...)` 单独铺一层。
+- **时序修复（必做）**：`--primary` 原先要等 `App.tsx` 的异步 `globalSettings` 返回才落，硬刷新直达装修编辑器时动画会先闪默认色 → `main.tsx` 在 `createRoot` **之前**同步 `applyAppearance(getStoredAppearance())`（有缓存才应用；无缓存保持 CSS 默认色，行为不变）。
+- **验证**：CI `admin-build-7` → 线上入口 `index-BZERHmk.js` / `index-BFA95eUG.css`，entry/css http 200；包内 CSS 含 `var(--primary-soft, #e8f2ff)` 与 `var(--primary, #1456f0)`，入口 JS 含 `admin_appearance_v1`（首帧应用外观的逻辑已在包内）。
+- **未覆盖**：JS 启动前的白屏期仍无内联 loader（`index.html` 只有 `<div id="root">`）。要连白屏期也带主题色，需在 `index.html` 里内联一小段读 localStorage 的脚本，或由后端注入色值。
