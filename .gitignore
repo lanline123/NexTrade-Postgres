@@ -74,7 +74,6 @@ rust/web/pc-semi/m\[1\])
 audit_*.py
 audit_*.json
 MIGRATION-AUDIT-*.md
-probe-pg-pks.sh
 
 # 本地运行配置（含数据库口令、JWT secret 等），入库的只有 config.example.yaml
 rust/config.yaml
