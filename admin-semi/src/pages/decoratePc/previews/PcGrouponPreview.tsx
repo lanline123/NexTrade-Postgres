@@ -223,8 +223,13 @@ function GrouponTitleBar({
     if (activityStartTs && activityStartTs > now) label = '距开始';
     else if (countdownTargetTs - now <= 0) label = '已结束';
   }
+  // 标题左右边距（共享契约口径，未配置默认 10）：根节点已带 config.innerPadding
+  // 内容边距（与 PC 端「包裹层 + DecModuleTitle」同构），标题栏只需再叠加标题边距。
+  // 此前左右写死 0，设置里的标题左右边距滑杆完全不生效。
+  const titlePadL = title.titlePaddingLeft == null || title.titlePaddingLeft === '' ? 10 : Number(title.titlePaddingLeft);
+  const titlePadR = title.titlePaddingRight == null || title.titlePaddingRight === '' ? 10 : Number(title.titlePaddingRight);
   const barStyle: Record<string, any> = {
-    padding: `${Number(title.titlePaddingTop) || 20}px 0 ${Number(title.titlePaddingBottom) || 20}px`,
+    padding: `${Number(title.titlePaddingTop) || 20}px ${Number.isFinite(titlePadR) ? titlePadR : 10}px ${Number(title.titlePaddingBottom) || 20}px ${Number.isFinite(titlePadL) ? titlePadL : 10}px`,
   };
   const bg1 = String(title.titleBackground || '');
   const bg2 = String(title.titleBackground2 || '');

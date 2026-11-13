@@ -157,6 +157,22 @@ export default function PcCouponPreview({ data }: { data: Record<string, any> })
     titleAlign !== 1 ? `is-align-${titleAlign}` : '',
     descBelow ? 'is-desc-below' : '',
   ].filter(Boolean).join(' ');
+  // 标题边距（共享契约口径，与 PC 端 DecModuleTitle 对齐）：左右未配置默认 10、始终内联，
+  // 否则会被共享 CSS .dec-coupon__header 的固定 padding 盖住；上下仅在显式配置且 >0 时覆盖。
+  // 此前标题栏完全没读边距字段，设置里的标题边距滑杆不生效。
+  const flatTitle = moduleConfig as unknown as Record<string, any>;
+  const rawPadL = titleObj?.titlePaddingLeft ?? flatTitle.titlePaddingLeft;
+  const rawPadR = titleObj?.titlePaddingRight ?? flatTitle.titlePaddingRight;
+  const headerPadL = rawPadL == null || rawPadL === '' ? 10 : Number(rawPadL);
+  const headerPadR = rawPadR == null || rawPadR === '' ? 10 : Number(rawPadR);
+  const headerStyle: Record<string, any> = {
+    paddingLeft: `${Number.isFinite(headerPadL) ? headerPadL : 10}px`,
+    paddingRight: `${Number.isFinite(headerPadR) ? headerPadR : 10}px`,
+  };
+  const rawPadT = titleObj?.titlePaddingTop ?? flatTitle.titlePaddingTop;
+  const rawPadB = titleObj?.titlePaddingBottom ?? flatTitle.titlePaddingBottom;
+  if (rawPadT != null && rawPadT !== '' && Number(rawPadT) > 0) headerStyle.paddingTop = `${Number(rawPadT)}px`;
+  if (rawPadB != null && rawPadB !== '' && Number(rawPadB) > 0) headerStyle.paddingBottom = `${Number(rawPadB)}px`;
 
   // 模块配置为空时沿用旧版空态占位
   if (isEmpty) {
@@ -191,7 +207,7 @@ export default function PcCouponPreview({ data }: { data: Record<string, any> })
         }}
       >
         {showTitle && (
-          <div className={headerClass}>
+          <div className={headerClass} style={headerStyle}>
             <p
               className="dec-coupon__header-title"
               style={{ color: headerTitleColor || undefined, fontSize: `${titleFontSize}px` }}

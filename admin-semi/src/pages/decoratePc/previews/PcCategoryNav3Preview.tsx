@@ -34,6 +34,8 @@ interface PcCategoryNav3Item {
 
 interface PcCategoryNav3Config {
   frame: AnyRecord;
+  /** 共享标题契约对象（编辑器标题设置组写入；老数据可能缺失，缺失时回退平铺字段）。 */
+  title?: AnyRecord;
   titleText: string;
   showMore: number;
   showMoreText: string;
@@ -91,6 +93,24 @@ export default function PcCategoryNav3Preview({ data }: { data: Record<string, a
   const { t } = useI18n();
   const config = mergeConfig(data);
   const frame = config.frame || {};
+  // 标题改读共享契约（与 PC 端 DecModuleTitle 同源）：此前只读平铺 titleText/showMore，
+  // 编辑器「标题设置」整组（含标题左右边距）写进 title 对象后在预览里完全不生效。
+  // 契约优先、平铺兜底；边距未配置默认 10（共享口径），上下边距 >0 时才覆盖 CSS 的 20px。
+  const navTitle = (config.title && typeof config.title === 'object' ? config.title : {}) as AnyRecord;
+  const navTitleText = navTitle.titleText || config.titleText;
+  const navShowMore = navTitle.showMore != null ? Number(navTitle.showMore) === 1 : Number(config.showMore) === 1;
+  const navMoreText = (navTitle.moreLink && typeof navTitle.moreLink === 'object' ? String(navTitle.moreLink.title || '') : '') || config.showMoreText;
+  const navPadL = navTitle.titlePaddingLeft == null || navTitle.titlePaddingLeft === '' ? 10 : Number(navTitle.titlePaddingLeft);
+  const navPadR = navTitle.titlePaddingRight == null || navTitle.titlePaddingRight === '' ? 10 : Number(navTitle.titlePaddingRight);
+  const navTopStyle: Record<string, any> = {
+    paddingLeft: `${Number.isFinite(navPadL) ? navPadL : 10}px`,
+    paddingRight: `${Number.isFinite(navPadR) ? navPadR : 10}px`,
+  };
+  if (Number(navTitle.titlePaddingTop) > 0) navTopStyle.paddingTop = `${Number(navTitle.titlePaddingTop)}px`;
+  if (Number(navTitle.titlePaddingBottom) > 0) navTopStyle.paddingBottom = `${Number(navTitle.titlePaddingBottom)}px`;
+  const navTitleStyle: Record<string, any> = {};
+  if (Number(navTitle.titleFontSize) > 0) navTitleStyle.fontSize = `${Number(navTitle.titleFontSize)}px`;
+  if (navTitle.titleColor) navTitleStyle.color = String(navTitle.titleColor);
   const picList = Array.isArray(config.picList) ? config.picList : [];
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [nav, setNav] = useState({ canScroll: false, page: 1, pages: 1 });
@@ -148,9 +168,9 @@ export default function PcCategoryNav3Preview({ data }: { data: Record<string, a
 
   return (
     <div className="dec-pc-category-nav3" style={cssVars}>
-      <div className="dec-pc-category-nav3__top">
-        <div className="dec-pc-category-nav3__title">
-          {config.titleText || t('热门推荐')}
+      <div className="dec-pc-category-nav3__top" style={navTopStyle}>
+        <div className="dec-pc-category-nav3__title" style={navTitleStyle}>
+          {navTitleText || t('热门推荐')}
         </div>
         <div className="dec-pc-category-nav3__top-right">
           {nav.canScroll ? (
@@ -158,7 +178,7 @@ export default function PcCategoryNav3Preview({ data }: { data: Record<string, a
               {nav.page} / {nav.pages}
             </span>
           ) : null}
-          {Number(config.showMore) === 1 && (
+          {navShowMore && (
             <a
               className="dec-pc-category-nav3__more"
               href={toHref(config.moreLink)}
@@ -166,7 +186,7 @@ export default function PcCategoryNav3Preview({ data }: { data: Record<string, a
               rel="noopener noreferrer"
             >
               <span className="dec-pc-category-nav3__more-text">
-                {config.showMoreText || t('更多')}
+                {navMoreText || t('更多')}
               </span>
               <span className="dec-pc-category-nav3__more-arrow">&gt;</span>
             </a>

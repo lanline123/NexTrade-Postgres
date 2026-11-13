@@ -208,8 +208,13 @@ function SeckillTitleBar({
   if (!customLabel && countdownTargetTs) {
     if (countdownTargetTs - now <= 0) countdownLabel = '已结束';
   }
+  // 标题左右边距（共享契约口径，未配置默认 10）：PC 端结构是「内容边距包裹层 +
+  // DecModuleTitle 自身标题边距」，本预览把内容边距折进标题栏，故左右 = 内容边距 + 标题边距。
+  // 此前只用了内容边距，设置里的标题左右边距滑杆完全不生效。
+  const titlePadL = title.titlePaddingLeft == null || title.titlePaddingLeft === '' ? 10 : Number(title.titlePaddingLeft);
+  const titlePadR = title.titlePaddingRight == null || title.titlePaddingRight === '' ? 10 : Number(title.titlePaddingRight);
   const barStyle: Record<string, any> = {
-    padding: `${Number(title.titlePaddingTop) || 20}px ${innerPaddingPx}px ${Number(title.titlePaddingBottom) || 20}px`,
+    padding: `${Number(title.titlePaddingTop) || 20}px ${innerPaddingPx + (Number.isFinite(titlePadR) ? titlePadR : 10)}px ${Number(title.titlePaddingBottom) || 20}px ${innerPaddingPx + (Number.isFinite(titlePadL) ? titlePadL : 10)}px`,
   };
   const bg1 = String(title.titleBackground || '');
   const bg2 = String(title.titleBackground2 || '');

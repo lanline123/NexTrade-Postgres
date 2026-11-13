@@ -48,6 +48,8 @@ interface PcCategoryNavConfig {
   showTitle: number;
   displayNum: number;
   backgroundColor: string;
+  /** 共享标题契约对象（编辑器标题设置组写入；老数据可能缺失，缺失时回退上面的平铺字段）。 */
+  title?: AnyRecord;
 }
 
 /** 旧版 `pcCategoryNavDefaults`（深合并默认值，逐字段对齐 index.ts）。 */
@@ -94,6 +96,23 @@ export default function PcCategoryNavPreview({ data }: { data: Record<string, an
   const { t } = useI18n();
   const config = mergeConfig(data);
   const frame = config.frame || {};
+  // 标题改读共享契约（与 PC 端 DecModuleTitle 同源）：此前只读平铺 titleName/showTitle，
+  // 编辑器「标题设置」整组（含标题左右边距）写进 title 对象后在预览里完全不生效。
+  // 契约优先、平铺兜底；边距未配置默认 10（共享口径），上下边距 >0 时才覆盖 CSS 的 20px。
+  const navTitle = (config.title && typeof config.title === 'object' ? config.title : {}) as AnyRecord;
+  const navShowTitle = navTitle.showTitle != null ? Number(navTitle.showTitle) === 1 : Number(config.showTitle) === 1;
+  const navTitleText = navTitle.titleText || config.titleName;
+  const navPadL = navTitle.titlePaddingLeft == null || navTitle.titlePaddingLeft === '' ? 10 : Number(navTitle.titlePaddingLeft);
+  const navPadR = navTitle.titlePaddingRight == null || navTitle.titlePaddingRight === '' ? 10 : Number(navTitle.titlePaddingRight);
+  const navTopStyle: Record<string, any> = {
+    paddingLeft: `${Number.isFinite(navPadL) ? navPadL : 10}px`,
+    paddingRight: `${Number.isFinite(navPadR) ? navPadR : 10}px`,
+  };
+  if (Number(navTitle.titlePaddingTop) > 0) navTopStyle.paddingTop = `${Number(navTitle.titlePaddingTop)}px`;
+  if (Number(navTitle.titlePaddingBottom) > 0) navTopStyle.paddingBottom = `${Number(navTitle.titlePaddingBottom)}px`;
+  const navTitleStyle: Record<string, any> = {};
+  if (Number(navTitle.titleFontSize) > 0) navTitleStyle.fontSize = `${Number(navTitle.titleFontSize)}px`;
+  if (navTitle.titleColor) navTitleStyle.color = String(navTitle.titleColor);
   const displayNum = Math.min(10, Math.max(1, Number(config.displayNum) || 6));
 
   const [rows, setRows] = useState<CategoryRow[]>([]);
@@ -174,10 +193,10 @@ export default function PcCategoryNavPreview({ data }: { data: Record<string, an
   return (
     <div className="dec-pc-category-nav" style={frameStyle}>
       <div className="dec-pc-category-nav__inner" style={innerStyle}>
-        {Number(config.showTitle) === 1 && (
-          <div className="dec-pc-category-nav__top">
-            <div className="dec-pc-category-nav__title">
-              {config.titleName || t('热门分类')}
+        {navShowTitle && (
+          <div className="dec-pc-category-nav__top" style={navTopStyle}>
+            <div className="dec-pc-category-nav__title" style={navTitleStyle}>
+              {navTitleText || t('热门分类')}
             </div>
           </div>
         )}
