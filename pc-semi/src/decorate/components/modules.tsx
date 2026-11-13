@@ -2022,6 +2022,16 @@ function Coupon({ module }: ModuleProps) {
     boxRadius: frame.boxRadius ?? 8,
   };
   const showTitle = Number(module.showTitle) === 1;
+  // 共享标题契约：字号 / 对齐 / 副标题排版（默认 18px、左对齐、跟随主标题后，老数据零跳变）
+  const titleFontSize = Number((module as any).titleFontSize) || 18;
+  const descFontSize = Number((module as any).descFontSize) || 12;
+  const titleAlign = Number((module as any).titleAlign) || 1;
+  const descBelow = Number((module as any).descLayout ?? 1) === 2;
+  const headerClass = [
+    'dec-coupon__header',
+    titleAlign !== 1 ? `is-align-${titleAlign}` : '',
+    descBelow ? 'is-desc-below' : '',
+  ].filter(Boolean).join(' ');
 
   const load = () => {
     setLoading(true);
@@ -2093,11 +2103,18 @@ function Coupon({ module }: ModuleProps) {
           }}
         >
           {showTitle ? (
-            <div className="dec-coupon__header">
-              <p className="dec-coupon__header-title" style={{ color: module.titleColor || undefined }}>
+            <div className={headerClass}>
+              <p
+                className="dec-coupon__header-title"
+                style={{ color: (module as any).titleColor || undefined, fontSize: `${titleFontSize}px` }}
+              >
                 {module.title || ''}
               </p>
-              {module.desc ? <span className="dec-coupon__header-desc">{module.desc}</span> : null}
+              {module.desc ? (
+                <span className="dec-coupon__header-desc" style={{ fontSize: `${descFontSize}px` }}>
+                  {module.desc}
+                </span>
+              ) : null}
             </div>
           ) : null}
 

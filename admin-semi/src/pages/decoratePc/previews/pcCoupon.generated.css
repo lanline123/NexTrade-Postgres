@@ -52,6 +52,22 @@
   color: var(--dec-coupon-muted);
 }
 
+/* 共享标题契约：对齐 1 左 / 2 居中 / 3 右；副标题排版 1 跟随主标题后 / 2 另起一行。
+   与 seckill/groupon 标题栏同语义，数值基准 18px/500。 */
+.dec-coupon__header.is-align-2 {
+  justify-content: center;
+}
+
+.dec-coupon__header.is-align-3 {
+  justify-content: flex-end;
+}
+
+.dec-coupon__header.is-desc-below .dec-coupon__header-desc {
+  flex: 0 0 100%;
+  margin-left: 0;
+  margin-top: 4px;
+}
+
 /* ---------------- 主体 ---------------- */
 .dec-coupon__main {
   display: flex;

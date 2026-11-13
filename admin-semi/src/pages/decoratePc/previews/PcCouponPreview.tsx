@@ -35,6 +35,11 @@ const COUPON_DEFAULTS = {
   title: '每日领券',
   desc: '天天优惠领不停',
   colorStyle: 0,
+  titleFontSize: 18,
+  descFontSize: 12,
+  titleAlign: 1,
+  descLayout: 1,
+  titleColor: '',
   accentColor: '#16a34a',
   itemBackgroundColor: '#ffffff',
   backgroundColor: '#ffffff',
@@ -131,6 +136,16 @@ export default function PcCouponPreview({ data }: { data: Record<string, any> })
   const boxPaddingBottom = Number(moduleConfig.boxPaddingBottom ?? 5);
   const boxRadius = Number(moduleConfig.boxRadius ?? 8) || 0;
   const showTitle = Number(moduleConfig.showTitle) === 1;
+  // 共享标题契约：字号 / 对齐 / 副标题排版（默认 18px、左对齐、跟随主标题后，老数据零跳变）
+  const titleFontSize = Number(moduleConfig.titleFontSize) || 18;
+  const descFontSize = Number(moduleConfig.descFontSize) || 12;
+  const titleAlign = Number(moduleConfig.titleAlign) || 1;
+  const descBelow = Number(moduleConfig.descLayout ?? 1) === 2;
+  const headerClass = [
+    'dec-coupon__header',
+    titleAlign !== 1 ? `is-align-${titleAlign}` : '',
+    descBelow ? 'is-desc-below' : '',
+  ].filter(Boolean).join(' ');
 
   // 模块配置为空时沿用旧版空态占位
   if (isEmpty) {
@@ -165,9 +180,18 @@ export default function PcCouponPreview({ data }: { data: Record<string, any> })
         }}
       >
         {showTitle && (
-          <div className="dec-coupon__header">
-            <p className="dec-coupon__header-title">{moduleConfig.title}</p>
-            {moduleConfig.desc ? <span className="dec-coupon__header-desc">{moduleConfig.desc}</span> : null}
+          <div className={headerClass}>
+            <p
+              className="dec-coupon__header-title"
+              style={{ color: moduleConfig.titleColor || undefined, fontSize: `${titleFontSize}px` }}
+            >
+              {moduleConfig.title}
+            </p>
+            {moduleConfig.desc ? (
+              <span className="dec-coupon__header-desc" style={{ fontSize: `${descFontSize}px` }}>
+                {moduleConfig.desc}
+              </span>
+            ) : null}
           </div>
         )}
 

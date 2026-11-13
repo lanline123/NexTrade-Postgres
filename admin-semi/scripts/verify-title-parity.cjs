@@ -139,10 +139,11 @@ async function main() {
     record('编辑器·秒杀标题行高 30px', !!seckillLine && seckillLine.line === 30,
       seckillLine ? seckillLine.line : '缺失', '30px');
     const couponEd = await styleOf(ed, '.dec-coupon__header-title');
-    record('编辑器·优惠券 18px/500/26px',
-      !!couponEd && couponEd.size === 18 && couponEd.weight === 500 && couponEd.line === 26,
+    record('编辑器·优惠券字重/行高基线（默认18/500/26，字号可自定义）',
+      !!couponEd && couponEd.weight === 500 && couponEd.line === 26 &&
+        Number.isInteger(couponEd.size) && couponEd.size >= 12 && couponEd.size <= 48,
       couponEd ? `${couponEd.size}px/${couponEd.weight}/${couponEd.line}px` : '缺失',
-      '18px/500/26px');
+      '12~48, 500/26');
     await ctx.close();
 
     // —— B. PC 前台 ——
@@ -171,9 +172,10 @@ async function main() {
         st ? `${st.size}px/${st.weight}` : '缺失', '24px/700');
     }
     const couponFe = await styleOf(fe, '.dec-coupon__header-title');
-    record('前台·优惠券 18px/500',
-      !!couponFe && couponFe.size === 18 && couponFe.weight === 500,
-      couponFe ? `${couponFe.size}px/${couponFe.weight}` : '缺失', '18px/500');
+    record('前台·优惠券字重基线（默认18/500，字号可自定义）',
+      !!couponFe && couponFe.weight === 500 &&
+        Number.isInteger(couponFe.size) && couponFe.size >= 12 && couponFe.size <= 48,
+      couponFe ? `${couponFe.size}px/${couponFe.weight}` : '缺失', '12~48, 500');
 
     // —— C. 双端按标题文本逐个一致（这才是「调整后 PC 端同步生效」的门禁） ——
     const edMap = new Map(configTitles.map((x) => [x.text, x.size]));

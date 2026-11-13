@@ -812,6 +812,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     note: '优惠券内容由营销-优惠券"首页显示"决定',
     defaults: () => ({
       showTitle: 0, title: '每日领券', desc: '天天优惠领不停', colorStyle: 0,
+      titleFontSize: 18, descFontSize: 12, titleAlign: 1, descLayout: 1,
       accentColor: '#16a34a', itemBackgroundColor: '#ffffff', backgroundColor: '#ffffff',
       itemPadding: 10, boxRadius: 0, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5,
     }),
@@ -819,6 +820,10 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'switch', key: 'showTitle', label: '显示标题栏' },
       { kind: 'input', key: 'title', label: '标题内容', placeholder: '请输入标题内容', showIf: (m) => Number(m.showTitle) === 1 },
       { kind: 'textarea', key: 'desc', label: '描述内容', placeholder: '请输入描述内容, 字数不超过500', showIf: (m) => Number(m.showTitle) === 1 },
+      { kind: 'slider', key: 'titleFontSize', label: '标题字号', min: 12, max: 48, defaultValue: 18, showIf: (m) => Number(m.showTitle) === 1 },
+      { kind: 'slider', key: 'descFontSize', label: '描述字号', min: 10, max: 32, defaultValue: 12, showIf: (m) => Number(m.showTitle) === 1 },
+      { kind: 'radio', key: 'titleAlign', label: '标题对齐', options: [{ label: '左对齐', value: 1 }, { label: '居中', value: 2 }, { label: '右对齐', value: 3 }], showIf: (m) => Number(m.showTitle) === 1 },
+      { kind: 'radio', key: 'descLayout', label: '描述排版', options: [{ label: '跟随主标题后', value: 1 }, { label: '另起一行', value: 2 }], showIf: (m) => Number(m.showTitle) === 1 },
       { kind: 'color', key: 'accentColor', label: '券主色（面额/按钮）', resetValue: '#16a34a' },
       { kind: 'color', key: 'itemBackgroundColor', label: '券卡背景色', resetValue: '#ffffff' },
       { kind: 'color', key: 'frame.backgroundColor', label: '模块背景色', resetValue: '#ffffff' },
