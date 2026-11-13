@@ -32,6 +32,10 @@ interface AdminMsgType {
 interface AdminMessageCenterProps {
   visible: boolean;
   onClose: () => void;
+  /** AI 审批中心待审批数（>0 时在列表顶部显示一条可点击的审批提醒） */
+  approvalCount?: number;
+  /** 点击审批提醒条：关弹窗并跳到审批中心 */
+  onOpenApprovals?: () => void;
   /**
    * 已读动作回调。
    * @param unread 已读后剩余的未读总数；传入时顶部角标立即更新，不必等接口往返。
@@ -46,7 +50,13 @@ function UnreadPill({ count }: { count: number }) {
   return <em className="admin-msg-num">{value > 99 ? '99+' : value}</em>;
 }
 
-export default function AdminMessageCenter({ visible, onClose, onRead }: AdminMessageCenterProps) {
+export default function AdminMessageCenter({
+  visible,
+  onClose,
+  onRead,
+  approvalCount = 0,
+  onOpenApprovals,
+}: AdminMessageCenterProps) {
   const { t } = useI18n();
   const [rows, setRows] = useState<AdminMsg[]>([]);
   const [loading, setLoading] = useState(false);
@@ -255,10 +265,32 @@ export default function AdminMessageCenter({ visible, onClose, onRead }: AdminMe
         </Button>
       </div>
       <div className="admin-msg-list">
+        {approvalCount > 0 && onOpenApprovals && (
+          <button
+            type="button"
+            className="admin-msg-item is-unread"
+            style={{ background: '#fff7f5' }}
+            onClick={onOpenApprovals}
+          >
+            <div className="admin-msg-item__head">
+              <span className="admin-msg-item__dot" />
+              <Tag color="red" size="small">
+                {t('AI 审批')}
+              </Tag>
+              <span className="admin-msg-item__title">
+                {t('AI 审批中心有 {count} 条待审批', { count: approvalCount })}
+              </span>
+            </div>
+            <div className="admin-msg-item__content">{t('点击前往审批中心处理')}</div>
+          </button>
+        )}
         {loading && rows.length === 0 ? (
           <div className="admin-msg-state"><Spin /></div>
         ) : rows.length === 0 ? (
-          <Empty description={t('当前暂无消息哟')} style={{ padding: 40 }} />
+          // 有审批提醒条时不再显示「暂无消息」空态，避免上下矛盾
+          approvalCount > 0 && onOpenApprovals ? null : (
+            <Empty description={t('当前暂无消息哟')} style={{ padding: 40 }} />
+          )
         ) : (
           rows.map((item) => (
             <button

@@ -26,10 +26,17 @@ import VoiceBroadcastTip from '../components/VoiceBroadcastTip';
 import { useI18n } from '../i18n';
 import { translatedLocales } from '../i18n/config';
 import { fetchUnreadSummary, startAdminMsgStream } from '../sse';
+import { usePendingApprovalCount } from '../hooks/usePendingApprovalCount';
 import { dispatchVoiceDeltas, loadVoiceSettings } from '../voice';
 import { resolveMallUrl } from '../mall';
 
 export type PageKey = string;
+
+/** 待审批计数红 pill（复用消息中心的 .admin-msg-num 样式：红底白字胶囊，>99 显示 99+） */
+function ApprovalPill({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return <em className="admin-msg-num">{count > 99 ? '99+' : count}</em>;
+}
 
 const NAV_ORDER_KEY = 'admin_nav_order_v1';
 const defaultOrder = [
@@ -93,6 +100,8 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
   };
 
   const [msgCount, setMsgCount] = useState(0);
+  /** AI 审批中心待审批数（菜单角标 / 消息红点 / 消息中心入口条共用；page 变化时立即刷新，另有 60 秒轮询） */
+  const approvalCount = usePendingApprovalCount(page);
   /** 「新订单 N」角标：口径 = is_broadcast=1 且 send_time >= lastOpenTime 的新订单消息数（同原版 MsgCount.vue） */
   const [newOrderCount, setNewOrderCount] = useState(0);
   /** 自增以强制重建 SSE 连接（原版 initSSE：换新的 startTime 必须重连才生效） */
@@ -317,6 +326,15 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
           <div className="rail" ref={railRef}>
             {groups.map((group) => {
               const active = activeGroup.key === group.key;
+              // 含「审批中心」的分组（AI）在一级菜单图标上汇总待审批角标：
+              // 侧栏收起、二级菜单不可见时也能一眼看到有待审批
+              const groupApprovalCount = group.items.some(
+                (item) =>
+                  item.key === 'aiMcpApprovals' ||
+                  item.children?.some((child) => child.key === 'aiMcpApprovals'),
+              )
+                ? approvalCount
+                : 0;
               return (
                 <Tooltip content={t(group.label)} position="right" disabled={!collapsed} key={group.key}>
                   <button
@@ -380,7 +398,12 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
                       openPage(first.children?.[0]?.key || first.key);
                     }}
                   >
-                    <span className="rail-icon">{group.icon}</span>
+                    <Badge
+                      count={groupApprovalCount > 0 ? groupApprovalCount : undefined}
+                      overflowCount={99}
+                    >
+                      <span className="rail-icon">{group.icon}</span>
+                    </Badge>
                     {!collapsed && <span className="rail-label">{t(group.label)}</span>}
                   </button>
                 </Tooltip>
@@ -403,7 +426,12 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
                           openPage(target);
                         }}
                       >
-                        <span>{t(item.label)}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          <span>{t(item.label)}</span>
+                          {item.children?.some((child) => child.key === 'aiMcpApprovals') && (
+                            <ApprovalPill count={approvalCount} />
+                          )}
+                        </span>
                         <span className="submenu-section-arrow">›</span>
                       </div>
                       {item.children.map((child) => (
@@ -417,6 +445,7 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
                         >
                           {/* 对齐跨境版 pageLeftMenu 的 menu-chider-item：三级项只有文字，无装饰点 */}
                           <span>{t(child.label)}</span>
+                          {child.key === 'aiMcpApprovals' && <ApprovalPill count={approvalCount} />}
                         </button>
                       ))}
                     </div>
@@ -487,6 +516,9 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
               // 传 undefined 才是真正不显示
               count={msgCount > 0 ? msgCount : undefined}
               overflowCount={99}
+              // 没有未读消息计数时，若 AI 审批中心有待审批，铃铛上补一个红点提醒
+              // （明细入口在消息中心弹窗顶部的审批条里）
+              dot={msgCount === 0 && approvalCount > 0}
             >
               <Button
                 icon={<IconBell />}
@@ -596,6 +628,11 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
         <AdminMessageCenter
           visible={messageVisible}
           onClose={closeMessageCenter}
+          approvalCount={approvalCount}
+          onOpenApprovals={() => {
+            closeMessageCenter();
+            openPage('aiMcpApprovals');
+          }}
           onRead={(unread) => {
             // 传了未读数：只做乐观更新，不去请求（此时服务端可能还没改完，请求会拿回旧值把角标顶回去）
             // 用 min 取小值：打开消息中心时角标已按原版清零，之后读消息算出的数不应把它顶回去
