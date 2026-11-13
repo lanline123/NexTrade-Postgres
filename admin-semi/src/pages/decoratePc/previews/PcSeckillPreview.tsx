@@ -193,6 +193,16 @@ function SeckillTitleBar({
   const descColor = title.descColor || '#1a1a1a';
   const moreColor = title.moreColor || '#1a1a1a';
   const style = Number(title.titleStyle) || 1;
+  // 共享标题契约：字号 / 对齐 / 副标题排版（默认 24px、左对齐、跟随主标题后，老数据零跳变）
+  const titleFontSize = Number(title.titleFontSize) || 24;
+  const descFontSize = Number(title.descFontSize) || 12;
+  const titleAlign = Number(title.titleAlign) || 1;
+  const descBelow = Number(title.descLayout ?? 1) === 2;
+  const wrapperClass = [
+    'pc-seckill__title-wrapper',
+    titleAlign !== 1 ? `is-align-${titleAlign}` : '',
+    descBelow ? 'is-desc-below' : '',
+  ].filter(Boolean).join(' ');
   const customLabel = String(title.countdownLabel || '').trim();
   let countdownLabel = customLabel || t('倒计时');
   if (!customLabel && countdownTargetTs) {
@@ -211,14 +221,14 @@ function SeckillTitleBar({
   }
   return (
     <div className="pc-seckill__titlebar" style={barStyle}>
-      <div className="pc-seckill__title-wrapper">
+      <div className={wrapperClass}>
         {style === 3 && <div className="pc-seckill__title-line" />}
         {title.titleBackgroundPic?.picUrl ? <img className="pc-seckill__title-bg-pic" src={title.titleBackgroundPic.picUrl} alt="" /> : null}
-        <div className="pc-seckill__title" style={{ color: titleColor }}>
+        <div className="pc-seckill__title" style={{ color: titleColor, fontSize: `${titleFontSize}px` }}>
           {title.titleText || fallbackText}
         </div>
         {title.descText ? (
-          <div className={`pc-seckill__desc${style === 2 ? ' pc-seckill__desc--big' : ''}`} style={{ color: descColor }}>
+          <div className={`pc-seckill__desc${style === 2 ? ' pc-seckill__desc--big' : ''}`} style={{ color: descColor, fontSize: `${descFontSize}px` }}>
             {title.descText}
           </div>
         ) : null}

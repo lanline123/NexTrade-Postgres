@@ -2635,7 +2635,11 @@
   &__card {
     display: block;
     box-sizing: border-box;
-    height: 299px;
+    // 原版 PcRecommendProduct.vue 的 299px 是 content-box 内容高（+8px*2 padding = 315px 总高）。
+    // 本站全局 `* { box-sizing:border-box }` 会把 299 当总高，内容盒只剩 283px，
+    // 而 pic 220 + name 45 + price 30 = 295，价格被 overflow:hidden 裁掉 12px。
+    // 按原版总高 315px 写：内容盒恢复 299px，价格下方保留 12px 留白。
+    height: 315px;
     padding: 8px;
     overflow: hidden;
     background-color: #fff;
@@ -4639,4 +4643,31 @@ img {
 
 .dec-module-title.dec-module-title--align-3 .dec-module-title__right {
   margin-right: auto;
+}
+
+/* ============================================================
+   秒杀 / 拼团标题栏：共享标题契约（与 admin 端 fixed-title-tokens.css 同语义）
+   对齐 1 左 / 2 居中 / 3 右；副标题排版 1 跟随主标题后 / 2 另起一行。
+   本文件最后加载，追加在这里才压过 decorate-source.scss 的同名规则。
+   ============================================================ */
+.seckill-title-wrapper.is-align-2,
+.groupon-title-wrapper.is-align-2 {
+  justify-content: center;
+}
+
+.seckill-title-wrapper.is-align-3,
+.groupon-title-wrapper.is-align-3 {
+  justify-content: flex-end;
+}
+
+.seckill-title-wrapper.is-desc-below,
+.groupon-title-wrapper.is-desc-below {
+  flex-wrap: wrap;
+}
+
+.seckill-title-wrapper.is-desc-below .seckill-desc,
+.groupon-title-wrapper.is-desc-below .groupon-desc {
+  flex: 0 0 100%;
+  margin-left: 0;
+  margin-top: 4px;
 }

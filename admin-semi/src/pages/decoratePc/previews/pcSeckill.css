@@ -42,18 +42,19 @@
 }
 
 .pc-seckill__title {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: var(--dec-heading-size);
+  font-weight: var(--dec-heading-weight);
   text-transform: capitalize;
   white-space: nowrap;
+  line-height: var(--dec-heading-line);
 }
 
 .pc-seckill__desc {
-  font-size: 12px;
+  font-size: var(--dec-heading-desc-size);
 }
 
 .pc-seckill__desc--big {
-  font-size: 16px;
+  font-size: var(--dec-heading-desc-big-size);
 }
 
 /* 顶部倒计时：无箭头、不跳转 */

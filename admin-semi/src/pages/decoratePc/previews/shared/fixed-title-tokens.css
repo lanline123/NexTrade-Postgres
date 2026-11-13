@@ -1,0 +1,61 @@
+/* ============================================================
+   固定标题共享排版令牌（编辑器侧单一来源）
+
+   适用于不带「标题设置」的模块标题 / 以及秒杀、拼团这类自带标题栏：
+   - 热门分类、分类导航3、秒杀、拼团：24px / 700
+   - 优惠券：18px / 500 / 行高 26px（次级标题，属刻意层级，不强行拉平）
+
+   基准来自 PC 前台实测（scratch/title-fixed-exact.cjs，用 offsetHeight，
+   不受编辑器画布 scale 影响）：
+   热门分类/导航3 24px/700 line-height normal offsetH 33；
+   秒杀 24px/700 line-height 30px offsetH 30；
+   优惠券 18px/500 line-height 26px offsetH 26。
+
+   各 pc*.css 只引用变量，不再写死数值；改这里 = 改所有固定标题。
+   ============================================================ */
+
+:root {
+  /* 主标题（24px 档） */
+  --dec-heading-size: 24px;
+  --dec-heading-weight: 700;
+  --dec-heading-line: 30px; /* 秒杀/拼团标题栏，与前台 seckill-title 一致 */
+  /* 副标题 / 描述 */
+  --dec-heading-desc-size: 12px;
+  --dec-heading-desc-big-size: 16px;
+  /* 次级标题（优惠券 18px 档） */
+  --dec-subheading-size: 18px;
+  --dec-subheading-weight: 500;
+  --dec-subheading-line: 26px;
+}
+
+/* —— 标题栏对齐（左 / 居中 / 右），两端共用语义 —— */
+.pc-seckill__title-wrapper.is-align-2,
+.pc-groupon__title-wrapper.is-align-2,
+.seckill-title-wrapper.is-align-2,
+.groupon-title-wrapper.is-align-2 {
+  justify-content: center;
+}
+
+.pc-seckill__title-wrapper.is-align-3,
+.pc-groupon__title-wrapper.is-align-3,
+.seckill-title-wrapper.is-align-3,
+.groupon-title-wrapper.is-align-3 {
+  justify-content: flex-end;
+}
+
+/* —— 副标题排版二：另起一行（排版一 = 跟随主标题后，保持原结构） —— */
+.pc-seckill__title-wrapper.is-desc-below,
+.pc-groupon__title-wrapper.is-desc-below,
+.seckill-title-wrapper.is-desc-below,
+.groupon-title-wrapper.is-desc-below {
+  flex-wrap: wrap;
+}
+
+.pc-seckill__title-wrapper.is-desc-below .pc-seckill__desc,
+.pc-groupon__title-wrapper.is-desc-below .pc-groupon__desc,
+.seckill-title-wrapper.is-desc-below .seckill-desc,
+.groupon-title-wrapper.is-desc-below .groupon-desc {
+  flex: 0 0 100%;
+  margin-left: 0;
+  margin-top: 4px;
+}

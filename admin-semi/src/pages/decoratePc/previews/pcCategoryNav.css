@@ -28,8 +28,8 @@
 }
 
 .dec-pc-category-nav__title {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: var(--dec-heading-size);
+  font-weight: var(--dec-heading-weight);
   color: #1a1a1a;
 }
 

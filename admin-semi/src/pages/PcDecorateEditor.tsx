@@ -106,6 +106,8 @@ import RowHeight from '@icon-park/react/es/icons/RowHeight';
 import Announcement from '@icon-park/react/es/icons/Announcement';
 import TextIcon from '@icon-park/react/es/icons/Text';
 import './decorate-editor.css';
+/* 固定标题共享排版令牌：各 pc*.css 只引用变量，数值只在这里定义一次 */
+import './decoratePc/previews/shared/fixed-title-tokens.css';
 
 const { Text } = Typography;
 
@@ -298,6 +300,9 @@ interface SettingFieldDef {
   titleHideVerticalPadding?: boolean;
   /** title 字段是否隐藏对齐选项（原版 hide-title-align） */
   titleHideAlign?: boolean;
+  /** title 字段主/副标题字号默认值：配置型标题 18/13，秒杀/拼团等自带标题栏 24/12 */
+  titleSizeDefault?: number;
+  descSizeDefault?: number;
   /** picList 字段是否显示描述输入（原版 ModulePicList show-desc） */
   picDesc?: boolean;
   /** picList 添加按钮文案（原版 ModulePicList title） */
@@ -402,7 +407,14 @@ const containerFields = (opts: { showInnerPadding?: boolean } = {}): SettingFiel
  * 历史 bug：`kind:'title'` 分支把 data 换成了标题对象，但 showIf 仍按 `title.x` 取值，
  * 于是 `showTitleOn` 恒为 false，除「显示标题」外所有子项全部被隐藏（表现为标题设置缺项）。
  */
-const titleFields = (opts: { moreType?: boolean; verticalPadding?: boolean; hideAlign?: boolean; rootKey?: string } = {}): SettingFieldDef[] => {
+const titleFields = (opts: {
+  moreType?: boolean;
+  verticalPadding?: boolean;
+  hideAlign?: boolean;
+  rootKey?: string;
+  titleSizeDefault?: number;
+  descSizeDefault?: number;
+} = {}): SettingFieldDef[] => {
   const base = opts.rootKey === undefined ? 'title' : opts.rootKey;
   const at = (sub: string) => (base ? `${base}.${sub}` : sub);
   const moreColorDefault = opts.moreType ? '#1a1a1a' : '#969799';
@@ -417,12 +429,12 @@ const titleFields = (opts: { moreType?: boolean; verticalPadding?: boolean; hide
     { kind: 'switch', key: at('showTitle'), label: '显示标题' },
     { kind: 'radio', key: at('titleStyle'), label: '标题样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }], showIf: showTitleOn },
     { kind: 'radio', key: at('titleAlign'), label: '标题对齐', options: [{ label: '左对齐', value: 1 }, { label: '居中', value: 2 }, { label: '右对齐', value: 3 }], showIf: (m) => showTitleOn(m) && !opts.hideAlign },
-    { kind: 'slider', key: at('titleFontSize'), label: '标题字号', min: 12, max: 36, defaultValue: 18, showIf: showTitleOn },
+    { kind: 'slider', key: at('titleFontSize'), label: '标题字号', min: 12, max: 48, defaultValue: opts.titleSizeDefault ?? 18, showIf: showTitleOn },
     { kind: 'input', key: at('titleText'), label: '标题内容', showIf: showTitleOn },
     { kind: 'color', key: at('titleColor'), label: '标题颜色', resetValue: '#2a3145', showIf: showTitleOn },
     { kind: 'input', key: at('descText'), label: '描述内容', showIf: showTitleOn },
     { kind: 'color', key: at('descColor'), label: '描述颜色', resetValue: '#aaaaaa', showIf: showTitleOn },
-    { kind: 'slider', key: at('descFontSize'), label: '描述字号', min: 10, max: 28, defaultValue: 13, showIf: descVisible },
+    { kind: 'slider', key: at('descFontSize'), label: '描述字号', min: 10, max: 32, defaultValue: opts.descSizeDefault ?? 13, showIf: descVisible },
     { kind: 'radio', key: at('descLayout'), label: '描述排版', options: [{ label: '跟随标题后', value: 1 }, { label: '另起一行', value: 2 }], showIf: descVisible },
     { kind: 'color', key: at('titleBackground'), label: '背景颜色', showIf: showTitleOn },
     { kind: 'slider', key: at('titleRadius'), label: '标题圆角', max: 30, showIf: showTitleOn },
@@ -823,12 +835,12 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     defaults: () => ({
       frame: { boxPadding: 0, boxPaddingTop: 0, boxPaddingBottom: 0, boxRadius: 0 },
       seckillTitle: '全场优惠限时9折起',
-      title: standardTitle({ showTitle: 1, titlePaddingTop: 20, titlePaddingBottom: 20, titleText: '全场优惠限时9折起', titleColor: '#1a1a1a', moreType: 2, countdownLabel: '倒计时', moreColor: '#1a1a1a' }),
+      title: standardTitle({ showTitle: 1, titleFontSize: 24, descFontSize: 12, descLayout: 1, titlePaddingTop: 20, titlePaddingBottom: 20, titleText: '全场优惠限时9折起', titleColor: '#1a1a1a', moreType: 2, countdownLabel: '倒计时', moreColor: '#1a1a1a' }),
       goodsGap: 10,
     }),
     settings: [
       { kind: 'slider', key: 'goodsGap', label: '商品间距', max: 40 },
-      { kind: 'title', key: 'title', label: '标题设置', hint: '秒杀商品由营销-秒杀决定', titleHideAlign: true },
+      { kind: 'title', key: 'title', label: '标题设置', hint: '秒杀商品由营销-秒杀决定', titleHideAlign: true, titleSizeDefault: 24, descSizeDefault: 12 },
       ...containerFields({ showInnerPadding: true }),
     ],
     summary: (m) => String(getPath(m, 'title.titleText') || m.seckillTitle || ''),
@@ -838,7 +850,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     defaults: () => ({
       style: 4, groupType: 1, cardStyle: 1, showName: 1, showPrice: 1, textAlign: 1, goodsPadding: 0,
       backgroundColor: '#ffffff', boxRadius: 0, innerPadding: 0, boxPadding: 0, boxPaddingTop: 5, boxPaddingBottom: 5,
-      title: standardTitle({ showTitle: 0, titlePaddingTop: 20, titlePaddingBottom: 20, titleText: '拼团', titleColor: '#2a3145', moreType: 2, countdownLabel: '距结束', moreColor: '#1a1a1a' }),
+      title: standardTitle({ showTitle: 0, titleFontSize: 24, descFontSize: 12, descLayout: 1, titlePaddingTop: 20, titlePaddingBottom: 20, titleText: '拼团', titleColor: '#2a3145', moreType: 2, countdownLabel: '距结束', moreColor: '#1a1a1a' }),
       buyBtnStyle: 0,
       grouponActivityItem: null as unknown as Record<string, any>,
     }),
@@ -855,7 +867,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'radio', key: 'showPrice', label: '显示商品价格', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
       { kind: 'slider', key: 'goodsPadding', label: '商品边距', max: 50 },
       // 原版顺序：模板/类型/活动/卡片/边距在前，标题设置位于内容设置末尾
-      { kind: 'title', key: 'title', label: '标题设置', titleHideAlign: true },
+      { kind: 'title', key: 'title', label: '标题设置', titleHideAlign: true, titleSizeDefault: 24, descSizeDefault: 12 },
       { kind: 'color', key: 'backgroundColor', label: '背景颜色', resetValue: '#ffffff', extend: true },
       { kind: 'slider', key: 'boxRadius', label: '圆角', max: 30, extend: true },
       { kind: 'slider', key: 'innerPadding', label: '内边距', max: 30, extend: true },
@@ -6759,6 +6771,8 @@ function FieldControl({
             moreType: !field.titleHideMoreType,
             verticalPadding: !field.titleHideVerticalPadding,
             hideAlign: field.titleHideAlign,
+            titleSizeDefault: field.titleSizeDefault,
+            descSizeDefault: field.descSizeDefault,
           })}
           data={titleData}
           onChange={(next) => set(next)}

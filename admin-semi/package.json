@@ -5,14 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "gen:coupon-css": "node scripts/gen-coupon-css.mjs", "check:coupon-css": "node scripts/gen-coupon-css.mjs --check", "prebuild": "node scripts/gen-coupon-css.mjs", "build": "tsc -b && vite build",
+    "gen:coupon-css": "node scripts/gen-coupon-css.mjs",
+    "check:coupon-css": "node scripts/gen-coupon-css.mjs --check",
+    "prebuild": "node scripts/gen-coupon-css.mjs",
+    "build": "tsc -b && vite build",
     "build:pos": "node scripts/build-pos.mjs",
     "preview": "vite preview",
     "verify:ui": "node scripts/verify-ui.cjs",
     "verify:config": "node scripts/verify-config-regressions.cjs",
     "verify:pages": "node scripts/smoke-pages.cjs",
     "i18n:check": "node scripts/check-i18n.cjs",
-    "audit:api": "node scripts/audit-admin-api.mjs"
+    "audit:api": "node scripts/audit-admin-api.mjs",
+    "verify:title": "node scripts/verify-title-parity.cjs"
   },
   "dependencies": {
     "@douyinfe/semi-icons": "^2.104.0",

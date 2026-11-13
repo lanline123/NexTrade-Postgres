@@ -2261,14 +2261,14 @@ function Seckill({ module }: ModuleProps) {
                   paddingBottom: `${px(title.titlePaddingBottom, 20)}px`,
                 }}
               >
-                <div className="seckill-title-wrapper">
+                <div className={['seckill-title-wrapper', Number(title.titleAlign || 1) !== 1 ? `is-align-${Number(title.titleAlign || 1)}` : '', Number(title.descLayout ?? 1) === 2 ? 'is-desc-below' : '', ].filter(Boolean).join(' ')}>
                   {Number(title.titleStyle) === 3 ? <div className="line" /> : null}
                   {title.titleBackgroundPic?.picUrl ? (
                     <img className="image-size" src={title.titleBackgroundPic.picUrl} alt="" />
                   ) : null}
-                  <div className="seckill-title" style={{ color: title.titleColor || '#1a1a1a' }}>{titleText}</div>
+                  <div className="seckill-title" style={{ color: title.titleColor || '#1a1a1a', fontSize: `${px(title.titleFontSize, 24)}px` }}>{titleText}</div>
                   {title.descText ? (
-                    <div className={`seckill-desc ${Number(title.titleStyle) === 2 ? 'big-sm' : 'sm'}`} style={{ color: title.descColor || '#1a1a1a' }}>
+                    <div className={`seckill-desc ${Number(title.titleStyle) === 2 ? 'big-sm' : 'sm'}`} style={{ color: title.descColor || '#1a1a1a', fontSize: `${px(title.descFontSize, 12)}px` }}>
                       {title.descText}
                     </div>
                   ) : null}
@@ -2505,14 +2505,14 @@ function Groupon({ module }: ModuleProps) {
                   paddingBottom: `${px(title.titlePaddingBottom, 20)}px`,
                 }}
               >
-                <div className="groupon-title-wrapper">
+                <div className={['groupon-title-wrapper', Number(title.titleAlign || 1) !== 1 ? `is-align-${Number(title.titleAlign || 1)}` : '', Number(title.descLayout ?? 1) === 2 ? 'is-desc-below' : '', ].filter(Boolean).join(' ')}>
                   {Number(title.titleStyle) === 3 ? <div className="line" /> : null}
                   {title.titleBackgroundPic?.picUrl ? (
                     <img className="image-size" src={title.titleBackgroundPic.picUrl} alt="" />
                   ) : null}
-                  <div className="groupon-title" style={{ color: title.titleColor || '#1a1a1a' }}>{title.titleText || t('拼团')}</div>
+                  <div className="groupon-title" style={{ color: title.titleColor || '#1a1a1a', fontSize: `${px(title.titleFontSize, 24)}px` }}>{title.titleText || t('拼团')}</div>
                   {title.descText ? (
-                    <div className={`groupon-desc ${Number(title.titleStyle) === 2 ? 'big-sm' : 'sm'}`} style={{ color: title.descColor || '#1a1a1a' }}>
+                    <div className={`groupon-desc ${Number(title.titleStyle) === 2 ? 'big-sm' : 'sm'}`} style={{ color: title.descColor || '#1a1a1a', fontSize: `${px(title.descFontSize, 12)}px` }}>
                       {title.descText}
                     </div>
                   ) : null}

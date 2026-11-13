@@ -207,6 +207,16 @@ function GrouponTitleBar({
   const showMore = Number(title.showMore) === 1;
   const mode = Number(title.moreType) === 1 ? 1 : 2;
   const style = Number(title.titleStyle) || 1;
+  // 共享标题契约：字号 / 对齐 / 副标题排版（默认 24px、左对齐、跟随主标题后，老数据零跳变）
+  const titleFontSize = Number(title.titleFontSize) || 24;
+  const descFontSize = Number(title.descFontSize) || 12;
+  const titleAlign = Number(title.titleAlign) || 1;
+  const descBelow = Number(title.descLayout ?? 1) === 2;
+  const wrapperClass = [
+    'pc-groupon__title-wrapper',
+    titleAlign !== 1 ? `is-align-${titleAlign}` : '',
+    descBelow ? 'is-desc-below' : '',
+  ].filter(Boolean).join(' ');
   const customLabel = String(title.countdownLabel || '').trim();
   let label = customLabel || t('距结束');
   if (!customLabel && countdownTargetTs) {
@@ -226,14 +236,14 @@ function GrouponTitleBar({
   }
   return (
     <div className="pc-groupon__titlebar" style={barStyle}>
-      <div className="pc-groupon__title-wrapper">
+      <div className={wrapperClass}>
         {style === 3 && <div className="pc-groupon__title-line" />}
         {title.titleBackgroundPic?.picUrl ? <img className="pc-groupon__title-bg-pic" src={title.titleBackgroundPic.picUrl} alt="" /> : null}
-        <div className="pc-groupon__title" style={{ color: title.titleColor || '#1a1a1a' }}>
+        <div className="pc-groupon__title" style={{ color: title.titleColor || '#1a1a1a', fontSize: `${titleFontSize}px` }}>
           {title.titleText || fallbackText}
         </div>
         {title.descText ? (
-          <div className={`pc-groupon__desc${style === 2 ? ' pc-groupon__desc--big' : ''}`} style={{ color: title.descColor || '#1a1a1a' }}>
+          <div className={`pc-groupon__desc${style === 2 ? ' pc-groupon__desc--big' : ''}`} style={{ color: title.descColor || '#1a1a1a', fontSize: `${descFontSize}px` }}>
             {title.descText}
           </div>
         ) : null}
