@@ -2994,7 +2994,7 @@ function Notice({ module }: ModuleProps) {
     innerPadding: frame.innerPadding ?? module.innerPadding ?? 0,
   };
   const itemStyle: Record<string, any> = {
-    backgroundColor: frame.itemBackgroundColor ?? '#fff8e6',
+    backgroundColor: frame.itemBackgroundColor ?? '#f3f7ff',
     borderRadius: `${px(frame.itemRadius, 4)}px`,
     height: `${px(frame.itemHeight, 35)}px`,
     color: frame.textColor ?? '#555555',

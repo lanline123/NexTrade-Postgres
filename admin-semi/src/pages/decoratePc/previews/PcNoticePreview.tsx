@@ -22,7 +22,7 @@ export default function PcNoticePreview({ data }: { data: Record<string, any> })
         '--dec-box-padding-bottom': `${Number(frame.boxPaddingBottom ?? 5)}px`,
         '--dec-box-radius': `${Number(frame.boxRadius ?? 0)}px`,
         '--dec-bg-color': frame.backgroundColor || '#ffffff',
-        '--dec-item-bg-color': frame.itemBackgroundColor || '#fff8e6',
+        '--dec-item-bg-color': frame.itemBackgroundColor || '#f3f7ff',
         '--dec-item-height': `${Number(frame.itemHeight ?? 35)}px`,
         '--dec-item-radius': `${Number(frame.itemRadius ?? 4)}px`,
         '--dec-text-color': frame.textColor || '#555555',

@@ -8964,11 +8964,12 @@ position: relative;
 /* 公告图标同样被 imageBox 的全局 .item-img{opacity:0} 泄漏隐藏 */
 .notice-ad-warp .item-img { opacity: 1; }
 
-/* ================= 公告组件现代系统默认风格 ================= */
+/* ================= 公告组件现代系统默认风格 =================
+ * 组件背景由 frame.itemBackgroundColor 以内联 background-color 提供；
+ * 此处禁止再叠加 background-image 渐变（会盖住用户选的颜色，且渐变色无法配置）。 */
 .module-notice .item-notice-con {
     border: 1px solid rgba(20, 86, 240, .10);
     box-shadow: 0 2px 10px rgba(16, 24, 40, .05);
-    background-image: linear-gradient(90deg, rgba(20, 86, 240, .07) 0%, rgba(20, 86, 240, 0) 62%);
     padding: 0 14px;
     transition: box-shadow .2s ease, border-color .2s ease;
 }
