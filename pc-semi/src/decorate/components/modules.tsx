@@ -1195,7 +1195,6 @@ function CategoryNav({ module }: ModuleProps) {
   const cateListRef = useRef<HTMLDivElement | null>(null);
   const frame = module.frame || {};
   const radius = px(frame.boxRadius);
-  const showTitle = Number(module.showTitle ?? 1) !== 0;
   const displayNum = Math.min(10, Math.max(1, px(module.displayNum ?? module.rowNum, 6)));
   const canScroll = categories.length > displayNum;
   // Swiper loop：分类数超过一屏时，首尾各克隆一屏，实现无缝循环
@@ -1365,11 +1364,7 @@ function CategoryNav({ module }: ModuleProps) {
       <div className="dec-category-nav-wrapper__inner">
         {categories.length ? (
           <div className="mod_seckill" style={{ backgroundColor: module.backgroundColor || undefined, height: px(frame.boxHeight) > 0 ? px(frame.boxHeight) : 328 }}>
-            {showTitle ? (
-              <div className="seckill-top">
-                <div className="seckill-title">{module.titleName || t('热门分类')}</div>
-              </div>
-            ) : null}
+            <DecModuleTitle title={module.title || {}} fallbackText={t('热门分类')} />
             <div className="seckill_list_wrap">
               <SwiperNav visible={canScroll} onPrev={() => stepPage(-1)} onNext={() => stepPage(1)} />
               <div
@@ -2021,18 +2016,6 @@ function Coupon({ module }: ModuleProps) {
     backgroundColor: frame.backgroundColor ?? 'transparent',
     boxRadius: frame.boxRadius ?? 8,
   };
-  const showTitle = Number(module.showTitle) === 1;
-  // 共享标题契约：字号 / 对齐 / 副标题排版（默认 18px、左对齐、跟随主标题后，老数据零跳变）
-  const titleFontSize = Number((module as any).titleFontSize) || 18;
-  const descFontSize = Number((module as any).descFontSize) || 12;
-  const titleAlign = Number((module as any).titleAlign) || 1;
-  const descBelow = Number((module as any).descLayout ?? 1) === 2;
-  const headerClass = [
-    'dec-coupon__header',
-    titleAlign !== 1 ? `is-align-${titleAlign}` : '',
-    descBelow ? 'is-desc-below' : '',
-  ].filter(Boolean).join(' ');
-
   const load = () => {
     setLoading(true);
     apiGet<any>('home/home/getCoupon')
@@ -2102,21 +2085,7 @@ function Coupon({ module }: ModuleProps) {
             ['--dec-coupon-radius' as any]: module.boxRadius != null ? `${px(module.boxRadius)}px` : undefined,
           }}
         >
-          {showTitle ? (
-            <div className={headerClass}>
-              <p
-                className="dec-coupon__header-title"
-                style={{ color: (module as any).titleColor || undefined, fontSize: `${titleFontSize}px` }}
-              >
-                {module.title || ''}
-              </p>
-              {module.desc ? (
-                <span className="dec-coupon__header-desc" style={{ fontSize: `${descFontSize}px` }}>
-                  {module.desc}
-                </span>
-              ) : null}
-            </div>
-          ) : null}
+          <DecModuleTitle title={module.title || {}} fallbackText={t('每日领券')} />
 
           <div className="dec-coupon__main">
             <Link className="dec-coupon__stub" href="/coupon/list" target="_blank">
@@ -2230,8 +2199,8 @@ function Seckill({ module }: ModuleProps) {
   if (loading || !products.length) return null;
 
   const title = module.title || {};
-  const showTitle = Number(title.showTitle ?? 1) === 1;
-  const titleText = title.titleText ?? module.seckillTitle ?? t('限时秒杀');
+  // 老平铺字段 seckillTitle 已由 normalizeLegacyTitle 搬进 title 契约，这里只读契约（去掉残留老路径）
+  const titleText = title.titleText || t('限时秒杀');
   const style = Number(module.style ?? 6);
   const showName = module.showName !== 0 && module.showName !== false;
   const showPrice = module.showPrice !== 0 && module.showPrice !== false;
@@ -2239,14 +2208,6 @@ function Seckill({ module }: ModuleProps) {
   /* 旧 getItemWidth：style1=25%（4个/行）、style2=20%（5个/行）、其余（3/4/7…）默认 25%，
      style 6 才是横向 swiper */
   const columns = style === 1 ? 4 : style === 2 ? 5 : 4;
-  const remaining = endTime && now ? Math.max(0, endTime - now) : 0;
-  const countdown = now && remaining > 0
-    ? `${String(Math.floor(remaining / 3600000)).padStart(2, '0')}:${String(Math.floor((remaining % 3600000) / 60000)).padStart(2, '0')}:${String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0')}`
-    : '';
-  const cdParts = remaining > 0 ? countdownParts(remaining) : null;
-  const titleBg = title.titleBackground2
-    ? `linear-gradient(to right, ${title.titleBackground || ''}, ${title.titleBackground2})`
-    : title.titleBackground || '';
   const frame = module.frame || {};
   const frameStyle: Record<string, any> = {
     paddingLeft: px(frame.boxPadding),
@@ -2267,54 +2228,15 @@ function Seckill({ module }: ModuleProps) {
       >
         <div className="module-ad-content">
           <div className="mod_seckill">
-            {showTitle ? (
-              <div
-                className="seckill-top"
-                style={{
-                  background: titleBg || undefined,
-                  borderTopLeftRadius: px(title.titleRadius) ? `${px(title.titleRadius)}px` : '',
-                  borderTopRightRadius: px(title.titleRadius) ? `${px(title.titleRadius)}px` : '',
-                  paddingTop: `${px(title.titlePaddingTop, 20)}px`,
-                  paddingBottom: `${px(title.titlePaddingBottom, 20)}px`,
-                }}
-              >
-                <div className={['seckill-title-wrapper', Number(title.titleAlign || 1) !== 1 ? `is-align-${Number(title.titleAlign || 1)}` : '', Number(title.descLayout ?? 1) === 2 ? 'is-desc-below' : '', ].filter(Boolean).join(' ')}>
-                  {Number(title.titleStyle) === 3 ? <div className="line" /> : null}
-                  {title.titleBackgroundPic?.picUrl ? (
-                    <img className="image-size" src={title.titleBackgroundPic.picUrl} alt="" />
-                  ) : null}
-                  <div className="seckill-title" style={{ color: title.titleColor || '#1a1a1a', fontSize: `${px(title.titleFontSize, 24)}px` }}>{titleText}</div>
-                  {title.descText ? (
-                    <div className={`seckill-desc ${Number(title.titleStyle) === 2 ? 'big-sm' : 'sm'}`} style={{ color: title.descColor || '#1a1a1a', fontSize: `${px(title.descFontSize, 12)}px` }}>
-                      {title.descText}
-                    </div>
-                  ) : null}
-                </div>
-                <div className="seckill-top-right" style={{ color: title.moreColor || '#1a1a1a' }}>
-                  {Number(title.showMore) === 1 ? (
-                    <a className="seckill-more-link" href={navHref(title.moreLink) || '/seckill/list'}>{title.moreLink?.title || t('更多')}<i className="iconfont-pc icon-login-jt" /></a>
-                  ) : null}
-                  {countdown ? (
-                    <div className="seckill-count-down">
-                      <div className="countdown-box">
-                        <span className="countdown-text">{title.countdownLabel || t('距结束')}:</span>
-{cdParts && cdParts.days > 0 ? (
-                          <>
-                            <span className={`countdown-item${String(cdParts.days).length > 2 ? ' days' : ''}`}>{cdParts.days}</span>
-                            <span className="countdown-separator-text">{t('天')}</span>
-                          </>
-                        ) : null}
-                        <span className="countdown-item">{cdParts ? pad2(cdParts.hours) : ''}</span>
-                        <span className="countdown-separator">:</span>
-                        <span className="countdown-item">{cdParts ? pad2(cdParts.minutes) : ''}</span>
-                        <span className="countdown-separator">:</span>
-                        <span className="countdown-item">{cdParts ? pad2(cdParts.seconds) : ''}</span>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
+            <div style={{ padding: `0 ${px(frame.leftAndRightPadding ?? module.innerPadding)}px` }}>
+              <DecModuleTitle
+                title={title}
+                fallbackText={titleText}
+                countdownTargetTs={endTime}
+                now={now}
+                countdownLabelFallback={t('倒计时')}
+              />
+            </div>
             <div className={`goods-ad-warp${style === 6 ? ' has-nav' : ''}`}>
               <SwiperNav
                 visible={style === 6 && products.length > 6}
@@ -2454,21 +2376,12 @@ function Groupon({ module }: ModuleProps) {
   if (loading || !notEnded.length) return null;
 
   const title = module.title || {};
-  const showTitle = Number(title.showTitle ?? 0) === 1;
   const titleStyleRaw = Number(module.style ?? 4);
   const style = titleStyleRaw === 1 ? 3 : titleStyleRaw;
   const columns = style === 2 ? 4 : style === 3 ? 5 : style === 4 ? 6 : style === 6 ? 6 : 4;
   const goodsPadding = px(module.goodsPadding);
   const showName = Number(module.showName) === 1;
   const showPrice = Number(module.showPrice) === 1;
-  const remaining = topTime && now ? Math.max(0, topTime - now) : 0;
-  const countdown = now && remaining > 0
-    ? `${String(Math.floor(remaining / 3600000)).padStart(2, '0')}:${String(Math.floor((remaining % 3600000) / 60000)).padStart(2, '0')}:${String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0')}`
-    : '';
-  const cdParts = remaining > 0 ? countdownParts(remaining) : null;
-  const titleBg = title.titleBackground2
-    ? `linear-gradient(to right, ${title.titleBackground || ''}, ${title.titleBackground2})`
-    : title.titleBackground || '';
   const radius = px(module.boxRadius);
   const shellStyle: Record<string, any> = {
     backgroundColor: module.backgroundColor || undefined,
@@ -2511,62 +2424,15 @@ function Groupon({ module }: ModuleProps) {
       <div className={`module-ad-con module-goods_ad module-groupon-goods_ad ad-style__${style} ad-buy_btn_style__${px(module.buyBtnStyle)} ad-goods_style__${module.goodsStyle ?? 1} ad-goods_radio_style__${module.goodsRadioStyle ?? 1} ad-goods_name_row__${module.goodsNameRow ?? 1} ad-goods_name_padding__${module.goodsNamePadding} ad-text_align__${module.textAlign ?? 1} ad-text_weight__${module.textWeight} ad-goods-title_style__${title.titleStyle}`} style={shellStyle}>
         <div className="module-ad-content">
           <div className="mod_groupon">
-            {showTitle ? (
-              <div
-                className="groupon-top"
-                style={{
-                  background: titleBg || undefined,
-                  borderTopLeftRadius: px(title.titleRadius) ? `${px(title.titleRadius)}px` : '',
-                  borderTopRightRadius: px(title.titleRadius) ? `${px(title.titleRadius)}px` : '',
-                  paddingTop: `${px(title.titlePaddingTop, 20)}px`,
-                  paddingBottom: `${px(title.titlePaddingBottom, 20)}px`,
-                }}
-              >
-                <div className={['groupon-title-wrapper', Number(title.titleAlign || 1) !== 1 ? `is-align-${Number(title.titleAlign || 1)}` : '', Number(title.descLayout ?? 1) === 2 ? 'is-desc-below' : '', ].filter(Boolean).join(' ')}>
-                  {Number(title.titleStyle) === 3 ? <div className="line" /> : null}
-                  {title.titleBackgroundPic?.picUrl ? (
-                    <img className="image-size" src={title.titleBackgroundPic.picUrl} alt="" />
-                  ) : null}
-                  <div className="groupon-title" style={{ color: title.titleColor || '#1a1a1a', fontSize: `${px(title.titleFontSize, 24)}px` }}>{title.titleText || t('拼团')}</div>
-                  {title.descText ? (
-                    <div className={`groupon-desc ${Number(title.titleStyle) === 2 ? 'big-sm' : 'sm'}`} style={{ color: title.descColor || '#1a1a1a', fontSize: `${px(title.descFontSize, 12)}px` }}>
-                      {title.descText}
-                    </div>
-                  ) : null}
-                </div>
-                {countdown ? (
-                  <div className="groupon-count-down" style={{ color: title.moreColor || '#1a1a1a' }}>
-                    <div className="countdown-box">
-                      <span className="countdown-text">{title.countdownLabel || t('距结束')}:</span>
-{cdParts && cdParts.days > 0 ? (
-                        <>
-                          <span className={`countdown-item${String(cdParts.days).length > 2 ? ' days' : ''}`}>{cdParts.days}</span>
-                          <span className="countdown-separator-text">{t('天')}</span>
-                        </>
-                      ) : null}
-                      <span className="countdown-item">{cdParts ? pad2(cdParts.hours) : ''}</span>
-                      <span className="countdown-separator">:</span>
-                      <span className="countdown-item">{cdParts ? pad2(cdParts.minutes) : ''}</span>
-                      <span className="countdown-separator">:</span>
-                      <span className="countdown-item">{cdParts ? pad2(cdParts.seconds) : ''}</span>
-                    </div>
-                  </div>
-                ) : null}
-                {/* 旧版 PcGrouponLegacy.vue:96-105：标题右侧“更多链接”，groupon-more-link */}
-                {String(title.showMore) === '1' || title.showMore === true ? (
-                  <a
-                    className="groupon-more-link"
-                    href={navHref(title.moreLink) || '/group/list'}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ color: title.moreColor || '#1a1a1a' }}
-                  >
-                    <span>{title.moreLink?.title || t('更多')}</span>
-                    <i className="iconfont-pc icon-login-jt" />
-                  </a>
-                ) : null}
-              </div>
-            ) : null}
+            <div style={{ padding: `0 ${px(module.innerPadding)}px` }}>
+              <DecModuleTitle
+                title={title}
+                fallbackText={t('拼团')}
+                countdownTargetTs={topTime}
+                now={now}
+                countdownLabelFallback={t('距结束')}
+              />
+            </div>
             <div className="groupon_list_wrap">
             <div className={`goods-ad-warp${style === 6 ? ' has-nav' : ''}`} style={{ padding: goodsPadding ? `${goodsPadding}px` : '0' }}>
               <SwiperNav
@@ -2704,6 +2570,10 @@ function ImageNav({ module }: ModuleProps) {
   return (
     <div className={`dec-pc-image-nav ${classes.join(' ')}`} style={cssVars}>
       <div className="dec-pc-image-nav__content">
+        {/* 标题设置块：与后台预览 PcImageNavPreview 的 ModuleTitlePreview 同位置（__content 内首行）。
+            老数据/新建模块 title.showTitle 默认为 0 → DecModuleTitle 返回 null，视觉零变化，
+            需要标题时在编辑器「标题设置」里开启即可（与图片广告同款契约）。 */}
+        <DecModuleTitle title={module.title || {}} />
         {navType === 1 ? (
           <div className="dec-pc-image-nav__grid" style={{ gridTemplateColumns: `repeat(${rowNum}, minmax(0, 1fr))` }}>
             {pages[0].map((item, index) => (
@@ -2905,7 +2775,8 @@ function ImageHotarea({ module }: ModuleProps) {
 
   return (
     <Container module={frame}>
-      <ShopTitle title={module.title} rightText={module.title?.moreLink?.title} />
+      {/* 更多链接文案由 ShopTitle 内部读 title.moreLink.title，原先的 rightText 传参是同一值的重复（无效参数） */}
+      <ShopTitle title={module.title} />
       <div className="image-hotarea-warp" style={{ padding: innerPad ? `${innerPad}px` : undefined }}>
         <div className="image-ad-con">
           {pics.map((item, picIndex) => (
@@ -3325,17 +3196,7 @@ function CategoryNav3({ module }: ModuleProps) {
 
   return (
     <div className="dec-category-nav3" style={style}>
-      <div className="dec-category-nav3__top">
-        <div className="dec-category-nav3__title">{module.titleText || ''}</div>
-        {Number(module.showMore) === 1 ? (
-          <a className="dec-category-nav3__more" href={navHref(module.moreLink) || '#'} target="_blank" rel="noreferrer">
-            {module.showMoreText || t('更多')}
-            <svg className="dec-category-nav3__more-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </a>
-        ) : null}
-      </div>
+      <DecModuleTitle title={module.title || {}} fallbackText={t('热门推荐')} />
       {pics.length ? (
         <div className="dec-category-nav3__list-wrap">
           <div
@@ -3472,12 +3333,66 @@ function GroupBanner({ module }: ModuleProps) {
 /**
  * 装修标题设置块 —— PC 前台版（与 admin 预览 shared/ModuleTitlePreview.tsx 逐字段同构：
  * 样式一=无装饰、样式二=左侧蓝竖条、样式三=文字底部渐变下划线；对齐 1左/2中/3右；
- * 背景(含 titleBackground2 渐变)、圆角（只切顶部两角）、描述(字号/排版)、更多链接）。
+ * 背景(含 titleBackground2 渐变)、圆角（只切顶部两角）、描述(字号/排版)、右侧内容）。
  * 数值基准 = ShopTitle（decorate-source.scss .top-bar）：padding 10px、行高 32px、
  * 主标题 18px/700、描述 13px、图标 32px。CSS 见 modules-source.scss 末尾 dec-module-title 段。
- * 消费方：推荐商品（pc-recommend-product）等带 kind:'title' 设置的模块。
+ * 右侧内容按契约 moreType 二选：1 = 更多链接、2 = 倒计时（秒杀/拼团）。
+ * 消费方：所有带 kind:'title' 设置的模块（图片广告/推荐商品/热门分类/分类导航3/秒杀/拼团/优惠券）。
  */
-function DecModuleTitle({ title }: { title: Record<string, any> }) {
+/** 固定标题改配置型标题之前，线上数据把标题字段平铺在 module 上（优惠券的 title 还是字符串）。
+ *  渲染前搬进 title 契约，已有 title 对象优先，避免老页面文案丢失或标题栏整块消失。 */
+function normalizeLegacyTitle(type: string, m: Record<string, any>): Record<string, any> {
+  if (!m || typeof m !== 'object') return m;
+  let legacy: Record<string, unknown> | null = null;
+  if (type === 'pc-category-nav') {
+    legacy = { showTitle: m.showTitle ?? 1, titleText: m.titleName };
+  } else if (type === 'pc-category-nav3') {
+    legacy = {
+      showTitle: 1,
+      titleText: m.titleText,
+      showMore: m.showMore ?? 1,
+      moreLink: { link: m.moreLink?.link || '', title: m.moreLink?.name || m.showMoreText || '更多' },
+    };
+  } else if (type === 'pc-home-coupon') {
+    legacy = {
+      showTitle: m.showTitle ?? 0,
+      titleText: typeof m.title === 'string' ? m.title : '',
+      descText: m.desc,
+      titleFontSize: m.titleFontSize,
+      descFontSize: m.descFontSize,
+      titleAlign: m.titleAlign,
+      descLayout: m.descLayout,
+    };
+  } else if (type === 'pc-home-seckill') {
+    legacy = { showTitle: 1, titleText: m.seckillTitle, showMore: 1, moreType: 2, countdownLabel: '倒计时' };
+  } else if (type === 'pc-recommend-product') {
+    // 老数据只有 titleName、没有 title 对象：搬进共享契约（有文案才让标题栏出现）。
+    // 渲染侧自此只保留一条路径，不再有「写死 <h3> + 配置型标题」双轨。
+    const legacyName = typeof m.titleName === 'string' ? m.titleName.trim() : '';
+    legacy = legacyName ? { showTitle: 1, titleText: legacyName } : null;
+  }
+  if (!legacy) return m;
+  const defined = Object.fromEntries(Object.entries(legacy).filter(([, v]) => v !== undefined && v !== null && v !== ''));
+  const current = m.title && typeof m.title === 'object' ? m.title : {};
+  return { ...m, title: { ...defined, ...current } };
+}
+
+function DecModuleTitle({
+  title,
+  fallbackText,
+  countdownTargetTs = 0,
+  now = 0,
+  countdownLabelFallback,
+}: {
+  title: Record<string, any>;
+  fallbackText?: string;
+  /** moreType=2 时的活动结束时间戳（毫秒）；0 表示无活动 */
+  countdownTargetTs?: number;
+  /** 与 countdownTargetTs 同一时钟的当前时间戳（毫秒） */
+  now?: number;
+  /** countdownLabel 为空时的兜底文案（秒杀「倒计时」/ 拼团「距结束」） */
+  countdownLabelFallback?: string;
+}) {
   const { t } = useTranslation();
   if (Number(title.showTitle) !== 1) return null;
   const titleStyle = Number(title.titleStyle) || 1;
@@ -3487,6 +3402,8 @@ function DecModuleTitle({ title }: { title: Record<string, any> }) {
   const descFontSize = Number(title.descFontSize) || 13;
   const titleIcon = title.titleBackgroundPic?.picUrl || title.titleBackgroundPic?.picThumb || '';
   const descBelow = descLayout === 2;
+  const showMore = Number(title.showMore) === 1;
+  const isCountdown = Number(title.moreType) === 2;
 
   const containerStyle: Record<string, any> = {};
   if (title.titleBackground2 && title.titleBackground) {
@@ -3497,6 +3414,15 @@ function DecModuleTitle({ title }: { title: Record<string, any> }) {
   if (px(title.titleRadius) > 0) {
     containerStyle.borderRadius = `${px(title.titleRadius)}px ${px(title.titleRadius)}px 0 0`;
   }
+  const padTop = Number(title.titlePaddingTop) || 0;
+  const padBottom = Number(title.titlePaddingBottom) || 0;
+  if (padTop) containerStyle.paddingTop = `${padTop}px`;
+  if (padBottom) containerStyle.paddingBottom = `${padBottom}px`;
+
+  const customLabel = String(title.countdownLabel || '').trim();
+  let countdownLabel = customLabel || countdownLabelFallback || t('距结束');
+  if (!customLabel && countdownTargetTs && countdownTargetTs - now <= 0) countdownLabel = t('已结束');
+  const parts = countdownParts(countdownTargetTs ? countdownTargetTs - now : 0);
 
   return (
     <div
@@ -3514,7 +3440,7 @@ function DecModuleTitle({ title }: { title: Record<string, any> }) {
           className="dec-module-title__text"
           style={{ color: title.titleColor || '#2a3145', fontSize: `${titleFontSize}px` }}
         >
-          {title.titleText}
+          {title.titleText || fallbackText}
         </div>
         {title.descText ? (
           <div
@@ -3525,7 +3451,27 @@ function DecModuleTitle({ title }: { title: Record<string, any> }) {
           </div>
         ) : null}
       </div>
-      {Number(title.showMore) === 1 ? (
+      {showMore && isCountdown ? (
+        <div className="dec-module-title__right">
+          <div className="dec-module-title__countdown" style={{ color: title.moreColor || '#1a1a1a' }}>
+            <div className="dec-module-title__countdown-box">
+              <span className="dec-module-title__countdown-label">{countdownLabel}: </span>
+              {parts.days > 0 ? (
+                <>
+                  <span className="dec-module-title__countdown-item dec-module-title__countdown-item--days">{parts.days}</span>
+                  <span className="dec-module-title__countdown-daytext">{t('天')}</span>
+                </>
+              ) : null}
+              <span className="dec-module-title__countdown-item">{pad2(parts.hours)}</span>
+              <span className="dec-module-title__countdown-sep">:</span>
+              <span className="dec-module-title__countdown-item">{pad2(parts.minutes)}</span>
+              <span className="dec-module-title__countdown-sep">:</span>
+              <span className="dec-module-title__countdown-item">{pad2(parts.seconds)}</span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {showMore && !isCountdown ? (
         <div className="dec-module-title__right">
           <a className="dec-module-title__more" href={title.moreLink?.link || 'javascript:;'} style={{ color: title.moreColor || '#969799' }}>
             <span>{title.moreLink?.title || t('更多')}</span>
@@ -3649,23 +3595,23 @@ function RecommendProduct({ module }: ModuleProps) {
     return '立即购买';
   };
 
-  // 标题：module 里有 title 对象（新版装修数据）→ 按标题设置块渲染（样式一/二/三装饰与
-// admin 预览 dec-module-title 同款）；否则回退旧 titleName，避免双重渲染。
-const titleObj = (module as any).title;
-const hasTitleObj = titleObj && typeof titleObj === 'object';
-const legacyName = module.titleName;
-const showLegacyTitle = !hasTitleObj && Boolean(legacyName);
+  // 标题：只保留一条渲染路径 —— 走共享标题设置块（DecModuleTitle，与 admin 预览逐字段同构）。
+  // 老数据只有 titleName、没有 title 对象时，先由 normalizeLegacyTitle 搬进契约；此处再兜一层，
+  // 兼容不经 normalize 的调用方（如店铺装修 ShopHomepageClient），不再保留写死的 <h3> 双轨。
+  const rawTitle = (module as any).title;
+  const legacyName = typeof module.titleName === 'string' ? module.titleName.trim() : '';
+  const titleObj: Record<string, any> = rawTitle && typeof rawTitle === 'object'
+    ? rawTitle
+    : legacyName
+      ? { showTitle: 1, titleText: legacyName }
+      : {};
 // 商品内容开关（老数据缺省 = 显示，保持原行为）
 const showName = Number((module as any).showProductName ?? 1) === 1;
 const showPrice = Number((module as any).showProductPrice ?? 1) === 1;
 
   return (
     <div className="dec-recommend-product" style={cssVars}>
-      {hasTitleObj ? (
-        <DecModuleTitle title={titleObj} />
-      ) : showLegacyTitle && legacyName ? (
-        <h3 className="dec-recommend-product__title">{legacyName}</h3>
-      ) : null}
+      <DecModuleTitle title={titleObj} />
       <div className="dec-recommend-product__list" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: `${itemGap}px` }}>
         {products.map((product, index) => (
           <div className="dec-recommend-product__item" key={product.productSn || product.productId || index}>
@@ -5466,7 +5412,7 @@ export function DecorateRenderer({ modules }: { modules: DecorateModule[] }) {
         .map((item, index) => {
           let Component: ModuleComponent | undefined = PC_MODULE_REGISTRY[item.type];
           let moduleProps: { module: Record<string, any> } = {
-            module: { ...item.module, label: item.label, frame: item.module?.frame },
+            module: normalizeLegacyTitle(item.type, { ...item.module, label: item.label, frame: item.module?.frame }),
           };
           if (!Component) {
             const adapter = CONTRACT_ADAPTERS[item.type];

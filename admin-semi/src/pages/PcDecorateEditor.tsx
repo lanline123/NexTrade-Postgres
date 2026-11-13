@@ -107,7 +107,7 @@ import Announcement from '@icon-park/react/es/icons/Announcement';
 import TextIcon from '@icon-park/react/es/icons/Text';
 import './decorate-editor.css';
 /* 固定标题共享排版令牌：各 pc*.css 只引用变量，数值只在这里定义一次 */
-import './decoratePc/previews/shared/fixed-title-tokens.css';
+import './decoratePc/previews/shared/module-title.shared.css';
 
 const { Text } = Typography;
 
@@ -178,6 +178,44 @@ const standardTitle = (extra: Record<string, unknown> = {}) => ({
   moreColor: '#aaaaaa',
   ...extra,
 });
+
+/** 固定标题改配置型标题之前，线上数据把标题字段平铺在 module 上（优惠券的 title 还是字符串）。
+ *  载入时搬进 title 契约，已有 title 对象优先，避免老页面文案丢失或面板显示「不显示标题」。 */
+const normalizeLegacyTitle = (type: string, m: Record<string, any>): Record<string, any> => {
+  if (!m || typeof m !== 'object') return m;
+  let legacy: Record<string, unknown> | null = null;
+  if (type === 'pc-category-nav') {
+    legacy = { showTitle: m.showTitle ?? 1, titleText: m.titleName };
+  } else if (type === 'pc-category-nav3') {
+    legacy = {
+      showTitle: 1,
+      titleText: m.titleText,
+      showMore: m.showMore ?? 1,
+      moreLink: { link: m.moreLink?.link || '', title: m.moreLink?.name || m.showMoreText || '更多' },
+    };
+  } else if (type === 'pc-home-coupon') {
+    legacy = {
+      showTitle: m.showTitle ?? 0,
+      titleText: typeof m.title === 'string' ? m.title : '',
+      descText: m.desc,
+      titleFontSize: m.titleFontSize,
+      descFontSize: m.descFontSize,
+      titleAlign: m.titleAlign,
+      descLayout: m.descLayout,
+    };
+  } else if (type === 'pc-home-seckill') {
+    legacy = { titleText: m.seckillTitle };
+  } else if (type === 'pc-recommend-product') {
+    // 老数据只有 titleName、没有 title 对象：搬进共享契约（有文案才让标题栏出现）。
+    // 与 pc-semi 的 normalizeLegacyTitle 同一口径，双端不再各自回退。
+    const legacyName = typeof m.titleName === 'string' ? m.titleName.trim() : '';
+    legacy = legacyName ? { showTitle: 1, titleText: legacyName } : null;
+  }
+  if (!legacy) return m;
+  const defined = Object.fromEntries(Object.entries(legacy).filter(([, v]) => v !== undefined && v !== null && v !== ''));
+  const current = m.title && typeof m.title === 'object' ? m.title : {};
+  return { ...m, title: { ...standardTitle(), ...defined, ...current } };
+};
 
 const productsDefaults = () => ({
   productSelectType: 1,
@@ -298,11 +336,6 @@ interface SettingFieldDef {
   titleHideMoreType?: boolean;
   /** title 字段是否隐藏标题上/下内边距（原版 enableTitleVerticalPadding 未开启的模块） */
   titleHideVerticalPadding?: boolean;
-  /** title 字段是否隐藏对齐选项（原版 hide-title-align） */
-  titleHideAlign?: boolean;
-  /** title 字段主/副标题字号默认值：配置型标题 18/13，秒杀/拼团等自带标题栏 24/12 */
-  titleSizeDefault?: number;
-  descSizeDefault?: number;
   /** picList 字段是否显示描述输入（原版 ModulePicList show-desc） */
   picDesc?: boolean;
   /** picList 添加按钮文案（原版 ModulePicList title） */
@@ -410,10 +443,7 @@ const containerFields = (opts: { showInnerPadding?: boolean } = {}): SettingFiel
 const titleFields = (opts: {
   moreType?: boolean;
   verticalPadding?: boolean;
-  hideAlign?: boolean;
   rootKey?: string;
-  titleSizeDefault?: number;
-  descSizeDefault?: number;
 } = {}): SettingFieldDef[] => {
   const base = opts.rootKey === undefined ? 'title' : opts.rootKey;
   const at = (sub: string) => (base ? `${base}.${sub}` : sub);
@@ -428,13 +458,13 @@ const titleFields = (opts: {
   return [
     { kind: 'switch', key: at('showTitle'), label: '显示标题' },
     { kind: 'radio', key: at('titleStyle'), label: '标题样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }], showIf: showTitleOn },
-    { kind: 'radio', key: at('titleAlign'), label: '标题对齐', options: [{ label: '左对齐', value: 1 }, { label: '居中', value: 2 }, { label: '右对齐', value: 3 }], showIf: (m) => showTitleOn(m) && !opts.hideAlign },
-    { kind: 'slider', key: at('titleFontSize'), label: '标题字号', min: 12, max: 48, defaultValue: opts.titleSizeDefault ?? 18, showIf: showTitleOn },
+    { kind: 'radio', key: at('titleAlign'), label: '标题对齐', options: [{ label: '左对齐', value: 1 }, { label: '居中', value: 2 }, { label: '右对齐', value: 3 }], showIf: showTitleOn },
+    { kind: 'slider', key: at('titleFontSize'), label: '标题字号', min: 12, max: 48, defaultValue: 18, showIf: showTitleOn },
     { kind: 'input', key: at('titleText'), label: '标题内容', showIf: showTitleOn },
     { kind: 'color', key: at('titleColor'), label: '标题颜色', resetValue: '#2a3145', showIf: showTitleOn },
     { kind: 'input', key: at('descText'), label: '描述内容', showIf: showTitleOn },
     { kind: 'color', key: at('descColor'), label: '描述颜色', resetValue: '#aaaaaa', showIf: showTitleOn },
-    { kind: 'slider', key: at('descFontSize'), label: '描述字号', min: 10, max: 32, defaultValue: opts.descSizeDefault ?? 13, showIf: descVisible },
+    { kind: 'slider', key: at('descFontSize'), label: '描述字号', min: 10, max: 32, defaultValue: 13, showIf: descVisible },
     { kind: 'radio', key: at('descLayout'), label: '描述排版', options: [{ label: '跟随标题后', value: 1 }, { label: '另起一行', value: 2 }], showIf: descVisible },
     { kind: 'color', key: at('titleBackground'), label: '背景颜色', showIf: showTitleOn },
     { kind: 'slider', key: at('titleRadius'), label: '标题圆角', max: 30, showIf: showTitleOn },
@@ -549,6 +579,9 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     defaults: () => ({
       navType: 1, navStyle: 1, rowNum: 4, colNum: 2, picList: [],
       backgroundColor: '#ffffff', imgPadding: 8, radioStyle: 1, picPageType: 1, swiperPageColor: '#333333',
+      // 标题设置块：原版 PcImageNav.vue 无标题，画布预览早已接入共享 ModuleTitlePreview
+      // （PcImageNavPreview:227）却无 data 与入口 → 此处补齐，默认不显示，零视觉变化。
+      title: standardTitle(),
       frame: standardFrame(),
     }),
     settings: [
@@ -563,6 +596,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'radio', key: 'radioStyle', label: '图片边角', options: [{ label: '直角', value: 1 }, { label: '圆角', value: 2 }], showIf: (m) => Number(m.navStyle) !== 3 },
       { kind: 'radio', key: 'picPageType', label: '指示器样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }], showIf: (m) => Number(m.navType) === 2 },
       { kind: 'color', key: 'swiperPageColor', label: '指示器颜色', resetValue: '#333333', showIf: (m) => Number(m.navType) === 2 },
+      { kind: 'title', key: 'title', label: '标题设置', titleHideMoreType: true, titleHideVerticalPadding: true },
       ...containerFields(),
     ],
     summary: (m) => `${m.rowNum}×${m.colNum} · ${((m.picList || []) as PicItem[]).length} 项`,
@@ -633,10 +667,10 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     defaults: () => ({
       frame: { boxPadding: 0, boxPaddingTop: 0, boxPaddingBottom: 0, boxRadius: 8, backgroundColor: '#f7f7f7', boxHeight: 328 },
       titleName: '热门分类', showTitle: 1, displayNum: 6, backgroundColor: '#f7f7f7',
+      title: standardTitle({ showTitle: 1, titleText: '热门分类' }),
     }),
     settings: [
-      { kind: 'radio', key: 'showTitle', label: '显示标题', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
-      { kind: 'input', key: 'titleName', label: '标题', placeholder: '请输入标题', showIf: (m) => Number(m.showTitle) === 1 },
+      { kind: 'title', key: 'title', label: '标题设置', titleHideMoreType: true },
       { kind: 'slider', key: 'displayNum', label: '一屏显示数量', min: 1, max: 10 },
       { kind: 'color', key: 'backgroundColor', label: '背景颜色', resetValue: '#f7f7f7' },
       ...containerFields(),
@@ -644,7 +678,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       // pc-semi 的 CategoryNav 同步改为读取 frame.boxHeight，避免「后台可改、C 端不跟随」。
       { kind: 'slider', key: 'frame.boxHeight', label: '组件高度', min: 200, max: 600, defaultValue: 328 },
     ],
-    summary: (m) => `${m.titleName || ''} · 每屏 ${m.displayNum}`,
+    summary: (m) => `${getPath(m, 'title.titleText') || m.titleName || ''} · 每屏 ${m.displayNum}`,
   },
   {
     type: 'pc-category-nav3', label: '分类导航3', group: '导航分类', overseasOnly: true,
@@ -652,15 +686,13 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     defaults: () => ({
       frame: { boxPadding: 0, boxPaddingTop: 0, boxPaddingBottom: 0, boxRadius: 8, backgroundColor: 'rgba(0, 0, 0, 0.02)', boxHeight: 352 },
       titleText: '热门推荐', showMore: 1, showMoreText: '更多', moreLink: { link: '', name: '' },
+      title: standardTitle({ showTitle: 1, titleText: '热门推荐', showMore: 1, moreLink: { link: '', title: '更多' } }),
       imageBackgroundColor: '', picList: [], backgroundColor: 'rgba(0, 0, 0, 0.02)',
     }),
     settings: [
       { kind: 'picList', key: 'picList', label: '图片卡片', hint: '可拖拽排序，建议 180*180 像素', picDesc: true, picAddText: '添加一组' },
       { kind: 'color', key: 'imageBackgroundColor', label: '图片背景色', resetValue: '', section: '参数设置' },
-      { kind: 'input', key: 'titleText', label: '标题内容', placeholder: '请输入标题内容' },
-      { kind: 'radio', key: 'showMore', label: '显示查看更多', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
-      { kind: 'input', key: 'showMoreText', label: '查看更多文字', placeholder: '请输入查看更多文字', showIf: (m) => Number(m.showMore) === 1 },
-      { kind: 'link', key: 'moreLink', label: '更多链接', showIf: (m) => Number(m.showMore) === 1 },
+      { kind: 'title', key: 'title', label: '标题设置', titleHideMoreType: true },
       { kind: 'color', key: 'backgroundColor', label: '模块背景颜色', resetValue: 'rgba(0, 0, 0, 0.02)' },
       // 扩展设置：frame.* 自动归入「扩展设置」Tab。前台/预览均读取 frame.boxHeight 与容器边距，
       // 此前编辑器无入口，线上 10023 的 boxHeight=300 只能在数据层修改。
@@ -668,7 +700,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'slider', key: 'frame.boxHeight', label: '组件高度', min: 200, max: 600, defaultValue: 352 },
       ...containerFields().filter((f) => f.key !== 'frame.backgroundColor'),
     ],
-    summary: (m) => `${m.titleText || ''} · ${((m.picList || []) as PicItem[]).length} 卡`,
+    summary: (m) => `${getPath(m, 'title.titleText') || m.titleText || ''} · ${((m.picList || []) as PicItem[]).length} 卡`,
   },
   {
     type: 'pc-product', label: '商品', group: '商品',
@@ -811,19 +843,14 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     type: 'pc-home-coupon', label: '优惠券', group: '营销活动',
     note: '优惠券内容由营销-优惠券"首页显示"决定',
     defaults: () => ({
-      showTitle: 0, title: '每日领券', desc: '天天优惠领不停', colorStyle: 0,
+      showTitle: 0, desc: '天天优惠领不停', colorStyle: 0,
       titleFontSize: 18, descFontSize: 12, titleAlign: 1, descLayout: 1,
+      title: standardTitle({ titleText: '每日领券', descText: '天天优惠领不停' }),
       accentColor: '#16a34a', itemBackgroundColor: '#ffffff', backgroundColor: '#ffffff',
       itemPadding: 10, boxRadius: 0, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5,
     }),
     settings: [
-      { kind: 'switch', key: 'showTitle', label: '显示标题栏' },
-      { kind: 'input', key: 'title', label: '标题内容', placeholder: '请输入标题内容', showIf: (m) => Number(m.showTitle) === 1 },
-      { kind: 'textarea', key: 'desc', label: '描述内容', placeholder: '请输入描述内容, 字数不超过500', showIf: (m) => Number(m.showTitle) === 1 },
-      { kind: 'slider', key: 'titleFontSize', label: '标题字号', min: 12, max: 48, defaultValue: 18, showIf: (m) => Number(m.showTitle) === 1 },
-      { kind: 'slider', key: 'descFontSize', label: '描述字号', min: 10, max: 32, defaultValue: 12, showIf: (m) => Number(m.showTitle) === 1 },
-      { kind: 'radio', key: 'titleAlign', label: '标题对齐', options: [{ label: '左对齐', value: 1 }, { label: '居中', value: 2 }, { label: '右对齐', value: 3 }], showIf: (m) => Number(m.showTitle) === 1 },
-      { kind: 'radio', key: 'descLayout', label: '描述排版', options: [{ label: '跟随主标题后', value: 1 }, { label: '另起一行', value: 2 }], showIf: (m) => Number(m.showTitle) === 1 },
+      { kind: 'title', key: 'title', label: '标题设置', titleHideMoreType: true },
       { kind: 'color', key: 'accentColor', label: '券主色（面额/按钮）', resetValue: '#16a34a' },
       { kind: 'color', key: 'itemBackgroundColor', label: '券卡背景色', resetValue: '#ffffff' },
       { kind: 'color', key: 'frame.backgroundColor', label: '模块背景色', resetValue: '#ffffff' },
@@ -839,13 +866,15 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     type: 'pc-home-seckill', label: '秒杀', group: '营销活动',
     defaults: () => ({
       frame: { boxPadding: 0, boxPaddingTop: 0, boxPaddingBottom: 0, boxRadius: 0 },
+      // seckillTitle 是迁移前的平铺字段：仅为老数据/旧链适配器（contract.ts toTitle(m.seckillTitle)）保留，
+      // 前台已不再读取它（normalizeLegacyTitle 会把老值搬进 title.titleText）；新配置一律走 title 契约。
       seckillTitle: '全场优惠限时9折起',
-      title: standardTitle({ showTitle: 1, titleFontSize: 24, descFontSize: 12, descLayout: 1, titlePaddingTop: 20, titlePaddingBottom: 20, titleText: '全场优惠限时9折起', titleColor: '#1a1a1a', moreType: 2, countdownLabel: '倒计时', moreColor: '#1a1a1a' }),
+      title: standardTitle({ showTitle: 1, titleText: '全场优惠限时9折起', showMore: 1, moreType: 2, countdownLabel: '倒计时', moreColor: '#1a1a1a' }),
       goodsGap: 10,
     }),
     settings: [
       { kind: 'slider', key: 'goodsGap', label: '商品间距', max: 40 },
-      { kind: 'title', key: 'title', label: '标题设置', hint: '秒杀商品由营销-秒杀决定', titleHideAlign: true, titleSizeDefault: 24, descSizeDefault: 12 },
+      { kind: 'title', key: 'title', label: '标题设置', hint: '秒杀商品由营销-秒杀决定' },
       ...containerFields({ showInnerPadding: true }),
     ],
     summary: (m) => String(getPath(m, 'title.titleText') || m.seckillTitle || ''),
@@ -855,7 +884,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     defaults: () => ({
       style: 4, groupType: 1, cardStyle: 1, showName: 1, showPrice: 1, textAlign: 1, goodsPadding: 0,
       backgroundColor: '#ffffff', boxRadius: 0, innerPadding: 0, boxPadding: 0, boxPaddingTop: 5, boxPaddingBottom: 5,
-      title: standardTitle({ showTitle: 0, titleFontSize: 24, descFontSize: 12, descLayout: 1, titlePaddingTop: 20, titlePaddingBottom: 20, titleText: '拼团', titleColor: '#2a3145', moreType: 2, countdownLabel: '距结束', moreColor: '#1a1a1a' }),
+      title: standardTitle({ titleText: '拼团', showMore: 1, moreType: 2, countdownLabel: '距结束', moreColor: '#1a1a1a' }),
       buyBtnStyle: 0,
       grouponActivityItem: null as unknown as Record<string, any>,
     }),
@@ -872,7 +901,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'radio', key: 'showPrice', label: '显示商品价格', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
       { kind: 'slider', key: 'goodsPadding', label: '商品边距', max: 50 },
       // 原版顺序：模板/类型/活动/卡片/边距在前，标题设置位于内容设置末尾
-      { kind: 'title', key: 'title', label: '标题设置', titleHideAlign: true, titleSizeDefault: 24, descSizeDefault: 12 },
+      { kind: 'title', key: 'title', label: '标题设置' },
       { kind: 'color', key: 'backgroundColor', label: '背景颜色', resetValue: '#ffffff', extend: true },
       { kind: 'slider', key: 'boxRadius', label: '圆角', max: 30, extend: true },
       { kind: 'slider', key: 'innerPadding', label: '内边距', max: 30, extend: true },
@@ -1257,7 +1286,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
           label: item.label || MODULE_DEF_MAP.get(item.type)?.label || item.type,
           isShow: item.isShow !== false,
           fixed: item.fixed,
-          module: item.module || {},
+          module: normalizeLegacyTitle(item.type, item.module || {}),
         })));
       })
       .catch((e) => Toast.error(e?.message || t('加载装修数据失败')))
@@ -5184,6 +5213,8 @@ function ModuleSettingsPanel({
                     <div className={sectionClass(field.label)}><div className="title">{t(field.label)}</div></div>
                   )}
                   <FieldControl field={field} moduleData={moduleData} onChange={onChange} />
+                  {/* 此前 isSection 分支不渲染 hint，导致 kind:'title' 传的提示（如秒杀「秒杀商品由营销-秒杀决定」）是死参数 */}
+                  {fieldHint(field, moduleData) && <div className="dec-edit-group-desc">{t(fieldHint(field, moduleData))}</div>}
                 </div>
               );
             }
@@ -6775,9 +6806,6 @@ function FieldControl({
             rootKey: '',
             moreType: !field.titleHideMoreType,
             verticalPadding: !field.titleHideVerticalPadding,
-            hideAlign: field.titleHideAlign,
-            titleSizeDefault: field.titleSizeDefault,
-            descSizeDefault: field.descSizeDefault,
           })}
           data={titleData}
           onChange={(next) => set(next)}

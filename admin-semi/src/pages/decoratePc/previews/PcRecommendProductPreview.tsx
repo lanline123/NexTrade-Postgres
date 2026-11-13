@@ -285,9 +285,17 @@ export default function PcRecommendProductPreview({ data }: { data: Record<strin
   } as CSSProperties;
 
   const hasProducts = productList.length > 0;
-  // 标题：data 里有 title 键（新版数据/新模块）→ 走标题设置块；
-  // 老数据只有 titleName → 回退旧标题渲染，避免「标题块 + 旧标题」双重渲染。
-  const hasTitleObject = data && data.title !== undefined;
+  // 标题：只保留一条渲染路径 —— 共享 ModuleTitlePreview。老数据只有 titleName、没有 title 对象时，
+  // 编辑器载入期 normalizeLegacyTitle 已搬进契约；此处再兜一层，兼容不经 normalize 的调用方，
+  // 不再保留写死的 <h3> 双轨（与 pc-semi RecommendProduct 同一口径）。
+  const rawTitle = config.title;
+  const legacyTitleName = typeof config.titleName === 'string' ? config.titleName.trim() : '';
+  const titleObj: AnyRecord = rawTitle && typeof rawTitle === 'object'
+    ? (rawTitle as AnyRecord)
+    : legacyTitleName
+      ? { showTitle: 1, titleText: legacyTitleName }
+      : {};
+  const titleVisible = Number(titleObj.showTitle) === 1;
   const showName = Number(config.showProductName ?? 1) === 1;
   const showPrice = Number(config.showProductPrice ?? 1) === 1;
 
@@ -300,12 +308,8 @@ export default function PcRecommendProductPreview({ data }: { data: Record<strin
         </div>
       ) : (
         <>
-          {hasTitleObject ? (
-            <ModuleTitlePreview title={config.title as AnyRecord} />
-          ) : config.titleName ? (
-            <h3 className="dec-pc-recommend-product__title">{config.titleName}</h3>
-          ) : null}
-          <div className={`dec-pc-recommend-product__list${config.titleName || (hasTitleObject && Number((config.title as AnyRecord)?.showTitle) === 1) ? '' : ' is-no-title'}`}>
+          <ModuleTitlePreview title={titleObj} />
+          <div className={`dec-pc-recommend-product__list${titleVisible ? '' : ' is-no-title'}`}>
             {productList.map((item, index) => {
               const priceParts = formatPriceParts(getPrice(item));
               const soldOut = isSoldOut(item);
