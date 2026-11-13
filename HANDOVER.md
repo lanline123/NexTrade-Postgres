@@ -1716,3 +1716,39 @@ PC_API_BASE=https://battery.recy.cc NODE_ENV=production npx next build
 - **验收（无浏览器环境的替代口径）**：入口与全部首页引用资源 200；`node --check` 通过（bundle 可解析）；`scratch/refresh_nt_token.py` 登录成功（admin/admin123 发 token）；`/adminapi/decorate/decorate/detail?id=10023&decorateType=2` 返回 200 且 `moduleList` 有 21 个模块（装修编辑器数据链路正常）。
 - **防复发**：`scratch/pack-admin-navtitle.py` 改为写完 tar 成员后显式置 `0644 / root:root`，并在生成的 `dep-admin-*.sh` 里加了"铺完 assets 立刻 chmod 644/755 + 打印 `entry_mode`"的步骤。**更彻底的做法：admin 也优先走 GitHub CI**（`build-admin.yml` → Release `admin-build-*`，Linux umask 022 不会踩这个坑），本地打包只作后备。
 - **附注**：`admin.recy.cc` 的 `assets/*` 对外直接 GET 会被 nginx 403（**非**本次事故，是既有的外链限制），所以"从公网 curl 资源"不能作为 admin 的验证手段，只能在服务器侧 `grep` 或浏览器同源访问；PC 站（`battery.recy.cc`）无此限制，可直接外链拉 chunk 验证。
+
+---
+
+## 22. 标题左右边距 + 秒杀商品卡片区对齐 + 推荐商品默认值（2026-11-13，已双端上线）
+
+> 用户三条指令：① 分类导航的「标题设置」缺「标题左边距 / 标题右边距」；② 限时秒杀的**商品卡片区**在 PC 端与编辑器预览不一致（预览对、PC 不对）；③ 推荐商品模块的**预览**样式不对（PC 对），且新建默认值应为「白色背景 + 标题样式1 / 居中 / 24 号」。
+
+### 22.1 标题左右边距（共享契约新增字段）
+
+- 新增 `title.titlePaddingLeft` / `title.titlePaddingRight`：默认 **10**（= 旧 CSS `.dec-module-title{padding:10px}` 的现状值，老数据零跳变），范围 **0–60**（比通用 slider 的 30 更宽），面板位置在「标题圆角」之后。
+- 双端 `DecModuleTitle`（`pc-semi/.../modules.tsx`）与 `ModuleTitlePreview`（`admin-semi/src/pages/decoratePc/previews/shared/`）**始终写内联 `paddingLeft/Right`（含 0）**。若只在非 0 时写内联，0 会被 CSS 的 `padding:10px` 盖回去，「贴边」就失效。
+- 口径：0 = 标题紧贴模块最左/最右。注意若模块自身还有「容器设置 → 左右边距」（`frame.boxPadding`）或内层包裹 padding（秒杀/拼团/优惠券的 wrapper），需要两处都为 0 才是完全贴边。
+
+### 22.2 秒杀商品卡片区：PC 向编辑器预览看齐
+
+**根因**（逐项比对 + 线上实测）：线上秒杀数据没有 `style` 字段 → PC 走 `Number(module.style ?? 6)` = 契约的「style6 横向大卡 + swiper」（`.is-swiper .goods-ad-item{flex:0 0 248px}` 与 `ad-style__6` 的「图左文右」规则），而编辑器预览 `PcSeckillPreview` **完全不读 style**，永远画「每行 6 个竖向小卡、溢出横向滚动」；面板里也没有「展示样式」入口 → 商家无从选择，只能看到两端不一致。
+
+改动（`fb0cf15`）：
+
+- 新增 `styleExplicit`（`module.style` 是否显式给出）：**显式给出时照旧输出 `ad-style__N`**（老链 camelCase 页面行为不变）；没给时输出 `ad-style__preview`（不匹配任何规则）并把卡片宽度改写成内联 `flex: 0 0 calc(16.6667% - …)`，压掉 `.is-swiper` 的 `248px` → 呈现预览的竖向小卡布局。
+- 商品名：把 `.seckill-item__name` 从 `modules-source.scss` 的 `.item-name` 列表里摘出来，单独一条 **16px/700/#1a1a1a + margin 5px 5px 8px**（契约是 16px/#1a1a1a，此前被同列表的 14px/#333 盖掉）。
+- 折扣角标：删掉迁移期手写的 `position:absolute;left:8px;top:8px`，回到契约的**文档流**规则；JS 侧改为「折扣 > 0 才渲染、保留 1 位小数」（旧实现 `Math.round` + 只看基准价存在 → 会出现「优惠0%」）。
+- `decorateGoodsItemWidth`：style2 由 25% 改为契约的 20%（一行五个）；`contract.ts` 的 `adaptPcSeckill` 补传 `goodsGap`（此前 PC 恒用 10px）。
+
+**仍按契约、没跟着预览改的三项**（预览本身偏离原版，若要反过来跟预览需明确指示）：图片 `object-fit`（预览 `cover` / 契约+PC `contain` + `#f0f0f0` 底）、卡片圆角（预览 4px / 契约默认 0）、价格字重（预览 700 / 契约 600）。
+
+### 22.3 推荐商品默认值（只改新建默认值）
+
+`pc-recommend-product.defaults`：`frame.backgroundColor` 由 `transparent` → `#ffffff`；标题默认 `titleStyle: 1 / titleAlign: 2（居中）/ titleFontSize: 24`（保留 `showTitle: 1`、`titleText: '猜你喜欢'`）。**不动页面 10023 已有数据**（用户选择：只改默认值）。
+
+### 22.4 两端都改走 CI（本地构建在沙箱已不可用）
+
+- 沙箱（2 vCPU + fuse 挂载）本轮 `vite build` / `next build` / `tsc --noEmit` 都跑不完单次命令时限（160s 无输出），故**两端都走 GitHub CI**：`build-pc-frontend` / `build-admin-frontend` → Release `pc-build-7`（63s）/ `admin-build-5`（54s）→ 下载资产 → 服务器侧脚本切换（`scratch/dep-pc-ci7.sh` / `scratch/dep-admin-ci5.sh`）。CI 顺带是类型门禁（admin 的 `npm run build` = `tsc -b && vite build`）。
+- admin 走 CI 包同时规避了 §21.5 的 0700 权限坑（Ubuntu runner umask 022）；`dep-admin-*.sh` 仍保留「铺完 assets 立刻 chmod 644/755」的防御步骤。
+
+**验证**：PC buildId `0nYo1M62GXJOSy2lwFEPd`（首页 200、`js_titlepad=1`、线上 CSS 里 `.seckill-item__name` 新规则位于旧规则之后、`.seckill-item-discount` 已无 `position:absolute`）；admin 入口 `index-D8JvhJZ8.js`（2,163,620B、entry/css http 200、`titlePaddingLeft`/`titlePaddingRight` 均在包内）。
