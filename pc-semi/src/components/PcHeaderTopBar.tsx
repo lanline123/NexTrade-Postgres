@@ -19,6 +19,7 @@ import PcHeaderNoticeCarousel from '@/components/PcHeaderNoticeCarousel';
 import PcSmartLink from '@/components/PcSmartLink';
 import AuthBadge from '@/components/AuthBadge';
 import { formatPrice } from '@/lib/currency';
+import PcLocaleSelect from '@/components/PcLocaleSelect';
 
 /** B2B 部署开关（默认关）：=1 时顶栏显示企业认证标识（对齐旧版 isB2B()） */
 const IS_B2B_AUTH = process.env.NEXT_PUBLIC_PC_IS_B2B === '1';
@@ -247,10 +248,11 @@ export default function PcHeaderTopBar({
     styleType === 1 && showTopMenuBar && showTopUserMenu && (showTopMessage || showTopOrders);
   const showTopMemberCenter = styleType === 1 && showTopMenuBar && showTopUserMenu && showTopMemberCenterEnabled;
   const showStripLeft = styleType === 1 && (showTopRegion || showTopMemberEntry);
+  // 语言/货币切换常驻顶部条右侧（随顶部菜单开关），保证任何页面最顶部可切换
   const showStripRight =
     styleType === 2
-      ? effectiveShowTopSiteNav || showTopMenuCart
-      : effectiveShowTopSiteNav || showTopMenuCart || showTopMemberCenter || showTopUserLinks;
+      ? effectiveShowTopSiteNav || showTopMenuCart || showTopMenuBar
+      : effectiveShowTopSiteNav || showTopMenuCart || showTopMemberCenter || showTopUserLinks || showTopMenuBar;
   const showTopBar = showBenefitBar && (showStripLeft || showStripRight || showBenefitContent);
   const isBenefitBarOnlyRight = showStripRight && !showStripLeft && !showBenefitContent;
 
@@ -542,6 +544,9 @@ export default function PcHeaderTopBar({
                   ) : null}
                 </div>
               ) : null}
+
+              {/* 语言 / 货币切换（页面最顶部）：语言与货币联动，选项来自后台配置 */}
+              <PcLocaleSelect isWhite={isWhite} langLabelMode="localeCode" className="top-locale-select" />
             </div>
           ) : null}
         </div>

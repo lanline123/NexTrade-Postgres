@@ -20,7 +20,6 @@ import { usePathname } from 'next/navigation';
 import PcHeaderTopBar from '@/components/PcHeaderTopBar';
 import PcHeaderCartContent from '@/components/PcHeaderCartContent';
 import PcHeaderSimple from '@/components/PcHeaderSimple';
-import PcLocaleSelect from '@/components/PcLocaleSelect';
 import PcMine from '@/components/PcMine';
 import PcCartEntry from '@/components/PcCartEntry';
 import PcAllCategory from '@/components/PcAllCategory';
@@ -330,15 +329,6 @@ export default function PcHeader({
               </div>
 
               <div className="page-header-home__right">
-                <div className="language-bar">
-                  <PcLocaleSelect
-                    isWhite={isWhite}
-                    langLabelMode="localeCode"
-                    className="item"
-                    initialLocales={bootstrap?.locales}
-                    initialCurrencies={bootstrap?.currencies}
-                  />
-                </div>
                 <div className="mine-bar">
                   <PcMine isWhite={isWhite} baseConfig={bootstrap?.base} />
                 </div>

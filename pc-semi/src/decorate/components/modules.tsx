@@ -16,6 +16,7 @@ import { imageUrl } from './common';
 import { CONTRACT_ADAPTERS, FLAT_FRAME, linkHref, type ContractRenderPlan } from './contract';
 
 import { useTranslation } from 'react-i18next';
+import { PREMIUM_MEMBER_ENTRY_DATA_URI } from '@/decorate/assets/premiumMemberEntry';
 import { ShopProductCard, useProductStyleMap } from '@/components/product/ShopProductCard';
 import i18n from '@/i18n';
 /**
@@ -1863,7 +1864,7 @@ function HomeHero({ module }: ModuleProps) {
             {premiumShow ? (
               <div
                 className={`dec-pc-home-hero__premium-member${premiumMember.description ? '' : ' is-title-only'}`}
-                style={{ backgroundImage: "url('/assets/images/decorate/pcHome/premium-member-entry.png')" }}
+                style={{ backgroundImage: `url("${PREMIUM_MEMBER_ENTRY_DATA_URI}")` }}
                 title={premiumMember.description || premiumMember.title}
                 onClick={() => openLink(premiumMember.link)}
               >

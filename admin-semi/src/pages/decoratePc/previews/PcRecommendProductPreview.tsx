@@ -310,10 +310,9 @@ export default function PcRecommendProductPreview({ data }: { data: Record<strin
             {productList.map((item, index) => {
               const soldOut = isSoldOut(item);
               return (
-                <a
+                <div
                   key={String(item.productId ?? item.id ?? index)}
                   className="dec-pc-recommend-product__card"
-                  href="javascript:;"
                 >
                   <div className="dec-pc-recommend-product__flip">
                     <div className="dec-pc-recommend-product__pic">
@@ -346,7 +345,7 @@ export default function PcRecommendProductPreview({ data }: { data: Record<strin
                       {buyText(item.productType)}
                     </span>
                   </div>
-                </a>
+                </div>
               );
             })}
           </div>

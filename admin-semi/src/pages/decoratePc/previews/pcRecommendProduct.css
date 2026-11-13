@@ -101,6 +101,13 @@
   color: #333;
   text-decoration: none;
   cursor: pointer;
+  /* 悬停细线描边（与拼团/商品分组卡片同口径：透明边框 + hover 切主题色） */
+  border: 1px solid transparent;
+  transition: border-color 0.3s;
+}
+
+.dec-pc-recommend-product__card:hover {
+  border-color: var(--main-bg, #ee0a24);
 }
 
 .dec-pc-recommend-product__card:hover .dec-pc-recommend-product__name {

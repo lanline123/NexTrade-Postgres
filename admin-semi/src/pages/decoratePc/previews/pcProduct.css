@@ -41,6 +41,12 @@
   background: #fff;
   text-decoration: none;
   color: inherit;
+  /* 悬停时边框切主题色（与拼团/商品分组卡片同口径） */
+  transition: border-color 0.3s;
+}
+
+.dec-pc-product__card:hover {
+  border-color: var(--main-bg, #ee0a24);
 }
 
 .dec-pc-product__photo {

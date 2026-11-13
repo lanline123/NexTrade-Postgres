@@ -151,6 +151,9 @@
   overflow: hidden;
   width: 100%;
   display: flex;
+  /* 左右留白放在裁剪层：滚动盒不再带 padding，避免第 7 张卡片在右侧 padding 区露出一条边 */
+  box-sizing: border-box;
+  padding: 0 12px;
 }
 
 .dec-pc-category-nav3__scroll {
@@ -160,7 +163,7 @@
   overflow-x: auto;
   overflow-y: hidden;
   box-sizing: border-box;
-  padding: 0 12px;
+  padding: 0;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;

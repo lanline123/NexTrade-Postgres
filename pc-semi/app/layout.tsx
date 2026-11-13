@@ -29,6 +29,7 @@ import PrivacyConsent from '@/components/PrivacyConsent';
 import MobileRedirect from '@/components/MobileRedirect';
 import VisitLogger from '@/components/VisitLogger';
 import I18nProvider from '@/i18n/I18nProvider';
+import PcGeoLocaleInit from '@/components/PcGeoLocaleInit';
 import { getHeaderBootstrap } from '@/lib/api';
 import { PC_HEADER_BOOTSTRAP_ID } from '@/lib/header-bootstrap';
 import { loadTheme } from '@/lib/theme-server';
@@ -207,6 +208,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify([organizationJsonLd, websiteJsonLd(serverLang)]) }} />
         <I18nProvider>
+          {/* 首访 IP 定位 → 自动匹配语言/货币（仅首次、无偏好 Cookie 时） */}
+          <PcGeoLocaleInit />
           {children}
           {/* 移动端浏览器自动跳 H5（autoRedirect=1 时，对齐旧版 app.vue handlerToMobile） */}
           <MobileRedirect />

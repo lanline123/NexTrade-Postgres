@@ -74,6 +74,9 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* 分类名是 <a> 的子元素，会继承浏览器默认下划线，这里统一去掉 */
+  text-decoration: none;
+  color: inherit;
 }
 
 .dec-pc-category-nav__image {

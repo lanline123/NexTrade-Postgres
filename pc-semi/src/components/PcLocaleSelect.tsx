@@ -17,6 +17,7 @@ import Translate from '@icon-park/react/es/icons/Translate';
 import Down from '@icon-park/react/es/icons/Down';
 import { normalizeLocale, writeLocaleCookie } from '@/i18n';
 import { readHeaderBootstrap } from '@/lib/header-bootstrap';
+import { currencyCodeForLocale, findCurrencyByCode } from '@/lib/locale-geo';
 import type { HeaderBootstrapCurrency, HeaderBootstrapLocale } from '@/lib/header-bootstrap';
 
 interface LocaleItem {
@@ -203,6 +204,13 @@ export default function PcLocaleSelect({
         window.location.href = `${protocol}//${targetDomain}${pathname}${search}${hash}`;
         return;
       }
+      // 语言联动货币：按目标语言的默认币种在后台货币列表里找对应条目，
+      // 找到且与当前不同才改（列表里没有该币种时不动货币）。
+      const linkedCurrency = findCurrencyByCode(currencies, currencyCodeForLocale(localeCode));
+      if (linkedCurrency && linkedCurrency.id !== currency?.id) {
+        writeCurrencyCookie(linkedCurrency);
+        setCurrency(linkedCurrency);
+      }
       const next = normalizeLocale(localeCode);
       writeLocaleCookie(next);
       writePlainCookie(CURRENT_LANGUAGE_COOKIE, currentLang?.language || localeCode.toUpperCase());
@@ -216,7 +224,7 @@ export default function PcLocaleSelect({
       setOpen(false);
       window.location.reload();
     },
-    [code, i18n, locales],
+    [code, i18n, locales, currencies, currency],
   );
 
   const changeCurrency = useCallback(
