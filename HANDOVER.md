@@ -1706,3 +1706,13 @@ PC_API_BASE=https://battery.recy.cc NODE_ENV=production npx next build
 - **CRLF 假脏**：Windows 检出 + 沙箱 git 无 `core.autocrlf`（仓库也无 `.gitattributes`）→ `git status` 会把 600+ 个文本文件报成 modified（`styles.css` 9281/9281 纯行尾差异）。提交前必看 `--numstat` 增删是否成对，且只 `git add <具体文件>`。
 - **提交范围**：本轮改的 3 个文件里含同批**未提交**的标题契约改动（`normalizeLegacyTitle` 等，`273fc72` 中并不存在），无法只挑单个 hunk，故 `ad790b5` = 「该基线 + 本轮改动」；已上线的 admin 包与 PC 构建都基于此版本，双端因此一致。
 - `run_shell.py` 输出可能被客户端超时截断（本次停在 `=== 4. health ===`，且夹带一行 `##LOCKED-SKIP`）→ 判成功要看 `.out` 末尾的 `##FINISHED`，或独立复核（本次用公网 buildId + chunk 标记复核，见 §21.3）。
+
+### 21.5 事故与修复：admin 白屏 = 打包权限 0700 → nginx 403（2026-11-13）
+
+- **现象**：本次 admin 热更新后 `https://admin.recy.cc/` 打不开（页面 200 但白屏）。
+- **定位**：`index.html` 返回 200，但新入口 `assets/index-ahrXa3PJ.js` 返回 **403**（146B 的 nginx 403 页）；而**上一个**入口 `index-BA7uiQYt.js` 返回 200 —— 说明是本次新铺的文件本身出了问题，与代码、与后端无关。
+- **根因**：沙箱/挂载目录里的文件权限是 `0700`，`tarfile.add()` 把 `0700` 原样写进包；服务器侧 `cp -f` **只对"已存在文件"保留目标权限**，因此**新出现**的文件以 `700 root:root` 落地 → nginx（`www`/`lighthouse`）读不了 → 403。旧文件因为此前已存在于 `assets/`，`cp` 覆盖后仍是 644，所以能正常返回 200（这也是"新旧对比"能一眼定位的原因）。`dep-admin-*.sh` 里原本只 `chmod 644` 了 `EXPECT_ENTRY`/`EXPECT_CSS` 两个文件，其余新 chunk（vendor-*）仍是 700。
+- **修复**：`find /www/wwwroot/admin.recy.cc/assets -type d -exec chmod 755 {} \;` + `-type f -exec chmod 644 {} \;` + `chmod 644 index.html`。修完 6 个首页引用资源全部 200（`scratch/verify-admin-live.cjs` 的等价检查）。
+- **验收（无浏览器环境的替代口径）**：入口与全部首页引用资源 200；`node --check` 通过（bundle 可解析）；`scratch/refresh_nt_token.py` 登录成功（admin/admin123 发 token）；`/adminapi/decorate/decorate/detail?id=10023&decorateType=2` 返回 200 且 `moduleList` 有 21 个模块（装修编辑器数据链路正常）。
+- **防复发**：`scratch/pack-admin-navtitle.py` 改为写完 tar 成员后显式置 `0644 / root:root`，并在生成的 `dep-admin-*.sh` 里加了"铺完 assets 立刻 chmod 644/755 + 打印 `entry_mode`"的步骤。**更彻底的做法：admin 也优先走 GitHub CI**（`build-admin.yml` → Release `admin-build-*`，Linux umask 022 不会踩这个坑），本地打包只作后备。
+- **附注**：`admin.recy.cc` 的 `assets/*` 对外直接 GET 会被 nginx 403（**非**本次事故，是既有的外链限制），所以"从公网 curl 资源"不能作为 admin 的验证手段，只能在服务器侧 `grep` 或浏览器同源访问；PC 站（`battery.recy.cc`）无此限制，可直接外链拉 chunk 验证。
