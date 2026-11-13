@@ -949,9 +949,13 @@
   z-index: 9999;
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(circle at 15% 10%, rgba(153, 246, 228, 0.25), transparent 32%),
-    radial-gradient(circle at 88% 90%, rgba(191, 219, 254, 0.3), transparent 36%),
+  /* 底色保持中性，光晕跟随 admin 主题色 var(--primary)（原来是写死的 teal/蓝）。
+     先用 background 铺底，再用 background-image 叠光晕：color-mix 不被支持时整条 background-image
+     会被丢弃，但底色仍在，不会把加载页变成白屏。 */
+  background: linear-gradient(150deg, #f7fbfa 0%, #f2f7ff 100%);
+  background-image:
+    radial-gradient(circle at 15% 10%, color-mix(in srgb, var(--primary, #1456f0) 14%, transparent), transparent 32%),
+    radial-gradient(circle at 88% 90%, color-mix(in srgb, var(--primary, #1456f0) 10%, transparent), transparent 36%),
     linear-gradient(150deg, #f7fbfa 0%, #f2f7ff 100%);
   color: #0f172a;
   overflow: hidden;
@@ -972,7 +976,8 @@
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  /* 跟随 admin 主题色（原来写死 teal 渐变） */
+  background: var(--primary, #1456f0);
   color: #fff;
   font-family: Georgia, serif;
   font-size: 16px;
@@ -998,7 +1003,7 @@
 .deco-loading-bar--title { width: 190px; height: 16px; }
 .deco-loading-bar--button { width: 88px; height: 30px; border-radius: 8px; }
 .deco-loading-bar--primary {
-  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  background: var(--primary, #1456f0);
   animation: none;
   opacity: 0.85;
 }
@@ -1115,8 +1120,8 @@
   height: 54px;
   margin-bottom: 4px;
   border-radius: 50%;
-  border: 2px solid #ccfbf1;
-  border-top-color: #0f766e;
+  border: 2px solid var(--primary-soft, #e8f2ff);
+  border-top-color: var(--primary, #1456f0);
   animation: deco-spin 0.9s linear infinite;
 }
 .deco-loading-spinner-core {
@@ -1125,7 +1130,7 @@
   width: 36px;
   height: 36px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  background: var(--primary, #1456f0);
   color: #fff;
   font-family: Georgia, serif;
   font-size: 18px;
