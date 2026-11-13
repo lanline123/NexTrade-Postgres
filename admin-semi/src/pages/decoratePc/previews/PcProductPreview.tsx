@@ -287,7 +287,7 @@ export default function PcProductPreview({ data }: { data: Record<string, any> }
             <div className="dec-pc-product__list">
               {productList.map((item) => (
                 <div key={String(item.productId ?? '')} className="dec-pc-product__item">
-                  <a className="dec-pc-product__card" href="javascript:;">
+                  <div className="dec-pc-product__card">
                     <div className="dec-pc-product__photo">
                       <img className="dec-pc-product__img" src={formatImage(pickPic(item))} alt={item.productName || ''} />
                     </div>
@@ -317,7 +317,7 @@ export default function PcProductPreview({ data }: { data: Record<string, any> }
                         ) : null}
                       </div>
                     </div>
-                  </a>
+                  </div>
                 </div>
               ))}
             </div>

@@ -1172,7 +1172,7 @@ function QuickNav({ module }: ModuleProps) {
                   rel="noreferrer"
                   title={item.picTitle ?? ''}
                 >
-                  {picSrc(item) ? <img className="dec-pc-home-quick-nav__icon" src={picSrc(item)} alt="" /> : null}
+                  {picSrc(item) ? <img className="dec-pc-home-quick-nav__icon" src={picSrc(item)} alt="" loading="lazy" decoding="async" /> : null}
                   {item.picTitle ? <span className="dec-pc-home-quick-nav__text">{item.picTitle}</span> : null}
                 </a>
               ))}
@@ -1277,11 +1277,7 @@ function CategoryNav({ module }: ModuleProps) {
     dragRef.current = { startX: event.clientX, startScroll: el.scrollLeft, moved: false };
     suppressClickRef.current = false;
     setDragging(true);
-    try {
-      el.setPointerCapture(event.pointerId);
-    } catch {
-      /* 部分浏览器/合成事件不支持 pointer capture */
-    }
+    /* pointer capture deferred to drag start (see handlePointerMove): capturing on pointerdown retargets clicks away from the category links */
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -1289,7 +1285,16 @@ function CategoryNav({ module }: ModuleProps) {
     const el = cateListRef.current;
     if (!drag || !el) return;
     const dx = event.clientX - drag.startX;
-    if (Math.abs(dx) > 4) drag.moved = true;
+    if (Math.abs(dx) > 4) {
+      drag.moved = true;
+      if (!el.hasPointerCapture(event.pointerId)) {
+        try {
+          el.setPointerCapture(event.pointerId);
+        } catch {
+          /* 部分浏览器/合成事件不支持 pointer capture */
+        }
+      }
+    }
     el.scrollTo({ left: drag.startScroll - dx, behavior: 'instant' as ScrollBehavior });
     normalizeScroll();
   };
@@ -2911,7 +2916,7 @@ function Notice({ module }: ModuleProps) {
             <div className="item-content">
               <div className="item-notice-con" style={itemStyle}>
                 {module.icoPic?.picUrl ? (
-                  <div className="item-notice-ico" style={{ width: `${px(frame.iconSize, 16)}px`, height: `${px(frame.iconSize, 16)}px` }}><img className="item-img" src={module.icoPic.picUrl} alt="" style={{ opacity: 1 }} /></div>
+                  <div className="item-notice-ico" style={{ width: `${px(frame.iconSize, 16)}px`, height: `${px(frame.iconSize, 16)}px` }}><img className="item-img" src={module.icoPic.picUrl} alt="" style={{ opacity: 1 }} loading="lazy" decoding="async" /></div>
                 ) : null}
                 <div className="item-notice-list">
                   <div className="item-notice-input" style={{ color: frame.textColor ?? '#555555', fontSize: `${px(frame.fontSize, 14)}px` }}>{module.text || ''}</div>
@@ -3223,11 +3228,7 @@ function CategoryNav3({ module }: ModuleProps) {
               if (!el || event.button !== 0) return;
               dragRef.current = { startX: event.clientX, startLeft: el.scrollLeft, moved: false };
               el.classList.add('is-dragging');
-              try {
-                el.setPointerCapture(event.pointerId);
-              } catch {
-                /* 合成事件可能不支持 pointer capture */
-              }
+              /* capture deferred to drag (see onPointerMove): capturing on pointerdown retargets the click to the scroll container and the card link never navigates */
             }}
             onPointerMove={(event) => {
               const el = nav3Ref.current;
@@ -3237,6 +3238,9 @@ function CategoryNav3({ module }: ModuleProps) {
               if (Math.abs(dx) > 4) {
                 drag.moved = true;
                 suppressClickRef.current = true;
+                if (!el.hasPointerCapture(event.pointerId)) {
+                  try { el.setPointerCapture(event.pointerId); } catch { /* unsupported */ }
+                }
                 el.scrollTo({ left: drag.startLeft - dx, behavior: 'instant' as ScrollBehavior });
                 normalizeScroll();
               }

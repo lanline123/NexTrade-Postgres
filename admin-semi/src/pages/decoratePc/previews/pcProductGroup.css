@@ -225,6 +225,12 @@
   border-color: var(--main-bg, #ee0a24);
 }
 
+/* 变体 card-style-3 自带 #eeeeee 边框简写会盖掉上面的 hover 颜色，这里定向补回 */
+.dec-pc-product-group .dec-pc-product-group__card:hover,
+.dec-pc-product-group--card-style-3 .dec-pc-product-group__card:hover {
+  border-color: var(--main-bg, #ee0a24);
+}
+
 /* ========== 商品图片 ========== */
 .dec-pc-product-group__image {
   position: relative;

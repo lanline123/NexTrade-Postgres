@@ -9005,3 +9005,33 @@ position: relative;
     line-height: 1.4;
     letter-spacing: .005em;
 }
+
+/* ===== 卡片悬停主题色细线（统一补齐：商品分组/秒杀/推荐商品） [dec-hover-theme-border] ===== */
+.dec-product-group--card-style-3 .dec-product-group__card:hover {
+    border-color: var(--main-bg, #ee0a24);
+}
+
+.module-seckill-goods_ad .goods-ad-item,
+.mod_seckill .seckill_list .proditem {
+    border: 1px solid transparent;
+    transition: border-color 0.3s;
+}
+
+.module-seckill-goods_ad .goods-ad-item:hover,
+.mod_seckill .seckill_list .proditem:hover {
+    border-color: var(--main-bg, #ee0a24);
+}
+
+/* 秒杀样式3自带 !important 灰边框，hover 颜色需同级覆盖 */
+.module-seckill-goods_ad.ad-goods_style__3 .goods-ad-item:hover {
+    border-color: var(--main-bg, #ee0a24) !important;
+}
+
+.dec-recommend-product__card {
+    border: 1px solid transparent;
+    transition: border-color 0.3s;
+}
+
+.dec-recommend-product__card:hover {
+    border-color: var(--main-bg, #ee0a24);
+}
