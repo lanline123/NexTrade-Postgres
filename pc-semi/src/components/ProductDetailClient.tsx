@@ -106,6 +106,32 @@ interface CouponItem {
   isReceive?: number;
 }
 
+/**
+ * getCoupon 接口返回的是数据库原始下划线字段（coupon_money / min_order_amount …），
+ * 与详情等接口的驼峰风格不一致；前端若直接按驼峰读取，面额/门槛/券名/券 ID 会全丢
+ * （页面表现为 ¥0.00 / 满0可用 / 领取带 undefined ID）。在此统一归一化，兼容两种写法。
+ */
+function normalizeCoupons(list: unknown): CouponItem[] {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((raw) => {
+      const row = (raw ?? {}) as Record<string, unknown>;
+      const pick = (...keys: string[]) => keys.map((key) => row[key]).find((value) => value !== undefined && value !== null);
+      return {
+        couponId: Number(pick('couponId', 'coupon_id') ?? 0) || undefined,
+        couponName: String(pick('couponName', 'coupon_name') ?? ''),
+        couponMoney: pick('couponMoney', 'coupon_money') as number | string | undefined,
+        couponDiscount: pick('couponDiscount', 'coupon_discount') as number | string | undefined,
+        couponType: Number(pick('couponType', 'coupon_type') ?? 1),
+        couponDesc: String(pick('couponDesc', 'coupon_desc') ?? ''),
+        minOrderAmount: pick('minOrderAmount', 'min_order_amount') as number | string | undefined,
+        limitNum: Number(pick('limitNum', 'limit_num') ?? 0) || undefined,
+        isReceive: Number(pick('isReceive', 'is_receive') ?? 0),
+      };
+    })
+    .filter((coupon) => coupon.couponId);
+}
+
 function yuan(value: unknown): string {
   const amount = Number(value || 0);
   return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -223,6 +249,7 @@ export default function ProductDetailClient({
 
   // —— 营销 / 店铺 / 推荐 ——
   const [coupons, setCoupons] = useState<CouponItem[]>([]);
+  const [couponExpanded, setCouponExpanded] = useState(false);
   const [seckillPrice, setSeckillPrice] = useState<number | null>(null);
   const [grouponInfo, setGrouponInfo] = useState<Record<string, any> | null>(null);
   const [presaleDeposit, setPresaleDeposit] = useState(0);
@@ -413,8 +440,8 @@ export default function ProductDetailClient({
     apiGet<Record<string, any> | null>('common/config/base')
       .then((base) => alive && setCommentEnabled(Number(base?.productCommentEnabled ?? 1)))
       .catch(() => undefined);
-    apiGet<CouponItem[]>('product/product/getCoupon', { id: productId, shopId })
-      .then((list) => alive && setCoupons(Array.isArray(list) ? list : []))
+    apiGet<unknown>('product/product/getCoupon', { id: productId, shopId })
+      .then((list) => alive && setCoupons(normalizeCoupons(list)))
       .catch(() => undefined);
     apiGet<Record<string, any> | null>('promotion/groupon/getGrouponInfo', { productId })
       .then((info) => alive && setGrouponInfo(info || null))
@@ -1048,14 +1075,27 @@ export default function ProductDetailClient({
             <Link href="/coupon/list">领券中心 &gt;</Link>
           </div>
           <div className="pds-coupons">
-            {coupons.slice(0, 6).map((coupon) => {
+            {(couponExpanded ? coupons : coupons.slice(0, 3)).map((coupon) => {
               const received = Number(coupon.isReceive) === 1;
+              const min = Number(coupon.minOrderAmount || 0);
               return (
                 <div className={`pds-coupon${received ? ' is-received' : ''}`} key={coupon.couponId}>
                   <div className="pds-coupon__value">
-                    {Number(coupon.couponType) === 2 ? `${Number(coupon.couponDiscount || 0)}折` : `${formatPrice(coupon.couponMoney || 0)}`}
+                    {Number(coupon.couponType) === 2 ? (
+                      <>
+                        {Number(coupon.couponDiscount || 0)}
+                        <small>{t('折')}</small>
+                      </>
+                    ) : (
+                      `${formatPrice(coupon.couponMoney || 0)}`
+                    )}
                   </div>
-                  <div className="pds-coupon__desc">{t('满{n}可用', { n: Number(coupon.minOrderAmount || 0).toFixed(0) })}</div>
+                  <div className="pds-coupon__main">
+                    <div className="pds-coupon__name">{coupon.couponName || t('优惠券')}</div>
+                    <div className="pds-coupon__desc">
+                      {coupon.couponDesc || (min > 0 ? t('满{n}可用', { n: min.toLocaleString('zh-CN') }) : t('无门槛可用'))}
+                    </div>
+                  </div>
                   <Button size="small" theme={received ? 'borderless' : 'solid'} type="primary" disabled={received} onClick={() => void claimCoupon(coupon)}>
                     {received ? '已领取' : '领取'}
                   </Button>
@@ -1063,6 +1103,11 @@ export default function ProductDetailClient({
               );
             })}
           </div>
+          {coupons.length > 3 ? (
+            <button type="button" className="pds-coupon__more" onClick={() => setCouponExpanded((value) => !value)}>
+              {couponExpanded ? t('收起') : `${t('查看全部优惠券')}（${coupons.length}）`}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </>
@@ -1117,17 +1162,7 @@ export default function ProductDetailClient({
             {t('已售')} {item.virtualSales ?? item.sales ?? 0} {t('件')}
           </div>
         </div>
-        {coupons.length ? (
-          <div className="item">
-            <div className="coupon-list-wrap">
-              {coupons.map((coupon: any, index: number) => (
-                <span className="lyecsquan" key={coupon.couponId ?? index}>
-                  {coupon.couponName || coupon.name || t('优惠券')}
-                </span>
-              ))}
-            </div>
-          </div>
-        ) : null}
+        {/* 优惠券只在上方领券面板展示（可领取），此处不再重复一排不可点的券名标签 */}
       </div>
     ) : (
     <>

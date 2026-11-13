@@ -189,17 +189,32 @@
     del { color: #98a2b3; }
   }
 
-  .pds-coupons { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+  /* 领券面板：纵向票券行（面额 | 券名+说明 | 领取按钮），主题绿浅底，不横滚、不截断 */
+  .pds-coupons { display: flex; flex-direction: column; gap: 8px; }
   .pds-coupon {
-    flex: 0 0 auto;
-    min-width: 150px;
-    padding: 8px 10px;
-    border: 1px solid #ffe0e3;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border: 1px solid rgba(var(--general-rgb, 101, 196, 170), 0.35);
     border-radius: 8px;
-    background: #fff5f6;
-    &.is-received { background: var(--pds-soft); }
-    &__value { color: var(--pds-primary); font-weight: 700; }
-    &__desc { margin: 2px 0 6px; color: #667085; font-size: 12px; }
+    background: rgba(var(--general-rgb, 101, 196, 170), 0.07);
+    &.is-received { border-color: var(--pds-line); background: var(--pds-soft); }
+    &__value { flex: 0 0 auto; min-width: 74px; color: var(--pds-primary); font-size: 17px; font-weight: 700; white-space: nowrap; }
+    &__value small { font-size: 12px; font-weight: 600; }
+    &__main { flex: 1 1 auto; min-width: 0; }
+    &__name { overflow: hidden; color: var(--pds-text); font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    &__desc { margin-top: 2px; overflow: hidden; color: #667085; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+  }
+  .pds-coupon__more {
+    display: block;
+    margin: 8px auto 0;
+    padding: 2px 6px;
+    border: 0;
+    background: transparent;
+    color: var(--pds-primary);
+    font-size: 12px;
+    cursor: pointer;
   }
 
   .pds-price {
