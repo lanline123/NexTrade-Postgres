@@ -7,14 +7,37 @@
  * - 触发区 .lang-box(.white)（语言图标 + 当前语言/localeCode + 箭头，hover 展开，hideAfter 200ms）
  * - 弹层 CommonPopover（width 254 / padding 20 / 指定阴影）：
  *   语言区 .common-title「语言」+ .lang-list/.lang-item（radio）
- *   货币区 .common-title「货币」+ .currency-box（当前币种符号-名称 + 「更改货币」→ 选择器）
+ *   货币区 .common-title「货币」+ 与语言区同构的 .lang-list 单选列表（点选即切换）
  * - 语言切换：有独立域名 → 直接跳该域名；否则写语言 Cookie + 清 cacheLang + 整页刷新
  * - 监听 storage.cacheLang 变化整页刷新（1s 内去重）
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import Translate from '@icon-park/react/es/icons/Translate';
 import Down from '@icon-park/react/es/icons/Down';
+
+/** 语言入口图标：细线地球（内联 SVG，替代原 icon-park 翻译图标，线条更简洁） */
+function GlobeIcon({ size = 17 }: { size?: number }) {
+  return (
+    <svg
+      className="language"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ flexShrink: 0 }}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3a13.5 13.5 0 0 1 0 18" />
+      <path d="M12 3a13.5 13.5 0 0 0 0 18" />
+    </svg>
+  );
+}
 import { normalizeLocale, writeLocaleCookie } from '@/i18n';
 import { currencyCodeFrom } from '@/lib/currency';
 import { readHeaderBootstrap } from '@/lib/header-bootstrap';
@@ -103,7 +126,6 @@ export default function PcLocaleSelect({
     return current?.localeCode || '';
   });
   const [open, setOpen] = useState(false);
-  const [showSelectCurrency, setShowSelectCurrency] = useState(false);
 
   const timerRef = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -156,7 +178,6 @@ export default function PcLocaleSelect({
       const target = event.target as Node | null;
       if (containerRef.current && target && !containerRef.current.contains(target)) {
         setOpen(false);
-        setShowSelectCurrency(false);
       }
     };
     document.addEventListener('mousedown', onPointerDown);
@@ -231,7 +252,6 @@ export default function PcLocaleSelect({
   const changeCurrency = useCallback(
     (currencyId: number) => {
       const next = currencies.find((item) => item.id === currencyId);
-      setShowSelectCurrency(false);
       if (!next) return;
       writeCurrencyCookie(next);
       setCurrency(next);
@@ -244,12 +264,9 @@ export default function PcLocaleSelect({
     if (timerRef.current) window.clearTimeout(timerRef.current);
   };
   const scheduleClose = () => {
-    // 货币原生下拉展开选择中：指针移出不关弹层，避免选项还没点就被收起
-    if (showSelectCurrency) return;
     if (timerRef.current) window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
       setOpen(false);
-      setShowSelectCurrency(false);
     }, HIDE_DELAY_MS);
   };
 
@@ -276,7 +293,7 @@ export default function PcLocaleSelect({
       >
         {showLang ? (
           <>
-            <Translate className="language" size={20} />
+            <GlobeIcon />
             <div className="lang-text">{currentLanguageText}</div>
           </>
         ) : (
@@ -312,27 +329,22 @@ export default function PcLocaleSelect({
           {showCurrency ? (
             <>
               <div className="common-title">{t('货币')}</div>
-              <div className="currency-box">
-                {!showSelectCurrency ? (
-                  <>
-                    <div className="currency-text">{currency ? `${currency.symbol} - ${t(currency.name || '')}` : ''}</div>
-                    <div className="currency-btn" onClick={() => setShowSelectCurrency(true)}>
-                      {t('更改货币')}
-                    </div>
-                  </>
-                ) : (
-                  <select
-                    className="currency-select"
-                    value={currency?.id ?? ''}
-                    onChange={(event) => changeCurrency(Number(event.target.value))}
-                  >
-                    {currencies.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {`${t(item.name || '')} - ${item.symbol}`}
-                      </option>
-                    ))}
-                  </select>
-                )}
+              {/* 货币直接平铺为单选列表（与语言区一致），点选即切换，不再经「更改货币 → 下拉」两步 */}
+              <div className="lang-list">
+                {currencies.map((item) => (
+                  <label key={item.id} className="lang-item">
+                    <input
+                      type="radio"
+                      name="pc-currency"
+                      value={item.id}
+                      checked={item.id === currency?.id}
+                      onChange={() => changeCurrency(item.id)}
+                    />
+                    <span className="lang-label">
+                      {t(item.name || '')} - {item.symbol}
+                    </span>
+                  </label>
+                ))}
               </div>
             </>
           ) : null}
