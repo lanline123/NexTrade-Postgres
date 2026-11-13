@@ -167,6 +167,10 @@ const standardTitle = (extra: Record<string, unknown> = {}) => ({
   titleRadius: 0,
   titlePaddingTop: 0,
   titlePaddingBottom: 0,
+  // 标题左右边距：默认 10 = 旧 CSS（.dec-module-title padding:10px）的现状值，老数据零视觉跳变；
+  // 设 0 即紧贴模块最左/最右（此时再配合「容器设置 → 左右边距」为 0 就是完全贴边）。
+  titlePaddingLeft: 10,
+  titlePaddingRight: 10,
   titleText: '标题内容',
   titleColor: '',
   descText: '',
@@ -468,6 +472,9 @@ const titleFields = (opts: {
     { kind: 'radio', key: at('descLayout'), label: '描述排版', options: [{ label: '跟随标题后', value: 1 }, { label: '另起一行', value: 2 }], showIf: descVisible },
     { kind: 'color', key: at('titleBackground'), label: '背景颜色', showIf: showTitleOn },
     { kind: 'slider', key: at('titleRadius'), label: '标题圆角', max: 30, showIf: showTitleOn },
+    // 标题左右边距：0 = 紧贴模块最左/最右；默认 10 与旧样式一致；上限 60（比通用 30 更宽，便于大留白）
+    { kind: 'slider', key: at('titlePaddingLeft'), label: '标题左边距', max: 60, defaultValue: 10, showIf: showTitleOn },
+    { kind: 'slider', key: at('titlePaddingRight'), label: '标题右边距', max: 60, defaultValue: 10, showIf: showTitleOn },
     ...(opts.verticalPadding
       ? [
           { kind: 'slider' as const, key: at('titlePaddingTop'), label: '标题上边距', max: 60 },
@@ -819,11 +826,12 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     type: 'pc-recommend-product', label: '推荐商品', group: '商品',
     // 2026-11-12 用户指令：模块选单里要能看到推荐商品（此前 hiddenInLibrary: true 导致它只存在于老页面数据中，选不出来）。
     defaults: () => ({
-      frame: { boxPadding: 10, boxPaddingTop: 10, boxPaddingBottom: 50, boxRadius: 0, backgroundColor: 'transparent', itemGap: 16, columns: 5 },
+      frame: { boxPadding: 10, boxPaddingTop: 10, boxPaddingBottom: 50, boxRadius: 0, backgroundColor: '#ffffff', itemGap: 16, columns: 5 },
       titleName: '猜你喜欢',
       // 标题设置块（与 pc-product 同款）。老数据只有 titleName、没有 title 键：
       // 预览/前台按「data 里有 title 键才走标题块，否则回退 titleName」判断，避免双重渲染。
-      title: standardTitle({ showTitle: 1, titleText: '猜你喜欢', titleColor: '#2a3145' }),
+      // 2026-11-13 用户指定新建默认值：标题样式1 / 居中 / 24 号字。
+      title: standardTitle({ showTitle: 1, titleText: '猜你喜欢', titleColor: '#2a3145', titleStyle: 1, titleAlign: 2, titleFontSize: 24 }),
       showProductName: 1,
       showProductPrice: 1,
       products: { ...productsDefaults(), productNumber: 20 },

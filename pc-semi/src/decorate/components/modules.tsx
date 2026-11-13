@@ -2161,7 +2161,8 @@ function Coupon({ module }: ModuleProps) {
 function decorateGoodsItemWidth(style: number, gap: number): string {
   const g = Math.max(0, Number.isFinite(gap) ? gap : 0);
   if (style === 1) return g > 0 ? `calc(25% - ${(g * 3) / 4}px)` : '25%';
-  if (style === 2) return g > 0 ? `calc(25% - ${(g * 3) / 4}px)` : '25%';
+  // style2 = 一行五个（契约 PcSeckillLegacy：每个 20%）；原先误写成 25%，与注释/契约都不符
+  if (style === 2) return g > 0 ? `calc(20% - ${(g * 4) / 5}px)` : '20%';
   if (style === 3) return g > 0 ? `calc(20% - ${(g * 4) / 5}px)` : '20%';
   if (style === 4) return g > 0 ? `calc(16.6667% - ${(g * 5) / 6}px)` : '16.6667%';
   if (style === 6) return g > 0 ? `calc(16.6667% - ${(g * 5) / 6}px)` : '16.6667%';
@@ -2202,6 +2203,11 @@ function Seckill({ module }: ModuleProps) {
   // 老平铺字段 seckillTitle 已由 normalizeLegacyTitle 搬进 title 契约，这里只读契约（去掉残留老路径）
   const titleText = title.titleText || t('限时秒杀');
   const style = Number(module.style ?? 6);
+  /* 数据里没有 style 时落到 6（契约：style6 = 横向大卡 + swiper）。但编辑器画布预览（PcSeckillPreview）
+     压根不读 style，永远画「每行 6 个竖向小卡、溢出可横向滚动」→ 用户看到两端不一致，且面板里没有
+     「展示样式」入口可选。处理：style 显式给出时照旧输出 ad-style__N（老链 camelCase 页面不受影响），
+     没给就按预览布局渲染（不挂 ad-style__N，宽度改走 flex-basis 压掉 .is-swiper 的 248px）。 */
+  const styleExplicit = module.style !== undefined && module.style !== null && module.style !== '';
   const showName = module.showName !== 0 && module.showName !== false;
   const showPrice = module.showPrice !== 0 && module.showPrice !== false;
   const goodsGap = px(module.goodsGap ?? module.goodsPadding, 10);
@@ -2223,7 +2229,7 @@ function Seckill({ module }: ModuleProps) {
   return (
     <div className="module-seckill-goods_ad-wrapper">
       <div
-        className={`module-ad-con module-goods_ad module-seckill-goods_ad ad-style__${style} ad-buy_btn_style__${px(module.buyBtnStyle, 3)} ad-goods_style__${module.goodsStyle ?? 1} ad-goods_radio_style__${module.goodsRadioStyle ?? 1} ad-goods_name_row__${module.goodsNameRow ?? 1} ad-text_align__${module.textAlign ?? 1} ad-text_weight__${module.textWeight} ad-goods_name_padding__${module.goodsNamePadding} ad-goods-title_style__${title.titleStyle}`}
+        className={`module-ad-con module-goods_ad module-seckill-goods_ad ad-style__${styleExplicit ? style : 'preview'} ad-buy_btn_style__${px(module.buyBtnStyle, 3)} ad-goods_style__${module.goodsStyle ?? 1} ad-goods_radio_style__${module.goodsRadioStyle ?? 1} ad-goods_name_row__${module.goodsNameRow ?? 1} ad-text_align__${module.textAlign ?? 1} ad-text_weight__${module.textWeight} ad-goods_name_padding__${module.goodsNamePadding} ad-goods-title_style__${title.titleStyle}`}
         style={frameStyle}
       >
         <div className="module-ad-content">
@@ -2249,7 +2255,12 @@ function Seckill({ module }: ModuleProps) {
                 style={{ gap: `${goodsGap}px`, gridTemplateColumns: style === 6 ? undefined : `repeat(${columns}, minmax(0, 1fr))` }}
               >
                 {products.map((product, index) => (
-                  <div className="proditem goods-ad-item" key={product.productId ?? index} style={{ width: decorateGoodsItemWidth(style, goodsGap) }}>
+                  /* 无 style 时按预览布局：flex-basis 写 1/6 宽（内联优先，压掉 .is-swiper 的 flex:0 0 248px） */
+                  <div
+                    className="proditem goods-ad-item"
+                    key={product.productId ?? index}
+                    style={styleExplicit ? { width: decorateGoodsItemWidth(style, goodsGap) } : { flex: `0 0 ${decorateGoodsItemWidth(6, goodsGap)}` }}
+                  >
                     <div className="item-content">
                       <div className="item-con">
                         <Link href={product.seoLink || `/product/${product.productId ?? ''}`} target="_blank" className="item-image-a" title={product.productName}>
@@ -2257,12 +2268,15 @@ function Seckill({ module }: ModuleProps) {
                             <div className="item-photo seckill-item-image">
                               <img className="item-image pro_pic" src={product.picUrl || product.picThumb || ''} alt={product.productName || ''} loading="lazy" />
                             </div>
-                            {(product.productPrice || (product as any).marketPrice) ? (
-                              <div className="seckill-item-discount">
-                                {/* 旧 getDiscount：基准价优先 productPrice，回退 marketPrice */}
-                                优惠{Math.max(0, Math.round((1 - Number(product.seckillPrice || 0) / Number(product.productPrice || (product as any).marketPrice || 1)) * 100))}%
-                              </div>
-                            ) : null}
+                            {(() => {
+                              /* 折扣角标：与编辑器预览同口径 —— 基准价优先 productPrice、回退 marketPrice，
+                                 折扣 = (1 - 秒杀价/基准价)，保留 1 位小数（向下取），且只在 > 0 时显示。
+                                 旧实现用 Math.round 且只看基准价是否存在 → 会出现「优惠0%」。 */
+                              const base = Number(product.productPrice || (product as any).marketPrice || 0);
+                              const sale = Number(product.seckillPrice || 0);
+                              const off = base > 0 && sale > 0 && sale < base ? Math.floor((1 - sale / base) * 1000) / 10 : 0;
+                              return off > 0 ? <div className="seckill-item-discount">优惠{off}%</div> : null;
+                            })()}
                           </div>
                         </Link>
                         <div className="item-info" style={{ padding: Number(module.goodsNamePadding) === 1 ? '0 10px' : undefined }}>
@@ -3418,6 +3432,12 @@ function DecModuleTitle({
   const padBottom = Number(title.titlePaddingBottom) || 0;
   if (padTop) containerStyle.paddingTop = `${padTop}px`;
   if (padBottom) containerStyle.paddingBottom = `${padBottom}px`;
+  // 标题左右边距（与 admin 预览 ModuleTitlePreview 同口径）：未配置 = 10px（旧 CSS 值，零跳变），
+  // 配置 0 = 紧贴模块最左/最右；始终写内联，否则会被 .dec-module-title 的 padding:10px 覆盖。
+  const padLeft = title.titlePaddingLeft == null || title.titlePaddingLeft === '' ? 10 : Number(title.titlePaddingLeft);
+  const padRight = title.titlePaddingRight == null || title.titlePaddingRight === '' ? 10 : Number(title.titlePaddingRight);
+  containerStyle.paddingLeft = `${Number.isFinite(padLeft) ? padLeft : 10}px`;
+  containerStyle.paddingRight = `${Number.isFinite(padRight) ? padRight : 10}px`;
 
   const customLabel = String(title.countdownLabel || '').trim();
   let countdownLabel = customLabel || countdownLabelFallback || t('距结束');

@@ -207,6 +207,8 @@ function adaptPcSeckill(item: DecorateModule): ContractRenderPlan {
       goodsNameRow: m.goodsNameRow,
       goodsNamePadding: m.goodsNamePadding,
       goodsPadding: m.goodsPadding,
+      // 旧链适配漏传 goodsGap → PC 恒用 10px，与编辑器预览（读 goodsGap）不一致
+      goodsGap: m.goodsGap,
       textAlign: m.textAlign,
       textWeight: m.textWeight,
       buyBtnStyle: m.buyBtnStyle,

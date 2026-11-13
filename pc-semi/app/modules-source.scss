@@ -1762,23 +1762,27 @@
     object-fit: contain;
   }
 
-  .seckill-item-discount {
-    position: absolute;
-    left: 8px;
-    top: 8px;
-    padding: 1px 6px;
-    border-radius: 2px;
-    background: var(--pc-primary);
-    color: #fff;
-    font-size: 11px;
-  }
+  /* 折扣角标改为「契约默认」：不再浮在图上（原先 position:absolute/left:8px/top:8px 是迁移期手写值，
+     契约 PcSeckillLegacy 里它在文档流内、margin 12px 5px、高 20px、底色 var(--main-bg)）。
+     编辑器画布预览也是文档流内的角标，这里与预览/契约对齐。 */
 
   .item-name,
-  .seckill-item__name,
   .title.product-name-text {
     margin-top: 8px;
     font-size: 14px;
     color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 秒杀商品名单独一条：契约 = 16px/#1a1a1a（此前被上面 .item-name 列表的 14px/#333 覆盖），
+     留白取编辑器预览的值（上 5 / 左右 5 / 下 8），字重 700 与预览一致。 */
+  .seckill-item__name {
+    margin: 5px 5px 8px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a1a1a;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -4565,6 +4569,54 @@ img {
   margin-left: 2px;
   font-size: 12px;
   font-style: normal;
+}
+
+/* —— 右侧倒计时（moreType=2，秒杀/拼团）：深色数字方块，无箭头不跳转 ——
+   与 admin previews/shared/module-title.shared.css 逐条同值。 */
+.dec-module-title__countdown {
+  display: flex;
+  align-items: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.dec-module-title__countdown-box {
+  display: flex;
+  align-items: center;
+}
+
+.dec-module-title__countdown-label {
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 24px;
+}
+
+.dec-module-title__countdown-item {
+  display: inline-block;
+  padding: 2px 0;
+  width: 32px;
+  text-align: center;
+  background-color: #1a1a1a;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 16px;
+  margin-left: 2px;
+}
+
+.dec-module-title__countdown-item--days {
+  width: auto;
+  min-width: 32px;
+  padding: 2px 5px;
+}
+
+.dec-module-title__countdown-sep {
+  margin: 0 2px;
+  font-size: 16px;
+}
+
+.dec-module-title__countdown-daytext {
+  font-size: 16px;
+  margin: 0 2px;
 }
 
 /* —— 样式二：左侧竖线装饰 —— */
