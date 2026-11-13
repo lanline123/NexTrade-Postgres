@@ -10,7 +10,7 @@
  * - 加载: GET decorate/decorate/detail?id&decorateType=2&localeId=0&parentId=0
  * - 保存: POST decorate/decorate/saveDraft | publish  body {id, decorateType:2, pageType:1, localeId:0, parentId:0, data}
  */
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Component, useEffect, useRef, useState, type CSSProperties, type ErrorInfo, type ReactNode } from 'react';
 import {
   Button,
   ColorPicker,
@@ -1691,7 +1691,9 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
                       }}
                     >
                       {isActive && <span className="pc-decorate-module__tag">{t(item.label)}{isLegacy ? '（' + t('旧版') + '）' : ''}</span>}
-                      <ModulePreview type={item.type} data={item.module} />
+                      <ModuleErrorBoundary key={item.moduleIndex} label={item.type}>
+                        <ModulePreview type={item.type} data={item.module} />
+                      </ModuleErrorBoundary>
                     </div>
                   );
                 })}
@@ -2280,6 +2282,32 @@ function PcLoginModulePreview({ data }: { data: Record<string, any> }) {
       </div>
     </div>
   );
+}
+
+/** 单模块错误边界：一个模块预览抛错时只降级该模块，不再整页白屏
+ * （无边界时 React 会卸载整个应用，2026-11-13 优惠券标题 #31 白屏即此机制）。
+ * 错误仍打到 console，不吞。 */
+class ModuleErrorBoundary extends Component<{ label?: string; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error, _info: ErrorInfo): void {
+    console.error('[pc-decorate] module preview failed:', this.props.label || '', error);
+  }
+
+  render(): ReactNode {
+    if (this.state.failed) {
+      return (
+        <div style={{ padding: '24px 10px', textAlign: 'center', background: '#fff5f5', color: '#c92a2a', fontSize: 13 }}>
+          {tl('该模块预览失败，已跳过渲染（不影响其他模块）')}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 function ModulePreview({ type, data }: { type: string; data: Record<string, any> }) {

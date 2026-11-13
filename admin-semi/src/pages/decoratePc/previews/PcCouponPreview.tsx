@@ -135,12 +135,23 @@ export default function PcCouponPreview({ data }: { data: Record<string, any> })
   const boxPaddingTop = Number(moduleConfig.boxPaddingTop ?? 5);
   const boxPaddingBottom = Number(moduleConfig.boxPaddingBottom ?? 5);
   const boxRadius = Number(moduleConfig.boxRadius ?? 8) || 0;
-  const showTitle = Number(moduleConfig.showTitle) === 1;
+  // 标题契约归一（白屏修复）：编辑器侧 title 已是 standardTitle 对象
+  // （{ showTitle, titleText, descText, titleFontSize, ... }，见 PcDecorateEditor 的
+  // defaults 与 normalizeLegacyTitle）；老数据才是平铺字段 + 字符串 title。
+  // 此前下方直接渲染 {moduleConfig.title}，title 为对象时触发 React #31 并整页白屏。
+  // 渲染只用这里归一出的标量：契约值优先、平铺值兜底，老数据行为不变。
+  const titleObj = moduleConfig.title && typeof moduleConfig.title === 'object'
+    ? (moduleConfig.title as unknown as Record<string, any>)
+    : null;
+  const headerTitle = titleObj ? String(titleObj.titleText || '') : String(moduleConfig.title || '');
+  const headerDesc = titleObj ? String(titleObj.descText || '') : String(moduleConfig.desc || '');
+  const headerTitleColor = (titleObj?.titleColor as string) || moduleConfig.titleColor || '';
+  const showTitle = titleObj ? Number(titleObj.showTitle) === 1 : Number(moduleConfig.showTitle) === 1;
   // 共享标题契约：字号 / 对齐 / 副标题排版（默认 18px、左对齐、跟随主标题后，老数据零跳变）
-  const titleFontSize = Number(moduleConfig.titleFontSize) || 18;
-  const descFontSize = Number(moduleConfig.descFontSize) || 12;
-  const titleAlign = Number(moduleConfig.titleAlign) || 1;
-  const descBelow = Number(moduleConfig.descLayout ?? 1) === 2;
+  const titleFontSize = Number(titleObj?.titleFontSize ?? moduleConfig.titleFontSize) || 18;
+  const descFontSize = Number(titleObj?.descFontSize ?? moduleConfig.descFontSize) || 12;
+  const titleAlign = Number(titleObj?.titleAlign ?? moduleConfig.titleAlign) || 1;
+  const descBelow = Number(titleObj?.descLayout ?? moduleConfig.descLayout ?? 1) === 2;
   const headerClass = [
     'dec-coupon__header',
     titleAlign !== 1 ? `is-align-${titleAlign}` : '',
@@ -183,13 +194,13 @@ export default function PcCouponPreview({ data }: { data: Record<string, any> })
           <div className={headerClass}>
             <p
               className="dec-coupon__header-title"
-              style={{ color: moduleConfig.titleColor || undefined, fontSize: `${titleFontSize}px` }}
+              style={{ color: headerTitleColor || undefined, fontSize: `${titleFontSize}px` }}
             >
-              {moduleConfig.title}
+              {headerTitle}
             </p>
-            {moduleConfig.desc ? (
+            {headerDesc ? (
               <span className="dec-coupon__header-desc" style={{ fontSize: `${descFontSize}px` }}>
-                {moduleConfig.desc}
+                {headerDesc}
               </span>
             ) : null}
           </div>
