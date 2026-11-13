@@ -90,7 +90,7 @@
   margin-top: 8px;
   font-size: 14px;
   font-weight: 600;
-  color: #e60012;
+  color: var(--dec-price-color, var(--price));
 }
 
 /* 价格 + 购买按钮同行（对齐 C 端 dec-pc-product__bottom 的 flex 布局） */

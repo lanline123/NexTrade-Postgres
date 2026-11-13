@@ -609,7 +609,7 @@
 
 .dec-pc-home-hero__card-price {
     font-size: 16px;
-    color: #e1251b;
+    color: var(--dec-price-color, var(--price));
     font-weight: 700;
     line-height: 1.2;
     flex-shrink: 0;

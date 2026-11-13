@@ -493,6 +493,13 @@ export const pcHomeHeroDefaults: AnyRecord = {
 
 /* ===================== 纯函数工具（对齐原版 Preview.vue script） ===================== */
 
+/** 与 PC 端 themeAwareColor 一致：空值或旧版品牌红一律回落主题价格色 var(--price)，自定义色透传 */
+const LEGACY_BRAND_REDS = new Set(['#ff4e4e', '#e1251b', '#e60012', '#ff4141']);
+function themeAwarePriceColor(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return 'var(--price)';
+  return LEGACY_BRAND_REDS.has(value.trim().toLowerCase()) ? 'var(--price)' : value;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -921,7 +928,7 @@ export default function PcHomeHeroPreview({ data }: { data: Record<string, any> 
     '--dec-title-size': `${Number(style.titleFontSize ?? 14)}px`,
     '--dec-title-color': (style.titleColor as string) ?? '#333333',
     '--dec-muted-color': (style.mutedColor as string) ?? '#999999',
-    '--dec-price-color': (style.priceColor as string) ?? '#e1251b',
+    '--dec-price-color': themeAwarePriceColor(style.priceColor),
 
     '--dec-banner-radius': `${Number(style.bannerRadius ?? 12)}px`,
     '--dec-card-radius': `${Number(style.cardRadius ?? 12)}px`,

@@ -263,6 +263,8 @@ export default function PcProductPreview({ data }: { data: Record<string, any> }
     '--dec-inner-padding': `${frame.leftAndRightPadding ?? frame.innerPadding ?? config.innerPadding ?? 0}px`,
     '--dec-goods-padding': `${config.goodsPadding ?? 5}px`,
     '--dec-columns': String(columns),
+    // 价格色跟随主题（与 PC 一致，取主题 --price，不再写死红色）
+    '--dec-price-color': 'var(--price)',
   } as CSSProperties;
 
   const hasProducts = productList.length > 0;

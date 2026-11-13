@@ -317,7 +317,7 @@
   margin-right: 5px;
   display: flex;
   align-items: baseline;
-  color: var(--dec-price-color, var(--main-bg, #be081d));
+  color: var(--dec-price-color, var(--price));
   font-weight: var(--dec-price-weight, 600);
   line-height: var(--dec-price-size, 28px);
   white-space: nowrap;
@@ -328,6 +328,7 @@
 .dec-pc-product-group__price-currency {
   font-size: 16px;
   font-weight: 400;
+  color: var(--primary-dark-2, var(--dec-price-color));
 }
 
 .dec-pc-product-group__price-originCurrency {
@@ -336,13 +337,16 @@
 }
 
 .dec-pc-product-group__price-int {
-  font-size: 24px;
+  font-size: var(--dec-price-size, 28px);
   font-weight: 600;
+  line-height: var(--dec-price-size, 28px);
+  color: var(--primary-dark-2, var(--dec-price-color));
 }
 
 .dec-pc-product-group__price-dec {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--primary-dark-2, var(--dec-price-color));
 }
 
 /* ========== 购买按钮 ========== */

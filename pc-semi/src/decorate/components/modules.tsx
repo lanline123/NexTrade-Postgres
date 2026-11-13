@@ -987,6 +987,8 @@ function PcProduct({ module }: ModuleProps) {
   const cssVars: Record<string, any> = {
     '--dec-columns': String(columns),
     '--dec-goods-padding': `${Number.isFinite(goodsPadding) ? goodsPadding : 5}px`,
+    // 价格色跟随主题（旧版写死 #e60012 与主题不一致）：模块无 priceColor 配置，统一取主题 --price
+    '--dec-price-color': 'var(--price)',
   };
 
   // 旧版：Settings 未暴露开关时，运行态默认展示名称/描述/价格

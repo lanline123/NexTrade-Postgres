@@ -175,13 +175,13 @@
   justify-content: center;
   margin: 5px;
   width: fit-content;
-  height: 24px;
-  line-height: 24px;
+  height: 20px;
+  line-height: 20px;
   padding: 0 6px;
   color: #fff;
   font-size: 14px;
   border-radius: 2px;
-  background-color: #ee0a24;
+  background-color: var(--main-bg, #ee0a24);
 }
 
 .pc-seckill__name {
@@ -240,8 +240,8 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: rgba(255, 63, 79, 0.12);
-  color: #ff3f4f;
+  background: var(--primary-light-9, #f0f9f7);
+  color: var(--main-bg, #65c4aa);
   flex-shrink: 0;
   position: relative;
   cursor: pointer;
@@ -382,8 +382,8 @@
   color: var(--main-bg, #ee0a24);
 }
 .pc-seckill__add-btn:hover {
-  background: rgba(255, 63, 79, 0.16);
-  color: #ff3f4f;
+  background: var(--primary-light-8, #e0f3ee);
+  color: var(--primary-dark-2, #519d88);
 }
 .pc-seckill__countdown-box:hover .pc-seckill__countdown-label {
   color: var(--main-bg, #ee0a24);

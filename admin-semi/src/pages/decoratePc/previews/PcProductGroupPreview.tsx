@@ -178,7 +178,7 @@ const productGroupDefaults: AnyRecord = {
   productNameSize: 16,
   showProductPrice: 1,
   productPriceMarginTop: 10,
-  productPriceWeight: 400,
+  productPriceWeight: 600,
   productPriceSize: 28,
   crossedOutPrice: 1,
   showSales: 1,
@@ -235,6 +235,13 @@ function productImage(source?: { picUrl?: string; picThumb?: string; picLarge?: 
 
 function formatImage(url?: string): string {
   return imageFormat(url);
+}
+
+/** 与 PC 端 themeAwareColor 一致：空值或旧版品牌红一律回落主题价格色 var(--price)，自定义色透传 */
+const LEGACY_BRAND_REDS = new Set(['#ff4e4e', '#e1251b', '#e60012', '#ff4141']);
+function themeAwarePriceColor(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return 'var(--price)';
+  return LEGACY_BRAND_REDS.has(value.trim().toLowerCase()) ? 'var(--price)' : value;
 }
 
 function formatPriceParts(price?: number | string): { int: string; dec: string } {
@@ -404,11 +411,11 @@ export default function PcProductGroupPreview({ data }: { data: Record<string, a
     '--dec-title-weight': config.productNameWeight ?? 400,
     '--dec-title-size': `${config.productNameSize ?? 16}px`,
     '--dec-title-rows': config.productNameRow ?? 1,
-    '--dec-price-color': pc.priceColor || 'var(--main-bg, #ff4d4f)',
-    '--dec-price-weight': String(DEFAULT_PRICE_WEIGHT),
-    '--dec-price-size': `${DEFAULT_PRICE_INT_SIZE}px`,
+    '--dec-price-color': themeAwarePriceColor(pc.priceColor),
+    '--dec-price-weight': String(config.productPriceWeight ?? 600),
+    '--dec-price-size': `${config.productPriceSize ?? DEFAULT_PRICE_INT_SIZE}px`,
     '--dec-price-dec-size': `${DEFAULT_PRICE_INT_SIZE - 2}px`,
-    '--dec-price-margin-top': `${DEFAULT_PRICE_MARGIN_TOP}px`,
+    '--dec-price-margin-top': `${config.productPriceMarginTop ?? DEFAULT_PRICE_MARGIN_TOP}px`,
     '--dec-origin-price-color': pc.crossedOutPriceColor || '#999999',
     // 分组标题样式
     '--dec-tab-margin-lr': `${groupTitle.marginLeftRight ?? 0}px`,
