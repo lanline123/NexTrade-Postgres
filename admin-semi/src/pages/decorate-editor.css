@@ -2435,6 +2435,10 @@
 .pc-module-settings .dec-edit-group.dec-edit-group-block .dec-edit-group-con {
   margin-top: 10px;
 }
+/* 隐藏字段行 label 后（如商品分组的「分组列表」），内容块直接顶格，不再留上方间距 */
+.pc-module-settings .dec-edit-group.dec-edit-group--nolabel .dec-edit-group-con {
+  margin-top: 0;
+}
 .pc-module-settings .dec-edit-group.dec-edit-group-block:hover { background: #fff; }
 .pc-module-settings .semi-input-wrapper,
 .pc-module-settings .semi-input-number,
@@ -2576,10 +2580,21 @@
 /* 来源切换（选择商品 / 商品分组）：按钮组铺满整行 */
 .dec-group-list__mode .semi-radio-group-button { display: flex; width: 100%; }
 .dec-group-list__mode .semi-radio-group-button .semi-radio-button { flex: 1; }
-/* 分组内已选商品网格：紧凑一些（列表卡片本身已有内边距） */
-.dec-group-list__grid { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
-.dec-group-list__grid .dec-prod-pick__add { min-height: 92px; padding: 8px 4px; }
-.dec-group-list__grid .dec-prod-pick__add span { text-align: center; line-height: 15px; }
+/* 分组内「选择商品」网格改由通用组件 ProductPickGrid 的 compact 模式负责 */
+.dec-group-list__item { transition: border-color 0.18s ease, box-shadow 0.18s ease; }
+.dec-group-list__item:hover {
+  border-color: #dbe4ef;
+  box-shadow: 0 6px 18px rgba(16, 24, 40, 0.05);
+}
+.dec-group-list__title { display: flex; align-items: center; gap: 6px; }
+.dec-group-list__title::before {
+  content: '';
+  flex: none;
+  width: 3px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--primary, var(--semi-color-primary, #1456f0));
+}
 /* 商品分组来源的「添加/更换分组」按钮（复用虚线卡片形态） */
 .dec-group-list__group-add { min-height: 44px; flex-direction: row; }
 /* 已选分组条：名称 + 移除 */
