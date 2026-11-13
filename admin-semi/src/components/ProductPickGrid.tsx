@@ -140,11 +140,12 @@ export default function ProductPickGrid({
 
   return (
     <div className={`dec-pick${compact ? ' dec-pick--compact' : ''}${className ? ` ${className}` : ''}`}>
-      <div className="dec-pick__bar">
-        <span className="dec-pick__count">{t('已选 {count} 个', { count: ids.length })}</span>
-        {ids.length > 1 && <span className="dec-pick__tip">{t('拖拽排序')}</span>}
-        {ids.length > 0 && (
-          confirmClear ? (
+      {/* 窄面板里空态不显示工具条：下方虚线卡本身就是引导，省一行空间 */}
+      {ids.length > 0 && (
+        <div className="dec-pick__bar">
+          <span className="dec-pick__count">{t('已选 {count} 个', { count: ids.length })}</span>
+          {ids.length > 1 && <span className="dec-pick__tip">{t('拖拽排序')}</span>}
+          {confirmClear ? (
             <span className="dec-pick__confirm">
               <button
                 type="button"
@@ -159,9 +160,9 @@ export default function ProductPickGrid({
             <button type="button" className="dec-pick__clear" onClick={() => setConfirmClear(true)}>
               {t('清空')}
             </button>
-          )
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       <div className="dec-pick__grid">
         {ids.map((id, index) => {
@@ -225,8 +226,9 @@ export default function ProductPickGrid({
           onClick={onRequestPick}
         >
           <span className="dec-pick__add-icon"><IconPlus /></span>
-          <span className="dec-pick__add-text">{addText || t('添加商品')}</span>
-          {ids.length === 0 && <span className="dec-pick__add-hint">{t('点击选择商品')}</span>}
+          <span className="dec-pick__add-text">
+            {ids.length === 0 ? t('点击选择商品') : (addText || t('添加商品'))}
+          </span>
         </button>
       </div>
     </div>

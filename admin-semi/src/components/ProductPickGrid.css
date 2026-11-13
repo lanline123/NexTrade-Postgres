@@ -179,7 +179,6 @@
   color: var(--dec-pick-accent);
 }
 .dec-pick__add-text { line-height: 16px; }
-.dec-pick__add-hint { color: #a3adbb; font-size: 11px; line-height: 15px; }
 .dec-pick__add.is-empty {
   grid-column: 1 / -1;
   flex-direction: row;
