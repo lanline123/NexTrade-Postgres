@@ -167,6 +167,97 @@ impl RecommendRepository {
         Ok(ids)
     }
 
+    /// 相似用户近期购买聚合榜（扩展接口 `cohortBuys` 的数据层）。
+    ///
+    /// 协同过滤的轻量实现，全程只做聚合、不回任何其他用户的信息：
+    /// - 登录用户（`user_id > 0`）：先取其已购商品的分类集合，再找近 `days`
+    ///   天内买过相同分类商品的其他用户（同画像群体），聚合该群体近 `days`
+    ///   天买过的商品，按「购买人数 → 虚拟销量」排序，并排除本人已购商品。
+    ///   本人无购买记录或群体为空时返回空，由服务层走全局兜底。
+    /// - 游客（`user_id = 0`）：直接聚合全体用户近 `days` 天的购买榜
+    ///   （「大家最近在买」）。
+    ///
+    /// 订单口径与销售统计一致：`"order"` 表 `is_del = 0 AND pay_status > 0`
+    /// （已支付），`add_time` 为 Unix 秒。商品须在售（未删 + 上架）。
+    pub async fn cohort_buys(
+        &self,
+        user_id: i32,
+        days: u32,
+        shop_id: Option<i32>,
+        limit: u64,
+        offset: u64,
+    ) -> Result<Vec<RecommendProductRow>> {
+        let shop = shop_id.filter(|v| *v > 0);
+        let mut binds: Vec<i64> = Vec::new();
+        let select_cols = "pr.product_id, pr.product_name, pr.product_sn, pr.product_price, \
+             pr.pic_url, pr.pic_thumb, pr.shop_id, pr.product_type, pr.product_stock, pr.virtual_sales";
+        let mut sql = if user_id > 0 {
+            binds.push(i64::from(user_id));
+            binds.push(i64::from(user_id));
+            binds.push(i64::from(days));
+            binds.push(i64::from(days));
+            binds.push(i64::from(user_id));
+            (format!(
+                "WITH my_cats AS (\
+                   SELECT DISTINCT p.category_id AS cid FROM order_item i \
+                   JOIN \"order\" o ON o.order_id = i.order_id \
+                   JOIN product p ON p.product_id = i.product_id \
+                   WHERE o.user_id = ? AND o.is_del = 0 AND o.pay_status > 0 AND p.category_id > 0\
+                 ), cohort AS (\
+                   SELECT DISTINCT o.user_id AS uid FROM order_item i \
+                   JOIN \"order\" o ON o.order_id = i.order_id \
+                   JOIN product p ON p.product_id = i.product_id \
+                   WHERE o.is_del = 0 AND o.pay_status > 0 AND o.user_id <> ? \
+                   AND o.add_time >= (EXTRACT(EPOCH FROM NOW())::bigint - ? * 86400) \
+                   AND p.category_id IN (SELECT cid FROM my_cats)\
+                 ) \
+                 SELECT {select_cols} FROM order_item i \
+                 JOIN \"order\" o ON o.order_id = i.order_id \
+                 JOIN product pr ON pr.product_id = i.product_id \
+                 WHERE o.user_id IN (SELECT uid FROM cohort) \
+                 AND o.is_del = 0 AND o.pay_status > 0 \
+                 AND o.add_time >= (EXTRACT(EPOCH FROM NOW())::bigint - ? * 86400) \
+                 AND pr.is_delete = 0 AND pr.product_status = 1 \
+                 AND i.product_id NOT IN (\
+                   SELECT mi.product_id FROM order_item mi \
+                   JOIN \"order\" mo ON mo.order_id = mi.order_id \
+                   WHERE mo.user_id = ? AND mo.is_del = 0 AND mo.pay_status > 0\
+                 )"
+            )
+        } else {
+            binds.push(i64::from(days));
+            (format!(
+                "SELECT {select_cols} FROM order_item i \
+                 JOIN \"order\" o ON o.order_id = i.order_id \
+                 JOIN product pr ON pr.product_id = i.product_id \
+                 WHERE o.is_del = 0 AND o.pay_status > 0 \
+                 AND o.add_time >= (EXTRACT(EPOCH FROM NOW())::bigint - ? * 86400) \
+                 AND pr.is_delete = 0 AND pr.product_status = 1"
+            )
+        };
+        if let Some(sid) = shop {
+            sql.push_str(" AND pr.shop_id = ?");
+            binds.push(i64::from(sid));
+        }
+        sql.push_str(
+            " GROUP BY pr.product_id \
+             ORDER BY COUNT(DISTINCT o.user_id) DESC, pr.virtual_sales DESC, pr.product_id DESC \
+             LIMIT ? OFFSET ?",
+        );
+        let sql = crate::db::to_pg_placeholders(&sql);
+        let mut rq = sqlx::query_as::<_, RecommendProductRow>(&sql);
+        for b in &binds {
+            rq = rq.bind(*b);
+        }
+        let rows = rq
+            .bind(i64::try_from(limit).unwrap_or(10))
+            .bind(i64::try_from(offset).unwrap_or(0))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(rows)
+    }
+
     /// 兜底热门商品 ID。
     ///
     /// 对应原版第 4 段「不足 40 个时补全」。原版用 `ORDER BY RAND()` 且只从

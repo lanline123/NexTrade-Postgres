@@ -1,8 +1,9 @@
 //! 推荐（system::recommend）模型层 —— wave9。
 //!
 //! 对应 Java `com.nextrade.api.controller.common.RecommendController`
-//! （`@RequestMapping("/api/common/recommend")`），2 个 public GET：
+//! （`@RequestMapping("/api/common/recommend")`），原版 2 个 public GET：
 //! `guessLike`（猜你喜欢，返回商品列表）与 `getProductIds`（返回推荐商品 ID 串）。
+//! 另扩展 1 个：`cohortBuys`（相似用户近期购买聚合榜，协同过滤）。
 //!
 //! 说明：本实现从 `product` 表按「精品/点击量/上架」推荐；Java 侧推荐策略
 //! （个性化/热度窗口）未迁移，属可解释的降级（见服务层偏差）。
@@ -63,6 +64,40 @@ impl GuessLikeQuery {
     }
 }
 
+/// 相似用户购买查询（扩展接口 `cohortBuys`，原 Java 版无此端点）。
+///
+/// 协同过滤的轻量实现：与当前用户买过相同分类商品的用户（同画像群体）
+/// 近期购买的商品聚合榜。只回商品与聚合排序，不暴露任何其他用户信息。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CohortBuysQuery {
+    /// 页码
+    pub page: Option<u32>,
+    /// 每页条数
+    pub size: Option<u32>,
+    /// 店铺 ID
+    pub shop_id: Option<i32>,
+    /// 统计窗口（天）：只统计近 N 天的已支付订单，默认 90
+    pub days: Option<u32>,
+}
+
+impl CohortBuysQuery {
+    /// 分页（与猜你喜欢同口径：默认 1/10，上限 50）。
+    #[must_use]
+    pub fn page_query(&self) -> crate::types::PageQuery {
+        crate::types::PageQuery {
+            page: self.page.unwrap_or(1).max(1) as u64,
+            page_size: self.size.unwrap_or(10).min(MAX_GUESS_LIMIT).max(1) as u64,
+        }
+    }
+
+    /// 统计窗口天数：默认 90，夹紧到 7..=365。
+    #[must_use]
+    pub fn days(&self) -> u32 {
+        self.days.unwrap_or(90).clamp(7, 365)
+    }
+}
+
 /// 推荐商品列表项（Java `ProductListResDTO` 的前端常用子集）。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -106,6 +141,16 @@ mod tests {
         assert!(q.ascending());
         let q: GuessLikeQuery = serde_json::from_value(serde_json::json!({})).unwrap();
         assert!(!q.ascending());
+    }
+
+    #[test]
+    fn cohort_days_defaults_and_clamps() {
+        let q: CohortBuysQuery = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert_eq!(q.days(), 90);
+        let q: CohortBuysQuery = serde_json::from_value(serde_json::json!({"days": 1})).unwrap();
+        assert_eq!(q.days(), 7);
+        let q: CohortBuysQuery = serde_json::from_value(serde_json::json!({"days": 9999})).unwrap();
+        assert_eq!(q.days(), 365);
     }
 
     #[test]

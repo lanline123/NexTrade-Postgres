@@ -1,12 +1,13 @@
 //! 推荐 —— 商城端路由（system::recommend）—— wave9。
 //!
 //! 原 Java `RecommendController`（`@RequestMapping("/api/common/recommend")`），
-//! 2 个 public GET（契约 `auth=optional`）：
+//! 2 个 public GET（契约 `auth=optional`），另扩展 1 个协同过滤端点：
 //!
 //! | 本模块路由（挂载于 `/api`） | Java handler |
 //! |-----------------------------|--------------|
 //! | `GET /common/recommend/guessLike` | getProductList |
 //! | `GET /common/recommend/getProductIds` | getProductIds |
+//! | `GET /common/recommend/cohortBuys` | （扩展，无 Java 对应） |
 //!
 //! > 自带 optional_auth；必须并入 `merge_public`，外层不得再套 `require_auth`。
 
@@ -18,16 +19,19 @@ use axum::{
     routing::get,
     Extension, Router,
 };
-use nextrade_core::models::system::recommend::{GuessLikeQuery, RecommendProductVO};
+use nextrade_core::models::system::recommend::{
+    CohortBuysQuery, GuessLikeQuery, RecommendProductVO,
+};
 use nextrade_core::Error;
 use nextrade_security::web::{ok, ApiResult, AppError, AuthUser};
 use nextrade_security::JwtService;
 
 use crate::PublicState;
 
-const ROUTE_TABLE: [(&str, &str, &str); 2] = [
+const ROUTE_TABLE: [(&str, &str, &str); 3] = [
     ("GET", "/common/recommend/guessLike", "RecommendController.getProductList"),
     ("GET", "/common/recommend/getProductIds", "RecommendController.getProductIds"),
+    ("GET", "/common/recommend/cohortBuys", "RecommendController.cohortBuys"),
 ];
 
 /// 推荐路由。
@@ -35,6 +39,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
     Router::new()
         .route("/common/recommend/guessLike", get(guess_like))
         .route("/common/recommend/getProductIds", get(get_product_ids))
+        .route("/common/recommend/cohortBuys", get(cohort_buys))
         .layer(middleware::from_fn_with_state(state.jwt.clone(), optional_auth))
 }
 
@@ -53,6 +58,20 @@ async fn guess_like(
     Query(q): Query<GuessLikeQuery>,
 ) -> ApiResult<Vec<RecommendProductVO>> {
     ok(state.system.recommend.guess_like(&q).await?)
+}
+
+/// `GET /api/common/recommend/cohortBuys`
+///
+/// 相似用户近期购买（协同过滤）：与当前用户买过相同分类的其他用户，
+/// 近 N 天（默认 90）买过的商品聚合榜；游客或本人无购买记录时回退为
+/// 全体用户近窗口购买榜。只返回商品与聚合顺序，不含任何用户信息。
+async fn cohort_buys(
+    State(state): State<PublicState>,
+    Query(q): Query<CohortBuysQuery>,
+    auth: Option<Extension<AuthUser>>,
+) -> ApiResult<Vec<RecommendProductVO>> {
+    let user_id = auth.as_ref().map(|Extension(a)| a.id).unwrap_or(0);
+    ok(state.system.recommend.cohort_buys(user_id, &q).await?)
 }
 
 /// `GET /api/common/recommend/getProductIds`
@@ -97,10 +116,11 @@ mod tests {
 
     #[test]
     fn route_table_matches_contract() {
-        assert_eq!(ROUTE_TABLE.len(), 2);
+        assert_eq!(ROUTE_TABLE.len(), 3);
         let docs = implemented_routes();
         assert_eq!(docs[0].path, "/api/common/recommend/guessLike");
         assert_eq!(docs[1].path, "/api/common/recommend/getProductIds");
+        assert_eq!(docs[2].path, "/api/common/recommend/cohortBuys");
         assert!(ROUTE_TABLE.iter().all(|(_, p, _)| !p.contains("/api")));
     }
 

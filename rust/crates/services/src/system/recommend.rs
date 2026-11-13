@@ -12,12 +12,30 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use nextrade_core::models::system::recommend::{
-    GuessLikeQuery, RecommendProductVO, BEST_ID_COUNT, DEFAULT_ID_COUNT, HISTORY_ID_COUNT,
-    HOT_ID_COUNT,
+    CohortBuysQuery, GuessLikeQuery, RecommendProductVO, BEST_ID_COUNT, DEFAULT_ID_COUNT,
+    HISTORY_ID_COUNT, HOT_ID_COUNT,
 };
 use nextrade_core::Result;
-use nextrade_infrastructure::db::repo::system::recommend::RecommendRepository;
+use nextrade_infrastructure::db::repo::system::recommend::{
+    RecommendProductRow, RecommendRepository,
+};
 use nextrade_infrastructure::db::Repositories;
+
+/// 仓储行 → 前端 VO（guessLike / cohortBuys 共用同一商品子集口径）。
+fn to_vo(r: RecommendProductRow) -> RecommendProductVO {
+    RecommendProductVO {
+        product_id: r.product_id,
+        product_name: r.product_name,
+        product_sn: r.product_sn,
+        product_price: r.product_price,
+        pic_url: r.pic_url,
+        pic_thumb: r.pic_thumb,
+        shop_id: r.shop_id,
+        product_type: r.product_type,
+        product_stock: r.product_stock.unwrap_or(0),
+        virtual_sales: r.virtual_sales.unwrap_or(0),
+    }
+}
 
 /// 推荐 域服务。
 pub struct RecommendService {
@@ -42,21 +60,34 @@ impl RecommendService {
     /// 原版前端按数组直接 `.filter()`，Java 返回 `List`，这里不包 `PageResult`。
     pub async fn guess_like(&self, q: &GuessLikeQuery) -> Result<Vec<RecommendProductVO>> {
         let (_total, rows) = self.repo().guess_like(q).await?;
-        Ok(rows
-            .into_iter()
-            .map(|r| RecommendProductVO {
-                product_id: r.product_id,
-                product_name: r.product_name,
-                product_sn: r.product_sn,
-                product_price: r.product_price,
-                pic_url: r.pic_url,
-                pic_thumb: r.pic_thumb,
-                shop_id: r.shop_id,
-                product_type: r.product_type,
-                product_stock: r.product_stock.unwrap_or(0),
-                virtual_sales: r.virtual_sales.unwrap_or(0),
-            })
-            .collect())
+        Ok(rows.into_iter().map(to_vo).collect())
+    }
+
+    /// 相似用户近期购买（扩展接口 `cohortBuys`，协同过滤）。
+    ///
+    /// 登录用户优先走同画像群体聚合（买过相同分类的其他用户近期买了什么）；
+    /// 本人无购买记录或群体为空（新站冷启动）时回退全体用户近窗口购买榜，
+    /// 游客直接走全局榜。两种口径都只是聚合排序，不暴露其他用户信息。
+    pub async fn cohort_buys(
+        &self,
+        user_id: i32,
+        q: &CohortBuysQuery,
+    ) -> Result<Vec<RecommendProductVO>> {
+        let page = q.page_query();
+        let limit = u64::from(page.page_size);
+        let offset = u64::from(page.page - 1) * limit;
+        let days = q.days();
+        let mut rows = Vec::new();
+        if user_id > 0 {
+            rows = self
+                .repo()
+                .cohort_buys(user_id, days, q.shop_id, limit, offset)
+                .await?;
+        }
+        if rows.is_empty() {
+            rows = self.repo().cohort_buys(0, days, q.shop_id, limit, offset).await?;
+        }
+        Ok(rows.into_iter().map(to_vo).collect())
     }
 
     /// 推荐商品 ID 串（Java `RecommendController.getProductIds`，逗号分隔）。
