@@ -1667,3 +1667,42 @@ PC_API_BASE=https://battery.recy.cc NODE_ENV=production npx next build
 - **部署轨迹**：check-rust 首跑失败（E0063：assemble 字面量缺新字段，补 `..Default::default()`）→ 全绿；staging #43 失败是并行会话 644dc95 的 E0308（region_client.rs `&name`，其 3706fb7 已自修），#44（3706fb7）成功；`deploy_backend_unique.py` 部署 sha `dfb312eb…`，备份 `/www/wwwroot/nextrade/nextrade.bak.20261113_010346`。
 - **死代码登记**：`PcDecorateEditor.tsx` 内 `SeckillPreview`(3140) 及 `SeckillGrouponTitleBar` 等为不可达旧实现（路由走 `PcSeckillPreview`），待后续清理。
 - CI 日志下载要点：jobs logs 接口 302 → Azure 需「重定向剥离 Authorization」（NoAuthRedirect，同 deploy_from_run.py）。
+
+---
+
+## 21. PC 装修「固定标题 → 配置型标题」收尾（2026-11-13，已双端上线）
+
+> 用户指令：`admin.recy.cc/?page=pcDecorateEditor&id=10023` 的模块「以图片广告为基准，把固定标题全部改为配置型标题」。
+> 审计后确认范围 = 「真·固定 / 半成品 + 半接线收尾」；**明确不动**：营销通栏、无标题概念模块（公告/快捷导航/轮播Banner2/分组轮播Banner/分割线/空白辅助）、文本标题、商品分组。
+
+### 21.1 审计口径
+
+共享契约 = 模块上的 `title` 对象，前台由 `DecModuleTitle`（`pc-semi/src/decorate/components/modules.tsx`）、后台画布由 `ModuleTitlePreview`（`admin-semi/src/pages/decoratePc/previews/shared/`）逐字段同构消费；老平铺字段在渲染前由 `normalizeLegacyTitle` 搬进契约（**双端各一份，必须同步改**）。
+
+已完整接线（defaults + 面板 + 双端消费）的 10 个：图片广告、图片魔方、热图绘制、商品、推荐商品、分类导航、分类导航3、优惠券、秒杀、拼团。
+
+### 21.2 本轮改动（提交 `ad790b5`）
+
+- **图文导航（真·固定 / 半成品）**：后台预览 `PcImageNavPreview:227` 早已调用共享 `ModuleTitlePreview`，但 defaults 无 `title`、面板无入口、前台 `ImageNav` 根本没有标题 DOM → 那一行永远返回 null。补齐 `defaults.title` + `kind:'title'` 面板 + 前台 `__content` 内首行 `DecModuleTitle`。**这是新增能力**（原版 `PcImageNav.vue` scoped CSS 里没有任何标题类），故默认 `showTitle: 0`，老数据与新模块零视觉变化。
+- **推荐商品（双轨）**：删掉写死的 `<h3>{titleName}</h3>` 分支；老数据由 `normalizeLegacyTitle` 新增的 `pc-recommend-product` 分支搬进契约（双端同口径 + 组件内兜底，兼容不走 normalize 的店铺装修 `ShopHomepageClient` 路径）。**只有 `titleName` 的老页面标题会从素面 h3 变成标题栏样式**，属有意统一。
+- **秒杀**：前台不再读平铺 `module.seckillTitle`（老值经 normalize 进 `title.titleText`）；admin defaults 保留该字段并注释用途（老数据 + 旧链适配器 `contract.ts toTitle(m.seckillTitle)`）。
+- **热图绘制**：删掉与 `title.moreLink.title` 同值的冗余 `rightText` 传参。
+- **编辑器面板**：`kind:'title'` 的 `hint` 此前被 `ModuleSettingsPanel` 的 `isSection` 分支吞掉（秒杀「秒杀商品由营销-秒杀决定」从不显示），已补渲染。
+- 复核后**无需改动**：拼团 kebab 版只读 `module.title`（无平铺老字段），不需要 normalize。
+
+### 21.3 上线轨迹与验证
+
+| 端 | 通道 | 结果 |
+|---|---|---|
+| admin | 本地 `vite build` → 整份 dist 打 tgz（`scratch/pack-admin-navtitle.py`）→ 分片上传 → `run_shell.py` 执行「先铺 assets、最后切 index.html」 | 入口 `index-BA7uiQYt.js` → **`index-ahrXa3PJ.js`**（css `index-BwzC4eov.css`）；备份 `/www/backup/admin_site_pre_20261113_132503.tgz` |
+| PC | **GitHub CI** `build-pc-frontend`（run `43374844997`，82s）→ Release **`pc-build-6`** → 下载 `nextrade-pc.tgz`（sha256 `606b318d…`）→ `scratch/dep-pc-ci6.sh` 切换 | BUILD_ID `fyuS-9Iz-ocpJgG29cOGD`；备份 `/www/backup/pc_pre_20261113_135601.tgz`；健康 200 |
+
+只读门禁（`scratch/verify-title-markers.sh`）：admin 入口 JS `entry_legacy_recommend_h3=0`；PC 首页 15 个 chunk 中 `dec-recommend-product__title` 命中 **0**，`9965-127bb0cff7b022c6.js` 同时含 `dec-pc-image-nav__content` 与 `dec-module-title`。两端 `tsc --noEmit` 通过（admin 干净；pc 108s）。
+
+### 21.4 坑与注意（本轮新踩）
+
+- **沙箱不能构建 PC**：仓库 `node_modules` 是 Windows 装的，Linux 沙箱缺 rollup/esbuild/SWC 原生绑定（补装 `*-linux-x64*` 后 admin 可构建，约 100s；`next build` 在 2 vCPU + fuse 挂载下 150s 仍停在 "Creating an optimized production build"，CPU 仅 3.5% = I/O 饿死）。**PC 一律走 GitHub CI**：`build-pc.yml` 82s 出包并发 Release 资产，比本地快且不依赖 Windows 环境。
+- **沙箱取凭据**：宝塔 `C:\Users\Public\bt2api.ps1` 通过「连接文件夹」可读（`scratch/bt_api.py` 新增 `BT_HELPER` 环境变量覆盖，默认路径不变）；GitHub 凭据在 Windows 凭据管理器（不落盘），沙箱需按 §2.1 一次性导出到 `C:\Users\Public\gh_token.txt` 才能 push / 触发 CI，**跑完即删并吊销**。`git push` 在沙箱需清代理并用 `GIT_ASKPASS` 提供 token（`git credential fill` 在沙箱无存储）。
+- **CRLF 假脏**：Windows 检出 + 沙箱 git 无 `core.autocrlf`（仓库也无 `.gitattributes`）→ `git status` 会把 600+ 个文本文件报成 modified（`styles.css` 9281/9281 纯行尾差异）。提交前必看 `--numstat` 增删是否成对，且只 `git add <具体文件>`。
+- **提交范围**：本轮改的 3 个文件里含同批**未提交**的标题契约改动（`normalizeLegacyTitle` 等，`273fc72` 中并不存在），无法只挑单个 hunk，故 `ad790b5` = 「该基线 + 本轮改动」；已上线的 admin 包与 PC 构建都基于此版本，双端因此一致。
+- `run_shell.py` 输出可能被客户端超时截断（本次停在 `=== 4. health ===`，且夹带一行 `##LOCKED-SKIP`）→ 判成功要看 `.out` 末尾的 `##FINISHED`，或独立复核（本次用公网 buildId + chunk 标记复核，见 §21.3）。
