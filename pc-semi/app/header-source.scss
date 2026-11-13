@@ -1234,7 +1234,8 @@
   }
 }
 
-.language-bar .pc-locale-popover {
+.language-bar .pc-locale-popover,
+.benefit-bar .pc-locale-popover {
   position: absolute;
   top: calc(100% + 2px);
   right: 0;
@@ -1985,11 +1986,13 @@
 /* =========================================================================
  * 语言/货币弹层对齐（CommonPopover：width 254 / padding 20 / 指定阴影）
  * ========================================================================= */
-.language-bar .lang-box {
+.language-bar .lang-box,
+.benefit-bar .lang-box {
   position: relative;
 }
 
-.language-bar .pc-locale-popover {
+.language-bar .pc-locale-popover,
+.benefit-bar .pc-locale-popover {
   width: 254px;
   padding: 20px;
   border: 1px solid #e4e7ed;
@@ -2000,14 +2003,16 @@
     rgb(14 18 22 / 20%) 0px 10px 20px -15px;
 }
 
-.language-bar .pc-locale-popover .common-title {
+.language-bar .pc-locale-popover .common-title,
+.benefit-bar .pc-locale-popover .common-title {
   font-size: 14px;
   color: #1a1a1a;
   font-weight: bold;
   text-transform: capitalize;
 }
 
-.language-bar .pc-locale-popover .lang-list {
+.language-bar .pc-locale-popover .lang-list,
+.benefit-bar .pc-locale-popover .lang-list {
   width: 100%;
   padding-bottom: 5px;
   margin-top: 15px;
@@ -2040,7 +2045,8 @@
   }
 }
 
-.language-bar .pc-locale-popover .currency-box {
+.language-bar .pc-locale-popover .currency-box,
+.benefit-bar .pc-locale-popover .currency-box {
   position: relative;
   padding: 18px 0 0 0;
 
@@ -2071,6 +2077,11 @@
   }
 }
 
+/* 顶栏语言/货币双入口间距（语言在左、货币在右并排） */
+.benefit-bar .lang-box.top-currency-select {
+  margin-left: 16px;
+}
+
 /* =========================================================================
  * 头部浮层出现动画（对齐 el-popover / element transition 的淡入 + 上移）
  * ========================================================================= */
@@ -2097,6 +2108,7 @@
 .benefit-bar .pc-header-popover,
 .region-dropdown,
 .language-bar .pc-locale-popover,
+.benefit-bar .pc-locale-popover,
 .image-search-popper,
 .pc-header-runtime .top-search .search-guess-box {
   transform-origin: top center;
@@ -2113,6 +2125,8 @@
 .benefit-bar .top-link__name,
 .language-bar .lang-box,
 .language-bar .lang-box .arrow,
+.benefit-bar .lang-box,
+.benefit-bar .lang-box .arrow,
 .pc-header-simple .pc-cart,
 .pc-header-runtime .car-bar .content {
   transition:

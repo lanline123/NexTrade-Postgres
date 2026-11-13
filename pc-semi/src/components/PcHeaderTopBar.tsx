@@ -545,8 +545,10 @@ export default function PcHeaderTopBar({
                 </div>
               ) : null}
 
-              {/* 语言 / 货币切换（页面最顶部）：语言与货币联动，选项来自后台配置 */}
-              <PcLocaleSelect isWhite={isWhite} langLabelMode="localeCode" className="top-locale-select" />
+              {/* 语言 / 货币切换（页面最顶部）：拆成两个独立入口并排（对齐原版双入口形态）；
+                  语言切换仍联动货币，货币也可单独更改，选项来自后台配置 */}
+              <PcLocaleSelect isWhite={isWhite} langLabelMode="localeCode" showCurrency={false} className="top-locale-select" />
+              <PcLocaleSelect isWhite={isWhite} showLang={false} className="top-currency-select" />
             </div>
           ) : null}
         </div>

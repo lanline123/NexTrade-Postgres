@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import Translate from '@icon-park/react/es/icons/Translate';
 import Down from '@icon-park/react/es/icons/Down';
 import { normalizeLocale, writeLocaleCookie } from '@/i18n';
+import { currencyCodeFrom } from '@/lib/currency';
 import { readHeaderBootstrap } from '@/lib/header-bootstrap';
 import { currencyCodeForLocale, findCurrencyByCode } from '@/lib/locale-geo';
 import type { HeaderBootstrapCurrency, HeaderBootstrapLocale } from '@/lib/header-bootstrap';
@@ -243,12 +244,17 @@ export default function PcLocaleSelect({
     if (timerRef.current) window.clearTimeout(timerRef.current);
   };
   const scheduleClose = () => {
+    // 货币原生下拉展开选择中：指针移出不关弹层，避免选项还没点就被收起
+    if (showSelectCurrency) return;
     if (timerRef.current) window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
       setOpen(false);
       setShowSelectCurrency(false);
     }, HIDE_DELAY_MS);
   };
+
+  // 货币独立入口的触发标签：符号 + ISO 代码（如 ￥ CNY），与语言入口的代码式标签保持一致的紧凑形态
+  const currencyTriggerText = currency ? `${currency.symbol} ${currencyCodeFrom(currency.name, currency.symbol)}` : '';
 
   const supportedContent = showLang ? locales.length > 1 || (showCurrency && currencies.length > 0) : showCurrency && currencies.length > 0;
   if (!supportedContent) return null;
@@ -268,8 +274,14 @@ export default function PcLocaleSelect({
         onClick={() => setOpen((value) => !value)}
         style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
       >
-        <Translate className="language" size={20} />
-        <div className="lang-text">{currentLanguageText}</div>
+        {showLang ? (
+          <>
+            <Translate className="language" size={20} />
+            <div className="lang-text">{currentLanguageText}</div>
+          </>
+        ) : (
+          <div className="lang-text">{currencyTriggerText}</div>
+        )}
         <Down className={`arrow${open ? ' rotate' : ''}`} size={14} />
       </span>
 
