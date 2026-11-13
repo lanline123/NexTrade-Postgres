@@ -4132,39 +4132,10 @@ img {
   color: #fff;
 }
 
-.dec-product-group__tabs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  border-bottom: 1px solid #f0f2f5;
-}
-
-.dec-product-group__tabs button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 14px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: #475467;
-  font-size: 15px;
-  cursor: pointer;
-}
-
-.dec-product-group__tabs button.is-active {
-  border-bottom-color: var(--pc-primary);
-  color: var(--pc-primary);
-  font-weight: 600;
-}
-
-.dec-product-group__tabs img {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
-}
+/* （已删除）旧版 button 标签页残留的 .dec-product-group__tabs 规则组：
+ * 现行标签行是 modules.tsx 的 div 结构、样式在 decorate-source.scss，
+ * 残留规则里的 border-bottom: 1px solid #f0f2f5 会漏进现行标签行、
+ * 在标题下方拉出一条贯穿全宽的浅灰线，故整组移除。 */
 
 /* Coupon / seckill / groupon decoration modules */
 .dec-coupon-head,

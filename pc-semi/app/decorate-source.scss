@@ -5743,6 +5743,9 @@
     display: flex;
     align-items: center;
     margin-bottom: 20px;
+    /* 标题选中背景色左/右边距：标题行左右留白，控制选中背景与模块两侧的距离 */
+    padding-left: var(--dec-tab-active-margin-l, 0px);
+    padding-right: var(--dec-tab-active-margin-r, 0px);
 }
 
 .dec-product-group__tabs {

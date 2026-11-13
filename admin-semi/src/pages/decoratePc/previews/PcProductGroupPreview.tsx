@@ -71,6 +71,8 @@ const defaultGroupTitle = {
   titlePaddingLeftRight: 12,
   titleRadius: 4,
   splitLineColor: 'transparent',
+  activeBgMarginLeft: 0,
+  activeBgMarginRight: 0,
 };
 
 /** 演示商品列表（与旧版 pc-product-group/index.ts 的 demoProductList 一致）。 */
@@ -419,6 +421,8 @@ export default function PcProductGroupPreview({ data }: { data: Record<string, a
     '--dec-tab-title-padding-lr': `${groupTitle.titlePaddingLeftRight ?? 12}px`,
     '--dec-tab-title-radius': `${groupTitle.titleRadius ?? 4}px`,
     '--dec-tab-line-color': groupTitle.splitLineColor || 'transparent',
+    '--dec-tab-active-margin-l': `${groupTitle.activeBgMarginLeft ?? 0}px`,
+    '--dec-tab-active-margin-r': `${groupTitle.activeBgMarginRight ?? 0}px`,
   } as CSSProperties;
 
   const itemWidthStyle = (index: number): CSSProperties => {

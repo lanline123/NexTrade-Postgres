@@ -41,6 +41,9 @@ type PreviewProductItem = ProductItem & {
   price?: number | string;
   shopTitle?: string;
   shop?: { shopTitle?: string } | null;
+  deliveryMode?: number | string;
+  deliveryType?: number | string;
+  productType?: number | string;
 };
 
 const EMPTY_IMG =
@@ -107,27 +110,21 @@ function formatPrice(price?: number | string): string {
   return `¥${Number.isFinite(num) ? num.toFixed(2) : '0.00'}`;
 }
 
-function formatPriceParts(price?: number | string): { int: string; dec: string } {
-  const text = formatPrice(price);
-  const pure = text.replace('¥', '');
-  const parts = pure.split('.');
-  return { int: parts[0] || '0', dec: parts[1] || '00' };
+/** 购买按钮文案（与 pc-semi RecommendProduct 的 buyText 逐项一致）。 */
+function buyText(type?: number | string): string {
+  const n = Number(type ?? 1);
+  if (n === 1) return tl('加入购物车');
+  if (n === 5 || n === 6) return tl('立即预约');
+  return tl('立即购买');
 }
 
-function getVirtualSales(item: PreviewProductItem): string {
-  const value = item.virtualSales;
-  if (value === undefined || value === null || value === '') return '0';
-  return String(value);
-}
+
 
 function getPrice(item: PreviewProductItem): number | string | undefined {
   if (item.price !== undefined && item.price !== null && item.price !== '') return item.price;
   return item.productPrice;
 }
 
-function getShopTitle(item: PreviewProductItem): string {
-  return item.shop?.shopTitle || item.shopTitle || tl('官方自营');
-}
 
 function isSoldOut(item: PreviewProductItem): boolean {
   const isSeckillRaw = item.isSeckill;
@@ -311,61 +308,43 @@ export default function PcRecommendProductPreview({ data }: { data: Record<strin
           <ModuleTitlePreview title={titleObj} />
           <div className={`dec-pc-recommend-product__list${titleVisible ? '' : ' is-no-title'}`}>
             {productList.map((item, index) => {
-              const priceParts = formatPriceParts(getPrice(item));
               const soldOut = isSoldOut(item);
               return (
                 <a
                   key={String(item.productId ?? item.id ?? index)}
-                  className="dec-pc-recommend-product__card product-card-container"
+                  className="dec-pc-recommend-product__card"
                   href="javascript:;"
                 >
-                  <div className="top-wrap">
-                    <div className="pro_pic">
-                      <img
-                        className={`img${soldOut ? ' sold-out' : ''}`}
-                        src={formatImage(pickPic(item))}
-                        alt={item.productName || ''}
-                        onError={handleImgError}
-                      />
+                  <div className="dec-pc-recommend-product__flip">
+                    <div className="dec-pc-recommend-product__pic">
+                      <span className="dec-pc-recommend-product__pic-link">
+                        <img
+                          src={formatImage(pickPic(item))}
+                          alt={item.productName || ''}
+                          onError={handleImgError}
+                        />
+                      </span>
                     </div>
-                  </div>
-
-                  <div className="center-wrap">
-                    {showName ? <div className="pro_name">{item.productName}</div> : null}
-
-                    {showPrice ? (
-                      <>
-                        <div className="desc-wrap desc-wrap--sales">
-                          <div className="virtual-sales">已售 {getVirtualSales(item)}</div>
-                        </div>
-
-                        {/* 状态占位：不管有没有状态都占一行，保证价格/按钮对齐 */}
-                        <div className={`desc-wrap desc-wrap--status${soldOut ? '' : ' is-empty'}`}>
-                          <div className="virtual-sales">{soldOut ? t('已售罄') : ''}</div>
-                        </div>
-
-                        <div className="tag-wrap" />
-
-                        <div className="price-wrap">
-                          <div className="box">
-                            <div className="seckill-price">
-                              <span className="price-currency">¥</span>
-                              <span className="price-int">{priceParts.int}</span>
-                              <span className="price-dec">.{priceParts.dec}</span>
-                            </div>
-                          </div>
-                          <div className="buy">
-                            <div className={`view_detail${soldOut ? ' disabled' : ''}`}>
-                              <span className="add-icon" />
-                            </div>
-                          </div>
-                        </div>
-                      </>
+                    {showName ? (
+                      <div className="dec-pc-recommend-product__name">
+                        {Number(item.deliveryMode) === 2 && Number(item.deliveryType) === 1 ? (
+                          <span className="dec-pc-recommend-product__tag">{t('周期购')}</span>
+                        ) : null}
+                        {Number(item.deliveryMode) === 2 && Number(item.deliveryType) === 2 ? (
+                          <span className="dec-pc-recommend-product__tag">{t('次卡兑换')}</span>
+                        ) : null}
+                        {item.productName}
+                      </div>
                     ) : null}
-
-                    <div className="other-wrap">
-                      <span className="link">{getShopTitle(item)}</span>
-                    </div>
+                    {showPrice ? (
+                      <div className="dec-pc-recommend-product__price">{formatPrice(getPrice(item))}</div>
+                    ) : null}
+                  </div>
+                  <div className="dec-pc-recommend-product__operate">
+                    <span className="dec-pc-recommend-product__detail">{t('查看详情')}</span>
+                    <span className={`dec-pc-recommend-product__buy${soldOut ? ' is-disabled' : ''}`}>
+                      {buyText(item.productType)}
+                    </span>
                   </div>
                 </a>
               );

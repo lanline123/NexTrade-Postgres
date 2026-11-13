@@ -795,7 +795,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
         crossedOutPrice: 1, showSales: 1, showShopTag: 1,
         buyBtnStyle: { showBtn: 1, btnType: 1, text: '', textColor: '#ffffff', iconColor: '#ffffff', paddingLeftRight: 3 },
         productColor: { infoLeftRightPadding: 10, backgroundColor: '#ffffff', titleColor: '#19191b', priceColor: '', crossedOutPriceColor: '#999999' },
-        groupTitle: { marginLeftRight: 5, showTitle: 1, bigTitleFontSize: 14, titleColor: '#444444', activeTitleColor: '#FF0F23', activeTitleBgColor: '#ffebf1', titleMinWidth: 80, titlePaddingTopBottom: 8, titlePaddingLeftRight: 12, titleRadius: 4, splitLineColor: 'transparent' },
+        groupTitle: { marginLeftRight: 5, showTitle: 1, bigTitleFontSize: 14, titleColor: '#444444', activeTitleColor: '#FF0F23', activeTitleBgColor: '#ffebf1', titleMinWidth: 80, titlePaddingTopBottom: 8, titlePaddingLeftRight: 12, titleRadius: 4, splitLineColor: 'transparent', activeBgMarginLeft: 0, activeBgMarginRight: 0 },
         moduleStyle: { boxPaddingTop: 5, boxPaddingBottom: 5, boxPadding: 10, backgroundColor: '' },
         contentStyle: { paddingTop: 0, paddingBottom: 0, paddingLeftRight: 0, boxRadius: 0, backgroundColor: '', backgroundPic: { picUrl: '', picThumb: '' }, backgroundPicFillType: 'cover', boxShadow: 0 },
       };
@@ -5982,6 +5982,8 @@ const CONTAINER_VARIANTS: Record<string, SettingFieldDef[]> = {
     { kind: 'color', key: 'titleColor', label: '标题默认颜色', showIf: (m) => Number(m.showTitle) === 1 },
     { kind: 'color', key: 'activeTitleColor', label: '标题选中颜色', showIf: (m) => Number(m.showTitle) === 1 },
     { kind: 'color', key: 'activeTitleBgColor', label: '标题选中背景色', showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'slider', key: 'activeBgMarginLeft', label: '标题选中背景色左边距', max: 60, showIf: (m) => Number(m.showTitle) === 1 },
+    { kind: 'slider', key: 'activeBgMarginRight', label: '标题选中背景色右边距', max: 60, showIf: (m) => Number(m.showTitle) === 1 },
     { kind: 'slider', key: 'titlePaddingTopBottom', label: '标题上下内边距', max: 30, showIf: (m) => Number(m.showTitle) === 1 },
     { kind: 'slider', key: 'titlePaddingLeftRight', label: '标题左右内边距', max: 30, showIf: (m) => Number(m.showTitle) === 1 },
     { kind: 'slider', key: 'titleRadius', label: '标题圆角', max: 20, showIf: (m) => Number(m.showTitle) === 1 },

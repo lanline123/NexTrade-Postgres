@@ -3882,6 +3882,8 @@ function ProductGroup({ module }: ModuleProps) {
     '--dec-tab-title-padding-lr': `${px(groupTitle.titlePaddingLeftRight, 12)}px`,
     '--dec-tab-title-radius': `${px(groupTitle.titleRadius, 4)}px`,
     '--dec-tab-line-color': groupTitle.splitLineColor ?? '#DADADA',
+    '--dec-tab-active-margin-l': `${px(groupTitle.activeBgMarginLeft, 0)}px`,
+    '--dec-tab-active-margin-r': `${px(groupTitle.activeBgMarginRight, 0)}px`,
   };
   return (
     <div
