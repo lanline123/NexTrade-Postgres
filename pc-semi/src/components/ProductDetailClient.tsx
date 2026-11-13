@@ -1018,7 +1018,7 @@ export default function ProductDetailClient({
     </div>
   );
 
-  /** 营销面板：秒杀 / 拼团 / 预售 / 优惠券 / 进行中拼单 */
+  /** 营销面板：秒杀 / 拼团 / 预售 / 进行中拼单（优惠券已拆为独立块，放在主价格下方） */
   const promos = (
     <>
       {grouponInfo ? (
@@ -1068,7 +1068,11 @@ export default function ProductDetailClient({
         </div>
       ) : null}
 
-      {coupons.length ? (
+    </>
+  );
+
+  /** 优惠券面板：独立成块，由三套布局统一放在主价格下方 */
+  const couponBlock = coupons.length ? (
         <div className="pds-panel pds-panel--coupon">
           <div className="pds-panel__head">
             <span>{t('优惠券')}</span>
@@ -1109,9 +1113,7 @@ export default function ProductDetailClient({
             </button>
           ) : null}
         </div>
-      ) : null}
-    </>
-  );
+  ) : null;
 
   /**
    * 源码 components/product/ProductInfo.vue 123–157 `.basic.bg`：市场价 / 本站价 / 评价 / 优惠活动；
@@ -1842,6 +1844,7 @@ export default function ProductDetailClient({
     heading,
     promos,
     price: priceBlock,
+    coupons: couponBlock,
     attrs,
     b2bTab,
     extraAttrBlock,

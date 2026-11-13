@@ -46,10 +46,12 @@ export interface ProductBlocks {
   galleryMeta: ReactNode;
   /** 标签 / 商品名 / 卖点 */
   heading: ReactNode;
-  /** 秒杀 / 拼团 / 预售 / 优惠券面板 */
+  /** 秒杀 / 拼团 / 预售面板 */
   promos: ReactNode;
   /** 价格 / 优惠标签 / 销量 */
   price: ReactNode;
+  /** 优惠券面板（三套统一放在主价格下方） */
+  coupons: ReactNode;
   /** 规格参数 */
   attrs: ReactNode;
   /** B2B 批量采购 Tab（单品采购 / 批量采购），非 B2B 场景为 null */
@@ -124,6 +126,7 @@ export function ClassicLayout({ blocks }: LayoutProps) {
               <div className="product_info">
                 {blocks.promos}
                 {blocks.price}
+                {blocks.coupons}
                 {blocks.b2bTab}
                 {/* 旧版 ProductInfo 的 .actions 包裹规格/数量/属性/购买按钮，
                     生成样式（.number-box/.add_cart/.buy-btn）都嵌在 .actions 下 */}
@@ -187,6 +190,7 @@ export function ModernLayout({ blocks }: LayoutProps) {
                   {blocks.heading}
                   {blocks.promos}
                   {blocks.price}
+                  {blocks.coupons}
                   {/* 原版 ProductInfo.vue 的 .actions 包裹层（规格 / 数量 / 属性 / 服务），
                       core-pages.scss 中 .actions .number-box / .actions .product-sku 等规则
                       都依赖这一层；缺了它数量行会竖排、SKU 与属性间距全丢。 */}
@@ -269,6 +273,7 @@ export function OverseasLayout({ blocks, activeAnchor, onAnchorClick }: Overseas
                   {blocks.heading}
                   {blocks.promos}
                   {blocks.price}
+                  {blocks.coupons}
                   {/* 对齐原版 overseas/ProductInfo.vue 第 258 行 .actions 包裹层：
                       core-pages.scss 的 .actions .number-box{display:flex} 等规则依赖它，
                       缺了会让「数量」标题与步进器上下堆叠。 */}
