@@ -3436,3 +3436,109 @@
 }
 .dec-prod-pick__field { display: flex; flex-direction: column; gap: 4px; }
 .dec-prod-pick__field > span { font-size: 12px; color: var(--semi-color-text-2); }
+
+/* ============ 商品分类选择（入口字段 + 右抽屉，近直角现代风） ============ */
+.dec-cat-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 2px;
+  background: var(--semi-color-bg-2);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.dec-cat-field:hover { border-color: var(--semi-color-primary); }
+.dec-cat-field__text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--semi-color-text-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dec-cat-field__text.is-placeholder { color: var(--semi-color-text-2); }
+.dec-cat-field__clear {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--semi-color-text-2);
+  cursor: pointer;
+  flex: none;
+}
+.dec-cat-field__clear:hover { color: var(--semi-color-danger); }
+.dec-cat-field__chev { color: var(--semi-color-text-2); flex: none; }
+.dec-cat-picker { display: flex; flex-direction: column; gap: 10px; height: 100%; }
+.dec-cat-picker__search { flex: none; }
+.dec-cat-picker__list { flex: 1; overflow-y: auto; }
+.dec-cat-picker__empty {
+  display: grid;
+  place-items: center;
+  padding: 40px 0;
+  font-size: 13px;
+  color: var(--semi-color-text-2);
+}
+.dec-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding-right: 10px;
+  border-left: 2px solid transparent;
+  font-size: 13px;
+  color: var(--semi-color-text-0);
+  cursor: pointer;
+  user-select: none;
+}
+.dec-cat-row:hover { background: var(--semi-color-fill-0); }
+.dec-cat-row.is-picked {
+  background: color-mix(in srgb, var(--semi-color-primary) 8%, transparent);
+  border-left-color: var(--semi-color-primary);
+  font-weight: 600;
+}
+.dec-cat-row__toggle {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--semi-color-text-2);
+  cursor: pointer;
+  flex: none;
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease;
+}
+.dec-cat-row__toggle.is-open { transform: rotate(0deg); }
+.dec-cat-row__toggle-placeholder { width: 20px; flex: none; }
+.dec-cat-row__name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dec-cat-row__check {
+  flex: none;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--semi-color-primary);
+}
+.dec-cat-sheet__footer { display: flex; align-items: center; gap: 8px; }
+.dec-cat-sheet__current {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--semi-color-text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
