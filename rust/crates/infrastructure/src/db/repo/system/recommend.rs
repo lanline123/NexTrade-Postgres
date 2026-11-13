@@ -197,7 +197,7 @@ impl RecommendRepository {
             binds.push(i64::from(days));
             binds.push(i64::from(days));
             binds.push(i64::from(user_id));
-            (format!(
+            format!(
                 "WITH my_cats AS (\
                    SELECT DISTINCT p.category_id AS cid FROM order_item i \
                    JOIN \"order\" o ON o.order_id = i.order_id \
@@ -226,7 +226,7 @@ impl RecommendRepository {
             )
         } else {
             binds.push(i64::from(days));
-            (format!(
+            format!(
                 "SELECT {select_cols} FROM order_item i \
                  JOIN \"order\" o ON o.order_id = i.order_id \
                  JOIN product pr ON pr.product_id = i.product_id \
