@@ -5,6 +5,7 @@
  * 点击添加（拖拽排序由画布内 dnd-kit 负责，约束校验收敛到 store）。
  */
 import { useMemo } from "react";
+import { MODULE_ICONPARK } from "./moduleIcons";
 import { Tabs, TabPane, Toast } from "@douyinfe/semi-ui";
 import { getModulesByContext, isExclusiveModule } from "../contract/moduleRegistry";
 import { getAvailableToolbarGroups, type ToolbarGroup } from "../contract/constants";
@@ -57,7 +58,16 @@ export default function ModuleToolbar({ pageType, isShop }: { pageType: number; 
         <div className="h5-editor-module-grid">
             {list.map((m) => (
                 <div key={`${m.type}@${m.url}`} className="h5-editor-module-item" onClick={() => handleAdd(m)} title={t(m.label)}>
-                    <div className="h5-editor-module-icon" dangerouslySetInnerHTML={{ __html: m.icon || "" }} />
+                    {(() => {
+                        const ParkIcon = MODULE_ICONPARK[m.type];
+                        return ParkIcon ? (
+                            <div className="h5-editor-module-icon h5-editor-module-icon--park">
+                                <ParkIcon size={24} strokeWidth={3.5} />
+                            </div>
+                        ) : (
+                            <div className="h5-editor-module-icon" dangerouslySetInnerHTML={{ __html: m.icon || "" }} />
+                        );
+                    })()}
                     <div className="h5-editor-module-label">{t(m.label)}</div>
                 </div>
             ))}

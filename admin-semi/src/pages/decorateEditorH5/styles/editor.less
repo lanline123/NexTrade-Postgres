@@ -282,17 +282,51 @@
 }
 
 .h5-editor-settings-body {
-    padding: 16px;
+    padding: 4px 16px 40px;
 }
 
+// 分组：对齐 PC 编辑器 .dec-edit-title-box（整宽浅灰带 + 3px 蓝色竖条标题）
 .h5-editor-setting-group {
-    margin-bottom: 16px;
+    padding: 0 16px 14px;
+    margin-bottom: 4px;
 
     .h5-editor-setting-label {
-        font-size: 13px;
+        font-size: 14px;
         margin-bottom: 6px;
-        color: #333;
+        color: #969799;
     }
+}
+
+.h5-editor-setting-group-title {
+    margin: 0 -16px 12px;
+    background: #f5f5f5;
+    padding: 10px 14px;
+
+    span {
+        border-left: 3px solid #155bd4;
+        padding-left: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1f2329;
+        line-height: 1;
+        display: inline-block;
+    }
+}
+
+// 页面设置的分组自身也带 h5-editor-settings-body 类（PageSettings 的用法），
+// 去掉 .h5-editor-settings-body 的 40px 底部留白，避免每组下方空一大截。
+// 注意：这里必须是同元素复合选择器——后代选择器会命中所有模块设置里的分组（曾导致标题竖排）。
+.h5-editor-settings-body.h5-editor-setting-group {
+    padding-bottom: 14px;
+}
+
+// 模块库 IconPark 图标格
+.h5-editor-module-icon--park {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #4e5969;
+    height: 28px;
 }
 
 .h5-editor-pic-row {
@@ -317,3 +351,198 @@
     padding: 0 8px;
     background: #fff;
 }
+
+// 颜色选择控件样式：与 PC 装修编辑器共用同一套 .pchead-color-* / .pchead-alpha-color__*（源：pages/decorate-editor.css）
+.pchead-alpha-color {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+.pchead-alpha-color__swatch {
+  position: relative;
+  width: 36px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 5px;
+  overflow: hidden;
+  cursor: pointer;
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
+    linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
+    linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+  background-size: 10px 10px;
+  background-position: 0 0, 0 5px, 5px -5px, -5px 0;
+}
+.pchead-alpha-color__swatch > span {
+  position: absolute;
+  inset: 0;
+}
+.pchead-alpha-color__swatch > input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+}
+.pchead-alpha-color__unit {
+  flex-shrink: 0;
+  color: #98a2b3;
+  font-size: 12px;
+}
+.pchead-alpha-color {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+.pchead-alpha-color .semi-slider {
+  min-width: 50px;
+}
+.pchead-alpha-color__number {
+  width: 58px;
+  height: 28px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--semi-color-text-0);
+  font-size: 12px;
+  line-height: 26px;
+  text-align: right;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.pchead-alpha-color__number::-webkit-outer-spin-button,
+.pchead-alpha-color__number::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.pchead-alpha-color__number:focus {
+  border-color: var(--semi-color-primary);
+}
+.pchead-alpha-color__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 36px;
+  min-width: 36px;
+  height: 28px;
+  padding: 0 3px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  box-sizing: border-box;
+  text-align: left;
+}
+.pchead-alpha-color__checker,
+.pchead-color-popover__preview {
+  position: relative;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: 1px solid #dcdfe6;
+  border-radius: 2px;
+  overflow: hidden;
+  background-color: #fff;
+  background-image: linear-gradient(45deg, #e5e5e5 25%, transparent 25%), linear-gradient(-45deg, #e5e5e5 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e5e5 75%), linear-gradient(-45deg, transparent 75%, #e5e5e5 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+}
+.pchead-alpha-color__checker > span,
+.pchead-color-popover__preview > span { position: absolute; inset: 0; }
+.pchead-alpha-color__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #606266;
+  font-size: 12px;
+  line-height: 30px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pchead-color-popover { width: 260px; padding: 4px; box-sizing: border-box; }
+.pchead-color-popover__preview-row { display: flex; align-items: center; gap: 8px; }
+.pchead-color-popover__preview { width: 32px; height: 32px; }
+.pchead-color-popover__label { margin: 12px 0 6px; color: #969799; font-size: 12px; }
+.pchead-color-popover__alpha { display: flex; align-items: center; gap: 6px; }
+.pchead-color-popover__presets { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.pchead-color-popover__preset {
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid #ebedf0;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.pchead-color-popover__preset:hover { border-color: var(--semi-color-primary); }
+.pchead-color-sv {
+  position: relative;
+  width: 100%;
+  height: 150px;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+}
+.pchead-color-sv__white {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, #fff, rgba(255, 255, 255, 0));
+}
+.pchead-color-sv__black {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, #000, rgba(0, 0, 0, 0));
+}
+.pchead-color-sv__handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+.pchead-color-slider {
+  position: relative;
+  width: 100%;
+  height: 12px;
+  margin-top: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  touch-action: none;
+}
+.pchead-color-hue {
+  background: linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%);
+}
+.pchead-color-slider__handle {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+.pchead-color-popover__inputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+.pchead-color-popover__inputs .semi-input-wrapper { flex: 1; min-width: 0; }

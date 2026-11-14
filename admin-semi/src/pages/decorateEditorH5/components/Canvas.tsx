@@ -14,6 +14,7 @@ import { Toast } from "@douyinfe/semi-ui";
 import { IconPlus, IconMinus, IconCopy, IconDelete, IconEyeOpened, IconEyeClosed } from "@douyinfe/semi-icons";
 import { editorStore, useEditorState } from "../store/editorStore";
 import { getPreviewComponent, getModuleDefinition } from "../contract/moduleRegistry";
+import ModuleErrorBoundary from "./ModuleErrorBoundary";
 import type { DecorateModuleBase } from "../contract/types";
 
 import { useI18n } from '../../../i18n';
@@ -104,9 +105,11 @@ function ModuleItem({ moduleData, index }: { moduleData: DecorateModuleBase; ind
             </div>
             <div className="h5-editor-module-preview" onClick={(e) => e.stopPropagation()}>
                 {Preview ? (
-                    <Suspense fallback={<div className="h5-editor-preview-loading">{t('模块加载中…')}</div>}>
-                        <Preview data={moduleData.module} />
-                    </Suspense>
+                    <ModuleErrorBoundary label={moduleData.type}>
+                        <Suspense fallback={<div className="h5-editor-preview-loading">{t('模块加载中…')}</div>}>
+                            <Preview data={moduleData.module} />
+                        </Suspense>
+                    </ModuleErrorBoundary>
                 ) : (
                     <div className="h5-editor-preview-missing">「{t(moduleData.label || moduleData.type)}」{t('预览待移植')}</div>
                 )}

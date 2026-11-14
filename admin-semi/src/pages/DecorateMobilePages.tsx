@@ -597,6 +597,7 @@ function MobileNavEditor({ id, onBack }: { id: number; onBack: () => void }) {
   const [module, setModule] = useState<NavModule>(newNavModule);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [activePreview, setActivePreview] = useState(0);
 
   useEffect(() => {
     if (!id) return;
@@ -616,6 +617,10 @@ function MobileNavEditor({ id, onBack }: { id: number; onBack: () => void }) {
       ...prev,
       navList: prev.navList.map((item, i) => (i === index ? { ...item, ...patch } : item)),
     }));
+  };
+
+  const removeItem = (index: number) => {
+    setModule((prev) => ({ ...prev, navList: prev.navList.filter((_, i) => i !== index) }));
   };
 
   const save = async () => {
@@ -656,75 +661,116 @@ function MobileNavEditor({ id, onBack }: { id: number; onBack: () => void }) {
   };
 
   const bg = module.backgroundColorType === 2 ? module.backgroundColor || '#FFFFFF' : '#FFFFFF';
-  const radius = module.cornerStyle === 2 ? '8px 8px 0 0' : module.cornerStyle === 3 ? '16px 16px 0 0' : '0';
+  const radius = module.cornerStyle === 2 ? '16px 16px 0 0' : module.cornerStyle === 3 ? '24px 24px 0 0' : '0';
   const selectedColor = module.iconColorType === 2 ? module.selectedTextColor || '#FF1616' : '#FF1616';
   const unselectedColor = module.iconColorType === 2 ? module.unselectedTextColor || '#757575' : '#757575';
 
+  const sectionTitle = (text: string) => (
+    <div style={{ margin: '0 -20px 16px', background: '#f5f5f5', padding: '10px 20px' }}>
+      <span style={{ borderLeft: '3px solid #155bd4', paddingLeft: 10, fontSize: 14, fontWeight: 600, color: '#1f2329', lineHeight: 1, display: 'inline-block' }}>{text}</span>
+    </div>
+  );
+  const fieldRow = (label: string, control: React.ReactNode) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+      <span style={{ width: 96, flexShrink: 0, color: '#969799', fontSize: 14 }}>{label}</span>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>{control}</div>
+    </div>
+  );
+
   return (
-    <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-      <div style={{ width: 375, flexShrink: 0, border: '1px solid #e5e6eb', borderRadius: 8, overflow: 'hidden', background: '#f7f8fa' }}>
-        <div style={{ height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', borderBottom: '1px solid #eee' }}>{t('页面标题')}</div>
-        <div style={{ height: 420 }} />
-        <div style={{ background: bg, borderRadius: radius, padding: '8px 4px', display: 'flex', justifyContent: 'space-around' }}>
-          {module.navList.map((item, index) => (
-            <div key={index} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 52 }}>
-              {item.picUrl ? <img src={index === 0 ? item.picActiveUrl || item.picUrl : item.picUrl} alt="" style={{ width: 28, height: 28, objectFit: 'contain' }} /> : <span style={{ width: 28, height: 28, borderRadius: 6, background: '#eef1f5' }} />}
-              <span style={{ fontSize: 12, color: index === 0 ? selectedColor : unselectedColor }}>{item.picTitle || t('菜单')}</span>
+    <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
+      {/* 左：现代手机框预览（点击菜单项可切换选中态预览） */}
+      <div style={{ flexShrink: 0, position: 'sticky', top: 16 }}>
+        <div style={{ width: 320, borderRadius: 44, background: '#101014', padding: 11, boxShadow: '0 18px 44px rgba(16,24,40,0.22), 0 2px 8px rgba(16,24,40,0.12)' }}>
+          <div style={{ borderRadius: 34, overflow: 'hidden', background: '#f4f5f7', display: 'flex', flexDirection: 'column', height: 560, position: 'relative' }}>
+            <div style={{ height: 34, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', fontSize: 11, color: '#333', flexShrink: 0 }}>
+              <span style={{ fontWeight: 600 }}>9:41</span>
+              <span style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: 8, width: 84, height: 20, borderRadius: 10, background: '#101014' }} />
+              <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                <span style={{ width: 14, height: 8, border: '1px solid #333', borderRadius: 2, display: 'inline-block' }} />
+              </span>
             </div>
-          ))}
+            <div style={{ height: 42, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: '#1f2329', borderBottom: '1px solid #f0f0f2', flexShrink: 0 }}>{module.navName || t('主导航栏')}</div>
+            <div style={{ flex: 1, padding: '14px 14px 10px', display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
+              <div style={{ height: 92, borderRadius: 12, background: 'linear-gradient(120deg, #dbe7fd, #eef4ff)', flexShrink: 0 }} />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, flexShrink: 0 }}>
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} style={{ height: 52, borderRadius: 10, background: '#fff' }} />
+                ))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} style={{ height: 118, borderRadius: 10, background: '#fff', padding: 8 }}>
+                    <div style={{ height: 62, borderRadius: 6, background: '#eef1f5' }} />
+                    <div style={{ height: 8, borderRadius: 4, background: '#e7eaee', marginTop: 8, width: '80%' }} />
+                    <div style={{ height: 8, borderRadius: 4, background: '#f3d9d9', marginTop: 6, width: '45%' }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ background: bg, borderRadius: radius, padding: '8px 6px 4px', display: 'flex', justifyContent: 'space-around', boxShadow: '0 -4px 16px rgba(16,24,40,0.06)', flexShrink: 0 }}>
+              {module.navList.map((item, index) => {
+                const active = index === activePreview;
+                const src = active ? item.picActiveUrl || item.picUrl : item.picUrl;
+                return (
+                  <div key={index} onClick={() => setActivePreview(index)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 52, cursor: 'pointer', padding: '2px 0' }}>
+                    {src ? <img src={src} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} /> : <span style={{ width: 24, height: 24, borderRadius: 7, background: active ? '#fdecec' : '#eef1f5', display: 'inline-block' }} />}
+                    <span style={{ fontSize: 11, color: active ? selectedColor : unselectedColor, fontWeight: active ? 600 : 400 }}>{item.picTitle || t('菜单')}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ background: bg, display: 'flex', justifyContent: 'center', padding: '5px 0 7px', flexShrink: 0 }}>
+              <span style={{ width: 110, height: 4, borderRadius: 2, background: 'rgba(16,16,20,0.25)' }} />
+            </div>
+          </div>
         </div>
+        <div style={{ textAlign: 'center', color: '#969799', fontSize: 12, marginTop: 10 }}>{t('点击预览中的菜单可切换选中态')}</div>
       </div>
 
-      <div style={{ flex: 1, minWidth: 0, background: '#fff', border: '1px solid #e5e6eb', borderRadius: 8, padding: 20 }}>
+      {/* 右：分区卡片表单（对齐装修编辑器设置面板语言） */}
+      <div style={{ flex: 1, minWidth: 0, background: '#fff', border: '1px solid #eef0f3', borderRadius: 12, padding: '4px 20px 20px', boxShadow: '0 1px 3px rgba(16,24,40,0.04)' }}>
         {loading ? <Spin /> : (
           <>
-            <div style={{ fontWeight: 600, marginBottom: 14 }}>{t('基础设置')}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-              <span style={{ width: 90, color: '#646a73' }}>{t('导航名称')}</span>
-              <Input value={module.navName} maxLength={15} onChange={(v: string) => setModule({ ...module, navName: v })} style={{ width: 320 }} />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-              <span style={{ width: 90, color: '#646a73' }}>{t('导航背景色')}</span>
+            {sectionTitle(t('基础设置'))}
+            {fieldRow(t('导航名称'), <Input value={module.navName} maxLength={15} onChange={(v: string) => setModule({ ...module, navName: v })} style={{ width: 320 }} />)}
+            {fieldRow(t('导航背景色'), <>
               <RadioGroup value={module.backgroundColorType} onChange={(e) => setModule({ ...module, backgroundColorType: Number(e.target.value) })}>
                 <Radio value={1}>{t('系统色')}</Radio>
                 <Radio value={2}>{t('自定义颜色')}</Radio>
               </RadioGroup>
-              {module.backgroundColorType === 2 ? <input type="color" value={module.backgroundColor} onChange={(e) => setModule({ ...module, backgroundColor: e.target.value })} /> : null}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-              <span style={{ width: 90, color: '#646a73' }}>{t('背景圆角')}</span>
-              <RadioGroup value={module.cornerStyle} onChange={(e) => setModule({ ...module, cornerStyle: Number(e.target.value) })}>
-                <Radio value={1}>{t('直角')}</Radio>
-                <Radio value={2}>{t('圆角')}</Radio>
-                <Radio value={3}>{t('大圆角')}</Radio>
-              </RadioGroup>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-              <span style={{ width: 90, color: '#646a73' }}>{t('文字配色')}</span>
+              {module.backgroundColorType === 2 ? <ColorPicker value={module.backgroundColor as any} onChange={(v: any) => setModule({ ...module, backgroundColor: typeof v === 'string' ? v : v.hex })} /> : null}
+            </>)}
+            {fieldRow(t('背景圆角'), <RadioGroup value={module.cornerStyle} onChange={(e) => setModule({ ...module, cornerStyle: Number(e.target.value) })}>
+              <Radio value={1}>{t('直角')}</Radio>
+              <Radio value={2}>{t('圆角')}</Radio>
+              <Radio value={3}>{t('大圆角')}</Radio>
+            </RadioGroup>)}
+            {fieldRow(t('文字配色'), <>
               <RadioGroup value={module.iconColorType} onChange={(e) => setModule({ ...module, iconColorType: Number(e.target.value) })}>
                 <Radio value={1}>{t('系统配色')}</Radio>
                 <Radio value={2}>{t('自定义配置')}</Radio>
               </RadioGroup>
               {module.iconColorType === 2 ? (
                 <Space>
-                  <span>{t('选中')}</span><input type="color" value={module.selectedTextColor} onChange={(e) => setModule({ ...module, selectedTextColor: e.target.value })} />
-                  <span>{t('未选')}</span><input type="color" value={module.unselectedTextColor} onChange={(e) => setModule({ ...module, unselectedTextColor: e.target.value })} />
+                  <span style={{ color: '#969799', fontSize: 13 }}>{t('选中')}</span><ColorPicker value={module.selectedTextColor as any} onChange={(v: any) => setModule({ ...module, selectedTextColor: typeof v === 'string' ? v : v.hex })} />
+                  <span style={{ color: '#969799', fontSize: 13 }}>{t('未选')}</span><ColorPicker value={module.unselectedTextColor as any} onChange={(v: any) => setModule({ ...module, unselectedTextColor: typeof v === 'string' ? v : v.hex })} />
                 </Space>
               ) : null}
-            </div>
+            </>)}
 
-            <div style={{ fontWeight: 600, margin: '18px 0 10px' }}>{t('菜单设置')}</div>
+            {sectionTitle(t('菜单设置'))}
             {module.navList.map((item, index) => (
-              <div key={index} style={{ border: '1px solid #eef0f3', borderRadius: 6, padding: 12, marginBottom: 10 }}>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <Input value={item.picTitle || ''} placeholder={t('菜单名称')} onChange={(v: string) => updateItem(index, { picTitle: v })} style={{ width: 140 }} />
-                  <Input value={item.picUrl || ''} placeholder={t('未选中图标 URL')} onChange={(v: string) => updateItem(index, { picUrl: v })} style={{ width: 220 }} />
-                  <Input value={item.picActiveUrl || ''} placeholder={t('选中图标 URL')} onChange={(v: string) => updateItem(index, { picActiveUrl: v })} style={{ width: 220 }} />
+              <div key={index} style={{ border: '1px solid #eef0f3', borderRadius: 10, padding: '12px 14px', marginBottom: 10, background: '#fbfcfd' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#155bd4', color: '#fff', fontSize: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{index + 1}</span>
+                  <Input value={item.picTitle || ''} placeholder={t('菜单名称')} onChange={(v: string) => updateItem(index, { picTitle: v })} style={{ width: 150 }} />
                   <Input value={typeof item.picLink === 'string' ? item.picLink : item.picLink?.link || ''} placeholder={t('跳转链接')} onChange={(v: string) => updateItem(index, { picLink: { link: v, title: item.picTitle || '' } })} style={{ width: 200 }} />
+                  <Button type="danger" theme="borderless" size="small" style={{ marginLeft: 'auto' }} disabled={module.navList.length <= 1} onClick={() => removeItem(index)}>{t('删除')}</Button>
                 </div>
-                <div style={{ display: 'flex', gap: 24, marginTop: 8, flexWrap: 'wrap' }}>
+                <div className="mobile-nav-compact" style={{ display: 'flex', gap: 28, marginTop: 10 }}>
                   <div>
-                    <div style={{ color: '#646a73', fontSize: 12, marginBottom: 4 }}>{t('未选中图标')}</div>
+                    <div style={{ color: '#969799', fontSize: 12, marginBottom: 5 }}>{t('未选中图标')}</div>
                     <ImageUploader
                       value={item.picUrl ? [item.picUrl] : []}
                       single
@@ -732,7 +778,7 @@ function MobileNavEditor({ id, onBack }: { id: number; onBack: () => void }) {
                     />
                   </div>
                   <div>
-                    <div style={{ color: '#646a73', fontSize: 12, marginBottom: 4 }}>{t('选中图标')}</div>
+                    <div style={{ color: '#969799', fontSize: 12, marginBottom: 5 }}>{t('选中图标')}</div>
                     <ImageUploader
                       value={item.picActiveUrl ? [item.picActiveUrl] : []}
                       single

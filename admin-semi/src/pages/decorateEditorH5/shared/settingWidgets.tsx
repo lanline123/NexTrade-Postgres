@@ -3,8 +3,9 @@
  *
  * 统一 onChange(patch) 协议：所有控件只上报字段级 patch，由 store 浅合并进模块数据。
  */
-import { Button, ColorPicker, Input, InputNumber, RadioGroup, Radio, Select, Switch, Upload, Toast } from "@douyinfe/semi-ui";
+import { Button, Input, InputNumber, RadioGroup, Radio, Select, Switch, Upload, Toast } from "@douyinfe/semi-ui";
 import { IconPlus, IconDelete } from "@douyinfe/semi-icons";
+import AlphaColorInput from "../../../components/AlphaColorInput";
 import { imageFormat, pickPic } from "./format";
 
 import { useI18n } from '../../../i18n';
@@ -19,8 +20,12 @@ interface FieldProps {
 export function SettingGroup({ title, children }: { title?: string; children: React.ReactNode }) {
     const { t } = useI18n();
     return (
-        <div className="h5-editor-setting-group" style={{ borderBottom: "1px solid #f0f0f0", paddingBottom: 12 }}>
-            {title ? <div className="h5-editor-setting-label" style={{ fontWeight: 600 }}>{t(title)}</div> : null}
+        <div className="h5-editor-setting-group">
+            {title ? (
+                <div className="h5-editor-setting-group-title">
+                    <span>{t(title)}</span>
+                </div>
+            ) : null}
             {children}
         </div>
     );
@@ -30,7 +35,7 @@ export function SettingRow({ label, children }: { label: string; children: React
     const { t } = useI18n();
     return (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 13, flexShrink: 0 }}>{t(label)}</span>
+            <span style={{ fontSize: 14, flexShrink: 0, color: "#969799" }}>{t(label)}</span>
             <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>{children}</div>
         </div>
     );
@@ -89,51 +94,17 @@ export function NumberField({ data, onChange, field, label, min = 0, max = 999, 
     );
 }
 
-/** 合法 hex（#rgb/#rgba/#rrggbb/#rrggbbaa）；Semi ColorPicker 收到 undefined/非法值会在 HSV 解析时抛错。 */
-const safeHex = (value: unknown): string => {
-    const text = typeof value === "string" ? value.trim() : "";
-    return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(text) ? text : "#ffffff";
-};
-
-/** hex → ColorValue（Semi 2.104 的 value/onChange 均为 {hsva, rgba, hex} 对象，传字符串会崩）。 */
-function hexToColorValue(hex: string): { hsva: { h: number; s: number; v: number; a: number }; rgba: { r: number; g: number; b: number; a: number }; hex: string } {
-    let clean = hex.replace("#", "");
-    if (clean.length === 3 || clean.length === 4) {
-        clean = clean.split("").map((c) => c + c).join("");
-    }
-    const r = parseInt(clean.slice(0, 2), 16) || 0;
-    const g = parseInt(clean.slice(2, 4), 16) || 0;
-    const b = parseInt(clean.slice(4, 6), 16) || 0;
-    const rn = r / 255;
-    const gn = g / 255;
-    const bn = b / 255;
-    const max = Math.max(rn, gn, bn);
-    const min = Math.min(rn, gn, bn);
-    const d = max - min;
-    let h = 0;
-    if (d !== 0) {
-        if (max === rn) h = ((gn - bn) / d) % 6;
-        else if (max === gn) h = (bn - rn) / d + 2;
-        else h = (rn - gn) / d + 4;
-    }
-    h = Math.round((h < 0 ? h + 6 : h) * 60);
-    const s = max === 0 ? 0 : Math.round((d / max) * 100);
-    const v = Math.round(max * 100);
-    return { hsva: { h, s, v, a: 1 }, rgba: { r, g, b, a: 1 }, hex };
-}
-
+/** 颜色字段：复用 PC 装修编辑器的 AlphaColorInput（同一控件、同一样式，支持透明度与预置色）。 */
 export function ColorField({ data, onChange, field, label, allowEmpty = true }: FieldProps & { field: string; label: string; allowEmpty?: boolean }) {
     const { t } = useI18n();
-    const colorValue = hexToColorValue(safeHex(data?.[field]));
     return (
         <SettingRow label={label}>
-            <ColorPicker
-                value={colorValue}
-                onChange={(v: any) => onChange({ [field]: typeof v === "string" ? v : v?.hex || "" })}
-            />
-            {allowEmpty ? (
-                <Button size="small" onClick={() => onChange({ [field]: "" })}>{t('清除')}</Button>
-            ) : null}
+            <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end" }}>
+                <AlphaColorInput value={String(data?.[field] ?? "")} onChange={(v) => onChange({ [field]: v })} />
+                {allowEmpty ? (
+                    <Button size="small" onClick={() => onChange({ [field]: "" })}>{t('清除')}</Button>
+                ) : null}
+            </div>
         </SettingRow>
     );
 }
@@ -347,9 +318,9 @@ export function ColorPairListField({
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {list.map((item, index) => (
                     <div key={index} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <input type="color" value={item.colorA || "#cccccc"} onChange={(e) => setItem(index, "colorA", e.target.value)} style={{ width: 32, height: 26, border: 0, background: "transparent" }} />
+                        <AlphaColorInput value={item.colorA || "#cccccc"} onChange={(v) => setItem(index, "colorA", v)} />
                         <span style={{ color: "#98a2b3", fontSize: 12 }}>→</span>
-                        <input type="color" value={item.colorB || item.colorA || "#cccccc"} onChange={(e) => setItem(index, "colorB", e.target.value)} style={{ width: 32, height: 26, border: 0, background: "transparent" }} />
+                        <AlphaColorInput value={item.colorB || item.colorA || "#cccccc"} onChange={(v) => setItem(index, "colorB", v)} />
                         <button type="button" onClick={() => removeOne(index)} style={{ marginLeft: "auto", fontSize: 12, color: "var(--semi-color-danger)", background: "transparent", border: 0, cursor: "pointer" }}>
                             删除
                         </button>

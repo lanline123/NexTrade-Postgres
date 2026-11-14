@@ -58,7 +58,7 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
 
     // 注入云存储 URL（相对路径图片回显）
     useEffect(() => {
-        apiGet<any>("setting/config/getAdminBase")
+        apiGet<any>("/setting/config/getAdminBase")
             .then((result) => {
                 const url = result?.storageUrl || result?.storageLocalUrl || "";
                 if (url) setStorageUrl(url);
@@ -69,7 +69,7 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
     // 加载装修详情
     useEffect(() => {
         if (isAddMode) return;
-        apiGet<any>("decorate/decorate/detail", { id: initialId, decorateType })
+        apiGet<any>("/decorate/decorate/detail", { id: initialId, decorateType })
             .then((result) => {
                 if (result == null) return;
                 editorStore.initDecorate({
@@ -96,7 +96,7 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
             return false;
         }
         try {
-            const result = await apiPost<any>("decorate/decorate/create", {
+            const result = await apiPost<any>("/decorate/decorate/create", {
                 decorateType,
                 pageType,
                 decorateTitle: title
@@ -128,7 +128,7 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
         if (!(await ensureCreated())) return;
         setSaving(true);
         try {
-            await apiPost("decorate/decorate/saveDraft", buildSavePayload(editorStore.getSaveData()));
+            await apiPost("/decorate/decorate/saveDraft", buildSavePayload(editorStore.getSaveData()));
             Toast.success(t("操作成功"));
             editorStore.markAsSaved();
         } catch (error: any) {
@@ -149,7 +149,7 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
             if (pageType === 2) {
                 saveData.pageModule = { ...saveData.pageModule, homeStyleVersion: "new" };
             }
-            await apiPost("decorate/decorate/publish", buildSavePayload(saveData));
+            await apiPost("/decorate/decorate/publish", buildSavePayload(saveData));
             Toast.success(t("操作成功"));
             editorStore.markAsSaved();
         } catch (error: any) {
@@ -162,7 +162,7 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
 
     const onContinueDraft = useCallback(async () => {
         try {
-            const result = await apiGet<any>("decorate/decorate/loadDraftData", { id: editorStore.getState().decorateId });
+            const result = await apiGet<any>("/decorate/decorate/loadDraftData", { id: editorStore.getState().decorateId });
             editorStore.restoreFromDraft({
                 pageModule: result?.pageModule ?? editorStore.getState().pageModule,
                 moduleList: result?.moduleList ?? []
@@ -195,7 +195,7 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
             return;
         }
         try {
-            await apiPost("decorate/decorate/updateField", { id: editorStore.getState().decorateId, field: "decorateTitle", val });
+            await apiPost("/decorate/decorate/updateField", { id: editorStore.getState().decorateId, field: "decorateTitle", val });
             Toast.success(t("页面名称修改成功"));
         } catch (error: any) {
             Toast.error(error.message || t("修改失败"));

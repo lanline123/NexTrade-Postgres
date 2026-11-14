@@ -79,6 +79,7 @@ import PcSeckillPreview from './decoratePc/previews/PcSeckillPreview';
 import PcGrouponPreview from './decoratePc/previews/PcGrouponPreview';
 import PcHomeHeroPreview from './decoratePc/previews/PcHomeHeroPreview';
 import PcNoticePreview from './decoratePc/previews/PcNoticePreview';
+import AlphaColorInput from '../components/AlphaColorInput';
 import ImageUploader from '../components/ImageUploader';
 import ProductImagePickerModal from '../components/ProductImagePicker';
 import type { PickedImage } from '../components/ProductImagePicker';
@@ -1122,6 +1123,54 @@ const PC_LOGIN_MODULE_DEF: ModuleDef = {
 };
 
 MODULE_DEF_MAP.set('pcLogin', PC_LOGIN_MODULE_DEF);
+
+/** 搜索结果模块（pageType=6 搜索页专属，对齐原版 PcSearchResult）。
+ *  数据契约与 PC 前台 app/search/page.tsx 的 PcSearchConfig 一一对应：
+ *  前台只认 type=pcSearchResult 且 url 为空或 'pcSearch' 的第一个模块，
+ *  开关字段经 normalizeBoolLike 归一化（true/1 均可），编辑器 switch 写 1/0 安全。 */
+const PC_SEARCH_RESULT_DEFAULTS = {
+  backgroundColor: '#ffffff',
+  themeColor: '#ff4d4f',
+  filterStyle: 2,
+  filterTemplate: 2,
+  goodsStyle: 1,
+  goodsRadiusStyle: 1,
+  buyStyle: 2,
+  showFilterPanel: true as boolean | number,
+  showPriceRange: true as boolean | number,
+  showSales: false as boolean | number,
+  showShopTag: false as boolean | number,
+  showCartButton: true as boolean | number,
+  componentMarginTop: 24,
+  componentMarginBottom: 24,
+};
+
+const PC_SEARCH_RESULT_MODULE_DEF: ModuleDef = {
+  type: 'pcSearchResult',
+  label: '搜索结果',
+  group: 'pcSearchResult',
+  hiddenInLibrary: false,
+  defaults: () => ({ ...PC_SEARCH_RESULT_DEFAULTS }),
+  settings: [
+    { kind: 'radio', key: 'filterStyle', label: '筛选布局', options: [{ label: '侧栏筛选', value: 1 }, { label: '顶部筛选', value: 2 }], section: '筛选设置' },
+    { kind: 'radio', key: 'filterTemplate', label: '商品列数', options: [{ label: '一行五列', value: 1 }, { label: '一行六列', value: 2 }], section: '筛选设置' },
+    { kind: 'switch', key: 'showFilterPanel', label: '显示筛选面板', section: '筛选设置' },
+    { kind: 'switch', key: 'showPriceRange', label: '显示价格区间', section: '筛选设置' },
+    { kind: 'radio', key: 'goodsStyle', label: '商品卡片边框', options: [{ label: '无边框', value: 1 }, { label: '卡片', value: 2 }, { label: '描边', value: 3 }, { label: '投影', value: 4 }], section: '商品设置' },
+    { kind: 'radio', key: 'goodsRadiusStyle', label: '商品圆角', options: [{ label: '直角', value: 1 }, { label: '圆角', value: 2 }], section: '商品设置' },
+    { kind: 'radio', key: 'buyStyle', label: '购买按钮样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }], section: '商品设置' },
+    { kind: 'switch', key: 'showCartButton', label: '显示购物车按钮', section: '商品设置' },
+    { kind: 'switch', key: 'showSales', label: '显示销量', section: '商品设置' },
+    { kind: 'switch', key: 'showShopTag', label: '显示店铺标签', section: '商品设置' },
+    { kind: 'color', key: 'backgroundColor', label: '背景颜色', section: '样式设置', resetValue: '#ffffff' },
+    { kind: 'color', key: 'themeColor', label: '主题色（选中态）', section: '样式设置', resetValue: '#ff4d4f' },
+    { kind: 'slider', key: 'componentMarginTop', label: '上边距', max: 60, section: '样式设置' },
+    { kind: 'slider', key: 'componentMarginBottom', label: '下边距', max: 60, section: '样式设置' },
+  ],
+  summary: (m) => `搜索结果 · ${Number(m?.filterTemplate) === 2 ? '六列' : '五列'} · ${Number(m?.filterStyle) === 1 ? '侧栏筛选' : '顶部筛选'}`,
+};
+
+MODULE_DEF_MAP.set('pcSearchResult', PC_SEARCH_RESULT_MODULE_DEF);
 const LEGACY_TYPES = new Set(LEGACY_MODULE_DEFS.map((d) => d.type));
 
 const LIB_GROUPS = ['轮播横幅', '导航分类', '图片展示', '商品', '营销活动', '辅助元素'];
@@ -1208,6 +1257,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   };
 
   const isLoginPage = pageType === 5;
+  const isSearchPage = pageType === 6;
 
   useEffect(() => {
     void loadMallSettings();
@@ -1276,6 +1326,21 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
         if (!pm.homeStyleVersion) pm.homeStyleVersion = 'new';
         setPageModule(pm);
         let list = Array.isArray(source.moduleList) ? source.moduleList : [];
+        if (currentPageType === 6) {
+          list = list.filter((item: any) => item.type === 'pcSearchResult');
+          if (!list.some((item: any) => item.type === 'pcSearchResult')) {
+            list = [
+              {
+                moduleIndex: Date.now(),
+                type: 'pcSearchResult',
+                url: 'pcSearch',
+                label: '搜索结果',
+                isShow: true,
+                module: { ...PC_SEARCH_RESULT_DEFAULTS },
+              },
+            ];
+          }
+        }
         if (currentPageType === 5) {
           list = list.filter((item: any) => item.type === 'pcLogin');
           if (!list.some((item: any) => item.type === 'pcLogin')) {
@@ -1437,10 +1502,18 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
         return;
       }
     }
+    if (isSearchPage && def.type === 'pcSearchResult') {
+      const existing = moduleList.findIndex((m) => m.type === 'pcSearchResult' && (m.url === 'pcSearch' || !m.url));
+      if (existing >= 0) {
+        setActiveIndex(existing);
+        setPanelTab('module');
+        return;
+      }
+    }
     const item: EditorModule = {
       moduleIndex: Date.now(),
       type: def.type,
-      url: 'pc',
+      url: def.type === 'pcSearchResult' ? 'pcSearch' : 'pc',
       label: def.label,
       isShow: true,
       module: def.defaults(),
@@ -1579,12 +1652,12 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
         <div className="pc-decorate-lib">
           <div className="pc-decorate-lib__inside">
             <div className="pc-decorate-lib__head" onClick={() => setLibOpen((v) => !v)}>
-              <span>{isLoginPage ? t('登录页模块') : t('PC首页模块')}</span>
+              <span>{isLoginPage ? t('登录页模块') : isSearchPage ? t('搜索页模块') : t('PC首页模块')}</span>
               <span className={`pc-decorate-lib__arrow${libOpen ? ' pc-decorate-lib__arrow--open' : ''}`}><IconChevronDown /></span>
             </div>
             {libOpen && (
               <div className="pc-decorate-lib__list">
-                {(isLoginPage ? [PC_LOGIN_MODULE_DEF] : NEW_MODULE_DEFS.filter((d) => !d.hiddenInLibrary))
+                {(isLoginPage ? [PC_LOGIN_MODULE_DEF] : isSearchPage ? [PC_SEARCH_RESULT_MODULE_DEF] : NEW_MODULE_DEFS.filter((d) => !d.hiddenInLibrary))
                   .slice()
                   .sort((a, b) => (LIB_META[a.type]?.order ?? 999) - (LIB_META[b.type]?.order ?? 999))
                   .map((def) => {
@@ -2134,6 +2207,124 @@ function PcLoginSettingsPanel({
   );
 }
 
+/** 搜索结果模块预览（pageType=6）：按模块设置渲染筛选区+排序条+商品网格示意，
+ *  开关兼容 true/1 两种存量写法（与前台 normalizeBoolLike 同口径）。 */
+function PcSearchResultPreview({ data }: { data: Record<string, any> }) {
+  const { t } = useI18n();
+  const d = { ...PC_SEARCH_RESULT_DEFAULTS, ...(data || {}) };
+  const on = (v: unknown) => v === true || Number(v) === 1;
+  const theme = d.themeColor || '#ff4d4f';
+  const cols = Number(d.filterTemplate) === 2 ? 6 : 5;
+  const radius = Number(d.goodsRadiusStyle) === 2 ? 8 : 0;
+  const cardBorder =
+    Number(d.goodsStyle) === 2
+      ? '1px solid #eef0f3'
+      : Number(d.goodsStyle) === 3
+        ? '1px solid #d9dce1'
+        : '1px solid transparent';
+  const cardShadow = Number(d.goodsStyle) === 2 || Number(d.goodsStyle) === 4 ? '0 2px 10px rgba(16,24,40,0.06)' : 'none';
+  const demo = [
+    { name: '动力电池贴胶模组电芯拆分设备', price: '¥6.5万', sales: '已售 32', shop: '万物新生' },
+    { name: '新能源汽车动力电池包回收处理线', price: '¥12.8万', sales: '已售 18', shop: '万物新生' },
+    { name: '电池模组激光清洗设备', price: '¥3.6万', sales: '已售 45', shop: '绿源装备' },
+    { name: '退役电池梯次利用检测台', price: '¥9800', sales: '已售 61', shop: '绿源装备' },
+    { name: '电芯分容柜 512 通道', price: '¥2.4万', sales: '已售 27', shop: '华芯科技' },
+    { name: '电池包气密性检测仪', price: '¥1.9万', sales: '已售 39', shop: '华芯科技' },
+    { name: '模组堆叠自动化工作站', price: '¥8.8万', sales: '已售 12', shop: '万物新生' },
+    { name: '电池回收破碎分选一体机', price: '¥15万', sales: '已售 9', shop: '绿源装备' },
+    { name: '电芯外观缺陷视觉检测机', price: '¥4.2万', sales: '已售 23', shop: '华芯科技' },
+    { name: '动力电池放电处理设备', price: '¥7600', sales: '已售 54', shop: '万物新生' },
+    { name: '电池极片涂布回收装置', price: '¥5.5万', sales: '已售 15', shop: '绿源装备' },
+    { name: '储能电池簇测试系统', price: '¥9.6万', sales: '已售 11', shop: '华芯科技' },
+  ];
+  const filterGroups = (
+    <>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ color: '#999', fontSize: 12, marginBottom: 6 }}>{t('分类')}</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[t('全部'), t('拆分设备'), t('检测设备'), t('回收处理')].map((x, i) => (
+            <span key={x} style={{ padding: '3px 10px', fontSize: 12, borderRadius: 3, background: i === 0 ? theme : '#f5f6f8', color: i === 0 ? '#fff' : '#333' }}>{x}</span>
+          ))}
+        </div>
+      </div>
+      <div>
+        <div style={{ color: '#999', fontSize: 12, marginBottom: 6 }}>{t('品牌')}</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[t('全部'), t('万物新生'), t('绿源'), t('华芯')].map((x, i) => (
+            <span key={x} style={{ padding: '3px 10px', fontSize: 12, borderRadius: 3, background: i === 0 ? theme : '#f5f6f8', color: i === 0 ? '#fff' : '#333' }}>{x}</span>
+          ))}
+        </div>
+      </div>
+      {on(d.showPriceRange) ? (
+        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#666' }}>
+          <span>{t('价格')}</span>
+          <span style={{ border: '1px solid #e3e5e8', borderRadius: 3, padding: '3px 8px', color: '#bbb' }}>¥ {t('最低')}</span>
+          <span>-</span>
+          <span style={{ border: '1px solid #e3e5e8', borderRadius: 3, padding: '3px 8px', color: '#bbb' }}>¥ {t('最高')}</span>
+          <span style={{ background: theme, color: '#fff', borderRadius: 3, padding: '4px 10px' }}>{t('确定')}</span>
+        </div>
+      ) : null}
+    </>
+  );
+  const sortBar = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 18, borderBottom: '1px solid #eef0f3', padding: '8px 2px', fontSize: 13 }}>
+      {[t('综合'), t('销量'), t('价格'), t('新品')].map((x, i) => (
+        <span key={x} style={{ color: i === 0 ? theme : '#333', fontWeight: i === 0 ? 600 : 400 }}>{x}</span>
+      ))}
+      <span style={{ marginLeft: 'auto', color: '#999', fontSize: 12 }}>{t('共 {n} 件商品', { n: 132 })}</span>
+    </div>
+  );
+  const grid = (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 12, marginTop: 12 }}>
+      {demo.map((p, i) => (
+        <div key={i} style={{ border: cardBorder, boxShadow: cardShadow, borderRadius: radius, overflow: 'hidden', background: '#fff' }}>
+          <img src={i % 2 ? DEMO_PIC_2 : DEMO_PIC_1} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block', borderRadius: radius }} />
+          <div style={{ padding: 8 }}>
+            <div style={{ fontSize: 12, lineHeight: 1.5, height: 36, overflow: 'hidden', color: '#333' }}>{p.name}</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 4 }}>
+              <span style={{ color: theme, fontWeight: 600, fontSize: 14 }}>{p.price}</span>
+              {on(d.showSales) ? <span style={{ color: '#999', fontSize: 11 }}>{p.sales}</span> : null}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+              {on(d.showShopTag) ? <span style={{ fontSize: 11, color: '#888', border: '1px solid #e3e5e8', borderRadius: 2, padding: '1px 5px' }}>{p.shop}</span> : <span />}
+              {on(d.showCartButton) ? (
+                Number(d.buyStyle) === 1 ? (
+                  <span style={{ width: 24, height: 24, borderRadius: '50%', background: theme, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>🛒</span>
+                ) : Number(d.buyStyle) === 3 ? (
+                  <span style={{ background: theme, color: '#fff', fontSize: 11, borderRadius: 12, padding: '4px 10px' }}>{t('加入购物车')}</span>
+                ) : (
+                  <span style={{ border: `1px solid ${theme}`, color: theme, fontSize: 11, borderRadius: 12, padding: '3px 10px' }}>{t('加入购物车')}</span>
+                )
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+  return (
+    <div style={{ background: d.backgroundColor || '#fff', marginTop: Number(d.componentMarginTop) || 0, marginBottom: Number(d.componentMarginBottom) || 0, padding: '14px 16px 18px' }}>
+      {Number(d.filterStyle) === 1 ? (
+        <div style={{ display: 'flex', gap: 16 }}>
+          {on(d.showFilterPanel) ? (
+            <div style={{ width: 200, flexShrink: 0, borderRight: '1px solid #eef0f3', paddingRight: 14 }}>{filterGroups}</div>
+          ) : null}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {sortBar}
+            {grid}
+          </div>
+        </div>
+      ) : (
+        <>
+          {on(d.showFilterPanel) ? <div style={{ borderBottom: '1px solid #eef0f3', paddingBottom: 10 }}>{filterGroups}</div> : null}
+          {sortBar}
+          {grid}
+        </>
+      )}
+    </div>
+  );
+}
+
 function PcLoginModulePreview({ data }: { data: Record<string, any> }) {
   const { t } = useI18n();
   const d = { ...PC_LOGIN_DEFAULTS, ...(data || {}) };
@@ -2319,6 +2510,8 @@ function ModulePreview({ type, data }: { type: string; data: Record<string, any>
   switch (type) {
     case 'pcLogin':
       return <PcLoginModulePreview data={m} />;
+    case 'pcSearchResult':
+      return <PcSearchResultPreview data={m} />;
     case 'pc-banner2':
       return <PcBanner2Preview data={m} />;
     case 'pc-group-banner':
@@ -3629,222 +3822,6 @@ function GrouponPreview({ data }: { data: Record<string, any> }) {
 
 
 
-function parseColorValue(value: string): { hex: string; alpha: number } {
-  const raw = String(value || '').trim();
-  if (/^transparent$/i.test(raw)) return { hex: '#ffffff', alpha: 0 };
-  const hexMatch = raw.match(/^#([0-9a-f]{3,8})$/i);
-  if (hexMatch) {
-    let hex = hexMatch[1];
-    if (hex.length === 3 || hex.length === 4) hex = hex.split('').map((c) => c + c).join('');
-    if (hex.length === 6) return { hex: `#${hex.slice(0, 6).toLowerCase()}`, alpha: 100 };
-    if (hex.length === 8) {
-      return {
-        hex: `#${hex.slice(0, 6).toLowerCase()}`,
-        alpha: Math.round((parseInt(hex.slice(6, 8), 16) / 255) * 100),
-      };
-    }
-  }
-  const rgbMatch = raw.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*([\d.]+))?\s*\)$/i);
-  if (rgbMatch) {
-    const hex = `#${[1, 2, 3].map((i) => Math.min(255, Number(rgbMatch[i]) || 0).toString(16).padStart(2, '0')).join('')}`;
-    const alpha = rgbMatch[4] == null ? 100 : Math.round(Math.max(0, Math.min(1, Number(rgbMatch[4]))) * 100);
-    return { hex, alpha };
-  }
-  return { hex: '#ffffff', alpha: 100 };
-}
-
-function formatColorValue(hex: string, alpha: number): string {
-  if (alpha >= 100) return hex;
-  const rgb = hex.replace('#', '');
-  const r = parseInt(rgb.slice(0, 2), 16) || 0;
-  const g = parseInt(rgb.slice(2, 4), 16) || 0;
-  const b = parseInt(rgb.slice(4, 6), 16) || 0;
-  return `rgba(${r}, ${g}, ${b}, ${(alpha / 100).toFixed(2)})`;
-}
-
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const rgb = String(hex || '#ffffff').replace('#', '');
-  return {
-    r: parseInt(rgb.slice(0, 2), 16) || 0,
-    g: parseInt(rgb.slice(2, 4), 16) || 0,
-    b: parseInt(rgb.slice(4, 6), 16) || 0,
-  };
-}
-
-function rgbToHsv(r: number, g: number, b: number): { h: number; s: number; v: number } {
-  const rn = r / 255;
-  const gn = g / 255;
-  const bn = b / 255;
-  const max = Math.max(rn, gn, bn);
-  const min = Math.min(rn, gn, bn);
-  const d = max - min;
-  let h = 0;
-  if (d !== 0) {
-    if (max === rn) h = ((gn - bn) / d) % 6;
-    else if (max === gn) h = (bn - rn) / d + 2;
-    else h = (rn - gn) / d + 4;
-    h *= 60;
-    if (h < 0) h += 360;
-  }
-  return { h, s: max === 0 ? 0 : d / max, v: max };
-}
-
-function hsvToHex(h: number, s: number, v: number): string {
-  const c = v * s;
-  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-  const m = v - c;
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  if (h < 60) [r, g, b] = [c, x, 0];
-  else if (h < 120) [r, g, b] = [x, c, 0];
-  else if (h < 180) [r, g, b] = [0, c, x];
-  else if (h < 240) [r, g, b] = [0, x, c];
-  else if (h < 300) [r, g, b] = [x, 0, c];
-  else [r, g, b] = [c, 0, x];
-  const to = (n: number) => Math.round((n + m) * 255).toString(16).padStart(2, '0');
-  return `#${to(r)}${to(g)}${to(b)}`;
-}
-
-function AlphaColorInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const parsed = parseColorValue(value);
-  const { r, g, b } = hexToRgb(parsed.hex);
-  const hsv = rgbToHsv(r, g, b);
-  const hue = Number.isFinite(hsv.h) ? hsv.h : 0;
-  const alpha = parsed.alpha;
-  const emit = (nextHsv: { h: number; s: number; v: number }, nextAlpha: number) => {
-    onChange(formatColorValue(hsvToHex(nextHsv.h, nextHsv.s, nextHsv.v), nextAlpha));
-  };
-  const clamp = (n: number, min = 0, max = 100) => Math.max(min, Math.min(max, n));
-
-  const handleSv = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.buttons !== 1) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const sPercent = clamp(((event.clientX - rect.left) / rect.width) * 100);
-    const vPercent = clamp(100 - ((event.clientY - rect.top) / rect.height) * 100);
-    emit({ h: hue, s: sPercent / 100, v: vPercent / 100 }, alpha);
-  };
-
-  const handleHue = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.buttons !== 1) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const nextHue = clamp(((event.clientX - rect.left) / rect.width) * 360, 0, 360);
-    emit({ h: nextHue, s: hsv.s, v: hsv.v }, alpha);
-  };
-
-  const handleAlpha = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.buttons !== 1) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const nextAlpha = clamp(((event.clientX - rect.left) / rect.width) * 100);
-    onChange(formatColorValue(parsed.hex, nextAlpha));
-  };
-
-  const presetColors = [
-    '#ff4500', '#ff8c00', '#ffd700', '#90ee90', '#00ced1', '#1e90ff', '#c71585',
-    'rgba(255, 69, 0, 0.68)', 'rgb(255, 120, 0)', '#ff7800', '#ffff00',
-    'rgba(120, 240, 90, 0.5)', 'rgba(0, 224, 224, 0.73)', '#c7158577',
-  ];
-  const solidHex = `#${[r, g, b].map((n) => n.toString(16).padStart(2, '0')).join('')}`;
-  const content = (
-    <div className="pchead-color-popover">
-      <div
-        className="pchead-color-sv"
-        style={{ backgroundColor: `hsl(${hue} 100% 50%)` }}
-        onPointerDown={handleSv}
-        onPointerMove={(event) => event.buttons === 1 && handleSv(event)}
-        onPointerUp={(event) => handleSv(event)}
-      >
-        <div className="pchead-color-sv__white" />
-        <div className="pchead-color-sv__black" />
-        <span className="pchead-color-sv__handle" style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }} />
-      </div>
-
-      <div
-        className="pchead-color-slider pchead-color-hue"
-        onPointerDown={handleHue}
-        onPointerMove={(event) => event.buttons === 1 && handleHue(event)}
-        onPointerUp={(event) => handleHue(event)}
-      >
-        <span className="pchead-color-slider__handle" style={{ left: `${(hue / 360) * 100}%`, background: `hsl(${hue} 100% 50%)` }} />
-      </div>
-
-      <div
-        className="pchead-color-slider pchead-color-alpha"
-        style={{
-          backgroundImage: `linear-gradient(to right, transparent, ${solidHex}), linear-gradient(45deg, #e5e5e5 25%, transparent 25%), linear-gradient(-45deg, #e5e5e5 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e5e5 75%), linear-gradient(-45deg, transparent 75%, #e5e5e5 75%)`,
-          backgroundSize: '100% 100%, 8px 8px, 8px 8px, 8px 8px, 8px 8px',
-          backgroundPosition: '0 0, 0 0, 0 4px, 4px -4px, -4px 0',
-        }}
-        onPointerDown={handleAlpha}
-        onPointerMove={(event) => event.buttons === 1 && handleAlpha(event)}
-        onPointerUp={(event) => handleAlpha(event)}
-      >
-        <span className="pchead-color-slider__handle" style={{ left: `${alpha}%`, background: formatColorValue(parsed.hex, alpha) }} />
-      </div>
-
-      <div className="pchead-color-popover__inputs">
-        <Input
-          size="small"
-          value={value}
-          placeholder={t('#ffffff 或 rgba(...)')}
-          onChange={(next) => onChange(next)}
-        />
-        <input
-          className="pchead-alpha-color__number"
-          type="number"
-          min={0}
-          max={100}
-          step={1}
-          value={alpha}
-          onChange={(e) => onChange(formatColorValue(parsed.hex, Math.max(0, Math.min(100, Number(e.target.value) || 0))))}
-          aria-label="Alpha"
-        />
-        <span className="pchead-alpha-color__unit">%</span>
-      </div>
-
-      <div className="pchead-color-popover__label">{t('预置颜色')}</div>
-      <div className="pchead-color-popover__presets">
-        {presetColors.map((preset) => (
-          <button
-            type="button"
-            key={preset}
-            className="pchead-color-popover__preset"
-            title={preset}
-            style={{ background: preset }}
-            onClick={() => {
-              const next = parseColorValue(preset);
-              onChange(formatColorValue(next.hex, next.alpha));
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-
-  return (
-    <Popover
-      trigger="custom"
-      visible={open}
-      onClickOutSide={() => setOpen(false)}
-      position="bottomLeft"
-      showArrow
-      content={content}
-    >
-      <button
-        type="button"
-        className="pchead-alpha-color__trigger"
-        onClick={() => setOpen((v) => !v)}
-        title={value || 'transparent'}
-      >
-        <span className="pchead-alpha-color__checker">
-          <span style={{ background: formatColorValue(parsed.hex, parsed.alpha) }} />
-        </span>
-      </button>
-    </Popover>
-  );
-}
 
 function HeaderColorInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const { t } = useI18n();

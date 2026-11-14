@@ -9,7 +9,8 @@
  * 底部一行左侧第三方登录、右侧忘记密码 / 免费注册。
  * 配色用全站主题色（--main-bg），不照搬淘宝橙。样式在
  * app/auth-modern.scss 的 .pg-login-card / .login-card__* 段（手工维护）。
- * 登录页装修配置的 backgroundPic / backgroundColor 继续作为页面底图/底色。
+ * 页面背景：固定浅灰底（.pg-login-card 的 background-color），不使用登录页
+ * 装修配置的 backgroundPic 背景图 / backgroundColor（用户 2026-11-15 指示）。
  * 旧毛玻璃版样式（.pg-login-glass）保留在同一文件里，注册页等仍可参照。
  *
  * 逻辑与旧版对应：
@@ -80,7 +81,6 @@ export default function LoginClient({
   shopName = '万物新生',
   shopLogo = '',
   shopRegClosed = 0,
-  decorate,
 }: {
   /** 店铺名称（logo 缺省时展示文字），来自 common/config/base */
   shopName?: string;
@@ -88,7 +88,7 @@ export default function LoginClient({
   shopLogo?: string;
   /** 后台注册开关：0 = 允许注册（展示注册入口） */
   shopRegClosed?: number;
-  /** 登录页装修配置：backgroundPic / backgroundColor 决定整页背景 */
+  /** 登录页装修配置（页面保留传参兼容；背景图/背景色已按用户指示不再使用） */
   decorate?: PcLoginDecorate | null;
 }) {
     const { t } = useTranslation();
@@ -140,13 +140,6 @@ export default function LoginClient({
       cancelled = true;
     };
   }, []);
-
-  /** 整页背景：装修配置的背景图 cover 铺底 + 背景色兜底 */
-  const bgUrl = decorate?.backgroundPic?.picUrl || '';
-  const bgStyle: React.CSSProperties = {
-    backgroundImage: bgUrl ? `url(${bgUrl})` : undefined,
-    backgroundColor: decorate?.backgroundColor || undefined,
-  };
 
   /**
    * 第三方登录开关（源码 components/member/login/OverseasLogin.vue:117-127）。
@@ -268,7 +261,7 @@ export default function LoginClient({
   };
 
   return (
-    <div className="pg-login-card" style={bgStyle}>
+    <div className="pg-login-card">
       <header className="login-card__topbar">
         <Link href="/" className="login-card__logo">
           {shopLogo ? (

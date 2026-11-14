@@ -154,7 +154,9 @@ export function enterDemo() {
 
 export async function apiGet<T>(path: string, params?: Record<string, unknown>): Promise<T> {
   // 如果 path 已含 ?xxx=yyy,先拆出已有的查询参数并与 params 合并
-  const [basePath, existingQs] = path.split('?');
+  // 路径容错：调用方漏写前导斜杠时补上（曾导致 H5 装修编辑器全部请求拼成 /adminapidecorate/... 而 404）
+  const [rawBasePath, existingQs] = path.split('?');
+  const basePath = rawBasePath.startsWith('/') ? rawBasePath : `/${rawBasePath}`;
   const query = new URLSearchParams(existingQs || '');
   Object.entries(params || {}).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
@@ -187,6 +189,7 @@ export async function apiGet<T>(path: string, params?: Record<string, unknown>):
 }
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  if (!path.startsWith('/')) path = `/${path}`;
   const res = await fetch(`${resolveBase(path)}${path}`, {
     method: 'POST',
     headers: requestHeaders(path, {
@@ -210,7 +213,8 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
 
 /** GET 下载（导出 Excel 等 arraybuffer 接口），filename 不含扩展名时后端 Content-Type 决定。 */
 export async function apiDownload(path: string, params?: Record<string, unknown>, filename?: string) {
-  const [basePath, existingQs] = path.split('?');
+  const [rawBasePath, existingQs] = path.split('?');
+  const basePath = rawBasePath.startsWith('/') ? rawBasePath : `/${rawBasePath}`;
   const query = new URLSearchParams(existingQs || '');
   Object.entries(params || {}).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') query.set(key, String(value));
@@ -252,6 +256,7 @@ export async function apiUpload<T>(
   file: File,
   fields?: Record<string, string>,
 ): Promise<T> {
+  if (!path.startsWith('/')) path = `/${path}`;
   const form = new FormData();
   form.append('file', file);
   Object.entries(fields || {}).forEach(([key, value]) => form.append(key, value));

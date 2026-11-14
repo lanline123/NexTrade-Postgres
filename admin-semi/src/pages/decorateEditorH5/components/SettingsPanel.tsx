@@ -5,10 +5,12 @@
  * editMode=module：懒加载当前模块的设置组件（协议：props = { data, onChange }）。
  */
 import { Suspense, lazy, useMemo } from "react";
-import { Button, ColorPicker, Upload, Toast } from "@douyinfe/semi-ui";
+import { Button, Upload, Toast } from "@douyinfe/semi-ui";
 import { IconPlus } from "@douyinfe/semi-icons";
+import AlphaColorInput from "../../../components/AlphaColorInput";
 import { editorStore, useEditorState } from "../store/editorStore";
 import { getSettingsComponent, getModuleDefinition } from "../contract/moduleRegistry";
+import ModuleErrorBoundary from "./ModuleErrorBoundary";
 import { imageFormat } from "../shared/format";
 
 import { useI18n } from '../../../i18n';
@@ -46,9 +48,9 @@ function PageSettings({ pageModule }: { pageModule: Record<string, any> }) {
         <div className="h5-editor-settings-body">
             <div className="h5-editor-setting-group">
                 <div className="h5-editor-setting-label">{t('页面背景色')}</div>
-                <ColorPicker
+                <AlphaColorInput
                     value={pageModule.backgroundColor || "#f5f5f5"}
-                    onChange={(v: any) => editorStore.updatePageModule({ backgroundColor: typeof v === "string" ? v : v.hex })}
+                    onChange={(v) => editorStore.updatePageModule({ backgroundColor: v })}
                 />
             </div>
             <div className="h5-editor-setting-group">
@@ -124,6 +126,7 @@ export default function SettingsPanel() {
             {s.editMode === "page" ? (
                 <PageSettings pageModule={s.pageModule as Record<string, any>} />
             ) : activeModule && SettingsComp ? (
+                <ModuleErrorBoundary label={activeModule.type}>
                 <Suspense fallback={<div className="h5-editor-preview-loading">{t('设置加载中…')}</div>}>
                     <SettingsComp
                         data={activeModule.module}
@@ -131,6 +134,7 @@ export default function SettingsPanel() {
                         moduleIndex={activeModule.moduleIndex}
                     />
                 </Suspense>
+                </ModuleErrorBoundary>
             ) : (
                 <div className="h5-editor-settings-empty">{t('请选择模块或页面进行设置')}</div>
             )}

@@ -9379,3 +9379,17 @@ body[theme-mode='dark'] .kefu-setting-actions {
   text-align: center;
   pointer-events: none;
 }
+
+/* 主导航栏编辑器紧凑图标位（默认 96px 太大，导航图标实际显示仅 24px） */
+.mobile-nav-compact .image-uploader-item,
+.mobile-nav-compact .image-uploader-add {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+}
+.mobile-nav-compact .image-uploader-add span {
+  font-size: 11px;
+}
+.mobile-nav-compact .image-uploader-tip {
+  display: none;
+}
