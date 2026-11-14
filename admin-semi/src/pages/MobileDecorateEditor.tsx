@@ -1,3 +1,10 @@
+/**
+ * 【已下线，保留备查 — 2026-11-14】
+ * 简版移动装修编辑器：仅 27 个模块 type 且全是通用占位预览，已被新版 H5 装修编辑器
+ * （pages/decorateEditorH5，?page=h5DecorateEditor）全面替代。App.tsx 中
+ * ?page=mobileDecorateEditor 路由已改为透传参数跳转新版编辑器，本组件不再被挂载。
+ * 文件与数据兼容代码保留不删；请勿在此继续加功能，新功能一律进 decorateEditorH5。
+ */
 import React, { useEffect, useState } from 'react';
 import {
   Button,

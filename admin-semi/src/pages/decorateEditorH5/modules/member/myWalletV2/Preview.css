@@ -1,0 +1,8 @@
+.dec-wallet-v2__grid { display: flex; flex-wrap: wrap; }
+.dec-wallet-v2__cell { width: 50%; box-sizing: border-box; display: flex; align-items: center; gap: 6px; padding: 10px 6px; }
+.dec-wallet-v2__cell--border-bottom { border-bottom: 1px solid #f5f5f5; }
+.dec-wallet-v2__cell--border-right { border-right: 1px solid #f5f5f5; }
+.dec-wallet-v2__icon img { width: 20px; height: 20px; object-fit: contain; }
+.dec-wallet-v2__label { font-size: 13px; color: #333; }
+.dec-wallet-v2__value { font-size: 13px; font-weight: 600; color: #333; margin-left: auto; }
+.dec-wallet-v2__arrow { color: #bbb; }

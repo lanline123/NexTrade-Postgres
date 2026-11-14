@@ -1,0 +1,13 @@
+.dec-my-wallet__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.dec-my-wallet__title { font-size: 15px; font-weight: 600; color: #333; }
+.dec-my-wallet__link { font-size: 12px; color: #999; display: flex; align-items: center; gap: 2px; }
+.dec-my-wallet__stats { display: flex; flex: 1; }
+.dec-my-wallet__stat-item, .dec-my-wallet__stat { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.dec-my-wallet__stat-value, .dec-my-wallet__value { font-size: 15px; font-weight: 600; color: #333; }
+.dec-my-wallet__stat-label, .dec-my-wallet__label { font-size: 12px; color: #999; }
+.dec-my-wallet__style2 { display: flex; align-items: center; gap: 12px; }
+.dec-my-wallet__icon-section { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.dec-my-wallet__icon img { width: 30px; height: 30px; object-fit: contain; }
+.dec-my-wallet__icon { font-size: 24px; }
+.dec-my-wallet__icon-label { font-size: 12px; color: #333; }
+.dec-my-wallet__divider { width: 1px; align-self: stretch; background: #f0f0f0; }

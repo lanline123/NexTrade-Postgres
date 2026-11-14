@@ -1,0 +1,10 @@
+.main{background:#fff;padding:10px}
+.main .top-tit{display:flex;align-items:baseline;gap:8px}
+.main .big-title{font-size:16px;font-weight:600}
+.main .desc{font-size:12px;color:#999}
+.main .list{display:flex;gap:8px;margin-top:8px}
+.main .list .item{flex:1;min-width:0}
+.main .pic-box img{width:100%;aspect-ratio:1;display:block;object-fit:cover}
+.main .list .title{font-size:12px;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.main .goods-price{display:flex;align-items:center;gap:4px;margin-top:2px}
+.main .price-text{color:#e1251b;font-weight:600;font-size:13px}

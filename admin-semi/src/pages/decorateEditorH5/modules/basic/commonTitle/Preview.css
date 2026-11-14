@@ -1,0 +1,15 @@
+/* 通用标题 预览补充样式（自 uniapp-react commonTitle/index.scss 换算，rpx→px ×0.5；
+   image-ad-title 基础样式由全局 module.css 提供） */
+.title-pic-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-right: 5px;
+}
+.title-pic-box .title-pic {
+    width: 15px;
+    height: 15px;
+}
+.image-ad-title .icon-youjiantou {
+    font-size: 17px;
+}

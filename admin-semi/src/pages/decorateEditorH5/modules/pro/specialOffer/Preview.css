@@ -1,0 +1,12 @@
+.mk-top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.mk-title{font-size:17px;font-weight:700}
+.mk-small-title{font-size:12px}
+.mk-countdown{display:flex;align-items:center;gap:4px;font-size:12px;margin-left:auto}
+.mk-action-btn{font-size:12px}
+.lists{display:flex;gap:8px;overflow-x:auto}
+.lists .item{box-sizing:border-box}
+.lists .item-box{background:#fff;padding:6px}
+.lists .img{width:100%;aspect-ratio:1;display:block;border-radius:6px}
+.lists .goods-info{margin-top:4px}
+.lists .price-box .price{color:#e1251b;font-weight:700}
+.lists .text{font-size:12px;background:#f5f5f5;border-radius:10px;padding:2px 8px}

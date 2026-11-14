@@ -1,0 +1,10 @@
+.banner .circle{height:90px;border-radius:0 0 24px 24px;margin:-10px -10px 8px}
+.banner .search-top{margin-bottom:8px}
+.banner .search{display:flex;align-items:center;gap:6px;padding:0 10px;box-sizing:border-box}
+.banner .search-input{flex:1;font-size:13px}
+.banner .search-btn{font-size:12px;color:#fff;background:var(--main-bg,#e1251b);border-radius:20px;padding:3px 10px}
+.banner .image-ad-item img{width:100%;display:block}
+.banner-dots{position:absolute;right:10px;bottom:8px;display:flex;gap:4px}
+.banner-dots i{width:6px;height:6px;border-radius:50%;display:block}
+.banner .image-ad-con{position:relative}
+.banner .word-list{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}

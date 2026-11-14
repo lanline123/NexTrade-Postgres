@@ -1,0 +1,5 @@
+.store-nav{display:flex;flex-wrap:wrap}
+.store-nav-item{overflow:hidden}
+.store-nav .item-box{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;box-sizing:border-box}
+.store-nav-item-img{height:0;background-repeat:no-repeat;background-position:center;margin:0 auto}
+.store-nav-item-text{white-space:nowrap;text-align:center;height:20px;line-height:20px;margin:3px 0 0;font-size:13px;width:100%;overflow:hidden;text-overflow:ellipsis}

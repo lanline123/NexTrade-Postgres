@@ -1,0 +1,67 @@
+.module-store-order-card {
+    .store-order-card__head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 0 8px;
+    }
+
+    .store-order-card__title {
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    .store-order-card__all {
+        font-size: 12px;
+        color: #999;
+    }
+
+    .store-order-card__row {
+        display: flex;
+    }
+
+    .store-order-card__item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 0;
+    }
+
+    .store-order-card__icon-wrap {
+        position: relative;
+    }
+
+    .store-order-card__icon {
+        width: 28px;
+        height: 28px;
+    }
+
+    .store-order-card__icon-placeholder {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: #f0f0f0;
+    }
+
+    .store-order-card__badge {
+        position: absolute;
+        top: -6px;
+        right: -10px;
+        min-width: 16px;
+        height: 16px;
+        line-height: 16px;
+        text-align: center;
+        border-radius: 8px;
+        background: #e64340;
+        color: #fff;
+        font-size: 10px;
+        padding: 0 4px;
+    }
+
+    .store-order-card__text {
+        font-size: 12px;
+        color: #333;
+    }
+}

@@ -1,0 +1,12 @@
+.dec-login { background: #fff; }
+.dec-login__container { padding-bottom: 24px; }
+.dec-login__title { font-size: 22px; font-weight: 700; padding-top: 18px; }
+.dec-login__sub { font-size: 13px; margin-top: 6px; }
+.dec-login__field { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eeeeee; padding: 14px 0 10px; margin-top: 10px; }
+.dec-login__input { font-size: 14px; }
+.dec-login__placeholder { font-size: 14px; opacity: .55; }
+.dec-login__link { font-size: 12px; }
+.dec-login__agree { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 16px; }
+.dec-login__checkbox { width: 13px; height: 13px; border: 1px solid #eeeeee; border-radius: 50%; flex-shrink: 0; }
+.dec-login__button { margin-top: 18px; height: 42px; border-radius: 21px; color: #fff; font-size: 15px; display: flex; align-items: center; justify-content: center; }
+.dec-login__foot { font-size: 12px; text-align: center; margin-top: 14px; }

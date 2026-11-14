@@ -1,0 +1,40 @@
+/* 店铺信息 预览补充样式（自 uniapp-react shopInfo/index.scss 换算，rpx→px ×0.5；
+   module-store_info/cap-store-banner 基础样式由全局 module.css 提供，
+   此处仅补渲染端改用 div 类名后全局 a/h3 选择器命不中的部分） */
+.module-store_info .cap-store-banner .cap-store-banner__right-content .cap-store-banner__right-content-title--middle {
+    max-width: 220px;
+    margin-top: 10px;
+    color: #fff;
+    font-weight: 700;
+    font-size: 18px;
+    line-height: 22px;
+    text-shadow: 0 1px 15px rgba(0, 0, 0, 0.5);
+    display: -webkit-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+}
+.module-store_info .cap-store-banner .cap-store-banner__sum-content {
+    display: flex;
+    color: #fff;
+}
+.module-store_info .cap-store-banner .cap-store-banner__logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+.module-store_info .cap-store-banner .cap-store-nav-warp .store-search-con .flex {
+    display: flex;
+    align-items: center;
+}
+.ad-store_style__3 .cap-store-banner .cap-store-banner__right-content .cap-store-banner__right-content-title--middle,
+.ad-store_style__4 .cap-store-banner .cap-store-banner__right-content .cap-store-banner__right-content-title--middle {
+    display: inline-block;
+    max-width: 100%;
+}
+.ad-store_style__3 .cap-store-banner .cap-store-banner__right-content .cap-store-banner__right-content-title--middle {
+    color: #333;
+    text-shadow: none;
+}

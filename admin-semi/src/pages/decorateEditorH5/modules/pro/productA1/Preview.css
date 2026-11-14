@@ -1,0 +1,5 @@
+.goods-ad-warp .item-name-a{font-size:13px}
+.goods-ad-warp .item-brief-list{display:flex;gap:4px;border-radius:4px;padding:2px 4px;margin-top:4px;flex-wrap:wrap}
+.goods-ad-warp .item-action{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
+.goods-ad-warp .price_format{color:#e1251b}
+.goods-ad-warp .market_price{color:#999;font-size:11px;text-decoration:line-through;margin-left:4px}

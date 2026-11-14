@@ -1,0 +1,19 @@
+.skeleton-box {
+    border-radius: 4px;
+
+    &.shan {
+        animation: skeleton-shan 1.2s ease-in-out infinite;
+    }
+}
+
+@keyframes skeleton-shan {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.4;
+    }
+    100% {
+        opacity: 1;
+    }
+}

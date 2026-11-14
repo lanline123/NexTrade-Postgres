@@ -1,0 +1,21 @@
+.dec-search-result__head { padding-top: 10px; padding-bottom: 8px; }
+.dec-search-result__search-box { display: flex; align-items: center; background: #f5f5f5; border-radius: 16px; padding: 4px 4px 4px 12px; }
+.dec-search-result__placeholder { flex: 1; font-size: 13px; color: #999; }
+.dec-search-result__search-btn { color: #fff; font-size: 12px; border-radius: 12px; padding: 3px 12px; }
+.dec-search-result__tabs { display: flex; align-items: center; gap: 16px; margin-top: 10px; font-size: 13px; color: #333; }
+.dec-search-result__tab.is-active { font-weight: 600; }
+.dec-search-result__pill { font-size: 11px; background: #f5f5f5; border-radius: 8px; padding: 2px 8px; }
+.dec-search-result__filter { margin-left: auto; }
+.dec-search-result__goods { display: flex; gap: 10px; }
+.dec-search-result__goods.is-single { flex-direction: column; }
+.dec-search-result__item { flex: 1; overflow: hidden; }
+.dec-search-result__goods.is-single .dec-search-result__item { display: flex; }
+.dec-search-result__item-img { height: 92px; background: #eceef2; }
+.dec-search-result__goods.is-single .dec-search-result__item-img { width: 92px; flex-shrink: 0; }
+.dec-search-result__item-info { padding: 8px; flex: 1; }
+.dec-search-result__item-name { font-size: 13px; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+.dec-search-result__shop-tag, .dec-search-result__coupon-tag { display: inline-block; font-size: 10px; border: 1px solid; border-radius: 3px; padding: 0 4px; margin-top: 5px; }
+.dec-search-result__item-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.dec-search-result__item-price { font-size: 15px; font-weight: 700; }
+.dec-search-result__item-sales { font-size: 11px; color: #999; }
+.dec-search-result__cart-btn { margin-left: auto; color: #fff; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; }

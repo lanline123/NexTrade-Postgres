@@ -1,0 +1,10 @@
+.productgrouping .tablist{display:flex;overflow-x:auto;margin-bottom:8px}
+.productgrouping .tablist-item{display:flex;align-items:center}
+.productgrouping .tablist-item .line{border-left:1px solid #eee;height:18px;margin:0 8px}
+.productgrouping .nav-item{text-align:center;white-space:nowrap}
+.productgrouping .tab-sub{font-size:11px;padding:0 6px;display:inline-block}
+.productgrouping .goods-title{overflow:hidden}
+.productgrouping .goods-price-box{display:flex;gap:4px;align-items:baseline}
+.productgrouping .origin{font-size:11px;text-decoration:line-through}
+.productgrouping .more-box{text-align:center;margin-top:8px}
+.productgrouping .more-txt{border:1px solid #eee;border-radius:16px;padding:4px 16px;font-size:12px;display:inline-block}

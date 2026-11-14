@@ -146,7 +146,8 @@ import {
   VendorProductStockManage,
   VendorStockLogManage,
 } from './pages/selfService';
-import MobileDecorateEditor from './pages/MobileDecorateEditor';
+// 简版移动装修编辑器 MobileDecorateEditor 已下线（见下方 mobileDecorateEditor 路由的跳转说明），
+// 其文件 ./pages/MobileDecorateEditor 保留不删（数据兼容代码留存），此处不再导入。
 import H5DecorateEditor from './pages/decorateEditorH5';
 import {
   AccountPanel,
@@ -887,6 +888,26 @@ function initialPage(): string {
   return 'dashboard';
 }
 
+/**
+ * 简版移动装修编辑器下线跳转（2026-11-14）：
+ * 旧 MobileDecorateEditor 只有 27 个模块 type 且全是通用占位预览（连 product/coupon/whiteBlank 都缺），
+ * 已由新版 H5 装修编辑器（decorateEditorH5）全面替代。此组件把 ?page=mobileDecorateEditor 的
+ * 全部查询参数（id / pageType / from 等）原样透传到 ?page=h5DecorateEditor，避免旧书签、
+ * DecorateMobilePages 的默认 editPage 链接落到残缺编辑器。旧组件文件保留不删。
+ */
+function MobileDecorateEditorRedirect() {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    params.set('page', 'h5DecorateEditor');
+    window.location.replace(`${window.location.origin}/?${params.toString()}`);
+  }, []);
+  return (
+    <div style={{ padding: 48, textAlign: 'center', color: '#666', fontSize: 14 }}>
+      旧版移动装修编辑器已下线，正在跳转到新版 H5 装修编辑器…
+    </div>
+  );
+}
+
 export default function App() {
   const [authed, setAuthed] = useState(() => Boolean(getToken() || isDemo()));
   const [page, setPage] = useState<string>(initialPage);
@@ -968,17 +989,10 @@ export default function App() {
     );
   }
 
-  // PC 装修编辑器：独立全屏页（对齐原版 /decorate/pc 新窗口打开，无后台侧栏）
+  // 移动装修编辑器（旧简版 MobileDecorateEditor 已下线）：统一跳转新版 H5 装修编辑器，
+  // 查询参数（id/pageType/from）原样透传，旧链接/书签不失效。旧组件文件保留不删。
   if (page === 'mobileDecorateEditor') {
-    const mobileEditorId = Number(new URLSearchParams(window.location.search).get('id') || 0);
-    return (
-      <MobileDecorateEditor
-        decorateId={mobileEditorId}
-        onExit={() => {
-          window.location.href = `${window.location.origin}/?page=mobileDecorateManage`;
-        }}
-      />
-    );
+    return <MobileDecorateEditorRedirect />;
   }
 
   if (page === 'pcDecorateEditor') {

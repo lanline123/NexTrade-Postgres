@@ -1,0 +1,14 @@
+.navbar-box {
+    width: 100%;
+
+    .status-bar {
+        width: 100%;
+    }
+
+    .navbar {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        box-sizing: border-box;
+    }
+}

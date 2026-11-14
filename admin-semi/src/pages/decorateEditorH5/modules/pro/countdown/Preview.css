@@ -1,0 +1,12 @@
+.countdow-warp .mk-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.countdow-warp .mk-title{font-size:16px;font-weight:600}
+.countdow-warp .mk-stitle{font-size:12px}
+.countdow-warp .countdown{display:flex;align-items:center;gap:2px;font-size:12px}
+.countdow-warp .countdown-img{background:#e1251b;color:#fff;border-radius:3px;padding:1px 4px}
+.countdow-warp .itemBox{display:flex;gap:8px}
+.countdow-warp .item{flex:1;min-width:0}
+.countdow-warp .imgBox img{width:100%;aspect-ratio:1;display:block;border-radius:6px}
+.countdow-warp .title{font-size:12px}
+.countdow-warp .priceBox{display:flex;gap:4px;align-items:baseline}
+.countdow-warp .origin{font-size:11px;text-decoration:line-through}
+.countdow-warp .mk-notice{font-size:11px;margin-top:6px}

@@ -1,0 +1,12 @@
+.module-product_carousel{position:relative}
+.pc-module-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.pc-body{position:relative}
+.pc-module-title{font-size:17px;font-weight:700;text-align:center;margin-bottom:6px}
+.pc-name{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pc-desc{font-size:12px}
+.pc-bottom{display:flex;align-items:center;gap:8px;margin-top:6px}
+.pc-prices{display:flex;gap:4px;align-items:baseline;flex:1}
+.pc-prices .price-current{font-weight:700;font-size:15px}
+.pc-prices .price-market{font-size:11px;text-decoration:line-through}
+.pc-buy{background:linear-gradient(to right,#FF8FB8,#FF5E96);color:#fff;font-size:12px;border-radius:16px;padding:4px 12px}
+.pc-sales{font-size:11px}

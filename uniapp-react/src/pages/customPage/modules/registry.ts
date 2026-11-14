@@ -57,6 +57,10 @@ import ImageTextComponent from "./imageTextComponent/index";
 import VideoNumber from "./videoNumber/index";
 import Live from "./live/index";
 import ShopInfoModule from "./shopInfo/index";
+import ArticleModule from "./article/index";
+import CustomProduct from "./customProduct/index";
+import StoreNav from "./storeNav/index";
+import StoreOrderCard from "./storeOrderCard/index";
 
 export interface DecorateModuleProps {
     module: any;
@@ -120,7 +124,14 @@ export const MODULE_REGISTRY: Record<string, ComponentType<DecorateModuleProps>>
     // 仅微信小程序端生效（旧 #ifdef MP-WEIXIN，非 weapp 渲染 null）
     videoNumber: VideoNumber,
     live: Live,
-    shopInfo: ShopInfoModule
+    shopInfo: ShopInfoModule,
+    // admin 可建/存量数据存在的四类（原注册表无入口，未知 type 会被分发器跳过）：
+    // article/customProduct 契约见各自模块文件头；storeNav/storeOrderCard
+    // admin 侧无源契约、已 visible:false，本入口仅保证存量数据可渲染
+    article: ArticleModule,
+    customProduct: CustomProduct,
+    storeNav: StoreNav,
+    storeOrderCard: StoreOrderCard
 };
 
 /** 挂载在 catNav 分支之外的 sticky 变体（旧 catNav/sticky.vue） */

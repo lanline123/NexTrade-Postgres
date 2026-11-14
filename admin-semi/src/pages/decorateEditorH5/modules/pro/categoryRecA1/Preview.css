@@ -1,0 +1,6 @@
+.category-rec-a1-list{display:flex;gap:8px;overflow-x:auto}
+.category-rec-a1-item{position:relative;flex:1;min-width:100px;height:72px;overflow:hidden}
+.category-rec-a1-item .item-bg{position:absolute;inset:0;width:100%;height:100%}
+.category-rec-a1-item .item-inner{position:relative;padding:10px}
+.category-rec-a1-item .item-title{font-size:14px;font-weight:600}
+.category-rec-a1-item .item-desc{font-size:11px;margin-top:4px}

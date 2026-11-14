@@ -4,6 +4,9 @@ import { useDidHide, useDidShow } from "@tarojs/taro";
 
 import { designPxToRpx, formatFrame } from "@/components/modules";
 import FormatPrice from "@/components/format-price/FormatPrice";
+import Specification from "@/components/product/specification";
+import type { SpecificationRef } from "@/components/product/specification";
+import { cardProductId } from "@/hooks/useProductCardBuy";
 import TigImage from "@/components/tig/tig-image/TigImage";
 import { getProductsList } from "@/api/common";
 import { useProductStyle } from "@/hooks/useProductStyle";
@@ -129,6 +132,12 @@ const COLUMN_HEIGHT_TOLERANCE = 20;
 
 function Product2Masonry({ commodityList, styleMap }: { commodityList: any[]; styleMap: Record<number, any> }) {
     const rootRef = useRef<any>(null);
+    /** 规格弹窗加购（与 components/masonry 同款链路，替代旧 handleBuy 打开 specification） */
+    const [specProductId, setSpecProductId] = useState(0);
+    const [isCycleBuy, setIsCycleBuy] = useState(false);
+    const [isSubCard, setIsSubCard] = useState(false);
+    const specificationRef = useRef<SpecificationRef | null>(null);
+    const currentBuyItemRef = useRef<any>({});
     /** 列内条目：index 为在原列表中的下标，key 为高度缓存标识 */
     const [columnList, setColumnList] = useState<ColumnEntry[][]>([[], []]);
     /** 供异步任务读取当前分列结果（对应旧 columnList.value 的实时读取语义） */
@@ -282,9 +291,24 @@ function Product2Masonry({ commodityList, styleMap }: { commodityList: any[]; st
         redirect({ url: "/pages/product/index?" + params });
     };
 
-    // TODO(B2)：旧 handleBuy 打开 specification 规格弹窗加购；弹窗随 B2 商品链路批次移植，先降级跳商品详情页
+    // 旧 handleBuy：打开 specification 规格弹窗加购（与 components/masonry/Masonry.tsx 同款实现，
+    // 商品 ID 取法走 hooks/useProductCardBuy 的 cardProductId，与旧版一致）
     const handleBuy = (item: any) => {
-        handleClickItem(item);
+        if (item.isCheck) return;
+        item.isCheck = true;
+        currentBuyItemRef.current = item;
+        setIsCycleBuy(item.deliveryMode === 2 && item.deliveryType === 1);
+        setIsSubCard(item.deliveryMode === 2 && item.deliveryType === 2);
+        setSpecProductId(cardProductId(item));
+    };
+
+    const handleSpecLoadEnd = () => {
+        specificationRef.current?.handleShowPopup();
+        currentBuyItemRef.current.isCheck = false;
+    };
+
+    const handleSpecClose = () => {
+        setSpecProductId(0);
     };
 
     return (
@@ -299,6 +323,14 @@ function Product2Masonry({ commodityList, styleMap }: { commodityList: any[]; st
                     ))}
                 </View>
             ))}
+            <Specification
+                ref={specificationRef}
+                productId={specProductId}
+                isCycleBuy={isCycleBuy}
+                isSubCard={isSubCard}
+                onLoadEnd={handleSpecLoadEnd}
+                onClose={handleSpecClose}
+            />
         </View>
     );
 }

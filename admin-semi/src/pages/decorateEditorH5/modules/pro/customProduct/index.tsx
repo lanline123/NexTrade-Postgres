@@ -2,6 +2,8 @@
  * 个性商品 模块（契约自 view/admin editor/modules/mobilePro/customProduct/index.ts 逐字段移植）
  *
  * 旧 ToolBar 中已被注释、不进工具栏（visible:false）；保留注册仅为老数据可渲染。
+ * 另注（2026-11-14 三方对齐核查）：uniapp-react 渲染端 registry / shopModules 白名单均无
+ * customProduct 渲染入口，移动端建了也展示不出来——在渲染端补齐入口前不要放开 visible。
  * 旧 Preview.vue 本身只渲染占位文本「个性商品」，此处忠实还原。
  */
 import { registerModule } from "../../../contract/moduleRegistry";

@@ -1,0 +1,36 @@
+/* 优惠券 预览补充样式（自 uniapp-react coupon/index.scss 渲染端新增类名换算，rpx→px ×0.5；
+   coupon-ad-warp/coupon-con/coupon-item/item-coupon-con 等基础样式由全局 module.css 提供） */
+.coupon-ad-warp .coupon-title .coupon-title-text {
+    display: flex;
+    margin-left: 10px;
+}
+.coupon-ad-warp .coupon-title .coupon-title-text .coupon-maintitle {
+    color: #2a3145;
+    font-size: 15px;
+    margin-right: 5px;
+    font-weight: bold;
+    line-height: 1;
+}
+.coupon-ad-warp .coupon-title .coupon-title-text .coupon-title-con {
+    color: #aaa;
+    font-size: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+.coupon-ad-warp .more-box {
+    color: #aaa;
+    display: flex;
+    align-items: center;
+}
+.coupon-ad-warp .more-box .more {
+    font-size: 13px;
+}
+.coupon-ad-warp .coupon-con .coupon-item .item-coupon-con .coupon-money .zhekou {
+    font-size: 26px;
+    line-height: 1;
+}
+.coupon-ad-warp .coupon-con .coupon-item .item-coupon-con .coupon-money .zhe {
+    margin-left: 4px;
+    font-size: 12px;
+}

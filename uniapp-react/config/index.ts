@@ -52,7 +52,15 @@ export default defineConfig(async (merge) => {
             }
         },
         h5: {
-            publicPath: "/",
+            // 部署形态：同源子路径 /mobile（battery.recy.cc/mobile，用户既定入口）。
+            // 此前 publicPath:'/' 且无 router base，是按独立站点根路径构建的，
+            // 塞进 /mobile/ 子目录必然资源/路由错位（见迁移报告 /mobile 调查）。
+            // 若改独立子域名部署，构建时设 TARO_H5_PUBLIC_PATH=/ 与
+            // TARO_H5_BASENAME= 即可回到根路径形态，无需改代码。
+            publicPath: process.env.TARO_H5_PUBLIC_PATH || "/mobile/",
+            router: {
+                basename: process.env.TARO_H5_BASENAME ?? "/mobile"
+            },
             staticDirectory: "static",
             output: {
                 filename: "js/[name].[hash:8].js",

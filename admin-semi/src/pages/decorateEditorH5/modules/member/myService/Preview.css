@@ -1,0 +1,9 @@
+.dec-my-service__title { font-size: 15px; font-weight: 600; color: #333; margin-bottom: 8px; }
+.dec-my-service__list.is-column .dec-my-service__item { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #f7f7f7; }
+.dec-my-service__list.is-grid { display: flex; flex-wrap: wrap; }
+.dec-my-service__list.is-grid .dec-my-service__item { width: 25%; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; }
+.dec-my-service__icon img { width: 26px; height: 26px; object-fit: contain; display: block; }
+.dec-my-service__icon-ph { width: 26px; height: 26px; border-radius: 50%; background: #f0f2f5; color: #999; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+.dec-my-service__label { font-size: 13px; color: #333; display: flex; align-items: center; justify-content: space-between; flex: 1; }
+.dec-my-service__list.is-grid .dec-my-service__label { justify-content: center; }
+.dec-my-service__arrow { color: #bbb; }

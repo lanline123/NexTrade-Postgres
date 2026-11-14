@@ -1,0 +1,19 @@
+/* 秒杀 预览补充样式（自 uniapp-react seckill/index.scss 换算，rpx→px ×0.5；
+   goods-ad / cap-seckill-goods__tag 基础样式由全局 module.css 提供） */
+.module-seckill-goods_ad .uni-countdown__number {
+    width: auto !important;
+}
+.module-seckill-goods_ad .tig-countdown {
+    display: inline-flex;
+    align-items: center;
+}
+.module-seckill-goods_ad .item-photo {
+    position: relative;
+}
+.module-seckill-goods_ad .item-photo .item-image-a {
+    display: block;
+}
+.module-seckill-goods_ad .item-photo .item-image-a img {
+    width: 100%;
+    display: block;
+}

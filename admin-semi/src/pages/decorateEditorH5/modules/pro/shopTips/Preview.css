@@ -1,0 +1,6 @@
+.shop-tips-row{padding:8px}
+.shop-tips-content{display:flex;align-items:center;justify-content:center;gap:4px;position:relative}
+.shop-tips-icon{width:16px;height:16px}
+.shop-tips-sx{color:#3DC275;font-weight:700;text-align:center}
+.shop-tips-text{font-size:12px}
+.shop-tips-link{position:absolute;right:-6px;top:20%;height:60%;border-right:1px solid #eee}

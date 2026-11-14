@@ -1,0 +1,15 @@
+.dec-product-detail__pic img { width: 100%; display: block; }
+.dec-product-detail__pic-ph { height: 180px; background: #f0f2f5; color: #999; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+.dec-product-detail__info { padding: 12px; background: #fff; }
+.dec-product-detail__name { font-size: 15px; font-weight: 600; color: #333; }
+.dec-product-detail__brief { font-size: 12px; color: #999; margin-top: 4px; }
+.dec-product-detail__buy-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+.dec-product-detail__price { font-size: 17px; font-weight: 700; color: #e1251b; }
+.dec-product-detail__market-price { font-size: 12px; color: #999; text-decoration: line-through; margin-left: 6px; }
+.dec-product-detail__btn { font-size: 13px; color: #fff; background: #e1251b; border-radius: 14px; padding: 5px 14px; }
+.dec-product-detail--style2 .dec-product-detail__info { text-align: center; }
+.dec-product-detail--style2 .dec-product-detail__buy-row { justify-content: center; gap: 14px; }
+.dec-product-detail--style3 { display: flex; }
+.dec-product-detail--style3 .dec-product-detail__pic { width: 40%; flex-shrink: 0; }
+.dec-product-detail--style3 .dec-product-detail__pic-ph { height: 100%; min-height: 110px; }
+.dec-product-detail--style3 .dec-product-detail__info { flex: 1; }
