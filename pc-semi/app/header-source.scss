@@ -1820,6 +1820,8 @@
     max-width: 100%;
     max-height: 100%;
     display: block;
+    /* logo 整图含下方英文小字，主字「万物新生」的光学中心比整图中心高约 4px，下移让主字与搜索框/购物车同线 */
+    transform: translateY(4px);
   }
 }
 

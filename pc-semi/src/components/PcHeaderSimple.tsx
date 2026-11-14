@@ -241,7 +241,7 @@ export default function PcHeaderSimple({
     ['--pc-header-logo-area-h' as string]: `${logoAreaHeight}px`,
     ['--pc-header-logo-area-shift-y' as string]: `${logoAreaShiftY}px`,
     ['--pc-header-search-extra-bottom' as string]: `${searchExtraBottom}px`,
-    ['--pc-header-padding-bottom' as string]: '0px',
+    ['--pc-header-padding-bottom' as string]: '16px',
   };
   const categoryNavStyle: React.CSSProperties = {
     ['--pc-header-category-mt' as string]: `${resolvePx(header.categoryMarginTop) ?? 0}px`,
