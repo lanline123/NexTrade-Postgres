@@ -412,7 +412,10 @@ export const currFullPath = () => {
     const router = route.router;
     if (router?.path) {
         const qs = router.params ? buildQueryString(router.params as Record<string, unknown>) : "";
-        return `${router.path}${qs}`;
+        // 同 pageMixin：剥掉 H5 basename 前缀，保证回跳地址是 /pages/... 形式
+        const pagesIdx = router.path.indexOf("pages/");
+        const cleanPath = pagesIdx > 0 ? router.path.slice(pagesIdx - 1) : router.path;
+        return `${cleanPath}${qs}`;
     }
     return route.path ? `/${route.path}` : "";
 };

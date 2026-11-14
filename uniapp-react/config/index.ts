@@ -59,6 +59,11 @@ export default defineConfig(async (merge) => {
             // TARO_H5_BASENAME= 即可回到根路径形态，无需改代码。
             publicPath: process.env.TARO_H5_PUBLIC_PATH || "/mobile/",
             router: {
+                // 必须用 browser（history）模式：hash 模式下 basename 会拼进路由路径
+                // （页面 id 变成 /mobile/pages/...），导致权限白名单、currFullPath 等
+                // 按 /pages/... 比对的逻辑全部失配，守卫会无限跳登录页并堆叠页面实例。
+                // nginx 已有 ^~ /mobile try_files 回退，深链接由服务端兜底。
+                mode: "browser",
                 basename: process.env.TARO_H5_BASENAME ?? "/mobile"
             },
             staticDirectory: "static",

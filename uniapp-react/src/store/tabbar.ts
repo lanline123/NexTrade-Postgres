@@ -54,7 +54,11 @@ export const useTabbarStore = create<TabbarState>((set) => ({
     tabbarUnselectedTextColor: "",
 
     setCurrRoute(route: string) {
-        set({ currRoute: route });
+        // 统一归一化：剥掉查询串（H5 的 path 带 ?stamp=）、前导斜杠与
+        // basename 前缀，保证 currRoute 恒为 pages/... 形式供 tabbar 匹配
+        const clean = (route || "").split("?")[0].replace(/^\//, "");
+        const pagesIdx = clean.indexOf("pages/");
+        set({ currRoute: pagesIdx > 0 ? clean.slice(pagesIdx) : clean });
     },
 
     async getTabbarList() {

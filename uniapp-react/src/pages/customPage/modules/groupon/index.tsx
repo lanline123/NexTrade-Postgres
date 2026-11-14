@@ -105,12 +105,16 @@ export default function Groupon({ module }: Props) {
         }
     }, [module.style]);
 
-    /*转时间搓 */
+    /*转时间戳（时间字段可能是 epoch 秒数字，先归一化防 split 抛错） */
     const dateStringToTimestamp = (dateString: any) => {
-        const dateParts = dateString.split(" ");
+        if (typeof dateString === "number" || /^\d+$/.test(String(dateString ?? "").trim())) {
+            const n = Number(dateString);
+            return n < 1e12 ? n * 1000 : n;
+        }
+        const dateParts = String(dateString).split(" ");
         const [year, month, day] = dateParts[0].split("-");
-        const [hour, minute, second] = dateParts[1].split(":");
-        const date = new Date(year, month - 1, day, hour, minute, second);
+        const [hour, minute, second] = (dateParts[1] || "00:00:00").split(":");
+        const date = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
         return date.getTime();
     };
 

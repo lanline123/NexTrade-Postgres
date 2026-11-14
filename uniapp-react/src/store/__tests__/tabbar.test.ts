@@ -29,7 +29,13 @@ describe("底部导航高度与数据回落（Zustand 版）", () => {
 
     it("setCurrRoute 同步当前路由（供 pageMixin/tabbar 高亮）", () => {
         useTabbarStore.getState().setCurrRoute("/pages/cart/index");
-        expect(useTabbarStore.getState().currRoute).toBe("/pages/cart/index");
+        // 归一化后恒为无前导斜杠的 pages/... 形式（tabbar 派生匹配时再补 /）
+        expect(useTabbarStore.getState().currRoute).toBe("pages/cart/index");
+    });
+
+    it("setCurrRoute 剥掉 H5 basename 前缀与 stamp 查询串", () => {
+        useTabbarStore.getState().setCurrRoute("/mobile/pages/index/index?stamp=AA");
+        expect(useTabbarStore.getState().currRoute).toBe("pages/index/index");
     });
 
     it("导航接口失败时回落默认四项", async () => {

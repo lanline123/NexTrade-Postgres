@@ -87,7 +87,14 @@ export default function Seckill2({ module }: Props) {
     }, []);
 
     const getTime = useMemo(() => {
-        return seckillList[0] ? new Date(seckillList[0].seckkillData.seckillEndTime).getTime() : 0;
+        // 后端记录为扁平结构，seckillEndTime 在顶层且是 epoch 秒数字（嵌套 seckkillData 仅旧契约有）
+        if (!seckillList[0]) return 0;
+        const raw: any = seckillList[0].seckkillData?.seckillEndTime ?? seckillList[0].seckillEndTime;
+        if (typeof raw === "number" || /^\d+$/.test(String(raw ?? "").trim())) {
+            const n = Number(raw);
+            return n < 1e12 ? n * 1000 : n;
+        }
+        return new Date(raw).getTime();
     }, [seckillList]);
 
     return (

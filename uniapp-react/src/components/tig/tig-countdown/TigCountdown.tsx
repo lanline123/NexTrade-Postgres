@@ -29,11 +29,15 @@ export default function TigCountdown({
 }: Props) {
     const pad2 = (num: number) => String(num).padStart(2, "0");
 
-    /* 转时间戳（与旧 dateStringToTimestamp 同逻辑：仅支持 "YYYY-MM-DD HH:mm:ss"） */
-    const dateStringToTimestamp = (dateString: string) => {
-        const dateParts = dateString.split(" ");
+    /* 转时间戳（旧逻辑仅支持 "YYYY-MM-DD HH:mm:ss"；后端现返回 epoch 秒数字，必须先归一化，否则对数字调用 split/includes 会抛错撕掉整页） */
+    const dateStringToTimestamp = (dateString: any) => {
+        if (typeof dateString === "number" || /^\d+$/.test(String(dateString ?? "").trim())) {
+            const n = Number(dateString);
+            return n < 1e12 ? n * 1000 : n;
+        }
+        const dateParts = String(dateString).split(" ");
         const [year, month, day] = dateParts[0].split("-");
-        const [hour, minute, second] = dateParts[1].split(":");
+        const [hour, minute, second] = (dateParts[1] || "00:00:00").split(":");
         const date = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
         return date.getTime();
     };
@@ -41,7 +45,7 @@ export default function TigCountdown({
     /* 计算时间： endTime → days/hours/minutes/seconds（仅初始化计算一次，与旧实现一致） */
     const countdown = useMemo(() => {
         const result = { days: 0, hours: 0, minutes: 0, seconds: 0 };
-        if (!endTime || !endTime.includes(" ")) {
+        if (!endTime) {
             return result;
         }
         const endTimestamp = dateStringToTimestamp(endTime);

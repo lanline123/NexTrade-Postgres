@@ -30,11 +30,15 @@ function TigCountdown({ endTime }: { endTime: string }) {
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
-        /*转时间搓（旧 tig-countdown 注释） */
-        const dateStringToTimestamp = (dateString: string) => {
-            const dateParts = dateString.split(" ");
+        /*转时间戳（后端 seckillEndTime 是 epoch 秒数字，先归一化，否则对数字 split 直接抛错） */
+        const dateStringToTimestamp = (dateString: any) => {
+            if (typeof dateString === "number" || /^\d+$/.test(String(dateString ?? "").trim())) {
+                const n = Number(dateString);
+                return n < 1e12 ? n * 1000 : n;
+            }
+            const dateParts = String(dateString).split(" ");
             const [year, month, day] = dateParts[0].split("-");
-            const [hour, minute, second] = dateParts[1].split(":");
+            const [hour, minute, second] = (dateParts[1] || "00:00:00").split(":");
             return new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second)).getTime();
         };
         const countdownInit = () => {
@@ -194,7 +198,8 @@ export default function Seckill({ module }: Props) {
                                                 </View>
                                                 <View className={"cap-seckill-goods__tag " + className}>
                                                     {module?.style == 1 && <Text className="cap-seckill-goods__tag-title"> {t("秒杀")} </Text>}
-                                                    <TigCountdown endTime={item.seckkillData.seckillEndTime} />
+                                                    {/* 后端 getSeckill 返回扁平记录（seckillEndTime 在顶层），嵌套 seckkillData 仅旧契约有；直接读嵌套会抛错并整页白屏 */}
+                                                    <TigCountdown endTime={item.seckkillData?.seckillEndTime ?? item.seckillEndTime} />
                                                 </View>
                                                 {styleMap[item.productId]?.borderImage && (
                                                     <Image

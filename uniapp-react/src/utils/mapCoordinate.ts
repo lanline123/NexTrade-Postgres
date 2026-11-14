@@ -14,7 +14,7 @@ export const shouldTransformTiandituCoordinate = (): boolean => {
     let shouldTransform = false;
 
     // #ifdef MP-WEIXIN
-    shouldTransform = useConfigStore().mapProvider === "tianditu";
+    shouldTransform = useConfigStore.getState().mapProvider === "tianditu";
     // #endif
 
     return shouldTransform;

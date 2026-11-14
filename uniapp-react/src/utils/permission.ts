@@ -52,7 +52,12 @@ export function hasPermission(url: string): boolean {
         currentUrl = url.split("?")[0];
     }
     // 统一为 /pages/... 形式再比对（useRouter().path 无前导斜杠）
-    const normalized = currentUrl.startsWith("/") ? currentUrl : `/${currentUrl}`;
+    let normalized = currentUrl.startsWith("/") ? currentUrl : `/${currentUrl}`;
+    // 防御：路由路径若带了部署 basename 前缀（如 /mobile/pages/...），先剥掉再比对，
+    // 否则白名单永远命中不了，守卫会在登录页上无限跳转堆叠
+    if (normalized.startsWith("/mobile/pages/")) {
+        normalized = normalized.slice("/mobile".length);
+    }
     // 在白名单中或有token，直接放行
     if (whiteList.indexOf(normalized) !== -1 || Taro.getStorageSync("token") || token) {
         return true;

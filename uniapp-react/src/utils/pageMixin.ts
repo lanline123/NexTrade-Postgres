@@ -14,7 +14,12 @@ export function useSyncCurrRoute() {
     const setCurrRoute = useTabbarStore((s) => s.setCurrRoute);
 
     useEffect(() => {
-        const route = (Taro.getCurrentPages().slice(-1)[0]?.path || router.path || "").replace(/^\//, "");
+        const rawRoute = (Taro.getCurrentPages().slice(-1)[0]?.path || router.path || "").replace(/^\//, "").split("?")[0];
+        // H5 子路径部署时页面 path 带 basename 前缀（如 mobile/pages/...），且
+        // getCurrentPages 的 path 还可能带 ?stamp= 查询串；两者都要剥掉，
+        // 归一化到 pages/... 再存，否则 tabbar 的当前页匹配永远失败、底部导航不渲染
+        const pagesIdx = rawRoute.indexOf("pages/");
+        const route = pagesIdx > 0 ? rawRoute.slice(pagesIdx) : rawRoute;
         if (route) {
             setCurrRoute(route);
         }
