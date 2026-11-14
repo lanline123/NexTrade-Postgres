@@ -6,6 +6,7 @@ pub mod app_version_admin;
 pub mod area_code;
 pub mod cache_manage;
 pub mod config_basic;
+pub mod price_display_config;
 pub mod config_extra;
 pub mod csrf;
 pub mod example;
@@ -33,6 +34,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(area_code::routes(state))
         .merge(cache_manage::routes(state))
         .merge(config_basic::routes(state))
+        .merge(price_display_config::routes(state))
         .merge(config_extra::routes(state))
         .merge(example::routes(state))
         .merge(image_search::routes(state))
@@ -64,6 +66,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(area_code::implemented_routes());
     out.extend(cache_manage::implemented_routes());
     out.extend(config_basic::implemented_routes());
+    out.extend(price_display_config::implemented_routes());
     out.extend(config_extra::implemented_routes());
     out.extend(csrf::implemented_routes());
     out.extend(example::implemented_routes());

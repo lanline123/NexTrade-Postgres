@@ -5,6 +5,7 @@ pub mod app_version_admin;
 pub mod area_code;
 pub mod cache_manage;
 pub mod config_basic;
+pub mod price_display;
 pub mod config_client;
 pub mod csrf;
 pub mod example;

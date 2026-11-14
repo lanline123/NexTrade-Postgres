@@ -2,6 +2,7 @@
 
 pub mod app_version_admin;
 pub mod config_client;
+pub mod price_display_client;
 pub mod csrf;
 pub mod locales_client;
 pub mod log;
@@ -22,6 +23,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
     Router::new()
         .merge(app_version_admin::routes(state))
         .merge(config_client::routes(state))
+        .merge(price_display_client::routes(state))
         .merge(locales_client::routes(state))
         .merge(pc::routes(state))
         .merge(recommend::routes(state))
@@ -55,6 +57,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(app_version_admin::implemented_routes());
     out.extend(config_client::implemented_routes());
+    out.extend(price_display_client::implemented_routes());
     out.extend(locales_client::implemented_routes());
     out.extend(csrf::implemented_routes());
     out.extend(log::implemented_routes());

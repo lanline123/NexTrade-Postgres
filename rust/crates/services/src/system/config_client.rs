@@ -283,6 +283,21 @@ impl ConfigClientService {
     ///
     /// # Errors
     /// - 仓储层失败 ⇒ `Error::Database`
+    /// 全站价格显示配置（后台「价格显示设置」；未配置时为内置默认）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn price_display(&self) -> Result<serde_json::Value> {
+        let rows = self
+            .repos
+            .system
+            .config_client
+            .find_config_values(&[super::price_display::PRICE_DISPLAY_CODE])
+            .await?;
+        let stored = rows.first().and_then(|c| c.biz_val.as_deref());
+        Ok(super::price_display::effective_price_display(stored))
+    }
+
     pub async fn product_detail_style(&self) -> Result<i32> {
         let configs = self.load_snapshot().await?;
         // ⚠️ 走 `getConfigVal`（空串兜底），**不是** `SettingsHelper#get`。

@@ -267,6 +267,29 @@ impl ConfigBasicService {
     }
 
     /// `GET /adminapi/setting/config/getIcon`：图标配置解析。
+    /// 读取价格显示配置（生效值：已存配置清洗后，或内置默认）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn get_price_display(&self) -> Result<Value> {
+        let stored = self
+            .repo()
+            .find_by_code(super::price_display::PRICE_DISPLAY_CODE)
+            .await?;
+        Ok(super::price_display::effective_price_display(stored.as_deref()))
+    }
+
+    /// 保存价格显示配置（清洗后整块 JSON 落 config 表 `priceDisplay` 行）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn save_price_display(&self, payload: &Value) -> Result<()> {
+        let clean = super::price_display::sanitize_price_display(payload);
+        self.repo()
+            .save_code(super::price_display::PRICE_DISPLAY_CODE, &clean.to_string())
+            .await
+    }
+
     pub async fn get_icon_settings(&self) -> Result<Value> {
         let rows = self
             .repo()
