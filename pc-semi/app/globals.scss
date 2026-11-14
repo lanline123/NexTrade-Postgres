@@ -6806,7 +6806,7 @@ img {
 /* 按 view/pc/decorate/components/pc/pcHeaderRuntime 原版结构重建头部 */
 .pc-header-runtime { width: 100%; position: relative; z-index: 30; }
 .pc-header-runtime .page-container { width: 100%; background: #fff; position: relative; z-index: 1; }
-.pc-header-runtime .page-header-inner { padding: 16px 0; }
+.pc-header-runtime .page-header-inner { padding: 10px 0; }
 /* 头部主容器与首页模块共用同一套宽度口径（--pc-home-max-width / --pc-home-padding-x），
    否则头部内容区会按 1866 / 40 铺开，比下方 1600 / 38 的模块左右各宽 131px。 */
 .pc-header-runtime .page-c-warap {
@@ -6948,8 +6948,8 @@ button.search-submit svg { display: block; }
   .pc-header-runtime .search-bar { height: auto; min-height: 0; }
 }
 
-/* 原版 page-header-inner 只保留顶部 16px，底边由 headerVars 控制（默认 0） */
-.pc-header-runtime .page-header-inner { padding: 16px 0 0; }
+/* page-header-inner 顶部 10px（与底部统一），底边由 headerVars 控制 */
+.pc-header-runtime .page-header-inner { padding: 10px 0 0; }
 
 /* 原版 header 不使用旧版固定 1px 底边，分割由 pc-header-divider--* 控制 */
 .pc-header-runtime.pc-header { border-bottom: 0; background: transparent; }

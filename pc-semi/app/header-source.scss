@@ -1426,7 +1426,7 @@
 
 /* 主头部：源码 PcHeaderOverseasRuntime.vue 内的布局细节（依赖 globals 基础，按源码补齐覆盖） */
 .pc-header-runtime .page-header-inner {
-  padding: 16px 0 var(--pc-header-padding-bottom, 0px);
+  padding: 10px 0 var(--pc-header-padding-bottom, 0px);
 }
 
 .pc-header-runtime .page-c-warap {
@@ -1699,7 +1699,7 @@
 }
 
 .pc-header-simple .pc-header {
-  padding: 16px 0 var(--pc-header-padding-bottom, 0px);
+  padding: 10px 0 var(--pc-header-padding-bottom, 0px);
 }
 
 .pc-header-simple .pc-header__wrapper {
