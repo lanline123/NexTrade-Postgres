@@ -9,6 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { apiGet } from '../../../api';
+import ModuleTitlePreview from './shared/ModuleTitlePreview';
 import './pcSeckill.css';
 
 import { useI18n } from '../../../i18n';
@@ -118,135 +119,12 @@ function dateStringToTimestamp(dateString?: string | null): number {
   return new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second)).getTime();
 }
 
-function parseCountdownParts(remainingMs: number) {
-  return {
-    days: Math.floor(remainingMs / (1000 * 60 * 60 * 24)),
-    hours: Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
-    minutes: Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60)),
-    seconds: Math.floor((remainingMs % (1000 * 60)) / 1000),
-  };
-}
-
-const formatNumTwo = (n: number) => String(n).padStart(2, '0');
-
 /** 三段式价格（int/dec）。 */
 function priceParts(price: string | number): { int: string; dec: string } {
   const num = Number(price);
   const text = Number.isFinite(num) ? num.toFixed(2) : String(price ?? '0.00');
   const [int, dec] = text.split('.');
   return { int: int || '0', dec: dec || '00' };
-}
-
-function TitleMoreArrow() {
-  return (
-    <svg className="pc-seckill__arrow" viewBox="0 0 16 16" width="16" height="16">
-      <path d="M5.5 2.5l5 5.5-5 5.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
-    </svg>
-  );
-}
-
-/** 标题右侧倒计时（深色数字方块）。 */
-function TitleCountdownBox({ label, targetTs, now, color }: { label: string; targetTs: number; now: number; color: string }) {
-    const { t } = useI18n();
-  const remaining = targetTs ? Math.max(0, targetTs - now) : 0;
-  const { days, hours, minutes, seconds } = parseCountdownParts(remaining);
-  return (
-    <div className="pc-seckill__countdown" style={{ color }}>
-      <div className="pc-seckill__countdown-box">
-        <span className="pc-seckill__countdown-label">{label}: </span>
-        {days > 0 && (
-          <>
-            <span className="pc-seckill__countdown-item pc-seckill__countdown-item--days">{days}</span>
-            <span className="pc-seckill__countdown-daytext">{t('天')}</span>
-          </>
-        )}
-        <span className="pc-seckill__countdown-item">{formatNumTwo(hours)}</span>
-        <span className="pc-seckill__countdown-sep">:</span>
-        <span className="pc-seckill__countdown-item">{formatNumTwo(minutes)}</span>
-        <span className="pc-seckill__countdown-sep">:</span>
-        <span className="pc-seckill__countdown-item">{formatNumTwo(seconds)}</span>
-      </div>
-    </div>
-  );
-}
-
-/** 标题栏：titleStyle 3 竖线、标题图 30px、24px 粗标题、desc、右侧倒计时或「更多」。 */
-function SeckillTitleBar({
-  title,
-  fallbackText,
-  countdownTargetTs,
-  now,
-  innerPaddingPx,
-}: {
-  title?: Record<string, any>;
-  fallbackText: string;
-  countdownTargetTs: number;
-  now: number;
-  innerPaddingPx: number;
-}) {
-    const { t } = useI18n();
-  if (!title || Number(title.showTitle) !== 1) return null;
-  const showMore = Number(title.showMore) === 1;
-  const moreTypeRaw = Number(title.moreType);
-  const mode = moreTypeRaw === 1 || moreTypeRaw === 2 ? moreTypeRaw : 2;
-  const titleColor = title.titleColor || '#1a1a1a';
-  const descColor = title.descColor || '#1a1a1a';
-  const moreColor = title.moreColor || '#1a1a1a';
-  const style = Number(title.titleStyle) || 1;
-  // 共享标题契约：字号 / 对齐 / 副标题排版（默认 24px、左对齐、跟随主标题后，老数据零跳变）
-  const titleFontSize = Number(title.titleFontSize) || 24;
-  const descFontSize = Number(title.descFontSize) || 12;
-  const titleAlign = Number(title.titleAlign) || 1;
-  const descBelow = Number(title.descLayout ?? 1) === 2;
-  const wrapperClass = [
-    'pc-seckill__title-wrapper',
-    titleAlign !== 1 ? `is-align-${titleAlign}` : '',
-    descBelow ? 'is-desc-below' : '',
-  ].filter(Boolean).join(' ');
-  const customLabel = String(title.countdownLabel || '').trim();
-  let countdownLabel = customLabel || t('倒计时');
-  if (!customLabel && countdownTargetTs) {
-    if (countdownTargetTs - now <= 0) countdownLabel = '已结束';
-  }
-  // 标题左右边距（共享契约口径，未配置默认 10）：PC 端结构是「内容边距包裹层 +
-  // DecModuleTitle 自身标题边距」，本预览把内容边距折进标题栏，故左右 = 内容边距 + 标题边距。
-  // 此前只用了内容边距，设置里的标题左右边距滑杆完全不生效。
-  const titlePadL = title.titlePaddingLeft == null || title.titlePaddingLeft === '' ? 10 : Number(title.titlePaddingLeft);
-  const titlePadR = title.titlePaddingRight == null || title.titlePaddingRight === '' ? 10 : Number(title.titlePaddingRight);
-  const barStyle: Record<string, any> = {
-    padding: `${Number(title.titlePaddingTop) || 20}px ${innerPaddingPx + (Number.isFinite(titlePadR) ? titlePadR : 10)}px ${Number(title.titlePaddingBottom) || 20}px ${innerPaddingPx + (Number.isFinite(titlePadL) ? titlePadL : 10)}px`,
-  };
-  const bg1 = String(title.titleBackground || '');
-  const bg2 = String(title.titleBackground2 || '');
-  if (bg1 && bg2) barStyle.background = `linear-gradient(to right, ${bg1}, ${bg2})`;
-  else if (bg1) barStyle.background = bg1;
-  if (Number(title.titleRadius)) {
-    barStyle.borderTopLeftRadius = `${Number(title.titleRadius)}px`;
-    barStyle.borderTopRightRadius = `${Number(title.titleRadius)}px`;
-  }
-  return (
-    <div className="pc-seckill__titlebar" style={barStyle}>
-      <div className={wrapperClass}>
-        {style === 3 && <div className="pc-seckill__title-line" />}
-        {title.titleBackgroundPic?.picUrl ? <img className="pc-seckill__title-bg-pic" src={title.titleBackgroundPic.picUrl} alt="" /> : null}
-        <div className="pc-seckill__title" style={{ color: titleColor, fontSize: `${titleFontSize}px` }}>
-          {title.titleText || fallbackText}
-        </div>
-        {title.descText ? (
-          <div className={`pc-seckill__desc${style === 2 ? ' pc-seckill__desc--big' : ''}`} style={{ color: descColor, fontSize: `${descFontSize}px` }}>
-            {title.descText}
-          </div>
-        ) : null}
-      </div>
-      {showMore && mode === 2 && <TitleCountdownBox label={countdownLabel} targetTs={countdownTargetTs} now={now} color={moreColor} />}
-      {showMore && mode === 1 && (
-        <div className="pc-seckill__more" style={{ color: moreColor }}>
-          <span>{String(title.moreLink?.title || '').trim() || t('更多')}</span>
-          <TitleMoreArrow />
-        </div>
-      )}
-    </div>
-  );
 }
 
 function SwitchArrow({
@@ -304,13 +182,18 @@ export default function PcSeckillPreview({ data }: { data: Record<string, any> }
         ['--pc-seckill-gap' as any]: `${goodsGap}px`,
       }}
     >
-      <SeckillTitleBar
-        title={title}
-        fallbackText={config.seckillTitle || t('限时秒杀')}
-        countdownTargetTs={countdownTargetTs}
-        now={now}
-        innerPaddingPx={innerPadding}
-      />
+      {/* 标题走共享 ModuleTitlePreview（与 PC 端 DecModuleTitle 同源、同结构：
+          内容左右边距包裹层 + 共享标题组件；倒计时目标取首条活动结束时间）。
+          此前是本文件自维护的 SeckillTitleBar（默认值与共享口径多处漂移）。 */}
+      <div style={{ padding: `0 ${innerPadding}px` }}>
+        <ModuleTitlePreview
+          title={title}
+          fallbackText={config.seckillTitle || t('限时秒杀')}
+          countdownTargetTs={countdownTargetTs}
+          now={now}
+          countdownLabelFallback={t('倒计时')}
+        />
+      </div>
 
       <div className="pc-seckill__list-wrap">
         {rows.length > 0 ? (

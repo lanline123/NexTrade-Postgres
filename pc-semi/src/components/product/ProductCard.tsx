@@ -28,7 +28,7 @@ import { useRouter } from 'next/navigation';
 import { Toast } from '@douyinfe/semi-ui';
 import Add from '@icon-park/react/es/icons/Add';
 import { apiPost } from '@/lib/client-api';
-import { splitCurrencyPrice } from '@/lib/currency';
+import { splitDisplayPrice } from '@/lib/currency';
 
 import { useTranslation } from 'react-i18next';
 export interface ProductCardItem {
@@ -133,7 +133,7 @@ export default function ProductCard({
   const href = productLink(product);
   // 原版 pickPic：picUrl > picThumb（picThumb 是 200px 缩略图，卡片 240px 放大会发虚）
   const image = product.picUrl || product.picThumb || '';
-  const price = splitCurrencyPrice(product.productPrice ?? product.price);
+  const price = splitDisplayPrice(product.productPrice ?? product.price);
   const shopTitle = product.shop?.shopTitle || t('官方自营');
 
   async function addToCart(event: React.MouseEvent) {
@@ -286,6 +286,7 @@ export default function ProductCard({
               <div className="util">{price.symbol || '￥'}</div>
               <div className="num">{price.integer}</div>
               {price.decimals ? <div className="num decimal">{price.decimals}</div> : null}
+              {price.suffix ? <div className="num">{price.suffix}</div> : null}
             </div>
           </div>
           <div className="buy">

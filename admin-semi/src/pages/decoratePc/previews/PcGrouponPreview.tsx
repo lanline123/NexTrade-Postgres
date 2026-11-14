@@ -9,6 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { apiGet } from '../../../api';
+import ModuleTitlePreview from './shared/ModuleTitlePreview';
 import './pcGroupon.css';
 
 import { useI18n } from '../../../i18n';
@@ -154,116 +155,6 @@ const GROUPON_MOCK_PRODUCTS: PreviewProduct[] = [
 const EMPTY_IMG =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f5f5f5' width='100' height='100'/%3E%3C/svg%3E";
 
-function TitleMoreArrow() {
-  return (
-    <svg className="pc-groupon__arrow" viewBox="0 0 16 16" width="16" height="16">
-      <path d="M5.5 2.5l5 5.5-5 5.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
-    </svg>
-  );
-}
-
-/** 标题右侧倒计时（与秒杀同款深色数字方块）。 */
-function TitleCountdownBox({ label, targetTs, now }: { label: string; targetTs: number; now: number }) {
-    const { t } = useI18n();
-  const remaining = targetTs ? Math.max(0, targetTs - now) : 0;
-  const { days, hours, minutes, seconds } = parseCountdownParts(remaining);
-  return (
-    <div className="pc-groupon__countdown">
-      <div className="pc-groupon__countdown-box">
-        <span className="pc-groupon__countdown-label">{label}: </span>
-        {days > 0 && (
-          <>
-            <span className="pc-groupon__countdown-item pc-groupon__countdown-item--days">{days}</span>
-            <span className="pc-groupon__countdown-daytext">{t('天')}</span>
-          </>
-        )}
-        <span className="pc-groupon__countdown-item">{formatNumTwo(hours)}</span>
-        <span className="pc-groupon__countdown-sep">:</span>
-        <span className="pc-groupon__countdown-item">{formatNumTwo(minutes)}</span>
-        <span className="pc-groupon__countdown-sep">:</span>
-        <span className="pc-groupon__countdown-item">{formatNumTwo(seconds)}</span>
-      </div>
-    </div>
-  );
-}
-
-function GrouponTitleBar({
-  title,
-  fallbackText,
-  countdownTargetTs,
-  activityStartTs,
-  now,
-  moreColor,
-}: {
-  title?: Record<string, any>;
-  fallbackText: string;
-  countdownTargetTs: number;
-  activityStartTs: number;
-  now: number;
-  moreColor: string;
-}) {
-    const { t } = useI18n();
-  if (!title || Number(title.showTitle) !== 1) return null;
-  const showMore = Number(title.showMore) === 1;
-  const mode = Number(title.moreType) === 1 ? 1 : 2;
-  const style = Number(title.titleStyle) || 1;
-  // 共享标题契约：字号 / 对齐 / 副标题排版（默认 24px、左对齐、跟随主标题后，老数据零跳变）
-  const titleFontSize = Number(title.titleFontSize) || 24;
-  const descFontSize = Number(title.descFontSize) || 12;
-  const titleAlign = Number(title.titleAlign) || 1;
-  const descBelow = Number(title.descLayout ?? 1) === 2;
-  const wrapperClass = [
-    'pc-groupon__title-wrapper',
-    titleAlign !== 1 ? `is-align-${titleAlign}` : '',
-    descBelow ? 'is-desc-below' : '',
-  ].filter(Boolean).join(' ');
-  const customLabel = String(title.countdownLabel || '').trim();
-  let label = customLabel || t('距结束');
-  if (!customLabel && countdownTargetTs) {
-    if (activityStartTs && activityStartTs > now) label = '距开始';
-    else if (countdownTargetTs - now <= 0) label = '已结束';
-  }
-  // 标题左右边距（共享契约口径，未配置默认 10）：根节点已带 config.innerPadding
-  // 内容边距（与 PC 端「包裹层 + DecModuleTitle」同构），标题栏只需再叠加标题边距。
-  // 此前左右写死 0，设置里的标题左右边距滑杆完全不生效。
-  const titlePadL = title.titlePaddingLeft == null || title.titlePaddingLeft === '' ? 10 : Number(title.titlePaddingLeft);
-  const titlePadR = title.titlePaddingRight == null || title.titlePaddingRight === '' ? 10 : Number(title.titlePaddingRight);
-  const barStyle: Record<string, any> = {
-    padding: `${Number(title.titlePaddingTop) || 20}px ${Number.isFinite(titlePadR) ? titlePadR : 10}px ${Number(title.titlePaddingBottom) || 20}px ${Number.isFinite(titlePadL) ? titlePadL : 10}px`,
-  };
-  const bg1 = String(title.titleBackground || '');
-  const bg2 = String(title.titleBackground2 || '');
-  if (bg1 && bg2) barStyle.background = `linear-gradient(to right, ${bg1}, ${bg2})`;
-  else if (bg1) barStyle.background = bg1;
-  if (Number(title.titleRadius)) {
-    barStyle.borderTopLeftRadius = `${Number(title.titleRadius)}px`;
-    barStyle.borderTopRightRadius = `${Number(title.titleRadius)}px`;
-  }
-  return (
-    <div className="pc-groupon__titlebar" style={barStyle}>
-      <div className={wrapperClass}>
-        {style === 3 && <div className="pc-groupon__title-line" />}
-        {title.titleBackgroundPic?.picUrl ? <img className="pc-groupon__title-bg-pic" src={title.titleBackgroundPic.picUrl} alt="" /> : null}
-        <div className="pc-groupon__title" style={{ color: title.titleColor || '#1a1a1a', fontSize: `${titleFontSize}px` }}>
-          {title.titleText || fallbackText}
-        </div>
-        {title.descText ? (
-          <div className={`pc-groupon__desc${style === 2 ? ' pc-groupon__desc--big' : ''}`} style={{ color: title.descColor || '#1a1a1a', fontSize: `${descFontSize}px` }}>
-            {title.descText}
-          </div>
-        ) : null}
-      </div>
-      {showMore && mode === 2 && <TitleCountdownBox label={label} targetTs={countdownTargetTs} now={now} />}
-      {showMore && mode === 1 && (
-        <div className="pc-groupon__more" style={{ color: moreColor }}>
-          <span>{String(title.moreLink?.title || '').trim() || t('更多')}</span>
-          <TitleMoreArrow />
-        </div>
-      )}
-    </div>
-  );
-}
-
 function SwitchArrow({
   dir,
   left,
@@ -397,7 +288,6 @@ export default function PcGrouponPreview({ data }: { data: Record<string, any> }
   const showPrice = Number(config.showPrice ?? 1) === 1;
   const goodsPadding = Number(config.goodsPadding) || 0;
 
-  const activityStartTs = dateStringToTimestamp(activity?.startTime || '');
   const activityEndTs = dateStringToTimestamp(activity?.endTime || '');
 
   // 无活动时按 style 取 mock（原版 displayProducts 口径：2→4 个，4→6 个，其余全部）
@@ -450,13 +340,15 @@ export default function PcGrouponPreview({ data }: { data: Record<string, any> }
       }}
     >
       <div className="pc-groupon__inner">
-        <GrouponTitleBar
+        {/* 标题走共享 ModuleTitlePreview（与 PC 端 DecModuleTitle 同源；根节点已带
+            innerPadding 内容边距，与 PC 的 shell 结构一致）。此前是本文件自维护的
+            GrouponTitleBar（默认值与共享口径多处漂移）。 */}
+        <ModuleTitlePreview
           title={config.title}
-          fallbackText="拼团"
+          fallbackText={t('拼团')}
           countdownTargetTs={activityEndTs}
-          activityStartTs={activityStartTs}
           now={now}
-          moreColor={config.title?.moreColor || '#1a1a1a'}
+          countdownLabelFallback={t('距结束')}
         />
         <div className="pc-groupon__list-wrap">
           {isScrollLayout ? (

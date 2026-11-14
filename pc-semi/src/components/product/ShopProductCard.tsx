@@ -25,7 +25,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Toast } from '@douyinfe/semi-ui';
 import { apiPost } from '@/lib/client-api';
-import { splitCurrencyPrice } from '@/lib/currency';
+import { splitDisplayPrice } from '@/lib/currency';
 import '@/components/product/shop-product-card.scss';
 
 export type ShopCardVariant = 'standard' | 'land' | 'slide';
@@ -79,8 +79,8 @@ function cardBorderClass(goodsStyle: number): string {
   return 'product-card-border-4';
 }
 
-function splitPrice(value: unknown): { symbol: string; integer: string; decimals: string } {
-  return splitCurrencyPrice(value);
+function splitPrice(value: unknown): { symbol: string; integer: string; decimals: string; suffix: string } {
+  return splitDisplayPrice(value);
 }
 
 export function ShopProductCard({
@@ -190,7 +190,7 @@ export function ShopProductCard({
                 {nameNode}
               </div>
               <div className="shop-card__action">
-                {showPrice ? <ShopPrice symbol={price.symbol} integer={price.integer} decimals={price.decimals} bold={bold} /> : null}
+                {showPrice ? <ShopPrice symbol={price.symbol} integer={price.integer} decimals={price.decimals} suffix={price.suffix} bold={bold} /> : null}
                 {buyButton}
               </div>
             </div>
@@ -215,7 +215,7 @@ export function ShopProductCard({
             </div>
             {briefNode}
             <div className="shop-card__action">
-              {showPrice ? <ShopPrice symbol={price.symbol} integer={price.integer} decimals={price.decimals} bold={bold} /> : null}
+              {showPrice ? <ShopPrice symbol={price.symbol} integer={price.integer} decimals={price.decimals} suffix={price.suffix} bold={bold} /> : null}
               {buyButton}
             </div>
           </div>
@@ -235,7 +235,7 @@ export function ShopProductCard({
           </div>
           {briefNode}
           <div className="shop-card__action">
-            {showPrice ? <ShopPrice symbol={price.symbol} integer={price.integer} decimals={price.decimals} bold={bold} /> : null}
+            {showPrice ? <ShopPrice symbol={price.symbol} integer={price.integer} decimals={price.decimals} suffix={price.suffix} bold={bold} /> : null}
             {buyButton}
           </div>
         </div>
@@ -246,12 +246,13 @@ export function ShopProductCard({
 
 /** 价格（旧版 <FormatPrice>：￥ + 整数 + 小数，24px / var(--price)） */
 /** 旧版 FormatPrice 的 符号 / 整数 / 小数 三段结构（源码 components/format/Price.vue） */
-function ShopPrice({ symbol, integer, decimals, bold }: { symbol: string; integer: string; decimals: string; bold: boolean }) {
+function ShopPrice({ symbol, integer, decimals, suffix, bold }: { symbol: string; integer: string; decimals: string; suffix?: string; bold: boolean }) {
   return (
     <div className="shop-card__price" style={{ fontWeight: bold ? 'bold' : 'normal' }}>
       <span className="shop-card__price-sym">{symbol || '￥'}</span>
       <span className="shop-card__price-int">{integer}</span>
       <span className="shop-card__price-dec">{decimals}</span>
+      {suffix ? <span className="shop-card__price-dec">{suffix}</span> : null}
     </div>
   );
 }

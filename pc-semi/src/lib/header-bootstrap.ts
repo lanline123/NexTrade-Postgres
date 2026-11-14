@@ -29,6 +29,8 @@ export interface PcHeaderBootstrap {
   base: Record<string, any> | null;
   locales: HeaderBootstrapLocale[];
   currencies: HeaderBootstrapCurrency[];
+  /** 后台「价格显示设置」原始 JSON（结构由 @/lib/currency 的 PriceDisplayConfig 定义） */
+  priceDisplay: Record<string, any> | null;
 }
 
 let cached: PcHeaderBootstrap | null = null;
@@ -49,6 +51,10 @@ export function readHeaderBootstrap(): PcHeaderBootstrap | null {
       base: parsed.base && typeof parsed.base === 'object' ? (parsed.base as Record<string, any>) : null,
       locales: Array.isArray(parsed.locales) ? parsed.locales : [],
       currencies: Array.isArray(parsed.currencies) ? parsed.currencies : [],
+      priceDisplay:
+        parsed.priceDisplay && typeof parsed.priceDisplay === 'object'
+          ? (parsed.priceDisplay as Record<string, any>)
+          : null,
     };
     return cached;
   } catch {

@@ -1,27 +1,18 @@
 /**
- * PC 文本标题模块 - 预览组件（React 迁移自 5.8.61 旧版
- * `view/admin/src/views/decorate/decorate/editor/modules/pcHome/pc-title-ad/Preview.vue`）
+ * PC 文本标题模块 - 预览组件
  *
- * DOM / class 与旧版逐行对齐：
- *   .dec-pc-title-ad                     外层（CSS 变量驱动背景/圆角/padding）
- *   .dec-pc-title-ad--align-{1|2}        标题位置（居左/居中）
- *   .dec-pc-title-ad--style-{1|2}        标题风格（风格二：描述更突出）
- *   .dec-pc-title-ad__content            内容区（左右 padding）
- *   .dec-pc-title-ad__empty / __wrap / __inner / __left / __title / __desc / __more
+ * 标题本体走共享 ModuleTitlePreview（与图片广告/商品等模块同一套通用标题样式，
+ * 与 PC 端 DecModuleTitle 同源）：标题样式 1/2/3、对齐、描述（含 descLayout）、
+ * 标题图标、背景渐变、圆角、四边距、更多链接 / 倒计时（moreType=2）全部由共享
+ * 组件按 title 契约渲染。此前本模块用自维护的一套标题 DOM（.dec-pc-title-ad__inner
+ * 等），字号写死 16、不读标题边距、不支持描述排版，与其他模块的标题长相漂移。
  *
- * 标题右侧区（与旧版一致 + 共享标题设置语义）：
- * - `title.showMore === 1` 时渲染右侧区；
- * - `title.moreType === 2`（共享 `titleMore.ts` 的 MORE_TYPE_COUNTDOWN）时渲染
- *   「倒计时」，否则渲染「查看更多 >」；
- * - 倒计时前缀取 `title.countdownLabel`（缺省 t('倒计时')），时间取
- *   `title.countdownEndTime`（支持秒或毫秒，缺省/已结束时展示 00:00:00 预览态）。
- *
- * 说明：5.8.61 旧版 title-ad Preview.vue 仅实现「查看更多」；倒计时为共享标题
- * 设置（`_shared/ModuleTitleSettings.vue` 的 moreType/countdownLabel）能力，
- * 这里按同一语义补齐，样式对齐首页拼团/秒杀模块的 `.countdown-box`。
+ * 本组件只负责：frame 容器（背景/圆角/内边距）、无标题文案时的空态，
+ * 以及倒计时的每秒刷新（把 countdownEndTime 换算成毫秒时间戳传给共享组件）。
  */
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useI18n } from '../../../i18n';
+import ModuleTitlePreview from './shared/ModuleTitlePreview';
 import './pcTitleAd.css';
 
 type AnyRecord = Record<string, any>;
@@ -76,34 +67,6 @@ function mergeConfig(data: AnyRecord | undefined): PcTitleAdConfig {
   } as PcTitleAdConfig;
 }
 
-const pad2 = (n: number): string => String(Math.max(0, n)).padStart(2, '0');
-
-/** 倒计时：endMs 为 0 / 已过期时返回全 0（预览占位 00:00:00）。 */
-function useCountdown(endMs: number): { days: number; hours: number; minutes: number; seconds: number } {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!endMs || endMs <= Date.now()) return undefined;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [endMs]);
-  return useMemo(() => {
-    if (!endMs || endMs <= now) {
-      return { days: 0, hours: 0, minutes: 0, seconds: 0 };
-    }
-    const remain = Math.floor((endMs - now) / 1000);
-    return {
-      days: Math.floor(remain / 86400),
-      hours: Math.floor((remain % 86400) / 3600),
-      minutes: Math.floor((remain % 3600) / 60),
-      seconds: remain % 60,
-    };
-  }, [endMs, now]);
-}
-
-function formatNum(n: number): string {
-  return n < 10 ? `0${n}` : String(n);
-}
-
 export default function PcTitleAdPreview({ data }: { data: Record<string, any> }) {
   const { t } = useI18n();
   const config = mergeConfig(data);
@@ -111,14 +74,6 @@ export default function PcTitleAdPreview({ data }: { data: Record<string, any> }
   const frame = config.frame || {};
 
   const hasTitleText = String(title.titleText ?? '').trim().length > 0;
-
-  const align = Number(title.titleAlign ?? 1);
-  const titleStyle = Number(title.titleStyle ?? 1);
-  const className = [
-    'dec-pc-title-ad',
-    `dec-pc-title-ad--align-${align}`,
-    `dec-pc-title-ad--style-${titleStyle}`,
-  ].join(' ');
 
   const cssVars = {
     '--dec-bg-color': frame.backgroundColor ?? '#ffffff',
@@ -130,96 +85,31 @@ export default function PcTitleAdPreview({ data }: { data: Record<string, any> }
     '--dec-left-right-padding': `${frame.leftAndRightPadding ?? 0}px`,
   } as CSSProperties & Record<string, string>;
 
-  // 标题容器背景：双色渐变 / 单色 / 无
-  const bg1 = String(title.titleBackground ?? '');
-  const bg2 = String(title.titleBackground2 ?? '');
-  const radius = Number(title.titleRadius ?? 0);
-  let titleBackground = '';
-  if (bg1 && bg2) {
-    titleBackground = `linear-gradient(to right, ${bg1}, ${bg2})`;
-  } else if (bg1) {
-    titleBackground = bg1;
-  }
-  const titleContainerStyle: CSSProperties = {
-    borderRadius: `${Number.isFinite(radius) ? radius : 0}px`,
-    background: titleBackground || undefined,
-  };
-
-  // 标题右侧区：showMore 总开关 + moreType（1 查看更多 / 2 倒计时）
-  const showMore = Number(title.showMore) === 1;
-  const moreType = Number(title.moreType ?? 0);
-  const isCountdown = showMore && moreType === 2;
-  const showMoreLink = showMore && !isCountdown;
-
+  // 倒计时目标时间（契约 countdownEndTime 支持秒或毫秒）；共享组件只做纯渲染，
+  // 每秒刷新 now 由这里负责，活动结束/无目标时不启定时器（共享组件显示 00:00:00 占位）。
   const rawEnd = Number(title.countdownEndTime ?? 0);
   const endMs = rawEnd > 0 ? (rawEnd > 1e12 ? rawEnd : rawEnd * 1000) : 0;
-  const countdown = useCountdown(endMs);
-  const countdownLabel = String(title.countdownLabel ?? '').trim() || t('倒计时');
-  const moreHref = title.moreLink?.link || 'javascript:;';
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!endMs || endMs <= Date.now()) return undefined;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [endMs]);
 
   return (
-    <div className={className} style={cssVars}>
+    <div className="dec-pc-title-ad" style={cssVars}>
       <div className="dec-pc-title-ad__content">
         {!hasTitleText ? (
           <div className="dec-pc-title-ad__empty">
             <div className="dec-pc-title-ad__empty-text">{t('点击添加标题')}</div>
           </div>
         ) : (
-          <div className="dec-pc-title-ad__wrap">
-            <div className="dec-pc-title-ad__inner" style={titleContainerStyle}>
-              <div className="dec-pc-title-ad__left">
-                <div
-                  className="dec-pc-title-ad__title"
-                  style={{ color: title.titleColor || undefined }}
-                >
-                  {title.titleText}
-                </div>
-                {title.descText ? (
-                  <div
-                    className="dec-pc-title-ad__desc"
-                    style={{ color: title.descColor || undefined }}
-                  >
-                    {title.descText}
-                  </div>
-                ) : null}
-              </div>
-
-              {isCountdown ? (
-                <div
-                  className="dec-pc-title-ad__countdown"
-                  style={{ color: title.moreColor || undefined }}
-                >
-                  <div className="countdown-box">
-                    <span className="countdown-text">{countdownLabel}: </span>
-                    {countdown.days > 0 && (
-                      <>
-                        <span
-                          className={`countdown-item${String(countdown.days).length > 2 ? ' days' : ''}`}
-                        >
-                          {countdown.days}
-                        </span>
-                        <span className="countdown-separator-text">{t('天')}</span>
-                      </>
-                    )}
-                    <span className="countdown-item">{formatNum(countdown.hours)}</span>
-                    <span className="countdown-separator">:</span>
-                    <span className="countdown-item">{formatNum(countdown.minutes)}</span>
-                    <span className="countdown-separator">:</span>
-                    <span className="countdown-item">{formatNum(countdown.seconds)}</span>
-                  </div>
-                </div>
-              ) : showMoreLink ? (
-                <a
-                  className="dec-pc-title-ad__more"
-                  href={moreHref}
-                  style={{ color: title.moreColor || undefined }}
-                >
-                  <span>{t('查看更多')}</span>
-                  <span className="dec-pc-title-ad__more-arrow">&gt;</span>
-                </a>
-              ) : null}
-            </div>
-          </div>
+          <ModuleTitlePreview
+            title={title}
+            countdownTargetTs={endMs}
+            now={now}
+            countdownLabelFallback={t('倒计时')}
+          />
         )}
       </div>
     </div>

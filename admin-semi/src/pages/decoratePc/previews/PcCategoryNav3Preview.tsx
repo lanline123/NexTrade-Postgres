@@ -4,7 +4,7 @@
  *
  * DOM / class 与旧版逐行对齐：
  *   .dec-pc-category-nav3                   外层（CSS 变量驱动 padding/高度/圆角/背景）
- *   .dec-pc-category-nav3__top/title/more   顶栏：24px 标题 + 右侧「更多 >」
+ *   标题栏                                  共享 ModuleTitlePreview（.dec-module-title）+ 下方页码行
  *   .dec-pc-category-nav3__list-wrap        列表区
  *   .dec-pc-category-nav3__empty            空态（请在设置中添加内容）
  *   .dec-pc-category-nav3__list/scroll      列表（横向滚动，一屏 6 卡）
@@ -16,6 +16,7 @@
  */
 import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { useI18n } from '../../../i18n';
+import ModuleTitlePreview from './shared/ModuleTitlePreview';
 import './pcCategoryNav3.css';
 
 type AnyRecord = Record<string, any>;
@@ -93,24 +94,21 @@ export default function PcCategoryNav3Preview({ data }: { data: Record<string, a
   const { t } = useI18n();
   const config = mergeConfig(data);
   const frame = config.frame || {};
-  // 标题改读共享契约（与 PC 端 DecModuleTitle 同源）：此前只读平铺 titleText/showMore，
-  // 编辑器「标题设置」整组（含标题左右边距）写进 title 对象后在预览里完全不生效。
-  // 契约优先、平铺兜底；边距未配置默认 10（共享口径），上下边距 >0 时才覆盖 CSS 的 20px。
+  // 标题整组（样式/对齐/描述/更多/四边距/图标）走共享 ModuleTitlePreview（与 PC 端
+  // DecModuleTitle 同源）：此前这里只手渲染标题文字 + 更多，descText 描述、标题样式、
+  // 对齐在预览里全都不显示。此处只做契约合并：title 对象优先，缺失字段用平铺的
+  // titleText/showMore/moreLink 兜底（与编辑器 normalizeLegacyTitle 同口径）。
   const navTitle = (config.title && typeof config.title === 'object' ? config.title : {}) as AnyRecord;
-  const navTitleText = navTitle.titleText || config.titleText;
-  const navShowMore = navTitle.showMore != null ? Number(navTitle.showMore) === 1 : Number(config.showMore) === 1;
-  const navMoreText = (navTitle.moreLink && typeof navTitle.moreLink === 'object' ? String(navTitle.moreLink.title || '') : '') || config.showMoreText;
-  const navPadL = navTitle.titlePaddingLeft == null || navTitle.titlePaddingLeft === '' ? 10 : Number(navTitle.titlePaddingLeft);
-  const navPadR = navTitle.titlePaddingRight == null || navTitle.titlePaddingRight === '' ? 10 : Number(navTitle.titlePaddingRight);
-  const navTopStyle: Record<string, any> = {
-    paddingLeft: `${Number.isFinite(navPadL) ? navPadL : 10}px`,
-    paddingRight: `${Number.isFinite(navPadR) ? navPadR : 10}px`,
+  const effTitle: AnyRecord = {
+    ...navTitle,
+    showTitle: navTitle.showTitle ?? 1,
+    titleText: navTitle.titleText || config.titleText,
+    showMore: navTitle.showMore ?? config.showMore,
+    moreLink:
+      navTitle.moreLink && typeof navTitle.moreLink === 'object'
+        ? navTitle.moreLink
+        : { link: config.moreLink?.link || '', title: config.showMoreText || '' },
   };
-  if (Number(navTitle.titlePaddingTop) > 0) navTopStyle.paddingTop = `${Number(navTitle.titlePaddingTop)}px`;
-  if (Number(navTitle.titlePaddingBottom) > 0) navTopStyle.paddingBottom = `${Number(navTitle.titlePaddingBottom)}px`;
-  const navTitleStyle: Record<string, any> = {};
-  if (Number(navTitle.titleFontSize) > 0) navTitleStyle.fontSize = `${Number(navTitle.titleFontSize)}px`;
-  if (navTitle.titleColor) navTitleStyle.color = String(navTitle.titleColor);
   const picList = Array.isArray(config.picList) ? config.picList : [];
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [nav, setNav] = useState({ canScroll: false, page: 1, pages: 1 });
@@ -168,31 +166,14 @@ export default function PcCategoryNav3Preview({ data }: { data: Record<string, a
 
   return (
     <div className="dec-pc-category-nav3" style={cssVars}>
-      <div className="dec-pc-category-nav3__top" style={navTopStyle}>
-        <div className="dec-pc-category-nav3__title" style={navTitleStyle}>
-          {navTitleText || t('热门推荐')}
+      <ModuleTitlePreview title={effTitle} fallbackText={t('热门推荐')} />
+      {nav.canScroll ? (
+        <div className="dec-pc-category-nav3__pager-row">
+          <span className="dec-pc-category-nav3__pager">
+            {nav.page} / {nav.pages}
+          </span>
         </div>
-        <div className="dec-pc-category-nav3__top-right">
-          {nav.canScroll ? (
-            <span className="dec-pc-category-nav3__pager">
-              {nav.page} / {nav.pages}
-            </span>
-          ) : null}
-          {navShowMore && (
-            <a
-              className="dec-pc-category-nav3__more"
-              href={toHref(config.moreLink)}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <span className="dec-pc-category-nav3__more-text">
-                {navMoreText || t('更多')}
-              </span>
-              <span className="dec-pc-category-nav3__more-arrow">&gt;</span>
-            </a>
-          )}
-        </div>
-      </div>
+      ) : null}
 
       <div className="dec-pc-category-nav3__list-wrap">
         {picList.length === 0 ? (

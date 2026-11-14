@@ -16,7 +16,7 @@ import { Toast } from '@douyinfe/semi-ui';
 import { apiGet } from '@/lib/client-api';
 
 import { useTranslation } from 'react-i18next';
-import { formatPrice } from '@/lib/currency';
+import { formatDisplayPrice } from '@/lib/currency';
 interface GrouponRecord {
   grouponPromotionRecordId?: number;
   productName?: string;
@@ -169,7 +169,7 @@ export default function PinListClient() {
                     <span>{item.productName || t('商品')}</span>
                     <div>
                       <ul style={{ lineHeight: 1.5 }}>
-                        <li>{formatPrice(item.minGrouponPrice ?? item.productPrice)}</li>
+                        <li>{formatDisplayPrice(item.minGrouponPrice ?? item.productPrice)}</li>
                         <li style={{ color: '#aaa' }}>X{Number(item.joinNumCount || 1)}</li>
                       </ul>
                     </div>
@@ -177,7 +177,7 @@ export default function PinListClient() {
                 </td>
                 <td className="column-2-4">
                   <div>
-                    <div>{t('总额')}:{formatPrice(item.minGrouponPrice ?? item.productPrice)}</div>
+                    <div>{t('总额')}:{formatDisplayPrice(item.minGrouponPrice ?? item.productPrice)}</div>
                   </div>
                 </td>
                 <td className="column-2-4">

@@ -66,6 +66,13 @@
   white-space: nowrap;
 }
 
+/* 标题栏已改走共享 ModuleTitlePreview，页码改为标题下方右对齐的独立小行 */
+.dec-pc-category-nav3__pager-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 24px;
+}
+
 /* 超过一屏（6 张）时的翻屏箭头：挂在模块根节点，贴模块左右外边缘、模块整体垂直居中 */
 .dec-pc-category-nav3__nav {
   position: absolute;

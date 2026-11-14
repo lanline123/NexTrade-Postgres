@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
-import { formatPrice } from '@/lib/currency';
+import { formatDisplayPrice } from '@/lib/currency';
 import { imageFormat } from '@/lib/image';
 import { urlFormat } from '@/lib/link';
 import FormatPrice from '@/components/FormatPrice';
@@ -1062,7 +1062,7 @@ function PcProduct({ module }: ModuleProps) {
                           <div className="dec-pc-product__bottom">
                             {showPrice ? (
                               <div className="dec-pc-product__price" style={priceFontStyle}>
-                                {formatPrice(item.productPrice)}
+                                {formatDisplayPrice(item.productPrice)}
                               </div>
                             ) : null}
                             {buyBtnConfig.show ? (
@@ -1715,7 +1715,7 @@ function HomeHero({ module }: ModuleProps) {
                 </div>
               ) : null}
             </div>
-            {card.showPrice !== 0 ? <div className="dec-pc-home-hero__card-price">{formatPrice(product.productPrice ?? product.price)}</div> : null}
+            {card.showPrice !== 0 ? <div className="dec-pc-home-hero__card-price">{formatDisplayPrice(product.productPrice ?? product.price)}</div> : null}
           </div>
         ))
       ) : null}
@@ -2517,9 +2517,9 @@ function Groupon({ module }: ModuleProps) {
                           isCardStyle1 ? (
                             <div className="priceBox">
                               <div className="priceBoxNum">
-                                <span className="minGrouponPrice">{formatPrice(item.minGrouponPrice ?? item.grouponPrice)}</span>
+                                <span className="minGrouponPrice">{formatDisplayPrice(item.minGrouponPrice ?? item.grouponPrice)}</span>
                                 <div className="old">
-                                  <span>{formatPrice(item.productPrice)}</span>
+                                  <span>{formatDisplayPrice(item.productPrice)}</span>
                                 </div>
                               </div>
                               <div className="text">{t('拼')}</div>
@@ -2847,18 +2847,17 @@ function ImageHotarea({ module }: ModuleProps) {
   );
 }
 
-/** PcTitleAd.vue：title{titleText,descText,titleAlign,titleStyle,titleColor,descColor,titleBackground,
- * titleBackground2,titleRadius,showMore,moreLink,moreColor}、frame{leftAndRightPadding,backgroundColor,boxRadius}。 */
+/** PcTitleAd.vue：title 为共享标题契约、frame{leftAndRightPadding,backgroundColor,boxRadius}。
+ * 标题本体走通用 DecModuleTitle（与其它模块同一套标题样式：样式/对齐/描述及排版/
+ * 图标/背景/圆角/四边距/更多链接），此前是自维护的 .title-ad-* 渲染（不读标题
+ * 四边距与 descLayout、字号默认值与通用口径不一致）。本函数只保留 frame 容器
+ * 与无文案时的空态；老数据缺 showTitle 时按显示处理（该模块本体就是标题）。 */
 function TitleAd({ module }: ModuleProps) {
     const { t } = useTranslation();
   const title = module.title || {};
   const frame = module.frame || {};
-  const leftRight = px(frame.leftAndRightPadding);
   const align = Number(title.titleAlign) || 1;
-  const styleType = Number(title.titleStyle) || 1;
-  const background = title.titleBackground2 && title.titleBackground
-    ? `linear-gradient(to right, ${title.titleBackground}, ${title.titleBackground2})`
-    : title.titleBackground || '';
+  const effTitle = title.showTitle == null ? { ...title, showTitle: 1 } : title;
   const containerStyle: Record<string, any> = {
     backgroundColor: frame.backgroundColor || '',
     borderRadius: `${px(frame.boxRadius)}px`,
@@ -2872,33 +2871,7 @@ function TitleAd({ module }: ModuleProps) {
           <div className="desc">{t('点击添加标题')}</div>
         </div>
       ) : (
-        <div className={`title-ad-warp ad-title_align__${align}`} style={{ paddingLeft: leftRight, paddingRight: leftRight }}>
-          <div className="title-ad-con">
-            <div className="title-ad-item">
-              <div className="item-content">
-                <div
-                  className={`image-ad-title ad-title_style__${styleType}`}
-                  style={{ borderRadius: `${px(title.titleRadius)}px`, padding: `10px ${leftRight}px`, background: background || undefined }}
-                >
-                  <div className="image-ad-title-l">
-                    <div className="image-ad-title-h" style={{ color: title.titleColor || undefined, fontSize: `${px(title.titleFontSize, 16)}px` }}>{title.titleText}</div>
-                    {title.descText ? <div className="image-ad-title-d" style={{ color: title.descColor || undefined, fontSize: `${px(title.descFontSize, 12)}px` }}>{title.descText}</div> : null}
-                  </div>
-                  {Number(title.showMore) === 1 ? (
-                    <div className="image-ad-title-r">
-                      <a className="more-link" href={navHref(title.moreLink) || '#'} target="_blank" rel="noreferrer" style={{ color: title.moreColor || undefined }}>
-                        <div className="flex align-center">
-                          <span>{title.moreLink?.title || t('查看更多')}</span>
-                          <i className="iconfont-pc icon-login-jt" />
-                        </div>
-                      </a>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <DecModuleTitle title={effTitle} />
       )}
     </Container>
   );
@@ -3880,7 +3853,7 @@ const showPrice = Number((module as any).showProductPrice ?? 1) === 1;
                     </Link>
                   </div>
                 ) : null}
-                {showPrice ? <div className="dec-recommend-product__price">{formatPrice(product.productPrice)}</div> : null}
+                {showPrice ? <div className="dec-recommend-product__price">{formatDisplayPrice(product.productPrice)}</div> : null}
               </div>
               <div className="dec-recommend-product__operate">
                 <Link className="dec-recommend-product__detail" href={productDetailHref(product)} target="_blank">{t('查看详情')}</Link>

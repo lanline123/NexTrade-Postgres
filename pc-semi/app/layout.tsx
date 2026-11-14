@@ -33,7 +33,7 @@ import PcGeoLocaleInit from '@/components/PcGeoLocaleInit';
 import { getHeaderBootstrap } from '@/lib/api';
 import { PC_HEADER_BOOTSTRAP_ID } from '@/lib/header-bootstrap';
 import { loadTheme } from '@/lib/theme-server';
-import { setServerCurrency } from '@/lib/currency';
+import { currencyCodeFrom, setPriceDisplayConfig, setServerCurrency } from '@/lib/currency';
 import { normalizeLocale } from '@/i18n/locale';
 import { loadServerLocale } from '@/i18n/server';
 import { setStorageUrl } from '@/lib/image';
@@ -168,6 +168,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   setStorageUrl(base?.storageUrl);
   let serverRate: string | number | null = null;
   let serverSymbol: string | null = null;
+  let serverCurrencyName: string | null = null;
   let serverLang = 'zh-CN';
   try {
     const { cookies } = await import('next/headers');
@@ -180,11 +181,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       serverRate = parsed?.rate ?? null;
       // 换币后的符号也要用于 SSR，否则首屏先渲染默认 ¥、hydration 后才变成所选币种
       serverSymbol = parsed?.symbol ?? null;
+      serverCurrencyName = parsed?.name ?? null;
     }
   } catch {
     /* cookie 缺失时按默认汇率 1 处理 */
   }
-  setServerCurrency(serverSymbol || base?.dollarSign, serverRate);
+  setServerCurrency(
+    serverSymbol || base?.dollarSign,
+    serverRate,
+    currencyCodeFrom(serverCurrencyName, serverSymbol || base?.dollarSign),
+  );
+  // 后台「价格显示设置」：SSR 价格缩写（万/K/M…）与客户端共用同一份配置
+  setPriceDisplayConfig(headerBootstrap?.priceDisplay);
 
   // 非 zh/en 的翻译不在构建产物里，先按当前语言拉取，保证 SSR 文案即为所选语言
   await loadServerLocale(serverLang);

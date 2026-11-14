@@ -28,6 +28,7 @@ import './pcCoupon.generated.css';
 import { useEffect, useState } from 'react';
 import { apiGet } from '../../../api';
 import { useI18n } from '../../../i18n';
+import ModuleTitlePreview from './shared/ModuleTitlePreview';
 
 /** 旧版 `pcCouponDefaults`（`_shared/coupon/defaults.ts`）。 */
 const COUPON_DEFAULTS = {
@@ -143,36 +144,25 @@ export default function PcCouponPreview({ data }: { data: Record<string, any> })
   const titleObj = moduleConfig.title && typeof moduleConfig.title === 'object'
     ? (moduleConfig.title as unknown as Record<string, any>)
     : null;
-  const headerTitle = titleObj ? String(titleObj.titleText || '') : String(moduleConfig.title || '');
-  const headerDesc = titleObj ? String(titleObj.descText || '') : String(moduleConfig.desc || '');
-  const headerTitleColor = (titleObj?.titleColor as string) || moduleConfig.titleColor || '';
-  const showTitle = titleObj ? Number(titleObj.showTitle) === 1 : Number(moduleConfig.showTitle) === 1;
-  // 共享标题契约：字号 / 对齐 / 副标题排版（默认 18px、左对齐、跟随主标题后，老数据零跳变）
-  const titleFontSize = Number(titleObj?.titleFontSize ?? moduleConfig.titleFontSize) || 18;
-  const descFontSize = Number(titleObj?.descFontSize ?? moduleConfig.descFontSize) || 12;
-  const titleAlign = Number(titleObj?.titleAlign ?? moduleConfig.titleAlign) || 1;
-  const descBelow = Number(titleObj?.descLayout ?? moduleConfig.descLayout ?? 1) === 2;
-  const headerClass = [
-    'dec-coupon__header',
-    titleAlign !== 1 ? `is-align-${titleAlign}` : '',
-    descBelow ? 'is-desc-below' : '',
-  ].filter(Boolean).join(' ');
-  // 标题边距（共享契约口径，与 PC 端 DecModuleTitle 对齐）：左右未配置默认 10、始终内联，
-  // 否则会被共享 CSS .dec-coupon__header 的固定 padding 盖住；上下仅在显式配置且 >0 时覆盖。
-  // 此前标题栏完全没读边距字段，设置里的标题边距滑杆不生效。
   const flatTitle = moduleConfig as unknown as Record<string, any>;
-  const rawPadL = titleObj?.titlePaddingLeft ?? flatTitle.titlePaddingLeft;
-  const rawPadR = titleObj?.titlePaddingRight ?? flatTitle.titlePaddingRight;
-  const headerPadL = rawPadL == null || rawPadL === '' ? 10 : Number(rawPadL);
-  const headerPadR = rawPadR == null || rawPadR === '' ? 10 : Number(rawPadR);
-  const headerStyle: Record<string, any> = {
-    paddingLeft: `${Number.isFinite(headerPadL) ? headerPadL : 10}px`,
-    paddingRight: `${Number.isFinite(headerPadR) ? headerPadR : 10}px`,
+  // 标题整组走共享 ModuleTitlePreview（与 PC 端 DecModuleTitle 同源）：此前这里只手渲染
+  // 标题+描述，titleStyle、标题级 showMore/moreLink 都不跟设置走。此处只做契约归一：
+  // title 对象优先，缺失字段用平铺老字段（title/desc/字号/对齐/边距）兜底后展开覆盖。
+  const effTitle: Record<string, any> = {
+    showTitle: titleObj ? Number(titleObj.showTitle) === 1 ? 1 : 0 : Number(moduleConfig.showTitle) === 1 ? 1 : 0,
+    titleText: titleObj ? String(titleObj.titleText || '') : String(moduleConfig.title || ''),
+    descText: titleObj ? String(titleObj.descText || '') : String(moduleConfig.desc || ''),
+    titleColor: (titleObj?.titleColor as string) || moduleConfig.titleColor || '',
+    titleFontSize: Number(titleObj?.titleFontSize ?? moduleConfig.titleFontSize) || 18,
+    descFontSize: Number(titleObj?.descFontSize ?? moduleConfig.descFontSize) || 13,
+    titleAlign: Number(titleObj?.titleAlign ?? moduleConfig.titleAlign) || 1,
+    descLayout: Number(titleObj?.descLayout ?? moduleConfig.descLayout ?? 1),
+    titlePaddingLeft: titleObj?.titlePaddingLeft ?? flatTitle.titlePaddingLeft,
+    titlePaddingRight: titleObj?.titlePaddingRight ?? flatTitle.titlePaddingRight,
+    titlePaddingTop: titleObj?.titlePaddingTop ?? flatTitle.titlePaddingTop,
+    titlePaddingBottom: titleObj?.titlePaddingBottom ?? flatTitle.titlePaddingBottom,
+    ...(titleObj || {}),
   };
-  const rawPadT = titleObj?.titlePaddingTop ?? flatTitle.titlePaddingTop;
-  const rawPadB = titleObj?.titlePaddingBottom ?? flatTitle.titlePaddingBottom;
-  if (rawPadT != null && rawPadT !== '' && Number(rawPadT) > 0) headerStyle.paddingTop = `${Number(rawPadT)}px`;
-  if (rawPadB != null && rawPadB !== '' && Number(rawPadB) > 0) headerStyle.paddingBottom = `${Number(rawPadB)}px`;
 
   // 模块配置为空时沿用旧版空态占位
   if (isEmpty) {
@@ -206,21 +196,7 @@ export default function PcCouponPreview({ data }: { data: Record<string, any> })
           ['--dec-coupon-radius' as any]: `${boxRadius}px`,
         }}
       >
-        {showTitle && (
-          <div className={headerClass} style={headerStyle}>
-            <p
-              className="dec-coupon__header-title"
-              style={{ color: headerTitleColor || undefined, fontSize: `${titleFontSize}px` }}
-            >
-              {headerTitle}
-            </p>
-            {headerDesc ? (
-              <span className="dec-coupon__header-desc" style={{ fontSize: `${descFontSize}px` }}>
-                {headerDesc}
-              </span>
-            ) : null}
-          </div>
-        )}
+        <ModuleTitlePreview title={effTitle} fallbackText={t('每日领券')} />
 
         <div className="dec-coupon__main">
           <div className="dec-coupon__stub" aria-hidden>

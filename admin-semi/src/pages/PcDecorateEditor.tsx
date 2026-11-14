@@ -1031,29 +1031,15 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
   {
     type: 'pc-title-ad', label: '文本标题', group: '辅助元素',
     defaults: () => ({
-      title: {
-        showTitle: 1, titleStyle: 1, titleAlign: 1, titleBackground: '', titleBackground2: '',
-        titleBackgroundPic: { picUrl: '', picThumb: '' }, titleRadius: 0, titleText: '标题内容',
-        titleColor: '#2a3145', descText: '', descColor: '#aaaaaa', showMore: 0,
-        titleFontSize: 16, descFontSize: 12,
-        moreLink: { link: '', title: '' }, moreColor: '#969799',
-      },
+      // 标题即本体：默认走共享标题契约（standardTitle），与其它模块同一套默认值
+      title: standardTitle({ showTitle: 1, titleText: '标题内容', titleColor: '#2a3145' }),
       frame: standardFrame(),
     }),
     settings: [
-      { kind: 'radio', key: 'title.titleStyle', label: '标题栏风格', options: [{ label: '风格一', value: 1 }, { label: '风格二', value: 2 }] },
-      { kind: 'radio', key: 'title.titleAlign', label: '标题位置', options: [{ label: '居左', value: 1 }, { label: '居中', value: 2 }] },
-      { kind: 'color', key: 'title.titleBackground', label: '标题背景色', resetValue: '' },
-      { kind: 'slider', key: 'title.titleRadius', label: '标题圆角', max: 30 },
-      { kind: 'input', key: 'title.titleText', label: '标题内容', onChangeExtra: (m) => setPath(m, 'title.showTitle', 1) },
-      { kind: 'color', key: 'title.titleColor', label: '标题颜色', resetValue: '#2a3145' },
-      { kind: 'slider', key: 'title.titleFontSize', label: '标题字号', min: 12, max: 36, defaultValue: 16 },
-      { kind: 'input', key: 'title.descText', label: '描述内容' },
-      { kind: 'color', key: 'title.descColor', label: '描述颜色', resetValue: '#aaaaaa' },
-      { kind: 'slider', key: 'title.descFontSize', label: '描述字号', min: 10, max: 28, defaultValue: 12 },
-      { kind: 'radio', key: 'title.showMore', label: '显示查看更多', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
-      { kind: 'color', key: 'title.moreColor', label: '更多文字颜色', resetValue: '#969799' },
-      { kind: 'link', key: 'title.moreLink', label: '更多链接' },
+      // 与其它模块一致的通用「标题设置」组（kind:'title'）：样式1-3/对齐/字号/描述
+      // 及描述排版/背景/圆角/四边距/更多链接。此前这里是手写子集（只有风格一二、
+      // 无边距与描述排版、字号上限不同），与通用标题设置脱节。
+      { kind: 'title', key: 'title', label: '标题设置', titleHideMoreType: true },
       ...containerFields({ showInnerPadding: true }),
     ],
     summary: (m) => String(getPath(m, 'title.titleText') || ''),

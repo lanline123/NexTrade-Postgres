@@ -8,7 +8,7 @@ import { CONTRACT_ADAPTERS } from '@/decorate/components/contract';
 import type { ShopDetail, ShopDecorateData } from '@/lib/api';
 
 import { useTranslation } from 'react-i18next';
-import { formatPrice } from '@/lib/currency';
+import { formatDisplayPrice } from '@/lib/currency';
 function picUrl(pic: any): string { return pic?.picUrl || pic?.picThumb || ''; }
 function linkHref(link: any): string { return link?.link || '#'; }
 function moduleFrame(module: any): React.CSSProperties {
@@ -43,7 +43,7 @@ function ShopProductBlock({ shopId, module }: { shopId: number; module: any }) {
           <Link key={product.productId} href={`/product/${product.productId}`} className="shop-decoration__product" target="_blank">
             <div className="shop-decoration__product-img"><img src={product.picThumb || product.picUrl || ''} alt={product.productName || ''} loading="lazy" /></div>
             <div className="shop-decoration__product-name">{product.productName}</div>
-            <div className="shop-decoration__product-price">{formatPrice(product.productPrice)}</div>
+            <div className="shop-decoration__product-price">{formatDisplayPrice(product.productPrice)}</div>
           </Link>
         ))}
       </div>
