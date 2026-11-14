@@ -1184,6 +1184,13 @@
   &--facebook { background: #1877f2; }
   &--twitter { background: #1d9bf0; }
 }
+/* 第三方登录品牌 logo（原版素材 /assets/images/user/login/ 下的官方图标） */
+.pdp-login__oauth-logo {
+  width: 20px;
+  height: 20px;
+  display: block;
+  object-fit: contain;
+}
 
 /* ---- 滑块行为验证码（源码 components/verifition/Verify/VerifySlide.vue）---- */
 .pc-verify-mask {

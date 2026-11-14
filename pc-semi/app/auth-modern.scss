@@ -513,9 +513,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: min(1080px, 100% - 48px);
+  width: min(1200px, 100% - 48px);
   margin: 0 auto;
-  padding: 22px 0 6px;
+  padding: 24px 0 4px;
 }
 
 .login-card__logo img {
@@ -545,38 +545,40 @@
 .login-card__stage {
   flex: 1;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding: 42px 24px 64px;
+  padding: 40px 24px 56px;
 }
 
+/* 版式比例对齐淘宝登录页实测：卡片 910 宽，左栏 400 / 右栏 510（约 1:1.27），
+   右栏表单内容 370 宽（左右各留 70），输入框高 48、框间距 22 */
 .login-card {
   display: flex;
-  width: 880px;
+  width: 910px;
   max-width: 100%;
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 12px 40px rgba(28, 31, 35, 0.1);
-  padding: 44px 48px 36px;
+  padding: 56px 0 48px;
   box-sizing: border-box;
 }
 
 /* 左栏：手机扫码 */
 .login-card__qr {
-  width: 240px;
+  width: 400px;
   flex: none;
   text-align: center;
-  padding-right: 40px;
   border-right: 1px solid #eef0f2;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
 }
 
 .login-card__qr-title {
   margin: 0 0 6px;
-  font-size: 19px;
+  font-size: 20px;
   font-weight: 600;
   color: #1c1f23;
 }
@@ -588,8 +590,8 @@
 }
 
 .login-card__qr-box {
-  width: 200px;
-  height: 200px;
+  width: 216px;
+  height: 216px;
   border: 1px solid #eceef0;
   border-radius: 8px;
   display: flex;
@@ -599,8 +601,8 @@
 }
 
 .login-card__qr-box img {
-  width: 196px;
-  height: 196px;
+  width: 212px;
+  height: 212px;
   display: block;
 }
 
@@ -617,23 +619,25 @@
 
 /* 右栏 */
 .login-card__main {
-  flex: 1;
-  padding-left: 44px;
+  flex: none;
+  width: 510px;
+  padding: 0 70px;
   min-width: 0;
+  box-sizing: border-box;
 }
 
 .login-card__tabs {
   display: flex;
   align-items: center;
   gap: 18px;
-  margin-bottom: 30px;
+  margin-bottom: 34px;
 }
 
 .login-card__tab {
   border: 0;
   background: none;
   padding: 0;
-  font-size: 19px;
+  font-size: 20px;
   color: #4b5563;
   cursor: pointer;
 }
@@ -652,7 +656,7 @@
 .login-card__form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 22px;
 }
 
 .login-card__field {
@@ -772,13 +776,38 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 22px;
+  margin-top: 24px;
 }
 
 .login-card__social {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
+}
+
+/* 卡片内第三方登录入口：与微信图标同排，纯图标+文字（覆盖旧玻璃版式的胶囊样式） */
+.login-card__social .pdp-login__oauth {
+  display: flex;
+  gap: 16px;
+  margin-top: 0;
+}
+
+.login-card__social .pdp-login__oauth-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 13px;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+.login-card__social .pdp-login__oauth-item:hover {
+  color: var(--general, #65c4aa);
 }
 
 .login-card__wechat {
@@ -822,8 +851,8 @@
 }
 
 .login-card__wxqr {
-  width: 200px;
-  height: 200px;
+  width: 212px;
+  height: 212px;
   margin: 0 auto;
   display: flex;
   align-items: center;
@@ -867,6 +896,7 @@
   }
 
   .login-card__main {
-    padding-left: 0;
+    width: auto;
+    padding: 0;
   }
 }

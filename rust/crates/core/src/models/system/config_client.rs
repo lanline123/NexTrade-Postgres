@@ -147,6 +147,12 @@ pub const BIZ_SHOW_SELLED_COUNT: &str = "showSelledCount";
 pub const BIZ_SHOW_MARKETPRICE: &str = "showMarketprice";
 /// `SettingsEnum.OPEN_WECHAT_OAUTH.bizCode`
 pub const BIZ_OPEN_WECHAT_OAUTH: &str = "openWechatOauth";
+/// `SettingsEnum.GOOGLE_LOGIN_ON.bizCode`
+pub const BIZ_GOOGLE_LOGIN_ON: &str = "googleLoginOn";
+/// `SettingsEnum.FACEBOOK_LOGIN_ON.bizCode`
+pub const BIZ_FACEBOOK_LOGIN_ON: &str = "facebookLoginOn";
+/// `SettingsEnum.TWITTER_LOGIN_ON.bizCode`
+pub const BIZ_TWITTER_LOGIN_ON: &str = "twitterLoginOn";
 /// `SettingsEnum.PERSON_APPLY_ENABLED.bizCode`
 pub const BIZ_PERSON_APPLY_ENABLED: &str = "personApplyEnabled";
 /// `SettingsEnum.KEFU_TYPE.bizCode`
@@ -1255,6 +1261,22 @@ pub fn assemble_base(ctx: &BaseContext) -> serde_json::Map<String, serde_json::V
     m.insert(
         "openWechatOauth".into(),
         opt_str(get_str(cfgs, BIZ_OPEN_WECHAT_OAUTH)),
+    );
+
+    // 第三方登录开关（海外版 Google / Facebook / Twitter-X）：
+    // bizCode 已对照 config_basic 的 FieldSpec 注册表核对（Int 型）；
+    // 配置缺失时按关闭处理，前台据此决定是否展示对应登录入口。
+    m.insert(
+        "googleLoginOn".into(),
+        Value::from(int_or(cfgs, BIZ_GOOGLE_LOGIN_ON, 0)),
+    );
+    m.insert(
+        "facebookLoginOn".into(),
+        Value::from(int_or(cfgs, BIZ_FACEBOOK_LOGIN_ON, 0)),
+    );
+    m.insert(
+        "twitterLoginOn".into(),
+        Value::from(int_or(cfgs, BIZ_TWITTER_LOGIN_ON, 0)),
     );
 
     // 商户设置

@@ -102,19 +102,19 @@ export function OauthButtons({
     <div className="pdp-login__oauth">
       {switches.google ? (
         <button type="button" className="pdp-login__oauth-item" onClick={() => onStart('google')}>
-          <span className="pdp-login__oauth-icon pdp-login__oauth-icon--google">G</span>
+          <img className="pdp-login__oauth-logo" src="/assets/images/user/login/google.png" alt="" />
           <span>Google</span>
         </button>
       ) : null}
       {switches.facebook ? (
         <button type="button" className="pdp-login__oauth-item" onClick={() => onStart('facebook')}>
-          <span className="pdp-login__oauth-icon pdp-login__oauth-icon--facebook">f</span>
+          <img className="pdp-login__oauth-logo" src="/assets/images/user/login/Facebook.png" alt="" />
           <span>Facebook</span>
         </button>
       ) : null}
       {switches.twitter ? (
         <button type="button" className="pdp-login__oauth-item" onClick={() => onStart('twitter')}>
-          <span className="pdp-login__oauth-icon pdp-login__oauth-icon--twitter">X</span>
+          <img className="pdp-login__oauth-logo" src="/assets/images/user/login/twitter.svg" alt="" />
           <span>Twitter/X</span>
         </button>
       ) : null}
