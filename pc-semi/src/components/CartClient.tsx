@@ -9,7 +9,7 @@ import '@/components/product/product-card.scss';
 
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
-import { splitCurrencyPrice } from '@/lib/currency';
+import { formatDisplayPrice, formatPrice, splitCurrencyPrice } from '@/lib/currency';
 /**
  * 购物车 —— 结构沿用 java-b2b2c-overseas-v5.8.61/view/pc/pages/cart/index.vue，
  *            视觉层为 Semi Design 现代主题。
@@ -168,6 +168,18 @@ function Price({
 }) {
   const { symbol, integer, decimals } = splitCurrencyPrice(value);
   const hasCurrencyStyle = currencyStyle && Object.keys(currencyStyle).length > 0;
+  // 结算类展示：达到缩写门槛时「缩写（精确）」整串渲染，如 ¥6.5万（¥65000.00）
+  const displayText = formatDisplayPrice(value);
+  const exactText = formatPrice(value);
+  if (displayText && exactText && displayText !== exactText) {
+    return (
+      <div className={className ? `price align-bottom ${className}` : 'price align-bottom'}>
+        <div className="num" style={fontStyle}>
+          {`${displayText}（${exactText}）`}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={className ? `price align-bottom ${className}` : 'price align-bottom'}>
       <div className="util align-bottom" style={hasCurrencyStyle ? currencyStyle : fontStyle}>

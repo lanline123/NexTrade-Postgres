@@ -53,7 +53,18 @@ export async function getCsrfToken(): Promise<string> {
   return json.data as string;
 }
 
-export async function login(username: string, password: string): Promise<LoginResult> {
+/** 带业务 code 的登录错误（code=1002 表示需要滑块行为验证后重试）。 */
+export class LoginApiError extends Error {
+  code?: number;
+
+  constructor(message: string, code?: number) {
+    super(message);
+    this.name = 'LoginApiError';
+    this.code = code;
+  }
+}
+
+export async function login(username: string, password: string, captchaVerification?: string): Promise<LoginResult> {
   const csrf = await getCsrfToken();
   const res = await fetch(`${API_BASE}/login/signin`, {
     method: 'POST',
@@ -67,11 +78,12 @@ export async function login(username: string, password: string): Promise<LoginRe
       username,
       password,
       captchaUid: '',
+      ...(captchaVerification ? { captchaVerification } : {}),
     }),
   });
   const json = await readJson(res);
   if (!res.ok || json.code !== 0) {
-    throw new Error(json.msg || '登录失败');
+    throw new LoginApiError(json.msg || '登录失败', typeof json.code === 'number' ? json.code : undefined);
   }
   return json.data as LoginResult;
 }

@@ -20,7 +20,7 @@ import { Button, Card, Modal, Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
 
 import { useTranslation } from 'react-i18next';
-import { formatPrice } from '@/lib/currency';
+import { formatDisplayPriceWithExact, formatPrice } from '@/lib/currency';
 interface ReturnPic {
   picUrl?: string;
   picThumb?: string;
@@ -378,9 +378,9 @@ export default function AfterSalesDetailClient({ id }: { id: number }) {
                     </div>
                   </Link>
                 </td>
-                <td>{formatPrice(item.price)}</td>
+                <td>{formatDisplayPriceWithExact(item.price)}</td>
                 <td>{item.quantity ?? 0}</td>
-                <td>{formatPrice(item.subtotal ?? Number(item.price || 0) * Number(item.quantity || 0))}</td>
+                <td>{formatDisplayPriceWithExact(item.subtotal ?? Number(item.price || 0) * Number(item.quantity || 0))}</td>
                 <td>{item.number ?? 0}</td>
               </tr>
             )) : (
@@ -395,7 +395,7 @@ export default function AfterSalesDetailClient({ id }: { id: number }) {
           <tbody>
             <tr><td>{t('买家问题描述')}:</td><td>{detail.description || '-'}</td></tr>
             <tr><td>{t('售后类型')}:</td><td>{detail.aftersalesTypeName || '-'}</td></tr>
-            <tr><td>{t('退款金额')}:</td><td>{formatPrice(detail.refundAmount)}</td></tr>
+            <tr><td>{t('退款金额')}:</td><td>{formatDisplayPriceWithExact(detail.refundAmount)}</td></tr>
             <tr><td>{t('售后原因')}:</td><td>{detail.aftersaleReason || '-'}</td></tr>
             {status === 4 ? <tr><td>{t('退货地址')}:</td><td>{detail.returnAddress || '-'}</td></tr> : null}
             <tr>
@@ -414,9 +414,9 @@ export default function AfterSalesDetailClient({ id }: { id: number }) {
                 </div>
               </td>
             </tr>
-            {refund && Number(refund.isOnline) > 0 ? <tr><td>{t('线上退款金额')}:</td><td>{formatPrice(refund.onlineBalance)}</td></tr> : null}
-            {refund && Number(refund.isOffline) > 0 ? <tr><td>{t('线下退款金额')}:</td><td>{formatPrice(refund.offlineBalance)}</td></tr> : null}
-            {refund && Number(refund.isReceive) > 0 ? <tr><td>{t('余额退款金额')}:</td><td>{formatPrice(refund.refundBalance)}</td></tr> : null}
+            {refund && Number(refund.isOnline) > 0 ? <tr><td>{t('线上退款金额')}:</td><td>{formatDisplayPriceWithExact(refund.onlineBalance)}</td></tr> : null}
+            {refund && Number(refund.isOffline) > 0 ? <tr><td>{t('线下退款金额')}:</td><td>{formatDisplayPriceWithExact(refund.offlineBalance)}</td></tr> : null}
+            {refund && Number(refund.isReceive) > 0 ? <tr><td>{t('余额退款金额')}:</td><td>{formatDisplayPriceWithExact(refund.refundBalance)}</td></tr> : null}
             <tr><td>{t('售后单号')}:</td><td>{detail.aftersalesSn || '-'}</td></tr>
             <tr><td>{t('关联订单')}:</td><td>{detail.orderSn || '-'}</td></tr>
             <tr><td>{t('申请时间')}:</td><td>{detail.addTime || '-'}</td></tr>

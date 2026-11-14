@@ -491,3 +491,382 @@
     }
   }
 }
+
+/* =====================================================================
+ * 登录页淘宝式双栏卡片（LoginClient.tsx 现行版）
+ * 浅灰页面底 + 居中白卡（圆角+阴影）：左栏手机扫码、右栏密码/短信登录。
+ * 主色走 var(--general)，不照搬淘宝橙。
+ * ===================================================================== */
+
+.pg-login-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: #f2f3f5;
+}
+
+.login-card__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(1080px, 100% - 48px);
+  margin: 0 auto;
+  padding: 22px 0 6px;
+}
+
+.login-card__logo img {
+  height: 40px;
+  display: block;
+}
+
+.login-card__logo-text {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1c1f23;
+}
+
+.login-card__topbar-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.login-card__switch {
+  color: var(--general, #65c4aa);
+  text-decoration: none;
+}
+
+.login-card__stage {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 42px 24px 64px;
+}
+
+.login-card {
+  display: flex;
+  width: 880px;
+  max-width: 100%;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(28, 31, 35, 0.1);
+  padding: 44px 48px 36px;
+  box-sizing: border-box;
+}
+
+/* 左栏：手机扫码 */
+.login-card__qr {
+  width: 240px;
+  flex: none;
+  text-align: center;
+  padding-right: 40px;
+  border-right: 1px solid #eef0f2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-card__qr-title {
+  margin: 0 0 6px;
+  font-size: 19px;
+  font-weight: 600;
+  color: #1c1f23;
+}
+
+.login-card__qr-sub {
+  margin: 0 0 18px;
+  font-size: 13px;
+  color: #9aa1ab;
+}
+
+.login-card__qr-box {
+  width: 200px;
+  height: 200px;
+  border: 1px solid #eceef0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.login-card__qr-box img {
+  width: 196px;
+  height: 196px;
+  display: block;
+}
+
+.login-card__qr-empty {
+  font-size: 13px;
+  color: #9aa1ab;
+}
+
+.login-card__qr-tip {
+  margin: 14px 0 0;
+  font-size: 12.5px;
+  color: #9aa1ab;
+}
+
+/* 右栏 */
+.login-card__main {
+  flex: 1;
+  padding-left: 44px;
+  min-width: 0;
+}
+
+.login-card__tabs {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 30px;
+}
+
+.login-card__tab {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 19px;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+.login-card__tab.is-active {
+  color: var(--general, #65c4aa);
+  font-weight: 700;
+}
+
+.login-card__tab-sep {
+  width: 1px;
+  height: 18px;
+  background: #e2e5e9;
+}
+
+.login-card__form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-card__field {
+  display: block;
+}
+
+.login-card__field--row {
+  display: flex;
+  gap: 10px;
+}
+
+.login-card__field--code {
+  position: relative;
+}
+
+.login-card__input {
+  width: 100%;
+  height: 48px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #f4f5f7;
+  padding: 0 14px;
+  font-size: 14.5px;
+  color: #1c1f23;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.login-card__input:focus {
+  background: #fff;
+  border-color: var(--general, #65c4aa);
+}
+
+.login-card__select {
+  flex: none;
+  width: 96px;
+  height: 48px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #f4f5f7;
+  padding: 0 8px;
+  font-size: 14px;
+  outline: none;
+}
+
+.login-card__code-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: none;
+  color: var(--general, #65c4aa);
+  font-size: 13.5px;
+  cursor: pointer;
+  padding: 6px 8px;
+}
+
+.login-card__code-btn:disabled {
+  color: #9aa1ab;
+  cursor: default;
+}
+
+.login-card__error {
+  font-size: 13px;
+  color: #e5484d;
+  background: #fdf1f1;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.login-card__agree {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 2px;
+  font-size: 12.5px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.login-card__agree-star {
+  color: #e5484d;
+  margin-right: 2px;
+}
+
+.login-card__checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.login-card__agree-link {
+  color: var(--general, #65c4aa);
+  text-decoration: none;
+}
+
+.login-card__submit {
+  height: 48px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--general, #65c4aa);
+  color: #fff;
+  font-size: 16.5px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  cursor: pointer;
+}
+
+.login-card__submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.login-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 22px;
+}
+
+.login-card__social {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.login-card__wechat {
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+}
+
+.login-card__links {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+}
+
+.login-card__links a {
+  color: #6b7280;
+  text-decoration: none;
+}
+
+.login-card__links a:hover {
+  color: var(--general, #65c4aa);
+}
+
+/* 微信扫码面板（右栏内切换） */
+.login-card__wechat-panel {
+  text-align: center;
+  padding: 8px 0;
+}
+
+.login-card__title {
+  margin: 0 0 18px;
+  font-size: 19px;
+  font-weight: 600;
+  color: #1c1f23;
+}
+
+.login-card__title--center {
+  text-align: center;
+}
+
+.login-card__wxqr {
+  width: 200px;
+  height: 200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #eceef0;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #9aa1ab;
+}
+
+.login-card__wechat-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.login-card__btn-secondary {
+  height: 36px;
+  padding: 0 18px;
+  border: 1px solid #dfe3e8;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13.5px;
+  color: #374151;
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  .login-card {
+    flex-direction: column;
+    padding: 30px 22px 26px;
+  }
+
+  .login-card__qr {
+    width: auto;
+    border-right: 0;
+    border-bottom: 1px solid #eef0f2;
+    padding: 0 0 22px;
+    margin-bottom: 24px;
+  }
+
+  .login-card__main {
+    padding-left: 0;
+  }
+}

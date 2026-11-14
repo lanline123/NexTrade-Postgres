@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Form, Toast, Typography } from '@douyinfe/semi-ui';
 import { IconArrowLeft, IconHome, IconLock, IconPhone, IconUser } from '@douyinfe/semi-icons';
-import { apiGet, login, loginMobile, sendMobileCode, setToken } from '../api';
+import { apiGet, login, LoginApiError, loginMobile, sendMobileCode, setToken } from '../api';
+import VerifySlide from '../components/VerifySlide';
 import { useI18n } from '../i18n';
 import { applyAppearance, getStoredAppearance } from '../theme';
 
@@ -59,6 +60,10 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
     onSuccess();
   };
 
+  /** 滑块验证弹窗（登录失败达阈值、接口返回 1002 时弹出，成功后带令牌重试） */
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const pendingCreds = useRef<{ username: string; password: string } | null>(null);
+
   const handleSubmit = async (values: Record<string, unknown>) => {
     const username = String(values.username || '').trim();
     const password = String(values.password || '');
@@ -70,6 +75,27 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
     try {
       const result = await login(username, password);
       await finishLogin(result, username);
+    } catch (error) {
+      if (error instanceof LoginApiError && error.code === 1002) {
+        pendingCreds.current = { username, password };
+        setVerifyOpen(true);
+        return;
+      }
+      Toast.error({ content: error instanceof Error ? error.message : t('登录失败') });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** 滑块通过后带 captchaVerification 重试密码登录（令牌一次性，不存 state） */
+  const retryLoginWithCaptcha = async (verifyToken: string) => {
+    const creds = pendingCreds.current;
+    pendingCreds.current = null;
+    if (!creds) return;
+    setLoading(true);
+    try {
+      const result = await login(creds.username, creds.password, verifyToken);
+      await finishLogin(result, creds.username);
     } catch (error) {
       Toast.error({ content: error instanceof Error ? error.message : t('登录失败') });
     } finally {
@@ -389,6 +415,16 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
           </div>
         </main>
       </div>
+
+      {/* 滑块行为验证码：登录失败达阈值（1002）时弹出，通过后带令牌重试 */}
+      <VerifySlide
+        open={verifyOpen}
+        onClose={() => setVerifyOpen(false)}
+        onSuccess={(token) => {
+          setVerifyOpen(false);
+          void retryLoginWithCaptcha(token);
+        }}
+      />
     </div>
   );
 }

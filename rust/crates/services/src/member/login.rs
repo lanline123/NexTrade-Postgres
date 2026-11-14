@@ -35,7 +35,9 @@
 //!
 //! # 其它已知差异
 //!
-//! - 行为验证（AJ-Captcha 滑动拼图）未迁移：`verifyToken` 不做校验（否则发送验证码恒失败）；
+//! - 行为验证：登录侧已接入（失败 5 次触发滑块，见 `system::captcha`）；发码侧
+//!   `verifyToken` 带了必校验（一次性令牌）、没带不拦截（移动端流程无令牌），
+//!   另加同目标 60 秒冷却 + 每日 10 次上限防轰炸（`guard_code_send`）；
 //! - 短信/邮件只写缓存不实际发送（未接 RabbitMQ + 服务商通道）；
 //! - 重置令牌摘要用 **MD5**（services crate 无 `sha2` 依赖，不可改 Cargo.toml），
 //!   Java 用 SHA-256；令牌本身仍为 64 位小写 hex、TTL 与 Java 相同；
@@ -120,6 +122,8 @@ impl LoginService {
             .map(str::trim)
             .filter(|m| !m.is_empty())
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, MOBILE_REQUIRED))?;
+        validate_optional_verify_token(dto.verify_token.as_deref())?;
+        self.guard_code_send("mobile", mobile).await?;
         let code = generate_sms_code();
         let key = sms_code_key(dto.event.as_deref(), mobile);
         self.cache()?
@@ -146,6 +150,8 @@ impl LoginService {
             .filter(|e| !e.is_empty())
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, EMAIL_REQUIRED))?;
         let email = validate_email_basic(Some(email))?;
+        validate_optional_verify_token(dto.verify_token.as_deref())?;
+        self.guard_code_send("email", email).await?;
         let code = generate_sms_code();
         let key = email_code_key(dto.event.as_deref(), email);
         self.cache()?
@@ -1163,6 +1169,24 @@ impl LoginService {
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, CACHE_UNAVAILABLE))
     }
 
+    /// 发码频率限制（防短信/邮件轰炸）：同一目标 60 秒冷却 + 每日上限 10 次。
+    /// 计数走缓存（incr 带 TTL），缓存不可用时与发码主流程一致直接报错。
+    async fn guard_code_send(&self, kind: &str, target: &str) -> Result<()> {
+        let cache = self.cache()?;
+        let cd_key = format!("code-send:cd:{kind}:{target}");
+        if cache.get_str(&cd_key).await?.is_some() {
+            return Err(Error::biz(SERVICE_DATA_ERROR, "发送过于频繁，请稍后再试"));
+        }
+        let day = nextrade_common::utils::now_seconds() / 86_400;
+        let cnt_key = format!("code-send:day:{kind}:{target}:{day}");
+        let sent = cache.incr(&cnt_key, 86_400).await?;
+        if sent > 10 {
+            return Err(Error::biz(SERVICE_DATA_ERROR, "今日发送次数已达上限，请明天再试"));
+        }
+        cache.set_str(&cd_key, "1", 60).await?;
+        Ok(())
+    }
+
     /// 生成唯一用户名（Java `generateUniqueUsername`：随机串 + 冲突重试）。
     async fn generate_unique_username(&self) -> Result<String> {
         for _ in 0..5 {
@@ -1586,6 +1610,17 @@ pub fn require_identity<'a>(value: Option<&'a str>, message: &str) -> Result<&'a
 
 /// 生成 6 位数字验证码（Java `RandomUtil.randomInt(100000, 999999)`）。
 #[must_use]
+/// 发码行为验证：请求带了 verifyToken 就必须校验通过（一次性令牌，防重放）；
+/// 没带令牌的调用方（如移动端原生流程）不拦截，改由频率限制兜底。
+fn validate_optional_verify_token(token: Option<&str>) -> Result<()> {
+    if let Some(t) = token.map(str::trim).filter(|t| !t.is_empty()) {
+        if !crate::system::captcha::verify_captcha_verification(t) {
+            return Err(Error::biz(1002, "行为验证已失效，请重新验证"));
+        }
+    }
+    Ok(())
+}
+
 pub fn generate_sms_code() -> String {
     let n = uuid::Uuid::new_v4().as_u128() % 900_000 + 100_000;
     n.to_string()

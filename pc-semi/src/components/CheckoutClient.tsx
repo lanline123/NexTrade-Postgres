@@ -8,7 +8,7 @@ import { formatDateTime } from '@/lib/datetime';
 import PresaleSteps from '@/components/PresaleSteps';
 
 import { useTranslation } from 'react-i18next';
-import { formatPrice, currencySymbol } from '@/lib/currency';
+import { formatDisplayPriceWithExact, formatPrice, currencySymbol } from '@/lib/currency';
 /**
  * 确认订单（1:1 对照 java-b2b2c-overseas-v5.8.61/view/pc/pages/order/check.vue）
  *
@@ -794,7 +794,7 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
                                         </div>
                                         <div className="content">
                                           <span className="content-text">{attr.attrValue}</span>
-                                          {Number(attr.attrPrice || 0) !== 0 ? <>{formatPrice(attr.attrPrice)}</> : null}
+                                          {Number(attr.attrPrice || 0) !== 0 ? <>{formatDisplayPriceWithExact(attr.attrPrice)}</> : null}
                                         </div>
                                       </div>
                                     ))}
@@ -815,7 +815,7 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
                                 ) : null}
                               </div>
                             </div>
-                            <div className="money">{formatPrice(product.price)}</div>
+                            <div className="money">{formatDisplayPriceWithExact(product.price)}</div>
                             <div className="quantity">x{product.quantity || 1}</div>
                           </div>
                         );
@@ -920,7 +920,7 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
                                   <div className="coupon-off-text">
                                     <div className="top">
                                       {Number(coupon.couponType) === 1 || Number(coupon.couponMoney || 0) > 0 ? (
-                                        <div className="price">{formatPrice(coupon.couponMoney)}</div>
+                                        <div className="price">{formatDisplayPriceWithExact(coupon.couponMoney)}</div>
                                       ) : (
                                         <div className="discount">{coupon.couponDiscount || '-'}</div>
                                       )}
@@ -958,7 +958,7 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
                               <div className="coupon-off-text">
                                 <div className="top">
                                   {Number(coupon.couponType) === 1 || Number(coupon.couponMoney || 0) > 0 ? (
-                                    <div className="price">{formatPrice(coupon.couponMoney)}</div>
+                                    <div className="price">{formatDisplayPriceWithExact(coupon.couponMoney)}</div>
                                   ) : (
                                     <div className="discount">{coupon.couponDiscount || '-'}</div>
                                   )}
@@ -1026,7 +1026,7 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
                     {Number(total.pointsAmount || 0) > 0 ? (
                       <div className="tips">
                         {t('共抵扣')}
-                        <span className="red">{formatPrice(total.pointsAmount)}</span>
+                        <span className="red">{formatDisplayPriceWithExact(total.pointsAmount)}</span>
                       </div>
                     ) : null}
                     <div className="tips">
@@ -1059,7 +1059,7 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
                     </Checkbox>
                     <div>
                       <span className="font-color">
-                        {t('当前账户余额')}{formatPrice(availableBalance)}
+                        {t('当前账户余额')}{formatDisplayPriceWithExact(availableBalance)}
                       </span>
                     </div>
                   </div>
@@ -1119,7 +1119,7 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
                       <span className="font-color">
                         {creditInfo?.disableReason
                           ? creditInfo.disableReason
-                          : `${t('当前可用额度')}${formatPrice(creditInfo?.availableAmount)}`}
+                          : `${t('当前可用额度')}${formatDisplayPriceWithExact(creditInfo?.availableAmount)}`}
                       </span>
                     </div>
                     {Number(creditInfo?.settlementDays || 0) > 0 ? (
@@ -1143,53 +1143,53 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
             <div className="discount">
               <div className="flex justify-between">
                 <div className="total_text">{t('商品总价：')}</div>
-                <div>{formatPrice(total.productAmount)}</div>
+                <div>{formatDisplayPriceWithExact(total.productAmount)}</div>
               </div>
               {Number(total.serviceFee || 0) > 0 ? (
                 <div className="flex justify-between">
                   <div className="total_text">{t('附加费用：')}</div>
-                  <div>{formatPrice(total.serviceFee)}</div>
+                  <div>{formatDisplayPriceWithExact(total.serviceFee)}</div>
                 </div>
               ) : null}
               {Number(total.balance || 0) > 0 && useBalance > 0 ? (
                 <div className="flex justify-between">
                   <div className="total_text">{t('使用余额：')}</div>
-                  <div>-{formatPrice(total.balance)}</div>
+                  <div>-{formatDisplayPriceWithExact(total.balance)}</div>
                 </div>
               ) : null}
               {Number(total.giftCardAmount || 0) > 0 ? (
                 <div className="flex justify-between">
                   <div className="total_text">{t('使用礼品卡：')}</div>
-                  <div>-{formatPrice(total.giftCardAmount)}</div>
+                  <div>-{formatDisplayPriceWithExact(total.giftCardAmount)}</div>
                 </div>
               ) : null}
               {Number(total.pointsAmount || 0) > 0 && flowType !== 3 ? (
                 <div className="flex justify-between">
                   <div className="total_text">{t('积分减免：')}</div>
-                  <div>-{formatPrice(total.pointsAmount)}</div>
+                  <div>-{formatDisplayPriceWithExact(total.pointsAmount)}</div>
                 </div>
               ) : null}
               <div className="discount-content">
                 {Number(total.discounts || 0) > 0 ? (
                   <div className="flex justify-between discount-item-box">
                     <div className="item-label">{t('共优惠')}</div>
-                    <div className="item-value discounts-value">-{formatPrice(total.discounts)}</div>
+                    <div className="item-value discounts-value">-{formatDisplayPriceWithExact(total.discounts)}</div>
                   </div>
                 ) : null}
                 <div className="flex justify-between discount-item-box">
                   <div className="item-label">{t('商品总额')}</div>
-                  <div className="item-value">{formatPrice(total.productAmount)}</div>
+                  <div className="item-value">{formatDisplayPriceWithExact(total.productAmount)}</div>
                 </div>
                 {Number(total.discountCouponAmount || 0) > 0 ? (
                   <div className="flex justify-between discount-item-box">
                     <div className="item-label">{t('优惠券')}</div>
-                    <div className="item-value discounts-value">-{formatPrice(total.discountCouponAmount)}</div>
+                    <div className="item-value discounts-value">-{formatDisplayPriceWithExact(total.discountCouponAmount)}</div>
                   </div>
                 ) : null}
                 {Number(total.discountDiscountAmount || 0) > 0 ? (
                   <div className="flex justify-between discount-item-box">
                     <div className="item-label">{t('其他优惠')}</div>
-                    <div className="item-value discounts-value">-{formatPrice(total.discountDiscountAmount)}</div>
+                    <div className="item-value discounts-value">-{formatDisplayPriceWithExact(total.discountDiscountAmount)}</div>
                   </div>
                 ) : null}
                 {needShipping ? (
@@ -1211,7 +1211,7 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
                                     </div>
                                     <div className="list">
                                       <div className="txt">
-                   {formatPrice(fee)}
+                   {formatDisplayPriceWithExact(fee)}
                                         <span className="free-text">{Number(fee) > 0 ? '' : t('（包邮）')}</span>
                                       </div>
                                     </div>
@@ -1223,7 +1223,7 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
                         </div>
                       </div>
                       {Number(total.shippingFee || 0) > 0 ? (
-                        <div className="item-value">{formatPrice(total.shippingFee)}</div>
+                        <div className="item-value">{formatDisplayPriceWithExact(total.shippingFee)}</div>
                       ) : (
                         <div className="item-value">{updating ? '-' : '包邮'}</div>
                       )}
@@ -1235,13 +1235,13 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
                     <div className="item-label tax-item-label">
                       <span>{t('税费：')}</span>
                     </div>
-                    <div className="item-value">{formatPrice(total.taxRateAmount)}</div>
+                    <div className="item-value">{formatDisplayPriceWithExact(total.taxRateAmount)}</div>
                   </div>
                 ) : null}
                 {Number(total.discountAfter || 0) > 0 ? (
                   <div className="discount-item-box">
                     <div className="item-label">{t('合计')}</div>
-                    <div className="item-value">{formatPrice(total.discountAfter)}</div>
+                    <div className="item-value">{formatDisplayPriceWithExact(total.discountAfter)}</div>
                   </div>
                 ) : null}
               </div>
@@ -1253,7 +1253,7 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
               {`运费明细：`}
               {Object.entries(total.storeShippingFee as Record<string, unknown>).map(([shopId, fee]) => (
                 <span key={shopId}>
-                  {Number(shopId) === 0 ? t('自营') : t('店铺 {id}', { id: shopId })}{formatPrice(fee)}
+                  {Number(shopId) === 0 ? t('自营') : t('店铺 {id}', { id: shopId })}{formatDisplayPriceWithExact(fee)}
                 </span>
               ))}
             </div>

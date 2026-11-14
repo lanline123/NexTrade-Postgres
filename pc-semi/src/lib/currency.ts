@@ -418,6 +418,19 @@ export function formatDisplayPrice(value: unknown): string {
   return `${symbol}${converted.toFixed(2)}`;
 }
 
+/**
+ * 结算类页面用：缩写在前、精确金额括号在后（¥6.5万（¥65000.00)）。
+ * 未达到缩写门槛时只显示精确金额，不加括号。购物车/结算/收银台/
+ * 订单/售后等需要核对金额的页面用这个；纯展示场景用 formatDisplayPrice。
+ */
+export function formatDisplayPriceWithExact(value: unknown): string {
+  const exact = formatPrice(value);
+  if (!exact) return exact;
+  const display = formatDisplayPrice(value);
+  if (!display || display === exact) return exact;
+  return `${display}（${exact}）`;
+}
+
 /** 展示用三段式价格（符号 / 数字 / 后缀），供大字价格排版使用；suffix 为单位（万/K…）。 */
 export function splitDisplayPrice(value: unknown): {
   symbol: string;

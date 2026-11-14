@@ -9279,3 +9279,103 @@ body[theme-mode='dark'] .kefu-setting-actions {
     overflow-y: visible;
   }
 }
+
+/* 滑块行为验证码（与 PC 端 VerifySlide 同协议，管理端 /adminapi 验证端点） */
+.pc-verify-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(16, 24, 40, 0.45);
+}
+.pc-verify {
+  width: 360px;
+  max-width: 94vw;
+  padding: 20px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.2);
+}
+.pc-verify__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.pc-verify__title { color: #101828; font-size: 15px; font-weight: 600; }
+.pc-verify__close {
+  width: 26px; height: 26px;
+  border: 0; border-radius: 6px;
+  background: transparent;
+  color: #667085;
+  font-size: 19px; line-height: 1;
+  cursor: pointer;
+  &:hover { background: var(--ui-bg-soft); }
+}
+.pc-verify__loading { padding: 60px 0; color: #98a2b3; font-size: 13px; text-align: center; }
+.pc-verify__canvas {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #f2f3f5;
+  cursor: pointer;
+  user-select: none;
+}
+.pc-verify__bg { display: block; width: 100%; height: 100%; }
+.pc-verify__block {
+  position: absolute;
+  top: 0;
+  height: 155px;
+  &.is-success { filter: drop-shadow(0 0 4px #52ccba); }
+  &.is-fail { filter: drop-shadow(0 0 4px #d9534f); }
+}
+.pc-verify__refresh {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px; height: 28px;
+  border: 0; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  color: #344054;
+  font-size: 16px;
+  cursor: pointer;
+}
+.pc-verify__track {
+  position: relative;
+  height: 40px;
+  margin-top: 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: #f7f8fa;
+}
+.pc-verify__bar {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  border-radius: 8px 0 0 8px;
+  background: #d2f4ef;
+}
+.pc-verify__slider {
+  position: absolute;
+  top: -1px;
+  width: 46px;
+  height: 40px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: #fff;
+  color: #344054;
+  font-size: 17px;
+  line-height: 38px;
+  text-align: center;
+  cursor: grab;
+  user-select: none;
+  &:active { cursor: grabbing; }
+  &.is-success { background: #d2f4ef; border-color: #52ccba; color: #fff; }
+  &.is-fail { background: #fce1e1; border-color: #d9534f; color: #fff; }
+}
+.pc-verify__tip {
+  position: absolute;
+  left: 0; right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #98a2b3;
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+}
