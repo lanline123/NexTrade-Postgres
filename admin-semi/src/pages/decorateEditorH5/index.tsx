@@ -6,8 +6,8 @@
  *       saveDraft/publish 保存（整体透传，契约红线）。
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Input, Toast } from "@douyinfe/semi-ui";
-import { IconChevronLeft } from "@douyinfe/semi-icons";
+import { Button, Dropdown, Toast } from "@douyinfe/semi-ui";
+import { IconChevronDown, IconExit, IconLanguage } from "@douyinfe/semi-icons";
 import { apiGet, apiPost } from "../../api";
 import { editorStore, useEditorState } from "./store/editorStore";
 import ModuleToolbar from "./components/ModuleToolbar";
@@ -41,6 +41,10 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
 
     const [decorateTitleDraft, setDecorateTitleDraft] = useState("");
     const [saving, setSaving] = useState(false);
+    /** 顶栏标题点击编辑态（原版 topbar-now-txt-title ↔ input 切换） */
+    const [editingTitle, setEditingTitle] = useState(false);
+    /** 预览态：隐藏编辑外壳（模块库/设置面板/画布操作件），只看画布 */
+    const [preview, setPreview] = useState(false);
 
     // 初始化 store（含固定模块注入，空白页也有默认结构）
     useEffect(() => {
@@ -204,41 +208,115 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
 
     // 会员中心页固定模块：此处已在 initDecorate/restoreFromDraft 内注入
 
+    const handleExit = onExit ?? (() => (window.location.href = window.location.origin));
+
     return (
         <div className="h5-editor-root">
-            <div className="h5-editor-header">
-                <div className="h5-editor-header-left">
-                    <Button icon={<IconChevronLeft />} theme="borderless" onClick={onExit ?? (() => (window.location.href = window.location.origin))}>{t('返回')}</Button>
-                    <span className="h5-editor-page-tag">{t('移动端 H5 装修')}</span>
-                    <Input
-                        className="h5-editor-title-input"
-                        value={decorateTitleDraft}
-                        onChange={(v) => setDecorateTitleDraft(v)}
-                        onBlur={commitTitle}
-                        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-                        style={{ width: 260 }}
-                    />
-                </div>
-                <div className="h5-editor-header-right">
-                    {s.hasDraft && (
-                        <Button onClick={onContinueDraft} style={{ marginRight: 8 }}>{t('恢复草稿')}</Button>
-                    )}
-                    <Button loading={saving} onClick={onSavetoDraft} style={{ marginRight: 8 }}>{t('保存草稿')}</Button>
-                    <Button theme="solid" type="primary" loading={saving} onClick={onPublish}>{t('发布上线')}</Button>
+            {/* 顶栏（原版 .decorate-topbar-warp：fixed 54px 深色 #202033） */}
+            <div className="decorate-topbar-warp">
+                <div className="decorate-topbar-con">
+                    <div className="topbar-left">
+                        <div className="topbar-logo" />
+                        <div className="topbar-now-txt h5-editor-exit" onClick={handleExit}>
+                            <IconExit style={{ marginRight: 8 }} />
+                            {t('退出编辑')}
+                        </div>
+                        <div className="topbar-now-txt topbar-now-txt-edit">
+                            <span className="tit">{t('正在装修：')}</span>
+                            {editingTitle ? (
+                                <input
+                                    className="topbar-now-txt-input"
+                                    value={decorateTitleDraft}
+                                    maxLength={50}
+                                    placeholder={t('请输入页面名称')}
+                                    autoFocus
+                                    onChange={(e) => setDecorateTitleDraft(e.target.value)}
+                                    onBlur={() => {
+                                        setEditingTitle(false);
+                                        void commitTitle();
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                                        if (e.key === "Escape") {
+                                            setDecorateTitleDraft(s.decorateTitle || "");
+                                            setEditingTitle(false);
+                                        }
+                                    }}
+                                />
+                            ) : (
+                                <span
+                                    className="topbar-now-txt-title"
+                                    onClick={() => {
+                                        setDecorateTitleDraft(s.decorateTitle || decorateTitleDraft || "");
+                                        setEditingTitle(true);
+                                    }}
+                                >
+                                    {decorateTitleDraft || s.decorateTitle || DEFAULT_DECORATE_TITLE}
+                                </span>
+                            )}
+                        </div>
+                        {/* 语言下拉：原版为海外版多语言装修入口，此处仅视觉占位（项为空操作） */}
+                        <Dropdown
+                            trigger="click"
+                            position="bottomLeft"
+                            render={
+                                <Dropdown.Menu>
+                                    <Dropdown.Item active>{t('简体中文')}</Dropdown.Item>
+                                    <Dropdown.Item>{t('English')}</Dropdown.Item>
+                                </Dropdown.Menu>
+                            }
+                        >
+                            <div className="lang-btn">
+                                <IconLanguage style={{ marginRight: 6 }} />
+                                {t('语言：简体中文')}
+                                <IconChevronDown style={{ marginLeft: 6 }} />
+                            </div>
+                        </Dropdown>
+                    </div>
+                    <div className="topbar-right">
+                        <div className="topbar-btn-group">
+                            <button type="button" className="dec-topbar-btn" onClick={() => setPreview((v) => !v)}>
+                                {preview ? t('退出预览') : t('预览')}
+                            </button>
+                            <button type="button" className="dec-topbar-btn" disabled={saving} onClick={onSavetoDraft}>
+                                {t('存至草稿')}
+                            </button>
+                            <button type="button" className="dec-topbar-btn-primary" disabled={saving} onClick={onPublish}>
+                                {t('保存并发布')}
+                            </button>
+                        </div>
+                        {/* 更多菜单：原版海外版含复制/删除页面，此处仅占位（不放真实删除） */}
+                        <Dropdown
+                            trigger="click"
+                            position="bottomRight"
+                            render={
+                                <Dropdown.Menu>
+                                    <Dropdown.Item>{t('从其他页面复制')}</Dropdown.Item>
+                                </Dropdown.Menu>
+                            }
+                        >
+                            <div className="lang-btn topbar-more-btn">
+                                {t('更多')}
+                                <IconChevronDown style={{ marginLeft: 6 }} />
+                            </div>
+                        </Dropdown>
+                    </div>
                 </div>
             </div>
-            <div className="h5-editor-body">
-                <div className="h5-editor-left">
-                    <div className="h5-editor-page-entry" onClick={() => editorStore.selectPage()}>{t('页面设置')}</div>
-                    <ModuleToolbar pageType={pageType} isShop={localStorage.getItem("adminType") === "shop"} />
-                </div>
-                <div className="h5-editor-center">
-                    <Canvas />
-                </div>
-                <div className="h5-editor-right">
-                    <SettingsPanel />
-                </div>
+
+            {!preview ? <ModuleToolbar pageType={pageType} isShop={localStorage.getItem("adminType") === "shop"} /> : null}
+
+            <div className={`decorate-page-wrap${preview ? " is-preview" : ""}`}>
+                {s.hasDraft && !preview ? (
+                    <div className="decorate-page-alert">
+                        <span className="decorate-page-alert-txt">{t('该页面有一条草稿记录，您可以还原草稿继续编辑。')}</span>
+                        <Button size="small" onClick={onContinueDraft}>{t('继续编辑')}</Button>
+                    </div>
+                ) : null}
+                <Canvas preview={preview} />
             </div>
+
+            {!preview ? <SettingsPanel /> : null}
         </div>
     );
 }

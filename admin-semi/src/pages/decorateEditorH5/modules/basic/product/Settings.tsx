@@ -41,8 +41,8 @@ export default function ProductSettings({ data, onChange }: { data: Record<strin
                     <ColorField data={data} onChange={onChange} field="swiperPageColor" label="指示器颜色" />
                 </SettingGroup>
             ) : null}
-            <TitleSettingsField data={data} onChange={onChange} label="模块标题" />
-            <FrameSettingsField data={data} onChange={onChange} label="边框设置" />
+            <TitleSettingsField data={data} onChange={onChange} titleType="product" />
+            <FrameSettingsField data={data} onChange={onChange} />
         </div>
     );
 }

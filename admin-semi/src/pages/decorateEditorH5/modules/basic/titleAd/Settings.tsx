@@ -6,8 +6,8 @@ import { TitleSettingsField, FrameSettingsField } from "../../../shared/settingW
 export default function TitleAdSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
     return (
         <div className="h5-editor-settings-body">
-            <TitleSettingsField data={data} onChange={onChange} />
-            <FrameSettingsField data={data} onChange={onChange} label="边框设置" />
+            <TitleSettingsField data={data} onChange={onChange} titleType="title" />
+            <FrameSettingsField data={data} onChange={onChange} frameType="titleAd" />
         </div>
     );
 }

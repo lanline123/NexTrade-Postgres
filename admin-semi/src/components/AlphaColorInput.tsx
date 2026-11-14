@@ -119,10 +119,14 @@ export default function AlphaColorInput({ value, onChange }: { value: string; on
     onChange(formatColorValue(parsed.hex, nextAlpha));
   };
 
+  // 原版 SelectColor 的 14 色预置（view/admin/src/components/select/src/SelectColor.vue）。
+  // 第 10–13 色原为 hsv/hsva/hsl/hsla，已换算为等值 hex/rgba（本组件解析器不支持 hsv/hsl）：
+  // hsv(51,100,98)→#fad400；hsva(120,40,94,0.5)→rgba(144,240,144,0.5)；
+  // hsl(181,100%,37%)→#00babd；hsla(209,100%,56%,0.73)→rgba(31,147,255,0.73)。
   const presetColors = [
     '#ff4500', '#ff8c00', '#ffd700', '#90ee90', '#00ced1', '#1e90ff', '#c71585',
-    'rgba(255, 69, 0, 0.68)', 'rgb(255, 120, 0)', '#ff7800', '#ffff00',
-    'rgba(120, 240, 90, 0.5)', 'rgba(0, 224, 224, 0.73)', '#c7158577',
+    'rgba(255, 69, 0, 0.68)', 'rgb(255, 120, 0)', '#fad400',
+    'rgba(144, 240, 144, 0.5)', '#00babd', 'rgba(31, 147, 255, 0.73)', '#c7158577',
   ];
   const solidHex = `#${[r, g, b].map((n) => n.toString(16).padStart(2, '0')).join('')}`;
   const content = (

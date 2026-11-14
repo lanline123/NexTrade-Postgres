@@ -35,6 +35,14 @@ export interface PageModule {
     backgroundRepeat?: string | number;
     backgroundSize?: string | number;
     style?: number;
+    /** 页面标题（CommonPageEdit） */
+    title?: string;
+    /** 标题栏文字颜色（CommonPageEdit） */
+    titleColor?: string;
+    /** 标题栏背景颜色（CommonPageEdit） */
+    titleBackgroundColor?: string;
+    /** 头部风格：1 默认风格 / 2 简约风格（CommonPageEdit） */
+    headerStyle?: number;
     /** 页面标题沉浸式（仅会员中心页使用） */
     immersive?: boolean;
     [key: string]: any;

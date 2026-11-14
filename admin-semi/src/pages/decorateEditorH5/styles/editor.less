@@ -1,146 +1,192 @@
-// H5 编辑器骨架样式（对齐 view/admin editor 的三栏布局）
+// H5 编辑器骨架样式（壳层对齐 view/admin editor/Index.vue + src/css/decorate.less）
+// 通用 dec-* 规则在 styles/css/decorate.css（与原版 decorate.less 的编译产物同源）；
+// 本文件只放：布局覆写（固定定位三栏）、原版缺失规则的补齐、Semi/原生控件的形态适配。
 @import "./h5icons.less";
 
 .h5-editor-root {
-    display: flex;
-    flex-direction: column;
+    // 原版主题变量在本仓库无定义文件：--tig-primary 以本后台主题色近似，
+    // --tig-item-active-bg 以浅蓝近似（原版运行时由主题注入，未确认确切值）
+    --tig-primary: var(--semi-color-primary);
+    --tig-item-active-bg: #e8f1fc;
     height: 100vh;
-    background: #f0f2f5;
+    background: #f7f8fa;
 }
 
-.h5-editor-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    height: 52px;
-    padding: 0 16px;
-    background: #fff;
-    border-bottom: 1px solid #e5e6eb;
-    flex-shrink: 0;
+// ---------------- 顶栏（.decorate-topbar-* 主体在 decorate.css） ----------------
 
-    .h5-editor-header-left {
+.h5-editor-root {
+    .topbar-left {
+        align-items: center;
+    }
+
+    .topbar-now-txt {
+        margin-right: 20px;
+    }
+
+    .h5-editor-exit {
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+    }
+
+    // 标题点击编辑（原版 Index.vue scoped 样式）
+    .topbar-now-txt-edit {
+        display: flex;
+        align-items: center;
+        height: 30px;
+
+        .topbar-now-txt-title {
+            display: inline-block;
+            height: 30px;
+            line-height: 30px;
+            padding: 0 12px;
+            border: 1px solid transparent;
+            border-radius: 2px;
+            cursor: pointer;
+            margin-bottom: 1px;
+
+            &:hover {
+                border-color: #e9ecf0;
+            }
+        }
+
+        .topbar-now-txt-input {
+            width: 200px;
+            height: 30px;
+            padding-left: 12px;
+            border: 1px solid #dcdfe6;
+            border-radius: 2px;
+            background: #fff;
+            color: #303133;
+            font-size: 14px;
+            outline: none;
+            box-sizing: border-box;
+
+            &:focus {
+                border-color: var(--tig-primary);
+            }
+        }
+    }
+
+    // 语言/更多按钮（原版 .lang-btn：深色块，与 .btn 同语言）
+    .lang-btn {
+        cursor: pointer;
+        color: #fff;
+        background-color: #444454;
+        padding: 8px 15px;
+        display: flex;
+        align-items: center;
+        border-radius: 2px;
+        font-size: 14px;
+        line-height: 1;
+        user-select: none;
+    }
+
+    .topbar-right {
+        gap: 10px;
+    }
+
+    .topbar-btn-group {
         display: flex;
         align-items: center;
         gap: 8px;
     }
 
-    .h5-editor-header-right {
-        display: flex;
-        align-items: center;
-    }
-
-    .h5-editor-page-tag {
-        padding: 2px 8px;
-        border-radius: 4px;
-        background: rgba(var(--semi-blue-4), 0.1);
-        color: var(--semi-color-primary);
-        font-size: 12px;
-    }
-}
-
-.h5-editor-body {
-    display: flex;
-    flex: 1;
-    min-height: 0;
-}
-
-.h5-editor-left {
-    width: 300px;
-    background: #fff;
-    border-right: 1px solid #e5e6eb;
-    overflow-y: auto;
-    flex-shrink: 0;
-    padding: 8px;
-
-    .h5-editor-page-entry {
-        margin-bottom: 8px;
-        padding: 8px 12px;
-        border-radius: 6px;
-        background: #f7f8fa;
+    // 预览/存至草稿（原版 .btn：#444454 深色按钮，hover #4d4d5c）
+    .dec-topbar-btn {
+        color: #fff;
+        background: #444454;
+        border: 1px solid #444454;
+        border-radius: 2px;
+        height: 32px;
+        padding: 0 15px;
+        font-size: 14px;
         cursor: pointer;
-        font-size: 13px;
+        display: inline-flex;
+        align-items: center;
 
         &:hover {
-            background: #eef1f6;
+            background: #4d4d5c;
+            border-color: #4d4d5c;
+        }
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    }
+
+    // 保存并发布（原版主按钮）
+    .dec-topbar-btn-primary {
+        color: #fff;
+        background: var(--tig-primary);
+        border: 1px solid var(--tig-primary);
+        border-radius: 2px;
+        height: 32px;
+        padding: 0 15px;
+        font-size: 14px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
     }
 }
 
-.h5-editor-toolbar {
-    .h5-editor-toolbar-title {
-        font-size: 13px;
-        font-weight: 600;
-        margin-bottom: 6px;
+// ---------------- 三栏布局（固定定位，原版 decorate.less 口径） ----------------
+
+// 画布区：原版 less 写 left:200px 与其 280px 工具栏自相矛盾，按工具栏实宽取 280px；
+// 原版靠 perfect-scrollbar 滚动（.ps-container），此处以原生 overflow 替代并保留 3px 滚动条口径
+.h5-editor-root .decorate-page-wrap {
+    left: 280px;
+    right: 380px;
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    &::-webkit-scrollbar {
+        width: 3px;
+        height: 3px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 3px;
+    }
+
+    &.is-preview {
+        left: 0;
+        right: 0;
     }
 }
 
-.h5-editor-module-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    padding: 8px 2px;
-}
-
-.h5-editor-module-item {
+// 草稿提示横幅（原版 .decorate-page-alert：margin 30px auto、max-width 500px）
+.decorate-page-alert {
+    margin: 30px auto 0;
+    max-width: 500px;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 4px;
-    padding: 10px 4px;
-    border: 1px solid #e5e6eb;
-    border-radius: 6px;
-    cursor: pointer;
+    justify-content: space-between;
+    gap: 12px;
+    background: #fdf6ec;
+    color: #e6a23c;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 14px;
+    position: relative;
+    z-index: 2;
+
+    .decorate-page-alert-txt {
+        flex: 1;
+    }
+}
+
+.gallery-list-ul,
+.gallery-list-ul * {
+    -webkit-user-select: none;
     user-select: none;
-    transition: all 0.15s;
-
-    &:hover {
-        border-color: var(--semi-color-primary);
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-    }
-
-    .h5-editor-module-icon {
-        font-size: 20px;
-        height: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .h5-editor-module-label {
-        font-size: 12px;
-        text-align: center;
-        line-height: 1.2;
-    }
-}
-
-.h5-editor-center {
-    flex: 1;
-    min-width: 0;
-    overflow: auto;
-    display: flex;
-    justify-content: center;
-    padding: 20px 0;
-}
-
-// 手机画布
-.h5-editor-canvas-window {
-    width: 375px;
-    min-height: 700px;
-    background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-    flex-shrink: 0;
-}
-
-.h5-editor-canvas-page {
-    min-height: 700px;
-    position: relative;
-}
-
-.gallery-list-ul {
-    min-height: 700px;
-    position: relative;
 }
 
 .h5-editor-canvas-empty {
@@ -150,88 +196,51 @@
     font-size: 13px;
 }
 
-// 画布模块项
-.h5-editor-modules-item {
-    position: relative;
-    cursor: grab;
+// 隐藏模块遮罩（原版 decorate.less .module-mask；ported decorate.css 缺此规则，此处补齐）
+.modules-item .module-mask {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.6);
+    z-index: 99;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #9b9b9d;
+    top: 0;
+    left: 0;
+}
 
-    &:hover {
-        outline: 1px dashed rgba(var(--semi-blue-5), 0.8);
-        outline-offset: -1px;
-    }
+// 页面头沉浸式/简约变体（原版 module.less；ported css 缺此两规则，此处补齐）
+.modules-item-topbar--immersive .module-topbar-warp {
+    background-color: transparent;
+    background-image: none;
+    height: 24px;
+}
 
-    &.active {
-        outline: 2px solid var(--semi-color-primary);
-        outline-offset: -2px;
-    }
+.modules-item-topbar--immersive .module-topbar-title-con {
+    visibility: hidden;
+}
 
-    &.is-hidden {
-        opacity: 0.4;
-    }
+.modules-item-topbar--transparent .module-topbar-warp {
+    background-color: transparent;
+}
 
-    .h5-editor-module-label-tag {
-        position: absolute;
-        top: 0;
-        left: 0;
-        z-index: 6;
-        padding: 1px 8px;
-        font-size: 12px;
-        line-height: 18px;
-        background: var(--semi-color-primary);
-        color: #fff;
-        border-radius: 0 0 6px 0;
-        opacity: 0;
-        transition: opacity 0.15s;
-        pointer-events: none;
-    }
+// 操作条图标尺寸（原版为 iconfont 16px 口径）
+.module-operate .module-operate-item .semi-icon {
+    font-size: 16px;
+}
 
-    .h5-editor-module-actions {
-        position: absolute;
-        top: 4px;
-        right: 4px;
-        z-index: 6;
-        display: none;
-        gap: 2px;
-        background: rgba(0, 0, 0, 0.55);
-        border-radius: 4px;
-        padding: 2px 4px;
-
-        span {
-            width: 22px;
-            height: 22px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            cursor: pointer;
-            border-radius: 3px;
-
-            &:hover {
-                background: rgba(255, 255, 255, 0.2);
-            }
-
-            .semi-icon {
-                font-size: 14px;
-            }
-        }
-    }
-
-    &:hover,
-    &.active {
-        .h5-editor-module-label-tag {
-            opacity: 1;
-        }
-
-        .h5-editor-module-actions {
-            display: inline-flex;
-        }
-    }
+.page-config-icon {
+    display: inline-flex;
+    align-items: center;
+    padding-right: 5px;
 }
 
 .h5-editor-module-preview {
     position: relative;
     z-index: 1;
-    pointer-events: none; // 预览层不拦截点击（与旧编辑器 module-mask 行为一致）
+    pointer-events: none; // 预览层不拦截点击（选中/拖拽由 .modules-item 承担，与原版 :before 覆盖层口径一致）
 }
 
 .h5-editor-preview-loading {
@@ -252,83 +261,325 @@
     font-size: 12px;
 }
 
-// 右侧设置面板
-.h5-editor-right {
-    width: 360px;
-    background: #fff;
-    border-left: 1px solid #e5e6eb;
-    overflow-y: auto;
-    flex-shrink: 0;
-}
+// ---------------- 左侧模块库（.theme-* 主体在 decorate.css） ----------------
 
-.h5-editor-settings {
-    .h5-editor-settings-header {
-        padding: 12px 16px;
-        font-size: 14px;
-        font-weight: 600;
-        border-bottom: 1px solid #e5e6eb;
-        position: sticky;
-        top: 0;
-        background: #fff;
-        z-index: 2;
+.h5-editor-root {
+    // 格子尺寸以原版 ModuleToolbar scoped 样式为准（ported css 中为 PC 口径 50%/10px）
+    .theme-con-box .module-list {
+        display: flex;
+        flex-wrap: wrap;
+        padding: 10px;
     }
 
-    .h5-editor-settings-empty {
-        padding: 40px 16px;
-        text-align: center;
-        color: #999;
-        font-size: 13px;
+    .theme-con-box .module-list .list-item {
+        width: 33.333%;
+        padding: 15px 5px;
+        border: none;
+    }
+
+    .theme-con-box .module-list .list-item .pic {
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #7d7e80;
+    }
+
+    .theme-con-box .module-list .list-item:hover .pic {
+        color: #fff;
+    }
+
+    .theme-con-box .module-list .list-item .content {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .theme-con-box .modules-head {
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-right: 10px;
+    }
+
+    // Semi Tabs 贴近原版 el-tabs：页签项 margin 5px 20px、padding 0
+    .h5-editor-toolbar-tabs {
+        .semi-tabs-bar {
+            padding: 0;
+        }
+
+        .semi-tabs-tab {
+            padding: 0;
+            margin: 5px 12px;
+            line-height: 32px;
+        }
+
+        .semi-tabs-content {
+            padding: 0;
+        }
+    }
+}
+
+// ---------------- 右侧设置面板 ----------------
+
+.h5-editor-root .decorate-edit-wrap {
+    display: flex;
+    flex-direction: column;
+
+    .dec-edit-title {
+        flex: none;
+    }
+
+    .decorate-edit-con {
+        position: relative;
+        flex: 1;
+        height: auto;
+        overflow-y: auto;
+        overflow-x: hidden;
+
+        &::-webkit-scrollbar {
+            width: 3px;
+            height: 3px;
+        }
+
+        &::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+        }
     }
 }
 
 .h5-editor-settings-body {
-    padding: 4px 16px 40px;
+    padding-bottom: 100px;
 }
 
-// 分组：对齐 PC 编辑器 .dec-edit-title-box（整宽浅灰带 + 3px 蓝色竖条标题）
+// 分组容器本身不再加内边距（字段行 .dec-edit-group 自带 10px 16px）；
+// 组内非字段行子元素（提示文案、自定义控件根）补齐左右 16px
 .h5-editor-setting-group {
-    padding: 0 16px 14px;
-    margin-bottom: 4px;
-
-    .h5-editor-setting-label {
-        font-size: 14px;
-        margin-bottom: 6px;
-        color: #969799;
+    > *:not(.dec-edit-group):not(.dec-edit-title-box):not(.dec-spread-title):not(.dec-edit-section-title):not(.dec-divider-line) {
+        padding-left: 16px;
+        padding-right: 16px;
     }
 }
 
-.h5-editor-setting-group-title {
-    margin: 0 -16px 12px;
-    background: #f5f5f5;
-    padding: 10px 14px;
+// 分组标题形态②（原版 .dec-edit-title-box；ported css 缺此规则，此处补齐）
+.dec-edit-title-box {
+    background-color: #f5f5f5;
+    padding: 15px 2px;
+    margin-bottom: 10px;
 
-    span {
+    .title {
         border-left: 3px solid #155bd4;
         padding-left: 10px;
         font-size: 14px;
-        font-weight: 600;
-        color: #1f2329;
-        line-height: 1;
-        display: inline-block;
+        color: #333;
     }
 }
 
-// 页面设置的分组自身也带 h5-editor-settings-body 类（PageSettings 的用法），
-// 去掉 .h5-editor-settings-body 的 40px 底部留白，避免每组下方空一大截。
-// 注意：这里必须是同元素复合选择器——后代选择器会命中所有模块设置里的分组（曾导致标题竖排）。
-.h5-editor-settings-body.h5-editor-setting-group {
-    padding-bottom: 14px;
+// 分组标题形态③（原版 pcSearchResult/Edit.vue 的 .dec-edit-section-title 口径，全编辑器共用）
+.dec-edit-section-title {
+    font-size: 14px;
+    color: #323233;
+    font-weight: 600;
+    padding: 6px 16px;
 }
 
-// 模块库 IconPark 图标格
-.h5-editor-module-icon--park {
+// ---------------- 共享控件适配（Semi/原生控件 → 原版形态） ----------------
+
+// 单选分段组：label 元素撑满控件区（原版 .dec-radio-group 在 .dec-edit-group-con 内 flex:1）
+.dec-edit-group-con .dec-radio-group {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #4e5969;
-    height: 28px;
+    flex-wrap: wrap;
+    width: 100%;
+
+    .el-radio-button {
+        flex: 1;
+        margin-left: -1px;
+        cursor: pointer;
+
+        &:first-child {
+            margin-left: 0;
+        }
+    }
 }
 
+// 滑杆（原版 el-slider show-input 形态的近似实现：6px 轨道 + 16px 圆形手柄 + 无步进数字框）
+.dec-range-group {
+    .dec-range-slider-wrap {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        min-width: 0;
+    }
+
+    .dec-range-slider-native {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: #dcdfe6;
+        outline: none;
+        cursor: pointer;
+        margin: 0;
+
+        &::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #fff;
+            border: 2px solid var(--tig-primary);
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+
+        &::-moz-range-thumb {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #fff;
+            border: 2px solid var(--tig-primary);
+            cursor: pointer;
+        }
+    }
+
+    .dec-range-input {
+        display: flex;
+        align-items: center;
+    }
+
+    .dec-range-number {
+        width: 130px;
+        height: 32px;
+        border: 1px solid #dcdfe6;
+        border-radius: 4px;
+        padding: 0 8px;
+        font-size: 14px;
+        color: #606266;
+        text-align: left;
+        outline: none;
+        box-sizing: border-box;
+        -moz-appearance: textfield;
+
+        &::-webkit-outer-spin-button,
+        &::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        &:focus {
+            border-color: var(--tig-primary);
+        }
+    }
+
+    .dec-range-suffix {
+        margin-left: 6px;
+        color: #969799;
+        font-size: 12px;
+    }
+}
+
+// 颜色触发器：方形色块（覆盖 AlphaColorInput 默认 36×28 触发器为 32×32，原版 SelectColor 口径）
+.dec-color-trigger {
+    display: inline-flex;
+
+    .pchead-alpha-color__trigger {
+        width: 32px;
+        min-width: 32px;
+        height: 32px;
+        border-radius: 2px;
+    }
+
+    .pchead-alpha-color__checker {
+        width: 24px;
+        height: 24px;
+    }
+}
+
+// 圆形色板单选（原版 .dec-radio-color-group；ported css 有 .dec-radio-color-button-con 与 selected 边框，补外层形态）
+.dec-radio-color-group .dec-radio-button {
+    cursor: pointer;
+    display: inline-flex;
+}
+
+// PicList 补充：图片信息行小输入框贴合原版 el-input 形态 + 排序行 + 单图空态
+.dec-pic-group {
+    .item-info-item .semi-input-wrapper {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .dec-pic-sort-row {
+        gap: 12px;
+
+        a {
+            color: var(--tig-primary);
+            font-size: 12px;
+            cursor: pointer;
+
+            &.is-disabled {
+                color: #c0c4cc;
+                pointer-events: none;
+            }
+        }
+    }
+}
+
+.dec-pic-select {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+
+    .item-image-con {
+        position: relative;
+        width: 60px;
+        height: 60px;
+        border: 1px solid #e5e5e5;
+        background: #f9f9f9;
+        cursor: pointer;
+        overflow: hidden;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .change-image {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 20px;
+            line-height: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .item-image-empty {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+        }
+    }
+
+    .dec-pic-reset {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--tig-primary);
+        cursor: pointer;
+    }
+}
+
+// 遗留工具类（个别模块设置仍在用）
 .h5-editor-pic-row {
     display: flex;
     align-items: center;

@@ -20,7 +20,7 @@ export default function NoticeSettings({ data, onChange }: { data: Record<string
                     ]}
                 />
             </SettingGroup>
-            <FrameSettingsField data={data} onChange={onChange} label="边框设置" />
+            <FrameSettingsField data={data} onChange={onChange} variant="notice" />
         </div>
     );
 }

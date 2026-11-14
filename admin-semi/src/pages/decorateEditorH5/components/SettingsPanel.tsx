@@ -1,17 +1,19 @@
 /**
  * 设置面板（移植自 view/admin editor/components/SettingPanel.vue）
  *
- * editMode=page：页面设置（背景色/背景图/平铺/尺寸）；
- * editMode=module：懒加载当前模块的设置组件（协议：props = { data, onChange }）。
+ * 壳层对齐原版：外壳 .decorate-edit-wrap（fixed 右侧 380px，见 decorate.css）；
+ * 标题区 .dec-edit-title（padding 24px 16px、h3 18px/600 #323233）；内容区 .decorate-edit-con。
+ * 未选中模块时直接显示页面设置（原版无空态）；pageType 6/8 无页面设置（原版 SettingPanel 门控）。
+ * 页面设置字段集对齐 src/modules/src/commonPage/Edit.vue（CommonPageEdit）。
+ * editMode=module：懒加载当前模块的设置组件（协议：props = { data, onChange, moduleIndex }）。
  */
 import { Suspense, lazy, useMemo } from "react";
-import { Button, Upload, Toast } from "@douyinfe/semi-ui";
-import { IconPlus } from "@douyinfe/semi-icons";
-import AlphaColorInput from "../../../components/AlphaColorInput";
+import { Input, Switch } from "@douyinfe/semi-ui";
 import { editorStore, useEditorState } from "../store/editorStore";
-import { getSettingsComponent, getModuleDefinition } from "../contract/moduleRegistry";
+import { getModuleDefinition } from "../contract/moduleRegistry";
 import ModuleErrorBoundary from "./ModuleErrorBoundary";
-import { imageFormat } from "../shared/format";
+import { ColorField, PicSelectField, RadioRowField, SegmentedRadio, DecDivider } from "../shared/settingWidgets";
+import type { PageModule } from "../contract/types";
 
 import { useI18n } from '../../../i18n';
 const settingsCache = new Map<string, React.ComponentType<any>>();
@@ -26,83 +28,94 @@ function getLazySettings(type: string, url?: string): React.ComponentType<any> |
     return settingsCache.get(key)!;
 }
 
-const backgroundRepeatOptions = [
-    { value: 1, label: "不平铺" },
-    { value: 2, label: "平铺" },
-    { value: 3, label: "纵向平铺" },
-    { value: 4, label: "横向平铺" }
-];
-const backgroundSizeOptions = [
-    { value: 1, label: "按宽度缩放" },
-    { value: 2, label: "按高度缩放" },
-    { value: 3, label: "拉伸铺满" },
-    { value: 4, label: "原始尺寸" }
-];
-
-function PageSettings({ pageModule }: { pageModule: Record<string, any> }) {
+/** 页面设置（对齐 CommonPageEdit 字段顺序与门控；字段挂在 pageModule 上，保存路径不变） */
+function PageSettings({ pageModule, pageType }: { pageModule: PageModule; pageType: number }) {
     const { t } = useI18n();
-    const bg = (pageModule.backgroundImage && typeof pageModule.backgroundImage === "object" ? pageModule.backgroundImage : null) as
-        | { picUrl?: string; picThumb?: string }
-        | null;
+    const data = pageModule as Record<string, any>;
+    const onChange = (patch: Record<string, any>) => editorStore.updatePageModule(patch);
+    const fp = { data, onChange };
+    const repeatLabels: Record<number, string> = { 1: "不平铺", 2: "平铺", 3: "纵向平铺", 4: "横向平铺" };
+    const sizeLabels: Record<number, string> = { 1: "横向100%", 2: "纵向100%", 3: "100%填充" };
+
     return (
         <div className="h5-editor-settings-body">
-            <div className="h5-editor-setting-group">
-                <div className="h5-editor-setting-label">{t('页面背景色')}</div>
-                <AlphaColorInput
-                    value={pageModule.backgroundColor || "#f5f5f5"}
-                    onChange={(v) => editorStore.updatePageModule({ backgroundColor: v })}
-                />
+            {/* 页面标题（原版 dec-edit-group-block + .title 标签形态） */}
+            <div className="dec-edit-group dec-edit-group-block">
+                <div className="dec-edit-group-title">
+                    <div className="title">{t('页面标题')}</div>
+                </div>
+                <div className="dec-edit-group-con">
+                    <Input
+                        value={data.title ?? ""}
+                        placeholder={t('请输入页面标题，可不填，默认为页面名称')}
+                        onChange={(v: string) => onChange({ title: v })}
+                    />
+                </div>
             </div>
-            <div className="h5-editor-setting-group">
-                <div className="h5-editor-setting-label">{t('页面背景图')}</div>
-                {bg?.picUrl ? (
-                    <div className="h5-editor-pic-row">
-                        <img src={imageFormat(bg.picThumb || bg.picUrl)} alt="" />
-                        <Button size="small" type="danger" onClick={() => editorStore.updatePageModule({ backgroundImage: null })}>{t('移除')}</Button>
+            {pageType === 2 ? (
+                <div className="dec-edit-group">
+                    <div className="dec-edit-group-title">
+                        <div className="label">{t('沉浸式标题')}</div>
                     </div>
-                ) : (
-                    <Upload
-                        action="/adminapi/file/uploadImage"
-                        onSuccess={(body: any) => {
-                            const url = body?.data?.url || body?.url;
-                            if (url) {
-                                editorStore.updatePageModule({ backgroundImage: { picUrl: url, picThumb: url } });
-                            } else {
-                                Toast.error(t("上传失败"));
-                            }
-                        }}
-                    >
-                        <Button icon={<IconPlus />}>{t('上传图片')}</Button>
-                    </Upload>
-                )}
+                    <div className="dec-edit-group-con">
+                        <Switch checked={data.immersive === true || Number(data.immersive) === 1} onChange={(v: boolean) => onChange({ immersive: v })} />
+                    </div>
+                </div>
+            ) : null}
+            <RadioRowField
+                {...fp}
+                field="headerStyle"
+                label="头部风格"
+                options={[
+                    { value: 1, label: "默认风格" },
+                    { value: 2, label: "简约风格" }
+                ]}
+            />
+            {/* 原版此项无「重置」链（showDecColorReset 未开），用 resetValue 同值实现等效无操作重置 */}
+            <ColorField {...fp} field="titleBackgroundColor" label="标题栏背景颜色" resetValue={String(data.titleBackgroundColor ?? "")} />
+            <ColorField {...fp} field="titleColor" label="标题栏文字颜色" resetValue={String(data.titleColor ?? "")} />
+            <div className="dec-edit-group">
+                <div className="dec-edit-group-desc" style={{ marginTop: 0 }}>
+                    {t('提示：标题背景颜色和文字修改仅适用于微信小程序和原生/半原生APP。')}
+                </div>
             </div>
-            <div className="h5-editor-setting-group">
-                <div className="h5-editor-setting-label">{t('背景平铺')}</div>
-                <select
-                    className="h5-editor-select"
-                    value={pageModule.backgroundRepeat ?? 1}
-                    onChange={(e) => editorStore.updatePageModule({ backgroundRepeat: Number(e.target.value) })}
-                >
-                    {backgroundRepeatOptions.map((o) => (
-                        <option key={o.value} value={o.value}>
-                            {t(o.label)}
-                        </option>
-                    ))}
-                </select>
+            <DecDivider />
+            <ColorField {...fp} field="backgroundColor" label="页面背景颜色" resetValue={String(data.backgroundColor ?? "")} />
+            <PicSelectField {...fp} field="backgroundImage" label="背景图" />
+            <div className="dec-edit-group dec-edit-group-block">
+                <div className="dec-edit-group-title">
+                    <div className="label">{t('背景图显示')}</div>
+                    <div className="value">{t(repeatLabels[Number(data.backgroundRepeat ?? 1)] || "不平铺")}</div>
+                </div>
+                <div className="dec-edit-group-con">
+                    <SegmentedRadio
+                        value={Number(data.backgroundRepeat ?? 1)}
+                        options={[
+                            { value: 1, label: "不平铺" },
+                            { value: 2, label: "平铺" },
+                            { value: 3, label: "纵向平铺" },
+                            { value: 4, label: "横向平铺" }
+                        ]}
+                        onChange={(v) => onChange({ backgroundRepeat: Number(v) })}
+                    />
+                </div>
             </div>
-            <div className="h5-editor-setting-group">
-                <div className="h5-editor-setting-label">{t('背景尺寸')}</div>
-                <select
-                    className="h5-editor-select"
-                    value={pageModule.backgroundSize ?? 1}
-                    onChange={(e) => editorStore.updatePageModule({ backgroundSize: Number(e.target.value) })}
-                >
-                    {backgroundSizeOptions.map((o) => (
-                        <option key={o.value} value={o.value}>
-                            {t(o.label)}
-                        </option>
-                    ))}
-                </select>
+            <div className="dec-edit-group dec-edit-group-block">
+                <div className="dec-edit-group-title">
+                    <div className="label">{t('背景图填充大小')}</div>
+                    <div className="value">{t(sizeLabels[Number(data.backgroundSize ?? 1)] || "横向100%")}</div>
+                </div>
+                <div className="dec-edit-group-con">
+                    <SegmentedRadio
+                        value={Number(data.backgroundSize ?? 1)}
+                        options={[
+                            { value: 1, label: "横向100%" },
+                            { value: 2, label: "纵向100%" },
+                            { value: 3, label: "100%填充" }
+                        ]}
+                        onChange={(v) => onChange({ backgroundSize: Number(v) })}
+                    />
+                </div>
             </div>
         </div>
     );
@@ -112,32 +125,38 @@ export default function SettingsPanel() {
     const { t } = useI18n();
     const s = useEditorState();
     const activeModule = s.activeModuleIndex !== null ? s.moduleList[s.activeModuleIndex] : null;
+    const isModuleMode = s.editMode === "module" && !!activeModule;
+    // 原版：pageType 6/8 不提供页面设置，未选中模块时面板为空内容区
+    const showPageSettings = !isModuleMode && s.pageType !== 6 && s.pageType !== 8;
 
     const SettingsComp = useMemo(() => {
-        if (s.editMode !== "module" || !activeModule) return null;
+        if (!isModuleMode || !activeModule) return null;
         return getLazySettings(activeModule.type, activeModule.url);
-    }, [s.editMode, activeModule?.type, activeModule?.url, activeModule?.moduleIndex]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isModuleMode, activeModule?.type, activeModule?.url, activeModule?.moduleIndex]);
+
+    const headerTitle = isModuleMode && activeModule ? activeModule.label || activeModule.type : "页面设置";
 
     return (
-        <div className="h5-editor-settings">
-            <div className="h5-editor-settings-header">
-                {s.editMode === "page" ? t("页面设置") : activeModule ? t(activeModule.label || activeModule.type) : t("设置")}
+        <div className="decorate-edit-wrap h5-editor-settings">
+            <div className="dec-edit-title">
+                <h3>{t(headerTitle)}</h3>
             </div>
-            {s.editMode === "page" ? (
-                <PageSettings pageModule={s.pageModule as Record<string, any>} />
-            ) : activeModule && SettingsComp ? (
-                <ModuleErrorBoundary label={activeModule.type}>
-                <Suspense fallback={<div className="h5-editor-preview-loading">{t('设置加载中…')}</div>}>
-                    <SettingsComp
-                        data={activeModule.module}
-                        onChange={(patch: Record<string, any>) => editorStore.updateActiveModule(patch)}
-                        moduleIndex={activeModule.moduleIndex}
-                    />
-                </Suspense>
-                </ModuleErrorBoundary>
-            ) : (
-                <div className="h5-editor-settings-empty">{t('请选择模块或页面进行设置')}</div>
-            )}
+            <div className="decorate-edit-con">
+                {isModuleMode && activeModule && SettingsComp ? (
+                    <ModuleErrorBoundary label={activeModule.type}>
+                        <Suspense fallback={<div className="h5-editor-preview-loading">{t('设置加载中…')}</div>}>
+                            <SettingsComp
+                                data={activeModule.module}
+                                onChange={(patch: Record<string, any>) => editorStore.updateActiveModule(patch)}
+                                moduleIndex={activeModule.moduleIndex}
+                            />
+                        </Suspense>
+                    </ModuleErrorBoundary>
+                ) : showPageSettings ? (
+                    <PageSettings pageModule={s.pageModule} pageType={s.pageType} />
+                ) : null}
+            </div>
         </div>
     );
 }
