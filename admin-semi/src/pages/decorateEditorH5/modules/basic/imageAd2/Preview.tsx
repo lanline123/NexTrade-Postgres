@@ -30,9 +30,9 @@ export default function ImageAd2Preview({ data }: { data: Record<string, any> })
     // Vue 版 showIndicator == 1 才显示 pagination
     const [slideIndex, setSlideIndex] = useState(0);
     const renderDots = (count: number) => (
-        <div className="image-ad-dots">
+        <div className={`image-ad-dots image-ad-dots--${module.picPageType || 1}`}>
             {Array.from({ length: count }).map((_, i) => (
-                <i key={i} style={{ background: i === slideIndex ? swiperPageColor : "rgba(255,255,255,0.7)" }} />
+                <i key={i} className={i === slideIndex ? "active" : ""} style={i === slideIndex ? { background: swiperPageColor } : undefined} />
             ))}
         </div>
     );

@@ -1,32 +1,33 @@
 /**
- * 分类中心(样式1) 模块（契约依据：uniapp-react components/modules/cate-center/cate-center-v1/config.ts 的 cateCenterV1Defaults，
- * 该文件注明与后台 mobileCateCenter/cateCenterV1 Edit.vue defaultModule 保持一致；入口在 pages/productCate/index.tsx，pageType=4）
+ * 分类中心V1 模块（契约自 view/admin editor/modules/mobileCateCenter/cateCenterV1/index.ts 逐字段移植）
  */
 import { registerModule } from "../../../contract/moduleRegistry";
-import { cloneDeep } from "../../../contract/sharedDefaults";
+import { cloneDeep, defaultFrame } from "../../../contract/sharedDefaults";
 
+/** 与旧 mobileCateCenter/cateCenterV1/index.ts cateCenterV1Defaults 逐字段一致（契约） */
 export const cateCenterV1Defaults = {
     searchPlaceholder: "点击搜索商品信息",
     showCategoryName: true,
     showRecommend: true,
     recommendText: "推荐",
-    // 颜色一律留空：空串表示跟随主题色 / 原默认色（与渲染端 config 注释一致）
-    themeColor: "",
+    // 颜色一律留空：空串表示跟随主题色 / 原默认色，保证老数据视觉零变化
     sideBgColor: "",
     sideTextColor: "",
     sideActiveTextColor: "",
     sideActiveBgColor: "",
     groupTitleColor: "",
-    categoryNameColor: ""
+    categoryNameColor: "",
+    frame: { ...cloneDeep(defaultFrame), backgroundColor: "", boxPaddingTop: 0, boxPaddingBottom: 0, boxPadding: 0 }
 };
 
 registerModule({
     type: "cateCenterV1",
-    label: "分类中心(样式1)",
+    label: "分类中心V1",
     icon: '<i class="h5-mod-ico">🗃️</i>',
     url: "mobileCateCenter",
     platform: "mobile",
-    order: 100,
+    order: 1,
+    exclusive: true,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(cateCenterV1Defaults)

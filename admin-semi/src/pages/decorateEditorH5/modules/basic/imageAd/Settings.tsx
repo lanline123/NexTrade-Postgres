@@ -1,5 +1,7 @@
 /**
  * 图片广告1 设置（字段对齐 view/admin imageAd/Settings.vue）
+ *
+ * picType 说明文案逐字取自原版 Settings.vue「添加图片」组的 pic-change-desc（仅 picType 1~4 有文案，5~7 无）。
  */
 import {
     SettingGroup,
@@ -11,7 +13,16 @@ import {
     FrameSettingsField
 } from "../../../shared/settingWidgets";
 
+/** 原版 picType 说明文案（逐字） */
+const PIC_TYPE_DESC: Record<number, string> = {
+    1: "提示：您可以通过拖拽进行图片排序，单图占屏幕宽为100%，建议宽750px，高度自适应",
+    2: "提示：您可以通过拖拽进行图片排序，建议手机端尺寸750x350px，高度统一；PC端宽不小于1500px（PC端选择时轮播默认通宽）",
+    3: "提示：您可以通过拖拽进行图片排序，单图占屏幕宽为80%，建议宽度600px，高度统一",
+    4: "提示：您可以通过拖拽进行图片排序，单图占屏幕宽为40%，建议宽度300px，高度统一"
+};
+
 export default function ImageAdSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
+    const picTypeDesc = PIC_TYPE_DESC[Number(data?.picType)];
     return (
         <div className="h5-editor-settings-body">
             <SettingGroup title="模板样式">
@@ -68,7 +79,22 @@ export default function ImageAdSettings({ data, onChange }: { data: Record<strin
                         { value: 2, label: "圆角" }
                     ]}
                 />
+                <RadioRowField
+                    data={data}
+                    onChange={onChange}
+                    field="isFluxWidth"
+                    label="是否通宽排版(仅PC端有效)"
+                    options={[
+                        { value: 1, label: "是" },
+                        { value: 0, label: "否" }
+                    ]}
+                />
             </SettingGroup>
+            {picTypeDesc ? (
+                <div className="pic-change-desc" style={{ color: "#999", fontSize: 12, lineHeight: "18px", margin: "4px 0 8px" }}>
+                    {picTypeDesc}
+                </div>
+            ) : null}
             <PicListField data={data} onChange={onChange} field="picList" label="图片广告" />
             <TitleSettingsField data={data} onChange={onChange} />
             <FrameSettingsField data={data} onChange={onChange} />

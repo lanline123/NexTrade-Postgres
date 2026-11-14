@@ -17,19 +17,18 @@ export default function WhiteLineSettings({ data, onChange }: { data: Record<str
                         { value: 2, label: "分割线" }
                     ]}
                 />
-                {Number(data?.lineType) === 2 && (
-                    <RadioRowField
-                        data={data}
-                        onChange={onChange}
-                        field="lineStyle"
-                        label="选择样式"
-                        options={[
-                            { value: 1, label: "实线" },
-                            { value: 2, label: "虚线" },
-                            { value: 3, label: "点状线" }
-                        ]}
-                    />
-                )}
+                {/* 原版「选择样式」恒显示（不随 lineType 条件隐藏） */}
+                <RadioRowField
+                    data={data}
+                    onChange={onChange}
+                    field="lineStyle"
+                    label="选择样式"
+                    options={[
+                        { value: 1, label: "实线" },
+                        { value: 2, label: "虚线" },
+                        { value: 3, label: "点状线" }
+                    ]}
+                />
             </SettingGroup>
             <FrameSettingsField data={data} onChange={onChange} label="边框设置" />
         </div>

@@ -1,21 +1,31 @@
 /**
- * 登录入口 模块（契约依据：contract/sharedDefaults.defaultMobileLogin 现成默认值，直接复用；
- * 渲染端 pages/login/index.tsx 取 moduleList 中 type=mobileLogin 的 module，BaseLogin.tsx 按
- * titleColor/subTextColor/inputTextColor/placeholderColor/linkColor/buttonColor/dividerColor/
- * contentPaddingX/contentPaddingTop 下发 CSS 变量驱动登录页）
+ * 移动端登录页模块（契约自 view/admin editor/modules/mobileLogin/mobileLogin/index.ts 逐字段移植）
+ *
+ * 与 PC 登录页复用工具栏分组 loginConfig，靠 platform=mobile-login 隔离。
+ * type/url 沿用旧编辑器契约（mobileLogin/mobileLogin），保证历史数据可渲染。
  */
 import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultMobileLogin } from "../../../contract/sharedDefaults";
 
+/** 与旧 defaultMobileLogin 逐字段一致（契约，单一来源见 sharedDefaults） */
 export const mobileLoginDefaults = cloneDeep(defaultMobileLogin);
+
+const loginIcon = `
+<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 1024 1024" fill="currentColor">
+    <path d="M357.5 81c-21.263 0-38.5 17.229-38.5 38.482s17.237 38.482 38.5 38.482h400.4c55.284 0 100.1 44.796 100.1 100.054v507.964c0 55.258-44.816 100.054-100.1 100.054H357.5c-21.263 0-38.5 17.229-38.5 38.482S336.237 943 357.5 943h400.4c97.81 0 177.1-79.254 177.1-177.018V258.018C935 160.254 855.71 81 757.9 81H357.5z m-231 384.821h364.952l-143.559-143.16c-15.053-15.01-15.081-39.376-0.063-54.422 15.018-15.045 39.394-15.073 54.447-0.063l177.95 177.456c33.17 33.077 33.17 86.789 0 119.867l-177.95 177.455c-15.053 15.011-39.429 14.983-54.447-0.063-15.018-15.046-14.99-39.411 0.063-54.422l146.089-145.683H126.5c-21.263 0-38.5-17.229-38.5-38.482 0-21.254 17.237-38.483 38.5-38.483z"/>
+</svg>
+`;
 
 registerModule({
     type: "mobileLogin",
-    label: "登录入口",
-    icon: '<i class="h5-mod-ico">🔑</i>',
+    label: "登录页",
+    icon: loginIcon,
     url: "mobileLogin",
-    platform: "mobile",
-    order: 102,
+    platform: "mobile-login",
+    toolbarGroup: "loginConfig",
+    order: 1,
+    // 登录页为单配置模块：整页只允许一个 mobileLogin，防止复制/重复添加
+    exclusive: true,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(mobileLoginDefaults)

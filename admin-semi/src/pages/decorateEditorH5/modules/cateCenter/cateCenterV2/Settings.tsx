@@ -1,18 +1,50 @@
 /**
- * 分类中心 V2 设置（字段与渲染端 cateCenterV2Defaults 一一对应；颜色留空 = 跟随主题）
+ * 分类中心V2 设置（字段对齐 view/admin cateCenterV2/Settings.vue）
+ *
+ * 内容设置：展示布局 / 二级分类标签风格 / 文本对齐 / 文字粗细 / 商品名称行数 /
+ * 显示商品名称 / 购买按钮样式（原版为标题在上的整宽块 + 三列等宽单选组）；
+ * 颜色设置：14 色（留空跟随主题，重置回空串）。
  */
-import { SettingGroup, TextField, SwitchField, RadioRowField, NumberField, ColorField } from "../../../shared/settingWidgets";
+import { SettingGroup, SettingRow, SegmentedRadio, RadioRowField, ColorField } from "../../../shared/settingWidgets";
+
+const COLOR_FIELDS: Array<{ field: string; label: string }> = [
+    { field: "themeColor", label: "主题色（价格、按钮、选中态）" },
+    { field: "sideBgColor", label: "一级分类栏背景色" },
+    { field: "sideTextColor", label: "一级分类文字色" },
+    { field: "sideActiveTextColor", label: "一级分类选中文字色" },
+    { field: "sideActiveBgColor", label: "一级分类选中背景色" },
+    { field: "sideIndicatorColor", label: "一级分类选中指示条颜色" },
+    { field: "subTabTextColor", label: "二级标签文字色" },
+    { field: "subTabBgColor", label: "二级标签背景色" },
+    { field: "subTabActiveTextColor", label: "二级标签选中文字色" },
+    { field: "subTabActiveBgColor", label: "二级标签选中背景色" },
+    { field: "goodsListBgColor", label: "商品区背景色" },
+    { field: "productTitleColor", label: "商品标题色" },
+    { field: "priceColor", label: "商品价格色" },
+    { field: "buyBtnColor", label: "购买按钮色" }
+];
+
+const BUY_BTN_OPTIONS = [
+    { value: 0, label: "不显示" },
+    { value: 1, label: "样式一" },
+    { value: 2, label: "样式二" },
+    { value: 3, label: "样式三" },
+    { value: 4, label: "样式四" },
+    { value: 5, label: "样式五" },
+    { value: 6, label: "样式六" },
+    { value: 7, label: "样式七" },
+    { value: 8, label: "样式八" }
+];
 
 export default function CateCenterV2Settings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
     return (
         <div className="h5-editor-settings-body">
-            <SettingGroup title="基础">
-                <TextField data={data} onChange={onChange} field="searchPlaceholder" label="搜索提示文字" />
+            <SettingGroup title="内容设置">
                 <RadioRowField
                     data={data}
                     onChange={onChange}
                     field="styleType"
-                    label="商品样式"
+                    label="展示布局"
                     options={[
                         { value: 2, label: "双列网格" },
                         { value: 3, label: "图文列表" }
@@ -22,7 +54,7 @@ export default function CateCenterV2Settings({ data, onChange }: { data: Record<
                     data={data}
                     onChange={onChange}
                     field="subTabStyle"
-                    label="二级标签风格"
+                    label="二级分类标签风格"
                     options={[
                         { value: 1, label: "实心高亮" },
                         { value: 2, label: "描边高亮" }
@@ -34,8 +66,8 @@ export default function CateCenterV2Settings({ data, onChange }: { data: Record<
                     field="textAlign"
                     label="文本对齐"
                     options={[
-                        { value: 1, label: "居左" },
-                        { value: 2, label: "居中" }
+                        { value: 1, label: "左对齐" },
+                        { value: 2, label: "居中对齐" }
                     ]}
                 />
                 <RadioRowField
@@ -44,29 +76,38 @@ export default function CateCenterV2Settings({ data, onChange }: { data: Record<
                     field="textWeight"
                     label="文字粗细"
                     options={[
-                        { value: 1, label: "常规" },
-                        { value: 2, label: "加粗" }
+                        { value: 1, label: "常规体" },
+                        { value: 2, label: "加粗体" }
                     ]}
                 />
-                <NumberField data={data} onChange={onChange} field="goodsNameRow" label="商品名称行数" min={1} max={2} />
-                <SwitchField data={data} onChange={onChange} field="showName" label="显示商品名称" />
-                <NumberField data={data} onChange={onChange} field="buyBtnStyle" label="购买按钮样式(0-8)" min={0} max={8} />
+                <RadioRowField
+                    data={data}
+                    onChange={onChange}
+                    field="goodsNameRow"
+                    label="商品名称行数"
+                    options={[
+                        { value: 1, label: "1行" },
+                        { value: 2, label: "2行" }
+                    ]}
+                />
+                <RadioRowField
+                    data={data}
+                    onChange={onChange}
+                    field="showName"
+                    label="显示商品名称"
+                    options={[
+                        { value: 1, label: "显示" },
+                        { value: 0, label: "不显示" }
+                    ]}
+                />
+                <SettingRow label="购买按钮样式" block>
+                    <SegmentedRadio value={data?.buyBtnStyle ?? 1} options={BUY_BTN_OPTIONS} onChange={(v) => onChange({ buyBtnStyle: v })} />
+                </SettingRow>
             </SettingGroup>
-            <SettingGroup title="颜色">
-                <ColorField data={data} onChange={onChange} field="themeColor" label="主题色" />
-                <ColorField data={data} onChange={onChange} field="sideBgColor" label="左侧栏背景色" />
-                <ColorField data={data} onChange={onChange} field="sideTextColor" label="左侧栏文字色" />
-                <ColorField data={data} onChange={onChange} field="sideActiveTextColor" label="左侧选中文字色" />
-                <ColorField data={data} onChange={onChange} field="sideActiveBgColor" label="左侧选中背景色" />
-                <ColorField data={data} onChange={onChange} field="sideIndicatorColor" label="左侧指示条色" />
-                <ColorField data={data} onChange={onChange} field="subTabTextColor" label="二级标签文字色" />
-                <ColorField data={data} onChange={onChange} field="subTabBgColor" label="二级标签背景色" />
-                <ColorField data={data} onChange={onChange} field="subTabActiveTextColor" label="标签选中文字色" />
-                <ColorField data={data} onChange={onChange} field="subTabActiveBgColor" label="标签选中背景色" />
-                <ColorField data={data} onChange={onChange} field="goodsListBgColor" label="商品区背景色" />
-                <ColorField data={data} onChange={onChange} field="productTitleColor" label="商品标题色" />
-                <ColorField data={data} onChange={onChange} field="priceColor" label="价格颜色" />
-                <ColorField data={data} onChange={onChange} field="buyBtnColor" label="购买按钮色" />
+            <SettingGroup title="颜色设置">
+                {COLOR_FIELDS.map((item) => (
+                    <ColorField key={item.field} data={data} onChange={onChange} field={item.field} label={item.label} />
+                ))}
             </SettingGroup>
         </div>
     );

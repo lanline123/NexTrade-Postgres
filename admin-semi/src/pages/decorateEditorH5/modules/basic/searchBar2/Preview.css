@@ -1,21 +1,25 @@
-/* 商品搜索2（跨境版）预览样式（移植自 view/admin searchBar2/Preview.vue scoped less） */
-.oversea-sousuo-box {
-    padding: 6px 10px;
-}
-.oversea-sousuo {
+/* 商品搜索2（跨境版）预览样式（自 view/admin searchBar2/Preview.vue <style scoped> 逐条移植，less 嵌套已展平）
+   口径说明（以原版源码为准，与审计描述不符处）：
+   - 原版无「根 transparent / padding 0 12px 于根」规则：padding 0 12px 在 .oversea-sousuo 本身；
+     .oversea-sousuo-box 无任何自身样式（外层无 padding），背景由 module-ad-content 的
+     frame.itemBackgroundColor 内联给出，.oversea-sousuo 本身无 background（透明）。
+   - 占位文字原版只设 color:#9c9ea6，无 font-size（更无 itemFontSize 字段，frame 契约中不存在该键），故不设字号。 */
+.oversea-sousuo-box .oversea-sousuo {
+    border: 1px solid #1a1a1a;
+    border-radius: 4px;
     display: flex;
+    justify-content: center;
     align-items: center;
-    justify-content: space-between;
-    background: #f2f3f5;
-    border-radius: 18px;
     padding: 0 12px;
 }
-.oversea-sousuo .placeholder-text {
-    color: #999;
-    font-size: 14px;
+.oversea-sousuo-box .oversea-sousuo .placeholder-text {
+    color: #9c9ea6;
 }
-.oversea-sousuo .sousuo-icon {
-    color: #666;
+.oversea-sousuo-box .oversea-sousuo .sousuo-icon {
+    flex: 1;
     display: flex;
-    align-items: center;
+    justify-content: flex-end;
+}
+.oversea-sousuo-box .oversea-sousuo .sousuo-icon .icon-sousuo2 {
+    font-size: 20px;
 }

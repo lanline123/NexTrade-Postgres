@@ -1,15 +1,40 @@
 /**
  * 图文导航 设置（字段对齐 view/admin imageNav/Settings.vue）
+ *
+ * rowNum/colNum 在原版为 80px 宽 el-select 且恒显示（不随 navType 条件隐藏）；
+ * 共享 SelectField 为整宽形态，故此处本地以 Semi Select style={{width:80}} 渲染（不改共享控件）。
  */
+import { Select } from "@douyinfe/semi-ui";
 import {
     SettingGroup,
+    SettingRow,
     RadioRowField,
-    SelectField,
     NumberField,
     ColorField,
     PicListField,
     FrameSettingsField
 } from "../../../shared/settingWidgets";
+
+/** 80px 窄下拉（原版 el-select style="width: 80px"） */
+function NarrowSelectField({
+    data,
+    onChange,
+    field,
+    label,
+    options
+}: {
+    data: Record<string, any>;
+    onChange: (patch: Record<string, any>) => void;
+    field: string;
+    label: string;
+    options: Array<{ value: number; label: string }>;
+}) {
+    return (
+        <SettingRow label={label}>
+            <Select value={data?.[field]} style={{ width: 80 }} optionList={options as any} onChange={(v: any) => onChange({ [field]: v })} />
+        </SettingRow>
+    );
+}
 
 export default function ImageNavSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
     return (
@@ -36,33 +61,29 @@ export default function ImageNavSettings({ data, onChange }: { data: Record<stri
                         { value: 3, label: "仅文字" }
                     ]}
                 />
-                {Number(data?.navType) === 1 ? (
-                    <>
-                        <SelectField
-                            data={data}
-                            onChange={onChange}
-                            field="rowNum"
-                            label="一行显示"
-                            options={[
-                                { value: 3, label: "3个" },
-                                { value: 4, label: "4个" },
-                                { value: 5, label: "5个" },
-                                { value: 6, label: "6个" }
-                            ]}
-                        />
-                        <SelectField
-                            data={data}
-                            onChange={onChange}
-                            field="colNum"
-                            label="显示行数"
-                            options={[
-                                { value: 1, label: "1行" },
-                                { value: 2, label: "2行" },
-                                { value: 3, label: "3行" }
-                            ]}
-                        />
-                    </>
-                ) : null}
+                <NarrowSelectField
+                    data={data}
+                    onChange={onChange}
+                    field="rowNum"
+                    label="一行显示"
+                    options={[
+                        { value: 3, label: "3个" },
+                        { value: 4, label: "4个" },
+                        { value: 5, label: "5个" },
+                        { value: 6, label: "6个" }
+                    ]}
+                />
+                <NarrowSelectField
+                    data={data}
+                    onChange={onChange}
+                    field="colNum"
+                    label="显示行数"
+                    options={[
+                        { value: 1, label: "1行" },
+                        { value: 2, label: "2行" },
+                        { value: 3, label: "3行" }
+                    ]}
+                />
                 <PicListField data={data} onChange={onChange} field="picList" label="导航图片（图片+文字+链接）" />
                 <NumberField data={data} onChange={onChange} field="imgPadding" label="元素边距" suffix="px" max={30} />
                 <RadioRowField

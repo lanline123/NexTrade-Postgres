@@ -2,13 +2,14 @@
  * 商品2 预览（移植自 view/admin editor/modules/mobile/product2/Preview.vue，跨境版样式）
  *
  * 类名与 Vue 版逐一致（ad-style__2 / item-image-bg / lyecs-buyBtn），
- * 样式由移植的全局 module.css 提供；商品列表按来源实时拉取。
+ * 样式由移植的全局 module.css + 本模块 Preview.css（原版 scoped）提供；商品列表按来源实时拉取。
  */
 import { useMemo } from "react";
 import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
 import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
 import { product2Defaults } from "./index";
+import "./Preview.css";
 
 import { useI18n } from '../../../../../i18n';
 

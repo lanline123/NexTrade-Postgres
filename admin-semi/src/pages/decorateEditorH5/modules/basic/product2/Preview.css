@@ -1,0 +1,30 @@
+/* 商品2 专属样式（自 view/admin product2/Preview.vue <style scoped> 逐条移植，less 嵌套已展平）
+   原 scoped 靠 Vue 组件作用域隔离；本实现以根类 .ad-style__2 前缀等效隔离，避免污染同画布的 product 模块。
+   口径：任务描述的「.goods-ad-image-bg」在原版模板中实为 .item-image-a 内的 .item-image-bg，按源码类名移植。 */
+.ad-style__2 .goods-ad-con {
+    gap: 8px;
+}
+.module-goods_ad.ad-style__2 .goods-ad-warp .goods-ad-con .goods-ad-item {
+    width: calc(100% / 2 - 4px);
+}
+.ad-style__2 .item-content {
+    overflow: hidden;
+}
+.ad-style__2 .item-image-a {
+    position: relative;
+    display: block;
+}
+.ad-style__2 .item-image-a .item-image-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+.ad-style__2 .item-image-a img {
+    z-index: 1;
+    position: relative;
+}
+.ad-style__2 .icon-gouwuche3 {
+    color: #f23030;
+}

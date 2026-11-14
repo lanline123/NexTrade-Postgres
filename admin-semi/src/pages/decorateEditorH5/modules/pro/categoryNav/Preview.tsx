@@ -16,7 +16,12 @@ export default function CategoryNavPreview({ data }: { data: Record<string, any>
 
     const commonStyle = formatCommonStyle(module.moduleStyle ?? {}, module.contentStyle ?? {}, module.subTitle ?? {});
     const categoryList: any[] = module.categoryList || [];
+    // 原版 AnimationFormat 在编辑器预览内为恒定串（transform/opacity 归位）+ transitionDuration 恒 0s，
+    // 与旧 Preview.vue 逐字一致（真实缓动在前端渲染时生效，编辑器内不播）
     const itemStyle: React.CSSProperties = {
+        transform: "translate(0px, 0px) scale(1) rotateY(0deg)",
+        opacity: 1,
+        transitionDuration: "0s",
         flexGrow: 0,
         flexBasis: `${module.rowNum ? 100 / module.rowNum : 25}%`,
         ...(module.listStyleType === "slide" ? { flexShrink: 0 } : {}),

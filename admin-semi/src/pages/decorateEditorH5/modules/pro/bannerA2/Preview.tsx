@@ -24,13 +24,18 @@ export default function BannerA2Preview({ data }: { data: Record<string, any> })
     const [realIndex, setRealIndex] = useState(0);
     const bgUrl = picList[realIndex]?.picUrl || picList[0]?.picUrl || "";
 
+    // 原版 searchStyle：仅 height/border-radius/background-color 三项内联（其余走 CSS）
     const searchStyle: React.CSSProperties = {
-        background: bannerStyle.searchBackgroundColor || "#ffffffcc",
-        color: bannerStyle.searchFontColor || "#969799",
-        height: `${bannerStyle.searchHeight ?? 36}px`,
+        height: `${bannerStyle.searchHeight ?? 34}px`,
         borderRadius: `${bannerStyle.searchRadius ?? 20}px`,
-        border: "1.5px solid rgba(26, 26, 26, 1)",
-        boxSizing: "border-box",
+        backgroundColor: bannerStyle.searchBackgroundColor || undefined,
+    };
+    // 原版 searchTnputStyle：height/line-height = searchHeight、color/background 取 bannerStyle
+    const searchInputStyle: React.CSSProperties = {
+        height: `${bannerStyle.searchHeight ?? 34}px`,
+        lineHeight: `${bannerStyle.searchHeight ?? 34}px`,
+        color: bannerStyle.searchFontColor || undefined,
+        backgroundColor: bannerStyle.searchBackgroundColor || undefined,
     };
 
     return (
@@ -59,15 +64,27 @@ export default function BannerA2Preview({ data }: { data: Record<string, any> })
                     <div className="Banner">
                         <div className="bar">
                             <div className="search-top">
-                                <div className="area-select-box">北京市</div>
+                                <div className="area-select-box">
+                                    <div>北京市</div>
+                                    {/* 原版 icon-a-gengduo20：9px、rotate(90deg) 的更多字形，以等形 SVG 承接 */}
+                                    <svg className="area-more-icon" width="9" height="9" viewBox="0 0 10 10" style={{ transform: "rotate(90deg)", flexShrink: 0 }} aria-hidden="true">
+                                        <path d="M3 1 L7 5 L3 9" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                </div>
                                 {Number(module.searchContent?.showSearch) === 1 ? (
                                     <div className="search" style={searchStyle}>
-                                        <span className="search-icon" style={{ color: bannerStyle.searchIconColor }}>
-                                            🔍
-                                        </span>
-                                        <div className="search-input" style={{ color: bannerStyle.searchFontColor }}>
-                                            {module.searchContent?.searchText}
+                                        <div className="search-icon" style={{ color: bannerStyle.searchIconColor }}>
+                                            {/* 原版 iconfont-h5 icon-sousuo1 搜索字形，以等形 SVG 承接 */}
+                                            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style={{ display: "block" }}>
+                                                <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" />
+                                                <path d="M15.3 15.3 L21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                            </svg>
                                         </div>
+                                        <form className="search-form" action="" onSubmit={(e) => e.preventDefault()}>
+                                            <div className="search-input" style={searchInputStyle}>
+                                                <div className="search-placeholder">{module.searchContent?.searchText}</div>
+                                            </div>
+                                        </form>
                                     </div>
                                 ) : null}
                             </div>
@@ -98,7 +115,8 @@ export default function BannerA2Preview({ data }: { data: Record<string, any> })
                                                 key={i}
                                                 className={i === realIndex ? "on" : ""}
                                                 style={{
-                                                    background: i === realIndex ? bannerContent.swiperPageColor || "#fff" : bannerContent.indicatorColor || "rgba(255,255,255,0.5)",
+                                                    // 原版 Swiper 分页色：激活 = swiperPageColor（兜底 #fff），默认 = indicatorColor（兜底 rgba(0,0,0,0.2)）
+                                                    background: i === realIndex ? bannerContent.swiperPageColor || "#fff" : bannerContent.indicatorColor || "rgba(0, 0, 0, 0.2)",
                                                 }}
                                             />
                                         ))}

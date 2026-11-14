@@ -2662,3 +2662,55 @@
   flex: 1;
   margin-top: 0;
 }
+
+/* 轮播自绘指示点 .image-ad-dots（我方以 NutUI Swiper indicator 自绘，对应原版 Swiper 分页
+   .swiper-pagination 的三种 picPageType 样式；原版仓库无 .image-ad-dots 规则，数值取自本文件上方
+   .ad-pic_page_type__1/2/3 的 swiper-pagination 规则——与原版 module.less 逐条一致：
+   样式1 bullet 12×2px、radius 0、margin 0 1px；样式2 6×6px、margin 0 3px、bg #333；
+   样式3 5×5px 居 rgba(0,0,0,.3) 深色胶囊内（radius 100px、padding 3px 5px、高 15px）。
+   非激活点的不透明度沿 Swiper 默认（inactive opacity .2，样式3 除外为 1）；
+   激活色 = swiperPageColor，由各 Preview.tsx 内联给出（对应原版 Preview scoped
+   :deep(.swiper-pagination-bullet-active){background:swiperPageColor !important}）。 */
+.image-ad-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+.image-ad-dots i {
+  display: block;
+  flex: none;
+  width: 12px;
+  height: 2px;
+  border-radius: 0;
+  margin: 0 1px;
+  background: #000;
+  opacity: 0.2;
+}
+.image-ad-dots i.active {
+  opacity: 1;
+}
+.image-ad-dots--2 i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin: 0 3px;
+  background: #333;
+}
+.image-ad-dots--3 {
+  width: auto;
+  margin: 0 auto;
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 100px;
+  padding: 3px 5px;
+  height: 15px;
+  box-sizing: content-box;
+}
+.image-ad-dots--3 i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  margin: 0 2px;
+  background: #fff;
+  opacity: 1;
+}

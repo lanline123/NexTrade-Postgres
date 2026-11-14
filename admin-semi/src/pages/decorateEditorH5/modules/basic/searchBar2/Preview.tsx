@@ -30,7 +30,8 @@ export default function SearchBar2Preview({ data }: { data: Record<string, any> 
                     <div className="oversea-sousuo" style={{ ...itemHeight, ...itemBorderRadius }}>
                         <div className="placeholder-text">{module.text}</div>
                         <div className="sousuo-icon">
-                            <svg viewBox="0 0 1024 1024" width="16" height="16" fill="currentColor" style={{ display: "block" }}>
+                            {/* 原版为 iconfont-h5 icon-sousuo2 字形，font-size 20px（见 Preview.css .icon-sousuo2），此处以同字号内联 SVG 承接 */}
+                            <svg className="icon-sousuo2" viewBox="0 0 1024 1024" width="20" height="20" fill="currentColor" style={{ display: "block" }}>
                                 <path d="M448 768A320 320 0 1 0 448 128a320 320 0 0 0 0 640z m297.6 43.3a448 448 0 1 1 66.7-66.7l194 194a48 48 0 0 1-67.9 67.9l-192.8-195.2z" />
                             </svg>
                         </div>

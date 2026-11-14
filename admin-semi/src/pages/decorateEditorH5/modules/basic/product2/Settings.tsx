@@ -14,12 +14,12 @@ export default function Product2Settings({ data, onChange }: { data: Record<stri
             </SettingGroup>
             <SettingGroup title="样式设置">
                 <ColorField data={data} onChange={onChange} field="imageBackgroundColor" label="图片背景颜色" />
-                <NumberField data={data} onChange={onChange} field="goodsRadius" label="商品卡圆角" max={50} suffix="px" />
-                <NumberField data={data} onChange={onChange} field="boxRadius" label="圆角" max={50} suffix="px" />
-                <NumberField data={data} onChange={onChange} field="innerPadding" label="内边距" max={50} suffix="px" />
-                <NumberField data={data} onChange={onChange} field="boxPadding" label="左右边距" max={50} suffix="px" />
-                <NumberField data={data} onChange={onChange} field="boxPaddingTop" label="上边距" max={50} suffix="px" />
-                <NumberField data={data} onChange={onChange} field="boxPaddingBottom" label="下边距" max={50} suffix="px" />
+                <NumberField data={data} onChange={onChange} field="goodsRadius" label="商品卡圆角" max={30} suffix="px" />
+                <NumberField data={data} onChange={onChange} field="boxRadius" label="圆角" max={30} suffix="px" />
+                <NumberField data={data} onChange={onChange} field="innerPadding" label="内边距" max={30} suffix="px" />
+                <NumberField data={data} onChange={onChange} field="boxPadding" label="左右边距" max={30} suffix="px" />
+                <NumberField data={data} onChange={onChange} field="boxPaddingTop" label="上边距" max={30} suffix="px" />
+                <NumberField data={data} onChange={onChange} field="boxPaddingBottom" label="下边距" max={30} suffix="px" />
             </SettingGroup>
         </div>
     );

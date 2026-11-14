@@ -1,12 +1,11 @@
 /**
- * 分类中心(样式2) 模块（契约依据：uniapp-react components/modules/cate-center/cate-center-v2/config.ts 的 cateCenterV2Defaults，
- * 该文件注明与后台 mobileCateCenter/cateCenterV2 Edit.vue defaultModule 保持一致；入口在 pages/productCate/index.tsx，pageType=4）
+ * 分类中心V2 模块（契约自 view/admin editor/modules/mobileCateCenter/cateCenterV2/index.ts 逐字段移植）
  */
 import { registerModule } from "../../../contract/moduleRegistry";
-import { cloneDeep } from "../../../contract/sharedDefaults";
+import { cloneDeep, defaultFrame } from "../../../contract/sharedDefaults";
 
+/** 与旧 mobileCateCenter/cateCenterV2/index.ts cateCenterV2Defaults 逐字段一致（契约） */
 export const cateCenterV2Defaults = {
-    searchPlaceholder: "搜索商品",
     styleType: 2,
     subTabStyle: 1,
     textAlign: 1,
@@ -14,7 +13,7 @@ export const cateCenterV2Defaults = {
     goodsNameRow: 2,
     showName: 1,
     buyBtnStyle: 1,
-    // 颜色一律留空：空串表示跟随主题色 / 原默认色（与渲染端 config 注释一致）
+    // 颜色一律留空：空串表示跟随主题色 / 原默认色，保证老数据视觉零变化
     themeColor: "",
     sideBgColor: "",
     sideTextColor: "",
@@ -28,16 +27,18 @@ export const cateCenterV2Defaults = {
     goodsListBgColor: "",
     productTitleColor: "",
     priceColor: "",
-    buyBtnColor: ""
+    buyBtnColor: "",
+    frame: { ...cloneDeep(defaultFrame), backgroundColor: "", boxPaddingTop: 0, boxPaddingBottom: 0, boxPadding: 0 }
 };
 
 registerModule({
     type: "cateCenterV2",
-    label: "分类中心(样式2)",
+    label: "分类中心V2",
     icon: '<i class="h5-mod-ico">🗃️</i>',
     url: "mobileCateCenter",
     platform: "mobile",
-    order: 101,
+    order: 2,
+    exclusive: true,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(cateCenterV2Defaults)

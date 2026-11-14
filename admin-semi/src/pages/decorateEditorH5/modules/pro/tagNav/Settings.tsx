@@ -1,78 +1,108 @@
 /**
- * 标签导航 设置（字段对齐 view/admin mobilePro/tagNav/Settings.vue）
+ * 标签导航 设置（对齐 view/admin mobilePro/tagNav/Settings.vue）
+ *
+ * 页签：分组设置（基本设置 GroupListEdit + 参数设置）/ 扩展设置
+ * （颜色设置：categoryColors 渐变色对 + 分组标题色；ModuleStyle type="categoryRec"）。
+ * 分组链接 SelectLink 未移植，沿用文本输入写回同一嵌套结构（部分对齐）。
  */
-import { SettingGroup, NumberField, ColorField, ColorPairListField } from "../../../shared/settingWidgets";
+import { Input } from "@douyinfe/semi-ui";
+import { SettingGroup, SettingRow, RadioRowField, RangeField, ColorField, TextField } from "../../../shared/settingWidgets";
+import { SettingsTabs, GroupCardList, ModuleStyleSettingsField } from "../../../shared/styleEdits";
+import AlphaColorInput from "../../../../../components/AlphaColorInput";
 
-const DEFAULT_COLORS = [
-    { colorA: "#5FC1E8", colorB: "#5FC1E8" },
-    { colorA: "#F5A623", colorB: "#F5A623" },
-    { colorA: "#FF5C3A", colorB: "#FF5C3A" },
-    { colorA: "#FF6B7A", colorB: "#FF6B7A" },
-    { colorA: "#8BC53F", colorB: "#8BC53F" },
-    { colorA: "#2BC4B4", colorB: "#2BC4B4" },
-];
+const EMPTY_LINK = { link: { link: "", title: "" }, linkTitle: "" };
 
-export default function TagNavSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
-    const groupList: Array<{ title?: string }> = data?.groupList || [];
-    const setGroup = (index: number, title: string) => {
-        const next = groupList.map((item, i) => (i === index ? { ...item, title } : item));
-        onChange({ groupList: next });
+function GroupListEditor({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
+    const list: Array<Record<string, any>> = Array.isArray(data?.groupList) ? data.groupList : [];
+    const setList = (next: Array<Record<string, any>>) => onChange({ groupList: next });
+    const patchItem = (index: number, patch: Record<string, any>) => setList(list.map((it, i) => (i === index ? { ...it, ...patch } : it)));
+    const moveItem = (index: number, delta: number) => {
+        const target = index + delta;
+        if (target < 0 || target >= list.length) return;
+        const next = [...list];
+        [next[index], next[target]] = [next[target], next[index]];
+        setList(next);
     };
-    const addGroup = () => onChange({ groupList: [...groupList, { title: "新标签", link: { link: { link: "", title: "" }, linkTitle: "" } }] });
-    const removeGroup = (index: number) => onChange({ groupList: groupList.filter((_, i) => i !== index) });
-
     return (
-        <div className="h5-editor-settings-body">
-            <SettingGroup title="标签导航">
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {groupList.map((group, index) => (
-                        <div key={index} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <input
-                                className="h5-editor-text-input"
-                                value={group.title || ""}
-                                onChange={(e) => setGroup(index, e.target.value)}
-                                style={{ flex: 1, height: 28, border: "1px solid var(--semi-color-border)", borderRadius: 4, padding: "0 8px" }}
+        <GroupCardList
+            items={list}
+            addText="添加分组推荐"
+            onAdd={() => setList([...list, { title: "", link: JSON.parse(JSON.stringify(EMPTY_LINK)) }])}
+            onRemove={(index) => setList(list.filter((_, i) => i !== index))}
+            onMove={moveItem}
+            canRemove={list.length > 1}
+            renderItem={(item, index) => {
+                const itemProps = { data: item, onChange: (patch: Record<string, any>) => patchItem(index, patch) };
+                const linkUrl = typeof item.link === "string" ? item.link : item.link?.link?.link ?? "";
+                return (
+                    <>
+                        <TextField {...itemProps} field="title" label="标题" placeholder="请输入标题内容" />
+                        <SettingRow label="链接">
+                            <Input
+                                value={linkUrl}
+                                placeholder="跳转链接，如 /pages/index/index"
+                                style={{ width: 240, maxWidth: "100%" }}
+                                onChange={(v: string) =>
+                                    patchItem(index, {
+                                        link:
+                                            item.link && typeof item.link === "object"
+                                                ? { ...item.link, link: { ...(item.link.link || {}), link: v } }
+                                                : { link: { link: v, title: "" }, linkTitle: "" },
+                                    })
+                                }
                             />
-                            <span
-                                style={{
-                                    width: 18,
-                                    height: 18,
-                                    borderRadius: "50% 0 50% 50%",
-                                    background: `linear-gradient(to bottom, ${data?.categoryColors?.[index % 6]?.colorA || "#ccc"}, ${data?.categoryColors?.[index % 6]?.colorB || "#ccc"})`,
-                                    flexShrink: 0,
-                                }}
-                            />
-                            <ButtonSmall onClick={() => removeGroup(index)} label="删除" />
-                        </div>
-                    ))}
-                    <ButtonSmall onClick={addGroup} label="+ 添加标签" />
-                </div>
-                <NumberField data={data} onChange={onChange} field="textWeight" label="文字粗细" min={400} max={700} step={300} />
-                <NumberField data={data} onChange={onChange} field="groupGap" label="标签间距" max={40} suffix="px" />
-                <NumberField data={data} onChange={onChange} field="groupPadding" label="标签内边距" max={30} suffix="px" />
-                <ColorField data={data} onChange={onChange} field="titleColor" label="标题文字颜色" />
-                <ColorPairListField data={data} onChange={onChange} field="categoryColors" label="标签配色（循环取用）" defaults={DEFAULT_COLORS} />
-            </SettingGroup>
-        </div>
+                        </SettingRow>
+                    </>
+                );
+            }}
+        />
     );
 }
 
-function ButtonSmall({ onClick, label }: { onClick: () => void; label: string }) {
+export default function TagNavSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
+    const categoryColors: Array<{ colorA?: string; colorB?: string }> = Array.isArray(data?.categoryColors) ? data.categoryColors : [];
+    const setColorPair = (index: number, patch: Record<string, any>) =>
+        onChange({ categoryColors: categoryColors.map((c, i) => (i === index ? { ...c, ...patch } : c)) });
+
     return (
-        <button
-            type="button"
-            onClick={onClick}
-            style={{
-                height: 26,
-                padding: "0 10px",
-                fontSize: 12,
-                border: "1px solid var(--semi-color-border)",
-                borderRadius: 4,
-                background: "transparent",
-                cursor: "pointer",
-            }}
-        >
-            {label}
-        </button>
+        <div className="h5-editor-settings-body">
+            <SettingsTabs tabs={["分组设置", "扩展设置"]}>
+                <>
+                    <SettingGroup title="基本设置">
+                        <GroupListEditor data={data} onChange={onChange} />
+                    </SettingGroup>
+                    <SettingGroup title="参数设置">
+                        <RadioRowField
+                            data={data}
+                            onChange={onChange}
+                            field="textWeight"
+                            label="文本样式"
+                            options={[
+                                { value: 400, label: "常规体" },
+                                { value: 700, label: "加粗体" },
+                            ]}
+                        />
+                        <RangeField data={data} onChange={onChange} field="groupGap" label="分组间距" max={30} />
+                        <RangeField data={data} onChange={onChange} field="groupPadding" label="分组左右边距" max={30} />
+                    </SettingGroup>
+                </>
+                <>
+                    <SettingGroup title="颜色设置">
+                        {categoryColors.map((c, index) => (
+                            <SettingRow key={index} label={`第${index + 1}个分类：`}>
+                                {/* 原版 .dec-color-gradient：两色 + 「~」分隔（margin 0 8px、#969799），无重置链 */}
+                                <div style={{ display: "flex", alignItems: "center" }}>
+                                    <AlphaColorInput value={c.colorA ?? ""} onChange={(v) => setColorPair(index, { colorA: v })} />
+                                    <span style={{ margin: "0 8px", color: "#969799" }}>~</span>
+                                    <AlphaColorInput value={c.colorB ?? ""} onChange={(v) => setColorPair(index, { colorB: v })} />
+                                </div>
+                            </SettingRow>
+                        ))}
+                        <ColorField data={data} onChange={onChange} field="titleColor" label="分组标题色" resetValue="#ffffff" />
+                    </SettingGroup>
+                    <ModuleStyleSettingsField data={data} onChange={onChange} type="categoryRec" />
+                </>
+            </SettingsTabs>
+        </div>
     );
 }

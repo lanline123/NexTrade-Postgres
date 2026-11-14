@@ -59,7 +59,13 @@
     left: 0;
     right: 0;
     top: 0;
-    animation: notice-a3-slide 0.5s ease;
+}
+/* 原版 Vue transition "notice-slide"：enter/leave 双向同播（all .5s ease） */
+.notice-a3-item--enter {
+    animation: notice-a3-enter 0.5s ease;
+}
+.notice-a3-item--leave {
+    animation: notice-a3-leave 0.5s ease forwards;
 }
 .notice-a3-prefix {
     display: inline-block;
@@ -82,13 +88,19 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-@keyframes notice-a3-slide {
+@keyframes notice-a3-enter {
     from {
         transform: translateY(100%);
-        opacity: 0.4;
     }
     to {
         transform: translateY(0);
-        opacity: 1;
+    }
+}
+@keyframes notice-a3-leave {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(-100%);
     }
 }

@@ -46,8 +46,6 @@
     display: flex;
     align-items: center;
     column-gap: 5px;
-    color: #fff;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 .search-top .search {
     flex: 1;
@@ -55,18 +53,40 @@
     flex-wrap: nowrap;
     justify-content: flex-start;
     align-items: center;
-    column-gap: 4px;
+    height: 36px;
+    border-radius: 20px;
     z-index: 2;
+    background-color: #ffffffcc;
+    color: #969799;
     overflow: hidden;
+    border: 1.5px solid rgba(26, 26, 26, 1);
+    column-gap: 4px;
+    box-sizing: border-box;
 }
 .search-top .search .search-icon {
+    margin-left: 12px;
+    font-size: 14px;
     display: flex;
     align-items: center;
-    padding-left: 10px;
-    font-size: 13px;
+    flex-shrink: 0;
+}
+.search-top .search .search-form {
+    height: 100%;
+    padding: 0 0 0 3px;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    position: relative;
+    margin: 0;
 }
 .search-top .search .search-input {
-    font-size: 13px;
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    font-size: 14px;
+    color: #323233;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -93,8 +113,9 @@
     gap: 5px;
 }
 .banner-a2-dots i {
-    width: 6px;
-    height: 6px;
+    /* 原版为 Swiper 默认 bullet 尺寸 8×8 */
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     opacity: 1;
     transition: width 0.2s;

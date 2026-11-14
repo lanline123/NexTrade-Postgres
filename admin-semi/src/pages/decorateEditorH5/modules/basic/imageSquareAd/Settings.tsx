@@ -4,6 +4,11 @@
  * 布局选择：按 picType 渲染魔方缩略图宫格，点击选中图片位（picIndex），
  * 选中后在下方面板替换该位置图片/编辑链接（对齐 Vue 版 PicList v-model:photo 行为）；
  * 切换模板时按 Vue 版 onPicTypeChange 的 lengthMap 调整 picList 数量。
+ * 「选择布局」使用原版 .dec-square-group 类名结构（dec-square-item / square-item-row /
+ * square-item-col / square-item-box.selected），样式由全局 styles/css/decorate.css 的
+ * .dec-square-group 规则提供（整宽 flex、盒 :after border #ebedf0、选中 border #155bd4 + bg #eef2ff），
+ * 与原版 Settings.vue 的 DOM 逐 picType 对应；盒内显示 picList 实际缩略图（原版即如此，非示意图）。
+ * 「选择模板」原版为 ico-decorate 图标 radio（字体图标，非图片资源），本实现仍以文字分段 radio 承接。
  */
 import { useEffect, useState } from "react";
 import { Button, Input, Toast, Upload } from "@douyinfe/semi-ui";
@@ -15,27 +20,11 @@ import { useI18n } from '../../../../../i18n';
 const lengthMap: Record<number, number> = { 1: 2, 2: 3, 5: 3, 7: 3, 3: 4, 4: 4, 6: 4 };
 const emptyPic = { picId: 0, picThumb: "", picUrl: "", picName: "" };
 
-const boxStyle: React.CSSProperties = {
-    width: 40,
-    height: 40,
-    boxSizing: "border-box",
-    border: "1px solid #e0e0e0",
-    borderRadius: 2,
-    overflow: "hidden",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#fafafa"
-};
-
-function Box({ src, selected, onClick }: { src?: string; selected: boolean; onClick: () => void }) {
+/** 原版 .square-item-box（选中加 .selected；整高列位加 .square-item-box-col） */
+function SquareBox({ src, selected, onClick, col = false }: { src?: string; selected: boolean; onClick: () => void; col?: boolean }) {
     return (
-        <div
-            style={{ ...boxStyle, ...(selected ? { borderColor: "#155bd4", boxShadow: "0 0 0 1px #155bd4 inset" } : null) }}
-            onClick={onClick}
-        >
-            {src ? <img src={imageFormat(src)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
+        <div className={`square-item-box${col ? " square-item-box-col" : ""}${selected ? " selected" : ""}`} onClick={onClick}>
+            {src ? <img src={imageFormat(src)} alt="" /> : null}
         </div>
     );
 }
@@ -104,60 +93,72 @@ export default function ImageSquareAdSettings({ data, onChange }: { data: Record
             </SettingGroup>
             <SettingGroup title="选择布局">
                 {showLayoutGrid && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div className="dec-square-group">
                         {[1, 2, 3].includes(Number(data?.picType)) && (
-                            <div style={{ display: "flex", gap: 6 }}>
-                                {picList.map((item, index) => (
-                                    <Box key={index} src={item?.picThumb} selected={picIndex === index} onClick={() => setPicIndex(index)} />
-                                ))}
+                            <div className="dec-square-item dec-square-item-empty">
+                                <div className="square-item-row">
+                                    {picList.map((item, index) => (
+                                        <SquareBox key={index} src={item?.picThumb} selected={picIndex === index} onClick={() => setPicIndex(index)} />
+                                    ))}
+                                </div>
                             </div>
                         )}
                         {Number(data?.picType) === 4 && picList.length === 4 && (
-                            <div style={{ display: "flex", gap: 6 }}>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                                    <Box src={picList[0]?.picThumb} selected={picIndex === 0} onClick={() => setPicIndex(0)} />
-                                    <Box src={picList[1]?.picThumb} selected={picIndex === 1} onClick={() => setPicIndex(1)} />
-                                </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                                    <Box src={picList[2]?.picThumb} selected={picIndex === 2} onClick={() => setPicIndex(2)} />
-                                    <Box src={picList[3]?.picThumb} selected={picIndex === 3} onClick={() => setPicIndex(3)} />
+                            <div className="dec-square-item dec-square-item-4 dec-square-item-empty">
+                                <div className="square-item-row">
+                                    <div className="square-item-col">
+                                        <SquareBox src={picList[0]?.picThumb} selected={picIndex === 0} onClick={() => setPicIndex(0)} />
+                                        <SquareBox src={picList[1]?.picThumb} selected={picIndex === 1} onClick={() => setPicIndex(1)} />
+                                    </div>
+                                    <div className="square-item-col">
+                                        <SquareBox src={picList[2]?.picThumb} selected={picIndex === 2} onClick={() => setPicIndex(2)} />
+                                        <SquareBox src={picList[3]?.picThumb} selected={picIndex === 3} onClick={() => setPicIndex(3)} />
+                                    </div>
                                 </div>
                             </div>
                         )}
                         {Number(data?.picType) === 5 && picList.length === 3 && (
-                            <div style={{ display: "flex", gap: 6 }}>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                                    <Box src={picList[0]?.picThumb} selected={picIndex === 0} onClick={() => setPicIndex(0)} />
-                                </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                                    <Box src={picList[1]?.picThumb} selected={picIndex === 1} onClick={() => setPicIndex(1)} />
-                                    <Box src={picList[2]?.picThumb} selected={picIndex === 2} onClick={() => setPicIndex(2)} />
+                            <div className="dec-square-item dec-square-item-5 dec-square-item-empty">
+                                <div className="square-item-row">
+                                    <div className="square-item-col">
+                                        <SquareBox col src={picList[0]?.picThumb} selected={picIndex === 0} onClick={() => setPicIndex(0)} />
+                                    </div>
+                                    <div className="square-item-col">
+                                        <SquareBox src={picList[1]?.picThumb} selected={picIndex === 1} onClick={() => setPicIndex(1)} />
+                                        <SquareBox src={picList[2]?.picThumb} selected={picIndex === 2} onClick={() => setPicIndex(2)} />
+                                    </div>
                                 </div>
                             </div>
                         )}
                         {Number(data?.picType) === 7 && picList.length === 3 && (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                                <div style={{ display: "flex", gap: 6 }}>
-                                    <Box src={picList[0]?.picThumb} selected={picIndex === 0} onClick={() => setPicIndex(0)} />
-                                </div>
-                                <div style={{ display: "flex", gap: 6 }}>
-                                    <Box src={picList[1]?.picThumb} selected={picIndex === 1} onClick={() => setPicIndex(1)} />
-                                    <Box src={picList[2]?.picThumb} selected={picIndex === 2} onClick={() => setPicIndex(2)} />
+                            <div className="dec-square-item dec-square-item-empty">
+                                <div className="square-item-col">
+                                    <div className="square-item-row">
+                                        <SquareBox src={picList[0]?.picThumb} selected={picIndex === 0} onClick={() => setPicIndex(0)} />
+                                    </div>
+                                    <div className="square-item-row">
+                                        <SquareBox src={picList[1]?.picThumb} selected={picIndex === 1} onClick={() => setPicIndex(1)} />
+                                        <SquareBox src={picList[2]?.picThumb} selected={picIndex === 2} onClick={() => setPicIndex(2)} />
+                                    </div>
                                 </div>
                             </div>
                         )}
                         {Number(data?.picType) === 6 && picList.length === 4 && (
-                            <div style={{ display: "flex", gap: 6 }}>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                                    <Box src={picList[0]?.picThumb} selected={picIndex === 0} onClick={() => setPicIndex(0)} />
-                                </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                                    <div style={{ display: "flex", gap: 6 }}>
-                                        <Box src={picList[1]?.picThumb} selected={picIndex === 1} onClick={() => setPicIndex(1)} />
+                            <div className="dec-square-item dec-square-item-7 dec-square-item-empty">
+                                <div className="square-item-row">
+                                    <div className="square-item-col">
+                                        <SquareBox col src={picList[0]?.picThumb} selected={picIndex === 0} onClick={() => setPicIndex(0)} />
                                     </div>
-                                    <div style={{ display: "flex", gap: 6 }}>
-                                        <Box src={picList[2]?.picThumb} selected={picIndex === 2} onClick={() => setPicIndex(2)} />
-                                        <Box src={picList[3]?.picThumb} selected={picIndex === 3} onClick={() => setPicIndex(3)} />
+                                    <div className="square-item-col">
+                                        <div className="square-item-col">
+                                            <div className="square-item-row">
+                                                <SquareBox src={picList[1]?.picThumb} selected={picIndex === 1} onClick={() => setPicIndex(1)} />
+                                            </div>
+                                            <div className="square-item-row">
+                                                <SquareBox src={picList[2]?.picThumb} selected={picIndex === 2} onClick={() => setPicIndex(2)} />
+                                                <SquareBox src={picList[3]?.picThumb} selected={picIndex === 3} onClick={() => setPicIndex(3)} />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

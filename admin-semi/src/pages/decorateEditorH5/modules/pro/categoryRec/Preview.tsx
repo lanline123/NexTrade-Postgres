@@ -38,7 +38,14 @@ export default function CategoryRecPreview({ data }: { data: Record<string, any>
                             <div
                                 className="li"
                                 key={index}
-                                style={{ borderRadius: `${module.radius}px`, backgroundColor: module.backgroundColor }}
+                                // 原版 .li 内联 AnimationFormat（编辑器内恒定串）+ transitionDuration 0s，与旧 Preview.vue 一致
+                                style={{
+                                    transform: "translate(0px, 0px) scale(1) rotateY(0deg)",
+                                    opacity: 1,
+                                    transitionDuration: "0s",
+                                    borderRadius: `${module.radius}px`,
+                                    backgroundColor: module.backgroundColor
+                                }}
                             >
                                 <div
                                     className="item"

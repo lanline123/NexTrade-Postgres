@@ -1,20 +1,496 @@
-.dec-cate-v2 { background: #fff; }
-.dec-cate-v2__search { padding: 10px 12px; }
-.dec-cate-v2__search-box { background: #f5f5f5; border-radius: 14px; font-size: 12px; color: #999; padding: 6px 12px; }
-.dec-cate-v2__body { display: flex; min-height: 220px; }
-.dec-cate-v2__side { width: 84px; flex-shrink: 0; }
-.dec-cate-v2__side-item { font-size: 13px; padding: 12px 6px; text-align: center; }
-.dec-cate-v2__main { flex: 1; padding: 8px 10px; }
-.dec-cate-v2__tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-.dec-cate-v2__tab { font-size: 12px; border-radius: 10px; padding: 3px 10px; }
-.dec-cate-v2__goods { display: flex; gap: 10px; }
-.dec-cate-v2__goods.is-list { flex-direction: column; }
-.dec-cate-v2__goods-item { flex: 1; }
-.dec-cate-v2__goods.is-list .dec-cate-v2__goods-item { display: flex; gap: 10px; }
-.dec-cate-v2__goods-img { height: 74px; border-radius: 6px; background: #f0f2f5; }
-.dec-cate-v2__goods.is-list .dec-cate-v2__goods-img { width: 74px; flex-shrink: 0; }
-.dec-cate-v2__goods-info { flex: 1; padding-top: 6px; }
-.dec-cate-v2__goods-name { font-size: 13px; }
-.dec-cate-v2__goods-row { display: flex; align-items: center; margin-top: 6px; }
-.dec-cate-v2__goods-price { font-size: 14px; font-weight: 600; }
-.dec-cate-v2__buy-btn { color: #fff; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; }
+/* 分类中心V2 预览样式（逐条移植自 view/admin cateCenterV2/Preview.vue scoped less；--rpx:0.5px 已换算为 px） */
+.dec-cate-center-v2 {
+    box-sizing: border-box;
+    --primary-color: var(--dec-cate-theme, var(--tig-primary, #e93b3d));
+    display: flex;
+    flex-direction: column;
+    height: 700px;
+    background-color: #fff;
+    overflow: hidden;
+    position: relative;
+}
+
+/* 搜索栏（国内） */
+.dec-cate-center-v2 .search-bar-box {
+    display: flex;
+    align-items: center;
+    padding: 0 12px 8px;
+    background: #fff;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.dec-cate-center-v2 .search-bar-box .home-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid #eef0f5;
+    background-color: #fff;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+.dec-cate-center-v2 .search-bar-box .search-input-wrap {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    height: 34px;
+    background-color: #f5f6fa;
+    border-radius: 17px;
+    box-sizing: border-box;
+    padding: 0 12px;
+    cursor: pointer;
+}
+.dec-cate-center-v2 .search-bar-box .search-input-wrap .cate-search-icon {
+    color: #888b94;
+    margin-right: 5px;
+    flex-shrink: 0;
+}
+.dec-cate-center-v2 .search-bar-box .search-placeholder {
+    font-size: 12px;
+    color: #888b94;
+}
+
+/* 搜索栏（海外） */
+.dec-cate-center-v2 .search-bar-box-overseas {
+    display: flex;
+    align-items: center;
+    padding: 0 12px 8px;
+    background: #fff;
+    flex-shrink: 0;
+    gap: 8px;
+}
+.dec-cate-center-v2 .search-bar-box-overseas .back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+}
+.dec-cate-center-v2 .search-bar-box-overseas .search-input-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 1;
+    height: 34px;
+    border: 1px solid #cccccc;
+    background-color: #fff;
+    border-radius: 6px;
+    box-sizing: border-box;
+    cursor: pointer;
+    padding: 0 12px;
+}
+.dec-cate-center-v2 .search-bar-box-overseas .search-input-wrap .cate-search-icon {
+    color: #333333;
+    flex-shrink: 0;
+}
+.dec-cate-center-v2 .search-bar-box-overseas .search-placeholder {
+    font-size: 12px;
+    color: #999999;
+}
+
+.dec-cate-center-v2__body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+    background-color: #fff;
+    border-top: 1px solid #f5f6fa;
+}
+
+/* 左侧一级分类 */
+.dec-cate-center-v2__aside {
+    width: 90px;
+    height: 100%;
+    background-color: var(--dec-cate-side-bg, #f5f6fa);
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex-shrink: 0;
+}
+.dec-cate-center-v2__aside::-webkit-scrollbar {
+    display: none;
+}
+.dec-cate-center-v2__aside-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 50px;
+    padding: 8px 6px;
+    font-size: 13px;
+    color: var(--dec-cate-side-text, #666);
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    background-color: var(--dec-cate-side-bg, #f5f6fa);
+    box-sizing: border-box;
+    word-break: break-all;
+    transition: all 0.2s ease;
+}
+.dec-cate-center-v2__aside-item.is-active {
+    background-color: var(--dec-cate-side-active-bg, #fff);
+    color: var(--dec-cate-side-active-text, var(--primary-color));
+    font-weight: bold;
+}
+.dec-cate-center-v2__aside-item.is-active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 16px;
+    background-color: var(--dec-cate-side-indicator, var(--primary-color));
+    border-radius: 0 2px 2px 0;
+}
+.dec-cate-center-v2__aside-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+    line-height: 1.3;
+    width: 100%;
+}
+
+/* 右侧内容 */
+.dec-cate-center-v2__main {
+    flex: 1;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background-color: #fff;
+}
+.dec-cate-center-v2__subtabs-wrap {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 44px;
+    background-color: #fff;
+    border-bottom: 1px solid #fcfcfd;
+    box-sizing: border-box;
+}
+.dec-cate-center-v2__subtabs {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    height: 100%;
+    gap: 7px;
+    padding: 0 6px 0 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+.dec-cate-center-v2__subtabs::-webkit-scrollbar {
+    display: none;
+}
+.dec-cate-center-v2__subtab {
+    flex: 0 0 auto;
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    line-height: 1;
+    background: var(--dec-cate-subtab-bg, #f5f6fa);
+    color: var(--dec-cate-subtab-text, #666);
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+.dec-cate-center-v2__subtabs-arrow {
+    flex: 0 0 auto;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 100%;
+    cursor: pointer;
+    border-left: 1px solid #f5f6fa;
+    background-color: #fff;
+    line-height: 0;
+}
+.dec-cate-center-v2__subtabs-arrow-icon {
+    display: block;
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+}
+.dec-cate-center-v2__content {
+    flex: 1;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 8px;
+    box-sizing: border-box;
+    background-color: var(--dec-cate-goods-bg, #fff);
+}
+.dec-cate-center-v2__content::-webkit-scrollbar {
+    display: none;
+}
+
+/* 样式二：双列网格 */
+.dec-cate-center-v2__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 8px;
+    padding-bottom: 20px;
+}
+.dec-cate-center-v2__grid-item {
+    background: var(--dec-cate-goods-bg, #fff);
+    overflow: hidden;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+.dec-cate-center-v2__grid-item .pic {
+    width: 100%;
+    height: 130px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    overflow: hidden;
+}
+.dec-cate-center-v2__grid-item .pic img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.dec-cate-center-v2__grid-item .title {
+    padding: 6px 0 0;
+    font-size: 12px;
+    color: var(--dec-cate-title, #1a1a1a);
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-all;
+}
+.dec-cate-center-v2__grid-item .action {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 6px;
+}
+.dec-cate-center-v2__grid-item .price,
+.dec-cate-center-v2__list-item .price {
+    font-weight: bold;
+    color: var(--dec-cate-price, var(--primary-color));
+}
+.dec-cate-center-v2 .price-currency {
+    font-size: 11px;
+}
+.dec-cate-center-v2 .price-integer {
+    font-size: 16px;
+}
+.dec-cate-center-v2 .price-decimal {
+    font-size: 12.5px;
+}
+
+/* 样式三：图文列表 */
+.dec-cate-center-v2__list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-bottom: 20px;
+}
+.dec-cate-center-v2__list-item {
+    display: flex;
+    gap: 10px;
+    background: var(--dec-cate-goods-bg, #fff);
+    box-sizing: border-box;
+}
+.dec-cate-center-v2__list-item .pic {
+    flex: 0 0 auto;
+    width: 90px;
+    height: 90px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    overflow: hidden;
+}
+.dec-cate-center-v2__list-item .pic img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.dec-cate-center-v2__list-item .info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 2px 0;
+}
+.dec-cate-center-v2__list-item .title {
+    font-size: 12px;
+    color: var(--dec-cate-title, #1a1a1a);
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-all;
+}
+.dec-cate-center-v2__list-item .meta {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 6px;
+}
+.dec-cate-center-v2__list-item .price-box {
+    display: flex;
+    flex-direction: column;
+}
+
+/* 购买按钮通用样式 */
+.dec-cate-center-v2 .item-buy {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+.dec-cate-center-v2 .buy-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    cursor: pointer;
+    line-height: 1;
+}
+.dec-cate-center-v2 .lyecs-buyBtn > span {
+    color: var(--dec-cate-buy-btn, var(--primary-color));
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+}
+.dec-cate-center-v2 .lyecs-buyBtn .activeBtnStyle {
+    display: inline-block;
+    background: var(--dec-cate-buy-btn, var(--primary-color));
+    height: 22px;
+    box-sizing: border-box;
+    padding: 0 10px;
+    font-size: 12px;
+    color: #fff;
+    border-radius: 22px;
+    line-height: 22px;
+    text-align: center;
+    white-space: nowrap;
+}
+.dec-cate-center-v2 .lyecs-buyBtn .outlineBtnStyle {
+    display: inline-block;
+    height: 22px;
+    padding: 0 8px;
+    font-size: 12px;
+    color: var(--dec-cate-buy-btn, var(--primary-color));
+    border: 1px solid var(--dec-cate-buy-btn, var(--primary-color));
+    border-radius: 2px;
+    line-height: 20px;
+    text-align: center;
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+.dec-cate-center-v2 span.iconh5-style {
+    color: var(--dec-cate-buy-btn, var(--primary-color));
+    font-size: 21px;
+    line-height: 21px;
+    display: inline-flex;
+}
+
+/* 修饰类：二级分类标签风格 1=实心高亮 */
+.dec-cate-center-v2--subtab-style-1 .dec-cate-center-v2__subtab {
+    background: var(--dec-cate-subtab-bg, #f5f6fa);
+    color: var(--dec-cate-subtab-text, #666);
+    border-color: transparent;
+}
+.dec-cate-center-v2--subtab-style-1 .dec-cate-center-v2__subtab.is-active {
+    background-color: var(--dec-cate-subtab-active-bg, var(--primary-color));
+    border-color: var(--dec-cate-subtab-active-bg, var(--primary-color));
+    color: var(--dec-cate-subtab-active-text, #fff);
+    font-weight: 500;
+}
+/* 风格 2=描边高亮：白底 + 主题色边 + 主题色字 */
+.dec-cate-center-v2--subtab-style-2 .dec-cate-center-v2__subtab {
+    background: var(--dec-cate-subtab-bg, #f5f6fa);
+    color: var(--dec-cate-subtab-text, #666);
+    border-color: transparent;
+}
+.dec-cate-center-v2--subtab-style-2 .dec-cate-center-v2__subtab.is-active {
+    background-color: #fff;
+    border-color: var(--dec-cate-subtab-active-bg, var(--primary-color));
+    color: var(--dec-cate-subtab-active-text, var(--dec-cate-subtab-active-bg, var(--primary-color)));
+    font-weight: 500;
+}
+
+/* 修饰类：文本对齐 */
+.dec-cate-center-v2--text-align-1 .dec-cate-center-v2__grid-item {
+    text-align: left;
+}
+.dec-cate-center-v2--text-align-1 .dec-cate-center-v2__grid-item .action {
+    justify-content: space-between;
+}
+.dec-cate-center-v2--text-align-1 .dec-cate-center-v2__list-item .info {
+    text-align: left;
+}
+.dec-cate-center-v2--text-align-1 .dec-cate-center-v2__list-item .meta {
+    justify-content: space-between;
+}
+.dec-cate-center-v2--text-align-2 .dec-cate-center-v2__grid-item {
+    text-align: center;
+}
+.dec-cate-center-v2--text-align-2 .dec-cate-center-v2__grid-item .action {
+    justify-content: center;
+    gap: 8px;
+}
+.dec-cate-center-v2--text-align-2 .dec-cate-center-v2__list-item .info {
+    text-align: center;
+}
+.dec-cate-center-v2--text-align-2 .dec-cate-center-v2__list-item .meta {
+    justify-content: center;
+    gap: 8px;
+}
+
+/* 修饰类：文字粗细 */
+.dec-cate-center-v2--text-weight-1 .dec-cate-center-v2__grid-item .title,
+.dec-cate-center-v2--text-weight-1 .dec-cate-center-v2__list-item .title {
+    font-weight: 400;
+}
+.dec-cate-center-v2--text-weight-2 .dec-cate-center-v2__grid-item .title,
+.dec-cate-center-v2--text-weight-2 .dec-cate-center-v2__list-item .title {
+    font-weight: 600;
+}
+
+/* 修饰类：商品名称行数 */
+.dec-cate-center-v2--name-row-1 .dec-cate-center-v2__grid-item .title,
+.dec-cate-center-v2--name-row-1 .dec-cate-center-v2__list-item .title {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+}
+.dec-cate-center-v2--name-row-2 .dec-cate-center-v2__grid-item .title,
+.dec-cate-center-v2--name-row-2 .dec-cate-center-v2__list-item .title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-all;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+}
+
+/* 修饰类：购买按钮 0=不显示 */
+.dec-cate-center-v2--buy-btn-0 .item-buy {
+    display: none;
+}

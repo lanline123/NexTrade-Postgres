@@ -28,9 +28,9 @@ export default function ImageAdPreview({ data }: { data: Record<string, any> }) 
     // NutUI 分页指示器：与 uniapp 端小圆点一致（active 高亮 swiperPageColor）
     const [slideIndex, setSlideIndex] = useState(0);
     const renderDots = (count: number) => (
-        <div className="image-ad-dots">
+        <div className={`image-ad-dots image-ad-dots--${module.picPageType || 1}`}>
             {Array.from({ length: count }).map((_, i) => (
-                <i key={i} style={{ background: i === slideIndex ? swiperPageColor : "rgba(255,255,255,0.7)" }} />
+                <i key={i} className={i === slideIndex ? "active" : ""} style={i === slideIndex ? { background: swiperPageColor } : undefined} />
             ))}
         </div>
     );

@@ -34,12 +34,9 @@ export default function MixedNoticePreview({ data }: { data: Record<string, any>
                 <img src={imageFormat(notice.picUrl)} alt="" />
             </div>
             <div className="notices-item-content">
-                <div className="content-title" style={{ color: module.moduleColor?.titleColor }}>
-                    {notice.picTitle}
-                </div>
-                <div className="content-subtitle" style={{ color: module.moduleColor?.sellingPointColor }}>
-                    {notice.picDesc}
-                </div>
+                {/* 原版 .content-title/.content-subtitle 颜色写死（#505259/#888b94），Preview 不应用 moduleColor */}
+                <div className="content-title">{notice.picTitle}</div>
+                <div className="content-subtitle">{notice.picDesc}</div>
             </div>
         </div>
     );

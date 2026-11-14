@@ -1,1 +1,40 @@
-/* placeholder for H5 imageNav styles; filled by H5 migration */
+/* 图文导航 专属样式（自 view/admin imageNav/Preview.vue <style scoped> 逐条移植，less 嵌套已展平）
+   - grid 模板列/行与列距由 Preview.tsx 内联（对应原版 v-bind rowNum/colNum/imgPadding），此处不重复；
+   - 指示点激活色对应原版 :deep(.swiper-pagination-bullet-active){background:swiperPageColor}，
+     本实现由 Preview.tsx 的 .image-ad-dots 内联激活色承接（样式见 styles/css/module.css）。 */
+.img-nav-pic .imagenav-main-item {
+    margin-top: 8px;
+    margin-bottom: 2px;
+    padding-bottom: 6px;
+}
+.img-nav-pic .imagenav-main-item .imagenav-item-img {
+    width: 100%;
+    height: inherit;
+}
+.img-nav-pic .imagenav-main-item .img-height {
+    height: inherit;
+}
+.img-nav-pic .imagenav-item-text {
+    font-size: inherit;
+    text-align: center;
+    line-height: 20px;
+    height: 30%;
+}
+.img-nav-pic .swiper-main {
+    padding-bottom: 10px;
+}
+.img-nav-pic .swiper-main .swiper-item {
+    margin-top: 8px;
+    margin-bottom: 2px;
+    padding-bottom: 6px;
+}
+.img-nav-pic .swiper-main .swiper-item img {
+    width: 100%;
+    height: inherit;
+}
+.img-nav-pic.ad-radio_style__2 .imagenav-main .img-radius,
+.img-nav-pic.ad-radio_style__2 .swiper-main .img-radius {
+    border-radius: 8px;
+    overflow: hidden;
+    display: block;
+}

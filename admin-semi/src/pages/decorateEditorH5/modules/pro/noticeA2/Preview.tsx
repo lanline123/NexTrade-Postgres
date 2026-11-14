@@ -83,7 +83,10 @@ export default function NoticeA2Preview({ data }: { data: Record<string, any> })
                         </div>
                         {Boolean(module.closeIcon) && (
                             <div className="cross">
-                                <span style={{ color: module.contentColor }}>✕</span>
+                                {/* 原版为 iconfont icon-chacha 字形；本实现以等形内联 SVG 承接 */}
+                                <svg width="14" height="14" viewBox="0 0 14 14" style={{ color: module.contentColor, display: "block", margin: "0 auto" }} aria-hidden="true">
+                                    <path d="M2 2 L12 12 M12 2 L2 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                                </svg>
                             </div>
                         )}
                     </div>
