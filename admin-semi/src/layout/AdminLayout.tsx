@@ -404,7 +404,15 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
                     >
                       <span className="rail-icon">{group.icon}</span>
                     </Badge>
-                    {!collapsed && <span className="rail-label">{t(group.label)}</span>}
+                    {!collapsed && (
+                      <span
+                        className="rail-label"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                      >
+                        <span>{t(group.label)}</span>
+                        <ApprovalPill count={groupApprovalCount} />
+                      </span>
+                    )}
                   </button>
                 </Tooltip>
               );
@@ -413,7 +421,16 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
 
           {!collapsed && (
             <div className="submenu">
-              <div className="submenu-title">{t(activeGroup.label)}</div>
+              <div className="submenu-title">
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <span>{t(activeGroup.label)}</span>
+                  {activeGroup.items.some(
+                    (item) =>
+                      item.key === 'aiMcpApprovals' ||
+                      item.children?.some((child) => child.key === 'aiMcpApprovals'),
+                  ) && <ApprovalPill count={approvalCount} />}
+                </span>
+              </div>
               <div className="submenu-list">
                 {activeGroup.items.map((item) =>
                   item.children?.length ? (
