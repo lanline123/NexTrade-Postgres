@@ -3,6 +3,7 @@ import { Button, Checkbox, DatePicker, Input, InputNumber, Modal, Radio, RadioGr
 
 const { Text } = Typography;
 import { apiGet, apiPost, isDemo } from '../api';
+import { descHtmlToEditorHtml, editorHtmlToDescHtml } from '../utils/descHtml';
 import { useI18n } from '../i18n';
 import FormDrawer from '../framework/FormDrawer';
 import ImageUploader from './ImageUploader';
@@ -262,7 +263,7 @@ export default function ProductFormDrawer({
           productStatus: Number(detail.productStatus ?? 1),
           productBrief: detail.productBrief || '',
           productVideo: detail.productVideo || '',
-          productDesc: detail.productDesc || '',
+          productDesc: descHtmlToEditorHtml(detail.productDesc || ''),
           remark: detail.remark || '',
           keywords: detail.keywords || '',
           productWeight: Number(detail.productWeight || 0),
@@ -359,6 +360,11 @@ export default function ProductFormDrawer({
       if (payload.productList.some((row: any) => !String(row.skuValue || '').trim())) {
         throw new Error(t('请填写完整的规格值'));
       }
+    }
+    // 详情 HTML 转回 tigshop 存储格式（desc-pic-item 块 + data-division 分隔），
+    // 与加载时的 descHtmlToEditorHtml 互逆，避免编辑器格式污染存储与前台切块。
+    if (typeof payload.productDesc === 'string') {
+      payload.productDesc = editorHtmlToDescHtml(payload.productDesc);
     }
     await apiPost(productId ? '/product/product/update' : '/product/product/create', payload);
     // 定时可售/禁售走独立 saleStatus 端点（对齐旧版 SaleControl）。
