@@ -21,6 +21,7 @@ import {
   Radio,
   RadioGroup,
   ColorPicker,
+  Popconfirm,
 } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '../api';
 import { useI18n } from '../i18n';
@@ -303,10 +304,130 @@ export function ThemeStyle() {
 /* =========================================================================
  * 2. MobileDecoratePages (mobileDecorateManage 页面管理)
  * 契约对齐: java/view/admin/src/views/decorate/mobileDecorate/List.vue
+ * 移动端按页面类型分 7 个页签（商城首页/分类页/个人中心页/自定义活动页/登录页/
+ * 搜索页/商品详情页），每签只列该 pageType 的页面；新建带当前签 pageType；
+ * 默认页（isHome=1）有标记且不可删，可通过「更换」弹窗或行内「设为默认」
+ * 调用 /decorate/decorate/setHome 切换（后端会先清同类型旧标记）。
  * labels: 页面名称, 发布状态, 更新时间, 操作
  * props: decorateId, status, updateTime, bingdingH5Name
  * ========================================================================= */
-export function MobileDecoratePages({
+
+const PAGE_TYPE_TABS: Array<{ key: string; label: string; pageType: number; defaultName: string }> = [
+  { key: 'home', label: '商城首页', pageType: 1, defaultName: '首页微页面' },
+  { key: 'classify', label: '分类页', pageType: 4, defaultName: '分类页' },
+  { key: 'user', label: '个人中心页', pageType: 2, defaultName: '个人中心页' },
+  { key: 'activity', label: '自定义活动页', pageType: 3, defaultName: '活动页' },
+  { key: 'login', label: '登录页', pageType: 5, defaultName: '登录页' },
+  { key: 'search', label: '搜索页', pageType: 6, defaultName: '搜索页' },
+  { key: 'productDetail', label: '商品详情页', pageType: 8, defaultName: '商品详情页' },
+];
+
+function pageTypeLabel(pageType?: number): string {
+  return PAGE_TYPE_TABS.find((tab) => tab.pageType === pageType)?.label || '页面';
+}
+
+/** 更换默认页弹窗（对齐 Java SwitchDefaultPage）：列同类型页面，点「设为默认」切换。 */
+function SwitchDefaultPageModal({
+  visible,
+  decorateType,
+  pageType,
+  currentId,
+  onClose,
+  onDone,
+}: {
+  visible: boolean;
+  decorateType: number;
+  pageType: number;
+  currentId: number;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const { t } = useI18n();
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [settingId, setSettingId] = useState<number>(0);
+
+  useEffect(() => {
+    if (!visible) return;
+    setLoading(true);
+    apiGet<any>('/decorate/decorate/list', { decorateType, pageType, page: 1, size: 100 })
+      .then((result) => {
+        const list = Array.isArray(result) ? result : result?.records || result?.list || [];
+        setRows(list);
+      })
+      .catch(() => setRows([]))
+      .finally(() => setLoading(false));
+  }, [visible, decorateType, pageType]);
+
+  const setDefault = async (row: any) => {
+    if (row.decorateId === currentId) return;
+    setSettingId(row.decorateId);
+    try {
+      await apiPost('/decorate/decorate/setHome', { id: row.decorateId, pageType });
+      Toast.success(t('设置成功'));
+      onDone();
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : t('设置失败'));
+    } finally {
+      setSettingId(0);
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      onCancel={onClose}
+      footer={null}
+      width={720}
+      title={`${t('更换')}${pageTypeLabel(pageType)}`}
+    >
+      <Table
+        loading={loading}
+        pagination={false}
+        dataSource={rows}
+        rowKey="decorateId"
+        columns={[
+          {
+            title: t('页面名称'),
+            dataIndex: 'decorateName',
+            render: (v: any, row: any) => (
+              <Space>
+                <span>{v || row?.decorateTitle || row?.bingdingH5Name || t('首页微页面')}</span>
+                {row.decorateId === currentId && (
+                  <Tag color="red" size="small">{t('当前默认')}</Tag>
+                )}
+              </Space>
+            ),
+          },
+          {
+            title: t('发布状态'),
+            dataIndex: 'status',
+            width: 110,
+            render: (s: any) => <Tag color={s === 1 ? 'green' : 'grey'}>{s === 1 ? t('已发布') : t('草稿')}</Tag>,
+          },
+          {
+            title: t('操作'),
+            width: 120,
+            render: (_: any, row: any) => (
+              <Button
+                theme="borderless"
+                type="primary"
+                size="small"
+                disabled={row.decorateId === currentId}
+                loading={settingId === row.decorateId}
+                onClick={() => setDefault(row)}
+              >
+                {t('设为默认')}
+              </Button>
+            ),
+          },
+        ]}
+      />
+    </Modal>
+  );
+}
+
+export function MobileDecoratePageList({
   decorateType = 1,
   pageType,
   defaultName = '首页微页面',
@@ -320,13 +441,24 @@ export function MobileDecoratePages({
   returnPage?: string;
 } = {}) {
   const { t } = useI18n();
+  const [listKey, setListKey] = useState(0);
+  const [switchRow, setSwitchRow] = useState<any>(null);
+  const refresh = () => setListKey((key) => key + 1);
+
   const columns: ColumnConfig<any>[] = [
     { title: 'ID', dataIndex: 'decorateId', width: 80 },
     {
       title: t('页面名称'),
       dataIndex: 'decorateName',
-      width: 180,
-      render: (v: any, row: any) => v || row?.bingdingH5Name || t(defaultName),
+      width: 220,
+      render: (v: any, row: any) => (
+        <Space>
+          <span>{v || row?.bingdingH5Name || t(defaultName)}</span>
+          {row?.isHome === 1 && (
+            <Tag color="red" size="small">{`${t('默认')}${pageTypeLabel(pageType).replace(/页$/, '')}`}</Tag>
+          )}
+        </Space>
+      ),
     },
     {
       title: t('发布状态'),
@@ -335,11 +467,42 @@ export function MobileDecoratePages({
       render: (s: any) => <Tag color={s === 1 ? 'green' : 'grey'}>{s === 1 ? t('已发布') : t('草稿')}</Tag>,
     },
     { title: t('更新时间'), dataIndex: 'updateTime', width: 170, render: (v: any) => formatDecorateTime(v) },
+    ...(pageType === 1
+      ? [
+          {
+            title: t('绑定H5页面'),
+            dataIndex: 'bingdingH5Name',
+            width: 160,
+            render: (v: any) => v || '--',
+          } as ColumnConfig<any>,
+        ]
+      : []),
   ];
+
+  const setAsDefault = async (row: any) => {
+    try {
+      await apiPost('/decorate/decorate/setHome', { id: row.decorateId, pageType });
+      Toast.success(t('设置成功'));
+      refresh();
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : t('设置失败'));
+    }
+  };
+
+  const removeRow = async (row: any) => {
+    try {
+      await apiPost('/decorate/decorate/del', { id: row.decorateId });
+      Toast.success(t('删除成功'));
+      refresh();
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : t('删除失败'));
+    }
+  };
 
   return (
     <div>
       <ListPage
+        key={listKey}
         api="/decorate/decorate/list"
         query={{ decorateType, ...(pageType ? { pageType } : {}) }}
         rowKey="decorateId"
@@ -365,7 +528,7 @@ export function MobileDecoratePages({
                 try {
                   await apiPost('/decorate/decorate/copy', { id: row.decorateId });
                   Toast.success(t('操作成功'));
-                  window.location.reload();
+                  refresh();
                 } catch (error) {
                   Toast.error(error instanceof Error ? error.message : t('复制失败'));
                 }
@@ -373,6 +536,25 @@ export function MobileDecoratePages({
             >
               {t('复制')}
             </Button>
+            {row.isHome === 1 && pageType !== 3 && pageType !== undefined && (
+              <Button theme="borderless" size="small" onClick={() => setSwitchRow(row)}>
+                {t('更换')}
+              </Button>
+            )}
+            {row.isHome !== 1 && pageType !== undefined && (
+              <Popconfirm title={t('确定设为默认页？')} onConfirm={() => setAsDefault(row)}>
+                <Button theme="borderless" size="small">
+                  {t('设为默认')}
+                </Button>
+              </Popconfirm>
+            )}
+            {row.isHome !== 1 && (
+              <Popconfirm title={t('确定删除？')} onConfirm={() => removeRow(row)}>
+                <Button theme="borderless" type="danger" size="small">
+                  {t('删除')}
+                </Button>
+              </Popconfirm>
+            )}
           </Space>
         )}
         filters={[
@@ -384,7 +566,7 @@ export function MobileDecoratePages({
           width: 600,
           createApi: '/decorate/decorate/create',
           updateApi: '/decorate/decorate/update',
-          deleteApi: '/decorate/decorate/del',
+          toPayload: (values) => ({ ...values, decorateType, ...(pageType ? { pageType } : {}) }),
           sections: [
             {
               key: 'basic',
@@ -395,6 +577,84 @@ export function MobileDecoratePages({
             },
           ],
         }}
+      />
+      {switchRow && pageType !== undefined && (
+        <SwitchDefaultPageModal
+          visible={Boolean(switchRow)}
+          decorateType={decorateType}
+          pageType={pageType}
+          currentId={switchRow.decorateId}
+          onClose={() => setSwitchRow(null)}
+          onDone={() => {
+            setSwitchRow(null);
+            refresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+export function MobileDecoratePages(props: {
+  decorateType?: number;
+  pageType?: number;
+  defaultName?: string;
+  editPage?: string;
+  returnPage?: string;
+} = {}) {
+  const { t } = useI18n();
+  const [activeKey, setActiveKey] = useState('home');
+
+  // 外部固定 pageType 时不显示页签（与 Java hasFixedPageType 一致）
+  if (props.pageType) {
+    return <MobileDecoratePageList {...props} />;
+  }
+
+  const activeTab = PAGE_TYPE_TABS.find((tab) => tab.key === activeKey) || PAGE_TYPE_TABS[0];
+
+  return (
+    <div>
+      <Tabs type="line" activeKey={activeKey} onChange={(key) => setActiveKey(String(key))}>
+        {PAGE_TYPE_TABS.map((tab) => (
+          <TabPane key={tab.key} tab={t(tab.label)} itemKey={tab.key} />
+        ))}
+      </Tabs>
+      {activeTab.key === 'user' && (
+        <div
+          style={{
+            margin: '12px 0',
+            padding: '10px 14px',
+            background: '#f0f5ff',
+            border: '1px solid #d6e4ff',
+            borderRadius: 8,
+            color: '#1f2329',
+            fontSize: 13,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span>{t('个人中心页签管理的是页面型个人中心装修；新版会员中心配置也可以在「会员首页」页完成。')}</span>
+          <Button
+            size="small"
+            theme="borderless"
+            type="primary"
+            onClick={() => {
+              window.location.href = `${window.location.origin}/?page=mobileUserManage`;
+            }}
+          >
+            {t('前往会员首页')}
+          </Button>
+        </div>
+      )}
+      <MobileDecoratePageList
+        key={activeTab.key}
+        decorateType={props.decorateType ?? 1}
+        pageType={activeTab.pageType}
+        defaultName={activeTab.defaultName}
+        editPage={props.editPage}
+        returnPage={props.returnPage}
       />
     </div>
   );
