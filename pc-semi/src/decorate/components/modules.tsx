@@ -3486,7 +3486,7 @@ function DecModuleTitle({
       ) : null}
       {showMore && !isCountdown ? (
         <div className="dec-module-title__right">
-          <a className="dec-module-title__more" href={title.moreLink?.link || 'javascript:;'} style={{ color: title.moreColor || '#969799' }}>
+          <a className="dec-module-title__more" href={title.moreLink?.link || 'javascript:;'} style={{ color: title.moreColor || '#000' }}>
             <span>{title.moreLink?.title || t('更多')}</span>
             <i className="dec-module-title__arrow">›</i>
           </a>

@@ -134,7 +134,7 @@ export default function ModuleTitlePreview({
           <a
             className="dec-module-title__more"
             href={title.moreLink?.link || 'javascript:;'}
-            style={{ color: title.moreColor || '#969799' }}
+            style={{ color: title.moreColor || '#000' }}
           >
             <span>{title.moreLink?.title || t('更多')}</span>
             <i className="dec-module-title__arrow">›</i>

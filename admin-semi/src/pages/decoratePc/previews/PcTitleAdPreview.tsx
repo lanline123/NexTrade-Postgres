@@ -40,7 +40,7 @@ const DEFAULTS: PcTitleAdConfig = {
     moreType: 1,
     countdownLabel: '',
     moreLink: { link: '', title: '' },
-    moreColor: '#969799',
+    moreColor: '#000000',
   },
   frame: {
     textColor: '',

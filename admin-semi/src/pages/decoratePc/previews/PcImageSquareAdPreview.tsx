@@ -68,7 +68,7 @@ const pcImageSquareAdDefaults: AnyRecord = {
     descColor: '#aaaaaa',
     showMore: 0,
     moreLink: { link: '', title: '' },
-    moreColor: '#aaaaaa',
+    moreColor: '#000000',
   },
 };
 
