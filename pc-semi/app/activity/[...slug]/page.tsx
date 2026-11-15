@@ -3,6 +3,7 @@ import Link from 'next/link';
 import PcHeader from '@/components/PcHeaderWithData';
 import PcFooter from '@/components/PcFooter';
 import { DecorateRenderer } from '@/decorate/components/modules';
+import { prefetchDecorateModules } from '@/decorate/server-prefetch';
 import type { DecorateModule } from '@/decorate/types';
 import { getActivityDecorate, getFooterData } from '@/lib/api';
 import { TYPE_MAP } from '../type-map';
@@ -63,7 +64,9 @@ export default async function ActivityModulePage({ params, searchParams }: PageP
     .filter((item) => item.isShow !== false)
     .map((item) => ({ ...item, type: TYPE_MAP[String(item.type)] || item.type }) as DecorateModule);
   const matched = all.filter((item) => item.type === mappedType);
-  const modules: DecorateModule[] = matched.length ? matched : ([{ type: mappedType, module: {} }] as unknown as DecorateModule[]);
+  const baseModules: DecorateModule[] = matched.length ? matched : ([{ type: mappedType, module: {} }] as unknown as DecorateModule[]);
+  // 服务端首屏预取注水（同首页，见 decorate/server-prefetch.ts）
+  const modules = await prefetchDecorateModules(baseModules);
   const legal = footer as Record<string, any> | null;
 
   return (

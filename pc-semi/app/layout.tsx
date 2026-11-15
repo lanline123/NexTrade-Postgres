@@ -209,9 +209,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {/* 平台图标字体：对齐旧版 view/pc/assets/css/global.css 顶部 @import。
             营销通栏左侧类目 / 全部分类下拉的 floorIcoFont（iconfont-tig、iconfont-pc）
             依赖这两份字体样式，缺失时 `<i class="iconfont-tig icon-xxx" />` 只留空白占位。
-            App Router 的 head 由框架管理，这里放在 body 顶部同样会被浏览器加载。 */}
-        <link rel="stylesheet" href="https://at.alicdn.com/t/c/font_4441878_79ndpblv9x9.css" />
-        <link rel="stylesheet" href="https://at.alicdn.com/t/c/font_4389188_4gtbloa6zjm.css" />
+            App Router 的 head 由框架管理，这里放在 body 顶部同样会被浏览器加载。
+            2026-11-15：两份字体都换到与后台 index.html 一致的现行构建——旧构建
+            font_4441878_79ndpblv9x9 缺 77 个较新图标类（含楼层在用的 icon-yingxiaoguanli /
+            icon-gongyingshang / icon-fenxiaoyuan1，前台楼层图标因此空白），
+            font_4389188_4gtbloa6zjm 缺 28 个类；新构建经逐类核对为超集且共有类码点一致。 */}
+        <link rel="stylesheet" href="https://at.alicdn.com/t/c/font_4441878_qtp4q1dvdpo.css" />
+        <link rel="stylesheet" href="https://at.alicdn.com/t/c/font_4389188_6kr776u0szi.css" />
         <script
           id={PC_HEADER_BOOTSTRAP_ID}
           type="application/json"

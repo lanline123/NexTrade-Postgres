@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { PREMIUM_MEMBER_ENTRY_DATA_URI } from '@/decorate/assets/premiumMemberEntry';
 import { ShopProductCard, useProductStyleMap } from '@/components/product/ShopProductCard';
 import { BuyButtonVisual, buyBtnClassName, resolveBuyBtnStyle } from './BuyButton';
+import { buildDecorateProductListQuery } from '../prefetch-shared';
 import i18n from '@/i18n';
 /**
  * PC 首页装修模块渲染器（React + Semi 栈）
@@ -34,7 +35,14 @@ import i18n from '@/i18n';
  * - 非装修必需的交互（加入购物车、登录跳转、swiper 手势）做链接化/静态化处理，见各组件注释。
  */
 
-type ModuleProps<T = Record<string, any>> = { module: T };
+type ModuleProps<T = Record<string, any>> = {
+  module: T;
+  /**
+   * 服务端首屏预取注水数据（DecorateModule.__initialData 透传，见 server-prefetch.ts）。
+   * 有值时组件首屏直接用它渲染、不再等客户端首请求；无值时保持原客户端取数行为。
+   */
+  initialData?: any;
+};
 
 /* ======================= 小工具 ======================= */
 
@@ -463,28 +471,37 @@ function toHeroCatItem(floor: any, index: number): HeroCatItem | null {
   };
 }
 
-function useHeroCatItems(): HeroCatItem[] {
+function mapCatFloorJson(json: any): HeroCatItem[] {
+  const raw = json?.data?.catFloor ?? json?.catFloor ?? [];
+  return Array.isArray(raw)
+    ? raw
+        .map((floor: any, index: number) => toHeroCatItem(floor, index))
+        .filter((item: HeroCatItem | null): item is HeroCatItem => item !== null)
+    : [];
+}
+
+function useHeroCatItems(initialRaw?: any): HeroCatItem[] {
     const { t } = useTranslation();
-  const [items, setItems] = useState<HeroCatItem[]>([]);
+  const [items, setItems] = useState<HeroCatItem[]>(() => (initialRaw ? mapCatFloorJson(initialRaw) : []));
   useEffect(() => {
+    // 注水首屏：类目楼层已随 SSR 渲染，挂载时只补注图标字体 CSS（原本随 fetch 一起处理）
+    if (initialRaw) {
+      ensureCatIcoCss(initialRaw?.data?.icoDefinedCss ?? initialRaw?.icoDefinedCss);
+      return undefined;
+    }
     let alive = true;
     fetch('/api/common/pc/getCatFloor')
       .then((response) => response.json())
       .then((json) => {
         if (!alive) return;
         ensureCatIcoCss(json?.data?.icoDefinedCss ?? json?.icoDefinedCss);
-        const raw = json?.data?.catFloor ?? json?.catFloor ?? [];
-        const list: HeroCatItem[] = Array.isArray(raw)
-          ? raw
-              .map((floor: any, index: number) => toHeroCatItem(floor, index))
-              .filter((item: HeroCatItem | null): item is HeroCatItem => item !== null)
-          : [];
-        setItems(list);
+        setItems(mapCatFloorJson(json));
       })
       .catch(() => undefined);
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return items;
 }
@@ -760,42 +777,30 @@ interface ProductItem {
  * 装修商品楼层共用取数（旧版 PcProduct.vue / pages/activity/pcProduct/index.vue 的
  * paramsValueMap/paramsKeyMap 逻辑）：1 指定 ids / 2 分类 / 3 标签，附带 shopId 过滤。
  */
-function useDecorateProductList(config: Record<string, any>, columns: number, shopId: unknown) {
-  const [products, setProducts] = useState<ProductItem[]>([]);
-  const [loading, setLoading] = useState(true);
+function useDecorateProductList(
+  config: Record<string, any>,
+  columns: number,
+  shopId: unknown,
+  initial?: ProductItem[],
+) {
+  const [products, setProducts] = useState<ProductItem[]>(() => initial ?? []);
+  const [loading, setLoading] = useState(() => initial === undefined);
+  // 服务端已注水首屏数据时，首个 effect 不再重复取数（后续 config 变化仍照常取数）
+  const seededRef = useRef(initial !== undefined);
   useEffect(() => {
-    let cancelled = false;
-    const productSelectType = Number(config.productSelectType || 0);
-    const params = new URLSearchParams({ page: '1' });
-    if (productSelectType === 1) {
-      const rawIds = config.productIds;
-      const ids = Array.isArray(rawIds)
-        ? rawIds
-        : typeof rawIds === 'string' && rawIds
-          ? rawIds.split(',').filter(Boolean)
-          : [];
-      if (ids.length) {
-        params.set('ids', ids.join(','));
-        params.set('size', String(ids.length));
-      } else {
-        params.set('size', '0');
-      }
-    } else if (productSelectType === 2) {
-      params.set('categoryId', String(config.productCategoryId ?? ''));
-      params.set('size', String(px(config.productNumber, columns * 2)));
-    } else if (productSelectType === 3) {
-      params.set('introType', String(config.productTag ?? ''));
-      params.set('size', String(px(config.productNumber, columns * 2)));
-    } else {
-      params.set('size', '0');
+    if (seededRef.current) {
+      seededRef.current = false;
+      return undefined;
     }
-    if (Number(shopId) > 0) params.set('shopId', String(shopId));
-    if (params.get('size') === '0') {
+    let cancelled = false;
+    // 查询参数与服务端预取共用 prefetch-shared 的构建器，两端逐字一致
+    const query = buildDecorateProductListQuery(config, columns, shopId);
+    if (query === null) {
       setProducts([]);
       setLoading(false);
       return undefined;
     }
-    fetch(`/api/product/product/list?${params.toString()}`)
+    fetch(`/api/product/product/list?${query}`)
       .then((response) => response.json())
       .then((json) => {
         if (cancelled) return;
@@ -813,7 +818,7 @@ function useDecorateProductList(config: Record<string, any>, columns: number, sh
   return { products, loading };
 }
 
-function Product({ module }: ModuleProps) {
+function Product({ module, initialData }: ModuleProps) {
     const { t } = useTranslation();
   const config = module.products || {};
   /**
@@ -851,7 +856,7 @@ function Product({ module }: ModuleProps) {
           : 'product-card-border-4';
   const goodsRadioStyle = Number(module.goodsRadioStyle ?? 0);
 
-  const { products, loading } = useDecorateProductList(config, columns, module.shopId);
+  const { products, loading } = useDecorateProductList(config, columns, module.shopId, initialData);
 
   /**
    * 生效商品样式（活动边框图 borderImage）。
@@ -972,11 +977,11 @@ function Product({ module }: ModuleProps) {
  *   - columns = style===2 ? 5 : 4；列表 gap 固定 12px；wrapper padding = goodsPadding(默认5)。
  * 样式表在 modules-source.scss .dec-pc-product（此前已移植，本组件首次真正使用）。
  */
-function PcProduct({ module }: ModuleProps) {
+function PcProduct({ module, initialData }: ModuleProps) {
   const config = module.products || {};
   const style = Number(module.style);
   const columns = style === 2 ? 5 : 4;
-  const { products, loading } = useDecorateProductList(config, columns, module.shopId);
+  const { products, loading } = useDecorateProductList(config, columns, module.shopId, initialData);
 
   const frame = module.frame || {};
   const containerModule = {
@@ -1455,7 +1460,7 @@ const themeAwareBadgeColor = themeAwareColor;
  * 本栈用配置分类兜底）、center{banners,modules[6]}（modal 0-1 推荐位、2-5 频道卡）、
  * right{user,userCardBackground,userCardGradientColorA/B/Type,premiumMember,shortcuts,
  * shopsTitle,shopsSubTitle,shopsSubTitleBg,shopsMoreText,shopsMoreLink,shopsTextColor}、style{...}。 */
-function HomeHero({ module }: ModuleProps) {
+function HomeHero({ module, initialData }: ModuleProps) {
     const { t } = useTranslation();
   const left = module.left || {};
   const center = module.center || {};
@@ -1471,12 +1476,19 @@ function HomeHero({ module }: ModuleProps) {
   const allCards = cards.slice(0, 6);
 
   /* 旧版 fetchGroupProducts：卡位配置 productSource=productGroup 时按分组拉商品（size=2），
-     拉到结果后替换该卡位的 products（admin PcHomeHeroPreview 支持该配置）。 */
-  const [groupProductsMap, setGroupProductsMap] = useState<Record<number, any[]>>({});
+     拉到结果后替换该卡位的 products（admin PcHomeHeroPreview 支持该配置）。
+     服务端注水（initialData.groupProducts）覆盖的卡位不再重复拉取。 */
+  const [groupProductsMap, setGroupProductsMap] = useState<Record<number, any[]>>(
+    () => initialData?.groupProducts ?? {},
+  );
+  const seededGroupIdxRef = useRef<Set<number>>(
+    new Set(Object.keys(initialData?.groupProducts ?? {}).map((key) => Number(key))),
+  );
   const groupCardKeys = allCards.map((c) => `${c.productSource}-${c.productGroupId}`).join('|');
   useEffect(() => {
     let cancelled = false;
     allCards.forEach((card, idx) => {
+      if (seededGroupIdxRef.current.has(idx)) return;
       if (card.productSource === 'productGroup' && card.productGroupId) {
         const params = new URLSearchParams({ page: '1', size: '2', productGroupId: String(card.productGroupId) });
         fetch(`/api/product/product/list?${params.toString()}`)
@@ -1530,7 +1542,7 @@ function HomeHero({ module }: ModuleProps) {
   /* ---- 左侧类目：对齐旧版 PcHomeHero.displayCategories —— 只取分类楼层接口（commonStore.allCate），
      装修配置的 left.categories 在原版并不参与渲染。若用配置兜底，首屏会先闪出配置里的示例分类
      （「女装 / 男装 / 内衣」等），拿到接口数据后才被替换。 */
-  const apiCatItems = useHeroCatItems();
+  const apiCatItems = useHeroCatItems(initialData?.catRaw);
   const displayCategories: HeroCatItem[] = apiCatItems.slice(0, showCount);
 
   const leftRef = useRef<HTMLDivElement | null>(null);
@@ -2001,10 +2013,10 @@ function HomeHero({ module }: ModuleProps) {
  * 券数不固定：接口当前可能只返回 1 张，故按实际条数（上限 4）渲染，
  * 通过 --dec-coupon-cols 让 grid 列数与券数一致。
  */
-function Coupon({ module }: ModuleProps) {
+function Coupon({ module, initialData }: ModuleProps) {
     const { t } = useTranslation();
-  const [coupons, setCoupons] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [coupons, setCoupons] = useState<any[]>(() => (Array.isArray(initialData) ? initialData : []));
+  const [loading, setLoading] = useState(() => initialData === undefined);
   const [claimingId, setClaimingId] = useState<number | null>(null);
   const frame = module.frame || {};
   const containerModule = {
@@ -2014,8 +2026,10 @@ function Coupon({ module }: ModuleProps) {
     backgroundColor: frame.backgroundColor ?? 'transparent',
     boxRadius: frame.boxRadius ?? 8,
   };
-  const load = () => {
-    setLoading(true);
+  // silent=true：已有注水首屏时静默刷新（对齐登录用户的领取状态等个人口径），
+  // 不进 loading 态，避免模块在刷新期间整块消失
+  const load = (silent = false) => {
+    if (!silent) setLoading(true);
     apiGet<any>('home/home/getCoupon')
       .then((data) => {
         const list = Array.isArray(data) ? data : (data as any)?.records ?? [];
@@ -2023,11 +2037,14 @@ function Coupon({ module }: ModuleProps) {
         setCoupons(Array.isArray(list) ? list.slice(0, 4) : []);
       })
       .catch(() => undefined)
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!silent) setLoading(false);
+      });
   };
 
   useEffect(() => {
-    load();
+    // 注水首屏是匿名口径：挂载后静默刷新一次，领取状态与未注水时保持一致
+    load(initialData !== undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2167,14 +2184,16 @@ function decorateGoodsItemWidth(style: number, gap: number): string {
   return g > 0 ? `calc(16.6667% - ${(g * 5) / 6}px)` : '16.6667%';
 }
 
-function Seckill({ module }: ModuleProps) {
+function Seckill({ module, initialData }: ModuleProps) {
     const { t } = useTranslation();
-  const [products, setProducts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<any[]>(() => (Array.isArray(initialData) ? initialData : []));
+  const [loading, setLoading] = useState(() => initialData === undefined);
   const [now, setNow] = useState(0);
   const seckillScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    // 服务端注水首屏时不再重复取数
+    if (initialData !== undefined) return undefined;
     fetch('/api/home/home/getSeckill?page=1&size=10')
       .then((response) => response.json())
       .then((json) => {
@@ -2183,6 +2202,7 @@ function Seckill({ module }: ModuleProps) {
       })
       .catch(() => undefined)
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const first = products[0];
@@ -2349,16 +2369,18 @@ function Seckill({ module }: ModuleProps) {
  * style(1→3列/2→4列/3→5列/4→6列/6 横向6列，默认4)、goodsPadding、innerPadding、boxPadding/Top/Bottom、
  * backgroundColor/boxRadius、showName(==1)/showPrice(==1)、cardStyle、textAlign、textWeight、buyBtnStyle、
  * title{...同 Seckill}。数据 /api/promotion/groupon/itemList。 */
-function Groupon({ module }: ModuleProps) {
+function Groupon({ module, initialData }: ModuleProps) {
     const { t } = useTranslation();
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<any[]>(() => (Array.isArray(initialData) ? initialData : []));
+  const [loading, setLoading] = useState(() => initialData === undefined);
   const [now, setNow] = useState(0);
   const grouponScrollRef = useRef<HTMLDivElement | null>(null);
 
   const promotionId = module?.grouponActivityItem?.grouponPromotionId ? String(module.grouponActivityItem.grouponPromotionId) : '';
 
   useEffect(() => {
+    // 服务端注水首屏时不再重复取数
+    if (initialData !== undefined) return undefined;
     if (!promotionId) {
       setLoading(false);
       return undefined;
@@ -3565,7 +3587,7 @@ async function collectRecommendSignals(algo: Record<string, any>): Promise<{ see
 /** PcRecommendProduct.vue：titleName、products{productSelectType,productIds,productCategoryId,
  * productTag,productNumber}、frame{columns 默认5,itemGap,boxPadding,boxPaddingTop,boxPaddingBottom,
  * boxRadius,backgroundColor}；滚动分页（本实现按 productNumber 一次取满，见报告）。 */
-function RecommendProduct({ module }: ModuleProps) {
+function RecommendProduct({ module, initialData }: ModuleProps) {
     const { t } = useTranslation();
   const frame = module.frame || {};
   const config = module.products || {};
@@ -3590,8 +3612,11 @@ function RecommendProduct({ module }: ModuleProps) {
   const algoCatWeightRef = useRef<Map<number, number>>(new Map());
   const algoStreamsRef = useRef<Array<{ categoryId?: number; kind?: 'hot' | 'cohort'; page: number; done: boolean }>>([]);
   const algoShownRef = useRef(0);
+  // 服务端注水首屏（匿名口径）：首个 effect 不清空已渲染商品，个性化刷新原地整体替换
+  const seededOnceRef = useRef(initialData !== undefined);
+  const replaceOnRevealRef = useRef(false);
 
-  const [products, setProducts] = useState<ProductItem[]>([]);
+  const [products, setProducts] = useState<ProductItem[]>(() => initialData?.products ?? []);
   const [loading, setLoading] = useState(false);
   const [noMore, setNoMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -3707,7 +3732,14 @@ function RecommendProduct({ module }: ModuleProps) {
     const take = algoPoolRef.current.splice(0, Math.min(algoChunk, remain));
     if (!take.length) return false;
     algoShownRef.current += take.length;
-    setProducts((previous) => [...previous, ...take]);
+    setProducts((previous) => {
+      // 注水首屏的第一次揭示：整体替换匿名首屏为个性化结果（不追加、也不先清空，区域不塌陷）
+      if (replaceOnRevealRef.current) {
+        replaceOnRevealRef.current = false;
+        return take;
+      }
+      return [...previous, ...take];
+    });
     if (algoShownRef.current >= algoCap) {
       noMoreRef.current = true;
       setNoMore(true);
@@ -3762,7 +3794,9 @@ function RecommendProduct({ module }: ModuleProps) {
 
   useEffect(() => {
     products.length; // 保持 lint 关闭时的显式引用
-    setProducts([]);
+    const seeded = seededOnceRef.current;
+    seededOnceRef.current = false;
+    if (!seeded) setProducts([]);
     setNoMore(false);
     loadingRef.current = false;
     noMoreRef.current = false;
@@ -3773,6 +3807,23 @@ function RecommendProduct({ module }: ModuleProps) {
     algoCatWeightRef.current = new Map();
     algoStreamsRef.current = [];
     algoShownRef.current = 0;
+    if (seeded) {
+      if (algoEnabled) {
+        // 注水为匿名默认流：SSR 商品原地保留展示，个性化 init 的第一次揭示整体替换
+        replaceOnRevealRef.current = true;
+        void initAlgo();
+      } else {
+        // 注水即非智能模式的第 1 页结果：同步分页游标，后续滚动从第 2 页继续
+        const seededList: ProductItem[] = Array.isArray(initialData?.products) ? initialData.products : [];
+        countRef.current = seededList.length;
+        const size = Math.min(PAGE_SIZE, maxNum);
+        if (seededList.length < size || countRef.current >= maxNum) {
+          noMoreRef.current = true;
+          setNoMore(true);
+        }
+      }
+      return;
+    }
     if (algoEnabled) void initAlgo();
     else void requestPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3882,12 +3933,14 @@ const showPrice = Number((module as any).showProductPrice ?? 1) === 1;
  * productCardStyle/listStyle、cardPadding/cardRadius、productColor{titleColor,priceColor,backgroundColor,
  * infoLeftRightPadding}、moduleStyle{boxPadding,boxPaddingTop,boxPaddingBottom,backgroundColor}、
  * contentStyle{paddingTop,paddingBottom,paddingLeftRight,boxRadius,backgroundColor}、buyBtnStyle.showBtn。 */
-function ProductGroup({ module }: ModuleProps) {
+function ProductGroup({ module, initialData }: ModuleProps) {
     const { t } = useTranslation();
   const groups: Array<Record<string, any>> = Array.isArray(module.productGroups) ? module.productGroups : [];
   const [active, setActive] = useState(0);
-  const [products, setProducts] = useState<ProductItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<ProductItem[]>(() => initialData?.products ?? []);
+  const [loading, setLoading] = useState(() => initialData === undefined);
+  // 服务端注水的首个分组商品（只消费一次：首个 effect 跳过商品取数、只补拉活动标签）
+  const seededProductsRef = useRef<ProductItem[] | undefined>(initialData?.products);
   /** 活动数据（原版 usePromotionActivity：POST product/product/promotion → {[productId]: {activityInfo}}） */
   const [promotions, setPromotions] = useState<Record<string, { activityInfo?: Array<{ type?: number; typeText?: string }> }>>({});
   const productColor = module.productColor || {};
@@ -3958,6 +4011,30 @@ function ProductGroup({ module }: ModuleProps) {
     });
   };
 
+  // 旧 usePromotionActivity.fetchPromotionList：自动携带首个商品的 shopId，失败即清空
+  const requestPromotions = (list: any[], isCancelled: () => boolean) => {
+    const promotionItems = list
+      .map((p: any) => ({ productId: p.productId ?? p.id }))
+      .filter((p: any) => p.productId != null && String(p.productId) !== '');
+    if (!promotionItems.length) {
+      if (!isCancelled()) setPromotions({});
+      return;
+    }
+    const rawShopId = list.find((item: any) => item.shopId)?.shopId;
+    fetch('/api/product/product/promotion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ products: promotionItems, ...(rawShopId ? { shopId: String(rawShopId) } : {}), from: 'list' }),
+    })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!isCancelled()) setPromotions(j?.data && typeof j.data === 'object' ? j.data : {});
+      })
+      .catch(() => {
+        if (!isCancelled()) setPromotions({});
+      });
+  };
+
   useEffect(() => {
     let cancelled = false;
     const group = groups[active];
@@ -3966,32 +4043,20 @@ function ProductGroup({ module }: ModuleProps) {
       setLoading(false);
       return undefined;
     }
+    // 服务端注水首屏（首个分组）：商品已在 state 中，只补拉活动标签，不再重复取数
+    if (seededProductsRef.current !== undefined && active === 0) {
+      const seeded = seededProductsRef.current;
+      seededProductsRef.current = undefined;
+      setPromotions({});
+      setLoading(false);
+      requestPromotions(seeded, () => cancelled);
+      return () => {
+        cancelled = true;
+      };
+    }
     // 旧 fetchProductList 开头 clearPromotionList：切换分组先清空上一组活动标签
     setPromotions({});
     setLoading(true);
-    // 旧 usePromotionActivity.fetchPromotionList：自动携带首个商品的 shopId，失败即清空
-    const requestPromotions = (list: any[]) => {
-      const promotionItems = list
-        .map((p: any) => ({ productId: p.productId ?? p.id }))
-        .filter((p: any) => p.productId != null && String(p.productId) !== '');
-      if (!promotionItems.length) {
-        if (!cancelled) setPromotions({});
-        return;
-      }
-      const rawShopId = list.find((item: any) => item.shopId)?.shopId;
-      fetch('/api/product/product/promotion', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ products: promotionItems, ...(rawShopId ? { shopId: String(rawShopId) } : {}), from: 'list' }),
-      })
-        .then((r) => r.json())
-        .then((j) => {
-          if (!cancelled) setPromotions(j?.data && typeof j.data === 'object' ? j.data : {});
-        })
-        .catch(() => {
-          if (!cancelled) setPromotions({});
-        });
-    };
     if (group.sourceType === 'productGroup' && group.productGroupId) {
       const params = new URLSearchParams({ page: '1', size: String(columns * 3), productGroupId: String(group.productGroupId) });
       fetch(`/api/product/product/list?${params.toString()}`)
@@ -4001,7 +4066,7 @@ function ProductGroup({ module }: ModuleProps) {
           const records = json?.data?.records || json?.data || json?.records || [];
           const list = Array.isArray(records) ? records : [];
           setProducts(list);
-          requestPromotions(list);
+          requestPromotions(list, () => cancelled);
         })
         .catch(() => {
           if (!cancelled) setProducts([]);
@@ -4027,13 +4092,13 @@ function ProductGroup({ module }: ModuleProps) {
           const records = json?.data?.records || json?.data || json?.records || [];
           const list = Array.isArray(records) ? records : [];
           setProducts(list);
-          requestPromotions(list);
+          requestPromotions(list, () => cancelled);
         })
         .catch(() => {
           // 旧版：接口异常时降级使用装修数据中已有的商品信息
           if (!cancelled) {
             setProducts(fromList);
-            requestPromotions(fromList);
+            requestPromotions(fromList, () => cancelled);
           }
         })
         .finally(() => {
@@ -4442,10 +4507,10 @@ function ContractImageAd({ module }: ModuleProps) {
  * 样式在 app/decorate-source.scss（由 gen-decorate-scss.mjs 从同名 .vue 搬来，
  * 作用域 `.pc-home .simple-goodsbox`，等价旧版 scoped 的 data-v）。
  */
-function ContractCatProductSimple({ module }: ModuleProps) {
+function ContractCatProductSimple({ module, initialData }: ModuleProps) {
   const { t } = useTranslation();
   const config = (module.product as Record<string, any>) || {};
-  const { products } = useDecorateProductList(config, 4, module.shopId);
+  const { products } = useDecorateProductList(config, 4, module.shopId, initialData);
   const styleMap = useProductStyleMap(products as any) as Record<string, { borderImage?: string }>;
   const titleRaw = module.title;
   const titleText =
@@ -4541,7 +4606,7 @@ function ContractCatProductSimple({ module }: ModuleProps) {
  * 取数：`product/product/list`，参数与旧版一致（selectType 1→ids，2→categoryId，3→introType），
  * 每页 size = min(20, maxNum - 20*(page-1))，滚到锚点再取下一页。
  */
-function ContractRecommendProduct({ module }: ModuleProps) {
+function ContractRecommendProduct({ module, initialData }: ModuleProps) {
   const { t } = useTranslation();
   const config = (module.products || {}) as Record<string, any>;
   const selectType = Number(config.productSelectType) || 0;
@@ -4549,9 +4614,9 @@ function ContractRecommendProduct({ module }: ModuleProps) {
   // 旧版 maxNum：按 id 选时等于 id 个数，否则取后台配的 productNumber
   const maxNum = selectType === 1 ? ids.length : Math.max(0, px(config.productNumber, 0));
 
-  const [products, setProducts] = useState<ProductItem[]>([]);
-  // 旧版 isLoading 初值就是 true：首屏先显示 .gif-loading
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<ProductItem[]>(() => (Array.isArray(initialData) ? initialData : []));
+  // 旧版 isLoading 初值就是 true：首屏先显示 .gif-loading；注水首屏已有商品则不再转圈
+  const [loading, setLoading] = useState(() => initialData === undefined);
   // 旧版 isloadEnd 只声明、从未置 true ⇒ `.load-end-con` 实际永不出现；保留同名字段与判断以保持结构一致
   const [loadEnd] = useState(false);
   const anchorRef = useRef<HTMLDivElement | null>(null);
@@ -4603,6 +4668,13 @@ function ContractRecommendProduct({ module }: ModuleProps) {
     loadingRef.current = false;
     pageRef.current = 1;
     countRef.current = 0;
+    // 服务端注水首屏 = 第 1 页结果：同步游标跳过首请求，滚动从第 2 页继续
+    if (Array.isArray(initialData)) {
+      countRef.current = initialData.length;
+      setLoading(false);
+      if (initialData.length < sizeOf(1)) noMoreRef.current = true;
+      return;
+    }
     setProducts([]);
     void requestPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -5093,7 +5165,7 @@ function ContractSpecialSwiper({ slides, activeColor }: { slides: any[]; activeC
  *         > .rank_detail（p.pro_name.line2 [+ span.presale-text] + <FormatPrice class="pro_price">）
  * 旧版此模块没有 TotalContainer 包裹，所以这里也不加 Container。
  */
-function ContractCatProductWide({ module }: ModuleProps) {
+function ContractCatProductWide({ module, initialData }: ModuleProps) {
   const { t } = useTranslation();
   const titleRaw = module.title;
   const titleText = typeof titleRaw === 'string' ? titleRaw : ((titleRaw?.titleText as string) || '');
@@ -5111,6 +5183,7 @@ function ContractCatProductWide({ module }: ModuleProps) {
     module.product || { productSelectType: 1, productIds: module.productIds },
     5,
     module.shopId,
+    initialData,
   );
   const styleMap = useProductStyleMap(products as any) as Record<string, { borderImage?: string }>;
   const list: any[] = products.length > 5 ? products.slice(0, 5) : products;
@@ -5617,7 +5690,7 @@ export function DecorateRenderer({ modules }: { modules: DecorateModule[] }) {
               className={`decorate-renderer__module home-warp__item${isFullWidth ? ' home-warp__item--full' : ''}`}
               key={item.moduleIndex ?? `${item.type}-${index}`}
             >
-              <Component module={moduleProps.module} />
+              <Component module={moduleProps.module} initialData={item.__initialData} />
             </div>
           );
         })}

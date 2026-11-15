@@ -100,6 +100,12 @@ export interface DecorateModule<T = Record<string, any>> {
   isShow?: boolean;
   fixed?: boolean;
   module: T;
+  /**
+   * 服务端首屏预取的注水数据（见 decorate/server-prefetch.ts）：仅在服务端渲染
+   * 路径上附加，形状按模块类型约定；客户端组件首屏据此直接渲染，不存在时
+   * 回落原客户端取数。不会回写后台装修数据。
+   */
+  __initialData?: unknown;
 }
 
 export interface DecorateData {

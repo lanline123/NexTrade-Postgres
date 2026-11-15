@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import PcHeader from '@/components/PcHeaderWithData';
 import { DecorateRenderer } from '@/decorate/components/modules';
+import { prefetchDecorateModules } from '@/decorate/server-prefetch';
 import type { HomeDecorateResponse } from '@/decorate/types';
 import PcFooter from '@/components/PcFooter';
 
@@ -120,8 +121,12 @@ export default async function HomePage({
    * - 其余模块渲染在 .container 内的 .home-warp
    */
   const FLUX_TYPES = new Set(['pcBanner', 'pcBanner2']);
-  const fluxModules = moduleList.filter((item) => FLUX_TYPES.has(String(item?.type || '')));
-  const innerModules = moduleList.filter((item) => !FLUX_TYPES.has(String(item?.type || '')));
+  // 服务端首屏预取：给客户端取数型模块注水 __initialData，避免「先出标题、后出卡片」
+  // 的两段加载与高度塌陷；只取匿名口径，失败自动回落客户端取数（decorate/server-prefetch.ts）。
+  // 静态回退首页（useLegacy）是本地常量数据，不预取。
+  const renderModules = useLegacy ? moduleList : await prefetchDecorateModules(moduleList);
+  const fluxModules = renderModules.filter((item) => FLUX_TYPES.has(String(item?.type || '')));
+  const innerModules = renderModules.filter((item) => !FLUX_TYPES.has(String(item?.type || '')));
 
   return (
     <>
