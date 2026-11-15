@@ -23,6 +23,7 @@ interface McpSettings {
   requireApprovalPublish: boolean;
   requireApprovalBatch: boolean;
   requireApprovalImport: boolean;
+  approvalExempt: boolean;
   endpoint?: string;
 }
 
@@ -42,6 +43,7 @@ const DEFAULTS: McpSettings = {
   requireApprovalPublish: true,
   requireApprovalBatch: true,
   requireApprovalImport: true,
+  approvalExempt: false,
 };
 
 const sectionStyle: React.CSSProperties = {
@@ -185,6 +187,16 @@ export default function AiMcpSettings() {
 
       <div style={sectionStyle}>
         <h3 style={{ margin: '0 0 8px' }}>风控阈值</h3>
+        <div style={rowStyle}>
+          <span style={labelStyle}>免审核（总开关）</span>
+          <Switch
+            checked={settings.approvalExempt}
+            onChange={(v) => patch({ approvalExempt: v })}
+          />
+          <span style={hintStyle}>
+            开启后所有 MCP 操作免审批直接执行，下方各项审批开关被覆盖；与审批中心页的「免审核」开关是同一状态
+          </span>
+        </div>
         <div style={rowStyle}>
           <span style={labelStyle}>改价幅度阈值（%）</span>
           <InputNumber

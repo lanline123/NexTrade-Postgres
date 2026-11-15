@@ -94,6 +94,15 @@ pub struct McpSettings {
     pub require_approval_batch: bool,
     /// 商品批量导入是否需要审批
     pub require_approval_import: bool,
+    /// 免审核总开关：开启后所有 MCP 操作免审批直接执行（覆盖上面 4 个分项审批门与库存上限审批）
+    pub approval_exempt: bool,
+}
+
+impl McpSettings {
+    /// 某项操作是否需要走审批：免审核总开关开启时一律免审，否则按分项开关。
+    fn needs_approval(&self, item_required: bool) -> bool {
+        item_required && !self.approval_exempt
+    }
 }
 
 impl Default for McpSettings {
@@ -114,6 +123,7 @@ impl Default for McpSettings {
             require_approval_publish: true,
             require_approval_batch: true,
             require_approval_import: true,
+            approval_exempt: false,
         }
     }
 }
@@ -170,6 +180,7 @@ fn generate_token() -> String {
 pub fn routes(_state: &AdminState) -> Router<AdminState> {
     Router::new()
         .route("/ai/mcp/settings", get(settings_get).post(settings_save))
+        .route("/ai/mcp/settings/approval-exempt", post(settings_approval_exempt))
         .route("/ai/mcp/settings/token", post(token_regenerate))
         .route("/ai/mcp/logs", get(logs_list))
         .route("/ai/mcp/approvals", get(approvals_list))
@@ -202,6 +213,7 @@ async fn settings_get(State(state): State<AdminState>) -> ApiResult<Value> {
         "requireApprovalPublish": settings.require_approval_publish,
         "requireApprovalBatch": settings.require_approval_batch,
         "requireApprovalImport": settings.require_approval_import,
+        "approvalExempt": settings.approval_exempt,
         "endpoint": "/adminapi/ai/mcp",
     }))
 }
@@ -217,6 +229,26 @@ async fn settings_save(
         .await
         .map_err(|e| AppError(nextrade_core::Error::Validation(e)))?;
     ok(json!({ "saved": true, "token": body.token }))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ApprovalExemptBody {
+    approval_exempt: bool,
+}
+
+/// 免审核总开关专用接口：只改 approvalExempt 一项，其余设置（含 Token）原样保留，
+/// 避免审批中心页用旧快照全量保存覆盖其他设置。
+async fn settings_approval_exempt(
+    State(state): State<AdminState>,
+    Json(body): Json<ApprovalExemptBody>,
+) -> ApiResult<Value> {
+    let mut settings = load_settings(&state.repos.pool).await;
+    settings.approval_exempt = body.approval_exempt;
+    save_settings(&state.repos.pool, &settings)
+        .await
+        .map_err(|e| AppError(nextrade_core::Error::Validation(e)))?;
+    ok(json!({ "approvalExempt": settings.approval_exempt }))
 }
 
 async fn token_regenerate(State(state): State<AdminState>) -> ApiResult<Value> {
@@ -1497,7 +1529,7 @@ async fn call_tool(
             let amt_limit = Decimal::from_f64_retain(settings.price_change_amount).unwrap_or_default();
             let over_pct = pct_limit > Decimal::ZERO && old > Decimal::ZERO && delta > old * pct_limit / Decimal::from(100i64);
             let over_amt = amt_limit > Decimal::ZERO && delta > amt_limit;
-            if settings.require_approval_price && !approved && (over_pct || over_amt) {
+            if settings.needs_approval(settings.require_approval_price) && !approved && (over_pct || over_amt) {
                 let approval_id = create_approval(state, name, args).await?;
                 return Ok(pending(approval_id));
             }
@@ -1532,7 +1564,8 @@ async fn call_tool(
                 .map_err(|e| e.to_string())?
                 .ok_or_else(|| "商品不存在".to_string())?;
             let delta = (stock - old).abs() as i64;
-            if settings.stock_change_cap > 0 && delta > settings.stock_change_cap && !approved {
+            // 库存没有分项审批开关，原为超上限必审；免审核总开关开启时同样直接执行。
+            if settings.stock_change_cap > 0 && delta > settings.stock_change_cap && !settings.approval_exempt && !approved {
                 let approval_id = create_approval(state, name, args).await?;
                 return Ok(pending(approval_id));
             }
@@ -1611,7 +1644,7 @@ async fn call_tool(
             if ids.len() > BATCH_MAX_IDS {
                 return Err(format!("一次最多处理 {BATCH_MAX_IDS} 个商品"));
             }
-            if (op == "recycle" || op == "del") && settings.require_approval_batch && !approved {
+            if (op == "recycle" || op == "del") && settings.needs_approval(settings.require_approval_batch) && !approved {
                 let approval_id = create_approval(state, name, args).await?;
                 return Ok(pending(approval_id));
             }
@@ -1678,7 +1711,7 @@ async fn call_tool(
             if products.len() > MAX_IMPORT_PRODUCTS {
                 return Err(format!("一次最多导入 {MAX_IMPORT_PRODUCTS} 个商品"));
             }
-            if settings.require_approval_import && !approved {
+            if settings.needs_approval(settings.require_approval_import) && !approved {
                 let approval_id = create_approval(state, name, args).await?;
                 return Ok(pending(approval_id));
             }
@@ -2330,7 +2363,7 @@ async fn call_tool(
                 return Err("装修域未启用".into());
             }
             let id = require_i32(args, "decorateId")?;
-            if settings.require_approval_publish && !approved {
+            if settings.needs_approval(settings.require_approval_publish) && !approved {
                 let approval_id = create_approval(state, name, args).await?;
                 return Ok(pending(approval_id));
             }
