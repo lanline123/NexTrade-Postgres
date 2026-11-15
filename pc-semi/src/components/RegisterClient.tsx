@@ -1,11 +1,19 @@
 'use client';
 
 /**
- * PC 注册
+ * PC 注册（与登录页同构的淘宝式双栏卡片改版）
+ *
+ * 布局与 LoginClient 完全同款：浅灰页面底 + 悬浮顶栏（logo + 欢迎语 +
+ * 「已有账号？去登录」）+ 居中白色圆角卡（阴影），卡内左右双栏——
+ * 左栏「手机扫码」（二维码指向移动端 H5 /mobile），右栏「手机注册 /
+ * 邮箱注册」双页签表单；底部一行左侧微信入口 + 第三方注册。
+ * 配色用全站主题色（--general），样式复用 app/auth-modern.scss 的
+ * .pg-login-card / .login-card__* 段，注册页特有差异在 .pg-register-card 段。
+ *
  * 源码对照：java-b2b2c-overseas-v5.8.61/view/pc/pages/member/Register.vue
  * - 手机号注册 / 邮箱注册切换
  * - 短信 / 邮箱验证码（60s 倒计时，源码 MobileCode）
- * - 注册协议与隐私政策勾选
+ * - 注册协议与隐私政策（旧版无勾选框，视为已同意）
  * - 邀请码选填
  * 接口：POST /api/user/login/sendMobileCode
  *       POST /api/user/login/sendEmailCode
@@ -14,7 +22,9 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Button, Card, Input, Toast, Typography } from '@douyinfe/semi-ui';
+import { Toast } from '@douyinfe/semi-ui';
+import type { PcLoginDecorate } from '@/lib/api';
+import { imageFormat } from '@/lib/image';
 
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
@@ -30,7 +40,38 @@ async function getCsrf(): Promise<string> {
 
 type Mode = 'mobile' | 'email' | 'wechat';
 
-export default function RegisterClient() {
+/** 密码可见切换的眼睛图标（纯展示，本地 state 控制） */
+function EyeIcon({ off = false }: { off?: boolean }) {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+      {off ? <path d="M3 3l18 18" /> : null}
+    </svg>
+  );
+}
+
+export default function RegisterClient({
+  shopName = '万物新生',
+  shopLogo = '',
+}: {
+  /** 店铺名称（logo 缺省时展示文字），来自 common/config/base */
+  shopName?: string;
+  /** 店铺 logo（顶栏展示） */
+  shopLogo?: string;
+  /** 登录页装修配置（页面保留传参兼容；背景图/背景色不使用，与登录页一致） */
+  decorate?: PcLoginDecorate | null;
+}) {
     const { t } = useTranslation();
   /** 第三方注册入口（源码 pages/member/Register.vue:192-203） */
   const { switches: oauthSwitches, start: startOauth } = useOauthLogin();
@@ -55,12 +96,34 @@ export default function RegisterClient() {
   const [wechatExpired, setWechatExpired] = useState(false);
   const wechatTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const wechatTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 左栏手机扫码二维码（指向移动端 H5，与登录页同款生成） */
+  const [mobileQr, setMobileQr] = useState('');
+  /** 密码可见切换（纯展示，不影响提交逻辑） */
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (wechatTimer.current) clearInterval(wechatTimer.current);
       if (wechatTimeout.current) clearTimeout(wechatTimeout.current);
+    };
+  }, []);
+
+  /** 左栏扫码二维码：指向移动端 H5 入口，扫码打开手机版商城（与登录页一致） */
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const QRCode = (await import('qrcode')).default;
+        const url = await QRCode.toDataURL(`${window.location.origin}/mobile`, { width: 196, margin: 1 });
+        if (!cancelled) setMobileQr(url);
+      } catch {
+        /* 二维码生成失败时左栏显示占位文案 */
+      }
+    })();
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -207,196 +270,250 @@ export default function RegisterClient() {
     }
   };
 
-  return (
-    <div className="pg-auth-register">
-      {/* 源码 pages/member/register.vue：.full-height-div > .register-info > .title / .content > .form-box + .btn-box + .login-box */}
-      <div className="full-height-div">
-        <div className="register-info" data-form-rev="ZmFocDIyODI">
-          <div className="title">{t('会员注册')}</div>
+  /**
+   * 密码强度（纯展示）：仅由密码长度与字符种类派生，
+   * 不参与校验、不拦截提交（校验规则仍是原有的「至少 6 位」）。
+   */
+  const pwdKindCount = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((re) => re.test(password)).length;
+  const pwdStrength = !password
+    ? 0
+    : password.length < 6 || pwdKindCount <= 1
+      ? 1
+      : password.length >= 10 && pwdKindCount >= 3
+        ? 3
+        : 2;
 
-          <div className="content">
+  return (
+    <div className="pg-login-card pg-register-card">
+      <header className="login-card__topbar">
+        <Link href="/" className="login-card__logo">
+          {shopLogo ? (
+            <img src={imageFormat(shopLogo)} alt={shopName} />
+          ) : (
+            <span className="login-card__logo-text">{shopName}</span>
+          )}
+        </Link>
+        <div className="login-card__topbar-info">
+          <span className="login-card__welcome">{t('您好，欢迎光临')}{shopName}{t('！')}</span>
+          <Link className="login-card__switch" href="/login">{t('已有账号？去登录！')}</Link>
+        </div>
+      </header>
+
+      <div className="login-card__stage">
+        <div className="login-card">
+          {/* 左栏：手机扫码（二维码指向移动端 H5） */}
+          <aside className="login-card__qr">
+            <h3 className="login-card__qr-title">{t('手机扫码')}</h3>
+            <p className="login-card__qr-sub">{t('打开手机版商城')}</p>
+            <div className="login-card__qr-box">
+              {mobileQr ? (
+                <img src={mobileQr} alt={t('手机版商城二维码')} />
+              ) : (
+                <div className="login-card__qr-empty">{t('加载中...')}</div>
+              )}
+            </div>
+            <p className="login-card__qr-tip">{t('使用手机浏览器或微信扫一扫')}</p>
+          </aside>
+
+          {/* 右栏：注册表单 / 微信扫码面板 */}
+          <div className="login-card__main">
             {mode === 'wechat' ? (
-              <div className="wechat-main" style={{ height: 420 }}>
-                <div className="wechat-main-back" onClick={() => setMode('mobile')}>
-                  {t('返回')}
-                </div>
-                <div className="tow-title">{t('请使用微信扫码安全登录')}</div>
+              <div className="login-card__wechat-panel">
+                <h2 className="login-card__title login-card__title--center">{t('请使用微信扫码安全登录')}</h2>
                 {wechatQr && !wechatExpired ? (
                   <>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img className="two-image" src={wechatQr} alt={t('微信二维码')} />
+                    <img className="login-card__wxqr" src={wechatQr} alt={t('微信二维码')} />
                   </>
                 ) : (
-                  <div className="image-text">{wechatExpired ? t('二维码已失效') : t('加载中...')}</div>
+                  <div className="login-card__wxqr login-card__wxqr--empty">{wechatExpired ? t('二维码已失效') : t('加载中...')}</div>
                 )}
-                <div className="login_last">
-                  <button className="el-button" type="button" onClick={() => void showWechatLogin()}>
-                    {wechatExpired ? t('刷新二维码') : t('返回')}
+                <p className="register-card__wechat-tip">{t('扫码后自动完成注册并登录')}</p>
+                <div className="login-card__wechat-actions">
+                  <button type="button" className="login-card__btn-secondary" onClick={() => void showWechatLogin()}>
+                    {t('刷新二维码')}
+                  </button>
+                  <button type="button" className="login-card__btn-secondary" onClick={() => setMode('mobile')}>
+                    {t('返回')}
                   </button>
                 </div>
-                <p className="register-wechat__tip">{t('扫码后自动完成注册并登录')}</p>
               </div>
             ) : (
-              <form className="form-box" onSubmit={submit}>
-                {mode === 'mobile' ? (
-                  <div className="form-item">
-                    <div className="form-item-label">{t('手机号码')}</div>
-                    <div className="form-item-input area-code-input">
-                      <div className="el-input input-border-style">
-                        <input
-                          className="el-input__inner"
-                          value={mobile}
-                          onChange={(event) => setMobile(event.target.value)}
-                          placeholder={t('手机号码')}
-                          maxLength={11}
-                        />
-                      </div>
-                      <div className="error-notice" />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="form-item">
-                    <div className="form-item-label">{t('邮箱')}</div>
-                    <div className="form-item-input">
-                      <div className="el-input input-border-style">
-                        <input
-                          className="el-input__inner"
-                          value={email}
-                          onChange={(event) => setEmail(event.target.value)}
-                          placeholder={t('邮箱')}
-                        />
-                      </div>
-                      <div className="error-notice" />
-                    </div>
-                  </div>
-                )}
-
-                <div className="form-item">
-                  <div className="form-item-label">{t('验证码')}</div>
-                  <div className="form-item-input">
-                    <div className="el-input input-border-style">
-                      <input
-                        className="el-input__inner"
-                        value={code}
-                        onChange={(event) => setCode(event.target.value)}
-                        placeholder={t('验证码')}
-                        maxLength={8}
-                      />
-                      <span className="el-input__suffix mobile-code-text">
-                        <button className="el-button" type="button" disabled={countdown > 0 || sending} onClick={() => void sendCode()}>
-                          {countdown > 0 ? `${countdown}s` : t('获取验证码')}
-                        </button>
-                      </span>
-                    </div>
-                    <div className="error-notice" />
-                  </div>
+              <>
+                <div className="login-card__tabs">
+                  <button
+                    type="button"
+                    className={`login-card__tab${mode === 'mobile' ? ' is-active' : ''}`}
+                    onClick={() => {
+                      setMode('mobile');
+                      setError('');
+                    }}
+                  >
+                    {t('手机注册')}
+                  </button>
+                  <span className="login-card__tab-sep" />
+                  <button
+                    type="button"
+                    className={`login-card__tab${mode === 'email' ? ' is-active' : ''}`}
+                    onClick={() => {
+                      setMode('email');
+                      setError('');
+                    }}
+                  >
+                    {t('邮箱注册')}
+                  </button>
                 </div>
 
-                <div className="form-item">
-                  <div className="form-item-label">{t('昵称')}</div>
-                  <div className="form-item-input">
-                    <div className="el-input input-border-style">
+                <form className="login-card__form" onSubmit={submit}>
+                  {mode === 'mobile' ? (
+                    <label className="login-card__field">
                       <input
-                        className="el-input__inner"
-                        value={nickname}
-                        onChange={(event) => setNickname(event.target.value)}
-                        placeholder={t('昵称（选填）')}
+                        className="login-card__input"
+                        value={mobile}
+                        onChange={(event) => setMobile(event.target.value)}
+                        placeholder={t('手机号码')}
+                        aria-label={t('手机号码')}
+                        maxLength={11}
+                        autoComplete="tel"
                       />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="form-item">
-                  <div className="form-item-label">{t('设置密码')}</div>
-                  <div className="form-item-input">
-                    <div className="el-input input-border-style">
+                    </label>
+                  ) : (
+                    <label className="login-card__field">
                       <input
-                        className="el-input__inner"
-                        type="password"
+                        className="login-card__input"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        placeholder={t('邮箱')}
+                        aria-label={t('邮箱')}
+                        autoComplete="email"
+                      />
+                    </label>
+                  )}
+
+                  <label className="login-card__field login-card__field--code">
+                    <input
+                      className="login-card__input"
+                      value={code}
+                      onChange={(event) => setCode(event.target.value)}
+                      placeholder={t('验证码')}
+                      aria-label={t('验证码')}
+                      maxLength={8}
+                      autoComplete="one-time-code"
+                    />
+                    <button className="login-card__code-btn" type="button" disabled={countdown > 0 || sending} onClick={() => void sendCode()}>
+                      {countdown > 0 ? `${countdown}s` : t('获取验证码')}
+                    </button>
+                  </label>
+
+                  <label className="login-card__field">
+                    <input
+                      className="login-card__input"
+                      value={nickname}
+                      onChange={(event) => setNickname(event.target.value)}
+                      placeholder={t('昵称（选填）')}
+                      aria-label={t('昵称（选填）')}
+                      autoComplete="nickname"
+                    />
+                  </label>
+
+                  <div className="login-card__field">
+                    <div className="register-card__pwd-wrap">
+                      <input
+                        className="login-card__input register-card__input--pwd"
+                        type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={(event) => setPassword(event.target.value)}
                         placeholder={t('设置密码')}
+                        aria-label={t('设置密码')}
+                        autoComplete="new-password"
                       />
+                      <button
+                        type="button"
+                        className="register-card__eye"
+                        onClick={() => setShowPassword((value) => !value)}
+                        aria-label={showPassword ? t('隐藏密码') : t('显示密码')}
+                      >
+                        <EyeIcon off={!showPassword} />
+                      </button>
                     </div>
-                    <div className="error-notice" />
+                    {password ? (
+                      <div className={`register-card__strength register-card__strength--${pwdStrength}`}>
+                        <span className="register-card__strength-bar" />
+                        <span className="register-card__strength-bar" />
+                        <span className="register-card__strength-bar" />
+                        <span className="register-card__strength-text">
+                          {pwdStrength === 1 ? t('弱') : pwdStrength === 2 ? t('中') : t('强')}
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
-                </div>
 
-                <div className="form-item">
-                  <div className="form-item-label">{t('确认密码')}</div>
-                  <div className="form-item-input">
-                    <div className="el-input input-border-style">
+                  <div className="login-card__field">
+                    <div className="register-card__pwd-wrap">
                       <input
-                        className="el-input__inner"
-                        type="password"
+                        className="login-card__input register-card__input--pwd"
+                        type={showConfirm ? 'text' : 'password'}
                         value={confirm}
                         onChange={(event) => setConfirm(event.target.value)}
                         placeholder={t('确认密码')}
+                        aria-label={t('确认密码')}
+                        autoComplete="new-password"
                       />
+                      <button
+                        type="button"
+                        className="register-card__eye"
+                        onClick={() => setShowConfirm((value) => !value)}
+                        aria-label={showConfirm ? t('隐藏密码') : t('显示密码')}
+                      >
+                        <EyeIcon off={!showConfirm} />
+                      </button>
                     </div>
                   </div>
-                </div>
 
-                <div className="form-item">
-                  <div className="form-item-label">{t('邀请码')}</div>
-                  <div className="form-item-input">
-                    <div className="el-input input-border-style">
-                      <input
-                        className="el-input__inner"
-                        value={inviteCode}
-                        onChange={(event) => setInviteCode(event.target.value)}
-                        placeholder={t('邀请码（选填）')}
-                      />
-                    </div>
+                  <label className="login-card__field">
+                    <input
+                      className="login-card__input"
+                      value={inviteCode}
+                      onChange={(event) => setInviteCode(event.target.value)}
+                      placeholder={t('邀请码（选填）')}
+                      aria-label={t('邀请码（选填）')}
+                    />
+                  </label>
+
+                  {error ? <div className="login-card__error">{error}</div> : null}
+
+                  {/* 旧版无勾选框、视为已同意：仅一行提示文字，链接沿用 yhxy / yszc */}
+                  <div className="login-card__agree">
+                    <span>{t('点击注册，表示您同意')}</span>
+                    <Link className="login-card__agree-link" href="/article/issue?categoryId=yhxy" target="_blank">
+                      {t('《用户协议》')}
+                    </Link>
+                    <span>{t('和')}</span>
+                    <Link className="login-card__agree-link" href="/article/issue?categoryId=yszc" target="_blank">
+                      {t('《隐私政策》')}
+                    </Link>
+                  </div>
+
+                  <button className="login-card__submit" type="submit" disabled={loading}>
+                    {loading ? t('注册中...') : t('同意协议并注册')}
+                  </button>
+                </form>
+
+                <div className="login-card__foot">
+                  <div className="login-card__social">
+                    <button className="login-card__wechat" type="button" onClick={() => setMode('wechat')} title={t('微信')}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="/assets/images/user/login/ico_wx.png" width={22} height={22} alt={t('微信')} />
+                    </button>
+                    {/* 第三方注册（源码 pages/member/Register.vue:192-203 Google / Facebook / Twitter-X） */}
+                    <OauthButtons switches={oauthSwitches} onStart={startOauth} />
                   </div>
                 </div>
-
-                {error ? <div className="error-notice">{error}</div> : null}
-              </form>
+              </>
             )}
-          </div>
-
-          <div className="btn-box">
-            <div className="extra">
-              {t('点击注册，表示您同意')}
-              <Link className="font-color" href="/article/issue?categoryId=yhxy" target="_blank">
-                {t('《用户协议》')}
-              </Link>
-              {t('和')}
-              <Link className="font-color" href="/article/issue?categoryId=yszc" target="_blank">
-                {t('《隐私政策》')}
-              </Link>
-            </div>
-            <button className="el-button login-btn" type="button" disabled={loading} onClick={(event) => void submit(event as unknown as React.FormEvent)}>
-              {loading ? t('注册中...') : t('同意协议并注册')}
-            </button>
-
-            <div className="text">
-              <div className="line" />
-              <div>{t('或通过以下方式加入')}</div>
-              <div className="line" />
-            </div>
-
-            <div className="other-login-img">
-              <div className="login-img" onClick={() => setMode('wechat')}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="login-img" src="/assets/images/user/login/ico_wx.png" alt="" />
-                <p>{t('微信')}</p>
-              </div>
-            </div>
-
-            {/* 第三方注册（源码 pages/member/Register.vue:192-203 Google / Facebook / Twitter-X） */}
-            <OauthButtons switches={oauthSwitches} onStart={startOauth} />
-          </div>
-
-          <div className="login-box">
-            <Link className="font-color" href="/login">
-              {t('已有账号？去登录！')}
-            </Link>
           </div>
         </div>
       </div>
     </div>
   );
 }
-

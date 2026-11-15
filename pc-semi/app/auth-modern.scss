@@ -900,3 +900,87 @@
     padding: 0;
   }
 }
+
+/* =====================================================================
+ * 注册页（RegisterClient.tsx）：与登录页共用 .pg-login-card 壳与
+ * .login-card__* 全部组件样式，本段只补注册页特有差异——
+ * 字段更多（6 个）时页签区间距收紧、密码可见切换按钮、密码强度条、
+ * 微信面板提示文案。全部以 .pg-register-card / .register-card__* 收口，
+ * 不改动上方登录段任何规则。
+ * ===================================================================== */
+
+/* 注册字段比登录多，页签与表单之间的留白略收紧 */
+.pg-register-card .login-card__tabs {
+  margin-bottom: 26px;
+}
+
+/* 密码框：右侧眼睛按钮（显示/隐藏密码，纯展示切换） */
+.register-card__pwd-wrap {
+  position: relative;
+}
+
+.register-card__input--pwd {
+  padding-right: 46px;
+}
+
+.register-card__eye {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: #9aa1ab;
+}
+
+.register-card__eye:hover {
+  color: #4b5563;
+}
+
+/* 密码强度条（纯展示：弱=红 1 段 / 中=橙 2 段 / 强=主题色 3 段） */
+.register-card__strength {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.register-card__strength-bar {
+  width: 46px;
+  height: 4px;
+  border-radius: 2px;
+  background: #e8eaed;
+}
+
+.register-card__strength--1 .register-card__strength-bar:nth-child(1) {
+  background: #e5484d;
+}
+
+.register-card__strength--2 .register-card__strength-bar:nth-child(1),
+.register-card__strength--2 .register-card__strength-bar:nth-child(2) {
+  background: #f0a13c;
+}
+
+.register-card__strength--3 .register-card__strength-bar {
+  background: var(--general, #65c4aa);
+}
+
+.register-card__strength-text {
+  margin-left: 5px;
+  font-size: 12px;
+  color: #9aa1ab;
+}
+
+/* 微信扫码面板下方的说明文案（扫码后自动完成注册并登录） */
+.register-card__wechat-tip {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: #9aa1ab;
+}
