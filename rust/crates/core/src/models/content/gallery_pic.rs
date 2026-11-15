@@ -70,16 +70,18 @@ pub const ERR_UPLOAD_NOT_MIGRATED: &str =
 pub const ERR_DOWNLOAD_NOT_MIGRATED: &str =
     "批量下载依赖 zip 打包与对象存储下载，当前 Rust 侧尚未迁移，本接口暂不可用";
 
-/// 允许的图片 MIME（Java `Constants.ALLOWED_IMAGE_TYPES`）。
-pub const ALLOWED_IMAGE_TYPES: [&str; 5] = [
+/// 允许的图片 MIME（Java `Constants.ALLOWED_IMAGE_TYPES`；本平台扩展：增加
+/// `image/svg+xml`，使本地上传的 SVG 图标可通过类型校验——见购买按钮自定义图标需求）。
+pub const ALLOWED_IMAGE_TYPES: [&str; 6] = [
     "image/jpeg",
     "image/png",
     "image/gif",
     "image/webp",
     "image/tiff",
+    "image/svg+xml",
 ];
-/// 外部直链允许的扩展名（Java `ALLOWED_IMAGE_EXTENSIONS`）。
-pub const ALLOWED_IMAGE_EXTENSIONS: [&str; 5] = ["bmp", "jpg", "jpeg", "png", "gif"];
+/// 外部直链允许的扩展名（Java `ALLOWED_IMAGE_EXTENSIONS`；本平台扩展：增加 `svg`）。
+pub const ALLOWED_IMAGE_EXTENSIONS: [&str; 6] = ["bmp", "jpg", "jpeg", "png", "gif", "svg"];
 /// 禁止的网页搜索结果地址片段（Java `BLOCKED_URL_PATTERNS`）。
 pub const BLOCKED_URL_PATTERNS: [&str; 5] = [
     "baidu.com/s?",
@@ -511,7 +513,12 @@ mod tests {
         assert_eq!(
             validate_external_url("https://cdn.x.com/a.webp?x=1", &ALLOWED_IMAGE_EXTENSIONS)
                 .unwrap_err(),
-            "不支持的文件格式，允许的格式: bmp, jpg, jpeg, png, gif"
+            "不支持的文件格式，允许的格式: bmp, jpg, jpeg, png, gif, svg"
+        );
+        assert_eq!(
+            validate_external_url("https://cdn.x.com/icon.svg", &ALLOWED_IMAGE_EXTENSIONS)
+                .unwrap(),
+            "svg"
         );
         assert_eq!(
             validate_external_url("https://cdn.x.com/a.PNG?x=1#f", &ALLOWED_IMAGE_EXTENSIONS)
@@ -552,6 +559,8 @@ mod tests {
             ERR_UPLOAD_FILE_TYPE
         );
         assert!(validate_upload_file(Some("image/png"), 1024, "20").is_ok());
+        // 本平台扩展：SVG 上传（MIME image/svg+xml）放行
+        assert!(validate_upload_file(Some("image/svg+xml"), 1024, "20").is_ok());
         // 超限：20MB 配置
         assert_eq!(
             validate_upload_file(Some("image/jpeg"), 21 * 1024 * 1024, "20")

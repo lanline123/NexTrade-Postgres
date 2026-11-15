@@ -34,6 +34,7 @@ import { getHeaderBootstrap } from '@/lib/api';
 import { PC_HEADER_BOOTSTRAP_ID } from '@/lib/header-bootstrap';
 import { loadTheme } from '@/lib/theme-server';
 import { currencyCodeFrom, setPriceDisplayConfig, setServerCurrency } from '@/lib/currency';
+import { setBuyStyleConfig } from '@/lib/buy-style';
 import { normalizeLocale } from '@/i18n/locale';
 import { loadServerLocale } from '@/i18n/server';
 import { setStorageUrl } from '@/lib/image';
@@ -193,6 +194,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   );
   // 后台「价格显示设置」：SSR 价格缩写（万/K/M…）与客户端共用同一份配置
   setPriceDisplayConfig(headerBootstrap?.priceDisplay);
+  // 后台「购买按钮样式设置」：SSR 与客户端共用同一份全局购买样式配置
+  setBuyStyleConfig(headerBootstrap?.buyStyle);
 
   // 非 zh/en 的翻译不在构建产物里，先按当前语言拉取，保证 SSR 文案即为所选语言
   await loadServerLocale(serverLang);

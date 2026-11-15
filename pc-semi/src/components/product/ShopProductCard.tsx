@@ -14,7 +14,8 @@
  *   - 名称：16px / line-height 20px；goodsNameRow=1 → 高 20px，否则 40px；textWeight≠1 → bold。
  *   - 简介：standard 两行截断（-webkit-line-clamp:2），land / slide 单行省略。
  *   - 价格：24px、var(--price)，textWeight≠1 → bold。
- *   - 购买按钮：buyBtnStyle 1-8（1/2 购物车、3/4 加号、5/6「购买」、7/8「马上抢」），
+ *   - 购买按钮：全站统一枚举 buyBtnStyle（0 隐藏 / 1-8 旧版 ProductButton / 9 圆圈购物车 /
+ *     10 自定义图片 / -1 跟随全局），经共享组件 BuyButton 归一化渲染，
  *     复用 modules-source.scss 的 .dec-buy-btn 系列 class。
  *   - 商品样式边框图（productStyle.borderImage）叠在图片上。
  *
@@ -26,6 +27,7 @@ import Link from 'next/link';
 import { Toast } from '@douyinfe/semi-ui';
 import { apiPost } from '@/lib/client-api';
 import { splitDisplayPrice } from '@/lib/currency';
+import { BuyButtonVisual, buyBtnClassName, resolveBuyBtnStyle } from '@/decorate/components/BuyButton';
 import '@/components/product/shop-product-card.scss';
 
 export type ShopCardVariant = 'standard' | 'land' | 'slide';
@@ -60,16 +62,14 @@ export interface ShopCardModule {
   showName?: number | boolean;
   showBrief?: number | boolean;
   showPrice?: number | boolean;
-  buyBtnStyle?: number;
+  /** 购买按钮：全站统一枚举（见 @/decorate/components/BuyButton），可为数字/旧对象型，由 resolveBuyBtnStyle 读时归一化 */
+  buyBtnStyle?: unknown;
+  /** 样式 10（自定义图片）时模块自带图标 {picUrl, picThumb} */
+  buyBtnIcon?: unknown;
 }
 
 /** 商品样式边框图（/api/product/productStyle/batchActiveStyle 返回的 borderImage） */
 export type ProductStyleMap = Record<number, { borderImage?: string } | undefined>;
-
-/** 旧版 ProductButton.vue 的 8 种购买按钮：1/2 购物车、3/4 加号、5/6 购买、7/8 马上抢 */
-function buyButtonClass(buyBtnStyle: number): string {
-  return `dec-buy-btn dec-buy-btn--${buyBtnStyle}`;
-}
 
 /** 旧版 ProductCard.vue 的 border/radio class 映射（源码 components/shop/product/ProductCard.vue） */
 function cardBorderClass(goodsStyle: number): string {
@@ -112,7 +112,8 @@ export function ShopProductCard({
   const showName = module.showName !== 0 && module.showName !== false;
   const showBrief = module.showBrief !== 0 && module.showBrief !== false;
   const showPrice = module.showPrice !== 0 && module.showPrice !== false;
-  const buyBtnStyle = Number(module.buyBtnStyle ?? 0);
+  /* 购买按钮（全站统一共享组件）：读时归一化统一枚举，支持 -1 跟随全局 / 9 圆圈购物车 / 10 自定义图片 */
+  const buyBtn = resolveBuyBtnStyle(module.buyBtnStyle, { moduleIcon: module.buyBtnIcon });
 
   const href = product.seoLink || `/product/${product.productSn || product.productId || ''}`;
   const image = product.picUrl || product.picThumb || '';
@@ -137,18 +138,28 @@ export function ShopProductCard({
     }
   }
 
-  const buyButton =
-    buyBtnStyle > 0 ? (
-      needsDetail ? (
-        <Link href={href} target="_blank" className={`shop-card__buy ${buyButtonClass(buyBtnStyle)}`}>
-          <BuyButtonIcon buyBtnStyle={buyBtnStyle} />
-        </Link>
-      ) : (
-        <button type="button" className={`shop-card__buy ${buyButtonClass(buyBtnStyle)}`} onClick={addToCart} disabled={adding}>
-          <BuyButtonIcon buyBtnStyle={buyBtnStyle} />
-        </button>
-      )
-    ) : null;
+  const buyButton = buyBtn.show ? (
+    needsDetail ? (
+      <Link
+        href={href}
+        target="_blank"
+        className={`shop-card__buy ${buyBtnClassName(buyBtn.style)}`}
+        style={buyBtn.iconColor ? { color: buyBtn.iconColor } : undefined}
+      >
+        <BuyButtonVisual style={buyBtn.style} customIcon={buyBtn.customIcon} />
+      </Link>
+    ) : (
+      <button
+        type="button"
+        className={`shop-card__buy ${buyBtnClassName(buyBtn.style)}`}
+        style={buyBtn.iconColor ? { color: buyBtn.iconColor } : undefined}
+        onClick={addToCart}
+        disabled={adding}
+      >
+        <BuyButtonVisual style={buyBtn.style} customIcon={buyBtn.customIcon} />
+      </button>
+    )
+  ) : null;
 
   const nameNode = showName ? (
     <Link
@@ -257,22 +268,7 @@ function ShopPrice({ symbol, integer, decimals, suffix, bold }: { symbol: string
   );
 }
 
-/** 购买按钮图标/文案（旧版 ProductButton.vue：1/2 购物车、3/4 加号、5/6 购买、7/8 马上抢） */
-function BuyButtonIcon({ buyBtnStyle }: { buyBtnStyle: number }) {
-  if (buyBtnStyle <= 4) {
-    return (
-      <i className="dec-buy-btn__icon">
-        <span
-          className={`dec-buy-btn__ico dec-buy-btn__ico--${buyBtnStyle <= 2 ? 'cart' : 'plus'}${
-            buyBtnStyle === 1 || buyBtnStyle === 3 ? ' is-outline' : ''
-          }`}
-          aria-hidden="true"
-        />
-      </i>
-    );
-  }
-  return <span className="dec-buy-btn__text">{buyBtnStyle >= 7 ? '马上抢' : '购买'}</span>;
-}
+/** 购买按钮视觉已统一到共享组件 @/decorate/components/BuyButton 的 BuyButtonVisual（原本地 BuyButtonIcon 删除）。 */
 
 /**
  * 商品样式边框图（旧版 hooks/useProductStyle.ts → /api/product/productStyle/batchActiveStyle）。

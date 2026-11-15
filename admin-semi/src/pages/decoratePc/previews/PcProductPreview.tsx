@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { apiGet } from '../../../api';
 import ModuleTitlePreview from './shared/ModuleTitlePreview';
+import { PcBuyButtonVisual, resolvePcBuyBtn, usePcGlobalBuyStyle } from './shared/PcBuyButton';
 import './pcProduct.css';
 
 import { useI18n } from '../../../i18n';
@@ -249,8 +250,9 @@ export default function PcProductPreview({ data }: { data: Record<string, any> }
   const frame = (config.frame || {}) as AnyRecord;
   const style = Number(config.style ?? 1);
   const columns = style === 2 ? 5 : 4;
-  // 购买按钮样式：0=不显示，1/2=购物车（线框/实心），3/4=加号（线框/实心），5~8=文字按钮（原版 ProductButton.vue）
-  const buyStyle = Number(config.buyBtnStyle ?? 1);
+  // 购买按钮（全站统一共享组件）：统一枚举 0–10，-1 跟随全局（解析全局配置）
+  const globalBuy = usePcGlobalBuyStyle();
+  const buyBtn = resolvePcBuyBtn(config.buyBtnStyle, { moduleIcon: config.buyBtnIcon, global: globalBuy });
 
   const cssVars = {
     // 扩展设置（ModuleContainerSettings）写入的是 frame，预览优先读取 frame
@@ -302,19 +304,9 @@ export default function PcProductPreview({ data }: { data: Record<string, any> }
                         {Number(config.showPrice) !== 0 ? (
                           <div className="dec-pc-product__price">{formatPrice(item.productPrice)}</div>
                         ) : null}
-                        {buyStyle > 0 ? (
-                          <span className="dec-pc-product__buy">
-                            {buyStyle <= 4 ? (
-                              <i
-                                className={`dec-pc-product__buy-ico dec-pc-product__buy-ico--${buyStyle <= 2 ? 'cart' : 'plus'}${buyStyle === 1 || buyStyle === 3 ? ' is-outline' : ''}`}
-                              />
-                            ) : (
-                              <span
-                                className={`dec-pc-product__buy-text ${buyStyle === 6 || buyStyle === 8 ? 'dec-pc-product__buy-text--solid' : 'dec-pc-product__buy-text--outline'}`}
-                              >
-                                {buyStyle >= 7 ? t('马上抢') : '购买'}
-                              </span>
-                            )}
+                        {buyBtn.show ? (
+                          <span className="dec-pc-product__buy" style={buyBtn.iconColor ? { color: buyBtn.iconColor } : undefined}>
+                            <PcBuyButtonVisual style={buyBtn.style} customIcon={buyBtn.customIcon} />
                           </span>
                         ) : null}
                       </div>

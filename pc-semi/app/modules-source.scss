@@ -579,6 +579,27 @@
     opacity: 0.88;
   }
 
+  /* 统一枚举扩容（购买样式全站统一）：
+     9 = 圆圈购物车（24px 纯图标，与 1–4 同几何）；10 = 自定义图片（原样显示）。 */
+  &--9 {
+    width: 24px;
+    height: 24px;
+    background: transparent;
+  }
+
+  &--10 {
+    width: 24px;
+    height: 24px;
+    background: transparent;
+  }
+
+  &__img {
+    display: block;
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+  }
+
   &__icon {
     display: block;
     font-style: normal;
@@ -618,7 +639,42 @@
         -webkit-mask-image: url('/assets/icons/plus-outline.svg');
       }
     }
+
+    &--cart-circle {
+      mask-image: url('/assets/icons/cart-circle.svg');
+      -webkit-mask-image: url('/assets/icons/cart-circle.svg');
+    }
   }
+}
+
+/* 拼团/秒杀：.view_detail 原为 32px 圆形图标钮（宿主 CSS 在 decorate-source.scss），
+ * 接入共享购买按钮后，文案款（5–8）在圆形钮里放不下，改胶囊几何（对齐 .dec-buy-btn 文案款）。 */
+.module-seckill-goods_ad-wrapper .view_detail.dec-buy-btn--5,
+.module-seckill-goods_ad-wrapper .view_detail.dec-buy-btn--7,
+.module-groupon-goods_ad .view_detail.dec-buy-btn--5,
+.module-groupon-goods_ad .view_detail.dec-buy-btn--7 {
+  width: auto;
+  height: 32px;
+  padding: 0 15px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background: #fff;
+  color: #606266;
+  font-size: 14px;
+}
+
+.module-seckill-goods_ad-wrapper .view_detail.dec-buy-btn--6,
+.module-seckill-goods_ad-wrapper .view_detail.dec-buy-btn--8,
+.module-groupon-goods_ad .view_detail.dec-buy-btn--6,
+.module-groupon-goods_ad .view_detail.dec-buy-btn--8 {
+  width: auto;
+  height: 32px;
+  padding: 0 15px;
+  border: 1px solid var(--general, var(--pc-primary));
+  border-radius: 20px;
+  background: var(--general, var(--pc-primary));
+  color: #fff;
+  font-size: 14px;
 }
 
 /* ===================== pc-home-quick-nav ===================== */
@@ -1076,7 +1132,7 @@
   &__card-price {
     font-size: 16px;
     color: var(--dec-price-color, var(--price));
-    font-weight: 700;
+    font-weight: 400;
     line-height: 1.2;
     flex-shrink: 0;
     margin-top: 4px;
@@ -3755,7 +3811,7 @@ img {
 .dec-pc-home-hero__card-price {
   font-family: Arial, Helvetica, sans-serif;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.2;
   color: var(--dec-price-color, var(--price));
   margin-top: 4px;
@@ -3766,7 +3822,7 @@ img {
 }
 
 .dec-pc-home-hero__card-price .dec-price-symbol,
-.dec-pc-home-hero__card-price .dec-price-decimals { font-size: 12px; font-weight: 700; }
+.dec-pc-home-hero__card-price .dec-price-decimals { font-size: 12px; font-weight: 400; }
 
 /* Hero 商品卡角标：对齐旧版，去掉 60px 限宽导致「电芯级…」截断 */
 .dec-pc-home-hero__card-badge {

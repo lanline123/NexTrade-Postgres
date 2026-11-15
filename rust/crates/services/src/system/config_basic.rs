@@ -290,6 +290,29 @@ impl ConfigBasicService {
             .await
     }
 
+    /// 读取购买按钮样式配置（生效值：已存配置清洗后，或内置默认）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn get_buy_style(&self) -> Result<Value> {
+        let stored = self
+            .repo()
+            .find_by_code(super::buy_style::BUY_STYLE_CODE)
+            .await?;
+        Ok(super::buy_style::effective_buy_style(stored.as_deref()))
+    }
+
+    /// 保存购买按钮样式配置（清洗后整块 JSON 落 config 表 `buyStyle` 行）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn save_buy_style(&self, payload: &Value) -> Result<()> {
+        let clean = super::buy_style::sanitize_buy_style(payload);
+        self.repo()
+            .save_code(super::buy_style::BUY_STYLE_CODE, &clean.to_string())
+            .await
+    }
+
     pub async fn get_icon_settings(&self) -> Result<Value> {
         let rows = self
             .repo()

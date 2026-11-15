@@ -369,42 +369,26 @@
   color: var(--primary-dark-2, #be081d);
 }
 
-.dec-pc-product-group__cart-btn--style-1 {
-  background-color: transparent;
+/* 统一枚举文案款（5–8）：与前台 decorate-source.scss 同口径的价格色胶囊 */
+.dec-pc-product-group__cart-btn--text-outline {
+  width: auto;
+  min-width: 64px;
+  padding: 0 14px;
+  border: 1px solid var(--dec-price-color, var(--main-bg, #ff3f4f));
+  border-radius: 20px;
+  background-color: #fff;
+  font-size: 14px;
 }
 
-.dec-pc-product-group__cart-btn--style-2 {
-  border: none;
-}
-
-.dec-pc-product-group__cart-btn--style-3 {
-  border-radius: 6px;
-}
-
-.dec-pc-product-group__cart-icon {
-  width: 28px;
-  height: 28px;
-  display: block;
-  font-size: 28px;
-  line-height: 1;
-  text-align: center;
-  color: inherit;
-  background-repeat: no-repeat;
-  background-position: center center;
-  background-size: 18px 18px;
-}
-
-/* 旧版 iconfont 图标（icon-jia1 / icon-gouwuche / icon-gouwuche1）用内联 SVG 复刻 */
-.dec-pc-product-group__cart-icon.icon-jia1 {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'%3E%3Cpath d='M9 2v14M2 9h14' stroke='%23ff3f4f' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
-}
-
-.dec-pc-product-group__cart-icon.icon-gouwuche {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'%3E%3Cpath d='M3 3h2l2.4 12.2a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L22 7H6' fill='none' stroke='%23ff3f4f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='10' cy='21' r='1.5' fill='%23ff3f4f'/%3E%3Ccircle cx='18' cy='21' r='1.5' fill='%23ff3f4f'/%3E%3C/svg%3E");
-}
-
-.dec-pc-product-group__cart-icon.icon-gouwuche1 {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'%3E%3Cpath d='M3 3h2l2.4 12.2a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L22 7H6' fill='none' stroke='%23ff3f4f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='10' cy='21' r='1.5' fill='%23ff3f4f'/%3E%3Ccircle cx='18' cy='21' r='1.5' fill='%23ff3f4f'/%3E%3C/svg%3E");
+.dec-pc-product-group__cart-btn--text-solid {
+  width: auto;
+  min-width: 64px;
+  padding: 0 14px;
+  border: 1px solid var(--dec-price-color, var(--main-bg, #ff3f4f));
+  border-radius: 20px;
+  background-color: var(--dec-price-color, var(--main-bg, #ff3f4f));
+  color: #fff;
+  font-size: 14px;
 }
 
 .dec-pc-product-group__origin-price {

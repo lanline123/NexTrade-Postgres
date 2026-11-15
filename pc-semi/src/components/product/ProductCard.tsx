@@ -29,6 +29,7 @@ import { Toast } from '@douyinfe/semi-ui';
 import Add from '@icon-park/react/es/icons/Add';
 import { apiPost } from '@/lib/client-api';
 import { splitDisplayPrice } from '@/lib/currency';
+import { BuyButtonVisual, buyBtnClassName, type ResolvedBuyBtn } from '@/decorate/components/BuyButton';
 
 import { useTranslation } from 'react-i18next';
 export interface ProductCardItem {
@@ -81,6 +82,13 @@ interface ProductCardProps {
    * type 为 2（优惠券）时不显示，与旧版一致。
    */
   activityInfo?: Array<{ type?: number | string }>;
+  /**
+   * 全站共享购买按钮（搜索结果页按装修 buyStyle 配置传入，已由
+   * resolveBuyBtnStyle 归一化）：传入时替代默认 Add 圆钮——show=false 不渲染，
+   * 其余按统一枚举（图标/文案/自定义图片）渲染。不传时维持原行为
+   * （购物车/会员/详情推荐位：恒显示 Add 加购圆钮）。
+   */
+  buyBtn?: ResolvedBuyBtn | null;
 }
 
 /** 复刻 components/format/Price.vue 的 ￥ / 整数 / 小数 三段结构 */
@@ -123,6 +131,7 @@ export default function ProductCard({
   showShopTag = false,
   fixedNameTwoLines = false,
   activityInfo,
+  buyBtn,
 }: ProductCardProps) {
     const { t } = useTranslation();
   const router = useRouter();
@@ -152,7 +161,15 @@ export default function ProductCard({
     }
   }
 
-  const addButton = (
+  const addButton = buyBtn ? (
+    <div
+      className={`view_detail buy-btn ${buyBtnClassName(buyBtn.style)}${soldOut ? ' disabled' : ''}`}
+      style={buyBtn.iconColor ? { color: buyBtn.iconColor } : undefined}
+      aria-label={t('加入购物车')}
+    >
+      <BuyButtonVisual style={buyBtn.style} customIcon={buyBtn.customIcon} />
+    </div>
+  ) : (
     <div className={`view_detail buy-btn${soldOut ? ' disabled' : ''}`} aria-label={t('加入购物车')}>
       <Add size={26} />
     </div>
@@ -289,15 +306,17 @@ export default function ProductCard({
               {price.suffix ? <div className="num">{price.suffix}</div> : null}
             </div>
           </div>
-          <div className="buy">
-            {needsDetail(product) || soldOut ? (
-              <Link href={href} target="_blank" onClick={(event) => event.stopPropagation()}>
-                {addButton}
-              </Link>
-            ) : (
-              <span onClick={addToCart}>{addButton}</span>
-            )}
-          </div>
+          {buyBtn && !buyBtn.show ? null : (
+            <div className="buy">
+              {needsDetail(product) || soldOut ? (
+                <Link href={href} target="_blank" onClick={(event) => event.stopPropagation()}>
+                  {addButton}
+                </Link>
+              ) : (
+                <span onClick={addToCart}>{addButton}</span>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="other-wrap">

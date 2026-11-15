@@ -382,3 +382,29 @@
     transform: rotate(360deg);
   }
 }
+
+/* 搜索结果接入全站共享购买按钮：文案款（5–8）脱离 32px 圆形钮改胶囊几何
+ * （对齐 modules-source.scss 的 .dec-buy-btn 文案款；图标款 1–4/9/10 维持圆形钮）。 */
+.product-card-container .price-wrap .buy .view_detail.buy-btn.dec-buy-btn--5,
+.product-card-container .price-wrap .buy .view_detail.buy-btn.dec-buy-btn--7 {
+  width: auto;
+  height: 32px;
+  padding: 0 15px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background: #fff;
+  color: #606266;
+  font-size: 14px;
+}
+
+.product-card-container .price-wrap .buy .view_detail.buy-btn.dec-buy-btn--6,
+.product-card-container .price-wrap .buy .view_detail.buy-btn.dec-buy-btn--8 {
+  width: auto;
+  height: 32px;
+  padding: 0 15px;
+  border: 1px solid var(--general, var(--pc-primary));
+  border-radius: 20px;
+  background: var(--general, var(--pc-primary));
+  color: #fff;
+  font-size: 14px;
+}

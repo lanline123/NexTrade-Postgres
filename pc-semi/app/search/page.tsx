@@ -127,6 +127,10 @@ interface PcSearchConfig {
   goodsStyle: number;
   goodsRadiusStyle: number;
   buyStyle: number;
+  /** 购买样式格式版本：>=2 时 buyStyle 为全站统一枚举；缺省（存量）为旧 1/2/3 口径 */
+  buyStyleV?: number;
+  /** 统一枚举样式 10（自定义图片）时模块自带图标 */
+  buyBtnIcon?: { picUrl?: string; picThumb?: string } | null;
   componentMarginTop: number;
   componentMarginBottom: number;
 }
@@ -199,6 +203,11 @@ function normalizePcSearchConfig(raw: Partial<PcSearchConfig> | null): PcSearchC
     goodsStyle: normalizeNumberLike(config.goodsStyle, 1),
     goodsRadiusStyle: normalizeNumberLike(config.goodsRadiusStyle, 1),
     buyStyle: normalizeNumberLike(config.buyStyle, 1),
+    buyStyleV: normalizeNumberLike(config.buyStyleV, 0),
+    buyBtnIcon:
+      config.buyBtnIcon && typeof config.buyBtnIcon === 'object'
+        ? { picUrl: String(config.buyBtnIcon.picUrl || ''), picThumb: String(config.buyBtnIcon.picThumb || '') }
+        : null,
     componentMarginTop: normalizeNumberLike(config.componentMarginTop, 8),
     componentMarginBottom: normalizeNumberLike(config.componentMarginBottom, 8),
     showFilterPanel: normalizeBoolLike(config.showFilterPanel, true),
@@ -439,6 +448,15 @@ export default async function SearchPage(props: PageProps) {
     getSearchStyle(),
   ]);
   const searchConfig = normalizePcSearchConfig(resolvePcSearchModule(searchDecorate));
+  /* 购买按钮（全站统一共享组件）：存量 buyStyle（无 buyStyleV）是旧 1/2/3 口径，
+     由 ProductGrid 客户端经 mapSearchLegacyBuyStyle 映射；新版编辑器写 buyStyleV=2 +
+     统一枚举（含 -1 跟随全局 / 10 自定义图片）。showCartButton 关时不渲染。 */
+  const searchBuyBtn = {
+    raw: searchConfig.buyStyle,
+    legacy: !(Number(searchConfig.buyStyleV) >= 2),
+    show: searchConfig.showCartButton,
+    moduleIcon: searchConfig.buyBtnIcon ?? undefined,
+  };
   /** 装修预览：与详情页 ?uiStyle= 同性质，?filterStyle=1|2 可本地强制切换侧栏版/顶部筛选版。 */
   const filterStylePreview = Number(readParam(searchParams?.filterStyle));
   /** ?ui=new|old 版式预览（buildQuery 也要保留它，故先于 buildQuery 定义） */
@@ -644,6 +662,7 @@ export default async function SearchPage(props: PageProps) {
     showSales: searchConfig.showSales,
     showShopTag: searchConfig.showShopTag,
     showPriceRange: searchConfig.showPriceRange,
+    buyBtn: searchBuyBtn,
     filterTemplate: searchConfig.filterTemplate,
     buildQuery,
     toggleAttr,
@@ -665,6 +684,7 @@ export default async function SearchPage(props: PageProps) {
               products={records}
               showSales={Boolean(searchConfig?.showSales)}
               showShopTag={Boolean(searchConfig?.showShopTag)}
+              buyBtn={searchBuyBtn}
               gridClassName="wrap mp-search-card"
               fixedNameTwoLines
             />

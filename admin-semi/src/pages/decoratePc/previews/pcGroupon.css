@@ -407,54 +407,23 @@
   margin-left: auto;
 }
 
+/* 购买按钮（全站统一共享组件）：宿主几何对齐前台拼团卡 .view_detail——32px 浅底圆钮、主题色图标；
+ * 旧版红色胶囊（#ee0a24）与前台不一致，已废弃。文案款（5–8）走 --bare，几何由共享视觉自带。 */
 .pc-groupon-card__buy-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 13px;
-  background: #ee0a24;
-  color: #fff;
-  font-size: 12px;
-}
-
-.pc-groupon-card__icon-plus {
-  display: flex;
   justify-content: center;
-  align-items: center;
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #ecf5ff;
-  color: #409eff;
-  cursor: pointer;
-  position: relative;
+  background: #eef3ff;
+  color: var(--pc-primary, #65c4aa);
   flex-shrink: 0;
 }
 
-.pc-groupon-card__icon-plus::before,
-.pc-groupon-card__icon-plus::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  background: currentColor;
-  border-radius: 1px;
-}
-
-.pc-groupon-card__icon-plus::before {
-  width: 14px;
-  height: 2px;
-}
-
-.pc-groupon-card__icon-plus::after {
-  width: 2px;
-  height: 14px;
-}
-
-.pc-groupon-card__icon-cart {
-  width: 14px;
-  height: 14px;
-  display: block;
+.pc-groupon-card__buy-btn--bare {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
 }

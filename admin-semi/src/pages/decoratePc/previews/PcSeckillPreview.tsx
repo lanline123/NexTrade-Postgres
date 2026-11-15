@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiGet } from '../../../api';
 import ModuleTitlePreview from './shared/ModuleTitlePreview';
+import { PcBuyButtonVisual, resolvePcBuyBtn, usePcGlobalBuyStyle } from './shared/PcBuyButton';
 import './pcSeckill.css';
 
 import { useI18n } from '../../../i18n';
@@ -56,6 +57,10 @@ const SECKILL_DEFAULTS = {
     moreColor: '#1a1a1a',
   },
   goodsGap: 10,
+  // 购买按钮（全站统一）：与新版编辑器默认值一致 4（加号实心）+ buyBtnSet 标记
+  buyBtnStyle: 4,
+  buyBtnSet: 1,
+  buyBtnIcon: { picUrl: '', picThumb: '' },
 };
 
 type SeckillConfig = typeof SECKILL_DEFAULTS;
@@ -151,6 +156,13 @@ const EMPTY_IMG =
 export default function PcSeckillPreview({ data }: { data: Record<string, any> }) {
     const { t } = useI18n();
   const config = deepMerge<SeckillConfig>(SECKILL_DEFAULTS as SeckillConfig, data);
+  /* 购买按钮（全站统一共享组件）：存量未配置（无 buyBtnSet）时 0/缺省按 4 解析，与前台同口径 */
+  const globalBuy = usePcGlobalBuyStyle();
+  const buyBtn = resolvePcBuyBtn(config.buyBtnStyle, {
+    moduleIcon: config.buyBtnIcon,
+    global: globalBuy,
+    zeroAs: config.buyBtnSet ? undefined : 4,
+  });
   const frame = (config.frame || {}) as Record<string, any>;
   const title = (config.title || {}) as Record<string, any>;
   const rows = useSeckillPreview();
@@ -216,11 +228,17 @@ export default function PcSeckillPreview({ data }: { data: Record<string, any> }
                       <span className="pc-seckill__price-int">{parts.int}</span>
                       <span className="pc-seckill__price-dec">.{parts.dec}</span>
                     </div>
-                    <div className="pc-seckill__buy">
-                      <span className="pc-seckill__add-btn" title={t('添加购物车')}>
-                        <i className="pc-seckill__add-icon" />
-                      </span>
-                    </div>
+                    {buyBtn.show ? (
+                      <div className="pc-seckill__buy">
+                        <span
+                          className={`pc-seckill__add-btn${buyBtn.style >= 5 ? ' pc-seckill__add-btn--bare' : ''}`}
+                          title={t('添加购物车')}
+                          style={buyBtn.iconColor ? { color: buyBtn.iconColor } : undefined}
+                        >
+                          <PcBuyButtonVisual style={buyBtn.style} customIcon={buyBtn.customIcon} />
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
                   {original > 0 && (
                     <div className="pc-seckill__price-origin">

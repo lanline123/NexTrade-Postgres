@@ -55,11 +55,12 @@ export async function getHeaderBootstrap(): Promise<PcHeaderBootstrap> {
     }
   };
 
-  const [base, locales, currencies, priceDisplay] = await Promise.all([
+  const [base, locales, currencies, priceDisplay, buyStyle] = await Promise.all([
     request<Record<string, any>>('common/config/base'),
     request<HeaderBootstrapLocale[]>('common/i18n/getLocales'),
     request<HeaderBootstrapCurrency[]>('common/currency/getCurrency'),
     request<Record<string, any>>('common/config/priceDisplay'),
+    request<Record<string, any>>('common/config/buyStyle'),
   ]);
 
   return {
@@ -67,6 +68,7 @@ export async function getHeaderBootstrap(): Promise<PcHeaderBootstrap> {
     locales: Array.isArray(locales) ? locales : [],
     currencies: Array.isArray(currencies) ? currencies : [],
     priceDisplay: priceDisplay && typeof priceDisplay === 'object' ? priceDisplay : null,
+    buyStyle: buyStyle && typeof buyStyle === 'object' ? buyStyle : null,
   };
 }
 

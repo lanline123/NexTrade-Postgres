@@ -12,7 +12,7 @@
  */
 
 import Link from 'next/link';
-import ProductGrid from '@/components/ProductGrid';
+import ProductGrid, { type ProductGridBuyBtnConfig } from '@/components/ProductGrid';
 import type { ProductListItem } from '@/lib/api';
 
 import { getServerT } from '@/i18n/server';
@@ -51,6 +51,8 @@ export interface SearchLayoutContext {
   showSales: boolean;
   showShopTag: boolean;
   showPriceRange: boolean;
+  /** 搜索装修购买按钮原始配置（透传 ProductGrid 归一化渲染） */
+  buyBtn?: ProductGridBuyBtnConfig | null;
   filterTemplate: number;
   buildQuery: (overrides: Record<string, string | string[] | undefined>, basePage?: number) => string;
   toggleAttr: (name: string, value: string) => string;
@@ -170,7 +172,7 @@ function Results({ ctx }: { ctx: SearchLayoutContext }) {
     const t = getServerT();
   return (
     <>
-      <ProductGrid products={ctx.records} showSales={ctx.showSales} showShopTag={ctx.showShopTag} />
+      <ProductGrid products={ctx.records} showSales={ctx.showSales} showShopTag={ctx.showShopTag} buyBtn={ctx.buyBtn} />
       {!ctx.records.length ? <div className="pc-list-empty">{t('没有找到符合条件的商品')}</div> : null}
       {ctx.pages > 1 ? (
         <nav className="pc-pagination">

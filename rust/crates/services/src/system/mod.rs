@@ -6,6 +6,7 @@ pub mod area_code;
 pub mod cache_manage;
 pub mod config_basic;
 pub mod price_display;
+pub mod buy_style;
 pub mod config_client;
 pub mod csrf;
 pub mod example;

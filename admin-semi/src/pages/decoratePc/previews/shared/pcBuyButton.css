@@ -1,0 +1,81 @@
+/* PC 装修编辑器共享购买按钮视觉（与 pc-semi 前台 .dec-buy-btn 同几何/同 mask 资源）。
+ * 宿主按钮壳（各预览自己的 32px 圆钮 / 分组价格色钮等）决定外层尺寸与底色，
+ * 本文件只管内部：24px mask 图标、文案胶囊、自定义图片。 */
+
+.pc-buy-btn__icon {
+  display: block;
+  font-style: normal;
+  line-height: 1;
+}
+
+.pc-buy-btn__ico {
+  display: block;
+  width: 24px;
+  height: 24px;
+  background: currentColor;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+
+.pc-buy-btn__ico--cart {
+  mask-image: url('/assets/icons/cart.svg');
+  -webkit-mask-image: url('/assets/icons/cart.svg');
+}
+
+.pc-buy-btn__ico--cart.is-outline {
+  mask-image: url('/assets/icons/cart-outline.svg');
+  -webkit-mask-image: url('/assets/icons/cart-outline.svg');
+}
+
+.pc-buy-btn__ico--plus {
+  mask-image: url('/assets/icons/plus.svg');
+  -webkit-mask-image: url('/assets/icons/plus.svg');
+}
+
+.pc-buy-btn__ico--plus.is-outline {
+  mask-image: url('/assets/icons/plus-outline.svg');
+  -webkit-mask-image: url('/assets/icons/plus-outline.svg');
+}
+
+.pc-buy-btn__ico--cart-circle {
+  mask-image: url('/assets/icons/cart-circle.svg');
+  -webkit-mask-image: url('/assets/icons/cart-circle.svg');
+}
+
+.pc-buy-btn__img {
+  display: block;
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+/* 文案款（5–8）：几何与前台 .dec-buy-btn--5..8 一致；宿主壳若自带底色
+ * （如拼团预览的胶囊），描边款会覆盖为白底，实心款覆盖为主题色底。 */
+.pc-buy-btn__text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 15px;
+  font-size: 14px;
+  line-height: 30px;
+  white-space: nowrap;
+}
+
+.pc-buy-btn__text--outline {
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background: #fff;
+  color: #606266;
+}
+
+.pc-buy-btn__text--solid {
+  border: 1px solid var(--pc-primary, #65c4aa);
+  border-radius: 20px;
+  background: var(--pc-primary, #65c4aa);
+  color: #fff;
+}

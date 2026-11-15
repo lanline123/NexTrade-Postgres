@@ -298,6 +298,19 @@ impl ConfigClientService {
         Ok(super::price_display::effective_price_display(stored))
     }
 
+    /// 全站购买按钮样式（供 PC 前台 BuyButton 共享组件解析「跟随全局」与
+    /// 自定义图标兜底；未配置时返回内置默认 style=1）。
+    pub async fn buy_style(&self) -> Result<serde_json::Value> {
+        let rows = self
+            .repos
+            .system
+            .config_client
+            .find_config_values(&[super::buy_style::BUY_STYLE_CODE])
+            .await?;
+        let stored = rows.first().and_then(|c| c.biz_val.as_deref());
+        Ok(super::buy_style::effective_buy_style(stored))
+    }
+
     pub async fn product_detail_style(&self) -> Result<i32> {
         let configs = self.load_snapshot().await?;
         // ⚠️ 走 `getConfigVal`（空串兜底），**不是** `SettingsHelper#get`。

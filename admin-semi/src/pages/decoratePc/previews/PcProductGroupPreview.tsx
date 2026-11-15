@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { apiGet } from '../../../api';
+import { PcBuyButtonVisual, resolvePcBuyBtn, usePcGlobalBuyStyle } from './shared/PcBuyButton';
 import './pcProductGroup.css';
 
 import { useI18n } from '../../../i18n';
@@ -41,15 +42,6 @@ interface ProductGroupItem {
   titlePic?: { picUrl?: string; picThumb?: string };
   productList?: ProductItem[];
 }
-
-const defaultBuyBtnStyle = {
-  showBtn: 1,
-  btnType: 1,
-  text: '',
-  textColor: '#ffffff',
-  iconColor: '#ffffff',
-  paddingLeftRight: 3,
-};
 
 const defaultProductColor = {
   infoLeftRightPadding: 10,
@@ -183,7 +175,8 @@ const productGroupDefaults: AnyRecord = {
   crossedOutPrice: 1,
   showSales: 1,
   showShopTag: 1,
-  buyBtnStyle: defaultBuyBtnStyle,
+  // 购买按钮默认值改全站统一枚举：3（加号描边）≡ 旧对象型 {showBtn:1, btnType:1}
+  buyBtnStyle: 3,
   productColor: defaultProductColor,
   groupTitle: defaultGroupTitle,
   moduleStyle: { boxPaddingTop: 0, boxPaddingBottom: 0, boxPadding: 10, backgroundColor: '' },
@@ -360,18 +353,10 @@ export default function PcProductGroupPreview({ data }: { data: Record<string, a
   const showCrossedOutPrice = Number(config.crossedOutPrice ?? 1) !== 0;
   const showSales = Number(config.showSales ?? 1) !== 0;
   const showShopTag = Number(config.showShopTag ?? 1) !== 0;
-  const showBuyBtn = Number((config.buyBtnStyle as AnyRecord)?.showBtn ?? 1) !== 0;
-
-  const buyBtnStyle = (config.buyBtnStyle || defaultBuyBtnStyle) as AnyRecord;
-  const buyBtnType = Number(buyBtnStyle.btnType ?? 1);
-  const buyIconClass = buyBtnType === 2 ? 'icon-gouwuche' : buyBtnType === 3 ? 'icon-gouwuche1' : 'icon-jia1';
-  const buyBtnClass = [
-    buyBtnType === 1 ? 'dec-pc-product-group__cart-btn--style-1' : '',
-    buyBtnType === 2 ? 'dec-pc-product-group__cart-btn--style-2' : '',
-    buyBtnType === 3 ? 'dec-pc-product-group__cart-btn--style-3' : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  /* 购买按钮（全站统一共享组件）：对象型存量与数字枚举都由 resolvePcBuyBtn 归一化；
+     图标/颜色/尺寸与前台一致——旧预览里样式二/三共用同一张 SVG、描边色写死 #ff3f4f 的问题随之消除。 */
+  const globalBuy = usePcGlobalBuyStyle();
+  const buyBtn = resolvePcBuyBtn(config.buyBtnStyle, { moduleIcon: config.buyBtnIcon, global: globalBuy });
 
   const handleTabClick = (index: number) => {
     setSlideDirection(index > activeIndex ? 'slide-left' : 'slide-right');
@@ -572,9 +557,12 @@ export default function PcProductGroupPreview({ data }: { data: Record<string, a
                             </span>
                           ) : null}
                         </div>
-                        {showBuyBtn ? (
-                          <span className={`dec-pc-product-group__cart-btn ${buyBtnClass}`}>
-                            <span className={`dec-pc-product-group__cart-icon iconfont-pc ${buyIconClass}`} />
+                        {buyBtn.show ? (
+                          <span
+                            className={`dec-pc-product-group__cart-btn${buyBtn.style >= 5 && buyBtn.style <= 8 ? ` dec-pc-product-group__cart-btn--text-${buyBtn.style <= 6 ? 'outline' : 'solid'}` : ''}`}
+                            style={buyBtn.iconColor ? { color: buyBtn.iconColor } : undefined}
+                          >
+                            <PcBuyButtonVisual style={buyBtn.style} customIcon={buyBtn.customIcon} />
                           </span>
                         ) : null}
                       </div>

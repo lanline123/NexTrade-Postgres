@@ -1276,6 +1276,10 @@ export const navGroups: NavGroup[] = [
             "label": "价格显示设置"
           },
           {
+            "key": "buyStyleSettings",
+            "label": "购买按钮样式设置"
+          },
+          {
             "key": "taxRateManage",
             "label": "税率管理"
           },
@@ -1686,6 +1690,7 @@ export const pageTitles: Record<string, string> = {
   "baseReceiptManage": "小票打印",
   "personalizedManage": "个性化设置",
   "priceDisplaySettings": "价格显示设置",
+  "buyStyleSettings": "购买按钮样式设置",
   "taxRateManage": "税率管理",
   "wechatLiveMiniAppSetting": "小程序设置",
   "storeEntryRuleSetting": "进店规则",

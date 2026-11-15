@@ -72,6 +72,7 @@ import PcCategoryNav3Preview from './decoratePc/previews/PcCategoryNav3Preview';
 import PcHomeQuickNavPreview from './decoratePc/previews/PcHomeQuickNavPreview';
 import PcTitleAdPreview from './decoratePc/previews/PcTitleAdPreview';
 import PcProductPreview from './decoratePc/previews/PcProductPreview';
+import { PcBuyButtonVisual, resolvePcBuyBtn, usePcGlobalBuyStyle, SEARCH_LEGACY_MAP } from './decoratePc/previews/shared/PcBuyButton';
 import PcProductGroupPreview from './decoratePc/previews/PcProductGroupPreview';
 import PcRecommendProductPreview from './decoratePc/previews/PcRecommendProductPreview';
 import PcCouponPreview from './decoratePc/previews/PcCouponPreview';
@@ -221,6 +222,50 @@ const normalizeLegacyTitle = (type: string, m: Record<string, any>): Record<stri
   const defined = Object.fromEntries(Object.entries(legacy).filter(([, v]) => v !== undefined && v !== null && v !== ''));
   const current = m.title && typeof m.title === 'object' ? m.title : {};
   return { ...m, title: { ...standardTitle(), ...defined, ...current } };
+};
+
+/** 购买按钮存量数据归一化（载入时在工作副本内完成，保存时自然写新格式；不批量改库）。
+ *  与 pc-semi 前台 resolveBuyBtnStyle 同口径：
+ *  - pc-product-group 对象型 {showBtn, btnType} → 数字统一枚举（showBtn 关 → 0 隐藏；
+ *    btnType 1→3 加号描边、2→1 购物车描边、3→9 圆圈购物车），对象上的自定义图标搬到 buyBtnIcon；
+ *    旧对象型的 text（自定义文字）从未被任何渲染消费，一并丢弃；
+ *  - 秒杀/拼团（含旧版 pcGroupon）：无 buyBtnSet 标记的存量数据里 0/缺省表示「未配置」
+ *    （旧编辑器无此设置、前台恒显示加号），归一化为显式 4（加号实心）+ buyBtnSet=1，
+ *    之后 0 才表示隐藏、-1 表示跟随全局；
+ *  - 搜索结果 pcSearchResult：buyStyleV<2 时旧 buyStyle 1/2/3 → 统一枚举 2/5/6 并打 buyStyleV=2。 */
+const normalizeLegacyBuyBtn = (type: string, m: Record<string, any>): Record<string, any> => {
+  if (!m || typeof m !== 'object') return m;
+  if (type === 'pc-product-group') {
+    const raw = m.buyBtnStyle;
+    if (raw && typeof raw === 'object') {
+      const mapped = ({ 1: 3, 2: 1, 3: 9 } as Record<number, number>)[Number(raw.btnType)] ?? 1;
+      const style = raw.showBtn ? mapped : 0;
+      const icon = raw.iconImage ?? raw.customIcon;
+      return {
+        ...m,
+        buyBtnStyle: style,
+        ...(icon && typeof icon === 'object' ? { buyBtnIcon: icon } : {}),
+      };
+    }
+    if (raw === undefined || raw === null) return { ...m, buyBtnStyle: -1 };
+    return m;
+  }
+  if (type === 'pc-home-seckill' || type === 'pc-home-groupon' || type === 'pcGroupon') {
+    if (!m.buyBtnSet) {
+      const n = Number(m.buyBtnStyle);
+      const style = m.buyBtnStyle === undefined || m.buyBtnStyle === null || !Number.isFinite(n) || n === 0 ? 4 : n;
+      return { ...m, buyBtnStyle: style, buyBtnSet: 1 };
+    }
+    return m;
+  }
+  if (type === 'pcSearchResult') {
+    if (!(Number(m.buyStyleV) >= 2)) {
+      const legacy = ({ 1: 2, 2: 5, 3: 6 } as Record<number, number>)[Number(m.buyStyle)] ?? 2;
+      return { ...m, buyStyle: legacy, buyStyleV: 2 };
+    }
+    return m;
+  }
+  return m;
 };
 
 const productsDefaults = () => ({
@@ -431,6 +476,48 @@ const containerFields = (opts: { showInnerPadding?: boolean } = {}): SettingFiel
     ? [{ kind: 'slider' as const, key: 'frame.leftAndRightPadding', label: '左右内边距', max: 30 }]
     : []),
 ];
+
+/** 购买按钮统一枚举选项（与 pc-semi 前台 lib/buy-style 的 BUY_BUTTON_OPTIONS 同表）。 */
+const BUY_BTN_STYLE_OPTIONS: Array<{ label: string; value: number }> = [
+  { label: '跟随全局', value: -1 },
+  { label: '不显示', value: 0 },
+  { label: '购物车（描边）', value: 1 },
+  { label: '购物车（实心）', value: 2 },
+  { label: '加号（描边）', value: 3 },
+  { label: '加号（实心）', value: 4 },
+  { label: '“购买”描边按钮', value: 5 },
+  { label: '“购买”圆角实心', value: 6 },
+  { label: '“马上抢”描边按钮', value: 7 },
+  { label: '“马上抢”圆角实心', value: 8 },
+  { label: '圆圈购物车', value: 9 },
+  { label: '自定义图片', value: 10 },
+];
+
+/** 购买按钮统一设置字段（商品类模块共用）：样式下拉 + 样式=自定义图片时出现的图标选图。
+ *  key 缺省 'buyBtnStyle'（搜索结果模块传 'buyStyle'），图标字段缺省 'buyBtnIcon'。 */
+const buyBtnFields = (opts: { key?: string; iconKey?: string; section?: string } = {}): SettingFieldDef[] => {
+  const key = opts.key ?? 'buyBtnStyle';
+  const iconKey = opts.iconKey ?? 'buyBtnIcon';
+  const section = opts.section ?? '购买按钮';
+  return [
+    {
+      kind: 'select',
+      key,
+      label: '购买按钮',
+      section,
+      options: BUY_BTN_STYLE_OPTIONS,
+      hint: '全站统一购买样式；「跟随全局」取后台「购买按钮样式设置」的全局值',
+    },
+    {
+      kind: 'pic',
+      key: iconKey,
+      label: '自定义图标',
+      section,
+      showIf: (m) => Number(getPath(m, key)) === 10,
+      hint: '样式为「自定义图片」时生效，可从素材库选择或上传（支持 SVG）；未设置时用全局自定义图标',
+    },
+  ];
+};
 
 /**
  * 标题设置字段集（对齐原版 _shared/ModuleTitleSettings.vue 的字段顺序/条件显隐/重置值/文案）：
@@ -716,6 +803,7 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
     defaults: () => ({
       style: 1, goodsStyle: 1, goodsRadioStyle: 1, textAlign: 1, textWeight: 1, goodsNameRow: 2,
       goodsNamePadding: 1, showName: 1, showBrief: 1, showPrice: 1, goodsPadding: 5, buyBtnStyle: 1,
+      buyBtnIcon: { picUrl: '', picThumb: '' },
       backgroundColor: '', boxRadius: 0, innerPadding: 0, boxPadding: 10, boxPaddingTop: 5,
       boxPaddingBottom: 5, imgPadding: 1, waterfall: 0, swiperPageColor: '',
       frame: standardFrame(),
@@ -730,23 +818,8 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'switch', key: 'showName', label: '显示商品名称', section: '商品内容' },
       { kind: 'switch', key: 'showBrief', label: '显示商品简介', section: '商品内容' },
       { kind: 'switch', key: 'showPrice', label: '显示商品价格', section: '商品内容' },
-      {
-        kind: 'select',
-        key: 'buyBtnStyle',
-        label: '购买按钮',
-        section: '购买按钮',
-        options: [
-          { label: '不显示', value: 0 },
-          { label: '购物车图标', value: 1 },
-          { label: '购物车图标（实心）', value: 2 },
-          { label: '加号图标', value: 3 },
-          { label: '加号图标（实心）', value: 4 },
-          { label: '“购买”描边按钮', value: 5 },
-          { label: '“购买”圆角实心', value: 6 },
-          { label: '“马上抢”描边按钮', value: 7 },
-          { label: '“马上抢”圆角实心', value: 8 },
-        ],
-      },
+      // 购买按钮：全站统一字段（枚举 0–10 + 跟随全局 + 自定义图标），与前台共享组件同口径
+      ...buyBtnFields(),
       { kind: 'products', key: 'products', label: '选择商品', section: '商品设置' },
       { kind: 'title', key: 'title', label: '标题设置', titleHideMoreType: true },
       ...containerFields({ showInnerPadding: true }),
@@ -795,7 +868,9 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
         showProductName: 1, productNameRow: 1, productNameWeight: 400, productNameSize: 16,
         showProductPrice: 1, productPriceMarginTop: 10, productPriceWeight: 400, productPriceSize: 28,
         crossedOutPrice: 1, showSales: 1, showShopTag: 1,
-        buyBtnStyle: { showBtn: 1, btnType: 1, text: '', textColor: '#ffffff', iconColor: '#ffffff', paddingLeftRight: 3 },
+        // 购买按钮改全站统一枚举：旧对象型默认 {showBtn:1, btnType:1(加号)} ≡ 新枚举 3（加号描边）
+        buyBtnStyle: 3,
+        buyBtnIcon: { picUrl: '', picThumb: '' },
         productColor: { infoLeftRightPadding: 10, backgroundColor: '#ffffff', titleColor: '#19191b', priceColor: '', crossedOutPriceColor: '#999999' },
         groupTitle: { marginLeftRight: 5, showTitle: 1, bigTitleFontSize: 14, titleColor: '#444444', activeTitleColor: '#FF0F23', activeTitleBgColor: '#ffebf1', titleMinWidth: 80, titlePaddingTopBottom: 8, titlePaddingLeftRight: 12, titleRadius: 4, splitLineColor: 'transparent', activeBgMarginLeft: 0, activeBgMarginRight: 0 },
         moduleStyle: { boxPaddingTop: 0, boxPaddingBottom: 0, boxPadding: 10, backgroundColor: '' },
@@ -816,7 +891,8 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'radio', key: 'crossedOutPrice', label: '商品划线价', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
       { kind: 'radio', key: 'showSales', label: '已售', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
       { kind: 'radio', key: 'showShopTag', label: '商品店铺', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
-      { kind: 'container', key: 'buyBtnStyle', label: '购买按钮', containerType: 'buyBtn', extend: false, hideSection: true },
+      // 购买按钮：原对象型 container（BuyBtnSettings 三样式）改全站统一字段；存量对象数据载入时已归一化
+      ...buyBtnFields(),
       { kind: 'container', key: 'productColor', label: '商品颜色设置', containerType: 'productColor' },
       { kind: 'container', key: 'groupTitle', label: '分组标题设置', containerType: 'groupTitle' },
       { kind: 'container', key: 'moduleStyle', label: '模块样式设置', containerType: 'moduleStyle' },
@@ -898,9 +974,14 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       seckillTitle: '全场优惠限时9折起',
       title: standardTitle({ showTitle: 1, titleText: '全场优惠限时9折起', showMore: 1, moreType: 2, countdownLabel: '倒计时', moreColor: '#1a1a1a' }),
       goodsGap: 10,
+      // 购买按钮（全站统一）：新模块显式写 4（加号实心，与旧版恒显示加号的观感一致）+ buyBtnSet 标记
+      buyBtnStyle: 4,
+      buyBtnSet: 1,
+      buyBtnIcon: { picUrl: '', picThumb: '' },
     }),
     settings: [
       { kind: 'slider', key: 'goodsGap', label: '商品间距', max: 40 },
+      ...buyBtnFields(),
       { kind: 'title', key: 'title', label: '标题设置', hint: '秒杀商品由营销-秒杀决定' },
       ...containerFields({ showInnerPadding: true }),
     ],
@@ -912,7 +993,10 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       style: 4, groupType: 1, cardStyle: 1, showName: 1, showPrice: 1, textAlign: 1, goodsPadding: 0,
       backgroundColor: '#ffffff', boxRadius: 0, innerPadding: 0, boxPadding: 0, boxPaddingTop: 5, boxPaddingBottom: 5,
       title: standardTitle({ titleText: '拼团', showMore: 1, moreType: 2, countdownLabel: '距结束', moreColor: '#1a1a1a' }),
-      buyBtnStyle: 0,
+      // 购买按钮（全站统一）：旧默认 0 在存量语义里是「未配置」，新模块显式写 4（加号实心）+ buyBtnSet 标记
+      buyBtnStyle: 4,
+      buyBtnSet: 1,
+      buyBtnIcon: { picUrl: '', picThumb: '' },
       grouponActivityItem: null as unknown as Record<string, any>,
     }),
     settings: [
@@ -927,6 +1011,8 @@ const NEW_MODULE_DEFS: ModuleDef[] = [
       { kind: 'radio', key: 'showName', label: '显示商品名称', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
       { kind: 'radio', key: 'showPrice', label: '显示商品价格', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
       { kind: 'slider', key: 'goodsPadding', label: '商品边距', max: 50 },
+      // 购买按钮（全站统一）：旧版该字段只存数据、面板未暴露，现补齐统一字段
+      ...buyBtnFields(),
       // 原版顺序：模板/类型/活动/卡片/边距在前，标题设置位于内容设置末尾
       { kind: 'title', key: 'title', label: '标题设置' },
       { kind: 'color', key: 'backgroundColor', label: '背景颜色', resetValue: '#ffffff', extend: true },
@@ -1092,7 +1178,7 @@ const LEGACY_MODULE_DEFS: ModuleDef[] = [
   { type: 'pcRecommendProduct', label: '推荐商品-瀑布流', group: '旧版', legacy: true, defaults: () => ({ titleName: '', products: { productNumber: 50, productIds: [] } }), settings: [{ kind: 'input', key: 'titleName', label: '标题' }, { kind: 'products', key: 'products', label: '商品设置', numberMin: 20, numberStep: 10 }, { kind: 'switch', key: 'showTitle', label: '显示标题' }], summary: (m) => String(m.titleName || '') },
   { type: 'pcSeckill', label: '秒杀模块', group: '旧版', legacy: true, defaults: () => ({ seckillTitle: '全场优惠限时9折起' }), settings: [{ kind: 'input', key: 'seckillTitle', label: '活动标题' }], summary: (m) => String(m.seckillTitle || '') },
   { type: 'pcCoupon', label: '优惠券模块', group: '旧版', legacy: true, note: '内容由营销-优惠券"首页显示"决定', defaults: () => ({}), settings: [], summary: () => '优惠券' },
-  { type: 'pcGroupon', label: '拼团', group: '旧版', legacy: true, defaults: () => ({ style: 2, goodsStyle: 1, goodsRadioStyle: 1, textAlign: 1, textWeight: 1, goodsNameRow: 2, goodsNamePadding: 1, showName: 1, showBrief: 1, showPrice: 1, goodsPadding: 5, buyBtnStyle: 1, backgroundColor: '', boxRadius: 0, innerPadding: 0, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5, frame: { textColor: '', itemBackgroundColor: '', backgroundColor: '#ffffff', innerPadding: 0, itemHeight: 35, itemRadius: 3, boxRadius: 0, boxPadding: 10, leftAndRightPadding: 0, boxPaddingTop: 5, boxPaddingBottom: 5 }, title: { showTitle: 0, titleStyle: 1, titleAlign: 1, titleBackground: '', titleBackground2: '', titleBackgroundPic: { picUrl: '', picThumb: '' }, titleRadius: 0, titleText: '标题内容', titleColor: '', titleWeight: 'normal', descText: '', descColor: '#aaaaaa', showMore: 0, moreType: 1, countdownLabel: '', moreLink: [], moreColor: '#000000', format: { titleBackground: '', titleRadius: '' } }, groupType: 1, grouponActivityItem: undefined as unknown as Record<string, any>, cardStyle: 1 }), settings: [{ kind: 'radio', key: 'style', label: '模板', options: [{ label: '一行四个', value: 2 }, { label: '一行五个', value: 3 }, { label: '横向滑动', value: 6 }] }, { kind: 'radio', key: 'groupType', label: '拼团类型', options: [{ label: '普通拼团', value: 1 }, { label: '阶梯拼团', value: 2 }] }, { kind: 'radio', key: 'goodsStyle', label: '商品样式', options: [{ label: '标准', value: 1 }, { label: '投影', value: 2 }, { label: '描边', value: 3 }, { label: '透明底', value: 4 }] }, { kind: 'radio', key: 'goodsRadioStyle', label: '商品圆角', options: [{ label: '直角', value: 1 }, { label: '圆角', value: 2 }] }, { kind: 'radio', key: 'textAlign', label: '文本对齐', options: [{ label: '左对齐', value: 1 }, { label: '居中对齐', value: 2 }] }, { kind: 'radio', key: 'textWeight', label: '文本字重', options: [{ label: '常规体', value: 1 }, { label: '加粗体', value: 2 }] }, { kind: 'number', key: 'goodsNameRow', label: '商品名称行数', min: 1, max: 3 }, { kind: 'switch', key: 'showName', label: '显示商品名称' }, { kind: 'switch', key: 'showPrice', label: '显示商品价格' }, { kind: 'slider', key: 'goodsPadding', label: '商品间距', max: 50 }, { kind: 'slider', key: 'boxRadius', label: '模块圆角', max: 30 }, { kind: 'slider', key: 'boxPadding', label: '模块内边距', max: 30 }, { kind: 'groupon', key: 'grouponActivityItem', label: '选择活动' }, { kind: 'color', key: 'backgroundColor', label: '背景颜色' }], summary: (m) => (m.grouponActivityItem ? m.grouponActivityItem.name : '未选择活动') },
+  { type: 'pcGroupon', label: '拼团', group: '旧版', legacy: true, defaults: () => ({ style: 2, goodsStyle: 1, goodsRadioStyle: 1, textAlign: 1, textWeight: 1, goodsNameRow: 2, goodsNamePadding: 1, showName: 1, showBrief: 1, showPrice: 1, goodsPadding: 5, buyBtnStyle: 1, buyBtnSet: 1, buyBtnIcon: { picUrl: '', picThumb: '' }, backgroundColor: '', boxRadius: 0, innerPadding: 0, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5, frame: { textColor: '', itemBackgroundColor: '', backgroundColor: '#ffffff', innerPadding: 0, itemHeight: 35, itemRadius: 3, boxRadius: 0, boxPadding: 10, leftAndRightPadding: 0, boxPaddingTop: 5, boxPaddingBottom: 5 }, title: { showTitle: 0, titleStyle: 1, titleAlign: 1, titleBackground: '', titleBackground2: '', titleBackgroundPic: { picUrl: '', picThumb: '' }, titleRadius: 0, titleText: '标题内容', titleColor: '', titleWeight: 'normal', descText: '', descColor: '#aaaaaa', showMore: 0, moreType: 1, countdownLabel: '', moreLink: [], moreColor: '#000000', format: { titleBackground: '', titleRadius: '' } }, groupType: 1, grouponActivityItem: undefined as unknown as Record<string, any>, cardStyle: 1 }), settings: [{ kind: 'radio', key: 'style', label: '模板', options: [{ label: '一行四个', value: 2 }, { label: '一行五个', value: 3 }, { label: '横向滑动', value: 6 }] }, { kind: 'radio', key: 'groupType', label: '拼团类型', options: [{ label: '普通拼团', value: 1 }, { label: '阶梯拼团', value: 2 }] }, { kind: 'radio', key: 'goodsStyle', label: '商品样式', options: [{ label: '标准', value: 1 }, { label: '投影', value: 2 }, { label: '描边', value: 3 }, { label: '透明底', value: 4 }] }, { kind: 'radio', key: 'goodsRadioStyle', label: '商品圆角', options: [{ label: '直角', value: 1 }, { label: '圆角', value: 2 }] }, { kind: 'radio', key: 'textAlign', label: '文本对齐', options: [{ label: '左对齐', value: 1 }, { label: '居中对齐', value: 2 }] }, { kind: 'radio', key: 'textWeight', label: '文本字重', options: [{ label: '常规体', value: 1 }, { label: '加粗体', value: 2 }] }, { kind: 'number', key: 'goodsNameRow', label: '商品名称行数', min: 1, max: 3 }, { kind: 'switch', key: 'showName', label: '显示商品名称' }, { kind: 'switch', key: 'showPrice', label: '显示商品价格' }, ...buyBtnFields(), { kind: 'slider', key: 'goodsPadding', label: '商品间距', max: 50 }, { kind: 'slider', key: 'boxRadius', label: '模块圆角', max: 30 }, { kind: 'slider', key: 'boxPadding', label: '模块内边距', max: 30 }, { kind: 'groupon', key: 'grouponActivityItem', label: '选择活动' }, { kind: 'color', key: 'backgroundColor', label: '背景颜色' }], summary: (m) => (m.grouponActivityItem ? m.grouponActivityItem.name : '未选择活动') },
   { type: 'pcCategoryNav', label: '分类导航', group: '旧版', legacy: true, defaults: () => ({ rowNum: 5, categoryList: [] as number[] }), settings: [{ kind: 'radio', key: 'rowNum', label: '每屏显示数量', options: [2, 3, 4, 5, 6].map((n) => ({ label: `${n}个`, value: n })) }, { kind: 'categoryMulti', key: 'categoryList', label: '已选分类' }], summary: (m) => `${((m.categoryList || []) as number[]).length} 分类` },
   { type: 'pcCategoryNav3', label: '分类导航3', group: '旧版', legacy: true, defaults: () => ({ bannerStyle: 1, showCat: 1, logo: { picUrl: '', picThumb: '' }, picList: [], picList2: [], picList3: [], imageBackgroundColor: undefined as unknown as string, titleText: undefined as unknown as string, showMore: undefined as unknown as number, showMoreText: undefined as unknown as string, moreLink: undefined as unknown as Record<string, any> }), settings: [{ kind: 'picList', key: 'picList', label: '图片卡片' }, { kind: 'color', key: 'imageBackgroundColor', label: '图片背景色' }, { kind: 'input', key: 'titleText', label: '标题内容' }, { kind: 'switch', key: 'showMore', label: '查看更多' }], summary: (m) => String(m.titleText || '') },
   { type: 'pcCatWide', label: '分类模块-宽', group: '旧版', legacy: true, defaults: () => ({ catIds: [] as number[] }), settings: [{ kind: 'categoryMulti', key: 'catIds', label: '已选分类' }], summary: (m) => `${((m.catIds || []) as number[]).length} 分类` },
@@ -1135,7 +1221,10 @@ const PC_SEARCH_RESULT_DEFAULTS = {
   filterTemplate: 2,
   goodsStyle: 1,
   goodsRadiusStyle: 1,
-  buyStyle: 2,
+  // 购买按钮改全站统一枚举：新默认 5（"购买"描边）≡ 旧默认 buyStyle=2 的观感；buyStyleV=2 标记新格式
+  buyStyle: 5,
+  buyStyleV: 2,
+  buyBtnIcon: { picUrl: '', picThumb: '' } as { picUrl: string; picThumb: string } | null,
   showFilterPanel: true as boolean | number,
   showPriceRange: true as boolean | number,
   showSales: false as boolean | number,
@@ -1158,7 +1247,8 @@ const PC_SEARCH_RESULT_MODULE_DEF: ModuleDef = {
     { kind: 'switch', key: 'showPriceRange', label: '显示价格区间', section: '筛选设置' },
     { kind: 'radio', key: 'goodsStyle', label: '商品卡片边框', options: [{ label: '无边框', value: 1 }, { label: '卡片', value: 2 }, { label: '描边', value: 3 }, { label: '投影', value: 4 }], section: '商品设置' },
     { kind: 'radio', key: 'goodsRadiusStyle', label: '商品圆角', options: [{ label: '直角', value: 1 }, { label: '圆角', value: 2 }], section: '商品设置' },
-    { kind: 'radio', key: 'buyStyle', label: '购买按钮样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }], section: '商品设置' },
+    // 购买按钮：旧「样式一/二/三」改全站统一字段（buyStyle 存统一枚举，buyStyleV=2 区分存量旧值）
+    ...buyBtnFields({ key: 'buyStyle', section: '商品设置' }),
     { kind: 'switch', key: 'showCartButton', label: '显示购物车按钮', section: '商品设置' },
     { kind: 'switch', key: 'showSales', label: '显示销量', section: '商品设置' },
     { kind: 'switch', key: 'showShopTag', label: '显示店铺标签', section: '商品设置' },
@@ -1363,7 +1453,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
           label: item.label || MODULE_DEF_MAP.get(item.type)?.label || item.type,
           isShow: item.isShow !== false,
           fixed: item.fixed,
-          module: normalizeLegacyTitle(item.type, item.module || {}),
+          module: normalizeLegacyBuyBtn(item.type, normalizeLegacyTitle(item.type, item.module || {})),
         })));
       })
       .catch((e) => Toast.error(e?.message || t('加载装修数据失败')))
@@ -1985,24 +2075,6 @@ function usePreviewProducts(products?: Record<string, any>) {
   return rows;
 }
 
-/** 秒杀预览数据（原版 listForHomePreview，size 15 与 C 端分页窗口一致） */
-function useSeckillPreview() {
-  const [rows, setRows] = useState<PreviewProduct[]>([]);
-  useEffect(() => {
-    let alive = true;
-    apiGet<{ records?: PreviewProduct[]; list?: PreviewProduct[] }>('/promotion/seckill/listForHomePreview', { page: 1, size: 15 })
-      .then((res) => {
-        if (alive) setRows(res.records || res.list || []);
-      })
-      .catch(() => {
-        if (alive) setRows([]);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-  return rows;
-}
 
 /** 拼团活动商品（promotion/groupon/item/list） */
 function useGrouponItems(promotionId?: number) {
@@ -2214,6 +2286,13 @@ function PcSearchResultPreview({ data }: { data: Record<string, any> }) {
   const d = { ...PC_SEARCH_RESULT_DEFAULTS, ...(data || {}) };
   const on = (v: unknown) => v === true || Number(v) === 1;
   const theme = d.themeColor || '#ff4d4f';
+  /* 购买按钮（全站统一共享组件）：buyStyleV>=2 时 buyStyle 已是统一枚举；
+     存量旧值（1/2/3）先映射再解析，与前台 ProductGrid 同口径。 */
+  const globalBuy = usePcGlobalBuyStyle();
+  const searchBuy = resolvePcBuyBtn(Number(d.buyStyleV) >= 2 ? d.buyStyle : SEARCH_LEGACY_MAP[Number(d.buyStyle)] ?? 2, {
+    moduleIcon: d.buyBtnIcon,
+    global: globalBuy,
+  });
   const cols = Number(d.filterTemplate) === 2 ? 6 : 5;
   const radius = Number(d.goodsRadiusStyle) === 2 ? 8 : 0;
   const cardBorder =
@@ -2287,14 +2366,10 @@ function PcSearchResultPreview({ data }: { data: Record<string, any> }) {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
               {on(d.showShopTag) ? <span style={{ fontSize: 11, color: '#888', border: '1px solid #e3e5e8', borderRadius: 2, padding: '1px 5px' }}>{p.shop}</span> : <span />}
-              {on(d.showCartButton) ? (
-                Number(d.buyStyle) === 1 ? (
-                  <span style={{ width: 24, height: 24, borderRadius: '50%', background: theme, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>🛒</span>
-                ) : Number(d.buyStyle) === 3 ? (
-                  <span style={{ background: theme, color: '#fff', fontSize: 11, borderRadius: 12, padding: '4px 10px' }}>{t('加入购物车')}</span>
-                ) : (
-                  <span style={{ border: `1px solid ${theme}`, color: theme, fontSize: 11, borderRadius: 12, padding: '3px 10px' }}>{t('加入购物车')}</span>
-                )
+              {on(d.showCartButton) && searchBuy.show ? (
+                <span style={{ color: theme, display: 'inline-flex', alignItems: 'center' }}>
+                  <PcBuyButtonVisual style={searchBuy.style} customIcon={searchBuy.customIcon} />
+                </span>
               ) : null}
             </div>
           </div>
@@ -2733,207 +2808,7 @@ function RecommendPreview({ data }: { data: Record<string, any> }) {
   );
 }
 
-/** 商品分组预览（对齐原版 dec-pc-product-group：分组标题栏（标题图/分割线/选中态）+ 卡片式商品列表） */
-function ProductGroupPreview({ data }: { data: Record<string, any> }) {
-  const { t } = useI18n();
-  const groups = (data.productGroups || []) as Array<Record<string, any>>;
-  const [activeIndex, setActiveIndex] = useState(0);
-  const ms = data.moduleStyle || {};
-  const cs = data.contentStyle || {};
-  const gt = data.groupTitle || {};
-  const pc = data.productColor || {};
-  const listStyle = Number(data.listStyle) || 4;
-  const gap = Number(pc.infoLeftRightPadding) || 0;
-  const widthByStyle: Record<number, string> = { 1: '100%', 2: '50%', 3: '33.333%', 4: '25%', 6: '20%', 7: '16.666%' };
-  const itemWidth = listStyle >= 1 && listStyle <= 4
-    ? `calc((100% - ${gap * (listStyle - 1)}px) / ${listStyle})`
-    : widthByStyle[listStyle] || `calc((100% - ${gap * 3}px) / 4)`;
-  const activeGroup = groups[Math.min(activeIndex, groups.length - 1)] || groups[0];
-  return (
-    <div style={{ backgroundColor: ms.backgroundColor || 'transparent', padding: `${Number(ms.boxPaddingTop) || 5}px ${Number(ms.boxPadding) || 10}px ${Number(ms.boxPaddingBottom) || 5}px` }}>
-      <div style={{ paddingTop: Number(cs.paddingTop) || 0, paddingBottom: Number(cs.paddingBottom) || 0, paddingLeft: Number(cs.paddingLeftRight) || 0, paddingRight: Number(cs.paddingLeftRight) || 0, borderRadius: Number(cs.boxRadius) || 0, backgroundColor: cs.backgroundColor || 'transparent', boxShadow: Number(cs.boxShadow) ? '0 2px 8px rgba(93, 113, 127, 0.08)' : undefined }}>
-        {Number(gt.showTitle ?? 1) === 1 && groups.length > 0 && (
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', overflow: 'hidden', marginBottom: 20 }}>
-            <div style={{ display: 'flex', gap: Number(gt.marginLeftRight) || 0, overflowX: 'auto', overflowY: 'hidden', flex: 1, scrollbarWidth: 'none' }}>
-              {groups.map((g, i) => (
-                <div
-                  key={i}
-                  onClick={() => setActiveIndex(i)}
-                  style={{ flex: '0 0 auto', position: 'relative', textAlign: 'center', cursor: 'pointer', display: 'flex', alignItems: 'stretch' }}
-                >
-                  {i > 0 && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, borderRight: `1px solid ${gt.splitLineColor || 'transparent'}`, transform: 'scale(0.5)' }} />}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      minWidth: Number(gt.titleMinWidth) || 80,
-                      padding: `${Number(gt.titlePaddingTopBottom ?? 8)}px ${Number(gt.titlePaddingLeftRight ?? 12)}px`,
-                      backgroundColor: i === activeIndex ? gt.activeTitleBgColor || '#ffebf1' : 'transparent',
-                      borderRadius: Number(gt.titleRadius) || 4,
-                      justifyContent: 'center',
-                      boxSizing: 'border-box',
-                      transition: 'background-color 0.3s',
-                    }}
-                  >
-                    {g.titlePic?.picUrl ? <img src={g.titlePic.picUrl} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }} /> : null}
-                    <span style={{ fontSize: Number(gt.bigTitleFontSize) || 14, fontWeight: 700, color: i === activeIndex ? gt.activeTitleColor || '#FF0F23' : gt.titleColor || '#444444', whiteSpace: 'nowrap', transition: 'color 0.3s' }}>{g.title}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        <div style={{ marginTop: 5, overflow: 'hidden' }}>
-          {activeGroup ? (
-            <GroupProductsList key={activeIndex} group={activeGroup} itemWidth={itemWidth} data={data} />
-          ) : (
-            <div style={{ padding: 30, textAlign: 'center', color: '#c0c4cc', fontSize: 13 }}>{t('请在设置中添加商品分组')}</div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
-/** 商品分组商品列表（listStyle 定宽 + productColor/groupTitle/buyBtnStyle 变量，对齐原版 preview.less；取数口径对齐原版 fetchProductList） */
-function GroupProductsList({ group, itemWidth, data }: { group: Record<string, any>; itemWidth: string; data: Record<string, any> }) {
-  const { t } = useI18n();
-  const listStyle = Number(data.listStyle) || 4;
-  const cols = listStyle === 6 ? 5 : listStyle === 7 ? 6 : 4;
-  const demoList = ((group.productList || []) as PreviewProduct[]).filter((p) => p.picThumb || p.picUrl || p.productName);
-  const ids = ((group.productIds || demoList.map((p) => Number(p.productId)).filter((id) => Number(id) > 0)) || []) as number[];
-  const byGroup = (group.sourceType || 'products') === 'productGroup' && Number(group.productGroupId) > 0;
-  const fetched = usePreviewProducts(!byGroup && ids.length ? { productSelectType: 1, productIds: ids } : undefined);
-  const [groupRows, setGroupRows] = useState<PreviewProduct[]>([]);
-  const gid = Number(group.productGroupId) || 0;
-  useEffect(() => {
-    if (!byGroup) {
-      setGroupRows([]);
-      return;
-    }
-    let alive = true;
-    apiGet<{ records?: PreviewProduct[]; list?: PreviewProduct[] }>('/product/product/list', { productGroupId: gid, page: 1, size: cols * 3 })
-      .then((res) => {
-        if (alive) setGroupRows(res.records || res.list || []);
-      })
-      .catch(() => {
-        if (alive) setGroupRows([]);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [byGroup, gid, cols]);
-  const rows = byGroup ? groupRows : fetched.length ? fetched : demoList;
-  const pc = data.productColor || {};
-  const gap = Number(pc.infoLeftRightPadding) || 0;
-  const cardStyle = Number(data.productCardStyle) || 1;
-  const buyBtn = data.buyBtnStyle || {};
-  const fmtParts = (v: unknown) => {
-    const num = Number(v ?? 0);
-    const text = Number.isFinite(num) ? num.toFixed(2) : '0.00';
-    const [int, dec] = text.split('.');
-    return { int, dec };
-  };
-  if (!rows.length) return null;
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', rowGap: gap, columnGap: gap }}>
-      {rows.slice(0, 30).map((p, i) => {
-        const parts = fmtParts(p.productPrice);
-        return (
-          <div key={`${p.productId ?? 'x'}-${i}`} style={{ boxSizing: 'border-box', width: itemWidth }}>
-            <div
-              style={{
-                display: 'block',
-                overflow: 'hidden',
-                padding: `${Number(data.cardPadding) || 0}px`,
-                paddingBottom: 12,
-                borderRadius: Number(data.cardRadius) || 4,
-                backgroundColor: pc.backgroundColor || '#ffffff',
-                border: cardStyle === 3 ? '1px solid #eeeeee' : '1px solid transparent',
-                boxShadow: cardStyle === 2 ? '0 2px 8px rgba(93, 113, 127, 0.08)' : undefined,
-                boxSizing: 'border-box',
-              }}
-            >
-              <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: 0, paddingTop: '100%', background: '#ffffff' }}>
-                {(p.picThumb || p.picUrl) && (
-                  <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundImage: `url(${p.picThumb || p.picUrl})`, backgroundRepeat: 'no-repeat', backgroundPosition: 'center', backgroundSize: 'contain' }} />
-                )}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', minHeight: 156, padding: '8px 12px 0', marginTop: 8, textAlign: 'left' }}>
-                {Number(data.showProductName ?? 1) !== 0 && (
-                  <div
-                    style={{
-                      fontSize: Number(data.productNameSize) || 16,
-                      fontWeight: Number(data.productNameWeight) || 400,
-                      color: pc.titleColor || '#19191b',
-                      lineHeight: '22px',
-                      minHeight: `calc(${Number(data.productNameRow) || 1} * 22px)`,
-                      overflow: 'hidden',
-                      display: '-webkit-box',
-                      WebkitLineClamp: Number(data.productNameRow) || 1,
-                      WebkitBoxOrient: 'vertical' as any,
-                      wordBreak: 'break-word',
-                    }}
-                  >
-                    {p.productName}
-                  </div>
-                )}
-                {Number(data.showSales ?? 1) !== 0 && (
-                  <div style={{ marginTop: 10 }}>
-                    <div style={{ height: 18, fontSize: 14, color: '#888b94', lineHeight: '18px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t('已售')} {(p as any).virtualSales ?? 0}</div>
-                  </div>
-                )}
-                <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 32 }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', flex: 1, overflow: 'hidden' }}>
-                    {Number(data.showProductPrice ?? 1) !== 0 && (
-                      <span style={{ marginRight: 5, display: 'flex', alignItems: 'baseline', color: pc.priceColor || '#be081d', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                        <span style={{ fontSize: 16, fontWeight: 400 }}>¥</span>
-                        <span style={{ fontSize: 24, fontWeight: 600 }}>{parts.int}</span>
-                        <span style={{ fontSize: 24, fontWeight: 600 }}>.{parts.dec}</span>
-                      </span>
-                    )}
-                    {Number(data.crossedOutPrice ?? 1) !== 0 && Number(p.marketPrice) > 0 && (
-                      <span style={{ marginLeft: 5, fontSize: 16, color: pc.crossedOutPriceColor || '#999999', position: 'relative', display: 'inline-flex', alignItems: 'baseline', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        <span style={{ fontSize: 12, fontWeight: 400 }}>¥</span>
-                        {Number(p.marketPrice).toFixed(2)}
-                        <span style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: '1px solid currentColor', transform: 'translateY(-50%)' }} />
-                      </span>
-                    )}
-                  </div>
-                  {Number(buyBtn.showBtn ?? 1) !== 0 && (
-                    <span
-                      style={{
-                        width: 32,
-                        height: 32,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: 'transparent',
-                        color: pc.priceColor || '#be081d',
-                        borderRadius: Number(buyBtn.btnType) === 3 ? 6 : '50%',
-                        flexShrink: 0,
-                        paddingLeft: Number(buyBtn.btnType) === 1 ? (Number(buyBtn.paddingLeftRight) || 0) : 0,
-                        paddingRight: Number(buyBtn.btnType) === 1 ? (Number(buyBtn.paddingLeftRight) || 0) : 0,
-                      }}
-                    >
-                      {Number(buyBtn.btnType) === 1 ? <IconPlus /> : <IconCart />}
-                    </span>
-                  )}
-                </div>
-                {Number(data.showShopTag ?? 1) !== 0 && (
-                  <div style={{ fontSize: 14, color: '#269636', fontWeight: 600, lineHeight: '18px', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {(p as any).shopTitle || t('官方自营')}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 /** 分类导航预览（对齐原版 dec-pc-category-nav：外层 frame 留白、内层背景/圆角/固定高、一屏 displayNum 个、圆形箭头） */
 function CategoryNavPreview({ data }: { data: Record<string, any> }) {
@@ -3461,362 +3336,9 @@ function SwiperArrowButton({ dir, left, right }: { dir: 'prev' | 'next'; left?: 
   );
 }
 
-function SeckillPreview({ data }: { data: Record<string, any> }) {
-  const { t } = useI18n();
-  const rows = useSeckillPreview();
-  const now = useNowTick();
-  const f = (data.frame || {}) as Record<string, any>;
-  const title = (data.title || {}) as Record<string, any>;
-  const goodsGap = Number(data.goodsGap) || 10;
-  const innerPadding = Number(f.leftAndRightPadding) || 0;
-  const first = rows[0] as (PreviewProduct & { seckkillData?: { seckillEndTime?: string } }) | undefined;
-  const countdownTargetTs = dateStringToTimestamp(first?.seckkillData?.seckillEndTime || '');
-  const skeletonItems = [1, 2, 3, 4, 5, 6];
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        width: '100%',
-        boxSizing: 'border-box',
-        paddingLeft: Number(f.boxPadding) || 0,
-        paddingRight: Number(f.boxPadding) || 0,
-        paddingBottom: 20,
-        marginTop: Number(f.boxPaddingTop) || 0,
-        marginBottom: Number(f.boxPaddingBottom) || 0,
-        borderRadius: Number(f.boxRadius) || 0,
-        backgroundColor: f.backgroundColor || '#fafafa',
-        overflow: 'hidden',
-      }}
-    >
-      <SeckillGrouponTitleBar
-        title={title}
-        fallbackText={data.seckillTitle || t('限时秒杀')}
-        fallbackLabel={t('倒计时')}
-        countdownTargetTs={countdownTargetTs}
-        now={now}
-        innerPaddingPx={innerPadding}
-      />
-      <div style={{ position: 'relative', zIndex: 1, flex: 1, width: '100%' }}>
-        {rows.length > 0 ? (
-          <div
-            style={{
-              display: 'flex',
-              overflowX: 'auto',
-              overflowY: 'hidden',
-              width: '100%',
-              padding: `0 ${innerPadding}px`,
-              gap: goodsGap,
-              boxSizing: 'border-box',
-              scrollbarWidth: 'none',
-            }}
-          >
-            {rows.slice(0, 15).map((p, i) => {
-              const current = Number((p as any).seckillPrice ?? p.productPrice ?? 0);
-              const original = Number((p as any).productPrice ?? (p as any).marketPrice ?? 0);
-              const discount = original > 0 && current < original ? Math.floor(((original - current) / original) * 100 * 10) / 10 : 0;
-              const parts = priceParts(current);
-              return (
-                <div
-                  key={p.productId ?? i}
-                  style={{ flexShrink: 0, boxSizing: 'border-box', position: 'relative', zIndex: 1, width: `calc((100% - ${goodsGap * 5}px) / 6)`, background: '#ffffff', borderRadius: 4 }}
-                >
-                  <div style={{ width: '100%', aspectRatio: '1 / 1', overflow: 'hidden' }}>
-                    {(p.picThumb || p.picUrl) ? (
-                      <img src={(p.picThumb || p.picUrl) as string} alt={p.productName || ''} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                    ) : (
-                      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Crect fill='%23f0f0f0' width='180' height='180'/%3E%3C/svg%3E" alt="" style={{ width: '100%', height: '100%', display: 'block' }} />
-                    )}
-                  </div>
-                  {discount > 0 && (
-                    <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', margin: 5, width: 'fit-content', height: 24, lineHeight: '24px', padding: '0 6px', color: '#fff', fontSize: 14, borderRadius: 2, backgroundColor: '#ee0a24' }}>
-                      {t('优惠{percent}%', { percent: discount })}
-                    </div>
-                  )}
-                  <div style={{ height: 20, marginTop: 5, marginBottom: 8, padding: '0 5px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', color: '#1a1a1a', fontSize: 16, fontWeight: 700, lineHeight: '18px' }}>
-                    {p.productName}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', padding: '0 5px' }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', marginRight: 8, color: '#1a1a1a', lineHeight: '28px' }}>
-                      <span style={{ fontSize: 16, fontWeight: 400 }}>¥</span>
-                      <span style={{ fontSize: 24, fontWeight: 700 }}>{parts.int}</span>
-                      <span style={{ fontSize: 16, fontWeight: 700 }}>.{parts.dec}</span>
-                    </div>
-                    <div style={{ marginLeft: 'auto' }}>
-                      <span style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: 32, height: 32, borderRadius: '50%', background: 'rgba(255, 63, 79, 0.12)', color: '#ff3f4f', flexShrink: 0, position: 'relative', cursor: 'pointer' }} title={t('添加购物车')}>
-                        <span style={{ width: 18, height: 18, position: 'relative', display: 'block' }}>
-                          <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', background: 'currentColor', borderRadius: 1, width: 14, height: 2 }} />
-                          <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', background: 'currentColor', borderRadius: 1, width: 2, height: 14 }} />
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-                  {original > 0 && (
-                    <div style={{ marginBottom: 10, padding: '0 5px', height: 19, color: '#888b94', fontSize: 16, textDecoration: 'line-through', lineHeight: '22px', boxSizing: 'border-box' }}>
-                      ¥{Number.isFinite(original) ? original.toFixed(2) : '0.00'}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div style={{ display: 'flex', overflow: 'hidden', width: '100%', padding: `0 ${innerPadding}px`, gap: goodsGap, boxSizing: 'border-box' }}>
-            {skeletonItems.map((i) => (
-              <div key={i} style={{ flexShrink: 0, boxSizing: 'border-box', width: `calc((100% - ${goodsGap * 5}px) / 6)`, background: '#ffffff', borderRadius: 4 }}>
-                <div style={{ width: '100%', aspectRatio: '1 / 1', background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)', backgroundSize: '200% 100%' }} />
-                <div style={{ height: 30, marginTop: 10, borderRadius: 4, background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)', backgroundSize: '200% 100%' }} />
-              </div>
-            ))}
-          </div>
-        )}
-        {rows.length > 0 && (
-          <>
-            <SwiperArrowButton dir="prev" left={innerPadding} />
-            <SwiperArrowButton dir="next" right={innerPadding} />
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
 
-/** 拼团 mock 商品（无活动时展示，与原版 mockProducts 逐字段一致） */
-const GROUPON_MOCK_PRODUCTS: PreviewProduct[] = [
-  { productId: 1, productName: '拼团商品示例一号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=1', minGroupPrice: 99, productPrice: 199, minGroupNum: 2 } as PreviewProduct,
-  { productId: 2, productName: '拼团商品示例二号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=2', minGroupPrice: 128, productPrice: 256, minGroupNum: 3 } as PreviewProduct,
-  { productId: 3, productName: '拼团商品示例三号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=3', minGroupPrice: 68, productPrice: 168, minGroupNum: 2 } as PreviewProduct,
-  { productId: 4, productName: '拼团商品示例四号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=4', minGroupPrice: 188, productPrice: 388, minGroupNum: 5 } as PreviewProduct,
-  { productId: 5, productName: '拼团商品示例五号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=5', minGroupPrice: 58, productPrice: 118, minGroupNum: 2 } as PreviewProduct,
-  { productId: 6, productName: '拼团商品示例六号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=6', minGroupPrice: 88, productPrice: 168, minGroupNum: 3 } as PreviewProduct,
-];
 
-/** 拼团商品卡（对齐原版 GrouponItemCard：cardStyle 1 图片倒计时条+priceBox / 2 简版价格行） */
-function GrouponCard({
-  item,
-  cardStyle,
-  textAlign,
-  buyBtnStyle,
-  showName,
-  showPrice,
-  countdownText,
-  countdownLabel,
-}: {
-  item: PreviewProduct;
-  cardStyle: number;
-  textAlign: number;
-  buyBtnStyle: number;
-  showName: boolean;
-  showPrice: boolean;
-  countdownText: string;
-  countdownLabel: string;
-}) {
-  const { t } = useI18n();
-  const isCardStyle1 = cardStyle === 1;
-  const groupNum = String((item as any).minGroupNum || '2');
-  const groupPrice = String((item as any).minGroupPrice ?? item.productPrice ?? '0');
-  const originPrice = String(item.productPrice ?? '0');
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
-      <div style={{ width: '100%' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-          <div style={{ margin: '0 auto', display: 'flex', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#f5f5f5', aspectRatio: '1 / 1', width: isCardStyle1 ? '90%' : '100%' }}>
-            {(item.picThumb || item.picUrl) ? (
-              <img src={(item.picThumb || item.picUrl) as string} alt={item.productName || ''} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
-            ) : (
-              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f5f5f5' width='100' height='100'/%3E%3C/svg%3E" alt="" style={{ width: '100%', height: '100%', display: 'block' }} />
-            )}
-          </div>
-        </div>
-        {isCardStyle1 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(90deg, #f86e30, #e91817)', height: 34, padding: '0 10px', boxSizing: 'border-box', fontSize: 12, color: '#ffffff' }}>
-            <div style={{ flex: '0 0 auto', fontWeight: 'bold', fontSize: 16, color: '#ffffff' }}>{t('拼团')}</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flex: 1, gap: 6, whiteSpace: 'nowrap' }}>
-              <div style={{ fontSize: 12 }}>{countdownLabel}</div>
-              {countdownText ? <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12 }}>{countdownText}</div> : null}
-            </div>
-          </div>
-        )}
-      </div>
-      {showName && (
-        <div
-          style={{
-            minHeight: 20, marginTop: 10, marginBottom: isCardStyle1 ? 0 : 12,
-            overflow: 'hidden', whiteSpace: 'nowrap', color: '#1a1a1a', fontSize: 16, fontWeight: 400, lineHeight: '18px',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', flexWrap: 'nowrap', gap: 4,
-            textAlign: textAlign === 1 ? 'left' : 'center', justifyContent: textAlign === 1 ? 'flex-start' : 'center',
-          }}
-        >
-          <span
-            style={{
-              display: 'inline-flex', alignItems: 'center', color: '#ff4d4f', background: '#fff1f0', height: 16,
-              padding: '0 4px', borderRadius: 2, fontSize: 12, lineHeight: '16px', fontWeight: 'normal',
-              whiteSpace: 'nowrap', boxSizing: 'border-box', marginRight: 4, flexShrink: 0, transform: 'translateY(-1px)',
-            }}
-          >
-            {t('{count}人团', { count: groupNum })}
-          </span>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{item.productName}</span>
-        </div>
-      )}
-      {showPrice && (
-        isCardStyle1 ? (
-          <div style={{ width: '100%', height: 35, background: '#fff2f3', borderRadius: 3, marginTop: 18, display: 'flex', alignItems: 'center', position: 'relative' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <span style={{ color: '#ee0a24', fontWeight: 500, fontSize: 22, paddingLeft: 9, height: 26, display: 'flex', alignItems: 'flex-end' }}>¥{groupPrice}</span>
-              <div style={{ marginLeft: 7, display: 'flex', alignItems: 'flex-end', fontWeight: 500, fontSize: 12, color: '#9a9a9a', textDecorationLine: 'line-through' }}>¥{originPrice}</div>
-            </div>
-            <div style={{ padding: '0 20px', height: 30, background: '#ee0a25', borderRadius: 3, fontWeight: 600, fontSize: 20, color: '#ffffff', lineHeight: '30px', marginLeft: 'auto', clipPath: 'polygon(20% 0, 100% 0, 100% 100%, 0 100%)', textAlign: 'center' }}>{t('拼')}</div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', flexDirection: textAlign === 1 ? 'row' : 'column' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-              <span style={{ marginRight: 8, color: '#ee0a24', lineHeight: '22px', fontSize: 24, fontWeight: 600 }}>¥{groupPrice}</span>
-              <span style={{ height: 19, color: '#888b94', textDecoration: 'line-through', fontSize: 14 }}>¥{originPrice}</span>
-            </div>
-            <div style={{ marginLeft: 'auto' }}>
-              {buyBtnStyle > 0 ? (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 13, background: '#ee0a24', color: '#fff', fontSize: 12 }}>
-                  {buyBtnStyle === 5 || buyBtnStyle === 6 ? t('购买') : buyBtnStyle === 7 || buyBtnStyle === 8 ? t('马上抢') : buyBtnStyle === 3 || buyBtnStyle === 4 ? <IconPlus size="small" /> : <IconCart size="small" />}
-                </span>
-              ) : (
-                <span style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: 32, height: 32, borderRadius: '50%', background: '#ecf5ff', color: '#409eff', cursor: 'pointer' }}>
-                  <IconPlus size="small" />
-                </span>
-              )}
-            </div>
-          </div>
-        )
-      )}
-    </div>
-  );
-}
 
-/** 拼团预览（对齐原版 dec-pc-home-groupon：root 边距/内边距 + 标题倒计时 + 2/3/4 栅格、6 横滚 + 双卡片样式 + mock 商品） */
-function GrouponPreview({ data }: { data: Record<string, any> }) {
-  const { t } = useI18n();
-  const activity = (data.grouponActivityItem || null) as Record<string, any> | null;
-  const activityId = Number(activity?.grouponPromotionId ?? activity?.grouponId) || undefined;
-  const fetched = useGrouponItems(activityId);
-  const now = useNowTick();
-
-  const style = Number(data.style ?? 4);
-  const isScrollLayout = style === 6;
-  const cardStyle = Number(data.cardStyle ?? 1);
-  const textAlign = Number(data.textAlign ?? 1);
-  const buyBtnStyle = Number(data.buyBtnStyle ?? 0);
-  const showName = Number(data.showName ?? 1) === 1;
-  const showPrice = Number(data.showPrice ?? 1) === 1;
-  const goodsPadding = Number(data.goodsPadding) || 0;
-
-  const activityStartTs = dateStringToTimestamp(activity?.startTime || '');
-  const activityEndTs = dateStringToTimestamp(activity?.endTime || '');
-
-  // 无活动时按 style 取 mock（原版 displayProducts 口径：2→4 个，4→6 个，其余全部）
-  const baseRows: PreviewProduct[] = fetched.length
-    ? fetched
-    : style === 2
-      ? GROUPON_MOCK_PRODUCTS.slice(0, 4)
-      : style === 4
-        ? GROUPON_MOCK_PRODUCTS.slice(0, 6)
-        : GROUPON_MOCK_PRODUCTS;
-  const rows = baseRows.map((r) => ({ ...r, startTime: activity?.startTime || '', endTime: activity?.endTime || '' }));
-
-  // 卡片倒计时文案（进行中→距结束，未开始→距开始，已结束→空）
-  const cardCountdown = (item: PreviewProduct): { label: string; text: string } => {
-    const startTs = dateStringToTimestamp((item as any).startTime || '');
-    const endTs = dateStringToTimestamp((item as any).endTime || '');
-    const started = !startTs || startTs < now;
-    const ended = !!endTs && endTs < now;
-    if (ended) return { label: t('已结束'), text: '' };
-    const target = !started ? startTs : endTs;
-    const remaining = target ? Math.max(0, target - now) : 0;
-    if (!remaining) return { label: started ? t('距结束') : t('距开始'), text: '' };
-    const { days, hours, minutes, seconds } = parseCountdownParts(remaining);
-    return { label: started ? t('距结束') : t('距开始'), text: days > 0 ? `${days}${t('天')}${formatNumTwo(hours)}:${formatNumTwo(minutes)}:${formatNumTwo(seconds)}` : `${formatNumTwo(hours)}:${formatNumTwo(minutes)}:${formatNumTwo(seconds)}` };
-  };
-
-  // 列宽（原版 itemWidth/scrollItemWidth：gap 参与宽度补偿）
-  const gapComp = (perRow: number) => (goodsPadding > 0 ? `calc(${100 / perRow}% - ${(goodsPadding * (perRow - 1)) / perRow}px)` : `${100 / perRow}%`);
-  const itemWidth = style === 2 ? gapComp(4) : style === 4 ? gapComp(6) : gapComp(5);
-
-  return (
-    <div
-      style={{
-        width: `calc(100% - ${(Number(data.boxPadding) || 0) * 2}px)`,
-        boxSizing: 'border-box',
-        position: 'relative',
-        backgroundColor: data.backgroundColor || '#ffffff',
-        borderRadius: Number(data.boxRadius) || 0,
-        marginLeft: Number(data.boxPadding) || 0,
-        marginRight: Number(data.boxPadding) || 0,
-        marginTop: Number(data.boxPaddingTop ?? 5),
-        marginBottom: Number(data.boxPaddingBottom ?? 5),
-        padding: `0 ${Number(data.innerPadding) || 0}px`,
-        overflow: 'hidden',
-      }}
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', width: '100%', overflow: 'hidden' }}>
-        <SeckillGrouponTitleBar
-          title={data.title}
-          fallbackText={t('拼团')}
-          fallbackLabel={t('距结束')}
-          countdownTargetTs={activityEndTs}
-          activityStartTs={activityStartTs}
-          now={now}
-          innerPaddingPx={0}
-        />
-        <div style={{ position: 'relative', zIndex: 1, flex: 1, width: '100%' }}>
-          {isScrollLayout ? (
-            <div style={{ position: 'relative', width: '100%', overflow: 'hidden', boxSizing: 'border-box' }}>
-              <div style={{ display: 'flex', flexWrap: 'nowrap', overflowX: 'auto', overflowY: 'hidden', gap: goodsPadding, padding: goodsPadding, boxSizing: 'border-box', scrollbarWidth: 'none' }}>
-                {rows.map((item, index) => (
-                  <div key={index} style={{ flex: '0 0 auto', boxSizing: 'border-box', position: 'relative', backgroundColor: '#ffffff', width: gapComp(6) }}>
-                    <GrouponCard
-                      item={item}
-                      cardStyle={cardStyle}
-                      textAlign={textAlign}
-                      buyBtnStyle={buyBtnStyle}
-                      showName={showName}
-                      showPrice={showPrice}
-                      countdownText={cardCountdown(item).text}
-                      countdownLabel={cardCountdown(item).label}
-                    />
-                  </div>
-                ))}
-              </div>
-              <SwiperArrowButton dir="prev" left={0} />
-              <SwiperArrowButton dir="next" right={0} />
-            </div>
-          ) : (
-            <div style={{ overflow: 'hidden', boxSizing: 'border-box', padding: goodsPadding }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: goodsPadding }}>
-                {rows.map((item, index) => (
-                  <div key={index} style={{ boxSizing: 'border-box', position: 'relative', backgroundColor: '#ffffff', width: itemWidth }}>
-                    <div style={{ backgroundColor: 'transparent' }}>
-                      <div style={{ backgroundColor: '#ffffff', paddingBottom: 10 }}>
-                        <GrouponCard
-                          item={item}
-                          cardStyle={cardStyle}
-                          textAlign={textAlign}
-                          buyBtnStyle={buyBtnStyle}
-                          showName={showName}
-                          showPrice={showPrice}
-                          countdownText={cardCountdown(item).text}
-                          countdownLabel={cardCountdown(item).label}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /** 营销通栏画布预览（1:1 对齐原版 Preview.vue：API拉类目/分组商品 + 右面板逐像素还原） */
 
@@ -5939,12 +5461,8 @@ function PicListEditor({
 
 /** 命名容器（非 frame）的字段集：pc-product-group 的扩展设置（对齐原版 components/*Settings.vue） */
 const CONTAINER_VARIANTS: Record<string, SettingFieldDef[]> = {
-  // 对齐原版 BuyBtnSettings.vue：showBtn/btnType/paddingLeftRight（按钮宽度仅在自定义文字时生效），无 text/颜色字段
-  buyBtn: [
-    { kind: 'radio', key: 'showBtn', label: '购买按钮', options: [{ label: '显示', value: 1 }, { label: '不显示', value: 0 }] },
-    { kind: 'radio', key: 'btnType', label: '购买样式', options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }], showIf: (m) => Number(m.showBtn) === 1 },
-    { kind: 'slider', key: 'paddingLeftRight', label: '按钮宽度', max: 10, showIf: (m) => Number(m.showBtn) === 1 && String(m.text ?? '') !== '' },
-  ],
+  // 原 buyBtn 变体（对象型 showBtn/btnType 三样式）已随购买样式全站统一移除：
+  // 商品分组改用模块级 buyBtnFields() 统一字段，存量对象数据由 normalizeLegacyBuyBtn 归一化。
   // 对齐原版 Settings.vue 扩展设置"商品颜色设置"
   productColor: [
     { kind: 'slider', key: 'infoLeftRightPadding', label: '商品间距', max: 20 },

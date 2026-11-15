@@ -247,33 +247,14 @@
   cursor: pointer;
 }
 
-.pc-seckill__add-icon {
-  width: 18px;
-  height: 18px;
-  position: relative;
-  display: block;
+/* 文案款（5–8）：宿主去掉圆形几何，几何由共享视觉自带 */
+.pc-seckill__add-btn--bare {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
 }
 
-.pc-seckill__add-icon::before,
-.pc-seckill__add-icon::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  background: currentColor;
-  border-radius: 1px;
-}
-
-.pc-seckill__add-icon::before {
-  width: 14px;
-  height: 2px;
-}
-
-.pc-seckill__add-icon::after {
-  width: 2px;
-  height: 14px;
-}
 
 .pc-seckill__price-origin {
   margin-bottom: 10px;

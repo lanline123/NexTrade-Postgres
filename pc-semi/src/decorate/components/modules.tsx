@@ -18,6 +18,7 @@ import { CONTRACT_ADAPTERS, FLAT_FRAME, linkHref, type ContractRenderPlan } from
 import { useTranslation } from 'react-i18next';
 import { PREMIUM_MEMBER_ENTRY_DATA_URI } from '@/decorate/assets/premiumMemberEntry';
 import { ShopProductCard, useProductStyleMap } from '@/components/product/ShopProductCard';
+import { BuyButtonVisual, buyBtnClassName, resolveBuyBtnStyle } from './BuyButton';
 import i18n from '@/i18n';
 /**
  * PC 首页装修模块渲染器（React + Semi 栈）
@@ -77,18 +78,9 @@ function px(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-/** 旧版 useBuyBtnStyle.normalizeBuyBtnStyle：购买按钮配置兼容 {showBtn,btnType} 对象与数字两种格式。 */
-function normalizeBuyBtnStyle(raw: unknown): { show: boolean; style: number } {
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    const obj = raw as Record<string, unknown>;
-    return { show: Boolean(obj.showBtn), style: Number(obj.btnType) || 1 };
-  }
-  if (typeof raw === 'number' || typeof raw === 'string') {
-    const n = Number(raw);
-    return { show: n > 0, style: n };
-  }
-  return { show: false, style: 0 };
-}
+/** 购买按钮配置归一化已统一到共享组件 ./BuyButton 的 resolveBuyBtnStyle
+ * （数字枚举 0–10 + 商品分组/H5 对象型读时转换 + -1 跟随全局）。 */
+const normalizeBuyBtnStyle = resolveBuyBtnStyle;
 
 /** 简易自动轮播：translate 横向切换 + 圆点，支持 hover 暂停（替代旧版 Swiper）。
  *
@@ -1076,7 +1068,7 @@ function PcProduct({ module }: ModuleProps) {
                               >
                                 {needsDetail(item) ? (
                                   <Link target="_blank" href={href} className={`dec-buy-btn dec-buy-btn--${buyBtnConfig.style}`}>
-                                    <BuyIcon buyBtnStyle={buyBtnConfig.style} />
+                                    <BuyButtonVisual style={buyBtnConfig.style} customIcon={buyBtnConfig.customIcon} />
                                   </Link>
                                 ) : (
                                   <button
@@ -1089,7 +1081,7 @@ function PcProduct({ module }: ModuleProps) {
                                     }}
                                     disabled={addingId === Number(item.productId)}
                                   >
-                                    <BuyIcon buyBtnStyle={buyBtnConfig.style} />
+                                    <BuyButtonVisual style={buyBtnConfig.style} customIcon={buyBtnConfig.customIcon} />
                                   </button>
                                 )}
                               </div>
@@ -1109,22 +1101,7 @@ function PcProduct({ module }: ModuleProps) {
   );
 }
 
-/** 旧版 ProductButton.vue 图标/文案（1/2 购物车、3/4 加号、5/6 购买、7/8 马上抢）。 */
-function BuyIcon({ buyBtnStyle }: { buyBtnStyle: number }) {
-  if (buyBtnStyle <= 4) {
-    return (
-      <i className="dec-buy-btn__icon">
-        <span
-          className={`dec-buy-btn__ico dec-buy-btn__ico--${buyBtnStyle <= 2 ? 'cart' : 'plus'}${
-            buyBtnStyle === 1 || buyBtnStyle === 3 ? ' is-outline' : ''
-          }`}
-          aria-hidden="true"
-        />
-      </i>
-    );
-  }
-  return <span className="dec-buy-btn__text">{buyBtnStyle >= 7 ? '马上抢' : '购买'}</span>;
-}
+/** 购买按钮视觉已统一到共享组件 ./BuyButton 的 BuyButtonVisual（原本地 BuyIcon 删除）。 */
 
 /** 旧版 CountDown 默认插槽的 days/hours/minutes/seconds：把剩余毫秒拆成四段。 */
 export function countdownParts(remainingMs: number) {
@@ -2229,6 +2206,14 @@ function Seckill({ module }: ModuleProps) {
      「展示样式」入口可选。处理：style 显式给出时照旧输出 ad-style__N（老链 camelCase 页面不受影响），
      没给就按预览布局渲染（不挂 ad-style__N，宽度改走 flex-basis 压掉 .is-swiper 的 248px）。 */
   const styleExplicit = module.style !== undefined && module.style !== null && module.style !== '';
+  /* 购买按钮（全站统一共享组件）：秒杀存量数据的 buyBtnStyle=0/缺省表示「未配置」
+     而非隐藏（旧版专门打补丁强制显示加购钮），故无 buyBtnSet 标记（未经新版编辑器
+     显式保存）时 0/缺省按 4=加号实心 解析——与此前写死加号图标的观感一致；
+     有标记后 0 才表示隐藏，-1 跟随全局。 */
+  const buyBtn = resolveBuyBtnStyle(
+    module.buyBtnStyle === undefined && !module.buyBtnSet ? 4 : module.buyBtnStyle,
+    { zeroAs: module.buyBtnSet ? undefined : 4, moduleIcon: module.buyBtnIcon },
+  );
   const showName = module.showName !== 0 && module.showName !== false;
   const showPrice = module.showPrice !== 0 && module.showPrice !== false;
   const goodsGap = px(module.goodsGap ?? module.goodsPadding, 10);
@@ -2250,7 +2235,7 @@ function Seckill({ module }: ModuleProps) {
   return (
     <div className="module-seckill-goods_ad-wrapper">
       <div
-        className={`module-ad-con module-goods_ad module-seckill-goods_ad ad-style__${styleExplicit ? style : 'preview'} ad-buy_btn_style__${px(module.buyBtnStyle, 3)} ad-goods_style__${module.goodsStyle ?? 1} ad-goods_radio_style__${module.goodsRadioStyle ?? 1} ad-goods_name_row__${module.goodsNameRow ?? 1} ad-text_align__${module.textAlign ?? 1} ad-text_weight__${module.textWeight} ad-goods_name_padding__${module.goodsNamePadding} ad-goods-title_style__${title.titleStyle}`}
+        className={`module-ad-con module-goods_ad module-seckill-goods_ad ad-style__${styleExplicit ? style : 'preview'} ad-buy_btn_style__${buyBtn.style} ad-goods_style__${module.goodsStyle ?? 1} ad-goods_radio_style__${module.goodsRadioStyle ?? 1} ad-goods_name_row__${module.goodsNameRow ?? 1} ad-text_align__${module.textAlign ?? 1} ad-text_weight__${module.textWeight} ad-goods_name_padding__${module.goodsNamePadding} ad-goods-title_style__${title.titleStyle}`}
         style={frameStyle}
       >
         <div className="module-ad-content">
@@ -2325,21 +2310,24 @@ function Seckill({ module }: ModuleProps) {
                                 ) : null}
                               </div>
                             </div>
-                            <div className="buy-container">
-                              <div className="item-buy">
-                                <button
-                                  type="button"
-                                  className={`view_detail${productSoldOut(product) ? ' disabled' : ''}`}
-                                  onClick={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    void buyProduct(product, { isQuick: 0 });
-                                  }}
-                                >
-                                  <i className="iconfont-pc icon-tianjia" />
-                                </button>
+                            {buyBtn.show ? (
+                              <div className="buy-container">
+                                <div className="item-buy">
+                                  <button
+                                    type="button"
+                                    className={`view_detail ${buyBtnClassName(buyBtn.style)}${productSoldOut(product) ? ' disabled' : ''}`}
+                                    style={buyBtn.iconColor ? { color: buyBtn.iconColor } : undefined}
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      void buyProduct(product, { isQuick: 0 });
+                                    }}
+                                  >
+                                    <BuyButtonVisual style={buyBtn.style} customIcon={buyBtn.customIcon} />
+                                  </button>
+                                </div>
                               </div>
-                            </div>
+                            ) : null}
                           </div>
                         ) : null}
                       </div>
@@ -2417,6 +2405,13 @@ function Groupon({ module }: ModuleProps) {
   const goodsPadding = px(module.goodsPadding);
   const showName = Number(module.showName) === 1;
   const showPrice = Number(module.showPrice) === 1;
+  /* 购买按钮（全站统一共享组件）：拼团存量数据的 buyBtnStyle=0/缺省表示「未配置」
+     （旧编辑器未暴露该设置，前台一直写死加号图标），故无 buyBtnSet 标记时 0/缺省
+     按 4=加号实心 解析；有标记后 0 才表示隐藏，-1 跟随全局。与秒杀同口径。 */
+  const buyBtn = resolveBuyBtnStyle(
+    module.buyBtnStyle === undefined && !module.buyBtnSet ? 4 : module.buyBtnStyle,
+    { zeroAs: module.buyBtnSet ? undefined : 4, moduleIcon: module.buyBtnIcon },
+  );
   const radius = px(module.boxRadius);
   const shellStyle: Record<string, any> = {
     backgroundColor: module.backgroundColor || undefined,
@@ -2456,7 +2451,7 @@ function Groupon({ module }: ModuleProps) {
 
   return (
     <div className="module-groupon-goods_ad-wrapper">
-      <div className={`module-ad-con module-goods_ad module-groupon-goods_ad ad-style__${style} ad-buy_btn_style__${px(module.buyBtnStyle)} ad-goods_style__${module.goodsStyle ?? 1} ad-goods_radio_style__${module.goodsRadioStyle ?? 1} ad-goods_name_row__${module.goodsNameRow ?? 1} ad-goods_name_padding__${module.goodsNamePadding} ad-text_align__${module.textAlign ?? 1} ad-text_weight__${module.textWeight} ad-goods-title_style__${title.titleStyle}`} style={shellStyle}>
+      <div className={`module-ad-con module-goods_ad module-groupon-goods_ad ad-style__${style} ad-buy_btn_style__${buyBtn.style} ad-goods_style__${module.goodsStyle ?? 1} ad-goods_radio_style__${module.goodsRadioStyle ?? 1} ad-goods_name_row__${module.goodsNameRow ?? 1} ad-goods_name_padding__${module.goodsNamePadding} ad-text_align__${module.textAlign ?? 1} ad-text_weight__${module.textWeight} ad-goods-title_style__${title.titleStyle}`} style={shellStyle}>
         <div className="module-ad-content">
           <div className="mod_groupon">
             <div style={{ padding: `0 ${px(module.innerPadding)}px` }}>
@@ -2530,19 +2525,22 @@ function Groupon({ module }: ModuleProps) {
                                 <FormatPrice className="price-miaosha" value={item.minGrouponPrice ?? item.grouponPrice} />
                                 {Number(item.productPrice) > 0 ? <FormatPrice className="price-origin" value={item.productPrice} /> : null}
                               </div>
-                              <div className="buy">
-                                <button
-                                  type="button"
-                                  className={`view_detail${productSoldOut(item) ? ' disabled' : ''}`}
-                                  onClick={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    void buyProduct(item, { isQuick: 1 });
-                                  }}
-                                >
-                                  <i className="iconfont-pc icon-tianjia" />
-                                </button>
-                              </div>
+                              {buyBtn.show ? (
+                                <div className="buy">
+                                  <button
+                                    type="button"
+                                    className={`view_detail ${buyBtnClassName(buyBtn.style)}${productSoldOut(item) ? ' disabled' : ''}`}
+                                    style={buyBtn.iconColor ? { color: buyBtn.iconColor } : undefined}
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      void buyProduct(item, { isQuick: 1 });
+                                    }}
+                                  >
+                                    <BuyButtonVisual style={buyBtn.style} customIcon={buyBtn.customIcon} />
+                                  </button>
+                                </div>
+                              ) : null}
                             </div>
                           )
                         ) : null}
@@ -3907,7 +3905,10 @@ function ProductGroup({ module }: ModuleProps) {
   const showPrice = Number(module.showProductPrice ?? 1) !== 0;
   const showCrossed = Number(module.crossedOutPrice ?? 1) !== 0;
   const showSales = Number(module.showSales ?? 1) !== 0;
-  const showBuy = Number(module.buyBtnStyle?.showBtn ?? 1) !== 0;
+  /* 购买按钮（全站统一共享组件）：存量对象型 {showBtn, btnType} 由 resolveBuyBtnStyle
+     读时归一化（btnType 1→3、2→1、3→9），新版编辑器写数字枚举（-1 跟随全局 / 0 隐藏 / 10 自定义图片）。 */
+  const buyBtn = resolveBuyBtnStyle(module.buyBtnStyle, { moduleIcon: module.buyBtnIcon });
+  const showBuy = buyBtn.show;
   const showShopTag = Number(module.showShopTag ?? 1) !== 0;
 
   /* 旧版 tab 左右箭头：溢出时显示，滚动/切换后更新位置 */
@@ -4184,21 +4185,16 @@ function ProductGroup({ module }: ModuleProps) {
                         {showBuy ? (
                           <button
                             type="button"
-                            className={`dec-product-group__cart-btn dec-product-group__cart-btn--style-${Number(module.buyBtnStyle?.btnType ?? 1) || 1}${productSoldOut(product) ? ' is-disabled' : ''}`}
+                            className={`dec-product-group__cart-btn${buyBtn.style >= 5 && buyBtn.style <= 8 ? ` dec-product-group__cart-btn--text-${buyBtn.style <= 6 ? 'outline' : 'solid'}` : ''}${productSoldOut(product) ? ' is-disabled' : ''}`}
+                            style={buyBtn.iconColor ? { color: buyBtn.iconColor } : undefined}
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
                               void buyProduct(product);
                             }}
                           >
-                            <span className="dec-product-group__cart-inner dec-product-group__cart-icon">
-                              {Number(module.buyBtnStyle?.btnType ?? 1) === 2 ? (
-                                <BuyIconCart />
-                              ) : Number(module.buyBtnStyle?.btnType ?? 1) === 3 ? (
-                                <BuyIconCartCircle />
-                              ) : (
-                                <BuyIconPlus />
-                              )}
+                            <span className="dec-product-group__cart-inner">
+                              <BuyButtonVisual style={buyBtn.style} customIcon={buyBtn.customIcon} />
                             </span>
                           </button>
                         ) : null}
@@ -4222,38 +4218,7 @@ function ProductGroup({ module }: ModuleProps) {
   );
 }
 
-/* ======================= 9.5 ProductGroup 购买按钮图标（旧 SvgIcon buy-jia/buy-cart/buy-cart-circle） ======================= */
-
-function BuyIconPlus() {
-  return (
-    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <path d="M12 4.5v15M4.5 12h15" />
-    </svg>
-  );
-}
-
-function BuyIconCart() {
-  return (
-    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M2.5 3.5h2.2l2.2 10.9a1.6 1.6 0 0 0 1.6 1.3h8.2a1.6 1.6 0 0 0 1.6-1.25L20.3 7H6" />
-      <circle cx="9.5" cy="19.6" r="1.4" />
-      <circle cx="17.5" cy="19.6" r="1.4" />
-    </svg>
-  );
-}
-
-function BuyIconCartCircle() {
-  return (
-    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-      <circle cx="12" cy="12" r="10.2" />
-      <g strokeLinecap="round" strokeLinejoin="round">
-        <path d="M7.5 8.5h1.6l1.5 7.1a1.2 1.2 0 0 0 1.2 1h4.1a1.2 1.2 0 0 0 1.2-.95L18.3 11H9.4" />
-        <circle cx="11" cy="18.4" r="0.9" />
-        <circle cx="15.6" cy="18.4" r="0.9" />
-      </g>
-    </svg>
-  );
-}
+/* ======================= 9.5 ProductGroup 购买按钮图标已统一到共享组件 ./BuyButton（原 BuyIconPlus/Cart/CartCircle 删除） ======================= */
 
 /**
  * pcCatProductNormal —— 逐字照抄 components/home/CatProductNormal.vue:1-54。

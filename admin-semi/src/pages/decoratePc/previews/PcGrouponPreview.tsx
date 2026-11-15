@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiGet } from '../../../api';
 import ModuleTitlePreview from './shared/ModuleTitlePreview';
+import { PcBuyButtonVisual, resolvePcBuyBtn, usePcGlobalBuyStyle, type PcResolvedBuyBtn } from './shared/PcBuyButton';
 import './pcGroupon.css';
 
 import { useI18n } from '../../../i18n';
@@ -61,7 +62,10 @@ const GROUPON_DEFAULTS = {
     moreLink: { link: '', title: '' },
     moreColor: '#1a1a1a',
   },
-  buyBtnStyle: 0,
+  // 购买按钮默认值与新版编辑器一致：4（加号实心，显式配置）
+  buyBtnStyle: 4,
+  buyBtnSet: 1,
+  buyBtnIcon: { picUrl: '', picThumb: '' },
   grouponActivityItem: null as Record<string, any> | null,
 };
 
@@ -173,22 +177,12 @@ function SwitchArrow({
   );
 }
 
-function CartIcon() {
-  return (
-    <svg className="pc-groupon-card__icon-cart" viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M1.5 2h1.6l1.3 7.2h7.5l1.2-5H4.1" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinejoin="round" />
-      <circle cx="6" cy="12.6" r="1.1" fill="currentColor" />
-      <circle cx="11.4" cy="12.6" r="1.1" fill="currentColor" />
-    </svg>
-  );
-}
-
 /** 拼团商品卡（对齐旧版 GrouponItemCard：cardStyle 1 图片倒计时条 + priceBox；其余简版价格行）。 */
 function GrouponCard({
   item,
   cardStyle,
   textAlign,
-  buyBtnStyle,
+  buyBtn,
   showName,
   showPrice,
   countdownText,
@@ -197,7 +191,7 @@ function GrouponCard({
   item: PreviewProduct;
   cardStyle: number;
   textAlign: number;
-  buyBtnStyle: number;
+  buyBtn: PcResolvedBuyBtn;
   showName: boolean;
   showPrice: boolean;
   countdownText: string;
@@ -208,13 +202,6 @@ function GrouponCard({
   const groupNum = String(item.minGroupNum || '2');
   const groupPrice = String(item.minGroupPrice ?? item.productPrice ?? '0');
   const originPrice = String(item.productPrice ?? '0');
-
-  const buyContent = () => {
-    if (buyBtnStyle === 5 || buyBtnStyle === 6) return '购买';
-    if (buyBtnStyle === 7 || buyBtnStyle === 8) return '马上抢';
-    if (buyBtnStyle === 3 || buyBtnStyle === 4) return <i className="pc-groupon-card__icon-plus" style={{ width: 14, height: 14, background: 'transparent' }} />;
-    return <CartIcon />;
-  };
 
   return (
     <div className="pc-groupon-card">
@@ -262,7 +249,14 @@ function GrouponCard({
               <span className="pc-groupon-card__price-line">¥{originPrice}</span>
             </div>
             <div className="pc-groupon-card__buy">
-              {buyBtnStyle > 0 ? <span className="pc-groupon-card__buy-btn">{buyContent()}</span> : <span className="pc-groupon-card__icon-plus" />}
+              {buyBtn.show ? (
+                <span
+                  className={`pc-groupon-card__buy-btn${buyBtn.style >= 5 ? ' pc-groupon-card__buy-btn--bare' : ''}`}
+                  style={buyBtn.iconColor ? { color: buyBtn.iconColor } : undefined}
+                >
+                  <PcBuyButtonVisual style={buyBtn.style} customIcon={buyBtn.customIcon} />
+                </span>
+              ) : null}
             </div>
           </div>
         ))}
@@ -283,7 +277,13 @@ export default function PcGrouponPreview({ data }: { data: Record<string, any> }
   const isScrollLayout = style === 6;
   const cardStyle = Number(config.cardStyle ?? 1);
   const textAlign = Number(config.textAlign ?? 1);
-  const buyBtnStyle = Number(config.buyBtnStyle ?? 0);
+  /* 购买按钮（全站统一共享组件）：存量未配置（无 buyBtnSet）时 0/缺省按 4 解析，与前台同口径 */
+  const globalBuy = usePcGlobalBuyStyle();
+  const buyBtn = resolvePcBuyBtn(config.buyBtnStyle, {
+    moduleIcon: config.buyBtnIcon,
+    global: globalBuy,
+    zeroAs: config.buyBtnSet ? undefined : 4,
+  });
   const showName = Number(config.showName ?? 1) === 1;
   const showPrice = Number(config.showPrice ?? 1) === 1;
   const goodsPadding = Number(config.goodsPadding) || 0;
@@ -360,7 +360,7 @@ export default function PcGrouponPreview({ data }: { data: Record<string, any> }
                       item={item}
                       cardStyle={cardStyle}
                       textAlign={textAlign}
-                      buyBtnStyle={buyBtnStyle}
+                      buyBtn={buyBtn}
                       showName={showName}
                       showPrice={showPrice}
                       countdownText={cardCountdown(item).text}
@@ -401,7 +401,7 @@ export default function PcGrouponPreview({ data }: { data: Record<string, any> }
                       item={item}
                       cardStyle={cardStyle}
                       textAlign={textAlign}
-                      buyBtnStyle={buyBtnStyle}
+                      buyBtn={buyBtn}
                       showName={showName}
                       showPrice={showPrice}
                       countdownText={cardCountdown(item).text}

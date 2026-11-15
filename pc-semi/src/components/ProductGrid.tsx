@@ -14,15 +14,30 @@ import { useRef } from 'react';
 import type { ProductListItem } from '@/lib/api';
 import ProductCard, { type ProductCardItem } from '@/components/product/ProductCard';
 import { useProductColumns } from '@/components/product/use-product-columns';
+import { mapSearchLegacyBuyStyle, resolveBuyBtnStyle, type ResolvedBuyBtn } from '@/decorate/components/BuyButton';
 import '@/components/product/product-card.scss';
 
 import { useTranslation } from 'react-i18next';
+/** 搜索装修的购买按钮原始配置（服务端页面算好后透传，客户端在此归一化）。 */
+export interface ProductGridBuyBtnConfig {
+  /** 原始 buyStyle 值：legacy 时为旧 1/2/3；新版（buyStyleV>=2）为统一枚举（可为 -1 跟随全局）。 */
+  raw: unknown;
+  /** true = 存量旧值，先经 mapSearchLegacyBuyStyle 映射到统一枚举。 */
+  legacy?: boolean;
+  /** 搜索装修 showCartButton 开关：false 时不渲染购买按钮。 */
+  show?: boolean;
+  /** 样式 10（自定义图片）时模块自带图标 {picUrl, picThumb}。 */
+  moduleIcon?: unknown;
+}
+
 interface ProductGridProps {
   products: ProductListItem[];
   /** 搜索装修 showSales：true 时展示已售数量（默认展示库存）。 */
   showSales?: boolean;
   /** 搜索装修 showShopTag：为 true 且商品带店铺信息时展示店铺角标。 */
   showShopTag?: boolean;
+  /** 搜索装修购买按钮配置（不传 = 卡片维持默认 Add 圆钮行为）。 */
+  buyBtn?: ProductGridBuyBtnConfig | null;
   /**
    * 额外挂到网格根节点上的旧版类名。
    * 旧版 pages/search/components/CatGoodsList.vue 的结构是
@@ -39,12 +54,22 @@ export default function ProductGrid({
   products,
   showSales = false,
   showShopTag = false,
+  buyBtn,
   gridClassName,
   fixedNameTwoLines = false,
 }: ProductGridProps) {
     const { t } = useTranslation();
   const gridRef = useRef<HTMLDivElement | null>(null);
   const columns = useProductColumns(gridRef);
+  /* 购买按钮（全站统一共享组件）：整表共用一份解析结果，逐卡透传给 ProductCard。 */
+  const resolvedBuyBtn: ResolvedBuyBtn | undefined = buyBtn
+    ? (() => {
+        const resolved = resolveBuyBtnStyle(buyBtn.legacy ? mapSearchLegacyBuyStyle(Number(buyBtn.raw) || 1) : buyBtn.raw, {
+          moduleIcon: buyBtn.moduleIcon,
+        });
+        return buyBtn.show === false ? { ...resolved, show: false } : resolved;
+      })()
+    : undefined;
 
   return (
     <div
@@ -60,6 +85,7 @@ export default function ProductGrid({
           showShopTag={showShopTag}
           fixedNameTwoLines={fixedNameTwoLines}
           activityInfo={(product as ProductCardItem).activityInfo}
+          buyBtn={resolvedBuyBtn}
         />
       ))}
       {!products.length ? <div className="search-empty"><span className="search-empty__text">{t('没有找到商品')}</span></div> : null}

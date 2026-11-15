@@ -610,7 +610,7 @@
 .dec-pc-home-hero__card-price {
     font-size: 16px;
     color: var(--dec-price-color, var(--price));
-    font-weight: 700;
+    font-weight: 400;
     line-height: 1.2;
     flex-shrink: 0;
     font-family: Arial, Helvetica, sans-serif;
@@ -6081,6 +6081,33 @@
 
     &--style-3 {
         border-radius: 6px;
+    }
+}
+
+/* 统一枚举文案款（5–8）：分组按钮原为 32px 圆形图标钮，文案款改价格色胶囊
+ * （描边款 5/7 白底价格色字，实心款 6/8 价格色底白字；与编辑器 PcBuyButton 预览同口径）。 */
+.dec-product-group__cart-btn--text-outline {
+    width: auto;
+    min-width: 64px;
+    padding: 0 14px;
+    border: 1px solid var(--dec-price-color, var(--vort-primary, #ff3f4f));
+    border-radius: 20px;
+    background-color: #fff;
+    font-size: 14px;
+}
+
+.dec-product-group__cart-btn--text-solid {
+    width: auto;
+    min-width: 64px;
+    padding: 0 14px;
+    border: 1px solid var(--dec-price-color, var(--vort-primary, #ff3f4f));
+    border-radius: 20px;
+    background-color: var(--dec-price-color, var(--vort-primary, #ff3f4f));
+    color: #fff;
+    font-size: 14px;
+
+    &:hover {
+        color: #fff;
     }
 }
 
