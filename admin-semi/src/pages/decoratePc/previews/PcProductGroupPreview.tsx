@@ -186,11 +186,11 @@ const productGroupDefaults: AnyRecord = {
   buyBtnStyle: defaultBuyBtnStyle,
   productColor: defaultProductColor,
   groupTitle: defaultGroupTitle,
-  moduleStyle: { boxPaddingTop: 5, boxPaddingBottom: 5, boxPadding: 10, backgroundColor: '' },
+  moduleStyle: { boxPaddingTop: 0, boxPaddingBottom: 0, boxPadding: 10, backgroundColor: '' },
   contentStyle: {
     paddingTop: 0,
     paddingBottom: 0,
-    paddingLeftRight: 0,
+    paddingLeftRight: 13,
     boxRadius: 0,
     backgroundColor: '',
     backgroundPic: { picUrl: '', picThumb: '' },
