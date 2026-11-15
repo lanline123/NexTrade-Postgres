@@ -1,6 +1,7 @@
 /**
  * 模块库图标（IconPark）：按模块 type 映射，与 PC 编辑器 LIB_META 同一套图标语言。
- * 未映射的 type 由 ModuleToolbar 回退到注册时自带的 icon（历史 emoji HTML）。
+ * 全部已注册可添加 type 均有映射（2026-11-15 补齐 commonTitle/navbar）；
+ * ModuleToolbar 对未映射 type 仅保留注册 icon 的兜底渲染，新增模块时请同步补此表。
  */
 import type { Icon as IconParkIcon } from "@icon-park/react/es/runtime";
 import Ad from "@icon-park/react/es/icons/Ad";
@@ -12,6 +13,7 @@ import BookOne from "@icon-park/react/es/icons/BookOne";
 import Carousel from "@icon-park/react/es/icons/Carousel";
 import ClickTap from "@icon-park/react/es/icons/ClickTap";
 import Commodity from "@icon-park/react/es/icons/Commodity";
+import Compass from "@icon-park/react/es/icons/Compass";
 import Components from "@icon-park/react/es/icons/Components";
 import Coupon from "@icon-park/react/es/icons/Coupon";
 import DividingLine from "@icon-park/react/es/icons/DividingLine";
@@ -20,6 +22,7 @@ import FullScreen from "@icon-park/react/es/icons/FullScreen";
 import Gift from "@icon-park/react/es/icons/Gift";
 import GridFour from "@icon-park/react/es/icons/GridFour";
 import GridNine from "@icon-park/react/es/icons/GridNine";
+import H1 from "@icon-park/react/es/icons/H1";
 import HeadsetOne from "@icon-park/react/es/icons/HeadsetOne";
 import ImageFiles from "@icon-park/react/es/icons/ImageFiles";
 import LayoutOne from "@icon-park/react/es/icons/LayoutOne";
@@ -68,6 +71,8 @@ export const MODULE_ICONPARK: Record<string, IconParkIcon> = {
     whiteLine: DividingLine,
     whiteBlank: RowHeight,
     titleAd: Text,
+    commonTitle: H1,
+    navbar: Compass,
     tagNav: TagOne,
     catNav: ViewGridList,
     categoryNav: ViewGridList,

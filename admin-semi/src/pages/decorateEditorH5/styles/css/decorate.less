@@ -616,6 +616,8 @@
 }
 
 /*页面层*/
+/* 2026-11-15 去补丁化（与 decorate.css 同步）：滚动在基础样式定义为原生 overflow-y:auto，
+   left:200px = 左侧工具栏实宽；不再依赖 editor.less 覆写补丁。 */
 .decorate-page-wrap {
     left: 200px;
     position: fixed;
@@ -623,7 +625,8 @@
     background: #f7f8fa;
     bottom: 0;
     top: 55px;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .decorate-page-wrap.ps-container .ps-scrollbar-y {

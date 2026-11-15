@@ -4,16 +4,24 @@
  * 结构/数值口径（原版 src/css/decorate.less + 各共享 Edit 组件）：
  * - 字段行 `.dec-edit-group`（padding 10px 16px；标签 .label 14px #969799 margin-right 16px；控件区 .dec-edit-group-con flex:1 右对齐）
  * - 分组标题三形态：dec-spread-title（平面粗体）/ dec-edit-title-box（灰带 + 3px 蓝条）/ dec-edit-section-title
- * - 单选组 `.dec-radio-group`：32px 分段按钮、border #ebedf0、选中主题色 + --tig-item-active-bg 近似底色
- * - 滑杆 `.dec-range-group`：range + 数字框（无步进钮）
- * - 颜色行 `.dec-color-group`：「重置」文字链 + 方形色块触发器（弹层为 AlphaColorInput，预置色为原版 SelectColor 14 色）
+ * - 单选组：Semi RadioGroup button 形态（2026-11-15 换标准，原手写 el-radio-button 克隆已弃）
+ * - 滑杆 `.dec-range-group`：共享 SliderWithInput（Semi Slider + InputNumber，同 PC 编辑器）
+ * - 颜色行：共享 components/ColorField 外壳（「重置」链 + AlphaColorInput，预置色为原版 SelectColor 14 色）
+ * - 图片：单图走共享 ImageUploader、列表走 GalleryPickerModal（素材库口径，同 PC 编辑器；原 Semi Upload 直传已弃）
+ * - 链接：共享 LinkField（components/LinkPicker），经 PicLinkField 适配 { link, title } 契约
  * - 图片列表 `.dec-pic-group`：60×60 contain 图盒 + 底部 20px「更换图片」条 + hover 删除徽标 + 信息行 + 整宽添加按钮 + 上移/下移
  *
  * 统一 onChange(patch) 协议：所有控件只上报字段级 patch，由 store 浅合并进模块数据。
  */
-import { Input, Select, Switch, Upload, Toast } from "@douyinfe/semi-ui";
+import { useState } from "react";
+import { Input, Radio, RadioGroup, Select, Switch } from "@douyinfe/semi-ui";
 import { IconPlus } from "@douyinfe/semi-icons";
 import AlphaColorInput from "../../../components/AlphaColorInput";
+import SliderWithInput from "../../../components/SliderWithInput";
+import SharedColorField from "../../../components/ColorField";
+import ImageUploader from "../../../components/ImageUploader";
+import GalleryPickerModal from "../../../components/GalleryPickerModal";
+import { LinkField, type LinkValue } from "../../../components/LinkPicker";
 import { imageFormat, pickPic } from "./format";
 import { defaultTitle, defaultFrame } from "../contract/sharedDefaults";
 
@@ -86,21 +94,26 @@ interface RadioOption {
     label: string;
 }
 
-/** 裸分段单选组（无字段行外壳，供 dec-edit-group-block 等容器内嵌使用） */
+/** 裸分段单选组（无字段行外壳，供 dec-edit-group-block 等容器内嵌使用）
+ *  2026-11-15 换标准：原手写 el-radio-button 克隆改为 Semi RadioGroup button 形态，与 PC 编辑器口径一致。 */
 export function SegmentedRadio({ value, options, onChange }: { value: any; options: RadioOption[]; onChange: (v: number | string) => void }) {
     const { t } = useI18n();
+    // 旧手写实现按 String 比较选中态（容忍存量数据里 "1"/1 混写）；Semi 为严格比较，
+    // 这里先把 value 归一到命中选项的原始类型，避免存量字符串值导致无选中态。
+    const matched = options.find((o) => String(o.value) === String(value));
     return (
-        <div className="dec-radio-group" style={{ flex: 1, minWidth: 0 }}>
+        <RadioGroup
+            type="button"
+            value={matched ? matched.value : value}
+            style={{ flex: 1, minWidth: 0 }}
+            onChange={(e: any) => onChange(e?.target?.value)}
+        >
             {options.map((o) => (
-                <label
-                    key={String(o.value)}
-                    className={`el-radio-button${String(value) === String(o.value) ? " is-active" : ""}`}
-                    onClick={() => onChange(o.value)}
-                >
-                    <span className="el-radio-button__inner">{t(o.label)}</span>
-                </label>
+                <Radio key={String(o.value)} value={o.value}>
+                    {t(o.label)}
+                </Radio>
             ))}
-        </div>
+        </RadioGroup>
     );
 }
 
@@ -136,33 +149,10 @@ export function RangeField({
     step = 1
 }: FieldProps & { field: string; label: string; min?: number; max?: number; step?: number }) {
     const value = Number(data?.[field] ?? 0);
-    const clamp = (v: number) => Math.max(min, Math.min(max, Number.isFinite(v) ? v : 0));
     return (
         <SettingRow label={label}>
             <div className="dec-range-group">
-                <div className="dec-range-slider-wrap">
-                    <input
-                        type="range"
-                        className="dec-range-slider-native"
-                        min={min}
-                        max={max}
-                        step={step}
-                        value={clamp(value)}
-                        onChange={(e) => onChange({ [field]: clamp(Number(e.target.value)) })}
-                    />
-                </div>
-                <div className="dec-range-input">
-                    <input
-                        type="number"
-                        className="dec-range-number"
-                        min={min}
-                        max={max}
-                        step={step}
-                        value={value}
-                        onChange={(e) => onChange({ [field]: clamp(Number(e.target.value)) })}
-                        onBlur={(e) => onChange({ [field]: clamp(Number(e.target.value)) })}
-                    />
-                </div>
+                <SliderWithInput value={value} min={min} max={max} step={step} onChange={(v) => onChange({ [field]: v })} />
             </div>
         </SettingRow>
     );
@@ -180,34 +170,11 @@ export function NumberField({
     suffix
 }: FieldProps & { field: string; label: string; min?: number; max?: number; step?: number; suffix?: string }) {
     const value = Number(data?.[field] ?? 0);
-    const clamp = (v: number) => Math.max(min, Math.min(max, Number.isFinite(v) ? v : 0));
     return (
         <SettingRow label={label}>
             <div className="dec-range-group">
-                <div className="dec-range-slider-wrap">
-                    <input
-                        type="range"
-                        className="dec-range-slider-native"
-                        min={min}
-                        max={max}
-                        step={step}
-                        value={clamp(value)}
-                        onChange={(e) => onChange({ [field]: clamp(Number(e.target.value)) })}
-                    />
-                </div>
-                <div className="dec-range-input">
-                    <input
-                        type="number"
-                        className="dec-range-number"
-                        min={min}
-                        max={max}
-                        step={step}
-                        value={value}
-                        onChange={(e) => onChange({ [field]: clamp(Number(e.target.value)) })}
-                        onBlur={(e) => onChange({ [field]: clamp(Number(e.target.value)) })}
-                    />
-                    {suffix ? <span className="dec-range-suffix">{suffix}</span> : null}
-                </div>
+                <SliderWithInput value={value} min={min} max={max} step={step} onChange={(v) => onChange({ [field]: v })} />
+                {suffix ? <span className="dec-range-suffix">{suffix}</span> : null}
             </div>
         </SettingRow>
     );
@@ -227,21 +194,14 @@ export function ColorField({
     resetValue = "",
     allowEmpty = true
 }: FieldProps & { field: string; label: string; resetValue?: string; allowEmpty?: boolean }) {
-    const { t } = useI18n();
     return (
         <SettingRow label={label}>
-            <div className="dec-color-group">
-                <div className="dec-color-button">
-                    {allowEmpty ? (
-                        <a className="dec-color-reset" onClick={() => onChange({ [field]: resetValue })}>
-                            {t('重置')}
-                        </a>
-                    ) : null}
-                    <span className="dec-color-trigger">
-                        <AlphaColorInput value={String(data?.[field] ?? "")} onChange={(v) => onChange({ [field]: v })} />
-                    </span>
-                </div>
-            </div>
+            <SharedColorField
+                value={String(data?.[field] ?? "")}
+                resetValue={resetValue}
+                allowEmpty={allowEmpty}
+                onChange={(v) => onChange({ [field]: v })}
+            />
         </SettingRow>
     );
 }
@@ -314,17 +274,13 @@ export function SelectField({ data, onChange, field, label, options }: FieldProp
 
 // ---------------- 图片（原版 PicSelect / PicList） ----------------
 
-const UPLOAD_ACTION = "/adminapi/file/uploadImage";
-
-function useUploadUrl(t: (key: string) => string) {
-    return (body: any): string => {
-        const url = body?.data?.url || body?.url;
-        if (!url) Toast.error(t("上传失败"));
-        return url || "";
-    };
-}
-
-/** 单图选择（原版 PicSelect：60×60 图盒 + 底部「更换图片」条 + 下方重置位） */
+/**
+ * 单图选择（2026-11-15 换口径）：改用 PC 同款 ImageUploader（single）——其内部即
+ * GalleryPickerModal，点击打开素材库弹窗（弹窗内可上传新图），与 PC 编辑器一致。
+ * 此前实现是 Semi Upload 直传：点击路径只依赖隐藏的原生 file input 唤起系统文件框，
+ * 页面内零反馈、选过的图不能复用，且线上实测出现点击无任何反应；
+ * 换成素材库弹窗后点击必有页面内响应。value/onChange 契约不变（{ picUrl, picThumb }）。
+ */
 export function PicSelectBox({
     pic,
     onSelect,
@@ -335,41 +291,48 @@ export function PicSelectBox({
     onReset?: () => void;
 }) {
     const { t } = useI18n();
-    const urlOf = useUploadUrl(t);
     const url = pic ? pickPic(pic) : "";
     return (
         <div className="dec-pic-select">
-            <Upload
-                action={UPLOAD_ACTION}
-                accept="image/*"
-                showUploadList={false}
-                onSuccess={(body: any) => {
-                    const u = urlOf(body);
-                    if (u) onSelect({ picUrl: u, picThumb: u });
+            <ImageUploader
+                single
+                value={url ? [imageFormat(url)] : []}
+                onChange={(urls) => {
+                    const u = urls[0] || "";
+                    onSelect({ picUrl: u, picThumb: u });
                 }}
-                onError={() => Toast.error(t("上传失败"))}
-            >
-                <div className="item-image">
-                    <div className="item-image-con">
-                        {url ? (
-                            <>
-                                <img src={imageFormat(url)} alt="" />
-                                <span className="change-image">{t('更换图片')}</span>
-                            </>
-                        ) : (
-                            <span className="item-image-empty">
-                                <IconPlus size="large" />
-                            </span>
-                        )}
-                    </div>
-                </div>
-            </Upload>
+            />
             {onReset ? (
                 <a className="dec-pic-reset" onClick={onReset}>
                     {t('重置')}
                 </a>
             ) : null}
         </div>
+    );
+}
+
+/**
+ * 链接字段适配：H5 数据契约是 { link, title }，共享 LinkField（components/LinkPicker）
+ * 的契约是 LinkValue { link, name, ... }，在此互相转换，模块数据格式不变。
+ */
+export function PicLinkField({
+    value,
+    onChange
+}: {
+    value?: { link?: string; title?: string } | null;
+    onChange: (v: { link: string; title: string }) => void;
+}) {
+    const linkValue: LinkValue | undefined = value?.link ? { link: value.link, name: value.title || "" } : undefined;
+    return (
+        <LinkField
+            value={linkValue}
+            onChange={(link) =>
+                onChange({
+                    link: link.link || link.path || "",
+                    title: link.name || link.label || value?.title || ""
+                })
+            }
+        />
     );
 }
 
@@ -434,7 +397,9 @@ export function PicListField({
     addText = "添加图片"
 }: FieldProps & { field: string; label: string; max?: number; showText?: boolean; showDesc?: boolean; showLink?: boolean; addText?: string }) {
     const { t } = useI18n();
-    const urlOf = useUploadUrl(t);
+    // 素材库弹窗状态：index=null 表示追加模式（可多选），否则为替换第 index 项（单选）
+    const [pickerIndex, setPickerIndex] = useState<number | null>(null);
+    const [pickerOpen, setPickerOpen] = useState(false);
     const list: PicItem[] = Array.isArray(data?.[field]) ? data[field] : [];
 
     const setList = (next: PicItem[]) => onChange({ [field]: next });
@@ -463,21 +428,16 @@ export function PicListField({
                         <div key={index} className="dec-pic-group-item">
                             <div className="dec-pic-group-item-con">
                                 <div className="item-image">
-                                    <Upload
-                                        action={UPLOAD_ACTION}
-                                        accept="image/*"
-                                        showUploadList={false}
-                                        onSuccess={(body: any) => {
-                                            const u = urlOf(body);
-                                            if (u) patchItem(index, { picUrl: u, picThumb: u });
+                                    <div
+                                        className="item-image-con"
+                                        onClick={() => {
+                                            setPickerIndex(index);
+                                            setPickerOpen(true);
                                         }}
-                                        onError={() => Toast.error(t("上传失败"))}
                                     >
-                                        <div className="item-image-con">
-                                            {pickPic(item) ? <img src={imageFormat(pickPic(item))} alt="" /> : null}
-                                            <span className="change-image">{t('更换图片')}</span>
-                                        </div>
-                                    </Upload>
+                                        {pickPic(item) ? <img src={imageFormat(pickPic(item))} alt="" /> : null}
+                                        <span className="change-image">{t('更换图片')}</span>
+                                    </div>
                                 </div>
                                 <div className="item-info">
                                     {showText ? (
@@ -505,13 +465,9 @@ export function PicListField({
                                     {showLink ? (
                                         <div className="item-info-item">
                                             <span className="lable">{t('链接')}</span>
-                                            <Input
-                                                size="small"
-                                                placeholder={t('跳转链接，如 /pages/product/index?id=1')}
-                                                value={item.picLink?.link ?? ""}
-                                                onChange={(v: string) =>
-                                                    patchItem(index, { picLink: { ...(item.picLink || { title: "" }), link: v } })
-                                                }
+                                            <PicLinkField
+                                                value={item.picLink}
+                                                onChange={(v) => patchItem(index, { picLink: { ...(item.picLink || {}), ...v } })}
                                             />
                                         </div>
                                     ) : null}
@@ -531,24 +487,37 @@ export function PicListField({
                         </div>
                     ))}
                     {list.length < max && (
-                        <Upload
-                            action={UPLOAD_ACTION}
-                            accept="image/*"
-                            showUploadList={false}
-                            onSuccess={(body: any) => {
-                                const u = urlOf(body);
-                                if (u) setList([...list, { picUrl: u, picThumb: u, picTitle: "", picDesc: "", picLink: { link: "", title: "" } }]);
+                        <a
+                            className="dec-pic-add-btn"
+                            onClick={() => {
+                                setPickerIndex(null);
+                                setPickerOpen(true);
                             }}
-                            onError={() => Toast.error(t("上传失败"))}
                         >
-                            <a className="dec-pic-add-btn">
-                                <IconPlus style={{ position: "absolute", left: 15 }} />
-                                {t(addText)}
-                            </a>
-                        </Upload>
+                            <IconPlus style={{ position: "absolute", left: 15 }} />
+                            {t(addText)}
+                        </a>
                     )}
                 </div>
             </div>
+            <GalleryPickerModal
+                visible={pickerOpen}
+                multiple={pickerIndex === null}
+                limit={pickerIndex === null ? Math.max(max - list.length, 0) : 1}
+                onCancel={() => setPickerOpen(false)}
+                onConfirm={(urls) => {
+                    if (pickerIndex !== null) {
+                        const u = urls[0];
+                        if (u) patchItem(pickerIndex, { picUrl: u, picThumb: u });
+                    } else if (urls.length) {
+                        setList([
+                            ...list,
+                            ...urls.map((u) => ({ picUrl: u, picThumb: u, picTitle: "", picDesc: "", picLink: { link: "", title: "" } }))
+                        ]);
+                    }
+                    setPickerOpen(false);
+                }}
+            />
         </div>
     );
 }
@@ -680,12 +649,7 @@ export function TitleSettingsField({
                                 </SettingRow>
                                 <ColorField {...sub} field="moreColor" label="链接颜色" resetValue={defaultTitle.moreColor} />
                                 <SettingRow label="链接地址">
-                                    <Input
-                                        value={moreLinkObj.link ?? ""}
-                                        placeholder={t('跳转链接，如 /pages/product/index?id=1')}
-                                        style={{ width: 240, maxWidth: "100%" }}
-                                        onChange={(v: string) => set({ moreLink: { ...moreLinkObj, link: v } })}
-                                    />
+                                    <PicLinkField value={moreLinkObj} onChange={(v) => set({ moreLink: { ...moreLinkObj, ...v } })} />
                                 </SettingRow>
                             </>
                         ) : (
@@ -700,12 +664,7 @@ export function TitleSettingsField({
                 <>
                     {!isSeckill2 ? <ColorField {...sub} field="moreColor" label="更多文字颜色" resetValue={defaultTitle.moreColor} /> : null}
                     <SettingRow label="更多链接">
-                        <Input
-                            value={moreLinkObj.link ?? ""}
-                            placeholder={t('跳转链接，如 /pages/product/index?id=1')}
-                            style={{ width: 240, maxWidth: "100%" }}
-                            onChange={(v: string) => set({ moreLink: { ...moreLinkObj, link: v } })}
-                        />
+                        <PicLinkField value={moreLinkObj} onChange={(v) => set({ moreLink: { ...moreLinkObj, ...v } })} />
                     </SettingRow>
                 </>
             )}

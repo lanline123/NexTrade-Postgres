@@ -306,7 +306,8 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
 
             {!preview ? <ModuleToolbar pageType={pageType} isShop={localStorage.getItem("adminType") === "shop"} /> : null}
 
-            <div className={`decorate-page-wrap${preview ? " is-preview" : ""}`}>
+            {/* tabIndex=0：让画布滚动容器可聚焦，聚焦后 PageDown/方向键可滚（原生滚动视口口径） */}
+            <div className={`decorate-page-wrap${preview ? " is-preview" : ""}`} tabIndex={0}>
                 {s.hasDraft && !preview ? (
                     <div className="decorate-page-alert">
                         <span className="decorate-page-alert-txt">{t('该页面有一条草稿记录，您可以还原草稿继续编辑。')}</span>

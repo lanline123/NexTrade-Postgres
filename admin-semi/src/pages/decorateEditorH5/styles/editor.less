@@ -138,14 +138,12 @@
 
 // ---------------- 三栏布局（固定定位，原版 decorate.less 口径） ----------------
 
-// 画布区：原版 less 写 left:200px 与其 280px 工具栏自相矛盾，按工具栏实宽取 280px；
-// 原版靠 perfect-scrollbar 滚动（.ps-container），此处以原生 overflow 替代并保留 3px 滚动条口径
+// 画布区（2026-11-15 去补丁化）：滚动与偏移已回到 decorate.css 的 .decorate-page-wrap 基础样式
+// 一处定义（left:200px = 工具栏实宽、overflow-y:auto 原生滚动，同 PC 编辑器普通 div 视口口径）；
+// 此处只保留 3px 滚动条外观与预览态全幅覆写，不再靠特异性/导入顺序覆写续命。
+// 注：工具栏实际渲染只有 200px 的 .theme-menu-con（80px 图标轨 .theme-menu-main 无 JSX），
+// 旧值 left:280px 会让画布容器多让 80px、手机列不居中，已按实宽对齐。
 .h5-editor-root .decorate-page-wrap {
-    left: 280px;
-    right: 380px;
-    overflow-y: auto;
-    overflow-x: hidden;
-
     &::-webkit-scrollbar {
         width: 3px;
         height: 3px;
@@ -354,12 +352,58 @@
     padding-bottom: 100px;
 }
 
-// 分组容器本身不再加内边距（字段行 .dec-edit-group 自带 10px 16px）；
-// 组内非字段行子元素（提示文案、自定义控件根）补齐左右 16px
+// 字段行向 PC 编辑器 .pc-module-settings 现行口径对齐（decorate-editor.css:2403 起的现代化段）：
+// 行 padding 12px 14px + 底分隔线 + hover 底色；标签 13px #475467、标题列 min-width 84px；
+// 说明文字整行 12px #98a2b3。此前 H5 口径为 padding 10px 16px、标签 14px #969799、无分隔线/hover。
+.h5-editor-root .h5-editor-settings {
+    .dec-edit-group {
+        padding: 12px 14px;
+        border-bottom: 1px solid #f2f4f6;
+        align-items: center;
+        flex-wrap: wrap;
+        transition: background 0.15s ease;
+
+        &:last-child {
+            border-bottom: none;
+        }
+
+        &:hover {
+            background: #fafbfc;
+        }
+    }
+
+    .dec-edit-group-title {
+        min-width: 84px;
+        padding-top: 0;
+        align-items: center;
+    }
+
+    .dec-edit-group-title .label {
+        margin-right: 12px;
+        color: #475467;
+        font-size: 13px;
+        line-height: 20px;
+        white-space: normal;
+    }
+
+    .dec-edit-group-con {
+        min-width: 0;
+    }
+
+    .dec-edit-group-desc {
+        flex: 0 0 100%;
+        margin-top: 6px;
+        color: #98a2b3;
+        line-height: 17px;
+    }
+}
+
+// 分组容器本身不再加内边距（字段行 .dec-edit-group 自带 12px 14px，PC 口径）；
+// 组内非字段行子元素（提示文案、自定义控件根）补齐左右 14px
 .h5-editor-setting-group {
     > *:not(.dec-edit-group):not(.dec-edit-title-box):not(.dec-spread-title):not(.dec-edit-section-title):not(.dec-divider-line) {
-        padding-left: 16px;
-        padding-right: 16px;
+        padding-left: 14px;
+        padding-right: 14px;
     }
 }
 
@@ -387,92 +431,27 @@
 
 // ---------------- 共享控件适配（Semi/原生控件 → 原版形态） ----------------
 
-// 单选分段组：label 元素撑满控件区（原版 .dec-radio-group 在 .dec-edit-group-con 内 flex:1）
-.dec-edit-group-con .dec-radio-group {
+// 单选分段组（2026-11-15 换标准：控件已换 Semi RadioGroup button 形态，
+// 原手写 .dec-radio-group/.el-radio-button 样式随之删除）：分段项均分控件区宽度、文字居中
+.dec-edit-group-con .semi-radioGroup {
     display: flex;
     flex-wrap: wrap;
     width: 100%;
 
-    .el-radio-button {
+    .semi-radio {
         flex: 1;
-        margin-left: -1px;
-        cursor: pointer;
-
-        &:first-child {
-            margin-left: 0;
-        }
+        justify-content: center;
+        margin-right: 0;
     }
 }
 
-// 滑杆（原版 el-slider show-input 形态的近似实现：6px 轨道 + 16px 圆形手柄 + 无步进数字框）
+// 滑杆（2026-11-15 换标准：控件已换共享 SliderWithInput = Semi Slider + InputNumber，
+// 同 PC 编辑器 .pchead-slider-with-input；此处仅保留容器布局与后缀样式，
+// 原原生 range/number 的 .dec-range-slider-native/.dec-range-number 样式已随控件删除）
 .dec-range-group {
-    .dec-range-slider-wrap {
+    .pchead-slider-with-input {
         flex: 1;
-        display: flex;
-        align-items: center;
         min-width: 0;
-    }
-
-    .dec-range-slider-native {
-        -webkit-appearance: none;
-        appearance: none;
-        width: 100%;
-        height: 6px;
-        border-radius: 3px;
-        background: #dcdfe6;
-        outline: none;
-        cursor: pointer;
-        margin: 0;
-
-        &::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #fff;
-            border: 2px solid var(--tig-primary);
-            cursor: pointer;
-            box-sizing: border-box;
-        }
-
-        &::-moz-range-thumb {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #fff;
-            border: 2px solid var(--tig-primary);
-            cursor: pointer;
-        }
-    }
-
-    .dec-range-input {
-        display: flex;
-        align-items: center;
-    }
-
-    .dec-range-number {
-        width: 130px;
-        height: 32px;
-        border: 1px solid #dcdfe6;
-        border-radius: 4px;
-        padding: 0 8px;
-        font-size: 14px;
-        color: #606266;
-        text-align: left;
-        outline: none;
-        box-sizing: border-box;
-        -moz-appearance: textfield;
-
-        &::-webkit-outer-spin-button,
-        &::-webkit-inner-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-
-        &:focus {
-            border-color: var(--tig-primary);
-        }
     }
 
     .dec-range-suffix {
