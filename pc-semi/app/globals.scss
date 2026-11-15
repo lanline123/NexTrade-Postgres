@@ -287,7 +287,9 @@ img {
 /* ---------------- Home / Renderer ---------------- */
 
 .pc-home {
-  padding: 20px 0 40px;
+  /* 顶部不再留白：头部与第一个装修模块直接贴合（2026-11-15 用户口径，
+     此前 padding-top 20px 在头部下方形成一条页面底色空白带）；底部 40px 保留（与页脚的间距） */
+  padding: 0 0 40px;
 }
 
 .decorate-renderer {
