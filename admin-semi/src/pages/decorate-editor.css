@@ -497,8 +497,9 @@
 .pc-decorate-module {
   position: relative;
   cursor: pointer;
-  /* 与 C 端 .decorate-renderer__module 的 18px 间距一致，避免相邻白色模块吞掉通栏圆角 */
-  margin-bottom: 18px;
+  /* 与 C 端一致：模块间距只由各模块扩展设置的上/下边距决定，画布不再写死下边距，
+     扩展边距全 0 时与前台同为严丝合缝（2026-11-15 用户口径） */
+  margin-bottom: 0;
 }
 .pc-decorate-module:hover {
   outline: 1px dashed var(--semi-color-primary);

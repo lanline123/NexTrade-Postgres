@@ -295,8 +295,10 @@ img {
   flex-direction: column;
 }
 
+/* 模块间距只由各模块扩展设置的上/下边距决定，此处不再写死下边距：
+   扩展边距全 0 时模块严丝合缝（2026-11-15 用户口径，此前写死 18px 与数据边距叠加） */
 .decorate-renderer__module {
-  margin-bottom: 18px;
+  margin-bottom: 0;
 }
 
 .dec-frame {
