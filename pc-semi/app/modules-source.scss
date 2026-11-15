@@ -1130,7 +1130,7 @@
   }
 
   &__card-price {
-    font-size: 16px;
+    font-size: 14px;
     color: var(--dec-price-color, var(--price));
     font-weight: 400;
     line-height: 1.2;
@@ -1551,7 +1551,7 @@
   }
 
   .dec-pc-home-hero__card-price {
-    font-size: 14px;
+    font-size: 12px;
   }
 
   .dec-pc-home-hero__product-grid {
@@ -1621,7 +1621,7 @@
   }
 
   .dec-pc-home-hero__card-price {
-    font-size: 12px;
+    font-size: 10px;
   }
 
   .dec-pc-home-hero__product-grid {
@@ -3810,7 +3810,7 @@ img {
 /* Hero 商品价格：缩小字号，长价格不再撑满卡片（对齐旧版视觉比例） */
 .dec-pc-home-hero__card-price {
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 400;
   line-height: 1.2;
   color: var(--dec-price-color, var(--price));
@@ -3822,7 +3822,7 @@ img {
 }
 
 .dec-pc-home-hero__card-price .dec-price-symbol,
-.dec-pc-home-hero__card-price .dec-price-decimals { font-size: 12px; font-weight: 400; }
+.dec-pc-home-hero__card-price .dec-price-decimals { font-size: 10px; font-weight: 400; }
 
 /* Hero 商品卡角标：对齐旧版，去掉 60px 限宽导致「电芯级…」截断 */
 .dec-pc-home-hero__card-badge {

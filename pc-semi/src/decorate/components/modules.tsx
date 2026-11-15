@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
-import { formatDisplayPrice } from '@/lib/currency';
+import { formatDisplayPrice, splitDisplayPrice } from '@/lib/currency';
 import { imageFormat } from '@/lib/image';
 import { urlFormat } from '@/lib/link';
 import FormatPrice from '@/components/FormatPrice';
@@ -3750,12 +3750,37 @@ function RecommendProduct({ module, initialData }: ModuleProps) {
     loadingRef.current = true;
     setLoading(true);
     try {
-      if (!algoReveal()) {
-        const added = await algoFetchMore();
-        if (!algoReveal() && added === 0) {
+      /* 补满整批再揭示：池中不足一整批（chunk）时先循环补货，凑满才揭示；
+         补货新增 0（货源耗尽）时才揭示池中零头尾批，池空则置 noMore。
+         避免池里剩几张零头就先揭示、转圈补货后再补一截的乱批（如 12+1、+17）。 */
+      for (let round = 0; round < 6; round++) {
+        const remain = algoCap - algoShownRef.current;
+        if (remain <= 0) {
           noMoreRef.current = true;
           setNoMore(true);
+          return;
         }
+        const want = Math.min(algoChunk, remain);
+        if (algoPoolRef.current.length >= want) {
+          algoReveal();
+          return;
+        }
+        const added = await algoFetchMore();
+        if (added === 0) {
+          if (algoPoolRef.current.length > 0) algoReveal();
+          else {
+            noMoreRef.current = true;
+            setNoMore(true);
+          }
+          return;
+        }
+        // added > 0 但仍不足整批：继续下一轮补货（上限 6 轮防死循环）
+      }
+      // 补货轮次用尽仍不足整批：揭示池中现有量，避免无限转圈
+      if (algoPoolRef.current.length > 0) algoReveal();
+      else {
+        noMoreRef.current = true;
+        setNoMore(true);
       }
     } finally {
       loadingRef.current = false;
@@ -3831,12 +3856,28 @@ function RecommendProduct({ module, initialData }: ModuleProps) {
   requestRef.current = algoEnabled ? loadNextAlgo : requestPage;
 
   useEffect(() => {
+    /* 触发闩锁：一轮加载被触发后闩锁关闭，关闭期间的滚动事件不再触发加载；
+       重新武装条件——哨兵被观测到离开触发区（触发条件为假）一次，
+       或新的滚动事件里 scrollY 相对上次触发时变化 ≥ 40px。
+       防止一次滚动（惯性滚动/连续事件）在哨兵仍停留在触发区时链式连发多轮加载。
+       算法模式（loadNextAlgo）与普通分页（requestPage）共用同一道闸（requestRef）。 */
+    let latched = false;
+    let latchedScrollY = 0;
     const onScroll = () => {
       const element = sentinelRef.current;
       if (!element) return;
-      if (window.scrollY + window.innerHeight >= element.offsetTop + 20) {
-        void requestRef.current(pageRef.current + 1);
+      const inZone = window.scrollY + window.innerHeight >= element.offsetTop + 20;
+      if (!inZone) {
+        latched = false;
+        return;
       }
+      if (latched) {
+        if (Math.abs(window.scrollY - latchedScrollY) >= 40) latched = false;
+        else return;
+      }
+      latched = true;
+      latchedScrollY = window.scrollY;
+      void requestRef.current(pageRef.current + 1);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -4231,6 +4272,9 @@ function ProductGroup({ module, initialData }: ModuleProps) {
             ) : products.length ? (
               products.map((product, index) => {
                 const tags = activityTagsOf(promotions, product.productId);
+                /* 价格走全站展示口径 splitDisplayPrice：达门槛按币种阶梯缩写（¥670万 / $1.5M），未达门槛小数固定两位 */
+                const price = splitDisplayPrice(product.productPrice ?? 0);
+                const marketPrice = splitDisplayPrice((product as any).marketPrice ?? 0);
                 return (
                 // 旧 listStyle=5 瀑布：index%3===0 的项占满整行，其余两项各占一半
                 <div
@@ -4261,16 +4305,18 @@ function ProductGroup({ module, initialData }: ModuleProps) {
                           {/* 旧 FormatPrice 三段式：￥16px + 整数 28px/600 + 小数 16px，色 var(--primary-dark-2) */}
                           {showPrice ? (
                             <span className="dec-product-group__price">
-                              <span className="dec-product-group__price-currency">￥</span>
-                              <span className="dec-product-group__price-int">{priceParts(product.productPrice).int}</span>
-                              <span className="dec-product-group__price-dec">{priceParts(product.productPrice).dec}</span>
+                              <span className="dec-product-group__price-currency">{price.symbol || '￥'}</span>
+                              <span className="dec-product-group__price-int">{price.integer}</span>
+                              <span className="dec-product-group__price-dec">{price.decimals}</span>
+                              {price.suffix ? <span className="dec-product-group__price-dec">{price.suffix}</span> : null}
                             </span>
                           ) : null}
                           {showCrossed ? (
                             <s className="dec-product-group__price-origin">
-                              <span className="dec-product-group__price-origin-currency">￥</span>
-                              {priceParts((product as any).marketPrice).int}
-                              {priceParts((product as any).marketPrice).dec}
+                              <span className="dec-product-group__price-origin-currency">{marketPrice.symbol || '￥'}</span>
+                              {marketPrice.integer}
+                              {marketPrice.decimals}
+                              {marketPrice.suffix}
                             </s>
                           ) : null}
                         </div>
