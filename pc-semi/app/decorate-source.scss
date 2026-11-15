@@ -2887,8 +2887,7 @@
     justify-content: flex-start;
     height: 19px;
     color: #888b94 !important;
-    text-decoration: line-through;
-
+    
     .price-row {
         line-height: 22px;
         font-weight: 500;
@@ -3082,8 +3081,7 @@
                 align-items: center;
 
                 + .price-origin {
-                    text-decoration: line-through;
-                }
+                                    }
             }
 
             .price-container {
@@ -4145,8 +4143,7 @@
     justify-content: center;
     height: 19px;
     color: #888b94;
-    text-decoration: line-through;
-    .price-row {
+        .price-row {
         line-height: 22px;
         font-weight: 500;
     }
@@ -4407,8 +4404,7 @@
     justify-content: center;
     height: 19px;
     color: #888b94;
-    text-decoration: line-through;
-    .price-row {
+        .price-row {
         line-height: 22px;
         font-weight: 500;
     }
@@ -4424,8 +4420,7 @@
 
 .price-origin {
     box-sizing: border-box;
-    text-decoration: line-through;
-    margin-top: 5px;
+        margin-top: 5px;
 }
 
 .swiper {
@@ -4905,8 +4900,7 @@
     justify-content: center;
     height: 19px;
     color: #888b94;
-    text-decoration: line-through;
-    margin-top: 5px;
+        margin-top: 5px;
 
     .price-row {
         line-height: 22px;
@@ -8426,8 +8420,7 @@ position: relative;
                         line-height: 16px;
                         margin-left: 6px;
                         opacity: 0.5;
-                        text-decoration: line-through;
-                    }
+                                            }
                 }
             }
         }
@@ -9093,4 +9086,10 @@ position: relative;
 
 .dec-recommend-product__card:hover {
     border-color: var(--main-bg, #ee0a24);
+}
+
+/* 划线原价口径：只划金额不划币种符号 —— .price-origin/.oldprice 容器级 line-through 已移除，改由金额段 .num 承担 */
+.price-origin .num,
+.oldprice .num {
+    text-decoration: line-through;
 }

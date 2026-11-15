@@ -20,7 +20,7 @@ import { IconCart } from '@douyinfe/semi-icons';
 import { apiPost } from '@/lib/client-api';
 
 import { useTranslation } from 'react-i18next';
-import { formatPrice } from '@/lib/currency';
+import { formatPrice, splitDisplayPrice } from '@/lib/currency';
 interface SkuValue {
   value: string;
   stock: number;
@@ -86,6 +86,7 @@ export default function ExchangeDetailClient({ data }: { data: ExchangeDetailDat
   const deductedAmount = Number(pick(info, ['pointsDeductedAmount'], 0));
   const exchangePrice = Number(pick(info, ['discountsPrice'], pick(item, ['productPrice'], 0)));
   const marketPrice = Number(pick(info, ['marketPrice'], pick(item, ['marketPrice'], 0)));
+  const marketParts = splitDisplayPrice(marketPrice);
 
   const skuGroups = useMemo(() => buildSkuGroups(data), [data]);
   const skuRows = (data.skuList || []) as SkuRow[];
@@ -181,7 +182,7 @@ export default function ExchangeDetailClient({ data }: { data: ExchangeDetailDat
             </>
           ) : null}
         </div>
-        {marketPrice > 0 ? <div className="exchange-detail-meta">{t('市场价：')}<s>{formatPrice(marketPrice)}</s></div> : null}
+        {marketPrice > 0 ? <div className="exchange-detail-meta">{t('市场价：')}<span>{marketParts.symbol}</span><s>{marketParts.integer}{marketParts.decimals}{marketParts.suffix}</s></div> : null}
         <div className="exchange-detail-meta">
           库存：
           {stock > 0 ? (

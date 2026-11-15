@@ -1,6 +1,6 @@
 'use client';
 
-import { splitCurrencyPrice } from '@/lib/currency';
+import { splitCurrencyPrice, splitDisplayPrice } from '@/lib/currency';
 
 /**
  * 价格展示（对照旧版 `view/pc/components/format/Price.vue`）
@@ -14,14 +14,17 @@ export interface FormatPriceProps {
   value: number | string | undefined;
   /** 覆盖币种符号（默认跟随当前换币设置） */
   currency?: string;
+  /** 划线原价等展示场景：按后台「价格显示设置」缩写（≥1万显示 XX万 等），金额段带单位后缀 */
+  displayPrice?: boolean;
   /** 整数段字号：旧版用 `:fontStyle="{ fontSize: '24px', fontWeight: '400' }"` 传进来 */
   fontSize?: string;
   fontWeight?: number | string;
   className?: string;
 }
 
-export default function FormatPrice({ value, currency, fontSize, fontWeight, className }: FormatPriceProps) {
-  const parts = splitCurrencyPrice(value);
+export default function FormatPrice({ value, currency, fontSize, fontWeight, className, displayPrice }: FormatPriceProps) {
+  const parts = displayPrice ? splitDisplayPrice(value) : splitCurrencyPrice(value);
+  const suffix = displayPrice ? (parts as { suffix?: string }).suffix || '' : '';
   const symbol = currency || parts.symbol;
   const decimals = parts.decimals === '.00' ? '' : parts.decimals;
   const fontStyle = fontSize || fontWeight ? { fontSize, fontWeight } : undefined;
@@ -32,6 +35,7 @@ export default function FormatPrice({ value, currency, fontSize, fontWeight, cla
       <div className="util align-bottom">{symbol}</div>
       <div className="num">{parts.integer}</div>
       {decimals ? <div className="num decimal">{decimals}</div> : null}
+      {suffix ? <div className="num suffix">{suffix}</div> : null}
     </div>
   );
 }
