@@ -3942,6 +3942,9 @@ function ProductGroup({ module, initialData }: ModuleProps) {
   const [loading, setLoading] = useState(() => initialData === undefined);
   // 服务端注水的首个分组商品（只消费一次：首个 effect 跳过商品取数、只补拉活动标签）
   const seededProductsRef = useRef<ProductItem[] | undefined>(initialData?.products);
+  /* 切换分组取数期间锁定商品区高度：列表换成骨架时模块高度不塌陷、数据回来不回弹 */
+  const productsBoxRef = useRef<HTMLDivElement | null>(null);
+  const [lockedHeight, setLockedHeight] = useState<number | null>(null);
   /** 活动数据（原版 usePromotionActivity：POST product/product/promotion → {[productId]: {activityInfo}}） */
   const [promotions, setPromotions] = useState<Record<string, { activityInfo?: Array<{ type?: number; typeText?: string }> }>>({});
   const productColor = module.productColor || {};
@@ -4042,6 +4045,7 @@ function ProductGroup({ module, initialData }: ModuleProps) {
     if (!group) {
       setProducts([]);
       setLoading(false);
+      setLockedHeight(null);
       return undefined;
     }
     // 服务端注水首屏（首个分组）：商品已在 state 中，只补拉活动标签，不再重复取数
@@ -4057,6 +4061,12 @@ function ProductGroup({ module, initialData }: ModuleProps) {
     }
     // 旧 fetchProductList 开头 clearPromotionList：切换分组先清空上一组活动标签
     setPromotions({});
+    // 取数开始前：当前已有商品在渲染时先量取商品区高度，loading 期间锁住（首屏注水分支已在上方 return，不走这里）
+    if (products.length > 0 && productsBoxRef.current) {
+      setLockedHeight(productsBoxRef.current.offsetHeight);
+    } else {
+      setLockedHeight(null);
+    }
     setLoading(true);
     if (group.sourceType === 'productGroup' && group.productGroupId) {
       const params = new URLSearchParams({ page: '1', size: String(columns * 3), productGroupId: String(group.productGroupId) });
@@ -4073,7 +4083,10 @@ function ProductGroup({ module, initialData }: ModuleProps) {
           if (!cancelled) setProducts([]);
         })
         .finally(() => {
-          if (!cancelled) setLoading(false);
+          if (!cancelled) {
+            setLoading(false);
+            setLockedHeight(null);
+          }
         });
     } else {
       const fromList = Array.isArray(group.productList) ? group.productList : [];
@@ -4083,6 +4096,7 @@ function ProductGroup({ module, initialData }: ModuleProps) {
       if (!ids.length) {
         setProducts([]);
         setLoading(false);
+        setLockedHeight(null);
         return undefined;
       }
       const params = new URLSearchParams({ ids: ids.join(','), size: String(ids.length) });
@@ -4103,7 +4117,10 @@ function ProductGroup({ module, initialData }: ModuleProps) {
           }
         })
         .finally(() => {
-          if (!cancelled) setLoading(false);
+          if (!cancelled) {
+            setLoading(false);
+            setLockedHeight(null);
+          }
         });
     }
     return () => {
@@ -4194,12 +4211,24 @@ function ProductGroup({ module, initialData }: ModuleProps) {
             ) : null}
           </div>
         ) : null}
-        <div className="dec-product-group__products">
+        <div
+          className="dec-product-group__products"
+          ref={productsBoxRef}
+          style={lockedHeight != null ? { minHeight: `${lockedHeight}px` } : undefined}
+        >
           <div className="dec-product-group__list">
             {loading ? (
-              Array.from({ length: gridColumns }).map((_, index) => (
+              /* 骨架与真实卡同结构（图 aspect-ratio:1 + info min-height:156px），数量：切换时用上一组商品数、首次加载用取数上限 columns*3 */
+              Array.from({ length: products.length > 0 ? products.length : columns * 3 }).map((_, index) => (
                 <div className="dec-product-group__item" key={`skeleton-${index}`}>
-                  <div className="dec-product-group__card"><span className="dec-skeleton-line" /></div>
+                  <div className="dec-product-group__card dec-product-group__skel-card">
+                    <div className="dec-product-group__image dec-product-group__skel-image" />
+                    <div className="dec-product-group__info dec-product-group__skel-info">
+                      <span className="dec-skeleton-line dec-product-group__skel-line dec-product-group__skel-line--name" />
+                      <span className="dec-skeleton-line dec-product-group__skel-line dec-product-group__skel-line--meta" />
+                      <span className="dec-skeleton-line dec-product-group__skel-line dec-product-group__skel-line--price" />
+                    </div>
+                  </div>
                 </div>
               ))
             ) : products.length ? (

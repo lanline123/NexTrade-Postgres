@@ -6195,6 +6195,39 @@
     width: calc((100% - var(--dec-item-gap, 3px) * 5) / 6);
 }
 
+// ========== 加载骨架（与真实卡同结构：图 aspect-ratio:1 + info min-height:156px，切换/首载时高度不塌） ==========
+.dec-product-group__skel-card {
+    pointer-events: none;
+}
+
+.dec-product-group__skel-image {
+    background: linear-gradient(90deg, #f2f4f7, #f8fafc, #f2f4f7);
+}
+
+.dec-product-group__skel-info .dec-product-group__skel-line {
+    height: 12px;
+}
+
+/* 首行需压过 globals 的 .dec-skeleton-line:first-child{height:120px} 通用规则 */
+.dec-product-group__skel-info .dec-product-group__skel-line:first-child {
+    height: 16px;
+}
+
+.dec-product-group__skel-info .dec-product-group__skel-line--name {
+    width: 85%;
+}
+
+.dec-product-group__skel-info .dec-product-group__skel-line--meta {
+    width: 45%;
+    margin-top: 10px;
+}
+
+.dec-product-group__skel-info .dec-product-group__skel-line--price {
+    width: 60%;
+    height: 20px;
+    margin-top: 14px;
+}
+
 /* ==== pc/pcImageSquareAd/components/imageBox.vue scoped ==== */
 .item-img-a {
     height: 100%;
