@@ -517,8 +517,10 @@ impl ProductManageRepository {
         .map_err(map_err)?;
         let product_id = r;
         // v5.8.61 体积列：保留旧 INSERT 列清单，插入后补写，避免影响历史字段顺序。
-        sqlx::query("UPDATE product SET product_volume = $1 WHERE product_id = $2")
+        // 2026-11-15 询价标志同路补写。
+        sqlx::query("UPDATE product SET product_volume = $1, is_inquiry = $2 WHERE product_id = $3")
             .bind(p.product_volume)
+            .bind(p.is_inquiry)
             .bind(product_id)
             .execute(&self.pool)
             .await
@@ -616,8 +618,9 @@ impl ProductManageRepository {
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
-        sqlx::query("UPDATE product SET product_volume = $1 WHERE product_id = $2")
+        sqlx::query("UPDATE product SET product_volume = $1, is_inquiry = $2 WHERE product_id = $3")
             .bind(p.product_volume)
+            .bind(p.is_inquiry)
             .bind(p.product_id)
             .execute(&self.pool)
             .await
@@ -752,9 +755,10 @@ impl ProductManageRepository {
         .await
         .map_err(map_err)?;
         let sku_id = r;
-        sqlx::query("UPDATE product_sku SET sku_weight = $1, sku_volume = $2 WHERE sku_id = $3")
+        sqlx::query("UPDATE product_sku SET sku_weight = $1, sku_volume = $2, is_inquiry = $3 WHERE sku_id = $4")
             .bind(s.sku_weight)
             .bind(s.sku_volume)
+            .bind(s.is_inquiry)
             .bind(sku_id)
             .execute(&self.pool)
             .await
@@ -786,9 +790,10 @@ impl ProductManageRepository {
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
-        sqlx::query("UPDATE product_sku SET sku_weight = $1, sku_volume = $2 WHERE sku_id = $3")
+        sqlx::query("UPDATE product_sku SET sku_weight = $1, sku_volume = $2, is_inquiry = $3 WHERE sku_id = $4")
             .bind(s.sku_weight)
             .bind(s.sku_volume)
+            .bind(s.is_inquiry)
             .bind(s.sku_id)
             .execute(&self.pool)
             .await

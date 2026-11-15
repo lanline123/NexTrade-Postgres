@@ -25,6 +25,12 @@ pub const MSG_LOGIN_REQUIRED: &str = "请先登录";
 pub const MSG_AMOUNT_ITEMS_REQUIRED: &str = "请选择商品规格";
 /// 询价内容不能为空。
 pub const MSG_INQUIRY_CONTENT_REQUIRED: &str = "询价内容不能为空";
+/// 询价手机号不能为空（2026-11-15 留资收紧：回拨通道必须有手机号）。
+pub const MSG_INQUIRY_MOBILE_REQUIRED: &str = "手机号不能为空";
+/// 询价提交过于频繁（同手机号 10 分钟内超过 5 次）。
+pub const MSG_INQUIRY_TOO_FREQUENT: &str = "提交过于频繁，请稍后再试";
+/// 询价指定的规格不存在于该商品下。
+pub const MSG_INQUIRY_SKU_NOT_FOUND: &str = "规格不存在";
 
 /// 管理端 config 查询参数（Java `@RequestParam(required=false) Integer shopId`）。
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -282,23 +288,99 @@ pub struct SkuAmountItem {
     pub num: i32,
 }
 
-/// 商品询价（Java `ProductPriceInquiryDTO`）。
+/// 商品询价（Java `ProductPriceInquiryDTO`；2026-11-15 扩留资字段）。
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProductPriceInquiryDTO {
-    /// 手机号
+    /// 手机号（必填，服务层校验）
     pub mobile: Option<String>,
     /// 邮箱
     pub email: Option<String>,
-    /// 询价内容
+    /// 询价内容（必填，服务层校验）
     pub content: Option<String>,
     /// 商品 ID
     pub product_id: i32,
+    /// 公司名称（2026-11-15 新增）
+    pub company_name: Option<String>,
+    /// 职务（2026-11-15 新增）
+    pub job_title: Option<String>,
+    /// 询价针对的 SKU ID（2026-11-15 新增；不传 = 商品级询价）
+    pub sku_id: Option<i32>,
+    /// 规格文本（2026-11-15 新增；服务层以库中 SKU 行为准回填快照，
+    /// 本字段仅作前端传参兼容）
+    pub sku_value: Option<String>,
 }
 
-/// 从商品实体 JSON 组装列表项（`ProductListResDTO` 的前端常用字段子集）。
+/// 商品询价派生态（2026-11-15；全站列表/详情共用同一推导，见方案
+/// `inquiry-design/proposal.md` 第二节）。
+///
+/// - `state`：`"none"` 全部有价 / `"partial"` 部分型号询价 /
+///   `"all"` 全部询价；
+/// - `min_priced_price`：有价型号的最低有效价（卡片「最低价起」口径），
+///   全部询价时为 `None`。
+#[derive(Debug, Clone, PartialEq)]
+pub struct InquirySummary {
+    /// 商品级原始标志（`product.is_inquiry`，0/1 原样下发）
+    pub is_inquiry: i32,
+    /// 派生态：`none` / `partial` / `all`
+    pub state: &'static str,
+    /// 有价型号最低价；全询价为 `None`
+    pub min_priced_price: Option<Decimal>,
+}
+
+/// 由商品 + 其**启用中** SKU 列表推导询价派生态。
+///
+/// 型号有效询价 = SKU 行 `is_inquiry = 1` 或商品级 `is_inquiry = 1`。
+/// 无 SKU 行时看商品级：询价 ⇒ `all` 且最低价为空；有价 ⇒ `none` 且
+/// 最低价取 `product_price`。有价型号的价取 `sku_price`，为空时回退
+/// 商品价（与前台详情页 `skuPrice ?? productPrice` 的口径一致）。
 #[must_use]
-pub fn product_list_item(product: &serde_json::Value) -> serde_json::Value {
+pub fn inquiry_summary(
+    product: &crate::entities::Product,
+    skus: &[crate::entities::ProductSku],
+) -> InquirySummary {
+    let product_flag = product.is_inquiry == 1;
+    if skus.is_empty() {
+        return InquirySummary {
+            is_inquiry: product.is_inquiry,
+            state: if product_flag { "all" } else { "none" },
+            min_priced_price: if product_flag {
+                None
+            } else {
+                Some(product.product_price)
+            },
+        };
+    }
+    let mut inquiry_count = 0_usize;
+    let mut min_priced: Option<Decimal> = None;
+    for s in skus {
+        if product_flag || s.is_inquiry == 1 {
+            inquiry_count += 1;
+        } else {
+            let price = s.sku_price.unwrap_or(product.product_price);
+            min_priced = Some(min_priced.map_or(price, |m: Decimal| m.min(price)));
+        }
+    }
+    InquirySummary {
+        is_inquiry: product.is_inquiry,
+        state: if inquiry_count == skus.len() {
+            "all"
+        } else if inquiry_count > 0 {
+            "partial"
+        } else {
+            "none"
+        },
+        min_priced_price: min_priced,
+    }
+}
+
+/// 从商品实体 JSON 组装列表项（`ProductListResDTO` 的前端常用字段子集），
+/// 并附询价三字段（`isInquiry` / `inquiryState` / `minPricedPrice`）。
+#[must_use]
+pub fn product_list_item(
+    product: &serde_json::Value,
+    inquiry: &InquirySummary,
+) -> serde_json::Value {
     let get = |k: &str| product.get(k).cloned().unwrap_or(serde_json::Value::Null);
     serde_json::json!({
         "productId": get("product_id"),
@@ -313,6 +395,9 @@ pub fn product_list_item(product: &serde_json::Value) -> serde_json::Value {
         "productType": get("product_type"),
         "saleMode": get("sale_mode"),
         "productStock": get("product_stock"),
+        "isInquiry": inquiry.is_inquiry,
+        "inquiryState": inquiry.state,
+        "minPricedPrice": inquiry.min_priced_price,
     })
 }
 
@@ -365,9 +450,55 @@ mod tests {
     #[test]
     fn product_list_item_picks_snake_case_entity_keys() {
         let p = serde_json::json!({"product_id":9,"product_name":"测试","product_price":"12.30","pic_url":"x.jpg"});
-        let item = product_list_item(&p);
+        let summary = InquirySummary {
+            is_inquiry: 0,
+            state: "none",
+            min_priced_price: Some(Decimal::new(1230, 2)),
+        };
+        let item = product_list_item(&p, &summary);
         assert_eq!(item["productId"], 9);
         assert_eq!(item["productName"], "测试");
         assert_eq!(item["picUrl"], "x.jpg");
+        assert_eq!(item["isInquiry"], 0);
+        assert_eq!(item["inquiryState"], "none");
+    }
+
+    #[test]
+    fn inquiry_summary_derives_state_and_min_price() {
+        use crate::entities::{Product, ProductSku};
+        let dec = |v: i64| Decimal::from(v);
+        let mut product = Product {
+            product_price: dec(100),
+            ..Default::default()
+        };
+        let sku = |is_inquiry: i32, price: Option<i64>| ProductSku {
+            is_inquiry,
+            sku_price: price.map(dec),
+            ..Default::default()
+        };
+
+        // 无 SKU：商品级有价 → none + 商品价；商品级询价 → all + null
+        let s = inquiry_summary(&product, &[]);
+        assert_eq!(s.state, "none");
+        assert_eq!(s.min_priced_price, Some(dec(100)));
+        product.is_inquiry = 1;
+        let s = inquiry_summary(&product, &[]);
+        assert_eq!(s.state, "all");
+        assert_eq!(s.min_priced_price, None);
+        // 商品级开关打开时全部型号询价（即使行标志为 0）
+        let s = inquiry_summary(&product, &[sku(0, Some(50))]);
+        assert_eq!(s.state, "all");
+        assert_eq!(s.min_priced_price, None);
+        product.is_inquiry = 0;
+
+        // 混合：一行询价一行有价 → partial + 有价行价
+        let s = inquiry_summary(&product, &[sku(1, Some(50)), sku(0, Some(80))]);
+        assert_eq!(s.state, "partial");
+        assert_eq!(s.min_priced_price, Some(dec(80)));
+
+        // 全部有价 → none + 最低价；SKU 价为空回退商品价
+        let s = inquiry_summary(&product, &[sku(0, Some(120)), sku(0, None)]);
+        assert_eq!(s.state, "none");
+        assert_eq!(s.min_priced_price, Some(dec(100)));
     }
 }

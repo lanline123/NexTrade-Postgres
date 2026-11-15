@@ -299,6 +299,10 @@ export interface ProductListItem {
   productName?: string;
   productSn?: string;
   productPrice?: number | string;
+  /* 询价契约（后端下发）：商品级开关 / 派生态（none|partial|all）/ 有价型号最低价 */
+  isInquiry?: number | string;
+  inquiryState?: string;
+  minPricedPrice?: number | string | null;
   picThumb?: string;
   picUrl?: string;
   brief?: string;

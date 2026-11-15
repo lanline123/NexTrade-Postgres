@@ -29,6 +29,7 @@ import { Toast } from '@douyinfe/semi-ui';
 import Add from '@icon-park/react/es/icons/Add';
 import { apiPost } from '@/lib/client-api';
 import { splitDisplayPrice } from '@/lib/currency';
+import { resolveInquiryState, withInquiryParam } from '@/lib/inquiry';
 import { BuyButtonVisual, buyBtnClassName, type ResolvedBuyBtn } from '@/decorate/components/BuyButton';
 
 import { useTranslation } from 'react-i18next';
@@ -40,6 +41,10 @@ export interface ProductCardItem {
   picUrl?: string;
   productPrice?: number | string;
   price?: number | string;
+  /* 询价契约（后端下发）：商品级开关 / 派生态 / 有价型号最低价 */
+  isInquiry?: number | string;
+  inquiryState?: string;
+  minPricedPrice?: number | string | null;
   productStock?: number | string;
   seckillStock?: number | string;
   virtualSales?: number | string;
@@ -140,9 +145,11 @@ export default function ProductCard({
   const [moreOpen, setMoreOpen] = useState(false);
   const soldOut = isSoldOut(product);
   const href = productLink(product);
+  /* 询价口径：all 价格位「询价」+ 按钮换询价入口；partial 最低价起 + 弱标记；none 零变化 */
+  const inqState = resolveInquiryState(product);
   // 原版 pickPic：picUrl > picThumb（picThumb 是 200px 缩略图，卡片 240px 放大会发虚）
   const image = product.picUrl || product.picThumb || '';
-  const price = splitDisplayPrice(product.productPrice ?? product.price);
+  const price = splitDisplayPrice(inqState === 'partial' ? (product.minPricedPrice ?? product.productPrice ?? product.price) : (product.productPrice ?? product.price));
   const shopTitle = product.shop?.shopTitle || t('官方自营');
 
   async function addToCart(event: React.MouseEvent) {
@@ -299,14 +306,30 @@ export default function ProductCard({
 
         <div className="price-wrap">
           <div className="box">
-            <div className="price align-bottom">
-              <div className="util">{price.symbol || '￥'}</div>
-              <div className="num">{price.integer}</div>
-              {price.decimals ? <div className="num decimal">{price.decimals}</div> : null}
-              {price.suffix ? <div className="num">{price.suffix}</div> : null}
-            </div>
+            {inqState === 'all' ? (
+              <div className="price align-bottom">
+                <div className="num">{t('询价')}</div>
+              </div>
+            ) : (
+              <div className="price align-bottom">
+                <div className="util">{price.symbol || '￥'}</div>
+                <div className="num">{price.integer}</div>
+                {price.decimals ? <div className="num decimal">{price.decimals}</div> : null}
+                {price.suffix ? <div className="num">{price.suffix}</div> : null}
+                {inqState === 'partial' ? <div className="num">{t('起')}</div> : null}
+              </div>
+            )}
           </div>
-          {buyBtn && !buyBtn.show ? null : (
+          {buyBtn && !buyBtn.show ? null : inqState === 'all' ? (
+            /* 全询价：加购圆钮换「询价」文字钮，跳详情页自动打开留资表单 */
+            <div className="buy">
+              <Link href={withInquiryParam(href)} target="_blank" onClick={(event) => event.stopPropagation()}>
+                <div className="view_detail view_detail--inquiry" aria-label={t('询价')}>
+                  {t('询价')}
+                </div>
+              </Link>
+            </div>
+          ) : (
             <div className="buy">
               {needsDetail(product) || soldOut ? (
                 <Link href={href} target="_blank" onClick={(event) => event.stopPropagation()}>
@@ -318,6 +341,8 @@ export default function ProductCard({
             </div>
           )}
         </div>
+
+        {inqState === 'partial' ? <div className="inquiry-note">{t('部分型号询价')}</div> : null}
 
         <div className="other-wrap">
           {product.shop?.shopTitle || t('官方自营')}

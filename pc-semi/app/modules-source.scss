@@ -3152,6 +3152,7 @@
     color: var(--dec-origin-price-color, #999999);
     font-size: 16px;
     font-weight: 400;
+    text-decoration: line-through;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -4777,4 +4778,21 @@ img {
   flex: 0 0 100%;
   margin-left: 0;
   margin-top: 4px;
+}
+
+/* 询价态弱标记（partial：价格旁的小灰字「部分型号询价」）与 hero 卡标记行 */
+.dec-pc-product__inquiry-note,
+.dec-recommend-product__inquiry-note,
+.dec-product-group__inquiry-note {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #999;
+  white-space: nowrap;
+}
+
+.dec-pc-home-hero__card-inquiry-note {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--dec-muted-color, #999);
 }

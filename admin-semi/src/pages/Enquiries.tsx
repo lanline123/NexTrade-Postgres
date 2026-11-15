@@ -22,6 +22,11 @@ interface EnquiryRow {
   replyContent?: string;
   status?: number;
   mobile?: string;
+  email?: string;
+  /** 留资扩字段（后端贯通中，缺失时页面显示 -） */
+  companyName?: string;
+  jobTitle?: string;
+  skuValue?: string;
   createTime?: string;
 }
 
@@ -100,9 +105,27 @@ export default function Enquiries() {
       ),
     },
     {
+      title: '型号',
+      dataIndex: 'skuValue',
+      width: 180,
+      render: (value: string) => <span>{value || '-'}</span>,
+    },
+    {
       title: '询价内容',
       dataIndex: 'content',
       width: 260,
+      render: (value: string) => <span>{value || '-'}</span>,
+    },
+    {
+      title: '公司',
+      dataIndex: 'companyName',
+      width: 180,
+      render: (value: string) => <span>{value || '-'}</span>,
+    },
+    {
+      title: '职务',
+      dataIndex: 'jobTitle',
+      width: 120,
       render: (value: string) => <span>{value || '-'}</span>,
     },
     {
@@ -168,7 +191,19 @@ export default function Enquiries() {
             </div>
             <div>
               <Text type="tertiary">{t('邮箱：')}</Text>
-              <span>{(replyTarget as any).email || '-'}</span>
+              <span>{replyTarget.email || '-'}</span>
+            </div>
+            <div>
+              <Text type="tertiary">{t('公司：')}</Text>
+              <span>{replyTarget.companyName || '-'}</span>
+            </div>
+            <div>
+              <Text type="tertiary">{t('职务：')}</Text>
+              <span>{replyTarget.jobTitle || '-'}</span>
+            </div>
+            <div>
+              <Text type="tertiary">{t('型号：')}</Text>
+              <span>{replyTarget.skuValue || '-'}</span>
             </div>
             <div>
               <Text type="tertiary">{t('询价内容：')}</Text>

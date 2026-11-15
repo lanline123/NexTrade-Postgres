@@ -30,11 +30,13 @@ use serde::Serialize;
 use nextrade_common::utils;
 use nextrade_core::entities::Promotion;
 use nextrade_core::models::catalog::product_manage_client::{
-    html_escape, product_list_item, CommentListQuery, FeedbackListQuery, HistoryProductQuery,
-    ProductAmountDTO, ProductAvailabilityQuery, ProductConfigQuery, ProductCopyDTO, ProductIdParam,
-    ProductPriceInquiryDTO, ProductShareInfoDTO, ProductShareInfoVO, ProductsPromotionDTO,
-    PresaleDepositQuery, SelectProductListQuery, BatchAvailabilityQuery, MSG_AMOUNT_ITEMS_REQUIRED,
-    MSG_INQUIRY_CONTENT_REQUIRED, MSG_PRODUCT_ID_REQUIRED, MSG_PRODUCT_NOT_FOUND,
+    html_escape, inquiry_summary, product_list_item, CommentListQuery, FeedbackListQuery,
+    HistoryProductQuery, ProductAmountDTO, ProductAvailabilityQuery, ProductConfigQuery,
+    ProductCopyDTO, ProductIdParam, ProductPriceInquiryDTO, ProductShareInfoDTO,
+    ProductShareInfoVO, ProductsPromotionDTO, PresaleDepositQuery, SelectProductListQuery,
+    BatchAvailabilityQuery, MSG_AMOUNT_ITEMS_REQUIRED, MSG_INQUIRY_CONTENT_REQUIRED,
+    MSG_INQUIRY_MOBILE_REQUIRED, MSG_INQUIRY_SKU_NOT_FOUND, MSG_INQUIRY_TOO_FREQUENT,
+    MSG_PRODUCT_ID_REQUIRED, MSG_PRODUCT_NOT_FOUND,
 };
 use nextrade_core::models::marketing::promotion as promotion_model;
 use nextrade_core::types::PageResult;
@@ -512,11 +514,22 @@ impl ProductManageClientService {
     }
 
     /// 商品询价（Java `priceInquiry`）：写 `price_inquiry` 表。
+    ///
+    /// 2026-11-15 收紧（该接口此前无前台调用方，为孤儿接口）：
+    /// - 手机号 + 内容双必填（回拨通道无手机号即无效留资）；
+    /// - 同手机号 10 分钟内提交超过 5 次拒绝（DB 计数，无外部依赖）；
+    /// - 传了 `skuId` 时必须属于该商品，规格文本以库中 SKU 行为准存快照。
     pub async fn price_inquiry(
         &self,
         dto: &ProductPriceInquiryDTO,
         user_id: Option<i32>,
     ) -> Result<()> {
+        let mobile = dto
+            .mobile
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| Error::Validation(MSG_INQUIRY_MOBILE_REQUIRED.into()))?;
         if dto.content.as_deref().map(str::trim).filter(|s| !s.is_empty()).is_none() {
             return Err(Error::Validation(MSG_INQUIRY_CONTENT_REQUIRED.into()));
         }
@@ -525,17 +538,51 @@ impl ProductManageClientService {
             .find_product(dto.product_id)
             .await?
             .ok_or_else(|| Error::Validation(MSG_PRODUCT_NOT_FOUND.into()))?;
+
+        // 限频：窗口内已有 5 条即拒绝（第 6 条起）
+        let now = now_secs();
+        let recent = self
+            .repos
+            .catalog
+            .product_manage_client
+            .count_recent_price_inquiries(mobile, now - 600)
+            .await?;
+        if recent >= 5 {
+            return Err(Error::Validation(MSG_INQUIRY_TOO_FREQUENT.into()));
+        }
+
+        // SKU 维度：以库中行为准（防前端伪造规格文本），并校验归属
+        let mut sku_value: Option<String> = None;
+        if let Some(sku_id) = dto.sku_id {
+            let skus = self.repo().find_skus_by_ids(&[sku_id]).await?;
+            let sku = skus
+                .iter()
+                .find(|s| s.product_id == dto.product_id)
+                .ok_or_else(|| Error::Validation(MSG_INQUIRY_SKU_NOT_FOUND.into()))?;
+            sku_value = Some(sku.sku_value.clone());
+        }
+
         self.repos
             .catalog
             .product_manage_client
             .insert_price_inquiry(
-                dto.mobile.as_deref().unwrap_or_default(),
+                mobile,
                 dto.email.as_deref().unwrap_or_default(),
                 dto.content.as_deref().unwrap_or_default(),
                 dto.product_id,
                 product.shop_id,
                 user_id.unwrap_or(0),
-                now_secs(),
+                now,
+                dto.company_name
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty()),
+                dto.job_title
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty()),
+                dto.sku_id,
+                sku_value.as_deref(),
             )
             .await
     }
@@ -565,6 +612,37 @@ impl ProductManageClientService {
         Ok(deposit)
     }
 
+    /// 批量组装列表项：一次查齐各商品的启用 SKU，逐商品推导询价派生态
+    /// （`isInquiry` / `inquiryState` / `minPricedPrice`）后组装。
+    async fn list_items_with_inquiry(
+        &self,
+        products: &[nextrade_core::entities::Product],
+    ) -> Result<Vec<serde_json::Value>> {
+        let ids: Vec<i32> = products.iter().map(|p| p.product_id).collect();
+        let skus = if ids.is_empty() {
+            Vec::new()
+        } else {
+            self.repo().find_skus_by_product_ids(&ids, false).await?
+        };
+        let mut by_product: std::collections::HashMap<
+            i32,
+            Vec<nextrade_core::entities::ProductSku>,
+        > = std::collections::HashMap::new();
+        for s in skus {
+            by_product.entry(s.product_id).or_default().push(s);
+        }
+        Ok(products
+            .iter()
+            .map(|p| {
+                let empty: &[nextrade_core::entities::ProductSku] = &[];
+                let list = by_product
+                    .get(&p.product_id)
+                    .map_or(empty, Vec::as_slice);
+                product_list_item(&to_json(p), &inquiry_summary(p, list))
+            })
+            .collect())
+    }
+
     /// 相关商品（Java `getRelated`）。
     pub async fn related(&self, product_id: i32) -> Result<Vec<serde_json::Value>> {
         let ids = self.repo().find_related_ids(product_id).await?;
@@ -572,10 +650,7 @@ impl ProductManageClientService {
             return Ok(Vec::new());
         }
         let products = self.repo().find_products_by_ids(&ids).await?;
-        Ok(products
-            .iter()
-            .map(|p| product_list_item(&to_json(p)))
-            .collect())
+        self.list_items_with_inquiry(&products).await
     }
 
     /// 批量可用性（Java `getBatchProductAvailability`；`skuIds` 逗号串）。
@@ -626,10 +701,7 @@ impl ProductManageClientService {
         let limit = u64::from(page.page_size);
         let offset = u64::from(page.page - 1) * limit;
         let (total, products) = self.repo().paginate_products_by_ids(&ids, limit, offset).await?;
-        let list = products
-            .iter()
-            .map(|p| product_list_item(&to_json(p)))
-            .collect();
+        let list = self.list_items_with_inquiry(&products).await?;
         Ok(PageResult::new(total, list, &page))
     }
 }

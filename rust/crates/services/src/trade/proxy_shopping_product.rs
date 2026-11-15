@@ -646,6 +646,7 @@ fn to_availability_sku_vo(s: &nextrade_core::entities::ProductSku) -> ProductSku
         sku_weight: s.sku_weight,
         sku_volume: s.sku_volume,
         sku_price: s.sku_price,
+        is_inquiry: s.is_inquiry,
         is_enabled: s.is_enabled,
         market_price: s.market_price,
         cost_price: s.cost_price,

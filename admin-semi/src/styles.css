@@ -1716,7 +1716,7 @@ body {
 
 .product-sku-row {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 0.8fr 0.8fr 0.8fr 0.7fr 60px;
+  grid-template-columns: 1.2fr 1fr 0.8fr 0.8fr 0.8fr 0.7fr 52px 60px;
   gap: 8px;
   align-items: center;
 }

@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use nextrade_core::entities::Product;
 use nextrade_core::models::catalog::product_group::parse_product_ids;
+use nextrade_core::models::catalog::product_manage_client::inquiry_summary;
 use nextrade_core::models::{ProductListQuery, ProductVO};
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
@@ -12,6 +13,9 @@ use nextrade_infrastructure::db::Repositories;
 
 /// 商品详情缓存 TTL（秒）。
 const PRODUCT_CACHE_TTL: u64 = 300;
+
+/// 询价商品/型号禁购文案（2026-11-15；加购/结算/下单共用校验处使用）。
+const MSG_INQUIRY_NOT_PURCHASABLE: &str = "该商品为询价商品，请提交询价";
 
 #[derive(Clone)]
 pub struct ProductService {
@@ -65,7 +69,36 @@ impl ProductService {
             }
         }
         let (total, products) = self.repos.catalog.product.paginate(&expanded).await?;
-        let list = products.into_iter().map(to_vo).collect();
+        // 询价派生态：一次查齐本页商品的启用 SKU 后逐商品推导（避免 N+1）
+        let ids: Vec<i32> = products.iter().map(|p| p.product_id).collect();
+        let skus = if ids.is_empty() {
+            Vec::new()
+        } else {
+            self.repos
+                .catalog
+                .product_manage
+                .find_skus_by_product_ids(&ids, false)
+                .await?
+        };
+        let mut by_product: std::collections::HashMap<
+            i32,
+            Vec<nextrade_core::entities::ProductSku>,
+        > = std::collections::HashMap::new();
+        for s in skus {
+            by_product.entry(s.product_id).or_default().push(s);
+        }
+        let list = products
+            .into_iter()
+            .map(|p| {
+                let empty: &[nextrade_core::entities::ProductSku] = &[];
+                let list = by_product.get(&p.product_id).map_or(empty, Vec::as_slice);
+                let summary = inquiry_summary(&p, list);
+                let mut vo = to_vo(p);
+                vo.inquiry_state = summary.state.to_string();
+                vo.min_priced_price = summary.min_priced_price;
+                vo
+            })
+            .collect();
         Ok(PageResult::new(total, list, &page))
     }
 
@@ -82,7 +115,21 @@ impl ProductService {
             if !p.is_on_sale() {
                 return Err(Error::NotFound("商品已下架".into()));
             }
-            Ok(to_vo(p))
+            // 询价派生态按启用 SKU 推导（本仓储 find_skus 不过滤启用态，手动过滤）
+            let skus: Vec<nextrade_core::entities::ProductSku> = self
+                .repos
+                .catalog
+                .product
+                .find_skus(product_id)
+                .await?
+                .into_iter()
+                .filter(|s| s.is_enabled == 1)
+                .collect();
+            let summary = inquiry_summary(&p, &skus);
+            let mut vo = to_vo(p);
+            vo.inquiry_state = summary.state.to_string();
+            vo.min_priced_price = summary.min_priced_price;
+            Ok(vo)
         };
 
         match &self.cache {
@@ -110,6 +157,19 @@ impl ProductService {
             .await?;
         if sale_state.sale_status == 0 {
             return Err(Error::biz(400, "商品已下架".to_string()));
+        }
+        // 询价禁购（2026-11-15）：商品级或目标型号级任一开启询价即拒绝，
+        // 本校验为加购/改量/结算/下单共用，只藏前端按钮挡不住直接调接口。
+        if let Some(p) = self.repos.catalog.product.find_by_id(product_id).await? {
+            if p.is_inquiry == 1 {
+                return Err(Error::biz(400, MSG_INQUIRY_NOT_PURCHASABLE.to_string()));
+            }
+            if let Some(sid) = sku_id {
+                let skus = self.repos.catalog.product.find_skus(product_id).await?;
+                if skus.iter().any(|s| s.sku_id == sid && s.is_inquiry == 1) {
+                    return Err(Error::biz(400, MSG_INQUIRY_NOT_PURCHASABLE.to_string()));
+                }
+            }
         }
         if !self
             .repos.catalog.product
@@ -177,6 +237,8 @@ fn to_vo(p: Product) -> ProductVO {
     } else {
         p.product_stock
     };
+    // 先于字段搬移计算询价派生（无 SKU 口径；list/detail 会按启用 SKU 覆盖）
+    let inquiry_default = inquiry_summary(&p, &[]);
     ProductVO {
         product_id: p.product_id,
         product_name: p.product_name,
@@ -193,6 +255,10 @@ fn to_vo(p: Product) -> ProductVO {
         sales: p.virtual_sales,
         price: Some(p.product_price),
         virtual_sales: p.virtual_sales,
+        // 默认按无 SKU 推导；list/detail 会用启用 SKU 重新推导后覆盖后两项
+        is_inquiry: p.is_inquiry,
+        inquiry_state: inquiry_default.state.to_string(),
+        min_priced_price: inquiry_default.min_priced_price,
         add_time: p.add_time,
         store_product_name: None,
         store_product_price: None,

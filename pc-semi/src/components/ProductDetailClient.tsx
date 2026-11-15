@@ -8,6 +8,8 @@ import type { ProductDetailResponse } from '@/lib/api';
 import { addToCart } from '@/lib/api';
 import { apiGet, apiPost } from '@/lib/client-api';
 import { formatDisplayPrice, formatPrice, splitDisplayPrice } from '@/lib/currency';
+import { resolveInquiryState, skuIsInquiry } from '@/lib/inquiry';
+import InquiryFormModal from '@/components/InquiryFormModal';
 import RawImageDownloadButton from '@/components/RawImageDownloadButton';
 import ProductJoiningClient from '@/components/ProductJoiningClient';
 import ProductCard, { type ProductCardItem } from '@/components/product/ProductCard';
@@ -61,6 +63,8 @@ interface SkuRow {
   skuStock?: number;
   skuPrice?: string | number;
   price?: string | number;
+  /** 询价标志（后端契约）：1 = 该型号询价（与商品级 isInquiry 取「或」） */
+  isInquiry?: number;
   isEnabled?: number | null;
   limitNumber?: number;
   picThumb?: string;
@@ -263,6 +267,11 @@ export default function ProductDetailClient({
   const [collected, setCollected] = useState(false);
   const [collecting, setCollecting] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+
+  // —— 询价留资 ——
+  const [inquiryOpen, setInquiryOpen] = useState(false);
+  /** 留资表单的显式目标型号（B2B 批量表格行内询价时指定）；null = 用当前所选 SKU */
+  const [inquirySku, setInquirySku] = useState<{ skuId?: number; skuValue?: string } | null>(null);
   const [shareUrl, setShareUrl] = useState('');
   const [qrData, setQrData] = useState('');
 
@@ -325,6 +334,39 @@ export default function ProductDetailClient({
   const skuDisabled = selectedSku?.isEnabled === 0;
   const price = livePrice ?? selectedSku?.skuPrice ?? selectedSku?.price ?? item.productPrice;
   const requireSku = skuGroups.length > 0 && !selectedSku;
+
+  /**
+   * 询价态（固定契约）：SKU 有效询价 = 行 isInquiry=1 或商品 isInquiry=1。
+   * 未选规格时：商品级开关开、或后端派生态为 all，则整品按询价呈现
+   * （「立即询价」直接打开表单，型号可空）；partial 且未选规格时维持正常价展示，
+   * 选到询价型号后切换。
+   */
+  const productIsInquiry = Number((item as any).isInquiry) === 1;
+  const selectedInquiry = selectedSku
+    ? skuIsInquiry(selectedSku, productIsInquiry)
+    : productIsInquiry || resolveInquiryState(item) === 'all';
+  /** 当前所选型号的展示文本（留资表单只读带入）：优先 skuValue 管道串，其次规格值拼接 */
+  const selectedSkuValueText = selectedSku
+    ? String(selectedSku.skuValue ?? '').replace(/\|/g, '，') ||
+      (selectedSku.skuData || []).map((entry) => String(entry.value || '')).filter(Boolean).join(' / ')
+    : '';
+  /** 留资表单实际目标：显式指定（B2B 行）优先，否则跟随当前所选 SKU */
+  const formSkuId = inquirySku?.skuId ?? (selectedSku?.skuId ? Number(selectedSku.skuId) : skuId);
+  const formSkuValue = inquirySku?.skuValue ?? selectedSkuValueText;
+  /** 主购买区的「立即询价」：目标 = 当前所选型号 */
+  const openInquiryForSelected = () => {
+    setInquirySku(null);
+    setInquiryOpen(true);
+  };
+
+  /* 卡片「询价」按钮跳入时带 ?inquiry=1：挂载后自动打开留资表单 */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('inquiry') === '1') {
+      setInquirySku(null);
+      setInquiryOpen(true);
+    }
+  }, []);
   // 优先原图：picThumb 是 200px 缩略图，放进 624px 主图位会明显发糊
   const mainImage = skuPic || selectedSku?.picUrl || selectedSku?.picThumb || pictures[activeImage]?.picUrl || pictures[activeImage]?.picThumb || '';
 
@@ -406,6 +448,8 @@ export default function ProductDetailClient({
             title: String(sku.skuValue ?? '').replace(/\|/g, ','),
             price: live.price ?? sku.skuPrice ?? item.productPrice,
             stock: live.stock ?? sku.skuStock ?? 0,
+            /* 询价型号：价格列显示「询价」、数量不可填（不进合计/金额接口） */
+            isInquiry: skuIsInquiry(sku, productIsInquiry) ? 1 : 0,
             num: 0,
           };
         });
@@ -1131,21 +1175,32 @@ export default function ProductDetailClient({
     uiStyle === 'overseas' ? (
       <div className="basic">
         <div className="item main-price-box">
-          <div className="price1">
-            <div className="price align-bottom">
-              <div className="util">{priceParts.symbol || '¥'}</div>
-              <div className="num">{priceParts.integer}{priceParts.decimals}{priceParts.suffix}</div>
-            </div>
-          </div>
-          {Number(item.marketPrice) > 0 ? (
-            <div className="market_price">
-              <div className="price align-bottom" style={{ textDecoration: 'line-through' }}>
-                <div className="util">{priceParts.symbol || '¥'}</div>
-                <div className="num">{marketPriceParts.integer}{marketPriceParts.decimals}{marketPriceParts.suffix}</div>
+          {selectedInquiry ? (
+            /* 询价态：价格位同位显示「询价」，不露任何价格/划线价/折扣 */
+            <div className="price1">
+              <div className="price align-bottom">
+                <div className="num pds-inquiry-word">{t('询价')}</div>
               </div>
             </div>
-          ) : null}
-          {discountFold ? <span className="pds-os__discount">{discountFold}{t('折')}</span> : null}
+          ) : (
+            <>
+              <div className="price1">
+                <div className="price align-bottom">
+                  <div className="util">{priceParts.symbol || '¥'}</div>
+                  <div className="num">{priceParts.integer}{priceParts.decimals}{priceParts.suffix}</div>
+                </div>
+              </div>
+              {Number(item.marketPrice) > 0 ? (
+                <div className="market_price">
+                  <div className="price align-bottom" style={{ textDecoration: 'line-through' }}>
+                    <div className="util">{priceParts.symbol || '¥'}</div>
+                    <div className="num">{marketPriceParts.integer}{marketPriceParts.decimals}{marketPriceParts.suffix}</div>
+                  </div>
+                </div>
+              ) : null}
+              {discountFold ? <span className="pds-os__discount">{discountFold}{t('折')}</span> : null}
+            </>
+          )}
         </div>
         {commentTotal > 0 ? (
           <div className="item">
@@ -1169,7 +1224,7 @@ export default function ProductDetailClient({
     ) : (
     <>
       <div className="basic bg">
-        {Number(item.marketPrice) > 0 ? (
+        {Number(item.marketPrice) > 0 && !selectedInquiry ? (
           <div className="item">
             <div className="tit">{t('市场价')}：</div>
             <div className="market_price">
@@ -1182,12 +1237,21 @@ export default function ProductDetailClient({
         ) : null}
         <div className="item">
           <div className="tit">{t('本站价')}：</div>
-          <div className="price1">
-            <div className="price align-bottom">
-              <div className="util">{priceParts.symbol || '¥'}</div>
-              <div className="num">{priceParts.integer}{priceParts.decimals}{priceParts.suffix}</div>
+          {selectedInquiry ? (
+            /* 询价态：价格位同位显示「询价」 */
+            <div className="price1">
+              <div className="price align-bottom">
+                <div className="num pds-inquiry-word">{t('询价')}</div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="price1">
+              <div className="price align-bottom">
+                <div className="util">{priceParts.symbol || '¥'}</div>
+                <div className="num">{priceParts.integer}{priceParts.decimals}{priceParts.suffix}</div>
+              </div>
+            </div>
+          )}
           {commentTotal > 0 ? (
             <div className="rank-info">
               <div className="tit2">{t('评价')}：</div>
@@ -1293,7 +1357,21 @@ export default function ProductDetailClient({
           <div className="pds-b2b__row" key={String(row.skuId ?? index)}>
             <div className="pds-b2b__title">{row.title || t('规格')}</div>
             <div className="pds-b2b__meta">
-              <span className="pds-b2b__price">{formatDisplayPrice(row.price)}</span>
+              {Number(row.isInquiry) === 1 ? (
+                /* 询价行：价格列显示「询价」，点击打开该型号的留资表单；数量禁填、不进合计 */
+                <button
+                  type="button"
+                  className="pds-b2b__inquiry"
+                  onClick={() => {
+                    setInquirySku({ skuId: Number(row.skuId) || undefined, skuValue: String(row.title || '') });
+                    setInquiryOpen(true);
+                  }}
+                >
+                  {t('询价')}
+                </button>
+              ) : (
+                <span className="pds-b2b__price">{formatDisplayPrice(row.price)}</span>
+              )}
               <span className="pds-b2b__stock">{t('库存')}：{Number(row.stock || 0)}</span>
             </div>
             <InputNumber
@@ -1301,6 +1379,7 @@ export default function ProductDetailClient({
               min={0}
               max={Number(row.stock || 0)}
               value={Number(row.num || 0)}
+              disabled={Number(row.isInquiry) === 1}
               onChange={(value) => changeB2bNum(index, Number(value) || 0)}
             />
           </div>
@@ -1400,7 +1479,8 @@ export default function ProductDetailClient({
    * `.b2b-sku > .b2b-sku-content > .sku-item(.title + .price-box(.stock) + .num)`。
    * 逐档价格用旧版 FormatPrice 的产物结构。
    */
-  const wholesale = wholesalePriceList.length ? (
+  /* 商品级询价时阶梯价整块不渲染（价格位不露价）；部分型号询价时阶梯价为有价型号口径，保留 */
+  const wholesale = wholesalePriceList.length && !productIsInquiry ? (
     <div className="mp-b2b-sku">
       <div className="b2b-sku">
       <div className="b2b-sku-content">
@@ -1453,8 +1533,9 @@ export default function ProductDetailClient({
    * 数量区：批量采购模式下用批量面板替代单品数量选择器。
    * 旧版 ProductInfo.vue：<template v-if="tabIndex !== 1"> 才渲染 ProductSku 与数量步进器，
    * 批量模式（tabIndex===1）只渲染 ProductB2bSku。
+   * 询价态（单品采购）隐藏数量步进器；批量面板保留（行内带询价入口）。
    */
-  const qtyBlock = isB2BMode && b2bTabIndex === 1 ? b2bPanel : qty;
+  const qtyBlock = isB2BMode && b2bTabIndex === 1 ? b2bPanel : selectedInquiry ? null : qty;
 
   // 旧版 ProductInfo 用 product.productType 判断预约商品（5/6）；新接口字段同名，缺失时按普通商品处理
   const isReservation = Number((item as any).productType) === 5 || Number((item as any).productType) === 6;
@@ -1466,7 +1547,12 @@ export default function ProductDetailClient({
    */
   const actions = (
     <div className="add_cart">
-      {outOfStock && !isReservation ? (
+      {selectedInquiry ? (
+        /* 询价态：加购/购买整体换成单个「立即询价」（询价型号禁加购，口径与后端加购校验一致） */
+        <div className="buy mp-buy" onClick={openInquiryForSelected}>
+          <button type="button" className="buy-btn buynow">{t('立即询价')}</button>
+        </div>
+      ) : outOfStock && !isReservation ? (
         <div className="buy">
           <Link href="/search">
             <button type="button" className="buy-btn buynow">{t('查看其他商品')}</button>
@@ -1498,8 +1584,8 @@ export default function ProductDetailClient({
 
   const tips = (
     <>
-      {requireSku ? <p className="pds-tips">{t('请选择完整规格后购买')}</p> : null}
-      {outOfStock ? <p className="pds-tips">{t('该商品暂时缺货，敬请期待')}</p> : null}
+      {requireSku && !selectedInquiry ? <p className="pds-tips">{t('请选择完整规格后购买')}</p> : null}
+      {outOfStock && !selectedInquiry ? <p className="pds-tips">{t('该商品暂时缺货，敬请期待')}</p> : null}
     </>
   );
 
@@ -1792,15 +1878,26 @@ export default function ProductDetailClient({
     </section>
   ) : null;
 
-  /** 国内标准版全局浮动购买栏（源码 FloatBuyBar） */
+  /** 国内标准版全局浮动购买栏（源码 FloatBuyBar）；询价态换「立即询价」 */
   const buybar = (
     <div className="pds-buybar">
       <div className="pds-buybar__inner">
-        <Button size="large" theme="solid" type="primary" loading={adding} disabled={outOfStock || skuDisabled || requireSku} onClick={() => void add()}>{t('加入购物车')}</Button>
-        <Button size="large" theme="light" type="primary" disabled={outOfStock || skuDisabled || requireSku} onClick={() => void add('buy')}>{t('立即购买')}</Button>
-        <Button size="large" loading={collecting} onClick={() => void collect()}>
-          {collected ? '已收藏' : '收藏'}
-        </Button>
+        {selectedInquiry ? (
+          <>
+            <Button size="large" theme="solid" type="primary" onClick={openInquiryForSelected}>{t('立即询价')}</Button>
+            <Button size="large" loading={collecting} onClick={() => void collect()}>
+              {collected ? '已收藏' : '收藏'}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button size="large" theme="solid" type="primary" loading={adding} disabled={outOfStock || skuDisabled || requireSku} onClick={() => void add()}>{t('加入购物车')}</Button>
+            <Button size="large" theme="light" type="primary" disabled={outOfStock || skuDisabled || requireSku} onClick={() => void add('buy')}>{t('立即购买')}</Button>
+            <Button size="large" loading={collecting} onClick={() => void collect()}>
+              {collected ? '已收藏' : '收藏'}
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1863,11 +1960,22 @@ export default function ProductDetailClient({
   };
 
   return (
-    <ProductLayout
-      uiStyle={uiStyle}
-      blocks={blocks}
-      activeAnchor={activeAnchor}
-      onAnchorClick={scrollToAnchor}
-    />
+    <>
+      <ProductLayout
+        uiStyle={uiStyle}
+        blocks={blocks}
+        activeAnchor={activeAnchor}
+        onAnchorClick={scrollToAnchor}
+      />
+      {/* 询价留资表单：主购买区「立即询价」/ B2B 行内询价 / ?inquiry=1 自动打开共用 */}
+      <InquiryFormModal
+        open={inquiryOpen}
+        onClose={() => setInquiryOpen(false)}
+        productId={productId}
+        productName={String(item.productName || '')}
+        skuId={formSkuId}
+        skuValue={formSkuValue || undefined}
+      />
+    </>
   );
 }

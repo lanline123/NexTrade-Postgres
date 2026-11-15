@@ -45,7 +45,7 @@ pub const KEY_PROPERTY: &str = "id";
 /// `price_inquiry` 的真实列清单（`python tools/schema_parser.py --table price_inquiry`）。
 ///
 /// 顺序与实体 [`crate::entities::PriceInquiry`] 的字段顺序一致。
-pub const INQUIRY_COLUMNS: [&str; 11] = [
+pub const INQUIRY_COLUMNS: [&str; 15] = [
     "id",
     "mobile",
     "email",
@@ -57,6 +57,11 @@ pub const INQUIRY_COLUMNS: [&str; 11] = [
     "user_id",
     "user_is_del",
     "create_time",
+    // 2026-11-15 留资扩列（公司 / 职务 / SKU 维度）
+    "company_name",
+    "job_title",
+    "sku_id",
+    "sku_value",
 ];
 
 /// 询价不存在（Java `PriceInquiryServiceImpl` 抛 `GlobalException("询价信息不存在")`）。
@@ -276,6 +281,14 @@ pub struct PriceInquiryVO {
     pub shop_id: i32,
     /// 用户 ID
     pub user_id: i32,
+    /// 公司名称（2026-11-15 留资扩列；旧数据 / 未填为 `None`）
+    pub company_name: Option<String>,
+    /// 职务（2026-11-15 留资扩列）
+    pub job_title: Option<String>,
+    /// 询价针对的 SKU id（商品级询价为 `None`）
+    pub sku_id: Option<i32>,
+    /// 询价针对的规格文本快照
+    pub sku_value: Option<String>,
     /// 创建时间（`yyyy-MM-dd HH:mm:ss`，空值 ⇒ `""`）
     pub create_time: String,
     /// 商品摘要（商品已删除时 `None`）
@@ -350,6 +363,10 @@ pub fn inquiry_to_vo(entity: &crate::entities::PriceInquiry) -> PriceInquiryVO {
         status: entity.status,
         shop_id: entity.shop_id,
         user_id: entity.user_id,
+        company_name: entity.company_name.clone(),
+        job_title: entity.job_title.clone(),
+        sku_id: entity.sku_id,
+        sku_value: entity.sku_value.clone(),
         create_time: format_unix_time(entity.create_time),
         product: None,
         reply_records: None,

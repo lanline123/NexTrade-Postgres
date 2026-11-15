@@ -1,0 +1,89 @@
+/* 询价留资表单（InquiryFormModal）：Semi Modal 内的表单排版 */
+
+.inquiry-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0 2px;
+
+  &__product {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #f5f6fa;
+  }
+
+  &__product-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a1a;
+    line-height: 1.5;
+  }
+
+  &__product-sku {
+    margin-top: 2px;
+    font-size: 12px;
+    color: #888b94;
+    line-height: 1.5;
+  }
+
+  &__row {
+    display: flex;
+    gap: 12px;
+
+    .inquiry-form__field {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &__label {
+    font-size: 13px;
+    color: #333;
+  }
+
+  &__required {
+    margin-left: 2px;
+    color: #e60012;
+    font-style: normal;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 2px;
+  }
+
+  &__success {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 28px 0 20px;
+  }
+
+  &__success-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--pc-primary, #165dff);
+    color: #fff;
+    font-size: 26px;
+    line-height: 1;
+  }
+
+  &__success-text {
+    margin: 0;
+    font-size: 15px;
+    color: #1a1a1a;
+  }
+}

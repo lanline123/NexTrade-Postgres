@@ -3,7 +3,9 @@
 //!
 //! 列名严格对齐权威 schema（`python tools/schema_parser.py --table price_inquiry`）：
 //! - `price_inquiry`：`id` / `mobile` / `email` / `content` / `product_id` /
-//!   `remark` / `status` / `shop_id` / `user_id` / `user_is_del` / `create_time`
+//!   `remark` / `status` / `shop_id` / `user_id` / `user_is_del` / `create_time` /
+//!   `company_name` / `job_title` / `sku_id` / `sku_value`
+//!   （后四列为 2026-11-15 留资扩列，见 `deploy/pg/2026-11-15_inquiry_flags.sql`）
 //! - `price_inquiry_reply_record`：`id` / `inquiry_id` / `reply_type` /
 //!   `reply_name` / `content` / `admin_id` / `user_id` / `create_time`
 //! - `product`（本仓储只读 4 列）：`product_id` / `product_name` /
@@ -29,7 +31,7 @@ use nextrade_core::types::PageQuery;
 use nextrade_core::{Error, Result};
 
 /// `price_inquiry` 固定 SELECT 列清单（顺序与实体字段一致）。
-const INQUIRY_SELECT: &str = "SELECT id, mobile, email, content, product_id, remark, status, shop_id, user_id, user_is_del, create_time FROM price_inquiry";
+const INQUIRY_SELECT: &str = "SELECT id, mobile, email, content, product_id, remark, status, shop_id, user_id, user_is_del, create_time, company_name, job_title, sku_id, sku_value FROM price_inquiry";
 
 /// `price_inquiry_reply_record` 固定 SELECT 列清单（顺序与实体字段一致）。
 const REPLY_SELECT: &str = "SELECT id, inquiry_id, reply_type, reply_name, content, admin_id, user_id, create_time FROM price_inquiry_reply_record";
@@ -351,6 +353,10 @@ mod tests {
                 "user_id",
                 "user_is_del",
                 "create_time",
+                "company_name",
+                "job_title",
+                "sku_id",
+                "sku_value",
             ]
         );
         let selected = INQUIRY_SELECT

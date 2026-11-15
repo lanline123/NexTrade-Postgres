@@ -189,17 +189,16 @@
     del { color: #98a2b3; }
   }
 
-  /* 领券面板：纵向票券行（面额 | 券名+说明 | 领取按钮），主题色浅底，不横滚、不截断 */
+  /* 领券面板：纵向票券行（面额 | 券名+说明 | 领取按钮），粉色卡券底，不横滚、不截断 */
   .pds-coupons { display: flex; flex-direction: column; gap: 8px; }
   .pds-coupon {
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 8px 12px;
-    border: 1px solid color-mix(in srgb, var(--pds-primary) 30%, #ffffff);
+    border: 1px solid #ffe0e3;
     border-radius: 8px;
-    background: var(--pds-soft);
-    background: color-mix(in srgb, var(--pds-primary) 7%, #ffffff);
+    background: #fff5f6;
     &.is-received { border-color: var(--pds-line); background: var(--pds-soft); }
     &__value { flex: 0 0 auto; min-width: 74px; color: var(--pds-primary); font-size: 17px; font-weight: 700; white-space: nowrap; }
     &__value small { font-size: 12px; font-weight: 600; }
@@ -301,6 +300,8 @@
     .pds-b2b__title { flex: 1; min-width: 0; color: #333; font-size: 13px; word-break: break-all; }
     .pds-b2b__meta { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
     .pds-b2b__price { color: var(--pds-primary); font-size: 13px; font-weight: 700; }
+    /* 询价行：价格位换成可点击的「询价」（打开该型号留资表单），与 __price 同字号同色 */
+    .pds-b2b__inquiry { padding: 0; border: 0; background: none; font-family: inherit; color: var(--pds-primary); font-size: 13px; font-weight: 700; cursor: pointer; }
     .pds-b2b__stock { color: var(--pds-muted); font-size: 12px; }
     .pds-b2b__num { width: 130px; flex-shrink: 0; }
     .pds-b2b__total {

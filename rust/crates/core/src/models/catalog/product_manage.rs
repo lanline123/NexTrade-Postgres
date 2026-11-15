@@ -298,6 +298,8 @@ pub struct ProductSkuVO {
     pub sku_volume: Option<Decimal>,
     /// 货品价格（Java DTO 为 String，这里按十进制下发避免精度丢失）
     pub sku_price: Option<Decimal>,
+    /// 是否询价型号：0 否 1 是（2026-11-15；与商品级标志任一为 1 即询价）
+    pub is_inquiry: i32,
     /// 是否启用：0 禁用 1 启用
     pub is_enabled: i32,
     pub market_price: Option<Decimal>,
@@ -331,6 +333,8 @@ pub struct ProductSkuSaveDTO {
     pub sku_volume: Option<Decimal>,
     /// Java 侧为 String，前端可能传 `"12.00"`
     pub sku_price: Option<Decimal>,
+    /// 是否询价型号：0 否 1 是（2026-11-15 新增，不传 = 保持库中原值）
+    pub is_inquiry: Option<i32>,
     pub is_enabled: Option<i32>,
     pub market_price: Option<Decimal>,
     pub cost_price: Option<Decimal>,
@@ -557,6 +561,8 @@ pub struct AdminProductDetailVO {
     pub product_price: Decimal,
     pub market_price: Decimal,
     pub cost_price: Option<Decimal>,
+    /// 是否询价商品（商品级总开关）：0 否 1 是（2026-11-15）
+    pub is_inquiry: i32,
     pub shipping_tpl_id: i64,
     pub product_status: i32,
     pub product_type: Option<i32>,
@@ -719,6 +725,8 @@ pub struct ProductSaveDTO {
     pub product_price: Option<Decimal>,
     pub market_price: Option<Decimal>,
     pub cost_price: Option<Decimal>,
+    /// 是否询价商品（商品级总开关）：0 否 1 是（2026-11-15 新增）
+    pub is_inquiry: Option<i32>,
     pub shipping_tpl_id: Option<i64>,
     pub category_id: Option<i32>,
     pub brand_id: Option<i32>,
@@ -950,6 +958,12 @@ pub struct ClientProductInfoVO {
     pub product_price: Decimal,
     pub market_price: Decimal,
     pub cost_price: Option<Decimal>,
+    /// 是否询价商品（商品级原始标志）：0 否 1 是（2026-11-15）
+    pub is_inquiry: i32,
+    /// 询价派生态：`none` / `partial` / `all`（按启用 SKU 推导，2026-11-15）
+    pub inquiry_state: String,
+    /// 有价型号最低价（全询价为 `None`；卡片「最低价起」口径，2026-11-15）
+    pub min_priced_price: Option<Decimal>,
     pub product_brief: String,
     pub product_desc: Option<String>,
     pub pic_url: String,

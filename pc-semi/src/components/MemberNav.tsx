@@ -7,7 +7,7 @@
  * - 5 个分组（订单/关注/资产/客户服务/账户设置），标题可折叠（useRef 状态跨页保留语义：默认全展开）
  * - 角标：评价晒单=orderNum.awaitComment，优惠券=memberCenter.awaitCoupon；售后管理红点=awaitAftersalesCollect
  * - D1146：评价关闭隐藏「评价晒单」
- * - 跨境守卫：拼团→/member/group/list；B2B 专属项（账期支付/询价单/实名认证）隐藏
+ * - 跨境守卫：拼团→/member/group/list；B2B 专属项（账期支付/询价单）隐藏；实名认证按 authGate.closeAuth 开关显示
  * - 发票入口受 canInvoice / invoiceAdded 控制
  */
 
@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { apiGet } from '@/lib/client-api';
+import { useAuthGate } from '@/lib/auth-gate';
 
 import { useTranslation } from 'react-i18next';
 interface MenuItem {
@@ -47,6 +48,8 @@ export default function MemberNav() {
   const [orderNum, setOrderNum] = useState<Record<string, number>>({});
   const [awaitCoupon, setAwaitCoupon] = useState(0);
   const [config, setConfig] = useState<ConfigBase>({});
+  /* 认证总开关（common/config/authGate）：开启后才显示实名认证入口；取不到按关兜底 */
+  const authGate = useAuthGate();
 
   useEffect(() => {
     fetch('/api/common/config/base')
@@ -144,13 +147,13 @@ export default function MemberNav() {
         tit: '账户设置',
         list: [
           { name: '账户安全', url: '/member/security/info', show: true },
-          // 会员实名认证：B2B 且开关开启（跨境 B2C 隐藏）
-          { name: '会员实名认证', url: '/member/usercertification/info', show: false },
+          // 会员实名认证：后台「会员认证设置」总开关 closeAuth 开启时显示（authGate 下发，失败兜底隐藏）
+          { name: '会员实名认证', url: '/member/usercertification/info', show: authGate.closeAuth === 1 },
           { name: '地址', url: '/member/address/list', show: true },
         ],
       },
     ],
-    [canInvoice, config.invoiceAdded, config.integralName, commentEnabled],
+    [canInvoice, config.invoiceAdded, config.integralName, commentEnabled, authGate.closeAuth],
   );
 
   const toggleGroup = (idx: number) => {

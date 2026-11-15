@@ -311,6 +311,22 @@ impl ConfigClientService {
         Ok(super::buy_style::effective_buy_style(stored))
     }
 
+    /// 会员认证门控配置（后台「会员认证设置」的 closeAuth / isIdentity /
+    /// type 三项只读下发；未配置时全 0，见 `system::auth_gate`）。
+    pub async fn auth_gate(&self) -> Result<serde_json::Value> {
+        let rows = self
+            .repos
+            .system
+            .config_client
+            .find_config_values(&super::auth_gate::AUTH_GATE_CODES)
+            .await?;
+        let pairs: Vec<(String, String)> = rows
+            .iter()
+            .filter_map(|c| c.biz_val.clone().map(|v| (c.biz_code.clone(), v)))
+            .collect();
+        Ok(super::auth_gate::effective_auth_gate(&pairs))
+    }
+
     pub async fn product_detail_style(&self) -> Result<i32> {
         let configs = self.load_snapshot().await?;
         // ⚠️ 走 `getConfigVal`（空串兜底），**不是** `SettingsHelper#get`。

@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
 import { formatDisplayPrice, splitDisplayPrice } from '@/lib/currency';
+import { resolveInquiryState, withInquiryParam } from '@/lib/inquiry';
 import { imageFormat } from '@/lib/image';
 import { urlFormat } from '@/lib/link';
 import FormatPrice from '@/components/FormatPrice';
@@ -760,6 +761,10 @@ interface ProductItem {
   productBrief?: string;
   brief?: string;
   productPrice?: number | string;
+  /* 询价契约（后端下发）：商品级开关 / 派生态 / 有价型号最低价 */
+  isInquiry?: number | string;
+  inquiryState?: string;
+  minPricedPrice?: number | string | null;
   picThumb?: string;
   picUrl?: string;
   productStock?: number;
@@ -1040,6 +1045,9 @@ function PcProduct({ module, initialData }: ModuleProps) {
               <div className="dec-pc-product__list">
                 {products.map((item, index) => {
                   const href = item.seoLink || `/product/${item.productSn || item.productId || ''}`;
+                  /* 询价口径：all 价格位「询价」+ 按钮换询价入口；partial 最低价起 + 弱标记；none 零变化 */
+                  const inqState = resolveInquiryState(item);
+                  const inquiryHref = withInquiryParam(href);
                   return (
                     <div className="dec-pc-product__item" key={item.productId ?? item.productSn ?? index}>
                       <Link target="_blank" href={href} className="dec-pc-product__card">
@@ -1057,10 +1065,33 @@ function PcProduct({ module, initialData }: ModuleProps) {
                           <div className="dec-pc-product__bottom">
                             {showPrice ? (
                               <div className="dec-pc-product__price" style={priceFontStyle}>
-                                {formatDisplayPrice(item.productPrice)}
+                                {inqState === 'all'
+                                  ? '询价'
+                                  : inqState === 'partial'
+                                    ? (
+                                      <>
+                                        {formatDisplayPrice(item.minPricedPrice ?? item.productPrice)}
+                                        {' 起'}
+                                        <span className="dec-pc-product__inquiry-note">部分型号询价</span>
+                                      </>
+                                    )
+                                    : formatDisplayPrice(item.productPrice)}
                               </div>
                             ) : null}
-                            {buyBtnConfig.show ? (
+                            {inqState === 'all' ? (
+                              /* 全询价：购买按钮换「询价」，跳详情页自动打开留资表单 */
+                              <div
+                                className="dec-pc-product__buy"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                }}
+                              >
+                                <Link target="_blank" href={inquiryHref} className="dec-buy-btn dec-buy-btn--6">
+                                  <span className="dec-buy-btn__text">询价</span>
+                                </Link>
+                              </div>
+                            ) : buyBtnConfig.show ? (
                               <div
                                 className="dec-pc-product__buy"
                                 onClick={(event) => {
@@ -1675,13 +1706,17 @@ function HomeHero({ module, initialData }: ModuleProps) {
   const renderCardProducts = (card: any) => (
     <div className="dec-pc-home-hero__card-products">
       {Array.isArray(card.products) && card.products.length ? (
-        card.products.slice(0, 2).map((product: any, index: number) => (
+        card.products.slice(0, 2).map((product: any, index: number) => {
+          /* 询价口径与其它卡片一致：all 显示「询价」且点击直达详情留资表单；partial 最低价起 + 弱标记 */
+          const inqState = resolveInquiryState(product);
+          const detailHref = productDetailHref(product);
+          return (
           <div
             className="dec-pc-home-hero__card-product"
             key={index}
             onClick={(event) => {
               event.stopPropagation();
-              openLink(productDetailHref(product));
+              openLink(inqState === 'all' ? withInquiryParam(detailHref) : detailHref);
             }}
           >
             <div className="dec-pc-home-hero__card-img-box">
@@ -1702,9 +1737,19 @@ function HomeHero({ module, initialData }: ModuleProps) {
                 </div>
               ) : null}
             </div>
-            {card.showPrice !== 0 ? <div className="dec-pc-home-hero__card-price">{formatDisplayPrice(product.productPrice ?? product.price)}</div> : null}
+            {card.showPrice !== 0 ? (
+              <div className="dec-pc-home-hero__card-price">
+                {inqState === 'all'
+                  ? '询价'
+                  : inqState === 'partial'
+                    ? `${formatDisplayPrice(product.minPricedPrice ?? product.productPrice ?? product.price)} 起`
+                    : formatDisplayPrice(product.productPrice ?? product.price)}
+              </div>
+            ) : null}
+            {inqState === 'partial' && card.showPrice !== 0 ? <div className="dec-pc-home-hero__card-inquiry-note">部分型号询价</div> : null}
           </div>
-        ))
+          );
+        })
       ) : null}
     </div>
   );
@@ -2324,7 +2369,7 @@ function Seckill({ module, initialData }: ModuleProps) {
                                   <FormatPrice className="price-miaosha" value={product.seckillPrice ?? product.productPrice} />
                                 </div>
                                 {Number(product.productPrice || product.marketPrice) > 0 ? (
-                                  <FormatPrice className="price-origin" value={product.productPrice ?? product.marketPrice} displayPrice />
+                                  <FormatPrice className="price-origin" value={product.productPrice ?? product.marketPrice} />
                                 ) : null}
                               </div>
                             </div>
@@ -2543,7 +2588,7 @@ function Groupon({ module, initialData }: ModuleProps) {
                             <div className="groupon-item__price" style={{ flexDirection: Number(module.textAlign) === 1 ? 'row' : 'column' }}>
                               <div className="price-wrapper">
                                 <FormatPrice className="price-miaosha" value={item.minGrouponPrice ?? item.grouponPrice} />
-                                {Number(item.productPrice) > 0 ? <FormatPrice className="price-origin" value={item.productPrice} displayPrice /> : null}
+                                {Number(item.productPrice) > 0 ? <FormatPrice className="price-origin" value={item.productPrice} /> : null}
                               </div>
                               {buyBtn.show ? (
                                 <div className="buy">
@@ -3941,17 +3986,38 @@ const showPrice = Number((module as any).showProductPrice ?? 1) === 1;
                     </Link>
                   </div>
                 ) : null}
-                {showPrice ? <div className="dec-recommend-product__price">{formatDisplayPrice(product.productPrice)}</div> : null}
+                {showPrice ? (
+                  <div className="dec-recommend-product__price">
+                    {resolveInquiryState(product) === 'all'
+                      ? '询价'
+                      : resolveInquiryState(product) === 'partial'
+                        ? (
+                          <>
+                            {formatDisplayPrice(product.minPricedPrice ?? product.productPrice)}
+                            {' 起'}
+                            <span className="dec-recommend-product__inquiry-note">部分型号询价</span>
+                          </>
+                        )
+                        : formatDisplayPrice(product.productPrice)}
+                  </div>
+                ) : null}
               </div>
               <div className="dec-recommend-product__operate">
                 <Link className="dec-recommend-product__detail" href={productDetailHref(product)} target="_blank">{t('查看详情')}</Link>
-                <button
-                  type="button"
-                  className={`dec-recommend-product__buy${productSoldOut(product) ? ' is-disabled' : ''}`}
-                  onClick={() => void buyProduct(product, { isQuick: Number((product as any).productType ?? 1) !== 1 ? 1 : 0 })}
-                >
-                  {buyText((product as any).productType)}
-                </button>
+                {resolveInquiryState(product) === 'all' ? (
+                  /* 全询价：购买按钮换「询价」，跳详情页自动打开留资表单 */
+                  <Link className="dec-recommend-product__buy" href={withInquiryParam(productDetailHref(product))} target="_blank">
+                    询价
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    className={`dec-recommend-product__buy${productSoldOut(product) ? ' is-disabled' : ''}`}
+                    onClick={() => void buyProduct(product, { isQuick: Number((product as any).productType ?? 1) !== 1 ? 1 : 0 })}
+                  >
+                    {buyText((product as any).productType)}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -4272,8 +4338,12 @@ function ProductGroup({ module, initialData }: ModuleProps) {
             ) : products.length ? (
               products.map((product, index) => {
                 const tags = activityTagsOf(promotions, product.productId);
+                /* 询价口径：all 价格位「询价」且不露划线价、按钮换询价入口；partial 用有价型号最低价 + 「起」+ 弱标记 */
+                const inqState = resolveInquiryState(product);
+                const detailHref = product.seoLink || `/product/${product.productSn || product.productId || ''}`;
+                const inquiryHref = withInquiryParam(detailHref);
                 /* 价格走全站展示口径 splitDisplayPrice：达门槛按币种阶梯缩写（¥670万 / $1.5M），未达门槛小数固定两位 */
-                const price = splitDisplayPrice(product.productPrice ?? 0);
+                const price = splitDisplayPrice(inqState === 'partial' ? (product.minPricedPrice ?? product.productPrice ?? 0) : (product.productPrice ?? 0));
                 const marketPrice = splitDisplayPrice((product as any).marketPrice ?? 0);
                 return (
                 // 旧 listStyle=5 瀑布：index%3===0 的项占满整行，其余两项各占一半
@@ -4282,7 +4352,7 @@ function ProductGroup({ module, initialData }: ModuleProps) {
                   key={product.productSn || product.productId || index}
                   style={listStyle === 5 && index % 3 === 0 ? { gridColumn: '1 / -1' } : undefined}
                 >
-                  <Link className="dec-product-group__card" href={product.seoLink || `/product/${product.productSn || product.productId || ''}`} target="_blank">
+                  <Link className="dec-product-group__card" href={detailHref} target="_blank">
                     <div className="dec-product-group__image">
                       <img className="dec-product-group__image-inner" src={product.picUrl || product.picThumb || ''} alt={product.productName || ''} loading="lazy" />
                     </div>
@@ -4302,41 +4372,63 @@ function ProductGroup({ module, initialData }: ModuleProps) {
                       ) : null}
                       <div className="dec-product-group__price-box">
                         <div className="dec-product-group__price-row">
-                          {/* 旧 FormatPrice 三段式：￥16px + 整数 28px/600 + 小数 16px，色 var(--primary-dark-2) */}
+                          {/* 旧 FormatPrice 三段式：￥16px + 整数 28px/600 + 小数 16px，色 var(--primary-dark-2)；
+                              询价 all 时整个三段式换成「询价」二字（沿用 __price-int 字号），partial 在后缀后加「起」 */}
                           {showPrice ? (
-                            <span className="dec-product-group__price">
-                              <span className="dec-product-group__price-currency">{price.symbol || '￥'}</span>
-                              <span className="dec-product-group__price-int">{price.integer}</span>
-                              <span className="dec-product-group__price-dec">{price.decimals}</span>
-                              {price.suffix ? <span className="dec-product-group__price-dec">{price.suffix}</span> : null}
-                            </span>
+                            inqState === 'all' ? (
+                              <span className="dec-product-group__price">
+                                <span className="dec-product-group__price-int">询价</span>
+                              </span>
+                            ) : (
+                              <span className="dec-product-group__price">
+                                <span className="dec-product-group__price-currency">{price.symbol || '￥'}</span>
+                                <span className="dec-product-group__price-int">{price.integer}</span>
+                                <span className="dec-product-group__price-dec">{price.decimals}</span>
+                                {price.suffix ? <span className="dec-product-group__price-dec">{price.suffix}</span> : null}
+                                {inqState === 'partial' ? <span className="dec-product-group__price-dec">起</span> : null}
+                              </span>
+                            )
                           ) : null}
-                          {showCrossed && Number((product as any).marketPrice) > 0 ? (
-                            <span className="dec-product-group__price-origin">
+                          {inqState === 'partial' && showPrice ? <span className="dec-product-group__inquiry-note">部分型号询价</span> : null}
+                          {showCrossed && inqState !== 'all' ? (
+                            <s className="dec-product-group__price-origin">
                               <span className="dec-product-group__price-origin-currency">{marketPrice.symbol || '￥'}</span>
-                              <s>
-                                {marketPrice.integer}
-                                {marketPrice.decimals}
-                                {marketPrice.suffix}
-                              </s>
-                            </span>
+                              {marketPrice.integer}
+                              {marketPrice.decimals}
+                              {marketPrice.suffix}
+                            </s>
                           ) : null}
                         </div>
                         {showBuy ? (
-                          <button
-                            type="button"
-                            className={`dec-product-group__cart-btn${buyBtn.style >= 5 && buyBtn.style <= 8 ? ` dec-product-group__cart-btn--text-${buyBtn.style <= 6 ? 'outline' : 'solid'}` : ''}${productSoldOut(product) ? ' is-disabled' : ''}`}
-                            style={buyBtn.iconColor ? { color: buyBtn.iconColor } : undefined}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              void buyProduct(product);
-                            }}
-                          >
-                            <span className="dec-product-group__cart-inner">
-                              <BuyButtonVisual style={buyBtn.style} customIcon={buyBtn.customIcon} />
-                            </span>
-                          </button>
+                          inqState === 'all' ? (
+                            /* 全询价：购物车按钮换「询价」，跳详情页自动打开留资表单（整卡本身是详情链接，故用 window.open 带参） */
+                            <button
+                              type="button"
+                              className="dec-product-group__cart-btn dec-product-group__cart-btn--text-solid"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                window.open(inquiryHref, '_blank');
+                              }}
+                            >
+                              <span className="dec-product-group__cart-inner">询价</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className={`dec-product-group__cart-btn${buyBtn.style >= 5 && buyBtn.style <= 8 ? ` dec-product-group__cart-btn--text-${buyBtn.style <= 6 ? 'outline' : 'solid'}` : ''}${productSoldOut(product) ? ' is-disabled' : ''}`}
+                              style={buyBtn.iconColor ? { color: buyBtn.iconColor } : undefined}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                void buyProduct(product);
+                              }}
+                            >
+                              <span className="dec-product-group__cart-inner">
+                                <BuyButtonVisual style={buyBtn.style} customIcon={buyBtn.customIcon} />
+                              </span>
+                            </button>
+                          )
                         ) : null}
                       </div>
                       {/* 原版 __shop：多商户显示 shop.shopTitle，否则「官方自营」 */}
@@ -4646,7 +4738,7 @@ function ContractCatProductSimple({ module, initialData }: ModuleProps) {
                       </div>
                       {item.marketPrice && Number(item.marketPrice) > 0 ? (
                         <div className="oldprice">
-                          <FormatPrice value={item.marketPrice} displayPrice />
+                          <FormatPrice value={item.marketPrice} />
                         </div>
                       ) : null}
                     </div>

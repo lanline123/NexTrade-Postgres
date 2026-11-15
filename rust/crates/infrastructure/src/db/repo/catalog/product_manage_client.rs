@@ -120,7 +120,8 @@ impl ProductManageClientRepository {
         Ok((u64::try_from(total).unwrap_or(0), rows))
     }
 
-    /// 商品询价写入（Java `ProductService.priceInquiry`）。
+    /// 商品询价写入（Java `ProductService.priceInquiry`；
+    /// 2026-11-15 扩留资列 company_name / job_title / sku_id / sku_value）。
     #[allow(clippy::too_many_arguments)]
     pub async fn insert_price_inquiry(
         &self,
@@ -131,10 +132,14 @@ impl ProductManageClientRepository {
         shop_id: i32,
         user_id: i32,
         create_time: i32,
+        company_name: Option<&str>,
+        job_title: Option<&str>,
+        sku_id: Option<i32>,
+        sku_value: Option<&str>,
     ) -> Result<()> {
         sqlx::query(
-            "INSERT INTO price_inquiry (mobile, email, content, product_id, remark, status, shop_id, user_id, user_is_del, create_time) \
-             VALUES ($1, $2, $3, $4, '', 0, $5, $6, 0, $7)",
+            "INSERT INTO price_inquiry (mobile, email, content, product_id, remark, status, shop_id, user_id, user_is_del, create_time, company_name, job_title, sku_id, sku_value) \
+             VALUES ($1, $2, $3, $4, '', 0, $5, $6, 0, $7, $8, $9, $10, $11)",
         )
         .bind(mobile)
         .bind(email)
@@ -143,9 +148,26 @@ impl ProductManageClientRepository {
         .bind(shop_id)
         .bind(user_id)
         .bind(create_time)
+        .bind(company_name)
+        .bind(job_title)
+        .bind(sku_id)
+        .bind(sku_value)
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
         Ok(())
+    }
+
+    /// 同手机号自 `since`（秒级时间戳）以来的询价提交次数（提交限频用）。
+    pub async fn count_recent_price_inquiries(&self, mobile: &str, since: i32) -> Result<i64> {
+        let row: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM price_inquiry WHERE mobile = $1 AND create_time >= $2",
+        )
+        .bind(mobile)
+        .bind(since)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0)
     }
 }

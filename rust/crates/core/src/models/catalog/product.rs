@@ -66,6 +66,12 @@ pub struct ProductVO {
     pub price: Option<Decimal>,
     /// 推荐卡片兼容字段：前端读取 `product.virtualSales`
     pub virtual_sales: i32,
+    /// 是否询价商品（商品级原始标志）：0 否 1 是（2026-11-15）
+    pub is_inquiry: i32,
+    /// 询价派生态：`none` / `partial` / `all`（按启用 SKU 推导，2026-11-15）
+    pub inquiry_state: String,
+    /// 有价型号最低价（全询价为 `None`；卡片「最低价起」口径，2026-11-15）
+    pub min_priced_price: Option<Decimal>,
     /// 上架时间（库中为 int unsigned 秒级时间戳）
     pub add_time: i32,
     // —— 原 Java exist=false 的门店扩展字段 ——

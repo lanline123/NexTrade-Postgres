@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Checkbox, DatePicker, Input, InputNumber, Modal, Radio, RadioGroup, Select, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Checkbox, DatePicker, Input, InputNumber, Modal, Radio, RadioGroup, Select, Switch, Toast, Typography } from '@douyinfe/semi-ui';
 
 const { Text } = Typography;
 import { apiGet, apiPost, isDemo } from '../api';
@@ -30,6 +30,9 @@ interface ShippingTpl {
   shippingTplName: string;
 }
 
+/** 询价标志归一：后端 JSON 与表单值可能是 boolean 或 0/1 数字。 */
+const isInquiryOn = (value: any) => value === true || Number(value) === 1;
+
 const emptyValues: Record<string, any> = {
   productType: 1,
   productName: '',
@@ -49,6 +52,7 @@ const emptyValues: Record<string, any> = {
   keywords: '',
   productWeight: 0,
   saleMode: 0,
+  isInquiry: 0,
   limitNumber: 0,
   shippingTplId: undefined,
   freeShipping: true,
@@ -82,7 +86,7 @@ function SkuEditor({ formApi, values }: { formApi: any; values: Record<string, a
   const addRow = () => {
     setRows([
       ...rows,
-      { skuValue: '', skuSn: '', skuPrice: 0, marketPrice: 0, costPrice: 0, skuStock: 0 },
+      { skuValue: '', skuSn: '', skuPrice: 0, marketPrice: 0, costPrice: 0, skuStock: 0, isInquiry: 0 },
     ]);
   };
 
@@ -109,6 +113,7 @@ function SkuEditor({ formApi, values }: { formApi: any; values: Record<string, a
             <span>{t('市场价')}</span>
             <span>{t('成本价')}</span>
             <span>{t('库存')}</span>
+            <span>{t('询价')}</span>
             <span />
           </div>
           {rows.map((row, index) => (
@@ -127,12 +132,14 @@ function SkuEditor({ formApi, values }: { formApi: any; values: Record<string, a
                 value={row.skuPrice}
                 min={0}
                 precision={2}
+                disabled={isInquiryOn(row.isInquiry)}
                 onChange={(value) => updateRow(index, 'skuPrice', value)}
               />
               <InputNumber
                 value={row.marketPrice}
                 min={0}
                 precision={2}
+                disabled={isInquiryOn(row.isInquiry)}
                 onChange={(value) => updateRow(index, 'marketPrice', value)}
               />
               <InputNumber
@@ -146,6 +153,10 @@ function SkuEditor({ formApi, values }: { formApi: any; values: Record<string, a
                 min={0}
                 precision={0}
                 onChange={(value) => updateRow(index, 'skuStock', value)}
+              />
+              <Switch
+                checked={isInquiryOn(row.isInquiry)}
+                onChange={(checked) => updateRow(index, 'isInquiry', checked ? 1 : 0)}
               />
               <Button
                 theme="borderless"
@@ -268,6 +279,7 @@ export default function ProductFormDrawer({
           keywords: detail.keywords || '',
           productWeight: Number(detail.productWeight || 0),
           saleMode: Number(detail.saleMode || 0),
+          isInquiry: Number(detail.isInquiry || 0) === 1,
           limitNumber: Number(detail.limitNumber || 0),
           shippingTplId: detail.shippingTplId || undefined,
           freeShipping: Number(detail.freeShipping || 0) === 1,
@@ -291,6 +303,7 @@ export default function ProductFormDrawer({
             marketPrice: Number(sku.marketPrice || 0),
             costPrice: Number(sku.costPrice || 0),
             skuStock: Number(sku.skuStock || 0),
+            isInquiry: Number(sku.isInquiry || 0),
           })),
           productServiceIds: detail.productServiceIds || [],
           productRelated: detail.productRelated || [],
@@ -529,8 +542,43 @@ export default function ProductFormDrawer({
                   { label: t('预售模式'), value: 1 },
                 ],
               },
-              { field: 'productPrice', label: t('销售价'), type: 'number' },
-              { field: 'marketPrice', label: t('市场价'), type: 'number' },
+              {
+                field: 'isInquiry',
+                label: t('询价商品'),
+                type: 'switch',
+                checkedText: t('询价'),
+                uncheckedText: t('正常售卖'),
+              },
+              {
+                // 询价开启时禁用填价：框架 number 字段的 disabled 是静态配置，
+                // 故走 custom 渲染读实时 values 联动（值仍经 formApi.setValue 进表单状态）。
+                field: 'productPrice',
+                label: t('销售价'),
+                type: 'custom',
+                render: ({ formApi, values }) => (
+                  <InputNumber
+                    value={values.productPrice}
+                    min={0}
+                    disabled={isInquiryOn(values.isInquiry)}
+                    onChange={(value) => formApi?.setValue('productPrice', value)}
+                    style={{ width: 420 }}
+                  />
+                ),
+              },
+              {
+                field: 'marketPrice',
+                label: t('市场价'),
+                type: 'custom',
+                render: ({ formApi, values }) => (
+                  <InputNumber
+                    value={values.marketPrice}
+                    min={0}
+                    disabled={isInquiryOn(values.isInquiry)}
+                    onChange={(value) => formApi?.setValue('marketPrice', value)}
+                    style={{ width: 420 }}
+                  />
+                ),
+              },
               { field: 'costPrice', label: t('成本价'), type: 'number' },
               { field: 'productStock', label: t('库存'), type: 'number' },
               { field: 'limitNumber', label: t('限购数量'), type: 'number' },
@@ -748,6 +796,7 @@ export default function ProductFormDrawer({
           isHot: values.isHot ? 1 : 0,
           isSupportReturn: values.isSupportReturn ? 1 : 0,
           isSupportCod: values.isSupportCod ? 1 : 0,
+          isInquiry: values.isInquiry ? 1 : 0,
           skuType: Number(values.skuType || 1),
           productList:
             Number(values.skuType) === 2
@@ -759,6 +808,7 @@ export default function ProductFormDrawer({
                   marketPrice: row.marketPrice,
                   costPrice: row.costPrice,
                   skuStock: row.skuStock,
+                  isInquiry: row.isInquiry ? 1 : 0,
                   isEnabled: 1,
                   skuData: [{ name: '规格', value: row.skuValue }],
                   attrValues: [row.skuValue],

@@ -408,3 +408,24 @@
   color: #fff;
   font-size: 14px;
 }
+
+/* 询价态（全站口径）：「询价」文字钮脱离 32px 圆形钮改胶囊几何（同 --6 实心款）；
+ * partial 的弱标记行（价格下方小灰字）。 */
+.product-card-container .price-wrap .buy .view_detail--inquiry {
+  width: auto;
+  height: 32px;
+  padding: 0 15px;
+  border: 1px solid var(--general, var(--pc-primary));
+  border-radius: 20px;
+  background: var(--general, var(--pc-primary));
+  color: #fff;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.product-card-container .inquiry-note {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #999;
+}

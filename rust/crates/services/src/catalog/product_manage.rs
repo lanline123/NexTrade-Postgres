@@ -50,6 +50,7 @@ use nextrade_core::models::catalog::product_manage::{
     ProductGalleryVO, ProductListItemVO, ProductSaveDTO, ProductSkuSaveDTO, ProductSkuVO,
     ProductVideoVO, ServicesVO,
 };
+use nextrade_core::models::catalog::product_manage_client::{inquiry_summary, InquirySummary};
 use nextrade_core::models::catalog::product_sale::ProductSaleState;
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
@@ -1066,10 +1067,12 @@ impl ProductManageService {
         let sku_list: Vec<ProductSkuVO> = skus.iter().map(to_sku_vo).collect();
         let attr_list = group_attributes(&attrs);
         let delivery_mode = product.delivery_mode;
+        // 询价派生态（按最终口径的启用 SKU 推导；门店覆盖只改价/库存不改标志）
+        let inquiry = inquiry_summary(&product, &skus);
 
         Ok(ClientProductDetailVO {
             shop_id: product.shop_id,
-            item: to_client_info(&product),
+            item: to_client_info(&product, &inquiry),
             desc_arr: desc_arr_from_html(product.product_desc.as_deref().unwrap_or("")),
             sku_list,
             pic_list: gallery.iter().map(to_gallery_vo).collect(),
@@ -1199,9 +1202,13 @@ impl ProductManageService {
                 .ok_or_else(|| Error::biz(400, ERR_SKU_NOT_EXIST))?;
             let target_status = normalize_sku_enabled(item.is_enabled)?;
             let merged = if db_sku.is_enabled == 0 || target_status != db_sku.is_enabled {
-                // 原为禁用 / 状态变化：保留库中原值，只改启用状态
+                // 原为禁用 / 状态变化：保留库中原值，只改启用状态；
+                // 询价开关为例外——它是编辑器里的独立开关，提交了就按提交值落库
                 let mut preserved = db_sku.clone();
                 preserved.is_enabled = target_status;
+                if let Some(v) = item.is_inquiry {
+                    preserved.is_inquiry = i32::from(v != 0);
+                }
                 preserved
             } else {
                 build_sku_from_dto(item, product_id, Some(db_sku))?
@@ -1789,6 +1796,7 @@ fn apply_dto_to_product(product: &mut Product, dto: ProductSaveDTO, is_create: b
     set_opt!(product_price, dto.product_price);
     set_opt!(market_price, dto.market_price);
     set_some!(cost_price, dto.cost_price);
+    set_opt!(is_inquiry, dto.is_inquiry);
     // \"shipping_tpl_id\"：Java DTO 为 Long，库列为 mediumint（i32）
     if let Some(v) = dto.shipping_tpl_id {
         product.shipping_tpl_id = i32::try_from(v).unwrap_or(product.shipping_tpl_id);
@@ -2115,6 +2123,7 @@ fn to_admin_detail(
         product_price: p.product_price,
         market_price: p.market_price,
         cost_price: p.cost_price,
+        is_inquiry: p.is_inquiry,
         shipping_tpl_id: i64::from(p.shipping_tpl_id),
         product_status: p.product_status,
         product_type: p.product_type,
@@ -2237,6 +2246,7 @@ fn to_sku_vo(s: &ProductSku) -> ProductSkuVO {
         sku_weight: s.sku_weight,
         sku_volume: s.sku_volume,
         sku_price: s.sku_price,
+        is_inquiry: s.is_inquiry,
         is_enabled: s.is_enabled,
         market_price: s.market_price,
         cost_price: s.cost_price,
@@ -2271,6 +2281,11 @@ fn build_sku_from_dto(
         sku_stock: item.sku_stock.or(base.sku_stock),
         sku_tsn: item.sku_tsn.clone().or_else(|| base.sku_tsn.clone()),
         sku_price: item.sku_price.or(base.sku_price),
+        // 询价开关归一化为 0/1；不传保持库中原值
+        is_inquiry: item
+            .is_inquiry
+            .map(|v| i32::from(v != 0))
+            .unwrap_or(base.is_inquiry),
         sku_weight: item.sku_weight.or(base.sku_weight),
         sku_volume: item.sku_volume.or(base.sku_volume),
         is_enabled: normalize_sku_enabled(item.is_enabled)?,
@@ -2356,7 +2371,7 @@ fn to_brand_option(b: &Brand) -> BrandOptionVO {
 }
 
 /// 商品实体 → 前台详情主体（对应 Java \"ProductInfoDTO\" 的可迁移部分）。
-fn to_client_info(p: &Product) -> ClientProductInfoVO {
+fn to_client_info(p: &Product, inquiry: &InquirySummary) -> ClientProductInfoVO {
     // 虚拟类商品不管理库存，库里常为 0；原版前端用 productStock > 0 判断售罄。
     let product_stock = if p.is_virtual_product() {
         999_999
@@ -2373,6 +2388,9 @@ fn to_client_info(p: &Product) -> ClientProductInfoVO {
         product_price: p.product_price,
         market_price: p.market_price,
         cost_price: p.cost_price,
+        is_inquiry: inquiry.is_inquiry,
+        inquiry_state: inquiry.state.to_string(),
+        min_priced_price: inquiry.min_priced_price,
         product_brief: p.product_brief.clone(),
         product_desc: p.product_desc.clone(),
         pic_url: p.pic_url.clone(),

@@ -407,6 +407,19 @@ fn to_product_vo(p: &Product) -> ProductVO {
         sales: p.virtual_sales,
         price: Some(p.product_price),
         virtual_sales: p.virtual_sales,
+        // 询价三字段与 catalog/product.rs 的 to_vo 同口径（此处无 SKU 上下文，
+        // 按商品级推导；SKU 级混合态以列表/详情接口为准）
+        is_inquiry: p.is_inquiry,
+        inquiry_state: if p.is_inquiry == 1 {
+            "all".to_string()
+        } else {
+            "none".to_string()
+        },
+        min_priced_price: if p.is_inquiry == 1 {
+            None
+        } else {
+            Some(p.product_price)
+        },
         add_time: p.add_time,
         store_product_name: None,
         store_product_price: None,

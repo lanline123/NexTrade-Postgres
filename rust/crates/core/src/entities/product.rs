@@ -236,6 +236,18 @@ pub struct PriceInquiry {
     pub user_is_del: i32,
     /// 创建时间
     pub create_time: Option<i32>,
+    /// 公司名称（询价留资扩列，2026-11-15；旧数据为 NULL）
+    #[sqlx(default)]
+    pub company_name: Option<String>,
+    /// 职务（询价留资扩列，2026-11-15；旧数据为 NULL）
+    #[sqlx(default)]
+    pub job_title: Option<String>,
+    /// 询价针对的 SKU id（询价留资扩列，2026-11-15；商品级询价为 NULL）
+    #[sqlx(default)]
+    pub sku_id: Option<i32>,
+    /// 询价针对的规格文本快照（提交时从 SKU 行拷贝，防后续改规格失真）
+    #[sqlx(default)]
+    pub sku_value: Option<String>,
 }
 
 impl PriceInquiry {
@@ -440,6 +452,10 @@ pub struct Product {
     pub server_service_fee_type: i32,
     /// 服务员服务费值（平台层，仅单规格商品使用）：固定金额(元)或按比例(%) [NOT NULL]
     pub server_service_fee_value: Decimal,
+    /// 是否询价商品（商品级总开关）：0 否 1 是（2026-11-15 加列，
+    /// 型号级覆盖见 `product_sku.is_inquiry`）
+    #[sqlx(default)]
+    pub is_inquiry: i32,
 }
 
 impl Product {
@@ -957,6 +973,10 @@ pub struct ProductSku {
     pub server_service_fee_value: Decimal,
     /// 供应商商品规格 ID
     pub vendor_product_sku_id: Option<i32>,
+    /// 是否询价型号（型号级开关）：0 否 1 是（2026-11-15 加列；
+    /// 与商品级 `product.is_inquiry` 任一为 1 即该型号询价）
+    #[sqlx(default)]
+    pub is_inquiry: i32,
 }
 
 impl ProductSku {
