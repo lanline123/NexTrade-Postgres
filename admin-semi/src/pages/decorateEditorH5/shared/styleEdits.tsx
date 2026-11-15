@@ -48,7 +48,7 @@ export function SettingsTabs({ tabs, children }: { tabs: string[]; children: Rea
         <div className="h5-settings-tabs">
             <div
                 className="h5-settings-tabs-head"
-                style={{ display: "flex", borderBottom: "1px solid #ebeef5", margin: "0 -16px 6px", padding: "0 16px" }}
+                style={{ display: "flex", flexWrap: "wrap", gap: 6, borderBottom: "1px solid #f2f4f6", margin: 0, padding: "12px 14px 8px" }}
             >
                 {tabs.map((label, i) => (
                     <div
@@ -56,14 +56,14 @@ export function SettingsTabs({ tabs, children }: { tabs: string[]; children: Rea
                         onClick={() => setActive(i)}
                         style={{
                             padding: "0 14px",
-                            height: 40,
-                            lineHeight: "40px",
-                            fontSize: 14,
+                            height: 32,
+                            lineHeight: "32px",
+                            fontSize: 13,
                             cursor: "pointer",
-                            color: active === i ? "#155bd4" : "#969799",
-                            fontWeight: active === i ? 600 : 400,
-                            borderBottom: active === i ? "2px solid #155bd4" : "2px solid transparent",
-                            marginBottom: -1
+                            borderRadius: 7,
+                            background: active === i ? "var(--semi-color-primary)" : "#f2f4f7",
+                            color: active === i ? "#fff" : "#475467",
+                            fontWeight: active === i ? 600 : 400
                         }}
                     >
                         {t(label)}

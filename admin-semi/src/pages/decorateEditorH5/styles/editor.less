@@ -421,6 +421,62 @@
     }
 }
 
+// ---------------- 右侧面板外壳向 PC 现行口径对齐（2026-11-15 用户反馈：H5 右侧与 PC 编辑器不一致） ----------------
+// ① 内容区卡片化：PC .pc-module-settings__body 是 margin 12px + 1px #eaecf0 边框 + 10px 圆角的白卡，
+//    H5 此前内容全幅贴边、无卡感。滚动底部留白改由 .decorate-edit-con 的 :after 100px 占位承担（decorate.css 原有），
+//    故此处 padding-bottom 归 0（原 .h5-editor-settings-body 的 100px 是贴边布局时代的留白）。
+.h5-editor-root .h5-editor-settings-body {
+    margin: 12px;
+    padding-bottom: 0;
+    border: 1px solid #eaecf0;
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+}
+
+// ② 分组标题带：PC 现行 .dec-edit-title-box（decorate-editor.css 现代化段）为 #f8fafc 底、13px/650 #344054、
+//    3px 主题色竖条（::before，var(--semi-color-primary)）；H5 此前是原版老样式（#f5f5f5 底 + #155bd4 蓝条 + 14px #333）。
+.h5-editor-root .h5-editor-settings .dec-edit-title-box {
+    padding: 10px 14px;
+    margin-bottom: 0;
+    background: #f8fafc;
+    border-bottom: 1px solid #f0f2f5;
+
+    .title {
+        position: relative;
+        padding-left: 10px;
+        border-left: none;
+        color: #344054;
+        font-size: 13px;
+        font-weight: 650;
+    }
+
+    .title::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 3px;
+        bottom: 3px;
+        width: 3px;
+        border-radius: 3px;
+        background: var(--semi-color-primary);
+    }
+}
+
+// ③ 输入类控件圆角与 PC 现代化段统一 7px
+.h5-editor-root .h5-editor-settings {
+    .semi-input-wrapper,
+    .semi-input-number,
+    .semi-select {
+        border-radius: 7px;
+    }
+}
+
+// ④ 画布底色与 PC 编辑器统一 #eef1f6（H5 此前 #f7f8fa，与白色面板几乎同色、边界发虚）
+.h5-editor-root .decorate-page-wrap {
+    background: #eef1f6;
+}
+
 // 分组容器本身不再加内边距（字段行 .dec-edit-group 自带 12px 14px，PC 口径）；
 // 组内非字段行子元素（提示文案、自定义控件根）补齐左右 14px
 .h5-editor-setting-group {
