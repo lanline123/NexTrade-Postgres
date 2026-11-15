@@ -88,7 +88,11 @@ export function useOauthLogin(): {
   return { switches, start, anyEnabled: switches.google || switches.facebook || switches.twitter };
 }
 
-/** 第三方登录按钮组（登录页 / 注册页共用） */
+/**
+ * 第三方登录按钮组（登录页 / 注册页共用）。
+ * 只渲染品牌图标，不显示品牌文字（用户 2026-11-15 指示）；品牌名保留在
+ * 按钮的 aria-label / title 里，供无障碍与悬停提示使用。
+ */
 export function OauthButtons({
   switches,
   onStart,
@@ -101,21 +105,18 @@ export function OauthButtons({
   return (
     <div className="pdp-login__oauth">
       {switches.google ? (
-        <button type="button" className="pdp-login__oauth-item" onClick={() => onStart('google')}>
+        <button type="button" className="pdp-login__oauth-item" aria-label="Google" title="Google" onClick={() => onStart('google')}>
           <img className="pdp-login__oauth-logo" src="/assets/images/user/login/google.png" alt="" />
-          <span>Google</span>
         </button>
       ) : null}
       {switches.facebook ? (
-        <button type="button" className="pdp-login__oauth-item" onClick={() => onStart('facebook')}>
+        <button type="button" className="pdp-login__oauth-item" aria-label="Facebook" title="Facebook" onClick={() => onStart('facebook')}>
           <img className="pdp-login__oauth-logo" src="/assets/images/user/login/Facebook.png?v=2" alt="" />
-          <span>Facebook</span>
         </button>
       ) : null}
       {switches.twitter ? (
-        <button type="button" className="pdp-login__oauth-item" onClick={() => onStart('twitter')}>
+        <button type="button" className="pdp-login__oauth-item" aria-label="Twitter/X" title="Twitter/X" onClick={() => onStart('twitter')}>
           <img className="pdp-login__oauth-logo" src="/assets/images/user/login/twitter.svg" alt="" />
-          <span>Twitter/X</span>
         </button>
       ) : null}
     </div>
