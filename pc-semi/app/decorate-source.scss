@@ -9001,15 +9001,13 @@ position: relative;
  * 组件背景由 frame.itemBackgroundColor 以内联 background-color 提供；
  * 此处禁止再叠加 background-image 渐变（会盖住用户选的颜色，且渐变色无法配置）。 */
 .module-notice .item-notice-con {
-    border: 1px solid rgba(20, 86, 240, .10);
-    /* 常驻阴影已去掉（2026-11-15 用户反馈外圈像有一圈阴影）：公告条保持扁平，
+    /* 常驻阴影与淡蓝边框均已去掉（2026-11-15 用户口径）：公告条完全扁平无外圈，
        仅保留 hover 时的浮起阴影 */
     padding: 0 14px;
-    transition: box-shadow .2s ease, border-color .2s ease;
+    transition: box-shadow .2s ease;
 }
 .module-notice .item-notice-con:hover {
     box-shadow: 0 6px 18px rgba(16, 24, 40, .09);
-    border-color: rgba(20, 86, 240, .20);
 }
 .module-notice .item-notice-ico {
     margin-left: 0;
