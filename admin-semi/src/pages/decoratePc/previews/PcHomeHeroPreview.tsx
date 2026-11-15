@@ -20,6 +20,7 @@
 import { useEffect, useState, type CSSProperties, type SyntheticEvent } from 'react';
 
 import { apiGet } from '../../../api';
+import FloorIcon from '../../../components/FloorIcon';
 import i18nInstance, { useI18n } from '../../../i18n';
 
 /** 非组件作用域的翻译：直接用 i18next 单例。 */
@@ -955,7 +956,9 @@ export default function PcHomeHeroPreview({ data }: { data: Record<string, any> 
                       onError={handleImgError}
                     />
                   ) : item.floorIcoFont ? (
-                    <em className={`${item.floorIcoFont} dec-pc-home-hero__cate-icon-font`} />
+                    <span className="dec-pc-home-hero__cate-icon-font">
+                      <FloorIcon value={item.floorIcoFont} size={18} />
+                    </span>
                   ) : (
                     <span className="dec-pc-home-hero__cate-icon-font">-</span>
                   )}

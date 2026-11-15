@@ -2857,6 +2857,36 @@
   line-height: 17px;
   text-align: center;
 }
+/* IconPark 选择器：搜索/分类行、计数行、格子内图标+中文名（格子改为纵向排布） */
+.ico-picker__tools {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px 0;
+}
+.ico-picker__count {
+  padding: 8px 14px 2px;
+  font-size: 12px;
+  color: #8a94a6;
+}
+.ico-picker__cell {
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 2px;
+}
+.ico-picker__cell-icon {
+  display: inline-flex;
+  line-height: 0;
+}
+.ico-picker__cell-name {
+  font-size: 10px;
+  line-height: 1.2;
+  color: #667085;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* 单图字段（公告图标 / LOGO 等）：缩略图 + 素材中心直选 + 恢复默认 */
 .dec-single-pic {

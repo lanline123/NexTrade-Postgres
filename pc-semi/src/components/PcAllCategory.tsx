@@ -14,6 +14,7 @@ import Link from 'next/link';
 import Down from '@icon-park/react/es/icons/Down';
 import HamburgerButton from '@icon-park/react/es/icons/HamburgerButton';
 import { ensureCatIcoCss } from '@/lib/cat-icon-css';
+import FloorIcon from './FloorIcon';
 
 import { useTranslation } from 'react-i18next';
 type CatNode = Record<string, any> & {
@@ -292,7 +293,7 @@ export default function PcAllCategory({ isWhite = false }: { isWhite?: boolean }
                           {floor.useImage === 1 && floor.imageUrl ? (
                             <img className="cate_menu_icon_img" src={floor.imageUrl} alt={floorNames(floor).join('/')} />
                           ) : floor.floorIcoFont ? (
-                            <span className={`floor-ico ${floor.floorIcoFont}`} />
+                            <FloorIcon value={floor.floorIcoFont} size={18} />
                           ) : null}
                         </span>
                         <div className="cate_menu_text">

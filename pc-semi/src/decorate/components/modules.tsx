@@ -11,6 +11,7 @@ import { imageFormat } from '@/lib/image';
 import { urlFormat } from '@/lib/link';
 import FormatPrice from '@/components/FormatPrice';
 import { ensureCatIcoCss } from '@/lib/cat-icon-css';
+import FloorIcon from '@/components/FloorIcon';
 import type { DecorateModule, PageModule } from '../types';
 import { imageUrl } from './common';
 import { CONTRACT_ADAPTERS, FLAT_FRAME, linkHref, type ContractRenderPlan } from './contract';
@@ -1776,7 +1777,7 @@ function HomeHero({ module, initialData }: ModuleProps) {
                     onMouseEnter={() => showSubView(index)}
                   >
                     <span className="dec-pc-home-hero__cate-icon" aria-hidden="true">
-                      {item.iconFont ? <i className={item.iconFont} /> : null}
+                      {item.iconFont ? <FloorIcon value={item.iconFont} size={17} /> : null}
                     </span>
                     <div className="dec-pc-home-hero__cate-text">
                       <div className="dec-pc-home-hero__cate-title">

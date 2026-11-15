@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card,
   Row,
@@ -47,6 +47,12 @@ import {
 import { apiGet, apiPost, isDemo } from '../api';
 import { useI18n } from '../i18n';
 import OptionSelectModal from '../components/OptionSelectModal';
+import FloorIcon from '../components/FloorIcon';
+import {
+  iconParkNameOf,
+  loadIconParkCatalog,
+  type IconParkEntry,
+} from '../components/iconpark';
 import ListPage from '../framework/ListPage';
 import { MobileDecoratePages } from './DecorateMobilePages';
 import type { ColumnConfig } from '../framework/types';
@@ -1228,23 +1234,13 @@ export function PcNavigation() {
 }
 
 /* =========================================================================
- * IcoSelect：ICO 编码选择器（数据链路对齐旧版 SelectIco.vue + views/ico/List.vue）
- * - 卡片化整体设计：上方「当前选择」预览区（大图标徽章 + 类名 + 清除按钮），
- *   下方 Tab 分「自定义图标库 / 官方图标库」网格，点选即回填
- * - 数据：GET /setting/config/getIcon
- *   返回 { icoTig, tigClass, icoDefined, definedClass }（Rust get_icon_settings，
- *   服务端实时抓取 icoTigCss / icoDefinedCss 两个字体 CSS 解析 :before 类名）
- * - 选中值 = `${fontFamily} ${iconClass}`，如 iconfont-tig icon-yingxiaoguanli
- *   / lyecs-defined-iconfont lyecs-defined-icon-dianchibao，与生产 floorIcoFont 一致
+ * IcoSelect：图标选择器（2026-11-15 起全面切换 IconPark，替代原 tig/自定义字体图标库）
+ * - 数据：/iconpark-catalog.json（IconPark 全量 2658 个图标，含中文名 / 中文分类 /
+ *   中文关键词 / 内嵌 SVG），支持按中文名、英文名、关键词搜索 + 按分类筛选
+ * - 选中值 = `iconpark:<kebab-name>`（如 iconpark:robot-one），写入 floorIcoFont
+ * - 旧 iconfont 类名值仍可经 FloorIcon 正常显示（过渡期双模式），在选择器里重选即替换
  * - 样式：decorate-editor.css 的 .ico-picker 系列
  * ========================================================================= */
-interface IcoIconData {
-  icoTig: string[];
-  tigClass: string;
-  icoDefined: string[];
-  definedClass: string;
-}
-
 export function IcoSelect({
   value,
   onChange,
@@ -1253,21 +1249,17 @@ export function IcoSelect({
   onChange: (v: string) => void;
 }) {
   const { t } = useI18n();
-  const [data, setData] = useState<IcoIconData | null>(null);
+  const [catalog, setCatalog] = useState<IconParkEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('');
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    apiGet<IcoIconData>('/setting/config/getIcon')
-      .then((res) => {
-        if (cancelled) return;
-        setData({
-          icoTig: Array.isArray(res?.icoTig) ? res.icoTig : [],
-          tigClass: res?.tigClass || '',
-          icoDefined: Array.isArray(res?.icoDefined) ? res.icoDefined : [],
-          definedClass: res?.definedClass || '',
-        });
+    loadIconParkCatalog()
+      .then((list) => {
+        if (!cancelled) setCatalog(list);
       })
       .catch((e: any) => {
         if (!cancelled) Toast.error(e.message || t('获取图标库失败'));
@@ -1281,45 +1273,60 @@ export function IcoSelect({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const renderGrid = (icons: string[], fontFamily: string) => (
-    <div className="ico-picker__grid">
-      {icons.map((item) => {
-        const val = fontFamily ? `${fontFamily} ${item}` : item;
-        const active = value === val;
-        return (
-          <div
-            key={val}
-            title={val}
-            onClick={() => onChange(val)}
-            className={`ico-picker__cell${active ? ' ico-picker__cell--active' : ''}`}
-          >
-            <i className={val} />
-          </div>
-        );
-      })}
-      {icons.length === 0 && <span style={{ color: '#bbb', fontSize: 12 }}>{t('暂无图标')}</span>}
-    </div>
-  );
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    (catalog || []).forEach((e) => {
+      if (e.category) set.add(e.category);
+    });
+    return Array.from(set).sort();
+  }, [catalog]);
 
-  const valueParts = value ? value.split(' ') : [];
+  const filtered = useMemo(() => {
+    let list = catalog || [];
+    if (category) list = list.filter((e) => e.category === category);
+    const q = query.trim();
+    if (q) {
+      const ql = q.toLowerCase();
+      list = list.filter(
+        (e) => e.name.includes(ql) || e.title.includes(q) || e.tags.includes(q),
+      );
+    }
+    return list;
+  }, [catalog, category, query]);
+
+  const shown = filtered.slice(0, 300);
+  const currentName = iconParkNameOf(value);
+  const current = currentName
+    ? (catalog || []).find((e) => e.name === currentName)
+    : undefined;
+
   return (
     <div className="ico-picker">
       {/* 当前选择预览区 */}
       <div className="ico-picker__preview">
         <span className={`ico-picker__badge${value ? '' : ' ico-picker__badge--empty'}`}>
-          {value ? <i className={value} /> : <IconDesktop />}
+          {value ? <FloorIcon value={value} size={28} /> : <IconDesktop />}
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {value ? (
+          {current ? (
             <>
-              <div style={{ fontWeight: 600, fontSize: 13, color: '#1d2129' }}>{valueParts[0]}</div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: '#1d2129' }}>
+                {current.title}
+              </div>
               <div style={{ fontSize: 12, color: '#666', wordBreak: 'break-all' }}>
-                {valueParts.slice(1).join(' ') || '--'}
+                IconPark · {current.name}
+              </div>
+            </>
+          ) : value ? (
+            <>
+              <div style={{ fontWeight: 600, fontSize: 13, color: '#1d2129' }}>{value}</div>
+              <div style={{ fontSize: 12, color: '#999' }}>
+                {t('旧字体图标，在下方重选即可换成 IconPark 图标')}
               </div>
             </>
           ) : (
             <div style={{ fontSize: 13, color: '#8a94a6' }}>
-              {t('尚未选择图标，点击下方任意图标即可选用')}
+              {t('尚未选择图标，搜索后点击任意图标即可选用')}
             </div>
           )}
         </div>
@@ -1329,23 +1336,56 @@ export function IcoSelect({
           </Button>
         )}
       </div>
-      {/* 图标库：Tab 分库网格 */}
+      {/* 搜索 + 分类筛选 */}
+      <div className="ico-picker__tools">
+        <Input
+          prefix={<IconSearch />}
+          placeholder={t('搜索图标：中文名 / 英文名 / 关键词，如 电池、robot')}
+          value={query}
+          onChange={(v) => setQuery(v)}
+          showClear
+          style={{ flex: 1 }}
+        />
+        <Select
+          placeholder={t('全部分类')}
+          value={category || undefined}
+          onChange={(v) => setCategory((v as string) || '')}
+          showClear
+          style={{ width: 150 }}
+          optionList={categories.map((c) => ({ label: c, value: c }))}
+        />
+      </div>
+      <div className="ico-picker__count">
+        {catalog
+          ? `${t('共')} ${filtered.length} ${t('个图标')}${filtered.length > shown.length ? `，${t('仅显示前')} ${shown.length} ${t('个，输入关键词可缩小范围')}` : ''}`
+          : t('图标库加载中…')}
+      </div>
+      {/* 图标网格 */}
       <Spin spinning={loading}>
-        <Tabs type="line" size="small" style={{ padding: '0 14px 12px' }}>
-          <TabPane
-            tab={`${t('自定义图标库')} (${data?.icoDefined.length ?? 0})`}
-            itemKey="defined"
-          >
-            <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-              {data ? renderGrid(data.icoDefined, data.definedClass) : null}
-            </div>
-          </TabPane>
-          <TabPane tab={`${t('官方图标库')} (${data?.icoTig.length ?? 0})`} itemKey="tig">
-            <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-              {data ? renderGrid(data.icoTig, data.tigClass) : null}
-            </div>
-          </TabPane>
-        </Tabs>
+        <div style={{ maxHeight: 330, overflowY: 'auto', padding: '0 14px 12px' }}>
+          <div className="ico-picker__grid">
+            {shown.map((e) => {
+              const val = `iconpark:${e.name}`;
+              const active = value === val;
+              return (
+                <div
+                  key={e.name}
+                  title={`${e.title}（${e.name}）`}
+                  onClick={() => onChange(val)}
+                  className={`ico-picker__cell${active ? ' ico-picker__cell--active' : ''}`}
+                >
+                  <span className="ico-picker__cell-icon">
+                    <FloorIcon value={val} size={24} />
+                  </span>
+                  <span className="ico-picker__cell-name">{e.title}</span>
+                </div>
+              );
+            })}
+            {catalog && shown.length === 0 && (
+              <span style={{ color: '#bbb', fontSize: 12 }}>{t('没有匹配的图标，换个关键词试试')}</span>
+            )}
+          </div>
+        </div>
       </Spin>
     </div>
   );
@@ -1658,7 +1698,7 @@ export function PcCatFloor() {
                 color: '#165dff',
               }}
             >
-              <i className={row.floorIcoFont} style={{ fontSize: 18 }} />
+              <FloorIcon value={row.floorIcoFont} size={18} />
             </span>
           );
         }
