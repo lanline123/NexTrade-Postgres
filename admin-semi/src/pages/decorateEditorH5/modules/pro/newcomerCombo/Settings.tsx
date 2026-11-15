@@ -17,12 +17,13 @@ import {
     RangeField,
     ColorField,
     PicSelectField,
+    PicLinkField,
     DecDivider
 } from "../../../shared/settingWidgets";
 import { SettingsTabs } from "../../../shared/styleEdits";
 import { newcomerComboDefaults as defaults } from "./index";
 import ProductsSourceField from "../../../shared/ProductsSourceField";
-import AlphaColorInput from "../../../../../components/AlphaColorInput";
+import { ColorPairField } from "../../../../../components/ColorField";
 import { useI18n } from "../../../../../i18n";
 
 type Patch = Record<string, any>;
@@ -48,21 +49,15 @@ const BUY_BTN_OPTIONS = [
 ];
 
 function GradientPairField({ data, onChange, startField, endField, label }: Props & { startField: string; endField: string; label: string }) {
-    const { t } = useI18n();
     return (
         <SettingRow label={label}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <a className="dec-color-reset" onClick={() => onChange({ [startField]: (defaults as any)[startField] ?? "", [endField]: (defaults as any)[endField] ?? "" })}>
-                    {t("重置")}
-                </a>
-                <span className="dec-color-trigger">
-                    <AlphaColorInput value={String(data?.[startField] ?? "")} onChange={(v) => onChange({ [startField]: v })} />
-                </span>
-                <span style={{ color: "#999" }}>~</span>
-                <span className="dec-color-trigger">
-                    <AlphaColorInput value={String(data?.[endField] ?? "")} onChange={(v) => onChange({ [endField]: v })} />
-                </span>
-            </div>
+            <ColorPairField
+                value={String(data?.[startField] ?? "")}
+                secondValue={String(data?.[endField] ?? "")}
+                onChange={(v) => onChange({ [startField]: v })}
+                onSecondChange={(v) => onChange({ [endField]: v })}
+                onReset={() => onChange({ [startField]: (defaults as any)[startField] ?? "", [endField]: (defaults as any)[endField] ?? "" })}
+            />
         </SettingRow>
     );
 }
@@ -84,23 +79,20 @@ function BlockTextField({ data, onChange, field, label, placeholder, maxLength }
 }
 
 function LinkTextField({ data, onChange, field, label }: Props & { field: string; label: string }) {
-    const { t } = useI18n();
+    // 字段为 { link, title } 对象（个别存量 link 再嵌一层，读取时拍平）：走共享 PicLinkField 选择，
+    // 写回时保留对象其余键、link/title 更新为选择结果（嵌套存量在首次编辑时拍平为标准形状，渲染端两种形状都读）
     const linkObj = data?.[field] ?? {};
     const url = typeof linkObj.link === "string" ? linkObj.link : linkObj.link?.link ?? "";
     return (
         <SettingRow label={label} block>
-            <Input
-                value={url}
-                placeholder={t("跳转链接，如 /pages/product/index?id=1")}
-                style={{ width: "100%" }}
-                onChange={(v: string) =>
+            <PicLinkField
+                value={{ link: url, title: typeof linkObj.title === "string" ? linkObj.title : "" }}
+                onChange={(v) =>
                     onChange({
                         [field]:
                             linkObj && typeof linkObj === "object"
-                                ? typeof linkObj.link === "string" || linkObj.link === undefined
-                                    ? { ...linkObj, link: v }
-                                    : { ...linkObj, link: { ...(linkObj.link || {}), link: v } }
-                                : { link: v, title: "" }
+                                ? { ...linkObj, link: v.link, title: v.title || linkObj.title || "" }
+                                : { link: v.link, title: v.title || "" }
                     })
                 }
             />

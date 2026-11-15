@@ -8,7 +8,7 @@
 * 时间选择：el-time-picker/el-date-picker 以原生 time/datetime-local 输入承接，写回时间戳数组/数值。
 * 商品销量 productSales 在原版 Settings 中被注释、不生效，故不提供编辑入口（defaults 保留字段）。
 */
-import { Checkbox, CheckboxGroup, Input} from "@douyinfe/semi-ui";
+import { Checkbox, CheckboxGroup, DatePicker, Input, TimePicker } from "@douyinfe/semi-ui";
 import {
 SettingGroup,
 SettingRow,
@@ -138,26 +138,30 @@ options={[
 {data?.countdownType === "dailyCycle" && Number(data?.showCountdown) === 1? (
 <SettingRow label="每日活动开始时间" block>
 <div style={{ display: "flex", alignItems: "center", gap: 8}}>
-<input
-type="time"
-value={toTimeValue(dailyTime[0])}
-onChange={(e) => onChange({ dailyTime: [fromTimeValue(dailyTime[0], e.target.value), dailyTime[1]?? 0]})}
+<TimePicker
+format="HH:mm"
+value={dailyTime[0] ? new Date(dailyTime[0]) : undefined}
+style={{ width: 108 }}
+onChange={(_time, timeString) => { if (timeString) onChange({ dailyTime: [fromTimeValue(dailyTime[0], String(timeString)), dailyTime[1] ?? 0] }); }}
 />
 <span>{t("至")}</span>
-<input
-type="time"
-value={toTimeValue(dailyTime[1])}
-onChange={(e) => onChange({ dailyTime: [dailyTime[0]?? 0, fromTimeValue(dailyTime[1], e.target.value)]})}
+<TimePicker
+format="HH:mm"
+value={dailyTime[1] ? new Date(dailyTime[1]) : undefined}
+style={{ width: 108 }}
+onChange={(_time, timeString) => { if (timeString) onChange({ dailyTime: [dailyTime[0] ?? 0, fromTimeValue(dailyTime[1], String(timeString))] }); }}
 />
 </div>
 </SettingRow>
 ): null}
 {data?.countdownType === "specifyTime" && Number(data?.showCountdown) === 1? (
 <SettingRow label="每日活动开始时间" block>
-<input
-type="datetime-local"
-value={toDateTimeValue(Number(data?.specifyTime?? 0))}
-onChange={(e) => onChange({ specifyTime: new Date(e.target.value).getTime()})}
+<DatePicker
+type="dateTime"
+format="yyyy-MM-dd HH:mm"
+value={data?.specifyTime ? new Date(Number(data.specifyTime)) : undefined}
+style={{ width: 240, maxWidth: "100%" }}
+onChange={(date) => onChange({ specifyTime: date ? new Date(date as Date).getTime() : 0 })}
 />
 </SettingRow>
 ): null}

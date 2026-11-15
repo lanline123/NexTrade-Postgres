@@ -20,7 +20,7 @@ import {
 import { SettingsTabs } from "../../../shared/styleEdits";
 import { limitedSpecialDefaults as defaults } from "./index";
 import ProductsSourceField from "../../../shared/ProductsSourceField";
-import AlphaColorInput from "../../../../../components/AlphaColorInput";
+import { ColorPairField } from "../../../../../components/ColorField";
 import { useI18n } from "../../../../../i18n";
 
 type Patch = Record<string, any>;
@@ -29,7 +29,7 @@ interface Props {
     onChange: (patch: Patch) => void;
 }
 
-/** 渐变色对（原版 .dec-gradient-pair：重置链 + 两色 + 「~」分隔） */
+/** 渐变色对（共享 ColorPairField：重置链回默认值 + 两色 + 「-」分隔，与 PC 口径统一） */
 function GradientPairField({
     data,
     onChange,
@@ -37,26 +37,17 @@ function GradientPairField({
     endField,
     label
 }: Props & { startField: string; endField: string; label: string }) {
-    const { t } = useI18n();
     const dStart = (defaults as any)[startField] ?? "";
     const dEnd = (defaults as any)[endField] ?? "";
     return (
         <SettingRow label={label}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <a
-                    className="dec-color-reset"
-                    onClick={() => onChange({ [startField]: dStart, [endField]: dEnd })}
-                >
-                    {t("重置")}
-                </a>
-                <span className="dec-color-trigger">
-                    <AlphaColorInput value={String(data?.[startField] ?? "")} onChange={(v) => onChange({ [startField]: v })} />
-                </span>
-                <span style={{ color: "#999" }}>~</span>
-                <span className="dec-color-trigger">
-                    <AlphaColorInput value={String(data?.[endField] ?? "")} onChange={(v) => onChange({ [endField]: v })} />
-                </span>
-            </div>
+            <ColorPairField
+                value={String(data?.[startField] ?? "")}
+                secondValue={String(data?.[endField] ?? "")}
+                onChange={(v) => onChange({ [startField]: v })}
+                onSecondChange={(v) => onChange({ [endField]: v })}
+                onReset={() => onChange({ [startField]: dStart, [endField]: dEnd })}
+            />
         </SettingRow>
     );
 }

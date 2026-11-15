@@ -8,10 +8,9 @@
  * （显示开关/默认搜索词/菜单图标 1-7+自定义+不显示/菜单链接/签到图标 1-4+自定义+不显示/签到链接）
  * + BannerNav（显示开关/文字列表）；样式：BannerStyle（type 非 bannerA2 全集）；
  * 扩展：ModuleStyleEdit（type="banner"，含 bannerMarginTop）。
- * 注：SelectLink（菜单/签到跳转链接）以文本输入承接，写回原字段（字符串型，与原版默认值同形）；
+ * 注：SelectLink（菜单/签到跳转链接）走共享 PicLinkField 选择，写回原字段（字符串型，与原版默认值同形）；
  * BannerContent 的 PicList 原版带 showColor（逐图渐变色），我方 PicListField 无逐项颜色，渐变色保持原数据。
  */
-import { Input } from "@douyinfe/semi-ui";
 import {
     SettingGroup,
     SettingRow,
@@ -21,6 +20,7 @@ import {
     TextField,
     PicListField,
     PicSelectField,
+    PicLinkField,
     DecDivider
 } from "../../../shared/settingWidgets";
 import { SettingsTabs, ModuleStyleSettingsField } from "../../../shared/styleEdits";
@@ -32,14 +32,11 @@ function nested(data: Record<string, any>, onChange: (patch: Record<string, any>
 }
 
 function LinkTextField({ data, onChange, field, label }: NestedProps & { field: string; label: string }) {
+    // 存量字段为字符串 path（渲染端亦兼容 {link} 对象）：经 PicLinkField 选择后仍只写回 path 字符串，数据形状不变
+    const url = typeof data?.[field] === "string" ? data[field] : data?.[field]?.link ?? "";
     return (
         <SettingRow label={label}>
-            <Input
-                value={typeof data?.[field] === "string" ? data[field] : data?.[field]?.link ?? ""}
-                placeholder="跳转链接，如 /pages/index/index"
-                style={{ width: 240, maxWidth: "100%" }}
-                onChange={(v: string) => onChange({ [field]: v })}
-            />
+            <PicLinkField value={{ link: url, title: "" }} onChange={(v) => onChange({ [field]: v.link })} />
         </SettingRow>
     );
 }

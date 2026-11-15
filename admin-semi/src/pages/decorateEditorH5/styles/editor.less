@@ -477,6 +477,61 @@
     background: #eef1f6;
 }
 
+// ⑤ 分组标题的 spread / section 两变体与 box 变体统一到同一观感（#f8fafc 底带 + 13px/650 #344054 + 主题色竖条），
+//    此前 spread 是无底带的平铺粗体、section 是 14px/600 平铺，三套标题并存
+.h5-editor-root .h5-editor-settings .dec-spread-title {
+    padding: 10px 14px;
+    background: #f8fafc;
+    border-bottom: 1px solid #f0f2f5;
+
+    .title {
+        position: relative;
+        padding-left: 10px;
+        color: #344054;
+        font-size: 13px;
+        font-weight: 650;
+        line-height: 20px;
+    }
+
+    .title::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 3px;
+        bottom: 3px;
+        width: 3px;
+        border-radius: 3px;
+        background: var(--semi-color-primary);
+    }
+}
+
+.h5-editor-root .h5-editor-settings .dec-edit-section-title {
+    position: relative;
+    padding: 10px 14px 10px 24px;
+    background: #f8fafc;
+    border-bottom: 1px solid #f0f2f5;
+    color: #344054;
+    font-size: 13px;
+    font-weight: 650;
+
+    &::before {
+        content: "";
+        position: absolute;
+        left: 14px;
+        top: 13px;
+        bottom: 13px;
+        width: 3px;
+        border-radius: 3px;
+        background: var(--semi-color-primary);
+    }
+}
+
+// ⑥ 色板单选（ColorSwatchRadioField 等）的悬停/选中边框：原版硬编码 #155bd4 → 主题色变量
+.h5-editor-root .dec-radio-color-group .dec-radio-button:hover .dec-radio-color-button-con,
+.h5-editor-root .dec-radio-color-group .dec-radio-button.selected .dec-radio-color-button-con {
+    border-color: var(--semi-color-primary);
+}
+
 // 分组容器本身不再加内边距（字段行 .dec-edit-group 自带 12px 14px，PC 口径）；
 // 组内非字段行子元素（提示文案、自定义控件根）补齐左右 14px
 .h5-editor-setting-group {

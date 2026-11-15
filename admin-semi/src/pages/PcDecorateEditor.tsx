@@ -2144,31 +2144,31 @@ function PcLoginSettingsPanel({
 
       <div className="pc-login-field">
         <label>{t('头部高度')}</label>
-        <Slider
+        <SliderWithInput
           min={50}
           max={120}
           value={sliderValue(d.headerHeight, 80)}
-          onChange={(v) => onChange({ headerHeight: sliderValue(v, 80) })}
+          onChange={(v) => onChange({ headerHeight: v })}
         />
       </div>
 
       <div className="pc-login-field">
         <label>{t('logo宽度')}</label>
-        <Slider
+        <SliderWithInput
           min={10}
           max={160}
           value={sliderValue(d.logoWidth, 100)}
-          onChange={(v) => onChange({ logoWidth: sliderValue(v, 100) })}
+          onChange={(v) => onChange({ logoWidth: v })}
         />
       </div>
 
       <div className="pc-login-field">
         <label>{t('logo高度')}</label>
-        <Slider
+        <SliderWithInput
           min={10}
           max={60}
           value={sliderValue(d.logoHeight, 25)}
-          onChange={(v) => onChange({ logoHeight: sliderValue(v, 25) })}
+          onChange={(v) => onChange({ logoHeight: v })}
         />
       </div>
 
@@ -2196,29 +2196,20 @@ function PcLoginSettingsPanel({
 
       <div className="pc-login-field">
         <label>{t('背景色')}</label>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input
-            type="color"
-            className="pc-login-color-input"
-            value={d.backgroundColor || '#ffffff'}
-            onChange={(e) => onChange({ backgroundColor: e.target.value })}
-          />
-          <Input
-            value={d.backgroundColor || ''}
-            placeholder="#FFFFFF"
-            onChange={(value) => onChange({ backgroundColor: value })}
-          />
-          <Button size="small" theme="borderless" onClick={() => onChange({ backgroundColor: '' })}>{t('重置')}</Button>
-        </div>
+        <SharedColorField
+          value={d.backgroundColor || ''}
+          onChange={(v) => onChange({ backgroundColor: v })}
+          resetValue=""
+        />
       </div>
 
       <div className="pc-login-field">
         <label>{t('登录区高度')}</label>
-        <Slider
+        <SliderWithInput
           min={620}
           max={800}
           value={Math.max(620, sliderValue(d.warpHeight, 620))}
-          onChange={(v) => onChange({ warpHeight: sliderValue(v, 620) })}
+          onChange={(v) => onChange({ warpHeight: v })}
         />
       </div>
     </div>

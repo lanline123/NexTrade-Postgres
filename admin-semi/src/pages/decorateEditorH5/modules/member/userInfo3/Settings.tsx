@@ -14,8 +14,10 @@
  *   hideBg+hidePadding 恒开，hideBoxPadding/hideBoxRadius 仅样式 2/3/4。
  * 布尔字段（show/showEditIcon）写 boolean，同原版 el-switch/el-checkbox 语义。
  */
-import { Input, InputNumber, Radio, RadioGroup, Slider, Switch, Checkbox } from "@douyinfe/semi-ui";
+import { Input, Radio, RadioGroup, Switch, Checkbox } from "@douyinfe/semi-ui";
 import AlphaColorInput from "../../../../../components/AlphaColorInput";
+import SharedColorField from "../../../../../components/ColorField";
+import SliderWithInput from "../../../../../components/SliderWithInput";
 import { SettingGroup, SettingRow, SegmentedRadio, DecDivider, PicSelectBox, FrameSettingsField, RadioRowField } from "../../../shared/settingWidgets";
 import { SettingsTabs } from "../../../shared/styleEdits";
 
@@ -41,20 +43,7 @@ function BoolRow({ label, value, onValue }: { label: string; value: boolean; onV
 function ColorRow({ label, value, onValue, resetValue }: { label: string; value: string; onValue: (v: string) => void; resetValue?: string }) {
     return (
         <SettingRow label={label}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <AlphaColorInput value={value ?? ""} onChange={onValue} />
-                {resetValue !== undefined ? (
-                    <a
-                        className="dec-color-reset"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            onValue(resetValue);
-                        }}
-                    >
-                        重置
-                    </a>
-                ) : null}
-            </div>
+            <SharedColorField value={value ?? ""} onChange={onValue} resetValue={resetValue ?? ""} allowEmpty={resetValue !== undefined} />
         </SettingRow>
     );
 }
@@ -62,10 +51,7 @@ function RangeRow({ label, value, max, onValue }: { label: string; value: number
     const v = Number(value ?? 0) || 0;
     return (
         <SettingRow label={label}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, width: 240, maxWidth: "100%" }}>
-                <Slider style={{ flex: 1 }} min={0} max={max} value={v} onChange={(n) => onValue(Number(n) || 0)} />
-                <InputNumber style={{ width: 64 }} min={0} max={max} value={v} onChange={(n) => onValue(Number(n) || 0)} />
-            </div>
+            <SliderWithInput value={v} min={0} max={max} onChange={(n) => onValue(n)} />
         </SettingRow>
     );
 }

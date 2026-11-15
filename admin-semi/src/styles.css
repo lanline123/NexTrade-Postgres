@@ -7812,25 +7812,43 @@ body {
 .pc-decorate-editor--login .pc-decorate-canvas-tools {
   display: none !important;
 }
+.pc-login-settings__title {
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f2f4f6;
+  margin-bottom: 14px;
+}
 .pc-login-settings__title h3 {
   margin: 0;
-  color: #0f172a;
-  font-size: 16px;
+  color: #101828;
+  font-size: 18px;
   font-weight: 650;
+  line-height: 24px;
 }
 .pc-login-settings__title p {
-  margin: 4px 0 18px;
-  color: #98a2b3;
-  font-size: 12px;
+  margin: 4px 0 0;
+  color: #667085;
+  font-size: 12.5px;
   line-height: 18px;
 }
 .pc-login-settings__section {
-  margin: 20px 0 14px;
-  padding-top: 16px;
-  border-top: 1px solid #f1f4f7;
+  position: relative;
+  margin: 20px -16px 14px;
+  padding: 10px 14px 10px 24px;
+  background: #f8fafc;
+  border-bottom: 1px solid #f0f2f5;
   color: #344054;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 650;
+}
+.pc-login-settings__section::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 13px;
+  bottom: 13px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--semi-color-primary);
 }
 .pc-login-field {
   margin-bottom: 18px;
@@ -7926,18 +7944,6 @@ body {
   line-height: 42px;
   text-align: center;
 }
-
-
-.pc-login-color-input {
-  width: 36px;
-  height: 32px;
-  padding: 2px;
-  border: 1px solid #d0d5dd;
-  border-radius: 6px;
-  background: #fff;
-  cursor: pointer;
-}
-
 
 
 /* ===== PC 登录页：复刻原版 Preview.vue 两套布局 ===== */

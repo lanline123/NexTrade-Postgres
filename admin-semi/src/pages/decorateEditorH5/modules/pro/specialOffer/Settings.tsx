@@ -11,7 +11,7 @@
  * - 按钮链接 SelectLink 以文本输入承接，写回 buttonLink.link.link 同一嵌套结构；
  * - 每日时间以原生 time 输入承接（原版 el-time-picker is-range），写回时间戳数组。
  */
-import { Input } from "@douyinfe/semi-ui";
+import { DatePicker, Input, TimePicker } from "@douyinfe/semi-ui";
 import AlphaColorInput from "../../../../../components/AlphaColorInput";
 import {
     SettingGroup,
@@ -211,19 +211,21 @@ export default function SpecialOfferSettings({ data, onChange }: Props) {
                                 />
                                 {mt.countdownType === "specifyTime" ? (
                                     <SettingRow label="活动结束时间">
-                                        <input
-                                            type="datetime-local"
-                                            value={toDatetimeInput(Number(mt.specifyTime) || 0)}
-                                            onChange={(e) => mtProps.onChange({ specifyTime: new Date(e.target.value).getTime() || 0 })}
+                                        <DatePicker
+                                            type="dateTime"
+                                            format="yyyy-MM-dd HH:mm"
+                                            value={mt.specifyTime ? new Date(Number(mt.specifyTime)) : undefined}
+                                            style={{ width: 240, maxWidth: "100%" }}
+                                            onChange={(date) => mtProps.onChange({ specifyTime: date ? new Date(date as Date).getTime() || 0 : 0 })}
                                         />
                                     </SettingRow>
                                 ) : (
                                     <>
                                         <SettingRow label="每日开始时间">
-                                            <input type="time" value={toTimeInput(Number(daily[0]) || 0)} onChange={(e) => mtProps.onChange({ dailyTime: [timeInputToTs(Number(daily[0]) || 0, e.target.value), daily[1] ?? 0] })} />
+                                            <TimePicker format="HH:mm" value={daily[0] ? new Date(Number(daily[0])) : undefined} style={{ width: 240, maxWidth: "100%" }} onChange={(_time, timeString) => { if (timeString) mtProps.onChange({ dailyTime: [timeInputToTs(Number(daily[0]) || 0, String(timeString)), daily[1] ?? 0] }); }} />
                                         </SettingRow>
                                         <SettingRow label="每日结束时间">
-                                            <input type="time" value={toTimeInput(Number(daily[1]) || 0)} onChange={(e) => mtProps.onChange({ dailyTime: [daily[0] ?? 0, timeInputToTs(Number(daily[1]) || 0, e.target.value)] })} />
+                                            <TimePicker format="HH:mm" value={daily[1] ? new Date(Number(daily[1])) : undefined} style={{ width: 240, maxWidth: "100%" }} onChange={(_time, timeString) => { if (timeString) mtProps.onChange({ dailyTime: [daily[0] ?? 0, timeInputToTs(Number(daily[1]) || 0, String(timeString))] }); }} />
                                         </SettingRow>
                                     </>
                                 )}

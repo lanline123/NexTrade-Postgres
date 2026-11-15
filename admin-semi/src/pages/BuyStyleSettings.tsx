@@ -3,6 +3,7 @@ import { Button, Card, Select, Space, Spin, Toast, Typography } from '@douyinfe/
 import { apiGet, apiPost } from '../api';
 import { useI18n } from '../i18n';
 import GalleryPickerModal from '../components/GalleryPickerModal';
+import ColorField from '../components/ColorField';
 import { PcBuyButtonVisual, resolvePcBuyBtn } from './decoratePc/previews/shared/PcBuyButton';
 
 const { Text, Title } = Typography;
@@ -163,18 +164,8 @@ export default function BuyStyleSettings() {
 
           <Space align="center" spacing={12}>
             <Text strong>{t('图标颜色')}</Text>
-            <input
-              type="color"
-              value={/^#[0-9a-fA-F]{6}$/.test(cfg.iconColor) ? cfg.iconColor : '#65c4aa'}
-              onChange={(e) => setCfg((p) => ({ ...p, iconColor: e.target.value }))}
-              style={{ width: 40, height: 28, border: '1px solid #e3e5e8', borderRadius: 4, padding: 0, background: '#fff' }}
-            />
+            <ColorField value={cfg.iconColor} onChange={(v) => setCfg((p) => ({ ...p, iconColor: v }))} resetValue="" />
             <Text>{cfg.iconColor || t('未设置（跟随各模块/主题色）')}</Text>
-            {cfg.iconColor ? (
-              <Button theme="borderless" size="small" onClick={() => setCfg((p) => ({ ...p, iconColor: '' }))}>
-                {t('清除')}
-              </Button>
-            ) : null}
             <Text type="tertiary">{t('仅对图标类样式（1–4、9）生效')}</Text>
           </Space>
 

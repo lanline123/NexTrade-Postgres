@@ -8,9 +8,9 @@
  * 类型/每日时间/指定时间/显示内容多选/顶部距离 max100/上浮距离 max40 + 每屏数量/图片比例/填充/
  * 对齐/商品间距 max10/商品圆角 max20/底部圆角/商品标题/商品价格/价格粗细/划线价）；
  * 扩展设置：颜色设置（moduleColor 8 色）+ ModuleStyleEdit（type="categoryRec"）+ ContentStyleEdit（type="countdown"）。
- * 注：时间选择器以本地 time / datetime-local 输入承接，写回原版时间戳数值形状；跳转链接以文本输入写回 titleLink.link。
+ * 注：时间选择器用 Semi TimePicker / DatePicker 承接，写回原版时间戳数值形状；跳转链接走共享 PicLinkField 写回 titleLink.link。
  */
-import { Checkbox } from "@douyinfe/semi-ui";
+import { Checkbox, DatePicker, TimePicker } from "@douyinfe/semi-ui";
 import {
     SettingGroup,
     SettingRow,
@@ -19,6 +19,7 @@ import {
     ColorField,
     TextField,
     PicSelectField,
+    PicLinkField,
     DecDivider,
     SegmentedRadio
 } from "../../../shared/settingWidgets";
@@ -158,13 +159,7 @@ export default function CountdownSettings({ data, onChange }: { data: Record<str
                         <TextField {...mt} field="subTitle" label="模块小标题" placeholder="请输入标题内容" />
                         <TextField {...mt} field="moreText" label="右侧提示信息" placeholder="请输入右侧提示信息" />
                         <SettingRow label="跳转链接">
-                            <input
-                                type="text"
-                                value={mt.data.titleLink?.link ?? ""}
-                                placeholder="跳转链接，如 /pages/index/index"
-                                style={{ width: 240, maxWidth: "100%", height: 32, border: "1px solid var(--semi-color-border)", borderRadius: 4, padding: "0 8px", boxSizing: "border-box" }}
-                                onChange={(e) => mt.onChange({ titleLink: { ...(mt.data.titleLink || { title: "" }), link: e.target.value } })}
-                            />
+                            <PicLinkField value={mt.data.titleLink ?? null} onChange={(v) => mt.onChange({ titleLink: v })} />
                         </SettingRow>
                     </SettingGroup>
                     <SettingGroup title="参数设置">
@@ -199,12 +194,12 @@ export default function CountdownSettings({ data, onChange }: { data: Record<str
                                 />
                                 {cd.data.countdownType === "dailyCycle" ? (
                                     <SettingRow label="每日循环时间">
-                                        <input
-                                            type="time"
-                                            value={toTimeInputValue(cd.data.dailyTime)}
-                                            style={{ width: 240, maxWidth: "100%", height: 32, border: "1px solid var(--semi-color-border)", borderRadius: 4, padding: "0 8px", boxSizing: "border-box" }}
-                                            onChange={(e) => {
-                                                const [h, m] = e.target.value.split(":").map(Number);
+                                        <TimePicker
+                                            format="HH:mm"
+                                            value={cd.data.dailyTime ? new Date(cd.data.dailyTime) : undefined}
+                                            style={{ width: 240, maxWidth: "100%" }}
+                                            onChange={(_time, timeString) => {
+                                                const [h, m] = String(timeString || "").split(":").map(Number);
                                                 if (Number.isFinite(h)) {
                                                     const d = new Date();
                                                     d.setHours(h, m || 0, 0, 0);
@@ -216,12 +211,13 @@ export default function CountdownSettings({ data, onChange }: { data: Record<str
                                 ) : null}
                                 {cd.data.countdownType === "specifyTime" ? (
                                     <SettingRow label="指定时间">
-                                        <input
-                                            type="datetime-local"
-                                            value={toDatetimeInputValue(cd.data.specifyTime)}
-                                            style={{ width: 240, maxWidth: "100%", height: 32, border: "1px solid var(--semi-color-border)", borderRadius: 4, padding: "0 8px", boxSizing: "border-box" }}
-                                            onChange={(e) => {
-                                                const ts = new Date(e.target.value).getTime();
+                                        <DatePicker
+                                            type="dateTime"
+                                            format="yyyy-MM-dd HH:mm"
+                                            value={cd.data.specifyTime ? new Date(cd.data.specifyTime) : undefined}
+                                            style={{ width: 240, maxWidth: "100%" }}
+                                            onChange={(date) => {
+                                                const ts = date ? new Date(date as Date).getTime() : NaN;
                                                 if (Number.isFinite(ts)) cd.onChange({ specifyTime: ts });
                                             }}
                                         />

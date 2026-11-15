@@ -1,8 +1,8 @@
 /**
  * 通用标题 设置（字段直接位于模块数据根部，与渲染端 commonTitle 读取结构一致；
- * moreLink 渲染端经 urlFormat 解析，字符串 path 可直接透传，故用文本框填 path 占位）
+ * moreLink 渲染端经 urlFormat 解析、存量为字符串 path，故经 PicLinkField 选择后只写回 path 字符串）
  */
-import { SettingGroup, SettingRow, SwitchField, RadioRowField, TextField, ColorField, NumberField, SinglePicField } from "../../../shared/settingWidgets";
+import { SettingGroup, SettingRow, SwitchField, RadioRowField, TextField, ColorField, NumberField, SinglePicField, PicLinkField } from "../../../shared/settingWidgets";
 
 export default function CommonTitleSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
     const moreLinkText = typeof data?.moreLink === "string" ? data.moreLink : "";
@@ -36,12 +36,7 @@ export default function CommonTitleSettings({ data, onChange }: { data: Record<s
                             <>
                                 <ColorField data={data} onChange={onChange} field="moreColor" label="更多颜色" />
                                 <SettingRow label="更多链接">
-                                    <input
-                                        value={moreLinkText}
-                                        placeholder="/pages/coupon/index"
-                                        onChange={(e) => onChange({ moreLink: e.target.value })}
-                                        style={{ width: 180, height: 28, border: "1px solid var(--semi-color-border)", borderRadius: 4, padding: "0 6px" }}
-                                    />
+                                    <PicLinkField value={{ link: moreLinkText, title: "" }} onChange={(v) => onChange({ moreLink: v.link })} />
                                 </SettingRow>
                             </>
                         )}

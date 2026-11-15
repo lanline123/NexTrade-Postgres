@@ -27,6 +27,7 @@ import { apiGet, apiPost } from '../api';
 import { useI18n } from '../i18n';
 import ListPage from '../framework/ListPage';
 import ImageUploader from '../components/ImageUploader';
+import ColorField from '../components/ColorField';
 import type { ColumnConfig } from '../framework/types';
 import { THEME_PALETTES } from './themePalettes';
 
@@ -212,21 +213,11 @@ export function ThemeStyle() {
               <div style={{ display: 'flex', gap: 20 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {t('主题颜色')}
-                  <input
-                    type="color"
-                    value={customMain}
-                    onChange={(e) => changeCustom(e.target.value, customVice)}
-                    style={{ width: 40, height: 32, border: 0, background: 'transparent' }}
-                  />
+                  <ColorField value={customMain} onChange={(v) => changeCustom(v, customVice)} allowEmpty={false} />
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {t('辅助颜色')}
-                  <input
-                    type="color"
-                    value={customVice}
-                    onChange={(e) => changeCustom(customMain, e.target.value)}
-                    style={{ width: 40, height: 32, border: 0, background: 'transparent' }}
-                  />
+                  <ColorField value={customVice} onChange={(v) => changeCustom(customMain, v)} allowEmpty={false} />
                 </label>
               </div>
             )}
