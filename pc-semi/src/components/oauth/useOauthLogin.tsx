@@ -108,7 +108,7 @@ export function OauthButtons({
       ) : null}
       {switches.facebook ? (
         <button type="button" className="pdp-login__oauth-item" onClick={() => onStart('facebook')}>
-          <img className="pdp-login__oauth-logo" src="/assets/images/user/login/Facebook.png" alt="" />
+          <img className="pdp-login__oauth-logo" src="/assets/images/user/login/Facebook.png?v=2" alt="" />
           <span>Facebook</span>
         </button>
       ) : null}
