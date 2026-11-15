@@ -43,7 +43,8 @@
  * 背景色只由 --dec-item-bg-color 提供，不再叠加写死的渐变（与 PC 前台口径一致）。 */
 .dec-pc-notice__content {
   border: 1px solid rgba(20, 86, 240, .10);
-  box-shadow: 0 2px 10px rgba(16, 24, 40, .05);
+  /* 常驻阴影已去掉（2026-11-15 用户反馈外圈像有一圈阴影）：公告条保持扁平，
+     仅保留 hover 时的浮起阴影，与 PC 前台口径一致 */
   padding: 0 14px;
   transition: box-shadow .2s ease, border-color .2s ease;
 }
