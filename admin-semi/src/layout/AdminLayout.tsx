@@ -32,7 +32,7 @@ import { resolveMallUrl } from '../mall';
 
 export type PageKey = string;
 
-/** 待审批计数红 pill（复用消息中心的 .admin-msg-num 样式：红底白字胶囊，>99 显示 99+） */
+/** 待审批计数亮红 pill（复用消息中心的 .admin-msg-num 样式：#fa4350 红底白字胶囊，>99 显示 99+） */
 function ApprovalPill({ count }: { count: number }) {
   if (count <= 0) return null;
   return <em className="admin-msg-num">{count > 99 ? '99+' : count}</em>;
@@ -100,7 +100,7 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
   };
 
   const [msgCount, setMsgCount] = useState(0);
-  /** AI 审批中心待审批数（菜单角标 / 消息红点 / 消息中心入口条共用；page 变化时立即刷新，另有 60 秒轮询） */
+  /** AI 审批中心待审批数（一级标题/菜单角标共用；page 变化时立即刷新，另有 60 秒轮询） */
   const approvalCount = usePendingApprovalCount(page);
   /** 「新订单 N」角标：口径 = is_broadcast=1 且 send_time >= lastOpenTime 的新订单消息数（同原版 MsgCount.vue） */
   const [newOrderCount, setNewOrderCount] = useState(0);
@@ -326,8 +326,8 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
           <div className="rail" ref={railRef}>
             {groups.map((group) => {
               const active = activeGroup.key === group.key;
-              // 含「审批中心」的分组（AI）在一级菜单图标上汇总待审批角标：
-              // 侧栏收起、二级菜单不可见时也能一眼看到有待审批
+              // 含「审批中心」的分组（AI）汇总待审批角标：只在一级标题文字后
+              // 放一个亮红 pill（图标上不再叠 Badge，避免同处两个提醒重复）
               const groupApprovalCount = group.items.some(
                 (item) =>
                   item.key === 'aiMcpApprovals' ||
@@ -398,12 +398,7 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
                       openPage(first.children?.[0]?.key || first.key);
                     }}
                   >
-                    <Badge
-                      count={groupApprovalCount > 0 ? groupApprovalCount : undefined}
-                      overflowCount={99}
-                    >
-                      <span className="rail-icon">{group.icon}</span>
-                    </Badge>
+                    <span className="rail-icon">{group.icon}</span>
                     {!collapsed && (
                       <span
                         className="rail-label"
@@ -533,9 +528,6 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
               // 传 undefined 才是真正不显示
               count={msgCount > 0 ? msgCount : undefined}
               overflowCount={99}
-              // 没有未读消息计数时，若 AI 审批中心有待审批，铃铛上补一个红点提醒
-              // （明细入口在消息中心弹窗顶部的审批条里）
-              dot={msgCount === 0 && approvalCount > 0}
             >
               <Button
                 icon={<IconBell />}
@@ -645,11 +637,6 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
         <AdminMessageCenter
           visible={messageVisible}
           onClose={closeMessageCenter}
-          approvalCount={approvalCount}
-          onOpenApprovals={() => {
-            closeMessageCenter();
-            openPage('aiMcpApprovals');
-          }}
           onRead={(unread) => {
             // 传了未读数：只做乐观更新，不去请求（此时服务端可能还没改完，请求会拿回旧值把角标顶回去）
             // 用 min 取小值：打开消息中心时角标已按原版清零，之后读消息算出的数不应把它顶回去
