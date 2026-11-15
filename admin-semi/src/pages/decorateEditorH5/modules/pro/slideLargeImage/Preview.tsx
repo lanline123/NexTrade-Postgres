@@ -1,10 +1,14 @@
 /**
- * 大图滑动 预览（类名对齐 uniapp-react slideLargeImage：slidelarge-image）
+ * 大图滑动 预览（移植自 view/admin editor/modules/mobilePro/slideLargeImage/Preview.vue）
+ *
+ * 原版：列表复制 5 份、每项宽 = 容器宽/rowNum，图高按首图天然宽高比（padding-top 比值），
+ * auto 时 .slidelarge-image-box 以 left 关键帧 5000ms 线性无限滚动。
+ * 编辑器承接：横向 flex 行（每项 flex-basis 100/rowNum %），图以 <img> 天然比例呈现
+ * （等价于原版按天然比撑高），auto 时保留原版 left 动画类与时长口径（animation-duration=slidingSpeed s）。
  */
-import { useMemo, useState } from "react";
-import { Swiper, SwiperItem } from "@nutui/nutui-react";
+import { useMemo } from "react";
 import { cssText, imageFormat } from "../../../shared/format";
-import { mergeDefaultModule, formatCommonStyle } from "../../../contract/sharedDefaults";
+import { mergeDefaultModule, formatCommonStyle, copyArray } from "../../../contract/sharedDefaults";
 import { slideLargeImageDefaults } from "./index";
 import "./Preview.css";
 
@@ -14,27 +18,99 @@ export default function SlideLargeImagePreview({ data }: { data: Record<string, 
         mergeDefaultModule(merged, slideLargeImageDefaults);
         return merged;
     }, [data]);
+
     const commonStyle = formatCommonStyle(module.moduleStyle ?? {}, module.contentStyle ?? {}, module.subTitle ?? {});
-    const picList: any[] = module.picList || [];
-    const [idx, setIdx] = useState(0);
+    const picList: any[] = Array.isArray(module.picList) ? module.picList : [];
+    const list = copyArray(picList, 5) as any[];
+    const titleDesc = module.picTitleDesc ?? {};
+    const modTitle = module.moduleTitle ?? {};
+    const rowNum = Number(module.rowNum) || 1.5;
+
+    const renderTitle = () => (
+        <div
+            style={{
+                textAlign: modTitle.textAlignment,
+                margin: `${modTitle.titleMarginTop}px ${modTitle.titleMarginLeft}px ${modTitle.titleMarginBottom}px`
+            }}
+        >
+            <div style={{ fontSize: `${modTitle.titleFontSize}px`, fontWeight: modTitle.titleFontWeight, color: modTitle.titleColor }}>{modTitle.titleText}</div>
+            <div style={{ fontSize: `${modTitle.subFontTitleSize}px`, marginTop: 8, fontWeight: modTitle.subFontTitleWeight, color: modTitle.subFontTitleColor }}>
+                {modTitle.subTitleText}
+            </div>
+        </div>
+    );
+
     return (
-        <div className="module-ad-con" style={cssText(commonStyle.moduleStyle.boxPaddingBottom, commonStyle.moduleStyle.boxPaddingTop, commonStyle.moduleStyle.boxPadding, commonStyle.moduleStyle.backgroundSize, commonStyle.moduleStyle.backgroundImage)}>
-            <div className="module-ad-content" style={cssText(commonStyle.moduleContentStyle.backgroundImage, commonStyle.moduleContentStyle.backgroundSize, commonStyle.moduleContentStyle.boxRadius, commonStyle.moduleContentStyle.boxShadow, commonStyle.moduleContentStyle.innerPadding)}>
-                {module.moduleTitle?.title ? <div style={{ textAlign: module.moduleTitle.titlePosition ?? "left", fontWeight: 600, marginBottom: 6 }}>{module.moduleTitle.title}</div> : null}
-                <div className="slidelarge-image" style={{ marginTop: `${module.picMarginTop ?? 0}px` }}>
-                    {picList.length === 0 ? (<div className="module-ad-empty empty-image_ad"><div className="image-empty-bg" /><div className="desc">点击添加图片</div></div>) : (
-                        <Swiper autoplay={Number(module.slidingSpeed) || 3000} loop={picList.length > 1} onChange={(i: number) => setIdx(i)} indicator={false}>
-                            {picList.map((item, i) => (
-                                <SwiperItem key={i}>
-                                    <div style={{ margin: `0 ${module.picMargin ?? 8}px`, borderRadius: `${module.picRadius ?? 8}px`, overflow: "hidden", position: "relative" }}>
-                                        <img src={imageFormat(item.picUrl)} alt="" style={{ width: "100%", display: "block" }} />
-                                        {(item.title || item.desc) ? <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: 8, backgroundColor: module.picTitleDesc?.backgroundColor || "rgba(0,0,0,0.35)", color: "#fff", textAlign: module.picTitleDesc?.fontPosition ?? "left" }}><div style={{ fontSize: 14, fontWeight: 600 }}>{item.title}</div><div style={{ fontSize: 12 }}>{item.desc}</div></div> : null}
+        <div
+            className="module-ad-con h5-slide-large"
+            style={cssText(
+                commonStyle.moduleStyle.boxPaddingBottom,
+                commonStyle.moduleStyle.boxPaddingTop,
+                commonStyle.moduleStyle.boxPadding,
+                commonStyle.moduleStyle.backgroundSize,
+                commonStyle.moduleStyle.backgroundImage
+            )}
+        >
+            <div
+                className="module-ad-content"
+                style={cssText(
+                    commonStyle.moduleContentStyle.backgroundImage,
+                    commonStyle.moduleContentStyle.backgroundSize,
+                    commonStyle.moduleContentStyle.boxRadius,
+                    commonStyle.moduleContentStyle.boxShadow,
+                    commonStyle.moduleContentStyle.innerPadding
+                )}
+            >
+                <div className="slidelarge-image">
+                    {modTitle && modTitle.titlePosition === "top" && modTitle.titleText ? renderTitle() : null}
+                    <div style={{ marginTop: `${module.picMarginTop}%`, width: "100%", zIndex: 1, overflow: "hidden" }}>
+                        <div
+                            className={module.slidingEffect === "auto" ? "slidelarge-image-box" : undefined}
+                            style={{
+                                display: "flex",
+                                animationDuration: `${module.slidingSpeed}s`,
+                                position: "relative",
+                                top: 0,
+                                left: 0,
+                                animationPlayState: module.slidingEffect === "manual" ? "paused" : "running"
+                            }}
+                        >
+                            {list.map((item, index) => (
+                                <div key={index} style={{ flexBasis: `${100 / rowNum}%`, flexShrink: 0 }}>
+                                    <div style={{ marginRight: `${module.picMargin}px`, background: "none", borderRadius: `${module.picRadius}px`, position: "relative", overflow: "hidden" }}>
+                                        <img
+                                            src={imageFormat(item.picUrl)}
+                                            alt=""
+                                            style={{ width: "100%", display: "block", objectFit: module.picFillType === "contain" ? "contain" : "cover" }}
+                                        />
+                                        {titleDesc.show && (item.picTitle || item.picDesc) ? (
+                                            <div
+                                                style={{
+                                                    background: titleDesc.backgroundColor ? titleDesc.backgroundColor : "none",
+                                                    textAlign: titleDesc.textAlignment,
+                                                    ...(titleDesc.fontPosition === "internal"
+                                                        ? { position: "absolute" as const, left: 0, right: 0, bottom: 0, padding: "10px 15px" }
+                                                        : { margin: `${titleDesc.marginTop}px ${titleDesc.marginLeft}px ${titleDesc.marginBottom}px` })
+                                                }}
+                                            >
+                                                {item.picTitle ? (
+                                                    <div style={{ color: titleDesc.titleColor, fontSize: `${titleDesc.titleFontSize}px`, fontWeight: titleDesc.titleFontWeight, overflow: "hidden" }}>
+                                                        {item.picTitle}
+                                                    </div>
+                                                ) : null}
+                                                {item.picDesc ? (
+                                                    <div style={{ marginTop: 6, fontSize: `${titleDesc.descFontSize}px`, fontWeight: titleDesc.descFontWeight || undefined, color: titleDesc.descColor, overflow: "hidden" }}>
+                                                        {item.picDesc}
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        ) : null}
                                     </div>
-                                </SwiperItem>
+                                </div>
                             ))}
-                        </Swiper>
-                    )}
-                    {picList.length > 1 ? <div className="slidelarge-dots">{picList.map((_, i) => (<i key={i} className={i === idx ? "on" : ""} />))}</div> : null}
+                        </div>
+                    </div>
+                    {modTitle && modTitle.titlePosition === "bottom" ? renderTitle() : null}
                 </div>
             </div>
         </div>

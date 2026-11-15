@@ -1,3 +1,58 @@
-.dec-fixed-area__demo-card { background: #fff; border: 1px dashed #d9d9d9; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 4px; }
-.dec-fixed-area__demo-title { font-size: 14px; font-weight: 600; color: #333; }
-.dec-fixed-area__demo-desc { font-size: 12px; color: #999; }
+/* 固定功能区 Preview scoped 样式（移植自原版 Preview.vue <style scoped>） */
+.module-member-fixed-functional-area .ffa-card {
+    margin: 10px 0;
+    border-radius: 9px;
+    background-image: url("https://oss.tigshop.com/img/gallery/202605/1779687135mCFnXgC37n5CN70APv.png");
+    background-size: cover;
+    background-position: center;
+    overflow: hidden;
+}
+.module-member-fixed-functional-area .ffa-card-header {
+    height: 44px;
+    padding: 0 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+.module-member-fixed-functional-area .ffa-card-title {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.module-member-fixed-functional-area .ffa-card-title-text {
+    font-size: 13px;
+    font-weight: 600;
+    color: #ae5d34;
+}
+.module-member-fixed-functional-area .ffa-card-detail {
+    font-size: 11px;
+    color: #ae5d34;
+    background: #fefdf4;
+    padding: 4px 10px;
+    border-radius: 20px;
+    cursor: pointer;
+}
+.module-member-fixed-functional-area .ffa-card-content {
+    display: flex;
+    padding: 10px 0;
+}
+.module-member-fixed-functional-area .ffa-amount-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.module-member-fixed-functional-area .ffa-amount-value {
+    font-size: 14px;
+    line-height: 24px;
+    font-weight: 600;
+    color: #ae5d34;
+}
+.module-member-fixed-functional-area .ffa-amount-label {
+    font-size: 12px;
+    line-height: 20px;
+    color: #ae5d34;
+    opacity: 0.8;
+}

@@ -1,48 +1,57 @@
-/* 直播 预览专属样式（自 uniapp-react live/index.scss 换算，rpx→px ×0.5） */
-.module-live .module-ad-content {
-    overflow: hidden;
+/* 小程序直播 Preview scoped 样式（移植自原版 Preview.vue <style scoped>，原版作用域 .module-live） */
+.module-promotion-live .live-empty {
+    padding: 24px 0;
+    text-align: center;
+    color: #999;
+    font-size: 12px;
 }
-.module-live .live-container {
-    box-sizing: border-box;
-}
-.module-live .live-list--bigImage {
+.module-promotion-live .live-list--bigImage {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
 }
-.module-live .live-card--bigImage {
+.module-promotion-live .live-card--bigImage {
     position: relative;
     width: 100%;
     overflow: hidden;
     box-sizing: border-box;
 }
-.module-live .live-card__cover--full {
+.module-promotion-live .live-card__cover--full {
     position: relative;
     width: 100%;
-    height: 0;
-    padding-bottom: 80%;
+    height: auto;
+    aspect-ratio: 5 / 4;
+    background: linear-gradient(180deg, #7977b0 0%, #282655 100%);
     overflow: hidden;
-    background: linear-gradient(180deg, #7d6bff 0%, #3d2fc5 100%);
+    border-radius: inherit;
 }
-.module-live .live-card__cover--full .live-card__cover-image {
-    position: absolute;
-    left: 0;
-    top: 0;
+.module-promotion-live .live-card__cover--full img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    display: block;
 }
-.module-live .live-card__cover--full .live-card__cover-placeholder {
+.module-promotion-live .live-card__status-tag {
     position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    top: 8px;
+    left: 8px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    color: #fff;
+    z-index: 1;
+    background: rgba(0, 0, 0, 0.35);
 }
-.module-live .live-card__mask {
+.module-promotion-live .live-card__status-tag--live {
+    background: rgba(255, 68, 68, 0.9);
+}
+.module-promotion-live .live-card__status-tag--pending {
+    background: rgba(121, 114, 255, 0.95);
+}
+.module-promotion-live .live-card__status-tag--ended {
+    background: rgba(0, 0, 0, 0.35);
+}
+.module-promotion-live .live-card__mask {
     position: absolute;
     left: 0;
     right: 0;
@@ -54,180 +63,117 @@
     height: 70px;
     box-sizing: border-box;
     background: #fff;
-    z-index: 2;
 }
-.module-live .live-card__status-tag {
-    position: absolute;
-    top: 8px;
-    left: 8px;
-    padding: 3px 7px;
-    border-radius: 999px;
-    font-size: 10px;
-    line-height: 1.4;
-    color: #fff;
-    z-index: 3;
-    background: rgba(0, 0, 0, 0.45);
-}
-.module-live .live-card__status-tag--live {
-    background: rgba(255, 68, 68, 0.9);
-}
-.module-live .live-card__status-tag--pending {
-    background: rgba(121, 114, 255, 0.95);
-}
-.module-live .live-card__status-tag--ended {
-    background: rgba(0, 0, 0, 0.45);
-}
-.module-live .live-card__mask-title {
+.module-promotion-live .live-card__mask-title {
     font-size: 14px;
     line-height: 20px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex-shrink: 0;
+    word-break: break-all;
 }
-.module-live .live-card__mask-meta {
+.module-promotion-live .live-card__mask-meta {
     display: flex;
     align-items: center;
     justify-content: space-between;
     font-size: 12px;
     color: #a7a7a7;
 }
-.module-live .live-list--list {
+.module-promotion-live .live-list--list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 0;
 }
-.module-live .live-card {
+.module-promotion-live .live-card {
+    overflow: hidden;
     box-sizing: border-box;
-    background: #fff;
-    overflow: hidden;
 }
-.module-live .live-card--list {
+.module-promotion-live .live-card--list {
     display: flex;
-    align-items: stretch;
-    gap: 10px;
-    padding: 10px;
+    gap: 12px;
+    padding: 12px;
 }
-.module-live .live-card__cover {
+.module-promotion-live .live-card__cover {
     position: relative;
+    background: linear-gradient(180deg, #7977b0 0%, #282655 100%);
     overflow: hidden;
-    background: linear-gradient(180deg, #7d6bff 0%, #3d2fc5 100%);
 }
-.module-live .live-card__cover--list {
-    width: 94px;
-    min-width: 94px;
-    height: 94px;
-}
-.module-live .live-card__cover-image {
+.module-promotion-live .live-card__cover img {
     width: 100%;
-    height: 100%;
-    display: block;
+    height: calc(100% - 70px);
     object-fit: cover;
 }
-.module-live .live-card__cover-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 12px;
-    box-sizing: border-box;
-    background: linear-gradient(180deg, #7d6bff 0%, #3d2fc5 100%);
+.module-promotion-live .live-card__cover--large {
+    width: 92px;
+    height: 92px;
+    flex: 0 0 92px;
+    border-radius: 4px;
 }
-.module-live .live-card__cover-placeholder-text {
-    color: rgba(255, 255, 255, 0.92);
-    font-size: 14px;
-    font-weight: 600;
-}
-.module-live .live-card__badge,
-.module-live .live-card__status {
+.module-promotion-live .live-card__badge,
+.module-promotion-live .live-card__status {
     position: absolute;
     left: 8px;
-    padding: 3px 7px;
+    padding: 2px 8px;
     border-radius: 999px;
-    color: #fff;
     font-size: 10px;
-    line-height: 1.4;
-    z-index: 1;
+    color: #fff;
 }
-.module-live .live-card__badge {
+.module-promotion-live .live-card__badge {
     top: 8px;
-    background: rgba(244, 48, 29, 0.92);
+    background: rgba(121, 114, 255, 0.95);
 }
-.module-live .live-card__status {
+.module-promotion-live .live-card__status {
     bottom: 8px;
-    background: rgba(0, 0, 0, 0.45);
+    background: rgba(0, 0, 0, 0.35);
 }
-.module-live .live-card__content {
+.module-promotion-live .live-card__content {
     min-width: 0;
     flex: 1;
+}
+.module-promotion-live .live-card--list .live-card__content {
     display: flex;
     flex-direction: column;
-    box-sizing: border-box;
+    justify-content: center;
 }
-.module-live .live-card__title {
-    color: #2a2a2a;
+.module-promotion-live .live-card__title {
+    color: rgb(42, 42, 42);
     font-size: 14px;
-    font-weight: 500;
-    line-height: 20px;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    overflow: hidden;
+    word-break: break-all;
 }
-.module-live .live-card__goods {
+.module-promotion-live .live-card__footer {
     display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: space-between;
+    gap: 10px;
     margin-top: 8px;
 }
-.module-live .live-card__goods-item {
-    width: 36px;
-    height: 36px;
-    border-radius: 4px;
-    flex-shrink: 0;
-    object-fit: cover;
+.module-promotion-live .live-card__meta {
+    color: #a7a7a7;
+    font-size: 12px;
+    line-height: 18px;
 }
-.module-live .live-card__footer {
-    margin-top: auto;
-    padding-top: 10px;
+.module-promotion-live .live-card__goods {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
+    margin-top: 8px;
 }
-.module-live .live-card__meta {
-    min-width: 0;
-    flex: 1;
-    color: #7a7a7a;
-    font-size: 12px;
-    line-height: 1.5;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.module-live .live-card__action {
-    padding: 5px 11px;
-    border-radius: 999px;
-    background: var(--general, #e93b3d);
-    color: #fff;
-    font-size: 12px;
-    line-height: 1.4;
+.module-promotion-live .live-card__goods-item {
+    width: 44px;
+    height: 44px;
+    border-radius: 4px;
+    object-fit: cover;
+    background: #f3f4f6;
+    border: 1px solid #f0f0f0;
     flex-shrink: 0;
 }
-.module-live .live-empty {
-    padding: 28px 16px;
-    background: #fff;
-    text-align: center;
-}
-.module-live .live-empty__title {
-    color: #2a2a2a;
-    font-size: 14px;
-    font-weight: 500;
-    line-height: 1.5;
-}
-.module-live .live-empty__desc {
-    margin-top: 6px;
-    color: #999;
-    font-size: 12px;
-    line-height: 1.5;
+.module-promotion-live .live-card__action {
+    padding: 4px 10px;
+    border-radius: 3px;
+    background: #155bd4;
+    color: #fff;
+    font-size: 11px;
+    line-height: 16px;
+    white-space: nowrap;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 2px;
 }

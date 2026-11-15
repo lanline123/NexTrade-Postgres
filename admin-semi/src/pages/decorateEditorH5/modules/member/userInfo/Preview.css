@@ -1,14 +1,105 @@
-.dec-user-info__header { display: flex; justify-content: space-between; align-items: flex-start; }
-.dec-user-info__profile { display: flex; align-items: center; gap: 10px; }
-.dec-user-info__avatar-img { width: 48px; height: 48px; border-radius: 50%; background: #e6e6e6; }
-.dec-user-info__name { font-size: 16px; font-weight: 600; color: #333; }
-.dec-user-info__level-text { font-size: 12px; color: #999; }
-.dec-user-info__shortcuts { display: flex; gap: 14px; }
-.dec-user-info__shortcut-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.dec-user-info__shortcut-icon { width: 22px; height: 22px; object-fit: contain; }
-.dec-user-info__shortcut-ph { display: flex; align-items: center; justify-content: center; font-size: 12px; color: #999; }
-.dec-user-info__shortcut-text { font-size: 11px; color: #666; }
-.dec-user-info__stats { display: flex; margin-top: 14px; }
-.dec-user-info__stat-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.dec-user-info__stat-label { font-size: 12px; color: #666; }
-.dec-user-info__stat-value { font-size: 14px; font-weight: 600; color: #333; }
+/* 用户信息 Preview scoped 样式（移植自原版 Preview.vue <style scoped>，类名与原版一致） */
+.module-member-user-info .user-info-wrap {
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.module-member-user-info .user-info-container {
+    box-sizing: border-box;
+}
+.module-member-user-info .user-info-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+}
+.module-member-user-info .user-info-profile {
+    display: flex;
+    align-items: center;
+}
+.module-member-user-info .user-info-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-right: 16px;
+    flex-shrink: 0;
+    background-color: #fff;
+}
+.module-member-user-info .user-info-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.module-member-user-info .user-info-text {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.module-member-user-info .user-info-name {
+    font-size: 16px;
+    color: #1a1a1a;
+    margin-bottom: 20px;
+    font-weight: 500;
+}
+.module-member-user-info .user-info-level {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.module-member-user-info .user-info-level-icon {
+    width: 16px;
+}
+.module-member-user-info .user-info-level-text {
+    font-size: 12px;
+}
+.module-member-user-info .user-info-shortcuts {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    align-self: flex-start;
+    margin-top: 4px;
+}
+.module-member-user-info .shortcut-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: #333;
+    font-size: 12px;
+    font-weight: 500;
+}
+.module-member-user-info .shortcut-icon {
+    width: 16px;
+}
+.module-member-user-info .shortcut-settings {
+    padding: 4px;
+    margin-right: -4px;
+    color: #666;
+}
+.module-member-user-info .user-info-stats {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.module-member-user-info .stat-item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #999;
+}
+.module-member-user-info .stat-label {
+    color: #333;
+}
+.module-member-user-info .stat-value {
+    font-weight: 500;
+    color: #333;
+}
+.module-member-user-info .stat-divider {
+    width: 1px;
+    height: 14px;
+    background: #e2e8f0;
+    margin: 0 4px;
+}

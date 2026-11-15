@@ -1,9 +1,59 @@
-.dec-account__title { font-size: 15px; font-weight: 600; color: #333; margin-bottom: 6px; }
-.dec-account__item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f7f7f7; }
-.dec-account__item-left { display: flex; align-items: center; gap: 10px; }
-.dec-account__item-icon img { width: 22px; height: 22px; object-fit: contain; display: block; }
-.dec-account__icon-ph { width: 22px; height: 22px; border-radius: 50%; background: #f0f2f5; color: #999; display: flex; align-items: center; justify-content: center; font-size: 11px; }
-.dec-account__item-title { font-size: 13px; color: #333; }
-.dec-account__item-right { display: flex; align-items: center; gap: 4px; }
-.dec-account__item-subtitle { font-size: 12px; color: #999; }
-.dec-account__item-arrow { color: #bbb; }
+/* 账号 Preview scoped 样式（移植自原版 Preview.vue <style scoped>） */
+.module-member-account .account-wrap {
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.module-member-account .account-container {
+    box-sizing: border-box;
+}
+.module-member-account .account-header {
+    margin-bottom: 10px;
+}
+.module-member-account .account-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+.module-member-account .account-list {
+    display: flex;
+    flex-direction: column;
+}
+.module-member-account .account-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0;
+    border-bottom: 1px solid #f5f5f5;
+}
+.module-member-account .account-item:last-child {
+    border-bottom: none;
+}
+.module-member-account .account-item-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.module-member-account .account-item-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+.module-member-account .account-item-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+.module-member-account .account-item-title {
+    font-size: 15px;
+    color: #1a1a1a;
+}
+.module-member-account .account-item-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #888b94;
+}
+.module-member-account .account-item-subtitle {
+    font-size: 14px;
+    color: #1a1a1a;
+}

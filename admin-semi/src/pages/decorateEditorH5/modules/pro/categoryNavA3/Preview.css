@@ -1,9 +1,93 @@
-.category-nav .scroll-box{overflow:hidden}
-.category-nav .category-nav-item{overflow:hidden}
-.category-nav .item-box{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;box-sizing:border-box}
-.category-nav .category-nav-item-img{height:0;background-repeat:no-repeat;background-position:center;margin:0 auto}
-.category-nav .category-nav-item-text{white-space:nowrap;text-align:center;height:20px;line-height:20px;margin:3px 0 0;font-size:14px;width:100%;overflow:hidden;text-overflow:ellipsis}
-.category-nav .category-nav-item-desc{font-size:11px;color:#999;text-align:center}
-.category-nav .line-box{display:flex;justify-content:center;gap:4px;margin-top:6px}
-.category-nav .line{border-radius:3px}
-.catnav-a3-logo{height:28px;display:block;margin-bottom:6px}
+/* 类目导航A3 预览样式（逐条移植自 view/admin categoryNavA3/Preview.vue scoped less，类名加 h5-catnav-a3 前缀隔离） */
+.h5-catnav-a3 .decorate-slide-box::-webkit-scrollbar {
+    display: none;
+    height: 0;
+}
+.h5-catnav-a3 {
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center top;
+    position: relative;
+}
+.h5-catnav-a3 .list {
+    display: flex;
+    flex-wrap: wrap;
+}
+.h5-catnav-a3 .slide {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: scroll;
+}
+.h5-catnav-a3 .slide2 {
+    display: flex;
+    flex-wrap: wrap;
+}
+.h5-catnav-a3 .category-nav {
+    overflow: hidden;
+}
+.h5-catnav-a3 .category-nav-item {
+    overflow: hidden;
+}
+.h5-catnav-a3 .item-box {
+    display: block;
+    text-align: center;
+    overflow: hidden;
+    width: 100%;
+    box-sizing: border-box;
+}
+.h5-catnav-a3 .img-box {
+    position: relative;
+    height: 0;
+    overflow: hidden;
+    margin: 0 auto;
+}
+.h5-catnav-a3 .img-box-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+.h5-catnav-a3 .category-nav-item-img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+.h5-catnav-a3 .category-nav-item-text {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+    height: 20px;
+    line-height: 20px;
+    margin-top: 8px;
+    font-size: 14px;
+    width: 100%;
+}
+.h5-catnav-a3 .category-nav-item-desc {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #888b94;
+    font-size: 12px;
+    line-height: 16px;
+    margin-top: 8px;
+    width: 100%;
+}
+.h5-catnav-a3 .category-nav-item-desc .desc-text {
+    font-size: 12px;
+    color: #666;
+}
+.h5-catnav-a3 .category-nav-item-desc .desc-icon {
+    width: 16px;
+    height: 16px;
+    margin-right: 4px;
+}
+.h5-catnav-a3 .line {
+    box-sizing: content-box;
+}

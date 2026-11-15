@@ -1,20 +1,252 @@
-.combo-wrap{padding:10px}
-.combo-header{text-align:center;color:#fff;margin-bottom:8px}
-.header-title{font-size:18px;font-weight:700}
-.header-sub{font-size:12px;opacity:.9}
-.combo-card{margin-bottom:10px}
-.card-head{display:flex;align-items:center;gap:6px;margin-bottom:6px}
-.card-badge{background:#FF3630;color:#fff;font-size:11px;border-radius:8px;padding:1px 6px}
-.card-title{font-weight:600;flex:1}
-.more-link{font-size:12px;color:#999}
-.product-scroll{overflow-x:auto}
-.product-track{display:flex}
-.product-item{box-sizing:border-box;background:#fff;border-radius:8px}
-.product-name{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:4px}
-.product-brief-overlap{font-size:11px;border-radius:8px;padding:1px 6px;display:inline-block}
-.product-bottom{display:flex;justify-content:space-between;align-items:center;margin-top:2px}
-.price-current{font-weight:700}
-.price-market{font-size:11px;text-decoration:line-through;margin-left:4px}
-.coupon-item{border-radius:8px;padding:8px 4px;text-align:center}
-.amount-num{font-size:20px;font-weight:700}
-.coupon-condition{font-size:11px}
+/* 新人二重礼 预览样式（移植自 mobilePro/newcomerCombo/Preview.vue scoped，类名加 nc- 前缀防冲突） */
+.module-newcomer_combo .nc-combo-wrap {
+    padding: 10px;
+    box-sizing: border-box;
+}
+.module-newcomer_combo .nc-combo-header {
+    padding: 0 4px;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.module-newcomer_combo .nc-header-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-right: 4px;
+}
+.module-newcomer_combo .nc-header-sub {
+    font-size: 14px;
+    font-weight: 400;
+}
+.module-newcomer_combo .nc-combo-card {
+    margin-top: 10px;
+    border-radius: 10px;
+    padding: 10px 10px 12px;
+    box-sizing: border-box;
+}
+.module-newcomer_combo .nc-card-head {
+    display: flex;
+    align-items: center;
+    height: 24px;
+    margin-bottom: 8px;
+}
+.module-newcomer_combo .nc-card-badge {
+    font-size: 13px;
+    line-height: 1;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.module-newcomer_combo .nc-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-left: 6px;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.module-newcomer_combo .nc-more-link {
+    font-size: 12px;
+    white-space: nowrap;
+}
+.module-newcomer_combo .nc-more-link-pill {
+    padding: 4px 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+}
+.module-newcomer_combo .nc-empty {
+    padding: 20px 0;
+    text-align: center;
+    color: #999;
+    font-size: 12px;
+}
+.module-newcomer_combo .nc-product-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.module-newcomer_combo .nc-product-scroll::-webkit-scrollbar {
+    display: none;
+}
+.module-newcomer_combo .nc-product-track {
+    display: flex;
+}
+.module-newcomer_combo .nc-product-item {
+    overflow: visible;
+    display: flex;
+    flex-direction: column;
+}
+.module-newcomer_combo .nc-product-photo {
+    position: relative;
+    width: 100%;
+    overflow: visible;
+}
+.module-newcomer_combo .nc-product-img-wrap {
+    overflow: hidden;
+    box-sizing: border-box;
+    background-color: #fafafa;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+}
+.module-newcomer_combo .nc-product-name {
+    font-size: 12px;
+    line-height: 1.3;
+    margin-top: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.module-newcomer_combo .nc-product-brief {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    padding: 2px 6px;
+    font-size: 12px;
+    line-height: 1.2;
+    border-radius: 4px;
+    font-weight: 500;
+    white-space: nowrap;
+    max-width: 90%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
+    z-index: 5;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+.module-newcomer_combo .nc-product-bottom {
+    padding: 10px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 4px;
+}
+.module-newcomer_combo .nc-product-prices {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+    flex: 1;
+    min-width: 0;
+}
+.module-newcomer_combo .nc-price-current {
+    font-weight: 700;
+}
+.module-newcomer_combo .nc-price-current i {
+    font-style: normal;
+    font-size: 10px;
+    margin-right: 2px;
+}
+.module-newcomer_combo .nc-price-current b {
+    font-size: 13px;
+}
+.module-newcomer_combo .nc-price-market {
+    font-size: 10px;
+    text-decoration: line-through;
+    margin-top: 2px;
+    font-weight: 400;
+}
+.module-newcomer_combo .nc-buy-btn {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    line-height: 20px;
+    border-radius: 50%;
+    text-align: center;
+    font-size: 14px;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+.module-newcomer_combo .nc-buy-btn .nc-buy-icon {
+    font-size: 10px;
+    line-height: 1;
+    display: inline-flex;
+}
+.module-newcomer_combo .nc-buy-btn-style__5,
+.module-newcomer_combo .nc-buy-btn-style__6,
+.module-newcomer_combo .nc-buy-btn-style__7,
+.module-newcomer_combo .nc-buy-btn-style__8 {
+    width: auto;
+    height: 20px;
+    line-height: 20px;
+    padding: 0 8px;
+    font-size: 10px;
+    border-radius: 10px;
+}
+.module-newcomer_combo .nc-coupon-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.module-newcomer_combo .nc-coupon-row::-webkit-scrollbar {
+    display: none;
+}
+.module-newcomer_combo .nc-coupon-item {
+    min-width: 0;
+    padding: 12px 4px 10px;
+    border-radius: 6px;
+    text-align: center;
+    box-sizing: border-box;
+    position: relative;
+    overflow: visible;
+}
+.module-newcomer_combo .nc-coupon-item::before,
+.module-newcomer_combo .nc-coupon-item::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    background-color: var(--dec-bg, #ffffff);
+    border-radius: 50%;
+    z-index: 2;
+}
+.module-newcomer_combo .nc-coupon-item::before {
+    left: -4px;
+    transform: translateY(-50%);
+}
+.module-newcomer_combo .nc-coupon-item::after {
+    right: -4px;
+    transform: translateY(-50%);
+}
+.module-newcomer_combo .nc-coupon-amount {
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+.module-newcomer_combo .nc-amount-prefix {
+    font-style: normal;
+    font-size: 11px;
+    margin-right: 1px;
+    line-height: 1.1;
+    margin-bottom: 2px;
+}
+.module-newcomer_combo .nc-coupon-amount b {
+    font-size: 28px;
+    line-height: 1;
+}
+.module-newcomer_combo .nc-coupon-condition {
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

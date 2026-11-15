@@ -1,96 +1,352 @@
 /**
- * 会员信息3 设置（覆盖渲染端读取的全部配置字段；stats.items 的 key 为渲染端固定枚举，仅开放 label/show 编辑）
+ * 用户信息3 设置（对齐 view/admin userInfo3/Settings.vue）
+ *
+ * 页签 内容设置/扩展设置。内容：布局风格（1-4，切换联动同原版 watch：textColors 重置为新样式默认色、
+ * 样式 2/3/4 渐变重置为该样式默认、样式四另重置 memberBar 粉渐变+圆角 10）→ 文字颜色 4 项
+ * （统计两色仅样式一/二，重置回当前样式默认）→ 各样式专属组：
+ *   样式一 会员等级条（开关/背景/上圆角/等级名/描述/查看链接 SelectLink 文本承接）；
+ *   样式二 设置入口+图标、消息通知+图标；
+ *   样式三 成长值条（开关/渐变色对/上圆角）；
+ *   样式四 头像编辑图标开关、成长值卡（开关/渐变色对/圆角/按钮文案/背景图）；
+ *   样式一/二 统计数据（总开关 + 逐项 checkbox 显示 + 名称输入）。
+ * 扩展：样式一 背景色（重置 #57D45C）/背景图/弧底开关；样式 2/3/4 渐变色对 + 渐变方向；
+ *   左右内边距滑杆（frame.innerPadding，max 30）；CommonFrameEdit 门控
+ *   hideBg+hidePadding 恒开，hideBoxPadding/hideBoxRadius 仅样式 2/3/4。
+ * 布尔字段（show/showEditIcon）写 boolean，同原版 el-switch/el-checkbox 语义。
  */
-import { SettingGroup, TextField, SwitchField, RadioRowField, NumberField, ColorField, SinglePicField, FrameSettingsField } from "../../../shared/settingWidgets";
+import { Input, InputNumber, Radio, RadioGroup, Slider, Switch, Checkbox } from "@douyinfe/semi-ui";
+import AlphaColorInput from "../../../../../components/AlphaColorInput";
+import { SettingGroup, SettingRow, SegmentedRadio, DecDivider, PicSelectBox, FrameSettingsField, RadioRowField } from "../../../shared/settingWidgets";
+import { SettingsTabs } from "../../../shared/styleEdits";
 
-const inputStyle: React.CSSProperties = { height: 28, border: "1px solid var(--semi-color-border)", borderRadius: 4, padding: "0 6px", flex: 1, minWidth: 0 };
+const TEXT_DEFAULTS: Record<number, Record<string, string>> = {
+    1: { nameColor: "#ffffff", subColor: "#ffffff", statValueColor: "#ffffff", statLabelColor: "#ffffff" },
+    2: { nameColor: "#333333", subColor: "#666666", statValueColor: "#333333", statLabelColor: "#666666" },
+    3: { nameColor: "#333333", subColor: "#666666", statValueColor: "#333333", statLabelColor: "#666666" },
+    4: { nameColor: "#333333", subColor: "#666666", statValueColor: "#333333", statLabelColor: "#666666" }
+};
+const GRADIENT_DEFAULTS: Record<number, { colorA: string; colorB: string; gradientType: string }> = {
+    2: { colorA: "#E0FCED", colorB: "#FDF1F3", gradientType: "leftRight" },
+    3: { colorA: "#F1EFE9", colorB: "#E7F0E6", gradientType: "leftRight" },
+    4: { colorA: "#FBD9E1", colorB: "#FDEDEF", gradientType: "leftRight" }
+};
+
+function BoolRow({ label, value, onValue }: { label: string; value: boolean; onValue: (v: boolean) => void }) {
+    return (
+        <SettingRow label={label}>
+            <Switch checked={value} onChange={(v: boolean) => onValue(!!v)} />
+        </SettingRow>
+    );
+}
+function ColorRow({ label, value, onValue, resetValue }: { label: string; value: string; onValue: (v: string) => void; resetValue?: string }) {
+    return (
+        <SettingRow label={label}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <AlphaColorInput value={value ?? ""} onChange={onValue} />
+                {resetValue !== undefined ? (
+                    <a
+                        className="dec-color-reset"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            onValue(resetValue);
+                        }}
+                    >
+                        重置
+                    </a>
+                ) : null}
+            </div>
+        </SettingRow>
+    );
+}
+function RangeRow({ label, value, max, onValue }: { label: string; value: number; max: number; onValue: (v: number) => void }) {
+    const v = Number(value ?? 0) || 0;
+    return (
+        <SettingRow label={label}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, width: 240, maxWidth: "100%" }}>
+                <Slider style={{ flex: 1 }} min={0} max={max} value={v} onChange={(n) => onValue(Number(n) || 0)} />
+                <InputNumber style={{ width: 64 }} min={0} max={max} value={v} onChange={(n) => onValue(Number(n) || 0)} />
+            </div>
+        </SettingRow>
+    );
+}
+function SegRow({
+    label,
+    value,
+    options,
+    onValue
+}: {
+    label: string;
+    value: any;
+    options: { value: any; label: string }[];
+    onValue: (v: any) => void;
+}) {
+    return (
+        <SettingRow label={label}>
+            <RadioGroup type="button" value={value} onChange={(e: any) => onValue(e?.target?.value)}>
+                {options.map((o) => (
+                    <Radio key={String(o.value)} value={o.value}>
+                        {o.label}
+                    </Radio>
+                ))}
+            </RadioGroup>
+        </SettingRow>
+    );
+}
+function PicRow({ label, value, onValue }: { label: string; value: any; onValue: (v: any) => void }) {
+    return (
+        <SettingRow label={label}>
+            <PicSelectBox pic={value} onSelect={onValue} onReset={() => onValue({})} />
+        </SettingRow>
+    );
+}
+function TextRow({
+    label,
+    value,
+    onValue,
+    placeholder,
+    width = 240
+}: {
+    label: string;
+    value: string;
+    onValue: (v: string) => void;
+    placeholder?: string;
+    width?: number;
+}) {
+    return (
+        <SettingRow label={label}>
+            <Input value={value ?? ""} placeholder={placeholder} style={{ width, maxWidth: "100%" }} onChange={onValue} />
+        </SettingRow>
+    );
+}
 
 export default function UserInfo3Settings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
-    const obj = (key: string) => data?.[key] ?? {};
-    const setObj = (key: string) => (patch: Record<string, any>) => onChange({ [key]: { ...obj(key), ...patch } });
-    const stats = obj("stats");
-    const statsItems: any[] = stats.items || [];
-    const setStatItem = (index: number, patch: Record<string, any>) =>
+    const layoutStyle = data?.layoutStyle ?? 1;
+    const nested = (key: string) => (patch: Record<string, any>) => onChange({ [key]: { ...(data?.[key] ?? {}), ...patch } });
+    const setTextColor = (key: string, v: string) => nested("textColors")({ [key]: v });
+    const textColor = (key: string) => data?.textColors?.[key] || TEXT_DEFAULTS[layoutStyle]?.[key] || "";
+    const bar = data?.memberBar ?? {};
+    const setBar = nested("memberBar");
+    const stats = data?.stats ?? {};
+    const statsItems: any[] = Array.isArray(stats.items) ? stats.items : [];
+    const setStatsItem = (index: number, patch: Record<string, any>) =>
         onChange({ stats: { ...stats, items: statsItems.map((it, i) => (i === index ? { ...it, ...patch } : it)) } });
+
+    const handleLayout = (patch: Record<string, any>) => {
+        if (patch.layoutStyle && patch.layoutStyle !== layoutStyle) {
+            const next = patch.layoutStyle;
+            const extra: Record<string, any> = { textColors: { ...TEXT_DEFAULTS[next] } };
+            if (next === 2 || next === 3 || next === 4) extra.gradient = { ...GRADIENT_DEFAULTS[next] };
+            if (next === 4) extra.memberBar = { ...bar, backgroundColor: "#FF9EB5", backgroundColorB: "#FF6E97", borderRadius: 10 };
+            onChange({ ...patch, ...extra });
+            return;
+        }
+        onChange(patch);
+    };
+
     return (
         <div className="h5-editor-settings-body">
-            <SettingGroup title="布局">
-                <RadioRowField
-                    data={data}
-                    onChange={onChange}
-                    field="layoutStyle"
-                    label="布局样式"
-                    options={[
-                        { value: 1, label: "弧形绿底" },
-                        { value: 2, label: "浅色图标" },
-                        { value: 3, label: "极简成长" },
-                        { value: 4, label: "居中头像" }
-                    ]}
-                />
-                <SwitchField data={data} onChange={onChange} field="showEditIcon" label="显示编辑图标" />
-                <TextField data={data} onChange={onChange} field="nickname" label="昵称(演示)" />
-                <TextField data={data} onChange={onChange} field="description" label="等级文案(演示)" />
-            </SettingGroup>
-            <SettingGroup title="背景渐变">
-                <ColorField data={obj("gradient")} onChange={setObj("gradient")} field="colorA" label="渐变色A" />
-                <ColorField data={obj("gradient")} onChange={setObj("gradient")} field="colorB" label="渐变色B" />
-                <RadioRowField
-                    data={obj("gradient")}
-                    onChange={setObj("gradient")}
-                    field="gradientType"
-                    label="渐变方向"
-                    options={[
-                        { value: "leftRight", label: "左右" },
-                        { value: "upDown", label: "上下" },
-                        { value: "diagonal", label: "斜向" }
-                    ]}
-                />
-                <ColorField data={data} onChange={onChange} field="bgColor" label="旧版背景色(兼容)" />
-                <SwitchField data={data} onChange={onChange} field="backgroundImageShow" label="显示背景图" />
-                <SinglePicField data={data} onChange={onChange} field="backgroundImage" label="背景图" />
-            </SettingGroup>
-            <SettingGroup title="快捷入口图标">
-                <SwitchField data={obj("signIn")} onChange={setObj("signIn")} field="show" label="显示签到" />
-                <TextField data={obj("signIn")} onChange={setObj("signIn")} field="title" label="签到文案" />
-                <SinglePicField data={obj("signIn")} onChange={setObj("signIn")} field="icon" label="签到图标" />
-                <SwitchField data={obj("settings")} onChange={setObj("settings")} field="show" label="显示设置" />
-                <SinglePicField data={obj("settings")} onChange={setObj("settings")} field="icon" label="设置图标" />
-                <SwitchField data={obj("notification")} onChange={setObj("notification")} field="show" label="显示通知" />
-                <SinglePicField data={obj("notification")} onChange={setObj("notification")} field="icon" label="通知图标" />
-            </SettingGroup>
-            <SettingGroup title="统计区">
-                <SwitchField data={stats} onChange={setObj("stats")} field="show" label="显示统计区" />
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {statsItems.map((it, i) => (
-                        <div key={it.key || i} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                            <span style={{ fontSize: 12, color: "#999", width: 52 }}>{it.key}</span>
-                            <input value={it.label || ""} placeholder="标签" onChange={(e) => setStatItem(i, { label: e.target.value })} style={inputStyle} />
-                            <input type="checkbox" checked={Number(it.show ?? 1) !== 0} onChange={(e) => setStatItem(i, { show: e.target.checked ? 1 : 0 })} />
-                        </div>
-                    ))}
+            <SettingsTabs tabs={["内容设置", "扩展设置"]}>
+                <div>
+                    <SettingGroup>
+                        <RadioRowField
+                            data={data}
+                            onChange={handleLayout}
+                            field="layoutStyle"
+                            label="布局风格"
+                            options={[
+                                { value: 1, label: "样式一" },
+                                { value: 2, label: "样式二" },
+                                { value: 3, label: "样式三" },
+                                { value: 4, label: "样式四" }
+                            ]}
+                        />
+                    </SettingGroup>
+                    <DecDivider />
+                    <SettingGroup>
+                        <ColorRow label="昵称颜色" value={textColor("nameColor")} onValue={(v) => setTextColor("nameColor", v)} resetValue={TEXT_DEFAULTS[layoutStyle]?.nameColor} />
+                        <ColorRow label="副标题颜色" value={textColor("subColor")} onValue={(v) => setTextColor("subColor", v)} resetValue={TEXT_DEFAULTS[layoutStyle]?.subColor} />
+                        {layoutStyle === 1 || layoutStyle === 2 ? (
+                            <>
+                                <ColorRow
+                                    label="统计数值颜色"
+                                    value={textColor("statValueColor")}
+                                    onValue={(v) => setTextColor("statValueColor", v)}
+                                    resetValue={TEXT_DEFAULTS[layoutStyle]?.statValueColor}
+                                />
+                                <ColorRow
+                                    label="统计标签颜色"
+                                    value={textColor("statLabelColor")}
+                                    onValue={(v) => setTextColor("statLabelColor", v)}
+                                    resetValue={TEXT_DEFAULTS[layoutStyle]?.statLabelColor}
+                                />
+                            </>
+                        ) : null}
+                    </SettingGroup>
+                    <DecDivider />
+                    {layoutStyle === 1 ? (
+                        <SettingGroup>
+                            <BoolRow label="会员等级条" value={bar.show !== false} onValue={(v) => setBar({ show: v })} />
+                            {bar.show !== false ? (
+                                <>
+                                    <ColorRow label="等级条背景" value={bar.backgroundColor ?? ""} onValue={(v) => setBar({ backgroundColor: v })} resetValue="#333" />
+                                    <RangeRow label="等级条上圆角" value={bar.borderRadius ?? 10} max={30} onValue={(v) => setBar({ borderRadius: v })} />
+                                    <TextRow label="会员文案" value={bar.levelName ?? ""} onValue={(v) => setBar({ levelName: v })} placeholder="付费会员" />
+                                    <TextRow label="描述文案" value={bar.description ?? ""} onValue={(v) => setBar({ description: v })} placeholder="购买会员，畅享更多专属权益" />
+                                    <TextRow
+                                        label="查看链接"
+                                        value={bar.buttonLink?.link ?? ""}
+                                        onValue={(v) => setBar({ buttonLink: { ...(bar.buttonLink ?? {}), link: v } })}
+                                        placeholder="member/premiumMember/index"
+                                    />
+                                </>
+                            ) : null}
+                        </SettingGroup>
+                    ) : null}
+                    {layoutStyle === 2 ? (
+                        <SettingGroup>
+                            <BoolRow label="设置入口" value={data?.settings?.show !== false} onValue={(v) => nested("settings")({ show: v })} />
+                            {data?.settings?.show !== false ? (
+                                <PicRow label="设置图标" value={data?.settings?.icon} onValue={(v) => nested("settings")({ icon: v })} />
+                            ) : null}
+                            <BoolRow label="消息通知" value={data?.notification?.show !== false} onValue={(v) => nested("notification")({ show: v })} />
+                            {data?.notification?.show !== false ? (
+                                <PicRow label="通知图标" value={data?.notification?.icon} onValue={(v) => nested("notification")({ icon: v })} />
+                            ) : null}
+                        </SettingGroup>
+                    ) : null}
+                    {layoutStyle === 3 ? (
+                        <SettingGroup>
+                            <BoolRow label="成长值条" value={bar.show !== false} onValue={(v) => setBar({ show: v })} />
+                            {bar.show !== false ? (
+                                <>
+                                    <SettingRow label="成长值条渐变色">
+                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                            <AlphaColorInput value={bar.backgroundColor || "#292929"} onChange={(v: string) => setBar({ backgroundColor: v })} />
+                                            <span style={{ color: "#999", fontSize: 12 }}>→</span>
+                                            <AlphaColorInput value={bar.backgroundColorB || "#525252"} onChange={(v: string) => setBar({ backgroundColorB: v })} />
+                                            <a
+                                                className="dec-color-reset"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    setBar({ backgroundColor: "#292929", backgroundColorB: "#525252" });
+                                                }}
+                                            >
+                                                重置
+                                            </a>
+                                        </div>
+                                    </SettingRow>
+                                    <RangeRow label="成长值条上圆角" value={bar.borderRadius ?? 10} max={30} onValue={(v) => setBar({ borderRadius: v })} />
+                                </>
+                            ) : null}
+                        </SettingGroup>
+                    ) : null}
+                    {layoutStyle === 4 ? (
+                        <SettingGroup>
+                            <BoolRow label="头像编辑图标" value={data?.showEditIcon !== false} onValue={(v) => onChange({ showEditIcon: v })} />
+                            <BoolRow label="成长值卡" value={bar.show !== false} onValue={(v) => setBar({ show: v })} />
+                            {bar.show !== false ? (
+                                <>
+                                    <SettingRow label="成长值卡渐变色">
+                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                            <AlphaColorInput value={bar.backgroundColor || "#FF9EB5"} onChange={(v: string) => setBar({ backgroundColor: v })} />
+                                            <span style={{ color: "#999", fontSize: 12 }}>→</span>
+                                            <AlphaColorInput value={bar.backgroundColorB || "#FF6E97"} onChange={(v: string) => setBar({ backgroundColorB: v })} />
+                                        </div>
+                                    </SettingRow>
+                                    <RangeRow label="成长值卡圆角" value={bar.borderRadius ?? 10} max={30} onValue={(v) => setBar({ borderRadius: v })} />
+                                    <TextRow label="按钮文案" value={bar.buttonText ?? ""} onValue={(v) => setBar({ buttonText: v })} placeholder="查看" width={160} />
+                                    <PicRow label="成长值卡背景图" value={bar.waveImage} onValue={(v) => setBar({ waveImage: v })} />
+                                </>
+                            ) : null}
+                        </SettingGroup>
+                    ) : null}
+                    {layoutStyle === 1 || layoutStyle === 2 ? (
+                        <>
+                            <DecDivider />
+                            <SettingGroup>
+                                <BoolRow label="统计数据" value={stats.show !== false} onValue={(v) => onChange({ stats: { ...stats, show: v } })} />
+                                {stats.show !== false
+                                    ? statsItems.map((item, index) => (
+                                          <SettingRow key={item.key ?? index} label={item.label}>
+                                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                                  <Checkbox checked={item.show !== false} onChange={(e: any) => setStatsItem(index, { show: !!e?.target?.checked })}>
+                                                      显示
+                                                  </Checkbox>
+                                                  <Input
+                                                      value={item.label ?? ""}
+                                                      placeholder="统计项名称"
+                                                      style={{ width: 160 }}
+                                                      onChange={(v: string) => setStatsItem(index, { label: v })}
+                                                  />
+                                              </div>
+                                          </SettingRow>
+                                      ))
+                                    : null}
+                            </SettingGroup>
+                        </>
+                    ) : null}
                 </div>
-            </SettingGroup>
-            <SettingGroup title="会员条">
-                <SwitchField data={obj("memberBar")} onChange={setObj("memberBar")} field="show" label="显示会员条" />
-                <TextField data={obj("memberBar")} onChange={setObj("memberBar")} field="levelName" label="等级名称" />
-                <TextField data={obj("memberBar")} onChange={setObj("memberBar")} field="description" label="描述文案" />
-                <TextField data={obj("memberBar")} onChange={setObj("memberBar")} field="buttonText" label="按钮文字" />
-                <ColorField data={obj("memberBar")} onChange={setObj("memberBar")} field="backgroundColor" label="背景色A" />
-                <ColorField data={obj("memberBar")} onChange={setObj("memberBar")} field="backgroundColorB" label="背景色B" />
-                <NumberField data={obj("memberBar")} onChange={setObj("memberBar")} field="borderRadius" label="圆角" max={30} suffix="px" />
-                <SinglePicField data={obj("memberBar")} onChange={setObj("memberBar")} field="waveImage" label="波纹图(样式4)" />
-            </SettingGroup>
-            <SettingGroup title="文字颜色">
-                <ColorField data={obj("textColors")} onChange={setObj("textColors")} field="nameColor" label="昵称颜色" />
-                <ColorField data={obj("textColors")} onChange={setObj("textColors")} field="subColor" label="副文案颜色" />
-                <ColorField data={obj("textColors")} onChange={setObj("textColors")} field="statValueColor" label="统计数值色" />
-                <ColorField data={obj("textColors")} onChange={setObj("textColors")} field="statLabelColor" label="统计标签色" />
-            </SettingGroup>
-            <SettingGroup title="底部弧形">
-                <SwitchField data={obj("bottomArc")} onChange={setObj("bottomArc")} field="show" label="显示弧形(样式1)" />
-                <NumberField data={obj("bottomArc")} onChange={setObj("bottomArc")} field="height" label="弧形高度" max={60} suffix="px" />
-            </SettingGroup>
-            <FrameSettingsField data={data} onChange={onChange} />
+                <div>
+                    {layoutStyle === 1 ? (
+                        <>
+                            <SettingGroup>
+                                <ColorRow label="背景色" value={data?.bgColor ?? ""} onValue={(v) => onChange({ bgColor: v })} resetValue="#57D45C" />
+                                <PicRow label="背景图" value={data?.backgroundImage} onValue={(v) => onChange({ backgroundImage: v })} />
+                            </SettingGroup>
+                            <DecDivider />
+                            <SettingGroup>
+                                <BoolRow label="弧底效果" value={data?.bottomArc?.show !== false} onValue={(v) => nested("bottomArc")({ show: v })} />
+                            </SettingGroup>
+                            <DecDivider />
+                        </>
+                    ) : (
+                        <>
+                            <SettingGroup>
+                                <SettingRow label={layoutStyle === 4 ? "顶部背景渐变色" : "背景渐变色"}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                        <AlphaColorInput
+                                            value={data?.gradient?.colorA || GRADIENT_DEFAULTS[layoutStyle]?.colorA || ""}
+                                            onChange={(v: string) => nested("gradient")({ colorA: v })}
+                                        />
+                                        <span style={{ color: "#999", fontSize: 12 }}>-</span>
+                                        <AlphaColorInput
+                                            value={data?.gradient?.colorB || GRADIENT_DEFAULTS[layoutStyle]?.colorB || ""}
+                                            onChange={(v: string) => nested("gradient")({ colorB: v })}
+                                        />
+                                    </div>
+                                </SettingRow>
+                                <SegRow
+                                    label={layoutStyle === 4 ? "顶部背景渐变方向" : "背景渐变方向"}
+                                    value={data?.gradient?.gradientType || "leftRight"}
+                                    options={[
+                                        { value: "upDown", label: "上下" },
+                                        { value: "leftRight", label: "左右" },
+                                        { value: "diagonal", label: "斜向" }
+                                    ]}
+                                    onValue={(v) => nested("gradient")({ gradientType: v })}
+                                />
+                            </SettingGroup>
+                            <DecDivider />
+                        </>
+                    )}
+                    <SettingGroup>
+                        <RangeRow
+                            label="左右内边距"
+                            value={data?.frame?.innerPadding ?? 16}
+                            max={30}
+                            onValue={(v) => onChange({ frame: { ...(data?.frame ?? {}), innerPadding: v } })}
+                        />
+                    </SettingGroup>
+                    <FrameSettingsField
+                        data={data}
+                        onChange={onChange}
+                        hideBg
+                        hidePadding
+                        hideBoxPadding={layoutStyle === 2 || layoutStyle === 3 || layoutStyle === 4}
+                        hideBoxRadius={layoutStyle === 2 || layoutStyle === 3 || layoutStyle === 4}
+                    />
+                </div>
+            </SettingsTabs>
         </div>
     );
 }

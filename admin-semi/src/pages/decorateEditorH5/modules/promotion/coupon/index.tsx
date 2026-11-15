@@ -1,37 +1,33 @@
 /**
- * 优惠券 模块（默认值字段对齐 uniapp-react 渲染端 customPage/modules/coupon/index.tsx 读取的 module 字段）
- *
- * 渲染端读取：frame（formatFrame）、colorStyle、showTitle、title（字符串标题）、desc、
- * backgroundColor、itemBackgroundColor、boxPadding、boxMargin、boxPaddingTop、boxPaddingBottom、
- * boxRadius、itemPadding；券列表由渲染端接口 getHomeCoupon 拉取，不存模块数据。
+ * 优惠券 模块（契约自 view/admin editor/modules/mobilePromotion/coupon/index.ts 逐字段移植）
  */
 import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultFrame } from "../../../contract/sharedDefaults";
 
-/** 与渲染端 coupon/index.tsx 读取字段逐项对应 */
+/** 与旧 mobilePromotion/coupon/View.vue 的 defaultModule 逐字段一致（契约） */
 export const couponDefaults = {
-    colorStyle: 1,
-    showTitle: 1,
-    title: "领券中心",
-    desc: "",
-    backgroundColor: "",
-    itemBackgroundColor: "",
+    showTitle: 0,
+    title: "每日领券",
+    desc: "天天优惠领不停",
+    colorStyle: 0,
+    itemBackgroundColor: "#ffffff",
+    backgroundColor: "#ffffff",
+    itemPadding: 10,
+    boxRadius: 8,
     boxPadding: 10,
     boxMargin: 0,
     boxPaddingTop: 5,
     boxPaddingBottom: 5,
-    boxRadius: 0,
-    itemPadding: 0,
-    frame: defaultFrame
+    frame: cloneDeep(defaultFrame)
 };
 
 registerModule({
     type: "coupon",
     label: "优惠券",
-    icon: '<i class="h5-mod-ico">🎫</i>',
+    icon: '<i class="h5-mod-ico">🎟️</i>',
     url: "mobilePromotion",
     platform: "mobile",
-    order: 30,
+    order: 1,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(couponDefaults)

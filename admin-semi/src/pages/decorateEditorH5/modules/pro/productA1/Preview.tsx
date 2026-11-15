@@ -1,51 +1,182 @@
 /**
- * 商品A1 预览（类名对齐 uniapp-react productA1：goods-ad-warp/goods-ad-item/item-label-tag/item-brief-list）
+ * 商品A1 预览（移植自 view/admin editor/modules/mobilePro/productA1/Preview.vue）
+ *
+ * 共享 goods-ad 类（全局 module.css）+ 本模块 scoped 规则（Preview.css，pa1- 作用域）。
+ * 商品按 products 来源拉取，无有效来源/无结果时用原版演示商品兜底。
+ * buyBtnStyle 历史草稿可能为数字：非对象时回退默认对象（原版 Preview 同口径）。
+ * 购买钮用共享 BuyButton（CommonBuyButton 口径）。
  */
 import { useMemo } from "react";
-import BuyButton from "../../../shared/BuyButton";
-import CommonTitle from "../../../shared/CommonTitle";
 import { cssText, productImage, priceFormat } from "../../../shared/format";
-import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
+import { mergeDefaultModule, cloneDeep } from "../../../contract/sharedDefaults";
+import BuyButton from "../../../shared/BuyButton";
 import { productA1Defaults } from "./index";
 import "./Preview.css";
 
-const DEMO_PRODUCTS = [
-    { productId: 9001, productName: "演示商品一", productPrice: 99, marketPrice: 129, picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957947YV2lncqLSOSg8OvpbK.png", picThumb: "https://oss.tigshop.com/img/gallery/202411/1730957947YV2lncqLSOSg8OvpbK.png" },
-    { productId: 9002, productName: "演示商品二", productPrice: 59, marketPrice: 79, picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957948LcXRbvCuwlCHyHy7Y0.png", picThumb: "https://oss.tigshop.com/img/gallery/202411/1730957948LcXRbvCuwlCHyHy7Y0.png" },
-    { productId: 9003, productName: "演示商品三", productPrice: 39, marketPrice: 49, picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957949mTiXqnQpGXzYHnNV.png", picThumb: "https://oss.tigshop.com/img/gallery/202411/1730957949mTiXqnQpGXzYHnNV.png" },
+const demoProductList: Array<Record<string, any>> = [
+    { productId: 0, productSn: "", productName: "刺身拼盘", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731485756wtyOOnqoeEn6W2XfNP.jpg" },
+    { productId: 0, productSn: "", productName: "冰鲜剥皮鱼", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731485756sGPXRzI7o84S5HAPo5.jpg" },
+    { productId: 0, productSn: "", productName: "北极甜虾", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731485756JsgKabEE4BO09iRqnc.jpg" },
+    { productId: 0, productSn: "", productName: "秋刀鱼", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731485756ivBG9CydBhi21do1xk.jpg" },
+    { productId: 0, productSn: "", productName: "德宝纸巾", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731650293KF9TjvpDKHOATMR3H7.jpg" },
+    { productId: 0, productSn: "", productName: "薯片", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731650294a4EsPq1zkYme6p5OhC.jpg" }
 ];
 
 export default function ProductA1Preview({ data }: { data: Record<string, any> }) {
     const module = useMemo(() => {
         const merged = JSON.parse(JSON.stringify(data ?? {}));
         mergeDefaultModule(merged, productA1Defaults);
+        if (!merged.buyBtnStyle || typeof merged.buyBtnStyle !== "object") {
+            merged.buyBtnStyle = cloneDeep(productA1Defaults.buyBtnStyle);
+        }
         return merged;
     }, [data]);
+
     const fetched = useDecorateProductList(module.products);
-    const productList = fetched.length ? fetched : DEMO_PRODUCTS;
-    const frameFormat = formatFrame(module.frame ?? {});
-    const cols = Number(module.style) === 1 ? 1 : Number(module.style) === 3 ? 3 : 2;
-    const tags: string[] = Array.isArray(module.tagList) ? module.tagList : [];
-    const briefs: string[] = Array.isArray(module.briefList) ? module.briefList : [];
+    const productList = fetched.length > 0 ? fetched : demoProductList;
+
+    const allFormat = {
+        backgroundColor: module.backgroundColor ? `background-color:${module.backgroundColor};` : "",
+        boxPadding: `margin-left:${module.boxPadding}px;margin-right:${module.boxPadding}px;`,
+        boxPaddingBottom: `margin-bottom:${module.boxPaddingBottom}px;`,
+        boxPaddingTop: `margin-top:${module.boxPaddingTop}px;`,
+        boxRadius: `border-radius:${module.boxRadius}px;`,
+        innerPadding: `padding:${module.innerPadding}px;`
+    };
+
+    const goodsRadius = module.goodsRadius ?? 0;
+    const isListStyle = Number(module.style) === 4;
+    const itemConRadiusStyle = goodsRadius ? `border-radius:${goodsRadius}px;overflow:hidden;` : "";
+    const itemPhotoRadiusStyle = !goodsRadius
+        ? ""
+        : isListStyle
+          ? `border-radius:${goodsRadius}px 0 0 ${goodsRadius}px;overflow:hidden;`
+          : `border-radius:${goodsRadius}px ${goodsRadius}px 0 0;overflow:hidden;`;
+    const itemInfoRadiusStyle = !goodsRadius
+        ? ""
+        : isListStyle
+          ? `border-radius:0 ${goodsRadius}px ${goodsRadius}px 0;`
+          : `border-radius:0 0 ${goodsRadius}px ${goodsRadius}px;`;
+
+    const styleClassMap: Record<number, string> = { 1: "ad-style__1", 2: "ad-style__2", 3: "ad-style__3", 4: "ad-style__5" };
+    const styleClass = styleClassMap[Number(module.style)] || "ad-style__1";
+
+    const labelTagStyle = (() => {
+        const r = module.labelRadius ?? 0;
+        const mode = module.labelRadiusStyle ?? 0;
+        let radiusCss = "";
+        if (mode === 0) radiusCss = `border-radius:${r}px;`;
+        else if (mode === 1) radiusCss = `border-radius:${r}px 0 0 ${r}px;`;
+        else if (mode === 2) radiusCss = `border-radius:0 ${r}px ${r}px 0;`;
+        else if (mode === 3) radiusCss = `border-top-left-radius:${r}px;border-bottom-right-radius:${r}px;`;
+        else if (mode === 4) radiusCss = `border-top-right-radius:${r}px;border-bottom-left-radius:${r}px;`;
+        const offsetX = module.labelOffsetX ?? 0;
+        const offsetY = module.labelOffsetY ?? 0;
+        const posMap: Record<string, string> = {
+            "top-left": `left:${offsetX}px;top:${offsetY}px;right:auto;bottom:auto;`,
+            "top-right": `right:${offsetX}px;top:${offsetY}px;left:auto;bottom:auto;`,
+            "bottom-left": `left:${offsetX}px;bottom:${offsetY}px;right:auto;top:auto;`,
+            "bottom-right": `right:${offsetX}px;bottom:${offsetY}px;left:auto;top:auto;`
+        };
+        return cssText(
+            module.labelBackgroundColor ? `background-color:${module.labelBackgroundColor};` : "",
+            module.labelTextColor ? `color:${module.labelTextColor};` : "",
+            radiusCss,
+            module.labelFontSize !== undefined ? `font-size:${module.labelFontSize}px;` : "",
+            posMap[module.labelPosition || "top-left"] || posMap["top-left"]
+        );
+    })();
+
+    const itemGap = module.itemGap ?? 0;
+    const itemGapStyle = itemGap > 0 ? cssText(`padding:${itemGap / 2}px;`) : undefined;
+    const goodsPadding = module.goodsPadding ?? 0;
+    const goodsPaddingStyle = goodsPadding > 0 ? `padding:${goodsPadding}px;` : "";
+
+    const nameAlignStyle = cssText(module.nameAlign === 2 ? "text-align:center;" : "text-align:left;");
+    const briefListAlignStyle = cssText(module.nameAlign === 2 ? "justify-content:center;" : "justify-content:flex-start;");
+    const priceAlignStyle = cssText(module.priceAlign === 2 ? "justify-content:center;" : "justify-content:flex-start;");
+    const actionAlignStyle = cssText(module.priceAlign === 2 ? "justify-content:center;" : "");
+
+    const briefTags = (idx: number): string[] => {
+        const raw = module.briefList?.[idx] || "";
+        return String(raw).split("\n").map((s) => s.trim()).filter(Boolean);
+    };
+    const briefTagStyle = (() => {
+        const s = module.briefStyle || {};
+        return cssText(
+            s.titleColor ? `color:${s.titleColor};` : "",
+            s.titleFontSize ? `font-size:${s.titleFontSize}px;` : "",
+            s.titleFontBold ? `font-weight:${s.titleFontBold};` : "",
+            module.briefBackgroundColor ? `background-color:${module.briefBackgroundColor};` : ""
+        );
+    })();
+
     return (
-        <div className={`module-ad-con module-goods_ad ad-style__${module.style}`} style={cssText(frameFormat.boxPadding, frameFormat.boxPaddingTop, frameFormat.boxPaddingBottom)}>
-            <div className="module-ad-content" style={{ backgroundColor: module.backgroundColor || undefined, borderRadius: `${module.boxRadius ?? 0}px`, padding: `${module.innerPadding ?? 0}px` }}>
-                {(module as any).title?.showTitle ? <CommonTitle data={(module as any).title} /> : null}
-                <div className="goods-ad-warp"><div className="goods-ad-con" style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: `${module.itemGap ?? module.goodsPadding ?? 0}px`, margin: `${module.boxPaddingTop ?? 0}px ${module.boxPadding ?? 0}px ${module.boxPaddingBottom ?? 0}px` }}>
-                    {productList.map((item: any, i: number) => (
-                        <div className="goods-ad-item" key={i}><div className="item-content" style={{ padding: `${module.goodsPadding ?? 0}px` }}><div className="item-con">
-                            <div className="item-photo"><a className="item-image-a"><span className="item-image item-image-ratio" style={{ borderRadius: `${module.goodsRadius ?? 0}px`, overflow: "hidden", display: "block", position: "relative" }}><img src={productImage(item)} alt="" style={{ width: "100%", aspectRatio: "1", display: "block", objectFit: "cover" }} />
-                            {Number(module.showProductLabel) === 1 && tags[0] ? <span className="item-label-tag" style={{ position: "absolute", backgroundColor: module.labelBackgroundColor, color: module.labelTextColor, borderRadius: `${module.labelRadius}px`, fontSize: `${module.labelFontSize}px`, left: `${module.labelOffsetX}px`, top: `${module.labelOffsetY}px`, padding: "1px 6px" }}>{tags[0]}</span> : null}
-                            </span></a></div>
-                            <div className="item-info">
-                                {Number(module.showName) === 1 ? <div className="item-name" style={{ textAlign: module.nameAlign === 2 ? "center" : module.nameAlign === 3 ? "right" : "left" }}><a className="item-name-a">{item.productName}</a></div> : null}
-                                {Number(module.showBrief) === 1 && briefs.length ? <div className="item-brief-list" style={{ backgroundColor: module.briefBackgroundColor }}>{briefs.map((b, bi) => (<span className="item-brief-tag" key={bi} style={{ color: module.briefStyle?.titleColor, fontSize: `${module.briefStyle?.titleFontSize ?? 11}px` }}>{b}</span>))}</div> : null}
-                                {Number(module.showPrice) === 1 ? (<div className="item-action"><div className="item-price" style={{ textAlign: module.priceAlign === 2 ? "center" : module.priceAlign === 3 ? "right" : "left" }}><b className="price_format">¥{priceFormat(item.productPrice)}</b>{Number(module.showMarketPrice) === 1 && item.marketPrice ? <span className="market_price">¥{priceFormat(item.marketPrice)}</span> : null}</div><div className="item-buy">{module.buyBtnStyle ? <BuyButton styleOptions={module.buyBtnStyle} /> : null}</div></div>) : null}
+        <div
+            className={`module-ad-con module-goods_ad module-product_a1 ${styleClass} ad-goods_style__${module.goodsStyle} ad-text_weight__${module.textWeight} ad-goods_name_row__${module.goodsNameRow} ad-goods_name_padding__${module.goodsNamePadding}`}
+            style={cssText(allFormat.boxPadding, allFormat.boxPaddingTop, allFormat.boxPaddingBottom)}
+        >
+            <div className="module-ad-content" style={cssText(allFormat.backgroundColor, allFormat.boxRadius, allFormat.innerPadding)}>
+                {!productList || productList.length === 0 ? (
+                    <div className="module-ad-empty empty-image_ad">
+                        <div className="image-empty-goods-bg" />
+                        <div className="desc">点击添加商品</div>
+                    </div>
+                ) : null}
+                <div className="goods-ad-warp">
+                    <div className="goods-ad-con">
+                        {productList.map((item: any, idx: number) => (
+                            <div className="goods-ad-item" key={`${item.productId ?? 0}_${idx}`} style={itemGapStyle}>
+                                <div className="item-content">
+                                    <div className="item-con" style={cssText(itemConRadiusStyle, goodsPaddingStyle)}>
+                                        <div className="item-photo" style={cssText(itemPhotoRadiusStyle)}>
+                                            <a className="item-image-a">
+                                                <img src={productImage(item)} alt="" />
+                                            </a>
+                                            {Number(module.showProductLabel) === 1 && module.tagList?.[idx] ? (
+                                                <span className="pa1-item-label-tag" style={labelTagStyle}>
+                                                    {module.tagList[idx]}
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                        <div className="item-info" style={cssText(itemInfoRadiusStyle)}>
+                                            <div className="item-name" style={nameAlignStyle}>
+                                                {Number(module.showName) === 1 ? <a className="item-name-a">{item.productName}</a> : null}
+                                                {Number(module.showBrief) === 1 && briefTags(idx).length ? (
+                                                    <div className="pa1-item-brief-list" style={briefListAlignStyle}>
+                                                        {briefTags(idx).map((brief, bi) => (
+                                                            <span key={bi} className="pa1-item-brief-tag" style={briefTagStyle}>
+                                                                {brief}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                            {Number(module.showPrice) === 1 ? (
+                                                <div className="item-action" style={actionAlignStyle}>
+                                                    <div className="item-price" style={priceAlignStyle}>
+                                                        <b className="price_format">{priceFormat(Number(item.productPrice))}</b>
+                                                        {Number(module.showMarketPrice) === 1 ? (
+                                                            <span className="market_price">
+                                                                <b>{priceFormat(Number(item.marketPrice))}</b>
+                                                            </span>
+                                                        ) : null}
+                                                    </div>
+                                                    {module.buyBtnStyle?.showBtn ? (
+                                                        <div className="item-buy">
+                                                            <BuyButton styleOptions={module.buyBtnStyle} />
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        </div></div></div>
-                    ))}
-                </div></div>
+                        ))}
+                    </div>
+                </div>
             </div>
         </div>
     );

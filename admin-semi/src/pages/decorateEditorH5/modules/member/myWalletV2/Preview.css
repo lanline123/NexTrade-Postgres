@@ -1,8 +1,47 @@
-.dec-wallet-v2__grid { display: flex; flex-wrap: wrap; }
-.dec-wallet-v2__cell { width: 50%; box-sizing: border-box; display: flex; align-items: center; gap: 6px; padding: 10px 6px; }
-.dec-wallet-v2__cell--border-bottom { border-bottom: 1px solid #f5f5f5; }
-.dec-wallet-v2__cell--border-right { border-right: 1px solid #f5f5f5; }
-.dec-wallet-v2__icon img { width: 20px; height: 20px; object-fit: contain; }
-.dec-wallet-v2__label { font-size: 13px; color: #333; }
-.dec-wallet-v2__value { font-size: 13px; font-weight: 600; color: #333; margin-left: auto; }
-.dec-wallet-v2__arrow { color: #bbb; }
+/* 我的钱包2 Preview scoped 样式（移植自原版 Preview.vue <style scoped>） */
+.module-member-my-wallet-v2 .my-wallet-v2-wrap {
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.module-member-my-wallet-v2 .my-wallet-v2-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    box-sizing: border-box;
+}
+.module-member-my-wallet-v2 .my-wallet-v2-cell {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    position: relative;
+}
+.module-member-my-wallet-v2 .my-wallet-v2-cell:nth-child(1),
+.module-member-my-wallet-v2 .my-wallet-v2-cell:nth-child(2) {
+    border-bottom: 1px solid #f2f3f5;
+}
+.module-member-my-wallet-v2 .my-wallet-v2-cell:nth-child(odd) {
+    border-right: 1px solid #eeeeee;
+}
+.module-member-my-wallet-v2 .my-wallet-v2-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    flex-shrink: 0;
+    margin-right: 8px;
+}
+.module-member-my-wallet-v2 .my-wallet-v2-label {
+    font-size: 12px;
+    color: #666;
+    line-height: 20px;
+    flex-shrink: 0;
+}
+.module-member-my-wallet-v2 .my-wallet-v2-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: #333;
+    line-height: 20px;
+    flex: 1;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

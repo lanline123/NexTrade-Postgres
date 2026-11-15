@@ -1,10 +1,185 @@
-.productgrouping .tablist{display:flex;overflow-x:auto;margin-bottom:8px}
-.productgrouping .tablist-item{display:flex;align-items:center}
-.productgrouping .tablist-item .line{border-left:1px solid #eee;height:18px;margin:0 8px}
-.productgrouping .nav-item{text-align:center;white-space:nowrap}
-.productgrouping .tab-sub{font-size:11px;padding:0 6px;display:inline-block}
-.productgrouping .goods-title{overflow:hidden}
-.productgrouping .goods-price-box{display:flex;gap:4px;align-items:baseline}
-.productgrouping .origin{font-size:11px;text-decoration:line-through}
-.productgrouping .more-box{text-align:center;margin-top:8px}
-.productgrouping .more-txt{border:1px solid #eee;border-radius:16px;padding:4px 16px;font-size:12px;display:inline-block}
+/* 商品分组 预览样式（移植自 mobilePro/productGrouping/Preview.vue scoped，类名加 pg- 前缀防冲突） */
+.module-product_grouping {
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center top;
+    position: relative;
+}
+.pg-tablist {
+    overflow-x: auto;
+    overflow-y: hidden;
+    box-sizing: initial;
+    height: 100%;
+    position: relative;
+    display: flex;
+}
+.pg-tablist::-webkit-scrollbar {
+    display: none;
+    height: 0;
+}
+.pg-tablist-item {
+    padding: 0;
+    flex: 1 0 auto;
+}
+.pg-tab-text {
+    width: 100%;
+}
+.pg-nav-item {
+    text-align: center;
+    overflow: hidden;
+    position: relative;
+}
+.pg-line {
+    content: "";
+    border-right: #dadada solid 1px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    -webkit-transform: scale(0.5);
+    transform: scale(0.5);
+    transform-origin: left center;
+}
+.pg-nav-item-box {
+    display: inline-grid;
+}
+.pg-tab-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #333333;
+}
+.pg-tab-sub {
+    margin-top: 5px;
+    padding: 3px 8px;
+    font-size: 14px;
+    color: #454545;
+}
+.pg-productlist {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: 100%;
+}
+.pg-productlist-item {
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 100%;
+}
+.pg-item-box {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: row;
+    align-items: stretch;
+}
+.pg-li {
+    box-sizing: border-box;
+}
+.pg-goods-item {
+    display: block;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+.pg-goods-img {
+    position: relative;
+    max-height: 500px;
+    overflow: hidden;
+    width: 100%;
+    height: 0;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+.pg-img {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% auto;
+    overflow: hidden;
+}
+.pg-goods-info {
+    padding: 0 5px;
+    flex-grow: 1;
+    flex-shrink: 1;
+    display: flex;
+    -webkit-box-orient: vertical;
+    flex-direction: column;
+    overflow: hidden;
+    font-size: 12px;
+}
+.pg-goods-title {
+    line-height: 18px;
+    font-size: 14px;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+}
+.pg-goods-price-box {
+    display: flex;
+    position: relative;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+}
+.pg-price-origin-sale {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    overflow: hidden;
+    flex: 1;
+}
+.pg-price-origin-icon {
+    margin: 3px 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    overflow: hidden;
+}
+.pg-price-icon {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: self-end;
+    overflow: hidden;
+}
+.pg-icon {
+    height: 14px;
+    margin-right: 3px;
+    display: inline-block;
+}
+.pg-price {
+    margin-right: 5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    display: flex;
+    -webkit-box-align: baseline;
+    align-items: baseline;
+}
+.pg-origin {
+    margin-right: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    text-decoration: line-through;
+}
+.pg-more-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.pg-more-txt {
+    width: 100%;
+    height: 40px;
+    line-height: 40px;
+    font-size: 14px;
+    color: #333333;
+    border: 1px solid #eee;
+    border-radius: 5px;
+    display: inline-block;
+    text-align: center;
+    box-sizing: border-box;
+}

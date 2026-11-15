@@ -1,12 +1,120 @@
-.module-product_carousel{position:relative}
-.pc-module-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.pc-body{position:relative}
-.pc-module-title{font-size:17px;font-weight:700;text-align:center;margin-bottom:6px}
-.pc-name{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pc-desc{font-size:12px}
-.pc-bottom{display:flex;align-items:center;gap:8px;margin-top:6px}
-.pc-prices{display:flex;gap:4px;align-items:baseline;flex:1}
-.pc-prices .price-current{font-weight:700;font-size:15px}
-.pc-prices .price-market{font-size:11px;text-decoration:line-through}
-.pc-buy{background:linear-gradient(to right,#FF8FB8,#FF5E96);color:#fff;font-size:12px;border-radius:16px;padding:4px 12px}
-.pc-sales{font-size:11px}
+/* 商品轮播 预览样式（移植自 mobilePro/productCarousel/Preview.vue scoped，类名加 pcr- 前缀防冲突） */
+.module-product_carousel {
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+.module-product_carousel .pcr-module-title {
+    font-size: 15px;
+    font-weight: 600;
+    padding: 0 12px;
+    line-height: 1.4;
+}
+.module-product_carousel .pcr-wrap {
+    position: relative;
+    box-sizing: border-box;
+    min-height: 120px;
+}
+.module-product_carousel .pcr-empty {
+    padding: 40px 0;
+    text-align: center;
+    color: #999;
+    font-size: 12px;
+}
+.module-product_carousel .pcr-track {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 4px 0;
+}
+.module-product_carousel .pcr-track::-webkit-scrollbar {
+    display: none;
+}
+.module-product_carousel .pcr-slide {
+    flex-shrink: 0;
+    box-sizing: border-box;
+    height: auto;
+}
+.module-product_carousel .pcr-item {
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+.module-product_carousel .pcr-photo {
+    position: relative;
+    width: 100%;
+}
+.module-product_carousel .pcr-img-box {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    background: #f5f5f5;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+}
+.module-product_carousel .pcr-info {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    margin-top: 8px;
+}
+.module-product_carousel .pcr-name {
+    font-size: 13px;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-all;
+}
+.module-product_carousel .pcr-desc {
+    font-size: 12px;
+    line-height: 1.3;
+    margin-top: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.module-product_carousel .pcr-sales {
+    font-size: 11px;
+    line-height: 1.3;
+    margin-top: 4px;
+}
+.module-product_carousel .pcr-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+.module-product_carousel .pcr-prices {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    flex-wrap: wrap;
+    line-height: 1.1;
+}
+.module-product_carousel .pcr-price-current {
+    white-space: nowrap;
+}
+.module-product_carousel .pcr-price-current i {
+    font-style: normal;
+    font-size: 0.7em;
+    margin-right: 1px;
+}
+.module-product_carousel .pcr-price-current b {
+    font-size: 16px;
+    font-weight: 700;
+}
+.module-product_carousel .pcr-price-market {
+    font-size: 11px;
+    text-decoration: line-through;
+    font-weight: 400;
+}

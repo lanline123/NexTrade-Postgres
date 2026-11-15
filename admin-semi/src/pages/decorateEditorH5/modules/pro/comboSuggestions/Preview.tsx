@@ -1,18 +1,17 @@
 /**
- * 组合建议 预览（类名对齐 uniapp-react comboSuggestions：top/list/item/pic-box/goods-price）
+ * 组合推荐 预览（移植自 view/admin editor/modules/mobilePro/comboSuggestions/Preview.vue）
+ *
+ * comboGroups 逐组双列排布（每组宽 calc(50% - 4px)，第 3 组起 margin-top 10px）：
+ * 组头 = 头图或大标题（15px/700）+ 徽标（groupColor 底、11px 白字）+ 描述行；
+ * image 组为轮播图（高按原版公式 (容器宽/2 - 16) * 0.63，以 aspect-ratio 等价承接）+ 右下计数；
+ * product 组为横排商品（原版 Swiper slidesPerView 2、spaceBetween 6），图 padding-top 100%、价格签居中。
+ * 商品数据直接用分组内 pruductList 快照渲染（原版对 productId=0 的演示项即走 getDemoList 同口径）。
  */
 import { useMemo } from "react";
-import { cssText, productImage, priceFormat } from "../../../shared/format";
-import { mergeDefaultModule, formatCommonStyle } from "../../../contract/sharedDefaults";
-import { useDecorateProductList } from "../../../shared/useDecorateProductList";
+import { cssText, imageFormat, productImage } from "../../../shared/format";
+import { mergeDefaultModule, formatCommonStyle, gradientMap } from "../../../contract/sharedDefaults";
 import { comboSuggestionsDefaults } from "./index";
 import "./Preview.css";
-
-const DEMO_PRODUCTS = [
-    { productId: 9001, productName: "演示商品一", productPrice: 99, marketPrice: 129, picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957947YV2lncqLSOSg8OvpbK.png", picThumb: "https://oss.tigshop.com/img/gallery/202411/1730957947YV2lncqLSOSg8OvpbK.png" },
-    { productId: 9002, productName: "演示商品二", productPrice: 59, marketPrice: 79, picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957948LcXRbvCuwlCHyHy7Y0.png", picThumb: "https://oss.tigshop.com/img/gallery/202411/1730957948LcXRbvCuwlCHyHy7Y0.png" },
-    { productId: 9003, productName: "演示商品三", productPrice: 39, marketPrice: 49, picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957949mTiXqnQpGXzYHnNV.png", picThumb: "https://oss.tigshop.com/img/gallery/202411/1730957949mTiXqnQpGXzYHnNV.png" },
-];
 
 export default function ComboSuggestionsPreview({ data }: { data: Record<string, any> }) {
     const module = useMemo(() => {
@@ -20,27 +19,98 @@ export default function ComboSuggestionsPreview({ data }: { data: Record<string,
         mergeDefaultModule(merged, comboSuggestionsDefaults);
         return merged;
     }, [data]);
-    const commonStyle = formatCommonStyle(module.moduleStyle ?? {}, module.contentStyle ?? {}, module.subTitle ?? {});
-    const fetched = useDecorateProductList(module.products);
-    const productList = fetched.length ? fetched : DEMO_PRODUCTS;
-    const groups: any[] = module.comboGroups?.length ? module.comboGroups : [{ title: "超值搭配", subTitle: "" }];
+
+    const commonStyle = formatCommonStyle(module.moduleStyle ?? {});
+    const groups: any[] = Array.isArray(module.comboGroups) ? module.comboGroups : [];
+    const listStyle = `border-radius: ${module.groupRadius}px;background-image: linear-gradient(${gradientMap[module.backgroundGradientType] || "to bottom"},${module.gradientColorA} -50%, ${module.gradientColorB});${
+        Number(module.groupShadow) === 1 ? "box-shadow: rgba(0, 0, 0, 0.06) 0px 2px 4px;" : ""
+    }`;
+
     return (
-        <div className="module-ad-con" style={cssText(commonStyle.moduleStyle.boxPaddingBottom, commonStyle.moduleStyle.boxPaddingTop, commonStyle.moduleStyle.boxPadding, commonStyle.moduleStyle.backgroundSize, commonStyle.moduleStyle.backgroundImage)}>
-            <div className="module-ad-content" style={cssText(commonStyle.moduleContentStyle.backgroundImage, commonStyle.moduleContentStyle.backgroundSize, commonStyle.moduleContentStyle.boxRadius, commonStyle.moduleContentStyle.boxShadow, commonStyle.moduleContentStyle.innerPadding)}>
-                {groups.map((group, gi) => (
-                    <div className="main" key={gi} style={{ borderRadius: `${module.groupRadius}px`, boxShadow: Number(module.groupShadow) === 1 ? "0 2px 8px rgba(0,0,0,0.06)" : "none", marginBottom: 10 }}>
-                        <div className="top"><div className="top-tit" style={{ color: module.groupTitleColor }}>
-                            <span className="big-title line1">{group.title}</span>
-                            {group.subTitle ? <span className="desc">{group.subTitle}</span> : null}
-                        </div></div>
-                        <div className="list">
-                            {productList.map((item: any, i: number) => (
-                                <div className="item" key={i}>
-                                    <div className="pic-box"><img className="pic-img" src={productImage(item)} alt="" style={{ borderRadius: `${module.imageRadius}px` }} /></div>
-                                    <div className="title line1">{item.productName}</div>
-                                    <div className="goods-price"><span className="price-text">¥{priceFormat(item.productPrice)}</span>{item.marketPrice ? <span className="goods-img" style={{ backgroundColor: module.regularPriceBgColor, color: module.regularPriceColor, borderRadius: `${module.regularPriceRadius}px`, fontSize: `${module.regularPriceSize}px` }}>¥{priceFormat(item.marketPrice)}</span> : null}</div>
+        <div
+            className="module-ad-con h5-combo-sug"
+            style={cssText(
+                commonStyle.moduleStyle.boxPaddingBottom,
+                commonStyle.moduleStyle.boxPaddingTop,
+                commonStyle.moduleStyle.boxPadding,
+                commonStyle.moduleStyle.backgroundSize,
+                commonStyle.moduleStyle.backgroundImage
+            )}
+        >
+            <div className="main">
+                {groups.map((group, index) => (
+                    <div className="list" key={index} style={{ ...cssText(listStyle), ...(index > 1 ? { marginTop: 10 } : {}) }}>
+                        <div style={{ padding: 6 }}>
+                            <div className="top">
+                                <div className="top-tit">
+                                    {group.titleImage?.picUrl ? (
+                                        <img className="img" src={imageFormat(group.titleImage.picUrl)} alt="" />
+                                    ) : (
+                                        <div className="big-title" style={{ color: module.groupTitleColor }}>
+                                            {group.groupTitle}
+                                        </div>
+                                    )}
+                                    <div className="title" style={{ background: group.groupColor }}>
+                                        {group.groupSubTitle}
+                                    </div>
                                 </div>
-                            ))}
+                                <div className="desc" style={{ color: group.groupColor }}>
+                                    {group.groupDesc}
+                                </div>
+                            </div>
+                            <div style={{ borderRadius: `${module.groupRadius}px`, overflow: "hidden", position: "relative" }}>
+                                {group.groupType === "image" ? (
+                                    <>
+                                        {(group.picList || []).slice(0, 1).map((item: any, i: number) => (
+                                            <div className="pic-box" key={i}>
+                                                <div
+                                                    className="pic-img"
+                                                    style={{ backgroundImage: `url(${imageFormat(item.picUrl)})`, aspectRatio: "1 / 0.63" }}
+                                                />
+                                                <div className="tit" style={{ color: module.bannerTittleColor }}>
+                                                    {item.picTitle}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {(group.picList || []).length > 0 ? (
+                                            <div style={{ position: "absolute", right: 10, bottom: 5, lineHeight: "18px", color: module.bannerDotColor, zIndex: 9 }}>
+                                                {`1/${(group.picList || []).length}`}
+                                            </div>
+                                        ) : null}
+                                    </>
+                                ) : null}
+                                {group.groupType === "product" ? (
+                                    <div className="product-row">
+                                        {(group.pruductList || []).map((item: any, i: number) => (
+                                            <div className="item" key={i}>
+                                                <div
+                                                    className="goods-img"
+                                                    style={{
+                                                        width: "100%",
+                                                        paddingTop: "100%",
+                                                        backgroundSize: "cover",
+                                                        borderRadius: `${module.imageRadius}px`,
+                                                        backgroundImage: `url(${productImage(item)})`
+                                                    }}
+                                                />
+                                                <div className="goods-price">
+                                                    <span
+                                                        className="price-text"
+                                                        style={{
+                                                            color: module.regularPriceColor,
+                                                            background: module.regularPriceBgColor || "transparent",
+                                                            borderRadius: `${module.regularPriceRadius}px`,
+                                                            fontSize: `${module.regularPriceSize}px`
+                                                        }}
+                                                    >
+                                                        ￥{item.productPrice}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : null}
+                            </div>
                         </div>
                     </div>
                 ))}

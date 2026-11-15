@@ -1,58 +1,31 @@
 /**
- * 直播 预览（DOM 类名逐字对齐 uniapp-react 渲染端 live/index.tsx + index.scss）
+ * 小程序直播 预览（移植自 view/admin editor/modules/mobilePromotion/live/Preview.vue）
  *
- * 直播间数据存模块 selectedLiveList（渲染端 normalize 后展示，截断 10 条）；
- * 未配置时预览用演示直播间兜底，字段与渲染端 LiveRoomState 一致：roomId、name、
- * anchorName、feedsImg、liveStatus（101 直播中 / 102 未开始）、productData。
+ * 双模式：list（92×92 封面 + 徽章「小程序直播」+ 状态 + 标题 + 商品图 44×44×3 + 主播/进入直播间）
+ * 与 bigImage（5:4 大封面 + 状态标签 + 底部白色 mask 标题/主播）。空列表显示「暂无可展示直播间」。
+ * 数据：auto 时取既有接口 /promotion/wechatLive/list（后台微信直播管理同源，keyword 空、size 10，
+ * 过滤 liveStatus!==4——同原版 getWechatLiveRoomList 语义映射，不改接口路径）；manual 时用 selectedLiveList。
+ * 列表按 autoLiveNum（钳制 1..10）/ manual 上限 10 截断；每房间商品图取 /content/wechatLiveGoods/list 的 coverImg（≤3）。
+ * 封面字段 feedsImg 优先、回退 coverImg（我方列表接口字段）。原版引用的 defaultGoodsImages 在快照中未定义，
+ * 本实现以空数组承接（无商品图时不渲染）。卡片样式：padding=frame.innerPadding，大图模式另叠 frame 圆角/背景。
  */
-import { useMemo } from "react";
-import { cssText, imageFormat, pickPic } from "../../../shared/format";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { apiGet } from "../../../../../api";
+import { cssText } from "../../../shared/format";
 import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
 import { liveDefaults } from "./index";
 import "./Preview.css";
 
-const DEMO_PIC = "https://oss.tigshop.com/img/gallery/202411/17319190474y0XWFxO8GJZF0dg64.jpg";
+const STATUS_TEXT: Record<number, string> = { 101: "直播中", 102: "未开始", 103: "已结束", 104: "禁播", 105: "暂停", 106: "异常", 107: "已过期" };
 
-/** 演示直播间（仅预览兜底，不写入模块数据） */
-const DEMO_LIVE_LIST = [
-    {
-        wechatLiveId: 1,
-        roomId: 1,
-        name: "演示直播间 · 好物推荐",
-        anchorName: "官方主播",
-        feedsImg: DEMO_PIC,
-        coverImg: DEMO_PIC,
-        liveStatus: 101,
-        productData: [{ coverImg: DEMO_PIC }, { coverImg: DEMO_PIC }]
-    },
-    {
-        wechatLiveId: 2,
-        roomId: 2,
-        name: "演示直播预告 · 新品首发",
-        anchorName: "官方主播",
-        feedsImg: DEMO_PIC,
-        coverImg: DEMO_PIC,
-        liveStatus: 102,
-        productData: [{ coverImg: DEMO_PIC }]
-    }
-];
-
-const LIVE_STATUS_TEXT: Record<number, string> = {
-    101: "直播中",
-    102: "未开始",
-    103: "已结束",
-    104: "禁播",
-    105: "暂停",
-    106: "异常",
-    107: "已过期"
-};
-
-function statusClass(item: any): string {
-    const status = Number(item.liveStatus);
-    if (status === 101) return "live-card__status-tag--live";
-    if (status === 102) return "live-card__status-tag--pending";
+const statusText = (item: any) => item.liveStatusText || STATUS_TEXT[Number(item.liveStatus)] || "未知";
+const statusClass = (item: any) => {
+    const s = Number(item.liveStatus);
+    if (s === 101) return "live-card__status-tag--live";
+    if (s === 102) return "live-card__status-tag--pending";
     return "live-card__status-tag--ended";
-}
+};
+const coverOf = (item: any) => item.feedsImg || item.coverImg || "";
 
 export default function LivePreview({ data }: { data: Record<string, any> }) {
     const module = useMemo(() => {
@@ -61,49 +34,84 @@ export default function LivePreview({ data }: { data: Record<string, any> }) {
         return merged;
     }, [data]);
 
-    const frameFormat = formatFrame(module.frame ?? {});
-    const cardStyle: React.CSSProperties = {
-        borderRadius: module.frame?.boxRadius ?? 8,
-        backgroundColor: module.frame?.backgroundColor || "#ffffff"
+    const [autoList, setAutoList] = useState<any[]>([]);
+    const [goodsMap, setGoodsMap] = useState<Record<number, string[]>>({});
+
+    const autoLiveNum = Math.min(Math.max(Number(module.autoLiveNum || 10), 1), 10);
+    const liveList: any[] = useMemo(() => {
+        const source = module.sourceType === "manual" ? module.selectedLiveList || [] : autoList;
+        return source.slice(0, module.sourceType === "manual" ? 10 : autoLiveNum);
+    }, [module.sourceType, module.selectedLiveList, autoList, autoLiveNum]);
+
+    useEffect(() => {
+        if (module.sourceType !== "auto") return;
+        let alive = true;
+        apiGet<any>("/promotion/wechatLive/list", { keyword: "", page: 1, size: 10 })
+            .then((res: any) => {
+                if (!alive) return;
+                const rows = res?.records || res?.list || [];
+                setAutoList(rows.filter((item: any) => Number(item.liveStatus) !== 4).slice(0, 10));
+            })
+            .catch(() => {
+                if (alive) setAutoList([]);
+            });
+        return () => {
+            alive = false;
+        };
+    }, [module.sourceType]);
+
+    useEffect(() => {
+        let alive = true;
+        const roomIds = liveList.map((item) => Number(item.roomId)).filter((id) => id > 0);
+        if (!roomIds.length) {
+            setGoodsMap({});
+            return;
+        }
+        Promise.all(
+            roomIds.map(async (roomId) => {
+                try {
+                    const res: any = await apiGet("/content/wechatLiveGoods/list", { roomId, page: 1, size: 3 });
+                    const rows = res?.records || res?.list || (Array.isArray(res) ? res : []);
+                    const imgs = rows.map((g: any) => g.coverImg || "").filter(Boolean).slice(0, 3);
+                    return [roomId, imgs] as const;
+                } catch {
+                    return [roomId, [] as string[]] as const;
+                }
+            })
+        ).then((entries) => {
+            if (alive) setGoodsMap(Object.fromEntries(entries));
+        });
+        return () => {
+            alive = false;
+        };
+    }, [liveList]);
+
+    const frame = module.frame ?? {};
+    const frameFormat = formatFrame(frame);
+    const big = module.displayMode === "bigImage";
+    const itemStyle: CSSProperties = {
+        padding: frame.innerPadding ?? 12,
+        ...(big ? { borderRadius: frame.boxRadius ?? 8 } : {}),
+        backgroundColor: frame.backgroundColor || undefined
     };
-    const isBigImageMode = (module.displayMode || "list") === "bigImage";
-    const selected: any[] = Array.isArray(module.selectedLiveList) ? module.selectedLiveList : [];
-    const liveList = (selected.length > 0 ? selected : DEMO_LIVE_LIST).slice(0, 10).map((item: any) => ({
-        ...item,
-        name: item.name || item.wechatLiveTitle || "",
-        anchorName: item.anchorName || item.anchorOpenid || item.anchorWechat || "",
-        liveStatusText: item.liveStatusText || LIVE_STATUS_TEXT[Number(item.liveStatus)] || ""
-    }));
-    const getCover = (item: any) => imageFormat(item.feedsImg || "");
-    const getGoodsImages = (item: any) =>
-        (item.productData || [])
-            .map((goods: any) => imageFormat(goods.coverImg || pickPic(goods) || goods.productThumb || goods.productImage || goods.image || ""))
-            .filter(Boolean)
-            .slice(0, 3);
 
     return (
-        <div className="module-ad-con module-live" style={cssText(frameFormat.boxPadding, frameFormat.boxPaddingTop, frameFormat.boxPaddingBottom)}>
-            <div className="module-ad-content" style={cssText(frameFormat.backgroundColor, frameFormat.boxRadius)}>
-                <div className="live-container" style={cssText(frameFormat.innerPadding)}>
-                    {liveList.length > 0 ? (
-                        isBigImageMode ? (
+        <div className="module-ad-con module-live module-promotion-live" style={cssText(frameFormat.boxPadding, frameFormat.boxPaddingTop, frameFormat.boxPaddingBottom)}>
+            <div className="module-ad-content" style={{ borderRadius: frame.boxRadius ?? 8, overflow: "hidden" }}>
+                <div className="live-container">
+                    {liveList.length ? (
+                        big ? (
                             <div className="live-list live-list--bigImage">
-                                {liveList.map((item: any) => (
-                                    <div key={item.wechatLiveId || item.roomId} className="live-card live-card--bigImage" style={cardStyle}>
-                                        <div className="live-card__cover live-card__cover--full" style={{ borderRadius: module.frame?.boxRadius ?? 8 }}>
-                                            {getCover(item) ? (
-                                                <img className="live-card__cover-image" src={getCover(item)} alt="" />
-                                            ) : (
-                                                <div className="live-card__cover-placeholder">
-                                                    <span className="live-card__cover-placeholder-text">直播预告</span>
-                                                </div>
-                                            )}
-                                            <div className={"live-card__status-tag " + statusClass(item)}>{item.liveStatusText || "直播中"}</div>
+                                {liveList.map((item, idx) => (
+                                    <div className="live-card live-card--bigImage" style={itemStyle} key={item.wechatLiveId || item.roomId || idx}>
+                                        <div className="live-card__cover live-card__cover--full" style={coverOf(item) ? { background: "none" } : undefined}>
+                                            {coverOf(item) ? <img src={coverOf(item)} alt="直播封面" /> : null}
+                                            <div className={`live-card__status-tag ${statusClass(item)}`}>{statusText(item)}</div>
                                             <div className="live-card__mask">
-                                                <div className="live-card__mask-title">{item.name}</div>
+                                                <div className="live-card__mask-title">{item.wechatLiveTitle || "-"}</div>
                                                 <div className="live-card__mask-meta">
-                                                    <span>主播：{item.anchorName}</span>
-                                                    <div className="live-card__action">进入直播间</div>
+                                                    <span>主播：{item.anchorName || "-"}</span>
+                                                    <span className="live-card__action">进入直播间</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -112,28 +120,22 @@ export default function LivePreview({ data }: { data: Record<string, any> }) {
                             </div>
                         ) : (
                             <div className="live-list live-list--list">
-                                {liveList.map((item: any) => (
-                                    <div key={item.wechatLiveId || item.roomId} className="live-card live-card--list" style={cardStyle}>
-                                        <div className="live-card__cover live-card__cover--list" style={{ borderRadius: module.frame?.boxRadius ?? 8 }}>
-                                            {getCover(item) ? (
-                                                <img className="live-card__cover-image" src={getCover(item)} alt="" />
-                                            ) : (
-                                                <div className="live-card__cover-placeholder">
-                                                    <span className="live-card__cover-placeholder-text">直播预告</span>
-                                                </div>
-                                            )}
+                                {liveList.map((item, idx) => (
+                                    <div className="live-card live-card--list" style={itemStyle} key={item.wechatLiveId || item.roomId || idx}>
+                                        <div className="live-card__cover live-card__cover--large" style={coverOf(item) ? { background: "none" } : undefined}>
+                                            {coverOf(item) ? <img src={coverOf(item)} alt="直播封面" style={{ height: "100%" }} /> : null}
                                             <div className="live-card__badge">小程序直播</div>
-                                            <div className="live-card__status">{item.liveStatusText || "直播中"}</div>
+                                            <div className="live-card__status">{item.liveStatusText || "-"}</div>
                                         </div>
                                         <div className="live-card__content">
-                                            <div className="live-card__title">{item.name}</div>
+                                            <div className="live-card__title">{item.wechatLiveTitle || "-"}</div>
                                             <div className="live-card__goods">
-                                                {getGoodsImages(item).map((goodsImg: string, goodsIndex: number) => (
-                                                    <img key={`${item.roomId}-${goodsIndex}`} className="live-card__goods-item" src={goodsImg} alt="" />
+                                                {(goodsMap[Number(item.roomId)] || []).map((img, gi) => (
+                                                    <img key={gi} className="live-card__goods-item" src={img} alt="商品图片" />
                                                 ))}
                                             </div>
                                             <div className="live-card__footer">
-                                                <div className="live-card__meta">主播：{item.anchorName || "官方直播间"}</div>
+                                                <div className="live-card__meta">主播：{item.anchorName || "-"}</div>
                                                 <div className="live-card__action">进入直播间</div>
                                             </div>
                                         </div>
@@ -142,10 +144,7 @@ export default function LivePreview({ data }: { data: Record<string, any> }) {
                             </div>
                         )
                     ) : (
-                        <div className="live-empty" style={{ borderRadius: module.frame?.boxRadius ?? 8 }}>
-                            <div className="live-empty__title">暂无可展示直播间</div>
-                            <div className="live-empty__desc">请在后台先配置小程序直播内容</div>
-                        </div>
+                        <div className="live-empty">暂无可展示直播间</div>
                     )}
                 </div>
             </div>

@@ -1,19 +1,132 @@
 /**
- * 混合商品展示 预览（类名对齐 uniapp-react mixedProductDisplay：comp/cont/item-box/mk-title/price-box）
+ * 商品混排 预览（移植自 view/admin editor/modules/mobilePro/mixedProductDisplay/Preview.vue）
+ *
+ * 双列各 50% + 中缝 1px 分割线；每组商品 = 组内演示项（productId===0，getDemoList 口径）
+ * + 按 pruductList 的 ids 拉取的真实商品（原版 watchEffect 语义）。
+ * 原版 Swiper slidesPerView=2/spaceBetween=6 以横滑轨承接（项宽 50%）。
+ * 右侧小图原版按原图宽高比 × 高 20px 计算宽度，本实现以 <img height=20> 等价呈现。
+ * 标题/卖点颜色按原版 Preview 消费 moduleColor（审计 E 的「写死」条目属 mixedNotice，非本模块）。
  */
 import { useMemo } from "react";
-import H5Countdown from "../../../shared/H5Countdown";
-import { cssText, productImage, priceFormat, imageFormat, pickPic } from "../../../shared/format";
-import { mergeDefaultModule, formatCommonStyle } from "../../../contract/sharedDefaults";
+import { cssText, imageFormat, productImage } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
+import { mergeDefaultModule, formatCommonStyle } from "../../../contract/sharedDefaults";
+import H5Countdown from "../../../shared/H5Countdown";
 import { mixedProductDisplayDefaults } from "./index";
 import "./Preview.css";
 
-const DEMO_PRODUCTS = [
-    { productId: 9001, productName: "演示商品一", productPrice: 99, marketPrice: 129, picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957947YV2lncqLSOSg8OvpbK.png", picThumb: "https://oss.tigshop.com/img/gallery/202411/1730957947YV2lncqLSOSg8OvpbK.png" },
-    { productId: 9002, productName: "演示商品二", productPrice: 59, marketPrice: 79, picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957948LcXRbvCuwlCHyHy7Y0.png", picThumb: "https://oss.tigshop.com/img/gallery/202411/1730957948LcXRbvCuwlCHyHy7Y0.png" },
-    { productId: 9003, productName: "演示商品三", productPrice: 39, marketPrice: 49, picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957949mTiXqnQpGXzYHnNV.png", picThumb: "https://oss.tigshop.com/img/gallery/202411/1730957949mTiXqnQpGXzYHnNV.png" },
-];
+const picScaleMap: Record<string, string> = {
+    "3:2": "calc(100% / 3 * 2)",
+    "1:1": "calc(100% / 1 * 1)",
+    "3:4": "calc(100% / 3 * 4)",
+    "16:9": "calc(100% / 16 * 9)"
+};
+
+const formatMap: Record<string, string> = { 天: "DD", 时: "HH", 分: "mm", 秒: "ss", 毫秒: "SSS" };
+
+function GroupColumn({
+    module,
+    group,
+    fetched,
+    isFirst
+}: {
+    module: Record<string, any>;
+    group: Record<string, any>;
+    fetched: Array<Record<string, any>>;
+    isFirst: boolean;
+}) {
+    const demoList = (group?.pruductList ?? []).filter((item: any) => item.productId === 0);
+    const list = [...demoList, ...fetched];
+    const mc = module.moduleColor ?? {};
+    const timeFormat = (module.timeContent ?? []).map((c: string) => formatMap[c]).filter(Boolean).join(":");
+
+    return (
+        <div className="mpd-cont">
+            <div>
+                <div className="mpd-mk-title" style={{ color: mc.titleColor }}>
+                    {group?.groupTitle}
+                    {isFirst && Number(module.showCountdown) === 1 ? (
+                        <div
+                            className="mpd-time"
+                            style={cssText(`background:${mc.countdownBackgroundColor};`, `color:${mc.countdownColor};`)}
+                        >
+                            {Date.now() > Number((module.dailyTime ?? [])[0]) ? (
+                                <H5Countdown
+                                    countdownType={module.countdownType}
+                                    valueStyle={{
+                                        color: mc.countdownColor,
+                                        fontSize: "12px",
+                                        display: "block",
+                                        height: "20px",
+                                        lineHeight: "20px"
+                                    }}
+                                    format={timeFormat}
+                                    dailyTime={module.dailyTime}
+                                    specifyTime={module.specifyTime}
+                                />
+                            ) : (
+                                "活动未开始"
+                            )}
+                        </div>
+                    ) : null}
+                    {!isFirst && module.rightPic?.picUrl ? (
+                        <img
+                            src={imageFormat(module.rightPic.picUrl)}
+                            alt=""
+                            style={{ marginLeft: 2, height: 20, width: "auto", display: "block" }}
+                        />
+                    ) : null}
+                </div>
+                <div className="mpd-mk-stitle" style={{ color: mc.sellingPointColor }}>
+                    {group?.groupSubTitle}
+                </div>
+            </div>
+            <div className="mpd-item-box">
+                <div className="mpd-track">
+                    {list.map((item: any, idx: number) => (
+                        <div className="mpd-item" key={`${item.productId || 0}_${idx}`}>
+                            <div
+                                className="mpd-goods-img"
+                                style={cssText(`padding-top:${picScaleMap[module.picScale] ?? picScaleMap["1:1"]};`, `border-radius:${module.productRadius}px;`)}
+                            >
+                                <div
+                                    className="mpd-img"
+                                    style={cssText(
+                                        `padding-top:${picScaleMap[module.picScale] ?? picScaleMap["1:1"]};`,
+                                        `border-radius:${module.productRadius}px;`,
+                                        `background-size:${module.picFillType};`,
+                                        `background-image:url(${productImage(item)});`
+                                    )}
+                                />
+                            </div>
+                            {Number(module.showProductPrice) === 1 ? (
+                                <div className="mpd-price-box">
+                                    <div
+                                        className="mpd-price"
+                                        style={cssText(
+                                            `background:${mc.priceBackgroundColor};`,
+                                            `color:${mc.priceColor};`,
+                                            "font-weight:700;"
+                                        )}
+                                    >
+                                        ￥{item.productPrice}
+                                    </div>
+                                </div>
+                            ) : null}
+                            {item.marketPrice && Number(module.crossedOutPrice) === 1 ? (
+                                <div className="mpd-origin">
+                                    <div style={cssText(`color:${mc.crossedOutPriceColor};`, "text-decoration:line-through;")}>
+                                        {item.marketPrice}
+                                    </div>
+                                </div>
+                            ) : null}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
 
 export default function MixedProductDisplayPreview({ data }: { data: Record<string, any> }) {
     const module = useMemo(() => {
@@ -21,35 +134,41 @@ export default function MixedProductDisplayPreview({ data }: { data: Record<stri
         mergeDefaultModule(merged, mixedProductDisplayDefaults);
         return merged;
     }, [data]);
+
     const commonStyle = formatCommonStyle(module.moduleStyle ?? {}, module.contentStyle ?? {}, module.subTitle ?? {});
-    const fetched = useDecorateProductList(module.products);
-    const productList = fetched.length ? fetched : DEMO_PRODUCTS;
-    const groups: any[] = module.productGroups?.length ? module.productGroups : [{ title: "精选好物", subTitle: "" }];
-    const colors = module.moduleColor || {};
-    const rightPic = pickPic(module.rightPic);
+    const groups: Array<Record<string, any>> = module.productGroups ?? [];
+    const idsOf = (g: Record<string, any>) => (g?.pruductList ?? []).map((item: any) => item.productId).filter(Boolean);
+    // 两组各按 ids 拉取（原版逐组 getProductList({ids})）；组数固定为 2（原版模板写死 [0]/[1]）
+    const fetched0 = useDecorateProductList({ productSelectType: idsOf(groups[0]).length ? 1 : 0, productIds: idsOf(groups[0]) });
+    const fetched1 = useDecorateProductList({ productSelectType: idsOf(groups[1]).length ? 1 : 0, productIds: idsOf(groups[1]) });
+
     return (
-        <div className="module-ad-con" style={cssText(commonStyle.moduleStyle.boxPaddingBottom, commonStyle.moduleStyle.boxPaddingTop, commonStyle.moduleStyle.boxPadding, commonStyle.moduleStyle.backgroundSize, commonStyle.moduleStyle.backgroundImage)}>
-            <div className="module-ad-content" style={cssText(commonStyle.moduleContentStyle.backgroundImage, commonStyle.moduleContentStyle.backgroundSize, commonStyle.moduleContentStyle.boxRadius, commonStyle.moduleContentStyle.boxShadow, commonStyle.moduleContentStyle.innerPadding)}>
-                <div className="comp">
-                    {groups.map((group, gi) => (
-                        <div className="cont" key={gi} style={{ borderColor: colors.lineColor, marginBottom: 10 }}>
-                            <div className="mk-title" style={{ color: colors.titleColor }}>{group.title}</div>
-                            {group.subTitle ? <div className="mk-stitle line1">{group.subTitle}</div> : null}
-                            {group.sellingPoint ? <div className="line1" style={{ color: colors.sellingPointColor, fontSize: 12 }}>{group.sellingPoint}</div> : null}
-                            {Number(module.showCountdown) === 1 ? (<div className="time" style={{ backgroundColor: colors.countdownBackgroundColor, color: colors.countdownColor }}><H5Countdown countdownType={module.countdownType || "dailyCycle"} dailyTime={module.dailyTime} specifyTime={Number(module.specifyTime) || Date.now() + 3600 * 1000} format="HH:mm:ss" /></div>) : null}
-                            {rightPic ? <img className="img" src={imageFormat(rightPic)} alt="" /> : null}
-                            <div className="item-box">
-                                {productList.map((item: any, i: number) => (
-                                    <div className="item" key={i}>
-                                        <img className="goods-img" src={productImage(item)} alt="" style={{ borderRadius: `${module.productRadius}px`, objectFit: module.picFillType ?? "cover" }} />
-                                        <div className="line1" style={{ fontSize: 12 }}>{item.productName}</div>
-                                        {Number(module.showProductPrice) === 1 ? (<div className="price-box" style={{ backgroundColor: colors.priceBackgroundColor }}><span className="price" style={{ color: colors.priceColor }}>¥{priceFormat(item.productPrice)}</span>{Number(module.crossedOutPrice) === 1 && item.marketPrice ? <span className="origin" style={{ color: colors.crossedOutPriceColor }}>¥{priceFormat(item.marketPrice)}</span> : null}</div>) : null}
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="line-box"><div className="line" style={{ borderColor: colors.lineColor }} /></div>
-                        </div>
-                    ))}
+        <div
+            className="module-ad-con module-mixed_product_display"
+            style={cssText(
+                commonStyle.moduleStyle.boxPaddingBottom,
+                commonStyle.moduleStyle.boxPaddingTop,
+                commonStyle.moduleStyle.boxPadding,
+                commonStyle.moduleStyle.backgroundSize,
+                commonStyle.moduleStyle.backgroundImage
+            )}
+        >
+            <div
+                className="module-ad-content"
+                style={cssText(
+                    commonStyle.moduleContentStyle.backgroundImage,
+                    commonStyle.moduleContentStyle.backgroundSize,
+                    commonStyle.moduleContentStyle.boxRadius,
+                    commonStyle.moduleContentStyle.boxShadow,
+                    commonStyle.moduleContentStyle.innerPadding
+                )}
+            >
+                <div className="mpd-comp">
+                    <GroupColumn module={module} group={groups[0] ?? {}} fetched={fetched0} isFirst />
+                    <div className="mpd-line-box">
+                        <div className="mpd-line" style={cssText(`background:${(module.moduleColor ?? {}).lineColor};`)} />
+                    </div>
+                    <GroupColumn module={module} group={groups[1] ?? {}} fetched={fetched1} isFirst={false} />
                 </div>
             </div>
         </div>

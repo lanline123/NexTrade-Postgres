@@ -1,13 +1,110 @@
-.dec-my-wallet__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.dec-my-wallet__title { font-size: 15px; font-weight: 600; color: #333; }
-.dec-my-wallet__link { font-size: 12px; color: #999; display: flex; align-items: center; gap: 2px; }
-.dec-my-wallet__stats { display: flex; flex: 1; }
-.dec-my-wallet__stat-item, .dec-my-wallet__stat { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.dec-my-wallet__stat-value, .dec-my-wallet__value { font-size: 15px; font-weight: 600; color: #333; }
-.dec-my-wallet__stat-label, .dec-my-wallet__label { font-size: 12px; color: #999; }
-.dec-my-wallet__style2 { display: flex; align-items: center; gap: 12px; }
-.dec-my-wallet__icon-section { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.dec-my-wallet__icon img { width: 30px; height: 30px; object-fit: contain; }
-.dec-my-wallet__icon { font-size: 24px; }
-.dec-my-wallet__icon-label { font-size: 12px; color: #333; }
-.dec-my-wallet__divider { width: 1px; align-self: stretch; background: #f0f0f0; }
+/* 我的钱包 Preview scoped 样式（移植自原版 Preview.vue <style scoped>，双样式） */
+/* 样式一 */
+.module-member-my-wallet .wallet-style1-wrap {
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.module-member-my-wallet .wallet-style1-container {
+    box-sizing: border-box;
+}
+.module-member-my-wallet .wallet-style1-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+.module-member-my-wallet .wallet-style1-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+.module-member-my-wallet .wallet-style1-link {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 13px;
+    color: #999;
+}
+.module-member-my-wallet .wallet-style1-stats {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+}
+.module-member-my-wallet .wallet-style1-stat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+.module-member-my-wallet .wallet-style1-value {
+    font-size: 18px;
+    font-weight: 500;
+    color: #1a1a1a;
+}
+.module-member-my-wallet .wallet-style1-label {
+    font-size: 12px;
+    color: #1a1a1a;
+}
+/* 样式二 */
+.module-member-my-wallet .my-wallet-wrap {
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.module-member-my-wallet .my-wallet-container {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+}
+.module-member-my-wallet .my-wallet-icon-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+}
+.module-member-my-wallet .my-wallet-icon {
+    width: 24px;
+    height: 22px;
+    object-fit: contain;
+}
+.module-member-my-wallet .my-wallet-icon-label {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 20px;
+    color: #666;
+    white-space: nowrap;
+}
+.module-member-my-wallet .my-wallet-divider {
+    width: 10px;
+    height: 54px;
+    background-image: url("https://oss.tigshop.com/official/img/pc/202605/1779929210zBMvyOonKlS2ANuWkq.png");
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    margin: 0 8px;
+    flex-shrink: 0;
+}
+.module-member-my-wallet .my-wallet-stats {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+}
+.module-member-my-wallet .my-wallet-stat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+.module-member-my-wallet .my-wallet-value {
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 600;
+    color: #333;
+}
+.module-member-my-wallet .my-wallet-label {
+    font-size: 12px;
+    color: #666;
+    line-height: 20px;
+}

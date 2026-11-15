@@ -1,32 +1,25 @@
 /**
- * 店铺信息 预览（DOM 类名逐字对齐 uniapp-react 渲染端 shopInfo/index.tsx）
+ * 店铺信息 预览（移植自 view/admin editor/modules/mobilePromotion/shopInfo/Preview.vue）
  *
- * 店铺数据在渲染端由页面传入 shopInfo prop，编辑器预览用演示店铺兜底；
- * 演示字段与渲染端使用一致：shopLogo、shopTitle、productCount、newProductCount、collectShop。
- * 背景图规则与渲染端一致：backgroundDefault=0 且 customPic 有图时用自定义图，
- * 否则取 OSS 内置 10 张背景图（序号 backgroundDefault-1）。
+ * 根 class module-store_info ad-store_style__<style>，cap-store-* 样式全部走全局 module.css（已移植）；
+ * 背景图：backgroundDefault==0 且 customPic 有图时用自定义图，否则取预设 1..10（styles/img/bg 打包资源）；
+ * 店招为原版写死的演示内容（Apple智慧生活专卖店 / 全部商品 20 / 新品 12 / 收藏按钮 / 搜商品 / 精选·商品·分类导航）。
+ * 搜索图标与收藏图标为原版 iconfont/module_ico 类，本实现以同尺寸内联 SVG/字符承接。
  */
 import { useMemo } from "react";
-import { imageFormat } from "../../../shared/format";
 import { mergeDefaultModule } from "../../../contract/sharedDefaults";
+import { imageFormat } from "../../../shared/format";
 import { shopInfoDefaults } from "./index";
-import "./Preview.css";
+import { SHOP_INFO_BACKGROUNDS } from "./backgrounds";
 
-/** 演示店铺（仅预览兜底） */
-const DEMO_SHOP = {
-    shopLogo: "https://oss.tigshop.com/img/gallery/202411/17319190474y0XWFxO8GJZF0dg64.jpg",
-    shopTitle: "演示店铺",
-    productCount: 128,
-    newProductCount: 12,
-    collectShop: false
-};
+const SHOP_LOGO = "https://oss.tigshop.com/img/gallery/202406/17181844953OiwzdtLSXKLeU9oi7.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
 
-function builtinBackground(index: number): string {
-    const list: string[] = [];
-    for (let i = 1; i <= 10; i++) {
-        list.push(`https://lyecs2.oss-cn-zhangjiakou.aliyuncs.com/static/mini/bg/${i}.jpg`);
-    }
-    return list[index] || list[0];
+function SearchIcon() {
+    return (
+        <svg viewBox="0 0 1024 1024" width="14" height="14" fill="currentColor" aria-hidden="true" style={{ flexShrink: 0 }}>
+            <path d="M945.6 854.4L721.9 630.7c34.5-46.5 54.9-104.1 54.9-166.4C776.8 243.1 597.7 64 376.5 64S-23.8 243.1-23.8 464.3c0 221.2 179.1 400.3 400.3 400.3 62.3 0 119.9-20.4 166.4-54.9l223.7 223.7c6.2 6.2 14.6 9.4 22.6 9.4 8 0 16.4-3.2 22.6-9.4 12.5-12.5 12.5-32.5 0-45zM64.2 464.3c0-172.3 140-312.3 312.3-312.3 172.3 0 312.3 140 312.3 312.3 0 83.5-32.5 162-91.5 221-59 59-137.5 91.5-221 91.5-172.3 0-312.3-140-312.3-312.3z" transform="translate(24 0)" />
+        </svg>
+    );
 }
 
 export default function ShopInfoPreview({ data }: { data: Record<string, any> }) {
@@ -37,13 +30,12 @@ export default function ShopInfoPreview({ data }: { data: Record<string, any> })
     }, [data]);
 
     const backgroundImg =
-        Number(module.backgroundDefault) === 0 && module.customPic?.picUrl
+        module.backgroundDefault === 0 && module.customPic?.picUrl
             ? imageFormat(module.customPic.picUrl)
-            : builtinBackground(Number(module.backgroundDefault || 1) - 1);
-    const shopInfo = DEMO_SHOP;
+            : SHOP_INFO_BACKGROUNDS[(module.backgroundDefault ?? 1) - 1];
 
     return (
-        <div className={`module-ad-con module-store_info ad-store_style__${module.style}`}>
+        <div className={`module-ad-con module-store_info ad-store_style__${module.style ?? 1}`}>
             <div className="module-ad-content">
                 <div className="cap-store-banner">
                     <div className="cap-store-banner__cover" style={{ backgroundImage: `url(${backgroundImg})` }}>
@@ -52,38 +44,48 @@ export default function ShopInfoPreview({ data }: { data: Record<string, any> })
                     <div className="cap-store-nav-warp">
                         <div className="cap-store-nav-con">
                             <div className="store-search-con">
-                                <div className="flex align-center">
-                                    <span className="iconfont-h5 icon-sousuo" />
-                                    <input type="text" className="search-input" placeholder="搜商品" readOnly />
+                                <div id="search">
+                                    <SearchIcon />
+                                    <input type="text" className="search-input" value="" placeholder="搜商品" readOnly />
                                 </div>
                             </div>
                             <div className="store-nav-con">
                                 <div className="store-nav-item active">
-                                    <div className="store-nav-item-a">精选</div>
+                                    <a className="store-nav-item-a">精选</a>
                                 </div>
                                 <div className="store-nav-item">
-                                    <div className="store-nav-item-a">商品</div>
+                                    <a className="store-nav-item-a">商品</a>
                                 </div>
                                 <div className="store-nav-item">
-                                    <div className="store-nav-item-a">分类</div>
+                                    <a className="store-nav-item-a">分类</a>
                                 </div>
+                            </div>
+                            <div className="store-all-cat-con" style={{ display: "none" }}>
+                                <span className="module_ico module-ico-fenlei" />
                             </div>
                         </div>
                     </div>
                     <div className="cap-store-banner__inner">
                         <div className="cap-store-banner__content">
                             <div className="cap-store-banner__logo">
-                                <img src={imageFormat(shopInfo.shopLogo)} alt="" />
+                                <img src={SHOP_LOGO} alt="" />
                             </div>
                             <div className="cap-store-banner__right-content">
-                                <div className="cap-store-banner__right-content-title--middle">{shopInfo.shopTitle}</div>
+                                <h3 className="cap-store-banner__right-content-title--middle">Apple智慧生活专卖店</h3>
                                 <div className="cap-store-banner__sum-content">
-                                    <div className="cap-store-banner__sum-content-total">全部商品 {shopInfo.productCount}</div>
-                                    <div className="cap-store-banner__sum-content-total">新品 {shopInfo.newProductCount}</div>
+                                    <a>
+                                        <div className="cap-store-banner__sum-content-total">全部商品 20</div>
+                                    </a>
+                                    <a>
+                                        <div className="cap-store-banner__sum-content-total">新品 12</div>
+                                    </a>
                                 </div>
                             </div>
                             <div className="store-collect-button-con">
-                                <div className="store-collect-button">{shopInfo.collectShop ? "已收藏" : "收藏"}</div>
+                                <div className="store-collect-button">
+                                    <span style={{ marginRight: 2 }}>★</span>
+                                    收藏
+                                </div>
                             </div>
                         </div>
                     </div>

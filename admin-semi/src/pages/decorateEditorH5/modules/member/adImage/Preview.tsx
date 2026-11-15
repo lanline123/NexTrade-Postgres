@@ -1,10 +1,14 @@
 /**
- * 会员广告图 预览（类名对齐渲染端 dec-ad-image__*）
+ * 广告图 预览（移植自 view/admin editor/modules/mobileMember/adImage/Preview.vue）
+ *
+ * 单张 img width 100% block；无图时空态 .module-ad-empty（「点击添加图片」）；
+ * wrap 背景/圆角取 frame（bg 空时 transparent），container padding 取 frame.innerPadding（默认 0）。
  */
 import { useMemo } from "react";
-import { cssText, productImage } from "../../../shared/format";
+import { cssText } from "../../../shared/format";
 import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
 import { adImageDefaults } from "./index";
+import "./Preview.css";
 
 export default function AdImagePreview({ data }: { data: Record<string, any> }) {
     const module = useMemo(() => {
@@ -12,16 +16,26 @@ export default function AdImagePreview({ data }: { data: Record<string, any> }) 
         mergeDefaultModule(merged, adImageDefaults);
         return merged;
     }, [data]);
-    const frameFormat = formatFrame(module.frame ?? {});
-    const picUrl = productImage(module.pic);
+
+    const frame = module.frame ?? {};
+    const frameFormat = formatFrame(frame);
+
     return (
-        <div className="module-ad-con" style={cssText(frameFormat.boxPadding, frameFormat.boxPaddingTop, frameFormat.boxPaddingBottom)}>
-            <div className="module-ad-content" style={cssText(frameFormat.backgroundColor, frameFormat.boxRadius)}>
-                <div className="dec-ad-image">
-                    <div className="dec-ad-image__wrapper">
-                        <div className="dec-ad-image__img">
-                            {picUrl ? <img src={picUrl} alt="" style={{ width: "100%", display: "block", borderRadius: module.frame?.boxRadius ?? 12 }} /> : <div className="module-ad-empty empty-image_ad"><div className="desc">点击添加广告图</div></div>}
-                        </div>
+        <div className="module-ad-con module-member-ad-image" style={cssText(frameFormat.boxPadding, frameFormat.boxPaddingTop, frameFormat.boxPaddingBottom)}>
+            <div className="module-ad-content">
+                <div
+                    className="ad-image-wrap"
+                    style={{ backgroundColor: frame.backgroundColor || "transparent", borderRadius: `${frame.boxRadius ?? 0}px` }}
+                >
+                    <div className="ad-image-container" style={{ padding: `${frame.innerPadding ?? 0}px` }}>
+                        {!module.pic?.picUrl ? (
+                            <div className="module-ad-empty">
+                                <div className="image-empty-bg" />
+                                <div className="desc">点击添加图片</div>
+                            </div>
+                        ) : (
+                            <img className="ad-image-pic" src={module.pic.picUrl} alt="广告图" />
+                        )}
                     </div>
                 </div>
             </div>

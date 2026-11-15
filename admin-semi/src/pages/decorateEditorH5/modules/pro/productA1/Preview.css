@@ -1,5 +1,172 @@
-.goods-ad-warp .item-name-a{font-size:13px}
-.goods-ad-warp .item-brief-list{display:flex;gap:4px;border-radius:4px;padding:2px 4px;margin-top:4px;flex-wrap:wrap}
-.goods-ad-warp .item-action{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
-.goods-ad-warp .price_format{color:#e1251b}
-.goods-ad-warp .market_price{color:#999;font-size:11px;text-decoration:line-through;margin-left:4px}
+/* 商品A1 预览样式（移植自 mobilePro/productA1/Preview.vue scoped，原 :deep 规则改为后代选择器，专属类加 pa1- 前缀） */
+.module-product_a1 .goods-ad-item .item-con {
+    background-color: #fff;
+}
+.module-product_a1 .goods-ad-item .item-photo {
+    position: relative;
+}
+.module-product_a1 .pa1-item-label-tag {
+    position: absolute;
+    padding: 2px 8px;
+    line-height: 1.4;
+    z-index: 2;
+    white-space: nowrap;
+    font-weight: 500;
+}
+.module-product_a1 .pa1-item-brief-list {
+    display: flex;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}
+.module-product_a1 .pa1-item-brief-tag {
+    padding: 1px 6px;
+    margin-right: 4px;
+    margin-bottom: 4px;
+    border-radius: 2px;
+    line-height: 16px;
+    display: inline-block;
+    white-space: nowrap;
+}
+.module-product_a1.ad-goods_style__4 .goods-ad-item .item-con {
+    background-color: transparent;
+}
+.module-product_a1.ad-style__5 .goods-ad-warp .goods-ad-con .goods-ad-item .item-con {
+    align-items: stretch;
+}
+.module-product_a1.ad-style__5 .goods-ad-warp .goods-ad-item .item-photo {
+    aspect-ratio: 1 / 1;
+}
+.module-product_a1.ad-style__5 .goods-ad-warp .goods-ad-item .item-photo .item-image-a {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+.module-product_a1.ad-style__5 .goods-ad-warp .goods-ad-item .item-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.module-product_a1.ad-style__5 .goods-ad-warp .goods-ad-item .item-con .item-info {
+    display: flex;
+    flex-direction: column;
+    padding: 10px 8px;
+    box-sizing: border-box;
+}
+.module-product_a1.ad-style__5 .goods-ad-warp .goods-ad-item .item-info .item-name {
+    flex: 1;
+    margin: 0;
+}
+.module-product_a1.ad-style__5 .goods-ad-warp .goods-ad-item .item-info .item-name .item-name-a {
+    height: auto;
+    line-height: 20px;
+    -webkit-line-clamp: 2;
+    margin-bottom: 0;
+}
+.module-product_a1.ad-style__5 .goods-ad-warp .goods-ad-item .item-info .item-action {
+    position: static !important;
+    margin-top: auto;
+    padding: 0;
+    align-items: flex-end;
+    gap: 4px;
+}
+.module-product_a1.ad-style__5 .goods-ad-warp .goods-ad-item .item-info .item-price {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px;
+    height: auto;
+    line-height: 1.4;
+    min-width: 0;
+}
+.module-product_a1.ad-style__5 .goods-ad-warp .goods-ad-item .item-info .market_price {
+    color: #999;
+    font-size: 12px;
+    padding-left: 0;
+}
+.module-product_a1.ad-style__5 .goods-ad-warp .goods-ad-item .item-info .market_price b {
+    font-size: 11px;
+    font-weight: normal;
+    text-decoration: line-through;
+}
+.module-product_a1.ad-style__5 .goods-ad-warp .goods-ad-item .item-info .item-price > b {
+    font-size: 16px;
+}
+.module-product_a1.ad-style__5 .goods-ad-warp .goods-ad-item .item-info .item-price > b::first-letter {
+    font-size: 11px;
+}
+.module-product_a1.ad-style__2 .goods-ad-warp .goods-ad-item .item-photo,
+.module-product_a1.ad-style__3 .goods-ad-warp .goods-ad-item .item-photo {
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+}
+.module-product_a1.ad-style__2 .goods-ad-warp .goods-ad-item .item-photo .item-image-a,
+.module-product_a1.ad-style__3 .goods-ad-warp .goods-ad-item .item-photo .item-image-a {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+.module-product_a1.ad-style__2 .goods-ad-warp .goods-ad-item .item-photo img,
+.module-product_a1.ad-style__3 .goods-ad-warp .goods-ad-item .item-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.module-product_a1.ad-style__2 .goods-ad-warp .goods-ad-item .item-info .item-action,
+.module-product_a1.ad-style__3 .goods-ad-warp .goods-ad-item .item-info .item-action {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 0 8px 10px;
+    flex-wrap: nowrap;
+}
+.module-product_a1.ad-style__2 .goods-ad-warp .goods-ad-item .item-info .item-price,
+.module-product_a1.ad-style__3 .goods-ad-warp .goods-ad-item .item-info .item-price {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px;
+    line-height: 1.4;
+    height: auto;
+    min-width: 0;
+    flex: none;
+}
+.module-product_a1.ad-style__2 .goods-ad-warp .goods-ad-item .item-info .market_price,
+.module-product_a1.ad-style__3 .goods-ad-warp .goods-ad-item .item-info .market_price {
+    color: #999;
+    padding-left: 0;
+}
+.module-product_a1.ad-style__2 .goods-ad-warp .goods-ad-item .item-info .market_price b,
+.module-product_a1.ad-style__3 .goods-ad-warp .goods-ad-item .item-info .market_price b {
+    font-weight: normal;
+    text-decoration: line-through;
+}
+.module-product_a1.ad-style__2 .goods-ad-warp .goods-ad-item .item-info .item-price b {
+    font-size: 15px;
+}
+.module-product_a1.ad-style__2 .goods-ad-warp .goods-ad-item .item-info .market_price,
+.module-product_a1.ad-style__2 .goods-ad-warp .goods-ad-item .item-info .market_price b {
+    font-size: 12px;
+}
+.module-product_a1.ad-style__2 .goods-ad-warp .goods-ad-item .item-info .item-buy {
+    width: 100%;
+    max-width: 80px;
+}
+.module-product_a1.ad-style__3 .goods-ad-warp .goods-ad-item .item-info .item-price b {
+    font-size: 13px;
+}
+.module-product_a1.ad-style__3 .goods-ad-warp .goods-ad-item .item-info .market_price,
+.module-product_a1.ad-style__3 .goods-ad-warp .goods-ad-item .item-info .market_price b {
+    font-size: 10px;
+}
+.module-product_a1.ad-style__3 .goods-ad-warp .goods-ad-item .item-info .item-buy {
+    display: flex !important;
+    justify-content: center;
+    height: auto;
+    padding-bottom: 0;
+}
+.module-product_a1 .item-image-a {
+    display: block;
+}
+.module-product_a1 .item-image-a img {
+    display: block;
+}

@@ -1,58 +1,64 @@
 /**
- * 订单入口 设置（覆盖渲染端读取的 title/showTitle/showAllOrders/layoutStyle/entryList/badge 颜色/frame）
+ * 我的订单 设置（对齐 view/admin orderEntry/Settings.vue）
+ *
+ * 页签 内容设置/扩展设置。内容：布局样式（切换即整体替换 entryList 图标集 + 角标背景回默认，
+ * 同原版 watch 联动）→ 模块标题（仅样式一，maxlength 10）→ 订单入口列表 PicList
+ * （showText、showLink=false；原版 showAddButton=false，我方无此门控，见摘要）；
+ * 扩展：角标背景色/角标文字色（重置回当前样式默认）+ CommonFrameEdit 全量。
  */
-import { SettingGroup, TextField, SwitchField, RadioRowField, ColorField, FrameSettingsField } from "../../../shared/settingWidgets";
-
-const inputStyle: React.CSSProperties = { height: 28, border: "1px solid var(--semi-color-border)", borderRadius: 4, padding: "0 6px", flex: 1, minWidth: 0 };
-
-/** 入口列表近似编辑：picTitle / picUrl / picLink.link 三列文本（后续统一接图片/链接选择器） */
-function PicEntryRows({ list, onList }: { list: any[]; onList: (next: any[]) => void }) {
-    const setRow = (index: number, patch: Record<string, any>) => onList(list.map((it, i) => (i === index ? { ...it, ...patch } : it)));
-    return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {list.map((item, index) => (
-                <div key={index} style={{ display: "flex", gap: 6 }}>
-                    <input value={item.picTitle || ""} placeholder="名称" onChange={(e) => setRow(index, { picTitle: e.target.value })} style={inputStyle} />
-                    <input value={item.picUrl || ""} placeholder="图标URL" onChange={(e) => setRow(index, { picUrl: e.target.value })} style={inputStyle} />
-                    <input
-                        value={item.picLink?.link || ""}
-                        placeholder="链接(空=默认)"
-                        onChange={(e) => setRow(index, { picLink: { ...(item.picLink || {}), link: e.target.value } })}
-                        style={inputStyle}
-                    />
-                </div>
-            ))}
-        </div>
-    );
-}
+import { SettingGroup, TextField, SegmentedRadio, ColorField, DecDivider, PicListField, FrameSettingsField, RadioRowField } from "../../../shared/settingWidgets";
+import { SettingsTabs } from "../../../shared/styleEdits";
+import { orderEntryStyle1List, orderEntryStyle2List, orderEntryBadgeBg } from "./index";
 
 export default function OrderEntrySettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
-    const entryList: any[] = data?.entryList || [];
+    const layoutStyle = data?.layoutStyle ?? 1;
+    const handleChange = (patch: Record<string, any>) => {
+        if (patch.layoutStyle && patch.layoutStyle !== layoutStyle) {
+            const next = patch.layoutStyle;
+            onChange({
+                ...patch,
+                entryList: (next === 2 ? orderEntryStyle2List : orderEntryStyle1List).map((i) => ({ ...i })),
+                badgeBgColor: orderEntryBadgeBg(next)
+            });
+            return;
+        }
+        onChange(patch);
+    };
     return (
         <div className="h5-editor-settings-body">
-            <SettingGroup title="标题">
-                <TextField data={data} onChange={onChange} field="title" label="标题文字" />
-                <SwitchField data={data} onChange={onChange} field="showTitle" label="显示标题(样式1)" />
-                <SwitchField data={data} onChange={onChange} field="showAllOrders" label="显示全部订单" />
-                <RadioRowField
-                    data={data}
-                    onChange={onChange}
-                    field="layoutStyle"
-                    label="布局样式"
-                    options={[
-                        { value: 1, label: "样式1" },
-                        { value: 2, label: "样式2" }
-                    ]}
-                />
-            </SettingGroup>
-            <SettingGroup title="订单入口列表">
-                <PicEntryRows list={entryList} onList={(next) => onChange({ entryList: next })} />
-            </SettingGroup>
-            <SettingGroup title="角标颜色">
-                <ColorField data={data} onChange={onChange} field="badgeBgColor" label="角标背景色" />
-                <ColorField data={data} onChange={onChange} field="badgeTextColor" label="角标文字色" />
-            </SettingGroup>
-            <FrameSettingsField data={data} onChange={onChange} />
+            <SettingsTabs tabs={["内容设置", "扩展设置"]}>
+                <div>
+                    <SettingGroup>
+                        <RadioRowField
+                            data={data}
+                            onChange={handleChange}
+                            field="layoutStyle"
+                            label="布局样式"
+                            options={[
+                                { value: 1, label: "样式一" },
+                                { value: 2, label: "样式二" }
+                            ]}
+                        />
+                    </SettingGroup>
+                    <DecDivider />
+                    {layoutStyle === 1 ? (
+                        <>
+                            <SettingGroup>
+                                <TextField data={data} onChange={onChange} field="title" label="模块标题" placeholder="我的订单" />
+                            </SettingGroup>
+                            <DecDivider />
+                        </>
+                    ) : null}
+                    <PicListField data={data} onChange={onChange} field="entryList" label="订单入口列表" showText showLink={false} />
+                </div>
+                <div>
+                    <SettingGroup>
+                        <ColorField data={data} onChange={onChange} field="badgeBgColor" label="角标背景色" resetValue={orderEntryBadgeBg(layoutStyle)} />
+                        <ColorField data={data} onChange={onChange} field="badgeTextColor" label="角标文字色" resetValue="#ffffff" />
+                    </SettingGroup>
+                    <FrameSettingsField data={data} onChange={onChange} />
+                </div>
+            </SettingsTabs>
         </div>
     );
 }

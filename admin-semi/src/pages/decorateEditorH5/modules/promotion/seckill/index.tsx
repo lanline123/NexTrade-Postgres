@@ -1,18 +1,12 @@
 /**
- * 限时秒杀 模块（默认值字段对齐 uniapp-react 渲染端 customPage/modules/seckill/index.tsx 读取的 module 字段）
- *
- * 渲染端读取：frame、title（defaultTitle 结构，showTitle 控制标题）、style、buyBtnStyle、
- * goodsStyle、goodsRadioStyle、textAlign、textWeight、goodsNameRow、goodsNamePadding、
- * showName、showPrice、backgroundColor、boxPadding、boxPaddingTop、boxPaddingBottom、
- * boxRadius、innerPadding、goodsPadding；商品由渲染端接口 getHomeSeckill 拉取。
- * products 为编辑器侧商品来源配置（与商品模块同构，保留契约字段）。
+ * 秒杀 模块（契约自 view/admin editor/modules/mobilePromotion/seckill/index.ts 逐字段移植）
  */
 import { registerModule } from "../../../contract/moduleRegistry";
-import { cloneDeep, defaultFrame, defaultTitle, defaultProducts } from "../../../contract/sharedDefaults";
+import { cloneDeep, defaultFrame, defaultTitle } from "../../../contract/sharedDefaults";
 
-/** 与渲染端 seckill/index.tsx 读取字段逐项对应（商品卡字段与 mobile/product 同构） */
+/** 与旧 mobilePromotion/seckill/View.vue 的 defaultModule 逐字段一致（契约） */
 export const seckillDefaults = {
-    style: 2,
+    style: 1,
     goodsStyle: 1,
     goodsRadioStyle: 1,
     textAlign: 1,
@@ -20,7 +14,9 @@ export const seckillDefaults = {
     goodsNameRow: 2,
     goodsNamePadding: 1,
     showName: 1,
+    showBrief: 1,
     showPrice: 1,
+    goodsPadding: 5,
     buyBtnStyle: 1,
     backgroundColor: "",
     boxRadius: 0,
@@ -28,19 +24,17 @@ export const seckillDefaults = {
     boxPadding: 10,
     boxPaddingTop: 5,
     boxPaddingBottom: 5,
-    goodsPadding: 5,
-    frame: defaultFrame,
-    title: defaultTitle,
-    products: defaultProducts
+    frame: cloneDeep(defaultFrame),
+    title: cloneDeep(defaultTitle)
 };
 
 registerModule({
     type: "seckill",
-    label: "限时秒杀",
+    label: "秒杀",
     icon: '<i class="h5-mod-ico">⚡</i>',
     url: "mobilePromotion",
     platform: "mobile",
-    order: 33,
+    order: 2,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(seckillDefaults)

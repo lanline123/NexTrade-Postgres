@@ -1,22 +1,49 @@
 /**
- * 店铺提示 设置
+ * 商品提示 设置（对齐 view/admin mobilePro/shopTips/Settings.vue）
+ *
+ * 页签：提示设置 / 扩展设置。
+ * 内容页：基本设置（PicList 最多 4 个，原版以 watch 截断，此处以 max=4 承接）
+ * + 参数设置（每行显示/提示间距 max30/间隔竖线/标题颜色/提示背景色）；
+ * 扩展页：ModuleStyleEdit（type="shopTips"，含模块左右外间距项）。
+ * 注：原版「标题颜色」重置按钮写回 #333333（与默认值 #00C455 不同，为原版 @click 口径），此处照原版。
  */
-import { SettingGroup, NumberField, ColorField, SwitchField, PicListField } from "../../../shared/settingWidgets";
+import { SettingGroup, RadioRowField, RangeField, ColorField, PicListField, SegmentedRadio, SettingRow } from "../../../shared/settingWidgets";
+import { SettingsTabs, ModuleStyleSettingsField } from "../../../shared/styleEdits";
 
 export default function ShopTipsSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
     return (
         <div className="h5-editor-settings-body">
-            <SettingGroup title="提示条目">
-                <PicListField data={data} onChange={onChange} field="picList" label="提示图标与文字" max={6} />
-                <div style={{ color: "#646a73", fontSize: 12 }}>条目标题在图片条目的 title 字段维护（与渲染端 picList[].title 一致）。</div>
-            </SettingGroup>
-            <SettingGroup title="样式设置">
-                <NumberField data={data} onChange={onChange} field="rowNum" label="每行数量" min={1} max={5} />
-                <NumberField data={data} onChange={onChange} field="itemGap" label="条目间距" max={30} suffix="px" />
-                <ColorField data={data} onChange={onChange} field="titleColor" label="文字颜色" />
-                <ColorField data={data} onChange={onChange} field="itemBackgroundColor" label="背景颜色" />
-                <SwitchField data={data} onChange={onChange} field="showDivider" label="显示分隔线" />
-            </SettingGroup>
+            <SettingsTabs tabs={["提示设置", "扩展设置"]}>
+                <>
+                    <SettingGroup title="基本设置">
+                        <div style={{ color: "#999", fontSize: 12, lineHeight: 1.6, padding: "0 16px 4px" }}>提示：您可以通过拖拽进行排序，最多添加4个</div>
+                        <PicListField data={data} onChange={onChange} field="picList" label="" max={4} addText="添加提示" />
+                    </SettingGroup>
+                    <SettingGroup title="参数设置">
+                        <SettingRow label="每行显示" block>
+                            <SegmentedRadio
+                                value={Number(data?.rowNum ?? 3)}
+                                options={[1, 2, 3, 4].map((n) => ({ value: n, label: `${n}个` }))}
+                                onChange={(v) => onChange({ rowNum: v })}
+                            />
+                        </SettingRow>
+                        <RangeField data={data} onChange={onChange} field="itemGap" label="提示间距" max={30} />
+                        <RadioRowField
+                            data={data}
+                            onChange={onChange}
+                            field="showDivider"
+                            label="间隔竖线"
+                            options={[
+                                { value: 1, label: "显示" },
+                                { value: 0, label: "隐藏" }
+                            ]}
+                        />
+                        <ColorField data={data} onChange={onChange} field="titleColor" label="标题颜色" resetValue="#333333" />
+                        <ColorField data={data} onChange={onChange} field="itemBackgroundColor" label="提示背景色" resetValue="" />
+                    </SettingGroup>
+                </>
+                <ModuleStyleSettingsField data={data} onChange={onChange} type="shopTips" />
+            </SettingsTabs>
         </div>
     );
 }

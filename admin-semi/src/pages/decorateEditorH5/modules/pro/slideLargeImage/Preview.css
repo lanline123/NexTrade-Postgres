@@ -1,3 +1,26 @@
-.slidelarge-dots{display:flex;justify-content:center;gap:4px;margin-top:6px}
-.slidelarge-dots i{width:6px;height:6px;border-radius:50%;background:rgba(0,0,0,0.2);display:block}
-.slidelarge-dots i.on{background:#333}
+/* 大图滑动 预览样式（逐条移植自 view/admin slideLargeImage/Preview.vue scoped less） */
+.h5-slide-large .decorate-slide-box::-webkit-scrollbar {
+    display: none;
+    height: 0;
+}
+.h5-slide-large {
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center top;
+    position: relative;
+}
+.h5-slide-large .slidelarge-image {
+    width: 100%;
+    overflow: hidden;
+}
+@keyframes h5-slide-large-left {
+    0% {
+        left: -200%;
+    }
+    100% {
+        left: -300%;
+    }
+}
+.h5-slide-large .slidelarge-image-box {
+    animation: h5-slide-large-left 5000ms linear infinite running;
+}

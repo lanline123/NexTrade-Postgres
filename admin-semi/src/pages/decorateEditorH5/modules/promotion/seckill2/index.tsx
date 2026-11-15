@@ -1,48 +1,37 @@
 /**
- * 秒杀（样式2） 模块（默认值字段对齐 uniapp-react 渲染端 customPage/modules/seckill2/index.tsx 读取的 module 字段）
+ * 秒杀2 模块（契约自 view/admin editor/modules/mobilePromotion/seckill2/index.ts 逐字段移植）
  *
- * 渲染端读取：frame、title（defaultTitle 结构，标题右侧挂「距结束」倒计时）、style
- * （10=横向滑动三列）、buyBtnStyle、goodsStyle、goodsRadioStyle、textAlign、textWeight、
- * goodsNameRow、goodsNamePadding、showName、showPrice、imageBackgroundColor、
- * backgroundColor、boxPadding、boxPaddingTop、boxPaddingBottom、boxRadius、innerPadding、
- * goodsPadding；商品由渲染端接口 getHomeSeckill 拉取。
- * products 为编辑器侧商品来源配置（与商品模块同构，保留契约字段）。
+ * 原版注册带 enabled: () => isOverseas()（仅海外版可见）——按原版口径保留。defaults 无 frame 字段（契约）。
  */
 import { registerModule } from "../../../contract/moduleRegistry";
-import { cloneDeep, defaultFrame, defaultTitle, defaultProducts } from "../../../contract/sharedDefaults";
+import { cloneDeep, defaultTitle } from "../../../contract/sharedDefaults";
+import { isOverseas } from "../../../contract/version";
 
-/** 与渲染端 seckill2/index.tsx 读取字段逐项对应 */
+/** 与旧 mobilePromotion/seckill2/View.vue 的 defaultModule 逐字段一致（契约，无 frame 字段） */
 export const seckill2Defaults = {
-    style: 10,
-    goodsStyle: 1,
-    goodsRadioStyle: 1,
-    textAlign: 1,
-    textWeight: 1,
-    goodsNameRow: 2,
+    style: 1,
     goodsNamePadding: 1,
-    showName: 1,
+    showName: 0,
     showPrice: 1,
-    buyBtnStyle: 1,
-    backgroundColor: "",
+    goodsPadding: 5,
     imageBackgroundColor: "",
+    backgroundColor: "",
     boxRadius: 0,
     innerPadding: 0,
     boxPadding: 10,
     boxPaddingTop: 5,
     boxPaddingBottom: 5,
-    goodsPadding: 5,
-    frame: defaultFrame,
-    title: defaultTitle,
-    products: defaultProducts
+    title: cloneDeep(defaultTitle)
 };
 
 registerModule({
     type: "seckill2",
-    label: "秒杀（样式2）",
-    icon: '<i class="h5-mod-ico">⏱️</i>',
+    label: "秒杀2",
+    icon: '<i class="h5-mod-ico">⚡</i>',
     url: "mobilePromotion",
     platform: "mobile",
-    order: 34,
+    order: 3,
+    enabled: () => isOverseas(),
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(seckill2Defaults)

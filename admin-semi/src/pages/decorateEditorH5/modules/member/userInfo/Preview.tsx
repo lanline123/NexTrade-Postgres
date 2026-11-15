@@ -1,67 +1,92 @@
 /**
- * 会员信息 预览（类名对齐渲染端 dec-user-info__*；统计数为演示值，真实值来自 user store 的 orderNum）
+ * 用户信息 预览（移植自 view/admin editor/modules/mobileMember/userInfo/Preview.vue）
+ *
+ * 整块背景 = gradient 线性渐变（colorA→colorB 横向），borderRadius=frame.boxRadius，
+ * container padding=frame.innerPadding；头像 64 圆、昵称「演示账号」、等级 V6会员；
+ * 右上快捷入口（签到/设置，受 signIn.show / settings.show 控制）；统计行 4 项带分割线。
  */
 import { useMemo } from "react";
-import { cssText, imageFormat } from "../../../shared/format";
+import { cssText } from "../../../shared/format";
 import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
-import { userInfoDefaults } from "./index";
+import { userInfoDefaults, defaultSignInIcon, defaultSettingsIcon, defaultGradient } from "./index";
 import "./Preview.css";
+
+const AVATAR = "https://oss.tigshop.com/img/gallery/202605/1779691335wtQOROIkUPPNOzuply.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
+const LEVEL_ICON = "https://oss.tigshop.com/img/gallery/202605/17796914549H8jHXMHCnnkf8uOXg.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
+
+const STATS: Array<{ label: string; value: string }> = [
+    { label: "商品收藏", value: "13" },
+    { label: "店铺收藏", value: "0" },
+    { label: "待评价", value: "246" },
+    { label: "浏览记录", value: "10" }
+];
 
 export default function UserInfoPreview({ data }: { data: Record<string, any> }) {
     const module = useMemo(() => {
         const merged = JSON.parse(JSON.stringify(data ?? {}));
+        // 原版 Preview 的旧字段兼容：showSignIn/showSettings → signIn/settings
+        if (merged.signIn === undefined && merged.showSignIn !== undefined) merged.signIn = { show: !!merged.showSignIn };
+        if (merged.settings === undefined && merged.showSettings !== undefined) merged.settings = { show: !!merged.showSettings };
         mergeDefaultModule(merged, userInfoDefaults);
         return merged;
     }, [data]);
-    const frameFormat = formatFrame(module.frame ?? {});
-    const gradient = module.gradient ?? {};
-    const stats = [
-        { label: "商品收藏", value: 0 },
-        { label: "店铺收藏", value: 0 },
-        { label: "待评价", value: 0 },
-        { label: "浏览记录", value: 0 }
-    ];
+
+    const frame = module.frame ?? {};
+    const frameFormat = formatFrame({ ...frame, innerPadding: frame.innerPadding ?? 16 });
+    const gradient = module.gradient ?? defaultGradient;
+    const wrapStyle: React.CSSProperties = {
+        background: `linear-gradient(90deg, ${gradient.colorA || defaultGradient.colorA}, ${gradient.colorB || defaultGradient.colorB})`,
+        borderRadius: `${frame.boxRadius ?? 0}px`
+    };
+
     return (
-        <div className="module-ad-con" style={cssText(frameFormat.boxPadding, frameFormat.boxPaddingTop, frameFormat.boxPaddingBottom)}>
-            <div className="module-ad-content" style={cssText(frameFormat.backgroundColor, frameFormat.boxRadius)}>
-                <div className="dec-user-info">
-                    <div
-                        className="dec-user-info__container"
-                        style={{ background: `linear-gradient(to right, ${gradient.colorA || "#fcf6fc"}, ${gradient.colorB || "#f3f3fe"})`, padding: module.frame?.innerPadding ?? 16 }}
-                    >
-                        <div className="dec-user-info__header">
-                            <div className="dec-user-info__profile">
-                                <div className="dec-user-info__avatar">
-                                    <div className="dec-user-info__avatar-img" />
+        <div
+            className="module-ad-con module-member-user-info"
+            style={cssText(frameFormat.boxPadding, frameFormat.boxPaddingTop, frameFormat.boxPaddingBottom)}
+        >
+            <div className="module-ad-content">
+                <div className="user-info-wrap" style={wrapStyle}>
+                    <div className="user-info-container" style={{ padding: `${frame.innerPadding ?? 16}px` }}>
+                        <div className="user-info-header">
+                            <div className="user-info-profile">
+                                <div className="user-info-avatar">
+                                    <img src={AVATAR} alt="头像" />
                                 </div>
-                                <div className="dec-user-info__info">
-                                    <div className="dec-user-info__name-row">
-                                        <span className="dec-user-info__name">{module.nickname}</span>
-                                    </div>
-                                    <div className="dec-user-info__level">
-                                        <span className="dec-user-info__level-text">{module.description}</span>
+                                <div className="user-info-text">
+                                    <div className="user-info-name">演示账号</div>
+                                    <div className="user-info-level">
+                                        <img className="user-info-level-icon" src={LEVEL_ICON} alt="" />
+                                        <span className="user-info-level-text">V6会员</span>
                                     </div>
                                 </div>
                             </div>
-                            <div className="dec-user-info__shortcuts">
-                                {Number(module.signIn?.show ?? 1) !== 0 ? (
-                                    <div className="dec-user-info__shortcut-item">
-                                        {module.signIn?.icon?.picUrl ? <img className="dec-user-info__shortcut-icon" src={imageFormat(module.signIn.icon.picUrl)} alt="" /> : <div className="dec-user-info__shortcut-icon dec-user-info__shortcut-ph">签</div>}
-                                        <span className="dec-user-info__shortcut-text">{module.signIn?.title || "签到有礼"}</span>
+                            <div className="user-info-shortcuts">
+                                {module.signIn?.show !== false ? (
+                                    <div className="shortcut-item">
+                                        <img src={module.signIn?.icon?.picUrl || defaultSignInIcon} alt="" className="shortcut-icon" />
+                                        <span className="shortcut-text">{module.signIn?.title || "签到有礼"}</span>
                                     </div>
                                 ) : null}
-                                {Number(module.settings?.show ?? 1) !== 0 ? (
-                                    <div className="dec-user-info__shortcut-item dec-user-info__settings">
-                                        {module.settings?.icon?.picUrl ? <img className="dec-user-info__shortcut-icon" src={imageFormat(module.settings.icon.picUrl)} alt="" /> : <div className="dec-user-info__shortcut-icon dec-user-info__shortcut-ph">⚙</div>}
+                                {module.settings?.show !== false ? (
+                                    <div className="shortcut-item shortcut-settings">
+                                        <img src={module.settings?.icon?.picUrl || defaultSettingsIcon} alt="" className="shortcut-icon" />
                                     </div>
                                 ) : null}
                             </div>
                         </div>
-                        <div className="dec-user-info__stats">
-                            {stats.map((s) => (
-                                <div className="dec-user-info__stat-item" key={s.label}>
-                                    <span className="dec-user-info__stat-label">{s.label}</span>
-                                    <span className="dec-user-info__stat-value">{s.value}</span>
+                        <div className="user-info-stats">
+                            {STATS.map((item, index) => (
+                                <div key={item.label} style={{ display: "contents" }}>
+                                    {index > 0 ? <div className="stat-divider" /> : null}
+                                    <div
+                                        className="stat-item"
+                                        style={{
+                                            justifyContent: index === 0 ? "flex-start" : index === STATS.length - 1 ? "flex-end" : "center"
+                                        }}
+                                    >
+                                        <span className="stat-label">{item.label}</span>
+                                        <span className="stat-value">{item.value}</span>
+                                    </div>
                                 </div>
                             ))}
                         </div>

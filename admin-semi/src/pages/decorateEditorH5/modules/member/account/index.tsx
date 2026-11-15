@@ -1,27 +1,51 @@
 /**
- * 账户信息 模块（契约依据：uniapp-react pages/member/components/decorate/account/index.tsx 实际读取字段）
- * 渲染端读取：moduleTitle、accountList[{picUrl,picThumb,picTitle,picDesc,picLink.link,isShow}]、frame；
- * accountList 为空时渲染端用内置默认四项（账号详情/国家地区和语言/地址/设置），此处默认值与之同题。
+ * 账号 模块（契约自 view/admin editor/modules/mobileMember/account/index.ts 逐字段移植）
  */
 import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultFrame } from "../../../contract/sharedDefaults";
+import { isOverseas } from "../../../contract/version";
 
-const acc = (picTitle: string) => ({ picUrl: "", picThumb: "", picTitle, picDesc: "", picLink: { link: "", title: "" }, isShow: 1 });
+const PIC = "?x-oss-process=image/resize,m_pad,h_200,h_200";
+const pic = (name: string) => `https://oss.tigshop.com/img/gallery/202605/${name}${PIC}`;
 
-export const accountDefaults = {
-    moduleTitle: "账号",
-    accountList: [acc("账号详情"), acc("国家/地区和语言"), acc("地址"), acc("设置")],
-    frame: { ...defaultFrame, backgroundColor: "#ffffff", boxRadius: 0, innerPadding: 15, boxPadding: 0, boxPaddingTop: 10, boxPaddingBottom: 0 }
-};
+/** 与旧 mobileMember/account/View.vue 的 defaultModule 逐字段一致（契约）；「国家/地区和语言」项 isShow 在创建时按 isOverseas() 求值（同原版） */
+export function makeAccountDefaults() {
+    return {
+        moduleTitle: "账号",
+        accountList: [
+            { picUrl: pic("1779691120KR8ldT5BHs0ZKZ4Uxk.jpeg"), picThumb: pic("1779691120KR8ldT5BHs0ZKZ4Uxk.jpeg"), picTitle: "账号详情", picDesc: "" },
+            {
+                picUrl: pic("1779852393ma6VwQR9GVkKChy1d6.jpeg"),
+                picThumb: pic("1779852393ma6VwQR9GVkKChy1d6.jpeg"),
+                picTitle: "国家/地区和语言",
+                picDesc: "",
+                isShow: isOverseas()
+            },
+            { picUrl: pic("1779691120QiTfocEWPiXAr7ILcG.jpeg"), picThumb: pic("1779691120QiTfocEWPiXAr7ILcG.jpeg"), picTitle: "地址", picDesc: "" },
+            { picUrl: pic("1779691120penAIAi6kRrFMWeeoe.jpeg"), picThumb: pic("1779691120penAIAi6kRrFMWeeoe.jpeg"), picTitle: "设置", picDesc: "" }
+        ],
+        frame: {
+            ...cloneDeep(defaultFrame),
+            backgroundColor: "#ffffff",
+            boxRadius: 0,
+            innerPadding: 15,
+            boxPadding: 0,
+            boxPaddingTop: 10,
+            boxPaddingBottom: 0
+        }
+    };
+}
+
+export const accountDefaults = makeAccountDefaults();
 
 registerModule({
     type: "account",
-    label: "账户信息",
+    label: "账号",
     icon: '<i class="h5-mod-ico">💳</i>',
     url: "mobileMember",
     platform: "mobile",
-    order: 89,
+    order: 10,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
-    getDefaultValue: () => cloneDeep(accountDefaults)
+    getDefaultValue: () => cloneDeep(makeAccountDefaults())
 });

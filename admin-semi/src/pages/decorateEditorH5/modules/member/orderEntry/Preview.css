@@ -1,8 +1,98 @@
-.dec-order-entry__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.dec-order-entry__title { font-size: 15px; font-weight: 600; color: #333; }
-.dec-order-entry__more { font-size: 12px; color: #999; display: flex; align-items: center; gap: 2px; }
-.dec-order-entry__list { display: flex; }
-.dec-order-entry__item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.dec-order-entry__icon-img { width: 26px; height: 26px; object-fit: contain; }
-.dec-order-entry__icon-default { width: 26px; height: 26px; border-radius: 50%; background: #f0f2f5; color: #999; display: flex; align-items: center; justify-content: center; font-size: 12px; }
-.dec-order-entry__label { font-size: 12px; color: #333; }
+/* 我的订单 Preview scoped 样式（移植自原版 Preview.vue <style scoped>） */
+.module-member-order-entry .order-entry-wrap {
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.module-member-order-entry .order-entry-container {
+    box-sizing: border-box;
+}
+.module-member-order-entry .order-entry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+.module-member-order-entry .order-entry-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+}
+.module-member-order-entry .order-entry-more {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 11px;
+    color: #999;
+}
+.module-member-order-entry .order-entry-list {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.module-member-order-entry .order-entry-divider {
+    width: 10px;
+    height: 54px;
+    background-image: url("https://oss.tigshop.com/official/img/pc/202605/1779929210zBMvyOonKlS2ANuWkq.png");
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    transform: scaleX(-1);
+    flex-shrink: 0;
+    align-self: center;
+    margin: 0 7px 0 12px;
+}
+.module-member-order-entry .order-entry-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.module-member-order-entry .order-entry-icon-wrapper {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.module-member-order-entry .order-entry-icon-img {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    margin-bottom: 2px;
+}
+.module-member-order-entry .layout-style1 .order-entry-icon-img {
+    width: 24px;
+    height: 24px;
+    margin-bottom: 4px;
+}
+.module-member-order-entry .order-entry-icon-empty {
+    width: 28px;
+    height: 28px;
+    background: #f5f5f5;
+    border-radius: 8px;
+}
+.module-member-order-entry .order-entry-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    transform: translate(90%, -50%);
+    min-width: 16px;
+    height: 16px;
+    padding: 0 3px;
+    font-size: 10px;
+    font-weight: 500;
+    color: #fff;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+.module-member-order-entry .order-entry-label {
+    font-size: 12px;
+    line-height: 20px;
+    color: #666;
+    text-align: center;
+    white-space: nowrap;
+}

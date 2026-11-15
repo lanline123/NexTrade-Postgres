@@ -1,31 +1,27 @@
 /**
- * 店铺信息 模块（默认值字段对齐 uniapp-react 渲染端 customPage/modules/shopInfo/index.tsx 读取的 module 字段）
+ * 店铺信息 模块（契约自 view/admin editor/modules/mobilePromotion/shopInfo/index.ts 逐字段移植）
  *
- * 渲染端读取：style（ad-store_style__N，共 4 种）、backgroundDefault（0=自定义图，
- * 1~10=OSS 内置背景图序号）、customPic{picUrl,picThumb}（backgroundDefault=0 时用）。
- * 店铺数据（shopLogo/shopTitle/productCount/newProductCount/collectShop）由店铺页
- * 传入的 shopInfo 提供，不存模块数据。
+ * 原版注册带 shopOnly: true（仅店铺端 adminType=shop 显示）——按原版口径保留。
  */
 import { registerModule } from "../../../contract/moduleRegistry";
-import { cloneDeep } from "../../../contract/sharedDefaults";
+import { cloneDeep, defaultFrame } from "../../../contract/sharedDefaults";
 
-/** 与渲染端 shopInfo/index.tsx 读取字段逐项对应 */
+/** 与旧 mobilePromotion/shopInfo/View.vue 的 defaultModule 逐字段一致（契约） */
 export const shopInfoDefaults = {
-    style: 1,
+    customPic: { picUrl: "", picThumb: "" },
     backgroundDefault: 1,
-    customPic: {
-        picUrl: "",
-        picThumb: ""
-    }
+    style: 1,
+    frame: cloneDeep(defaultFrame)
 };
 
 registerModule({
     type: "shopInfo",
     label: "店铺信息",
-    icon: '<i class="h5-mod-ico">🏬</i>',
+    icon: '<i class="h5-mod-ico">🏪</i>',
     url: "mobilePromotion",
     platform: "mobile",
-    order: 35,
+    order: 5,
+    shopOnly: true,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(shopInfoDefaults)

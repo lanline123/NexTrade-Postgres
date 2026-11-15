@@ -1,13 +1,16 @@
 /**
- * 搜索结果 模块（契约依据：uniapp-react components/modules/search-result/config.ts 的 searchResultDefaults，
- * 该文件注明必须与后台 mobileSearch/mobileSearchResult/types.ts 的 mobileSearchResultDefaults 完全一致；
- * placeholder 为搜索页 pages/search/index.tsx 的搜索框提示字段，generic 现注册 defaults 亦含此字段）
+ * 搜索结果 模块（契约自 view/admin editor/modules/mobileSearch/mobileSearchResult/index.ts + types.ts 逐字段移植）
+ *
+ * 注册口径：type "mobileSearchResult"、label「搜索结果」、url "mobileSearch"、
+ * platform "mobile-search"、toolbarGroup "searchResult"、order 80、exclusive: true
+ * （搜索页整页只允许一个）。原版 index.ts 无 enabled 门控，故不加；
+ * 门店分支的版本门控在 Settings 内以 isStore() 承接（见 Settings 注释）。
  */
 import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep } from "../../../contract/sharedDefaults";
 
+/** 与原版 types.ts 的 mobileSearchResultDefaults 逐字段一致（契约，共 39 字段） */
 export const mobileSearchResultDefaults = {
-    placeholder: "点击搜索商品",
     searchResultType: 1,
     backgroundColor: "#f5f5f5",
     searchItemBackgroundColor: "#ffffff",
@@ -54,8 +57,10 @@ registerModule({
     label: "搜索结果",
     icon: '<i class="h5-mod-ico">🔍</i>',
     url: "mobileSearch",
-    platform: "mobile",
-    order: 103,
+    platform: "mobile-search",
+    toolbarGroup: "searchResult",
+    order: 80,
+    exclusive: true,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(mobileSearchResultDefaults)

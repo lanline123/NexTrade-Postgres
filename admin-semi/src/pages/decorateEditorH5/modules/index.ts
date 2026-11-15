@@ -22,14 +22,14 @@ import "./basic/catNav";
 // 不进工具栏（visible: false），仅保证老数据可渲染
 import "./basic/article";
 
-// ==================== mobilePromotion 营销 ====================
-// import "./promotion/coupon";
-// import "./promotion/seckill";
-// import "./promotion/seckill2";
-// import "./promotion/groupon";
-// import "./promotion/shopInfo";
-// import "./promotion/live";
-// import "./promotion/videoNumber";
+// ==================== mobilePromotion 营销（第 8 步专属化，2026-11-15） ====================
+import "./promotion/coupon";
+import "./promotion/seckill";
+import "./promotion/seckill2";
+import "./promotion/groupon";
+import "./promotion/shopInfo";
+import "./promotion/live";
+import "./promotion/videoNumber";
 
 // ==================== mobilePro 高级（精确移植批次二，2026-11-07） ====================
 import "./pro/imageTextComponent";
@@ -42,6 +42,29 @@ import "./pro/categoryRec";
 import "./pro/mixedNotice";
 import "./pro/bannerA2";
 import "./pro/customProduct";
+// 第 8 步专属化批次 A（2026-11-15）
+import "./pro/banner";
+import "./pro/categoryNavA1";
+import "./pro/categoryNavA2";
+import "./pro/categoryNavA3";
+import "./pro/categoryRecA1";
+import "./pro/comboSuggestions";
+import "./pro/countdown";
+import "./pro/groupSliding";
+import "./pro/shopTips";
+import "./pro/slideLargeImage";
+import "./pro/slidingImage";
+// 第 8 步专属化批次 B（2026-11-15）
+import "./pro/limitedSpecial";
+import "./pro/mixedProductDisplay";
+import "./pro/newcomerCombo";
+import "./pro/productA1";
+import "./pro/productCarousel";
+import "./pro/productGrouping";
+import "./pro/productSlide";
+import "./pro/specialOffer";
+import "./pro/storeNav";
+import "./pro/storeOrderCard";
 
 // ==================== mobilePro 高级 ====================
 // import "./pro/imageTextComponent";
@@ -76,31 +99,31 @@ import "./pro/customProduct";
 // import "./pro/storeNav";
 // import "./pro/storeOrderCard";
 
-// ==================== mobileMember 会员页 ====================
-// import "./member/userInfo";
-// import "./member/userInfoV2";
-// import "./member/userInfo3";
-// import "./member/orderEntry";
-// import "./member/orderEntryV2";
-// import "./member/myWallet";
-// import "./member/myWalletV2";
-// import "./member/adImage";
-// import "./member/myService";
-// import "./member/account";
-// import "./member/fixedFunctionalArea";
+// ==================== mobileMember 会员页（第 8 步专属化，2026-11-15） ====================
+import "./member/userInfo";
+import "./member/userInfoV2";
+import "./member/userInfo3";
+import "./member/orderEntry";
+import "./member/orderEntryV2";
+import "./member/myWallet";
+import "./member/myWalletV2";
+import "./member/adImage";
+import "./member/myService";
+import "./member/account";
+import "./member/fixedFunctionalArea";
 
 // ==================== mobileCateCenter 分类中心 ====================
 import "./cateCenter/cateCenterV1";
 import "./cateCenter/cateCenterV2";
 
-// ==================== mobileProductDetail 商品详情 ====================
-// import "./productDetail/productDetailA1";
-// import "./productDetail/productDetailA2";
-// import "./productDetail/productDetailA3";
+// ==================== mobileProductDetail 商品详情（第 8 步专属化，2026-11-15） ====================
+import "./productDetail/productDetailA1";
+import "./productDetail/productDetailA2";
+import "./productDetail/productDetailA3";
 
 // ==================== mobileLogin / mobileSearch ====================
 import "./login/mobileLogin";
-// import "./search/mobileSearchResult";
+import "./search/mobileSearchResult";
 
 // ==================== 通用模块工厂（批量补齐缺失 type，诚实版） ====================
 import "./generic/simpleModules";

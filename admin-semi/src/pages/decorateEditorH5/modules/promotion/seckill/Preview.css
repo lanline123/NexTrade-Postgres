@@ -1,19 +1,20 @@
-/* 秒杀 预览补充样式（自 uniapp-react seckill/index.scss 换算，rpx→px ×0.5；
-   goods-ad / cap-seckill-goods__tag 基础样式由全局 module.css 提供） */
-.module-seckill-goods_ad .uni-countdown__number {
-    width: auto !important;
-}
-.module-seckill-goods_ad .tig-countdown {
-    display: inline-flex;
+/* 秒杀 Preview scoped 样式（移植自原版 Preview.vue <style scoped>；倒计时文字样式承接 el-countdown value-style） */
+.module-seckill-goods_ad .cap-seckill-goods__tag {
+    display: flex;
     align-items: center;
+    justify-content: space-between;
 }
-.module-seckill-goods_ad .item-photo {
-    position: relative;
+.module-seckill-goods_ad .cap-seckill-goods__tag.flex-end {
+    justify-content: flex-end;
 }
-.module-seckill-goods_ad .item-photo .item-image-a {
-    display: block;
+.module-seckill-goods_ad .cap-seckill-goods__tag-countdown {
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
 }
-.module-seckill-goods_ad .item-photo .item-image-a img {
-    width: 100%;
-    display: block;
+.module-seckill-goods_ad .iconh5-style {
+    color: #f23030;
+    font-size: 18px;
+    margin-right: 5px;
+    display: inline-flex;
 }

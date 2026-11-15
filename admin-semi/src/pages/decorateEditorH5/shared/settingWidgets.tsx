@@ -729,13 +729,25 @@ export function FrameSettingsField({
     label,
     variant,
     frameType,
-    splitInnerPadding = false
+    splitInnerPadding = false,
+    hideBg = false,
+    hidePadding = false,
+    hideBoxRadius = false,
+    hideBoxPadding = false,
+    hideHead = false
 }: FieldProps & {
     field?: string;
     label?: string;
     variant?: "notice" | "searchBar";
     frameType?: string;
     splitInnerPadding?: boolean;
+    /** 原版 CommonFrameEdit 的 hide-bg / hide-padding / hide-box-radius / hide-box-padding 门控 */
+    hideBg?: boolean;
+    hidePadding?: boolean;
+    hideBoxRadius?: boolean;
+    hideBoxPadding?: boolean;
+    /** 原版 CommonFrameEdit type='live' 时不渲染分隔线与「模块设置」标题 */
+    hideHead?: boolean;
 }) {
     const frame = data?.[field] ?? {};
     const set = (patch: Patch) => onChange({ [field]: { ...frame, ...patch } });
@@ -758,11 +770,11 @@ export function FrameSettingsField({
 
     return (
         <>
-            <DecDivider />
-            <DecSpreadTitle title={label ?? "模块设置"} />
-            <ColorField {...sub} field="backgroundColor" label="背景颜色" resetValue={defaultFrame.backgroundColor} />
-            <RangeField {...sub} field="boxRadius" label="圆角" max={30} />
-            {splitInnerPadding ? (
+            {hideHead ? null : <DecDivider />}
+            {hideHead ? null : <DecSpreadTitle title={label ?? "模块设置"} />}
+            {hideBg ? null : <ColorField {...sub} field="backgroundColor" label="背景颜色" resetValue={defaultFrame.backgroundColor} />}
+            {hideBoxRadius ? null : <RangeField {...sub} field="boxRadius" label="圆角" max={30} />}
+            {hidePadding ? null : splitInnerPadding ? (
                 <>
                     <RangeField {...sub} field="innerPaddingLeftRight" label="左右内边距" max={30} />
                     <RangeField {...sub} field="innerPaddingTopBottom" label="上下内边距" max={30} />
@@ -771,9 +783,13 @@ export function FrameSettingsField({
                 <RangeField {...sub} field="innerPadding" label="内边距" max={30} />
             )}
             {frameType === "titleAd" ? <RangeField {...sub} field="leftAndRightPadding" label="左右内边距" max={30} /> : null}
-            <RangeField {...sub} field="boxPadding" label="左右边距" max={30} />
-            <RangeField {...sub} field="boxPaddingTop" label="上边距" max={30} />
-            <RangeField {...sub} field="boxPaddingBottom" label="下边距" max={30} />
+            {hideBoxPadding ? null : (
+                <>
+                    <RangeField {...sub} field="boxPadding" label="左右边距" max={30} />
+                    <RangeField {...sub} field="boxPaddingTop" label="上边距" max={30} />
+                    <RangeField {...sub} field="boxPaddingBottom" label="下边距" max={30} />
+                </>
+            )}
         </>
     );
 }

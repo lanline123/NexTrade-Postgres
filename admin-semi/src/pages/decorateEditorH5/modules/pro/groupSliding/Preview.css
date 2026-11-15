@@ -1,10 +1,158 @@
-.groupsliding .title_box{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
-.groupsliding .title_box .span{font-weight:600}
-.groupsliding .goods-item{display:flex;gap:8px;padding:8px;box-sizing:border-box}
-.groupsliding .goods-img{width:72px;height:72px;object-fit:cover;flex-shrink:0}
-.groupsliding .goods-info{flex:1;min-width:0}
-.groupsliding .goods-title{overflow:hidden}
-.groupsliding .goods-price-box{display:flex;gap:6px;align-items:baseline}
-.groupsliding .price{font-weight:600}
-.groupsliding .origin{color:#999;font-size:11px;text-decoration:line-through}
-.groupsliding .ranking{background:#e1251b;color:#fff;border-radius:3px;padding:0 4px;font-size:11px}
+/* 分组滑动 预览样式（逐条移植自 view/admin groupSliding/Preview.vue scoped less） */
+.h5-group-sliding {
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center top;
+    position: relative;
+}
+.h5-group-sliding .groupsliding {
+    display: flex;
+    width: 100%;
+    overflow: hidden;
+    overflow-x: auto;
+    align-items: flex-start;
+}
+.h5-group-sliding .groupsliding::-webkit-scrollbar {
+    display: none;
+    height: 0;
+}
+.h5-group-sliding .slide-box {
+    margin: 0 5px;
+    overflow: hidden;
+    padding: 10px 8px 8px;
+    box-sizing: border-box;
+}
+.h5-group-sliding .slide-box:first-child {
+    margin-left: 0;
+}
+.h5-group-sliding .bg_title {
+    display: block;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+.h5-group-sliding .bg_title .title_box {
+    display: flex;
+    align-items: center;
+    padding-bottom: 5px;
+}
+.h5-group-sliding .bg_title .title_box .img {
+    height: 20px;
+    margin-right: 3px;
+}
+.h5-group-sliding .bg_title .p {
+    line-height: 20px;
+    font-weight: 600;
+}
+.h5-group-sliding .item-box {
+    padding: 4px 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.h5-group-sliding .item-box .li {
+    flex-shrink: 0;
+    overflow: hidden;
+    margin: 4px 0;
+}
+.h5-group-sliding .item-box .li .goods-item {
+    overflow: hidden;
+    display: flex;
+}
+.h5-group-sliding .item-box .li .goods-item .goods-img {
+    position: relative;
+    max-height: 500px;
+    overflow: hidden;
+    height: 0;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+.h5-group-sliding .item-box .li .goods-item .goods-img .img {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% auto;
+    overflow: hidden;
+}
+.h5-group-sliding .item-box .li .goods-item .goods-img .ranking {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 20px;
+}
+.h5-group-sliding .item-box .li .goods-info {
+    padding: 0 5px;
+    flex-grow: 1;
+    flex-shrink: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-size: 12px;
+}
+.h5-group-sliding .item-box .li .goods-info .goods-title {
+    line-height: 18px;
+    font-size: 14px;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    -webkit-box-orient: vertical;
+}
+.h5-group-sliding .item-box .li .goods-info .tag {
+    margin-top: 5px;
+    overflow: hidden;
+}
+.h5-group-sliding .item-box .li .goods-info .tag .span {
+    height: 20px;
+    line-height: 20px;
+    font-size: 12px;
+    padding: 0 5px;
+    border-radius: 3px;
+    display: inline-block;
+    overflow: hidden;
+}
+.h5-group-sliding .item-box .li .goods-info .goods-price-box {
+    display: flex;
+    position: relative;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+}
+.h5-group-sliding .item-box .li .goods-info .goods-price-box .price-origin-sale {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    overflow: hidden;
+    flex: 1;
+}
+.h5-group-sliding .item-box .li .goods-info .goods-price-box .price-origin-sale .price-origin-icon {
+    margin: 3px 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    overflow: hidden;
+}
+.h5-group-sliding .item-box .li .goods-info .goods-price-box .price-origin-sale .price-origin-icon .price-icon {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    overflow: hidden;
+}
+.h5-group-sliding .item-box .li .goods-info .goods-price-box .price-origin-sale .price-origin-icon .price-icon .price {
+    margin-right: 5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    display: flex;
+    align-items: baseline;
+}
+.h5-group-sliding .item-box .li .goods-info .goods-price-box .price-origin-sale .price-origin-icon .origin {
+    margin-right: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    text-decoration: line-through;
+}

@@ -1,12 +1,145 @@
-.countdow-warp .mk-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.countdow-warp .mk-title{font-size:16px;font-weight:600}
-.countdow-warp .mk-stitle{font-size:12px}
-.countdow-warp .countdown{display:flex;align-items:center;gap:2px;font-size:12px}
-.countdow-warp .countdown-img{background:#e1251b;color:#fff;border-radius:3px;padding:1px 4px}
-.countdow-warp .itemBox{display:flex;gap:8px}
-.countdow-warp .item{flex:1;min-width:0}
-.countdow-warp .imgBox img{width:100%;aspect-ratio:1;display:block;border-radius:6px}
-.countdow-warp .title{font-size:12px}
-.countdow-warp .priceBox{display:flex;gap:4px;align-items:baseline}
-.countdow-warp .origin{font-size:11px;text-decoration:line-through}
-.countdow-warp .mk-notice{font-size:11px;margin-top:6px}
+/* 倒计时 预览样式（逐条移植自 view/admin countdown/Preview.vue scoped less） */
+.h5-countdown-mod {
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center top;
+    position: relative;
+}
+.h5-countdown-mod .countdow-warp {
+    position: relative;
+    padding: 8px 10px 10px 10px;
+    overflow: hidden;
+}
+.h5-countdown-mod .countdow-warp .mk-top {
+    display: flex;
+    margin-bottom: 3px;
+    justify-content: space-between;
+    align-items: baseline;
+}
+.h5-countdown-mod .countdow-warp .mk-top .mk-top-left {
+    flex: 1;
+    height: 30px;
+    display: flex;
+    align-items: baseline;
+    padding-right: 5px;
+    overflow: hidden;
+}
+.h5-countdown-mod .countdow-warp .mk-top .mk-title {
+    height: 30px;
+    line-height: 30px;
+    font-size: 20px;
+    font-weight: 700;
+    overflow: hidden;
+}
+.h5-countdown-mod .countdow-warp .mk-top .mk-stitle {
+    margin-left: 5px;
+    height: 20px;
+    line-height: 20px;
+    font-size: 14px;
+    overflow: hidden;
+}
+.h5-countdown-mod .countdow-warp .mk-top .mk-notice {
+    font-size: 12px;
+}
+.h5-countdown-mod .countdow-warp .itemBox {
+    margin: 0 -4px;
+    display: flex;
+    flex-wrap: nowrap;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+.h5-countdown-mod .countdow-warp .itemBox::-webkit-scrollbar {
+    display: none;
+    height: 0;
+}
+.h5-countdown-mod .countdow-warp .itemBox .li {
+    flex-shrink: 0;
+    overflow: hidden;
+}
+.h5-countdown-mod .countdow-warp .itemBox .li .item {
+    margin: 0 4px;
+    display: block;
+    overflow: hidden;
+}
+.h5-countdown-mod .countdow-warp .itemBox .li .item .imgBox {
+    position: relative;
+    max-height: 500px;
+    overflow: hidden;
+}
+.h5-countdown-mod .countdow-warp .itemBox .li .item .imgBox .img {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% auto;
+    background-color: #ffffff;
+    overflow: hidden;
+}
+.h5-countdown-mod .countdow-warp .itemBox .li .item .goods-info {
+    padding: 3px 0 5px;
+    flex-grow: 1;
+    flex-shrink: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    text-align: center;
+    font-size: 12px;
+}
+.h5-countdown-mod .countdow-warp .itemBox .li .item .goods-info .priceBox {
+    height: 20px;
+    line-height: 20px;
+    overflow: hidden;
+    display: flex;
+    align-items: baseline;
+    font-size: 12px;
+}
+.h5-countdown-mod .countdow-warp .itemBox .li .item .goods-info .priceBox .origin {
+    text-decoration: line-through;
+    margin-left: 5px;
+}
+.h5-countdown-mod .countdow-warp .itemBox .li .item .goods-info .priceBox .title {
+    height: 18px;
+    line-height: 18px;
+    font-size: 12px;
+}
+.h5-countdown-mod .countdown {
+    margin-top: -20px;
+    width: 100%;
+    z-index: 1;
+    transform: translate3d(0, 0, 1px);
+    overflow: hidden;
+    position: relative;
+}
+.h5-countdown-mod .countdown .countdown-img {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+.h5-countdown-mod .countdown .count-down {
+    width: 100%;
+    position: absolute;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    z-index: 2;
+}
+.h5-countdown-mod .line1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.h5-countdown-mod .line2 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+}

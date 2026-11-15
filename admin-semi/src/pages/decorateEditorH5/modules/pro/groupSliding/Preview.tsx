@@ -1,18 +1,24 @@
 /**
- * 分组滑动 预览（类名对齐 uniapp-react groupSliding：groupsliding/slide-box/goods-item/title_box）
+ * 分组滑动 预览（移植自 view/admin editor/modules/mobilePro/groupSliding/Preview.vue）
+ *
+ * 组卡横滑（宽 groupWidth%、圆角 groupRadius、内距 10px 8px 8px）：组题（titlePic 图标高 20 +
+ * 大标题 titleSize/600 + 副标题）、商品白底盒内逐行商品（图宽/高 = productPicRatio%，
+ * 前三名次徽标 ranking 图 20px，商品名 14px/18px 行高钳制，标签行，价格 + 划线价 + 购买按钮）。
+ * 商品直接用各组 productList 快照渲染（原版 productId=0 演示项走 getDemoList 同口径）。
+ * 注：原版 Preview 中商品名颜色写死 rgb(51,51,51)、价格粗细写死 700（未消费 moduleColor.productNameColor
+ * 与 productPrice_weight/_size），此处以源码为准；名次徽标为原版 3 张 OSS 图。
  */
 import { useMemo } from "react";
-import BuyButton from "../../../shared/BuyButton";
-import { cssText, productImage, priceFormat } from "../../../shared/format";
+import { cssText, imageFormat, productImage } from "../../../shared/format";
 import { mergeDefaultModule, formatCommonStyle } from "../../../contract/sharedDefaults";
-import { useDecorateProductList } from "../../../shared/useDecorateProductList";
+import BuyButton from "../../../shared/BuyButton";
 import { groupSlidingDefaults } from "./index";
 import "./Preview.css";
 
-const DEMO_PRODUCTS = [
-    { productId: 9001, productName: "演示商品一", productPrice: 99, marketPrice: 129, picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957947YV2lncqLSOSg8OvpbK.png", picThumb: "https://oss.tigshop.com/img/gallery/202411/1730957947YV2lncqLSOSg8OvpbK.png" },
-    { productId: 9002, productName: "演示商品二", productPrice: 59, marketPrice: 79, picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957948LcXRbvCuwlCHyHy7Y0.png", picThumb: "https://oss.tigshop.com/img/gallery/202411/1730957948LcXRbvCuwlCHyHy7Y0.png" },
-    { productId: 9003, productName: "演示商品三", productPrice: 39, marketPrice: 49, picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957949mTiXqnQpGXzYHnNV.png", picThumb: "https://oss.tigshop.com/img/gallery/202411/1730957949mTiXqnQpGXzYHnNV.png" },
+const RANKING_IMGS = [
+    "https://oss.tigshop.com/img/gallery/202411/1732094008g4ZMmuQbNcBlYrNCuz.png",
+    "https://oss.tigshop.com/img/gallery/202411/1732094013OJOLUek96BizcTvwmU.png",
+    "https://oss.tigshop.com/img/gallery/202411/17320940168dzp9YD5LbpcMMjqe9.png"
 ];
 
 export default function GroupSlidingPreview({ data }: { data: Record<string, any> }) {
@@ -21,37 +27,130 @@ export default function GroupSlidingPreview({ data }: { data: Record<string, any
         mergeDefaultModule(merged, groupSlidingDefaults);
         return merged;
     }, [data]);
+
     const commonStyle = formatCommonStyle(module.moduleStyle ?? {}, module.contentStyle ?? {}, module.subTitle ?? {});
-    const fetched = useDecorateProductList(module.products);
-    const productList = fetched.length ? fetched : DEMO_PRODUCTS;
-    const groups: any[] = module.groupList?.length ? module.groupList : [{ title: "热销榜", subTitle: "" }];
-    const colors = module.moduleColor || {};
+    const groupList: any[] = Array.isArray(module.groupList) ? module.groupList : [];
+    const moduleColor = module.moduleColor || {};
+    const picRadiusStyle = module.productPicRightRadius
+        ? `${module.productPicRadius}px`
+        : `${module.productPicRadius}px 0 0 ${module.productPicRadius}px`;
+    const formatLabel = (label: string) => String(label ?? "").split("\n");
+
     return (
-        <div className="module-ad-con" style={cssText(commonStyle.moduleStyle.boxPaddingBottom, commonStyle.moduleStyle.boxPaddingTop, commonStyle.moduleStyle.boxPadding, commonStyle.moduleStyle.backgroundSize, commonStyle.moduleStyle.backgroundImage)}>
-            <div className="module-ad-content" style={cssText(commonStyle.moduleContentStyle.backgroundImage, commonStyle.moduleContentStyle.backgroundSize, commonStyle.moduleContentStyle.boxRadius, commonStyle.moduleContentStyle.boxShadow, commonStyle.moduleContentStyle.innerPadding)}>
-                <div className="groupsliding">
-                    {groups.map((group, gi) => (
-                        <div className="li" key={gi} style={{ marginBottom: 12 }}>
-                            <div className="title_box">
-                                {colors.titlePic?.picUrl ? <img className="bg_title" src={colors.titlePic.picUrl} alt="" /> : null}
-                                <span className="span line1" style={{ color: colors.titleColor, fontSize: `${colors.titleSize ?? 16}px` }}>{group.title}</span>
-                                {group.subTitle ? <span className="p line1" style={{ color: colors.subTitleColor, fontSize: `${colors.subTitleSize ?? 12}px` }}>{group.subTitle}</span> : null}
-                            </div>
-                            <div className="slide-box"><div className="item-box" style={{ display: "flex", gap: 8, overflowX: "auto" }}>
-                                {productList.map((item: any, i: number) => (
-                                    <div className="goods-item" key={i} style={{ flex: `0 0 ${module.groupWidth ?? 85}%`, backgroundColor: colors.productBackgroundColor, borderRadius: `${module.groupRadius}px` }}>
-                                        <img className="goods-img" src={productImage(item)} alt="" style={{ borderRadius: `${module.productPicRadius}px` }} />
-                                        <div className="goods-info">
-                                            {Number(module.showRanking) === 1 ? <span className="ranking">{i + 1}</span> : null}
-                                            {Number(module.showProductName) === 1 ? <div className="goods-title" style={{ fontSize: `${module.productNameSize}px`, fontWeight: module.productNameWeight }}>{item.productName}</div> : null}
-                                            {Number(module.showProductPrice) === 1 ? (<div className="goods-price-box" style={{ marginTop: `${module.productPriceMarginTop}px` }}><span className="price" style={{ color: colors.productPriceColor }}><span className="price-icon">¥</span>{priceFormat(item.productPrice)}</span>{Number(module.crossedOutPrice) === 1 && item.marketPrice ? <span className="origin"><span className="price-origin-icon">¥</span><span className="price-origin-sale">{priceFormat(item.marketPrice)}</span></span> : null}</div>) : null}
-                                            {Number(module.buyBtnStyle?.showBtn) === 1 ? <BuyButton styleOptions={module.buyBtnStyle} /> : null}
+        <div
+            className="module-ad-con h5-group-sliding"
+            style={cssText(
+                commonStyle.moduleStyle.boxPaddingBottom,
+                commonStyle.moduleStyle.boxPaddingTop,
+                commonStyle.moduleStyle.boxPadding,
+                commonStyle.moduleStyle.backgroundSize,
+                commonStyle.moduleStyle.backgroundImage
+            )}
+        >
+            <div
+                className="module-ad-content"
+                style={cssText(
+                    commonStyle.moduleContentStyle.backgroundImage,
+                    commonStyle.moduleContentStyle.backgroundSize,
+                    commonStyle.moduleContentStyle.boxRadius,
+                    commonStyle.moduleContentStyle.boxShadow,
+                    commonStyle.moduleContentStyle.innerPadding
+                )}
+            >
+                <div>
+                    <div className="groupsliding">
+                        {groupList.map((group, index) => (
+                            <div
+                                className="slide-box"
+                                key={index}
+                                style={{ backgroundColor: group.backgroundColor, borderRadius: `${module.groupRadius}px`, width: `${module.groupWidth}%`, flexShrink: 0 }}
+                            >
+                                <div className="bg_title">
+                                    <div className="title_box">
+                                        {moduleColor.titlePic?.picUrl ? <img className="img" src={imageFormat(moduleColor.titlePic.picUrl)} alt="" /> : null}
+                                        <div className="p" style={{ color: moduleColor.titleColor, fontSize: `${moduleColor.titleSize}px` }}>
+                                            {group.title}
                                         </div>
                                     </div>
-                                ))}
-                            </div></div>
-                        </div>
-                    ))}
+                                    <div className="p" style={{ color: moduleColor.subTitleColor, fontSize: `${moduleColor.subTitleSize}px` }}>
+                                        {group.subTitle}
+                                    </div>
+                                </div>
+                                <div className="item-box" style={{ borderRadius: `${module.groupRadius}px`, background: moduleColor.productBackgroundColor }}>
+                                    {(group.productList || []).map((item: any, itemIndex: number) => (
+                                        <div className="li" key={itemIndex}>
+                                            <div className="goods-item" style={{ display: "flex", borderRadius: picRadiusStyle }}>
+                                                <div
+                                                    className="goods-img"
+                                                    style={{ flexShrink: 0, width: `${module.productPicRatio}%`, paddingTop: `${module.productPicRatio}%` }}
+                                                >
+                                                    <div
+                                                        className="img"
+                                                        style={{ borderRadius: picRadiusStyle, backgroundSize: "cover", backgroundImage: `url(${productImage(item)})` }}
+                                                    />
+                                                    {itemIndex <= 2 && Number(module.showRanking) === 1 ? (
+                                                        <img className="ranking" src={RANKING_IMGS[itemIndex]} alt="" />
+                                                    ) : null}
+                                                </div>
+                                                <div className="goods-info" style={{ justifyContent: "center", padding: "0px 0px 0px 10px" }}>
+                                                    {Number(module.showProductName) === 1 ? (
+                                                        <div
+                                                            className="goods-title"
+                                                            style={{
+                                                                marginTop: 0,
+                                                                height: `${Number(module.productNameRow) * 18}px`,
+                                                                lineHeight: "18px",
+                                                                WebkitLineClamp: module.productNameRow,
+                                                                fontWeight: module.productNameWeight,
+                                                                color: "rgb(51, 51, 51)",
+                                                                fontSize: `${module.productNameSize}px`
+                                                            }}
+                                                        >
+                                                            {item.productName}
+                                                        </div>
+                                                    ) : null}
+                                                    {Number(module.showProductLabel) === 1 && formatLabel(group.label)[itemIndex] ? (
+                                                        <div className="tag">
+                                                            <div
+                                                                className="span"
+                                                                style={{
+                                                                    padding: "0px 5px",
+                                                                    backgroundColor: moduleColor.labelBackgroundColor,
+                                                                    color: moduleColor.labelTextColor,
+                                                                    display: "inline-block"
+                                                                }}
+                                                            >
+                                                                {formatLabel(group.label)[itemIndex]}
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+                                                    <div className="goods-price-box" style={{ marginTop: `${module.productPriceMarginTop}px` }}>
+                                                        <div className="price-origin-sale">
+                                                            <div className="price-origin-icon">
+                                                                <div className="price-icon">
+                                                                    {Number(module.showProductPrice) === 1 ? (
+                                                                        <div className="price" style={{ color: moduleColor.productPriceColor, fontWeight: 700 }}>
+                                                                            ￥{item.productPrice}
+                                                                        </div>
+                                                                    ) : null}
+                                                                </div>
+                                                                {Number(module.crossedOutPrice) === 1 ? (
+                                                                    <div className="origin" style={{ color: moduleColor.crossedOutPriceColor }}>
+                                                                        ¥{item.marketPrice}
+                                                                    </div>
+                                                                ) : null}
+                                                            </div>
+                                                        </div>
+                                                        {module.buyBtnStyle?.showBtn ? <BuyButton styleOptions={module.buyBtnStyle} /> : null}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         </div>

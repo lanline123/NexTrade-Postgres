@@ -1,11 +1,112 @@
-.comp .cont{background:#fff;border-radius:8px;padding:10px}
-.comp .mk-title{font-size:16px;font-weight:600}
-.comp .mk-stitle{font-size:12px;color:#999}
-.comp .item-box{display:flex;gap:8px;margin-top:8px}
-.comp .item{flex:1;min-width:0}
-.comp .goods-img{width:100%;aspect-ratio:1;display:block}
-.comp .price-box{display:flex;gap:4px;align-items:baseline;border-radius:4px;padding:2px 4px;margin-top:2px}
-.comp .price{font-weight:600;font-size:13px}
-.comp .origin{font-size:11px;text-decoration:line-through}
-.comp .time{display:inline-block;border-radius:4px;padding:2px 6px;margin-top:6px}
-.comp .line{border-top:1px solid #eee;margin-top:8px}
+/* 商品混排 预览样式（移植自 mobilePro/mixedProductDisplay/Preview.vue scoped，类名加 mpd- 前缀防冲突） */
+.module-mixed_product_display {
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center top;
+    position: relative;
+}
+.mpd-comp {
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+}
+.mpd-cont {
+    width: 50%;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+.mpd-mk-title {
+    height: 20px;
+    font-size: 16px;
+    font-weight: 700;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+}
+.mpd-mk-stitle {
+    height: 20px;
+    line-height: 20px;
+    font-size: 12px;
+    overflow: hidden;
+}
+.mpd-time {
+    height: 20px;
+    line-height: 20px;
+    margin-left: 5px;
+    padding: 0 4px;
+    border-radius: 4px;
+    font-size: 12px;
+    display: inline-block;
+    font-weight: 400;
+}
+.mpd-item-box {
+    margin: 5px -4px 0;
+}
+/* 原版 Swiper slidesPerView=2 / spaceBetween=6：横滑轨，单项约半列宽 */
+.mpd-track {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.mpd-track::-webkit-scrollbar {
+    display: none;
+}
+.mpd-item {
+    flex: 0 0 calc(50% - 3px);
+    margin: 0 4px;
+    display: block;
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+    box-sizing: border-box;
+}
+.mpd-goods-img {
+    display: block;
+    width: 100%;
+    position: relative;
+    padding-top: 100%;
+    max-height: 500px;
+    overflow: hidden;
+}
+.mpd-img {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 0;
+    padding-top: 100%;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% auto;
+    overflow: hidden;
+}
+.mpd-price {
+    margin: 5px auto 0;
+    padding: 3px 8px;
+    overflow: hidden;
+    display: inline-block;
+    font-size: 12px;
+    border-radius: 24px;
+}
+.mpd-origin {
+    margin-top: 5px;
+    height: 16px;
+    line-height: 16px;
+    font-size: 12px;
+}
+.mpd-line-box {
+    padding: 0 10px;
+    position: relative;
+}
+.mpd-line {
+    width: 1px;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 10px;
+}

@@ -1,0 +1,24 @@
+/* 广告图 Preview scoped 样式（移植自原版 Preview.vue <style scoped>） */
+.module-member-ad-image .ad-image-wrap {
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.module-member-ad-image .ad-image-container {
+    box-sizing: border-box;
+}
+.module-member-ad-image .ad-image-pic {
+    width: 100%;
+    display: block;
+}
+/* 空态尺寸（原版 .image-empty-bg 背景图为编辑器资源，本实现只保留占位尺寸与文案） */
+.module-member-ad-image .module-ad-empty .image-empty-bg {
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 10px;
+}
+.module-member-ad-image .module-ad-empty .desc {
+    text-align: center;
+    padding-bottom: 50px;
+    color: #999;
+    font-size: 12px;
+}

@@ -1,14 +1,24 @@
 /**
- * 我的钱包 模块（契约依据：uniapp-react pages/member/components/decorate/myWallet/index.tsx）
- * 渲染端读取：layoutStyle(1/2)、walletIcon{picUrl}、frame。余额/优惠券/积分来自 user store，editor 不配置。
+ * 我的钱包 模块（契约自 view/admin editor/modules/mobileMember/myWallet/index.ts 逐字段移植）
  */
 import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultFrame } from "../../../contract/sharedDefaults";
 
+const WALLET_ICON_URL = "https://oss.tigshop.com/official/img/pc/202605/1779873859zO64yVrNvp2y0lUsOz.png";
+
+/** 与旧 mobileMember/myWallet/View.vue 的 defaultModule 逐字段一致（契约） */
 export const myWalletDefaults = {
     layoutStyle: 1,
-    walletIcon: { picUrl: "", picThumb: "" },
-    frame: { ...defaultFrame, backgroundColor: "#ffffff", boxRadius: 12, innerPadding: 16, boxPadding: 5, boxPaddingTop: 10, boxPaddingBottom: 0 }
+    walletIcon: { picUrl: WALLET_ICON_URL, picThumb: WALLET_ICON_URL },
+    frame: {
+        ...cloneDeep(defaultFrame),
+        backgroundColor: "#ffffff",
+        boxRadius: 12,
+        innerPadding: 16,
+        boxPadding: 5,
+        boxPaddingTop: 10,
+        boxPaddingBottom: 0
+    }
 };
 
 registerModule({
@@ -17,7 +27,7 @@ registerModule({
     icon: '<i class="h5-mod-ico">👛</i>',
     url: "mobileMember",
     platform: "mobile",
-    order: 85,
+    order: 6,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(myWalletDefaults)

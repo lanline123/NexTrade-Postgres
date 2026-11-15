@@ -1,23 +1,24 @@
 /**
- * 优惠券 预览（DOM 类名逐字对齐 uniapp-react 渲染端 coupon/index.tsx + index.scss）
+ * 优惠券 预览（移植自 view/admin editor/modules/mobilePromotion/coupon/Preview.vue）
  *
- * 券列表在渲染端由 getHomeCoupon 接口拉取，编辑器预览用演示券兜底；
- * 演示字段与接口/渲染端使用一致：couponId、couponType（2=折扣券）、couponMoney、
- * couponDiscount、couponName。
+ * 根 class 带 ad-color_style__<colorStyle>（配色走全局 module.css 的 .ad-color_style__1..4）；
+ * 外层仅 frame 的 boxPaddingTop/Bottom + 模块 boxMargin 左右外边距；内容层背景/圆角为
+ * frame 值后叠模块 backgroundColor/boxRadius（后者胜出，同原版字符串拼接顺序）；
+ * warp 内边距取模块 boxPadding/boxPaddingTop/boxPaddingBottom；showTitle===1 显示标题栏
+ * （标题 16px #2a3145 + 描述 12px #aaa + 更多）；券面为单张演示券（5.00 元 / 满60减5，itemPadding 内边距）。
  */
-import { useMemo } from "react";
-import { cssText, priceFormat } from "../../../shared/format";
-import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
+import { useMemo, type CSSProperties } from "react";
+import { mergeDefaultModule } from "../../../contract/sharedDefaults";
 import { couponDefaults } from "./index";
 import "./Preview.css";
 
-/** 演示券（仅预览兜底，不写入模块数据） */
-const DEMO_COUPONS = [
-    { couponId: 1, couponType: 1, couponMoney: 50, couponDiscount: 0, couponName: "满300元可用" },
-    { couponId: 2, couponType: 1, couponMoney: 20, couponDiscount: 0, couponName: "满199元可用" },
-    { couponId: 3, couponType: 2, couponMoney: 0, couponDiscount: 8.5, couponName: "全场折扣券" },
-    { couponId: 4, couponType: 1, couponMoney: 10, couponDiscount: 0, couponName: "无门槛优惠券" }
-];
+function ArrowRight({ size = 12 }: { size?: number }) {
+    return (
+        <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" style={{ flexShrink: 0 }}>
+            <polyline points="9 4.5 16.5 12 9 19.5" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}
 
 export default function CouponPreview({ data }: { data: Record<string, any> }) {
     const module = useMemo(() => {
@@ -26,64 +27,54 @@ export default function CouponPreview({ data }: { data: Record<string, any> }) {
         return merged;
     }, [data]);
 
-    const frameFormat = formatFrame(module.frame ?? {});
-    const couponFormat = {
-        boxPadding: `padding-left:${module.boxPadding ?? 0}px;padding-right:${module.boxPadding ?? 0}px;`,
-        boxMargin: `margin-left:${module.boxMargin ?? 0}px;margin-right:${module.boxMargin ?? 0}px;`,
-        boxPaddingBottom: `padding-bottom:${module.boxPaddingBottom ?? 0}px;`,
-        boxPaddingTop: `padding-top:${module.boxPaddingTop ?? 0}px;`,
-        boxRadius: `border-radius:${module.boxRadius ?? 0}px;`,
-        itemPadding: `padding:${module.itemPadding ?? 0}px;`,
-        backgroundColor: module.backgroundColor ? `background-color:${module.backgroundColor};` : ""
+    const frame = module.frame ?? {};
+    // 外层：frame 上下内边距（formatFrame 的 boxPaddingTop/Bottom 语义）+ 模块左右外边距
+    const outerStyle: CSSProperties = {
+        paddingTop: frame.boxPaddingTop ?? 0,
+        paddingBottom: frame.boxPaddingBottom ?? 0,
+        marginLeft: module.boxMargin ?? 0,
+        marginRight: module.boxMargin ?? 0
+    };
+    const contentStyle: CSSProperties = {
+        backgroundColor: module.backgroundColor || frame.backgroundColor || undefined,
+        borderRadius: module.boxRadius ?? frame.boxRadius ?? 0
+    };
+    const warpStyle: CSSProperties = {
+        paddingLeft: module.boxPadding ?? 0,
+        paddingRight: module.boxPadding ?? 0,
+        paddingTop: module.boxPaddingTop ?? 0,
+        paddingBottom: module.boxPaddingBottom ?? 0
     };
 
     return (
-        <div
-            className={`module-ad-con module-image_hotarea ad-color_style__${module.colorStyle}`}
-            style={cssText(frameFormat.boxPaddingTop, frameFormat.boxPaddingBottom, couponFormat.boxMargin)}
-        >
-            <div
-                className="module-ad-content"
-                style={cssText(frameFormat.backgroundColor, frameFormat.boxRadius, couponFormat.boxRadius, couponFormat.backgroundColor)}
-            >
-                <div
-                    className="coupon-ad-warp"
-                    style={cssText(couponFormat.boxPadding, couponFormat.boxPaddingBottom, couponFormat.boxPaddingTop)}
-                >
-                    {Number(module.showTitle) === 1 ? (
+        <div className={`module-ad-con module-image_hotarea ad-color_style__${module.colorStyle ?? 0} module-promotion-coupon`} style={outerStyle}>
+            <div className="module-ad-content" style={contentStyle}>
+                <div className="coupon-ad-warp" style={warpStyle}>
+                    {module.showTitle === 1 ? (
                         <div className="coupon-title">
                             <div className="coupon-title-text">
-                                <div className="coupon-maintitle">{module.title}</div>
-                                <div className="coupon-title-con">{module.desc}</div>
+                                <h4 className="coupon-maintitle">{module.title}</h4>
+                                <span className="coupon-title-con">{module.desc}</span>
                             </div>
                             <div>
-                                <div className="more-box flex align-center">
-                                    <span className="more">更多</span>
-                                    <span className="iconfont-h5 icon-youjiantou" />
-                                </div>
+                                <a className="oupon-title-more">
+                                    更多 <ArrowRight />
+                                </a>
                             </div>
                         </div>
                     ) : null}
                     <div className="coupon-con">
-                        {DEMO_COUPONS.map((item) => (
-                            <div key={item.couponId} className="coupon-item" style={cssText(couponFormat.itemPadding)}>
-                                <div className="item-coupon-con">
-                                    <div className="coupon-money">
-                                        {item.couponType === 2 ? (
-                                            <>
-                                                <div className="zhekou">{item.couponDiscount}</div>
-                                                <div className="zhe">折</div>
-                                            </>
-                                        ) : (
-                                            <span>¥{priceFormat(item.couponMoney)}</span>
-                                        )}
-                                    </div>
-                                    <div className="coupon-name">
-                                        <div className="coupon-name-text">{item.couponName}</div>
-                                    </div>
+                        <div className="coupon-item" style={{ padding: module.itemPadding ?? 10 }}>
+                            <div className="item-coupon-con">
+                                <div className="coupon-money">
+                                    <div className="coupon-money-c">5.00</div>
+                                    <div className="coupon-money-d">元</div>
+                                </div>
+                                <div className="coupon-name">
+                                    <div className="coupon-name-text">满60减5</div>
                                 </div>
                             </div>
-                        ))}
+                        </div>
                     </div>
                 </div>
             </div>

@@ -1,0 +1,63 @@
+/* 店铺信息预览（由 _shared/ShopInfoPreview.vue 的 scoped scss 展开） */
+.pd-shop-preview {
+    padding: 12px 10px;
+    background: var(--dec-pd-content-bg, var(--dec-pd2-content-bg, var(--dec-pd3-content-bg, #fff)));
+}
+.pd-shop-preview--vortmall {
+    margin-top: 10px;
+}
+.pd-shop-preview--overseas {
+    margin-top: 8px;
+}
+.pd-shop-preview--o2o {
+    margin: 10px 0;
+    border-radius: 10px;
+}
+.pd-shop-preview__title {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+.pd-shop-preview__logo {
+    display: flex;
+    flex: 0 0 31px;
+    align-items: center;
+    justify-content: center;
+    width: 31px;
+    height: 31px;
+    margin-right: 10px;
+    overflow: hidden;
+    border-radius: 50%;
+}
+.pd-shop-preview__logo img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+.pd-shop-preview__name {
+    overflow: hidden;
+    font-size: 14px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pd-shop-preview__actions {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+}
+.pd-shop-preview__actions span {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    border: 1px solid #d7d7d7;
+    border-radius: 5px;
+    color: #686868;
+    font-size: 12px;
+}
+.pd-shop-preview__logo-image {
+    object-fit: contain;
+}

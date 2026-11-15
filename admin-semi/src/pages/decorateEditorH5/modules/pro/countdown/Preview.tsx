@@ -1,19 +1,27 @@
 /**
- * 倒计时 预览（类名对齐 uniapp-react countdown：countdow-warp/count-down/mk-top/itemBox；倒计时用 shared/H5Countdown）
+ * 倒计时 预览（移植自 view/admin editor/modules/mobilePro/countdown/Preview.vue）
+ *
+ * 标题区（大标题 20px/700 + 小标题 + 右侧提示）+ 商品横排（每项 flex 0 0 100/rowNum%，
+ * 图 padding-top 按 picScale，价格行 + 划线价）+ 底部倒计时图层（背景图 + CommonCountdown 绝对居中叠加）。
+ * 商品直接用 pruductList 快照渲染（原版对 productId=0 演示项走 getDemoList 同口径；真实商品的接口刷新不在编辑器预览内做）。
+ * 注：原版价格 font-weight 绑定的是不存在的 module.headlines 字段（恒 undefined），此处照源码不额外加粗，
+ * priceWeight 仅在 Settings 可编辑（原版 Preview 未消费）。
  */
 import { useMemo } from "react";
-import H5Countdown from "../../../shared/H5Countdown";
-import { cssText, productImage, priceFormat } from "../../../shared/format";
+import { cssText, imageFormat, productImage } from "../../../shared/format";
 import { mergeDefaultModule, formatCommonStyle } from "../../../contract/sharedDefaults";
-import { useDecorateProductList } from "../../../shared/useDecorateProductList";
+import H5Countdown from "../../../shared/H5Countdown";
 import { countdownDefaults } from "./index";
 import "./Preview.css";
 
-const DEMO_PRODUCTS = [
-    { productId: 9001, productName: "演示商品一", productPrice: 99, marketPrice: 129, picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957947YV2lncqLSOSg8OvpbK.png", picThumb: "https://oss.tigshop.com/img/gallery/202411/1730957947YV2lncqLSOSg8OvpbK.png" },
-    { productId: 9002, productName: "演示商品二", productPrice: 59, marketPrice: 79, picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957948LcXRbvCuwlCHyHy7Y0.png", picThumb: "https://oss.tigshop.com/img/gallery/202411/1730957948LcXRbvCuwlCHyHy7Y0.png" },
-    { productId: 9003, productName: "演示商品三", productPrice: 39, marketPrice: 49, picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957949mTiXqnQpGXzYHnNV.png", picThumb: "https://oss.tigshop.com/img/gallery/202411/1730957949mTiXqnQpGXzYHnNV.png" },
-];
+const PIC_SCALE_MAP: Record<string, string> = {
+    "3:2": "calc(100% / 3 * 2)",
+    "1:1": "calc(100% / 1 * 1)",
+    "3:4": "calc(100% / 3 * 4)",
+    "16:9": "calc(100% / 16 * 9)"
+};
+const FORMAT_MAP: Record<string, string> = { 天: "DD", 时: "HH", 分: "mm", 秒: "ss" };
+const TEXT_MAP: Record<string, string> = { DD: "天", HH: "时", mm: "分", ss: "秒" };
 
 export default function CountdownPreview({ data }: { data: Record<string, any> }) {
     const module = useMemo(() => {
@@ -21,45 +29,119 @@ export default function CountdownPreview({ data }: { data: Record<string, any> }
         mergeDefaultModule(merged, countdownDefaults);
         return merged;
     }, [data]);
+
     const commonStyle = formatCommonStyle(module.moduleStyle ?? {}, module.contentStyle ?? {}, module.subTitle ?? {});
-    const fetched = useDecorateProductList(module.products);
-    const legacy: any[] = Array.isArray(module.pruductList) && module.pruductList.length ? module.pruductList : [];
-    const productList = fetched.length ? fetched : legacy.length ? legacy : DEMO_PRODUCTS;
-    const cd = module.countdownData || {};
-    const colors = module.moduleColor || {};
+    const list: any[] = Array.isArray(module.pruductList) ? module.pruductList : [];
+    const moduleColor = module.moduleColor || {};
+    const moduleTitle = module.moduleTitle || {};
+    const countdownData = module.countdownData || {};
+    const formatText = (countdownData.timeContent || [])
+        .map((c: string) => (FORMAT_MAP[c] ? ` ${FORMAT_MAP[c]} ${TEXT_MAP[FORMAT_MAP[c]]}` : ""))
+        .join("");
+    const countdownPicUrl =
+        typeof countdownData.countdownBackgroundPic === "string"
+            ? countdownData.countdownBackgroundPic
+            : countdownData.countdownBackgroundPic?.picUrl || "";
+
     return (
-        <div className="module-ad-con" style={cssText(commonStyle.moduleStyle.boxPaddingBottom, commonStyle.moduleStyle.boxPaddingTop, commonStyle.moduleStyle.boxPadding, commonStyle.moduleStyle.backgroundSize, commonStyle.moduleStyle.backgroundImage)}>
-            <div className="module-ad-content" style={cssText(commonStyle.moduleContentStyle.backgroundImage, commonStyle.moduleContentStyle.backgroundSize, commonStyle.moduleContentStyle.boxRadius, commonStyle.moduleContentStyle.boxShadow, commonStyle.moduleContentStyle.innerPadding)}>
+        <div
+            className="module-ad-con h5-countdown-mod"
+            style={cssText(
+                commonStyle.moduleStyle.boxPaddingBottom,
+                commonStyle.moduleStyle.boxPaddingTop,
+                commonStyle.moduleStyle.boxPadding,
+                commonStyle.moduleStyle.backgroundSize,
+                commonStyle.moduleStyle.backgroundImage
+            )}
+        >
+            <div
+                className="module-ad-content"
+                style={cssText(
+                    commonStyle.moduleContentStyle.backgroundImage,
+                    commonStyle.moduleContentStyle.backgroundSize,
+                    commonStyle.moduleContentStyle.boxRadius2,
+                    commonStyle.moduleContentStyle.boxShadow,
+                    commonStyle.moduleContentStyle.innerPadding
+                )}
+            >
                 <div className="countdow-warp">
                     <div className="mk-top">
                         <div className="mk-top-left">
-                            <div className="mk-title line1" style={{ color: colors.titleColor }}>{module.moduleTitle?.title}</div>
-                            {module.moduleTitle?.subTitle ? <div className="mk-stitle line1" style={{ color: colors.subTitleColor }}>{module.moduleTitle.subTitle}</div> : null}
-                        </div>
-                        {Number(cd.showCountdown) === 1 ? (
-                            <div className="count-down">
-                                <H5Countdown countdownType={cd.countdownType || "dailyCycle"} dailyTime={cd.dailyTime} specifyTime={Number(cd.specifyTime) || Date.now() + 2 * 3600 * 1000} format="DD HH:mm:ss">
-                                    {(time) => (<div className="countdown" style={{ color: colors.countdownColor }}>
-                                        {Number(time.days) > 0 ? <span className="countdown-img">{time.days}天</span> : null}
-                                        <span className="countdown-img">{time.hours}</span>:<span className="countdown-img">{time.minutes}</span>:<span className="countdown-img">{time.seconds}</span>
-                                    </div>)}
-                                </H5Countdown>
+                            <div className="mk-title line1" style={{ color: moduleColor.titleColor }}>
+                                {moduleTitle.title}
                             </div>
-                        ) : null}
+                            <div className="mk-stitle line1" style={{ color: moduleColor.subTitleColor }}>
+                                {moduleTitle.subTitle}
+                            </div>
+                        </div>
+                        <div>
+                            <div className="mk-notice" style={{ color: moduleColor.tipsColor }}>
+                                {moduleTitle.moreText}
+                            </div>
+                        </div>
                     </div>
-                    <div className="itemBox" style={{ backgroundColor: colors.productBackgroundColor, borderRadius: `${module.productRadius}px`, padding: `${module.productPadding}px` }}>
-                        {productList.slice(0, Number(module.rowNum) || 3).map((item: any, i: number) => (
-                            <div className="item" key={i}>
-                                <div className="imgBox"><img className="img" src={productImage(item)} alt="" style={{ objectFit: module.picFillType ?? "cover" }} /></div>
-                                <div className="goods-info">
-                                    {Number(module.showProductName) === 1 ? <div className="title line2" style={{ color: colors.productNameColor, textAlign: module.textAlignment }}>{item.productName}</div> : null}
-                                    {Number(module.showProductPrice) === 1 ? (<div className="priceBox"><span className="price" style={{ color: colors.productPriceColor, fontWeight: module.priceWeight }}>¥{priceFormat(item.productPrice)}</span>{Number(module.crossedOutPrice) === 1 && item.marketPrice ? <span className="origin" style={{ color: colors.crossedOutPriceColor }}>¥{priceFormat(item.marketPrice)}</span> : null}</div>) : null}
+                    <div className="itemBox">
+                        {list.map((item, index) => (
+                            <div className="li" key={index} style={{ flex: `0 0 ${100 / (Number(module.rowNum) || 3)}%` }}>
+                                <div
+                                    className="item"
+                                    style={{
+                                        padding: `${module.productPadding}px`,
+                                        backgroundColor: moduleColor.productBackgroundColor,
+                                        borderRadius: `${module.productRadius}px`
+                                    }}
+                                >
+                                    <div className="imgBox" style={{ paddingTop: PIC_SCALE_MAP[module.picScale] || "100%" }}>
+                                        <div
+                                            className="img"
+                                            style={{
+                                                borderRadius:
+                                                    Number(module.picBottomRadius) === 1
+                                                        ? `${module.productRadius}px ${module.productRadius}px 0 0`
+                                                        : `${module.productRadius}px`,
+                                                backgroundSize: module.picFillType,
+                                                backgroundImage: `url(${productImage(item)})`
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="goods-info" style={{ paddingBottom: 0, textAlign: module.textAlignment }}>
+                                        {Number(module.showProductName) === 1 ? (
+                                            <div className="title line2" style={{ color: moduleColor.productNameColor }}>
+                                                {item.productName ? item.productName : "商品名称"}
+                                            </div>
+                                        ) : null}
+                                        {Number(module.showProductPrice) === 1 ? (
+                                            <div className="priceBox" style={{ justifyContent: module.textAlignment }}>
+                                                <div className="price" style={{ color: moduleColor.productPriceColor, fontFamily: "inherit" }}>
+                                                    ￥{item.productPrice}
+                                                </div>
+                                                {Number(module.crossedOutPrice) === 1 ? (
+                                                    <div className="origin" style={{ color: moduleColor.crossedOutPriceColor }}>
+                                                        {item.marketPrice}
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        ) : null}
+                                    </div>
                                 </div>
                             </div>
                         ))}
                     </div>
-                    {module.moduleTitle?.moreText ? <div className="mk-notice" style={{ color: colors.tipsColor }}>{module.moduleTitle.moreText}</div> : null}
                 </div>
+                {Number(countdownData.showCountdown) === 1 ? (
+                    <div className="countdown" style={{ marginTop: `-${countdownData.countdownPicBottom}px`, borderRadius: "0px 0px 6px 6px" }}>
+                        <img className="countdown-img" src={countdownPicUrl ? imageFormat(countdownPicUrl) : undefined} alt="" />
+                        <div className="count-down" style={{ top: `${countdownData.marginTop}%` }}>
+                            <H5Countdown
+                                countdownType={countdownData.countdownType || "dailyCycle"}
+                                valueStyle={{ color: moduleColor.countdownColor, fontSize: "16px", display: "block" }}
+                                format={formatText}
+                                dailyTime={countdownData.dailyTime}
+                                specifyTime={countdownData.specifyTime}
+                            />
+                        </div>
+                    </div>
+                ) : null}
             </div>
         </div>
     );

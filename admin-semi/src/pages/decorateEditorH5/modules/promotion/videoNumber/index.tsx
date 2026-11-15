@@ -1,34 +1,38 @@
 /**
- * 视频号 模块（默认值字段对齐 uniapp-react 渲染端 customPage/modules/videoNumber/index.tsx 读取的 module 字段）
- *
- * 渲染端读取：contentType（"video"|"live"）、videoNumberId（视频号 ID）、videoId
- * （视频/直播 feedId）、liveTitle、titleColorType（"default"|"theme"|"custom"）、
- * titleColor、productImages（{picUrl,picThumb} 数组，最多展示 3 张）、frame。
- * 渲染端 frame 缺省兜底为 innerPadding 12 / boxRadius 8，此处默认值按此对齐。
- * 注：渲染端仅微信小程序端展示（channel-video/channel-live 为微信专属组件）。
+ * 视频号 模块（契约自 view/admin editor/modules/mobilePromotion/videoNumber/index.ts 逐字段移植）
  */
 import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultFrame } from "../../../contract/sharedDefaults";
 
-/** 与渲染端 videoNumber/index.tsx 读取字段逐项对应 */
+/** 与旧 mobilePromotion/videoNumber/View.vue 的 defaultModule 逐字段一致（契约；liveTitle/titleColor 取旧 View 局部常量字面量） */
 export const videoNumberDefaults = {
+    titleText: "视频号",
     contentType: "video",
     videoNumberId: "",
     videoId: "",
     liveTitle: "",
     titleColorType: "default",
-    titleColor: "",
-    productImages: [] as Array<Record<string, any>>,
-    frame: { ...defaultFrame, innerPadding: 12, boxRadius: 8 }
+    titleColor: "#2A2A2A",
+    productImages: [] as Record<string, any>[],
+    frame: {
+        ...cloneDeep(defaultFrame),
+        backgroundColor: "#ffffff",
+        innerPadding: 12,
+        boxRadius: 8,
+        boxPadding: 10,
+        boxPaddingTop: 5,
+        boxPaddingBottom: 5
+    }
 };
 
 registerModule({
     type: "videoNumber",
     label: "视频号",
-    icon: '<i class="h5-mod-ico">🎬</i>',
+    icon: '<i class="h5-mod-ico">📹</i>',
     url: "mobilePromotion",
     platform: "mobile",
-    order: 36,
+    order: 2,
+    toolbarGroup: "live",
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(videoNumberDefaults)

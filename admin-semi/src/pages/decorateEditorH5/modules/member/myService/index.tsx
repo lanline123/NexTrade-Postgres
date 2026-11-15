@@ -1,28 +1,33 @@
 /**
- * 我的服务 模块（契约依据：uniapp-react member decorate 分发——type=myService 实际渲染 MyServiceV2）
- * 渲染端读取：moduleTitle、layoutStyle(1 列表/2 宫格)、iconRadius(%)、serviceList[{picUrl,picThumb,picTitle,picLink}]、frame。
- * 注：历史 menus 协议走另一兜底组件（menuType/menuList），不在本模块契约内。
+ * 我的服务 模块（契约自 view/admin editor/modules/mobileMember/myService/index.ts 逐字段移植）
  */
 import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultFrame } from "../../../contract/sharedDefaults";
 
-const svc = (picTitle: string) => ({ picUrl: "", picThumb: "", picTitle, picLink: { link: "", title: "" } });
-
+/** 与旧 mobileMember/myService/View.vue 的 defaultModule 逐字段一致（契约；Settings.vue 内另一套 moduleTitle 初值以 index.ts 为准） */
 export const myServiceDefaults = {
-    moduleTitle: "我的服务",
+    moduleTitle: "服务管理",
     layoutStyle: 1,
-    iconRadius: 0,
-    serviceList: [svc("地址管理"), svc("我的收藏"), svc("发票管理"), svc("联系客服")],
-    frame: { ...defaultFrame, backgroundColor: "#ffffff", boxRadius: 10, innerPadding: 15, boxPadding: 10, boxPaddingTop: 10, boxPaddingBottom: 0 }
+    iconRadius: 50,
+    serviceList: [] as Record<string, any>[],
+    frame: {
+        ...cloneDeep(defaultFrame),
+        backgroundColor: "#ffffff",
+        boxRadius: 10,
+        innerPadding: 15,
+        boxPadding: 10,
+        boxPaddingTop: 10,
+        boxPaddingBottom: 0
+    }
 };
 
 registerModule({
     type: "myService",
     label: "我的服务",
-    icon: '<i class="h5-mod-ico">🛎️</i>',
+    icon: '<i class="h5-mod-ico">🧰</i>',
     url: "mobileMember",
     platform: "mobile",
-    order: 88,
+    order: 9,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(myServiceDefaults)

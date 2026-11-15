@@ -1,28 +1,57 @@
 /**
- * 分类导航A3 模块（mobilePro；契约字段对齐 uniapp-react customPage/modules/categoryNavA3）
+ * 类目导航A3 模块（契约自 view/admin editor/modules/mobilePro/categoryNavA3/index.ts 逐字段移植）
  */
 import { registerModule } from "../../../contract/moduleRegistry";
-import { cloneDeep, defaultAnimation, defaultModuleStyle, defaultContentStyle, defaultSubTitle } from "../../../contract/sharedDefaults";
+import { cloneDeep, defaultSubTitle, defaultModuleStyle, defaultContentStyle } from "../../../contract/sharedDefaults";
 
+const categoryList = [
+    {
+        picId: 1519,
+        picThumb: "https://oss.tigshop.com/img/gallery/202411/1732608267mJFZA5uFuT5974JXl8.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+        picUrl: "https://oss.tigshop.com/img/gallery/202411/1732608267mJFZA5uFuT5974JXl8.png",
+        picName: "FgisG78Lwl4UG3y5fBiEUnLrxIV",
+        picTitle: "诚信经营",
+        picDesc: "诚信经营"
+    },
+    {
+        picId: 1522,
+        picThumb: "https://oss.tigshop.com/img/gallery/202411/1732608267sJb7DHOuVX8896buhT.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+        picUrl: "https://oss.tigshop.com/img/gallery/202411/1732608267sJb7DHOuVX8896buhT.png",
+        picName: "FpnzuzjBafleMMwgzc5MvNITxVHj",
+        picTitle: "品质保障",
+        picDesc: "诚信经营"
+    },
+    {
+        picId: 1521,
+        picThumb: "https://oss.tigshop.com/img/gallery/202411/1732608267yXWHECJxn75eqyk60Q.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+        picUrl: "https://oss.tigshop.com/img/gallery/202411/1732608267yXWHECJxn75eqyk60Q.png",
+        picName: "Fh56a7Prcs9wghXkxYtAHGlF3_uT1",
+        picTitle: "贴心服务",
+        picDesc: "诚信经营"
+    },
+    {
+        picId: 1520,
+        picThumb: "https://oss.tigshop.com/img/gallery/202411/17326082679hhyPXOj9i02unfUgw.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+        picUrl: "https://oss.tigshop.com/img/gallery/202411/17326082679hhyPXOj9i02unfUgw.png",
+        picName: "Fn5u9A8vmu2DAG404sp8z_016zdK",
+        picTitle: "购物无忧",
+        picDesc: "诚信经营"
+    }
+];
+const logo = {
+    picUrl: "http://oss.tigshop.com/img/gallery/202409/1727056331nhxqtK8Mm5u8MXokoI.png",
+    picThumb: "https://oss.tigshop.com/img/gallery/202409/1727056331nhxqtK8Mm5u8MXokoI.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+    picId: 1221,
+    picName: "logoWhite"
+};
+
+/** 与旧 mobilePro/categoryNavA3/index.ts categoryNavA3Defaults 逐字段一致（契约） */
 export const categoryNavA3Defaults = {
+    logoPic: logo,
+    categoryList,
     listStyleType: "list",
-    categoryList: [
-        { picId: 1377, picThumb: "", picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957947YV2lncqLSOSg8OvpbK.png", picName: "", picTitle: "当日速达", picDesc: "极速送达" },
-    { picId: 1384, picThumb: "", picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957948LcXRbvCuwlCHyHy7Y0.png", picName: "", picTitle: "休闲零食", picDesc: "美味零食" },
-    { picId: 1391, picThumb: "", picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957949mTiXqnQpGXzYHnNV.png", picName: "", picTitle: "日常用品", picDesc: "居家必备" },
-    { picId: 1398, picThumb: "", picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957950bBFeVKuTtCEWKllS.png", picName: "", picTitle: "数码家电", picDesc: "智能生活" },
-    { picId: 1405, picThumb: "", picUrl: "https://oss.tigshop.com/img/gallery/202411/1730957951pDjgKRAwAEZTKNwv.png", picName: "", picTitle: "美妆护肤", picDesc: "美丽秘诀" }
-    ],
-    rowNum: 5,
-    rowPicPercent: 90,
-    indicatorBar: 1,
-    barColor: "#e5e5e5",
-    barColorOn: "#333333",
-    barWidth: 20,
-    barWidthOn: 30,
-    barHeight: 3,
-    logoPic: { picUrl: "", picThumb: "" },
-    animation: defaultAnimation,
+    rowNum: 4,
+    imageBackgroundColor: "",
     picFillType: "cover",
     picPercent: 90,
     radius: 200,
@@ -34,11 +63,11 @@ export const categoryNavA3Defaults = {
 
 registerModule({
     type: "categoryNavA3",
-    label: "分类导航(样式3)",
+    label: "类目导航A3",
     icon: '<i class="h5-mod-ico">🧭</i>',
     url: "mobilePro",
     platform: "mobile",
-    order: 45,
+    order: 21,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(categoryNavA3Defaults)

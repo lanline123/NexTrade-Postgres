@@ -1,6 +1,72 @@
-.category-rec-a1-list{display:flex;gap:8px;overflow-x:auto}
-.category-rec-a1-item{position:relative;flex:1;min-width:100px;height:72px;overflow:hidden}
-.category-rec-a1-item .item-bg{position:absolute;inset:0;width:100%;height:100%}
-.category-rec-a1-item .item-inner{position:relative;padding:10px}
-.category-rec-a1-item .item-title{font-size:14px;font-weight:600}
-.category-rec-a1-item .item-desc{font-size:11px;margin-top:4px}
+/* 分类推荐A1 预览样式（逐条移植自 view/admin categoryRecA1/Preview.vue scoped less） */
+.h5-catrec-a1 .module-ad-content {
+    position: relative;
+}
+.h5-catrec-a1 .category-rec-a1-list {
+    display: flex;
+    flex-wrap: nowrap;
+}
+.h5-catrec-a1 .category-rec-a1-item {
+    min-width: 0;
+    box-sizing: border-box;
+}
+.h5-catrec-a1 .item-inner {
+    position: relative;
+    overflow: hidden;
+}
+.h5-catrec-a1 .item-bg {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+}
+.h5-catrec-a1 .item-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+}
+.h5-catrec-a1 .item-title {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 700;
+    color: #333;
+    height: 20px;
+    line-height: 20px;
+}
+.h5-catrec-a1 .item-desc {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    color: #666;
+    height: 16px;
+    line-height: 16px;
+}
+.h5-catrec-a1 .module-ad-empty {
+    padding-top: 30px;
+    padding-bottom: 50px;
+    text-align: center;
+    background-color: #f2f4f6;
+}
+.h5-catrec-a1 .module-ad-empty .image-empty-bg {
+    background-color: #e8ecf1;
+    background-size: 100% auto;
+    width: 100px;
+    margin: 0 auto 10px;
+    height: 100px;
+}
+.h5-catrec-a1 .module-ad-empty .desc {
+    text-align: center;
+    color: #888;
+    font-size: 14px;
+}
