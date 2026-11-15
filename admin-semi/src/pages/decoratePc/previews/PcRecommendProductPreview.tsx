@@ -320,10 +320,11 @@ export default function PcRecommendProductPreview({ data }: { data: Record<strin
   const titleVisible = Number(titleObj.showTitle) === 1;
   const showName = Number(config.showProductName ?? 1) === 1;
   const showPrice = Number(config.showProductPrice ?? 1) === 1;
-  const algoOn = Number(((config.products as AnyRecord | undefined)?.algorithm as AnyRecord | undefined)?.enabled) === 1;
 
   return (
     <div className="dec-pc-recommend-product" style={cssVars}>
+      {/* 标题与是否已选商品无关：未选商品时也显示（用户指令 2026-11-15），与前台 DecModuleTitle 无条件渲染同口径 */}
+      <ModuleTitlePreview title={titleObj} />
       {!hasProducts ? (
         <div className="dec-pc-recommend-product__empty">
           <div className="dec-pc-recommend-product__empty-icon" />
@@ -331,10 +332,6 @@ export default function PcRecommendProductPreview({ data }: { data: Record<strin
         </div>
       ) : (
         <>
-          <ModuleTitlePreview title={titleObj} />
-          {algoOn ? (
-            <div className="dec-pc-recommend-product__algo-note">{t('智能推荐已启用：前台按访客的购物车 / 浏览 / 已购 / 收藏个性化排序，此处为热门兜底预览')}</div>
-          ) : null}
           <div className={`dec-pc-recommend-product__list${titleVisible ? '' : ' is-no-title'}`}>
             {productList.map((item, index) => {
               const soldOut = isSoldOut(item);

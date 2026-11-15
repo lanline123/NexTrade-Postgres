@@ -149,8 +149,8 @@ const standardFrame = (extra: Record<string, unknown> = {}) => ({
   boxRadius: 0,
   boxPadding: 10,
   leftAndRightPadding: 0,
-  boxPaddingTop: 5,
-  boxPaddingBottom: 5,
+  boxPaddingTop: 0,
+  boxPaddingBottom: 0,
   ...extra,
 });
 
@@ -167,8 +167,8 @@ const standardTitle = (extra: Record<string, unknown> = {}) => ({
   titleBackground2: '',
   titleBackgroundPic: { picUrl: '', picThumb: '' },
   titleRadius: 0,
-  titlePaddingTop: 0,
-  titlePaddingBottom: 0,
+  titlePaddingTop: 15,
+  titlePaddingBottom: 15,
   // 标题左右边距：默认 10 = 旧 CSS（.dec-module-title padding:10px）的现状值，老数据零视觉跳变；
   // 设 0 即紧贴模块最左/最右（此时再配合「容器设置 → 左右边距」为 0 就是完全贴边）。
   titlePaddingLeft: 10,
