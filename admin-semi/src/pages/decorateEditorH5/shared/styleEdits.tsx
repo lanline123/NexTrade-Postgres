@@ -11,7 +11,7 @@
  *   钮承接（分段组形态与值不变）。
  */
 import { useState } from "react";
-import AlphaColorInput from "../../../components/AlphaColorInput";
+import { ColorPairField } from "../../../components/ColorField";
 import {
     SettingRow,
     SegmentedRadio,
@@ -234,34 +234,20 @@ export function ContentStyleSettingsField({
                         />
                     </SettingRow>
                     <SettingRow label="背景渐变颜色">
-                        <div className="dec-color-group">
-                            <div className="dec-color-button">
-                                <a
-                                    className="dec-color-reset"
-                                    onClick={() =>
-                                        cs.onChange({
-                                            gradientColorA: defaultContentStyle.gradientColorA,
-                                            gradientColorB: defaultContentStyle.gradientColorB
-                                        })
-                                    }
-                                >
-                                    {t('重置')}
-                                </a>
-                                <span className="dec-color-trigger">
-                                    <AlphaColorInput
-                                        value={String(sub.gradientColorA ?? "")}
-                                        onChange={(v) => cs.onChange({ gradientColorA: v })}
-                                    />
-                                </span>
-                                <span style={{ margin: "0 6px", color: "#969799" }}>-</span>
-                                <span className="dec-color-trigger">
-                                    <AlphaColorInput
-                                        value={String(sub.gradientColorB ?? "")}
-                                        onChange={(v) => cs.onChange({ gradientColorB: v })}
-                                    />
-                                </span>
-                            </div>
-                        </div>
+                        {/* 双色对外壳走共享 components/ColorField 的 ColorPairField；
+                            重置需一次补丁同时复位两色，故传 onReset 合并（行为与原手写外壳一致） */}
+                        <ColorPairField
+                            value={String(sub.gradientColorA ?? "")}
+                            secondValue={String(sub.gradientColorB ?? "")}
+                            onChange={(v) => cs.onChange({ gradientColorA: v })}
+                            onSecondChange={(v) => cs.onChange({ gradientColorB: v })}
+                            onReset={() =>
+                                cs.onChange({
+                                    gradientColorA: defaultContentStyle.gradientColorA,
+                                    gradientColorB: defaultContentStyle.gradientColorB
+                                })
+                            }
+                        />
                     </SettingRow>
                 </>
             ) : null}

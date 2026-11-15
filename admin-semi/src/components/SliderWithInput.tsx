@@ -3,9 +3,9 @@
  * Semi Slider + InputNumber，样式类 .pchead-slider-with-input 在 pages/decorate-editor.css:1354
  * （随 PcDecorateEditor/DecoratePcPages 静态导入，全局生效）。
  *
- * PC 编辑器本体仍保留其内部实现（主线并行开发中，本批不迁），后续可直接改引本组件。
- * H5 装修编辑器 shared/settingWidgets 的 RangeField/NumberField 已改用本组件，
- * 替代原原生 <input type="range"> + <input type="number">。
+ * 两端均已改引本组件：PC 编辑器 PcDecorateEditor 原内部实现已删除（2026-11-15 收尾批次，
+ * 实现逐行等价、props/默认值不变）；H5 装修编辑器 shared/settingWidgets 的
+ * RangeField/NumberField 亦改用本组件，替代原原生 <input type="range"> + <input type="number">。
  */
 import { Slider, InputNumber } from '@douyinfe/semi-ui';
 

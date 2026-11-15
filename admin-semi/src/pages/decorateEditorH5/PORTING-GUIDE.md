@@ -56,7 +56,7 @@
   PicListField/SinglePicField/TitleSettingsField/FrameSettingsField）。
 - **字段集合必须覆盖 Vue Settings.vue 的全部设置项**（含分组标题/文案）；
   复杂交互（选商品/选分类/选链接）先用占位：
-  - 选商品：`ProductPicker`（`../../../components/ProductPicker`，admin-semi 已有）
+  - 选商品：`ProductPickGrid` + `ProductPickerModal`（`../../../components/`，与 PC 编辑器同款；2026-11-15 合一，旧 ProductPicker 已弃用）
   - 选图：`PicListField`/`SinglePicField`（上传接口 `/adminapi/file/uploadImage`）
   - 选链接：`Input` 填 path（后续统一接链接选择器）
 - 顶部 `<div className="h5-editor-settings-body">` 包裹。

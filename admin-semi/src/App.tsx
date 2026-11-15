@@ -147,8 +147,8 @@ import {
   VendorProductStockManage,
   VendorStockLogManage,
 } from './pages/selfService';
-// 简版移动装修编辑器 MobileDecorateEditor 已下线（见下方 mobileDecorateEditor 路由的跳转说明），
-// 其文件 ./pages/MobileDecorateEditor 保留不删（数据兼容代码留存），此处不再导入。
+// 简版移动装修编辑器已彻底移除（原 ./pages/MobileDecorateEditor 文件已删除，2026-11-15）；
+// ?page=mobileDecorateEditor 由下方 MobileDecorateEditorRedirect 跳转到新版 H5 装修编辑器。
 import H5DecorateEditor from './pages/decorateEditorH5';
 import {
   AccountPanel,
@@ -890,11 +890,11 @@ function initialPage(): string {
 }
 
 /**
- * 简版移动装修编辑器下线跳转（2026-11-14）：
- * 旧 MobileDecorateEditor 只有 27 个模块 type 且全是通用占位预览（连 product/coupon/whiteBlank 都缺），
+ * 简版移动装修编辑器下线跳转（2026-11-14；旧组件文件已于 2026-11-15 彻底删除）：
+ * 旧简版编辑器只有 27 个模块 type 且全是通用占位预览（连 product/coupon/whiteBlank 都缺），
  * 已由新版 H5 装修编辑器（decorateEditorH5）全面替代。此组件把 ?page=mobileDecorateEditor 的
  * 全部查询参数（id / pageType / from 等）原样透传到 ?page=h5DecorateEditor，避免旧书签、
- * DecorateMobilePages 的默认 editPage 链接落到残缺编辑器。旧组件文件保留不删。
+ * DecorateMobilePages 的默认 editPage 链接落到残缺编辑器。
  */
 function MobileDecorateEditorRedirect() {
   useEffect(() => {

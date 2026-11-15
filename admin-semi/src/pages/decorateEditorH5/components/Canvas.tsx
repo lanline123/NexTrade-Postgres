@@ -13,8 +13,8 @@
  * 预览态（preview=true）隐藏全部编辑外壳，只留画布内容。
  */
 import { Suspense, useMemo, lazy } from "react";
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Toast } from "@douyinfe/semi-ui";
 import { IconChevronDown, IconChevronUp, IconCopy, IconDelete, IconEyeClosed, IconEyeOpened, IconSetting } from "@douyinfe/semi-icons";
@@ -148,8 +148,6 @@ function ModuleItem({ moduleData, index, preview }: { moduleData: DecorateModule
             onClick={() => {
                 if (!preview) editorStore.selectModule(index);
             }}
-            {...attributes}
-            {...(preview ? {} : listeners)}
         >
             {isHidden ? (
                 <div className="module-mask">
@@ -169,8 +167,20 @@ function ModuleItem({ moduleData, index, preview }: { moduleData: DecorateModule
             </div>
             {!preview ? (
                 <>
-                    <div className="module-label">
-                        <div className="label-name">{t(moduleData.label || moduleData.type)}</div>
+                    {/* 拖拽手柄：dnd-kit 的 attributes/listeners 只挂在左侧模块名标签上，
+                        不再摊满整个模块项——画布内点选/滚动手势不被拖拽占用；
+                        标签可聚焦（attributes 带 tabIndex），配合 KeyboardSensor 支持键盘拖拽。 */}
+                    <div
+                        className="module-label module-label--handle"
+                        title={t('拖拽排序')}
+                        style={{ touchAction: "none" }}
+                        {...attributes}
+                        {...listeners}
+                    >
+                        <div className="label-name">
+                            <span className="label-grip" aria-hidden="true">⋮⋮</span>
+                            {t(moduleData.label || moduleData.type)}
+                        </div>
                     </div>
                     {isActive ? (
                         <div className="module-operate" onClick={(e) => e.stopPropagation()}>
@@ -200,7 +210,10 @@ function ModuleItem({ moduleData, index, preview }: { moduleData: DecorateModule
 export default function Canvas({ preview = false }: { preview?: boolean }) {
     const { t } = useI18n();
     const s = useEditorState();
-    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    );
 
     const items = s.moduleList;
 

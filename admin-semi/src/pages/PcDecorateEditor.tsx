@@ -59,6 +59,7 @@ const tl = (key: string, params?: Record<string, string | number>) =>
   i18nInstance.t(key, params) as string;
 import DecorateLoading from './components/DecorateLoading';
 import ProductPickGrid, { mergePickedItems, type ProductPickItem } from '../components/ProductPickGrid';
+import ProductPickerModal from '../components/ProductPickerModal';
 import PcBanner2Preview from './decoratePc/previews/PcBanner2Preview';
 import PcGroupBannerPreview from './decoratePc/previews/PcGroupBannerPreview';
 import PcDividerPreview from './decoratePc/previews/PcDividerPreview';
@@ -86,28 +87,10 @@ import ProductImagePickerModal from '../components/ProductImagePicker';
 import type { PickedImage } from '../components/ProductImagePicker';
 import GalleryPickerModal from '../components/GalleryPickerModal';
 import LinkPickerModal, { LinkField } from '../components/LinkPicker';
-import type { Icon as IconParkIcon } from '@icon-park/react/es/runtime';
-import Carousel from '@icon-park/react/es/icons/Carousel';
-import MultiPictureCarousel from '@icon-park/react/es/icons/MultiPictureCarousel';
-import ApplicationOne from '@icon-park/react/es/icons/ApplicationOne';
-import ApplicationMenu from '@icon-park/react/es/icons/ApplicationMenu';
-import LayoutOne from '@icon-park/react/es/icons/LayoutOne';
+import SliderWithInput from '../components/SliderWithInput';
+import SharedColorField, { ColorPairField } from '../components/ColorField';
+import { PC_LIB_META as LIB_META } from '../components/editorModuleIcons';
 import ViewGridList from '@icon-park/react/es/icons/ViewGridList';
-import ViewGridCard from '@icon-park/react/es/icons/ViewGridCard';
-import Picture from '@icon-park/react/es/icons/Picture';
-import ImageFiles from '@icon-park/react/es/icons/ImageFiles';
-import GridFour from '@icon-park/react/es/icons/GridFour';
-import ClickTap from '@icon-park/react/es/icons/ClickTap';
-import Commodity from '@icon-park/react/es/icons/Commodity';
-import ShoppingBagOne from '@icon-park/react/es/icons/ShoppingBagOne';
-import Star from '@icon-park/react/es/icons/Star';
-import Coupon from '@icon-park/react/es/icons/Coupon';
-import Peoples from '@icon-park/react/es/icons/Peoples';
-import Lightning from '@icon-park/react/es/icons/Lightning';
-import DividingLine from '@icon-park/react/es/icons/DividingLine';
-import RowHeight from '@icon-park/react/es/icons/RowHeight';
-import Announcement from '@icon-park/react/es/icons/Announcement';
-import TextIcon from '@icon-park/react/es/icons/Text';
 import './decorate-editor.css';
 /* 固定标题共享排版令牌：各 pc*.css 只引用变量，数值只在这里定义一次 */
 import './decoratePc/previews/shared/module-title.shared.css';
@@ -1265,45 +1248,8 @@ const LEGACY_TYPES = new Set(LEGACY_MODULE_DEFS.map((d) => d.type));
 
 const LIB_GROUPS = ['轮播横幅', '导航分类', '图片展示', '商品', '营销活动', '辅助元素'];
 
-/**
- * 模块库原版元数据：工具栏排序 order + 图标。
- *
- * 原版 index.ts 用 alicdn 远程 iconfont 的类名（icon-banner / icon-category_nav / ...），
- * 但该字体在 admin-semi 里从未真正加载（远程 @import 被 CSS 规范丢弃，打包后亦无 @font-face），
- * 导致「PC首页模块」列表只显示文字、图标缺失。此处改为等效语义的 @icon-park/react 本地 SVG 组件：
- *   icon-banner → Carousel / MultiPictureCarousel
- *   icon-category_nav → ViewGridList（分类导航）/ ViewGridCard（分类导航3）/ ApplicationMenu（快捷导航）
- *   icon-image_nav → Picture / ImageFiles   icon-image_square_ad → GridFour
- *   icon-image_hotarea → ClickTap           icon-product → Commodity
- *   icon-product_grouping → ShoppingBagOne  icon-white_line → DividingLine
- *   icon-white_blank → RowHeight            icon-notice → Announcement
- *   icon-title_ad → TextIcon                icon-coupon → Coupon
- *   icon-seckill → Lightning（秒杀）/ Peoples（拼团）
- *   营销通栏原版复用 icon-category_nav，语义宽条幅 → LayoutOne
- */
-const LIB_META: Record<string, { order: number; Icon: IconParkIcon }> = {
-  pcLogin: { order: 1, Icon: ViewGridList },
-  'pc-banner2': { order: 1, Icon: Carousel },
-  'pc-group-banner': { order: 2, Icon: MultiPictureCarousel },
-  'pc-home-hero': { order: 4, Icon: LayoutOne },
-  'pc-category-nav': { order: 4, Icon: ViewGridList },
-  'pc-category-nav3': { order: 5, Icon: ViewGridCard },
-  'pc-home-quick-nav': { order: 6, Icon: ApplicationMenu },
-  'pc-image-ad': { order: 10, Icon: Picture },
-  'pc-image-nav': { order: 11, Icon: ImageFiles },
-  'pc-image-square-ad': { order: 12, Icon: GridFour },
-  'pc-image-hotarea': { order: 13, Icon: ClickTap },
-  'pc-product': { order: 14, Icon: Commodity },
-  'pc-product-group': { order: 15, Icon: ShoppingBagOne },
-  'pc-recommend-product': { order: 3, Icon: Star },
-  'pc-divider': { order: 60, Icon: DividingLine },
-  'pc-spacer': { order: 70, Icon: RowHeight },
-  'pc-notice': { order: 72, Icon: Announcement },
-  'pc-title-ad': { order: 75, Icon: TextIcon },
-  'pc-home-coupon': { order: 82, Icon: Coupon },
-  'pc-home-groupon': { order: 83, Icon: Peoples },
-  'pc-home-seckill': { order: 84, Icon: Lightning },
-};
+/* 模块库元数据（排序 order + 图标）已合并到共享总表 components/editorModuleIcons.ts，
+   顶部以 PC_LIB_META as LIB_META 导入，与 H5 的 MODULE_ICONPARK 单一源维护。 */
 
 /* ===================== 编辑器组件 ===================== */
 
@@ -4131,45 +4077,7 @@ function HeaderField({
   );
 }
 
-function SliderWithInput({
-  value,
-  min = 0,
-  max = 100,
-  step = 1,
-  onChange,
-}: {
-  value: number;
-  min?: number;
-  max?: number;
-  step?: number;
-  onChange: (value: number) => void;
-}) {
-  const clamp = (next: number | string | null | undefined) => {
-    const numeric = Number(next);
-    if (!Number.isFinite(numeric)) return value;
-    return Math.min(max, Math.max(min, numeric));
-  };
-  return (
-    <div className="pchead-slider-with-input">
-      <Slider
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        style={{ flex: 1, minWidth: 90 }}
-        onChange={(v) => onChange(typeof v === 'number' ? v : (v as number[])[0])}
-      />
-      <InputNumber
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        style={{ width: 72, flexShrink: 0 }}
-        onChange={(v) => onChange(clamp(v))}
-      />
-    </div>
-  );
-}
+/* SliderWithInput 已抽到共享 components/SliderWithInput.tsx（实现逐行等价），顶部统一 import。 */
 
 function BenefitGroupsEditor({
   groups,
@@ -4818,14 +4726,6 @@ function useCategoryOptions() {
   return options;
 }
 
-interface ProductRow {
-  productId: number;
-  productName?: string;
-  productPrice?: number | string;
-  picUrl?: string;
-  picThumb?: string;
-}
-
 function ProductGroupPickerModal({
   visible,
   current,
@@ -4900,140 +4800,7 @@ function ProductGroupPickerModal({
   );
 }
 
-function ProductPickerModal({
-  visible,
-  selectedIds,
-  multiple = true,
-  onOk,
-  onCancel,
-}: {
-  visible: boolean;
-  selectedIds: number[];
-  multiple?: boolean;
-  onOk: (ids: number[], rows: ProductRow[]) => void;
-  onCancel: () => void;
-}) {
-  const { t } = useI18n();
-  const [keyword, setKeyword] = useState('');
-  const [rows, setRows] = useState<ProductRow[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [picked, setPicked] = useState<number[]>(selectedIds);
-  /** 已选行的信息缓存：onOk 时按 picked 顺序回传，调用方（商品/图集/主图卡）才能拿到缩略图与价格。 */
-  const rowsByIdRef = useRef<Map<number, ProductRow>>(new Map());
-
-  useEffect(() => {
-    if (visible) {
-      setPicked(selectedIds);
-      setPage(1);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
-
-  const load = (nextPage = page, nextKeyword = keyword) => {
-    setLoading(true);
-    apiGet<{ records?: ProductRow[]; list?: ProductRow[]; total?: number }>('/product/product/list', {
-      keyword: nextKeyword || undefined,
-      page: nextPage,
-      size: 20,
-      productType: 1,
-    })
-      .then((res) => {
-        const list = res.records || res.list || [];
-        list.forEach((row) => rowsByIdRef.current.set(row.productId, row));
-        setRows(list);
-        setTotal(Number(res.total ?? list.length));
-      })
-      .catch(() => setRows([]))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    if (visible) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
-
-  const toggle = (row: ProductRow) => {
-    rowsByIdRef.current.set(row.productId, row);
-    setPicked((prev) => {
-      if (prev.includes(row.productId)) return prev.filter((id) => id !== row.productId);
-      if (!multiple) return [row.productId];
-      return [...prev, row.productId];
-    });
-  };
-
-  return (
-    <Modal
-      title={t('选择商品')}
-      visible={visible}
-      width={720}
-      onOk={() =>
-        onOk(
-          picked,
-          picked
-            .map((id) => rowsByIdRef.current.get(id))
-            .filter((row): row is ProductRow => !!row),
-        )
-      }
-      onCancel={onCancel}
-      okText={t('确定')}
-      cancelText={t('取消')}
-    >
-      <div className="dec-prod-picker">
-        <Space style={{ marginBottom: 12, width: '100%' }} align="center">
-          <Input
-            value={keyword}
-            onChange={setKeyword}
-            onEnterPress={() => { setPage(1); load(1); }}
-            placeholder={t('输入商品名称搜索')}
-            style={{ width: 260 }}
-            showClear
-            onClear={() => { setKeyword(''); setPage(1); load(1, ''); }}
-          />
-          <Button onClick={() => { setPage(1); load(1); }}>{t('搜索')}</Button>
-          <span className="dec-prod-picker__count">{t('已选 {count} 个', { count: picked.length })}</span>
-        </Space>
-        <div className="dec-prod-picker__body">
-          {loading && <div className="dec-prod-picker__loading"><Spin /></div>}
-          {!loading && rows.length === 0 && <Text type="tertiary">{t('暂无数据')}</Text>}
-          {!loading && rows.map((row) => {
-            const active = picked.includes(row.productId);
-            const url = String(row.picThumb || row.picUrl || '');
-            return (
-              <div
-                key={row.productId}
-                className={`dec-prod-picker__card${active ? ' is-active' : ''}`}
-                onClick={() => toggle(row)}
-                title={row.productName || t('商品#{id}', { id: row.productId })}
-              >
-                <div className="dec-prod-picker__pic">
-                  {url ? <img src={url} alt="" loading="lazy" /> : <span className="dec-prod-picker__pic-empty">#{row.productId}</span>}
-                  {active && <span className="dec-prod-picker__check">✓</span>}
-                </div>
-                <div className="dec-prod-picker__meta">
-                  <div className="dec-prod-picker__name">{row.productName || t('商品#{id}', { id: row.productId })}</div>
-                  <div className="dec-prod-picker__price">¥{row.productPrice ?? '-'}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        {total > 20 && (
-          <div className="dec-prod-picker__pager">
-            <Pagination
-              currentPage={page}
-              pageSize={20}
-              total={total}
-              onPageChange={(p) => { setPage(p); load(p); }}
-              size="small"
-            />
-          </div>
-        )}
-      </div>
-    </Modal>
-  );
-}
+/* ProductPickerModal 已抽到共享 components/ProductPickerModal.tsx（2026-11-15），顶部统一 import。 */
 
 function GrouponPickerModal({
   visible,
@@ -6481,31 +6248,26 @@ function FieldControl({
         if (!field.secondKey) return;
         onChange(setPath(moduleData, field.secondKey, v));
       };
+      // 双色对外壳走共享 components/ColorField 的 ColorPairField（重置同时复位两色，行为等价）
       return (
-        <div className="dec-color-group dec-color-group--dual">
-          <div className="dec-color-button">
-            <a
-              className="dec-color-reset"
-              onClick={() => {
-                set(field.resetValue ?? '');
-                setSecond(field.resetValueSecond ?? '');
-              }}
-            >
-              {t('重置')}
-            </a>
-            <AlphaColorInput value={String(value || '')} onChange={(v) => set(v)} />
-            <span className="dec-color-sep">-</span>
-            <AlphaColorInput value={String(secondValue || '')} onChange={(v) => setSecond(v)} />
-          </div>
-        </div>
+        <ColorPairField
+          value={String(value || '')}
+          secondValue={String(secondValue || '')}
+          onChange={(v) => set(v)}
+          onSecondChange={(v) => setSecond(v)}
+          resetValue={String(field.resetValue ?? '')}
+          resetValueSecond={String(field.resetValueSecond ?? '')}
+        />
       );
     }
     case 'color':
+      // 单色外壳走共享 components/ColorField（重置链 + AlphaColorInput；重置值口径不变）
       return (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%', justifyContent: 'flex-end' }}>
-          <AlphaColorInput value={String(value || '')} onChange={(v) => set(v)} />
-          <Button size="small" onClick={() => set(field.resetValue ?? '')}>{t('重置')}</Button>
-        </div>
+        <SharedColorField
+          value={String(value || '')}
+          onChange={(v) => set(v)}
+          resetValue={String(field.resetValue ?? '')}
+        />
       );
     case 'picList':
       return <PicListEditor value={(value as PicItem[]) || []} onChange={(v) => set(v)} showDesc={field.picDesc} addText={field.picAddTextFor ? field.picAddTextFor(moduleData) : field.picAddText} showLink={!field.picNoLink} showText={!field.picNoText} max={field.picMaxFor ? field.picMaxFor(moduleData) : field.picMax} />;

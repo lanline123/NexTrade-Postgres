@@ -11,9 +11,10 @@
  * 「选择模板」原版为 ico-decorate 图标 radio（字体图标，非图片资源），本实现仍以文字分段 radio 承接。
  */
 import { useEffect, useState } from "react";
-import { Button, Input, Toast, Upload } from "@douyinfe/semi-ui";
+import { Button, Input } from "@douyinfe/semi-ui";
 import { IconDelete, IconPlus } from "@douyinfe/semi-icons";
 import { SettingGroup, RadioRowField, NumberField, TitleSettingsField, FrameSettingsField } from "../../../shared/settingWidgets";
+import GalleryPickerModal from "../../../../../components/GalleryPickerModal";
 import { imageFormat } from "../../../shared/format";
 
 import { useI18n } from '../../../../../i18n';
@@ -55,19 +56,10 @@ export default function ImageSquareAdSettings({ data, onChange }: { data: Record
         onChange({ picList: next });
     };
 
-    // 选中位图片（对齐 Vue 版 PicList :isMultiple="false" v-model:photo）
-    const uploadProps = {
-        action: "/adminapi/file/uploadImage",
-        onSuccess: (body: any) => {
-            const url = body?.data?.url || body?.url;
-            if (!url) {
-                Toast.error(t("上传失败"));
-                return;
-            }
-            setPic(Math.min(picIndex, picList.length - 1), { picUrl: url, picThumb: url });
-        },
-        onError: () => Toast.error(t("上传失败"))
-    };
+    // 选中位图片（对齐 Vue 版 PicList :isMultiple="false" v-model:photo；
+    // 2026-11-15 换口径：弃 Semi Upload 直传，改素材库 GalleryPickerModal 单选，
+    // 同 PicSelect 口径；数据契约不变，只写选中位的 { picUrl, picThumb }）
+    const [pickerOpen, setPickerOpen] = useState(false);
 
     const currentItem = picList[Math.min(picIndex, picList.length - 1)];
     const showLayoutGrid = [1, 2, 3].includes(Number(data?.picType)) || ([4, 5, 6, 7].includes(Number(data?.picType)) && picList.length === lengthMap[Number(data?.picType)]);
@@ -180,11 +172,20 @@ export default function ImageSquareAdSettings({ data, onChange }: { data: Record
                                 />
                             </div>
                         ) : null}
-                        <Upload {...(uploadProps as any)} accept="image/*" showUploadList={false}>
-                            <Button size="small" icon={<IconPlus />} style={{ marginBottom: 8 }}>
-                                替换第 {picIndex + 1} 张图片
-                            </Button>
-                        </Upload>
+                        <Button size="small" icon={<IconPlus />} style={{ marginBottom: 8 }} onClick={() => setPickerOpen(true)}>
+                            替换第 {picIndex + 1} 张图片
+                        </Button>
+                        <GalleryPickerModal
+                            visible={pickerOpen}
+                            multiple={false}
+                            limit={1}
+                            onCancel={() => setPickerOpen(false)}
+                            onConfirm={(urls: string[]) => {
+                                const u = urls[0];
+                                if (u) setPic(Math.min(picIndex, picList.length - 1), { picUrl: u, picThumb: u });
+                                setPickerOpen(false);
+                            }}
+                        />
                         <Input
                             size="small"
                             placeholder={t('跳转链接，如 /pages/product/index?id=1')}

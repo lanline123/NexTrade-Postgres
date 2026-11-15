@@ -229,6 +229,29 @@
     font-size: 16px;
 }
 
+// 拖拽手柄（2026-11-15 收窄）：listeners 只挂左侧模块名标签，grab 光标 + 握把点
+.modules-item .module-label--handle {
+    cursor: grab;
+
+    &:active {
+        cursor: grabbing;
+    }
+
+    .label-name {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+    }
+
+    .label-grip {
+        color: #b6bec9;
+        font-size: 10px;
+        letter-spacing: -2px;
+        flex-shrink: 0;
+    }
+}
+
 .page-config-icon {
     display: inline-flex;
     align-items: center;
@@ -459,6 +482,12 @@
         color: #969799;
         font-size: 12px;
     }
+}
+
+// 双色对分隔符（共享 ColorPairField 的 .dec-color-sep；数值沿原 styleEdits 手写外壳的内联样式）
+.dec-color-sep {
+    color: #969799;
+    margin: 0 6px;
 }
 
 // 颜色触发器：方形色块（覆盖 AlphaColorInput 默认 36×28 触发器为 32×32，原版 SelectColor 口径）

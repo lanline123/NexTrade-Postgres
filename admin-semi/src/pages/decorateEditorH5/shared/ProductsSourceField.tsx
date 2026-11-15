@@ -1,13 +1,18 @@
 /**
  * 商品来源设置控件（对齐 view/admin src/modules/src/commonProduct/Edit.vue CommonProductEdit）
  *
- * 选商品（ProductPicker）/ 按分类（分类树）/ 按标签（商品标签）三种来源。
+ * 选商品 / 按分类（分类树）/ 按标签（商品标签）三种来源。
+ * 选商品 2026-11-15 合一：弃旧 ProductPicker（按钮+表格+SideSheet），改走与 PC 编辑器
+ * 相同的 ProductPickGrid（卡片网格）+ 共享 ProductPickerModal（卡片选品弹窗）。
+ * 数据契约不变：模块数据仍只写 productIds（H5 数据本就没有 productItems 展示缓存字段），
+ * 网格需要的展示信息只在本组件内用 useState 做本地缓存，不落模块数据。
  */
 import { useEffect, useState } from 'react';
 import { Input, Radio, RadioGroup, Select, Spin } from '@douyinfe/semi-ui';
 import { apiGet } from '../../../api';
 import { useI18n } from '../../../i18n';
-import ProductPicker from '../../../components/ProductPicker';
+import ProductPickGrid, { mergePickedItems } from '../../../components/ProductPickGrid';
+import ProductPickerModal from '../../../components/ProductPickerModal';
 
 export default function ProductsSourceField({
     data,
@@ -23,6 +28,9 @@ export default function ProductsSourceField({
     const type = Number(products.productSelectType || 1);
     const [categories, setCategories] = useState<Array<{ label: string; value: number }>>([]);
     const [loadingCategory, setLoadingCategory] = useState(false);
+    const [pickerVisible, setPickerVisible] = useState(false);
+    // 展示信息本地缓存（仅供 ProductPickGrid 渲染卡片，不写回模块数据）
+    const [itemsCache, setItemsCache] = useState<any[]>([]);
 
     const set = (patch: Record<string, any>) => onChange({ [field]: { ...products, ...patch } });
 
@@ -55,11 +63,32 @@ export default function ProductsSourceField({
                 <Radio value={3}>{t('按标签')}</Radio>
             </RadioGroup>
             {type === 1 ? (
-                <ProductPicker
-                    value={Array.isArray(products.productIds) ? products.productIds.map(Number) : []}
-                    max={50}
-                    onChange={(ids) => set({ productIds: ids })}
-                />
+                <>
+                    <ProductPickGrid
+                        ids={Array.isArray(products.productIds) ? products.productIds.map(Number) : []}
+                        items={itemsCache}
+                        onChange={(nextIds, nextItems) => {
+                            setItemsCache(nextItems);
+                            const currentIds = Array.isArray(products.productIds) ? products.productIds.map(Number) : [];
+                            // 网格的历史数据自动补全只更新展示缓存，ids 未变时不写数据（避免无谓补丁）
+                            if (nextIds.join(',') !== currentIds.join(',')) set({ productIds: nextIds });
+                        }}
+                        onRequestPick={() => setPickerVisible(true)}
+                    />
+                    {pickerVisible && (
+                        <ProductPickerModal
+                            visible
+                            selectedIds={Array.isArray(products.productIds) ? products.productIds.map(Number) : []}
+                            max={50}
+                            onOk={(nextIds, rows) => {
+                                setItemsCache(mergePickedItems(nextIds, rows, itemsCache));
+                                set({ productIds: nextIds });
+                                setPickerVisible(false);
+                            }}
+                            onCancel={() => setPickerVisible(false)}
+                        />
+                    )}
+                </>
             ) : null}
             {type === 2 ? (
                 <Spin spinning={loadingCategory}>

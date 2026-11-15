@@ -5,9 +5,11 @@
  * 每张热图下支持增删热区，用 InputNumber 编辑坐标（left/top）与尺寸（width/height，
  * 坐标系为 500px 绘制区域原始宽度），用 Input 编辑热区链接（link.name + link.path）。
  */
-import { Button, Input, InputNumber, Toast, Upload } from "@douyinfe/semi-ui";
+import { useState } from "react";
+import { Button, Input, InputNumber } from "@douyinfe/semi-ui";
 import { IconDelete, IconPlus } from "@douyinfe/semi-icons";
 import { SettingGroup, TitleSettingsField, FrameSettingsField } from "../../../shared/settingWidgets";
+import GalleryPickerModal from "../../../../../components/GalleryPickerModal";
 import { imageFormat } from "../../../shared/format";
 
 import { useI18n } from '../../../../../i18n';
@@ -32,18 +34,10 @@ export default function ImageHotareaSettings({ data, onChange }: { data: Record<
         setPic(picIndex, { hotarea });
     };
 
-    const uploadProps = {
-        action: "/adminapi/file/uploadImage",
-        onSuccess: (body: any) => {
-            const url = body?.data?.url || body?.url;
-            if (!url) {
-                Toast.error(t("上传失败"));
-                return;
-            }
-            setPicList([...picList, { picUrl: url, picThumb: url, picTitle: "", hotarea: [] }]);
-        },
-        onError: () => Toast.error(t("上传失败"))
-    };
+    // 添加热图（2026-11-15 换口径）：弃 Semi Upload 直传，改素材库 GalleryPickerModal
+    // （同 PicSelect/PicList 口径，弹窗内可上传新图）；数据契约不变，每张选中图追加
+    // 一条 { picUrl, picThumb, picTitle:"", hotarea:[] }。
+    const [pickerOpen, setPickerOpen] = useState(false);
 
     return (
         <div className="h5-editor-settings-body">
@@ -139,9 +133,18 @@ export default function ImageHotareaSettings({ data, onChange }: { data: Record<
                         >{t('添加热区')}</Button>
                     </div>
                 ))}
-                <Upload {...(uploadProps as any)} accept="image/*" showUploadList={false}>
-                    <Button size="small" icon={<IconPlus />}>{t('添加新热图')}</Button>
-                </Upload>
+                <Button size="small" icon={<IconPlus />} onClick={() => setPickerOpen(true)}>{t('添加新热图')}</Button>
+                <GalleryPickerModal
+                    visible={pickerOpen}
+                    multiple
+                    onCancel={() => setPickerOpen(false)}
+                    onConfirm={(urls: string[]) => {
+                        if (urls.length) {
+                            setPicList([...picList, ...urls.map((u) => ({ picUrl: u, picThumb: u, picTitle: "", hotarea: [] as any[] }))]);
+                        }
+                        setPickerOpen(false);
+                    }}
+                />
             </SettingGroup>
             <TitleSettingsField data={data} onChange={onChange} />
             <FrameSettingsField data={data} onChange={onChange} />
