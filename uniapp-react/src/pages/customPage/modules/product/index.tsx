@@ -3,6 +3,7 @@ import { Image, Swiper, SwiperItem, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 
 import { designPxToDevicePx, designPxToRpx, formatFrame } from "@/components/modules";
+import SwiperDots from "@/components/SwiperDots";
 import FormatPrice from "@/components/format-price/FormatPrice";
 import TigImage from "@/components/tig/tig-image/TigImage";
 import { getProductsList } from "@/api/common";
@@ -287,17 +288,16 @@ export default function Product({ module, shopId = -1 }: Props) {
                                                     </SwiperItem>
                                                 ))}
                                             </Swiper>
-                                            {module.picPageType == 3 && (
-                                                <View className="swiper-pagination-con" style={{ bottom: swiperBottom + "px" }}>
-                                                    {swiperList.map((_, key) => (
-                                                        <View
-                                                            key={key}
-                                                            className={`swiper-pagination ${current === key ? "active" : ""}`}
-                                                            style={current === key ? { backgroundColor: selectColor } : {}}
-                                                        />
-                                                    ))}
-                                                </View>
-                                            )}
+                                            {/* 原 tig-swiper mode="default" 恒有圆点指示（picPageType==3 时另加胶囊底盒 + dot 色 #fff）；
+                                                此前自绘横条仅 picPageType==3 渲染且选中色不对，现统一走 SwiperDots 三式 */}
+                                            <SwiperDots
+                                                count={swiperList.length}
+                                                current={current}
+                                                picPageType={module.picPageType}
+                                                color={module.picPageType == 3 ? "#fff" : ""}
+                                                selectColor={selectColor}
+                                                bottom={swiperBottom}
+                                            />
                                         </View>
                                     </View>
                                 </View>

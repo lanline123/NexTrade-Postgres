@@ -1,4 +1,15 @@
-.tig-countdown-text {
-    display: inline-flex;
-    align-items: center;
+/* 自旧 components/countdown/index.vue <style scoped> 平铺移植；
+   P1：收回本组件根类 .tig-countdown 作用域，避免裸 .countdown-box 污染模块 commonCountdown 的同名结构 */
+.tig-countdown {
+    .countdown-box {
+        margin-left: 4rpx;
+    }
+
+    .countdown-separator {
+        margin: 0 2rpx;
+    }
+
+    .countdown-separator-text {
+        margin: 0 4rpx;
+    }
 }

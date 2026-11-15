@@ -131,7 +131,7 @@ export default function NoticeA2({ module }: Props) {
                     commonStyle.moduleContentStyle.paddingLeftRight
                 }
             >
-                <View className="main">
+                <View className="noticea2-main">
                     <View className="headlines" style="width: calc(100% + 0px)">
                         {module.noticeIconType !== "hide" && (
                             <View className="headlines-icon">

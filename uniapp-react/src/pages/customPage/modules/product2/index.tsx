@@ -7,7 +7,7 @@ import FormatPrice from "@/components/format-price/FormatPrice";
 import Specification from "@/components/product/specification";
 import type { SpecificationRef } from "@/components/product/specification";
 import { cardProductId } from "@/hooks/useProductCardBuy";
-import TigImage from "@/components/tig/tig-image/TigImage";
+import TigLazyImage from "@/components/tig/tig-lazy-image/TigLazyImage";
 import { getProductsList } from "@/api/common";
 import { useProductStyle } from "@/hooks/useProductStyle";
 import { productImage } from "@/utils/format";
@@ -106,7 +106,7 @@ export default function Product2({ module, shopId = -1 }: Props) {
                         allFormat.innerPadding
                     }
                 >
-                    {productList.length > 0 && <Product2Masonry commodityList={productList} styleMap={styleMap} />}
+                    {productList.length > 0 && <Product2Masonry commodityList={productList} styleMap={styleMap} buyBtnStyle={module.buyBtnStyle} />}
                 </View>
             </View>
         )
@@ -130,7 +130,16 @@ const ESTIMATED_ITEM_HEIGHT = 300;
 /** 两列高度差在该阈值（px）内视为基本持平，此时优先放左列，避免观感上总偏向右列 */
 const COLUMN_HEIGHT_TOLERANCE = 20;
 
-function Product2Masonry({ commodityList, styleMap }: { commodityList: any[]; styleMap: Record<number, any> }) {
+function Product2Masonry({
+    commodityList,
+    styleMap,
+    buyBtnStyle
+}: {
+    commodityList: any[];
+    styleMap: Record<number, any>;
+    /** 购买按钮样式（module.buyBtnStyle 透传给内联卡，口径同 Product2MasonryItem） */
+    buyBtnStyle?: number;
+}) {
     const rootRef = useRef<any>(null);
     /** 规格弹窗加购（与 components/masonry 同款链路，替代旧 handleBuy 打开 specification） */
     const [specProductId, setSpecProductId] = useState(0);
@@ -318,7 +327,13 @@ function Product2Masonry({ commodityList, styleMap }: { commodityList: any[]; st
                     {/* 每张卡片外包一层 masonry-cell 供测量单卡真实高度；列表可能出现重复商品，key 需带上原始下标 */}
                     {column.map((entry) => (
                         <View key={`${entry.index}-${entry.key}`} className={`masonry-cell masonry-cell-${columnIndex}`}>
-                            <Product2MasonryItem item={entry.item} styleMap={styleMap} onClickItem={handleClickItem} onClickBuy={handleBuy} />
+                            <Product2MasonryItem
+                                item={entry.item}
+                                styleMap={styleMap}
+                                buyBtnStyle={buyBtnStyle}
+                                onClickItem={handleClickItem}
+                                onClickBuy={handleBuy}
+                            />
                         </View>
                     ))}
                 </View>
@@ -343,11 +358,14 @@ function Product2Masonry({ commodityList, styleMap }: { commodityList: any[]; st
 function Product2MasonryItem({
     item,
     styleMap,
+    buyBtnStyle,
     onClickItem,
     onClickBuy
 }: {
     item: any;
     styleMap: Record<number, any>;
+    /** 购买按钮样式（module.buyBtnStyle）：undefined=沿用旧图标，0=不显示，1~8=对应样式，与通用卡 ProductItem 同口径 */
+    buyBtnStyle?: number;
     onClickItem: (item: any) => void;
     onClickBuy: (item: any) => void;
 }) {
@@ -364,7 +382,8 @@ function Product2MasonryItem({
     return (
         <View className="item-li" onClick={() => onClickItem(item)}>
             <View className="photo">
-                <TigImage src={productImage(item)} mode="widthFix" />
+                {/* P1：与通用卡一致改用 TigLazyImage（视口懒加载 + 骨架屏 + 失败占位），原为普通 TigImage 仅淡入 */}
+                <TigLazyImage src={productImage(item)} mode="widthFix" />
                 {showOutsale && (
                     <View className="product-status-box">
                         <View className="outsale">{t("已售罄")}</View>
@@ -393,10 +412,34 @@ function Product2MasonryItem({
                         />
                     </View>
 
-                    {/* 装修按钮 buyBtnStyle 1~8 与 isCheck loading 态随规格弹窗（B2）一起补齐，默认走旧图标 */}
-                    <View className="buy_btn" onClick={() => onClickBuy(item)}>
-                        <Text className="iconfont-h5 icon-gouwuche3 buy_btn_icon" />
-                    </View>
+                    {/* P1：接通装修 buyBtnStyle 1~8 与 isCheck 加载态，渲染口径与通用卡 ProductItem 一致（本模块 scss 已含 --style1..8 规则） */}
+                    {buyBtnStyle !== 0 && (
+                        <View
+                            className={`buy_btn ${buyBtnStyle && buyBtnStyle >= 1 && buyBtnStyle <= 8 ? `buy_btn--style${buyBtnStyle}` : ""}`}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onClickBuy(item);
+                            }}
+                        >
+                            {item.isCheck ? (
+                                <Text className="buy_btn_text">…</Text>
+                            ) : buyBtnStyle === 5 || buyBtnStyle === 6 ? (
+                                <Text className="buy_btn_text">{t("购买")}</Text>
+                            ) : buyBtnStyle === 7 || buyBtnStyle === 8 ? (
+                                <Text className="buy_btn_text">{t("马上抢")}</Text>
+                            ) : buyBtnStyle === 1 ? (
+                                <Text className="iconfont-h5 buy_btn_icon icon-gouwuche" />
+                            ) : buyBtnStyle === 2 ? (
+                                <Text className="iconfont-h5 buy_btn_icon icon-gouwuche1" />
+                            ) : buyBtnStyle === 3 ? (
+                                <Text className="iconfont-h5 buy_btn_icon icon-jia" />
+                            ) : buyBtnStyle === 4 ? (
+                                <Text className="iconfont-h5 buy_btn_icon icon-jia1" />
+                            ) : (
+                                <Text className="iconfont-h5 icon-gouwuche3 buy_btn_icon" />
+                            )}
+                        </View>
+                    )}
                 </View>
             </View>
         </View>

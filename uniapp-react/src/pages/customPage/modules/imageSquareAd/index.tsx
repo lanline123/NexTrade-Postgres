@@ -180,7 +180,7 @@ export default function ImageSquareAd({ module }: Props) {
                                                             pic.picLink && redirect({ url: urlFormat(pic.picLink) });
                                                         }}
                                                     >
-                                                        <View className="item-img-a">
+                                                        <View className="square-item-img-a">
                                                             <View className="item-img">
                                                                 <TigImage src={pic.picUrl} mode="widthFix" />
                                                             </View>

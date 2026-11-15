@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import type { ReactNode } from "react";
 import { Image, Text, View } from "@tarojs/components";
 
 import { designPxToRpx } from "@/components/modules";
@@ -13,14 +12,9 @@ interface Props {
     module: any;
     moduleIndex?: number;
     index?: number;
-    /**
-     * 标题右侧自定义内容（对应旧 seckill2 传入的 #more 插槽；旧 commonTitle 并未定义插槽出口，
-     * 倒计时实际未渲染，React 侧以 more prop 补齐）。传入时替代默认「查看更多」链接。
-     */
-    more?: ReactNode;
 }
 
-export default function CommonTitle({ module, more }: Props) {
+export default function CommonTitle({ module }: Props) {
     const titleBackgroundImage = useMemo(() => productImage(module?.titleBackgroundPic), [module?.titleBackgroundPic]);
     const titleFormat = useMemo(() => {
         const radius = designPxToRpx(module.titleRadius);
@@ -59,23 +53,20 @@ export default function CommonTitle({ module, more }: Props) {
                     {t(module.descText ?? "")}
                 </View>
             </View>
-            {more ? (
-                <View className="image-ad-title-r">{more}</View>
-            ) : (
-                module.showMore == 1 && (
-                    <View className="image-ad-title-r">
-                        <View
-                            className="more-link"
-                            style={"color: " + module.moreColor}
-                            onClick={() => {
-                                module.moreLink && redirect({ url: urlFormat(module.moreLink) });
-                            }}
-                        >
-                            <Text>{t("查看更多")}</Text>
-                            <Text className="iconfont-h5 icon-youjiantou" />
-                        </View>
+            {/* 原版 commonTitle 无插槽出口：右侧只有 showMore==1 时的默认「查看更多」（旧 seckill2 传入的 #more 倒计时从未渲染，P1 已撤） */}
+            {module.showMore == 1 && (
+                <View className="image-ad-title-r">
+                    <View
+                        className="more-link"
+                        style={"color: " + module.moreColor}
+                        onClick={() => {
+                            module.moreLink && redirect({ url: urlFormat(module.moreLink) });
+                        }}
+                    >
+                        <Text>{t("查看更多")}</Text>
+                        <Text className="iconfont-h5 icon-youjiantou" />
                     </View>
-                )
+                </View>
             )}
         </View>
     );

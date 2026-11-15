@@ -3,6 +3,7 @@ import { Image, Swiper, SwiperItem, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 
 import { designPxToRpx, formatFrame } from "@/components/modules";
+import SwiperDots from "@/components/SwiperDots";
 import CommonTitle from "@/pages/customPage/modules/commonTitle/index";
 import { useImgInfo } from "@/hooks/useDecorate";
 import { redirect } from "@/utils";
@@ -34,9 +35,8 @@ export default function ImageAd2({ module }: Props) {
         return module.swiperPageColor || "#333";
     }, [module.swiperPageColor]);
 
-    const mode = useMemo(() => {
-        return module.picPageType == 1 ? "default" : "dot";
-    }, [module.picPageType]);
+    // 自绘指示点当前页（原 tig-swiper 内部 current，现由 onChange 回写驱动 SwiperDots）
+    const [current, setCurrent] = useState(0);
 
     const columns = useMemo(() => {
         return module.swiperPreView || 1;
@@ -109,22 +109,22 @@ export default function ImageAd2({ module }: Props) {
                     <>
                         {module.picType == 2 ? (
                             <View className="image-ad-warp" style={frameFormat.innerPadding}>
-                                <View className="image-ad-con">
+                                <View className="image-ad-con swiper-dots-anchor">
                                     {columns == 1 ? (
                                         // 旧 tig-swiper（:model-value="module.picList" :dot="module.showIndicator == 1"）等价展开：
-                                        // circular、autoplay 默认 true、interval 默认 3000、duration 默认 500、
-                                        // mode→indicatorDots、:color→indicatorColor、:select-color→indicatorActiveColor
+                                        // circular、autoplay 默认 true、interval 默认 3000、duration 默认 500；
+                                        // 指示点改自绘 SwiperDots（原 uni-swiper-dot 三式，showIndicator==1 时才渲染），
+                                        // 原生 indicatorDots 不分形态且 picPageType=3 无胶囊底盒
                                         <Swiper
                                             current={0}
                                             className={module.picPageType == 3 ? "uni-swiper-dot-box" : ""}
                                             style={{ height: safeHeightPx + "px" }}
                                             circular
-                                            indicatorDots={module.showIndicator == 1}
+                                            indicatorDots={false}
                                             autoplay
                                             interval={3000}
                                             duration={500}
-                                            indicatorColor={module.picPageType == 3 ? "#fff" : ""}
-                                            indicatorActiveColor={selectColor}
+                                            onChange={(e: any) => setCurrent(e.detail.current)}
                                         >
                                             {module.picList.map((item: any, picIndex: number) => (
                                                 <SwiperItem key={picIndex}>
@@ -151,12 +151,11 @@ export default function ImageAd2({ module }: Props) {
                                             className={module.picPageType == 3 ? "uni-swiper-dot-box" : ""}
                                             style={{ height: safeHeightPx + "px" }}
                                             circular
-                                            indicatorDots={module.showIndicator == 1}
+                                            indicatorDots={false}
                                             autoplay
                                             interval={3000}
                                             duration={500}
-                                            indicatorColor={module.picPageType == 3 ? "#fff" : ""}
-                                            indicatorActiveColor={selectColor}
+                                            onChange={(e: any) => setCurrent(e.detail.current)}
                                         >
                                             {swiperList.map((item: any[], groupIndex: number) => (
                                                 <SwiperItem key={groupIndex}>
@@ -178,6 +177,15 @@ export default function ImageAd2({ module }: Props) {
                                                 </SwiperItem>
                                             ))}
                                         </Swiper>
+                                    )}
+                                    {module.showIndicator == 1 && (
+                                        <SwiperDots
+                                            count={columns == 1 ? module.picList.length : swiperList.length}
+                                            current={current}
+                                            picPageType={module.picPageType}
+                                            color={module.picPageType == 3 ? "#fff" : ""}
+                                            selectColor={selectColor}
+                                        />
                                     )}
                                 </View>
                             </View>

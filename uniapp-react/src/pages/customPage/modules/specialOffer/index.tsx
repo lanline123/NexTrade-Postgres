@@ -108,7 +108,7 @@ export default function SpecialOffer({ module }: Props) {
             }
         >
             <View
-                className="module-ad-content main"
+                className="module-ad-content specialoffer-main"
                 style={
                     commonStyle.moduleContentStyle.backgroundImage +
                     commonStyle.moduleContentStyle.backgroundSize +
@@ -118,7 +118,7 @@ export default function SpecialOffer({ module }: Props) {
                     `border-radius: ${designPxToRpx(module.contentStyle.boxRadius)}`
                 }
             >
-                <View className="main">
+                <View className="specialoffer-main">
                     <View className="mk-top">
                         <View className="line1" style={`color: ${module.moduleColor.titleColor}`}>
                             <Text className="mk-title" style={`color: ${module.moduleColor.titleColor}`}>

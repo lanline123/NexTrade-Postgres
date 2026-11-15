@@ -3,11 +3,13 @@ import { Image, Swiper, SwiperItem, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 
 import ImageSearchEntry from "@/components/imageSearchEntry";
+import SwiperDots from "@/components/SwiperDots";
 import { designPxToDevicePx, designPxToRpx, formatCommonStyle, gradientMap } from "@/components/modules";
 import TigSelectLang from "@/components/tig/tig-select-lang/TigSelectLang";
 import { useImgInfo } from "@/hooks/useDecorate";
 import { useSaveTopBoxHeight, useScrollTop } from "@/hooks/index";
 import { useConfigStore } from "@/store/config";
+import { useImageSearchStore } from "@/store/imageSearch";
 import { redirect, getElementRect, isOverseas } from "@/utils";
 import { imageFormat, urlFormat } from "@/utils/format";
 import { t } from "@/utils/i18n";
@@ -97,8 +99,8 @@ export default function Banner({ module, index }: Props) {
     /** 海外版 mainHeader 占位高度：吸顶栏 top 与阈值都要让开 */
     const headerOffset = useMemo(() => (isOverseas() ? configStore.commonHeaderHeight || 0 : 0), [configStore.commonHeaderHeight]);
 
-    // TODO(MIGRATION)：以图搜图 store（useImageSearchStore）尚未迁移；入口组件为占位空实现，固定按无入口布局
-    const imageSearchAvailable = false;
+    // 以图搜图可用性：原版读 imageSearchStore.available（store 已迁移，入口组件挂载时自动拉取开关）
+    const imageSearchAvailable = useImageSearchStore((s) => s.available);
 
     const { imgratio, height, getImgratio, getHeght, updateImgInfo } = useImgInfo();
 
@@ -138,9 +140,6 @@ export default function Banner({ module, index }: Props) {
     const selectColor = useMemo(() => {
         return module.swiperPageColor || "#fff";
     }, [module.swiperPageColor]);
-    const mode = useMemo(() => {
-        return module.bannerContent.picPageType == 1 ? "default" : "dot";
-    }, [module.bannerContent.picPageType]);
     const commonStyle = useMemo(() => {
         return formatCommonStyle(module.moduleStyle);
     }, [module.moduleStyle]);
@@ -341,21 +340,19 @@ export default function Banner({ module, index }: Props) {
 
     const renderSwiper = () => (
         <View className="image-ad-warp">
-            <View className="image-ad-con">
+            <View className="image-ad-con swiper-dots-anchor">
                 {/* 旧 tig-swiper（v-model="module.bannerContent.picList"）等价展开：
-                    circular、autoplay 默认 true、interval 默认 3000、duration 默认 500、mode→indicatorDots、
-                    :color→indicatorColor、:select-color→indicatorActiveColor；height 为 px 字符串 */}
+                    circular、autoplay 默认 true、interval 默认 3000、duration 默认 500；height 为 px 字符串。
+                    指示点改自绘 SwiperDots（原 uni-swiper-dot 三式）：原生 indicatorDots 在 picPageType=1 时消失、=3 时无胶囊底盒 */}
                 <Swiper
                     current={0}
                     className={module.bannerContent.picPageType == 3 ? "uni-swiper-dot-box" : ""}
                     style={{ height: height + "px" }}
                     circular
-                    indicatorDots={mode === "dot"}
+                    indicatorDots={false}
                     autoplay
                     interval={3000}
                     duration={500}
-                    indicatorColor={module.bannerContent.picPageType == 3 ? "#fff" : ""}
-                    indicatorActiveColor={selectColor}
                     onChange={(e: any) => swiperChange(e.detail.current)}
                 >
                     {module.bannerContent.picList.map((item: any, picIndex: number) => (
@@ -375,6 +372,13 @@ export default function Banner({ module, index }: Props) {
                         </SwiperItem>
                     ))}
                 </Swiper>
+                <SwiperDots
+                    count={module.bannerContent.picList.length}
+                    current={realIndex}
+                    picPageType={module.bannerContent.picPageType}
+                    color={module.bannerContent.picPageType == 3 ? "#fff" : ""}
+                    selectColor={selectColor}
+                />
             </View>
         </View>
     );

@@ -3,7 +3,8 @@
     display: none;
     height: 0;
 }
-.module-ad-con {
+/* P1 隔离：.module-ad-con/.item-box 去 scoped 后与 categoryRec 同名全局冲突，收回本模块根类作用域 */
+.module-ad-con.module-category-nav {
     overflow: hidden;
     background-size: cover;
     background-repeat: no-repeat;
@@ -23,7 +24,7 @@
 .category-nav-item {
     overflow: hidden;
 }
-.item-box {
+.module-category-nav .item-box {
     display: block;
     overflow: hidden;
     width: 100%;

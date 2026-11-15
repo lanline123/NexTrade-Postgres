@@ -121,7 +121,8 @@
     }
 }
 
-.countdown {
+/* P1 隔离：原 scoped .countdown 去 scoped 后全局泄漏，会给 specialOffer 的同名药丸等注入 margin-top/width，改模块专属类 */
+.countdown-mod {
     margin-top: -40rpx;
     width: 100%;
     z-index: 1;

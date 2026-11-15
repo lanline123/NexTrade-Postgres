@@ -1,9 +1,12 @@
-/* 原 :deep(.swiper-pagination-bullet-active) { background: v-bind("swiperPageColor") } —— v-bind 改为内联 CSS 变量 --swiper-page-color */
-.swiper-pagination-bullet-active {
+/* 原 :deep(.swiper-pagination-bullet-active) { background: v-bind("swiperPageColor") } —— v-bind 改为内联 CSS 变量 --swiper-page-color；
+   P1 隔离：原为 scoped :deep 仅作用于本组件，去 scoped 后裸类 + !important 会污染同页其他轮播的激活点，收回模块根类 .module-image_nav 作用域 */
+.module-image_nav .swiper-pagination-bullet-active {
     background: var(--swiper-page-color, #333) !important;
 }
-/* 原 .imagenav-main 上的 v-bind("module.rowNum") / v-bind("module.colNum") / v-bind("imageGap") 三行 grid 声明已改为组件内联样式 */
+/* 原 .imagenav-main 上的 v-bind("module.rowNum") / v-bind("module.colNum") / v-bind("imageGap") 三行 grid 声明已改为组件内联样式；
+   display:grid 为原版静态声明（原 index.vue:163-168），此前平移丢失导致网格退化为纵向堆叠，此处补回 */
 .imagenav-main {
+    display: grid;
     box-sizing: border-box;
 }
 .imagenav-main .imagenav-main-item {

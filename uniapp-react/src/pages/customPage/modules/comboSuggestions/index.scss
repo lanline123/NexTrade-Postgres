@@ -9,7 +9,8 @@
     background-position: center top;
     position: relative;
 }
-.main {
+/* P1 隔离：原 scoped .main 去 scoped 后与 noticeA2/specialOffer 同名全局冲突，改模块专属类 */
+.combo-main {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;

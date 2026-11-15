@@ -200,18 +200,23 @@ export default function Groupon({ module }: Props) {
                     " ad-goods_name_padding__" +
                     module?.goodsNamePadding
                 }
-                style={
-                    frameFormat.backgroundColor +
-                    " " +
-                    frameFormat.boxRadius +
-                    allFormat.backgroundColor +
-                    allFormat.boxPadding +
-                    allFormat.boxPaddingBottom +
-                    allFormat.boxPaddingTop +
-                    allFormat.boxRadius +
-                    allFormat.innerPadding
-                }
             >
+                {/* P1 补回原版 .module-ad-content 包裹层：frame 样式挂内层（原版根节点无 style），
+                    全局规则 .module-ad-con.module-goods_ad .module-ad-content{overflow:hidden;z-index:1;position:relative} 由此重新命中，圆角裁剪恢复 */}
+                <View
+                    className="module-ad-content"
+                    style={
+                        frameFormat.backgroundColor +
+                        " " +
+                        frameFormat.boxRadius +
+                        allFormat.backgroundColor +
+                        allFormat.boxPadding +
+                        allFormat.boxPaddingBottom +
+                        allFormat.boxPaddingTop +
+                        allFormat.boxRadius +
+                        allFormat.innerPadding
+                    }
+                >
                 {module.title.showTitle == 1 && <CommonTitle module={module.title} />}
                 <View className="goods-ad-warp">
                     <View className="goods-ad-con">
@@ -310,6 +315,7 @@ export default function Groupon({ module }: Props) {
                             </Fragment>
                         ))}
                     </View>
+                </View>
                 </View>
             </View>
         )

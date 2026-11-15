@@ -73,19 +73,28 @@ export default function ComboSuggestions({ module }: Props) {
         return module.autoPlay == 1;
     }, [module.autoPlay]);
 
-    // 旧 currentIndex 被所有分组的 swiper 共用（change 事件统一回写），此处保持同结构
+    // 旧 currentIndex 被所有分组的 swiper 共用（change 事件统一回写），此处保持同结构；
+    // 原版 tig-swiper @change 回传 e.detail.current 数字（tig-swiper.vue:135），此处同口径取数字，
+    // 此前误存整个事件对象导致页码渲染出「[object Object]1/总数」
     const [currentIndex, setCurrentIndex] = useState(0);
     const swiperChange = (e: any) => {
-        setCurrentIndex(e);
+        setCurrentIndex(e.detail.current);
     };
 
     const [height, setHeight] = useState(0);
+    // 一屏两卡的 previous/next-margin（参照 productCarousel 的 peekMargin 方案）：
+    // slide 宽 = swiper 宽 - 两侧 margin，令 slide 宽 = swiper 宽/2 时每侧 margin = swiper 宽/4
+    const [twoCardMargin, setTwoCardMargin] = useState(0);
     const getHeight = async () => {
         try {
-            const res = await getElementRect(".main", rootRef.current);
+            const res = await getElementRect(".combo-main", rootRef.current);
             if (res && res.width) {
+                const winW = Taro.getSystemInfoSync().windowWidth;
                 // uni.getWindowInfo().windowWidth → Taro.getSystemInfoSync().windowWidth
-                setHeight((res.width / 2 - designPxToDevicePx(4 + 12, Taro.getSystemInfoSync().windowWidth)) * 0.63);
+                setHeight((res.width / 2 - designPxToDevicePx(4 + 12, winW)) * 0.63);
+                // swiper 宽 ≈ 分组宽（.combo-main 宽/2 - 8rpx）- 内层 padding 12rpx×2，margin 取其 1/4
+                const swiperWidth = res.width / 2 - designPxToDevicePx(4 + 12, winW);
+                setTwoCardMargin(Math.max(0, swiperWidth / 4));
             }
         } catch (error) {
             console.error(error);
@@ -138,7 +147,7 @@ export default function ComboSuggestions({ module }: Props) {
                 commonStyle.moduleStyle.backgroundImage
             }
         >
-            <View className="main">
+            <View className="combo-main">
                 {(module.comboGroups || []).map((group: any, index: number) => (
                     <View key={index} className="list" style={listStyle + `${Number(index) > 1 ? "margin-top: 20rpx;" : ""}`}>
                         <View style={{ padding: "12rpx" }}>
@@ -200,10 +209,12 @@ export default function ComboSuggestions({ module }: Props) {
                                     </>
                                 )}
                                 {group.groupType === "product" && (
-                                    // 旧 tig-swiper（:display-multiple-items="2"）等价展开，一屏两卡
+                                    // 旧 tig-swiper（:display-multiple-items="2"）一屏两卡：
+                                    // Taro H5 的 displayMultipleItems 支持有限，改按 productCarousel 的 previous/next-margin 方案——
+                                    // 两侧各留 swiper 宽/4，slide 宽即 swiper 宽/2，当前卡居中、相邻卡各露 1/4
                                     <Swiper
-                                        // TODO(MIGRATION)：H5 端 Taro Swiper 对 displayMultipleItems 支持有限，小程序端原生支持；如 H5 显示异常需参照 productCarousel 用 previous/next-margin 重写
-                                        displayMultipleItems={2}
+                                        previousMargin={`${twoCardMargin}px`}
+                                        nextMargin={`${twoCardMargin}px`}
                                         interval={interval}
                                         autoplay={autoplay}
                                         style={{ height: height + "px" }}

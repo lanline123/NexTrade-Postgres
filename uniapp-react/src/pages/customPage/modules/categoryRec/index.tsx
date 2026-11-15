@@ -40,7 +40,7 @@ export default function CategoryRec({ module }: Props) {
     return (
         <View
             ref={rootRef}
-            className="module-ad-con"
+            className="module-ad-con module-category-rec"
             style={
                 commonStyle.moduleStyle.boxPaddingBottom +
                 commonStyle.moduleStyle.boxPaddingTop +

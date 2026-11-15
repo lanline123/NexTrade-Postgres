@@ -120,7 +120,8 @@ export default function Buy({
                     Taro.navigateTo({ url: `/pages/order/check?flowType=${result.flowType}${extraQuery}` });
                 }
             } else {
-                Taro.showToast({ title: t("加入购物车成功"), duration: 1500, icon: "none" });
+                // 原版 uni.showToast 未传 icon：默认 success 对勾图标（P1 对齐，此前误用 icon:"none" 无图标）
+                Taro.showToast({ title: t("加入购物车成功"), duration: 1500 });
             }
         } catch (error: any) {
             showToast(error.message);

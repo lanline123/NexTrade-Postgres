@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Image, Text, View } from "@tarojs/components";
+import { Image, View } from "@tarojs/components";
 
 import { designPxToRpx, formatFrame } from "@/components/modules";
 import CommonTitle from "@/pages/customPage/modules/commonTitle/index";
-import CommonCountdown from "@/pages/customPage/modules/commonCountdown/index";
 import { getHomeSeckill } from "@/api/home/home";
 import { redirect } from "@/utils";
 import { isShowB2bPriceText } from "@/utils/b2bPrice";
@@ -86,17 +85,6 @@ export default function Seckill2({ module }: Props) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const getTime = useMemo(() => {
-        // 后端记录为扁平结构，seckillEndTime 在顶层且是 epoch 秒数字（嵌套 seckkillData 仅旧契约有）
-        if (!seckillList[0]) return 0;
-        const raw: any = seckillList[0].seckkillData?.seckillEndTime ?? seckillList[0].seckillEndTime;
-        if (typeof raw === "number" || /^\d+$/.test(String(raw ?? "").trim())) {
-            const n = Number(raw);
-            return n < 1e12 ? n * 1000 : n;
-        }
-        return new Date(raw).getTime();
-    }, [seckillList]);
-
     return (
         seckillList && seckillList?.length > 0 && (
             <View
@@ -133,38 +121,9 @@ export default function Seckill2({ module }: Props) {
                         allFormat.innerPadding
                     }
                 >
-                    {/* 旧版将「距结束」倒计时通过 #more 插槽传入 commonTitle（旧组件未定义插槽出口、未渲染）；React 版以 more prop 补齐 */}
-                    <CommonTitle
-                        module={module.title}
-                        more={
-                            module.title.showTitle == 1 ? (
-                                <View onClick={() => redirect({ url: "/pages/seckill/list" })}>
-                                    <CommonCountdown countdownType="specifyTime" specifyTime={getTime}>
-                                        {(timeData) => (
-                                            <View className="countdown-box">
-                                                <Text className="countdown-text">{t("距结束")}</Text>
-                                                {/* 旧 v-if="days && Number(days) > 0"：days 为 0 时整段隐藏（JSX 需避免渲染数字 0） */}
-                                                {Number(timeData.days) > 0 && (
-                                                    <>
-                                                        <Text className={`countdown-item ${String(timeData.days).length > 2 ? "days" : ""}`}>
-                                                            {timeData.days}
-                                                        </Text>
-                                                        <Text className="countdown-separator-text">{t("天")}</Text>
-                                                    </>
-                                                )}
-                                                <Text className="countdown-item">{timeData.hours}</Text>
-                                                <Text className="countdown-separator">:</Text>
-                                                <Text className="countdown-item">{timeData.minutes}</Text>
-                                                <Text className="countdown-separator">:</Text>
-                                                <Text className="countdown-item">{timeData.seconds}</Text>
-                                                <Text className="iconfont-h5 icon-youjiantou" />
-                                            </View>
-                                        )}
-                                    </CommonCountdown>
-                                </View>
-                            ) : null
-                        }
-                    />
+                    {/* 原版 seckill2 曾将「距结束」倒计时通过 #more 插槽传入 commonTitle，但原版 commonTitle 无插槽出口、从未渲染；
+                        P1 对齐：不再传入，标题栏右侧与原版一致（仅标题/默认「查看更多」）。秒杀结束时间等数据字段保持不动。 */}
+                    <CommonTitle module={module.title} />
 
                     <View className="goods-ad-warp">
                         <View className="goods-ad-con" style={goodsConStyle}>

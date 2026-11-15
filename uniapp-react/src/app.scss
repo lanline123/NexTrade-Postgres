@@ -12,3 +12,40 @@ page {
 view {
     box-sizing: border-box;
 }
+
+/* 原版 App.vue 全局工具类（ref App.vue:246-258,333-335,368）平移：原版各模块模板直接引用，
+   此前重构版无全局定义，仅个别模块自补，导致 slidingImage/imageNav/titleAd/bannerA2 等丢样式 */
+.line1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.line2 {
+    word-break: break-all;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.flex {
+    display: flex;
+}
+.align-center {
+    align-items: center;
+}
+
+/* 原版 App.vue 全局入场淡入（ref App.vue:381-392）平移：@keyframes fade-in + .show 动画类。
+   原版由分发层在 catNav 分类切换后给 banner/category/brand 包裹层加 .show 触发（非滚动观察机制），
+   此处只补回全局定义本身；现行消费方为 catNav 吸顶条的 .show 态（与原版全局环境一致）。 */
+@keyframes fade-in {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+.show {
+    animation: fade-in 0.4s ease-in-out both;
+}

@@ -38,7 +38,9 @@
     padding: 0 !important;
     height: 100%;
 }
-.ad-pic_type__2 .image-ad-warp swiper {
+/* 原 swiper 标签选择器 → Taro Swiper 在 H5 渲染为 .taro-swiper，小程序端仍为 swiper 节点，两类选择器并列（与 imageAd2 同口径，P1 扫尾） */
+.ad-pic_type__2 .image-ad-warp swiper,
+.ad-pic_type__2 .image-ad-warp .taro-swiper {
     height: 100%;
     position: relative;
     overflow: hidden;

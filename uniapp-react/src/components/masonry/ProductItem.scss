@@ -5,7 +5,6 @@
     background: var(--pi-item-bg, #fff);
     border-radius: var(--pi-image-radius, 12rpx);
     overflow: hidden;
-    padding-bottom: 10rpx;
 
     &--exchange {
         border-radius: 16rpx !important;
@@ -13,6 +12,8 @@
 }
 
 .photo {
+    /* 原版 card.vue .photo{padding:20rpx}：图片四周 20rpx 白边 */
+    padding: 20rpx;
     text-align: center;
     position: relative;
     border-radius: var(--pi-image-radius, 12rpx);
@@ -34,12 +35,12 @@
 }
 
 .info {
-    padding: 10rpx 16rpx 0;
+    /* 原版 card.vue .info 无 padding，间距由 .detail margin 与 .action/.shop padding 承担 */
     box-sizing: border-box;
 }
 
 .detail {
-    margin: 0 0 10rpx;
+    margin: 0 20rpx 10rpx;
     line-height: 40rpx;
     max-height: 80rpx;
     overflow: hidden;
@@ -111,7 +112,7 @@
     padding: 0 16rpx 10rpx;
 
     .shop-name {
-        width: 55%;
+        width: 70%;
         overflow: hidden;
         white-space: nowrap;
         text-overflow: ellipsis;
@@ -129,20 +130,23 @@
 }
 
 .action {
-    padding: 0 0 10rpx;
+    padding: 0 16rpx 10rpx;
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
 .buy_btn {
+    /* 原版 card.vue .buy_btn{margin-right:10rpx;margin-top:6rpx}、图标 46rpx */
+    margin-right: 10rpx;
+    margin-top: 6rpx;
     color: var(--pi-theme, var(--general));
     display: flex;
     align-items: center;
     justify-content: center;
 
     .buy_btn_icon {
-        font-size: 42rpx;
+        font-size: 46rpx;
     }
 
     .buy_btn_text {
@@ -225,8 +229,9 @@
     justify-content: center;
 
     .outsale {
-        width: 180rpx;
-        height: 180rpx;
+        /* 原版 card.vue .outsale{width:50%;height:50%}：随图区尺寸缩放 */
+        width: 50%;
+        height: 50%;
         line-height: 180rpx;
         background: rgba(0, 0, 0, 0.4);
         font-size: 38rpx;

@@ -33,4 +33,18 @@
         font-size: 22rpx !important;
         font-weight: normal !important;
     }
+
+    /* 原版 #ifdef MP-WEIXIN 分支（仅微信小程序端，H5 无此修饰类） */
+    &--weapp {
+        .util {
+            padding-right: 5rpx;
+        }
+
+        &.bottom {
+            .util,
+            .decimal {
+                padding-bottom: 3rpx;
+            }
+        }
+    }
 }

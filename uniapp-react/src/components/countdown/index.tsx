@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Text, View } from "@tarojs/components";
 
+import { t } from "@/utils/i18n";
+
 import "./index.scss";
 
 export interface CountdownTimeData {
@@ -103,10 +105,24 @@ export default function Countdown({
         return <>{children(data)}</>;
     }
 
+    // 默认渲染恢复原版结构（P1）：.countdown > .countdown-box 逐项 span，
+    // 天数不补零 + 「天」分隔（如 1天 02:03:04），时/分/秒按 format 补零、冒号分隔；
+    // 此前重构版为单 Text 拼接（天数补零 + DD:HH:mm:ss 冒号式），与原版不一致。
     return (
-        <View className="tig-countdown-text">
-            {showDays && data.days > 0 ? <Text>{`${pad(data.days, format)}:`}</Text> : null}
-            <Text>{`${pad(data.hours, format)}:${pad(data.minutes, format)}:${pad(data.seconds, format)}`}</Text>
+        <View className="countdown tig-countdown">
+            <View className="countdown-box">
+                {showDays && data.days > 0 && (
+                    <>
+                        <Text className="countdown-item">{data.days}</Text>
+                        <Text className="countdown-separator-text">{t("天")}</Text>
+                    </>
+                )}
+                <Text className="countdown-item">{pad(data.hours, format)}</Text>
+                <Text className="countdown-separator">:</Text>
+                <Text className="countdown-item">{pad(data.minutes, format)}</Text>
+                <Text className="countdown-separator">:</Text>
+                <Text className="countdown-item">{pad(data.seconds, format)}</Text>
+            </View>
         </View>
     );
 }

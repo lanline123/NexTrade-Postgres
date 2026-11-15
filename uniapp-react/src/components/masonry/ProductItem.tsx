@@ -64,8 +64,10 @@ export default function ProductItem({
     themeColor,
     itemBackgroundColor,
     productImageRadius,
+    showShop,
     onClickItem,
-    onClickBuy
+    onClickBuy,
+    onClickShop
 }: Props) {
     // --pi-* 由装修配置下发（见 decorateVars），未配置时 fallback 即原有硬编码值
     const decorateVars = useMemo(() => {
@@ -101,6 +103,8 @@ export default function ProductItem({
 
     // 计算是否显示售罄状态
     const showOutsale = shouldShowSoldOut(item, { isSubCard });
+    // 已下架态（原版 card.vue：productStatus==0 且未售罄时角标文案为「已下架」）
+    const isOffShelf = !showOutsale && Number(item?.productStatus) === 0;
 
     // 计算促销信息
     const currentPromotionInfo = useMemo(() => {
@@ -132,9 +136,9 @@ export default function ProductItem({
         >
             <View className="photo" style={{ borderRadius: productCardRadius } as any}>
                 <TigLazyImage src={productImage(item)} mode="widthFix" />
-                {showOutsale && (
+                {(showOutsale || isOffShelf) && (
                     <View className="product-status-box">
-                        <View className="outsale">{t("已售罄")}</View>
+                        <View className="outsale">{showOutsale ? t("已售罄") : t("已下架")}</View>
                     </View>
                 )}
                 {currentStyle?.borderImage && <Image className="product-style-border" src={currentStyle.borderImage} mode="scaleToFill" />}
@@ -177,9 +181,8 @@ export default function ProductItem({
                         ) : (
                             <FormatPrice
                                 fontStyle={{ fontSize: "32rpx" }}
-                                currencyStyle={{ fontSize: "22rpx" }}
-                                decimalsStyle={{ fontSize: "25rpx" }}
-                                priceData={item.price}
+                                currencyStyle={{ fontSize: "22rpx", position: "relative", top: "3rpx" }}
+                                priceData={item.price ?? item.productPrice}
                             />
                         )}
                     </View>
@@ -213,6 +216,22 @@ export default function ProductItem({
                         </View>
                     )}
                 </View>
+
+                {showShop !== false && item.shop && (
+                    <View
+                        className="shop"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onClickShop?.(item.shop.shopId);
+                        }}
+                    >
+                        <View className="shop-name">{item.shop.shopTitle}</View>
+                        <View className="shop-btn">
+                            {t("进店")}
+                            <Text className="iconfont-h5 icon-youjiantou" />
+                        </View>
+                    </View>
+                )}
             </View>
         </View>
     );

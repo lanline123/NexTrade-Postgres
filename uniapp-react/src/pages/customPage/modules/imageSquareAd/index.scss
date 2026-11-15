@@ -10,7 +10,8 @@
     width: 100%;
     overflow: hidden;
 }
-.item-img-a {
+/* P1 隔离：原 scoped .item-img-a 去 scoped 后与 imageBox 内同名规则全局合并（imageBox 侧已由 P0 收回 .image-square-box 作用域），本侧改模块专属类 */
+.square-item-img-a {
     height: 100%;
     width: 100%;
     border-radius: var(--img-radius, 0px);

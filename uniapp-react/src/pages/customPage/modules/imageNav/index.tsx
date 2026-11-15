@@ -3,6 +3,7 @@ import { Image, Swiper, SwiperItem, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 
 import { designPxToRpx, formatFrame } from "@/components/modules";
+import SwiperDots from "@/components/SwiperDots";
 import { redirect, getElementRect } from "@/utils";
 import { imageFormat, urlFormat } from "@/utils/format";
 import { t } from "@/utils/i18n";
@@ -29,9 +30,8 @@ export default function ImageNav({ module }: Props) {
         return module.swiperPageColor || "#333";
     }, [module.swiperPageColor]);
 
-    const mode = useMemo(() => {
-        return module.picPageType == 1 ? "default" : "dot";
-    }, [module.picPageType]);
+    // 自绘指示点当前页（原 tig-swiper 内部 current，现由 onChange 回写驱动 SwiperDots）
+    const [current, setCurrent] = useState(0);
 
     const [swiperList, setSwiperList] = useState<any[]>([]);
     const getSwiperList = () => {
@@ -93,20 +93,20 @@ export default function ImageNav({ module }: Props) {
             <View className="module-ad-content" style={frameFormat.innerPadding + frameFormat.backgroundColor + frameFormat.boxRadius}>
                 {module.navType == 2 ? (
                     <View className="image-ad-warp">
-                        <View className="image-ad-con">
+                        <View className="image-ad-con swiper-dots-anchor">
                             {/* 旧 tig-swiper（v-model="swiperList"）等价展开：
-                                circular、autoplay 默认 true、interval 默认 3000、duration 默认 500、height 为字符串时按原单位使用 */}
+                                circular、autoplay 默认 true、interval 默认 3000、duration 默认 500、height 为字符串时按原单位使用；
+                                指示点改自绘 SwiperDots（picPageType=1 为原版横条式、=3 为胶囊底盒），原生 indicatorDots 在 =1 时消失、=3 时无底盒 */}
                             <Swiper
                                 current={0}
                                 className={module.picPageType == 3 ? "uni-swiper-dot-box" : ""}
                                 style={{ height: `${swiperHeight}px`, "--swiper-page-color": selectColor } as Record<string, string | number>}
                                 circular
-                                indicatorDots={mode === "dot"}
+                                indicatorDots={false}
                                 autoplay
                                 interval={3000}
                                 duration={500}
-                                indicatorColor={module.picPageType == 3 ? "#fff" : ""}
-                                indicatorActiveColor={selectColor}
+                                onChange={(e: any) => setCurrent(e.detail.current)}
                             >
                                 {swiperList.map((item: any[], index: number) => (
                                     <SwiperItem key={index}>
@@ -130,6 +130,14 @@ export default function ImageNav({ module }: Props) {
                                     </SwiperItem>
                                 ))}
                             </Swiper>
+                            <SwiperDots
+                                count={swiperList.length}
+                                current={current}
+                                picPageType={module.picPageType}
+                                color={module.picPageType == 3 ? "#fff" : ""}
+                                selectColor={selectColor}
+                                variant={module.picPageType == 1 ? "bars" : "dots"}
+                            />
                         </View>
                     </View>
                 ) : (

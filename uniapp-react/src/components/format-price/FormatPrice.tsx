@@ -105,8 +105,12 @@ export default function FormatPrice({
         }
     }, [priceData, base, currentCurrencyData.rate]);
 
+    // 原版 #ifdef MP-WEIXIN 的 1–2rpx 微调（.util padding-right 5rpx、bottom 态 padding-bottom 3rpx）：
+    // Taro 侧按本仓既有口径用 TARO_ENV 加修饰类承载（见 FormatPrice.scss），H5 不加类、零变化
+    const isWeapp = process.env.TARO_ENV === "weapp";
+
     return (
-        <View className={`price-content ${isBottom ? "bottom" : ""}`}>
+        <View className={`price-content ${isBottom ? "bottom" : ""}${isWeapp ? " price-content--weapp" : ""}`}>
             {showB2bText ? (
                 <View className="line1 b2b-text">{b2bText}</View>
             ) : (

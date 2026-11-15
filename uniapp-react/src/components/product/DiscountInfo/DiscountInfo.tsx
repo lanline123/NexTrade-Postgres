@@ -23,8 +23,17 @@ export default function DiscountInfo({ show, onShowChange, total = {}, discountT
     // 购物车传「已勾选件数」，订单确认页只有 totalCount，取不到则为 0（模板里不渲染件数）
     const itemCount = Number((total as any)?.checkedCount ?? (total as any)?.totalCount ?? 0) || 0;
 
+    // P1：原版 tig-popup 的可见圆角由 .discount 自身 28rpx 承担；NutUI 容器为方形白底会把圆角衬成直角，
+    // 故容器同步 28rpx 上圆角 + overflow:hidden 对齐（不使用 NutUI round，其默认圆角值与原版不一致）
     return (
-        <Popup visible={show} position="bottom" zIndex={999} closeable={false} onClose={() => onShowChange?.(false)} style={{ backgroundColor: "#fff" }}>
+        <Popup
+            visible={show}
+            position="bottom"
+            zIndex={999}
+            closeable={false}
+            onClose={() => onShowChange?.(false)}
+            style={{ backgroundColor: "#fff", borderRadius: "28rpx 28rpx 0 0", overflow: "hidden" }}
+        >
             <View className="discount">
                 <View className="discount-title">
                     <View className="title-text">{t("优惠明细")}</View>

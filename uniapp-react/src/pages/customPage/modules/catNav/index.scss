@@ -7,6 +7,10 @@
 .catNav-warp .item-cat_nav-con {
     width: 100%;
 }
+/* 原 index.vue:168-170 / sticky.vue:237-239：横向滚动条隐藏，此前平移丢失 */
+.catNav-warp .item-cat_nav-con::-webkit-scrollbar {
+    display: none;
+}
 .catNav-warp .cat-nav-list {
     flex-wrap: nowrap;
     width: 100%;
@@ -60,11 +64,15 @@
     margin-left: 20rpx;
 }
 
+/* 吸顶变体（原 sticky.vue:210-232）：初始上移隐藏，.show 时滑入；此前平移丢失隐藏态导致吸顶条常驻遮挡 */
 .catNav-warp.fixed {
     position: fixed;
+    left: 0;
     top: 0;
     width: 100%;
-    z-index: 88;
+    z-index: 99;
+    transform: translateY(-100%);
+    opacity: 0;
     & .flex {
         display: flex;
         align-items: center;
@@ -73,6 +81,19 @@
     &.fixed-top {
         top: 116rpx;
     }
+
+    &.show {
+        transition: all 0.3s ease-in-out;
+        transform: none;
+        opacity: 1;
+    }
+}
+/* 原 sticky.vue:341-347：吸顶版搜索文字截断（普通版无此限制，故只挂 .fixed 作用域） */
+.catNav-warp.fixed .catnav-search-text {
+    max-width: 300rpx;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .catNav-warp-blank {
     height: 360rpx;

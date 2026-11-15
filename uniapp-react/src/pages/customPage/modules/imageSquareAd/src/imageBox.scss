@@ -1,4 +1,6 @@
-.item-img-a {
+/* 原 imageBox.vue <style scoped> 平移：scoped 隔离改由根节点专属类 .image-square-box 承担，
+   全部规则嵌套其下，避免同名裸类全局泄漏（.item-img{opacity:0} 曾使 picType 1-4 分支图片全隐形） */
+.image-square-box.item-img-a {
     height: 100%;
     width: 100%;
     position: relative;
@@ -6,7 +8,7 @@
     border-radius: var(--img-radius, 0px);
     overflow: hidden;
 }
-.item-img-a .item-img-bg {
+.image-square-box .item-img-bg {
     position: absolute;
     top: 0;
     left: 0;
@@ -18,7 +20,7 @@
     // z-index: 9;
 }
 
-.item-img {
+.image-square-box .item-img {
     width: 100%;
     opacity: 0;
 }

@@ -8,7 +8,8 @@
     background-position: center top;
     position: relative;
 }
-.main {
+/* P1 隔离：原 scoped .main 去 scoped 后与 specialOffer/comboSuggestions 同名全局冲突，改模块专属类 */
+.noticea2-main {
     display: flex;
     justify-content: space-between;
     align-items: center;

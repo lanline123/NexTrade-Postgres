@@ -106,6 +106,21 @@ export default function MixedProductDisplay({ module }: Props) {
         }
     };
 
+    // 一屏两卡的 previous/next-margin（参照 productCarousel 的 peekMargin 方案）：
+    // slide 宽 = swiper 宽 - 两侧 margin，令 slide 宽 = swiper 宽/2 时每侧 margin = swiper 宽/4；
+    // swiper 宽即 .item-box 宽（swiper 为其块级子元素、宽 100%）
+    const [twoCardMargin, setTwoCardMargin] = useState(0);
+    const getTwoCardMargin = async () => {
+        try {
+            const res = await getElementRect(".item-box", rootRef.current);
+            if (res && res.width) {
+                setTwoCardMargin(res.width / 4);
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
     // Vue reactive rightPicInfo → state（width 进模板）+ ref（height 仅赋值未读）
     const [rightPicWidth, setRightPicWidth] = useState(0);
     const rightPicHeightRef = useRef(20);
@@ -125,7 +140,11 @@ export default function MixedProductDisplay({ module }: Props) {
             setWindowWidth(Taro.getSystemInfoSync().windowWidth);
             if (module.productGroups.length > 0) {
                 setTimeout(() => {
-                    void getImgHeight();
+                    void getTwoCardMargin();
+                    // margin 生效、卡片宽度变化后再量图高
+                    setTimeout(() => {
+                        void getImgHeight();
+                    }, 80);
                 }, 0);
             }
             if (module.rightPic) {
@@ -154,7 +173,11 @@ export default function MixedProductDisplay({ module }: Props) {
         }
         if (!isLoading) {
             const timer = setTimeout(() => {
-                void getImgHeight();
+                void getTwoCardMargin();
+                // margin 生效、卡片宽度变化后再量图高
+                setTimeout(() => {
+                    void getImgHeight();
+                }, 80);
             }, 350);
             return () => {
                 clearTimeout(timer);
@@ -217,9 +240,17 @@ export default function MixedProductDisplay({ module }: Props) {
                             </View>
                         </View>
                         <View className="item-box">
-                            {/* 旧 tig-swiper（:display-multiple-items="2"）等价展开：circular 固定 true、autoplay=false、dot=false */}
-                            {/* TODO(MIGRATION)：H5 端 Taro Swiper 对 displayMultipleItems 支持有限，小程序端原生支持；如 H5 显示异常需参照 productCarousel 用 previous/next-margin 重写 */}
-                            <Swiper displayMultipleItems={2} style={{ height: height + "px" }} circular indicatorDots={false} autoplay={false} duration={500}>
+                            {/* 旧 tig-swiper（:display-multiple-items="2"）一屏两卡：circular 固定 true、autoplay=false、dot=false；
+                                Taro H5 的 displayMultipleItems 支持有限，改按 productCarousel 的 previous/next-margin 方案（两侧各留 swiper 宽/4） */}
+                            <Swiper
+                                previousMargin={`${twoCardMargin}px`}
+                                nextMargin={`${twoCardMargin}px`}
+                                style={{ height: height + "px" }}
+                                circular
+                                indicatorDots={false}
+                                autoplay={false}
+                                duration={500}
+                            >
                                 {(productGroupsList[0] || []).map((item: any, key: number) => (
                                     <SwiperItem key={key}>
                                         <View
@@ -285,7 +316,15 @@ export default function MixedProductDisplay({ module }: Props) {
                             </View>
                         </View>
                         <View className="item-box">
-                            <Swiper displayMultipleItems={2} style={{ height: height + "px" }} circular indicatorDots={false} autoplay={false} duration={500}>
+                            <Swiper
+                                previousMargin={`${twoCardMargin}px`}
+                                nextMargin={`${twoCardMargin}px`}
+                                style={{ height: height + "px" }}
+                                circular
+                                indicatorDots={false}
+                                autoplay={false}
+                                duration={500}
+                            >
                                 {(productGroupsList[1] || []).map((item: any, key: number) => (
                                     <SwiperItem key={key}>
                                         <View

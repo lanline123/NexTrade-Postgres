@@ -3,6 +3,7 @@ import { View } from "@tarojs/components";
 
 import ImageSearchEntry from "@/components/imageSearchEntry";
 import { designPxToRpx, formatFrame } from "@/components/modules";
+import { useImageSearchStore } from "@/store/imageSearch";
 import { redirect } from "@/utils";
 
 import "./index.scss";
@@ -11,11 +12,10 @@ interface Props {
     module: any;
 }
 
-// TODO(B6)：以图搜图可用性判断随图搜子系统迁移（旧版读 store/imageSearch.isAvailable(shopId)）
-const hasImageSearch = false;
-
 /** 跨境风搜索栏模块（自旧 modules/searchBar2/index.vue 移植） */
 export default function SearchBar2({ module }: Props) {
+    // 以图搜图可用性：原版 computed = store.isAvailable(shopId > -1)；本移植无 shopId 入参（全站口径），等价 isAvailable(false)
+    const hasImageSearch = useImageSearchStore((s) => s.isAvailable(false));
     const frame = module?.frame;
     const frameFormat = useMemo(() => formatFrame(frame), [frame]);
     const allFormat = useMemo(

@@ -1,0 +1,61 @@
+/* 自绘轮播指示点（原 uni-swiper-dot 三式还原，见 index.tsx 说明） */
+
+/* 使用方给 Swiper 的直接父容器加此类，提供定位上下文 */
+.swiper-dots-anchor {
+    position: relative;
+}
+
+.swiper-dots {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 20rpx;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9;
+    pointer-events: none;
+}
+.swiper-dots__dot {
+    width: 16rpx;
+    height: 16rpx;
+    border-radius: 50%;
+    margin: 0 8rpx;
+}
+
+/* 横条式（imageNav picPageType==1）：容器 bottom 与 product style=7 既有自绘分页同为 30rpx */
+.swiper-dots--bars {
+    bottom: 30rpx;
+}
+.swiper-dots--bars .swiper-dots__dot {
+    width: 24rpx;
+    height: 4rpx;
+    border-radius: 0;
+    margin: 0 2rpx;
+    background: #000;
+    opacity: 0.2;
+}
+.swiper-dots--bars .swiper-dots__dot.active {
+    opacity: 1;
+}
+
+/* 胶囊式（picPageType==3）：底盒值取原 App.vue:154-162 全局样式 */
+.swiper-dots--capsule {
+    justify-content: flex-start;
+}
+.swiper-dots__box {
+    margin-left: 15rpx;
+    width: 100rpx;
+    padding: 13rpx 10rpx;
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 50rpx;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-sizing: border-box;
+}
+.swiper-dots--capsule .swiper-dots__dot {
+    width: 12rpx;
+    height: 12rpx;
+    margin: 0 4rpx;
+}

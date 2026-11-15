@@ -170,7 +170,7 @@ export default function Countdown({ module }: Props) {
                 </View>
                 {module.countdownData.showCountdown && (
                     <View
-                        className="countdown"
+                        className="countdown-mod"
                         style={`margin-top: -${designPxToRpx(module.countdownData.countdownPicBottom)}; border-radius: 0 0 12rpx 12rpx`}
                     >
                         <Image

@@ -1,0 +1,10 @@
+/* 旧 components/commonCountdown/index.vue 独有口径（模块版 commonCountdown 无此两项）：
+   .time-item 字号 12px（模块版为 24rpx，375 宽下约等值）、.time-item-unit 单位间距 margin-left:2px。
+   仅作用于共享件包装层内，不影响装修模块版的渲染。 */
+.shared-common-countdown .countdown-box .time-item {
+    font-size: 12px;
+}
+
+.shared-common-countdown .countdown-box .time-item-unit {
+    margin-left: 2px;
+}
