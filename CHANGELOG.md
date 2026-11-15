@@ -85,6 +85,7 @@
 - **PC 前台 - 登录页 Facebook 图标裂图**：两段根因——① middleware 匹配器把 `/assets/*.png` 也做了小写 308 跳转，`Facebook.png` 被跳到不存在的小写路径（google.png 因本就小写未受影响），匹配器排除 `assets` 后修复（提交 `37438de`，PC v20）；② 308 是永久重定向，老访客浏览器缓存了错误跳转、服务器修好仍裂图，图标地址加 `?v=2` 版本参数绕开中毒缓存（提交 `f1bcbc8`，PC v22），老浏览器实测自愈。
 - **装饰标题 -「查看全部」默认改黑**：标题更多链接默认色由灰 `#969799` / 编辑器出厂 `#aaaaaa` 改黑：编辑器 `standardTitle` 出厂 `moreColor` 改 `#000000`、设置默认值与两端渲染兜底（PC `DecModuleTitle`、共享 CSS、admin `ModuleTitlePreview` 及各预览兜底）统一为黑（提交 `28a8daf6`，PC v22 + admin v22）。首页数据同步：8 个带标题模块 `moreColor` 改黑、标题右边距 0 → 20（不再贴边）。
 - **装饰编辑器 - 推荐商品预览标题与提示条**：预览此前把标题放在「已选商品」分支里，未选商品时标题消失——改为与前台同口径无条件渲染标题；同时去掉开启智能推荐后画布中间的「智能推荐已启用…」提示条（提交 `825107b7`，admin v23）。
+- **装饰 - 商品分组固有边距对齐商品模块**：实测商品模块首卡距容器左缘 13px（来自 `goodsPadding` 的网格内边距），商品分组为 0px 贴边。商品分组出厂默认 `contentStyle.paddingLeftRight` 0 → 13、`moduleStyle` 上 / 下边距默认 5 → 0（编辑器与预览默认同改，提交 `9073a533`，admin v24）；首页两个商品分组模块数据同步改 13 并发布。
 - **PC 前台 - 静态资源 404（历史问题，本批确认修复）**：宝塔 nginx 主配置的图扩展名正则 location 把 Next 的 `/assets/*.png|jpg` 按站点根目录找文件导致全站 404，已由 `extension/battery.recy.cc/pc-assets.conf`（`location ^~ /assets/` 反代 3005）修复；OAuth 品牌图标（google/Facebook/twitter）随之恢复。
 
 ### 其他
