@@ -6,14 +6,13 @@
  * 与源码对齐的行为/结构：
  * - .category-wrap(.white) > .category-trigger > .bar-wrap/.content + .category-dropdown
  * - hover 300ms 展示、150ms 关闭；滚动/缩放同步下拉 top（fixed 定位）
- * - 楼层图标：图片 / 图标字体（getCatFloor 返回 icoDefinedCss 注入）/ 分类图片
+ * - 楼层图标：图片 / IconPark 图标（floorIcoFont = iconpark:<name>，FloorIcon 渲染）/ 分类图片
  * - 右侧按当前楼层展示二级分类，随右侧滚动同步左侧高亮
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Down from '@icon-park/react/es/icons/Down';
 import HamburgerButton from '@icon-park/react/es/icons/HamburgerButton';
-import { ensureCatIcoCss } from '@/lib/cat-icon-css';
 import FloorIcon from './FloorIcon';
 
 import { useTranslation } from 'react-i18next';
@@ -124,7 +123,6 @@ export default function PcAllCategory({ isWhite = false }: { isWhite?: boolean }
       .then((response) => response.json())
       .then((json) => {
         const raw = json?.data?.catFloor ?? json?.catFloor ?? [];
-        ensureCatIcoCss(json?.data?.icoDefinedCss ?? json?.icoDefinedCss);
         const list: CatFloorItem[] = Array.isArray(raw) ? raw : [];
         const mapped = list
           .map((floor, floorIdx): DisplayFloor => {

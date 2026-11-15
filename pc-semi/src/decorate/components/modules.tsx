@@ -10,7 +10,6 @@ import { formatDisplayPrice } from '@/lib/currency';
 import { imageFormat } from '@/lib/image';
 import { urlFormat } from '@/lib/link';
 import FormatPrice from '@/components/FormatPrice';
-import { ensureCatIcoCss } from '@/lib/cat-icon-css';
 import FloorIcon from '@/components/FloorIcon';
 import type { DecorateModule, PageModule } from '../types';
 import { imageUrl } from './common';
@@ -485,9 +484,8 @@ function useHeroCatItems(initialRaw?: any): HeroCatItem[] {
     const { t } = useTranslation();
   const [items, setItems] = useState<HeroCatItem[]>(() => (initialRaw ? mapCatFloorJson(initialRaw) : []));
   useEffect(() => {
-    // 注水首屏：类目楼层已随 SSR 渲染，挂载时只补注图标字体 CSS（原本随 fetch 一起处理）
+    // 注水首屏：类目楼层已随 SSR 渲染，挂载时无需再取数
     if (initialRaw) {
-      ensureCatIcoCss(initialRaw?.data?.icoDefinedCss ?? initialRaw?.icoDefinedCss);
       return undefined;
     }
     let alive = true;
@@ -495,7 +493,6 @@ function useHeroCatItems(initialRaw?: any): HeroCatItem[] {
       .then((response) => response.json())
       .then((json) => {
         if (!alive) return;
-        ensureCatIcoCss(json?.data?.icoDefinedCss ?? json?.icoDefinedCss);
         setItems(mapCatFloorJson(json));
       })
       .catch(() => undefined);

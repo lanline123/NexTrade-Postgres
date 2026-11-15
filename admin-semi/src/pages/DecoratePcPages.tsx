@@ -1971,9 +1971,6 @@ export function PcCatFloor() {
                 value={formState.floorIcoFont}
                 onChange={(v) => setFormState({ ...formState, floorIcoFont: v })}
               />
-              <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
-                {t('请先在本系统设置中的"接口设置"中设置"ico图标库地址"')}
-              </div>
             </div>
 
             {/* 排序 */}
