@@ -427,7 +427,11 @@ body {
 .submenu-icon {
   width: 16px;
   display: inline-flex;
-  font-size: 14px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 15px;
+  line-height: 1;
 }
 
 .is-collapsed .rail {
@@ -1567,8 +1571,10 @@ body {
 
 .submenu-item-child {
   height: 34px;
-  padding-left: 22px;
-  font-size: 13px;
+  /* 与二级菜单文字同列左对齐：10px 内边距 + 16px 图标列 + 8px 间隔 */
+  padding-left: 34px;
+  font-size: 13.5px;
+  font-weight: 600;
 }
 
 .framework-switch-field {

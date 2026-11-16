@@ -438,7 +438,8 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
                           openPage(target);
                         }}
                       >
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                          {item.icon ? <span className="submenu-icon">{item.icon}</span> : null}
                           <span>{t(item.label)}</span>
                           {item.children?.some((child) => child.key === 'aiMcpApprovals') && (
                             <ApprovalPill count={approvalCount} />
@@ -468,7 +469,7 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
                       onClick={() => openPage(item.key)}
                       key={item.key}
                     >
-                      {/* 对齐跨境版 pageLeftMenu：叶子菜单项只有文字，无装饰点 */}
+                      {item.icon ? <span className="submenu-icon">{item.icon}</span> : null}
                       <span>{t(item.label)}</span>
                     </button>
                   ),

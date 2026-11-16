@@ -18,6 +18,7 @@ import Advertising from "@/pages/member/components/decorate/advertising";
 import MyService from "@/pages/member/components/decorate/myService";
 import TermPayCard from "@/pages/member/components/termPay/termPayCard";
 import { useScrollTop } from "@/hooks";
+import { usePageGuards } from "@/utils/pageMixin";
 import { useConfigStore } from "@/store/config";
 import { useI18nStore } from "@/store/i18n";
 import { useUserStore } from "@/store/user";
@@ -124,6 +125,7 @@ const NORMAL_ORDER_ENTRIES: OrderEntryDef[] = [
  * - 装修为空时回退原硬编码布局（普通版 / 跨境旧版两套）
  */
 export default function Member() {
+    usePageGuards();
     const router = useRouter();
     const { scrollTop } = useScrollTop();
 

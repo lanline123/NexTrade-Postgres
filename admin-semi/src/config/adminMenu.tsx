@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react';
 import {
-  IconApartment, IconApps, IconBox, IconComment, IconCreditCard, IconFile, IconGift,
-  IconHome, IconIdCard, IconLive, IconOrderedList, IconServer, IconSetting, IconShare,
-  IconShoppingBag, IconUser,
+  IconApartment, IconApps, IconArticle, IconBarChartVStroked, IconBell, IconBook, IconBox, IconBriefcase, IconCalendar, IconCart, IconCoinMoney, IconColorPalette, IconComment, IconCreditCard, IconCrown, IconCustomerSupport, IconDesktop, IconFile, IconFlag, IconGift, IconHistogram, IconHistory, IconHome, IconIdCard, IconImage, IconLanguage, IconLayers, IconLive, IconLock, IconMapPin, IconMember, IconMoneyExchangeStroked, IconMonitorStroked, IconNoteMoney, IconOrderedList, IconPieChartStroked, IconPriceTag, IconSafe, IconSend, IconServer, IconSetting, IconShare, IconShareMoneyStroked, IconShoppingBag, IconSmartphoneStroked, IconTaskMoneyStroked, IconUndo, IconUser, IconUserGroup, IconUserSetting, IconVerify, IconVideo,
 } from '@douyinfe/semi-icons';
 
 export interface NavItem {
   key: string;
   label: string;
+  /** 二级菜单图标（Semi 图标节点）；三级菜单不配图标。 */
+  icon?: ReactNode;
   /**
    * 旧版 meta.blank：点击在新标签打开独立页（客服工作台 /im），见旧
    * asyncRoutes/common/customerService.ts。这类入口不作为所在分组的落地页，
@@ -34,11 +34,13 @@ export const navGroups: NavGroup[] = [
       {
         "key": "customerService0",
         "label": "客服工作台",
+        "icon": <IconCustomerSupport />,
         "blank": true
       },
       {
         "key": "customerService1",
         "label": "历史会话",
+        "icon": <IconHistory />,
         "children": [
           {
             "key": "kefuHistoryList",
@@ -49,6 +51,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "customerService3",
         "label": "客服管理",
+        "icon": <IconUserSetting />,
         "children": [
           {
             "key": "kefuManageList",
@@ -59,6 +62,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "customerService2",
         "label": "个人设置",
+        "icon": <IconUser />,
         "children": [
           {
             "key": "kefuQuickReply",
@@ -73,6 +77,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "customerService4",
         "label": "系统设置",
+        "icon": <IconSetting />,
         "children": [
           {
             "key": "kefuSetting",
@@ -93,11 +98,13 @@ export const navGroups: NavGroup[] = [
     "items": [
       {
         "key": "pos0",
-        "label": "收银工作台"
+        "label": "收银工作台",
+        "icon": <IconDesktop />,
       },
       {
         "key": "pos1",
         "label": "收银设置",
+        "icon": <IconSetting />,
         "children": [
           {
             "key": "posOrderSetting",
@@ -120,6 +127,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "pos2",
         "label": "收银员管理",
+        "icon": <IconUserGroup />,
         "children": [
           {
             "key": "posCashierList",
@@ -136,11 +144,13 @@ export const navGroups: NavGroup[] = [
     "items": [
       {
         "key": "dashboard",
-        "label": "概览"
+        "label": "概览",
+        "icon": <IconHome />,
       },
       {
         "key": "panel1",
         "label": "销售统计",
+        "icon": <IconHistogram />,
         "children": [
           {
             "key": "statisticsOrder",
@@ -163,6 +173,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "panel2",
         "label": "用户统计",
+        "icon": <IconPieChartStroked />,
         "children": [
           {
             "key": "statisticsUser",
@@ -192,6 +203,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "organize0",
         "label": "店铺管理",
+        "icon": <IconApartment />,
         "children": [
           {
             "key": "shopManage",
@@ -230,6 +242,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "organize1",
         "label": "供应商管理",
+        "icon": <IconBriefcase />,
         "children": [
           {
             "key": "vendorProductManage",
@@ -260,6 +273,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "organize2",
         "label": "门店管理",
+        "icon": <IconMapPin />,
         "children": [
           {
             "key": "storeListManage",
@@ -282,6 +296,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "organize3",
         "label": "自提点管理",
+        "icon": <IconFlag />,
         "children": [
           {
             "key": "storeSelfPackListManage",
@@ -292,6 +307,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "organize4",
         "label": "员工管理",
+        "icon": <IconUserGroup />,
         "children": [
           {
             "key": "deliverymanList",
@@ -306,6 +322,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "organize5",
         "label": "商户管理",
+        "icon": <IconIdCard />,
         "children": [
           {
             "key": "applyManage",
@@ -335,6 +352,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "live0",
         "label": "小程序直播",
+        "icon": <IconLive />,
         "children": [
           {
             "key": "wechatLive",
@@ -349,6 +367,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "live1",
         "label": "视频号",
+        "icon": <IconVideo />,
         "children": [
           {
             "key": "videoNumber",
@@ -366,6 +385,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "product0",
         "label": "商品管理",
+        "icon": <IconShoppingBag />,
         "children": [
           {
             "key": "products",
@@ -404,6 +424,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "product1",
         "label": "批量操作",
+        "icon": <IconLayers />,
         "children": [
           {
             "key": "productBatchExportManage",
@@ -422,6 +443,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "product2",
         "label": "库存管理",
+        "icon": <IconBox />,
         "children": [
           {
             "key": "storeInventoryCalendarManage",
@@ -460,6 +482,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "product3",
         "label": "询价管理",
+        "icon": <IconPriceTag />,
         "children": [
           {
             "key": "enquiryManage",
@@ -476,11 +499,13 @@ export const navGroups: NavGroup[] = [
     "items": [
       {
         "key": "promotion0",
-        "label": "营销概览"
+        "label": "营销概览",
+        "icon": <IconBarChartVStroked />,
       },
       {
         "key": "promotion1",
         "label": "营销管理",
+        "icon": <IconGift />,
         "children": [
           {
             "key": "couponManage",
@@ -542,7 +567,8 @@ export const navGroups: NavGroup[] = [
       },
       {
         "key": "promotion2",
-        "label": "营销样式"
+        "label": "营销样式",
+        "icon": <IconColorPalette />,
       }
     ]
   },
@@ -554,6 +580,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "order0",
         "label": "订单管理",
+        "icon": <IconOrderedList />,
         "children": [
           {
             "key": "orders",
@@ -584,6 +611,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "order1",
         "label": "售后管理",
+        "icon": <IconUndo />,
         "children": [
           {
             "key": "aftersalesManage",
@@ -601,6 +629,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "supplyChain0",
         "label": "采购管理",
+        "icon": <IconCart />,
         "children": [
           {
             "key": "purchaseOrderManage",
@@ -623,6 +652,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "supplyChain1",
         "label": "供应商管理",
+        "icon": <IconBriefcase />,
         "children": [
           {
             "key": "selfVendorManage",
@@ -641,6 +671,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "supplyChain2",
         "label": "设置",
+        "icon": <IconSetting />,
         "children": [
           {
             "key": "purchaseSettingManage",
@@ -657,11 +688,13 @@ export const navGroups: NavGroup[] = [
     "items": [
       {
         "key": "decorate0",
-        "label": "主题风格"
+        "label": "主题风格",
+        "icon": <IconColorPalette />,
       },
       {
         "key": "decorate1",
         "label": "移动端装修",
+        "icon": <IconSmartphoneStroked />,
         "children": [
           { "key": "mobileDecorateManage", "label": "页面管理" },
           { "key": "mobileNavManage", "label": "主导航栏" },
@@ -672,6 +705,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "decorate2",
         "label": "PC端装修",
+        "icon": <IconMonitorStroked />,
         "children": [
           { "key": "pcDecorateManage", "label": "首页装修" },
           { "key": "pcDecorateCustomManage", "label": "自定义页装修" },
@@ -693,11 +727,13 @@ export const navGroups: NavGroup[] = [
     "items": [
       {
         "key": "salesman0",
-        "label": "分销概览"
+        "label": "分销概览",
+        "icon": <IconShare />,
       },
       {
         "key": "salesman1",
         "label": "分销设置",
+        "icon": <IconSetting />,
         "children": [
           {
             "key": "promoteModeManage",
@@ -708,6 +744,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "salesman2",
         "label": "分销商品",
+        "icon": <IconShoppingBag />,
         "children": [
           {
             "key": "salesmanProductManage",
@@ -722,6 +759,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "salesman3",
         "label": "分销员",
+        "icon": <IconUserGroup />,
         "children": [
           {
             "key": "promoterManage",
@@ -748,6 +786,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "salesman4",
         "label": "分销结算",
+        "icon": <IconCoinMoney />,
         "children": [
           {
             "key": "performanceSettlementSettingManage",
@@ -762,6 +801,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "salesman5",
         "label": "内容管理",
+        "icon": <IconArticle />,
         "children": [
           {
             "key": "salesmanNoticeManage",
@@ -787,6 +827,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "content0",
         "label": "素材管理",
+        "icon": <IconImage />,
         "children": [
           {
             "key": "materialCenter",
@@ -797,6 +838,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "content1",
         "label": "文章管理",
+        "icon": <IconArticle />,
         "children": [
           {
             "key": "content",
@@ -811,6 +853,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "content2",
         "label": "协议管理",
+        "icon": <IconFile />,
         "children": [
           {
             "key": "serviceAgreement",
@@ -836,6 +879,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "finance0",
         "label": "会员资金管理",
+        "icon": <IconMember />,
         "children": [
           {
             "key": "accountPanelManage",
@@ -862,6 +906,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "finance1",
         "label": "分账管理",
+        "icon": <IconShareMoneyStroked />,
         "children": [
           {
             "key": "profitsharingSettingManage",
@@ -892,6 +937,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "finance2",
         "label": "店铺资金管理",
+        "icon": <IconNoteMoney />,
         "children": [
           {
             "key": "shopAccountManage",
@@ -926,6 +972,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "finance3",
         "label": "供应商资金管理",
+        "icon": <IconCoinMoney />,
         "children": [
           {
             "key": "vendorAccountManage",
@@ -960,6 +1007,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "financeOrderAudit",
         "label": "订单审核",
+        "icon": <IconVerify />,
         "children": [
           {
             "key": "offlinePaymentClaimManage",
@@ -970,6 +1018,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "finance4",
         "label": "账期支付",
+        "icon": <IconCalendar />,
         "children": [
           {
             "key": "termOrderManage",
@@ -988,6 +1037,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "finance5",
         "label": "发票管理",
+        "icon": <IconBook />,
         "children": [
           {
             "key": "userInvoiceManage",
@@ -1002,6 +1052,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "finance6",
         "label": "保证金管理",
+        "icon": <IconSafe />,
         "children": [
           {
             "key": "depositSettingManage",
@@ -1032,6 +1083,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "finance7",
         "label": "退款管理",
+        "icon": <IconMoneyExchangeStroked />,
         "children": [
           {
             "key": "refundApplyManage",
@@ -1046,6 +1098,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "finance8",
         "label": "交易管理",
+        "icon": <IconCreditCard />,
         "children": [
           {
             "key": "payLogManage",
@@ -1060,6 +1113,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "finance9",
         "label": "员工收益管理",
+        "icon": <IconTaskMoneyStroked />,
         "children": [
           {
             "key": "deliveryFundSettingsManage",
@@ -1097,6 +1151,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "user0",
         "label": "会员管理",
+        "icon": <IconUser />,
         "children": [
           {
             "key": "members",
@@ -1127,6 +1182,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "user1",
         "label": "实名认证",
+        "icon": <IconIdCard />,
         "children": [
           {
             "key": "userAuthenticationManage",
@@ -1141,6 +1197,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "user2",
         "label": "消息管理",
+        "icon": <IconBell />,
         "children": [
           {
             "key": "messageLogManage",
@@ -1151,6 +1208,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "user3",
         "label": "付费会员",
+        "icon": <IconCrown />,
         "children": [
           {
             "key": "premiumMemberManage",
@@ -1172,6 +1230,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "authority0",
         "label": "管理员",
+        "icon": <IconUserSetting />,
         "children": [
           {
             "key": "adminUserManage",
@@ -1194,6 +1253,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "authority1",
         "label": "系统权限",
+        "icon": <IconLock />,
         "children": [
           {
             "key": "authorityManage",
@@ -1211,6 +1271,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "wholesale0",
         "label": "批发商",
+        "icon": <IconBriefcase />,
         "children": [
           {
             "key": "wholesalerManage",
@@ -1229,6 +1290,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "wholesale1",
         "label": "批发商品",
+        "icon": <IconBox />,
         "children": [
           {
             "key": "wholesaleProductManage",
@@ -1246,6 +1308,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "setting0",
         "label": "商城设置",
+        "icon": <IconSetting />,
         "children": [
           {
             "key": "baseBasicManage",
@@ -1300,6 +1363,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "setting1",
         "label": "配送设置组",
+        "icon": <IconSend />,
         "children": [
           {
             "key": "logisticsManage",
@@ -1346,6 +1410,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "setting2",
         "label": "系统设置",
+        "icon": <IconServer />,
         "children": [
           {
             "key": "globalSetting",
@@ -1380,6 +1445,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "setting3",
         "label": "多语言管理",
+        "icon": <IconLanguage />,
         "children": [
           {
             "key": "languagesListManage",
@@ -1410,6 +1476,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "setting4",
         "label": "消息设置",
+        "icon": <IconBell />,
         "children": [
           {
             "key": "baseNoticeManage",
@@ -1428,6 +1495,7 @@ export const navGroups: NavGroup[] = [
       {
         "key": "setting5",
         "label": "微信公众号",
+        "icon": <IconComment />,
         "children": [
           {
             "key": "wechatMenu",

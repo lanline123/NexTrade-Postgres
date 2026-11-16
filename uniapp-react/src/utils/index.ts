@@ -1,6 +1,5 @@
 import Taro from "@tarojs/taro";
 
-import appConfig from "@/app.config";
 import { t } from "@/utils/i18n";
 import { baseUrl } from "@/utils/requestBaseUrl";
 
@@ -65,12 +64,15 @@ export function isUrl(str: string): boolean {
 }
 
 /**
- * 获取tabbar（读自 app.config.ts，与旧方案读 pages.json 等价）
+ * 获取 tabbar 页集合。
+ * 本项目不声明原生 tabBar（app.config 无 tabBar 字段，底部导航由 TigTabbar 自定义渲染），
+ * tab 页集合与 store/tabbar 的兜底导航一致，后台导航装修增删 tab 页时需同步这里。
+ * 注意：不要再 import @/app.config 读 tabBar —— defineAppConfig 是编译期宏，
+ * 普通模块导入其默认导出在 H5 构建下为 undefined，读 .tabBar 直接抛 TypeError，
+ * 会中断 redirect 的全部跳转（2026-11-16 线上实测根因：底部导航点击无反应）。
  */
 export function getTabbarPages() {
-    return (appConfig.tabBar?.list || []).map((item) => {
-        return `/${item.pagePath}`;
-    });
+    return ["/pages/index/index", "/pages/productCate/index", "/pages/cart/index", "/pages/member/index"];
 }
 
 /**
@@ -253,7 +255,9 @@ export const redirect = (redirect: redirectOptions) => {
     mode != "switchTab" && param && Object.keys(param).length && (url += `?${queryParams(param)}`);
     switch (mode) {
         case "switchTab":
-            Taro.switchTab({
+            // 无原生 tabBar 时 Taro.switchTab 在 H5 端没有可切的 tab 页，
+            // 改用 reLaunch 实现等价的「重置页面栈打开 tab 页」语义。
+            Taro.reLaunch({
                 url,
                 success: () => {
                     success && success();

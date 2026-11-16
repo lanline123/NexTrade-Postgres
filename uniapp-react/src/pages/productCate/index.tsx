@@ -3,6 +3,7 @@ import { View } from "@tarojs/components";
 import { useRouter } from "@tarojs/taro";
 
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
+import { usePageGuards } from "@/utils/pageMixin";
 import { setPageMeta } from "@/utils/seo";
 import { useConfigStore } from "@/store/config";
 import { useTabbarDerived } from "@/store/tabbar";
@@ -27,6 +28,7 @@ import "./index.scss";
  * - 未配置时降级到全局 configStore.categoryDecorateType
  */
 export default function ProductCate() {
+    usePageGuards();
     const router = useRouter();
 
     const configStoreCategoryDecorateType = useConfigStore((s) => s.categoryDecorateType);

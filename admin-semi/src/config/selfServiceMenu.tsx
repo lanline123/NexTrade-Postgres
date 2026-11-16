@@ -1,3 +1,6 @@
+import {
+  IconApartment, IconBox, IconBriefcase, IconCreditCard, IconExport, IconFile, IconHistogram, IconLink, IconList, IconMapPin, IconMenu, IconNoteMoney, IconPriceTag, IconSafe, IconSend, IconUserGroup,
+} from '@douyinfe/semi-icons';
 import { navGroups, type NavGroup } from './adminMenu';
 
 /**
@@ -14,13 +17,13 @@ export const shopNavGroups: NavGroup[] = [
     label: '资产中心',
     icon: <span style={{ fontSize: 16, lineHeight: '16px' }}>💰</span>,
     items: [
-      { key: 'dashboardManage', label: '资产总览' },
-      { key: 'balanceManage', label: '余额明细' },
-      { key: 'shopDepositManage', label: '店铺保证金' },
-      { key: 'withdrawManage', label: '提现管理' },
-      { key: 'accountListManage', label: '收款账户' },
-      { key: 'financialLogManage', label: '资金流水' },
-      { key: 'merchantApplyManage', label: '商户进件' },
+      { key: 'dashboardManage', label: '资产总览', icon: <IconHistogram /> },
+      { key: 'balanceManage', label: '余额明细', icon: <IconList /> },
+      { key: 'shopDepositManage', label: '店铺保证金', icon: <IconSafe /> },
+      { key: 'withdrawManage', label: '提现管理', icon: <IconExport /> },
+      { key: 'accountListManage', label: '收款账户', icon: <IconCreditCard /> },
+      { key: 'financialLogManage', label: '资金流水', icon: <IconNoteMoney /> },
+      { key: 'merchantApplyManage', label: '商户进件', icon: <IconFile /> },
     ],
   },
   {
@@ -28,12 +31,12 @@ export const shopNavGroups: NavGroup[] = [
     label: '店铺设置',
     icon: <span style={{ fontSize: 16, lineHeight: '16px' }}>🏪</span>,
     items: [
-      { key: 'ShopInfoManage', label: '店铺信息' },
-      { key: 'shopProductCategoryManage', label: '店铺商品分类' },
-      { key: 'ShopTeamManage', label: '店铺团队' },
-      { key: 'shippingTplManage', label: '配送模板' },
-      { key: 'baseReceiptManage', label: '收货设置' },
-      { key: 'enquiryManage', label: '询价管理' },
+      { key: 'ShopInfoManage', label: '店铺信息', icon: <IconApartment /> },
+      { key: 'shopProductCategoryManage', label: '店铺商品分类', icon: <IconMenu /> },
+      { key: 'ShopTeamManage', label: '店铺团队', icon: <IconUserGroup /> },
+      { key: 'shippingTplManage', label: '配送模板', icon: <IconSend /> },
+      { key: 'baseReceiptManage', label: '收货设置', icon: <IconMapPin /> },
+      { key: 'enquiryManage', label: '询价管理', icon: <IconPriceTag /> },
     ],
   },
 ];
@@ -45,12 +48,12 @@ export const vendorNavGroups: NavGroup[] = [
     label: '财务中心',
     icon: <span style={{ fontSize: 16, lineHeight: '16px' }}>💰</span>,
     items: [
-      { key: 'dashboardManage', label: '资产总览' },
-      { key: 'balanceManage', label: '余额明细' },
-      { key: 'vendorDepositManage', label: '供应商保证金' },
-      { key: 'withdrawManage', label: '提现管理' },
-      { key: 'accountListManage', label: '收款账户' },
-      { key: 'financialLogManage', label: '财务日志' },
+      { key: 'dashboardManage', label: '资产总览', icon: <IconHistogram /> },
+      { key: 'balanceManage', label: '余额明细', icon: <IconList /> },
+      { key: 'vendorDepositManage', label: '供应商保证金', icon: <IconSafe /> },
+      { key: 'withdrawManage', label: '提现管理', icon: <IconExport /> },
+      { key: 'accountListManage', label: '收款账户', icon: <IconCreditCard /> },
+      { key: 'financialLogManage', label: '财务日志', icon: <IconNoteMoney /> },
     ],
   },
   {
@@ -58,9 +61,9 @@ export const vendorNavGroups: NavGroup[] = [
     label: '供应商设置',
     icon: <span style={{ fontSize: 16, lineHeight: '16px' }}>🏭</span>,
     items: [
-      { key: 'vendorInfoManage', label: '供应商信息' },
-      { key: 'vendorUserManage', label: '员工管理' },
-      { key: 'bindShopManager', label: '绑定店铺' },
+      { key: 'vendorInfoManage', label: '供应商信息', icon: <IconBriefcase /> },
+      { key: 'vendorUserManage', label: '员工管理', icon: <IconUserGroup /> },
+      { key: 'bindShopManager', label: '绑定店铺', icon: <IconLink /> },
     ],
   },
   {
@@ -68,8 +71,8 @@ export const vendorNavGroups: NavGroup[] = [
     label: '自有库存',
     icon: <span style={{ fontSize: 16, lineHeight: '16px' }}>📦</span>,
     items: [
-      { key: 'vendorProductStockManage', label: '商品库存' },
-      { key: 'vendorStockLogManage', label: '库存流水' },
+      { key: 'vendorProductStockManage', label: '商品库存', icon: <IconBox /> },
+      { key: 'vendorStockLogManage', label: '库存流水', icon: <IconList /> },
     ],
   },
 ];

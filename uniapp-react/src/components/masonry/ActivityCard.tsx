@@ -54,7 +54,7 @@ export default function ActivityCard({ activityInfo = {}, cardType = "list", fon
             {activityInfo.type && activityInfo.type != 2 && getActivityText(activityInfo.type) && (
                 <View className="activity">{t(getActivityText(activityInfo.type))}</View>
             )}
-            {activityInfo.type && activityInfo.type == 2 && (
+            {activityInfo.type && activityInfo.type == 2 && activityInfo.data?.promotionDesc != null && (
                 <View className="ticket">
                     <View className="ticket-type">
                         {t("券")}

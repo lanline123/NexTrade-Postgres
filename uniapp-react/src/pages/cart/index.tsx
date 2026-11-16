@@ -15,6 +15,7 @@ import { useCartStore } from "@/store/cart";
 import { useUserStore } from "@/store/user";
 import { useTabbarDerived } from "@/store/tabbar";
 import { useProductStyle } from "@/hooks";
+import { usePageGuards } from "@/utils/pageMixin";
 import { productImage } from "@/utils/format";
 import { redirect, getSkuValueList, getSkuValueText, toStoreOrShopHome, isOverseas } from "@/utils";
 import { isProductUnavailable } from "@/utils/productSale";
@@ -49,6 +50,7 @@ import "./index.scss";
  * 逐行保留原状态机。
  */
 export default function Cart() {
+    usePageGuards();
     const cartStoreSetCartCount = useCartStore((s) => s.setCartCount);
     const configStoreCommonHeaderHeight = useConfigStore((s) => s.commonHeaderHeight);
     const configStoreCloseOrder = useConfigStore((s) => s.closeOrder);
