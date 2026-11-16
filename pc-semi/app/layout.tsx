@@ -30,7 +30,9 @@ import MobileRedirect from '@/components/MobileRedirect';
 import VisitLogger from '@/components/VisitLogger';
 import I18nProvider from '@/i18n/I18nProvider';
 import PcGeoLocaleInit from '@/components/PcGeoLocaleInit';
-import { getHeaderBootstrap } from '@/lib/api';
+import { getHeaderBootstrap, getRegionSeed } from '@/lib/api';
+import RegionSeedProvider from '@/components/RegionSeedProvider';
+import type { RegionSeed } from '@/lib/region-seed';
 import { PC_HEADER_BOOTSTRAP_ID } from '@/lib/header-bootstrap';
 import { loadTheme } from '@/lib/theme-server';
 import { currencyCodeFrom, setPriceDisplayConfig, setServerCurrency } from '@/lib/currency';
@@ -171,8 +173,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   let serverSymbol: string | null = null;
   let serverCurrencyName: string | null = null;
   let serverLang = 'zh-CN';
+  let regionSeed: RegionSeed | null = null;
   try {
-    const { cookies } = await import('next/headers');
+    const { cookies, headers } = await import('next/headers');
     // html lang SSR 输出（对齐旧版 app.vue htmlAttrs.lang = XLocaleCode）
     const localeCookie = cookies().get('locale')?.value || '';
     serverLang = normalizeLocale(localeCookie);
@@ -184,6 +187,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       serverSymbol = parsed?.symbol ?? null;
       serverCurrencyName = parsed?.name ?? null;
     }
+    // 顶栏地区：加载前先解析（手动选择 Cookie 优先，否则按来访 IP 定位），
+    // SSR 首屏直出真实地区，不再闪装修配置里的默认文案。
+    const headerList = headers();
+    const visitorIp =
+      headerList.get('x-forwarded-for')?.split(',')[0]?.trim() || headerList.get('x-real-ip')?.trim() || null;
+    regionSeed = await getRegionSeed(visitorIp, cookies().get('userProvinceId')?.value || null);
   } catch {
     /* cookie 缺失时按默认汇率 1 处理 */
   }
@@ -222,7 +231,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <I18nProvider>
           {/* 首访 IP 定位 → 自动匹配语言/货币（仅首次、无偏好 Cookie 时） */}
           <PcGeoLocaleInit />
-          {children}
+          <RegionSeedProvider seed={regionSeed}>{children}</RegionSeedProvider>
           {/* 移动端浏览器自动跳 H5（autoRedirect=1 时，对齐旧版 app.vue handlerToMobile） */}
           <MobileRedirect />
           {/* 访问统计埋点（对齐旧版 StatisticLog：/api/common/log，isNew/click 跨天判断） */}

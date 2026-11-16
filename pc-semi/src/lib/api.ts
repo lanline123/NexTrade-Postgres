@@ -1,5 +1,6 @@
 import type { HomeDecorateResponse } from '@/decorate/types';
 import type { HeaderBootstrapCurrency, HeaderBootstrapLocale, PcHeaderBootstrap } from '@/lib/header-bootstrap';
+import { isPublicIp, shortenProvinceName, type RegionSeed } from '@/lib/region-seed';
 import i18n from '@/i18n';
 
 const SERVER_API_BASE = (process.env.PC_API_BASE || 'https://battery.recy.cc').replace(/\/$/, '');
@@ -70,6 +71,60 @@ export async function getHeaderBootstrap(): Promise<PcHeaderBootstrap> {
     priceDisplay: priceDisplay && typeof priceDisplay === 'object' ? priceDisplay : null,
     buyStyle: buyStyle && typeof buyStyle === 'object' ? buyStyle : null,
   };
+}
+
+/**
+ * 顶栏地区种子：服务端在页面加载前解析访客地区，供 PcHeaderTopBar SSR 首屏直出。
+ *
+ * 优先级：手动选择 Cookie（userProvinceId）→ 来访 IP 定位（getLocationByIp 显式传 IP，
+ * 避免反代覆写 X-Forwarded-For 时定位失效）。内网/无 IP 时不定位（返回省份列表 +
+ * 空地区，顶栏回落「全国」），不使用任何硬编码默认地区。
+ */
+export async function getRegionSeed(ip: string | null, cookieProvinceId: string | null): Promise<RegionSeed | null> {
+  const request = async <T,>(path: string, cacheInit: RequestInit & { next?: { revalidate: number } }): Promise<T | null> => {
+    try {
+      const response = await fetch(`${SERVER_API_BASE}/api/${path}`, {
+        ...cacheInit,
+        signal: AbortSignal.timeout(3000),
+      });
+      if (!response.ok) return null;
+      const json: any = await response.json().catch(() => null);
+      return ((json?.data ?? json ?? null) as T | null) ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  const provincesRaw = await request<Array<{ regionId?: number | string; regionName?: string }>>(
+    'sys/region/getProvinceList',
+    { next: { revalidate: 300 } },
+  );
+  const provinces = (Array.isArray(provincesRaw) ? provincesRaw : [])
+    .filter((item) => item && item.regionId !== undefined && item.regionId !== null)
+    .map((item) => ({ regionId: item.regionId as number | string, regionName: String(item.regionName || '') }));
+
+  if (cookieProvinceId) {
+    const hit = provinces.find((item) => String(item.regionId) === String(cookieProvinceId));
+    return { regionId: String(cookieProvinceId), regionName: hit?.regionName ?? null, provinces };
+  }
+
+  if (isPublicIp(ip)) {
+    const located = await request<{ regionId?: number | string; regionName?: string }>(
+      `sys/region/getLocationByIp?ip=${encodeURIComponent(String(ip))}`,
+      { cache: 'no-store' },
+    );
+    if (located?.regionId !== undefined && located?.regionId !== null) {
+      const regionId = String(located.regionId);
+      const hit = provinces.find((item) => String(item.regionId) === regionId);
+      return {
+        regionId,
+        regionName: hit?.regionName ?? (located.regionName ? shortenProvinceName(String(located.regionName)) : null),
+        provinces,
+      };
+    }
+  }
+
+  return provinces.length ? { regionId: '', regionName: null, provinces } : null;
 }
 
 /**

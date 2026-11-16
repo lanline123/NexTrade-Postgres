@@ -2369,7 +2369,7 @@ function Seckill({ module, initialData }: ModuleProps) {
                                   <FormatPrice className="price-miaosha" value={product.seckillPrice ?? product.productPrice} />
                                 </div>
                                 {Number(product.productPrice || product.marketPrice) > 0 ? (
-                                  <FormatPrice className="price-origin" value={product.productPrice ?? product.marketPrice} />
+                                  <FormatPrice className="price-origin" value={product.productPrice ?? product.marketPrice} displayPrice />
                                 ) : null}
                               </div>
                             </div>
@@ -2588,7 +2588,7 @@ function Groupon({ module, initialData }: ModuleProps) {
                             <div className="groupon-item__price" style={{ flexDirection: Number(module.textAlign) === 1 ? 'row' : 'column' }}>
                               <div className="price-wrapper">
                                 <FormatPrice className="price-miaosha" value={item.minGrouponPrice ?? item.grouponPrice} />
-                                {Number(item.productPrice) > 0 ? <FormatPrice className="price-origin" value={item.productPrice} /> : null}
+                                {Number(item.productPrice) > 0 ? <FormatPrice className="price-origin" value={item.productPrice} displayPrice /> : null}
                               </div>
                               {buyBtn.show ? (
                                 <div className="buy">
@@ -4390,13 +4390,15 @@ function ProductGroup({ module, initialData }: ModuleProps) {
                             )
                           ) : null}
                           {inqState === 'partial' && showPrice ? <span className="dec-product-group__inquiry-note">部分型号询价</span> : null}
-                          {showCrossed && inqState !== 'all' ? (
-                            <s className="dec-product-group__price-origin">
+                          {showCrossed && inqState !== 'all' && Number((product as any).marketPrice) > 0 ? (
+                            <span className="dec-product-group__price-origin">
                               <span className="dec-product-group__price-origin-currency">{marketPrice.symbol || '￥'}</span>
-                              {marketPrice.integer}
-                              {marketPrice.decimals}
-                              {marketPrice.suffix}
-                            </s>
+                              <s>
+                                {marketPrice.integer}
+                                {marketPrice.decimals}
+                                {marketPrice.suffix}
+                              </s>
+                            </span>
                           ) : null}
                         </div>
                         {showBuy ? (
@@ -4738,7 +4740,7 @@ function ContractCatProductSimple({ module, initialData }: ModuleProps) {
                       </div>
                       {item.marketPrice && Number(item.marketPrice) > 0 ? (
                         <div className="oldprice">
-                          <FormatPrice value={item.marketPrice} />
+                          <FormatPrice value={item.marketPrice} displayPrice />
                         </div>
                       ) : null}
                     </div>

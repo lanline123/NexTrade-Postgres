@@ -20,6 +20,7 @@ import PcSmartLink from '@/components/PcSmartLink';
 import AuthBadge from '@/components/AuthBadge';
 import { formatPrice } from '@/lib/currency';
 import PcLocaleSelect from '@/components/PcLocaleSelect';
+import { useRegionSeed } from '@/components/RegionSeedProvider';
 
 /** B2B 部署开关（默认关）：=1 时顶栏显示企业认证标识（对齐旧版 isB2B()） */
 const IS_B2B_AUTH = process.env.NEXT_PUBLIC_PC_IS_B2B === '1';
@@ -107,8 +108,11 @@ export default function PcHeaderTopBar({
   baseConfig?: Record<string, any> | null;
 }) {
   const { t } = useTranslation();
-  const [regions, setRegions] = useState<Region[]>([]);
-  const [regionId, setRegionId] = useState<string>('');
+  // 服务端地区种子（RootLayout 按 Cookie/IP 预解析）：SSR 首屏即真实定位，
+  // 客户端 effect 只在无种子时才回退到浏览器侧定位。
+  const regionSeed = useRegionSeed();
+  const [regions, setRegions] = useState<Region[]>(() => regionSeed?.provinces ?? []);
+  const [regionId, setRegionId] = useState<string>(() => regionSeed?.regionId ?? '');
   const [regionOpen, setRegionOpen] = useState(false);
   const [user, setUser] = useState<Record<string, any> | null>(null);
   const [siteNav, setSiteNav] = useState<NavItem[]>([]);
@@ -151,14 +155,23 @@ export default function PcHeaderTopBar({
     }
 
     const cookieId = document.cookie.match(/(?:^|; )userProvinceId=([^;]+)/)?.[1] || '';
-    const listRequest = fetch('/api/sys/region/getProvinceList').then((response) => response.json());
-    if (cookieId) {
-      setRegionId(cookieId);
-      listRequest
+    const fetchProvinceList = () =>
+      fetch('/api/sys/region/getProvinceList')
+        .then((response) => response.json())
         .then((json) => setRegions(Array.isArray(json?.data) ? json.data : []))
         .catch(() => undefined);
+    if (cookieId) {
+      // 手动选择过的省份（Cookie）优先级最高，与服务端种子口径一致
+      setRegionId(cookieId);
+      if (!regionSeed?.provinces?.length) void fetchProvinceList();
+    } else if (regionSeed?.regionId) {
+      // 服务端已在加载前按 IP 解析，列表亦已种子化，无需再请求
+      if (!regionSeed.provinces?.length) void fetchProvinceList();
     } else {
-      Promise.all([listRequest, fetch('/api/sys/region/getUserRegion').then((response) => response.json())])
+      Promise.all([
+        fetch('/api/sys/region/getProvinceList').then((response) => response.json()),
+        fetch('/api/sys/region/getUserRegion').then((response) => response.json()),
+      ])
         .then(([regionJson, userRegionJson]) => {
           setRegions(Array.isArray(regionJson?.data) ? regionJson.data : []);
           const id = userRegionJson?.data?.regionId ?? userRegionJson?.regionId;
@@ -207,8 +220,11 @@ export default function PcHeaderTopBar({
 
   const regionDisplayText = useMemo(() => {
     const selected = regions.find((item) => String(item.regionId) === regionId);
-    return String(selected?.regionName || config.topRegionText || t('全国'));
-  }, [regions, regionId, config.topRegionText, t]);
+    // 不再回退装修配置的 topRegionText（那是写死的默认文案，不是访客定位）：
+    // 列表未命中时用种子名（IP 定位可能是城市级），再无则「全国」。
+    const seedName = regionSeed && regionId && regionSeed.regionId === regionId ? regionSeed.regionName : null;
+    return String(selected?.regionName || seedName || t('全国'));
+  }, [regions, regionId, regionSeed, t]);
 
   const memberCenterItems: Array<{ title: string; link: string }> = useMemo(() => {
     const configured = config.memberCenterItems;

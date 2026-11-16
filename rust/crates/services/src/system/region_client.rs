@@ -77,6 +77,11 @@ const LEVEL_CITY: i32 = 3;
 /// 国家层级（o2o H5 `getCountryList` 的 `level = 1` 口径）。
 const LEVEL_COUNTRY: i32 = 1;
 
+/// 国家在本库数据集中的实际层级：2026-11-16 线上实测 region 表
+/// 国家行 level = 0（中国 id=1、美国 id=820218 均为 0，level=1 无任何行），
+/// 与 Java 原版数据集口径不同；IP 定位的国家匹配按数据集实测值取 0。
+const LEVEL_COUNTRY_DATA: i32 = 0;
+
 pub struct RegionClientService {
     repos: Arc<Repositories>,
 }
@@ -173,17 +178,49 @@ impl RegionClientService {
     /// 2026-11-13 起补齐第 1 步：xdb 存在时按 IP 离线定位，
     /// 取 xdb 的 `city`（缺则 `province`）做模糊匹配；xdb 缺失 /
     /// IP 为内网或 `unknown` / 查询失败时，与 Java 一致回落 `"北京"`。
+    ///
+    /// 2026-11-16 补国外口径：xdb 国家段非「中国」时只认国家级定位，
+    /// 在地区表按国家名（level=0，本库实测口径）匹配返回国家行
+    /// （如「美国」）；本库国家行仅中国/美国两行，其余国家合成
+    /// 一个仅含国家名的地区返回——国外访客顶栏显示真实国家名，
+    /// 不落国内省份、更不兜底成北京。
     pub async fn user_region(&self, ip: Option<&str>) -> Result<Region> {
         if let Some(ip) = ip {
-            if let Some(name) = lookup_region_name(ip) {
-                if let Some(hit) = self
-                    .regions()
-                    .find_by_name_like(&name, None)
-                    .await?
-                    .into_iter()
-                    .next()
-                {
-                    return Ok(hit);
+            if let Some((country, name)) = lookup_region_parts(ip) {
+                if let Some(country) = country.as_deref().filter(|c| *c != "中国") {
+                    if let Some(hit) = self
+                        .regions()
+                        .find_by_name_like(country, Some(LEVEL_COUNTRY_DATA))
+                        .await?
+                        .into_iter()
+                        .next()
+                    {
+                        return Ok(hit);
+                    }
+                    // 本库国家行只有中国/美国两行，其余国家不在表中：
+                    // 合成一个仅含国家名的地区返回，保证国外访客显示
+                    // 真实国家名，而不是落到国内兜底城市。
+                    return Ok(Region {
+                        region_id: 0,
+                        level: Some(LEVEL_COUNTRY_DATA),
+                        region_name: country.to_string(),
+                        parent_id: 0,
+                        is_hot: 0,
+                        sort_order: 0,
+                        first_word: String::new(),
+                        standard_code: None,
+                    });
+                }
+                if let Some(name) = name {
+                    if let Some(hit) = self
+                        .regions()
+                        .find_by_name_like(&name, None)
+                        .await?
+                        .into_iter()
+                        .next()
+                    {
+                        return Ok(hit);
+                    }
                 }
             }
         }
@@ -394,14 +431,14 @@ const XDB_PATH_ENV: &str = "NEXTRADE_IP2REGION_XDB";
 const XDB_PATH_DEPLOY: &str = "/www/wwwroot/nextrade/ip2region.xdb";
 const XDB_PATH_LOCAL: &str = "./data/ip2region.xdb";
 
-/// 进程内单例：xdb 整体载入内存后可安全并发查询（crate 行为）。
+/// 进程内单例：xdb 整体载入内存后可安全并发查询。
 /// `None` 表示「找不到 xdb 或载入失败」，此后不再重试读盘。
-static IP_SEARCHER: OnceLock<Option<ip2region::Searcher>> = OnceLock::new();
+static IP_XDB: OnceLock<Option<Vec<u8>>> = OnceLock::new();
 
-/// 取（或初始化）进程级 xdb 搜索器。找不到文件返回 `None` 并记忆，
+/// 取（或初始化）进程级 xdb 内容。找不到文件返回 `None` 并记忆，
 /// 避免每个请求都空跑一遍文件系统。
-fn ip_searcher() -> Option<&'static ip2region::Searcher> {
-    IP_SEARCHER
+fn ip_xdb() -> Option<&'static [u8]> {
+    IP_XDB
         .get_or_init(|| {
             let mut candidates = Vec::new();
             if let Ok(p) = std::env::var(XDB_PATH_ENV) {
@@ -414,10 +451,13 @@ fn ip_searcher() -> Option<&'static ip2region::Searcher> {
             candidates.push(XDB_PATH_LOCAL.to_string());
 
             for path in candidates {
-                match ip2region::Searcher::new(&path) {
-                    Ok(s) => {
+                match std::fs::read(&path) {
+                    Ok(bytes) if bytes.len() > XDB_VECTOR_INDEX_END => {
                         tracing::info!("ip2region xdb 已加载: {path}");
-                        return Some(s);
+                        return Some(bytes);
+                    }
+                    Ok(_) => {
+                        tracing::debug!("ip2region xdb 文件过小 {path}");
                     }
                     Err(e) => {
                         tracing::debug!("ip2region xdb 加载失败 {path}: {e}");
@@ -427,7 +467,60 @@ fn ip_searcher() -> Option<&'static ip2region::Searcher> {
             tracing::warn!("ip2region xdb 未找到（候选路径均失败），IP 定位降级为默认城市");
             None
         })
-        .as_ref()
+        .as_deref()
+}
+
+/// xdb 布局常量（v2 格式）：256B 头 + 256×256×8B 向量索引，之后是段索引。
+const XDB_HEADER_LEN: usize = 256;
+const XDB_VECTOR_INDEX_END: usize = XDB_HEADER_LEN + 256 * 256 * 8;
+const XDB_SEGMENT_LEN: usize = 14;
+
+/// 在 xdb 内容中按官方算法检索 IPv4（向量索引定位 /16 段块，块内二分）。
+///
+/// 此前用第三方 `ip2region` 0.1 crate，其二分实现有缺陷：多段块中
+/// 相当一部分 IP 恒返回「No results found」（实测 8.8.8.8 / 1.1.1.1 /
+/// 193.0.0.1 / 210.0.0.1 等均漏检，官方算法同文件全命中），故自研。
+fn xdb_search(content: &[u8], ip: &str) -> Option<String> {
+    let v4: std::net::Ipv4Addr = ip.trim().parse().ok()?;
+    let o = v4.octets();
+    let target = u32::from_be_bytes(o);
+    let cell = XDB_HEADER_LEN + ((o[0] as usize) * 256 + o[1] as usize) * 8;
+    let s_ptr = u32::from_le_bytes(content.get(cell..cell + 4)?.try_into().ok()?) as usize;
+    let e_ptr = u32::from_le_bytes(content.get(cell + 4..cell + 8)?.try_into().ok()?) as usize;
+    if e_ptr <= s_ptr || e_ptr > content.len() {
+        return None;
+    }
+    let count = (e_ptr - s_ptr) / XDB_SEGMENT_LEN;
+    if count == 0 {
+        return None;
+    }
+    let (mut lo, mut hi) = (0usize, count - 1);
+    while lo <= hi {
+        let m = (lo + hi) / 2;
+        let p = s_ptr + m * XDB_SEGMENT_LEN;
+        let seg = content.get(p..p + XDB_SEGMENT_LEN)?;
+        let start_ip = u32::from_be_bytes(seg[0..4].try_into().ok()?);
+        let end_ip = u32::from_be_bytes(seg[4..8].try_into().ok()?);
+        if target < start_ip {
+            if m == 0 {
+                return None;
+            }
+            hi = m - 1;
+        } else if target > end_ip {
+            lo = m + 1;
+        } else {
+            let data_len = u16::from_le_bytes(seg[8..10].try_into().ok()?) as usize;
+            let data_ptr = u32::from_le_bytes(seg[10..14].try_into().ok()?) as usize;
+            let raw = content.get(data_ptr..data_ptr + data_len)?;
+            return String::from_utf8(raw.to_vec()).ok();
+        }
+    }
+    None
+}
+
+/// 取 xdb 搜索器并查一个 IP（组合 `ip_xdb` + `xdb_search`）。
+fn lookup_xdb(ip: &str) -> Option<String> {
+    xdb_search(ip_xdb()?, ip)
 }
 
 /// 判定「值得查询」的 IP：仅公网 IPv4。`unknown` / 回环 / 内网段 /
@@ -463,13 +556,26 @@ pub fn parse_xdb_region_name(raw: &str) -> Option<&str> {
     seg(3).or_else(|| seg(2))
 }
 
-/// IP → 地名（xdb 离线查询）。任一环节失败 → `None`（调用方走兜底）。
-fn lookup_region_name(ip: &str) -> Option<String> {
+/// xdb 国家段（第 0 段）：国外定位只认国家。空 / `0` / 内网标记 → `None`。
+pub fn parse_xdb_country(raw: &str) -> Option<&str> {
+    raw.split('|')
+        .next()
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && *s != "0" && *s != "内网IP")
+}
+
+/// IP →（国家，地名）（xdb 离线查询）。任一环节失败 → `None`（调用方走兜底）。
+fn lookup_region_parts(ip: &str) -> Option<(Option<String>, Option<String>)> {
     if !is_public_ipv4(ip) {
         return None;
     }
-    let raw = ip_searcher()?.search(ip.trim()).ok()?;
-    parse_xdb_region_name(&raw).map(str::to_owned)
+    let raw = lookup_xdb(ip)?;
+    let country = parse_xdb_country(&raw).map(str::to_owned);
+    let name = parse_xdb_region_name(&raw).map(str::to_owned);
+    if country.is_none() && name.is_none() {
+        return None;
+    }
+    Some((country, name))
 }
 
 /// 省份名精简（Java `getProvinceList` 的链式 `replace`）。
@@ -838,5 +944,50 @@ mod tests {
         // 内网 IP 的 xdb 原始返回：全 0 → None
         assert_eq!(parse_xdb_region_name("0|0|0|内网IP|内网IP"), None);
         assert_eq!(parse_xdb_region_name(""), None);
+    }
+
+    /// 构造一个最小合成 xdb：向量索引 (1,1) 单元指向单个段
+    /// 1.1.0.0–1.1.255.255 → 「泰国|0|四色菊府|0|TOT」。
+    fn synthetic_xdb() -> Vec<u8> {
+        let mut buf = vec![0u8; XDB_VECTOR_INDEX_END];
+        let record = "泰国|0|四色菊府|0|TOT".as_bytes();
+        let seg_ptr = XDB_VECTOR_INDEX_END;
+        let data_ptr = seg_ptr + XDB_SEGMENT_LEN;
+        // 向量索引单元 (1,1)
+        let cell = XDB_HEADER_LEN + (1 * 256 + 1) * 8;
+        buf[cell..cell + 4].copy_from_slice(&(seg_ptr as u32).to_le_bytes());
+        buf[cell + 4..cell + 8]
+            .copy_from_slice(&((seg_ptr + XDB_SEGMENT_LEN) as u32).to_le_bytes());
+        // 段索引：start/end 为大端，dataLen/dataPtr 为小端
+        let mut seg = Vec::with_capacity(XDB_SEGMENT_LEN);
+        seg.extend_from_slice(&[1, 1, 0, 0]);
+        seg.extend_from_slice(&[1, 1, 255, 255]);
+        seg.extend_from_slice(&(record.len() as u16).to_le_bytes());
+        seg.extend_from_slice(&(data_ptr as u32).to_le_bytes());
+        buf.extend_from_slice(&seg);
+        buf.extend_from_slice(record);
+        buf
+    }
+
+    #[test]
+    fn xdb_search_hits_and_misses_on_synthetic_file() {
+        let buf = synthetic_xdb();
+        assert_eq!(
+            xdb_search(&buf, "1.1.1.1").as_deref(),
+            Some("泰国|0|四色菊府|0|TOT")
+        );
+        assert_eq!(xdb_search(&buf, "1.1.0.0").as_deref(), Some("泰国|0|四色菊府|0|TOT"));
+        assert_eq!(xdb_search(&buf, "1.2.3.4"), None);
+        assert_eq!(xdb_search(&buf, "8.8.8.8"), None);
+        assert_eq!(xdb_search(&buf, "not-an-ip"), None);
+    }
+
+    #[test]
+    fn parse_xdb_country_reads_first_segment() {
+        assert_eq!(parse_xdb_country("中国|0|山东省|青岛市|电信"), Some("中国"));
+        assert_eq!(parse_xdb_country("美国|0|加利福尼亚州|洛杉矶|AT&T"), Some("美国"));
+        assert_eq!(parse_xdb_country("日本|0|东京都|东京|NTT"), Some("日本"));
+        assert_eq!(parse_xdb_country("0|0|0|内网IP|内网IP"), None);
+        assert_eq!(parse_xdb_country(""), None);
     }
 }
