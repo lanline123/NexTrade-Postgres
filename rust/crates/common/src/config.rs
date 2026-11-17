@@ -1,7 +1,7 @@
 //! 应用配置。
 //!
 //! 对应原 Java `application.yaml` / `application-{profile}.yaml`，
-//! 支持 `config.yaml` + 环境变量覆盖（`TIG_` 前缀），替代 Spring 的 profile 机制。
+//! 支持 `config.yaml` + 环境变量覆盖（`NEXTTRADE_` 前缀），替代 Spring 的 profile 机制。
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -31,7 +31,7 @@ pub struct AppConfig {
 
 /// 内部服务间调用配置（Java `internal.api.key`，`InternalApiFilter`）。
 ///
-/// 环境变量覆盖：`TIG_INTERNAL__API_KEY`。密钥为空时受保护接口
+/// 环境变量覆盖：`NEXTTRADE_INTERNAL__API_KEY`。密钥为空时受保护接口
 /// （`/api/socket/send`）按 Java 语义一律 403。
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct InternalConfig {
@@ -198,8 +198,8 @@ impl JwtConfig {
 ///
 /// 分级行为：
 ///
-/// * 已覆盖（`TIG_JWT__SECRET` 或 `config.yaml` 的 `jwt.secret`）→ 放行；
-/// * 未覆盖但设了 `TIG_JWT__ALLOW_DEFAULT_SECRET=1` → 放行 + 警告（给本地
+/// * 已覆盖（`NEXTTRADE_JWT__SECRET` 或 `config.yaml` 的 `jwt.secret`）→ 放行；
+/// * 未覆盖但设了 `NEXTTRADE_JWT__ALLOW_DEFAULT_SECRET=1` → 放行 + 警告（给本地
 ///   release 冒烟这类场景，生产不该设）；
 /// * 未覆盖且是 debug 构建（`cargo run`）→ 放行 + 警告；
 /// * 未覆盖且是 release 构建 → 拒绝。
@@ -212,11 +212,11 @@ pub fn assert_secret_is_overridden(jwt: &JwtConfig) -> Result<(), String> {
         return Ok(());
     }
     let msg = "JWT 密钥仍是内置默认值（`DEFAULT_JWT_SECRET`，源码公开可见），任何人都能伪造 token。\
-               请设置 TIG_JWT__SECRET 环境变量或 config.yaml 的 jwt.secret";
-    let escaped = std::env::var("TIG_JWT__ALLOW_DEFAULT_SECRET")
+               请设置 NEXTTRADE_JWT__SECRET 环境变量或 config.yaml 的 jwt.secret";
+    let escaped = std::env::var("NEXTTRADE_JWT__ALLOW_DEFAULT_SECRET")
         .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
     if escaped {
-        tracing::warn!("{msg}；已由 TIG_JWT__ALLOW_DEFAULT_SECRET 放行，切勿用于生产");
+        tracing::warn!("{msg}；已由 NEXTTRADE_JWT__ALLOW_DEFAULT_SECRET 放行，切勿用于生产");
         return Ok(());
     }
     if cfg!(debug_assertions) {
@@ -392,7 +392,7 @@ pub struct S3Config {
 }
 
 impl AppConfig {
-    /// 加载配置：`config.yaml`（可选）→ 环境变量覆盖（`TIG_` 前缀）。
+    /// 加载配置：`config.yaml`（可选）→ 环境变量覆盖（`NEXTTRADE_` 前缀）。
     pub fn load() -> Result<Self> {
         // 兼容 .env
         let _ = dotenvy::dotenv();
@@ -400,14 +400,14 @@ impl AppConfig {
         let builder = config::Config::builder()
             .add_source(config::File::with_name("config").required(false))
             .add_source(
-                config::Environment::with_prefix("TIG")
+                config::Environment::with_prefix("NEXTTRADE")
                     .prefix_separator("_")
                     .separator("__"),
             );
 
         let cfg = builder
             .build()
-            .context("加载配置失败（config.yaml / TIG_* 环境变量）")?;
+            .context("加载配置失败（config.yaml / NEXTTRADE_* 环境变量）")?;
         cfg.try_deserialize()
             .context("配置反序列化失败，请检查 config.yaml 结构")
     }

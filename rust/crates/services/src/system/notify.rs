@@ -1,9 +1,9 @@
 //! 短信 / 邮件通道（替代 Java `SmsUtils` / JavaMail）。
 //!
 //! - 短信：读取 `config` 表 `smsProvider` / `smsKeyId` / `smsKeySecret` / `smsSignName`
-//!   与模板 ID（`TIG_SMS__TEMPLATE_CODE` 环境变量，或 config `smsVerificationTemplate`），
+//!   与模板 ID（`NEXTTRADE_SMS__TEMPLATE_CODE` 环境变量，或 config `smsVerificationTemplate`），
 //!   目前实现**阿里云短信 SendSms**（RPC 签名 HMAC-SHA1）；
-//!   `TIG_SMS__MOCK=1` 时仅记录日志（本地联调）。
+//!   `NEXTTRADE_SMS__MOCK=1` 时仅记录日志（本地联调）。
 //! - 邮件：读取 `smtpHost/smtpPort/smtpUser/smtpPass/smtpMail/smtpSsl`，用 `lettre` 发送。
 //!
 //! 未配置凭据时返回明确业务错误（不伪造发送成功）。
@@ -148,15 +148,15 @@ fn base64_encode(bytes: &[u8]) -> String {
 /// # Errors
 /// 未配置短信通道 / 模板缺失 / 网络或网关返回失败。
 pub async fn send_sms_code(repos: &Repositories, mobile: &str, code: &str) -> Result<()> {
-    if std::env::var("TIG_SMS__MOCK").is_ok_and(|v| v == "1") {
-        tracing::warn!("TIG_SMS__MOCK=1：短信仅记录日志（mobile={mobile} code={code}）");
+    if std::env::var("NEXTTRADE_SMS__MOCK").is_ok_and(|v| v == "1") {
+        tracing::warn!("NEXTTRADE_SMS__MOCK=1：短信仅记录日志（mobile={mobile} code={code}）");
         return Ok(());
     }
     let mut cfg = load(repos, &SMS_KEYS).await?;
-    env_override(&mut cfg, CFG_SMS_KEY_ID, "TIG_SMS__KEY_ID");
-    env_override(&mut cfg, CFG_SMS_KEY_SECRET, "TIG_SMS__KEY_SECRET");
-    env_override(&mut cfg, CFG_SMS_SIGN_NAME, "TIG_SMS__SIGN_NAME");
-    env_override(&mut cfg, CFG_SMS_TEMPLATE, "TIG_SMS__TEMPLATE_CODE");
+    env_override(&mut cfg, CFG_SMS_KEY_ID, "NEXTTRADE_SMS__KEY_ID");
+    env_override(&mut cfg, CFG_SMS_KEY_SECRET, "NEXTTRADE_SMS__KEY_SECRET");
+    env_override(&mut cfg, CFG_SMS_SIGN_NAME, "NEXTTRADE_SMS__SIGN_NAME");
+    env_override(&mut cfg, CFG_SMS_TEMPLATE, "NEXTTRADE_SMS__TEMPLATE_CODE");
 
     // 原版后台「消息类型 → 获取验证码」把模板 ID 写在
     // `message_template.template_id`；优先读这里，兼容旧的 config 兜底。

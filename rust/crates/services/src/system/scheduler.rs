@@ -13,8 +13,8 @@
 //! 值为空或 <= 0 时该任务跳过（与 Java 默认关闭一致）。
 //!
 //! 运维/测试可通过环境变量调整节奏：
-//! `TIG_SCHEDULER__ENABLED=false` 关闭；`TIG_SCHEDULER__DELAY_SECS`（默认 30）、
-//! `TIG_SCHEDULER__CANCEL_SECS`（默认 60）、`TIG_SCHEDULER__RECEIVE_SECS`（默认 300）。
+//! `NEXTTRADE_SCHEDULER__ENABLED=false` 关闭；`NEXTTRADE_SCHEDULER__DELAY_SECS`（默认 30）、
+//! `NEXTTRADE_SCHEDULER__CANCEL_SECS`（默认 60）、`NEXTTRADE_SCHEDULER__RECEIVE_SECS`（默认 300）。
 //!
 //! 多实例说明：当前无分布式锁（单实例部署）。多实例时需加 Redis `SET NX`
 //! 或改用 MQ；任务本身幂等，重复执行不会重复扣库存/改状态。
@@ -84,14 +84,14 @@ pub fn spawn_all(repos: Arc<Repositories>, order: OrderService) -> Vec<JoinHandl
 ///
 /// `sync(false)` 内部校验 `autoSync=1` 且距上次同步达 `syncIntervalHours`；
 /// 未配置 AppID / 未开启自动更新时静默跳过（debug 日志），对齐 Java 语义。
-/// `TIG_SCHEDULER__RATE_SECS` 可调节奏（默认 3600s）。
+/// `NEXTTRADE_SCHEDULER__RATE_SECS` 可调节奏（默认 3600s）。
 async fn exchange_rate_sync_loop(repos: Arc<Repositories>) {
     tokio::time::sleep(Duration::from_secs(
-        env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 45,
+        env_secs("NEXTTRADE_SCHEDULER__DELAY_SECS", 30) + 45,
     ))
     .await;
     let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
-        "TIG_SCHEDULER__RATE_SECS",
+        "NEXTTRADE_SCHEDULER__RATE_SECS",
         3600,
     )));
     loop {
@@ -113,12 +113,12 @@ async fn exchange_rate_sync_loop(repos: Arc<Repositories>) {
 async fn order_auto_cancel_loop(repos: Arc<Repositories>, order: OrderService) {
     // 启动后延迟，避开启动高峰
     tokio::time::sleep(Duration::from_secs(env_secs(
-        "TIG_SCHEDULER__DELAY_SECS",
+        "NEXTTRADE_SCHEDULER__DELAY_SECS",
         30,
     )))
     .await;
     let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
-        "TIG_SCHEDULER__CANCEL_SECS",
+        "NEXTTRADE_SCHEDULER__CANCEL_SECS",
         60,
     )));
     loop {
@@ -134,11 +134,11 @@ async fn order_auto_cancel_loop(repos: Arc<Repositories>, order: OrderService) {
 /// 自动收货循环。
 async fn order_auto_receive_loop(repos: Arc<Repositories>) {
     tokio::time::sleep(Duration::from_secs(
-        env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 30,
+        env_secs("NEXTTRADE_SCHEDULER__DELAY_SECS", 30) + 30,
     ))
     .await;
     let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
-        "TIG_SCHEDULER__RECEIVE_SECS",
+        "NEXTTRADE_SCHEDULER__RECEIVE_SECS",
         300,
     )));
     loop {
@@ -151,14 +151,14 @@ async fn order_auto_receive_loop(repos: Arc<Repositories>) {
     }
 }
 
-/// 拼团过期循环（每 60s；`TIG_SCHEDULER__GROUPON_SECS` 可调）。
+/// 拼团过期循环（每 60s；`NEXTTRADE_SCHEDULER__GROUPON_SECS` 可调）。
 async fn groupon_expire_loop(repos: Arc<Repositories>) {
     tokio::time::sleep(Duration::from_secs(
-        env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 15,
+        env_secs("NEXTTRADE_SCHEDULER__DELAY_SECS", 30) + 15,
     ))
     .await;
     let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
-        "TIG_SCHEDULER__GROUPON_SECS",
+        "NEXTTRADE_SCHEDULER__GROUPON_SECS",
         60,
     )));
     loop {
@@ -171,14 +171,14 @@ async fn groupon_expire_loop(repos: Arc<Repositories>) {
     }
 }
 
-/// 保证金到期扫描循环（`TIG_SCHEDULER__DEPOSIT_DUE_SECS`，默认 86400s）。
+/// 保证金到期扫描循环（`NEXTTRADE_SCHEDULER__DEPOSIT_DUE_SECS`，默认 86400s）。
 async fn deposit_due_check_loop(repos: Arc<Repositories>) {
     tokio::time::sleep(Duration::from_secs(
-        env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 90,
+        env_secs("NEXTTRADE_SCHEDULER__DELAY_SECS", 30) + 90,
     ))
     .await;
     let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
-        "TIG_SCHEDULER__DEPOSIT_DUE_SECS",
+        "NEXTTRADE_SCHEDULER__DEPOSIT_DUE_SECS",
         86_400,
     )));
     loop {
@@ -200,11 +200,11 @@ async fn deposit_due_check_loop(repos: Arc<Repositories>) {
 /// `services/content/wechat_live_order_sync.rs` 落地真实推送。
 async fn wechat_live_order_sync_loop(repos: Arc<Repositories>) {
     tokio::time::sleep(Duration::from_secs(
-        env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 120,
+        env_secs("NEXTTRADE_SCHEDULER__DELAY_SECS", 30) + 120,
     ))
     .await;
     let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
-        "TIG_SCHEDULER__WECHAT_LIVE_SYNC_SECS",
+        "NEXTTRADE_SCHEDULER__WECHAT_LIVE_SYNC_SECS",
         900,
     )));
     loop {
@@ -235,11 +235,11 @@ async fn wechat_live_order_sync_loop(repos: Arc<Repositories>) {
 ///   依赖通道查单接口：有积压时每周期报告一次，不伪造成功。
 async fn profit_sharing_schedule_loop(repos: Arc<Repositories>) {
     tokio::time::sleep(Duration::from_secs(
-        env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 150,
+        env_secs("NEXTTRADE_SCHEDULER__DELAY_SECS", 30) + 150,
     ))
     .await;
     let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
-        "TIG_SCHEDULER__PROFIT_SHARING_SECS",
+        "NEXTTRADE_SCHEDULER__PROFIT_SHARING_SECS",
         1800,
     )));
     loop {
@@ -306,14 +306,14 @@ async fn profit_sharing_schedule_loop(repos: Arc<Repositories>) {
     }
 }
 
-/// 售后自动确认收货循环（`TIG_SCHEDULER__AFTERSALES_RECEIPT_SECS`，默认 3600s）。
+/// 售后自动确认收货循环（`NEXTTRADE_SCHEDULER__AFTERSALES_RECEIPT_SECS`，默认 3600s）。
 async fn aftersales_auto_receive_loop(repos: Arc<Repositories>) {
     tokio::time::sleep(Duration::from_secs(
-        env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 60,
+        env_secs("NEXTTRADE_SCHEDULER__DELAY_SECS", 30) + 60,
     ))
     .await;
     let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
-        "TIG_SCHEDULER__AFTERSALES_RECEIPT_SECS",
+        "NEXTTRADE_SCHEDULER__AFTERSALES_RECEIPT_SECS",
         3600,
     )));
     loop {
@@ -365,14 +365,14 @@ pub async fn run_aftersales_auto_receive(repos: &Repositories) -> Result<u64> {
     Ok(done)
 }
 
-/// 商品自动上下架循环（`TIG_SCHEDULER__PRODUCT_AUTO_SECS`，默认 60s）。
+/// 商品自动上下架循环（`NEXTTRADE_SCHEDULER__PRODUCT_AUTO_SECS`，默认 60s）。
 async fn product_auto_status_loop(repos: Arc<Repositories>) {
     tokio::time::sleep(Duration::from_secs(
-        env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 15,
+        env_secs("NEXTTRADE_SCHEDULER__DELAY_SECS", 30) + 15,
     ))
     .await;
     let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
-        "TIG_SCHEDULER__PRODUCT_AUTO_SECS",
+        "NEXTTRADE_SCHEDULER__PRODUCT_AUTO_SECS",
         60,
     )));
     loop {
@@ -459,14 +459,14 @@ pub async fn run_product_auto_status(repos: &Repositories) -> Result<u64> {
     Ok(executed)
 }
 
-/// 授信会员结算周期更新循环（默认每小时扫描一次，`TIG_SCHEDULER__CREDIT_PERIOD_SECS` 可调，默认 3600s）。
+/// 授信会员结算周期更新循环（默认每小时扫描一次，`NEXTTRADE_SCHEDULER__CREDIT_PERIOD_SECS` 可调，默认 3600s）。
 async fn credit_user_period_update_loop(repos: Arc<Repositories>) {
     tokio::time::sleep(Duration::from_secs(
-        env_secs("TIG_SCHEDULER__DELAY_SECS", 30) + 45,
+        env_secs("NEXTTRADE_SCHEDULER__DELAY_SECS", 30) + 45,
     ))
     .await;
     let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
-        "TIG_SCHEDULER__CREDIT_PERIOD_SECS",
+        "NEXTTRADE_SCHEDULER__CREDIT_PERIOD_SECS",
         3600,
     )));
     loop {
@@ -700,6 +700,6 @@ mod tests {
 
     #[test]
     fn env_secs_falls_back() {
-        assert_eq!(env_secs("TIG_SCHEDULER__NOT_EXISTS", 42), 42);
+        assert_eq!(env_secs("NEXTTRADE_SCHEDULER__NOT_EXISTS", 42), 42);
     }
 }

@@ -37,7 +37,7 @@
 //!    `productService.getProductFinalPrice(...)`（含会员折扣 / 活动价）。
 //!    批发价本身**不写入** `cart.original_price`（与 Java 一致：Java 只在
 //!    `markAndValidateOnAdd` 里打标记，批发价由购物车列表 `applyLine` 实时解析）。
-//! 4. **`is_o2o`** 由环境变量 `TIG_IS_O2O` 驱动（Java 读
+//! 4. **`is_o2o`** 由环境变量 `NEXTTRADE_IS_O2O` 驱动（Java 读
 //!    `nextradeProperties.isO2o()`；Rust 配置服务未迁移），与 merchant::shop_manage 同口径。
 //! 5. **DTO 校验错误码**：Java `@Valid` 失败由
 //!    `GlobalExceptionHandler#handleMethodArgumentNotValidException` 统一转成
@@ -103,10 +103,10 @@ pub const MAX_BATCH_ITEMS: usize = 50;
 
 /// 读取 O2O 开关（对应 Java `nextradeProperties.isO2o()`；配置服务未迁移）。
 ///
-/// `TIG_IS_O2O=1` 或 `=true`（大小写不敏感）视为开启，其余/未设置视为关闭。
+/// `NEXTTRADE_IS_O2O=1` 或 `=true`（大小写不敏感）视为开启，其余/未设置视为关闭。
 #[must_use]
 fn is_o2o_from_env() -> bool {
-    std::env::var("TIG_IS_O2O")
+    std::env::var("NEXTTRADE_IS_O2O")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false)
 }
@@ -501,7 +501,7 @@ pub struct WholesaleClientService {
 }
 
 impl WholesaleClientService {
-    /// 标准构造（与项目其它切片一致）：`is_o2o` 从环境变量 `TIG_IS_O2O` 读取。
+    /// 标准构造（与项目其它切片一致）：`is_o2o` 从环境变量 `NEXTTRADE_IS_O2O` 读取。
     #[must_use]
     pub fn new(repos: Arc<Repositories>) -> Self {
         Self::with_o2o(repos, is_o2o_from_env())

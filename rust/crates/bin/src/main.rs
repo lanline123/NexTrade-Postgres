@@ -1,7 +1,7 @@
 //! NexTrade Rust 服务入口。
 //!
 //! 装配顺序（对应原 Spring Boot 启动流程）：
-//! 1. 加载配置（config.yaml + TIG_* 环境变量）
+//! 1. 加载配置（config.yaml + NEXTTRADE_* 环境变量）
 //! 2. 初始化日志（Tracing，替代 logback.xml）
 //! 3. 连接 MySQL（含 ONLY_FULL_GROUP_BY 兼容）+ 可选迁移
 //! 4. 连接 Redis（失败降级为无缓存模式）
@@ -406,7 +406,7 @@ async fn main() -> anyhow::Result<()> {
     let admin_user = Arc::new(AdminUserService::new(repos.clone()));
     let user_manage = Arc::new(UserManageService::new(repos.clone()));
     let shop_client = Arc::new(ShopClientService::new(repos.clone()));
-    // O2O 开关由 `ShopManageService::new` 内部从环境变量 `TIG_IS_O2O` 读取
+    // O2O 开关由 `ShopManageService::new` 内部从环境变量 `NEXTTRADE_IS_O2O` 读取
     // （对应原 Java `nextradeProperties.isO2o()`，配置服务未迁移）。
     let shop_manage = Arc::new(ShopManageService::new(repos.clone()));
     let shop = Arc::new(ShopService::new(repos.clone()));
@@ -834,7 +834,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // ---- 定时任务（替代 Java RabbitMQ 延迟队列 / Spring @Scheduled）----
-    if std::env::var("TIG_SCHEDULER__ENABLED").map_or(true, |v| v != "false" && v != "0") {
+    if std::env::var("NEXTTRADE_SCHEDULER__ENABLED").map_or(true, |v| v != "false" && v != "0") {
         nextrade_services::system::scheduler::spawn_all(repos.clone(), (*order).clone());
         tracing::info!("定时任务已启动：订单超时取消（每分钟）/ 自动收货（每 5 分钟）");
     }

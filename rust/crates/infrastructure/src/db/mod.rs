@@ -116,10 +116,10 @@ pub type DbPool = PgPool;
 /// 初始化数据库连接池，并执行可选的迁移。
 pub async fn init_pool(cfg: &AppConfig) -> anyhow::Result<DbPool> {
     let url = if cfg.datasource.url.is_empty() {
-        // 回退到环境变量组合（TIG_DATASOURCE_URL 优先）
-        let host = std::env::var("TIG_DATASOURCE_HOST").unwrap_or_else(|_| "127.0.0.1".into());
-        let port = std::env::var("TIG_DATASOURCE_PORT").unwrap_or_else(|_| "5432".into());
-        let db = std::env::var("TIG_DATASOURCE_DATABASE").unwrap_or_else(|_| "nextrade".into());
+        // 回退到环境变量组合（NEXTTRADE_DATASOURCE_URL 优先）
+        let host = std::env::var("NEXTTRADE_DATASOURCE_HOST").unwrap_or_else(|_| "127.0.0.1".into());
+        let port = std::env::var("NEXTTRADE_DATASOURCE_PORT").unwrap_or_else(|_| "5432".into());
+        let db = std::env::var("NEXTTRADE_DATASOURCE_DATABASE").unwrap_or_else(|_| "nextrade".into());
         let user = cfg.datasource.username.clone();
         let pass = cfg.datasource.password.clone();
         format!("postgres://{user}:{pass}@{host}:{port}/{db}")

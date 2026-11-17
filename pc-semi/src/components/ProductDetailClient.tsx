@@ -1535,7 +1535,8 @@ export default function ProductDetailClient({
    * 批量模式（tabIndex===1）只渲染 ProductB2bSku。
    * 询价态（单品采购）隐藏数量步进器；批量面板保留（行内带询价入口）。
    */
-  const qtyBlock = isB2BMode && b2bTabIndex === 1 ? b2bPanel : selectedInquiry ? null : qty;
+  /* 询价态数量选择器与普通商品一致展示（用户口径 2026-11-17：除价格与立即购买外其他不变） */
+  const qtyBlock = isB2BMode && b2bTabIndex === 1 ? b2bPanel : qty;
 
   // 旧版 ProductInfo 用 product.productType 判断预约商品（5/6）；新接口字段同名，缺失时按普通商品处理
   const isReservation = Number((item as any).productType) === 5 || Number((item as any).productType) === 6;
@@ -1548,10 +1549,21 @@ export default function ProductDetailClient({
   const actions = (
     <div className="add_cart">
       {selectedInquiry ? (
-        /* 询价态：加购/购买整体换成单个「立即询价」（询价型号禁加购，口径与后端加购校验一致） */
-        <div className="buy mp-buy" onClick={openInquiryForSelected}>
-          <button type="button" className="buy-btn buynow">{t('立即询价')}</button>
-        </div>
+        /* 询价态（用户口径 2026-11-17）：与普通商品完全一致，仅「立即购买」换成「立即询价」——
+           加入购物车保留原样（走标准 add()，后端校验结果由 Toast 呈现），价格位另行显示「询价」 */
+        <>
+          <div
+            className={`buy mp-buy${outOfStock || skuDisabled || requireSku ? ' disabled' : ''}`}
+            onClick={() => { if (!outOfStock && !skuDisabled && !requireSku) void add(); }}
+          >
+            <button type="button" className="buy-btn" disabled={outOfStock || skuDisabled || requireSku}>
+              {adding ? t('加入中…') : t('加入购物车')}
+            </button>
+          </div>
+          <div className="buy mp-buy" onClick={openInquiryForSelected}>
+            <button type="button" className="buy-btn buynow">{t('立即询价')}</button>
+          </div>
+        </>
       ) : outOfStock && !isReservation ? (
         <div className="buy">
           <Link href="/search">
@@ -1584,8 +1596,8 @@ export default function ProductDetailClient({
 
   const tips = (
     <>
-      {requireSku && !selectedInquiry ? <p className="pds-tips">{t('请选择完整规格后购买')}</p> : null}
-      {outOfStock && !selectedInquiry ? <p className="pds-tips">{t('该商品暂时缺货，敬请期待')}</p> : null}
+      {requireSku ? <p className="pds-tips">{t('请选择完整规格后购买')}</p> : null}
+      {outOfStock ? <p className="pds-tips">{t('该商品暂时缺货，敬请期待')}</p> : null}
     </>
   );
 

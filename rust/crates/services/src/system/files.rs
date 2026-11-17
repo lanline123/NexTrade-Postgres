@@ -19,9 +19,9 @@
 //! # 与 Java 的差异（逐条）
 //!
 //! 1. **根目录来源**：Java 取「JAR 所在目录」拼接 `${file.upload-dir}`；Rust 侧
-//!    没有 JAR 概念，改为环境变量 `TIG_FILE_UPLOAD_DIR`（未设置时用
+//!    没有 JAR 概念，改为环境变量 `NEXTTRADE_FILE_UPLOAD_DIR`（未设置时用
 //!    `nextrade_common::config` 的同款默认值 `./uploads`，即进程工作目录下的
-//!    `uploads/`）。与 `shop_manage` 读 `TIG_IS_O2O` 的做法一致（配置服务未迁移）。
+//!    `uploads/`）。与 `shop_manage` 读 `NEXTTRADE_IS_O2O` 的做法一致（配置服务未迁移）。
 //! 2. **目录穿越防护（安全加固，与原系统行为不同但必要）**：Java 直接把
 //!    路径变量拼进 `Paths.get`，未做任何校验；Rust 侧对 `timestamp` / `filename`
 //!    两段做白名单校验（不得含 `/`、`\`、`..`、`\0`，且 `filename` 不得为绝对路径），
@@ -83,7 +83,7 @@ const FILE_NOT_EXIST: &str = "文件不存在";
 /// 文件根目录（差异见模块头第 1 条）。
 fn upload_root() -> PathBuf {
     PathBuf::from(
-        std::env::var("TIG_FILE_UPLOAD_DIR").unwrap_or_else(|_| "./uploads".to_string()),
+        std::env::var("NEXTTRADE_FILE_UPLOAD_DIR").unwrap_or_else(|_| "./uploads".to_string()),
     )
 }
 

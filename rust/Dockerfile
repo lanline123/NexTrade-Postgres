@@ -43,10 +43,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY --from=builder /app/crates/target/release/nextrade /usr/local/bin/nextrade
-# 真实配置含口令、不入库；镜像里放模板作为基线，敏感值用 TIG_* 环境变量覆盖
+# 真实配置含口令、不入库；镜像里放模板作为基线，敏感值用 NEXTTRADE_* 环境变量覆盖
 COPY config.example.yaml ./config.yaml
 # migrations/ 是 MySQL 时代的 DDL（含 AUTO_INCREMENT / 反引号），对 PG 会语法报错。
-# 保留拷贝只为维持既有行为；TIG_DATASOURCE__AUTO_MIGRATE 必须保持 false。
+# 保留拷贝只为维持既有行为；NEXTTRADE_DATASOURCE__AUTO_MIGRATE 必须保持 false。
 COPY migrations ./migrations
 COPY template ./template
 

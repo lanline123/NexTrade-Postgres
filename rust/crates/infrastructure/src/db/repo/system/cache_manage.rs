@@ -116,7 +116,7 @@ impl CacheManageRepository {
 /// 按 `AppConfig` 的 redis 配置建立一次性连接。
 ///
 /// 复用与 `bin/src/main.rs` 中 `CacheService::init` 完全相同的连接串来源
-/// （`config.yaml` + `TIG_*` 环境变量），保证指向同一实例。
+/// （`config.yaml` + `NEXTTRADE_*` 环境变量），保证指向同一实例。
 async fn redis_conn() -> Result<ConnectionManager> {
     let cfg = AppConfig::load().map_err(|e| Error::Cache(format!("加载 Redis 配置失败: {e}")))?;
     let client = redis::Client::open(cfg.redis.url())

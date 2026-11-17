@@ -588,11 +588,11 @@ impl ProductManageService {
     /// openxmlformats-officedocument.spreadsheetml.sheet`）。
     ///
     /// **不确定点**：O2O 开关（Java `nextradeProperties.getIsO2o()`）在 Rust
-    /// 侧尚未有配置项，这里读环境变量 `TIG_IS_O2O`（=1 走 O2O 模板），
+    /// 侧尚未有配置项，这里读环境变量 `NEXTTRADE_IS_O2O`（=1 走 O2O 模板），
     /// 默认多商户模板；模板文件按磁盘路径读取（运行时缺失则报
     /// 「商品导入模板文件不存在或读取失败」，与 Java 文案一致）。
     pub async fn download_template(&self) -> Result<(String, Vec<u8>)> {
-        let o2o = std::env::var("TIG_IS_O2O").is_ok_and(|v| v.trim() == "1");
+        let o2o = std::env::var("NEXTTRADE_IS_O2O").is_ok_and(|v| v.trim() == "1");
         let (path, name) = if o2o {
             (TEMPLATE_O2O, DOWNLOAD_NAME_O2O)
         } else {
@@ -600,7 +600,7 @@ impl ProductManageService {
         };
         // 候选路径：显式环境变量 → 相对路径 → 编译期基准路径
         let mut candidates: Vec<String> = Vec::new();
-        if let Ok(p) = std::env::var("TIG_PRODUCT_IMPORT_TEMPLATE") {
+        if let Ok(p) = std::env::var("NEXTTRADE_PRODUCT_IMPORT_TEMPLATE") {
             if !p.trim().is_empty() {
                 candidates.push(p);
             }

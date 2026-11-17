@@ -129,7 +129,7 @@ impl LoginService {
         self.cache()?
             .set_json(&key, &code, CODE_TTL_SECS)
             .await?;
-        // 真实通道：阿里云短信（未配置 → 明确业务错误；TIG_SMS__MOCK=1 时仅日志）
+        // 真实通道：阿里云短信（未配置 → 明确业务错误；NEXTTRADE_SMS__MOCK=1 时仅日志）
         crate::system::notify::send_sms_code(&self.repos, mobile, &code).await?;
         tracing::info!("短信验证码已发送: mobile={mobile} event={:?}", dto.event);
         Ok(())

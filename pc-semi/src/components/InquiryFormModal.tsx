@@ -45,15 +45,12 @@ export default function InquiryFormModal({ open, onClose, productId, productName
   const [success, setSuccess] = useState(false);
   const [verifyOpen, setVerifyOpen] = useState(false);
   const prefilledRef = useRef(false);
-  /** 同步提交锁：state 的 submitting 在连续滑块回调间可能来不及翻转，ref 保证单次会话只发一次请求 */
-  const inFlightRef = useRef(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* 打开时：已登录则拉 memberCenter 预填手机/邮箱（仅填空位，失败静默） */
   useEffect(() => {
     if (!open) return undefined;
     setSuccess(false);
-    inFlightRef.current = false;
     if (prefilledRef.current) return undefined;
     if (typeof window === 'undefined' || !localStorage.getItem('accessToken')) return undefined;
     let alive = true;
@@ -88,9 +85,6 @@ export default function InquiryFormModal({ open, onClose, productId, productName
   };
 
   const doSubmit = async () => {
-    // 单次会话只提交一次：滑块成功回调重复触发、重复点击都直接丢弃（后端另有 300 秒同内容去重兜底）
-    if (inFlightRef.current || success) return;
-    inFlightRef.current = true;
     setSubmitting(true);
     try {
       const payload: Record<string, unknown> = {
@@ -104,12 +98,9 @@ export default function InquiryFormModal({ open, onClose, productId, productName
       if (skuId) payload.skuId = skuId;
       if (skuValue) payload.skuValue = skuValue;
       await apiPost('product/product/priceInquiry', payload);
-      Toast.success({ content: t('提交成功，我们会尽快与您联系') });
       setSuccess(true);
-      setContent('');
-      closeTimerRef.current = setTimeout(() => onClose(), 3500);
+      closeTimerRef.current = setTimeout(() => onClose(), 1800);
     } catch (error) {
-      inFlightRef.current = false;
       Toast.error({ content: error instanceof Error ? error.message : t('提交失败，请稍后重试') });
     } finally {
       setSubmitting(false);
@@ -118,7 +109,6 @@ export default function InquiryFormModal({ open, onClose, productId, productName
 
   /** 点「提交询价」：先本地校验，再过滑块门闸，滑块成功才真正提交 */
   const handleSubmitClick = () => {
-    if (submitting || success) return;
     const error = validate();
     if (error) {
       Toast.warning({ content: error });

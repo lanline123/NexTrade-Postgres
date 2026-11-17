@@ -47,6 +47,17 @@ export default function PcMobilePage() {
     if (isMobileDevice()) window.location.replace(h5Url);
   }, [h5Url]);
 
-  if (!ready || !h5Url) return null;
-  return <iframe src={h5Url} className="pc-mobile-iframe" title={t('移动端预览')} allowFullScreen />;
+  if (!ready || !h5Url) {
+    /* 配置返回前不再整页空白：壳内给「加载中...」占位（2026-11-17 用户报白屏） */
+    return (
+      <div className="pc-mobile-shell">
+        <div style={{ margin: 'auto', color: '#98a2b3', fontSize: 14 }}>{t('加载中...')}</div>
+      </div>
+    );
+  }
+  return (
+    <div className="pc-mobile-shell">
+      <iframe src={h5Url} className="pc-mobile-iframe" title={t('移动端预览')} allowFullScreen />
+    </div>
+  );
 }

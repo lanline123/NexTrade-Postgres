@@ -2,10 +2,10 @@
 #
 # 2026-11-10 从 MySQL 口径改写：服务拓扑不变（db/redis/rabbitmq + 应用），
 # 数据库换成 postgres:16；`migrations/` 与 `deploy/mysql-init/` 是 MySQL 时代的
-# 遗留物，**不要**在这里启用 `TIG_DATASOURCE__AUTO_MIGRATE`（见 deploy/README.md）。
+# 遗留物，**不要**在这里启用 `NEXTTRADE_DATASOURCE__AUTO_MIGRATE`（见 deploy/README.md）。
 #
 # 用法：
-#   export TIG_JWT_SECRET="$(openssl rand -base64 48)"   # 必填
+#   export NEXTTRADE_JWT_SECRET="$(openssl rand -base64 48)"   # 必填
 #   docker compose up -d --build
 
 services:
@@ -75,17 +75,17 @@ services:
     environment:
       RUST_LOG: info,nextrade=info,sqlx=warn
       # 配置全部走环境变量（覆盖 config.yaml）
-      TIG_DATASOURCE__URL: "postgres://${POSTGRES_USER:-nextrade}:${POSTGRES_PASSWORD:-nextrade}@postgres:5432/${POSTGRES_DB:-nextrade}"
+      NEXTTRADE_DATASOURCE__URL: "postgres://${POSTGRES_USER:-nextrade}:${POSTGRES_PASSWORD:-nextrade}@postgres:5432/${POSTGRES_DB:-nextrade}"
       # migrations/ 是 MySQL 时代 DDL，对 PG 会直接语法报错；库结构须先用 pg_dump 导入。
-      TIG_DATASOURCE__AUTO_MIGRATE: "false"
-      TIG_REDIS__HOST: redis
-      TIG_RABBITMQ__HOST: rabbitmq
-      TIG_RABBITMQ__PASSWORD: ${RABBITMQ_DEFAULT_PASS:-admin}
+      NEXTTRADE_DATASOURCE__AUTO_MIGRATE: "false"
+      NEXTTRADE_REDIS__HOST: redis
+      NEXTTRADE_RABBITMQ__HOST: rabbitmq
+      NEXTTRADE_RABBITMQ__PASSWORD: ${RABBITMQ_DEFAULT_PASS:-admin}
       # 必填：release 构建在密钥仍为内置默认值时会拒绝启动（crates/common/src/config.rs）。
       # `:?` 让 compose 在变量未设置时直接报错退出，而不是悄悄用弱密钥跑起来。
-      TIG_JWT__SECRET: "${TIG_JWT_SECRET:?必须设置 TIG_JWT_SECRET（例如 openssl rand -base64 48）}"
-      TIG_SERVER__ADMIN_PORT: "8080"
-      TIG_SERVER__API_PORT: "8181"
+      NEXTTRADE_JWT__SECRET: "${NEXTTRADE_JWT_SECRET:?必须设置 NEXTTRADE_JWT_SECRET（例如 openssl rand -base64 48）}"
+      NEXTTRADE_SERVER__ADMIN_PORT: "8080"
+      NEXTTRADE_SERVER__API_PORT: "8181"
     ports:
       - "${ADMINAPI_PORT:-8080}:8080"
       - "${API_PORT:-8181}:8181"

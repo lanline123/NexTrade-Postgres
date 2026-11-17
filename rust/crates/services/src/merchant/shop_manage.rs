@@ -59,9 +59,9 @@ use std::sync::Arc;
 
 /// 读取 O2O 开关（对应 Java `nextradeProperties.isO2o()`；配置服务未迁移）。
 ///
-/// `TIG_IS_O2O=1` 或 `=true`（大小写不敏感）视为开启，其余/未设置视为关闭。
+/// `NEXTTRADE_IS_O2O=1` 或 `=true`（大小写不敏感）视为开启，其余/未设置视为关闭。
 fn is_o2o_from_env() -> bool {
-    std::env::var("TIG_IS_O2O")
+    std::env::var("NEXTTRADE_IS_O2O")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false)
 }
@@ -300,7 +300,7 @@ pub struct ShopManageService {
 }
 
 impl ShopManageService {
-    /// 标准构造（与项目其它切片一致）：`is_o2o` 从环境变量 `TIG_IS_O2O` 读取。
+    /// 标准构造（与项目其它切片一致）：`is_o2o` 从环境变量 `NEXTTRADE_IS_O2O` 读取。
     ///
     /// 对应原 Java `nextradeProperties.isO2o()`——Rust 侧配置服务尚未迁移，
     /// 暂以环境变量驱动（`1` / `true` 视为开启，默认关闭＝非 O2O 单商户版）。

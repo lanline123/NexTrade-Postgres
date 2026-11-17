@@ -24,7 +24,7 @@
 //!
 //! > **`X-Internal-Api-Key` 已校验（2026-10-25）**：对齐 Java
 //! > `InternalApiFilter` —— 未配置密钥 → 403、缺头/密钥不符 → 401，
-//! > 密钥来自 `config.yaml` 的 `internal.api_key`（env `TIG_INTERNAL__API_KEY`）。
+//! > 密钥来自 `config.yaml` 的 `internal.api_key`（env `NEXTTRADE_INTERNAL__API_KEY`）。
 //! > 该层在 `optional_auth` 之外执行（Java 里 servlet filter 先于 Spring Security）。
 //!
 //! > **auth=optional 的落地口径**：与 shop_client / wholesale_client / seo / sunmi_print_callback

@@ -24,8 +24,8 @@
 //! 2. **配置服务未迁移**：Java 用 `nextradeProperties.getIsMerchant()` /
 //!    `getIsO2o()` 决定「是否商户端」（影响 `selectLink` 是否含「店铺列表」、
 //!    `getParentNav` 是否排除 id=42「商家入驻」）。Rust 侧改读环境变量：
-//!    `TIG_IS_MERCHANT`（默认 **1**，与 `application.yaml` 的 `is-merchant: 1`
-//!    一致）、`TIG_IS_O2O`（默认 0）。**未配置时按默认值走**，与发客户版一致。
+//!    `NEXTTRADE_IS_MERCHANT`（默认 **1**，与 `application.yaml` 的 `is-merchant: 1`
+//!    一致）、`NEXTTRADE_IS_O2O`（默认 0）。**未配置时按默认值走**，与发客户版一致。
 //! 3. **DTO 校验注解**：Java 控制器**没有** `@Validated`，因此
 //!    `@NotBlank` / `@Size` / `@NotNull` 实际不生效。本实现按注解语义在
 //!    `create` 校验 `title`、在 `updateField` 校验 `val` 非空（更严格），
@@ -245,12 +245,12 @@ pub fn build_parent_tree(rows: &[PcNavigation]) -> Vec<PcNavigationTreeVO> {
 ///
 /// 未设置时按 `application.yaml` 的 `is-merchant: 1` 视为**开启**。
 fn is_merchant_from_env() -> bool {
-    std::env::var("TIG_IS_MERCHANT").map_or(true, |v| v == "1" || v.eq_ignore_ascii_case("true"))
+    std::env::var("NEXTTRADE_IS_MERCHANT").map_or(true, |v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
 
 /// 读取「是否多门店 O2O」（Java `nextradeProperties.isO2o`；默认 0）。
 fn is_o2o_from_env() -> bool {
-    std::env::var("TIG_IS_O2O").map_or(false, |v| v == "1" || v.eq_ignore_ascii_case("true"))
+    std::env::var("NEXTTRADE_IS_O2O").map_or(false, |v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
 
 /// PC 导航栏服务。

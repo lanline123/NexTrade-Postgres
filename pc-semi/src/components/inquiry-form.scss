@@ -1,9 +1,22 @@
 /* 询价留资表单（InquiryFormModal）：Semi Modal 内的表单排版 */
 
+/* 弹窗本体：垂直居中（Modal centered）+ 限高，内容超高时弹窗体内滚动，不顶满屏幕 */
+.inquiry-modal {
+  .semi-modal-content {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 48px);
+  }
+
+  .semi-modal-body {
+    overflow-y: auto;
+  }
+}
+
 .inquiry-form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   padding: 4px 0 2px;
 
   &__product {

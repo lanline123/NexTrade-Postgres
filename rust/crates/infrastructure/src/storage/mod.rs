@@ -314,10 +314,10 @@ pub fn create_storage_from_config(cfg: &StorageConfig) -> Box<dyn Storage> {
     }
 }
 
-/// 上传根目录（`TIG_FILE__UPLOAD_DIR`，缺省 `./uploads`，相对进程工作目录）。
+/// 上传根目录（`NEXTTRADE_FILE__UPLOAD_DIR`，缺省 `./uploads`，相对进程工作目录）。
 #[must_use]
 pub fn upload_root() -> String {
-    std::env::var("TIG_FILE__UPLOAD_DIR").unwrap_or_else(|_| "./uploads".to_string())
+    std::env::var("NEXTTRADE_FILE__UPLOAD_DIR").unwrap_or_else(|_| "./uploads".to_string())
 }
 
 static GLOBAL_STORAGE: std::sync::OnceLock<Box<dyn Storage>> = std::sync::OnceLock::new();

@@ -3120,7 +3120,7 @@
     min-width: 0;
   }
 
-  /* 旧 FormatPrice 三段式：￥16px/400 + 整数 28px/600 + 小数 16px/400 */
+  /* FormatPrice 三段式（2026-11-17 按用户反馈整体缩小：￥14px/400 + 整数 22px/600 + 小数 14px/400） */
   &__price {
     display: inline-flex;
     align-items: baseline;
@@ -3128,29 +3128,29 @@
   }
 
   &__price-currency {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     color: var(--primary-dark-2, var(--dec-price-color));
   }
 
   &__price-int {
-    font-size: 28px;
+    font-size: 22px;
     font-weight: 600;
-    line-height: 28px;
+    line-height: 22px;
     color: var(--primary-dark-2, var(--dec-price-color));
   }
 
   &__price-dec {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     color: var(--primary-dark-2, var(--dec-price-color));
   }
 
-  /* 划线价：整数/小数 16px，币种 12px，色 var(--dec-origin-price-color) */
+  /* 划线价：整数/小数 14px，币种 12px，色 var(--dec-origin-price-color) */
   &__price-origin {
     margin-left: 5px;
     color: var(--dec-origin-price-color, #999999);
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     white-space: nowrap;
     overflow: hidden;

@@ -148,7 +148,7 @@ pub fn router(state: AdminState) -> Router {
         .nest_service(
             "/static",
             ServeDir::new(
-                std::env::var("TIG_FILE__UPLOAD_DIR").unwrap_or_else(|_| "./uploads".to_string()),
+                std::env::var("NEXTTRADE_FILE__UPLOAD_DIR").unwrap_or_else(|_| "./uploads".to_string()),
             ),
         )
         .with_state(state)

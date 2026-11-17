@@ -92,17 +92,17 @@ cp rust/config.example.yaml rust/config.yaml
 配置来源为 `config.yaml`（可选），并可用环境变量覆盖，格式为：
 
 ```text
-TIG_<配置路径，层级用 __ 分隔>
+NEXTTRADE_<配置路径，层级用 __ 分隔>
 ```
 
 例如：
 
 ```text
-TIG_DATASOURCE__URL
-TIG_REDIS__HOST
-TIG_JWT__SECRET
-TIG_SERVER__ADMIN_PORT
-TIG_SERVER__API_PORT
+NEXTTRADE_DATASOURCE__URL
+NEXTTRADE_REDIS__HOST
+NEXTTRADE_JWT__SECRET
+NEXTTRADE_SERVER__ADMIN_PORT
+NEXTTRADE_SERVER__API_PORT
 ```
 
 主要配置项：
@@ -123,7 +123,7 @@ redis:
   password: ""
 
 jwt:
-  # 生产必须用 TIG_JWT__SECRET 覆盖（openssl rand -hex 32）；
+  # 生产必须用 NEXTTRADE_JWT__SECRET 覆盖（openssl rand -hex 32）；
   # 回落到源码内置默认值等于签名密钥公开，任何人都能伪造 token。
   secret: "please-change-this-secret"
   access_expire_secs: 7200
@@ -172,7 +172,7 @@ target/release/ 下的可执行文件
 ## Docker
 
 ```bash
-export TIG_JWT_SECRET="$(openssl rand -base64 48)"   # 必填
+export NEXTTRADE_JWT_SECRET="$(openssl rand -base64 48)"   # 必填
 docker compose up -d --build
 ```
 

@@ -16,7 +16,7 @@
 //! Java `InternalApiFilter` 要求 `/api/socket/send` 携带 `X-Internal-Api-Key`
 //! 请求头。Rust 侧已在路由层实现同等校验
 //! （`nextrade_security::web::require_internal_api_key`，密钥取
-//! `config.yaml` 的 `internal.api_key` / env `TIG_INTERNAL__API_KEY`）：
+//! `config.yaml` 的 `internal.api_key` / env `NEXTTRADE_INTERNAL__API_KEY`）：
 //! 未配置密钥 → 403；缺头/密钥不符 → 401。
 
 use std::sync::Arc;

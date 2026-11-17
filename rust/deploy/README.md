@@ -4,15 +4,15 @@
 
 ```bash
 cd rust
-export TIG_JWT_SECRET="$(openssl rand -base64 48)"   # 必填，见下
+export NEXTTRADE_JWT_SECRET="$(openssl rand -base64 48)"   # 必填，见下
 docker compose up -d --build
 ```
 
 - 数据库是 **`postgres:16-alpine`**（原 `mysql:8.0` 已废弃）。数据落在 `pg-data` volume。
-- `TIG_JWT_SECRET` 用 `${VAR:?}` 声明为**必填**：未设置时 `docker compose up` 会直接报错退出，
+- `NEXTTRADE_JWT_SECRET` 用 `${VAR:?}` 声明为**必填**：未设置时 `docker compose up` 会直接报错退出，
   而不是悄悄用弱密钥跑起来。release 构建里另有兜底——密钥若仍是内置默认值，进程拒绝启动
   （`crates/common/src/config.rs` 的 `assert_secret_is_overridden`）。
-- `TIG_DATASOURCE__AUTO_MIGRATE` 在 compose 里显式写成 `false`：`migrations/` 是 MySQL 时代的
+- `NEXTTRADE_DATASOURCE__AUTO_MIGRATE` 在 compose 里显式写成 `false`：`migrations/` 是 MySQL 时代的
   DDL（`AUTO_INCREMENT`、反引号、`ENGINE=InnoDB`），对 PG 会直接语法报错。**不要打开。**
 - 如需重新初始化数据库，删掉 `pg-data` volume 后重启。
 
@@ -97,12 +97,12 @@ npm run build
 
 | 变量 | 说明 |
 |---|---|
-| `TIG_DATASOURCE__URL` | **PostgreSQL** URL（`postgres://user:pwd@host:5432/db`，compose 已注入） |
-| `TIG_DATASOURCE__AUTO_MIGRATE` | 必须 `false`：`migrations/` 是 MySQL 口径 |
-| `TIG_REDIS__HOST` / `TIG_RABBITMQ__HOST` | Redis / RabbitMQ |
-| `TIG_JWT__SECRET` | **必填**。留空或用内置默认值时，release 构建拒绝启动 |
-| `TIG_SERVER__ADMIN_PORT` / `TIG_SERVER__API_PORT` | 8080 / 8181 |
-| `TIG_SCHEDULER__ENABLED` | 是否启用轮询任务 |
+| `NEXTTRADE_DATASOURCE__URL` | **PostgreSQL** URL（`postgres://user:pwd@host:5432/db`，compose 已注入） |
+| `NEXTTRADE_DATASOURCE__AUTO_MIGRATE` | 必须 `false`：`migrations/` 是 MySQL 口径 |
+| `NEXTTRADE_REDIS__HOST` / `NEXTTRADE_RABBITMQ__HOST` | Redis / RabbitMQ |
+| `NEXTTRADE_JWT__SECRET` | **必填**。留空或用内置默认值时，release 构建拒绝启动 |
+| `NEXTTRADE_SERVER__ADMIN_PORT` / `NEXTTRADE_SERVER__API_PORT` | 8080 / 8181 |
+| `NEXTTRADE_SCHEDULER__ENABLED` | 是否启用轮询任务 |
 | `OPEN_TEMPLATE_BASE_URL` | 装修模板 OpenTemplate API（缺省 `https://api.nextrade.com/index`） |
 
 ## 4. 验收清单

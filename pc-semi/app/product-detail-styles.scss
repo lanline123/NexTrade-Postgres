@@ -196,6 +196,9 @@
     align-items: center;
     gap: 12px;
     padding: 8px 12px;
+    /* 边框先给静态回退色（主题绿 30% 混白的等值色 #d1ede6）：不支持 color-mix 的浏览器
+       否则会整条丢弃 border 声明、框线回退成深色（2026-11-17 用户报优惠券框线发黑） */
+    border: 1px solid #d1ede6;
     border: 1px solid color-mix(in srgb, var(--pds-primary) 30%, #ffffff);
     border-radius: 8px;
     background: var(--pds-soft);

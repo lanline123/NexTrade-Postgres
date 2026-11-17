@@ -6007,7 +6007,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    min-height: 32px;
+    min-height: 28px;
 }
 
 .dec-product-group__price-row {
@@ -6024,25 +6024,25 @@
     align-items: baseline;
     color: var(--dec-price-color, var(--vort-primary, #be081d));
     font-weight: var(--dec-price-weight, 600);
-    line-height: var(--dec-price-size, 28px);
+    line-height: var(--dec-price-size, 22px);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .dec-product-group__price-currency {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: var(--dec-price-weight, 400);
 }
 
 .dec-product-group__price-int {
-    font-size: var(--dec-price-size, 28px);
+    font-size: var(--dec-price-size, 22px);
     font-weight: var(--dec-price-weight, 600);
-    line-height: var(--dec-price-size, 28px);
+    line-height: var(--dec-price-size, 22px);
 }
 
 .dec-product-group__price-dec {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: var(--dec-price-weight, 400);
 }
 

@@ -206,25 +206,25 @@
         overflow: hidden;
       }
 
-      /* 原版 FormatPrice 传参：货币 16px / 整数 28px 600 / 小数 16px，色取 --primary-dark-2 */
+      /* FormatPrice 传参（2026-11-17 与商品分组统一缩小：货币 14px / 整数 22px 600 / 小数 14px），色取 --primary-dark-2 */
       .price {
         display: flex;
         align-items: baseline;
         color: var(--primary-dark-2, #519d88);
 
         .util {
-          font-size: 16px;
+          font-size: 14px;
           font-weight: 400;
         }
 
         .num {
-          font-size: 28px;
+          font-size: 22px;
           font-weight: 600;
-          line-height: 28px;
+          line-height: 22px;
         }
 
         .num.decimal {
-          font-size: 16px;
+          font-size: 14px;
           font-weight: 400;
         }
       }
