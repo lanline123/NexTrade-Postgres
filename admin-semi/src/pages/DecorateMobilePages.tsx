@@ -26,6 +26,8 @@ import {
 import { apiGet, apiPost } from '../api';
 import { useI18n } from '../i18n';
 import ListPage from '../framework/ListPage';
+import { IconInfoCircle } from '@douyinfe/semi-icons';
+import OptionSelectModal from '../components/OptionSelectModal';
 import ImageUploader from '../components/ImageUploader';
 import ColorField from '../components/ColorField';
 import type { ColumnConfig } from '../framework/types';
@@ -317,7 +319,12 @@ function pageTypeLabel(pageType?: number): string {
   return PAGE_TYPE_TABS.find((tab) => tab.pageType === pageType)?.label || '页面';
 }
 
-/** 更换默认页弹窗（对齐 Java SwitchDefaultPage）：列同类型页面，点「设为默认」切换。 */
+/**
+ * 更换默认页弹窗（对齐 Java SwitchDefaultPage）：列同类型页面，选一个设为默认。
+ * 样式与 PC 端「更换首页」完全一致——直接复用通用卡片式单选模块
+ * components/OptionSelectModal（卡片单选 + 搜索 + 状态点标签 + 当前默认提示条），
+ * 不再单独维护一套表格弹窗。
+ */
 function SwitchDefaultPageModal({
   visible,
   decorateType,
@@ -336,10 +343,11 @@ function SwitchDefaultPageModal({
   const { t } = useI18n();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [settingId, setSettingId] = useState<number>(0);
+  const [choice, setChoice] = useState<number | null>(null);
 
   useEffect(() => {
     if (!visible) return;
+    setChoice(null);
     setLoading(true);
     apiGet<any>('/decorate/decorate/list', { decorateType, pageType, page: 1, size: 100 })
       .then((result) => {
@@ -350,71 +358,63 @@ function SwitchDefaultPageModal({
       .finally(() => setLoading(false));
   }, [visible, decorateType, pageType]);
 
-  const setDefault = async (row: any) => {
-    if (row.decorateId === currentId) return;
-    setSettingId(row.decorateId);
+  const pageName = (row: any) => row?.decorateName || row?.decorateTitle || row?.bingdingH5Name || t('首页微页面');
+  const currentRow = rows.find((row) => row.decorateId === currentId);
+  // 与 PC 端一致：候选不含当前默认页
+  const candidates = rows.filter((row) => row.decorateId !== currentId);
+
+  const confirmSwitch = async (id: number) => {
     try {
-      await apiPost('/decorate/decorate/setHome', { id: row.decorateId, pageType });
+      await apiPost('/decorate/decorate/setHome', { id, pageType });
       Toast.success(t('设置成功'));
       onDone();
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : t('设置失败'));
-    } finally {
-      setSettingId(0);
+      throw error;
     }
   };
 
   return (
-    <Modal
+    <OptionSelectModal
       visible={visible}
-      onCancel={onClose}
-      footer={null}
-      width={720}
+      width={640}
       title={`${t('更换')}${pageTypeLabel(pageType)}`}
-    >
-      <Table
-        loading={loading}
-        pagination={false}
-        dataSource={rows}
-        rowKey="decorateId"
-        columns={[
-          {
-            title: t('页面名称'),
-            dataIndex: 'decorateName',
-            render: (v: any, row: any) => (
-              <Space>
-                <span>{v || row?.decorateTitle || row?.bingdingH5Name || t('首页微页面')}</span>
-                {row.decorateId === currentId && (
-                  <Tag color="red" size="small">{t('当前默认')}</Tag>
-                )}
-              </Space>
-            ),
-          },
-          {
-            title: t('发布状态'),
-            dataIndex: 'status',
-            width: 110,
-            render: (s: any) => <Tag color={s === 1 ? 'green' : 'grey'}>{s === 1 ? t('已发布') : t('草稿')}</Tag>,
-          },
-          {
-            title: t('操作'),
-            width: 120,
-            render: (_: any, row: any) => (
-              <Button
-                theme="borderless"
-                type="primary"
-                size="small"
-                disabled={row.decorateId === currentId}
-                loading={settingId === row.decorateId}
-                onClick={() => setDefault(row)}
-              >
-                {t('设为默认')}
-              </Button>
-            ),
-          },
-        ]}
-      />
-    </Modal>
+      subtitle={t('选择要设为默认的页面，确认后立即生效')}
+      notice={
+        currentRow ? (
+          <>
+            <IconInfoCircle />
+            <span>
+              {t('当前默认：')}
+              <b>{pageName(currentRow)}</b>
+            </span>
+            <span className="osm-notice-sep" />
+            <span>{t('新页面将立即替换当前默认')}</span>
+          </>
+        ) : null
+      }
+      options={candidates.map((row) => ({
+        value: row.decorateId,
+        label: pageName(row),
+        description: row.updateTime ? t('更新于 {time}', { time: formatDecorateTime(row.updateTime) }) : undefined,
+        tag: (
+          <span className={`osm-status${Number(row.status) === 1 ? ' is-online' : ''}`}>
+            <i />
+            {Number(row.status) === 1 ? t('已发布') : t('未发布')}
+          </span>
+        ),
+      }))}
+      value={choice}
+      onChange={(v) => setChoice(Number(v))}
+      loading={loading}
+      searchable
+      emptyText={t('暂无其他可更换的同类型页面')}
+      searchPlaceholder={t('搜索页面名称')}
+      confirmText={t('确定')}
+      cancelText={t('取消')}
+      onCancel={onClose}
+      onConfirm={(v) => confirmSwitch(Number(v))}
+    />
   );
 }
 
