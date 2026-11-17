@@ -15,12 +15,12 @@ import "./basic/whiteLine";
 import "./basic/whiteBlank";
 import "./basic/imageNav";
 import "./basic/titleAd";
-import "./basic/commonTitle";
-import "./basic/navbar";
 import "./basic/notice";
 import "./basic/searchBar";
 import "./basic/searchBar2";
 import "./basic/catNav";
+import "./basic/navbar";
+import "./basic/commonTitle";
 // 不进工具栏（visible: false），仅保证老数据可渲染
 import "./basic/article";
 
