@@ -138,7 +138,7 @@ export default function SettingsPanel() {
     const headerTitle = isModuleMode && activeModule ? activeModule.label || activeModule.type : "页面设置";
 
     return (
-        <div className="decorate-edit-wrap h5-editor-settings">
+        <div className="decorate-edit-wrap h5-editor-settings dec-settings-scope">
             <div className="dec-edit-title">
                 <h3>{t(headerTitle)}</h3>
             </div>

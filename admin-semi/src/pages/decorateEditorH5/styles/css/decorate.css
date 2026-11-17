@@ -204,7 +204,8 @@
     -moz-transition: all 0.5s;
     -webkit-transition: all 0.5s;
     -o-transition: all 0.5s;
-    width: 200px;
+    /* 2026-11-17 标准编辑器 Step 1：左库宽度与 PC 编辑器统一 295px（原移植值 200px） */
+    width: 295px;
     border-right: 1px solid #f0f2f5;
 }
 .theme-menu-con.show {
@@ -484,10 +485,11 @@
 /*页面层*/
 /* 2026-11-15 去补丁化：原版靠 perfect-scrollbar JS 组件滚动故 CSS 写 overflow:hidden，
    React 版无该组件——滚动直接在此基础样式定义为原生 overflow-y:auto（同 PC 编辑器
-   普通 div 视口口径），不再依赖 editor.less 的覆写补丁。left:200px = 左侧工具栏实宽
-   （.theme-menu-con 200px；80px 图标轨未渲染），画布容器与工具栏严丝合缝、手机列居中。 */
+   普通 div 视口口径），不再依赖 editor.less 的覆写补丁。left:295px = 左侧工具栏实宽
+   （.theme-menu-con 295px，2026-11-17 标准编辑器 Step 1 与 PC 编辑器统一；80px 图标轨
+   未渲染），画布容器与工具栏严丝合缝、手机列居中。 */
 .decorate-page-wrap {
-    left: 200px;
+    left: 295px;
     position: fixed;
     right: 380px;
     background: #f7f8fa;
@@ -642,23 +644,13 @@
     position: fixed;
     right: 0;
     width: 380px;
-    background: #fff;
+    /* 2026-11-17 标准编辑器 Step 1：面板底色与 PC 编辑器统一 #f7f8fa（标题区白底由共享层给出） */
+    background: #f7f8fa;
     bottom: 0;
     top: 55px;
 }
-.decorate-edit-wrap .dec-edit-title {
-    padding: 24px 16px;
-    border-bottom: 1px solid #f2f4f6;
-    margin-bottom: 14px;
-}
-.decorate-edit-wrap .dec-edit-title h3 {
-    margin-right: auto;
-    font-size: 18px;
-    font-weight: 600;
-    line-height: 24px;
-    color: #323233;
-    text-align: left;
-}
+/* 标题区样式已抽到共享层 src/components/decorate/editor-shell.css
+   （.dec-settings-scope .dec-edit-title，PC 现行口径），此处勿再定义。 */
 .decorate-edit-wrap .decorate-edit-con {
     width: 100%;
     height: 100%;

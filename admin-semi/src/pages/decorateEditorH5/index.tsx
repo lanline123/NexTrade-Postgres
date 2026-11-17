@@ -17,6 +17,7 @@ import { setStorageUrl } from "./shared/format";
 import { ensureFixedModules } from "./contract/normalize";
 import "./styles/css/module.css";
 import "./styles/css/decorate.css";
+import "../../components/decorate/editor-shell.css";
 import "./styles/editor.less";
 import "./modules/index";
 

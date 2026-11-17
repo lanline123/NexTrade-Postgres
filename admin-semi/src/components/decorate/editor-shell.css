@@ -1,0 +1,274 @@
+/* ============================================================
+ * 标准装修编辑器 · 共享样式层（2026-11-17 抽取，Step 1）
+ * ------------------------------------------------------------
+ * 唯一标准源：PC 编辑器现行口径（pages/decorate-editor.css「PC 模块设置
+ * 现代化布局」段）。PC 与 H5 两端编辑器共用本文件，禁止再在各自样式
+ * 文件里复制 dec-edit-* / 设置面板规则——改标准只改这里。
+ *
+ * 用法：设置面板根元素挂 .dec-settings-scope，本文件规则即生效。
+ * 过渡期类名别名：.pc-module-settings__body（PC 现用）/
+ * .h5-editor-settings-body（H5 现用）与标准名 .dec-settings-body 同组，
+ * Step 2/3 壳组件化后统一为标准名。
+ *
+ * 壳布局标准尺寸：左库 295px、右栏 380px（.dec-shell__*，Step 2 起用）。
+ * ============================================================ */
+
+/* ---------- 壳布局（Step 2/3 的 EditorShell 组件使用） ---------- */
+.dec-shell {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+.dec-shell__lib {
+  width: 295px;
+  min-width: 295px;
+  flex-shrink: 0;
+  background: #fff;
+  border-right: 1px solid #f0f2f5;
+  overflow-y: auto;
+}
+.dec-shell__canvas {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  background: #eef1f6;
+}
+.dec-shell__props {
+  width: 380px;
+  min-width: 380px;
+  flex-shrink: 0;
+  background: #f7f8fa;
+  border-left: 1px solid var(--semi-color-border);
+  overflow-y: auto;
+}
+
+/* ---------- 设置面板（根 .dec-settings-scope） ---------- */
+.dec-settings-scope {
+  background: #f7f8fa;
+}
+
+/* 标题区：白底、20px 16px 12px、无分隔线；标题 17px/650 #101828 */
+.dec-settings-scope .dec-edit-title {
+  padding: 20px 16px 12px;
+  border-bottom: none;
+  margin-bottom: 0;
+  background: #fff;
+}
+.dec-settings-scope .dec-edit-title h3 {
+  margin: 0;
+  color: #101828;
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 24px;
+  text-align: left;
+}
+.dec-settings-scope .dec-edit-title .dec-edit-desc {
+  margin-top: 4px;
+  color: #667085;
+  font-size: 12.5px;
+  line-height: 18px;
+  text-align: left;
+}
+
+/* 页签：胶囊式（32px 高、7px 圆角、#f2f4f7 底，选中主题色底白字） */
+.dec-settings-scope .settings-tabs-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  height: auto;
+  padding: 0 16px 14px;
+  margin-bottom: 0;
+  border-bottom: none;
+  box-shadow: none;
+  background: #fff;
+}
+.dec-settings-scope .settings-tabs-item {
+  width: auto;
+  max-width: none;
+  height: 32px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 7px;
+  background: #f2f4f7;
+  color: #475467;
+  font-size: 13px;
+  line-height: 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.dec-settings-scope .settings-tabs-item:hover {
+  background: #e9edf3;
+  color: #101828;
+}
+.dec-settings-scope .settings-tabs-item.active {
+  background: var(--semi-color-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* 内容卡：12px 外距、1px #eaecf0 边框、10px 圆角、白底 */
+.dec-settings-scope .dec-settings-body,
+.dec-settings-scope .pc-module-settings__body,
+.dec-settings-scope .h5-editor-settings-body {
+  margin: 12px;
+  padding: 0;
+  border: 1px solid #eaecf0;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+/* 分组标题带（三形态统一观感）：#f8fafc 底、13px/650 #344054、3px 主题色竖条 */
+.dec-settings-scope .dec-edit-title-box {
+  padding: 10px 14px;
+  margin-bottom: 0;
+  background: #f8fafc;
+  border-bottom: 1px solid #f0f2f5;
+}
+.dec-settings-scope .dec-edit-title-box .title {
+  position: relative;
+  padding-left: 10px;
+  border-left: none;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 650;
+}
+.dec-settings-scope .dec-edit-title-box .title::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--semi-color-primary);
+}
+.dec-settings-scope .dec-spread-title {
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-bottom: 1px solid #f0f2f5;
+}
+.dec-settings-scope .dec-spread-title .title {
+  position: relative;
+  padding-left: 10px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 20px;
+}
+.dec-settings-scope .dec-spread-title .title::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--semi-color-primary);
+}
+.dec-settings-scope .dec-edit-section-title {
+  position: relative;
+  padding: 10px 14px 10px 24px;
+  background: #f8fafc;
+  border-bottom: 1px solid #f0f2f5;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 650;
+}
+.dec-settings-scope .dec-edit-section-title::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 13px;
+  bottom: 13px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--semi-color-primary);
+}
+
+/* 字段行：12px 14px、底分隔线、hover 底色；标签 13px #475467、标题列 min-width 84px */
+.dec-settings-scope .dec-edit-group {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f2f4f6;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+  box-sizing: border-box;
+  transition: background 0.15s ease;
+}
+.dec-settings-scope .dec-edit-group:last-child {
+  border-bottom: none;
+}
+.dec-settings-scope .dec-edit-group:hover {
+  background: #fafbfc;
+}
+.dec-settings-scope .dec-edit-group.dec-edit-group-block {
+  flex-direction: column;
+  align-items: stretch;
+}
+.dec-settings-scope .dec-edit-group.dec-edit-group-block:hover {
+  background: #fff;
+}
+.dec-settings-scope .dec-edit-group-title {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-width: 84px;
+  padding-top: 0;
+}
+.dec-settings-scope .dec-edit-group-title .label {
+  margin-right: 12px;
+  color: #475467;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: normal;
+}
+.dec-settings-scope .dec-edit-group-title .title {
+  margin-right: 12px;
+  color: #323233;
+  font-size: 14px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.dec-settings-scope .dec-edit-group-title .value {
+  margin-right: 12px;
+  color: #323233;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.dec-settings-scope .dec-edit-group-con {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+.dec-settings-scope .dec-edit-group-con > .semi-slider {
+  width: 100%;
+}
+.dec-settings-scope .dec-edit-group.dec-edit-group-block .dec-edit-group-con {
+  display: block;
+  margin-top: 10px;
+}
+.dec-settings-scope .dec-edit-group.dec-edit-group--nolabel .dec-edit-group-con {
+  margin-top: 0;
+}
+.dec-settings-scope .dec-edit-group-desc {
+  flex: 0 0 100%;
+  margin-top: 6px;
+  color: #98a2b3;
+  font-size: 12px;
+  line-height: 17px;
+}
+
+/* 输入类控件圆角 7px */
+.dec-settings-scope .semi-input-wrapper,
+.dec-settings-scope .semi-input-number,
+.dec-settings-scope .semi-select {
+  border-radius: 7px;
+}
