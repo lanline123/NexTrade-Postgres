@@ -311,6 +311,19 @@ impl ConfigClientService {
         Ok(super::buy_style::effective_buy_style(stored))
     }
 
+    /// 全站字体配置（供 PC 前台按语言注入字体栈、admin 应用后台字体；
+    /// 未配置时返回内置默认：全站默认阿里巴巴普惠体）。
+    pub async fn font_settings(&self) -> Result<serde_json::Value> {
+        let rows = self
+            .repos
+            .system
+            .config_client
+            .find_config_values(&[super::font_settings::FONT_SETTINGS_CODE])
+            .await?;
+        let stored = rows.first().and_then(|c| c.biz_val.as_deref());
+        Ok(super::font_settings::effective_font_settings(stored))
+    }
+
     /// 会员认证门控配置（后台「会员认证设置」的 closeAuth / isIdentity /
     /// type 三项只读下发；未配置时全 0，见 `system::auth_gate`）。
     pub async fn auth_gate(&self) -> Result<serde_json::Value> {

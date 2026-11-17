@@ -33,6 +33,8 @@ export interface PcHeaderBootstrap {
   priceDisplay: Record<string, any> | null;
   /** 后台「购买按钮样式设置」原始 JSON（结构由 @/lib/buy-style 的 BuyStyleConfig 定义） */
   buyStyle: Record<string, any> | null;
+  /** 后台「网站字体设置」原始 JSON（结构由 @/lib/font-settings 的 FontSettingsConfig 定义） */
+  fontSettings: Record<string, any> | null;
 }
 
 let cached: PcHeaderBootstrap | null = null;
@@ -60,6 +62,10 @@ export function readHeaderBootstrap(): PcHeaderBootstrap | null {
       buyStyle:
         parsed.buyStyle && typeof parsed.buyStyle === 'object'
           ? (parsed.buyStyle as Record<string, any>)
+          : null,
+      fontSettings:
+        parsed.fontSettings && typeof parsed.fontSettings === 'object'
+          ? (parsed.fontSettings as Record<string, any>)
           : null,
     };
     return cached;

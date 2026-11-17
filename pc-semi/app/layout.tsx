@@ -37,6 +37,7 @@ import { PC_HEADER_BOOTSTRAP_ID } from '@/lib/header-bootstrap';
 import { loadTheme } from '@/lib/theme-server';
 import { currencyCodeFrom, setPriceDisplayConfig, setServerCurrency } from '@/lib/currency';
 import { setBuyStyleConfig } from '@/lib/buy-style';
+import { resolveFontForLocale } from '@/lib/font-settings';
 import { normalizeLocale } from '@/i18n/locale';
 import { loadServerLocale } from '@/i18n/server';
 import { setStorageUrl } from '@/lib/image';
@@ -205,6 +206,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   setPriceDisplayConfig(headerBootstrap?.priceDisplay);
   // 后台「购买按钮样式设置」：SSR 与客户端共用同一份全局购买样式配置
   setBuyStyleConfig(headerBootstrap?.buyStyle);
+  // 后台「网站字体设置」：按当前语言解析生效字体，SSR 直出 CSS 链接与
+  // --font-family-base 变量（globals.scss 的 body 字体栈消费），首屏即生效。
+  const font = resolveFontForLocale(headerBootstrap?.fontSettings, serverLang);
+  const fontCss = `:root{--font-family-base:${font.stack}}`;
 
   // 非 zh/en 的翻译不在构建产物里，先按当前语言拉取，保证 SSR 文案即为所选语言
   await loadServerLocale(serverLang);
@@ -215,6 +220,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {/* 后台主题风格 → :root CSS 变量。必须排在所有样式表之前，才能被
             globals.scss / cart-modern.scss 里的 var(--general, …) 兜底链正确消费。 */}
         {themeCss ? <style id="pc-theme-vars" dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
+        {/* 网站字体（后台「网站字体设置」）：当前语言字体 + 全站默认（普惠体）的
+            切片 CSS（unicode-range 分片，浏览器按用字下载）与字体栈变量。 */}
+        {font.cssUrls.map((href) => (
+          <link key={href} rel="stylesheet" href={href} />
+        ))}
+        <style id="pc-font-vars" dangerouslySetInnerHTML={{ __html: fontCss }} />
         {/* 平台图标字体 iconfont-pc：对齐旧版 view/pc/assets/css/global.css 顶部 @import。
             各模块标题箭头、客服/收藏等 iconfont-pc 类仍在用，依赖这份字体样式。
             App Router 的 head 由框架管理，这里放在 body 顶部同样会被浏览器加载。

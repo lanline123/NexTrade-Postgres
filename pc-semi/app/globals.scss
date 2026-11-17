@@ -60,7 +60,7 @@ body {
      各组件仍各自覆盖字号/颜色；这里只还原旧版的继承基线。 */
   color: #666;
   font-size: 12px;
-  font-family: PingFang SC, Microsoft Yahei, Avenir, Segoe UI, Hiragino Sans GB, STHeiti, 'Microsoft Sans Serif', WenQuanYi Micro Hei, sans-serif;
+  font-family: var(--font-family-base, PingFang SC, Microsoft Yahei, Avenir, Segoe UI, Hiragino Sans GB, STHeiti, 'Microsoft Sans Serif', WenQuanYi Micro Hei, sans-serif);
   text-align: left;
   word-break: normal;
   -webkit-font-smoothing: antialiased;
@@ -74,7 +74,7 @@ html body,
 html body .semi-always-light {
   color: #666;
   font-size: 12px;
-  font-family: PingFang SC, Microsoft Yahei, Avenir, Segoe UI, Hiragino Sans GB, STHeiti, 'Microsoft Sans Serif', WenQuanYi Micro Hei, sans-serif;
+  font-family: var(--font-family-base, PingFang SC, Microsoft Yahei, Avenir, Segoe UI, Hiragino Sans GB, STHeiti, 'Microsoft Sans Serif', WenQuanYi Micro Hei, sans-serif);
   text-align: left;
   word-break: normal;
 }

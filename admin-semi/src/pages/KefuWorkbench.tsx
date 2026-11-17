@@ -45,6 +45,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { IconSearch, IconRefresh } from '@douyinfe/semi-icons';
 import { apiGet, apiPost, getToken } from '../api';
+import { emojiUrl } from '../lib/emojiUrls';
 import { useI18n } from '../i18n';
 import type { ColumnConfig } from '../framework/types';
 
@@ -161,7 +162,7 @@ const EMOJI_CODES: Array<[string, string]> = [
 
 const EMOJI_ID_BY_NAME = new Map<string, string>(EMOJI_CODES);
 
-const emojiImgSrc = (id: string) => `https://oss.tigshop.com/official/emoji/${id}.png`;
+const emojiImgSrc = (id: string) => emojiUrl(id);
 
 /** 文本切分：白名单 `[表情名]` 段 vs 普通文本段（未识别的码保持原样文本）。 */
 interface EmojiSegment {

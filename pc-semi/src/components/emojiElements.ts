@@ -1,9 +1,9 @@
 /**
- * IM 表情包（144 种，名称与 OSS 图 ID 映射）。
+ * IM 表情包（名称与图 ID 映射）。
  * 源码对照：java-b2b2c-overseas-v5.8.61/view/pc/pages/chat/src/emojiElements.ts
  * - 输入以 `[表情名]` 标记插入文本；渲染时替换为 OSS 图片。
+ * - 图片地址见 ./emojiUrls.ts（自有 OSS，id → URL 映射）。
  */
-export const EMOJI_BASE = 'https://oss.tigshop.com/official/emoji/';
 
 export const emojiElements: Array<{ name: string; id: string }> = [
   { name: "微笑", id: "1" },

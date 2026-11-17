@@ -313,6 +313,29 @@ impl ConfigBasicService {
             .await
     }
 
+    /// 读取网站字体配置（生效值：已存配置清洗后，或内置默认）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn get_font_settings(&self) -> Result<Value> {
+        let stored = self
+            .repo()
+            .find_by_code(super::font_settings::FONT_SETTINGS_CODE)
+            .await?;
+        Ok(super::font_settings::effective_font_settings(stored.as_deref()))
+    }
+
+    /// 保存网站字体配置（清洗后整块 JSON 落 config 表 `fontSettings` 行）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn save_font_settings(&self, payload: &Value) -> Result<()> {
+        let clean = super::font_settings::sanitize_font_settings(payload);
+        self.repo()
+            .save_code(super::font_settings::FONT_SETTINGS_CODE, &clean.to_string())
+            .await
+    }
+
     pub async fn get_icon_settings(&self) -> Result<Value> {
         let rows = self
             .repo()

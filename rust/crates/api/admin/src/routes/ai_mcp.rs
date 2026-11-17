@@ -9,7 +9,7 @@
 //!
 //! 管理端接口（需管理员登录）：
 //! - `GET/POST /ai/mcp/settings`、`POST /ai/mcp/settings/token`
-//! - `GET /ai/mcp/logs`、`GET /ai/mcp/approvals`、`POST /ai/mcp/approvals/approve|reject`
+//! - `GET /ai/mcp/logs`、`POST /ai/mcp/logs/cleanup`、`GET /ai/mcp/approvals`、`POST /ai/mcp/approvals/approve|reject`
 //!
 //! MCP 端点（免管理员 JWT，Bearer Token 鉴权）：`POST /adminapi/ai/mcp`（JSON-RPC 2.0）。
 
@@ -183,6 +183,7 @@ pub fn routes(_state: &AdminState) -> Router<AdminState> {
         .route("/ai/mcp/settings/approval-exempt", post(settings_approval_exempt))
         .route("/ai/mcp/settings/token", post(token_regenerate))
         .route("/ai/mcp/logs", get(logs_list))
+        .route("/ai/mcp/logs/cleanup", post(logs_cleanup))
         .route("/ai/mcp/approvals", get(approvals_list))
         .route("/ai/mcp/approvals/approve", post(approval_approve))
         .route("/ai/mcp/approvals/reject", post(approval_reject))
@@ -301,6 +302,46 @@ async fn logs_list(
         })
         .collect();
     ok(json!({ "records": records, "total": total.0, "page": page, "size": size }))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LogCleanupBody {
+    /// 删除该时间点（unix 秒）之前的日志；与 retainDays 二选一，优先 before。
+    #[serde(default)]
+    before: Option<i64>,
+    /// 只保留最近 N 天的日志、其余删除；与 before 二选一。
+    #[serde(default)]
+    retain_days: Option<i64>,
+}
+
+/// 清理 MCP 调用日志：按截止日期或保留天数删除旧日志，返回实际删除条数。
+/// 删除后表文件空间由 autovacuum 回收复用，不做全表重写。
+async fn logs_cleanup(
+    State(state): State<AdminState>,
+    Json(body): Json<LogCleanupBody>,
+) -> ApiResult<Value> {
+    let validation = |msg: &str| AppError(nextrade_core::Error::Validation(msg.to_string()));
+    let cutoff: i64 = if let Some(before) = body.before {
+        if before <= 0 {
+            return Err(validation("before 必须为正数时间戳"));
+        }
+        before
+    } else if let Some(days) = body.retain_days {
+        if !(0..=3650).contains(&days) {
+            return Err(validation("retainDays 需在 0-3650 之间"));
+        }
+        now_secs() as i64 - days * 86400
+    } else {
+        return Err(validation("需提供 before 或 retainDays"));
+    };
+    let deleted = sqlx::query("DELETE FROM ai_mcp_log WHERE add_time < $1")
+        .bind(cutoff as i32)
+        .execute(&state.repos.pool)
+        .await
+        .map_err(|e| AppError(nextrade_core::Error::Validation(e.to_string())))?
+        .rows_affected();
+    ok(json!({ "deleted": deleted, "cutoff": cutoff }))
 }
 
 async fn approvals_list(

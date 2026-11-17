@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, Card, Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
-import { EMOJI_BASE, emojiElements, splitEmoji } from '@/components/emojiElements';
+import { emojiElements, splitEmoji } from '@/components/emojiElements';
+import { emojiUrl } from '@/components/emojiUrls';
 
 import { useTranslation } from 'react-i18next';
 import { formatPrice } from '@/lib/currency';
@@ -58,7 +59,7 @@ function TextWithEmoji({ text }: { text: string }) {
           <img
             key={index}
             className="chat-emoji"
-            src={`${EMOJI_BASE}${emojiElements.find((item) => item.name === part.value)?.id || ''}.png`}
+            src={emojiUrl(emojiElements.find((item) => item.name === part.value)?.id || '')}
             alt={part.value}
           />
         ) : (
@@ -530,7 +531,7 @@ export default function ChatClient() {
                                   }}
                                 >
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img className="emoji-img" src={`${EMOJI_BASE}${item.id}.png`} alt={item.name} />
+                                  <img className="emoji-img" src={emojiUrl(item.id)} alt={item.name} />
                                 </div>
                               ))}
                             </div>
