@@ -3,7 +3,9 @@
  *
  * 根 class 与 seckill 同构（module-seckill-goods_ad + ad-* 系列），根节点无 frame 外层样式（原版如此）；
  * 内容层 frame 背景/圆角后叠模块 allFormat。数据流同原版 getData：size 按 style 取（<5 取 style、5 取 1），
- * 未选活动或条数不足时以原版 defaultGrouponItems 4 条演示数据补足；已选活动时取既有接口
+ * 未选活动或接口列表为空时以原版 defaultGrouponItems 演示数据补足（原版 processData
+ * 的 `grouponItemList.value < size` 数组/数字比较怪癖使补足仅在列表为空时发生，
+ * 条数不足但非空时不补）；已选活动时取既有接口
  * /promotion/groupon/item/list（后台拼团商品管理同源接口，参数 grouponPromotionId/page/size，不改路径）。
  * 标签条仅 style<3 或 5 显示（style 1 显示「拼团」，倒计时在原版已注释不渲染）；
  * 名称前成团人数 chip 由 getMinGroupNum 逐字复刻（groupNum 为 JSON 数组串时取最小 groupNum，否则 0）；
@@ -145,7 +147,10 @@ export default function GrouponPreview({ data }: { data: Record<string, any> }) 
 
     useEffect(() => {
         let alive = true;
+        // 与原版 processData 一致：仅列表为空时才补演示数据（原版 `list.value < size`
+        // 对非空数组恒为 false），条数不足但非空时原样展示，不混入演示商品
         const pad = (list: any[]) => {
+            if (list.length > 0) return list;
             const next = [...list];
             let index = 0;
             for (let i = next.length; i < size; i++) {

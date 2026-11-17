@@ -5,7 +5,8 @@
  * type="productGrouping"）。
  * 手动组 GroupListEdit 以 GroupCardList 承接：主标题/副标题/查看更多链接（SelectLink
  * 文本输入写回 titleLink 同一结构）/自定义图片（bannerPic PicSelect）可编辑；组内商品
- * ProductInfoSelect 未移植，保留只读提示（customProduct 口径）。
+ * 走共享 ProductInfoSelect（快照式选品），可增删/更换/拖拽排序组内 productList；
+ * 新建组默认值与删组下限（可删至 0 组）均按原版 GroupListEdit 口径。
  * 商品分组来源 ProductGroupSelect（DialogForm 选分组）无现成选择 API：分组名只读展示，
  * title/subTitle/menuTitle/productNumType/productNum 等普通字段本地可编辑。
  * 列表样式/字号类原版为图标 radio，本实现以等值文字钮承接。
@@ -24,6 +25,7 @@ import {
     DecDivider
 } from "../../../shared/settingWidgets";
 import { SettingsTabs, GroupCardList, ExtensionStyleSettings, PicFillTypeField } from "../../../shared/styleEdits";
+import ProductInfoSelect from "../../../shared/ProductInfoSelect";
 import { cloneDeep, defaultBuyButtonStyle } from "../../../contract/sharedDefaults";
 import { useI18n } from "../../../../../i18n";
 
@@ -70,10 +72,21 @@ function ManualGroupEditor({ data, onChange }: Props) {
         <GroupCardList
             items={groups}
             addText="添加一组"
-            onAdd={() => setList([...groups, { title: "", subTitle: "", titleLink: {}, bannerPic: {}, bannerLink: {}, productList: [] }])}
+            onAdd={() =>
+                setList([
+                    ...groups,
+                    {
+                        title: "",
+                        subTitle: "",
+                        productList: [],
+                        bannerPic: {},
+                        bannerLink: { link: { link: "", title: "" }, linkTitle: "" },
+                        titleLink: { link: { link: "", title: "" }, linkTitle: "" }
+                    }
+                ])
+            }
             onRemove={(index) => setList(groups.filter((_, i) => i !== index))}
             onMove={moveItem}
-            canRemove={groups.length > 1}
             renderItem={(group, index) => {
                 const sub: Props = { data: group, onChange: (patch: Patch) => patchItem(index, patch) };
                 const linkUrl = group.titleLink?.link?.link ?? (typeof group.titleLink?.link === "string" ? group.titleLink.link : "");
@@ -94,11 +107,12 @@ function ManualGroupEditor({ data, onChange }: Props) {
                         </SettingRow>
                         <PicSelectField {...sub} field="bannerPic" label="自定义图片" />
                         <SettingRow label="选择商品" block>
-                            <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6 }}>
-                                商品选择器（ProductInfoSelect 数据选择组件）尚未接入本编辑器，当前组已选/演示商品 {(group.productList ?? []).length} 件，数据保持不变。
-                                <br />
-                                {t("提示：您可以通过拖拽进行商品排序")}
-                            </div>
+                            <ProductInfoSelect
+                                value={Array.isArray(group.productList) ? group.productList : []}
+                                onChange={(next) => patchItem(index, { productList: next })}
+                                isMultiple
+                            />
+                            <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6, marginTop: 8 }}>{t("提示：您可以通过拖拽进行商品排序")}</div>
                         </SettingRow>
                     </>
                 );

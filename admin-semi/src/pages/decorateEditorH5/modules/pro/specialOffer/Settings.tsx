@@ -2,8 +2,8 @@
  * 天天特价 设置（对齐 view/admin mobilePro/specialOffer/Settings.vue）
  *
  * 页签：商品设置 / 扩展设置（颜色设置 + ExtensionStyleSettings type="specialOffer"）。
- * - 商品来源：ProductInfoSelect / ProductGroupSelect 均未移植——手动商品保留演示项渲染 +
- *   只读提示，分组保留已选数量只读展示（customProduct 口径）；
+ * - 商品来源：手动商品走共享 ProductInfoSelect（快照式选品），可增删/更换/拖拽
+ *   排序 productList；ProductGroupSelect 未移植，分组保留已选数量只读展示；
  * - 模块颜色风格切换的联动与原版 resetColor 一致：写回 moduleColor.countdownTitleColor 与
  *   contentStyle.gradientColorA/B 为 ModuleTheme 预设；
  * - prodcutTitles 逐项编辑：按原版 pushProductTitle 语义补齐（手动=productList 长度，
@@ -24,6 +24,7 @@ import {
     DecDivider
 } from "../../../shared/settingWidgets";
 import { SettingsTabs, ExtensionStyleSettings, PicFillTypeField } from "../../../shared/styleEdits";
+import ProductInfoSelect from "../../../shared/ProductInfoSelect";
 import { SPECIAL_OFFER_THEMES } from "./Preview";
 import { useI18n } from "../../../../../i18n";
 
@@ -111,11 +112,8 @@ export default function SpecialOfferSettings({ data, onChange }: Props) {
                         />
                         {data?.productSource === "products" ? (
                             <SettingRow label="选择商品" block>
-                                <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6 }}>
-                                    商品选择器（ProductInfoSelect 数据选择组件）尚未接入本编辑器，当前已选/演示商品 {productList.length} 件，数据保持不变。
-                                    <br />
-                                    {t("提示：您可以通过拖拽进行商品排序")}
-                                </div>
+                                <ProductInfoSelect value={productList} onChange={(next) => onChange({ productList: next })} isMultiple />
+                                <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6, marginTop: 8 }}>{t("提示：您可以通过拖拽进行商品排序")}</div>
                             </SettingRow>
                         ) : (
                             <SettingRow label="商品分组" block>

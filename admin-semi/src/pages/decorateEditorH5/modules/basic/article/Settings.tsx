@@ -2,15 +2,17 @@
  * 文章列表 设置（字段对齐 view/admin article/Settings.vue）
  *
  * 两页签（原版 el-tabs：文章设置 / 扩展设置）：
- * - 文章设置：选择风格 / 文章数量（el-input 数字、无上限）/ 参数设置（三个显示开关均为
- *   el-radio 显示/不显示）/ 图片圆角半径（slider max 100）/ 标题粗细（400/700）。
- *   文章分类 SelectArticleCategory 属数据选择器、尚未移植，本批不渲染假控件（详见批次回报）。
+ * - 文章设置：选择风格 / 文章分类（SelectArticleCategory 级联选择器，同目录组件，
+ *   checkStrictly、可清空，写回分类 ID 路径数组）/ 文章数量（el-input 数字、无上限）/
+ *   参数设置（三个显示开关均为 el-radio 显示/不显示）/ 图片圆角半径（slider max 100）/
+ *   标题粗细（400/700）。
  * - 扩展设置：颜色设置五色（含 moduleColor.statisticColor，默认 #999999，见 index.ts defaults）
  *   + ModuleStyleEdit/ContentStyleEdit（ExtensionStyleSettings type="article"）。
  */
 import { Input } from "@douyinfe/semi-ui";
 import { SettingGroup, SettingRow, RadioRowField, RangeField, ColorField } from "../../../shared/settingWidgets";
 import { SettingsTabs, ExtensionStyleSettings } from "../../../shared/styleEdits";
+import SelectArticleCategory from "./SelectArticleCategory";
 
 export default function ArticleSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
     const moduleColor = data?.moduleColor ?? {};
@@ -32,6 +34,9 @@ export default function ArticleSettings({ data, onChange }: { data: Record<strin
                                     { value: 3, label: "两列展示(横向)" }
                                 ]}
                             />
+                            <SettingRow label="文章分类" block>
+                                <SelectArticleCategory value={data?.articleCategoryId} onChange={(ids) => onChange({ articleCategoryId: ids })} />
+                            </SettingRow>
                             {/* 文章数量：原版为 el-input 数字输入、无上限（不用滑杆形态） */}
                             <SettingRow label="文章数量">
                                 <Input

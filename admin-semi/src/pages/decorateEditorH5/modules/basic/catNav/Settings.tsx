@@ -7,6 +7,7 @@
  * 原版与本模块均无「搜索框高/高度」字段（logoHeight 的标签为「LOGO高度」），审计该条无对应字段可改。
  */
 import { SettingGroup, SettingRow, ColorField, NumberField, RadioRowField, SinglePicField, TextField } from "../../../shared/settingWidgets";
+import { defaultFrame } from "../../../contract/sharedDefaults";
 
 export default function CatNavSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
     return (
@@ -14,7 +15,8 @@ export default function CatNavSettings({ data, onChange }: { data: Record<string
             <SettingGroup title="分类导航">
                 <NumberField data={data} onChange={onChange} field="itemWidth" label="分类名宽度(%)" max={50} suffix="%" />
                 <ColorField data={data} onChange={onChange} field="textColor" label="文字颜色" />
-                <ColorField data={data} onChange={onChange} field="backgroundColor" label="背景颜色" />
+                {/* 原版背景颜色「重置」回 defaultFrame.backgroundColor（#ffffff），非清空 */}
+                <ColorField data={data} onChange={onChange} field="backgroundColor" label="背景颜色" resetValue={defaultFrame.backgroundColor} />
                 <SinglePicField data={data} onChange={onChange} field="navBackgroundPic" label="背景图" />
                 <SettingRow label="设置分类">
                     <a className="btn-link" href="/decorate-info/mobile-cat-nav/list" target="_blank" rel="noreferrer" style={{ color: '#155bd4', fontSize: 14 }}>

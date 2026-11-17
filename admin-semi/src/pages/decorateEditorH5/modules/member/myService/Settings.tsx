@@ -4,9 +4,10 @@
  * 页签 内容设置/扩展设置。内容：模块标题（maxlength 10）→ 布局样式（列表版/九宫格）→
  * 图标圆角滑杆（max 50）→ 默认服务（接口 /decorate/decorateDiscrete/memberDecorateData 的 menus，
  * 与后台「会员中心装修」页同源；点击标签追加到 serviceList，同原版 addTag）→ 服务列表 PicList；
- * 扩展：CommonFrameEdit 全量。原版打开设置时 serviceList 为空自动以 menus 填充——本实现不静默改数据，未复刻（见摘要）。
+ * 扩展：CommonFrameEdit 全量。自动填充对齐原版 _getMenberDecorateData：menus 返回时若 serviceList
+ * 仍为空数组/未设置，则以 menus 全量浅拷贝写回（以响应到达时的最新数据判定，同原版读 module 实时值）。
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Tag, Spin } from "@douyinfe/semi-ui";
 import { apiGet } from "../../../../../api";
 import { SettingGroup, TextField, SegmentedRadio, RangeField, DecDivider, PicListField, FrameSettingsField, RadioRowField } from "../../../shared/settingWidgets";
@@ -15,6 +16,10 @@ import { SettingsTabs } from "../../../shared/styleEdits";
 export default function MyServiceSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
     const [menus, setMenus] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const dataRef = useRef(data);
+    dataRef.current = data;
+    const onChangeRef = useRef(onChange);
+    onChangeRef.current = onChange;
 
     useEffect(() => {
         let alive = true;
@@ -22,7 +27,13 @@ export default function MyServiceSettings({ data, onChange }: { data: Record<str
             .then((res: any) => {
                 if (!alive) return;
                 const raw = res?.menus ?? res?.data?.menus ?? [];
-                setMenus(Array.isArray(raw) ? raw : Object.values(raw || {}));
+                const list = Array.isArray(raw) ? raw : Object.values(raw || {});
+                setMenus(list);
+                // 原版口径：serviceList 为空时以 menus 全量填充（判定取响应到达时的最新值）
+                const current = dataRef.current?.serviceList;
+                if (!Array.isArray(current) || current.length === 0) {
+                    onChangeRef.current({ serviceList: list.map((item: any) => ({ ...item })) });
+                }
             })
             .catch(() => undefined)
             .finally(() => {

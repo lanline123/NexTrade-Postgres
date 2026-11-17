@@ -3,7 +3,7 @@
 *
 * 页签：商品设置（ComboGroupEdit 分组编辑 / 右侧小图 / 倒计时设置 / 参数设置）
 * / 扩展设置（颜色设置 8 色 + ModuleStyle/ContentStyle type="mixedProductDisplay"）。
-* 分组内商品选择 ProductInfoSelect 未移植：保留演示项与只读提示，数据不变（customProduct 口径）。
+* 分组内商品选择走共享 ProductInfoSelect（快照式选品），可增删/更换/拖拽排序各组 pruductList（字段名沿原版拼写）。
 * 查看更多链接 SelectLink 以文本输入承接，写回 moreLink 同一嵌套结构。
 * 时间选择：el-time-picker/el-date-picker 以原生 time/datetime-local 输入承接，写回时间戳数组/数值。
 * 商品销量 productSales 在原版 Settings 中被注释、不生效，故不提供编辑入口（defaults 保留字段）。
@@ -19,6 +19,7 @@ SinglePicField,
 DecDivider
 } from "../../../shared/settingWidgets";
 import { SettingsTabs, ExtensionStyleSettings, PicFillTypeField} from "../../../shared/styleEdits";
+import ProductInfoSelect from "../../../shared/ProductInfoSelect";
 import { useI18n} from "../../../../../i18n";
 
 type Patch = Record<string, any>;
@@ -59,7 +60,6 @@ return (
 <>
 {groups.map((group, index) => {
 const linkUrl = group.moreLink?.link?.link?? "";
-const demoCount = (group.pruductList?? []).length;
 return (
 <SettingGroup key={index} title={`第组`}>
 <SettingRow label="分组大标题">
@@ -91,9 +91,11 @@ moreLink: {...(group.moreLink || {}), link: {...(group.moreLink?.link || {}), li
 />
 </SettingRow>
 <SettingRow label="选择商品" block>
-<div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6}}>
-商品选择器（ProductInfoSelect 数据选择组件）尚未接入本编辑器，当前组已选/演示商品 {demoCount} 件，数据保持不变。
-</div>
+<ProductInfoSelect
+value={Array.isArray(group.pruductList) ? group.pruductList : []}
+onChange={(next) => patchGroup(index, { pruductList: next })}
+isMultiple
+/>
 </SettingRow>
 </SettingGroup>
 );

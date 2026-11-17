@@ -1,9 +1,14 @@
 /**
  * 秒杀2 预览（移植自 view/admin editor/modules/mobilePromotion/seckill2/Preview.vue）
  *
- * 无 frame（defaults 契约）：外层/内容层样式全部由顶层字段拼（原版 formatFrame({}) 的串为无效 CSS 被浏览器丢弃，
- * 结果等价）。标题区为 CommonTitle + #more 槽倒计时（距结束 + 黑底白字时间块，取首条活动结束时间，
- * 以 H5Countdown specifyTime 承接）；商品同 seckill 取数（/promotion/seckill/listForHomePreview）。
+ * 无 frame（defaults 契约）：原版根节点样式为 formatFrame(frame ?? {}) 串 + allFormat.backgroundColor，
+ * frame 缺失时 formatFrame 产出的 undefinedpx 无效串被浏览器丢弃，根节点实际只有模块
+ * backgroundColor；边距/圆角/内边距全部落在内容层（allFormat），根节点不再另叠一层。
+ * 标题区为 CommonTitle + #more 槽倒计时：原版 View.vue 中 #more 槽仅 title.showMore=1
+ * 时渲染（槽内容替换默认更多链接），故倒计时仅 showMore=1 时出现、showMore=0 时右侧为空
+ * （距结束 + 黑底白字时间块，取首条活动结束时间，以 H5Countdown specifyTime 承接）；
+ * 标题图 titleBackgroundPic 有图时按原版 View 渲染 30×30（image-ad-title-img）。
+ * 商品同 seckill 取数（/promotion/seckill/listForHomePreview）。
  * 卡片：item-photo-bg 垫图背景色 imageBackgroundColor、优惠 tips 红 chip（getDiscount 逐字复刻，
  * orgProductPrice 缺失时回退 marketPrice/现价→0，见摘要）、style 10 横滑（一行 3 个、item-content 仅左内边距、
  * 价格 16px #1a1a1a + 划线原价）。
@@ -66,11 +71,9 @@ export default function Seckill2Preview({ data }: { data: Record<string, any> })
         borderRadius: module.boxRadius ?? 0,
         padding: module.innerPadding ?? 0
     };
+    // 原版根节点仅 allFormat.backgroundColor 生效（frame 缺失的 formatFrame 串为无效 CSS）；
+    // 边距/圆角/内边距都在内容层，根节点不再叠加，避免整体多缩进一层
     const rootStyle: CSSProperties = {
-        marginLeft: module.boxPadding ?? 10,
-        marginRight: module.boxPadding ?? 10,
-        paddingTop: module.boxPaddingTop ?? 5,
-        paddingBottom: module.boxPaddingBottom ?? 5,
         backgroundColor: module.backgroundColor || undefined
     };
 
@@ -100,36 +103,40 @@ export default function Seckill2Preview({ data }: { data: Record<string, any> })
                 {title.showTitle ? (
                     <div className={"image-ad-title ad-title_style__" + (title.titleStyle ?? 1)} style={cssText(titleFormat.titleBackground, titleFormat.titleRadius)}>
                         <div className="image-ad-title-l">
-                            <div className="image-ad-title-h" style={{ color: title.titleColor, fontWeight: title.titleWeight }}>
+                            {productImage(title.titleBackgroundPic) ? <img className="image-ad-title-img" src={productImage(title.titleBackgroundPic)} alt="" /> : null}
+                            <div className="image-ad-title-h" style={{ color: title.titleColor }}>
                                 {title.titleText}
                             </div>
                             <div className="image-ad-title-d" style={{ color: title.descColor }}>
                                 {title.descText}
                             </div>
                         </div>
-                        <div className="image-ad-title-r">
-                            <H5Countdown countdownType="specifyTime" specifyTime={endTime}>
-                                {({ days, hours, minutes, seconds }) => (
-                                    <div className="countdown-box">
-                                        <span className="countdown-text">距结束</span>
-                                        {days && Number(days) > 0 ? (
-                                            <>
-                                                <span className="countdown-item">{days}</span>
-                                                <span className="countdown-separator"> 天 </span>
-                                            </>
-                                        ) : null}
-                                        <span className="countdown-item">{hours}</span>
-                                        <span className="countdown-separator">:</span>
-                                        <span className="countdown-item">{minutes}</span>
-                                        <span className="countdown-separator">:</span>
-                                        <span className="countdown-item">{seconds}</span>
-                                        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style={{ color: "#1a1a1a", marginLeft: 4, verticalAlign: "middle" }}>
-                                            <polyline points="9 4.5 16.5 12 9 19.5" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-                                        </svg>
-                                    </div>
-                                )}
-                            </H5Countdown>
-                        </div>
+                        {/* 原版 #more 槽：仅 title.showMore=1 时渲染（槽内容即倒计时，无默认更多链接回退） */}
+                        {Number(title.showMore) === 1 ? (
+                            <div className="image-ad-title-r">
+                                <H5Countdown countdownType="specifyTime" specifyTime={endTime}>
+                                    {({ days, hours, minutes, seconds }) => (
+                                        <div className="countdown-box">
+                                            <span className="countdown-text">距结束</span>
+                                            {days && Number(days) > 0 ? (
+                                                <>
+                                                    <span className="countdown-item">{days}</span>
+                                                    <span className="countdown-separator"> 天 </span>
+                                                </>
+                                            ) : null}
+                                            <span className="countdown-item">{hours}</span>
+                                            <span className="countdown-separator">:</span>
+                                            <span className="countdown-item">{minutes}</span>
+                                            <span className="countdown-separator">:</span>
+                                            <span className="countdown-item">{seconds}</span>
+                                            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style={{ color: "#1a1a1a", marginLeft: 4, verticalAlign: "middle" }}>
+                                                <polyline points="9 4.5 16.5 12 9 19.5" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                        </div>
+                                    )}
+                                </H5Countdown>
+                            </div>
+                        ) : null}
                     </div>
                 ) : null}
                 <div className="goods-ad-warp">

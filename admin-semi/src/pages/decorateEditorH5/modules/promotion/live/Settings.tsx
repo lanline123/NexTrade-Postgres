@@ -7,10 +7,12 @@
  * （原版 DialogForm SelectLive 数据选择器，以既有接口 /promotion/wechatLive/list 落地，勾选后写回
  * selectedLiveList，上限 10）+ 未选空提示 + 底部说明；auto 时直播数量 autoLiveNum（整数 1..10）。
  * 样式：CommonFrameEdit type="live"（无分隔线/无「模块设置」标题——FrameSettingsField hideHead 承接）。
- * 注：原版 Settings 打开时有一段 syncSelectedLiveList 副作用（auto 时把自动列表前 N 条写回 selectedLiveList），
- * 本实现不复刻该静默写回（编辑器打开设置不应改数据），Preview 的 manual/auto 取数语义不受影响，差异见摘要。
+ * 写回行为对齐原版 syncSelectedLiveList：挂载时先 normalizeAutoLiveNum 并以当前 selectedLiveList
+ * 初始化 manual 镜像、拉取自动列表（过滤 liveStatus!==4、上限 10）；sourceType/autoLiveNum/自动列表
+ * 任一变化即同步写回 selectedLiveList——auto 写自动列表前 autoLiveNum 条快照，manual 写 manual 镜像。
+ * 写回带内容 diff 守卫（与当前值相同不重复写），避免与原版无条件赋值等价语义下产生无意义脏标记/循环。
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Checkbox, InputNumber, Modal, Spin } from "@douyinfe/semi-ui";
 import { apiGet } from "../../../../../api";
 import { SettingGroup, SettingRow, SegmentedRadio, FrameSettingsField, RadioRowField } from "../../../shared/settingWidgets";
@@ -26,6 +28,54 @@ export default function LiveSettings({ data, onChange }: { data: Record<string, 
     const [loading, setLoading] = useState(false);
     const [rooms, setRooms] = useState<any[]>([]);
     const [checkedIds, setCheckedIds] = useState<any[]>([]);
+
+    // ---- syncSelectedLiveList 写回（对齐原版 onMounted + watch([sourceType, autoLiveNum, autoLiveList], { deep: true })） ----
+    const dataRef = useRef(data);
+    dataRef.current = data;
+    const onChangeRef = useRef(onChange);
+    onChangeRef.current = onChange;
+    const [autoLiveList, setAutoLiveList] = useState<any[]>([]);
+    const manualListRef = useRef<any[]>([]);
+
+    useEffect(() => {
+        // normalizeAutoLiveNum：仅当已存值存在且归一化后不同才写回（新模块默认值 10 不触发）
+        const raw = dataRef.current?.autoLiveNum;
+        if (raw !== undefined && raw !== null && raw !== "") {
+            const n = Number(raw || 10);
+            const normalized = !n || n < 1 ? 1 : Math.min(n, 10);
+            if (normalized !== Number(raw)) onChangeRef.current({ autoLiveNum: normalized });
+        }
+        // manual 镜像以打开时的 selectedLiveList 初始化（同原版 onMounted 顺序，在 sync 之前）
+        manualListRef.current = (Array.isArray(dataRef.current?.selectedLiveList) ? dataRef.current.selectedLiveList : []).slice(0, 10);
+        let alive = true;
+        apiGet<any>("/promotion/wechatLive/list", { keyword: "", page: 1, size: 10 })
+            .then((res: any) => {
+                if (!alive) return;
+                const rows = res?.records || res?.list || [];
+                setAutoLiveList(rows.filter((item: any) => Number(item.liveStatus) !== 4).slice(0, 10));
+            })
+            .catch(() => {
+                if (alive) setAutoLiveList([]);
+            });
+        return () => {
+            alive = false;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        const current = Array.isArray(dataRef.current?.selectedLiveList) ? dataRef.current.selectedLiveList : [];
+        let target: any[];
+        if (sourceType === "manual") {
+            target = manualListRef.current.slice(0, 10);
+        } else {
+            const n = Math.min(Math.max(Number(dataRef.current?.autoLiveNum || 10), 1), 10);
+            target = autoLiveList.slice(0, Number.isNaN(n) ? 0 : n);
+        }
+        if (JSON.stringify(current) !== JSON.stringify(target)) {
+            onChangeRef.current({ selectedLiveList: target });
+        }
+    }, [sourceType, data?.autoLiveNum, autoLiveList]);
 
     useEffect(() => {
         if (!pickerOpen) return;
@@ -50,15 +100,21 @@ export default function LiveSettings({ data, onChange }: { data: Record<string, 
 
     const confirmPicker = () => {
         const result = rooms.filter((r) => checkedIds.includes(r.wechatLiveId || r.roomId)).slice(0, 10);
+        manualListRef.current = result;
         onChange({ selectedLiveList: result });
         setPickerOpen(false);
     };
-    const removeAt = (index: number) => onChange({ selectedLiveList: selected.filter((_, i) => i !== index) });
+    const removeAt = (index: number) => {
+        const next = selected.filter((_, i) => i !== index);
+        manualListRef.current = next;
+        onChange({ selectedLiveList: next });
+    };
     const move = (index: number, dir: -1 | 1) => {
         const next = [...selected];
         const target = index + dir;
         if (target < 0 || target >= next.length) return;
         [next[index], next[target]] = [next[target], next[index]];
+        manualListRef.current = next;
         onChange({ selectedLiveList: next });
     };
 

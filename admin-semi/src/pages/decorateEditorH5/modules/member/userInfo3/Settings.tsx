@@ -4,7 +4,8 @@
  * 页签 内容设置/扩展设置。内容：布局风格（1-4，切换联动同原版 watch：textColors 重置为新样式默认色、
  * 样式 2/3/4 渐变重置为该样式默认、样式四另重置 memberBar 粉渐变+圆角 10）→ 文字颜色 4 项
  * （统计两色仅样式一/二，重置回当前样式默认）→ 各样式专属组：
- *   样式一 会员等级条（开关/背景/上圆角/等级名/描述/查看链接 SelectLink 文本承接）；
+ *   样式一 会员等级条（开关/背景/上圆角/等级名/描述/查看链接 PicLinkField 选链，
+ *   原版 SelectLink 完整 LinkType 存 memberBar.buttonLink）；
  *   样式二 设置入口+图标、消息通知+图标；
  *   样式三 成长值条（开关/渐变色对/上圆角）；
  *   样式四 头像编辑图标开关、成长值卡（开关/渐变色对/圆角/按钮文案/背景图）；
@@ -14,12 +15,16 @@
  *   hideBg+hidePadding 恒开，hideBoxPadding/hideBoxRadius 仅样式 2/3/4。
  * 布尔字段（show/showEditIcon）写 boolean，同原版 el-switch/el-checkbox 语义。
  */
+import { useEffect, useRef } from "react";
 import { Input, Radio, RadioGroup, Switch, Checkbox } from "@douyinfe/semi-ui";
 import AlphaColorInput from "../../../../../components/AlphaColorInput";
 import SharedColorField from "../../../../../components/ColorField";
 import SliderWithInput from "../../../../../components/SliderWithInput";
-import { SettingGroup, SettingRow, SegmentedRadio, DecDivider, PicSelectBox, FrameSettingsField, RadioRowField } from "../../../shared/settingWidgets";
+import { SettingGroup, SettingRow, SegmentedRadio, DecDivider, PicSelectBox, PicLinkField, FrameSettingsField, RadioRowField } from "../../../shared/settingWidgets";
 import { SettingsTabs } from "../../../shared/styleEdits";
+import { cloneDeep, defaultFrame, mergeDefaultModule } from "../../../contract/sharedDefaults";
+import { USERINFO3_GROWTH_CARD_BG, USERINFO3_NOTIFICATION_ICON, USERINFO3_SETTINGS_ICON } from "./index";
+import { userInfo3Defaults } from "./index";
 
 const TEXT_DEFAULTS: Record<number, Record<string, string>> = {
     1: { nameColor: "#ffffff", subColor: "#ffffff", statValueColor: "#ffffff", statLabelColor: "#ffffff" },
@@ -78,10 +83,11 @@ function SegRow({
         </SettingRow>
     );
 }
-function PicRow({ label, value, onValue }: { label: string; value: any; onValue: (v: any) => void }) {
+function PicRow({ label, value, onValue, defaultPic }: { label: string; value: any; onValue: (v: any) => void; defaultPic?: any }) {
+    // 原版 PicSelect 重置回 :default-value 默认图（removePic 写回 { ...defaultValue }），未传默认图时才清空
     return (
         <SettingRow label={label}>
-            <PicSelectBox pic={value} onSelect={onValue} onReset={() => onValue({})} />
+            <PicSelectBox pic={value} onSelect={onValue} onReset={() => onValue(defaultPic ? { ...defaultPic } : {})} />
         </SettingRow>
     );
 }
@@ -105,7 +111,111 @@ function TextRow({
     );
 }
 
-export default function UserInfo3Settings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
+// ===== [wave2-data 线] 老数据迁移回填：对齐原版 userInfo3/Settings.vue 的 setup 迁移段，逐项复刻 =====
+// 本段（含下方组件内的同名标记 effect）为 D 线改动；文件其余部分由链接/图片线维护，合并时勿动本段。
+const UI3_SIGNIN_ICON_URL = "https://oss.tigshop.com/img/gallery/202605/1779691601SIdmgIcby2Mii610eQ.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
+const UI3_STYLE1_BG_URL = "https://oss.tigshop.com/official/img/pc/202605/1779860190FsB8OM4MrGwgOCvKsA.png";
+const ui3Pic = (url: string) => ({ picUrl: url, picThumb: url });
+const ui3GradientDefaults = (style: number): Record<string, any> => ({ ...(GRADIENT_DEFAULTS[style] || GRADIENT_DEFAULTS[2]) });
+const ui3TextColorDefaults = (style: number): Record<string, any> => ({ ...(TEXT_DEFAULTS[style] || TEXT_DEFAULTS[1]) });
+const UI3_STATS_ITEMS = [
+    { key: "collect", label: "商品收藏", show: true },
+    { key: "follow", label: "门店关注", show: true },
+    { key: "history", label: "浏览记录", show: true }
+];
+const UI3_MEMBER_LINK = { path: "base", label: "权益卡中心", name: "权益卡中心", link: "member/premiumMember/index" };
+
+/** 原版迁移：老字段迁移 → mergeDefaultModule 字面量回填 → 深层 ensure，返回顶层字段 diff（无变化返回空对象） */
+function migrateUserInfo3Data(data: Record<string, any>): Record<string, any> {
+    const next: Record<string, any> = cloneDeep(data ?? {});
+    if (next.signIn === undefined && next.showSignIn !== undefined) {
+        next.signIn = { show: !!next.showSignIn };
+    }
+    if (next.settings === undefined && next.showSettings !== undefined) {
+        next.settings = { show: !!next.showSettings };
+    }
+    mergeDefaultModule(next, {
+        layoutStyle: 1,
+        showEditIcon: true,
+        signIn: { show: true, icon: ui3Pic(UI3_SIGNIN_ICON_URL), title: "签到有礼" },
+        settings: { show: true, icon: ui3Pic(USERINFO3_SETTINGS_ICON) },
+        gradient: ui3GradientDefaults(2),
+        bgColor: "#57D45C",
+        backgroundImage: ui3Pic(UI3_STYLE1_BG_URL),
+        bottomArc: { show: true, height: 24 },
+        memberBar: {
+            show: true,
+            backgroundColor: "",
+            backgroundColorB: "",
+            borderRadius: 10,
+            levelName: "付费会员",
+            description: "购买会员，畅享更多专属权益",
+            buttonText: "查看",
+            buttonLink: { ...UI3_MEMBER_LINK },
+            waveImage: ui3Pic(USERINFO3_GROWTH_CARD_BG)
+        },
+        notification: { show: true, icon: ui3Pic(USERINFO3_NOTIFICATION_ICON) },
+        stats: { show: true, items: UI3_STATS_ITEMS.map((i) => ({ ...i })) },
+        textColors: ui3TextColorDefaults(1),
+        frame: { ...cloneDeep(defaultFrame), backgroundColor: "", boxPaddingTop: 0, boxPaddingBottom: 0, boxPadding: 0, innerPadding: 16 }
+    });
+    if (!next.signIn.icon || !next.signIn.icon.picUrl) next.signIn.icon = ui3Pic(UI3_SIGNIN_ICON_URL);
+    if (next.signIn.title === undefined || next.signIn.title === null) next.signIn.title = "签到有礼";
+    if (!next.settings.icon || !next.settings.icon.picUrl) next.settings.icon = ui3Pic(USERINFO3_SETTINGS_ICON);
+    if (!next.notification || typeof next.notification !== "object") next.notification = { show: true, icon: ui3Pic(USERINFO3_NOTIFICATION_ICON) };
+    if (!next.notification.icon || !next.notification.icon.picUrl) next.notification.icon = ui3Pic(USERINFO3_NOTIFICATION_ICON);
+    if (!next.gradient || typeof next.gradient !== "object") next.gradient = ui3GradientDefaults(next.layoutStyle ?? 2);
+    if (!next.gradient.colorA) next.gradient.colorA = ui3GradientDefaults(next.layoutStyle ?? 2).colorA;
+    if (!next.gradient.colorB) next.gradient.colorB = ui3GradientDefaults(next.layoutStyle ?? 2).colorB;
+    if (next.gradient.gradientType === undefined || next.gradient.gradientType === null) next.gradient.gradientType = "leftRight";
+    if (!next.bottomArc || typeof next.bottomArc !== "object") next.bottomArc = { show: true, height: 20 };
+    if (!next.memberBar || typeof next.memberBar !== "object") next.memberBar = { show: true, backgroundColor: "", backgroundColorB: "", borderRadius: 25 };
+    if (!next.memberBar.backgroundColor) {
+        if (next.layoutStyle === 4) next.memberBar.backgroundColor = "#FF9EB5";
+        else next.memberBar.backgroundColor = next.layoutStyle === 3 ? "#292929" : "#333";
+    }
+    if (!next.memberBar.backgroundColorB) {
+        next.memberBar.backgroundColorB = next.layoutStyle === 4 ? "#FF6E97" : "#525252";
+    }
+    if (next.memberBar.buttonText === undefined || next.memberBar.buttonText === null) next.memberBar.buttonText = "查看";
+    if (next.memberBar.levelName === undefined || next.memberBar.levelName === null) next.memberBar.levelName = "付费会员";
+    if (next.memberBar.description === undefined || next.memberBar.description === null) next.memberBar.description = "购买会员，畅享更多专属权益";
+    if (!next.memberBar.buttonLink || typeof next.memberBar.buttonLink !== "object" || !next.memberBar.buttonLink.link) {
+        next.memberBar.buttonLink = { ...UI3_MEMBER_LINK };
+    }
+    if (!next.memberBar.waveImage || typeof next.memberBar.waveImage !== "object") next.memberBar.waveImage = ui3Pic(USERINFO3_GROWTH_CARD_BG);
+    if (next.showEditIcon === undefined) next.showEditIcon = true;
+    if (!next.stats || typeof next.stats !== "object") next.stats = { show: true, items: UI3_STATS_ITEMS.map((i) => ({ ...i })) };
+    if (!next.stats.items || !Array.isArray(next.stats.items) || next.stats.items.length === 0) {
+        next.stats.items = UI3_STATS_ITEMS.map((i) => ({ ...i }));
+    }
+    if (!next.textColors || typeof next.textColors !== "object") {
+        next.textColors = ui3TextColorDefaults(next.layoutStyle ?? 1);
+    }
+    const patch: Record<string, any> = {};
+    (["layoutStyle", "showEditIcon", "signIn", "settings", "gradient", "bgColor", "backgroundImage", "bottomArc", "memberBar", "notification", "stats", "textColors", "frame"] as const).forEach((k) => {
+        if (JSON.stringify(next[k]) !== JSON.stringify(data?.[k])) patch[k] = next[k];
+    });
+    return patch;
+}
+// ===== [/wave2-data 线] =====
+
+export default function UserInfo3Settings({ data, onChange, moduleIndex }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void; moduleIndex?: number }) {
+    // ===== [wave2-data 线] 打开即迁移回填：每个模块仅执行一次，diff 为空不写回 =====
+    const dataRef = useRef(data);
+    dataRef.current = data;
+    const onChangeRef = useRef(onChange);
+    onChangeRef.current = onChange;
+    const openedKeyRef = useRef<string | null>(null);
+    useEffect(() => {
+        const key = moduleIndex !== undefined && moduleIndex !== null ? `idx:${moduleIndex}` : "single";
+        if (openedKeyRef.current === key) return;
+        openedKeyRef.current = key;
+        const patch = migrateUserInfo3Data(dataRef.current);
+        if (Object.keys(patch).length) onChangeRef.current(patch);
+    });
+    // ===== [/wave2-data 线] =====
+
     const layoutStyle = data?.layoutStyle ?? 1;
     const nested = (key: string) => (patch: Record<string, any>) => onChange({ [key]: { ...(data?.[key] ?? {}), ...patch } });
     const setTextColor = (key: string, v: string) => nested("textColors")({ [key]: v });
@@ -178,12 +288,12 @@ export default function UserInfo3Settings({ data, onChange }: { data: Record<str
                                     <RangeRow label="等级条上圆角" value={bar.borderRadius ?? 10} max={30} onValue={(v) => setBar({ borderRadius: v })} />
                                     <TextRow label="会员文案" value={bar.levelName ?? ""} onValue={(v) => setBar({ levelName: v })} placeholder="付费会员" />
                                     <TextRow label="描述文案" value={bar.description ?? ""} onValue={(v) => setBar({ description: v })} placeholder="购买会员，畅享更多专属权益" />
-                                    <TextRow
-                                        label="查看链接"
-                                        value={bar.buttonLink?.link ?? ""}
-                                        onValue={(v) => setBar({ buttonLink: { ...(bar.buttonLink ?? {}), link: v } })}
-                                        placeholder="member/premiumMember/index"
-                                    />
+                                    <SettingRow label="查看链接">
+                                        <PicLinkField
+                                            value={bar.buttonLink && typeof bar.buttonLink === "object" ? bar.buttonLink : null}
+                                            onChange={(v) => setBar({ buttonLink: v })}
+                                        />
+                                    </SettingRow>
                                 </>
                             ) : null}
                         </SettingGroup>
@@ -192,11 +302,21 @@ export default function UserInfo3Settings({ data, onChange }: { data: Record<str
                         <SettingGroup>
                             <BoolRow label="设置入口" value={data?.settings?.show !== false} onValue={(v) => nested("settings")({ show: v })} />
                             {data?.settings?.show !== false ? (
-                                <PicRow label="设置图标" value={data?.settings?.icon} onValue={(v) => nested("settings")({ icon: v })} />
+                                <PicRow
+                                    label="设置图标"
+                                    value={data?.settings?.icon}
+                                    onValue={(v) => nested("settings")({ icon: v })}
+                                    defaultPic={userInfo3Defaults.settings.icon}
+                                />
                             ) : null}
                             <BoolRow label="消息通知" value={data?.notification?.show !== false} onValue={(v) => nested("notification")({ show: v })} />
                             {data?.notification?.show !== false ? (
-                                <PicRow label="通知图标" value={data?.notification?.icon} onValue={(v) => nested("notification")({ icon: v })} />
+                                <PicRow
+                                    label="通知图标"
+                                    value={data?.notification?.icon}
+                                    onValue={(v) => nested("notification")({ icon: v })}
+                                    defaultPic={userInfo3Defaults.notification.icon}
+                                />
                             ) : null}
                         </SettingGroup>
                     ) : null}
@@ -241,7 +361,7 @@ export default function UserInfo3Settings({ data, onChange }: { data: Record<str
                                     </SettingRow>
                                     <RangeRow label="成长值卡圆角" value={bar.borderRadius ?? 10} max={30} onValue={(v) => setBar({ borderRadius: v })} />
                                     <TextRow label="按钮文案" value={bar.buttonText ?? ""} onValue={(v) => setBar({ buttonText: v })} placeholder="查看" width={160} />
-                                    <PicRow label="成长值卡背景图" value={bar.waveImage} onValue={(v) => setBar({ waveImage: v })} />
+                                    <PicRow label="成长值卡背景图" value={bar.waveImage} onValue={(v) => setBar({ waveImage: v })} defaultPic={userInfo3Defaults.memberBar.waveImage} />
                                 </>
                             ) : null}
                         </SettingGroup>
@@ -277,7 +397,7 @@ export default function UserInfo3Settings({ data, onChange }: { data: Record<str
                         <>
                             <SettingGroup>
                                 <ColorRow label="背景色" value={data?.bgColor ?? ""} onValue={(v) => onChange({ bgColor: v })} resetValue="#57D45C" />
-                                <PicRow label="背景图" value={data?.backgroundImage} onValue={(v) => onChange({ backgroundImage: v })} />
+                                <PicRow label="背景图" value={data?.backgroundImage} onValue={(v) => onChange({ backgroundImage: v })} defaultPic={userInfo3Defaults.backgroundImage} />
                             </SettingGroup>
                             <DecDivider />
                             <SettingGroup>

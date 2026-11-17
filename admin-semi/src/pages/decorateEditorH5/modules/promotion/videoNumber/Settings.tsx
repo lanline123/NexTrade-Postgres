@@ -9,19 +9,58 @@
 * 标题颜色（default/theme/custom 三段 + custom 时显示颜色，重置 #2A2A2A）、商品图片 PicList（max 3，
 * 原版为图库多选+拖拽列表，本实现以 dec PicListField 承接同结构 pic 对象数组）。
 * 样式：CommonFrameEdit type="live"（hideHead 承接）。
-* 注：原版 Settings 的 mergeDefaultModule 会把 liveTitle 烧录为「这场直播特别有料」——本实现不静默写回（见摘要）。
+* 写回行为对齐原版：打开设置时以原版字面量 mergeDefaultModule 烧录缺失字段（liveTitle 空 →「这场直播特别有料」等）；
+* 视频号选项加载后，videoNumberId 为空自动选首个写回、liveTitle 为空以当前视频号标题（缺省为默认标题）回填；
+* 切换到 live 且 liveTitle 为空、手动改选视频号且 liveTitle 为空时同样回填；liveTitle 超 14 字截断、
+* productImages 规整（上限 3 + 补 picKey）等 watch 写回一并复刻。写回均带 diff/已执行守卫，避免重复写与循环。
 */
-import { useEffect, useState} from "react";
+import { useEffect, useRef, useState} from "react";
 import { Input, Select} from "@douyinfe/semi-ui";
 import { apiGet} from "../../../../../api";
+import { cloneDeep, defaultFrame, mergeDefaultModule } from "../../../contract/sharedDefaults";
 import { SettingGroup, SettingRow, SegmentedRadio, ColorField, PicListField, FrameSettingsField, RadioRowField } from "../../../shared/settingWidgets";
 
 const TIP = "视频号组件为视频号配套组件：通过该组件可以实现自定义进入视频号视频或直播，帮助商户提升视频号相关内容的曝光率，提升视频号热度。";
 
-export default function VideoNumberSettings({ data, onChange}: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void}) {
+const DEFAULT_LIVE_TITLE = "这场直播特别有料";
+/** 原版 Settings setup 的 mergeDefaultModule 字面量（与注册默认值不同：liveTitle 为默认标题、frame 仅三项覆盖） */
+const SETTINGS_BURN_DEFAULTS: Record<string, any> = {
+titleText: "视频号",
+contentType: "video",
+videoNumberId: "",
+videoId: "",
+liveTitle: DEFAULT_LIVE_TITLE,
+titleColorType: "default",
+titleColor: "#2A2A2A",
+productImages: [] as any[],
+frame: { ...cloneDeep(defaultFrame), backgroundColor: "#ffffff", innerPadding: 12, boxRadius: 8 }
+};
+
+export default function VideoNumberSettings({ data, onChange, moduleIndex}: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void; moduleIndex?: number}) {
 const [tab, setTab] = useState<"content" | "style">("content");
 const contentType = data?.contentType?? "video";
 const [options, setOptions] = useState<any[]>([]);
+const dataRef = useRef(data);
+dataRef.current = data;
+const onChangeRef = useRef(onChange);
+onChangeRef.current = onChange;
+const openedKeyRef = useRef<string | null>(null);
+const optionsWriteBackDoneRef = useRef(false);
+
+// 打开即烧录（同原版 setup 的 mergeDefaultModule）：每个模块仅执行一次，diff 后单次写回
+useEffect(() => {
+const key = moduleIndex !== undefined && moduleIndex !== null? `idx:${moduleIndex}`: "single";
+if (openedKeyRef.current === key) return;
+openedKeyRef.current = key;
+const current = dataRef.current?? {};
+const merged = cloneDeep(current);
+mergeDefaultModule(merged, cloneDeep(SETTINGS_BURN_DEFAULTS));
+const patch: Record<string, any> = {};
+Object.keys(SETTINGS_BURN_DEFAULTS).forEach((k) => {
+if (JSON.stringify(merged[k]) !== JSON.stringify(current[k])) patch[k] = merged[k];
+});
+if (Object.keys(patch).length) onChangeRef.current(patch);
+});
 
 useEffect(() => {
 let alive = true;
@@ -34,6 +73,47 @@ return () => {
 alive = false;
 };
 }, []);
+
+// 选项加载后写回（同原版 loadVideoNumberOptions 后段）：id 为空选首个；liveTitle 为空回填
+useEffect(() => {
+if (!options.length || optionsWriteBackDoneRef.current) return;
+optionsWriteBackDoneRef.current = true;
+const d = dataRef.current?? {};
+const patch: Record<string, any> = {};
+if (!d.videoNumberId) patch.videoNumberId = String(options[0].finderId);
+if (!d.liveTitle) {
+const currentId = patch.videoNumberId?? d.videoNumberId;
+const current = options.find((o) => String(o.finderId) === String(currentId));
+patch.liveTitle = current?.liveTitle || DEFAULT_LIVE_TITLE;
+}
+if (Object.keys(patch).length) onChangeRef.current(patch);
+}, [options]);
+
+// 切换到 live 且 liveTitle 为空时回填（同原版 watch contentType）
+useEffect(() => {
+if (contentType !== "live") return;
+const d = dataRef.current?? {};
+if (d.liveTitle) return;
+const current = options.find((o) => String(o.finderId) === String(d.videoNumberId?? ""));
+onChangeRef.current({ liveTitle: current?.liveTitle || DEFAULT_LIVE_TITLE});
+}, [contentType, options]);
+
+// liveTitle 超长截断（同原版 watch liveTitle；输入框 onChange 已截断，此处覆盖程序化写入）
+useEffect(() => {
+const title = data?.liveTitle;
+if (typeof title === "string" && title.length > 14) onChangeRef.current({ liveTitle: title.slice(0, 14)});
+}, [data?.liveTitle]);
+
+// productImages 规整写回（同原版 watch productImages deep+immediate：上限 3 + 补 picKey，变化才写）
+useEffect(() => {
+const images = data?.productImages;
+if (!Array.isArray(images)) return;
+const normalized = images.slice(0, 3).map((item: any, index: number) => ({
+...item,
+picKey: String(item?.picKey || item?.picId || item?.picUrl || `idx-${index}`)
+}));
+if (JSON.stringify(normalized) !== JSON.stringify(images)) onChangeRef.current({ productImages: normalized});
+}, [data?.productImages]);
 
 return (
 <div className="h5-editor-settings-body">
@@ -82,7 +162,15 @@ options={[
 value={data?.videoNumberId || undefined}
 placeholder="请选择需要跳转的视频号ID"
 style={{ width: "100%"}}
-onChange={(v) => onChange({ videoNumberId: String(v?? "")})}
+onChange={(v) => {
+const patch: Record<string, any> = { videoNumberId: String(v?? "")};
+// 改选视频号时 liveTitle 为空回填所选视频号标题（同原版 handleVideoNumberChange）
+if (!dataRef.current?.liveTitle) {
+const opt = options.find((o) => String(o.finderId) === String(v?? ""));
+patch.liveTitle = opt?.liveTitle || DEFAULT_LIVE_TITLE;
+}
+onChange(patch);
+}}
 optionList={options.map((o) => ({ value: String(o.finderId), label: String(o.finderId)}))}
 />
 <div style={{ marginTop: 8, color: "#999", fontSize: 12, lineHeight: "18px"}}>跳转的视频号需要与小程序为同主体或者关联主体</div>

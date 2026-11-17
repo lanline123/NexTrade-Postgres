@@ -4,7 +4,8 @@
  * 页签：基础设置（商品设置 CommonProductEdit → ProductsSourceField / 商品卖点逐品
  * input maxlength 6 / 展示模式 / 显示内容）/ 扩展设置（商品配色 + 容器设置；
  * 原版无 ModuleStyle/ContentStyle 页签，故不接 ExtensionStyleSettings）。
- * 查看更多链接 SelectLink 以文本输入承接，写回 moreLink 同一结构。
+ * 查看更多链接已恢复原版选链方式：PicLinkField（原版 SelectLink 绑定 module.moreLink
+ * 整体，选中即回写完整 LinkType）。
  */
 import { Input } from "@douyinfe/semi-ui";
 import {
@@ -15,6 +16,7 @@ import {
     RangeField,
     ColorField,
     PicSelectField,
+    PicLinkField,
     DecDivider
 } from "../../../shared/settingWidgets";
 import { SettingsTabs } from "../../../shared/styleEdits";
@@ -77,7 +79,6 @@ export default function LimitedSpecialSettings({ data, onChange }: Props) {
     const frameProps: Props = { data: frame, onChange: (patch: Patch) => onChange({ frame: { ...frame, ...patch } }) };
 
     const moreLink = data?.moreLink ?? {};
-    const moreLinkUrl = typeof moreLink.link === "string" ? moreLink.link : moreLink.link?.link ?? "";
 
     const colorRows: Array<{ field: string; label: string }> = [
         { field: "cardBgColor", label: "卡片背景色" },
@@ -256,20 +257,9 @@ export default function LimitedSpecialSettings({ data, onChange }: Props) {
                             左侧让出背景图文字区的宽度；该区域作为「查看更多」点击热区
                         </div>
                         <SettingRow label="查看更多链接" block>
-                            <Input
-                                value={moreLinkUrl}
-                                placeholder={t("跳转链接，如 /pages/product/index?id=1")}
-                                style={{ width: 240, maxWidth: "100%" }}
-                                onChange={(v: string) =>
-                                    onChange({
-                                        moreLink:
-                                            moreLink && typeof moreLink === "object"
-                                                ? typeof moreLink.link === "string"
-                                                    ? { ...moreLink, link: v }
-                                                    : { ...moreLink, link: { ...(moreLink.link || {}), link: v } }
-                                                : { link: v, title: "" }
-                                    })
-                                }
+                            <PicLinkField
+                                value={typeof moreLink === "string" ? { link: moreLink, title: "" } : moreLink}
+                                onChange={(v) => onChange({ moreLink: v })}
                             />
                         </SettingRow>
                         <RangeField data={data} onChange={onChange} field="productAreaPaddingY" label="商品区上下边距" max={30} />

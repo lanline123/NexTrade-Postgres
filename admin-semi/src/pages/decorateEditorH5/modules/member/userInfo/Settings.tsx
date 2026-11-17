@@ -4,7 +4,11 @@
  * 页签 内容设置/扩展设置。内容：签到入口（开关/自定义图标/入口名称）、设置入口（开关/自定义图标）；
  * 扩展：背景渐变色（双色 + 重置）/ 内边距（滑杆 max 30）/ CommonFrameEdit（hide-bg、hide-padding）。
  * signIn/settings 的 show 为 boolean 契约，用 Semi Switch 写 boolean。
+ * 老数据迁移回填对齐原版 Settings setup：showSignIn/showSettings 老字段 → signIn/settings，
+ * 再 mergeDefaultModule 补缺失顶层字段，最后逐项回填 icon/title/gradient 深层缺失；
+ * 打开时执行一次（diff 后单次写回，无变化不写）。
  */
+import { useEffect, useRef } from "react";
 import { Switch } from "@douyinfe/semi-ui";
 import AlphaColorInput from "../../../../../components/AlphaColorInput";
 import {
@@ -16,13 +20,38 @@ import {
     FrameSettingsField
 } from "../../../shared/settingWidgets";
 import { SettingsTabs } from "../../../shared/styleEdits";
-import { defaultGradient } from "./index";
+import { cloneDeep, mergeDefaultModule } from "../../../contract/sharedDefaults";
+import { defaultGradient, defaultSettingsIcon, defaultSignInIcon, userInfoDefaults } from "./index";
 import { useI18n } from "../../../../../i18n";
 
 type Patch = Record<string, any>;
 interface Props {
     data: Record<string, any>;
     onChange: (patch: Patch) => void;
+    moduleIndex?: number;
+}
+
+/** 原版 Settings setup 的迁移回填（顺序与判定逐项复刻），返回需要写回的顶层字段 diff */
+function migrateUserInfoData(data: Record<string, any>): Patch {
+    const next = cloneDeep(data ?? {});
+    if (next.signIn === undefined && next.showSignIn !== undefined) {
+        next.signIn = { show: !!next.showSignIn };
+    }
+    if (next.settings === undefined && next.showSettings !== undefined) {
+        next.settings = { show: !!next.showSettings };
+    }
+    mergeDefaultModule(next, cloneDeep(userInfoDefaults));
+    if (!next.signIn.icon || !next.signIn.icon.picUrl) next.signIn.icon = { picUrl: defaultSignInIcon, picThumb: defaultSignInIcon };
+    if (next.signIn.title === undefined || next.signIn.title === null) next.signIn.title = "签到有礼";
+    if (!next.settings.icon || !next.settings.icon.picUrl) next.settings.icon = { picUrl: defaultSettingsIcon, picThumb: defaultSettingsIcon };
+    if (!next.gradient || typeof next.gradient !== "object") next.gradient = { ...defaultGradient };
+    if (!next.gradient.colorA) next.gradient.colorA = defaultGradient.colorA;
+    if (!next.gradient.colorB) next.gradient.colorB = defaultGradient.colorB;
+    const patch: Patch = {};
+    (["signIn", "settings", "gradient", "frame"] as const).forEach((k) => {
+        if (JSON.stringify(next[k]) !== JSON.stringify(data?.[k])) patch[k] = next[k];
+    });
+    return patch;
 }
 
 /** 嵌套对象适配：把顶层 data/onChange 转成某子对象的 data/onChange */
@@ -52,8 +81,21 @@ function IconRow({ data, onChange, field, label, defaultPic }: Props & { field: 
     );
 }
 
-export default function UserInfoSettings({ data, onChange }: Props) {
+export default function UserInfoSettings({ data, onChange, moduleIndex }: Props) {
     const { t } = useI18n();
+    const dataRef = useRef(data);
+    dataRef.current = data;
+    const onChangeRef = useRef(onChange);
+    onChangeRef.current = onChange;
+    const openedKeyRef = useRef<string | null>(null);
+    // 打开即迁移回填（同原版 setup 同步执行）：每个模块仅执行一次
+    useEffect(() => {
+        const key = moduleIndex !== undefined && moduleIndex !== null ? `idx:${moduleIndex}` : "single";
+        if (openedKeyRef.current === key) return;
+        openedKeyRef.current = key;
+        const patch = migrateUserInfoData(dataRef.current);
+        if (Object.keys(patch).length) onChangeRef.current(patch);
+    });
     const signIn = nested(data, onChange, "signIn");
     const settings = nested(data, onChange, "settings");
     const gradient = nested(data, onChange, "gradient");

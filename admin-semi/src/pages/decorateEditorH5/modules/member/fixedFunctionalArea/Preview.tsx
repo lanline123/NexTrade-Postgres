@@ -1,10 +1,14 @@
 /**
  * 固定功能区 预览（移植自 view/admin editor/modules/mobileMember/fixedFunctionalArea/Preview.vue）
  *
- * 仅 B2B/门店版渲染账期卡（原版 isB2b()||isStore() 门控，我方 version.ts 同名函数）：
- * 卡 margin 10px 0、圆角 9、背景图 termPay_card.png cover/center；标题栏高 44、
- * 标题 13px/600 #ae5d34 + 眼睛图标 + 「查看详情」胶囊；内容三列 信用额度/已用额度/剩余额度（值 ******）。
- * frame 仅控外层 boxPadding（原版 wrap/container 不消费 frame 其它字段）。
+ * 门控与原版一致：整体 hasContent = isB2b()||isStore() 才渲染，账期卡本身另有
+ * v-if="isB2b()"（仅门店版时只剩空 wrap，与原版同构）。
+ * frame 消费口径与原版一致：外层根节点吃 boxPadding 三项；.module-ad-content
+ * （fixed-area-wrap）吃 wrapStyle = backgroundColor/boxRadius/innerPadding。
+ * 卡 margin 10px 0、圆角 9、背景图 cover/center（原版为本地资源 termPay_card.png，
+ * ref 快照缺失该文件，暂用既有 OSS 图，待核）；标题栏高 44、标题 13px/600 #ae5d34 +
+ * 隐藏态眼睛图标（icon-buxianshi 语义）+「查看详情」胶囊（内含 8px 更多箭头）；
+ * 内容区 min-height 60px、padding 15px 0，三列 信用额度/已用额度/剩余额度（值 ******）。
  */
 import { useMemo } from "react";
 import { cssText } from "../../../shared/format";
@@ -19,13 +23,33 @@ const AMOUNTS = [
     { label: "剩余额度", value: "******" }
 ];
 
-function EyeIcon() {
+/** 隐藏态眼睛（对齐原版 iconfont-h5 icon-buxianshi，15px） */
+function EyeOffIcon() {
     return (
-        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" style={{ flexShrink: 0, color: "#ae5d34" }}>
-            <path
-                d="M12 5c5 0 9.3 3 11 7-1.7 4-6 7-11 7S2.7 16 1 12c1.7-4 6-7 11-7zm0 2C8.2 7 4.8 9 3.2 12 4.8 15 8.2 17 12 17s7.2-2 8.8-5C19.2 9 15.8 7 12 7zm0 1.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zm0 2a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"
-                fill="currentColor"
-            />
+        <svg
+            viewBox="0 0 24 24"
+            width="15"
+            height="15"
+            aria-hidden="true"
+            className="ffa-card__toggle-eye ffa-card__toggle-eye--term"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ flexShrink: 0 }}
+        >
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+            <line x1="1" y1="1" x2="23" y2="23" />
+        </svg>
+    );
+}
+
+/** 更多箭头（对齐原版 iconfont-h5 icon-a-gengduo20，8px） */
+function MoreArrowIcon() {
+    return (
+        <svg viewBox="0 0 16 16" width="8" height="8" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <polyline points="6 3 11 8 6 13" />
         </svg>
     );
 }
@@ -42,30 +66,45 @@ export default function FixedFunctionalAreaPreview({ data }: { data: Record<stri
 
     if (!isB2b() && !isStore()) return null;
 
+    // 原版 wrapStyle：wrap 消费 frame 的背景色/圆角/内边距
+    const wrapStyle: React.CSSProperties = {
+        backgroundColor: frame.backgroundColor || "transparent",
+        borderRadius: `${frame.boxRadius ?? 0}px`,
+        padding: `${frame.innerPadding ?? 0}px`,
+        boxSizing: "border-box"
+    };
+
     return (
         <div
             className="module-ad-con module-member-fixed-functional-area"
             style={cssText(frameFormat.boxPadding, frameFormat.boxPaddingTop, frameFormat.boxPaddingBottom)}
         >
-            <div className="module-ad-content">
-                <div className="ffa-card">
-                    <div className="ffa-card-header">
-                        <div className="ffa-card-title">
-                            <span className="ffa-card-title-text">账期支付</span>
-                            <EyeIcon />
-                        </div>
-                        <div className="ffa-card-detail">
-                            <span>查看详情</span>
-                        </div>
-                    </div>
-                    <div className="ffa-card-content">
-                        {AMOUNTS.map((item) => (
-                            <div className="ffa-amount-item" key={item.label}>
-                                <div className="ffa-amount-value">{item.value}</div>
-                                <div className="ffa-amount-label">{item.label}</div>
+            <div className="module-ad-content fixed-area-wrap" style={wrapStyle}>
+                <div className="fixed-area-container">
+                    {isB2b() ? (
+                        <div className="ffa-card ffa-card--term">
+                            <div className="ffa-card__title">
+                                <div className="ffa-card__title-left">
+                                    <span className="ffa-card__title-text ffa-card__title-text--term">账期支付</span>
+                                    <EyeOffIcon />
+                                </div>
+                                <div className="ffa-card__title-more ffa-card__title-more--term">
+                                    <span className="ffa-card__title-more-text">查看详情</span>
+                                    <MoreArrowIcon />
+                                </div>
                             </div>
-                        ))}
-                    </div>
+                            <div className="ffa-card__content">
+                                <div className="ffa-card__wrap">
+                                    {AMOUNTS.map((item) => (
+                                        <div className="ffa-card__item" key={item.label}>
+                                            <div className="ffa-card__item-number ffa-card__item-number--term">{item.value}</div>
+                                            <div className="ffa-card__item-text ffa-card__item-text--term">{item.label}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    ) : null}
                 </div>
             </div>
         </div>

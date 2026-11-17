@@ -49,7 +49,7 @@ export default function OrderEntrySettings({ data, onChange }: { data: Record<st
                             <DecDivider />
                         </>
                     ) : null}
-                    <PicListField data={data} onChange={onChange} field="entryList" label="订单入口列表" showText showLink={false} />
+                    <PicListField data={data} onChange={onChange} field="entryList" label="订单入口列表" showText showLink={false} showAddButton={false} />
                 </div>
                 <div>
                     <SettingGroup>

@@ -2,7 +2,7 @@
  * 账号 设置（对齐 view/admin account/Settings.vue）
  *
  * 页签 内容设置/扩展设置。内容：模块标题（maxlength 10）+ 分隔线 + 账号列表 PicList
- * （showText、showLink=false；原版 showAddButton=false，我方 PicListField 无此门控，添加按钮仍在，见摘要）；
+ * （showText、showLink=false、showAddButton=false——PicListField 已补该门控，固定入口不可新增）；
  * 扩展：CommonFrameEdit 全量。
  */
 import { SettingGroup, TextField, PicListField, DecDivider, FrameSettingsField } from "../../../shared/settingWidgets";
@@ -17,7 +17,7 @@ export default function AccountSettings({ data, onChange }: { data: Record<strin
                         <TextField data={data} onChange={onChange} field="moduleTitle" label="模块标题" placeholder="请输入标题" />
                     </SettingGroup>
                     <DecDivider />
-                    <PicListField data={data} onChange={onChange} field="accountList" label="账号列表设置" showText showDesc showLink={false} />
+                    <PicListField data={data} onChange={onChange} field="accountList" label="账号列表设置" showText showDesc showLink={false} showAddButton={false} />
                 </div>
                 <div>
                     <FrameSettingsField data={data} onChange={onChange} />

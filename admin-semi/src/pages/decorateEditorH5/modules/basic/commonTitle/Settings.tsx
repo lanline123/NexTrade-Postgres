@@ -1,48 +1,25 @@
 /**
- * 通用标题 设置（字段直接位于模块数据根部，与渲染端 commonTitle 读取结构一致；
- * moreLink 渲染端经 urlFormat 解析、存量为字符串 path，故经 PicLinkField 选择后只写回 path 字符串）
+ * 通用标题 设置（复用共享 TitleSettingsField 通用形态，对齐原版 commonTitle/Edit.vue else 分支：
+ * 风格三/背景渐变色仅 product 形态、圆角 max 30、descColor/moreColor 重置回 defaultTitle 值、
+ * moreLink 走 SelectLink 对象口径、各字段恒显示与 showTitle/showMore 无联动隐藏）
+ *
+ * 本模块数据本身即标题对象（位于模块数据根部），TitleSettingsField 按 field="title"
+ * 读写嵌套对象，故此处以 { title: data } 适配、onChange 解包后回写根部。
+ * moreLink 经 TitleSettingsField 内的 PicLinkField 选择（保留原对象其余键的合并口径）。
  */
-import { SettingGroup, SettingRow, SwitchField, RadioRowField, TextField, ColorField, NumberField, SinglePicField, PicLinkField } from "../../../shared/settingWidgets";
+import { TitleSettingsField } from "../../../shared/settingWidgets";
 
 export default function CommonTitleSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
-    const moreLinkText = typeof data?.moreLink === "string" ? data.moreLink : "";
     return (
         <div className="h5-editor-settings-body">
-            <SettingGroup title="通用标题">
-                <SwitchField data={data} onChange={onChange} field="showTitle" label="显示标题" />
-                {Number(data?.showTitle) === 1 && (
-                    <>
-                        <RadioRowField
-                            data={data}
-                            onChange={onChange}
-                            field="titleStyle"
-                            label="标题样式"
-                            options={[
-                                { value: 1, label: "样式一" },
-                                { value: 2, label: "样式二" },
-                                { value: 3, label: "样式三" }
-                            ]}
-                        />
-                        <TextField data={data} onChange={onChange} field="titleText" label="标题文字" />
-                        <ColorField data={data} onChange={onChange} field="titleColor" label="标题颜色" />
-                        <TextField data={data} onChange={onChange} field="descText" label="描述文字" />
-                        <ColorField data={data} onChange={onChange} field="descColor" label="描述颜色" />
-                        <ColorField data={data} onChange={onChange} field="titleBackground" label="标题背景色" />
-                        <ColorField data={data} onChange={onChange} field="titleBackground2" label="背景渐变色" />
-                        <NumberField data={data} onChange={onChange} field="titleRadius" label="标题圆角" max={50} suffix="px" />
-                        <SinglePicField data={data} onChange={onChange} field="titleBackgroundPic" label="标题背景图" />
-                        <SwitchField data={data} onChange={onChange} field="showMore" label="右侧显示更多" />
-                        {Number(data?.showMore) === 1 && (
-                            <>
-                                <ColorField data={data} onChange={onChange} field="moreColor" label="更多颜色" />
-                                <SettingRow label="更多链接">
-                                    <PicLinkField value={{ link: moreLinkText, title: "" }} onChange={(v) => onChange({ moreLink: v.link })} />
-                                </SettingRow>
-                            </>
-                        )}
-                    </>
-                )}
-            </SettingGroup>
+            <TitleSettingsField
+                data={{ title: data }}
+                onChange={(patch: Record<string, any>) => {
+                    if (patch && typeof patch === "object" && patch.title && typeof patch.title === "object") {
+                        onChange(patch.title);
+                    }
+                }}
+            />
         </div>
     );
 }

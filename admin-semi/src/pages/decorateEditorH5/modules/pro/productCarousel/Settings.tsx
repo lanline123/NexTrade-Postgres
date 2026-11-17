@@ -2,8 +2,8 @@
  * 商品轮播 设置（对齐 view/admin mobilePro/productCarousel/Settings.vue）
  *
  * 页签：商品设置 / 扩展设置（颜色设置 7 色 + 模块参数 + 背景图/模式）。
- * 选择商品 ProductInfoSelect 未移植：按 customProduct 口径保留分组文案、演示项
- * 只读渲染与提示（productList 快照数据保持不变，可拖拽排序未承接）。
+ * 选择商品走共享 ProductInfoSelect（快照式选品）：可增删/更换/拖拽排序，
+ * 选择后按原版口径拉取最新商品信息写入 productList 快照。
  * BuyBtnEdit 按 buyBtn/Edit.vue 字段集本地实现（buyBtnStyle 对象，历史数字值回退默认对象）。
  * 标题文字 el-input maxlength 20 以块级输入承接。
  */
@@ -21,7 +21,7 @@ import {
 } from "../../../shared/settingWidgets";
 import { SettingsTabs } from "../../../shared/styleEdits";
 import { cloneDeep, defaultProductCarousel as defaults } from "../../../contract/sharedDefaults";
-import { imageFormat, pickPic } from "../../../shared/format";
+import ProductInfoSelect from "../../../shared/ProductInfoSelect";
 import { productCarouselDefaults } from "./index";
 import { useI18n } from "../../../../../i18n";
 
@@ -136,22 +136,8 @@ export default function ProductCarouselSettings({ data, onChange }: Props) {
                 <>
                     <SettingGroup title="选择商品">
                         <div style={{ padding: "0 16px 10px" }}>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                                {productList.map((item, index) => (
-                                    <div key={index} style={{ width: 60, textAlign: "center" }} title={item.productName ?? ""}>
-                                        <div style={{ width: 60, height: 60, border: "1px solid #e5e5e5", background: "#f9f9f9", borderRadius: 2, overflow: "hidden" }}>
-                                            {pickPic(item) ? <img src={imageFormat(pickPic(item))} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : null}
-                                        </div>
-                                        <div style={{ fontSize: 11, color: "#666", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                            {item.productName || `商品${index + 1}`}
-                                        </div>
-                                    </div>
-                                ))}
-                                {productList.length === 0 ? <div style={{ color: "#999", fontSize: 12 }}>暂无已选商品（将使用演示商品渲染）</div> : null}
-                            </div>
+                            <ProductInfoSelect value={productList} onChange={(next) => onChange({ productList: next })} isMultiple />
                             <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6, marginTop: 8 }}>
-                                商品选择器（ProductInfoSelect 数据选择组件）尚未接入本编辑器，已选商品数据保持不变。
-                                <br />
                                 提示：选择商品后自动加载商品信息；可通过拖拽进行商品排序
                             </div>
                         </div>

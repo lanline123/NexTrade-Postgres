@@ -8,7 +8,8 @@
  * - 滑杆 `.dec-range-group`：共享 SliderWithInput（Semi Slider + InputNumber，同 PC 编辑器）
  * - 颜色行：共享 components/ColorField 外壳（「重置」链 + AlphaColorInput，预置色为原版 SelectColor 14 色）
  * - 图片：单图走共享 ImageUploader、列表走 GalleryPickerModal（素材库口径，同 PC 编辑器；原 Semi Upload 直传已弃）
- * - 链接：共享 LinkField（components/LinkPicker），经 PicLinkField 适配 { link, title } 契约
+ * - 链接：共享 LinkField（components/LinkPicker），经 PicLinkField 适配——回写保留原链接
+ *   对象全部字段（原版 SelectLink 的完整 LinkType：path/label/name/data 等），只更新 link/title
  * - 图片列表 `.dec-pic-group`：60×60 contain 图盒 + 底部 20px「更换图片」条 + hover 删除徽标 + 信息行 + 整宽添加按钮 + 上移/下移
  *
  * 统一 onChange(patch) 协议：所有控件只上报字段级 patch，由 store 浅合并进模块数据。
@@ -312,8 +313,16 @@ export function PicSelectBox({
 }
 
 /**
- * 链接字段适配：H5 数据契约是 { link, title }，共享 LinkField（components/LinkPicker）
- * 的契约是 LinkValue { link, name, ... }，在此互相转换，模块数据格式不变。
+ * 链接字段适配（对齐原版 SelectLink 的 LinkType 口径）：
+ * 存量链接对象是完整 LinkType（path/label/name/link/appLink/data/id/sn 等，前台
+ * urlFormat 按 path+data 消费），回写时必须保留原对象全部字段，只更新本控件
+ * 负责的 link/title 两键——旧实现把对象压成 { link, title }，重选一次即丢
+ * path/data 等键，系统链接（商品/分类等）随之失效。
+ * 对外 props 不变（value/onChange 形状同前），仅内部行为修复：
+ * - 喂入 LinkField 时透传原对象全部键（存量嵌套 { link: { link, title } } 占位
+ *   形状先拍平一层供显示/回显），name 缺失时以 title 兜底显示；
+ * - 选择器返回后以「原对象 ← 选择结果」合并回写，link/title 按选择结果更新；
+ * - 清空时回写 { link: "", title: "" } 空契约（同 PicList 新项默认形状）。
  */
 export function PicLinkField({
     value,
@@ -322,33 +331,64 @@ export function PicLinkField({
     value?: { link?: string; title?: string } | null;
     onChange: (v: { link: string; title: string }) => void;
 }) {
-    const linkValue: LinkValue | undefined = value?.link ? { link: value.link, name: value.title || "" } : undefined;
+    const raw: Record<string, any> = value && typeof value === "object" ? (value as Record<string, any>) : {};
+    // 存量占位形状 { link: { link, title }, linkTitle }：内层对象拍平一层供选择器回显
+    const inner: Record<string, any> | null = raw.link && typeof raw.link === "object" ? raw.link : null;
+    const url = typeof raw.link === "string" ? raw.link : inner?.link || raw.path || raw.appLink || "";
+    const hasValue = !!(url || raw.path || raw.label || raw.name || raw.title || inner?.title);
+    const linkValue: LinkValue | undefined = hasValue
+        ? { ...raw, ...(inner ?? {}), link: url, name: raw.name || raw.title || inner?.title || "" }
+        : undefined;
     return (
         <LinkField
             value={linkValue}
-            onChange={(link) =>
-                onChange({
-                    link: link.link || link.path || "",
-                    title: link.name || link.label || value?.title || ""
-                })
-            }
+            onChange={(picked) => {
+                if (!picked || Object.keys(picked).length === 0) {
+                    onChange({ link: "", title: "" });
+                    return;
+                }
+                const out: Record<string, any> = { ...raw, ...picked };
+                out.link = picked.link || picked.path || (typeof raw.link === "string" ? raw.link : "") || "";
+                out.title = picked.name || picked.label || raw.title || "";
+                onChange(out as { link: string; title: string });
+            }}
         />
     );
 }
 
-/** 单图字段行（标签 + PicSelect 图盒） */
-export function PicSelectField({ data, onChange, field, label }: FieldProps & { field: string; label: string }) {
+/**
+ * 单图字段行（标签 + PicSelect 图盒）。
+ * resetPic：原版 PicSelect 的 :default-value——点「重置」回该默认图对象（原版
+ * removePic 写回 { ...defaultValue }）；不传时维持旧行为（重置为清空）。
+ */
+export function PicSelectField({
+    data,
+    onChange,
+    field,
+    label,
+    resetPic
+}: FieldProps & { field: string; label: string; resetPic?: { picUrl?: string; picThumb?: string } }) {
     const pic = data?.[field];
     const picObj = pic && typeof pic === "object" ? pic : typeof pic === "string" && pic ? { picUrl: pic, picThumb: pic } : null;
     return (
         <SettingRow label={label}>
-            <PicSelectBox pic={picObj} onSelect={(p) => onChange({ [field]: p })} onReset={() => onChange({ [field]: { picUrl: "", picThumb: "" } })} />
+            <PicSelectBox
+                pic={picObj}
+                onSelect={(p) => onChange({ [field]: p })}
+                onReset={() => onChange({ [field]: resetPic ? { ...resetPic } : { picUrl: "", picThumb: "" } })}
+            />
         </SettingRow>
     );
 }
 
-/** 单图编辑器（块级：标签行 + 图盒，原 PicSelect 形态） */
-export function SinglePicField({ data, onChange, field, label }: FieldProps & { field: string; label: string }) {
+/** 单图编辑器（块级：标签行 + 图盒，原 PicSelect 形态）；resetPic 语义同 PicSelectField */
+export function SinglePicField({
+    data,
+    onChange,
+    field,
+    label,
+    resetPic
+}: FieldProps & { field: string; label: string; resetPic?: { picUrl?: string; picThumb?: string } }) {
     const pic = data?.[field];
     const picObj = pic && typeof pic === "object" ? pic : typeof pic === "string" && pic ? { picUrl: pic, picThumb: pic } : null;
     return (
@@ -360,7 +400,11 @@ export function SinglePicField({ data, onChange, field, label }: FieldProps & { 
                 <div className="dec-pic-group dec-picSingle-group">
                     <div className="dec-pic-group-item">
                         <div className="dec-pic-group-item-con">
-                            <PicSelectBox pic={picObj} onSelect={(p) => onChange({ [field]: p })} onReset={() => onChange({ [field]: { picUrl: "", picThumb: "" } })} />
+                            <PicSelectBox
+                                pic={picObj}
+                                onSelect={(p) => onChange({ [field]: p })}
+                                onReset={() => onChange({ [field]: resetPic ? { ...resetPic } : { picUrl: "", picThumb: "" } })}
+                            />
                         </div>
                     </div>
                 </div>
@@ -383,7 +427,7 @@ export interface PicItem {
 /**
  * 图片列表编辑器（原版 PicList 形态）：
  * 每项 = 60×60 contain 图盒（底部 20px「更换图片」条）+ 信息行（标题/描述/链接）+ hover 删除徽标 + 上移/下移；
- * 底部整宽 `.dec-pic-add-btn` 添加按钮。showText/showDesc/showLink 默认同原版（true/false/true）。
+ * 底部整宽 `.dec-pic-add-btn` 添加按钮。showText/showDesc/showLink/showAddButton 默认同原版（true/false/true/true）。
  */
 export function PicListField({
     data,
@@ -394,8 +438,19 @@ export function PicListField({
     showText = true,
     showDesc = false,
     showLink = true,
+    showAddButton = true,
     addText = "添加图片"
-}: FieldProps & { field: string; label: string; max?: number; showText?: boolean; showDesc?: boolean; showLink?: boolean; addText?: string }) {
+}: FieldProps & {
+    field: string;
+    label: string;
+    max?: number;
+    showText?: boolean;
+    showDesc?: boolean;
+    showLink?: boolean;
+    /** 原版 PicList 的 showAddButton：false 时不渲染添加按钮（固定入口列表，如账号/订单入口） */
+    showAddButton?: boolean;
+    addText?: string;
+}) {
     const { t } = useI18n();
     // 素材库弹窗状态：index=null 表示追加模式（可多选），否则为替换第 index 项（单选）
     const [pickerIndex, setPickerIndex] = useState<number | null>(null);
@@ -486,7 +541,7 @@ export function PicListField({
                             </div>
                         </div>
                     ))}
-                    {list.length < max && (
+                    {showAddButton && list.length < max && (
                         <a
                             className="dec-pic-add-btn"
                             onClick={() => {
@@ -679,7 +734,8 @@ export function TitleSettingsField({
  * 默认形态 = 分隔线 + 「模块设置」平面标题 + 背景颜色/圆角/内边距/左右边距/上边距/下边距（滑杆 max 30）；
  * splitInnerPadding 时内边距拆为左右/上下两项；frameType='titleAd' 追加「左右内边距」(leftAndRightPadding)；
  * variant='notice'|'searchBar' 时改为专属 4 字段（文字颜色/组件背景/组件圆角 max50/组件高度 max50）
- * + 背景颜色/左右边距/上边距/下边距，且无分隔线与标题（同原版 type 门控）。
+ * + 背景颜色/左右边距/上边距/下边距，且无分隔线与标题（同原版 type 门控）；
+ * frameType='line' 时同原版 type='line' 门控：隐藏圆角与内边距（含拆分形态），其余项保留。
  */
 export function FrameSettingsField({
     data,
@@ -711,6 +767,8 @@ export function FrameSettingsField({
     const frame = data?.[field] ?? {};
     const set = (patch: Patch) => onChange({ [field]: { ...frame, ...patch } });
     const sub: FieldProps = { data: frame, onChange: (patch: Patch) => set(patch) };
+    // 原版 CommonFrameEdit type='line'：圆角与内边距（单项/拆分两形态）均不渲染
+    const isLine = frameType === "line";
 
     if (variant === "notice" || variant === "searchBar") {
         return (
@@ -732,8 +790,8 @@ export function FrameSettingsField({
             {hideHead ? null : <DecDivider />}
             {hideHead ? null : <DecSpreadTitle title={label ?? "模块设置"} />}
             {hideBg ? null : <ColorField {...sub} field="backgroundColor" label="背景颜色" resetValue={defaultFrame.backgroundColor} />}
-            {hideBoxRadius ? null : <RangeField {...sub} field="boxRadius" label="圆角" max={30} />}
-            {hidePadding ? null : splitInnerPadding ? (
+            {hideBoxRadius || isLine ? null : <RangeField {...sub} field="boxRadius" label="圆角" max={30} />}
+            {hidePadding || isLine ? null : splitInnerPadding ? (
                 <>
                     <RangeField {...sub} field="innerPaddingLeftRight" label="左右内边距" max={30} />
                     <RangeField {...sub} field="innerPaddingTopBottom" label="上下内边距" max={30} />

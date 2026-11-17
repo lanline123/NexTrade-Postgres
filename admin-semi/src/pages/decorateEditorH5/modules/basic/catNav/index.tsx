@@ -3,6 +3,7 @@
  */
 import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultFrame, defaultIcoPic, defaultBackgroundPic } from "../../../contract/sharedDefaults";
+import { isShopEnd } from "../../../contract/version";
 
 /** 与旧 mobile/catNav/index.ts catNavDefaults 逐字段一致（契约） */
 export const catNavDefaults = {
@@ -30,6 +31,8 @@ registerModule({
     url: "mobile",
     platform: "mobile",
     order: 16,
+    // 店铺端（shopId 非空且非 "0"）不显示，与原版 enabled: () => !isShopEnd() 一致
+    enabled: () => !isShopEnd(),
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(catNavDefaults)

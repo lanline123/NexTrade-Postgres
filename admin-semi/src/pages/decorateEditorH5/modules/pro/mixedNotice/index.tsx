@@ -4,7 +4,7 @@
 import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultModuleStyle, defaultContentStyle } from "../../../contract/sharedDefaults";
 
-/** 演示公告分组（与旧 mixedNotice/index.ts groups 一致，节选） */
+/** 演示公告分组（与旧 mixedNotice/index.ts groups 逐项一致） */
 const groups = [
     {
         notices: [
@@ -33,8 +33,16 @@ const groups = [
                 picThumb: "https://oss.tigshop.com/img/gallery/202507/1752202678mQIAJqOXqUO54YdFfj.png?x-oss-process=image/resize,m_pad,h_200,h_200",
                 picUrl: "https://oss.tigshop.com/img/gallery/202507/1752202678mQIAJqOXqUO54YdFfj.png",
                 picName: "FmBvbpIyBQcPAjaR1tpYu4NSfM2L",
-                picTitle: "售后无忧",
-                picDesc: "7 天无理由退换"
+                picTitle: "24*7客户支持",
+                picDesc: "随时随地提供保障"
+            },
+            {
+                picId: 1428,
+                picThumb: "https://oss.tigshop.com/img/gallery/202507/1752202678mQIAJqOXqUO54YdFfj.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+                picUrl: "https://oss.tigshop.com/img/gallery/202507/1752202678mQIAJqOXqUO54YdFfj.png",
+                picName: "FmBvbpIyBQcPAjaR1tpYu4NSfM2L",
+                picTitle: "24*7客户支持",
+                picDesc: "随时随地提供保障"
             }
         ]
     }

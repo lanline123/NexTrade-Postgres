@@ -1,12 +1,13 @@
 /**
  * 我的钱包2 设置（对齐 view/admin myWalletV2/Settings.vue）
  *
- * 页签 内容设置/扩展设置。内容：按 items 逐项「<label>图标」PicSelect（写回 items[i].icon）+
+ * 页签 内容设置/扩展设置。内容：按 items 逐项「<label>图标」PicSelect（写回 items[i].icon，
+ * 重置回该项默认图标，同原版 :default-value="defaultIconObjs[item.key]"）+
  * 内容说明静态提示；扩展：CommonFrameEdit 全量。
  */
 import { SettingGroup, SettingRow, PicSelectBox, FrameSettingsField } from "../../../shared/settingWidgets";
 import { SettingsTabs } from "../../../shared/styleEdits";
-import { myWalletV2Defaults } from "./index";
+import { myWalletV2Defaults, WALLET_V2_ICONS } from "./index";
 
 export default function MyWalletV2Settings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
     const items: any[] = Array.isArray(data?.items) && data.items.length ? data.items : myWalletV2Defaults.items;
@@ -21,7 +22,14 @@ export default function MyWalletV2Settings({ data, onChange }: { data: Record<st
                     <SettingGroup>
                         {items.map((item, index) => (
                             <SettingRow key={item.key ?? index} label={`${item.label}图标`}>
-                                <PicSelectBox pic={item.icon} onSelect={(v) => setItemIcon(index, v)} onReset={() => setItemIcon(index, {})} />
+                                <PicSelectBox
+                                    pic={item.icon}
+                                    onSelect={(v) => setItemIcon(index, v)}
+                                    onReset={() => {
+                                        const u = WALLET_V2_ICONS[item.key] ?? "";
+                                        setItemIcon(index, { picUrl: u, picThumb: u });
+                                    }}
+                                />
                             </SettingRow>
                         ))}
                         <SettingRow label="内容说明" block>

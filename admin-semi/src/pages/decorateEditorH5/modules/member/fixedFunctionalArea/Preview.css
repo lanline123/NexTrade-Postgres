@@ -1,58 +1,102 @@
-/* 固定功能区 Preview scoped 样式（移植自原版 Preview.vue <style scoped>） */
+/* 固定功能区 Preview scoped 样式（逐条移植自原版 Preview.vue <style scoped>，仅保留 term 变体；
+   背景图原版为本地资源 termPay_card.png（ref 快照缺失），暂用既有 OSS 图，待核） */
+.module-member-fixed-functional-area .fixed-area-wrap {
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.module-member-fixed-functional-area .fixed-area-container {
+    box-sizing: border-box;
+}
 .module-member-fixed-functional-area .ffa-card {
     margin: 10px 0;
     border-radius: 9px;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+.module-member-fixed-functional-area .ffa-card--term {
     background-image: url("https://oss.tigshop.com/img/gallery/202605/1779687135mCFnXgC37n5CN70APv.png");
     background-size: cover;
     background-position: center;
-    overflow: hidden;
+    background-repeat: no-repeat;
 }
-.module-member-fixed-functional-area .ffa-card-header {
+.module-member-fixed-functional-area .ffa-card__title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     height: 44px;
     padding: 0 15px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    font-size: 13px;
+    font-weight: bold;
     border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
-.module-member-fixed-functional-area .ffa-card-title {
+.module-member-fixed-functional-area .ffa-card__title-left {
     display: flex;
     align-items: center;
-    gap: 5px;
+    column-gap: 6px;
 }
-.module-member-fixed-functional-area .ffa-card-title-text {
+.module-member-fixed-functional-area .ffa-card__title-text {
     font-size: 13px;
     font-weight: 600;
+}
+.module-member-fixed-functional-area .ffa-card__title-text--term {
     color: #ae5d34;
 }
-.module-member-fixed-functional-area .ffa-card-detail {
-    font-size: 11px;
+.module-member-fixed-functional-area .ffa-card__toggle-eye {
+    font-size: 15px;
+}
+.module-member-fixed-functional-area .ffa-card__toggle-eye--term {
     color: #ae5d34;
-    background: #fefdf4;
+}
+.module-member-fixed-functional-area .ffa-card__title-more {
+    display: flex;
+    align-items: center;
     padding: 4px 10px;
     border-radius: 20px;
-    cursor: pointer;
+    font-size: 11px;
+    font-weight: normal;
 }
-.module-member-fixed-functional-area .ffa-card-content {
-    display: flex;
-    padding: 10px 0;
+.module-member-fixed-functional-area .ffa-card__title-more--term {
+    background-color: #fefdf4;
+    color: #ae5d34;
 }
-.module-member-fixed-functional-area .ffa-amount-item {
-    flex: 1;
+.module-member-fixed-functional-area .ffa-card__title-more-text {
+    margin-right: 4px;
+}
+.module-member-fixed-functional-area .ffa-card__content {
+    position: relative;
+    min-height: 60px;
+    padding: 15px 0;
+}
+.module-member-fixed-functional-area .ffa-card__wrap {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: space-around;
     align-items: center;
-    gap: 2px;
+    padding: 0 10px;
 }
-.module-member-fixed-functional-area .ffa-amount-value {
-    font-size: 14px;
-    line-height: 24px;
+.module-member-fixed-functional-area .ffa-card__item {
+    position: relative;
+    flex: 1;
+    text-align: center;
+}
+.module-member-fixed-functional-area .ffa-card__item-number {
     font-weight: 600;
+    margin-bottom: 4px;
+    line-height: 1.2;
+    min-height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.module-member-fixed-functional-area .ffa-card__item-number--term {
+    font-size: 14px;
     color: #ae5d34;
 }
-.module-member-fixed-functional-area .ffa-amount-label {
+.module-member-fixed-functional-area .ffa-card__item-text {
     font-size: 12px;
-    line-height: 20px;
+    line-height: 1.5;
+}
+.module-member-fixed-functional-area .ffa-card__item-text--term {
     color: #ae5d34;
-    opacity: 0.8;
 }

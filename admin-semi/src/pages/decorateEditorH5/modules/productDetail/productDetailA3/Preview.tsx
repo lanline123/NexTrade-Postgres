@@ -36,26 +36,32 @@ const DotsIcon = ({ size = 18 }: { size?: number }) => (
     </svg>
 );
 
-/** 商城头部（原版 MobilePageHeaderPreview overseas 变体） */
+/**
+ * 商城头部（原版 MobilePageHeaderPreview overseas 变体，结构/类名同原版：
+ * 高 39px、左右内边距 11px、左侧组 gap 8px、logo 宽 77px 高自适应、菜单/购物车图标 21px、
+ * 文档图标 19px、右侧组 gap 14px；样式见 Preview.css 的 dec-mobile-page-header*）
+ */
 function OverseasPageHeader({ backgroundColor }: { backgroundColor: string }) {
     return (
-        <div className="dec-mobile-page-header dec-mobile-page-header--overseas" style={{ backgroundColor, display: "flex", alignItems: "center", justifyContent: "space-between", height: 50, padding: "0 12px", color: "#1a1a1a", boxSizing: "border-box" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <div className="dec-mobile-page-header dec-mobile-page-header--overseas" style={{ backgroundColor }}>
+            <div className="dec-mobile-page-header__overseas-left">
+                <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                     <path d="M4 7h16M4 12h16M4 17h16" />
                 </svg>
-                <img className="dec-mobile-page-header__logo" src="https://oss.tigshop.com/img/gallery/202506/1749453162yrntnPb4FvQcg9Wjco.png" alt="Tigshop" style={{ height: 22, display: "block" }} />
+                <img className="dec-mobile-page-header__logo" src="https://oss.tigshop.com/img/gallery/202506/1749453162yrntnPb4FvQcg9Wjco.png" alt="Tigshop" />
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div className="dec-mobile-page-header__overseas-right">
                 <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M6 2h9l5 5v15H6z" />
                     <path d="M14 2v6h6" />
                 </svg>
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="9" cy="20" r="1.6" />
-                    <circle cx="17" cy="20" r="1.6" />
-                    <path d="M3 3h2l2.4 12.4a1.5 1.5 0 0 0 1.5 1.1h7.9a1.5 1.5 0 0 0 1.5-1.2L20 8H6" />
-                </svg>
+                <span className="dec-mobile-page-header__cart">
+                    <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="9" cy="20" r="1.6" />
+                        <circle cx="17" cy="20" r="1.6" />
+                        <path d="M3 3h2l2.4 12.4a1.5 1.5 0 0 0 1.5 1.1h7.9a1.5 1.5 0 0 0 1.5-1.2L20 8H6" />
+                    </svg>
+                </span>
             </div>
         </div>
     );

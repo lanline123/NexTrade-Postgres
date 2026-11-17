@@ -30,7 +30,8 @@ export default function WhiteLineSettings({ data, onChange }: { data: Record<str
                     ]}
                 />
             </SettingGroup>
-            <FrameSettingsField data={data} onChange={onChange} label="边框设置" />
+            {/* 原版 CommonFrameEdit type="line"：隐藏圆角/内边距两项，经 frameType="line" 门控 */}
+            <FrameSettingsField data={data} onChange={onChange} label="边框设置" frameType="line" />
         </div>
     );
 }

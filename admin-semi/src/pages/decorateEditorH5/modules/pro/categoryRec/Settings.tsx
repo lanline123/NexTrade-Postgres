@@ -5,10 +5,10 @@
  * 内容页：内容设置（CategoryGroupEdit 折叠卡：分类图片/标题/链接/标题颜色/背景颜色）
  * + 参数设置（缓动效果/分类内部间距/分类圆角大小/分类标题/分类背景颜色/分类边框组）；
  * 扩展页：ModuleStyleEdit（type="categoryRec", topPaddingMax=100）+ ContentStyleEdit（type="categoryA1"）。
- * 注：链接原版为 SelectLink 选择器（未移植），此处以文本输入写回同一 link 结构。
+ * 链接已恢复原版选链方式：PicLinkField（原版 CategoryGroupEdit 以 SelectLink 绑定
+ * element.link 整体，选中即回写完整 LinkType；默认占位 { link:{link,title}, linkTitle } 保留）。
  */
-import { Input } from "@douyinfe/semi-ui";
-import { SettingGroup, SettingRow, RangeField, ColorField, RadioRowField, TextField, SinglePicField, DecDivider } from "../../../shared/settingWidgets";
+import { SettingGroup, SettingRow, RangeField, ColorField, RadioRowField, TextField, SinglePicField, DecDivider, PicLinkField } from "../../../shared/settingWidgets";
 import {
     SettingsTabs,
     ModuleStyleSettingsField,
@@ -18,11 +18,9 @@ import {
     GroupCardList
 } from "../../../shared/styleEdits";
 
-import { useI18n } from '../../../../../i18n';
 const EMPTY_LINK = { link: { link: "", title: "" }, linkTitle: "" };
 
 function CategoryGroupEditor({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
-    const { t } = useI18n();
     const list: Array<Record<string, any>> = Array.isArray(data?.categoryList) ? data.categoryList : [];
     const setList = (next: Array<Record<string, any>>) => onChange({ categoryList: next });
     const patchItem = (index: number, patch: Record<string, any>) => setList(list.map((it, i) => (i === index ? { ...it, ...patch } : it)));
@@ -43,24 +41,14 @@ function CategoryGroupEditor({ data, onChange }: { data: Record<string, any>; on
             onMove={moveItem}
             renderItem={(item, index) => {
                 const itemProps = { data: item, onChange: (patch: Record<string, any>) => patchItem(index, patch) };
-                const linkUrl = typeof item.link === "string" ? item.link : item.link?.link?.link ?? "";
                 return (
                     <>
                         <SinglePicField {...itemProps} field="catPic" label="分类图片" />
                         <TextField {...itemProps} field="title" label="标题" placeholder="请输入标题内容" />
                         <SettingRow label="链接">
-                            <Input
-                                value={linkUrl}
-                                placeholder={t('跳转链接，如 /pages/index/index')}
-                                style={{ width: 240, maxWidth: "100%" }}
-                                onChange={(v: string) =>
-                                    patchItem(index, {
-                                        link:
-                                            item.link && typeof item.link === "object"
-                                                ? { ...item.link, link: { ...(item.link.link || {}), link: v } }
-                                                : { link: { link: v, title: "" }, linkTitle: "" }
-                                    })
-                                }
+                            <PicLinkField
+                                value={typeof item.link === "string" ? { link: item.link, title: "" } : item.link ?? null}
+                                onChange={(v) => patchItem(index, { link: v })}
                             />
                         </SettingRow>
                         <ColorField {...itemProps} field="titleColor" label="标题颜色" resetValue="" />

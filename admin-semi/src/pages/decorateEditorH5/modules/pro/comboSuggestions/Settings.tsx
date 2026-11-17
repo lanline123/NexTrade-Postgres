@@ -10,9 +10,8 @@
  * 注：原版 Settings 中活动价标签/活动价/售罄图标/轮播方向等字段在源码中已被注释掉（不渲染），
  * 此处同样不提供编辑入口，默认值保留在 defaults 中。
  */
-import { Input } from "@douyinfe/semi-ui";
 import AlphaColorInput from "../../../../../components/AlphaColorInput";
-import { SettingGroup, SettingRow, RadioRowField, RangeField, ColorField, TextField, PicListField, PicSelectField } from "../../../shared/settingWidgets";
+import { SettingGroup, SettingRow, RadioRowField, RangeField, ColorField, TextField, PicListField, PicSelectField, PicLinkField } from "../../../shared/settingWidgets";
 import { SettingsTabs, ModuleStyleSettingsField, GroupCardList } from "../../../shared/styleEdits";
 
 const EMPTY_GROUP = {
@@ -48,7 +47,6 @@ function ComboGroupEditor({ data, onChange }: { data: Record<string, any>; onCha
             onMove={moveItem}
             renderItem={(item, index) => {
                 const itemProps = { data: item, onChange: (patch: Record<string, any>) => patchItem(index, patch) };
-                const moreLinkUrl = item.moreLink?.link?.link ?? "";
                 return (
                     <>
                         <PicSelectField {...itemProps} field="titleImage" label="标题头图：宽150内,高30" />
@@ -57,13 +55,10 @@ function ComboGroupEditor({ data, onChange }: { data: Record<string, any>; onCha
                         <TextField {...itemProps} field="groupDesc" label="分组描述" placeholder="请输入描述内容" />
                         <ColorField {...itemProps} field="groupColor" label="分组颜色" resetValue="" />
                         <SettingRow label="查看更多链接">
-                            <Input
-                                value={moreLinkUrl}
-                                placeholder="跳转链接，如 /pages/index/index"
-                                style={{ width: 240, maxWidth: "100%" }}
-                                onChange={(v: string) =>
-                                    patchItem(index, { moreLink: { ...(item.moreLink || {}), link: { ...(item.moreLink?.link || { title: "" }), link: v } } })
-                                }
+                            {/* 原版 comboGroup/Edit 以 SelectLink 绑定 element.moreLink 整体，选中即回写完整 LinkType */}
+                            <PicLinkField
+                                value={typeof item.moreLink === "string" ? { link: item.moreLink, title: "" } : item.moreLink ?? null}
+                                onChange={(v) => patchItem(index, { moreLink: v })}
                             />
                         </SettingRow>
                         <RadioRowField

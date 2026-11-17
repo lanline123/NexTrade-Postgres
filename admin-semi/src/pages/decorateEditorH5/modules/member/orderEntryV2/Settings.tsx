@@ -17,9 +17,9 @@ export default function OrderEntryV2Settings({ data, onChange }: { data: Record<
                         <TextField data={data} onChange={onChange} field="title" label="模块标题" placeholder="订单" />
                     </SettingGroup>
                     <DecDivider />
-                    <PicListField data={data} onChange={onChange} field="cardList" label="卡片入口" showText showLink={false} />
+                    <PicListField data={data} onChange={onChange} field="cardList" label="卡片入口" showText showLink={false} showAddButton={false} />
                     <DecDivider />
-                    <PicListField data={data} onChange={onChange} field="listItems" label="列表入口" showText showLink={false} />
+                    <PicListField data={data} onChange={onChange} field="listItems" label="列表入口" showText showLink={false} showAddButton={false} />
                 </div>
                 <div>
                     <SettingGroup>

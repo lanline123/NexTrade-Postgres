@@ -7,10 +7,13 @@
  * 账号数据取既有接口 /content/wechatVideoAccount/list（后台视频号管理同源，size 100，不改路径），
  * currentVideoNumber = videoNumberId 命中项或首项。原版默认封面为打包资源图、本机无此资源：
  * 无封面时以浅灰占位块承接；作者小图标以同尺寸内联 SVG 承接（原版为 assets/live/videoNumber.svg）。
- * 原版 Preview 打开时会把首个 videoNumberId/liveTitle 静默写回模块——本实现不写回（见摘要）。
+ * 写回对齐原版 Preview：选项加载后 videoNumberId 为空时把首个视频号 ID 写回模块
+ * （原版 liveTitle 回填因其选项 liveTitle 恒为 "" 而为空写，此处不复刻空写）。
+ * Preview 无 onChange 入参，写回经 editorStore.updateModule 按挂载时捕获的模块对象引用定位条目。
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet } from "../../../../../api";
+import { editorStore } from "../../../store/editorStore";
 import { cssText, pickPic } from "../../../shared/format";
 import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
 import { videoNumberDefaults } from "./index";
@@ -41,6 +44,9 @@ function CalendarIcon() {
 }
 
 export default function VideoNumberPreview({ data }: { data: Record<string, any> }) {
+    // 挂载时捕获 store 中的模块对象引用，供选项加载后按引用定位写回（写回后对象会被替换，故只认首帧引用）
+    const initialDataRef = useRef(data);
+    const writeBackDoneRef = useRef(false);
     const module = useMemo(() => {
         const merged = JSON.parse(JSON.stringify(data ?? {}));
         mergeDefaultModule(merged, videoNumberDefaults);
@@ -70,6 +76,19 @@ export default function VideoNumberPreview({ data }: { data: Record<string, any>
             alive = false;
         };
     }, []);
+
+    // 打开写回（同原版 Preview onMounted → loadVideoNumberOptions）：videoNumberId 为空时写回首个视频号 ID，仅执行一次
+    useEffect(() => {
+        if (!options.length || writeBackDoneRef.current) return;
+        writeBackDoneRef.current = true;
+        if (initialDataRef.current?.videoNumberId) return;
+        const state = editorStore.getState();
+        const idx = state.moduleList.findIndex((m: any) => m.type === "videoNumber" && m.module === initialDataRef.current);
+        if (idx < 0) return;
+        if (!state.moduleList[idx].module?.videoNumberId) {
+            editorStore.updateModule(idx, { videoNumberId: String(options[0].videoNumberId) });
+        }
+    }, [options]);
 
     const current = options.find((o) => o.videoNumberId === module.videoNumberId) || options[0];
     const frame = module.frame ?? {};

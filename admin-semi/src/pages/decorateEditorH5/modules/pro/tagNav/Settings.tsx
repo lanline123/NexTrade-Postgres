@@ -3,10 +3,10 @@
  *
  * 页签：分组设置（基本设置 GroupListEdit + 参数设置）/ 扩展设置
  * （颜色设置：categoryColors 渐变色对 + 分组标题色；ModuleStyle type="categoryRec"）。
- * 分组链接 SelectLink 未移植，沿用文本输入写回同一嵌套结构（部分对齐）。
+ * 分组链接已恢复原版选链方式：PicLinkField（原版 GroupListEdit 以 SelectLink 绑定
+ * element.link 整体，选中即回写完整 LinkType；默认占位 { link:{link,title}, linkTitle } 保留）。
  */
-import { Input } from "@douyinfe/semi-ui";
-import { SettingGroup, SettingRow, RadioRowField, RangeField, ColorField, TextField } from "../../../shared/settingWidgets";
+import { SettingGroup, SettingRow, RadioRowField, RangeField, ColorField, TextField, PicLinkField } from "../../../shared/settingWidgets";
 import { SettingsTabs, GroupCardList, ModuleStyleSettingsField } from "../../../shared/styleEdits";
 import AlphaColorInput from "../../../../../components/AlphaColorInput";
 
@@ -33,23 +33,13 @@ function GroupListEditor({ data, onChange }: { data: Record<string, any>; onChan
             canRemove={list.length > 1}
             renderItem={(item, index) => {
                 const itemProps = { data: item, onChange: (patch: Record<string, any>) => patchItem(index, patch) };
-                const linkUrl = typeof item.link === "string" ? item.link : item.link?.link?.link ?? "";
                 return (
                     <>
                         <TextField {...itemProps} field="title" label="标题" placeholder="请输入标题内容" />
                         <SettingRow label="链接">
-                            <Input
-                                value={linkUrl}
-                                placeholder="跳转链接，如 /pages/index/index"
-                                style={{ width: 240, maxWidth: "100%" }}
-                                onChange={(v: string) =>
-                                    patchItem(index, {
-                                        link:
-                                            item.link && typeof item.link === "object"
-                                                ? { ...item.link, link: { ...(item.link.link || {}), link: v } }
-                                                : { link: { link: v, title: "" }, linkTitle: "" },
-                                    })
-                                }
+                            <PicLinkField
+                                value={typeof item.link === "string" ? { link: item.link, title: "" } : item.link ?? null}
+                                onChange={(v) => patchItem(index, { link: v })}
                             />
                         </SettingRow>
                     </>

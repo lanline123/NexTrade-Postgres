@@ -7,13 +7,14 @@
  *   overseas = 菜单 + logo + 文档/购物车（角标 21）。门店模式固定国内版头部。
  * - iconfont 图标以内联 SVG 承接（返回/搜索/价格升降三角/筛选/下拉/关注/菜单/文档/购物车），
  *   购物车按钮 1~4 的字形与 basic/product 的 LegacyBuyButton 同源（icon-gouwuche/gouwuche1/jia/jia1）。
- * - 星级门店标底图 tag-bg.png 为原版 admin 本地资源（ref 快照中 assets 缺失、本工程亦无），
- *   以主题色渐变底承接（见小结）。
+ * - 星级门店标底图 tag-bg.png 为原版 admin 本地资源（./assets/tag-bg.png，与原版同路径
+ *   引入；图片取自 C 端 static/mini/images/store/tag-bg.png 同图——原版注释亦标明同图）。
  * - 无数据接口：原版 Preview 即静态 mock（4 商品 / 2 门店），此处逐字复刻演示数据。
  */
 import { useMemo, type CSSProperties } from "react";
 import { mergeDefaultModule } from "../../../contract/sharedDefaults";
 import { mobileSearchResultDefaults } from "./index";
+import { storeTagBg } from "./assets/tagBg";
 import "./Preview.css";
 
 /* ---------------- 图标（iconfont 等价内联 SVG） ---------------- */
@@ -337,8 +338,8 @@ export default function MobileSearchResultPreview({ data }: { data: Record<strin
         "--dec-search-result-padding-lr": `${cfg.paddingLeftRight ?? cfg.padding ?? 10}px`,
         "--dec-search-result-image-radius": `${cfg.productImageRadius ?? 4}px`,
         "--dec-product-title-line": cfg.productTitleLine || 2,
-        // tag-bg.png 本地资源缺失：以主题渐变承接（原版为 url(tag-bg.png)）
-        "--dec-store-tag-bg": `linear-gradient(90deg, ${toRgba(themeColor, 0.85)}, ${themeColor})`
+        // 星级门店标底图（原版 storeTagBgStyle = url(assets/tag-bg.png)）
+        "--dec-store-tag-bg": `url(${storeTagBg})`
     } as CSSProperties;
 
     return (

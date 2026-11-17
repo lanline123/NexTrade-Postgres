@@ -58,7 +58,13 @@ export function useDecorateProductList(products: Record<string, any> | undefined
                 if (alive) setProductList([]);
                 return;
             }
-            if (type === 2 && (products.productCategoryId === undefined || products.productCategoryId === null || products.productCategoryId === '')) {
+            // productCategoryId 原版口径为分类路径数组（见 ProductsSourceField 头注），
+            // 接口 categoryId 只收单个 id（后端 Option<i32>，服务层自展开子分类）：
+            // 数组取末级、存量标量原样用；空数组/0/非法视为未配置，不发请求。
+            const categoryLeafId = Array.isArray(products.productCategoryId)
+                ? Number(products.productCategoryId[products.productCategoryId.length - 1])
+                : Number(products.productCategoryId);
+            if (type === 2 && (!Number.isFinite(categoryLeafId) || categoryLeafId === 0)) {
                 if (alive) setProductList([]);
                 return;
             }
@@ -75,7 +81,7 @@ export function useDecorateProductList(products: Record<string, any> | undefined
             } else {
                 param.page = 1;
                 if (type === 2) {
-                    param.categoryId = products.productCategoryId;
+                    param.categoryId = categoryLeafId;
                 } else {
                     param.introType = products.productTag;
                 }

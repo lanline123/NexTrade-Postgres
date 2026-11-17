@@ -3,14 +3,16 @@
  *
  * 头部 + 1 重礼商品横滑卡 + 2 重礼优惠券横排卡。
  * 商品按 products 来源拉取，无来源/无结果时用原版演示商品兜底。
- * 优惠券：原版经 useCouponInfoMap 接口按 couponId 补 info 后渲染、无 info 的券被过滤；
- * 本编辑器无该 hook，改为消费券条目内嵌的 info（Settings 本地编辑写入同一结构），
- * coupons 为空时用原版演示券兜底（与原版 displayCoupons 语义一致）。
+ * 优惠券：对齐原版 displayCoupons——条目只存 { couponId, btnText }，券面 info 经
+ * useCouponInfoMap 按 couponId 从接口拉取，无 info 的券被过滤，加载中显示
+ * 「优惠券信息加载中...」，coupons 为空时用原版演示券兜底。存量旧数据
+ * （旧编辑器写入的 couponId=0 + 内嵌 info）在接口无对应券时以其内嵌 info 兜底显示，不至于成空态。
  * 购买钮 1~4 iconfont 字形以语义对应的内联 SVG 承接（同 limitedSpecial 口径）。
  */
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
+import { useCouponInfoMap } from "../../../shared/useCouponInfoMap";
 import { mergeDefaultModule } from "../../../contract/sharedDefaults";
 import { newcomerComboDefaults } from "./index";
 import "./Preview.css";
@@ -57,7 +59,33 @@ export default function NewcomerComboPreview({ data }: { data: Record<string, an
     const productList = fetched.length > 0 ? fetched : demoProducts;
 
     const coupons: Array<Record<string, any>> = Array.isArray(module.coupons) ? module.coupons : [];
-    const displayCoupons = coupons.length === 0 ? demoCoupons : coupons.filter((c) => c.info);
+    const { couponInfoMap, fetchCouponInfo } = useCouponInfoMap();
+    const [couponInfoLoading, setCouponInfoLoading] = useState(false);
+    const couponIdsKey = coupons
+        .map((c) => Number(c.couponId) || 0)
+        .filter((id) => id > 0)
+        .sort((a, b) => a - b)
+        .join(",");
+    useEffect(() => {
+        if (!couponIdsKey) return;
+        let alive = true;
+        setCouponInfoLoading(true);
+        fetchCouponInfo(couponIdsKey.split(",").map(Number)).finally(() => {
+            if (alive) setCouponInfoLoading(false);
+        });
+        return () => {
+            alive = false;
+        };
+    }, [couponIdsKey, fetchCouponInfo]);
+
+    // 原版：coupons 非空时按 couponId 取接口 info 并过滤无 info 项；接口 info 优先，
+    // 存量内嵌 info（旧编辑器数据）仅在接口无此券时兜底，避免存量页面预览成空
+    const displayCoupons =
+        coupons.length === 0
+            ? demoCoupons
+            : coupons
+                  .map((c) => ({ ...c, info: couponInfoMap.get(Number(c.couponId)) || c.info || null }))
+                  .filter((c) => c.info);
 
     const f = module.frame ?? {};
     const outerStyle = cssText(
@@ -219,6 +247,8 @@ export default function NewcomerComboPreview({ data }: { data: Record<string, an
                                     </div>
                                 ))}
                             </div>
+                        ) : couponInfoLoading ? (
+                            <div className="nc-empty">优惠券信息加载中...</div>
                         ) : (
                             <div className="nc-empty">请在右侧选择优惠券</div>
                         )}

@@ -3,12 +3,14 @@
  *
  * 页签：内容设置 / 扩展设置（原版扩展页仅 ModuleStyleEdit type="noticeA2"；
  * ContentStyleEdit type="noticeA2" 在原版位于内容页签内，照此保留）。
- * 指定门店的「选择门店」为 SelectStorePop 弹窗（门店数据选择组件），本编辑器无门店
- * 选择 API：已选门店以列表承接（可删除/上下移排序，替代原版拖拽），选择动作保留
- * 文案提示（任务书口径，小结注明）。CommonSubTitleEdit 以 SubTitleSettingsField
- * type="categoryRec" 承接（原版两处均为该 type）。
+ * 指定门店的「选择门店」为 SelectStorePop 弹窗（同目录组件，复刻原版弹窗口径：
+ * 搜索/分页/多选跨页保留/上限 20，确认后回写 { shopId, shopTitle, shopLogo }）；
+ * 已选门店以列表承接（可删除/上下移排序，替代原版拖拽）。CommonSubTitleEdit 以
+ * SubTitleSettingsField type="categoryRec" 承接（原版两处均为该 type）。
  */
+import { useState } from "react";
 import { Button } from "@douyinfe/semi-ui";
+import SelectStorePop, { type StoreNavShopItem } from "./SelectStorePop";
 import {
     SettingGroup,
     SettingRow,
@@ -33,6 +35,7 @@ const SHOW_OPTIONS = [
 
 export default function StoreNavSettings({ data, onChange }: Props) {
     const { t } = useI18n();
+    const [storePickerOpen, setStorePickerOpen] = useState(false);
     const isTwo = Number(data?.storeStyle) === 2;
     const storeList: Array<Record<string, any>> = Array.isArray(data?.storeList) ? data.storeList : [];
     const moveStore = (index: number, delta: number) => {
@@ -76,10 +79,20 @@ export default function StoreNavSettings({ data, onChange }: Props) {
                         ) : (
                             <>
                                 <SettingRow label="选择门店" block>
-                                    <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6 }}>
-                                        门店选择器（SelectStore 弹窗）尚未接入本编辑器，已选门店保持不变，可在下方调整顺序或删除。最多支持20个门店。
-                                    </div>
+                                    <Button theme="solid" type="primary" onClick={() => setStorePickerOpen(true)}>
+                                        {t("选择门店")}
+                                    </Button>
+                                    <div style={{ color: "#999", fontSize: 12, marginTop: 8 }}>{t("最多支持20个门店")}</div>
                                 </SettingRow>
+                                <SelectStorePop
+                                    visible={storePickerOpen}
+                                    selectedList={storeList as StoreNavShopItem[]}
+                                    onCancel={() => setStorePickerOpen(false)}
+                                    onConfirm={(list: StoreNavShopItem[]) => {
+                                        onChange({ storeList: list });
+                                        setStorePickerOpen(false);
+                                    }}
+                                />
                                 {storeList.length > 0 ? (
                                     <div style={{ padding: "0 16px 10px" }}>
                                         {storeList.map((store, index) => (

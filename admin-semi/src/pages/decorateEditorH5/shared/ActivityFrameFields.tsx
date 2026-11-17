@@ -2,7 +2,7 @@
  * 活动商品框设置（移植自 view/admin src/modules/src/commonActivityFrame/Edit.vue，section=all、type 非 product）
  *
  * 字段全部位于模块顶层（原版 v-model 绑整个 module）：选择模板 style / 商品卡样式 goodsStyle /
- * 瀑布流 waterfall / 商品卡边角 goodsRadioStyle（useGoodsRadiusSlider 时改为商品卡圆角 goodsRadius 滑杆）/
+ * 瀑布流 waterfall（原版带 v-if="frame.style === 2"，仅模板「一行两个」时显示）/ 商品卡边角 goodsRadioStyle（useGoodsRadiusSlider 时改为商品卡圆角 goodsRadius 滑杆）/
  * 文本对齐 textAlign（hideTextAlign 可隐）/ 文字粗细 textWeight / 商品名称行数 goodsNameRow /
  * 商品信息边距 goodsNamePadding / 显示商品名称 showName / 显示商品价格 showPrice /
  * 商品边距 goodsPadding（max 50）/ 购买按钮样式 buyBtnStyle（hideBuyBtnStyle 可隐）/
@@ -69,7 +69,8 @@ export default function ActivityFrameFields({
                         { value: 4, label: "透明底" }
                     ]}
                 />
-                {!hideWaterfall ? (
+                {/* 原版 CommonActivityFrameEdit：瀑布流组带 v-if="frame.style === 2"，仅一行两个时显示 */}
+                {!hideWaterfall && Number(data?.style) === 2 ? (
                     <RadioRowField
                         data={data}
                         onChange={onChange}

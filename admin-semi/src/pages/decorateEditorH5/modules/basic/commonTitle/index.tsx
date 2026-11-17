@@ -11,7 +11,13 @@
 import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep } from "../../../contract/sharedDefaults";
 
-/** 与渲染端 commonTitle/index.tsx 读取字段逐项对应（取值对齐 defaultTitle） */
+/**
+ * 与渲染端 commonTitle/index.tsx 读取字段逐项对应（取值对齐 defaultTitle）；
+ * 另补齐 defaultTitle 的其余 5 个字段（titleAlign/titleWeight/moreType/countdownLabel/format），
+ * 使独立模块数据结构与原版 title 对象 18 字段一致（渲染端不读这 5 个，不影响渲染）。
+ * showTitle 例外：原版 defaultTitle 为 0（嵌套标题对象口径），独立模块渲染端
+ * showTitle != 1 直接不渲染，新建默认必须为 1，否则加进画布即不可见。
+ */
 export const commonTitleDefaults = {
     showTitle: 1,
     titleText: "标题内容",
@@ -19,6 +25,8 @@ export const commonTitleDefaults = {
     titleColor: "",
     descColor: "#aaaaaa",
     titleStyle: 1,
+    titleAlign: 1,
+    titleWeight: "normal",
     titleBackground: "",
     titleBackground2: "",
     titleRadius: 0,
@@ -27,8 +35,14 @@ export const commonTitleDefaults = {
         picThumb: ""
     },
     showMore: 0,
+    moreType: 1,
+    countdownLabel: "",
     moreColor: "#aaaaaa",
-    moreLink: [] as Array<Record<string, any>>
+    moreLink: [] as Array<Record<string, any>>,
+    format: {
+        titleBackground: "",
+        titleRadius: ""
+    }
 };
 
 registerModule({

@@ -3,12 +3,13 @@
  *
  * Vue 版为弹窗拖拽绘制热区（vue3-drag-resize-rotate）；此处按移植要求改为表单化：
  * 每张热图下支持增删热区，用 InputNumber 编辑坐标（left/top）与尺寸（width/height，
- * 坐标系为 500px 绘制区域原始宽度），用 Input 编辑热区链接（link.name + link.path）。
+ * 坐标系为 500px 绘制区域原始宽度）。热区链接已恢复原版选链方式：PicLinkField
+ * （原版在绘制弹窗内经 link/LinkSelect 抽屉选链，完整 LinkType 整体存入 hotarea.link）。
  */
 import { useState } from "react";
 import { Button, Input, InputNumber } from "@douyinfe/semi-ui";
 import { IconDelete, IconPlus } from "@douyinfe/semi-icons";
-import { SettingGroup, TitleSettingsField, FrameSettingsField } from "../../../shared/settingWidgets";
+import { SettingGroup, TitleSettingsField, FrameSettingsField, PicLinkField } from "../../../shared/settingWidgets";
 import GalleryPickerModal from "../../../../../components/GalleryPickerModal";
 import { imageFormat } from "../../../shared/format";
 
@@ -96,33 +97,18 @@ export default function ImageHotareaSettings({ data, onChange }: { data: Record<
                                     ))}
                                 </div>
                                 <div style={rowStyle}>
-                                    <span style={{ fontSize: 13, flexShrink: 0 }}>{t('链接名称')}</span>
-                                    <Input
-                                        size="small"
-                                        style={{ width: 180 }}
-                                        value={hotarea.link?.name ?? ""}
-                                        onChange={(v: string) =>
-                                            setHotarea(
-                                                picIndex,
-                                                pic.hotarea.map((h: any, i: number) => (i === hotareaIndex ? { ...h, link: { ...(h.link || {}), name: v } } : h))
-                                            )
-                                        }
-                                    />
-                                </div>
-                                <div style={rowStyle}>
-                                    <span style={{ fontSize: 13, flexShrink: 0 }}>{t('链接地址')}</span>
-                                    <Input
-                                        size="small"
-                                        style={{ width: 180 }}
-                                        placeholder={t('如 /pages/product/index?id=1')}
-                                        value={hotarea.link?.path ?? ""}
-                                        onChange={(v: string) =>
-                                            setHotarea(
-                                                picIndex,
-                                                pic.hotarea.map((h: any, i: number) => (i === hotareaIndex ? { ...h, link: { ...(h.link || {}), path: v } } : h))
-                                            )
-                                        }
-                                    />
+                                    <span style={{ fontSize: 13, flexShrink: 0 }}>{t('链接')}</span>
+                                    <div style={{ width: 220 }}>
+                                        <PicLinkField
+                                            value={hotarea.link ?? null}
+                                            onChange={(v) =>
+                                                setHotarea(
+                                                    picIndex,
+                                                    pic.hotarea.map((h: any, i: number) => (i === hotareaIndex ? { ...h, link: v } : h))
+                                                )
+                                            }
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         ))}

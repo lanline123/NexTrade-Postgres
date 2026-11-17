@@ -6,6 +6,10 @@
  * image-ad-title-d；showMore=1 时右侧 image-ad-title-r > more-link「查看更多」。
  * showTitle != 1 时渲染端返回 null，预览保持一致。背景渐变规则与渲染端一致：
  * titleBackground2 非空时线性渐变，否则 titleBackground 纯色。
+ *
+ * 根节点必须带 module-ad-con 类：全局 module.css 中 .image-ad-title 的全部规则
+ * 以 `.module-ad-con .image-ad-title` 为祖先选择器（原版 View.vue 恒被宿主模块
+ * 带该类的根节点包裹）；独立模块无宿主，须自带该类包裹，否则预览样式整体不命中。
  */
 import { useMemo } from "react";
 import { cssText, productImage } from "../../../shared/format";
@@ -38,28 +42,30 @@ export default function CommonTitlePreview({ data }: { data: Record<string, any>
     const titleBackgroundImage = productImage(module.titleBackgroundPic);
 
     return (
-        <div className={`image-ad-title ad-title_style__${module.titleStyle}`} style={cssText(titleFormat.titleBackground, titleFormat.titleRadius)}>
-            <div className="image-ad-title-l">
-                {titleBackgroundImage ? (
-                    <div className="title-pic-box">
-                        <img className="title-pic" src={titleBackgroundImage} alt="" />
+        <div className="module-ad-con module-common_title">
+            <div className={`image-ad-title ad-title_style__${module.titleStyle}`} style={cssText(titleFormat.titleBackground, titleFormat.titleRadius)}>
+                <div className="image-ad-title-l">
+                    {titleBackgroundImage ? (
+                        <div className="title-pic-box">
+                            <img className="title-pic" src={titleBackgroundImage} alt="" />
+                        </div>
+                    ) : null}
+                    <div className="image-ad-title-h" style={{ color: module.titleColor }}>
+                        {module.titleText}
+                    </div>
+                    <div className="image-ad-title-d" style={{ color: module.descColor }}>
+                        {module.descText}
+                    </div>
+                </div>
+                {Number(module.showMore) === 1 ? (
+                    <div className="image-ad-title-r">
+                        <div className="more-link" style={{ color: module.moreColor }}>
+                            <span>查看更多</span>
+                            <span className="iconfont-h5 icon-youjiantou" />
+                        </div>
                     </div>
                 ) : null}
-                <div className="image-ad-title-h" style={{ color: module.titleColor }}>
-                    {module.titleText}
-                </div>
-                <div className="image-ad-title-d" style={{ color: module.descColor }}>
-                    {module.descText}
-                </div>
             </div>
-            {Number(module.showMore) === 1 ? (
-                <div className="image-ad-title-r">
-                    <div className="more-link" style={{ color: module.moreColor }}>
-                        <span>查看更多</span>
-                        <span className="iconfont-h5 icon-youjiantou" />
-                    </div>
-                </div>
-            ) : null}
         </div>
     );
 }

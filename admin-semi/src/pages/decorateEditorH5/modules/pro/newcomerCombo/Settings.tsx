@@ -4,11 +4,17 @@
  * 页签：基础设置（头部装饰 / 1 重礼·商品设置 / 2 重礼·优惠券设置）/ 扩展设置
  * （商品配色 / 优惠券配色 / 整体修饰 / 容器设置；原版无 ModuleStyle/ContentStyle 页签）。
  * 查看更多链接 SelectLink 以文本输入承接，写回 section*MoreLink 同一结构（{link,title}）。
- * 优惠券原版经 DialogForm 选择真实优惠券（couponId + 接口补 info）；本编辑器无现成
- * 优惠券选择 API，按口径以本地列表编辑承接原数据结构：couponId/btnText/info
- * （券名/类型/金额或折扣/门槛/减免类型）逐项可编辑，Preview 直接消费内嵌 info。
+ * 优惠券对齐原版数据模型：条目只存 { couponId, btnText }，券面 info 不落库，
+ * 由 useCouponInfoMap 按 couponId 从接口拉取（Settings 列表名、Preview 券面同源）；
+ * 「添加优惠券」打开多选弹窗（语义同原版 MultiCouponSelectList：返回最终选中的完整列表，
+ * 取消勾选即移除，已存在券保留原 btnText、新券默认「立即领取」）；列表可拖拽排序、hover 删除，
+ * 条目无字段编辑入口（同原版）。存量旧数据（couponId=0 + 内嵌 info）列表名以其内嵌 info 兜底展示，
+ * 经弹窗重新确认后即按原版模型改写为 { couponId, btnText }。
  */
-import { Input, InputNumber } from "@douyinfe/semi-ui";
+import { useEffect, useRef, useState } from "react";
+import { Checkbox, Input, Modal, Spin } from "@douyinfe/semi-ui";
+import { apiGet } from "../../../../../api";
+import { useCouponInfoMap } from "../../../shared/useCouponInfoMap";
 import {
     SettingGroup,
     SettingRow,
@@ -104,68 +110,146 @@ function CouponListEditor({ data, onChange }: Props) {
     const { t } = useI18n();
     const coupons: Array<Record<string, any>> = Array.isArray(data?.coupons) ? data.coupons : [];
     const setList = (next: Array<Record<string, any>>) => onChange({ coupons: next });
-    const patchCoupon = (index: number, patch: Patch) => setList(coupons.map((c, i) => (i === index ? { ...c, ...patch } : c)));
-    const patchInfo = (index: number, patch: Patch) =>
-        patchCoupon(index, { info: { ...(coupons[index]?.info ?? {}), ...patch } });
-    const addCoupon = () =>
-        setList([
-            ...coupons,
-            {
-                couponId: 0,
-                btnText: "立即领取",
-                info: { couponName: "新人专享券", couponType: 1, couponMoney: 10, couponDiscount: 9, minOrderAmount: 0, reduceType: 2 }
-            }
-        ]);
+    const { couponInfoMap, fetchCouponInfo, removeCouponInfo } = useCouponInfoMap();
+    const [infoLoading, setInfoLoading] = useState(false);
+    const [pickerOpen, setPickerOpen] = useState(false);
+    const [pickerLoading, setPickerLoading] = useState(false);
+    const [pickerRows, setPickerRows] = useState<Array<Record<string, any>>>([]);
+    const [pickerKeyword, setPickerKeyword] = useState("");
+    const [checkedIds, setCheckedIds] = useState<number[]>([]);
+    const dragIndexRef = useRef<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+    // 与原版一致：couponId 集合变化即拉取券面 info（immediate，含首次打开）
+    const idsKey = coupons
+        .map((c) => Number(c.couponId) || 0)
+        .filter((id) => id > 0)
+        .join(",");
+    useEffect(() => {
+        if (!idsKey) return;
+        let alive = true;
+        setInfoLoading(true);
+        fetchCouponInfo(idsKey.split(",").map(Number)).finally(() => {
+            if (alive) setInfoLoading(false);
+        });
+        return () => {
+            alive = false;
+        };
+    }, [idsKey, fetchCouponInfo]);
+
+    // 展示用 info：接口 map 优先；存量内嵌 info（旧编辑器写入）仅作显示兜底，不写回
+    const displayInfo = (c: Record<string, any>) => couponInfoMap.get(Number(c.couponId)) || c.info || null;
+
+    const removeCoupon = (index: number) => {
+        const removed = coupons[index];
+        setList(coupons.filter((_, i) => i !== index));
+        if (removed?.couponId) removeCouponInfo(Number(removed.couponId));
+    };
+
+    const moveCoupon = (from: number, to: number) => {
+        if (from === to || from < 0 || to < 0 || from >= coupons.length || to >= coupons.length) return;
+        const next = [...coupons];
+        const [item] = next.splice(from, 1);
+        next.splice(to, 0, item);
+        setList(next);
+    };
+
+    const openPicker = () => {
+        setCheckedIds(coupons.map((c) => Number(c.couponId) || 0).filter((id) => id > 0));
+        setPickerKeyword("");
+        setPickerOpen(true);
+    };
+
+    useEffect(() => {
+        if (!pickerOpen) return;
+        let alive = true;
+        setPickerLoading(true);
+        apiGet<any>("/promotion/coupon/list", { page: 1, size: 100, keyword: pickerKeyword || undefined })
+            .then((res: any) => {
+                if (alive) setPickerRows(res?.records || res?.list || []);
+            })
+            .catch(() => {
+                if (alive) setPickerRows([]);
+            })
+            .finally(() => {
+                if (alive) setPickerLoading(false);
+            });
+        return () => {
+            alive = false;
+        };
+    }, [pickerOpen, pickerKeyword]);
+
+    // 弹窗确认 = 最终选中的完整列表（同原版 onCouponsSelected）：保留已存在券的 btnText，新券默认「立即领取」
+    const confirmPicker = () => {
+        const existingBtnText = new Map(coupons.map((c) => [Number(c.couponId), c.btnText]));
+        const kept = coupons
+            .filter((c) => checkedIds.includes(Number(c.couponId)))
+            .map((c) => ({ couponId: Number(c.couponId), btnText: existingBtnText.get(Number(c.couponId)) || "立即领取" }));
+        const keptIds = new Set(kept.map((c) => c.couponId));
+        const added = pickerRows
+            .filter((r) => checkedIds.includes(Number(r.couponId)) && !keptIds.has(Number(r.couponId)))
+            .map((r) => ({ couponId: Number(r.couponId), btnText: "立即领取" }));
+        setList([...kept, ...added]);
+        setPickerOpen(false);
+    };
+
+    const pickerFace = (r: Record<string, any>) =>
+        Number(r.couponType) === 2 ? `${r.couponDiscount ?? "-"}折` : `¥${r.couponMoney ?? "-"}${Number(r.minOrderAmount) > 0 ? `（满${r.minOrderAmount}可用）` : "（无门槛）"}`;
+
     return (
         <div style={{ padding: "0 16px 15px" }}>
             {coupons.map((c, index) => {
-                const info = c.info ?? {};
-                const infoProps: Props = { data: info, onChange: (patch: Patch) => patchInfo(index, patch) };
+                const info = displayInfo(c);
                 return (
                     <div
-                        key={index}
-                        style={{ position: "relative", backgroundColor: "#fff", borderRadius: 2, boxShadow: "0 0 4px 0 rgba(10, 42, 97, 0.2)", padding: "10px 12px", marginTop: 12 }}
+                        key={`${Number(c.couponId) || 0}-${index}`}
+                        onDragOver={(e) => {
+                            e.preventDefault();
+                            setDragOverIndex(index);
+                        }}
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            if (dragIndexRef.current !== null) moveCoupon(dragIndexRef.current, index);
+                            dragIndexRef.current = null;
+                            setDragOverIndex(null);
+                        }}
+                        style={{
+                            position: "relative",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            backgroundColor: "#fff",
+                            borderRadius: 2,
+                            boxShadow: "0 0 4px 0 rgba(10, 42, 97, 0.2)",
+                            padding: "10px 12px",
+                            marginTop: 12,
+                            outline: dragOverIndex === index && dragIndexRef.current !== null && dragIndexRef.current !== index ? "1px dashed #155bd4" : undefined
+                        }}
                     >
-                        <div style={{ fontSize: 13, color: "#333", marginBottom: 6 }}>
-                            优惠券: {info.couponName || "信息缺失"}
-                        </div>
-                        <BlockTextField {...infoProps} field="couponName" label="券名称" placeholder="如：新人专享 满600减40" />
-                        <RadioRowField
-                            {...infoProps}
-                            field="couponType"
-                            label="券类型"
-                            options={[
-                                { value: 1, label: "满减券" },
-                                { value: 2, label: "折扣券" }
-                            ]}
-                        />
-                        {Number(info.couponType) === 2 ? (
-                            <SettingRow label="折扣">
-                                <InputNumber value={Number(info.couponDiscount ?? 0)} min={0} max={10} step={0.1} style={{ width: 120 }} onChange={(v: any) => patchInfo(index, { couponDiscount: Number(v) || 0 })} />
-                            </SettingRow>
-                        ) : (
-                            <SettingRow label="券金额">
-                                <InputNumber value={Number(info.couponMoney ?? 0)} min={0} style={{ width: 120 }} onChange={(v: any) => patchInfo(index, { couponMoney: Number(v) || 0 })} />
-                            </SettingRow>
-                        )}
-                        <RadioRowField
-                            {...infoProps}
-                            field="reduceType"
-                            label="门槛类型"
-                            options={[
-                                { value: 1, label: "满金额可用" },
-                                { value: 2, label: "无门槛" }
-                            ]}
-                        />
-                        {Number(info.reduceType) !== 2 ? (
-                            <SettingRow label="使用门槛">
-                                <InputNumber value={Number(info.minOrderAmount ?? 0)} min={0} style={{ width: 120 }} onChange={(v: any) => patchInfo(index, { minOrderAmount: Number(v) || 0 })} />
-                            </SettingRow>
-                        ) : null}
-                        <BlockTextField data={c} onChange={(patch: Patch) => patchCoupon(index, patch)} field="btnText" label="按钮文案" placeholder="立即领取" />
+                        <span
+                            draggable
+                            onDragStart={() => {
+                                dragIndexRef.current = index;
+                            }}
+                            onDragEnd={() => {
+                                dragIndexRef.current = null;
+                                setDragOverIndex(null);
+                            }}
+                            title={t("拖拽排序")}
+                            style={{ flexShrink: 0, cursor: "move", display: "block", lineHeight: 0 }}
+                        >
+                            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                                <line x1="2" y1="3.5" x2="12" y2="3.5" stroke="#bbb" strokeWidth="1.5" />
+                                <line x1="2" y1="7" x2="12" y2="7" stroke="#bbb" strokeWidth="1.5" />
+                                <line x1="2" y1="10.5" x2="12" y2="10.5" stroke="#bbb" strokeWidth="1.5" />
+                            </svg>
+                        </span>
+                        <span style={{ flex: 1, fontSize: 13, color: "#333", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {t("优惠券")}: {info?.couponName || (infoLoading ? t("加载中...") : t("信息缺失"))}
+                        </span>
                         <span
                             title={t("删除")}
-                            onClick={() => setList(coupons.filter((_, i) => i !== index))}
+                            onClick={() => removeCoupon(index)}
                             style={{ position: "absolute", right: -10, top: -10, color: "#fff", background: "#bbb", border: "2px solid #fff", borderRadius: "50%", zIndex: 2, width: 18, height: 18, textAlign: "center", lineHeight: "16px", cursor: "pointer", fontSize: 12, boxSizing: "border-box" }}
                         >
                             ×
@@ -173,12 +257,38 @@ function CouponListEditor({ data, onChange }: Props) {
                     </div>
                 );
             })}
-            <a className="dec-pic-add-btn" onClick={addCoupon} style={{ marginTop: 12 }}>
+            <a className="dec-pic-add-btn" onClick={openPicker} style={{ marginTop: 12 }}>
                 {t("添加优惠券")}
             </a>
-            <div style={{ color: "#999", fontSize: 12, lineHeight: 1.6, marginTop: 8 }}>
-                说明：原版经弹窗选择真实优惠券并由接口回填券面信息；本编辑器以本地字段承接同一数据结构（couponId 由真实券选择产生，本地新增为 0）。
-            </div>
+            <Modal title={t("选择优惠券")} visible={pickerOpen} onCancel={() => setPickerOpen(false)} onOk={confirmPicker} okText={t("确定")} cancelText={t("取消")} width={700}>
+                <Input
+                    value={pickerKeyword}
+                    placeholder={t("搜索优惠券名称")}
+                    showClear
+                    style={{ width: "100%", marginBottom: 12 }}
+                    onChange={(v: string) => setPickerKeyword(v)}
+                />
+                <Spin spinning={pickerLoading}>
+                    <div style={{ maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+                        {pickerRows.map((r) => {
+                            const id = Number(r.couponId);
+                            return (
+                                <label key={id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: "#f7f8fa", borderRadius: 4, cursor: "pointer" }}>
+                                    <Checkbox
+                                        checked={checkedIds.includes(id)}
+                                        onChange={(e: any) => setCheckedIds((prev) => (e?.target?.checked ? [...prev, id] : prev.filter((x) => x !== id)))}
+                                    />
+                                    <span style={{ flex: 1, fontSize: 13, color: "#333" }}>{r.couponName || "-"}</span>
+                                    <span style={{ fontSize: 12, color: "#999" }}>{pickerFace(r)}</span>
+                                </label>
+                            );
+                        })}
+                        {!pickerLoading && !pickerRows.length ? (
+                            <div style={{ color: "#999", fontSize: 12, padding: 12 }}>{t("暂无优惠券")}</div>
+                        ) : null}
+                    </div>
+                </Spin>
+            </Modal>
         </div>
     );
 }
