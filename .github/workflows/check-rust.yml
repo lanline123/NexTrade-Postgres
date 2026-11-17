@@ -2,6 +2,14 @@ name: check-rust
 
 # 代码推送或 PR 时在 GitHub Actions 云端运行编译检查
 # 避免在本地占用内存与资源
+#
+# 2026-11-14 提速与可观测改造（按仓库所有者要求：不出正式包、尽量缩短构建时间）：
+# - check 与 test 拆成两个并行 job，墙钟时间约等于两者中较慢的一个；
+# - 同一分支/PR 的新推送自动取消旧的未完成运行（修错连推时不再排队空等）；
+# - cargo test 去掉 -j 1（那只限制编译并行度，不影响测试执行语义）；
+# - 每步输出 tee 到 ci-logs/ 并以 artifact 上传（保留 7 天）——
+#   job 日志下载接口需要仓库 admin 权限，artifact 则在网页端点开即可看，
+#   也方便用只读令牌拉取定位失败原因。
 on:
   push:
     branches: [main, master]
@@ -15,6 +23,10 @@ on:
       - '.github/workflows/**'
   workflow_dispatch:
 
+concurrency:
+  group: check-rust-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -22,8 +34,55 @@ jobs:
   check:
     name: Cargo Check
     runs-on: ubuntu-22.04
-    # 加了 test target 后编译量显著变大（需编出 4 个测试二进制），
-    # 冷缓存下 check + test 合计可能逼近一小时，故放宽到 120 分钟。
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/crates -> target
+          key: check
+
+      - name: Run Cargo Check
+        working-directory: rust/crates
+        run: |
+          set -o pipefail
+          mkdir -p ../ci-logs
+          cargo check --workspace 2>&1 | tee ../ci-logs/cargo-check.log
+
+      - name: Upload CI logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-check-log-${{ github.run_id }}
+          path: ci-logs/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  test:
+    name: Cargo Test
+    runs-on: ubuntu-22.04
+    # `cargo check` 不编译 test target，单测因此长期「假绿」。
+    # 2026-11-10 首次真正运行 `cargo test`，一次暴露 82 处失败：断言写的是
+    # MySQL 的 `?` 占位符、实现早已改成 PG 的 `$N`；另有 5 处实现里硬编码
+    # `$N` 混进 `?` 拼接（会致占位符编号重复，属真实 SQL bug）。
+    # --no-fail-fast 让一次运行报出全部失败，避免逐个试错。
+    # 套件不依赖数据库/网络（无 sqlx::test、无 query! 宏，openapi 集成测试
+    # 走 tower oneshot）；契约类断言在缺 docs/api-contract.json 时跳过
+    # （libtest 捕获输出，日志里看不到 `[skip]`，只是计为 passed——
+    #  要真正校验契约须先把契约 JSON 入库）。
     timeout-minutes: 120
     steps:
       - name: Checkout repository
@@ -43,22 +102,20 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust/crates -> target
+          key: test
 
-      - name: Run Cargo Check
-        working-directory: rust/crates
-        run: |
-          cargo check --workspace
-
-      # `cargo check` 不编译 test target，单测因此长期「假绿」。
-      # 2026-11-10 首次真正运行 `cargo test`，一次暴露 82 处失败：断言写的是
-      # MySQL 的 `?` 占位符、实现早已改成 PG 的 `$N`；另有 5 处实现里硬编码
-      # `$N` 混进 `?` 拼接（会致占位符编号重复，属真实 SQL bug）。
-      # --no-fail-fast 让一次运行报出全部失败，避免逐个试错。
-      # 套件不依赖数据库/网络（无 sqlx::test、无 query! 宏，openapi 集成测试
-      # 走 tower oneshot）；契约类断言在缺 docs/api-contract.json 时跳过
-      # （libtest 捕获输出，日志里看不到 `[skip]`，只是计为 passed——
-      #  要真正校验契约须先把契约 JSON 入库）。
       - name: Run Cargo Test
         working-directory: rust/crates
         run: |
-          cargo test --workspace --no-fail-fast -j 1
+          set -o pipefail
+          mkdir -p ../ci-logs
+          cargo test --workspace --no-fail-fast 2>&1 | tee ../ci-logs/cargo-test.log
+
+      - name: Upload CI logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-test-log-${{ github.run_id }}
+          path: ci-logs/
+          retention-days: 7
+          if-no-files-found: ignore
