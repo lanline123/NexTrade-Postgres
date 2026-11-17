@@ -5,8 +5,8 @@
  * 链路：decorate/decorate/detail 加载 → store.initDecorate（url 回填 + 固定模块注入）→
  *       saveDraft/publish 保存（整体透传，契约红线）。
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Dropdown, Toast } from "@douyinfe/semi-ui";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Button, Dropdown, Modal, Toast } from "@douyinfe/semi-ui";
 import { IconChevronDown, IconExit, IconLanguage } from "@douyinfe/semi-icons";
 import { apiGet, apiPost } from "../../api";
 import { editorStore, useEditorState } from "./store/editorStore";
@@ -210,7 +210,41 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
 
     // 会员中心页固定模块：此处已在 initDecorate/restoreFromDraft 内注入
 
-    const handleExit = onExit ?? (() => (window.location.href = window.location.origin));
+    // 未保存提醒（2026-11-17）：脏标记用 store 既有 isDirty（任何增删改置 true，
+    // 存至草稿/保存并发布成功后 markAsSaved 清零、初始化为 false）。
+    const doExit = onExit ?? (() => (window.location.href = window.location.origin));
+    /** 已确认退出标记：避免确认后整页跳转再被 beforeunload 二次拦截 */
+    const exitConfirmedRef = useRef(false);
+    const handleExit = useCallback(() => {
+        if (!editorStore.getState().isDirty) {
+            doExit();
+            return;
+        }
+        Modal.confirm({
+            title: t("有未保存的修改"),
+            content: t("退出后未保存的修改将丢失，确定退出吗？"),
+            okText: t("确定退出"),
+            cancelText: t("取消"),
+            onOk: () => {
+                exitConfirmedRef.current = true;
+                doExit();
+            }
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [onExit]);
+
+    // 刷新/关闭页签拦截：仅脏时触发浏览器原生提示
+    useEffect(() => {
+        const onBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (exitConfirmedRef.current) return;
+            if (editorStore.getState().isDirty) {
+                e.preventDefault();
+                e.returnValue = "";
+            }
+        };
+        window.addEventListener("beforeunload", onBeforeUnload);
+        return () => window.removeEventListener("beforeunload", onBeforeUnload);
+    }, []);
 
     return (
         <div className="h5-editor-root">
