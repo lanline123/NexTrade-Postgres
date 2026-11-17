@@ -1,9 +1,14 @@
 /**
  * 公告混排 预览（移植自 view/admin editor/modules/mobilePro/mixedNotice/Preview.vue）
  *
- * 每组一条公告时静态展示，多条时横向 Swiper 轮播（图 + 标题 + 卖点副标题）。
+ * 每组一条公告时静态展示，多条时纵向 Swiper 轮播（图 + 标题 + 卖点副标题）：
+ * 原版 swiperOption = { pagination: false, direction: "vertical", speed: 800 }，
+ * 可视窗口高 40px、一次只露一条（.swiper{height:40px}）。
+ * NutUI 的根节点类名是 .nut-swiper 而非 .swiper，且 direction 默认 horizontal、
+ * 高度默认 100%——不显式传 direction="vertical" + className="swiper" + 定高时，
+ * 全部公告会平铺成多行并横向滑动（2026-11-17 实测高 130px、两组重叠，已修）。
  */
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Swiper, SwiperItem } from "@nutui/nutui-react";
 import { cssText, imageFormat } from "../../../shared/format";
 import { mergeDefaultModule, formatCommonStyle } from "../../../contract/sharedDefaults";
@@ -25,8 +30,6 @@ export default function MixedNoticePreview({ data }: { data: Record<string, any>
 
     const commonStyle = formatCommonStyle(module.moduleStyle ?? {}, module.contentStyle ?? {});
     const groups: Array<{ notices?: NoticeItem[] }> = module.noticeGroups || [];
-    const [slideIndex, setSlideIndex] = useState(0);
-    const totalSlides = groups.reduce((sum, g) => sum + Math.max(0, (g.notices?.length ?? 0) - 1), 0);
 
     const renderItem = (notice: NoticeItem, key: React.Key) => (
         <div className="notices-item" key={key}>
@@ -60,10 +63,12 @@ export default function MixedNoticePreview({ data }: { data: Record<string, any>
                                         notices.map((notice, subIndex) => renderItem(notice, subIndex))
                                     ) : (
                                         <Swiper
+                                            className="swiper"
+                                            style={{ height: 40 }}
+                                            direction="vertical"
                                             autoplay={3000}
                                             loop={notices.length > 1}
-                                            indicator={totalSlides > 0 ? undefined : false}
-                                            onChange={(i: number) => setSlideIndex(i)}
+                                            indicator={false}
                                         >
                                             {notices.map((notice, subIndex) => (
                                                 <SwiperItem key={subIndex}>{renderItem(notice, subIndex)}</SwiperItem>

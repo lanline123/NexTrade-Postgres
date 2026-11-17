@@ -12,8 +12,19 @@
 .mixed-notice .notices-item-box {
     flex: 1;
     flex-shrink: 0;
+    /* 组宽必须可收缩，否则轮播组的内容宽度会撑破本列、与相邻组重叠（2026-11-17 实测） */
+    min-width: 0;
+    overflow: hidden;
+    /* 可视窗口 = 单条高度：原版靠 .swiper{height:40px} + 父级内容高实现，
+       此处显式锁高，保证静态组与轮播组同高对齐 */
+    height: 40px;
 }
 .mixed-notice .notices-item-box .swiper {
+    height: 40px;
+}
+/* NutUI Swiper 的实际类名是 .nut-swiper（原版自定义 Swiper 才叫 .swiper）：
+   不补这条，40px 定高永远不生效，全部公告会平铺成多行 */
+.mixed-notice .notices-item-box .nut-swiper {
     height: 40px;
 }
 .mixed-notice .notices-item {

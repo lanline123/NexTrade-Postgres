@@ -29,8 +29,14 @@ export function registerModule(definition: ModuleDefinition) {
 /** 获取模块定义 */
 export function getModuleDefinition(type: string, url?: string): ModuleDefinition | undefined {
     if (url) {
-        return moduleRegistry.get(keyOf(type, url));
+        const exact = moduleRegistry.get(keyOf(type, url));
+        if (exact) return exact;
     }
+    // 回退按 type 匹配（2026-11-17）：存量数据里的实例 url 并不可靠——前台数据
+    // 统一写 "mobile"、原版页面新老混杂（如 productGrouping 实例 url=mobile，
+    // 注册 url=mobilePro），精确匹配落空会让画布显示「待移植」、设置面板空白。
+    // 注册表内 type 全局唯一（无同 type 多注册），按 type 回退无歧义，
+    // 与前台分发器只认 type 的口径一致。
     for (const def of moduleRegistry.values()) {
         if (def.type === type) return def;
     }
