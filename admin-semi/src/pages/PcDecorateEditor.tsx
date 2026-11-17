@@ -132,6 +132,13 @@ interface PcDecorateEditorProps {
   onExit?: () => void;
 }
 
+/** 设置区白卡容器（标准白卡口径）。必须定义在模块级：在组件内定义会使每次渲染
+ * 产生新的组件类型，React 会整棵卸载重挂其子树——输入框打字时逐字丢焦点/丢字
+ * （v46 验收发现的页面设置/头部设置丢字问题即此）。 */
+const SettingsCard = ({ children }: { children: ReactNode }) => (
+  <div style={{ background: '#fff', margin: 12, border: '1px solid #eaecf0', borderRadius: 10, padding: 16 }}>{children}</div>
+);
+
 export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEditorProps) {
   const { t } = useI18n();
   const [loading, setLoading] = useState(true);
@@ -510,10 +517,6 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
       onOk: doExit,
     });
   };
-  const SettingsCard = ({ children }: { children: ReactNode }) => (
-    <div style={{ background: '#fff', margin: 12, border: '1px solid #eaecf0', borderRadius: 10, padding: 16 }}>{children}</div>
-  );
-
   if (loading) {
     return <DecorateLoading />;
   }
