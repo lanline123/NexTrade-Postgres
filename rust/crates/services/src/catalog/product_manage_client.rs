@@ -519,6 +519,9 @@ impl ProductManageClientService {
     /// - 手机号 + 内容双必填（回拨通道无手机号即无效留资）；
     /// - 同手机号 10 分钟内提交超过 5 次拒绝（DB 计数，无外部依赖）；
     /// - 传了 `skuId` 时必须属于该商品，规格文本以库中 SKU 行为准存快照。
+    /// 2026-11-16 去重：同一手机号对同一商品（含同一 SKU）300 秒内提交相同
+    /// 需求内容视为重复提交（滑块重试 / 重复点击），直接返回成功不重复落库，
+    /// 也不消耗限频额度。
     pub async fn price_inquiry(
         &self,
         dto: &ProductPriceInquiryDTO,
@@ -530,26 +533,17 @@ impl ProductManageClientService {
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .ok_or_else(|| Error::Validation(MSG_INQUIRY_MOBILE_REQUIRED.into()))?;
-        if dto.content.as_deref().map(str::trim).filter(|s| !s.is_empty()).is_none() {
-            return Err(Error::Validation(MSG_INQUIRY_CONTENT_REQUIRED.into()));
-        }
+        let content = dto
+            .content
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| Error::Validation(MSG_INQUIRY_CONTENT_REQUIRED.into()))?;
         let product = self
             .repo()
             .find_product(dto.product_id)
             .await?
             .ok_or_else(|| Error::Validation(MSG_PRODUCT_NOT_FOUND.into()))?;
-
-        // 限频：窗口内已有 5 条即拒绝（第 6 条起）
-        let now = now_secs();
-        let recent = self
-            .repos
-            .catalog
-            .product_manage_client
-            .count_recent_price_inquiries(mobile, now - 600)
-            .await?;
-        if recent >= 5 {
-            return Err(Error::Validation(MSG_INQUIRY_TOO_FREQUENT.into()));
-        }
 
         // SKU 维度：以库中行为准（防前端伪造规格文本），并校验归属
         let mut sku_value: Option<String> = None;
@@ -562,13 +556,36 @@ impl ProductManageClientService {
             sku_value = Some(sku.sku_value.clone());
         }
 
+        // 去重：300 秒内同手机号 + 同商品 + 同 SKU + 同内容已有记录 → 幂等成功
+        let now = now_secs();
+        let duplicate = self
+            .repos
+            .catalog
+            .product_manage_client
+            .has_recent_duplicate_price_inquiry(mobile, dto.product_id, dto.sku_id, content, now - 300)
+            .await?;
+        if duplicate {
+            return Ok(());
+        }
+
+        // 限频：窗口内已有 5 条即拒绝（第 6 条起）
+        let recent = self
+            .repos
+            .catalog
+            .product_manage_client
+            .count_recent_price_inquiries(mobile, now - 600)
+            .await?;
+        if recent >= 5 {
+            return Err(Error::Validation(MSG_INQUIRY_TOO_FREQUENT.into()));
+        }
+
         self.repos
             .catalog
             .product_manage_client
             .insert_price_inquiry(
                 mobile,
                 dto.email.as_deref().unwrap_or_default(),
-                dto.content.as_deref().unwrap_or_default(),
+                content,
                 dto.product_id,
                 product.shop_id,
                 user_id.unwrap_or(0),

@@ -158,6 +158,31 @@ impl ProductManageClientRepository {
         Ok(())
     }
 
+    /// 询价去重：同一手机号对同一商品（含同一 SKU）提交了相同需求内容，
+    /// 且自 `since`（秒级时间戳）以来已有记录（滑块重试 / 重复点击不得重复落库）。
+    pub async fn has_recent_duplicate_price_inquiry(
+        &self,
+        mobile: &str,
+        product_id: i32,
+        sku_id: Option<i32>,
+        content: &str,
+        since: i32,
+    ) -> Result<bool> {
+        let row: (bool,) = sqlx::query_as(
+            "SELECT EXISTS(SELECT 1 FROM price_inquiry WHERE mobile = $1 AND product_id = $2 \
+             AND sku_id IS NOT DISTINCT FROM $3 AND content = $4 AND create_time >= $5)",
+        )
+        .bind(mobile)
+        .bind(product_id)
+        .bind(sku_id)
+        .bind(content)
+        .bind(since)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0)
+    }
+
     /// 同手机号自 `since`（秒级时间戳）以来的询价提交次数（提交限频用）。
     pub async fn count_recent_price_inquiries(&self, mobile: &str, since: i32) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
