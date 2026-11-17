@@ -1,0 +1,135 @@
+/**
+ * PC 图片魔方模块 - 预览样式
+ * 迁移自旧版 preview.less（BEM：dec-image-cube，class 名逐行保留），
+ * 并内联旧版 `_shared/ModuleTitle.vue` 的标题样式。
+ */
+
+.dec-image-cube {
+    box-sizing: border-box;
+    padding-left: var(--dec-box-padding, 10px);
+    padding-right: var(--dec-box-padding, 10px);
+    padding-top: var(--dec-box-padding-top, 5px);
+    padding-bottom: var(--dec-box-padding-bottom, 5px);
+}
+
+.dec-image-cube__content {
+    background-color: var(--dec-bg-color, #ffffff);
+    border-radius: var(--dec-box-radius, 0);
+    overflow: hidden;
+    padding: var(--dec-inner-padding, 0);
+}
+
+.dec-image-cube__wrapper {
+    overflow: hidden;
+}
+
+.dec-image-cube__list {
+    display: grid;
+    gap: var(--dec-item-gap, 0);
+}
+
+.dec-image-cube__item {
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.dec-image-cube__item--full-height .dec-image-cube__link,
+.dec-image-cube__item--full-height .dec-image-cube__image {
+    height: 100%;
+}
+
+.dec-image-cube__link {
+    display: block;
+    overflow: hidden;
+}
+
+.dec-image-cube__image {
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: cover;
+}
+
+.dec-image-cube__empty {
+    padding: 40px 20px;
+    text-align: center;
+    background: #f5f5f5;
+    border-radius: 4px;
+}
+
+.dec-image-cube__empty-icon {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 12px;
+    background: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' rx='6' fill='%23e5e7eb'/%3E%3Cpath d='M16 42l9-11 7 8 5-6 7 9z' fill='%23c4c9d1'/%3E%3Ccircle cx='22' cy='21' r='4' fill='%23c4c9d1'/%3E%3C/svg%3E")
+        no-repeat center;
+    background-size: contain;
+}
+
+.dec-image-cube__empty-text {
+    color: #999;
+    font-size: 12px;
+}
+
+.dec-image-cube__grid-rows {
+    display: grid;
+    grid-template-rows: repeat(2, 1fr);
+    gap: var(--dec-item-gap, 0);
+}
+
+.dec-image-cube__grid-cols {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--dec-item-gap, 0);
+}
+
+.dec-image-cube__grid-nested {
+    display: grid;
+    grid-template-rows: repeat(2, 1fr);
+    gap: var(--dec-item-gap, 0);
+}
+
+.dec-image-cube--layout-1 .dec-image-cube__list {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.dec-image-cube--layout-2 .dec-image-cube__list {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.dec-image-cube--layout-3 .dec-image-cube__list {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.dec-image-cube--layout-4 .dec-image-cube__list {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+}
+
+/* 左二右二按「列优先」排布（左列 1、2，右列 3、4），与前台 PcImageSquareAd 一致 */
+.dec-image-cube--layout-4 .dec-image-cube__item:nth-child(2) {
+    grid-column: 1 / 2;
+}
+
+.dec-image-cube--layout-4 .dec-image-cube__item:nth-child(3) {
+    grid-row: 1 / 2;
+    grid-column: 2 / 2;
+}
+
+.dec-image-cube--layout-5 .dec-image-cube__layout-lr {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--dec-item-gap, 0);
+}
+
+.dec-image-cube--layout-6 .dec-image-cube__layout-lr-3 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--dec-item-gap, 0);
+}
+
+.dec-image-cube--layout-7 .dec-image-cube__layout-tb {
+    display: grid;
+    grid-template-rows: auto auto;
+    gap: var(--dec-item-gap, 0);
+}

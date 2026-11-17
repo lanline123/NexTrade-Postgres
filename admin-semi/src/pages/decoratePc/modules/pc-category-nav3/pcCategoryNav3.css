@@ -1,0 +1,263 @@
+/**
+ * PC 分类导航3 模块 - 预览样式（React 迁移自 5.8.61 旧版 preview.less，已展开 LESS 嵌套）
+ *
+ * 旧版空态 `::before` 引用 `@/assets/decorate/empty-img-bg.png`；admin-semi 无该
+ * 资源，改为纯色圆角占位块（尺寸/圆角不变），已在迁移报告中登记。
+ */
+
+.dec-pc-category-nav3 {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding-left: var(--dec-box-padding, 0);
+  padding-right: var(--dec-box-padding, 0);
+  padding-top: var(--dec-box-padding-top, 0);
+  padding-bottom: var(--dec-box-padding-bottom, 0);
+  height: var(--dec-box-height, 352px);
+  border-radius: var(--dec-box-radius, 8px);
+  background-color: var(--dec-bg-color, rgba(0, 0, 0, 0.02));
+}
+
+.dec-pc-category-nav3__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+}
+
+.dec-pc-category-nav3__title {
+  font-size: var(--dec-heading-size);
+  font-weight: var(--dec-heading-weight);
+  color: #1a1a1a;
+}
+
+.dec-pc-category-nav3__more {
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 400;
+  color: #1a1a1a;
+  text-decoration: none;
+}
+
+.dec-pc-category-nav3__more-text {
+  line-height: 20px;
+}
+
+.dec-pc-category-nav3__more-arrow {
+  margin-left: 6px;
+  font-size: 18px;
+  line-height: 18px;
+}
+
+/* 顶栏右侧：页码 + 更多 */
+.dec-pc-category-nav3__top-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dec-pc-category-nav3__pager {
+  color: #8a94a3;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+/* 标题栏已改走共享 ModuleTitlePreview，页码改为标题下方右对齐的独立小行 */
+.dec-pc-category-nav3__pager-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 24px;
+}
+
+/* 超过一屏（6 张）时的翻屏箭头：挂在模块根节点，贴模块左右外边缘、模块整体垂直居中 */
+.dec-pc-category-nav3__nav {
+  position: absolute;
+  top: 50%;
+  margin-top: -16px; /* 32px 高，中心落到模块垂直中点；不用 translateY，避免与 margin 叠加 */
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.35);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.dec-pc-category-nav3:hover .dec-pc-category-nav3__nav {
+  opacity: 1;
+}
+
+.dec-pc-category-nav3__nav:hover {
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.dec-pc-category-nav3__nav--prev {
+  left: 0;
+}
+
+.dec-pc-category-nav3__nav--next {
+  right: 0;
+}
+
+.dec-pc-category-nav3__list-wrap {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  /* flex 子项默认 min-height:auto，会撑到内容固有高度（约 277px）后溢出
+     固定高度的外框并被 overflow:hidden 裁掉；必须允许收缩到剩余空间。
+     与 PC 前台 .dec-category-nav3__list-wrap 保持一致。 */
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.dec-pc-category-nav3__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 120px;
+  border-radius: 6px;
+  padding: 30px 0 50px;
+  text-align: center;
+  background-color: #f2f4f6;
+}
+
+.dec-pc-category-nav3__empty::before {
+  content: "";
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 10px;
+  border-radius: 4px;
+  background-color: #e8eaed;
+}
+
+.dec-pc-category-nav3__empty-text {
+  color: #666666;
+  font-size: 14px;
+}
+
+.dec-pc-category-nav3__list {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  overflow: hidden;
+  width: 100%;
+  display: flex;
+  /* 左右留白放在裁剪层：滚动盒不再带 padding，避免第 7 张卡片在右侧 padding 区露出一条边 */
+  box-sizing: border-box;
+  padding: 0 12px;
+}
+
+.dec-pc-category-nav3__scroll {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  box-sizing: border-box;
+  padding: 0;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.dec-pc-category-nav3__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.dec-pc-category-nav3__item {
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+  flex: 0 0 calc(100% / 6);
+  min-width: 0;
+  height: 100%;
+  padding: 0 14px;
+  scroll-snap-align: start;
+}
+
+.dec-pc-category-nav3__link {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  text-decoration: none;
+}
+
+.dec-pc-category-nav3__image {
+  width: 100%;
+  aspect-ratio: 1;
+  flex: 0 1 auto;
+  min-height: 0;
+  background: var(--primary-light-9);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.dec-pc-category-nav3__img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: filter 0.2s linear;
+}
+
+.dec-pc-category-nav3__name {
+  flex: none;
+  width: 100%;
+  height: 20px;
+  margin-top: 12px;
+  margin-bottom: 8px;
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #1a1a1a;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  text-transform: capitalize;
+}
+
+.dec-pc-category-nav3__desc {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.dec-pc-category-nav3__desc-text {
+  color: #888b94;
+  font-size: 16px;
+  line-height: 20px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dec-pc-category-nav3__item:hover .dec-pc-category-nav3__img {
+  filter: brightness(105%);
+}
+
+.dec-pc-category-nav3__item:hover .dec-pc-category-nav3__name {
+  color: var(--main-bg);
+}
+
+/* 箭头改挂到模块根节点后，需要模块本身作为相对定位包含块（2026-11-11） */
+.dec-pc-category-nav3 {
+  position: relative;
+}

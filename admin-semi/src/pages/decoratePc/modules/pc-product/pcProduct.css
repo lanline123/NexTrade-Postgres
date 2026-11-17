@@ -1,0 +1,140 @@
+/**
+ * PC 商品模块 - 预览样式（迁移自 java-b2b2c-overseas-v5.8.61 旧版 preview.less）
+ * 说明：仅覆盖 PC 装修预览所需的基础展示（4列/5列栅格）；类名保持与原版一致。
+ * 旧版空状态图标来自 "@/assets/decorate/empty-img-bg.png"，admin-semi 无该资源，改用同尺寸占位图。
+ */
+
+.dec-pc-product {
+  box-sizing: border-box;
+  padding-left: var(--dec-box-padding, 10px);
+  padding-right: var(--dec-box-padding, 10px);
+  padding-top: var(--dec-box-padding-top, 5px);
+  padding-bottom: var(--dec-box-padding-bottom, 5px);
+}
+
+.dec-pc-product__content {
+  background-color: var(--dec-bg-color, #ffffff);
+  border-radius: var(--dec-box-radius, 0);
+  overflow: hidden;
+  padding: 0 var(--dec-inner-padding, 0);
+}
+
+.dec-pc-product__wrapper {
+  padding: var(--dec-goods-padding, 5px);
+}
+
+.dec-pc-product__list {
+  display: grid;
+  grid-template-columns: repeat(var(--dec-columns, 4), minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dec-pc-product__item {
+  min-width: 0;
+}
+
+.dec-pc-product__card {
+  display: block;
+  border: 1px solid rgba(50, 50, 51, 0.08);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+  text-decoration: none;
+  color: inherit;
+  /* 悬停时边框切主题色（与拼团/商品分组卡片同口径） */
+  transition: border-color 0.3s;
+}
+
+.dec-pc-product__card:hover {
+  border-color: var(--main-bg, #ee0a24);
+}
+
+.dec-pc-product__photo {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: #f5f5f5;
+  overflow: hidden;
+}
+
+.dec-pc-product__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.dec-pc-product__info {
+  padding: 10px 10px 12px;
+}
+
+.dec-pc-product__name {
+  font-size: 13px;
+  line-height: 18px;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dec-pc-product__brief {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 16px;
+  color: #999;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dec-pc-product__price {
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dec-price-color, var(--price));
+}
+
+/* 价格 + 购买按钮同行（对齐 C 端 dec-pc-product__bottom 的 flex 布局） */
+.dec-pc-product__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  min-height: 24px;
+}
+
+.dec-pc-product__bottom .dec-pc-product__price {
+  margin-top: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dec-pc-product__buy {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pc-primary, #65c4aa);
+}
+
+
+.dec-pc-product__empty {
+  padding-top: 30px;
+  text-align: center;
+  background-color: #f2f4f6;
+}
+
+.dec-pc-product__empty-icon {
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 10px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23e5e9f0' rx='8' width='100' height='100'/%3E%3Cpath d='M28 62l13-16 10 11 7-7 14 12H28z' fill='%23c0c8d4'/%3E%3Ccircle cx='40' cy='38' r='6' fill='%23c0c8d4'/%3E%3C/svg%3E")
+    no-repeat center center;
+  background-size: 100% auto;
+}
+
+.dec-pc-product__empty-text {
+  padding-bottom: 50px;
+}
