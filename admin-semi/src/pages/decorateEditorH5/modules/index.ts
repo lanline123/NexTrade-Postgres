@@ -15,6 +15,8 @@ import "./basic/whiteLine";
 import "./basic/whiteBlank";
 import "./basic/imageNav";
 import "./basic/titleAd";
+import "./basic/commonTitle";
+import "./basic/navbar";
 import "./basic/notice";
 import "./basic/searchBar";
 import "./basic/searchBar2";

@@ -13,6 +13,7 @@ import { editorStore, useEditorState } from "./store/editorStore";
 import ModuleToolbar from "./components/ModuleToolbar";
 import Canvas from "./components/Canvas";
 import SettingsPanel from "./components/SettingsPanel";
+import EditorShell from "../../components/decorate/EditorShell";
 import { setStorageUrl } from "./shared/format";
 import { ensureFixedModules } from "./contract/normalize";
 import "./styles/css/module.css";
@@ -213,7 +214,13 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
 
     return (
         <div className="h5-editor-root">
-            {/* 顶栏（原版 .decorate-topbar-warp：fixed 54px 深色 #202033） */}
+            {/* 标准编辑器壳（Step 2）：顶栏槽 + 三栏（左库 295 / 画布 / 右栏 380），
+                壳尺寸与底色见 components/decorate/editor-shell.css */}
+            <EditorShell
+                library={<ModuleToolbar pageType={pageType} isShop={localStorage.getItem("adminType") === "shop"} />}
+                settings={<SettingsPanel />}
+                preview={preview}
+                topbar={
             <div className="decorate-topbar-warp">
                 <div className="decorate-topbar-con">
                     <div className="topbar-left">
@@ -304,9 +311,8 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
                     </div>
                 </div>
             </div>
-
-            {!preview ? <ModuleToolbar pageType={pageType} isShop={localStorage.getItem("adminType") === "shop"} /> : null}
-
+                }
+            >
             {/* tabIndex=0：让画布滚动容器可聚焦，聚焦后 PageDown/方向键可滚（原生滚动视口口径） */}
             <div className={`decorate-page-wrap${preview ? " is-preview" : ""}`} tabIndex={0}>
                 {s.hasDraft && !preview ? (
@@ -317,8 +323,7 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
                 ) : null}
                 <Canvas preview={preview} />
             </div>
-
-            {!preview ? <SettingsPanel /> : null}
+            </EditorShell>
         </div>
     );
 }

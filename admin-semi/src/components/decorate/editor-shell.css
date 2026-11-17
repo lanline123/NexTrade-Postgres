@@ -14,9 +14,16 @@
  * ============================================================ */
 
 /* ---------- 壳布局（Step 2/3 的 EditorShell 组件使用） ---------- */
-.dec-shell {
+.dec-shell-root {
   display: flex;
-  height: 100%;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+.dec-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
   overflow: hidden;
 }
 .dec-shell__lib {
@@ -40,6 +47,97 @@
   background: #f7f8fa;
   border-left: 1px solid var(--semi-color-border);
   overflow-y: auto;
+}
+
+/* ---------- 左侧模块库（LibraryPanel 组件；数值同 PC .pc-decorate-lib） ---------- */
+.dec-lib__inside {
+  margin-top: 35px;
+  font-size: 12px;
+  color: #333;
+  padding: 0;
+}
+.dec-lib__head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  width: 100%;
+  height: 30px;
+  line-height: 30px;
+  padding-left: 10px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.dec-lib__head > span:first-child {
+  color: #333;
+  font-weight: bold;
+  font-size: 14px;
+}
+.dec-lib__arrow {
+  margin-right: 10px;
+  color: #9b9b9d;
+  font-size: 12px;
+  transition: transform 0.2s;
+  display: inline-block;
+}
+.dec-lib__arrow--open {
+  transform: rotate(180deg);
+}
+.dec-lib__list {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 10px 0;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.dec-lib__item {
+  width: 33.333%;
+  box-sizing: border-box;
+  padding: 15px 5px;
+  text-align: center;
+  cursor: pointer;
+  position: relative;
+  display: inline-block;
+  border-radius: 2px;
+}
+.dec-lib__item:hover {
+  background: var(--semi-color-primary);
+  color: #fff;
+}
+.dec-lib__pic {
+  display: inline-block;
+  width: 100%;
+  height: 40px;
+  overflow: hidden;
+}
+.dec-lib__pic svg {
+  color: #7d7e80;
+  vertical-align: middle;
+  transition: color 0.2s;
+}
+.dec-lib__item:hover .dec-lib__pic svg {
+  color: #fff;
+}
+.dec-lib__content {
+  padding: 0 3px;
+  height: 20px;
+  line-height: 20px;
+  display: block;
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.dec-lib__item:hover .dec-lib__content {
+  color: #fff;
+}
+
+/* 设置面板根（DecSettingsPanel 组件）：滚动由壳的右栏列承担（同 PC 口径），
+   面板根只保证灰底铺满列高 */
+.dec-settings-panel {
+  min-height: 100%;
 }
 
 /* ---------- 设置面板（根 .dec-settings-scope） ---------- */

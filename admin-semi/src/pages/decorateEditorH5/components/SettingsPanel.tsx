@@ -1,14 +1,16 @@
 /**
  * 设置面板（移植自 view/admin editor/components/SettingPanel.vue）
  *
- * 壳层对齐原版：外壳 .decorate-edit-wrap（fixed 右侧 380px，见 decorate.css）；
- * 标题区 .dec-edit-title（padding 24px 16px、h3 18px/600 #323233）；内容区 .decorate-edit-con。
+ * 壳层（2026-11-17 标准编辑器 Step 2）：统一走公共 DecSettingsPanel
+ * （components/decorate；灰底 + 白底标题区 + 内容白卡，样式唯一标准在
+ * editor-shell.css 的 .dec-settings-scope 段），本文件只负责内容分发。
  * 未选中模块时直接显示页面设置（原版无空态）；pageType 6/8 无页面设置（原版 SettingPanel 门控）。
  * 页面设置字段集对齐 src/modules/src/commonPage/Edit.vue（CommonPageEdit）。
  * editMode=module：懒加载当前模块的设置组件（协议：props = { data, onChange, moduleIndex }）。
  */
 import { Suspense, lazy, useMemo } from "react";
 import { Input, Switch } from "@douyinfe/semi-ui";
+import DecSettingsPanel from "../../../components/decorate/DecSettingsPanel";
 import { editorStore, useEditorState } from "../store/editorStore";
 import { getModuleDefinition } from "../contract/moduleRegistry";
 import ModuleErrorBoundary from "./ModuleErrorBoundary";
@@ -138,25 +140,20 @@ export default function SettingsPanel() {
     const headerTitle = isModuleMode && activeModule ? activeModule.label || activeModule.type : "页面设置";
 
     return (
-        <div className="decorate-edit-wrap h5-editor-settings dec-settings-scope">
-            <div className="dec-edit-title">
-                <h3>{t(headerTitle)}</h3>
-            </div>
-            <div className="decorate-edit-con">
-                {isModuleMode && activeModule && SettingsComp ? (
-                    <ModuleErrorBoundary label={activeModule.type}>
-                        <Suspense fallback={<div className="h5-editor-preview-loading">{t('设置加载中…')}</div>}>
-                            <SettingsComp
-                                data={activeModule.module}
-                                onChange={(patch: Record<string, any>) => editorStore.updateActiveModule(patch)}
-                                moduleIndex={activeModule.moduleIndex}
-                            />
-                        </Suspense>
-                    </ModuleErrorBoundary>
-                ) : showPageSettings ? (
-                    <PageSettings pageModule={s.pageModule} pageType={s.pageType} />
-                ) : null}
-            </div>
-        </div>
+        <DecSettingsPanel title={t(headerTitle)} className="h5-editor-settings">
+            {isModuleMode && activeModule && SettingsComp ? (
+                <ModuleErrorBoundary label={activeModule.type}>
+                    <Suspense fallback={<div className="h5-editor-preview-loading">{t('设置加载中…')}</div>}>
+                        <SettingsComp
+                            data={activeModule.module}
+                            onChange={(patch: Record<string, any>) => editorStore.updateActiveModule(patch)}
+                            moduleIndex={activeModule.moduleIndex}
+                        />
+                    </Suspense>
+                </ModuleErrorBoundary>
+            ) : showPageSettings ? (
+                <PageSettings pageModule={s.pageModule} pageType={s.pageType} />
+            ) : null}
+        </DecSettingsPanel>
     );
 }

@@ -1,15 +1,16 @@
 /**
  * 模块工具栏（移植自 view/admin editor/components/ModuleToolbar.vue）
  *
- * 结构对齐原版：外壳 .theme-toolbar（fixed 左侧，见 decorate.css）；
- * 页签按上下文映射为 6 类（基础模块/高级模块/会员模块/分类中心模块/商品详情/登录页模块），
- * 「基础模块」页签内含折叠分组（基础模块/其它模块/直播模块/搜索结果模块，.modules-head 段头，默认全展开）；
- * 格子 .module-list .list-item：33.333% 宽、padding 15px 5px、无边框、图标 28px #7d7e80、hover 整格主题色底白字。
+ * 结构：外壳 .theme-toolbar / .theme-menu-con（295px，见 decorate.css）内为
+ * 上下文页签（Semi Tabs，按上下文映射为 6 类：基础模块/高级模块/会员模块/
+ * 分类中心模块/商品详情/登录页模块）；每个页签内是标准模块库 LibraryPanel
+ * （components/decorate；折叠分组 + 图标卡片三列网格，与 PC 编辑器同组件同
+ * 样式，2026-11-17 标准编辑器 Step 2 接入）。本文件只负责数据映射与添加动作。
  * 点击添加（拖拽克隆添加未实现）；约束校验收敛到 store。
  */
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Tabs, TabPane, Toast } from "@douyinfe/semi-ui";
-import { IconChevronDown, IconChevronRight } from "@douyinfe/semi-icons";
+import LibraryPanel, { type LibraryGroup } from "../../../components/decorate/LibraryPanel";
 import { MODULE_ICONPARK } from "./moduleIcons";
 import { getModulesByContext, isExclusiveModule, createModuleInstance } from "../contract/moduleRegistry";
 import { getAvailableToolbarGroups, type ToolbarGroup } from "../contract/constants";
@@ -83,7 +84,11 @@ export default function ModuleToolbar({ pageType, isShop }: { pageType: number; 
     const { t } = useI18n();
     const groups = useMemo(() => getAvailableToolbarGroups(1, pageType), [pageType]);
     const modules = useMemo(() => getModulesByContext(1, pageType, { isShop }), [pageType, isShop]);
-    const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+    const defByKey = useMemo(() => {
+        const map = new Map<string, ModuleDefinition>();
+        for (const m of modules) map.set(`${m.type}@${m.url}`, m);
+        return map;
+    }, [modules]);
 
     /** tabKey -> group -> modules */
     const tabs = useMemo(() => {
@@ -118,25 +123,25 @@ export default function ModuleToolbar({ pageType, isShop }: { pageType: number; 
         }
     };
 
-    const renderGrid = (list: ModuleDefinition[]) => (
-        <div className="module-list">
-            {list.map((m) => (
-                <div key={`${m.type}@${m.url}`} className="list-item" onClick={() => handleAdd(m)} title={t(m.label)}>
-                    <div className="pic">
-                        {(() => {
-                            const ParkIcon = MODULE_ICONPARK[m.type];
-                            return ParkIcon ? (
-                                <ParkIcon size={28} strokeWidth={3.5} theme="outline" />
-                            ) : (
-                                <span className="h5-editor-module-icon-fallback" dangerouslySetInnerHTML={{ __html: m.icon || "" }} />
-                            );
-                        })()}
-                    </div>
-                    <div className="content">{t(m.label)}</div>
-                </div>
-            ))}
-        </div>
-    );
+    /** 页签内分组 → 标准模块库数据（图标在此处实例化，添加时按 key 回查 def） */
+    const toLibraryGroups = (sections: Array<{ group: ToolbarGroup; list: ModuleDefinition[] }>): LibraryGroup[] =>
+        sections.map(({ group, list }) => ({
+            key: group,
+            title: t(GROUP_LABELS[group]),
+            items: list.map((m) => {
+                const ParkIcon = MODULE_ICONPARK[m.type];
+                return {
+                    key: `${m.type}@${m.url}`,
+                    label: t(m.label),
+                    title: t(m.label),
+                    icon: ParkIcon ? (
+                        <ParkIcon size={28} strokeWidth={3.5} theme="outline" />
+                    ) : (
+                        <span className="h5-editor-module-icon-fallback" dangerouslySetInnerHTML={{ __html: m.icon || "" }} />
+                    )
+                };
+            })
+        }));
 
     return (
         <div className="theme-toolbar">
@@ -145,22 +150,14 @@ export default function ModuleToolbar({ pageType, isShop }: { pageType: number; 
                     <Tabs type="line" size="small" className="h5-editor-toolbar-tabs">
                         {tabs.map((tab) => (
                             <TabPane tab={t(TAB_LABELS[tab.key])} itemKey={tab.key} key={tab.key}>
-                                {tab.sections.map(({ group, list }) => {
-                                    const sectionKey = `${tab.key}:${group}`;
-                                    const isCollapsed = !!collapsed[sectionKey];
-                                    return (
-                                        <div className="h5-editor-toolbar-section" key={group}>
-                                            <div
-                                                className="modules-head"
-                                                onClick={() => setCollapsed((prev) => ({ ...prev, [sectionKey]: !prev[sectionKey] }))}
-                                            >
-                                                <span>{t(GROUP_LABELS[group])}</span>
-                                                <b className="dropdown-icon">{isCollapsed ? <IconChevronRight /> : <IconChevronDown />}</b>
-                                            </div>
-                                            {!isCollapsed ? renderGrid(list) : null}
-                                        </div>
-                                    );
-                                })}
+                                <LibraryPanel
+                                    flush
+                                    groups={toLibraryGroups(tab.sections)}
+                                    onAdd={(_groupKey, item) => {
+                                        const def = defByKey.get(item.key);
+                                        if (def) handleAdd(def);
+                                    }}
+                                />
                             </TabPane>
                         ))}
                     </Tabs>

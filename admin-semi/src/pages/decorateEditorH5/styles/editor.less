@@ -772,3 +772,36 @@
   margin-top: 10px;
 }
 .pchead-color-popover__inputs .semi-input-wrapper { flex: 1; min-width: 0; }
+
+// ---------------- 标准编辑器壳接入（2026-11-17 Step 2） ----------------
+// 壳（components/decorate/EditorShell）为 100vh 纵向 flex + 横向三栏 flex，
+// 原三处 fixed 定位（顶栏/工具栏/画布）逐一解除为壳内流式，尺寸由壳列承担：
+// 左库列 295、右栏列 380（editor-shell.css 的 .dec-shell__*）。
+.h5-editor-root {
+    .decorate-topbar-warp {
+        position: relative;
+        top: auto;
+        left: auto;
+        right: auto;
+        flex: none;
+    }
+
+    .theme-toolbar {
+        position: relative;
+        top: auto;
+        bottom: auto;
+        left: auto;
+        height: 100%;
+        z-index: auto;
+    }
+
+    .decorate-page-wrap {
+        position: relative;
+        left: auto;
+        right: auto;
+        top: auto;
+        bottom: auto;
+        width: 100%;
+        height: 100%;
+    }
+}
