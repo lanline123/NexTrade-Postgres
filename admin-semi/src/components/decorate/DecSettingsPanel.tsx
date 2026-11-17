@@ -20,6 +20,8 @@ export interface DecSettingsPanelProps {
     tabs?: DecSettingsTab[];
     activeTab?: string;
     onTabChange?: (key: string) => void;
+    /** 标题行右侧附加内容（如 PC 公告模块的「全局重置」按钮），可选 */
+    extra?: ReactNode;
     className?: string;
     children: ReactNode;
 }
@@ -30,14 +32,21 @@ export default function DecSettingsPanel({
     tabs,
     activeTab,
     onTabChange,
+    extra,
     className,
     children
 }: DecSettingsPanelProps) {
     return (
         <div className={`dec-settings-scope dec-settings-panel${className ? ` ${className}` : ""}`}>
-            <div className="dec-edit-title">
-                <h3>{title}</h3>
-                {desc ? <div className="dec-edit-desc">{desc}</div> : null}
+            <div
+                className="dec-edit-title"
+                style={extra ? { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 } : undefined}
+            >
+                <div>
+                    <h3>{title}</h3>
+                    {desc ? <div className="dec-edit-desc">{desc}</div> : null}
+                </div>
+                {extra}
             </div>
             {tabs && tabs.length > 0 ? (
                 <div className="settings-tabs-nav">

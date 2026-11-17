@@ -70,6 +70,9 @@ import LinkPickerModal, { LinkField } from '../components/LinkPicker';
 import SliderWithInput from '../components/SliderWithInput';
 import SharedColorField, { ColorPairField } from '../components/ColorField';
 import { PC_LIB_META as LIB_META } from '../components/editorModuleIcons';
+import EditorShell from '../components/decorate/EditorShell';
+import LibraryPanel from '../components/decorate/LibraryPanel';
+import DecSettingsPanel from '../components/decorate/DecSettingsPanel';
 import ViewGridList from '@icon-park/react/es/icons/ViewGridList';
 import './decorate-editor.css';
 /* 固定标题共享排版令牌：各 pc*.css 只引用变量，数值只在这里定义一次 */
@@ -142,7 +145,6 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   const [moduleList, setModuleList] = useState<EditorModule[]>([]);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const [panelTab, setPanelTab] = useState<'module' | 'page' | 'pcHeader'>('module');
-  const [libOpen, setLibOpen] = useState(true);
   const dirtyRef = useRef(false);
   const decorateIdRef = useRef(decorateId);
   const moduleElRefs = useRef(new Map<number, HTMLElement>());
@@ -491,12 +493,36 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   const activeModule = activeIndex >= 0 && activeIndex < moduleList.length ? moduleList[activeIndex] : null;
   const activeDef = activeModule ? MODULE_DEF_MAP.get(activeModule.type) : null;
 
+  const doExit = () => {
+    if (onExit) onExit();
+    else window.location.href = `${window.location.origin}/?page=pcDecorateManage`;
+  };
+  const handleExit = () => {
+    if (!dirtyRef.current) {
+      doExit();
+      return;
+    }
+    Modal.confirm({
+      title: t('有未保存的修改'),
+      content: t('退出后未保存的修改将丢失，确定退出吗？'),
+      okText: t('确定退出'),
+      cancelText: t('取消'),
+      onOk: doExit,
+    });
+  };
+  const SettingsCard = ({ children }: { children: ReactNode }) => (
+    <div style={{ background: '#fff', margin: 12, border: '1px solid #eaecf0', borderRadius: 10, padding: 16 }}>{children}</div>
+  );
+
   if (loading) {
     return <DecorateLoading />;
   }
 
   return (
-    <div className={`pc-decorate-editor${isLoginPage ? ' pc-decorate-editor--login' : ''}`} style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f2f3f5', overflow: 'hidden' }}>
+    <EditorShell
+      className={`pc-decorate-editor${isLoginPage ? ' pc-decorate-editor--login' : ''}`}
+      topbar={(
+        <>
       <div
         style={{
           display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
@@ -505,11 +531,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
       >
         <Button
           icon={<IconArrowLeft />}
-          onClick={() => {
-            if (dirtyRef.current && !window.confirm(t('有未保存的修改，确定离开？'))) return;
-            if (onExit) onExit();
-            else window.location.href = `${window.location.origin}/?page=pcDecorateManage`;
-          }}
+          onClick={handleExit}
         >
           {t('返回列表')}
         </Button>
@@ -544,48 +566,85 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
         </Button>
       </div>
 
-      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        {/* 左侧模块库（对齐原版 ModuleToolbar：单折叠分组 + 图标卡片网格 + 拖拽入画布） */}
-        <div className="pc-decorate-lib">
-          <div className="pc-decorate-lib__inside">
-            <div className="pc-decorate-lib__head" onClick={() => setLibOpen((v) => !v)}>
-              <span>{isLoginPage ? t('登录页模块') : isSearchPage ? t('搜索页模块') : t('PC首页模块')}</span>
-              <span className={`pc-decorate-lib__arrow${libOpen ? ' pc-decorate-lib__arrow--open' : ''}`}><IconChevronDown /></span>
-            </div>
-            {libOpen && (
-              <div className="pc-decorate-lib__list">
-                {(isLoginPage ? [PC_LOGIN_MODULE_DEF] : isSearchPage ? [PC_SEARCH_RESULT_MODULE_DEF] : NEW_MODULE_DEFS.filter((d) => !d.hiddenInLibrary))
-                  .slice()
-                  .sort((a, b) => (LIB_META[a.type]?.order ?? 999) - (LIB_META[b.type]?.order ?? 999))
-                  .map((def) => {
-                    const LibIcon = LIB_META[def.type]?.Icon || ViewGridList;
-                    return (
-                    <Tooltip key={def.type} content={def.note ? t(def.note) : t('{name}（点击添加，可拖入画布指定位置）', { name: t(def.label) })} position="right">
-                      <div
-                        className="pc-decorate-lib__item"
-                        onClick={() => addModule(def)}
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData('text/pc-decorate-lib', def.type);
-                          e.dataTransfer.effectAllowed = 'copy';
-                        }}
-                      >
-                        <span className="pc-decorate-lib__pic">
-                          <LibIcon size={28} strokeWidth={3} />
-                        </span>
-                        <span className="pc-decorate-lib__content" title={t(def.label)}>{t(def.label)}</span>
-                      </div>
-                    </Tooltip>
-                    );
-                  })}
-              </div>
-            )}
-            <div style={{ height: 50 }} />
-          </div>
-        </div>
-
+        </>
+      )}
+      library={(
+        <LibraryPanel
+          groups={[{
+            key: 'pc-lib',
+            title: isLoginPage ? t('登录页模块') : isSearchPage ? t('搜索页模块') : t('PC首页模块'),
+            items: (isLoginPage ? [PC_LOGIN_MODULE_DEF] : isSearchPage ? [PC_SEARCH_RESULT_MODULE_DEF] : NEW_MODULE_DEFS.filter((d) => !d.hiddenInLibrary))
+              .slice()
+              .sort((a, b) => (LIB_META[a.type]?.order ?? 999) - (LIB_META[b.type]?.order ?? 999))
+              .map((def) => {
+                const LibIcon = LIB_META[def.type]?.Icon || ViewGridList;
+                return {
+                  key: def.type,
+                  label: t(def.label),
+                  title: def.note ? t(def.note) : t('{name}（点击添加，可拖入画布指定位置）', { name: t(def.label) }),
+                  icon: <LibIcon size={28} strokeWidth={3} />,
+                };
+              }),
+          }]}
+          onAdd={(_groupKey, item) => {
+            const def = MODULE_DEF_MAP.get(item.key);
+            if (def) addModule(def);
+          }}
+          onDragStartItem={(_groupKey, item, e) => {
+            e.dataTransfer.setData('text/pc-decorate-lib', item.key);
+            e.dataTransfer.effectAllowed = 'copy';
+          }}
+        />
+      )}
+      settings={(
+        <>
+          {isLoginPage && (
+            <SettingsCard>
+              <PcLoginSettingsPanel
+                data={activeModule?.type === 'pcLogin' ? activeModule.module : (moduleList.find((m) => m.type === 'pcLogin')?.module || PC_LOGIN_DEFAULTS)}
+                onChange={(patch) => {
+                  const index = moduleList.findIndex((m) => m.type === 'pcLogin');
+                  if (index < 0) return;
+                  setModuleList((prev) => prev.map((m, i) => (i === index ? { ...m, module: { ...m.module, ...patch } } : m)));
+                  markDirty();
+                }}
+              />
+            </SettingsCard>
+          )}
+          {!isLoginPage && panelTab === 'page' && (
+            <SettingsCard>
+              <PageSettingsPanel
+                pageModule={pageModule}
+                legacyCount={moduleList.filter((m) => LEGACY_TYPES.has(m.type)).length}
+                newCount={moduleList.filter((m) => !LEGACY_TYPES.has(m.type)).length}
+                onChange={(next) => { setPageModule(next); markDirty(); }}
+                onSwitchVersion={(target) => switchHomeVersion(target)}
+              />
+            </SettingsCard>
+          )}
+          {!isLoginPage && panelTab === 'pcHeader' && (
+            <SettingsCard>
+              <PcHeaderPanel header={pageModule.pcHeader || {}} onChange={(next) => { setPageModule({ ...pageModule, pcHeader: next }); markDirty(); }} />
+            </SettingsCard>
+          )}
+          {!isLoginPage && panelTab === 'module' && (
+            activeModule && activeDef ? (
+              <ModuleSettingsPanel
+                def={activeDef}
+                moduleData={activeModule.module}
+                onChange={(next) => updateActiveModule(() => next)}
+              />
+            ) : (
+              <SettingsCard>
+                <Text type="tertiary">{t('请在画布中选择一个模块，或切换到「页面设置 / PC头部装修」')}</Text>
+              </SettingsCard>
+            )
+          )}
+        </>
+      )}
+    >
         {/* 中间画布：1600px 整页无缝渲染（对齐原版 CanvasViewport，与 C 端一致） */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: '#eef1f6' }}>
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minWidth: 0, background: '#eef1f6' }}>
           <div className="pc-decorate-canvas-tools" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#fff', borderBottom: '1px solid var(--semi-color-border)' }}>
             <Button size="small" onClick={() => { setPanelTab('page'); setActiveIndex(-1); }}>{t('页面设置')}</Button>
             <Button size="small" onClick={() => { setPanelTab('pcHeader'); setActiveIndex(-1); }}>{t('PC头部装修')}</Button>
@@ -718,45 +777,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
           </div>
         </div>
 
-        {/* 右侧设置面板 */}
-        <div style={{ width: 380, background: '#fff', borderLeft: '1px solid var(--semi-color-border)', overflowY: 'auto', padding: 16, flexShrink: 0 }}>
-          {isLoginPage && (
-            <PcLoginSettingsPanel
-              data={activeModule?.type === 'pcLogin' ? activeModule.module : (moduleList.find((m) => m.type === 'pcLogin')?.module || PC_LOGIN_DEFAULTS)}
-              onChange={(patch) => {
-                const index = moduleList.findIndex((m) => m.type === 'pcLogin');
-                if (index < 0) return;
-                setModuleList((prev) => prev.map((m, i) => (i === index ? { ...m, module: { ...m.module, ...patch } } : m)));
-                markDirty();
-              }}
-            />
-          )}
-          {!isLoginPage && panelTab === 'page' && (
-            <PageSettingsPanel
-              pageModule={pageModule}
-              legacyCount={moduleList.filter((m) => LEGACY_TYPES.has(m.type)).length}
-              newCount={moduleList.filter((m) => !LEGACY_TYPES.has(m.type)).length}
-              onChange={(next) => { setPageModule(next); markDirty(); }}
-              onSwitchVersion={(target) => switchHomeVersion(target)}
-            />
-          )}
-          {!isLoginPage && panelTab === 'pcHeader' && (
-            <PcHeaderPanel header={pageModule.pcHeader || {}} onChange={(next) => { setPageModule({ ...pageModule, pcHeader: next }); markDirty(); }} />
-          )}
-          {!isLoginPage && panelTab === 'module' && (
-            activeModule && activeDef ? (
-              <ModuleSettingsPanel
-                def={activeDef}
-                moduleData={activeModule.module}
-                onChange={(next) => updateActiveModule(() => next)}
-              />
-            ) : (
-              <Text type="tertiary">{t('请在画布中选择一个模块，或切换到「页面设置 / PC头部装修」')}</Text>
-            )
-          )}
-        </div>
-      </div>
-    </div>
+    </EditorShell>
   );
 }
 
@@ -3131,40 +3152,28 @@ function ModuleSettingsPanel({
   const contentTitle = CONTENT_TITLES[def.type];
 
   return (
-    <div className="pc-module-settings">
-      <div className="dec-edit-title" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-        <div>
-          <h3>{t(def.label)}</h3>
-          {def.desc && <div className="dec-edit-desc">{t(def.desc)}</div>}
-        </div>
-        {def.type === 'pc-notice' && (
-          <Popconfirm
-            title={t('恢复系统默认风格？')}
-            content={t('公告文字、图标与样式将重置为默认值')}
-            okText={t('重置')}
-            cancelText={t('取消')}
-            onConfirm={resetModuleToDefaults}
-          >
-            <Button size="small" theme="borderless" icon={<IconRefresh />}>{t('全局重置')}</Button>
-          </Popconfirm>
-        )}
-      </div>
-      {tabbed && (
-        <div className="settings-tabs-nav">
-          <div
-            className={`settings-tabs-item${activeTab === 'content' ? ' active' : ''}`}
-            onClick={() => setActiveTab('content')}
-          >
-            {t(contentTabLabel)}
-          </div>
-          <div
-            className={`settings-tabs-item${activeTab === 'extend' ? ' active' : ''}`}
-            onClick={() => setActiveTab('extend')}
-          >
-            {t('扩展设置')}
-          </div>
-        </div>
-      )}
+    <DecSettingsPanel
+      className="pc-module-settings"
+      title={t(def.label)}
+      desc={def.desc ? t(def.desc) : undefined}
+      tabs={tabbed ? [
+        { key: 'content', label: t(contentTabLabel) },
+        { key: 'extend', label: t('扩展设置') },
+      ] : undefined}
+      activeTab={activeTab}
+      onTabChange={(key) => setActiveTab(key as 'content' | 'extend')}
+      extra={def.type === 'pc-notice' ? (
+        <Popconfirm
+          title={t('恢复系统默认风格？')}
+          content={t('公告文字、图标与样式将重置为默认值')}
+          okText={t('重置')}
+          cancelText={t('取消')}
+          onConfirm={resetModuleToDefaults}
+        >
+          <Button size="small" theme="borderless" icon={<IconRefresh />}>{t('全局重置')}</Button>
+        </Popconfirm>
+      ) : undefined}
+    >
       <div className="pc-module-settings__body">
         {tabbed && activeTab === 'extend' && extendTitle && (
           <div className={sectionClass(extendTitle)}><div className="title">{t(extendTitle)}</div></div>
@@ -3229,7 +3238,7 @@ function ModuleSettingsPanel({
           });
         })()}
       </div>
-    </div>
+    </DecSettingsPanel>
   );
 }
 
