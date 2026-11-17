@@ -29,6 +29,7 @@ import { imageFormat } from '@/lib/image';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { useOauthLogin, OauthButtons } from '@/components/oauth/useOauthLogin';
+import VerifySlide from '@/components/VerifySlide';
 async function getCsrf(): Promise<string> {
   const response = await fetch('/api/common/csrf/create', { credentials: 'include' });
   const json = await response.json();
@@ -91,6 +92,13 @@ export default function RegisterClient({
   const [countdown, setCountdown] = useState(0);
   const [sending, setSending] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /**
+   * 滑块行为验证码（与 LoginClient 同款）：发码前主动弹出，verifyToken 随发码请求提交；
+   * 后端返回 code=1002 时重弹一次带新 token 重试（codeRetryRef 防死循环）。
+   * verifyToken 不入 state（一次性，回调参数直传）。
+   */
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const codeRetryRef = useRef(false);
   /** 源码 Register.vue：微信扫码注册（getWxLoginUrl + wechatEvent 轮询 2s/60s） */
   const [wechatQr, setWechatQr] = useState('');
   const [wechatExpired, setWechatExpired] = useState(false);
@@ -194,8 +202,8 @@ export default function RegisterClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  /** 源码 MobileCode：sendMobileCode / sendEmailCode */
-  const sendCode = async () => {
+  /** 点击获取验证码：先校验格式，再过滑块，成功后才真正发码（与登录页一致，防脚本刷码） */
+  const sendCode = () => {
     if (countdown > 0 || sending) return;
     if (mode === 'mobile' && !/^1\d{10}$/.test(mobile.trim())) {
       setError('请输入正确的手机号');
@@ -205,11 +213,18 @@ export default function RegisterClient({
       setError('请输入正确的邮箱');
       return;
     }
+    setError('');
+    codeRetryRef.current = false;
+    setVerifyOpen(true);
+  };
+
+  /** 源码 MobileCode：sendMobileCode / sendEmailCode（verifyToken 随请求提交，后端带了必校验） */
+  const doSendCode = async (verifyToken: string) => {
     setSending(true);
     setError('');
     try {
       const url = mode === 'mobile' ? '/api/user/login/sendMobileCode' : '/api/user/login/sendEmailCode';
-      const payload = mode === 'mobile' ? { mobile: mobile.trim() } : { email: email.trim() };
+      const payload = mode === 'mobile' ? { mobile: mobile.trim(), verifyToken } : { email: email.trim(), verifyToken };
       const response = await fetch(url, {
         method: 'POST',
         credentials: 'include',
@@ -217,6 +232,12 @@ export default function RegisterClient({
         body: JSON.stringify(payload),
       });
       const json = await response.json().catch(() => ({}));
+      // code=1002 → 后端要求行为验证：重弹滑块，带新 token 重试一次
+      if (json.code === 1002 && !codeRetryRef.current) {
+        codeRetryRef.current = true;
+        setVerifyOpen(true);
+        return;
+      }
       if (!response.ok || (json.code !== undefined && json.code !== 0)) {
         throw new Error(json.msg || json.message || t('验证码发送失败'));
       }
@@ -400,7 +421,7 @@ export default function RegisterClient({
                       maxLength={8}
                       autoComplete="one-time-code"
                     />
-                    <button className="login-card__code-btn" type="button" disabled={countdown > 0 || sending} onClick={() => void sendCode()}>
+                    <button className="login-card__code-btn" type="button" disabled={countdown > 0 || sending} onClick={sendCode}>
                       {countdown > 0 ? `${countdown}s` : t('获取验证码')}
                     </button>
                   </label>
@@ -514,6 +535,17 @@ export default function RegisterClient({
           </div>
         </div>
       </div>
+
+      {/* 滑块行为验证码：发码前主动弹出；后端返回 1002 时重弹一次 */}
+      <VerifySlide
+        open={verifyOpen}
+        onClose={() => setVerifyOpen(false)}
+        onSuccess={(token) => {
+          // token 一次性，回调里直接用参数发码，不写 state
+          setVerifyOpen(false);
+          void doSendCode(token);
+        }}
+      />
     </div>
   );
 }
