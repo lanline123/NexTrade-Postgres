@@ -57,6 +57,7 @@ registerModule({
     platform: "mobile",
     order: 30,
     enabled: () => isStore(),
+    shopOnly: true,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(storeOrderCardDefaults)

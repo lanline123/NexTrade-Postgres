@@ -33,7 +33,7 @@ registerModule({
     icon: '<i class="h5-mod-ico">📄</i>',
     url: "mobile",
     platform: "mobile",
-    visible: false,
+    visible: true,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(articleDefaults)

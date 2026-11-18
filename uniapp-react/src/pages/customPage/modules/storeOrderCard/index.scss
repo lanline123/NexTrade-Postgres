@@ -1,67 +1,207 @@
+/* 点单卡片（storeOrderCard）样式：逐项对齐原版编辑器 Preview.vue 的 scoped 样式
+   （类名沿用原版 store-order-* 命名；px 为设计稿单位，由 Taro pxtransform 缩放） */
 .module-store-order-card {
-    .store-order-card__head {
+    box-sizing: border-box;
+
+    .store-order-row {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 4px 0 8px;
+        gap: var(--card-gap, 8px);
+
+        & + .store-order-row {
+            margin-top: var(--card-gap, 8px);
+        }
+
+        &.grid-cols-1 .store-order-item,
+        &.grid-cols-2 .store-order-item,
+        &.grid-cols-3 .store-order-item,
+        &.grid-cols-4 .store-order-item,
+        &.layout-6-top .store-order-item,
+        &.layout-6-bot .store-order-item {
+            flex: 1;
+        }
     }
 
-    .store-order-card__title {
-        font-size: 15px;
-        font-weight: 600;
-    }
-
-    .store-order-card__all {
-        font-size: 12px;
-        color: #999;
-    }
-
-    .store-order-card__row {
+    .store-order-row.layout-3 {
         display: flex;
+        gap: var(--card-gap, 8px);
+
+        .store-order-col-left,
+        .store-order-col-right {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: var(--card-gap, 8px);
+        }
+
+        .store-order-col-left .store-order-item {
+            flex: 1;
+            min-height: 152px;
+        }
     }
 
-    .store-order-card__item {
-        flex: 1;
+    .store-order-item {
+        box-sizing: border-box;
+        overflow: hidden;
         display: flex;
         flex-direction: column;
+        min-width: 0;
+    }
+
+    .store-order-card-content.mode-textimg {
+        display: flex;
+        flex: 1;
+        flex-direction: column-reverse;
+        justify-content: center;
         align-items: center;
         gap: 4px;
-        padding: 6px 0;
-    }
-
-    .store-order-card__icon-wrap {
-        position: relative;
-    }
-
-    .store-order-card__icon {
-        width: 28px;
-        height: 28px;
-    }
-
-    .store-order-card__icon-placeholder {
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        background: #f0f0f0;
-    }
-
-    .store-order-card__badge {
-        position: absolute;
-        top: -6px;
-        right: -10px;
-        min-width: 16px;
-        height: 16px;
-        line-height: 16px;
+        box-sizing: border-box;
         text-align: center;
-        border-radius: 8px;
-        background: #e64340;
-        color: #fff;
-        font-size: 10px;
-        padding: 0 4px;
+
+        .store-order-text {
+            min-width: 0;
+            width: 100%;
+        }
+
+        .store-order-title {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+            line-height: 1.4;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .store-order-desc {
+            font-size: 12px;
+            color: #999;
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* align-self: stretch + width: auto 让图片宽度自动扣除左右外边距，不会溢出被裁切 */
+        .store-order-img {
+            width: auto;
+            align-self: stretch;
+            aspect-ratio: 1 / 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            overflow: hidden;
+
+            image,
+            img {
+                width: 100%;
+                height: 100%;
+            }
+
+            .store-order-img-placeholder {
+                width: 100%;
+                height: 100%;
+                border: 1px solid #eee;
+                border-radius: 2px;
+                background: #f7f8fa;
+                box-sizing: border-box;
+            }
+        }
+
+        &.size-large {
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            text-align: left;
+            gap: 8px;
+            min-height: 90px;
+
+            .store-order-text {
+                flex: 1;
+                width: auto;
+            }
+
+            .store-order-title {
+                font-size: 16px;
+            }
+
+            .store-order-desc {
+                font-size: 13px;
+            }
+
+            .store-order-img {
+                width: 84px;
+                height: 84px;
+            }
+        }
+
+        &.size-medium {
+            .store-order-title {
+                font-size: 14px;
+            }
+        }
+
+        &.size-small {
+            .store-order-title {
+                font-size: 13px;
+            }
+
+            .store-order-desc {
+                font-size: 11px;
+            }
+        }
     }
 
-    .store-order-card__text {
-        font-size: 12px;
-        color: #333;
+    .store-order-row.layout-3 .store-order-col-left .store-order-card-content.mode-textimg {
+        gap: 6px;
+
+        .store-order-img {
+            width: 96px;
+            height: 96px;
+        }
+
+        .store-order-title {
+            font-size: 16px;
+        }
+
+        .store-order-desc {
+            font-size: 13px;
+        }
+    }
+
+    .store-order-row.layout-3 .store-order-col-left .store-order-card-content.mode-image {
+        flex: 1;
+        height: 100%;
+
+        .store-order-full-img {
+            height: 100%;
+            aspect-ratio: auto;
+        }
+
+        .store-order-empty-img {
+            height: 100%;
+            aspect-ratio: auto;
+        }
+    }
+
+    .store-order-card-content.mode-image {
+        width: 100%;
+        overflow: hidden;
+        box-sizing: border-box;
+
+        .store-order-full-img {
+            display: block;
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            height: auto;
+        }
+
+        .store-order-empty-img {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            height: auto;
+            background: #f7f8fa;
+        }
     }
 }

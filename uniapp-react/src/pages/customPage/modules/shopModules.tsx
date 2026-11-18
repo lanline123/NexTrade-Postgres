@@ -51,13 +51,18 @@ const SHOP_MODULE_TYPES = [
     "tagNav",
     "productCarousel",
     "categoryNavA1",
-    "seckill"
+    "seckill",
+    // storeNav/storeOrderCard：原版 uniapp 两个分发器都没有这两个 type（原版前端从未渲染，
+    // 只有编辑器定义）；2026-11-18 补齐批次已按原版编辑器契约重建渲染器，
+    // 店铺装修是这两个模块的放置主场，故补进白名单（超出原版的补齐项）。
+    "storeNav",
+    "storeOrderCard"
 ];
 
 const SHOP_MODULE_TYPE_SET = new Set(SHOP_MODULE_TYPES);
 
 /** 旧模板里带 :shop-id="props.shopInfo.shopId" 的模块 */
-const SHOP_ID_MODULE_TYPES = new Set(["coupon", "product", "productA1", "limitedSpecial", "productSlide", "productCarousel", "shopInfo"]);
+const SHOP_ID_MODULE_TYPES = new Set(["coupon", "product", "productA1", "limitedSpecial", "productSlide", "productCarousel", "shopInfo", "storeNav"]);
 
 interface Props {
     modules: any[];

@@ -1,4 +1,10 @@
 /* 门店导航 预览样式（源自原版 Preview.vue scoped，加 stn- 前缀防冲突） */
+.stn-root .stn-empty {
+    padding: 28px 0;
+    text-align: center;
+    font-size: 12px;
+    color: #999999;
+}
 .stn-root .stn-store-header {
     display: flex;
     align-items: center;

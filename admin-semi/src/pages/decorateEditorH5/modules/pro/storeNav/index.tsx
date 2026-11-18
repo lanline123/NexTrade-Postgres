@@ -49,6 +49,7 @@ registerModule({
     platform: "mobile",
     order: 23,
     enabled: () => isStore(),
+    shopOnly: true,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(storeNavDefaults)

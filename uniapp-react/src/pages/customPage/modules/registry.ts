@@ -125,9 +125,10 @@ export const MODULE_REGISTRY: Record<string, ComponentType<DecorateModuleProps>>
     videoNumber: VideoNumber,
     live: Live,
     shopInfo: ShopInfoModule,
-    // admin 可建/存量数据存在的四类（原注册表无入口，未知 type 会被分发器跳过）：
-    // article/customProduct 契约见各自模块文件头；storeNav/storeOrderCard
-    // admin 侧无源契约、已 visible:false，本入口仅保证存量数据可渲染
+    // 四个模块均有原版编辑器源契约（article 在 mobile 组，余三者在 mobilePro 组）；
+    // 2026-11-18 补齐：编辑器侧已全部可放置（article/customProduct 放开 visible、
+    // storeNav/storeOrderCard 解放置死锁），storeNav/storeOrderCard 渲染器按原版
+    // 编辑器契约重建（原版 uniapp 从未有这两个渲染器），契约见各自模块文件头
     article: ArticleModule,
     customProduct: CustomProduct,
     storeNav: StoreNav,

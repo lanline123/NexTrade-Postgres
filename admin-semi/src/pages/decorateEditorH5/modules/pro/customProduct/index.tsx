@@ -1,15 +1,21 @@
 /**
  * 个性商品 模块（契约自 view/admin editor/modules/mobilePro/customProduct/index.ts 逐字段移植）
  *
- * 旧 ToolBar 中已被注释、不进工具栏（visible:false）；保留注册仅为老数据可渲染。
- * 另注（2026-11-14 三方对齐核查）：uniapp-react 渲染端 registry / shopModules 白名单均无
- * customProduct 渲染入口，移动端建了也展示不出来——在渲染端补齐入口前不要放开 visible。
- * 旧 Preview.vue 本身只渲染占位文本「个性商品」，此处忠实还原。
+ * 原版在旧 ToolBar 中已被注释、不进工具栏（visible:false），保留注册仅为老数据
+ * 可渲染；且原版两代编辑器 Preview 均为占位文本。本重建已补齐可用闭环——
+ * Settings 接入共享 ProductInfoSelect（原版 Settings.vue 同口径，见 Settings 头注）、
+ * Preview 按 uniapp-react 渲染端契约真实渲染、渲染端入口已存在
+ * （uniapp-react src/pages/customPage/modules/customProduct/index.tsx，早先
+ * 「渲染端无入口」的核查结论已被前端审计证伪）——故放开 visible 进工具栏。
  */
 import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultAnimation, defaultModuleStyle, defaultContentStyle } from "../../../contract/sharedDefaults";
 
-/** 与旧 mobilePro/customProduct/index.ts 逐字段一致（契约） */
+/**
+ * 字段与旧 mobilePro/customProduct/index.ts 逐字段一致（契约）；
+ * pruductList / picUrl 的值取空（原版 defaults 内置的 4 个演示商品与预置海报
+ * 均为 tigshop OSS 素材，不随重建引入，见交付报告差异点）。
+ */
 export const customProductDefaults = {
     pruductList: [],
     picUrl: { picUrl: "", picThumb: "" },
@@ -35,7 +41,6 @@ registerModule({
     icon: '<i class="h5-mod-ico">🛒</i>',
     url: "mobilePro",
     platform: "mobile",
-    visible: false,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(customProductDefaults)

@@ -2,13 +2,17 @@
  * 个性商品 设置（对齐 view/admin mobilePro/customProduct/Settings.vue）
  *
  * 页签：商品设置 / 扩展设置。
- * 商品选择 ProductInfoSelect 属于数据选择组件（审计 G10），本编辑器尚未
- * 接入——此处只保留原版分组文案与提示，不伪造选择器。
+ * 商品选择与原版 Settings.vue 同口径：ProductInfoSelect v-model:productList 写回
+ * pruductList（字段名沿原版拼写），isMultiple + maxSelection=4（即分组标题
+ * 「最多选择4个」，上限由选品弹窗承接，与原版 maxSelection 透传 SelectProduct
+ * 弹窗的口径一致）；已选商品可删除、可拖拽排序（共享 ProductInfoSelect 承接，
+ * 见 shared/ProductInfoSelect 头注）。
  * 扩展设置：颜色设置（moduleColor，划线价色仅 crossedOutPrice=1 时出现）
  * + ModuleStyle/ContentStyle type="customProduct"。
  */
 import { SettingGroup, RadioRowField, RangeField, ColorField, SinglePicField, DecDivider } from "../../../shared/settingWidgets";
 import { SettingsTabs, ExtensionStyleSettings, AnimationSettingsField, PicFillTypeField } from "../../../shared/styleEdits";
+import ProductInfoSelect from "../../../shared/ProductInfoSelect";
 
 export default function CustomProductSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
     const moduleColor = data?.moduleColor ?? {};
@@ -19,9 +23,13 @@ export default function CustomProductSettings({ data, onChange }: { data: Record
             <SettingsTabs tabs={["商品设置", "扩展设置"]}>
                 <>
                     <SettingGroup title="请点击添加选择商品：最多选择4个">
-                        <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6 }}>
-                            商品选择器（ProductInfoSelect 数据选择组件）尚未接入本编辑器，已选商品数据保持不变。
-                            <br />
+                        <ProductInfoSelect
+                            value={Array.isArray(data?.pruductList) ? data.pruductList : []}
+                            onChange={(next) => onChange({ pruductList: next })}
+                            isMultiple
+                            maxSelection={4}
+                        />
+                        <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6, marginTop: 8 }}>
                             提示：您可以通过拖拽进行商品排序
                         </div>
                     </SettingGroup>

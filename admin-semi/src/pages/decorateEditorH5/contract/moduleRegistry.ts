@@ -105,7 +105,9 @@ export function getModulesByContext(decorateType: DecorateTypeValue, pageType: n
         if (m.shopOnly && !isShop) return false;
         const group = getModuleToolbarGroup(m.url, m.toolbarGroup as ToolbarGroup | undefined);
         if (!rule.allowedGroups.includes(group)) return false;
-        if (isShop && group === "advanced") return false;
+        // 店铺专属模块（shopOnly，如门店导航/点单卡片）本身就是给店铺账号用的，
+        // 不受「店铺账号不见 advanced 组」的限制——否则 enabled:isStore 与本条互抵、两种账号都放不出来（放置死锁）。
+        if (isShop && group === "advanced" && !m.shopOnly) return false;
         return true;
     });
 }

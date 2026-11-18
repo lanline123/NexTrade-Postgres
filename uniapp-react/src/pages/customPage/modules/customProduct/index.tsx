@@ -40,22 +40,38 @@ export default function CustomProduct({ module, shopId = -1 }: Props) {
         let cancelled = false;
         (async () => {
             const raw: any[] = Array.isArray(d.pruductList) ? d.pruductList : [];
-            const direct = raw.filter((x) => x && typeof x === "object" && (x.productName || x.name));
+            // 快照对象（带商品名）直渲、纯 ID / {id} 形态才取数——旧实现把快照对象的 ID
+            // 也收进取数集合再 [...direct, ...fetched] 拼接，同一商品会出两张卡；
+            // 且拼接顺序与 pruductList 原顺序不符。现按原顺序逐项组装、快照不重复取数。
+            const isDirect = (x: any) => x && typeof x === "object" && (x.productName || x.name);
             const ids = raw
+                .filter((x) => !isDirect(x))
                 .map((x) => (typeof x === "object" ? Number(x?.productId ?? x?.id) : Number(x)))
                 .filter((x) => x > 0);
-            let fetched: any[] = [];
+            let fetchedById = new Map<number, any>();
             if (ids.length) {
                 try {
-                    fetched = await getDecorateProducts(
+                    const fetched = await getDecorateProducts(
                         { productSelectType: 1, productIds: ids },
                         { shopId: shopId > 0 ? shopId : undefined }
                     );
+                    fetchedById = new Map(
+                        (fetched || []).map((p: any) => [Number(p?.productId ?? p?.id), p])
+                    );
                 } catch {
-                    fetched = [];
+                    fetchedById = new Map();
                 }
             }
-            if (!cancelled) setProducts([...direct, ...fetched]);
+            if (!cancelled) {
+                const ordered = raw
+                    .map((x) => {
+                        if (isDirect(x)) return x;
+                        const id = typeof x === "object" ? Number(x?.productId ?? x?.id) : Number(x);
+                        return fetchedById.get(id);
+                    })
+                    .filter(Boolean);
+                setProducts(ordered);
+            }
         })();
         return () => {
             cancelled = true;
