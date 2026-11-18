@@ -56,7 +56,10 @@ const nextConfig = {
     return [
       { source: '/api/:path*', destination: `${apiBase}/api/:path*` },
       { source: '/adminapi/:path*', destination: `${apiBase}/adminapi/:path*` },
-      { source: '/static/:path*', destination: `${apiBase}/static/:path*` },
+      // 注意：不要再给 /static 加同名 rewrite。生产 PC_API_BASE 就是公网域名本身，
+      // 而 nginx 又把 /static 反代回本 Next 服务，加了就会构成自环（请求在
+      // Next → 公网域名 → nginx → Next 之间打转，socket hang up、整路径 500）。
+      // /static/* 应由 Next 直接服务 public/ 目录（国旗图等静态文件放 public/static/ 下）。
       // 店内搜索：旧路径 /shop/search/{id} → /search 并限定 shopId（原请求 query 自动透传）
       { source: '/shop/search/:id', destination: '/search?shopId=:id&tab=goods' },
       { source: '/category/:slug', destination: '/category' },

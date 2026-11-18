@@ -76,7 +76,7 @@ export function middleware(request: NextRequest) {
 export const config = {
   /**
    * 除了静态资源与接口转发，其余路径都要过一遍大小写归一化。
-   * /api、/adminapi、/static 由 next.config 的 rewrites 直接转后端，不能在这里改写大小写。
+   * /api、/adminapi 由 next.config 的 rewrites 转发，/static 由 Next 直供 public/，都不能在这里改写大小写。
    */
   matcher: ['/((?!api|adminapi|static|assets|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)'],
 };
