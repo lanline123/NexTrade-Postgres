@@ -8,26 +8,19 @@
  * 页面设置字段集对齐 src/modules/src/commonPage/Edit.vue（CommonPageEdit）。
  * editMode=module：懒加载当前模块的设置组件（协议：props = { data, onChange, moduleIndex }）。
  */
-import { Suspense, lazy, useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import { Input, Switch } from "@douyinfe/semi-ui";
 import DecSettingsPanel from "../../../components/decorate/DecSettingsPanel";
 import { editorStore, useEditorState } from "../store/editorStore";
-import { getModuleDefinition } from "../contract/moduleRegistry";
+import { getLazyModuleComponent } from "../contract/lazyModule";
 import ModuleErrorBoundary from "./ModuleErrorBoundary";
 import { ColorField, PicSelectField, RadioRowField, SegmentedRadio, DecDivider } from "../shared/settingWidgets";
 import type { PageModule } from "../contract/types";
 
 import { useI18n } from '../../../i18n';
-const settingsCache = new Map<string, React.ComponentType<any>>();
-
+/** 设置组件懒加载（缓存/失败逐出/部署切换自愈在 contract/lazyModule 统一处理） */
 function getLazySettings(type: string, url?: string): React.ComponentType<any> | null {
-    const key = `${type}@${url ?? ""}`;
-    if (!settingsCache.has(key)) {
-        const def = getModuleDefinition(type, url);
-        if (!def) return null;
-        settingsCache.set(key, lazy(def.settings as any));
-    }
-    return settingsCache.get(key)!;
+    return getLazyModuleComponent("settings", type, url);
 }
 
 /** 页面设置（对齐 CommonPageEdit 字段顺序与门控；字段挂在 pageModule 上，保存路径不变） */
@@ -142,7 +135,7 @@ export default function SettingsPanel() {
     return (
         <DecSettingsPanel title={t(headerTitle)} className="h5-editor-settings">
             {isModuleMode && activeModule && SettingsComp ? (
-                <ModuleErrorBoundary label={activeModule.type}>
+                <ModuleErrorBoundary label={activeModule.type} resetKey={activeModule.moduleIndex}>
                     <Suspense fallback={<div className="h5-editor-preview-loading">{t('设置加载中…')}</div>}>
                         <SettingsComp
                             data={activeModule.module}

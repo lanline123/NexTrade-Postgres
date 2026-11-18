@@ -6,6 +6,7 @@
 import { useMemo, useState } from "react";
 import { Swiper, SwiperItem } from "@nutui/nutui-react";
 import { cssText, imageFormat } from "../../../shared/format";
+import { useSwiperHeight } from "../../../shared/useSwiperHeight";
 import { mergeDefaultModule, formatCommonStyle } from "../../../contract/sharedDefaults";
 import { bannerA2Defaults } from "./index";
 import "./Preview.css";
@@ -23,6 +24,11 @@ export default function BannerA2Preview({ data }: { data: Record<string, any> })
     const picList: any[] = bannerContent.picList || [];
     const [realIndex, setRealIndex] = useState(0);
     const bgUrl = picList[realIndex]?.picUrl || picList[0]?.picUrl || "";
+    // 轮播定高：与首焦轮播 banner 同病同口径（不定高时按图片自然高度跳变），按首图比例锁定
+    const { wrapRef: swiperWrapRef, height: swiperHeight } = useSwiperHeight(
+        picList[0]?.picUrl ? imageFormat(picList[0].picUrl) : undefined,
+        { fallbackRatio: 2 }
+    );
 
     // 原版 searchStyle：仅 height/border-radius/background-color 三项内联（其余走 CSS）
     const searchStyle: React.CSSProperties = {
@@ -91,8 +97,9 @@ export default function BannerA2Preview({ data }: { data: Record<string, any> })
                         </div>
                         <div className="image-ad-warp">
                             <div
+                                ref={swiperWrapRef}
                                 className={`image-ad-con pagination-bullet${bannerContent.picPageType}`}
-                                style={{ borderRadius: `${bannerContent.picRadius}px`, overflow: "hidden" }}
+                                style={{ borderRadius: `${bannerContent.picRadius}px`, overflow: "hidden", ...(swiperHeight ? { height: swiperHeight } : {}) }}
                             >
                                 <Swiper
                                     autoplay={3000}

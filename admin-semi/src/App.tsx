@@ -909,11 +909,9 @@ function MobileDecorateEditorRedirect() {
     params.set('page', 'h5DecorateEditor');
     window.location.replace(`${window.location.origin}/?${params.toString()}`);
   }, []);
-  return (
-    <div style={{ padding: 48, textAlign: 'center', color: '#666', fontSize: 14 }}>
-      旧版移动装修编辑器已下线，正在跳转到新版 H5 装修编辑器…
-    </div>
-  );
+  // 不渲染任何中转提示（2026-11-18 用户裁示）：此前会闪现「旧版移动装修编辑器
+  // 已下线，正在跳转…」整页文字、误导用户以为进错了页面；现静默直达新版编辑器。
+  return null;
 }
 
 export default function App() {

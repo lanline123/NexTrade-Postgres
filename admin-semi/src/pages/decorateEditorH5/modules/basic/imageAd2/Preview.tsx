@@ -9,6 +9,7 @@ import { Swiper, SwiperItem } from "@nutui/nutui-react";
 import "./Preview.css";
 import CommonTitle from "../../../shared/CommonTitle";
 import { cssText, imageFormat } from "../../../shared/format";
+import { useSwiperHeight } from "../../../shared/useSwiperHeight";
 import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
 import { imageAd2Defaults } from "./index";
 
@@ -25,6 +26,18 @@ export default function ImageAd2Preview({ data }: { data: Record<string, any> })
     const imgPaddingStyle = cssText(`padding:${module.imgPadding}px;`);
     const swiperPageColor = module.swiperPageColor || "#333";
     const columns = module.swiperPreView || 1;
+
+    // 轮播定高：与首焦轮播 banner 同病同口径（不定高时按图片自然高度跳变），按首图比例锁定；
+    // 分组模式按单元格宽度算高（列数 = swiperPreView，间隔 = imgPadding）
+    const singleMode = !(module.swiperPreView && module.swiperPreView != 1);
+    const { wrapRef: swiperWrapRef, height: swiperHeight } = useSwiperHeight(
+        module.picList?.[0]?.picUrl ? imageFormat(module.picList[0].picUrl) : undefined,
+        {
+            columns: singleMode ? 1 : columns,
+            gap: singleMode ? 0 : module.imgPadding || 0,
+            fallbackRatio: 2
+        }
+    );
 
     // NutUI 分页指示器：与 uniapp 端小圆点一致（active 高亮 swiperPageColor）；
     // Vue 版 showIndicator == 1 才显示 pagination
@@ -76,7 +89,11 @@ export default function ImageAd2Preview({ data }: { data: Record<string, any> })
                     ) : null}
                     {module.picType == 2 ? (
                         <div className="image-ad-warp" style={cssText(frameFormat.innerPadding)}>
-                            <div className="image-ad-con">
+                            <div
+                                ref={swiperWrapRef}
+                                className="image-ad-con image-ad-con--fixedh"
+                                style={swiperHeight ? { height: swiperHeight } : undefined}
+                            >
                                 {module.swiperPreView && module.swiperPreView == 1 ? (
                                     <Swiper
                                         autoplay={3000}

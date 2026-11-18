@@ -12,29 +12,21 @@
  * - dnd-kit 纵向拖拽排序（约束校验失败弹提示并回弹）
  * 预览态（preview=true）隐藏全部编辑外壳，只留画布内容。
  */
-import { Suspense, useMemo, lazy } from "react";
+import { Suspense, useMemo } from "react";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Toast } from "@douyinfe/semi-ui";
 import { IconChevronDown, IconChevronUp, IconCopy, IconDelete, IconEyeClosed, IconEyeOpened, IconSetting } from "@douyinfe/semi-icons";
 import { editorStore, useEditorState } from "../store/editorStore";
-import { getModuleDefinition } from "../contract/moduleRegistry";
+import { getLazyModuleComponent } from "../contract/lazyModule";
 import ModuleErrorBoundary from "./ModuleErrorBoundary";
 import type { DecorateModuleBase } from "../contract/types";
 
 import { useI18n } from '../../../i18n';
-/** 预览组件缓存（moduleIndex 无关，按 type@url 缓存） */
-const previewCache = new Map<string, React.ComponentType<any>>();
-
+/** 预览组件懒加载（缓存/失败逐出/部署切换自愈在 contract/lazyModule 统一处理） */
 function getLazyPreview(type: string, url?: string): React.ComponentType<any> | null {
-    const key = `${type}@${url ?? ""}`;
-    if (!previewCache.has(key)) {
-        const def = getModuleDefinition(type, url);
-        if (!def) return null;
-        previewCache.set(key, lazy(def.preview as any));
-    }
-    return previewCache.get(key)!;
+    return getLazyModuleComponent("preview", type, url);
 }
 
 /** 页面背景（与 view/admin editor/Index.vue format() 口径一致） */
@@ -156,7 +148,7 @@ function ModuleItem({ moduleData, index, preview }: { moduleData: DecorateModule
             ) : null}
             <div className="h5-editor-module-preview">
                 {Preview ? (
-                    <ModuleErrorBoundary label={moduleData.type}>
+                    <ModuleErrorBoundary label={moduleData.type} resetKey={moduleData.moduleIndex}>
                         <Suspense fallback={<div className="h5-editor-preview-loading">{t('模块加载中…')}</div>}>
                             <Preview data={moduleData.module} />
                         </Suspense>

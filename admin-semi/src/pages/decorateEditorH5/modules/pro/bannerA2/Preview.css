@@ -126,3 +126,21 @@
 .pagination-bullet2 .banner-a2-dots i.on {
     width: 14px;
 }
+
+/* 轮播定高（2026-11-18，与 banner 同口径）：容器高度由 useSwiperHeight 按首图比例锁定，
+   幻灯与图片填满定高区，不再随图片自然高度跳变、指示点不再被挤出 */
+.Banner .image-ad-con .nut-swiper {
+    height: 100%;
+}
+.Banner .image-ad-con .nut-swiper-item {
+    height: 100%;
+}
+.Banner .image-ad-con .image-ad-item {
+    height: 100%;
+}
+.Banner .image-ad-con .image-ad-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}

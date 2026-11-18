@@ -6,7 +6,7 @@
  *       saveDraft/publish 保存（整体透传，契约红线）。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Dropdown, Modal, Toast } from "@douyinfe/semi-ui";
+import { Button, Dropdown, Modal, Spin, Toast } from "@douyinfe/semi-ui";
 import { IconChevronDown, IconExit, IconLanguage } from "@douyinfe/semi-icons";
 import { apiGet, apiPost } from "../../api";
 import { editorStore, useEditorState } from "./store/editorStore";
@@ -47,6 +47,11 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
     const [editingTitle, setEditingTitle] = useState(false);
     /** 预览态：隐藏编辑外壳（模块库/设置面板/画布操作件），只看画布 */
     const [preview, setPreview] = useState(false);
+    /** 详情加载态（2026-11-18）：进页先出加载态、数据到达直接出画布，不再先闪
+     * 「请在左侧模块库点击添加模块」的假空态；加载失败（接口/H5 服务未部署或
+     * 不可用）出提示卡 + 重试，画布不落到假空页面上（防误存覆盖真实数据） */
+    const [detailLoading, setDetailLoading] = useState(!isAddMode);
+    const [detailError, setDetailError] = useState("");
 
     // 初始化 store（含固定模块注入，空白页也有默认结构）
     useEffect(() => {
@@ -72,12 +77,17 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
             .catch(() => {});
     }, []);
 
-    // 加载装修详情
-    useEffect(() => {
+    // 加载装修详情（失败保留错误态供提示卡重试，不再只弹 Toast 后留假空画布）
+    const loadDetail = useCallback(() => {
         if (isAddMode) return;
+        setDetailLoading(true);
+        setDetailError("");
         apiGet<any>("/decorate/decorate/detail", { id: initialId, decorateType })
             .then((result) => {
-                if (result == null) return;
+                if (result == null) {
+                    setDetailError(t("未获取到页面数据"));
+                    return;
+                }
                 editorStore.initDecorate({
                     decorateId: result.decorateId || initialId,
                     decorateType: decorateType as any,
@@ -89,7 +99,15 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
                 });
                 setDecorateTitleDraft(result.decorateTitle || "");
             })
-            .catch((error) => Toast.error(error.message || t("加载装修详情失败")));
+            .catch((error) => {
+                setDetailError(error.message || t("加载装修详情失败"));
+            })
+            .finally(() => setDetailLoading(false));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [initialId]);
+
+    useEffect(() => {
+        loadDetail();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialId]);
 
@@ -349,13 +367,33 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
             >
             {/* tabIndex=0：让画布滚动容器可聚焦，聚焦后 PageDown/方向键可滚（原生滚动视口口径） */}
             <div className={`decorate-page-wrap${preview ? " is-preview" : ""}`} tabIndex={0}>
-                {s.hasDraft && !preview ? (
-                    <div className="decorate-page-alert">
-                        <span className="decorate-page-alert-txt">{t('该页面有一条草稿记录，您可以还原草稿继续编辑。')}</span>
-                        <Button size="small" onClick={onContinueDraft}>{t('继续编辑')}</Button>
+                {detailLoading ? (
+                    <div className="h5-editor-state-card">
+                        <Spin size="large" />
+                        <div className="h5-editor-state-title">{t('页面加载中…')}</div>
+                        <div className="h5-editor-state-desc">{t('正在加载装修数据，请稍候')}</div>
                     </div>
-                ) : null}
-                <Canvas preview={preview} />
+                ) : detailError ? (
+                    <div className="h5-editor-state-card">
+                        <div className="h5-editor-state-icon">!</div>
+                        <div className="h5-editor-state-title">{t('页面加载失败')}</div>
+                        <div className="h5-editor-state-desc">
+                            {t('装修服务暂时不可用（可能尚未部署或网络异常）。页面数据未受影响，请重试；反复失败请联系管理员检查服务部署。')}
+                        </div>
+                        {detailError ? <div className="h5-editor-state-detail">{detailError}</div> : null}
+                        <Button theme="solid" onClick={loadDetail}>{t('重新加载')}</Button>
+                    </div>
+                ) : (
+                    <>
+                        {s.hasDraft && !preview ? (
+                            <div className="decorate-page-alert">
+                                <span className="decorate-page-alert-txt">{t('该页面有一条草稿记录，您可以还原草稿继续编辑。')}</span>
+                                <Button size="small" onClick={onContinueDraft}>{t('继续编辑')}</Button>
+                            </div>
+                        ) : null}
+                        <Canvas preview={preview} />
+                    </>
+                )}
             </div>
             </EditorShell>
         </div>

@@ -5,6 +5,8 @@
  * logo + 搜索条（菜单图标/搜索框/签到图标）+ 热词行 + Swiper 轮播（指示色 = swiperPageColor）。
  * 菜单/签到默认图标取原版 defaultIconImage 的 OSS 图（menu 7 款 / sign 4 款），自定义图优先。
  * 搜索图标为 iconfont-h5 icon-sousuo1，以等尺寸内联 SVG 承接。
+ * 轮播定高（2026-11-18）：原版自定义 Swiper 按内容自适应高度，NutUI Swiper 不定高会
+ * 随图片自然高度漂移——改按首图比例定高（与前台 useImgInfo 同口径）+ cover 填充。
  */
 import { useMemo, useState } from "react";
 import { Swiper, SwiperItem } from "@nutui/nutui-react";
@@ -48,6 +50,13 @@ export default function BannerPreview({ data }: { data: Record<string, any> }) {
         return merged;
     }, [data]);
     const [realIndex, setRealIndex] = useState(0);
+    // 轮播区定高（2026-11-18 修复）：NutUI Swiper 无定高时按每张图的自然高度反复重测，
+    // 方图/竖图会把模块撑到 600px+ 且位置随自动播放漂移、指示点被挤出视野。
+    // 与前台（uniapp-react useImgInfo）同口径：以首图宽高比定高，测到前用原版演示图
+    // 比例 750/360 兜底；图片以 cover 填满定高区，不再随图变形。
+    const [imgRatio, setImgRatio] = useState(750 / 360);
+    const boxPadding = Number(module.moduleStyle?.boxPadding ?? 10) || 0;
+    const swiperHeight = Math.min(375, Math.max(80, Math.round((375 - boxPadding * 2) / imgRatio)));
 
     const commonStyle = formatCommonStyle(module.moduleStyle ?? {});
     const bannerContent = module.bannerContent || {};
@@ -84,7 +93,8 @@ export default function BannerPreview({ data }: { data: Record<string, any> }) {
                     commonStyle.moduleStyle.backgroundImage
                 ),
                 marginTop: `${module.moduleStyle?.bannerMarginTop ?? 0}px`,
-                ["--h5-banner-page-color" as any]: bannerContent.swiperPageColor || "#fff"
+                ["--h5-banner-page-color" as any]: bannerContent.swiperPageColor || "#fff",
+                ["--h5-banner-swiper-h" as any]: `${swiperHeight}px`
             }}
         >
             <div className="module-ad-content">
@@ -174,7 +184,21 @@ export default function BannerPreview({ data }: { data: Record<string, any> }) {
                                     {picList.map((item, i) => (
                                         <SwiperItem key={i}>
                                             <div className="image-ad-item" style={{ borderRadius: `${bannerContent.picRadius}px`, overflow: "hidden" }}>
-                                                <img className="item-img" src={imageFormat(item.picUrl)} alt="" />
+                                                <img
+                                                    className="item-img"
+                                                    src={imageFormat(item.picUrl)}
+                                                    alt=""
+                                                    onLoad={
+                                                        i === 0
+                                                            ? (e) => {
+                                                                  const img = e.currentTarget;
+                                                                  if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                                                                      setImgRatio(img.naturalWidth / img.naturalHeight);
+                                                                  }
+                                                              }
+                                                            : undefined
+                                                    }
+                                                />
                                             </div>
                                         </SwiperItem>
                                     ))}

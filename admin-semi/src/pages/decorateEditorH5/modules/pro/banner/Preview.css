@@ -135,6 +135,17 @@
     height: 24px;
     text-decoration: none;
 }
+/* 轮播定高（2026-11-18）：高度由 Preview 按首图比例写入 --h5-banner-swiper-h；
+   不定高时 NutUI Swiper 按图片自然高度重测，模块会被方图撑高且随播放漂移 */
+.h5-banner .image-ad-con .nut-swiper {
+    height: var(--h5-banner-swiper-h, 180px);
+}
+.h5-banner .image-ad-con .nut-swiper-item {
+    height: 100%;
+}
+.h5-banner .image-ad-item {
+    height: 100%;
+}
 /* 轮播指示点：原版为 Swiper pagination（bullet 激活色 = swiperPageColor），此处自绘承接 */
 .h5-banner .image-ad-con {
     position: relative;
@@ -153,6 +164,7 @@
     width: 12px;
     height: 2px;
     background: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.25);
     display: block;
 }
 .h5-banner.ad-picPageType__2 .h5-banner-dots i {
@@ -165,5 +177,7 @@
 }
 .h5-banner .image-ad-item .item-img {
     width: 100%;
+    height: 100%;
+    object-fit: cover;
     display: block;
 }
