@@ -2,6 +2,36 @@
 .category-layout-one,
 .category-layout-two,
 .category-layout-three {
-    min-height: 100vh;
     background-color: #fff;
+}
+
+/* 样式一是整页流式滚动（左栏 fixed、右侧随页滚），保留原 min-height:100vh。
+ * [2026-11-19 修复] 样式二/三是固定高度盒内滚动（scroll-box 已按
+ * 可视高 - 底部栏 - 导航 - 搜索框精确算高），再叠 min-height:100vh 会把
+ * 根节点强行撑到整屏高、加上 TigLayout 的底部栏占位后整页多出约一个
+ * 底部栏高度的可滚距离，向上滑时横向分类条被整页顶上去，故二/三去掉。 */
+.category-layout-one {
+    min-height: 100vh;
+}
+
+/* 分类页内全部滚动条隐藏（用户要求 2026-11-19）：左栏竖滚、右侧商品列表竖滚、
+ * 横向二级分类/主分类横滚、弹窗竖滚全部只滚不显条；滚动功能本身保留。
+ * H5 靠 ::-webkit-scrollbar + scrollbar-width，小程序靠各 ScrollView 的 showScrollbar={false}。 */
+.category-layout-one,
+.category-layout-two,
+.category-layout-three,
+.cate-popup,
+.category-popup {
+    scrollbar-width: none;
+
+    * {
+        scrollbar-width: none;
+    }
+
+    &::-webkit-scrollbar,
+    *::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
+    }
 }

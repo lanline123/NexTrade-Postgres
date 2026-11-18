@@ -223,7 +223,7 @@ export default function StyleTwoCate({ height: heightProp = 0, module = {} as Ca
                         />
                         <View className="list-content">
                             {!isLoading && total > 0 && (
-                                <ScrollView scrollY className="list-scroll" onScrollToLower={reachBottom}>
+                                <ScrollView scrollY showScrollbar={false} className="list-scroll" onScrollToLower={reachBottom}>
                                     {/* TODO(MIGRATION)：旧 <masonry> 实测高度均衡瀑布流 → 奇偶两列（与搜索结果页口径一致） */}
                                     <View className="masonry">
                                         <View className="masonry-item-column">{renderColumn(evenColumn)}</View>

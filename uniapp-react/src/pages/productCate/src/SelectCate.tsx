@@ -104,7 +104,7 @@ export default function SelectCate({
 
     return (
         <View className="cate-box">
-            <ScrollView scrollX className="cate-scroll" scrollWithAnimation scrollLeft={scrollLeft} onScroll={handleScroll}>
+            <ScrollView scrollX showScrollbar={false} className="cate-scroll" scrollWithAnimation scrollLeft={scrollLeft} onScroll={handleScroll}>
                 {menuList.map(
                     (item, index) =>
                         item.categoryName && (

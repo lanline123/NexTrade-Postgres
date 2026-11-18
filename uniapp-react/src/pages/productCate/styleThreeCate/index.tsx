@@ -212,7 +212,7 @@ export default function StyleThreeCate({ height: heightProp = 0, module = {} as 
                         />
                         <View className="list-content">
                             {!isLoading && total > 0 && (
-                                <ScrollView scrollY className="list-scroll" onScrollToLower={reachBottom}>
+                                <ScrollView scrollY showScrollbar={false} className="list-scroll" onScrollToLower={reachBottom}>
                                     <View className={`product-list ${productListClasses.join(" ")}`}>
                                         {list.map((item: any) => (
                                             <View key={item.productId} className="product-item">

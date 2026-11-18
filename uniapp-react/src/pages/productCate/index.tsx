@@ -34,6 +34,7 @@ export default function ProductCate() {
     const configStoreCategoryDecorateType = useConfigStore((s) => s.categoryDecorateType);
     const configStoreShopTitle = useConfigStore((s) => s.baseInfo.shopTitle);
     const configStoreScreenHeight = useConfigStore((s) => s.windowInfo.screenHeight);
+    const configStoreWindowHeight = useConfigStore((s) => s.windowInfo.windowHeight);
     // currentActiveValue 为 tabbar 派生值（旧 pinia computed → useTabbarDerived hook）
     const { currentActiveValue: tabbarCurrentActiveValue } = useTabbarDerived();
 
@@ -130,10 +131,17 @@ export default function ProductCate() {
     // 对应旧 onShow 里的 uni.hideTabBar：React 版 tabbar 由 TigLayout 自定义渲染（TigTabbar），
     // 不存在原生 tabBar，无需隐藏。
 
-    /** 分类样式二/三的滚动区高度：视口高 - tabbar(或安全区) - 导航 */
+    /**
+     * 分类样式二/三的滚动区高度：可视视口高 - tabbar(或安全区) - 导航
+     * [2026-11-19 修复] 必须用 windowHeight（实际可视高），不能用 screenHeight（屏幕物理高）：
+     * H5 上 screenHeight 大于可视高，算出的 scroll-box 偏高、整页多出一段可滚距离，
+     * 向上滑时整页被顶起，横向二级分类条（SelectCate，不在商品列表 ScrollView 内）随之被顶上去。
+     * windowHeight 未就绪（0）时回退 screenHeight，避免首帧高度为负。
+     */
     const height = useMemo(() => {
-        return `calc(${configStoreScreenHeight}px - var(${tabbarCurrentActiveValue > -1 ? "--tabbar-height" : "--safe-bottom"}) - var(--nav-height))`;
-    }, [configStoreScreenHeight, tabbarCurrentActiveValue]);
+        const viewportHeight = configStoreWindowHeight > 0 ? configStoreWindowHeight : configStoreScreenHeight;
+        return `calc(${viewportHeight}px - var(${tabbarCurrentActiveValue > -1 ? "--tabbar-height" : "--safe-bottom"}) - var(--nav-height))`;
+    }, [configStoreScreenHeight, configStoreWindowHeight, tabbarCurrentActiveValue]);
 
     return (
         <TigLayout>

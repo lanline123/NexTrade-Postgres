@@ -70,7 +70,7 @@ export default function MainCategory({ shopId = 0, currentMainCateId, onCurrentM
     return (
         <>
             <View className="category-content">
-                <ScrollView scrollX scrollIntoView={scrollIntoView} className="category-scroll">
+                <ScrollView scrollX showScrollbar={false} scrollIntoView={scrollIntoView} className="category-scroll">
                     {menuList.map((item, index) => renderItem(item, index))}
                 </ScrollView>
                 <View

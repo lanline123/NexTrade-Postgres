@@ -46,7 +46,7 @@ export default function MenuBox({ currentCateId, onCurrentCateIdChange, onChange
 
     return (
         <View className="menu-content">
-            <ScrollView scrollY className="menu-scroll">
+            <ScrollView scrollY showScrollbar={false} className="menu-scroll">
                 {menuList.map((item, index) => (
                     <View
                         key={item.categoryId ?? index}
