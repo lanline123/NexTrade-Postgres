@@ -262,3 +262,7 @@
 ### 修复
 
 - **PC - 根路径 /static/* 全部 500 回环修复 + 美加国旗图入仓**：PC 的 next.config 中 /static 重写把请求代理回公网域名本身（生产 PC_API_BASE 经服务器实测即为 https://battery.recy.cc，systemd unit 与运行进程环境一致），而 nginx 又把 /static 转回 PC 服务，构成无限回环——根路径下所有 /static/* 请求 500/挂起（H5 走 /mobile 路径不受影响；/api、/adminapi 两条重写是通往 Rust 后端的真通道，未动）。删除该条自环重写（原位留防回归注释），/static 改由 Next 直接服务 public/；PC 侧把相对图片路径拼成根 /static 的浏览历史/收藏页此前同吃 500，修复后有文件 200、无文件快速 404。美国/加拿大国旗图（跨境地址用）此前只在服务器上、未入仓，下次部署即丢失，本次同步入仓 pc-semi/public/static/mini/images/country-flags/（us.svg 765B / ca.svg 658B，与已验原件逐字节一致）；小程序端拼根 /static 的国旗图引用同批受益。本地以生产同值 PC_API_BASE 构建冒烟验过：两图 200 + image/svg+xml + 字节数对版、探针文件证明整棵 /static 树直供、首页无回归。
+
+### 变更
+
+- **仓库 - MySQL 种子文件清除万邦演示配置行（用户 2026-11-18 裁示删除）**：rust/deploy/mysql-init/00-pure.sql（原厂 tigshop 种子）中 oneboundKey / oneboundSecret 两行配置为原厂演示占位值，随万邦通道A 移除一并删去（行内相邻配置行不受影响），避免被误读为真实凭据。该种子仅作 MySQL 初始化参考，生产 PostgreSQL 不经此文件、不受影响。
