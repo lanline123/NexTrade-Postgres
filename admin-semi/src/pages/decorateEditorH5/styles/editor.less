@@ -261,6 +261,13 @@
     left: 0;
 }
 
+// 页面头本体显隐（原版 module.less：.module-topbar-warp 默认 display:none、仅 .decorate-page 祖先下 display:block。
+// 原版编辑器根节点即 .decorate-page；我方根节点为 .h5-editor-root、无此祖先，放行规则自移植起永远命中不了，
+// 画布顶部的页面标题栏（Canvas 的 PageHeaderPreview，89px 状态栏图+居中标题）组件在场却一直被隐藏，此处按原版口径补齐）
+.h5-editor-root .module-topbar-warp {
+    display: block;
+}
+
 // 页面头沉浸式/简约变体（原版 module.less；ported css 缺此两规则，此处补齐）
 .modules-item-topbar--immersive .module-topbar-warp {
     background-color: transparent;
