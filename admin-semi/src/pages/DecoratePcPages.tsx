@@ -499,7 +499,6 @@ export function PcDecorateHome() {
             selectedRowKeys: selectedKeys,
             onChange: (keys) => setSelectedKeys((keys || []) as Array<string | number>),
             width: 32,
-            fixed: true,
           }}
           onChange={({ sorter }: any) => {
             if (sorter && sorter.key && sorter.order) {
