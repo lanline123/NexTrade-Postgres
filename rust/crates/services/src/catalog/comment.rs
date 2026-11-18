@@ -538,6 +538,21 @@ impl CommentService {
         //   find_product_shop_id，与管理端 create 写 comment.shop_id 同一口径）；
         // - 商品锚也没有或查不到：无店铺上下文，仅平台全平台条目可命中
         //   （与买家秀评论的结构性口径一致）。
+        //
+        // 被评价商品归属店铺先行查一次：无订单锚时的黑名单判定与下方新增
+        // 评价落库的 comment.shop_id 共用此值，不重复查（find_product_shop_id，
+        // 与管理端 create 写 comment.shop_id 同一口径）。
+        let product_shop_id: Option<i32> = match param.product_id.filter(|id| *id > 0) {
+            Some(product_id) => self
+                .repos
+                .catalog
+                .comment
+                .find_product_shop_id(product_id)
+                .await
+                .ok()
+                .flatten(),
+            None => None,
+        };
         {
             let shop_id: Option<i32> = match param.order_id.filter(|id| *id > 0) {
                 Some(order_id) => self
@@ -549,17 +564,7 @@ impl CommentService {
                     .ok()
                     .flatten()
                     .map(|o| o.shop_id),
-                None => match param.product_id.filter(|id| *id > 0) {
-                    Some(product_id) => self
-                        .repos
-                        .catalog
-                        .comment
-                        .find_product_shop_id(product_id)
-                        .await
-                        .ok()
-                        .flatten(),
-                    None => None,
-                },
+                None => product_shop_id,
             };
             crate::member::user_blacklist::UserBlacklistService::new(self.repos.clone())
                 .ensure_allowed(
@@ -644,7 +649,12 @@ impl CommentService {
                 is_default: 0,
                 // Java 未写该列 → 由 DDL 默认值 50 兜底
                 sort_order: DEFAULT_SORT_ORDER,
-                shop_id: param.shop_id.unwrap_or(0),
+                // 落库店铺一律写被评价商品的归属店铺（用户 2026-11-18 23:46
+                // 裁决，与黑名单判定侧同源、与管理端 create 同一口径）：
+                // 请求 shopId 不再写库；有订单锚时同样按商品归属写（订单头
+                // shop_id 是不分单口径、可能为 0 或与商品店铺不一致）；
+                // 商品锚缺失或查不到 → 0。
+                shop_id: product_shop_id.unwrap_or(0),
             };
             self.repos.catalog.comment.insert(&comment).await?;
         }
