@@ -125,6 +125,21 @@ export function getToken(): string {
   return localStorage.getItem('admin_access_token') || '';
 }
 
+/**
+ * 证件私有文件展示地址（批次B）：存量字段里保存的是前台代理路径
+ * `/api/cert/file/<name>`；后台展示时改走后台代理 `/adminapi/cert/file/<name>`
+ * 并附带后台 token（<img> 无法带 Authorization 头，用 ?token= 传递）。
+ * 非证件路径原样返回。
+ */
+export function certFileSrc(url: string): string {
+  if (!url || !url.includes('/cert/file/')) return url;
+  const name = url.split('/cert/file/')[1]?.split(/[?#]/)[0] || '';
+  if (!name) return url;
+  const token = getToken();
+  const base = `/adminapi/cert/file/${name}`;
+  return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+}
+
 export function getContextHeaders(): Record<string, string> {
   const adminType = localStorage.getItem('adminType') || '';
   const shopId = localStorage.getItem('shopId') || '';

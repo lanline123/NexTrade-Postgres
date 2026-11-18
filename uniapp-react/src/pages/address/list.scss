@@ -64,6 +64,18 @@
                         line-height: 1.6;
                     }
 
+                    /* 批次B：默认地址独立徽标（实底主题色，与 address-tag 描边样式区分） */
+                    .default-badge {
+                        margin-right: 20rpx;
+                        padding: 2rpx 12rpx;
+                        font-size: 20rpx;
+                        font-weight: normal;
+                        color: #fff;
+                        background-color: var(--general);
+                        border-radius: 6rpx;
+                        line-height: 1.6;
+                    }
+
                     line-height: 40rpx;
                     text-align: left;
                     color: #000;
@@ -172,5 +184,12 @@
                 }
             }
         }
+    }
+}
+/* 【批次D · 小程序一键获取收货地址】列表页微信导入按钮（仅 weapp 渲染） */
+.btn-box {
+    .btn--wechat {
+        background-color: #07c160;
+        margin-bottom: 20rpx;
     }
 }

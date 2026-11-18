@@ -654,6 +654,10 @@ pub fn assemble_init_config_settings(configs: &ConfigIndex) -> InitConfigSetting
     vo.h5_domain = get_str(configs, BIZ_H5_DOMAIN);
     vo.pc_domain = get_str(configs, BIZ_PC_DOMAIN);
     vo.admin_domain = get_str(configs, BIZ_ADMIN_DOMAIN);
+    // 买家秀发布条件：H5 发布页据此决定商品选择范围（0=任意商品，1=仅已下单用户）。
+    // 配置缺失时按 FieldSpec 默认值 0（不要求下单）下发。
+    vo.buyer_show_publish_need_order =
+        Some(get_int(configs, "buyerShowPublishNeedOrder").unwrap_or(0));
     // ⚠️ `themeStyle` 在 `InitConfigSettingsVO` 里**没有**对应字段
     // （它只出现在 `ThemeSettingsVO` 与 `getBase` 的 Map 里），
     // 故此处不写入 VO。翻译切面（Java 的 `@JsonTranslate`）未迁移，

@@ -417,6 +417,12 @@ pub struct RegionCreateDTO {
     pub sort_order: Option<i32>,
     /// 首字母（Java `@Size(max = 1)`；`create` 原样落库，可为 null）
     pub first_word: Option<String>,
+    /// 标准代码（如国家 `US` / 州 `US-CA`）。
+    /// ⚠️ 与 Java 的偏离（2026-11-18，跨境地址配置链补齐）：Java DTO
+    /// 无此字段，但前端国家匹配依赖 `region.standard_code`，后台此前
+    /// 无任何维护入口。此处仅新增可选字段：不传 / 空白 = 不写（create）
+    /// 或保持原值（update），既有调用行为不变。
+    pub standard_code: Option<String>,
 }
 
 /// 更新请求（Java `RegionUpdateDTO extends RegionCreateDTO`）。

@@ -110,12 +110,24 @@ impl UserAddressClientService {
     /// - 数据库失败 → `Error::Database`
     pub async fn create(&self, current_user: i32, dto: &UserAddressCreateDTO) -> Result<i32> {
         let region_ids = dto.region_ids.clone().unwrap_or_default();
-        let region_names = self.repo().find_region_names(&region_ids).await?;
+        // 跨境文本地区（州/省以下无地区树行）由前端直传 regionNames，优先采用；
+        // 未传时按地区树反查（国内口径不变）。
+        let region_names = match &dto.region_names {
+            Some(names) if !names.is_empty() => names.clone(),
+            _ => self.repo().find_region_names(&region_ids).await?,
+        };
         let postcode = normalize_postcode(dto.postcode.as_deref()).map_err(Error::biz_msg)?;
+        let (address_line_two, building_name, floor, unit) =
+            cross_border_columns(dto.address_data.as_ref());
         let entity = UserAddress {
             address_id: 0,
-            country_code: None,
-            country_name: None,
+            country_code: dto
+                .country_code
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_uppercase()),
+            country_name: dto.country_name.clone(),
             address_tag: dto.address_tag.clone().unwrap_or_default(),
             user_id: dto.user_id.unwrap_or(current_user),
             consignee: dto.consignee.clone().unwrap_or_default(),
@@ -123,12 +135,15 @@ impl UserAddressClientService {
             region_ids: to_json(&region_ids),
             region_names: to_json(&region_names),
             address: dto.address.clone().unwrap_or_default(),
-            address_line_two: None,
-            building_name: None,
-            floor: None,
-            unit: None,
-            address_data: None,
-            formatted_address: None,
+            address_line_two,
+            building_name,
+            floor,
+            unit,
+            address_data: dto
+                .address_data
+                .as_ref()
+                .map(|v| serde_json::to_string(v).unwrap_or_default()),
+            formatted_address: dto.formatted_address.clone(),
             position_address: dto.position_address.clone(),
             postcode,
             telephone: dto.telephone.clone(),
@@ -137,7 +152,7 @@ impl UserAddressClientService {
             is_system: dto.is_system,
             is_selected: 0,
             mobile_area_code: dto.mobile_area_code.clone(),
-            international_mobile: None,
+            international_mobile: dto.international_mobile.clone(),
             latitude: decimal_from_f64(dto.latitude),
             longitude: decimal_from_f64(dto.longitude),
         };
@@ -177,10 +192,22 @@ impl UserAddressClientService {
             Some(ids) if !ids.is_empty() => ids.clone(),
             _ => parse_i32_list(&existing.region_ids),
         };
-        let region_names = if dto.region_ids.as_ref().is_some_and(|v| !v.is_empty()) {
-            self.repo().find_region_names(&region_ids).await?
-        } else {
-            parse_string_list(&existing.region_names)
+        let region_names = match &dto.region_names {
+            Some(names) if !names.is_empty() => names.clone(),
+            _ if dto.region_ids.as_ref().is_some_and(|v| !v.is_empty()) => {
+                self.repo().find_region_names(&region_ids).await?
+            }
+            _ => parse_string_list(&existing.region_names),
+        };
+        // 跨境字段：传了 address_data 时按新数据重拆分列，未传保持原值
+        let (address_line_two, building_name, floor, unit) = match &dto.address_data {
+            Some(data) => cross_border_columns(Some(data)),
+            None => (
+                existing.address_line_two.clone(),
+                existing.building_name.clone(),
+                existing.floor.clone(),
+                existing.unit.clone(),
+            ),
         };
         let postcode = match dto.postcode.as_deref() {
             Some(raw) => normalize_postcode(Some(raw)).map_err(Error::biz_msg)?,
@@ -189,8 +216,14 @@ impl UserAddressClientService {
 
         let merged = UserAddress {
             address_id,
-            country_code: existing.country_code,
-            country_name: existing.country_name,
+            country_code: dto
+                .country_code
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_uppercase())
+                .or(existing.country_code),
+            country_name: dto.country_name.clone().or(existing.country_name),
             address_tag: dto
                 .address_tag
                 .clone()
@@ -201,12 +234,19 @@ impl UserAddressClientService {
             region_ids: to_json(&region_ids),
             region_names: to_json(&region_names),
             address: dto.address.clone().unwrap_or(existing.address),
-            address_line_two: existing.address_line_two,
-            building_name: existing.building_name,
-            floor: existing.floor,
-            unit: existing.unit,
-            address_data: existing.address_data,
-            formatted_address: existing.formatted_address,
+            address_line_two,
+            building_name,
+            floor,
+            unit,
+            address_data: dto
+                .address_data
+                .as_ref()
+                .map(|v| serde_json::to_string(v).unwrap_or_default())
+                .or(existing.address_data),
+            formatted_address: dto
+                .formatted_address
+                .clone()
+                .or(existing.formatted_address),
             position_address: dto
                 .position_address
                 .clone()
@@ -222,7 +262,10 @@ impl UserAddressClientService {
                 .mobile_area_code
                 .clone()
                 .or(existing.mobile_area_code),
-            international_mobile: existing.international_mobile,
+            international_mobile: dto
+                .international_mobile
+                .clone()
+                .or(existing.international_mobile),
             latitude: dto
                 .latitude
                 .map_or(existing.latitude, |v| decimal_from_f64(Some(v))),
@@ -319,7 +362,36 @@ fn to_vo(e: &UserAddress, for_list: bool) -> UserAddressVO {
         latitude: e.latitude.and_then(decimal_to_f64),
         longitude: e.longitude.and_then(decimal_to_f64),
         is_system: e.is_system,
+        country_code: e.country_code.clone(),
+        country_name: e.country_name.clone(),
+        address_data: e
+            .address_data
+            .as_deref()
+            .and_then(|raw| serde_json::from_str(raw).ok()),
+        formatted_address: e.formatted_address.clone(),
+        international_mobile: e.international_mobile.clone(),
     }
+}
+
+/// 跨境结构化地址（`address_data` JSON）→ 实体分列字段
+/// （`addressLineTwo` / `buildingName` / `floor` / `unit`，与 H5
+/// `buildCrossBorderAddressData` 的键名一致；`floorUnit` 归入 `unit`）。
+fn cross_border_columns(
+    data: Option<&serde_json::Value>,
+) -> (Option<String>, Option<String>, Option<String>, Option<String>) {
+    let get = |key: &str| {
+        data.and_then(|v| v.get(key))
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+    };
+    (
+        get("addressLineTwo"),
+        get("buildingName"),
+        get("floor"),
+        get("unit").or_else(|| get("floorUnit")),
+    )
 }
 
 /// `f64` → `Decimal`（Java `BigDecimal`；非法浮点为 `None`）。

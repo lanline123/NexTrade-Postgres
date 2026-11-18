@@ -32,6 +32,8 @@ interface Props {
     isCustom?: boolean;
     /** 接口返回结构：gallery 为图片对象；url 为纯地址字符串 */
     responseDataType?: "gallery" | "url";
+    /** 上传用途（批次B）：cert = 证件类，服务端走私有通道不进公开图库 */
+    purpose?: string;
     /** 是否允许选择 PDF（H5 文件选择器；小程序操作菜单） */
     allowPdf?: boolean;
     /** 单文件大小上限（MB，默认 20） */
@@ -45,6 +47,15 @@ interface FileItem {
     url: string;
     type?: string;
 }
+
+/** 证件代理路径 → 带登录 token 的展示地址（图片请求无法带 Authorization 头）。 */
+const certDisplayUrl = (raw?: string) => {
+    const formatted = imageFormat(raw as string);
+    if (!raw || !raw.includes("/cert/file/")) return formatted;
+    const token = Taro.getStorageSync("token") || "";
+    if (!token) return formatted;
+    return `${formatted}${formatted.includes("?") ? "&" : "?"}token=${encodeURIComponent(String(token))}`;
+};
 
 const isPdfFile = (file: any) => /\.pdf$/i.test(file?.name || "") || file?.type === "application/pdf";
 
@@ -63,6 +74,7 @@ export default function Upload({
     isValueArray = false,
     isCustom = false,
     responseDataType = "gallery",
+    purpose,
     allowPdf = false,
     maxSize = 20,
     onUploadingChange,
@@ -85,19 +97,19 @@ export default function Upload({
                 picsRef.current = [];
                 return;
             }
-            setFileLists(newVal.map((item: UploadItem) => ({ ...item, type: "image", url: imageFormat(item.picUrl as string) })));
+            setFileLists(newVal.map((item: UploadItem) => ({ ...item, type: "image", url: certDisplayUrl(item.picUrl as string) })));
             picsRef.current = newVal as UploadItem[];
             return;
         }
         if (Object.values(newVal).length === 0 || !Object.values(newVal)[0]) {
             return;
         }
-        setFileLists([{ ...newVal, type: "image", url: imageFormat(newVal.picUrl) }]);
+        setFileLists([{ ...newVal, type: "image", url: certDisplayUrl(newVal.picUrl) }]);
     }, [modelValue]);
 
     const pushResult = (normalized: UploadItem, fileName?: string) => {
         const url = normalized.picThumb;
-        setFileLists((prev) => [...prev, { type: "image", url: imageFormat(url as string) }]);
+        setFileLists((prev) => [...prev, { type: "image", url: certDisplayUrl(url as string) }]);
 
         if (limit > 1 || isValueArray) {
             const next = [
@@ -129,6 +141,7 @@ export default function Upload({
             url: baseUrl + process.env.TARO_APP_API_PREFIX + apiUrl,
             filePath: filePath.url,
             name: "file",
+            formData: purpose ? { purpose } : undefined,
             header: {
                 Authorization: responseDataType === "url" ? "Bearer " + token : token,
                 Secret: getSecret()

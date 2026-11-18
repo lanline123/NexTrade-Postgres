@@ -40,7 +40,7 @@ use std::sync::Arc;
 
 use rust_decimal::{Decimal, RoundingStrategy};
 use nextrade_common::utils;
-use nextrade_core::entities::{Aftersales, AftersalesItem, AftersalesLog, Order, OrderItem, Product, Shop, User};
+use nextrade_core::entities::{Aftersales, AftersalesItem, AftersalesLog, OfflinePaymentClaim, Order, OrderItem, Product, Shop, User};
 use nextrade_core::models::trade::order_admin::{
     aftersales_status, aftersales_type, join_status, order_type, pay_type, shipping_method,
     DeliverOrderParam, ExportItemSaveParam, LogisticsApiLogVO, OrderAdminNoteParam, OrderActionVO,
@@ -231,6 +231,8 @@ struct VoInput<'a> {
     /// Java `OrderVO.wayBill`：`list` 走默认构造（false），`detail` 走 `OrderVO(Order)`（true）
     way_bill: bool,
     now: i32,
+    /// 最新一笔线下认款单（列表/详情按订单批量预取后回填；无认款或未预取为 None）
+    offline_claim: Option<OfflinePaymentClaim>,
 }
 
 /// 组装订单 VO（对齐 Java `OrderVO` 构造 + `list` 循环内的派生字段）。
@@ -245,6 +247,7 @@ fn build_vo(input: VoInput<'_>) -> OrderVO {
         groupon,
         way_bill,
         now,
+        offline_claim,
     } = input;
 
     let region_names = parse_string_list(&o.region_names);
@@ -297,6 +300,12 @@ fn build_vo(input: VoInput<'_>) -> OrderVO {
     let mut actions = available_actions(o, full_aftersales, rebuy_available);
     if deliver_blocked_by_groupon {
         actions.deliver = false;
+    }
+    // 线下认款入口：有认款单即可看详情，被驳回可修改申请
+    if let Some(claim) = &offline_claim {
+        actions.offline_payment_claim_detail = true;
+        actions.edit_offline_payment_claim =
+            claim.status == OfflinePaymentClaim::STATUS_REJECTED;
     }
 
     OrderVO {
@@ -396,6 +405,18 @@ fn build_vo(input: VoInput<'_>) -> OrderVO {
         print_time: None,
         sub_order_ids: None,
         pay_code: None,
+        offline_payment_claim_status: offline_claim.as_ref().map(|c| c.status),
+        offline_payment_claim_status_name: offline_claim
+            .as_ref()
+            .map(|c| nextrade_core::models::trade::offline_claim::status_name(c.status)),
+        offline_payment_claim_id: offline_claim.as_ref().map(|c| c.claim_id),
+        offline_payment_claim_reject_reason: offline_claim.as_ref().and_then(|c| {
+            (c.status == OfflinePaymentClaim::STATUS_REJECTED && !c.reject_reason.is_empty())
+                .then(|| c.reject_reason.clone())
+        }),
+        offline_payment_claim: offline_claim
+            .as_ref()
+            .map(crate::trade::order::to_offline_claim_vo),
     }
 }
 
@@ -628,6 +649,14 @@ impl OrderAdminService {
             .map(|(order_id, rec_id, js)| (order_id, (rec_id, js)))
             .collect();
 
+        // 线下认款：批量预取每单最新一笔，供列表行展示认款状态/审核入口
+        let claims = self
+            .repos
+            .trade
+            .offline_payment_claim
+            .latest_for_orders(&order_ids)
+            .await?;
+
         let now = utils::now_seconds() as i32;
         let mut list = Vec::with_capacity(orders.len());
         for o in &orders {
@@ -647,6 +676,7 @@ impl OrderAdminService {
                 groupon: groupon.get(&o.order_id).copied(),
                 way_bill: false,
                 now,
+                offline_claim: claims.get(&o.order_id).cloned(),
             }));
         }
         Ok(PageResult::new(total, list, &page))
@@ -696,6 +726,12 @@ impl OrderAdminService {
 
         let rebuy_available =
             items.is_empty() || items.iter().any(|it| on_sale.contains(&it.product_id));
+        let offline_claim = self
+            .repos
+            .trade
+            .offline_payment_claim
+            .latest_for_order(order_id)
+            .await?;
         let mut vo = build_vo(VoInput {
             order: &order,
             items: &items,
@@ -706,6 +742,7 @@ impl OrderAdminService {
             groupon,
             way_bill: true,
             now: utils::now_seconds() as i32,
+            offline_claim,
         });
 
         // 后台状态头文案覆盖：仅当当前状态名仍为标准文案时覆盖（Java 用字符串相等判断）
@@ -2720,12 +2757,16 @@ impl OrderAdminService {
     /// 与 Java `getExportItemList()` 的 Map 顺序/文案一致（O2O 场景店铺名称
     /// 文案差异未迁移，统一「店铺名称」）。
     #[must_use]
-    pub fn export_item_list(&self) -> Vec<OrderExportItemVO> {
-        export_columns()
+    pub fn export_item_list(&self, supply_price_visible: bool) -> Vec<OrderExportItemVO> {
+        export_columns_for(supply_price_visible)
     }
 
     /// 当前管理员已选导出列（`GET /order/order/exportItemInfo`）。
-    pub async fn export_item_info(&self, admin_id: i32) -> Result<Vec<OrderExportItemVO>> {
+    pub async fn export_item_info(
+        &self,
+        admin_id: i32,
+        supply_price_visible: bool,
+    ) -> Result<Vec<OrderExportItemVO>> {
         let raw = self
             .repos
             .trade
@@ -2737,7 +2778,7 @@ impl OrderAdminService {
         if selected.is_empty() {
             return Ok(Vec::new());
         }
-        Ok(export_columns()
+        Ok(export_columns_for(supply_price_visible)
             .into_iter()
             .filter(|c| selected.iter().any(|k| k == &c.key))
             .collect())
@@ -2779,8 +2820,9 @@ impl OrderAdminService {
         &self,
         q: &OrderListQuery,
         platform_view: bool,
+        supply_price_visible: bool,
     ) -> Result<(String, Vec<u8>)> {
-        let vo = self.order_export(q, platform_view).await?;
+        let vo = self.order_export(q, platform_view, supply_price_visible).await?;
         let headers: Vec<&str> = vo.columns.iter().map(|c| c.label.as_str()).collect();
         let rows: Vec<Vec<String>> = vo
             .rows
@@ -2808,6 +2850,7 @@ impl OrderAdminService {
         &self,
         q: &OrderListQuery,
         platform_view: bool,
+        supply_price_visible: bool,
     ) -> Result<OrderExportVO> {
         let mut query = q.clone();
         if let Some(ref tag_ids) = query.member_tag_ids {
@@ -2822,7 +2865,11 @@ impl OrderAdminService {
                 query.tag_user_ids = Some(uids);
             }
         }
-        let selected = query.export_items();
+        let mut selected = query.export_items();
+        // 视角门控：无供货价查看权的账号即使手动指定供货价列也不下发
+        if !supply_price_visible {
+            selected.retain(|k| k != SUPPLY_PRICE_KEY && k != SUPPLY_PRICE_TOTAL_KEY);
+        }
         if selected.is_empty() {
             return Err(Error::Validation("请选择导出项".into()));
         }
@@ -2889,6 +2936,7 @@ impl OrderAdminService {
                     groupon: None,
                     way_bill: false,
                     now,
+                    offline_claim: None,
                 });
                 for item in order_items {
                     rows.push(OrderExportRowVO {
@@ -2940,6 +2988,11 @@ impl OrderAdminService {
                         quantity: item.quantity,
                         total_price: item.price * Decimal::from(item.quantity),
                         price: item.price,
+                        // 供货价取下单快照 order_item.vendor_product_supply_price
+                        vendor_product_supply_price: item.vendor_product_supply_price,
+                        vendor_product_supply_total: item
+                            .vendor_product_supply_price
+                            .map(|v| v * Decimal::from(item.quantity)),
                     });
                 }
             }
@@ -3924,6 +3977,14 @@ fn export_cell(key: &str, row: &OrderExportRowVO) -> String {
         "shippingStatusName" => row.shipping_status_name.clone(),
         "productWeight" => row.product_weight.to_string(),
         "usePoints" => row.use_points.to_string(),
+        "vendorProductSupplyPrice" => row
+            .vendor_product_supply_price
+            .map(|v| v.to_string())
+            .unwrap_or_default(),
+        "vendorProductSupplyTotal" => row
+            .vendor_product_supply_total
+            .map(|v| v.to_string())
+            .unwrap_or_default(),
         "productName" => row.product_name.clone(),
         "skuData" => row.sku_data.clone(),
         "productSn" => row.product_sn.clone(),
@@ -3934,8 +3995,28 @@ fn export_cell(key: &str, row: &OrderExportRowVO) -> String {
     }
 }
 
+/// 供货价导出列 key（平台/供应商视角可见，店铺视角不可见）。
+pub const SUPPLY_PRICE_KEY: &str = "vendorProductSupplyPrice";
+/// 供货价小计导出列 key（供货价 × 购买数量）。
+pub const SUPPLY_PRICE_TOTAL_KEY: &str = "vendorProductSupplyTotal";
+
+/// 当前视角是否可见供货价：平台 + 供应商账号可见，店铺账号不可见。
+pub fn can_view_supply_price(platform: bool, vendor: bool) -> bool {
+    platform || vendor
+}
+
+/// 按视角过滤导出列：不可见供货价时剔除供货价两列。
+fn export_columns_for(supply_price_visible: bool) -> Vec<OrderExportItemVO> {
+    export_columns()
+        .into_iter()
+        .filter(|c| {
+            supply_price_visible || (c.key != SUPPLY_PRICE_KEY && c.key != SUPPLY_PRICE_TOTAL_KEY)
+        })
+        .collect()
+}
+
 fn export_columns() -> Vec<OrderExportItemVO> {
-    const COLS: [(&str, &str); 30] = [
+    const COLS: [(&str, &str); 32] = [
         ("orderSn", "订单编号"),
         ("addTime", "下单时间"),
         ("orderStatusName", "订单状态"),
@@ -3966,6 +4047,8 @@ fn export_columns() -> Vec<OrderExportItemVO> {
         ("shippingStatusName", "发货状态"),
         ("productWeight", "总重量(KG)"),
         ("usePoints", "使用积分"),
+        ("vendorProductSupplyPrice", "供货价"),
+        ("vendorProductSupplyTotal", "供货价小计"),
     ];
     COLS.iter()
         .map(|(key, label)| OrderExportItemVO {
@@ -4805,6 +4888,7 @@ mod tests {
             groupon: None,
             way_bill: true,
             now: 1_700_000_000,
+            offline_claim: None,
         });
         assert_eq!(vo.user_address.as_deref(), Some("浙江省 杭州市 文一西路 1 号"));
         // 待支付：支付截止时间 = add_time + 30 分钟
@@ -4831,6 +4915,7 @@ mod tests {
             groupon: Some((77, join_status::WAIT_GROUP)),
             way_bill: false,
             now: 1_700_000_000,
+            offline_claim: None,
         });
         assert_eq!(vo.order_status_name, "已付款，待成团");
         assert_eq!(vo.groupon_promotion_record_id, Some(77));
@@ -4874,12 +4959,25 @@ mod tests {
     #[test]
     fn export_columns_match_java_map_order() {
         let cols = export_columns();
-        assert_eq!(cols.len(), 30);
+        assert_eq!(cols.len(), 32);
         assert_eq!(cols[0].key, "orderSn");
         assert_eq!(cols[0].label, "订单编号");
         assert_eq!(cols[26].key, "productInfo");
         assert_eq!(cols[29].key, "usePoints");
         assert_eq!(cols[29].label, "使用积分");
+        // NexTrade 扩展：供货价两列追加在末尾（视角门控，不影响 Java 既有列序）
+        assert_eq!(cols[30].key, "vendorProductSupplyPrice");
+        assert_eq!(cols[30].label, "供货价");
+        assert_eq!(cols[31].key, "vendorProductSupplyTotal");
+        // 视角过滤：不可见时供货价两列不下发
+        let visible = export_columns_for(true);
+        assert_eq!(visible.len(), 32);
+        let hidden = export_columns_for(false);
+        assert_eq!(hidden.len(), 30);
+        assert!(hidden.iter().all(|c| c.key != SUPPLY_PRICE_KEY));
+        assert!(can_view_supply_price(true, false));
+        assert!(can_view_supply_price(false, true));
+        assert!(!can_view_supply_price(false, false));
     }
 
     #[test]
@@ -5101,5 +5199,14 @@ mod tests {
         assert_eq!(export_cell("quantity", &row), "2");
         assert_eq!(export_cell("productName", &row), "测试商品");
         assert_eq!(export_cell("unknown", &row), "");
+        // 供货价：快照为空时输出空串；有值时输出供货价与小计
+        assert_eq!(export_cell("vendorProductSupplyPrice", &row), "");
+        let row2 = OrderExportRowVO {
+            vendor_product_supply_price: Some(Decimal::new(5000, 2)),
+            vendor_product_supply_total: Some(Decimal::new(10000, 2)),
+            ..row.clone()
+        };
+        assert_eq!(export_cell("vendorProductSupplyPrice", &row2), "50.00");
+        assert_eq!(export_cell("vendorProductSupplyTotal", &row2), "100.00");
     }
 }

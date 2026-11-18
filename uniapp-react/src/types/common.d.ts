@@ -130,6 +130,7 @@ export interface ConfigData {
     buyerShowMobileShowName?: string;
     buyerShowGuidanceContent?: string;
     buyerShowTemplateStyle?: number;
+    buyerShowPublishNeedOrder?: number;
     defaultAvatar: string;
     defaultLogisticsName: string;
     growUpSetting?: GrowUpSetting;

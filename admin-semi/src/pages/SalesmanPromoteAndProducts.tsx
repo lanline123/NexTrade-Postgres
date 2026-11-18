@@ -65,6 +65,10 @@ interface SalesmanConfigData {
   registerToSalesman?: number;
   recruitMethods?: number[];
   viewCustomerInfo?: number;
+  /** 批次B 细粒度隐私：缺失时后端按回退总开关处理。 */
+  viewCustomerMobile?: number;
+  viewSubSalesmanInfo?: number;
+  viewSubSalesmanMobile?: number;
   wechatBizEnabled?: boolean;
   level?: SalesmanConfigLevel[];
 }
@@ -365,6 +369,9 @@ export function SalesmanPromoteMode() {
         registerToSalesman,
         recruitMethods,
         viewCustomerInfo: Number(config.viewCustomerInfo ?? 0),
+        viewCustomerMobile: Number(config.viewCustomerMobile ?? config.viewCustomerInfo ?? 0),
+        viewSubSalesmanInfo: Number(config.viewSubSalesmanInfo ?? config.viewCustomerInfo ?? 0),
+        viewSubSalesmanMobile: Number(config.viewSubSalesmanMobile ?? config.viewCustomerInfo ?? 0),
         level,
       });
       Toast.success({ content: t('操作成功') });
@@ -669,6 +676,27 @@ export function SalesmanPromoteMode() {
               {t('查看客户信息')}
             </Checkbox>
             <div className="salesman-mode-extra">{t('开启后，分销员可查看自己的客户信息')}</div>
+            <Checkbox
+              checked={Number(config.viewCustomerMobile ?? config.viewCustomerInfo ?? 0) === 1}
+              onChange={(e) => patchConfig({ viewCustomerMobile: e.target.checked ? 1 : 0 })}
+            >
+              {t('可查看客户电话')}
+            </Checkbox>
+            <div className="salesman-mode-extra">{t('关闭后，客户电话脱敏下发（如 138****8000）')}</div>
+            <Checkbox
+              checked={Number(config.viewSubSalesmanInfo ?? config.viewCustomerInfo ?? 0) === 1}
+              onChange={(e) => patchConfig({ viewSubSalesmanInfo: e.target.checked ? 1 : 0 })}
+            >
+              {t('可查看下级信息')}
+            </Checkbox>
+            <div className="salesman-mode-extra">{t('开启后，分销员可在客户列表查看下级分销员')}</div>
+            <Checkbox
+              checked={Number(config.viewSubSalesmanMobile ?? config.viewCustomerInfo ?? 0) === 1}
+              onChange={(e) => patchConfig({ viewSubSalesmanMobile: e.target.checked ? 1 : 0 })}
+            >
+              {t('可查看下级电话')}
+            </Checkbox>
+            <div className="salesman-mode-extra">{t('关闭后，下级电话脱敏下发（如 138****8000）')}</div>
           </div>
         </div>
 

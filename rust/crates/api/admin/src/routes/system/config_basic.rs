@@ -32,8 +32,8 @@
 //!   返回明确 1001 业务错误；详见 models 模块文档「与 Java 的差异」。
 
 use axum::{
-    extract::{Extension, Multipart, Query, Request, State},
-    http::StatusCode,
+    extract::{Extension, Multipart, Path, Query, Request, State},
+    http::{header, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -597,6 +597,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     // 证书上传（multipart）与测试邮件需要独立 handler，不能走 JSON/无体通用入口
     router
         .route("/setting/config/uploadFile", post(upload_config_file))
+        // 批次B 证件直传（不走素材中心）与证件私有文件读取代理；
+        // 均为 Rust 新增端点（无 Java 对应），外层 require_auth 已生效。
+        .route("/setting/config/uploadCertImg", post(upload_cert_img))
+        .route("/cert/file/{name}", get(cert_file))
         .route("/setting/config/sendTestEmail", post(send_test_email))
         // —— Schema-Driven 前端的数据源 ——
         // 导出全部配置端点的表单 Schema，前端据此渲染 Element Plus 表单，
@@ -769,6 +773,66 @@ async fn upload_config_file(
     Err(AppError(nextrade_core::Error::Validation(
         "文件不能为空".into(),
     )))
+}
+
+/// `POST /adminapi/setting/config/uploadCertImg`：证件图片直传（批次B）。
+///
+/// 后台证照字段专用：本地文件直传证件私有通道，不打开素材中心、
+/// 不落 `gallery_pic`；成功返回鉴权代理路径（`/api/cert/file/<name>`，
+/// 后台读取时经 `/adminapi/cert/file/<name>` 代理）。仅接受图片类型，
+/// 单文件上限 10MB（与营业执照口径一致）。
+async fn upload_cert_img(mut multipart: Multipart) -> ApiResult<String> {
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        AppError(nextrade_core::Error::Validation(format!("解析上传表单失败: {e}")))
+    })? {
+        if field.name() != Some("file") {
+            continue;
+        }
+        let content_type = field.content_type().map(str::to_string);
+        let file_name = field.file_name().map(str::to_string);
+        let bytes = field
+            .bytes()
+            .await
+            .map_err(|e| {
+                AppError(nextrade_core::Error::Validation(format!("读取上传文件失败: {e}")))
+            })?
+            .to_vec();
+        if bytes.is_empty() {
+            return Err(AppError(nextrade_core::Error::Validation("文件不能为空".into())));
+        }
+        if bytes.len() > 10 * 1024 * 1024 {
+            return Err(AppError(nextrade_core::Error::Validation("图片大小超过 10MB 限制".into())));
+        }
+        let is_image = content_type
+            .as_deref()
+            .map(|t| t.trim().to_ascii_lowercase())
+            .is_some_and(|t| t.starts_with("image/"));
+        if !is_image {
+            return Err(AppError(nextrade_core::Error::Validation("图片规格不符合要求".into())));
+        }
+        let name = file_name.as_deref().unwrap_or("cert.jpg");
+        let url = nextrade_infrastructure::storage::save_cert_upload(name, &bytes)
+            .await
+            .map_err(AppError)?;
+        return ok(url);
+    }
+    Err(AppError(nextrade_core::Error::Validation("文件不能为空".into())))
+}
+
+/// `GET /adminapi/cert/file/{name}`：证件私有文件读取代理（批次B）。
+///
+/// 本路由位于后台 protected 组内（require_auth + 租户/权限中间件已生效），
+/// 仅登录后台账号可读；与前台 `/api/cert/file/{name}` 读同一私有目录。
+async fn cert_file(Path(name): Path<String>) -> Result<Response, AppError> {
+    let found = nextrade_infrastructure::storage::read_cert_file(&name)
+        .await
+        .map_err(AppError)?;
+    match found {
+        Some((bytes, content_type)) => {
+            Ok(([(header::CONTENT_TYPE, content_type)], bytes).into_response())
+        }
+        None => Err(AppError(nextrade_core::Error::biz(404, "文件不存在"))),
+    }
 }
 
 /// `POST /adminapi/setting/config/sendTestEmail?testMailAddress=`：发送测试邮件。

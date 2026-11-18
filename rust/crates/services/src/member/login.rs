@@ -60,12 +60,13 @@ use nextrade_common::utils::now_seconds;
 use nextrade_core::models::member::login::{
     authorize_type_from_client, auto_nickname, email_code_key, password_reset_key, quick_login_flags,
     sms_code_key, unwrap_open_data, validate_code_format, validate_email_basic, validate_reset_token,
-    wechat_state_key, BindMobileDTO, CheckEmailDTO, CheckMobileDTO, CodeParamDTO, ForgetPasswordDTO,
-    LoginWechatEventVO, QuickLoginSettingVO, RegisterEmailDTO, RegisterSmsDTO, WechatLoginUrlVO,
-    WxLoginInfoByCodeVO, ACCOUNT_CANNOT_RESET, BIND_PASSWORD_REQUIRED, CACHE_UNAVAILABLE,
-    CODE_INVALID, CODE_TTL_SECS, EMAIL_REQUIRED, IDENTITY_REQUIRED, MEMBER_TOKEN_TYPE,
-    MOBILE_REQUIRED, PASSWORD_REQUIRED, PASSWORD_UPDATE_FAILED, REGISTER_CLOSED,
-    RESET_TOKEN_INVALID, SERVICE_DATA_ERROR, SWITCH_OFF, USER_STATUS_OK, WECHAT_NOT_BOUND,
+    wechat_h5_login_flags, wechat_state_key, BindMobileDTO, CheckEmailDTO, CheckMobileDTO,
+    CodeParamDTO, ForgetPasswordDTO, LoginWechatEventVO, QuickLoginSettingVO, RegisterEmailDTO,
+    RegisterSmsDTO, WechatLoginUrlVO, WxLoginInfoByCodeVO, ACCOUNT_CANNOT_RESET,
+    BIND_PASSWORD_REQUIRED, CACHE_UNAVAILABLE, CODE_INVALID, CODE_TTL_SECS, EMAIL_REQUIRED,
+    IDENTITY_REQUIRED, MEMBER_TOKEN_TYPE, MOBILE_REQUIRED, PASSWORD_REQUIRED,
+    PASSWORD_UPDATE_FAILED, REGISTER_CLOSED, RESET_TOKEN_INVALID, SERVICE_DATA_ERROR, SWITCH_OFF,
+    SWITCH_ON, USER_STATUS_OK, WECHAT_NOT_BOUND,
 };
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::cache::CacheService;
@@ -463,9 +464,28 @@ impl LoginService {
             .and_then(|v| parse_switch(Some(v)))
             .unwrap_or(SWITCH_OFF);
         let (wechat_login, show_oauth) = quick_login_flags(client_type, oauth);
+        // 微信内 H5 登录方式（默认开启，配置缺失按 FieldSpec 默认值 1）
+        let h5_mobile = self
+            .repo()
+            .config_value("wechatH5MobileLogin")
+            .await?
+            .as_deref()
+            .and_then(|v| parse_switch(Some(v)))
+            .unwrap_or(SWITCH_ON);
+        let h5_password = self
+            .repo()
+            .config_value("wechatH5PasswordLogin")
+            .await?
+            .as_deref()
+            .and_then(|v| parse_switch(Some(v)))
+            .unwrap_or(SWITCH_ON);
+        let (wechat_h5_mobile_login, wechat_h5_password_login) =
+            wechat_h5_login_flags(client_type, h5_mobile, h5_password);
         Ok(QuickLoginSettingVO {
             wechat_login,
             show_oauth,
+            wechat_h5_mobile_login,
+            wechat_h5_password_login,
         })
     }
 

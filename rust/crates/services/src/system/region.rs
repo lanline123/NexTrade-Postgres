@@ -271,8 +271,15 @@ impl RegionService {
                 is_hot: dto.is_hot,
                 sort_order: dto.sort_order,
                 first_word,
-                // `standard_code` 不在 Java `RegionCreateDTO` 里，不写该列
-                standard_code: None,
+                // 2026-11-18 偏离 Java：DTO 新增可选 standard_code，
+                // 传非空才写（前端国家匹配依赖该列，后台需可维护）；
+                // 不传 / 空白仍不写该列，与原行为一致。
+                standard_code: dto
+                    .standard_code
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_uppercase()),
             })
             .await?;
 
@@ -356,8 +363,14 @@ impl RegionService {
             is_hot: Some(Some(is_hot)),
             sort_order: Some(Some(sort_order)),
             first_word: Some(Some(first_word)),
-            // `standard_code` **不在** Java 的 `set` 清单里 ⇒ 保持原值
-            standard_code: None,
+            // 2026-11-18 偏离 Java：DTO 传非空 standard_code 时才写，
+            // 否则保持原值（Java 的 `set` 清单本不含该列）。
+            standard_code: base
+                .standard_code
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(|s| Some(s.to_uppercase())),
         };
 
         let affected = self.repos.system.region.update(id, &patch).await?;

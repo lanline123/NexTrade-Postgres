@@ -15,6 +15,7 @@ import {
 import { IconSearch } from '@douyinfe/semi-icons';
 import ListPage from '../framework/ListPage';
 import type { ColumnConfig } from '../framework/types';
+import { apiGet, getToken } from '../api';
 import { useI18n } from '../i18n';
 import OrderDetailModal from '../components/OrderDetailModal';
 
@@ -89,6 +90,57 @@ export default function VendorOrders() {
   const [detailOrderId, setDetailOrderId] = useState<number | undefined>(undefined);
   const [markModalVisible, setMarkModalVisible] = useState(false);
   const [currentOrder, setCurrentOrder] = useState<VendorOrderRow | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  // 导出订单：复用平台订单导出框架（getExportItemList / exportItemInfo /
+  // orderExport）。供应商视角下后端会下发供货价列
+  // （vendorProductSupplyPrice / vendorProductSupplyTotal），默认全选并确保
+  // 供货价列包含在内；导出范围按当前状态页签过滤。
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const normalizeKeys = (src: unknown): string[] => {
+        if (Array.isArray(src)) {
+          return src
+            .map((item) => (item as { key?: string })?.key)
+            .filter((key): key is string => Boolean(key));
+        }
+        if (src && typeof src === 'object') return Object.keys(src);
+        return [];
+      };
+      const [all, info] = await Promise.all([
+        apiGet<unknown>('/order/order/getExportItemList'),
+        apiGet<unknown>('/order/order/exportItemInfo'),
+      ]);
+      const allKeys = normalizeKeys(all);
+      let keys = normalizeKeys(info);
+      if (!keys.length) keys = [...allKeys];
+      for (const supplyKey of ['vendorProductSupplyPrice', 'vendorProductSupplyTotal']) {
+        if (allKeys.includes(supplyKey) && !keys.includes(supplyKey)) keys.push(supplyKey);
+      }
+      if (!keys.length) {
+        Toast.error({ content: t('暂无可导出字段') });
+        return;
+      }
+      const params = new URLSearchParams();
+      if (activeTab !== '-1') params.set('orderStatus', activeTab);
+      params.set('exportItem', keys.join(','));
+      const res = await fetch(`/adminapi/order/order/orderExport?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = t('导出订单.xlsx');
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('导出失败') });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const columns: ColumnConfig<VendorOrderRow>[] = [
     {
@@ -307,6 +359,9 @@ export default function VendorOrders() {
               onClick={() => Toast.info({ content: t('已选择 {count} 项，批量打印中...', { count: rows.length }) })}
             >
               {t('批量打印')}
+            </Button>
+            <Button size="small" loading={exporting} onClick={handleExport}>
+              {t('导出订单')}
             </Button>
           </Space>
         )}

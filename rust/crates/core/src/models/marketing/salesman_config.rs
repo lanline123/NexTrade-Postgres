@@ -39,6 +39,12 @@ pub struct SalesmanConfigSaveDTO {
     pub distribution_mode: Option<i32>,
     pub recruit_methods: Option<Vec<i32>>,
     pub view_customer_info: Option<i32>,
+    /// 细粒度隐私（批次B）：可查看客户电话明文。
+    pub view_customer_mobile: Option<i32>,
+    /// 细粒度隐私（批次B）：可查看下级分销员信息。
+    pub view_sub_salesman_info: Option<i32>,
+    /// 细粒度隐私（批次B）：可查看下级电话明文。
+    pub view_sub_salesman_mobile: Option<i32>,
     pub sale_type: Option<i32>,
     pub level: Option<Value>,
     pub register_to_salesman: Option<i32>,
@@ -63,6 +69,15 @@ impl SalesmanConfigSaveDTO {
         }
         if let Some(v) = self.view_customer_info {
             map.insert("viewCustomerInfo".into(), Value::from(v));
+        }
+        if let Some(v) = self.view_customer_mobile {
+            map.insert("viewCustomerMobile".into(), Value::from(v));
+        }
+        if let Some(v) = self.view_sub_salesman_info {
+            map.insert("viewSubSalesmanInfo".into(), Value::from(v));
+        }
+        if let Some(v) = self.view_sub_salesman_mobile {
+            map.insert("viewSubSalesmanMobile".into(), Value::from(v));
         }
         if let Some(v) = self.sale_type {
             map.insert("saleType".into(), Value::from(v));
@@ -124,6 +139,11 @@ pub fn normalize_distribution_mode(value: &mut Value) -> std::result::Result<(),
 }
 
 /// 为 `salesmanConfig` 补齐 Java 默认值。
+///
+/// 批次B 三个细粒度隐私键（viewCustomerMobile / viewSubSalesmanInfo /
+/// viewSubSalesmanMobile）**不**在此写死缺省值：缺失语义即「回退总开关
+/// viewCustomerInfo」（见 salesman_admin 的 config_privacy_flag），
+/// 写死 0 会把存量配置的可见行为误关。
 #[must_use]
 pub fn with_defaults(mut value: Value) -> Value {
     let Some(obj) = value.as_object_mut() else {
@@ -201,12 +221,15 @@ mod tests {
     #[test]
     fn save_dto_round_trips_camel_case() {
         let dto: SalesmanConfigSaveDTO = serde_json::from_str(
-            r#"{"distributionMode":2,"recruitMethods":[1],"viewCustomerInfo":1,"saleType":2,"someExtra":"x"}"#,
+            r#"{"distributionMode":2,"recruitMethods":[1],"viewCustomerInfo":1,"viewCustomerMobile":0,"viewSubSalesmanInfo":1,"viewSubSalesmanMobile":0,"saleType":2,"someExtra":"x"}"#,
         )
         .unwrap();
         let v = dto.to_config_value();
         assert_eq!(v["distributionMode"], 2);
         assert_eq!(v["recruitMethods"], serde_json::json!([1]));
+        assert_eq!(v["viewCustomerMobile"], 0);
+        assert_eq!(v["viewSubSalesmanInfo"], 1);
+        assert_eq!(v["viewSubSalesmanMobile"], 0);
         assert_eq!(v["someExtra"], "x");
     }
 }

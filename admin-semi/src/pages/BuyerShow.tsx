@@ -361,6 +361,7 @@ function BuyerShowSettings() {
       title="买家秀设置"
       getApi="/setting/config/buyerShowSettings"
       saveApi="/setting/config/saveBuyerShow"
+      controls={{ buyerShowPublishNeedOrder: 'radio' }}
     />
   );
 }

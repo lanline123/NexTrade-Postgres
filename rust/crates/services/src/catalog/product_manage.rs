@@ -1065,6 +1065,12 @@ impl ProductManageService {
             .await?;
 
         let sku_list: Vec<ProductSkuVO> = skus.iter().map(to_sku_vo).collect();
+        // 默认规格预选（v5.8.63）：启用 SKU 中 is_default = 1 者（至多一个，
+        // 保存时已互斥）；checked_value 按其 sku_data 展开 `name:value`，
+        // 前端据此预选后价格 / 库存 / 规格图走既有选择联动。
+        let default_sku = skus.iter().find(|s| s.is_default != 0);
+        let checked_value = default_sku.map(sku_checked_tokens).unwrap_or_default();
+        let default_sku_id = default_sku.map(|s| s.sku_id);
         let attr_list = group_attributes(&attrs);
         let delivery_mode = product.delivery_mode;
         // 询价派生态（按最终口径的启用 SKU 推导；门店覆盖只改价/库存不改标志）
@@ -1083,7 +1089,8 @@ impl ProductManageService {
             seckill_detail: Vec::new(),
             groupon_detail: None,
             service_list: services.iter().map(to_services_vo).collect(),
-            checked_value: Vec::new(),
+            checked_value,
+            default_sku_id,
             consultation_total: None,
             exchange_info: None,
             delivery_mode,
@@ -1126,6 +1133,8 @@ impl ProductManageService {
         let db_skus = self.repos.catalog.product_manage.find_skus(product_id, true).await?;
         let db_map: HashMap<i32, ProductSku> =
             db_skus.iter().map(|s| (s.sku_id, s.clone())).collect();
+        // 本次提交中显式设为默认的 SKU id（按提交顺序，收尾互斥时后者优先）
+        let mut default_intent: Vec<i32> = Vec::new();
         let disabled_values: HashSet<String> = db_skus
             .iter()
             .filter(|s| s.is_enabled == 0)
@@ -1146,6 +1155,9 @@ impl ProductManageService {
             for item in adds {
                 let mut sku = build_sku_from_dto(item, product_id, None)?;
                 let sku_id = self.repos.catalog.product_manage.insert_sku(&sku).await?;
+                if sku.is_default != 0 {
+                    default_intent.push(sku_id);
+                }
                 if sku.sku_sn.as_deref().is_none_or(str::is_empty) {
                     let generated = format!("{}-{sku_id}", product.product_sn);
                     self.repos.catalog.product_manage.update_sku_sn(sku_id, &generated).await?;
@@ -1209,11 +1221,18 @@ impl ProductManageService {
                 if let Some(v) = item.is_inquiry {
                     preserved.is_inquiry = i32::from(v != 0);
                 }
+                // 默认规格同为编辑器独立开关，提交了就按提交值落库
+                if let Some(v) = item.is_default {
+                    preserved.is_default = i32::from(v != 0);
+                }
                 preserved
             } else {
                 build_sku_from_dto(item, product_id, Some(db_sku))?
             };
             self.repos.catalog.product_manage.update_sku(&merged).await?;
+            if item.is_default.is_some_and(|v| v != 0) && merged.is_default != 0 {
+                default_intent.push(sku_id);
+            }
             let old = db_sku.sku_stock.unwrap_or(0);
             let new = merged.sku_stock.unwrap_or(0);
             if old != new {
@@ -1233,6 +1252,35 @@ impl ProductManageService {
                 };
                 self.repos.catalog.product_manage.insert_inventory_log(&log).await?;
             }
+        }
+
+        // — 默认规格互斥（v5.8.63）：同商品至多一个「启用」SKU 为默认 —
+        // 本次提交显式指定者优先（多个时取最后指定）；否则保留现存
+        // 启用默认行中 sku_id 最小者；其余（含禁用行上的残留默认）全部清零。
+        let all_skus = self.repos.catalog.product_manage.find_skus(product_id, true).await?;
+        if all_skus.iter().any(|s| s.is_default != 0) {
+            let keep = default_intent
+                .iter()
+                .rev()
+                .find(|id| {
+                    all_skus
+                        .iter()
+                        .any(|s| s.sku_id == **id && s.is_enabled != 0 && s.is_default != 0)
+                })
+                .copied()
+                .or_else(|| {
+                    all_skus
+                        .iter()
+                        .filter(|s| s.is_enabled != 0 && s.is_default != 0)
+                        .map(|s| s.sku_id)
+                        .min()
+                })
+                .unwrap_or(0);
+            self.repos
+                .catalog
+                .product_manage
+                .clear_sku_defaults_except(product_id, keep)
+                .await?;
         }
 
         // — 汇总回写（Java `updateProductSkuSummary`）—
@@ -2230,6 +2278,30 @@ fn to_admin_detail(
     }
 }
 
+/// 默认规格的预选 token（Java `checkedValue` 口径：`sku_data` 的
+/// `{name, value}` 逐项展开为 `name:value`；数据缺失 / 非法 JSON 时为空）。
+fn sku_checked_tokens(s: &ProductSku) -> Vec<String> {
+    let Some(raw) = s.sku_data.as_deref() else {
+        return Vec::new();
+    };
+    let Ok(serde_json::Value::Array(items)) = serde_json::from_str::<serde_json::Value>(raw)
+    else {
+        return Vec::new();
+    };
+    items
+        .iter()
+        .filter_map(|item| {
+            let name = item.get("name")?.as_str()?;
+            let value = item.get("value")?.as_str()?;
+            if name.is_empty() || value.is_empty() {
+                None
+            } else {
+                Some(format!("{name}:{value}"))
+            }
+        })
+        .collect()
+}
+
 /// 规格实体 → VO。
 fn to_sku_vo(s: &ProductSku) -> ProductSkuVO {
     ProductSkuVO {
@@ -2247,6 +2319,7 @@ fn to_sku_vo(s: &ProductSku) -> ProductSkuVO {
         sku_volume: s.sku_volume,
         sku_price: s.sku_price,
         is_inquiry: s.is_inquiry,
+        is_default: s.is_default,
         is_enabled: s.is_enabled,
         market_price: s.market_price,
         cost_price: s.cost_price,
@@ -2286,6 +2359,11 @@ fn build_sku_from_dto(
             .is_inquiry
             .map(|v| i32::from(v != 0))
             .unwrap_or(base.is_inquiry),
+        // 默认规格标志归一化为 0/1；不传保持库中原值（互斥清零在 sync_skus 收尾）
+        is_default: item
+            .is_default
+            .map(|v| i32::from(v != 0))
+            .unwrap_or(base.is_default),
         sku_weight: item.sku_weight.or(base.sku_weight),
         sku_volume: item.sku_volume.or(base.sku_volume),
         is_enabled: normalize_sku_enabled(item.is_enabled)?,
@@ -2997,5 +3075,20 @@ mod tests {
         assert_eq!(read_back[1][0], "SN001");
         assert_eq!(read_back[1][1], "测试商品1");
         assert_eq!(read_back[2][0], "SN002");
+    }
+
+    #[test]
+    fn sku_checked_tokens_expand_sku_data_name_value() {
+        let mut sku = ProductSku::default();
+        assert!(sku_checked_tokens(&sku).is_empty(), "无 sku_data 时为空");
+        sku.sku_data = Some(
+            "[{\"name\":\"颜色\",\"value\":\"红色\"},{\"name\":\"尺码\",\"value\":\"XL\"}]".into(),
+        );
+        assert_eq!(sku_checked_tokens(&sku), vec!["颜色:红色", "尺码:XL"]);
+        // 非法 JSON / 空值项不产出 token
+        sku.sku_data = Some("not-json".into());
+        assert!(sku_checked_tokens(&sku).is_empty());
+        sku.sku_data = Some("[{\"name\":\"颜色\",\"value\":\"\"}]".into());
+        assert!(sku_checked_tokens(&sku).is_empty());
     }
 }

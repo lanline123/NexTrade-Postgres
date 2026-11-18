@@ -7,21 +7,25 @@ import LoadingBox from "@/components/loading-box";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import TigLoadingPage from "@/components/tig/tig-loadingpage/index";
 import Checkbox from "@/pages/cart/src/Checkbox";
-import { delAddress, getAddressList, selectedAddress, updateAddressData } from "@/api/user/address";
+import { addAddressData, delAddress, getAddressList, selectedAddress, updateAddressData } from "@/api/user/address";
 import type { AddressFilterResult } from "@/types/user/address";
 import useList from "@/hooks/useList";
+import { useRegionStore } from "@/store/region";
 import { useThemeStore } from "@/store/theme";
 import { copy, isOverseas, mobileConceal, prevRoute } from "@/utils";
 import { t } from "@/utils/i18n";
 import { usePageGuards } from "@/utils/pageMixin";
+// 【批次D · 小程序一键获取收货地址】微信地址导入（仅 weapp 可用）
+import { importWechatAddress, openWechatAddressSetting } from "@/utils/wechatAddress";
 
 import "./list.scss";
 
 /**
  * 收货地址列表页（自旧 pages/address/list.vue 移植）
- * - 展示用户所有收货地址
- * - 勾选「默认地址」写入 isDefault；点击卡片设置当前选中地址 isSelected
- * - 订单结算时可选择地址返回
+ * - 展示用户所有收货地址，默认地址（isDefault）恒置顶并带「默认」徽标
+ * - 勾选「默认地址」写入 isDefault（仅地址管理模式；结算选址模式不可改默认）
+ * - 订单结算选址（selecting 模式）只改本地态（region store + 事件回传），
+ *   不再持久化 is_selected（批次B：选址仅对当前订单生效）
  */
 export default function AddressList() {
     usePageGuards();
@@ -83,10 +87,10 @@ export default function AddressList() {
     });
 
     const displayAddressList = useMemo(
-        () =>
-            isSelectingAddress ? addressList : [...addressList].sort((left, right) => Number(right.isDefault === 1) - Number(left.isDefault === 1)),
+        // 批次B：两种模式都按默认地址置顶（此前 selecting 模式不置顶）。
+        () => [...addressList].sort((left, right) => Number(right.isDefault === 1) - Number(left.isDefault === 1)),
         // listVersion 参与依赖：默认地址切换后列表项就地改写，需要重算排序
-        [isSelectingAddress, addressList, listVersion]
+        [addressList, listVersion]
     );
 
     // 旧 onLoad：结算页进入时打标，并注册地址刷新全局事件
@@ -156,6 +160,70 @@ export default function AddressList() {
         });
     };
 
+    // ===== 【批次D】微信收货地址快捷导入（仅 weapp 显示入口） =====
+    // 与编辑页入口的区别：此处导入后直接调新增地址接口保存并刷新列表；
+    // 结算选址进入时（isSelectingAddress）保存后顺带设为当前选中地址并返回。
+    // 地区未匹配时不落库（保存接口要求 regionIds），提示改走编辑页导入后手选地区。
+    const handleImportWechatAddress = async () => {
+        const result = await importWechatAddress();
+        if (result.status === "cancelled") return;
+        if (result.status === "denied") {
+            Taro.showModal({
+                title: t("提示"),
+                content: t("需要授权获取微信收货地址，可在设置中开启"),
+                confirmText: t("去设置"),
+                cancelText: t("取消"),
+                success: (res) => {
+                    if (res.confirm) openWechatAddressSetting();
+                }
+            });
+            return;
+        }
+        if (result.status !== "ok") {
+            Taro.showToast({ title: t("当前环境不支持微信地址导入"), icon: "none" });
+            return;
+        }
+
+        const imported = result.address;
+        if (!imported.regionMatched) {
+            Taro.showToast({ title: t("地区自动匹配未完成，请通过编辑页导入后手动选择地区"), icon: "none", duration: 2500 });
+            return;
+        }
+
+        Taro.showLoading({ title: t("保存中") });
+        try {
+            const created: any = await addAddressData({
+                consignee: imported.consignee,
+                mobile: imported.mobile,
+                mobileAreaCode: "86",
+                countryCode: imported.countryCode,
+                regionIds: imported.regionIds,
+                regionNames: imported.regionNames.join(" "),
+                address: imported.detailInfo,
+                postcode: imported.postalCode,
+                isDefault: 0
+            });
+            Taro.showToast({ title: t("已导入微信收货地址"), icon: "none" });
+
+            const newId = Number(created?.addressId ?? created?.id ?? 0);
+            if (isSelectingAddress && newId > 0) {
+                // 合并拼接（批次B×D）：结算选址只改本地态、不落库 is_selected，
+                // 与卡片点选同一口径——写 region store + 事件带 id 回传结算页。
+                useRegionStore.getState().setCurrentSelectedAddressId(newId);
+                Taro.eventCenter.trigger("refreshAddress", newId);
+                Taro.navigateBack();
+                return;
+            }
+            filterParams.current.page = 1;
+            void getList();
+        } catch (error: any) {
+            console.error(error);
+            Taro.showToast({ title: error?.message || t("保存失败，请重试"), icon: "none" });
+        } finally {
+            Taro.hideLoading();
+        }
+    };
+
     const handleSetDefault = async (addressId: number) => {
         if (!addressId) return;
         const current = addressList.find((item) => item.addressId === addressId);
@@ -200,19 +268,21 @@ export default function AddressList() {
     };
 
     const __selectedAddress = async (id: number) => {
+        const page = prevRoute();
+        // 批次B：结算选址只改本地态，不持久化。
+        // 结算页 getAddressListData 优先按 region store 的
+        // currentSelectedAddressId 精确匹配，这里写入后经事件回传即可。
+        if (page && page === "pages/order/check") {
+            useRegionStore.getState().setCurrentSelectedAddressId(id);
+            Taro.eventCenter.trigger("refreshAddress", id);
+            Taro.navigateBack();
+            return;
+        }
         Taro.showLoading({
             title: t("切换中")
         });
-        const page = prevRoute();
         try {
             await selectedAddress({ id });
-
-            if (page && page === "pages/order/check") {
-                Taro.eventCenter.trigger("refreshAddress");
-                Taro.navigateBack();
-                return;
-            }
-
             filterParams.current.page = 1;
             void getList();
         } catch (error: any) {
@@ -240,6 +310,7 @@ export default function AddressList() {
                             <View className="address-item-middle">
                                 <View className="user-info">
                                     <View className="name">{item.consignee}</View>
+                                    {item.isDefault === 1 && <View className="default-badge">{t("默认")}</View>}
                                     {item.addressTag && <View className="address-tag">{item.addressTag}</View>}
                                     <View className="phone">{displayMobile(item)}</View>
                                     {/* 跨境无效地址标记：数据驱动（后端返回 isInvalid 才展示），国内构建整段裁切 */}
@@ -259,10 +330,13 @@ export default function AddressList() {
                                 </View>
                             </View>
                             <View className="operation">
-                                <View className="address-check" onClick={(e) => e.stopPropagation()}>
-                                    <Checkbox shape="square" checked={item.addressId === isDefaultId} onChange={() => handleSetDefault(item.addressId)} />
-                                    <Text className="u-radio__text">{t("默认地址")}</Text>
-                                </View>
+                                {/* 批次B：结算选址模式下不可改默认，隐藏默认勾选（改默认只在地址管理页）。 */}
+                                {!isSelectingAddress && (
+                                    <View className="address-check" onClick={(e) => e.stopPropagation()}>
+                                        <Checkbox shape="square" checked={item.addressId === isDefaultId} onChange={() => handleSetDefault(item.addressId)} />
+                                        <Text className="u-radio__text">{t("默认地址")}</Text>
+                                    </View>
+                                )}
                                 <View className="btn-wrap">
                                     <View
                                         className="icon"
@@ -301,6 +375,12 @@ export default function AddressList() {
             {/* TODO(MIGRATION)：tig-button2 尚无 React 版，按主题色实底按钮等价重写 */}
             <View className="btn-fixed-placeholder">
                 <View className="btn-box">
+                    {/* 【批次D】微信收货地址快捷导入：仅小程序端渲染，H5 不出现 */}
+                    {process.env.TARO_ENV === "weapp" && (
+                        <View className="btn btn--wechat" style="height: 73rpx" onClick={() => void handleImportWechatAddress()}>
+                            {t("导入微信收货地址")}
+                        </View>
+                    )}
                     <View className="btn" style="height: 73rpx" onClick={handleAdd}>
                         <Text className="iconfont-h5 icon-jia" style="margin-right: 10rpx" />
                         {t("添加新地址")}

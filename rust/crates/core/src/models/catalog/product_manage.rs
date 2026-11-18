@@ -300,6 +300,8 @@ pub struct ProductSkuVO {
     pub sku_price: Option<Decimal>,
     /// 是否询价型号：0 否 1 是（2026-11-15；与商品级标志任一为 1 即询价）
     pub is_inquiry: i32,
+    /// 是否默认规格：0 否 1 是（2026-11-18；同商品至多一个，详情页预选用）
+    pub is_default: i32,
     /// 是否启用：0 禁用 1 启用
     pub is_enabled: i32,
     pub market_price: Option<Decimal>,
@@ -335,6 +337,9 @@ pub struct ProductSkuSaveDTO {
     pub sku_price: Option<Decimal>,
     /// 是否询价型号：0 否 1 是（2026-11-15 新增，不传 = 保持库中原值）
     pub is_inquiry: Option<i32>,
+    /// 是否默认规格：0 否 1 是（2026-11-18 新增，不传 = 保持库中原值；
+    /// 传 1 时同商品其它 SKU 的默认标志由服务层互斥清零）
+    pub is_default: Option<i32>,
     pub is_enabled: Option<i32>,
     pub market_price: Option<Decimal>,
     pub cost_price: Option<Decimal>,
@@ -930,8 +935,11 @@ pub struct ClientProductDetailVO {
     /// 未迁移：拼团详情（依赖拼团域）
     pub groupon_detail: Option<serde_json::Value>,
     pub service_list: Vec<ServicesVO>,
-    /// 未迁移：默认勾选属性（依赖 SKU 规格解析）
+    /// 默认勾选属性（默认规格 SKU 的 `sku_data` 展开为 `name:value` 串，
+    /// 与 Java `checkedValue` 同口径；无默认规格时为空）
     pub checked_value: Vec<String>,
+    /// 默认规格 SKU id（`product_sku.is_default = 1` 的启用行；无则空）
+    pub default_sku_id: Option<i32>,
     /// 未迁移：咨询总数（依赖反馈域）
     pub consultation_total: Option<i32>,
     /// 未迁移：积分兑换信息（依赖积分域）

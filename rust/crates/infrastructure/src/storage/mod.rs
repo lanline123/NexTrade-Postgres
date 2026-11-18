@@ -414,6 +414,97 @@ pub async fn save_local_upload(kind: &str, original_name: &str, bytes: &[u8]) ->
         .await
 }
 
+/// 证件私有目录（与公开上传目录分离，不被 `/static` 的 ServeDir 托管）。
+///
+/// 取 `NEXTTRADE_FILE__PRIVATE_DIR`，缺省为公开目录的同级 `<upload_root>-private`。
+#[must_use]
+pub fn private_root() -> String {
+    std::env::var("NEXTTRADE_FILE__PRIVATE_DIR")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| format!("{}-private", upload_root().trim_end_matches('/')))
+}
+
+/// 证件文件访问代理前缀：存入业务字段的是该代理路径而非文件直链，
+/// 实际读取必须经 `/api/cert/file/<name>`（会员登录）或
+/// `/adminapi/cert/file/<name>`（后台登录）两个鉴权端点。
+pub const CERT_FILE_URL_PREFIX: &str = "/api/cert/file/";
+
+/// 保存证件类文件（身份证 / 营业执照等敏感图片）到私有目录。
+///
+/// 与 [`save_local_upload`] 的关键差异：
+/// - 永远写本地私有目录（不走 OSS/COS/S3 公开读管线、不返回公开 URL），
+///   也不落 `gallery_pic` 素材表；
+/// - 文件名由时间纳秒 + 进程内序号 + 原文件名摘要做 MD5 后生成，
+///   不可枚举猜测；
+/// - 返回值是鉴权代理路径（见 [`CERT_FILE_URL_PREFIX`]）。
+///
+/// # Errors
+/// 目录创建 / 文件写入失败时返回内部错误。
+pub async fn save_cert_upload(original_name: &str, bytes: &[u8]) -> Result<String> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+
+    let ext = std::path::Path::new(original_name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .filter(|e| !e.is_empty() && e.len() <= 8 && e.chars().all(|c| c.is_ascii_alphanumeric()))
+        .unwrap_or_else(|| "bin".to_string());
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+    let seed = format!("{nanos}:{seq}:{}:{original_name}", std::process::id());
+    let digest = Md5::digest(seed.as_bytes());
+    let name = format!("{:x}.{ext}", digest);
+    let dir = std::path::Path::new(&private_root()).join("cert");
+    tokio::fs::create_dir_all(&dir)
+        .await
+        .map_err(|e| Error::Internal(format!("创建证件目录失败: {e}")))?;
+    tokio::fs::write(dir.join(&name), bytes)
+        .await
+        .map_err(|e| Error::Internal(format!("写入证件文件失败: {e}")))?;
+    Ok(format!("{CERT_FILE_URL_PREFIX}{name}"))
+}
+
+/// 读取证件私有文件（供鉴权代理端点调用）。
+///
+/// `name` 必须是单个文件名（拒绝路径分隔符与 `..`）；不存在返回 `Ok(None)`。
+/// 返回 `(字节, Content-Type)`。
+pub async fn read_cert_file(name: &str) -> Result<Option<(Vec<u8>, &'static str)>> {
+    if name.is_empty()
+        || name.contains('/')
+        || name.contains('\\')
+        || name.contains("..")
+        || !name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
+    {
+        return Err(Error::Validation(format!("非法证件文件名: {name}")));
+    }
+    let path = std::path::Path::new(&private_root()).join("cert").join(name);
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => {
+            let ext = std::path::Path::new(name)
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.to_ascii_lowercase())
+                .unwrap_or_default();
+            Ok(Some((bytes, content_type_for(&ext))))
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(Error::Internal(format!("读取证件文件失败: {e}"))),
+    }
+}
+
+/// 判断一个 URL 是否为证件代理路径（前端/服务层分流用）。
+#[must_use]
+pub fn is_cert_file_url(url: &str) -> bool {
+    url.contains("/cert/file/")
+}
+
 /// 按扩展名推断上传 Content-Type（OSS 访问/浏览器展示需要）。
 #[must_use]
 pub fn content_type_for(ext: &str) -> &'static str {
@@ -510,6 +601,23 @@ mod tests {
         );
         let url = cos.put("video/clip.mp4", vec![1, 2, 3], "video/mp4").await.unwrap();
         assert_eq!(url, "https://nextrade-test-123456.cos.ap-guangzhou.myqcloud.com/video/clip.mp4");
+    }
+
+    #[tokio::test]
+    async fn test_cert_upload_roundtrip_and_traversal_guard() {
+        let url = save_cert_upload("license.jpg", b"fake-jpeg").await.unwrap();
+        assert!(url.starts_with(CERT_FILE_URL_PREFIX));
+        assert!(is_cert_file_url(&url));
+        let name = url.trim_start_matches(CERT_FILE_URL_PREFIX);
+        assert!(!name.contains("license"));
+        let (bytes, ct) = read_cert_file(name).await.unwrap().expect("cert file exists");
+        assert_eq!(bytes, b"fake-jpeg");
+        assert_eq!(ct, "image/jpeg");
+        assert!(read_cert_file("../secret.txt").await.is_err());
+        assert!(read_cert_file("a/b.jpg").await.is_err());
+        assert!(read_cert_file("missing-000.jpg").await.unwrap().is_none());
+        let path = std::path::Path::new(&private_root()).join("cert").join(name);
+        let _ = tokio::fs::remove_file(path).await;
     }
 
     #[tokio::test]

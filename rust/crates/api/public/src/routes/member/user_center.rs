@@ -49,8 +49,10 @@
 use std::collections::HashMap;
 
 use axum::{
-    extract::{Multipart, Query, State},
+    extract::{Multipart, Path, Query, State},
+    http::{header, HeaderMap},
     middleware,
+    response::{IntoResponse, Response},
     routing::{get, post},
     Extension, Json, Router,
 };
@@ -122,7 +124,11 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/user/user/levelList", get(level_list))
         .route("/user/user/levelInfo", get(level_info));
 
-    authorized.merge(anonymous)
+    // 证件私有文件读取代理（批次B）：自带 JWT 校验（Header / Cookie /
+    // `?token=` 三选一，`?token=` 供 <img> 直显场景），不套公开组中间件。
+    let cert_file = Router::new().route("/cert/file/{name}", get(cert_file));
+
+    authorized.merge(anonymous).merge(cert_file)
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -439,8 +445,67 @@ async fn upload_img(
         .params
         .get("hidden")
         .is_some_and(|v| v.eq_ignore_ascii_case("true") || v == "1");
+    let _ = is_hidden;
+    // 批次B：证件类上传带 purpose=cert 时走私有通道（服务层分流）。
+    let purpose = form.params.get("purpose").map(String::as_str);
     ok(state.member.user_center
-        .upload_img(form.file_name.as_deref(), &form.bytes, is_hidden).await?)
+        .upload_img_with_purpose(form.file_name.as_deref(), &form.bytes, purpose).await?)
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default)]
+struct CertFileQuery {
+    token: Option<String>,
+}
+
+/// `GET /api/cert/file/{name}`：证件私有文件读取代理（批次B）。
+///
+/// 鉴权口径（最小可行）：必须携带有效 JWT（`Authorization: Bearer`、
+/// 登录 Cookie 或 `?token=` 任一），匿名一律 401。文件名含不可猜测的
+/// 摘要（见 storage `save_cert_upload`）。未做「文件-上传者」归属绑定，
+/// 即任意已登录用户拿到完整文件名仍可读取——残余风险见批次B报告。
+async fn cert_file(
+    State(state): State<PublicState>,
+    Path(name): Path<String>,
+    Query(q): Query<CertFileQuery>,
+    headers: HeaderMap,
+) -> Result<Response, AppError> {
+    let header_token = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let cookie_token = headers
+        .get(header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|raw| {
+            raw.split(';').find_map(|pair| {
+                let (k, v) = pair.split_once('=')?;
+                matches!(k.trim(), "accessToken" | "token" | "adminToken")
+                    .then(|| v.trim().trim_matches('"').to_string())
+                    .filter(|s| !s.is_empty() && s != "null")
+            })
+        });
+    let bearer = match (header_token, q.token.clone(), cookie_token) {
+        (Some(h), _, _) if !h.trim().is_empty() => Some(h),
+        (_, Some(t), _) if !t.trim().is_empty() => Some(format!("Bearer {t}")),
+        (_, _, Some(c)) => Some(format!("Bearer {c}")),
+        _ => None,
+    };
+    state
+        .jwt
+        .from_authorization(bearer.as_deref())
+        .map_err(AppError)?;
+    let found = nextrade_infrastructure::storage::read_cert_file(&name)
+        .await
+        .map_err(AppError)?;
+    match found {
+        Some((bytes, content_type)) => Ok((
+            [(header::CONTENT_TYPE, content_type)],
+            bytes,
+        )
+            .into_response()),
+        None => Err(AppError(nextrade_core::Error::biz(404, "文件不存在"))),
+    }
 }
 
 /// `POST /api/user/user/uploadVideo`：上传视频（`multipart/form-data`）。

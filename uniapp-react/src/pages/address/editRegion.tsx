@@ -25,6 +25,8 @@ import {
 } from "@/utils/crossBorderAddress";
 import { t } from "@/utils/i18n";
 import { usePageGuards } from "@/utils/pageMixin";
+// 【批次D · 小程序一键获取收货地址】微信地址导入（仅 weapp 可用）
+import { importWechatAddress, openWechatAddressSetting } from "@/utils/wechatAddress";
 import { isPostcodeValid } from "./utils/postcode";
 
 import "./editRegion.scss";
@@ -438,6 +440,77 @@ export default function EditRegion() {
         selectCountry(countryOptionsRef.current[Math.max(index, 0)], Math.max(index, 0));
     };
 
+    // ===== 【批次D】微信收货地址导入（仅 weapp 显示入口） =====
+    // 导入后只回填表单，仍走页面原有保存流程；地区匹配失败时其余字段照常
+    // 回填、regionIds 留空并提示用户手动选择所在地区，不阻断导入。
+    const handleImportWechatAddress = async () => {
+        const result = await importWechatAddress();
+        if (result.status === "cancelled") return;
+        if (result.status === "denied") {
+            Taro.showModal({
+                title: t("提示"),
+                content: t("需要授权获取微信收货地址，可在设置中开启"),
+                confirmText: t("去设置"),
+                cancelText: t("取消"),
+                success: (res) => {
+                    if (res.confirm) openWechatAddressSetting();
+                }
+            });
+            return;
+        }
+        if (result.status !== "ok") {
+            Taro.showToast({ title: t("当前环境不支持微信地址导入"), icon: "none" });
+            return;
+        }
+
+        const imported = result.address;
+        const form = formRef.current;
+        form.consignee = imported.consignee;
+        form.mobile = imported.mobile;
+        form.countryCode = "CN";
+        form.mobileAreaCode = "86";
+
+        if (isOverseasMode) {
+            // 微信地址恒为国内地址：先切到 CN 国家选项，再回填跨境字段并按
+            // 匹配到的 regionIds 恢复动态地区层级（与编辑回填同一路径）。
+            const cnIndex = countryOptionsRef.current.findIndex((country) => country.code === "CN");
+            const cnCountry = countryOptionsRef.current[cnIndex];
+            if (cnCountry) {
+                countryIndexRef.current = cnIndex;
+                setCountryLabel(cnCountry.labelName);
+                setSelectedCountryRootId(cnCountry.regionId);
+            }
+            crossBorderFieldsRef.current = emptyCrossBorderAddressFields();
+            crossBorderFieldsRef.current.province = imported.provinceName;
+            crossBorderFieldsRef.current.city = imported.cityName;
+            crossBorderFieldsRef.current.district = imported.countyName;
+            crossBorderFieldsRef.current.address = imported.detailInfo;
+            crossBorderFieldsRef.current.postcode = imported.postalCode;
+            form.regionIds = imported.regionMatched ? [...imported.regionIds] : [];
+            form.regionNames = imported.regionMatched ? imported.regionNames.join(" ") : "";
+            if (cnCountry?.regionId) {
+                await initializeDynamicRegions(
+                    imported.regionMatched ? imported.regionIds.map(String) : [],
+                    imported.regionMatched ? imported.regionNames : []
+                );
+            }
+        } else {
+            form.postcode = imported.postalCode;
+            form.address = imported.detailInfo;
+            form.regionIds = imported.regionMatched ? [...imported.regionIds] : [];
+            form.regionNames = imported.regionMatched
+                ? imported.regionNames.join(" ")
+                : [imported.provinceName, imported.cityName, imported.countyName].filter(Boolean).join(" ");
+        }
+
+        if (imported.regionMatched) {
+            Taro.showToast({ title: t("已导入微信收货地址"), icon: "none" });
+        } else {
+            Taro.showToast({ title: t("地区自动匹配未完成，请手动选择所在地区"), icon: "none", duration: 2500 });
+        }
+        rerender();
+    };
+
     // ===== 地址标签 =====
     const selectPresetTag = (tag: string) => {
         setIsCustomTag(false);
@@ -767,6 +840,13 @@ export default function EditRegion() {
             >
                 <View className="address-edit-main">
                     <View className="address-edit-content" data-form-rev="dzIyODJ6bHU">
+                        {/* 【批次D】微信收货地址导入入口：仅小程序端渲染，H5 不出现 */}
+                        {process.env.TARO_ENV === "weapp" && (
+                            <View className="wechat-address-import" onClick={() => void handleImportWechatAddress()}>
+                                <Text className="wechat-address-import__text">{t("导入微信收货地址")}</Text>
+                            </View>
+                        )}
+
                         {isOverseasMode && (
                             <FormItem label={t("国家/地区")}>
                                 <View className="country-row" onClick={openCountryPicker}>

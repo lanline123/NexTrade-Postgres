@@ -123,6 +123,8 @@ const DEFAULT_SORT_ORDER: i32 = 0;
 const CFG_STORAGE_TYPE: &str = "storageType";
 /// H5 域名配置键（Java `SettingsEnum.H5_DOMAIN.bizCode`）。
 const CFG_H5_DOMAIN: &str = "h5Domain";
+/// 买家秀发布是否要求已下单（NexTrade 扩展配置键，默认 0 = 不要求）。
+const CFG_BUYER_SHOW_PUBLISH_NEED_ORDER: &str = "buyerShowPublishNeedOrder";
 
 /// 存储类型：本地存储（Java `StorageType.STORAGE_LOCAL`，`code = "0"`）。
 const STORAGE_LOCAL: &str = "0";
@@ -549,6 +551,22 @@ impl BuyerShowClientService {
         }
         if param.img_list.is_empty() && param.buyer_show_video_list.is_empty() {
             return Err(Error::biz(SERVICE_DATA_ERROR, ERR_EMPTY_MEDIA));
+        }
+
+        // 发布条件开关（后台「买家秀设置」buyerShowPublishNeedOrder）：
+        // 开启时仅有有效订单（已下单未取消，含已完成）的用户可发布。
+        let need_order = self
+            .repo()
+            .find_config_val(CFG_BUYER_SHOW_PUBLISH_NEED_ORDER)
+            .await?
+            .as_deref()
+            .map(str::trim)
+            == Some("1");
+        if need_order && !self.repo().user_has_valid_order(user_id).await? {
+            return Err(Error::biz(
+                SERVICE_DATA_ERROR,
+                "发布买家秀需要先下单购买商品",
+            ));
         }
 
         let user = self
@@ -1619,6 +1637,10 @@ mod tests {
         // 本项目 `pure.sql` 种子值：storageType = '1'（阿里云 OSS）→ default 分支
         assert_eq!(CFG_STORAGE_TYPE, "storageType");
         assert_eq!(CFG_H5_DOMAIN, "h5Domain");
+        assert_eq!(
+            CFG_BUYER_SHOW_PUBLISH_NEED_ORDER,
+            "buyerShowPublishNeedOrder"
+        );
     }
 
     #[test]

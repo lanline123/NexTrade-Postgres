@@ -977,6 +977,11 @@ pub struct ProductSku {
     /// 与商品级 `product.is_inquiry` 任一为 1 即该型号询价）
     #[sqlx(default)]
     pub is_inquiry: i32,
+    /// 是否默认规格：0 否 1 是（2026-11-18 加列，v5.8.63 默认规格）；
+    /// 同一商品最多一行 = 1（保存时后端互斥清零兜底），详情页据此
+    /// 预选规格（价格 / 库存 / 规格图随所选 SKU 联动）。
+    #[sqlx(default)]
+    pub is_default: i32,
 }
 
 impl ProductSku {

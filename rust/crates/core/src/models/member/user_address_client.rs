@@ -400,6 +400,19 @@ pub struct UserAddressCreateDTO {
     /// 经度。
     #[serde(default, deserialize_with = "tolerant_opt_f64")]
     pub longitude: Option<f64>,
+    /// 国家/地区标准代码（跨境地址，2026-11-18 补齐贯通；
+    /// 此前 DTO 无此字段，H5/PC 传入被 serde 静默丢弃）。
+    pub country_code: Option<String>,
+    /// 国家/地区名称（跨境地址）。
+    pub country_name: Option<String>,
+    /// 地区名数组（跨境文本地区时由前端给出，优先于地区树反查）。
+    pub region_names: Option<Vec<String>>,
+    /// 结构化地址数据（跨境地址 `address_data`，JSON 对象）。
+    pub address_data: Option<serde_json::Value>,
+    /// 服务端展示用完整地址（前端可给组装结果）。
+    pub formatted_address: Option<String>,
+    /// 国际手机号（E.164 形式，如 +12025550123）。
+    pub international_mobile: Option<String>,
 }
 
 /// 更新入参（Java `UserAddressUpdateDTO`）。
@@ -451,6 +464,18 @@ pub struct UserAddressUpdateDTO {
     /// 是否系统地址。
     #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub is_system: Option<i32>,
+    /// 国家/地区标准代码（跨境地址，2026-11-18 补齐贯通；不传 = 保持原值）。
+    pub country_code: Option<String>,
+    /// 国家/地区名称（跨境地址）。
+    pub country_name: Option<String>,
+    /// 地区名数组（跨境文本地区时由前端给出）。
+    pub region_names: Option<Vec<String>>,
+    /// 结构化地址数据（跨境地址 `address_data`，JSON 对象）。
+    pub address_data: Option<serde_json::Value>,
+    /// 服务端展示用完整地址。
+    pub formatted_address: Option<String>,
+    /// 国际手机号（E.164 形式）。
+    pub international_mobile: Option<String>,
 }
 
 /// 单条操作入参（Java 公共 `OperateDTO` / `setSelected` 的 id 视角）。
@@ -511,6 +536,16 @@ pub struct UserAddressVO {
     /// 是否系统添加。
     #[serde(default, deserialize_with = "tolerant_opt_i32")]
     pub is_system: Option<i32>,
+    /// 国家/地区标准代码（跨境地址；2026-11-18 补齐回显）。
+    pub country_code: Option<String>,
+    /// 国家/地区名称（跨境地址）。
+    pub country_name: Option<String>,
+    /// 结构化地址数据（跨境地址 `address_data`，JSON 对象）。
+    pub address_data: Option<serde_json::Value>,
+    /// 服务端展示用完整地址。
+    pub formatted_address: Option<String>,
+    /// 国际手机号（E.164 形式）。
+    pub international_mobile: Option<String>,
 }
 
 /// 常用标签列表（Java `getAddressTagList`）。

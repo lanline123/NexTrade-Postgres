@@ -17,8 +17,7 @@
 //! - `del` / `batch`：软删（`is_delete=1`）；`batch` 仅支持 `del`。
 //! - `updateField`：白名单 `status`（Java `GENERAL_FIELDS` 中 `merchant`
 //!   表唯一实存列），非法字段抛 `field 的值有误`。
-//! - `uploadLicense`：水印 / 内容类型 / 对象存储依赖未迁移 → 业务错误
-//!   （CLIENT 应改用既有文件上传后回填 `merchantData.businessLicenseImg`）。
+//! - `uploadLicense`：批次B 已迁移，走证件私有通道直传（水印仍未迁移）。
 //!
 //! # 与 Java 的差异
 //! 1. `create` 不创建 `admin_user` / `merchant_user` 关联（Java 涉及邀请码、
@@ -35,8 +34,7 @@ use nextrade_core::models::merchant::merchant::{
     base_field_i32, base_field_str, format_time, normalize_field, status_text, type_text,
     BatchDTO, MerchantAdminVO, MerchantCreateDTO, MerchantListQuery, MerchantUpdateDTO,
     MerchantUserVO, MerchantVO, OperateDTO, UpdateFieldDTO, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE,
-    MSG_ID_REQUIRED, MSG_INVALID_FIELD_VALUE, MSG_LICENSE_UNAVAILABLE, MSG_MERCHANT_NOT_FOUND,
-    STATUS_NORMAL,
+    MSG_ID_REQUIRED, MSG_INVALID_FIELD_VALUE, MSG_MERCHANT_NOT_FOUND, STATUS_NORMAL,
 };
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
@@ -335,12 +333,27 @@ impl MerchantService {
         Ok(affected > 0)
     }
 
-    /// 营业执照上传（Java `uploadLicense`）：依赖水印 / 对象存储，未迁移。
+    /// 营业执照上传（Java `uploadLicense`）：批次B 直传证件私有通道。
+    ///
+    /// 校验与前台共用 `merchant_client::validate_license_upload`
+    /// （空 / 超 10MB / MIME 白名单），落盘走 `save_cert_upload`
+    /// （私有目录、不落 `gallery_pic`、返回鉴权代理路径）。
+    /// Java 公示水印仍未迁移（非阻断项）。
     ///
     /// # Errors
-    /// 恒定返回业务错误（文案见 [`MSG_LICENSE_UNAVAILABLE`]）。
-    pub fn upload_license(&self) -> Result<String> {
-        Err(Error::biz(501, MSG_LICENSE_UNAVAILABLE))
+    /// 校验失败 → 业务码 1001；存储失败 → 内部错误。
+    pub async fn upload_license(
+        &self,
+        file_name: Option<&str>,
+        content_type: Option<&str>,
+        bytes: &[u8],
+    ) -> Result<String> {
+        crate::merchant::merchant_client::validate_license_upload(bytes.len(), content_type)?;
+        let name = file_name
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or("license.jpg");
+        nextrade_infrastructure::storage::save_cert_upload(name, bytes).await
     }
 }
 

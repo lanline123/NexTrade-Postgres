@@ -143,5 +143,14 @@ export default defineAppConfig({
         navigationBarBackgroundColor: "#ffffff",
         navigationBarTitleText: "NexTrade",
         navigationBarTextStyle: "black"
-    }
+    },
+    // 【批次D · 小程序一键获取收货地址】微信小程序隐私接口声明（仅 weapp 生效，H5 构建忽略）：
+    // chooseAddress 属于隐私接口，必须在 requiredPrivateInfos 中声明，
+    // 并在 permission 中写明 scope.address 的用途，否则真机调用会被拦截。
+    permission: {
+        "scope.address": {
+            desc: "用于一键导入你的微信收货地址，免去手动填写"
+        }
+    },
+    requiredPrivateInfos: ["chooseAddress"]
 });

@@ -53,6 +53,15 @@ interface ApplyState {
 
 const STATUS_TEXT: Record<number, string> = { 0: '待审核', 1: '审核通过', 2: '审核未通过' };
 
+/** 证件代理路径 → 带登录 token 的展示地址（<img> 无法带 Authorization 头）。 */
+function certDisplaySrc(url: string): string {
+  if (!url || !url.includes('/cert/file/')) return url;
+  if (typeof window === 'undefined') return url;
+  const token = localStorage.getItem('accessToken') || '';
+  if (!token) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+}
+
 /** 证件/营业执照图片上传（源码 form/src/UploadImage.vue，走 /api/user/user/uploadImg） */
 function CertImageUpload({
   label,
@@ -76,6 +85,8 @@ function CertImageUpload({
       const token = localStorage.getItem('accessToken') || '';
       const body = new FormData();
       body.append('file', file);
+      // 批次B：证件类走私有通道（服务端按 purpose=cert 分流，不进公开图库）。
+      body.append('purpose', 'cert');
       const response = await fetch('/api/user/user/uploadImg', {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -102,7 +113,7 @@ function CertImageUpload({
       <span className="cert-upload__label">{label}</span>
       {list.map((item, index) => (
         <span key={index} className="cert-upload__thumb">
-          <img src={String(item.picThumb || item.picUrl || '')} alt={label} />
+          <img src={certDisplaySrc(String(item.picThumb || item.picUrl || ''))} alt={label} />
           <button type="button" onClick={() => onChange(list.filter((_, i) => i !== index))}>×</button>
         </span>
       ))}

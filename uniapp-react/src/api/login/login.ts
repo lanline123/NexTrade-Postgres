@@ -1,4 +1,26 @@
 import request from "@/utils/request";
+import type { ApiEnvelope } from "@/types/api";
+
+/** 快捷登录设置（后端 getQuickLoginSetting 返回） */
+export interface QuickLoginSetting {
+    wechatLogin?: number;
+    showOauth?: number;
+    /** 微信内 H5 手机号（验证码）登录开关：1 开 / 0 关 */
+    wechatH5MobileLogin?: number;
+    /** 微信内 H5 账号密码登录开关：1 开 / 0 关 */
+    wechatH5PasswordLogin?: number;
+}
+
+/**
+ * @description 获取快捷登录设置（含微信内 H5 登录方式开关）
+ * @returns 快捷登录设置
+ */
+export const getQuickLoginSetting = () => {
+    return request<ApiEnvelope<QuickLoginSetting>>({
+        url: "user/login/getQuickLoginSetting",
+        method: "get"
+    });
+};
 
 /**
  * @description 用户登录

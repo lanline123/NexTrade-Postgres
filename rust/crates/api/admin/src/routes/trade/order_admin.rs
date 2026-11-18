@@ -336,6 +336,14 @@ fn platform_view(auth: &AuthUser) -> bool {
     auth.is_platform()
 }
 
+/// 供货价可见性：平台 + 供应商账号可见，店铺账号不可见。
+fn supply_price_visible(auth: &AuthUser) -> bool {
+    nextrade_services::trade::order_admin::can_view_supply_price(
+        auth.is_platform(),
+        auth.is_vendor(),
+    )
+}
+
 /// 站点根地址（Java 从 `HttpServletRequest` 取 scheme/serverName/serverPort）。
 fn request_host(headers: &HeaderMap) -> String {
     let scheme = headers
@@ -757,8 +765,12 @@ async fn print_several(
 /// `GET /adminapi/order/order/getExportItemList`：订单导出标签列表。
 async fn get_export_item_list(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<Vec<OrderExportItemVO>> {
-    ok(state.trade.order_admin.export_item_list())
+    ok(state
+        .trade
+        .order_admin
+        .export_item_list(supply_price_visible(&auth)))
 }
 
 /// `GET /adminapi/order/order/exportItemInfo`：当前管理员已选导出标签。
@@ -766,7 +778,11 @@ async fn export_item_info(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
 ) -> ApiResult<Vec<OrderExportItemVO>> {
-    ok(state.trade.order_admin.export_item_info(auth.id).await?)
+    ok(state
+        .trade
+        .order_admin
+        .export_item_info(auth.id, supply_price_visible(&auth))
+        .await?)
 }
 
 /// `POST /adminapi/order/order/saveExportItem`：保存导出标签。
@@ -792,7 +808,7 @@ async fn order_export(
     let (file_name, bytes) = state
         .trade
         .order_admin
-        .order_export_xlsx(&q, platform_view(&auth))
+        .order_export_xlsx(&q, platform_view(&auth), supply_price_visible(&auth))
         .await?;
     Ok(crate::support::excel_response::xlsx_response(
         bytes, &file_name,

@@ -35,7 +35,10 @@ interface Address {
   address?: string;
   fullAddress?: string;
   formattedAddress?: string;
+  countryCode?: string;
+  countryName?: string;
   isSelected?: number;
+  isDefault?: number;
   isInvalid?: number;
 }
 
@@ -634,8 +637,14 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
                     ) : null}
                   </div>
                   <div className="info">
-                    <span>{selectedAddress.regionName}</span>
-                    <span>&nbsp;{selectedAddress.address}</span>
+                    {selectedAddress.formattedAddress ? (
+                      <span>{selectedAddress.formattedAddress}</span>
+                    ) : (
+                      <>
+                        <span>{selectedAddress.regionName}</span>
+                        <span>&nbsp;{selectedAddress.address}</span>
+                      </>
+                    )}
                     {selectedAddress.mobile ? (
                       <span>
                         &nbsp;
@@ -1338,14 +1347,15 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
                       <div>{item.telephone || '-'}</div>
                     </div>
                     <div className="bottom-operation">
-                      <div className="is-default">
-                        <span className="el-checkbox">
-                          <span className={`el-checkbox__input${Number(item.isSelected) === 1 ? ' is-checked' : ''}`}>
-                            <span className="el-checkbox__inner" />
-                          </span>
-                          <span className="el-checkbox__label">{t('默认地址')}</span>
-                        </span>
-                      </div>
+                      {/* 批次B：结算页移除「默认地址」勾选框（此前绑 isSelected
+                          冒充默认）；改默认只能去地址管理页，结算选址仅本单生效。 */}
+                      {Number(item.isDefault) === 1 ? (
+                        <div className="is-default">
+                          <span className="default-badge">{t('默认')}</span>
+                        </div>
+                      ) : (
+                        <div className="is-default" />
+                      )}
                       <div className="operation">
                         <Link href="/member/address">{t('编辑')}</Link>
                       </div>

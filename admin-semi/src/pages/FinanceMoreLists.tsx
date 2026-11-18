@@ -26,11 +26,12 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import { IconPlus, IconRefresh, IconSearch } from '@douyinfe/semi-icons';
-import { apiDownload, apiGet, apiPost, apiUpload, getToken } from '../api';
+import { apiDownload, apiGet, apiPost, apiUpload, certFileSrc, getToken } from '../api';
 import ListPage from '../framework/ListPage';
 import type { ColumnConfig, FilterConfig } from '../framework/types';
 import { useI18n } from '../i18n';
 import ImageUploader from '../components/ImageUploader';
+import CertImageUpload from '../components/CertImageUpload';
 import { unixToTimeShort as unixToDateTime } from '../utils/format';
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
@@ -2934,7 +2935,9 @@ function SubmitFormModal({ visible, act, id, onClose, onSubmitted, onChanged }: 
           onBusyChange={(busy) => markMediaBusy(key, busy)}
         />
       ) : (
-        <ImageUploader
+        // 批次B：进件证件照（营业执照/身份证正反面）改本地直传私有通道，
+        // 不再走素材中心（ImageUploader / GalleryPickerModal）。
+        <CertImageUpload
           single
           value={String((form as Record<string, unknown>)[key] ?? '') ? [String((form as Record<string, unknown>)[key])] : []}
           onChange={(urls) => setField(key, urls[0] || '')}
@@ -3280,7 +3283,7 @@ function ApplicationDetailSheet({ target, onClose }: { target: { id: number | st
     isWechat ? (
       <CertificateMediaField applicationId={detail?.id} role={role} readonly />
     ) : url ? (
-      <img src={url} alt={t('证件')} style={{ width: 160, height: 100, objectFit: 'contain', border: '1px solid var(--semi-color-border)', borderRadius: 4, display: 'block' }} />
+      <img src={certFileSrc(url)} alt={t('证件')} style={{ width: 160, height: 100, objectFit: 'contain', border: '1px solid var(--semi-color-border)', borderRadius: 4, display: 'block' }} />
     ) : (
       <Typography.Text type="tertiary">-</Typography.Text>
     );

@@ -147,6 +147,8 @@ export interface SkuList {
     skuStock?: number;
     skuTsn?: string;
     skuPrice?: string;
+    /** 是否默认规格：0 否 1 是（v5.8.63，后端 product_sku.is_default 下发） */
+    isDefault?: number;
     num?: number;
     title?: string;
     price?: string;

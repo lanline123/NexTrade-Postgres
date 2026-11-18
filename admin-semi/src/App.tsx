@@ -799,6 +799,8 @@ const configPages: Record<string, ConfigPageDef> = {
       wechatRegisterBindPhone: 'radio',
       openWechatRegister: 'radio',
       wechatShareNeedLogin: 'radio',
+      wechatH5MobileLogin: 'radio',
+      wechatH5PasswordLogin: 'radio',
       facebookLoginOn: 'radio',
       googleLoginOn: 'radio',
       twitterLoginOn: 'radio',

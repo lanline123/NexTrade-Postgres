@@ -28,9 +28,8 @@
 //! > - `apply` 强制要求登录（业务码 401「请先登录」），避免 Java 因
 //! >   `getCurrentUserId() == 0` 产生的脏归属（见 `services/src/merchant_client.rs`）。
 //! >
-//! > **已知缺口（未迁移，详见 `services/src/merchant_client.rs` 模块头）**：
-//! > 1. `uploadLicense` 仅复刻三条入参校验，校验通过后返回
-//! >    「营业执照上传尚未迁移」业务错误（图库/对象存储 + 水印字体未迁移）；
+//! > **已知缺口（详见 `services/src/merchant_client.rs` 模块头）**：
+//! > 1. `uploadLicense` 已迁移（批次B，证件私有通道直传）；仅公示水印未迁移；
 //! > 2. `apply` 的「免审核直接开通」分支（`merchantApplyNeedCheck != "1"`）
 //! >    未迁移，写入前返回「商户免审核自动开通尚未迁移」业务错误。
 
@@ -180,8 +179,8 @@ fn optional_user_id(auth: &Option<Extension<AuthUser>>) -> Option<i32> {
 ///
 /// 对应 Java `MerchantClientController.uploadLicense` →
 /// `MerchantServiceImpl#uploadLicensePic`：空 / 超限 / MIME 校验通过后，
-/// 叠加水印并走图库上传。**未迁移**：校验通过后由服务层返回
-/// 「营业执照上传尚未迁移」业务错误（详见 `services/src/merchant_client.rs`）。
+/// 由服务层走证件私有通道落盘并返回鉴权代理路径（批次B；
+/// 公示水印未迁移，详见 `services/src/merchant_client.rs`）。
 ///
 /// 读取 `multipart/form-data` 的 `file` / `license` 字段（字节流 + MIME），
 /// 字段名缺失时按「空图片」处理（服务层返回「营业执照图片不能为空」）。
@@ -195,21 +194,14 @@ async fn upload_license(
         return Err(AppError(Error::biz(401, "请先登录")));
     }
     let (bytes, content_type, file_name) = read_license_file(&mut multipart).await?;
-    if bytes.is_empty() {
-        return Err(AppError(Error::Validation("营业执照图片不能为空".into())));
-    }
-    let size = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
-    let vo = state
-        .content
-        .gallery_pic
-        .upload_img(None, content_type.as_deref(), size, file_name.as_deref(), &bytes, 0, user_id)
+    // 批次B：走服务层证件私有通道（校验 + 私有目录 + 鉴权代理路径，
+    // 不落 gallery_pic 公开素材表）。此前该 handler 曾绕过服务层直调
+    // gallery_pic 公开上传，与证件私有化口径冲突，现统一回服务层。
+    let url = state
+        .merchant
+        .merchant_client
+        .upload_license(file_name.as_deref(), content_type.as_deref(), &bytes)
         .await?;
-    let url = serde_json::to_value(vo).ok()
-        .and_then(|v| v.get("url").and_then(serde_json::Value::as_str).map(ToString::to_string))
-        .unwrap_or_default();
-    if url.is_empty() {
-        return Err(AppError(Error::Internal("营业执照上传失败".into())));
-    }
     ok(url)
 }
 

@@ -413,6 +413,7 @@ impl SalesmanAdminService {
                 avatar: r.avatar.clone(),
                 mobile: r.mobile.clone(),
                 nickname: r.nickname.clone(),
+                remark: r.remark.clone(),
                 reg_time: r.reg_time,
                 rank_name: r.rank_name.clone(),
                 customer_type: 1,
@@ -445,10 +446,12 @@ fn now_secs_i32() -> i32 {
 
 use nextrade_core::models::marketing::salesman_admin::{
     config_has_card_invite, config_is_wechat_biz, config_level, config_view_customer_info,
-    parse_time, BIZ_SALESMAN_CONFIG, CustomerApiQuery, CustomerDetailVO, CustomerRemarkDTO,
-    SalesmanOrderStatVO, SalesmanUserDetailVO, SalesmanUserInfoVO, MSG_CARD_INVITE_DISABLED,
-    MSG_CUSTOMER_NOT_FOUND, MSG_INVITER_NOT_FOUND, MSG_NO_CUSTOMER_PERMISSION,
-    MSG_NO_SALESMAN_CONFIG, MSG_NOT_SALESMAN, MSG_SELF_INVITE, MSG_WECHAT_BIZ_DISABLED,
+    config_view_customer_mobile, config_view_sub_salesman_info, config_view_sub_salesman_mobile,
+    parse_time, with_effective_privacy_flags, BIZ_SALESMAN_CONFIG, CustomerApiQuery,
+    CustomerDetailVO, CustomerRemarkDTO, SalesmanOrderStatVO, SalesmanUserDetailVO,
+    SalesmanUserInfoVO, MSG_CARD_INVITE_DISABLED, MSG_CUSTOMER_NOT_FOUND, MSG_INVITER_NOT_FOUND,
+    MSG_NO_CUSTOMER_PERMISSION, MSG_NO_SALESMAN_CONFIG, MSG_NOT_SALESMAN, MSG_SELF_INVITE,
+    MSG_WECHAT_BIZ_DISABLED,
 };
 use nextrade_infrastructure::db::repo::marketing::salesman_admin::PublicUserRow;
 
@@ -481,6 +484,17 @@ impl SalesmanAdminService {
     async fn require_view_customer_info(&self) -> Result<()> {
         let cfg = self.salesman_config_json().await?;
         if config_view_customer_info(&cfg) {
+            Ok(())
+        } else {
+            Err(Error::biz(500, MSG_NO_CUSTOMER_PERMISSION))
+        }
+    }
+
+    /// 下级信息权限门槛（批次B 细粒度开关 `viewSubSalesmanInfo`，
+    /// 缺失时回退总开关，见 core 的 `config_privacy_flag`）。
+    async fn require_view_sub_salesman_info(&self) -> Result<()> {
+        let cfg = self.salesman_config_json().await?;
+        if config_view_sub_salesman_info(&cfg) {
             Ok(())
         } else {
             Err(Error::biz(500, MSG_NO_CUSTOMER_PERMISSION))
@@ -538,7 +552,8 @@ impl SalesmanAdminService {
             shop_id: salesman.shop_id,
             sale_amount: salesman.sale_amount,
             add_time: format_time(salesman.add_time),
-            salesman_config: Some(cfg),
+            // 批次B：下发时回填三个细粒度隐私开关的有效值（缺失回退总开关）。
+            salesman_config: Some(with_effective_privacy_flags(cfg)),
             level_name,
             condition,
             order: SalesmanOrderStatVO {
@@ -568,7 +583,20 @@ impl SalesmanAdminService {
         q: &CustomerApiQuery,
     ) -> Result<PageResult<CustomerListVO>> {
         let salesman = self.current_salesman(user_id).await?;
-        self.require_view_customer_info().await?;
+        let customer_type = q.normalized_customer_type();
+        let is_sub_list = customer_type == "salesman";
+        // 批次B 分路门控：下级列表走下级开关，客户列表走总开关。
+        if is_sub_list {
+            self.require_view_sub_salesman_info().await?;
+        } else {
+            self.require_view_customer_info().await?;
+        }
+        let cfg = self.salesman_config_json().await?;
+        let show_mobile = if is_sub_list {
+            config_view_sub_salesman_mobile(&cfg)
+        } else {
+            config_view_customer_mobile(&cfg)
+        };
         let page = PageQuery {
             page: q.page.unwrap_or(1),
             page_size: q.page_size.unwrap_or(DEFAULT_PAGE_SIZE).min(MAX_PAGE_SIZE),
@@ -576,10 +604,18 @@ impl SalesmanAdminService {
         let (limit, offset) = page.limit_offset();
         let start = parse_time(q.start_time.as_deref());
         let end = parse_time(q.end_time.as_deref());
-        let customer_type = q.normalized_customer_type();
+        let keyword = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty());
         let (total, rows) = self
             .repo()
-            .paginate_api_customers(salesman.salesman_id, customer_type, start, end, limit, offset)
+            .paginate_api_customers(
+                salesman.salesman_id,
+                customer_type,
+                start,
+                end,
+                keyword,
+                limit,
+                offset,
+            )
             .await?;
         let mut list = Vec::with_capacity(rows.len());
         for r in &rows {
@@ -588,11 +624,17 @@ impl SalesmanAdminService {
                 user_id: r.user_id,
                 username: r.username.clone(),
                 avatar: r.avatar.clone(),
-                mobile: r.mobile.clone(),
+                // 批次B：电话不可见时脱敏下发（mask_mobile）。
+                mobile: if show_mobile {
+                    r.mobile.clone()
+                } else {
+                    nextrade_common::utils::mask_mobile(&r.mobile)
+                },
                 nickname: r.nickname.clone(),
+                remark: r.remark.clone(),
                 reg_time: r.reg_time,
                 rank_name: r.rank_name.clone(),
-                customer_type: if customer_type == "salesman" { 2 } else { 1 },
+                customer_type: if is_sub_list { 2 } else { 1 },
                 order_count,
                 order_amount,
                 last_order_time: None,
@@ -613,7 +655,6 @@ impl SalesmanAdminService {
         target_user_id: i32,
     ) -> Result<CustomerDetailVO> {
         let salesman = self.current_salesman(user_id).await?;
-        self.require_view_customer_info().await?;
         let binding = self
             .repo()
             .find_customer_binding(salesman.salesman_id, target_user_id)
@@ -624,6 +665,23 @@ impl SalesmanAdminService {
             .is_some_and(|s| s.pid == salesman.salesman_id);
         if binding.is_none() && !is_sub_salesman {
             return Err(Error::biz(500, MSG_CUSTOMER_NOT_FOUND));
+        }
+        // 批次B 分路门控：纯下级走下级开关；有绑定行走客户总开关。
+        // 电话可见性同理按身份取对应开关。
+        let cfg = self.salesman_config_json().await?;
+        let (allowed, show_mobile) = if binding.is_some() {
+            (
+                config_view_customer_info(&cfg),
+                config_view_customer_mobile(&cfg),
+            )
+        } else {
+            (
+                config_view_sub_salesman_info(&cfg),
+                config_view_sub_salesman_mobile(&cfg),
+            )
+        };
+        if !allowed {
+            return Err(Error::biz(500, MSG_NO_CUSTOMER_PERMISSION));
         }
         let user = self
             .repo()
@@ -641,8 +699,14 @@ impl SalesmanAdminService {
             user_id: user.user_id,
             username: user.username,
             avatar: user.avatar,
-            mobile: user.mobile,
+            mobile: if show_mobile {
+                user.mobile
+            } else {
+                nextrade_common::utils::mask_mobile(&user.mobile)
+            },
             nickname: user.nickname,
+            // 批次B：备注回读（绑定行 remark；纯下级无绑定行为空）。
+            remark: binding.as_ref().map(|b| b.remark.clone()).filter(|s| !s.is_empty()),
             rank_name: user.rank_name,
             customer_type: if is_sub_salesman { 2 } else { 1 },
             bind_time: binding.as_ref().and_then(|b| b.add_time),
@@ -667,18 +731,38 @@ impl SalesmanAdminService {
         dto: &CustomerRemarkDTO,
     ) -> Result<()> {
         let salesman = self.current_salesman(user_id).await?;
-        self.require_view_customer_info().await?;
         let target = dto
             .user_id
             .ok_or_else(|| Error::Validation("userId不能为空".into()))?;
-        let binding = self
+        let remark = dto.remark.as_deref().unwrap_or_default().trim();
+        if let Some(binding) = self
             .repo()
             .find_customer_binding(salesman.salesman_id, target)
             .await?
-            .ok_or_else(|| Error::biz(500, MSG_CUSTOMER_NOT_FOUND))?;
-        let remark = dto.remark.as_deref().unwrap_or_default().trim();
+        {
+            self.require_view_customer_info().await?;
+            self.repo()
+                .update_customer_remark(binding.salesman_customer_id, remark)
+                .await?;
+            return Ok(());
+        }
+        // 批次B 修复：纯下级（只有 salesman.pid 关系、无绑定行）此前恒报
+        // 「客户不存在」。现走下级门控，并新建一行绑定承载备注。
+        let sub_salesman = self.repo().find_by_user_id(target).await?;
+        let is_sub_salesman = sub_salesman
+            .as_ref()
+            .is_some_and(|s| s.pid == salesman.salesman_id);
+        if !is_sub_salesman {
+            return Err(Error::biz(500, MSG_CUSTOMER_NOT_FOUND));
+        }
+        self.require_view_sub_salesman_info().await?;
         self.repo()
-            .update_customer_remark(binding.salesman_customer_id, remark)
+            .insert_customer_binding_remark(
+                salesman.salesman_id,
+                target,
+                remark,
+                now_secs_i32(),
+            )
             .await?;
         Ok(())
     }

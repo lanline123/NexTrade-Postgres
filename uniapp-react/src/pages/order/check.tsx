@@ -1386,7 +1386,13 @@ export default function Check() {
 
     // 旧 onLoad 中的全局事件注册（uni.$on → Taro.eventCenter.on）
     useEffect(() => {
-        const refreshAddress = async () => {
+        const refreshAddress = async (selectedId?: unknown) => {
+            // 批次B：地址列表页结算选址只回传 id（本地态），不落库；
+            // 显式同步 region store，保证 getAddressListData 精确匹配。
+            const id = Number(selectedId) || 0;
+            if (id > 0) {
+                useRegionStore.getState().setCurrentSelectedAddressId(id);
+            }
             await getAddressListData();
             updateOrderCheck();
         };

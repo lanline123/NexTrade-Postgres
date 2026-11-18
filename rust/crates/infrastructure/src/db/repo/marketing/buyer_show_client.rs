@@ -1145,6 +1145,23 @@ impl BuyerShowClientRepository {
                 .map_err(map_err)?;
         Ok(row.and_then(|(v,)| v))
     }
+
+    /// 用户是否存在有效订单（买家秀「发布要求已下单」开关校验用）。
+    ///
+    /// 有效订单口径：未删除（`is_del = 0`）、有效（`is_valid = 1`），
+    /// 且状态不是已取消（3）/无效（4）——即已下单未取消的订单（含已完成）。
+    pub async fn user_has_valid_order(&self, user_id: i32) -> Result<bool> {
+        let row: (bool,) = sqlx::query_as(
+            "SELECT EXISTS(SELECT 1 FROM \"order\" \
+             WHERE user_id = $1 AND is_del = 0 AND is_valid = 1 \
+             AND order_status NOT IN (3, 4))",
+        )
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0)
+    }
 }
 
 /// \"Decimal\" → \"i64\"（`product_sku.sku_stock` 求和结果的截断转换）。

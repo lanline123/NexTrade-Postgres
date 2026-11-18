@@ -308,6 +308,13 @@ export default function Regions() {
                   checkedText: t('热门'),
                   uncheckedText: t('不热门'),
                 },
+                {
+                  // 前台国家/地区匹配依赖 region.standard_code（如 US / CA / US-CA）；
+                  // 编辑时不填 = 保持原值（列表接口按 Java 口径不回该字段，故不回显）。
+                  field: 'standardCode',
+                  label: t('标准代码'),
+                  placeholder: t('如 US、CA、US-CA；编辑时不填保持不变'),
+                },
                 { field: 'sortOrder', label: t('排序'), type: 'number', initValue: 50 },
               ],
             },
@@ -317,6 +324,8 @@ export default function Regions() {
             parentId: Number(drawerValues.parentId ?? 0),
             isHot: values.isHot ? 1 : 0,
             sortOrder: Number(values.sortOrder ?? 50),
+            // 空白不下发：后端 create 不写该列、update 保持原值
+            standardCode: String(values.standardCode || '').trim() || undefined,
           }),
         }}
       />

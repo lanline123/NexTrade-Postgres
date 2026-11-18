@@ -124,6 +124,7 @@ export interface ConfigState {
     buyerShowMobileShowName?: string;
     buyerShowGuidanceContent?: string;
     buyerShowTemplateStyle?: number;
+    buyerShowPublishNeedOrder?: number;
     initLoading?: boolean;
     defaultAvatar: string; // 用户默认头像
     defaultLogisticsName: string; // 自定义物流名称
@@ -247,6 +248,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     buyerShowMobileShowName: "",
     buyerShowGuidanceContent: "",
     buyerShowTemplateStyle: 0,
+    buyerShowPublishNeedOrder: 0, // 发布买家秀是否要求已下单（0 否 / 1 是）
     initLoading: false, // 是否初始化完成
     defaultAvatar: "", // 用户默认头像
     defaultLogisticsName: t("商家配送"), // 自定义物流名称
@@ -465,6 +467,7 @@ function loadBaseConfigData(set: (partial: Partial<ConfigState>) => void, get: (
                 buyerShowMobileShowName: res.buyerShowMobileShowName,
                 buyerShowGuidanceContent: res.buyerShowGuidanceContent,
                 buyerShowTemplateStyle: res.buyerShowTemplateStyle,
+                buyerShowPublishNeedOrder: res.buyerShowPublishNeedOrder ?? 0,
                 defaultAvatar: res.defaultAvatar,
                 defaultLogisticsName: res.defaultLogisticsName || t("商家配送"),
                 // 只认 tianditu 一个显式值，未知值与字段缺失（老后端）一律回落 amap，保持原生 <map> 行为

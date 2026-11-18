@@ -1060,7 +1060,13 @@ impl OrderService {
         }
 
         let items = self.repos.trade.order.find_items(order_id).await?;
-        let mut vo = to_vo(&order, &items);
+        let claim = self
+            .repos
+            .trade
+            .offline_payment_claim
+            .latest_for_order(order_id)
+            .await?;
+        let mut vo = to_vo(&order, &items, claim.as_ref());
         // 卡密订单：补齐每个商品项已分配的电子卡券（原版 ECardItemVO）
         let mut has_card = false;
         for (idx, item) in items.iter().enumerate() {
@@ -1162,10 +1168,17 @@ impl OrderService {
                 page.page_size,
             )
             .await?;
+        let order_ids: Vec<i32> = orders.iter().map(|o| o.order_id).collect();
+        let claims = self
+            .repos
+            .trade
+            .offline_payment_claim
+            .latest_for_orders(&order_ids)
+            .await?;
         let mut list = Vec::with_capacity(orders.len());
         for o in &orders {
             let items = self.repos.trade.order.find_items(o.order_id).await?;
-            list.push(to_vo(o, &items));
+            list.push(to_vo(o, &items, claims.get(&o.order_id)));
         }
         Ok(PageResult::new(total, list, page))
     }
@@ -1703,7 +1716,7 @@ impl OrderService {
 }
 
 /// 线下认款实体 → VO。
-fn to_offline_claim_vo(c: &OfflinePaymentClaim) -> OfflinePaymentClaimVO {
+pub(crate) fn to_offline_claim_vo(c: &OfflinePaymentClaim) -> OfflinePaymentClaimVO {
     OfflinePaymentClaimVO {
         claim_id: c.claim_id,
         order_id: c.order_id,
@@ -1784,7 +1797,7 @@ fn status_tip(status: i32) -> String {
     .to_string()
 }
 
-fn to_vo(o: &Order, items: &[OrderItem]) -> OrderVO {
+fn to_vo(o: &Order, items: &[OrderItem], claim: Option<&OfflinePaymentClaim>) -> OrderVO {
     let status_label = client_status_label(o.order_status);
     let item_values: Vec<serde_json::Value> = items
         .iter()
@@ -1821,6 +1834,14 @@ fn to_vo(o: &Order, items: &[OrderItem]) -> OrderVO {
     let order_type = o.order_type.unwrap_or(0);
     let to_pay = o.order_status == 0;
     let to_comment = o.order_status == 5;
+    // 线下认款入口：线下支付订单且已有认款单时可看详情；被驳回时可修改申请
+    // （已取消订单不再提供入口，与 PC/H5 前端守卫口径一致）。
+    let is_offline_order =
+        o.pay_type_id == nextrade_core::models::trade::order_admin::pay_type::OFFLINE;
+    let claim_detail = is_offline_order && claim.is_some() && o.order_status != status::CANCELED;
+    let claim_edit = is_offline_order
+        && claim.is_some_and(|c| c.status == OfflinePaymentClaim::STATUS_REJECTED)
+        && o.order_status != status::CANCELED;
     let available_actions = serde_json::json!({
         "toPay": to_pay,
         "cancelOrder": to_pay,
@@ -1829,6 +1850,8 @@ fn to_vo(o: &Order, items: &[OrderItem]) -> OrderVO {
         "toAftersales": matches!(o.order_status, 2 | 5),
         "rebuy": true,
         "toComment": to_comment,
+        "offlinePaymentClaimDetail": claim_detail,
+        "editOfflinePaymentClaim": claim_edit,
     });
     let pay_status_name = match o.pay_status {
         0 => "未支付",
@@ -1918,6 +1941,14 @@ fn to_vo(o: &Order, items: &[OrderItem]) -> OrderVO {
         order_reservation: None,
         is_reservation_home: false,
         shop: None,
+        offline_payment_claim_status: claim.map(|c| c.status),
+        offline_payment_claim_status_name: claim.map(|c| status_name(c.status)),
+        offline_payment_claim_id: claim.map(|c| c.claim_id),
+        offline_payment_claim_reject_reason: claim.and_then(|c| {
+            (c.status == OfflinePaymentClaim::STATUS_REJECTED && !c.reject_reason.is_empty())
+                .then(|| c.reject_reason.clone())
+        }),
+        offline_payment_claim: claim.map(to_offline_claim_vo),
     }
 }
 

@@ -936,6 +936,18 @@ pub struct OrderVO {
     pub sub_order_ids: Option<Vec<i32>>,
     /// 支付方式（Java `OrderVO.payLog.payCode`；仅导出接口按 `paylog` 回填）
     pub pay_code: Option<String>,
+
+    // *** 线下支付认款（v5.8.61 补下发，列表/详情按最新认款单回填） ***
+    /// 最新一笔线下认款状态：0 待审核 / 1 审核通过 / 2 已驳回；无认款为 null
+    pub offline_payment_claim_status: Option<i32>,
+    /// 认款状态文案（待审核 / 审核通过 / 审核驳回）
+    pub offline_payment_claim_status_name: Option<String>,
+    /// 最新一笔认款单 ID；无认款为 null
+    pub offline_payment_claim_id: Option<i32>,
+    /// 最新一笔认款的驳回原因（未驳回为 null）
+    pub offline_payment_claim_reject_reason: Option<String>,
+    /// 最新一笔线下认款单全量；无认款为 null
+    pub offline_payment_claim: Option<super::offline_claim::OfflinePaymentClaimVO>,
 }
 
 /// 订单商品 VO（对应 Java `OrderItemVO` 的展示必需字段）。
@@ -1017,6 +1029,10 @@ pub struct OrderActionVO {
     pub to_aftersales: bool,
     pub to_comment: bool,
     pub to_pay: bool,
+    /// 线下认款详情入口（订单有认款单时为 true，由服务层按最新认款单回填）
+    pub offline_payment_claim_detail: bool,
+    /// 线下认款修改申请入口（最新认款单被驳回时为 true）
+    pub edit_offline_payment_claim: bool,
 }
 
 // ————————————————————— 订单操作参数（trade::order_admin 扩展） —————————————————————
@@ -1470,6 +1486,10 @@ pub struct OrderExportRowVO {
     pub quantity: i32,
     pub total_price: Decimal,
     pub price: Decimal,
+    /// 供货价（下单快照 `order_item.vendor_product_supply_price`；非供应商商品为 null）
+    pub vendor_product_supply_price: Option<Decimal>,
+    /// 供货价小计（供货价 × 数量；供货价为空时为 null）
+    pub vendor_product_supply_total: Option<Decimal>,
 }
 
 /// 订单导出结果（**降级**：Java 直接回写 xlsx，Rust 侧回写列定义 + 行数据 JSON）。

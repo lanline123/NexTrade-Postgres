@@ -310,7 +310,9 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
         "openWechatPcLogin",
         "wechatRegisterBindPhone",
         "openWechatRegister",
-        "wechatShareNeedLogin"
+        "wechatShareNeedLogin",
+        "wechatH5MobileLogin",
+        "wechatH5PasswordLogin"
       ]
     },
     {

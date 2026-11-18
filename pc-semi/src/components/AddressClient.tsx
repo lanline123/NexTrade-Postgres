@@ -22,7 +22,8 @@
  * - GET  user/address/detail   编辑回显（?id=）
  * - POST user/address/create   新增
  * - POST user/address/update   修改
- * - POST user/address/setSelected 设为默认
+ * - POST user/address/update   设为默认（isDefault=1，批次B 统一口径：
+ *   此前误用 setSelected 冒充默认，与 H5 的 is_default 不是同一字段）
  * - POST user/address/del      删除
  */
 import { useEffect, useState } from 'react';
@@ -108,7 +109,8 @@ export default function AddressClient() {
 
     const setDefault = async (addressId: number) => {
         try {
-            await apiPost('user/address/setSelected', { id: addressId });
+            // 批次B：默认地址唯一语义为 is_default，走 update 接口落库。
+            await apiPost('user/address/update', { id: addressId, addressId, isDefault: 1 });
             Toast.success({ content: '操作成功' });
             load(page);
         } catch (error) {
@@ -169,7 +171,7 @@ export default function AddressClient() {
                     ) : rows.length ? (
                         <>
                             {rows.map((address) => {
-                                const selected = Number(address.isSelected) === 1;
+                                const selected = Number(address.isDefault) === 1;
                                 return (
                                     <ul key={address.addressId} className={`card${selected ? ' selected' : ''}`}>
                                         <li className="first">

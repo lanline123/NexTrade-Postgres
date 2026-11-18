@@ -14,7 +14,7 @@
 //!
 //! | 路由 | 原 Java 方法 | 状态 |
 //! |------|--------------|------|
-//! | `POST /api/merchant/merchant/uploadLicense` | `MerchantClientController.uploadLicense` | 入参校验后**未迁移**（见下） |
+//! | `POST /api/merchant/merchant/uploadLicense` | `MerchantClientController.uploadLicense` | 已迁移（证件私有通道，见下） |
 //! | `GET  /api/merchant/merchant/applyShopAgreement` | `MerchantClientController.applyShopAgreement` | 已迁移（读配置原样返回） |
 //! | `GET  /api/merchant/merchant/myApply` | `MerchantClientController.myApply` | 已迁移 |
 //! | `GET  /api/merchant/merchant/applyDetail` | `MerchantClientController.applyDetail` | 已迁移 |
@@ -22,15 +22,11 @@
 //!
 //! # 有意为之的差异（**逐条如实说明**）
 //!
-//! 1. **`uploadLicense` 未迁移**：Java 的 `MerchantServiceImpl#uploadLicensePic`
-//!    在完成空文件 / 大小 / MIME 校验后，调用
-//!    `ImageWatermarkUtil.tileText`（水印字体）与
-//!    `GalleryPicService#uploadImg`（对象存储 + 落库）得到图片地址。这两项在
-//!    Rust 侧均未迁移，无法落盘并返回可访问 URL，故本实现**完整复刻三条入参
-//!    校验**（空文件「营业执照图片不能为空」/ 超 10MB「图片大小超过 10MB 限制」/
-//!    MIME 非 `image/jpeg|png|bmp`「图片规格不符合要求」），校验通过后返回
-//!    明确的「未迁移」业务错误（[`MSG_LICENSE_UPLOAD_UNMIGRATED`]），**绝不**
-//!    伪造一个图片地址。
+//! 1. **`uploadLicense` 已迁移（批次B）**：三条入参校验（空文件
+//!    「营业执照图片不能为空」/ 超 10MB「图片大小超过 10MB 限制」/
+//!    MIME 非 `image/jpeg|png|bmp`「图片规格不符合要求」）保留；落盘改走
+//!    证件私有通道（私有目录 + 鉴权代理路径，不落 `gallery_pic`）。
+//!    Java 的公示水印（`ImageWatermarkUtil.tileText`）仍未迁移，非阻断项。
 //!
 //! 2. **`apply` 的「免审核直接开通」已按 Java 口径补齐**：当配置
 //!    `merchantApplyNeedCheck != "1"` 时，Java `apply`（`@Transactional`）先把
@@ -104,8 +100,7 @@ use nextrade_core::models::merchant::merchant_client::{
     MerchantApplyDetailVO, MerchantApplyInitialVO, MerchantMyApplyVO, ADMIN_MSG_TYPE_SHOP_ENTRY,
     APPLY_STATUS_FAIL, APPLY_STATUS_PASS, APPLY_STATUS_PENDING, CFG_MERCHANT_APPLY_NEED_CHECK,
     CFG_SHOP_AGREEMENT, DATA_TYPE_ERROR, MSG_APPLY_ALREADY_PASSED, MSG_APPLY_ALREADY_PENDING,
-    MSG_CONFIG_NOT_EXIST, MSG_LICENSE_UPLOAD_UNMIGRATED, MSG_MERCHANT_APPLY_NOT_EXIST,
-    SERVICE_DATA_ERROR,
+    MSG_CONFIG_NOT_EXIST, MSG_MERCHANT_APPLY_NOT_EXIST, SERVICE_DATA_ERROR,
 };
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::repo::merchant::merchant_client::MerchantClientRepository;
@@ -421,21 +416,30 @@ impl MerchantClientService {
     /// 入驻营业执照专用上传。
     ///
     /// 对应 Java `MerchantClientController.uploadLicense` →
-    /// `MerchantServiceImpl#uploadLicensePic`：空 / 超限 / MIME 校验通过后，
-    /// 叠加公示水印（`ImageWatermarkUtil.tileText`）并走不落相册的图库上传。
-    /// **未迁移**（水印字体 + 对象存储）：校验通过后返回
-    /// [`MSG_LICENSE_UPLOAD_UNMIGRATED`]。
+    /// `MerchantServiceImpl#uploadLicensePic`：空 / 超限 / MIME 校验通过后落盘。
+    ///
+    /// 批次B（证件私有化）：不再走图库公开上传，改走证件私有通道
+    /// （`save_cert_upload`：私有目录、不落 `gallery_pic`、返回鉴权代理路径）。
+    /// Java 的公示水印（`ImageWatermarkUtil.tileText`）仍未迁移（非阻断项，
+    /// 见报告）；PDF 由前端放行但 Java MIME 白名单不含 PDF，服务端仍按
+    /// 原白名单拒绝 `application/pdf`，与迁移前口径一致。
     ///
     /// # Errors
     /// - 业务码 1001：[`ERR_LICENSE_EMPTY`] / [`ERR_LICENSE_TOO_LARGE`] /
     ///   [`ERR_LICENSE_TYPE`]；
-    /// - 业务码 1001：[`MSG_LICENSE_UPLOAD_UNMIGRATED`]（校验通过后）。
-    pub fn upload_license(&self, byte_len: usize, content_type: Option<&str>) -> Result<String> {
-        validate_license_upload(byte_len, content_type)?;
-        Err(Error::biz(
-            SERVICE_DATA_ERROR,
-            MSG_LICENSE_UPLOAD_UNMIGRATED,
-        ))
+    /// - 存储失败 → 内部错误。
+    pub async fn upload_license(
+        &self,
+        file_name: Option<&str>,
+        content_type: Option<&str>,
+        bytes: &[u8],
+    ) -> Result<String> {
+        validate_license_upload(bytes.len(), content_type)?;
+        let name = file_name
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or("license.jpg");
+        nextrade_infrastructure::storage::save_cert_upload(name, bytes).await
     }
 
     // ——————————————————————————————————————————————

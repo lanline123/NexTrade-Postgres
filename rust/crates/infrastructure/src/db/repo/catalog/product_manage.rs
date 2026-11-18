@@ -755,10 +755,11 @@ impl ProductManageRepository {
         .await
         .map_err(map_err)?;
         let sku_id = r;
-        sqlx::query("UPDATE product_sku SET sku_weight = $1, sku_volume = $2, is_inquiry = $3 WHERE sku_id = $4")
+        sqlx::query("UPDATE product_sku SET sku_weight = $1, sku_volume = $2, is_inquiry = $3, is_default = $4 WHERE sku_id = $5")
             .bind(s.sku_weight)
             .bind(s.sku_volume)
             .bind(s.is_inquiry)
+            .bind(s.is_default)
             .bind(sku_id)
             .execute(&self.pool)
             .await
@@ -790,14 +791,33 @@ impl ProductManageRepository {
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
-        sqlx::query("UPDATE product_sku SET sku_weight = $1, sku_volume = $2, is_inquiry = $3 WHERE sku_id = $4")
+        sqlx::query("UPDATE product_sku SET sku_weight = $1, sku_volume = $2, is_inquiry = $3, is_default = $4 WHERE sku_id = $5")
             .bind(s.sku_weight)
             .bind(s.sku_volume)
             .bind(s.is_inquiry)
+            .bind(s.is_default)
             .bind(s.sku_id)
             .execute(&self.pool)
             .await
             .map_err(map_err)?;
+        Ok(r.rows_affected())
+    }
+
+    /// 清除同商品其它 SKU 的默认标志（默认规格互斥，v5.8.63）。
+    /// `except_sku_id = 0` 表示全部清零（无可用默认行时）。
+    pub async fn clear_sku_defaults_except(
+        &self,
+        product_id: i32,
+        except_sku_id: i32,
+    ) -> Result<u64> {
+        let r = sqlx::query(
+            "UPDATE product_sku SET is_default = 0 WHERE product_id = $1 AND is_default <> 0 AND sku_id <> $2",
+        )
+        .bind(product_id)
+        .bind(except_sku_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
         Ok(r.rows_affected())
     }
 

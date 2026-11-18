@@ -553,3 +553,19 @@
     transform: translateY(-50%) rotate(180deg);
     pointer-events: none;
 }
+/* 【批次D · 小程序一键获取收货地址】微信地址导入入口（仅 weapp 渲染） */
+.wechat-address-import {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24rpx 32rpx;
+    margin-bottom: 16rpx;
+    background-color: #fff;
+    border-bottom: 1rpx solid #f5f6fa;
+
+    .wechat-address-import__text {
+        font-size: 28rpx;
+        font-weight: 500;
+        color: #07c160;
+    }
+}

@@ -154,6 +154,29 @@ impl PayService {
                 if let Some(user) = self.repos.member.user.find_by_id(user_id).await? {
                     vo.balance_amount = user.available_balance();
                 }
+                // 线下认款状态下发：支付页据此显示「认款详情 / 修改申请 / 付款完成」
+                if let Some(claim) = self
+                    .repos
+                    .trade
+                    .offline_payment_claim
+                    .latest_for_order(id)
+                    .await?
+                {
+                    vo.offline_payment_claim_status = Some(claim.status);
+                    vo.offline_payment_claim_status_name = Some(
+                        nextrade_core::models::trade::offline_claim::status_name(claim.status),
+                    );
+                    vo.offline_payment_claim_id = Some(claim.claim_id);
+                    if claim.status
+                        == nextrade_core::entities::OfflinePaymentClaim::STATUS_REJECTED
+                        && !claim.reject_reason.is_empty()
+                    {
+                        vo.offline_payment_claim_reject_reason =
+                            Some(claim.reject_reason.clone());
+                    }
+                    vo.offline_payment_claim =
+                        Some(crate::trade::order::to_offline_claim_vo(&claim));
+                }
                 order_vo = Some(vo);
             }
         }
@@ -1797,6 +1820,12 @@ fn to_order_vo(order: &PayOrderRow) -> PayOrderVO {
         pay_type_id: order.pay_type_id,
         add_time: format_cst(order.add_time),
         shipping_type_name: Some(order.shipping_type_name.clone()).filter(|s| !s.is_empty()),
+        // 认款字段由 index() 在查到最新认款单后回填，此处先置空
+        offline_payment_claim_status: None,
+        offline_payment_claim_status_name: None,
+        offline_payment_claim_id: None,
+        offline_payment_claim_reject_reason: None,
+        offline_payment_claim: None,
     }
 }
 

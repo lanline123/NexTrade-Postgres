@@ -1116,14 +1116,42 @@ impl UserCenterService {
     // ————————————————————— 上传（未迁移） —————————————————————
 
     /// 上传图片（Java `uploadImg` → `GalleryPicService.uploadImg`）。
+    ///
+    /// 批次B 证件分流：`purpose == "cert"` 时走证件私有通道
+    /// （私有目录、不落 `gallery_pic`、返回鉴权代理路径，`pic_id` 恒 0）；
+    /// 其它用途保持原公开 `gallery` 通道不变。
     pub async fn upload_img(
         &self,
         file_name: Option<&str>,
         bytes: &[u8],
         _is_hidden: bool,
     ) -> Result<GalleryPicUploadVO> {
+        self.upload_img_with_purpose(file_name, bytes, None).await
+    }
+
+    /// 带用途分流的上传（见 [`Self::upload_img`]）。
+    pub async fn upload_img_with_purpose(
+        &self,
+        file_name: Option<&str>,
+        bytes: &[u8],
+        purpose: Option<&str>,
+    ) -> Result<GalleryPicUploadVO> {
         require_upload_file(file_name, bytes)?;
         let name = file_name.unwrap_or("file");
+        if purpose.is_some_and(|p| p.trim().eq_ignore_ascii_case("cert")) {
+            let url = nextrade_infrastructure::storage::save_cert_upload(name, bytes).await?;
+            return Ok(GalleryPicUploadVO {
+                pic_thumb: url.clone(),
+                pic_url: url,
+                pic_name: name.to_string(),
+                pic_id: 0,
+                pic_width: 0,
+                pic_height: 0,
+                pic_size: bytes.len() as i64,
+                gallery_id: 0,
+                file_type: "image".to_string(),
+            });
+        }
         let url = nextrade_infrastructure::storage::save_local_upload("gallery", name, bytes).await?;
         Ok(GalleryPicUploadVO {
             pic_thumb: url.clone(),

@@ -229,6 +229,8 @@ pub struct CustomerListVO {
     pub avatar: String,
     pub mobile: String,
     pub nickname: Option<String>,
+    /// 分销员对该客户/下级的备注名（批次B 补回读：`salesman_customer.remark`）。
+    pub remark: Option<String>,
     pub reg_time: Option<i32>,
     pub rank_name: Option<String>,
     pub customer_type: i32,
@@ -324,6 +326,8 @@ pub struct CustomerApiQuery {
     /// 结束日期 `yyyy-MM-dd`
     pub end_time: Option<String>,
     pub shop_id: Option<i32>,
+    /// 关键词（批次B 做真：按备注 / 电话 / 用户名 / 昵称模糊匹配）。
+    pub keyword: Option<String>,
 }
 
 impl CustomerApiQuery {
@@ -347,6 +351,8 @@ pub struct CustomerDetailVO {
     pub avatar: String,
     pub mobile: String,
     pub nickname: Option<String>,
+    /// 分销员备注名（批次B 补回读）。
+    pub remark: Option<String>,
     pub rank_name: Option<String>,
     pub customer_type: i32,
     pub bind_time: Option<i32>,
@@ -423,6 +429,49 @@ pub fn config_int(data: &serde_json::Value, key: &str) -> Option<i32> {
 #[must_use]
 pub fn config_view_customer_info(data: &serde_json::Value) -> bool {
     config_int(data, "viewCustomerInfo") == Some(1)
+}
+
+/// 细粒度隐私开关（批次B）：键存在时以键为准；键缺失时回退总开关
+/// `viewCustomerInfo`，保证存量配置行为不变（总开关开 = 三项全开）。
+#[must_use]
+pub fn config_privacy_flag(data: &serde_json::Value, key: &str) -> bool {
+    match config_int(data, key) {
+        Some(v) => v == 1,
+        None => config_view_customer_info(data),
+    }
+}
+
+/// 是否可查看下级分销员信息（`viewSubSalesmanInfo`，缺失回退总开关）。
+#[must_use]
+pub fn config_view_sub_salesman_info(data: &serde_json::Value) -> bool {
+    config_privacy_flag(data, "viewSubSalesmanInfo")
+}
+
+/// 是否可查看客户电话明文（`viewCustomerMobile`，缺失回退总开关）。
+#[must_use]
+pub fn config_view_customer_mobile(data: &serde_json::Value) -> bool {
+    config_privacy_flag(data, "viewCustomerMobile")
+}
+
+/// 是否可查看下级电话明文（`viewSubSalesmanMobile`，缺失回退总开关）。
+#[must_use]
+pub fn config_view_sub_salesman_mobile(data: &serde_json::Value) -> bool {
+    config_privacy_flag(data, "viewSubSalesmanMobile")
+}
+
+/// 把三个细粒度开关的有效值回填进配置 JSON（供详情下发与前端展示，
+/// 避免前端各自实现「缺失回退总开关」的口径）。
+#[must_use]
+pub fn with_effective_privacy_flags(mut data: serde_json::Value) -> serde_json::Value {
+    let sub = config_view_sub_salesman_info(&data);
+    let cust_mobile = config_view_customer_mobile(&data);
+    let sub_mobile = config_view_sub_salesman_mobile(&data);
+    if let Some(obj) = data.as_object_mut() {
+        obj.insert("viewSubSalesmanInfo".into(), serde_json::Value::from(i32::from(sub)));
+        obj.insert("viewCustomerMobile".into(), serde_json::Value::from(i32::from(cust_mobile)));
+        obj.insert("viewSubSalesmanMobile".into(), serde_json::Value::from(i32::from(sub_mobile)));
+    }
+    data
 }
 
 /// 是否微商模式（`distributionMode == 2`）。
@@ -502,6 +551,24 @@ mod public_tests {
         assert!(!config_is_wechat_biz(&other));
         assert!(!config_has_card_invite(&other));
         assert!(!config_view_customer_info(&other));
+    }
+
+    #[test]
+    fn privacy_flags_follow_master_switch_when_absent() {
+        let on = serde_json::json!({"viewCustomerInfo": 1});
+        assert!(config_view_sub_salesman_info(&on));
+        assert!(config_view_customer_mobile(&on));
+        assert!(config_view_sub_salesman_mobile(&on));
+        let off = serde_json::json!({"viewCustomerInfo": 0});
+        assert!(!config_view_sub_salesman_info(&off));
+        // 显式键覆盖总开关
+        let mixed = serde_json::json!({"viewCustomerInfo": 1, "viewCustomerMobile": 0, "viewSubSalesmanInfo": 0});
+        assert!(!config_view_customer_mobile(&mixed));
+        assert!(!config_view_sub_salesman_info(&mixed));
+        assert!(config_view_sub_salesman_mobile(&mixed));
+        let eff = with_effective_privacy_flags(mixed);
+        assert_eq!(eff["viewCustomerMobile"], 0);
+        assert_eq!(eff["viewSubSalesmanMobile"], 1);
     }
 
     #[test]

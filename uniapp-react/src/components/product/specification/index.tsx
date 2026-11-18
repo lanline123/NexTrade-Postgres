@@ -170,6 +170,8 @@ const Specification = forwardRef<SpecificationRef, SpecificationProps>(function 
         productNumber: 1,
         maxProductNumber: 0,
         checkedValue: [] as any[],
+        /** 后端默认规格 SKU id（详情接口 defaultSkuId，v5.8.63；0 = 未设置） */
+        defaultSkuId: 0,
         /** 各规格组当前选中的 attributesId，用于同名规格值区分 */
         checkedAttrIds: [] as (number | null)[],
         exchangeDetail: {} as AnyObject,
@@ -556,6 +558,7 @@ const Specification = forwardRef<SpecificationRef, SpecificationProps>(function 
                     break;
                 default:
                     result = await getProductDetail(params);
+                    s.current.defaultSkuId = Number(result.defaultSkuId ?? 0);
                     s.current.productStock = result.item.productStock;
                     s.current.productPrice = result.item.productPrice || "0";
                     s.current.picUrl = result.item.picUrl || "";
@@ -858,9 +861,17 @@ const Specification = forwardRef<SpecificationRef, SpecificationProps>(function 
                 }
             }
             if (s.current.checkedValue.length === 0) {
-                // 优先按拼团最低价 SKU 选中（无论是否处于拼团入口，只要存在可参团活动）
                 let defaultSkuItem: SkuList | undefined;
-                if (hasJoinableGroupon()) {
+                // 商家默认规格优先（v5.8.63）：后端 defaultSkuId 或 skuList 行 isDefault=1，
+                // 命中则直接采用，不再走下方拼团/最低价启发式（拼团参团纠正仍在后面兜底）
+                if (s.current.defaultSkuId > 0) {
+                    defaultSkuItem = s.current.skuList.find((item: SkuList) => item.skuId === s.current.defaultSkuId);
+                }
+                if (!defaultSkuItem) {
+                    defaultSkuItem = s.current.skuList.find((item: SkuList) => Number(item.isDefault ?? 0) === 1);
+                }
+                // 优先按拼团最低价 SKU 选中（无论是否处于拼团入口，只要存在可参团活动）
+                if (!defaultSkuItem && hasJoinableGroupon()) {
                     const cheapestJoinableSkuId = getCheapestJoinableSkuId();
                     if (cheapestJoinableSkuId != null) {
                         defaultSkuItem = s.current.skuList.find((item: SkuList) => item.skuId === cheapestJoinableSkuId);

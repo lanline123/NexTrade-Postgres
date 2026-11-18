@@ -86,8 +86,13 @@ function SkuEditor({ formApi, values }: { formApi: any; values: Record<string, a
   const addRow = () => {
     setRows([
       ...rows,
-      { skuValue: '', skuSn: '', skuPrice: 0, marketPrice: 0, costPrice: 0, skuStock: 0, isInquiry: 0 },
+      { skuValue: '', skuSn: '', skuPrice: 0, marketPrice: 0, costPrice: 0, skuStock: 0, isInquiry: 0, isDefault: 0 },
     ]);
+  };
+
+  /** 默认规格单选语义：选中一行时其余行清零（后端保存时再互斥兜底）。 */
+  const setDefaultRow = (index: number) => {
+    setRows(rows.map((row, i) => ({ ...row, isDefault: i === index ? 1 : 0 })));
   };
 
   return (
@@ -114,6 +119,7 @@ function SkuEditor({ formApi, values }: { formApi: any; values: Record<string, a
             <span>{t('成本价')}</span>
             <span>{t('库存')}</span>
             <span>{t('询价')}</span>
+            <span>{t('默认')}</span>
             <span />
           </div>
           {rows.map((row, index) => (
@@ -158,6 +164,7 @@ function SkuEditor({ formApi, values }: { formApi: any; values: Record<string, a
                 checked={isInquiryOn(row.isInquiry)}
                 onChange={(checked) => updateRow(index, 'isInquiry', checked ? 1 : 0)}
               />
+              <Radio checked={Number(row.isDefault || 0) === 1} onChange={() => setDefaultRow(index)} />
               <Button
                 theme="borderless"
                 type="danger"
@@ -304,6 +311,7 @@ export default function ProductFormDrawer({
             costPrice: Number(sku.costPrice || 0),
             skuStock: Number(sku.skuStock || 0),
             isInquiry: Number(sku.isInquiry || 0),
+            isDefault: Number(sku.isDefault || 0),
           })),
           productServiceIds: detail.productServiceIds || [],
           productRelated: detail.productRelated || [],
@@ -809,6 +817,7 @@ export default function ProductFormDrawer({
                   costPrice: row.costPrice,
                   skuStock: row.skuStock,
                   isInquiry: row.isInquiry ? 1 : 0,
+                  isDefault: row.isDefault ? 1 : 0,
                   isEnabled: 1,
                   skuData: [{ name: '规格', value: row.skuValue }],
                   attrValues: [row.skuValue],

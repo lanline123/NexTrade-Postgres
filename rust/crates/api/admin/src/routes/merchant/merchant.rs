@@ -16,17 +16,17 @@
 //!
 //! # uploadLicense 说明
 //!
-//! Java 该方法做「营业执照水印 + 不入相册 + 对象存储」，Rust 侧水印 / 资源
-//! 依赖未迁移，handler 原样调用服务并返回业务错误（501，文案见
-//! `MSG_LICENSE_UNAVAILABLE`）；客户端应改用既有文件上传能力后回填
-//! `merchantData.businessLicenseImg`。
+//! Java 该方法做「营业执照水印 + 不入相册 + 对象存储」。批次B 已迁移
+//! 直传：handler 解析 multipart 后调用服务层证件私有通道（不入相册，
+//! 返回鉴权代理路径），回填 `merchantData.businessLicenseImg`；
+//! 仅公示水印未迁移。
 //!
 //! # 权限
 //! Java：`list/detail` 仅登录；其余 `merchantModifyManage`。Rust `require_auth`
 //! 目前只校验登录态（全局已知缺口）。
 
 use axum::{
-    extract::{Query, State},
+    extract::{Multipart, Query, State},
     routing::{get, post},
     Extension, Json, Router,
 };
@@ -119,9 +119,36 @@ fn require_platform(tenant: &TenantContext) -> Result<(), AppError> {
 async fn upload_license(
     State(state): State<AdminState>,
     Extension(tenant): Extension<TenantContext>,
+    mut multipart: Multipart,
 ) -> ApiResult<String> {
     require_platform(&tenant)?;
-    ok(state.merchant.merchant.upload_license()?)
+    // 批次B：解析 multipart file/license 字段后走服务层证件私有通道直传。
+    let mut found: Option<(Vec<u8>, Option<String>, Option<String>)> = None;
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        AppError(nextrade_core::Error::Validation(format!("解析上传表单失败: {e}")))
+    })? {
+        let name = field.name().unwrap_or_default();
+        if name == "file" || name == "license" {
+            let content_type = field.content_type().map(str::to_string);
+            let file_name = field.file_name().map(str::to_string);
+            let bytes = field
+                .bytes()
+                .await
+                .map_err(|e| {
+                    AppError(nextrade_core::Error::Validation(format!("读取上传文件失败: {e}")))
+                })?
+                .to_vec();
+            found = Some((bytes, content_type, file_name));
+            break;
+        }
+    }
+    let (bytes, content_type, file_name) =
+        found.unwrap_or_else(|| (Vec::new(), None, None));
+    ok(state
+        .merchant
+        .merchant
+        .upload_license(file_name.as_deref(), content_type.as_deref(), &bytes)
+        .await?)
 }
 
 async fn list(

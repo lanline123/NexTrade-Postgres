@@ -17,7 +17,7 @@ import {
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import { apiGet, apiPost } from '../api';
+import { apiGet, apiPost, certFileSrc } from '../api';
 import { useI18n } from '../i18n';
 import ListPage from '../framework/ListPage';
 import type { ColumnConfig } from '../framework/types';
@@ -35,11 +35,11 @@ function credentialUrl(value: unknown): string {
   return '';
 }
 
-/** 单张证照（营业执照 / 证件正反面 / 店铺 logo）。 */
+/** 单张证照（营业执照 / 证件正反面 / 店铺 logo）。批次B：证件代理路径经后台鉴权代理出图。 */
 function renderCredential(value: unknown): ReactNode {
   const url = credentialUrl(value);
   if (!url) return '--';
-  return <Image src={url} width={80} height={80} />;
+  return <Image src={certFileSrc(url)} width={80} height={80} />;
 }
 
 /** 多张证照（补充信息可能是一组图片）。 */
@@ -50,7 +50,7 @@ function renderCredentials(value: unknown): ReactNode {
   return (
     <Space spacing={8} wrap>
       {urls.map((url) => (
-        <Image key={url} src={url} width={80} height={80} />
+        <Image key={url} src={certFileSrc(url)} width={80} height={80} />
       ))}
     </Space>
   );

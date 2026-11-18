@@ -227,6 +227,12 @@ pub struct QuickLoginSettingVO {
     pub wechat_login: i32,
     /// 是否展示授权登录（Java `showOauth` = `wechatLogin`）
     pub show_oauth: i32,
+    /// 微信内 H5 是否开启手机号（验证码）登录（`wechatH5MobileLogin`，默认 1；
+    /// 仅 `x-client-type = wechat` 时按配置下发，其它端恒 1）
+    pub wechat_h5_mobile_login: i32,
+    /// 微信内 H5 是否开启账号密码登录（`wechatH5PasswordLogin`，默认 1；
+    /// 仅 `x-client-type = wechat` 时按配置下发，其它端恒 1）
+    pub wechat_h5_password_login: i32,
 }
 
 /// 微信扫码登录事件返回（Java `LoginWechatEventVO`）。
@@ -369,6 +375,27 @@ pub fn quick_login_flags(client_type: Option<&str>, open_wechat_oauth: i32) -> (
     (wechat_login, wechat_login)
 }
 
+/// 微信内 H5 登录方式开关（NexTrade 扩展，对应 Tigshop v5.8.63
+/// 「微信环境内的 H5 登录方式可配置」）。
+///
+/// 仅 `x-client-type = wechat`（微信内置浏览器）时按后台配置
+/// `wechatH5MobileLogin` / `wechatH5PasswordLogin` 下发；
+/// 其它客户端一律 `(1, 1)`（不限制，避免影响普通浏览器/小程序）。
+///
+/// 返回 `(wechatH5MobileLogin, wechatH5PasswordLogin)`。
+/// 两者同时为 0 时的兜底（保留密码登录）由前端处理，后端如实下发。
+#[must_use]
+pub fn wechat_h5_login_flags(
+    client_type: Option<&str>,
+    mobile_login: i32,
+    password_login: i32,
+) -> (i32, i32) {
+    match client_type {
+        Some(c) if c.eq_ignore_ascii_case("wechat") => (mobile_login, password_login),
+        _ => (1, 1),
+    }
+}
+
 /// 自动注册昵称：`usernamePrefix` 存在则拼接前缀，否则 `user_{name}`
 /// （Java `StrUtil.isNotBlank(prefix) ? prefix + name : "user_" + name`）。
 #[must_use]
@@ -426,6 +453,18 @@ mod tests {
     }
 
     #[test]
+    fn wechat_h5_login_flags_only_apply_to_wechat_client() {
+        // 微信内：按配置下发
+        assert_eq!(wechat_h5_login_flags(Some("wechat"), 0, 1), (0, 1));
+        assert_eq!(wechat_h5_login_flags(Some("WECHAT"), 1, 0), (1, 0));
+        assert_eq!(wechat_h5_login_flags(Some("wechat"), 0, 0), (0, 0));
+        // 其它端：恒开启，不受配置影响
+        assert_eq!(wechat_h5_login_flags(Some("h5"), 0, 0), (1, 1));
+        assert_eq!(wechat_h5_login_flags(Some("pc"), 0, 0), (1, 1));
+        assert_eq!(wechat_h5_login_flags(None, 0, 0), (1, 1));
+    }
+
+    #[test]
     fn cache_keys_match_java_string_concatenation() {
         assert_eq!(
             sms_code_key(Some("forgetPassword"), "13800000000"),
@@ -474,10 +513,14 @@ mod tests {
         let vo = QuickLoginSettingVO {
             wechat_login: 1,
             show_oauth: 1,
+            wechat_h5_mobile_login: 0,
+            wechat_h5_password_login: 1,
         };
         let v = serde_json::to_value(&vo).unwrap();
         assert_eq!(v["wechatLogin"], 1);
         assert_eq!(v["showOauth"], 1);
+        assert_eq!(v["wechatH5MobileLogin"], 0);
+        assert_eq!(v["wechatH5PasswordLogin"], 1);
 
         let wx = WxLoginInfoByCodeVO {
             r#type: 2,

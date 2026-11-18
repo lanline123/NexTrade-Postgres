@@ -179,6 +179,10 @@ export default function CustomerDetailPage() {
                         <View className="card relation">
                             <View className="relation-title">{t("客户关系")}</View>
                             <View className="relation-row">
+                                <Text>{t("手机号")}</Text>
+                                <Text>{detail.mobile || "-"}</Text>
+                            </View>
+                            <View className="relation-row">
                                 <Text>{t("客户绑定渠道")}</Text>
                                 <Text>{detail.channel || "-"}</Text>
                             </View>

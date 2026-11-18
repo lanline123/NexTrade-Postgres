@@ -66,7 +66,10 @@ export default function SalesmanRelationList() {
 
     const tabs = [
         { label: t("全部客户"), value: "all" as CustomerListParams["customerType"] },
-        { label: t("下单客户"), value: "ordered" as CustomerListParams["customerType"] }
+        { label: t("下单客户"), value: "ordered" as CustomerListParams["customerType"] },
+        // 批次B：下级分销员 tab（后端 paginate_sub_salesmen 已支持，
+        // 可见性由后端 viewSubSalesmanInfo 开关门控，无权限时列表接口报错为空态）
+        { label: t("下级分销员"), value: "salesman" as CustomerListParams["customerType"] }
     ];
     const timeTabs = [
         { label: "全部", value: "all" },
@@ -212,7 +215,7 @@ export default function SalesmanRelationList() {
                         <View className="relation-search">
                             <SearchBar
                                 value={keyword}
-                                placeholder={t("请输入手机号或有效客户昵称搜索")}
+                                placeholder={t("按备注、电话或昵称搜索")}
                                 shape="round"
                                 onChange={(value) => {
                                     setKeyword(value);
@@ -265,6 +268,16 @@ export default function SalesmanRelationList() {
                         </View>
                         <View className="customer-info">
                             <View className="name">{item.nickname || item.username || "-"}</View>
+                            {item.remark ? (
+                                <View className="line">
+                                    {t("备注")}：<Text>{item.remark}</Text>
+                                </View>
+                            ) : null}
+                            {item.mobile ? (
+                                <View className="line">
+                                    {t("电话")}：<Text>{item.mobile}</Text>
+                                </View>
+                            ) : null}
                             <View className="line">
                                 {t("成交额")}：<Text>{money(item.orderAmount)}</Text> {t("订单数")}：<Text>{item.orderCount || 0}</Text>
                             </View>

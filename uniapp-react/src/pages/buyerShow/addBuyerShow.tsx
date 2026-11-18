@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Text, Textarea, View } from "@tarojs/components";
 import Taro, { useLoad } from "@tarojs/taro";
 
@@ -12,6 +12,7 @@ import BuyerShowCloseTip from "./src/BuyerShowCloseTip";
 import MediaUpload from "./src/MediaUpload";
 import type { MediaItem } from "./src/MediaUpload";
 import { buyerShowAdd, getHistoryProduct } from "@/api/buyerShow/buyerShow";
+import { getProductsList } from "@/api/common";
 import useList from "@/hooks/useList";
 import { getElementRect, redirect } from "@/utils";
 import { pxToRpx } from "@/utils/format";
@@ -49,6 +50,13 @@ export default function AddBuyerShow() {
         }
     }, [configStore.initLoading, configStore.buyerShowEnabled]);
 
+    // 发布条件：后台开关 buyerShowPublishNeedOrder=1 时仅可关联已购商品
+    // （getHistoryProduct）；关闭（默认）时可关联任意在售商品（getProductsList）。
+    // 配置加载完成前先按已购商品口径加载，配置到达后按需切换数据源重拉。
+    const [needOrder, setNeedOrder] = useState(1);
+    const productApiRef = useRef<(params: any) => Promise<any>>(getHistoryProduct);
+    const fetchProducts = useCallback((params: any) => productApiRef.current(params), []);
+
     const filterParamsRef = useRef({ page: 1, size: 10 });
     const {
         data: products,
@@ -56,7 +64,7 @@ export default function AddBuyerShow() {
         isLoadMore,
         total,
         getList
-    } = useList(getHistoryProduct, {
+    } = useList(fetchProducts, {
         params: filterParamsRef.current,
         path: {
             dataKey: "records"
@@ -64,6 +72,18 @@ export default function AddBuyerShow() {
         immediate: true,
         needReachBottom: false
     });
+
+    useEffect(() => {
+        if (!configStore.initLoading) return;
+        const need = configStore.buyerShowPublishNeedOrder === 1 ? 1 : 0;
+        setNeedOrder(need);
+        const target = need === 1 ? getHistoryProduct : getProductsList;
+        if (productApiRef.current !== target) {
+            productApiRef.current = target as (params: any) => Promise<any>;
+            filterParamsRef.current.page = 1;
+            void getList({ page: 1 });
+        }
+    }, [configStore.initLoading, configStore.buyerShowPublishNeedOrder, getList]);
 
     const [form, setForm] = useState<FormData>({
         content: "",
@@ -114,7 +134,7 @@ export default function AddBuyerShow() {
             return;
         } else if (!rangeData.length) {
             Taro.showToast({
-                title: t("请选择已购买的商品"),
+                title: t(needOrder === 1 ? "请选择已购买的商品" : "请选择商品"),
                 icon: "none"
             });
             return;
@@ -187,7 +207,7 @@ export default function AddBuyerShow() {
                         </View>
                     </View>
                     <View className="formItem">
-                        <View className="form-label">{t("选择已购买的商品")}</View>
+                        <View className="form-label">{t(needOrder === 1 ? "选择已购买的商品" : "选择商品")}</View>
                         <View className="form-value">
                             <ProductList
                                 products={products}
@@ -195,6 +215,9 @@ export default function AddBuyerShow() {
                                 productListHeight={productListHeight}
                                 onScrollToLower={reachBottom}
                             />
+                            {needOrder === 1 && !isLoading && total === 0 ? (
+                                <View className="empty-tip">{t("发布买家秀需先下单购买商品，暂无可关联的已购商品")}</View>
+                            ) : null}
                         </View>
                     </View>
                 </View>

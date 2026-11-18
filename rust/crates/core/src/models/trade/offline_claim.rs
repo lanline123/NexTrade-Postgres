@@ -24,8 +24,8 @@ pub struct OfflinePaymentClaimAuditDTO {
     pub reject_reason: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct OfflinePaymentClaimVO {
     pub claim_id: i32,
     pub order_id: i32,

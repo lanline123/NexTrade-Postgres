@@ -78,6 +78,8 @@ pub struct CustomerRow {
     pub avatar: String,
     pub mobile: String,
     pub nickname: Option<String>,
+    /// 分销员备注名（批次B：`salesman_customer.remark`，下级经 LEFT JOIN 取）。
+    pub remark: Option<String>,
     pub reg_time: Option<i32>,
     pub rank_name: Option<String>,
     pub channel: String,
@@ -494,7 +496,7 @@ impl SalesmanAdminRepository {
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
-        let sql = "SELECT u.user_id, u.username, u.avatar, u.mobile, u.nickname, u.reg_time, r.rank_name, c.channel, c.add_time AS bind_time FROM salesman_customer c JOIN \"user\" u ON u.user_id = c.user_id LEFT JOIN user_rank r ON r.rank_id = u.rank_id WHERE c.salesman_id = $1 ORDER BY c.salesman_customer_id DESC LIMIT $2 OFFSET $3";
+        let sql = "SELECT u.user_id, u.username, u.avatar, u.mobile, u.nickname, c.remark, u.reg_time, r.rank_name, c.channel, c.add_time AS bind_time FROM salesman_customer c JOIN \"user\" u ON u.user_id = c.user_id LEFT JOIN user_rank r ON r.rank_id = u.rank_id WHERE c.salesman_id = $1 ORDER BY c.salesman_customer_id DESC LIMIT $2 OFFSET $3";
         let rows = sqlx::query_as::<_, CustomerRow>(sql)
             .bind(salesman_id)
             .bind(limit.max(1) as i64)
@@ -625,18 +627,23 @@ impl SalesmanAdminRepository {
     /// - `all` → `salesman_customer JOIN user`
     /// - `ordered` → 同上 + `EXISTS(order)`（Java 按最后下单时间筛选，见服务层说明）
     /// - `salesman` → 下级分销员（`salesman.pid = 当前分销员`）
+    ///
+    /// 批次B：`keyword` 非空时按备注 / 电话 / 用户名 / 昵称模糊过滤
+    /// （客户与下级两条 SQL 口径一致）；列表行带出 `c.remark`。
+    #[allow(clippy::too_many_arguments)]
     pub async fn paginate_api_customers(
         &self,
         salesman_id: i32,
         customer_type: &str,
         start: Option<i64>,
         end: Option<i64>,
+        keyword: Option<&str>,
         limit: i64,
         offset: i64,
     ) -> Result<(u64, Vec<CustomerRow>)> {
         if customer_type == "salesman" {
             return self
-                .paginate_sub_salesmen(salesman_id, start, end, limit, offset)
+                .paginate_sub_salesmen(salesman_id, start, end, keyword, limit, offset)
                 .await;
         }
         let ordered = customer_type == "ordered";
@@ -645,6 +652,7 @@ impl SalesmanAdminRepository {
         } else {
             ""
         };
+        let kw = keyword.map(str::trim).filter(|s| !s.is_empty());
         let mut where_parts = vec!["c.salesman_id = ?".to_string()];
         if start.is_some() {
             where_parts.push("c.add_time >= ?".into());
@@ -652,9 +660,18 @@ impl SalesmanAdminRepository {
         if end.is_some() {
             where_parts.push("c.add_time <= ?".into());
         }
+        if kw.is_some() {
+            where_parts.push(
+                "(u.mobile LIKE ? OR u.username LIKE ? OR u.nickname LIKE ? OR c.remark LIKE ?)"
+                    .into(),
+            );
+        }
         let where_sql = format!("WHERE {} {order_exists}", where_parts.join(" AND "));
+        let kw_like = kw.map(|k| format!("%{k}%"));
 
-        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM salesman_customer c {where_sql}"));
+        let count_sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT COUNT(*) FROM salesman_customer c JOIN \"user\" u ON u.user_id = c.user_id {where_sql}"
+        ));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql).bind(salesman_id);
         if let Some(v) = start {
             cq = cq.bind(v);
@@ -662,10 +679,13 @@ impl SalesmanAdminRepository {
         if let Some(v) = end {
             cq = cq.bind(v);
         }
+        if let Some(v) = &kw_like {
+            cq = cq.bind(v.clone()).bind(v.clone()).bind(v.clone()).bind(v.clone());
+        }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
         let sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT u.user_id, u.username, u.avatar, u.mobile, u.nickname, u.reg_time, r.rank_name, c.channel, c.add_time AS bind_time FROM salesman_customer c JOIN \"user\" u ON u.user_id = c.user_id LEFT JOIN user_rank r ON r.rank_id = u.rank_id {where_sql} ORDER BY c.salesman_customer_id DESC LIMIT ? OFFSET ?"
+            "SELECT u.user_id, u.username, u.avatar, u.mobile, u.nickname, c.remark, u.reg_time, r.rank_name, c.channel, c.add_time AS bind_time FROM salesman_customer c JOIN \"user\" u ON u.user_id = c.user_id LEFT JOIN user_rank r ON r.rank_id = u.rank_id {where_sql} ORDER BY c.salesman_customer_id DESC LIMIT ? OFFSET ?"
         ));
         let mut q = sqlx::query_as::<_, CustomerRow>(&sql).bind(salesman_id);
         if let Some(v) = start {
@@ -673,6 +693,9 @@ impl SalesmanAdminRepository {
         }
         if let Some(v) = end {
             q = q.bind(v);
+        }
+        if let Some(v) = &kw_like {
+            q = q.bind(v.clone()).bind(v.clone()).bind(v.clone()).bind(v.clone());
         }
         let rows = q
             .bind(limit.max(1) as i64)
@@ -684,14 +707,19 @@ impl SalesmanAdminRepository {
     }
 
     /// 下级分销员分页（公共端 `customerType=salesman`）。
+    ///
+    /// 批次B：备注经 `LEFT JOIN salesman_customer`（同分销员对该下级用户的
+    /// 绑定行）取回，无绑定行时为 NULL；`keyword` 过滤口径与客户分支一致。
     async fn paginate_sub_salesmen(
         &self,
         salesman_id: i32,
         start: Option<i64>,
         end: Option<i64>,
+        keyword: Option<&str>,
         limit: i64,
         offset: i64,
     ) -> Result<(u64, Vec<CustomerRow>)> {
+        let kw = keyword.map(str::trim).filter(|s| !s.is_empty());
         let mut where_parts = vec!["s.pid = ?".to_string()];
         if start.is_some() {
             where_parts.push("s.add_time >= ?".into());
@@ -699,8 +727,16 @@ impl SalesmanAdminRepository {
         if end.is_some() {
             where_parts.push("s.add_time <= ?".into());
         }
+        if kw.is_some() {
+            where_parts.push(
+                "(u.mobile LIKE ? OR u.username LIKE ? OR u.nickname LIKE ? OR c.remark LIKE ?)"
+                    .into(),
+            );
+        }
         let where_sql = format!("WHERE {}", where_parts.join(" AND "));
-        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM salesman s {where_sql}"));
+        let kw_like = kw.map(|k| format!("%{k}%"));
+        let from_sql = "FROM salesman s JOIN \"user\" u ON u.user_id = s.user_id LEFT JOIN salesman_customer c ON c.salesman_id = s.pid AND c.user_id = s.user_id";
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) {from_sql} {where_sql}"));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql).bind(salesman_id);
         if let Some(v) = start {
             cq = cq.bind(v);
@@ -708,10 +744,13 @@ impl SalesmanAdminRepository {
         if let Some(v) = end {
             cq = cq.bind(v);
         }
+        if let Some(v) = &kw_like {
+            cq = cq.bind(v.clone()).bind(v.clone()).bind(v.clone()).bind(v.clone());
+        }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
         let sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT u.user_id, u.username, u.avatar, u.mobile, u.nickname, u.reg_time, r.rank_name, 'salesman' AS channel, s.add_time AS bind_time FROM salesman s JOIN \"user\" u ON u.user_id = s.user_id LEFT JOIN user_rank r ON r.rank_id = u.rank_id {where_sql} ORDER BY s.salesman_id DESC LIMIT ? OFFSET ?"
+            "SELECT u.user_id, u.username, u.avatar, u.mobile, u.nickname, c.remark, u.reg_time, r.rank_name, 'salesman' AS channel, s.add_time AS bind_time {from_sql} LEFT JOIN user_rank r ON r.rank_id = u.rank_id {where_sql} ORDER BY s.salesman_id DESC LIMIT ? OFFSET ?"
         ));
         let mut q = sqlx::query_as::<_, CustomerRow>(&sql).bind(salesman_id);
         if let Some(v) = start {
@@ -720,6 +759,9 @@ impl SalesmanAdminRepository {
         if let Some(v) = end {
             q = q.bind(v);
         }
+        if let Some(v) = &kw_like {
+            q = q.bind(v.clone()).bind(v.clone()).bind(v.clone()).bind(v.clone());
+        }
         let rows = q
             .bind(limit.max(1) as i64)
             .bind(offset as i64)
@@ -727,6 +769,31 @@ impl SalesmanAdminRepository {
             .await
             .map_err(map_err)?;
         Ok((total.0.max(0) as u64, rows))
+    }
+
+    /// 为纯下级（无绑定行）新建备注承载行（批次B）。
+    ///
+    /// 下级关系本身只有 `salesman.pid`，备注只能落在 `salesman_customer`；
+    /// 无绑定行时插入一行 `channel='salesman'` 的绑定承载备注，
+    /// 后续更新走既有 `update_customer_remark`。
+    pub async fn insert_customer_binding_remark(
+        &self,
+        salesman_id: i32,
+        user_id: i32,
+        remark: &str,
+        add_time: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO salesman_customer (salesman_id, user_id, add_time, channel, remark) VALUES ($1, $2, $3, 'salesman', $4)",
+        )
+        .bind(salesman_id)
+        .bind(user_id)
+        .bind(add_time)
+        .bind(remark)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
     }
 }
 

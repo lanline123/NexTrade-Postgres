@@ -614,6 +614,8 @@ pub struct InitConfigSettingsVO {
     pub buyer_show_guidance_content: Option<String>,
     /// 买家秀模板样式（`buyerShowTemplateStyle`）
     pub buyer_show_template_style: Option<i32>,
+    /// 发布买家秀是否要求已下单（`buyerShowPublishNeedOrder`，0 否 / 1 是，默认 0）
+    pub buyer_show_publish_need_order: Option<i32>,
 
     // *** 客服设置 ***
     /// 客服类型（`kefuType`）

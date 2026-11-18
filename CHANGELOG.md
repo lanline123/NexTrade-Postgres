@@ -212,3 +212,44 @@
 ### 变更
 
 - **PC - 顶栏地区图标改用 IconPark Local**：头部顶部条地区名前的图标由 iconfont-pc 的 icon-dizhi 字体字形改为 IconPark `Local` 组件（14px），与全站 IconPark 口径统一（用户 2026-11-18 定，前台与编辑器预览同口径）；编辑器预览原先的 CSS 圆点占位已同步改用 Local 渲染（先行上线）。
+
+## 0.0.2 续 · 2026-11-18 批次A（三篇公众号文章补齐·第一批，未上线）
+
+### 新增
+
+- **线下收款 - 认款状态下发补齐**：用户端/管理端订单 VO 与支付页 PayOrderVO 新增 offlinePaymentClaimStatus / offlinePaymentClaimStatusName / offlinePaymentClaimId / offlinePaymentClaimRejectReason / offlinePaymentClaim（每单最新一笔认款单，列表批量预取、详情/支付页单查），availableActions 同步下发 offlinePaymentClaimDetail / editOfflinePaymentClaim 守卫（已取消订单不下发详情、驳回且未取消可修改申请）；后台认款列表行可直接拿到 claimId 与状态，PC/H5 既有按钮守卫点亮，后端行为不变（提交/审核/到账链路原本完整）。
+- **供应商订单导出 - 可选供货价**：订单导出列新增「供货价」「供货价小计」两列（数据源为下单快照 order_item.vendor_product_supply_price，小计=供货价×数量），OrderExportRowVO/export_cell 同步补字段；视角门控：仅平台与供应商账号可见（getExportItemList/exportItemInfo 按视角过滤、orderExport 对无权账号剔除供货价列），店铺账号不可见；供应商订单页（VendorOrders）新增「导出订单」入口，复用平台导出框架与已保存字段配置，默认确保供货价两列包含在内，按当前状态页签过滤导出。
+- **买家秀 - 发布条件开关**：买家秀设置新增配置项 buyerShowPublishNeedOrder「发布买家秀是否要求已下单」（默认关=所有用户可发布），后台买家秀设置页以是/否单选呈现，init 配置下发 H5；开启时后端发布接口校验用户存在有效订单（未删除、有效、非已取消/无效，含已完成），未下单返回明确错误「发布买家秀需要先下单购买商品」；H5 发布页按开关切换商品来源：开启=已购商品，关闭=通用商品列表可选任意在售商品，并同步切换标题与提示文案。
+- **登录设置 - 微信内 H5 登录方式可配置**：新增配置 wechatH5MobileLogin / wechatH5PasswordLogin（默认开启），后台登录设置「微信登录」组新增两个是/否开关；getQuickLoginSetting 仅对微信客户端（x-client-type=wechat）按配置下发 wechatH5MobileLogin / wechatH5PasswordLogin，其它端恒开启；H5 登录页仅在微信内置浏览器内按配置过滤登录方式页签（非微信环境零变化，拉取失败按全开处理），两个开关都关闭时兜底保留账号密码登录，避免无登录方式可用。
+
+---
+
+## 0.0.2 续 · 2026-11-18 微信文章补齐批次B（未上线，待合并推送）
+
+### 新增
+
+- **证件私有存储通道**：新增证件类文件私有存储（独立私有目录、不进 gallery_pic 素材表、文件名不可猜测），读取经前台 `/api/cert/file/*` 与后台 `/adminapi/cert/file/*` 双代理鉴权（登录态校验）；通用上传新增 `purpose=cert` 分流，PC 会员认证与 H5 入驻的身份证/营业执照改走私有通道。
+- **后台 - 证件图片直传控件**：新增 `CertImageUpload`（仿支付证书 CertFileUpload 的直传模式，端点 `/setting/config/uploadCertImg`），支付进件表单的营业执照/身份证正反面字段改本地直传、不再经素材中心选择；入驻审核与会员认证审核页的证照展示改经后台鉴权代理出图。
+- **分销 - 细粒度隐私开关**：分销设置「分销隐私」在总开关下新增「可查看客户电话」「可查看下级信息」「可查看下级电话」三项（缺失时回退总开关，存量行为不变）；电话不可见时后端脱敏下发；H5 分销员中心客户列表新增「下级分销员」页签。
+
+### 修复
+
+- **营业执照上传未迁移恒报错**：前台与后台 `uploadLicense` 均实现直传（空/超10MB/MIME 白名单校验保留），H5 企业入驻营业执照可正常上传（此前前台 handler 曾绕行公开图库上传，一并收回服务层私有通道）。
+- **分销 - 客户备注只写不读**：客户/下级列表与详情 VO 补下发备注（仓储两条分页 SQL 均带出绑定行备注），H5 列表/详情展示备注与电话；客户搜索做真（后端按备注/电话/用户名/昵称过滤）；纯下级（无绑定行）编辑备注不再报「客户不存在」（新建绑定行承载备注）。
+- **默认地址双端语义统一**：以 `is_default` 为唯一默认语义——PC 地址管理页「设默认」改走 update 接口（此前用 setSelected 冒充默认，与 H5 不是同一字段）；后端地址列表排序改默认优先置顶；H5 结算选址只改本地态不落库、选址模式下不可改默认、默认地址加独立「默认」徽标；PC 结算页移除绑 isSelected 的「默认地址」勾选框（默认地址仅以徽标展示）。
+
+---
+
+## 0.0.2 续 · 2026-11-18 批次C（三篇公众号文章补齐·第三批，未上线）
+
+### 新增
+
+- **商品 - 默认规格（v5.8.63）**：`product_sku` 新增 `is_default` 标志（迁移 `2026-11-18_sku_default.sql`，幂等加列）；实体/VO/保存 DTO 全链贯通，保存时后端互斥兜底（本次显式指定者优先，否则保留启用默认行中最小 sku_id，禁用行残留默认一并清零）。详情接口填充此前恒空的 `checked_value`（默认 SKU 的 `sku_data` 展开为 `name:value`，与 Java `checkedValue` 同口径）并新增 `defaultSkuId` 下发。后台商品编辑的规格行新增「默认」单选列；PC 详情页沿用既有 `checkedValue` 预选通道（优先级：URL `?skuId=` > 默认规格 > 不选），价格/库存/规格图随预选联动；H5 规格弹层与详情首屏改为「商家默认规格 > 拼团最低价 > 最低价有库存」顺序，详情页首屏即以默认 SKU 为当前 SKU。
+- **跨境地址二期 - 美国/加拿大（v5.8.62）**：H5 地址注册表新增 US/CA 两国（州/省下拉 + 城市文本 + ZIP 5 位/ZIP+4 与加拿大 A1A 1A1 邮编校验 + NANP 10 位手机号规则，同区号 1 时校验文案不串国）；地区种子 SQL（`2026-11-18_cross_border_us_ca_region.sql`，幂等）补美国、加拿大国家行与美国 50 州+特区、加拿大 10 省+3 地区（ISO 3166-2 标准代码，城市及以下走既有文本退化）。后台地区管理新增「标准代码」编辑字段（后端 create/update DTO 同步支持，空白=不写/保持原值），补齐国家配置链。
+- **PC 端跨境收货地址**：PC 新增与 H5 同口径的跨境地址注册表（`pc-semi/src/lib/crossBorderAddress.ts`，覆盖一期 8 国 + US/CA）；会员地址弹窗新增国家/地区选择，非国内按注册表渲染州/省（有地区树子级时下拉、否则文本）+ 城市 + 地址行 + 邮编并做邮编/手机号校验，保存下发 `countryCode/countryName/regionNames/addressData/formattedAddress/internationalMobile`，编辑跨境地址可回显；后端地址 create/update DTO 此前静默丢弃的跨境字段（country_code/country_name/region_names/address_data/formatted_address/international_mobile）全部贯通落库与回显，`address_data` 同步拆分 address_line_two/building_name/floor/unit 分列。结算页海外地址优先展示 formattedAddress。（支付页 Apple Pay 国家码仍为 CN：支付信息接口与订单表均无收货国家字段，需后端先在下单时快照 country_code 并下发后才能联动，列为遗留项。）
+
+## 0.0.2 续 · 2026-11-18 批次（未上线）
+
+### 新增
+
+- **移动端 - 小程序一键获取收货地址（批次D，对齐 Tigshop v5.8.62）**：微信小程序端新增微信收货地址一键导入。`app.config` 声明 `requiredPrivateInfos: ["chooseAddress"]` 与 `permission["scope.address"]` 用途文案；新增 `src/utils/wechatAddress.ts` 封装 `Taro.chooseAddress()`（取消静默、拒绝授权引导去设置开启），并把微信返回的省/市/区县名称逐级匹配现有地区树为 `region_ids`（名称归一化剥离行政区划后缀、直辖市跳级匹配；匹配失败不阻断，其余字段照常回填并提示手选地区，含纯函数单测）。地址编辑页顶部新增「导入微信收货地址」入口（回填表单后走原保存流程），地址列表页新增快捷入口（导入后直接新增保存并刷新，结算选址场景保存后自动选中返回）。入口仅 weapp 渲染，H5 不显示；微信地址恒为国内地址（countryCode=CN），不影响跨境地址逻辑。小程序尚未上线，chooseAddress 授权链需待小程序提审上线后真机验证。

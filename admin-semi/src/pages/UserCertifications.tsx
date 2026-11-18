@@ -14,7 +14,7 @@ import {
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import { apiGet, apiPost, isDemo } from '../api';
+import { apiGet, apiPost, certFileSrc, isDemo } from '../api';
 import { useI18n } from '../i18n';
 import ListPage from '../framework/ListPage';
 import type { ColumnConfig } from '../framework/types';
@@ -203,7 +203,8 @@ function DetailRow({ label, children }: { label: string; children: ReactNode }) 
 function PicImage({ photos }: { photos?: CompanyPhoto[] | null }) {
   const url = firstPicUrl(photos);
   if (!url) return <span>-</span>;
-  return <Image src={url} width={80} height={80} style={{ objectFit: 'cover' }} />;
+  // 批次B：证件代理路径经后台鉴权代理出图（存量公开 URL 原样）。
+  return <Image src={certFileSrc(url)} width={80} height={80} style={{ objectFit: 'cover' }} />;
 }
 
 export default function UserCertifications() {

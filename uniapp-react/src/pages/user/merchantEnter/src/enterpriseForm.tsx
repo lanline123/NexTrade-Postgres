@@ -613,12 +613,12 @@ export default function EnterpriseForm({ type = 2, id = 0, isReapply = false, on
 
                                     <FormRow className="special-item" labelPosition="top" label={`${t("证件照正面")}：`} required>
                                         <View className="upload-box">
-                                            <Upload modelValue={firstForm.frontOfPhoto} isValueArray onModelValueChange={(value) => updateFirst("frontOfPhoto", value)} />
+                                            <Upload modelValue={firstForm.frontOfPhoto} isValueArray purpose="cert" onModelValueChange={(value) => updateFirst("frontOfPhoto", value)} />
                                         </View>
                                     </FormRow>
                                     <FormRow className="special-item" labelPosition="top" label={`${t("证件照反面")}:`} required>
                                         <View className="upload-box">
-                                            <Upload modelValue={firstForm.backOfPhoto} isValueArray onModelValueChange={(value) => updateFirst("backOfPhoto", value)} />
+                                            <Upload modelValue={firstForm.backOfPhoto} isValueArray purpose="cert" onModelValueChange={(value) => updateFirst("backOfPhoto", value)} />
                                         </View>
                                     </FormRow>
                                 </>
@@ -734,6 +734,7 @@ export default function EnterpriseForm({ type = 2, id = 0, isReapply = false, on
                                                 modelValue={secondForm.merchantData.businessLicenseImg}
                                                 isValueArray
                                                 apiUrl="merchant/merchant/uploadLicense"
+                                                purpose="cert"
                                                 responseDataType="url"
                                                 allowPdf
                                                 maxSize={10}

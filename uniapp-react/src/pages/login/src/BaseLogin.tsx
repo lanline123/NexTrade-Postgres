@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Input, Image } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 
@@ -11,9 +11,9 @@ import TigNavbar from "@/components/tig/tig-navbar/TigNavbar";
 import TigButton from "@/components/tig/tig-button/TigButton";
 import Checkbox from "@/pages/cart/src/Checkbox";
 import TigMobileAreacode from "@/components/tig/tig-mobile-areacode/TigMobileAreacode";
-import { sendMobileCode, setMiniProgramOpenid, userSignin, csrfCreate, getOauth } from "@/api/login/login";
+import { sendMobileCode, setMiniProgramOpenid, userSignin, csrfCreate, getOauth, getQuickLoginSetting } from "@/api/login/login";
 import { useUserStore } from "@/store/user";
-import { redirect, isOverseas, staticResource } from "@/utils";
+import { redirect, isOverseas, isWeixinBrowser, staticResource } from "@/utils";
 import { useI18nStore } from "@/store/i18n";
 import { t } from "@/utils/i18n";
 import { useConfigStore } from "@/store/config";
@@ -139,16 +139,52 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [langCode]);
 
-    const loginTypeTabs = [
-        {
-            name: t("账号登录"),
-            value: "password"
-        },
-        {
-            name: t("验证码登录"),
-            value: "mobile"
+    // 微信内 H5 登录方式开关（后台「登录设置」wechatH5MobileLogin /
+    // wechatH5PasswordLogin，默认全开）。仅微信内置浏览器内拉取并生效，
+    // 普通浏览器不请求、不受影响；拉取失败按全开处理。
+    const [wechatLoginFlags, setWechatLoginFlags] = useState({ mobile: 1, password: 1 });
+    useEffect(() => {
+        if (!isWeixinBrowser()) return;
+        let alive = true;
+        getQuickLoginSetting()
+            .then((res: any) => {
+                if (!alive || !res) return;
+                setWechatLoginFlags({
+                    mobile: res.wechatH5MobileLogin === 0 ? 0 : 1,
+                    password: res.wechatH5PasswordLogin === 0 ? 0 : 1
+                });
+            })
+            .catch(() => {});
+        return () => {
+            alive = false;
+        };
+    }, []);
+
+    const loginTypeTabs = useMemo(() => {
+        const all = [
+            {
+                name: t("账号登录"),
+                value: "password"
+            },
+            {
+                name: t("验证码登录"),
+                value: "mobile"
+            }
+        ];
+        if (!isWeixinBrowser()) return all;
+        const filtered = all.filter((tab) => (tab.value === "password" ? wechatLoginFlags.password === 1 : wechatLoginFlags.mobile === 1));
+        // 双关兜底：两个开关都关闭时保留账号密码登录，避免出现无登录方式可用
+        return filtered.length ? filtered : all.filter((tab) => tab.value === "password");
+        // langCode：语言切换时重算文案
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [wechatLoginFlags, langCode]);
+
+    // 当前登录方式被配置过滤掉时，切到剩余的第一个方式
+    useEffect(() => {
+        if (!loginTypeTabs.some((tab) => tab.value === loginType)) {
+            onLoginTypeChange(loginTypeTabs[0].value);
         }
-    ];
+    }, [loginTypeTabs, loginType, onLoginTypeChange]);
 
     const isloginDisabled = useMemo(() => {
         if (loginType === "password") {

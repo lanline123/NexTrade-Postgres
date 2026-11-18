@@ -68,6 +68,33 @@ impl OfflinePaymentClaimRepository {
         .map_err(map_err)
     }
 
+    /// 批量取每个订单的最新一笔认款（订单列表 VO 富化用）。
+    ///
+    /// `DISTINCT ON (order_id)` + `claim_id DESC` 与 [`Self::latest_for_order`]
+    /// 同口径；无认款的订单不在结果中。
+    pub async fn latest_for_orders(
+        &self,
+        order_ids: &[i32],
+    ) -> Result<std::collections::HashMap<i32, OfflinePaymentClaim>> {
+        if order_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        let placeholders = (1..=order_ids.len())
+            .map(|i| format!("${i}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql = format!(
+            "SELECT DISTINCT ON (order_id) * FROM offline_payment_claim \
+             WHERE order_id IN ({placeholders}) ORDER BY order_id, claim_id DESC"
+        );
+        let mut query = sqlx::query_as::<_, OfflinePaymentClaim>(&sql);
+        for id in order_ids {
+            query = query.bind(*id);
+        }
+        let rows = query.fetch_all(&self.pool).await.map_err(map_err)?;
+        Ok(rows.into_iter().map(|c| (c.order_id, c)).collect())
+    }
+
     pub async fn history_for_order(
         &self,
         order_id: i32,

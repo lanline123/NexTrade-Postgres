@@ -3488,7 +3488,7 @@ static EP13_FIELDS: [FieldSpec; 55] = [
     },
 ];
 
-static EP17_FIELDS: [FieldSpec; 21] = [
+static EP17_FIELDS: [FieldSpec; 23] = [
     FieldSpec {
         field: "openWechatOauth",
         code: "openWechatOauth",
@@ -3714,6 +3714,28 @@ static EP17_FIELDS: [FieldSpec; 21] = [
         code: "openEmailRegister",
         ty: ValueType::Int,
         default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        field: "wechatH5MobileLogin",
+        code: "wechatH5MobileLogin",
+        ty: ValueType::Int,
+        default: Some("1"),
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        field: "wechatH5PasswordLogin",
+        code: "wechatH5PasswordLogin",
+        ty: ValueType::Int,
+        default: Some("1"),
         is_list: false,
         label: None,
         widget: None,
@@ -3722,7 +3744,7 @@ static EP17_FIELDS: [FieldSpec; 21] = [
     },
 ];
 
-static EP18_FIELDS: [FieldSpec; 21] = [
+static EP18_FIELDS: [FieldSpec; 23] = [
     FieldSpec {
         field: "openWechatOauth",
         code: "openWechatOauth",
@@ -3948,6 +3970,28 @@ static EP18_FIELDS: [FieldSpec; 21] = [
         code: "openEmailRegister",
         ty: ValueType::Int,
         default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        field: "wechatH5MobileLogin",
+        code: "wechatH5MobileLogin",
+        ty: ValueType::Int,
+        default: Some("1"),
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        field: "wechatH5PasswordLogin",
+        code: "wechatH5PasswordLogin",
+        ty: ValueType::Int,
+        default: Some("1"),
         is_list: false,
         label: None,
         widget: None,
@@ -6578,7 +6622,7 @@ static EP61_FIELDS: [FieldSpec; 4] = [
     },
 ];
 
-static EP62_FIELDS: [FieldSpec; 4] = [
+static EP62_FIELDS: [FieldSpec; 5] = [
     FieldSpec {
         field: "buyerShowEnabled",
         code: "buyerShowEnabled",
@@ -6617,6 +6661,17 @@ static EP62_FIELDS: [FieldSpec; 4] = [
         code: "buyerShowTemplateStyle",
         ty: ValueType::Int,
         default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        field: "buyerShowPublishNeedOrder",
+        code: "buyerShowPublishNeedOrder",
+        ty: ValueType::Int,
+        default: Some("0"),
         is_list: false,
         label: None,
         widget: None,
@@ -6625,7 +6680,7 @@ static EP62_FIELDS: [FieldSpec; 4] = [
     },
 ];
 
-static EP63_FIELDS: [FieldSpec; 4] = [
+static EP63_FIELDS: [FieldSpec; 5] = [
     FieldSpec {
         field: "buyerShowEnabled",
         code: "buyerShowEnabled",
@@ -6664,6 +6719,17 @@ static EP63_FIELDS: [FieldSpec; 4] = [
         code: "buyerShowTemplateStyle",
         ty: ValueType::Int,
         default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        field: "buyerShowPublishNeedOrder",
+        code: "buyerShowPublishNeedOrder",
+        ty: ValueType::Int,
+        default: Some("0"),
         is_list: false,
         label: None,
         widget: None,

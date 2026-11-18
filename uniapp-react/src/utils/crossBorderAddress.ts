@@ -4,7 +4,7 @@
  */
 import { formatI18nParams, t as i18nT } from "@/utils/i18n";
 
-export type CrossBorderCountryCode = "CN" | "MY" | "SG" | "TH" | "KH" | "VN" | "HK" | "TW";
+export type CrossBorderCountryCode = "CN" | "MY" | "SG" | "TH" | "KH" | "VN" | "HK" | "TW" | "US" | "CA";
 
 export type CrossBorderAddressFieldKey =
     | "province"
@@ -166,6 +166,40 @@ export const CROSS_BORDER_COUNTRIES: CrossBorderCountry[] = [
         ],
         postcodePattern: /^\d{3}(?:-?\d{2,3})?$/,
         postcodeMessage: "邮政区号须为3位、旧5位或3+3格式"
+    },
+    {
+        // v5.8.62 二期：美国（州 select 走地区树、城市文本；ZIP 5 位或 ZIP+4）
+        code: "US",
+        name: "美国",
+        dialCode: "1",
+        regionFields: [
+            { key: "province", label: "州", placeholder: "请选择州", required: true },
+            { key: "city", label: "城市", placeholder: "请输入城市", required: true }
+        ],
+        fields: [
+            { key: "addressLine1", label: "详细地址", placeholder: "街道名称及门牌号", required: true },
+            { key: "addressLineTwo", label: "公寓/套房", placeholder: "选填" },
+            { key: "postcode", label: "邮编 (ZIP)", placeholder: "5位数字或 ZIP+4", required: true }
+        ],
+        postcodePattern: /^\d{5}(-\d{4})?$/,
+        postcodeMessage: "邮编须为5位数字或 ZIP+4 格式"
+    },
+    {
+        // v5.8.62 二期：加拿大（省/地区 select 走地区树、城市文本；邮编 A1A 1A1）
+        code: "CA",
+        name: "加拿大",
+        dialCode: "1",
+        regionFields: [
+            { key: "province", label: "省/地区", placeholder: "请选择省/地区", required: true },
+            { key: "city", label: "城市", placeholder: "请输入城市", required: true }
+        ],
+        fields: [
+            { key: "addressLine1", label: "详细地址", placeholder: "街道名称及门牌号", required: true },
+            { key: "addressLineTwo", label: "公寓/套房", placeholder: "选填" },
+            { key: "postcode", label: "邮政编码", placeholder: "如 K1A 0B1", required: true }
+        ],
+        postcodePattern: /^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/,
+        postcodeMessage: "邮政编码须为 A1A 1A1 格式"
     }
 ];
 
@@ -203,7 +237,10 @@ export const buildCrossBorderAddressData = (countryCode: string, values: Record<
 
 export const formatCrossBorderAddress = (countryCode: string, values: Record<CrossBorderAddressFieldKey, string>): string => {
     const country = getCrossBorderCountry(countryCode);
-    const mainKey: CrossBorderAddressFieldKey = country.code === "MY" || country.code === "SG" ? "addressLine1" : "address";
+    // 主地址行：配了 addressLine1 且没有 address 字段的国家（MY/SG/US/CA）取 addressLine1，其余取 address
+    const fieldKeys = country.fields.map((field) => field.key);
+    const mainKey: CrossBorderAddressFieldKey =
+        fieldKeys.includes("addressLine1") && !fieldKeys.includes("address") ? "addressLine1" : "address";
     return String(values[mainKey] || "").trim();
 };
 
@@ -215,7 +252,10 @@ const MOBILE_RULES: Record<CrossBorderCountryCode, { pattern: RegExp; hint: stri
     KH: { pattern: /^[1-9]\d{7,8}$/, hint: "8-9位数字" },
     VN: { pattern: /^[35789]\d{8}$/, hint: "9位且以3、5、7、8或9开头" },
     HK: { pattern: /^[4-9]\d{7}$/, hint: "8位且以4-9开头" },
-    TW: { pattern: /^9\d{8}$/, hint: "9位且以9开头" }
+    TW: { pattern: /^9\d{8}$/, hint: "9位且以9开头" },
+    // 北美 NANP：10 位，区号首位 2-9（US/CA 同规则、同区号 1）
+    US: { pattern: /^[2-9]\d{9}$/, hint: "10位数字" },
+    CA: { pattern: /^[2-9]\d{9}$/, hint: "10位数字" }
 };
 
 const parseInternationalMobile = (
@@ -225,7 +265,10 @@ const parseInternationalMobile = (
 ): { country: CrossBorderCountry; phoneCountry?: CrossBorderCountry; dialCode: string; local: string; error?: "format" | "dial" } => {
     const country = getCrossBorderCountry(countryCode);
     const dialCode = String(selectedDialCode || country.dialCode).replace(/\D/g, "") || country.dialCode;
-    const phoneCountry = CROSS_BORDER_COUNTRIES.find((item) => item.dialCode === dialCode);
+    // 同区号多国（US/CA 同为 1）时优先当前地址国家，避免校验文案串国
+    const phoneCountry =
+        CROSS_BORDER_COUNTRIES.find((item) => item.dialCode === dialCode && item.code === country.code) ||
+        CROSS_BORDER_COUNTRIES.find((item) => item.dialCode === dialCode);
     const rule = phoneCountry ? MOBILE_RULES[phoneCountry.code] : undefined;
     const raw = String(mobile || "")
         .trim()

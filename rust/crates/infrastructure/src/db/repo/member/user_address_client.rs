@@ -7,7 +7,7 @@
 //!
 //! 列表过滤逐字复刻 `UserAddressServiceImpl#list`：
 //! `user_id = ?` + `(is_system = 0 OR is_system IS NULL)`（控制器固定
-//! `isSystem = 0`）；排序缺省 `is_selected DESC, is_default DESC`，
+//! `isSystem = 0`）；排序缺省 `is_default DESC, is_selected DESC`（批次B：默认置顶），
 //! 客户端显式 `sortField` 时单列排序（Java `buildSortOrder`）。
 //!
 //! 事务：`create` / `update` / `setSelected` 在 Java 里是「先清默认/选中，再写
@@ -49,7 +49,7 @@ impl UserAddressRepository {
     /// 收货地址分页（对应 Java `UserAddressServiceImpl#list`）。
     ///
     /// \"sort\" 为 \"None\" → Java 控制器注入的默认两列排序
-    /// （`is_selected DESC, is_default DESC`）。
+    /// （`is_default DESC, is_selected DESC`，批次B）。
     pub async fn paginate(
         &self,
         user_id: i32,
@@ -288,11 +288,11 @@ impl UserAddressRepository {
 /// 列表排序子句。
 ///
 /// - \"None\"（客户端未传 sortField）→ Java 控制器默认：
-///   `ORDER BY is_selected DESC, is_default DESC`
+///   `ORDER BY is_default DESC, is_selected DESC`（批次B 改序，默认唯一语义置顶）
 /// - `Some(column, desc)` → 单列；`desc == None` 时 Java 不设置 ORDER BY
 fn order_clause(sort: Option<(&'static str, Option<bool>)>) -> String {
     match sort {
-        None => " ORDER BY is_selected DESC, is_default DESC".to_string(),
+        None => " ORDER BY is_default DESC, is_selected DESC".to_string(),
         Some((column, Some(true))) => format!(" ORDER BY {column} DESC"),
         Some((column, Some(false))) => format!(" ORDER BY {column} ASC"),
         Some((_, None)) => String::new(),
@@ -349,7 +349,7 @@ mod tests {
     fn default_order_matches_java_controller() {
         assert_eq!(
             order_clause(None),
-            " ORDER BY is_selected DESC, is_default DESC"
+            " ORDER BY is_default DESC, is_selected DESC"
         );
         assert_eq!(
             order_clause(Some(("is_default", Some(false)))),

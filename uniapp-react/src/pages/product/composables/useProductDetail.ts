@@ -190,6 +190,11 @@ export function useProductDetail(options: UseProductDetailOptions = {}) {
                 setRankDetail(result.rankDetail);
                 setSkuList(result.skuList);
                 setCheckedValue(result.checkedValue);
+                // 默认规格（v5.8.63）：详情首屏即以默认 SKU 为当前 SKU
+                //（规格弹层 props.skuId 预选、价格/库存随其联动）
+                if (Number(result.defaultSkuId ?? 0) > 0) {
+                    setSkuId(Number(result.defaultSkuId));
+                }
                 setDescArr(result.descArr);
                 setServiceList(result.serviceList);
                 Taro.setNavigationBarTitle({

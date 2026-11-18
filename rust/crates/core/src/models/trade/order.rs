@@ -228,4 +228,15 @@ pub struct OrderVO {
     pub order_reservation: Option<serde_json::Value>,
     pub is_reservation_home: bool,
     pub shop: Option<serde_json::Value>,
+    // ————— 线下支付认款（v5.8.61 补下发） —————
+    /// 最新一笔线下认款状态：0 待审核 / 1 审核通过 / 2 已驳回；无认款为 null
+    pub offline_payment_claim_status: Option<i32>,
+    /// 认款状态文案（待审核 / 审核通过 / 审核驳回）
+    pub offline_payment_claim_status_name: Option<String>,
+    /// 最新一笔认款单 ID；无认款为 null
+    pub offline_payment_claim_id: Option<i32>,
+    /// 最新一笔认款的驳回原因（未驳回为 null）
+    pub offline_payment_claim_reject_reason: Option<String>,
+    /// 最新一笔线下认款单全量；无认款为 null
+    pub offline_payment_claim: Option<super::offline_claim::OfflinePaymentClaimVO>,
 }

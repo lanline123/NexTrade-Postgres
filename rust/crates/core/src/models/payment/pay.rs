@@ -388,6 +388,16 @@ pub struct PayOrderVO {
     pub add_time: String,
     /// 配送方式名称（`order.shipping_type_name` 列；空串时 H5 回退「专线物流」）
     pub shipping_type_name: Option<String>,
+    /// 最新一笔线下认款状态：0 待审核 / 1 审核通过 / 2 已驳回；无认款为 null
+    pub offline_payment_claim_status: Option<i32>,
+    /// 认款状态文案（待审核 / 审核通过 / 审核驳回）
+    pub offline_payment_claim_status_name: Option<String>,
+    /// 最新一笔认款单 ID；无认款为 null
+    pub offline_payment_claim_id: Option<i32>,
+    /// 最新一笔认款的驳回原因（未驳回为 null）
+    pub offline_payment_claim_reject_reason: Option<String>,
+    /// 最新一笔线下认款单全量；无认款为 null
+    pub offline_payment_claim: Option<crate::models::trade::offline_claim::OfflinePaymentClaimVO>,
 }
 
 /// 支付页面（Java `PayIndexVO`）。
