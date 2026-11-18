@@ -864,3 +864,171 @@
         height: 100%;
     }
 }
+
+// ---------------- Phase 2：iframe 真实渲染 + 拖拽交互层（2026-11-18） ----------------
+
+// 左侧模块库隐藏垂直滚动条（用户口径：只动左栏；滚动条本体隐藏，滚轮/触控滚动保留。
+// 左栏实际滚动容器是 .theme-con-box，壳列 .dec-shell__lib 一并处理；选择器收在
+// .h5-editor-root 下，PC 编辑器与画布/右栏的滚动表现不受影响）
+.h5-editor-root .theme-con-box,
+.h5-editor-root .dec-shell__lib {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.h5-editor-root .theme-con-box::-webkit-scrollbar,
+.h5-editor-root .dec-shell__lib::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+// 画布渲染模式开关（画布区右上浮动分段控件）
+.h5-editor-mode-switch {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    z-index: 60;
+    display: flex;
+    padding: 2px;
+    background: #fff;
+    border: 1px solid #e4e7ed;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.06);
+}
+.h5-editor-mode-switch button {
+    border: none;
+    background: transparent;
+    padding: 5px 14px;
+    font-size: 12.5px;
+    line-height: 20px;
+    color: #475467;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.h5-editor-mode-switch button.active {
+    background: var(--semi-color-primary);
+    color: #fff;
+    font-weight: 600;
+}
+
+// iframe 真实渲染：包裹层与 iframe 本体（宽 375 与画布窗一致，高度由前台布局回传驱动）
+.h5-editor-iframe-wrap {
+    position: relative;
+    width: 375px;
+    margin: 0 auto;
+    background: #fff;
+}
+.h5-editor-iframe-wrap iframe {
+    display: block;
+    width: 375px;
+    border: 0;
+    background: #fff;
+}
+.h5-editor-iframe-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.65);
+    color: #98a2b3;
+    font-size: 13px;
+    pointer-events: none;
+    z-index: 5;
+}
+
+// 覆盖层（盖住 iframe 承接全部点选/拖拽，iframe 纯展示）
+.h5-editor-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+}
+// 标题区（前台 navbar 的占位条）：点击进页面设置
+.h5-editor-overlay-navbar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 375px;
+    cursor: pointer;
+}
+.h5-editor-overlay-navbar:hover {
+    box-shadow: inset 0 0 0 1px #155bd4;
+}
+.h5-editor-overlay-navbar.is-active {
+    box-shadow: inset 0 0 0 2px #155bd4;
+}
+// 有布局槽位的模块：绝对定位与前台渲染严丝合缝，描边复用 .module-ad-con:before 口径
+.h5-editor-overlay-slot {
+    position: absolute;
+    left: 0;
+    width: 375px;
+    cursor: pointer;
+}
+.h5-editor-overlay-slot .module-ad-con {
+    height: 100%;
+}
+.h5-editor-overlay-slot.is-dragging {
+    opacity: 0.95;
+}
+.h5-editor-overlay-slot.is-dragging .module-ad-con:before {
+    display: block;
+    border: 2px solid #155bd4;
+}
+// 无槽位模块（隐藏等前台不渲染者）：0 高锚点，只出模块名标签与操作条
+.h5-editor-overlay-slotless {
+    position: absolute;
+    left: 0;
+    width: 375px;
+    height: 0;
+}
+.h5-editor-overlay-slotless.module-item-active .label-name {
+    box-shadow: 0 0 0 2px #155bd4;
+}
+
+// 插入指示线（模块库拖入 / 画布内拖拽排序共用）
+.h5-editor-insert-line {
+    position: absolute;
+    left: -6px;
+    right: -6px;
+    height: 0;
+    border-top: 2px solid #155bd4;
+    z-index: 60;
+    pointer-events: none;
+}
+.h5-editor-insert-line:before,
+.h5-editor-insert-line:after {
+    content: "";
+    position: absolute;
+    top: -5px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #155bd4;
+}
+.h5-editor-insert-line:before {
+    left: -2px;
+}
+.h5-editor-insert-line:after {
+    right: -2px;
+}
+
+// 模块库拖拽影子（跟随指针，控制器在 canvasBridge 里以 left/top 定位）
+.h5-editor-lib-drag-ghost {
+    position: fixed;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    max-width: 220px;
+    padding: 8px 14px;
+    transform: translate(14px, 14px);
+    background: #fff;
+    border: 1px solid #e4e7ed;
+    border-radius: 6px;
+    box-shadow: 0 8px 24px 0 rgba(0, 0, 0, 0.22);
+    color: #333;
+    font-size: 12.5px;
+    pointer-events: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

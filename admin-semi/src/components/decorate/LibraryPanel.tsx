@@ -33,9 +33,12 @@ export interface LibraryPanelProps {
     flush?: boolean;
     /** 提供时条目可拖拽（PC 编辑器拖拽入画布用）：由调用方写 dataTransfer */
     onDragStartItem?: (groupKey: string, item: LibraryItem, e: React.DragEvent) => void;
+    /** 提供时条目按下回调（H5 编辑器 pointer 长按拖拽入画布用，2026-11-18）：
+        只挂 pointerdown，后续 move/up 由调用方的拖拽控制器接管，不影响 click 添加 */
+    onItemPointerDown?: (groupKey: string, item: LibraryItem, e: React.PointerEvent) => void;
 }
 
-export default function LibraryPanel({ groups, onAdd, header, flush, onDragStartItem }: LibraryPanelProps) {
+export default function LibraryPanel({ groups, onAdd, header, flush, onDragStartItem, onItemPointerDown }: LibraryPanelProps) {
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
     return (
         <div className="dec-lib">
@@ -63,6 +66,7 @@ export default function LibraryPanel({ groups, onAdd, header, flush, onDragStart
                                             onClick={() => onAdd(group.key, item)}
                                             draggable={!!onDragStartItem}
                                             onDragStart={onDragStartItem ? (e) => onDragStartItem(group.key, item, e) : undefined}
+                                            onPointerDown={onItemPointerDown ? (e) => onItemPointerDown(group.key, item, e) : undefined}
                                         >
                                             <span className="dec-lib__pic">{item.icon}</span>
                                             <span className="dec-lib__content" title={item.title}>{item.label}</span>

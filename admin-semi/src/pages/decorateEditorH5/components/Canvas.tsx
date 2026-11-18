@@ -11,16 +11,25 @@
  * - 悬浮「页面设置」按钮 .decorate-page-config-warp（fixed right 400px / top 110px）
  * - dnd-kit 纵向拖拽排序（约束校验失败弹提示并回弹）
  * 预览态（preview=true）隐藏全部编辑外壳，只留画布内容。
+ *
+ * 2026-11-18 Phase 2：画布分「真实渲染 / 兼容渲染」两模式（默认真实渲染）——
+ * 真实渲染 = IframeCanvas（iframe 嵌入前台 decoratePreview，见 IframeCanvas.tsx）；
+ * 兼容渲染 = 本文件旧画布（兜底保留）。模式存 localStorage（h5-editor-render-mode）。
+ * 两种模式都注册模块库拖入的落点解析（真实模式在 IframeCanvas 内注册）：
+ * 兼容模式按旧画布 DOM 位置算插入下标，见下方 useEffect。
  */
-import { Suspense, useMemo } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Toast } from "@douyinfe/semi-ui";
-import { IconChevronDown, IconChevronUp, IconCopy, IconDelete, IconEyeClosed, IconEyeOpened, IconSetting } from "@douyinfe/semi-icons";
+import { IconEyeClosed, IconSetting } from "@douyinfe/semi-icons";
 import { editorStore, useEditorState } from "../store/editorStore";
 import { getLazyModuleComponent } from "../contract/lazyModule";
 import ModuleErrorBoundary from "./ModuleErrorBoundary";
+import ModuleOperateBar from "./ModuleOperateBar";
+import IframeCanvas from "./IframeCanvas";
+import { registerDropResolver, useLibraryDragState } from "./canvasBridge";
 import type { DecorateModuleBase } from "../contract/types";
 
 import { useI18n } from '../../../i18n';
@@ -97,14 +106,6 @@ function PageHeaderPreview({ preview }: { preview?: boolean }) {
     );
 }
 
-function tryMove(from: number, to: number, t: (key: string) => string) {
-    if (to < 0) return;
-    const state = editorStore.getState();
-    if (to >= state.moduleList.length) return;
-    const result: any = editorStore.moveModule(from, to);
-    if (result !== true) Toast.warning(t(String(result?.reason || '')));
-}
-
 function ModuleItem({ moduleData, index, preview }: { moduleData: DecorateModuleBase; index: number; preview?: boolean }) {
     const { t } = useI18n();
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: moduleData.moduleIndex, disabled: !!preview });
@@ -117,20 +118,6 @@ function ModuleItem({ moduleData, index, preview }: { moduleData: DecorateModule
         transition,
         zIndex: isDragging ? 10 : undefined
     };
-
-    const operateItems: Array<{ key: string; tip: string; icon: React.ReactNode; onClick: () => void; hidden?: boolean }> = [
-        { key: "up", tip: t('上移'), icon: <IconChevronUp />, onClick: () => tryMove(index, index - 1, t) },
-        { key: "down", tip: t('下移'), icon: <IconChevronDown />, onClick: () => tryMove(index, index + 1, t) },
-        {
-            key: "visibility",
-            tip: isHidden ? t('显示') : t('隐藏'),
-            icon: isHidden ? <IconEyeClosed /> : <IconEyeOpened />,
-            onClick: () => editorStore.toggleModuleVisibility(index),
-            hidden: !!moduleData.fixed
-        },
-        { key: "copy", tip: t('复制'), icon: <IconCopy />, onClick: () => editorStore.copyModule(index), hidden: !!moduleData.fixed },
-        { key: "delete", tip: t('删除'), icon: <IconDelete />, onClick: () => editorStore.removeModule(index), hidden: !!moduleData.fixed }
-    ];
 
     return (
         <div
@@ -174,25 +161,7 @@ function ModuleItem({ moduleData, index, preview }: { moduleData: DecorateModule
                             {t(moduleData.label || moduleData.type)}
                         </div>
                     </div>
-                    {isActive ? (
-                        <div className="module-operate" onClick={(e) => e.stopPropagation()}>
-                            {operateItems
-                                .filter((item) => !item.hidden)
-                                .map((item) => (
-                                    <div
-                                        key={item.key}
-                                        className="module-operate-item"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            item.onClick();
-                                        }}
-                                    >
-                                        {item.icon}
-                                        <div className="opt-tip">{item.tip}</div>
-                                    </div>
-                                ))}
-                        </div>
-                    ) : null}
+                    {isActive ? <ModuleOperateBar moduleData={moduleData} index={index} /> : null}
                 </>
             ) : null}
         </div>
@@ -202,6 +171,46 @@ function ModuleItem({ moduleData, index, preview }: { moduleData: DecorateModule
 export default function Canvas({ preview = false }: { preview?: boolean }) {
     const { t } = useI18n();
     const s = useEditorState();
+    /** 渲染模式：real = iframe 真实渲染（默认）/ compat = 旧 Preview 画布（兜底） */
+    const [renderMode, setRenderMode] = useState<"real" | "compat">(() => {
+        try {
+            return localStorage.getItem("h5-editor-render-mode") === "compat" ? "compat" : "real";
+        } catch {
+            return "real";
+        }
+    });
+    const switchRenderMode = (mode: "real" | "compat") => {
+        setRenderMode(mode);
+        try {
+            localStorage.setItem("h5-editor-render-mode", mode);
+        } catch {
+            /* 隐私模式等场景忽略 */
+        }
+    };
+    const windowRef = useRef<HTMLDivElement>(null);
+    const libDrag = useLibraryDragState();
+
+    // 模块库拖入落点解析（兼容模式）：按旧画布模块项 DOM 位置算插入下标，
+    // lineY 相对画布窗顶部（指示线渲染在画布窗内）。真实模式由 IframeCanvas 注册。
+    useEffect(() => {
+        if (renderMode !== "compat" || preview) return;
+        registerDropResolver((clientX, clientY) => {
+            const win = windowRef.current;
+            if (!win) return null;
+            const wr = win.getBoundingClientRect();
+            if (clientX < wr.left || clientX > wr.right || clientY < wr.top || clientY > wr.bottom) return null;
+            const nodes = win.querySelectorAll(".gallery-list-ul .list-item");
+            if (nodes.length === 0) return { insertIndex: 0, lineY: 0 };
+            for (let i = 0; i < nodes.length; i++) {
+                const r = nodes[i].getBoundingClientRect();
+                if (clientY < r.top + r.height / 2) return { insertIndex: i, lineY: r.top - wr.top };
+            }
+            const last = nodes[nodes.length - 1].getBoundingClientRect();
+            return { insertIndex: nodes.length, lineY: last.bottom - wr.top };
+        });
+        return () => registerDropResolver(null);
+    }, [renderMode, preview]);
+
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -227,7 +236,20 @@ export default function Canvas({ preview = false }: { preview?: boolean }) {
 
     return (
         <>
-            <div className="decorate-page-window" style={windowStyle}>
+            {!preview ? (
+                <div className="h5-editor-mode-switch" role="tablist" aria-label={t('画布渲染模式')}>
+                    <button type="button" className={renderMode === "real" ? "active" : ""} onClick={() => switchRenderMode("real")}>
+                        {t('真实渲染')}
+                    </button>
+                    <button type="button" className={renderMode === "compat" ? "active" : ""} onClick={() => switchRenderMode("compat")}>
+                        {t('兼容渲染')}
+                    </button>
+                </div>
+            ) : null}
+            {renderMode === "real" ? (
+                <IframeCanvas preview={preview} windowStyle={windowStyle} />
+            ) : (
+            <div className="decorate-page-window" ref={windowRef} style={windowStyle}>
                 <div className="theme-modules-warp">
                     <PageHeaderPreview preview={preview} />
                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -241,7 +263,11 @@ export default function Canvas({ preview = false }: { preview?: boolean }) {
                         </SortableContext>
                     </DndContext>
                 </div>
+                {libDrag.active && libDrag.lineY !== null ? (
+                    <div className="h5-editor-insert-line" style={{ top: libDrag.lineY }} />
+                ) : null}
             </div>
+            )}
             {showPageConfig ? (
                 <div className="decorate-page-config-warp">
                     <div className={`page-config-item${s.editMode === "page" ? " current" : ""}`} onClick={() => editorStore.selectPage()}>

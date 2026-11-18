@@ -6,7 +6,8 @@
  * 分类中心模块/商品详情/登录页模块）；每个页签内是标准模块库 LibraryPanel
  * （components/decorate；折叠分组 + 图标卡片三列网格，与 PC 编辑器同组件同
  * 样式，2026-11-17 标准编辑器 Step 2 接入）。本文件只负责数据映射与添加动作。
- * 点击添加（拖拽克隆添加未实现）；约束校验收敛到 store。
+ * 添加两路：点击添加（末尾/约束位）与拖拽添加（2026-11-18：pointer 长按拖入
+ * 画布，按落点插入，控制器在 canvasBridge）；约束校验收敛到 store。
  */
 import { useMemo } from "react";
 import { Tabs, TabPane, Toast } from "@douyinfe/semi-ui";
@@ -15,6 +16,7 @@ import { MODULE_ICONPARK } from "./moduleIcons";
 import { getModulesByContext, isExclusiveModule, createModuleInstance } from "../contract/moduleRegistry";
 import { getAvailableToolbarGroups, type ToolbarGroup } from "../contract/constants";
 import { editorStore } from "../store/editorStore";
+import { beginLibraryDrag, consumeAddClickSuppression } from "./canvasBridge";
 import type { ModuleDefinition } from "../contract/types";
 
 import { useI18n } from '../../../i18n';
@@ -110,17 +112,24 @@ export default function ModuleToolbar({ pageType, isShop }: { pageType: number; 
         return TAB_ORDER.filter((k) => byTab.has(k)).map((k) => ({ key: k, sections: byTab.get(k)! }));
     }, [modules, groups]);
 
-    const handleAdd = (def: ModuleDefinition) => {
+    /** 添加模块：index 缺省走点击添加口径（约束位/末尾），给定则按拖拽落点插入（store 内再钳制） */
+    const doAdd = (def: ModuleDefinition, index?: number) => {
         if (isExclusiveModule(def.type) && editorStore.getState().moduleList.length > 0) {
             Toast.warning(t("该模块为独占模块，需要清空页面后才能添加"));
             return;
         }
         const instance = createModuleInstance(def.type, def.url);
         if (!instance) return;
-        const result: any = editorStore.addModule(instance);
+        const result: any = editorStore.addModule(instance, index);
         if (result !== true && result && typeof result === "object" && "ok" in result && result.ok === false) {
             Toast.warning(t(String(result.reason || '')));
         }
+    };
+
+    const handleAdd = (def: ModuleDefinition) => {
+        // 拖拽刚结束时紧随的 click 不是用户点击添加，吞掉
+        if (consumeAddClickSuppression()) return;
+        doAdd(def);
     };
 
     /** 页签内分组 → 标准模块库数据（图标在此处实例化，添加时按 key 回查 def） */
@@ -156,6 +165,16 @@ export default function ModuleToolbar({ pageType, isShop }: { pageType: number; 
                                     onAdd={(_groupKey, item) => {
                                         const def = defByKey.get(item.key);
                                         if (def) handleAdd(def);
+                                    }}
+                                    onItemPointerDown={(_groupKey, item, e) => {
+                                        const def = defByKey.get(item.key);
+                                        if (!def || e.button !== 0) return;
+                                        beginLibraryDrag({
+                                            label: t(def.label),
+                                            startX: e.clientX,
+                                            startY: e.clientY,
+                                            onDrop: (insertIndex) => doAdd(def, insertIndex)
+                                        });
                                     }}
                                 />
                             </TabPane>
