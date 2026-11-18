@@ -96,7 +96,7 @@ export default function SpecialOffer({ module }: Props) {
 
     return (
         <View
-            className="module-ad-con"
+            className="module-ad-con decorate-special-offer"
             style={
                 commonStyle.moduleStyle.boxPaddingBottom +
                 commonStyle.moduleStyle.boxPaddingTop +

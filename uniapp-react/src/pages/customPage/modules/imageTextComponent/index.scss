@@ -1,11 +1,11 @@
 /* 自旧 imageTextComponent/index.vue <style lang="scss" scoped> 原样平铺移植（去 scoped，无 :deep()/v-bind()） */
-.module-ad-con {
+.decorate-image-text-component.module-ad-con {
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center top;
     position: relative;
 }
-.image-box {
+.decorate-image-text-component .image-box {
     overflow: hidden;
     .img {
         width: 100%;
@@ -13,7 +13,7 @@
     }
 }
 
-.intro-box {
+.decorate-image-text-component .intro-box {
     padding: 30rpx 20rpx 10rpx;
     .title {
         font-size: 40rpx;

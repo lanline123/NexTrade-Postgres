@@ -6,27 +6,27 @@
     }
 }
 
-.shop-tips-outer {
+.module-shop-tips .shop-tips-outer {
     padding: 0;
     margin-left: 0;
     margin-right: 0;
 }
 
-.shop-tips-row {
+.module-shop-tips .shop-tips-row {
     display: flex;
     flex-direction: row;
     justify-content: space-around;
     align-items: center;
 }
 
-.shop-tips-li {
+.module-shop-tips .shop-tips-li {
     white-space: nowrap;
     box-sizing: border-box;
     min-width: 20%;
     max-width: 100%;
 }
 
-.shop-tips-link {
+.module-shop-tips .shop-tips-link {
     display: block;
     position: relative;
     background: transparent;
@@ -34,7 +34,7 @@
     min-height: 20rpx;
 }
 
-.shop-tips-content {
+.module-shop-tips .shop-tips-content {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -43,13 +43,13 @@
     width: 100%;
 }
 
-.shop-tips-icon {
+.module-shop-tips .shop-tips-icon {
     width: 28rpx;
     height: 28rpx;
     flex-shrink: 0;
 }
 
-.shop-tips-text {
+.module-shop-tips .shop-tips-text {
     min-width: 0;
     flex: 0 1 auto;
     overflow: hidden;
@@ -58,7 +58,7 @@
     font-size: 24rpx;
 }
 
-.shop-tips-sx {
+.module-shop-tips .shop-tips-sx {
     position: absolute;
     box-sizing: border-box;
     pointer-events: none;

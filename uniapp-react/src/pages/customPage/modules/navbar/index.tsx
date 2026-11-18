@@ -24,7 +24,7 @@ export default function NavbarModule({ module }: Props) {
     };
 
     return (
-        <View className="tig-navbar">
+        <View className="tig-navbar decorate-navbar">
             <View className="navbar-box" style={`background-color: ${module?.titleBackgroundColor}`}>
                 <View className="navbar">
                     <View className="navbar-content">

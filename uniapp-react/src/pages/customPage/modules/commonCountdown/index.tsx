@@ -129,7 +129,7 @@ export default function CommonCountdown({
     const arr = format.split(":");
 
     return (
-        <View className="countdown-box">
+        <View className="countdown-box decorate-common-countdown">
             {/* 旧 components/commonCountdown 的 $slots.default 分支：传入插槽时仅渲染插槽内容（seckill2 的「距结束」样式） */}
             {children ? (
                 children(timeData)

@@ -1,10 +1,10 @@
 /* 自旧 seckill/index.vue <style lang="scss" scoped> 原样平铺移植（去 scoped，无 :deep()/v-bind） */
 /* 旧 tig-countdown 的 :deep(.uni-countdown__number){width:auto!important} 平铺到本模块 */
-.uni-countdown__number {
+.decorate-seckill .uni-countdown__number {
     width: auto !important;
 }
 
-.item-photo {
+.decorate-seckill .item-photo {
     position: relative;
 
     .item-image-a {

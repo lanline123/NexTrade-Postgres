@@ -170,7 +170,7 @@ export default function Product({ module, shopId = -1 }: Props) {
         productList.length > 0 && (
             <View
                 ref={rootRef as any}
-                className={`module-ad-con module-goods_ad ad-style__${module.style} ad-buy_btn_style__${module.buyBtnStyle} ad-goods_style__${module.goodsStyle} ad-goods_radio_style__${module.goodsRadioStyle} ad-text_align__${module.textAlign} ad-text_weight__${module.textWeight} ad-goods_name_row__${module.goodsNameRow} ad-goods_name_padding__${module.goodsNamePadding} ad-goods-title_style__${module.title?.titleStyle}${
+                className={`module-ad-con decorate-product module-goods_ad ad-style__${module.style} ad-buy_btn_style__${module.buyBtnStyle} ad-goods_style__${module.goodsStyle} ad-goods_radio_style__${module.goodsRadioStyle} ad-text_align__${module.textAlign} ad-text_weight__${module.textWeight} ad-goods_name_row__${module.goodsNameRow} ad-goods_name_padding__${module.goodsNamePadding} ad-goods-title_style__${module.title?.titleStyle}${
                     isWaterfall ? " ad-waterfall__1" : ""
                 }`}
                 style={frameFormat.boxPadding + frameFormat.boxPaddingTop + frameFormat.boxPaddingBottom}

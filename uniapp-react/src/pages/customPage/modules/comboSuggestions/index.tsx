@@ -138,7 +138,7 @@ export default function ComboSuggestions({ module }: Props) {
     return (
         <View
             ref={rootRef}
-            className="module-ad-con"
+            className="module-ad-con decorate-combo-suggestions"
             style={
                 commonStyle.moduleStyle.boxPaddingBottom +
                 commonStyle.moduleStyle.boxPaddingTop +

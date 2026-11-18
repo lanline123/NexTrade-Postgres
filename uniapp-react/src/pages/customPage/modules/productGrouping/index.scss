@@ -1,11 +1,11 @@
 /* 自旧 productGrouping/index.vue <style lang="scss" scoped> 原样平铺移植（去 scoped，无 :deep()/v-bind()） */
-.module-ad-con {
+.decorate-product-grouping.module-ad-con {
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center top;
     position: relative;
 }
-.tablist {
+.decorate-product-grouping .tablist {
     overflow-x: auto;
     overflow-y: hidden;
     box-sizing: initial;
@@ -62,7 +62,7 @@
         }
     }
 }
-.productlist {
+.decorate-product-grouping .productlist {
     position: relative;
     display: flex;
     width: 100%;
@@ -219,7 +219,7 @@
     }
 }
 
-.cycleBuyTag {
+.decorate-product-grouping .cycleBuyTag {
     color: var(--general);
     position: relative;
     &::before {

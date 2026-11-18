@@ -1,9 +1,9 @@
 /* 自旧 banner/index.vue <style lang="scss" scoped> 原样平移（去 scoped） */
-.catnav-logo {
+.decorate-banner .catnav-logo {
     max-width: 210rpx;
 }
 
-.lang-icon-box {
+.decorate-banner .lang-icon-box {
     display: flex;
     align-items: center;
     height: 100%;
@@ -26,23 +26,23 @@
     }
 }
 
-.image-ad-item {
+.decorate-banner .image-ad-item {
     width: 100%;
 }
-.fixed {
+.decorate-banner .fixed {
     position: fixed !important;
     top: 0;
     right: 0;
     left: 0;
     z-index: 99;
 }
-.item-content {
+.decorate-banner .item-content {
     width: 100%;
     background-repeat: no-repeat;
     background-size: cover;
     background-position: center;
 }
-.module-ad-con {
+.decorate-banner.module-ad-con {
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center top;
@@ -52,22 +52,22 @@
     position: relative;
     box-sizing: content-box;
 }
-.circle {
+.decorate-banner .circle {
     position: absolute;
     top: 0;
     left: -40rpx;
     right: -40rpx;
 }
-.bar {
+.decorate-banner .bar {
     position: relative;
     overflow: hidden;
     padding: 0 0 20rpx;
     z-index: 9;
 }
-.bar.is-ceiling-hidden {
+.decorate-banner .bar.is-ceiling-hidden {
     visibility: hidden;
 }
-.search-top {
+.decorate-banner .search-top {
     display: flex;
     flex-wrap: nowrap;
     justify-content: space-between;
@@ -161,7 +161,7 @@
         }
     }
 }
-.search-word {
+.decorate-banner .search-word {
     height: 48rpx;
     line-height: 48rpx;
     display: flex;

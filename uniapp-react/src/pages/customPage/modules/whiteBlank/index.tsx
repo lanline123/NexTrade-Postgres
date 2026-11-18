@@ -20,7 +20,7 @@ export default function WhiteBlank({ module }: Props) {
     }, [module]);
 
     return (
-        <View className="module-ad-con module-image_hotarea">
+        <View className="module-ad-con decorate-white-blank module-image_hotarea">
             <View className="module-ad-content">
                 <View style={styleFormat.backgroundColor + styleFormat.height} />
             </View>

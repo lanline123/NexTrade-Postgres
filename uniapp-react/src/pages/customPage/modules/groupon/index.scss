@@ -1,5 +1,5 @@
 /* 自旧 groupon/index.vue <style lang="scss" scoped> 原样平铺移植（去 scoped） */
-.item-info .item-name {
+.decorate-groupon .item-info .item-name {
     .group-num {
         flex-shrink: 0;
         float: left;
@@ -24,11 +24,11 @@
 }
 
 /* 旧 navigator 标签在 React 侧改为 View.item-name-link（item-name-a 内的商品名点击区），保持浮动文本布局 */
-.item-info .item-name .item-name-link {
+.decorate-groupon .item-info .item-name .item-name-link {
     display: inline;
 }
 
-.goods-ad-warp .goods-ad-item .item-photo {
+.decorate-groupon .goods-ad-warp .goods-ad-item .item-photo {
     background: #ffffff;
     text-align: center;
     position: relative;
@@ -37,7 +37,7 @@
     overflow: hidden;
 }
 
-.goods-ad-warp .goods-ad-item .item-photo .item-image-a {
+.decorate-groupon .goods-ad-warp .goods-ad-item .item-photo .item-image-a {
     position: absolute;
     top: 0;
     left: 0;
@@ -46,13 +46,13 @@
 }
 
 /* 旧 :deep(.base-image) 平铺：作用于 TigImage 根内 .base-image */
-.goods-ad-warp .goods-ad-item .item-photo .base-image {
+.decorate-groupon .goods-ad-warp .goods-ad-item .item-photo .base-image {
     height: 100% !important;
     width: 100%;
     object-fit: cover;
 }
 
-.product-style-border {
+.decorate-groupon .product-style-border {
     position: absolute;
     left: 0;
     top: 0;
@@ -62,15 +62,15 @@
     pointer-events: none;
 }
 
-.goods-ad-warp .goods-ad-item .item-photo .cap-seckill-goods__tag {
+.decorate-groupon .goods-ad-warp .goods-ad-item .item-photo .cap-seckill-goods__tag {
     z-index: 6;
 }
 
-.product-desc {
+.decorate-groupon .product-desc {
     margin-top: 4rpx;
 }
 
-.source_price {
+.decorate-groupon .source_price {
     color: #ccc;
     font-size: 24rpx !important;
     margin-left: 8rpx;
@@ -78,7 +78,7 @@
     margin-top: 10rpx;
 }
 
-.ad-style__1 {
+.decorate-groupon.ad-style__1 {
     .countdown {
         position: relative;
         display: flex;
@@ -94,8 +94,8 @@
     }
 }
 
-.ad-style__2,
-.ad-style__5 {
+.decorate-groupon.ad-style__2,
+.decorate-groupon.ad-style__5 {
     .cap-seckill-goods__tag.list {
         padding: 0 10rpx;
     }
@@ -116,10 +116,10 @@
     }
 }
 
-.item-action {
+.decorate-groupon .item-action {
     margin-top: 10rpx;
 }
 
-.ad-style__5 .goods-ad-item .item-content {
+.decorate-groupon.ad-style__5 .goods-ad-item .item-content {
     min-height: 300rpx;
 }

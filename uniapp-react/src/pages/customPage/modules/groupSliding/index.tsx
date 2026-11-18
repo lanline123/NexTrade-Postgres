@@ -67,7 +67,7 @@ export default function GroupSliding({ module }: Props) {
 
     return (
         <View
-            className="module-ad-con"
+            className="module-ad-con decorate-group-sliding"
             style={
                 commonStyle.moduleStyle.boxPaddingBottom +
                 commonStyle.moduleStyle.boxPaddingTop +

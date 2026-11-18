@@ -1,5 +1,5 @@
 /* 自旧 specialOffer/index.vue <style lang="scss" scoped> 原样平铺移植（去 scoped；:deep() 平铺；v-bind 转内联 style 并注释原位置） */
-.module-ad-con {
+.decorate-special-offer.module-ad-con {
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center top;
@@ -7,7 +7,7 @@
 }
 
 /* P1 隔离：原 scoped .main 去 scoped 后与 noticeA2/comboSuggestions 同名全局冲突，改模块专属类 */
-.specialoffer-main {
+.decorate-special-offer .specialoffer-main {
     position: relative;
     padding: 20rpx;
     overflow: hidden;
@@ -15,7 +15,7 @@
     // React 版 commonCountdown 直接通过 color prop 内联下发，无需穿透 uview 内部节点，字号已随 .time-item 保留
 }
 
-.mk-top {
+.decorate-special-offer .mk-top {
     margin-bottom: 4rpx;
     display: flex;
     justify-content: space-between;
@@ -99,7 +99,7 @@
         }
     }
 }
-.item-box {
+.decorate-special-offer .item-box {
     display: flex;
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -109,12 +109,12 @@
         height: 0;
     }
 }
-.lists {
+.decorate-special-offer .lists {
     background: #fff;
     border-radius: 12rpx;
     overflow: hidden;
 }
-.item {
+.decorate-special-offer .item {
     display: block;
     margin: 0 6rpx;
     text-align: center;

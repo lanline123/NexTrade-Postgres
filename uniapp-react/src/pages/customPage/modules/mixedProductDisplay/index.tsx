@@ -189,7 +189,7 @@ export default function MixedProductDisplay({ module }: Props) {
     return (
         <View
             ref={rootRef}
-            className="module-ad-con"
+            className="module-ad-con decorate-mixed-product-display"
             style={
                 commonStyle.moduleStyle.boxPaddingBottom +
                 commonStyle.moduleStyle.boxPaddingTop +

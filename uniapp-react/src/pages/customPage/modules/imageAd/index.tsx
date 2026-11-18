@@ -99,7 +99,7 @@ export default function ImageAd({ module }: Props) {
 
     return (
         <View
-            className={`module-ad-con module-image_ad  ad-pic_type__${module.picType} ad-pic_page_type__${module.picPageType} ad-radio_style__${module.picRadioStyle} `}
+            className={`module-ad-con decorate-image-ad module-image_ad  ad-pic_type__${module.picType} ad-pic_page_type__${module.picPageType} ad-radio_style__${module.picRadioStyle} `}
             style={frameFormat.boxPadding + frameFormat.boxPaddingTop + frameFormat.boxPaddingBottom}
         >
             <View className="module-ad-content" style={frameFormat.backgroundColor + " " + frameFormat.boxRadius}>

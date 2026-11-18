@@ -186,7 +186,7 @@ export default function SlideLargeImage({ module }: Props) {
     return (
         <View
             ref={rootRef}
-            className="module-ad-con"
+            className="module-ad-con decorate-slide-large-image"
             style={
                 commonStyle.moduleStyle.boxPaddingBottom +
                 commonStyle.moduleStyle.boxPaddingTop +

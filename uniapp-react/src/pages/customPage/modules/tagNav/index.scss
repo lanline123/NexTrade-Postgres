@@ -4,7 +4,7 @@
     background-position: center top;
     position: relative;
 }
-.tag-nav-scroll {
+.module-tag_nav .tag-nav-scroll {
     display: flex;
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -14,14 +14,14 @@
         height: 0;
     }
 }
-.tag-nav-item {
+.module-tag_nav .tag-nav-item {
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
 }
-.tag-nav-text {
+.module-tag_nav .tag-nav-text {
     font-size: 32rpx;
     line-height: 1.2;
     white-space: nowrap;

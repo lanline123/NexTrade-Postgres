@@ -29,7 +29,7 @@ export default function SearchBar2({ module }: Props) {
 
     return (
         <View
-            className="module-ad-con module-search_bar"
+            className="module-ad-con decorate-search-bar2 module-search_bar"
             style={frameFormat.boxPadding + frameFormat.boxPaddingTop + frameFormat.boxPaddingBottom + frameFormat.backgroundColor}
         >
             <View className="module-ad-content" style={allFormat.itemBackgroundColor}>

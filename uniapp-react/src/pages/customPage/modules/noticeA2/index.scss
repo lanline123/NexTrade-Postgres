@@ -1,15 +1,15 @@
-.decorate-slide-box::-webkit-scrollbar {
+.decorate-notice-a2 .decorate-slide-box::-webkit-scrollbar {
     display: none;
     height: 0;
 }
-.module-ad-con {
+.decorate-notice-a2.module-ad-con {
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center top;
     position: relative;
 }
 /* P1 隔离：原 scoped .main 去 scoped 后与 specialOffer/comboSuggestions 同名全局冲突，改模块专属类 */
-.noticea2-main {
+.decorate-notice-a2 .noticea2-main {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -22,18 +22,18 @@
     background-repeat: no-repeat;
     background-position: center top;
 }
-.headlines {
+.decorate-notice-a2 .headlines {
     display: flex;
     align-items: center;
     height: 60rpx;
 }
 
-.headlines-icon {
+.decorate-notice-a2 .headlines-icon {
     height: 60rpx;
     display: flex;
     align-items: center;
 }
-.headlines-iconImg {
+.decorate-notice-a2 .headlines-iconImg {
     height: 60rpx;
     display: block;
     margin-right: 10rpx;
@@ -46,7 +46,7 @@
     }
 }
 
-.headlines-container {
+.decorate-notice-a2 .headlines-container {
     height: 60rpx;
     flex: 1;
     line-height: 60rpx;
@@ -54,22 +54,22 @@
     font-size: 28rpx;
     font-weight: 400;
 }
-.headlines-text {
+.decorate-notice-a2 .headlines-text {
     position: relative;
     display: flex;
     animation-duration: 10s;
-    animation: left 5000ms linear infinite running;
+    animation: decorate-notice-a2-scroll 5000ms linear infinite running;
 }
-.headlines-item {
+.decorate-notice-a2 .headlines-item {
     flex-shrink: 0;
     white-space: nowrap;
     padding-right: 40rpx;
 }
-.cross {
+.decorate-notice-a2 .cross {
     width: 56rpx;
     text-align: center;
 }
-@keyframes left {
+@keyframes decorate-notice-a2-scroll {
     0% {
         left: -100%;
     }

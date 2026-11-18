@@ -1,5 +1,5 @@
 /* 自旧 commonBuyButton/index.vue <style lang="scss" scoped> 平铺移植 */
-.goods-btn {
+.decorate-common-buy-button.goods-btn {
     margin: 0 auto;
     padding-right: 20rpx;
     min-width: 48rpx;
@@ -13,7 +13,7 @@
     justify-content: center;
 }
 
-.btn-icon {
+.decorate-common-buy-button .btn-icon {
     font-size: 28rpx;
     width: 48rpx;
     display: flex;
@@ -36,12 +36,12 @@
     }
 }
 
-.btn-icon-img {
+.decorate-common-buy-button .btn-icon-img {
     display: inline-block;
     vertical-align: middle;
 }
 
-.btn-text {
+.decorate-common-buy-button .btn-text {
     font-size: 24rpx;
     white-space: nowrap;
 }

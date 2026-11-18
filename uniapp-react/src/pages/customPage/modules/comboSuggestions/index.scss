@@ -1,16 +1,16 @@
 /* 自旧 comboSuggestions/index.vue <style lang="scss" scoped> 原样平铺移植（去 scoped，无 :deep()/v-bind()） */
-.decorate-slide-box::-webkit-scrollbar {
+.decorate-combo-suggestions .decorate-slide-box::-webkit-scrollbar {
     display: none;
     height: 0;
 }
-.module-ad-con {
+.decorate-combo-suggestions.module-ad-con {
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center top;
     position: relative;
 }
 /* P1 隔离：原 scoped .main 去 scoped 后与 noticeA2/specialOffer 同名全局冲突，改模块专属类 */
-.combo-main {
+.decorate-combo-suggestions .combo-main {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;

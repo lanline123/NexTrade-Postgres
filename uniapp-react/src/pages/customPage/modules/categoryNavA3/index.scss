@@ -1,50 +1,50 @@
 /* 自旧 categoryNavA3/index.vue <style lang="scss" scoped> 原样平铺移植（去 scoped，无 :deep()/v-bind()）
    说明：旧模板里的原生 <img class="desc-icon"> 已换为 Taro <Image> 组件（.desc-icon 样式不变） */
-.scroll-box {
+.decorate-category-nav-a3 .scroll-box {
     width: 100%;
 }
-.decorate-slide-box::-webkit-scrollbar {
+.decorate-category-nav-a3 .decorate-slide-box::-webkit-scrollbar {
     display: none;
     height: 0;
 }
 /* P1 隔离：.module-ad-con/.item-box 去 scoped 后与 categoryRec 同名全局冲突，收回本模块根类作用域 */
-.module-ad-con.module-category-nav {
+.decorate-category-nav-a3.module-ad-con.module-category-nav {
     overflow: hidden;
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center top;
     position: relative;
 }
-.list {
+.decorate-category-nav-a3 .list {
     display: flex;
     flex-wrap: wrap;
 }
 
-.slide {
+.decorate-category-nav-a3 .slide {
     display: flex;
     flex-wrap: nowrap;
     overflow-x: scroll;
 }
-.slide2 {
+.decorate-category-nav-a3 .slide2 {
     display: flex;
     flex-wrap: wrap;
 }
-.category-nav-item {
+.decorate-category-nav-a3 .category-nav-item {
     overflow: hidden;
 }
-.module-category-nav .item-box {
+.decorate-category-nav-a3.module-category-nav .item-box {
     display: block;
     overflow: hidden;
     width: 100%;
 }
-.category-nav-item-img {
+.decorate-category-nav-a3 .category-nav-item-img {
     width: 100%;
     height: 0;
     background-repeat: no-repeat;
     background-position: center;
     margin: 0 auto;
 }
-.category-nav-item-text {
+.decorate-category-nav-a3 .category-nav-item-text {
     text-align: center;
     display: block;
     height: 40rpx;
@@ -54,7 +54,7 @@
     width: inherit;
 }
 
-.category-nav-item-desc {
+.decorate-category-nav-a3 .category-nav-item-desc {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -76,12 +76,12 @@
     }
 }
 
-.line-box {
+.decorate-category-nav-a3 .line-box {
     padding: 10rpx 0 20rpx;
 }
 
 /* 旧版来自 App.vue 全局 .line1（React 工程无全局定义，随模块补入） */
-.line1 {
+.decorate-category-nav-a3 .line1 {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

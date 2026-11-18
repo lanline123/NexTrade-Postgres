@@ -68,7 +68,7 @@ export default function Coupon({ module, shopId = -1 }: Props) {
     return (
         couponList?.length > 0 && (
             <View
-                className={`module-ad-con module-image_hotarea ad-color_style__${module?.colorStyle}`}
+                className={`module-ad-con decorate-coupon module-image_hotarea ad-color_style__${module?.colorStyle}`}
                 style={frameFormat.boxPaddingTop + frameFormat.boxPaddingBottom + couponFormat.boxMargin}
             >
                 <View

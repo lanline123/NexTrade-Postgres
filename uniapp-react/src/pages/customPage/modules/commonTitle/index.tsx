@@ -37,7 +37,7 @@ export default function CommonTitle({ module }: Props) {
 
     return (
         <View
-            className={`image-ad-title ad-title_style__${module.titleStyle}`}
+            className={`image-ad-title decorate-common-title ad-title_style__${module.titleStyle}`}
             style={titleFormat.titleBackground + titleFormat.titleRadius}
         >
             <View className="image-ad-title-l">

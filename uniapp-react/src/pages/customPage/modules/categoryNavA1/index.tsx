@@ -102,7 +102,7 @@ export default function CategoryNavA1({ module }: Props) {
     return (
         <View
             ref={rootRef}
-            className="module-ad-con module-category-nav"
+            className="module-ad-con decorate-category-nav-a1 module-category-nav"
             style={
                 commonStyle.moduleStyle.boxPaddingBottom +
                 commonStyle.moduleStyle.boxPaddingTop +

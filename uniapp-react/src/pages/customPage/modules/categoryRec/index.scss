@@ -1,12 +1,12 @@
 /* 自旧 categoryRec/index.vue <style lang="scss" scoped> 原样平铺移植（去 scoped，无 :deep()/v-bind()） */
 /* P1 隔离：.module-ad-con/.item-box 去 scoped 后与 categoryNav 族同名全局冲突，收回本模块根类作用域 */
-.module-ad-con.module-category-rec {
+.module-category-rec.module-ad-con.module-category-rec {
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center top;
     position: relative;
 }
-.categoryrec {
+.module-category-rec .categoryrec {
     overflow: hidden;
 }
 .module-category-rec .item-box {

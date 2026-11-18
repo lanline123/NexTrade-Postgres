@@ -1,12 +1,12 @@
 /* 自旧 countdown/index.vue <style lang="scss" scoped> 原样平铺移植（去 scoped，无 :deep()/v-bind） */
-.module-ad-con {
+.decorate-countdown.module-ad-con {
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center top;
     position: relative;
 }
 
-.countdow-warp {
+.decorate-countdown .countdow-warp {
     position: relative;
     padding: 16rpx 20rpx 20rpx 20rpx;
     overflow: hidden;
@@ -122,7 +122,7 @@
 }
 
 /* P1 隔离：原 scoped .countdown 去 scoped 后全局泄漏，会给 specialOffer 的同名药丸等注入 margin-top/width，改模块专属类 */
-.countdown-mod {
+.decorate-countdown .countdown-mod {
     margin-top: -40rpx;
     width: 100%;
     z-index: 1;

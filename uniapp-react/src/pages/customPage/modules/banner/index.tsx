@@ -386,7 +386,7 @@ export default function Banner({ module, index }: Props) {
     return (
         <View
             ref={rootRef}
-            className={`banner module-ad-con ad-pic_type__2  ad-pic_page_type__${module.bannerContent.picPageType}`}
+            className={`banner module-ad-con decorate-banner ad-pic_type__2  ad-pic_page_type__${module.bannerContent.picPageType}`}
             style={
                 commonStyle.moduleStyle.boxPaddingBottom +
                 commonStyle.moduleStyle.boxPaddingTop +

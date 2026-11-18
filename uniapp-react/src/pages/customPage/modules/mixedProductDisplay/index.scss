@@ -1,23 +1,23 @@
 /* 自旧 mixedProductDisplay/index.vue <style lang="scss" scoped> 原样平铺移植（去 scoped，无 :deep()/v-bind()） */
-.module-ad-con {
+.decorate-mixed-product-display.module-ad-con {
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center top;
     position: relative;
 }
-.comp {
+.decorate-mixed-product-display .comp {
     width: 100%;
     overflow: hidden;
     position: relative;
     display: flex;
 }
-.cont {
+.decorate-mixed-product-display .cont {
     width: 50%;
     flex: 1;
     overflow: hidden;
     position: relative;
 }
-.mk-title {
+.decorate-mixed-product-display .mk-title {
     height: 40rpx;
     font-size: 32rpx;
     font-weight: 700;
@@ -25,13 +25,13 @@
     display: flex;
     align-items: center;
 }
-.mk-stitle {
+.decorate-mixed-product-display .mk-stitle {
     height: 40rpx;
     line-height: 40rpx;
     font-size: 24rpx;
     overflow: hidden;
 }
-.time {
+.decorate-mixed-product-display .time {
     height: 40rpx;
     line-height: 40rpx;
     margin-left: 10rpx;
@@ -41,7 +41,7 @@
     display: inline-block;
     font-weight: 400;
 }
-.item-box {
+.decorate-mixed-product-display .item-box {
     margin: 10rpx -8rpx 0;
     .item {
         margin: 0 8rpx;
@@ -91,7 +91,7 @@
         font-size: 24rpx;
     }
 }
-.line-box {
+.decorate-mixed-product-display .line-box {
     padding: 0 20rpx;
     position: relative;
     .line {

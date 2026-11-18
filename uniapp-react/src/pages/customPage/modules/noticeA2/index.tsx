@@ -116,7 +116,7 @@ export default function NoticeA2({ module }: Props) {
 
     return (
         <View
-            className="module-ad-con"
+            className="module-ad-con decorate-notice-a2"
             style={commonStyle.moduleStyle.boxPaddingTopBottom + commonStyle.moduleStyle.boxPadding + commonStyle.moduleStyle.backgroundColor}
         >
             <View

@@ -1,74 +1,74 @@
-.module-ad-content {
+.decorate-image-square-ad .module-ad-content {
     overflow: hidden;
 }
-.image-ad-item {
+.decorate-image-square-ad .image-ad-item {
     height: 100%;
     width: 100%;
 }
-.item-content {
+.decorate-image-square-ad .item-content {
     height: 100%;
     width: 100%;
     overflow: hidden;
 }
 /* P1 隔离：原 scoped .item-img-a 去 scoped 后与 imageBox 内同名规则全局合并（imageBox 侧已由 P0 收回 .image-square-box 作用域），本侧改模块专属类 */
-.square-item-img-a {
+.decorate-image-square-ad .square-item-img-a {
     height: 100%;
     width: 100%;
     border-radius: var(--img-radius, 0px);
     overflow: hidden;
 }
-.item-img {
+.decorate-image-square-ad .item-img {
     // height: 100%;
     width: 100%;
 }
-.image-square-layout-height1 {
+.decorate-image-square-ad .image-square-layout-height1 {
     height: auto;
     width: 100%;
 }
-.image-square-layout-height2 {
+.decorate-image-square-ad .image-square-layout-height2 {
     height: auto;
     width: 100%;
 }
 
-.image-square-layout-1 {
+.decorate-image-square-ad .image-square-layout-1 {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
 }
-.image-square-layout-2 {
+.decorate-image-square-ad .image-square-layout-2 {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
 }
-.image-square-layout-3 {
+.decorate-image-square-ad .image-square-layout-3 {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
 }
-.image-square-layout-4 {
+.decorate-image-square-ad .image-square-layout-4 {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     grid-template-rows: repeat(2, 1fr);
 }
-.image-square-layout-4 .image-ad-item:nth-child(2) {
+.decorate-image-square-ad .image-square-layout-4 .image-ad-item:nth-child(2) {
     grid-column: 1 / 2;
 }
-.image-square-layout-4 .image-ad-item:nth-child(3) {
+.decorate-image-square-ad .image-square-layout-4 .image-ad-item:nth-child(3) {
     grid-row: 1 / 2;
     grid-column: 2 / 2;
 }
 
-.image-square-layout {
+.decorate-image-square-ad .image-square-layout {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
 }
-.image-square-layout .grid-layout-2 {
+.decorate-image-square-ad .image-square-layout .grid-layout-2 {
     display: grid;
     grid-template-rows: repeat(2, 1fr);
 }
-.image-square-layout.image-square-layout3 .grid-layout-3 {
+.decorate-image-square-ad .image-square-layout.image-square-layout3 .grid-layout-3 {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
 }
 
-.image-square-layout2 .grid-layout-2 {
+.decorate-image-square-ad .image-square-layout2 .grid-layout-2 {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
 }

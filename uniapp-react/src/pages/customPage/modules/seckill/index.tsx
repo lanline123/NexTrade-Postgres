@@ -147,7 +147,7 @@ export default function Seckill({ module }: Props) {
         seckillList && seckillList?.length > 0 && (
             <View
                 className={
-                    "module-ad-con module-goods_ad module-seckill-goods_ad ad-style__" +
+                    "module-ad-con decorate-seckill module-goods_ad module-seckill-goods_ad ad-style__" +
                     module?.style +
                     " ad-buy_btn_style__" +
                     module?.buyBtnStyle +

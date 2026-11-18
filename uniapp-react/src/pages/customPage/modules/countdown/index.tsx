@@ -82,7 +82,7 @@ export default function Countdown({ module }: Props) {
 
     return (
         <View
-            className="module-ad-con"
+            className="module-ad-con decorate-countdown"
             style={
                 commonStyle.moduleStyle.boxPaddingBottom +
                 commonStyle.moduleStyle.boxPaddingTop +

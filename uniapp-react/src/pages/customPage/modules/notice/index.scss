@@ -1,4 +1,4 @@
-.notice-ad-warp .item-notice-con {
+.module-notice .notice-ad-warp .item-notice-con {
     background: #fff;
     height: 40rpx;
     display: flex;
@@ -6,34 +6,34 @@
     padding: 10rpx 0;
     color: #555555;
 }
-.notice-ad-warp .item-notice-con .item-notice-ico {
+.module-notice .notice-ad-warp .item-notice-con .item-notice-ico {
     margin-left: 20rpx;
     width: 32rpx;
     height: 32rpx;
 }
-.notice-ad-warp .item-notice-con .item-notice-ico image {
+.module-notice .notice-ad-warp .item-notice-con .item-notice-ico image {
     width: 100%;
     height: 100%;
 }
-.notice-ad-warp .item-notice-con .item-notice-list {
+.module-notice .notice-ad-warp .item-notice-con .item-notice-list {
     margin-left: 16rpx;
     flex: 1;
     overflow: hidden;
     position: relative;
 }
 
-.notice-ad-warp .item-notice-con .item-notice-input {
+.module-notice .notice-ad-warp .item-notice-con .item-notice-input {
     display: inline-flex;
     align-items: center;
     color: #555555;
     white-space: nowrap;
 }
 
-.notice-ad-warp .item-notice-con .item-notice-input.scroll-animation {
+.module-notice .notice-ad-warp .item-notice-con .item-notice-input.scroll-animation {
     animation: marquee-scroll 13s linear infinite;
 }
 
-.notice-ad-warp .item-notice-con .headlines-item {
+.module-notice .notice-ad-warp .item-notice-con .headlines-item {
     display: inline-block;
     padding-right: 30rpx;
 }

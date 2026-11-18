@@ -1,22 +1,22 @@
-.search-lang-box {
+.module-cat_nav .search-lang-box {
     display: flex;
     align-items: center;
 }
 
 /*分类导航*/
-.catNav-warp .item-cat_nav-con {
+.module-cat_nav .catNav-warp .item-cat_nav-con {
     width: 100%;
 }
 /* 原 index.vue:168-170 / sticky.vue:237-239：横向滚动条隐藏，此前平移丢失 */
-.catNav-warp .item-cat_nav-con::-webkit-scrollbar {
+.module-cat_nav .catNav-warp .item-cat_nav-con::-webkit-scrollbar {
     display: none;
 }
-.catNav-warp .cat-nav-list {
+.module-cat_nav .catNav-warp .cat-nav-list {
     flex-wrap: nowrap;
     width: 100%;
     white-space: nowrap;
 }
-.catNav-warp .cat-nav-list .nav-item {
+.module-cat_nav .catNav-warp .cat-nav-list .nav-item {
     margin: 0 10rpx;
     height: 80rpx;
     line-height: 80rpx;
@@ -29,17 +29,17 @@
         margin-right: 10rpx;
     }
 }
-.catNav-warp .cat-nav-list .nav-item:first-child {
+.module-cat_nav .catNav-warp .cat-nav-list .nav-item:first-child {
     margin-left: 20rpx;
 }
-.catNav-warp .cat-nav-list .nav-item .tit {
+.module-cat_nav .catNav-warp .cat-nav-list .nav-item .tit {
     font-size: 32rpx;
     font-weight: bold;
 }
-.catNav-warp .cat-nav-list .nav-item.current .tit {
+.module-cat_nav .catNav-warp .cat-nav-list .nav-item.current .tit {
     font-size: 44rpx;
 }
-.catNav-warp .cat-nav-list .nav-item.current:after {
+.module-cat_nav .catNav-warp .cat-nav-list .nav-item.current:after {
     content: "";
     position: absolute;
     bottom: 2rpx;
@@ -49,10 +49,10 @@
     border-radius: 6rpx;
     height: 6rpx;
 }
-.catNav-warp .item-search-con {
+.module-cat_nav .catNav-warp .item-search-con {
     margin-bottom: 10rpx;
 }
-.catNav-warp .item-search-con .item-search-form {
+.module-cat_nav .catNav-warp .item-search-con .item-search-form {
     background: #fff;
     height: 70rpx;
     display: flex;
@@ -60,12 +60,12 @@
     padding: 0;
     color: #555555;
 }
-.catNav-warp .iconfont-h5 {
+.module-cat_nav .catNav-warp .iconfont-h5 {
     margin-left: 20rpx;
 }
 
 /* 吸顶变体（原 sticky.vue:210-232）：初始上移隐藏，.show 时滑入；此前平移丢失隐藏态导致吸顶条常驻遮挡 */
-.catNav-warp.fixed {
+.module-cat_nav .catNav-warp.fixed {
     position: fixed;
     left: 0;
     top: 0;
@@ -89,39 +89,39 @@
     }
 }
 /* 原 sticky.vue:341-347：吸顶版搜索文字截断（普通版无此限制，故只挂 .fixed 作用域） */
-.catNav-warp.fixed .catnav-search-text {
+.module-cat_nav .catNav-warp.fixed .catnav-search-text {
     max-width: 300rpx;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.catNav-warp-blank {
+.module-cat_nav .catNav-warp-blank {
     height: 360rpx;
 }
-.catNav-warp.fixed .item-logo-con {
+.module-cat_nav .catNav-warp.fixed .item-logo-con {
     display: none;
 }
-.catNav-warp.fixed .item-search-con {
+.module-cat_nav .catNav-warp.fixed .item-search-con {
     margin-right: 200rpx;
 }
 
-.catnav-logo {
+.module-cat_nav .catnav-logo {
     margin-left: 10rpx;
     margin-top: 5rpx;
     margin-bottom: 10rpx;
     margin-right: 30rpx;
     max-width: 210rpx;
 }
-.default-search {
+.module-cat_nav .default-search {
     padding: 0 20rpx;
     margin-bottom: 10rpx;
     width: 100%;
 }
-.default-search-config {
+.module-cat_nav .default-search-config {
     background-color: #fff;
     border-radius: 6rpx;
 }
-.catnav-search {
+.module-cat_nav .catnav-search {
     display: flex;
     align-items: center;
     height: 70rpx;
@@ -131,12 +131,12 @@
         color: #555555;
     }
 }
-.catnav-search-text {
+.module-cat_nav .catnav-search-text {
     font-size: 28rpx;
     margin-left: 10rpx;
 }
 
-.catnav-skeleton {
+.module-cat_nav .catnav-skeleton {
     height: 80rpx;
     width: 100%;
     display: flex;

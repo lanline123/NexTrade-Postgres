@@ -34,7 +34,7 @@ export default function ImageHotarea({ module }: Props) {
 
     return (
         <View
-            className={`module-ad-con module-ad-con- ad-radio_style__${module.radioStyle}`}
+            className={`module-ad-con decorate-image-hotarea module-ad-con- ad-radio_style__${module.radioStyle}`}
             style={frameFormat.boxPadding + frameFormat.boxPaddingTop + frameFormat.boxPaddingBottom}
         >
             <View className="module-ad-content" style={frameFormat.backgroundColor + " " + frameFormat.boxRadius}>

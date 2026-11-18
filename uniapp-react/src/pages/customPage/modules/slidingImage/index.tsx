@@ -207,7 +207,7 @@ export default function SlidingImage({ module }: Props) {
     return (
         <View
             ref={rootRef}
-            className="module-ad-con"
+            className="module-ad-con decorate-sliding-image"
             style={
                 commonStyle.moduleStyle.boxPaddingBottom +
                 commonStyle.moduleStyle.boxPaddingTop +

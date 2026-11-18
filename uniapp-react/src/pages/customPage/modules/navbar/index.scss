@@ -1,4 +1,4 @@
-.tig-navbar {
+.decorate-navbar.tig-navbar {
     .navbar-box {
         width: 100%;
         height: var(--nav-height);
@@ -49,11 +49,11 @@
     }
 }
 
-.placeholder {
+.decorate-navbar .placeholder {
     // 旧版此占位为空，保持一致
 }
 
-.line1 {
+.decorate-navbar .line1 {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;

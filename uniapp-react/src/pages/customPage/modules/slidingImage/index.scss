@@ -1,26 +1,26 @@
 /* 自旧 slidingImage/index.vue <style lang="scss" scoped> 原样平移（去 scoped） */
-.decorate-slide-box::-webkit-scrollbar {
+.decorate-sliding-image .decorate-slide-box::-webkit-scrollbar {
     display: none;
     height: 0;
 }
-.module-ad-con {
+.decorate-sliding-image.module-ad-con {
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center top;
     position: relative;
 }
-.slidingImage {
+.decorate-sliding-image .slidingImage {
     overflow: hidden;
 }
-.slidingImage-box {
+.decorate-sliding-image .slidingImage-box {
     display: flex;
     transition-duration: 0ms;
     transition-timing-function: linear;
 }
-.item-box {
+.decorate-sliding-image .item-box {
     flex-shrink: 0;
 }
-.item {
+.decorate-sliding-image .item {
     padding: 6rpx;
     text-align: center;
     overflow: hidden;
@@ -28,7 +28,7 @@
     transition-duration: 0.5s;
     transition-timing-function: cubic-bezier(0.52, 1.64, 0.37, 0.66);
 }
-.fox-title {
+.decorate-sliding-image .fox-title {
     position: relative;
     display: flex;
     justify-content: center;
@@ -50,7 +50,7 @@
         transform: scale(0.9);
     }
 }
-.title {
+.decorate-sliding-image .title {
     overflow: hidden;
     margin: 12rpx 0 6rpx 0;
 }

@@ -152,7 +152,7 @@ export default function ProductGrouping({ module }: Props) {
 
     return (
         <View
-            className="module-ad-con"
+            className="module-ad-con decorate-product-grouping"
             style={
                 commonStyle.moduleStyle.boxPaddingBottom +
                 commonStyle.moduleStyle.boxPaddingTop +

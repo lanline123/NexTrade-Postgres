@@ -82,7 +82,7 @@ export default function CommonBuyButton({
 
     return (
         <View
-            className="goods-btn"
+            className="goods-btn decorate-common-buy-button"
             style={
                 `height: ${designPxToRpx(Number(styleOptions.paddingTopBottom || 0) + 24)}; padding-right: ${
                     styleOptions.text ? designPxToRpx(Number(styleOptions.paddingLeftRight || 0) + 10) : 0
