@@ -680,17 +680,15 @@
 .pchead-strip__region {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   color: rgba(255, 255, 255, 0.84);
   font-size: 12px;
   font-weight: 600;
 }
-.pchead-strip__region::before {
-  content: '';
-  width: 10px;
-  height: 10px;
-  background: currentColor;
-  border-radius: 50%;
+/* 地区图标与前台 PcHeaderTopBar 一致：iconfont-pc 的 icon-dizhi 字形 14px（原 ::before 圆点为占位，已删） */
+.pchead-strip__region-ico {
+  font-size: 14px;
+  line-height: 1;
   flex-shrink: 0;
 }
 .pchead-strip__link {
