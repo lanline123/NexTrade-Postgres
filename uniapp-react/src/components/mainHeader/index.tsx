@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Image, Text, View } from "@tarojs/components";
 import Taro, { useDidHide, useDidShow } from "@tarojs/taro";
@@ -23,6 +23,7 @@ interface Props {
     showLeft?: boolean;
     noSafeTop?: boolean;
     background?: string;
+    onHeightChange?: (height: number) => void;
     /** 旧 slot name="navbar"（自定义导航内容） */
     navbar?: ReactNode;
     left?: ReactNode;
@@ -40,7 +41,7 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
  * - 旧 defineExpose → forwardRef/useImperativeHandle
  */
 const MainHeader = forwardRef<MainHeaderRef, Props>(function MainHeader(
-    { position = "static", title = "", showLeft = true, noSafeTop = false, background = "#fff", navbar, left, middle, right },
+    { position = "static", title = "", showLeft = true, noSafeTop = false, background = "#fff", onHeightChange, navbar, left, middle, right },
     ref
 ) {
     const baseInfo = useConfigStore((s) => s.baseInfo);
@@ -54,6 +55,7 @@ const MainHeader = forwardRef<MainHeaderRef, Props>(function MainHeader(
 
     const [showMenu, setShowMenu] = useState(false);
     const isHeaderActiveRef = useRef(true);
+    const headerId = `common-header-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
 
     const isWeapp = process.env.TARO_ENV === "weapp";
 
@@ -76,15 +78,16 @@ const MainHeader = forwardRef<MainHeaderRef, Props>(function MainHeader(
      * 测量顶部栏高度写入 store，供搜索等页面计算顶部占位和固定偏移。
      * 首次进入时 DOM/安全区可能尚未稳定，按跨境项目做法延后重试。
      */
-    const getContentRect = async () => {
+    const getContentRect = useCallback(async () => {
         await sleep(0);
         for (let i = 0; i < 3; i++) {
             if (!isHeaderActiveRef.current) return;
             try {
-                const result = await getElementRect(".common-header");
+                const result = await getElementRect(`#${headerId}`);
                 if (!isHeaderActiveRef.current) return;
                 if (result && !Array.isArray(result) && result.height > 0) {
                     setCommonHeaderHeight(result.height);
+                    onHeightChange?.(result.height);
                     return;
                 }
             } catch (e) {
@@ -92,23 +95,26 @@ const MainHeader = forwardRef<MainHeaderRef, Props>(function MainHeader(
             }
             await sleep(50 * (i + 1));
         }
-    };
+    }, [headerId, onHeightChange, setCommonHeaderHeight]);
 
-    useImperativeHandle(ref, () => ({ getContentRect }));
+    useImperativeHandle(ref, () => ({ getContentRect }), [getContentRect]);
 
     // 对应旧 onMounted：窗口尺寸变化时重测（rpx 随窗口宽度变化）
     useEffect(() => {
         const handleResize = () => {
             void getContentRect();
         };
+        isHeaderActiveRef.current = true;
         Taro.onWindowResize(handleResize);
-        void getContentRect();
         return () => {
             isHeaderActiveRef.current = false;
             Taro.offWindowResize(handleResize);
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [getContentRect]);
+
+    useEffect(() => {
+        void getContentRect();
+    }, [getContentRect, mainHeaderStyle]);
 
     useDidShow(() => {
         isHeaderActiveRef.current = true;
@@ -137,7 +143,7 @@ const MainHeader = forwardRef<MainHeaderRef, Props>(function MainHeader(
     return (
         <>
             <View className="common-header-box" style={{ position, background } as any}>
-                <View className={`common-header${noSafeTop ? " no-safe-top" : ""}`} style={{ background }}>
+                <View id={headerId} className={`common-header${noSafeTop ? " no-safe-top" : ""}`} style={{ background }}>
                     <View className="main-header" style={mainHeaderStyle}>
                         <View className="main-header-box flex">
                             <View className="box-left flex align-center">

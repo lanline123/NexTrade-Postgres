@@ -73,7 +73,7 @@ export default function TigTabbar({ backgroundColor = "#fff", color = "#000", ac
                     ))}
                 </View>
             </View>
-            <View className="placeholder" />
+            <View className="tig-tabbar__placeholder" />
         </View>
     );
 }

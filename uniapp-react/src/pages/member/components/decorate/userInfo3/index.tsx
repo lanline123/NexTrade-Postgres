@@ -6,13 +6,14 @@ import TigAuthBadge from "@/components/tig/tig-auth-badge/TigAuthBadge";
 import TigImage from "@/components/tig/tig-image/TigImage";
 import TigUpload from "@/components/tig/tig-upload/TigUpload";
 import { getUserLevelList } from "@/api/user/levelCenter";
-import { isMerchant, isO2o, isOverseas, isPro, redirect, staticResource } from "@/utils";
+import { isMerchant, isO2o, isPro, redirect, staticResource } from "@/utils";
 import { imageFormat, urlFormat } from "@/utils/format";
 import { handleLogin } from "@/utils/handleLogin";
 import { useFrameVars, type ModuleDataWithFrame } from "@/utils/decorateFrame";
 import { useUserStore } from "@/store/user";
 import { useConfigStore } from "@/store/config";
 import { t } from "@/utils/i18n";
+import { rpxToStyleLength } from "@/utils/styleLength";
 
 import "./index.scss";
 
@@ -133,16 +134,12 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
     const getUserInfo = useUserStore((s) => s.getUserInfo);
     const getOrderNum = useUserStore((s) => s.getOrderNum);
     const closeAuth = useConfigStore((s) => s.closeAuth);
-    const commonHeaderHeight = useConfigStore((s) => (s as any).commonHeaderHeight);
 
     const [upgradeText, setUpgradeText] = useState("");
 
     const isLoggedIn = Boolean(token || Taro.getStorageSync("token"));
     const layoutStyle = data?.layoutStyle ?? 1;
     const layoutClass = [`dec-user-info-v3--style${layoutStyle}`, immersive ? "dec-user-info-v3--immersive" : ""].filter(Boolean).join(" ");
-
-    /** 沉浸式渐变向上延伸的高度：跨境为外贸头实测高度，国内为导航栏 */
-    const headerOffsetValue = isOverseas() ? `${commonHeaderHeight || 0}px` : "var(--nav-height, 0px)";
 
     const defaults = STYLE_TEXT_COLOR_DEFAULTS[layoutStyle] || STYLE_TEXT_COLOR_DEFAULTS[1];
     const tc = data?.textColors;
@@ -162,8 +159,8 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
     const cssVars = useFrameVars(data, FRAME_DEFAULTS);
 
     const containerPaddingStyle = {
-        paddingLeft: `${(data?.frame?.innerPadding ?? 16) * 2}rpx`,
-        paddingRight: `${(data?.frame?.innerPadding ?? 16) * 2}rpx`
+        paddingLeft: "var(--dec-inner-padding)",
+        paddingRight: "var(--dec-inner-padding)"
     };
 
     const style1WrapStyle = (() => {
@@ -202,7 +199,7 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
     const memberBarStyle = (() => {
         const bar = data?.memberBar;
         const r = bar?.borderRadius ?? 8;
-        const styles: Record<string, string> = { borderRadius: `${r * 2}rpx ${r * 2}rpx 0 0` };
+        const styles: Record<string, string> = { borderRadius: `${rpxToStyleLength(r * 2)} ${rpxToStyleLength(r * 2)} 0 0` };
         if (layoutStyle === 3) {
             const colorA = bar?.backgroundColor || "#292929";
             const colorB = bar?.backgroundColorB || "#525252";
@@ -229,8 +226,8 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
             position: "absolute" as const,
             left: "0",
             right: "0",
-            top: immersive ? `calc(-1 * ${headerOffsetValue})` : "0",
-            bottom: hasCard ? "98rpx" : "0",
+            top: immersive ? "calc(-1 * var(--member-header-offset, var(--nav-height, 0px)))" : "0",
+            bottom: hasCard ? rpxToStyleLength(98) : "0",
             background: `linear-gradient(${dir}, ${colorA}, ${colorB})`,
             zIndex: "0"
         };
@@ -244,13 +241,13 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
         const r = bar?.borderRadius ?? 12;
         const colorA = bar?.backgroundColor || "#FF9EB5";
         const colorB = bar?.backgroundColorB || "#FF6E97";
-        return { borderRadius: `${r * 2}rpx`, background: `linear-gradient(135deg, ${colorA}, ${colorB})` };
+        return { borderRadius: rpxToStyleLength(r * 2), background: `linear-gradient(135deg, ${colorA}, ${colorB})` };
     })();
 
     const showBottomArc = layoutStyle === 1 && data?.bottomArc?.show !== false;
 
     const arcHeight = data?.bottomArc?.height ?? 24;
-    const arcStyle = { height: `${arcHeight * 2}rpx` };
+    const arcStyle = { height: rpxToStyleLength(arcHeight * 2) };
 
     const arcDataUrl = `data:image/svg+xml,${encodeURIComponent(
         `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 375 ${arcHeight}" preserveAspectRatio="none"><path d="M 0 0 Q 187.5 ${arcHeight * 1.4} 375 0 L 375 ${arcHeight} L 0 ${arcHeight} Z" fill="#f5f5f5"/></svg>`
@@ -436,7 +433,7 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
                                                     onClick={() => goPages("/pages/user/profile/index")}
                                                 >
                                                     <Text>{t("个人资料")}</Text>
-                                                    <View className="iconfont-h5 icon-a-gengduo20" style={{ fontSize: "24rpx" }} />
+                                                    <View className="iconfont-h5 icon-a-gengduo20" style={{ fontSize: rpxToStyleLength(24) }} />
                                                 </View>
                                             </View>
                                         </>
@@ -468,7 +465,7 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
                                     </View>
                                     <View className="dec-user-info-v3__member-bar-btn" onClick={handleMemberBarClick}>
                                         <Text>{memberBarButtonText}</Text>
-                                        <View className="iconfont-h5 icon-a-gengduo20" style={{ fontSize: "12rpx" }} />
+                                        <View className="iconfont-h5 icon-a-gengduo20" style={{ fontSize: rpxToStyleLength(12) }} />
                                     </View>
                                 </View>
                             ) : (

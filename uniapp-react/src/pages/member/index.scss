@@ -5,8 +5,9 @@
     box-sizing: border-box;
 }
 
-/* 外贸皮肤 mainHeader 为 fixed，高度由 inline style 写入 */
-.main-header-spacer {
+/* 固定页头在正常模式下只保留一份占位。 */
+.member-header-spacer {
+    height: var(--member-header-offset);
     width: 100%;
     flex-shrink: 0;
 }
@@ -293,14 +294,14 @@
     height: 22rpx;
 }
 
-.info {
+.member-profile-info {
     display: flex;
     align-items: center;
     margin-bottom: 10rpx;
     width: 100%;
 }
 /* 名字占据左侧，签到 / 设置图标推到右侧成组 */
-.user .user_header .picTxt .text .info .name {
+.user .user_header .picTxt .text .member-profile-info .name {
     width: auto;
     max-width: 240rpx;
     margin-right: auto;

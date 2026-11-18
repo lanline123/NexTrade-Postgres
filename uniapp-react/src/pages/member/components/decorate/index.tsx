@@ -27,6 +27,8 @@ interface Props {
  * - 根据后台配置的模块类型动态渲染组件
  */
 export default function MemberDecorate({ modules = [], immersive = false }: Props) {
+    const firstVisibleIndex = modules.findIndex((item) => item.isShow !== false);
+
     return (
         <>
             {modules.map((item, index) => {
@@ -55,7 +57,7 @@ export default function MemberDecorate({ modules = [], immersive = false }: Prop
                     case "userInfo3":
                         return (
                             <View key={index}>
-                                <UserInfo3 data={data} immersive={immersive && index === 0} />
+                                <UserInfo3 data={data} immersive={immersive && index === firstVisibleIndex} />
                             </View>
                         );
                     // 订单入口

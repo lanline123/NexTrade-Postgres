@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
 
+import { rpxToStyleLength } from "./styleLength";
+
 /**
  * 装修模块通用 frame 字段（自旧 utils/decorateFrame.ts 移植）
  * 单位均为 px（前端使用时 ×2 转 rpx）
@@ -78,11 +80,11 @@ export const useFrameVars = (data: ModuleDataWithFrame | undefined, defaults: Fr
 
     return {
         "--dec-bg-color": bgColor,
-        "--dec-border-radius": px2rpx(radius),
-        "--dec-inner-padding": px2rpx(inner),
-        "--dec-box-padding": px2rpx(boxPad),
-        "--dec-box-padding-top": px2rpx(boxPadTop),
-        "--dec-box-padding-bottom": px2rpx(boxPadBottom)
+        "--dec-border-radius": rpxToStyleLength(radius * 2),
+        "--dec-inner-padding": rpxToStyleLength(inner * 2),
+        "--dec-box-padding": rpxToStyleLength(boxPad * 2),
+        "--dec-box-padding-top": rpxToStyleLength(boxPadTop * 2),
+        "--dec-box-padding-bottom": rpxToStyleLength(boxPadBottom * 2)
     } as CSSProperties;
 };
 

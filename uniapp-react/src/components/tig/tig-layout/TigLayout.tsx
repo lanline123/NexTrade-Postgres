@@ -7,6 +7,7 @@ import { useConfigStore } from "@/store/config";
 import { useThemeStore } from "@/store/theme";
 import { useI18nStore } from "@/store/i18n";
 import { isOverseas } from "@/utils";
+import { rpxToStyleLength } from "@/utils/styleLength";
 import { useSaveTopBoxHeight } from "@/hooks";
 import TigNavbar from "@/components/tig/tig-navbar/TigNavbar";
 import TigTabbar from "@/components/tig/tig-tabbar/TigTabbar";
@@ -90,7 +91,7 @@ const TigLayout = forwardRef<TigLayoutRef, Props>(function TigLayout(
             "--tabbar-height": `${tabbarHeightNum}px`,
             "--safe-bottom": `${safeBottom}px`,
             "--safe-top": `${height}px`,
-            "--nav-height": `${navHeight}rpx`
+            "--nav-height": rpxToStyleLength(navHeight)
         } as Record<string, string | number>;
     }, [themeStyle, tabbarHeightNum, safeBottom, height, navHeight]);
 

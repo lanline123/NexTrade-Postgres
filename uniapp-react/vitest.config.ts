@@ -17,6 +17,8 @@ export default defineConfig({
     },
     test: {
         environment: "jsdom",
+        // Keep explicit stylesheet imports available to layout regression tests.
+        css: { include: /\.scss\?inline$/ },
         setupFiles: [path.resolve(__dirname, "tests/setup.ts")],
         include: ["src/**/*.{test,spec}.{js,ts,tsx}"],
         exclude: ["node_modules", "dist"],

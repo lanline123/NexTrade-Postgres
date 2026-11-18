@@ -99,7 +99,7 @@ export default function TigNavbar({
                     </View>
                 </View>
             </View>
-            {needPlaceholder && fixed && <View className="placeholder" />}
+            {needPlaceholder && fixed && <View className="tig-navbar__placeholder" />}
         </View>
     );
 }

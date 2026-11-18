@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Image, Text, View } from "@tarojs/components";
 import Taro, { useDidShow, useRouter } from "@tarojs/taro";
 
-import MainHeader, { type MainHeaderRef } from "@/components/mainHeader";
+import MainHeader from "@/components/mainHeader";
 import Recommend from "@/components/recommend";
 import TigAuthBadge from "@/components/tig/tig-auth-badge/TigAuthBadge";
 import TigBackTop from "@/components/tig/tig-back-top";
@@ -29,6 +29,7 @@ import { imageFormat } from "@/utils/format";
 import { handleDecorateLoadError } from "@/utils/handleDecorateLoadError";
 import { handleLogin } from "@/utils/handleLogin";
 import { t } from "@/utils/i18n";
+import { rpxToStyleLength } from "@/utils/styleLength";
 
 import "./index.scss";
 
@@ -97,7 +98,7 @@ const mapModuleList = (list: any): MemberDecorateModule[] => {
         }
         return {
             type: m?.type,
-            isShow: m?.isShow,
+            isShow: normalizeModuleValues(m?.isShow),
             fixed: m?.fixed,
             module: normalizeModuleValues(mod) || {}
         } as MemberDecorateModule;
@@ -138,12 +139,11 @@ export default function Member() {
     const getOrderNum = useUserStore((s) => s.getOrderNum);
     const getUserInfo = useUserStore((s) => s.getUserInfo);
     const whenConfigReady = useConfigStore((s) => s.whenConfigReady);
-    const commonHeaderHeight = useConfigStore((s) => s.commonHeaderHeight);
-    const useNewMemberCenter = useConfigStore((s) => s.useNewMemberCenter);
+    const menuTop = useConfigStore((s) => s.menuButtonInfo.top);
     const productCommentEnabled = useConfigStore((s) => s.productCommentEnabled);
     const integralName = useConfigStore((s) => s.integralName);
 
-    const layoutRef = useRef<MainHeaderRef | null>(null);
+    const [headerHeight, setHeaderHeight] = useState(0);
     const isOverseasSkin = isOverseas();
 
     /** 旧 tig-layout isZh：海外构建按当前语言判断，国内恒为中文 */
@@ -192,15 +192,19 @@ export default function Member() {
     // 页面标题是否沉浸式（来自后台页面设置 pageModule.immersive）
     const immersive = Boolean(pageModule?.immersive);
 
-    /** 顶部头部高度：跨境为 mainHeader 实测高度（fixed 后脱离文档流），国内为导航栏 */
-    const headerOffsetValue = isOverseasSkin ? `${commonHeaderHeight || 0}px` : "var(--nav-height)";
-
-    /** 外贸皮肤 mainHeader 占位 */
-    const mainHeaderSpacerStyle = isOverseasSkin ? { height: `${commonHeaderHeight || 0}px` } : undefined;
+    // 首次测量前按 MainHeader 的 78rpx 内容行与安全区保留空间。
+    const capsuleTop = process.env.TARO_ENV === "weapp" ? menuTop : 0;
+    const headerOffsetValue = "var(--member-header-offset)";
+    const pageHeaderOffset = isOverseasSkin
+        ? headerHeight > 0
+            ? `${headerHeight}px`
+            : `calc(var(--safe-top, 0px) + ${rpxToStyleLength(78)} + ${capsuleTop}px)`
+        : "var(--nav-height, 0px)";
+    const firstVisibleModule = modules.find((module) => module.isShow !== false);
 
     const pageGradientStyle = (() => {
         if (!hasDecorate) return {} as Record<string, string>;
-        const first = modules[0];
+        const first = firstVisibleModule;
         if (!first) return {} as Record<string, string>;
         const type = first.type;
         if (type !== "userInfo" && type !== "user-info") return {} as Record<string, string>;
@@ -248,7 +252,7 @@ export default function Member() {
     // 取首个 userInfo3 样式 2/3/4 的渐变色（仅沉浸式生效）
     const gradientColors = (() => {
         if (!immersive) return null;
-        const first = modules[0];
+        const first = firstVisibleModule;
         if (!first) return null;
         const type = first.type;
         if (type !== "userInfo3" && type !== "user-info3") return null;
@@ -269,10 +273,11 @@ export default function Member() {
         const c = gradientColors;
         if (!c) return base;
         const dir = GRADIENT_DIR_MAP[c.gradientType || "leftRight"] || "to right";
+        const bandHeight = rpxToStyleLength(IMMERSIVE_BAND);
         return {
             ...base,
-            backgroundImage: `linear-gradient(to bottom, transparent 0, #f5f5f5 ${IMMERSIVE_BAND}rpx), linear-gradient(${dir}, ${c.colorA}, ${c.colorB})`,
-            backgroundSize: `100% ${IMMERSIVE_BAND}rpx`,
+            backgroundImage: `linear-gradient(to bottom, transparent 0, #f5f5f5 ${bandHeight}), linear-gradient(${dir}, ${c.colorA}, ${c.colorB})`,
+            backgroundSize: `100% ${bandHeight}`,
             backgroundRepeat: "no-repeat",
             backgroundColor: "#f5f5f5"
         };
@@ -308,7 +313,7 @@ export default function Member() {
         // 等待全局配置就绪，确保已拿到后端下发的 useNewMemberCenter 新旧版开关
         await whenConfigReady();
         // 个人中心新旧版开关：useNewMemberCenter=0（旧版）时强制走兜底布局 + 老接口
-        if (Number(useNewMemberCenter) === 0) {
+        if (Number(useConfigStore.getState().useNewMemberCenter) === 0) {
             setModules([]);
             setPageModule({});
             setShowFallbackLayout(true);
@@ -374,13 +379,13 @@ export default function Member() {
 
     return (
         <TigLayout onLoginSuccess={loginSuccess}>
-            <View className="member-page" style={pageBg ? ({ "--member-page-bg": pageBg } as any) : undefined}>
+            <View className="member-page" style={{ "--member-header-offset": pageHeaderOffset, "--member-page-bg": pageBg } as any}>
                 {/* 沉浸式：铺一层固定页面底色，与 userInfo3 渐变的渐隐目标色一致 */}
                 {immersive ? <View className="immersive-page-bg" /> : null}
                 {/* tig-layout 内 sticky 会被 overflow:hidden 截断，与首页一致用 fixed + 占位 */}
-                {isOverseasSkin ? <MainHeader ref={layoutRef} position="fixed" background={headerBackground} /> : null}
+                {isOverseasSkin ? <MainHeader position="fixed" background={headerBackground} onHeightChange={setHeaderHeight} /> : null}
                 {/* 沉浸式不占位，让首个模块的渐变铺到头部背后 */}
-                {isOverseasSkin && !immersive ? <View className="main-header-spacer" style={mainHeaderSpacerStyle} /> : null}
+                {isOverseasSkin && !immersive ? <View className="member-header-spacer" /> : null}
                 {!isOverseasSkin ? (
                     <TigNavbar showLeft={false} title={t("会员中心")} needPlaceholder={!immersive} background={navbarBackground} color={navbarColor} />
                 ) : null}
@@ -429,7 +434,7 @@ export default function Member() {
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <View className="acea-row row-middle info">
+                                                        <View className="acea-row row-middle member-profile-info">
                                                             {configStore.closeAuth === 1 ? (
                                                                 <View className="auth" onClick={() => goPages("/pages/user/userCertification/index")}>
                                                                     <TigAuthBadge verified={!!userInfo.isCompanyAuth} />

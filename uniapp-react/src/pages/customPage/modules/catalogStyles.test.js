@@ -10,10 +10,9 @@ it.each([false, true])("preserves each member header's nickname size (reverse=%s
     document.head.appendChild(style);
     try {
         for (const [name, size] of [["dec-user-info", "28rpx"], ["dec-user-info-v3", "40rpx"]]) {
-            const nickname = document.createElement("span");
-            nickname.className = name + "__name";
+            const nicknameSelector = "." + name + "__name";
             const sizes = Array.from(style.sheet.cssRules)
-                .filter(rule => rule.selectorText && nickname.matches(rule.selectorText))
+                .filter(rule => rule.selectorText === nicknameSelector)
                 .map(rule => rule.style.getPropertyValue("font-size"))
                 .filter(Boolean);
             expect(sizes).toEqual([size]);
