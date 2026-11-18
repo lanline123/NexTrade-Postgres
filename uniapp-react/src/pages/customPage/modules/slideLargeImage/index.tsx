@@ -4,7 +4,7 @@ import Taro from "@tarojs/taro";
 
 import { designPxToRpx, formatCommonStyle, copyArray } from "@/components/modules";
 import { urlFormat, imageFormat } from "@/utils/format";
-import { redirect, getElementRect } from "@/utils";
+import { redirect, getElementRect, getImageInfo } from "@/utils";
 import { useImgInfo } from "@/hooks/useDecorate";
 import { t } from "@/utils/i18n";
 
@@ -28,7 +28,40 @@ export default function SlideLargeImage({ module }: Props) {
     }, [module.picList]);
 
     // 旧 useImgInfo 只传 imgUrl（selector 未传），immediate 挂载时 updateImgInfo；这里同样只取 imgratio
-    const { imgratio, getImgratio } = useImgInfo();
+    const { imgratio, setImgratio } = useImgInfo();
+
+    // 图块高度完全由首图宽高比决定（height:0 + padding-top: imgratio*100%）。
+    // 原 getImgratio 内部走 Taro.getImageInfo，H5 下是 crossOrigin 匿名加载，失败被
+    // hook 静默吞掉后 imgratio 恒为 0、整幅图塌成 0 高（2026-11-19 页 152 验收复现：
+    // 标题在、图片全无）。这里改成本地测比：先走同一 getImageInfo（成功路径行为不变），
+    // 失败则 H5 下用不带 crossOrigin 的普通 Image 量自然尺寸兜底，再失败用 0.75 近似比，
+    // 保证模块永不塌陷。
+    const loadFirstPicRatio = async () => {
+        const url = imageFormat(module.picList?.[0]?.picUrl);
+        if (!url) return;
+        try {
+            const res: any = await getImageInfo(url);
+            if (res?.width) {
+                setImgratio(res.height / res.width);
+                return;
+            }
+        } catch {
+            // 落到下面的兜底
+        }
+        if (process.env.TARO_ENV === "h5" && typeof Image !== "undefined") {
+            const dims = await new Promise<{ w: number; h: number } | null>((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+                img.onerror = () => resolve(null);
+                img.src = url;
+            });
+            if (dims?.w) {
+                setImgratio(dims.h / dims.w);
+                return;
+            }
+        }
+        setImgratio(0.75);
+    };
 
     const commonStyle = useMemo(() => {
         return formatCommonStyle(
@@ -139,15 +172,15 @@ export default function SlideLargeImage({ module }: Props) {
     // 对应旧 onMounted
     useEffect(() => {
         getBoxWidth();
-        // 旧 useImgInfo immediate：挂载时 updateImgInfo（getImgratio + getHeght，此处未传 selector）
-        getImgratio(imageFormat(module.picList[0].picUrl));
+        // 旧 useImgInfo immediate：挂载时 updateImgInfo（原为 getImgratio，改走带兜底的 loadFirstPicRatio）
+        loadFirstPicRatio();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // uni.onWindowResize → Taro.onWindowResize；onUnmounted 清理
     useEffect(() => {
         const windowResizeCallback = () => {
-            getImgratio(imageFormat(module.picList[0].picUrl));
+            loadFirstPicRatio();
             getBoxWidth();
         };
         Taro.onWindowResize(windowResizeCallback);

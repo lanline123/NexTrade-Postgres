@@ -63,7 +63,15 @@ export default function Product2({ module, shopId = -1 }: Props) {
                 const type = module.products.productSelectType;
                 const keys = paramsValueMap[type];
                 if (type == 1) {
-                    param[paramsKeyMap[keys[0]]] = module.products.productIds.join(",");
+                    // 手选未选商品时 ids 参数会被请求层剥掉、接口返回默认商品分页并误渲染
+                    // （2026-11-19 页 152 诊断：未配置的商品2 在真实渲染下漏出 20 个默认商品）。
+                    // 未配置即不取数、不渲染，与编辑器「未配置」占位语义一致。
+                    const productIds = module.products.productIds ?? [];
+                    if (!productIds.length) {
+                        setProductList([]);
+                        return;
+                    }
+                    param[paramsKeyMap[keys[0]]] = productIds.join(",");
                 } else {
                     param.page = 1;
                     keys.forEach((key) => {

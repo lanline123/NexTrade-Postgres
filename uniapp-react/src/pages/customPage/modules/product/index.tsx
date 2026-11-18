@@ -108,8 +108,17 @@ export default function Product({ module, shopId = -1 }: Props) {
                 const type = module.products.productSelectType;
                 const keys = paramsValueMap[type];
                 if (type == 1) {
-                    param[paramsKeyMap[keys[0]]] = module.products.productIds.join(",");
-                    param.size = module.products.productIds.length;
+                    // 手选未选商品时 ids 为空串会被请求层剥掉、size=0 被后端 clamp 到 1，
+                    // 退化成默认商品并误渲染（2026-11-19 页 152 诊断：发布时 product2 类型
+                    // 改写为 product、已发布路径漏出的正是本组件）。与 product2 同口径守卫：
+                    // 手选且未选 → 不取数、不渲染；非手选模式不受影响。【我方新增守卫】
+                    const productIds = module.products.productIds ?? [];
+                    if (!productIds.length) {
+                        setProductList([]);
+                        return;
+                    }
+                    param[paramsKeyMap[keys[0]]] = productIds.join(",");
+                    param.size = productIds.length;
                 } else {
                     param.page = 1;
                     keys.forEach((key) => {
