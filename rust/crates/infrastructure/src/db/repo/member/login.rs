@@ -167,7 +167,11 @@ impl LoginRepository {
 
     /// 自动注册插入用户（Java `bindMobile` 新建分支）。
     ///
-    /// 返回新 `user_id`；未列出的列使用 DDL 默认值（`email=''`、`status=1` 等）。
+    /// 返回新 `user_id`。PG 对齐后 `email` / `last_ip` / `wechat_img` /
+    /// `admin_note` 为 NOT NULL 且无默认值（与 `avatar` 同类隐患，见
+    /// `db/repo/member/user.rs` 的 `REGISTER_INSERT_SQL` 注释），故与 POS
+    /// 收银台建会员口径一致，显式写空串；其余未列出的列使用 DDL 默认值
+    /// （`status=1` 等）。
     ///
     /// # Errors
     /// 数据库失败（如用户名唯一键冲突）→ `Error::Database`。
@@ -182,7 +186,7 @@ impl LoginRepository {
         referrer_user_id: i32,
     ) -> Result<i32> {
         let result: i32 = sqlx::query_scalar(
-            "INSERT INTO \"user\" (username, avatar, mobile, mobile_validated, nickname, password, reg_time, referrer_user_id) VALUES ($1, $2, $3, 1, $4, $5, $6, $7) RETURNING user_id",
+            "INSERT INTO \"user\" (username, avatar, mobile, mobile_validated, nickname, password, reg_time, referrer_user_id, email, email_validated, last_ip, wechat_img, admin_note) VALUES ($1, $2, $3, 1, $4, $5, $6, $7, '', 0, '', '', '') RETURNING user_id",
         )
         .bind(username)
         .bind(avatar)

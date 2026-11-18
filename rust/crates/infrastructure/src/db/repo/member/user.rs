@@ -5,6 +5,22 @@ use sqlx::PgPool;
 use nextrade_core::entities::User;
 use nextrade_core::{Error, Result};
 
+/// 注册插入 SQL（[`UserRepository::insert`] 专用，常量便于单测断言列清单）。
+///
+/// PG 对齐后 `avatar` / `email` / `last_ip` / `wechat_img` / `admin_note`
+/// 为 NOT NULL 且无默认值（MySQL 基线 `pure.sql` 里这些列原本有
+/// `DEFAULT ''`，迁 PG 时默认值丢失），INSERT 必须显式列出并绑定实体值
+/// （实体字段为裸 `String`，`User::default()` 为空串，恒非 NULL）；
+/// 与 POS 收银台建会员（`db/repo/pos/cashier.rs`）的显式空串口径一致。
+/// 此前本 INSERT 未列 `avatar` 等列，前台注册
+/// （`POST /api/user/regist/registAct`）对任何新用户都报
+/// `null value in column "avatar" ... violates not-null constraint`（HTTP 500）。
+const REGISTER_INSERT_SQL: &str = "INSERT INTO \"user\"
+             (username, avatar, mobile, mobile_validated, email, email_validated, nickname,
+              password, balance, points, reg_time, last_ip, wechat_img, admin_note,
+              status, user_type)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING user_id";
+
 #[derive(Clone)]
 pub struct UserRepository {
     pool: PgPool,
@@ -44,20 +60,21 @@ impl UserRepository {
 
     /// 注册插入，返回 user_id。
     pub async fn insert(&self, user: &User) -> Result<i32> {
-        let r: i32 = sqlx::query_scalar(
-            "INSERT INTO \"user\"
-             (username, mobile, mobile_validated, nickname, password, balance,
-              points, reg_time, status, user_type)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING user_id",
-        )
+        let r: i32 = sqlx::query_scalar(REGISTER_INSERT_SQL)
         .bind(&user.username)
+        .bind(&user.avatar)
         .bind(&user.mobile)
         .bind(user.mobile_validated)
+        .bind(&user.email)
+        .bind(user.email_validated)
         .bind(user.nickname.as_deref().unwrap_or_default())
         .bind(&user.password)
         .bind(user.balance)
         .bind(user.points)
         .bind(user.reg_time)
+        .bind(&user.last_ip)
+        .bind(&user.wechat_img)
+        .bind(&user.admin_note)
         .bind(user.status)
         .bind(user.user_type)
         .fetch_one(&self.pool)
@@ -196,5 +213,47 @@ fn map_err(e: sqlx::Error) -> Error {
     match e {
         sqlx::Error::RowNotFound => Error::NotFound("用户不存在".into()),
         other => Error::Database(other.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 注册服务（`services::member::user::UserService::register`）构造待插入
+    /// 实体时只显式给 username/mobile/nickname/password 等字段，其余走
+    /// `..Default::default()`：PG 无默认值的 NOT NULL 文本列拿到的必须是
+    /// 空串（非 NULL），否则线上注册报 avatar not-null 500。
+    #[test]
+    fn register_default_user_text_columns_are_empty_not_null() {
+        let user = User {
+            username: "13800000000".to_string(),
+            mobile: "13800000000".to_string(),
+            nickname: None,
+            password: "hash".to_string(),
+            status: Some(1),
+            mobile_validated: 1,
+            reg_time: 1,
+            ..Default::default()
+        };
+        assert_eq!(user.avatar, "");
+        assert_eq!(user.email, "");
+        assert_eq!(user.last_ip, "");
+        assert_eq!(user.wechat_img, "");
+        assert_eq!(user.admin_note, "");
+        // nickname 是 Option，insert 里以 unwrap_or_default() 兜底为空串
+        assert_eq!(user.nickname.as_deref().unwrap_or_default(), "");
+    }
+
+    /// 注册 INSERT 必须显式列出 PG 无默认值的全部 NOT NULL 文本列，
+    /// 少列任何一列都会重现 not-null 500（avatar 只是第一个被报出的列）。
+    #[test]
+    fn register_insert_sql_lists_not_null_text_columns() {
+        for col in ["avatar", "email", "last_ip", "wechat_img", "admin_note"] {
+            assert!(
+                REGISTER_INSERT_SQL.contains(col),
+                "注册 INSERT 必须显式列出 {col}（PG NOT NULL 且无默认值）"
+            );
+        }
     }
 }

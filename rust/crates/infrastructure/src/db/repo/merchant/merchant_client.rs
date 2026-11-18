@@ -132,6 +132,21 @@ impl MerchantClientRepository {
             .map_err(map_err)
     }
 
+    /// 某用户的全部历史申请状态（重复申请守卫用）。
+    ///
+    /// Java `apply` 无此查询（无重复守卫）；本构建服务层据此判断：任一
+    /// 「审核通过」→ 已开店拦截；任一「待审核」→ 待审拦截；仅「审核未通过」
+    /// 时放行重新申请。只取 `status` 列，避免为守卫拉整行 JSON。
+    pub async fn find_apply_statuses_by_user(&self, user_id: i32) -> Result<Vec<Option<i32>>> {
+        let rows: Vec<(Option<i32>,)> =
+            sqlx::query_as("SELECT status FROM merchant_apply WHERE user_id = $1")
+                .bind(user_id)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(map_err)?;
+        Ok(rows.into_iter().map(|r| r.0).collect())
+    }
+
     /// 新增入驻申请（事务内），返回自增 \"merchant_apply_id\"
     /// （Java `this.save(merchantApply)`）。
     ///

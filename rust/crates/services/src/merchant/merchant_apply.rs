@@ -14,17 +14,15 @@
 //! - `del` / `batch`（`type=del`）/ `updateField`（白名单 `GENERAL_FIELDS`）：
 //!   `BaseServiceImpl` 语义，字段先映射列名再比对白名单。
 //! - `audit`：仅允许「待审核(1)」→ 通过(10)/不通过(20)；写状态、审核备注、审核时间、
-//!   审核管理员；**通过时创建 `merchant` 行**（Java `merchantService.save`）。
+//!   审核管理员；**通过时走完整开店链路** [`Self::open_shop_for_passed_apply`]
+//!   （建 `merchant` / `admin_user`(shop) / `shop`(status=1) / 角色 / 运费模板 /
+//!   默认装修页 / `merchant_account` / `merchant_user` / `admin_user_shop`），
+//!   前台免审核自动开通（`merchant_client::apply`）复用同一入口。
 //! - `config`：状态参数列表（待审核/审核通过/审核未通过）。
 //!
-//! # 未迁移（审核通过后的完整开店链路，见 Java `MerchantApplyServiceImpl#audit`）
-//!
-//! Java 审核通过后还会：创建后台管理员（`adminUserService.providerCreate`，初始密码
-//! `PASSWORD`、角色 `ROLE_ID`）、创建 `merchant_user` 关联、创建店铺 `shop` 与店铺
-//! 管理员/员工关联、初始化保证金账户与规则、发送站内信/短信通知。
-//! 这些跨 `identity` / `merchant` / `deposit` 多域，本实现**未迁移**，仅落地
-//! `merchant_apply` 状态与 `merchant` 主记录；调用方不应把本接口视为「开店完成」。
-//! 审核不通过的通知（`messageService.sendMerchantApplyResultMessage`）同样未迁移。
+//! 审核结果通知走可配置 webhook 适配器（[`Self::notify_audit_result`]，
+//! 未配置时只记日志、不阻塞主流程），与 Java 的短信/站内消息通道口径不同，
+//! 属已知差异。
 
 use std::sync::Arc;
 
@@ -220,10 +218,9 @@ impl MerchantApplyService {
     ///
     /// 1. 申请必须存在（否则「资源不存在」）且状态为待审核（否则「审核状态不正确」）；
     /// 2. 目标状态只能是 10/20；
-    /// 3. 通过时校验会员已绑定手机号（「请先绑定手机号」），并创建 `merchant` 行；
-    /// 4. 写回状态/备注/审核时间/审核人。
-    ///
-    /// ⚠️ 审核通过后的开店链路（管理员/店铺/保证金/通知）未迁移，见模块文档。
+    /// 3. 写回状态/备注/审核时间/审核人；
+    /// 4. 通过时走 [`Self::open_shop_for_passed_apply`] 完整开店（内含会员
+    ///    已绑定手机号校验「请先绑定手机号」），随后发审核结果通知。
     ///
     /// # Errors
     /// 上述业务错误或数据库失败。

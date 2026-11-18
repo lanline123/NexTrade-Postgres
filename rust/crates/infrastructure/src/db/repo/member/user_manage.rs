@@ -530,7 +530,9 @@ impl UserManageRepository {
     /// 新增会员，返回自增 `user_id`（对应 Java `this.save(user)`）。
     ///
     /// 未在 [`CreateUserParam`] 中出现的列一律取 SQL 默认值（Java
-    /// `BeanUtils.copyProperties` 亦不写入这些列，落库后为表默认值）。
+    /// `BeanUtils.copyProperties` 亦不写入这些列，落库后为表默认值）；
+    /// 例外：`last_ip` 在 PG 为 NOT NULL 且无默认值（与 `avatar` 同类，
+    /// 见 `db/repo/member/user.rs` 注册插入注释），显式写空串。
     pub async fn insert_user(
         &self,
         p: &CreateUserParam,
@@ -542,8 +544,9 @@ impl UserManageRepository {
                (username, avatar, mobile, mobile_validated, email, email_validated, nickname,
                 password, birthday, balance, frozen_balance, points, growth_points, address_id,
                 reg_time, rank_id, referrer_user_id, from_tag, is_svip, svip_expire_time,
-                is_distribution, wechat_img, is_company_auth, status, user_type, admin_note, mark)
-             VALUES ($1,  $2,  $3,  $4,  $5,  $6,  $7,  $8, NULLIF($9, ''),  $10,  $11,  $12,  $13,  $14,  $15,  $16,  $17,  $18,  $19,  $20,  $21,  $22,  $23,  $24,  $25,  $26,  $27) RETURNING user_id",
+                is_distribution, wechat_img, is_company_auth, status, user_type, admin_note, mark,
+                last_ip)
+             VALUES ($1,  $2,  $3,  $4,  $5,  $6,  $7,  $8, NULLIF($9, ''),  $10,  $11,  $12,  $13,  $14,  $15,  $16,  $17,  $18,  $19,  $20,  $21,  $22,  $23,  $24,  $25,  $26,  $27,  '') RETURNING user_id",
         )
         .bind(p.username.as_deref().unwrap_or_default())
         .bind(p.avatar.as_deref().unwrap_or_default())

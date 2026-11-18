@@ -45,11 +45,13 @@
 
 ### 新增
 
+- **后端 - 商家入驻免审核自动开通补齐**：`POST /api/merchant/merchant/apply` 在配置 `merchantApplyNeedCheck != "1"` 时不再返回「尚未迁移」，按 Java 原版口径补齐——申请落库即置审核通过（`status=10`、`audit_time=当前时间`、`audit_admin_id=0` 表自动通过、无人工审核人），随后复用平台审核通过的同一开店链路 `open_shop_for_passed_apply` 建 merchant / 店铺管理员 / 店铺（status=1）/ 角色 / 运费模板 / 默认装修页 / 商户账户等，不另写一份建店逻辑；Java `apply` 不发短信，此路径同样不发，后台站内信（类型 41）在开店成功后照常写。需审核（配置 `="1"`）路径行为不变。另补 Java 原版没有的重复申请守卫：同一用户已有「审核通过」或「待审核」申请时拒绝重复提交（仅审核未通过可重提），避免重复建店；免审核分支在落库前先做开店确定性预检（联系电话非空、会员已绑手机号），开店失败时补偿删除刚落库的申请行，不留「已通过但无店」的死状态。原 `MSG_OPEN_SHOP_UNMIGRATED` 未迁移提示常量已删除。
 - **装饰编辑器 - 图文导航接入配置型标题**：面板新增「标题设置」（显示标题/标题样式/对齐/内容/颜色/描述/背景/圆角/字号/描述排版），前台 `ImageNav` 与后台画布统一走共享标题块（此前预览已接共享组件却无数据与入口）。默认不显示，老数据零视觉变化。
 - **装饰编辑器 - 标题左右边距**：标题设置新增「标题左边距 / 标题右边距」（0–60，默认 10 = 旧样式现状值；设 0 即紧贴模块最左/最右），双端标题组件与画布预览同口径生效。
 
 ### 修复
 
+- **前台 - 注册接口 500（avatar 非空约束）**：`POST /api/user/regist/registAct` 对任何新用户都报 `null value in column "avatar" of relation "user" violates not-null constraint`。根因：PG 对齐后 `user` 表 `avatar`/`email`/`last_ip`/`wechat_img`/`admin_note` 为 NOT NULL 且无默认值（MySQL 基线原本有 `DEFAULT ''`，迁 PG 时丢失），而注册仓储 `UserRepository::insert` 的 INSERT 未列这些列。修法（代码兜底，与 POS 收银台建会员的显式空串口径一致，不改表结构）：注册 INSERT 改为常量 SQL 并显式绑定实体值（实体裸 `String` 默认空串，恒非 NULL）；同类隐患一并收口——登录侧自动注册 `insert_registered_user` 补齐 `email`/`last_ip`/`wechat_img`/`admin_note` 空串，后台建会员 `insert_user` 补齐 `last_ip` 空串。新增单测断言默认实体文本列为空串且注册 SQL 列全上述列。
 - **装饰编辑器 - 推荐商品标题双轨**：去掉写死的 `<h3>{titleName}</h3>` 渲染分支，老数据由 `normalizeLegacyTitle` 搬进共享契约；此前「有 `title` 对象走标题块、否则走 h3」两条路径会导致样式与设置面板不同步。
 - **PC 前台 - 秒杀标题残留老路径**：不再读平铺 `module.seckillTitle`，统一由 `title` 契约提供（老值仍由 normalize 迁移）。
 - **装饰编辑器 - 标题设置提示不显示**：`kind:'title'` 走 `isSection` 分支时不渲染 `hint`，秒杀的「秒杀商品由营销-秒杀决定」一直看不到。

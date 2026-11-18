@@ -361,7 +361,7 @@ pub const MSG_MERCHANT_APPLY_NOT_EXIST: &str = "商户申请信息不存在";
 /// 配置不存在的文案（Java `ConfigConstants.CONFIG_NOT_EXIST`）。
 pub const MSG_CONFIG_NOT_EXIST: &str = "配置不存在";
 
-/// 上传/开通链路未迁移的明确错误文案。
+/// 上传链路未迁移的明确错误文案。
 ///
 /// 刻意把**缺失的依赖**写进文案，避免前端把「未迁移」误判成业务失败：
 /// 原 Java 的这条链路依赖图库上传（`GalleryPicService#uploadImg`，
@@ -371,9 +371,16 @@ pub const MSG_CONFIG_NOT_EXIST: &str = "配置不存在";
 pub const MSG_LICENSE_UPLOAD_UNMIGRATED: &str =
     "营业执照上传尚未迁移：依赖图库/对象存储服务与水印字体（原 Java GalleryPicService#uploadImg + ImageWatermarkUtil），本构建无法落盘并返回图片地址";
 
-/// 免审核开通链路未迁移的明确错误文案。
-pub const MSG_OPEN_SHOP_UNMIGRATED: &str =
-    "商户免审核自动开通尚未迁移：依赖角色初始化（AdminRoleService#initAdminRole / initEmployeeRoles）、运费模板初始化（ShippingTplService#initShippingTpl）、店铺装修初始化（DecorateService#initDecorate）与短信通道，本构建无法完成建店；请先把 merchantApplyNeedCheck 置为 1 走人工审核，或在 Java 侧执行";
+/// 重复申请守卫文案：已有「待审核」申请时再次提交。
+///
+/// Java `MerchantApplyServiceImpl#apply` 本身**没有**重复申请守卫（同一用户
+/// 可反复落库，免审核时还会反复建店）；本构建按产品口径补齐（见服务层
+/// `duplicate_apply_error`）：已有待审核申请 → 本条；已有审核通过申请 →
+/// [`MSG_APPLY_ALREADY_PASSED`]；仅有「审核未通过」时允许重新申请。
+pub const MSG_APPLY_ALREADY_PENDING: &str = "您已提交入驻申请，正在审核中，请勿重复申请";
+
+/// 重复申请守卫文案：已有「审核通过」申请（店铺已开通）时再次提交。
+pub const MSG_APPLY_ALREADY_PASSED: &str = "您已成功入驻，请勿重复申请";
 
 #[cfg(test)]
 mod tests {
@@ -493,6 +500,13 @@ mod tests {
     #[test]
     fn unmigrated_messages_are_explicit() {
         assert!(MSG_LICENSE_UPLOAD_UNMIGRATED.contains("未迁移"));
-        assert!(MSG_OPEN_SHOP_UNMIGRATED.contains("未迁移"));
+    }
+
+    #[test]
+    fn duplicate_apply_messages_are_distinct() {
+        // 待审核与已通过是两种不同的拦截口径，文案不得混用
+        assert!(MSG_APPLY_ALREADY_PENDING.contains("审核中"));
+        assert!(MSG_APPLY_ALREADY_PASSED.contains("已成功入驻"));
+        assert_ne!(MSG_APPLY_ALREADY_PENDING, MSG_APPLY_ALREADY_PASSED);
     }
 }

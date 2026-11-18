@@ -18,7 +18,7 @@
 //! | `GET  /api/merchant/merchant/applyShopAgreement` | `MerchantClientController.applyShopAgreement` | 已迁移（读配置原样返回） |
 //! | `GET  /api/merchant/merchant/myApply` | `MerchantClientController.myApply` | 已迁移 |
 //! | `GET  /api/merchant/merchant/applyDetail` | `MerchantClientController.applyDetail` | 已迁移 |
-//! | `POST /api/merchant/merchant/apply` | `MerchantClientController.apply` | 已迁移（审核分支；免审核分支未迁移） |
+//! | `POST /api/merchant/merchant/apply` | `MerchantClientController.apply` | 已迁移（审核与免审核自动开通两分支） |
 //!
 //! # 有意为之的差异（**逐条如实说明**）
 //!
@@ -32,16 +32,29 @@
 //!    明确的「未迁移」业务错误（[`MSG_LICENSE_UPLOAD_UNMIGRATED`]），**绝不**
 //!    伪造一个图片地址。
 //!
-//! 2. **`apply` 的「免审核直接开通」分支未迁移**：当配置
-//!    `merchantApplyNeedCheck != "1"` 时，Java 会把申请落库为「审核通过」并
-//!    继续创建 `merchant` / `admin_user` / `merchant_user` / `shop` /
-//!    `admin_user_shop` / `merchant_account` 六张表记录，同时初始化运费模板
-//!    （`ShippingTplService#initShippingTpl`）、店铺装修
-//!    （`DecorateService#initDecorate`）、角色
-//!    （`AdminRoleService#initAdminRole` / `initEmployeeRoles`）并发送短信。
-//!    这些依赖服务在本仓库均未迁移，只建店铺不建运费/装修/角色会留下无法使用的
-//!    半成品数据，故本实现**在该分支写入前**返回明确错误
-//!    （[`MSG_OPEN_SHOP_UNMIGRATED`]），不做任何插入。
+//! 2. **`apply` 的「免审核直接开通」已按 Java 口径补齐**：当配置
+//!    `merchantApplyNeedCheck != "1"` 时，Java `apply`（`@Transactional`）先把
+//!    申请落库为「审核通过」（`status = 10`、`auditTime = 当前时间`、
+//!    `auditAdminId` 不赋值 ⇒ 列默认值 0），随后在**同一方法内**依次
+//!    `createMerchant` / `createAdminUser` / `createMerchantUser` /
+//!    `createShop`（内含运费模板、装修、角色初始化）/ `createAdminUserShop` /
+//!    `createMerchantAccount`，最后发后台站内信（类型 41）。Java `apply`
+//!    本身**不发短信/审核结果消息**（短信只在人工 `audit` 通过路径发）。
+//!    本实现复用平台审核通过的同一开店链路
+//!    [`MerchantApplyService::open_shop_for_passed_apply`]（不另写一份建店
+//!    逻辑），落库字段与 Java 一致（见 [`build_apply_entity`]）。两处与 Java
+//!    的净差异如实说明：
+//!    - **重复申请守卫（Java 无、本实现补）**：Java 同一用户可重复落库、
+//!      免审核时还会重复建店；本实现按产品口径拦截——已有「审核通过」或
+//!      「待审核」申请时拒绝再次提交，仅「审核未通过」可重提（见
+//!      [`duplicate_apply_error`]）。
+//!    - **事务边界**：Java 是单事务全回滚；本实现的开店链路是连接池式
+//!      多仓储写入（与平台 `audit` 路径同构），无法与申请落库共用一个事务。
+//!      补偿办法：写入前先做开店链路的**确定性预检**（联系电话非空——Java
+//!      `apply` 对免审核分支的原样前置校验；会员已绑定手机号——开店链路
+//!      的首个失败点），再落库申请；开店仍失败时**删除刚落库的申请行**
+//!      做补偿回滚并返回原错误，用户可修正后重试，不会留下「已通过但
+//!      无店」的死状态（站内信改为开店成功后才写，失败时不发）。
 //!
 //! 3. **`apply` 要求登录**：Java `createMerchantApply` 里
 //!    `SecurityUtils.getCurrentUserId()` 在未登录时返回 **0**，会把
@@ -74,9 +87,10 @@
 //!    （不落库）与 Java 一致。名称缺失时按 Java 字符串拼接语义得到字面量
 //!    `"null"`（Java `"…" + null` == `"…null"`）。
 //!
-//! 8. **事务**：Java `apply` 标注 `@Transactional(rollbackFor = Exception.class)`，
-//!    写 `merchant_apply` 与写 `admin_msg` 同生共死；本实现用
-//!    [`MerchantClientRepository::begin`] + `*_in_tx` 在同一事务内串联，行为一致。
+//! 8. **事务**：Java `apply` 标注 `@Transactional(rollbackFor = Exception.class)`。
+//!    需审核分支：本实现用 [`MerchantClientRepository::begin`] + `*_in_tx`
+//!    把写 `merchant_apply` 与写 `admin_msg` 串在同一事务，行为一致。
+//!    免审核分支的事务补偿见差异 2（预检 + 失败删申请行 + 成功后写站内信）。
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -84,12 +98,14 @@ use std::sync::Arc;
 use chrono::TimeZone;
 
 use nextrade_core::entities::{MerchantApply, Region};
+use nextrade_core::models::merchant::merchant_apply::MOBILE_NOT_BOUND;
 use nextrade_core::models::merchant::merchant_client::{
     status_text_or_err, ApplyBaseData, ApplyMerchantData, ApplyShopData, MerchantApplyApplyParam,
     MerchantApplyDetailVO, MerchantApplyInitialVO, MerchantMyApplyVO, ADMIN_MSG_TYPE_SHOP_ENTRY,
-    APPLY_STATUS_PASS, APPLY_STATUS_PENDING, CFG_MERCHANT_APPLY_NEED_CHECK, CFG_SHOP_AGREEMENT,
-    DATA_TYPE_ERROR, MSG_CONFIG_NOT_EXIST, MSG_LICENSE_UPLOAD_UNMIGRATED,
-    MSG_MERCHANT_APPLY_NOT_EXIST, SERVICE_DATA_ERROR,
+    APPLY_STATUS_FAIL, APPLY_STATUS_PASS, APPLY_STATUS_PENDING, CFG_MERCHANT_APPLY_NEED_CHECK,
+    CFG_SHOP_AGREEMENT, DATA_TYPE_ERROR, MSG_APPLY_ALREADY_PASSED, MSG_APPLY_ALREADY_PENDING,
+    MSG_CONFIG_NOT_EXIST, MSG_LICENSE_UPLOAD_UNMIGRATED, MSG_MERCHANT_APPLY_NOT_EXIST,
+    SERVICE_DATA_ERROR,
 };
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::repo::merchant::merchant_client::MerchantClientRepository;
@@ -247,9 +263,13 @@ fn now_secs_i32() -> i32 {
 /// 按 Java `MerchantApplyApplyParam#createMerchantApply` 构造待落库实体。
 ///
 /// `need_check == "1"` → 待审核（[`APPLY_STATUS_PENDING`]）；否则 → 审核通过
-/// （[`APPLY_STATUS_PASS`]，本实现随后会因未迁移而拒绝写入）。
-/// `audit_time` / `audit_admin_id` 按 MyBatis-Plus `NOT_NULL` 策略下的**列默认值**
-/// 补齐（分别是 `0` / `0`），与 Java 落库结果一致。
+/// （[`APPLY_STATUS_PASS`]，落库后立即走自动开通，见 [`MerchantClientService::apply`]）。
+/// 审核字段按 Java 原样：`createMerchantApply` 只在通过时给 `auditTime`
+/// 当前时间戳，**从不给 `auditAdminId` 赋值** ⇒ 自动通过落库为
+/// `audit_time = now`、`audit_admin_id = 0`（无人审核，0 即「系统/无审核人」，
+/// 与人工审核写真实管理员 ID 区分）；`audit_time` 待审核时为 `null` ⇒
+/// 列默认值 `0`。本函数按 MyBatis-Plus `NOT_NULL` 策略下的**列默认值**
+/// 补齐，与 Java 落库结果一致。
 #[must_use]
 pub fn build_apply_entity(
     user_id: i32,
@@ -282,6 +302,54 @@ pub fn build_apply_entity(
         corporate_name: param.base_data.corporate_name.clone(),
         audit_remark: None,
     }
+}
+
+/// 重复申请守卫（Java 无此守卫，本实现按产品口径补齐，见模块头差异 2）。
+///
+/// 入参为该用户全部历史申请的 `status` 列表，返回应拦截的文案：
+/// - 任一「审核通过」（[`APPLY_STATUS_PASS`]）→ [`MSG_APPLY_ALREADY_PASSED`]
+///   （店铺已开通，再次免审核开通必然建出第二家店）；
+/// - 否则任一「待审核」（[`APPLY_STATUS_PENDING`]）→ [`MSG_APPLY_ALREADY_PENDING`]
+///   （两条待审先后被通过同样会建两家店）；
+/// - 仅「审核未通过」（[`APPLY_STATUS_FAIL`]）/ 无历史 / 状态为空 → 放行。
+#[must_use]
+pub fn duplicate_apply_error(statuses: &[Option<i32>]) -> Option<&'static str> {
+    if statuses.iter().any(|s| *s == Some(APPLY_STATUS_PASS)) {
+        return Some(MSG_APPLY_ALREADY_PASSED);
+    }
+    if statuses.iter().any(|s| *s == Some(APPLY_STATUS_PENDING)) {
+        return Some(MSG_APPLY_ALREADY_PENDING);
+    }
+    None
+}
+
+/// 联系人电话为空的文案（Java `apply` 免审核分支前置校验与 `createAdminUser`
+/// 共用同一句 `GlobalException("联系人电话不能为空")`）。
+pub const ERR_CONTACT_PHONE_EMPTY: &str = "联系人电话不能为空";
+
+/// 免审核自动开通的**确定性预检**（任何写入之前执行）。
+///
+/// 开店链路 [`MerchantApplyService::open_shop_for_passed_apply`] 是连接池式
+/// 多步写入、无法与申请落库共用事务（见模块头差异 2），故把它的两个
+/// 确定性失败点前移：
+/// 1. 联系电话为空 → [`ERR_CONTACT_PHONE_EMPTY`]（Java `apply` 在免审核时
+///    落库前就抛此错；需审核分支 Java 不查，故本预检只用于免审核分支）；
+/// 2. 会员未绑定手机号（`member_mobile` 为空/查无此人）→
+///    [`MOBILE_NOT_BOUND`]（开店链路的第一步校验）。
+///
+/// # Errors
+/// 业务码 [`SERVICE_DATA_ERROR`]：上述两条文案。
+pub fn auto_open_preflight(
+    contact_phone: Option<&str>,
+    member_mobile: Option<&str>,
+) -> Result<()> {
+    if contact_phone.is_none_or(|p| p.trim().is_empty()) {
+        return Err(Error::biz(SERVICE_DATA_ERROR, ERR_CONTACT_PHONE_EMPTY));
+    }
+    if member_mobile.is_none_or(|m| m.trim().is_empty()) {
+        return Err(Error::biz(SERVICE_DATA_ERROR, MOBILE_NOT_BOUND));
+    }
+    Ok(())
 }
 
 /// 商户入驻·前台服务。
@@ -509,20 +577,29 @@ impl MerchantClientService {
     /// 对应 Java `MerchantClientController.apply` →
     /// `MerchantApplyServiceImpl#apply`（`@Transactional`）：
     /// 1. 读 `merchantApplyNeedCheck` 配置（缺失 → 「配置不存在」）；
-    /// 2. 按 `createMerchantApply` 构造并落库申请；
-    ///    - 若 `merchantApplyNeedCheck != "1"`（免审核直接通过）→ Java 会继续建
-    ///      商户/管理员/店铺等六张表 + 初始化运费/装修/角色 + 发短信，本构建
-    ///      **在写入前**返回 [`MSG_OPEN_SHOP_UNMIGRATED`]（见模块头差异 2）；
-    /// 3. 写后台站内信（类型 41，事务内）；
-    /// 4. 返回 `applyDetail(id)`（本人视角）。
+    /// 2. 重复申请守卫（Java 无、本实现补，见模块头差异 2）；
+    /// 3. 按 `createMerchantApply` 构造并落库申请（免审核时状态直接为
+    ///    「审核通过」、`audit_time = now`、`audit_admin_id = 0`）；
+    /// 4. 免审核（状态 = 通过）→ 复用平台审核通过的同一开店链路
+    ///    [`MerchantApplyService::open_shop_for_passed_apply`] 自动开通
+    ///    （建 merchant / admin_user(shop) / shop(status=1) / 角色 / 运费
+    ///    模板 / 默认装修页 / merchant_account / merchant_user /
+    ///    admin_user_shop）；写入前先做确定性预检（见
+    ///    [`auto_open_preflight`]），开店失败则删除刚落库的申请行做补偿
+    ///    回滚（模块头差异 2）；Java `apply` 不发短信，此路径同样不发；
+    /// 5. 写后台站内信（类型 41）：需审核分支与申请同事务；免审核分支
+    ///    在开店成功后写（与 Java「同事务、成功才有信」的可见结果一致）；
+    /// 6. 返回 `applyDetail(id)`（本人视角）。
     ///
     /// 要求登录（业务码 401「请先登录」），避免 Java 因 `getCurrentUserId() == 0`
     /// 产生的脏归属（见模块头差异 3）。
     ///
     /// # Errors
     /// - 业务码 1001：[`MSG_CONFIG_NOT_EXIST`] / [`DATA_TYPE_ERROR`] /
-    ///   [`MSG_OPEN_SHOP_UNMIGRATED`]；
-    /// - 业务码 1001：[`MSG_MERCHANT_APPLY_NOT_EXIST`]（写后回读异常）。
+    ///   [`MSG_APPLY_ALREADY_PASSED`] / [`MSG_APPLY_ALREADY_PENDING`] /
+    ///   [`ERR_CONTACT_PHONE_EMPTY`] / [`MOBILE_NOT_BOUND`]；
+    /// - 业务码 1001：[`MSG_MERCHANT_APPLY_NOT_EXIST`]（写后回读异常）；
+    /// - 开店链路的其它业务/数据库错误（此时申请行已补偿删除）。
     pub async fn apply(
         &self,
         user_id: i32,
@@ -531,8 +608,15 @@ impl MerchantClientService {
         // 1) 读取审核开关（缺失 → 「配置不存在」）
         let need_check = self.config_val_or_err(CFG_MERCHANT_APPLY_NEED_CHECK).await?;
 
-        // 2) 构造待落库实体
+        // 2) 重复申请守卫：已有通过/待审申请时拒绝，避免重复建店
+        let statuses = self.repo().find_apply_statuses_by_user(user_id).await?;
+        if let Some(msg) = duplicate_apply_error(&statuses) {
+            return Err(Error::biz(SERVICE_DATA_ERROR, msg));
+        }
+
+        // 3) 构造待落库实体（状态由 need_check 决定，口径见 build_apply_entity）
         let apply = build_apply_entity(user_id, param, &need_check);
+        let auto_pass = apply.status == Some(APPLY_STATUS_PASS);
 
         // 站内信名称（外层 type 缺失 → 1001，Java 为 NPE 回滚；模块头差异 7）
         let name = notify_name(
@@ -541,7 +625,20 @@ impl MerchantClientService {
             param.base_data.company_name.as_deref(),
         )?;
 
-        // 3) 事务内写 merchant_apply + admin_msg（Java @Transactional）
+        // 4) 免审核：任何写入之前先做开店链路的确定性预检
+        if auto_pass {
+            let users = self
+                .repos
+                .merchant
+                .merchant_apply
+                .find_users(&[user_id])
+                .await?;
+            let member_mobile = users.first().map(|u| u.3.as_str());
+            auto_open_preflight(param.merchant_data.contact_phone.as_deref(), member_mobile)?;
+        }
+
+        // 5) 落库申请。需审核分支与站内信同事务（Java @Transactional）；
+        //    免审核分支先只落申请，开店成功后再写站内信。
         let send_time = now_secs_i32();
         let mut tx = self
             .repo()
@@ -549,26 +646,63 @@ impl MerchantClientService {
             .await
             .map_err(|e| Error::Database(e.to_string()))?;
         let id = self.repo().insert_apply_in_tx(&mut tx, &apply).await?;
-        self.repo()
-            .insert_admin_msg_in_tx(
-                &mut tx,
-                ADMIN_MSG_TYPE_SHOP_ENTRY,
-                &notify_title(&name),
-                &notify_content(&name),
-                &related_data_json(id),
-                send_time,
-            )
-            .await?;
+        if !auto_pass {
+            self.repo()
+                .insert_admin_msg_in_tx(
+                    &mut tx,
+                    ADMIN_MSG_TYPE_SHOP_ENTRY,
+                    &notify_title(&name),
+                    &notify_content(&name),
+                    &related_data_json(id),
+                    send_time,
+                )
+                .await?;
+        }
         tx.commit().await.map_err(|e| Error::Database(e.to_string()))?;
 
-        if apply.status == Some(APPLY_STATUS_PASS) {
+        if auto_pass {
+            // 6) 自动开通：与平台 audit 通过完全相同的开店链路，不另写一份
             let mut applied = apply.clone();
             applied.merchant_apply_id = id;
             let svc = crate::merchant::merchant_apply::MerchantApplyService::new(self.repos.clone());
-            svc.open_shop_for_passed_apply(&applied, send_time).await?;
+            if let Err(e) = svc.open_shop_for_passed_apply(&applied, send_time).await {
+                // 补偿回滚：删掉刚落库的申请行，避免「已通过但无店」的死
+                // 状态挡住用户重试（重复守卫会拦 PASS 状态）。补偿失败只
+                // 记日志，仍返回开店的原始错误。
+                match self.repos.merchant.merchant_apply.delete(id).await {
+                    Ok(_) => {
+                        tracing::warn!(apply_id = id, "免审核开店失败，已补偿删除申请行");
+                    }
+                    Err(del_err) => {
+                        tracing::error!(
+                            apply_id = id,
+                            "免审核开店失败且补偿删除申请行失败: {del_err}"
+                        );
+                    }
+                }
+                return Err(e);
+            }
+
+            // 7) 开店成功后写站内信（Java 在 apply 末尾统一发，类型 41）
+            let mut tx = self
+                .repo()
+                .begin()
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
+            self.repo()
+                .insert_admin_msg_in_tx(
+                    &mut tx,
+                    ADMIN_MSG_TYPE_SHOP_ENTRY,
+                    &notify_title(&name),
+                    &notify_content(&name),
+                    &related_data_json(id),
+                    send_time,
+                )
+                .await?;
+            tx.commit().await.map_err(|e| Error::Database(e.to_string()))?;
         }
 
-        // 4) 回读详情（Java `return this.applyDetail(id)`）
+        // 8) 回读详情（Java `return this.applyDetail(id)`）
         self.apply_detail(id, user_id).await
     }
 
@@ -761,6 +895,69 @@ mod tests {
         assert_eq!(entity.status, Some(APPLY_STATUS_PASS));
         // 审核通过时 audit_time = 当前秒级时间戳（非 0）
         assert!(entity.audit_time.unwrap_or(0) > 0);
+        // 自动通过的审核字段口径（Java createMerchantApply 从不给
+        // auditAdminId 赋值 ⇒ 落列默认值 0，表示无人工审核人）
+        assert_eq!(entity.audit_admin_id, Some(0));
+        assert!(entity.audit_remark.is_none());
+    }
+
+    #[test]
+    fn build_apply_entity_any_non_one_config_is_auto_pass() {
+        // Java："1".equals(needCheck) 才待审核，其余值（"0" / "" / 其它）
+        // 一律 AUDIT_PASS 走自动开通
+        let param = base_param(Some(2));
+        for cfg in ["0", "", "2"] {
+            let entity = build_apply_entity(5, &param, cfg);
+            assert_eq!(entity.status, Some(APPLY_STATUS_PASS), "cfg={cfg}");
+        }
+        let entity = build_apply_entity(5, &param, "1");
+        assert_eq!(entity.status, Some(APPLY_STATUS_PENDING));
+        assert_eq!(entity.audit_time, Some(0));
+    }
+
+    #[test]
+    fn duplicate_apply_error_blocks_passed_and_pending_only() {
+        // 无历史 / 仅未通过 / 状态为空 → 放行（未通过后可重新申请）
+        assert_eq!(duplicate_apply_error(&[]), None);
+        assert_eq!(duplicate_apply_error(&[Some(APPLY_STATUS_FAIL)]), None);
+        assert_eq!(duplicate_apply_error(&[None]), None);
+        // 已通过 → 拦截（再开通必然建第二家店）
+        assert_eq!(
+            duplicate_apply_error(&[Some(APPLY_STATUS_PASS)]),
+            Some(MSG_APPLY_ALREADY_PASSED)
+        );
+        // 待审核 → 拦截
+        assert_eq!(
+            duplicate_apply_error(&[Some(APPLY_STATUS_PENDING)]),
+            Some(MSG_APPLY_ALREADY_PENDING)
+        );
+        // 未通过后又提交待审 → 按待审拦截
+        assert_eq!(
+            duplicate_apply_error(&[Some(APPLY_STATUS_FAIL), Some(APPLY_STATUS_PENDING)]),
+            Some(MSG_APPLY_ALREADY_PENDING)
+        );
+        // 通过优先于待审（已开店是更强的拦截理由）
+        assert_eq!(
+            duplicate_apply_error(&[Some(APPLY_STATUS_PENDING), Some(APPLY_STATUS_PASS)]),
+            Some(MSG_APPLY_ALREADY_PASSED)
+        );
+    }
+
+    #[test]
+    fn auto_open_preflight_checks_phone_then_mobile() {
+        // 联系电话为空/空白 → Java 免审核分支的前置文案
+        for phone in [None, Some(""), Some("  ")] {
+            let err = auto_open_preflight(phone, Some("13800008000")).unwrap_err();
+            assert_eq!(err.business_code(), SERVICE_DATA_ERROR);
+            assert!(err.to_string().contains(ERR_CONTACT_PHONE_EMPTY), "phone={phone:?}");
+        }
+        // 会员未绑定手机号（查无此人或手机号为空）→ 开店链路首个失败点文案
+        for mobile in [None, Some(""), Some(" ")] {
+            let err = auto_open_preflight(Some("13800008000"), mobile).unwrap_err();
+            assert!(err.to_string().contains(MOBILE_NOT_BOUND), "mobile={mobile:?}");
+        }
+        // 两项齐备 → 放行
+        assert!(auto_open_preflight(Some("13800008000"), Some("13900009000")).is_ok());
     }
 
     #[test]
