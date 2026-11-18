@@ -172,21 +172,25 @@ impl CartService {
         if quantity <= 0 {
             return Err(Error::Validation("数量必须大于0".into()));
         }
+        // 商品归属店铺：黑名单判定与购物车行 shop_id 落值共用同一口径。
+        // 购物车行 shop_id 必须等于商品归属店铺——下游购物车按店分组、结算
+        // 分店金额 / 运费模板 / 满减匹配、订单明细 shop_id 归属都取行上的
+        // shop_id，漏赋值恒为 0 会把商家商品全记到平台自营名下。
+        let product_shop_id = self
+            .product
+            .detail(product_id)
+            .await
+            .map(|v| v.shop_id)
+            .unwrap_or(0);
         // 客户黑名单（下单限制，先人后货）：按商品归属店铺判定，命中即拒绝。
         // 文案见 blacklist-design §7（用户端不出现「黑名单」字样）。
         {
-            let shop_id = self
-                .product
-                .detail(product_id)
-                .await
-                .map(|v| v.shop_id)
-                .unwrap_or(0);
             crate::member::user_blacklist::UserBlacklistService::new(self.repos.clone())
                 .ensure_allowed(
                     user_id,
                     nextrade_core::models::member::user_blacklist::PRODUCT_MALL,
                     nextrade_core::models::member::user_blacklist::BEHAVIOR_PLACE_ORDER,
-                    Some(shop_id),
+                    Some(product_shop_id),
                 )
                 .await?;
         }
@@ -240,6 +244,7 @@ impl CartService {
             original_price: price,
             market_price: Some(price),
             is_checked: 1,
+            shop_id: product_shop_id,
             r#type: 0,
             extra_data: groupon_data
                 .and_then(|g| serde_json::to_string(g).ok()),

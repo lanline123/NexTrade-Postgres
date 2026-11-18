@@ -477,9 +477,11 @@ impl UserBlacklistRepository {
         limit: i64,
         offset: i64,
     ) -> Result<(i64, Vec<BlacklistLogRow>)> {
-        let from = " FROM user_blacklist_log l LEFT JOIN user_blacklist b ON b.id = l.blacklist_id WHERE 1 = 1";
+        // LOG_SELECT 已自带 `FROM user_blacklist_log l`，行查询只能再拼 JOIN/WHERE
+        // 尾段，不得再拼 FROM——双 FROM 会被 PG 直接判语法错误（logList 曾因此 500）。
+        let join = " LEFT JOIN user_blacklist b ON b.id = l.blacklist_id WHERE 1 = 1";
         let mut cq: QueryBuilder<'_, Postgres> =
-            QueryBuilder::new(format!("SELECT COUNT(*){from}"));
+            QueryBuilder::new(format!("SELECT COUNT(*) FROM user_blacklist_log l{join}"));
         Self::push_log_filters(&mut cq, filter);
         let total: (i64,) = cq
             .build_query_as()
@@ -487,7 +489,7 @@ impl UserBlacklistRepository {
             .await
             .map_err(map_err)?;
 
-        let mut rq: QueryBuilder<'_, Postgres> = QueryBuilder::new(format!("{LOG_SELECT}{from}"));
+        let mut rq: QueryBuilder<'_, Postgres> = QueryBuilder::new(format!("{LOG_SELECT}{join}"));
         Self::push_log_filters(&mut rq, filter);
         rq.push(" ORDER BY l.create_time DESC, l.id DESC");
         rq.push(format!(" LIMIT {limit} OFFSET {offset}"));
@@ -599,4 +601,31 @@ impl UserBlacklistRepository {
 
 fn map_err(e: sqlx::Error) -> Error {
     Error::Database(e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    /// 静态守卫：流水分页两条 SQL 只能有一个 FROM。
+    ///
+    /// `LOG_SELECT` 常量已以 `FROM user_blacklist_log l` 结尾，`paginate_logs`
+    /// 若再拼一段以 FROM 开头的片段即成双 FROM，PG 直接语法错误
+    /// （后台流水 logList 曾因此 500，2026-11-18 验收实证）。
+    #[test]
+    fn log_pagination_sql_has_single_from() {
+        let src = include_str!("user_blacklist.rs");
+        assert!(
+            src.contains("SELECT COUNT(*) FROM user_blacklist_log l{join}"),
+            "流水计数查询应为 COUNT(*) + 显式 FROM + JOIN/WHERE 尾段"
+        );
+        assert!(
+            src.contains("{LOG_SELECT}{join}"),
+            "流水行查询应以 LOG_SELECT（自带 FROM）+ JOIN/WHERE 尾段拼接"
+        );
+        // 负断言的 needle 运行时拼装，避免测试源码自身命中。
+        let double_from_shape = format!("{{LOG_SELECT}}{{from}}");
+        assert!(
+            !src.contains(&double_from_shape),
+            "流水行查询禁止在 LOG_SELECT 后再拼 FROM 片段（双 FROM）"
+        );
+    }
 }

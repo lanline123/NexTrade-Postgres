@@ -529,10 +529,17 @@ impl CommentService {
         if !self.is_product_comment_enabled().await? {
             return Err(Error::biz(1001, "评价功能已关闭"));
         }
-        // 客户黑名单（评价限制）：店铺上下文优先订单归属（param 是客户端传的，
-        // 只作兜底），取不到店铺时按仅平台全平台规则判定（shop_id = 0）。
+        // 客户黑名单（评价限制）：店铺上下文一律服务端推导，请求里的 shopId
+        // 不参与判定（此前无订单锚时拿它兜底，属信任客户端传值：伪造 shopId
+        // 可误拦本不该拦的评价、换 shopId 可绕过平台选定店铺型评论限制——
+        // 2026-11-18 验收双向实证，用户裁决改服务端推导；参数保留兼容、判定不读）。
+        // - 有订单锚：沿用既有口径，取订单归属店铺（查不到 → 无店铺上下文）；
+        // - 无订单锚：按被评价商品归属店铺推导（comment 仓储
+        //   find_product_shop_id，与管理端 create 写 comment.shop_id 同一口径）；
+        // - 商品锚也没有或查不到：无店铺上下文，仅平台全平台条目可命中
+        //   （与买家秀评论的结构性口径一致）。
         {
-            let order_shop = match param.order_id.filter(|id| *id > 0) {
+            let shop_id: Option<i32> = match param.order_id.filter(|id| *id > 0) {
                 Some(order_id) => self
                     .repos
                     .trade
@@ -542,15 +549,24 @@ impl CommentService {
                     .ok()
                     .flatten()
                     .map(|o| o.shop_id),
-                None => None,
+                None => match param.product_id.filter(|id| *id > 0) {
+                    Some(product_id) => self
+                        .repos
+                        .catalog
+                        .comment
+                        .find_product_shop_id(product_id)
+                        .await
+                        .ok()
+                        .flatten(),
+                    None => None,
+                },
             };
-            let shop_id = order_shop.unwrap_or_else(|| param.shop_id.unwrap_or(0));
             crate::member::user_blacklist::UserBlacklistService::new(self.repos.clone())
                 .ensure_allowed(
                     user_id,
                     nextrade_core::models::member::user_blacklist::PRODUCT_MALL,
                     nextrade_core::models::member::user_blacklist::BEHAVIOR_PRODUCT_COMMENT,
-                    Some(shop_id),
+                    shop_id,
                 )
                 .await?;
         }
