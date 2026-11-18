@@ -455,6 +455,15 @@ export default function Products() {
               {t('刷新')}
             </Button>
             <Button
+              onClick={() => {
+                window.dispatchEvent(
+                  new CustomEvent('admin-navigate', { detail: { page: 'productCloneManage' } }),
+                );
+              }}
+            >
+              {t('商品复刻')}
+            </Button>
+            <Button
               theme="solid"
               type="primary"
               icon={<IconPlus />}
