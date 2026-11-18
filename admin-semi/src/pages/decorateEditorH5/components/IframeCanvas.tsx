@@ -32,6 +32,13 @@ import {
     type EmbedLayout,
     type EmbedLayoutItem
 } from "./canvasBridge";
+import {
+    markEmbedDataSent,
+    markEmbedIframeLoaded,
+    markEmbedLayout,
+    markEmbedReady,
+    resetEmbedReadiness
+} from "./embedReadiness";
 import { useI18n } from "../../../i18n";
 
 const DRAG_THRESHOLD = 6;
@@ -39,12 +46,19 @@ const DRAG_THRESHOLD = 6;
 export default function IframeCanvas({
     preview = false,
     windowStyle,
-    bare = false
+    bare = false,
+    active = true
 }: {
     preview?: boolean;
     windowStyle?: React.CSSProperties;
     /** bare=true 时不渲染 .decorate-page-window 外框（由 Canvas 真实模式分支统一渲染外框 + PageHeaderPreview） */
     bare?: boolean;
+    /**
+     * active=false 时本画布被保活隐藏（兼容渲染模式下，2026-11-19 起两模式
+     * 共存挂载、切回真实模式不再重载 iframe）：不注册模块库落点解析（归当前
+     * 可见画布），其余通信与布局回传照常，方便切回即已就绪。
+     */
+    active?: boolean;
 }) {
     const { t } = useI18n();
     const s = useEditorState();
@@ -67,8 +81,11 @@ export default function IframeCanvas({
         const win = iframeRef.current?.contentWindow;
         if (!win) return;
         const st = editorStore.getState();
+        // seq 随每次下发递增：供就绪状态机判定 layout 对应哪一轮数据；嵌入页
+        // 将来回带 seq 时可精确对齐（见 embedReadiness 的 ready 依赖点说明）。
+        const seq = markEmbedDataSent();
         try {
-            win.postMessage({ type: "decorate-data", moduleList: st.moduleList, pageModule: st.pageModule }, EMBED_ORIGIN);
+            win.postMessage({ type: "decorate-data", seq, moduleList: st.moduleList, pageModule: st.pageModule }, EMBED_ORIGIN);
         } catch {
             /* iframe 未就绪时忽略，就绪握手会补发 */
         }
@@ -82,9 +99,13 @@ export default function IframeCanvas({
             const d = e.data as any;
             if (!d || typeof d !== "object") return;
             if (d.type === "decorate-ready") {
+                markEmbedReady();
                 setReady(true);
                 sendDataRef.current();
             } else if (d.type === "decorate-layout" && Array.isArray(d.items)) {
+                // layout 是嵌入页渲染完成后的测量回传：加载门据此判定首帧已渲染
+                // （ready 信号的唯一依赖点，见 embedReadiness.ts）。
+                markEmbedLayout(typeof d.seq === "number" ? d.seq : undefined);
                 const next: EmbedLayout = {
                     items: d.items
                         .filter((it: any) => typeof it?.index === "number")
@@ -113,8 +134,8 @@ export default function IframeCanvas({
     // ---------------- 模块库拖入：落点解析（真实模式） ----------------
 
     useEffect(() => {
-        if (preview) return;
-        registerDropResolver((clientX, clientY) => {
+        if (preview || !active) return;
+        return registerDropResolver((clientX, clientY) => {
             const wrap = wrapRef.current;
             if (!wrap) return null;
             const r = wrap.getBoundingClientRect();
@@ -130,8 +151,13 @@ export default function IframeCanvas({
                 lineY: last ? last.top + last.height : layoutRef.current?.totalHeight ?? Math.round(r.height)
             };
         });
-        return () => registerDropResolver(null);
-    }, [preview]);
+    }, [preview, active]);
+
+    // 画布真正卸载（详情加载失败切错误卡、离开编辑器）时复位就绪状态机：
+    // 下次挂载的是一张全新 iframe，旧会话的 ready/layout 不能沿用。
+    useEffect(() => {
+        return () => resetEmbedReadiness();
+    }, []);
 
     // ---------------- 覆盖层槽位 ----------------
 
@@ -291,7 +317,10 @@ export default function IframeCanvas({
                     src={EMBED_URL}
                     title={t("H5 真实渲染")}
                     style={{ height: frameHeight }}
-                    onLoad={() => sendData()}
+                    onLoad={() => {
+                        markEmbedIframeLoaded();
+                        sendData();
+                    }}
                 />
                 {!ready && !preview ? <div className="h5-editor-iframe-loading">{t("正在加载真实前台…")}</div> : null}
                 {!preview ? (

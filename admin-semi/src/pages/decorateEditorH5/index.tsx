@@ -4,6 +4,12 @@
  * 路由：?page=h5DecorateEditor&id={decorateId}&pageType={1首页|2会员|3活动|4分类|5登录|6搜索|8商品详情}
  * 链路：decorate/decorate/detail 加载 → store.initDecorate（url 回填 + 固定模块注入）→
  *       saveDraft/publish 保存（整体透传，契约红线）。
+ *
+ * 2026-11-19 入口加载门（用户拍板）：进入编辑器先出 DecorateLoading 加载动画，
+ * 详情请求与 iframe 嵌入页改为并行启动（此前是串行：详情回来才挂载画布、才开始
+ * 加载 iframe），「数据就绪 且 iframe 首帧已渲染（embedReadiness 的当前纪元
+ * layout 回传）」双条件满足才撤门进入编辑；8 秒超时兜底直接进入、绝不锁人。
+ * 加载门只在首次进入把守一次：模式切换、草稿恢复、失败重试都不再过门。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Dropdown, Modal, Spin, Toast } from "@douyinfe/semi-ui";
@@ -14,16 +20,22 @@ import ModuleToolbar from "./components/ModuleToolbar";
 import Canvas from "./components/Canvas";
 import SettingsPanel from "./components/SettingsPanel";
 import EditorShell from "../../components/decorate/EditorShell";
+import DecorateLoading from "../components/DecorateLoading";
+import { getStoredRenderMode } from "./components/canvasBridge";
+import { beginEmbedDataEpoch, resetEmbedReadiness, useEmbedReadiness } from "./components/embedReadiness";
 import { setStorageUrl } from "./shared/format";
 import { ensureFixedModules } from "./contract/normalize";
 import "./styles/css/module.css";
 import "./styles/css/decorate.css";
 import "../../components/decorate/editor-shell.css";
+import "../decorate-editor.css";
 import "./styles/editor.less";
 import "./modules/index";
 
 import { useI18n } from '../../i18n';
 const DEFAULT_DECORATE_TITLE = "未命名页面";
+/** 加载门超时兜底（毫秒）：到期未双就绪也撤门进入，绝不把用户锁在加载屏 */
+const GATE_TIMEOUT_MS = 8000;
 
 interface Props {
     decorateId?: number;
@@ -47,11 +59,19 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
     const [editingTitle, setEditingTitle] = useState(false);
     /** 预览态：隐藏编辑外壳（模块库/设置面板/画布操作件），只看画布 */
     const [preview, setPreview] = useState(false);
-    /** 详情加载态（2026-11-18）：进页先出加载态、数据到达直接出画布，不再先闪
-     * 「请在左侧模块库点击添加模块」的假空态；加载失败（接口/H5 服务未部署或
-     * 不可用）出提示卡 + 重试，画布不落到假空页面上（防误存覆盖真实数据） */
+    /** 详情加载态（2026-11-18 立规、2026-11-19 加载门沿用）：加载失败（接口/H5
+     * 服务未部署或不可用）出提示卡 + 重试，画布不落到假空页面上（防误存覆盖
+     * 真实数据）；加载中则由入口加载门覆盖（见文件头），仅超时兜底后仍在途
+     * 才回落到画布区状态卡 */
     const [detailLoading, setDetailLoading] = useState(!isAddMode);
     const [detailError, setDetailError] = useState("");
+    /** 加载门：数据就绪（详情成功写入 store；新建模式无详情请求、天然就绪） */
+    const [dataReady, setDataReady] = useState(isAddMode);
+    /** 加载门撤下闩锁：条件满足或超时撤下后，本次会话不再把守 */
+    const [gateLifted, setGateLifted] = useState(false);
+    const embed = useEmbedReadiness();
+    /** 进入时的渲染模式（仅用于加载门判定：兼容模式本地渲染、无需等 iframe 首帧） */
+    const initialModeRef = useRef(getStoredRenderMode());
 
     // 初始化 store（含固定模块注入，空白页也有默认结构）
     useEffect(() => {
@@ -64,6 +84,9 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
             moduleList: []
         });
         setDecorateTitleDraft(query.get("title") || DEFAULT_DECORATE_TITLE);
+        // 嵌入页就绪状态机复位并开启首个数据纪元（初始结构一轮；详情成功后再推进一格）
+        resetEmbedReadiness();
+        beginEmbedDataEpoch();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -98,6 +121,10 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
                     hasDraft: !!result.draftData
                 });
                 setDecorateTitleDraft(result.decorateTitle || "");
+                // 真实数据已写入 store：推进数据纪元（本纪元的 layout 回传才算
+                // 首帧，防挂载初期空结构那一轮误开门）并标记数据就绪
+                beginEmbedDataEpoch();
+                setDataReady(true);
             })
             .catch((error) => {
                 setDetailError(error.message || t("加载装修详情失败"));
@@ -110,6 +137,18 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
         loadDetail();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialId]);
+
+    // 加载门撤下条件：数据就绪 且（兼容模式 || iframe 首帧已渲染）
+    const frameReady = initialModeRef.current === "compat" || embed.firstFrameRendered;
+    useEffect(() => {
+        if (dataReady && frameReady) setGateLifted(true);
+    }, [dataReady, frameReady]);
+
+    // 加载门超时兜底：到期未双就绪也撤门（画布以自身加载提示继续完成）
+    useEffect(() => {
+        const timer = window.setTimeout(() => setGateLifted(true), GATE_TIMEOUT_MS);
+        return () => window.clearTimeout(timer);
+    }, []);
 
     /** 延迟创建：新建场景首次保存时校验名称并创建记录 */
     const ensureCreated = async (): Promise<boolean> => {
@@ -367,13 +406,7 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
             >
             {/* tabIndex=0：让画布滚动容器可聚焦，聚焦后 PageDown/方向键可滚（原生滚动视口口径） */}
             <div className={`decorate-page-wrap${preview ? " is-preview" : ""}`} tabIndex={0}>
-                {detailLoading ? (
-                    <div className="h5-editor-state-card">
-                        <Spin size="large" />
-                        <div className="h5-editor-state-title">{t('页面加载中…')}</div>
-                        <div className="h5-editor-state-desc">{t('正在加载装修数据，请稍候')}</div>
-                    </div>
-                ) : detailError ? (
+                {detailError ? (
                     <div className="h5-editor-state-card">
                         <div className="h5-editor-state-icon">!</div>
                         <div className="h5-editor-state-title">{t('页面加载失败')}</div>
@@ -383,15 +416,26 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
                         {detailError ? <div className="h5-editor-state-detail">{detailError}</div> : null}
                         <Button theme="solid" onClick={loadDetail}>{t('重新加载')}</Button>
                     </div>
+                ) : detailLoading && gateLifted ? (
+                    /* 仅超时兜底后详情仍在途才走这里：保留原状态卡（画布不挂载，
+                       假空画布不会被误存覆盖真实数据——2026-11-18 立的规矩） */
+                    <div className="h5-editor-state-card">
+                        <Spin size="large" />
+                        <div className="h5-editor-state-title">{t('页面加载中…')}</div>
+                        <div className="h5-editor-state-desc">{t('正在加载装修数据，请稍候')}</div>
+                    </div>
                 ) : (
                     <>
-                        {s.hasDraft && !preview ? (
+                        {s.hasDraft && dataReady && !preview ? (
                             <div className="decorate-page-alert">
                                 <span className="decorate-page-alert-txt">{t('该页面有一条草稿记录，您可以还原草稿继续编辑。')}</span>
                                 <Button size="small" onClick={onContinueDraft}>{t('继续编辑')}</Button>
                             </div>
                         ) : null}
+                        {/* 画布自编辑器挂载即渲染（与详情请求并行）：iframe 提前开始
+                            加载嵌入页；双就绪前由加载门全屏覆盖，不可交互 */}
                         <Canvas preview={preview} />
+                        {!gateLifted ? <DecorateLoading title={t('正在加载编辑器…')} /> : null}
                     </>
                 )}
             </div>

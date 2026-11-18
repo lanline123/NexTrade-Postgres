@@ -30,6 +30,19 @@ export interface EmbedLayout {
     totalHeight: number;
 }
 
+// ==================== 画布渲染模式（真实/兼容） ====================
+
+/** 渲染模式本地存储键（编辑器入口加载门同读此口径：兼容模式无需等 iframe 首帧） */
+export const RENDER_MODE_STORAGE_KEY = "h5-editor-render-mode";
+
+export function getStoredRenderMode(): "real" | "compat" {
+    try {
+        return localStorage.getItem(RENDER_MODE_STORAGE_KEY) === "compat" ? "compat" : "real";
+    } catch {
+        return "real";
+    }
+}
+
 // ==================== 落点解析注册表 ====================
 
 export interface DropResolution {
@@ -43,8 +56,16 @@ type DropResolver = (clientX: number, clientY: number) => DropResolution | null;
 
 let dropResolver: DropResolver | null = null;
 
-export function registerDropResolver(fn: DropResolver | null) {
+/**
+ * 注册落点解析器，返回注销函数。注销时仅当当前注册的仍是本解析器才清除：
+ * 真实/兼容两画布保活共存后（2026-11-19），模式切换时父子 effect 的清理顺序
+ * 不固定，无条件清 null 会把刚注册上的另一画布的解析器误清。
+ */
+export function registerDropResolver(fn: DropResolver | null): () => void {
     dropResolver = fn;
+    return () => {
+        if (fn && dropResolver === fn) dropResolver = null;
+    };
 }
 
 export function resolveDrop(clientX: number, clientY: number): DropResolution | null {

@@ -18,6 +18,9 @@
  * 2026-11-18 v59 补漏：真实渲染同样在 iframe 之上渲染 PageHeaderPreview（与兼容
  * 模式同一组件、同一显隐规则）——嵌入页并不渲染编辑器口径的页面标题栏（线上验收
  * 实证：真实模式画布直接从首模块开始、无状态栏图与居中标题，旧假设不成立）。
+ * 2026-11-19 保活：真实分支挂载后不再随模式切换卸载（切兼容仅隐藏），切回
+ * 真实模式不再重载 iframe；入口加载门见 decorateEditorH5/index.tsx 与
+ * components/embedReadiness.ts。
  * 两种模式都注册模块库拖入的落点解析（真实模式在 IframeCanvas 内注册）：
  * 兼容模式按旧画布 DOM 位置算插入下标，见下方 useEffect。
  */
@@ -32,7 +35,7 @@ import { getLazyModuleComponent } from "../contract/lazyModule";
 import ModuleErrorBoundary from "./ModuleErrorBoundary";
 import ModuleOperateBar from "./ModuleOperateBar";
 import IframeCanvas from "./IframeCanvas";
-import { registerDropResolver, useLibraryDragState } from "./canvasBridge";
+import { RENDER_MODE_STORAGE_KEY, getStoredRenderMode, registerDropResolver, useLibraryDragState } from "./canvasBridge";
 import type { DecorateModuleBase } from "../contract/types";
 
 import { useI18n } from '../../../i18n';
@@ -175,17 +178,11 @@ export default function Canvas({ preview = false }: { preview?: boolean }) {
     const { t } = useI18n();
     const s = useEditorState();
     /** 渲染模式：real = iframe 真实渲染（默认）/ compat = 旧 Preview 画布（兜底） */
-    const [renderMode, setRenderMode] = useState<"real" | "compat">(() => {
-        try {
-            return localStorage.getItem("h5-editor-render-mode") === "compat" ? "compat" : "real";
-        } catch {
-            return "real";
-        }
-    });
+    const [renderMode, setRenderMode] = useState<"real" | "compat">(() => getStoredRenderMode());
     const switchRenderMode = (mode: "real" | "compat") => {
         setRenderMode(mode);
         try {
-            localStorage.setItem("h5-editor-render-mode", mode);
+            localStorage.setItem(RENDER_MODE_STORAGE_KEY, mode);
         } catch {
             /* 隐私模式等场景忽略 */
         }
@@ -197,7 +194,7 @@ export default function Canvas({ preview = false }: { preview?: boolean }) {
     // lineY 相对画布窗顶部（指示线渲染在画布窗内）。真实模式由 IframeCanvas 注册。
     useEffect(() => {
         if (renderMode !== "compat" || preview) return;
-        registerDropResolver((clientX, clientY) => {
+        return registerDropResolver((clientX, clientY) => {
             const win = windowRef.current;
             if (!win) return null;
             const wr = win.getBoundingClientRect();
@@ -211,7 +208,6 @@ export default function Canvas({ preview = false }: { preview?: boolean }) {
             const last = nodes[nodes.length - 1].getBoundingClientRect();
             return { insertIndex: nodes.length, lineY: last.bottom - wr.top };
         });
-        return () => registerDropResolver(null);
     }, [renderMode, preview]);
 
     const sensors = useSensors(
@@ -249,12 +245,20 @@ export default function Canvas({ preview = false }: { preview?: boolean }) {
                     </button>
                 </div>
             ) : null}
-            {renderMode === "real" ? (
-                <div className="decorate-page-window" style={windowStyle}>
-                    <PageHeaderPreview preview={preview} />
-                    <IframeCanvas preview={preview} bare />
-                </div>
-            ) : (
+            {/* 真实渲染分支保活（2026-11-19）：挂载后不随模式切换卸载，切到兼容
+                模式时仅 display:none 隐藏——iframe 内的前台应用不销毁，切回真实
+                模式即刻可用，不再整页重载嵌入页（此前一切换就全量重载，是编辑
+                中途最明显的卡顿源之一）。落点解析归当前可见画布：隐藏时经
+                active=false 让出注册。 */}
+            <div
+                className="decorate-page-window"
+                style={renderMode === "real" ? windowStyle : { ...windowStyle, display: "none" }}
+                aria-hidden={renderMode !== "real"}
+            >
+                <PageHeaderPreview preview={preview} />
+                <IframeCanvas preview={preview} bare active={renderMode === "real"} />
+            </div>
+            {renderMode === "compat" ? (
             <div className="decorate-page-window" ref={windowRef} style={windowStyle}>
                 <div className="theme-modules-warp">
                     <PageHeaderPreview preview={preview} />
@@ -273,7 +277,7 @@ export default function Canvas({ preview = false }: { preview?: boolean }) {
                     <div className="h5-editor-insert-line" style={{ top: libDrag.lineY }} />
                 ) : null}
             </div>
-            )}
+            ) : null}
             {showPageConfig ? (
                 <div className="decorate-page-config-warp">
                     <div className={`page-config-item${s.editMode === "page" ? " current" : ""}`} onClick={() => editorStore.selectPage()}>
