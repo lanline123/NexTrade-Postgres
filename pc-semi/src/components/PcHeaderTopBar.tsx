@@ -21,6 +21,7 @@ import AuthBadge from '@/components/AuthBadge';
 import { formatPrice } from '@/lib/currency';
 import PcLocaleSelect from '@/components/PcLocaleSelect';
 import { useRegionSeed } from '@/components/RegionSeedProvider';
+import Local from '@icon-park/react/es/icons/Local';
 
 /** B2B 部署开关（默认关）：=1 时顶栏显示企业认证标识（对齐旧版 isB2B()） */
 const IS_B2B_AUTH = process.env.NEXT_PUBLIC_PC_IS_B2B === '1';
@@ -340,9 +341,10 @@ export default function PcHeaderTopBar({
                   onMouseEnter={() => setRegionOpen(true)}
                   onMouseLeave={() => setRegionOpen(false)}
                 >
-                  {/* 地区图标走 iconfont-pc 字形（alicdn 字体已全局加载）。
-                      旧实现曾在此嵌 IconPark <Local/>，与 ::before 字形叠加成双图标，已移除 */}
-                  <span className="iconfont-pc icon-dizhi benefit-bar__location-ico" />
+                  {/* 地区图标用 IconPark <Local/>（用户 2026-11-18 定：前台与编辑器统一 IconPark 口径）。
+                      此前用 iconfont-pc 的 icon-dizhi 字形；更早曾因与 ::before 字形叠加成双图标移除过 Local，
+                      现 ::before 已不存在，恢复 Local 并去掉字体字形，避免双图标。 */}
+                  <Local size={14} className="benefit-bar__location-ico" />
                   <span className="benefit-bar__region">{regionDisplayText}</span>
                   {regionOpen && regions.length > 0 ? (
                     <div
