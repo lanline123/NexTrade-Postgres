@@ -34,6 +34,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
+          sudo cp /usr/include/x86_64-linux-gnu/openssl/opensslconf.h /usr/include/x86_64-linux-gnu/openssl/configuration.h /usr/include/openssl/
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -57,7 +58,6 @@ jobs:
       - name: Build (staging profile, non-release)
         working-directory: rust/crates
         env:
-          CFLAGS_x86_64_unknown_linux_gnu: -I/usr/include/x86_64-linux-gnu
           OPENSSL_LIB_DIR: /usr/lib/x86_64-linux-gnu
           OPENSSL_INCLUDE_DIR: /usr/include
         run: |
