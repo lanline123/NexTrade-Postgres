@@ -735,16 +735,12 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
                 }}
               >
                 {!isLoginPage && (
-                  <div
-                    className={`pc-decorate-module${panelTab === 'pcHeader' ? ' pc-decorate-module--active' : ''}`}
-                    style={{ position: 'relative' }}
-                  >
-                    <PcHeaderPreviewStrip
-                      header={pageModule.pcHeader || {}}
-                      regionText={regionText}
-                      onOpen={() => { setPanelTab('pcHeader'); setActiveIndex(-1); }}
-                    />
-                  </div>
+                  <PcHeaderPreviewStrip
+                    header={pageModule.pcHeader || {}}
+                    regionText={regionText}
+                    active={panelTab === 'pcHeader'}
+                    onOpen={() => { setPanelTab('pcHeader'); setActiveIndex(-1); }}
+                  />
                 )}
                 {moduleList.length === 0 && (
                   <div style={{ padding: 100, textAlign: 'center', color: '#c0c4cc' }}>{t('暂无模块，请从左侧模块库拖入或点击添加')}</div>
@@ -2344,7 +2340,7 @@ function BenefitNoticePreview({
   );
 }
 
-function PcHeaderPreviewStrip({ header, onOpen, regionText }: { header: Record<string, any>; onOpen: () => void; regionText: string }) {
+function PcHeaderPreviewStrip({ header, onOpen, regionText, active }: { header: Record<string, any>; onOpen: () => void; regionText: string; active?: boolean }) {
   const { t } = useI18n();
   const h = { ...PC_HEADER_DEFAULTS, ...header };
   const styleType = Number(h.styleType ?? 1) === 2 ? 2 : 1;
@@ -2395,7 +2391,7 @@ function PcHeaderPreviewStrip({ header, onOpen, regionText }: { header: Record<s
   const searchAccent = Number(h.searchColorType ?? 1) === 2 && h.searchColor ? h.searchColor : '#1a1a1a';
 
   return (
-    <div className="dec-pc-header-preview" onClick={onOpen} title={t('点击配置 PC 头部装修')}>
+    <div className={`dec-pc-header-preview${active ? ' dec-pc-header-preview--active' : ''}`} onClick={onOpen} title={t('点击配置 PC 头部装修')}>
       {/* 顶部提示条（showBenefitBar 总开关，两种风格共用） */}
       {showBenefitBar && (
         <div className="dec-pc-header-preview__strip" style={h.benefitBarBackgroundColor ? { background: h.benefitBarBackgroundColor } : undefined}>

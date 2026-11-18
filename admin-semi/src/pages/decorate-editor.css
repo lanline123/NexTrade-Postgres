@@ -615,6 +615,16 @@
   z-index: 20;
   cursor: pointer;
 }
+/* 选中/悬停描边与普通模块同一套值（.pc-decorate-module:hover / --active）：
+   必须挂在头部预览根元素自身——它带 z-index:20 层级，套在外层的框体描边会被其背景整条盖住（v48 验收实证）。 */
+.dec-pc-header-preview:hover {
+  outline: 1px dashed var(--semi-color-primary);
+  outline-offset: -1px;
+}
+.dec-pc-header-preview--active {
+  outline: 2px solid var(--semi-color-primary);
+  outline-offset: -2px;
+}
 /* 顶部提示条：40px，默认 #1a1a1a，可配 benefitBarBackgroundColor */
 .dec-pc-header-preview__strip {
   height: 40px;
