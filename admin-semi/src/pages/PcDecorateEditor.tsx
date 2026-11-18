@@ -74,6 +74,7 @@ import EditorShell from '../components/decorate/EditorShell';
 import LibraryPanel from '../components/decorate/LibraryPanel';
 import DecSettingsPanel from '../components/decorate/DecSettingsPanel';
 import ViewGridList from '@icon-park/react/es/icons/ViewGridList';
+import Local from '@icon-park/react/es/icons/Local';
 import './decorate-editor.css';
 /* 固定标题共享排版令牌：各 pc*.css 只引用变量，数值只在这里定义一次 */
 import './decoratePc/previews/shared/module-title.shared.css';
@@ -2398,7 +2399,7 @@ function PcHeaderPreviewStrip({ header, onOpen, regionText, active }: { header: 
           <div className="dec-pc-header-preview__strip-inner">
             <div className={`pchead-strip${simple ? '' : ' pchead-strip--overseas'}`}>
               <div className="pchead-strip__left" style={topMenuTextStyle}>
-                {simple && showTopRegion && <span className="pchead-strip__region"><span className="iconfont-pc icon-dizhi pchead-strip__region-ico" />{regionText || t('全国')}</span>}
+                {simple && showTopRegion && <span className="pchead-strip__region"><span className="pchead-strip__region-ico"><Local size={14} /></span>{regionText || t('全国')}</span>}
                 {simple && showTopMemberName && <a className="pchead-strip__link">{t('会员信息')}</a>}
               </div>
               {!simple && benefitGroups.length > 0 && (

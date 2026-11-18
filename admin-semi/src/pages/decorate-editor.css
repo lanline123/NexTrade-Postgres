@@ -685,10 +685,11 @@
   font-size: 12px;
   font-weight: 600;
 }
-/* 地区图标与前台 PcHeaderTopBar 一致：iconfont-pc 的 icon-dizhi 字形 14px（原 ::before 圆点为占位，已删） */
+/* 地区图标与前台 PcHeaderTopBar 一致：IconPark Local（内嵌 SVG，14px）；原 ::before 圆点占位已删 */
 .pchead-strip__region-ico {
-  font-size: 14px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
   flex-shrink: 0;
 }
 .pchead-strip__link {

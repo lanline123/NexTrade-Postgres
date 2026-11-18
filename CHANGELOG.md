@@ -200,3 +200,4 @@
 - **后台 - PC 编辑器头部选中框补正**：v48 验收发现头部预览条被选中时无描边——头部预览根元素自带 z-index:20 层级，把套在其外的模块框体描边整条盖住。改将悬停/选中描边直接挂到头部预览根元素自身（与普通模块同一套 outline 值与规则顺序：悬停 1px 虚线、选中 2px 主题色实线），点头部任意可见区域均亮框。
 - **后台 - PC 编辑器头部选中框再补正（v49 复验未过）**：根元素 outline 仍被头部子元素的不透明背景与定位层级盖住（本地 Chrome 实渲染对照实证：旧方案顶边被黑色顶条吞没、框不完整）。改用 ::after 覆盖层画框（position:absolute; inset:0; border; z-index:999; pointer-events:none；active 选择器叠双类名提特异性压过 :hover 虚线），绘在所有子元素之上；推送前已用真实组件 DOM 骨架 + 生产 CSS 在 Chrome 中截图自验，四边完整成框。
 - **后台 - PC 编辑器头部地区图标对齐前台**：地区文字前的占位圆点（CSS ::before 10px 实心圆）改为与前台 PcHeaderTopBar 相同的 iconfont-pc「icon-dizhi」定位字形（14px、与文字间距 4px，与前台一致）；跨境风头部预览无地区展示，不涉及。推送前本地实渲染自验：改前为圆点、改后为定位针（截图存 editor-unify/icon-verify/）。
+- **后台 - PC 编辑器头部地区图标改用 IconPark Local（口径更正）**：用户拍板前台与编辑器统一用 IconPark，不用 iconfont。上条 icon-dizhi 方案作废：地区文字前改为内嵌渲染 IconPark Local 的 SVG（14px、gap 4px，引入方式与文件内现有图标一致），圆点占位仍为删除状态。本地实渲染自验：图标为描边定位针（与前台 PcHeaderTopBar 的 <Local size={14}/> 同图同尺寸），截图存 editor-unify/icon-verify/iconpark-after.png。
