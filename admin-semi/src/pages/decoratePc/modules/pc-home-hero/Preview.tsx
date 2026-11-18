@@ -1098,7 +1098,7 @@ export default function PcHomeHeroPreview({ data }: { data: Record<string, any> 
             ) : null}
 
             <div className="dec-pc-home-hero__user-top">
-              <img className="dec-pc-home-hero__avatar" src={defaultAvatar} alt="" />
+              <img className="dec-pc-home-hero__avatar" src={pickPic(rightUser.avatar as { picUrl?: string; picThumb?: string } | null) || defaultAvatar} alt="" />
               <div className="dec-pc-home-hero__user-info">
                 <div className="dec-pc-home-hero__user-name">
                   {(rightUser.nickname as string) || t('欢迎来商城')}

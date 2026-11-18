@@ -18,6 +18,7 @@ import { CONTRACT_ADAPTERS, FLAT_FRAME, linkHref, type ContractRenderPlan } from
 
 import { useTranslation } from 'react-i18next';
 import { PREMIUM_MEMBER_ENTRY_DATA_URI } from '@/decorate/assets/premiumMemberEntry';
+import { DEFAULT_AVATAR_DATA_URI } from '@/decorate/assets/defaultAvatar';
 import { ShopProductCard, useProductStyleMap } from '@/components/product/ShopProductCard';
 import { BuyButtonVisual, buyBtnClassName, resolveBuyBtnStyle } from './BuyButton';
 import { buildDecorateProductListQuery } from '../prefetch-shared';
@@ -1558,12 +1559,14 @@ function HomeHero({ module, initialData }: ModuleProps) {
   /* 旧版依赖 commonStore.shopRegClosed / shopName：注册入口开关与未登录欢迎语（/api/common/config/base） */
   const [shopRegClosed, setShopRegClosed] = useState<number>(0);
   const [siteName, setSiteName] = useState<string>('');
+  const [configDefaultAvatar, setConfigDefaultAvatar] = useState<string>('');
   useEffect(() => {
     fetch('/api/common/config/base')
       .then((response) => response.json())
       .then((json) => {
         setShopRegClosed(Number(json?.data?.shopRegClosed ?? 0));
         setSiteName(String(json?.data?.shopName || ''));
+        setConfigDefaultAvatar(String(json?.data?.defaultAvatar || ''));
       })
       .catch(() => undefined);
   }, []);
@@ -1630,7 +1633,9 @@ function HomeHero({ module, initialData }: ModuleProps) {
   const authed = Boolean(profile);
   const profileName = String(profile?.nickname || profile?.dimUsername || profile?.username || '');
   const userDisplayName = authed ? profileName || t('会员') : right.user?.nickname || (siteName ? t('欢迎来{name}！', { name: siteName }) : t('欢迎来商城！'));
-  const userAvatarSrc = authed ? String(profile?.avatar || '') : picSrc(right.user?.avatar);
+  /* 头像回退链（对齐 PcMine 口径并补内置兜底）：本人/装修配置头像 → 后台「会员默认头像」配置 → 内置默认头像。
+     10023 的装修头像未配（picUrl 空）时旧实现直接空 src 无图，编辑器预览因写死默认图看不出来。 */
+  const userAvatarSrc = (authed ? String(profile?.avatar || '') : picSrc(right.user?.avatar)) || configDefaultAvatar || DEFAULT_AVATAR_DATA_URI;
   const assetNumber = (value: unknown): string => {
     const num = Number(value ?? 0);
     if (!Number.isFinite(num)) return '0';
