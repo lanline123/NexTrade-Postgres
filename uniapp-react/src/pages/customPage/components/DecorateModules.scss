@@ -1,5 +1,5 @@
 /* 装修二级展示区样式（对应旧 modules/index.vue scoped style + static/css/modules.css 装修部分） */
-.bannerBox {
+.decorate-category-panel .bannerBox {
     width: 100%;
     overflow: hidden;
 
@@ -17,7 +17,7 @@
     }
 }
 
-.categoryBox {
+.decorate-category-panel .categoryBox {
     width: 100%;
 
     .categoryWrap {
@@ -54,7 +54,7 @@
     }
 }
 
-.brandBox {
+.decorate-category-panel .brandBox {
     background: #fff;
 
     .brandWrap {

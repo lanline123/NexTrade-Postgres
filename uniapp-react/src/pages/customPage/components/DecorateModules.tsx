@@ -118,7 +118,7 @@ export default function DecorateModules({ modules, pageModles, scrollTop, onLoad
             })}
 
             {showCatNav === 1 && (
-                <View>
+                <View className="decorate-category-panel">
                     {imgUrlData.length > 0 && (
                         <View className="bannerBox" style={`background: ${currentColor};`}>
                             <View className={`bannerWrap ${show ? "show" : ""}`}>

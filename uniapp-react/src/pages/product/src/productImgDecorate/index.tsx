@@ -200,18 +200,18 @@ export default function ProductImgDecorate({
     const playImg = `url("${staticResource("product/video-playing.png")}")`;
 
     return (
-        // 原 .product-pic-con 的 padding: 6px v-bind(imageMarginCss) 12px → 内联 style（原位于 scss 首条规则）
+        // 原 .decorated-product-gallery 的 padding: 6px v-bind(imageMarginCss) 12px → 内联 style（原位于 scss 首条规则）
         <View
-            className="product-pic-con"
+            className="decorated-product-gallery"
             style={{
                 padding: `6px ${imageMarginCss} 12px`
             }}
         >
             {list.length > 0 ? (
                 <View
-                    className="product-bg"
+                    className="decorated-product-gallery__background"
                     style={{
-                        // 原 scss：border-radius: v-bind(imageRadiusValue)（.product-bg 规则内）
+                        // 原 scss：border-radius: v-bind(imageRadiusValue)（.decorated-product-gallery__background 规则内）
                         borderRadius: imageRadiusValue
                     }}
                 >
@@ -237,9 +237,9 @@ export default function ProductImgDecorate({
                                         />
                                     ) : (
                                         <View className="video-box">
-                                            {/* 旧 v-show + mp-force-hidden（微信端 hidden 优先级兜底）→ 显式 display 控制 */}
+                                            {/* 旧 v-show + decorated-product-gallery__hidden（微信端 hidden 优先级兜底）→ 显式 display 控制 */}
                                             <View
-                                                className={`cover-box ${showVideo ? "mp-force-hidden" : ""}`}
+                                                className={`cover-box ${showVideo ? "decorated-product-gallery__hidden" : ""}`}
                                                 style={{ display: showVideo ? "none" : undefined }}
                                                 onClick={handlePlayVideo}
                                             >
@@ -282,7 +282,7 @@ export default function ProductImgDecorate({
                         ))}
                     </Swiper>
                     <View
-                        className={`swiper-indicator-box ${(list.length > 1 && !showVideo) ? "" : "mp-force-hidden"}`}
+                        className={`swiper-indicator-box ${(list.length > 1 && !showVideo) ? "" : "decorated-product-gallery__hidden"}`}
                         style={{ display: list.length > 1 && !showVideo ? undefined : "none" }}
                     >
                         {Array.from({ length: list.length }, (_v, item) => (

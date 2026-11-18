@@ -4,7 +4,7 @@
     background-color: var(--search-item-bg, #fff);
 }
 
-.filter-row {
+.filter-overseas .filter-row {
     display: flex;
     background: var(--search-item-bg, #fff);
     width: 100%;
@@ -43,7 +43,7 @@
     }
 }
 
-.tab-box {
+.filter-overseas .tab-box {
     /* 旧模板全局工具类 .flex */
     display: flex;
     background-color: var(--search-item-bg, #fff);
@@ -51,7 +51,7 @@
     position: relative;
 }
 
-.filterBoxW {
+.filter-overseas .filterBoxW {
     display: flex;
     overflow-x: scroll;
     flex-wrap: nowrap;

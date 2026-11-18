@@ -38,7 +38,6 @@ export default function ProductCate() {
     const { currentActiveValue: tabbarCurrentActiveValue } = useTabbarDerived();
 
     const [catId, setCatId] = useState(0);
-    const [previewId, setPreviewId] = useState<string | number>("");
 
     const [moduleConfigV1, setModuleConfigV1] = useState<CateCenterV1Data>({ ...cateCenterV1Defaults });
     const [moduleConfigV2, setModuleConfigV2] = useState<CateCenterV2Data>({ ...cateCenterV2Defaults });
@@ -79,7 +78,7 @@ export default function ProductCate() {
      * 拉取分类页装修配置
      * 接口：home/home/h5Category，预览模式通过 previewId 参数区分
      */
-    const fetchCategoryDecorate = async () => {
+    const fetchCategoryDecorate = async (previewId: string | number) => {
         try {
             const result: any = await getH5CategoryDecorate(previewId);
             const moduleList: any[] = result?.moduleList || result?.data?.moduleList || [];
@@ -114,11 +113,10 @@ export default function ProductCate() {
     // 对应旧 onLoad（useRouter.params + useEffect）
     useEffect(() => {
         const options: any = router.params;
-        setPreviewId(options?.previewId ?? "");
         if (options && options.categoryId) {
             setCatId(options.categoryId);
         }
-        void fetchCategoryDecorate();
+        void fetchCategoryDecorate(options?.previewId ?? "");
         if (process.env.TARO_ENV === "h5") {
             setPageMeta({
                 title: `商品分类 - ${configStoreShopTitle}`,

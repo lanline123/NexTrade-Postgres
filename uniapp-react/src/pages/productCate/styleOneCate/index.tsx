@@ -123,7 +123,7 @@ export default function StyleOneCate({ catId = 0, onCatIdChange, module = {} as 
     };
 
     return (
-        <View style={decorateVars as any}>
+        <View className="category-layout-one" style={decorateVars as any}>
             {/* fixed：父级 tig-layout 默认 overflow:hidden，sticky 会被裁切导致头部上顶 */}
             {isOverseasSkin && <TopHeader placeholder={searchPlaceholder} />}
             {isOverseasSkin && <View className="main-header-spacer" style={mainHeaderSpacerStyle as any} />}

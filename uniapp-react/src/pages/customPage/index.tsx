@@ -125,9 +125,9 @@ export default function CustomPage() {
 
     return (
         <TigLayout>
-            <View>
+            <View className="custom-decorate-page">
                 {loading ? (
-                    <View className="index_empty">
+                    <View className="custom-decorate-page__empty">
                         <Image lazyLoad src={staticResource("common/index_empty.png")} mode="widthFix" />
                     </View>
                 ) : (

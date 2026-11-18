@@ -822,8 +822,8 @@ export default function SearchResult() {
         <TigLayout title={layoutStyle === 2 ? "" : navbarTitle} shopId={filterParams.shopId} shopCategoryId={filterParams.shopCategoryId}>
             {/* 旧 <mainHeader v-if="layoutStyle === 2" class="main-header" position="fixed" />（B6 批次已移植，实挂） */}
             {layoutStyle === 2 && <MainHeader position="fixed" />}
-            {layoutStyle === 2 && <View className="main-header-spacer" style={mainHeaderSpacerStyle as any} />}
-            <View className="pageMain productSort" style={themeVars as any}>
+            {layoutStyle === 2 && <View className="mobile-search-header-spacer" style={mainHeaderSpacerStyle as any} />}
+            <View className="pageMain productSort mobile-search-results" style={themeVars as any}>
                 {/* 装修配置到达前不渲染头部：否则会先按默认的国内版画一遍，拿到海外版配置后整块跳变 */}
                 {!decorateLoaded ? (
                     <View className="decorate-placeholder" />

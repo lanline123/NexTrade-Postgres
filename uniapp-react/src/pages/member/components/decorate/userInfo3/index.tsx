@@ -139,7 +139,7 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
 
     const isLoggedIn = Boolean(token || Taro.getStorageSync("token"));
     const layoutStyle = data?.layoutStyle ?? 1;
-    const layoutClass = [`dec-user-info--style${layoutStyle}`, immersive ? "dec-user-info--immersive" : ""].filter(Boolean).join(" ");
+    const layoutClass = [`dec-user-info-v3--style${layoutStyle}`, immersive ? "dec-user-info-v3--immersive" : ""].filter(Boolean).join(" ");
 
     /** 沉浸式渐变向上延伸的高度：跨境为外贸头实测高度，国内为导航栏 */
     const headerOffsetValue = isOverseas() ? `${commonHeaderHeight || 0}px` : "var(--nav-height, 0px)";
@@ -386,52 +386,52 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
     }, [isLoggedIn, layoutStyle, showMemberBar]);
 
     return (
-        <View className={`dec-user-info ${layoutClass}`} data-panel-rev="MjI4MmRiaGQ" style={cssVars}>
+        <View className={`dec-user-info-v3 ${layoutClass}`} data-panel-rev="MjI4MmRiaGQ" style={cssVars}>
             {/* ===================== Style 1: Arc Bottom ===================== */}
             {layoutStyle === 1 ? (
                 <>
-                    <View className="dec-user-info__wrap dec-user-info__wrap--style1" style={style1WrapStyle}>
-                        <View className="dec-user-info__container" style={containerPaddingStyle}>
-                            <View className="dec-user-info__header">
-                                <View className="dec-user-info__profile">
+                    <View className="dec-user-info-v3__wrap dec-user-info-v3__wrap--style1" style={style1WrapStyle}>
+                        <View className="dec-user-info-v3__container" style={containerPaddingStyle}>
+                            <View className="dec-user-info-v3__header">
+                                <View className="dec-user-info-v3__profile">
                                     {!isLoggedIn ? (
                                         <>
-                                            <View className="dec-user-info__avatar dec-user-info__avatar--bordered" onClick={handleLogin}>
-                                                <View className="dec-user-info__avatar-img">
+                                            <View className="dec-user-info-v3__avatar dec-user-info-v3__avatar--bordered" onClick={handleLogin}>
+                                                <View className="dec-user-info-v3__avatar-img">
                                                     <TigImage src={staticResource("common/empty-img-bg3.png")} mode="aspectFill" />
                                                 </View>
                                             </View>
-                                            <View className="dec-user-info__info" onClick={handleLogin}>
-                                                <View className="dec-user-info__name" style={{ color: resolvedTextColors.nameColor }}>
+                                            <View className="dec-user-info-v3__info" onClick={handleLogin}>
+                                                <View className="dec-user-info-v3__name" style={{ color: resolvedTextColors.nameColor }}>
                                                     {t("登录/注册")}
                                                 </View>
                                             </View>
                                         </>
                                     ) : (
                                         <>
-                                            <View className="dec-user-info__avatar dec-user-info__avatar--bordered">
+                                            <View className="dec-user-info-v3__avatar dec-user-info-v3__avatar--bordered">
                                                 <TigUpload requestUrl="user/user/modifyAvatar" onChange={() => void getUserInfo()}>
-                                                    <TigImage className="dec-user-info__avatar-img" src={imageFormat(userInfo.avatar || "")} mode="aspectFill" />
+                                                    <TigImage className="dec-user-info-v3__avatar-img" src={imageFormat(userInfo.avatar || "")} mode="aspectFill" />
                                                 </TigUpload>
                                             </View>
-                                            <View className="dec-user-info__info">
-                                                <View className="dec-user-info__name-row">
-                                                    <View className="dec-user-info__name-group">
+                                            <View className="dec-user-info-v3__info">
+                                                <View className="dec-user-info-v3__name-row">
+                                                    <View className="dec-user-info-v3__name-group">
                                                         {closeAuth === 1 ? (
                                                             <View
-                                                                className="dec-user-info__auth"
+                                                                className="dec-user-info-v3__auth"
                                                                 onClick={() => goPages("/pages/user/userCertification/index")}
                                                             >
                                                                 <TigAuthBadge verified={!!userInfo.isCompanyAuth} />
                                                             </View>
                                                         ) : null}
-                                                        <Text className="dec-user-info__name" style={{ color: resolvedTextColors.nameColor }}>
+                                                        <Text className="dec-user-info-v3__name" style={{ color: resolvedTextColors.nameColor }}>
                                                             {userInfo.nickname || userInfo.username}
                                                         </Text>
                                                     </View>
                                                 </View>
                                                 <View
-                                                    className="dec-user-info__sub"
+                                                    className="dec-user-info-v3__sub"
                                                     style={{ color: resolvedTextColors.subColor }}
                                                     onClick={() => goPages("/pages/user/profile/index")}
                                                 >
@@ -445,13 +445,13 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
                             </View>
 
                             {showStats ? (
-                                <View className="dec-user-info__stats">
+                                <View className="dec-user-info-v3__stats">
                                     {visibleStats.map((item) => (
-                                        <View className="dec-user-info__stat-item" key={item.key} onClick={() => handleStatClick(item.key)}>
-                                            <Text className="dec-user-info__stat-value" style={{ color: resolvedTextColors.statValueColor }}>
+                                        <View className="dec-user-info-v3__stat-item" key={item.key} onClick={() => handleStatClick(item.key)}>
+                                            <Text className="dec-user-info-v3__stat-value" style={{ color: resolvedTextColors.statValueColor }}>
                                                 {getStatValue(item.key)}
                                             </Text>
-                                            <Text className="dec-user-info__stat-label" style={{ color: resolvedTextColors.statLabelColor }}>
+                                            <Text className="dec-user-info-v3__stat-label" style={{ color: resolvedTextColors.statLabelColor }}>
                                                 {safeT(item.label)}
                                             </Text>
                                         </View>
@@ -460,89 +460,89 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
                             ) : null}
 
                             {isLoggedIn && showMemberBar ? (
-                                <View className="dec-user-info__member-bar dec-user-info__member-bar--level" style={memberBarStyle}>
-                                    <View className="dec-user-info__member-bar-info">
-                                        <Text className="dec-user-info__member-bar-name">{memberBarLevelName}</Text>
-                                        <View className="dec-user-info__member-bar-divider" />
-                                        <Text className="dec-user-info__member-bar-upgrade">{upgradeText}</Text>
+                                <View className="dec-user-info-v3__member-bar dec-user-info-v3__member-bar--level" style={memberBarStyle}>
+                                    <View className="dec-user-info-v3__member-bar-info">
+                                        <Text className="dec-user-info-v3__member-bar-name">{memberBarLevelName}</Text>
+                                        <View className="dec-user-info-v3__member-bar-divider" />
+                                        <Text className="dec-user-info-v3__member-bar-upgrade">{upgradeText}</Text>
                                     </View>
-                                    <View className="dec-user-info__member-bar-btn" onClick={handleMemberBarClick}>
+                                    <View className="dec-user-info-v3__member-bar-btn" onClick={handleMemberBarClick}>
                                         <Text>{memberBarButtonText}</Text>
                                         <View className="iconfont-h5 icon-a-gengduo20" style={{ fontSize: "12rpx" }} />
                                     </View>
                                 </View>
                             ) : (
-                                <View className="dec-user-info__member-bar-placeholder" />
+                                <View className="dec-user-info-v3__member-bar-placeholder" />
                             )}
                         </View>
                     </View>
                     {showBottomArc ? (
-                        <View className="dec-user-info__arc" style={arcStyle}>
-                            <Image className="dec-user-info__arc-img" src={arcDataUrl} mode="scaleToFill" />
+                        <View className="dec-user-info-v3__arc" style={arcStyle}>
+                            <Image className="dec-user-info-v3__arc-img" src={arcDataUrl} mode="scaleToFill" />
                         </View>
                     ) : null}
                 </>
             ) : layoutStyle === 2 ? (
                 /* ===================== Style 2: Light Icons ===================== */
-                <View className="dec-user-info__wrap dec-user-info__wrap--style2" style={gradientWrapStyle}>
-                    <View className="dec-user-info__container" style={containerPaddingStyle}>
-                        <View className="dec-user-info__header">
-                            <View className="dec-user-info__profile">
+                <View className="dec-user-info-v3__wrap dec-user-info-v3__wrap--style2" style={gradientWrapStyle}>
+                    <View className="dec-user-info-v3__container" style={containerPaddingStyle}>
+                        <View className="dec-user-info-v3__header">
+                            <View className="dec-user-info-v3__profile">
                                 {!isLoggedIn ? (
                                     <>
-                                        <View className="dec-user-info__avatar" onClick={handleLogin}>
-                                            <View className="dec-user-info__avatar-img">
+                                        <View className="dec-user-info-v3__avatar" onClick={handleLogin}>
+                                            <View className="dec-user-info-v3__avatar-img">
                                                 <TigImage src={staticResource("common/empty-img-bg3.png")} mode="aspectFill" />
                                             </View>
                                         </View>
-                                        <View className="dec-user-info__info" onClick={handleLogin}>
-                                            <View className="dec-user-info__name">{t("登录/注册")}</View>
+                                        <View className="dec-user-info-v3__info" onClick={handleLogin}>
+                                            <View className="dec-user-info-v3__name">{t("登录/注册")}</View>
                                         </View>
                                     </>
                                 ) : (
                                     <>
-                                        <View className="dec-user-info__avatar">
+                                        <View className="dec-user-info-v3__avatar">
                                             <TigUpload requestUrl="user/user/modifyAvatar" onChange={() => void getUserInfo()}>
-                                                <TigImage className="dec-user-info__avatar-img" src={imageFormat(userInfo.avatar || "")} mode="aspectFill" />
+                                                <TigImage className="dec-user-info-v3__avatar-img" src={imageFormat(userInfo.avatar || "")} mode="aspectFill" />
                                             </TigUpload>
                                         </View>
-                                        <View className="dec-user-info__info dec-user-info__info--flex1">
-                                            <View className="dec-user-info__name-row dec-user-info__name-row--between">
-                                                <View className="dec-user-info__name-group">
+                                        <View className="dec-user-info-v3__info dec-user-info-v3__info--flex1">
+                                            <View className="dec-user-info-v3__name-row dec-user-info-v3__name-row--between">
+                                                <View className="dec-user-info-v3__name-group">
                                                     {closeAuth === 1 ? (
                                                         <View
-                                                            className="dec-user-info__auth"
+                                                            className="dec-user-info-v3__auth"
                                                             onClick={() => goPages("/pages/user/userCertification/index")}
                                                         >
                                                             <TigAuthBadge verified={!!userInfo.isCompanyAuth} />
                                                         </View>
                                                     ) : null}
-                                                    <Text className="dec-user-info__name" style={{ color: resolvedTextColors.nameColor }}>
+                                                    <Text className="dec-user-info-v3__name" style={{ color: resolvedTextColors.nameColor }}>
                                                         {userInfo.nickname || userInfo.username}
                                                     </Text>
                                                 </View>
-                                                <View className="dec-user-info__action-icons">
+                                                <View className="dec-user-info-v3__action-icons">
                                                     {data.settings?.show !== false && data.settings?.icon?.picUrl ? (
                                                         <TigImage
-                                                            className="dec-user-info__action-icon"
+                                                            className="dec-user-info-v3__action-icon"
                                                             src={imageFormat(data.settings.icon.picUrl)}
                                                             onClick={() => handleShortcutClick("settings")}
                                                         />
                                                     ) : null}
                                                     {data.notification?.show !== false ? (
-                                                        <View className="dec-user-info__action-icon-wrap" onClick={handleNotificationClick}>
+                                                        <View className="dec-user-info-v3__action-icon-wrap" onClick={handleNotificationClick}>
                                                             {data.notification?.icon?.picUrl ? (
                                                                 <TigImage
-                                                                    className="dec-user-info__action-icon"
+                                                                    className="dec-user-info-v3__action-icon"
                                                                     src={imageFormat(data.notification.icon.picUrl)}
                                                                 />
                                                             ) : null}
-                                                            {hasUnread ? <View className="dec-user-info__notification-dot" /> : null}
+                                                            {hasUnread ? <View className="dec-user-info-v3__notification-dot" /> : null}
                                                         </View>
                                                     ) : null}
                                                 </View>
                                             </View>
-                                            <View className="dec-user-info__sub" style={{ color: resolvedTextColors.subColor }}>
+                                            <View className="dec-user-info-v3__sub" style={{ color: resolvedTextColors.subColor }}>
                                                 <Text>{maskedPhone}</Text>
                                             </View>
                                         </View>
@@ -552,81 +552,81 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
                         </View>
 
                         {showStats ? (
-                            <View className="dec-user-info__stats">
+                            <View className="dec-user-info-v3__stats">
                                 {visibleStats.map((item) => (
-                                    <View className="dec-user-info__stat-item" key={item.key} onClick={() => handleStatClick(item.key)}>
-                                        <Text className="dec-user-info__stat-value" style={{ color: resolvedTextColors.statValueColor }}>
+                                    <View className="dec-user-info-v3__stat-item" key={item.key} onClick={() => handleStatClick(item.key)}>
+                                        <Text className="dec-user-info-v3__stat-value" style={{ color: resolvedTextColors.statValueColor }}>
                                             {getStatValue(item.key)}
                                         </Text>
-                                        <Text className="dec-user-info__stat-label" style={{ color: resolvedTextColors.statLabelColor }}>
+                                        <Text className="dec-user-info-v3__stat-label" style={{ color: resolvedTextColors.statLabelColor }}>
                                             {safeT(item.label)}
                                         </Text>
                                     </View>
                                 ))}
                             </View>
                         ) : null}
-                        <View className="dec-user-info__member-bar-placeholder dec-user-info__member-bar-placeholder--sm" />
+                        <View className="dec-user-info-v3__member-bar-placeholder dec-user-info-v3__member-bar-placeholder--sm" />
                     </View>
                 </View>
             ) : layoutStyle === 3 ? (
                 /* ===================== Style 3: Minimal Growth ===================== */
-                <View className="dec-user-info__wrap dec-user-info__wrap--style3" style={gradientWrapStyle}>
-                    <View className="dec-user-info__container" style={containerPaddingStyle}>
+                <View className="dec-user-info-v3__wrap dec-user-info-v3__wrap--style3" style={gradientWrapStyle}>
+                    <View className="dec-user-info-v3__container" style={containerPaddingStyle}>
                         <View
-                            className="dec-user-info__header dec-user-info__header--arrow"
+                            className="dec-user-info-v3__header dec-user-info-v3__header--arrow"
                             onClick={() => isLoggedIn && goPages("/pages/user/profile/index")}
                         >
-                            <View className="dec-user-info__profile">
+                            <View className="dec-user-info-v3__profile">
                                 {!isLoggedIn ? (
                                     <>
                                         <View
-                                            className="dec-user-info__avatar"
+                                            className="dec-user-info-v3__avatar"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleLogin();
                                             }}
                                         >
-                                            <View className="dec-user-info__avatar-img">
+                                            <View className="dec-user-info-v3__avatar-img">
                                                 <TigImage src={staticResource("common/empty-img-bg3.png")} mode="aspectFill" />
                                             </View>
                                         </View>
                                         <View
-                                            className="dec-user-info__info"
+                                            className="dec-user-info-v3__info"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleLogin();
                                             }}
                                         >
-                                            <View className="dec-user-info__name">{t("登录/注册")}</View>
+                                            <View className="dec-user-info-v3__name">{t("登录/注册")}</View>
                                         </View>
                                     </>
                                 ) : (
                                     <>
-                                        <View className="dec-user-info__avatar">
+                                        <View className="dec-user-info-v3__avatar">
                                             <TigUpload requestUrl="user/user/modifyAvatar" onChange={() => void getUserInfo()}>
-                                                <TigImage className="dec-user-info__avatar-img" src={imageFormat(userInfo.avatar || "")} mode="aspectFill" />
+                                                <TigImage className="dec-user-info-v3__avatar-img" src={imageFormat(userInfo.avatar || "")} mode="aspectFill" />
                                             </TigUpload>
                                         </View>
-                                        <View className="dec-user-info__info">
-                                            <View className="dec-user-info__name" style={{ color: resolvedTextColors.nameColor }}>
+                                        <View className="dec-user-info-v3__info">
+                                            <View className="dec-user-info-v3__name" style={{ color: resolvedTextColors.nameColor }}>
                                                 {userInfo.nickname || userInfo.username}
                                             </View>
-                                            <View className="dec-user-info__sub" style={{ color: resolvedTextColors.subColor }}>
+                                            <View className="dec-user-info-v3__sub" style={{ color: resolvedTextColors.subColor }}>
                                                 <Text>{maskedPhone}</Text>
                                             </View>
                                         </View>
                                     </>
                                 )}
                             </View>
-                            {isLoggedIn ? <View className="dec-user-info__nav-arrow iconfont-h5 icon-a-gengduo20" /> : null}
+                            {isLoggedIn ? <View className="dec-user-info-v3__nav-arrow iconfont-h5 icon-a-gengduo20" /> : null}
                         </View>
 
                         {isLoggedIn && showMemberBar ? (
-                            <View className="dec-user-info__member-bar dec-user-info__member-bar--growth" style={memberBarStyle}>
-                                <Text className="dec-user-info__growth-label">{t("成长值")}</Text>
-                                <View className="dec-user-info__growth-right">
-                                    <Text className="dec-user-info__growth-value">{userInfo.growthPoints || 0}</Text>
-                                    <View className="dec-user-info__growth-arrow iconfont-h5 icon-a-gengduo20" />
+                            <View className="dec-user-info-v3__member-bar dec-user-info-v3__member-bar--growth" style={memberBarStyle}>
+                                <Text className="dec-user-info-v3__growth-label">{t("成长值")}</Text>
+                                <View className="dec-user-info-v3__growth-right">
+                                    <Text className="dec-user-info-v3__growth-value">{userInfo.growthPoints || 0}</Text>
+                                    <View className="dec-user-info-v3__growth-arrow iconfont-h5 icon-a-gengduo20" />
                                 </View>
                             </View>
                         ) : null}
@@ -634,19 +634,19 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
                 </View>
             ) : (
                 /* ===================== Style 4: Centered Avatar + Growth Card ===================== */
-                <View className="dec-user-info__wrap dec-user-info__wrap--style4">
-                    <View className="dec-user-info__style4-grad" style={style4GradStyle} />
-                    <View className="dec-user-info__container dec-user-info__container--style4" style={containerPaddingStyle}>
-                        <View className="dec-user-info__center-header">
+                <View className="dec-user-info-v3__wrap dec-user-info-v3__wrap--style4">
+                    <View className="dec-user-info-v3__style4-grad" style={style4GradStyle} />
+                    <View className="dec-user-info-v3__container dec-user-info-v3__container--style4" style={containerPaddingStyle}>
+                        <View className="dec-user-info-v3__center-header">
                             {!isLoggedIn ? (
                                 <>
-                                    <View className="dec-user-info__avatar dec-user-info__avatar--lg" onClick={handleLogin}>
-                                        <View className="dec-user-info__avatar-img dec-user-info__avatar-img--lg">
+                                    <View className="dec-user-info-v3__avatar dec-user-info-v3__avatar--lg" onClick={handleLogin}>
+                                        <View className="dec-user-info-v3__avatar-img dec-user-info-v3__avatar-img--lg">
                                             <TigImage src={staticResource("common/empty-img-bg3.png")} mode="aspectFill" />
                                         </View>
                                     </View>
                                     <View
-                                        className="dec-user-info__center-name dec-user-info__center-name--login"
+                                        className="dec-user-info-v3__center-name dec-user-info-v3__center-name--login"
                                         style={{ color: resolvedTextColors.nameColor }}
                                         onClick={handleLogin}
                                     >
@@ -655,11 +655,11 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
                                 </>
                             ) : (
                                 <>
-                                    <View className="dec-user-info__avatar-wrap">
-                                        <View className="dec-user-info__avatar dec-user-info__avatar--lg">
+                                    <View className="dec-user-info-v3__avatar-wrap">
+                                        <View className="dec-user-info-v3__avatar dec-user-info-v3__avatar--lg">
                                             <TigUpload requestUrl="user/user/modifyAvatar" onChange={() => void getUserInfo()}>
                                                 <TigImage
-                                                    className="dec-user-info__avatar-img dec-user-info__avatar-img--lg"
+                                                    className="dec-user-info-v3__avatar-img dec-user-info-v3__avatar-img--lg"
                                                     src={imageFormat(userInfo.avatar || "")}
                                                     mode="aspectFill"
                                                 />
@@ -667,7 +667,7 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
                                         </View>
                                         {showEditIcon ? (
                                             <Image
-                                                className="dec-user-info__edit-icon"
+                                                className="dec-user-info-v3__edit-icon"
                                                 src={EDIT_ICON}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -676,12 +676,12 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
                                             />
                                         ) : null}
                                     </View>
-                                    <View className="dec-user-info__center-name-row">
-                                        <Text className="dec-user-info__center-name" style={{ color: resolvedTextColors.nameColor }}>
+                                    <View className="dec-user-info-v3__center-name-row">
+                                        <Text className="dec-user-info-v3__center-name" style={{ color: resolvedTextColors.nameColor }}>
                                             {userInfo.nickname || userInfo.username}
                                         </Text>
                                         {closeAuth === 1 ? (
-                                            <View className="dec-user-info__auth-badge" onClick={() => goPages("/pages/user/userCertification/index")}>
+                                            <View className="dec-user-info-v3__auth-badge" onClick={() => goPages("/pages/user/userCertification/index")}>
                                                 <TigAuthBadge type="tag" verified={!!userInfo.isCompanyAuth} />
                                             </View>
                                         ) : null}
@@ -691,16 +691,16 @@ export default function UserInfo3({ data = {}, immersive = false }: { data: User
                         </View>
 
                         {isLoggedIn && showMemberBar ? (
-                            <View className="dec-user-info__growth-card" style={growthCardStyle}>
-                                {growthWaveUrl ? <Image className="dec-user-info__growth-card-wave" src={growthWaveUrl} mode="scaleToFill" /> : null}
-                                <View className="dec-user-info__growth-card-left" onClick={() => goPages("/pages/user/levelCenter/index")}>
-                                    <View className="dec-user-info__growth-card-label-row">
-                                        <Text className="dec-user-info__growth-card-label">{t("成长值")}</Text>
-                                        <View className="dec-user-info__growth-card-label-arrow iconfont-h5 icon-a-gengduo20" />
+                            <View className="dec-user-info-v3__growth-card" style={growthCardStyle}>
+                                {growthWaveUrl ? <Image className="dec-user-info-v3__growth-card-wave" src={growthWaveUrl} mode="scaleToFill" /> : null}
+                                <View className="dec-user-info-v3__growth-card-left" onClick={() => goPages("/pages/user/levelCenter/index")}>
+                                    <View className="dec-user-info-v3__growth-card-label-row">
+                                        <Text className="dec-user-info-v3__growth-card-label">{t("成长值")}</Text>
+                                        <View className="dec-user-info-v3__growth-card-label-arrow iconfont-h5 icon-a-gengduo20" />
                                     </View>
-                                    <Text className="dec-user-info__growth-card-value">{userInfo.growthPoints || 0}</Text>
+                                    <Text className="dec-user-info-v3__growth-card-value">{userInfo.growthPoints || 0}</Text>
                                 </View>
-                                <View className="dec-user-info__growth-card-btn" onClick={() => goPages("/pages/user/levelCenter/index")}>
+                                <View className="dec-user-info-v3__growth-card-btn" onClick={() => goPages("/pages/user/levelCenter/index")}>
                                     {growthBtnText}
                                 </View>
                             </View>

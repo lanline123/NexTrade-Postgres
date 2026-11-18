@@ -1,11 +1,11 @@
 /* 自旧 productImgDecorate.vue <style lang="scss" scoped> 原样拷出（去 scoped）。
    v-bind() 已转组件内联 style，原位置见各条注释；裸 swiper 选择器改挂 .decorate-swiper。 */
-.product-pic-con {
+.decorated-product-gallery {
     /* 原 padding: 6px v-bind(imageMarginCss) 12px → 组件内联 style padding */
     background-color: var(--product-content-bg, #fff);
 }
 
-.product-bg {
+.decorated-product-gallery__background {
     width: 100%;
     position: relative;
     background: rgba(0, 0, 0, 0.02);
@@ -126,10 +126,10 @@
 }
 
 /* 原 :deep(.uni-swiper-wrapper) { border-radius: v-bind(imageRadiusValue) }：
-   Taro H5 无 uni-swiper-wrapper 结构，圆角已由 .product-bg（overflow:hidden + 内联 borderRadius）保证，
+   Taro H5 无 uni-swiper-wrapper 结构，圆角已由 .decorated-product-gallery__background（overflow:hidden + 内联 borderRadius）保证，
    不再平移该条规则。 */
 
 /* 微信端 hidden 的优先级会被 display:flex 覆盖，显式 class 保证视频封面和指示器互斥。（原 #ifdef MP-WEIXIN） */
-.mp-force-hidden {
+.decorated-product-gallery__hidden {
     display: none !important;
 }

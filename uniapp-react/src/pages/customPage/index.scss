@@ -1,8 +1,9 @@
-page {
-    background-color: #f6f6f6 !important;
+.custom-decorate-page {
+    min-height: 100vh;
+    background-color: #f6f6f6;
 }
 
-.index_empty {
+.custom-decorate-page__empty {
     padding-bottom: 200rpx;
     background: #fff;
 

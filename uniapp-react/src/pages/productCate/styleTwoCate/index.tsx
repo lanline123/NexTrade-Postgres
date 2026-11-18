@@ -200,7 +200,7 @@ export default function StyleTwoCate({ height: heightProp = 0, module = {} as Ca
         ));
 
     return (
-        <View style={decorateVars as any}>
+        <View className="category-layout-two" style={decorateVars as any}>
             {/* fixed：父级 tig-layout overflow:hidden 会裁切 sticky，导致头部上顶 */}
             {isOverseasSkin && <TopHeader placeholder={searchPlaceholder} />}
             {isOverseasSkin && <View className="main-header-spacer" style={mainHeaderSpacerStyle as any} />}

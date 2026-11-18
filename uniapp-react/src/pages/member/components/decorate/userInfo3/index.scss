@@ -1,5 +1,5 @@
 /* 自旧 pages/member/components/decorate/userInfo3/index.vue 的 <style lang="scss" scoped> 原样拷出（去 scoped） */
-.dec-user-info {
+.dec-user-info-v3 {
     box-sizing: border-box;
     padding-left: var(--dec-box-padding, 0);
     padding-right: var(--dec-box-padding, 0);
@@ -43,15 +43,15 @@
         padding-right: 0 !important;
         padding-top: 0 !important;
 
-        .dec-user-info__wrap--style2,
-        .dec-user-info__wrap--style3,
-        .dec-user-info__wrap--style4 {
+        .dec-user-info-v3__wrap--style2,
+        .dec-user-info-v3__wrap--style3,
+        .dec-user-info-v3__wrap--style4 {
             border-radius: 0;
             background: transparent !important;
         }
 
         /* 样式四：放开裁剪，让渐变层向上延伸到导航栏区域，形成一整段连续渐变 */
-        .dec-user-info__wrap--style4 {
+        .dec-user-info-v3__wrap--style4 {
             overflow: visible;
         }
     }

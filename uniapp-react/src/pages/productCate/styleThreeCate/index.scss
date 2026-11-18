@@ -1,15 +1,15 @@
 /* 自旧 pages/productCate/styleThreeCate.vue <style lang="scss" scoped> 原样拷出（去 scoped）。
  * .scroll-box 的 height 原 v-bind("height") → 内联 style（见 index.tsx scrollBoxHeight）。 */
-.main-header-spacer {
+.category-layout-three .main-header-spacer {
     width: 100%;
     flex-shrink: 0;
 }
 
-.scroll-box {
+.category-layout-three .scroll-box {
     overflow: hidden;
 }
 
-.content-box {
+.category-layout-three .content-box {
     height: 100%;
     width: 100%;
     display: flex;
@@ -43,7 +43,7 @@
 }
 
 /* --cate-* 由分类页装修下发（见 buildCateCenterV2Vars），未配置时 fallback 即原有视觉 */
-.product-list {
+.category-layout-three .product-list {
     padding: 25rpx;
     background-color: var(--cate-goods-bg, #fff);
 
@@ -145,7 +145,7 @@
     }
 }
 
-.cycleBuyTag {
+.category-layout-three .cycleBuyTag {
     display: inline-block;
     vertical-align: baseline;
     color: var(--cate-buy-btn, var(--general));
@@ -165,7 +165,7 @@
 }
 
 // ===== 装修配置：文本对齐 / 文字粗细 =====
-.product-list--align-2 {
+.category-layout-three .product-list--align-2 {
     .product-item .item-right {
         align-items: center;
     }
@@ -181,14 +181,14 @@
     }
 }
 
-.product-list--weight-1 {
+.category-layout-three .product-list--weight-1 {
     .product-item .item-right .item-right-title {
         font-weight: normal;
     }
 }
 
 // ===== 购买按钮装修样式（1~8）=====
-.product-item .item-right .buy_icon .buy_btn {
+.category-layout-three .product-item .item-right .buy_icon .buy_btn {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -227,12 +227,12 @@
     }
 }
 
-.empty-img {
+.category-layout-three .empty-img {
     width: 320rpx;
     height: 320rpx;
 }
 
-.empty-text {
+.category-layout-three .empty-text {
     font-size: 26rpx;
     color: #999;
     margin-top: 20rpx;
