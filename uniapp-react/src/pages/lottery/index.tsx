@@ -251,7 +251,7 @@ export default function LotteryIndex() {
     /** 活动信息默认值（接口未开启/无数据时兜底展示） */
     const buildDefaultLotteryInfo = (): LotteryInfo => {
         const noWinName = t("谢谢参与");
-        const noWinImage = "https://oss.nextrade.com/img/gallery/202512/1766467150H93CwsgU07PQfSqwj4.jpeg";
+        const noWinImage = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202512/1766467150H93CwsgU07PQfSqwj4.jpeg";
         return {
             activityId: 0,
             activityName: "",
@@ -259,7 +259,7 @@ export default function LotteryIndex() {
             endTime: "",
             costPoints: 1,
             decorateConfig: {
-                bgImage: "https://oss.nextrade.com/img/gallery/202512/1766469537jXrMsUPDXoszzk0KCC.jpeg",
+                bgImage: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202512/1766469537jXrMsUPDXoszzk0KCC.jpeg",
                 bgColor: "",
                 prizeEntryImage: "",
                 showWinnerList: 0,

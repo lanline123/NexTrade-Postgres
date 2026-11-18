@@ -14,6 +14,7 @@ import { redirect, getElementRect, isOverseas } from "@/utils";
 import { imageFormat, urlFormat } from "@/utils/format";
 import { t } from "@/utils/i18n";
 
+import { LANG_PARK_ICON, MENU_PARK_ICONS, SIGN_PARK_ICONS, parkIconSrc, resolveBannerIcon } from "./parkIcons";
 import "./index.scss";
 
 interface Props {
@@ -22,57 +23,8 @@ interface Props {
     index?: number;
 }
 
-const defaultIconImage = {
-    meun: [
-        {
-            picUrl: "https://oss.nextrade.com/img/gallery/202411/1731044058k3D2oAM6v4j1NUqnd4.png",
-            picName: "menu1"
-        },
-        {
-            picUrl: "https://oss.nextrade.com/img/gallery/202411/1731044058yv4ngGH3BtQalK2Ews.png",
-            picName: "menu2"
-        },
-        {
-            picUrl: "https://oss.nextrade.com/img/gallery/202411/17310440580AWfxX5dX8tq2iC91X.png",
-            picName: "menu3"
-        },
-
-        {
-            picUrl: "https://oss.nextrade.com/img/gallery/202411/1731044058oBfYyYzrYBK3daMTiS.png",
-            picName: "menu4"
-        },
-        {
-            picUrl: "https://oss.nextrade.com/img/gallery/202411/17310440582tapohBoU1mliQxGgT.png",
-            picName: "menu5"
-        },
-        {
-            picUrl: "https://oss.nextrade.com/img/gallery/202411/1731044058Xxnsx3an6igjmg9OZh.png",
-            picName: "menu6"
-        },
-        {
-            picUrl: "https://oss.nextrade.com/img/gallery/202411/1731044060czIoPbXd4pO0GteMVZ.png",
-            picName: "menu7"
-        }
-    ],
-    sign: [
-        {
-            picUrl: "https://oss.nextrade.com/img/gallery/202411/1731044060WUMf13Ls2YfzTFHVYR.png",
-            picName: "sign1"
-        },
-        {
-            picUrl: "https://oss.nextrade.com/img/gallery/202411/17310440604yFr67HdqrIIk5UCzm.png",
-            picName: "sign2"
-        },
-        {
-            picUrl: "https://oss.nextrade.com/img/gallery/202411/1731044060gYalEs84jlX6pMBE0p.png",
-            picName: "sign3"
-        },
-        {
-            picUrl: "https://oss.nextrade.com/img/gallery/202411/1731044060cZffgle3HfRaQtiH3V.png",
-            picName: "sign4"
-        }
-    ]
-};
+// 菜单/签到默认图标已改走 IconPark 内嵌字形（见 ./parkIcons.ts，2026-11-19 用户拍板路线）；
+// 原 defaultIconImage 的 tigshop 图库 PNG 不再引用（主机改写后文件不在我方桶、必然 404）。
 
 export default function Banner({ module, index }: Props) {
     // React 版用组件根节点 ref 替代 Vue getCurrentInstance()，供选择器查询圈定范围
@@ -148,13 +100,18 @@ export default function Banner({ module, index }: Props) {
         setRealIndex(e);
     };
 
-    const menuIcon = useMemo(() => {
-        return module.searchContent?.menuPic?.picUrl ? module.searchContent?.menuPic?.picUrl : defaultIconImage.meun[module.searchContent.menuIcon - 1]?.picUrl;
-    }, [module.searchContent]);
+    // 取图（原版口径）：自定义图 picUrl 优先，否则按样式编号取 IconPark 字形；null = 不渲染
+    const menuChoice = useMemo(
+        () => resolveBannerIcon(module.searchContent?.menuIcon, module.searchContent?.menuPic?.picUrl, MENU_PARK_ICONS),
+        [module.searchContent]
+    );
+    const menuIconSrc = menuChoice ? (menuChoice.type === "image" ? imageFormat(menuChoice.url) : parkIconSrc(menuChoice.name)) : "";
 
-    const signIcon = useMemo(() => {
-        return module.searchContent?.signPic?.picUrl ? module.searchContent?.signPic?.picUrl : defaultIconImage.sign[module.searchContent?.signIcon - 1]?.picUrl;
-    }, [module.searchContent]);
+    const signChoice = useMemo(
+        () => resolveBannerIcon(module.searchContent?.signIcon, module.searchContent?.signPic?.picUrl, SIGN_PARK_ICONS),
+        [module.searchContent]
+    );
+    const signIconSrc = signChoice ? (signChoice.type === "image" ? imageFormat(signChoice.url) : parkIconSrc(signChoice.name)) : "";
 
     const circleStyle = useMemo(() => {
         const designHeight = designPxToRpx(module.bannerContent.height);
@@ -250,7 +207,10 @@ export default function Banner({ module, index }: Props) {
     // 常驻（非吸顶）栏的 search-top 挂 banner-search-anchor 类，作为吸顶阈值测量锚点
     const renderSearchTop = (fixedBar: boolean) => (
         <View className={fixedBar ? "search-top" : "search-top banner-search-anchor"}>
-            {module.searchContent?.menuIcon == 1 && (
+            {/* 原版真值门控（v-if="searchContent.menuIcon"）：0 隐藏，1–7 样式与 'custom' 都显示；
+                移植时曾被收窄为 == 1，换样式即消失。现由 resolveBannerIcon 统一判定：
+                有可渲染图标（自定义图或编号字形）才渲染，天然避开 React 数值 0 印字问题 */}
+            {menuChoice && (
                 <View
                     className="menu"
                     onClick={() => {
@@ -259,7 +219,7 @@ export default function Banner({ module, index }: Props) {
                 >
                     <Image
                         className="menu-icon"
-                        src={imageFormat(menuIcon)}
+                        src={menuIconSrc}
                         style={`width: ${designPxToRpx(module.bannerStyle?.searchIconSize)};height:${designPxToRpx(module.bannerStyle?.searchIconSize)}`}
                     />
                 </View>
@@ -288,7 +248,7 @@ export default function Banner({ module, index }: Props) {
                     </View>
                 </View>
             )}
-            {module.searchContent?.signIcon == 1 && (
+            {signChoice && (
                 <View
                     className="sign"
                     onClick={() => {
@@ -297,16 +257,20 @@ export default function Banner({ module, index }: Props) {
                 >
                     <Image
                         className="sign-icon"
-                        src={imageFormat(signIcon)}
+                        src={signIconSrc}
                         style={`width: ${designPxToRpx(module.bannerStyle?.searchIconSize - 2)};height:${designPxToRpx(module.bannerStyle?.searchIconSize - 2)}`}
                     />
                 </View>
             )}
-            {isOverseas() && (
+            {/* 多语言地球【我方新增消费】：管理端新增 searchContent.showLang 开关（原版无此字段）；
+                存量数据无此字段，必须 ?? 1 缺省显示，只有显式 0 才隐藏 */}
+            {isOverseas() && (module.searchContent?.showLang ?? 1) == 1 && (
                 // 旧版点击 globe 调 selectLangRef.handleclickLang（tig-select-lang 已移植 imperative 句柄）
+                // 地球字形改 IconPark earth 内嵌 SVG（布局数值仍按 TigSelectLang 对齐，见 index.scss）
                 <View onClick={handleclickLang}>
                     <View className="lang-icon-box">
-                        <View className="iconfont-h5 icon-diqiu">
+                        <View className="park-earth">
+                            <Image className="park-earth-img" src={parkIconSrc(LANG_PARK_ICON)} />
                             <Text className="iconfont-h5 icon-sanjiaoright" />
                         </View>
                     </View>

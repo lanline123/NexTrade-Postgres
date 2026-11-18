@@ -8,3 +8,18 @@
         color: #999;
     }
 }
+
+/* 嵌入态（编辑器 iframe）隐藏全部滚动条（用户 2026-11-19）：根滚动与模块内滚动都只滚不显条，
+ * 滚动能力保留、内容不裁。打标由 index.tsx 在 embed=1 / 身处 iframe 时给 <html> 加类，卸载时移除。 */
+html.decorate-preview-embed,
+html.decorate-preview-embed body,
+html.decorate-preview-embed * {
+    scrollbar-width: none;
+}
+
+html.decorate-preview-embed ::-webkit-scrollbar,
+html.decorate-preview-embed *::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}

@@ -17,6 +17,10 @@ import "./index.scss";
  *   线上首页/自定义页完全相同的 DecorateModules 分发器渲染，数据变了就重渲染（不刷新）。
  * - 本页回 `decorate-ready`（挂载完成）与 `decorate-layout` { items: [{index, top, height}], totalHeight }，
  *   父页面据此在 iframe 上盖覆盖层做点选/拖拽（iframe 本身纯展示，页内点击一律拦截不跳转）。
+ * - 另回 `decorate-rendered` { seq, count, totalHeight }（2026-11-19 管理端「加载门」配合项）：收到数据并
+ *   完成首帧渲染（React 已提交 + 双 rAF 已过 + 槽位 DOM 已存在）后才发，每批新数据发一次；
+ *   `decorate-ready` 只是挂载信号、内容可能还没渲染，加载门应以本信号为准。seq 为所应用那份
+ *   `decorate-data` 的下发序号（管理端递增下发、本页原样回带，精确对齐用）；`decorate-layout` 同样回带 seq。
  * - 兜底/自检：带 `?id=<decorateId>` 打开时走与 customPage 相同的 getIndex 拉已发布数据渲染
  *   （postMessage 数据一旦到达即覆盖并锁定，编辑器实时数据优先）。
  *
@@ -52,6 +56,8 @@ export default function DecoratePreview() {
     const rootRef = useRef<any>(null);
     const parentOriginRef = useRef<string>("*");
     const parentDataRef = useRef(false);
+    const renderedForRef = useRef<any[] | null>(null);
+    const seqRef = useRef<number | null>(null);
     const stateRef = useRef({ modulesData, pageModule, received });
     stateRef.current = { modulesData, pageModule, received };
 
@@ -71,6 +77,7 @@ export default function DecoratePreview() {
             if (!data || data.type !== "decorate-data") return;
             parentOriginRef.current = e.origin;
             parentDataRef.current = true;
+            if (typeof data.seq === "number") seqRef.current = data.seq;
             if (Array.isArray(data.moduleList)) setModulesData(data.moduleList);
             if (data.pageModule && typeof data.pageModule === "object") setPageModule(data.pageModule);
             setReceived(true);
@@ -98,6 +105,19 @@ export default function DecoratePreview() {
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [router.params.id]);
+
+    // 嵌入态隐藏全部滚动条（用户 2026-11-19：编辑器中间 iframe 里那条滚动栏不需要）：
+    // embed=1 或身处 iframe 时给 <html> 打标，index.scss 据此隐藏条、保留滚动（同分类页口径）；
+    // 直接开标签页（?id= 自检）不打标，滚动条保留便于调试。
+    useEffect(() => {
+        const embedded = router.params.embed === "1" || window.self !== window.top;
+        if (!embedded) return;
+        document.documentElement.classList.add("decorate-preview-embed");
+        return () => {
+            document.documentElement.classList.remove("decorate-preview-embed");
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // 嵌入态纯展示：拦截一切点击/双击，避免模块内链接在 iframe 里真的跳转
     useEffect(() => {
@@ -137,10 +157,40 @@ export default function DecoratePreview() {
             .filter(Boolean);
         postToParent({
             type: "decorate-layout",
+            seq: seqRef.current,
             items,
             totalHeight: Math.round(containerRect.height)
         });
     }, [postToParent]);
+
+    // 首帧就绪信号 decorate-rendered：数据到达 + React 提交 + 双 rAF（首帧已绘制）+ 槽位 DOM 已存在，
+    // 四个条件齐了才发；同一批数据只发一次，编辑器后续推新数据（新引用）会再发一次。
+    useEffect(() => {
+        if (!received) return;
+        if (renderedForRef.current === modulesData) return;
+        let cancelled = false;
+        let raf2 = 0;
+        const raf1 = requestAnimationFrame(() => {
+            raf2 = requestAnimationFrame(() => {
+                if (cancelled) return;
+                const root = rootRef.current as HTMLElement | undefined;
+                const container = (root?.firstElementChild as HTMLElement | undefined) ?? undefined;
+                if (!container || container.children.length === 0) return;
+                renderedForRef.current = modulesData;
+                postToParent({
+                    type: "decorate-rendered",
+                    seq: seqRef.current,
+                    count: visibleSlotIndices(modulesData).length,
+                    totalHeight: Math.round(container.getBoundingClientRect().height)
+                });
+            });
+        });
+        return () => {
+            cancelled = true;
+            cancelAnimationFrame(raf1);
+            cancelAnimationFrame(raf2);
+        };
+    }, [received, modulesData, pageModule, postToParent]);
 
     useEffect(() => {
         if (!received) return;

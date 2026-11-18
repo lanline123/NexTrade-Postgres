@@ -84,8 +84,8 @@ interface UserInfoData extends ModuleDataWithFrame {
     textColors?: TextColorsConfig;
 }
 
-const EDIT_ICON = "https://oss.nextrade.com/official/img/pc/202606/1780880709E3AknH2icO6fSZeMly.png";
-const DEFAULT_GROWTH_CARD_BG = "https://oss.nextrade.com/official/img/pc/202606/17808830195Hk80LmOeUpDCCCEKW.png";
+const EDIT_ICON = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202606/1780880709E3AknH2icO6fSZeMly.png";
+const DEFAULT_GROWTH_CARD_BG = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202606/17808830195Hk80LmOeUpDCCCEKW.png";
 
 const STYLE_TEXT_COLOR_DEFAULTS: Record<number, Required<TextColorsConfig>> = {
     1: { nameColor: "#ffffff", subColor: "#ffffff", statValueColor: "#ffffff", statLabelColor: "#ffffff" },

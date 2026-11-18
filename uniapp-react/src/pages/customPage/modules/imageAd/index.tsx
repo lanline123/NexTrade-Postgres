@@ -38,7 +38,10 @@ export default function ImageAd({ module }: Props) {
         return module.swiperPreView || 1;
     }, [module.swiperPreView]);
 
-    const [swiperHeight, setSwiperHeight] = useState(150);
+    // 高度一律设备 px 口径（与 imageAd2 的 safeHeightPx 一致）：React style 对象里的 rpx 值在 H5 会被
+    // 直接丢弃（字符串口径才走 rpx 转换层），宿主无定高会让整条 height:100% 链塌陷成 0×0（图面纯白）。
+    // 初值 150rpx 按当前窗口宽换算成 px。
+    const [swiperHeight, setSwiperHeight] = useState(() => Math.round((150 * Taro.getSystemInfoSync().windowWidth) / 750));
     const [loadEnd, setLoadEnd] = useState(false);
 
     const loadImage = (e: any) => {
@@ -48,9 +51,8 @@ export default function ImageAd({ module }: Props) {
 
     const computeImgHeight = (height: number, width: number) => {
         const screenWidth = Taro.getSystemInfoSync().windowWidth;
-        const pxToRpx = 750 / screenWidth;
-        // 统一按宽高比计算，将图片等比例缩放到屏幕宽度后的高度，并按当前视口转换为 rpx
-        const scaledHeight = ((screenWidth * height) / width) * pxToRpx;
+        // 统一按宽高比计算，将图片等比例缩放到屏幕宽度后的高度（设备 px）
+        const scaledHeight = (screenWidth * height) / width;
         // 取所有图片中的最大高度，确保所有图片都能完整显示
         setSwiperHeight((prev) => {
             if (scaledHeight > prev) {
@@ -111,12 +113,12 @@ export default function ImageAd({ module }: Props) {
                                 <View className="image-ad-con swiper-dots-anchor">
                                     {columns == 1 ? (
                                         // 旧 tig-swiper（v-model="module.picList"）等价展开：
-                                        // circular、autoplay 默认 true、interval 默认 3000、duration 默认 500、height 为数值时单位 rpx；
+                                        // circular、autoplay 默认 true、interval 默认 3000、duration 默认 500、height 为设备 px（见 swiperHeight 注）；
                                         // 指示点改自绘 SwiperDots（原 uni-swiper-dot 三式），原生 indicatorDots 在 picPageType=1 时消失、=3 时无胶囊底盒
                                         <Swiper
                                             current={0}
                                             className={module.picPageType == 3 ? "uni-swiper-dot-box" : ""}
-                                            style={{ height: swiperHeight + "rpx" }}
+                                            style={{ height: swiperHeight + "px" }}
                                             circular
                                             indicatorDots={false}
                                             autoplay
@@ -126,7 +128,7 @@ export default function ImageAd({ module }: Props) {
                                         >
                                             {module.picList.map((item: any, index: number) => (
                                                 <SwiperItem key={index}>
-                                                    <View style={{ height: swiperHeight + "rpx" }} className="image-ad-item">
+                                                    <View style={{ height: swiperHeight + "px" }} className="image-ad-item">
                                                         <View
                                                             className="item-content"
                                                             style={format.imgPadding}
@@ -151,7 +153,7 @@ export default function ImageAd({ module }: Props) {
                                         <Swiper
                                             current={0}
                                             className={module.picPageType == 3 ? "uni-swiper-dot-box" : ""}
-                                            style={{ height: swiperHeight + "rpx" }}
+                                            style={{ height: swiperHeight + "px" }}
                                             circular
                                             indicatorDots={false}
                                             autoplay
@@ -163,7 +165,7 @@ export default function ImageAd({ module }: Props) {
                                                 <SwiperItem key={index}>
                                                     <View
                                                         className="swiper-main"
-                                                        style={{ height: swiperHeight + "rpx", gridTemplateColumns: `repeat(${columns}, 1fr)` }}
+                                                        style={{ height: swiperHeight + "px", gridTemplateColumns: `repeat(${columns}, 1fr)` }}
                                                     >
                                                         {item.map((subItem: any, subIndex: number) => (
                                                             <View key={subIndex} className="image-ad-item">

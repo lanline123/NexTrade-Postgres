@@ -32,9 +32,9 @@ export default function GroupSliding({ module }: Props) {
     const showB2bText = useMemo(() => isShowB2bPriceText(), []);
 
     const rankingImgs = [
-        "https://oss.nextrade.com/img/gallery/202411/1732094008g4ZMmuQbNcBlYrNCuz.png",
-        "https://oss.nextrade.com/img/gallery/202411/1732094013OJOLUek96BizcTvwmU.png",
-        "https://oss.nextrade.com/img/gallery/202411/17320940168dzp9YD5LbpcMMjqe9.png"
+        "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1732094008g4ZMmuQbNcBlYrNCuz.png",
+        "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1732094013OJOLUek96BizcTvwmU.png",
+        "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17320940168dzp9YD5LbpcMMjqe9.png"
     ];
 
     const formatLabel = (label: string) => {

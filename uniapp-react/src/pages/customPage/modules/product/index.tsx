@@ -206,8 +206,9 @@ export default function Product({ module, shopId = -1 }: Props) {
                                     <View className="goods-ad-con">
                                         <View
                                             className={`goods-ad-swiper ${module.picPageType == 3 ? "uni-swiper-dot-box" : ""}`}
-                                            // 旧 tig-swiper 等价展开：height=480rpx、circular、autoplay 默认 true、interval 3000
-                                            style={{ height: "480rpx" }}
+                                            // 旧 tig-swiper 等价展开：height=480rpx、circular、autoplay 默认 true、interval 3000；
+                                            // style 对象里的 rpx 在 H5 被丢弃（同 imageAd 纯白案），按设计 px 口径换算落 px
+                                            style={{ height: designPxToDevicePx(240) + "px" }}
                                         >
                                             <Swiper
                                                 circular

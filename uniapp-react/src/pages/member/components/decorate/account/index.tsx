@@ -44,20 +44,20 @@ const DEFAULT_ACCOUNT_FALLBACK_URLS = ["/pages/user/profile/index", "/pages/lang
 
 const DEFAULT_ACCOUNT_ITEMS: AccountItem[] = [
     {
-        picUrl: "https://oss.nextrade.com/img/gallery/202605/1779691120KR8ldT5BHs0ZKZ4Uxk.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200",
+        picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202605/1779691120KR8ldT5BHs0ZKZ4Uxk.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200",
         picTitle: "账号详情"
     },
     {
-        picUrl: "https://oss.nextrade.com/img/gallery/202605/1779852393ma6VwQR9GVkKChy1d6.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200",
+        picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202605/1779852393ma6VwQR9GVkKChy1d6.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200",
         picTitle: "国家/地区和语言",
         isShow: isOverseas()
     },
     {
-        picUrl: "https://oss.nextrade.com/img/gallery/202605/1779691120QiTfocEWPiXAr7ILcG.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200",
+        picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202605/1779691120QiTfocEWPiXAr7ILcG.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200",
         picTitle: "地址"
     },
     {
-        picUrl: "https://oss.nextrade.com/img/gallery/202605/1779691120penAIAi6kRrFMWeeoe.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200",
+        picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202605/1779691120penAIAi6kRrFMWeeoe.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200",
         picTitle: "设置"
     }
 ];

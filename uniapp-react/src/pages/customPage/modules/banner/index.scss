@@ -7,12 +7,21 @@
     display: flex;
     align-items: center;
     height: 100%;
-    .icon-diqiu {
-        font-size: 55rpx;
-        color: #fff;
+    // 地球改 IconPark earth 内嵌 SVG（.park-earth），布局数值对齐站内标准组件 TigSelectLang.scss
+    // 的 .lang-icon-box（2026-11-19）：图标 55rpx（原字形 font-size 同值）、padding-right 40rpx、
+    // 三角 right 20rpx / bottom 2rpx / 20rpx / #fff / rotate 90 与标准逐项一致；
+    // padding-left 20rpx 为本行内与左侧签到图标的间距（标准组件无左邻元素故无此项），保留。
+    .park-earth {
         position: relative;
-        padding-right: 30rpx;
+        padding-right: 40rpx;
         padding-left: 20rpx;
+        display: flex;
+        align-items: center;
+
+        .park-earth-img {
+            width: 55rpx;
+            height: 55rpx;
+        }
 
         .icon-sanjiaoright {
             font-size: 20rpx;
@@ -20,7 +29,7 @@
             font-weight: bold;
             position: absolute;
             bottom: 2rpx;
-            right: 10rpx;
+            right: 20rpx;
             transform: rotate(90deg);
         }
     }
