@@ -25,7 +25,7 @@ use nextrade_core::models::catalog::product_manage::{
     GalleryPicDTO, ProductAttrGroupVO, ProductAttributeVO, ProductAttrsVO, ProductSaveDTO,
     ProductSkuSaveDTO, SkuAttrDTO,
 };
-use nextrade_core::types::PageResult;
+use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::Repositories;
 
@@ -317,7 +317,7 @@ struct OneboundChannel {
 }
 
 impl OneboundChannel {
-    async fn fetch_raw(&self, platform: Platform, item_id: &str) -> Result<Value, CloneError> {
+    async fn fetch_raw(&self, platform: Platform, item_id: &str) -> std::result::Result<Value, CloneError> {
         if self.key.is_empty() || self.secret.is_empty() {
             return Err(CloneError::new(
                 CloneErrorKind::QuotaExceeded,
@@ -378,7 +378,7 @@ struct ScraperGateway {
 }
 
 impl ScraperGateway {
-    async fn fetch_raw(&self, platform: Platform, url: &str, item_id: &str) -> Result<Value, CloneError> {
+    async fn fetch_raw(&self, platform: Platform, url: &str, item_id: &str) -> std::result::Result<Value, CloneError> {
         if self.endpoint.is_empty() {
             return Err(CloneError::new(
                 CloneErrorKind::NotSupported,
@@ -1039,7 +1039,7 @@ settings: &CloneSettings,
 platform: Platform,
 url: &str,
 item_id: &str,
-) -> Result<(CloneDraft, Value), CloneError> {
+) -> std::result::Result<(CloneDraft, Value), CloneError> {
 match channel {
 ChannelId::Api => {
 let client = OneboundChannel {
@@ -1105,10 +1105,10 @@ self.repos
 .reopen_for_retry(dto.task_id, channel.as_str(), now)
 .await?;
 let svc = self.clone();
+let task_id = dto.task_id;
 let (url, item_id) = (row.source_url.clone(), row.source_item_id.clone());
 tokio::spawn(async move {
-// 重跑时保留旧 attempts：run_task 会重写 attempts，这里先读旧值拼回
-let _ = svc.run_task_keep_attempts(dto.task_id, platform, channel, url, item_id).await;
+let _ = svc.run_task_keep_attempts(task_id, platform, channel, url, item_id).await;
 });
 Ok(())
 }
@@ -1151,7 +1151,7 @@ let records: Vec<Value> = rows
 .into_iter()
 .map(|r| serde_json::to_value(r.into_vo(false)).unwrap_or(Value::Null))
 .collect();
-Ok(PageResult::new(records, total, page, page_size))
+Ok(PageResult::new(total as u64, records, &PageQuery { page: page as u64, page_size: page_size as u64 }))
 }
 
 pub async fn task_detail(&self, id: i64) -> Result<Value> {

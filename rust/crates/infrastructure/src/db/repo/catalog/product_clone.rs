@@ -56,6 +56,10 @@ impl CloneTaskRow {
     }
 }
 
+fn map_err(e: sqlx::Error) -> Error {
+    Error::Database(e.to_string())
+}
+
 #[derive(Clone)]
 pub struct ProductCloneRepository {
     pool: PgPool,
@@ -87,7 +91,7 @@ impl ProductCloneRepository {
         .bind(now)
         .fetch_one(&self.pool)
         .await
-        .map_err(Error::from)?;
+        .map_err(map_err)?;
         Ok(row.get::<i64, _>("id"))
     }
 
@@ -119,7 +123,7 @@ impl ProductCloneRepository {
         .bind(now)
         .execute(&self.pool)
         .await
-        .map_err(Error::from)?;
+        .map_err(map_err)?;
         Ok(())
     }
 
@@ -133,7 +137,7 @@ impl ProductCloneRepository {
         .bind(now)
         .execute(&self.pool)
         .await
-        .map_err(Error::from)?;
+        .map_err(map_err)?;
         Ok(())
     }
 
@@ -146,7 +150,7 @@ impl ProductCloneRepository {
         .bind(now)
         .execute(&self.pool)
         .await
-        .map_err(Error::from)?;
+        .map_err(map_err)?;
         Ok(())
     }
 
@@ -157,7 +161,7 @@ impl ProductCloneRepository {
         .bind(id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(Error::from)?;
+        .map_err(map_err)?;
         Ok(row)
     }
 
@@ -177,7 +181,7 @@ impl ProductCloneRepository {
         .bind(source_item_id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(Error::from)?;
+        .map_err(map_err)?;
         Ok(row.map(|r| {
             (
                 r.get::<i64, _>("id"),
@@ -214,7 +218,7 @@ impl ProductCloneRepository {
             .build_query_as::<CloneTaskRow>()
             .fetch_all(&self.pool)
             .await
-            .map_err(Error::from)?;
+            .map_err(map_err)?;
 
         let mut cq = sqlx::QueryBuilder::<sqlx::Postgres>::new(
             "SELECT COUNT(*) FROM product_clone_task WHERE 1=1",
@@ -229,7 +233,7 @@ impl ProductCloneRepository {
             .build_query_scalar()
             .fetch_one(&self.pool)
             .await
-            .map_err(Error::from)?;
+            .map_err(map_err)?;
         let _ = where_sql;
         Ok((rows, total))
     }
@@ -242,7 +246,7 @@ impl ProductCloneRepository {
         .bind(day_start_epoch)
         .fetch_one(&self.pool)
         .await
-        .map_err(Error::from)?;
+        .map_err(map_err)?;
         Ok(total.unwrap_or(0))
     }
 
@@ -252,7 +256,7 @@ impl ProductCloneRepository {
             .bind(product_sn)
             .fetch_optional(&self.pool)
             .await
-            .map_err(Error::from)?;
+            .map_err(map_err)?;
         Ok(id)
     }
 }
