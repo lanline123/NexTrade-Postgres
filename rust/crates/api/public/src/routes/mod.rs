@@ -38,7 +38,7 @@ pub fn merge_public(state: &PublicState) -> Router<PublicState> {
         .merge(payment::public_routes())
         .merge(payment::anonymous_routes(state))
         .merge(marketing::routes(state))
-        .merge(marketing::public_routes())
+        .merge(marketing::public_routes(state))
         .merge(marketing::anonymous_routes(state))
         .merge(member::routes(state))
         .merge(member::public_routes())

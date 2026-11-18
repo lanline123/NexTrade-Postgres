@@ -14,22 +14,60 @@
 //! | `GET  /api/promotion/coupon/listByIds` | `CouponClientController.listByIds` |
 
 use axum::{
-    extract::{Query, State},
+    extract::{Query, Request, State},
+    http::header,
+    middleware::{self, Next},
+    response::Response,
     routing::{get, post},
     Extension, Json, Router,
 };
 use serde::Deserialize;
 use nextrade_core::models::{CouponListQuery, UserCouponClaimDTO, UserCouponIdDTO, UserCouponListQuery};
 use nextrade_core::types::PageResult;
-use nextrade_security::web::{ok, ApiResult, AuthUser};
+use nextrade_security::web::{ok, ApiResult, AppError, AuthUser};
+use nextrade_security::JwtService;
 
 use crate::PublicState;
 
 /// 公开路由：可领取优惠券列表、按 ID 批量查询（游客可访问）。
-pub fn public_routes() -> Router<PublicState> {
+///
+/// 自带 [`optional_auth`]：`getList` 需要可选登录态回填 `isReceive`
+/// 并按会员等级过滤，缺了这层登录用户会被恒当游客处理。
+pub fn public_routes(state: &PublicState) -> Router<PublicState> {
     Router::new()
         .route("/user/coupon/getList", get(available_list))
         .route("/promotion/coupon/listByIds", get(list_by_ids))
+        .layer(middleware::from_fn_with_state(
+            state.jwt.clone(),
+            optional_auth,
+        ))
+}
+
+/// 可选登录态中间件（对应 Java `permitAll` + JWT 过滤器）。
+///
+/// 无令牌 → 放行为游客；令牌非法/过期 → 按游客放行；
+/// 令牌合法 → 写入 [`AuthUser`]（与 `merchant::shop_client` 同款实现）。
+async fn optional_auth(
+    State(jwt): State<JwtService>,
+    mut req: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    let token = req
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok());
+    if token.is_some() {
+        let Ok(claims) = jwt.from_authorization(token) else { return Ok(next.run(req).await); };
+        let Ok(id) = claims.sub.parse::<i32>() else { return Ok(next.run(req).await); };
+        req.extensions_mut().insert(AuthUser {
+            id,
+            username: claims.usr,
+            role_id: claims.role,
+            admin_type: claims.typ,
+            shop_id: claims.shop_id,
+        });
+    }
+    Ok(next.run(req).await)
 }
 
 /// 需登录路由：领取、我的优惠券（外层已套 `require_auth`）。

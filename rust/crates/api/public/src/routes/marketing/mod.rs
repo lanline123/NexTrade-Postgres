@@ -36,10 +36,10 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .merge(salesman_product::routes(state))
 }
 
-/// 匿名可访问路由（无状态）。
-pub fn public_routes() -> Router<PublicState> {
+/// 匿名可访问路由（coupon 公开组自带 optional_auth，需要 state）。
+pub fn public_routes(state: &PublicState) -> Router<PublicState> {
     Router::new()
-        .merge(coupon::public_routes())
+        .merge(coupon::public_routes(state))
         .merge(seckill::public_routes())
         .merge(time_discount::public_routes())
 }

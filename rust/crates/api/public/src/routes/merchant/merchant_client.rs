@@ -17,6 +17,10 @@
 //! >
 //! > **⚠️ auth=optional 的落地口径**：契约把本域 5 条都标为 `optional`，
 //! > 因此本模块挂在**公开**组（不在 `merge_authorized` 外层套 `require_auth`）。
+//! > 本模块自带 [`optional_auth`] 中间件（与同域 `shop_client` 同款）：
+//! > 带合法令牌时把 `AuthUser` 写入请求扩展，无令牌/非法令牌按游客放行。
+//! > **缺了这层，`Option<Extension<AuthUser>>` 恒为 `None`，
+//! > `apply` 会对已登录用户也误报 401「请先登录」。**
 //! > 各 handler 用 `Option<Extension<AuthUser>>` 读登录态，差异如下：
 //! > - `uploadLicense` / `applyShopAgreement` 不依赖用户上下文，忽略登录态；
 //! > - `myApply` / `applyDetail` 按 Java 语义：游客 `userId = 0`
@@ -31,19 +35,22 @@
 //! >    未迁移，写入前返回「商户免审核自动开通尚未迁移」业务错误。
 
 use axum::{
-    extract::{Multipart, Query, State},
+    extract::{Multipart, Query, Request, State},
+    http::header,
+    middleware::{self, Next},
+    response::Response,
     routing::{get, post},
     Extension, Json, Router,
 };
 use nextrade_core::models::merchant::merchant_client::{ApplyDetailQuery, MerchantApplyApplyParam};
 use nextrade_core::Error;
 use nextrade_security::web::{ok, ApiResult, AppError, AuthUser};
+use nextrade_security::JwtService;
 
 use crate::PublicState;
 
 /// 商户入驻域前台路由（挂载于 `/api` 下）。
 pub fn routes(state: &PublicState) -> Router<PublicState> {
-    let _ = state;
     Router::new()
         .route("/merchant/merchant/uploadLicense", post(upload_license))
         .route(
@@ -53,6 +60,10 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/merchant/merchant/myApply", get(my_apply))
         .route("/merchant/merchant/applyDetail", get(apply_detail))
         .route("/merchant/merchant/apply", post(apply))
+        .layer(middleware::from_fn_with_state(
+            state.jwt.clone(),
+            optional_auth,
+        ))
 }
 
 /// 路由表（用于静态覆盖率扫描与测试）。
@@ -124,6 +135,35 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     .iter()
     .map(|(m, p, j)| nextrade_openapi::RouteDoc::new(m, p, j))
     .collect()
+}
+
+/// 可选登录态中间件（对应 Java `permitAll` + JWT 过滤器）。
+///
+/// 无令牌 → 放行为游客；令牌非法/过期 → 按游客放行；
+/// 令牌合法 → 写入 [`AuthUser`]，各 handler 的
+/// `Option<Extension<AuthUser>>` 才能真正拿到登录态
+/// （与同域 `shop_client` / `shop_account_log` 同款实现）。
+async fn optional_auth(
+    State(jwt): State<JwtService>,
+    mut req: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    let token = req
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok());
+    if token.is_some() {
+        let Ok(claims) = jwt.from_authorization(token) else { return Ok(next.run(req).await); };
+        let Ok(id) = claims.sub.parse::<i32>() else { return Ok(next.run(req).await); };
+        req.extensions_mut().insert(AuthUser {
+            id,
+            username: claims.usr,
+            role_id: claims.role,
+            admin_type: claims.typ,
+            shop_id: claims.shop_id,
+        });
+    }
+    Ok(next.run(req).await)
 }
 
 /// 取登录会员 ID（对应 Java `SecurityUtils.getCurrentUserId()`）。
