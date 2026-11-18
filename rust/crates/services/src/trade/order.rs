@@ -108,6 +108,52 @@ impl OrderService {
         // 商品 + 价格（与结算页同口径：商品现价；SKU 价格由 current_prices 提供）
         let product_ids: Vec<i32> = lines.iter().map(|l| l.product_id).collect();
         let products = crate::trade::check::load_products(&self.repos, &product_ids).await?;
+
+        // 客户黑名单（下单限制）：checked_lines 后、算价前整单复检（§4.3），
+        // 任一行命中即整单拒绝，文案点名命中店铺（blacklist-design §7）。
+        {
+            let pairs: Vec<(i32, i32)> = lines
+                .iter()
+                .map(|l| {
+                    (
+                        l.product_id,
+                        products.get(&l.product_id).map_or(l.shop_id, |p| p.shop_id),
+                    )
+                })
+                .collect();
+            let blacklist =
+                crate::member::user_blacklist::UserBlacklistService::new(self.repos.clone());
+            let hits = blacklist.find_order_restrictions(user_id, &pairs).await?;
+            if !hits.is_empty() {
+                let mut shop_ids: Vec<i32> = Vec::new();
+                for hit in &hits {
+                    if !shop_ids.contains(&hit.shop_id) {
+                        shop_ids.push(hit.shop_id);
+                    }
+                }
+                let titles = blacklist.shop_titles(&shop_ids).await?;
+                let names = shop_ids
+                    .iter()
+                    .map(|id| {
+                        if *id == 0 {
+                            "平台自营".to_string()
+                        } else {
+                            titles
+                                .get(id)
+                                .cloned()
+                                .unwrap_or_else(|| format!("店铺{id}"))
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("、");
+                return Err(Error::biz(
+                    1001,
+                    format!(
+                        "订单中包含暂时无法购买的商品（{names}），请移除后再提交；如有疑问请联系客服"
+                    ),
+                ));
+            }
+        }
         let prices = self.repos.catalog.product.current_prices(&product_ids).await?;
         let mut store_amounts: std::collections::BTreeMap<i32, Decimal> =
             std::collections::BTreeMap::new();

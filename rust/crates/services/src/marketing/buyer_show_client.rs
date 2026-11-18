@@ -533,6 +533,16 @@ impl BuyerShowClientService {
         if user_id <= 0 {
             return Err(Error::biz(CODE_UNAUTHORIZED, ERR_NOT_LOGGED_IN));
         }
+        // 客户黑名单（买家秀发布限制）：买家秀无 shop_id，只受平台全平台
+        // 规则约束（shop 上下文恒 None，方案 §1.4/§4.2）。文案见 §7。
+        crate::member::user_blacklist::UserBlacklistService::new(self.repos.clone())
+            .ensure_allowed(
+                user_id,
+                nextrade_core::models::member::user_blacklist::PRODUCT_BUYER_SHOW,
+                nextrade_core::models::member::user_blacklist::BEHAVIOR_BUYER_SHOW_PUBLISH,
+                None,
+            )
+            .await?;
         if param.range_data.is_empty() {
             // Java `@NotEmpty(message = "关联商品不能为空")`
             return Err(Error::biz(SERVICE_DATA_ERROR, "关联商品不能为空"));
@@ -841,6 +851,15 @@ impl BuyerShowClientService {
         if user_id <= 0 {
             return Err(Error::biz(CODE_UNAUTHORIZED, ERR_NOT_LOGGED_IN));
         }
+        // 客户黑名单（买家秀评论限制）：同发布口径，仅平台全平台规则生效。
+        crate::member::user_blacklist::UserBlacklistService::new(self.repos.clone())
+            .ensure_allowed(
+                user_id,
+                nextrade_core::models::member::user_blacklist::PRODUCT_BUYER_SHOW,
+                nextrade_core::models::member::user_blacklist::BEHAVIOR_BUYER_SHOW_COMMENT,
+                None,
+            )
+            .await?;
         let user = self.repo().find_user_by_id(user_id).await?;
         let (user_name_raw, user_photo) = match &user {
             Some(u) => (u.username.clone(), u.avatar.clone()),

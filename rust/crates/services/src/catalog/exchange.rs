@@ -248,6 +248,16 @@ impl ExchangeService {
             return Err(Error::biz(500, MSG_PRODUCT_NOT_EXIST));
         }
 
+        // 客户黑名单（下单限制）：积分兑换加购同口径拦截（提交时仍过订单复检）。
+        crate::member::user_blacklist::UserBlacklistService::new(self.repos.clone())
+            .ensure_allowed(
+                user_id,
+                nextrade_core::models::member::user_blacklist::PRODUCT_MALL,
+                nextrade_core::models::member::user_blacklist::BEHAVIOR_PLACE_ORDER,
+                Some(product.shop_id),
+            )
+            .await?;
+
         // Java：skuId = dto.getSkuId() != null ? dto.getSkuId() : 0
         let sku_id = normalize_sku_id(dto.sku_id);
         let stock = self.stock_of(&product, sku_id).await?;

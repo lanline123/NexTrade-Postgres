@@ -1162,6 +1162,10 @@ export const navGroups: NavGroup[] = [
             "label": "会员列表"
           },
           {
+            "key": "customerBlacklistManage",
+            "label": "客户黑名单"
+          },
+          {
             "key": "userLevelProManage",
             "label": "会员等级设置"
           },
@@ -1745,6 +1749,7 @@ export const pageTitles: Record<string, string> = {
   "deliveryStaffWithdrawManage": "配送员提现管理",
   "serverStaffWithdrawManage": "服务员提现管理",
   "members": "会员列表",
+  "customerBlacklistManage": "客户黑名单",
   "userLevelProManage": "会员等级设置",
   "levelManageManage": "会员等级设置",
   "shopMemberSettingManage": "会员设置",

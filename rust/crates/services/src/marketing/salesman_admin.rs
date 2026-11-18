@@ -726,6 +726,16 @@ impl SalesmanAdminService {
         if inviter.user_id == Some(user_id) {
             return Err(Error::biz(500, MSG_SELF_INVITE));
         }
+        // 客户黑名单（自助成为分销员限制）：全仓唯一自助入口，在幂等返回
+        // 之前校验（方案 §1.5/§5.3）；无店铺上下文，仅平台全平台规则可命中。
+        crate::member::user_blacklist::UserBlacklistService::new(self.repos.clone())
+            .ensure_allowed(
+                user_id,
+                nextrade_core::models::member::user_blacklist::PRODUCT_DISTRIBUTION,
+                nextrade_core::models::member::user_blacklist::BEHAVIOR_BECOME_SALESMAN,
+                None,
+            )
+            .await?;
         // 幂等：已是分销员直接返回，不改变既有上级
         if self.repo().find_by_user_id(user_id).await?.is_some() {
             return Ok(());

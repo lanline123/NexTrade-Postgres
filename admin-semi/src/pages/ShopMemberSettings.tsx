@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Button, Radio, RadioGroup, Switch, Toast } from '@douyinfe/semi-ui';
 import { IconSetting, IconUser } from '@douyinfe/semi-icons';
 import SettingsCard from '../components/SettingsCard';
-import { apiGet, apiPost } from '../api';
+import { apiGet, apiPost, isDemo } from '../api';
 import { useI18n } from '../i18n';
+import { isPlatformAccount } from '../components/BlacklistAddModal';
 
 
 /** 会员设置（客户能力门）：对应旧版 user/shopMember/Index.vue，接口 /user/shopMember/setting/*。
@@ -18,6 +19,34 @@ export default function ShopMemberSettings() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  /** 客户黑名单开关（shopBlacklistAllow）：独立端点 /user/blacklist/setting/*，仅平台可见。 */
+  const platform = isPlatformAccount();
+  const [blacklistAllow, setBlacklistAllow] = useState(0);
+  const [blacklistSaving, setBlacklistSaving] = useState(false);
+
+  useEffect(() => {
+    if (!platform) return;
+    apiGet<{ shopBlacklistAllow: number }>('/user/blacklist/setting/get')
+      .then((result) => setBlacklistAllow(Number(result?.shopBlacklistAllow) === 1 ? 1 : 0))
+      .catch(() => undefined);
+  }, [platform]);
+
+  const saveBlacklistAllow = async (next: boolean) => {
+    if (isDemo()) {
+      Toast.warning({ content: t('演示模式不支持操作') });
+      return;
+    }
+    setBlacklistSaving(true);
+    try {
+      await apiPost('/user/blacklist/setting/save', { shopBlacklistAllow: next ? 1 : 0 });
+      setBlacklistAllow(next ? 1 : 0);
+      Toast.success({ content: t('保存成功') });
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('保存失败') });
+    } finally {
+      setBlacklistSaving(false);
+    }
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -120,6 +149,32 @@ export default function ShopMemberSettings() {
           </div>
         </div>
       </SettingsCard>
+
+      {platform && (
+        <SettingsCard
+          icon={<IconUser />}
+          title={t('客户黑名单')}
+          description={t('控制店铺是否可将客户加入店铺黑名单。')}
+          count={t('{count} 项', { count: 1 })}
+        >
+          <div className="config-field">
+            <label>{t('允许店铺将客户加入店铺黑名单')}</label>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <Switch
+                  checked={blacklistAllow === 1}
+                  loading={blacklistSaving}
+                  onChange={saveBlacklistAllow}
+                />
+                <span>{blacklistAllow === 1 ? t('已开启') : t('已关闭')}</span>
+              </div>
+              <p className="config-field__help">
+                {t('关闭后店铺端黑名单入口不可用，平台黑名单不受影响，已生效的店铺条目暂停生效。')}
+              </p>
+            </div>
+          </div>
+        </SettingsCard>
+      )}
 
       <div className="config-actions">
         <Button theme="solid" type="primary" loading={saving} onClick={save}>

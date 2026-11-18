@@ -529,6 +529,31 @@ impl CommentService {
         if !self.is_product_comment_enabled().await? {
             return Err(Error::biz(1001, "评价功能已关闭"));
         }
+        // 客户黑名单（评价限制）：店铺上下文优先订单归属（param 是客户端传的，
+        // 只作兜底），取不到店铺时按仅平台全平台规则判定（shop_id = 0）。
+        {
+            let order_shop = match param.order_id.filter(|id| *id > 0) {
+                Some(order_id) => self
+                    .repos
+                    .trade
+                    .order
+                    .find_by_id(order_id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|o| o.shop_id),
+                None => None,
+            };
+            let shop_id = order_shop.unwrap_or_else(|| param.shop_id.unwrap_or(0));
+            crate::member::user_blacklist::UserBlacklistService::new(self.repos.clone())
+                .ensure_allowed(
+                    user_id,
+                    nextrade_core::models::member::user_blacklist::PRODUCT_MALL,
+                    nextrade_core::models::member::user_blacklist::BEHAVIOR_PRODUCT_COMMENT,
+                    Some(shop_id),
+                )
+                .await?;
+        }
         validate_evaluate_content(param.content.as_deref())?;
 
         let anonymous_enabled = self.is_anonymous_comment_enabled().await?;

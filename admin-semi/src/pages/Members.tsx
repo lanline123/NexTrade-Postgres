@@ -25,6 +25,7 @@ import {
   MemberOrdersDrawer,
   MemberTagsDrawer,
 } from '../components/MemberDrawers';
+import BlacklistAddModal from '../components/BlacklistAddModal';
 
 const { Text } = Typography;
 
@@ -322,6 +323,9 @@ export default function Members() {
   const [fundMember, setFundMember] = useState<MemberRow | null>(null);
   const [batchTagVisible, setBatchTagVisible] = useState(false);
   const [batchTagIds, setBatchTagIds] = useState<number[]>([]);
+  /** 加入黑名单：批量（会员列表勾选）与单个（行操作）共用 BlacklistAddModal。 */
+  const [blacklistBatchIds, setBlacklistBatchIds] = useState<number[] | null>(null);
+  const [blacklistSingle, setBlacklistSingle] = useState<MemberRow | null>(null);
   /** 批量导入会员（对齐旧版 ImportUser.vue：下载模板 + 上传 Excel + 错误数据下载）。 */
   const [importOpen, setImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -402,6 +406,13 @@ export default function Members() {
             <Button size="small" onClick={() => startBatch('balance', rows, clear)}>
               {t('批量加余额')}
             </Button>
+            <Button
+              size="small"
+              type="danger"
+              onClick={() => setBlacklistBatchIds(rows.map((row) => row.userId))}
+            >
+              {t('加入黑名单')}
+            </Button>
           </Space>
         )}
         toolbarExtra={
@@ -466,6 +477,7 @@ export default function Members() {
                 { node: 'item', name: t('标签'), onClick: () => open('tags', record) },
                 { node: 'item', name: t('查看订单'), onClick: () => open('orders', record) },
                 { node: 'item', name: t('账目明细'), onClick: () => open('account', record) },
+                { node: 'item', name: t('加入黑名单'), onClick: () => setBlacklistSingle(record) },
               ]}
             >
               <Button theme="borderless" size="small">
@@ -580,6 +592,30 @@ export default function Members() {
           closeBatch();
           setReloadKey((key) => key + 1);
         }}
+      />
+
+      <BlacklistAddModal
+        visible={blacklistBatchIds !== null}
+        userIds={blacklistBatchIds || []}
+        source={1}
+        onCancel={() => setBlacklistBatchIds(null)}
+        onSuccess={() => setBlacklistBatchIds(null)}
+      />
+      <BlacklistAddModal
+        visible={blacklistSingle !== null}
+        initialUser={
+          blacklistSingle
+            ? {
+                userId: blacklistSingle.userId,
+                username: blacklistSingle.username,
+                nickname: blacklistSingle.nickname,
+                mobile: blacklistSingle.mobile,
+              }
+            : null
+        }
+        source={0}
+        onCancel={() => setBlacklistSingle(null)}
+        onSuccess={() => setBlacklistSingle(null)}
       />
 
       <Modal

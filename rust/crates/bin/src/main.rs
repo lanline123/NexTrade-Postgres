@@ -145,6 +145,7 @@ use nextrade_services::member::member_lists::MemberService;
 use nextrade_services::member::member_tag::MemberTagService;
 use nextrade_services::member::member_tag_group::MemberTagGroupService;
 use nextrade_services::member::shop_member::ShopMemberService;
+use nextrade_services::member::user_blacklist::UserBlacklistService;
 use nextrade_services::member::user::UserService;
 use nextrade_services::member::user_address_client::UserAddressClientService;
 use nextrade_services::member::user_center::UserCenterService;
@@ -674,6 +675,7 @@ async fn main() -> anyhow::Result<()> {
     });
     let login = Arc::new(LoginService::new(repos.clone(), cache.clone(), jwt.clone()));
     let shop_member = Arc::new(ShopMemberService::new(repos.clone()));
+    let user_blacklist = Arc::new(UserBlacklistService::new(repos.clone()));
     let user_address_client = Arc::new(UserAddressClientService::new(repos.clone()));
     let user_message = Arc::new(UserMessageService::new(repos.clone()));
     let user_member_tag = Arc::new(UserMemberTagService::new(repos.clone()));
@@ -700,6 +702,7 @@ async fn main() -> anyhow::Result<()> {
         user_rank: user_rank.clone(),
         login: login.clone(),
         shop_member: shop_member.clone(),
+        user_blacklist: user_blacklist.clone(),
         user_address_client: user_address_client.clone(),
         user_message: user_message.clone(),
         user_member_tag: user_member_tag.clone(),

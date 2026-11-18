@@ -6,6 +6,7 @@ pub mod member_lists;
 pub mod member_tag;
 pub mod member_tag_group;
 pub mod shop_member;
+pub mod user_blacklist;
 pub mod user_company;
 pub mod user_manage;
 pub mod user_member_tag;
@@ -27,6 +28,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(member_tag::routes(state))
         .merge(member_tag_group::routes(state))
         .merge(shop_member::routes(state))
+        .merge(user_blacklist::routes(state))
         .merge(user_company::routes(state))
         .merge(user_manage::routes(state))
         .merge(user_member_tag::routes(state))
@@ -51,6 +53,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(member_tag::implemented_routes());
     out.extend(member_tag_group::implemented_routes());
     out.extend(shop_member::implemented_routes());
+    out.extend(user_blacklist::implemented_routes());
     out.extend(user_company::implemented_routes());
     out.extend(user_manage::implemented_routes());
     out.extend(user_member_tag::implemented_routes());

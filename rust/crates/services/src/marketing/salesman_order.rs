@@ -162,6 +162,62 @@ impl SalesmanOrderService {
             .ok_or_else(|| Error::Validation(MSG_IDS_REQUIRED.into()))?;
         // 多租户：人工结算前逐条校验归属
         self.ensure_records_access(ids).await?;
+        // 客户黑名单（佣金发放限制，方案 §4.5 定死）：人工路径与自动路径
+        // 口径不同——管理员主动操作，任一记录的收佣人命中限制即**整批
+        // 拒绝并点名**命中的记录 id，管理员改选其余记录再提交即可。
+        let blacklist =
+            crate::member::user_blacklist::UserBlacklistService::new(self.repos.clone());
+        let mut blocked: Vec<i32> = Vec::new();
+        for id in ids {
+            let Some(record) = self.repo().find_by_id(*id).await? else {
+                continue;
+            };
+            let Some(salesman_id) = record.salesman_id else {
+                continue;
+            };
+            let Some(salesman) = self
+                .repos
+                .marketing
+                .salesman_admin
+                .find_salesman(salesman_id)
+                .await?
+            else {
+                continue;
+            };
+            let Some(payee_user_id) = salesman.user_id.filter(|v| *v > 0) else {
+                continue;
+            };
+            let order_shop_id = match record.order_id.filter(|v| *v > 0) {
+                Some(oid) => self
+                    .repos
+                    .trade
+                    .order
+                    .find_by_id(oid)
+                    .await?
+                    .map(|o| o.shop_id),
+                None => None,
+            };
+            if blacklist
+                .find_commission_restriction(payee_user_id, salesman.shop_id, order_shop_id)
+                .await?
+                .is_some()
+            {
+                blocked.push(*id);
+            }
+        }
+        if !blocked.is_empty() {
+            let names = blocked
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("、");
+            return Err(Error::biz(
+                1001,
+                format!(
+                    "分销记录 {names} 的收佣人存在佣金发放限制，整批结算已拒绝，请先处理限制或改选其余记录再提交"
+                ),
+            ));
+        }
         let now = i32::try_from(nextrade_common::utils::now_seconds()).unwrap_or(i32::MAX);
         let affected = self.repo().mark_settled(ids, now).await?;
         Ok(affected)

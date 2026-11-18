@@ -179,8 +179,52 @@ impl SettlementService {
         .fetch_all(self.pool())
         .await
         .map_err(db_err)?;
+        // 佣金发放限制判定的订单店铺兜底上下文（方案 §4.2）。
+        let order_shop_id: Option<i32> =
+            sqlx::query_scalar("SELECT shop_id FROM \"order\" WHERE order_id = $1")
+                .bind(order_id)
+                .fetch_optional(self.pool())
+                .await
+                .map_err(db_err)?;
         let now = now_i32();
         for (sid, salesman_id, amount, order_amount) in rows {
+            let Some(salesman_id) = salesman_id else { continue };
+            // 客户黑名单（佣金发放限制，方案 §4.5 定死）：以收佣人 user_id
+            // 判定，命中 → 整条跳过：**不置已结算**（status 保持 0 待结算）、
+            // 不入账、不累计推广金额、不触发升级；移除限制后下一次结算
+            // 触发即可补发，不丢钱、不重复发。跳过必须留痕：warn 日志带
+            // salesman_order_id / 收佣人 / 命中条目 id（本文件结算级联的
+            // 既有惯例即 tracing::warn），客服可凭此反查解释。
+            let payee: Option<(Option<i32>, Option<i32>)> = sqlx::query_as(
+                "SELECT user_id, shop_id FROM salesman WHERE salesman_id = $1",
+            )
+            .bind(salesman_id)
+            .fetch_optional(self.pool())
+            .await
+            .map_err(db_err)?;
+            if let Some((Some(payee_user_id), payee_shop_id)) = payee {
+                let blacklist = crate::member::user_blacklist::UserBlacklistService::new(
+                    self.repos.clone(),
+                );
+                match blacklist
+                    .find_commission_restriction(payee_user_id, payee_shop_id, order_shop_id)
+                    .await
+                {
+                    Ok(Some(hit)) => {
+                        tracing::warn!(
+                            "结算级联：佣金发放受限，跳过入账且保持待结算 salesman_order={sid} salesman={salesman_id} user={payee_user_id} blacklist={}",
+                            hit.blacklist_id
+                        );
+                        continue;
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        tracing::warn!(
+                            "结算级联：佣金发放限制校验失败，按未受限继续 salesman_order={sid} err={e}"
+                        );
+                    }
+                }
+            }
             // 已结算（!=0）跳过；条件更新保证并发 / 重放安全
             let claimed = sqlx::query(
                 "UPDATE salesman_order SET status = 1, settlement_time = $1 \
@@ -196,7 +240,6 @@ impl SettlementService {
             if !claimed {
                 continue;
             }
-            let Some(salesman_id) = salesman_id else { continue };
             // 累计推广金额
             let _ = sqlx::query(
                 "UPDATE salesman SET sale_amount = COALESCE(sale_amount, 0) + $1 \

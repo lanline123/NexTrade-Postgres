@@ -9,6 +9,7 @@ pub mod member_tag;
 pub mod member_tag_group;
 pub mod shop_member;
 pub mod user;
+pub mod user_blacklist;
 pub mod user_address_client;
 pub mod user_center;
 pub mod user_company;
@@ -40,6 +41,7 @@ pub struct Repositories {
     pub user_points_log: user_points_log::UserPointsLogRepository,
     pub user_rank: user_rank::UserRankRepository,
     pub shop_member: shop_member::ShopMemberRepository,
+    pub user_blacklist: user_blacklist::UserBlacklistRepository,
     pub user_address_client: user_address_client::UserAddressRepository,
     pub user_message: user_message::UserMessageRepository,
     pub user_member_tag: user_member_tag::UserMemberTagRepository,
@@ -69,6 +71,7 @@ impl Repositories {
             user_points_log: user_points_log::UserPointsLogRepository::new(pool.clone()),
             user_rank: user_rank::UserRankRepository::new(pool.clone()),
             shop_member: shop_member::ShopMemberRepository::new(pool.clone()),
+            user_blacklist: user_blacklist::UserBlacklistRepository::new(pool.clone()),
             user_address_client: user_address_client::UserAddressRepository::new(pool.clone()),
             user_message: user_message::UserMessageRepository::new(pool.clone()),
             user_member_tag: user_member_tag::UserMemberTagRepository::new(pool.clone()),

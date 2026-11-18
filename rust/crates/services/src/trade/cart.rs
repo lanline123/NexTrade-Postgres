@@ -172,6 +172,24 @@ impl CartService {
         if quantity <= 0 {
             return Err(Error::Validation("数量必须大于0".into()));
         }
+        // 客户黑名单（下单限制，先人后货）：按商品归属店铺判定，命中即拒绝。
+        // 文案见 blacklist-design §7（用户端不出现「黑名单」字样）。
+        {
+            let shop_id = self
+                .product
+                .detail(product_id)
+                .await
+                .map(|v| v.shop_id)
+                .unwrap_or(0);
+            crate::member::user_blacklist::UserBlacklistService::new(self.repos.clone())
+                .ensure_allowed(
+                    user_id,
+                    nextrade_core::models::member::user_blacklist::PRODUCT_MALL,
+                    nextrade_core::models::member::user_blacklist::BEHAVIOR_PLACE_ORDER,
+                    Some(shop_id),
+                )
+                .await?;
+        }
         // 校验商品可购
         self.product.check_purchasable(product_id, sku_id, quantity).await?;
 
