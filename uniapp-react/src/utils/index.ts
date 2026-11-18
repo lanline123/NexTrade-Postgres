@@ -439,6 +439,23 @@ export function getElementRect(selector: string, instance?: any): Promise<Rect |
 export function getElementRect(selector: string, instance: any, all: true): Promise<Rect[]>;
 export function getElementRect(selector: string, instance?: any, all?: boolean): Promise<Rect | Rect[] | null> {
     return new Promise((resolve) => {
+        // H5 专属路径：React 版传入的 instance 是根 DOM 节点，Taro 的 .in(组件实例)
+        // 在 H5 下查不到元素、恒返回 null（banner 等靠测量定高的模块因此高度永远为 0、
+        // 整块塌陷空白，2026-11-17 实测）。H5 直接走 DOM 测量，结果与 boundingClientRect 等价。
+        if (process.env.TARO_ENV === "h5" && typeof document !== "undefined") {
+            const root: any = instance && instance.nodeType === 1 ? instance : document;
+            const toRect = (el: Element): Rect => {
+                const r = el.getBoundingClientRect();
+                return { top: r.top, left: r.left, right: r.right, bottom: r.bottom, width: r.width, height: r.height, dataset: {}, id: (el as HTMLElement).id || "" } as Rect;
+            };
+            if (all) {
+                resolve(Array.from(root.querySelectorAll(selector)).map(toRect));
+                return;
+            }
+            const el = root.querySelector(selector);
+            resolve(el ? toRect(el) : null);
+            return;
+        }
         // 创建选择器查询对象
         const query = instance ? Taro.createSelectorQuery().in(instance) : Taro.createSelectorQuery();
 
@@ -502,6 +519,11 @@ export function staticResource(path: string, type = "images"): string {
         return path;
     } else if (root && isUrl(root)) {
         return `${root}/${type}/${path}`;
+    } else if (process.env.TARO_ENV === "h5") {
+        // H5 部署在 /mobile/ 子路径下，静态文件在 H5 自身目录（/mobile/static/...）；
+        // 旧实现拼 baseUrl（站点根）会落到 PC 站的 /static/ 上 404——抽屉头像/箭头、
+        // 回顶图标等 118 处引用全灭（2026-11-17 实测）
+        return `${window.location.origin}/mobile/${root}/${type}/${path}`;
     } else {
         return `${baseUrl}/${root}/${type}/${path}`;
     }

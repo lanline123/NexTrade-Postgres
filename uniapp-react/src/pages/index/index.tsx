@@ -115,14 +115,34 @@ export default function Index() {
 
     const getSplashAdData = async () => {
         try {
-            const result = await getSplashAd();
+            const result: any = await getSplashAd();
             if (!result) return;
-            setSplashShow(result.state == 1);
-            setAdType(result.materialType == 0 ? "image" : "video");
-            setAdUrl(result.materialType == 0 ? (result.materialImg as string) : (result.materialVideo?.[0]?.videoUrl as string));
-            setRedirectType(String(result.redirectType));
+            // 素材地址归一化：materialVideo 历史上有三种存法——原版数组
+            // [{ videoUrl }]、后台曾存过的纯字符串 URL、单对象 { videoUrl/url }，
+            // 全部兼容，否则视频开屏取不到地址。materialImg 同理兼容对象形态。
+            const videoUrl =
+                typeof result.materialVideo === "string"
+                    ? result.materialVideo
+                    : Array.isArray(result.materialVideo)
+                      ? (result.materialVideo[0]?.videoUrl ??
+                        result.materialVideo[0]?.url ??
+                        (typeof result.materialVideo[0] === "string" ? result.materialVideo[0] : ""))
+                      : (result.materialVideo?.videoUrl ?? result.materialVideo?.url ?? "");
+            const imgUrl =
+                typeof result.materialImg === "string"
+                    ? result.materialImg
+                    : (result.materialImg?.picUrl ?? result.materialImg?.url ?? "");
+            const isVideo = Number(result.materialType) === 1;
+            const url = isVideo ? videoUrl : imgUrl;
+            // 只有开启且素材地址非空才展示，避免空素材黑屏挡住首页
+            setSplashShow(Number(result.state) === 1 && !!url);
+            setAdType(isVideo ? "video" : "image");
+            setAdUrl(url);
+            setRedirectType(String(result.redirectType ?? 0));
             setRedirectUrl(result.redirectUrl as string);
-            setDuration(result.maxWaitTime);
+            // maxWaitTime 线上存的是字符串（如 "4"），统一转数字，非法值回退 3 秒
+            const wait = Number(result.maxWaitTime);
+            setDuration(Number.isFinite(wait) && wait > 0 ? wait : 3);
         } catch (error) {
             console.error("获取开屏广告失败:", error);
         }

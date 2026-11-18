@@ -15,6 +15,12 @@
                 height: 80rpx;
             }
 
+            // Taro H5 的 Swiper 宿主是 taro-swiper-core（默认高 150px），不叫 .swiper；
+            // 上面那条对它不生效，这里补一条真正命中的（内联 px 高度为主，此条兜底）
+            taro-swiper-core {
+                height: 80rpx;
+            }
+
             .notices-item {
                 display: flex;
                 align-items: center;

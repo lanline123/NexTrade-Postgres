@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Image, Swiper, SwiperItem, View } from "@tarojs/components";
 
-import { formatCommonStyle } from "@/components/modules";
+import { designPxToDevicePx, formatCommonStyle } from "@/components/modules";
 import { redirect } from "@/utils";
 import { imageFormat, urlFormat } from "@/utils/format";
 
@@ -65,8 +65,11 @@ export default function MixedNotice({ module }: Props) {
                                 ) : (
                                     // 旧 tig-swiper（dot=false 分支）等价展开：
                                     // height="80rpx"、circular、无指示点、autoplay 默认 true、interval 默认 3000、vertical、duration=800
+                                    // 注意：高度必须给换算后的 px 字符串（与 banner 模块同款）。
+                                    // 直接写 "80rpx" 在 H5 端不生效，taro-swiper-core 会回落到默认高 150px，
+                                    // 整行被撑高、静态组被 align-items:center 顶偏（2026-11-17 实测错位 52px）。
                                     <Swiper
-                                        style={{ height: "80rpx" }}
+                                        style={{ height: designPxToDevicePx(40) + "px" }}
                                         circular
                                         indicatorDots={false}
                                         autoplay

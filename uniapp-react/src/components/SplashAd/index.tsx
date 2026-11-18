@@ -22,26 +22,42 @@ interface Props {
  *
  * 行为逐条对齐旧实现：
  * - 素材加载完成（image @load / video loadedmetadata）后才开始倒计时并露出"跳过"；
- * - 倒计时归零自动关闭；video 播完（ended）也关闭；
+ * - 倒计时归零自动关闭；video 播完（ended）也关闭（故 video 不设 loop，循环播放不会触发 ended）；
+ * - 兜底：素材加载失败（image/video @error）立即关闭；挂载 10 秒仍未加载完成也自动关闭，
+ *   避免坏素材/慢网络把用户卡在黑屏开屏上回不了首页（旧实现无此兜底）；
  * - 点击素材：redirectType == "1" 时按 redirectUrl 跳转并关闭，其余类型只打日志（旧代码注释掉的分支同样保留为注释语义）；
  * - 旧 close-btn 的端差异（weapp 左上 / h5 右上）改为 TARO_ENV 下不同 className。
  */
 export default function SplashAd({ adType, adUrl, duration = 3, redirectType, redirectUrl, onClose }: Props) {
     const [show, setShow] = useState(true);
     const [loaded, setLoaded] = useState(false);
-    const [countdown, setCountdown] = useState(duration || 3);
+    const [countdown, setCountdown] = useState(() => {
+        const d = Number(duration);
+        return Number.isFinite(d) && d > 0 ? d : 3;
+    });
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const closedRef = useRef(false);
+    const loadedRef = useRef(false);
 
     const clearTimer = () => {
         if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
         }
+        if (watchdogRef.current) {
+            clearTimeout(watchdogRef.current);
+            watchdogRef.current = null;
+        }
     };
 
     useEffect(() => {
+        // 兜底看门狗：素材迟迟不加载完成（坏链/慢网）时自动关闭，不卡黑屏
+        watchdogRef.current = setTimeout(() => {
+            if (!loadedRef.current) closeAd();
+        }, 10000);
         return () => clearTimer();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const closeAd = () => {
@@ -53,7 +69,12 @@ export default function SplashAd({ adType, adUrl, duration = 3, redirectType, re
     };
 
     const onLoaded = () => {
-        if (loaded || closedRef.current) return;
+        if (loadedRef.current || closedRef.current) return;
+        loadedRef.current = true;
+        if (watchdogRef.current) {
+            clearTimeout(watchdogRef.current);
+            watchdogRef.current = null;
+        }
         setLoaded(true);
         timerRef.current = setInterval(() => {
             setCountdown((prev) => {
@@ -64,6 +85,11 @@ export default function SplashAd({ adType, adUrl, duration = 3, redirectType, re
                 return next;
             });
         }, 1000);
+    };
+
+    // 素材加载失败兜底：直接关闭开屏放行首页，绝不黑屏卡住
+    const onLoadError = () => {
+        closeAd();
     };
 
     const handleAdClick = () => {
@@ -81,7 +107,7 @@ export default function SplashAd({ adType, adUrl, duration = 3, redirectType, re
     return (
         <View className="splash-ad">
             {adType === "image" ? (
-                <Image className="ad-img" src={imageFormat(adUrl)} mode="aspectFill" onLoad={onLoaded} onClick={handleAdClick} />
+                <Image className="ad-img" src={imageFormat(adUrl)} mode="aspectFill" onLoad={onLoaded} onError={onLoadError} onClick={handleAdClick} />
             ) : (
                 <Video
                     className="ad-video"
@@ -94,8 +120,8 @@ export default function SplashAd({ adType, adUrl, duration = 3, redirectType, re
                     showFullscreenBtn={false}
                     enableProgressGesture={false}
                     muted
-                    loop
                     onEnded={closeAd}
+                    onError={onLoadError}
                     onLoadedMetaData={onLoaded}
                     onClick={handleAdClick}
                 >

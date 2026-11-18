@@ -50,9 +50,12 @@ export default function Notice({ module }: Props) {
                                 className="item-notice-con"
                                 style={itemFormat.itemBackgroundColor + itemFormat.itemHeight + itemFormat.itemRadius}
                             >
-                                <View className="item-notice-ico">
-                                    <TigImage src={module.icoPic.picUrl} mode="widthFix" />
-                                </View>
+                                {/* 未配置公告图标时不渲染（空 src 会显示裂图，2026-11-17 实测） */}
+                                {module.icoPic?.picUrl ? (
+                                    <View className="item-notice-ico">
+                                        <TigImage src={module.icoPic.picUrl} mode="widthFix" />
+                                    </View>
+                                ) : null}
                                 <View className="item-notice-list">
                                     {module.nociceEffect === "scroll" && (
                                         <View className="item-notice-input scroll-animation" style={itemFormat.textColor}>

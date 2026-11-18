@@ -1,4 +1,6 @@
-/* 自旧 pages/productCate/src/menu.vue <style lang="scss" scoped> 原样拷出（去 scoped） */
+/* 自旧 pages/productCate/src/menu.vue <style lang="scss" scoped> 原样拷出（去 scoped）  * [2026-11-18 修复] 原版 px 字面量在 Taro pxtransform 下按 750 设计稿换算会缩水一半（90px→45px 实测），
+ * 故按原版真实像素 ×2 改写为 rpx（90px→180rpx 等），恢复原版比例。1px 发丝边框不处理。
+*/
 .menu-content {
     height: 100%;
     width: 100%;
@@ -7,10 +9,10 @@
         height: 100%;
 
         .menu-item {
-            min-height: 50px;
-            padding-left: 6px;
+            min-height: 100rpx;
+            padding-left: 12rpx;
             width: 100%;
-            font-size: 13px;
+            font-size: 26rpx;
             color: var(--cate-side-text, #424242);
             text-align: center;
             display: flex;
@@ -26,10 +28,10 @@
 
                 &::after {
                     content: "";
-                    width: 3px;
-                    height: 18px;
+                    width: 6rpx;
+                    height: 36rpx;
                     background-color: var(--cate-side-indicator, var(--cate-theme, var(--general)));
-                    border-radius: 2px;
+                    border-radius: 4rpx;
                     position: absolute;
                     left: 0;
                 }

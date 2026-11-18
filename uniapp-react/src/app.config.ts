@@ -136,6 +136,7 @@ export default defineAppConfig({
         "pages/register/agreement",
         "pages/webviewPage/index",
         "pages/customPage/index",
+        "pages/decoratePreview/index",
         "pages/404/index"
     ],
     window: {

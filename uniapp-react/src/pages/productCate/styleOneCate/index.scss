@@ -1,4 +1,6 @@
-/* 自旧 pages/productCate/styleOneCate.vue <style lang="scss" scoped> 原样拷出（去 scoped） */
+/* 自旧 pages/productCate/styleOneCate.vue <style lang="scss" scoped> 原样拷出（去 scoped）  * [2026-11-18 修复] 原版 px 字面量在 Taro pxtransform 下按 750 设计稿换算会缩水一半（90px→45px 实测），
+ * 故按原版真实像素 ×2 改写为 rpx（90px→180rpx 等），恢复原版比例。1px 发丝边框不处理。
+*/
 .category-layout-one .main-header-spacer {
     width: 100%;
     flex-shrink: 0;
@@ -149,7 +151,7 @@
                 background-color: var(--cate-side-active-bg, #fff);
                 color: var(--cate-side-active-text, var(--cate-theme, #1a1a1a));
                 font-weight: bold;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+                box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.04);
             }
         }
     }

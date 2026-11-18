@@ -28,7 +28,10 @@ export default defineConfig(async (merge) => {
         plugins: [],
         defineConstants: {},
         copy: {
-            patterns: [],
+            // src/static 必须整目录拷入 dist/static：staticResource() 的全部图片
+            // （含从原 Java 版 jar 里找回的 static/mini 资产树）都靠它发布；
+            // 此前 patterns 为空，静态图从未进过产物，线上全靠 SPA 兜底返回 HTML（2026-11-17 实测）
+            patterns: [{ from: "src/static/", to: "dist/static/" }],
             options: {}
         },
         framework: "react",

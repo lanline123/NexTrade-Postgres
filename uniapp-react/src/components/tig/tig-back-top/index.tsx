@@ -39,13 +39,27 @@ export default function TigBackTop({
     const safeBottom = useConfigStore((s) => s.safeAreaInsets.bottom);
 
     // 对应旧 computed styleFormat
-    const styleFormat = useMemo(
-        () => ({
+    // H5 下 right 改按窗口宽换算成 px：rpx 字符串在 H5 内联样式里一旦转换失效，
+    // 按钮会失去定位落到左边缘半出屏遮挡正文（2026-11-17 实测）；bottom 各分量做数值兜底防 NaNpx
+    const styleFormat = useMemo(() => {
+        const bottomPx = (Number(bottom) || 0) + (Number(tabbarHeightNum) || 0) + (Number(safeBottom) || 0);
+        if (process.env.TARO_ENV === "h5") {
+            let windowWidth = 375;
+            try {
+                windowWidth = Taro.getSystemInfoSync().windowWidth || 375;
+            } catch {
+                // 取不到窗口宽时按设计宽兜底
+            }
+            return {
+                right: `${Math.round(((Number(right) || 0) * windowWidth) / 750)}px`,
+                bottom: `${bottomPx}px`
+            };
+        }
+        return {
             right: `${right}rpx`,
-            bottom: `${bottom + tabbarHeightNum + safeBottom}px`
-        }),
-        [right, bottom, tabbarHeightNum, safeBottom]
-    );
+            bottom: `${bottomPx}px`
+        };
+    }, [right, bottom, tabbarHeightNum, safeBottom]);
 
     // uview 默认行为：滚动超过一屏后显示
     const show = useMemo(() => Number(scrollTop) > 500, [scrollTop]);

@@ -33,6 +33,42 @@ view {
 .align-center {
     align-items: center;
 }
+/* 原版工具类补全（2026-11-17）：flex-column / justify-between 等类在全站 20+ 文件中使用，
+   此前全局从未定义——抽屉 .left-menu-box 因此按 row 横排成多列（分类行被挤到列表中段），
+   所有 justify-between 行的左右分布也从未生效。按原版 App.vue 工具集语义补回。 */
+.flex-row {
+    flex-direction: row;
+}
+.flex-column {
+    flex-direction: column;
+}
+.flex-wrap {
+    flex-wrap: wrap;
+}
+.justify-start {
+    justify-content: flex-start;
+}
+.justify-end {
+    justify-content: flex-end;
+}
+.justify-center {
+    justify-content: center;
+}
+.justify-between {
+    justify-content: space-between;
+}
+.justify-around {
+    justify-content: space-around;
+}
+.align-start {
+    align-items: flex-start;
+}
+.align-end {
+    align-items: flex-end;
+}
+.align-stretch {
+    align-items: stretch;
+}
 
 /* 原版 App.vue 全局入场淡入（ref App.vue:381-392）平移：@keyframes fade-in + .show 动画类。
    原版由分发层在 catNav 分类切换后给 banner/category/brand 包裹层加 .show 触发（非滚动观察机制），
