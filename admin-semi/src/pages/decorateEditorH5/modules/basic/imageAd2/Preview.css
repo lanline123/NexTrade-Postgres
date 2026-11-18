@@ -6,12 +6,9 @@
 
 /* 轮播定高（2026-11-18，与首焦轮播 banner 同口径）：
    容器高度由 useSwiperHeight 按首图比例锁定（class image-ad-con--fixedh 仅轮播模式添加），
-   幻灯与图片填满定高区，不再随图片自然高度跳变、指示点不再被挤出 */
-.image-ad-con--fixedh .nut-swiper {
-    height: 100%;
-}
-.image-ad-con--fixedh .nut-swiper-item {
-    height: 100%;
+   幻灯（SimpleCarousel）与图片填满定高区，不再随图片自然高度跳变、指示点不再被挤出 */
+.image-ad-con--fixedh {
+    position: relative;
 }
 .image-ad-con--fixedh .swiper-main {
     height: 100%;
@@ -31,4 +28,11 @@
     height: 100%;
     object-fit: cover;
     display: block;
+}
+.image-ad-con--fixedh .image-ad-dots-wrap {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 8px;
+    z-index: 3;
 }

@@ -2,10 +2,10 @@
  * 图片广告1 预览（移植自 view/admin editor/modules/mobile/imageAd/Preview.vue）
  *
  * 结构/类名与 Vue 版逐一致（module-ad-con / image-ad-warp / image-ad-con / image-ad-item），
- * 样式由移植的全局 module.css 提供；轮播使用 NutUI Swiper。
+ * 样式由移植的全局 module.css 提供；轮播使用 shared/SimpleCarousel（定高见 useSwiperHeight）。
  */
 import { useMemo, useState } from "react";
-import { Swiper, SwiperItem } from "@nutui/nutui-react";
+import SimpleCarousel from "../../../shared/SimpleCarousel";
 import "./Preview.css";
 import CommonTitle from "../../../shared/CommonTitle";
 import { cssText, imageFormat } from "../../../shared/format";
@@ -91,59 +91,51 @@ export default function ImageAdPreview({ data }: { data: Record<string, any> }) 
                             style={swiperHeight ? { height: swiperHeight } : undefined}
                         >
                             {module.swiperPreView && module.swiperPreView == 1 ? (
-                                <Swiper
-                                    autoplay={3000}
-                                    loop={module.picList.length > 1}
-                                    onChange={(i: number) => setSlideIndex(i)}
-                                    indicator={renderDots(module.picList.length)}
-                                >
+                                <SimpleCarousel autoplayMs={3000} onChange={setSlideIndex}>
                                     {(module.picList as any[]).map((item, i) => (
-                                        <SwiperItem key={i}>
-                                            <div className="image-ad-item">
-                                                <div className="item-content" style={imgPaddingStyle}>
-                                                    <div className="item-img-a">
-                                                        <img className="item-img" src={imageFormat(item.picUrl)} alt="" />
-                                                    </div>
+                                        <div key={i} className="image-ad-item">
+                                            <div className="item-content" style={imgPaddingStyle}>
+                                                <div className="item-img-a">
+                                                    <img className="item-img" src={imageFormat(item.picUrl)} alt="" />
                                                 </div>
                                             </div>
-                                        </SwiperItem>
+                                        </div>
                                     ))}
-                                </Swiper>
+                                </SimpleCarousel>
                             ) : (
-                                <Swiper
-                                    autoplay={3000}
-                                    loop={swiperList.length > 1}
-                                    onChange={(i: number) => setSlideIndex(i)}
-                                    indicator={renderDots(swiperList.length)}
-                                >
+                                <SimpleCarousel autoplayMs={3000} onChange={setSlideIndex}>
                                     {swiperList.map((group, gi) => (
-                                        <SwiperItem key={gi}>
-                                            <div
-                                                className="swiper-main"
-                                                style={{
-                                                    display: "grid",
-                                                    gridTemplateColumns: `repeat(${columns}, 1fr)`,
-                                                    columnGap: `${module.imgPadding}px`,
-                                                    boxSizing: "border-box",
-                                                    width: "100%"
-                                                }}
-                                            >
-                                                {group.map((subItem, si) => (
-                                                    <div key={si}>
-                                                        <div className="image-ad-item">
-                                                            <div className="item-content" style={imgPaddingStyle}>
-                                                                <div className="item-img-a">
-                                                                    <img className="item-img" src={imageFormat(subItem.picUrl)} alt="" />
-                                                                </div>
+                                        <div
+                                            key={gi}
+                                            className="swiper-main"
+                                            style={{
+                                                display: "grid",
+                                                gridTemplateColumns: `repeat(${columns}, 1fr)`,
+                                                columnGap: `${module.imgPadding}px`,
+                                                boxSizing: "border-box",
+                                                width: "100%"
+                                            }}
+                                        >
+                                            {group.map((subItem, si) => (
+                                                <div key={si}>
+                                                    <div className="image-ad-item">
+                                                        <div className="item-content" style={imgPaddingStyle}>
+                                                            <div className="item-img-a">
+                                                                <img className="item-img" src={imageFormat(subItem.picUrl)} alt="" />
                                                             </div>
                                                         </div>
                                                     </div>
-                                                ))}
-                                            </div>
-                                        </SwiperItem>
+                                                </div>
+                                            ))}
+                                        </div>
                                     ))}
-                                </Swiper>
+                                </SimpleCarousel>
                             )}
+                            {(singleMode ? module.picList?.length || 0 : swiperList.length) > 1 ? (
+                                <div className="image-ad-dots-wrap">
+                                    {renderDots(singleMode ? module.picList.length : swiperList.length)}
+                                </div>
+                            ) : null}
                         </div>
                     </div>
                 ) : (

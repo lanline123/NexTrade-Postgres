@@ -135,13 +135,11 @@
     height: 24px;
     text-decoration: none;
 }
-/* 轮播定高（2026-11-18）：高度由 Preview 按首图比例写入 --h5-banner-swiper-h；
-   不定高时 NutUI Swiper 按图片自然高度重测，模块会被方图撑高且随播放漂移 */
-.h5-banner .image-ad-con .nut-swiper {
+/* 轮播定高（2026-11-18）：高度由 Preview 按首图比例写入 --h5-banner-swiper-h 并锁在
+   轮播容器上，内层 SimpleCarousel 与图片填满定高区；不定高时按图片自然高度重测，
+   模块会被方图撑高且随播放漂移 */
+.h5-banner .image-ad-con {
     height: var(--h5-banner-swiper-h, 180px);
-}
-.h5-banner .image-ad-con .nut-swiper-item {
-    height: 100%;
 }
 .h5-banner .image-ad-item {
     height: 100%;
