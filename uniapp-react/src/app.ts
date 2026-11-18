@@ -8,9 +8,13 @@ import { useI18nStore } from "@/store/i18n";
 import init from "@/utils/init";
 import { isOverseas } from "@/utils";
 
+import { installInlineRpxH5 } from "@/utils/inlineRpxH5";
+
 import "./app.scss";
 // 全局装修样式（.module-ad-con 布局等）+ iconfont，自旧 App.vue 的 @import 平移
 import "@/static/css/style.css";
+
+installInlineRpxH5();
 
 function App({ children }: PropsWithChildren<any>) {
     useLaunch(() => {

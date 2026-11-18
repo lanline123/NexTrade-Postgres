@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { View } from "@tarojs/components";
-import Taro from "@tarojs/taro";
+
+import { convertInlineRpx } from "@/utils/inlineRpxH5";
 
 import { useConfigStore } from "@/store/config";
 import { useCurrencyStore } from "@/store/currency";
@@ -52,15 +53,12 @@ export default function FormatPrice({
     };
 
     // H5 内联样式不经 PostCSS：rpx 字符串会被浏览器按无效值丢弃、字号回退到继承值（价格显大，
-    // 2026-11-18 分类页实测定位）。与 utils/styleLength 同口径，H5 下经 Taro.pxTransform 换算。
+    // 2026-11-18 分类页实测定位）。组件级先行换算（与 utils/inlineRpxH5 全局收口同口径、互为兜底）。
     const convStyle = (styleObj: StyleObj): StyleObj => {
         if (process.env.TARO_ENV !== "h5" || !styleObj) return styleObj;
         const out: StyleObj = {};
         for (const [k, v] of Object.entries(styleObj)) {
-            out[k] =
-                typeof v === "string"
-                    ? v.replace(/(-?[\d.]+)rpx/g, (_, n) => Taro.pxTransform(parseFloat(n)))
-                    : v;
+            out[k] = typeof v === "string" ? convertInlineRpx(v) : v;
         }
         return out;
     };
