@@ -3,7 +3,8 @@
  *
  * 商城头部型：弧度渐变层（随当前轮播图 gradientColorA/B 与 gradientType/height/backgroundRadius）+
  * logo + 搜索条（菜单图标/搜索框/签到图标）+ 热词行 + Swiper 轮播（指示色 = swiperPageColor）。
- * 菜单/签到默认图标取原版 defaultIconImage 的 OSS 图（menu 7 款 / sign 4 款），自定义图优先。
+ * 菜单/签到默认图标为 IconPark 字形（./iconStyles.ts 映射，与 Settings 选择器同一份；
+ * 不再使用原版 defaultIconImage 的 tigshop 默认图——全站图标换 IconPark 的既定改口径），自定义图优先。
  * 搜索图标为 iconfont-h5 icon-sousuo1，以等尺寸内联 SVG 承接。
  * 轮播定高（2026-11-18）：原版自定义 Swiper 按内容自适应高度，NutUI Swiper 不定高会
  * 随图片自然高度漂移——改按首图比例定高（与前台 useImgInfo 同口径）+ cover 填充。
@@ -13,23 +14,9 @@ import { Swiper, SwiperItem } from "@nutui/nutui-react";
 import { cssText, imageFormat } from "../../../shared/format";
 import { mergeDefaultModule, formatCommonStyle, gradientMap } from "../../../contract/sharedDefaults";
 import { bannerDefaults } from "./index";
+import FloorIcon from "../../../../../components/FloorIcon";
+import { menuIconParkValue, signIconParkValue } from "./iconStyles";
 import "./Preview.css";
-
-const MENU_ICONS = [
-    "https://oss.tigshop.com/img/gallery/202411/1731044058k3D2oAM6v4j1NUqnd4.png",
-    "https://oss.tigshop.com/img/gallery/202411/1731044058yv4ngGH3BtQalK2Ews.png",
-    "https://oss.tigshop.com/img/gallery/202411/17310440580AWfxX5dX8tq2iC91X.png",
-    "https://oss.tigshop.com/img/gallery/202411/1731044058oBfYyYzrYBK3daMTiS.png",
-    "https://oss.tigshop.com/img/gallery/202411/17310440582tapohBoU1mliQxGgT.png",
-    "https://oss.tigshop.com/img/gallery/202411/1731044058Xxnsx3an6igjmg9OZh.png",
-    "https://oss.tigshop.com/img/gallery/202411/1731044060czIoPbXd4pO0GteMVZ.png"
-];
-const SIGN_ICONS = [
-    "https://oss.tigshop.com/img/gallery/202411/1731044060WUMf13Ls2YfzTFHVYR.png",
-    "https://oss.tigshop.com/img/gallery/202411/17310440604yFr67HdqrIIk5UCzm.png",
-    "https://oss.tigshop.com/img/gallery/202411/1731044060gYalEs84jlX6pMBE0p.png",
-    "https://oss.tigshop.com/img/gallery/202411/1731044060cZffgle3HfRaQtiH3V.png"
-];
 
 function SearchIcon() {
     return (
@@ -67,12 +54,11 @@ export default function BannerPreview({ data }: { data: Record<string, any> }) {
     const current = picList[realIndex] || picList[0] || {};
     const iconSize = Number(bannerStyle.searchIconSize) || 24;
 
-    const menuIconUrl = searchContent.menuPic?.picUrl
-        ? searchContent.menuPic.picUrl
-        : MENU_ICONS[Number(searchContent.menuIcon) - 1] || "";
-    const signIconUrl = searchContent.signPic?.picUrl
-        ? searchContent.signPic.picUrl
-        : SIGN_ICONS[Number(searchContent.signIcon) - 1] || "";
+    // 自定义图优先；未配自定义图时按编号取 IconPark 字形（与 Settings 选择器同一映射）
+    const menuCustomUrl = searchContent.menuPic?.picUrl || "";
+    const signCustomUrl = searchContent.signPic?.picUrl || "";
+    const menuPark = menuCustomUrl ? "" : menuIconParkValue(searchContent.menuIcon);
+    const signPark = signCustomUrl ? "" : signIconParkValue(searchContent.signIcon);
 
     const circleStyle: React.CSSProperties = {
         backgroundImage: `linear-gradient(${gradientMap[bannerContent.gradientType] || "to bottom"},${current.gradientColorA},${current.gradientColorB})`,
@@ -107,7 +93,13 @@ export default function BannerPreview({ data }: { data: Record<string, any> }) {
                         <div className="search-top">
                             {searchContent.menuIcon ? (
                                 <div className="menu">
-                                    {menuIconUrl ? <img className="menu-icon" src={imageFormat(menuIconUrl)} style={{ width: iconSize, height: iconSize }} alt="" /> : null}
+                                    {menuCustomUrl ? (
+                                        <img className="menu-icon" src={imageFormat(menuCustomUrl)} style={{ width: iconSize, height: iconSize }} alt="" />
+                                    ) : menuPark ? (
+                                        <span style={{ color: "#fff", display: "inline-flex" }}>
+                                            <FloorIcon value={menuPark} size={iconSize} />
+                                        </span>
+                                    ) : null}
                                 </div>
                             ) : null}
                             {searchContent.showSearch ? (
@@ -143,7 +135,13 @@ export default function BannerPreview({ data }: { data: Record<string, any> }) {
                             ) : null}
                             {searchContent.signIcon ? (
                                 <div className="sign">
-                                    {signIconUrl ? <img className="sign-icon" src={imageFormat(signIconUrl)} style={{ width: iconSize, height: iconSize }} alt="" /> : null}
+                                    {signCustomUrl ? (
+                                        <img className="sign-icon" src={imageFormat(signCustomUrl)} style={{ width: iconSize, height: iconSize }} alt="" />
+                                    ) : signPark ? (
+                                        <span style={{ color: "#fff", display: "inline-flex" }}>
+                                            <FloorIcon value={signPark} size={iconSize} />
+                                        </span>
+                                    ) : null}
                                 </div>
                             ) : null}
                         </div>

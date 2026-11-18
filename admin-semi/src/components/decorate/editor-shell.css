@@ -6,9 +6,9 @@
  * 文件里复制 dec-edit-* / 设置面板规则——改标准只改这里。
  *
  * 用法：设置面板根元素挂 .dec-settings-scope，本文件规则即生效。
- * 过渡期类名别名：.pc-module-settings__body（PC 现用）/
- * .h5-editor-settings-body（H5 现用）与标准名 .dec-settings-body 同组，
- * Step 2/3 壳组件化后统一为标准名。
+ * 过渡期类名别名：.pc-module-settings__body（PC 现用）与标准名
+ * .dec-settings-body 同组（内容卡口径）；.h5-editor-settings-body（H5 现用）
+ * 已于 2026-11-19 拆出单独拍平（原版右栏白底直出，见下方内容体段注释）。
  *
  * 壳布局标准尺寸：左库 295px、右栏 380px（.dec-shell__*，Step 2 起用）。
  * ============================================================ */
@@ -145,6 +145,12 @@
   background: #f7f8fa;
 }
 
+/* H5 面板底色改白（2026-11-19）：配合下方内容体拍平，整栏回到原版白底直出；
+   仅 H5 的 DecSettingsPanel 带 .h5-editor-settings 类，PC 不受影响 */
+.dec-settings-scope.h5-editor-settings {
+  background: #fff;
+}
+
 /* 标题区：白底、20px 16px 12px、无分隔线；标题 17px/650 #101828 */
 .dec-settings-scope .dec-edit-title {
   padding: 20px 16px 12px;
@@ -206,16 +212,71 @@
   font-weight: 600;
 }
 
-/* 内容卡：12px 外距、1px #eaecf0 边框、10px 圆角、白底 */
+/* 分段单选胶囊化（2026-11-19 统一）：Semi RadioGroup type=button（共享
+   SegmentedRadio，各模块「显示/不显示」等开关均走它）此前在共享壳内无任何
+   皮肤规则、只有 Semi 默认分段外观；现代化胶囊口径只落在 PC 头部面板的
+   私有作用域（pages/decorate-editor.css 的 .pc-header-field 段）里，从未进
+   共享壳。现将同口径上收到 .dec-settings-scope：容器 #f2f4f7 底 + 10px
+   圆角 + 3px 内衬，选项 7px 圆角、未选灰字、悬停加深、选中主题色填充白字，
+   与上方胶囊页签同语言。布局（H5 侧整行均分）仍由各端既有规则承担，
+   本段只管皮肤；.pc-header-field 私有段数值相同、并存不冲突。
+   详见 editor-unify/right-panel-wrapper-REPORT.md 附带裁决一节。 */
+.dec-settings-scope .semi-radioGroup-buttonRadio {
+  gap: 2px;
+  padding: 3px;
+  background: #f2f4f7;
+  border-radius: 10px;
+  vertical-align: middle;
+}
+.dec-settings-scope .semi-radio-buttonRadioGroup,
+.dec-settings-scope .semi-radio-buttonRadioGroup:not(:last-child) {
+  padding: 0;
+}
+.dec-settings-scope .semi-radio-addon-buttonRadio {
+  display: block;
+  padding: 4px 14px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #475467;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.dec-settings-scope .semi-radio-addon-buttonRadio-hover {
+  background: #e9edf3;
+  color: #101828;
+}
+.dec-settings-scope .semi-radio-addon-buttonRadio-checked {
+  background: var(--semi-color-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* 内容卡：12px 外距、1px #eaecf0 边框、10px 圆角、白底（PC 口径，H5 已拆出见下） */
 .dec-settings-scope .dec-settings-body,
-.dec-settings-scope .pc-module-settings__body,
-.dec-settings-scope .h5-editor-settings-body {
+.dec-settings-scope .pc-module-settings__body {
   margin: 12px;
   padding: 0;
   border: 1px solid #eaecf0;
   border-radius: 10px;
   background: #fff;
   overflow: hidden;
+}
+
+/* H5 内容体拍平（2026-11-19，用户反馈「设置内容被包裹住了，去掉」）：
+   原版 tigshop H5 编辑器右栏为整栏白底、表单直出（ref-editor
+   src/views/decorate/decorate/src/css/decorate.less：.decorate-edit-wrap
+   background #fff，Settings 组件内标题+字段行直接铺满，无卡片层）。
+   此前 H5 与 PC 共用内容卡口径，表单被装进带边框/圆角/12px 外距的白卡、
+   浮在灰底面板上，即用户所指的包裹层。现拆出单独拍平：去外距/边框/圆角/
+   独立底色/裁剪，设置内容直接落在面板（白底）上；滚动仍由壳右栏承担。
+   各模块 Settings 的 .h5-editor-settings-body 根 div 保留不动（仅样式拍平）。 */
+.dec-settings-scope .h5-editor-settings-body {
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
 }
 
 /* 分组标题带（三形态统一观感）：#f8fafc 底、13px/650 #344054、3px 主题色竖条 */

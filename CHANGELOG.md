@@ -290,3 +290,14 @@
 - **后台 - H5 编辑器交互补齐（2026-11-18 用户追加）**：左侧模块库隐藏垂直滚动条（仅 H5 编辑器作用域，滚动功能保留，画布与右栏滚动不受影响）；模块库条目支持 pointer 长按（220ms）或拖动（>8px）拖入画布，拖拽影子跟随指针，按落点纵坐标与画布布局算插入下标（真实渲染走覆盖层布局数据、兼容渲染走旧画布 DOM 位置），点击添加保留且拖拽后自动抑制误触 click；真实渲染模式下画布内按住模块可拖动排序（覆盖层实现，松手落位、数据顺序同步、右侧设置面板选中态跟随被拖模块），兼容模式沿用既有 dnd-kit 标签拖拽。实现（pointer 拖拽控制器 canvasBridge 为我方实现）。
 
 - **后台 - H5 编辑器真实渲染补页面标题栏（Phase 2 漏项修复，2026-11-18 线上验收发现）**：Phase 2 真实渲染模式下画布顶部缺页面标题栏——原实现假设嵌入页 decoratePreview 会按 pageModule.title 自行渲染 navbar、父侧不重复画，线上真浏览器验收证伪（10020 真实模式画布直接从首模块开始，无状态栏图与居中标题；兼容模式有）。修复：真实模式下在 iframe 之上渲染与兼容模式同一个 PageHeaderPreview（同一组件、同一显隐规则：pageType 6 搜索页 / 8 商品详情页不显示，标题文字与背景色跟页面设置联动，点击进页面设置），IframeCanvas 改 bare 模式、由 Canvas 统一渲染画布窗外框；标题栏位于 iframe 包裹层之外，覆盖层槽位坐标仍相对 iframe 内容计算，点选高亮与拖拽落点不受影响。兼容渲染零改动。【原版有·我方改口径】页面标题栏为原版编辑器画布首项（commonPage/View.vue），本次为真实渲染模式补齐同一组件。
+
+### 修复
+
+- **后台 - H5 编辑器右栏设置内容「被包裹」修复（用户 2026-11-19 报）**：设置表单此前被装进一张带 12px 外距、1px 边框与 10px 圆角的内容白卡、浮在灰底面板上。原版 H5 编辑器右栏为整栏白底、表单直出【原版有】（ref-editor decorate.less：.decorate-edit-wrap 白底，Settings 组件直出、无卡片层），白卡系我方壳对齐时从 PC 编辑器现代化样式搬入。现将 .h5-editor-settings-body 从与 PC 共用的内容卡规则中拆出单独拍平（去外距/边框/圆角/独立底色/裁剪），H5 面板底色改白，标题与表单同平面直出，回归原版形态；PC 内容卡口径与各模块 Settings 本身零改动。
+- **后台 - 编辑器分段单选胶囊样式统一【我方新增】**：各模块「显示/不显示」类开关（共享 SegmentedRadio → Semi RadioGroup type=button，全库 27 处）此前在共享壳 editor-shell.css 内无任何皮肤规则、只有 Semi 默认分段外观（用户 2026-11-19 问「导航文字设置的胶囊为什么没有了」）。定性为同壳但样式没对齐：现代化胶囊口径此前只落在 PC 头部面板的私有作用域（pages/decorate-editor.css 的 .pc-header-field 段），从未上收共享壳。现将同口径（容器 #f2f4f7 底 + 10px 圆角 + 3px 内衬、选项 7px 圆角、未选灰字、悬停加深、选中主题色填充白字）上收到 .dec-settings-scope，H5 与 PC 设置区同类开关统一为胶囊、与壳胶囊页签同语言；数据值与 1/0 语义不变。
+- **后台 - H5 编辑器首焦轮播菜单/签到图标选择恢复视觉选择【原版有·我方改口径】**：原版 BannerSearch 为 el-radio-button 视觉样式选择（iconfont 字形直接呈现在选项里、看图选样式），我方此前降级为文字标签「图标1…图标7」的分段单选（用户 2026-11-19 报「文字替代」）。新增共享控件 IconStyleRadioField 恢复看图选样式的形态；默认图标字形按全站图标换 IconPark 的既定改口径（2026-11-15 定、用户 2026-11-19 拍板沿用）改用 IconPark，不再使用原版 defaultIconImage 的 tigshop 默认图：映射表（菜单 1–7 → hamburger-button / application-menu / list / list-one / list-two / grid-nine / more-app；签到 1–4 → calendar / plan / schedule / calendar-dot）放 banner 共享模块 iconStyles.ts，全站唯一一份，Settings 选择器与编辑器 Preview 共用同一套字形渲染（FloorIcon 内嵌 SVG），保证面板里选的与预览看到的一致；「自定义 / 不显示」选项形态与字段值域不变。前台（uniapp）渲染按同一映射对齐，随前端批次落地。
+- **后台 - H5 编辑器首焦轮播导航文字设置去除图片位【原版有】**：原版 BannerNav 的 PicList 传 showImage=false，导航项只有文字 + 链接、无图片/图标字段（用户 2026-11-19 点名去掉）；我方 PicListField 此前无 showImage 概念、每项恒渲染图盒 +「更换图片」。PicListField 新增 showImage prop（默认 true，其余调用方行为不变），banner 导航文字列表传 false：不渲染图盒、添加直接追加空文字项（同原版 onAdd 分支）。前端与编辑器 Preview 均不消费 navList 的 picUrl/picThumb，存量数据中的该字段成惰性字段、无副作用、无需清理。
+
+### 新增
+
+- **后台 - H5 编辑器首焦轮播多语言图标显示开关【我方新增】**：原版无此设置——多语言（地球）图标由海外版前端在搜索行无条件渲染、没有任何开关字段（用户 2026-11-19 要求新增）。banner defaults 的 searchContent 新增 showLang（默认 1 = 显示，保持现行为），设置面板在菜单/签到之后新增「多语言图标」显示/不显示开关（与搜索行左→右顺序一致），存量数据无此字段时面板按 1 呈现选中态。前端消费补丁（renderSearchTop 地球块加 showLang ?? 1 门控）已备说明交 uniapp 线，随前端批次落地后生效。

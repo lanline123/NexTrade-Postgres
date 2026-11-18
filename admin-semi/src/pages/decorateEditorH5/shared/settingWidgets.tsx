@@ -22,6 +22,7 @@ import SliderWithInput from "../../../components/SliderWithInput";
 import SharedColorField from "../../../components/ColorField";
 import ImageUploader from "../../../components/ImageUploader";
 import GalleryPickerModal from "../../../components/GalleryPickerModal";
+import FloorIcon from "../../../components/FloorIcon";
 import { LinkField, type LinkValue } from "../../../components/LinkPicker";
 import { imageFormat, pickPic } from "./format";
 import { defaultTitle, defaultFrame } from "../contract/sharedDefaults";
@@ -134,6 +135,47 @@ export function RadioRowField({ data, onChange, field, label, options }: FieldPr
     return (
         <SettingRow label={label}>
             <SegmentedRadio value={data?.[field]} options={options} onChange={(v) => onChange({ [field]: v })} />
+        </SettingRow>
+    );
+}
+
+/**
+ * 图标样式单选（原版 BannerSearch 的 el-radio-button + iconfont 字形选项形态）：
+ * 带 iconpark 的选项以 IconPark 字形呈现（FloorIcon 内嵌 SVG，描边随 currentColor——
+ * 未选时为深色描边、选中胶囊填充时随字色变白），其余选项（自定义/不显示）走文字。
+ * 选中态归一同 SegmentedRadio（String 比较，容忍存量 "1"/1 混写）。
+ * 字形映射由调用方模块的共享映射表提供（如 banner 的 iconStyles.ts），与预览/前台同源。
+ */
+export function IconStyleRadioField({
+    data,
+    onChange,
+    field,
+    label,
+    options
+}: FieldProps & { field: string; label: string; options: (RadioOption & { iconpark?: string })[] }) {
+    const { t } = useI18n();
+    const value = data?.[field];
+    const matched = options.find((o) => String(o.value) === String(value));
+    return (
+        <SettingRow label={label}>
+            <RadioGroup
+                type="button"
+                value={matched ? matched.value : value}
+                style={{ flex: 1, minWidth: 0 }}
+                onChange={(e: any) => onChange({ [field]: e?.target?.value })}
+            >
+                {options.map((o) => (
+                    <Radio key={String(o.value)} value={o.value}>
+                        {o.iconpark ? (
+                            <span title={t(o.label)} style={{ display: "inline-flex" }}>
+                                <FloorIcon value={`iconpark:${o.iconpark}`} size={24} />
+                            </span>
+                        ) : (
+                            t(o.label)
+                        )}
+                    </Radio>
+                ))}
+            </RadioGroup>
         </SettingRow>
     );
 }
@@ -428,6 +470,8 @@ export interface PicItem {
  * 图片列表编辑器（原版 PicList 形态）：
  * 每项 = 60×60 contain 图盒（底部 20px「更换图片」条）+ 信息行（标题/描述/链接）+ hover 删除徽标 + 上移/下移；
  * 底部整宽 `.dec-pic-add-btn` 添加按钮。showText/showDesc/showLink/showAddButton 默认同原版（true/false/true/true）。
+ * showImage 同原版 PicList（默认 true）：false 时不渲染图盒、添加按钮直接追加空文字项不开图库
+ * （原版 onAdd 的 showImage=false 分支；BannerNav 导航文字即此口径——只有文字+链接、无图片字段）。
  */
 export function PicListField({
     data,
@@ -438,6 +482,7 @@ export function PicListField({
     showText = true,
     showDesc = false,
     showLink = true,
+    showImage = true,
     showAddButton = true,
     addText = "添加图片"
 }: FieldProps & {
@@ -447,6 +492,8 @@ export function PicListField({
     showText?: boolean;
     showDesc?: boolean;
     showLink?: boolean;
+    /** 原版 PicList 的 showImage：false 时每项无图盒且添加直接追加空文字项（导航文字等纯文字列表） */
+    showImage?: boolean;
     /** 原版 PicList 的 showAddButton：false 时不渲染添加按钮（固定入口列表，如账号/订单入口） */
     showAddButton?: boolean;
     addText?: string;
@@ -482,18 +529,20 @@ export function PicListField({
                     {list.map((item, index) => (
                         <div key={index} className="dec-pic-group-item">
                             <div className="dec-pic-group-item-con">
-                                <div className="item-image">
-                                    <div
-                                        className="item-image-con"
-                                        onClick={() => {
-                                            setPickerIndex(index);
-                                            setPickerOpen(true);
-                                        }}
-                                    >
-                                        {pickPic(item) ? <img src={imageFormat(pickPic(item))} alt="" /> : null}
-                                        <span className="change-image">{t('更换图片')}</span>
+                                {showImage ? (
+                                    <div className="item-image">
+                                        <div
+                                            className="item-image-con"
+                                            onClick={() => {
+                                                setPickerIndex(index);
+                                                setPickerOpen(true);
+                                            }}
+                                        >
+                                            {pickPic(item) ? <img src={imageFormat(pickPic(item))} alt="" /> : null}
+                                            <span className="change-image">{t('更换图片')}</span>
+                                        </div>
                                     </div>
-                                </div>
+                                ) : null}
                                 <div className="item-info">
                                     {showText ? (
                                         <div className="item-info-item">
@@ -545,6 +594,11 @@ export function PicListField({
                         <a
                             className="dec-pic-add-btn"
                             onClick={() => {
+                                if (!showImage) {
+                                    // 原版 PicList onAdd 的 showImage=false 分支：直接追加空文字项，不开图库
+                                    setList([...list, { picTitle: "", picDesc: "", picLink: { link: "", title: "" } }]);
+                                    return;
+                                }
                                 setPickerIndex(null);
                                 setPickerOpen(true);
                             }}

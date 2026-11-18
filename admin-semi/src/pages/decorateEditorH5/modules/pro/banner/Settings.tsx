@@ -5,8 +5,10 @@
  * 页签：基础设置 / 样式设置 / 扩展设置。
  * 基础：商城logo（PicSelect + 图片高度 max500）+ BannerContent（PicList/指示器样式/指示器颜色/
  * 轮播圆角 max50/弧度背景高度 max500/弧度背景圆角 max100/弧度背景方向）+ BannerSearch
- * （显示开关/默认搜索词/菜单图标 1-7+自定义+不显示/菜单链接/签到图标 1-4+自定义+不显示/签到链接）
- * + BannerNav（显示开关/文字列表）；样式：BannerStyle（type 非 bannerA2 全集）；
+ * （显示开关/默认搜索词/菜单图标 1-7+自定义+不显示/菜单链接/签到图标 1-4+自定义+不显示/签到链接
+ * ／多语言图标显示开关 showLang——我方新增：原版无此设置、多语言图标由前端无条件渲染）
+ * + BannerNav（显示开关/文字列表，PicList showImage=false 同原版：只有文字+链接、无图片字段）；
+ * 样式：BannerStyle（type 非 bannerA2 全集）；
  * 扩展：ModuleStyleEdit（type="banner"，含 bannerMarginTop）。
  * 注：SelectLink（菜单/签到跳转链接）走共享 PicLinkField 选择，写回原字段（字符串型，与原版默认值同形）；
  * BannerContent 的 PicList 原版带 showColor（逐图渐变色），我方 PicListField 无逐项颜色，渐变色保持原数据。
@@ -15,6 +17,7 @@ import {
     SettingGroup,
     SettingRow,
     RadioRowField,
+    IconStyleRadioField,
     RangeField,
     ColorField,
     TextField,
@@ -24,6 +27,10 @@ import {
     DecDivider
 } from "../../../shared/settingWidgets";
 import { SettingsTabs, ModuleStyleSettingsField } from "../../../shared/styleEdits";
+
+// 菜单/签到默认图标字形：IconPark 映射（./iconStyles.ts，全站唯一一份，与 Preview 共用；
+// 不再使用原版 defaultIconImage 的 tigshop 默认图——全站图标换 IconPark 的既定改口径）
+import { MENU_ICON_PARK, SIGN_ICON_PARK } from "./iconStyles";
 
 type NestedProps = { data: Record<string, any>; onChange: (patch: Record<string, any>) => void };
 function nested(data: Record<string, any>, onChange: (patch: Record<string, any>) => void, key: string): NestedProps {
@@ -97,12 +104,12 @@ export default function BannerSettings({ data, onChange }: { data: Record<string
                         {showSearch ? (
                             <>
                                 <TextField {...sc} field="searchText" label="默认搜索词" placeholder="请输入搜索框文字" />
-                                <RadioRowField
+                                <IconStyleRadioField
                                     {...sc}
                                     field="menuIcon"
                                     label="菜单图标"
                                     options={[
-                                        ...[1, 2, 3, 4, 5, 6, 7].map((n) => ({ value: n, label: `图标${n}` })),
+                                        ...MENU_ICON_PARK.map((name, i) => ({ value: i + 1, label: `图标${i + 1}`, iconpark: name })),
                                         { value: "custom", label: "自定义" },
                                         { value: 0, label: "不显示" }
                                     ]}
@@ -111,12 +118,12 @@ export default function BannerSettings({ data, onChange }: { data: Record<string
                                 {Number(sc.data.menuIcon) !== 0 && sc.data.menuIcon !== undefined ? (
                                     <LinkTextField {...sc} field="menuLink" label="菜单跳转链接" />
                                 ) : null}
-                                <RadioRowField
+                                <IconStyleRadioField
                                     {...sc}
                                     field="signIcon"
                                     label="签到图标"
                                     options={[
-                                        ...[1, 2, 3, 4].map((n) => ({ value: n, label: `图标${n}` })),
+                                        ...SIGN_ICON_PARK.map((name, i) => ({ value: i + 1, label: `图标${i + 1}`, iconpark: name })),
                                         { value: "custom", label: "自定义" },
                                         { value: 0, label: "不显示" }
                                     ]}
@@ -125,6 +132,18 @@ export default function BannerSettings({ data, onChange }: { data: Record<string
                                 {Number(sc.data.signIcon) !== 0 && sc.data.signIcon !== undefined ? (
                                     <LinkTextField {...sc} field="signLink" label="签到跳转链接" />
                                 ) : null}
+                                {/* 多语言图标显示开关（我方新增）：存量数据无 showLang 字段时按默认 1 呈现选中态，
+                                    前端同口径（showLang ?? 1 显示）；排布在菜单/签到之后，与搜索行左→右顺序一致 */}
+                                <RadioRowField
+                                    data={{ ...sc.data, showLang: sc.data.showLang ?? 1 }}
+                                    onChange={sc.onChange}
+                                    field="showLang"
+                                    label="多语言图标"
+                                    options={[
+                                        { value: 1, label: "显示" },
+                                        { value: 0, label: "不显示" }
+                                    ]}
+                                />
                             </>
                         ) : null}
                     </SettingGroup>
@@ -139,7 +158,9 @@ export default function BannerSettings({ data, onChange }: { data: Record<string
                                 { value: 0, label: "不显示" }
                             ]}
                         />
-                        {Number(nc.data.showNav) === 1 ? <PicListField {...nc} field="navList" label="" max={20} showText addText="添加文字和链接" /> : null}
+                        {Number(nc.data.showNav) === 1 ? (
+                            <PicListField {...nc} field="navList" label="" max={20} showText showImage={false} addText="添加文字和链接" />
+                        ) : null}
                     </SettingGroup>
                 </>
                 <>

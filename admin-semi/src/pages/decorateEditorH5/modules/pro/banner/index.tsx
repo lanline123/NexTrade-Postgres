@@ -111,7 +111,8 @@ export const bannerDefaults = {
         menuPic: { picUrl: "", picThumb: "" },
         signIcon: 1,
         signLink: "",
-        signPic: { picUrl: "", picThumb: "" }
+        signPic: { picUrl: "", picThumb: "" },
+        showLang: 1 // 多语言图标是否显示 1显示 0不显示（我方新增：原版无此字段，前端原无条件渲染）
     },
     navContent: {
         showNav: 1,
