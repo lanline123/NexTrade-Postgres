@@ -6,7 +6,7 @@ import type { ModuleDef, PicItem } from '../../contract/pcModuleContract';
 import { containerFields, registerPcModule, standardFrame, standardTitle } from '../../contract/pcModuleContract';
 
 const def: ModuleDef = {
-  type: 'pc-image-hotarea', label: '热图绘制', group: '图片展示',
+  type: 'pc-image-hotarea', label: '热图绘制', group: '图片与轮播',
   defaults: () => ({
     picList: [] as PicItem[],
     imgPadding: 0,

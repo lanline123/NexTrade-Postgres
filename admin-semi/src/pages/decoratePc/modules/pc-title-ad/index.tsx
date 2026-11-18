@@ -1,7 +1,7 @@
 import { containerFields, getPath, registerPcModule, standardFrame, standardTitle, type ModuleDef } from '../../contract/pcModuleContract';
 
 const def: ModuleDef = {
-    type: 'pc-title-ad', label: '文本标题', group: '辅助元素',
+    type: 'pc-title-ad', label: '文本标题', group: '基础排版',
     defaults: () => ({
       // 标题即本体：默认走共享标题契约（standardTitle），与其它模块同一套默认值
       title: standardTitle({ showTitle: 1, titleText: '标题内容', titleColor: '#2a3145' }),

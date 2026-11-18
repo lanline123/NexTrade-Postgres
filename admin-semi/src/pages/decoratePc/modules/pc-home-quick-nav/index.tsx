@@ -2,7 +2,7 @@
 import { containerFields, QUICK_NAV_ITEMS, registerPcModule, type ModuleDef, type PicItem } from '../../contract/pcModuleContract';
 
 const def: ModuleDef = {
-  type: 'pc-home-quick-nav', label: '快捷导航', group: '导航分类',
+  type: 'pc-home-quick-nav', label: '快捷导航', group: '导航入口',
   desc: '横向图文导航条，支持图标+文字+链接配置',
   defaults: () => ({
     frame: { boxPadding: 0, boxPaddingTop: 0, boxPaddingBottom: 0, backgroundColor: '' },

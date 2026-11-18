@@ -6,7 +6,7 @@ import type { ModuleDef, PicItem } from '../../contract/pcModuleContract';
 import { containerFields, demoPic, DEMO_PIC_1, DEMO_PIC_2, registerPcModule, standardFrame, standardTitle } from '../../contract/pcModuleContract';
 
 const def: ModuleDef = {
-  type: 'pc-image-ad', label: '图片广告', group: '轮播横幅',
+  type: 'pc-image-ad', label: '图片广告', group: '图片与轮播',
   defaults: () => ({
     picType: 1,
     picList: [demoPic('1', DEMO_PIC_1, '演示图片1', '广告位1'), demoPic('2', DEMO_PIC_2, '演示图片2', '广告位2')],

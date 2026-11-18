@@ -1,0 +1,158 @@
+/**
+ * PC 旧版轮播 Banner2（pcBanner2）- 预览样式
+ *
+ * 类名与新版 pc-banner2 预览隔离（dec-pc-banner2-legacy 前缀）；
+ * 箭头样式与同款等价轮播（新版 pc-banner2/pc-group-banner 预览）保持一致，
+ * 其余按前台 Banner2 的 frame 口径：内边距/圆角/背景全部由 CSS 变量驱动，
+ * 缺省 0 / transparent（px() 语义），不套用新版编辑器默认 frame。
+ */
+
+.dec-pc-banner2-legacy {
+  width: 100%;
+  box-sizing: border-box;
+
+  padding-left: var(--dec-box-padding, 0);
+  padding-right: var(--dec-box-padding, 0);
+  padding-top: var(--dec-box-padding-top, 0);
+  padding-bottom: var(--dec-box-padding-bottom, 0);
+}
+
+.dec-pc-banner2-legacy__inner {
+  width: 100%;
+  overflow: hidden;
+
+  border-radius: var(--dec-box-radius, 0);
+  background: var(--dec-bg-color, transparent);
+}
+
+.dec-pc-banner2-legacy__carousel {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.dec-pc-banner2-legacy__track {
+  display: flex;
+  align-items: stretch;
+  transition: transform 0.35s ease;
+  will-change: transform;
+}
+
+.dec-pc-banner2-legacy__slide {
+  width: 100%;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+}
+
+.dec-pc-banner2-legacy__link {
+  display: block;
+  width: 100%;
+}
+
+.dec-pc-banner2-legacy__img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+  background-color: #f5f6f8;
+}
+
+.dec-pc-banner2-legacy__empty {
+  width: 100%;
+  height: 280px;
+  border: 1px dashed #dcdfe6;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+}
+
+.dec-pc-banner2-legacy__empty-text {
+  color: #909399;
+  font-size: 14px;
+}
+
+/* 圆点指示器（前台 Banner2 为 button 圆点，这里用 span 等价呈现） */
+.dec-pc-banner2-legacy__dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  z-index: 2;
+}
+
+.dec-pc-banner2-legacy__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.dec-pc-banner2-legacy__dot.is-active {
+  background: #fff;
+}
+
+/* —— 箭头（与新版 pc-banner2 预览同款 mask 箭头） —— */
+.dec-pc-banner2-legacy__inner .swiper-button-prev,
+.dec-pc-banner2-legacy__inner .swiper-button-next {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  box-sizing: border-box;
+  background-color: rgba(0, 0, 0, 0.122);
+  width: 40px;
+  height: 48px;
+  z-index: 2;
+  outline: none;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.dec-pc-banner2-legacy__inner .swiper-button-prev {
+  left: 0;
+  padding-right: 7px;
+  border-radius: 0 24px 24px 0 !important;
+}
+
+.dec-pc-banner2-legacy__inner .swiper-button-next {
+  right: 0;
+  padding-left: 7px;
+  border-radius: 24px 0 0 24px !important;
+}
+
+.dec-pc-banner2-legacy__inner .swiper-button-prev:hover,
+.dec-pc-banner2-legacy__inner .swiper-button-next:hover {
+  background-color: rgba(0, 0, 0, 0.239);
+}
+
+.dec-pc-banner2-legacy__inner .swiper-button-prev:after,
+.dec-pc-banner2-legacy__inner .swiper-button-next:after {
+  content: '' !important;
+  display: block;
+  width: 14px;
+  height: 14px;
+  background-color: #fff;
+  font-family: initial !important;
+  font-size: 0 !important;
+  color: transparent !important;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Cpath fill='currentColor' d='M238.016 179.008C227.776 168.832 220.16 157.312 215.04 144.64c-5.12-12.736-7.616-25.856-7.616-39.296 0-13.44 2.56-26.752 7.616-39.808 5.12-13.12 12.736-24.768 22.912-34.944C258.368 10.176 282.752 0 311.104 0c28.352 0 52.736 10.176 73.152 30.528l404.928 408.192c10.176 8.704 17.472 19.84 21.824 33.28 4.352 13.44 6.208 27.456 5.44 42.048-0.704 14.528-4.032 28.928-9.792 43.136-5.824 14.208-13.824 26.368-24 36.544l-398.336 401.664c-20.352 21.12-44.736 31.68-73.152 31.68-28.352 0-52.736-10.56-73.088-31.68-10.176-10.176-17.856-21.632-22.912-34.368-5.12-12.736-7.616-25.856-7.616-39.296 0-13.44 2.56-26.752 7.616-39.872 5.12-13.12 12.736-24.768 22.912-34.944l329.6-333.952L238.016 179.008 238.016 179.008zM238.016 179.008'/%3E%3C/svg%3E")
+    no-repeat center / contain;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Cpath fill='currentColor' d='M238.016 179.008C227.776 168.832 220.16 157.312 215.04 144.64c-5.12-12.736-7.616-25.856-7.616-39.296 0-13.44 2.56-26.752 7.616-39.808 5.12-13.12 12.736-24.768 22.912-34.944C258.368 10.176 282.752 0 311.104 0c28.352 0 52.736 10.176 73.152 30.528l404.928 408.192c10.176 8.704 17.472 19.84 21.824 33.28 4.352 13.44 6.208 27.456 5.44 42.048-0.704 14.528-4.032 28.928-9.792 43.136-5.824 14.208-13.824 26.368-24 36.544l-398.336 401.664c-20.352 21.12-44.736 31.68-73.152 31.68-28.352 0-52.736-10.56-73.088-31.68-10.176-10.176-17.856-21.632-22.912-34.368-5.12-12.736-7.616-25.856-7.616-39.296 0-13.44 2.56-26.752 7.616-39.872 5.12-13.12 12.736-24.768 22.912-34.944l329.6-333.952L238.016 179.008 238.016 179.008zM238.016 179.008'/%3E%3C/svg%3E")
+    no-repeat center / contain;
+  transform-origin: center;
+}
+
+.dec-pc-banner2-legacy__inner .swiper-button-prev:after {
+  transform: rotate(180deg);
+}

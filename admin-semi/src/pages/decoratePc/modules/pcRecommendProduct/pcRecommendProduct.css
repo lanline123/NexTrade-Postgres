@@ -1,0 +1,229 @@
+/**
+ * 旧版推荐商品（pcRecommendProduct）预览样式。
+ * 移植自 pc-semi app/decorate-source.scss 的 `.pc-home .mod_you_like` 段
+ * （原版 home/RecommendProduct.vue scoped），去掉 .pc-home 前缀；
+ * 列表布局按编辑器「瀑布流」口径改为 CSS columns 多列不等高
+ * （前台同段是 228px 定宽 flex-wrap + 299px 定高卡，差异见 Preview.tsx 文件头）。
+ * 类名与前台 DOM 逐层同名，全部规则收在 .mod_you_like 下避免污染其他预览。
+ */
+
+.mod_you_like {
+  margin-top: 30px;
+  width: 100%;
+}
+
+/* 标题：前台 28px/700 居中，两侧雪碧图装饰在 admin 无资源，
+   以同尺寸（25x20）的 CSS 线条纹样替代。 */
+.mod_you_like .com-pc-title {
+  position: relative;
+  min-width: 150px;
+  width: fit-content;
+  max-width: 80%;
+  height: 45px;
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 45px;
+  padding: 0 30px;
+  margin: 20px auto;
+  overflow: hidden;
+  color: #333;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.mod_you_like .com-pc-title::before,
+.mod_you_like .com-pc-title::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  margin-top: -10px;
+  width: 25px;
+  height: 20px;
+  background:
+    linear-gradient(var(--main-bg, #e60012), var(--main-bg, #e60012)) 0 4px / 25px 2px no-repeat,
+    linear-gradient(#d0d5dd, #d0d5dd) 0 14px / 25px 2px no-repeat;
+  opacity: 0.85;
+}
+
+.mod_you_like .com-pc-title::before {
+  left: 0;
+}
+
+.mod_you_like .com-pc-title::after {
+  right: 0;
+}
+
+.mod_you_like .you_like_list {
+  position: relative;
+  padding-bottom: 50px;
+}
+
+/* 瀑布流：多列不等高（图片自然比例），卡片不跨列断裂 */
+.mod_you_like .you_like_list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  column-count: 5;
+  column-gap: 12px;
+}
+
+.mod_you_like .you_like_list li {
+  break-inside: avoid;
+  margin: 0 0 12px;
+}
+
+.mod_you_like .you_like_list li .item {
+  display: block;
+  overflow: hidden;
+  padding: 8px;
+  background-color: #fff;
+  color: #333;
+}
+
+/* hover 时商品名收起、操作区出现（前台同款交互） */
+.mod_you_like .you_like_list li .item:hover .pro_name {
+  height: 0;
+  opacity: 0;
+}
+
+.mod_you_like .you_like_list li .item:hover .operate_area {
+  display: flex;
+}
+
+.mod_you_like .you_like_list .flip_wrap {
+  margin: 0 auto;
+}
+
+.mod_you_like .you_like_list .pro_pic {
+  margin: 0 auto;
+  text-align: center;
+}
+
+.mod_you_like .you_like_list .pro_pic .pro_pic_link {
+  position: relative;
+  display: block;
+  vertical-align: top;
+}
+
+/* 瀑布流口径：图片满列宽、自然比例（前台定版为 160x160 定尺寸） */
+.mod_you_like .you_like_list .pro_pic img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.mod_you_like .you_like_list .pro_name {
+  position: relative;
+  height: 40px;
+  margin-top: 5px;
+  line-height: 20px;
+  text-align: left;
+  transition: all 0.5s ease;
+  color: #666;
+  font-size: 14px;
+  padding: 0 4px;
+  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.mod_you_like .you_like_list .pro_price {
+  height: 30px;
+  align-items: baseline;
+  justify-content: center;
+  display: flex;
+  line-height: 30px;
+  color: var(--main-bg, #e60012);
+  font-weight: bold;
+}
+
+.mod_you_like .you_like_list .pro_price .num {
+  font-weight: bold;
+  font-size: 20px;
+  font-family: arial, sans-serif;
+}
+
+.mod_you_like .you_like_list .pro_price .util {
+  margin-bottom: -5px;
+  font-size: 14px;
+}
+
+.mod_you_like .you_like_list .pro_price .decimals {
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.mod_you_like .you_like_list .operate_area {
+  display: none;
+  margin-top: 2px;
+  text-align: center;
+  line-height: 40px;
+  justify-content: center;
+}
+
+.mod_you_like .you_like_list .operate_area .left-span {
+  width: 100px;
+  height: 40px;
+}
+
+.mod_you_like .you_like_list .operate_area .not_interest {
+  margin-right: 10px;
+  background-color: #f2f4f7;
+  color: #667085;
+  cursor: pointer;
+}
+
+.mod_you_like .you_like_list .operate_area .view_detail {
+  background-color: var(--main-bg, #e60012);
+  width: 100px;
+  height: 40px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.mod_you_like .you_like_list .operate_area .view_detail.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mod_you_like .you_like_list .cycleBuyTag {
+  color: var(--main-bg, #e60012);
+  position: relative;
+  margin-right: 8px;
+}
+
+.mod_you_like .you_like_list .cycleBuyTag::after {
+  content: "";
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  transform: translateY(-45%);
+  width: 1px;
+  height: 70%;
+  background-color: var(--main-bg, #e60012);
+}
+
+.mod_you_like .you_like_empty {
+  column-span: all;
+  text-align: center;
+  color: #98a2b3;
+  font-size: 14px;
+  padding: 32px 0;
+}
+
+.mod_you_like .you_like_skeleton-img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: #f2f4f7;
+}
+
+.mod_you_like .you_like_skeleton-line {
+  height: 12px;
+  margin-top: 10px;
+  background: #f2f4f7;
+}

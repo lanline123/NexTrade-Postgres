@@ -1,7 +1,7 @@
 import { containerFields, registerPcModule, standardFrame, standardTitle, tl, type ModuleDef, type PicItem } from '../../contract/pcModuleContract';
 
 const def: ModuleDef = {
-  type: 'pc-image-nav', label: '图文导航', group: '导航分类',
+  type: 'pc-image-nav', label: '图文导航', group: '导航入口',
   defaults: () => ({
     navType: 1, navStyle: 1, rowNum: 4, colNum: 2, picList: [],
     backgroundColor: '#ffffff', imgPadding: 8, radioStyle: 1, picPageType: 1, swiperPageColor: '#333333',

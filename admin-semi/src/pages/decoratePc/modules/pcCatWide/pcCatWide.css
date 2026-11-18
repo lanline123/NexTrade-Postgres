@@ -1,0 +1,45 @@
+/**
+ * PC 分类模块-宽（pcCatWide）预览样式。
+ * 数值对齐前台 ContractCategoryHot 的内联样式（6 列网格、gap 12、
+ * 图 48×48 contain 圆角 8、名 14px #333、项 padding 8px 4px）；
+ * 类名加 dec-pc-cat-wide-cat 前缀（与 pcCatProductWide 的 dec-pc-cat-wide 区分）。
+ */
+
+.dec-pc-cat-wide-cat {
+  width: 100%;
+}
+
+.dec-pc-cat-wide-cat__grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dec-pc-cat-wide-cat__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.dec-pc-cat-wide-cat__img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.dec-pc-cat-wide-cat__name {
+  color: #333;
+  font-size: 14px;
+}
+
+.dec-pc-cat-wide-cat__empty {
+  padding: 24px 0;
+  color: #999;
+  font-size: 13px;
+  text-align: center;
+}

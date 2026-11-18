@@ -1,0 +1,170 @@
+/**
+ * PC 分类商品-简约（pcCatProductSimple）预览样式。
+ * 数值逐项对齐前台 decorate-source.scss「home/CatProductSimple.vue scoped」段
+ * （标题 24px、网格 4 列 gap 12、图区高 253 / 左图版式 210、信息区居中）；
+ * 类名加 dec-pc-cat-simple 前缀，避免与编辑器其它样式冲突。
+ */
+
+.dec-pc-cat-simple {
+  position: relative;
+  width: 100%;
+}
+
+.dec-pc-cat-simple__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 15px 0;
+}
+
+.dec-pc-cat-simple__tit {
+  color: #333;
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 32px;
+}
+
+.dec-pc-cat-simple__more {
+  display: flex;
+  align-items: center;
+  color: #666;
+  font-size: 14px;
+  line-height: 19px;
+  text-decoration: none;
+}
+
+.dec-pc-cat-simple__contnt {
+  position: relative;
+}
+
+.dec-pc-cat-simple__contnt.is-left-layout {
+  display: flex;
+  flex-direction: row;
+}
+
+.dec-pc-cat-simple__left {
+  width: 230px;
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+.dec-pc-cat-simple__imgs {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.dec-pc-cat-simple__imgs img {
+  width: 100%;
+  object-fit: contain;
+}
+
+.dec-pc-cat-simple__right {
+  flex: 1;
+  min-width: 0;
+}
+
+.dec-pc-cat-simple__contnt.is-left-layout .dec-pc-cat-simple__right {
+  flex: none;
+  width: 950px;
+  max-width: calc(100% - 242px);
+}
+
+.dec-pc-cat-simple__grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 12px;
+  row-gap: 12px;
+}
+
+.dec-pc-cat-simple__item {
+  background-color: #fff;
+  text-decoration: none;
+}
+
+.dec-pc-cat-simple__pic {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 253px;
+}
+
+.dec-pc-cat-simple__contnt.is-left-layout .dec-pc-cat-simple__pic {
+  height: 210px;
+}
+
+.dec-pc-cat-simple__pic img {
+  width: 180px;
+  height: 180px;
+}
+
+.dec-pc-cat-simple__info {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 24px 24px;
+  color: #333;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.dec-pc-cat-simple__name {
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 19px;
+  text-overflow: ellipsis;
+}
+
+.dec-pc-cat-simple__desc {
+  margin-top: 4px;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  opacity: 0.5;
+}
+
+.dec-pc-cat-simple__price-box {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.dec-pc-cat-simple__newprice {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 21px;
+}
+
+.dec-pc-cat-simple__oldprice {
+  margin-left: 6px;
+  font-size: 12px;
+  line-height: 16px;
+  opacity: 0.5;
+}
+
+/* 空态（前台无商品整块隐藏；编辑器保留标题 + 占位以便选中模块） */
+.dec-pc-cat-simple__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 0;
+  background: #fff;
+}
+
+.dec-pc-cat-simple__empty-icon {
+  width: 64px;
+  height: 64px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f2f4f6' width='100' height='100'/%3E%3Cpath d='M28 62l13-16 10 11 7-7 14 12H28z' fill='%23c0c8d4'/%3E%3Ccircle cx='40' cy='38' r='6' fill='%23c0c8d4'/%3E%3C/svg%3E");
+  background-size: cover;
+  border-radius: 8px;
+}
+
+.dec-pc-cat-simple__empty-text {
+  margin-top: 10px;
+  color: #999;
+  font-size: 13px;
+}

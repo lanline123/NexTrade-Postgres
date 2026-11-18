@@ -1,0 +1,212 @@
+/**
+ * PC 旧版自定义模块一（pcCustomAd1）- 预览样式
+ *
+ * 结构按前台 ContractCustomAd1 / 旧版 CustomAd1.vue：左大图列（270×400 槽位）
+ * + 中「每日推荐」+ 右「热销精品」三列。前台原始 CSS 来自旧版全局样式
+ * （不在 pc-semi 仓库内），列宽比与图高按原版版心比例近似（见同线 MANIFEST）。
+ */
+
+.dec-pc-custom-ad1-legacy {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.dec-pc-custom-ad1-legacy__empty {
+  width: 100%;
+  height: 200px;
+  border: 1px dashed #dcdfe6;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+}
+
+.dec-pc-custom-ad1-legacy__empty-text {
+  color: #909399;
+  font-size: 14px;
+}
+
+/* 左大图列：270×400 槽位 */
+.dec-pc-custom-ad1-legacy__left {
+  flex: 0 0 270px;
+  width: 270px;
+}
+
+.dec-pc-custom-ad1-legacy__left-img {
+  display: block;
+  width: 100%;
+  height: 400px;
+  object-fit: cover;
+}
+
+/* 中 / 右列 */
+.dec-pc-custom-ad1-legacy__brand {
+  flex: 1;
+  min-width: 0;
+}
+
+.dec-pc-custom-ad1-legacy__h4 {
+  margin: 0 0 10px;
+  text-align: center;
+  font-size: 16px;
+}
+
+.dec-pc-custom-ad1-legacy__h4-em {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-style: normal;
+  font-weight: 600;
+  color: #333;
+}
+
+.dec-pc-custom-ad1-legacy__tri {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  text-decoration: none;
+}
+
+.dec-pc-custom-ad1-legacy__tri--left {
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-right: 8px solid #e93323;
+}
+
+.dec-pc-custom-ad1-legacy__tri--right {
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #e93323;
+  order: 3;
+}
+
+.dec-pc-custom-ad1-legacy__brand-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.dec-pc-custom-ad1-legacy__brand-banner {
+  flex: 0 0 42%;
+  display: block;
+  text-decoration: none;
+}
+
+.dec-pc-custom-ad1-legacy__brand-img {
+  display: block;
+  width: 100%;
+  height: 190px;
+  object-fit: cover;
+  background-color: #f5f6f8;
+}
+
+.dec-pc-custom-ad1-legacy__brand-right {
+  flex: 1;
+  min-width: 0;
+}
+
+.dec-pc-custom-ad1-legacy__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dec-pc-custom-ad1-legacy__list li {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 6px 0;
+}
+
+.dec-pc-custom-ad1-legacy__row-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.dec-pc-custom-ad1-legacy__row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dec-pc-custom-ad1-legacy__pro-tit {
+  margin: 0;
+  font-size: 14px;
+  line-height: 18px;
+  color: #333;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dec-pc-custom-ad1-legacy__pro-sub {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: #999;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dec-pc-custom-ad1-legacy__row-text .dec-pc-custom-ad1-legacy__pro-tit,
+.dec-pc-custom-ad1-legacy__row-text .dec-pc-custom-ad1-legacy__pro-sub {
+  display: block;
+}
+
+.dec-pc-custom-ad1-legacy__row-img {
+  flex: 0 0 auto;
+  object-fit: cover;
+  background-color: #f5f6f8;
+}
+
+/* 右列底部 life_pic 卡 */
+.dec-pc-custom-ad1-legacy__life-pic {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.dec-pc-custom-ad1-legacy__shp {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  text-decoration: none;
+  text-align: center;
+}
+
+.dec-pc-custom-ad1-legacy__shp-img {
+  display: block;
+  width: 100%;
+  height: 90px;
+  object-fit: cover;
+  background-color: #f5f6f8;
+}
+
+.dec-pc-custom-ad1-legacy__shp-p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: #333;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dec-pc-custom-ad1-legacy__shp-go {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: #e93323;
+}
+
+.dec-pc-custom-ad1-legacy__shp-go em {
+  font-style: normal;
+}

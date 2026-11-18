@@ -1,0 +1,371 @@
+/**
+ * PC 分类商品-宽（pcCatProductWide）预览样式。
+ * 数值逐项对齐前台 decorate-source.scss「home/CatProductWide.vue scoped」段
+ * 与「components/swiper/SpecialSwiper.vue scoped」段
+ * （楼层高 430、左栏 236、中栏弹性、右栏 250、层叠轮播 195×225）；
+ * 类名加 dec-pc-cat-wide 前缀，避免与编辑器其它样式冲突。
+ */
+
+.dec-pc-cat-wide {
+  width: 100%;
+}
+
+.dec-pc-cat-wide__floor {
+  display: flex;
+  flex-direction: row;
+  height: 430px;
+  background-color: #fff;
+  overflow: hidden;
+}
+
+/* 左栏：默认渐变（旧版默认橙），color/color2 有值时由内联 30deg 渐变覆盖 */
+.dec-pc-cat-wide__left {
+  position: relative;
+  width: 236px;
+  height: 410px;
+  padding-top: 20px;
+  flex-shrink: 0;
+  text-align: center;
+  background: linear-gradient(30deg, #f9ab57 0%, #f78a4b 100%);
+}
+
+.dec-pc-cat-wide__left h4 {
+  margin: 0;
+  font-weight: 400;
+}
+
+.dec-pc-cat-wide__left h4 a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+  margin: auto;
+  padding: 0 10px 10px 15px;
+  border-bottom: 1px solid #feeadd;
+  color: #fff;
+  font-size: 20px;
+  line-height: 20px;
+  text-decoration: none;
+}
+
+.dec-pc-cat-wide__tit-arrow {
+  margin-left: 10px;
+  flex-shrink: 0;
+}
+
+.dec-pc-cat-wide__en {
+  margin: 0;
+  color: #fff;
+  font-size: 14px;
+  line-height: 24px;
+  text-transform: uppercase;
+}
+
+/* SpecialSwiper 层叠轮播 */
+.dec-pc-cat-wide__slider {
+  position: relative;
+  margin-top: 35px;
+}
+
+.dec-pc-cat-wide__slider ul {
+  position: relative;
+  width: 195px;
+  height: 225px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.dec-pc-cat-wide__slider li {
+  position: absolute;
+  margin: 0 auto;
+  border-radius: 4px;
+  background-color: #fff;
+  transition: all 0.5s;
+}
+
+.dec-pc-cat-wide__slider-a {
+  display: block;
+  height: 205px;
+  padding-top: 20px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.dec-pc-cat-wide__slider-caption {
+  height: 20px;
+  margin: 0;
+  overflow: hidden;
+  color: #f78b4b;
+  font-size: 16px;
+  line-height: 20px;
+}
+
+.dec-pc-cat-wide__slider-sub {
+  height: 30px;
+  margin: 0;
+  overflow: hidden;
+  color: #666;
+  font-size: 14px;
+  line-height: 30px;
+}
+
+.dec-pc-cat-wide__slider li img {
+  margin-top: 5px;
+}
+
+.dec-pc-cat-wide__slider-ph {
+  display: block;
+  padding-top: 20px;
+  text-align: center;
+}
+
+.dec-pc-cat-wide__slider-turn {
+  position: absolute;
+  top: 235px;
+  left: 67px;
+  display: flex;
+  align-items: center;
+  height: 30px;
+  line-height: 30px;
+  color: #f8f6f7;
+}
+
+.dec-pc-cat-wide__slider-btn {
+  text-align: center;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+}
+
+.dec-pc-cat-wide__slider-num {
+  padding: 0 20px;
+  font-size: 14px;
+}
+
+.dec-pc-cat-wide__slider-num em {
+  font-style: normal;
+}
+
+/* 左栏底部评论条（linkList） */
+.dec-pc-cat-wide__comment {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 26px;
+  overflow: hidden;
+  padding: 8px 0;
+  background-color: rgba(255, 255, 255, 0.2);
+  line-height: 26px;
+}
+
+.dec-pc-cat-wide__comment-left {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 26px;
+  flex-shrink: 0;
+  border-right: 1px solid #f7d9b7;
+  color: #fff;
+}
+
+.dec-pc-cat-wide__comment-list {
+  width: 173px;
+  height: 26px;
+  overflow: hidden;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.dec-pc-cat-wide__comment-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dec-pc-cat-wide__comment-list li {
+  overflow: hidden;
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dec-pc-cat-wide__comment-list a {
+  color: #fff;
+  text-decoration: none;
+}
+
+/* 中栏 */
+.dec-pc-cat-wide__center {
+  flex: 1;
+  min-width: 0;
+}
+
+.dec-pc-cat-wide__keywords {
+  height: 40px;
+  overflow: hidden;
+  border-right: 1px solid #f5f5f5;
+  color: #aaa;
+  font-size: 12px;
+}
+
+.dec-pc-cat-wide__keywords ul {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dec-pc-cat-wide__hot-link {
+  display: inline-block;
+  margin: 0 15px;
+  line-height: 40px;
+  color: #aaa;
+  text-decoration: none;
+}
+
+.dec-pc-cat-wide__goods {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.dec-pc-cat-wide__pro-wrap {
+  box-sizing: border-box;
+  position: relative;
+  width: 33.333%;
+  height: 194px;
+  overflow: hidden;
+  border-top: 1px solid #f5f5f5;
+  border-right: 1px solid #f5f5f5;
+}
+
+.dec-pc-cat-wide__pro-wrap a {
+  display: block;
+  width: 100%;
+  height: 174px;
+  padding-top: 20px;
+  text-decoration: none;
+}
+
+.dec-pc-cat-wide__pro-tit {
+  position: relative;
+  z-index: 105;
+  height: 24px;
+  max-width: 145px;
+  margin: 0 0 0 20px;
+  overflow: hidden;
+  color: #333;
+  font-size: 14px;
+  line-height: 24px;
+}
+
+.dec-pc-cat-wide__pro-sub {
+  position: relative;
+  z-index: 105;
+  height: 24px;
+  max-width: 115px;
+  margin: 0 0 0 20px;
+  overflow: hidden;
+  color: #f78b4b;
+  font-size: 14px;
+  line-height: 24px;
+}
+
+.dec-pc-cat-wide__pro-img {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 101;
+  display: block;
+  width: 130px;
+  height: 130px;
+}
+
+.dec-pc-cat-wide__pro-img img {
+  width: 130px;
+  height: 130px;
+}
+
+/* 右栏热门商品 */
+.dec-pc-cat-wide__hot {
+  width: 250px;
+  height: 430px;
+  flex-shrink: 0;
+  overflow: hidden;
+  overflow-y: auto;
+}
+
+.dec-pc-cat-wide__hot::-webkit-scrollbar {
+  display: none;
+}
+
+.dec-pc-cat-wide__hot-tit {
+  margin: 15px 0 0;
+  color: #666;
+  font-weight: bold;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.dec-pc-cat-wide__rank {
+  padding: 0 20px;
+}
+
+.dec-pc-cat-wide__rank ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dec-pc-cat-wide__rank li {
+  height: 60px;
+  margin-top: 15px;
+}
+
+.dec-pc-cat-wide__rank-a {
+  display: flex;
+  justify-content: space-between;
+  text-decoration: none;
+}
+
+.dec-pc-cat-wide__rank-img {
+  position: relative;
+  display: inline-block;
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+}
+
+.dec-pc-cat-wide__rank-detail {
+  width: 138px;
+}
+
+.dec-pc-cat-wide__rank-name {
+  height: 40px;
+  margin: 0;
+  overflow: hidden;
+  color: #333;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.dec-pc-cat-wide__presale {
+  margin-right: 4px;
+  color: var(--general, var(--semi-color-primary));
+  font-weight: 500;
+}
+
+.dec-pc-cat-wide__rank-price {
+  margin-top: 5px;
+  color: var(--general, var(--semi-color-primary));
+  font-size: 14px;
+}

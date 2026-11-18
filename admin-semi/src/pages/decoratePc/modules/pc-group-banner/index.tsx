@@ -6,7 +6,7 @@ import type { ModuleDef, PicItem } from '../../contract/pcModuleContract';
 import { containerFields, demoPic, DEMO_PIC_1, DEMO_PIC_2, registerPcModule } from '../../contract/pcModuleContract';
 
 const def: ModuleDef = {
-  type: 'pc-group-banner', label: '分组轮播Banner', group: '轮播横幅', overseasOnly: true,
+  type: 'pc-group-banner', label: '分组轮播Banner', group: '图片与轮播', overseasOnly: true,
   defaults: () => ({
     frame: { backgroundColor: '#ffffff', boxPadding: 10, boxPaddingTop: 0, boxPaddingBottom: 0, boxRadius: 8, slideHeight: 195 },
     bannerStyle: 1, showCat: 1, logo: { picUrl: '', picThumb: '' },

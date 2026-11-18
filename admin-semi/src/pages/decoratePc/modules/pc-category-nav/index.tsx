@@ -2,7 +2,7 @@
 import { containerFields, getPath, registerPcModule, standardTitle, type ModuleDef } from '../../contract/pcModuleContract';
 
 const def: ModuleDef = {
-  type: 'pc-category-nav', label: '分类导航', group: '导航分类',
+  type: 'pc-category-nav', label: '分类导航', group: '导航入口',
   defaults: () => ({
     frame: { boxPadding: 0, boxPaddingTop: 0, boxPaddingBottom: 0, boxRadius: 8, backgroundColor: '#f7f7f7', boxHeight: 328 },
     titleName: '热门分类', showTitle: 1, displayNum: 6, backgroundColor: '#f7f7f7',

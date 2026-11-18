@@ -1,7 +1,7 @@
 import { containerFields, registerPcModule, type ModuleDef } from '../../contract/pcModuleContract';
 
 const def: ModuleDef = {
-    type: 'pc-spacer', label: '空白辅助', group: '辅助元素',
+    type: 'pc-spacer', label: '空白辅助', group: '基础排版',
     defaults: () => ({
       frame: { boxPadding: 0, boxPaddingTop: 0, boxPaddingBottom: 0, boxRadius: 0 },
       backgroundColor: '#ffffff',

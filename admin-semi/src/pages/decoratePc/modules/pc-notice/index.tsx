@@ -1,7 +1,7 @@
 import { containerFields, NOTICE_ICON, registerPcModule, type ModuleDef } from '../../contract/pcModuleContract';
 
 const def: ModuleDef = {
-    type: 'pc-notice', label: '公告', group: '辅助元素',
+    type: 'pc-notice', label: '公告', group: '营销活动',
     defaults: () => ({
       text: '公告内容',
       icoPic: { picUrl: NOTICE_ICON, picThumb: NOTICE_ICON },

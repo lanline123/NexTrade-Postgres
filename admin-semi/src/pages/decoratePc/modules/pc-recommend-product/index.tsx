@@ -6,7 +6,7 @@ import type { ModuleDef } from '../../contract/pcModuleContract';
 import { containerFields, getPath, productsDefaults, registerPcModule, standardTitle } from '../../contract/pcModuleContract';
 
 const def: ModuleDef = {
-  type: 'pc-recommend-product', label: '推荐商品', group: '商品',
+  type: 'pc-recommend-product', label: '推荐商品', group: '商品展示',
   // 2026-11-12 用户指令：模块选单里要能看到推荐商品（此前 hiddenInLibrary: true 导致它只存在于老页面数据中，选不出来）。
   defaults: () => ({
     // 模块背景默认透明（2026-11-13 用户指定）：页面底色的浅灰要透出来，模块自身不铺白

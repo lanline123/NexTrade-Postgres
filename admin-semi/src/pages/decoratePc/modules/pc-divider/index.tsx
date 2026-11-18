@@ -1,7 +1,7 @@
 import { containerFields, registerPcModule, tl, type ModuleDef } from '../../contract/pcModuleContract';
 
 const def: ModuleDef = {
-  type: 'pc-divider', label: '分割线', group: '辅助元素',
+  type: 'pc-divider', label: '分割线', group: '基础排版',
   defaults: () => ({
     lineType: 2, lineStyle: 1,
     frame: { textColor: '', itemBackgroundColor: '', backgroundColor: '#ffffff', innerPadding: 0, itemHeight: 10, itemRadius: 0, boxRadius: 0, boxPadding: 10, boxPaddingTop: 5, boxPaddingBottom: 5 },

@@ -6,7 +6,7 @@ import type { ModuleDef } from '../../contract/pcModuleContract';
 import { buyBtnFields, containerFields, productsDefaults, registerPcModule, standardFrame, standardTitle } from '../../contract/pcModuleContract';
 
 const def: ModuleDef = {
-  type: 'pc-product', label: '商品', group: '商品',
+  type: 'pc-product', label: '商品', group: '商品展示',
   defaults: () => ({
     style: 1, goodsStyle: 1, goodsRadioStyle: 1, textAlign: 1, textWeight: 1, goodsNameRow: 2,
     goodsNamePadding: 1, showName: 1, showBrief: 1, showPrice: 1, goodsPadding: 5, buyBtnStyle: 1,

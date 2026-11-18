@@ -6,7 +6,7 @@ import type { ModuleDef } from '../../contract/pcModuleContract';
 import { buyBtnFields, registerPcModule } from '../../contract/pcModuleContract';
 
 const def: ModuleDef = {
-  type: 'pc-product-group', label: '商品分组', group: '商品',
+  type: 'pc-product-group', label: '商品分组', group: '商品展示',
   defaults: () => {
     // 演示商品（原版 demoProductList 逐字段）
     const demoProductList = [

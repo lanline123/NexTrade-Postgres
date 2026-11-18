@@ -1,0 +1,61 @@
+/**
+ * PC 旧版「分类导航」pcCategoryNav - 预览样式
+ *
+ * 数值逐项对应前台 ContractCategoryHot（pc-semi modules.tsx:5500）的内联样式：
+ * grid gap 12、卡片 padding 8px 4px / gap 8、图标 48×48 contain 圆角 8、
+ * 分类名 14px #333、标题行 marginBottom 12。外层无 frame（前台固定 FLAT_FRAME）。
+ * __empty 为编辑器专用占位（前台空结果整块不渲染），观感与同库预览的空态一致。
+ */
+
+.dec-pcCategoryNav {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dec-pcCategoryNav__head {
+  margin-bottom: 12px;
+}
+
+.dec-pcCategoryNav__grid {
+  display: grid;
+  gap: 12px;
+}
+
+.dec-pcCategoryNav__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px;
+  text-align: center;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.dec-pcCategoryNav__img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  background: transparent;
+  border-radius: 8px;
+}
+
+.dec-pcCategoryNav__name {
+  font-size: 14px;
+  color: #333;
+}
+
+.dec-pcCategoryNav__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  border-radius: 6px;
+  background-color: #f2f4f6;
+  text-align: center;
+}
+
+.dec-pcCategoryNav__empty-text {
+  color: #666666;
+  font-size: 14px;
+}

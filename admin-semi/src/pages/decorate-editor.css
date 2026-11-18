@@ -3394,3 +3394,38 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* PC 头部装修字段内的分段 RadioGroup（type=button）：改现代胶囊，与编辑器壳胶囊页签同语言——
+   容器 #f2f4f7 底 + 10px 圆角，选项 7px 圆角，未选灰字、悬停加深，选中主题色填充白字。
+   作用域 .pc-header-field（HeaderField 仅 PC 头部面板使用），不影响其它编辑器。 */
+.pc-header-field .semi-radioGroup-buttonRadio {
+  align-self: flex-end;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: #f2f4f7;
+  border-radius: 10px;
+  vertical-align: middle;
+}
+.pc-header-field .semi-radio-buttonRadioGroup,
+.pc-header-field .semi-radio-buttonRadioGroup:not(:last-child) {
+  padding: 0;
+}
+.pc-header-field .semi-radio-addon-buttonRadio {
+  display: block;
+  padding: 4px 14px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #475467;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.pc-header-field .semi-radio-addon-buttonRadio-hover {
+  background: #e9edf3;
+  color: #101828;
+}
+.pc-header-field .semi-radio-addon-buttonRadio-checked {
+  background: var(--semi-color-primary);
+  color: #fff;
+  font-weight: 600;
+}

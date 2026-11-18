@@ -1,0 +1,228 @@
+/**
+ * PC 分类商品-窄（pcCatProductNormal）预览样式。
+ * 数值逐项对齐前台 decorate-source.scss「home/CatProductNormal.vue scoped」段
+ * （楼层 608×430、左轮播 218×381、右促销区 372×381、卡 185×190）；
+ * 类名加 dec-pc-cat-normal 前缀，避免与编辑器其它样式冲突。
+ */
+
+.dec-pc-cat-normal {
+  width: 608px;
+  max-width: 100%;
+}
+
+.dec-pc-cat-normal__floor {
+  width: 608px;
+  height: 430px;
+  background-color: #fff;
+  overflow: hidden;
+}
+
+/* 标题栏：默认渐变（.index_floor_1 口径），color/color2 有值时由内联 30deg 渐变覆盖 */
+.dec-pc-cat-normal__tit {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 25px;
+  padding: 12px 10px 12px 18px;
+  color: #fff;
+  line-height: 25px;
+  background: linear-gradient(to right, #0bcd96 0, #05d7a8 100%);
+}
+
+.dec-pc-cat-normal__tit-name {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  font-weight: 400;
+  font-size: 20px;
+  white-space: nowrap;
+}
+
+.dec-pc-cat-normal__tit-name a {
+  color: #fff;
+  text-decoration: none;
+}
+
+.dec-pc-cat-normal__tit-arrow {
+  width: 12px;
+  height: 12px;
+  margin-left: 10px;
+  flex-shrink: 0;
+}
+
+.dec-pc-cat-normal__keywords {
+  overflow: hidden;
+  height: 24px;
+  max-width: 430px;
+  text-align: right;
+  line-height: 24px;
+  font-size: 12px;
+}
+
+.dec-pc-cat-normal__keywords ul {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dec-pc-cat-normal__keywords a {
+  margin: 0 8px;
+  color: #fff;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.dec-pc-cat-normal__row {
+  display: flex;
+}
+
+/* 左侧轮播 */
+.dec-pc-cat-normal__slider {
+  position: relative;
+  overflow: hidden;
+  width: 218px;
+  height: 381px;
+  flex-shrink: 0;
+}
+
+.dec-pc-cat-normal__slide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transition: opacity 0.5s;
+}
+
+.dec-pc-cat-normal__slide a {
+  display: block;
+  padding-top: 25px;
+  width: 218px;
+  height: 356px;
+  text-decoration: none;
+}
+
+.dec-pc-cat-normal__caption {
+  position: relative;
+  z-index: 105;
+  margin: 0 0 0 18px;
+  height: 24px;
+  overflow: hidden;
+  font-size: 20px;
+  line-height: 24px;
+  color: #0bcd96;
+}
+
+.dec-pc-cat-normal__sub {
+  position: relative;
+  z-index: 105;
+  margin: 0 0 0 18px;
+  overflow: hidden;
+  color: #999;
+  font-size: 14px;
+  line-height: 30px;
+}
+
+.dec-pc-cat-normal__slide-img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 102;
+  display: block;
+  width: 228px;
+  height: 381px;
+}
+
+.dec-pc-cat-normal__slide-img img {
+  width: 228px;
+  height: 381px;
+}
+
+.dec-pc-cat-normal__dots {
+  position: absolute;
+  top: 87px;
+  left: 15px;
+  z-index: 105;
+  display: flex;
+  height: 18px;
+  text-align: left;
+}
+
+.dec-pc-cat-normal__dot {
+  overflow: hidden;
+  width: 22px;
+  height: 4px;
+  margin-right: 4px;
+  border-radius: 0;
+  background-color: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+
+.dec-pc-cat-normal__dot.is-active {
+  background-color: #0bcd96;
+}
+
+/* 右侧促销卡（picList2，前 4 张有内容） */
+.dec-pc-cat-normal__pro-con {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  overflow: hidden;
+  width: 372px;
+  height: 381px;
+}
+
+.dec-pc-cat-normal__pro-wrap {
+  box-sizing: border-box;
+  position: relative;
+  width: 185px;
+  height: 190px;
+  border-bottom: 1px solid #f5f5f5;
+  border-left: 1px solid #f5f5f5;
+}
+
+.dec-pc-cat-normal__pro-wrap a {
+  display: block;
+  height: 170px;
+  padding-top: 20px;
+  text-decoration: none;
+}
+
+.dec-pc-cat-normal__pro-tit {
+  overflow: hidden;
+  margin: 0 0 0 20px;
+  height: 24px;
+  max-width: 100px;
+  color: #333;
+  font-size: 14px;
+  line-height: 24px;
+}
+
+.dec-pc-cat-normal__pro-sub {
+  position: relative;
+  z-index: 105;
+  overflow: hidden;
+  margin: 0 0 0 20px;
+  height: 24px;
+  max-width: 100px;
+  font-size: 14px;
+  line-height: 24px;
+  color: #0bcd96;
+}
+
+.dec-pc-cat-normal__pro-img {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 101;
+  display: block;
+  width: 105px;
+  height: 105px;
+}
+
+.dec-pc-cat-normal__pro-img img {
+  width: 105px;
+  height: 105px;
+}

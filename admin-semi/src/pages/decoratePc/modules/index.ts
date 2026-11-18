@@ -1,7 +1,7 @@
 /**
  * PC 装修编辑器模块注册入口（Step 3 模块化）：
  * 导入全部模块目录触发各自 index.tsx 的 registerPcModule 自注册；
- * 预览组件按 type 汇成 PC_MODULE_PREVIEWS 供画布分发（无预览的旧版模块走摘要回退）。
+ * 预览组件按 type 汇成 PC_MODULE_PREVIEWS 供画布分发（旧版 16 模块 2026-11-18 起亦有实时预览，全部 type 均已登记）。
  */
 import type { ComponentType } from 'react';
 import './pc-banner2';
@@ -62,6 +62,22 @@ import PcProductGroupPreview from './pc-product-group/Preview';
 import PcRecommendProductPreview from './pc-recommend-product/Preview';
 import PcSpacerPreview from './pc-spacer/Preview';
 import PcTitleAdPreview from './pc-title-ad/Preview';
+import PcBannerPreview from './pcBanner/Preview';
+import PcBanner2LegacyPreview from './pcBanner2/Preview';
+import PcGroupBannerLegacyPreview from './pcGroupBanner/Preview';
+import PcImageAdLegacyPreview from './pcImageAd/Preview';
+import PcCustomAd1Preview from './pcCustomAd1/Preview';
+import PcCustomAd2Preview from './pcCustomAd2/Preview';
+import PcCatProductNormalPreview from './pcCatProductNormal/Preview';
+import PcCatProductWidePreview from './pcCatProductWide/Preview';
+import PcCatProductSimplePreview from './pcCatProductSimple/Preview';
+import PcCatWidePreview from './pcCatWide/Preview';
+import PcCategoryNavLegacyPreview from './pcCategoryNav/Preview';
+import PcCategoryNav3LegacyPreview from './pcCategoryNav3/Preview';
+import PcCouponLegacyPreview from './pcCoupon/Preview';
+import PcGrouponLegacyPreview from './pcGroupon/Preview';
+import PcSeckillLegacyPreview from './pcSeckill/Preview';
+import PcRecommendProductLegacyPreview from './pcRecommendProduct/Preview';
 import PcloginPreview from './pcLogin/Preview';
 import PcsearchresultPreview from './pcSearchResult/Preview';
 
@@ -90,4 +106,20 @@ export const PC_MODULE_PREVIEWS: Record<string, ComponentType<{ data: Record<str
     'pc-title-ad': PcTitleAdPreview,
     'pcLogin': PcloginPreview,
     'pcSearchResult': PcsearchresultPreview,
+    pcBanner: PcBannerPreview,
+    pcBanner2: PcBanner2LegacyPreview,
+    pcGroupBanner: PcGroupBannerLegacyPreview,
+    pcImageAd: PcImageAdLegacyPreview,
+    pcCustomAd1: PcCustomAd1Preview,
+    pcCustomAd2: PcCustomAd2Preview,
+    pcCatProductNormal: PcCatProductNormalPreview,
+    pcCatProductWide: PcCatProductWidePreview,
+    pcCatProductSimple: PcCatProductSimplePreview,
+    pcCatWide: PcCatWidePreview,
+    pcCategoryNav: PcCategoryNavLegacyPreview,
+    pcCategoryNav3: PcCategoryNav3LegacyPreview,
+    pcCoupon: PcCouponLegacyPreview,
+    pcGroupon: PcGrouponLegacyPreview,
+    pcSeckill: PcSeckillLegacyPreview,
+    pcRecommendProduct: PcRecommendProductLegacyPreview,
 };

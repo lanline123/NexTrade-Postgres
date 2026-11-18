@@ -2,7 +2,7 @@
 import { containerFields, getPath, registerPcModule, standardTitle, type ModuleDef, type PicItem } from '../../contract/pcModuleContract';
 
 const def: ModuleDef = {
-  type: 'pc-category-nav3', label: '分类导航3', group: '导航分类', overseasOnly: true,
+  type: 'pc-category-nav3', label: '分类导航3', group: '导航入口', overseasOnly: true,
   desc: '选择图片和链接，可编辑文字，方便轻松设置',
   defaults: () => ({
     frame: { boxPadding: 0, boxPaddingTop: 0, boxPaddingBottom: 0, boxRadius: 8, backgroundColor: 'rgba(0, 0, 0, 0.02)', boxHeight: 352 },
