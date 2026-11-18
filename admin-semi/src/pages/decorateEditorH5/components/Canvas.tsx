@@ -15,6 +15,9 @@
  * 2026-11-18 Phase 2：画布分「真实渲染 / 兼容渲染」两模式（默认真实渲染）——
  * 真实渲染 = IframeCanvas（iframe 嵌入前台 decoratePreview，见 IframeCanvas.tsx）；
  * 兼容渲染 = 本文件旧画布（兜底保留）。模式存 localStorage（h5-editor-render-mode）。
+ * 2026-11-18 v59 补漏：真实渲染同样在 iframe 之上渲染 PageHeaderPreview（与兼容
+ * 模式同一组件、同一显隐规则）——嵌入页并不渲染编辑器口径的页面标题栏（线上验收
+ * 实证：真实模式画布直接从首模块开始、无状态栏图与居中标题，旧假设不成立）。
  * 两种模式都注册模块库拖入的落点解析（真实模式在 IframeCanvas 内注册）：
  * 兼容模式按旧画布 DOM 位置算插入下标，见下方 useEffect。
  */
@@ -247,7 +250,10 @@ export default function Canvas({ preview = false }: { preview?: boolean }) {
                 </div>
             ) : null}
             {renderMode === "real" ? (
-                <IframeCanvas preview={preview} windowStyle={windowStyle} />
+                <div className="decorate-page-window" style={windowStyle}>
+                    <PageHeaderPreview preview={preview} />
+                    <IframeCanvas preview={preview} bare />
+                </div>
             ) : (
             <div className="decorate-page-window" ref={windowRef} style={windowStyle}>
                 <div className="theme-modules-warp">

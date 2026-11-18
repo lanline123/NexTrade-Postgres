@@ -7,8 +7,12 @@
  * 覆盖层完成，iframe 纯展示。
  *
  * 口径：
- * - 标题栏：前台分发器按 pageModule.title 自行渲染 navbar（与真前台一致），父侧
- *   不再画 PageHeaderPreview（避免双标题）；覆盖层在首模块上方留出标题区点击 → 页面设置。
+ * - 标题栏：父侧在 iframe 之上渲染与兼容模式同一个 PageHeaderPreview（Canvas 的
+ *   真实模式分支，bare 模式挂载）——嵌入页不渲染编辑器口径的标题栏（2026-11-18
+ *   线上验收实证：真实模式曾直接从首模块开始、无状态栏图与居中标题，「前台自带
+ *   navbar、父侧不重复画」的旧假设不成立，已废止）。覆盖层坐标全部相对 iframe
+ *   内容（本组件的 wrap 内部），标题栏在 wrap 之外、之上，不影响槽位对齐；覆盖层
+ *   顶部点击区（首模块 top 之上的区域）仍映射到页面设置，与标题栏点击口径一致。
  * - 隐藏模块（isShow=false）前台不渲染、无布局槽位：覆盖层按其顺序位置锚定一个
  *   模块名标签供点选/操作（显隐/删除/上下移），拖拽排序请用操作条或切兼容渲染。
  * - 页面背景：窗口底色沿用编辑器 pageBackgroundStyle（windowStyle 传入）；前台根
@@ -32,7 +36,16 @@ import { useI18n } from "../../../i18n";
 
 const DRAG_THRESHOLD = 6;
 
-export default function IframeCanvas({ preview = false, windowStyle }: { preview?: boolean; windowStyle?: React.CSSProperties }) {
+export default function IframeCanvas({
+    preview = false,
+    windowStyle,
+    bare = false
+}: {
+    preview?: boolean;
+    windowStyle?: React.CSSProperties;
+    /** bare=true 时不渲染 .decorate-page-window 外框（由 Canvas 真实模式分支统一渲染外框 + PageHeaderPreview） */
+    bare?: boolean;
+}) {
     const { t } = useI18n();
     const s = useEditorState();
     const libDrag = useLibraryDragState();
@@ -271,8 +284,7 @@ export default function IframeCanvas({ preview = false, windowStyle }: { preview
         );
     };
 
-    return (
-        <div className="decorate-page-window" style={windowStyle}>
+    const wrapContent = (
             <div className="h5-editor-iframe-wrap" ref={wrapRef} style={{ height: frameHeight }}>
                 <iframe
                     ref={iframeRef}
@@ -303,6 +315,11 @@ export default function IframeCanvas({ preview = false, windowStyle }: { preview
                     </div>
                 ) : null}
             </div>
+    );
+    if (bare) return wrapContent;
+    return (
+        <div className="decorate-page-window" style={windowStyle}>
+            {wrapContent}
         </div>
     );
 }
