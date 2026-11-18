@@ -8,9 +8,10 @@
 * - 指定门店（storeSource=2）：渲染 data.storeList（契约仅 { shopId, shopTitle, shopLogo}），
 * 为空显示「未选择门店」空态，绝不兜底演示门店。
 * - 评分取列表记录 shopStar、地址取 shopDetailedAddress，有真实值才渲染（评分受 showRating 开关控制）；
-* 距离 / 起送价 / 配送费在门店列表 VO（ShopVO）中无对应字段（距离需定位、起送/配送属门店配送配置，
-* 均不在该接口口径内），恒不渲染——showMinOrder/showDeliveryFee/showDistance 开关保留在设置中但预览无数据可挂。
-* 指定门店条目不带评分/地址字段，故该模式下评分行/地址行同样不渲染。
+* 距离 / 起送价 / 配送费：后端 ShopVO 补字段已获用户批准（2026-11-18，后端批次落地中），
+* 预览按「字段存在则渲染」处理——记录带 distance / minOrderAmount（或 minOrder）/ deliveryFee
+* 且对应 show* 开关开启时才显示，字段未落地前自动不显示，不写死任何数值。
+* 指定门店条目契约仅三字段，故该模式下评分/地址/距离/起送/配送费均不渲染（条目将来带字段时自动生效）。
 * - 样式二商品行：按店铺真实拉取 GET /product/product/list（shopId + productStatus=1 + checkStatus=1，
 * size=4，对齐原版演示行的 4 项版式），无商品的门店不渲染商品行；名称/价格受
 * showProductName/productNameRow/showProductPrice 控制。
@@ -40,6 +41,12 @@ shopLogo?: string;
 rating?: number;
 /** 门店详细地址（列表记录 shopDetailedAddress），无地址时为空 */
 address?: string;
+/** 距离（米，列表记录 distance），后端 ShopVO 补字段落地后才有值 */
+distance?: number;
+/** 起送价（列表记录 minOrderAmount / minOrder），同上 */
+minOrder?: number | string;
+/** 配送费（列表记录 deliveryFee），同上；0 表示免配送费 */
+deliveryFee?: number | string;
 }
 
 interface PreviewProduct {
@@ -56,6 +63,22 @@ const num = Number(value);
 return Number.isFinite(num) && num > 0? num: undefined;
 };
 
+/** 距离归一化：非数字、负数视为无距离，不渲染 */
+const toDistance = (value: unknown): number | undefined => {
+const num = Number(value);
+return Number.isFinite(num) && num >= 0 && value !== null && value !== undefined && value !== ""? num: undefined;
+};
+
+/** 金额归一化：空/非数字视为无值，不渲染；保留原始数值或字符串形态展示 */
+const toMoney = (value: unknown): number | string | undefined => {
+if (value === null || value === undefined || value === "") return undefined;
+const num = Number(value);
+return Number.isFinite(num)? (typeof value === "number"? value: num): undefined;
+};
+
+/** 距离展示：与 H5 前端门店卡同公式（<1000 显示 Xm，否则 X.XXkm） */
+const formatDistance = (meters: number): string => (meters < 1000? `${Math.round(meters)}m`: `${(meters / 1000).toFixed(2)}km`);
+
 export default function StoreNavPreview({ data}: Props) {
 const m = useMemo(() => { const merged = JSON.parse(JSON.stringify(data?? {})); mergeDefaultModule(merged, cloneDeep(storeNavDefaults)); return merged;}, [data]);
 
@@ -70,7 +93,10 @@ isAssign
 ? (Array.isArray(m.storeList)? m.storeList: []).map((item: Record<string, any>) => ({
 shopId: Number(item.shopId) || 0,
 shopTitle: item.shopTitle || "",
-shopLogo: item.shopLogo || ""
+shopLogo: item.shopLogo || "",
+distance: toDistance(item.distance),
+minOrder: toMoney(item.minOrderAmount ?? item.minOrder),
+deliveryFee: toMoney(item.deliveryFee)
 }))
 : [],
 [isAssign, m.storeList]
@@ -101,7 +127,10 @@ shopId: Number(row.shopId) || 0,
 shopTitle: row.shopTitle || row.shopName || "",
 shopLogo: row.shopLogo || "",
 rating: toRating(row.shopStar),
-address: row.shopDetailedAddress || ""
+address: row.shopDetailedAddress || "",
+distance: toDistance(row.distance),
+minOrder: toMoney(row.minOrderAmount ?? row.minOrder),
+deliveryFee: toMoney(row.deliveryFee)
 }))
 );
 })
@@ -204,9 +233,10 @@ stores.map((store, index) => (
 <div className="stn-item-right">
 <div style={storeTitleStyle}>{storeTitle(store)}</div>
 {Number(m.showRating) === 1 && store.rating? <div className="stn-store-desc">{store.rating.toFixed(2)}</div>: null}
-{store.address? (
+{store.address || (Number(m.showDistance) === 1 && store.distance !== undefined)? (
 <div className="stn-store-address-info">
-<div className="stn-address stn-line1">{store.address}</div>
+{store.address? <div className="stn-address stn-line1">{store.address}</div>: null}
+{Number(m.showDistance) === 1 && store.distance !== undefined? <div className="stn-distance">{formatDistance(store.distance)}</div>: null}
 </div>
 ): null}
 </div>
@@ -244,6 +274,19 @@ return (
 <span className="stn-shop-star">{store.rating.toFixed(2)}分</span>
 </div>
 ): null}
+{(() => {
+const feeItems: string[] = [];
+if (Number(m.showMinOrder) === 1 && store.minOrder !== undefined) feeItems.push(`起送 ¥${store.minOrder}`);
+if (Number(m.showDeliveryFee) === 1 && store.deliveryFee !== undefined) feeItems.push(Number(store.deliveryFee) === 0? "免配送费": `配送费 ¥${store.deliveryFee}`);
+if (Number(m.showDistance) === 1 && store.distance !== undefined) feeItems.push(formatDistance(store.distance));
+return feeItems.length > 0? (
+<div className="stn-fee-row">
+{feeItems.map((text) => (
+<span key={text}>{text}</span>
+))}
+</div>
+): null;
+})()}
 </div>
 </div>
 {products.length > 0? (

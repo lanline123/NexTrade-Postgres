@@ -62,6 +62,7 @@ registerModule({
     order: 68,
     // 原版 enabled: () => isPro() && isStore()，映射为 isStore()（我方即 pro 版，同 storeNav 口径）
     enabled: () => isStore(),
+    shopOnly: true,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(bannerA2Defaults)

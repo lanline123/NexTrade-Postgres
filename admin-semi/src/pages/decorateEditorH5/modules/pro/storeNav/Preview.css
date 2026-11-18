@@ -140,6 +140,14 @@
     font-size: 11px;
     line-height: 1;
 }
+.stn-root .stn-fee-row {
+display: flex;
+gap: 10px;
+font-size: 11px;
+color: #999999;
+margin-top: 2px;
+}
+
 .stn-root .stn-meta-row {
     display: flex;
     flex-wrap: wrap;
