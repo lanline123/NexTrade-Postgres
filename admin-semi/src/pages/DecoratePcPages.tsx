@@ -108,7 +108,7 @@ export function PcDecorateHome() {
   const [keyword, setKeyword] = useState('');
   const [appliedKeyword, setAppliedKeyword] = useState('');
   const [loading, setLoading] = useState(!isDemo());
-  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [selectedKeys, setSelectedKeys] = useState<Array<string | number>>([]);
   const [sortField, setSortField] = useState('');
   const [sortOrder, setSortOrder] = useState('');
 
@@ -497,7 +497,7 @@ export function PcDecorateHome() {
           loading={loading}
           rowSelection={{
             selectedRowKeys: selectedKeys,
-            onChange: (keys) => setSelectedKeys((keys || []).map(String)),
+            onChange: (keys) => setSelectedKeys((keys || []) as Array<string | number>),
             width: 32,
             fixed: true,
           }}

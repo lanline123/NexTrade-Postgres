@@ -96,7 +96,7 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
   const [detailId, setDetailId] = useState<number | undefined>(undefined);
   const [writeOffOpen, setWriteOffOpen] = useState(false);
   // 批量操作（对齐旧版：添加标记 / 订单批量发货 / Excel批量发货）
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Array<string | number>>([]);
   const [batchSignOpen, setBatchSignOpen] = useState(false);
   const [batchShipOpen, setBatchShipOpen] = useState(false);
   const [batchImportOpen, setBatchImportOpen] = useState(false);
@@ -373,7 +373,7 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
           rowKey="orderId"
           rowSelection={{
             selectedRowKeys: selectedIds,
-            onChange: (keys: any) => setSelectedIds((keys as Array<string | number>).map(String)),
+            onChange: (keys: any) => setSelectedIds((keys || []) as Array<string | number>),
           }}
           pagination={{
             currentPage: page,
