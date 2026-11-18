@@ -1,8 +1,9 @@
 //! 商品复刻（跨平台商品搬家）领域模型（2026-11-18 新增，本平台自有契约）。
 //!
 //! 设计：`~/workspace/product-clone-design/proposal.md` + `channel-design.md`。
-//! 双通道（A 第三方数据接口 / B 自建抓取边车）的原始返回都归一到
-//! [`CloneDraft`]，下游（预览修正、价格规则、图片转存、落库）不感知通道。
+//! 自建抓取边车（通道 B）的原始返回归一到 [`CloneDraft`]，
+//! 下游（预览修正、价格规则、图片转存、落库）不感知取数细节。
+//! （通道 A 第三方数据接口已于 2026-11-18 按用户裁示整体移除。）
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -80,8 +81,6 @@ impl Platform {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ChannelId {
-    /// 通道 A：第三方商品数据 API（万邦 onebound），按次计费。
-    Api,
     /// 通道 B：自建抓取边车。
     SelfHosted,
     /// 通道 C：官方开放平台（预留，一期不实现）。
@@ -92,7 +91,6 @@ impl ChannelId {
     #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
-            ChannelId::Api => "api",
             ChannelId::SelfHosted => "selfhost",
             ChannelId::Official => "official",
         }
@@ -100,7 +98,6 @@ impl ChannelId {
 
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
-            "api" => Some(ChannelId::Api),
             "selfhost" => Some(ChannelId::SelfHosted),
             "official" => Some(ChannelId::Official),
             _ => None,
@@ -194,7 +191,7 @@ pub fn parse_source_url(raw: &str) -> Option<(Platform, String)> {
         return None;
     }
     if lower.contains("meituan.com") {
-        // 一期两通道均不支持美团：识别平台但无 ID，上层据此给「不支持」提示。
+        // 一期不支持美团：识别平台但无 ID，上层据此给「不支持」提示。
         return Some((Platform::Meituan, String::new()));
     }
     None
@@ -239,7 +236,7 @@ pub struct CloneCompleteness {
     pub missing: Vec<String>,
 }
 
-/// 统一草稿（两通道归一目标，下游与通道无关）。
+/// 统一草稿（边车原始返回的归一目标，下游与取数细节无关）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CloneDraft {
@@ -325,11 +322,11 @@ pub struct CloneTaskQuery {
 #[serde(rename_all = "camelCase", default)]
 pub struct CloneFetchDTO {
     pub urls: Vec<String>,
-    /// 通道：api / selfhost；不传走全局默认（含分平台覆盖）。
+    /// 通道（历史字段）：通道 A 移除后任务恒走自建抓取，服务端忽略此值。
     pub channel: Option<String>,
 }
 
-/// 换通道重试入参。
+/// 重试入参（channel 为历史字段，服务端忽略，恒走自建抓取）。
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CloneRetryDTO {

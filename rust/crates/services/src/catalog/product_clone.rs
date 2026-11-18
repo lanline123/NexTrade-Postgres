@@ -1,12 +1,11 @@
-//! 商品复刻服务（2026-11-18 新增）：双通道取数 → 归一草稿 → 图片转存 → 落库。
+//! 商品复刻服务（2026-11-18 新增）：边车取数 → 归一草稿 → 图片转存 → 落库。
 //!
 //! 设计：`~/workspace/product-clone-design/proposal.md`、`channel-design.md`。
-//! - 通道 A：万邦 onebound REST（后端直连，key/secret 存配置表 `productCloneSettings`）。
 //! - 通道 B：自建抓取边车（独立 Python 服务，本服务只调其 `/scrape`，归一在本侧）。
 //! - 通道 C：官方开放平台预留枚举，不实现。
+//! （通道 A 第三方数据接口已于 2026-11-18 按用户裁示整体移除。）
 //!
-//! 失败口径：默认不自动换通道（防不知情扣费/撞风控）；仅当设置开启
-//! `fallbackBToA` 时 B 失败单向转 A 重试一次。每次尝试都记 attempts（含费用）。
+//! 每次尝试都记 attempts（边车不计费，costFen 恒 0；历史通道 A 任务的费用留痕保留）。
 
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -14,11 +13,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use rust_decimal::Decimal;
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 
 use nextrade_core::models::catalog::product_clone::{
-    parse_source_url, task_status, ChannelId, CloneCompleteness, CloneDraft, CloneFetchDTO,
-    CloneImportDTO, CloneImportResult, CloneProp, CloneRetryDTO, CloneSku, CloneSpec,
+    parse_source_url, task_status, ChannelId, CloneDraft, CloneFetchDTO,
+    CloneImportDTO, CloneImportResult, CloneRetryDTO, CloneSku, CloneSpec,
     CloneTaskQuery, Platform, SupportLevel,
 };
 use nextrade_core::models::catalog::product_manage::{
@@ -36,36 +35,21 @@ pub const CLONE_SETTINGS_CODE: &str = "productCloneSettings";
 
 // ————————————————————— 设置 —————————————————————
 
-/// 复刻设置（内部全量，含密钥；出参必须走 `masked_settings`）。
+/// 复刻设置（内部全量，含边车 token；出参必须走 `masked_settings`）。
+/// 存量配置 JSON 里的历史通道 A 字段在读取时被忽略，保存时自然脱落。
 #[derive(Debug, Clone)]
 pub struct CloneSettings {
-    pub default_channel: String,
-    pub default_channel_by_platform: Map<String, Value>,
-    pub api_enabled: bool,
-    pub api_key: String,
-    pub api_secret: String,
-    pub api_pdd_recharged: bool,
     pub selfhost_enabled: bool,
     pub selfhost_endpoint: String,
     pub selfhost_token: String,
-    pub fallback_b_to_a: bool,
-    pub daily_api_budget_fen: Option<i64>,
 }
 
 impl Default for CloneSettings {
     fn default() -> Self {
         Self {
-            default_channel: "api".to_string(),
-            default_channel_by_platform: Map::new(),
-            api_enabled: true,
-            api_key: String::new(),
-            api_secret: String::new(),
-            api_pdd_recharged: false,
             selfhost_enabled: false,
             selfhost_endpoint: String::new(),
             selfhost_token: String::new(),
-            fallback_b_to_a: false,
-            daily_api_budget_fen: None,
         }
     }
 }
@@ -73,26 +57,6 @@ impl Default for CloneSettings {
 impl CloneSettings {
     fn from_json(v: &Value) -> Self {
         let mut s = Self::default();
-        if let Some(x) = v.get("defaultChannel").and_then(Value::as_str) {
-            if ChannelId::from_str(x).is_some() {
-                s.default_channel = x.to_string();
-            }
-        }
-        if let Some(m) = v.get("defaultChannelByPlatform").and_then(Value::as_object) {
-            s.default_channel_by_platform = m.clone();
-        }
-        if let Some(b) = v.get("apiEnabled").and_then(Value::as_bool) {
-            s.api_enabled = b;
-        }
-        if let Some(x) = v.get("apiKey").and_then(Value::as_str) {
-            s.api_key = x.to_string();
-        }
-        if let Some(x) = v.get("apiSecret").and_then(Value::as_str) {
-            s.api_secret = x.to_string();
-        }
-        if let Some(b) = v.get("apiPddRecharged").and_then(Value::as_bool) {
-            s.api_pdd_recharged = b;
-        }
         if let Some(b) = v.get("selfhostEnabled").and_then(Value::as_bool) {
             s.selfhost_enabled = b;
         }
@@ -102,101 +66,30 @@ impl CloneSettings {
         if let Some(x) = v.get("selfhostToken").and_then(Value::as_str) {
             s.selfhost_token = x.to_string();
         }
-        if let Some(b) = v.get("fallbackBToA").and_then(Value::as_bool) {
-            s.fallback_b_to_a = b;
-        }
-        if let Some(n) = v.get("dailyApiBudgetFen").and_then(Value::as_i64) {
-            if n > 0 {
-                s.daily_api_budget_fen = Some(n);
-            }
-        }
         s
     }
 
     fn to_json(&self) -> Value {
         json!({
-            "defaultChannel": self.default_channel,
-            "defaultChannelByPlatform": self.default_channel_by_platform,
-            "apiEnabled": self.api_enabled,
-            "apiKey": self.api_key,
-            "apiSecret": self.api_secret,
-            "apiPddRecharged": self.api_pdd_recharged,
             "selfhostEnabled": self.selfhost_enabled,
             "selfhostEndpoint": self.selfhost_endpoint,
             "selfhostToken": self.selfhost_token,
-            "fallbackBToA": self.fallback_b_to_a,
-            "dailyApiBudgetFen": self.daily_api_budget_fen,
         })
     }
-
-    /// 某平台的默认通道（分平台覆盖优先于全局默认）。
-    fn default_channel_for(&self, platform: Platform) -> ChannelId {
-        if let Some(v) = self
-            .default_channel_by_platform
-            .get(platform.as_str())
-            .and_then(Value::as_str)
-        {
-            if let Some(c) = ChannelId::from_str(v) {
-                return c;
-            }
-        }
-        ChannelId::from_str(&self.default_channel).unwrap_or(ChannelId::Api)
-    }
 }
 
-fn tail4(s: &str) -> String {
-    let chars: Vec<char> = s.chars().collect();
-    if chars.len() <= 4 {
-        return String::new();
-    }
-    chars[chars.len() - 4..].iter().collect()
-}
-
-/// 设置出参（密钥只回尾 4 位与是否已配置，永不回明文）。
+/// 设置出参（边车 token 只回是否已配置，永不回明文）。
 fn masked_settings(s: &CloneSettings) -> Value {
     json!({
-        "defaultChannel": s.default_channel,
-        "defaultChannelByPlatform": s.default_channel_by_platform,
-        "apiEnabled": s.api_enabled,
-        "apiKeySet": !s.api_key.is_empty(),
-        "apiKeyTail": tail4(&s.api_key),
-        "apiSecretSet": !s.api_secret.is_empty(),
-        "apiPddRecharged": s.api_pdd_recharged,
         "selfhostEnabled": s.selfhost_enabled,
         "selfhostEndpoint": s.selfhost_endpoint,
         "selfhostTokenSet": !s.selfhost_token.is_empty(),
-        "fallbackBToA": s.fallback_b_to_a,
-        "dailyApiBudgetFen": s.daily_api_budget_fen,
     })
 }
 
-/// 保存设置：密钥字段留空 = 保持原值（页面不回显明文，无法原样回传）。
+/// 保存设置：token 字段留空 = 保持原值（页面不回显明文，无法原样回传）。
 fn merge_settings_save(old: &CloneSettings, payload: &Value) -> CloneSettings {
     let mut s = old.clone();
-    if let Some(x) = payload.get("defaultChannel").and_then(Value::as_str) {
-        if ChannelId::from_str(x).is_some() {
-            s.default_channel = x.to_string();
-        }
-    }
-    if let Some(m) = payload.get("defaultChannelByPlatform").and_then(Value::as_object) {
-        s.default_channel_by_platform = m.clone();
-    }
-    if let Some(b) = payload.get("apiEnabled").and_then(Value::as_bool) {
-        s.api_enabled = b;
-    }
-    if let Some(x) = payload.get("apiKey").and_then(Value::as_str) {
-        if !x.trim().is_empty() {
-            s.api_key = x.trim().to_string();
-        }
-    }
-    if let Some(x) = payload.get("apiSecret").and_then(Value::as_str) {
-        if !x.trim().is_empty() {
-            s.api_secret = x.trim().to_string();
-        }
-    }
-    if let Some(b) = payload.get("apiPddRecharged").and_then(Value::as_bool) {
-        s.api_pdd_recharged = b;
-    }
     if let Some(b) = payload.get("selfhostEnabled").and_then(Value::as_bool) {
         s.selfhost_enabled = b;
     }
@@ -208,21 +101,12 @@ fn merge_settings_save(old: &CloneSettings, payload: &Value) -> CloneSettings {
             s.selfhost_token = x.trim().to_string();
         }
     }
-    if let Some(b) = payload.get("fallbackBToA").and_then(Value::as_bool) {
-        s.fallback_b_to_a = b;
-    }
-    if payload.get("dailyApiBudgetFen").is_some() {
-        s.daily_api_budget_fen = payload
-            .get("dailyApiBudgetFen")
-            .and_then(Value::as_i64)
-            .filter(|n| *n > 0);
-    }
     s
 }
 
 // ————————————————————— 通道与错误 —————————————————————
 
-/// 解析失败分类（与设计稿一致，前端据此给提示与「换通道重试」）。
+/// 解析失败分类（与设计稿一致，前端据此给提示与「重新解析」）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CloneErrorKind {
     NotSupported,
@@ -265,40 +149,16 @@ impl CloneError {
 }
 
 /// 平台 × 通道支持矩阵（与 `GET /productClone/channels` 下发同源）。
+/// 边车一期仅实现淘宝/天猫 MTOP，其余平台如实报 None（边车网关也会拒绝）。
 #[must_use]
 pub fn support_level(channel: ChannelId, platform: Platform) -> SupportLevel {
     use ChannelId as C;
     use Platform as P;
     use SupportLevel as S;
     match (channel, platform) {
-        (C::Api, P::Meituan) => S::None,
-        (C::Api, _) => S::Full,
         (C::SelfHosted, P::Taobao) | (C::SelfHosted, P::Tmall) => S::Full,
-        (C::SelfHosted, P::Jd) | (C::SelfHosted, P::Pdd) | (C::SelfHosted, P::Ali1688) => S::Partial,
         (C::SelfHosted, _) => S::None,
         (C::Official, _) => S::None,
-    }
-}
-
-/// 通道 A 单次调用费用预估（分；按设计稿预算口径：淘宝/1688≈0.02 元、京东封顶 0.15 元）。
-fn api_cost_fen(platform: Platform) -> i32 {
-    match platform {
-        Platform::Jd => 15,
-        Platform::Pdd => 5,
-        Platform::Amazon => 5,
-        _ => 2,
-    }
-}
-
-/// 万邦平台路径名。
-fn onebound_platform(platform: Platform) -> &'static str {
-    match platform {
-        Platform::Taobao | Platform::Tmall => "taobao",
-        Platform::Jd => "jd",
-        Platform::Pdd => "pinduoduo",
-        Platform::Ali1688 => "1688",
-        Platform::Amazon => "amazon",
-        Platform::Meituan => "meituan",
     }
 }
 
@@ -308,67 +168,6 @@ fn http_client(timeout_secs: u64) -> reqwest::Client {
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36")
         .build()
         .unwrap_or_default()
-}
-
-/// 通道 A：万邦 onebound 薄客户端（普通 REST，照官方文档自写）。
-struct OneboundChannel {
-    key: String,
-    secret: String,
-}
-
-impl OneboundChannel {
-    async fn fetch_raw(&self, platform: Platform, item_id: &str) -> std::result::Result<Value, CloneError> {
-        if self.key.is_empty() || self.secret.is_empty() {
-            return Err(CloneError::new(
-                CloneErrorKind::QuotaExceeded,
-                "通道 A 未配置万邦 key/secret（请到 设置 → 商品复刻设置 填写）",
-            ));
-        }
-        let url = format!(
-            "https://api-gw.onebound.cn/{}/item_get/",
-            onebound_platform(platform)
-        );
-        let resp = http_client(30)
-            .get(&url)
-            .query(&[
-                ("key", self.key.as_str()),
-                ("secret", self.secret.as_str()),
-                ("num_iid", item_id),
-                ("lang", "zh-CN"),
-                ("cache", "no"),
-            ])
-            .send()
-            .await
-            .map_err(|e| {
-                if e.is_timeout() {
-                    CloneError::new(CloneErrorKind::Timeout, format!("万邦接口超时: {e}"))
-                } else {
-                    CloneError::new(CloneErrorKind::Upstream, format!("万邦接口请求失败: {e}"))
-                }
-            })?;
-        let body: Value = resp.json().await.map_err(|e| {
-            CloneError::new(CloneErrorKind::Upstream, format!("万邦返回不可解析: {e}"))
-        })?;
-        let code = body.get("error_code").and_then(|v| {
-            v.as_str().map(str::to_string).or_else(|| v.as_i64().map(|n| n.to_string()))
-        });
-        if code.as_deref() != Some("0000") {
-            let reason = body
-                .get("reason")
-                .and_then(Value::as_str)
-                .unwrap_or("未知错误")
-                .to_string();
-            let kind = if reason.contains("余额") || reason.contains("balance") {
-                CloneErrorKind::QuotaExceeded
-            } else if reason.contains("下架") || reason.contains("不存在") || reason.contains("删除") {
-                CloneErrorKind::SourceGone
-            } else {
-                CloneErrorKind::Upstream
-            };
-            return Err(CloneError::new(kind, format!("万邦接口错误（{}）: {reason}", code.unwrap_or_default())));
-        }
-        Ok(body)
-    }
 }
 
 /// 通道 B：抓取边车网关（边车只取数，归一在本服务）。
@@ -497,163 +296,6 @@ let u = fix_url(&u);
 if!u.is_empty() &&!list.contains(&u) {
 list.push(u);
 }
-}
-
-/// 解析万邦 `properties_name`（`pid:vid:名:值;pid:vid:名:值`）为规格组。
-fn parse_properties_name(pn: &str) -> Vec<CloneSpec> {
-pn.split(';')
-.filter(|seg|!seg.trim().is_empty())
-.filter_map(|seg| {
-let parts: Vec<&str> = seg.splitn(4, ':').collect();
-if parts.len() == 4 {
-Some(CloneSpec {
-name: parts[2].trim().to_string(),
-value: parts[3].trim().to_string(),
-})
-} else {
-None
-}
-})
-.collect()
-}
-
-/// 万邦 item_get 的 item 对象 → CloneDraft（各平台字段大体同构，防御式读取）。
-#[must_use]
-pub fn normalize_onebound(platform: Platform, channel: ChannelId, url: &str, item_id: &str, item: &Value) -> CloneDraft {
-let mut draft = CloneDraft {
-source_platform: platform.as_str().to_string(),
-source_channel: channel.as_str().to_string(),
-source_url: url.to_string(),
-source_item_id: item_id.to_string(),
-..Default::default()
-};
-draft.title = clean_title(&s(&item["title"]));
-
-// 主图：pic_url + item_imgs[]
-let mut images: Vec<String> = Vec::new();
-push_unique(&mut images, s(&item["pic_url"]));
-if let Some(arr) = item.get("item_imgs").and_then(Value::as_array) {
-for im in arr {
-let u = if im.is_string() { s(im)} else { s(&im["url"])};
-push_unique(&mut images, u);
-}
-}
-draft.main_images = images;
-
-// 规格图映射：props_img 键为 `pid:vid` 或完整 properties 串。
-let mut props_img: HashMap<String, String> = HashMap::new();
-if let Some(obj) = item.get("props_img").and_then(Value::as_object) {
-for (k, v) in obj {
-props_img.insert(k.clone(), s(v));
-}
-}
-
-// SKU
-let mut skus: Vec<CloneSku> = Vec::new();
-if let Some(sku_arr) = item
-.get("skus")
-.and_then(|x| x.get("sku"))
-.and_then(Value::as_array)
-{
-for row in sku_arr {
-let pn = s(&row["properties_name"]);
-let specs = parse_properties_name(&pn);
-// 规格图：按每个规格段的 pid:vid 逐个查 props_img
-let mut image: Option<String> = None;
-for seg in pn.split(';') {
-let parts: Vec<&str> = seg.splitn(4, ':').collect();
-if parts.len() >= 2 {
-let key = format!("{}:{}", parts[0], parts[1]);
-if let Some(u) = props_img.get(&key) {
-image = Some(fix_url(u));
-break;
-}
-}
-}
-if image.is_none() {
-if let Some(u) = props_img.get(&s(&row["properties"])) {
-image = Some(fix_url(u));
-}
-}
-skus.push(CloneSku {
-specs,
-price: money_str(&row["price"]).unwrap_or_default(),
-original_price: money_str(&row["orginal_price"]).or_else(|| money_str(&row["original_price"])),
-stock: row.get("quantity").and_then(|v| v.as_i64().or_else(|| s(v).parse().ok())),
-image,
-});
-}
-}
-// 价格
-let item_price = money_str(&item["promotion_price"])
-.or_else(|| money_str(&item["price"]))
-.unwrap_or_default();
-let item_original = money_str(&item["orginal_price"])
-.or_else(|| money_str(&item["original_price"]))
-.or_else(|| money_str(&item["price"]));
-if skus.is_empty() {
-skus.push(CloneSku {
-specs: Vec::new(),
-price: item_price.clone(),
-original_price: item_original.clone(),
-stock: item.get("num").and_then(|v| v.as_i64().or_else(|| s(v).parse().ok())),
-image: None,
-});
-}
-draft.price = skus
-.iter()
-.filter_map(|k| Decimal::from_str(&k.price).ok())
-.min()
-.map(|d| format!("{d:.2}"))
-.unwrap_or(item_price);
-draft.original_price = item_original;
-draft.stock = {
-let total: i64 = skus.iter().filter_map(|k| k.stock).sum();
-if skus.iter().all(|k| k.stock.is_some()) {
-Some(total)
-} else {
-item.get("num").and_then(|v| v.as_i64().or_else(|| s(v).parse().ok()))
-}
-};
-draft.skus = skus;
-
-// 参数：props 数组 [{name,value}] 或 props_list 对象（值形如「品牌: xxx」）
-let mut props: Vec<CloneProp> = Vec::new();
-if let Some(arr) = item.get("props").and_then(Value::as_array) {
-for p in arr {
-let (n, v) = (s(&p["name"]), s(&p["value"]));
-if!n.is_empty() &&!v.is_empty() {
-props.push(CloneProp { name: n, value: v});
-}
-}
-}
-if props.is_empty() {
-if let Some(obj) = item.get("props_list").and_then(Value::as_object) {
-for v in obj.values() {
-let text = s(v);
-if let Some((n, val)) = text.split_once(':').or_else(|| text.split_once('：')) {
-let (n, val) = (n.trim().to_string(), val.trim().to_string());
-if!n.is_empty() &&!val.is_empty() {
-props.push(CloneProp { name: n, value: val});
-}
-}
-}
-}
-}
-draft.props = props;
-
-draft.detail_html = s(&item["desc"]);
-draft.shop_name = {
-let n = s(&item["shop_name"]);
-if!n.is_empty() {
-Some(n)
-} else {
-let n2 = s(&item["seller_info"]["shop_name"]);
-if n2.is_empty() { None} else { Some(n2)}
-}
-};
-draft.refresh_completeness();
-draft
 }
 
 /// 淘宝 MTOP getdetail 数据 → CloneDraft（边车原始返回，防御式读取）。
@@ -821,7 +463,7 @@ self.repos
 Ok(masked_settings(&merged))
 }
 
-/// 通道矩阵 + 健康状态（前端通道选择与平台置灰同源）。
+/// 通道矩阵 + 健康状态（前端平台置灰同源，仅自建抓取通道）。
 pub async fn channels_info(&self) -> Result<Value> {
 let settings = self.load_settings().await?;
 let gateway = ScraperGateway {
@@ -838,25 +480,16 @@ for platform in Platform::all() {
 matrix.push(json!({
 "platform": platform.as_str(),
 "label": platform.label(),
-"api": support_level(ChannelId::Api, platform),
 "selfhost": support_level(ChannelId::SelfHosted, platform),
-"defaultChannel": settings.default_channel_for(platform).as_str(),
 }));
 }
 Ok(json!({
 "matrix": matrix,
-"defaultChannel": settings.default_channel,
-"api": {
-"enabled": settings.api_enabled,
-"configured":!settings.api_key.is_empty() &&!settings.api_secret.is_empty(),
-"pddRecharged": settings.api_pdd_recharged,
-},
 "selfhost": {
 "enabled": settings.selfhost_enabled,
 "configured":!settings.selfhost_endpoint.is_empty(),
 "health": b_health,
 },
-"fallbackBToA": settings.fallback_b_to_a,
 }))
 }
 
@@ -881,11 +514,7 @@ let Some((platform, item_id)) = parse_source_url(&url) else {
 out.push(json!({"url": url, "error": "无法识别的链接（不支持的平台或缺少商品ID）"}));
 continue;
 };
-let channel = dto
-.channel
-.as_deref()
-.and_then(ChannelId::from_str)
-.unwrap_or_else(|| settings.default_channel_for(platform));
+let channel = ChannelId::SelfHosted;
 let task_id = self
 .repos
 .catalog
@@ -903,28 +532,14 @@ let duplicate = self
 .map(|(id, status, pid)| json!({"taskId": id, "status": status, "productId": pid}));
 out.push(json!({"taskId": task_id, "platform": platform.as_str(), "channel": channel.as_str(), "duplicate": duplicate}));
 
-// 前置校验：不支持 / 通道未启用 / 日预算 → 直接落失败，不调通道
+// 前置校验：不支持 / 边车未启用 → 直接落失败，不调边车
 let pre_fail: Option<CloneError> = if item_id.is_empty() || support_level(channel, platform) == SupportLevel::None {
 Some(CloneError::new(
 CloneErrorKind::NotSupported,
-format!("{} 在{}通道不支持复刻", platform.label(), if channel == ChannelId::Api { "数据接口"} else { "自建抓取"}),
+format!("{}在自建抓取通道不支持复刻（一期仅淘宝/天猫）", platform.label()),
 ))
-} else if channel == ChannelId::Api &&!settings.api_enabled {
-Some(CloneError::new(CloneErrorKind::NotSupported, "数据接口通道已被管理员关闭"))
-} else if channel == ChannelId::SelfHosted &&!settings.selfhost_enabled {
+} else if !settings.selfhost_enabled {
 Some(CloneError::new(CloneErrorKind::NotSupported, "自建抓取通道未启用（请到 设置 → 商品复刻设置 开启）"))
-} else if channel == ChannelId::Api {
-if let Some(budget) = settings.daily_api_budget_fen {
-let day_start = now - (now % 86_400);
-let used = self.repos.catalog.product_clone.today_api_cost_fen(day_start).await?;
-if used + i64::from(api_cost_fen(platform)) > budget {
-Some(CloneError::new(CloneErrorKind::QuotaExceeded, "已达通道 A 日费用上限"))
-} else {
-None
-}
-} else {
-None
-}
 } else {
 None
 };
@@ -950,7 +565,7 @@ tracing::warn!("商品复刻任务 {task_id} 执行异常: {e}");
 Ok(out)
 }
 
-/// 执行一个任务的取数+归一（含 B→A 单向自动转，当设置开启）。
+/// 执行一个任务的取数+归一（恒走自建抓取边车）。
 async fn run_task(
 &self,
 task_id: i64,
@@ -963,18 +578,16 @@ init_cost: i32,
 ) -> Result<()> {
 let settings = self.load_settings().await?;
 let mut attempts: Vec<Value> = init_attempts;
-let mut total_cost: i32 = init_cost;
-let mut current = channel;
-loop {
+let total_cost: i32 = init_cost;
+let current = channel;
+{
 let started = nextrade_common::utils::now_seconds();
-let attempt_cost = if current == ChannelId::Api { api_cost_fen(platform)} else { 0};
 let fetched = self.fetch_via(current, &settings, platform, &url, &item_id).await;
 match fetched {
 Ok((draft, raw)) => {
-total_cost += attempt_cost;
 attempts.push(json!({
 "channel": current.as_str(), "startedAt": started, "result": "ok",
-"errorKind": null, "errorMsg": null, "costFen": attempt_cost
+"errorKind": null, "errorMsg": null, "costFen": 0
 }));
 let now = nextrade_common::utils::now_seconds();
 let draft_json = serde_json::to_value(&draft).unwrap_or(Value::Null);
@@ -996,20 +609,10 @@ now,
 return Ok(());
 }
 Err(err) => {
-total_cost += attempt_cost;
 attempts.push(json!({
 "channel": current.as_str(), "startedAt": started, "result": "failed",
-"errorKind": err.kind.as_str(), "errorMsg": err.message, "costFen": attempt_cost
+"errorKind": err.kind.as_str(), "errorMsg": err.message, "costFen": 0
 }));
-// B 失败且开启自动转 A：仅此一向、仅一次
-if current == ChannelId::SelfHosted
-&& settings.fallback_b_to_a
-&& settings.api_enabled
-&& support_level(ChannelId::Api, platform)!= SupportLevel::None
-{
-current = ChannelId::Api;
-continue;
-}
 let now = nextrade_common::utils::now_seconds();
 self.repos
 .catalog
@@ -1041,22 +644,6 @@ url: &str,
 item_id: &str,
 ) -> std::result::Result<(CloneDraft, Value), CloneError> {
 match channel {
-ChannelId::Api => {
-let client = OneboundChannel {
-key: settings.api_key.clone(),
-secret: settings.api_secret.clone(),
-};
-let body = client.fetch_raw(platform, item_id).await?;
-let item = body.get("item").cloned().unwrap_or(Value::Null);
-if item.is_null() {
-return Err(CloneError::new(CloneErrorKind::ParseIncomplete, "万邦返回缺少 item 数据"));
-}
-let draft = normalize_onebound(platform, channel, url, item_id, &item);
-if draft.title.is_empty() || draft.price.is_empty() || draft.price == "0.00" {
-return Err(CloneError::new(CloneErrorKind::ParseIncomplete, "解析结果缺标题或价格，判失败"));
-}
-Ok((draft, body))
-}
 ChannelId::SelfHosted => {
 let gateway = ScraperGateway {
 endpoint: settings.selfhost_endpoint.clone(),
@@ -1079,10 +666,9 @@ CloneErrorKind::NotSupported,
 }
 }
 
-/// 换通道重试：把任务打回 parsing 后以指定通道重跑（attempts 追加留痕）。
+/// 重试：把任务打回 parsing 后以自建抓取通道重跑（attempts 追加留痕）。
 pub async fn retry_task(self: &Arc<Self>, dto: &CloneRetryDTO, _created_by: &str) -> Result<()> {
-let channel = ChannelId::from_str(&dto.channel)
-.ok_or_else(|| Error::biz(400, "通道不合法"))?;
+let channel = ChannelId::SelfHosted;
 let row = self
 .repos
 .catalog
@@ -1096,7 +682,7 @@ return Err(Error::biz(400, "任务已导入，不能重试"));
 let platform = Platform::from_str(&row.platform)
 .ok_or_else(|| Error::biz(400, "任务平台不合法"))?;
 if support_level(channel, platform) == SupportLevel::None {
-return Err(Error::biz(400, "该平台在所选通道不支持复刻"));
+return Err(Error::biz(400, "该平台在自建抓取通道不支持复刻（一期仅淘宝/天猫）"));
 }
 let now = nextrade_common::utils::now_seconds();
 self.repos
@@ -1506,37 +1092,6 @@ fn clean_title_strips_marketing_prefix() {
 assert_eq!(clean_title("\u{3010}2024\u{65b0}\u{6b3e}\u{3011}  \u{7537}\u{58eb}  \u{5916}\u{5957} "), "\u{7537}\u{58eb} \u{5916}\u{5957}");
 assert_eq!(clean_title("[热卖]商品名"), "商品名");
 assert_eq!(clean_title("普通标题"), "普通标题");
-}
-
-#[test]
-fn normalize_onebound_basic() {
-let item = serde_json::json!({
-"title": "测试商品",
-"pic_url": "//img.alicdn.com/main.jpg",
-"item_imgs": [{"url": "//img.alicdn.com/2.jpg"}],
-"price": "199.00",
-"orginal_price": "299.00",
-"num": 50,
-"desc": "<p>详情</p>",
-"props": [{"name": "品牌", "value": "测试牌"}],
-"props_img": {"1627207:28341": "//img.alicdn.com/red.jpg"},
-"skus": {"sku": [
-{"price": "199.00", "quantity": 30, "properties": "1627207:28341", "properties_name": "1627207:28341:颜色:红色"},
-{"price": "209.00", "quantity": 20, "properties": "1627207:28342", "properties_name": "1627207:28342:颜色:蓝色"}
-]}
-});
-let d = normalize_onebound(Platform::Taobao, ChannelId::Api, "https://item.taobao.com/item.htm?id=1", "1", &item);
-assert_eq!(d.title, "测试商品");
-assert_eq!(d.main_images.len(), 2);
-assert_eq!(d.main_images[0], "https://img.alicdn.com/main.jpg");
-assert_eq!(d.price, "199.00");
-assert_eq!(d.original_price.as_deref(), Some("299.00"));
-assert_eq!(d.skus.len(), 2);
-assert_eq!(d.skus[0].specs[0].name, "颜色");
-assert_eq!(d.skus[0].specs[0].value, "红色");
-assert_eq!(d.skus[0].image.as_deref(), Some("https://img.alicdn.com/red.jpg"));
-assert_eq!(d.stock, Some(50));
-assert!(d.completeness.missing.is_empty());
 }
 
 #[test]

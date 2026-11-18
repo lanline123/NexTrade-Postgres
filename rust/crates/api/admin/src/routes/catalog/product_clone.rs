@@ -1,16 +1,17 @@
 //! 管理端商品复刻路由（catalog::product_clone，2026-11-18 新增，本平台自有契约）。
 //!
 //! 设计：`~/workspace/product-clone-design/proposal.md` + `channel-design.md`。
-//! 双通道（A 万邦数据接口 / B 自建抓取边车）在服务层归一，前端只面对任务与草稿。
+//! 自建抓取边车（通道 B）在服务层归一，前端只面对任务与草稿。
+//! （通道 A 第三方数据接口已于 2026-11-18 按用户裁示整体移除。）
 //!
 //! | 路由 | 说明 |
 //! |------|------|
 //! | `POST /product/productClone/fetch` | 粘贴链接批量建解析任务（后台执行） |
 //! | `GET  /product/productClone/tasks` | 复刻记录列表 |
 //! | `GET  /product/productClone/taskDetail` | 任务详情（含归一草稿，供预览修正） |
-//! | `POST /product/productClone/retry` | 换通道重试 |
+//! | `POST /product/productClone/retry` | 失败任务重新解析 |
 //! | `POST /product/productClone/import` | 确认导入（转存+落库） |
-//! | `GET  /product/productClone/channels` | 通道矩阵+健康+默认值 |
+//! | `GET  /product/productClone/channels` | 支持矩阵+边车健康 |
 //! | `GET  /setting/config/productCloneSettings` | 复刻设置（密钥脱敏） |
 //! | `POST /setting/config/saveProductCloneSettings` | 保存复刻设置 |
 

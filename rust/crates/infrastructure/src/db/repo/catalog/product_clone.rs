@@ -238,18 +238,6 @@ impl ProductCloneRepository {
         Ok((rows, total))
     }
 
-    /// 今日通道 A 已累计费用（分），日预算校验用。
-    pub async fn today_api_cost_fen(&self, day_start_epoch: i64) -> Result<i64> {
-        let total: Option<i64> = sqlx::query_scalar(
-            "SELECT COALESCE(SUM(cost_fen),0)::bigint FROM product_clone_task WHERE create_time >= $1",
-        )
-        .bind(day_start_epoch)
-        .fetch_one(&self.pool)
-        .await
-        .map_err(map_err)?;
-        Ok(total.unwrap_or(0))
-    }
-
     /// 按 SN 查商品 ID（导入落库后回填任务用；create() 只返回提示文案不返回 ID）。
     pub async fn find_product_id_by_sn(&self, product_sn: &str) -> Result<Option<i32>> {
         let id: Option<i32> = sqlx::query_scalar("SELECT product_id FROM product WHERE product_sn=$1")

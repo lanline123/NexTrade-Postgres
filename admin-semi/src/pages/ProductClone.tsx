@@ -10,31 +10,24 @@ const { Text, Title } = Typography;
 /**
  * 商品复刻（商品 → 批量操作 → 商品复刻）。
  *
- * 双通道：A 数据接口（万邦，按次计费）/ B 自建抓取（边车，免费较慢）。
+ * 取数只走自建抓取边车（通道 A 数据接口已于 2026-11-18 整体移除）。
  * 流程：粘贴链接 → 后台解析为统一草稿 → 预览修正 → 图片转存 → 落草稿/上架。
- * 通道矩阵与健康状态由后端 GET /product/productClone/channels 下发，前端不写死。
+ * 支持矩阵与边车健康状态由后端 GET /product/productClone/channels 下发，前端不写死。
  */
-
-type ChannelId = 'api' | 'selfhost';
 
 interface MatrixRow {
   platform: string;
   label: string;
-  api: 'full' | 'partial' | 'none';
   selfhost: 'full' | 'partial' | 'none';
-  defaultChannel: ChannelId;
 }
 
 interface ChannelsInfo {
   matrix: MatrixRow[];
-  defaultChannel: ChannelId;
-  api: { enabled: boolean; configured: boolean; pddRecharged: boolean };
   selfhost: {
     enabled: boolean;
     configured: boolean;
     health: { alive: boolean; platforms: Record<string, { cookie: string }> };
   };
-  fallbackBToA: boolean;
 }
 
 interface CloneSpec { name: string; value: string }
@@ -112,7 +105,6 @@ function fmtTime(epochSec: number): string {
 
 export default function ProductClone() {
   const [channels, setChannels] = useState<ChannelsInfo | null>(null);
-  const [channel, setChannel] = useState<ChannelId>('api');
   const [urlsText, setUrlsText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [tasks, setTasks] = useState<CloneTask[]>([]);
@@ -128,7 +120,6 @@ export default function ProductClone() {
     try {
       const info = await apiGet<ChannelsInfo>('/product/productClone/channels');
       setChannels(info);
-      setChannel(info.defaultChannel || 'api');
     } catch {
       /* 接口未部署时页面仍可展示空态 */
     }
@@ -174,19 +165,19 @@ export default function ProductClone() {
     return m;
   }, [channels]);
 
-  /** 所选通道下，待提交链接里不支持的条目（提交前标红，不建任务不扣费）。 */
+  /** 待提交链接里边车不支持的条目（提交前标红，不建任务）。 */
   const unsupportedLines = useMemo(() => {
     const bad: Array<{ url: string; reason: string }> = [];
     for (const url of urlLines) {
       const p = detectPlatform(url);
       if (!p) { bad.push({ url, reason: '无法识别平台' }); continue; }
       const row = matrixByPlatform.get(p);
-      if (row && row[channel] === 'none') {
-        bad.push({ url, reason: `${row.label} 在该通道不支持` });
+      if (row && row.selfhost === 'none') {
+        bad.push({ url, reason: `${row.label} 暂不支持复刻（边车一期仅淘宝/天猫）` });
       }
     }
     return bad;
-  }, [urlLines, matrixByPlatform, channel]);
+  }, [urlLines, matrixByPlatform]);
 
   const submitFetch = async () => {
     if (urlLines.length === 0) { Toast.warning('请先粘贴商品链接，一行一条'); return; }
@@ -195,7 +186,7 @@ export default function ProductClone() {
     try {
       const results = await apiPost<Array<{ taskId?: number; url?: string; error?: string; duplicate?: { taskId: number; status: string; productId?: number | null } }>>(
         '/product/productClone/fetch',
-        { urls: urlLines, channel },
+        { urls: urlLines },
       );
       const errors = results.filter((r) => r.error);
       const dup = results.filter((r) => r.duplicate);
@@ -212,10 +203,10 @@ export default function ProductClone() {
     }
   };
 
-  const retry = async (task: CloneTask, to: ChannelId) => {
+  const retry = async (task: CloneTask) => {
     try {
-      await apiPost('/product/productClone/retry', { taskId: task.id, channel: to });
-      Toast.success(`已用${to === 'api' ? '数据接口' : '自建抓取'}通道重新解析`);
+      await apiPost('/product/productClone/retry', { taskId: task.id });
+      Toast.success('已重新解析');
       await loadTasks();
     } catch (e) {
       Toast.error(`重试失败：${(e as Error).message}`);
@@ -235,16 +226,6 @@ export default function ProductClone() {
     window.dispatchEvent(new CustomEvent('admin-navigate', {
       detail: { page: 'products', params: { productIds: String(productId) } },
     }));
-  };
-
-  const channelHealthDot = (c: ChannelId) => {
-    if (!channels) return '⚪';
-    if (c === 'api') {
-      if (!channels.api.enabled) return '⚪ 已关闭';
-      return channels.api.configured ? '🟢 已配置' : '🔴 未配置 key';
-    }
-    if (!channels.selfhost.enabled) return '⚪ 未启用';
-    return channels.selfhost.health?.alive ? '🟢 边车在线' : '🔴 边车离线';
   };
 
   const columns = [
@@ -296,8 +277,8 @@ export default function ProductClone() {
         <Space>
           {t.status === 'ready' && <Button size="small" theme="solid" onClick={() => openEdit(t)}>预览修正</Button>}
           {t.status === 'failed' && (
-            <Button size="small" onClick={() => retry(t, t.channel === 'api' ? 'selfhost' : 'api')}>
-              换{t.channel === 'api' ? '自建抓取' : '数据接口'}重试
+            <Button size="small" onClick={() => retry(t)}>
+              重新解析
             </Button>
           )}
           {t.status === 'imported' && t.productId && (
@@ -350,24 +331,24 @@ export default function ProductClone() {
           <Card style={{ marginBottom: 16 }}>
             <div style={{ marginBottom: 12 }}>
               <Text strong style={{ marginRight: 12 }}>数据通道</Text>
-              <RadioGroup type="button" value={channel} onChange={(e) => setChannel(e.target.value as ChannelId)}>
-                <Radio value="api">数据接口（按次计费） {channelHealthDot('api')}</Radio>
-                <Radio value="selfhost">自建抓取（免费、较慢） {channelHealthDot('selfhost')}</Radio>
-              </RadioGroup>
-              {channel === 'api' && channels && !channels.api.pddRecharged && (
-                <Text type="warning" style={{ marginLeft: 12, fontSize: 12 }}>提示：拼多多在数据接口侧需单独充值，未充值时拼多多解析会失败</Text>
-              )}
-              {channels?.fallbackBToA && channel === 'selfhost' && (
-                <Text type="tertiary" style={{ marginLeft: 12, fontSize: 12 }}>已开启：自建失败自动转数据接口（会产生费用）</Text>
-              )}
+              <Text>自建抓取（边车）</Text>
+              <Text type="tertiary" style={{ marginLeft: 12, fontSize: 12 }}>
+                {!channels
+                  ? '边车状态加载中…'
+                  : !channels.selfhost.enabled
+                    ? '⚪ 边车未启用（请到 设置 → 商品复刻设置 开启）'
+                    : channels.selfhost.health?.alive
+                      ? '🟢 边车在线'
+                      : '🔴 边车离线'}
+              </Text>
             </div>
             <div style={{ marginBottom: 8 }}>
               <Space wrap>
                 {(channels?.matrix || []).map((r) => {
-                  const lv = r[channel];
+                  const lv = r.selfhost;
                   return (
                     <Tag key={r.platform} color={lv === 'none' ? 'grey' : lv === 'partial' ? 'orange' : 'green'}>
-                      {r.label}{lv === 'none' ? '（该通道不支持）' : lv === 'partial' ? '（实验性）' : ''}
+                      {r.label}{lv === 'none' ? '（不支持）' : lv === 'partial' ? '（实验性）' : ''}
                     </Tag>
                   );
                 })}
@@ -391,7 +372,7 @@ export default function ProductClone() {
                 开始解析（{urlLines.length} 条）
               </Button>
               <Text type="tertiary" style={{ marginLeft: 12 }}>
-                整批使用同一通道；需要混走时分两批提交。解析在后台进行，可离开页面。
+                解析在后台进行，可离开页面。
               </Text>
             </div>
           </Card>
@@ -530,7 +511,7 @@ function CloneEditModal({ task, onClose, onImported }: {
           </div>
           <Text strong style={{ display: 'block', marginTop: 16 }}>图文详情预览</Text>
           {draft.completeness?.missing?.includes('detail') ? (
-            <Text type="warning">未抓到图文详情，可换通道重试或导入后在商品编辑中补</Text>
+            <Text type="warning">未抓到图文详情，可重新解析或导入后在商品编辑中补</Text>
           ) : (
             <div
               style={{ border: '1px solid #eee', borderRadius: 4, padding: 8, marginTop: 8, overflow: 'auto', maxHeight: 300 }}
@@ -542,7 +523,7 @@ function CloneEditModal({ task, onClose, onImported }: {
           {(draft.completeness?.missing || []).length > 0 && (
             <div style={{ marginBottom: 8 }}>
               <Text type="warning">
-                以下内容未抓到：{draft.completeness.missing.map((m) => missingLabel[m] || m).join('、')}（可手动补或换通道重试）
+                以下内容未抓到：{draft.completeness.missing.map((m) => missingLabel[m] || m).join('、')}（可手动补或重新解析）
               </Text>
             </div>
           )}
