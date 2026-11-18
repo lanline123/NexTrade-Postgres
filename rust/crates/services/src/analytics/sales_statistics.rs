@@ -172,6 +172,7 @@ impl SalesStatisticsService {
                     "productId": r.product_id,
                     "productName": r.product_name,
                     "productSn": r.product_sn,
+                    "picThumb": r.pic_thumb,
                     "quantity": r.quantity.unwrap_or(0),
                     "amount": r.amount.unwrap_or_default(),
                 })
@@ -230,7 +231,7 @@ impl SalesStatisticsService {
                     "productId": r.product_id,
                     "productName": r.product_name,
                     "productSn": r.product_sn,
-                    "picThumb": null,
+                    "picThumb": r.pic_thumb,
                     "totalSalesNum": quantity,
                     "totalSalesAmount": amount,
                     "quantity": quantity,

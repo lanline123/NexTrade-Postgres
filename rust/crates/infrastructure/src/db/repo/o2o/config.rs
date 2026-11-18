@@ -52,6 +52,23 @@ impl O2oConfigRepository {
         .map_err(map_err)
     }
 
+    /// 批量同城配送配置（后台店铺列表逐页填充起送价/配送费；无配置的店铺不在结果内）。
+    pub async fn find_local_delivery_for_shops(
+        &self,
+        shop_ids: &[i32],
+    ) -> Result<Vec<ShopLocalDeliveryConfig>> {
+        if shop_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        sqlx::query_as::<_, ShopLocalDeliveryConfig>(
+            "SELECT shop_local_delivery_config_id, shop_id, enabled, delivery_radius, min_order_amount, base_delivery_fee, distance_pricing_enabled, order_dispatch_mode, pickup_photo_enabled, delivery_complete_photo_enabled, add_time FROM shop_local_delivery_config WHERE shop_id = ANY($1)",
+        )
+        .bind(shop_ids)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
     /// 自提配置（按 shop_id 唯一键）。
     pub async fn find_pickup_config(&self, shop_id: i64) -> Result<Option<ShopPickupConfig>> {
         sqlx::query_as::<_, ShopPickupConfig>(

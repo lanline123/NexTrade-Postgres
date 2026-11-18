@@ -121,7 +121,8 @@ impl WholesaleSettingRepository {
             }
             None => {
                 sqlx::query(
-                    "INSERT INTO config (biz_code, biz_val, is_del, create_time, update_time) VALUES ($1, $2, 0, $3, $4)",
+                    // 审计列 NOT NULL 必须填齐；无操作人入参，系统口径 0/'system'。
+                    "INSERT INTO config (biz_code, biz_val, is_del, create_time, create_by_id, create_by_name, update_time, update_by_id, update_by_name) VALUES ($1, $2, 0, $3, 0, 'system', $4, 0, 'system')",
                 )
                 .bind(biz_code)
                 .bind(&val)

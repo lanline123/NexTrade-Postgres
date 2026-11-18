@@ -58,8 +58,9 @@ impl YeepayConfigRepository {
                     .map_err(map_err)?;
             }
             None => {
+                // 审计列 NOT NULL 必须填齐；无操作人入参，系统口径 0/'system'。
                 sqlx::query(
-                    "INSERT INTO config (biz_code, biz_val, create_time, update_time) VALUES ($1,$2,$3,$4)",
+                    "INSERT INTO config (biz_code, biz_val, create_time, create_by_id, create_by_name, update_time, update_by_id, update_by_name) VALUES ($1,$2,$3,0,'system',$4,0,'system')",
                 )
                 .bind(biz_code)
                 .bind(biz_val)
@@ -96,7 +97,7 @@ mod tests {
             "更新必须绑参"
         );
         assert!(
-            src.contains("INSERT INTO config (biz_code, biz_val, create_time, update_time) VALUES ($1,$2,$3,$4)"),
+            src.contains("INSERT INTO config (biz_code, biz_val, create_time, create_by_id, create_by_name, update_time, update_by_id, update_by_name) VALUES ($1,$2,$3,0,'system',$4,0,'system')"),
             "插入必须绑参"
         );
         // 批量读走 QueryBuilder，值只能通过 push_bind 下发

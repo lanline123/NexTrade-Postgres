@@ -63,9 +63,11 @@ impl WechatAutoReplyRepository {
                 .await
                 .map_err(map_err)?;
         } else {
+            // 审计列 NOT NULL 必须填齐；无操作人入参，系统口径 0/'system'。
             sqlx::query(
-                "INSERT INTO config (biz_code, biz_val, create_time, update_time, is_del) \
-                 VALUES ($1, $2, $3, $4, 0)",
+                "INSERT INTO config (biz_code, biz_val, create_time, create_by_id, create_by_name, \
+                 update_time, update_by_id, update_by_name, is_del) \
+                 VALUES ($1, $2, $3, 0, 'system', $4, 0, 'system', 0)",
             )
             .bind(biz_code)
             .bind(biz_val)

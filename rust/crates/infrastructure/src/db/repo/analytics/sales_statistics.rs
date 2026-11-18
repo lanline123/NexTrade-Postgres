@@ -39,6 +39,8 @@ pub struct ProductSalesSqlRow {
     pub product_name: String,
     /// 商品货号
     pub product_sn: String,
+    /// 商品缩略图（现商品图优先，订单快照兜底；无图为 None）
+    pub pic_thumb: Option<String>,
     /// 销量
     pub quantity: Option<i64>,
     /// 销售额
@@ -127,6 +129,7 @@ impl SalesStatisticsRepository {
     ) -> Result<(u64, Vec<ProductSalesSqlRow>)> {
         let mut where_sql = String::from(
             " FROM order_item i JOIN \"order\" o ON o.order_id = i.order_id \
+             LEFT JOIN product p ON p.product_id = i.product_id \
              WHERE o.is_del = 0 AND o.pay_status > 0 AND o.add_time >= $1 AND o.add_time <= $2",
         );
         if shop_id.filter(|v| *v > 0).is_some() {
@@ -142,6 +145,7 @@ impl SalesStatisticsRepository {
         let dir = if ascending { "ASC" } else { "DESC" };
         let rows_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT i.product_id, MAX(i.product_name) AS product_name, MAX(i.product_sn) AS product_sn, \
+             COALESCE(NULLIF(MAX(p.pic_thumb), ''), NULLIF(MAX(i.pic_thumb), '')) AS pic_thumb, \
              CAST(SUM(i.quantity) AS BIGINT) AS quantity, SUM(i.price * i.quantity) AS amount{where_sql} \
              GROUP BY i.product_id ORDER BY {col} {dir} LIMIT ? OFFSET ?"
         ));

@@ -160,14 +160,16 @@ impl UserBlacklistService {
             return Ok(None);
         }
         // 店铺条目是否生效取决于平台开关；无店铺候选时不查配置。
-        let shop_enabled = if rows.iter().any(|r| r.owner_type == OWNER_SHOP) {
+        let shop_enabled = if rows.iter().any(|r| i32::from(r.owner_type) == OWNER_SHOP) {
             self.shop_allow().await?
         } else {
             false
         };
         let selected_ids: Vec<i64> = rows
             .iter()
-            .filter(|r| r.owner_type == OWNER_PLATFORM && r.apply_mode == APPLY_SELECTED)
+            .filter(|r| {
+                i32::from(r.owner_type) == OWNER_PLATFORM && i32::from(r.apply_mode) == APPLY_SELECTED
+            })
             .map(|r| r.blacklist_id)
             .collect();
         let mut scope_map: HashMap<i64, Vec<i32>> = HashMap::new();
@@ -176,9 +178,9 @@ impl UserBlacklistService {
         }
         for row in &rows {
             let candidate = RestrictionCandidate {
-                owner_type: row.owner_type,
+                owner_type: i32::from(row.owner_type),
                 owner_shop_id: row.owner_shop_id,
-                apply_mode: row.apply_mode,
+                apply_mode: i32::from(row.apply_mode),
                 scope_shop_ids: scope_map.get(&row.blacklist_id).cloned().unwrap_or_default(),
             };
             if nextrade_core::models::member::user_blacklist::candidate_matches(
@@ -188,7 +190,7 @@ impl UserBlacklistService {
             ) {
                 return Ok(Some(RestrictionHit {
                     blacklist_id: row.blacklist_id,
-                    owner_type: row.owner_type,
+                    owner_type: i32::from(row.owner_type),
                     owner_shop_id: row.owner_shop_id,
                     product_code: product.to_string(),
                     behavior_code: behavior.to_string(),
@@ -316,7 +318,7 @@ impl UserBlacklistService {
                 id: r.id,
                 blacklist_id: r.blacklist_id,
                 user_id: r.user_id,
-                op_type: r.op_type,
+                op_type: i32::from(r.op_type),
                 op_content: r.op_content,
                 rules_snapshot: r.rules_snapshot,
                 scope_snapshot: r.scope_snapshot,
@@ -585,13 +587,13 @@ impl UserBlacklistService {
             .ok_or_else(|| Error::biz(1001, MSG_ENTRY_NOT_EXISTS))?;
         // 归属隔离：平台只移除平台条目，店铺只移除本店条目。
         if op.is_platform {
-            if entry.owner_type != OWNER_PLATFORM {
+            if i32::from(entry.owner_type) != OWNER_PLATFORM {
                 return Err(Error::Forbidden(MSG_PLATFORM_CANNOT_REMOVE_SHOP.into()));
             }
-        } else if entry.owner_type != OWNER_SHOP || entry.owner_shop_id != op.shop_id {
+        } else if i32::from(entry.owner_type) != OWNER_SHOP || entry.owner_shop_id != op.shop_id {
             return Err(Error::Forbidden(MSG_SHOP_CANNOT_REMOVE_OTHERS.into()));
         }
-        if entry.status != STATUS_ACTIVE {
+        if i32::from(entry.status) != STATUS_ACTIVE {
             return Err(Error::biz(1001, MSG_ENTRY_ALREADY_REMOVED));
         }
         let now = now_seconds();
@@ -624,7 +626,7 @@ impl UserBlacklistService {
                 if batch { OP_BATCH_REMOVE } else { OP_REMOVE },
                 reason,
                 &rules_snapshot(&rules),
-                &scope_snapshot(op, entry.apply_mode, &scope_shops),
+                &scope_snapshot(op, i32::from(entry.apply_mode), &scope_shops),
                 op,
                 &current_ip(),
                 now,
@@ -635,7 +637,7 @@ impl UserBlacklistService {
             &format!(
                 "将客户（userId={}）移出黑名单（{}）",
                 entry.user_id,
-                owner_label(entry.owner_type)
+                owner_label(i32::from(entry.owner_type))
             ),
         )
         .await;
@@ -1015,14 +1017,14 @@ impl UserBlacklistService {
                     id: e.id,
                     user_id: e.user_id,
                     user: user_map.get(&e.user_id).cloned(),
-                    owner_type: e.owner_type,
+                    owner_type: i32::from(e.owner_type),
                     owner_shop_id: e.owner_shop_id,
-                    owner_shop_name: if e.owner_type == OWNER_SHOP {
+                    owner_shop_name: if i32::from(e.owner_type) == OWNER_SHOP {
                         titles.get(&e.owner_shop_id).cloned()
                     } else {
                         None
                     },
-                    apply_mode: e.apply_mode,
+                    apply_mode: i32::from(e.apply_mode),
                     shop_names: shop_ids
                         .iter()
                         .filter_map(|sid| titles.get(sid).cloned())
@@ -1030,8 +1032,8 @@ impl UserBlacklistService {
                     shop_ids,
                     rules: rules_map.get(&e.id).cloned().unwrap_or_default(),
                     reason: e.reason.clone(),
-                    source: e.source,
-                    status: e.status,
+                    source: i32::from(e.source),
+                    status: i32::from(e.status),
                     create_admin_id: e.create_admin_id,
                     create_admin_name: e.create_admin_name.clone(),
                     create_admin_type: e.create_admin_type.clone(),
@@ -1135,19 +1137,20 @@ fn group_import_rows(rows: Vec<ParsedImportRow>) -> Vec<GroupedImportUser> {
 
 /// 条目对店铺操作人的可见性：本店条目或平台全平台条目。
 fn entry_visible_to_shop(entry: &BlacklistEntry, shop_id: i32) -> bool {
-    (entry.owner_type == OWNER_SHOP && entry.owner_shop_id == shop_id)
-        || (entry.owner_type == OWNER_PLATFORM && entry.apply_mode == APPLY_ALL)
+    (i32::from(entry.owner_type) == OWNER_SHOP && entry.owner_shop_id == shop_id)
+        || (i32::from(entry.owner_type) == OWNER_PLATFORM
+            && i32::from(entry.apply_mode) == APPLY_ALL)
 }
 
 /// 当前操作人是否可移除该条目（与 remove_one 的服务层校验同口径）。
 fn can_remove(entry: &BlacklistEntry, op: &BlacklistOperator) -> bool {
-    if entry.status != STATUS_ACTIVE {
+    if i32::from(entry.status) != STATUS_ACTIVE {
         return false;
     }
     if op.is_platform {
-        entry.owner_type == OWNER_PLATFORM
+        i32::from(entry.owner_type) == OWNER_PLATFORM
     } else {
-        entry.owner_type == OWNER_SHOP && entry.owner_shop_id == op.shop_id
+        i32::from(entry.owner_type) == OWNER_SHOP && entry.owner_shop_id == op.shop_id
     }
 }
 

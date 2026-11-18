@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use rust_decimal::Decimal;
+use nextrade_core::entities::o2o::ShopLocalDeliveryConfig;
 use nextrade_core::entities::{Merchant, Shop, ShopAccountLog, ShopWithdraw};
 use nextrade_core::models::merchant::shop::{
     shop_status_text, withdraw_status_text, ClientShopDetailVO, ShopAccountLogListQuery,
@@ -67,6 +68,16 @@ impl ShopService {
 
         // 原 Java 循环内逐行查商户/管理员，这里按当前页批量预取
         let (merchants, admins) = self.load_shop_refs(&rows).await?;
+        // 同城配送配置（起送价/配送费）同样按当前页批量预取
+        let shop_ids: Vec<i32> = rows.iter().map(|s| s.shop_id).collect();
+        let delivery_cfgs = self
+            .repos
+            .o2o
+            .config
+            .find_local_delivery_for_shops(&shop_ids)
+            .await?;
+        let delivery_map: HashMap<i32, &ShopLocalDeliveryConfig> =
+            delivery_cfgs.iter().map(|c| (c.shop_id, c)).collect();
         let list = rows
             .iter()
             .map(|shop| {
@@ -79,6 +90,7 @@ impl ShopService {
                     });
                 }
                 vo.merchant = merchant;
+                fill_local_delivery(&mut vo, delivery_map.get(&shop.shop_id).copied());
                 vo
             })
             .collect();
@@ -103,6 +115,8 @@ impl ShopService {
                 .await?
                 .unwrap_or(Decimal::ZERO),
         );
+        let delivery_cfg = self.repos.o2o.config.find_local_delivery(shop_id).await?;
+        fill_local_delivery(&mut vo, delivery_cfg.as_ref());
 
         let (merchants, admins) = self.load_shop_refs(std::slice::from_ref(&shop)).await?;
         let mut merchant = merchants.get(&shop.merchant_id.unwrap_or(0)).cloned();
@@ -604,6 +618,15 @@ fn merchant_vo(m: &Merchant, with_type_text: bool) -> ShopMerchantVO {
 
 /// 评星（`ShopMapper` 的 `calculateShopStar` 片段）：
 /// `shop_star_num < 100 / NULL / 0` → 4.8，否则取 `shop_star`。
+/// 同城配送字段填充：配置存在且 `enabled = 1` 时下发起送价与基础配送费；
+/// `distance` 需请求经纬度上下文，后台恒不填充（VO 中保持 `None`）。
+fn fill_local_delivery(vo: &mut ShopVO, cfg: Option<&ShopLocalDeliveryConfig>) {
+    if let Some(cfg) = cfg.filter(|c| c.enabled == 1) {
+        vo.min_order_amount = Some(cfg.min_order_amount);
+        vo.delivery_fee = Some(cfg.base_delivery_fee);
+    }
+}
+
 fn calc_shop_star(shop: &Shop) -> Option<Decimal> {
     match shop.shop_star_num {
         None | Some(0) => Some(Decimal::new(48, 1)),

@@ -158,6 +158,15 @@ pub struct ShopVO {
     pub shop_detailed_address: Option<String>,
     pub shop_longitude: Option<Decimal>,
     pub shop_latitude: Option<Decimal>,
+    /// 距离（米），口径同门店聚合搜索 `distance`：需请求方经纬度上下文才能
+    /// 计算，后台列表/详情无此上下文恒为 `None`（序列化 null），不编造数值。
+    pub distance: Option<f64>,
+    /// 起送价（元）：店铺同城配送配置 `min_order_amount`；配置不存在或
+    /// 未开启同城配送时为 `None`（service 层填充，`From` 不填）。
+    pub min_order_amount: Option<Decimal>,
+    /// 配送费（元）：店铺同城配送配置的基础配送费 `base_delivery_fee`
+    /// （距离加价需用户位置上下文，后台不预估）；未开启同城配送时为 `None`。
+    pub delivery_fee: Option<Decimal>,
     pub store_parent_id: Option<i32>,
     pub is_delete: Option<i32>,
 }
@@ -194,6 +203,9 @@ impl From<&Shop> for ShopVO {
             shop_detailed_address: s.shop_detailed_address.clone(),
             shop_longitude: s.shop_longitude,
             shop_latitude: s.shop_latitude,
+            distance: None,
+            min_order_amount: None,
+            delivery_fee: None,
             store_parent_id: s.store_parent_id,
             is_delete: s.is_delete,
         }

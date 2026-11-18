@@ -10,16 +10,22 @@ use sqlx::{FromRow, PgPool, Postgres, QueryBuilder};
 use nextrade_core::{Error, Result};
 
 /// 条目主表行（`user_blacklist` 全列）。
+///
+/// 注意：迁移 003 把 `owner_type` / `apply_mode` / `source` / `status` 与流水表
+/// `op_type` 建为 SMALLINT(INT2)，解码必须用 i16——按 i32 解码 sqlx 会严格
+/// 拒绝（mismatched types），候选/列表查询只要返回 ≥1 行就整体 500。
+/// 写入与过滤参数仍用 i32 绑定（PG 对 INT4 参数有到 INT2 的赋值/比较转换，
+/// 与字面量口径一致），只在解码侧对齐列类型。
 #[derive(Debug, Clone, Default, FromRow)]
 pub struct BlacklistEntry {
     pub id: i64,
     pub user_id: i32,
-    pub owner_type: i32,
+    pub owner_type: i16,
     pub owner_shop_id: i32,
-    pub apply_mode: i32,
+    pub apply_mode: i16,
     pub reason: String,
-    pub source: i32,
-    pub status: i32,
+    pub source: i16,
+    pub status: i16,
     pub create_admin_id: i32,
     pub create_admin_name: String,
     pub create_admin_type: String,
@@ -43,9 +49,9 @@ pub struct BlacklistRuleRow {
 #[derive(Debug, Clone, Default, FromRow)]
 pub struct RestrictionCandidateRow {
     pub blacklist_id: i64,
-    pub owner_type: i32,
+    pub owner_type: i16,
     pub owner_shop_id: i32,
-    pub apply_mode: i32,
+    pub apply_mode: i16,
     pub reason: String,
 }
 
@@ -55,7 +61,7 @@ pub struct BlacklistLogRow {
     pub id: i64,
     pub blacklist_id: i64,
     pub user_id: i32,
-    pub op_type: i32,
+    pub op_type: i16,
     pub op_content: String,
     pub rules_snapshot: serde_json::Value,
     pub scope_snapshot: serde_json::Value,

@@ -408,7 +408,7 @@ impl ShippingTplRepository {
     /// `uncertain_points`。
     pub async fn find_infos_by_tpl(&self, tpl_id: i32) -> Result<Vec<ShippingTplInfo>> {
         sqlx::query_as::<_, ShippingTplInfo>(&format!(
-            "{INFO_SELECT} WHERE shipping_tpl_id = ? ORDER BY id ASC"
+            "{INFO_SELECT} WHERE shipping_tpl_id = $1 ORDER BY id ASC"
         ))
         .bind(tpl_id)
         .fetch_all(&self.pool)
@@ -468,7 +468,7 @@ impl ShippingTplRepository {
     /// Java `ShippingTypeServiceImpl#getShippingTypeListByShopId` 实为硬编码桩）。
     pub async fn find_type_by_id(&self, id: i32) -> Result<Option<ShippingType>> {
         sqlx::query_as::<_, ShippingType>(&format!(
-            "{TYPE_SELECT} WHERE shipping_type_id = ? LIMIT 1"
+            "{TYPE_SELECT} WHERE shipping_type_id = $1 LIMIT 1"
         ))
         .bind(id)
         .fetch_optional(&self.pool)

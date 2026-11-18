@@ -94,6 +94,8 @@ pub struct ProductSalesRow {
     pub product_name: String,
     /// 商品货号
     pub product_sn: String,
+    /// 商品缩略图（现商品图优先，订单快照兜底）
+    pub pic_thumb: Option<String>,
     /// 销量
     pub quantity: i64,
     /// 销售额
