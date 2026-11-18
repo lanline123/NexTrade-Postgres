@@ -4,7 +4,7 @@
  * 背景 = 当前轮播图放大模糊 + 渐变遮罩；顶部定位 + 搜索框；下方圆角轮播。
  */
 import { useMemo, useState } from "react";
-import SimpleCarousel from "../../../shared/SimpleCarousel";
+import { Swiper, SwiperItem } from "@nutui/nutui-react";
 import { cssText, imageFormat } from "../../../shared/format";
 import { useSwiperHeight } from "../../../shared/useSwiperHeight";
 import { mergeDefaultModule, formatCommonStyle } from "../../../contract/sharedDefaults";
@@ -101,13 +101,20 @@ export default function BannerA2Preview({ data }: { data: Record<string, any> })
                                 className={`image-ad-con pagination-bullet${bannerContent.picPageType}`}
                                 style={{ borderRadius: `${bannerContent.picRadius}px`, overflow: "hidden", ...(swiperHeight ? { height: swiperHeight } : {}) }}
                             >
-                                <SimpleCarousel autoplayMs={3000} onChange={setRealIndex}>
+                                <Swiper
+                                    autoplay={3000}
+                                    loop={picList.length > 1}
+                                    onChange={(i: number) => setRealIndex(i)}
+                                    indicator={false}
+                                >
                                     {picList.map((item, i) => (
-                                        <div key={i} className="image-ad-item" style={{ borderRadius: `${bannerContent.picRadius}px`, overflow: "hidden" }}>
-                                            <img className="item-img" src={imageFormat(item.picUrl)} alt="" />
-                                        </div>
+                                        <SwiperItem key={i}>
+                                            <div className="image-ad-item" style={{ borderRadius: `${bannerContent.picRadius}px`, overflow: "hidden" }}>
+                                                <img className="item-img" src={imageFormat(item.picUrl)} alt="" />
+                                            </div>
+                                        </SwiperItem>
                                     ))}
-                                </SimpleCarousel>
+                                </Swiper>
                                 {picList.length > 1 ? (
                                     <div className="banner-a2-dots">
                                         {picList.map((_, i) => (

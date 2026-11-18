@@ -6,11 +6,10 @@
  * 菜单/签到默认图标取原版 defaultIconImage 的 OSS 图（menu 7 款 / sign 4 款），自定义图优先。
  * 搜索图标为 iconfont-h5 icon-sousuo1，以等尺寸内联 SVG 承接。
  * 轮播定高（2026-11-18）：原版自定义 Swiper 按内容自适应高度，NutUI Swiper 不定高会
- * 随图片自然高度漂移——改按首图比例定高（与前台 useImgInfo 同口径）+ cover 填充；
- * 轮播本体用 shared/SimpleCarousel（NutUI 的弹簧动画在弱设备/无头浏览器下会闪烁、切不动）。
+ * 随图片自然高度漂移——改按首图比例定高（与前台 useImgInfo 同口径）+ cover 填充。
  */
 import { useMemo, useState } from "react";
-import SimpleCarousel from "../../../shared/SimpleCarousel";
+import { Swiper, SwiperItem } from "@nutui/nutui-react";
 import { cssText, imageFormat } from "../../../shared/format";
 import { mergeDefaultModule, formatCommonStyle, gradientMap } from "../../../contract/sharedDefaults";
 import { bannerDefaults } from "./index";
@@ -181,27 +180,29 @@ export default function BannerPreview({ data }: { data: Record<string, any> }) {
                     <div className="image-ad-warp">
                         <div className="image-ad-con">
                             {picList.length > 0 ? (
-                                <SimpleCarousel autoplayMs={3000} onChange={setRealIndex}>
+                                <Swiper autoplay={3000} loop={picList.length > 1} onChange={(i: number) => setRealIndex(i)} indicator={false}>
                                     {picList.map((item, i) => (
-                                        <div key={i} className="image-ad-item" style={{ borderRadius: `${bannerContent.picRadius}px`, overflow: "hidden" }}>
-                                            <img
-                                                className="item-img"
-                                                src={imageFormat(item.picUrl)}
-                                                alt=""
-                                                onLoad={
-                                                    i === 0
-                                                        ? (e) => {
-                                                              const img = e.currentTarget;
-                                                              if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-                                                                  setImgRatio(img.naturalWidth / img.naturalHeight);
+                                        <SwiperItem key={i}>
+                                            <div className="image-ad-item" style={{ borderRadius: `${bannerContent.picRadius}px`, overflow: "hidden" }}>
+                                                <img
+                                                    className="item-img"
+                                                    src={imageFormat(item.picUrl)}
+                                                    alt=""
+                                                    onLoad={
+                                                        i === 0
+                                                            ? (e) => {
+                                                                  const img = e.currentTarget;
+                                                                  if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                                                                      setImgRatio(img.naturalWidth / img.naturalHeight);
+                                                                  }
                                                               }
-                                                          }
-                                                        : undefined
-                                                }
-                                            />
-                                        </div>
+                                                            : undefined
+                                                    }
+                                                />
+                                            </div>
+                                        </SwiperItem>
                                     ))}
-                                </SimpleCarousel>
+                                </Swiper>
                             ) : null}
                             {picList.length > 1 ? (
                                 <div className="h5-banner-dots">
