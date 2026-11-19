@@ -19,6 +19,11 @@
 //! 5. 审核/删除后的 ES 同步、后台消息、保证金联动均未迁移（Java 侧异步副作用）。
 //! 6. `skuList`/`shippingTplList` 直接序列化实体（字段与 Java VO 大部分一致，
 //!    但未逐字段裁剪；页面所需字段齐全）。
+//! 7. **审核后上架方式**（原版有，Tigshop v5.8.65，帖 517949006945033228）：
+//!    `audit` 通过后的 `product_status` 按平台设置
+//!    `shopProductAuditShelfType`（店铺设置）决定——自动（默认）直接上架、
+//!    手动保持下架待店铺自上架；供应商商品同口径落在 vendor 平台审核
+//!    （`vendorProductAuditShelfType`，供应商设置）。
 //!
 //! ## 尚未开始（见任务报告）
 //! config / copy / getPromoteData / selectProductList / saveShareInfo / shareInfo
@@ -27,12 +32,13 @@
 use std::sync::Arc;
 
 use nextrade_core::models::catalog::product_manage_extra::{
-    parse_desc_images, product_field_column, scalar_to_string, ProductAuditDTO,
-    ProductBatchOperationDTO, ProductDescImageVO, ProductPostVO, ProductSkuListQuery, ProductUpdateFieldDTO,
-    CHECK_STATUS_APPROVED, CHECK_STATUS_PENDING, CHECK_STATUS_REJECTED, MSG_AUDIT_STATUS_INVALID,
-    MSG_BATCH_TYPE_INVALID, MSG_ES_INIT_NOT_MIGRATED, MSG_PARTICIPLE_NOT_MIGRATED,
-    MSG_PRODUCT_NOT_FOUND, MSG_PRODUCT_STATUS_INVALID, MSG_PRODUCT_UNKNOWN,
-    SERVICE_DATA_ERROR,
+    audit_result_product_status, parse_audit_shelf_type, parse_desc_images, product_field_column,
+    scalar_to_string, ProductAuditDTO, ProductBatchOperationDTO, ProductDescImageVO,
+    ProductPostVO, ProductSkuListQuery, ProductUpdateFieldDTO, AUDIT_SHELF_AUTO,
+    CFG_SHOP_PRODUCT_AUDIT_SHELF_TYPE, CHECK_STATUS_APPROVED, CHECK_STATUS_PENDING,
+    CHECK_STATUS_REJECTED, MSG_AUDIT_STATUS_INVALID, MSG_BATCH_TYPE_INVALID,
+    MSG_ES_INIT_NOT_MIGRATED, MSG_PARTICIPLE_NOT_MIGRATED, MSG_PRODUCT_NOT_FOUND,
+    MSG_PRODUCT_STATUS_INVALID, MSG_PRODUCT_UNKNOWN, SERVICE_DATA_ERROR,
 };
 use nextrade_core::types::PageResult;
 use nextrade_core::{Error, Result};
@@ -171,7 +177,8 @@ impl ProductManageExtraService {
                     .set_product_flags(&ids, None, Some(0), None)
                     .await?;
             }
-            // 批量审核通过（Java `batch type=audit`：通过后直接上架）。
+            // 批量审核通过（Java `batch type=audit`）：逐个走单审，
+            // 通过后的上架方式与单审共用同一分支（按平台设置）。
             "audit" => {
                 for id in ids {
                     self.audit(&ProductAuditDTO {
@@ -201,7 +208,14 @@ impl ProductManageExtraService {
         Ok(true)
     }
 
-    /// 商品审核（Java `audit`：仅待审核可审；通过后直接上架）。
+    /// 商品审核（Java `audit`：仅待审核可审）。
+    ///
+    /// 通过后的上架状态按平台设置 `shopProductAuditShelfType` 决定
+    /// （原版有，Tigshop v5.8.65）：自动上架（默认/未配置）→ 立即上架，
+    /// 与旧口径一致；手动上架 → 只置审核通过、保持下架（待上架），
+    /// 店铺用既有上/下架操作自行上架。判断时点为本次审核动作读取到的
+    /// 当前设置（原版无快照语义）。不通过恒为下架（旧行为）。
+    /// 配置读取失败按未配置处理（回落自动上架），不阻断审核。
     pub async fn audit(&self, dto: &ProductAuditDTO) -> Result<bool> {
         if dto.check_status != CHECK_STATUS_APPROVED && dto.check_status != CHECK_STATUS_REJECTED {
             return Err(Error::Validation(MSG_AUDIT_STATUS_INVALID.into()));
@@ -214,11 +228,20 @@ impl ProductManageExtraService {
         if product.check_status != CHECK_STATUS_PENDING {
             return Err(Error::Validation(MSG_AUDIT_STATUS_INVALID.into()));
         }
-        let product_status = if dto.check_status == CHECK_STATUS_APPROVED {
-            1
+        let shelf_type = if dto.check_status == CHECK_STATUS_APPROVED {
+            let raw = self
+                .repos
+                .system
+                .config_client
+                .find_config_val(CFG_SHOP_PRODUCT_AUDIT_SHELF_TYPE, true)
+                .await
+                .ok()
+                .flatten();
+            parse_audit_shelf_type(raw.as_deref())
         } else {
-            0
+            AUDIT_SHELF_AUTO
         };
+        let product_status = audit_result_product_status(dto.check_status, shelf_type);
         self.repo()
             .update_product_audit(
                 dto.id,
@@ -355,6 +378,23 @@ mod tests {
     use nextrade_core::models::catalog::product_manage_extra::{
         product_field_column, scalar_to_string,
     };
+
+    #[test]
+    fn audit_shelf_decision_composes_parse_and_status() {
+        // 复刻 audit() 内的决策组合（配置原文 → 模式 → 落库上架状态），
+        // 单审与批审（批审逐个调用单审）共用，保证两路结果一致。
+        let decide = |raw: Option<&str>, check: i32| {
+            audit_result_product_status(check, parse_audit_shelf_type(raw))
+        };
+        // 存量未配置：通过即上架（v5.8.65 之前的旧行为）
+        assert_eq!(decide(None, CHECK_STATUS_APPROVED), 1);
+        assert_eq!(decide(Some("1"), CHECK_STATUS_APPROVED), 1);
+        // 平台切到手动上架：通过只置审核通过、保持下架（待上架）
+        assert_eq!(decide(Some("2"), CHECK_STATUS_APPROVED), 0);
+        // 审核不通过与上架方式无关，恒为下架
+        assert_eq!(decide(Some("2"), CHECK_STATUS_REJECTED), 0);
+        assert_eq!(decide(None, CHECK_STATUS_REJECTED), 0);
+    }
 
     #[test]
     fn audit_rejects_invalid_status_codes() {

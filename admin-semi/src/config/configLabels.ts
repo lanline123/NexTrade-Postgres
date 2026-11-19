@@ -137,6 +137,8 @@ export const configLabels: Record<string, string> = {
   "sendServiceEmail": "下单给客服发邮件",
   "sendShipEmail": "发货时发送邮件",
   "vendorProductNeedCheck": "供应商商品审核",
+  "shopProductAuditShelfType": "店铺商品审核后上架方式",
+  "vendorProductAuditShelfType": "供应商商品审核后上架方式",
   "vendorMaxSubAdministrator": "最大管理员数",
   "vendorSetPriceType": "供应商设价方式",
   "vendorSetPriceAutoValue": "加价数值",

@@ -397,7 +397,7 @@ const configPages: Record<string, ConfigPageDef> = {
     sections: [
       {
         title: '基本设置',
-        fields: ['vendorProductNeedCheck', 'vendorMaxSubAdministrator'],
+        fields: ['vendorProductNeedCheck', 'vendorProductAuditShelfType', 'vendorMaxSubAdministrator'],
       },
       {
         title: '价格设置',
@@ -406,9 +406,14 @@ const configPages: Record<string, ConfigPageDef> = {
     ],
     controls: {
       vendorProductNeedCheck: 'switch',
+      vendorProductAuditShelfType: 'radio',
       vendorSetPriceType: 'radio',
     },
     options: {
+      vendorProductAuditShelfType: [
+        { label: '自动上架', value: 1 },
+        { label: '手动上架', value: 2 },
+      ],
       vendorSetPriceType: [
         { label: '按比例', value: 1 },
         { label: '按固定数值加价', value: 2 },
@@ -420,6 +425,7 @@ const configPages: Record<string, ConfigPageDef> = {
     },
     fieldHelp: {
       vendorProductNeedCheck: '供应商发布商品的时候是否需要审核才能显示商品。开启为默认审核通过。',
+      vendorProductAuditShelfType: '平台审核供应商商品通过后：自动上架立即上架供平台或门店选品；手动上架则审核通过后由供应商自行上架。',
       vendorMaxSubAdministrator: '当前供应商可配置最大子管理员数量',
       vendorSetPriceType: '设价方式：按比例以供货价为基数自动加价；按固定数值加价；或最大售卖金额。',
       vendorSetPriceAutoValue: '自动加价数值：按比例时为百分比，按固定数值时为金额。',

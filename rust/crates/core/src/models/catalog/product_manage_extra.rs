@@ -184,6 +184,46 @@ pub const CHECK_STATUS_APPROVED: i32 = 1;
 /// Java `CheckStatus`：审核未通过。
 pub const CHECK_STATUS_REJECTED: i32 = 2;
 
+/// 平台设置：店铺商品「审核后上架方式」配置键（config 表 `biz_code`）。
+///
+/// 原版有（Tigshop v5.8.65，论坛帖 517949006945033228）：平台在店铺设置中
+/// 选择店铺商品审核通过后的上架方式。取值见 [`AUDIT_SHELF_AUTO`] /
+/// [`AUDIT_SHELF_MANUAL`]；缺失/非法一律回落自动上架，与 v5.8.65 之前
+/// 「通过后直接上架」的行为一致，存量流程零回归。
+pub const CFG_SHOP_PRODUCT_AUDIT_SHELF_TYPE: &str = "shopProductAuditShelfType";
+/// 平台设置：供应商商品「审核后上架方式」配置键（config 表 `biz_code`）。
+/// 语义同 [`CFG_SHOP_PRODUCT_AUDIT_SHELF_TYPE`]，落点为供应商设置。
+pub const CFG_VENDOR_PRODUCT_AUDIT_SHELF_TYPE: &str = "vendorProductAuditShelfType";
+/// 审核后上架方式：自动上架（审核通过即上架，默认）。
+pub const AUDIT_SHELF_AUTO: i32 = 1;
+/// 审核后上架方式：手动上架（审核通过后保持下架，由店铺/供应商自行上架）。
+pub const AUDIT_SHELF_MANUAL: i32 = 2;
+
+/// 解析「审核后上架方式」配置值：仅 `"2"` 为手动，其余（缺失/空/`"1"`/
+/// 非法值）一律回落自动上架——保证未配置时行为与旧版完全一致。
+/// 判断时点为审核动作发生时读取到的当前平台设置（原版无快照语义）。
+#[must_use]
+pub fn parse_audit_shelf_type(raw: Option<&str>) -> i32 {
+    match raw.map(str::trim) {
+        Some("2") => AUDIT_SHELF_MANUAL,
+        _ => AUDIT_SHELF_AUTO,
+    }
+}
+
+/// 审核动作落库的目标上架状态（店铺商品 `product_status` 与供应商商品
+/// `product_state` 共用同一口径）：
+/// - 通过 + 自动 → 1（立即上架）；
+/// - 通过 + 手动 → 0（待上架，商家用既有上/下架操作自行上架）；
+/// - 不通过 → 0（与旧版一致，与上架方式无关）。
+#[must_use]
+pub fn audit_result_product_status(check_status: i32, shelf_type: i32) -> i32 {
+    if check_status == CHECK_STATUS_APPROVED && shelf_type != AUDIT_SHELF_MANUAL {
+        1
+    } else {
+        0
+    }
+}
+
 /// 解析商品描述 JSON 中的图片/视频封面（对应 Java `getProductDescArr` +
 /// `getDescImages`）。非法 JSON 返回空列表（Java 侧也容错为空）。
 #[must_use]
@@ -274,6 +314,56 @@ mod tests {
         assert_eq!(imgs[1].r#type, "video");
         assert!(parse_desc_images(None).is_empty());
         assert!(parse_desc_images(Some("not-json")).is_empty());
+    }
+
+    #[test]
+    fn audit_shelf_type_keys_and_parse_defaults() {
+        // 键名与 config 契约逐字一致（店铺 EP60/EP61、供应商 EP71/EP72），防漂移
+        assert_eq!(
+            CFG_SHOP_PRODUCT_AUDIT_SHELF_TYPE,
+            "shopProductAuditShelfType"
+        );
+        assert_eq!(
+            CFG_VENDOR_PRODUCT_AUDIT_SHELF_TYPE,
+            "vendorProductAuditShelfType"
+        );
+        // 存量环境未配置 → 回落自动上架（= v5.8.65 之前的旧行为）
+        assert_eq!(parse_audit_shelf_type(None), AUDIT_SHELF_AUTO);
+        assert_eq!(parse_audit_shelf_type(Some("")), AUDIT_SHELF_AUTO);
+        assert_eq!(parse_audit_shelf_type(Some("1")), AUDIT_SHELF_AUTO);
+        assert_eq!(parse_audit_shelf_type(Some("0")), AUDIT_SHELF_AUTO);
+        assert_eq!(parse_audit_shelf_type(Some("abc")), AUDIT_SHELF_AUTO);
+        // 仅显式 "2" 为手动（容忍首尾空白）
+        assert_eq!(parse_audit_shelf_type(Some("2")), AUDIT_SHELF_MANUAL);
+        assert_eq!(parse_audit_shelf_type(Some(" 2 ")), AUDIT_SHELF_MANUAL);
+    }
+
+    #[test]
+    fn audit_result_product_status_matrix() {
+        // 两模式 × 审核结论的完整真值表；店铺商品 product_status 与
+        // 供应商商品 product_state 共用此口径，单审与批审（批审内部逐个
+        // 调用单审）结果一致。
+        // 通过 + 自动 → 立即上架（旧行为）
+        assert_eq!(
+            audit_result_product_status(CHECK_STATUS_APPROVED, AUDIT_SHELF_AUTO),
+            1
+        );
+        // 通过 + 手动 → 只置审核通过，上架状态保持下架（待上架）
+        assert_eq!(
+            audit_result_product_status(CHECK_STATUS_APPROVED, AUDIT_SHELF_MANUAL),
+            0
+        );
+        // 不通过 → 两种模式都为下架（与旧行为一致）
+        assert_eq!(
+            audit_result_product_status(CHECK_STATUS_REJECTED, AUDIT_SHELF_AUTO),
+            0
+        );
+        assert_eq!(
+            audit_result_product_status(CHECK_STATUS_REJECTED, AUDIT_SHELF_MANUAL),
+            0
+        );
+        // 未经 parse 的异常模式值不得误伤自动上架（防御）
+        assert_eq!(audit_result_product_status(CHECK_STATUS_APPROVED, 99), 1);
     }
 
     #[test]

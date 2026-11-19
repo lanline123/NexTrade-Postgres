@@ -7,6 +7,10 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::Value;
+use nextrade_core::models::catalog::product_manage_extra::{
+    audit_result_product_status, parse_audit_shelf_type, CFG_VENDOR_PRODUCT_AUDIT_SHELF_TYPE,
+    CHECK_STATUS_APPROVED,
+};
 use nextrade_core::models::catalog::product_sale::ProductSaleState;
 use nextrade_core::Error;
 use nextrade_security::web::{ok, ApiResult};
@@ -394,12 +398,43 @@ async fn h_34(_state: State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value
 
 // post /vendor/product/platform/audit
 async fn h_35(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
-    sqlx::query("UPDATE vendor_product SET audit_state = $1 WHERE id = $2")
-        .bind(q.status.unwrap_or(1))
+    let status = q.status.unwrap_or(1);
+    if status == CHECK_STATUS_APPROVED {
+        // 审核通过后的上架状态按平台设置 `vendorProductAuditShelfType` 决定
+        // （原版有，Tigshop v5.8.65）：自动上架（默认/未配置）→ product_state=1，
+        // 立即上架供平台或门店选品；手动上架 → product_state=0，只置审核通过，
+        // 由供应商用既有 changeState 自行上架。判断时点为审核时的当前设置
+        // （无快照）；配置读取失败按未配置处理（回落自动），不阻断审核。
+        let raw = state
+            .repos
+            .system
+            .config_client
+            .find_config_val(CFG_VENDOR_PRODUCT_AUDIT_SHELF_TYPE, true)
+            .await
+            .ok()
+            .flatten();
+        let product_state = audit_result_product_status(
+            CHECK_STATUS_APPROVED,
+            parse_audit_shelf_type(raw.as_deref()),
+        );
+        sqlx::query(
+            "UPDATE vendor_product SET audit_state = $1, product_state = $2 WHERE id = $3",
+        )
+        .bind(status)
+        .bind(product_state)
         .bind(q.id.unwrap_or(0))
         .execute(&pool(&state))
         .await
         .map_err(db)?;
+    } else {
+        // 不通过等其它状态：只改审核状态，上架状态保持旧行为不动
+        sqlx::query("UPDATE vendor_product SET audit_state = $1 WHERE id = $2")
+            .bind(status)
+            .bind(q.id.unwrap_or(0))
+            .execute(&pool(&state))
+            .await
+            .map_err(db)?;
+    }
     ok(())
 }
 

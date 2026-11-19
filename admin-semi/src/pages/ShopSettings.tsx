@@ -45,20 +45,29 @@ const def: {
   sections: [
     {
       title: '基本设置',
-      fields: ['shopProductNeedCheck', 'maxRecommendProductCount', 'maxSubAdministrator', 'defaultShopName'],
+      fields: ['shopProductNeedCheck', 'shopProductAuditShelfType', 'maxRecommendProductCount', 'maxSubAdministrator', 'defaultShopName'],
     },
   ],
   labels: {
     shopProductNeedCheck: '店铺商品审核',
+    shopProductAuditShelfType: '审核后上架方式',
     maxRecommendProductCount: '推荐商品数量',
     maxSubAdministrator: '最大管理员数',
     defaultShopName: '店铺名称',
   },
-  controls: {},
-  options: {},
+  controls: {
+    shopProductAuditShelfType: 'radio',
+  },
+  options: {
+    shopProductAuditShelfType: [
+      { label: '自动上架', value: 1 },
+      { label: '手动上架', value: 2 },
+    ],
+  },
   rules: {},
   fieldHelp: {
     shopProductNeedCheck: '店铺发布商品的时候是否需要审核才能显示商品',
+    shopProductAuditShelfType: '平台审核店铺商品通过后：自动上架立即开卖；手动上架则审核通过后由店铺自行上架才开卖',
     maxRecommendProductCount: '商城中新品、推荐列表显示的商品数量',
     maxSubAdministrator: '当前店铺可配置的最大子管理员数',
     defaultShopName: '当商品没有归属店铺时商品卡片展示的自定义店铺名称，默认：官方自营店',
@@ -66,6 +75,7 @@ const def: {
   hiddenFields: [],
   defaults: {
     shopProductNeedCheck: 1,
+    shopProductAuditShelfType: 1,
     maxSubAdministrator: 5,
   },
   renderers: {

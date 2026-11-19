@@ -15,7 +15,10 @@
 //! 每个带 `@ConfigItemField` 的字段 → 逐项 `delete + insert`。
 //!
 //! 因此本实现的「规格表」直接由 Java 源码的 `@ConfigItemField` 注解 + `SettingsEnum`
-//! 机械抽取生成（846 个字段规格 / 102 个端点），而不是手写 100 个 VO：
+//! 机械抽取生成（846 个字段规格 / 102 个端点），而不是手写 100 个 VO；
+//! 另有 Tigshop v5.8.65「审核后上架方式」追加的 4 个字段规格
+//! （EP60/EP61 的 shopProductAuditShelfType、EP71/EP72 的
+//! vendorProductAuditShelfType，非 Java 抽取、按原版语义手工登记）：
 //! - `EndpointSpec.fields`：该端点涉及的配置项（字段名 = Java VO/Param 字段名，
 //!   `code` = `SettingsEnum.bizCode`，`ty` = 值类型，`default` = `SettingsEnum` 默认值）；
 //! - `EndpointSpec.nested`：`@ConfigInnerParam` 嵌套对象。
@@ -6528,12 +6531,24 @@ static EP59_FIELDS: [FieldSpec; 1] = [FieldSpec {
     group: None,
 }];
 
-static EP60_FIELDS: [FieldSpec; 4] = [
+static EP60_FIELDS: [FieldSpec; 5] = [
     FieldSpec {
         field: "shopProductNeedCheck",
         code: "shopProductNeedCheck",
         ty: ValueType::Int,
         default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        // 原版有（Tigshop v5.8.65）：店铺商品审核后上架方式，1=自动上架（默认）/ 2=手动上架
+        field: "shopProductAuditShelfType",
+        code: "shopProductAuditShelfType",
+        ty: ValueType::Int,
+        default: Some("1"),
         is_list: false,
         label: None,
         widget: None,
@@ -6575,12 +6590,24 @@ static EP60_FIELDS: [FieldSpec; 4] = [
     },
 ];
 
-static EP61_FIELDS: [FieldSpec; 4] = [
+static EP61_FIELDS: [FieldSpec; 5] = [
     FieldSpec {
         field: "shopProductNeedCheck",
         code: "shopProductNeedCheck",
         ty: ValueType::Int,
         default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        // 原版有（Tigshop v5.8.65）：店铺商品审核后上架方式，1=自动上架（默认）/ 2=手动上架
+        field: "shopProductAuditShelfType",
+        code: "shopProductAuditShelfType",
+        ty: ValueType::Int,
+        default: Some("1"),
         is_list: false,
         label: None,
         widget: None,
@@ -7283,12 +7310,24 @@ static EP67_NESTED: [NestedSpec; 1] = [NestedSpec {
     fields: &[],
 }];
 
-static EP71_FIELDS: [FieldSpec; 4] = [
+static EP71_FIELDS: [FieldSpec; 5] = [
     FieldSpec {
         field: "vendorProductNeedCheck",
         code: "vendorProductNeedCheck",
         ty: ValueType::Int,
         default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        // 原版有（Tigshop v5.8.65）：供应商商品审核后上架方式，1=自动上架（默认）/ 2=手动上架
+        field: "vendorProductAuditShelfType",
+        code: "vendorProductAuditShelfType",
+        ty: ValueType::Int,
+        default: Some("1"),
         is_list: false,
         label: None,
         widget: None,
@@ -7330,12 +7369,24 @@ static EP71_FIELDS: [FieldSpec; 4] = [
     },
 ];
 
-static EP72_FIELDS: [FieldSpec; 4] = [
+static EP72_FIELDS: [FieldSpec; 5] = [
     FieldSpec {
         field: "vendorProductNeedCheck",
         code: "vendorProductNeedCheck",
         ty: ValueType::Int,
         default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        // 原版有（Tigshop v5.8.65）：供应商商品审核后上架方式，1=自动上架（默认）/ 2=手动上架
+        field: "vendorProductAuditShelfType",
+        code: "vendorProductAuditShelfType",
+        ty: ValueType::Int,
+        default: Some("1"),
         is_list: false,
         label: None,
         widget: None,
@@ -10731,6 +10782,44 @@ mod tests {
         assert!(pairs.contains(&(
             "productRawImageDownloadChannels".to_string(),
             "[\"pc\",\"h5\"]".to_string()
+        )));
+    }
+
+    #[test]
+    fn audit_shelf_type_fields_cover_shop_and_vendor_settings() {
+        // 原版有（Tigshop v5.8.65）：店铺/供应商设置各含「审核后上架方式」，
+        // GET 未配置时默认 1（自动上架，与旧行为一致），POST 可回写 2（手动）。
+        let shop_get = find_endpoint("/setting/config/shopSettings").expect("店铺设置 GET 端点");
+        assert_eq!(shop_get.fields.len(), 5);
+        let value = build_group(shop_get.fields, shop_get.nested, &HashMap::new());
+        assert_eq!(value["shopProductAuditShelfType"], serde_json::json!(1));
+        let shop_save = find_endpoint("/setting/config/saveShop").expect("店铺设置 POST 端点");
+        let mut body = Map::new();
+        body.insert(
+            "shopProductAuditShelfType".into(),
+            serde_json::json!(2),
+        );
+        let pairs = collect_save_pairs(shop_save.fields, shop_save.nested, &body);
+        assert!(pairs.contains(&(
+            "shopProductAuditShelfType".to_string(),
+            "2".to_string()
+        )));
+
+        let vendor_get =
+            find_endpoint("/setting/config/vendorSettings").expect("供应商设置 GET 端点");
+        assert_eq!(vendor_get.fields.len(), 5);
+        let value = build_group(vendor_get.fields, vendor_get.nested, &HashMap::new());
+        assert_eq!(value["vendorProductAuditShelfType"], serde_json::json!(1));
+        let vendor_save = find_endpoint("/setting/config/saveVendor").expect("供应商设置 POST 端点");
+        let mut body = Map::new();
+        body.insert(
+            "vendorProductAuditShelfType".into(),
+            serde_json::json!(2),
+        );
+        let pairs = collect_save_pairs(vendor_save.fields, vendor_save.nested, &body);
+        assert!(pairs.contains(&(
+            "vendorProductAuditShelfType".to_string(),
+            "2".to_string()
         )));
     }
 

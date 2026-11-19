@@ -597,3 +597,9 @@
 ### 修复
 
 - **H5 - 装修商品模块图片比例缺字段回退【原版有】**：原版编辑器 mobilePro 中 productGrouping / countdown / mixedProductDisplay / specialOffer 带 `picScale`（「图片比例」单选 3:2/1:1/3:4/16:9、默认 1:1），productSlide / productCarousel / limitedSpecial / newcomerCombo 带 `productPicRatio`（默认/1:1/3:4/3:2、渲染缺省回退 1:1）。经逐模块核对，我方 H5 编辑器（decorateEditorH5 精确移植版）的设置项、标签、选项、默认值与画布 Preview 映射均已对齐原版且线上产物已含（live admin 产物 chunk grep 实证）；uniapp-react 渲染端两族比例→padding-top 映射与原版逐字一致。唯 picScale 四模块渲染时 `picScaleMap[module.picScale]` 无回退：存量已发布数据缺该字段时（实证：首页 10020 已发布数据的 productGrouping 无 picScale）算出 `padding-top: undefined`、图片区高度塌陷。本次给四模块共 7 处查表统一补 `?? picScaleMap["1:1"]` 回退（与编辑器 Preview 及 productPicRatio 族渲染既有口径一致），字段有值时行为不变。productPicRatio 族、groupSliding「商品图片占比」滑杆（数值型，同名异义）经核对均已对齐、无改动；mixedNotice 的 picScale 段在原版编辑器中已注释失效、两方均不提供；PC 装修原版无对应比例设置、不涉及。报告：picscale-editor-fix/REPORT.md。
+
+## 0.0.2 续 · 2026-11-20 批次（店铺/供应商商品审核后上架方式，待随合并批次部署）
+
+### 新增
+
+- **平台 - 店铺/供应商商品审核后自动/手动上架【原版有（Tigshop v5.8.65，论坛帖 517949006945033228）】**：此前商品审核通过后硬编码直接上架（承旧 Java 口径），平台无选择。本批新增两个平台设置项：店铺设置「审核后上架方式」（`shopProductAuditShelfType`）与供应商设置「审核后上架方式」（`vendorProductAuditShelfType`），取值 1=自动上架（默认）/ 2=手动上架，走 config 表契约（EP60/EP61 店铺、EP71/EP72 供应商字段表各加一项，默认 1）。后端：店铺商品单审 `audit` 与批审 `batch type=audit`（批审逐个走单审、共用同一分支）在审核通过时按当前设置落 `product_status`——自动则上架、手动则只置审核通过并保持下架（待上架），店铺用既有上/下架操作自行上架；供应商商品平台审核（`vendor/product/platform/audit`）同口径落 `product_state`（自动上架供平台/门店选品、手动由供应商用既有 changeState 自行上架），不通过分支行为不变。判断时点为审核动作发生时的当前平台设置（原版无快照语义）；配置缺失/非法/读取失败一律回落自动上架，存量流程零回归；免审核路径（shopProductNeedCheck / vendorProductNeedCheck）不动。CI 覆盖两模式 × 审核结论的决策真值表、配置解析回落与四个设置端点的字段/默认值/回写契约测试。报告：audit-shelf-mode/REPORT.md。
