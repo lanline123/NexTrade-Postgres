@@ -1542,6 +1542,16 @@ export default function ProductDetailClient({
   const isReservation = Number((item as any).productType) === 5 || Number((item as any).productType) === 6;
 
   /**
+   * 绑卡组商品（原版有，giftmall 三端实查）：giftCardGroupsId>0 或卡类商品
+   * productType 7/8（电子卡券/礼品卡商品）——详情页无「加入购物车」、只有「立即购买」。
+   * 前台详情 VO 通常不下发 giftCardGroupsId，故以 productType 为主判据、字段存在时一并识别。
+   */
+  const isGiftCardProduct =
+    Number((item as any).giftCardGroupsId || 0) > 0 ||
+    Number((item as any).productType) === 7 ||
+    Number((item as any).productType) === 8;
+
+  /**
    * 源码 components/product/ProductInfo.vue 350–463：`.add_cart` 内是 ProductBuy（Buy.vue）
    * 包住的旧版按钮 —— `.buy(.disabled) > .buy-btn`（加购）/ `.buy > .buy-btn.buynow`（立即购买）；
    * 售罄且非预约商品时换成 `.buy-btn.buynow` 的「查看其他商品」跳 /search。
@@ -1572,14 +1582,17 @@ export default function ProductDetailClient({
         </div>
       ) : (
         <>
-          <div
-            className={`buy mp-buy${outOfStock || skuDisabled || requireSku ? ' disabled' : ''}`}
-            onClick={() => { if (!outOfStock && !skuDisabled && !requireSku) void add(); }}
-          >
-            <button type="button" className="buy-btn" disabled={outOfStock || skuDisabled || requireSku}>
-              {adding ? t('加入中…') : t('加入购物车')}
-            </button>
-          </div>
+          {/* 绑卡组商品只留「立即购买」（原版口径，见 isGiftCardProduct） */}
+          {!isGiftCardProduct ? (
+            <div
+              className={`buy mp-buy${outOfStock || skuDisabled || requireSku ? ' disabled' : ''}`}
+              onClick={() => { if (!outOfStock && !skuDisabled && !requireSku) void add(); }}
+            >
+              <button type="button" className="buy-btn" disabled={outOfStock || skuDisabled || requireSku}>
+                {adding ? t('加入中…') : t('加入购物车')}
+              </button>
+            </div>
+          ) : null}
           <div
             className={`buy mp-buy${outOfStock || skuDisabled || requireSku ? ' disabled' : ''}`}
             onClick={() => { if (!outOfStock && !skuDisabled && !requireSku) void add('buy'); }}
@@ -1903,7 +1916,10 @@ export default function ProductDetailClient({
           </>
         ) : (
           <>
-            <Button size="large" theme="solid" type="primary" loading={adding} disabled={outOfStock || skuDisabled || requireSku} onClick={() => void add()}>{t('加入购物车')}</Button>
+            {/* 绑卡组商品浮动栏同样只留「立即购买」 */}
+            {!isGiftCardProduct ? (
+              <Button size="large" theme="solid" type="primary" loading={adding} disabled={outOfStock || skuDisabled || requireSku} onClick={() => void add()}>{t('加入购物车')}</Button>
+            ) : null}
             <Button size="large" theme="light" type="primary" disabled={outOfStock || skuDisabled || requireSku} onClick={() => void add('buy')}>{t('立即购买')}</Button>
             <Button size="large" loading={collecting} onClick={() => void collect()}>
               {collected ? '已收藏' : '收藏'}

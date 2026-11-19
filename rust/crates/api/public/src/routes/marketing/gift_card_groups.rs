@@ -29,15 +29,22 @@ use axum::{
 };
 use serde::Deserialize;
 use nextrade_core::models::marketing::gift_card::{
-    ExchangeCardParam, GiftCardClaimParam, GiftCardsVO,
+    ExchangeCardParam, ExchangeProductToCartVO, GiftCardClaimParam, GiftCardsVO, UseCardParam,
 };
+use nextrade_core::models::marketing::gift_card_issue::{
+    MyGiftCardDetailVO, MyGiftCardVO, MyGiftCardsQuery,
+};
+use nextrade_core::types::PageResult;
 use nextrade_security::web::{ok, ApiResult, AppError, AuthUser};
 use nextrade_security::JwtService;
 
 use crate::PublicState;
 
-/// 本域 6 条路由（去掉 `/api` 前缀后的路径 + 原 Java handler）。
-const ROUTE_TABLE: [(&str, &str, &str); 7] = [
+/// 本域 10 条路由（去掉 `/api` 前缀后的路径 + 原 Java handler）。
+/// myCards / myCardDetail 为**原版有·我方改口径**（原版为 myList +
+/// detail?giftCardSn，我方按 id + 归属校验，见 standard-alignment D7）；
+/// useCard 为**原版有**（giftmall 三端同名端点，D6）。
+const ROUTE_TABLE: [(&str, &str, &str); 10] = [
     (
         "GET",
         "/promotion/giftCardGroups/detail",
@@ -73,6 +80,21 @@ const ROUTE_TABLE: [(&str, &str, &str); 7] = [
         "/promotion/giftCardGroups/showCardPassword",
         "GiftCardGroupsController.showCardPassword",
     ),
+    (
+        "GET",
+        "/promotion/giftCardGroups/myCards",
+        "GiftCardGroupsController.myCards(P1)",
+    ),
+    (
+        "GET",
+        "/promotion/giftCardGroups/myCardDetail",
+        "GiftCardGroupsController.myCardDetail(P1)",
+    ),
+    (
+        "POST",
+        "/promotion/giftCardGroups/useCard",
+        "GiftCardGroupsController.useCard",
+    ),
 ];
 
 /// 礼品卡前台路由（挂载于 `/api` 下，模块自带可选登录态中间件）。
@@ -94,6 +116,12 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
             "/promotion/giftCardGroups/showCardPassword",
             get(show_card_password),
         )
+        .route("/promotion/giftCardGroups/myCards", get(my_cards))
+        .route(
+            "/promotion/giftCardGroups/myCardDetail",
+            get(my_card_detail),
+        )
+        .route("/promotion/giftCardGroups/useCard", post(use_card))
         .layer(middleware::from_fn_with_state(
             state.jwt.clone(),
             optional_auth,
@@ -241,6 +269,52 @@ async fn show_card_password(
         .await?)
 }
 
+/// `giftCardsId` 查询参数（myCardDetail）。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct MyCardDetailQuery {
+    gift_cards_id: Option<i32>,
+}
+
+/// `GET /promotion/giftCardGroups/myCards`：我的礼品卡（P1；游客 ⇒ 请先登录）。
+async fn my_cards(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Query(q): Query<MyGiftCardsQuery>,
+) -> ApiResult<PageResult<MyGiftCardVO>> {
+    let user_id = current_user_id(&auth);
+    ok(state.marketing.gift_card_issue.my_cards(user_id, &q).await?)
+}
+
+/// `POST /promotion/giftCardGroups/useCard`：使用/核销兑换卡（原版有）：
+/// 固定组合整组核销、任选按 SKU 数量计件，写购物车后跳结算 flowType=12。
+async fn use_card(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Json(param): Json<UseCardParam>,
+) -> ApiResult<ExchangeProductToCartVO> {
+    let user_id = current_user_id(&auth);
+    ok(state.marketing.gift_card.use_card(&param, user_id).await?)
+}
+
+/// `GET /promotion/giftCardGroups/myCardDetail`：我的礼品卡详情（P1；归属校验）。
+async fn my_card_detail(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Query(q): Query<MyCardDetailQuery>,
+) -> ApiResult<MyGiftCardDetailVO> {
+    let user_id = current_user_id(&auth);
+    let gift_cards_id = q
+        .gift_cards_id
+        .filter(|v| *v > 0)
+        .ok_or_else(|| AppError(nextrade_core::Error::Validation("giftCardsId不能为空".into())))?;
+    ok(state
+        .marketing
+        .gift_card_issue
+        .my_card_detail(user_id, gift_cards_id)
+        .await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,7 +322,7 @@ mod tests {
     #[test]
     fn implemented_routes_match_java_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 7);
+        assert_eq!(docs.len(), 10);
         let expected = [
             ("GET", "/api/promotion/giftCardGroups/detail"),
             ("POST", "/api/promotion/giftCardGroups/claim"),
@@ -257,6 +331,9 @@ mod tests {
             ("POST", "/api/promotion/giftCardGroups/exchange"),
             ("GET", "/api/promotion/giftCardGroups/getTransferLink"),
             ("GET", "/api/promotion/giftCardGroups/showCardPassword"),
+            ("GET", "/api/promotion/giftCardGroups/myCards"),
+            ("GET", "/api/promotion/giftCardGroups/myCardDetail"),
+            ("POST", "/api/promotion/giftCardGroups/useCard"),
         ];
         for (method, path) in expected {
             assert!(
@@ -274,7 +351,7 @@ mod tests {
 
     #[test]
     fn route_table_paths_stay_relative() {
-        assert_eq!(ROUTE_TABLE.len(), 7);
+        assert_eq!(ROUTE_TABLE.len(), 10);
         for (_, path, _) in ROUTE_TABLE.iter() {
             assert!(!path.contains("/api/"), "{path}");
             assert!(path.starts_with("/promotion/giftCardGroups/"), "{path}");

@@ -97,6 +97,8 @@ impl OrderService {
         let mut product_amount = Decimal::ZERO;
         let mut items: Vec<OrderItem> = Vec::with_capacity(lines.len());
         let mut order_sn = utils::generate_order_sn();
+        // 礼品卡兑换流：购物车行 extra_data 的 giftCardsId 标记（useCard 写入）
+        let mut gift_exchange_card_id: Option<i32> = None;
 
         // 订单号防重
         let mut retries = 0;
@@ -304,6 +306,16 @@ impl OrderService {
             let promotion_data = groupon_line
                 .and_then(|g| serde_json::to_string(&g.data).ok());
             let product = products.get(&pid);
+            // 礼品卡兑换行：关联 order_item.gift_card_id（原版兑换订单口径）
+            let line_gift_card_id = line
+                .extra_data
+                .as_deref()
+                .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
+                .and_then(|v| v.get("giftCardsId").and_then(serde_json::Value::as_i64))
+                .and_then(|v| i32::try_from(v).ok());
+            if line_gift_card_id.is_some() && gift_exchange_card_id.is_none() {
+                gift_exchange_card_id = line_gift_card_id;
+            }
             items.push(OrderItem {
                 order_sn: order_sn.clone(),
                 user_id,
@@ -322,6 +334,7 @@ impl OrderService {
                 shop_id: line.shop_id,
                 is_pin: i32::from(is_pin),
                 promotion_data,
+                gift_card_id: line_gift_card_id,
                 ..Default::default()
             });
         }
@@ -614,7 +627,14 @@ impl OrderService {
         let order = Order {
             is_presale: if presale_row.is_some() { 1 } else { 0 },
             presale_type: presale_row.as_ref().map(|_| 2),
-            order_type: if groupon_lines.is_empty() { Some(0) } else { Some(2) },
+            // 订单类型：礼品卡兑换 12（原版 orderType=12）> 拼团 2 > 普通 0
+            order_type: if gift_exchange_card_id.is_some() {
+                Some(12)
+            } else if groupon_lines.is_empty() {
+                Some(0)
+            } else {
+                Some(2)
+            },
             order_sn: order_sn.clone(),
             user_id,
             order_status: status::UNPAID,
@@ -928,12 +948,91 @@ impl OrderService {
 
         tracing::info!("创建订单成功: order_id={order_id}, sn={order_sn}, user={user_id}");
 
+        // —— 礼品卡（标准对齐 D5/D6）：在余额之前抵扣 ——
+        // 兑换流（购物车行带 giftCardsId）：卡已在 useCard 核销，商品金额由卡
+        // 覆盖，只记 gift_card_amount（不扣储值余额、不写 usage_log）。
+        // 普通流：所选储值卡在卡仓储事务内行锁扣 balance 并写 usage_log
+        // type=1，失败（卡已不可用/余额为 0）仅告警不回滚订单。
+        let mut gift_card_used = Decimal::ZERO;
+        if presale_row.is_none() {
+            if gift_exchange_card_id.is_some() {
+                gift_card_used =
+                    (product_amount - coupon_amount - points.points_amount).max(Decimal::ZERO);
+            } else {
+                let (sel_id, sel_sn) =
+                    nextrade_core::models::trade::check::resolve_gift_card_selection(
+                        dto.use_gift_card_id,
+                        dto.use_gift_card_sn.as_deref(),
+                    );
+                if sel_id.is_some() || sel_sn.is_some() {
+                    let now_gc = utils::now_seconds();
+                    match self
+                        .repos
+                        .marketing
+                        .gift_card_issue
+                        .deduct_stored_card(
+                            user_id,
+                            sel_id,
+                            sel_sn.as_deref(),
+                            order_id,
+                            total,
+                            now_gc,
+                        )
+                        .await
+                    {
+                        Ok(Some(res)) => gift_card_used = res.amount,
+                        Ok(None) => {
+                            tracing::warn!(
+                                "订单 {order_id} 礼品卡抵扣未生效（卡不可用）: user={user_id}"
+                            );
+                        }
+                        Err(e) => {
+                            tracing::warn!("订单 {order_id} 礼品卡抵扣失败: {e}");
+                        }
+                    }
+                }
+            }
+            if gift_card_used > Decimal::ZERO {
+                let _ = self
+                    .repos
+                    .trade
+                    .order
+                    .set_gift_card_amount(order_id, gift_card_used)
+                    .await;
+            }
+        }
+
         // —— 余额抵扣（Java `OrderCheckServiceImpl#calcBalanceDeduction`）——
         // 定金预售：本次只支付定金，余额抵扣留给尾款阶段（避免把定金当全款结算）
-        let mut online_amount = if presale_row.is_some() { deposit_now } else { total };
+        let mut online_amount = if presale_row.is_some() {
+            deposit_now
+        } else {
+            (total - gift_card_used).max(Decimal::ZERO)
+        };
         let mut return_type = 1_i32;
         let mut final_balance_used = Decimal::ZERO;
         if presale_row.is_none() {
+            // 礼品卡已全额覆盖：直接标记已付（礼品卡抵扣计入 paid_amount）
+            if gift_card_used >= total && total > Decimal::ZERO {
+                let now = utils::now_seconds() as i32;
+                if self
+                    .repos
+                    .trade
+                    .order
+                    .mark_paid(order_id, now, total)
+                    .await?
+                {
+                    online_amount = Decimal::ZERO;
+                    return_type = 2;
+                }
+            } else if gift_card_used > Decimal::ZERO {
+                let _ = self
+                    .repos
+                    .trade
+                    .order
+                    .apply_partial_payment(order_id, gift_card_used)
+                    .await;
+            }
         if let Some(requested) = dto.use_balance {
             if requested > Decimal::ZERO {
                 let available = self
@@ -944,7 +1043,9 @@ impl OrderService {
                     .await?
                     .map(|u| u.available_balance())
                     .unwrap_or(Decimal::ZERO);
-                let mut balance_used = requested.min(total).min(available);
+                let mut balance_used = requested
+                    .min((total - gift_card_used).max(Decimal::ZERO))
+                    .min(available);
                 if balance_used > Decimal::ZERO {
                     let debited = self
                         .repos
@@ -965,7 +1066,7 @@ impl OrderService {
                         .set_balance_amount(order_id, balance_used)
                         .await;
                     let now = utils::now_seconds() as i32;
-                    if balance_used >= total {
+                    if balance_used + gift_card_used >= total {
                         if self
                             .repos
                             .trade
@@ -985,7 +1086,8 @@ impl OrderService {
                             .order
                             .apply_partial_payment(order_id, balance_used)
                             .await;
-                        online_amount = total - balance_used;
+                        online_amount =
+                            (total - gift_card_used - balance_used).max(Decimal::ZERO);
                         self.write_balance_paylog(order_id, &order_sn, total, balance_used, now)
                             .await;
                     }
@@ -1226,6 +1328,17 @@ impl OrderService {
             if let Err(e) = self.product.restore_stock(pid, Some(item.sku_id), qty).await {
                 tracing::error!("取消订单回滚库存失败 order={order_id} product={pid}: {e}");
             }
+        }
+        // 礼品卡返还（尽力而为）：按 usage_log type=1 扣减记录原额返还
+        // 卡内余额并写 type=2 流水，仓储层幂等（已返还则跳过）。
+        if let Err(e) = self
+            .repos
+            .marketing
+            .gift_card_issue
+            .return_stored_cards_for_order(order_id, utils::now_seconds())
+            .await
+        {
+            tracing::warn!("取消订单 {order_id} 礼品卡返还失败: {e}");
         }
         tracing::info!("订单已取消: {order_id}");
         Ok(())

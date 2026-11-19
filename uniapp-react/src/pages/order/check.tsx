@@ -17,6 +17,7 @@ import { redirect } from "@/utils";
 import { getOrderPickupParams, filterDayList } from "@/utils/store";
 import { getCartReservationFlowType } from "@/utils/productSoldOut";
 import { t } from "@/utils/i18n";
+import { currentSystemMode } from "@/utils/systemMode";
 import type { CartList, Total, PaymentTypeItem, ShippingTypeItem, DateStockList, CreditPaymentInfo, StockCalendarParams } from "@/types/order/check";
 import type { AddressFilterResult } from "@/types/user/address";
 import type { UserPickupListRecord } from "@/types/store/userPicekup";
@@ -71,6 +72,12 @@ export default function Check() {
 
     const cycleOrderInfoRef = useRef<any>({});
     const useGiftCardRef = useRef(false);
+    /** check 响应下发的可选礼品卡（原版口径：单选一张，字段宽松读取） */
+    const availableGiftCardsRef = useRef<any[]>([]);
+    /** 当前单选的礼品卡 id（0 = 不用卡） */
+    const selectedGiftCardIdRef = useRef(0);
+    /** flowType=12 时由路由带入的卡 SN，该卡锁定为唯一可选 */
+    const giftCardSnRef = useRef("");
 
     // 当前结算表单数据
     interface IformState {
@@ -96,6 +103,9 @@ export default function Check() {
         useCredit: 0 | 1;
         useCouponIds: number[];
         selectUserCouponIds: number[];
+        /** 礼品卡单选（原版口径）：与 useGiftCardSn 二选一互斥，0/空 = 不用 */
+        useGiftCardId?: number;
+        useGiftCardSn?: string;
         buyerNote: string;
         invoiceData: any;
         useDefaultCouponIds?: number;
@@ -534,15 +544,46 @@ export default function Check() {
     };
 
     /**
+     * @description 同步礼品卡入参到 formState（原版口径：useGiftCardId 与 useGiftCardSn 二选一互斥）
+     * flowType=12 时以路由 giftCardSn 锁定；普通结算用单选 id（0=不用）
+     */
+    const syncGiftCardParams = () => {
+        if (flowTypeRef.current === 12 && giftCardSnRef.current) {
+            formState.useGiftCardSn = giftCardSnRef.current;
+            formState.useGiftCardId = 0;
+        } else {
+            formState.useGiftCardId = selectedGiftCardIdRef.current;
+            formState.useGiftCardSn = "";
+        }
+    };
+
+    /** 礼品卡单选：点未选卡选中、再点已选卡取消（flowType=12 锁定不可改），随后重算金额 */
+    const handleSelectGiftCard = (card: any) => {
+        if (flowTypeRef.current === 12) return;
+        const id = Number(card?.giftCardsId || 0);
+        if (!id) return;
+        selectedGiftCardIdRef.current = selectedGiftCardIdRef.current === id ? 0 : id;
+        syncGiftCardParams();
+        rerender();
+        void updateOrderCheck();
+    };
+
+    /**
      * @description 获取订单结算信息
      * 包含商品列表、价格汇总、优惠券、配送选项等完整结算数据
      * O2O场景下会返回商城配送/到店自提/同城配送的商品分组
      */
     const getOrderInfo = async () => {
         try {
+            syncGiftCardParams();
             const result: any = await getOrderCheckData({ flowType: flowTypeRef.current, ...formState });
 
             const { cartList, total, couponList, tmplIds, item, useCouponIds, selectUserCouponIds, deliveryOption = {}, creditPaymentInfo: cpi } = result;
+            // 可选礼品卡由 check 响应下发（原版口径，非单独调 myCards）
+            availableGiftCardsRef.current = Array.isArray(result.availableGiftCards) ? result.availableGiftCards : [];
+            if (item?.useGiftCardId !== undefined && flowTypeRef.current !== 12) {
+                selectedGiftCardIdRef.current = Number(item.useGiftCardId || 0);
+            }
             isOrderInfoLoadedRef.current = true;
             cartListDataRef.current = cartList;
             // 次卡下单阶段不强制要求联系人，联系人为空也不跳转联系人列表。
@@ -704,7 +745,11 @@ export default function Check() {
             title: t("加载中")
         });
         try {
+            syncGiftCardParams();
             const result: any = await updateOrderCheckData({ flowType: flowTypeRef.current, ...formState });
+            if (Array.isArray(result.availableGiftCards)) {
+                availableGiftCardsRef.current = result.availableGiftCards;
+            }
 
             if (result.item) {
                 const currentShippingType = formState.shippingType;
@@ -874,6 +919,7 @@ export default function Check() {
      */
     const formatFormState = () => {
         formState.flowType = flowTypeRef.current;
+        syncGiftCardParams();
         const shippingTypeEntries = Object.entries(formState.shippingType);
         const pickupFieldsToDelete = ["expectPickupTime", "pickupId", "pickupTitle", "pickupTime", "pickupDateType"] as const;
 
@@ -1364,6 +1410,10 @@ export default function Check() {
                 }
             }
 
+            if (options.giftCardSn) {
+                giftCardSnRef.current = String(options.giftCardSn);
+            }
+
             if (options.stores) {
                 storesRef.current = JSON.parse(decodeURIComponent(options.stores));
                 deliveryTypeRef.current = 2;
@@ -1517,6 +1567,57 @@ export default function Check() {
                     rerender();
                 }}
             />
+
+            {/* 礼品卡单选区（原版口径：单选一张、再点已选卡取消；可选卡来自 check 响应
+                availableGiftCards；flowType=12 时锁定 giftCardSn 对应卡不可改。
+                系统模式 mall 时普通结算不展示抵扣区，flowType=12 兑换流不受影响） */}
+            {(() => {
+                const cards = availableGiftCardsRef.current;
+                const locked = flowType == 12;
+                if (!locked && currentSystemMode() === "mall") return null;
+                if (!cards.length && !(locked && giftCardSnRef.current)) return null;
+                return (
+                    <View className="gift-card-select-card">
+                        <View className="gift-card-select-title">{t("礼品卡")}</View>
+                        {cards.map((card: any) => {
+                            const id = Number(card.giftCardsId || 0);
+                            const selected = locked
+                                ? !giftCardSnRef.current || card.giftCardSn === giftCardSnRef.current
+                                : selectedGiftCardIdRef.current === id;
+                            return (
+                                <View
+                                    key={id || card.giftCardSn}
+                                    className={`gift-card-row${selected ? " selected" : ""}`}
+                                    onClick={() => handleSelectGiftCard(card)}
+                                >
+                                    <View className={`gift-card-radio${selected ? " on" : ""}`} />
+                                    <View className="gift-card-main">
+                                        <View className="gift-card-name">{card.cardGroupName || t("礼品卡")}</View>
+                                        <View className="gift-card-sub">
+                                            {card.cardNumberMasked || card.cardNumber || ""}
+                                            {card.balance !== undefined && card.balance !== null && card.balance !== ""
+                                                ? ` · ${t("余额")} ¥${card.balance}`
+                                                : card.faceAmount !== undefined && card.faceAmount !== null && card.faceAmount !== ""
+                                                  ? ` · ${t("面额")} ¥${card.faceAmount}`
+                                                  : ""}
+                                        </View>
+                                    </View>
+                                    {locked ? <Text className="gift-card-locked">{t("本单锁定使用")}</Text> : null}
+                                </View>
+                            );
+                        })}
+                        {locked && !cards.length && giftCardSnRef.current ? (
+                            <View className="gift-card-row selected">
+                                <View className="gift-card-radio on" />
+                                <View className="gift-card-main">
+                                    <View className="gift-card-name">{t("礼品卡")}</View>
+                                </View>
+                                <Text className="gift-card-locked">{t("本单锁定使用")}</Text>
+                            </View>
+                        ) : null}
+                    </View>
+                );
+            })()}
 
             {showCouponCard() && (
                 <CouponInfo

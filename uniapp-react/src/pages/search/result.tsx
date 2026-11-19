@@ -43,7 +43,14 @@ import "./result.scss";
  * - 支持价格排序、销量排序
  */
 
-type FilterParamsState = ProductFilterParams & { keyword: string; min: string | number; max: string | number; attrs: attrsData[] };
+type FilterParamsState = ProductFilterParams & {
+    keyword: string;
+    min: string | number;
+    max: string | number;
+    attrs: attrsData[];
+    /** 原版口径：购卡入口过滤参数，透传商品列表接口（1 = 只看礼品卡商品） */
+    onlyGiftCardProduct?: number;
+};
 
 export default function SearchResult() {
     const router = useRouter();
@@ -463,6 +470,11 @@ export default function SearchResult() {
                 if (option.shopId) {
                     patchFilter({ shopId: option.shopId });
                     setNavbarTitle(t("店铺商品搜索"));
+                }
+                // 原版口径：onlyGiftCardProduct=1 透传商品列表接口，标题显示「礼品卡」
+                if (String(option.onlyGiftCardProduct ?? "") === "1") {
+                    patchFilter({ onlyGiftCardProduct: 1 });
+                    setNavbarTitle(t("礼品卡"));
                 }
                 if (option.shopCategoryId) {
                     patchFilter({ shopCategoryId: option.shopCategoryId });

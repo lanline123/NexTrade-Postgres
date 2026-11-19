@@ -254,6 +254,50 @@ impl CartService {
         self.repos.trade.cart.insert(&cart).await
     }
 
+    /// 礼品卡兑换专用加车（useCard 调用）：独立行写入，不与普通行合并，
+    /// `extra_data` 标记 `{"giftCardsId": …}` 供结算 flowType=12 与下单
+    /// 关联 order_item.gift_card_id；首行先取消该会员其它行勾选，保证
+    /// 兑换结算只带本批兑换商品。库存/可购校验走 `check_purchasable` 封顶。
+    pub async fn add_gift_exchange_line(
+        &self,
+        user_id: i32,
+        product_id: i32,
+        sku_id: i32,
+        quantity: i32,
+        gift_cards_id: i32,
+        uncheck_others: bool,
+    ) -> Result<i32> {
+        if quantity <= 0 {
+            return Err(Error::Validation("数量必须大于0".into()));
+        }
+        let sku = if sku_id > 0 { Some(sku_id) } else { None };
+        self.product.check_purchasable(product_id, sku, quantity).await?;
+        if uncheck_others {
+            self.repos.trade.cart.uncheck_all(user_id).await?;
+        }
+        let price = self
+            .product
+            .detail(product_id)
+            .await
+            .map(|v| v.product_price)
+            .unwrap_or_default();
+        let cart = Cart {
+            user_id,
+            product_id,
+            sku_id: sku,
+            quantity,
+            original_price: price,
+            market_price: Some(price),
+            is_checked: 1,
+            r#type: 0,
+            extra_data: Some(
+                serde_json::json!({ "giftCardsId": gift_cards_id }).to_string(),
+            ),
+            ..Default::default()
+        };
+        self.repos.trade.cart.insert(&cart).await
+    }
+
     /// 解析带价附加属性：id 串 → `product_attributes` 明细 + 价格合计。
     ///
     /// JSON 形状对齐 Java `CarExtraSkuDataDTO`（`JSONUtil.toJsonStr`）：

@@ -1,0 +1,66 @@
+.my-gift-cards {
+    padding: 20rpx;
+    .tabs {
+        display: flex;
+        gap: 16rpx;
+        margin-bottom: 16rpx;
+        .tab {
+            padding: 10rpx 28rpx;
+            border-radius: 999rpx;
+            background: #f2f4f7;
+            color: #475467;
+            font-size: 26rpx;
+            &.active {
+                background: #e4022d;
+                color: #fff;
+            }
+        }
+        &.sub .tab {
+            padding: 8rpx 22rpx;
+            font-size: 24rpx;
+        }
+    }
+    .empty {
+        text-align: center;
+        color: #98a2b3;
+        font-size: 28rpx;
+        padding: 120rpx 0;
+    }
+    .card-item {
+        display: flex;
+        align-items: center;
+        gap: 20rpx;
+        background: #fff;
+        border-radius: 16rpx;
+        padding: 24rpx;
+        margin-bottom: 20rpx;
+        &.invalid {
+            opacity: 0.55;
+        }
+        .card-img {
+            width: 180rpx;
+            height: 108rpx;
+            border-radius: 10rpx;
+        }
+        .card-main {
+            flex: 1;
+            .card-name {
+                font-size: 30rpx;
+                font-weight: 600;
+                margin-bottom: 8rpx;
+            }
+            .card-sub {
+                font-size: 24rpx;
+                color: #667085;
+                line-height: 1.6;
+            }
+        }
+        .card-state {
+            font-size: 24rpx;
+            color: #12b76a;
+            &.off {
+                color: #98a2b3;
+            }
+        }
+    }
+}

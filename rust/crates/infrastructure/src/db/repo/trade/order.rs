@@ -455,6 +455,21 @@ impl OrderRepository {
         Ok(())
     }
 
+    /// 记录订单使用的礼品卡金额（`order.gift_card_amount`，单卡抵扣/兑换覆盖）。
+    pub async fn set_gift_card_amount(
+        &self,
+        order_id: i32,
+        amount: rust_decimal::Decimal,
+    ) -> Result<()> {
+        sqlx::query("UPDATE \"order\" SET gift_card_amount = $1 WHERE order_id = $2")
+            .bind(amount)
+            .bind(order_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
+
     /// 应用部分支付（余额抵扣等站内渠道）：
     /// 累加已付金额、扣减未付金额，不改变支付状态。
     ///

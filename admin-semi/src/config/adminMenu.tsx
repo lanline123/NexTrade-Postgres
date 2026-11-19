@@ -1355,6 +1355,10 @@ export const navGroups: NavGroup[] = [
             "label": "网站字体设置"
           },
           {
+            "key": "systemMode",
+            "label": "系统模式"
+          },
+          {
             "key": "productCloneSettings",
             "label": "商品复刻设置"
           },
@@ -1778,6 +1782,7 @@ export const pageTitles: Record<string, string> = {
   "priceDisplaySettings": "价格显示设置",
   "buyStyleSettings": "购买按钮样式设置",
   "fontSettings": "网站字体设置",
+  "systemMode": "系统模式",
   "productCloneSettings": "商品复刻设置",
   "taxRateManage": "税率管理",
   "wechatLiveMiniAppSetting": "小程序设置",

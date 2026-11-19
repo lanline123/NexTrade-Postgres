@@ -56,13 +56,15 @@ export async function getHeaderBootstrap(): Promise<PcHeaderBootstrap> {
     }
   };
 
-  const [base, locales, currencies, priceDisplay, buyStyle, fontSettings] = await Promise.all([
+  const [base, locales, currencies, priceDisplay, buyStyle, fontSettings, systemMode] = await Promise.all([
     request<Record<string, any>>('common/config/base'),
     request<HeaderBootstrapLocale[]>('common/i18n/getLocales'),
     request<HeaderBootstrapCurrency[]>('common/currency/getCurrency'),
     request<Record<string, any>>('common/config/priceDisplay'),
     request<Record<string, any>>('common/config/buyStyle'),
     request<Record<string, any>>('common/config/fontSettings'),
+    // 系统模式（我方新增）：失败/未配置时为 null，客户端归一化为 all（全功能）
+    request<Record<string, any>>('common/config/systemMode'),
   ]);
 
   return {
@@ -72,6 +74,7 @@ export async function getHeaderBootstrap(): Promise<PcHeaderBootstrap> {
     priceDisplay: priceDisplay && typeof priceDisplay === 'object' ? priceDisplay : null,
     buyStyle: buyStyle && typeof buyStyle === 'object' ? buyStyle : null,
     fontSettings: fontSettings && typeof fontSettings === 'object' ? fontSettings : null,
+    systemMode: systemMode && typeof systemMode === 'object' ? systemMode : null,
   };
 }
 

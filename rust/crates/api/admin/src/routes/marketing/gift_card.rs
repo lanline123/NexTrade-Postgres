@@ -16,9 +16,9 @@
 //! | `GET /promotion/giftCards/giftCardExchangeDetail` | `…/giftCardExchangeDetail` | `giftCardExchangeDetail` | jwt |
 //! | `POST /promotion/giftCards/updateCardStatus` | `…/updateCardStatus` | `updateGiftCardsAvailableStatus` | jwt |
 //!
-//! > **Excel 未迁移**：`importTemplate` / `exportList` 返回 JSON 行数据（Java
-//! > 写 xlsx 二进制）；`importList` 完成 multipart「文件非空」校验后返回明确
-//! > 业务错误「Excel 批量导入功能尚未迁移」。与 `catalog::e_card_group` 一致。
+//! > **Excel 已接线**：`importTemplate` / `exportList` / `importList` 经
+//! > `services::system::excel` 真实读写 xlsx 并返回二进制（早期「未迁移」
+//! > 注释已过期，P1 清理）。
 //!
 //! > **`delete` 入参**：Java `GiftCardIdParam.cardGroupsId`（String）实际承载
 //! > **礼品卡 ID**，字段名照抄。
@@ -33,15 +33,25 @@ use nextrade_core::models::marketing::gift_card::{
     GiftCardIdParam, GiftCardUpdateStatusDTO, GiftCardsExportVO, GiftCardsImportVO,
     GiftCardsListQuery, GiftCardsTemplateVO, GiftCardsVO,
 };
+use nextrade_core::models::marketing::gift_card_issue::{
+    GiftCardIssueBatchPageQuery, GiftCardIssueBatchVO, GiftCardIssueByExcelVO,
+    GiftCardIssueLogPageQuery, GiftCardIssueLogVO, GiftCardIssueParam, GiftCardIssuePreviewVO,
+    GiftCardIssueSendVO,
+};
 use nextrade_core::types::PageResult;
 use nextrade_core::Error;
 use nextrade_security::web::{ok, ApiResult, AppError};
 
 use crate::AdminState;
 
-/// 本域 10 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
-/// 最后两条来自新版管理端前端契约（`view/admin/src/api/promotion/giftCard.ts`）。
-const ROUTE_TABLE: [(&str, &str, &str); 10] = [
+/// 本域 16 条路由（去掉 `/adminapi` 前缀后的路径 + 原 Java handler）。
+/// createBatch / showCardPassword 来自新版管理端前端契约
+/// （`view/admin/src/api/promotion/giftCard.ts`）；末尾 6 条为发放闭环：
+/// issueTemplate / issueByExcel 为**原版有**（giftmall Admin 同名端点）；
+/// issuePreview / issueSend 为**原版有·我方改口径**（原版单次 issue，
+/// 我方加预检两段式，见 standard-alignment D1）；issueBatch / issueLog
+/// 对应原版 giftCardGroups/issue/batch|log 的批次+明细两层（D11）。
+const ROUTE_TABLE: [(&str, &str, &str); 16] = [
     (
         "GET",
         "/promotion/giftCards/list",
@@ -92,6 +102,36 @@ const ROUTE_TABLE: [(&str, &str, &str); 10] = [
         "/promotion/giftCards/showCardPassword",
         "GiftCardController.showCardPassword",
     ),
+    (
+        "POST",
+        "/promotion/giftCards/issuePreview",
+        "GiftCardController.issuePreview(P1)",
+    ),
+    (
+        "POST",
+        "/promotion/giftCards/issueSend",
+        "GiftCardController.issueSend(P1)",
+    ),
+    (
+        "GET",
+        "/promotion/giftCards/issueTemplate",
+        "GiftCardController.issueTemplate",
+    ),
+    (
+        "POST",
+        "/promotion/giftCards/issueByExcel",
+        "GiftCardController.issueByExcel",
+    ),
+    (
+        "GET",
+        "/promotion/giftCards/issueBatch",
+        "GiftCardController.issueBatch(P1)",
+    ),
+    (
+        "GET",
+        "/promotion/giftCards/issueLog",
+        "GiftCardController.issueLog(P1)",
+    ),
 ];
 
 /// 礼品卡管理路由（挂载于 `/adminapi` 下，外层统一套 `require_auth`）。
@@ -119,6 +159,12 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
             "/promotion/giftCards/showCardPassword",
             get(show_card_password),
         )
+        .route("/promotion/giftCards/issuePreview", post(issue_preview))
+        .route("/promotion/giftCards/issueSend", post(issue_send))
+        .route("/promotion/giftCards/issueTemplate", get(issue_template))
+        .route("/promotion/giftCards/issueByExcel", post(issue_by_excel))
+        .route("/promotion/giftCards/issueBatch", get(issue_batch))
+        .route("/promotion/giftCards/issueLog", get(issue_log))
 }
 
 /// 本模块已实现路由（覆盖率统计，完整契约路径）。
@@ -225,7 +271,7 @@ async fn export_list(
     ))
 }
 
-/// `POST /promotion/giftCards/importList`：Excel 批量导入（**未迁移**）。
+/// `POST /promotion/giftCards/importList`：Excel 批量导入卡密（xlsx 解析后逐行入库）。
 async fn import_list(
     State(state): State<AdminState>,
     Query(q): Query<CardGroupsIdQuery>,
@@ -394,6 +440,87 @@ async fn show_card_password(
         .await?)
 }
 
+// ————————————————————— P1 发放闭环 —————————————————————
+
+/// `POST /promotion/giftCards/issuePreview`：发放预检（目标/库存/失败明细）。
+async fn issue_preview(
+    State(state): State<AdminState>,
+    Json(param): Json<GiftCardIssueParam>,
+) -> ApiResult<GiftCardIssuePreviewVO> {
+    ok(state.marketing.gift_card_issue.issue_preview(&param).await?)
+}
+
+/// `POST /promotion/giftCards/issueSend`：正式发放（事务分配 + 站内信）。
+async fn issue_send(
+    State(state): State<AdminState>,
+    Json(param): Json<GiftCardIssueParam>,
+) -> ApiResult<GiftCardIssueSendVO> {
+    ok(state.marketing.gift_card_issue.issue_send(&param).await?)
+}
+
+/// `GET /promotion/giftCards/issueTemplate`：Excel 发卡模板（xlsx）。
+///
+/// 来源标注：**原版有** — 原版模板列为 会员名/手机号/卡号/卡密/备注
+/// （与卡密导入模板 importTemplate 是两个不同模板，勿混淆）。
+async fn issue_template(
+    State(state): State<AdminState>,
+) -> Result<axum::response::Response, AppError> {
+    let _ = state;
+    let rows: Vec<Vec<String>> = vec![vec![
+        "张三".to_string(),
+        "13800000000".to_string(),
+        "GC202601010001".to_string(),
+        "abcd1234".to_string(),
+        "年会福利".to_string(),
+    ]];
+    let bytes = nextrade_services::system::excel::build_xlsx(
+        &["会员名", "手机号", "卡号", "卡密", "备注"],
+        &rows,
+        "礼品卡发卡模板",
+    )?;
+    Ok(crate::support::excel_response::xlsx_response(
+        bytes,
+        "gift_card_issue_template.xlsx",
+    ))
+}
+
+/// `POST /promotion/giftCards/issueByExcel`：Excel 批量发卡（multipart：
+/// `file` xlsx + `cardGroupsId` 字段）。原版单次提交口径：逐行把已存在
+/// 且未使用的指定卡发给指定会员，失败行记录原因、其余继续。
+async fn issue_by_excel(
+    State(state): State<AdminState>,
+    Query(q): Query<CardGroupsIdQuery>,
+    mut multipart: Multipart,
+) -> ApiResult<GiftCardIssueByExcelVO> {
+    let (form_group_id, bytes) = read_import_file(&mut multipart).await?;
+    let card_groups_id = q
+        .card_groups_id
+        .or(form_group_id)
+        .ok_or_else(|| AppError(Error::Validation("cardGroupsId不能为空".into())))?;
+    let rows = nextrade_services::system::excel::read_xlsx(&bytes)?;
+    ok(state
+        .marketing
+        .gift_card_issue
+        .issue_by_excel(card_groups_id, &rows, None)
+        .await?)
+}
+
+/// `GET /promotion/giftCards/issueBatch`：发放批次分页。
+async fn issue_batch(
+    State(state): State<AdminState>,
+    Query(q): Query<GiftCardIssueBatchPageQuery>,
+) -> ApiResult<PageResult<GiftCardIssueBatchVO>> {
+    ok(state.marketing.gift_card_issue.issue_batch_list(&q).await?)
+}
+
+/// `GET /promotion/giftCards/issueLog`：发放明细分页（卡号脱敏）。
+async fn issue_log(
+    State(state): State<AdminState>,
+    Query(q): Query<GiftCardIssueLogPageQuery>,
+) -> ApiResult<PageResult<GiftCardIssueLogVO>> {
+    ok(state.marketing.gift_card_issue.issue_log_list(&q).await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -401,7 +528,7 @@ mod tests {
     #[test]
     fn implemented_routes_match_java_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 10);
+        assert_eq!(docs.len(), 16);
         let expected = [
             ("GET", "/adminapi/promotion/giftCards/list"),
             ("GET", "/adminapi/promotion/giftCards/detail"),
@@ -416,6 +543,12 @@ mod tests {
             ("POST", "/adminapi/promotion/giftCards/updateCardStatus"),
             ("POST", "/adminapi/promotion/giftCards/createBatch"),
             ("GET", "/adminapi/promotion/giftCards/showCardPassword"),
+            ("POST", "/adminapi/promotion/giftCards/issuePreview"),
+            ("POST", "/adminapi/promotion/giftCards/issueSend"),
+            ("GET", "/adminapi/promotion/giftCards/issueTemplate"),
+            ("POST", "/adminapi/promotion/giftCards/issueByExcel"),
+            ("GET", "/adminapi/promotion/giftCards/issueBatch"),
+            ("GET", "/adminapi/promotion/giftCards/issueLog"),
         ];
         for (method, path) in expected {
             assert!(
@@ -433,7 +566,7 @@ mod tests {
 
     #[test]
     fn route_table_matches_registrations() {
-        assert_eq!(ROUTE_TABLE.len(), 10);
+        assert_eq!(ROUTE_TABLE.len(), 16);
         for (_, path, _) in ROUTE_TABLE.iter() {
             assert!(!path.contains("/adminapi"), "{path}");
             assert!(path.starts_with("/promotion/giftCards/"), "{path}");

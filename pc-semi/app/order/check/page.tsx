@@ -32,6 +32,9 @@ export default async function CheckoutPage({
   const flowRaw = searchParams?.flowType;
   const flowText = Array.isArray(flowRaw) ? flowRaw[0] || '' : flowRaw || '';
   const flowType = Number(flowText) > 0 ? Number(flowText) : 1;
+  // 礼品卡兑换流（flowType=12）由 URL 带入 giftCardSn，结算页锁定该卡
+  const snRaw = searchParams?.giftCardSn;
+  const giftCardSn = (Array.isArray(snRaw) ? snRaw[0] || '' : snRaw || '').trim();
   const header = await getPcHeader().catch(() => null);
 
   return (
@@ -47,7 +50,7 @@ export default async function CheckoutPage({
             <span>{t('确认订单')}</span>
           </nav>
           <h1 className="pc-cart-title">{t('订单结算页')}</h1>
-          <CheckoutClient cartIds={cartIds} flowType={flowType} />
+          <CheckoutClient cartIds={cartIds} flowType={flowType} giftCardSn={giftCardSn} />
         </div>
       </main>
       <PcFooter />

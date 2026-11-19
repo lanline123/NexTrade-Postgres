@@ -125,6 +125,15 @@ const ProductActionBar = forwardRef<ProductActionBarRef, Props>(function Product
 ) {
     const configStoreSafeBottom = useConfigStore((s) => s.safeAreaInsets.bottom);
 
+    /**
+     * 绑卡组商品（原版有，giftmall 实查）：卡类商品 productType 7/8（电子卡券/礼品卡商品，
+     * 或详情带 giftCardGroupsId>0）无「加入购物车」、只有「立即购买」。
+     * 现有分支本就只对 productType===1/拼团出加购+立即购买双按钮、其余走单按钮，
+     * 这里显式标记并在拼团分支加门控，防止活动标记把加购按钮带回卡类商品。
+     */
+    const isGiftCardProduct =
+        Number((product as any)?.giftCardGroupsId || 0) > 0 || product?.productType === 7 || product?.productType === 8;
+
     // A3 与 A2 使用相同语义：1-经典连体，2-简约分离。
     const isOverseasBar = layoutStyle === "A3";
     const isOverseasClassicBar = isOverseasBar && decorateConfig?.buyBarStyle === 1;
@@ -327,7 +336,7 @@ const ProductActionBar = forwardRef<ProductActionBarRef, Props>(function Product
                                         </View>
                                     ) : (
                                         <>
-                                            {product.productType === 1 || isGroupon ? (
+                                            {product.productType === 1 || (isGroupon && !isGiftCardProduct) ? (
                                                 isGroupon ? (
                                                     <>
                                                         <View

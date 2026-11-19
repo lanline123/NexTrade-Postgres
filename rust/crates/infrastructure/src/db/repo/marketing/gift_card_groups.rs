@@ -304,6 +304,37 @@ impl GiftCardGroupsRepository {
         Ok(res.rows_affected())
     }
 
+    /// 读取卡组兑换字段（P1 新增列 exchange_mode / select_count）。
+    pub async fn find_exchange_fields(&self, card_groups_id: i32) -> Result<Option<(i32, i32)>> {
+        let row: Option<(i32, i32)> = sqlx::query_as(
+            "SELECT exchange_mode, select_count FROM gift_card_groups WHERE card_groups_id = $1 LIMIT 1",
+        )
+        .bind(card_groups_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row)
+    }
+
+    /// 写入卡组兑换字段（P1 新增列；create/update 透传用）。
+    pub async fn update_exchange_fields(
+        &self,
+        card_groups_id: i32,
+        exchange_mode: i32,
+        select_count: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE gift_card_groups SET exchange_mode = $1, select_count = $2 WHERE card_groups_id = $3",
+        )
+        .bind(exchange_mode)
+        .bind(select_count)
+        .bind(card_groups_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
     /// 删除卡组（Java `removeById`；注意 Java 是物理删除）。
     pub async fn delete(&self, card_groups_id: i32) -> Result<u64> {
         let res = sqlx::query("DELETE FROM gift_card_groups WHERE card_groups_id = $1")

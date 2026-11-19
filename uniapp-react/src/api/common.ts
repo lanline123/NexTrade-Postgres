@@ -50,6 +50,17 @@ export const getBaseConfig = () => {
 };
 
 /**
+ * @description 获取系统模式（我方新增，原版无此配置）
+ * @returns { mode: "all" | "giftcard" | "mall" }；缺失/非法由消费侧归一化为 all
+ */
+export const getSystemMode = () => {
+    return request<{ code: number; message: string; data: { mode?: string } }>({
+        url: "common/config/systemMode",
+        method: "get"
+    });
+};
+
+/**
  * @description 获取移动端搜索风格
  * @returns 1 普通商品搜索；2 门店聚合搜索
  */

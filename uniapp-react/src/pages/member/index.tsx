@@ -12,6 +12,7 @@ import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import TigNavbar from "@/components/tig/tig-navbar/TigNavbar";
 import TigUpload from "@/components/tig/tig-upload/TigUpload";
 import { getMemberDecorate, getMemberDecorateLegacy } from "@/api/home/home";
+import { getMyGiftCards } from "@/api/giftCard/giftCard";
 import MemberDecorate from "@/pages/member/components/decorate";
 import Account from "@/pages/member/components/decorate/account";
 import Advertising from "@/pages/member/components/decorate/advertising";
@@ -30,6 +31,7 @@ import { handleDecorateLoadError } from "@/utils/handleDecorateLoadError";
 import { handleLogin } from "@/utils/handleLogin";
 import { t } from "@/utils/i18n";
 import { rpxToStyleLength } from "@/utils/styleLength";
+import { currentSystemMode, onSystemModeReady, type SystemMode } from "@/utils/systemMode";
 
 import "./index.scss";
 
@@ -170,6 +172,24 @@ export default function Member() {
         if (Number.isFinite(coupon) && coupon >= 0) return coupon;
         return 0;
     })();
+
+    // 系统模式（我方新增，app 启动拉取缓存）：仅入口级门控——mall 隐藏礼品卡入口，
+    // giftcard 隐藏普通营销入口（本页钱包区实际存在的只有「优惠券」；秒杀/拼团入口由装修
+    // 数据驱动，不在此硬编码处理，见 MyService 渲染处注释）
+    const [systemMode, setSystemMode] = useState<SystemMode>(() => currentSystemMode());
+    useEffect(() => onSystemModeReady(setSystemMode), []);
+
+    // 我的礼品卡有效卡数（P1；接口失败时按 0 展示）
+    const [giftCardCount, setGiftCardCount] = useState(0);
+    useEffect(() => {
+        if (!hasToken) {
+            setGiftCardCount(0);
+            return;
+        }
+        getMyGiftCards({ page: 1, size: 1, state: "valid" })
+            .then((res: any) => setGiftCardCount(Number(res?.total) || 0))
+            .catch(() => setGiftCardCount(0));
+    }, [hasToken]);
 
     const goPages = (url: string) => {
         Taro.navigateTo({ url });
@@ -607,14 +627,24 @@ export default function Member() {
                                                     <Text className="num">{Number(userInfo.totalBalance) >= 0 ? userInfo.totalBalance : 0}</Text>
                                                     <View className="txt">{t("余额")}</View>
                                                 </View>
-                                                <View className="li" onClick={() => goPages("/pages/coupon/index?type=2")}>
-                                                    <Text className="num">{couponCount}</Text>
-                                                    <View className="txt">{t("优惠券")}</View>
-                                                </View>
+                                                {/* 系统模式 giftcard：优惠券属普通商城营销玩法，入口收起 */}
+                                                {systemMode !== "giftcard" ? (
+                                                    <View className="li" onClick={() => goPages("/pages/coupon/index?type=2")}>
+                                                        <Text className="num">{couponCount}</Text>
+                                                        <View className="txt">{t("优惠券")}</View>
+                                                    </View>
+                                                ) : null}
                                                 <View className="li" onClick={() => goPages("/pages/user/point/detail")}>
                                                     <Text className="num">{Number(userInfo.points) >= 0 ? userInfo.points : 0}</Text>
                                                     <View className="txt">{t(integralName)}</View>
                                                 </View>
+                                                {/* 系统模式 mall：礼品卡整体收起，隐藏卡包入口（存量卡直达链接仍可打开） */}
+                                                {systemMode !== "mall" ? (
+                                                    <View className="li" onClick={() => goPages("/pages/giftCard/myCards")}>
+                                                        <Text className="num">{giftCardCount}</Text>
+                                                        <View className="txt">{t("礼品卡")}</View>
+                                                    </View>
+                                                ) : null}
                                             </View>
                                         </View>
 

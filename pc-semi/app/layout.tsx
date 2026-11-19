@@ -37,6 +37,7 @@ import { PC_HEADER_BOOTSTRAP_ID } from '@/lib/header-bootstrap';
 import { loadTheme } from '@/lib/theme-server';
 import { currencyCodeFrom, setPriceDisplayConfig, setServerCurrency } from '@/lib/currency';
 import { setBuyStyleConfig } from '@/lib/buy-style';
+import { setSystemModeConfig } from '@/lib/system-mode';
 import { resolveFontForLocale } from '@/lib/font-settings';
 import { buildLocaleAlternates } from '@/i18n/locale';
 import { loadServerLocale, resolveRequestLocale } from '@/i18n/server';
@@ -213,6 +214,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   setPriceDisplayConfig(headerBootstrap?.priceDisplay);
   // 后台「购买按钮样式设置」：SSR 与客户端共用同一份全局购买样式配置
   setBuyStyleConfig(headerBootstrap?.buyStyle);
+  // 后台「系统模式」（我方新增）：SSR 与客户端共用同一份模式配置，入口级门控首屏即生效
+  setSystemModeConfig(headerBootstrap?.systemMode);
   // 后台「网站字体设置」：按当前语言解析生效字体，SSR 直出 CSS 链接与
   // --font-family-base 变量（globals.scss 的 body 字体栈消费），首屏即生效。
   const font = resolveFontForLocale(headerBootstrap?.fontSettings, serverLang);

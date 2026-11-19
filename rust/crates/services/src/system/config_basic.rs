@@ -313,6 +313,30 @@ impl ConfigBasicService {
             .await
     }
 
+    /// 读取系统模式配置（我方新增；生效值：已存配置归一化后，或默认 `all`）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn get_system_mode(&self) -> Result<Value> {
+        let stored = self
+            .repo()
+            .find_by_code(super::system_mode::SYSTEM_MODE_CODE)
+            .await?;
+        Ok(super::system_mode::effective_system_mode(stored.as_deref()))
+    }
+
+    /// 保存系统模式配置（归一化后整块 JSON 落 config 表 `systemMode` 行；
+    /// 非法 mode 保存为 `all`，不报错，与 buyStyle 回落口径一致）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn save_system_mode(&self, payload: &Value) -> Result<()> {
+        let clean = super::system_mode::sanitize_system_mode(payload);
+        self.repo()
+            .save_code(super::system_mode::SYSTEM_MODE_CODE, &clean.to_string())
+            .await
+    }
+
     /// 读取网站字体配置（生效值：已存配置清洗后，或内置默认）。
     ///
     /// # Errors

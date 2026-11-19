@@ -6,7 +6,7 @@ import Taro from "@tarojs/taro";
 import TigButton2 from "@/components/tig/tig-button2/TigButton2";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import TigNavbar from "@/components/tig/tig-navbar/TigNavbar";
-import { giftCardExchange } from "@/api/giftCard/giftCard";
+import { giftCardExchange, useGiftCard } from "@/api/giftCard/giftCard";
 import type { GiftCardExchangeParams } from "@/types/giftCard/giftCard";
 import { useUserStore } from "@/store/user";
 import { redirect, staticResource } from "@/utils";
@@ -18,8 +18,9 @@ import { usePageGuards } from "@/utils/pageMixin";
 
 /**
  * 礼品卡兑换页（自旧 pages/giftCard/exchange.vue 移植）
- * - 输入卡号/卡密，调用兑换接口
- * - 兑换商品 → 订单确认页；储值卡 → 兑换成功页
+ * - 输入卡号/卡密，调用兑换接口把卡绑进我的卡包
+ * - 储值卡（D4 原版口径）：只入卡包、不入会员余额，结算时抵扣卡内余额 → 跳我的礼品卡
+ * - 兑换卡固定组合：useCard 核销后跳结算 flowType=12；任选：跳卡详情打开选品弹窗
  * - 旧 uni-forms/uni-easyinput → Taro Input + 自绘表单行（必填校验等价）
  */
 export default function GiftCardExchange() {
@@ -49,12 +50,43 @@ export default function GiftCardExchange() {
             }
             setLoading(true);
             const result: any = await giftCardExchange(formState);
-            // 兑换礼品卡跳转到订单确认页
+            // 兑换响应字段宽松读取（类型/模式/卡 id/SN 可能在顶层或卡对象内）
+            const card = result?.card ?? result ?? {};
+            const groupType = Number(card.groupType ?? result?.groupType ?? 0);
+            const exchangeMode = Number(card.exchangeMode ?? result?.exchangeMode ?? 0);
+            const giftCardsId = Number(card.giftCardsId ?? result?.giftCardsId ?? result?.exchangeProductToCart?.giftCardsId ?? 0);
+            const giftCardSn = String(card.giftCardSn ?? result?.giftCardSn ?? "");
+
+            if (groupType === 2 && exchangeMode === 2) {
+                // 任选：跳卡详情打开选品弹窗（无卡 id 时回卡包）
+                redirect({
+                    url: giftCardsId ? `/pages/giftCard/myCardDetail?giftCardsId=${giftCardsId}` : "/pages/giftCard/myCards"
+                });
+                return;
+            }
+            if (groupType === 2) {
+                // 固定组合：先 useCard 核销，再进结算（flowType=12）
+                if (giftCardsId) {
+                    await useGiftCard({ giftCardsId });
+                }
+                Taro.showToast({ title: t("兑换成功"), icon: "success" });
+                redirect({
+                    url: `/pages/order/check?flowType=12${giftCardSn ? `&giftCardSn=${encodeURIComponent(giftCardSn)}` : ""}`
+                });
+                return;
+            }
+            if (groupType === 1) {
+                // 储值卡：已存入我的礼品卡，结算时抵扣卡内余额（不入会员余额）
+                Taro.showToast({ title: t("已存入我的礼品卡，下单结算时可抵扣卡内余额"), icon: "none" });
+                redirect({ url: "/pages/giftCard/myCards" });
+                return;
+            }
+            // 响应未带类型字段时的兼容：旧 exchangeProductToCart.flowType 直达结算，否则按入卡包口径回卡包
             if (result?.exchangeProductToCart?.flowType) {
                 redirect({ url: `/pages/order/check?flowType=${result.exchangeProductToCart?.flowType}` });
             } else {
-                // 储值卡跳转到兑换成功页面
-                redirect({ url: "/pages/giftCard/order/payStatus" });
+                Taro.showToast({ title: t("已存入我的礼品卡，下单结算时可抵扣卡内余额"), icon: "none" });
+                redirect({ url: "/pages/giftCard/myCards" });
             }
         } catch (error: any) {
             Taro.showToast({
@@ -150,8 +182,8 @@ export default function GiftCardExchange() {
                             <View className="card-content">
                                 <View className="title">{t("兑换说明")}</View>
                                 <View className="tips">
-                                    <View>{t("1. 储值卡输入卡密进行兑换将自动充值到余额")}</View>
-                                    <View>{t("2. 兑换卡输入卡密进行兑换后将跳转至该商品详情页进行兑换")}</View>
+                                    <View>{t("1.储值卡：输入卡密完成兑换，卡片自动存入「我的礼品卡」，下单结算时可直接抵扣卡内余额。")}</View>
+                                    <View>{t("2.兑换卡：输入卡密完成兑换，卡片自动存入卡包；选择心仪商品下单，即可自动核销使用。")}</View>
                                 </View>
                             </View>
                         </View>

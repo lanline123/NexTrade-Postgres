@@ -311,6 +311,19 @@ impl ConfigClientService {
         Ok(super::buy_style::effective_buy_style(stored))
     }
 
+    /// 系统模式（我方新增；供 PC/H5/admin 做入口级渲染门控，未配置时
+    /// 返回默认 `all`。后端不按此值拦截任何业务接口——存量兜底硬规则）。
+    pub async fn system_mode(&self) -> Result<serde_json::Value> {
+        let rows = self
+            .repos
+            .system
+            .config_client
+            .find_config_values(&[super::system_mode::SYSTEM_MODE_CODE])
+            .await?;
+        let stored = rows.first().and_then(|c| c.biz_val.as_deref());
+        Ok(super::system_mode::effective_system_mode(stored))
+    }
+
     /// 全站字体配置（供 PC 前台按语言注入字体栈、admin 应用后台字体；
     /// 未配置时返回内置默认：全站默认阿里巴巴普惠体）。
     pub async fn font_settings(&self) -> Result<serde_json::Value> {

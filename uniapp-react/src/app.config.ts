@@ -80,6 +80,8 @@ export default defineAppConfig({
         "pages/groupon/mylist",
         "pages/lottery/index",
         "pages/giftCard/exchange",
+        "pages/giftCard/myCards",
+        "pages/giftCard/myCardDetail",
         "pages/giftCard/transfer",
         "pages/giftCard/order/info",
         "pages/giftCard/order/payStatus",

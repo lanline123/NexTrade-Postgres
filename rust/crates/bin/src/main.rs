@@ -108,6 +108,7 @@ use nextrade_services::marketing::coupon::CouponService;
 use nextrade_services::marketing::coupon_manage::CouponManageService;
 use nextrade_services::marketing::gift_card::GiftCardService;
 use nextrade_services::marketing::gift_card_groups::GiftCardGroupsService;
+use nextrade_services::marketing::gift_card_issue::GiftCardIssueService;
 use nextrade_services::marketing::groupon_promotion::GrouponPromotionService;
 use nextrade_services::marketing::groupon_promotion_item::GrouponPromotionItemService;
 use nextrade_services::marketing::groupon_promotion_record::GrouponPromotionRecordService;
@@ -612,6 +613,7 @@ async fn main() -> anyhow::Result<()> {
     let salesman_content = Arc::new(SalesmanContentService::new(repos.clone()));
     let gift_card = Arc::new(GiftCardService::new(repos.clone()));
     let gift_card_groups = Arc::new(GiftCardGroupsService::new(repos.clone()));
+    let gift_card_issue = Arc::new(GiftCardIssueService::new(repos.clone()));
     let salesman_admin = Arc::new(SalesmanAdminService::new(repos.clone()));
     let lottery_activity = Arc::new(LotteryActivityService::new(repos.clone()));
     let salesman_product = Arc::new(SalesmanProductService::new(repos.clone()));
@@ -651,6 +653,7 @@ async fn main() -> anyhow::Result<()> {
         salesman_content: salesman_content.clone(),
         gift_card: gift_card.clone(),
         gift_card_groups: gift_card_groups.clone(),
+        gift_card_issue: gift_card_issue.clone(),
         salesman_admin: salesman_admin.clone(),
         lottery_activity: lottery_activity.clone(),
         salesman_product: salesman_product.clone(),

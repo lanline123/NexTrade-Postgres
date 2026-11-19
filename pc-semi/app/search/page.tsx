@@ -357,7 +357,13 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
   const t = getServerT();
   const locale = resolveRequestLocale();
   const keyword = readParam(searchParams?.keyword);
-  const title = keyword ? t('{kw} · 搜索 · 万物新生', { kw: keyword }) : t('搜索商品 · 万物新生');
+  // 原版口径：onlyGiftCardProduct=1 命中时页面标题显示「礼品卡」（购卡入口 = 搜索过滤，无专属频道页）
+  const onlyGiftCard = readParam(searchParams?.onlyGiftCardProduct) === '1';
+  const title = onlyGiftCard
+    ? t('礼品卡 · 万物新生')
+    : keyword
+      ? t('{kw} · 搜索 · 万物新生', { kw: keyword })
+      : t('搜索商品 · 万物新生');
   const description = keyword ? t('搜索“{kw}”相关的动力电池回收设备与商品。', { kw: keyword }) : t('搜索商品、分类、品牌与回收设备。');
   const path = keyword ? `/search?keyword=${encodeURIComponent(keyword)}` : '/search';
   return {
@@ -417,6 +423,8 @@ export default async function SearchPage(props: PageProps) {
   const shopIdParam = Number(readParam(searchParams?.shopId)) || 0;
   // 原版 search.vue 透传：优惠券/活动/图搜 token/装修预览
   const couponId = readParam(searchParams?.couponId);
+  // 原版口径：购卡入口 = 普通商品搜索 + onlyGiftCardProduct=1 过滤，透传给商品列表接口
+  const onlyGiftCardProduct = readParam(searchParams?.onlyGiftCardProduct) === '1' ? 1 : 0;
   const pId = readParam(searchParams?.pId);
   const searchToken = readParam(searchParams?.searchToken);
   const previewId = readParam(searchParams?.previewId);
@@ -432,6 +440,7 @@ export default async function SearchPage(props: PageProps) {
     max: max || undefined,
     shopId: shopIdParam > 0 ? shopIdParam : undefined,
     couponId: couponId || undefined,
+    onlyGiftCardProduct: onlyGiftCardProduct === 1 ? 1 : undefined,
     pId: pId || undefined,
     searchToken: searchToken || undefined,
   };
@@ -509,6 +518,7 @@ export default async function SearchPage(props: PageProps) {
     // 旧版 /shop/search/{id} 店内搜索：筛选/排序/分页之间保留 shopId 范围
     if (shopIdParam > 0) params.set('shopId', String(shopIdParam));
     if (couponId) params.set('couponId', couponId);
+    if (onlyGiftCardProduct === 1) params.set('onlyGiftCardProduct', '1');
     if (pId) params.set('pId', pId);
     if (searchToken) params.set('searchToken', searchToken);
     if (previewId) params.set('previewId', previewId);
@@ -738,6 +748,12 @@ export default async function SearchPage(props: PageProps) {
         className={`search-page mp-search ${pcSearchClassNames(searchConfig)}`}
         style={pcSearchStyleVars(searchConfig) as any}
       >
+        {/* 原版口径：onlyGiftCardProduct=1 时页面标题显示「礼品卡」 */}
+        {onlyGiftCardProduct === 1 ? (
+          <div className="container">
+            <h1 style={{ fontSize: 20, fontWeight: 600, margin: '16px 0 4px' }}>{t('礼品卡')}</h1>
+          </div>
+        ) : null}
         {/* 旧版 search.v1/src/search.vue：uiVersion 在 SearchLayoutClassic / Modern（当前内联 DOM）间切换 */}
         {effectiveVariant === 'classic' ? (
           <div className="page-body">

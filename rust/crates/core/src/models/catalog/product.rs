@@ -43,6 +43,10 @@ pub struct ProductListQuery {
     /// hot=热销(is_hot=1)。此前 Rust 缺这个字段，serde 静默丢弃 → 「按标签」恒返回
     /// 无过滤的最新商品（2026-11-12 排查确认）。
     pub intro_type: Option<String>,
+    /// 仅礼品卡商品（原版搜索口径 `onlyGiftCardProduct=1`）：绑卡组商品
+    /// （product.gift_card_groups_id > 0）。原版无礼品卡频道页，「购买礼品卡」
+    /// 入口即跳此过滤的搜索结果（standard-alignment D8）。
+    pub only_gift_card_product: Option<i32>,
 }
 
 /// 商品列表 VO（含原 Java `@TableField(exist = false)` 的门店扩展字段）。
@@ -116,5 +120,15 @@ mod tests {
         assert_eq!(q.intro_type.as_deref(), Some("best"));
         let q2: ProductListQuery = serde_json::from_str(r#"{"page":1}"#).unwrap();
         assert!(q2.intro_type.is_none());
+    }
+
+    /// 礼品卡商品过滤（原版 onlyGiftCardProduct）必须被解析进查询。
+    #[test]
+    fn product_list_query_accepts_only_gift_card_product() {
+        let q: ProductListQuery =
+            serde_json::from_str(r#"{"onlyGiftCardProduct":1,"page":1}"#).unwrap();
+        assert_eq!(q.only_gift_card_product, Some(1));
+        let q2: ProductListQuery = serde_json::from_str(r#"{"page":1}"#).unwrap();
+        assert!(q2.only_gift_card_product.is_none());
     }
 }

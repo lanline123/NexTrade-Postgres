@@ -9,6 +9,7 @@ import PresaleSteps from '@/components/PresaleSteps';
 
 import { useTranslation } from 'react-i18next';
 import { formatDisplayPriceWithExact, formatPrice, currencySymbol } from '@/lib/currency';
+import { getSystemMode } from '@/lib/system-mode';
 /**
  * 确认订单（1:1 对照 java-b2b2c-overseas-v5.8.61/view/pc/pages/order/check.vue）
  *
@@ -142,11 +143,24 @@ interface DeliveryOption {
   [key: string]: unknown;
 }
 
+/** check 响应下发的可选礼品卡（原版结算口径：单选一张；字段以 myCards VO 为准，前端宽松读取） */
+interface AvailableGiftCard {
+  giftCardsId: number;
+  cardGroupName?: string;
+  balance?: string | number;
+  faceAmount?: string | number;
+  cardNumberMasked?: string;
+  cardNumber?: string;
+  giftCardSn?: string;
+  [key: string]: unknown;
+}
+
 interface CheckoutData {
   item?: Record<string, any>;
   cartList?: CheckoutGroup[];
   total?: Record<string, any>;
   couponList?: { enableCoupons?: CouponItem[]; disableCoupons?: CouponItem[] };
+  availableGiftCards?: AvailableGiftCard[];
   flowType?: number;
   availablePoints?: number;
   useCouponIds?: number[] | null;
@@ -195,7 +209,16 @@ function activityList(data: ActivityItem[] | null | undefined): ActivityItem[] {
   return data.filter((item) => Number(item?.type) === 1 || Number(item?.type) === 6);
 }
 
-export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: number[]; flowType?: number }) {
+export default function CheckoutClient({
+  cartIds,
+  flowType = 1,
+  giftCardSn = '',
+}: {
+  cartIds: number[];
+  flowType?: number;
+  /** flowType=12（礼品卡兑换流）时由 URL 带入的卡 SN，该卡锁定为唯一可选 */
+  giftCardSn?: string;
+}) {
     const { t } = useTranslation();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [addressId, setAddressId] = useState(0);
@@ -207,6 +230,8 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
   const [couponIds, setCouponIds] = useState<number[]>([]);
   const [userCouponIds, setUserCouponIds] = useState<number[]>([]);
   const [usePoint, setUsePoint] = useState(0);
+  /** 礼品卡单选（原版口径）：选中的卡 id，0 = 不用卡；与 useGiftCardSn 二选一互斥 */
+  const [useGiftCardId, setUseGiftCardId] = useState(0);
   const [useBalance, setUseBalance] = useState(0);
   const [useCredit, setUseCredit] = useState(0);
   const [buyerNote, setBuyerNote] = useState('');
@@ -270,6 +295,7 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
         setPayments(paymentList);
         setPayTypeId(Number(checkResult.item?.payTypeId || paymentList[0]?.typeId || 0));
         setUsePoint(Number(checkResult.item?.usePoint || 0));
+        setUseGiftCardId(Number(checkResult.item?.useGiftCardId || 0));
         setUseBalance(Number(checkResult.item?.useBalance || 0));
         setUseCredit(Number(checkResult.item?.useCredit || 0));
         setBuyerNote(String(checkResult.item?.buyerNote || ''));
@@ -322,6 +348,15 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
   const titleText = !giftCardMode;
   const creditDisabled = Number(creditInfo?.availableAmount || 0) <= 0 && useCredit === 0;
 
+  /**
+   * 礼品卡入参（原版口径）：useGiftCardId 与 useGiftCardSn 二选一互斥。
+   * flowType=12 时以 URL 的 giftCardSn 锁定；普通结算用单选的 useGiftCardId（0=不用）。
+   */
+  const giftCardParams = (selectedId: number = useGiftCardId) =>
+    giftCardMode && giftCardSn
+      ? { useGiftCardId: 0, useGiftCardSn: giftCardSn }
+      : { useGiftCardId: selectedId, useGiftCardSn: '' };
+
   const buildFormState = (overrides: Record<string, unknown> = {}) => ({
     addressId,
     shippingType,
@@ -333,8 +368,19 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
     selectUserCouponIds: userCouponIds,
     buyerNote,
     invoiceData: giftCardMode ? {} : invoiceData,
+    ...giftCardParams(),
     ...overrides,
   });
+
+  /** 礼品卡单选：点未选卡选中、再点已选卡取消选择（flowType=12 锁定不可改），随后重算金额 */
+  const toggleGiftCard = (card: AvailableGiftCard) => {
+    if (giftCardMode) return;
+    const id = Number(card.giftCardsId || 0);
+    if (!id) return;
+    const next = useGiftCardId === id ? 0 : id;
+    setUseGiftCardId(next);
+    void updateCheck({ ...giftCardParams(next) });
+  };
 
   const mergeResult = (result: CheckoutData | null | undefined) => {
     if (!result) return;
@@ -537,6 +583,7 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
           selectUserCouponIds: userCouponIds,
           buyerNote,
           invoiceData: giftCardMode ? {} : invoiceData,
+          ...giftCardParams(),
         },
       );
       if (Number(result?.returnType) === 2) {
@@ -891,6 +938,62 @@ export default function CheckoutClient({ cartIds, flowType = 1 }: { cartIds: num
               </div>
             </div>
           </div>
+
+          {/* 礼品卡：原版结算选择器（单选一张、再点已选卡取消；可选卡来自 check 响应
+              availableGiftCards；flowType=12 时锁定为 giftCardSn 对应卡、隐藏选择交互）。
+              系统模式 mall 时普通结算不展示抵扣区（我方新增门控，flowType=12 兑换流不受影响）。 */}
+          {(() => {
+            const cards = data?.availableGiftCards || [];
+            const mallMode = getSystemMode().mode === 'mall';
+            if (giftCardMode) {
+              if (!cards.length && !giftCardSn) return null;
+            } else if (mallMode || !cards.length) {
+              return null;
+            }
+            return (
+              <div className="orderConfirmConTop mp-check-giftcard">
+                <div className="form_item">
+                  <div className="top_row">
+                    <div className="tit">{t('礼品卡')}</div>
+                  </div>
+                  <div className="from">
+                    {cards.map((card) => {
+                      const id = Number(card.giftCardsId || 0);
+                      const lockedSelected = giftCardMode && (!giftCardSn || card.giftCardSn === giftCardSn);
+                      const selected = giftCardMode ? lockedSelected : useGiftCardId === id;
+                      return (
+                        <div
+                          key={id || card.giftCardSn || card.cardGroupName}
+                          className="check-box flex align-center"
+                          style={giftCardMode ? undefined : { cursor: 'pointer' }}
+                          onClick={() => toggleGiftCard(card)}
+                        >
+                          <Checkbox checked={selected} disabled={giftCardMode} onChange={() => toggleGiftCard(card)} />
+                          <span className="tit">{card.cardGroupName || t('礼品卡')}</span>
+                          <span className="font-color">
+                            {card.cardNumberMasked || card.cardNumber || ''}
+                            {card.balance !== undefined && card.balance !== null && card.balance !== ''
+                              ? ` · ${t('余额')} ${formatDisplayPriceWithExact(card.balance)}`
+                              : card.faceAmount !== undefined && card.faceAmount !== null && card.faceAmount !== ''
+                                ? ` · ${t('面额')} ${formatDisplayPriceWithExact(card.faceAmount)}`
+                                : ''}
+                          </span>
+                          {giftCardMode ? <span className="font-color">{t('本单锁定使用')}</span> : null}
+                        </div>
+                      );
+                    })}
+                    {giftCardMode && !cards.length && giftCardSn ? (
+                      <div className="check-box flex align-center">
+                        <Checkbox checked disabled />
+                        <span className="tit">{t('礼品卡')}</span>
+                        <span className="font-color">{t('本单锁定使用')}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* 优惠券：旧版 pages/order/src/CouponInfo.vue —— .check-box(.tit + .radio-group) + .from_list > .coupon-box > .coupon_list */}
           {!giftCardMode && data?.couponList ? (

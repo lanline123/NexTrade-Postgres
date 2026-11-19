@@ -61,6 +61,14 @@ pub struct OrderCreateDTO {
     /// 使用余额金额（0/缺省 = 不使用；`true` 兼容旧前端 = 尽可能全额抵扣）
     #[serde(default, deserialize_with = "de_use_balance")]
     pub use_balance: Option<Decimal>,
+    /// 礼品卡抵扣（单选一张，与 useGiftCardSn 二选一互斥，Sn 优先）
+    #[serde(default)]
+    pub use_gift_card_id: Option<i32>,
+    #[serde(default)]
+    pub use_gift_card_sn: Option<String>,
+    /// 结算流类型（12 = 礼品卡兑换流；兑换覆盖由购物车行标记决定，此字段仅回显）
+    #[serde(default)]
+    pub flow_type: Option<i32>,
     /// 前端结算表单里的用户优惠券 ID 列表（`useCouponIds`）
     #[serde(default)]
     pub use_coupon_ids: Option<Vec<i32>>,
@@ -110,6 +118,9 @@ impl Default for OrderCreateDTO {
             buyer_note: None,
             pay_type_id: None,
             use_balance: None,
+            use_gift_card_id: None,
+            use_gift_card_sn: None,
+            flow_type: None,
             use_coupon_ids: None,
             invoice_data: None,
             order_source: None,

@@ -136,6 +136,18 @@ impl GiftCardRepository {
             .map_err(map_err)
     }
 
+    /// 查卡内余额（gift_cards.balance 列，实体未承载该列故单独标量查；
+    /// 未回填时为 NULL，调用方按卡组面额兜底）。
+    pub async fn find_card_balance(&self, gift_cards_id: i32) -> Result<Option<Decimal>> {
+        let row: Option<(Option<Decimal>,)> =
+            sqlx::query_as("SELECT balance FROM gift_cards WHERE gift_cards_id = $1 LIMIT 1")
+                .bind(gift_cards_id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(map_err)?;
+        Ok(row.and_then(|(b,)| b))
+    }
+
     /// 卡分页（Java `list`）。
     ///
     /// Java `.eq(cardGroupsId, query.cardGroupsId)`：`cardGroupsId` 为 null 时

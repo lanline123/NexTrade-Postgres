@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { apiGet } from '@/lib/client-api';
 import { useAuthGate } from '@/lib/auth-gate';
+import { getSystemMode, type SystemMode } from '@/lib/system-mode';
 
 import { useTranslation } from 'react-i18next';
 interface MenuItem {
@@ -50,6 +51,13 @@ export default function MemberNav() {
   const [config, setConfig] = useState<ConfigBase>({});
   /* 认证总开关（common/config/authGate）：开启后才显示实名认证入口；取不到按关兜底 */
   const authGate = useAuthGate();
+  /* 系统模式（我方新增，layout bootstrap 注入；取不到按 all 全功能兜底）。
+     仅入口级渲染门控：mall 隐藏礼品卡项；giftcard 隐藏普通营销项（本导航实际存在的
+     只有「我的拼团」「我的优惠券」，秒杀无会员中心入口故不在此处理）。 */
+  const [systemMode, setSystemModeState] = useState<SystemMode>('all');
+  useEffect(() => {
+    setSystemModeState(getSystemMode().mode);
+  }, []);
 
   useEffect(() => {
     fetch('/api/common/config/base')
@@ -107,7 +115,8 @@ export default function MemberNav() {
         tit: '订单中心',
         list: [
           { name: '我的订单', url: '/member/order/list', show: true },
-          { name: '我的拼团', url: OVERSEAS ? '/member/group/list' : '/member/joining/list', show: true },
+          // 系统模式 giftcard：拼团属普通商城营销玩法，入口收起（数据与直达链接不受影响）
+          { name: '我的拼团', url: OVERSEAS ? '/member/group/list' : '/member/joining/list', show: systemMode !== 'giftcard' },
           // D1146：评价功能关闭时隐藏该入口
           { name: '评价晒单', url: '/member/comment/list', show: commentEnabled, badge: 'awaitComment' },
           { name: '我的购物车', url: '/cart', show: true },
@@ -126,12 +135,15 @@ export default function MemberNav() {
       {
         tit: '资产中心',
         list: [
-          { name: '我的优惠券', url: '/member/coupon/list', show: true },
+          // 系统模式 giftcard：优惠券属普通商城营销玩法，入口收起
+          { name: '我的优惠券', url: '/member/coupon/list', show: systemMode !== 'giftcard' },
           // 账期支付：B2B 且开通信用支付（跨境 B2C 隐藏）
           { name: '账期支付', url: '/member/termpay/list', show: false },
           { name: '账户信息', url: '/member/account/detail', show: true },
           { name: `${config.integralName || t('积分')}明细`, url: '/member/point/list', show: true },
-          { name: '礼品卡兑换', url: '/member/giftcard/exchange', show: true },
+          // 系统模式 mall：礼品卡整体收起（兑换与卡包入口隐藏；存量卡直达链接仍可打开）
+          { name: '礼品卡兑换', url: '/member/giftcard/exchange', show: systemMode !== 'mall' },
+          { name: '我的礼品卡', url: '/member/giftcard/list', show: systemMode !== 'mall' },
         ],
       },
       {
@@ -153,7 +165,7 @@ export default function MemberNav() {
         ],
       },
     ],
-    [canInvoice, config.invoiceAdded, config.integralName, commentEnabled, authGate.closeAuth],
+    [canInvoice, config.invoiceAdded, config.integralName, commentEnabled, authGate.closeAuth, systemMode],
   );
 
   const toggleGroup = (idx: number) => {

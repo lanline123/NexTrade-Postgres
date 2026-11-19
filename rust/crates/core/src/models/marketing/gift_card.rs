@@ -14,11 +14,9 @@
 //!
 //! # 关键语义 / 偏差
 //!
-//! - **Excel 未迁移**：`importTemplate` / `exportList` 在 Java 走
-//!   `@ResponseExcel` / `ExcelUtils` 直接写 xlsx 二进制；本工作区未启用 xlsx
-//!   写出/解析依赖，故分别返回模板行 / 导出行 **JSON**，`importList` 完成
-//!   multipart「文件非空」校验后返回明确业务错误（与 `catalog::e_card_group`
-//!   等既有切片一致）。
+//! - **Excel 已接线**：`importTemplate` / `exportList` / `importList` 经
+//!   `services::system::excel`（calamine + rust_xlsxwriter）真实读写 xlsx，
+//!   admin 路由直接返回 xlsx 二进制（早期「未迁移」注释已过期，P1 清理）。
 //! - **`addTime` 口径**：列表/详情 VO 的 `addTime` 是 Java `Long.toString()` 的
 //!   **秒级时间戳字符串**（不是格式化日期）；`usedTime` 由 Jackson
 //!   `TimestampToDateSerializer` 格式化，但 Java 本域从未给它赋值 ⇒ null。
@@ -115,8 +113,6 @@ pub const MSG_TRANSFER_GROUP_NOT_FOUND: &str = "没有找到该礼品卡组";
 pub const MSG_UPLOAD_FILE_REQUIRED: &str = "请上传文件";
 /// 请选择正确的礼品卡。
 pub const MSG_CARD_GROUP_INVALID: &str = "请选择正确的礼品卡";
-/// Excel 批量导入功能尚未迁移（Rust 侧无 xlsx 解析依赖）。
-pub const MSG_EXCEL_IMPORT_UNMIGRATED: &str = "Excel 批量导入功能尚未迁移";
 /// 卡号长度不能小于8位（Java 拼接：`{cardNumber}（卡号长度不能小于8位）`）。
 pub const MSG_CARD_NUMBER_TOO_SHORT: &str = "（卡号长度不能小于8位）";
 /// 密码长度不能小于6位或者大于16位。
@@ -330,6 +326,35 @@ pub struct ExchangeCardParam {
     pub user_id: Option<i32>,
 }
 
+/// 任选选品项（useCard 入参；按 productId+skuId 计件，quantity 计入件数）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UseCardItemParam {
+    pub product_id: i32,
+    pub sku_id: i32,
+    pub quantity: i32,
+}
+
+/// 使用/核销兑换卡参数（原版 `POST promotion/giftCardGroups/useCard`）。
+///
+/// 固定组合（exchangeMode=1）可不传 items（整组核销）；任选
+/// （exchangeMode=2）必传 items 且总件数须等于卡组 selectCount。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UseCardParam {
+    pub gift_cards_id: i32,
+    pub items: Option<Vec<UseCardItemParam>>,
+}
+
+/// 转赠资格不满足（D10：仅电子卡、未使用、可用、未过期，储值卡须满额）。
+pub const MSG_CARD_NOT_TRANSFERABLE: &str = "该礼品卡不可转赠";
+/// 任选件数不正确。
+pub const MSG_SELECT_COUNT_INVALID: &str = "请选择正确数量的商品";
+/// 选品不在卡组绑定商品池内。
+pub const MSG_PRODUCT_NOT_IN_GROUP: &str = "所选商品不在该礼品卡可兑换范围内";
+/// 卡不属于当前会员（按不存在处理，不泄露他人卡存在性）。
+pub const MSG_CARD_NOT_OWNED: &str = "礼品卡不存在";
+
 // ——————————————————————————————————————————————
 // 出参 VO
 // ——————————————————————————————————————————————
@@ -346,12 +371,15 @@ pub struct GiftCardProductVO {
     pub sku_price: Option<Decimal>,
 }
 
-/// 加入购物车回执（Java `ExchangeProductToCartVO`）。
+/// 加入购物车回执（Java `ExchangeProductToCartVO`；cartIds 为我方扩展，
+/// 回传 useCard 写入的购物车行 id，供前端直达结算）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExchangeProductToCartVO {
     pub item: bool,
     pub flow_type: i32,
+    #[serde(default)]
+    pub cart_ids: Vec<i32>,
 }
 
 /// 礼品卡 VO（Java `GiftCardsVO`）。
@@ -438,7 +466,7 @@ pub struct GiftCardPayInfoVO {
     pub received_time: Option<String>,
 }
 
-/// 导出记录（Java `GiftCardsExportVO`；xlsx 未迁移，直接 JSON 返回）。
+/// 导出记录（Java `GiftCardsExportVO`；admin 路由经 `system::excel` 写出 xlsx）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GiftCardsExportVO {

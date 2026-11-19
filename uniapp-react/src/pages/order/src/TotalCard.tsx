@@ -21,6 +21,8 @@ type Total = OrderTotal & {
     taxRate?: number | string;
     /** 跨境税费金额：仅海外站后端返回 */
     taxRateAmount?: number | string;
+    /** 礼品卡抵扣金额（check 响应 totals；原版口径 >0 时展示「礼品卡 -¥…」） */
+    giftCardAmount?: number | string;
 };
 
 interface Props {
@@ -142,6 +144,14 @@ export default function TotalCard({
                         <View className="card-item-label">{t("使用余额")}</View>
                         <View className="card-item-value">
                             - <FormatPrice isBottom={false} priceData={(total as Total).balance} />
+                        </View>
+                    </View>
+                )}
+                {Number((total as Total).giftCardAmount ?? 0) > 0 && (
+                    <View className="total-card-item">
+                        <View className="card-item-label">{t("礼品卡")}</View>
+                        <View className="card-item-value">
+                            - <FormatPrice isBottom={false} priceData={(total as Total).giftCardAmount} />
                         </View>
                     </View>
                 )}

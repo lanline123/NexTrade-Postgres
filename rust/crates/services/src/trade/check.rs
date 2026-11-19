@@ -33,11 +33,13 @@ use nextrade_core::models::trade::check::{
     allocate_discount, build_payment_types, calc_points, calc_shipping_fee, config_enabled,
     coupon_rule_discount, groupon_min_group_num, groupon_price_for, parse_groupon_data,
     parse_promotion_tiers, parse_sku_data, pick_promotion_tier, promotion_discount,
+    gift_card_deduct_amount, resolve_gift_card_selection, AvailableGiftCardVO,
     CartStoreTotalVO, CheckCartByStoreVO, CheckCartVO, CheckCouponVO,
     CheckItemVO, CheckTotalVO, CouponListVO, GrouponCartData, OrderCheckParam, OrderCheckVO,
     OrderInvoiceVO, PaymentTypeVO, ShippingRule, ShippingTypeVO, StoreShippingTypeQuery,
     CONFIG_USE_OFFLINE, CONFIG_USE_SURPLUS, MSG_CART_EMPTY, PAYMENT_TYPE_ONLINE,
 };
+use nextrade_core::models::marketing::gift_card::mask_middle_half;
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::repo::trade::check::CheckRepository;
 use nextrade_infrastructure::db::Repositories;
@@ -448,12 +450,107 @@ impl CheckService {
         .max(Decimal::ZERO);
         let tax_rate_amount = calc_tax_amount(taxable_base, tax_rate);
 
+        // —— 礼品卡（标准对齐 D5/D6，原版结算口径）——
+        // 普通流：单选一张储值卡抵扣，封顶 = 券/积分后应付（顺序 券→积分→礼品卡→余额）；
+        // 可选卡由本响应 availableGiftCards 下发（不另调 myCards）。
+        // flowType=12（兑换卡流）：已核销的兑换卡覆盖商品金额（运费/税另付），
+        // 选择器锁定，不再叠加储值卡抵扣。
+        let mut available_gift_cards: Vec<AvailableGiftCardVO> = Vec::new();
+        let mut gift_card_amount = Decimal::ZERO;
+        let mut selected_gift_card_id: i32 = 0;
+        let mut selected_gift_card_sn: Option<String> = None;
+        if flow_type == 12 {
+            gift_card_amount =
+                (product_amount - coupons.total - points.points_amount).max(Decimal::ZERO);
+            // 锁定卡回显：取购物车行 extra_data 标记的兑换卡
+            let locked_id = carts.iter().find_map(|c| {
+                c.extra_data
+                    .as_deref()
+                    .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
+                    .and_then(|v| v.get("giftCardsId").and_then(serde_json::Value::as_i64))
+                    .and_then(|v| i32::try_from(v).ok())
+            });
+            if let Some(card_id) = locked_id {
+                selected_gift_card_id = card_id;
+                if let Ok(Some(card)) =
+                    self.repos.marketing.gift_card.find_by_id(card_id).await
+                {
+                    selected_gift_card_sn = card.gift_card_sn.clone();
+                    let group_name = self
+                        .repos
+                        .marketing
+                        .gift_card
+                        .find_group(card.card_groups_id)
+                        .await
+                        .ok()
+                        .flatten()
+                        .map(|g| g.card_group_name);
+                    available_gift_cards.push(AvailableGiftCardVO {
+                        gift_cards_id: card_id,
+                        gift_card_sn: card.gift_card_sn.clone(),
+                        card_group_name: group_name,
+                        card_number: Some(mask_middle_half(&card.card_number)),
+                        face_amount: None,
+                        balance: None,
+                        expired_time: card.expired_time,
+                    });
+                }
+            }
+            if selected_gift_card_sn.is_none() {
+                selected_gift_card_sn = param
+                    .gift_card_sn
+                    .clone()
+                    .or_else(|| param.use_gift_card_sn.clone());
+            }
+        } else if flow_type != CART_TYPE_EXCHANGE {
+            let stored = self
+                .repos
+                .marketing
+                .gift_card_issue
+                .list_available_stored_cards(user_id, now)
+                .await
+                .unwrap_or_default();
+            for row in &stored {
+                available_gift_cards.push(AvailableGiftCardVO {
+                    gift_cards_id: row.gift_cards_id,
+                    gift_card_sn: row.gift_card_sn.clone(),
+                    card_group_name: row.card_group_name.clone(),
+                    card_number: Some(mask_middle_half(&row.card_number)),
+                    face_amount: row.face_amount,
+                    balance: row.balance,
+                    expired_time: row.expired_time,
+                });
+            }
+            let (sel_id, sel_sn) = resolve_gift_card_selection(
+                param.use_gift_card_id,
+                param.use_gift_card_sn.as_deref(),
+            );
+            if sel_id.is_some() || sel_sn.is_some() {
+                let base = (product_amount + shipping.total + tax_rate_amount
+                    - coupons.total
+                    - points.points_amount)
+                    .max(Decimal::ZERO);
+                let found = stored.iter().find(|r| {
+                    sel_id == Some(r.gift_cards_id)
+                        || sel_sn.as_deref() == r.gift_card_sn.as_deref()
+                });
+                if let Some(row) = found {
+                    gift_card_amount =
+                        gift_card_deduct_amount(row.balance.unwrap_or(Decimal::ZERO), base);
+                    selected_gift_card_id = row.gift_cards_id;
+                    selected_gift_card_sn = row.gift_card_sn.clone();
+                }
+            }
+        }
+
         // —— 应付 / 余额 / 账期 ——
         let total_before_balance =
             (product_amount + shipping.total + tax_rate_amount - coupons.total - points.points_amount)
                 .max(Decimal::ZERO);
         let balance_used = if param.use_balance.unwrap_or_default() > Decimal::ZERO {
-            balance.min(total_before_balance).max(Decimal::ZERO)
+            balance
+                .min((total_before_balance - gift_card_amount).max(Decimal::ZERO))
+                .max(Decimal::ZERO)
         } else {
             Decimal::ZERO
         };
@@ -493,11 +590,12 @@ impl CheckService {
                 .and_then(|v| v.as_str().and_then(|s| s.parse::<Decimal>().ok()));
             credit_amount = available
                 .unwrap_or(total_before_balance)
-                .min(total_before_balance - balance_used)
+                .min((total_before_balance - gift_card_amount - balance_used).max(Decimal::ZERO))
                 .max(Decimal::ZERO);
         }
         let unpaid_amount =
-            (total_before_balance - balance_used - credit_amount).max(Decimal::ZERO);
+            (total_before_balance - gift_card_amount - balance_used - credit_amount)
+                .max(Decimal::ZERO);
         let total_amount = total_before_balance;
 
         // —— 预售（定金/尾款展示）——
@@ -637,6 +735,7 @@ impl CheckService {
             total_amount,
             tax_rate,
             tax_rate_amount,
+            gift_card_amount,
             balance: balance_used,
             unpaid_amount,
             credit_amount,
@@ -676,6 +775,8 @@ impl CheckService {
                 select_user_coupon_ids: Some(coupons.valid_selected),
                 flow_type,
                 delivery_type: param.delivery_type,
+                use_gift_card_id: selected_gift_card_id,
+                use_gift_card_sn: selected_gift_card_sn,
             },
             use_coupon_ids: param.use_coupon_ids.clone(),
             select_user_coupon_ids: param.select_user_coupon_ids.clone(),
@@ -695,6 +796,7 @@ impl CheckService {
             credit_payment_info: credit_info,
             coupon_exclude_amount: "0".to_string(),
             points_exclude_amount: "0".to_string(),
+            available_gift_cards,
         })
     }
 

@@ -52,6 +52,49 @@ pub const MSG_UNKNOWN_VALIDITY_TYPE: &str = "未知的卡有效期类型";
 pub const MSG_GROUP_BOUND_CANNOT_DELETE: &str = "该礼品卡组已经被商品绑定，不能删除";
 /// 日期格式错误（Java `StringUtils.getEndOfDayTimestamp` 的 ParseException 文案）。
 pub const MSG_DATE_FORMAT_INVALID: &str = "日期格式错误";
+/// 兑换模式不正确（P1 新增：1 固定套餐 / 2 多件任选）。
+pub const MSG_EXCHANGE_MODE_INVALID: &str = "兑换模式不正确";
+/// 任选模式必须填写任选件数。
+pub const MSG_SELECT_COUNT_REQUIRED: &str = "任选模式必须填写任选件数";
+/// 任选件数不能超过绑定商品数。
+pub const MSG_SELECT_COUNT_EXCEEDS_PRODUCTS: &str = "任选件数不能超过绑定商品数";
+
+/// 兑换模式：1 固定套餐。
+pub const EXCHANGE_MODE_FIXED: i32 = 1;
+/// 兑换模式：2 多件任选。
+pub const EXCHANGE_MODE_SELECT: i32 = 2;
+
+/// 兑换模式校验（P1：只落库 + 编辑透传校验，任选兑换逻辑在 P2）。
+///
+/// 储值卡忽略两字段；兑换卡任选模式时 `select_count` 必填且
+/// `1 <= select_count <= bound_product_count`（绑定数以入参商品列表长度为准）。
+///
+/// # Errors
+/// 模式非法 / 任选件数缺失或超绑定数。
+pub fn validate_exchange_fields(
+    group_type: i32,
+    exchange_mode: Option<i32>,
+    select_count: Option<i32>,
+    bound_product_count: usize,
+) -> Result<(), String> {
+    if group_type != GROUP_TYPE_EXCHANGE {
+        return Ok(());
+    }
+    let mode = exchange_mode.unwrap_or(EXCHANGE_MODE_FIXED);
+    if mode != EXCHANGE_MODE_FIXED && mode != EXCHANGE_MODE_SELECT {
+        return Err(MSG_EXCHANGE_MODE_INVALID.to_string());
+    }
+    if mode == EXCHANGE_MODE_SELECT {
+        let count = select_count.unwrap_or(0);
+        if count < 1 {
+            return Err(MSG_SELECT_COUNT_REQUIRED.to_string());
+        }
+        if (count as usize) > bound_product_count {
+            return Err(MSG_SELECT_COUNT_EXCEEDS_PRODUCTS.to_string());
+        }
+    }
+    Ok(())
+}
 
 /// 卡组类型名（Java `GiftGroupsEnum`）。
 #[must_use]
@@ -192,6 +235,10 @@ pub struct GiftCardGroupsCreateParam {
     pub remark: Option<String>,
     pub shop_id: Option<i32>,
     pub gift_card_products: Option<Vec<GiftCardProductDTO>>,
+    /// 兑换模式（P1 新增，仅兑换卡）：1 固定套餐 / 2 多件任选
+    pub exchange_mode: Option<i32>,
+    /// 任选件数（任选模式必填）
+    pub select_count: Option<i32>,
 }
 
 /// 更新参数（Java `GiftCardGroupsUpdateParam`；updateStatus / productsUpdate 复用）。
@@ -209,6 +256,10 @@ pub struct GiftCardGroupsUpdateParam {
     pub face_amount: Option<Decimal>,
     pub remark: Option<String>,
     pub gift_card_products: Option<Vec<GiftCardProductDTO>>,
+    /// 兑换模式（P1 新增，仅兑换卡）：1 固定套餐 / 2 多件任选
+    pub exchange_mode: Option<i32>,
+    /// 任选件数（任选模式必填）
+    pub select_count: Option<i32>,
 }
 
 /// 卡组 ID 参数（Java `GiftCardGroupIdParam`）。
@@ -243,6 +294,10 @@ pub struct GiftCardGroupsVO {
     pub remark: Option<String>,
     pub gift_card_products: Vec<GiftCardProductVO>,
     pub can_delete: Option<bool>,
+    /// 兑换模式（P1 新增）：1 固定套餐 / 2 多件任选
+    pub exchange_mode: Option<i32>,
+    /// 任选件数
+    pub select_count: Option<i32>,
 }
 
 /// `build` 后的卡组实体字段（服务层用，避免重复反序列化）。
@@ -288,7 +343,12 @@ impl GiftCardGroupsCreateParam {
         if group_type == GROUP_TYPE_TOP_UP && self.face_amount.is_none() {
             return Err(MSG_FACE_AMOUNT_REQUIRED.to_string());
         }
-        Ok(())
+        validate_exchange_fields(
+            group_type,
+            self.exchange_mode,
+            self.select_count,
+            self.gift_card_products.as_ref().map(Vec::len).unwrap_or(0),
+        )
     }
 }
 
@@ -315,6 +375,15 @@ impl GiftCardGroupsUpdateParam {
             && self.gift_card_products.as_ref().map(Vec::len).unwrap_or(0) == 0
         {
             return Err(MSG_PRODUCTS_REQUIRED.to_string());
+        }
+        // 仅在本次入参带了兑换模式字段时校验（updateStatus 等部分更新不带这两个字段时跳过）
+        if self.exchange_mode.is_some() || self.select_count.is_some() {
+            validate_exchange_fields(
+                db_group_type,
+                self.exchange_mode,
+                self.select_count,
+                self.gift_card_products.as_ref().map(Vec::len).unwrap_or(0),
+            )?;
         }
         Ok(())
     }
@@ -429,6 +498,40 @@ mod tests {
             expire_time_text(VALIDITY_FIXED, Some(0)),
             Some(String::new())
         );
+    }
+
+    #[test]
+    fn exchange_fields_validation() {
+        // 储值卡忽略
+        assert!(validate_exchange_fields(GROUP_TYPE_TOP_UP, Some(9), None, 0).is_ok());
+        // 固定套餐（缺省）不要求件数
+        assert!(validate_exchange_fields(GROUP_TYPE_EXCHANGE, None, None, 3).is_ok());
+        assert!(validate_exchange_fields(GROUP_TYPE_EXCHANGE, Some(1), None, 3).is_ok());
+        // 模式非法
+        assert_eq!(
+            validate_exchange_fields(GROUP_TYPE_EXCHANGE, Some(3), None, 3).unwrap_err(),
+            MSG_EXCHANGE_MODE_INVALID
+        );
+        // 任选缺件数 / 超绑定数
+        assert_eq!(
+            validate_exchange_fields(GROUP_TYPE_EXCHANGE, Some(2), None, 3).unwrap_err(),
+            MSG_SELECT_COUNT_REQUIRED
+        );
+        assert_eq!(
+            validate_exchange_fields(GROUP_TYPE_EXCHANGE, Some(2), Some(4), 3).unwrap_err(),
+            MSG_SELECT_COUNT_EXCEEDS_PRODUCTS
+        );
+        assert!(validate_exchange_fields(GROUP_TYPE_EXCHANGE, Some(2), Some(3), 3).is_ok());
+        // CreateParam 校验链：任选超数被拦
+        let p = GiftCardGroupsCreateParam {
+            validity_type: Some(VALIDITY_PERMANENT),
+            group_type: Some(GROUP_TYPE_EXCHANGE),
+            gift_card_products: Some(vec![GiftCardProductDTO::default()]),
+            exchange_mode: Some(2),
+            select_count: Some(2),
+            ..Default::default()
+        };
+        assert_eq!(p.validate().unwrap_err(), MSG_SELECT_COUNT_EXCEEDS_PRODUCTS);
     }
 
     #[test]

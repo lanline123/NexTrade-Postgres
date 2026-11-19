@@ -2,6 +2,7 @@ import type { PropsWithChildren } from "react";
 import Taro, { useLaunch } from "@tarojs/taro";
 
 import { useConfigStore } from "@/store/config";
+import { fetchSystemMode } from "@/utils/systemMode";
 import { configureRequestRuntime } from "@/utils/requestRuntime";
 import { handleLogin } from "@/utils/handleLogin";
 import { useI18nStore } from "@/store/i18n";
@@ -34,6 +35,9 @@ function App({ children }: PropsWithChildren<any>) {
 
         // 启动初始化：i18n / 基础配置 / tabbar / 主题 / 用户 / 货币
         void init();
+
+        // 系统模式（我方新增）：启动拉取一次存全局缓存，供各页入口级门控同步读取
+        void fetchSystemMode();
     });
 
     // children 即当前渲染的页面

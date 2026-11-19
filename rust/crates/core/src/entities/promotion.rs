@@ -437,6 +437,96 @@ impl CouponIssueLog {
 }
 
 
+/// 礼品卡发放批次表（P1 发放闭环，迁移 2026-11-18_gift_card_issue.sql）
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct GiftCardIssueBatch {
+    /// 主键ID [NOT NULL]
+    pub id: i64,
+    /// 卡组ID [NOT NULL]
+    pub card_groups_id: i32,
+    /// 店铺ID（平台为0） [NOT NULL]
+    pub shop_id: i32,
+    /// 发放方式：USER/RANK/TAG/EXCEL [NOT NULL]
+    pub issue_type: String,
+    /// 目标描述 JSON（会员数/等级ids/标签ids与匹配模式/文件名与总行数）
+    pub target_desc: serde_json::Value,
+    /// 每人发卡数 [NOT NULL]
+    pub cards_per_user: i32,
+    /// 目标人数 [NOT NULL]
+    pub target_count: i32,
+    /// 成功人数 [NOT NULL]
+    pub success_count: i32,
+    /// 失败人数 [NOT NULL]
+    pub fail_count: i32,
+    /// 操作管理员ID [NOT NULL]
+    pub admin_id: i32,
+    /// 备注 [NOT NULL]
+    pub remark: String,
+    /// 发放时间（秒级时间戳） [NOT NULL]
+    pub add_time: i64,
+}
+
+impl GiftCardIssueBatch {
+    /// 数据库表名。
+    pub const TABLE: &'static str = "gift_card_issue_batch";
+}
+
+
+/// 礼品卡发放明细表（只记 gift_cards_id，卡号/卡密不落流水）
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct GiftCardIssueLog {
+    /// 主键ID [NOT NULL]
+    pub id: i64,
+    /// 发放批次ID [NOT NULL]
+    pub batch_id: i64,
+    /// 卡组ID [NOT NULL]
+    pub card_groups_id: i32,
+    /// 礼品卡ID [NOT NULL]
+    pub gift_cards_id: i32,
+    /// 接收会员ID [NOT NULL]
+    pub user_id: i32,
+    /// 发放时间（秒级时间戳） [NOT NULL]
+    pub issue_time: i64,
+}
+
+impl GiftCardIssueLog {
+    /// 数据库表名。
+    pub const TABLE: &'static str = "gift_card_issue_log";
+}
+
+
+/// 礼品卡消费流水表（type: 1 结算抵扣 / 2 退款返还 / 3 兑换入余额；P2/P3 写入）
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct GiftCardUsageLog {
+    /// 主键ID [NOT NULL]
+    pub id: i64,
+    /// 礼品卡ID [NOT NULL]
+    pub gift_cards_id: i32,
+    /// 会员ID [NOT NULL]
+    pub user_id: i32,
+    /// 关联订单ID [NOT NULL]
+    pub order_id: i32,
+    /// 流水类型 [NOT NULL]
+    pub r#type: i16,
+    /// 金额（带符号） [NOT NULL]
+    pub amount: Decimal,
+    /// 变动前余额
+    pub balance_before: Option<Decimal>,
+    /// 变动后余额
+    pub balance_after: Option<Decimal>,
+    /// 发生时间（秒级时间戳） [NOT NULL]
+    pub add_time: i64,
+}
+
+impl GiftCardUsageLog {
+    /// 数据库表名。
+    pub const TABLE: &'static str = "gift_card_usage_log";
+}
+
+
 /// 礼品卡表
 #[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
 #[sqlx(rename_all = "snake_case")]

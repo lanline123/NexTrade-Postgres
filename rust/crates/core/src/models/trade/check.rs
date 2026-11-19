@@ -124,6 +124,12 @@ pub struct OrderCheckParam {
     pub use_coupon_ids: Option<Vec<i32>>,
     pub select_user_coupon_ids: Option<Vec<i32>>,
     pub use_default_coupon_ids: Option<i32>,
+    /// 礼品卡抵扣（原版结算口径，单选一张）：与 useGiftCardSn 二选一互斥，
+    /// 同传时 Sn 优先（原版前端提交前二选一删除另一字段，后端再兜底）。
+    pub use_gift_card_id: Option<i32>,
+    pub use_gift_card_sn: Option<String>,
+    /// flowType=12 时锁定的兑换卡 SN（原版结算页入参 giftCardSn）。
+    pub gift_card_sn: Option<String>,
     /// 前端表单 `shippingType`：`{shopId: {typeId, shopId, typeName}}`，原样回显。
     pub shipping_type: Option<serde_json::Value>,
     pub buyer_note: Option<String>,
@@ -304,6 +310,24 @@ pub struct OrderCheckVO {
     pub coupon_exclude_amount: String,
     /// 批发行被排除的积分抵扣金额（当前恒 "0"）。
     pub points_exclude_amount: String,
+    /// 可用储值卡（原版 check 响应下发 `availableGiftCards`，结算页
+    /// 礼品卡选择器的数据源；flowType=12 时为锁定兑换卡的回显，见服务层）。
+    pub available_gift_cards: Vec<AvailableGiftCardVO>,
+}
+
+/// 结算页可用储值卡（单选选择器行）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AvailableGiftCardVO {
+    pub gift_cards_id: i32,
+    pub gift_card_sn: Option<String>,
+    pub card_group_name: Option<String>,
+    /// 卡号（脱敏）
+    pub card_number: Option<String>,
+    pub face_amount: Option<Decimal>,
+    /// 卡内余额（储值卡可用额）
+    pub balance: Option<Decimal>,
+    pub expired_time: i32,
 }
 
 /// 按店铺分组的购物车行（Java `CartByStoreVO` 常用字段）。
@@ -410,6 +434,29 @@ pub struct CheckTotalVO {
     pub actual_pay_deposit_amount: Option<Decimal>,
 }
 
+/// 礼品卡选择二选一互斥（原版口径）：useGiftCardId 与 useGiftCardSn
+/// 同传时以 Sn 为准；空 Sn / 非正 Id 视为未选。
+#[must_use]
+pub fn resolve_gift_card_selection(
+    use_gift_card_id: Option<i32>,
+    use_gift_card_sn: Option<&str>,
+) -> (Option<i32>, Option<String>) {
+    let sn = use_gift_card_sn
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    if sn.is_some() {
+        return (None, sn);
+    }
+    (use_gift_card_id.filter(|id| *id > 0), None)
+}
+
+/// 礼品卡抵扣额封顶：min(卡内余额, 券/积分后应付额)，均不为负。
+#[must_use]
+pub fn gift_card_deduct_amount(balance: Decimal, cap: Decimal) -> Decimal {
+    balance.max(Decimal::ZERO).min(cap.max(Decimal::ZERO))
+}
+
 /// 优惠券列表（Java `OrderCheckVO.CouponList`）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -452,6 +499,9 @@ pub struct CheckItemVO {
     pub select_user_coupon_ids: Option<Vec<i32>>,
     pub flow_type: i32,
     pub delivery_type: Option<i32>,
+    /// 本次选中的礼品卡（单卡；0 = 未选）
+    pub use_gift_card_id: i32,
+    pub use_gift_card_sn: Option<String>,
 }
 
 /// 配送方式（Java `OrderCheckVO.ShippingType`）。

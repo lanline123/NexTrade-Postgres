@@ -73,6 +73,14 @@ impl ProductRepository {
             _ => "",
         };
 
+        // —— `onlyGiftCardProduct`（原版搜索口径，standard-alignment D8）——
+        // 仅绑卡组商品；常量子句无占位符，count/list 两段 SQL 直接复用。
+        let gift_clause = if q.only_gift_card_product == Some(1) {
+            " AND gift_card_groups_id IS NOT NULL AND gift_card_groups_id > 0"
+        } else {
+            ""
+        };
+
         // 分类筛选：服务层展开后的 category_ids 优先（包含子分类）；
         // 没有展开时保持原来的精确 category_id 语义。
         let category_ids: Vec<i32> = if q.category_ids.is_empty() {
@@ -95,7 +103,7 @@ impl ProductRepository {
                AND (? IS NULL OR shop_id = ?)
                AND (? IS NULL OR product_status = ?)
                AND (? IS NULL OR product_price >= ?)
-               AND (? IS NULL OR product_price <= ?){sale_clause}{intro_clause}{id_clause}"
+               AND (? IS NULL OR product_price <= ?){sale_clause}{intro_clause}{id_clause}{gift_clause}"
         ));
         let mut total_q = sqlx::query_as::<_, (i64,)>(&total_sql)
             .bind(&keyword).bind(&keyword).bind(&keyword);
@@ -154,7 +162,7 @@ impl ProductRepository {
                AND (? IS NULL OR shop_id = ?)
                AND (? IS NULL OR product_status = ?)
                AND (? IS NULL OR product_price >= ?)
-               AND (? IS NULL OR product_price <= ?){sale_clause}{intro_clause}{id_clause}
+               AND (? IS NULL OR product_price <= ?){sale_clause}{intro_clause}{id_clause}{gift_clause}
              ORDER BY {order_by} {dir}, product_id DESC
              LIMIT ? OFFSET ?"
         ));

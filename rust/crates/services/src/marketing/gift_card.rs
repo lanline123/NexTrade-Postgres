@@ -13,22 +13,24 @@
 //!
 //! # 未迁移 / 偏差（如实标注）
 //!
-//! - **Excel 未迁移**：`importTemplate` / `exportList` 返回 JSON 行数据
-//!   （Java 写 xlsx 二进制）；`importList` 完成 multipart「文件非空」校验后
-//!   返回业务错误「Excel 批量导入功能尚未迁移」。与 `catalog::e_card_group`
-//!   等既有切片口径一致。
+//! - **Excel 已接线**：`importTemplate` / `exportList` / `importList` 经
+//!   `services::system::excel` 真实读写 xlsx，admin 路由返回 xlsx 二进制
+//!   （早期「未迁移」注释已过期，P1 清理）。
 //! - **Redis 锁未迁移**：`exchangeCard` 的 `userExchangeCard_{userId}` 分布式锁
 //!   未迁移（Rust 侧无 Redis 锁封装）；并发重复兑换由后续唯一约束/事务兜底。
-//! - **购物车未迁移**（兑换卡分支）：Java 会清空并写入 `TYPE_GIFT_EXCHANGE`
-//!   购物车项；本实现返回兑换商品列表 + `exchangeProductToCart.item=true`
-//!   回执，购物车域（trade::cart）未接入（见 `uncertain_points`）。
+//! - **兑换卡用卡**（`useCard`，标准对齐 D6）：exchange 只负责凭卡号卡密
+//!   把卡绑入卡包；核销+写购物车走独立 `use_card`（固定组合整组、任选按
+//!   SKU 数量计件），购物车行以 `extra_data.giftCardsId` 标记，结算
+//!   flowType=12 时由 check 按商品金额全额记 giftCardAmount。
 //! - **平台店铺名/logo**：`shopId=0` 已从 `config` 表读取
 //!   `shopName`/`shopLogo`；转赠域名（`PC_DOMAIN/H5_DOMAIN`）仍未迁移，
 //!   转赠链接使用相对路径 `/giftCard/transfer/`、
 //!   `/pages/giftCard/transfer?giftCardSn=`。
-//! - **储值卡兑换**：按 Java 语义插入 `user_recharge_order`（status=1,
-//!   postscript=充值卡兑换）并通过 `member::user_manage` 原子加余额 + 写
-//!   `user_balance_log`（change_desc 与 Java「充值订单审核通过增加余额」一致）。
+//! - **储值卡兑换**（标准对齐 D4，**原版有·我方曾改口径已回归**）：原版
+//!   三端无「储值卡转会员余额」路径——exchange 对储值卡只做入卡包绑定
+//!   （claimed_user_id 置当前会员、status 保持 0、卡内 balance 不动），
+//!   消费走结算页单卡抵扣（trade check/order 的 useGiftCardId/Sn）。
+//!   旧实现曾按 Java 老语义入会员余额（建充值单 + 加余额），本轮已整体下线。
 //! - **手机号脱敏**：`GiftCardDetailVO.mobile` 的 `@Sensitive(PHONE)` 仅演示站
 //!   生效，用常量 [`IS_DEMO`]（对齐 `nextrade.is-demo: 0`）。
 
@@ -37,24 +39,25 @@ use std::sync::Arc;
 use rust_decimal::Decimal;
 
 use nextrade_common::utils::{mask_mobile, now_seconds};
-use nextrade_core::entities::{GiftCards, Order, UserBalanceLog};
+use nextrade_core::entities::{GiftCards, Order};
 use nextrade_core::models::marketing::gift_card::{
     format_unix_time, is_exchange_text, is_sold_text, mask_middle_half, seconds_text,
     ExchangeCardParam, GiftCardClaimParam, GiftCardDeliveryInfoVO, GiftCardDetailVO,
     GiftCardExchangeInfoVO, GiftCardIdParam, GiftCardPayInfoVO, GiftCardUpdateStatusDTO,
     GiftCardUserAddressInfoVO, GiftCardsExportVO, GiftCardsImportVO, GiftCardsListQuery,
-    GiftCardsTemplateVO, GiftCardsVO, CLAIMED_RECEIVED, CLAIMED_RECEIVABLE,
+    GiftCardsTemplateVO, GiftCardsVO, UseCardParam, CLAIMED_RECEIVED, CLAIMED_RECEIVABLE,
+    MSG_CARD_NOT_OWNED, MSG_CARD_NOT_TRANSFERABLE, MSG_PRODUCT_NOT_IN_GROUP,
+    MSG_SELECT_COUNT_INVALID,
     CARD_TYPE_PHYSICAL, GROUP_TYPE_EXCHANGE, GROUP_TYPE_TOP_UP, MSG_CARD_ABNORMAL, MSG_CARD_ALREADY_CLAIMED,
     MSG_CARD_ALREADY_EXCHANGED, MSG_CARD_EXPIRED, MSG_CARD_GROUP_INVALID,
     MSG_CARD_GROUP_NOT_EXISTS, MSG_CARD_ID_REQUIRED, MSG_CARD_NOT_CLAIMABLE,
-    MSG_CARD_NOT_EXISTS, MSG_CARD_SOLD_CANNOT_DELETE, MSG_EXCEL_IMPORT_UNMIGRATED,
-    MSG_EXCHANGE_FAILED, MSG_GROUP_NOT_EXISTS, MSG_IS_AVAILABLE_REQUIRED,
+    MSG_CARD_NOT_EXISTS, MSG_CARD_SOLD_CANNOT_DELETE, MSG_EXCHANGE_FAILED,
+    MSG_GROUP_NOT_EXISTS, MSG_IS_AVAILABLE_REQUIRED,
     MSG_PRODUCTS_OFFLINE, MSG_SN_NOT_FOUND, MSG_SOLD_CANNOT_CHANGE_STATUS,
     MSG_TRANSFER_CARD_NOT_FOUND, MSG_TRANSFER_GROUP_NOT_FOUND, MSG_TRANSFER_SN_REQUIRED,
     MSG_TRANSFER_SOURCE_REQUIRED, MSG_UNSUPPORTED_GROUP_TYPE, MSG_UPLOAD_FILE_REQUIRED,
     TRANSFER_FROM_H5, TRANSFER_FROM_PC, YES,
 };
-use nextrade_core::models::member::user_manage::CHANGE_TYPE_INC;
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::repo::marketing::gift_card::GiftCardRepository;
@@ -575,6 +578,11 @@ impl GiftCardService {
     }
 
     /// 转赠卡（Java `transferCard`）：置为「可领取」并返回转赠链接。
+    ///
+    /// 转赠资格（标准对齐 D10，原版判定函数口径）：仅电子卡
+    /// （cardType=1）、status=0、isAvailable=1、未过期；储值卡还须
+    /// 卡内余额 == 初始面额（未消费过，initialBalance 以卡组 face_amount
+    /// 承载，balance 为 NULL 时按面额计）；兑换卡未使用即可赠。
     pub async fn transfer_card(&self, param: &GiftCardClaimParam) -> Result<String> {
         let sn = param
             .gift_card_sn
@@ -587,6 +595,15 @@ impl GiftCardService {
             .ok_or_else(|| Error::biz(500, MSG_SN_NOT_FOUND))?;
         if card.claimed_status == Some(CLAIMED_RECEIVED) {
             return Err(Error::biz(500, MSG_CARD_ALREADY_CLAIMED));
+        }
+        let group = self
+            .repo()
+            .find_group(card.card_groups_id)
+            .await?
+            .ok_or_else(|| Error::biz(500, MSG_GROUP_NOT_EXISTS))?;
+        let balance = self.repo().find_card_balance(card.gift_cards_id).await?;
+        if !transfer_eligible(&card, group.card_type, group.group_type, group.face_amount, balance, now_seconds_i32()) {
+            return Err(Error::biz(500, MSG_CARD_NOT_TRANSFERABLE));
         }
         card.claimed_status = Some(CLAIMED_RECEIVABLE);
         self.repo().update(&card).await?;
@@ -637,19 +654,12 @@ impl GiftCardService {
 
         match group.group_type {
             GROUP_TYPE_TOP_UP => {
-                let amount = group.face_amount.unwrap_or_default();
-                // Java：先 rechargeOperation 建充值单，再 update(status=1) 入账
-                self.repo()
-                    .insert_recharge_order(user_id, amount, "充值卡兑换")
-                    .await?;
-                self.inc_balance(user_id, amount, "充值订单审核通过增加余额")
-                    .await?;
-                let now = now_seconds_i32();
+                // D4 定案（原版口径）：储值卡 exchange 只做入卡包绑定——
+                // 卡归属置当前会员，status 保持 0、卡内 balance 不动，
+                // 不建充值单、不加会员余额；消费走结算页单卡抵扣。
                 card.user_id = Some(user_id);
                 card.claimed_user_id = Some(user_id);
                 card.claimed_status = Some(CLAIMED_RECEIVED);
-                card.used_time = Some(now);
-                card.status = Some(YES);
                 self.repo().update(&card).await?;
                 let sn = card
                     .gift_card_sn
@@ -658,27 +668,153 @@ impl GiftCardService {
                 self.gift_cards_detail(&sn, false).await
             }
             GROUP_TYPE_EXCHANGE => {
+                // 兑换卡 exchange 同为入卡包绑定（原版语义）；核销走 useCard。
                 let products = self.repo().find_group_products(card.card_groups_id).await?;
                 if products.is_empty() {
                     return Err(Error::biz(500, MSG_PRODUCTS_OFFLINE));
                 }
+                card.user_id = Some(user_id);
+                card.claimed_user_id = Some(user_id);
+                card.claimed_status = Some(CLAIMED_RECEIVED);
+                self.repo().update(&card).await?;
                 let sn = card
                     .gift_card_sn
                     .clone()
                     .ok_or_else(|| Error::biz(500, MSG_CARD_NOT_EXISTS))?;
                 let mut vo = self.gift_cards_detail(&sn, false).await?;
                 vo.gift_card_products = Some(products);
-                // 购物车写入未迁移（trade::cart 未接入），仅返回兑换回执
                 vo.exchange_product_to_cart = Some(
                     nextrade_core::models::marketing::gift_card::ExchangeProductToCartVO {
                         item: true,
                         flow_type: 0,
+                        cart_ids: Vec::new(),
                     },
                 );
                 Ok(vo)
             }
             _ => Err(Error::biz(500, MSG_UNSUPPORTED_GROUP_TYPE)),
         }
+    }
+
+    /// 使用/核销兑换卡（原版 `useCard`，标准对齐 D6）。
+    ///
+    /// 校验：卡归属当前会员、兑换卡组、status=0、is_available=1、未过期。
+    /// 固定组合（exchangeMode=1）：整组绑定商品各 1 件；
+    /// 任选（exchangeMode=2）：items 按 SKU 数量计件（同款可多件），
+    /// 总件数必须等于 selectCount，每项必须在卡组绑定商品池内。
+    /// 顺序：先写购物车（库存由加车校验封顶）→ 再核销卡（status=1），
+    /// 购物车行以 extra_data.giftCardsId 标记，结算 flowType=12 识别。
+    /// 返回回执（flowType=12 + cartIds）。
+    pub async fn use_card(
+        &self,
+        param: &UseCardParam,
+        user_id: i32,
+    ) -> Result<nextrade_core::models::marketing::gift_card::ExchangeProductToCartVO> {
+        if user_id <= 0 {
+            return Err(Error::biz(500, MSG_CARD_NOT_OWNED));
+        }
+        let mut card = self
+            .repo()
+            .find_by_id(param.gift_cards_id)
+            .await?
+            .ok_or_else(|| Error::biz(500, MSG_CARD_NOT_OWNED))?;
+        if card.claimed_user_id != Some(user_id) && card.user_id != Some(user_id) {
+            return Err(Error::biz(500, MSG_CARD_NOT_OWNED));
+        }
+        let group = self
+            .repo()
+            .find_group(card.card_groups_id)
+            .await?
+            .ok_or_else(|| Error::biz(500, MSG_GROUP_NOT_EXISTS))?;
+        if group.group_type != GROUP_TYPE_EXCHANGE {
+            return Err(Error::biz(500, MSG_UNSUPPORTED_GROUP_TYPE));
+        }
+        if card.status != Some(0) || card.is_available != Some(YES) {
+            return Err(Error::biz(500, MSG_CARD_ALREADY_EXCHANGED));
+        }
+        if card_expired(&card, now_seconds_i32()) {
+            return Err(Error::biz(500, MSG_CARD_EXPIRED));
+        }
+        let (exchange_mode, select_count) = self
+            .repos
+            .marketing
+            .gift_card_groups
+            .find_exchange_fields(card.card_groups_id)
+            .await?
+            .unwrap_or((1, 0));
+        let bound = self.repo().find_group_products(card.card_groups_id).await?;
+        if bound.is_empty() {
+            return Err(Error::biz(500, MSG_PRODUCTS_OFFLINE));
+        }
+        // 选品定案：(product_id, sku_id, quantity)
+        let mut selected: Vec<(i32, i32, i32)> = Vec::new();
+        if exchange_mode == 2 {
+            let items = param.items.clone().unwrap_or_default();
+            if items.is_empty() {
+                return Err(Error::biz(500, MSG_SELECT_COUNT_INVALID));
+            }
+            let mut total_qty: i32 = 0;
+            for item in items {
+                if item.quantity <= 0 {
+                    return Err(Error::biz(500, MSG_SELECT_COUNT_INVALID));
+                }
+                let in_pool = bound.iter().any(|p| {
+                    p.product_id == item.product_id
+                        && (p.sku_id == item.sku_id || p.sku_id == 0)
+                });
+                if !in_pool {
+                    return Err(Error::biz(500, MSG_PRODUCT_NOT_IN_GROUP));
+                }
+                total_qty += item.quantity;
+                if let Some(exist) = selected
+                    .iter_mut()
+                    .find(|(pid, sid, _)| *pid == item.product_id && *sid == item.sku_id)
+                {
+                    exist.2 += item.quantity;
+                } else {
+                    selected.push((item.product_id, item.sku_id, item.quantity));
+                }
+            }
+            let want = if select_count > 0 { select_count } else { 1 };
+            if total_qty != want {
+                return Err(Error::biz(500, MSG_SELECT_COUNT_INVALID));
+            }
+        } else {
+            for p in &bound {
+                selected.push((p.product_id, p.sku_id, 1));
+            }
+        }
+        // 先写购物车（加车内含可购/库存校验），再核销卡，避免加车失败先废卡
+        let product_service =
+            crate::catalog::product::ProductService::new(self.repos.clone(), None);
+        let cart_service =
+            crate::trade::cart::CartService::new(self.repos.clone(), product_service);
+        let mut cart_ids: Vec<i32> = Vec::new();
+        for (idx, (product_id, sku_id, quantity)) in selected.iter().enumerate() {
+            let cart_id = cart_service
+                .add_gift_exchange_line(
+                    user_id,
+                    *product_id,
+                    *sku_id,
+                    *quantity,
+                    card.gift_cards_id,
+                    idx == 0,
+                )
+                .await?;
+            cart_ids.push(cart_id);
+        }
+        let now = now_seconds_i32();
+        card.status = Some(YES);
+        card.used_time = Some(now);
+        card.user_id = Some(user_id);
+        self.repo().update(&card).await?;
+        Ok(
+            nextrade_core::models::marketing::gift_card::ExchangeProductToCartVO {
+                item: true,
+                flow_type: 12,
+                cart_ids,
+            },
+        )
     }
 
     /// 转赠链接（Java `getTransferLink`；配置域名未迁移，使用相对路径）。
@@ -712,39 +848,6 @@ impl GiftCardService {
             "【{shop_title}】{base_url}{gift_card_sn}  [{}]",
             group.card_group_name
         ))
-    }
-
-    /// 增加余额并写流水（Java `UserBalanceService.incBalance` 的最小复刻）。
-    async fn inc_balance(&self, user_id: i32, amount: Decimal, desc: &str) -> Result<()> {
-        let repo = &self.repos.member.user_manage;
-        let user = repo
-            .find_user(user_id)
-            .await?
-            .ok_or_else(|| Error::biz(500, "会员不存在"))?;
-        let affected = repo
-            .apply_balance_delta(user_id, CHANGE_TYPE_INC, amount)
-            .await?;
-        if affected == 0 {
-            return Err(Error::biz(500, "会员不存在"));
-        }
-        let log = UserBalanceLog {
-            log_id: 0,
-            user_id,
-            before_balance: user.balance,
-            balance: amount,
-            after_balance: user.balance + amount,
-            frozen_balance: Decimal::ZERO,
-            before_frozen_balance: user.frozen_balance,
-            after_frozen_balance: user.frozen_balance,
-            change_time: now_seconds_i32(),
-            change_desc: desc.to_string(),
-            change_type: CHANGE_TYPE_INC,
-            wallet_type: 0,
-            new_balance: Decimal::ZERO,
-            new_frozen_balance: Decimal::ZERO,
-        };
-        repo.insert_balance_log(&log).await?;
-        Ok(())
     }
 }
 
@@ -803,6 +906,34 @@ pub fn card_expired(card: &GiftCards, now: i32) -> bool {
         return false;
     }
     now > card.expired_time
+}
+
+/// 转赠资格判定（D10，原版 `giftCardTransfer` 判定函数口径）：
+/// 仅电子卡（card_type=1）、status=0、is_available=1、未过期；
+/// 储值卡（group_type=1）须 balance == 初始面额（face_amount 承载
+/// initialBalance；balance 为 NULL 按面额计）且 balance > 0；
+/// 兑换卡未使用即可。
+#[must_use]
+pub fn transfer_eligible(
+    card: &GiftCards,
+    card_type: i32,
+    group_type: i32,
+    face_amount: Option<Decimal>,
+    balance: Option<Decimal>,
+    now: i32,
+) -> bool {
+    if card_type != 1 || card.status != Some(0) || card.is_available != Some(YES) {
+        return false;
+    }
+    if card_expired(card, now) {
+        return false;
+    }
+    if group_type == GROUP_TYPE_TOP_UP {
+        let face = face_amount.unwrap_or(Decimal::ZERO);
+        let bal = balance.unwrap_or(face);
+        return bal == face && bal > Decimal::ZERO;
+    }
+    true
 }
 
 /// 演示站手机号脱敏（Java `@Sensitive(PHONE)`）：仅 `is_demo == 1` 时脱敏。

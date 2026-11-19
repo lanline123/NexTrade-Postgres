@@ -17,6 +17,12 @@ import {
 import Translate from '@icon-park/react/es/icons/Translate';
 import { navGroups, pageTitles } from '../config/adminMenu';
 import { navGroupsForRole } from '../config/selfServiceMenu';
+import {
+  fetchSystemMode,
+  filterNavGroupsBySystemMode,
+  getCachedSystemMode,
+  type SystemMode,
+} from '../systemMode';
 import MenuSearch from '../components/MenuSearch';
 import AdminMessageCenter from '../components/AdminMessageCenter';
 import LicensedBadge from '../components/LicensedBadge';
@@ -201,18 +207,39 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
     orderedRef.current = orderedKeys;
   }, [orderedKeys]);
 
+  /**
+   * 系统模式菜单门控（保守版，仅渲染层）：先用本地缓存值渲染，挂载后拉后台
+   * systemMode 配置刷新；拉取失败/未配置时为 all，不隐藏任何菜单。
+   * mode=mall 隐藏「营销 > 礼品卡」；mode=giftcard 隐藏营销下除礼品卡外的项。
+   * 只隐藏菜单入口，不拦 ?page= 直达（存量兜底，见 system-mode-design.md）。
+   */
+  const [systemMode, setSystemMode] = useState<SystemMode>(() => getCachedSystemMode());
+  useEffect(() => {
+    let alive = true;
+    void fetchSystemMode().then((mode) => {
+      if (alive) setSystemMode(mode);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   /** 全量菜单（含角色专属组）：商户端/供应商端登录后在平台组后追加自己的自助页面组。 */
   const roleNavGroups = useMemo(() => navGroupsForRole(localStorage.getItem('adminType')), []);
+  const visibleNavGroups = useMemo(
+    () => filterNavGroupsBySystemMode(roleNavGroups, systemMode),
+    [roleNavGroups, systemMode],
+  );
 
   const groups = useMemo(() => {
     const ordered = orderedKeys
-      .map((key) => roleNavGroups.find((group) => group.key === key))
+      .map((key) => visibleNavGroups.find((group) => group.key === key))
       .filter(Boolean) as typeof navGroups;
     // 角色专属组（shopCapital 等）不在 localStorage 排序里，追加到末尾，
     // 否则会被 loadNavOrder 的平台组 key 过滤掉而永远不显示。
-    const extra = roleNavGroups.filter((group) => !orderedKeys.includes(group.key));
+    const extra = visibleNavGroups.filter((group) => !orderedKeys.includes(group.key));
     return [...ordered, ...extra];
-  }, [orderedKeys, roleNavGroups]);
+  }, [orderedKeys, visibleNavGroups]);
 
   const activeGroup =
     groups.find((group) =>

@@ -8,6 +8,7 @@ pub mod coupon;
 pub mod coupon_manage;
 pub mod gift_card;
 pub mod gift_card_groups;
+pub mod gift_card_issue;
 pub mod groupon_promotion;
 pub mod groupon_promotion_item;
 pub mod groupon_promotion_record;

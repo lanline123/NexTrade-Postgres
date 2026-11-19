@@ -8,6 +8,7 @@ pub mod cache_manage;
 pub mod config_basic;
 pub mod price_display_config;
 pub mod buy_style_config;
+pub mod system_mode_config;
 pub mod font_settings_config;
 pub mod config_extra;
 pub mod csrf;
@@ -38,6 +39,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(config_basic::routes(state))
         .merge(price_display_config::routes(state))
         .merge(buy_style_config::routes(state))
+        .merge(system_mode_config::routes(state))
         .merge(font_settings_config::routes(state))
         .merge(config_extra::routes(state))
         .merge(example::routes(state))
@@ -72,6 +74,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(config_basic::implemented_routes());
     out.extend(price_display_config::implemented_routes());
     out.extend(buy_style_config::implemented_routes());
+    out.extend(system_mode_config::implemented_routes());
     out.extend(font_settings_config::implemented_routes());
     out.extend(config_extra::implemented_routes());
     out.extend(csrf::implemented_routes());

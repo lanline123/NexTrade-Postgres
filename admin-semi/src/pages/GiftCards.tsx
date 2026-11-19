@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Button,
+  Checkbox,
   Empty,
   Input,
   InputNumber,
@@ -9,6 +10,7 @@ import {
   Radio,
   RadioGroup,
   Select,
+  SideSheet,
   Space,
   Switch,
   Table,
@@ -16,7 +18,7 @@ import {
   TextArea,
   Toast,
 } from '@douyinfe/semi-ui';
-import { apiGet, apiPost } from '../api';
+import { apiDownload, apiGet, apiPost, apiUpload } from '../api';
 import { useI18n } from '../i18n';
 import ImageUploader from '../components/ImageUploader';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -51,6 +53,8 @@ interface GroupRow {
   remark: string;
   giftCardProducts?: Array<{ productId: number; productName?: string; productImg?: string }>;
   canDelete?: boolean;
+  exchangeMode?: number; // P1：1 固定套餐 2 多件任选（仅兑换卡）
+  selectCount?: number;
 }
 
 interface GroupForm {
@@ -65,6 +69,8 @@ interface GroupForm {
   productIds: string[];
   remark: string;
   canDelete?: boolean;
+  exchangeMode: number;
+  selectCount: number | undefined;
 }
 
 const CARD_DEFAULT_BG = 'https://oss.tigshop.com/img/gallery/202511/1763106657gduKxujm9Fx7WZNjJZ.jpeg';
@@ -102,6 +108,8 @@ function GroupEditModal({
     status: 1,
     productIds: [],
     remark: '',
+    exchangeMode: 1,
+    selectCount: undefined,
   });
   const [productOptions, setProductOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [saving, setSaving] = useState(false);
@@ -121,6 +129,8 @@ function GroupEditModal({
         productIds: (row.giftCardProducts || []).map((p) => String(p.productId)),
         remark: row.remark || '',
         canDelete: row.canDelete,
+        exchangeMode: row.exchangeMode || 1,
+        selectCount: row.selectCount || undefined,
       });
     } else {
       setForm({
@@ -134,6 +144,8 @@ function GroupEditModal({
         status: 1,
         productIds: [],
         remark: '',
+        exchangeMode: 1,
+        selectCount: undefined,
       });
     }
     // 商品选项（兑换卡绑定用）
@@ -170,6 +182,16 @@ function GroupEditModal({
       Toast.warning({ content: t('请选择适用商品') });
       return;
     }
+    if (!isTopUp && form.exchangeMode === 2) {
+      if (!form.selectCount || form.selectCount < 1) {
+        Toast.warning({ content: t('任选模式必须填写任选件数') });
+        return;
+      }
+      if (form.selectCount > form.productIds.length) {
+        Toast.warning({ content: t('任选件数不能超过绑定商品数') });
+        return;
+      }
+    }
     setSaving(true);
     try {
       const products: GiftCardProductDTO[] = form.productIds.map((id) => ({ productId: Number(id) }));
@@ -184,6 +206,8 @@ function GroupEditModal({
           faceAmount: isTopUp ? form.faceAmount : undefined,
           remark: form.remark,
           giftCardProducts: isTopUp ? undefined : products,
+          exchangeMode: isTopUp ? undefined : form.exchangeMode,
+          selectCount: isTopUp ? undefined : form.exchangeMode === 2 ? form.selectCount : 0,
         });
       } else {
         await apiPost('/promotion/giftCardGroups/create', {
@@ -198,6 +222,8 @@ function GroupEditModal({
           status: form.status,
           remark: form.remark,
           giftCardProducts: isTopUp ? undefined : products,
+          exchangeMode: isTopUp ? undefined : form.exchangeMode,
+          selectCount: isTopUp ? undefined : form.exchangeMode === 2 ? form.selectCount : 0,
         });
       }
       Toast.success({ content: t('保存成功') });
@@ -293,6 +319,33 @@ function GroupEditModal({
           </div>
         )}
         {!isTopUp && (
+          <div style={{ display: 'grid', gap: 4 }}>
+            <span>{t('兑换模式')}</span>
+            <RadioGroup value={form.exchangeMode} onChange={(e) => setForm({ ...form, exchangeMode: Number(e.target.value) })}>
+              <Space>
+                <Radio value={1}>{t('固定套餐（绑定商品全兑）')}</Radio>
+                <Radio value={2}>{t('多件任选')}</Radio>
+              </Space>
+            </RadioGroup>
+            {form.exchangeMode === 2 && (
+              <Space>
+                <span>{t('任选件数')}</span>
+                <InputNumber
+                  style={{ width: 120 }}
+                  min={1}
+                  max={Math.max(form.productIds.length, 1)}
+                  precision={0}
+                  value={form.selectCount}
+                  onChange={(v) => setForm({ ...form, selectCount: numOrNull(v) })}
+                />
+                <span style={{ fontSize: 12, color: 'var(--semi-color-text-2)' }}>
+                  {t('持卡人可从绑定的 {count} 件商品中任选 {n} 件兑换', { count: form.productIds.length, n: form.selectCount ?? 0 })}
+                </span>
+              </Space>
+            )}
+          </div>
+        )}
+        {!isTopUp && (
           <label style={{ display: 'grid', gap: 4 }}>
             <span>{t('适用商品')}</span>
             <Select
@@ -324,6 +377,7 @@ function CardListModal({ visible, row, onClose }: { visible: boolean; row: Group
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState('');
+  const [importing, setImporting] = useState(false);
 
   const load = (targetPage = 1) => {
     if (!row) return;
@@ -357,11 +411,62 @@ function CardListModal({ visible, row, onClose }: { visible: boolean; row: Group
     return { text: t('未售出'), color: 'blue' };
   };
 
+  const onImportFile = async (file: File | null) => {
+    if (!file || !row) return;
+    setImporting(true);
+    try {
+      const res = await apiUpload<{ successCount: number; failCount: number; failList?: string[] }>(
+        '/promotion/giftCards/importList',
+        file,
+        { cardGroupsId: String(row.cardGroupsId) },
+      );
+      if (res.failCount > 0) {
+        Toast.warning({
+          content: t('导入完成，成功 {success} 张，失败 {fail} 张', { success: res.successCount, fail: res.failCount }),
+        });
+      } else {
+        Toast.success({ content: t('导入成功，共 {count} 张', { count: res.successCount }) });
+      }
+      load(1);
+    } catch (e) {
+      Toast.error({ content: e instanceof Error ? e.message : t('导入失败') });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <Modal title={`${t('查看卡列表')} — ${row?.cardGroupName ?? ''}`} visible={visible} onCancel={onClose} footer={null} width={820}>
-      <Space style={{ marginBottom: 12 }}>
+      <Space style={{ marginBottom: 12 }} wrap>
         <Input style={{ width: 220 }} value={keyword} onChange={setKeyword} placeholder={t('卡号')} />
         <Button type="primary" onClick={() => { setPage(1); load(1); }}>{t('搜索')}</Button>
+        <span style={{ flex: 1 }} />
+        <Button
+          loading={importing}
+          onClick={() => document.getElementById('gift-card-import-file')?.click()}
+        >
+          {t('导入卡密')}
+        </Button>
+        <input
+          id="gift-card-import-file"
+          type="file"
+          accept=".xlsx,.xls"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            void onImportFile(e.target.files?.[0] ?? null);
+            e.target.value = '';
+          }}
+        />
+        <Button onClick={() => void apiDownload('/promotion/giftCards/importTemplate', undefined, 'gift_card_template.xlsx')}>
+          {t('下载导入模板')}
+        </Button>
+        <Button
+          onClick={() => {
+            if (row) void apiDownload('/promotion/giftCards/exportList', { cardGroupsId: row.cardGroupsId }, 'gift_cards.xlsx');
+          }}
+        >
+          {t('导出卡列表')}
+        </Button>
       </Space>
       <Table
         loading={loading}
@@ -387,6 +492,508 @@ function CardListModal({ visible, row, onClose }: { visible: boolean; row: Group
   );
 }
 
+/* ------------------------------ 发放礼品卡弹窗（P1） ------------------------------ */
+
+/** 预检结果（仅定向发放 USER/RANK/TAG 使用；Excel 发卡走 issueByExcel 单次提交，不做预检） */
+interface IssuePreview {
+  validCount: number;
+  failCount: number;
+  needCards?: number;
+  availableCards?: number;
+  canIssue: boolean;
+  shortage: number;
+  failLines: string[];
+}
+
+/** Excel 发卡（issueByExcel）单次提交结果：成功/失败数 + 逐行失败明细 */
+interface ExcelIssueResult {
+  successCount: number;
+  failCount: number;
+  failLines: string[];
+}
+
+type IssueMode = 'USER' | 'RANK' | 'TAG' | 'EXCEL';
+
+function IssueModal({ visible, row, onClose }: { visible: boolean; row: GroupRow | null; onClose: () => void }) {
+  const { t } = useI18n();
+  const [mode, setMode] = useState<IssueMode>('USER');
+  const [remark, setRemark] = useState('');
+  const [userKeyword, setUserKeyword] = useState('');
+  const [users, setUsers] = useState<any[]>([]);
+  const [userIds, setUserIds] = useState<number[]>([]);
+  const [rankOptions, setRankOptions] = useState<Array<{ label: string; value: number }>>([]);
+  const [rankIds, setRankIds] = useState<number[]>([]);
+  const [tagOptions, setTagOptions] = useState<Array<{ label: string; value: number }>>([]);
+  const [tagIds, setTagIds] = useState<number[]>([]);
+  const [tagMatchAll, setTagMatchAll] = useState(false);
+  const [excelFile, setExcelFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<IssuePreview | null>(null);
+  const [excelResult, setExcelResult] = useState<ExcelIssueResult | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    setMode('USER');
+    setRemark('');
+    setUserIds([]);
+    setRankIds([]);
+    setTagIds([]);
+    setTagMatchAll(false);
+    setExcelFile(null);
+    setPreview(null);
+    setExcelResult(null);
+    setUsers([]);
+    setUserKeyword('');
+    apiGet<any>('/promotion/coupon/config')
+      .then((res) => setRankOptions((res?.rankList || []).map((r: any) => ({ label: r.rankName, value: r.rankId }))))
+      .catch(() => setRankOptions([]));
+    apiGet<any>('/user/memberTagGroup/list', { page: 1, size: 100 })
+      .then(async (res) => {
+        const groups = Array.isArray(res) ? res : res?.records || res?.list || [];
+        const nested = await Promise.all(
+          groups.map((g: any) =>
+            apiGet<any[]>('/user/memberTag/listByGroup', { groupId: g.groupId })
+              .then((tags) =>
+                (tags || []).map((tag: any) => ({
+                  label: `${g.groupName || g.groupId} / ${tag.tagName || tag.tagId}`,
+                  value: Number(tag.tagId),
+                })),
+              )
+              .catch(() => []),
+          ),
+        );
+        setTagOptions(nested.flat());
+      })
+      .catch(() => setTagOptions([]));
+  }, [visible, row]);
+
+  const searchUsers = (keyword = '') => {
+    apiGet<{ records?: any[] }>('/user/user/list', { page: 1, size: 20, keyword })
+      .then((res) => setUsers(res.records || []))
+      .catch(() => undefined);
+  };
+
+  const buildPayload = (): Record<string, any> | null => {
+    if (!row) return null;
+    // D3：一人一卡，原版 issue payload 无每人张数字段，不再传 cardsPerUser
+    const payload: Record<string, any> = {
+      cardGroupsId: row.cardGroupsId,
+      issueType: mode,
+      remark: remark || undefined,
+    };
+    if (mode === 'USER') payload.userIds = userIds;
+    if (mode === 'RANK') payload.rankIds = rankIds;
+    if (mode === 'TAG') {
+      payload.tagIds = tagIds;
+      payload.tagMatchAll = tagMatchAll;
+    }
+    return payload;
+  };
+
+  /** 定向发放（USER/RANK/TAG）预检：保留 P1 的 issuePreview/issueSend 两段式（D1 保留·标改口径） */
+  const doPreview = async () => {
+    if (!row || mode === 'EXCEL') return;
+    setBusy(true);
+    try {
+      const payload = buildPayload();
+      if (!payload) return;
+      const res = await apiPost<any>('/promotion/giftCards/issuePreview', payload);
+      setPreview({
+        validCount: res.memberCount ?? 0,
+        failCount: res.failCount ?? 0,
+        needCards: res.needCount,
+        availableCards: res.availableStock,
+        canIssue: Boolean(res.canIssue),
+        shortage: res.shortage ?? 0,
+        failLines: (res.failDetails || []).map(
+          (f: any) => `${f.memberName || f.mobile || `#${f.userId}`}：${f.reason}`,
+        ),
+      });
+    } catch (e) {
+      Toast.error({ content: e instanceof Error ? e.message : t('预检失败') });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** 定向发放确认（一人一卡，无每人张数） */
+  const doSend = async () => {
+    if (!row || !preview || mode === 'EXCEL') return;
+    if (!preview.canIssue) {
+      Toast.warning({ content: t('库存不足或无可发放会员，无法发放') });
+      return;
+    }
+    setBusy(true);
+    try {
+      const payload = buildPayload();
+      if (!payload) return;
+      const res = await apiPost<{ successCount: number; failCount: number }>('/promotion/giftCards/issueSend', payload);
+      if (res.failCount > 0) {
+        Toast.warning({
+          content: t('发放完成，成功 {success} 人，失败 {fail} 人', { success: res.successCount, fail: res.failCount }),
+        });
+      } else {
+        Toast.success({ content: t('发放成功，共 {count} 人', { count: res.successCount }) });
+      }
+      onClose();
+    } catch (e) {
+      Toast.error({ content: e instanceof Error ? e.message : t('发放失败') });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * Excel 发卡（D2 回归原版）：单次 multipart 提交 issueByExcel，
+   * 逐行把模板中指定的已存在未使用卡发给指定会员，失败行跳过、其余继续；
+   * 结果直接展示成功/失败数与逐行失败明细，不再走 excelPreview/excelSend 两段。
+   */
+  const doExcelIssue = async () => {
+    if (!row) return;
+    if (!excelFile) {
+      Toast.warning({ content: t('请先选择 Excel 文件') });
+      return;
+    }
+    setBusy(true);
+    setExcelResult(null);
+    try {
+      const res = await apiUpload<any>('/promotion/giftCards/issueByExcel', excelFile, {
+        cardGroupsId: String(row.cardGroupsId),
+      });
+      const failDetails: any[] = res.failDetails || res.failList || res.failures || [];
+      const result: ExcelIssueResult = {
+        successCount: res.successCount ?? 0,
+        failCount: res.failCount ?? failDetails.length ?? 0,
+        failLines: failDetails.map((f: any) =>
+          typeof f === 'string'
+            ? f
+            : `${t('第 {row} 行', { row: f.row ?? f.line ?? '-' })}${f.rawValue ? `（${f.rawValue}）` : ''}：${f.reason || f.message || ''}`,
+        ),
+      };
+      setExcelResult(result);
+      if (result.failCount > 0) {
+        Toast.warning({
+          content: t('发放完成，成功 {success} 张，失败 {fail} 张', { success: result.successCount, fail: result.failCount }),
+        });
+      } else {
+        Toast.success({ content: t('发放成功，共 {count} 张', { count: result.successCount }) });
+      }
+    } catch (e) {
+      Toast.error({ content: e instanceof Error ? e.message : t('发放失败') });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Excel 发卡模板下载（issueTemplate，与卡密导入模板 importTemplate 是两个不同模板，勿混淆） */
+  const downloadIssueTemplate = () => {
+    void apiDownload('/promotion/giftCards/issueTemplate', undefined, 'gift_card_issue_template.xlsx');
+  };
+
+  return (
+    <Modal
+      title={`${t('发放礼品卡')} — ${row?.cardGroupName ?? ''}`}
+      visible={visible}
+      onCancel={onClose}
+      width={640}
+      footer={
+        mode === 'EXCEL' ? (
+          <Space>
+            <Button onClick={onClose}>{t('取消')}</Button>
+            <Button type="primary" loading={busy} disabled={!excelFile} onClick={() => void doExcelIssue()}>
+              {t('确认发放')}
+            </Button>
+          </Space>
+        ) : (
+          <Space>
+            <Button onClick={onClose}>{t('取消')}</Button>
+            <Button loading={busy} onClick={() => void doPreview()}>{t('预检')}</Button>
+            <Button type="primary" loading={busy} disabled={!preview?.canIssue} onClick={() => void doSend()}>
+              {t('确认发放')}
+            </Button>
+          </Space>
+        )
+      }
+    >
+      <div style={{ display: 'grid', gap: 12 }}>
+        <div style={{ display: 'grid', gap: 4 }}>
+          <span>{t('发放对象')}</span>
+          <RadioGroup value={mode} onChange={(e) => { setMode(e.target.value as IssueMode); setPreview(null); setExcelResult(null); }}>
+            <Space>
+              <Radio value="USER">{t('指定会员')}</Radio>
+              <Radio value="RANK">{t('会员等级')}</Radio>
+              <Radio value="TAG">{t('会员标签')}</Radio>
+              <Radio value="EXCEL">{t('Excel 发卡')}</Radio>
+            </Space>
+          </RadioGroup>
+        </div>
+        {mode === 'USER' && (
+          <>
+            <Space>
+              <Input style={{ width: 240 }} placeholder={t('会员名称/手机号')} value={userKeyword} onChange={setUserKeyword} onEnterPress={() => searchUsers(userKeyword)} />
+              <Button onClick={() => searchUsers(userKeyword)}>{t('搜索')}</Button>
+            </Space>
+            <div style={{ display: 'grid', gap: 6, maxHeight: 200, overflow: 'auto' }}>
+              {users.map((u) => (
+                <label key={u.userId} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <Checkbox
+                    checked={userIds.includes(u.userId)}
+                    onChange={(e) =>
+                      setUserIds((cur) => (e.target.checked ? [...cur, u.userId] : cur.filter((id) => id !== u.userId)))
+                    }
+                  />
+                  <span>{u.nickname || u.username || '-'}</span>
+                  <span style={{ color: 'var(--semi-color-text-2)', fontSize: 12 }}>{u.mobile || ''}</span>
+                </label>
+              ))}
+              {!users.length && <span style={{ color: 'var(--semi-color-text-2)', fontSize: 12 }}>{t('输入关键词搜索会员')}</span>}
+            </div>
+            <span style={{ fontSize: 12, color: 'var(--semi-color-text-2)' }}>{t('已选 {count} 位会员', { count: userIds.length })}</span>
+          </>
+        )}
+        {mode === 'RANK' && (
+          <Select
+            placeholder={t('请选择会员等级')}
+            multiple
+            filter
+            style={{ width: '100%' }}
+            optionList={rankOptions}
+            value={rankIds}
+            onChange={(v) => setRankIds((v as number[]) || [])}
+          />
+        )}
+        {mode === 'TAG' && (
+          <>
+            <Select
+              placeholder={t('请选择会员标签')}
+              multiple
+              filter
+              style={{ width: '100%' }}
+              optionList={tagOptions}
+              value={tagIds}
+              onChange={(v) => setTagIds((v as number[]) || [])}
+            />
+            <Space>
+              <span>{t('标签匹配')}</span>
+              <RadioGroup value={tagMatchAll ? 'all' : 'any'} onChange={(e) => setTagMatchAll(e.target.value === 'all')}>
+                <Radio value="any">{t('任一标签')}</Radio>
+                <Radio value="all">{t('全部标签')}</Radio>
+              </RadioGroup>
+            </Space>
+          </>
+        )}
+        {mode === 'EXCEL' && (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {/* 说明文案逐字对齐原版 IssueExcel 弹窗（giftmall 源码审计 REPORT 2.3） */}
+            <div style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
+              <span>{t('请先下载模板，按会员名、手机号、卡号、卡密、备注填写。卡号卡密必须已存在且未使用。')}</span>
+              <span>{t('找不到会员或卡已使用的行会失败，其余行继续发卡。')}</span>
+              <span>{t('文件大小不超过10MB。')}</span>
+              <span>{t('导入未完成之前，请勿关闭页面，否则可能数据错误。')}</span>
+            </div>
+            <Space>
+              <Button onClick={() => document.getElementById('gift-card-issue-file')?.click()}>
+                {excelFile ? excelFile.name : t('选择 Excel 文件')}
+              </Button>
+              <Button theme="borderless" type="primary" onClick={downloadIssueTemplate}>{t('下载 Excel 发卡模板')}</Button>
+            </Space>
+            <input
+              id="gift-card-issue-file"
+              type="file"
+              accept=".xlsx,.xls"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                setExcelFile(e.target.files?.[0] ?? null);
+                setExcelResult(null);
+                e.target.value = '';
+              }}
+            />
+            {excelResult && (
+              <div style={{ background: 'var(--semi-color-fill-0)', borderRadius: 6, padding: 12, display: 'grid', gap: 6 }}>
+                <div>
+                  {t('发放完成，成功 {success} 张，失败 {fail} 张', { success: excelResult.successCount, fail: excelResult.failCount })}
+                </div>
+                {excelResult.failLines.length > 0 && (
+                  <div style={{ maxHeight: 140, overflow: 'auto', fontSize: 12 }}>
+                    {excelResult.failLines.map((line, i) => (
+                      <div key={i}>{line}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        {mode !== 'EXCEL' && (
+          <label style={{ display: 'grid', gap: 4 }}>
+            <span>{t('备注')}</span>
+            <Input value={remark} onChange={setRemark} placeholder={t('选填，记录在发放批次中')} />
+          </label>
+        )}
+        {preview && mode !== 'EXCEL' && (
+          <div style={{ background: 'var(--semi-color-fill-0)', borderRadius: 6, padding: 12, display: 'grid', gap: 6 }}>
+            <div>
+              {preview.needCards !== undefined
+                ? t('有效会员 {valid} 人，需发 {need} 张，可用库存 {available} 张，失败 {fail} 人', {
+                    valid: preview.validCount,
+                    need: preview.needCards,
+                    available: preview.availableCards ?? 0,
+                    fail: preview.failCount,
+                  })
+                : t('名单解析成功 {valid} 人，失败 {fail} 人（库存将在发放时校验）', {
+                    valid: preview.validCount,
+                    fail: preview.failCount,
+                  })}
+            </div>
+            {!preview.canIssue && (
+              <div style={{ color: 'var(--semi-color-danger)' }}>
+                {preview.shortage > 0
+                  ? t('库存不足，还差 {n} 张，请先在卡列表中补充制卡/导入后再发放', { n: preview.shortage })
+                  : t('没有可发放的会员')}
+              </div>
+            )}
+            {preview.failLines.length > 0 && (
+              <div style={{ maxHeight: 140, overflow: 'auto', fontSize: 12 }}>
+                {preview.failLines.map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+/* ------------------------------ 发放记录抽屉（P1） ------------------------------ */
+
+function IssueRecordsDrawer({ visible, row, onClose }: { visible: boolean; row: GroupRow | null; onClose: () => void }) {
+  const { t } = useI18n();
+  const [batches, setBatches] = useState<any[]>([]);
+  const [batchTotal, setBatchTotal] = useState(0);
+  const [batchPage, setBatchPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [activeBatch, setActiveBatch] = useState<any | null>(null);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [logTotal, setLogTotal] = useState(0);
+  const [logPage, setLogPage] = useState(1);
+
+  const loadBatches = (targetPage = 1) => {
+    if (!row) return;
+    setLoading(true);
+    apiGet<{ records: any[]; total: number }>('/promotion/giftCards/issueBatch', {
+      cardGroupsId: row.cardGroupsId,
+      page: targetPage,
+      size: 10,
+    })
+      .then((res) => {
+        setBatches(res.records || []);
+        setBatchTotal(res.total || 0);
+      })
+      .catch((e) => Toast.error({ content: e.message }))
+      .finally(() => setLoading(false));
+  };
+
+  const loadLogs = (batch: any, targetPage = 1) => {
+    setLoading(true);
+    apiGet<{ records: any[]; total: number }>('/promotion/giftCards/issueLog', {
+      batchId: batch.id,
+      page: targetPage,
+      size: 10,
+    })
+      .then((res) => {
+        setLogs(res.records || []);
+        setLogTotal(res.total || 0);
+      })
+      .catch((e) => Toast.error({ content: e.message }))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (visible && row) {
+      setActiveBatch(null);
+      setBatchPage(1);
+      loadBatches(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, row]);
+
+  const fmtTime = (ts: number) => (ts ? new Date(ts * 1000).toLocaleString() : '-');
+
+  return (
+    <SideSheet
+      title={activeBatch ? `${t('发放明细')} — ${t('批次')} #${activeBatch.id}` : `${t('发放记录')} — ${row?.cardGroupName ?? ''}`}
+      visible={visible}
+      onCancel={onClose}
+      width={720}
+    >
+      {activeBatch ? (
+        <>
+          <Button theme="borderless" type="primary" style={{ marginBottom: 12 }} onClick={() => setActiveBatch(null)}>
+            {t('← 返回批次列表')}
+          </Button>
+          <Table
+            loading={loading}
+            dataSource={logs}
+            rowKey="id"
+            pagination={{
+              currentPage: logPage,
+              pageSize: 10,
+              total: logTotal,
+              onPageChange: (p) => { setLogPage(p); loadLogs(activeBatch, p); },
+            }}
+            empty={<Empty description={t('暂无数据')} />}
+            columns={[
+              { title: t('会员'), width: 160, render: (_: any, r: any) => r.nickname || r.username || `#${r.userId}` },
+              { title: t('手机号'), dataIndex: 'mobile', width: 130 },
+              { title: t('卡号（脱敏）'), dataIndex: 'cardNumber', width: 180 },
+              { title: t('发放时间'), width: 170, render: (_: any, r: any) => fmtTime(r.issueTime) },
+            ] as ColumnProps<any>[]}
+          />
+        </>
+      ) : (
+        <Table
+          loading={loading}
+          dataSource={batches}
+          rowKey="id"
+          pagination={{
+            currentPage: batchPage,
+            pageSize: 10,
+            total: batchTotal,
+            onPageChange: (p) => { setBatchPage(p); loadBatches(p); },
+          }}
+          empty={<Empty description={t('暂无数据')} />}
+          columns={[
+            { title: t('批次'), dataIndex: 'id', width: 70 },
+            { title: t('发放方式'), dataIndex: 'issueTypeName', width: 110 },
+            {
+              title: t('成功/失败'),
+              width: 110,
+              render: (_: any, r: any) => `${r.successCount} / ${r.failCount}`,
+            },
+            { title: t('备注'), dataIndex: 'remark', render: (v: string) => v || '-' },
+            { title: t('发放时间'), width: 170, render: (_: any, r: any) => fmtTime(r.addTime) },
+            {
+              title: t('操作'),
+              width: 90,
+              render: (_: any, r: any) => (
+                <Button
+                  theme="borderless"
+                  type="primary"
+                  onClick={() => { setActiveBatch(r); setLogPage(1); loadLogs(r, 1); }}
+                >
+                  {t('明细')}
+                </Button>
+              ),
+            },
+          ] as ColumnProps<any>[]}
+        />
+      )}
+    </SideSheet>
+  );
+}
+
 /* ---------------------------------- 列表页 ---------------------------------- */
 
 export default function GiftCards() {
@@ -398,6 +1005,8 @@ export default function GiftCards() {
   const [keyword, setKeyword] = useState('');
   const [edit, setEdit] = useState<{ open: boolean; groupType: number; row: GroupRow | null }>({ open: false, groupType: 2, row: null });
   const [cardListTarget, setCardListTarget] = useState<GroupRow | null>(null);
+  const [issueTarget, setIssueTarget] = useState<GroupRow | null>(null);
+  const [recordsTarget, setRecordsTarget] = useState<GroupRow | null>(null);
   const isAdmin = localStorage.getItem('adminType') === 'admin';
 
   const load = (targetPage = page) => {
@@ -455,10 +1064,12 @@ export default function GiftCards() {
     { title: t('创建时间'), dataIndex: 'addTime', width: 170 },
     {
       title: t('操作'),
-      width: 260,
+      width: 420,
       render: (_: any, row: GroupRow) => (
         <Space>
           <Button theme="borderless" type="primary" onClick={() => setCardListTarget(row)}>{t('查看卡列表')}</Button>
+          <Button theme="borderless" type="primary" onClick={() => setIssueTarget(row)}>{t('发放礼品卡')}</Button>
+          <Button theme="borderless" type="primary" onClick={() => setRecordsTarget(row)}>{t('发放记录')}</Button>
           <Button theme="borderless" type="primary" onClick={() => setEdit({ open: true, groupType: row.groupType, row })}>{t('编辑')}</Button>
           {(row.canDelete !== false || row.groupType === 2) && (
             <Popconfirm title={t('确认删除该{name}？', { name: groupLabel(t, row.groupType) })} onConfirm={() => deleteGroup(row)}>
@@ -507,6 +1118,8 @@ export default function GiftCards() {
         onSaved={() => load()}
       />
       <CardListModal visible={!!cardListTarget} row={cardListTarget} onClose={() => setCardListTarget(null)} />
+      <IssueModal visible={!!issueTarget} row={issueTarget} onClose={() => setIssueTarget(null)} />
+      <IssueRecordsDrawer visible={!!recordsTarget} row={recordsTarget} onClose={() => setRecordsTarget(null)} />
     </div>
   );
 }

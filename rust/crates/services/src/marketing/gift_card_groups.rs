@@ -81,7 +81,8 @@ impl GiftCardGroupsService {
                 .repo()
                 .bound_product_count(row.card_groups_id, shop_id)
                 .await?;
-            list.push(group_to_vo(row, products, bound == 0)?);
+            let exchange = self.repo().find_exchange_fields(row.card_groups_id).await?;
+            list.push(group_to_vo(row, products, bound == 0, exchange)?);
         }
         Ok(PageResult::new(
             u64::try_from(total).unwrap_or(0),
@@ -106,7 +107,8 @@ impl GiftCardGroupsService {
         };
         let shop_id = group.shop_id.unwrap_or(0);
         let bound = self.repo().bound_product_count(card_groups_id, shop_id).await?;
-        group_to_vo(&group, products, bound == 0)
+        let exchange = self.repo().find_exchange_fields(card_groups_id).await?;
+        group_to_vo(&group, products, bound == 0, exchange)
     }
 
     /// 按卡类型取卡组（Java `getGiftCardGroupsByCardType`）。
@@ -126,7 +128,7 @@ impl GiftCardGroupsService {
             .await?;
         groups
             .iter()
-            .map(|g| group_to_vo(g, Vec::new(), true))
+            .map(|g| group_to_vo(g, Vec::new(), true, None))
             .collect()
     }
 
@@ -192,6 +194,14 @@ impl GiftCardGroupsService {
         if entity.group_type == GROUP_TYPE_EXCHANGE {
             let items = product_tuples(group_id, param.gift_card_products.as_deref())?;
             self.repo().insert_products(&items).await?;
+            // P1：兑换模式/任选件数落库（校验已在 param.validate 完成）
+            self.repo()
+                .update_exchange_fields(
+                    group_id,
+                    param.exchange_mode.unwrap_or(1),
+                    param.select_count.unwrap_or(0),
+                )
+                .await?;
         }
         tracing::info!("创建礼品卡组: id={group_id}");
         Ok(())
@@ -249,6 +259,21 @@ impl GiftCardGroupsService {
             let items = product_tuples(card_groups_id, param.gift_card_products.as_deref())?;
             self.repo().delete_products(card_groups_id).await?;
             self.repo().insert_products(&items).await?;
+            // P1：兑换字段透传（入参未带的字段沿用库中现值）
+            if param.exchange_mode.is_some() || param.select_count.is_some() {
+                let (cur_mode, cur_count) = self
+                    .repo()
+                    .find_exchange_fields(card_groups_id)
+                    .await?
+                    .unwrap_or((1, 0));
+                self.repo()
+                    .update_exchange_fields(
+                        card_groups_id,
+                        param.exchange_mode.unwrap_or(cur_mode),
+                        param.select_count.unwrap_or(cur_count),
+                    )
+                    .await?;
+            }
         }
         tracing::info!("更新礼品卡组: id={card_groups_id}");
         Ok(())
@@ -336,6 +361,7 @@ fn group_to_vo(
     group: &GiftCardGroups,
     products: Vec<nextrade_core::models::marketing::gift_card::GiftCardProductVO>,
     can_delete: bool,
+    exchange: Option<(i32, i32)>,
 ) -> Result<GiftCardGroupsVO> {
     // Java `getExpireTime`：未知有效期类型 ⇒「未知的卡有效期类型」
     validate_validity_type(group.validity_type).map_err(Error::biz_msg)?;
@@ -358,6 +384,8 @@ fn group_to_vo(
         remark: group.remark.clone(),
         gift_card_products: products,
         can_delete: Some(can_delete),
+        exchange_mode: exchange.map(|(mode, _)| mode),
+        select_count: exchange.map(|(_, count)| count),
     })
 }
 
@@ -423,7 +451,7 @@ mod tests {
             sku_value: Some("红色".into()),
             sku_price: None,
         }];
-        let vo = group_to_vo(&group(), products, true).unwrap();
+        let vo = group_to_vo(&group(), products, true, Some((2, 3))).unwrap();
         assert_eq!(vo.group_type_name.as_deref(), Some("兑换卡"));
         assert_eq!(vo.card_type_name.as_deref(), Some("电子卡"));
         assert_eq!(vo.validity_type_name.as_deref(), Some("固定时间"));
@@ -433,6 +461,8 @@ mod tests {
         assert_eq!(vo.update_time.as_deref(), Some(""));
         assert_eq!(vo.gift_card_products.len(), 1);
         assert_eq!(vo.can_delete, Some(true));
+        assert_eq!(vo.exchange_mode, Some(2));
+        assert_eq!(vo.select_count, Some(3));
     }
 
     #[test]
@@ -441,7 +471,7 @@ mod tests {
         g.group_type = 1;
         g.validity_type = 1;
         g.expire_time = Some(123);
-        let vo = group_to_vo(&g, Vec::new(), false).unwrap();
+        let vo = group_to_vo(&g, Vec::new(), false, None).unwrap();
         assert_eq!(vo.expire_time, None);
         assert_eq!(vo.can_delete, Some(false));
     }
@@ -451,7 +481,7 @@ mod tests {
         let mut g = group();
         g.validity_type = 9;
         assert_eq!(
-            group_to_vo(&g, Vec::new(), true).unwrap_err().to_string(),
+            group_to_vo(&g, Vec::new(), true, None).unwrap_err().to_string(),
             "业务错误 [500]: 未知的卡有效期类型"
         );
     }

@@ -35,6 +35,8 @@ export interface PcHeaderBootstrap {
   buyStyle: Record<string, any> | null;
   /** 后台「网站字体设置」原始 JSON（结构由 @/lib/font-settings 的 FontSettingsConfig 定义） */
   fontSettings: Record<string, any> | null;
+  /** 后台「系统模式」原始 JSON（我方新增；结构由 @/lib/system-mode 的 SystemModeConfig 定义） */
+  systemMode: Record<string, any> | null;
 }
 
 let cached: PcHeaderBootstrap | null = null;
@@ -66,6 +68,10 @@ export function readHeaderBootstrap(): PcHeaderBootstrap | null {
       fontSettings:
         parsed.fontSettings && typeof parsed.fontSettings === 'object'
           ? (parsed.fontSettings as Record<string, any>)
+          : null,
+      systemMode:
+        parsed.systemMode && typeof parsed.systemMode === 'object'
+          ? (parsed.systemMode as Record<string, any>)
           : null,
     };
     return cached;

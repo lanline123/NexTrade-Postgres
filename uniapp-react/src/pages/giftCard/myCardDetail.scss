@@ -1,0 +1,164 @@
+.my-gift-card-detail {
+    padding: 20rpx;
+    .empty {
+        text-align: center;
+        color: #98a2b3;
+        font-size: 28rpx;
+        padding: 120rpx 0;
+    }
+    .card-head {
+        display: flex;
+        gap: 20rpx;
+        background: #fff;
+        border-radius: 16rpx;
+        padding: 24rpx;
+        .card-img {
+            width: 220rpx;
+            height: 132rpx;
+            border-radius: 10rpx;
+        }
+        .card-info {
+            flex: 1;
+            .card-name {
+                font-size: 32rpx;
+                font-weight: 600;
+                margin-bottom: 10rpx;
+                .card-state {
+                    font-size: 24rpx;
+                    color: #12b76a;
+                    margin-left: 12rpx;
+                    &.off {
+                        color: #98a2b3;
+                    }
+                }
+            }
+            .card-sub {
+                font-size: 26rpx;
+                color: #667085;
+                line-height: 1.7;
+            }
+        }
+    }
+    .actions {
+        display: flex;
+        gap: 20rpx;
+        align-items: center;
+        margin: 24rpx 0;
+        .transfer-btn {
+            padding: 16rpx 32rpx;
+            border: 1rpx solid #d0d5dd;
+            border-radius: 999rpx;
+            font-size: 28rpx;
+            color: #344054;
+            background: #fff;
+        }
+    }
+    .section {
+        background: #fff;
+        border-radius: 16rpx;
+        padding: 24rpx;
+        margin-bottom: 20rpx;
+        .section-title {
+            font-size: 30rpx;
+            font-weight: 600;
+            margin-bottom: 12rpx;
+        }
+        .section-body {
+            font-size: 26rpx;
+            color: #667085;
+        }
+        .usage-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 26rpx;
+            color: #344054;
+            padding: 10rpx 0;
+            border-bottom: 1rpx solid #f2f4f7;
+        }
+    }
+}
+
+/* 任选选品弹窗 */
+.gift-select-pop {
+    padding: 28rpx;
+    .gift-select-head {
+        font-size: 30rpx;
+        font-weight: 600;
+        margin-bottom: 16rpx;
+    }
+    .gift-select-list {
+        max-height: 60vh;
+    }
+    .gift-select-row {
+        display: flex;
+        align-items: center;
+        gap: 16rpx;
+        padding: 14rpx 0;
+        border-bottom: 1rpx solid #f2f4f7;
+        .gift-select-img {
+            width: 96rpx;
+            height: 96rpx;
+            border-radius: 8rpx;
+        }
+        .gift-select-info {
+            flex: 1;
+            .gift-select-name {
+                font-size: 28rpx;
+                color: #1a1a1a;
+            }
+            .gift-select-sub {
+                font-size: 24rpx;
+                color: #98a2b3;
+                margin-top: 4rpx;
+            }
+        }
+        .gift-select-stepper {
+            display: flex;
+            align-items: center;
+            gap: 12rpx;
+            .step-btn {
+                width: 52rpx;
+                height: 52rpx;
+                line-height: 52rpx;
+                text-align: center;
+                border: 1rpx solid #d0d5dd;
+                border-radius: 50%;
+                font-size: 30rpx;
+                &.off {
+                    color: #c8cdd4;
+                    border-color: #eaecf0;
+                }
+            }
+            .step-num {
+                min-width: 36rpx;
+                text-align: center;
+                font-size: 28rpx;
+            }
+        }
+    }
+    .gift-select-actions {
+        display: flex;
+        gap: 20rpx;
+        margin-top: 24rpx;
+        .gift-select-cancel {
+            flex: 1;
+            text-align: center;
+            padding: 20rpx 0;
+            border: 1rpx solid #d0d5dd;
+            border-radius: 999rpx;
+            font-size: 28rpx;
+        }
+        .gift-select-confirm {
+            flex: 1;
+            text-align: center;
+            padding: 20rpx 0;
+            border-radius: 999rpx;
+            font-size: 28rpx;
+            color: #fff;
+            background: var(--general);
+            &.off {
+                opacity: 0.45;
+            }
+        }
+    }
+}
