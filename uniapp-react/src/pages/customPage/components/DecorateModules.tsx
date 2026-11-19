@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import { View, Image, Swiper, SwiperItem } from "@tarojs/components";
 
 import { MODULE_REGISTRY, STICKY_REGISTRY, type DecorateModuleProps } from "@/pages/customPage/modules/registry";
@@ -148,7 +148,9 @@ export default function DecorateModules({ modules, pageModles, scrollTop, onLoad
                     return (
                         <View key={mod.moduleIndex} className={show ? "show" : ""}>
                             <ModuleErrorBoundary moduleType={mod.type} moduleIndex={index} resetKey={mod} placeholder={moduleErrorPlaceholder}>
-                                <Registered {...props} />
+                                <Suspense fallback={null}>
+                                    <Registered {...props} />
+                                </Suspense>
                             </ModuleErrorBoundary>
                         </View>
                     );
@@ -245,5 +247,9 @@ function ModuleById({ type, ...props }: { type: string } & DecorateModuleProps) 
         console.warn(`[DecorateModules] 模块类型 ${type} 尚未迁移（TODO B1-B6）`);
         return null;
     }
-    return <Cmp {...props} />;
+    return (
+        <Suspense fallback={null}>
+            <Cmp {...props} />
+        </Suspense>
+    );
 }

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { ComponentType } from "react";
 import { View } from "@tarojs/components";
 
@@ -101,7 +102,9 @@ export default function ShopModules({ modules, shopInfo, onRefreshShopDetail, mo
                 }
                 return (
                     <ModuleErrorBoundary key={mod.moduleIndex ?? index} moduleType={mod.type} moduleIndex={index} resetKey={mod} placeholder={moduleErrorPlaceholder}>
-                        <Registered {...props} />
+                        <Suspense fallback={null}>
+                            <Registered {...props} />
+                        </Suspense>
                     </ModuleErrorBoundary>
                 );
             })}

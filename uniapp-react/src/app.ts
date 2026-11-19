@@ -34,7 +34,24 @@ function App({ children }: PropsWithChildren<any>) {
         configStore.getMenuButtonInfo();
 
         // 启动初始化：i18n / 基础配置 / tabbar / 主题 / 用户 / 货币
-        void init();
+        void init().then(() => {
+            // App 级预取首页装修数据（原版 App.vue onLaunch 口径：init 完成后取数，
+            // 与首页挂载后的请求经 store 在途去重——fetchHomeDecorateData 的
+            // pendingHomeDecorateRequests——复用同一个请求，首页不再等页面挂载才发出）
+            if (process.env.TARO_ENV === "h5") {
+                // 先从 URL 解析 previewId 写入 store，确保预取能携带预览参数（原版同款处理）
+                try {
+                    const previewId = Number(new URLSearchParams(window.location.search).get("previewId")) || 0;
+                    if (previewId > 0) {
+                        useConfigStore.setState({ previewId });
+                    }
+                } catch {
+                    // URL 解析失败不阻塞预取，按无预览口径继续
+                }
+            }
+            const { fetchHomeDecorateData, previewId } = useConfigStore.getState();
+            fetchHomeDecorateData(previewId).catch(() => undefined);
+        });
 
         // 系统模式（我方新增）：启动拉取一次存全局缓存，供各页入口级门控同步读取
         void fetchSystemMode();
