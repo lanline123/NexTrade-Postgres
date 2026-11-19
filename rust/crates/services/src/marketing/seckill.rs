@@ -7,21 +7,26 @@
 //! - `parsePrice`：按 `skuId` 批量预取明细，避免逐项查询（N+1）
 //! - `canUserJoinSeckill`：未登录不拦截；无进行中活动不拦截；
 //!   活动配置了人群（`member_scope`）时按人群匹配
+//! - `savePromotion`：创建/更新同步 `promotion` 镜像行（type=1、
+//!   relation_id=活动 id；窗口/名称/会员字段跟随，删除级联删镜像），
+//!   详情促销聚合（`find_available` 活动池）据此组装秒杀条目并回填价/库存
 //!
-//! 未迁移（需 `promotion` 表与人群服务就绪后补）：
+//! 未迁移（需人群服务就绪后补）：
 //! - `collectSeckillRestrictions`（存量 `memberRange` / 新建 `member_scope` 的置灰逻辑）
 //! - 批发商排除逻辑（依赖 `wholesale` 域）
-//! - `savePromotion`（写 `promotion` 表关联记录）
+//! - 人群匹配本身（镜像行 `member_scope` 已按 Java 写侧口径落库，读侧判定未迁移）
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use rust_decimal::Decimal;
 use nextrade_common::utils;
-use nextrade_core::entities::{Product, Seckill, SeckillItem};
+use nextrade_core::entities::{Product, Promotion, Seckill, SeckillItem};
+use nextrade_core::models::marketing::coupon_manage::java_list_string;
+use nextrade_core::models::marketing::promotion::TYPE_SECKILL;
 use nextrade_core::models::marketing::seckill::{
-    SeckillCreateDTO, SeckillItemDTO, SeckillItemVO, SeckillListQuery, SeckillPromotionVO,
-    SeckillStatus, SeckillUpdateDTO, SeckillVO,
+    resolve_member_scope, SeckillCreateDTO, SeckillItemDTO, SeckillItemVO, SeckillListQuery,
+    SeckillPromotionVO, SeckillStatus, SeckillUpdateDTO, SeckillVO,
 };
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
@@ -30,6 +35,13 @@ use nextrade_infrastructure::db::Repositories;
 
 /// 秒杀库存不足时的业务提示（与原 Java 文案一致）。
 const ERR_STOCK: &str = "秒杀商品库存不足";
+
+/// 活动范围：指定商品（Java `PromotionRangeEnum.PROMOTION_RANGE_PRODUCT`）。
+const PROMOTION_RANGE_PRODUCT: i32 = 3;
+
+/// 镜像行启用标记（活动池 `find_available` 以 `is_available = 1` 过滤；
+/// 与优惠券 `savePromotion` 的落值口径一致）。
+const PROMOTION_AVAILABLE_YES: i32 = 1;
 
 pub struct SeckillService {
     repos: Arc<Repositories>,
@@ -104,6 +116,9 @@ impl SeckillService {
             self.repos.marketing.seckill.insert_item(&row).await?;
         }
 
+        // Java `savePromotion`：同步 promotion 镜像行（详情促销聚合的活动池来源）
+        self.save_promotion(seckill_id, &seckill, dto).await?;
+
         let log_info = format!(
             "新增秒杀活动:{}",
             seckill.seckill_name.as_deref().unwrap_or("")
@@ -162,6 +177,9 @@ impl SeckillService {
             self.repos.marketing.seckill.insert_item(&row).await?;
         }
 
+        // Java `savePromotion`：镜像行跟随窗口/名称/会员字段（改价经明细回填，不入镜像）
+        self.save_promotion(dto.seckill_id, &seckill, base).await?;
+
         let log_info = format!(
             "更新秒杀活动:{}",
             seckill.seckill_name.as_deref().unwrap_or("")
@@ -191,7 +209,35 @@ impl SeckillService {
         // 多租户：删除前校验归属
         TenantScope::current_ensure_access(existing.shop_id)?;
         self.repos.marketing.seckill.delete(seckill_id).await?;
+        // Java `del`：级联删除 promotion 镜像行（批量删除路径已在 seckill_batch 处理）
+        self.repos
+            .marketing
+            .promotion
+            .delete_by_relation(seckill_id, TYPE_SECKILL)
+            .await?;
         tracing::info!("删除秒杀活动: id={seckill_id}");
+        Ok(())
+    }
+
+    /// 同步 `promotion` 镜像行（Java `SeckillServiceImpl#savePromotion`）。
+    ///
+    /// 镜像已存在（relation_id + type=1）→ 仅更新窗口/名称/会员字段
+    /// （`range`/`range_data` 在活动带商品时一并更新）；不存在 → 新建整行。
+    /// 镜像是详情促销聚合的活动池来源：缺行则详情页组装不出秒杀条目、
+    /// 秒杀价不回填（批次十五 10 个长期秒杀即因此缺行，本方法为其写侧修复）。
+    async fn save_promotion(
+        &self,
+        seckill_id: i32,
+        seckill: &Seckill,
+        dto: &SeckillCreateDTO,
+    ) -> Result<()> {
+        let repo = &self.repos.marketing.promotion;
+        let row = build_seckill_promotion(seckill, dto, seckill_id);
+        if repo.find_by_relation(seckill_id, TYPE_SECKILL).await?.is_some() {
+            repo.update_mirror_fields(&row).await?;
+        } else {
+            repo.insert(&row).await?;
+        }
         Ok(())
     }
 
@@ -598,6 +644,55 @@ fn to_promotion_vo(
     }
 }
 
+/// 构造 `promotion` 镜像行（Java `SeckillServiceImpl#savePromotion` 新建分支）。
+///
+/// 字段口径逐条对照 Java：type=1、relation_id=活动 id、名称/窗口取活动本体、
+/// shop_id 取活动落库店铺、range=指定商品（3）、range_data = 活动商品
+/// `[productId]`（Java `List.toString()`）、sku_ids 见 [`mirror_sku_ids`]、
+/// member_range/member_marks/member_scope 取 DTO（scope 经
+/// [`resolve_member_scope`] 归一）；is_available=1 / is_delete=0
+/// （Java 依赖表默认，PG 默认同为 1/0，此处显式落值与优惠券口径一致）。
+fn build_seckill_promotion(
+    seckill: &Seckill,
+    dto: &SeckillCreateDTO,
+    seckill_id: i32,
+) -> Promotion {
+    Promotion {
+        promotion_id: 0,
+        promotion_name: seckill.seckill_name.clone().unwrap_or_default(),
+        start_time: seckill.seckill_start_time.unwrap_or(0),
+        end_time: seckill.seckill_end_time.unwrap_or(0),
+        r#type: TYPE_SECKILL,
+        shop_id: seckill.shop_id,
+        relation_id: Some(seckill_id),
+        range: Some(PROMOTION_RANGE_PRODUCT),
+        range_data: seckill.product_id.map(|pid| java_list_string(&[pid])),
+        sku_ids: mirror_sku_ids(&dto.seckill_item),
+        is_available: Some(PROMOTION_AVAILABLE_YES),
+        is_delete: Some(0),
+        member_range: dto.member_range.unwrap_or(0),
+        member_marks: dto.member_marks.as_deref().map(java_list_string),
+        member_scope: resolve_member_scope(
+            dto.send_user_target.as_ref(),
+            dto.member_audience.as_ref(),
+        ),
+    }
+}
+
+/// 镜像行 `sku_ids`（Java 新建分支：明细中 `skuId != null` 者收集为
+/// `List.toString()`；为空则不写、落 NULL）。
+///
+/// Java 另有 `secondsSeckill == 1` 过滤：我方 DTO 与 admin 提交均无此字段
+/// （全部明细皆为参与项），故仅按 skuId 是否存在判定。
+fn mirror_sku_ids(items: &[SeckillItemDTO]) -> Option<String> {
+    let sku_ids: Vec<i32> = items.iter().filter_map(|it| it.sku_id).collect();
+    if sku_ids.is_empty() {
+        None
+    } else {
+        Some(java_list_string(&sku_ids))
+    }
+}
+
 /// 列表店铺过滤：店铺账号强制本店；平台账号可用请求值精确过滤（None = 全部）。
 fn scoped_list_shop_id(requested: Option<i32>) -> Option<i32> {
     TenantScope::current_list_filter().or(requested.filter(|id| *id > 0))
@@ -724,5 +819,91 @@ mod tests {
         };
 
         assert!(svc.validate_create(&dto).is_ok());
+    }
+
+    fn mirror_dto(items: Vec<SeckillItemDTO>) -> SeckillCreateDTO {
+        SeckillCreateDTO {
+            seckill_name: Some("长期秒杀".into()),
+            seckill_start_time: Some(100),
+            seckill_end_time: Some(200),
+            product_id: Some(1581),
+            shop_id: Some(0),
+            seckill_item: items,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn seckill_promotion_mirror_matches_java_save_promotion() {
+        // 无 SKU 明细（批次十五 10 个长期秒杀的形态）：sku_ids 落 NULL
+        let dto = mirror_dto(vec![SeckillItemDTO {
+            product_id: Some(1581),
+            seckill_price: Some(Decimal::from_str("8.91").unwrap()),
+            seckill_stock: Some(100),
+            ..Default::default()
+        }]);
+        let seckill = Seckill {
+            seckill_name: dto.seckill_name.clone(),
+            seckill_start_time: dto.seckill_start_time,
+            seckill_end_time: dto.seckill_end_time,
+            product_id: dto.product_id,
+            shop_id: 0,
+            ..Default::default()
+        };
+        let row = build_seckill_promotion(&seckill, &dto, 3);
+        assert_eq!(row.r#type, TYPE_SECKILL);
+        assert_eq!(row.relation_id, Some(3));
+        assert_eq!(row.promotion_name, "长期秒杀");
+        assert_eq!(row.start_time, 100);
+        assert_eq!(row.end_time, 200);
+        assert_eq!(row.shop_id, 0);
+        assert_eq!(row.range, Some(3));
+        assert_eq!(row.range_data.as_deref(), Some("[1581]"));
+        assert_eq!(row.sku_ids, None);
+        assert_eq!(row.is_available, Some(1));
+        assert_eq!(row.is_delete, Some(0));
+        assert_eq!(row.member_range, 0);
+        assert_eq!(row.member_marks, None);
+        assert_eq!(row.member_scope, None);
+    }
+
+    #[test]
+    fn seckill_promotion_mirror_collects_sku_ids_and_member_fields() {
+        let mut dto = mirror_dto(vec![
+            SeckillItemDTO {
+                product_id: Some(1581),
+                sku_id: Some(101),
+                ..Default::default()
+            },
+            SeckillItemDTO {
+                product_id: Some(1581),
+                sku_id: Some(102),
+                ..Default::default()
+            },
+            // 无 skuId 的明细不进 sku_ids
+            SeckillItemDTO {
+                product_id: Some(1581),
+                ..Default::default()
+            },
+        ]);
+        dto.member_range = Some(1);
+        dto.member_marks = Some(vec![1, 2]);
+        dto.send_user_target = Some(serde_json::json!({"scope": 1, "tagIds": [1, 2]}));
+        let seckill = Seckill {
+            seckill_name: dto.seckill_name.clone(),
+            seckill_start_time: dto.seckill_start_time,
+            seckill_end_time: dto.seckill_end_time,
+            product_id: dto.product_id,
+            shop_id: 0,
+            ..Default::default()
+        };
+        let row = build_seckill_promotion(&seckill, &dto, 9);
+        assert_eq!(row.sku_ids.as_deref(), Some("[101, 102]"));
+        assert_eq!(row.member_range, 1);
+        assert_eq!(row.member_marks.as_deref(), Some("[1, 2]"));
+        let scope: serde_json::Value =
+            serde_json::from_str(row.member_scope.as_deref().unwrap()).unwrap();
+        assert_eq!(scope["scope"], 1);
+        assert_eq!(scope["tagIds"], serde_json::json!([1, 2]));
     }
 }

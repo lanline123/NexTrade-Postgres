@@ -219,6 +219,69 @@ impl PromotionRepository {
         .map_err(map_err)?;
         Ok(res.rows_affected() > 0)
     }
+
+    /// 按关联活动查询镜像行（Java `savePromotion` 的存在性判定：
+    /// `relation_id = ? AND type = ?`，如秒杀 type=1 / 限时折扣 type=6）。
+    pub async fn find_by_relation(
+        &self,
+        relation_id: i32,
+        promo_type: i32,
+    ) -> Result<Option<Promotion>> {
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT {PROMOTION_COLUMNS} FROM promotion WHERE relation_id = ? AND type = ? ORDER BY promotion_id LIMIT 1"
+        ));
+        sqlx::query_as::<_, Promotion>(&sql)
+            .bind(relation_id)
+            .bind(promo_type)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    /// 更新镜像行（Java `savePromotion` 更新分支的字段集）：仅窗口、名称与
+    /// 会员字段；`range`/`range_data` 仅在 `range_data` 提供时一并更新
+    /// （Java 以 `rangeDataStr` 非空为条件，range 恒置为指定商品口径，
+    /// 由调用方在行内给出）。不触碰 `shop_id` / `sku_ids` / `is_available` /
+    /// `is_delete`（Java 更新分支同样不写这些列）。
+    pub async fn update_mirror_fields(&self, row: &Promotion) -> Result<bool> {
+        let mut qb: QueryBuilder<'_, Postgres> =
+            QueryBuilder::new("UPDATE promotion SET start_time = ");
+        qb.push_bind(row.start_time);
+        qb.push(", end_time = ");
+        qb.push_bind(row.end_time);
+        qb.push(", promotion_name = ");
+        qb.push_bind(row.promotion_name.clone());
+        qb.push(", member_range = ");
+        qb.push_bind(row.member_range);
+        qb.push(", member_marks = ");
+        qb.push_bind(row.member_marks.clone());
+        qb.push(", member_scope = ");
+        qb.push_bind(row.member_scope.clone());
+        if let Some(range_data) = &row.range_data {
+            qb.push(", \"range\" = ");
+            qb.push_bind(row.range);
+            qb.push(", range_data = ");
+            qb.push_bind(range_data.clone());
+        }
+        qb.push(" WHERE relation_id = ");
+        qb.push_bind(row.relation_id);
+        qb.push(" AND type = ");
+        qb.push_bind(row.r#type);
+        let res = qb.build().execute(&self.pool).await.map_err(map_err)?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    /// 删除镜像行（Java `del` / `batch` 的 promotion 级联：
+    /// `relation_id = ? AND type = ?`），返回删除行数。
+    pub async fn delete_by_relation(&self, relation_id: i32, promo_type: i32) -> Result<u64> {
+        let res = sqlx::query("DELETE FROM promotion WHERE relation_id = $1 AND type = $2")
+            .bind(relation_id)
+            .bind(promo_type)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(res.rows_affected())
+    }
 }
 
 /// 追加过滤条件（keyword / types / timeType）。
