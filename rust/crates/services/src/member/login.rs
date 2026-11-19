@@ -790,10 +790,12 @@ impl LoginService {
 
     /// `POST /api/user/login/getMobile`：小程序获取手机号。
     ///
-    /// **未迁移**：依赖微信 `getuserphonenumber` API。
+    /// access_token 走稳定版接口 + 进程内缓存（`stable_access_token`），
+    /// 不再每次直调老 token 接口作废全局 token；`getuserphonenumber`
+    /// 返回 40001/42001 时清缓存重试一次（与 PC 扫码口径一致）。
     ///
     /// # Errors
-    /// 恒返回 1001 业务错误。
+    /// 配置缺失 / 微信 errcode / 未返回手机号时返回业务错误。
     pub async fn get_mobile(&self, dto: &CodeParamDTO) -> Result<String> {
         let code = dto
             .code
@@ -814,32 +816,19 @@ impl LoginService {
             .filter(|v| !v.trim().is_empty())
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信小程序 Secret 未配置"))?;
         let http = reqwest::Client::new();
-        let token_url = format!(
-            "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={}&secret={}",
-            crate::content::wechat_client::urlencode(&app_id),
-            crate::content::wechat_client::urlencode(&app_secret)
-        );
-        let token_text = http
-            .get(&token_url)
-            .timeout(std::time::Duration::from_secs(15))
-            .send()
-            .await
-            .map_err(|e| Error::Internal(format!("小程序 token 请求失败: {e}")))?
-            .text()
-            .await
-            .map_err(|e| Error::Internal(format!("小程序 token 响应读取失败: {e}")))?;
-        let token_json = crate::content::wechat_client::parse_wechat_response(&token_text)?;
-        let access_token = token_json
-            .get("access_token")
-            .and_then(Value::as_str)
-            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "获取小程序 access_token 失败"))?;
-        let url = format!(
-            "https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token={}",
-            crate::content::wechat_client::urlencode(access_token)
-        );
+        // access_token 走稳定版接口 + 进程内缓存（与公众号共用同一份缓存），
+        // 不再每次直调老 token 接口作废全局上一个 token。
+        let mut access_token =
+            crate::content::wechat_client::stable_access_token(&app_id, &app_secret).await?;
         let body = serde_json::json!({ "code": code });
-        let text = http
-            .post(&url)
+        let make_url = |token: &str| {
+            format!(
+                "https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token={}",
+                crate::content::wechat_client::urlencode(token)
+            )
+        };
+        let mut text = http
+            .post(make_url(&access_token))
             .json(&body)
             .timeout(std::time::Duration::from_secs(15))
             .send()
@@ -848,6 +837,26 @@ impl LoginService {
             .text()
             .await
             .map_err(|e| Error::Internal(format!("小程序手机号响应读取失败: {e}")))?;
+        // token 失效（40001/42001）：清缓存后重试一次（与 PC 扫码口径一致）
+        let raw_errcode = serde_json::from_str::<Value>(&text)
+            .ok()
+            .and_then(|v| v.get("errcode").and_then(Value::as_i64));
+        if matches!(raw_errcode, Some(40001) | Some(42001)) {
+            crate::content::wechat_client::invalidate_token(&app_id);
+            access_token =
+                crate::content::wechat_client::stable_access_token(&app_id, &app_secret)
+                    .await?;
+            text = http
+                .post(make_url(&access_token))
+                .json(&body)
+                .timeout(std::time::Duration::from_secs(15))
+                .send()
+                .await
+                .map_err(|e| Error::Internal(format!("小程序手机号请求失败: {e}")))?
+                .text()
+                .await
+                .map_err(|e| Error::Internal(format!("小程序手机号响应读取失败: {e}")))?;
+        }
         let json = crate::content::wechat_client::parse_wechat_response(&text)?;
         let phone_info = json
             .get("phone_info")

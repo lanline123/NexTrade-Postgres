@@ -1,7 +1,12 @@
 //! 微信公众号 / 小程序 API 客户端（协议层，替代 Java `WxMpService` / `WechatApiClient`）。
 //!
 //! 覆盖无需商户支付凭据的部分：
-//! - `access_token` 获取与进程内缓存（7000s，提前 60s 过期）；
+//! - `access_token` 获取与进程内缓存（7000s，提前 60s 过期）：走稳定版接口
+//!   `POST /cgi-bin/stable_token`（`force_refresh=false`），不用老接口
+//!   `GET /cgi-bin/token`——老接口每次调用都会作废上一个 token，稳定版在
+//!   有效期内重复调用不刷新、配额更高（1 万次/分钟、50 万次/天），且其
+//!   token 与老接口 token 互相隔离（切换后首次获取会换发新 token，老
+//!   token 仍可活到自身过期，互不影响）；
 //! - 客服列表 `cgi-bin/customservice/getkflist`（客服能力探测）；
 //! - 客服文本消息 `cgi-bin/message/custom/send`；
 //! - 小程序 `jscode2session`（code → openid/session_key）。
@@ -122,6 +127,64 @@ pub fn invalidate_token(app_id: &str) {
     }
 }
 
+/// 稳定版 access_token 接口 URL（`POST /cgi-bin/stable_token`，微信官方推荐，
+/// 替代老接口 `GET /cgi-bin/token`）。
+pub const STABLE_TOKEN_URL: &str = "https://api.weixin.qq.com/cgi-bin/stable_token";
+
+/// 构造稳定版 access_token 请求体（纯函数，便于测试）。
+///
+/// `force_refresh` 恒为 `false`：有效期内重复调用不刷新 token、与老接口
+/// 获取的 token 互相隔离；`true` 每天限 20 次且间隔 30s，仅供 token
+/// 泄漏时强制刷新，不要开启。
+#[must_use]
+pub fn stable_token_request_body(app_id: &str, app_secret: &str) -> Value {
+    serde_json::json!({
+        "grant_type": "client_credential",
+        "appid": app_id,
+        "secret": app_secret,
+        "force_refresh": false,
+    })
+}
+
+/// 获取 `client_credential` access_token（稳定版接口 + 进程内缓存，公众号 /
+/// 小程序共用同一份缓存）：先查缓存，未命中才 POST `stable_token` 并回填。
+///
+/// # Errors
+/// 网络错误 / 微信 errcode / 响应缺少 `access_token`。
+pub async fn stable_access_token(app_id: &str, app_secret: &str) -> Result<String> {
+    if let Some(token) = cache_get(app_id) {
+        return Ok(token);
+    }
+    let body = stable_token_request_body(app_id, app_secret);
+    let resp = reqwest::Client::new()
+        .post(STABLE_TOKEN_URL)
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|e| Error::Internal(format!("微信接口请求失败: {e}")))?;
+    let status = resp.status();
+    let raw = resp
+        .text()
+        .await
+        .map_err(|e| Error::Internal(format!("微信响应读取失败: {e}")))?;
+    if !status.is_success() {
+        return Err(Error::Internal(format!("微信接口 HTTP {status}: {raw}")));
+    }
+    let value = parse_wechat_response(&raw)?;
+    let token = value
+        .get("access_token")
+        .and_then(Value::as_str)
+        .ok_or_else(|| Error::Internal(format!("微信 token 响应缺少 access_token: {raw}")))?
+        .to_string();
+    let expires_in = value
+        .get("expires_in")
+        .and_then(Value::as_u64)
+        .unwrap_or(TOKEN_TTL_SECS);
+    cache_put(app_id, &token, expires_in);
+    Ok(token)
+}
+
 /// 校验微信通用响应：`errcode == 0` 或不存在 → 返回 JSON；否则业务错误。
 ///
 /// # Errors
@@ -193,27 +256,7 @@ impl WechatClient {
     /// # Errors
     /// 网络错误 / 微信 errcode。
     pub async fn access_token(&self) -> Result<String> {
-        if let Some(token) = cache_get(&self.cfg.app_id) {
-            return Ok(token);
-        }
-        let url = format!(
-            "{API_BASE}/cgi-bin/token?grant_type=client_credential&appid={}&secret={}",
-            urlencode(&self.cfg.app_id),
-            urlencode(&self.cfg.app_secret)
-        );
-        let raw = self.get_text(&url).await?;
-        let value = parse_wechat_response(&raw)?;
-        let token = value
-            .get("access_token")
-            .and_then(Value::as_str)
-            .ok_or_else(|| Error::Internal(format!("微信 token 响应缺少 access_token: {raw}")))?
-            .to_string();
-        let expires_in = value
-            .get("expires_in")
-            .and_then(Value::as_u64)
-            .unwrap_or(TOKEN_TTL_SECS);
-        cache_put(&self.cfg.app_id, &token, expires_in);
-        Ok(token)
+        stable_access_token(&self.cfg.app_id, &self.cfg.app_secret).await
     }
 
     /// 客服列表（`cgi-bin/customservice/getkflist`）。
@@ -389,5 +432,36 @@ mod tests {
     fn url_encoding_keeps_ascii_and_encodes_symbols() {
         assert_eq!(urlencode("wx123abc"), "wx123abc");
         assert_eq!(urlencode("a b&c"), "a%20b%26c");
+    }
+
+    #[test]
+    fn stable_token_body_is_client_credential_without_force_refresh() {
+        let body = stable_token_request_body("wx123", "s3cr3t");
+        assert_eq!(body["grant_type"], "client_credential");
+        assert_eq!(body["appid"], "wx123");
+        assert_eq!(body["secret"], "s3cr3t");
+        assert_eq!(body["force_refresh"], false);
+    }
+
+    #[test]
+    fn stable_token_url_uses_stable_endpoint_not_legacy_token() {
+        assert_eq!(
+            STABLE_TOKEN_URL,
+            "https://api.weixin.qq.com/cgi-bin/stable_token"
+        );
+        assert!(STABLE_TOKEN_URL.contains("/cgi-bin/stable_token"));
+        assert!(!STABLE_TOKEN_URL.contains("/cgi-bin/token?"));
+        assert!(!STABLE_TOKEN_URL.contains("grant_type=client_credential"));
+    }
+
+    #[tokio::test]
+    async fn stable_access_token_hits_shared_cache_without_network() {
+        invalidate_token("wx-test-stable");
+        cache_put("wx-test-stable", "cached-token", 7200);
+        let token = stable_access_token("wx-test-stable", "unused-secret")
+            .await
+            .unwrap();
+        assert_eq!(token, "cached-token");
+        invalidate_token("wx-test-stable");
     }
 }
