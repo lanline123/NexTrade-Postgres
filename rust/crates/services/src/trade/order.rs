@@ -1297,6 +1297,10 @@ impl OrderService {
                 return Err(Error::Forbidden("无权操作该订单".into()));
             }
         }
+        // 拍卖订单不可自助取消：保证金已抵扣，取消即资损；违约由拍卖逾期任务统一处理
+        if order.order_type == Some(11) {
+            return Err(Error::Conflict("拍卖订单不可取消，请按期支付尾款".into()));
+        }
         if !order.is_cancellable() {
             return Err(Error::Conflict("当前订单状态不可取消".into()));
         }

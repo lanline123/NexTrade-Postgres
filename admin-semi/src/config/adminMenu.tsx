@@ -520,6 +520,26 @@ export const navGroups: NavGroup[] = [
             "label": "限时秒杀"
           },
           {
+            "key": "auctionItemManage",
+            "label": "拍卖商品"
+          },
+          {
+            "key": "auctionSessionManage",
+            "label": "拍卖场次"
+          },
+          {
+            "key": "auctionDepositManage",
+            "label": "拍卖保证金流水"
+          },
+          {
+            "key": "auctionBreachManage",
+            "label": "拍卖违约处理"
+          },
+          {
+            "key": "auctionSettings",
+            "label": "拍卖设置"
+          },
+          {
             "key": "fullReductionManage",
             "label": "满减活动"
           },
@@ -1630,6 +1650,11 @@ export const pageTitles: Record<string, string> = {
   "promotion0": "营销概览",
   "couponManage": "优惠券",
   "seckillManage": "限时秒杀",
+  "auctionItemManage": "拍卖商品",
+  "auctionSessionManage": "拍卖场次",
+  "auctionDepositManage": "拍卖保证金流水",
+  "auctionBreachManage": "拍卖违约处理",
+  "auctionSettings": "拍卖设置",
   "fullReductionManage": "满减活动",
   "rewardGiftManage": "满赠活动",
   "limitdiscountManage": "限时折扣",

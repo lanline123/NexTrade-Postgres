@@ -1,5 +1,6 @@
 //! 管理端 marketing 路由。
 
+pub mod auction;
 pub mod buyer_show;
 pub mod buyer_show_comment;
 pub mod buyer_show_group;
@@ -43,6 +44,7 @@ use super::super::AdminState;
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
+        .merge(auction::routes(state))
         .merge(buyer_show::routes(state))
         .merge(buyer_show_comment::routes(state))
         .merge(buyer_show_group::routes(state))
@@ -122,5 +124,6 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(sign_in_setting::implemented_routes());
     out.extend(time_discount::implemented_routes());
     out.extend(time_discount_batch::implemented_routes());
+    out.extend(auction::implemented_routes());
     out
 }

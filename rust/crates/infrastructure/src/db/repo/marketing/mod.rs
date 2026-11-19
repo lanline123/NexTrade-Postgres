@@ -35,6 +35,7 @@ pub mod salesman_order;
 pub mod salesman_product;
 pub mod seckill;
 pub mod seckill_batch;
+pub mod auction;
 pub mod sign_in_setting;
 pub mod time_discount;
 pub mod time_discount_batch;
@@ -80,6 +81,7 @@ pub struct Repositories {
     pub groupon_promotion_record: groupon_promotion_record::GrouponPromotionRecordRepository,
     pub groupon_records: groupon_records::GrouponRecordsRepository,
     pub overview: overview::OverviewRepository,
+    pub auction: auction::AuctionRepository,
 }
 
 impl Repositories {
@@ -123,6 +125,7 @@ impl Repositories {
             groupon_promotion_record: groupon_promotion_record::GrouponPromotionRecordRepository::new(pool.clone()),
             groupon_records: groupon_records::GrouponRecordsRepository::new(pool.clone()),
             overview: overview::OverviewRepository::new(pool.clone()),
+            auction: auction::AuctionRepository::new(pool.clone()),
         }
     }
 }

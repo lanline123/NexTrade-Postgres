@@ -76,8 +76,42 @@ pub fn spawn_all(repos: Arc<Repositories>, order: OrderService) -> Vec<JoinHandl
         tokio::spawn(deposit_due_check_loop(repos.clone())),
         tokio::spawn(wechat_live_order_sync_loop(repos.clone())),
         tokio::spawn(profit_sharing_schedule_loop(repos.clone())),
+        tokio::spawn(auction_loop(repos.clone())),
         tokio::spawn(exchange_rate_sync_loop(repos)),
     ]
+}
+
+/// 拍卖循环（`NEXTTRADE_SCHEDULER__AUCTION_SECS`，默认 10s，下限 5s）：
+/// 开拍推进（预告→竞价中 + 开拍提醒）、结拍结算（成交建单/流拍解冻）、
+/// 尾款逾期违约（扣罚/封禁/重新上拍）。单轮内三段串行，逐件失败只记日志。
+async fn auction_loop(repos: Arc<Repositories>) {
+    tokio::time::sleep(Duration::from_secs(
+        env_secs("NEXTTRADE_SCHEDULER__DELAY_SECS", 30) + 20,
+    ))
+    .await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(
+        env_secs("NEXTTRADE_SCHEDULER__AUCTION_SECS", 10).max(5),
+    ));
+    loop {
+        ticker.tick().await;
+        let service = crate::marketing::auction::AuctionService::new(repos.clone());
+        let now = utils::now_seconds() as i32;
+        match service.run_start_scan(now).await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("定时任务：拍卖开拍推进 {n} 件"),
+            Err(e) => tracing::warn!("定时任务：拍卖开拍推进失败: {e}"),
+        }
+        match service.run_close_scan(now).await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("定时任务：拍卖结拍 {n} 件"),
+            Err(e) => tracing::warn!("定时任务：拍卖结拍扫描失败: {e}"),
+        }
+        match service.run_overdue_scan(now).await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("定时任务：拍卖尾款逾期违约处理 {n} 笔"),
+            Err(e) => tracing::warn!("定时任务：拍卖尾款逾期扫描失败: {e}"),
+        }
+    }
 }
 
 /// 汇率自动更新循环（Java `ExchangeRateSyncTask`，每小时触发）。

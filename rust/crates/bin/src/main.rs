@@ -100,6 +100,7 @@ use nextrade_services::logistics::shipping_list::LogisticsService;
 use nextrade_services::logistics::shipping_tpl::ShippingTplService;
 use nextrade_services::logistics::shipping_type::ShippingTypeService;
 use nextrade_services::logistics::sunmi_print_callback::SunmiPrintCallbackService;
+use nextrade_services::marketing::auction::AuctionService;
 use nextrade_services::marketing::buyer_show::BuyerShowService;
 use nextrade_services::marketing::buyer_show_client::BuyerShowClientService;
 use nextrade_services::marketing::buyer_show_comment::BuyerShowCommentService;
@@ -328,6 +329,7 @@ async fn main() -> anyhow::Result<()> {
     let shipping_list = Arc::new(LogisticsService::new(repos.clone()));
     let member_lists = Arc::new(MemberService::new(repos.clone()));
     let seckill = Arc::new(SeckillService::new(repos.clone()));
+    let auction = Arc::new(AuctionService::new(repos.clone()));
     let time_discount = Arc::new(TimeDiscountService::new(repos.clone()));
     let paylog = Arc::new(PaylogService::new(repos.clone()));
     let refund_apply = Arc::new(RefundApplyService::new(repos.clone()));
@@ -638,6 +640,7 @@ async fn main() -> anyhow::Result<()> {
     let overview = Arc::new(OverviewService::new(repos.clone()));
     // ---- marketing 域 ----
     let marketing = Arc::new(nextrade_services::marketing::Services {
+        auction: auction.clone(),
         buyer_show: buyer_show.clone(),
         buyer_show_client: buyer_show_client.clone(),
         buyer_show_comment: buyer_show_comment.clone(),

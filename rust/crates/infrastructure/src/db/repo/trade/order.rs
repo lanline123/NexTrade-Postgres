@@ -243,6 +243,7 @@ impl OrderRepository {
     }
 
     /// 待付款且下单时间早于 cutoff 的订单 ID（定时取消用）。
+    /// 拍卖订单（order_type=11）排除：其尾款期限与违约处理由拍卖逾期任务负责。
     pub async fn find_unpaid_before(
         &self,
         cutoff: i32,
@@ -251,6 +252,7 @@ impl OrderRepository {
         let rows: Vec<(i32,)> = sqlx::query_as(
             "SELECT order_id FROM \"order\"
              WHERE is_del = 0 AND pay_status = 1 AND order_status = 0
+               AND (order_type IS NULL OR order_type <> 11)
                AND add_time > 0 AND add_time <= $1
              ORDER BY order_id ASC
              LIMIT $2",

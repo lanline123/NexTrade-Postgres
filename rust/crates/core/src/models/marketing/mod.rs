@@ -34,6 +34,7 @@ pub mod salesman_order;
 pub mod salesman_product;
 pub mod seckill;
 pub mod seckill_batch;
+pub mod auction;
 pub mod sign_in_setting;
 pub mod time_discount;
 pub mod time_discount_batch;

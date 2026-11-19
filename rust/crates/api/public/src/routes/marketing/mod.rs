@@ -1,5 +1,6 @@
 //! 商城端 marketing 路由。
 
+pub mod auction;
 pub mod buyer_show_client;
 pub mod coupon;
 pub mod gift_card_groups;
@@ -23,6 +24,7 @@ use super::super::PublicState;
 pub fn routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
     Router::new()
+        .merge(auction::routes(state))
         .merge(buyer_show_client::routes(state))
         .merge(gift_card_groups::routes(state))
         .merge(groupon_promotion::routes(state))
@@ -39,6 +41,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
 /// 匿名可访问路由（coupon 公开组自带 optional_auth，需要 state）。
 pub fn public_routes(state: &PublicState) -> Router<PublicState> {
     Router::new()
+        .merge(auction::public_routes())
         .merge(coupon::public_routes(state))
         .merge(seckill::public_routes())
         .merge(time_discount::public_routes())
@@ -53,6 +56,7 @@ pub fn anonymous_routes(state: &PublicState) -> Router<PublicState> {
 /// 需登录路由（外层统一套 require_auth）。
 pub fn authorized_routes() -> Router<PublicState> {
     Router::new()
+        .merge(auction::authorized_routes())
         .merge(coupon::authorized_routes())
         .merge(seckill::authorized_routes())
         .merge(time_discount::authorized_routes())

@@ -1,5 +1,7 @@
 //! marketing 领域服务。
 
+pub mod auction;
+pub mod auction_settings;
 pub mod buyer_show;
 pub mod buyer_show_client;
 pub mod buyer_show_comment;
@@ -43,6 +45,7 @@ use std::sync::Arc;
 /// marketing 领域服务集合（由组合根装配一次，api 层只持有 `Arc<Services>`）。
 #[derive(Clone)]
 pub struct Services {
+    pub auction: Arc<auction::AuctionService>,
     pub buyer_show: Arc<buyer_show::BuyerShowService>,
     pub buyer_show_client: Arc<buyer_show_client::BuyerShowClientService>,
     pub buyer_show_comment: Arc<buyer_show_comment::BuyerShowCommentService>,

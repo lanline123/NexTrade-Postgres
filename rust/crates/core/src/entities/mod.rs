@@ -38,6 +38,8 @@ pub mod video;
 pub mod wechat;
 pub mod wholesale;
 pub mod business;
+/// 商品拍卖（一期手写新增域，非 schema_parser 生成，见 004_auction.sql）
+pub mod auction;
 
 pub use authority::AdminApiToken;
 pub use authority::AdminLog;
@@ -367,3 +369,10 @@ pub use wholesale::ProductWholesalePrice;
 pub use wholesale::ProductWholesaleSkuConfig;
 pub use wholesale::Wholesaler;
 pub use wholesale::WholesalerGrade;
+pub use auction::AuctionBan;
+pub use auction::AuctionBid;
+pub use auction::AuctionBreach;
+pub use auction::AuctionDeposit;
+pub use auction::AuctionItem;
+pub use auction::AuctionRemind;
+pub use auction::AuctionSession;
