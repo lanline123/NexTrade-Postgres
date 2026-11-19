@@ -129,7 +129,11 @@ pub async fn ensure_purchase_allowed(repos: &Repositories, user_id: i32) -> Resu
 /// 公众商品载荷中的价格键集合（脱敏时逐一置空）。覆盖：商品/型号价、
 /// 市场价、成本价、混合询价最低价、兼容价、搜索原价、门店价、促销价、
 /// 秒杀价、拼团价、会员价、批发价与筛选价格带。
-pub const PRICE_KEYS: [&str; 16] = [
+///
+/// 除驼峰键外同时列 snake_case 变体：个别公众载荷直接序列化实体行
+/// （如店铺街 `listingProduct` 的 product 实体，字段为 `product_price`），
+/// 只认驼峰会整行漏脱（2026-11-19 补漏审计发现）。
+pub const PRICE_KEYS: [&str; 31] = [
     "productPrice",
     "marketPrice",
     "costPrice",
@@ -146,6 +150,21 @@ pub const PRICE_KEYS: [&str; 16] = [
     "wholesalePrice",
     "maxPrice",
     "minPrice",
+    "product_price",
+    "market_price",
+    "cost_price",
+    "min_priced_price",
+    "org_product_price",
+    "store_product_price",
+    "sku_price",
+    "promote_price",
+    "seckill_price",
+    "groupon_price",
+    "origin_price",
+    "member_price",
+    "wholesale_price",
+    "max_price",
+    "min_price",
 ];
 
 /// 递归把对象/数组中的价格键置 `Null`（原地修改）。
@@ -183,23 +202,28 @@ pub fn stamp_price_gate(item: &mut Value, access: PriceAccess) {
     }
 }
 
-/// 对分页载荷（`{total, list: [...]}`）逐项脱敏 + 打标记。
-/// 找不到 `list` 数组时只做递归脱敏兜底。
+/// 对分页载荷逐项脱敏 + 打标记。
+///
+/// `PageResult` 的序列化同时下发 `list` 与 `records` 两份条目数组
+/// （Java `Page` 兼容口径），两份都必须脱敏——只脱 `list` 时
+/// `records` 里仍是明文价（2026-11-19 首页秒杀补漏审计发现的同类漏点，
+/// 商品列表/营销秒杀/拼团等已接门控的分页端点同样受影响，一并在此收口）。
+/// 两份数组都找不到时只做递归脱敏兜底。
 pub fn mask_page_items(page: &mut Value, access: PriceAccess) {
     if access.can_view() {
         return;
     }
     let mut masked_items = false;
-    if let Some(list) = page
-        .as_object_mut()
-        .and_then(|obj| obj.get_mut("list"))
-        .and_then(Value::as_array_mut)
-    {
-        for item in list.iter_mut() {
-            mask_price_keys(item);
-            stamp_price_gate(item, access);
+    if let Some(obj) = page.as_object_mut() {
+        for key in ["list", "records"] {
+            if let Some(list) = obj.get_mut(key).and_then(Value::as_array_mut) {
+                for item in list.iter_mut() {
+                    mask_price_keys(item);
+                    stamp_price_gate(item, access);
+                }
+                masked_items = true;
+            }
         }
-        masked_items = true;
     }
     if !masked_items {
         mask_price_keys(page);
@@ -244,6 +268,36 @@ mod tests {
         assert!(v["nested"]["seckillPrice"].is_null());
         assert_eq!(v["nested"]["name"], "x");
         assert_eq!(v["productId"], 9);
+    }
+
+    #[test]
+    fn page_masking_covers_records_and_list() {
+        // PageResult 真实序列化形状：list 与 records 双份条目，价格都必须脱敏
+        let item = json!({
+            "productId": 1548,
+            "seckillPrice": "198000.00",
+            "productPrice": "220000.00",
+            "seckkillData": {"seckillPrice": "198000.00", "stock": 100}
+        });
+        let mut page = json!({
+            "total": 1,
+            "list": [item.clone()],
+            "records": [item]
+        });
+        mask_page_items(&mut page, PriceAccess::NeedLogin);
+        for key in ["list", "records"] {
+            let masked = &page[key][0];
+            assert!(masked["seckillPrice"].is_null(), "{key} seckillPrice 未脱敏");
+            assert!(masked["productPrice"].is_null(), "{key} productPrice 未脱敏");
+            assert!(
+                masked["seckkillData"]["seckillPrice"].is_null(),
+                "{key} 嵌套 seckillPrice 未脱敏"
+            );
+            assert_eq!(masked["seckkillData"]["stock"], 100);
+            assert_eq!(masked["priceVisible"], false);
+            assert_eq!(masked["priceGate"], "login");
+            assert_eq!(masked["productId"], 1548);
+        }
     }
 
     #[test]
