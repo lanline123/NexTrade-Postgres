@@ -68,8 +68,9 @@ impl SeckillBatchRepository {
 
     /// 进行中的秒杀商品（`seckill_stock > 0`，按 `rec_id DESC`）。
     ///
-    /// 对应 Java `listForDecorate`（`seckill` 进行中）与 C 端
-    /// `getSeckillProductList`（`unStarted=0`，仅进行中）的公共窗口口径。
+    /// 首页预览口径：对应 C 端 `getSeckillProductList`（`unStarted=0`，
+    /// 仅进行中）。装修预览 `listForDecorate` 不走这里（无库存过滤、价格
+    /// 升序），见 `find_items_for_decorate`。
     pub async fn find_active_items(
         &self,
         now: i32,
@@ -95,6 +96,30 @@ impl SeckillBatchRepository {
         .await
         .map_err(map_err)?;
         Ok((total.0.max(0) as u64, rows))
+    }
+
+    /// 装修预览专用查询（Java `SeckillServiceImpl#listForDecorate` 口径）。
+    ///
+    /// 与首页预览的 `find_active_items` 分开：进行中窗口（`seckill_item`
+    /// 自带起止时间，与活动窗口等价）、**无库存过滤**、不查商品上下架/删除
+    /// 状态、按 `seckill_price` 升序（`rec_id` 升序兜底同价顺序）；item 仅
+    /// 过滤 SKU 已禁用（`product_sku.is_enabled = 0`），`sku_id` 为空的
+    /// 保留（SKU 行已不存在的 item 一并排除）。
+    pub async fn find_items_for_decorate(
+        &self,
+        now: i32,
+        limit: i64,
+    ) -> Result<Vec<SeckillItem>> {
+        let rows = sqlx::query_as::<_, SeckillItem>(
+            "SELECT si.* FROM seckill_item si LEFT JOIN product_sku ps ON ps.sku_id = si.sku_id WHERE si.seckill_start_time <= $1 AND si.seckill_end_time >= $2 AND (si.sku_id IS NULL OR ps.is_enabled = 1) ORDER BY si.seckill_price ASC, si.rec_id ASC LIMIT $3",
+        )
+        .bind(now)
+        .bind(now)
+        .bind(limit.max(1))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(rows)
     }
 
     /// 秒杀活动主表：`seckill_id → (seckill_name, limit_num)`（VO 回填）。
@@ -179,5 +204,19 @@ mod tests {
         assert!(src.contains("seckill_start_time <= ?"));
         assert!(src.contains("seckill_end_time >= ?"));
         assert!(src.contains("seckill_stock > 0"));
+    }
+
+    #[test]
+    fn decorate_query_follows_java_caliber() {
+        // listForDecorate 口径：价格升序 + SKU 仅过滤已禁用，
+        // 该查询本身不得带库存过滤（库存过滤只属于 find_active_items）。
+        let src = include_str!("seckill_batch.rs");
+        let start = src.find("pub async fn find_items_for_decorate").unwrap();
+        let end = src[start..].find("pub async fn find_activities").unwrap() + start;
+        let decorate_sql = &src[start..end];
+        assert!(decorate_sql.contains("ORDER BY si.seckill_price ASC"));
+        assert!(decorate_sql.contains("ps.is_enabled = 1"));
+        assert!(decorate_sql.contains("si.sku_id IS NULL"));
+        assert!(!decorate_sql.contains("seckill_stock > 0"));
     }
 }

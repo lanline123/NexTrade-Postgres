@@ -4,8 +4,8 @@
  * 根 class 与 Vue 版逐一致（module-seckill-goods_ad + ad-style__/ad-buyBtnStyle__/ad-goods_style__/...），
  * 样式由全局 module.css 提供；外层 frame 外边距、内容层 frame 背景/圆角后叠模块级 allFormat
  * （backgroundColor/boxPadding→margin/boxRadius/innerPadding）。CommonTitle（title.showTitle 门控）。
- * 商品数据：原版 getMobileSeckillList 实时拉取——本实现取后台既有接口
- * /promotion/seckill/listForHomePreview（与 PC 装修秒杀预览同源同方法，size 15），不新增/不改接口路径。
+ * 商品数据：原版 Preview 调 GET /promotion/seckill/listForDecorate（无参数、裸数组）实时拉取，
+ * 本实现同路径同口径（后端按 Java 口径：进行中、无库存过滤、价格升序、一商品一行，含 orgProductPrice）。
  * 每卡图上 .cap-seckill-goods__tag（style 1 显示「秒杀」+ 倒计时 DD天 HH:mm:ss 白字 12px/700，
  * 类名按 style 映射 big/small flex-end/list flex-end）；购买按钮为旧数字 buyBtnStyle 语义（同 product 模块）。
  */
@@ -76,9 +76,9 @@ export default function SeckillPreview({ data }: { data: Record<string, any> }) 
     const [now, setNow] = useState(() => Date.now());
     useEffect(() => {
         let alive = true;
-        apiGet<any>("/promotion/seckill/listForHomePreview", { page: 1, size: 15 })
+        apiGet<any>("/promotion/seckill/listForDecorate")
             .then((res: any) => {
-                if (alive) setList(res?.records || res?.list || (Array.isArray(res) ? res : []));
+                if (alive) setList(Array.isArray(res) ? res : (res?.records || res?.list || []));
             })
             .catch(() => undefined);
         const timer = window.setInterval(() => setNow(Date.now()), 1000);

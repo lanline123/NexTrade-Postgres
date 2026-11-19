@@ -12,15 +12,22 @@
 //! 表复用既有 `seckill` / `seckill_item` / `promotion`（schema 已生成）。
 //!
 //! # 与 Java 的差异（uncertain_points）
-//! 1. Java `listForDecorate` 先取「进行中」`seckill` 活动、再按活动商品聚合
-//!    商品/规格/店铺/品牌等完整信息（`SeckillPromotionVO` 30+ 字段）；
-//!    Rust 直接取「进行中且有库存」的 `seckill_item`，VO 精简为
-//!    `seckillId/productId/productName/skuId/seckillPrice/seckillStock/
-//!    seckillSales/seckillStartTime/seckillEndTime/seckillLimitNum`，
-//!    商品名从 `product.product_name` 回填。
+//! 1. Java `listForDecorate` 先取「进行中」`seckill` 活动分页（默认 15 个
+//!    活动）、再按活动展开商品并聚合完整信息（`SeckillPromotionVO` 30+
+//!    字段）；Rust 以 `seckill_item` 自带起止时间作等价进行中窗口，不做
+//!    活动级分页，改以 item 上限 500（`seckill_price` 升序）兜底。其余口径
+//!    已对齐 Java：无库存过滤、不查商品上下架/删除状态、SKU 仅过滤已禁用
+//!    项，并按（活动, 商品）聚合成一商品一行（销量/库存取同组全部 item
+//!    合计——Java 此处有把库存合计误写进 `seckillSales` 的 bug，未复刻）。
+//!    VO 仍为精简版 `seckillId/productId/productName/skuId/seckillPrice/
+//!    seckillStock/seckillSales/seckillStartTime/seckillEndTime/
+//!    seckillLimitNum` + 预览扩展字段（picUrl/picThumb/productPrice/
+//!    orgProductPrice/marketPrice/seckkillData），商品名从
+//!    `product.product_name` 回填。
 //! 2. Java `listForHomePreview` 调 C 端 `getSeckillProductList`（含上架过滤、
-//!    排序、`unStarted=0`）；Rust 复用同一 `seckill_item` 进行中窗口查询，
-//!    分页默认 `page=1,size=15`（与 Java 控制器默认值一致）。
+//!    排序、`unStarted=0`）；Rust 用单独的首页预览查询（进行中窗口 +
+//!    `seckill_stock > 0` + `rec_id DESC`，与装修口径分开），分页默认
+//!    `page=1,size=15`（与 Java 控制器默认值一致）。
 //! 3. Java `batch` 仅在 `isMove=true` 时执行后续两步删除；Rust 在
 //!    活动不存在（`rows_affected=0`）时跳过级联（等价保护）。
 //!
@@ -95,6 +102,10 @@ pub struct SeckillPromotionVO {
     /// 商品价格（Java 口径：与 marketPrice 交叉赋值，编辑器取它做划线价/折扣基数）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub product_price: Option<Decimal>,
+    /// 商品售价的字符串形式（Java `orgProductPrice` = `Product.productPrice`
+    /// 的字符串；秒杀2 预览算折扣/划线原价用，服务层与 productPrice 同源回填）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub org_product_price: Option<String>,
     /// 市场价（划线价）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub market_price: Option<Decimal>,
@@ -202,5 +213,19 @@ mod tests {
         assert_eq!(json["seckillId"], 3);
         assert_eq!(json["seckillPrice"], "9.90");
         assert_eq!(json["productId"], 9);
+        // 未回填时 orgProductPrice 省略，不输出 null
+        assert!(json.get("orgProductPrice").is_none());
+    }
+
+    #[test]
+    fn org_product_price_serializes_as_string() {
+        let vo = SeckillPromotionVO {
+            product_price: Some("248.00".parse().unwrap()),
+            org_product_price: Some("248.00".to_string()),
+            ..Default::default()
+        };
+        let json = serde_json::to_value(&vo).unwrap();
+        assert_eq!(json["orgProductPrice"], "248.00");
+        assert_eq!(json["productPrice"], "248.00");
     }
 }

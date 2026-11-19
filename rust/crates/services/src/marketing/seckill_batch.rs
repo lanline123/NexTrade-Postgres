@@ -7,10 +7,11 @@
 //! - `batch`：注解校验（`未选择项目` / `操作类型不能为空`）；`type=del`
 //!   时级联删除 `seckill` → `seckill_item` → `promotion(type=1)`；
 //!   活动删除 0 行时跳过后续级联（等价 Java `isMove` 保护）。
-//! - `listForDecorate`：进行中且 `seckill_stock > 0` 的秒杀商品列表
-//!   （不分页，`Vec<SeckillPromotionVO>`），回填活动名/限购数与商品名。
-//! - `listForHomePreview`：同窗口分页（默认 `page=1,size=15`），
-//!   返回 `PageResult<SeckillListVO>`。
+//! - `listForDecorate`：按 Java 口径取进行中秒杀商品（不分页，
+//!   `Vec<SeckillPromotionVO>`）：无库存过滤、按秒杀价升序、按（活动,
+//!   商品）聚合成一商品一行，回填活动名/限购数、商品名与预览扩展字段。
+//! - `listForHomePreview`：进行中窗口 + `seckill_stock > 0` 分页
+//!   （默认 `page=1,size=15`），返回 `PageResult<SeckillListVO>`。
 //!
 //! # 金额
 //! `seckill_price` 为 `Decimal`；`seckill_start_time/end_time` 为 Unix 秒。
@@ -77,12 +78,17 @@ impl SeckillBatchService {
 
     /// 装修用进行中秒杀商品列表（Java `listForDecorate`，不分页）。
     ///
+    /// Java 先按活动分页（默认 15 个活动）再展开商品；此处不做活动级
+    /// 分页，改走装修专用查询（无库存过滤、秒杀价升序、仅过滤已禁用
+    /// SKU）并以 item 上限 500 兜底，服务层再按（活动, 商品）聚合为
+    /// 一商品一行（差异说明见 core models 模块头）。
+    ///
     /// # Errors
     /// 数据库错误 → `Error::Database`。
     pub async fn list_for_decorate(&self) -> Result<Vec<SeckillPromotionVO>> {
         let now = now_secs_i32();
-        // Java 不分页（`Page` 默认 size 较大）；取前 200 条以贴合装修场景。
-        let (_total, items) = self.repo().find_active_items(now, 200, 0).await?;
+        let items = self.repo().find_items_for_decorate(now, 500).await?;
+        let items = aggregate_items(items);
         let list = self.assemble(&items).await?;
         self.enrich_for_preview(list).await
     }
@@ -165,6 +171,8 @@ impl SeckillBatchService {
                     vo.pic_url = Some(p.pic_url.clone());
                     vo.pic_thumb = Some(p.pic_thumb.clone());
                     vo.product_price = Some(p.product_price);
+                    // Java `orgProductPrice` = 同一售价的字符串形式
+                    vo.org_product_price = Some(p.product_price.to_string());
                     vo.market_price = Some(p.market_price);
                 }
                 if let Some(a) = activities.get(&vo.seckill_id) {
@@ -236,6 +244,42 @@ impl SeckillBatchService {
     }
 }
 
+/// 按（活动, 商品）聚合 item（Java `listForDecorate` 一商品一行）。
+///
+/// 入参须已按 `seckill_price` 升序：每组保留第一条（最低价条）的
+/// sku/价格/起止时间等字段，`seckill_sales` / `seckill_stock` 取同组
+/// 全部 item 合计；组间顺序按各组首次出现（即最低价）顺序。
+/// 注：Java 原版此处把库存合计误写进了 `seckillSales`，此处不复刻。
+fn aggregate_items(items: Vec<SeckillItem>) -> Vec<SeckillItem> {
+    let mut order: Vec<(i32, i32)> = Vec::new();
+    let mut groups: HashMap<(i32, i32), SeckillItem> = HashMap::new();
+    for it in items {
+        let key = (it.seckill_id.unwrap_or(0), it.product_id.unwrap_or(0));
+        match groups.get_mut(&key) {
+            Some(base) => {
+                base.seckill_sales = sum_opt_i32(base.seckill_sales, it.seckill_sales);
+                base.seckill_stock = sum_opt_i32(base.seckill_stock, it.seckill_stock);
+            }
+            None => {
+                order.push(key);
+                groups.insert(key, it);
+            }
+        }
+    }
+    order
+        .into_iter()
+        .filter_map(|key| groups.remove(&key))
+        .collect()
+}
+
+/// 可空计数合计：两边都缺失才保持 `None`，否则缺失按 0 计。
+fn sum_opt_i32(a: Option<i32>, b: Option<i32>) -> Option<i32> {
+    match (a, b) {
+        (None, None) => None,
+        _ => Some(a.unwrap_or(0) + b.unwrap_or(0)),
+    }
+}
+
 fn now_secs_i32() -> i32 {
     i32::try_from(nextrade_common::utils::now_seconds()).unwrap_or(i32::MAX)
 }
@@ -291,6 +335,45 @@ mod tests {
                 .await
                 .is_ok()
         );
+    }
+
+    #[test]
+    fn aggregate_items_merges_skus_of_same_product() {
+        let item = |sku: i32, price: &str, stock: i32, sales: i32| SeckillItem {
+            seckill_id: Some(7),
+            product_id: Some(42),
+            sku_id: Some(sku),
+            seckill_price: Some(price.parse().unwrap()),
+            seckill_stock: Some(stock),
+            seckill_sales: Some(sales),
+            ..Default::default()
+        };
+        // 已按价格升序：9.90 的 SKU 在前
+        let merged = aggregate_items(vec![item(11, "9.90", 5, 3), item(12, "19.90", 7, 4)]);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].sku_id, Some(11));
+        assert_eq!(
+            merged[0].seckill_price,
+            Some("9.90".parse().unwrap())
+        );
+        assert_eq!(merged[0].seckill_stock, Some(12));
+        assert_eq!(merged[0].seckill_sales, Some(7));
+    }
+
+    #[test]
+    fn aggregate_items_keeps_other_activities_and_products() {
+        let item = |seckill: i32, product: i32| SeckillItem {
+            seckill_id: Some(seckill),
+            product_id: Some(product),
+            seckill_stock: Some(1),
+            seckill_sales: Some(1),
+            ..Default::default()
+        };
+        let merged = aggregate_items(vec![item(7, 42), item(8, 42), item(7, 43), item(7, 42)]);
+        assert_eq!(merged.len(), 3);
+        // 同活动同商品的第二条并入第一组，合计 2
+        assert_eq!(merged[0].seckill_stock, Some(2));
+        assert_eq!(merged[0].seckill_sales, Some(2));
     }
 
     #[test]

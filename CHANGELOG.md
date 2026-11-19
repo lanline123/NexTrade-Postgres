@@ -459,3 +459,10 @@
 ### 修复
 
 - **H5 - 图标/图片资源全面收敛自有 OSS【原版有·我方改口径】**：用户 15:38 拍板「所有图标都转成咱们自己的 OSS」。文件内容与原版完全一致、仅换托管域名（oss.tigshop.com / 无 DNS 的 oss.nextrade.com → nlatstore.cn-qingdao.oss.aliyuncs.com 直连域名，同路径转存）：① 对象层共 237 个路径逐个验源（状态/Content-Type/字节/sha256）后同路径入桶并回读验 sha256——桶内原已同字节 31 个（NOOP）、新转存 206 个、冲突 0、源 404 为 0；② 会员页已发布装修数据（decorate 10012 个人中心页 + decorate_discrete 11 memberDecorate）引用已换直连域名（接口回读 tigshop 归零、逐 URL 出图验证通过）；③ 代码侧仅剩 IM 表情一处死链：`uniapp-react/src/pages/im/src/{EmojiImage.tsx,emojiElements.ts,renderTextWithEmoji.ts}` 的 `official/emoji/` 基址由 oss.nextrade.com 换直连域名（141 张表情图已转存验齐），其中 emojiElements 一处 http 一并归一 https。uniapp-react 其余 tigshop/nextrade 引用经最新 main 全量 grep 已为零（会员 account 默认图、orderEntry 分隔线、myWallet 默认图等此前已收敛）。其他装修页（跨境首页 152/153/155、多语言模板 328、自定义页 10013/10019/10020、mobileNav、shopHead、PcIndexTips、pcUserLogin、招商页等）的数据引用本批未动、只迁文件，待替换清单见 `member-icons-oss-migration/REPORT.md`。
+
+## 0.0.2 续 · 2026-11-19 批次（秒杀创建校验修复 + 装修秒杀接口补齐，随后端批次十五部署）
+
+### 修复
+
+- **后台 - 秒杀编辑器预览接口按 Java 原版口径补齐**：H5 编辑器 seckill/seckill2 预览改回原版路径 `GET /promotion/seckill/listForDecorate`（无参数、裸数组）；后端为该接口单开查询口径——进行中窗口、无库存过滤、不查商品上下架、按秒杀价升序、仅过滤已禁用 SKU，并按（活动, 商品）聚合为一商品一行（同商品多 SKU 的销量/库存取合计、价格取最低价条；Java 原版把库存合计误写进销量的 bug 未复刻）；VO 补 `orgProductPrice`（= 商品售价的字符串形式，秒杀2 折扣/划线原价口径）。与 Java 的剩余差别：不做活动级分页（默认 15 个活动），以 item 上限 500 兜底。首页预览 `listForHomePreview` 口径不变。
+- **后端 - 秒杀创建放行无 SKU 商品**：创建/更新校验不再要求明细 `skuId > 0`；单规格商品在 `product_sku` 中没有记录时，`skuId` 空/0 作为商品级明细合法提交，与原版读侧对空/0 SKU 的容忍口径一致。商品、秒杀价、库存与时间窗等其他校验不变。

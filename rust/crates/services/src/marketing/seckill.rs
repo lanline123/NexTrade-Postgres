@@ -79,7 +79,7 @@ impl SeckillService {
     /// 1. 活动名非空
     /// 2. 起止时间合法（开始 < 结束）
     /// 3. 明细非空
-    /// 4. 每条明细：商品/SKU 必填、秒杀价 > 0、库存 >= 0、时间窗合法
+    /// 4. 每条明细：商品必填、SKU 可空、秒杀价 > 0、库存 >= 0、时间窗合法
     /// 5. 同款 SKU 不得重复出现在其他活动中
     pub async fn create(&self, dto: &SeckillCreateDTO) -> Result<i32> {
         self.validate_create(dto)?;
@@ -446,9 +446,7 @@ impl SeckillService {
             if item.product_id.unwrap_or(0) <= 0 {
                 return Err(Error::Validation(format!("第 {no} 条明细缺少商品ID")));
             }
-            if item.sku_id.unwrap_or(0) <= 0 {
-                return Err(Error::Validation(format!("第 {no} 条明细缺少SKU ID")));
-            }
+            // 单规格商品无 product_sku 行，skuId 空/0 合法，与原版读侧容忍口径一致。
             let price = item.seckill_price.unwrap_or_default();
             if price <= Decimal::ZERO {
                 return Err(Error::Validation(format!("第 {no} 条明细的秒杀价必须大于0")));
@@ -702,5 +700,29 @@ mod tests {
         .await;
         assert_eq!(filter, Some(9));
         assert_eq!(write_shop, 9);
+    }
+
+    #[tokio::test]
+    async fn validate_create_allows_item_without_sku() {
+        let pool = sqlx::PgPool::connect_lazy("postgres://test:test@127.0.0.1:5432/test")
+            .expect("lazy pool should not connect");
+        let svc = SeckillService::new(Arc::new(Repositories::new(pool)));
+        let dto = SeckillCreateDTO {
+            seckill_name: Some("无 SKU 商品秒杀".into()),
+            seckill_start_time: Some(100),
+            seckill_end_time: Some(200),
+            seckill_limit_num: Some(0),
+            product_id: Some(3),
+            shop_id: Some(0),
+            seckill_item: vec![SeckillItemDTO {
+                product_id: Some(3),
+                sku_id: None,
+                seckill_price: Some(Decimal::from_str("9.90").unwrap()),
+                seckill_stock: Some(10),
+                ..Default::default()
+            }],
+        };
+
+        assert!(svc.validate_create(&dto).is_ok());
     }
 }

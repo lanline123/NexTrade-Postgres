@@ -8,7 +8,7 @@
  * 时渲染（槽内容替换默认更多链接），故倒计时仅 showMore=1 时出现、showMore=0 时右侧为空
  * （距结束 + 黑底白字时间块，取首条活动结束时间，以 H5Countdown specifyTime 承接）；
  * 标题图 titleBackgroundPic 有图时按原版 View 渲染 30×30（image-ad-title-img）。
- * 商品同 seckill 取数（/promotion/seckill/listForHomePreview）。
+ * 商品同 seckill 取数（原版路径 /promotion/seckill/listForDecorate，无参数、裸数组）。
  * 卡片：item-photo-bg 垫图背景色 imageBackgroundColor、优惠 tips 红 chip（getDiscount 逐字复刻，
  * orgProductPrice 缺失时回退 marketPrice/现价→0，见摘要）、style 10 横滑（一行 3 个、item-content 仅左内边距、
  * 价格 16px #1a1a1a + 划线原价）。
@@ -46,9 +46,9 @@ export default function Seckill2Preview({ data }: { data: Record<string, any> })
     const [list, setList] = useState<any[]>([]);
     useEffect(() => {
         let alive = true;
-        apiGet<any>("/promotion/seckill/listForHomePreview", { page: 1, size: 15 })
+        apiGet<any>("/promotion/seckill/listForDecorate")
             .then((res: any) => {
-                if (alive) setList(res?.records || res?.list || (Array.isArray(res) ? res : []));
+                if (alive) setList(Array.isArray(res) ? res : (res?.records || res?.list || []));
             })
             .catch(() => undefined);
         return () => {
