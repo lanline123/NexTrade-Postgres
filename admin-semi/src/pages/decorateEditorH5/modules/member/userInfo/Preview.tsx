@@ -11,8 +11,8 @@ import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefault
 import { userInfoDefaults, defaultSignInIcon, defaultSettingsIcon, defaultGradient } from "./index";
 import "./Preview.css";
 
-const AVATAR = "https://oss.tigshop.com/img/gallery/202605/1779691335wtQOROIkUPPNOzuply.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
-const LEVEL_ICON = "https://oss.tigshop.com/img/gallery/202605/17796914549H8jHXMHCnnkf8uOXg.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
+const AVATAR = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202605/1779691335wtQOROIkUPPNOzuply.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
+const LEVEL_ICON = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202605/17796914549H8jHXMHCnnkf8uOXg.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
 
 const STATS: Array<{ label: string; value: string }> = [
     { label: "商品收藏", value: "13" },

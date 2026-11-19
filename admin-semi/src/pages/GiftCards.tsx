@@ -73,7 +73,7 @@ interface GroupForm {
   selectCount: number | undefined;
 }
 
-const CARD_DEFAULT_BG = 'https://oss.tigshop.com/img/gallery/202511/1763106657gduKxujm9Fx7WZNjJZ.jpeg';
+const CARD_DEFAULT_BG = 'https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202511/1763106657gduKxujm9Fx7WZNjJZ.jpeg';
 
 const groupLabel = (t: (k: string) => string, groupType: number) => (groupType === 1 ? t('储值卡') : t('兑换卡'));
 

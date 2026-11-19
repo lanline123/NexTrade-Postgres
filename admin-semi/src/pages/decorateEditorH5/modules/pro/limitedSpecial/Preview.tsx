@@ -22,7 +22,7 @@ const demoProducts: Array<Record<string, any>> = [
         marketPrice: 999.0,
         salesVolume: 1200,
         commentCount: 320,
-        picThumb: "https://oss.tigshop.com/img/gallery/202411/17319190474y0XWFxO8GJZF0dg64.jpg"
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17319190474y0XWFxO8GJZF0dg64.jpg"
     },
     {
         productId: 0,
@@ -31,7 +31,7 @@ const demoProducts: Array<Record<string, any>> = [
         marketPrice: 999.0,
         salesVolume: 860,
         commentCount: 210,
-        picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071axvkfUDkQNFbIzF1iY.jpg"
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071axvkfUDkQNFbIzF1iY.jpg"
     },
     {
         productId: 0,
@@ -40,7 +40,7 @@ const demoProducts: Array<Record<string, any>> = [
         marketPrice: 999.0,
         salesVolume: 540,
         commentCount: 130,
-        picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071lOa0ZBx2mYlvq1lgjr.jpg"
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071lOa0ZBx2mYlvq1lgjr.jpg"
     },
     {
         productId: 0,
@@ -49,7 +49,7 @@ const demoProducts: Array<Record<string, any>> = [
         marketPrice: 999.0,
         salesVolume: 320,
         commentCount: 88,
-        picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071xUnObq2LokKPFecwXq.jpg"
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071xUnObq2LokKPFecwXq.jpg"
     }
 ];
 

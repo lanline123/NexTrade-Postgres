@@ -16,9 +16,9 @@ import { groupSlidingDefaults } from "./index";
 import "./Preview.css";
 
 const RANKING_IMGS = [
-    "https://oss.tigshop.com/img/gallery/202411/1732094008g4ZMmuQbNcBlYrNCuz.png",
-    "https://oss.tigshop.com/img/gallery/202411/1732094013OJOLUek96BizcTvwmU.png",
-    "https://oss.tigshop.com/img/gallery/202411/17320940168dzp9YD5LbpcMMjqe9.png"
+    "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1732094008g4ZMmuQbNcBlYrNCuz.png",
+    "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1732094013OJOLUek96BizcTvwmU.png",
+    "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17320940168dzp9YD5LbpcMMjqe9.png"
 ];
 
 export default function GroupSlidingPreview({ data }: { data: Record<string, any> }) {

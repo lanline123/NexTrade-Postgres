@@ -6,7 +6,7 @@ import { cloneDeep, defaultFrame } from "../../../contract/sharedDefaults";
 import { isOverseas } from "../../../contract/version";
 
 const PIC = "?x-oss-process=image/resize,m_pad,h_200,h_200";
-const pic = (name: string) => `https://oss.tigshop.com/img/gallery/202605/${name}${PIC}`;
+const pic = (name: string) => `https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202605/${name}${PIC}`;
 
 /** 与旧 mobileMember/account/View.vue 的 defaultModule 逐字段一致（契约）；「国家/地区和语言」项 isShow 在创建时按 isOverseas() 求值（同原版） */
 export function makeAccountDefaults() {

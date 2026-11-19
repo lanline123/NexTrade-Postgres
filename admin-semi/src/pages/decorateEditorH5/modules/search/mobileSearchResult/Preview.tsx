@@ -163,28 +163,28 @@ const mockProducts = [
     {
         id: 1,
         title: "小米（MI）Xiaomi Watch S3 银色 国家补贴 澎湃OS 全天血氧监测 智能运动手表 男款女款",
-        image: "https://oss.tigshop.com/img/item/demo/1680762243Myvkn91XZndQaLrMTf!!pic400x400.jpeg",
+        image: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/1680762243Myvkn91XZndQaLrMTf!!pic400x400.jpeg",
         price: "649",
         quantity: 1
     },
     {
         id: 2,
         title: "羽绒服 冬季加厚保暖 大鹅绒填充 户外防风外套",
-        image: "https://oss.tigshop.com/img/item/demo/1680589546tPrOZyKK683sfEOCq7!!pic400x400.jpeg",
+        image: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/1680589546tPrOZyKK683sfEOCq7!!pic400x400.jpeg",
         price: "5499",
         quantity: 1
     },
     {
         id: 3,
         title: "女秋冬加绒加厚大喇叭裤黑色西装裤子高腰修身显瘦垂感休闲拖地裤",
-        image: "https://oss.tigshop.com/img/item/demo/16807622759lrB7tSYTaDMl21ver!!pic400x400.jpeg",
+        image: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/16807622759lrB7tSYTaDMl21ver!!pic400x400.jpeg",
         price: "3679",
         quantity: 1
     },
     {
         id: 4,
         title: "双面羊绒大衣 秋冬新款 通勤百搭 中长款毛呢外套",
-        image: "https://oss.tigshop.com/img/item/demo/1680762215SVhVhwTAK3TCRQdOQC!!pic400x400.jpeg",
+        image: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/1680762215SVhVhwTAK3TCRQdOQC!!pic400x400.jpeg",
         price: "2799",
         quantity: 1
     }
@@ -194,7 +194,7 @@ const mockStores = [
     {
         id: 1,
         title: "Tigshop 官方旗舰门店（望京店）",
-        logo: "https://oss.tigshop.com/img/item/demo/1680762243Myvkn91XZndQaLrMTf!!pic400x400.jpeg",
+        logo: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/1680762243Myvkn91XZndQaLrMTf!!pic400x400.jpeg",
         score: "4.9",
         minOrder: "20.00",
         deliveryFee: "3.00",
@@ -204,7 +204,7 @@ const mockStores = [
     {
         id: 2,
         title: "Tigshop 品牌直营店（中关村店）",
-        logo: "https://oss.tigshop.com/img/item/demo/1680589546tPrOZyKK683sfEOCq7!!pic400x400.jpeg",
+        logo: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/1680589546tPrOZyKK683sfEOCq7!!pic400x400.jpeg",
         score: "4.8",
         minOrder: "30.00",
         deliveryFee: "5.00",
@@ -214,7 +214,7 @@ const mockStores = [
 ];
 
 const OVERSEAS_FILTER_TABS = ["排序", "品牌", "图案", "厚薄"];
-const HEADER_LOGO = "https://oss.tigshop.com/img/gallery/202506/1749453162yrntnPb4FvQcg9Wjco.png";
+const HEADER_LOGO = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202506/1749453162yrntnPb4FvQcg9Wjco.png";
 
 /** 页面头模拟件（原版 MobilePageHeaderPreview.vue 内联复刻，样式见 Preview.css 的 dec-mobile-page-header*） */
 function PageHeaderPreview({ variant, cartCount }: { variant: "domestic" | "overseas"; cartCount?: string }) {

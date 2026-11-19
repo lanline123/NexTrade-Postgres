@@ -10,8 +10,8 @@ import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefault
 import { userInfoV2Defaults } from "./index";
 import "./Preview.css";
 
-const AVATAR = "https://oss.tigshop.com/img/gallery/202605/1779691335wtQOROIkUPPNOzuply.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
-const LEVEL_ICON = "https://oss.tigshop.com/img/gallery/202605/17796914549H8jHXMHCnnkf8uOXg.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
+const AVATAR = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202605/1779691335wtQOROIkUPPNOzuply.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
+const LEVEL_ICON = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202605/17796914549H8jHXMHCnnkf8uOXg.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
 
 export default function UserInfoV2Preview({ data }: { data: Record<string, any> }) {
     const module = useMemo(() => {

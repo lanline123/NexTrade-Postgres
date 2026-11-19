@@ -11,7 +11,7 @@ import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefault
 import { myWalletDefaults } from "./index";
 import "./Preview.css";
 
-const DEFAULT_WALLET_ICON = "https://oss.tigshop.com/official/img/pc/202605/1779873859zO64yVrNvp2y0lUsOz.png";
+const DEFAULT_WALLET_ICON = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779873859zO64yVrNvp2y0lUsOz.png";
 
 function ArrowIcon() {
     return (

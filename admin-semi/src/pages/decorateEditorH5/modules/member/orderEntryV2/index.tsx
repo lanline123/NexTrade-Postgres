@@ -8,7 +8,7 @@ import { cloneDeep, defaultFrame } from "../../../contract/sharedDefaults";
 import { isOverseas } from "../../../contract/version";
 
 const JPIC = "?x-oss-process=image/resize,m_pad,h_200,h_200";
-const j = (name: string) => `https://oss.tigshop.com/img/gallery/202605/${name}${JPIC}`;
+const j = (name: string) => `https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202605/${name}${JPIC}`;
 
 /** 与旧 mobileMember/orderEntryV2/View.vue 的 defaultModule 逐字段一致（契约） */
 export const orderEntryV2Defaults = {

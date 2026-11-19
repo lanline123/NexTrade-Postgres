@@ -7,19 +7,19 @@ import { cloneDeep, defaultModuleStyle, defaultContentStyle } from "../../../con
 // 演示提示项是 defaultModule 字面量的一部分（旧 View.vue 的 defaultPicList 常量，契约冻结；第三项 picUrl 尾部多一个 g 为原版原样）
 const defaultPicList = [
     {
-        picThumb: "https://oss.tigshop.com/official/img/pc/202605/1779263739npDO706Su0cRzKK3ar.png?x-oss-process=image/resize,m_pad,h_200,h_200",
-        picUrl: "https://oss.tigshop.com/official/img/pc/202605/1779263739npDO706Su0cRzKK3ar.png",
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779263739npDO706Su0cRzKK3ar.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+        picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779263739npDO706Su0cRzKK3ar.png",
         picTitle: "最快30分钟送达",
         picLink: {}
     },
     {
-        picThumb: "https://oss.tigshop.com/official/img/pc/202605/1779263739N0N6CeZ40H7KJY9vRb.png?x-oss-process=image/resize,m_pad,h_200,h_200",
-        picUrl: "https://oss.tigshop.com/official/img/pc/202605/1779263739N0N6CeZ40H7KJY9vRb.png",
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779263739N0N6CeZ40H7KJY9vRb.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+        picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779263739N0N6CeZ40H7KJY9vRb.png",
         picTitle: "满69元包邮",
         picLink: {}
     },
     {
-        picThumb: "https://oss.tigshop.com/official/img/pc/202605/1779263739qL8q3AHR1CcdoNv4sD.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779263739qL8q3AHR1CcdoNv4sD.png?x-oss-process=image/resize,m_pad,h_200,h_200",
         picUrl: "https://oss.tigshop.com/official/img/pc/202605/1779263739qL8q3AHR1CcdoNv4sD.pngg",
         picTitle: "品质保障",
         picLink: {}

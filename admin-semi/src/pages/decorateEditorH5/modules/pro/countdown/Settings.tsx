@@ -37,49 +37,49 @@ const MODULE_THEME: Record<string, { textColor: string; gradientColorA: string; 
         textColor: "#FF3E02",
         gradientColorA: "#ff3e02",
         gradientColorB: "#ff7b19",
-        countdownBackgroundPic: { picId: 1480, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731908843qTonhlo5Iw9kRJdLN1.png?x-oss-process=image/resize,m_pad,h_200,h_200", picUrl: "https://oss.tigshop.com/img/gallery/202411/1731908843qTonhlo5Iw9kRJdLN1.png", picName: "orange" }
+        countdownBackgroundPic: { picId: 1480, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908843qTonhlo5Iw9kRJdLN1.png?x-oss-process=image/resize,m_pad,h_200,h_200", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908843qTonhlo5Iw9kRJdLN1.png", picName: "orange" }
     },
     red: {
         textColor: "#FF1513",
         gradientColorA: "#ff1513",
         gradientColorB: "#ff856c",
-        countdownBackgroundPic: { picId: 1487, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731908847AN8bNRFsYO681hzol5.png?x-oss-process=image/resize,m_pad,h_200,h_200", picUrl: "https://oss.tigshop.com/img/gallery/202411/1731908847AN8bNRFsYO681hzol5.png", picName: "red" }
+        countdownBackgroundPic: { picId: 1487, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908847AN8bNRFsYO681hzol5.png?x-oss-process=image/resize,m_pad,h_200,h_200", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908847AN8bNRFsYO681hzol5.png", picName: "red" }
     },
     blue: {
         textColor: "#4499E6",
         gradientColorA: "#4499e6",
         gradientColorB: "#7faff5",
-        countdownBackgroundPic: { picId: 1484, picThumb: "https://oss.tigshop.com/img/gallery/202411/17319088431TGhqdiHX3OhNWUiJJ.png?x-oss-process=image/resize,m_pad,h_200,h_200", picUrl: "https://oss.tigshop.com/img/gallery/202411/17319088431TGhqdiHX3OhNWUiJJ.png", picName: "blue" }
+        countdownBackgroundPic: { picId: 1484, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17319088431TGhqdiHX3OhNWUiJJ.png?x-oss-process=image/resize,m_pad,h_200,h_200", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17319088431TGhqdiHX3OhNWUiJJ.png", picName: "blue" }
     },
     green: {
         textColor: "#59c12d",
         gradientColorA: "#59c12d",
         gradientColorB: "#64d135",
-        countdownBackgroundPic: { picId: 1485, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731908843bO258L7j1eq3dPeJTM.png?x-oss-process=image/resize,m_pad,h_200,h_200", picUrl: "https://oss.tigshop.com/img/gallery/202411/1731908843bO258L7j1eq3dPeJTM.png", picName: "green" }
+        countdownBackgroundPic: { picId: 1485, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908843bO258L7j1eq3dPeJTM.png?x-oss-process=image/resize,m_pad,h_200,h_200", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908843bO258L7j1eq3dPeJTM.png", picName: "green" }
     },
     purple: {
         textColor: "#7649d7",
         gradientColorA: "#7649d7",
         gradientColorB: "#8456e3",
-        countdownBackgroundPic: { picId: 1486, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731908846cfUWqho3wrh0l9xD0A.png?x-oss-process=image/resize,m_pad,h_200,h_200", picUrl: "https://oss.tigshop.com/img/gallery/202411/1731908846cfUWqho3wrh0l9xD0A.png", picName: "purple" }
+        countdownBackgroundPic: { picId: 1486, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908846cfUWqho3wrh0l9xD0A.png?x-oss-process=image/resize,m_pad,h_200,h_200", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908846cfUWqho3wrh0l9xD0A.png", picName: "purple" }
     },
     grey: {
         textColor: "#373737",
         gradientColorA: "#373737",
         gradientColorB: "#6d6d6d",
-        countdownBackgroundPic: { picId: 1481, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731908843sz1aJohktlFTfhDGsY.png?x-oss-process=image/resize,m_pad,h_200,h_200", picUrl: "https://oss.tigshop.com/img/gallery/202411/1731908843sz1aJohktlFTfhDGsY.png", picName: "grey" }
+        countdownBackgroundPic: { picId: 1481, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908843sz1aJohktlFTfhDGsY.png?x-oss-process=image/resize,m_pad,h_200,h_200", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908843sz1aJohktlFTfhDGsY.png", picName: "grey" }
     },
     chocolate: {
         textColor: "#4e362e",
         gradientColorA: "#4e362e",
         gradientColorB: "#603929",
-        countdownBackgroundPic: { picId: 1482, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731908843dIqndLbjKR48vEYrS0.png?x-oss-process=image/resize,m_pad,h_200,h_200", picUrl: "https://oss.tigshop.com/img/gallery/202411/1731908843dIqndLbjKR48vEYrS0.png", picName: "chocolate" }
+        countdownBackgroundPic: { picId: 1482, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908843dIqndLbjKR48vEYrS0.png?x-oss-process=image/resize,m_pad,h_200,h_200", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908843dIqndLbjKR48vEYrS0.png", picName: "chocolate" }
     },
     brown: {
         textColor: "#a67e5a",
         gradientColorA: "#a67e5a",
         gradientColorB: "#c19270",
-        countdownBackgroundPic: { picId: 1483, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731908843tbYlP36vnX8NbNyvHG.png?x-oss-process=image/resize,m_pad,h_200,h_200", picUrl: "https://oss.tigshop.com/img/gallery/202411/1731908843tbYlP36vnX8NbNyvHG.png", picName: "brown" }
+        countdownBackgroundPic: { picId: 1483, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908843tbYlP36vnX8NbNyvHG.png?x-oss-process=image/resize,m_pad,h_200,h_200", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908843tbYlP36vnX8NbNyvHG.png", picName: "brown" }
     }
 };
 

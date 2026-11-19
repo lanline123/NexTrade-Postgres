@@ -5,10 +5,10 @@ import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultFrame } from "../../../contract/sharedDefaults";
 
 export const WALLET_V2_ICONS: Record<string, string> = {
-    balance: "https://oss.tigshop.com/official/img/pc/202605/177993337419dbsyRWczzneL4mhf.png",
-    coupon: "https://oss.tigshop.com/official/img/pc/202605/17799333737quaCAwzzMe1XpmYHd.png",
-    collect: "https://oss.tigshop.com/official/img/pc/202605/1779933373JYzFsV1Ky8YZ32BzDg.png",
-    history: "https://oss.tigshop.com/official/img/pc/202605/1779933373CFhQRjCp2OMvTY1vjQ.png"
+    balance: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/177993337419dbsyRWczzneL4mhf.png",
+    coupon: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/17799333737quaCAwzzMe1XpmYHd.png",
+    collect: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779933373JYzFsV1Ky8YZ32BzDg.png",
+    history: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779933373CFhQRjCp2OMvTY1vjQ.png"
 };
 
 const item = (key: string, label: string) => ({ key, label, icon: { picUrl: WALLET_V2_ICONS[key], picThumb: WALLET_V2_ICONS[key] } });

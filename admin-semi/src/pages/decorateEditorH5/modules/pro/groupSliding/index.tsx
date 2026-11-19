@@ -26,7 +26,7 @@ const groupList = [
                 productDesc: "",
                 productPrice: 80.0,
                 marketPrice: 0,
-                picThumb: "https://oss.tigshop.com/img/gallery/202411/17319190474y0XWFxO8GJZF0dg64.jpg"
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17319190474y0XWFxO8GJZF0dg64.jpg"
             },
             {
                 productId: 0,
@@ -35,7 +35,7 @@ const groupList = [
                 productDesc: "",
                 productPrice: 80.0,
                 marketPrice: 0,
-                picThumb: "https://oss.tigshop.com/img/gallery/202411/17319190474uihMnJYOkEzvGBeWv.jpg"
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17319190474uihMnJYOkEzvGBeWv.jpg"
             },
             {
                 productId: 0,
@@ -44,7 +44,7 @@ const groupList = [
                 productDesc: "",
                 productPrice: 80.0,
                 marketPrice: 0,
-                picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919047ZXFKxeDYmDn9zNQSA3.jpg"
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919047ZXFKxeDYmDn9zNQSA3.jpg"
             },
             {
                 productId: 0,
@@ -53,7 +53,7 @@ const groupList = [
                 productDesc: "",
                 productPrice: 80.0,
                 marketPrice: 0,
-                picThumb: "https://oss.tigshop.com/img/gallery/202411/17319190476keLc7Twr4BYAVlUBQ.jpg"
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17319190476keLc7Twr4BYAVlUBQ.jpg"
             },
             {
                 productId: 0,
@@ -62,7 +62,7 @@ const groupList = [
                 productDesc: "",
                 productPrice: 80.0,
                 marketPrice: 0,
-                picThumb: "https://oss.tigshop.com/img/gallery/202411/173191904794zD2Sy4XugNwMUBOW.jpg"
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/173191904794zD2Sy4XugNwMUBOW.jpg"
             }
         ]
     },
@@ -87,7 +87,7 @@ const groupList = [
                 productDesc: "",
                 productPrice: 80.0,
                 marketPrice: 0,
-                picThumb: "https://oss.tigshop.com/img/gallery/202411/17319190597yMADwwbOKqaA9pN5O.jpg"
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17319190597yMADwwbOKqaA9pN5O.jpg"
             },
             {
                 productId: 0,
@@ -96,7 +96,7 @@ const groupList = [
                 productDesc: "",
                 productPrice: 80.0,
                 marketPrice: 0,
-                picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919059AeiNkel9O1UtD2eZeD.jpg"
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919059AeiNkel9O1UtD2eZeD.jpg"
             },
             {
                 productId: 0,
@@ -105,7 +105,7 @@ const groupList = [
                 productDesc: "",
                 productPrice: 80.0,
                 marketPrice: 0,
-                picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919059ts7YHQo7rbPam9y8ZQ.jpg"
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919059ts7YHQo7rbPam9y8ZQ.jpg"
             },
             {
                 productId: 0,
@@ -114,7 +114,7 @@ const groupList = [
                 productDesc: "",
                 productPrice: 80.0,
                 marketPrice: 0,
-                picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919059VFsxMuKvPxKoFNfq5y.jpg"
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919059VFsxMuKvPxKoFNfq5y.jpg"
             },
             {
                 productId: 0,
@@ -123,7 +123,7 @@ const groupList = [
                 productDesc: "",
                 productPrice: 80.0,
                 marketPrice: 0,
-                picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919059GV4LN9Xq2j5ACzoJqx.jpg"
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919059GV4LN9Xq2j5ACzoJqx.jpg"
             }
         ]
     },
@@ -148,7 +148,7 @@ const groupList = [
                 productDesc: "",
                 productPrice: 80.0,
                 marketPrice: 0,
-                picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071axvkfUDkQNFbIzF1iY.jpg"
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071axvkfUDkQNFbIzF1iY.jpg"
             },
             {
                 productId: 0,
@@ -157,7 +157,7 @@ const groupList = [
                 productDesc: "",
                 productPrice: 80.0,
                 marketPrice: 0,
-                picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071lOa0ZBx2mYlvq1lgjr.jpg"
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071lOa0ZBx2mYlvq1lgjr.jpg"
             },
             {
                 productId: 0,
@@ -166,7 +166,7 @@ const groupList = [
                 productDesc: "",
                 productPrice: 80.0,
                 marketPrice: 0,
-                picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071xUnObq2LokKPFecwXq.jpg"
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071xUnObq2LokKPFecwXq.jpg"
             },
             {
                 productId: 0,
@@ -175,7 +175,7 @@ const groupList = [
                 productDesc: "",
                 productPrice: 80.0,
                 marketPrice: 0,
-                picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071rwvbdR1BOrBne9YHqd.jpg"
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071rwvbdR1BOrBne9YHqd.jpg"
             },
             {
                 productId: 0,
@@ -184,7 +184,7 @@ const groupList = [
                 productDesc: "",
                 productPrice: 80.0,
                 marketPrice: 0,
-                picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071r7emytS94COnCxRtcw.jpg"
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071r7emytS94COnCxRtcw.jpg"
             }
         ]
     }
@@ -217,8 +217,8 @@ export const groupSlidingDefaults = {
         subTitleColor: "#ffffff",
         titlePic: {
             picId: 1489,
-            picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919039RxeYzkD0P8ByOeKiNa.png?x-oss-process=image/resize,m_pad,h_200,h_200",
-            picUrl: "https://oss.tigshop.com/img/gallery/202411/1731919039RxeYzkD0P8ByOeKiNa.png",
+            picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919039RxeYzkD0P8ByOeKiNa.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+            picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919039RxeYzkD0P8ByOeKiNa.png",
             picName: "FljdiuyonglOZKlYhkv9ZcrSw44_"
         },
         productBackgroundColor: "#ffffff",

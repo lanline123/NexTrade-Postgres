@@ -14,14 +14,14 @@ import { SettingsTabs, ExtensionStyleSettings } from "../../../shared/styleEdits
 import { useI18n } from '../../../../../i18n';
 /** 原版 Settings.vue 内置的两张图标（切换 noticeIconType 时烧录） */
 const CUSTOM_ICON = {
-    picUrl: "https://oss.tigshop.com/img/gallery/202411/17315607538zqwwuwCIA2X97Slx5.png",
-    picThumb: "https://oss.tigshop.com/img/gallery/202411/17315607538zqwwuwCIA2X97Slx5.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+    picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17315607538zqwwuwCIA2X97Slx5.png",
+    picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17315607538zqwwuwCIA2X97Slx5.png?x-oss-process=image/resize,m_pad,h_200,h_200",
     picId: 1447,
     picName: "FmNDutABVdVhDqScSHImoufkXdBL"
 };
 const DEFAULT_ICON = {
-    picUrl: "https://oss.tigshop.com/img/gallery/202411/1731560722X2AIPCOsyzKVyTB3ZD.png",
-    picThumb: "https://oss.tigshop.com/img/gallery/202411/1731560722X2AIPCOsyzKVyTB3ZD.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+    picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731560722X2AIPCOsyzKVyTB3ZD.png",
+    picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731560722X2AIPCOsyzKVyTB3ZD.png?x-oss-process=image/resize,m_pad,h_200,h_200",
     picId: 1446,
     picName: "通知"
 };

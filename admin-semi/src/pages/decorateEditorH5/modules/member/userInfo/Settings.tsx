@@ -100,8 +100,8 @@ export default function UserInfoSettings({ data, onChange, moduleIndex }: Props)
     const settings = nested(data, onChange, "settings");
     const gradient = nested(data, onChange, "gradient");
     const frame = nested(data, onChange, "frame");
-    const defaultSignIn = { picUrl: "https://oss.tigshop.com/img/gallery/202605/1779691601SIdmgIcby2Mii610eQ.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200" };
-    const defaultSettings = { picUrl: "https://oss.tigshop.com/img/gallery/202605/1779679345kBAM5aU9K9EuPRQFfo.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200" };
+    const defaultSignIn = { picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202605/1779691601SIdmgIcby2Mii610eQ.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200" };
+    const defaultSettings = { picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202605/1779679345kBAM5aU9K9EuPRQFfo.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200" };
 
     return (
         <div className="h5-editor-settings-body">

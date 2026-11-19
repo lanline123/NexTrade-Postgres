@@ -18,12 +18,12 @@ const demoItem = (productPrice: number, marketPrice: number, picThumb: string) =
 });
 
 const demoGroupList = (): Array<Record<string, any>> => [
-    demoItem(88.8, 98.8, "https://oss.tigshop.com/img/gallery/202411/1732004872pw39D1oGqdAaZMpvyo.jpg"),
-    demoItem(56.8, 68.88, "https://oss.tigshop.com/img/gallery/202411/1732004872f6EcZnbAqdW5kIGzxL.jpg"),
-    demoItem(48.8, 69.9, "https://oss.tigshop.com/img/gallery/202411/1732004872o3s8aqPGdICr1DOCdB.jpg"),
-    demoItem(48.8, 69.9, "https://oss.tigshop.com/img/gallery/202411/1732004872Mry8L9BWOCiawPhp72.jpg"),
-    demoItem(32.0, 39.0, "https://oss.tigshop.com/img/gallery/202411/1732004872yPYr4zSj7AXrfw9oON.jpg"),
-    demoItem(32.0, 39.0, "https://oss.tigshop.com/img/gallery/202411/1732004872NlX49KeGeYSN4Tw0wa.jpg")
+    demoItem(88.8, 98.8, "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1732004872pw39D1oGqdAaZMpvyo.jpg"),
+    demoItem(56.8, 68.88, "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1732004872f6EcZnbAqdW5kIGzxL.jpg"),
+    demoItem(48.8, 69.9, "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1732004872o3s8aqPGdICr1DOCdB.jpg"),
+    demoItem(48.8, 69.9, "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1732004872Mry8L9BWOCiawPhp72.jpg"),
+    demoItem(32.0, 39.0, "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1732004872yPYr4zSj7AXrfw9oON.jpg"),
+    demoItem(32.0, 39.0, "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1732004872NlX49KeGeYSN4Tw0wa.jpg")
 ];
 
 const demoGroup = (title: string, subTitle: string) => ({

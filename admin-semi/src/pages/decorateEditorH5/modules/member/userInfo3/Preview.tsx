@@ -14,9 +14,9 @@ import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefault
 import { userInfo3Defaults, USERINFO3_SETTINGS_ICON, USERINFO3_NOTIFICATION_ICON, USERINFO3_GROWTH_CARD_BG } from "./index";
 import "./Preview.css";
 
-const DEMO_AVATAR = "https://oss.tigshop.com/img/gallery/202605/1779691335wtQOROIkUPPNOzuply.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
-const AUTH_BADGE = "https://oss.tigshop.com/official/img/pc/202606/1780880708HREkXQF9XjeKH1ddgB.png";
-const EDIT_ICON = "https://oss.tigshop.com/official/img/pc/202606/1780880709E3AknH2icO6fSZeMly.png";
+const DEMO_AVATAR = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202605/1779691335wtQOROIkUPPNOzuply.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
+const AUTH_BADGE = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202606/1780880708HREkXQF9XjeKH1ddgB.png";
+const EDIT_ICON = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202606/1780880709E3AknH2icO6fSZeMly.png";
 const DEMO_NAME = "我饿了了了";
 const DEMO_PHONE = "156****8888";
 const STATS_DEMO: Record<string, number> = { collect: 12, follow: 824, history: 5688 };

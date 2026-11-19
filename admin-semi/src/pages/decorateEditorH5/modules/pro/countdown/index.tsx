@@ -14,7 +14,7 @@ const pruductList = [
         productDesc: "",
         productPrice: 29.0,
         marketPrice: 0,
-        picThumb: "https://oss.tigshop.com/img/gallery/202411/1731908662JqyhZ6f1BCsWeUJlgj.jpg"
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908662JqyhZ6f1BCsWeUJlgj.jpg"
     },
     {
         productId: 0,
@@ -23,7 +23,7 @@ const pruductList = [
         productDesc: "",
         productPrice: 29.0,
         marketPrice: 0,
-        picThumb: "https://oss.tigshop.com/img/gallery/202411/1731908662cOmZ28i8gKl6JiUBad.jpg"
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908662cOmZ28i8gKl6JiUBad.jpg"
     },
     {
         productId: 0,
@@ -32,7 +32,7 @@ const pruductList = [
         productDesc: "",
         productPrice: 29.0,
         marketPrice: 0,
-        picThumb: "https://oss.tigshop.com/img/gallery/202411/1731908662AztoZ2OADHp1b8vUoQ.jpg"
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908662AztoZ2OADHp1b8vUoQ.jpg"
     },
     {
         productId: 0,
@@ -41,7 +41,7 @@ const pruductList = [
         productDesc: "",
         productPrice: 29.0,
         marketPrice: 0,
-        picThumb: "https://oss.tigshop.com/img/gallery/202411/1731908662O7VZIzaFtItS4OvAOR.jpg"
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908662O7VZIzaFtItS4OvAOR.jpg"
     }
 ];
 /** 原版 formatTime(new Date(), 20)：今日 20:00 的时间戳 */

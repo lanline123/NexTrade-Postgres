@@ -12,7 +12,7 @@ import { isOverseas } from "../../../contract/version";
 import { cateCenterV1Defaults } from "./index";
 import "./Preview.css";
 
-const BASE_URL = "https://oss.tigshop.com/";
+const BASE_URL = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/";
 
 interface CategoryItem {
     id: string;

@@ -10,8 +10,8 @@ const groups = [
         notices: [
             {
                 picId: 1428,
-                picThumb: "https://oss.tigshop.com/img/gallery/202507/1752202673o7FOMjRwwsNOXB8OjP.png?x-oss-process=image/resize,m_pad,h_200,h_200",
-                picUrl: "https://oss.tigshop.com/img/gallery/202507/1752202673o7FOMjRwwsNOXB8OjP.png",
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202507/1752202673o7FOMjRwwsNOXB8OjP.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+                picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202507/1752202673o7FOMjRwwsNOXB8OjP.png",
                 picName: "FmBvbpIyBQcPAjaR1tpYu4NSfM2L",
                 picTitle: "免运费",
                 picDesc: "前三单购物均可免运费！"
@@ -22,24 +22,24 @@ const groups = [
         notices: [
             {
                 picId: 1428,
-                picThumb: "https://oss.tigshop.com/img/gallery/202507/1752202678mQIAJqOXqUO54YdFfj.png?x-oss-process=image/resize,m_pad,h_200,h_200",
-                picUrl: "https://oss.tigshop.com/img/gallery/202507/1752202678mQIAJqOXqUO54YdFfj.png",
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202507/1752202678mQIAJqOXqUO54YdFfj.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+                picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202507/1752202678mQIAJqOXqUO54YdFfj.png",
                 picName: "FmBvbpIyBQcPAjaR1tpYu4NSfM2L",
                 picTitle: "24*7客户支持",
                 picDesc: "随时随地提供保障"
             },
             {
                 picId: 1428,
-                picThumb: "https://oss.tigshop.com/img/gallery/202507/1752202678mQIAJqOXqUO54YdFfj.png?x-oss-process=image/resize,m_pad,h_200,h_200",
-                picUrl: "https://oss.tigshop.com/img/gallery/202507/1752202678mQIAJqOXqUO54YdFfj.png",
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202507/1752202678mQIAJqOXqUO54YdFfj.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+                picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202507/1752202678mQIAJqOXqUO54YdFfj.png",
                 picName: "FmBvbpIyBQcPAjaR1tpYu4NSfM2L",
                 picTitle: "24*7客户支持",
                 picDesc: "随时随地提供保障"
             },
             {
                 picId: 1428,
-                picThumb: "https://oss.tigshop.com/img/gallery/202507/1752202678mQIAJqOXqUO54YdFfj.png?x-oss-process=image/resize,m_pad,h_200,h_200",
-                picUrl: "https://oss.tigshop.com/img/gallery/202507/1752202678mQIAJqOXqUO54YdFfj.png",
+                picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202507/1752202678mQIAJqOXqUO54YdFfj.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+                picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202507/1752202678mQIAJqOXqUO54YdFfj.png",
                 picName: "FmBvbpIyBQcPAjaR1tpYu4NSfM2L",
                 picTitle: "24*7客户支持",
                 picDesc: "随时随地提供保障"

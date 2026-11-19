@@ -15,12 +15,12 @@ import { productA1Defaults } from "./index";
 import "./Preview.css";
 
 const demoProductList: Array<Record<string, any>> = [
-    { productId: 0, productSn: "", productName: "刺身拼盘", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731485756wtyOOnqoeEn6W2XfNP.jpg" },
-    { productId: 0, productSn: "", productName: "冰鲜剥皮鱼", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731485756sGPXRzI7o84S5HAPo5.jpg" },
-    { productId: 0, productSn: "", productName: "北极甜虾", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731485756JsgKabEE4BO09iRqnc.jpg" },
-    { productId: 0, productSn: "", productName: "秋刀鱼", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731485756ivBG9CydBhi21do1xk.jpg" },
-    { productId: 0, productSn: "", productName: "德宝纸巾", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731650293KF9TjvpDKHOATMR3H7.jpg" },
-    { productId: 0, productSn: "", productName: "薯片", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731650294a4EsPq1zkYme6p5OhC.jpg" }
+    { productId: 0, productSn: "", productName: "刺身拼盘", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731485756wtyOOnqoeEn6W2XfNP.jpg" },
+    { productId: 0, productSn: "", productName: "冰鲜剥皮鱼", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731485756sGPXRzI7o84S5HAPo5.jpg" },
+    { productId: 0, productSn: "", productName: "北极甜虾", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731485756JsgKabEE4BO09iRqnc.jpg" },
+    { productId: 0, productSn: "", productName: "秋刀鱼", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731485756ivBG9CydBhi21do1xk.jpg" },
+    { productId: 0, productSn: "", productName: "德宝纸巾", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731650293KF9TjvpDKHOATMR3H7.jpg" },
+    { productId: 0, productSn: "", productName: "薯片", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731650294a4EsPq1zkYme6p5OhC.jpg" }
 ];
 
 export default function ProductA1Preview({ data }: { data: Record<string, any> }) {

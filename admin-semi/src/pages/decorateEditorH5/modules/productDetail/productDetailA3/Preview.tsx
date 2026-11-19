@@ -48,7 +48,7 @@ function OverseasPageHeader({ backgroundColor }: { backgroundColor: string }) {
                 <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                     <path d="M4 7h16M4 12h16M4 17h16" />
                 </svg>
-                <img className="dec-mobile-page-header__logo" src="https://oss.tigshop.com/img/gallery/202506/1749453162yrntnPb4FvQcg9Wjco.png" alt="Tigshop" />
+                <img className="dec-mobile-page-header__logo" src="https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202506/1749453162yrntnPb4FvQcg9Wjco.png" alt="Tigshop" />
             </div>
             <div className="dec-mobile-page-header__overseas-right">
                 <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

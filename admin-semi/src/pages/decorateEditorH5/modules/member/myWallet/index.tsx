@@ -4,7 +4,7 @@
 import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultFrame } from "../../../contract/sharedDefaults";
 
-const WALLET_ICON_URL = "https://oss.tigshop.com/official/img/pc/202605/1779873859zO64yVrNvp2y0lUsOz.png";
+const WALLET_ICON_URL = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779873859zO64yVrNvp2y0lUsOz.png";
 
 /** 与旧 mobileMember/myWallet/View.vue 的 defaultModule 逐字段一致（契约） */
 export const myWalletDefaults = {

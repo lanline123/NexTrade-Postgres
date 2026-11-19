@@ -19,7 +19,7 @@ export default function ShopInfoPreview({ variant = "vortmall" }: { variant?: "v
                 <span className="pd-shop-preview__logo">
                     <img
                         className="pd-shop-preview__logo-image"
-                        src="https://oss.tigshop.com/img/gallery/202508/1756457970fpZxKZJHdp6hTZovOz.jpeg"
+                        src="https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202508/1756457970fpZxKZJHdp6hTZovOz.jpeg"
                         alt={t("海澜之家")}
                     />
                 </span>

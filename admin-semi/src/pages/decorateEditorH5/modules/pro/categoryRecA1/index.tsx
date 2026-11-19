@@ -6,29 +6,29 @@ import { cloneDeep, defaultSubTitle, defaultModuleStyle, defaultContentStyle } f
 
 const defaultPicList = [
     {
-        picUrl: "https://oss.tigshop.com/official/img/pc/202605/1779325953rpmWhZWipxQ7nmuAQj.png",
-        picThumb: "https://oss.tigshop.com/official/img/pc/202605/1779325953rpmWhZWipxQ7nmuAQj.png",
+        picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779325953rpmWhZWipxQ7nmuAQj.png",
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779325953rpmWhZWipxQ7nmuAQj.png",
         picTitle: "领取优惠",
         picDesc: "优惠券",
         picLink: { link: "", title: "" }
     },
     {
-        picUrl: "https://oss.tigshop.com/official/img/pc/202605/1779325953xOBpJxh9kzrNjJp3rB.png",
-        picThumb: "https://oss.tigshop.com/official/img/pc/202605/1779325953xOBpJxh9kzrNjJp3rB.png",
+        picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779325953xOBpJxh9kzrNjJp3rB.png",
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779325953xOBpJxh9kzrNjJp3rB.png",
         picTitle: "爆款水果",
         picDesc: "立即探鲜",
         picLink: { link: "", title: "" }
     },
     {
-        picUrl: "https://oss.tigshop.com/official/img/pc/202605/1779325953xOBpJxh9kzrNjJp3rB.png",
-        picThumb: "https://oss.tigshop.com/official/img/pc/202605/1779325953xOBpJxh9kzrNjJp3rB.png",
+        picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779325953xOBpJxh9kzrNjJp3rB.png",
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779325953xOBpJxh9kzrNjJp3rB.png",
         picTitle: "在家火锅",
         picDesc: "温暖冬季",
         picLink: { link: "", title: "" }
     },
     {
-        picUrl: "https://oss.tigshop.com/official/img/pc/202605/1779325953xOBpJxh9kzrNjJp3rB.png",
-        picThumb: "https://oss.tigshop.com/official/img/pc/202605/1779325953xOBpJxh9kzrNjJp3rB.png",
+        picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779325953xOBpJxh9kzrNjJp3rB.png",
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779325953xOBpJxh9kzrNjJp3rB.png",
         picTitle: "精致生活",
         picDesc: "居家好货",
         picLink: { link: "", title: "" }

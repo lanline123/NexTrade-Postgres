@@ -42,26 +42,26 @@ const ROOT_CATEGORIES: MockCategory[] = [
 ];
 
 const TEXT_FILE_PRODUCTS = [
-{ productName: "夏季复古方领刺绣衬衣西裤两件", price: "248.00", picUrl: "https://oss.tigshop.com/img/item/demo/1680762243Myvkn91XZndQaLrMTf!!pic400x400.jpeg"},
-{ productName: "法式U领露锁骨短袖T恤女2023年夏季奶系温柔泡泡袖上衣", price: "78.00", picUrl: "https://oss.tigshop.com/img/item/demo/1680589546tPrOZyKK683sfEOCq7!!pic400x400.jpeg"},
-{ productName: "陕西正宗奶油亚特猕猴桃新鲜水果奇异果孕妇水果现货绿心猕猴桃 带箱2斤中果70-90g（超值装）", price: "9.90", picUrl: "https://oss.tigshop.com/img/gallery/202509/1756782675WSx4GEiEA1a2TPj5V6.jpeg"},
-{ productName: "鲜生美国进口车厘子 黑珍珠大樱桃新鲜当季时令节日水果生鲜礼盒 1000g(净重) 超大果 JJ 28-30mm", price: "168.00", picUrl: "https://oss.tigshop.com/img/gallery/202509/175678163620Qgvoe1xOz7mmmfcn.jpeg"},
-{ productName: "23年春季新款气质西服领九分袖搭收腰显瘦纱裙套装", price: "339.00", picUrl: "https://oss.tigshop.com/img/item/demo/16807622759lrB7tSYTaDMl21ver!!pic400x400.jpeg"},
-{ productName: "法式西装领两件套纯色西装套裙女春秋复古设计感小众连衣裙两件套", price: "287.00", picUrl: "https://oss.tigshop.com/img/item/demo/1680762215SVhVhwTAK3TCRQdOQC!!pic400x400.jpeg"},
-{ productName: "羽绒服秋冬时尚休闲保暖舒适小清新外套上衣女", price: "399.00", picUrl: "https://oss.tigshop.com/img/item/demo/1680762133yqpJm3JLTLInfq4Gb1!!pic400x400.jpeg"},
-{ productName: "直筒90绒轻薄女士内胆圆领短款休闲外套", price: "254.00", picUrl: "https://oss.tigshop.com/img/item/demo/168076207428pJgHL7h3bVwGN5fN!!pic400x400.jpeg"},
-{ productName: "简洁可脱帽印花内里潮酷中长款保暖女式羽绒服", price: "799.00", picUrl: "https://oss.tigshop.com/img/item/demo/1680762049xrpLXPKPv7LRtNFhO8!!pic400x400.jpeg"},
-{ productName: "毛呢外套女春季翻领长袖英伦时尚百搭中长款上衣", price: "374.00", picUrl: "https://oss.tigshop.com/img/item/demo/1680761949huXDrN7BfQHZ6R0G6w!!pic400x400.jpeg"}
+{ productName: "夏季复古方领刺绣衬衣西裤两件", price: "248.00", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/1680762243Myvkn91XZndQaLrMTf!!pic400x400.jpeg"},
+{ productName: "法式U领露锁骨短袖T恤女2023年夏季奶系温柔泡泡袖上衣", price: "78.00", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/1680589546tPrOZyKK683sfEOCq7!!pic400x400.jpeg"},
+{ productName: "陕西正宗奶油亚特猕猴桃新鲜水果奇异果孕妇水果现货绿心猕猴桃 带箱2斤中果70-90g（超值装）", price: "9.90", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202509/1756782675WSx4GEiEA1a2TPj5V6.jpeg"},
+{ productName: "鲜生美国进口车厘子 黑珍珠大樱桃新鲜当季时令节日水果生鲜礼盒 1000g(净重) 超大果 JJ 28-30mm", price: "168.00", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202509/175678163620Qgvoe1xOz7mmmfcn.jpeg"},
+{ productName: "23年春季新款气质西服领九分袖搭收腰显瘦纱裙套装", price: "339.00", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/16807622759lrB7tSYTaDMl21ver!!pic400x400.jpeg"},
+{ productName: "法式西装领两件套纯色西装套裙女春秋复古设计感小众连衣裙两件套", price: "287.00", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/1680762215SVhVhwTAK3TCRQdOQC!!pic400x400.jpeg"},
+{ productName: "羽绒服秋冬时尚休闲保暖舒适小清新外套上衣女", price: "399.00", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/1680762133yqpJm3JLTLInfq4Gb1!!pic400x400.jpeg"},
+{ productName: "直筒90绒轻薄女士内胆圆领短款休闲外套", price: "254.00", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/168076207428pJgHL7h3bVwGN5fN!!pic400x400.jpeg"},
+{ productName: "简洁可脱帽印花内里潮酷中长款保暖女式羽绒服", price: "799.00", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/1680762049xrpLXPKPv7LRtNFhO8!!pic400x400.jpeg"},
+{ productName: "毛呢外套女春季翻领长袖英伦时尚百搭中长款上衣", price: "374.00", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/1680761949huXDrN7BfQHZ6R0G6w!!pic400x400.jpeg"}
 ];
 
 // 高保真鞋子数据，当点击鞋包类目时展示（与原版 SHOES_PRODUCTS 一致）
 const SHOES_PRODUCTS = [
-{ productName: "春季新款高帮女鞋时尚女潮板鞋百搭小白鞋女", price: "179.00", picUrl: "https://oss.tigshop.com/img/item/demo/1680589546tPrOZyKK683sfEOCq7!!pic400x400.jpeg"},
-{ productName: "韩版厚底高帮鞋潮流爆款熊猫鞋子女2023春季百搭休闲运动...", price: "207.00", picUrl: "https://oss.tigshop.com/img/item/demo/1680762243Myvkn91XZndQaLrMTf!!pic400x400.jpeg"},
-{ productName: "清爽透气舒适女鞋双鞋带休闲板鞋耐磨耐穿...", price: "160.00", picUrl: "https://oss.tigshop.com/img/item/demo/16807622759lrB7tSYTaDMl21ver!!pic400x400.jpeg"},
-{ productName: "春季新款舒适旅游鞋小白鞋男士板鞋时尚休闲鞋潮流百搭运动...", price: "239.00", picUrl: "https://oss.tigshop.com/img/item/demo/1680762215SVhVhwTAK3TCRQdOQC!!pic400x400.jpeg"},
-{ productName: "2023春季新款女鞋子贝壳头小白鞋运动休闲鞋女", price: "149.00", picUrl: "https://oss.tigshop.com/img/item/demo/1680762133yqpJm3JLTLInfq4Gb1!!pic400x400.jpeg"},
-{ productName: "春季小白鞋女板鞋舒适运动鞋休闲鞋女", price: "149.00", picUrl: "https://oss.tigshop.com/img/item/demo/168076207428pJgHL7h3bVwGN5fN!!pic400x400.jpeg"}
+{ productName: "春季新款高帮女鞋时尚女潮板鞋百搭小白鞋女", price: "179.00", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/1680589546tPrOZyKK683sfEOCq7!!pic400x400.jpeg"},
+{ productName: "韩版厚底高帮鞋潮流爆款熊猫鞋子女2023春季百搭休闲运动...", price: "207.00", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/1680762243Myvkn91XZndQaLrMTf!!pic400x400.jpeg"},
+{ productName: "清爽透气舒适女鞋双鞋带休闲板鞋耐磨耐穿...", price: "160.00", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/16807622759lrB7tSYTaDMl21ver!!pic400x400.jpeg"},
+{ productName: "春季新款舒适旅游鞋小白鞋男士板鞋时尚休闲鞋潮流百搭运动...", price: "239.00", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/1680762215SVhVhwTAK3TCRQdOQC!!pic400x400.jpeg"},
+{ productName: "2023春季新款女鞋子贝壳头小白鞋运动休闲鞋女", price: "149.00", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/1680762133yqpJm3JLTLInfq4Gb1!!pic400x400.jpeg"},
+{ productName: "春季小白鞋女板鞋舒适运动鞋休闲鞋女", price: "149.00", picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/168076207428pJgHL7h3bVwGN5fN!!pic400x400.jpeg"}
 ];
 
 const ALL_SUB_SUFFIX = "-all";

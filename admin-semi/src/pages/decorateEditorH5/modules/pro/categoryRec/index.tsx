@@ -13,8 +13,8 @@ const categoryList = [
         backgroundColor: "",
         catPic: {
             picId: 1462,
-            picThumb: "https://oss.tigshop.com/img/gallery/202411/1731896143iynI3ymaLzxGaRLk5h.jpg?x-oss-process=image/resize,m_pad,h_200,h_200",
-            picUrl: "https://oss.tigshop.com/img/gallery/202411/1731896143iynI3ymaLzxGaRLk5h.jpg",
+            picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731896143iynI3ymaLzxGaRLk5h.jpg?x-oss-process=image/resize,m_pad,h_200,h_200",
+            picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731896143iynI3ymaLzxGaRLk5h.jpg",
             picName: "FkVzGj1HD2aeDYmJ7E_VaFrIdr0H"
         }
     },
@@ -25,8 +25,8 @@ const categoryList = [
         backgroundColor: "",
         catPic: {
             picId: 1465,
-            picThumb: "https://oss.tigshop.com/img/gallery/202411/1731896143tV11a96dva46rixHbe.jpg?x-oss-process=image/resize,m_pad,h_200,h_200",
-            picUrl: "https://oss.tigshop.com/img/gallery/202411/1731896143tV11a96dva46rixHbe.jpg",
+            picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731896143tV11a96dva46rixHbe.jpg?x-oss-process=image/resize,m_pad,h_200,h_200",
+            picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731896143tV11a96dva46rixHbe.jpg",
             picName: "FmJJUiXFcIwl09Uo9QGJVuiDWhSt"
         }
     },
@@ -37,8 +37,8 @@ const categoryList = [
         backgroundColor: "",
         catPic: {
             picId: 1464,
-            picThumb: "https://oss.tigshop.com/img/gallery/202411/1731896143OEttGMFtuKVqGX0JGF.jpg?x-oss-process=image/resize,m_pad,h_200,h_200",
-            picUrl: "https://oss.tigshop.com/img/gallery/202411/1731896143OEttGMFtuKVqGX0JGF.jpg",
+            picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731896143OEttGMFtuKVqGX0JGF.jpg?x-oss-process=image/resize,m_pad,h_200,h_200",
+            picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731896143OEttGMFtuKVqGX0JGF.jpg",
             picName: "FjJhor6dmekuWG2RdOJkpwDL2JOY"
         }
     },
@@ -49,8 +49,8 @@ const categoryList = [
         backgroundColor: "",
         catPic: {
             picId: 1466,
-            picThumb: "https://oss.tigshop.com/img/gallery/202411/17318961436JZDXeYmtceZlmj3GK.jpg?x-oss-process=image/resize,m_pad,h_200,h_200",
-            picUrl: "https://oss.tigshop.com/img/gallery/202411/17318961436JZDXeYmtceZlmj3GK.jpg",
+            picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17318961436JZDXeYmtceZlmj3GK.jpg?x-oss-process=image/resize,m_pad,h_200,h_200",
+            picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17318961436JZDXeYmtceZlmj3GK.jpg",
             picName: "Ftv7Xo3nQ9qZRYPnN9oQB"
         }
     },
@@ -61,8 +61,8 @@ const categoryList = [
         backgroundColor: "",
         catPic: {
             picId: 1463,
-            picThumb: "https://oss.tigshop.com/img/gallery/202411/1731896143uW4eqHtyOfGZ1zl7hO.jpg?x-oss-process=image/resize,m_pad,h_200,h_200",
-            picUrl: "https://oss.tigshop.com/img/gallery/202411/1731896143uW4eqHtyOfGZ1zl7hO.jpg",
+            picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731896143uW4eqHtyOfGZ1zl7hO.jpg?x-oss-process=image/resize,m_pad,h_200,h_200",
+            picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731896143uW4eqHtyOfGZ1zl7hO.jpg",
             picName: "FgboIgXyCabilx_7jFjqAc2vBrye"
         }
     },
@@ -73,8 +73,8 @@ const categoryList = [
         backgroundColor: "",
         catPic: {
             picId: 1461,
-            picThumb: "https://oss.tigshop.com/img/gallery/202411/1731896143OQ05zAtqjDwO7YD6jA.jpg?x-oss-process=image/resize,m_pad,h_200,h_200",
-            picUrl: "https://oss.tigshop.com/img/gallery/202411/1731896143OQ05zAtqjDwO7YD6jA.jpg",
+            picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731896143OQ05zAtqjDwO7YD6jA.jpg?x-oss-process=image/resize,m_pad,h_200,h_200",
+            picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731896143OQ05zAtqjDwO7YD6jA.jpg",
             picName: "FkVNwFY9oMelIYCDC7ZTNLwpeC"
         }
     }

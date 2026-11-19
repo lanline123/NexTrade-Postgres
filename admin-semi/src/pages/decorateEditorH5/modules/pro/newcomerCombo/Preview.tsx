@@ -18,10 +18,10 @@ import { newcomerComboDefaults } from "./index";
 import "./Preview.css";
 
 const demoProducts: Array<Record<string, any>> = [
-    { productId: 0, productSn: "", productName: "草莓500g 新人尝鲜", productDesc: "", productPrice: 89.0, marketPrice: 129.0, picThumb: "https://oss.tigshop.com/img/gallery/202411/17319190474y0XWFxO8GJZF0dg64.jpg" },
-    { productId: 0, productSn: "", productName: "鲜切牛排 新人尝鲜", productDesc: "", productPrice: 89.0, marketPrice: 129.0, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071axvkfUDkQNFbIzF1iY.jpg" },
-    { productId: 0, productSn: "", productName: "鲜活大虾 限时折扣", productDesc: "", productPrice: 89.0, marketPrice: 129.0, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071lOa0ZBx2mYlvq1lgjr.jpg" },
-    { productId: 0, productSn: "", productName: "冷冻鸡腿 热卖中", productDesc: "", productPrice: 89.0, marketPrice: 129.0, picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071xUnObq2LokKPFecwXq.jpg" }
+    { productId: 0, productSn: "", productName: "草莓500g 新人尝鲜", productDesc: "", productPrice: 89.0, marketPrice: 129.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17319190474y0XWFxO8GJZF0dg64.jpg" },
+    { productId: 0, productSn: "", productName: "鲜切牛排 新人尝鲜", productDesc: "", productPrice: 89.0, marketPrice: 129.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071axvkfUDkQNFbIzF1iY.jpg" },
+    { productId: 0, productSn: "", productName: "鲜活大虾 限时折扣", productDesc: "", productPrice: 89.0, marketPrice: 129.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071lOa0ZBx2mYlvq1lgjr.jpg" },
+    { productId: 0, productSn: "", productName: "冷冻鸡腿 热卖中", productDesc: "", productPrice: 89.0, marketPrice: 129.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071xUnObq2LokKPFecwXq.jpg" }
 ];
 
 const demoCoupons: Array<Record<string, any>> = [

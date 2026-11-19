@@ -4,11 +4,11 @@
 import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultFrame } from "../../../contract/sharedDefaults";
 
-const SIGNIN_ICON = "https://oss.tigshop.com/img/gallery/202605/1779691601SIdmgIcby2Mii610eQ.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
-export const USERINFO3_SETTINGS_ICON = "https://oss.tigshop.com/official/img/pc/202605/1779872068yYRoxuCDxWgGcOti6b.png";
-export const USERINFO3_NOTIFICATION_ICON = "https://oss.tigshop.com/official/img/pc/202605/1779958812O0gl221tWQVIEt7OXD.png";
-export const USERINFO3_GROWTH_CARD_BG = "https://oss.tigshop.com/official/img/pc/202606/17808830195Hk80LmOeUpDCCCEKW.png";
-const STYLE1_BG = "https://oss.tigshop.com/official/img/pc/202605/1779860190FsB8OM4MrGwgOCvKsA.png";
+const SIGNIN_ICON = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202605/1779691601SIdmgIcby2Mii610eQ.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
+export const USERINFO3_SETTINGS_ICON = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779872068yYRoxuCDxWgGcOti6b.png";
+export const USERINFO3_NOTIFICATION_ICON = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779958812O0gl221tWQVIEt7OXD.png";
+export const USERINFO3_GROWTH_CARD_BG = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202606/17808830195Hk80LmOeUpDCCCEKW.png";
+const STYLE1_BG = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779860190FsB8OM4MrGwgOCvKsA.png";
 
 /** 与旧 mobileMember/userInfo3/View.vue 的 mergeDefaultModule 字面量逐字段一致（契约） */
 export const userInfo3Defaults = {

@@ -12,7 +12,7 @@ import { imageFormat } from "../../../shared/format";
 import { shopInfoDefaults } from "./index";
 import { SHOP_INFO_BACKGROUNDS } from "./backgrounds";
 
-const SHOP_LOGO = "https://oss.tigshop.com/img/gallery/202406/17181844953OiwzdtLSXKLeU9oi7.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
+const SHOP_LOGO = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202406/17181844953OiwzdtLSXKLeU9oi7.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
 
 function SearchIcon() {
     return (

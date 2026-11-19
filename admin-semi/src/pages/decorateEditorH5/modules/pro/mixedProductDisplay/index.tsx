@@ -24,8 +24,8 @@ const daysLaterEndTime = (days: number): number => {
 
 const demoPic = {
     picId: 1454,
-    picThumb: "https://oss.tigshop.com/img/gallery/202411/1731650293Kfvp2BXElAzXCOY7pq.png?x-oss-process=image/resize,m_pad,h_200,h_200",
-    picUrl: "https://oss.tigshop.com/img/gallery/202411/1731650293Kfvp2BXElAzXCOY7pq.png",
+    picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731650293Kfvp2BXElAzXCOY7pq.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+    picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731650293Kfvp2BXElAzXCOY7pq.png",
     picName: "Fi_ZwwrzwDQddtmqTBCAyht4dPI"
 };
 
@@ -45,10 +45,10 @@ const demoGroups = [
         groupSubTitle: "直触底价 先到先得",
         groupType: "product",
         pruductList: [
-            demoProduct("德宝纸巾", "https://oss.tigshop.com/img/gallery/202411/1731650293KF9TjvpDKHOATMR3H7.jpg"),
-            demoProduct("薯片", "https://oss.tigshop.com/img/gallery/202411/1731650294a4EsPq1zkYme6p5OhC.jpg"),
-            demoProduct("饼干", "https://oss.tigshop.com/img/gallery/202411/1731650294hYUnaJSx7UhsjhhGEi.jpg"),
-            demoProduct("奶粉", "https://oss.tigshop.com/img/gallery/202411/1731650293zLV7bKUMAFWH6hrM7m.jpg")
+            demoProduct("德宝纸巾", "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731650293KF9TjvpDKHOATMR3H7.jpg"),
+            demoProduct("薯片", "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731650294a4EsPq1zkYme6p5OhC.jpg"),
+            demoProduct("饼干", "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731650294hYUnaJSx7UhsjhhGEi.jpg"),
+            demoProduct("奶粉", "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731650293zLV7bKUMAFWH6hrM7m.jpg")
         ],
         moreLink: { link: { link: "", title: "" }, linkTitle: "" }
     },
@@ -57,10 +57,10 @@ const demoGroups = [
         groupSubTitle: "精选推荐 多买多省",
         groupType: "product",
         pruductList: [
-            demoProduct("高露洁牙膏", "https://oss.tigshop.com/img/gallery/202411/17316502936Ow5WaZszFnuYuGzB8.jpg"),
-            demoProduct("黑人牙膏", "https://oss.tigshop.com/img/gallery/202411/1731650293Tx6p8XKkDJPhDOOAT3.jpg"),
-            demoProduct("高露洁牙膏", "https://oss.tigshop.com/img/gallery/202411/1731650293yDagFw4VE9FG1oJSnW.jpg"),
-            demoProduct("黑人牙膏", "https://oss.tigshop.com/img/gallery/202411/1731650294KeYpvFBkgkloWdbqX7.jpg")
+            demoProduct("高露洁牙膏", "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17316502936Ow5WaZszFnuYuGzB8.jpg"),
+            demoProduct("黑人牙膏", "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731650293Tx6p8XKkDJPhDOOAT3.jpg"),
+            demoProduct("高露洁牙膏", "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731650293yDagFw4VE9FG1oJSnW.jpg"),
+            demoProduct("黑人牙膏", "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731650294KeYpvFBkgkloWdbqX7.jpg")
         ],
         moreLink: { link: { link: "", title: "" }, linkTitle: "" }
     }

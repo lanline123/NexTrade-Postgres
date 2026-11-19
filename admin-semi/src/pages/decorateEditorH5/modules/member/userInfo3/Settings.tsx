@@ -113,8 +113,8 @@ function TextRow({
 
 // ===== [wave2-data 线] 老数据迁移回填：对齐原版 userInfo3/Settings.vue 的 setup 迁移段，逐项复刻 =====
 // 本段（含下方组件内的同名标记 effect）为 D 线改动；文件其余部分由链接/图片线维护，合并时勿动本段。
-const UI3_SIGNIN_ICON_URL = "https://oss.tigshop.com/img/gallery/202605/1779691601SIdmgIcby2Mii610eQ.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
-const UI3_STYLE1_BG_URL = "https://oss.tigshop.com/official/img/pc/202605/1779860190FsB8OM4MrGwgOCvKsA.png";
+const UI3_SIGNIN_ICON_URL = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202605/1779691601SIdmgIcby2Mii610eQ.jpeg?x-oss-process=image/resize,m_pad,h_200,h_200";
+const UI3_STYLE1_BG_URL = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779860190FsB8OM4MrGwgOCvKsA.png";
 const ui3Pic = (url: string) => ({ picUrl: url, picThumb: url });
 const ui3GradientDefaults = (style: number): Record<string, any> => ({ ...(GRADIENT_DEFAULTS[style] || GRADIENT_DEFAULTS[2]) });
 const ui3TextColorDefaults = (style: number): Record<string, any> => ({ ...(TEXT_DEFAULTS[style] || TEXT_DEFAULTS[1]) });

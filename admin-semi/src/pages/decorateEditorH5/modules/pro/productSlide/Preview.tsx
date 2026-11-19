@@ -33,7 +33,7 @@ const DEMO_PRODUCTS: Array<Record<string, any>> = [
         salesVolume: 1200,
         brief: "新品",
         feature: "A类纯棉 亲肤透气",
-        picThumb: "https://oss.tigshop.com/img/gallery/202411/17319190474y0XWFxO8GJZF0dg64.jpg"
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17319190474y0XWFxO8GJZF0dg64.jpg"
     },
     {
         productId: 0,
@@ -43,7 +43,7 @@ const DEMO_PRODUCTS: Array<Record<string, any>> = [
         salesVolume: 860,
         brief: "热卖",
         feature: "0 蔗糖 易吸收",
-        picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071axvkfUDkQNFbIzF1iY.jpg"
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071axvkfUDkQNFbIzF1iY.jpg"
     },
     {
         productId: 0,
@@ -53,7 +53,7 @@ const DEMO_PRODUCTS: Array<Record<string, any>> = [
         salesVolume: 540,
         brief: "推荐",
         feature: "温和无泪 弱酸性",
-        picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071lOa0ZBx2mYlvq1lgjr.jpg"
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071lOa0ZBx2mYlvq1lgjr.jpg"
     },
     {
         productId: 0,
@@ -63,7 +63,7 @@ const DEMO_PRODUCTS: Array<Record<string, any>> = [
         salesVolume: 320,
         brief: "好评",
         feature: "加大加厚 防滑",
-        picThumb: "https://oss.tigshop.com/img/gallery/202411/1731919071xUnObq2LokKPFecwXq.jpg"
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071xUnObq2LokKPFecwXq.jpg"
     }
 ];
 

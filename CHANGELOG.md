@@ -348,3 +348,7 @@
 ### 新增
 
 - **后台 - 商品询价未回复菜单红标**：与 AI 审批中心同款提醒——左侧菜单四处亮红 pill（一级栏「商品」后、展开标题「商品」后、「询价管理」分组标题后、「商品询价」菜单项后），复用 `.admin-msg-num` 样式（#fa4350、>99 显示 99+、0 条隐藏）。计数口径为未回复数（`status=0`，1=已回复），新增同构 hook `useUnrepliedInquiryCount` 调现成接口 `GET /product/priceInquiry/list?status=0&size=1` 取 `total`（接口按当前组织自动过滤，与询价列表页范围一致，无需改后端），60 秒轮询 + page 变化刷新、失败静默。本次只做菜单红标，不含消息中心提醒条。
+
+### 其他
+
+- **后台 - 默认图/演示图批量转存自有 OSS【原版有】**：admin-semi 中原本引用 `oss.tigshop.com` 的默认图与演示图（编辑器模块默认值、Preview 演示数据、页面样式示例图等）批量转存至自有 OSS（nlatstore 桶），引用统一改为直连域名 `nlatstore.cn-qingdao.oss.aliyuncs.com`、路径不变；资源内容与原版一致，仅变更托管域名。对象侧共核对 237 个路径：232 个对象在自有桶中已存在且内容字节一致（sha256 相同，未重复上传），0 个冲突；代码侧 57 个文件共 341 处引用换主机（含 4 处非字面量构造点：cateCenterV1 的 `BASE_URL`、member/account 的 `pic()`、member/orderEntry 的 `j()`/`p()`、orderEntryV2 的 `j()`；2 处 `http://` 字面量一并归一为 https）。2 处源站本身即不存在的引用保留原域名并登记待处理：fixedFunctionalArea 预览背景 `img/gallery/202605/1779687135mCFnXgC37n5CN70APv.png`（源站与自有桶均 404）、shopTips 默认 picUrl `official/img/pc/202605/1779263739qL8q3AHR1CcdoNv4sD.pngg`（原版文件名笔误 `.pngg`，源站 404；同项 picThumb 的 `.png` 正常已切换）。客服表情图（emojiUrls）与 banner 图标说明注释中的域名提及不在本次范围。

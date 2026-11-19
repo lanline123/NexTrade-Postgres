@@ -5,8 +5,8 @@ import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultFrame } from "../../../contract/sharedDefaults";
 
 const JPIC = "?x-oss-process=image/resize,m_pad,h_200,h_200";
-const j = (name: string) => `https://oss.tigshop.com/img/gallery/202605/${name}${JPIC}`;
-const p = (name: string) => `https://oss.tigshop.com/official/img/pc/202605/${name}`;
+const j = (name: string) => `https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202605/${name}${JPIC}`;
+const p = (name: string) => `https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/${name}`;
 
 /** 样式一入口（JPEG 图标，原版 Settings.vue style1EntryList） */
 export const orderEntryStyle1List = [
