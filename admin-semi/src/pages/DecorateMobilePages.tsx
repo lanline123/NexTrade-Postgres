@@ -624,7 +624,9 @@ export function MobileDecoratePageList({
               size="small"
               onClick={() => {
                 const idKey = (editPage === 'pcDecorateEditor' || editPage === 'mobileDecorateEditor') ? 'id' : 'decorateId';
-                window.location.href = `${window.location.origin}/?page=${editPage}&${idKey}=${row.decorateId}${pageType ? `&pageType=${pageType}` : ''}${returnPage ? `&from=${returnPage}` : ''}`;
+                // 装修编辑器一律新开窗口（用户 2026-11-19 指令）：与 PC 装修列表「编辑」/自定义页「装修」
+                // 既有的 window.open('_blank') 口径统一；编辑器内「返回」行为不变（仍跳回列表页）。
+                window.open(`${window.location.origin}/?page=${editPage}&${idKey}=${row.decorateId}${pageType ? `&pageType=${pageType}` : ''}${returnPage ? `&from=${returnPage}` : ''}`, '_blank');
               }}
             >
               {t('装修')}
