@@ -15,7 +15,8 @@
 //! 未迁移：
 //! - 定金预售的余额抵扣上限（依赖 `product_presale` 域）
 //! - 账期支付互斥校验（依赖 `credit_user` 域）
-//! - 支付后积分赠送/分销佣金/拆单（依赖对应域）
+//! - 支付后积分赠送/拆单（依赖对应域）
+//! - 支付后分销佣金：已接（全额付清时触发 salesman_generation 支付节点）
 
 use std::sync::Arc;
 
@@ -316,6 +317,19 @@ impl BalancePayService {
                     "余额部分抵扣: order_id={order_id} deducted={deduct} 剩余应付={}",
                     unpaid - deduct
                 );
+            }
+        }
+
+        // 分销生成链·支付节点（best-effort，失败仅告警）：余额支付不走
+        // `OrderService::on_payment_success`，全额付清时在此补触发微商模式
+        // 佣金生成（生成服务内含整单防重，重复触发/多通道不会双记）。
+        if order_fully_paid {
+            let generation =
+                crate::marketing::salesman_generation::SalesmanGenerationService::new(
+                    self.repos.clone(),
+                );
+            if let Err(e) = generation.on_order_paid(order_id).await {
+                tracing::warn!("订单 {order_id} 分销生成链（余额支付）失败: {e}");
             }
         }
 

@@ -52,6 +52,28 @@ impl UserService {
         self.repos.member.user.insert(&user).await
     }
 
+    /// 带分销归因的注册（原版 `UserServiceImpl#registerByMobile` 口径）：
+    /// 注册参数带 salesmanId 时，注册成功后写入客户绑定（salesman_customer）。
+    /// 绑定为尽力而为：失败仅告警，不回滚已建成的账号。
+    pub async fn register_with_salesman(
+        &self,
+        mobile: &str,
+        password: &str,
+        nickname: Option<&str>,
+        salesman_id: Option<i32>,
+    ) -> Result<i32> {
+        let user_id = self.register(mobile, password, nickname).await?;
+        if let Some(sid) = salesman_id.filter(|&id| id > 0) {
+            let svc = crate::marketing::salesman_generation::SalesmanGenerationService::new(
+                self.repos.clone(),
+            );
+            if let Err(e) = svc.on_user_registered(user_id, sid, "注册绑定").await {
+                tracing::warn!("注册分销绑定失败 user={user_id} salesman={sid}: {e}");
+            }
+        }
+        Ok(user_id)
+    }
+
     /// 账号密码登录。兼容用户名、手机号和跨境版的邮箱账号。
     pub async fn login(&self, identity: &str, password: &str) -> Result<User> {
         let users = &self.repos.member.user;

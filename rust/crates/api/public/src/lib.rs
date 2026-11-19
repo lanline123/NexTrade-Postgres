@@ -260,6 +260,10 @@ struct RegisterDTO {
     mobile: String,
     password: String,
     nickname: Option<String>,
+    /// 分销归属（H5 注册页从分享链接 `bindSalesmanId` 透传；原版
+    /// `RegisterController` → `UserServiceImpl.registerByMobile` 的 salesmanId）。
+    #[serde(default)]
+    salesman_id: Option<i32>,
 }
 
 /// `POST /api/user/register`。
@@ -268,7 +272,12 @@ async fn user_register(
     Json(dto): Json<RegisterDTO>,
 ) -> ApiResult<i32> {
     let id = state.member.user
-        .register(&dto.mobile, &dto.password, dto.nickname.as_deref())
+        .register_with_salesman(
+            &dto.mobile,
+            &dto.password,
+            dto.nickname.as_deref(),
+            dto.salesman_id,
+        )
         .await?;
     ok(id)
 }
@@ -430,6 +439,10 @@ struct CartAddDTO {
     /// 带价附加属性（`attr_type=2`），旧版 `ProductAttr.vue` 选中后以 id 串提交
     #[serde(default)]
     extra_attr_ids: Option<String>,
+    /// 分销归属（H5 购买组件从分享链接的 `salesmanProducts` 透传；
+    /// 原版 Cart 的 salesman_id 暂存字段，下单时据此生成推广佣金）。
+    #[serde(default)]
+    salesman_id: Option<i32>,
 }
 
 /// 兼容原版前端的 `isQuick: 1/0`、字符串 `"1"/"true"` 和布尔值。
@@ -485,6 +498,17 @@ async fn cart_add(
             dto.extra_attr_ids.as_deref(),
         )
         .await?;
+    // 分销归属暂存（best-effort：失败不影响加购主流程）。
+    if let Some(sid) = dto.salesman_id.filter(|id| *id > 0) {
+        if let Err(e) = state
+            .trade
+            .cart
+            .attribute_salesman(auth.id, cart_id, sid)
+            .await
+        {
+            tracing::warn!(error = %e, cart_id, "分销归属暂存失败（不影响加购）");
+        }
+    }
     ok(cart_id)
 }
 
@@ -783,3 +807,4 @@ mod order_query_tests {
         assert_eq!(q.page_size, Some(20));
     }
 }
+

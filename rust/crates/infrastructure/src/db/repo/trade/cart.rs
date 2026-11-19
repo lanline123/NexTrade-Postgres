@@ -66,8 +66,8 @@ impl CartRepository {
             "INSERT INTO cart
              (user_id, product_id, product_sn, pic_thumb, market_price,
               original_price, quantity, sku_id, sku_data, product_type,
-              is_checked, shop_id, \"type\", update_time, extra_data, extra_sku_data)
-             VALUES ($1,  $2,  $3,  $4,  $5,  $6,  $7,  $8,  $9,  $10,  $11,  $12,  $13,  $14, $15,  $16) RETURNING cart_id",
+              is_checked, shop_id, \"type\", update_time, extra_data, extra_sku_data, salesman_id)
+             VALUES ($1,  $2,  $3,  $4,  $5,  $6,  $7,  $8,  $9,  $10,  $11,  $12,  $13,  $14, $15,  $16, $17) RETURNING cart_id",
         )
         .bind(cart.user_id)
         .bind(cart.product_id)
@@ -85,6 +85,7 @@ impl CartRepository {
         .bind(cart.update_time)
         .bind(&cart.extra_data)
         .bind(&cart.extra_sku_data)
+        .bind(cart.salesman_id)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
@@ -143,6 +144,20 @@ impl CartRepository {
             .execute(&self.pool)
             .await
             .map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 回填归因分销员：仅当现值为 0 时写入（不覆盖既有归因，防串单抢归因）。
+    pub async fn update_salesman_id(&self, cart_id: i32, user_id: i32, salesman_id: i32) -> Result<()> {
+        sqlx::query(
+            "UPDATE cart SET salesman_id = $1 WHERE cart_id = $2 AND user_id = $3 AND salesman_id = 0",
+        )
+        .bind(salesman_id)
+        .bind(cart_id)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
         Ok(())
     }
 

@@ -275,6 +275,20 @@ impl CartService {
         self.repos.trade.cart.insert(&cart).await
     }
 
+    /// 回填加购归因分销员（原版 cart.salesman_id 暂存归因）：
+    /// 加购请求带 salesmanId 时由调用方在 `add` 成功后调用；仅当行上现值
+    /// 为 0 时才写入，不覆盖既有归因（防串单抢归因）。
+    pub async fn attribute_salesman(&self, user_id: i32, cart_id: i32, salesman_id: i32) -> Result<()> {
+        if salesman_id <= 0 {
+            return Ok(());
+        }
+        self.repos
+            .trade
+            .cart
+            .update_salesman_id(cart_id, user_id, salesman_id)
+            .await
+    }
+
     /// 礼品卡兑换专用加车（useCard 调用）：独立行写入，不与普通行合并，
     /// `extra_data` 标记 `{"giftCardsId": …}` 供结算 flowType=12 与下单
     /// 关联 order_item.gift_card_id；首行先取消该会员其它行勾选，保证

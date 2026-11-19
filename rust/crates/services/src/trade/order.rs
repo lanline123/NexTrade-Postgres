@@ -1101,6 +1101,37 @@ impl OrderService {
         }
         }
 
+        // —— 分销生成链·下单节点（best-effort，失败仅告警）——
+        // 微商模式（distributionMode=2）：招募方式含「消费自动招募」时，
+        // 买家首单自动成为分销员（原版 WechatBizRecruitService 口径）；
+        // 推广模式（=1）：按购物车行暂存的 salesman_id 归属在下单时
+        // 生成推广佣金（原版 OrderCheckServiceImpl 口径）。
+        {
+            let attributions: Vec<(i32, Option<i32>, i32)> = lines
+                .iter()
+                .filter(|l| l.salesman_id > 0)
+                .map(|l| (l.product_id, l.sku_id, l.salesman_id))
+                .collect();
+            let generation =
+                crate::marketing::salesman_generation::SalesmanGenerationService::new(
+                    self.repos.clone(),
+                );
+            if let Err(e) = generation
+                .on_order_submitted(user_id, order_id, &attributions)
+                .await
+            {
+                tracing::warn!("订单 {order_id} 分销生成链（下单节点）失败: {e}");
+            }
+            // 提交即全额付清（礼品卡/余额全额覆盖，return_type=2）：订单已在
+            // 上方 mark_paid，不会再走支付回调，同步补触发支付节点生成
+            // （on_order_paid 内含整单防重，多通道重复触发不会双记）。
+            if return_type == 2 {
+                if let Err(e) = generation.on_order_paid(order_id).await {
+                    tracing::warn!("订单 {order_id} 分销生成链（提交即付清）失败: {e}");
+                }
+            }
+        }
+
         let out_trade_no = format!("PAY{order_sn}");
         Ok(OrderCreateVO {
             order_id,
@@ -1461,6 +1492,19 @@ impl OrderService {
             real_settlement_time: None,
         };
         let _ = self.repos.payment.statement.insert_statement_output(&output).await;
+
+        // 5. 分销生成链·支付节点（best-effort，失败仅告警）：微商模式在
+        // 支付成功时生成佣金（原版 OrderServiceImpl 支付成功 → 生成口径）；
+        // 生成服务内含整单防重，重复回调/多通道触发不会双记。
+        {
+            let generation =
+                crate::marketing::salesman_generation::SalesmanGenerationService::new(
+                    self.repos.clone(),
+                );
+            if let Err(e) = generation.on_order_paid(order_id).await {
+                tracing::warn!("订单 {order_id} 分销生成链（支付节点）失败: {e}");
+            }
+        }
 
         if let Some(no) = out_trade_no {
             tracing::info!("订单支付成功: {order_id}, trade_no={no}");
@@ -2228,3 +2272,4 @@ mod order_contract_tests {
         assert_eq!(virtual_sample_for(2, 2, None), None);
     }
 }
+

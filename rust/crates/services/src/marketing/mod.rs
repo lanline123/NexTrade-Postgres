@@ -29,6 +29,7 @@ pub mod salesman_admin;
 pub mod salesman_config;
 pub mod salesman_content;
 pub mod salesman_customer_transaction;
+pub mod salesman_generation;
 pub mod salesman_group;
 pub mod salesman_material;
 pub mod salesman_material_category;
