@@ -7,11 +7,13 @@
  * 接口：GET promotion/groupon/record/list { page, size, isMine:false, joinStatus:1, productId, excludeEnded:true }
  * 去参团：POST cart/cart/addToCart { id, number, skuId, isQuick:1, grouponData:{...拼团上下文, grouponPromotionRecordId} }
  * → /order/check（旧版 ProductBuy isQuick 分支）。
+ * 阶梯团：该团档位由开团成团人数锁定，grouponData 另带 groupNumKey 与档位价（与 H5 同口径）。
  */
 import { useEffect, useState } from 'react';
 import { Avatar, Button, Toast } from '@douyinfe/semi-ui';
 import { IconChevronRight } from '@douyinfe/semi-icons';
 import { apiGet, apiPost } from '@/lib/client-api';
+import { grouponTierByNum, resolveGrouponTiers } from '@/lib/groupon-tiers';
 import GrouponCountdown from '@/components/GrouponCountdown';
 
 import { useTranslation } from 'react-i18next';
@@ -88,6 +90,9 @@ export default function ProductJoiningClient({ productId, groupon, skuId, number
     const details = (groupon.grouponPromotionDetails || []) as Array<Record<string, any>>;
     const matched = skuId ? details.find((row2) => Number(row2.skuId) === Number(skuId)) : undefined;
     const detailRow = matched || details[0];
+    // 阶梯团参团：档位由该团开团时的成团人数锁定（H5 同口径），下发对应 groupNumKey 与档位价；
+    // 普通团无档位表，沿用原口径（不带 key、价取活动最低价）。
+    const lockedTier = grouponTierByNum(resolveGrouponTiers(groupon, detailRow), Number(row.minGroupNum || 0));
     setJoining(recordId);
     try {
       await apiPost('cart/cart/addToCart', {
@@ -99,7 +104,8 @@ export default function ProductJoiningClient({ productId, groupon, skuId, number
           grouponPromotionId: promotionId,
           grouponPromotionItemId: itemId,
           grouponDetailId: detailRow ? Number(detailRow.grouponDetailId || 0) : 0,
-          price: Number(groupon.grouponPrice || groupon.minGrouponPrice || 0),
+          price: lockedTier ? lockedTier.price : Number(groupon.grouponPrice || groupon.minGrouponPrice || 0),
+          ...(lockedTier ? { groupNumKey: lockedTier.key } : {}),
           grouponPromotionRecordId: recordId,
         },
       });

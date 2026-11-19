@@ -9,6 +9,7 @@ import { addToCart } from '@/lib/api';
 import { apiGet, apiPost } from '@/lib/client-api';
 import { formatDisplayPrice, formatPrice, splitDisplayPrice } from '@/lib/currency';
 import { resolveInquiryState, skuIsInquiry } from '@/lib/inquiry';
+import { defaultGrouponTier, grouponTierByNum, matchGrouponDetailRow, resolveGrouponTiers } from '@/lib/groupon-tiers';
 import InquiryFormModal from '@/components/InquiryFormModal';
 import RawImageDownloadButton from '@/components/RawImageDownloadButton';
 import ProductJoiningClient from '@/components/ProductJoiningClient';
@@ -806,8 +807,6 @@ export default function ProductDetailClient({
     }
   };
 
-  const grouponPrice = grouponInfo ? pick(grouponInfo, ['grouponPrice', 'minGroupPrice', 'groupon_price']) : null;
-  const grouponNum = grouponInfo ? pickNumber(grouponInfo, ['minGroupNum', 'min_group_num'], 0) : 0;
   const grouponJoined = grouponInfo ? pickNumber(grouponInfo, ['joinNumCount', 'join_num_count'], 0) : 0;
   // 旧版 Product.vue:821 / groupByInvited.vue:296：被邀请参团进详情时 URL 携带 grouponPromotionRecordId，
   // 加购时随 grouponData 下发，后端据此参到指定的团（开团时不带）。
@@ -817,26 +816,66 @@ export default function ProductDetailClient({
     setGrouponRecordId(Number(new URL(window.location.href).searchParams.get('grouponPromotionRecordId')) || 0);
   }, [productId]);
 
+  // 参团锁定档位：带 grouponPromotionRecordId 时拉该团详情取其成团人数，
+  // 阶梯档按人数锁定不可改（H5 specification 同口径：带记录 id 时不展示档位选择）。
+  const [grouponRecordMinNum, setGrouponRecordMinNum] = useState(0);
+  useEffect(() => {
+    if (!grouponRecordId) {
+      setGrouponRecordMinNum(0);
+      return;
+    }
+    let alive = true;
+    apiGet<Record<string, any>>('promotion/groupon/record/details', { grouponPromotionRecordId: grouponRecordId })
+      .then((detail) => alive && setGrouponRecordMinNum(pickNumber(detail, ['minGroupNum', 'min_group_num'], 0)))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [grouponRecordId]);
+
+  // 阶梯档位（groupType=2）：手动选档 state；未选/所选档在当前 SKU 不存在时回落最低价档
+  //（H5 默认选中最低价阶梯同口径；后端未收到 key 时同样回落最低价，行为一致）。
+  const [grouponTierKey, setGrouponTierKey] = useState(0);
+  const grouponDetailRow = grouponInfo
+    ? matchGrouponDetailRow(grouponInfo, selectedSku?.skuId ? Number(selectedSku.skuId) : skuId)
+    : undefined;
+  const grouponTiers = grouponInfo ? resolveGrouponTiers(grouponInfo, grouponDetailRow) : [];
+  const grouponLockedTier = grouponRecordId > 0 ? grouponTierByNum(grouponTiers, grouponRecordMinNum) : undefined;
+  const grouponActiveTier =
+    grouponLockedTier || grouponTiers.find((tier) => tier.key === grouponTierKey) || defaultGrouponTier(grouponTiers);
+
   /** 旧版 Buy.vue:88-96：拼团上下文 grouponData（活动 + 活动商品 + 明细 + 参团记录）。 */
   const buildGrouponData = (): Record<string, number> | undefined => {
     if (!grouponInfo) return undefined;
     const promotionId = pickNumber(grouponInfo, ['grouponPromotionId', 'grouponId'], 0);
     const itemId = pickNumber(grouponInfo, ['grouponPromotionItemId'], 0);
     if (!promotionId || !itemId) return undefined;
-    const details = (grouponInfo.grouponPromotionDetails || []) as Array<Record<string, any>>;
-    const matched = selectedSku?.skuId
-      ? details.find((row) => Number(row.skuId) === Number(selectedSku.skuId))
-      : undefined;
-    const detailRow = matched || details[0];
     const data: Record<string, number> = {
       grouponPromotionId: promotionId,
       grouponPromotionItemId: itemId,
-      grouponDetailId: detailRow ? pickNumber(detailRow, ['grouponDetailId'], 0) : 0,
-      price: Number(pick(grouponInfo, ['grouponPrice', 'minGroupPrice', 'minGrouponPrice'], 0)),
+      grouponDetailId: grouponDetailRow ? pickNumber(grouponDetailRow, ['grouponDetailId'], 0) : 0,
+      price: grouponActiveTier
+        ? grouponActiveTier.price
+        : Number(pick(grouponInfo, ['grouponPrice', 'minGroupPrice', 'minGrouponPrice'], 0)),
     };
+    // 阶梯团：下发当前档位 key，后端按档位价/成团人数结算（普通团无档位表，不带此字段）
+    if (grouponActiveTier) data.groupNumKey = grouponActiveTier.key;
     if (grouponRecordId > 0) data.grouponPromotionRecordId = grouponRecordId;
     return data;
   };
+
+  // 面板展示价 / 成团人数：阶梯团随当前档位联动；普通团沿用活动口径。
+  // 注：getGrouponInfo 实际下发字段为 minGrouponPrice，旧 pick 列表漏了该键导致面板价恒空，一并对齐。
+  const grouponPrice = grouponActiveTier
+    ? grouponActiveTier.price
+    : grouponInfo
+      ? pick(grouponInfo, ['grouponPrice', 'minGroupPrice', 'minGrouponPrice', 'groupon_price'])
+      : null;
+  const grouponNum = grouponActiveTier
+    ? grouponActiveTier.num
+    : grouponInfo
+      ? pickNumber(grouponInfo, ['minGroupNum', 'min_group_num'], 0)
+      : 0;
   const commentGoodPercent = pickString(commentStat, ['goodPercent'], '0.00');
   const commentAverage = pickNumber(commentStat, ['averageRank'], 0);
 
@@ -1087,6 +1126,28 @@ export default function ProductDetailClient({
             {grouponNum > 0 ? <span className="pds-panel__note">{grouponNum} 人成团</span> : null}
             {grouponNum > 0 ? <span className="pds-panel__note">已拼 {grouponJoined} 件</span> : null}
           </div>
+          {/* 阶梯团档位选择（与 H5 对齐）：开团可选档，选中价/成团人数随档联动，
+              grouponData 下发 groupNumKey；参团（带记录 id）档位锁定为该团档位，不提供改档 */}
+          {grouponTiers.length > 1 && !grouponLockedTier ? (
+            <div className="pds-panel__tiers">
+              <span className="pds-panel__tiers-label">成团人数</span>
+              {grouponTiers.map((tier) => (
+                <button
+                  type="button"
+                  key={tier.key}
+                  className={`pds-tier${grouponActiveTier?.key === tier.key ? ' is-active' : ''}`}
+                  onClick={() => setGrouponTierKey(tier.key)}
+                >
+                  {tier.num} 人 · {formatDisplayPrice(tier.price)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {grouponLockedTier ? (
+            <p className="pds-panel__note">
+              该团档位：{grouponLockedTier.num} 人成团 · {formatDisplayPrice(grouponLockedTier.price)}（参团不可改档）
+            </p>
+          ) : null}
           {/* 旧版无「去拼团」跳转：参团/开团由本页加购按钮承担（grouponData 随 addToCart 下发）；
               进行中拼单列表（旧 ProductJoining）在中优先级批次补齐 */}
           {grouponRecordId > 0 ? (

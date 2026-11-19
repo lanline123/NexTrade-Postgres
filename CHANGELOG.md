@@ -399,3 +399,9 @@
 ### 修复
 
 - **后端 - 拍卖迁移 `004_auction.sql` 的 SMALLINT 与实体 i32 解码对齐**：拍卖一期迁移把 10 个状态/标志列建为 SMALLINT（`auction_session.status`、`auction_item.status`、`auction_bid.is_buyout/is_proxy/status`、`auction_deposit.status`、`auction_breach.waived`、`auction_ban.ban_type/status`、`auction_remind.notified`），而实体（`crates/core/src/entities/auction.rs`）全部按 i32 解码，sqlx 严格类型校验下不兼容。批次八上线验收时拍卖表为空、解码路径未被真实行触发，**空表验收假绿**；拍卖前台联调落入真实数据后，sessions/items/my-joins 等接口立即 500（`wrong type: SMALLINT (column: status / is_buyout /...)`）。线上库已由前台线在服务器侧对同 10 列 `ALTER COLUMN... TYPE INT` 恢复，接口即时转好；本次仅把仓库迁移文件同 10 列 SMALLINT → INT 与线上现状及实体对齐，防止新装/重建环境重踩。同步完成全仓同类清扫：`rust/migrations/*.sql` 其余 SMALLINT 列仅黑名单 003 的 5 列（`user_blacklist.owner_type/apply_mode/source/status`、`user_blacklist_log.op_type`），其仓储行结构按 i16 解码、与 SMALLINT 一致，不动；`rust/deploy/pg` 礼品卡流水 `type smallint` 对 i16 亦一致。线上库与生产服务本次未动。
+
+## 0.0.2 续 · 2026-11-19 批次（PC 团购阶梯档位选择，未上线，待合并推送）
+
+### 新增
+
+- **PC 前台 - 团购阶梯档位选择【原版有·PC 端补齐】**（用户 2026-11-19 拍板「PC 补上档位选择，和 H5 对齐」）：阶梯团（groupType=2）的选档是原版/H5 既有能力——H5 specification 按当前 SKU 的 `groupPrice` 档位表渲染阶梯、下单随 `grouponData.groupNumKey` 下发，后端 `groupon_price_for`/`groupon_min_group_num` 按 key 精确取档位价与成团人数（未传回落最低价档）；PC 商品详情页团购面板此前无选档控件、下单不传 key，买家恒按最低价档计价（口径自洽、非算价错误，属功能缺失）。本次补齐：① 详情页团购面板新增档位选择（各档「人数 · 团购价」胶囊按钮，样式沿用面板既有 `.pds-panel` 体系），面板展示价与「N 人成团」随选中档联动，`buildGrouponData` 下发 `groupNumKey` 与档位价；② 默认选中最低价档（H5 同口径），未选/所选档在当前 SKU 不存在时回落默认档，未改档时下单结果与旧行为一致（旧行为即后端回落最低价）；③ 参团锁定档位：经邀请链接（URL 带 `grouponPromotionRecordId`）进详情时拉该团详情、按其成团人数锁定档位并明示「参团不可改档」，详情页「进行中拼单·去参团」（ProductJoiningClient）同样按每条记录的成团人数锁定档位、下发对应 key 与档位价（此前恒按活动最低价下发，阶梯团参到高档团时价/成团人数均错位）；④ 普通团（groupType=1）无档位表，行为完全不变。档位解析抽为共享 `src/lib/groupon-tiers.ts`（groupNums × 明细 groupPrice 联表、默认档、按人数找档），详情页与参团组件共用。附带对齐：面板价旧 pick 列表漏了接口实际下发的 `minGrouponPrice` 键（VO 仅有此键），面板价恒为空、整个价格区不渲染，本次补入该键恢复渲染。划线单买价口径未动（PC 团购面无划线单买价；装修团购模块划线沿用 2026-11-19 裁定的同字号整串口径）。接口级验证（一次性阶梯活动夹具 + 测试商品 2089）：addToCart 带 groupNumKey=1/2 时购物车与结算单价分别为 ¥45/¥42、无 key 回落 ¥42，与所选档一致；夹具已清理。
