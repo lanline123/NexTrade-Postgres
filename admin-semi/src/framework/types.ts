@@ -105,6 +105,8 @@ export interface ListPageProps<T = any> {
   batchActions?: (selectedRows: T[], clear: () => void) => ReactNode;
   filterLayout?: 'inline' | 'popover';
   onDataLoaded?: (info: { total: number; rows: T[] }) => void;
+  /** 点击「重置」清空框架内筛选时同步通知外部筛选（如外部持有的店铺筛选一并回全部）。 */
+  onReset?: () => void;
   editRequest?: T | null;
   onEditRequestHandled?: () => void;
   toolbarExtra?: ReactNode;
