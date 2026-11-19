@@ -816,8 +816,6 @@ mod tests {
                 seckill_stock: Some(10),
                 ..Default::default()
             }],
-            // 批次十七给 SeckillCreateDTO 新增会员受众字段后本测试漏补，
-            // 与同文件 mirror_dto 一致用 Default 兜底（否则 check-rust 测试编译失败）
             ..Default::default()
         };
 
