@@ -63,8 +63,6 @@ pub const MAX_PAGE_SIZE: u64 = 100;
 pub const MSG_MERCHANT_NOT_FOUND: &str = "商户不存在";
 pub const MSG_INVALID_FIELD_VALUE: &str = "field 的值有误";
 pub const MSG_ID_REQUIRED: &str = "id不能为空";
-pub const MSG_LICENSE_UNAVAILABLE: &str =
-    "营业执照上传功能未迁移（水印/对象存储依赖），请使用系统文件上传后回填 merchantData.businessLicenseImg";
 
 /// 列表查询（Java `MerchantListPageQuery`）。
 #[derive(Debug, Clone, Default, Deserialize)]

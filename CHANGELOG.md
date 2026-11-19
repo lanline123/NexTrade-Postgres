@@ -380,3 +380,10 @@
 ### 变更
 
 - **后台 - 购买按钮样式设置页改横排图标选择 + 默认色对齐 PC 主题色【我方新增】**（用户 2026-11-19 口径）：「全局购买按钮样式」由文字下拉改为单横排图标块——11 档样式（0 不显示 … 10 自定义图片）各渲染一份与前台同构的真实按钮样貌小预览（共享 PcBuyButtonVisual 按当前生效色渲染），一排选完、窄屏横向滚动不换行，选中态以主题色边框 + 浅底标示。图标颜色默认值改为 PC 端主题色：与 PC 前台同源读取后台「主题风格」themeStyle 的 `--general`（pc-semi 中 `--pc-primary: var(--general)`、SSR 注入 :root 的同一份配置；存量主题只有 `--main-bg` 时以其兜底，读取/解析失败回落 `#65c4aa`）。未显式保存过颜色（iconColor 为空，含线上现状）时把主题色初始化进表单并按此保存——预览与保存口径一致，保存后即为显式值、前台按既有 iconColor 消费链真实生效；已显式保存过颜色的老配置原样加载不被覆盖；颜色「重置」改为回到当前 PC 主题色。预览壳着色与前台对齐：图标色走 iconColor、实心文案款底色走 `--pc-primary`（主题色本身，不随 iconColor 变）。全局样式只作用于「跟随全局」模块的既有语义、统一枚举与后端接口均不变，仅改 admin-semi 设置页一文件。
+
+## 0.0.2 续 · 2026-11-19 小项批次（未上线，待合并推送）
+
+### 修复
+
+- **后台 - H5 编辑器 shopTips 默认图 `.pngg` 笔误修正【原版有·原版笔误修正】**：shopTips（商品提示）模块第三项演示图默认 `picUrl` 的文件名在原版即多一个 `g`（`...qL8q3AHR1CcdoNv4sD.pngg`，源站 404），同项 `picThumb` 的 `.png` 正常。改为与 picThumb 同一对象 `official/img/pc/202605/1779263739qL8q3AHR1CcdoNv4sD.png`（自有桶实测 200、image/png、929 字节、合法 PNG 28×28）。仅改编辑器默认值一处（`admin-semi/src/pages/decorateEditorH5/modules/pro/shopTips/index.tsx`）；存量装修数据核查：`decorate.data` / `decorate.draft_data` 全表无 `pngg`，无已保存页面携带该笔误，无需数据修复。
+- **后端 - 删除营业执照未迁移死常量【其他清理】**：`nextrade-core` 商户模型中的 `MSG_LICENSE_UNAVAILABLE`（「营业执照上传功能未迁移…」）自批次B `uploadLicense` 证件私有通道落地后已无任何引用（全仓仅定义处一处），文案亦与现状不符，删除该死常量。无行为变化。

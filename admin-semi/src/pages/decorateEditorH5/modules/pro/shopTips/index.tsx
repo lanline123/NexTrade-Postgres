@@ -4,7 +4,7 @@
 import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultModuleStyle, defaultContentStyle } from "../../../contract/sharedDefaults";
 
-// 演示提示项是 defaultModule 字面量的一部分（旧 View.vue 的 defaultPicList 常量，契约冻结；第三项 picUrl 尾部多一个 g 为原版原样）
+// 演示提示项是 defaultModule 字面量的一部分（旧 View.vue 的 defaultPicList 常量，契约冻结；第三项 picUrl 原版尾部多一个 g 为笔误、源站 404，我方已修正为与 picThumb 同一 .png 对象，见 CHANGELOG）
 const defaultPicList = [
     {
         picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779263739npDO706Su0cRzKK3ar.png?x-oss-process=image/resize,m_pad,h_200,h_200",
@@ -20,7 +20,7 @@ const defaultPicList = [
     },
     {
         picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779263739qL8q3AHR1CcdoNv4sD.png?x-oss-process=image/resize,m_pad,h_200,h_200",
-        picUrl: "https://oss.tigshop.com/official/img/pc/202605/1779263739qL8q3AHR1CcdoNv4sD.pngg",
+        picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/img/pc/202605/1779263739qL8q3AHR1CcdoNv4sD.png",
         picTitle: "品质保障",
         picLink: {}
     }
