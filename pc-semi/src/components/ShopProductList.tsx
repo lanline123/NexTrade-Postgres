@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import type { ShopListItem } from '@/lib/api';
 
 import { formatDisplayPrice } from '@/lib/currency';
+import { cardGateCopy, usePriceAccess } from '@/lib/price-gate';
 /**
  * 店铺街行卡片：右侧热销商品横向滚动条。
  * 源码对照：view/pc/pages/shop/src/ShopList.vue（<template> 类名逐条照抄）
@@ -27,6 +28,7 @@ const SCROLL_STEP = 240;
 
 export default function ShopProductList({ products }: { products: ListingProduct[] }) {
   const { t } = useTranslation();
+  const priceAccess = usePriceAccess();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -67,19 +69,23 @@ export default function ShopProductList({ products }: { products: ListingProduct
 
       <div className="swiper-wrapper" ref={scrollRef} onScroll={updateScrollState}>
         {products.length > 0 ? (
-          products.slice(0, 12).map((product) => (
-            <div className="product-item" key={product.productId}>
-              <div className="product-img">
-                <Link href={`/product/${product.productId || ''}`} target="_blank">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={product.picThumb || product.picUrl || ''} alt={product.productName || ''} loading="lazy" />
-                </Link>
+          products.slice(0, 12).map((product) => {
+            /* 价格门控（对齐原版文案口径）：价格被后端置空时渲染门控文案，不露空白。 */
+            const gateCopy = cardGateCopy(product as any, product.productPrice, priceAccess, false);
+            return (
+              <div className="product-item" key={product.productId}>
+                <div className="product-img">
+                  <Link href={`/product/${product.productId || ''}`} target="_blank">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={product.picThumb || product.picUrl || ''} alt={product.productName || ''} loading="lazy" />
+                  </Link>
+                </div>
+                <div className="product-price">
+                  <span className="pro_price">{gateCopy ? gateCopy.text : formatDisplayPrice(product.productPrice)}</span>
+                </div>
               </div>
-              <div className="product-price">
-                <span className="pro_price">{formatDisplayPrice(product.productPrice)}</span>
-              </div>
-            </div>
-          ))
+            );
+          })
         ) : (
           <div className="el-empty">{t('暂无商品')}</div>
         )}

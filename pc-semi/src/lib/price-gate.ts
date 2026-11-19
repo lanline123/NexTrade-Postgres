@@ -6,16 +6,24 @@
  * 后端谓词（services::system::price_gate）：isIdentity 开启时，仅
  * 已登录且 `is_company_auth = 1` 的会员能看真实价格；公开读接口在
  * 无看价权时把价格置空并在载荷上打 `priceVisible=false` +
- * `priceGate=login|certification`。前端据此渲染四态文案：
+ * `priceGate=login|certification`。前端据此渲染门控文案：
  *
  *   正常价 / 询价（询价商品全员一致，不走本模块）
- *   登录后查看价格        → /login
- *   认证后查看价格        → /member/usercertification
- *   认证审核中            → /member/usercertification（子态）
- *   认证未通过，查看原因  → /member/usercertification（子态）
+ *   登录查看              → /login
+ *   实名查看              → /member/usercertification
+ *
+ * 文案口径（2026-11-20 对齐原版）：原版 tigshop 共享价格组件
+ * （view/uniapp format-price.vue、view/pc format/Price.vue）在
+ * isIdentity=1 且未认证时把整个价格位换成一句文案——未登录
+ * 「登录查看」、已登录「实名查看」，不分审核中/驳回子态。
+ * 我方第 2 期的自造文案（登录后查看价格/认证后查看价格/认证审核中/
+ * 认证未通过，查看原因）自此收敛：子态一律落「实名查看」，
+ * 仅跳转目标保留（均指向认证页）。原版文案本身无点击跳转，
+ * 我方保留第 2 期既有链接形态（卡片/详情购买区），属呈现层增强，
+ * 不改变门控数据口径（未认证者仍拿不到明文价格）。
  *
  * 载荷标记是权威信号（列表/搜索卡直接读 priceVisible/priceGate）；
- * 本 hook 只在详情页这类需要子态文案（审核中/驳回）时补查
+ * 本 hook 只在详情页这类需要按访客态细化时补查
  * memberCenter（isCompanyAuth）与企业认证申请状态（company/detail：
  * status 0 待审核 / 1 通过 / 2 驳回，与 CertificationClient 同口径）。
  */
@@ -39,10 +47,10 @@ export const PRICE_GATE_COPY: Record<
   Exclude<PriceAccessState, 'visible'>,
   PriceGateCopy
 > = {
-  needLogin: { text: '登录后查看价格', href: '/login' },
-  needAuth: { text: '认证后查看价格', href: '/member/usercertification' },
-  pending: { text: '认证审核中', href: '/member/usercertification' },
-  rejected: { text: '认证未通过，查看原因', href: '/member/usercertification' },
+  needLogin: { text: '登录查看', href: '/login' },
+  needAuth: { text: '实名查看', href: '/member/usercertification' },
+  pending: { text: '实名查看', href: '/member/usercertification' },
+  rejected: { text: '实名查看', href: '/member/usercertification' },
 };
 
 /** 载荷 priceGate（login|certification）→ 卡片级文案（卡片不查子态）。 */

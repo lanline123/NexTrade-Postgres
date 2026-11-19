@@ -31,9 +31,16 @@ export function withInquiryParam(href: string): string {
     return href.includes("?") ? `${href}&inquiry=1` : `${href}?inquiry=1`;
 }
 
-/** 价格门控文案（第 2 期四态）：按载荷 priceGate 给出缺关文案与跳转目标。 */
+/**
+ * 价格门控文案：按载荷 priceGate 给出缺关文案与跳转目标。
+ * 文案对齐原版 tigshop 共享价格组件口径（2026-11-20）：未登录
+ * 「登录查看」、已登录未认证「实名查看」——与 format-price 组件
+ * 内建的 B2B 文案逐字一致；第 2 期的自造文案（登录后查看价格/
+ * 认证后查看价格）自此收敛。跳转目标保留我方既有形态（原版文案
+ * 本身无跳转），不改变门控数据口径。
+ */
 export function priceGateCopy(priceGate?: string | null): { text: string; url: string } {
     return priceGate === "login"
-        ? { text: "登录后查看价格", url: "/pages/login/index" }
-        : { text: "认证后查看价格", url: "/pages/user/userCertification/index" };
+        ? { text: "登录查看", url: "/pages/login/index" }
+        : { text: "实名查看", url: "/pages/user/userCertification/index" };
 }

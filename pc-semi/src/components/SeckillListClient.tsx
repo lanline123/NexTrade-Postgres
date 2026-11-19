@@ -6,6 +6,7 @@ import type { SeckillRecord } from '@/lib/api';
 
 import { useTranslation } from 'react-i18next';
 import { formatDisplayPrice } from '@/lib/currency';
+import { gateCopyForPayload } from '@/lib/price-gate';
 interface Props {
   records: SeckillRecord[];
   total: number;
@@ -132,6 +133,9 @@ export default function SeckillListClient({ records, total, page, size }: Props)
           const percent = soldPercent(item);
           const canBuy = item.canJoin !== false && Number(item.seckillStock || 0) > 0;
           const borderImage = styleMap[item.productId]?.borderImage;
+          /* 价格门控（对齐原版文案口径）：后端已置空秒杀价（priceVisible=false）时，
+             价格位渲染门控文案、抢购位换门控入口，不露空白价。文案见 lib/price-gate.ts。 */
+          const gateCopy = (item as any).priceVisible === false ? gateCopyForPayload((item as any).priceGate) : null;
           return (
             <li className="seckill_mod_product seckill-card" key={`${item.productId}-${item.skuSn || ''}`}>
               <Link className="seckill-card__link" href={`/product/${item.productId}`} title={item.productName}>
@@ -145,13 +149,21 @@ export default function SeckillListClient({ records, total, page, size }: Props)
               </Link>
               <div className="seckill-card__operation">
                 <div className="seckill-card__price">
-                  <div className="seckill-card__price-main">{formatDisplayPrice(item.seckillPrice)}</div>
+                  <div className="seckill-card__price-main">
+                    {gateCopy ? (
+                      <Link href={gateCopy.href}>{gateCopy.text}</Link>
+                    ) : (
+                      formatDisplayPrice(item.seckillPrice)
+                    )}
+                  </div>
                   <div className="seckill-card__sell">
                     <span>已售{percent}%</span>
                     <div className="seckill-progress"><i style={{ width: `${percent}%` }} /></div>
                   </div>
                 </div>
-                {item.canJoin === false ? (
+                {gateCopy ? (
+                  <Link className="seckill-card__buy" href={gateCopy.href}>{gateCopy.text}</Link>
+                ) : item.canJoin === false ? (
                   <div className="seckill-card__buy is-disabled" title={item.restrictTip || t('仅限指定会员参与')}>{t('仅限会员')}</div>
                 ) : canBuy ? (
                   <Link className="seckill-card__buy" href={`/product/${item.productId}`} title={item.productName}>{t('立即抢购')}</Link>
