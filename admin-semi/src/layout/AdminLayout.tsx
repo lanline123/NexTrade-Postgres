@@ -33,12 +33,13 @@ import { useI18n } from '../i18n';
 import { translatedLocales } from '../i18n/config';
 import { fetchUnreadSummary, startAdminMsgStream } from '../sse';
 import { usePendingApprovalCount } from '../hooks/usePendingApprovalCount';
+import { useUnrepliedInquiryCount } from '../hooks/useUnrepliedInquiryCount';
 import { dispatchVoiceDeltas, loadVoiceSettings } from '../voice';
 import { resolveMallUrl } from '../mall';
 
 export type PageKey = string;
 
-/** 待审批计数亮红 pill（复用消息中心的 .admin-msg-num 样式：#fa4350 红底白字胶囊，>99 显示 99+） */
+/** 计数亮红 pill（复用消息中心的 .admin-msg-num 样式：#fa4350 红底白字胶囊，>99 显示 99+）；AI 待审批与商品询价未回复共用 */
 function ApprovalPill({ count }: { count: number }) {
   if (count <= 0) return null;
   return <em className="admin-msg-num">{count > 99 ? '99+' : count}</em>;
@@ -108,6 +109,8 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
   const [msgCount, setMsgCount] = useState(0);
   /** AI 审批中心待审批数（一级标题/菜单角标共用；page 变化时立即刷新，另有 60 秒轮询） */
   const approvalCount = usePendingApprovalCount(page);
+  /** 商品询价未回复数（status=0；「商品」一级标题/分组标题/菜单项红标共用，刷新口径同上） */
+  const inquiryCount = useUnrepliedInquiryCount(page);
   /** 「新订单 N」角标：口径 = is_broadcast=1 且 send_time >= lastOpenTime 的新订单消息数（同原版 MsgCount.vue） */
   const [newOrderCount, setNewOrderCount] = useState(0);
   /** 自增以强制重建 SSE 连接（原版 initSSE：换新的 startTime 必须重连才生效） */
@@ -362,6 +365,14 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
               )
                 ? approvalCount
                 : 0;
+              // 含「商品询价」的分组（商品）汇总未回复红标：一级标题文字后一个 pill，口径同上
+              const groupInquiryCount = group.items.some(
+                (item) =>
+                  item.key === 'enquiryManage' ||
+                  item.children?.some((child) => child.key === 'enquiryManage'),
+              )
+                ? inquiryCount
+                : 0;
               return (
                 <Tooltip content={t(group.label)} position="right" disabled={!collapsed} key={group.key}>
                   <button
@@ -433,6 +444,7 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
                       >
                         <span>{t(group.label)}</span>
                         <ApprovalPill count={groupApprovalCount} />
+                        <ApprovalPill count={groupInquiryCount} />
                       </span>
                     )}
                   </button>
@@ -451,6 +463,11 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
                       item.key === 'aiMcpApprovals' ||
                       item.children?.some((child) => child.key === 'aiMcpApprovals'),
                   ) && <ApprovalPill count={approvalCount} />}
+                  {activeGroup.items.some(
+                    (item) =>
+                      item.key === 'enquiryManage' ||
+                      item.children?.some((child) => child.key === 'enquiryManage'),
+                  ) && <ApprovalPill count={inquiryCount} />}
                 </span>
               </div>
               <div className="submenu-list">
@@ -471,6 +488,9 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
                           {item.children?.some((child) => child.key === 'aiMcpApprovals') && (
                             <ApprovalPill count={approvalCount} />
                           )}
+                          {item.children?.some((child) => child.key === 'enquiryManage') && (
+                            <ApprovalPill count={inquiryCount} />
+                          )}
                         </span>
                         <span className="submenu-section-arrow">›</span>
                       </div>
@@ -486,6 +506,7 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
                           {/* 对齐跨境版 pageLeftMenu 的 menu-chider-item：三级项只有文字，无装饰点 */}
                           <span>{t(child.label)}</span>
                           {child.key === 'aiMcpApprovals' && <ApprovalPill count={approvalCount} />}
+                          {child.key === 'enquiryManage' && <ApprovalPill count={inquiryCount} />}
                         </button>
                       ))}
                     </div>
