@@ -6,7 +6,8 @@ import ProductGrid from '@/components/ProductGrid';
 import ShopHeader from '@/components/ShopHeader';
 import { getShopCategories, getShopDetail, getShopProducts, type ShopCategoryNode } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, resolveRequestLocale } from '@/i18n/server';
+import { buildLocaleAlternates } from '@/i18n/locale';
 /**
  * 店铺分类页。
  * 源码对照：
@@ -47,7 +48,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   return {
     title: `${shop?.shopTitle || t('店铺商品')} · 店铺分类 · 万物新生`,
     description: shop?.description || t('店铺商品分类'),
-    alternates: { canonical: `${SITE_URL}/shopcategory/${params.id}${query}` },
+    alternates: buildLocaleAlternates(`/shopcategory/${params.id}${query}`, resolveRequestLocale()),
   };
 }
 

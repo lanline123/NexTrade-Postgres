@@ -8,9 +8,12 @@ import { prefetchDecorateModules } from '@/decorate/server-prefetch';
 import type { HomeDecorateResponse } from '@/decorate/types';
 import PcFooter from '@/components/PcFooter';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, resolveRequestLocale } from '@/i18n/server';
+import { buildLocaleAlternates } from '@/i18n/locale';
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { alternates: { canonical: '/' } };
+export async function generateMetadata(): Promise<Metadata> {
+  return { alternates: buildLocaleAlternates('/', resolveRequestLocale()) };
+}
 
 /** 后台装修页面背景映射（对齐旧版 pages/index.vue pageBgStyle 全量 repeat/size 表） */
 const BACKGROUND_REPEAT: Record<number, string> = { 1: 'no-repeat', 2: 'repeat', 3: 'repeat-y', 4: 'repeat-x', 5: 'no-repeat' };

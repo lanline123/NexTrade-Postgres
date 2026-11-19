@@ -1,4 +1,4 @@
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import i18next, { type i18n as I18nInstance } from 'i18next';
 import zhCN from './locales/zh_cn.json';
 import enUS from './locales/en_us.json';
@@ -65,9 +65,19 @@ export async function loadServerLocale(locale?: string | null): Promise<void> {
 
 export type ServerT = (key: string, params?: Record<string, string | number>) => string;
 
-/** 读 locale cookie，返回该请求语言的同步 t()。只能在请求作用域内调用。 */
+/**
+ * 本次请求的生效语言，优先级：URL 前缀（middleware 注入的 x-locale 请求头）
+ * > locale cookie > 默认 zh-CN。只能在请求作用域内调用。
+ */
+export function resolveRequestLocale(): string {
+  const fromHeader = headers().get('x-locale');
+  if (fromHeader) return normalizeLocale(fromHeader);
+  return normalizeLocale(cookies().get(LOCALE_COOKIE)?.value);
+}
+
+/** 按生效语言（URL 前缀优先）返回同步 t()。只能在请求作用域内调用。 */
 export function getServerT(): ServerT {
-  const lng = normalizeLocale(cookies().get(LOCALE_COOKIE)?.value);
+  const lng = resolveRequestLocale();
   const instance = getInstance(lng);
   return ((key: string, params?: Record<string, string | number>) =>
     instance.t(key, params) as string) as ServerT;

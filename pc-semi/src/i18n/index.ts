@@ -6,7 +6,15 @@ import zhCN from './locales/zh_cn.json';
 import enUS from './locales/en_us.json';
 import { LOCALE_COOKIE, normalizeLocale, toApiLocale } from './locale';
 
-export { LOCALE_COOKIE, normalizeLocale } from './locale';
+export {
+  LOCALE_COOKIE,
+  normalizeLocale,
+  urlPrefixForLocale,
+  localeForUrlPrefix,
+  splitLocalePrefix,
+  localizedPath,
+  buildLocaleAlternates,
+} from './locale';
 
 export function readLocaleCookie(): string {
   if (typeof document === 'undefined') return 'zh-CN';

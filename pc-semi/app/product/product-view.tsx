@@ -9,6 +9,8 @@ import VisitLogger from '@/components/VisitLogger';
 import { extractProductSnFromSlug, getPcHeader, getProductDetailStyle, loadProductBySlug, resolveUiStyle, type ProductUiStyle } from '@/lib/api';
 import { cookies } from 'next/headers';
 import { currencyCodeFrom } from '@/lib/currency';
+import { buildLocaleAlternates } from '@/i18n/locale';
+import { resolveRequestLocale } from '@/i18n/server';
 
 /**
  * 商品详情页（服务端）
@@ -59,13 +61,16 @@ export async function buildProductMetadata(slug: string | string[] | undefined):
   if (!item) return { title: '商品不存在 · 万物新生' };
   const path = `/product/${normalizeSlug(slug).join('/')}`;
   const description = resolveProductDescription(detail);
+  // canonical 按当前语言自指（/en 页指向自身），并给出全部语言版本供 hreflang
+  const locale = resolveRequestLocale();
+  const alternates = buildLocaleAlternates(path, locale);
   return {
     title: `${item.productName} · 万物新生`,
     description,
-    alternates: { canonical: path },
+    alternates,
     openGraph: {
       type: 'website',
-      url: path,
+      url: alternates.canonical,
       title: item.productName,
       description,
       images: item.picLarge ? [item.picLarge] : undefined,

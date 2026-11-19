@@ -8,7 +8,8 @@
  * - 弹层 CommonPopover（width 254 / padding 20 / 指定阴影）：
  *   语言区 .common-title「语言」+ .lang-list/.lang-item（radio）
  *   货币区 .common-title「货币」+ 与语言区同构的 .lang-list 单选列表（点选即切换）
- * - 语言切换：有独立域名 → 直接跳该域名；否则写语言 Cookie + 清 cacheLang + 整页刷新
+ * - 语言切换：有独立域名 → 直接跳该域名；否则写语言 Cookie + 清 cacheLang，
+ *   并跳当前页的语言前缀路径（en → /en/...，默认语言 → 无前缀），无前缀变化才整页刷新
  * - 监听 storage.cacheLang 变化整页刷新（1s 内去重）
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -38,7 +39,7 @@ function GlobeIcon({ size = 17 }: { size?: number }) {
     </svg>
   );
 }
-import { normalizeLocale, writeLocaleCookie } from '@/i18n';
+import { localizedPath, normalizeLocale, splitLocalePrefix, writeLocaleCookie } from '@/i18n';
 import { currencyCodeFrom } from '@/lib/currency';
 import { readHeaderBootstrap } from '@/lib/header-bootstrap';
 import { currencyCodeForLocale, findCurrencyByCode } from '@/lib/locale-geo';
@@ -244,7 +245,15 @@ export default function PcLocaleSelect({
       setCode(localeCode);
       void i18n.changeLanguage(next);
       setOpen(false);
-      window.location.reload();
+      // URL 级语言路由：切到有前缀的语言跳当前页的 /en 路径、切回默认语言跳无前缀路径
+      // （SEO canonical/hreflang 与用户所见 URL 一致）；无前缀变化时保持原地刷新。
+      const barePath = splitLocalePrefix(window.location.pathname).path;
+      const targetPath = localizedPath(barePath, next);
+      if (targetPath !== window.location.pathname) {
+        window.location.href = `${targetPath}${window.location.search}${window.location.hash}`;
+      } else {
+        window.location.reload();
+      }
     },
     [code, i18n, locales, currencies, currency],
   );

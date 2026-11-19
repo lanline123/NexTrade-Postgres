@@ -10,7 +10,8 @@ import type { ProductListItem } from '@/lib/api';
 import { SearchClassicLayout, type SearchLayoutContext } from '@/components/SearchLayoutVariants';
 import PcFooter from '@/components/PcFooter';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, resolveRequestLocale } from '@/i18n/server';
+import { buildLocaleAlternates, localizedPath } from '@/i18n/locale';
 export const dynamic = 'force-dynamic';
 
 /**
@@ -354,15 +355,17 @@ function serializeSelectedAttrs(attrs: SelectedAttr[]): string[] {
 
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
   const t = getServerT();
+  const locale = resolveRequestLocale();
   const keyword = readParam(searchParams?.keyword);
   const title = keyword ? t('{kw} · 搜索 · 万物新生', { kw: keyword }) : t('搜索商品 · 万物新生');
   const description = keyword ? t('搜索“{kw}”相关的动力电池回收设备与商品。', { kw: keyword }) : t('搜索商品、分类、品牌与回收设备。');
+  const path = keyword ? `/search?keyword=${encodeURIComponent(keyword)}` : '/search';
   return {
     title,
     description,
-    alternates: { canonical: keyword ? `/search?keyword=${encodeURIComponent(keyword)}` : '/search' },
+    alternates: buildLocaleAlternates(path, locale),
     robots: keyword ? { index: false, follow: true } : { index: true, follow: true },
-    openGraph: { title, description, url: keyword ? `/search?keyword=${encodeURIComponent(keyword)}` : '/search' },
+    openGraph: { title, description, url: localizedPath(path, locale) },
   };
 }
 

@@ -6,7 +6,8 @@ import HelpCategoryMenu from '@/components/HelpCategoryMenu';
 import type { HelpCategory } from '@/components/HelpCategoryMenu';
 import { getArticleIssueInfo, getArticleNewsList, getFooterData, getPcHeader } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, resolveRequestLocale } from '@/i18n/server';
+import { buildLocaleAlternates, localizedPath } from '@/i18n/locale';
 export const dynamic = 'force-dynamic';
 
 interface ArticlePageProps {
@@ -24,6 +25,7 @@ function readArticleId(searchParams?: ArticlePageProps['searchParams']): number 
 
 export async function generateMetadata({ searchParams }: ArticlePageProps): Promise<Metadata> {
   const t = getServerT();
+  const locale = resolveRequestLocale();
   const articleId = readArticleId(searchParams);
   const categoryId = readParam(searchParams, 'categoryId');
   const data = articleId ? await getArticleIssueInfo(articleId).catch(() => null) : null;
@@ -33,16 +35,16 @@ export async function generateMetadata({ searchParams }: ArticlePageProps): Prom
     return {
       title: t('帮助中心 · 万物新生'),
       description,
-      alternates: { canonical: `/article/issue/info?categoryId=${encodeURIComponent(categoryId)}` },
+      alternates: buildLocaleAlternates(`/article/issue/info?categoryId=${encodeURIComponent(categoryId)}`, locale),
     };
   }
   return {
     title: item?.articleTitle ? `${item.articleTitle} · 万物新生` : '帮助详情 · 万物新生',
     description,
-    alternates: { canonical: `/article/issue/info?articleId=${articleId}` },
+    alternates: buildLocaleAlternates(`/article/issue/info?articleId=${articleId}`, locale),
     openGraph: {
       type: 'article',
-      url: `/article/issue/info?articleId=${articleId}`,
+      url: localizedPath(`/article/issue/info?articleId=${articleId}`, locale),
       title: item?.articleTitle || t('帮助详情'),
       description,
     },

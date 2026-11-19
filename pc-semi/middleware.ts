@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { LOCALE_COOKIE, localizedPath, splitLocalePrefix } from './src/i18n/locale';
 
 /**
  * 中间件做两件事（顺序很重要）：
@@ -48,6 +49,14 @@ function externalUrl(request: NextRequest, pathname: string, search = ''): URL {
   return new URL(`${pathname}${search}`, `${proto}://${host}`);
 }
 
+/** 放行并注入内部请求头：x-pathname=内部（剥前缀后）路径，供 layout 生成 canonical/hreflang。 */
+function passThrough(request: NextRequest, internalPath: string, prefixLocale: string | null) {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-pathname', internalPath);
+  if (prefixLocale) requestHeaders.set('x-locale', prefixLocale);
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
@@ -57,26 +66,49 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(externalUrl(request, lowerPath, search), 308);
   }
 
-  // 2) 会员中心登录守卫（/login、/register 及其历史别名直接放行）
-  if (pathname === '/member' || pathname.startsWith('/member/')) {
-    if (/^\/member\/(login|register)\/?$/.test(pathname)) {
-      return NextResponse.next();
+  // 2) 语言前缀（SEO hreflang）：/en/... 剥离前缀 rewrite 到内部路径，
+  //    并注入 x-locale 请求头（服务端语言判定最高优先级），同时种 locale cookie，
+  //    让后续无前缀导航与客户端 i18n 保持该语言。无前缀路径行为与此前完全一致。
+  const { locale: prefixLocale, path: internalPath } = splitLocalePrefix(pathname);
+
+  // 3) 会员中心登录守卫（按内部路径判断；/login、/register 及其历史别名直接放行）
+  if (internalPath === '/member' || internalPath.startsWith('/member/')) {
+    if (/^\/member\/(login|register)\/?$/.test(internalPath)) {
+      return passThrough(request, internalPath, prefixLocale);
     }
     const token = request.cookies.get('accessToken')?.value;
     if (!token || isExpiredToken(token)) {
-      const url = externalUrl(request, '/login');
+      const url = externalUrl(request, localizedPath('/login', prefixLocale ?? undefined));
       url.searchParams.set('redirect', `${pathname}${search}`);
       return NextResponse.redirect(url);
     }
   }
 
-  return NextResponse.next();
+  if (prefixLocale) {
+    const url = request.nextUrl.clone();
+    url.pathname = internalPath;
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-locale', prefixLocale);
+    requestHeaders.set('x-pathname', internalPath);
+    const response = NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+    response.cookies.set(LOCALE_COOKIE, prefixLocale, {
+      path: '/',
+      maxAge: 31536000,
+      sameSite: 'lax',
+    });
+    return response;
+  }
+
+  return passThrough(request, pathname, null);
 }
 
 export const config = {
   /**
-   * 除了静态资源与接口转发，其余路径都要过一遍大小写归一化。
+   * 除了静态资源与接口转发，其余路径都要过一遍大小写归一化与语言前缀处理。
    * /api、/adminapi 由 next.config 的 rewrites 转发，/static 由 Next 直供 public/，都不能在这里改写大小写。
+   * /mobile、/pcmobile 是 H5 静态 SPA 与其回归壳，绝不能被语言前缀改写。
    */
-  matcher: ['/((?!api|adminapi|static|assets|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)'],
+  matcher: [
+    '/((?!api|adminapi|static|assets|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|mobile|pcmobile|manifest.webmanifest|icon.png|apple-icon.png).*)',
+  ],
 };

@@ -318,3 +318,7 @@
 ### 其他
 
 - **PC 前台 - hreflang 评估（未改代码）**：现语言机制为 `locale` cookie 同 URL 渲染，无 URL 级语言区分，此时加 hreflang 只会指向相同 URL、属错误实现；如需多语言 SEO，须先做 URL 级语言路由（如 /en/ 前缀），再补 alternates.languages。文章详情无路径式路由（仅 `?articleId=` 形式且页面 canonical 即该形式），sitemap 维持现状。
+
+### 新增
+
+- **PC 前台 - URL 级语言路由与 hreflang**：新增英文路径前缀 `/en/`（默认中文保持无前缀，架构可扩展：语言前缀表集中在 `src/i18n/locale.ts` 的 `LOCALE_URL_PREFIXES`，新增语言只登记一处）。middleware 识别并剥离前缀后 rewrite 到内部路径，注入 `x-locale` 请求头（语言判定优先级：URL 前缀 > locale cookie > 默认 zh-CN），并种 locale cookie 使后续无前缀导航保持语言；`/mobile`、`/pcmobile`、接口与静态资源不在改写范围。根 layout 按当前页输出自指 canonical + hreflang（zh-CN / en / x-default）、`openGraph.locale` 随语言变（en → en_US）；商品页、首页、搜索、店铺、店铺分类、帮助文章、秒杀页的 metadata 统一走 `buildLocaleAlternates` 工具函数；sitemap 的静态条目与商品条目补 `alternates.languages`。顶部语言切换器改为跳当前页的对应语言路径（不再只改 cookie 刷新）。站内普通链接本次不带前缀（靠 cookie 保持语言），切换器 + canonical/hreflang + sitemap 已构成 SEO 闭环。**注意：商品数据本身为单语（中文商品名/详情），/en 商品页是英文 UI + 中文商品内容，本次不做商品内容翻译。**

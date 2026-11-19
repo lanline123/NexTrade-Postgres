@@ -4,7 +4,8 @@ import PcFooter from '@/components/PcFooter';
 import { getPcHeader, getSeckill } from '@/lib/api';
 import SeckillListClient from '@/components/SeckillListClient';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, resolveRequestLocale } from '@/i18n/server';
+import { buildLocaleAlternates } from '@/i18n/locale';
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -12,7 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: t('限时秒杀 · 万物新生'),
     description: t('限时秒杀，抢先提醒，低价好物限时抢购。'),
-    alternates: { canonical: '/seckill/list' },
+    alternates: buildLocaleAlternates('/seckill/list', resolveRequestLocale()),
   };
 }
 

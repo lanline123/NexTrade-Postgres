@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { getArticleList, getProducts, getShopList } from '@/lib/api';
+import { DEFAULT_LOCALE, LOCALE_URL_PREFIXES, localizedPath } from '@/i18n/locale';
 
 const BASE = (process.env.PC_SITE_URL || 'https://battery.recy.cc').replace(/\/$/, '');
 
@@ -36,6 +37,18 @@ type SitemapEntry = MetadataRoute.Sitemap[number];
 
 function toAbsolute(path: string): string {
   return `${BASE}${path || '/'}`;
+}
+
+/** 某无前缀路径的全部语言版本（hreflang）：默认语言无前缀，其余按 LOCALE_URL_PREFIXES。 */
+function languageAlternates(path: string): { languages: Record<string, string> } {
+  const languages: Record<string, string> = {
+    [DEFAULT_LOCALE]: toAbsolute(path),
+  };
+  for (const [locale, prefix] of Object.entries(LOCALE_URL_PREFIXES)) {
+    languages[prefix] = `${BASE}${localizedPath(path || '/', locale)}`;
+  }
+  languages['x-default'] = toAbsolute(path);
+  return { languages };
 }
 
 /** 文章 `addTime` 为 Unix 秒时转 Date；缺失/异常时退回当前时间，避免输出 Invalid Date。 */
@@ -78,6 +91,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: now,
     changeFrequency: route.changeFrequency,
     priority: route.priority,
+    alternates: languageAlternates(route.path),
   }));
   const seen = new Set(entries.map((entry) => entry.url));
   const push = (url: string, entry: Omit<SitemapEntry, 'url'>) => {
@@ -94,6 +108,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastModified: productLastModified(product.addTime),
         changeFrequency: 'weekly',
         priority: 0.8,
+        alternates: languageAlternates(`/product/${product.productId}`),
       });
     }
   } catch {

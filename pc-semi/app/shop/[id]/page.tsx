@@ -8,7 +8,8 @@ import ShopHeader from '@/components/ShopHeader';
 import ShopCategoryMenu from '@/components/ShopCategoryMenu';
 import ProductGrid from '@/components/ProductGrid';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, resolveRequestLocale } from '@/i18n/server';
+import { buildLocaleAlternates, localizedPath } from '@/i18n/locale';
 export const dynamic = 'force-dynamic';
 
 /**
@@ -38,14 +39,15 @@ function readParam(value: string | string[] | undefined): string {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const t = getServerT();
+  const locale = resolveRequestLocale();
   const shop = await getShopDetail(Number(params.id)).catch(() => null);
   return {
     title: shop?.shopTitle ? `${shop.shopTitle} · 万物新生` : '店铺详情 · 万物新生',
     description: shop?.description || t('店铺详情'),
-    alternates: { canonical: `/shop/${params.id}` },
+    alternates: buildLocaleAlternates(`/shop/${params.id}`, locale),
     openGraph: {
       type: 'website',
-      url: `/shop/${params.id}`,
+      url: localizedPath(`/shop/${params.id}`, locale),
       title: shop?.shopTitle || t('店铺详情'),
       description: shop?.description || t('店铺详情'),
       images: shop?.shopLogo ? [shop.shopLogo] : undefined,

@@ -38,8 +38,9 @@ import { loadTheme } from '@/lib/theme-server';
 import { currencyCodeFrom, setPriceDisplayConfig, setServerCurrency } from '@/lib/currency';
 import { setBuyStyleConfig } from '@/lib/buy-style';
 import { resolveFontForLocale } from '@/lib/font-settings';
-import { normalizeLocale } from '@/i18n/locale';
-import { loadServerLocale } from '@/i18n/server';
+import { buildLocaleAlternates } from '@/i18n/locale';
+import { loadServerLocale, resolveRequestLocale } from '@/i18n/server';
+import { headers } from 'next/headers';
 import { setStorageUrl } from '@/lib/image';
 
 const SITE_URL = (process.env.PC_SITE_URL || 'https://battery.recy.cc').replace(/\/$/, '');
@@ -66,10 +67,16 @@ export async function generateMetadata(): Promise<Metadata> {
   const description = String(config?.shopDesc || SITE_DESCRIPTION);
   const keywordsRaw = String(config?.shopKeywords || '');
   const icoImg = String(config?.icoImg || '');
+  // 当前请求语言（URL 前缀 > cookie）与内部路径（middleware 注入 x-pathname）：
+  // 全站默认 canonical/hreflang 按当前页自指，页面级 generateMetadata 可覆盖。
+  const locale = resolveRequestLocale();
+  const currentPath = headers().get('x-pathname') || '/';
+  const alternates = buildLocaleAlternates(currentPath, locale);
   return {
     metadataBase: new URL(SITE_URL),
     title,
     description,
+    alternates,
     keywords: keywordsRaw ? keywordsRaw.split(',').map((item) => item.trim()).filter(Boolean) : undefined,
     ...(icoImg ? { icons: { icon: icoImg } } : {}),
     applicationName: SITE_NAME,
@@ -79,11 +86,11 @@ export async function generateMetadata(): Promise<Metadata> {
     appleWebApp: { capable: true, title: shopTitle || SITE_NAME, statusBarStyle: 'default' },
     openGraph: {
       type: 'website',
-      locale: 'zh_CN',
+      locale: locale.replace('-', '_'),
       siteName: shopTitle || SITE_NAME,
       title,
       description,
-      url: SITE_URL,
+      url: `${SITE_URL}${alternates.canonical === '/' ? '' : alternates.canonical}`,
       images: [
         {
           url: SITE_OG_IMAGE,
@@ -177,9 +184,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   let regionSeed: RegionSeed | null = null;
   try {
     const { cookies, headers } = await import('next/headers');
-    // html lang SSR 输出（对齐旧版 app.vue htmlAttrs.lang = XLocaleCode）
-    const localeCookie = cookies().get('locale')?.value || '';
-    serverLang = normalizeLocale(localeCookie);
+    // html lang SSR 输出（对齐旧版 app.vue htmlAttrs.lang = XLocaleCode）；
+    // 语言判定优先级：URL 前缀（x-locale）> locale cookie > 默认 zh-CN
+    serverLang = resolveRequestLocale();
     const raw = cookies().get('currentCurrencyData')?.value;
     if (raw) {
       const parsed = JSON.parse(decodeURIComponent(raw));
