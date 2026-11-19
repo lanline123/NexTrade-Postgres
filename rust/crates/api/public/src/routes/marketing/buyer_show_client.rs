@@ -53,11 +53,11 @@ use axum::{
     Extension, Json, Router,
 };
 use nextrade_core::models::marketing::buyer_show_client::{
-    BuyerShowClientVO, BuyerShowCommentClientParam, BuyerShowCommentLikeClientParam,
+    BuyerShowCommentClientParam, BuyerShowCommentLikeClientParam,
     BuyerShowCommentPageClientQuery, BuyerShowCommentPageClientVO, BuyerShowFavoriteClientParam,
     BuyerShowFollowAuthorClientParam, BuyerShowIdQuery, BuyerShowLikeClientParam,
     BuyerShowPageClientQuery, BuyerShowPageClientVO, BuyerShowSaveClientParam,
-    BuyerShowVideoFeedClientQuery, BuyerShowVideoFeedPageClientVO, CreatedIdVO, ToggleResultVO,
+    BuyerShowVideoFeedClientQuery, CreatedIdVO, ToggleResultVO,
 };
 use nextrade_core::types::PageResult;
 use nextrade_core::Error;
@@ -205,16 +205,36 @@ async fn client_list(
     ok(state.marketing.buyer_show_client.client_list(&q, user_id).await?)
 }
 
+/// 价格门控解析（第 2 期补漏）：本域带价读口共用，
+/// 与商品域同一谓词（`services::system::price_gate`）。
+async fn price_access(
+    state: &PublicState,
+    auth: &Option<Extension<AuthUser>>,
+) -> Result<nextrade_services::system::price_gate::PriceAccess, AppError> {
+    let user_id = auth.as_ref().map(|Extension(a)| a.id).filter(|id| *id > 0);
+    Ok(state.system.config_client.price_access(user_id).await?)
+}
+
 /// `GET /api/buyerShow/buyerShow/videoFeed`：买家秀视频流（游标翻页）。
 ///
 /// 对应 Java `BuyerShowController.videoFeed(@Valid BuyerShowVideoFeedClientQuery)`。
+///
+/// 价格门控（第 2 期补漏）：流条目内嵌关联商品 `price`（商品价），
+/// 此前零接入；无看价权时整载荷递归脱敏。列表（`clientList`）条目
+/// 无价格字段，不在口径内。
 async fn video_feed(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
     Query(q): Query<BuyerShowVideoFeedClientQuery>,
-) -> ApiResult<BuyerShowVideoFeedPageClientVO> {
+) -> ApiResult<serde_json::Value> {
     let user_id = current_user_id(&auth);
-    ok(state.marketing.buyer_show_client.video_feed(&q, user_id).await?)
+    let vo = state.marketing.buyer_show_client.video_feed(&q, user_id).await?;
+    let access = price_access(&state, &auth).await?;
+    let mut v = serde_json::to_value(&vo).unwrap_or(serde_json::Value::Null);
+    if !access.can_view() {
+        nextrade_services::system::price_gate::mask_price_keys(&mut v);
+    }
+    ok(v)
 }
 
 /// `POST /api/buyerShow/buyerShow/like`：买家秀点赞 / 取消点赞。
@@ -283,12 +303,25 @@ async fn client_detail(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
     Query(q): Query<BuyerShowIdQuery>,
-) -> ApiResult<BuyerShowClientVO> {
+) -> ApiResult<serde_json::Value> {
     let buyer_show_id = q
         .buyer_show_id
         .ok_or_else(|| AppError(Error::biz(1001, "买家秀主键不能为空")))?;
     let user_id = current_user_id(&auth);
-    ok(state.marketing.buyer_show_client.client_detail(buyer_show_id, user_id).await?)
+    let vo = state
+        .marketing
+        .buyer_show_client
+        .client_detail(buyer_show_id, user_id)
+        .await?;
+    // 价格门控（第 2 期补漏）：详情内嵌关联商品 productPrice/marketPrice，
+    // 无看价权时递归脱敏 + 打标记（同商品详情口径）。
+    let access = price_access(&state, &auth).await?;
+    let mut v = serde_json::to_value(&vo).unwrap_or(serde_json::Value::Null);
+    if !access.can_view() {
+        nextrade_services::system::price_gate::mask_price_keys(&mut v);
+    }
+    nextrade_services::system::price_gate::stamp_price_gate(&mut v, access);
+    ok(v)
 }
 
 /// `GET /api/buyerShow/buyerShow/share?buyerShowId=`：买家秀分享落地页。
