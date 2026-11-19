@@ -24,6 +24,12 @@ pub struct DecorateFilter {
     /// 是两回事——`Some(s)` 时追加 `shop_id = s` 精确条件（与租户条件 AND，
     /// 店铺账号选他人店铺只会得到空集，不放宽既有限制）；`None` 不过滤
     pub filter_shop_id: Option<i32>,
+    /// 排除某店铺【我方新增，店铺页签口径】：`Some(s)` 时追加
+    /// `shop_id != s` 条件。店铺页签传 `Some(0)` 只列商家店铺页。
+    /// 与租户可见口径（`shop_id`）及精确筛选（`filter_shop_id`）三者 AND
+    /// 叠加：店铺账号在店铺页签的条件为 `(shop_id=0 OR shop_id=本店)
+    /// AND shop_id != 0`，交集只剩本店，不放宽租户范围；`None` 不过滤
+    pub exclude_shop_id: Option<i32>,
     /// 标题模糊关键词
     pub keyword: Option<String>,
     /// 空表示不过滤
@@ -186,6 +192,16 @@ impl DecorateRepository {
                 &mut params,
                 "shop_id = ?",
                 &[Bind::I(filter_shop_id)],
+            );
+        }
+        if let Some(exclude_shop_id) = f.exclude_shop_id {
+            // 排除店铺【我方新增，店铺页签口径】：与租户条件、精确条件
+            // AND 叠加；exclude=0 时只剩商家店铺页，店铺账号交集只剩本店
+            push_cond(
+                &mut wh,
+                &mut params,
+                "shop_id != ?",
+                &[Bind::I(exclude_shop_id)],
             );
         }
         if let Some(kw) = f.keyword.as_ref().filter(|k| !k.trim().is_empty()) {
@@ -1250,6 +1266,48 @@ mod tests {
         let (wh, params) = DecorateRepository::build_paginate_where(&f);
         assert!(!wh.contains("shop_id"), "wh={wh}");
         assert_eq!(params.len(), 0);
+    }
+
+    #[test]
+    fn paginate_where_exclude_shop_id_for_shop_tab() {
+        // 不传 excludeShopId：不加排除条件（与现行行为一致）
+        let f = DecorateFilter::default();
+        let (wh, params) = DecorateRepository::build_paginate_where(&f);
+        assert!(!wh.contains("shop_id !="), "wh={wh}");
+        assert_eq!(params.len(), 0);
+
+        // 仅排除平台（平台账号，店铺页签）：只有 shop_id != 0 条件
+        let f = DecorateFilter {
+            exclude_shop_id: Some(0),
+            ..DecorateFilter::default()
+        };
+        let (wh, params) = DecorateRepository::build_paginate_where(&f);
+        assert!(wh.contains("shop_id != ?"), "wh={wh}");
+        assert!(!wh.contains("shop_id = 0 OR"), "wh={wh}");
+        assert_eq!(params.len(), 1);
+
+        // 租户 + 排除平台（店铺账号在店铺页签）：两条件 AND，
+        // (shop_id=0 OR shop_id=本店) AND shop_id!=0 交集只剩本店，不放宽
+        let f = DecorateFilter {
+            shop_id: Some(8),
+            exclude_shop_id: Some(0),
+            ..DecorateFilter::default()
+        };
+        let (wh, params) = DecorateRepository::build_paginate_where(&f);
+        assert!(wh.contains("(shop_id = 0 OR shop_id = ?)"), "wh={wh}");
+        assert!(wh.contains("AND shop_id != ?"), "wh={wh}");
+        assert_eq!(params.len(), 2);
+
+        // 与 shopId 精确过滤同传：三条件 AND 叠加
+        let f = DecorateFilter {
+            filter_shop_id: Some(9),
+            exclude_shop_id: Some(0),
+            ..DecorateFilter::default()
+        };
+        let (wh, params) = DecorateRepository::build_paginate_where(&f);
+        assert!(wh.contains("shop_id = ?"), "wh={wh}");
+        assert!(wh.contains("shop_id != ?"), "wh={wh}");
+        assert_eq!(params.len(), 2);
     }
 
     #[test]
