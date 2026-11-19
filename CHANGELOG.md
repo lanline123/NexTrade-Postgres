@@ -356,3 +356,9 @@
 ### 修复
 
 - **PC - 语言前缀 rewrite 内部协议修复【我方新增】**：语言路由（/en/ 前缀）为我方新增代码；其 middleware rewrite 分支用 `request.nextUrl.clone()` 构造内部 rewrite 目标时，带入了 `x-forwarded-proto` 的对外协议（https），而 Next 进程自身只提供明文 HTTP（TLS 由 nginx 终结）。生产经反代访问 /en 时，Next 将该目标误判为外部地址走代理、对明文监听端口讲 TLS，报 EPROTO 500（v46 上线后 /en 返回 500，已回滚 v45；journal 实证 `Failed to proxy https://localhost:3005/`）。修复：rewrite 目标协议强制改回进程自身的 http——与同文件 `externalUrl` 的既有口径一致（nextUrl 的分量不能照单全收：对外重定向地址按请求头拼，内部 rewrite 地址用进程自身协议），仅改 `pc-semi/middleware.ts` 一处。验证：在生产同型条件（`next start -H 127.0.0.1` + 请求带 `X-Forwarded-Proto: https` 与对外 Host）下先复现修复前 /en 500 与 EPROTO 日志，再验证修复后 /en、/en/login 均 200、locale cookie 与 `<html lang="en-US">` 正确、无头访问 /、/login、/en 均 200、会员守卫与大小写 308 的对外跳转不受影响；默认启动口径下同一矩阵亦全部通过。
+
+## 0.0.2 续 · 2026-11-19 批次（H5 编辑器真实渲染 shopInfo 空白修复）
+
+### 修复
+
+- **H5 - 店铺信息模块在通用分发器下整页空白【原版有·我方改口径】**：店铺页原版口径是由页面拉店铺详情、经分发器把 shopInfo/shopId 传给店铺信息模块（我方 ShopModules 已按此实现）；但通用分发器 DecorateModules（首页/自定义页/编辑器嵌入预览 decoratePreview 共用）从不传 shopInfo，而 shopInfo 模块无守卫直读 `shopInfo.collectShop` 等字段，缺参必抛错且无错误隔离，含 shopInfo 的页面（如 10079 店铺模板「默认模板」）在 H5 编辑器真实渲染里整页空白。修复三层：① shopInfo 模块全面守卫，店铺详情缺失时渲染结构空态（计数 0、未收藏、handler 在 shopId=0 时不动作），绝不抛错；② 补通真实店铺数据链【原版有·我方改口径：原版由店铺页拉详情，我方改由编辑器下发 shopId、嵌入预览页拉详情】——管理端 editorStore 新增 shopId 状态（详情接口顶层字段）、IframeCanvas 下发 decorate-data 时带 shopId，decoratePreview 据此调 getShopDetail 拉真实店铺详情，DecorateModules 镜像 ShopModules 口径给 SHOP_ID 类模块传 shopId、给 shopInfo 模块传 shopInfo 与刷新回调，首页/自定义页不传时行为不变；③ 新增模块级错误隔离 ModuleErrorBoundary【我方新增】，DecorateModules 与 ShopModules 的每个模块都包一层：单模块渲染抛错只降级该模块（编辑器预览显示「该模块渲染失败，已跳过」占位、线上静默空占位），fallback 恒占一个 DOM 节点保住嵌入预览的布局槽位对齐，编辑器改好该模块数据（对象换新引用）后自动重试渲染。新增回归用例 5 条（shopInfo 守卫 2 + 分发器数据流/错误隔离 3）全过。

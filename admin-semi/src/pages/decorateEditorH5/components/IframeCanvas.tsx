@@ -85,7 +85,9 @@ export default function IframeCanvas({
         // 将来回带 seq 时可精确对齐（见 embedReadiness 的 ready 依赖点说明）。
         const seq = markEmbedDataSent();
         try {
-            win.postMessage({ type: "decorate-data", seq, moduleList: st.moduleList, pageModule: st.pageModule }, EMBED_ORIGIN);
+            // shopId 随数据下发（店铺模板页才有值）：嵌入页据此拉真实店铺详情喂
+            // shopInfo 等店铺模块；旧版嵌入页忽略未知字段，向后兼容。
+            win.postMessage({ type: "decorate-data", seq, moduleList: st.moduleList, pageModule: st.pageModule, shopId: st.shopId || 0 }, EMBED_ORIGIN);
         } catch {
             /* iframe 未就绪时忽略，就绪握手会补发 */
         }

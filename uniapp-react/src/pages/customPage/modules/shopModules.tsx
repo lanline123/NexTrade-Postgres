@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import { View } from "@tarojs/components";
 
 import { MODULE_REGISTRY } from "./registry";
+import ModuleErrorBoundary from "@/pages/customPage/components/ModuleErrorBoundary";
 import type { ShopDetailItem } from "@/types/shop/shop";
 
 /** 当前编辑器可投放的店铺模块，以及历史店铺装修使用的模块。 */
@@ -69,9 +70,11 @@ interface Props {
     shopInfo: ShopDetailItem;
     /** 对应旧 @refresh-shop-detail（shopInfo 模块收藏后触发，页面重拉店铺详情） */
     onRefreshShopDetail?: (shopId?: number) => void;
+    /** 模块渲染失败时显示占位提示块；默认静默空占位（线上店铺页口径） */
+    moduleErrorPlaceholder?: boolean;
 }
 
-export default function ShopModules({ modules, shopInfo, onRefreshShopDetail }: Props) {
+export default function ShopModules({ modules, shopInfo, onRefreshShopDetail, moduleErrorPlaceholder }: Props) {
     return (
         <View>
             {modules.map((mod: any, index: number) => {
@@ -96,7 +99,11 @@ export default function ShopModules({ modules, shopInfo, onRefreshShopDetail }: 
                     props.shopInfo = shopInfo;
                     props.onRefreshShopDetail = onRefreshShopDetail;
                 }
-                return <Registered key={mod.moduleIndex ?? index} {...props} />;
+                return (
+                    <ModuleErrorBoundary key={mod.moduleIndex ?? index} moduleType={mod.type} moduleIndex={index} resetKey={mod} placeholder={moduleErrorPlaceholder}>
+                        <Registered {...props} />
+                    </ModuleErrorBoundary>
+                );
             })}
         </View>
     );

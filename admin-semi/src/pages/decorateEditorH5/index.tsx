@@ -118,7 +118,9 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
                     decorateTitle: result.decorateTitle || query.get("title") || "",
                     pageModule: result.data?.pageModule || {},
                     moduleList: result.data?.moduleList || [],
-                    hasDraft: !!result.draftData
+                    hasDraft: !!result.draftData,
+                    // 店铺模板页的所属店铺：真实渲染 iframe 据此拉真实店铺详情喂 shopInfo 模块
+                    shopId: result.shopId || 0
                 });
                 setDecorateTitleDraft(result.decorateTitle || "");
                 // 真实数据已写入 store：推进数据纪元（本纪元的 layout 回传才算
@@ -253,7 +255,8 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
                 decorateTitle: val,
                 pageModule: editorStore.getState().pageModule,
                 moduleList: editorStore.getState().moduleList,
-                hasDraft: editorStore.getState().hasDraft
+                hasDraft: editorStore.getState().hasDraft,
+                shopId: editorStore.getState().shopId
             });
             return;
         }

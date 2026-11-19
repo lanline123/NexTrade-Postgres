@@ -70,6 +70,10 @@ export interface DecorateModuleProps {
     needStatusBar?: boolean;
     onChangeCatNav?: (data: any) => void;
     onIsCut?: (val: boolean) => void;
+    /** 店铺上下文（原版店铺页分发口径）：SHOP_ID 类模块与 shopInfo 模块才收到 */
+    shopId?: number;
+    shopInfo?: import("@/types/shop/shop").ShopDetailItem;
+    onRefreshShopDetail?: (shopId?: number) => void;
 }
 
 export const MODULE_REGISTRY: Record<string, ComponentType<DecorateModuleProps>> = {

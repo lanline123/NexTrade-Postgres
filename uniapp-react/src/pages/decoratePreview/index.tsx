@@ -5,6 +5,8 @@ import { useRouter } from "@tarojs/taro";
 import DecorateModules from "@/pages/customPage/components/DecorateModules";
 import { MODULE_REGISTRY } from "@/pages/customPage/modules/registry";
 import { getIndex } from "@/api/home/home";
+import { getShopDetail } from "@/api/shop/shop";
+import type { ShopDetailItem } from "@/types/shop/shop";
 
 import "./index.scss";
 
@@ -23,6 +25,11 @@ import "./index.scss";
  *   `decorate-data` 的下发序号（管理端递增下发、本页原样回带，精确对齐用）；`decorate-layout` 同样回带 seq。
  * - 兜底/自检：带 `?id=<decorateId>` 打开时走与 customPage 相同的 getIndex 拉已发布数据渲染
  *   （postMessage 数据一旦到达即覆盖并锁定，编辑器实时数据优先）。
+ * - 店铺上下文【原版有·我方改口径】（2026-11-19）：原版店铺页由页面自身拉店铺详情后
+ *   经分发器传 shopInfo/shopId；本嵌入页没有页面级店铺上下文，改为按编辑器在
+ *   decorate-data 里下发的 shopId（或 ?shopId= 参数）拉 getShopDetail 后透传给
+ *   DecorateModules，口径与 ShopModules 一致。此前不传曾让 shopInfo 模块无守卫
+ *   直读崩溃、含 shopInfo 的页面（如 10079 店铺模板）真实渲染整页空白。
  *
  * 通信安全：只接受 ALLOWED_ORIGINS 的消息；本机 localhost 调试时放行任意来源（仅按 hostname 判断）。
  * 方案：~/workspace/editor-unify/iframe-canvas-design.md
@@ -53,9 +60,13 @@ export default function DecoratePreview() {
     const [modulesData, setModulesData] = useState<any[]>([]);
     const [pageModule, setPageModule] = useState<any>({});
     const [received, setReceived] = useState(false);
+    const [shopId, setShopId] = useState(0);
+    const [shopInfo, setShopInfo] = useState<ShopDetailItem | undefined>(undefined);
     const rootRef = useRef<any>(null);
     const parentOriginRef = useRef<string>("*");
     const parentDataRef = useRef(false);
+    const shopIdRef = useRef(0);
+    const shopFetchTokenRef = useRef(0);
     const renderedForRef = useRef<any[] | null>(null);
     const seqRef = useRef<number | null>(null);
     const stateRef = useRef({ modulesData, pageModule, received });
@@ -80,6 +91,11 @@ export default function DecoratePreview() {
             if (typeof data.seq === "number") seqRef.current = data.seq;
             if (Array.isArray(data.moduleList)) setModulesData(data.moduleList);
             if (data.pageModule && typeof data.pageModule === "object") setPageModule(data.pageModule);
+            // 店铺上下文（向后兼容：旧编辑器不下发 shopId 时保持 0，模块走守卫空态）
+            if (typeof data.shopId === "number" && data.shopId !== shopIdRef.current) {
+                shopIdRef.current = data.shopId;
+                setShopId(data.shopId);
+            }
             setReceived(true);
         };
         window.addEventListener("message", onMessage);
@@ -88,9 +104,42 @@ export default function DecoratePreview() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // 按 shopId 拉店铺详情：令牌防竞态（后发起的请求优先，迟到的旧结果丢弃）；
+    // 失败只记日志不崩页（shopInfo 模块有守卫，缺失时渲染结构空态）
+    const loadShopDetail = useCallback(async (id: number) => {
+        if (!id || id <= 0) return;
+        const token = ++shopFetchTokenRef.current;
+        try {
+            const result: any = await getShopDetail(id);
+            if (shopFetchTokenRef.current !== token) return;
+            if (result) setShopInfo(result as ShopDetailItem);
+        } catch (e) {
+            console.error("[decoratePreview] getShopDetail failed", e);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (shopId > 0) void loadShopDetail(shopId);
+    }, [shopId, loadShopDetail]);
+
+    /** shopInfo 模块收藏后回调：重拉当前店铺详情（与店铺页 refreshShopDetail 同口径） */
+    const handleRefreshShopDetail = useCallback(
+        (id?: number) => {
+            const target = id && id > 0 ? id : shopIdRef.current;
+            if (target > 0) void loadShopDetail(target);
+        },
+        [loadShopDetail]
+    );
+
     // ?id= 兜底：拉已发布页数据（与 customPage 同一接口）；编辑器 postMessage 到达后不再覆盖
     useEffect(() => {
         const id = Number(router.params.id);
+        // ?shopId= 自检参数：直接打开预览页时也能拉真实店铺详情
+        const paramShopId = Number(router.params.shopId);
+        if (paramShopId > 0 && !parentDataRef.current) {
+            shopIdRef.current = paramShopId;
+            setShopId(paramShopId);
+        }
         if (!id) return;
         void (async () => {
             try {
@@ -98,6 +147,10 @@ export default function DecoratePreview() {
                 if (parentDataRef.current || !res) return;
                 if (Array.isArray(res.moduleList)) setModulesData(res.moduleList);
                 if (res.pageModule) setPageModule(res.pageModule);
+                if (Number(res.shopId) > 0) {
+                    shopIdRef.current = Number(res.shopId);
+                    setShopId(Number(res.shopId));
+                }
                 setReceived(true);
             } catch (e) {
                 console.error("[decoratePreview] getIndex failed", e);
@@ -211,7 +264,15 @@ export default function DecoratePreview() {
             style={{ backgroundColor: pageModule?.backgroundColor || "#ffffff" }}
         >
             {received ? (
-                <DecorateModules modules={modulesData} pageModles={pageModule} scrollTop={0} />
+                <DecorateModules
+                    modules={modulesData}
+                    pageModles={pageModule}
+                    scrollTop={0}
+                    shopInfo={shopInfo}
+                    shopId={shopId}
+                    onRefreshShopDetail={handleRefreshShopDetail}
+                    moduleErrorPlaceholder
+                />
             ) : (
                 <View className="decorate-preview__waiting">等待编辑器数据…</View>
             )}

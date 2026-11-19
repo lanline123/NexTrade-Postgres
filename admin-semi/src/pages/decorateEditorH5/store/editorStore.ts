@@ -36,6 +36,8 @@ interface EditorState {
     localeId: string | number;
     parentId: string | number;
     isDefault: boolean;
+    /** 页面所属店铺（详情接口顶层 shopId；店铺模板页才有值）：供真实渲染 iframe 下发给嵌入页拉真实店铺详情 */
+    shopId: number;
 }
 
 let state: EditorState = {
@@ -51,7 +53,8 @@ let state: EditorState = {
     isDirty: false,
     localeId: 0,
     parentId: 0,
-    isDefault: true
+    isDefault: true,
+    shopId: 0
 };
 
 const listeners = new Set<() => void>();
@@ -194,6 +197,7 @@ export const editorStore = {
         localeId?: string | number;
         parentId?: string | number;
         isDefault?: boolean;
+        shopId?: number;
     }) {
         const pageModule = data.pageModule ? cloneDeep(data.pageModule) : {};
         const list = normalizeProductDetailStyles(updateModuleListWithUrls(cloneDeep(data.moduleList ?? [])));
@@ -209,6 +213,7 @@ export const editorStore = {
             localeId: data.localeId ?? 0,
             parentId: data.parentId ?? 0,
             isDefault: data.isDefault ?? true,
+            shopId: data.shopId ?? 0,
             activeModuleIndex: null,
             editMode: null,
             isDirty: false
@@ -444,7 +449,8 @@ export const editorStore = {
             isDirty: false,
             localeId: 0,
             parentId: 0,
-            isDefault: true
+            isDefault: true,
+            shopId: 0
         });
     }
 };
