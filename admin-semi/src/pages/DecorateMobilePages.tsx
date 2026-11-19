@@ -506,11 +506,11 @@ export function MobileDecoratePageList({
   const refresh = () => setListKey((key) => key + 1);
 
   const columns: ColumnConfig<any>[] = [
-    { title: 'ID', dataIndex: 'decorateId', width: 80 },
+    { title: 'ID', dataIndex: 'decorateId', width: 70 },
     {
       title: t('页面名称'),
       dataIndex: 'decorateTitle',
-      width: 220,
+      width: 210,
       render: (v: any, row: any) => (
         <Space>
           <span>{v || row?.bingdingH5Name || t(defaultName)}</span>
@@ -525,7 +525,7 @@ export function MobileDecoratePageList({
       // 无名时回退店铺 ID，保证全部店铺混排时也能分清每行归属
       title: t('店铺'),
       dataIndex: 'shopName',
-      width: 180,
+      width: 150,
       render: (v: any, row: any) => {
         if (v) return v;
         if (row?.shopId === 0) return t('平台');
@@ -535,7 +535,7 @@ export function MobileDecoratePageList({
     {
       title: t('发布状态'),
       dataIndex: 'status',
-      width: 110,
+      width: 100,
       render: (s: any) => <Tag color={s === 1 ? 'green' : 'grey'}>{s === 1 ? t('已发布') : t('草稿')}</Tag>,
     },
     { title: t('更新时间'), dataIndex: 'updateTime', width: 170, render: (v: any) => formatDecorateTime(v) },
@@ -544,7 +544,7 @@ export function MobileDecoratePageList({
           {
             title: t('绑定H5页面'),
             dataIndex: 'bingdingH5Name',
-            width: 160,
+            width: 140,
             render: (v: any) => v || '--',
           } as ColumnConfig<any>,
         ]
@@ -609,6 +609,10 @@ export function MobileDecoratePageList({
         }}
         rowKey="decorateId"
         columns={columns}
+        // 操作列有 4 个按钮（装修/复制/更换或设为默认/删除），实测内容约需
+        // 266px；框架默认 160 放不下会把整表顶宽（线上实测溢出 56px、删除
+        // 按钮被推出可视区并冒出表格横向滚动条），故按内容实宽申报
+        actionWidth={280}
         showEdit={false}
         selectable
         rowSelectable={(row: any) => Number(row?.isHome) !== 1}
