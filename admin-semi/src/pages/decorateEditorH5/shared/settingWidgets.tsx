@@ -4,7 +4,9 @@
  * 结构/数值口径（原版 src/css/decorate.less + 各共享 Edit 组件）：
  * - 字段行 `.dec-edit-group`（padding 10px 16px；标签 .label 14px #969799 margin-right 16px；控件区 .dec-edit-group-con flex:1 右对齐）
  * - 分组标题三形态：dec-spread-title（平面粗体）/ dec-edit-title-box（灰带 + 3px 蓝条）/ dec-edit-section-title
- * - 单选组：Semi RadioGroup button 形态（2026-11-15 换标准，原手写 el-radio-button 克隆已弃）
+ * - 单选组：以 PC 编辑器为准（用户裁定 2026-11-19）——模块字段用普通 Semi RadioGroup
+ *   圆点形态（同 PcDecorateEditor FieldControl 的 kind:'radio' 写法，无 type）；仅页面设置
+ *   用 Semi RadioGroup type="button" 分段形态（同 PC PageSettings），见 SegmentedButtonRadio
  * - 滑杆 `.dec-range-group`：共享 SliderWithInput（Semi Slider + InputNumber，同 PC 编辑器）
  * - 颜色行：共享 components/ColorField 外壳（「重置」链 + AlphaColorInput，预置色为原版 SelectColor 14 色）
  * - 图片：单图走共享 ImageUploader、列表走 GalleryPickerModal（素材库口径，同 PC 编辑器；原 Semi Upload 直传已弃）
@@ -89,26 +91,38 @@ export function SettingRow({ label, children, block = false }: { label: string; 
     );
 }
 
-// ---------------- 单选组（原版 .dec-radio-group 分段样式） ----------------
+// ---------------- 单选组（以 PC 编辑器为准，用户裁定 2026-11-19） ----------------
 
 interface RadioOption {
     value: number | string;
     label: string;
 }
 
-/** 裸分段单选组（无字段行外壳，供 dec-edit-group-block 等容器内嵌使用）
- *  2026-11-15 换标准：原手写 el-radio-button 克隆改为 Semi RadioGroup button 形态，与 PC 编辑器口径一致。 */
+/**
+ * 选中态/回写值归一：按 String 比较命中选项（容忍存量数据里 "1"/1 混写），
+ * 命中时一律使用选项的原始类型值——字符串选项（"normal"/"bold"/"500" 等）
+ * 绝不做 Number() 转换，数字选项也保持数字。
+ */
+function matchRadioOption(value: any, options: RadioOption[]): RadioOption | undefined {
+    return options.find((o) => String(o.value) === String(value));
+}
+
+function radioChangeValue(raw: any, options: RadioOption[]): number | string {
+    const matched = matchRadioOption(raw, options);
+    return matched ? matched.value : raw;
+}
+
+/** 裸单选组（无字段行外壳，供 dec-edit-group-block 等容器内嵌使用）
+ *  模块字段口径（用户裁定 2026-11-19 以 PC 编辑器为准）：普通 Semi RadioGroup
+ *  圆点形态，无 type——同 PcDecorateEditor FieldControl 的 kind:'radio' 写法。
+ *  函数名沿用 SegmentedRadio（近百处模块调用点不改名），仅形态变更。 */
 export function SegmentedRadio({ value, options, onChange }: { value: any; options: RadioOption[]; onChange: (v: number | string) => void }) {
     const { t } = useI18n();
-    // 旧手写实现按 String 比较选中态（容忍存量数据里 "1"/1 混写）；Semi 为严格比较，
-    // 这里先把 value 归一到命中选项的原始类型，避免存量字符串值导致无选中态。
-    const matched = options.find((o) => String(o.value) === String(value));
+    const matched = matchRadioOption(value, options);
     return (
         <RadioGroup
-            type="button"
             value={matched ? matched.value : value}
-            style={{ flex: 1, minWidth: 0 }}
-            onChange={(e: any) => onChange(e?.target?.value)}
+            onChange={(e: any) => onChange(radioChangeValue(e?.target?.value, options))}
         >
             {options.map((o) => (
                 <Radio key={String(o.value)} value={o.value}>
@@ -119,7 +133,7 @@ export function SegmentedRadio({ value, options, onChange }: { value: any; optio
     );
 }
 
-/** 单选（无标签行，整行分段组） */
+/** 单选（无标签行，整行单选组） */
 export function RadioField({ data, onChange, field, options }: FieldProps & { field: string; options: RadioOption[] }) {
     return (
         <div className="dec-edit-group">
@@ -139,11 +153,44 @@ export function RadioRowField({ data, onChange, field, label, options }: FieldPr
     );
 }
 
+/** 裸分段单选组（Semi RadioGroup type="button"）：仅页面设置使用——
+ *  同 PC 编辑器 PageSettings 的头部风格/背景图显示/背景图填充大小写法。
+ *  模块字段禁用此控件（走上面的圆点 SegmentedRadio）。 */
+export function SegmentedButtonRadio({ value, options, onChange }: { value: any; options: RadioOption[]; onChange: (v: number | string) => void }) {
+    const { t } = useI18n();
+    const matched = matchRadioOption(value, options);
+    return (
+        <RadioGroup
+            type="button"
+            value={matched ? matched.value : value}
+            style={{ flex: 1, minWidth: 0 }}
+            onChange={(e: any) => onChange(radioChangeValue(e?.target?.value, options))}
+        >
+            {options.map((o) => (
+                <Radio key={String(o.value)} value={o.value}>
+                    {t(o.label)}
+                </Radio>
+            ))}
+        </RadioGroup>
+    );
+}
+
+/** 带标题的分段单选（仅页面设置使用，见 SegmentedButtonRadio） */
+export function SegmentedButtonRadioRowField({ data, onChange, field, label, options }: FieldProps & { field: string; label: string; options: RadioOption[] }) {
+    return (
+        <SettingRow label={label}>
+            <SegmentedButtonRadio value={data?.[field]} options={options} onChange={(v) => onChange({ [field]: v })} />
+        </SettingRow>
+    );
+}
+
 /**
  * 图标样式单选（原版 BannerSearch 的 el-radio-button + iconfont 字形选项形态）：
  * 带 iconpark 的选项以 IconPark 字形呈现（FloorIcon 内嵌 SVG，描边随 currentColor——
  * 未选时为深色描边、选中胶囊填充时随字色变白），其余选项（自定义/不显示）走文字。
  * 选中态归一同 SegmentedRadio（String 比较，容忍存量 "1"/1 混写）。
+ * 本控件是图标选择器，形态例外保留 type="button" 分段（同 PC 编辑器图标单选的按钮组形态），
+ * 不随模块字段的圆点口径变更。
  * 字形映射由调用方模块的共享映射表提供（如 banner 的 iconStyles.ts），与预览/前台同源。
  */
 export function IconStyleRadioField({
@@ -162,7 +209,7 @@ export function IconStyleRadioField({
                 type="button"
                 value={matched ? matched.value : value}
                 style={{ flex: 1, minWidth: 0 }}
-                onChange={(e: any) => onChange({ [field]: e?.target?.value })}
+                onChange={(e: any) => onChange({ [field]: radioChangeValue(e?.target?.value, options) })}
             >
                 {options.map((o) => (
                     <Radio key={String(o.value)} value={o.value}>

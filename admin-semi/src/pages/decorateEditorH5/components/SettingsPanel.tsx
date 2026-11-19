@@ -14,7 +14,7 @@ import DecSettingsPanel from "../../../components/decorate/DecSettingsPanel";
 import { editorStore, useEditorState } from "../store/editorStore";
 import { getLazyModuleComponent } from "../contract/lazyModule";
 import ModuleErrorBoundary from "./ModuleErrorBoundary";
-import { ColorField, PicSelectField, RadioRowField, SegmentedRadio, DecDivider } from "../shared/settingWidgets";
+import { ColorField, PicSelectField, SegmentedButtonRadio, SegmentedButtonRadioRowField, DecDivider } from "../shared/settingWidgets";
 import type { PageModule } from "../contract/types";
 
 import { useI18n } from '../../../i18n';
@@ -57,7 +57,8 @@ function PageSettings({ pageModule, pageType }: { pageModule: PageModule; pageTy
                     </div>
                 </div>
             ) : null}
-            <RadioRowField
+            {/* 页面设置以 PC 编辑器 PageSettings 为准：分段按钮（type="button"），非模块字段的圆点口径 */}
+            <SegmentedButtonRadioRowField
                 {...fp}
                 field="headerStyle"
                 label="头部风格"
@@ -83,7 +84,7 @@ function PageSettings({ pageModule, pageType }: { pageModule: PageModule; pageTy
                     <div className="value">{t(repeatLabels[Number(data.backgroundRepeat ?? 1)] || "不平铺")}</div>
                 </div>
                 <div className="dec-edit-group-con">
-                    <SegmentedRadio
+                    <SegmentedButtonRadio
                         value={Number(data.backgroundRepeat ?? 1)}
                         options={[
                             { value: 1, label: "不平铺" },
@@ -101,7 +102,7 @@ function PageSettings({ pageModule, pageType }: { pageModule: PageModule; pageTy
                     <div className="value">{t(sizeLabels[Number(data.backgroundSize ?? 1)] || "横向100%")}</div>
                 </div>
                 <div className="dec-edit-group-con">
-                    <SegmentedRadio
+                    <SegmentedButtonRadio
                         value={Number(data.backgroundSize ?? 1)}
                         options={[
                             { value: 1, label: "横向100%" },

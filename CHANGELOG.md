@@ -478,3 +478,9 @@
 ### 修复
 
 - **H5 - 商品详情页同类 bug 修复（游离「0」+ 促销行可见性）【原版有·我方改口径（判定层）】**：① 拼团卡行（product/index.tsx）、SKU 弹窗阶梯团行（specification/index.tsx）、销量行（product/index.tsx）的数字条件补 `!!`，消除非拼团商品详情页中部与 SKU 弹窗内的游离「0」、后台关销量时参数卡里的「0」——原版 Vue `v-if` 数字假值不渲染、我方 React `{x && …}` 直译把 0 当文本渲染，属移植引入，本轮回归原版渲染口径（值域 {0,1} 上 `!!x` 与真值门等价）。② 详情优惠行/活动标签行（productTitleInfo 三处 + 详情页两处）改按可见促销条目判定：新增 `visiblePromotionList`（复用瀑布流卡同批的 `isActivityVisible`，与 ActivityCard 渲染分支同口径），无可见标签时不占行、优惠文案取首个可见条目、活动行先过滤再截断前两条；原版以条目数判定与我方修复前逐字相同，差异同瀑布流卡裁决——原版数据只有真实促销条目、我方后端会下发 type=0 等不可见条目，故按可见性判定回归原版渲染口径。注：详情侧后端促销聚合（getProductAvailability）尚未落地，此组门为已装填的潜伏缺陷、前端先行收口。③ 价格小数逐处核毕与原版显式传参逐字一致（国内 48/32、海外/A1 的 49/49 同大均为原版口径），无改动。productV1 共用同批子组件、自动覆盖。审计与验收口径见 product-detail-fix 报告。
+
+## 0.0.2 续 · 2026-11-19 批次（H5 编辑器单选对齐 PC 编辑器，随本轮 admin 热更新上线）
+
+### 变更
+
+- **后台 - H5 装修编辑器右栏单选控件以 PC 编辑器样式为准【原版有·我方改口径（用户裁定）】**：原版 tigshop H5 编辑器的模块单选为分段 `el-radio-button` 形态（白底拼边、选中浅底主题字）；用户 2026-11-19 裁定「以 PC 编辑器的样式为准」，我方改口径如下——H5 模块字段单选（共享 `SegmentedRadio` / `RadioRowField` / `RadioField`，含文字粗细/标题粗细「常规体/加粗体」等全部模块设置）改随我方 PC 编辑器模块字段口径：普通 Semi `RadioGroup` 圆点形态（无 `type`，同 `PcDecorateEditor` `FieldControl` 的 `kind:'radio'` 写法，左对齐、16px 间距，不再拉伸居中成分段）；H5 页面设置（头部风格 / 背景图显示 / 背景图填充大小）则随 PC 编辑器 `PageSettings` 同名字段口径，保留 Semi `RadioGroup type="button"` 分段形态（新增共享控件 `SegmentedButtonRadio` / `SegmentedButtonRadioRowField`，仅页面设置使用）。与原版的差别：原版 H5 模块单选为分段按钮、且原版无「模块圆点 / 页面设置分段」的分工，本次按用户裁定以我方 PC 编辑器的既有分工为准。数据契约不变：选项值按 String 命中归一、回写选项原始类型（字符串选项如 `"normal"/"bold"/"500"` 不做数值转换）。图标样式单选 `IconStyleRadioField` 为视觉选图控件，例外保留分段形态（同 PC 图标单选按钮组）。

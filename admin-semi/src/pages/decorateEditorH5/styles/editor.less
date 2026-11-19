@@ -480,9 +480,26 @@
 
 // ---------------- 共享控件适配（Semi/原生控件 → 原版形态） ----------------
 
-// 单选分段组（2026-11-15 换标准：控件已换 Semi RadioGroup button 形态，
-// 原手写 .dec-radio-group/.el-radio-button 样式随之删除）：分段项均分控件区宽度、文字居中
-.dec-edit-group-con .semi-radioGroup {
+// 单选组（用户裁定 2026-11-19 以 PC 编辑器为准）：
+// - 模块字段 = 普通 Semi RadioGroup 圆点形态（同 PcDecorateEditor FieldControl
+//   kind:'radio'）：Semi 默认 horizontal 即 inline-flex + gap 16px 左对齐，
+//   不再拉伸/居中成分段——此处显式复位，防止旧分段规则把圆点项均分整行。
+// - 仅分段变体（.semi-radioGroup-buttonRadio，页面设置 SegmentedButtonRadio 与
+//   图标单选 IconStyleRadioField）保留旧规则：均分控件区宽度、文字居中，
+//   皮肤走共享壳 editor-shell.css 的 .dec-settings-scope 胶囊段（同 PC）。
+.dec-edit-group-con .semi-radioGroup:not(.semi-radioGroup-buttonRadio) {
+    display: inline-flex;
+    flex-wrap: wrap;
+    width: auto;
+
+    .semi-radio {
+        flex: none;
+        justify-content: flex-start;
+        margin-right: 0;
+    }
+}
+
+.dec-edit-group-con .semi-radioGroup-buttonRadio {
     display: flex;
     flex-wrap: wrap;
     width: 100%;
