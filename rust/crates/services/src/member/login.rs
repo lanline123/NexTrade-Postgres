@@ -17,7 +17,8 @@
 //!
 //! | 端点 | 语义 |
 //! |------|------|
-//! | `sendMobileCode`（/api + /adminapi 两条） | 校验手机号 → 生成 6 位码 → 写缓存 `event+mobile`（TTL 5 分钟）→ 不实际发短信（通道未迁移） |
+//! | `sendMobileCode`（/api + /adminapi 两条） | 校验手机号和行为验证 → 生成并发送 6 位短信码 → 写入缓存（TTL 5 分钟） |
+//! | `signin` 短信登录 | 校验并消费会员短信码 → 登录已有会员或按注册开关创建新会员 |
 //! | `sendEmailCode` | 校验邮箱 → 同上（`event+email`） |
 //! | `checkMobile` / `checkEmail` | 校验缓存验证码 → 要求账号唯一且启用 → 生成 64 位 hex 重置令牌 → 缓存 `password-reset:{md5(token)}` → user_id（TTL 10 分钟），返回令牌 |
 //! | `forgetPassword` | 校验令牌 → 校验账号启用 → `bcrypt` 重新哈希密码 → 更新 `user.password` → 消费令牌 |
@@ -38,7 +39,6 @@
 //! - 行为验证：登录侧已接入（失败 5 次触发滑块，见 `system::captcha`）；发码侧
 //!   `verifyToken` 带了必校验（一次性令牌）、没带不拦截（移动端流程无令牌），
 //!   另加同目标 60 秒冷却 + 每日 10 次上限防轰炸（`guard_code_send`）；
-//! - 短信/邮件只写缓存不实际发送（未接 RabbitMQ + 服务商通道）；
 //! - 重置令牌摘要用 **MD5**（services crate 无 `sha2` 依赖，不可改 Cargo.toml），
 //!   Java 用 SHA-256；令牌本身仍为 64 位小写 hex、TTL 与 Java 相同；
 //! - `bindMobile` 的微信授权绑定做了「按 openid/按用户」两段 upsert 的等价实现，
@@ -57,9 +57,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::Sha256;
 use nextrade_common::utils::now_seconds;
+use nextrade_core::entities::User;
 use nextrade_core::models::member::login::{
     authorize_type_from_client, auto_nickname, email_code_key, password_reset_key, quick_login_flags,
-    sms_code_key, unwrap_open_data, validate_code_format, validate_email_basic, validate_reset_token,
+    sms_code_key, unwrap_open_data, validate_code_format, validate_email_basic, validate_reset_token, validate_sms_mobile,
     wechat_h5_login_flags, wechat_state_key, BindMobileDTO, CheckEmailDTO, CheckMobileDTO,
     CodeParamDTO, ForgetPasswordDTO, LoginWechatEventVO, QuickLoginSettingVO, RegisterEmailDTO,
     RegisterSmsDTO, WechatLoginUrlVO, WxLoginInfoByCodeVO, ACCOUNT_CANNOT_RESET,
@@ -108,32 +109,67 @@ impl LoginService {
 
     // ————————————————————— 验证码发送 —————————————————————
 
-    /// `POST /api/user/login/sendMobileCode` 与 `POST /adminapi/login/sendMobileCode`。
-    ///
-    /// Java `ConfigServiceImpl#sendSms`：行为验证 → 生成 6 位码 → 发送短信 →
-    /// 写缓存 `event+mobile`（5 分钟）。本实现前两步中的「行为验证」跳过、
-    /// 「发送」未迁移（只写缓存，便于接入通道后直接可用）。
-    ///
-    /// # Errors
-    /// 手机号缺失 → 「手机号码不能为空」；缓存不可用 → 1001；Redis 失败 → `Error::Cache`。
+    /// 后台发码沿用既有缓存键，会员登录验证码使用独立命名空间。
     pub async fn send_mobile_code(&self, dto: &RegisterSmsDTO) -> Result<()> {
-        let mobile = dto
-            .mobile
-            .as_deref()
-            .map(str::trim)
-            .filter(|m| !m.is_empty())
-            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, MOBILE_REQUIRED))?;
+        self.send_sms(dto, false).await
+    }
+
+    pub async fn send_member_mobile_code(&self, dto: &RegisterSmsDTO) -> Result<()> {
+        let for_login = matches!(dto.event.as_deref(), None | Some("" | "login"));
+        self.send_sms(dto, for_login).await
+    }
+
+    async fn send_sms(&self, dto: &RegisterSmsDTO, for_member_login: bool) -> Result<()> {
+        let mobile = validate_sms_mobile(dto.mobile.as_deref())?;
         validate_optional_verify_token(dto.verify_token.as_deref())?;
         self.guard_code_send("mobile", mobile).await?;
         let code = generate_sms_code();
-        let key = sms_code_key(dto.event.as_deref(), mobile);
-        self.cache()?
-            .set_json(&key, &code, CODE_TTL_SECS)
-            .await?;
+        let key = if for_member_login {
+            member_sms_login_key(mobile)
+        } else {
+            sms_code_key(dto.event.as_deref(), mobile)
+        };
         // 真实通道：阿里云短信（未配置 → 明确业务错误；NEXTTRADE_SMS__MOCK=1 时仅日志）
         crate::system::notify::send_sms_code(&self.repos, mobile, &code).await?;
-        tracing::info!("短信验证码已发送: mobile={mobile} event={:?}", dto.event);
+        self.cache()?.set_json(&key, &code, CODE_TTL_SECS).await?;
+        tracing::info!("短信验证码已发送: event={:?}", dto.event);
         Ok(())
+    }
+
+    /// `ClientLoginFilter` 的短信登录分支，按注册开关自动创建新会员。
+    pub async fn signin_by_mobile(&self, mobile: Option<&str>, code: Option<&str>) -> Result<User> {
+        let mobile = validate_sms_mobile(mobile)?;
+        self.consume_member_sms_code(mobile, code).await?;
+        let users = &self.repos.member.user;
+        let user = if let Some(user) = users.find_by_mobile(mobile).await? {
+            user
+        } else {
+            let closed = self
+                .repo()
+                .config_value("shopRegClosed")
+                .await?
+                .and_then(|v| parse_switch(Some(&v)))
+                .unwrap_or(SWITCH_OFF);
+            if closed != SWITCH_OFF {
+                return Err(Error::biz(SERVICE_DATA_ERROR, REGISTER_CLOSED));
+            }
+            let username = self.generate_unique_username().await?;
+            let nickname = auto_nickname(None, &username);
+            let hash = hash_password(&uuid::Uuid::new_v4().to_string())?;
+            let now = i32::try_from(now_seconds()).unwrap_or(0);
+            let id = self
+                .repo()
+                .insert_registered_user(&username, &nickname, "", mobile, &hash, now, 0)
+                .await?;
+            users.find_by_id(id).await?.ok_or_else(|| Error::NotFound("用户不存在".into()))?
+        };
+        if !user.can_login() {
+            return Err(Error::biz(403, "账号已被禁用"));
+        }
+        if user.mobile_validated != 1 {
+            self.repo().set_mobile_validated(user.user_id).await?;
+        }
+        Ok(user)
     }
 
     /// `POST /api/user/login/sendEmailCode`。
@@ -289,23 +325,15 @@ impl LoginService {
         dto: &BindMobileDTO,
         client_type: Option<&str>,
     ) -> Result<String> {
-        let mobile = require_identity(dto.mobile.as_deref(), MOBILE_REQUIRED)?.to_string();
-        let code = validate_code_format(dto.mobile_code.as_deref())?;
+        let mobile = validate_sms_mobile(dto.mobile.as_deref())?.to_string();
         let password = dto
             .password
             .as_deref()
             .filter(|p| !p.is_empty())
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, BIND_PASSWORD_REQUIRED))?;
 
-        // 1. 校验 login{mobile} 验证码（Java `validateVerificationCode`）
-        let code_key = format!("login{mobile}");
-        let cache = self.cache()?;
-        let expected: Option<String> = cache.get_json(&code_key).await?;
-        match expected {
-            Some(expected) if expected == code => {}
-            _ => return Err(Error::biz(SERVICE_DATA_ERROR, CODE_INVALID)),
-        }
-        cache.del(&code_key).await?;
+        // 1. 校验并一次性消费会员短信验证码（Java `validateVerificationCode`）。
+        self.consume_member_sms_code(&mobile, dto.mobile_code.as_deref()).await?;
 
         // 2. openData（兼容前端多套一层 openData）
         let open_data = unwrap_open_data(dto.open_data.as_ref());
@@ -1189,6 +1217,20 @@ impl LoginService {
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, CACHE_UNAVAILABLE))
     }
 
+    async fn consume_member_sms_code(&self, mobile: &str, code: Option<&str>) -> Result<()> {
+        let code = validate_code_format(code)?;
+        let cache = self.cache()?;
+        let key = member_sms_login_key(mobile);
+        let attempts_key = format!("{mobile}:member-sms-login-attempts");
+        if cache.incr(&attempts_key, CODE_TTL_SECS).await? > 5 {
+            return Err(Error::biz(SERVICE_DATA_ERROR, "验证码尝试次数过多，请稍后再试"));
+        }
+        if !cache.consume_matching_json(&key, code).await? {
+            return Err(Error::biz(SERVICE_DATA_ERROR, CODE_INVALID));
+        }
+        Ok(())
+    }
+
     /// 发码频率限制（防短信/邮件轰炸）：同一目标 60 秒冷却 + 每日上限 10 次。
     /// 计数走缓存（incr 带 TTL），缓存不可用时与发码主流程一致直接报错。
     async fn guard_code_send(&self, kind: &str, target: &str) -> Result<()> {
@@ -1628,8 +1670,10 @@ pub fn require_identity<'a>(value: Option<&'a str>, message: &str) -> Result<&'a
         .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, message))
 }
 
-/// 生成 6 位数字验证码（Java `RandomUtil.randomInt(100000, 999999)`）。
-#[must_use]
+fn member_sms_login_key(mobile: &str) -> String {
+    format!("{mobile}:member-sms-login")
+}
+
 /// 发码行为验证：请求带了 verifyToken 就必须校验通过（一次性令牌，防重放）；
 /// 没带令牌的调用方（如移动端原生流程）不拦截，改由频率限制兜底。
 fn validate_optional_verify_token(token: Option<&str>) -> Result<()> {
@@ -1641,6 +1685,8 @@ fn validate_optional_verify_token(token: Option<&str>) -> Result<()> {
     Ok(())
 }
 
+/// 生成 6 位数字验证码（Java `RandomUtil.randomInt(100000, 999999)`）。
+#[must_use]
 pub fn generate_sms_code() -> String {
     let n = uuid::Uuid::new_v4().as_u128() % 900_000 + 100_000;
     n.to_string()

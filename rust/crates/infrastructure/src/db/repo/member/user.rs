@@ -40,7 +40,6 @@ impl UserRepository {
             .map_err(map_err)
     }
 
-    /// 按手机号查询。
     /// 按用户名查询（前端「账号」登录兼容）。
     pub async fn find_by_username(&self, username: &str) -> Result<Option<User>> {
         sqlx::query_as::<_, User>("SELECT * FROM \"user\" WHERE LOWER(username) = LOWER($1) LIMIT 1")
@@ -50,6 +49,18 @@ impl UserRepository {
             .map_err(map_err)
     }
 
+    /// 按邮箱查询，历史重复数据按会员 ID 取第一条。
+    pub async fn find_by_email(&self, email: &str) -> Result<Option<User>> {
+        sqlx::query_as::<_, User>(
+            "SELECT * FROM \"user\" WHERE LOWER(email) = LOWER($1) ORDER BY user_id LIMIT 1",
+        )
+        .bind(email)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 按手机号查询。
     pub async fn find_by_mobile(&self, mobile: &str) -> Result<Option<User>> {
         sqlx::query_as::<_, User>("SELECT * FROM \"user\" WHERE mobile = $1 LIMIT 1")
             .bind(mobile)

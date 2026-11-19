@@ -20,7 +20,7 @@ use axum::{
     Json, Router,
 };
 use serde::Deserialize;
-use nextrade_core::models::member::login::{sms_code_key, RegisterSmsDTO, CODE_TTL_SECS};
+use nextrade_core::models::member::login::{sms_code_key, validate_sms_mobile, RegisterSmsDTO, CODE_TTL_SECS};
 use nextrade_core::Error;
 use nextrade_security::web::{ok, ApiResult};
 
@@ -81,22 +81,19 @@ struct RegisterSmsQuery {
 
 /// 生成 → 写缓存 → 尝试真发（无凭据吞掉错误，no-op）。
 async fn send_code(state: &PublicState, dto: RegisterSmsDTO) -> Result<(), Error> {
-    let mobile = dto
-        .mobile
-        .as_deref()
-        .map(str::trim)
-        .filter(|m| !m.is_empty())
-        .ok_or_else(|| Error::Validation("手机号码不能为空".into()))?
-        .to_string();
+    if dto.event.as_deref() == Some("login") {
+        return state.member.login.send_member_mobile_code(&dto).await;
+    }
+    let mobile = validate_sms_mobile(dto.mobile.as_deref())?;
     let code = nextrade_services::member::login::generate_sms_code();
-    let key = sms_code_key(dto.event.as_deref(), &mobile);
+    let key = sms_code_key(dto.event.as_deref(), mobile);
     nextrade_infrastructure::cache::get_cache()
         .set_json(&key, &code, CODE_TTL_SECS)
         .await?;
     // 真发（配置了短信渠道才会成功；未配置按任务约定 no-op，不报错）
     let repos = state.system.region_client.repos();
     if let Err(e) =
-        nextrade_services::system::notify::send_sms_code(repos, &mobile, &code).await
+        nextrade_services::system::notify::send_sms_code(repos, mobile, &code).await
     {
         tracing::warn!("sys/sms/getCode：短信未发出（仅写缓存）: {e}");
     }

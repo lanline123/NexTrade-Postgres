@@ -9,7 +9,7 @@ import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import { Divider, Popup } from "@nutui/nutui-react-taro";
 import TigNavbar from "@/components/tig/tig-navbar/TigNavbar";
 import TigButton from "@/components/tig/tig-button/TigButton";
-import Checkbox from "@/pages/cart/src/Checkbox";
+import TigCheckbox from "@/components/tig/tig-checkbox/TigCheckbox";
 import TigMobileAreacode from "@/components/tig/tig-mobile-areacode/TigMobileAreacode";
 import { sendMobileCode, setMiniProgramOpenid, userSignin, csrfCreate, getOauth, getQuickLoginSetting } from "@/api/login/login";
 import { useUserStore } from "@/store/user";
@@ -19,6 +19,7 @@ import { t } from "@/utils/i18n";
 import { useConfigStore } from "@/store/config";
 import { useThemeStore } from "@/store/theme";
 import { useCartStore } from "@/store/cart";
+import { rpxToStyleLength } from "@/utils/styleLength";
 
 import "./BaseLogin.scss";
 
@@ -33,8 +34,8 @@ interface Props {
     decorateConfig?: Record<string, string>;
 }
 
-// 旧 px2rpx/toNumber（@/utils/decorateFrame）未随公共工具迁入，按旧实现内联等价
-const px2rpx = (px: number) => `${px * 2}rpx`;
+// 装修面板以 375px 为基准，渲染时换成 750rpx 设计稿单位。
+const px2rpx = (px: number) => rpxToStyleLength(px * 2);
 const toNumber = (val: any, fallback: number): number => {
     const n = Number(val);
     return Number.isNaN(n) ? fallback : n;
@@ -77,13 +78,23 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
     const [isChecked, setIsChecked] = useState(false);
     const [verifyToken, setVerifyToken] = useState("");
     const [loginLoading, setLoginLoading] = useState(false);
+    const signinPending = useRef(false);
     const verifyRef = useRef<{ show: () => void; refresh: () => void } | null>(null);
     const verificationCodeRef = useRef<VerificationCodeRef | null>(null);
     const [mobileAreaCode, setMobileAreaCode] = useState("86");
+    const phone = mobile.trim();
+    const signinMobile = phone && (configStore.isOpenMobileAreaCode ? mobileAreaCode + phone : phone);
 
     // 协议确认弹窗：替代原 toast 提示，支持“登录”和“获取验证码”两种触发场景
     const [showAgreementModal, setShowAgreementModal] = useState(false);
     const [agreementAction, setAgreementAction] = useState<"signin" | "get-code" | "">("");
+
+    useEffect(() => {
+        if (showAgreementModal || !isChecked || agreementAction !== "get-code") return;
+        setAgreementAction("");
+        // 等待验证码组件收到新的 isChecked，再继续用户刚才的发码操作。
+        void verificationCodeRef.current?.handBtn();
+    }, [agreementAction, isChecked, showAgreementModal]);
 
     const agreementModalParts = useMemo<AgreementModalPart[]>(() => {
         const template = t("为了更好地保障您的合法权益，请您阅读并同意{service}和{privacy}。", {
@@ -188,11 +199,11 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
 
     const isloginDisabled = useMemo(() => {
         if (loginType === "password") {
-            return !username || !password;
+            return !username.trim() || !password;
         } else {
-            return !mobile || !mobileCode || !verifyToken;
+            return !signinMobile || !mobileCode.trim() || !verifyToken;
         }
-    }, [loginType, username, password, mobile, mobileCode, verifyToken]);
+    }, [loginType, username, password, signinMobile, mobileCode, verifyToken]);
 
     // 仅当配置项有值时才注入对应 CSS 变量；未注入的变量在样式里带 fallback 回退原值，保证零变化
     const loginStyleVars = useMemo<Record<string, string>>(() => {
@@ -261,17 +272,13 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
         setAgreementAction("");
     };
 
-    const handleAgreementAgree = async () => {
+    const handleAgreementAgree = () => {
         setShowAgreementModal(false);
         setIsChecked(true);
-        if (agreementAction === "get-code") {
+        if (agreementAction === "signin") {
             setAgreementAction("");
-            // 旧实现 await nextTick() 后调 verificationCodeRef.handBtn()；React 直接调用
-            verificationCodeRef.current?.handBtn();
-            return;
+            void signin();
         }
-        setAgreementAction("");
-        mobileLogin();
     };
 
     // 默认分支：底部“其他登录方式”账号 / 手机切换（旧模板仅 overseas 分支渲染，本函数为默认分支逻辑，随源码保留）
@@ -338,22 +345,24 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
         }
     };
 
-    const signin = async () => {
+    const signin = async (captchaToken?: string) => {
+        if (signinPending.current) return;
+        signinPending.current = true;
+        setLoginLoading(true);
         try {
             // 跨境版登录前刷新 CSRF（标准 / o2o 由 index.vue 预取透传，保持原行为）
             const csrfTokenToUse = isOverseasVer ? await refreshCsrf() : csrfToken;
-            setLoginLoading(true);
             const data: any = {
                 loginType: loginType,
-                username: username,
-                password: password,
+                username: loginType === "password" ? username.trim() : "",
+                password: loginType === "password" ? password : "",
                 mobile: "",
                 mobileCode: "",
-                verifyToken: verifyToken
+                verifyToken: captchaToken ?? (loginType === "mobile" ? verifyToken : "")
             };
             if (loginType === "mobile") {
-                data.mobile = configStore.isOpenMobileAreaCode ? mobileAreaCode + mobile : mobile;
-                data.mobileCode = mobileCode;
+                data.mobile = signinMobile;
+                data.mobileCode = mobileCode.trim();
             }
             const result = await userSignin(data, {
                 "X-CSRF-Token": csrfTokenToUse
@@ -393,24 +402,24 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
                 }
             }, 800);
         } catch (error: any) {
-            if (error.code == 1002 && verifyRef.current) {
+            if (error?.code == 1002 && verifyRef.current) {
                 verifyRef.current.show();
-            } else if (error.code > 0) {
+            } else {
                 Taro.showToast({
-                    title: error.message,
+                    title: error?.message || t("登录失败"),
                     duration: 1500,
                     icon: "none"
                 });
-                setMobileCode("");
+                if (error?.code > 0) setMobileCode("");
             }
         } finally {
+            signinPending.current = false;
             setLoginLoading(false);
         }
     };
 
-    const okCallback = (e: any) => {
-        setVerifyToken(e.verifyToken);
-        signin();
+    const okCallback = ({ verifyToken: captchaToken }: { verifyToken: string }) => {
+        void signin(captchaToken);
     };
 
     const [passwordType, setPasswordType] = useState("password");
@@ -444,8 +453,8 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
         <>
             {/* 跨境版登录布局：Tab + 第三方登录 */}
             {isOverseasVer && (
-                <TigLayout>
-                    <TigNavbar />
+                <TigLayout needSafeBottom={false} overflow={false}>
+                    <TigNavbar fixed={false} />
                     <View className="login-page login-panel-MjI4Mmdxbnc" style={loginStyleVars as any}>
                         <View className="tab-row">
                             {loginTypeTabs.map((item) => (
@@ -460,7 +469,7 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
                                     <View className="item">
                                         {!!configStore.isOpenMobileAreaCode && (
                                             // 原 tig-mobile-areacode v-model="mobileAreaCode" style="width: 90rpx"
-                                            <View style={{ width: "90rpx" }}>
+                                            <View className="login-area-code">
                                                 <TigMobileAreacode value={mobileAreaCode} onChange={setMobileAreaCode} />
                                             </View>
                                         )}
@@ -474,7 +483,7 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
                                         />
                                     </View>
                                     <View className="item">
-                                        <View style={{ flex: 1, marginRight: "10rpx" }}>
+                                        <View className="login-code-input">
                                             <Input
                                                 type="text"
                                                 placeholder={t("手机短信验证码")}
@@ -489,7 +498,7 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
                                             ref={verificationCodeRef}
                                             isChecked={isChecked}
                                             onVerifyTokenDataChange={setVerifyToken}
-                                            mobile={mobile ? (configStore.isOpenMobileAreaCode ? mobileAreaCode + mobile : mobile) : ""}
+                                            mobile={signinMobile}
                                             btnType="text"
                                             requestApi={sendMobileCode}
                                             onMobileErrorCallback={mobileErrorCallback}
@@ -509,34 +518,21 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
                                             onInput={(e) => setUsername(e.detail.value)}
                                         />
                                     </View>
-                                    {passwordType == "password" && (
-                                        <View className="item">
-                                            {/* 旧 type="password"：Taro Input 的 type 不含 password，以 password prop 等价实现 */}
-                                            <Input
-                                                type="text"
-                                                password
-                                                placeholder={t("请输入密码")}
-                                                placeholderClass="placeholder"
-                                                className="text password-text"
-                                                value={password}
-                                                onInput={(e) => setPassword(e.detail.value)}
-                                            />
-                                            <View className="password_show_hide iconfont icon-yincang" onClick={passwordTypeChange} />
-                                        </View>
-                                    )}
-                                    {passwordType == "text" && (
-                                        <View className="item">
-                                            <Input
-                                                type="text"
-                                                placeholder={t("请输入密码")}
-                                                placeholderClass="placeholder"
-                                                className="text password-text"
-                                                value={password}
-                                                onInput={(e) => setPassword(e.detail.value)}
-                                            />
-                                            <View className="password_show_hide iconfont-h5 icon-xianshi" onClick={passwordTypeChange} />
-                                        </View>
-                                    )}
+                                    <View className="item">
+                                        <Input
+                                            type="text"
+                                            password={passwordType === "password"}
+                                            placeholder={t("请输入密码")}
+                                            placeholderClass="placeholder"
+                                            className="text password-text"
+                                            value={password}
+                                            onInput={(e) => setPassword(e.detail.value)}
+                                        />
+                                        <View
+                                            className={`password_show_hide ${passwordType === "password" ? "iconfont icon-yincang" : "iconfont-h5 icon-xianshi"}`}
+                                            onClick={passwordTypeChange}
+                                        />
+                                    </View>
                                 </>
                             )}
                         </View>
@@ -576,7 +572,7 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
                                 )}
                             </View>
                         )}
-                        {loginType === "mobile" && (
+                        {loginType === "mobile" && configStore.shopRegClosed === 0 && (
                             <View className="other-row">
                                 <View className="tips">{t("未注册过的账号将自动注册账号")}</View>
                             </View>
@@ -585,7 +581,7 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
                         <View className="footer-row">
                             {process.env.TARO_ENV === "h5" && (
                                 <>
-                                    {(configStore.googleLoginOn || configStore.facebookLoginOn || configStore.twitterLoginOn) && (
+                                    {!!(configStore.googleLoginOn || configStore.facebookLoginOn || configStore.twitterLoginOn) && (
                                         <>
                                             {/* 原 up-divider :text → NutUI Divider */}
                                             <Divider>{t("其他登录方式")}</Divider>
@@ -604,7 +600,7 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
                                                 )}
                                                 {!!configStore.twitterLoginOn && (
                                                     <View className="item" onClick={() => handleOtherLogin("twitter")}>
-                                                        <Image src={staticResource("login/twitter.svg")} className="twitter-icon" mode="widthFix" />
+                                                        <Image src={staticResource("login/twitter.svg")} className="icon twitter-icon" mode="widthFix" />
                                                         <View>{t("Twitter/X登录")}</View>
                                                     </View>
                                                 )}
@@ -614,8 +610,8 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
                                 </>
                             )}
                             <View className="desc-box">
-                                <View className="rule-text flex" onClick={() => setIsChecked(!isChecked)}>
-                                    <Checkbox checked={isChecked} activeColor="#333333" onChange={() => setIsChecked(!isChecked)} />
+                                <View className="rule-text" onClick={() => setIsChecked((checked) => !checked)}>
+                                    <TigCheckbox checked={isChecked} activeColor="#333333" />
                                     <View className="rule-xieyi">
                                         <Text>{t("登录即为同意")}</Text>
                                         <Text
@@ -643,7 +639,7 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
                 position="center"
                 closeOnOverlayClick={false}
                 closeable={false}
-                style={{ backgroundColor: "#fff", borderRadius: "24rpx" }}
+                style={{ backgroundColor: "#fff", borderRadius: rpxToStyleLength(24) }}
                 zIndex={10081}
             >
                 <View className="agreement-modal" style={{ ...(themeStyle as any), ...(loginStyleVars as any) } as any}>

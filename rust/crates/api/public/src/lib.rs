@@ -25,7 +25,7 @@ use axum::{
 use serde::Deserialize;
 use std::sync::Arc;
 use nextrade_core::error::ApiResponse;
-use nextrade_core::models::{LoginDTO, LoginVO, OrderCreateDTO, OrderCreateVO, ProductListQuery};
+use nextrade_core::models::{LoginVO, OrderCreateDTO, OrderCreateVO, ProductListQuery};
 use nextrade_core::types::PageResult;
 use nextrade_openapi as openapi;
 use nextrade_security::web::{ok, require_auth, ApiResult, AppError, AuthUser};
@@ -248,25 +248,59 @@ async fn user_register(
     ok(id)
 }
 
-/// `POST /api/user/login`：会员登录（返回访问+刷新令牌）。
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MemberSigninRequest {
+    #[serde(default)]
+    login_type: MemberLoginType,
+    username: Option<String>,
+    password: Option<String>,
+    mobile: Option<String>,
+    mobile_code: Option<String>,
+    #[serde(alias = "verifyToken")]
+    captcha_verification: Option<String>,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum MemberLoginType {
+    #[default]
+    Password,
+    Mobile,
+}
+
+/// `POST /api/user/login/signin`：会员登录（返回访问+刷新令牌）。
 async fn user_login(
     State(state): State<PublicState>,
-    Json(dto): Json<LoginDTO>,
+    Json(dto): Json<MemberSigninRequest>,
 ) -> Result<(HeaderMap, Json<ApiResponse<LoginVO>>), AppError> {
-    // C 端登录与 Java `ClientLoginFilter` 一致：失败次数达到阈值后要求滑块验证码。
-    nextrade_services::system::captcha::validate_login_captcha(
-        &dto.username,
-        dto.captcha_verification.as_deref(),
-    )?;
-    let user = match state.member.user.login(&dto.username, &dto.password).await {
-        Ok(user) => {
-            nextrade_services::system::captcha::reset_login_error(&dto.username);
-            user
+    let user = match dto.login_type {
+        MemberLoginType::Password => {
+            let username = dto.username.as_deref().map(str::trim).filter(|s| !s.is_empty());
+            let password = dto.password.as_deref().filter(|s| !s.is_empty());
+            let (Some(username), Some(password)) = (username, password) else {
+                return Err(nextrade_core::Error::biz(400, "请输入账号和密码").into());
+            };
+            nextrade_services::system::captcha::validate_login_captcha(
+                username,
+                dto.captcha_verification.as_deref(),
+            )?;
+            match state.member.user.login(username, password).await {
+                Ok(user) => {
+                    nextrade_services::system::captcha::reset_login_error(username);
+                    user
+                }
+                Err(e) => {
+                    nextrade_services::system::captcha::increment_login_error(username);
+                    return Err(AppError(e));
+                }
+            }
         }
-        Err(e) => {
-            nextrade_services::system::captcha::increment_login_error(&dto.username);
-            return Err(AppError(e));
-        }
+        MemberLoginType::Mobile => state
+            .member
+            .login
+            .signin_by_mobile(dto.mobile.as_deref(), dto.mobile_code.as_deref())
+            .await?,
     };
     let user_id = user.user_id;
     let username = user.display_name();
@@ -644,6 +678,34 @@ pub async fn not_found() -> (StatusCode, Json<ApiResponse<()>>) {
         StatusCode::NOT_FOUND,
         Json(ApiResponse::fail(404, "接口不存在")),
     )
+}
+
+#[cfg(test)]
+mod signin_tests {
+    use super::{MemberLoginType, MemberSigninRequest};
+    use serde_json::{from_value, json};
+
+    #[test]
+    fn password_clients_can_omit_login_type_and_use_either_captcha_field() {
+        for field in ["captchaVerification", "verifyToken"] {
+            let mut body = json!({"username": "member", "password": "secret"});
+            body[field] = json!("test-captcha");
+            let request: MemberSigninRequest = from_value(body).unwrap();
+            assert!(matches!(request.login_type, MemberLoginType::Password));
+            assert_eq!(request.captcha_verification.as_deref(), Some("test-captcha"));
+        }
+    }
+
+    #[test]
+    fn mobile_signin_parses_sms_credentials_without_password_fields() {
+        let request: MemberSigninRequest = from_value(json!({
+            "loginType": "mobile", "mobile": "+8613800000000", "mobileCode": "348271"
+        })).unwrap();
+        assert!(matches!(request.login_type, MemberLoginType::Mobile));
+        assert_eq!(request.mobile.as_deref(), Some("+8613800000000"));
+        assert_eq!(request.mobile_code.as_deref(), Some("348271"));
+        assert!(request.password.is_none());
+    }
 }
 
 #[cfg(test)]

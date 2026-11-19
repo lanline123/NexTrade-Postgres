@@ -148,7 +148,7 @@ async fn send_mobile_code(
     State(state): State<PublicState>,
     Json(dto): Json<RegisterSmsDTO>,
 ) -> ApiResult<()> {
-    state.member.login.send_mobile_code(&dto).await?;
+    state.member.login.send_member_mobile_code(&dto).await?;
     ok(())
 }
 

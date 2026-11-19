@@ -238,7 +238,7 @@ const VerificationCode = forwardRef<VerificationCodeRef, Props>(function Verific
                 </TigButton>
             )}
             {btnType === "text" && (
-                <View className={`verify-btn ${btnDisabled ? "is-disabled" : ""}`} onClick={handBtn}>
+                <View className={`verification-code-text ${btnDisabled ? "is-disabled" : ""}`} onClick={handBtn}>
                     {" "}
                     {btnText}{" "}
                 </View>

@@ -444,7 +444,21 @@
 }
 
 /* ===== 跨境版登录样式（overseas 分支使用） ===== */
+.login-root-MjI4MnJhdHQ .layout-body-bjIyODJneWs {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+}
+
+.login-root-MjI4MnJhdHQ .tig-navbar .navbar-box {
+    height: max(100rpx, var(--nav-height, 100rpx));
+}
+
 .login-root-MjI4MnJhdHQ .login-page {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
     // 顶部间距只作用 padding-top（不动底部）；左右为 padding-x
     padding-top: var(--login-padding-top, 0);
     padding-left: var(--login-padding-x, 60rpx);
@@ -452,8 +466,9 @@
 
     .tab-row {
         display: flex;
-        align-items: end;
-        gap: 80rpx;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 12rpx 80rpx;
         color: var(--login-subtext, #999999);
         font-size: 34rpx;
         margin-bottom: 40rpx;
@@ -479,21 +494,48 @@
             width: 100%;
 
             .text {
-                width: 100%;
+                flex: 1;
+                min-width: 0;
                 text-transform: none;
+            }
+
+            .login-area-code {
+                flex: none;
+                margin-right: 16rpx;
+            }
+
+            .login-code-input {
+                flex: 1;
+                min-width: 0;
+                margin-right: 10rpx;
+            }
+
+            .verify-shell-MjI4Mmxqb2U {
+                flex: none;
+            }
+
+            .verify-shell-MjI4Mmxqb2U .verification-code-text {
+                color: var(--login-link, var(--general));
+                white-space: nowrap;
+            }
+
+            .password_show_hide {
+                position: static;
+                flex: none;
+                padding: 10rpx 0 10rpx 20rpx;
             }
 
             &:first-child {
                 padding-top: 0;
             }
 
-            /* 元素选择器：H5 命中 input 元素；小程序端 Input 组件渲染为自定义节点，可能不命中（保留原样） */
-            input {
+            .text {
                 font-size: 28rpx;
                 color: var(--login-input, #333);
             }
 
-            .placeholder {
+            .placeholder,
+            .text .weui-input::placeholder {
                 color: var(--login-placeholder, #dadada);
             }
         }
@@ -517,26 +559,24 @@
     }
 
     .footer-row {
-        position: fixed;
-        width: 100%;
-        bottom: 0;
-        left: 0;
+        margin-top: auto;
+        padding-bottom: calc(50rpx + var(--safe-bottom, 0px));
 
         .login-other {
             margin-top: 20rpx;
-            padding: 0 70rpx;
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-wrap: wrap;
             margin-bottom: 180rpx;
-            column-gap: 80rpx;
+            gap: 24rpx 48rpx;
 
             .item {
                 text-align: center;
                 color: var(--login-subtext, #999999);
                 font-size: 20rpx;
 
-                image {
+                .icon {
                     width: 90rpx;
                 }
             }
@@ -545,11 +585,19 @@
         .desc-box {
             font-size: 20rpx;
             color: var(--login-subtext, #999999);
-            padding-bottom: 50rpx;
+            text-align: center;
 
             .rule-text {
                 align-items: center;
                 justify-content: center;
+                margin-top: 0;
+                padding-top: 0;
+                font-size: inherit;
+                color: inherit;
+
+                .rule-xieyi {
+                    display: block;
+                }
 
                 .special-color {
                     color: var(--login-link, var(--general));

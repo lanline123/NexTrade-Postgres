@@ -52,21 +52,26 @@ impl UserService {
         self.repos.member.user.insert(&user).await
     }
 
-    /// 手机号+密码登录。
-    pub async fn login(&self, mobile: &str, password: &str) -> Result<User> {
-        // 前端登录框既可能是手机号也可能是用户名：先按手机号，再按用户名兜底。
-        let user = match self.repos.member.user.find_by_mobile(mobile).await? {
-            Some(user) => Some(user),
-            None => self.repos.member.user.find_by_username(mobile).await?,
+    /// 账号密码登录。兼容用户名、手机号和跨境版的邮箱账号。
+    pub async fn login(&self, identity: &str, password: &str) -> Result<User> {
+        let users = &self.repos.member.user;
+        let user = if let Some(user) = users.find_by_mobile(identity).await? {
+            Some(user)
+        } else if let Some(user) = users.find_by_username(identity).await? {
+            Some(user)
+        } else if identity.contains('@') {
+            users.find_by_email(identity).await?
+        } else {
+            None
         }
-        .ok_or_else(|| Error::biz(400, "手机号或密码错误"))?;
+        .ok_or_else(|| Error::biz(400, "账号或密码错误"))?;
         if !user.can_login() {
             return Err(Error::biz(403, "账号已被禁用"));
         }
         // password 为 NOT NULL 裸 String，无需 Option 解包
         let hash = user.password.as_str();
         if !verify_password(password, hash)? {
-            return Err(Error::biz(400, "手机号或密码错误"));
+            return Err(Error::biz(400, "账号或密码错误"));
         }
         Ok(user)
     }

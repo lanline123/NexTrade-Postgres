@@ -175,6 +175,47 @@ impl CacheService {
         }
     }
 
+    /// 原子地校验并消费一次性 JSON 凭据。值不匹配时保留原记录及其 TTL。
+    pub async fn consume_matching_json<T: serde::Serialize + ?Sized>(
+        &self,
+        key: &str,
+        expected: &T,
+    ) -> Result<bool> {
+        let expected = serde_json::to_string(expected)
+            .map_err(|e| Error::Cache(format!("缓存序列化失败: {e}")))?;
+        match &self.backend {
+            Backend::Redis(conn) => {
+                let mut conn = conn.clone();
+                let deleted: i64 = redis::cmd("EVAL")
+                    .arg("if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end return 0")
+                    .arg(1)
+                    .arg(key)
+                    .arg(&expected)
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(|e| Error::Cache(e.to_string()))?;
+                Ok(deleted == 1)
+            }
+            Backend::Memory(store) => {
+                let mut guard = store
+                    .lock()
+                    .map_err(|_| Error::Cache("内存缓存锁失败".into()))?;
+                let Some((value, expires_at)) = guard.get(key) else {
+                    return Ok(false);
+                };
+                if expires_at.is_some_and(|at| Instant::now() >= at) {
+                    guard.remove(key);
+                    return Ok(false);
+                }
+                if value != &expected {
+                    return Ok(false);
+                }
+                guard.remove(key);
+                Ok(true)
+            }
+        }
+    }
+
     /// 「读缓存 → 未命中回源 → 写缓存」。
     ///
     /// # Errors
@@ -256,6 +297,18 @@ mod tests {
         assert_eq!(cache.get_str("k1").await.unwrap().as_deref(), Some("v1"));
         cache.del("k1").await.unwrap();
         assert!(cache.get_str("k1").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn sms_code_is_consumed_once_and_wrong_code_does_not_remove_it() {
+        let cache = memory_cache();
+        cache.set_json("login-code", &"348271", 60).await.unwrap();
+        assert!(!cache.consume_matching_json("login-code", "823471").await.unwrap());
+        let (first, second) = tokio::join!(
+            cache.consume_matching_json("login-code", "348271"),
+            cache.consume_matching_json("login-code", "348271"),
+        );
+        assert_ne!(first.unwrap(), second.unwrap());
     }
 
     #[tokio::test]

@@ -272,6 +272,19 @@ pub fn sms_code_key(event: Option<&str>, mobile: &str) -> String {
     format!("{}{}", event.unwrap_or(""), mobile)
 }
 
+/// 国内和国际短信号码，允许国际号码保留 `+` 前缀。
+pub fn validate_sms_mobile(mobile: Option<&str>) -> crate::Result<&str> {
+    let mobile = mobile
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| crate::Error::biz(SERVICE_DATA_ERROR, MOBILE_REQUIRED))?;
+    let digits = mobile.strip_prefix('+').unwrap_or(mobile);
+    if !(6..=20).contains(&digits.len()) || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(crate::Error::biz(SERVICE_DATA_ERROR, "手机号码格式错误"));
+    }
+    Ok(mobile)
+}
+
 /// 邮箱验证码的 Redis 键：Java `dto.getEvent() + dto.getEmail()`。
 #[must_use]
 pub fn email_code_key(event: Option<&str>, email: &str) -> String {
