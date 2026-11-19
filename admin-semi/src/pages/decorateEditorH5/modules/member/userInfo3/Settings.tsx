@@ -16,7 +16,7 @@
  * 布尔字段（show/showEditIcon）写 boolean，同原版 el-switch/el-checkbox 语义。
  */
 import { useEffect, useRef } from "react";
-import { Input, Radio, RadioGroup, Switch, Checkbox } from "@douyinfe/semi-ui";
+import { Input, Switch, Checkbox } from "@douyinfe/semi-ui";
 import AlphaColorInput from "../../../../../components/AlphaColorInput";
 import SharedColorField from "../../../../../components/ColorField";
 import SliderWithInput from "../../../../../components/SliderWithInput";
@@ -73,13 +73,13 @@ function SegRow({
 }) {
     return (
         <SettingRow label={label}>
-            <RadioGroup type="button" value={value} onChange={(e: any) => onValue(e?.target?.value)}>
-                {options.map((o) => (
-                    <Radio key={String(o.value)} value={o.value}>
-                        {o.label}
-                    </Radio>
-                ))}
-            </RadioGroup>
+            {/* 模块字段按 2026-11-19 裁定走圆点单选（同 PC 模块字段口径）：
+                本行原为模块内写死的 type="button" 分段、且被 editor.less 分段
+                均分规则撑满控件区（与页面设置「头部风格太宽」同型问题），
+                现改走共享 SegmentedRadio 圆点形态；选项为字符串值
+                （upDown/leftRight/diagonal），SegmentedRadio 按 String 命中、
+                回写原始字符串，数据契约不变。 */}
+            <SegmentedRadio value={value} options={options} onChange={(v) => onValue(v)} />
         </SettingRow>
     );
 }
