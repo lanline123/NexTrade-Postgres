@@ -300,7 +300,7 @@ pub async fn list(
     ok(json!({ "channels": out }))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ChannelBody {
     pub name: String,
@@ -313,7 +313,7 @@ pub struct ChannelBody {
     pub models: Option<Vec<ModelBody>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ModelBody {
     pub model_id: Option<i32>,
@@ -554,7 +554,7 @@ pub async fn delete_model(
 
 // ————————————————————— 测试连接 —————————————————————
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct TestBody {
     pub model_code: Option<String>,

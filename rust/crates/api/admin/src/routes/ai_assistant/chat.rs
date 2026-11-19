@@ -276,7 +276,7 @@ pub async fn list_conversations(
     ok(json!({ "conversations": rows.iter().map(conv_vo).collect::<Vec<_>>() }))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CreateConvBody {
     pub channel_id: Option<i32>,
@@ -407,7 +407,7 @@ pub async fn list_messages(
     }))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct RenameBody {
     pub title: String,
@@ -453,7 +453,7 @@ pub async fn delete_conversation(
     ok(json!({ "deleted": true }))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SwitchModelBody {
     pub channel_id: i32,
@@ -1176,12 +1176,13 @@ async fn upstream_round(
     let mut delta_count: u32 = 0;
     let mut stream_broken = false;
 
-    'read: while let Some(chunk_res) = resp.chunk().await {
+    'read: loop {
         if stop_flag.load(Ordering::Relaxed) {
             break 'read;
         }
-        let chunk = match chunk_res {
-            Ok(c) => c,
+        let chunk = match resp.chunk().await {
+            Ok(Some(c)) => c,
+            Ok(None) => break 'read,
             Err(_) => {
                 stream_broken = true;
                 break 'read;
@@ -1347,7 +1348,7 @@ async fn run_engine(job: EngineJob, mut tx: futures::channel::mpsc::Sender<Event
     let rows = match load_message_rows(&state, conv.conv_id).await {
         Ok(r) => r,
         Err(e) => {
-            send_event(&mut tx, "error", json!({ "message": e.to_string() })).await;
+            send_event(&mut tx, "error", json!({ "message": e.0.to_string() })).await;
             send_event(&mut tx, "done", json!({})).await;
             return;
         }
@@ -1491,7 +1492,7 @@ fn sse_response(job: EngineJob) -> Response {
 
 // ————————————————————— 入口 handlers —————————————————————
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct StreamBody {
     pub conv_id: Option<i32>,
@@ -1582,7 +1583,7 @@ pub async fn chat_stream(
     }))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ConfirmBody {
     pub msg_id: i64,
@@ -1666,7 +1667,7 @@ pub async fn chat_confirm(
     }))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct StopBody {
     pub conv_id: i32,

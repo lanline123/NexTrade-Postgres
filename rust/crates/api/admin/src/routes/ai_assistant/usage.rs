@@ -10,7 +10,7 @@ use nextrade_security::web::{ok, ApiResult, AuthUser};
 use super::{err_validation, AiTenant};
 use crate::AdminState;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct UsageQuery {
     pub page: Option<i64>,
