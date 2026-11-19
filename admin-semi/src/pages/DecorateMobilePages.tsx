@@ -312,7 +312,10 @@ export function ThemeStyle() {
  * 禁用、批删提交前混入默认页整批拦截并提示、后端 batch 对含默认页 id 的请求整批
  * 拒绝报错。单删后端仍无 isHome 校验（与原版一致，靠前端不显示入口），本次未动。
  * 字段口径：页面名称在列表 VO / 创建·更新 DTO 中均为 decorateTitle（接口无
- * decorateName 字段）；按名搜索走 keyword（后端 decorate_title ILIKE）。
+ * decorateName 字段）；搜索走 keyword【我方新增扩展，用户 2026-11-19 要求】：
+ * 原版只按 decorate_title 模糊匹配，现扩展为三路 OR——页面名称、店铺名称
+ * （shop_title，排除 shop_id=0 脏标题行）、平台展示名（shop_id=0 按「平台」
+ * 匹配）；搜索框标签随之改为「页面名称 / 店铺」。
  * 本页曾误用 decorateName，导致列表名称列恒走兜底文案、搜索无效、新建必报
  * 「装修页面名称不能为空」，2026-11-19 已全量修正（PC 自定义页同病同改）。
  * 【我方新增】店铺列 + 店铺并列页签（用户 2026-11-19 拍板、22:24 纠正）：
@@ -668,7 +671,7 @@ export function MobileDecoratePageList({
           </Space>
         )}
         filters={[
-          { field: 'keyword', label: t('页面名称'), type: 'input' },
+          { field: 'keyword', label: t('页面名称 / 店铺'), type: 'input' },
         ]}
         drawer={hideCreate ? undefined : {
           title: t('新建移动端页面'),
