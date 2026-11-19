@@ -17,8 +17,13 @@ use nextrade_core::{Error, Result};
 /// 装修页列表过滤条件（由服务层从 `DecorateListQuery` 组装）。
 #[derive(Debug, Clone, Default)]
 pub struct DecorateFilter {
-    /// 店铺：`None` 不过滤（JWT 未携带 shop_id，单店铺场景下不过滤等价于全量）
+    /// 店铺（租户可见口径）：`None` 不过滤（平台账号）；`Some(s)` 时
+    /// 条件为 `(shop_id = 0 OR shop_id = s)`（店铺账号可见平台页 + 本店页）
     pub shop_id: Option<i32>,
+    /// 店铺精确筛选【我方新增】：管理页店铺下拉的选中值，与租户可见口径
+    /// 是两回事——`Some(s)` 时追加 `shop_id = s` 精确条件（与租户条件 AND，
+    /// 店铺账号选他人店铺只会得到空集，不放宽既有限制）；`None` 不过滤
+    pub filter_shop_id: Option<i32>,
     /// 标题模糊关键词
     pub keyword: Option<String>,
     /// 空表示不过滤
@@ -160,17 +165,8 @@ impl DecorateRepository {
 
     // ————————————————————— decorate 装修页 —————————————————————
 
-    /// 装修页分页列表。
-    ///
-    /// 对应 Java `DecorateServiceImpl#list(DecorateListDTO)`：
-    /// 店铺 + 标题模糊 + 类型/页面用途多值 IN + 父级 + 状态过滤，
-    /// 首页（`is_home`）置顶，随后按排序值/更新时间倒序。
-    pub async fn paginate(
-        &self,
-        f: &DecorateFilter,
-        page: &PageQuery,
-    ) -> Result<(u64, Vec<Decorate>)> {
-        let offset = (page.page.max(1) - 1) * page.page_size;
+    /// 组装 `paginate` 的 WHERE 子句与绑定参数（抽出以便单测断言过滤口径）。
+    fn build_paginate_where(f: &DecorateFilter) -> (String, Vec<Bind>) {
         let mut wh = String::from(" WHERE 1=1");
         let mut params: Vec<Bind> = Vec::new();
 
@@ -181,6 +177,15 @@ impl DecorateRepository {
                 &mut params,
                 "(shop_id = 0 OR shop_id = ?)",
                 &[Bind::I(shop_id)],
+            );
+        }
+        if let Some(filter_shop_id) = f.filter_shop_id {
+            // 店铺精确筛选【我方新增】：与上方租户可见条件 AND，不放宽限制
+            push_cond(
+                &mut wh,
+                &mut params,
+                "shop_id = ?",
+                &[Bind::I(filter_shop_id)],
             );
         }
         if let Some(kw) = f.keyword.as_ref().filter(|k| !k.trim().is_empty()) {
@@ -204,6 +209,21 @@ impl DecorateRepository {
         if let Some(status) = f.status {
             push_cond(&mut wh, &mut params, "status = ?", &[Bind::I(status)]);
         }
+        (wh, params)
+    }
+
+    /// 装修页分页列表。
+    ///
+    /// 对应 Java `DecorateServiceImpl#list(DecorateListDTO)`：
+    /// 店铺 + 标题模糊 + 类型/页面用途多值 IN + 父级 + 状态过滤，
+    /// 首页（`is_home`）置顶，随后按排序值/更新时间倒序。
+    pub async fn paginate(
+        &self,
+        f: &DecorateFilter,
+        page: &PageQuery,
+    ) -> Result<(u64, Vec<Decorate>)> {
+        let offset = (page.page.max(1) - 1) * page.page_size;
+        let (wh, params) = Self::build_paginate_where(f);
 
         let total = count(
             &self.pool,
@@ -239,6 +259,60 @@ impl DecorateRepository {
         .await?;
 
         Ok((total, rows))
+    }
+
+    /// 店铺筛选选项【我方新增】：按 `shop_id` distinct 聚合装修页数量，
+    /// join `shop` 取店铺名（`shop_title`）。
+    ///
+    /// - `tenant_shop_id` 为租户可见口径（同 `paginate`）：`None` = 平台账号
+    ///   不过滤；`Some(s)` 时只回平台（0）与本店中真正有页面的店铺。
+    /// - `decorate_types` 空 = 不按端类型过滤；计数口径与列表一致
+    ///   （`parent_id = 0` 的顶层页）。
+    /// - `shop_id = 0` 的店铺名不在此处理（shop 表平台行标题不可信），
+    ///   由服务层统一置「平台」。
+    pub async fn distinct_shops(
+        &self,
+        tenant_shop_id: Option<i32>,
+        decorate_types: &[i32],
+    ) -> Result<Vec<(i32, Option<String>, i64)>> {
+        let mut wh = String::from(" WHERE d.parent_id = 0");
+        let mut params: Vec<Bind> = Vec::new();
+        if let Some(shop_id) = tenant_shop_id {
+            push_cond(
+                &mut wh,
+                &mut params,
+                "(d.shop_id = 0 OR d.shop_id = ?)",
+                &[Bind::I(shop_id)],
+            );
+        }
+        push_in(&mut wh, &mut params, "d.decorate_type", decorate_types);
+        fetch_rows::<(i32, Option<String>, i64)>(
+            &self.pool,
+            &format!(
+                "SELECT d.shop_id, s.shop_title, COUNT(*) FROM decorate d \
+                 LEFT JOIN shop s ON s.shop_id = d.shop_id{wh} \
+                 GROUP BY d.shop_id, s.shop_title ORDER BY d.shop_id ASC"
+            ),
+            &params,
+        )
+        .await
+    }
+
+    /// 按店铺 ID 批量取店铺名（`shop_title`），列表 VO 回填用。
+    pub async fn find_shop_titles(&self, shop_ids: &[i32]) -> Result<Vec<(i32, Option<String>)>> {
+        if shop_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let placeholders = std::iter::repeat_n("?", shop_ids.len())
+            .collect::<Vec<_>>()
+            .join(",");
+        let binds: Vec<Bind> = shop_ids.iter().copied().map(Bind::I).collect();
+        fetch_rows::<(i32, Option<String>)>(
+            &self.pool,
+            &format!("SELECT shop_id, shop_title FROM shop WHERE shop_id IN ({placeholders})"),
+            &binds,
+        )
+        .await
     }
 
     /// 按 ID 查装修页。
@@ -1145,6 +1219,37 @@ mod tests {
         assert_eq!(resolve_sort_column(Some("updateTime")), "update_time");
         assert_eq!(resolve_sort_column(Some("evil; DROP TABLE")), "decorate_id");
         assert_eq!(resolve_sort_column(None), "decorate_id");
+    }
+
+    #[test]
+    fn paginate_where_shop_filter_is_exact_and_anded_with_tenant_scope() {
+        // 平台账号（无租户条件）+ 选某店铺：只有精确条件
+        let f = DecorateFilter {
+            filter_shop_id: Some(1667501125),
+            ..DecorateFilter::default()
+        };
+        let (wh, params) = DecorateRepository::build_paginate_where(&f);
+        assert!(wh.contains("shop_id = ?"), "wh={wh}");
+        assert!(!wh.contains("shop_id = 0 OR"), "wh={wh}");
+        assert_eq!(params.len(), 1);
+
+        // 店铺账号（租户条件 Some(8)）+ 选他人店铺 9：两条件 AND，
+        // 结果集为空集而非放宽到他人店铺
+        let f = DecorateFilter {
+            shop_id: Some(8),
+            filter_shop_id: Some(9),
+            ..DecorateFilter::default()
+        };
+        let (wh, params) = DecorateRepository::build_paginate_where(&f);
+        assert!(wh.contains("(shop_id = 0 OR shop_id = ?)"), "wh={wh}");
+        assert!(wh.contains("AND shop_id = ?"), "wh={wh}");
+        assert_eq!(params.len(), 2);
+
+        // 不传 shopId：不加精确条件（全部店铺，与现行行为一致）
+        let f = DecorateFilter::default();
+        let (wh, params) = DecorateRepository::build_paginate_where(&f);
+        assert!(!wh.contains("shop_id"), "wh={wh}");
+        assert_eq!(params.len(), 0);
     }
 
     #[test]
