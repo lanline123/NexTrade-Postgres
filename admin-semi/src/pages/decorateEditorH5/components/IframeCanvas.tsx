@@ -40,6 +40,7 @@ import {
     resetEmbedReadiness
 } from "./embedReadiness";
 import { useI18n } from "../../../i18n";
+import { collectProductSources, fetchPreviewProductData } from "./previewProductData";
 
 const DRAG_THRESHOLD = 6;
 
@@ -72,6 +73,16 @@ export default function IframeCanvas({
     const [reorder, setReorder] = useState<{ from: number; dy: number; insertPos: number } | null>(null);
     const lastDragEndRef = useRef(0);
 
+    // 编辑器真实价格下发【我方新增】（2026-11-20）：嵌入页以匿名身份调公开
+    // 商品接口，isIdentity 门控开启后价格被遮罩成 null、画布显示 0。父侧以
+    // 管理员口径预取各商品来源的真实价格（见 ./previewProductData），随
+    // decorate-data 下发给嵌入页按 id 回填；店面门控不受影响。
+    const [productData, setProductData] = useState<{
+        recordsById: Record<string, Record<string, any>>;
+    } | null>(null);
+    const productDataRef = useRef(productData);
+    productDataRef.current = productData;
+
     const modules = s.moduleList;
     const frameHeight = layout?.totalHeight ? Math.max(layout.totalHeight, 120) : 667;
 
@@ -93,7 +104,17 @@ export default function IframeCanvas({
             // 此前不下发 pageType 时嵌入页无从分支，三类页真实渲染整页空白。
             // 旧版嵌入页忽略未知字段，向后兼容。
             win.postMessage(
-                { type: "decorate-data", seq, moduleList: st.moduleList, pageModule: st.pageModule, shopId: st.shopId || 0, pageType: st.pageType || 0 },
+                {
+                    type: "decorate-data",
+                    seq,
+                    moduleList: st.moduleList,
+                    pageModule: st.pageModule,
+                    shopId: st.shopId || 0,
+                    pageType: st.pageType || 0,
+                    // 真实价格表（管理员口径预取，见 productData 状态）：嵌入页
+                    // 据此回填被门控遮罩的价格；旧版嵌入页忽略未知字段。
+                    productData: productDataRef.current
+                },
                 EMBED_ORIGIN
             );
         } catch {
@@ -135,11 +156,35 @@ export default function IframeCanvas({
         window.clearTimeout(sendTimer.current);
         sendTimer.current = window.setTimeout(sendData, 200);
         return () => window.clearTimeout(sendTimer.current);
-    }, [s.moduleList, s.pageModule, sendData]);
+    }, [s.moduleList, s.pageModule, productData, sendData]);
 
     useEffect(() => {
         if (ready) sendData();
     }, [ready, sendData]);
+
+    // 商品来源集合变化时（防抖 250ms）以管理员口径预取真实价格：来源键
+    // 不变（只改样式/文案等）不重复请求；结果按内容比对、无变化不重发，
+    // 避免嵌入页无谓整树重挂。
+    const productSourcesKey = useMemo(
+        () => JSON.stringify(collectProductSources(s.moduleList)) + "|" + (s.shopId || 0),
+        [s.moduleList, s.shopId]
+    );
+    useEffect(() => {
+        let alive = true;
+        const timer = window.setTimeout(() => {
+            const st = editorStore.getState();
+            void fetchPreviewProductData(collectProductSources(st.moduleList), st.shopId || 0).then(
+                (data) => {
+                    if (!alive) return;
+                    setProductData((prev) => (JSON.stringify(prev) === JSON.stringify(data) ? prev : data));
+                }
+            );
+        }, 250);
+        return () => {
+            alive = false;
+            window.clearTimeout(timer);
+        };
+    }, [productSourcesKey]);
 
     // ---------------- 模块库拖入：落点解析（真实模式） ----------------
 
