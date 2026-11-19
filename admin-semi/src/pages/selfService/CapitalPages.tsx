@@ -503,6 +503,8 @@ export function makeDepositPage(config: {
   frozenApi?: string;
   rechargeApplyApi?: string;
   refundApplyApi?: string;
+  refundCheckApi?: string;
+  refundListApi?: string;
   payeeListApi?: string;
 }) {
   return function DepositPage() {
@@ -512,14 +514,33 @@ export function makeDepositPage(config: {
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(true);
-    const [tab, setTab] = useState<'log' | 'frozen'>('log');
+    const [tab, setTab] = useState<'log' | 'frozen' | 'refund'>('log');
     const [rechargeOpen, setRechargeOpen] = useState(false);
     const [payees, setPayees] = useState<any[]>([]);
     const [form, setForm] = useState<{ amount?: number; payeeId?: string; remark: string }>({ remark: '' });
     const [saving, setSaving] = useState(false);
+    const [refundOpen, setRefundOpen] = useState(false);
+    const [refundForm, setRefundForm] = useState<{ type: number; amount?: number; payeeInfo: string; reason: string }>({ type: 1, payeeInfo: '', reason: '' });
+    const [refundCheck, setRefundCheck] = useState<{ canRefund: boolean; refundableAmount: string; unmetReasons: string[]; afterSalesLimitDays: number } | null>(null);
+    const [refundChecking, setRefundChecking] = useState(false);
+
+    const loadOverview = () => {
+      apiGet<Record<string, any>>(config.overviewApi, {}).then(setOverview).catch(() => setOverview(null));
+    };
 
     const load = (p = 1) => {
       setLoading(true);
+      if (tab === 'refund' && config.refundListApi) {
+        // 商家端退还记录复用款项审核合并列表（auditType=2 仅退还，后端按当前店铺/供应商隔离）
+        apiGet<{ records: any[]; total: number }>(config.refundListApi, { page: p, size: 15, auditType: 2 })
+          .then((res) => {
+            setRows(res.records || []);
+            setTotal(res.total || 0);
+          })
+          .catch((e) => Toast.error({ content: e.message }))
+          .finally(() => setLoading(false));
+        return;
+      }
       const api = tab === 'log' ? config.logApi : config.frozenApi || config.logApi;
       apiGet<{ records: any[]; total: number }>(api, { page: p, size: 15 })
         .then((res) => {
@@ -531,7 +552,7 @@ export function makeDepositPage(config: {
     };
 
     useEffect(() => {
-      apiGet<Record<string, any>>(config.overviewApi, {}).then(setOverview).catch(() => setOverview(null));
+      loadOverview();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [config.overviewApi]);
 
@@ -569,27 +590,113 @@ export function makeDepositPage(config: {
       }
     };
 
+    const runFullRefundCheck = async () => {
+      if (!config.refundCheckApi) return null;
+      setRefundChecking(true);
+      try {
+        const res = await apiGet<{ canRefund: boolean; refundableAmount: string; unmetReasons: string[]; afterSalesLimitDays: number }>(config.refundCheckApi, {});
+        setRefundCheck(res);
+        return res;
+      } catch {
+        setRefundCheck(null);
+        return null;
+      } finally {
+        setRefundChecking(false);
+      }
+    };
+
+    const openRefund = () => {
+      setRefundForm({ type: 1, payeeInfo: '', reason: '' });
+      setRefundCheck(null);
+      setRefundOpen(true);
+    };
+
+    const changeRefundType = async (type: number) => {
+      setRefundForm((f) => ({ ...f, type }));
+      if (type === 2) {
+        const res = await runFullRefundCheck();
+        if (res?.canRefund) {
+          setRefundForm((f) => ({ ...f, type, amount: Number(res.refundableAmount) || undefined }));
+        }
+      } else {
+        setRefundCheck(null);
+      }
+    };
+
+    const submitRefund = async () => {
+      if (!config.refundApplyApi) return;
+      if (!refundForm.amount || refundForm.amount <= 0) {
+        Toast.warning({ content: t('请输入退还金额') });
+        return;
+      }
+      if (!refundForm.payeeInfo.trim()) {
+        Toast.warning({ content: t('请填写收款信息') });
+        return;
+      }
+      if (refundForm.type === 2 && refundCheck && !refundCheck.canRefund) {
+        Toast.warning({ content: refundCheck.unmetReasons?.[0] || t('暂不满足全额退还条件') });
+        return;
+      }
+      setSaving(true);
+      try {
+        await apiPost(config.refundApplyApi, {
+          type: refundForm.type,
+          amount: refundForm.amount,
+          payeeInfo: refundForm.payeeInfo.trim(),
+          reason: refundForm.reason.trim() || undefined,
+        });
+        Toast.success({ content: t('退还申请已提交，等待平台审核') });
+        setRefundOpen(false);
+        loadOverview();
+        if (config.refundListApi) {
+          setTab('refund');
+        } else {
+          load(1);
+        }
+      } catch (e) {
+        Toast.error({ content: e instanceof Error ? e.message : t('提交失败') });
+      } finally {
+        setSaving(false);
+      }
+    };
+
     const cards = [
-      { label: t('保证金余额'), value: money(overview?.balance ?? overview?.shopMoney) },
-      { label: t('冻结金额'), value: money(overview?.frozenMoney ?? overview?.frozen_money) },
-      { label: t('已缴金额'), value: money(overview?.paidAmount ?? overview?.totalAmount) },
-      { label: t('应缴金额'), value: money(overview?.requiredAmount ?? overview?.ruleAmount) },
+      { label: t('保证金余额'), value: money(overview?.balance ?? overview?.shopMoney ?? overview?.paid) },
+      { label: t('冻结金额'), value: money(overview?.frozenMoney ?? overview?.frozen_money ?? overview?.frozen) },
+      { label: t('已缴金额'), value: money(overview?.paidAmount ?? overview?.totalAmount ?? overview?.paid) },
+      { label: t('应缴金额'), value: money(overview?.requiredAmount ?? overview?.ruleAmount ?? overview?.required) },
     ];
 
     const logColumns: ColumnProps<any>[] =
-      tab === 'log'
+      tab === 'refund'
         ? [
-            { title: t('变动说明'), dataIndex: 'changeDesc', render: (v: any, r: any) => v || r.remark || r.desc || '-' },
-            { title: t('变动金额'), dataIndex: 'amount', width: 130, render: (_: any, r: any) => money(r.amount ?? r.money ?? r.balance) },
-            { title: t('类型'), dataIndex: 'type', width: 100, render: (v: any, r: any) => <Tag>{v ?? r.typeName ?? '-'}</Tag> },
-            { title: t('时间'), dataIndex: 'changeTime', width: 170, render: (v: any, r: any) => v || r.addTime || r.createTime || '-' },
+            { title: t('退还类型'), dataIndex: 'refundTypeText', width: 110, render: (v: any, r: any) => v || (Number(r.refundType) === 2 ? t('全部退还') : t('部分退还')) },
+            { title: t('退还金额'), dataIndex: 'amount', width: 130, render: (v: any) => money(v) },
+            {
+              title: t('状态'),
+              dataIndex: 'status',
+              width: 100,
+              render: (v: any, r: any) => {
+                const s = Number(v);
+                return <Tag color={s === 1 ? 'green' : s === 2 ? 'red' : 'orange'}>{r.statusText || (s === 1 ? t('已通过') : s === 2 ? t('未通过') : t('待审核'))}</Tag>;
+              },
+            },
+            { title: t('审核备注'), dataIndex: 'auditRemark', render: (v: any) => v || '-' },
+            { title: t('申请时间'), dataIndex: 'addTimeText', width: 170, render: (v: any, r: any) => v || r.addTime || '-' },
           ]
-        : [
-            { title: t('关联单号'), dataIndex: 'orderSn', render: (v: any, r: any) => v || r.orderId || r.sn || '-' },
-            { title: t('冻结金额'), dataIndex: 'frozenMoney', width: 130, render: (_: any, r: any) => money(r.frozenMoney ?? r.money) },
-            { title: t('原因'), dataIndex: 'reason', render: (v: any, r: any) => v || r.remark || '-' },
-            { title: t('时间'), dataIndex: 'frozenTime', width: 170, render: (v: any, r: any) => v || r.addTime || '-' },
-          ];
+        : tab === 'log'
+          ? [
+              { title: t('变动说明'), dataIndex: 'changeDesc', render: (v: any, r: any) => v || r.remark || r.desc || '-' },
+              { title: t('变动金额'), dataIndex: 'amount', width: 130, render: (_: any, r: any) => money(r.amount ?? r.money ?? r.balance) },
+              { title: t('类型'), dataIndex: 'type', width: 100, render: (v: any, r: any) => <Tag>{v ?? r.typeName ?? '-'}</Tag> },
+              { title: t('时间'), dataIndex: 'changeTime', width: 170, render: (v: any, r: any) => v || r.addTime || r.createTime || '-' },
+            ]
+          : [
+              { title: t('关联单号'), dataIndex: 'orderSn', render: (v: any, r: any) => v || r.orderId || r.sn || '-' },
+              { title: t('冻结金额'), dataIndex: 'frozenMoney', width: 130, render: (_: any, r: any) => money(r.frozenMoney ?? r.money) },
+              { title: t('原因'), dataIndex: 'reason', render: (v: any, r: any) => v || r.remark || '-' },
+              { title: t('时间'), dataIndex: 'frozenTime', width: 170, render: (v: any, r: any) => v || r.addTime || '-' },
+            ];
 
     return (
       <div style={{ padding: 20 }}>
@@ -606,12 +713,17 @@ export function makeDepositPage(config: {
         <Space style={{ marginBottom: 16 }}>
           <Button type={tab === 'log' ? 'primary' : 'tertiary'} onClick={() => setTab('log')}>{t('保证金流水')}</Button>
           {config.frozenApi && <Button type={tab === 'frozen' ? 'primary' : 'tertiary'} onClick={() => setTab('frozen')}>{t('冻结明细')}</Button>}
+          {config.refundListApi && <Button type={tab === 'refund' ? 'primary' : 'tertiary'} onClick={() => setTab('refund')}>{t('退还记录')}</Button>}
           {config.rechargeApplyApi && <Button theme="solid" icon={<IconPlus />} onClick={openRecharge}>{t('申请充值')}</Button>}
+          {config.refundApplyApi && <Button theme="solid" type="primary" onClick={openRefund}>{t('申请退还')}</Button>}
+          {overview?.withdrawable !== undefined && overview?.withdrawable !== null && (
+            <span style={{ color: 'var(--semi-color-text-2)' }}>{t('可退金额')}：{money(overview.withdrawable)}</span>
+          )}
         </Space>
         <Table
           loading={loading}
           dataSource={rows}
-          rowKey={(r?: any) => String(r.id ?? r.logId ?? Math.random())}
+          rowKey={(r?: any) => String(r.bizId ?? r.id ?? r.logId ?? Math.random())}
           empty={<Empty description={t('暂无数据')} />}
           pagination={{ currentPage: page, pageSize: 15, total, onPageChange: (p) => { setPage(p); load(p); } }}
           columns={logColumns}
@@ -637,6 +749,82 @@ export function makeDepositPage(config: {
             <label style={{ display: 'grid', gap: 4 }}>
               <span>{t('备注')}</span>
               <TextArea rows={3} value={form.remark} onChange={(v: string) => setForm({ ...form, remark: v })} />
+            </label>
+          </div>
+        </Modal>
+        <Modal
+          title={t('申请退还保证金')}
+          visible={refundOpen}
+          onOk={submitRefund}
+          onCancel={() => setRefundOpen(false)}
+          width={480}
+          okText={t('提交')}
+          okButtonProps={{ loading: saving, disabled: refundForm.type === 2 && !!refundCheck && !refundCheck.canRefund }}
+          cancelText={t('取消')}
+        >
+          <div style={{ display: 'grid', gap: 12 }}>
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span>{t('退还类型')}</span>
+              <Select
+                style={{ width: '100%' }}
+                optionList={[
+                  { label: t('部分退还'), value: 1 },
+                  { label: t('全部退还（关店退还）'), value: 2 },
+                ]}
+                value={refundForm.type}
+                onChange={(v) => void changeRefundType(Number(v))}
+              />
+            </label>
+            {refundForm.type === 2 && (
+              <div style={{ background: 'var(--semi-color-fill-0)', borderRadius: 6, padding: '10px 12px', fontSize: 13, lineHeight: 1.7 }}>
+                {refundChecking ? (
+                  <span>{t('正在核查全额退还条件…')}</span>
+                ) : refundCheck ? (
+                  refundCheck.canRefund ? (
+                    <span style={{ color: 'var(--semi-color-success)' }}>
+                      {t('已满足全额退还条件，可退金额')} {money(refundCheck.refundableAmount)}
+                    </span>
+                  ) : (
+                    <div>
+                      <div style={{ color: 'var(--semi-color-danger)' }}>{t('暂不满足全额退还条件：')}</div>
+                      {(refundCheck.unmetReasons || []).map((r) => (
+                        <div key={r}>· {r}</div>
+                      ))}
+                      {refundCheck.afterSalesLimitDays > 0 && (
+                        <div style={{ color: 'var(--semi-color-text-2)' }}>
+                          {t('全额退还需店铺停业、无进行中订单与售后，且末单确认收货满')} {refundCheck.afterSalesLimitDays} {t('天')}
+                        </div>
+                      )}
+                    </div>
+                  )
+                ) : (
+                  <span>{t('全额退还需店铺停业、无进行中订单与售后，并过末单收货冷静期')}</span>
+                )}
+              </div>
+            )}
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span>{t('退还金额')}</span>
+              <InputNumber
+                style={{ width: 200 }}
+                min={0.01}
+                precision={2}
+                disabled={refundForm.type === 2}
+                value={refundForm.amount}
+                onChange={(v) => setRefundForm({ ...refundForm, amount: v === '' || v === null || v === undefined ? undefined : Number(v) })}
+              />
+            </label>
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span>{t('收款信息')}</span>
+              <TextArea
+                rows={3}
+                placeholder={t('例如：招商银行 6222****1234 张三')}
+                value={refundForm.payeeInfo}
+                onChange={(v: string) => setRefundForm({ ...refundForm, payeeInfo: v })}
+              />
+            </label>
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span>{t('退还原因')}</span>
+              <TextArea rows={3} value={refundForm.reason} onChange={(v: string) => setRefundForm({ ...refundForm, reason: v })} />
             </label>
           </div>
         </Modal>
