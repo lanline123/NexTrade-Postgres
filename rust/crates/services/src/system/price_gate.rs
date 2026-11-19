@@ -174,7 +174,11 @@ pub async fn ensure_purchase_allowed_for(
 /// 除驼峰键外同时列 snake_case 变体：个别公众载荷直接序列化实体行
 /// （如店铺街 `listingProduct` 的 product 实体，字段为 `product_price`），
 /// 只认驼峰会整行漏脱（2026-11-19 补漏审计发现）。
-pub const PRICE_KEYS: [&str; 33] = [
+///
+/// 团购阶梯价键（2026-11-20 裁定三实测补）：`minGrouponPrice` 是团购列表/信息
+/// VO 的最低团购价字段，`groupPrice` 是明细行内嵌的阶梯价 JSON 文本——两者都曾在
+/// 种子数据三腿实测中对匿名明文泄漏（itemList / getGrouponInfo），故整键置 null。
+pub const PRICE_KEYS: [&str; 37] = [
     "productPrice",
     "marketPrice",
     "costPrice",
@@ -186,6 +190,8 @@ pub const PRICE_KEYS: [&str; 33] = [
     "promotePrice",
     "seckillPrice",
     "grouponPrice",
+    "minGrouponPrice",
+    "groupPrice",
     "originPrice",
     "memberPrice",
     "wholesalePrice",
@@ -202,6 +208,8 @@ pub const PRICE_KEYS: [&str; 33] = [
     "promote_price",
     "seckill_price",
     "groupon_price",
+    "min_groupon_price",
+    "group_price",
     "origin_price",
     "member_price",
     "wholesale_price",
@@ -418,5 +426,26 @@ mod tests {
         // 非价格键不动
         assert_eq!(v["wholesalePriceList"][0]["minQty"], 10);
         assert_eq!(v["productId"], 7);
+    }
+    /// 裁定三实测回归锁：团购 itemList / getGrouponInfo 的价格载体形状——
+    /// `minGrouponPrice` 与明细 `groupPrice` JSON 文本在遮罩后必须为 null。
+    #[test]
+    fn mask_price_keys_covers_groupon_payload_shapes() {
+        let mut item = json!({
+            "productId": 1576,
+            "productPrice": "45000.00",
+            "minGrouponPrice": "39999",
+            "min_groupon_price": "39999",
+            "grouponPromotionDetails": [
+                { "groupPrice": "[{\"groupNumKey\":2,\"price\":\"39999\"}]",
+                  "group_price": "[{\"groupNumKey\":2,\"price\":\"39999\"}]" }
+            ]
+        });
+        mask_price_keys(&mut item);
+        assert_eq!(item["productPrice"], Value::Null);
+        assert_eq!(item["minGrouponPrice"], Value::Null);
+        assert_eq!(item["min_groupon_price"], Value::Null);
+        assert_eq!(item["grouponPromotionDetails"][0]["groupPrice"], Value::Null);
+        assert_eq!(item["grouponPromotionDetails"][0]["group_price"], Value::Null);
     }
 }
