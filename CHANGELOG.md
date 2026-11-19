@@ -549,3 +549,10 @@
 ### 修复
 
 - **后台 - 页面设置「背景图显示 / 背景图填充大小」无选中态修复**：宽度收窄上线后实测发现这两组分段单选没有任何选中视觉（无蓝色胶囊、各选项文字无区分），当前值只靠标签行文案标示。根因（数据实证）：存量页面数据里这两项存的是空串 `""`（页面 10020 的 `backgroundRepeat`/`backgroundSize` 均为 `""`，经 MCP 回读坐实），设置面板 `Number("")` 得到 0、命中不了 1–4/1–3 任何选项，整组无选中；而标签行文案按兜底显示第一项（不平铺 / 横向100%），与控件选中态对不上。本批在页面设置专用控件 `SegmentedButtonRadio` 内统一兜底：传入值未命中任何选项时按第一项显示选中——同 PC 编辑器 `PageSettings` 对头部风格的口径（非 2 即 1），头部风格存空值时同理受益。仅显示层兜底、不回写数据；用户点选后仍按原契约回写选项原始值，数据契约不变。
+
+## 0.0.2 续 · 2026-11-19 批次（后台首屏优化第二轮：Semi 按需拆分 + 入口 CSS 去重，随本轮 admin 热更新上线）
+
+### 其他
+
+- **后台 - vendor-semi 取消强制聚合、Semi 随懒加载图自然拆分【我方新增】**：第一轮页面懒加载后，首屏最大头是 vite.config manualChunks 把 `@douyinfe/semi-ui`/`@douyinfe/semi-icons`/`@douyinfe/semi-foundation` 聚成的 vendor-semi 单块（1.51MB raw / 约 417KB gzip，每次进入全量预加载）。审计实测：壳层静态可达模块仅 36 个文件、用到 29 个 Semi 组件；而 Table（69 个页面文件引用）、Form、DatePicker、Image、Popconfirm、Descriptions、Timeline、Steps 等 17 个组件只被懒加载页面使用，却被聚合一并塞进首屏。本批取消 vendor-semi 聚合（vendor-react/vendor-charts/vendor-editor 不变），Semi 代码与图标跟随懒加载图自然拆分：共用组件进共享块按需加载、冷门组件进各自页面块。Semi 图标全站均为具名 import（94 个），无全量引入点，未动。
+- **后台 - 入口 CSS 去掉重复的 Semi 全量样式**：入口 CSS 约 800KB raw 中约 660KB 是 main.tsx 全量引入的 semi.min.css，而 Semi 各组件 JS 自带的样式已另行组成一份约 662KB 的组件 CSS——同一套 Semi 样式首屏双份下发。本批移除 main.tsx 的全量引入，Semi 样式改由各组件随其 chunk 输出；自有全局 styles.css（179KB）与页面专属 CSS 的归属经审计无静态误入（入口静态模块只引入 styles.css + gallery-picker.css + MultilingualInput.css），保持不动。Semi 官方 CSS 无按组件官方拆分口径，vendor-semi.css 的全量形态即组件自带 CSS 的聚合结果，本批后按块拆开、总量不增。
