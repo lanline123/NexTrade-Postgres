@@ -96,7 +96,7 @@ use crate::AdminState;
 /// **这是 `implemented_routes()` 的唯一来源**（声明与 Java 契约的对应关系）。
 /// [`routes`] 因 3 条路径与共享的 `shop.rs` 冲突而单独用字面量注册，
 /// 见模块头「合并必读」。
-const ROUTE_TABLE: [(&str, &str, &str); 20] = [
+const ROUTE_TABLE: [(&str, &str, &str); 22] = [
     // (HTTP method, 本模块路径, 原 Java handler)
     ("GET", "/merchant/shop/list", "ShopController.list"),
     ("GET", "/merchant/shop/detail", "ShopController.detail"),

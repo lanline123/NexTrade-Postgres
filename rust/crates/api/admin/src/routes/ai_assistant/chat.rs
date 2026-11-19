@@ -1309,7 +1309,7 @@ async fn upstream_round(
     if calls.is_empty() {
         (RoundKind::Text, calls)
     } else {
-        (RoundKind::Calls(calls), calls)
+        (RoundKind::Calls(calls.clone()), calls)
     }
 }
 
