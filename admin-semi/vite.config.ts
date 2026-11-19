@@ -105,7 +105,11 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'vendor-semi': ['@douyinfe/semi-ui', '@douyinfe/semi-icons', '@douyinfe/semi-foundation'],
+          // 2026-11-19 首屏优化第二轮：不再把 semi-ui/semi-icons/semi-foundation 强制聚合为
+          // vendor-semi 单块——聚合会把只被冷门页面用到的 Semi 组件（如 Table/Form/DatePicker）
+          // 全部塞进首屏预加载。取消聚合后 Semi 代码跟随懒加载图自然拆分：壳层共用组件进
+          // 入口/共享块，页面专属组件进各自页面块或按需共享块。Semi 组件 CSS 同理由各组件
+          // 自带样式随块走，main.tsx 不再全量引入 semi.min.css（与组件自带 CSS 重复一份）。
           'vendor-react': ['react', 'react-dom'],
           'vendor-editor': ['@wangeditor/editor', '@wangeditor/editor-for-react'],
           'vendor-charts': ['echarts'],
