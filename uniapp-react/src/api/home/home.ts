@@ -1,6 +1,7 @@
 import type { ApiEnvelope } from "@/types/api";
 import { t } from "@/utils/i18n";
 import request from "@/utils/request";
+import { repairPreviewPriceList } from "@/utils/previewProductData";
 import type {
     HomeResponse,
     GetCateProductFilterParams,
@@ -135,11 +136,21 @@ export const getProductList = (params: object) => {
  * @description 获取首页秒杀活动
  * @returns 秒杀活动及商品列表
  */
-export const getHomeSeckill = () => {
-    return request<SeckillListResponse>({
+export const getHomeSeckill = async () => {
+    const result = await request<SeckillListResponse>({
         url: "home/home/getSeckill",
         method: "get"
     });
+    // 编辑器嵌入预览的真实价格回填【我方新增】（2026-11-20，价格注册表二期）：
+    // 秒杀 feed 与商品列表同受 isIdentity 门控遮罩，画布内按商品 id 回填被
+    // 遮罩的秒杀价/商品价/市场价；真实店面注册表恒为空、原样返回，门控口径
+    // 不受影响。见 utils/previewProductData 与 api/common 的 getProductsList。
+    const data: any = result as any;
+    if (data && typeof data === "object") {
+        if (Array.isArray(data.records)) repairPreviewPriceList(data.records);
+        if (Array.isArray(data.list)) repairPreviewPriceList(data.list);
+    }
+    return result;
 };
 
 /**
@@ -244,12 +255,22 @@ export const getSplashAd = () => {
  * @param params 筛选条件
  * @returns 拼团商品列表
  */
-export const getHomeGrouponList = (params: GrouponItemListParams) => {
-    return request<GrouponItemListResponse>({
+export const getHomeGrouponList = async (params: GrouponItemListParams) => {
+    const result = await request<GrouponItemListResponse>({
         url: "promotion/groupon/itemList",
         method: "get",
         params
     });
+    // 编辑器嵌入预览的真实价格回填【我方新增】（2026-11-20，价格注册表二期）：
+    // 拼团 feed 与商品列表同受 isIdentity 门控遮罩，画布内按商品 id 回填被
+    // 遮罩的最低拼团价/商品价；真实店面注册表恒为空、原样返回，门控口径
+    // 不受影响。见 utils/previewProductData 与 api/common 的 getProductsList。
+    const data: any = result as any;
+    if (data && typeof data === "object") {
+        if (Array.isArray(data.records)) repairPreviewPriceList(data.records);
+        if (Array.isArray(data.list)) repairPreviewPriceList(data.list);
+    }
+    return result;
 };
 
 /**
