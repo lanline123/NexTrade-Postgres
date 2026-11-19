@@ -13,14 +13,35 @@
 
 use axum::{
     extract::{Query, State},
+    http::HeaderMap,
     routing::get,
     Router,
 };
 use serde::Deserialize;
-use nextrade_core::models::content::decorate::{DecorateModuleListVO, DecorateVO, HomeDecorateQuery};
-use nextrade_security::web::{ok, ApiResult};
+use nextrade_core::models::content::decorate::HomeDecorateQuery;
+use nextrade_security::web::{ok, ApiResult, AppError};
 
 use crate::PublicState;
+
+/// 价格门控（第 2 期补漏）：本域出参是存量装修 JSON，内嵌商品快照价
+/// （如商品楼层保存的 `productPrice`）；无看价权时递归把价格键置空，
+/// 与 home 域装修类 feed 同一口径（`services::system::price_gate`）。
+/// 本域无登录态中间件，手动解析 `Authorization` 头（游客按未登录处理）。
+async fn gate_stored(
+    state: &PublicState,
+    headers: &HeaderMap,
+    mut v: serde_json::Value,
+) -> Result<serde_json::Value, AppError> {
+    let access = state
+        .system
+        .config_client
+        .price_access(crate::optional_user_id(state, headers))
+        .await?;
+    if !access.can_view() {
+        nextrade_services::system::price_gate::mask_price_keys(&mut v);
+    }
+    Ok(v)
+}
 
 /// 公开路由：装修组件、首页装修数据与分享导入（均免登录可访问）。
 pub fn public_routes() -> Router<PublicState> {
@@ -55,25 +76,36 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     .collect()
 }
 
-/// `GET /api/decorate/discrete/getOpenAdvertising`：开屏广告装修组件。
+/// `GET /api/decorate/discrete/getOpenAdvertising`：开屏广告装修组件
+/// （存量装修 JSON，价格门控同 index 口径递归脱敏）。
 async fn open_advertising(
     State(state): State<PublicState>,
+    headers: HeaderMap,
 ) -> ApiResult<serde_json::Value> {
-    ok(state.content.decorate.open_advertising().await?)
+    let v = state.content.decorate.open_advertising().await?;
+    ok(gate_stored(&state, &headers, v).await?)
 }
 
-/// `GET /api/home/home/index?previewId=`：H5 商城首页装修。
+/// `GET /api/home/home/index?previewId=`：H5 商城首页装修
+/// （存量装修 JSON 内嵌商品快照价，价格门控递归脱敏）。
 async fn home_index(
     State(state): State<PublicState>,
+    headers: HeaderMap,
     Query(q): Query<HomeDecorateQuery>,
-) -> ApiResult<nextrade_core::models::content::decorate::DecorateModuleListVO> {
-    ok(state.content.decorate.home_index(&q).await?)
+) -> ApiResult<serde_json::Value> {
+    let vo = state.content.decorate.home_index(&q).await?;
+    let v = serde_json::to_value(&vo).unwrap_or(serde_json::Value::Null);
+    ok(gate_stored(&state, &headers, v).await?)
 }
 
-/// `GET /api/home/home/pcIndex?previewId&id&decorateType`：PC 商城首页装修。
+/// `GET /api/home/home/pcIndex?previewId&id&decorateType`：PC 商城首页装修
+/// （存量装修 JSON 内嵌商品快照价，价格门控递归脱敏）。
 async fn pc_index(
     State(state): State<PublicState>,
+    headers: HeaderMap,
     Query(q): Query<HomeDecorateQuery>,
-) -> ApiResult<nextrade_core::models::content::decorate::DecorateModuleListVO> {
-    ok(state.content.decorate.pc_index(&q).await?)
+) -> ApiResult<serde_json::Value> {
+    let vo = state.content.decorate.pc_index(&q).await?;
+    let v = serde_json::to_value(&vo).unwrap_or(serde_json::Value::Null);
+    ok(gate_stored(&state, &headers, v).await?)
 }
