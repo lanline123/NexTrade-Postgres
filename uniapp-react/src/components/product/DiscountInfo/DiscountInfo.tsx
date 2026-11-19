@@ -52,7 +52,9 @@ export default function DiscountInfo({ show, onShowChange, total = {}, discountT
                         </View>
                     </View>
                     <View className="line" />
-                    {(total as any).serviceFee && (total as any).serviceFee > 0 && (
+                    {/* serviceFee 以 Number(...)>0 单独成门：原 `x && x>0 &&` 链在 x 为数字 0 时会漏渲染文本「0」
+                        （原版 Vue v-if 无此问题，React 直译引入）；线上金额为字符串时两式等价，渲染口径不变 */}
+                    {Number((total as any).serviceFee) > 0 && (
                         <View className="discount-item-box">
                             <View className="item-label">{t("附加费用")}</View>
                             <View className="item-value">

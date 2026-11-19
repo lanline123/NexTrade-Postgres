@@ -484,3 +484,9 @@
 ### 变更
 
 - **后台 - H5 装修编辑器右栏单选控件以 PC 编辑器样式为准【原版有·我方改口径（用户裁定）】**：原版 tigshop H5 编辑器的模块单选为分段 `el-radio-button` 形态（白底拼边、选中浅底主题字）；用户 2026-11-19 裁定「以 PC 编辑器的样式为准」，我方改口径如下——H5 模块字段单选（共享 `SegmentedRadio` / `RadioRowField` / `RadioField`，含文字粗细/标题粗细「常规体/加粗体」等全部模块设置）改随我方 PC 编辑器模块字段口径：普通 Semi `RadioGroup` 圆点形态（无 `type`，同 `PcDecorateEditor` `FieldControl` 的 `kind:'radio'` 写法，左对齐、16px 间距，不再拉伸居中成分段）；H5 页面设置（头部风格 / 背景图显示 / 背景图填充大小）则随 PC 编辑器 `PageSettings` 同名字段口径，保留 Semi `RadioGroup type="button"` 分段形态（新增共享控件 `SegmentedButtonRadio` / `SegmentedButtonRadioRowField`，仅页面设置使用）。与原版的差别：原版 H5 模块单选为分段按钮、且原版无「模块圆点 / 页面设置分段」的分工，本次按用户裁定以我方 PC 编辑器的既有分工为准。数据契约不变：选项值按 String 命中归一、回写选项原始类型（字符串选项如 `"normal"/"bold"/"500"` 不做数值转换）。图标样式单选 `IconStyleRadioField` 为视觉选图控件，例外保留分段形态（同 PC 图标单选按钮组）。
+
+## 0.0.2 续 · 2026-11-19 批次（详情审计 §7 登记项前端收口，随 H5 v24 增量发版上线）
+
+### 修复
+
+- **H5 - 详情审计 §7 登记项前端三项收口**：① **cart/cartJump/search 活动行改按可见促销判定【原版有·我方改口径】**（复用 `isActivityVisible`，与瀑布流卡/详情页同口径）：购物车 `formatActivityList` 先按可见性过滤再选取——无可见标签不占行（原空壳占 28rpx），被不可见条目挤掉的可见标签恢复显示；search 的 type=7「拼团」标走独立分支、过滤时明确保留，type≠2 排除不变；order 确认页两处经审计为 type 1/6 白名单恒可见（与原版逐字相同），不改。② **DiscountInfo 及 order TotalCard/TotalCardStore 的 serviceFee 复合 `&&` 门改 `Number(...)>0` 单一比较【原版有·我方改口径】**：线上金额恒为字符串、与改前逐值等价、非活 bug；消除前端类型声明为 number 时数字 0 漏渲染游离「0」的潜伏缺陷。③ **productGroupon 空态守卫【我方新增】**：后端 `joinUser` 为 Option 可下发 null、`endTime` 可缺失——isMyGroup/remainMap/模板头像昵称 4 处加可选链与前置守卫，异常数据降级渲染不崩溃，正常数据口径逐字不变。新增单测 16 例（productGroupon 7 + DiscountInfo 4 + search List 5）。同批登记项 4（后端 getProductAvailability 促销聚合，Rust 3 文件）不在本前端发版内，另行随后端批次。

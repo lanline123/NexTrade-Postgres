@@ -7,7 +7,7 @@ import TigButton2 from "@/components/tig/tig-button2/TigButton2";
 
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import FormatPrice from "@/components/format-price/FormatPrice";
-import ActivityCard from "@/components/masonry/ActivityCard";
+import ActivityCard, { isActivityVisible } from "@/components/masonry/ActivityCard";
 import { getCart, updateCartItemData, updateCartCheck, removeCartItemData } from "@/api/cart/cart";
 import { getCollectProduct, updateCollectProduct } from "@/api/product/product";
 import { getDeliveryOptions } from "@/api/store/store";
@@ -591,7 +591,10 @@ export default function CartJump() {
 
     const formatActivityList = (data: any, usedPromotions: any = []) => {
         const activityList: any[] = [];
-        const list = Array.isArray(data) ? data : [];
+        // 先按可见性过滤（isActivityVisible，与瀑布流卡/详情页同口径）：type=0/未知/无券面描述的条目
+        // 在 ActivityCard 内不渲染任何标签，只会留空壳占位，还可能挤掉其后第一个可见条目；
+        // 可见条目的选取顺序与文案不变（原版有·我方改口径：原版数据无不可见条目，按条目数判定≡按可见性判定）。
+        const list = (Array.isArray(data) ? data : []).filter((item: any) => isActivityVisible(item));
         const usedList = Array.isArray(usedPromotions) ? usedPromotions : [];
         const couponList = list.filter((item: any) => item.type === 2);
         const promotionList = list.filter((item: any) => item.type !== 2);
@@ -844,7 +847,7 @@ export default function CartJump() {
                                                                         </View>
                                                                         {!!getSkuValueText(goods.skuData) && <View className="cart-sku-text line1">{getSkuValueText(goods.skuData)}</View>}
 
-                                                                        {goods.activityInfo?.length > 0 && !isCartLineInvalid(goods) && (
+                                                                        {formatActivityList(goods.activityInfo, item.usedPromotions).length > 0 && !isCartLineInvalid(goods) && (
                                                                             <View className="activity-box">
                                                                                 {formatActivityList(goods.activityInfo, item.usedPromotions).map((subItem: any) => (
                                                                                     <View key={subItem.promotionId}>

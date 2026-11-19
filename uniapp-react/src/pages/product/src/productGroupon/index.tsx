@@ -64,7 +64,8 @@ export default function ProductGroupon({ groups = [], padding = "0 40rpx", botto
         if (Array.isArray(item.joinUser)) {
             return item.joinUser.some((user) => user.leader && user.userId === userStore.userInfo?.userId);
         }
-        return item.joinUser.leader && item.joinUser.userId === userStore.userInfo?.userId;
+        // joinUser 后端为 Option（查不到用户时下发 null），为空时按「非我的团」降级，避免直读 .leader 抛错（我方新增守卫）
+        return item.joinUser?.leader && item.joinUser?.userId === userStore.userInfo?.userId;
     };
 
     /*
@@ -99,6 +100,12 @@ export default function ProductGroupon({ groups = [], padding = "0 40rpx", botto
     const remainMap = useMemo(() => {
         const map: Record<number, { days: string; hours: string; minutes: string; seconds: string; ended: boolean }> = {};
         groups.forEach((item) => {
+            // endTime 缺失时按「已结束/无倒计时」降级：isGroupEnd 对缺失 endTime 本就判已结束，
+            // 此处跳过 dateStringToTimestamp（内部 dateString.split，缺失时会抛错）（我方新增守卫）
+            if (!item.endTime) {
+                map[item.grouponPromotionRecordId] = { days: "", hours: "00", minutes: "00", seconds: "00", ended: true };
+                return;
+            }
             const endTimestamp = dateStringToTimestamp(item.endTime);
             let diff = endTimestamp - now;
             const ended = diff <= 0;
@@ -130,9 +137,9 @@ export default function ProductGroupon({ groups = [], padding = "0 40rpx", botto
                 >
                     <View className="group-item-info" onClick={() => showDetail(item)}>
                         <View className="info-image">
-                            <TigImage src={imageFormat(item.joinUser.avatar || configStore.defaultAvatar)} mode="aspectFill" />
+                            <TigImage src={imageFormat(item.joinUser?.avatar || configStore.defaultAvatar)} mode="aspectFill" />
                         </View>
-                        <Text className="info-name">{hideUserName(item.joinUser.username)}</Text>
+                        <Text className="info-name">{hideUserName(item.joinUser?.username as string)}</Text>
                     </View>
                     <View className="group-item-operation">
                         <View className="operation-time">

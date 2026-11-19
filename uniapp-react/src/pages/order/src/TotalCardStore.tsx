@@ -117,7 +117,7 @@ export default function TotalCardStore({
                         <FormatPrice isBottom={false} priceData={(total as Total).productAmount} />
                     </View>
                 </View>
-                {(total as Total).serviceFee && (total as Total).serviceFee > 0 && (
+                {Number((total as Total).serviceFee) > 0 && (
                     <View className="total-card-item">
                         <View className="total-card-item-left">{t("附加费用")}</View>
                         <View className="total-card-item-right">

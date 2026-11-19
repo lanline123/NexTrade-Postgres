@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { View, Text } from "@tarojs/components";
 
 import TigLazyImage from "@/components/tig/tig-lazy-image/TigLazyImage";
-import ActivityCard from "@/components/masonry/ActivityCard";
+import ActivityCard, { isActivityVisible } from "@/components/masonry/ActivityCard";
 import Specification, { type SpecificationRef } from "@/components/product/specification";
 import InquiryPrice from "@/components/inquiry-price/InquiryPrice";
 import { redirect } from "@/utils";
@@ -59,7 +59,9 @@ export default function SearchProductList({ productList = [], promotionList = {}
     const getActivityInfo = (item: any) => {
         const activityInfo = promotionList?.[item.productId]?.activityInfo || [];
         // 单列模式按产品规则不展示优惠券；满减、折扣、秒杀等其它活动标签保留。
-        return activityInfo.filter((sub: any) => sub.type !== 2);
+        // 另按可见性收口（isActivityVisible，与瀑布流卡/详情页同口径）：type=0/8/未知条目在 ActivityCard 内
+        // 不渲染任何标签，只会留空壳占位；type=7 在本面另有「拼团」标（下方 map 的独立分支），故保留。
+        return activityInfo.filter((sub: any) => sub.type !== 2 && (Number(sub.type) === 7 || isActivityVisible(sub)));
     };
 
     const isPresale = (item: any) => Number(item?.saleMode ?? item?.presaleInfo?.saleMode ?? 0) > 0;
