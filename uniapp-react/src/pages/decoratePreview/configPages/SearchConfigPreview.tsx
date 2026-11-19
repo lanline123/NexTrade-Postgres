@@ -26,7 +26,9 @@ import "@/pages/search/result.scss";
  * 结果页本体是整页组件（路由参数 + TigLayout + fixed 头 + 筛选抽屉），无法在
  * 嵌入预览里独立挂载，故按其渲染结构用子组件拼装（见报告差距说明）。
  *
- * 样例口径与 admin 兼容渲染 Preview 的既有约定对齐：关键词固定「卫衣」
+ * 样例关键词固定「电池」：admin 兼容渲染 Preview 的约定是「卫衣」+mock 数据，
+ * 但真实渲染走真实搜索，本站商品库无「卫衣」结果（恒空态、版式无从验收）；
+ * 「电池」为本站在售商品的真实高频词（实测 19 条），故改口径（我方改口径）。
  * （admin Preview 写死演示关键词）；区别是 admin 侧商品为静态 mock、本分支
  * 取真实搜索结果（关键词相同、数据为真）。
  *
@@ -36,7 +38,7 @@ import "@/pages/search/result.scss";
  */
 
 /** 样例关键词：与 admin mobileSearchResult Preview 的演示关键词一致 */
-export const SEARCH_PREVIEW_KEYWORD = "卫衣";
+export const SEARCH_PREVIEW_KEYWORD = "电池";
 
 /** 后台按 px 配置，uniapp 按 rpx 渲染，换算比例固定 1:2（同 result.tsx） */
 const toRpx = (px: number | undefined, fallback: number) => `${(px ?? fallback) * 2}rpx`;

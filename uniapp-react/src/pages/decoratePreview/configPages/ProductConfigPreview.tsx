@@ -67,18 +67,17 @@ export default function ProductConfigPreview({ module, type }: { module: any; ty
         let alive = true;
         void (async () => {
             try {
+                // 参数口径对齐搜索结果页的实际请求：brand 为逗号拼接字符串
+                // （传数组后端反序列化 400）；max/min 空串同样 400，故不传。
                 const res: any = await getCategoryProduct({
                     page: 1,
                     size: 1,
                     sort: "",
                     order: "asc",
                     keyword: "",
-                    max: "",
-                    min: "",
                     cat: 0,
                     couponId: 0,
-                    brand: [],
-                    attrs: [],
+                    brand: "",
                     intro: "",
                     pageType: "search"
                 } as any);
