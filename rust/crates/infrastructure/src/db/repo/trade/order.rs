@@ -92,6 +92,28 @@ impl OrderRepository {
         Ok(row.0 > 0)
     }
 
+    /// 用户是否购买过指定商品（对应 Java `ProductServiceImpl#isBuy` 的判定：
+    /// 该用户存在「已支付（pay_status=2）、未删（is_del=0）」且订单项包含
+    /// 该商品的订单）。供付费内容（type=4）详情的 isBuy 计算与全文下发门控。
+    pub async fn exists_paid_order_with_product(
+        &self,
+        user_id: i32,
+        product_id: i32,
+    ) -> Result<bool> {
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM \"order\" o \
+             JOIN \"order_item\" oi ON oi.order_id = o.order_id \
+             WHERE o.user_id = $1 AND oi.product_id = $2 \
+             AND o.pay_status = 2 AND o.is_del = 0)",
+        )
+        .bind(user_id)
+        .bind(product_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(exists)
+    }
+
     /// 插入订单（含明细，独立事务内执行）。
     ///
     /// 若调用方已有事务（如需把库存扣减一并纳入），请用 [`Self::insert_order_in_tx`]：

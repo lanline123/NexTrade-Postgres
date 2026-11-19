@@ -1,0 +1,35 @@
+.delivery-links {
+    margin: 12rpx 0;
+
+    .delivery-link-row {
+        display: flex;
+        align-items: center;
+        gap: 12rpx;
+        padding: 12rpx 16rpx;
+        margin-bottom: 10rpx;
+        border: 1rpx solid #e8e8e8;
+        border-radius: 10rpx;
+        background: #fafafa;
+    }
+
+    .delivery-link-url {
+        flex: 1;
+        min-width: 0;
+        font-size: 24rpx;
+        color: #0064fa;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    .delivery-link-btn {
+        flex-shrink: 0;
+        padding: 4rpx 18rpx;
+        font-size: 24rpx;
+        line-height: 1.6;
+        color: #333;
+        border: 1rpx solid #d9d9d9;
+        border-radius: 999rpx;
+        background: #fff;
+    }
+}

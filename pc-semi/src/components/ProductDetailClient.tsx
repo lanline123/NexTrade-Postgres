@@ -12,6 +12,7 @@ import { resolveInquiryState, skuIsInquiry } from '@/lib/inquiry';
 import { defaultGrouponTier, grouponTierByNum, matchGrouponDetailRow, resolveGrouponTiers } from '@/lib/groupon-tiers';
 import { PRICE_GATE_COPY, hasAccessToken, usePriceAccess, type PriceAccessState } from '@/lib/price-gate';
 import InquiryFormModal from '@/components/InquiryFormModal';
+import DeliveryLinkRows from '@/components/DeliveryLinkRows';
 import RawImageDownloadButton from '@/components/RawImageDownloadButton';
 import ProductJoiningClient from '@/components/ProductJoiningClient';
 import ProductCard, { type ProductCardItem } from '@/components/product/ProductCard';
@@ -84,9 +85,6 @@ interface CommentRow {
   username?: string;
   nickname?: string;
   avatar?: string;
-  /** 1 = 系统自动评价（收货后自动生成，comment.is_default） */
-  isDefault?: number;
-  is_default?: number;
   pics?: Array<string | Record<string, any>>;
   replies?: Array<Record<string, any>>;
 }
@@ -1769,9 +1767,37 @@ export default function ProductDetailClient({
     </div>
   ) : null;
 
+  /**
+   * 付费内容（type=4，原版有·我方补齐）：后端按 isBuy 门控下发——已购才有
+   * paidContent 全文，未购为 null。此处已购时按块渲染（pic 图片块 / text
+   * 富文本块；文本内链接是真实 <a>，天然可点击，与原版 PC 一致），每个
+   * 文本块下再附交付链接行（打开/复制），不依赖富文本锚点。未购维持
+   * 现有渲染（不显示付费区）。
+   */
+  const paidBlocks: Array<Record<string, any>> = Array.isArray((item as any).paidContent)
+    ? ((item as any).paidContent as Array<Record<string, any>>)
+    : [];
+  const showPaidContent =
+    Number((item as any).productType) === 4 && Number((item as any).isBuy) === 1 && paidBlocks.length > 0;
+  const paidContentBlock = showPaidContent ? (
+    <div className="paid-content">
+      {paidBlocks.map((block, index) =>
+        block.type === 'pic' || block.pic ? (
+          <img className="el-img" key={index} src={String(block.pic || '')} alt={item.productName || ''} />
+        ) : block.html ? (
+          <div key={index}>
+            <div className="desc-text-item" dangerouslySetInnerHTML={{ __html: String(block.html) }} />
+            <DeliveryLinkRows html={String(block.html)} />
+          </div>
+        ) : null,
+      )}
+    </div>
+  ) : null;
+
   // —— 可复用内容：详情描述 / 规格参数 / 评价列表 / 咨询列表 ——
   const descContent = (
     <div className="pds-desc">
+      {paidContentBlock}
       {(detail.descArr || []).map((desc, index) =>
         desc.type === 'pic' || desc.pic ? (
           <img key={index} src={desc.pic} alt="" />
@@ -1779,7 +1805,7 @@ export default function ProductDetailClient({
           <div key={index} dangerouslySetInnerHTML={{ __html: desc.html }} />
         ) : null,
       )}
-      {!detail.descArr?.length ? <p className="pds-empty">{t('暂无详情')}</p> : null}
+      {!detail.descArr?.length && !showPaidContent ? <p className="pds-empty">{t('暂无详情')}</p> : null}
     </div>
   );
 
@@ -1817,9 +1843,6 @@ export default function ProductDetailClient({
                 <div className="pds-comment__head">
                   {comment.avatar ? <img src={comment.avatar} alt="" /> : null}
                   <b>{comment.username || comment.nickname || '匿名用户'}</b>
-                  {Number(comment.isDefault ?? comment.is_default) === 1 ? (
-                    <span className="pds-comment__auto-tag">{t('系统自动评价')}</span>
-                  ) : null}
                   <span className="pds-comment__stars">{'★'.repeat(Number(comment.rank || 5))}</span>
                   <span className="pds-comment__time">{formatDateTime(comment.addTime)}</span>
                 </div>
@@ -1920,6 +1943,8 @@ export default function ProductDetailClient({
 
       {tab === 'detail' ? (
         <div className="goods_desc paidcontent" id="xiangqing">
+          {/* 原版顺序：付费内容（已购）→ 属性 → 富文本详情 */}
+          {paidContentBlock}
           {detail.attrList?.normal?.length ? (
             <ul className="shuxin flex">
               {detail.attrList.normal.map((attr: any, index: number) => (
@@ -1937,7 +1962,7 @@ export default function ProductDetailClient({
                 <div className="desc-text-item" key={index} dangerouslySetInnerHTML={{ __html: desc.html }} />
               ) : null,
             )}
-            {!detail.descArr?.length ? <p className="pds-empty">{t('暂无详情')}</p> : null}
+            {!detail.descArr?.length && !showPaidContent ? <p className="pds-empty">{t('暂无详情')}</p> : null}
           </div>
         </div>
       ) : null}

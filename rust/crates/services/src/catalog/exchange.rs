@@ -178,10 +178,11 @@ impl ExchangeService {
         self.check_sku_enabled(points.product_id, points.sku_id).await?;
 
         // Java：productService.clientDetail(pointsExchange.getProductSn(), ...)
+        // 积分兑换详情无买家已购语义，user_id 传 None（isBuy 恒 0、付费全文不下发）
         let product_sn = exchange_vo.product_sn.clone().unwrap_or_default();
         let mut detail = self
             .product_manage()
-            .client_detail(&product_sn, shop_id, nearest_shop_id)
+            .client_detail(&product_sn, shop_id, nearest_shop_id, None)
             .await?;
 
         // Java：skuList 收敛到活动 SKU，再 filterSpe（空列表则不处理属性）

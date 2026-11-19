@@ -1014,6 +1014,10 @@ pub struct ClientProductInfoVO {
     pub card_group_id: i32,
     pub virtual_sample: Option<String>,
     pub paid_content: Option<serde_json::Value>,
+    /// 是否已购买（对应 Java `ProductInfoDTO.isBuy` / `ProductServiceImpl#isBuy`）：
+    /// 当前登录用户存在该商品的已支付未删订单时为 1，否则 0（匿名恒 0）。
+    /// 未购时服务层把 `paid_content` 置空再下发，防止未付款扒全文。
+    pub is_buy: i32,
     pub prepay_price: Option<Decimal>,
     pub card_product: Option<i32>,
     /// 未迁移：预售信息（依赖预售域）

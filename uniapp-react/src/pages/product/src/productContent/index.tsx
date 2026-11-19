@@ -4,6 +4,7 @@ import { Image, RichText, View } from "@tarojs/components";
 import { formatRichText, isPro, staticResource } from "@/utils";
 import { imageFormat } from "@/utils/format";
 import { t } from "@/utils/i18n";
+import DeliveryLinks from "@/components/deliveryLinks";
 import AfterSaleService from "../afterSaleService";
 
 import "./index.scss";
@@ -63,7 +64,13 @@ export default function ProductContent({ descArr = [], productId = null, product
                                                 <Image lazyLoad src={imageFormat(item?.pic || "")} className="slide-image" mode="widthFix" />
                                             </View>
                                         ) : null}
-                                        {item.type == "text" ? <RichText className="desc-text-item" nodes={formatRichText(item.html)} /> : null}
+                                        {item.type == "text" ? (
+                                            <>
+                                                <RichText className="desc-text-item" nodes={formatRichText(item.html)} />
+                                                {/* 交付链接行（打开/复制），不依赖 RichText 锚点 */}
+                                                <DeliveryLinks html={item.html} />
+                                            </>
+                                        ) : null}
                                     </Fragment>
                                 ))}
                             </>

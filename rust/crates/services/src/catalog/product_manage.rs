@@ -971,11 +971,16 @@ impl ProductManageService {
     ///
     /// `shop_id` / `nearest_shop_id` 为 O2O 门店上下文，本切片未迁移
     /// （仅记录日志），商品主数据一律取平台图与平台库存。
+    ///
+    /// `user_id` 为可选登录身份（匿名传 `None`）：用于付费内容（type=4）的
+    /// `isBuy` 计算（对应 Java `ProductServiceImpl#isBuy`）——已购才下发
+    /// `paidContent` 全文，未购/匿名置空，防止未付款从公开接口扒全文。
     pub async fn client_detail(
         &self,
         sn: &str,
         shop_id: Option<i32>,
         nearest_shop_id: Option<i32>,
+        user_id: Option<i32>,
     ) -> Result<ClientProductDetailVO> {
         if shop_id.is_some() || nearest_shop_id.is_some() {
             tracing::debug!(
@@ -1085,9 +1090,27 @@ impl ProductManageService {
         // 询价派生态（按最终口径的启用 SKU 推导；门店覆盖只改价/库存不改标志）
         let inquiry = inquiry_summary(&product, &skus);
 
+        // 付费内容已购判定（对应 Java `ProductServiceImpl#isBuy`，详情路径
+        // 对全部商品计算）：登录用户存在该商品的已支付未删订单 → 1。
+        // 匿名不查库恒 0；未购时 paid_content 置空下发（堵全文泄露）。
+        let paid_exists = match user_id.filter(|v| *v > 0) {
+            Some(uid) => {
+                self.repos
+                    .trade
+                    .order
+                    .exists_paid_order_with_product(uid, product_id)
+                    .await?
+            }
+            None => false,
+        };
+        let is_buy = resolve_is_buy(user_id, paid_exists);
+        let mut item = to_client_info(&product, &inquiry);
+        item.is_buy = is_buy;
+        item.paid_content = apply_buy_gate(is_buy, item.paid_content);
+
         Ok(ClientProductDetailVO {
             shop_id: product.shop_id,
-            item: to_client_info(&product, &inquiry),
+            item,
             desc_arr: desc_arr_from_html(product.product_desc.as_deref().unwrap_or("")),
             sku_list,
             pic_list: gallery.iter().map(to_gallery_vo).collect(),
@@ -2480,7 +2503,30 @@ fn to_brand_option(b: &Brand) -> BrandOptionVO {
     }
 }
 
-/// 商品实体 → 前台详情主体（对应 Java \"ProductInfoDTO\" 的可迁移部分）。
+/// 已购标志派生（对应 Java `ProductServiceImpl#isBuy`）：仅当存在有效
+/// 登录身份（user_id > 0）且查到已支付订单时为 1；匿名恒 0（匿名不查库，
+/// `paid_exists` 传 false，此处再兜底一道，保证身份缺失永不判已购）。
+fn resolve_is_buy(user_id: Option<i32>, paid_exists: bool) -> i32 {
+    match user_id {
+        Some(uid) if uid > 0 && paid_exists => 1,
+        _ => 0,
+    }
+}
+
+/// 付费内容下发门（对应 Java `isBuy` 内 `isBuy == 0 → setPaidContent("")`）：
+/// 已购下发解析后的全文，未购/匿名置空——公开详情接口不得泄露付费全文。
+fn apply_buy_gate(
+    is_buy: i32,
+    paid_content: Option<serde_json::Value>,
+) -> Option<serde_json::Value> {
+    if is_buy == 1 {
+        paid_content
+    } else {
+        None
+    }
+}
+
+/// 商品实体 → 前台详情主体（对应 Java `ProductInfoDTO` 的可迁移部分）。
 fn to_client_info(p: &Product, inquiry: &InquirySummary) -> ClientProductInfoVO {
     // 虚拟类商品不管理库存，库里常为 0；原版前端用 productStock > 0 判断售罄。
     let product_stock = if p.is_virtual_product() {
@@ -2544,6 +2590,8 @@ fn to_client_info(p: &Product, inquiry: &InquirySummary) -> ClientProductInfoVO 
             .paid_content
             .as_deref()
             .and_then(|raw| serde_json::from_str(raw).ok()),
+        // 由 client_detail 按当前登录用户计算后回填（对应 Java isBuy）
+        is_buy: 0,
         prepay_price: p.prepay_price,
         card_product: None,
         presale_info: None,
@@ -2605,6 +2653,30 @@ mod tests {
             sku_value: Some(format!("值{stock}")),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn is_buy_requires_identity_and_paid_order() {
+        // 已购：有登录身份且查到已支付订单 → 1
+        assert_eq!(resolve_is_buy(Some(5), true), 1);
+        // 未购：有身份但无已支付订单 → 0
+        assert_eq!(resolve_is_buy(Some(5), false), 0);
+        // 匿名：恒 0（身份缺失永不判已购，与查库结果无关）
+        assert_eq!(resolve_is_buy(None, true), 0);
+        assert_eq!(resolve_is_buy(None, false), 0);
+        // 无效身份（<=0）同匿名
+        assert_eq!(resolve_is_buy(Some(0), true), 0);
+    }
+
+    #[test]
+    fn paid_content_gate_blanks_full_text_until_bought() {
+        let full = serde_json::json!([{"type": "text", "html": "<p>付费全文</p>"}]);
+        // 已购：全文下发
+        assert_eq!(apply_buy_gate(1, Some(full.clone())), Some(full));
+        // 未购：置空（公开详情接口不得泄露付费全文）
+        assert_eq!(apply_buy_gate(0, Some(full.clone())), None);
+        // 已购但商品本身无付费内容：保持空
+        assert_eq!(apply_buy_gate(1, None), None);
     }
 
     #[test]

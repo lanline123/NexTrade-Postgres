@@ -4,6 +4,7 @@ import Taro, { useDidShow, useRouter, useUnload } from "@tarojs/taro";
 
 import CancelOrderReasonPopup from "@/components/order/CancelOrderReasonPopup";
 import type { CancelOrderReasonPopupRef } from "@/components/order/CancelOrderReasonPopup";
+import DeliveryLinks from "@/components/deliveryLinks";
 import FormatPrice from "@/components/format-price/FormatPrice";
 import Service from "@/components/service";
 import TigButton2 from "@/components/tig/tig-button2/TigButton2";
@@ -788,6 +789,16 @@ export default function OrderInfo() {
                                                                         />
                                                                         <Text className="view-text">{t("查看券码")}</Text>
                                                                     </View>
+                                                                    <View
+                                                                        className="virtualsample-view-btn"
+                                                                        onClick={() => {
+                                                                            copy(subItem.cardNumber, () => {
+                                                                                Taro.showToast({ title: t("卡号已复制"), icon: "none" });
+                                                                            });
+                                                                        }}
+                                                                    >
+                                                                        <Text className="view-text">{t("复制")}</Text>
+                                                                    </View>
                                                                 </View>
                                                                 <View className="virtualsample-item">
                                                                     <View className="virtualsample-item-con">
@@ -795,6 +806,16 @@ export default function OrderInfo() {
                                                                         <View className="value">
                                                                             {getMaskedCardPassword(subItem.cardPwd, cardKey)}
                                                                         </View>
+                                                                    </View>
+                                                                    <View
+                                                                        className="virtualsample-view-btn"
+                                                                        onClick={() => {
+                                                                            copy(subItem.cardPwd, () => {
+                                                                                Taro.showToast({ title: t("卡密已复制"), icon: "none" });
+                                                                            });
+                                                                        }}
+                                                                    >
+                                                                        <Text className="view-text">{t("复制")}</Text>
                                                                     </View>
                                                                 </View>
                                                             </View>
@@ -812,6 +833,8 @@ export default function OrderInfo() {
                                     <View className="virtualsample-label">{t("虚拟内容")}：</View>
                                     <View className="virtualsample-value">
                                         <RichText className="desc-text-item" nodes={virtualSampleItem.virtualSample} />
+                                        {/* 交付链接行（打开/复制），不依赖 RichText 锚点 */}
+                                        <DeliveryLinks html={virtualSampleItem.virtualSample} />
                                     </View>
                                 </View>
                             ) : null}

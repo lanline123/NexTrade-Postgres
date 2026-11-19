@@ -244,8 +244,9 @@ impl ProxyShoppingProductService {
                 .ok_or_else(|| Error::biz(400, ERR_PRODUCT_NOT_EXIST))?,
         };
 
+        // 代购选品详情无终端买家身份，user_id 传 None（isBuy 恒 0、付费全文不下发）
         self.products
-            .client_detail(&sn, q.shop_id, q.nearest_shop_id)
+            .client_detail(&sn, q.shop_id, q.nearest_shop_id, None)
             .await
     }
 

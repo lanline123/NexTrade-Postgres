@@ -1240,6 +1240,22 @@ impl OrderService {
                 vo.shipping_status_name = "已发货".into();
             }
         }
+        // 虚拟内容（对应 Java `OrderItemServiceImpl#getItemByOrderIds` 按商品
+        // 下发 `product.virtualSample` + `OrderServiceImpl#maskUndeliveredVirtualContent`
+        // 买家侧遮蔽）：待发货时 type=2/3 不下发，发货后（含部分发货）下发。
+        // 本 detail() 仅买家侧调用（后台走 order_admin 独立路径），无需管理员豁免判断。
+        let eff_shipping_status = vo.shipping_status;
+        for (idx, item) in items.iter().enumerate() {
+            let sample = match self.repos.catalog.product.find_by_id(item.product_id).await {
+                Ok(Some(p)) => p.virtual_sample.filter(|s| !s.trim().is_empty()),
+                _ => None,
+            };
+            vo.items[idx]["virtualSample"] =
+                match virtual_sample_for(eff_shipping_status, item.product_type, sample) {
+                    Some(s) => serde_json::json!(s),
+                    None => serde_json::Value::Null,
+                };
+        }
         Ok((vo, items))
     }
 
@@ -1919,6 +1935,22 @@ fn status_tip(status: i32) -> String {
     .to_string()
 }
 
+/// 虚拟内容下发口径（对应 Java `OrderServiceImpl#maskUndeliveredVirtualContent`）：
+/// 买家侧订单待发货（shipping_status = 0）时，虚拟（2）/卡密（3）商品项的
+/// 虚拟内容遮蔽不下发；一旦发货（含部分发货）即下发商品的 `virtual_sample`。
+/// 其它类型商品项不受遮蔽影响（与 Java 一致）。
+fn virtual_sample_for(
+    shipping_status: i32,
+    product_type: i32,
+    sample: Option<String>,
+) -> Option<String> {
+    if shipping_status == 0 && matches!(product_type, 2 | 3) {
+        None
+    } else {
+        sample
+    }
+}
+
 fn to_vo(o: &Order, items: &[OrderItem], claim: Option<&OfflinePaymentClaim>) -> OrderVO {
     let status_label = client_status_label(o.order_status);
     let item_values: Vec<serde_json::Value> = items
@@ -2167,6 +2199,7 @@ mod order_list_filter_tests {
 #[cfg(test)]
 mod order_contract_tests {
     use super::status_tip;
+    use super::virtual_sample_for;
 
     #[test]
     fn status_tip_matches_java_order_status_enum() {
@@ -2177,5 +2210,21 @@ mod order_contract_tests {
         assert_eq!(status_tip(4), "无效");
         assert_eq!(status_tip(5), "已完成");
         assert_eq!(status_tip(99), "");
+    }
+
+    #[test]
+    fn virtual_sample_masked_until_shipped_for_virtual_and_card_items() {
+        let sample = || Some("https://example.com/delivery".to_string());
+        // 待发货（0）：虚拟（2）/卡密（3）遮蔽不下发
+        assert_eq!(virtual_sample_for(0, 2, sample()), None);
+        assert_eq!(virtual_sample_for(0, 3, sample()), None);
+        // 部分发货（1）/已发货（2）/已收货（3）：下发
+        assert_eq!(virtual_sample_for(1, 2, sample()), sample());
+        assert_eq!(virtual_sample_for(2, 2, sample()), sample());
+        assert_eq!(virtual_sample_for(3, 3, sample()), sample());
+        // 实物（1）不受遮蔽影响（与 Java maskUndeliveredVirtualContent 一致）
+        assert_eq!(virtual_sample_for(0, 1, sample()), sample());
+        // 商品本身无虚拟内容时恒为 None
+        assert_eq!(virtual_sample_for(2, 2, None), None);
     }
 }

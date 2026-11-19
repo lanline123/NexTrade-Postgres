@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { Button, Card, Modal, Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
 import MemberCancelOrderDialog from '@/components/MemberCancelOrderDialog';
+import DeliveryLinkRows from '@/components/DeliveryLinkRows';
 import MemberLogisticsDialog from '@/components/MemberLogisticsDialog';
 import PresaleSteps from '@/components/PresaleSteps';
 
@@ -442,6 +443,8 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
               <li className="virtualsample">
                 虚拟内容：
                 <span className="virtualsample-value" dangerouslySetInnerHTML={{ __html: virtualSampleItem.virtualSample }} />
+                {/* 交付链接行（打开/复制），不依赖富文本锚点 */}
+                <DeliveryLinkRows html={virtualSampleItem.virtualSample} />
               </li>
             ) : null}
           </ul>

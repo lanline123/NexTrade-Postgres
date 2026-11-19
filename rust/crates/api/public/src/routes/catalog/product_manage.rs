@@ -117,17 +117,19 @@ async fn product_detail(
             None => return Err(AppError(Error::biz(400, "商品不存在"))),
         },
     };
+    // 可选登录身份：付费内容 isBuy 计算与价格门控共用（匿名 = None）
+    let uid = user_id(auth);
     let vo = state
         .catalog
         .product_manage
-        .client_detail(&sn, q.shop_id, q.nearest_shop_id)
+        .client_detail(&sn, q.shop_id, q.nearest_shop_id, uid)
         .await?;
     // 价格门控（第 2 期）：未登录/未认证时详情与 skuList 的真实价格
     // 在接口层置空，载荷顶层带 priceVisible/priceGate 供前端渲染四态。
     let access = state
         .system
         .config_client
-        .price_access(user_id(auth))
+        .price_access(uid)
         .await?;
     let mut v = serde_json::to_value(&vo).unwrap_or(serde_json::Value::Null);
     if !access.can_view() {
