@@ -531,3 +531,9 @@
 ### 其他
 
 - **后台 - 全部页面改 React.lazy 按需加载【原版有】**：原版 tigshop `view/admin`（java-b2b2c-overseas-ref v5.8.61）用 vue-router 路由懒加载——每个路由组件清一色 `() => import()`、业务路由登录后按菜单动态注册，vite.config 无 manualChunks、靠动态 import 自动切块（证据：`view/admin/src/router/constantsRoutes.ts`、`src/router/asyncRoutes/`、`src/permission.ts`）。我方 admin-semi 此前 `App.tsx` 静态 import 全部 266 个页面符号（160 个页面模块），业务代码零拆分，首屏必下载 JS+CSS 1.70MiB gzip / 7.2MB raw，其中 echarts 与 wangEditor 因静态可达被写进 index.html 的 modulepreload 每次陪跑（约 460KB gzip）。本批将 App.tsx 全部页面级 import 改为 `React.lazy` 动态 import（命名导出走 `.then` 映射，含静态引用 RichTextEditor 的 AutoConfigPage 及其字段组件），保持 `?page=` 分发机制、页面 props 与数据契约不变，新增轻量 Suspense 占位（加载中…）；manualChunks 的 vendor-semi/vendor-react 保持不变，vendor-charts/vendor-editor 改为仅被引用它们的页面 chunk 按需拉取、不再进首屏 preload。页面自带 CSS 随 JS chunk 由 Vite 自动拆分（全局 styles.css 保守不动）。服务器侧同批：admin.recy.cc 的 /assets/ 哈希资源缓存改一年 immutable、入口 HTML 改 no-cache（详见 admin-split-fix/REPORT.md 的前后体积对照与验收记录）。
+
+## 0.0.2 续 · 2026-11-19 批次（H5 编辑器页面设置分段单选宽度续修，随本轮 admin 热更新上线）
+
+### 修复
+
+- **后台 - 页面设置 block 布局分段单选（背景图显示 / 背景图填充大小）宽度收窄补全**：上一批（头部风格宽度对齐 PC）上线后实测：行布局的「头部风格」已由 267px 收至 160px 并靠右对齐，但 block 布局的两项仍撑满 351px、右侧留空灰条——`display:flex` 的块级 flex 容器仅改 `width:auto` 仍按块级填满父宽。本批给专属类 `dec-seg-btn-auto` 补 `display:inline-flex`，按内容真收窄（行布局下该控件为 flex 子项、会被块化，无副作用）；皮肤、数据契约、图标单选形态均不变。

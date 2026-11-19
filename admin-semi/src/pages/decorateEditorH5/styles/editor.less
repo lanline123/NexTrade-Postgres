@@ -519,7 +519,12 @@
 // 皮肤仍走共享壳胶囊段（同 PC）；图标单选 IconStyleRadioField 不挂此��、
 // 继续走上方全宽均分规则。行布局下控件区 justify-content:flex-end 令其靠右，
 // block 布局下自然左对齐（同 PC 上下结构），均与 PC 观感一致。
+// 续修（同日上线后实测发现）：只改 width:auto 在 block 布局（背景图显示 /
+// 背景图填充大小）下不收窄——display:flex 的块级 flex 容器 width:auto 仍
+// 撑满父宽（实测 351px、右侧留空灰条）。须 display:inline-flex 才真按内容
+// 收窄；行布局下本控件是 flex 子项、会被块化，inline-flex 无副作用。
 .dec-edit-group-con .semi-radioGroup-buttonRadio.dec-seg-btn-auto {
+    display: inline-flex;
     width: auto;
 
     .semi-radio {
