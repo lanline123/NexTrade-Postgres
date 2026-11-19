@@ -155,15 +155,21 @@ export function RadioRowField({ data, onChange, field, label, options }: FieldPr
 
 /** 裸分段单选组（Semi RadioGroup type="button"）：仅页面设置使用——
  *  同 PC 编辑器 PageSettings 的头部风格/背景图显示/背景图填充大小写法。
- *  模块字段禁用此控件（走上面的圆点 SegmentedRadio）。 */
+ *  模块字段禁用此控件（走上面的圆点 SegmentedRadio）。
+ *  宽度口径（2026-11-19 用户反馈「太宽了」后对齐 PC）：PC PageSettings 的
+ *  同名控件按内容自然宽度排列、无任何拉伸；本控件早先带 flex:1 行内样式、
+ *  又被 editor.less 的分段均分规则撑满控件区（实测轨道 267px、每项 133px，
+ *  而 PC 口径单项仅约 76px、整组约 160px）。现去掉行内拉伸并挂专属类
+ *  dec-seg-btn-auto，由 editor.less 对该类复位 width:auto / 子项 flex:none；
+ *  图标样式单选 IconStyleRadioField 不挂此��、保留全宽均分形态。 */
 export function SegmentedButtonRadio({ value, options, onChange }: { value: any; options: RadioOption[]; onChange: (v: number | string) => void }) {
     const { t } = useI18n();
     const matched = matchRadioOption(value, options);
     return (
         <RadioGroup
             type="button"
+            className="dec-seg-btn-auto"
             value={matched ? matched.value : value}
-            style={{ flex: 1, minWidth: 0 }}
             onChange={(e: any) => onChange(radioChangeValue(e?.target?.value, options))}
         >
             {options.map((o) => (

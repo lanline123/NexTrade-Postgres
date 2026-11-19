@@ -484,9 +484,10 @@
 // - 模块字段 = 普通 Semi RadioGroup 圆点形态（同 PcDecorateEditor FieldControl
 //   kind:'radio'）：Semi 默认 horizontal 即 inline-flex + gap 16px 左对齐，
 //   不再拉伸/居中成分段——此处显式复位，防止旧分段规则把圆点项均分整行。
-// - 仅分段变体（.semi-radioGroup-buttonRadio，页面设置 SegmentedButtonRadio 与
-//   图标单选 IconStyleRadioField）保留旧规则：均分控件区宽度、文字居中，
-//   皮肤走共享壳 editor-shell.css 的 .dec-settings-scope 胶囊段（同 PC）。
+// - 分段变体（.semi-radioGroup-buttonRadio）默认保留旧规则：均分控件区宽度、
+//   文字居中，皮肤走共享壳 editor-shell.css 的 .dec-settings-scope 胶囊段
+//   （同 PC）；例外：页面设置 SegmentedButtonRadio 挂 dec-seg-btn-auto 按 PC
+//   自然宽度复位（见下方专属规则，2026-11-19），图标单选仍走均分。
 .dec-edit-group-con .semi-radioGroup:not(.semi-radioGroup-buttonRadio) {
     display: inline-flex;
     flex-wrap: wrap;
@@ -508,6 +509,22 @@
         flex: 1;
         justify-content: center;
         margin-right: 0;
+    }
+}
+
+// 页面设置分段单选（SegmentedButtonRadio 专属类 dec-seg-btn-auto）宽度复位
+// （2026-11-19，用户反馈「头部风格太宽了」）：PC 编辑器 PageSettings 的同名
+// 控件按内容自然宽度排列（单项约 76px、整组约 160px），H5 此前被上方均分
+// 规则撑满控件区（实测轨道 267px、每项 133px）。本类只复位宽度与子项弹性，
+// 皮肤仍走共享壳胶囊段（同 PC）；图标单选 IconStyleRadioField 不挂此��、
+// 继续走上方全宽均分规则。行布局下控件区 justify-content:flex-end 令其靠右，
+// block 布局下自然左对齐（同 PC 上下结构），均与 PC 观感一致。
+.dec-edit-group-con .semi-radioGroup-buttonRadio.dec-seg-btn-auto {
+    width: auto;
+
+    .semi-radio {
+        flex: none;
+        justify-content: center;
     }
 }
 

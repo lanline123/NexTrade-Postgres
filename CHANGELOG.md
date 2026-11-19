@@ -507,3 +507,9 @@
 ### 修复
 
 - **H5 - 瀑布流商品卡图片区去掉 20rpx 内边距【原版有】**：现行原版 `components/masonry/product-item.vue`（GitHub 快照仓 lanline123/java-b2b2c-overseas-ref v5.8.61，blob fcdbd318）的 scoped `.photo` 只有 text-align / position / border-radius / overflow、图片 width:100% 满幅，无任何 padding；同目录只有 activityCard.vue / masonry.vue / product-item.vue、无 card.vue，我方文件注释所称「原版 card.vue .photo{padding:20rpx}」在现行原版快照中无出处，至多是更早代际口径。我方 `components/masonry/ProductItem.scss` 的 `.item-li .photo` 残留 `padding:20rpx`（H5 v22 已先收作用域、止住对购物车页的串扰），瀑布流卡图片四周因此多一圈 20rpx 白边、图幅被压小。用户 2026-11-19 拍板「按原版去掉，瀑布流也一起改」，本批删去该行；`.photo` 其余声明（text-align / position / border-radius / overflow、image 满宽、边框图与售罄遮罩的绝对定位结构）与原版逐字一致、不动，v22 的作用域隔离保留。去掉后无需别处补偿：图片回到原版满幅几何，标题/价格区间距由 `.detail` margin 与 `.action` / `.shop` padding 承担、与图区无关。另两处与现行原版的代际口径差只登记不改：原版 `.item-li` 有 padding-bottom:10rpx、`.info` 有 padding:10rpx 16rpx 0，我方以 `.detail{margin:0 20rpx 10rpx}` 等承担等价间距（product2 模块的自带副本已按现行原版逐字移植、无此差，含 `.photo` 无 padding）。同类清扫：全仓 `.photo` 规则其余各处（购物车卡显式 padding:0 防御、search 列表、IM 插件项、product2）均已作用域化且无此内边距，无同型未作用域残留。
+
+## 0.0.2 续 · 2026-11-19 批次（H5 编辑器页面设置分段单选宽度对齐 PC，随本轮 admin 热更新上线）
+
+### 修复
+
+- **后台 - H5 装修编辑器页面设置分段单选不再撑满控件区**：页面设置「头部风格」（默认风格/简约风格）等分段单选此前被拉伸至整行控件区宽度——线上实测（页面 10020）轨道 267px、两选项各占 133px、中心相距 131px，而选项文字仅约 45px；PC 编辑器 `PageSettings` 的同名控件按内容自然宽度排列（单项约 76px、整组约 160px，两端共用同一份共享壳胶囊皮肤，差异纯在布局拉伸）。根因：H5 页面设置专用控件 `SegmentedButtonRadio` 带 `flex:1` 行内样式，且 `editor.less` 对分段组留有 `width:100%` + 子项 `flex:1` 均分旧规则。本批去掉该控件的行内拉伸、挂专属类 `dec-seg-btn-auto` 并在 `editor.less` 对该类复位 `width:auto` / 子项 `flex:none`，整组回到约 160px：行布局下靠右对齐（同页其它字段行口径）、block 布局下自然左对齐（同 PC 上下结构）。同控件的「背景图显示」「背景图填充大小」一并受益；图标样式单选 `IconStyleRadioField` 不挂此��、全宽均分形态不变。数据契约不变（`headerStyle` 等仍回写原数字值，切换/保存/发布行为不变）。与原版的差别沿用 2026-11-19 裁定：页面设置分段形态随我方 PC 编辑器口径，本批仅把宽度从我方移植时的拉伸误设改回 PC 的自然宽度。
