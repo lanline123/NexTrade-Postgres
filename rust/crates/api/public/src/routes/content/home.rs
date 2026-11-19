@@ -35,22 +35,27 @@
 //! > **偏差**：`getSeckill` 的 `unStarted=1`（包含未开始场次）在 Rust
 //! > `marketing::seckill::active_list` 中不支持，当前恒返回进行中场次；
 //! > `getCoupon` 返回 `Vec<CouponClientVO>`（Java `Page#getRecords()` 同口径）。
+//!
+//! > **价格门控（第 2 期补漏，2026-11-19）**：本域原零接入，首翻验收坐实
+//! > `getSeckill` 匿名下发真实秒杀价后补齐——带价 feed 统一走
+//! > `services::system::price_gate` 同一谓词：`getSeckill` 逐项脱敏打标记；
+//! > 装修类出参（存量装修 JSON，含 `index`/`pcIndex` 等）内嵌商品快照价，
+//! > 无看价权时递归置空价格键。`getCoupon` 的券面额、`friendLinks`、
+//! > 客服配置、分类导航无商品价格出参，不在门控口径内，未接入。
 
 use axum::{
-    extract::{Query, Request, State},
+    extract::{Extension, Query, Request, State},
     http::header,
     middleware::{self, Next},
     response::Response,
     routing::get,
     Router,
 };
-use nextrade_core::models::content::decorate::DecorateModuleListVO;
 use nextrade_core::models::content::home::{
-    ConfigCustomerVO, DecoratePreviewQuery, FriendLinkVO, MobileNavQuery, O2oDecorateVO,
-    O2oIndexQuery, RecommendQuery, SeckillHomeQuery,
+    ConfigCustomerVO, DecoratePreviewQuery, FriendLinkVO, MobileNavQuery, O2oIndexQuery,
+    RecommendQuery, SeckillHomeQuery,
 };
 use nextrade_core::models::marketing::coupon::{CouponClientVO, CouponListQuery};
-use nextrade_core::models::marketing::seckill::SeckillPromotionVO;
 use nextrade_core::types::PageResult;
 use nextrade_core::Error;
 use nextrade_openapi::RouteDoc;
@@ -163,49 +168,121 @@ async fn optional_auth(
     Ok(next.run(req).await)
 }
 
-/// `GET /api/home/home/friendLinks`：友情链接。
+/// 可选登录态 → user_id（本模块 `optional_auth` 中间件已把 `AuthUser`
+/// 放进请求 extensions；匿名路由无中间件时恒为 `None`）。
+fn user_id(auth: Option<Extension<AuthUser>>) -> Option<i32> {
+    auth.map(|Extension(a)| a.id).filter(|id| *id > 0)
+}
+
+/// 价格门控解析（第 2 期补漏）：home 域带价 feed 共用，
+/// 与商品域同一谓词（`services::system::price_gate`）。
+async fn price_access(
+    state: &PublicState,
+    auth: Option<Extension<AuthUser>>,
+) -> Result<nextrade_services::system::price_gate::PriceAccess, AppError> {
+    Ok(state
+        .system
+        .config_client
+        .price_access(user_id(auth))
+        .await?)
+}
+
+/// 分页载荷门控（与营销域秒杀列表同一处理）：无看价权时逐项脱敏 + 打标记。
+fn gate_page<T: serde::Serialize>(
+    page: &PageResult<T>,
+    access: nextrade_services::system::price_gate::PriceAccess,
+) -> serde_json::Value {
+    let mut v = serde_json::to_value(page).unwrap_or(serde_json::Value::Null);
+    nextrade_services::system::price_gate::mask_page_items(&mut v, access);
+    v
+}
+
+/// 存量装修类载荷门控：装修 JSON 内嵌商品快照（如商品楼层保存的
+/// `productPrice`），无看价权时递归把价格键置空；可见时原样返回。
+fn gate_stored(
+    mut v: serde_json::Value,
+    access: nextrade_services::system::price_gate::PriceAccess,
+) -> serde_json::Value {
+    if !access.can_view() {
+        nextrade_services::system::price_gate::mask_price_keys(&mut v);
+    }
+    v
+}
+
+/// 任意可序列化载荷 → JSON 后走存量脱敏（装修 VO 类出参共用）。
+fn gate_stored_vo<T: serde::Serialize>(
+    vo: &T,
+    access: nextrade_services::system::price_gate::PriceAccess,
+) -> serde_json::Value {
+    gate_stored(
+        serde_json::to_value(vo).unwrap_or(serde_json::Value::Null),
+        access,
+    )
+}
+
+/// `GET /api/home/home/friendLinks`：友情链接（无价格出参，不接门控）。
 async fn friend_links(State(state): State<PublicState>) -> ApiResult<Vec<FriendLinkVO>> {
     ok(state.content.home.friend_links().await?)
 }
 
 /// `GET /api/home/home/mobileNav`：移动端导航（新/旧版）。
+///
+/// 价格门控（第 2 期补漏）：出参是存量装修 JSON，可能内嵌商品快照价，
+/// 无看价权时递归脱敏。
 async fn mobile_nav(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<MobileNavQuery>,
 ) -> ApiResult<serde_json::Value> {
-    ok(state.content.home.mobile_nav(&q).await?)
+    let access = price_access(&state, auth).await?;
+    let v = state.content.home.mobile_nav(&q).await?;
+    ok(gate_stored(v, access))
 }
 
 /// `GET /api/home/home/pcLogin`：PC 登录页装修（匿名）。
+///
+/// 价格门控（第 2 期补漏）：匿名路由无登录态中间件，按游客解析看价权后
+/// 对存量装修 JSON 递归脱敏（门控开启时游客恒无看价权）。
 async fn pc_login(
     State(state): State<PublicState>,
     Query(q): Query<DecoratePreviewQuery>,
-) -> ApiResult<DecorateModuleListVO> {
-    ok(state.content.home.pc_login(&q).await?)
+) -> ApiResult<serde_json::Value> {
+    let access = state.system.config_client.price_access(None).await?;
+    let vo = state.content.home.pc_login(&q).await?;
+    ok(gate_stored_vo(&vo, access))
 }
 
-/// `GET /api/home/home/pcSearch`：PC 搜索页装修。
+/// `GET /api/home/home/pcSearch`：PC 搜索页装修（存量装修 JSON，同 mobileNav 口径脱敏）。
 async fn pc_search(
     State(state): State<PublicState>,
-    Query(q): Query<DecoratePreviewQuery>,
-) -> ApiResult<DecorateModuleListVO> {
-    ok(state.content.home.pc_search(&q).await?)
-}
-
-/// `GET /api/home/home/pcHeader`：PC 头部装修配置。
-async fn pc_header(
-    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<DecoratePreviewQuery>,
 ) -> ApiResult<serde_json::Value> {
-    ok(state.content.home.pc_header(&q).await?)
+    let access = price_access(&state, auth).await?;
+    let vo = state.content.home.pc_search(&q).await?;
+    ok(gate_stored_vo(&vo, access))
 }
 
-/// `GET /api/home/home/o2oIndex?shopId=`：门店首页装修。
+/// `GET /api/home/home/pcHeader`：PC 头部装修配置（存量装修 JSON，同上脱敏）。
+async fn pc_header(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Query(q): Query<DecoratePreviewQuery>,
+) -> ApiResult<serde_json::Value> {
+    let access = price_access(&state, auth).await?;
+    let v = state.content.home.pc_header(&q).await?;
+    ok(gate_stored(v, access))
+}
+
+/// `GET /api/home/home/o2oIndex?shopId=`：门店首页装修（存量装修 JSON，同上脱敏）。
 async fn o2o_index(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<O2oIndexQuery>,
-) -> ApiResult<O2oDecorateVO> {
-    ok(state.content.home.o2o_index(&q).await?)
+) -> ApiResult<serde_json::Value> {
+    let access = price_access(&state, auth).await?;
+    let vo = state.content.home.o2o_index(&q).await?;
+    ok(gate_stored_vo(&vo, access))
 }
 
 /// `GET /api/home/home/getCustomerServiceConfig`：客服设置。
@@ -216,21 +293,28 @@ async fn customer_service_config(
 }
 
 /// `GET /api/home/home/getSeckill`：首页秒杀（委托 marketing 域）。
+///
+/// 价格门控（第 2 期补漏）：此前本 feed 零接入，门控开启时匿名仍下发
+/// 真实秒杀价（2026-11-19 首翻验收坐实）；现与营销域秒杀列表同一处理：
+/// 无看价权时逐项把秒杀价/原价置空并打 `priceVisible/priceGate` 标记。
 async fn get_seckill(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<SeckillHomeQuery>,
-) -> ApiResult<PageResult<SeckillPromotionVO>> {
+) -> ApiResult<serde_json::Value> {
     let page = q.page.unwrap_or(1).max(1);
     let size = q.size.unwrap_or(15).clamp(1, 100);
     // Java `unStarted=1` 包含未开始场次；Rust `active_list` 仅返回进行中（偏差见模块头）
     if q.un_started.unwrap_or(0) == 1 {
         tracing::debug!("home getSeckill: unStarted 过滤未迁移，返回进行中场次");
     }
-    ok(state
+    let access = price_access(&state, auth).await?;
+    let page = state
         .marketing
         .seckill
         .active_list(Some(page), Some(size))
-        .await?)
+        .await?;
+    ok(gate_page(&page, access))
 }
 
 /// `GET /api/home/home/getCoupon`：首页优惠券（委托 marketing 域）。
@@ -248,64 +332,87 @@ async fn get_coupon(
     ok(page.list)
 }
 
-/// `GET /api/home/home/memberDecorate`：个人中心离散装修。
+/// `GET /api/home/home/memberDecorate`：个人中心离散装修（存量装修 JSON，同 mobileNav 口径脱敏）。
 async fn member_decorate(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<nextrade_core::models::content::home::MemberDecorateQuery>,
 ) -> ApiResult<serde_json::Value> {
-    ok(state
+    let access = price_access(&state, auth).await?;
+    let v = state
         .content
         .home
         .member_decorate(q.decorate_sn.as_deref())
-        .await?)
+        .await?;
+    ok(gate_stored(v, access))
 }
 
-/// `GET /api/home/home/h5Category`：H5 分类页装修。
+/// `GET /api/home/home/h5Category`：H5 分类页装修（存量装修 JSON，同上脱敏）。
 async fn h5_category(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<DecoratePreviewQuery>,
-) -> ApiResult<DecorateModuleListVO> {
-    ok(state.content.home.h5_category(&q).await?)
+) -> ApiResult<serde_json::Value> {
+    let access = price_access(&state, auth).await?;
+    let vo = state.content.home.h5_category(&q).await?;
+    ok(gate_stored_vo(&vo, access))
 }
 
-/// `GET /api/home/home/h5ProductDetail`：H5 商品详情页装修。
+/// `GET /api/home/home/h5ProductDetail`：H5 商品详情页装修（存量装修 JSON，同上脱敏）。
 async fn h5_product_detail(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<DecoratePreviewQuery>,
-) -> ApiResult<DecorateModuleListVO> {
-    ok(state.content.home.h5_product_detail(&q).await?)
+) -> ApiResult<serde_json::Value> {
+    let access = price_access(&state, auth).await?;
+    let vo = state.content.home.h5_product_detail(&q).await?;
+    ok(gate_stored_vo(&vo, access))
 }
 
-/// `GET /api/home/home/h5Member`：H5 个人中心装修。
+/// `GET /api/home/home/h5Member`：H5 个人中心装修（存量装修 JSON，同上脱敏）。
 async fn h5_member(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<DecoratePreviewQuery>,
-) -> ApiResult<DecorateModuleListVO> {
-    ok(state.content.home.h5_member(&q).await?)
+) -> ApiResult<serde_json::Value> {
+    let access = price_access(&state, auth).await?;
+    let vo = state.content.home.h5_member(&q).await?;
+    ok(gate_stored_vo(&vo, access))
 }
 
-/// `GET /api/home/home/h5Search`：移动端搜索页装修。
+/// `GET /api/home/home/h5Search`：移动端搜索页装修（存量装修 JSON，同上脱敏）。
 async fn h5_search(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<DecoratePreviewQuery>,
-) -> ApiResult<DecorateModuleListVO> {
-    ok(state.content.home.h5_search(&q).await?)
+) -> ApiResult<serde_json::Value> {
+    let access = price_access(&state, auth).await?;
+    let vo = state.content.home.h5_search(&q).await?;
+    ok(gate_stored_vo(&vo, access))
 }
 
-/// `GET /api/home/home/mobileLogin`：移动端登录页装修（匿名）。
+/// `GET /api/home/home/mobileLogin`：移动端登录页装修（匿名，同 pcLogin 口径脱敏）。
 async fn mobile_login(
     State(state): State<PublicState>,
     Query(q): Query<DecoratePreviewQuery>,
-) -> ApiResult<DecorateModuleListVO> {
-    ok(state.content.home.mobile_login(&q).await?)
+) -> ApiResult<serde_json::Value> {
+    let access = state.system.config_client.price_access(None).await?;
+    let vo = state.content.home.mobile_login(&q).await?;
+    ok(gate_stored_vo(&vo, access))
 }
 
 /// `GET /api/home/home/getRecommend`：首页推荐模块数据。
+///
+/// 价格门控（第 2 期补漏）：出参是装修页里保存的模块数据，商品类模块
+/// 内嵌商品快照价，无看价权时递归脱敏（同存量装修口径）。
 async fn get_recommend(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<RecommendQuery>,
 ) -> ApiResult<serde_json::Value> {
-    ok(state.content.home.get_recommend(&q).await?)
+    let access = price_access(&state, auth).await?;
+    let v = state.content.home.get_recommend(&q).await?;
+    ok(gate_stored(v, access))
 }
 
 /// `GET /api/home/home/mobileCatNav`：移动端首页分类导航。
@@ -414,5 +521,79 @@ mod tests {
         assert_eq!(seen.len(), total, "ROUTE_TABLE 存在重复路径");
         // 匿名路由恰好两条登录页；其余全部走 optional 鉴权
         assert_eq!(anon.len(), 2);
+    }
+
+    /// 首页秒杀 feed 的真实载荷形状（2026-11-19 首翻实测的漏面条目：
+    /// 商品 1548、recId 13 / seckillId 12、秒杀价 198000.00 / 原价 220000.00）。
+    fn seckill_page_fixture() -> PageResult<serde_json::Value> {
+        let item = serde_json::json!({
+            "recId": 13,
+            "seckillId": 12,
+            "productId": 1548,
+            "seckillPrice": "198000.00",
+            "productPrice": "220000.00",
+            "seckkillData": {"seckillPrice": "198000.00", "stock": 100}
+        });
+        PageResult {
+            total: 1,
+            list: vec![item],
+            total_page: 1,
+            page_size: 15,
+            page: 1,
+        }
+    }
+
+    #[test]
+    fn get_seckill_gate_masks_anonymous() {
+        use nextrade_services::system::price_gate::PriceAccess;
+        let v = gate_page(&seckill_page_fixture(), PriceAccess::NeedLogin);
+        // PageResult 双份数组（list/records）都必须脱敏 + 打标记
+        for key in ["list", "records"] {
+            let item = &v[key][0];
+            assert!(item["seckillPrice"].is_null(), "{key} seckillPrice 未脱敏");
+            assert!(item["productPrice"].is_null(), "{key} productPrice 未脱敏");
+            assert!(
+                item["seckkillData"]["seckillPrice"].is_null(),
+                "{key} 嵌套 seckillPrice 未脱敏"
+            );
+            assert_eq!(item["seckkillData"]["stock"], 100);
+            assert_eq!(item["priceVisible"], false);
+            assert_eq!(item["priceGate"], "login");
+            assert_eq!(item["productId"], 1548);
+        }
+        // 已认证可见时原样下发
+        let v2 = gate_page(&seckill_page_fixture(), PriceAccess::Visible);
+        assert_eq!(v2["list"][0]["seckillPrice"], "198000.00");
+        assert_eq!(v2["records"][0]["productPrice"], "220000.00");
+    }
+
+    #[test]
+    fn stored_decorate_gate_masks_embedded_product_prices() {
+        use nextrade_services::system::price_gate::PriceAccess;
+        // 装修存量 JSON 的真实形状：商品楼层模块内嵌商品快照价
+        let fixture = serde_json::json!({
+            "moduleList": [{
+                "type": "productGroup",
+                "data": {"products": [{
+                    "productId": 1581,
+                    "productName": "示例商品",
+                    "productPrice": "9.90",
+                    "marketPrice": "19.90",
+                    "picUrl": "https://example.com/a.jpg"
+                }]}
+            }]
+        });
+        let masked = gate_stored(fixture.clone(), PriceAccess::NeedCertification);
+        let product = &masked["moduleList"][0]["data"]["products"][0];
+        assert!(product["productPrice"].is_null());
+        assert!(product["marketPrice"].is_null());
+        assert_eq!(product["productName"], "示例商品");
+        assert_eq!(product["picUrl"], "https://example.com/a.jpg");
+        // 可见时不改载荷
+        let visible = gate_stored(fixture, PriceAccess::Visible);
+        assert_eq!(
+            visible["moduleList"][0]["data"]["products"][0]["productPrice"],
+            "9.90"
+        );
     }
 }
