@@ -15,6 +15,7 @@ const Taro = {
     getStorageSync: (key: string) => (storage.has(key) ? storage.get(key) : ""),
     setStorageSync: (key: string, value: any) => storage.set(key, value),
     removeStorageSync: (key: string) => storage.delete(key),
+    pxTransform: (rpx: number) => `${rpx / 2}px`,
     getSystemInfoSync: () => ({
         windowWidth: 375,
         windowHeight: 667,

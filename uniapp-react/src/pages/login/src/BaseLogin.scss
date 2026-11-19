@@ -443,7 +443,7 @@
     }
 }
 
-/* ===== 跨境版登录样式（overseas 分支使用） ===== */
+/* ===== 登录布局 ===== */
 .login-root-MjI4MnJhdHQ .layout-body-bjIyODJneWs {
     display: flex;
     flex-direction: column;
@@ -568,8 +568,14 @@
             align-items: center;
             justify-content: center;
             flex-wrap: wrap;
-            margin-bottom: 180rpx;
+            margin-bottom: 36rpx;
             gap: 24rpx 48rpx;
+
+            .wechat-login-button {
+                width: auto;
+                padding: 0 24rpx;
+                white-space: nowrap;
+            }
 
             .item {
                 text-align: center;

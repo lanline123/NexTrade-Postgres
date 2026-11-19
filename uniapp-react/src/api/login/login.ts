@@ -194,10 +194,10 @@ export const checkEmail = (data: AnyObject) => {
  * @returns 授权URL
  */
 export const getOauth = (path: string, returnUrl?: string) => {
-    const query = returnUrl ? `?returnUrl=${encodeURIComponent(returnUrl)}` : "";
-    return request({
-        url: `user/oauth/render/${path}${query}`,
-        method: "get"
+    return request<ApiEnvelope<string>>({
+        url: `user/oauth/render/${path}`,
+        method: "get",
+        params: { platform: "h5", returnUrl }
     });
 };
 

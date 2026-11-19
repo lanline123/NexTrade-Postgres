@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Input, Image } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 
-
 import VerificationCode, { type VerificationCodeRef } from "@/components/verificationCode/VerificationCode";
 import Verify from "@/components/verifition/Verify";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
@@ -11,7 +10,7 @@ import TigNavbar from "@/components/tig/tig-navbar/TigNavbar";
 import TigButton from "@/components/tig/tig-button/TigButton";
 import TigCheckbox from "@/components/tig/tig-checkbox/TigCheckbox";
 import TigMobileAreacode from "@/components/tig/tig-mobile-areacode/TigMobileAreacode";
-import { sendMobileCode, setMiniProgramOpenid, userSignin, csrfCreate, getOauth, getQuickLoginSetting } from "@/api/login/login";
+import { sendMobileCode, setMiniProgramOpenid, userSignin, csrfCreate, getOauth, getOauthUrl, getQuickLoginSetting, getWechartMobile } from "@/api/login/login";
 import { useUserStore } from "@/store/user";
 import { redirect, isOverseas, isWeixinBrowser, staticResource } from "@/utils";
 import { useI18nStore } from "@/store/i18n";
@@ -20,6 +19,7 @@ import { useConfigStore } from "@/store/config";
 import { useThemeStore } from "@/store/theme";
 import { useCartStore } from "@/store/cart";
 import { rpxToStyleLength } from "@/utils/styleLength";
+import { loginReturnUrl, redirectAfterLogin } from "@/utils/loginReturn";
 
 import "./BaseLogin.scss";
 
@@ -61,15 +61,23 @@ const AGREEMENT_PLACEHOLDERS = {
  * 登录核心组件（自旧 pages/login/src/baseLogin.vue 移植）
  * - 跨境分支：Tab 布局 + Google/Facebook/Twitter 第三方登录（旧 #ifdef WEB）
  * - 微信小程序一键登录（旧 #ifdef MP-WEIXIN）、图形验证码防刷、用户协议勾选
- * - 旧模板仅渲染 overseas 分支（v-if="isOverseasVer"），默认布局样式随 SCSS 保留
+ * - 账号、验证码与各端快捷登录共用协议确认流程
  */
 export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onCsrfTokenChange, decorateConfig }: Props) {
     const configStore = useConfigStore();
     const themeStyle = useThemeStore((s) => s.themeStyle);
     const langCode = useI18nStore((s) => s.langCode);
 
-    // 版本判定：跨境版走 Tab 布局 + 第三方登录，标准 / o2o 走默认布局
     const isOverseasVer = isOverseas();
+    const isH5 = process.env.TARO_ENV === "h5";
+    const isWeapp = process.env.TARO_ENV === "weapp";
+    const showWechatLogin = (isH5 && Number(configStore.openWechatOauth) === 1) ||
+        (isWeapp && Number(configStore.openWechatRegister) === 1);
+    const oauthProviders = [
+        { id: "google", enabled: configStore.googleLoginOn, label: "Google登录", image: "login/google.png" },
+        { id: "facebook", enabled: configStore.facebookLoginOn, label: "Facebook登录", image: "login/facebook.png" },
+        { id: "twitter", enabled: configStore.twitterLoginOn, label: "Twitter/X登录", image: "login/twitter.svg" }
+    ].filter((provider) => isH5 && Number(provider.enabled) === 1);
 
     const [mobile, setMobile] = useState("");
     const [mobileCode, setMobileCode] = useState("");
@@ -85,16 +93,14 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
     const phone = mobile.trim();
     const signinMobile = phone && (configStore.isOpenMobileAreaCode ? mobileAreaCode + phone : phone);
 
-    // 协议确认弹窗：替代原 toast 提示，支持“登录”和“获取验证码”两种触发场景
-    const [showAgreementModal, setShowAgreementModal] = useState(false);
-    const [agreementAction, setAgreementAction] = useState<"signin" | "get-code" | "">("");
+    const [agreementAction, setAgreementAction] = useState<"get-code" | (() => void) | null>(null);
 
     useEffect(() => {
-        if (showAgreementModal || !isChecked || agreementAction !== "get-code") return;
-        setAgreementAction("");
-        // 等待验证码组件收到新的 isChecked，再继续用户刚才的发码操作。
+        if (!isChecked || agreementAction !== "get-code") return;
+        setAgreementAction(null);
+        // 发码组件需要先收到更新后的协议勾选状态。
         void verificationCodeRef.current?.handBtn();
-    }, [agreementAction, isChecked, showAgreementModal]);
+    }, [agreementAction, isChecked]);
 
     const agreementModalParts = useMemo<AgreementModalPart[]>(() => {
         const template = t("为了更好地保障您的合法权益，请您阅读并同意{service}和{privacy}。", {
@@ -197,14 +203,6 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
         }
     }, [loginTypeTabs, loginType, onLoginTypeChange]);
 
-    const isloginDisabled = useMemo(() => {
-        if (loginType === "password") {
-            return !username.trim() || !password;
-        } else {
-            return !signinMobile || !mobileCode.trim() || !verifyToken;
-        }
-    }, [loginType, username, password, signinMobile, mobileCode, verifyToken]);
-
     // 仅当配置项有值时才注入对应 CSS 变量；未注入的变量在样式里带 fallback 回退原值，保证零变化
     const loginStyleVars = useMemo<Record<string, string>>(() => {
         const c = decorateConfig || {};
@@ -228,7 +226,7 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
     // 主按钮色：配置有值则用配置，否则回退 tig-button 默认（var(--main-bg)），保证未配置零变化
     const buttonColorFinal = useMemo(() => {
         const v = decorateConfig?.buttonColor;
-        return v && String(v).trim() ? v : "var(--main-bg)";
+        return v && String(v).trim() ? v : "var(--main-bg, var(--general, #ff4444))";
     }, [decorateConfig]);
 
     const handleLink = (url: string) => {
@@ -242,7 +240,6 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
         // 验证码组件未勾选协议时抛出的提示改为弹窗，勾选后自动补发验证码
         if (msg === t("请阅读并同意协议！")) {
             setAgreementAction("get-code");
-            setShowAgreementModal(true);
             return;
         }
         Taro.showToast({
@@ -252,45 +249,31 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
         });
     };
 
-    const mobileLogin = () => {
-        if (!ensureAgreementAccepted("signin")) {
-            return;
-        }
-        signin();
-    };
-
-    // 登录前统一校验协议勾选状态，未勾选则弹窗提示
-    const ensureAgreementAccepted = (action: "signin" | "get-code") => {
-        if (isChecked) return true;
-        setAgreementAction(action);
-        setShowAgreementModal(true);
-        return false;
-    };
-
-    const handleAgreementDisagree = () => {
-        setShowAgreementModal(false);
-        setAgreementAction("");
+    const runAfterAgreement = (action: () => void) => {
+        if (loginLoading) return;
+        if (isChecked) action();
+        else setAgreementAction(() => action);
     };
 
     const handleAgreementAgree = () => {
-        setShowAgreementModal(false);
         setIsChecked(true);
-        if (agreementAction === "signin") {
-            setAgreementAction("");
-            void signin();
+        if (typeof agreementAction === "function") {
+            setAgreementAction(null);
+            agreementAction();
         }
     };
 
-    // 默认分支：底部“其他登录方式”账号 / 手机切换（旧模板仅 overseas 分支渲染，本函数为默认分支逻辑，随源码保留）
-    const handleLoginType = () => {
-        const next = loginType === "mobile" ? "password" : "mobile";
-        onLoginTypeChange(next);
-        setUsername((process.env.TARO_APP_DEFAULT_USER_NAME as string) || "");
-        setPassword((process.env.TARO_APP_DEFAULT_USER_PASSWORD as string) || "");
-        setMobile("");
-        setMobileCode("");
-        setVerifyToken("");
-        setIsChecked(false);
+    const submitLogin = () => {
+        if (loginType === "password" && (!username.trim() || !password)) {
+            void Taro.showToast({ title: t(!username.trim() ? "请输入账号" : "请输入密码"), icon: "none" });
+            return;
+        }
+        if (loginType === "mobile" && (!signinMobile || !mobileCode.trim() || !verifyToken)) {
+            const message = !signinMobile ? "请输入手机号" : "请输入短信验证码";
+            void Taro.showToast({ title: t(message), icon: "none" });
+            return;
+        }
+        void signin();
     };
 
     // 跨境分支：Tab 切换登录方式
@@ -310,38 +293,58 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
         }
     };
 
-    // 跨境分支：跳转协议页
-    const showAgreement = () => {
-        Taro.navigateTo({
-            url: "/pages/login/mallAgreement?articleSn=fwxy"
-        });
+    const completeLogin = (token: string) => {
+        const userStore = useUserStore.getState();
+        userStore.setToken(token);
+        void userStore.getUserInfo();
+        void useCartStore.getState().fetchCartCount(true);
+        void Taro.showToast({ title: t("登录成功"), icon: "success" });
+        if (isWeapp) void updateUserOpenId();
+        redirectAfterLogin();
     };
 
-    // 跨境分支：redirectTo 模式回跳
-    const handleRedirect = () => {
-        const backUrl = Taro.getStorageSync("URL");
-        setTimeout(() => {
-            redirect({
-                url: backUrl || "/pages/index/index",
-                mode: "redirectTo",
-                success: () => {
-                    Taro.removeStorageSync("URL");
-                }
-            });
-        }, 800);
-    };
-
-    // 跨境分支：第三方登录（Google/Facebook/Twitter），仅 H5
-    const handleOtherLogin = async (path: string) => {
-        Taro.setStorageSync("oauthPath", path);
+    const handleOtherLogin = async (provider: string) => {
+        if (signinPending.current) return;
+        signinPending.current = true;
+        setLoginLoading(true);
         try {
-            const returnUrl = Taro.getStorageSync("URL") || "";
-            const result = await getOauth(path, returnUrl);
-            if (process.env.TARO_ENV === "h5") {
-                window.location.href = result;
+            if (provider === "wechat") {
+                if (!isWeixinBrowser()) {
+                    void Taro.showToast({ title: t("请在微信中打开后使用微信登录"), icon: "none" });
+                    return;
+                }
+                const callback = new URL("../oauth/callback", window.location.href);
+                callback.search = "?provider=wechat";
+                const result = await getOauthUrl({ url: callback.href });
+                const state = new URL(result.url).searchParams.get("state");
+                if (!state) throw new Error(t("缺少授权参数"));
+                Taro.setStorageSync("wechatLoginState", state);
+                window.location.href = result.url;
+            } else {
+                const url = await getOauth(provider, loginReturnUrl(Taro.getStorageSync("URL")));
+                Taro.setStorageSync("oauthPath", provider);
+                window.location.href = url;
             }
-        } catch (error) {
-            console.error(error);
+        } catch (error: any) {
+            void Taro.showToast({ title: error?.message || t("授权失败"), icon: "none" });
+        } finally {
+            signinPending.current = false;
+            setLoginLoading(false);
+        }
+    };
+
+    const handleWechatPhone = async (event: { detail: { code?: string } }) => {
+        if (!isChecked || !event.detail.code || signinPending.current) return;
+        signinPending.current = true;
+        setLoginLoading(true);
+        try {
+            const token: string = await getWechartMobile({ code: event.detail.code });
+            completeLogin(token);
+        } catch (error: any) {
+            void Taro.showToast({ title: error?.message || t("登录失败"), icon: "none" });
+        } finally {
+            signinPending.current = false;
+            setLoginLoading(false);
         }
     };
 
@@ -367,40 +370,7 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
             const result = await userSignin(data, {
                 "X-CSRF-Token": csrfTokenToUse
             });
-            const userStore = useUserStore.getState();
-            userStore.setToken(result.token);
-            userStore.getUserInfo();
-            // 跨境版登录后刷新购物车数量
-            if (isOverseasVer) {
-                useCartStore.getState().fetchCartCount(true);
-            }
-            Taro.showToast({
-                title: t("登录成功"),
-                duration: 1000
-            });
-            if (process.env.TARO_ENV === "weapp") {
-                updateUserOpenId();
-            }
-            if (isOverseasVer) {
-                // 跨境版：redirectTo 模式回跳
-                handleRedirect();
-                return;
-            }
-            const backUrl = Taro.getStorageSync("URL");
-            setTimeout(() => {
-                if (backUrl) {
-                    redirect({
-                        url: backUrl,
-                        success: () => {
-                            Taro.removeStorageSync("URL");
-                        }
-                    });
-                } else {
-                    Taro.reLaunch({
-                        url: "/pages/index/index"
-                    });
-                }
-            }, 800);
+            completeLogin(result.token);
         } catch (error: any) {
             if (error?.code == 1002 && verifyRef.current) {
                 verifyRef.current.show();
@@ -451,191 +421,192 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
 
     return (
         <>
-            {/* 跨境版登录布局：Tab + 第三方登录 */}
-            {isOverseasVer && (
-                <TigLayout needSafeBottom={false} overflow={false}>
-                    <TigNavbar fixed={false} />
-                    <View className="login-page login-panel-MjI4Mmdxbnc" style={loginStyleVars as any}>
-                        <View className="tab-row">
-                            {loginTypeTabs.map((item) => (
-                                <View key={item.value} className={loginType === item.value ? "active" : ""} onClick={() => loginTypeChange(item.value)}>
-                                    {item.name}
-                                </View>
-                            ))}
-                        </View>
-                        <View className="form-box">
-                            {loginType === "mobile" && (
-                                <>
-                                    <View className="item">
-                                        {!!configStore.isOpenMobileAreaCode && (
-                                            // 原 tig-mobile-areacode v-model="mobileAreaCode" style="width: 90rpx"
-                                            <View className="login-area-code">
-                                                <TigMobileAreacode value={mobileAreaCode} onChange={setMobileAreaCode} />
-                                            </View>
-                                        )}
-                                        <Input
-                                            value={mobile}
-                                            type="text"
-                                            placeholder={t("请输入手机号")}
-                                            placeholderClass="placeholder"
-                                            className="mobile-text text"
-                                            onInput={(e) => setMobile(e.detail.value)}
-                                        />
-                                    </View>
-                                    <View className="item">
-                                        <View className="login-code-input">
-                                            <Input
-                                                type="text"
-                                                placeholder={t("手机短信验证码")}
-                                                placeholderClass="placeholder"
-                                                name="mobile_code"
-                                                className="text"
-                                                value={mobileCode}
-                                                onInput={(e) => setMobileCode(e.detail.value)}
-                                            />
+            <TigLayout needSafeBottom={false} overflow={false}>
+                <TigNavbar fixed={false} />
+                <View className="login-page login-panel-MjI4Mmdxbnc" style={loginStyleVars as any}>
+                    <View className="tab-row">
+                        {loginTypeTabs.map((item) => (
+                            <View key={item.value} className={loginType === item.value ? "active" : ""} onClick={() => loginTypeChange(item.value)}>
+                                {item.name}
+                            </View>
+                        ))}
+                    </View>
+                    <View className="form-box">
+                        {loginType === "mobile" && (
+                            <>
+                                <View className="item">
+                                    {!!configStore.isOpenMobileAreaCode && (
+                                        // 原 tig-mobile-areacode v-model="mobileAreaCode" style="width: 90rpx"
+                                        <View className="login-area-code">
+                                            <TigMobileAreacode value={mobileAreaCode} onChange={setMobileAreaCode} />
                                         </View>
-                                        <VerificationCode
-                                            ref={verificationCodeRef}
-                                            isChecked={isChecked}
-                                            onVerifyTokenDataChange={setVerifyToken}
-                                            mobile={signinMobile}
-                                            btnType="text"
-                                            requestApi={sendMobileCode}
-                                            onMobileErrorCallback={mobileErrorCallback}
-                                        />
-                                    </View>
-                                </>
-                            )}
-                            {loginType === "password" && (
-                                <>
-                                    <View className="item">
-                                        <Input
-                                            value={username}
-                                            type="text"
-                                            placeholder={t(configStore.openEmailRegister === 1 ? t("用户名/手机/邮箱") : t("用户名/手机号"))}
-                                            placeholderClass="placeholder"
-                                            className="text"
-                                            onInput={(e) => setUsername(e.detail.value)}
-                                        />
-                                    </View>
-                                    <View className="item">
-                                        <Input
-                                            type="text"
-                                            password={passwordType === "password"}
-                                            placeholder={t("请输入密码")}
-                                            placeholderClass="placeholder"
-                                            className="text password-text"
-                                            value={password}
-                                            onInput={(e) => setPassword(e.detail.value)}
-                                        />
-                                        <View
-                                            className={`password_show_hide ${passwordType === "password" ? "iconfont icon-yincang" : "iconfont-h5 icon-xianshi"}`}
-                                            onClick={passwordTypeChange}
-                                        />
-                                    </View>
-                                </>
-                            )}
-                        </View>
-                        <View className="btn2-css3">
-                            {/* 旧 tig-button :loading :disabled :color size=normal（已收敛到公共组件；禁用态灰色对齐旧 type="info"） */}
-                            <TigButton
-                                loading={loginLoading}
-                                loadingText={t("登录中")}
-                                disabled={isloginDisabled}
-                                color={isloginDisabled ? "#c8c9cc" : buttonColorFinal}
-                                className="login-btn"
-                                onClick={() => {
-                                    if (loginLoading || isloginDisabled) return;
-                                    mobileLogin();
-                                }}
-                            >
-                                {t("登录")}
-                            </TigButton>
-                        </View>
-                        {loginType === "password" && (
-                            <View className="other-row">
-                                <View className="item" onClick={handleReset}>
-                                    {t("忘记密码")}
-                                </View>
-                                {configStore.shopRegClosed === 0 && (
-                                    <View
-                                        className="item flex"
-                                        onClick={() =>
-                                            redirect({
-                                                url: "/pages/register/index"
-                                            })
-                                        }
-                                    >
-                                        {t("新用户")}
-                                        <Text className="special-color">{t("注册")}</Text>
-                                    </View>
-                                )}
-                            </View>
-                        )}
-                        {loginType === "mobile" && configStore.shopRegClosed === 0 && (
-                            <View className="other-row">
-                                <View className="tips">{t("未注册过的账号将自动注册账号")}</View>
-                            </View>
-                        )}
-
-                        <View className="footer-row">
-                            {process.env.TARO_ENV === "h5" && (
-                                <>
-                                    {!!(configStore.googleLoginOn || configStore.facebookLoginOn || configStore.twitterLoginOn) && (
-                                        <>
-                                            {/* 原 up-divider :text → NutUI Divider */}
-                                            <Divider>{t("其他登录方式")}</Divider>
-                                            <View className="login-other">
-                                                {!!configStore.googleLoginOn && (
-                                                    <View className="item" onClick={() => handleOtherLogin("google")}>
-                                                        <Image src={staticResource("login/google.png")} className="icon" mode="widthFix" />
-                                                        <View>{t("Google登录")}</View>
-                                                    </View>
-                                                )}
-                                                {!!configStore.facebookLoginOn && (
-                                                    <View className="item" onClick={() => handleOtherLogin("facebook")}>
-                                                        <Image src={staticResource("login/facebook.png")} className="icon" mode="widthFix" />
-                                                        <View>{t("Facebook登录")}</View>
-                                                    </View>
-                                                )}
-                                                {!!configStore.twitterLoginOn && (
-                                                    <View className="item" onClick={() => handleOtherLogin("twitter")}>
-                                                        <Image src={staticResource("login/twitter.svg")} className="icon twitter-icon" mode="widthFix" />
-                                                        <View>{t("Twitter/X登录")}</View>
-                                                    </View>
-                                                )}
-                                            </View>
-                                        </>
                                     )}
-                                </>
-                            )}
-                            <View className="desc-box">
-                                <View className="rule-text" onClick={() => setIsChecked((checked) => !checked)}>
-                                    <TigCheckbox checked={isChecked} activeColor="#333333" />
-                                    <View className="rule-xieyi">
-                                        <Text>{t("登录即为同意")}</Text>
-                                        <Text
-                                            className="special-color"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                showAgreement();
-                                            }}
-                                        >
-                                            {t("《商城用户服务协议》")}
-                                        </Text>
+                                    <Input
+                                        value={mobile}
+                                        type="text"
+                                        placeholder={t("请输入手机号")}
+                                        placeholderClass="placeholder"
+                                        className="mobile-text text"
+                                        onInput={(e) => setMobile(e.detail.value)}
+                                    />
+                                </View>
+                                <View className="item">
+                                    <View className="login-code-input">
+                                        <Input
+                                            type="text"
+                                            placeholder={t("手机短信验证码")}
+                                            placeholderClass="placeholder"
+                                            name="mobile_code"
+                                            className="text"
+                                            value={mobileCode}
+                                            onInput={(e) => setMobileCode(e.detail.value)}
+                                        />
                                     </View>
+                                    <VerificationCode
+                                        ref={verificationCodeRef}
+                                        isChecked={isChecked}
+                                        onVerifyTokenDataChange={setVerifyToken}
+                                        mobile={signinMobile}
+                                        btnType="text"
+                                        requestApi={sendMobileCode}
+                                        onMobileErrorCallback={mobileErrorCallback}
+                                    />
+                                </View>
+                            </>
+                        )}
+                        {loginType === "password" && (
+                            <>
+                                <View className="item">
+                                    <Input
+                                        value={username}
+                                        type="text"
+                                        placeholder={t(configStore.openEmailRegister === 1 ? t("用户名/手机/邮箱") : t("用户名/手机号"))}
+                                        placeholderClass="placeholder"
+                                        className="text"
+                                        onInput={(e) => setUsername(e.detail.value)}
+                                    />
+                                </View>
+                                <View className="item">
+                                    <Input
+                                        type="text"
+                                        password={passwordType === "password"}
+                                        placeholder={t("请输入密码")}
+                                        placeholderClass="placeholder"
+                                        className="text password-text"
+                                        value={password}
+                                        onInput={(e) => setPassword(e.detail.value)}
+                                    />
+                                    <View
+                                        className={`password_show_hide ${passwordType === "password" ? "iconfont icon-yincang" : "iconfont-h5 icon-xianshi"}`}
+                                        onClick={passwordTypeChange}
+                                    />
+                                </View>
+                            </>
+                        )}
+                    </View>
+                    <View className="btn2-css3">
+                        {/* 旧 tig-button :loading :disabled :color size=normal（已收敛到公共组件；禁用态灰色对齐旧 type="info"） */}
+                        <TigButton
+                            loading={loginLoading}
+                            loadingText={t("登录中")}
+                            color={buttonColorFinal}
+                            className="login-btn"
+                            onClick={() => runAfterAgreement(submitLogin)}
+                        >
+                            {t("登录")}
+                        </TigButton>
+                    </View>
+                    {loginType === "password" && (
+                        <View className="other-row">
+                            <View className="item" onClick={handleReset}>
+                                {t("忘记密码")}
+                            </View>
+                            {configStore.shopRegClosed === 0 && (
+                                <View
+                                    className="item flex"
+                                    onClick={() =>
+                                        redirect({
+                                            url: "/pages/register/index"
+                                        })
+                                    }
+                                >
+                                    {t("新用户")}
+                                    <Text className="special-color">{t("注册")}</Text>
+                                </View>
+                            )}
+                        </View>
+                    )}
+                    {loginType === "mobile" && configStore.shopRegClosed === 0 && (
+                        <View className="other-row">
+                            <View className="tips">{t("未注册过的账号将自动注册账号")}</View>
+                        </View>
+                    )}
+
+                    <View className="footer-row">
+                        {(showWechatLogin || oauthProviders.length > 0) && (
+                            <>
+                                <Divider>{t("其他登录方式")}</Divider>
+                                <View className="login-other">
+                                    {showWechatLogin && (
+                                        <TigButton
+                                            plain
+                                            size="small"
+                                            disabled={loginLoading}
+                                            className="wechat-login-button"
+                                            openType={isWeapp && isChecked ? "getPhoneNumber" : undefined}
+                                            onGetPhoneNumber={handleWechatPhone}
+                                            onClick={() => runAfterAgreement(() => {
+                                                if (isH5) void handleOtherLogin("wechat");
+                                            })}
+                                        >
+                                            {t(isWeapp ? "手机号快捷登入" : "微信登录")}
+                                        </TigButton>
+                                    )}
+                                    {oauthProviders.map((provider) => (
+                                        <View key={provider.id} className="item" onClick={() => runAfterAgreement(() => { void handleOtherLogin(provider.id); })}>
+                                            <Image src={staticResource(provider.image)} className={provider.id === "twitter" ? "icon twitter-icon" : "icon"} mode="widthFix" />
+                                            <View>{t(provider.label)}</View>
+                                        </View>
+                                    ))}
+                                </View>
+                            </>
+                        )}
+                        <View className="desc-box">
+                            <View className="rule-text" onClick={() => setIsChecked((checked) => !checked)}>
+                                <TigCheckbox checked={isChecked} />
+                                <View className="rule-xieyi">
+                                    <Text>{t("我已阅读并同意")}</Text>
+                                    <Text
+                                        className="special-color"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleLink("/pages/login/mallAgreement?articleSn=fwxy");
+                                        }}
+                                    >
+                                        {t("《服务协议》")}
+                                    </Text>
+                                    <Text>{t("和")}</Text>
+                                    <Text
+                                        className="special-color"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleLink("/pages/login/mallAgreement?articleSn=ysxy");
+                                        }}
+                                    >
+                                        {t("《隐私协议》")}
+                                    </Text>
                                 </View>
                             </View>
                         </View>
                     </View>
-                    <Verify ref={verifyRef} mode="pop" captchaType="blockPuzzle" imgSize={{ width: "310px", height: "155px" }} onOkCallback={okCallback} />
-                </TigLayout>
-            )}
+                </View>
+                <Verify ref={verifyRef} mode="pop" captchaType="blockPuzzle" imgSize={{ width: "310px", height: "155px" }} onOkCallback={okCallback} />
+            </TigLayout>
 
             {/* 协议确认弹窗：未勾选服务协议时以弹窗代替 toast 提示 */}
             {/* 弹窗在 tig-layout 外，需自行注入 themeStyle + 登录装修变量，否则主题色/--login-link 无效 */}
             <Popup
-                visible={showAgreementModal}
+                visible={agreementAction !== null && !isChecked}
                 position="center"
                 closeOnOverlayClick={false}
                 closeable={false}
@@ -652,7 +623,7 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
                         ))}
                     </View>
                     <View className="agreement-modal__actions">
-                        <View className="agreement-modal__btn agreement-modal__btn--cancel" onClick={handleAgreementDisagree}>
+                        <View className="agreement-modal__btn agreement-modal__btn--cancel" onClick={() => setAgreementAction(null)}>
                             {t("不同意")}
                         </View>
                         <View

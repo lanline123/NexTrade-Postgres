@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import Taro, { useRouter, useDidShow } from "@tarojs/taro";
+import Taro, { useRouter } from "@tarojs/taro";
 import { View } from "@tarojs/components";
 
 import { csrfCreate } from "@/api/login/login";
 import { getMobileLoginDecorate } from "@/api/home/home";
 import BaseLogin from "./src/BaseLogin";
+import { useConfigStore } from "@/store/config";
 import { useUserStore } from "@/store/user";
 import { usePageGuards } from "@/utils/pageMixin";
+import { loginReturnUrl, redirectAfterLogin } from "@/utils/loginReturn";
 
 import "./index.scss";
 
@@ -30,8 +32,6 @@ export default function Login() {
 
     const [csrfToken, setCsrfToken] = useState("");
 
-    const [oauthCallbackData, setOauthCallbackData] = useState<Record<string, string>>({});
-
     const fetchLoginDecorate = async (previewId?: string | number) => {
         try {
             const result = await getMobileLoginDecorate(previewId);
@@ -45,39 +45,20 @@ export default function Login() {
 
     // 对应旧 onLoad（useRouter.params + useEffect）
     useEffect(() => {
-        const options: any = router.params;
-        if (options) {
-            if (options.loginType) {
-                setLoginType(options.loginType);
-            }
-            if (options.url) {
-                let decodedUrl = options.url;
-                try {
-                    decodedUrl = decodeURIComponent(options.url);
-                } catch (error) {
-                    console.error("URL 解码失败，使用原始值:", error);
-                }
-                Taro.setStorageSync("URL", decodedUrl);
-            }
-            if (options.code) {
-                setOauthCallbackData(options);
-            }
+        const options = router.params;
+        const returnUrl = loginReturnUrl(options?.url);
+        if (Taro.getStorageSync("token") || useUserStore.getState().token) {
+            redirectAfterLogin(returnUrl);
+            return;
         }
+        if (options?.loginType) setLoginType(options.loginType);
+        if (returnUrl) Taro.setStorageSync("URL", returnUrl);
+        void useConfigStore.getState().getBaseConfigData();
         getCsrfCreateData();
         // 后台"预览"按钮打开 /pages/login/index?previewId=xxx，带上则取草稿版装修
         fetchLoginDecorate(options?.previewId);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-
-    // 对应旧 onShow：已登录直接回首页
-    useDidShow(() => {
-        const userStore = useUserStore.getState();
-        if (Taro.getStorageSync("token") || userStore.token) {
-            Taro.reLaunch({
-                url: "/pages/index/index"
-            });
-        }
-    });
 
     const getCsrfCreateData = async () => {
         try {

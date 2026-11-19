@@ -91,6 +91,7 @@ use nextrade_core::models::system::config_client::{
     BIZ_ADMIN_DOMAIN, BIZ_PRODUCT_RAW_IMAGE_DOWNLOAD_CHANNELS,
     DEFAULT_PRODUCT_RAW_IMAGE_DOWNLOAD_CHANNELS, DEFAULT_PRODUCT_RAW_IMAGE_DOWNLOAD_SCOPES,
     BIZ_PRODUCT_RAW_IMAGE_DOWNLOAD_ENABLED, BIZ_PRODUCT_RAW_IMAGE_DOWNLOAD_SCOPES,
+    BIZ_OPEN_WECHAT_OAUTH, BIZ_GOOGLE_LOGIN_ON, BIZ_FACEBOOK_LOGIN_ON, BIZ_TWITTER_LOGIN_ON,
     DEFAULT_AUTO_REDIRECT,
     DEFAULT_HEADER_STYLE, MOBILE_SEARCH_STYLE_DEFAULT_RAW,
 };
@@ -588,7 +589,7 @@ fn effective_str(configs: &ConfigIndex, biz_code: &str) -> Option<String> {
 /// （对应 Java `getSettings(InitConfigSettingsVO.class)`）。
 ///
 /// ⚠️ **只装配本控制器可达的字段**：Java 的 VO 有 100+ 字段，
-/// 其中相当一部分（`seoCategoryEnable` / `googleLoginOn` /
+/// 其中相当一部分（`seoCategoryEnable` /
 /// `amapWebKey` 等）的 `SettingsEnum` 项在 `SettingsEnum` 里存在但
 /// **本片未逐一核对全部 bizCode**。为避免编造，本函数对
 /// **已核对过 bizCode** 的字段赋值，其余字段保持 `None`
@@ -623,6 +624,11 @@ pub fn assemble_init_config_settings(configs: &ConfigIndex) -> InitConfigSetting
         shop_keywords: get_str(configs, BIZ_SHOP_KEYWORDS),
         shop_desc: get_str(configs, BIZ_SHOP_DESC),
         is_open_mobile_area_code: get_int(configs, BIZ_IS_OPEN_MOBILE_AREA_CODE),
+        open_wechat_oauth: get_int(configs, BIZ_OPEN_WECHAT_OAUTH),
+        open_wechat_register: get_int(configs, "openWechatRegister"),
+        google_login_on: get_int(configs, BIZ_GOOGLE_LOGIN_ON),
+        facebook_login_on: get_int(configs, BIZ_FACEBOOK_LOGIN_ON),
+        twitter_login_on: get_int(configs, BIZ_TWITTER_LOGIN_ON),
         ..InitConfigSettingsVO::default()
     };
 
@@ -784,6 +790,23 @@ mod tests {
         // 未核对的字段保持 None（不编造）
         assert_eq!(vo.amap_web_key, None);
         assert_eq!(vo.map_provider, None);
+    }
+
+    #[test]
+    fn assemble_login_provider_switches_for_clients() {
+        let cfgs = index(&[
+            (BIZ_OPEN_WECHAT_OAUTH, "1"),
+            ("openWechatRegister", "1"),
+            (BIZ_GOOGLE_LOGIN_ON, "1"),
+            (BIZ_FACEBOOK_LOGIN_ON, "0"),
+            (BIZ_TWITTER_LOGIN_ON, "1"),
+        ]);
+        let json = serde_json::to_value(assemble_init_config_settings(&cfgs)).unwrap();
+        assert_eq!(json["openWechatOauth"], 1);
+        assert_eq!(json["openWechatRegister"], 1);
+        assert_eq!(json["googleLoginOn"], 1);
+        assert_eq!(json["facebookLoginOn"], 0);
+        assert_eq!(json["twitterLoginOn"], 1);
     }
 
     /// 商品原图批量下载三项配置：JSON 数组解析、装配与 camelCase 序列化。

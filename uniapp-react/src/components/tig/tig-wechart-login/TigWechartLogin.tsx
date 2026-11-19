@@ -8,6 +8,8 @@ import { getOauthInfo, getOauthUrl, getWechartMobile, setMiniProgramOpenid } fro
 import { useUserStore } from "@/store/user";
 import { useConfigStore } from "@/store/config";
 import Checkbox from "@/pages/cart/src/Checkbox";
+import { currFullPath } from "@/utils";
+import { loginReturnUrl } from "@/utils/loginReturn";
 import { t } from "@/utils/i18n";
 
 import "./TigWechartLogin.scss";
@@ -56,6 +58,8 @@ export default function TigWechartLogin({ onLoginSuccess }: Props) {
     //微信授权登录
     const wechatLogin = async () => {
         // const result = await getOauthUrl({ url: location.origin + location.pathname });
+        const returnUrl = loginReturnUrl(currFullPath());
+        if (returnUrl) Taro.setStorageSync("URL", returnUrl);
         const result = await getOauthUrl({ url: window.location.origin + window.location.pathname + window.location.search });
         window.location.href = result.url;
     };
@@ -68,6 +72,7 @@ export default function TigWechartLogin({ onLoginSuccess }: Props) {
                 // 已注册过，直接登录
                 useUserStore.getState().setToken(result.token);
                 await useUserStore.getState().getUserInfo();
+                Taro.removeStorageSync("URL");
                 onLoginSuccess?.();
                 useUserStore.getState().setAuthType("");
                 return;
@@ -92,7 +97,7 @@ export default function TigWechartLogin({ onLoginSuccess }: Props) {
     const handleLink = (type: string) => {
         userStore.setAuthType("");
         Taro.navigateTo({
-            url: `/pages/login/index?loginType=${type}`
+            url: `/pages/login/index?loginType=${type}&url=${encodeURIComponent(loginReturnUrl(currFullPath()))}`
         });
     };
 

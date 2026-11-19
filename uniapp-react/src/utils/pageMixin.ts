@@ -3,6 +3,7 @@ import Taro, { useRouter } from "@tarojs/taro";
 
 import { useTabbarStore } from "@/store/tabbar";
 import { clearSeoOnNavigate, guardPage } from "@/utils/permission";
+import { buildQueryString } from "@/utils";
 
 /**
  * 页面级 mixin 替代（旧方案为全局 Vue mixin）：
@@ -35,8 +36,14 @@ export function useAuthGuard() {
 
     useEffect(() => {
         clearSeoOnNavigate();
+        // Taro can add an internal ?stamp to router.path, hiding the H5 page query.
+        if (process.env.TARO_ENV === "h5") {
+            guardPage(window.location.pathname + window.location.search);
+            return;
+        }
         const url = router.path.startsWith("/") ? router.path : `/${router.path}`;
-        guardPage(url);
+        const query = buildQueryString(router.params || {});
+        guardPage(url.includes("?") ? url : url + query);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [router.path]);
 }

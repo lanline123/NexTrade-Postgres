@@ -10,7 +10,7 @@ import { sendMobileCode } from "@/api/login/login";
 import { bindMobilePhone } from "@/api/user/bindMobilePhone";
 import { useI18nStore } from "@/store/i18n";
 import { useUserStore } from "@/store/user";
-import { redirect } from "@/utils";
+import { loginReturnUrl, redirectAfterLogin } from "@/utils/loginReturn";
 import { t } from "@/utils/i18n";
 import { usePageGuards } from "@/utils/pageMixin";
 
@@ -19,7 +19,7 @@ import "./index.scss";
 /**
  * 第三方登录后绑定手机号页（自旧 pages/user/bindMobilePhone/index.vue 逐行移植）
  * - 输入手机号、验证码、密码完成绑定
- * - 绑定成功后设置 Token 并跳转会员中心
+ * - 绑定成功后设置 Token 并回到登录前页面
  * - 支持滑动验证码二次校验
  */
 export default function BindMobilePhone() {
@@ -80,9 +80,7 @@ export default function BindMobilePhone() {
             });
             setTimeout(() => {
                 Taro.setStorageSync("openData", "");
-                redirect({
-                    url: "/pages/member/index"
-                });
+                redirectAfterLogin(loginReturnUrl(Taro.getStorageSync("URL")) || "/pages/member/index");
             }, 1500);
         } catch (error: any) {
             console.error(error);

@@ -15,6 +15,7 @@ import { clearJsonLd } from "@/utils/seo";
 const whiteList = [
     "/pages/login/index",
     "/pages/login/mallAgreement",
+    "/pages/oauth/callback",
     "/pages/register/index",
     "/pages/register/agreement",
     "/pages/index/index",
