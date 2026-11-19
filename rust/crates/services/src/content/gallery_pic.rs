@@ -29,7 +29,7 @@
 
 use std::sync::Arc;
 
-use nextrade_common::utils::now_seconds;
+use nextrade_common::utils::{now_seconds, pic_thumb_200};
 use nextrade_core::entities::{Gallery, GalleryPic, GalleryVideoInfo};
 use nextrade_core::models::content::gallery::{GalleryDTO, GalleryScope};
 use nextrade_core::models::content::gallery_pic::{
@@ -391,7 +391,9 @@ impl GalleryPicService {
             pic_ower_id: owner_id,
             pic_url: url.clone(),
             pic_name: original.to_string(),
-            pic_thumb: url.clone(),
+            // Java `GalleryPicServiceImpl#createPic`：上传落库时即生成缩略图
+            // （picUrl + size_200 后缀）；此前直抄 url 写裸 thumb，为存量裸值源头。
+            pic_thumb: pic_thumb_200(&url),
             add_time: now_seconds().to_string(),
             vendor_id: 0,
             hidden: Some(0),

@@ -976,7 +976,8 @@ Some(draft.detail_html.clone())
 };
 if let Some(first) = draft.main_images.first() {
 save.pic_url = Some(first.clone());
-save.pic_thumb = Some(first.clone());
+// pic_thumb 按 OSS 200 口径生成，不直抄原图（common::utils::pic_thumb_200，幂等）
+save.pic_thumb = Some(nextrade_common::utils::pic_thumb_200(first));
 save.pic_original = Some(first.clone());
 }
 if!draft.main_images.is_empty() {
@@ -987,7 +988,7 @@ draft
 .enumerate()
 .map(|(i, u)| GalleryPicDTO {
 pic_url: Some(u.clone()),
-pic_thumb: Some(u.clone()),
+pic_thumb: Some(nextrade_common::utils::pic_thumb_200(u)),
 pic_sort: Some(i as i32),
 ..Default::default()
 })

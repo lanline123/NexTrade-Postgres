@@ -821,9 +821,13 @@ impl ProductManageService {
                     exist.product_stock = stock;
                 }
                 if is_change_pic == Some(1) && !first.pic_url.is_empty() {
+                    // 更新口径与 setImgList 编辑支一致：pic_url 存裸值、
+                    // pic_large 拼 size_800（此前本分支从不写 pic_large，
+                    // 换图后大图字段残留旧图/旧裸值，一并收口）。
                     exist.pic_url = first.pic_url.clone();
-                    exist.pic_thumb = first.pic_url.clone();
+                    exist.pic_thumb = utils::pic_thumb_200(&first.pic_url);
                     exist.pic_original = first.pic_url.clone();
+                    exist.pic_large = utils::pic_sized_800(&first.pic_url);
                 }
                 exist.last_update = now;
 
@@ -867,9 +871,13 @@ impl ProductManageService {
                     market_price: market,
                     cost_price: cost,
                     product_stock: stock,
-                    pic_url: first.pic_url.clone(),
-                    pic_thumb: first.pic_url.clone(),
+                    // 新增口径与 setImgList 新增支一致：pic_url 拼
+                    // size_400、pic_large 拼 size_800（此前 pic_large 无人
+                    // 赋值、恒落空串，详情大图消费者只能回退裸原图）。
+                    pic_url: utils::pic_sized_400(&first.pic_url),
+                    pic_thumb: utils::pic_thumb_200(&first.pic_url),
                     pic_original: first.pic_url.clone(),
+                    pic_large: utils::pic_sized_800(&first.pic_url),
                     product_brief: first.product_brief.clone(),
                     keywords: opt_non_empty(&first.keywords),
                     product_status: first.product_status.parse::<i32>().unwrap_or(1),
@@ -894,9 +902,10 @@ impl ProductManageService {
                     let gallery = ProductGallery {
                         product_id,
                         pic_url: first.pic_url.clone(),
-                        pic_thumb: first.pic_url.clone(),
+                        pic_thumb: utils::pic_thumb_200(&first.pic_url),
                         pic_original: first.pic_url.clone(),
-                        pic_large: first.pic_url.clone(),
+                        // 与 sync_gallery 同口径：pic_large 拼 size_800
+                        pic_large: utils::pic_sized_800(&first.pic_url),
                         sort_order: 0,
                         shop_id: product.shop_id as i64,
                         ..Default::default()
@@ -1309,10 +1318,22 @@ impl ProductManageService {
                 product_id: product.product_id,
                 pic_url: pic_url.clone(),
                 pic_desc: pic.pic_name.clone().unwrap_or_default(),
-                pic_thumb: pic.pic_thumb.clone().unwrap_or_else(|| pic_url.clone()),
+                // pic_thumb 归一：缺失/裸值（与原图逐字相同）按 OSS 200 口径再生，
+                // 已带处理参数或异图缩略保留（utils::normalize_pic_thumb）。
+                // Java saveProductGallery 透传图库 thumb；图库裸行在此兜底再生。
+                pic_thumb: utils::normalize_pic_thumb(
+                    &pic_url,
+                    pic.pic_thumb.as_deref().unwrap_or(""),
+                ),
                 pic_original: pic_url.clone(),
-                // 未迁移：Java 会拼图片尺寸后缀（galleryPicService 配置）
-                pic_large: pic_url.clone(),
+                // pic_large 按 size_800 派生【原版有·我方改口径】：Java
+                // saveProductGallery 内有同派生分支，但其唯一调用点
+                // otherUpdates 恒传已落库 productId，该分支在原版主流程
+                // 不可达、相册行实际存裸值；我方 PC/H5 详情画廊均以相册行
+                // picLarge 为主图源，裸原图字节代价实测显著，故在此使派生
+                // 实际生效。pic_url / pic_original 仍存裸值（与原版主流程
+                // 一致，且避免派生值污染 pic_original 的再保存链）。
+                pic_large: utils::pic_sized_800(&pic_url),
                 sort_order: i32::try_from(idx).unwrap_or(i32::MAX),
                 shop_id: 0,
                 ..Default::default()
@@ -1860,7 +1881,12 @@ fn apply_dto_to_product(product: &mut Product, dto: ProductSaveDTO, is_create: b
     set_opt!(seckill_max_num, dto.seckill_max_num);
     set_opt!(product_brief, dto.product_brief);
     set_opt!(pic_url, dto.pic_url);
-    set_opt!(pic_thumb, dto.pic_thumb);
+    // pic_thumb 不裸透传：以生效 pic_url 为基准归一（裸值按 OSS 200 口径再生，
+    // 已带参/异图缩略保留）。克隆导入等构造方直抄原图时在此收口。
+    if let Some(v) = dto.pic_thumb {
+        let effective_url = product.pic_url.clone();
+        product.pic_thumb = utils::normalize_pic_thumb(&effective_url, &v);
+    }
     set_opt!(pic_original, dto.pic_original);
     set_some!(comment_tag, dto.comment_tag);
     set_opt!(sort_order, dto.sort_order);
@@ -1948,14 +1974,20 @@ fn apply_dto_to_product(product: &mut Product, dto: ProductSaveDTO, is_create: b
     // 主图：Java \"setImgList\" 取相册第一张
     if let Some(img) = dto.img_list.as_ref().and_then(|l| l.first()) {
         if let Some(url) = non_empty(img.pic_url.as_deref()) {
-            product.pic_url = url.to_string();
+            // Java setImgList（ProductServiceImpl:2158-2173）分新增/编辑两支：
+            // picOriginal 恒裸值；picLarge 两支都拼 size_800；picUrl 仅新增
+            // （productId==null）拼 size_400、编辑存裸值——逐字按原版分叉，
+            // 不做「编辑也派生」的口径变更（如需变更另行定版）。
+            product.pic_url = if is_create {
+                utils::pic_sized_400(url)
+            } else {
+                url.to_string()
+            };
             product.pic_original = url.to_string();
-            product.pic_large = url.to_string();
-            product.pic_thumb = img
-                .pic_thumb
-                .clone()
-                .filter(|s| !s.trim().is_empty())
-                .unwrap_or_else(|| url.to_string());
+            product.pic_large = utils::pic_sized_800(url);
+            // Java setImgList 透传首图 thumb；图库裸行/缺失时按 OSS 200 口径再生
+            product.pic_thumb =
+                utils::normalize_pic_thumb(url, img.pic_thumb.as_deref().unwrap_or(""));
         }
     }
 
