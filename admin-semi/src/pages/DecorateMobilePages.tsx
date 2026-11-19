@@ -28,6 +28,7 @@ import { useI18n } from '../i18n';
 import ListPage from '../framework/ListPage';
 import { IconInfoCircle } from '@douyinfe/semi-icons';
 import OptionSelectModal from '../components/OptionSelectModal';
+import { scheduleMobileEmbedPrefetch } from '../components/decorate/prefetchMobileEmbed';
 import ImageUploader from '../components/ImageUploader';
 import ColorField from '../components/ColorField';
 import type { ColumnConfig } from '../framework/types';
@@ -595,6 +596,11 @@ export function MobileDecoratePages(props: {
 } = {}) {
   const { t } = useI18n();
   const [activeKey, setActiveKey] = useState('home');
+
+  // 进入 H5 编辑器前预热：空闲时预取 /mobile/ 入口资源，同会话只跑一次（见 prefetchMobileEmbed）
+  useEffect(() => {
+    scheduleMobileEmbedPrefetch();
+  }, []);
 
   // 外部固定 pageType 时不显示页签（与 Java hasFixedPageType 一致）
   if (props.pageType) {

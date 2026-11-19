@@ -54,6 +54,7 @@ import {
   type IconParkEntry,
 } from '../components/iconpark';
 import ListPage from '../framework/ListPage';
+import { scheduleMobileEmbedPrefetch } from '../components/decorate/prefetchMobileEmbed';
 import { MobileDecoratePages } from './DecorateMobilePages';
 import type { ColumnConfig } from '../framework/types';
 import './decorate-editor.css';
@@ -155,6 +156,11 @@ export function PcDecorateHome() {
       setLoading(false);
     }
   };
+
+  // 进入 H5 编辑器前预热：空闲时预取 /mobile/ 入口资源，同会话只跑一次（见 prefetchMobileEmbed）
+  useEffect(() => {
+    scheduleMobileEmbedPrefetch();
+  }, []);
 
   useEffect(() => {
     loadList();
