@@ -532,7 +532,7 @@ export default function UserCertification() {
                                             <Input
                                                 className="form-input right"
                                                 value={formState.companyData.businessLicenseAddress || ""}
-                                                placeholder={t("请输入详细地址")}
+                                                placeholder={t("请输入详细地址，例如：XX小区X栋X单元X室")}
                                                 onInput={(e) => updateCompanyData("businessLicenseAddress", e.detail.value)}
                                             />
                                         </FormRow>

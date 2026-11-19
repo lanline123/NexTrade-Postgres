@@ -402,7 +402,7 @@ function SupplierFormDrawer({
             }}
           />
           <TextArea
-            placeholder={t('请输入详细地址')}
+            placeholder={t('请输入详细地址，例如：XX小区X栋X单元X室')}
             rows={3}
             style={{ width: 500 }}
             value={form.address}

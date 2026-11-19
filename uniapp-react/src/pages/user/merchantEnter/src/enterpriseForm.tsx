@@ -416,7 +416,7 @@ export default function EnterpriseForm({ type = 2, id = 0, isReapply = false, on
                                         <Input
                                             className="form-input right"
                                             value={firstForm.businessLicenseAddress}
-                                            placeholder={t("请输入详细地址")}
+                                            placeholder={t("请输入详细地址，例如：XX小区X栋X单元X室")}
                                             onInput={(e) => updateFirst("businessLicenseAddress", e.detail.value)}
                                         />
                                     </FormRow>
@@ -723,7 +723,7 @@ export default function EnterpriseForm({ type = 2, id = 0, isReapply = false, on
                                     <Input
                                         className="form-input right"
                                         value={secondForm.merchantData.detailedAddress}
-                                        placeholder={t("请输入详细地址")}
+                                        placeholder={t("请输入详细地址，例如：XX小区X栋X单元X室")}
                                         onInput={(e) => updateSecondMerchant("detailedAddress", e.detail.value)}
                                     />
                                 </FormRow>

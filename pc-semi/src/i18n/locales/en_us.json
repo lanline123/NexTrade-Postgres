@@ -2695,6 +2695,7 @@
   "请您填写收货人姓名": "Please enter the recipient's name",
   "请您填写收货人手机号码": "Please enter the recipient's phone number",
   "请您填写详细收货地址": "Please enter the detailed shipping address",
+  "请您填写详细收货地址，例如：XX小区X栋X单元X室": "Please enter the detailed shipping address, e.g. Block X, Unit X, Room X, XX Community",
   "请注意填写格式，举例（座机：0755-88880000；手机：13688880000）": "Format example (landline: 0755-88880000; mobile: 13688880000)",
   "请输入商户名称": "Please enter merchant name",
   "请输入开户支行": "Please enter the branch name",

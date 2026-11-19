@@ -53,7 +53,7 @@ export const CROSS_BORDER_COUNTRIES: CrossBorderCountry[] = [
       { key: 'district', label: '区/县', placeholder: '请选择区/县', required: true },
     ],
     fields: [
-      { key: 'address', label: '详细地址', placeholder: '门牌号、建筑物、街道', required: true },
+      { key: 'address', label: '详细地址', placeholder: '门牌号、建筑物、街道，例如：XX小区X栋X单元X室', required: true },
       { key: 'postcode', label: '邮编', placeholder: '6位数字' },
     ],
     postcodePattern: /^\d{6}$/,

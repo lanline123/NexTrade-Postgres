@@ -468,7 +468,7 @@ export default function MemberAddressDialog({
                 style={{ width: 300 }}
                 maxLength={100}
                 value={form.address}
-                placeholder={t('请您填写详细收货地址')}
+                placeholder={t('请您填写详细收货地址，例如：XX小区X栋X单元X室')}
                 onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))}
               />,
               'address',

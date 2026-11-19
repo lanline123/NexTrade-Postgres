@@ -957,7 +957,7 @@ export default function EditRegion() {
                                     value={form.address}
                                     type="text"
                                     className="uni-input-input"
-                                    placeholder={t("请您填写详细收货地址")}
+                                    placeholder={t("请您填写详细收货地址，例如：XX小区X栋X单元X室")}
                                     placeholderClass="uni-input-placeholder"
                                     placeholderStyle="font-size:24rpx;color:#c4c6ce;"
                                     onInput={(e) => {
