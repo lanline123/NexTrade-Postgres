@@ -128,7 +128,7 @@ impl Default for McpSettings {
     }
 }
 
-async fn load_settings(pool: &sqlx::PgPool) -> McpSettings {
+pub async fn load_settings(pool: &sqlx::PgPool) -> McpSettings {
     let row: Option<(String,)> = sqlx::query_as(
         "SELECT biz_val FROM config WHERE biz_code = $1 AND is_del = 0 LIMIT 1",
     )
@@ -406,7 +406,7 @@ async fn approval_approve(
     };
     let args: Value = serde_json::from_str(&args_text).unwrap_or(Value::Null);
     let settings = load_settings(&state.repos.pool).await;
-    let result = call_tool(&state, &settings, &tool, &args, true).await;
+    let result = call_tool(&state, &settings, &tool, &args, true, &ToolCtx::mcp()).await;
     let now = now_secs();
     match result {
         Ok(value) => {
@@ -503,7 +503,7 @@ async fn mcp_handler(
                 .cloned()
                 .unwrap_or_else(|| json!({}));
             let started = Instant::now();
-            let result = call_tool(&state, &settings, name, &args, false).await;
+            let result = call_tool(&state, &settings, name, &args, false, &ToolCtx::mcp()).await;
             let duration = started.elapsed().as_millis() as i32;
             let (status, error) = match &result {
                 Ok(_) => ("ok".to_string(), None),
@@ -554,7 +554,7 @@ fn rpc_error(id: Value, code: i64, message: &str) -> Response {
 
 // ————————————————————— 工具目录 —————————————————————
 
-fn tools_for(settings: &McpSettings) -> Vec<Value> {
+pub fn tools_for(settings: &McpSettings) -> Vec<Value> {
     let mut tools = Vec::new();
     if settings.product_enabled {
         tools.extend([
@@ -981,6 +981,31 @@ fn tools_for(settings: &McpSettings) -> Vec<Value> {
                         "remark": { "type": "string" }
                     },
                     "required": ["orderId", "remark"]
+                }
+            }),
+            json!({
+                "name": "order_deliver",
+                "description": "订单发货：对已付款待发货订单登记发货。shippingMethod 发货方式（1 物流 / 2 商家配送 / 3 无需配送 / 4 电子面单），方式为 1 时需 logisticsId 与 trackingNo。不传 deliverData 时按各明细待发数量整单发货。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "orderId": { "type": "integer" },
+                        "shippingMethod": { "type": "integer" },
+                        "logisticsId": { "type": "integer" },
+                        "trackingNo": { "type": "string" },
+                        "deliverData": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "itemId": { "type": "integer" },
+                                    "quantity": { "type": "integer" }
+                                },
+                                "required": ["itemId", "quantity"]
+                            }
+                        }
+                    },
+                    "required": ["orderId"]
                 }
             }),
         ]);
@@ -1461,12 +1486,203 @@ async fn create_approval(
     Ok(row.0)
 }
 
-async fn call_tool(
+// ————————————————————— 工具调用上下文（AI 助手进程内复用） —————————————————————
+
+/// 工具调用来源：MCP 端点（共享 Token，平台口径，行为保持不变）或
+/// admin AI 助手对话（登录会话，带租户作用域，见 ai_assistant 模块）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToolSource {
+    Mcp,
+    Chat,
+}
+
+/// 一次工具调用的执行上下文。对话路径由登录会话构造：
+/// `tenant_shop_id = Some(shop)` 时全链路强制本店作用域（DESIGN §3）。
+#[derive(Debug, Clone)]
+pub struct ToolCtx {
+    pub source: ToolSource,
+    pub actor_id: i32,
+    pub actor_name: String,
+    /// None = 平台（不限制）；Some(shop_id) = 商家本店强制作用域。
+    pub tenant_shop_id: Option<i32>,
+    /// 对话 ID（审计用，MCP 为 0）。
+    pub conv_id: i32,
+}
+
+impl ToolCtx {
+    pub fn mcp() -> Self {
+        Self {
+            source: ToolSource::Mcp,
+            actor_id: 0,
+            actor_name: "mcp".to_string(),
+            tenant_shop_id: None,
+            conv_id: 0,
+        }
+    }
+
+    pub fn is_scoped(&self) -> bool {
+        self.tenant_shop_id.is_some()
+    }
+}
+
+/// 实体归属校验（DESIGN §3.2 第 4 层）：目标实体不属于本店时，返回与
+/// 「实体不存在」完全一致的错误，不确认存在性、不回显任何字段。
+async fn scope_check_product(
+    pool: &sqlx::PgPool,
+    ctx: &ToolCtx,
+    product_id: i32,
+) -> Result<(), String> {
+    let Some(tenant) = ctx.tenant_shop_id else {
+        return Ok(());
+    };
+    let row: Option<(i32,)> = sqlx::query_as(
+        "SELECT shop_id FROM product WHERE product_id = $1 AND is_delete = 0",
+    )
+    .bind(product_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    match row {
+        Some((shop,)) if shop == tenant => Ok(()),
+        _ => Err("商品不存在".to_string()),
+    }
+}
+
+async fn scope_check_order(pool: &sqlx::PgPool, ctx: &ToolCtx, order_id: i32) -> Result<(), String> {
+    let Some(tenant) = ctx.tenant_shop_id else {
+        return Ok(());
+    };
+    let row: Option<(i32,)> =
+        sqlx::query_as("SELECT shop_id FROM \"order\" WHERE order_id = $1")
+            .bind(order_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    match row {
+        Some((shop,)) if shop == tenant => Ok(()),
+        _ => Err("订单不存在".to_string()),
+    }
+}
+
+async fn scope_check_decorate(
+    pool: &sqlx::PgPool,
+    ctx: &ToolCtx,
+    decorate_id: i32,
+) -> Result<(), String> {
+    let Some(tenant) = ctx.tenant_shop_id else {
+        return Ok(());
+    };
+    let row: Option<(i32,)> =
+        sqlx::query_as("SELECT shop_id FROM decorate WHERE decorate_id = $1")
+            .bind(decorate_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    match row {
+        Some((shop,)) if shop == tenant => Ok(()),
+        _ => Err("装修页不存在".to_string()),
+    }
+}
+
+async fn scope_check_gallery_group(
+    pool: &sqlx::PgPool,
+    ctx: &ToolCtx,
+    gallery_id: i32,
+) -> Result<(), String> {
+    let Some(tenant) = ctx.tenant_shop_id else {
+        return Ok(());
+    };
+    let row: Option<(i32,)> =
+        sqlx::query_as("SELECT shop_id FROM gallery WHERE gallery_id = $1")
+            .bind(gallery_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    match row {
+        Some((shop,)) if shop == tenant => Ok(()),
+        _ => Err("素材分组不存在".to_string()),
+    }
+}
+
+async fn scope_check_gallery_pics(
+    pool: &sqlx::PgPool,
+    ctx: &ToolCtx,
+    pic_ids: &[i32],
+) -> Result<(), String> {
+    let Some(tenant) = ctx.tenant_shop_id else {
+        return Ok(());
+    };
+    if pic_ids.is_empty() {
+        return Ok(());
+    }
+    let rows: Vec<(i32, i32)> = sqlx::query_as(
+        "SELECT pic_id, shop_id FROM gallery_pic WHERE pic_id = ANY($1)",
+    )
+    .bind(pic_ids)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    // 缺失或他店素材一律按「素材不存在」处理（零泄露）。
+    if rows.len() != pic_ids.len() || rows.iter().any(|(_, shop)| *shop != tenant) {
+        return Err("素材不存在".to_string());
+    }
+    Ok(())
+}
+
+/// 批量操作的作用域过滤：他店商品的行直接剔除，eval_batch 会把它们
+/// 按「找不到该商品」处理，与不存在完全一致（零泄露）。
+async fn scope_filter_batch_rows(
+    pool: &sqlx::PgPool,
+    ctx: &ToolCtx,
+    rows: Vec<BatchProductRow>,
+) -> Vec<BatchProductRow> {
+    let Some(tenant) = ctx.tenant_shop_id else {
+        return rows;
+    };
+    if rows.is_empty() {
+        return rows;
+    }
+    let ids: Vec<i32> = rows.iter().map(|r| r.0).collect();
+    let owned: Vec<(i32,)> =
+        sqlx::query_as("SELECT product_id FROM product WHERE product_id = ANY($1) AND shop_id = $2")
+            .bind(&ids)
+            .bind(tenant)
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default();
+    let owned_set: std::collections::HashSet<i32> = owned.into_iter().map(|r| r.0).collect();
+    rows.into_iter()
+        .filter(|r| owned_set.contains(&r.0))
+        .collect()
+}
+
+/// 对话路径的工具执行入口：先做参数级 shop 字段校验（DESIGN §3.1），
+/// 与会话作用域不一致的显式 shop_id → 整次拒绝（由调用方记审计）。
+/// 通过后剥离参数中的 shop 字段，分发层统一注入会话作用域。
+pub fn sanitize_chat_args(ctx: &ToolCtx, args: &Value) -> Result<Value, String> {
+    let mut out = args.clone();
+    if let Some(obj) = out.as_object_mut() {
+        for key in ["shopId", "shop_id"] {
+            if let Some(v) = obj.remove(key) {
+                if let Some(tenant) = ctx.tenant_shop_id {
+                    let passed = v.as_i64().map(|n| n as i32);
+                    if passed != Some(tenant) {
+                        return Err("参数中的店铺与当前会话店铺不一致".to_string());
+                    }
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+pub async fn call_tool(
     state: &AdminState,
     settings: &McpSettings,
     name: &str,
     args: &Value,
     approved: bool,
+    ctx: &ToolCtx,
 ) -> Result<Value, String> {
     match name {
         "product_search" => {
@@ -1478,6 +1694,7 @@ async fn call_tool(
                 page: args.get("page").and_then(Value::as_u64),
                 page_size: args.get("size").and_then(Value::as_u64),
                 product_status: arg_i32(args, "productStatus"),
+                shop_id: ctx.tenant_shop_id,
                 ..Default::default()
             };
             let page = state
@@ -1493,6 +1710,7 @@ async fn call_tool(
                 return Err("商品域未启用".into());
             }
             let id = require_i32(args, "productId")?;
+            scope_check_product(&state.repos.pool, ctx, id).await?;
             let detail = state
                 .catalog
                 .product_manage
@@ -1518,6 +1736,7 @@ async fn call_tool(
                 return Err("商品域未启用".into());
             }
             let id = require_i32(args, "productId")?;
+            scope_check_product(&state.repos.pool, ctx, id).await?;
             let skus = state
                 .repos
                 .catalog
@@ -1532,6 +1751,7 @@ async fn call_tool(
                 return Err("商品域未启用".into());
             }
             let id = require_i32(args, "productId")?;
+            scope_check_product(&state.repos.pool, ctx, id).await?;
             let name = arg_str(args, "productName");
             let brief = arg_str(args, "productBrief");
             let category = arg_i32(args, "categoryId");
@@ -1554,6 +1774,7 @@ async fn call_tool(
                 return Err("商品域未启用".into());
             }
             let id = require_i32(args, "productId")?;
+            scope_check_product(&state.repos.pool, ctx, id).await?;
             let price = arg_dec(args, "productPrice").ok_or_else(|| "缺少参数 productPrice".to_string())?;
             let market = arg_dec(args, "marketPrice");
             let current = state
@@ -1588,6 +1809,7 @@ async fn call_tool(
                 return Err("商品域未启用".into());
             }
             let id = require_i32(args, "productId")?;
+            scope_check_product(&state.repos.pool, ctx, id).await?;
             let stock = args
                 .get("productStock")
                 .and_then(Value::as_i64)
@@ -1624,6 +1846,7 @@ async fn call_tool(
                 return Err("商品域未启用".into());
             }
             let id = require_i32(args, "productId")?;
+            scope_check_product(&state.repos.pool, ctx, id).await?;
             let status = if name == "product_publish" { 1 } else { 0 };
             let rows = state
                 .repos
@@ -1644,6 +1867,7 @@ async fn call_tool(
                 return Err(format!("一次最多处理 {BATCH_MAX_IDS} 个商品"));
             }
             let rows = find_batch_rows(&state.repos.pool, &ids).await?;
+            let rows = scope_filter_batch_rows(&state.repos.pool, ctx, rows).await;
             let (ok_ids, blocked) = eval_batch(&op, &ids, &rows);
             let by_id: std::collections::BTreeMap<i32, &BatchProductRow> =
                 rows.iter().map(|row| (row.0, row)).collect();
@@ -1690,6 +1914,7 @@ async fn call_tool(
                 return Ok(pending(approval_id));
             }
             let rows = find_batch_rows(&state.repos.pool, &ids).await?;
+            let rows = scope_filter_batch_rows(&state.repos.pool, ctx, rows).await;
             let (ok_ids, failed) = eval_batch(&op, &ids, &rows);
             if !ok_ids.is_empty() {
                 match op.as_str() {
@@ -1812,6 +2037,7 @@ async fn call_tool(
                     product_status: arg_i32(item, "productStatus"),
                     pic_url: images.first().cloned(),
                     img_list,
+                    shop_id: ctx.tenant_shop_id,
                     ..Default::default()
                 };
                 match state.catalog.product_manage.create(&dto).await {
@@ -1864,9 +2090,11 @@ async fn call_tool(
                         errors.push("本批次货号重复".into());
                     } else {
                         let count: (i64,) = sqlx::query_as(
-                            "SELECT COUNT(*) FROM product WHERE product_sn = $1 AND is_delete = 0",
+                            "SELECT COUNT(*) FROM product WHERE product_sn = $1 AND is_delete = 0
+                               AND ($2::int IS NULL OR shop_id = $2)",
                         )
                         .bind(&sn)
+                        .bind(ctx.tenant_shop_id)
                         .fetch_one(&state.repos.pool)
                         .await
                         .map_err(|e| e.to_string())?;
@@ -1907,6 +2135,7 @@ async fn call_tool(
                 return Err("商品域未启用".into());
             }
             let id = require_i32(args, "productId")?;
+            scope_check_product(&state.repos.pool, ctx, id).await?;
             let pool = &state.repos.pool;
             let row: Option<(String, String, Decimal, Decimal, i32, i32, String, String)> =
                 sqlx::query_as(
@@ -1932,6 +2161,7 @@ async fn call_tool(
                 pic_url: if pic.trim().is_empty() { None } else { Some(pic) },
                 product_stock: Some(0),
                 product_status: Some(0),
+                shop_id: ctx.tenant_shop_id,
                 ..Default::default()
             };
             state
@@ -1970,9 +2200,16 @@ async fn call_tool(
                 .unwrap_or(20)
                 .clamp(1, 100);
             let pool = &state.repos.pool;
-            let filter = "is_delete = 0 \
+            let shop_pred = ctx
+                .tenant_shop_id
+                .map(|t| format!(" AND shop_id = {t}"))
+                .unwrap_or_default();
+            let filter = format!(
+                "is_delete = 0 \
                 AND ($1::text IS NULL OR product_name ILIKE '%' || $1 || '%') \
-                AND ($2::int IS NULL OR category_id = $2)";
+                AND ($2::int IS NULL OR category_id = $2){shop_pred}"
+            );
+            let filter = filter.as_str();
             let data = match operation.as_str() {
                 "overview" => {
                     let row: (i64, Option<Decimal>, Option<i64>, Option<i64>) =
@@ -2084,9 +2321,16 @@ async fn call_tool(
                 .and_then(Value::as_i64)
                 .unwrap_or(100)
                 .clamp(1, 500);
-            let filter = "is_delete = 0 \
+            let shop_pred = ctx
+                .tenant_shop_id
+                .map(|t| format!(" AND shop_id = {t}"))
+                .unwrap_or_default();
+            let filter = format!(
+                "is_delete = 0 \
                 AND ($1::text IS NULL OR product_name ILIKE '%' || $1 || '%') \
-                AND ($2::int IS NULL OR category_id = $2)";
+                AND ($2::int IS NULL OR category_id = $2){shop_pred}"
+            );
+            let filter = filter.as_str();
             let rows: Vec<(i32, String, String, Decimal, i32, i32)> = sqlx::query_as(&format!(
                 "SELECT product_id, product_name, product_sn, product_price, product_stock, \
                  virtual_sales FROM product WHERE {filter} ORDER BY product_id DESC LIMIT $3"
@@ -2211,37 +2455,47 @@ async fn call_tool(
                         arg_str(args, "groupName").ok_or_else(|| "缺少 groupName".to_string())?;
                     let dto = GalleryDTO {
                         gallery_name: Some(name.clone()),
-                        shop_id: Some(0),
+                        shop_id: Some(ctx.tenant_shop_id.unwrap_or(0)),
                         ..Default::default()
+                    };
+                    let scope = match ctx.tenant_shop_id {
+                        Some(t) => GalleryScope::shop(t),
+                        None => GalleryScope::platform(),
                     };
                     let group_id = state
                         .content
                         .gallery
-                        .create(GalleryScope::platform(), &dto)
+                        .create(scope, &dto)
                         .await
                         .map_err(|e| e.to_string())?;
                     Ok(json!({ "groupId": group_id, "groupName": name }))
                 }
                 "group_update" => {
                     let group_id = require_i32(args, "groupId")?;
+                    scope_check_gallery_group(&state.repos.pool, ctx, group_id).await?;
                     let name =
                         arg_str(args, "groupName").ok_or_else(|| "缺少 groupName".to_string())?;
                     let dto = GalleryUpdateDTO {
                         id: Some(group_id),
                         gallery_name: Some(name.clone()),
-                        shop_id: Some(0),
+                        shop_id: Some(ctx.tenant_shop_id.unwrap_or(0)),
                         ..Default::default()
+                    };
+                    let scope = match ctx.tenant_shop_id {
+                        Some(t) => GalleryScope::shop(t),
+                        None => GalleryScope::platform(),
                     };
                     state
                         .content
                         .gallery
-                        .update(GalleryScope::platform(), &dto)
+                        .update(scope, &dto)
                         .await
                         .map_err(|e| e.to_string())?;
                     Ok(json!({ "groupId": group_id, "groupName": name }))
                 }
                 "group_delete" => {
                     let group_id = require_i32(args, "groupId")?;
+                    scope_check_gallery_group(&state.repos.pool, ctx, group_id).await?;
                     let mode = arg_str(args, "deleteMode")
                         .unwrap_or_else(|| "only_group".to_string());
                     let dto = GalleryDelDTO {
@@ -2261,7 +2515,9 @@ async fn call_tool(
                     if ids.is_empty() {
                         return Err("picIds 不能为空".into());
                     }
+                    scope_check_gallery_pics(&state.repos.pool, ctx, &ids).await?;
                     if let Some(gallery_id) = arg_i32(args, "galleryId") {
+                        scope_check_gallery_group(&state.repos.pool, ctx, gallery_id).await?;
                         state
                             .content
                             .gallery_pic
@@ -2294,6 +2550,7 @@ async fn call_tool(
                     if ids.is_empty() {
                         return Err("picIds 不能为空".into());
                     }
+                    scope_check_gallery_pics(&state.repos.pool, ctx, &ids).await?;
                     state
                         .content
                         .gallery_pic
@@ -2327,6 +2584,9 @@ async fn call_tool(
             );
             let content_type = mime.or_else(|| guess_image_mime(&file_name));
             let gallery_id = arg_i32(args, "galleryId").filter(|id| *id > 0);
+            if let Some(gid) = gallery_id {
+                scope_check_gallery_group(&state.repos.pool, ctx, gid).await?;
+            }
             let vo = state
                 .content
                 .gallery_pic
@@ -2336,8 +2596,8 @@ async fn call_tool(
                     bytes.len() as u64,
                     Some(&file_name),
                     &bytes,
-                    0,
-                    0,
+                    ctx.tenant_shop_id.unwrap_or(0),
+                    ctx.actor_id,
                 )
                 .await
                 .map_err(|e| e.to_string())?;
@@ -2352,6 +2612,7 @@ async fn call_tool(
                 decorate_type: Some("2".to_string()),
                 page: args.get("page").and_then(Value::as_u64),
                 page_size: args.get("size").and_then(Value::as_i64),
+                shop_id: ctx.tenant_shop_id,
                 ..Default::default()
             };
             let page = state
@@ -2367,6 +2628,7 @@ async fn call_tool(
                 return Err("装修域未启用".into());
             }
             let id = require_i32(args, "decorateId")?;
+            scope_check_decorate(&state.repos.pool, ctx, id).await?;
             let vo = state
                 .content
                 .decorate
@@ -2380,6 +2642,7 @@ async fn call_tool(
                 return Err("装修域未启用".into());
             }
             let id = require_i32(args, "decorateId")?;
+            scope_check_decorate(&state.repos.pool, ctx, id).await?;
             let data = args
                 .get("data")
                 .filter(|v| v.is_object())
@@ -2404,6 +2667,7 @@ async fn call_tool(
                 return Err("装修域未启用".into());
             }
             let id = require_i32(args, "decorateId")?;
+            scope_check_decorate(&state.repos.pool, ctx, id).await?;
             if settings.needs_approval(settings.require_approval_publish) && !approved {
                 let approval_id = create_approval(state, name, args).await?;
                 return Ok(pending(approval_id));
@@ -2445,9 +2709,11 @@ async fn call_tool(
                      COALESCE(SUM(total_amount), 0)::text AS amount
                      FROM \"order\"
                      WHERE pay_status = 1
-                       AND COALESCE(NULLIF(pay_time, 0), add_time) >= $1) t",
+                       AND COALESCE(NULLIF(pay_time, 0), add_time) >= $1
+                       AND ($2::int IS NULL OR shop_id = $2)) t",
             )
             .bind(since)
+            .bind(ctx.tenant_shop_id)
             .fetch_one(&state.repos.pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -2471,12 +2737,14 @@ async fn call_tool(
                      JOIN product p ON p.product_id = oi.product_id
                      WHERE o.pay_status = 1
                        AND COALESCE(NULLIF(o.pay_time, 0), o.add_time) >= $1
+                       AND ($3::int IS NULL OR p.shop_id = $3)
                      GROUP BY p.product_id, p.product_name, p.product_sn
                      ORDER BY SUM(oi.quantity) DESC
                      LIMIT $2) t",
             )
             .bind(since)
             .bind(limit)
+            .bind(ctx.tenant_shop_id)
             .fetch_all(&state.repos.pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -2493,10 +2761,12 @@ async fn call_tool(
                      SELECT product_id, product_name, product_sn, product_stock, product_price, product_status
                      FROM product
                      WHERE is_delete = 0 AND product_status = 1 AND product_stock <= $1
+                       AND ($3::int IS NULL OR shop_id = $3)
                      ORDER BY product_stock ASC LIMIT $2) p",
             )
             .bind(threshold)
             .bind(limit)
+            .bind(ctx.tenant_shop_id)
             .fetch_all(&state.repos.pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -2515,22 +2785,26 @@ async fn call_tool(
                 "SELECT to_jsonb(o) FROM \"order\" o
                  WHERE ($1::text IS NULL OR o.order_sn ILIKE $1 OR o.consignee ILIKE $1)
                    AND ($2::int IS NULL OR o.order_status = $2)
+                   AND ($5::int IS NULL OR o.shop_id = $5)
                  ORDER BY o.order_id DESC LIMIT $3 OFFSET $4",
             )
             .bind(kw.clone())
             .bind(status)
             .bind(size)
             .bind(offset)
+            .bind(ctx.tenant_shop_id)
             .fetch_all(&state.repos.pool)
             .await
             .map_err(|e| e.to_string())?;
             let total: (i64,) = sqlx::query_as(
                 "SELECT COUNT(*) FROM \"order\" o
                  WHERE ($1::text IS NULL OR o.order_sn ILIKE $1 OR o.consignee ILIKE $1)
-                   AND ($2::int IS NULL OR o.order_status = $2)",
+                   AND ($2::int IS NULL OR o.order_status = $2)
+                   AND ($3::int IS NULL OR o.shop_id = $3)",
             )
             .bind(kw)
             .bind(status)
+            .bind(ctx.tenant_shop_id)
             .fetch_one(&state.repos.pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -2542,6 +2816,7 @@ async fn call_tool(
                 return Err("订单域未启用".into());
             }
             let id = require_i32(args, "orderId")?;
+            scope_check_order(&state.repos.pool, ctx, id).await?;
             let head: Option<(Value,)> = sqlx::query_as(
                 "SELECT to_jsonb(o) FROM \"order\" o WHERE o.order_id = $1",
             )
@@ -2566,6 +2841,7 @@ async fn call_tool(
                 return Err("订单域未启用".into());
             }
             let id = require_i32(args, "orderId")?;
+            scope_check_order(&state.repos.pool, ctx, id).await?;
             let remark = args
                 .get("remark")
                 .and_then(Value::as_str)
@@ -2578,6 +2854,75 @@ async fn call_tool(
                 .await
                 .map_err(|e| e.to_string())?;
             Ok(json!({ "updatedRows": r.rows_affected() }))
+        }
+        "order_deliver" => {
+            if !settings.order_enabled {
+                return Err("订单域未启用".into());
+            }
+            let id = require_i32(args, "orderId")?;
+            scope_check_order(&state.repos.pool, ctx, id).await?;
+            // 未指定明细发货数量时，按订单明细的待发数量整单发货。
+            let deliver_data = match args.get("deliverData").and_then(Value::as_array) {
+                Some(items) => {
+                    let mut out = Vec::new();
+                    for item in items {
+                        let item_id = item
+                            .get("itemId")
+                            .and_then(Value::as_i64)
+                            .map(|v| v as i32)
+                            .ok_or_else(|| "deliverData 缺少 itemId".to_string())?;
+                        let qty = item
+                            .get("quantity")
+                            .and_then(Value::as_i64)
+                            .map(|v| v as i32)
+                            .ok_or_else(|| "deliverData 缺少 quantity".to_string())?;
+                        out.push(nextrade_core::models::trade::order_admin::DeliverInfo {
+                            item_id: Some(item_id),
+                            to_delivery_quantity: Some(qty),
+                        });
+                    }
+                    Some(out)
+                }
+                None => {
+                    let items: Vec<(i32, i32, i32)> = sqlx::query_as(
+                        "SELECT item_id, quantity, COALESCE(delivery_quantity, 0)
+                         FROM order_item WHERE order_id = $1 ORDER BY item_id",
+                    )
+                    .bind(id)
+                    .fetch_all(&state.repos.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                    let out: Vec<_> = items
+                        .into_iter()
+                        .filter(|(_, qty, delivered)| qty - delivered > 0)
+                        .map(|(item_id, qty, delivered)| {
+                            nextrade_core::models::trade::order_admin::DeliverInfo {
+                                item_id: Some(item_id),
+                                to_delivery_quantity: Some(qty - delivered),
+                            }
+                        })
+                        .collect();
+                    if out.is_empty() {
+                        return Err("订单没有待发货的商品".into());
+                    }
+                    Some(out)
+                }
+            };
+            let param = nextrade_core::models::trade::order_admin::DeliverOrderParam {
+                id: Some(id),
+                deliver_data,
+                logistics_id: arg_i32(args, "logisticsId"),
+                shipping_method: arg_i32(args, "shippingMethod"),
+                tracking_no: arg_str(args, "trackingNo"),
+                ..Default::default()
+            };
+            state
+                .trade
+                .order_admin
+                .deliver(&param)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok(json!({ "delivered": true, "orderId": id }))
         }
         "member_search" => {
             if !settings.member_enabled {

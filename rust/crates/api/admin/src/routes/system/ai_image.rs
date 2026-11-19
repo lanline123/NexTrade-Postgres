@@ -74,6 +74,12 @@ async fn load(state: &AdminState) -> Result<Value, AppError> {
             .map(|(_, v)| v.clone())
             .unwrap_or_default()
     };
+    // 设置页同样双读：注册表有蜂鸟渠道时以注册表为准展示。
+    let (reg_auth, reg_project) =
+        match crate::routes::ai_assistant::channels::fengniao_credentials(&state.repos.pool).await {
+            Some((a, p)) => (mask(&a), p),
+            None => (mask(&get("aiImageAuthorization")), get("aiImageProjectId")),
+        };
     Ok(json!({
         "enabled": get("aiImageEnabled") == "1",
         "provider": get("aiImageProvider"),
@@ -81,13 +87,27 @@ async fn load(state: &AdminState) -> Result<Value, AppError> {
         "secret": mask(&get("aiImageSecret")),
         "model": get("aiImageModel"),
         "translateEnabled": get("aiImageTranslateEnabled") == "1",
-        "authorization": mask(&get("aiImageAuthorization")),
-        "projectId": get("aiImageProjectId"),
+        "authorization": reg_auth,
+        "projectId": reg_project,
         "translateProductText": get("aiImageTranslateProductText") == "1",
         "mapProvider": get("mapProvider"),
         "amapWebKey": mask(&get("amapWebKey")),
         "amapWebSecret": mask(&get("amapWebSecret"))
     }))
+}
+
+
+/// 蜂鸟凭据双读（AI 助手 P1，DESIGN §8）：统一渠道注册表（kind=3 平台渠道 +
+/// 加密密钥库）优先，老 config 明文兜底；正式迁移与明文下线在 P2。
+async fn resolve_fengniao(
+    state: &AdminState,
+    cfg_auth: String,
+    cfg_project: String,
+) -> (String, String) {
+    match crate::routes::ai_assistant::channels::fengniao_credentials(&state.repos.pool).await {
+        Some(pair) => pair,
+        None => (cfg_auth, cfg_project),
+    }
 }
 
 fn mask(v: &str) -> String {
@@ -195,8 +215,12 @@ async fn translate(
     if get("aiImageEnabled") != "1" {
         return Err(AppError(Error::biz(400, "AI图片处理功能未启用")));
     }
-    let authorization = get("aiImageAuthorization");
-    let project_id = get("aiImageProjectId");
+    let (authorization, project_id) = resolve_fengniao(
+        &state,
+        get("aiImageAuthorization"),
+        get("aiImageProjectId"),
+    )
+    .await;
     if authorization.is_empty() || project_id.is_empty() {
         return Err(AppError(Error::biz(
             400,
@@ -341,8 +365,12 @@ async fn inpaint(
     if get("aiImageEnabled") != "1" {
         return Err(AppError(Error::biz(400, "AI图片处理功能未启用")));
     }
-    let authorization = get("aiImageAuthorization");
-    let project_id = get("aiImageProjectId");
+    let (authorization, project_id) = resolve_fengniao(
+        &state,
+        get("aiImageAuthorization"),
+        get("aiImageProjectId"),
+    )
+    .await;
     if authorization.is_empty() || project_id.is_empty() {
         return Err(AppError(Error::biz(
             400,

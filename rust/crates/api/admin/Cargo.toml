@@ -12,6 +12,7 @@ nextrade-infrastructure = { path = "../../infrastructure" }
 nextrade-security = { path = "../../security" }
 nextrade-services = { path = "../../services" }
 nextrade-openapi = { path = "../openapi" }
+aes-gcm.workspace = true
 axum.workspace = true
 axum-extra.workspace = true
 tower.workspace = true

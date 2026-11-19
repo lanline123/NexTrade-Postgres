@@ -1,6 +1,7 @@
 //! 管理端路由，按限界上下文分组。
 
 pub mod analytics;
+pub mod ai_assistant;
 pub mod ai_mcp;
 pub mod catalog;
 pub mod content;
@@ -49,6 +50,7 @@ pub fn merge_all(state: &AdminState) -> Router<AdminState> {
         .merge(supply_chain::routes(state))
         .merge(shop_group::routes(state))
         .merge(ai_mcp::routes(state))
+        .merge(ai_assistant::routes(state))
 }
 
 /// 汇总所有免登录路由（`router()` 单独 nest 到 `/adminapi`）。

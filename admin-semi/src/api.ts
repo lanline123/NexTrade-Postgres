@@ -226,6 +226,52 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return json.data as T;
 }
 
+/** PUT 请求（与 apiPost 同信封/同鉴权头）。 */
+export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
+  if (!path.startsWith('/')) path = `/${path}`;
+  const res = await fetch(`${resolveBase(path)}${path}`, {
+    method: 'PUT',
+    headers: requestHeaders(path, {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${getToken()}`,
+      ...getContextHeaders(),
+    }),
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const json = await readJson(res);
+  if (res.status === 401 || json.code === 401) {
+    clearToken();
+    window.location.reload();
+    throw new Error('登录已过期，请重新登录');
+  }
+  if (!res.ok || json.code !== 0) {
+    throw new Error(json.msg || '请求失败');
+  }
+  return json.data as T;
+}
+
+/** DELETE 请求（与 apiPost 同信封/同鉴权头）。 */
+export async function apiDelete<T>(path: string): Promise<T> {
+  if (!path.startsWith('/')) path = `/${path}`;
+  const res = await fetch(`${resolveBase(path)}${path}`, {
+    method: 'DELETE',
+    headers: requestHeaders(path, {
+      Authorization: `Bearer ${getToken()}`,
+      ...getContextHeaders(),
+    }),
+  });
+  const json = await readJson(res);
+  if (res.status === 401 || json.code === 401) {
+    clearToken();
+    window.location.reload();
+    throw new Error('登录已过期，请重新登录');
+  }
+  if (!res.ok || json.code !== 0) {
+    throw new Error(json.msg || '请求失败');
+  }
+  return json.data as T;
+}
+
 /** GET 下载（导出 Excel 等 arraybuffer 接口），filename 不含扩展名时后端 Content-Type 决定。 */
 export async function apiDownload(path: string, params?: Record<string, unknown>, filename?: string) {
   const [rawBasePath, existingQs] = path.split('?');
