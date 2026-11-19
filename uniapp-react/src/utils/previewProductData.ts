@@ -64,24 +64,25 @@ return true;
 */
 export function repairPreviewPrices<T extends Record<string, any>>(record: T): T {
 if (!priceMap ||!record || typeof record!== "object") return record;
-const id = record.productId?? record.id;
+const rec = record as Record<string, any>;
+const id = rec.productId?? rec.id;
 if (id === null || id === undefined) return record;
 const real = priceMap.get(String(id));
 if (!real) return record;
 let touched = false;
 for (const key of PREVIEW_PRICE_KEYS) {
 if (
-(record[key] === null || record[key] === undefined) &&
+(rec[key] === null || rec[key] === undefined) &&
 real[key]!== null &&
 real[key]!== undefined
 ) {
-(record as Record<string, any>)[key] = real[key];
+rec[key] = real[key];
 touched = true;
 }
 }
 if (touched) {
-if (record.priceVisible === false) (record as Record<string, any>).priceVisible = true;
-if ("priceGate" in record) delete record.priceGate;
+if (rec.priceVisible === false) rec.priceVisible = true;
+if ("priceGate" in rec) delete rec.priceGate;
 }
 return record;
 }
