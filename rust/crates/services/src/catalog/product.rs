@@ -138,6 +138,26 @@ impl ProductService {
         }
     }
 
+    /// 目标商品/型号是否命中询价（与 [`Self::check_purchasable`] 的
+    /// 询价禁购同口径）：商品级或目标型号级任一开启询价即命中。
+    /// 购买门控的询价豁免判定共用此口径（2026-11-20 裁定）。
+    ///
+    /// # Errors
+    /// - 仓储失败 ⇒ `Error::Database`
+    pub async fn is_inquiry_target(&self, product_id: i32, sku_id: Option<i32>) -> Result<bool> {
+        let Some(p) = self.repos.catalog.product.find_by_id(product_id).await? else {
+            return Ok(false);
+        };
+        if p.is_inquiry == 1 {
+            return Ok(true);
+        }
+        if let Some(sid) = sku_id {
+            let skus = self.repos.catalog.product.find_skus(product_id).await?;
+            return Ok(skus.iter().any(|s| s.sku_id == sid && s.is_inquiry == 1));
+        }
+        Ok(false)
+    }
+
     /// 下单前校验可购买性。
     pub async fn check_purchasable(
         &self,
@@ -159,17 +179,9 @@ impl ProductService {
             return Err(Error::biz(400, "商品已下架".to_string()));
         }
         // 询价禁购（2026-11-15）：商品级或目标型号级任一开启询价即拒绝，
-        // 本校验为加购/改量/结算/下单共用，只藏前端按钮挡不住直接调接口。
-        if let Some(p) = self.repos.catalog.product.find_by_id(product_id).await? {
-            if p.is_inquiry == 1 {
-                return Err(Error::biz(400, MSG_INQUIRY_NOT_PURCHASABLE.to_string()));
-            }
-            if let Some(sid) = sku_id {
-                let skus = self.repos.catalog.product.find_skus(product_id).await?;
-                if skus.iter().any(|s| s.sku_id == sid && s.is_inquiry == 1) {
-                    return Err(Error::biz(400, MSG_INQUIRY_NOT_PURCHASABLE.to_string()));
-                }
-            }
+        // 本校验为加购/结算/下单共用，只藏前端按钮挡不住直接调接口。
+        if self.is_inquiry_target(product_id, sku_id).await? {
+            return Err(Error::biz(400, MSG_INQUIRY_NOT_PURCHASABLE.to_string()));
         }
         if !self
             .repos.catalog.product
