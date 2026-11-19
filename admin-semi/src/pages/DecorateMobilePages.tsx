@@ -302,6 +302,15 @@ export function ThemeStyle() {
  * 搜索页/商品详情页），每签只列该 pageType 的页面；新建带当前签 pageType；
  * 默认页（isHome=1）有标记且不可删，可通过「更换」弹窗或行内「设为默认」
  * 调用 /decorate/decorate/setHome 切换（后端会先清同类型旧标记）。
+ * 删除口径（对齐原版 List.vue + DeleteRecord + api/decorate/mobileDecorate.ts）：
+ * 单删仅非默认页显示，确认文案「您确认要删除该数据吗？」→ POST /decorate/decorate/del；
+ * 批量删除为工具栏勾选 + 确认「您确认要批量删除所选数据吗？」→
+ * POST /decorate/decorate/batch {type:'del', ids}。
+ * 【原版有·我方改口径】默认页批删护栏（用户 2026-11-19 拍板）：原版批删不排除
+ * 默认页、后端 del/batch 亦无 isHome 护栏（原版 DecorateServiceImpl#del/batch 仅
+ * super.del/super.batch + 失效首页缓存）；我方新增——默认页（isHome=1）行勾选框
+ * 禁用、批删提交前混入默认页整批拦截并提示、后端 batch 对含默认页 id 的请求整批
+ * 拒绝报错。单删后端仍无 isHome 校验（与原版一致，靠前端不显示入口），本次未动。
  * labels: 页面名称, 发布状态, 更新时间, 操作
  * props: decorateId, status, updateTime, bingdingH5Name
  * ========================================================================= */
@@ -491,6 +500,29 @@ export function MobileDecoratePageList({
     }
   };
 
+  // 批量删除（对齐原版 List.vue 工具栏「批量删除」：勾选后 popconfirm 确认，
+  // 调 batchSubmit('del', { ids }) → /decorate/decorate/batch {type:'del', ids}）
+  const batchRemove = async (rows: any[], clear: () => void) => {
+    // 【我方改口径护栏】默认页不可批删：正常路径下默认页行勾选框已禁用
+    // （rowSelectable），此处为提交前兜底——混入默认页则整批拦截、不调接口，
+    // 与后端 batch「含默认页整批拒绝」口径一致
+    if (rows.some((row) => Number(row?.isHome) === 1)) {
+      Toast.error(t('所选页面包含默认页，默认页不可删除，已取消本次批量删除'));
+      return;
+    }
+    try {
+      await apiPost('/decorate/decorate/batch', {
+        type: 'del',
+        ids: rows.map((row) => row.decorateId),
+      });
+      Toast.success(t('操作成功'));
+      clear();
+      refresh();
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : t('删除失败'));
+    }
+  };
+
   return (
     <div>
       <ListPage
@@ -500,6 +532,15 @@ export function MobileDecoratePageList({
         rowKey="decorateId"
         columns={columns}
         showEdit={false}
+        selectable
+        rowSelectable={(row: any) => Number(row?.isHome) !== 1}
+        batchActions={(rows, clear) => (
+          <Popconfirm title={t('您确认要批量删除所选数据吗？')} onConfirm={() => batchRemove(rows, clear)}>
+            <Button size="small" type="danger">
+              {t('批量删除')}
+            </Button>
+          </Popconfirm>
+        )}
         rowActions={(row: any) => (
           <Space>
             <Button
@@ -541,7 +582,7 @@ export function MobileDecoratePageList({
               </Popconfirm>
             )}
             {row.isHome !== 1 && (
-              <Popconfirm title={t('确定删除？')} onConfirm={() => removeRow(row)}>
+              <Popconfirm title={t('您确认要删除该数据吗？')} onConfirm={() => removeRow(row)}>
                 <Button theme="borderless" type="danger" size="small">
                   {t('删除')}
                 </Button>

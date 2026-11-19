@@ -94,6 +94,7 @@ export default function ListPage<T extends Record<string, any>>({
   showEdit = true,
   actionWidth = 160,
   selectable = false,
+  rowSelectable,
   batchActions,
   filterLayout = 'inline',
   onDataLoaded,
@@ -429,6 +430,15 @@ export default function ListPage<T extends Record<string, any>>({
               ? {
                   selectedRowKeys: selectedKeys,
                   onChange: (keys) => setSelectedKeys((keys || []) as Array<string | number>),
+                  // 逐行禁用勾选（如默认页不可批删）：rowSelectable 返回 false 的行
+                  // 勾选框禁用、全选亦不纳入（Semi getCheckboxProps 口径）
+                  ...(rowSelectable
+                    ? {
+                        getCheckboxProps: (record: Record<string, any>) => ({
+                          disabled: !rowSelectable(record as T),
+                        }),
+                      }
+                    : {}),
                 }
               : undefined
           }

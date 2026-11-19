@@ -100,6 +100,8 @@ export interface ListPageProps<T = any> {
   showEdit?: boolean;
   actionWidth?: number;
   selectable?: boolean;
+  /** 逐行可选判定：返回 false 的行勾选框禁用（不进可选集）；不传则全部可选。 */
+  rowSelectable?: (row: T) => boolean;
   batchActions?: (selectedRows: T[], clear: () => void) => ReactNode;
   filterLayout?: 'inline' | 'popover';
   onDataLoaded?: (info: { total: number; rows: T[] }) => void;

@@ -44,6 +44,12 @@ const DEFAULT_SHOP_ID: i32 = 0;
 /// 复制页标题后缀（`DecorateServiceImpl#generateCopyTitle`）。
 const COPY_SUFFIX: &str = "-副本";
 
+/// 默认页判定：`is_home = 1` 的装修页为其页面类型的默认页。
+/// 批删护栏（我方改口径，见 `DecorateService::batch`）与前端勾选禁用共用此口径。
+fn is_home_page(row: &Decorate) -> bool {
+    row.is_home.unwrap_or(0) == 1
+}
+
 pub struct DecorateService {
     repos: Arc<Repositories>,
 }
@@ -287,14 +293,27 @@ impl DecorateService {
     }
 
     /// 批量操作，对应 `BaseServiceImpl#batch`（当前支持 `type = "del"` 批量删除）。
+    ///
+    /// 【原版有·我方改口径】默认页批删护栏（用户 2026-11-19 拍板）：原版
+    /// `DecorateServiceImpl#batch` 无任何 isHome 护栏（仅 `super.batch`），批删
+    /// 勾中默认页可直接删掉；我方在 del 分支新增护栏——ids 中任一页面为默认页
+    /// （`is_home = 1`）即整批拒绝、不做部分删除（与下方归属校验「任一越权 →
+    /// 整批拒绝」的既有口径一致）。单删 `del` 不加此护栏（与原版一致：其默认页
+    /// 保护仅靠前端不显示单删入口）。
     pub async fn batch(&self, dto: &BatchDTO) -> Result<bool> {
         let ids = dto.ids.clone().unwrap_or_default();
         match dto.r#type.as_deref() {
             Some("del") => {
-                // 多租户：先整体校验归属（任一越权 → 403，不做部分删除）
+                // 多租户：先整体校验归属（任一越权 → 403，不做部分删除）；
+                // 同一趟顺带查默认页护栏（任一命中 → 整批拒绝，不做部分删除）
                 for id in &ids {
                     if let Some(row) = self.repos.content.decorate.find_by_id(*id).await? {
                         ensure_media_write(row.shop_id)?;
+                        if is_home_page(&row) {
+                            return Err(Error::Validation(format!(
+                                "默认页不可删除（页面ID {id}），已取消本次批量删除"
+                            )));
+                        }
                     }
                 }
                 Ok(self.repos.content.decorate.delete_batch(&ids).await? > 0)
@@ -1935,6 +1954,18 @@ mod tests {
         assert_eq!(m["frame"]["boxRadius"], 8);
         // frame 缺失键被回填
         assert_eq!(m["frame"]["boxPadding"], 10);
+    }
+
+    #[test]
+    fn batch_del_home_page_guard_predicate() {
+        // 我方改口径护栏（用户 2026-11-19 拍板）：仅 is_home = 1 视为默认页受保护
+        let mut row = Decorate::default();
+        row.is_home = Some(1);
+        assert!(is_home_page(&row));
+        row.is_home = Some(0);
+        assert!(!is_home_page(&row));
+        row.is_home = None;
+        assert!(!is_home_page(&row));
     }
 
     #[test]
