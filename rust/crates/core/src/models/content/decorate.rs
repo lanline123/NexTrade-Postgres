@@ -88,6 +88,11 @@ pub struct DecorateListQuery {
     pub page_type: Option<String>,
     pub parent_id: Option<i32>,
     pub status: Option<i32>,
+    /// 店铺精确筛选【我方新增】：移动装修管理页的店铺下拉选中值。
+    /// 不传 = 全部店铺（与既有多租户可见口径一致）；传了（含 0=平台）
+    /// 按 `shop_id = ?` 精确过滤，与 keyword/decorateType/pageType 条件 AND。
+    /// 注意与仓储层 `DecorateFilter.shop_id` 的租户可见口径不同，勿混用。
+    pub shop_id: Option<i32>,
     pub sort_field: Option<String>,
     pub sort_order: Option<String>,
     pub page: Option<u64>,
@@ -154,6 +159,10 @@ pub struct DecorateVO {
     pub page_type: Option<i32>,
     pub is_home: Option<i32>,
     pub shop_id: Option<i32>,
+    /// 店铺名【我方新增】：服务层按 `shop_id` 回填 `shop.shop_title`；
+    /// `shop_id = 0` 固定为「平台」（shop 表平台行标题为脏数据，不可直用），
+    /// 查不到店铺行时为 `None`，前端回退显示店铺 ID。
+    pub shop_name: Option<String>,
     /// 1:已发布 0:未发布
     pub status: Option<i32>,
     /// 更新时间（毫秒时间戳）
@@ -183,6 +192,8 @@ impl From<&Decorate> for DecorateVO {
             page_type: Some(d.page_type),
             is_home: d.is_home,
             shop_id: Some(d.shop_id),
+            // 店铺名由服务层 to_vos 按 shop_id 批量回填，这里先置空
+            shop_name: None,
             status: d.status,
             update_time: ms(d.update_time),
             sort_order: d.sort_order,
@@ -195,6 +206,19 @@ impl From<&Decorate> for DecorateVO {
             children: None,
         }
     }
+}
+
+/// 装修页店铺筛选选项【我方新增】（`GET /decorate/decorate/shopOptions`）。
+///
+/// 来源为 `decorate` 表按 `shop_id` 的 distinct 聚合（join `shop.shop_title`），
+/// 只含真正有装修页的店铺；`shop_id = 0` 的 `shop_name` 固定为「平台」。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecorateShopOptionVO {
+    pub shop_id: i32,
+    pub shop_name: Option<String>,
+    /// 该店铺在当前 decorateType 下的装修页数量（parent_id = 0）
+    pub page_count: i64,
 }
 
 /// 创建装修页请求，对应 Java `DecorateCreateDTO`。
@@ -771,6 +795,21 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(q.decorate_types(), vec![1, 2]);
+    }
+
+    #[test]
+    fn list_query_accepts_shop_id_filter() {
+        // 店铺筛选【我方新增】：shopId 精确过滤入参可解析，缺省为 None（全部）
+        let q: DecorateListQuery = serde_json::from_str(r#"{"shopId":1667501125,"pageType":"1"}"#)
+            .expect("shopId 入参应可解析");
+        assert_eq!(q.shop_id, Some(1667501125));
+        let q_all: DecorateListQuery =
+            serde_json::from_str(r#"{"pageType":"1"}"#).expect("无 shopId 应可解析");
+        assert_eq!(q_all.shop_id, None);
+        // 平台 shop_id = 0 是合法筛选值，不得被当作缺省丢弃
+        let q_platform: DecorateListQuery =
+            serde_json::from_str(r#"{"shopId":0}"#).expect("shopId=0 应可解析");
+        assert_eq!(q_platform.shop_id, Some(0));
     }
 
     #[test]
