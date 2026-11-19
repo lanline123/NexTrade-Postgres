@@ -27,7 +27,8 @@ use serde::Deserialize;
 use nextrade_core::models::content::decorate::{
     DecorateCreateDTO, DecorateDiscreteUpdateParam, DecorateDiscreteVO, DecorateListQuery,
     DecorateMemberDataVO, DecorateSaveDTO, DecorateShareInfoDTO, DecorateShareInfoVO,
-    DecorateShareListQuery, DecorateShareVO, DecorateUpdateDTO, DecorateVO, PcCatFloorCreateDTO,
+    DecorateShareListQuery, DecorateShareVO, DecorateShopOptionVO, DecorateUpdateDTO, DecorateVO,
+    PcCatFloorCreateDTO,
     PcCatFloorListQuery, PcCatFloorUpdateDTO, PcCatFloorVO, PcNavTreeVO, PcNavigationCreateDTO,
     PcNavigationListQuery, PcNavigationUpdateDTO, PcNavigationVO,
 };
@@ -42,6 +43,8 @@ pub fn routes(_state: &AdminState) -> Router<AdminState> {
     Router::new()
         // 装修页 DecorateController
         .route("/decorate/decorate/list", get(decorate_list))
+        // 店铺筛选选项【我方新增】：decorate 表 distinct 店铺（只读）
+        .route("/decorate/decorate/shopOptions", get(decorate_shop_options))
         .route("/decorate/decorate/detail", get(decorate_detail))
         .route("/decorate/decorate/create", post(decorate_create))
         .route("/decorate/decorate/update", post(decorate_update))
@@ -141,6 +144,11 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
             "GET",
             "/adminapi/decorate/decorate/list",
             "DecorateController.list",
+        ),
+        (
+            "GET",
+            "/adminapi/decorate/decorate/shopOptions",
+            "DecorateController.shopOptions",
         ),
         (
             "GET",
@@ -458,6 +466,18 @@ async fn decorate_list(
     Query(q): Query<DecorateListQuery>,
 ) -> ApiResult<PageResult<DecorateVO>> {
     ok(state.content.decorate.list(&q).await?)
+}
+
+/// `GET /adminapi/decorate/decorate/shopOptions`：店铺筛选选项【我方新增】。
+///
+/// 返回当前账号可见范围内有装修页的店铺 distinct 列表
+/// （`{shopId, shopName, pageCount}`，shopId=0 的 shopName 为「平台」），
+/// 供移动装修管理页的店铺下拉使用；`decorateType` 透传列表口径。
+async fn decorate_shop_options(
+    State(state): State<AdminState>,
+    Query(q): Query<DecorateListQuery>,
+) -> ApiResult<Vec<DecorateShopOptionVO>> {
+    ok(state.content.decorate.shop_options(&q).await?)
 }
 
 /// `GET /adminapi/decorate/decorate/detail`：装修页详情。
