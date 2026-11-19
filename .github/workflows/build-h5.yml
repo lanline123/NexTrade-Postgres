@@ -1,0 +1,88 @@
+name: build-h5-frontend
+
+# 在 GitHub Actions（Linux）上构建移动端 H5（uniapp-react，Taro），产出可部署的静态 dist 包。
+# 手动触发，产物同时上传 Artifact 和 Release 资产。
+#
+# 2026-11-19 新增：此前 H5 没有任何 CI 出包通道，线上 /mobile 只能本地 build 后上传；
+# 用户口径改为构建全部走 GitHub、前端热更新（只换静态产物，不重启后端）。
+# 门禁只跑 typecheck（vitest 太慢且本地已全绿），不跑测试套件。
+on:
+workflow_dispatch:
+
+permissions:
+contents: write
+
+jobs:
+build:
+runs-on: ubuntu-22.04
+steps:
+- uses: actions/checkout@v4
+
+- uses: actions/setup-node@v4
+with:
+node-version: 22
+cache: npm
+cache-dependency-path: uniapp-react/package-lock.json
+
+- name: Install deps
+working-directory: uniapp-react
+run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+- name: Typecheck
+working-directory: uniapp-react
+run: npm run typecheck
+
+- name: Build uniapp-react H5
+working-directory: uniapp-react
+env:
+NODE_OPTIONS: --max-old-space-size=4096
+run: npm run build:h5
+
+- name: Package dist
+working-directory: uniapp-react
+run: |
+set -euo pipefail
+test -f dist/index.html || { echo "dist/index.html missing"; ls -la; exit 1;}
+test -d dist/static/mini || { echo "dist/static/mini missing (copy.patterns?)"; ls dist; exit 1;}
+ENTRY=$(basename "$(ls dist/js/app.*.js | head -n 1)")
+echo "entry: ${ENTRY}"
+cat > /tmp/DEPLOY_INFO.txt <<EOF
+commit ${GITHUB_SHA}
+build ${GITHUB_RUN_NUMBER}
+entry ${ENTRY}
+EOF
+tar -czf /tmp/nextrade-h5.tgz -C dist.
+sha256sum /tmp/nextrade-h5.tgz > /tmp/nextrade-h5.tgz.sha256
+ls -lh /tmp/nextrade-h5.tgz
+cat /tmp/nextrade-h5.tgz.sha256
+cat /tmp/DEPLOY_INFO.txt
+
+- uses: actions/upload-artifact@v4
+with:
+name: nextrade-h5-dist
+path: |
+/tmp/nextrade-h5.tgz
+/tmp/nextrade-h5.tgz.sha256
+/tmp/DEPLOY_INFO.txt
+if-no-files-found: error
+
+- name: Publish release
+env:
+GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+run: |
+set -euo pipefail
+TAG="h5-build-${GITHUB_RUN_NUMBER}"
+AUTH="Authorization: Bearer ${GH_TOKEN}"
+API="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+curl -fsS -X POST -H "${AUTH}" -H "Accept: application/vnd.github+json" \
+"${API}/releases" \
+-d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"body\":\"uniapp-react commit ${GITHUB_SHA}\"}" \
+-o /tmp/release.json
+RID=$(node -e "console.log(require('/tmp/release.json').id)")
+curl -fsS -X POST -H "${AUTH}" -H "Content-Type: application/octet-stream" \
+--data-binary @/tmp/nextrade-h5.tgz \
+"https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RID}/assets?name=nextrade-h5.tgz"
+curl -fsS -X POST -H "${AUTH}" -H "Content-Type: application/octet-stream" \
+--data-binary @/tmp/nextrade-h5.tgz.sha256 \
+"https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RID}/assets?name=nextrade-h5.tgz.sha256"
+echo "release: ${TAG}"
