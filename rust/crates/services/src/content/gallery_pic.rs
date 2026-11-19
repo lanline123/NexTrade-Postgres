@@ -25,6 +25,9 @@
 //! - `batchDownload`：zip 打包 + 远程下载未迁移，明确报错。
 //! - `selectFile` / `translateProductPic`：非本控制器端点，不实现。
 //! - `picOwerId` 取 JWT `AuthUser.id`（替代 `SecurityUtils.getCurrentAdminId()`）。
+//! - WebP/SVG（本平台扩展，Tigshop v5.8.65）：外链扩展名放行 webp/svg；
+//!   SVG 上传与外链导入均经 `sanitize_svg` 净化（外链 SVG 下载净化后转存
+//!   自有存储，不直存远程地址），SVG 的 pic_thumb 回退原图 URL。
 //! - `gallery_pic.shop_id` 由 scope 注入（Java `getShopId()`，`None` → 0）。
 
 use std::sync::Arc;
@@ -33,8 +36,9 @@ use nextrade_common::utils::{now_seconds, pic_thumb_200};
 use nextrade_core::entities::{Gallery, GalleryPic, GalleryVideoInfo};
 use nextrade_core::models::content::gallery::{GalleryDTO, GalleryScope};
 use nextrade_core::models::content::gallery_pic::{
-    is_video_type, resolve_gallery_pic_field, resolve_sort, validate_external_url,
-    validate_upload_file, GalleryListResVO, GalleryPicBatchDTO, GalleryPicDTO, GalleryPicExternalDTO,
+    is_svg_upload, is_video_type, resolve_gallery_pic_field, resolve_sort, sanitize_svg,
+    validate_external_url, validate_upload_file, GalleryListResVO, GalleryPicBatchDTO,
+    GalleryPicDTO, GalleryPicExternalDTO,
     GalleryPicListQuery, GalleryPicResVO, GalleryPicSortDTO, GalleryPicTransferDTO,
     GalleryPicUploadVO, OperateDTO, UpdateFieldDTO, ALLOWED_IMAGE_EXTENSIONS,
     CHILD_PREVIEW_PIC_LIMIT, CONFIG_IMAGE_UPLOAD_MAX_SIZE, DEFAULT_EXTERNAL_PIC_NAME,
@@ -304,11 +308,41 @@ impl GalleryPicService {
             ensure_media_write(gallery.shop_id)?;
         }
         let shop_id = media_write_shop_id(scope.shop_id)?;
+        // 本平台扩展（v5.8.65）：SVG 外链不直存远程地址——远程 SVG 可能含
+        // 脚本，须下载 → 大小校验 → 净化 → 转存自有存储后才落库；净化或
+        // 下载失败即拒绝导入。其余格式沿 Java 口径只存外链地址。
+        let mut stored_url = pic_url.to_string();
+        let mut stored_size: Option<i64> = None;
+        if ext == "svg" {
+            let max_size = self
+                .repo()
+                .find_config_value(CONFIG_IMAGE_UPLOAD_MAX_SIZE)
+                .await?
+                .unwrap_or_else(|| DEFAULT_IMAGE_UPLOAD_MAX_SIZE.to_string());
+            let raw = read_url_bytes(pic_url).await?;
+            validate_upload_file(
+                Some("image/svg+xml"),
+                raw.len() as u64,
+                &max_size,
+            )
+            .map_err(|(code, message)| Error::biz(code, message))?;
+            let clean = sanitize_svg(&raw).map_err(Error::biz_msg)?;
+            let file_name = pic_url
+                .split(['?', '#'])
+                .next()
+                .and_then(|path| path.rsplit('/').next())
+                .filter(|name| name.to_ascii_lowercase().ends_with(".svg"))
+                .unwrap_or("external.svg");
+            stored_url =
+                nextrade_infrastructure::storage::save_local_upload("gallery", file_name, &clean)
+                    .await?;
+            stored_size = Some(i64::try_from(clean.len()).unwrap_or(i64::MAX));
+        }
         let pic_thumb = dto
             .pic_thumb
             .clone()
             .filter(|thumb| !thumb.trim().is_empty())
-            .unwrap_or_else(|| pic_url.to_string());
+            .unwrap_or_else(|| stored_url.clone());
         let pic_name = dto
             .pic_name
             .clone()
@@ -319,7 +353,7 @@ impl GalleryPicService {
             shop_id,
             gallery_id,
             pic_ower_id: admin_id.unwrap_or(0),
-            pic_url: pic_url.to_string(),
+            pic_url: stored_url,
             pic_name,
             pic_thumb,
             // Java `String.valueOf(getCurrentTime())`：秒级时间戳字符串
@@ -328,7 +362,7 @@ impl GalleryPicService {
             hidden: Some(0),
             pic_width: None,
             pic_height: None,
-            pic_size: None,
+            pic_size: stored_size,
             file_type: (!ext.is_empty()).then_some(ext),
             pic_sort: None,
             source: "external".to_string(),
@@ -376,13 +410,27 @@ impl GalleryPicService {
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .unwrap_or("upload.jpg");
-        let url = nextrade_infrastructure::storage::save_local_upload("gallery", original, bytes)
-            .await?;
         let ext = std::path::Path::new(original)
             .extension()
             .and_then(|e| e.to_str())
             .map(|e| e.to_ascii_lowercase())
             .unwrap_or_else(|| "jpg".to_string());
+        // 本平台扩展（v5.8.65）：SVG 入库前必须净化（剥离脚本/事件/危险
+        // 链接），净化失败整体拒绝；实际落盘与计大小均以净化后字节为准。
+        let stored: std::borrow::Cow<'_, [u8]> =
+            if is_svg_upload(content_type, Some(original)) {
+                std::borrow::Cow::Owned(
+                    sanitize_svg(bytes).map_err(Error::biz_msg)?,
+                )
+            } else {
+                std::borrow::Cow::Borrowed(bytes)
+            };
+        let url = nextrade_infrastructure::storage::save_local_upload(
+            "gallery",
+            original,
+            &stored,
+        )
+        .await?;
 
         let pic = GalleryPic {
             pic_id: 0,
@@ -393,13 +441,19 @@ impl GalleryPicService {
             pic_name: original.to_string(),
             // Java `GalleryPicServiceImpl#createPic`：上传落库时即生成缩略图
             // （picUrl + size_200 后缀）；此前直抄 url 写裸 thumb，为存量裸值源头。
-            pic_thumb: pic_thumb_200(&url),
+            // 本平台扩展：SVG 无法栅格化，pic_thumb 回退原图 URL（pic_thumb_200
+            // 对 .svg 本身亦原样返回，此处显式分支以免口径漂移）。
+            pic_thumb: if ext == "svg" {
+                url.clone()
+            } else {
+                pic_thumb_200(&url)
+            },
             add_time: now_seconds().to_string(),
             vendor_id: 0,
             hidden: Some(0),
             pic_width: None,
             pic_height: None,
-            pic_size: Some(i64::try_from(size).unwrap_or(i64::MAX)),
+            pic_size: Some(i64::try_from(stored.len()).unwrap_or(i64::MAX)),
             file_type: Some(ext),
             pic_sort: None,
             source: "upload".to_string(),

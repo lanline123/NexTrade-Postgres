@@ -1281,7 +1281,12 @@ fn build_media_name(explicit: Option<&str>, url: Option<&str>, mime: Option<&str
     let ext = mime
         .and_then(|value| value.split('/').nth(1))
         .unwrap_or("jpg");
-    let ext = if ext == "jpeg" { "jpg" } else { ext };
+    let ext = match ext {
+        "jpeg" => "jpg",
+        // image/svg+xml 的子类型是 svg+xml，落文件名须归一为 svg
+        "svg+xml" => "svg",
+        other => other,
+    };
     format!("ai-upload.{ext}")
 }
 
@@ -1292,6 +1297,7 @@ fn guess_image_mime(file_name: &str) -> Option<String> {
         "png" => "image/png",
         "gif" => "image/gif",
         "webp" => "image/webp",
+        "svg" => "image/svg+xml",
         "tif" | "tiff" => "image/tiff",
         _ => return None,
     };

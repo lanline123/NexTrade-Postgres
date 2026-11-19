@@ -57,6 +57,9 @@ use nextrade_core::models::member::user_center::{
     ModifyMobileParam, OrderItemVO, RankRight, UpdateInformationDTO, UploadVideoInfoVO,
     UserLevelInfoVO, UserLevelListVO, UserRankConfigVO, UserRankJsonVO, UserRankListVO,
 };
+use nextrade_core::models::content::gallery_pic::{
+    is_svg_upload, sanitize_svg, ERR_SVG_INVALID,
+};
 use nextrade_core::types::PageResult;
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::repo::member::user_center::{ProductFlag, UserCenterRepository};
@@ -1138,8 +1141,11 @@ impl UserCenterService {
     ) -> Result<GalleryPicUploadVO> {
         require_upload_file(file_name, bytes)?;
         let name = file_name.unwrap_or("file");
+        // 本平台扩展（v5.8.65）：本通道原本无类型白名单，SVG 若含脚本直存
+        // 会形成存储型 XSS；命中 SVG 时先净化，失败即拒绝（证件分流同理）。
+        let stored = sanitize_public_svg(Some(name), bytes)?;
         if purpose.is_some_and(|p| p.trim().eq_ignore_ascii_case("cert")) {
-            let url = nextrade_infrastructure::storage::save_cert_upload(name, bytes).await?;
+            let url = nextrade_infrastructure::storage::save_cert_upload(name, &stored).await?;
             return Ok(GalleryPicUploadVO {
                 pic_thumb: url.clone(),
                 pic_url: url,
@@ -1147,12 +1153,12 @@ impl UserCenterService {
                 pic_id: 0,
                 pic_width: 0,
                 pic_height: 0,
-                pic_size: bytes.len() as i64,
+                pic_size: stored.len() as i64,
                 gallery_id: 0,
                 file_type: "image".to_string(),
             });
         }
-        let url = nextrade_infrastructure::storage::save_local_upload("gallery", name, bytes).await?;
+        let url = nextrade_infrastructure::storage::save_local_upload("gallery", name, &stored).await?;
         Ok(GalleryPicUploadVO {
             pic_thumb: url.clone(),
             pic_url: url,
@@ -1160,7 +1166,7 @@ impl UserCenterService {
             pic_id: 0,
             pic_width: 0,
             pic_height: 0,
-            pic_size: bytes.len() as i64,
+            pic_size: stored.len() as i64,
             gallery_id: 0,
             file_type: "image".to_string(),
         })
@@ -1190,7 +1196,8 @@ impl UserCenterService {
     pub async fn modify_avatar(&self, file_name: Option<&str>, bytes: &[u8]) -> Result<()> {
         require_upload_file(file_name, bytes)?;
         let name = file_name.unwrap_or("avatar.jpg");
-        let _ = nextrade_infrastructure::storage::save_local_upload("avatar", name, bytes).await?;
+        let stored = sanitize_public_svg(Some(name), bytes)?;
+        let _ = nextrade_infrastructure::storage::save_local_upload("avatar", name, &stored).await?;
         Ok(())
     }
 
@@ -1514,6 +1521,21 @@ fn validate_video_upload(file_name: Option<&str>, bytes: &[u8]) -> Result<()> {
         return Err(Error::Validation("视频大小不能超过50MB".to_string()));
     }
     Ok(())
+}
+
+/// 公开上传通道的 SVG 净化分流（本平台扩展，v5.8.65）：文件名命中
+/// `.svg` 时返回净化后字节，净化失败 → 校验错误；其余格式原样借用。
+fn sanitize_public_svg<'a>(
+    file_name: Option<&str>,
+    bytes: &'a [u8],
+) -> Result<std::borrow::Cow<'a, [u8]>> {
+    if is_svg_upload(None, file_name) {
+        sanitize_svg(bytes)
+            .map(std::borrow::Cow::Owned)
+            .map_err(|_| Error::Validation(ERR_SVG_INVALID.to_string()))
+    } else {
+        Ok(std::borrow::Cow::Borrowed(bytes))
+    }
 }
 
 /// 校验上传文件非空（Java `MultipartFile.isEmpty()`）。
@@ -1877,6 +1899,22 @@ mod tests {
         assert!(require_upload_file(Some("a.png"), &[]).is_err());
         assert!(require_upload_file(None, &[1]).is_err());
         assert!(require_upload_file(Some("  "), &[1]).is_err());
+    }
+
+    #[test]
+    fn public_upload_sanitizes_svg_only() {
+        // 非 SVG：原样借用
+        let png = [0x89, 0x50, 0x4e, 0x47];
+        let out = sanitize_public_svg(Some("a.png"), &png).unwrap();
+        assert_eq!(&*out, &png);
+        // SVG：脚本被剥离
+        let dirty = br#"<svg><script>alert(1)</script><rect width="5"/></svg>"#;
+        let out = sanitize_public_svg(Some("icon.svg"), dirty).unwrap();
+        let text = String::from_utf8(out.into_owned()).unwrap();
+        assert!(!text.contains("script"), "{text}");
+        assert!(text.contains("<rect"), "{text}");
+        // SVG 非法内容：拒绝
+        assert!(sanitize_public_svg(Some("icon.svg"), b"not svg").is_err());
     }
 
     #[test]

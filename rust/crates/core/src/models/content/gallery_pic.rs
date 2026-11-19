@@ -59,6 +59,8 @@ pub const ERR_URL_BLOCKED: &str = "不支持网页搜索结果地址，请提供
 pub const ERR_UPLOAD_FILE_EMPTY: &str = "文件不能为空";
 /// `不支持的文件类型`
 pub const ERR_UPLOAD_FILE_TYPE: &str = "不支持的文件类型";
+/// SVG 不合法或含不安全内容（本平台扩展：SVG 净化失败统一文案）。
+pub const ERR_SVG_INVALID: &str = "SVG 文件不合法或包含不安全内容，已拒绝上传";
 /// `没有可下载的素材`
 pub const ERR_NO_DOWNLOADABLE: &str = "没有可下载的素材";
 /// `field 的值有误`
@@ -80,8 +82,9 @@ pub const ALLOWED_IMAGE_TYPES: [&str; 6] = [
     "image/tiff",
     "image/svg+xml",
 ];
-/// 外部直链允许的扩展名（Java `ALLOWED_IMAGE_EXTENSIONS`；本平台扩展：增加 `svg`）。
-pub const ALLOWED_IMAGE_EXTENSIONS: [&str; 6] = ["bmp", "jpg", "jpeg", "png", "gif", "svg"];
+/// 外部直链允许的扩展名（Java `ALLOWED_IMAGE_EXTENSIONS`；本平台扩展：增加
+/// `webp`、`svg`——Tigshop v5.8.65 素材中心 WebP/SVG 支持，帖 517949006945033228）。
+pub const ALLOWED_IMAGE_EXTENSIONS: [&str; 7] = ["bmp", "jpg", "jpeg", "png", "gif", "webp", "svg"];
 /// 禁止的网页搜索结果地址片段（Java `BLOCKED_URL_PATTERNS`）。
 pub const BLOCKED_URL_PATTERNS: [&str; 5] = [
     "baidu.com/s?",
@@ -279,6 +282,559 @@ pub fn format_max_size(value: f64) -> String {
 #[must_use]
 pub fn is_video_type(type_: Option<&str>) -> bool {
     type_ == Some("video")
+}
+
+/// 判断一次上传是否为 SVG（MIME 或文件名扩展名任一命中即按 SVG 处理）。
+#[must_use]
+pub fn is_svg_upload(content_type: Option<&str>, file_name: Option<&str>) -> bool {
+    if content_type.is_some_and(|ct| ct.trim().eq_ignore_ascii_case("image/svg+xml")) {
+        return true;
+    }
+    file_name.is_some_and(|name| extract_extension(name) == "svg")
+}
+
+// ——————————————————————————————————————————————
+// SVG 净化（本平台扩展：Tigshop v5.8.65 素材 SVG 支持的安全配套，原版无此处理）
+//
+// 策略（轻量线性扫描，不引 XML 依赖）：
+// - 必须是合法 UTF-8、根元素为 <svg>、标签配平，否则整体拒绝；
+// - 带内部子集 / <!ENTITY 的 DOCTYPE 拒绝（防 XXE / 实体膨胀），其余
+//   DOCTYPE 与非 xml 的处理指令（xml-stylesheet 等）直接丢弃；
+// - 危险元素整体移除：script / foreignObject / iframe / embed / object /
+//   link / meta / base / handler / listener / audio / video；
+// - SMIL 元素（animate / set / animateMotion / animateTransform）若
+//   attributeName 指向 href/xlink:href 则整体移除，其 to/from/by/values
+//   含 javascript:/vbscript:/data:text 时丢弃该属性；
+// - on* 事件属性一律丢弃；href / xlink:href 做实体解码 + 去空白后校验，
+//   仅允许 #fragment、http(s):、data:image/ 与相对引用，其余丢弃属性；
+// - style 属性含 javascript:/expression(/-moz-binding/behavior: 时丢弃；
+//   <style> 元素内容含上述危险串时整元素丢弃，@import 语句逐条剥离；
+// - CDATA 段展开为转义文本（保持字符数据语义，杜绝借 CDATA 注入标记）。
+// ——————————————————————————————————————————————
+
+/// 危险元素名单（小写）。
+const SVG_BANNED_ELEMENTS: [&str; 12] = [
+    "script",
+    "foreignobject",
+    "iframe",
+    "embed",
+    "object",
+    "link",
+    "meta",
+    "base",
+    "handler",
+    "listener",
+    "audio",
+    "video",
+];
+
+/// SMIL 动画元素名单（小写）。
+const SVG_SMIL_ELEMENTS: [&str; 4] = ["animate", "animatemotion", "animatetransform", "set"];
+
+/// 净化 SVG 字节：成功返回净化后字节，失败（非法 XML / 非 SVG /
+/// DTD 实体）返回 [`ERR_SVG_INVALID`]。
+///
+/// # Errors
+/// 输入不是合法 SVG 或含不可净化的危险结构时返回错误文案。
+pub fn sanitize_svg(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    let text = std::str::from_utf8(bytes).map_err(|_| ERR_SVG_INVALID.to_string())?;
+    let lowered = text.to_ascii_lowercase();
+    if lowered.contains("<!entity")
+        || (lowered.contains("<!doctype") && text.contains('['))
+    {
+        return Err(ERR_SVG_INVALID.to_string());
+    }
+    let mut cleaner = SvgCleaner {
+        src: text,
+        pos: 0,
+        out: String::with_capacity(text.len()),
+        stack: Vec::new(),
+        root_seen: false,
+    };
+    cleaner.run()?;
+    if !cleaner.root_seen || !cleaner.stack.is_empty() {
+        return Err(ERR_SVG_INVALID.to_string());
+    }
+    Ok(cleaner.out.into_bytes())
+}
+
+/// SVG 线性扫描净化器（字节下标只落在 ASCII 定界符上，UTF-8 安全）。
+struct SvgCleaner<'a> {
+    src: &'a str,
+    pos: usize,
+    out: String,
+    /// 已打开元素名（小写）栈，用于配平校验。
+    stack: Vec<String>,
+    root_seen: bool,
+}
+
+impl SvgCleaner<'_> {
+    fn bytes(&self) -> &[u8] {
+        self.src.as_bytes()
+    }
+
+    fn run(&mut self) -> Result<(), String> {
+        let len = self.src.len();
+        while self.pos < len {
+            if self.bytes()[self.pos] == b'<' {
+                self.markup()?;
+            } else {
+                let start = self.pos;
+                while self.pos < len && self.bytes()[self.pos] != b'<' {
+                    self.pos += 1;
+                }
+                let text = &self.src[start..self.pos];
+                if !self.root_seen && !text.trim().is_empty() {
+                    return Err(ERR_SVG_INVALID.to_string());
+                }
+                if self.root_seen && self.stack.is_empty() && !text.trim().is_empty() {
+                    return Err(ERR_SVG_INVALID.to_string());
+                }
+                self.out.push_str(text);
+            }
+        }
+        Ok(())
+    }
+
+    /// 处理 `<` 开头的一个标记（注释 / CDATA / PI / DOCTYPE / 开闭标签）。
+    fn markup(&mut self) -> Result<(), String> {
+        let rest = &self.src[self.pos..];
+        if rest.starts_with("<!--") {
+            let end = rest[4..]
+                .find("-->")
+                .ok_or_else(|| ERR_SVG_INVALID.to_string())?;
+            self.out.push_str(&rest[..4 + end + 3]);
+            self.pos += 4 + end + 3;
+            return Ok(());
+        }
+        if rest.starts_with("<![CDATA[") {
+            let end = rest[9..]
+                .find("]]>")
+                .ok_or_else(|| ERR_SVG_INVALID.to_string())?;
+            // CDATA 是字符数据：转义后输出，杜绝借其注入标记。
+            for ch in rest[9..9 + end].chars() {
+                match ch {
+                    '&' => self.out.push_str("&amp;"),
+                    '<' => self.out.push_str("&lt;"),
+                    '>' => self.out.push_str("&gt;"),
+                    _ => self.out.push(ch),
+                }
+            }
+            self.pos += 9 + end + 3;
+            return Ok(());
+        }
+        if rest.starts_with("<?") {
+            let end = rest[2..]
+                .find("?>")
+                .ok_or_else(|| ERR_SVG_INVALID.to_string())?;
+            // 仅保留 <?xml 声明，其余 PI（xml-stylesheet 等）丢弃。
+            if rest[2..].starts_with("xml") && matches!(rest.as_bytes().get(5), Some(b' ' | b'\t' | b'\r' | b'\n' | b'?')) {
+                self.out.push_str(&rest[..2 + end + 2]);
+            }
+            self.pos += 2 + end + 2;
+            return Ok(());
+        }
+        if rest.starts_with("<!") {
+            // DOCTYPE 等声明：内部子集已在入口拒绝，这里整段丢弃。
+            let end = rest
+                .find('>')
+                .ok_or_else(|| ERR_SVG_INVALID.to_string())?;
+            self.pos += end + 1;
+            return Ok(());
+        }
+        if rest.starts_with("</") {
+            return self.close_tag();
+        }
+        self.open_tag()
+    }
+
+    fn close_tag(&mut self) -> Result<(), String> {
+        let rest = &self.src[self.pos..];
+        let end = rest
+            .find('>')
+            .ok_or_else(|| ERR_SVG_INVALID.to_string())?;
+        let raw_name = rest[2..end].trim();
+        if raw_name.is_empty() || !raw_name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-' | b':')) {
+            return Err(ERR_SVG_INVALID.to_string());
+        }
+        let lname = raw_name.to_ascii_lowercase();
+        if self.stack.pop().as_deref() != Some(lname.as_str()) {
+            return Err(ERR_SVG_INVALID.to_string());
+        }
+        self.out.push_str("</");
+        self.out.push_str(raw_name);
+        self.out.push('>');
+        self.pos += end + 1;
+        Ok(())
+    }
+
+    fn open_tag(&mut self) -> Result<(), String> {
+        let bytes = self.bytes();
+        let len = bytes.len();
+        let mut i = self.pos + 1;
+        let name_start = i;
+        while i < len && (bytes[i].is_ascii_alphanumeric() || matches!(bytes[i], b'.' | b'_' | b'-' | b':')) {
+            i += 1;
+        }
+        if i == name_start {
+            return Err(ERR_SVG_INVALID.to_string());
+        }
+        // 取_owned：后续要以 &mut self 调用处理方法，不能再借用 self.src。
+        let raw_name = self.src[name_start..i].to_string();
+        let lname = raw_name.to_ascii_lowercase();
+        // 解析属性表
+        let mut attrs: Vec<(String, Option<String>)> = Vec::new();
+        let mut self_closing = false;
+        loop {
+            while i < len && bytes[i].is_ascii_whitespace() {
+                i += 1;
+            }
+            if i >= len {
+                return Err(ERR_SVG_INVALID.to_string());
+            }
+            if bytes[i] == b'>' {
+                i += 1;
+                break;
+            }
+            if bytes[i] == b'/' && bytes.get(i + 1) == Some(&b'>') {
+                self_closing = true;
+                i += 2;
+                break;
+            }
+            let attr_start = i;
+            while i < len
+                && !bytes[i].is_ascii_whitespace()
+                && !matches!(bytes[i], b'=' | b'>' | b'/')
+            {
+                i += 1;
+            }
+            if i == attr_start {
+                return Err(ERR_SVG_INVALID.to_string());
+            }
+            let attr_name = self.src[attr_start..i].to_string();
+            while i < len && bytes[i].is_ascii_whitespace() {
+                i += 1;
+            }
+            let mut attr_value: Option<String> = None;
+            if i < len && bytes[i] == b'=' {
+                i += 1;
+                while i < len && bytes[i].is_ascii_whitespace() {
+                    i += 1;
+                }
+                if i >= len {
+                    return Err(ERR_SVG_INVALID.to_string());
+                }
+                if bytes[i] == b'"' || bytes[i] == b'\'' {
+                    let quote = bytes[i];
+                    i += 1;
+                    let value_start = i;
+                    while i < len && bytes[i] != quote {
+                        i += 1;
+                    }
+                    if i >= len {
+                        return Err(ERR_SVG_INVALID.to_string());
+                    }
+                    attr_value = Some(self.src[value_start..i].to_string());
+                    i += 1;
+                } else {
+                    let value_start = i;
+                    while i < len && !bytes[i].is_ascii_whitespace() && bytes[i] != b'>' {
+                        i += 1;
+                    }
+                    attr_value = Some(self.src[value_start..i].to_string());
+                }
+            }
+            attrs.push((attr_name, attr_value));
+        }
+        self.pos = i;
+
+        // 根元素约束：首个元素必须是 svg，且只能有一个根。
+        if self.stack.is_empty() {
+            if self.root_seen || lname != "svg" {
+                return Err(ERR_SVG_INVALID.to_string());
+            }
+            self.root_seen = true;
+        }
+
+        let banned = SVG_BANNED_ELEMENTS.contains(&lname.as_str())
+            || (SVG_SMIL_ELEMENTS.contains(&lname.as_str())
+                && attrs.iter().any(|(name, value)| {
+                    name.eq_ignore_ascii_case("attributeName")
+                        && value.as_deref().is_some_and(|v| {
+                            let v = v.trim().to_ascii_lowercase();
+                            v == "href" || v == "xlink:href"
+                        })
+                }));
+        if banned {
+            if !self_closing {
+                self.skip_element(&lname)?;
+            }
+            return Ok(());
+        }
+
+        if lname == "style" && !self_closing {
+            return self.style_element(&raw_name, attrs);
+        }
+
+        let kept = filter_svg_attrs(&lname, attrs);
+        push_open_tag(&mut self.out, &raw_name, &kept, self_closing);
+        if !self_closing {
+            self.stack.push(lname);
+        }
+        Ok(())
+    }
+
+    /// `<style>` 元素：内容为 CSS 原文，单独净化后整段输出（含闭合标签）。
+    fn style_element(
+        &mut self,
+        raw_name: &str,
+        attrs: Vec<(String, Option<String>)>,
+    ) -> Result<(), String> {
+        let rest = &self.src[self.pos..];
+        let lower = rest.to_ascii_lowercase();
+        let close_at = lower
+            .find("</style")
+            .ok_or_else(|| ERR_SVG_INVALID.to_string())?;
+        let content = &rest[..close_at];
+        let content_lower = content.to_ascii_lowercase();
+        if !css_text_is_safe(&content_lower) {
+            // 危险样式：整元素连同闭合标签跳过。
+            let after = &rest[close_at..];
+            let end = after
+                .find('>')
+                .ok_or_else(|| ERR_SVG_INVALID.to_string())?;
+            self.pos += close_at + end + 1;
+            return Ok(());
+        }
+        let cleaned = strip_css_imports(content);
+        let kept = filter_svg_attrs("style", attrs);
+        push_open_tag(&mut self.out, raw_name, &kept, false);
+        self.out.push_str(&cleaned);
+        self.out.push_str("</style>");
+        let after = &rest[close_at..];
+        let end = after
+            .find('>')
+            .ok_or_else(|| ERR_SVG_INVALID.to_string())?;
+        self.pos += close_at + end + 1;
+        Ok(())
+    }
+
+    /// 跳过一个危险元素的全部内容（同名嵌套计数），消费其闭合标签。
+    fn skip_element(&mut self, lname: &str) -> Result<(), String> {
+        let mut depth = 1usize;
+        let len = self.src.len();
+        while self.pos < len {
+            let Some(rel) = self.src[self.pos..].find('<') else {
+                break;
+            };
+            let at = self.pos + rel;
+            let rest = &self.src[at..];
+            let after_name = |tag: &str| -> Option<usize> {
+                let rest_bytes = rest.as_bytes();
+                let tag_bytes = tag.as_bytes();
+                if rest_bytes.len() > tag_bytes.len()
+                    && rest_bytes[..tag_bytes.len()].eq_ignore_ascii_case(tag_bytes)
+                    && matches!(
+                        rest_bytes[tag_bytes.len()],
+                        b' ' | b'\t' | b'\r' | b'\n' | b'>' | b'/'
+                    )
+                {
+                    Some(at + tag_bytes.len())
+                } else {
+                    None
+                }
+            };
+            if let Some(name_end) = after_name(&format!("</{lname}")) {
+                let end = self.src[name_end..]
+                    .find('>')
+                    .ok_or_else(|| ERR_SVG_INVALID.to_string())?;
+                self.pos = name_end + end + 1;
+                depth -= 1;
+                if depth == 0 {
+                    return Ok(());
+                }
+            } else if let Some(name_end) = after_name(&format!("<{lname}")) {
+                let end = self.src[name_end..]
+                    .find('>')
+                    .ok_or_else(|| ERR_SVG_INVALID.to_string())?;
+                if !self.src[name_end..name_end + end].ends_with('/') {
+                    depth += 1;
+                }
+                self.pos = name_end + end + 1;
+            } else {
+                self.pos = at + 1;
+            }
+        }
+        Err(ERR_SVG_INVALID.to_string())
+    }
+}
+
+/// 把一个开标签按保留属性重组输出（属性值统一双引号并转义 `"` 与 `<`）。
+fn push_open_tag(
+    out: &mut String,
+    raw_name: &str,
+    attrs: &[(String, Option<String>)],
+    self_closing: bool,
+) {
+    out.push('<');
+    out.push_str(raw_name);
+    for (name, value) in attrs {
+        out.push(' ');
+        out.push_str(name);
+        if let Some(value) = value {
+            out.push_str("=\"");
+            for ch in value.chars() {
+                match ch {
+                    '"' => out.push_str("&quot;"),
+                    '<' => out.push_str("&lt;"),
+                    _ => out.push(ch),
+                }
+            }
+            out.push('"');
+        }
+    }
+    if self_closing {
+        out.push_str("/>");
+    } else {
+        out.push('>');
+    }
+}
+
+/// 属性过滤：丢弃 on* 事件属性、危险 URL 的 href、危险 style 与 SMIL 目标值。
+fn filter_svg_attrs(
+    lname: &str,
+    attrs: Vec<(String, Option<String>)>,
+) -> Vec<(String, Option<String>)> {
+    let is_smil = SVG_SMIL_ELEMENTS.contains(&lname);
+    attrs
+        .into_iter()
+        .filter(|(name, value)| {
+            let aname = name.to_ascii_lowercase();
+            if aname.starts_with("on") {
+                return false;
+            }
+            if aname == "href" || aname.ends_with(":href") {
+                return value
+                    .as_deref()
+                    .is_none_or(|v| svg_url_allowed(v));
+            }
+            if aname == "style" {
+                return value
+                    .as_deref()
+                    .is_none_or(|v| css_text_is_safe(&v.to_ascii_lowercase()));
+            }
+            if is_smil && matches!(aname.as_str(), "to" | "from" | "by" | "values") {
+                return value.as_deref().is_none_or(|v| {
+                    !v.split(';').any(|seg| {
+                        let s = decode_xml_entities(seg);
+                        let s: String = s
+                            .chars()
+                            .filter(|c| !c.is_ascii_whitespace() && !c.is_control())
+                            .collect::<String>()
+                            .to_ascii_lowercase();
+                        s.starts_with("javascript:")
+                            || s.starts_with("vbscript:")
+                            || s.starts_with("data:text")
+                    })
+                });
+            }
+            true
+        })
+        .collect()
+}
+
+/// CSS 文本安全性（入参须已小写）：不含脚本型构造。
+fn css_text_is_safe(lowered: &str) -> bool {
+    !lowered.contains("javascript:")
+        && !lowered.contains("expression(")
+        && !lowered.contains("-moz-binding")
+        && !lowered.contains("behavior:")
+}
+
+/// 剥离 CSS 中的 @import 语句（到最近的 `;` 为止，无 `;` 则剥到结尾）。
+fn strip_css_imports(css: &str) -> String {
+    let lower = css.to_ascii_lowercase();
+    let mut out = String::with_capacity(css.len());
+    let mut cursor = 0usize;
+    while let Some(rel) = lower[cursor..].find("@import") {
+        let at = cursor + rel;
+        out.push_str(&css[cursor..at]);
+        match css[at..].find(';') {
+            Some(off) => cursor = at + off + 1,
+            None => {
+                cursor = css.len();
+                break;
+            }
+        }
+    }
+    out.push_str(&css[cursor..]);
+    out
+}
+
+/// href 类属性的 URL 白名单校验：先解 XML 实体、去空白/控制字符，
+/// 仅允许 #fragment、http(s):、data:image/ 与相对引用。
+fn svg_url_allowed(raw: &str) -> bool {
+    let decoded = decode_xml_entities(raw);
+    let cleaned: String = decoded
+        .chars()
+        .filter(|c| !c.is_ascii_whitespace() && !c.is_control())
+        .collect();
+    let lower = cleaned.to_ascii_lowercase();
+    if lower.starts_with('#')
+        || lower.starts_with("http:")
+        || lower.starts_with("https:")
+        || lower.starts_with("data:image/")
+    {
+        return true;
+    }
+    // 相对引用：首个定界符不是 ':'（即没有 scheme）。
+    match lower.find([':', '/', '#', '?']) {
+        Some(idx) => lower.as_bytes()[idx] != b':',
+        None => true,
+    }
+}
+
+/// 解码 XML 实体（命名实体 + 十进制/十六进制字符引用），供 URL 校验用。
+fn decode_xml_entities(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    let mut rest = raw;
+    while let Some(at) = rest.find('&') {
+        out.push_str(&rest[..at]);
+        let Some(semi) = rest[at..].find(';') else {
+            out.push_str(&rest[at..]);
+            return out;
+        };
+        let entity = &rest[at + 1..at + semi];
+        let decoded = match entity {
+            "amp" => Some('&'),
+            "lt" => Some('<'),
+            "gt" => Some('>'),
+            "quot" => Some('"'),
+            "apos" => Some('\''),
+            _ => entity
+                .strip_prefix("#x")
+                .or_else(|| entity.strip_prefix("#X"))
+                .and_then(|hex| u32::from_str_radix(hex, 16).ok())
+                .or_else(|| {
+                    entity
+                        .strip_prefix('#')
+                        .and_then(|dec| dec.parse::<u32>().ok())
+                })
+                .and_then(char::from_u32),
+        };
+        match decoded {
+            Some(ch) => {
+                out.push(ch);
+                rest = &rest[at + semi + 1..];
+            }
+            None => {
+                out.push('&');
+                rest = &rest[at + 1..];
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 // ——————————————————————————————————————————————
@@ -510,10 +1066,16 @@ mod tests {
             &ALLOWED_IMAGE_EXTENSIONS
         )
         .is_err());
+        // 本平台扩展（v5.8.65）：webp 外链放行
         assert_eq!(
             validate_external_url("https://cdn.x.com/a.webp?x=1", &ALLOWED_IMAGE_EXTENSIONS)
+                .unwrap(),
+            "webp"
+        );
+        assert_eq!(
+            validate_external_url("https://cdn.x.com/a.tiff?x=1", &ALLOWED_IMAGE_EXTENSIONS)
                 .unwrap_err(),
-            "不支持的文件格式，允许的格式: bmp, jpg, jpeg, png, gif, svg"
+            "不支持的文件格式，允许的格式: bmp, jpg, jpeg, png, gif, webp, svg"
         );
         assert_eq!(
             validate_external_url("https://cdn.x.com/icon.svg", &ALLOWED_IMAGE_EXTENSIONS)
@@ -559,8 +1121,13 @@ mod tests {
             ERR_UPLOAD_FILE_TYPE
         );
         assert!(validate_upload_file(Some("image/png"), 1024, "20").is_ok());
-        // 本平台扩展：SVG 上传（MIME image/svg+xml）放行
+        // 本平台扩展：WebP / SVG 上传（MIME）放行
+        assert!(validate_upload_file(Some("image/webp"), 1024, "20").is_ok());
         assert!(validate_upload_file(Some("image/svg+xml"), 1024, "20").is_ok());
+        assert!(is_svg_upload(Some("image/svg+xml"), Some("a.png")));
+        assert!(is_svg_upload(Some("image/png"), Some("icon.SVG")));
+        assert!(!is_svg_upload(Some("image/png"), Some("a.png")));
+        assert!(!is_svg_upload(None, None));
         // 超限：20MB 配置
         assert_eq!(
             validate_upload_file(Some("image/jpeg"), 21 * 1024 * 1024, "20")
@@ -572,6 +1139,80 @@ mod tests {
         assert_eq!(parse_max_size_mb("2.5"), 2.5);
         assert_eq!(format_max_size(20.0), "20");
         assert_eq!(format_max_size(2.5), "2.5");
+    }
+
+    #[test]
+    fn sanitize_svg_keeps_clean_document() {
+        let clean = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#fff"/><a href="https://example.com/x"><text>ok</text></a><use href="#icon"/><image href="data:image/png;base64,AAAA"/></svg>"##;
+        let out = sanitize_svg(clean).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(text.contains("<rect"));
+        assert!(text.contains("https://example.com/x"));
+        assert!(text.contains("href=\"#icon\""));
+        assert!(text.contains("data:image/png"));
+    }
+
+    #[test]
+    fn sanitize_svg_strips_scripts_and_event_handlers() {
+        let dirty = br#"<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script><foreignObject><div>hi</div></foreignObject><rect width="5" onclick="alert(2)" onload="alert(3)"/><circle r="4"/></svg>"#;
+        let out = sanitize_svg(dirty).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(!text.contains("script"), "{text}");
+        assert!(!text.contains("alert"), "{text}");
+        assert!(!text.contains("foreignObject"), "{text}");
+        assert!(!text.contains("onclick"), "{text}");
+        assert!(!text.contains("onload"), "{text}");
+        assert!(text.contains("width=\"5\""), "{text}");
+        assert!(text.contains("<circle"), "{text}");
+    }
+
+    #[test]
+    fn sanitize_svg_drops_javascript_hrefs() {
+        let dirty = br#"<svg><a href="javascript:alert(1)"><text>x</text></a><a href="&#106;avascript:alert(1)"><text>y</text></a><a xlink:href=" java&#x09;script:alert(1)"><text>z</text></a></svg>"#;
+        let out = sanitize_svg(dirty).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(!text.contains("javascript:"), "{text}");
+        assert!(!text.contains("href"), "{text}");
+        assert!(text.contains("<text>x</text>"), "{text}");
+    }
+
+    #[test]
+    fn sanitize_svg_handles_style_and_smil() {
+        let dirty = br#"<svg><style>@import url("https://evil.example/x.css"); .a{fill:red}</style><style>.b{fill:url(javascript:alert(1))}</style><animate attributeName="href" to="javascript:alert(1)"/><rect class="a"/></svg>"#;
+        let out = sanitize_svg(dirty).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(!text.contains("@import"), "{text}");
+        assert!(!text.contains("javascript:"), "{text}");
+        assert!(!text.contains("animate"), "{text}");
+        assert!(text.contains(".a{fill:red}"), "{text}");
+        assert!(text.contains("<rect"), "{text}");
+    }
+
+    #[test]
+    fn sanitize_svg_cdata_stays_text() {
+        let dirty = br#"<svg><text><![CDATA[<script>alert(1)</script>]]></text></svg>"#;
+        let out = sanitize_svg(dirty).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(!text.contains("<script>"), "{text}");
+        assert!(text.contains("&lt;script&gt;"), "{text}");
+    }
+
+    #[test]
+    fn sanitize_svg_rejects_invalid_documents() {
+        // DTD 实体（XXE / 实体膨胀）
+        assert!(sanitize_svg(
+            br#"<!DOCTYPE svg [ <!ENTITY xxe SYSTEM "file:///etc/passwd"> ]><svg/>"#
+        )
+        .is_err());
+        // 非 SVG 根元素
+        assert!(sanitize_svg(b"<html><body>x</body></html>").is_err());
+        // 纯文本
+        assert!(sanitize_svg(b"not an svg").is_err());
+        // 标签不配平
+        assert!(sanitize_svg(b"<svg><rect></svg>").is_err());
+        assert!(sanitize_svg(b"<svg><rect>").is_err());
+        // 非 UTF-8
+        assert!(sanitize_svg(&[0xff, 0xfe, 0x3c]).is_err());
     }
 
     #[test]

@@ -263,7 +263,7 @@ export default function MediaUpload({
 
     const uploadFile = (filePath: any, fileType: string, file?: File) => {
         // H5 File 提供 MIME 类型；小程序选择接口返回的临时文件不提供该字段。
-        if (process.env.TARO_ENV === "h5" && fileType === "image" && !/\/(png|jpe?g|gif|webp|tiff)$/i.test(file?.type ?? "")) {
+        if (process.env.TARO_ENV === "h5" && fileType === "image" && !/\/(png|jpe?g|gif|webp|tiff|svg\+xml)$/i.test(file?.type ?? "")) {
             Taro.showToast({
                 title: t("不支持上传此文件格式"),
                 icon: "none"

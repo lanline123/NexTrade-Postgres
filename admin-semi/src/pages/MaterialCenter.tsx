@@ -110,7 +110,7 @@ const SORT_OPTIONS = [
   { label: '按名称排序', value: 'name' },
 ];
 
-const FORMAT_VALUES = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+const FORMAT_VALUES = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
 
 const FORMAT_OPTIONS = [
   { label: '全部格式', value: '' },
@@ -1990,7 +1990,7 @@ export default function MaterialCenter() {
                 onChange={(next) => setExtImgForm((current) => ({ ...current, picUrl: next }))}
               />
               <div className="mc-upload-notice">
-                {t('需要填写单张图片的网络地址，格式支持 bmp/jpg/png/gif，不支持 webp/svg；不能填百度图片搜索结果页这种"页面地址"')}
+                {t('需要填写单张图片的网络地址，格式支持 bmp/jpg/jpeg/png/gif/webp/svg；不能填百度图片搜索结果页这种"页面地址"')}
               </div>
             </div>
           </div>

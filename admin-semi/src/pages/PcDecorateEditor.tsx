@@ -3553,7 +3553,7 @@ function SinglePicField({
       </button>
       <div className="dec-single-pic__body">
         <div className="dec-single-pic__name">{url ? t('已选择图片') : t('未设置图片')}</div>
-        <div className="dec-single-pic__hint">{hint || t('支持 JPG / PNG / WebP，建议使用透明底图标')}</div>
+        <div className="dec-single-pic__hint">{hint || t('支持 JPG / PNG / WebP / SVG，建议使用透明底图标')}</div>
         <div className="dec-single-pic__actions">
           <Button size="small" onClick={() => setPickerOpen(true)}>
             {url ? t('更换图片') : t('从素材中心选择')}

@@ -98,7 +98,7 @@ pub const OSS_SIZE_800: &str = "?x-oss-process=image/resize,m_pad,h_800,h_800";
 #[must_use]
 fn with_oss_size(pic_url: &str, suffix: &str) -> String {
     let url = pic_url.trim();
-    if url.is_empty() || url.contains("x-oss-process=") {
+    if url.is_empty() || url.contains("x-oss-process=") || is_svg_url(url) {
         return pic_url.to_string();
     }
     if url.contains('?') {
@@ -106,6 +106,15 @@ fn with_oss_size(pic_url: &str, suffix: &str) -> String {
     } else {
         format!("{url}{suffix}")
     }
+}
+
+/// URL 指向的是否为 SVG 文件（按路径扩展名判定，忽略 query/hash）。
+/// SVG 是矢量格式，OSS 图片处理不支持对其栅格化（resize 会报错/出坏图），
+/// 故一切尺寸派生对 SVG 原样返回，缩略图即原图（本平台扩展，v5.8.65）。
+#[must_use]
+fn is_svg_url(url: &str) -> bool {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    path.to_ascii_lowercase().ends_with(".svg")
 }
 
 /// 由原图 URL 生成 200px 缩略图 URL（对应 Java 图库上传落库点
@@ -195,6 +204,24 @@ mod tests {
         );
         // 空串原样
         assert_eq!(pic_thumb_200(""), "");
+        // WebP 走同一 OSS 管线（OSS resize 支持 webp 源图）
+        assert_eq!(
+            pic_thumb_200("https://oss.example.com/a/b.webp"),
+            "https://oss.example.com/a/b.webp?x-oss-process=image/resize,m_pad,h_200,w_200"
+        );
+        // SVG 无法栅格化：尺寸派生一律原样返回，缩略图回退原图
+        assert_eq!(
+            pic_thumb_200("https://oss.example.com/a/icon.svg"),
+            "https://oss.example.com/a/icon.svg"
+        );
+        assert_eq!(
+            pic_thumb_200("img/gallery/202602/icon.SVG?x=1"),
+            "img/gallery/202602/icon.SVG?x=1"
+        );
+        assert_eq!(
+            pic_sized_800("https://oss.example.com/a/icon.svg"),
+            "https://oss.example.com/a/icon.svg"
+        );
     }
 
     #[test]
