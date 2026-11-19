@@ -127,7 +127,7 @@ export default function NumberStepper({ value = 1, disabled = false, max = 100, 
         <View className="tig-number-step flex stepper-shell-Y3RoeTIyODI">
             <View className={`minus btn flex align-center${minusClass}`} style={minusBg as any} onClick={() => step("minus")} />
             <View className="value flex align-center">
-                <Input disabled={disabled} value={focused && !disabled ? inputText : String(currentValueRef.current)} type="number" placeholder="" onFocus={onFocus} onInput={onInput} onBlur={onBlur} />
+                <Input className="stepper-input" disabled={disabled} value={focused && !disabled ? inputText : String(currentValueRef.current)} type="number" placeholder="" onFocus={onFocus} onInput={onInput} onBlur={onBlur} />
             </View>
             <View className={`plus btn flex align-center${plusClass}`} style={plusBg as any} onClick={() => step("add")} />
         </View>

@@ -32,6 +32,7 @@ import DiscountInfo from "@/components/product/DiscountInfo/DiscountInfo";
 import DeliveryProductPop from "../cart/src/DeliveryProductPop";
 import Recommend from "@/components/recommend";
 
+import "../cart/src/CartProductCard.scss";
 import "./index.scss";
 import { usePageGuards } from "@/utils/pageMixin";
 
@@ -831,12 +832,15 @@ export default function CartJump() {
                                                                         onClick={() => handleToProduct(goods, item.shopId)}
                                                                     >
                                                                         <View className="photo-img">
-                                                                            <Image src={productImage(goods)} />
+                                                                            <Image className="cart-product-image" src={productImage(goods)} mode="aspectFill" />
                                                                             {cartProductStyleMap[goods.productId]?.borderImage && (
                                                                                 <Image className="product-style-border" src={cartProductStyleMap[goods.productId].borderImage} mode="scaleToFill" />
                                                                             )}
-                                                                            {goods.stock === 0 && <View className="cart-notice-row">{t("已售罄")}</View>}
-                                                                            {isProductUnavailable(goods) && <View className="cart-notice-row">{t("已下架")}</View>}
+                                                                            {isProductUnavailable(goods) ? (
+                                                                                <View className="cart-notice-row">{t("已下架")}</View>
+                                                                            ) : Number(goods.stock) === 0 && (
+                                                                                <View className="cart-notice-row">{t("已售罄")}</View>
+                                                                            )}
                                                                         </View>
                                                                     </View>
                                                                     <View className={`cart-row ${isCartLineInvalid(goods) ? "cart-row-invalid" : ""}`}>
@@ -846,9 +850,9 @@ export default function CartJump() {
                                                                         >
                                                                             <View className={`name line2 ${isCartLineInvalid(goods) ? "product-name-disabled" : ""}`}>{goods.productName}</View>
                                                                         </View>
-                                                                        {!!getSkuValueText(goods.skuData) && <View className="cart-sku-text">{getSkuValueText(goods.skuData)}</View>}
+                                                                        {!!getSkuValueText(goods.skuData) && <View className="cart-sku-text line1">{getSkuValueText(goods.skuData)}</View>}
 
-                                                                        {goods.activityInfo && !isCartLineInvalid(goods) && (
+                                                                        {goods.activityInfo?.length > 0 && !isCartLineInvalid(goods) && (
                                                                             <View className="activity-box">
                                                                                 {formatActivityList(goods.activityInfo, item.usedPromotions).map((subItem: any) => (
                                                                                     <View key={subItem.promotionId}>
@@ -859,11 +863,7 @@ export default function CartJump() {
                                                                         )}
 
                                                                         {!isCartLineInvalid(goods) ? (
-                                                                            <View
-                                                                                className={`cart-price ${
-                                                                                    (!goods.skuData || goods.skuData.length === 0) && !goods.activityInfo ? "cart-price-margin" : ""
-                                                                                }`}
-                                                                            >
+                                                                            <View className="cart-price">
                                                                                 <View className="price-one">
                                                                                     <FormatPrice
                                                                                         showText={false}
@@ -947,12 +947,10 @@ export default function CartJump() {
                                                                                             <View className="line" />
                                                                                         </View>
                                                                                         <View className="content">
-                                                                                            <Text className="line1 content-text">
-                                                                                                {`已选${goods.extraSkuData.length}项`}
-                                                                                                <View className="price price-box">
-                                                                                                    <FormatPrice showText={false} priceData={goods.serviceFee} />
-                                                                                                </View>
-                                                                                            </Text>
+                                                                                            <Text className="line1 content-text">{`已选${goods.extraSkuData.length}项`}</Text>
+                                                                                            <View className="price price-box">
+                                                                                                <FormatPrice showText={false} priceData={goods.serviceFee} />
+                                                                                            </View>
 
                                                                                             <Text className="iconfont-h5 icon-xiajiantou1-copy" />
                                                                                         </View>
