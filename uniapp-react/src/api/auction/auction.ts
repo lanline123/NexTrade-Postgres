@@ -11,9 +11,19 @@ import type {
     AuctionSessionItem
 } from "@/types/auction/auction";
 
+/**
+ * 响应信封（与 @/utils/request 的 ResponseData 约束及各 api 模块 *Result 口径一致）：
+ * request<T extends ResponseData> 返回 Promise<T["data"]>，故泛型须传信封而非载荷本身。
+ */
+type AuctionEnvelope<T> = {
+    code?: number;
+    message: string;
+    data: T;
+};
+
 /** 拍卖场次列表（公开） */
 export const getAuctionSessions = () => {
-    return request<AuctionSessionItem[]>({
+    return request<AuctionEnvelope<AuctionSessionItem[]>>({
         url: "promotion/auction/sessions",
         method: "get"
     });
@@ -27,7 +37,7 @@ export const getAuctionItems = (params: {
     page?: number;
     pageSize?: number;
 }) => {
-    return request<AuctionPageResult<AuctionItem>>({
+    return request<AuctionEnvelope<AuctionPageResult<AuctionItem>>>({
         url: "promotion/auction/items",
         method: "get",
         params
@@ -36,7 +46,7 @@ export const getAuctionItems = (params: {
 
 /** 拍品详情（带登录态时含我的状态） */
 export const getAuctionDetail = (id: number) => {
-    return request<AuctionItemDetail>({
+    return request<AuctionEnvelope<AuctionItemDetail>>({
         url: "promotion/auction/detail",
         method: "get",
         params: { id }
@@ -45,7 +55,7 @@ export const getAuctionDetail = (id: number) => {
 
 /** 拍品轮询（竞价中 5 秒节拍） */
 export const getAuctionPoll = (id: number) => {
-    return request<AuctionPollResult>({
+    return request<AuctionEnvelope<AuctionPollResult>>({
         url: "promotion/auction/poll",
         method: "get",
         params: { id }
@@ -54,7 +64,7 @@ export const getAuctionPoll = (id: number) => {
 
 /** 出价记录分页 */
 export const getAuctionBids = (id: number, page: number, pageSize = 20) => {
-    return request<AuctionPageResult<AuctionBidItem>>({
+    return request<AuctionEnvelope<AuctionPageResult<AuctionBidItem>>>({
         url: "promotion/auction/bids",
         method: "get",
         params: { id, page, pageSize }
@@ -63,7 +73,7 @@ export const getAuctionBids = (id: number, page: number, pageSize = 20) => {
 
 /** 冻结参拍保证金（需登录） */
 export const freezeAuctionDeposit = (itemId: number) => {
-    return request<AuctionDepositItem>({
+    return request<AuctionEnvelope<AuctionDepositItem>>({
         url: "promotion/auction/freeze",
         method: "post",
         data: { itemId }
@@ -72,7 +82,7 @@ export const freezeAuctionDeposit = (itemId: number) => {
 
 /** 出价（需登录且已冻结保证金） */
 export const placeAuctionBid = (itemId: number, bidPrice: number, opts?: { isBuyout?: boolean; confirmHigh?: boolean }) => {
-    return request<AuctionBidResult>({
+    return request<AuctionEnvelope<AuctionBidResult>>({
         url: "promotion/auction/bid",
         method: "post",
         data: {
@@ -86,7 +96,7 @@ export const placeAuctionBid = (itemId: number, bidPrice: number, opts?: { isBuy
 
 /** 退出参拍（需登录，未成为最高出价者时） */
 export const quitAuction = (itemId: number) => {
-    return request<unknown>({
+    return request<AuctionEnvelope<unknown>>({
         url: "promotion/auction/quit",
         method: "post",
         data: { itemId }
@@ -95,7 +105,7 @@ export const quitAuction = (itemId: number) => {
 
 /** 开拍提醒开关（需登录，预告拍品） */
 export const remindAuction = (itemId: number, on: boolean) => {
-    return request<unknown>({
+    return request<AuctionEnvelope<unknown>>({
         url: "promotion/auction/remind",
         method: "post",
         data: { itemId, on }
@@ -104,7 +114,7 @@ export const remindAuction = (itemId: number, on: boolean) => {
 
 /** 我的参拍（需登录） */
 export const getMyAuctionJoins = () => {
-    return request<AuctionMyJoinItem[]>({
+    return request<AuctionEnvelope<AuctionMyJoinItem[]>>({
         url: "promotion/auction/my/joins",
         method: "get"
     });
@@ -112,7 +122,7 @@ export const getMyAuctionJoins = () => {
 
 /** 我的保证金流水（需登录） */
 export const getMyAuctionDeposits = (page: number, pageSize = 20) => {
-    return request<AuctionPageResult<AuctionDepositItem>>({
+    return request<AuctionEnvelope<AuctionPageResult<AuctionDepositItem>>>({
         url: "promotion/auction/my/deposits",
         method: "get",
         params: { page, pageSize }

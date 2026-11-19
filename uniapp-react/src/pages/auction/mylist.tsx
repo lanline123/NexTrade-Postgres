@@ -4,7 +4,7 @@ import Taro from "@tarojs/taro";
 
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import EmptyBox from "@/components/empty-box/EmptyBox";
-import LoadingBox from "@/components/loading-box";
+import TigLoadingPage from "@/components/tig/tig-loadingpage";
 import FormatPrice from "@/components/format-price/FormatPrice";
 import { getMyAuctionDeposits, getMyAuctionJoins } from "@/api/auction/auction";
 import type { AuctionDepositItem, AuctionMyJoinItem } from "@/types/auction/auction";
@@ -120,7 +120,7 @@ export default function AuctionMyList() {
                         </View>
                     </View>
                 ) : loading ? (
-                    <LoadingBox />
+                    <TigLoadingPage />
                 ) : tab === "joins" ? (
                     joins.length ? (
                         <View className="auction-my-list">

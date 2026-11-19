@@ -4,7 +4,7 @@ import Taro, { useReachBottom } from "@tarojs/taro";
 
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import EmptyBox from "@/components/empty-box/EmptyBox";
-import LoadingBox from "@/components/loading-box";
+import TigLoadingPage from "@/components/tig/tig-loadingpage";
 import FormatPrice from "@/components/format-price/FormatPrice";
 import { getAuctionItems, getAuctionSessions } from "@/api/auction/auction";
 import type { AuctionItem, AuctionSessionItem } from "@/types/auction/auction";
@@ -173,7 +173,7 @@ export default function AuctionList() {
                 </View>
 
                 {loading ? (
-                    <LoadingBox />
+                    <TigLoadingPage />
                 ) : items.length === 0 ? (
                     <EmptyBox icon="salesman/no_order.png" text={t("暂无拍品")} />
                 ) : (

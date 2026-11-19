@@ -3,7 +3,7 @@ import { Image, Input, RichText, Text, View } from "@tarojs/components";
 import Taro, { useRouter } from "@tarojs/taro";
 
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
-import LoadingBox from "@/components/loading-box";
+import TigLoadingPage from "@/components/tig/tig-loadingpage";
 import FormatPrice from "@/components/format-price/FormatPrice";
 import {
     freezeAuctionDeposit,
@@ -120,7 +120,7 @@ export default function AuctionDetail() {
     if (loading || !detail) {
         return (
             <TigLayout>
-                <LoadingBox />
+                <TigLoadingPage />
             </TigLayout>
         );
     }
