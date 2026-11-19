@@ -157,3 +157,32 @@
         white-space: nowrap;
     }
 }
+
+.cart-swipe {
+    --cart-actions-width: 250rpx;
+    overflow: hidden;
+    touch-action: pan-y;
+}
+
+.cart-swipe__track {
+    position: relative;
+    transition: transform 180ms ease-out;
+
+    &.is-open {
+        transform: translateX(calc(0px - var(--cart-actions-width)));
+    }
+}
+
+.cart-swipe__actions {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 100%;
+    display: flex;
+    width: var(--cart-actions-width);
+
+    .swipe-action-btn {
+        flex: 1;
+        font-size: 22rpx;
+    }
+}

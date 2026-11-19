@@ -27,14 +27,8 @@
         border-radius: 4rpx;
     }
 
-    &--checked {
-        .u-checkbox__icon {
-            display: block;
-        }
-    }
-
     .u-checkbox__icon {
-        display: none;
+        display: block;
         color: #fff;
         font-size: 0.6em;
         line-height: 1;

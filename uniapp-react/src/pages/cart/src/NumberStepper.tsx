@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Input, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 
-import { staticResource } from "@/utils";
 import { t } from "@/utils/i18n";
 
 import "./NumberStepper.scss";
@@ -119,17 +118,13 @@ export default function NumberStepper({ value = 1, disabled = false, max = 100, 
     const minusClass = currentValueRef.current <= 1 && isDelete ? " del" : currentValueRef.current <= 1 && !isDelete ? " disabled" : "";
     const plusClass = currentValueRef.current >= max ? " disabled" : "";
 
-    // 原样式为 background-image（@/static/images/common/minus.png 等），React 版以内联 backgroundImage 等价平铺
-    const minusBg = { backgroundImage: `url(${staticResource(currentValueRef.current <= 1 && isDelete ? "common/delete.png" : currentValueRef.current <= 1 ? "common/minus2.png" : "common/minus.png")})` };
-    const plusBg = { backgroundImage: `url(${staticResource(currentValueRef.current >= max ? "common/plus2.png" : "common/plus.png")})` };
-
     return (
         <View className="tig-number-step flex stepper-shell-Y3RoeTIyODI">
-            <View className={`minus btn flex align-center${minusClass}`} style={minusBg as any} onClick={() => step("minus")} />
+            <View className={`minus btn flex align-center${minusClass}`} onClick={() => step("minus")} />
             <View className="value flex align-center">
                 <Input className="stepper-input" disabled={disabled} value={focused && !disabled ? inputText : String(currentValueRef.current)} type="number" placeholder="" onFocus={onFocus} onInput={onInput} onBlur={onBlur} />
             </View>
-            <View className={`plus btn flex align-center${plusClass}`} style={plusBg as any} onClick={() => step("add")} />
+            <View className={`plus btn flex align-center${plusClass}`} onClick={() => step("add")} />
         </View>
     );
 }

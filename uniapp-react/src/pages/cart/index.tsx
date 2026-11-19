@@ -128,7 +128,7 @@ export default function Cart() {
         return 0;
     }, [isOverseasSkin, configStoreCommonHeaderHeight]);
 
-    // ===================== 左滑操作（up-swipe-action → NutUI Swipe） =====================
+    // ===================== 商品行左滑操作 =====================
     /** up-swipe-action-item 的两个操作按钮样式（对应旧 swipeOptions） */
     const swipeOptions = [
         {
@@ -136,8 +136,6 @@ export default function Cart() {
             style: {
                 backgroundColor: themeStyle["--vice-bg"] || "#ff8855",
                 color: themeStyle["--vice-text"] || "#fff",
-                fontSize: "22rpx",
-                width: "125rpx",
                 padding: "0"
             }
         },
@@ -146,19 +144,16 @@ export default function Cart() {
             style: {
                 backgroundColor: themeStyle["--general"] || "#ff4444",
                 color: themeStyle["--main-text"] || "#ffffff",
-                fontSize: "22rpx",
-                width: "125rpx",
                 padding: "0"
             }
         }
     ];
 
-    /** 各行 Swipe 实例引用：点击操作后手动收起（对应旧 up-swipe-action-item 点击后自动回弹） */
-    const swipeRefsRef = useRef<Map<number, { close: () => void }>>(new Map());
+    const [openCartId, setOpenCartId] = useState<number | null>(null);
 
     /** up-swipe-action-item 点击事件回调参数（旧 detail.index：0-移入收藏 1-删除） */
-    const handleSwipeClick = (index: number, goods: any, cartId: number) => {
-        swipeRefsRef.current.get(cartId)?.close();
+    const handleSwipeClick = (index: number, goods: any) => {
+        setOpenCartId(null);
         if (index === 0) {
             handleCollect(goods.productId, goods.cartId);
         } else if (index === 1) {
@@ -835,7 +830,7 @@ export default function Cart() {
                     key={index}
                     className="swipe-action-btn"
                     style={option.style as any}
-                    onClick={() => handleSwipeClick(index, goods, goods.cartId)}
+                    onClick={() => handleSwipeClick(index, goods)}
                 >
                     {option.text}
                 </View>
@@ -859,6 +854,7 @@ export default function Cart() {
                     />
                     {!isLoad && (
                         <View
+                            onClick={() => setOpenCartId(null)}
                             className={`cart-box shoppingCart ${cartManage ? "cart-box--edit" : ""} ${cartList.length === 0 ? "cart-box--empty" : ""} ${
                                 isEmptyWithoutRecommend ? "cart-box--empty-fill" : ""
                             }`}
@@ -888,17 +884,10 @@ export default function Cart() {
                                                 <View className="goods-list-cart">
                                                     {item.carts.map((goods: any) => (
                                                         <View className="cart_item" key={goods.cartId}>
-                                                            {/* 旧 up-swipe-action-item(:threshold="20") → CartSwipe（NutUI Swipe 包装，触摸层补偿阈值） */}
                                                             <CartSwipe
                                                                 rightAction={renderSwipeActions(goods)}
-                                                                name={goods.cartId}
-                                                                ref={(el: any) => {
-                                                                    if (el) {
-                                                                        swipeRefsRef.current.set(goods.cartId, el);
-                                                                    } else {
-                                                                        swipeRefsRef.current.delete(goods.cartId);
-                                                                    }
-                                                                }}
+                                                                open={openCartId === goods.cartId}
+                                                                onOpenChange={(open) => setOpenCartId(open ? goods.cartId : null)}
                                                             >
                                                                 <View
                                                                     className={`cart_list_con ${goods.isDisabled && !isCartLineInvalid(goods) ? "cart_item_disabled" : ""}`}
@@ -1179,7 +1168,6 @@ export default function Cart() {
                                                         theme
                                                         disabled={total.checkedCount == 0}
                                                         className="cart-footer-btn"
-                                                        style={{ height: "72rpx", margin: "0" } as any}
                                                         onClick={handleCheckout}
                                                     >
                                                         <Text className="cart-footer-btn-text">{t("去结算")}</Text>

@@ -21,11 +21,14 @@
     }
 
     .minus {
-        /* 背景图改由 NumberStepper.tsx 内联 style 注入（原 .minus/.del/.disabled 三态背景图） */
+        background-image: url("../../../static/images/common/minus.png");
+        &.del { background-image: url("../../../static/images/common/delete.png"); }
+        &.disabled { background-image: url("../../../static/images/common/minus2.png"); }
     }
 
     .plus {
-        /* 背景图改由 NumberStepper.tsx 内联 style 注入 */
+        background-image: url("../../../static/images/common/plus.png");
+        &.disabled { background-image: url("../../../static/images/common/plus2.png"); }
     }
 
     .btn {

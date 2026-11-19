@@ -680,7 +680,10 @@
         }
     }
 }
-.cart-footer-btn {
+.cart-footer-right .cart-footer-btn {
+    width: auto;
+    height: 72rpx;
+    margin: 0;
     flex-shrink: 0;
     border-radius: 40rpx;
     background: var(--general);
@@ -892,11 +895,6 @@
     height: 100% !important;
 }
 
-/* 旧 :deep(.cart_item) .button-group--right（uni-swipe-action → NutUI Swipe 后原类名不存在，
- * 右侧操作层对应 .nut-swipe-right；保留等价内缩防漏出注释） */
-.cart_item .nut-swipe-right {
-    right: -1px;
-}
 
 /* 旧 :deep(.u-checkbox__icon-wrap)：复选框描边加粗（仅购物车页局部生效） */
 .shoppingCart .u-checkbox__icon-wrap {

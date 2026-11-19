@@ -103,9 +103,8 @@ export default function CartJump() {
     const [isLoad, setIsLoad] = useState(true);
     const [showLogin, setShowLogin] = useState(!Taro.getStorageSync("token"));
 
-    // ===================== 左滑操作（uni-swipe-action → NutUI Swipe） =====================
-    /** 各行 Swipe 实例引用：点击操作后手动收起（对应旧 uni-swipe-action-item auto-close） */
-    const swipeRefsRef = useRef<Map<number, { close: () => void }>>(new Map());
+    // ===================== 商品行左滑操作 =====================
+    const [openCartId, setOpenCartId] = useState<number | null>(null);
 
     /** 旧 template #right 的 cart-move-box 结构（移入收藏 + 删除） */
     const renderSwipeActions = (goods: any) => (
@@ -113,7 +112,7 @@ export default function CartJump() {
             <View
                 className="btn-collect"
                 onClick={() => {
-                    swipeRefsRef.current.get(goods.cartId)?.close();
+                    setOpenCartId(null);
                     handleCollect(goods.productId, goods.cartId);
                 }}
             >
@@ -122,7 +121,7 @@ export default function CartJump() {
             <View
                 className="btn-del"
                 onClick={() => {
-                    swipeRefsRef.current.get(goods.cartId)?.close();
+                    setOpenCartId(null);
                     handleDel(goods.cartId);
                 }}
             >
@@ -765,6 +764,7 @@ export default function CartJump() {
                     <CartHeard showBack={true} showEditButton={cartList.length > 0} isEditMode={cartManage} onEdit={cartManageFun} />
                     {!isLoad && (
                         <View
+                            onClick={() => setOpenCartId(null)}
                             className={`cart-box shoppingCart ${cartManage ? "cart-box--edit" : ""} ${cartList.length === 0 ? "cart-box--empty" : ""} ${
                                 isEmptyWithoutRecommend ? "cart-box--empty-fill" : ""
                             }`}
@@ -793,20 +793,12 @@ export default function CartJump() {
                                                 </View>
                                                 <View className="goods-list-cart">
                                                     {item.carts.map((goods: any) => (
-                                                        /* 旧 :key="goods.productId" */
-                                                        <View className="cart_item" key={goods.productId}>
-                                                            {/* 旧 uni-swipe-action-item(:threshold="0" auto-close) → CartSwipe（threshold=0，任意滑动即开） */}
+                                                        <View className="cart_item" key={goods.cartId}>
                                                             <CartSwipe
                                                                 rightAction={renderSwipeActions(goods)}
                                                                 threshold={0}
-                                                                name={goods.cartId}
-                                                                ref={(el: any) => {
-                                                                    if (el) {
-                                                                        swipeRefsRef.current.set(goods.cartId, el);
-                                                                    } else {
-                                                                        swipeRefsRef.current.delete(goods.cartId);
-                                                                    }
-                                                                }}
+                                                                open={openCartId === goods.cartId}
+                                                                onOpenChange={(open) => setOpenCartId(open ? goods.cartId : null)}
                                                             >
                                                                 <View
                                                                     className={`cart_list_con ${goods.isDisabled && !isCartLineInvalid(goods) ? "cart_item_disabled" : ""}`}
@@ -1085,7 +1077,6 @@ export default function CartJump() {
                                                         theme
                                                         disabled={total.checkedCount == 0}
                                                         className="cart-footer-btn"
-                                                        style={{ height: "72rpx", margin: "0" } as any}
                                                         onClick={handleCheckout}
                                                     >
                                                         <Text className="cart-footer-btn-text">{t("去结算")}</Text>

@@ -628,7 +628,10 @@
         }
     }
 }
-.cart-footer-btn {
+.cart-footer-right .cart-footer-btn {
+    width: auto;
+    height: 72rpx;
+    margin: 0;
     flex-shrink: 0;
     border-radius: 10rpx;
     background: var(--general);
@@ -841,12 +844,6 @@
     height: 100% !important;
 }
 
-/* 旧 :deep(.cart_item) .u-swipe-action-item__right（up-swipe-action → NutUI Swipe，
- * 右侧操作层类名 .nut-swipe-right；按钮层内缩 1px 防止内容层 transform 合成边缘漏出底下的按钮层） */
-.cart_item .nut-swipe-right {
-    top: 1px;
-    bottom: 1px;
-}
 
 /* NutUI Swipe 右侧操作按钮（对应旧 up-swipe-action-item :options 按钮样式，主题色由内联 style 注入） */
 .swipe-action-btn {
