@@ -107,7 +107,7 @@ impl OrderService {
             retries += 1;
         }
 
-        // 商品 + 价格（与结算页同口径：商品现价；SKU 价格由 current_prices 提供）
+        // 加载商品与规格，按同一口径计算购物车、结算和提交订单金额。
         let product_ids: Vec<i32> = lines.iter().map(|l| l.product_id).collect();
         let products = crate::trade::check::load_products(&self.repos, &product_ids).await?;
 
@@ -156,7 +156,7 @@ impl OrderService {
                 ));
             }
         }
-        let prices = self.repos.catalog.product.current_prices(&product_ids).await?;
+        let skus = super::cart::load_cart_skus(&self.repos, &lines).await?;
         let mut store_amounts: std::collections::BTreeMap<i32, Decimal> =
             std::collections::BTreeMap::new();
 
@@ -189,10 +189,9 @@ impl OrderService {
             let base_price = if pos_mode {
                 line.original_price
             } else {
-                prices
-                    .get(&pid)
-                    .and_then(|p| *p)
-                    .unwrap_or(line.original_price)
+                super::cart::cart_base_price(
+                    products.get(&pid), super::cart::cart_line_sku(&skus, line), line,
+                )
             };
             let mut price = if pos_mode {
                 base_price
@@ -248,10 +247,9 @@ impl OrderService {
             let base_price = if pos_mode {
                 line.original_price
             } else {
-                prices
-                    .get(&pid)
-                    .and_then(|p| *p)
-                    .unwrap_or(line.original_price)
+                super::cart::cart_base_price(
+                    products.get(&pid), super::cart::cart_line_sku(&skus, line), line,
+                )
             };
             let seckill_item = seckill
                 .get(&(pid, sku_id))
@@ -269,14 +267,15 @@ impl OrderService {
                 )
             };
             // 满减/满折后的最终单价
-            let price = line_prices
+            let merchandise_price = line_prices
                 .get(&line.cart_id)
                 .copied()
                 .unwrap_or(activity_price);
+            let price = merchandise_price + if pos_mode { Decimal::ZERO } else { super::cart::cart_extra_price(line) };
             let subtotal = price * Decimal::from(qty);
             product_amount += subtotal;
             seckill_discount +=
-                (base_price - price).max(Decimal::ZERO) * Decimal::from(qty);
+                (base_price - merchandise_price).max(Decimal::ZERO) * Decimal::from(qty);
             *store_amounts.entry(line.shop_id).or_default() += subtotal;
             if let Some(g) = groupon_line {
                 groupon_lines.push((

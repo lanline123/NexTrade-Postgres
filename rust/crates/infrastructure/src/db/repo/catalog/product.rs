@@ -225,6 +225,18 @@ impl ProductRepository {
         .map_err(map_err)
     }
 
+    /// 批量加载购物车行引用的规格，包括已经停用的规格。
+    pub async fn find_skus_by_ids(&self, ids: &[i32]) -> Result<Vec<ProductSku>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        sqlx::query_as::<_, ProductSku>("SELECT * FROM product_sku WHERE sku_id = ANY($1)")
+            .bind(ids)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
     /// 扣减库存（乐观并发安全：WHERE 保证库存充足才更新）。
     ///
     /// 返回实际扣减数量；库存不足时返回 0，调用方转 `Error::InsufficientStock`。

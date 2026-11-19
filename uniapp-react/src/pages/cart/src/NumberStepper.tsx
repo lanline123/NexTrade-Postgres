@@ -29,16 +29,15 @@ interface Props {
  */
 export default function NumberStepper({ value = 1, disabled = false, max = 100, min = 1, integer = true, isDelete = false, onChange, onDelete }: Props) {
     // 旧 currentValue 为非受控内部值（modelValue 变化时同步）；React 版用 ref 承载 + state 仅驱动渲染
-    const currentValueRef = useRef(format(value));
+    const currentValueRef = useRef(value);
     const [, setRenderTick] = useState(0);
     const [focused, setFocused] = useState(false);
     const [inputText, setInputText] = useState("");
 
     function format(input: string | number): number {
         const filtered = filter(input);
-        let next: number = filtered === "" ? 0 : Number(filtered);
-        next = Math.max(Math.min(max, next), min);
-        return next;
+        const parsed = Number(filtered);
+        return Number.isFinite(parsed) ? Math.max(Math.min(max, parsed), min) : min;
     }
 
     function filter(input: string | number) {
@@ -51,8 +50,10 @@ export default function NumberStepper({ value = 1, disabled = false, max = 100, 
 
     // 对应旧 watch(() => props.modelValue)
     useEffect(() => {
-        if (value !== currentValueRef.current) {
-            currentValueRef.current = format(value);
+        const next = value;
+        if (next !== currentValueRef.current) {
+            currentValueRef.current = next;
+            setRenderTick((tick) => tick + 1);
         }
         if (focused) {
             const textNum = Number(inputText);
@@ -60,7 +61,7 @@ export default function NumberStepper({ value = 1, disabled = false, max = 100, 
             setInputText(String(currentValueRef.current));
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [value]);
+    }, [value, max, min, disabled]);
 
     const step = (type: string) => {
         if (disabled) return;
@@ -84,11 +85,13 @@ export default function NumberStepper({ value = 1, disabled = false, max = 100, 
     };
 
     const onFocus = () => {
+        if (disabled) return;
         setFocused(true);
         setInputText(String(currentValueRef.current));
     };
 
     const onInput = (e: any) => {
+        if (disabled) return;
         const next = String(e?.detail?.value ?? e?.target?.value ?? "");
         setInputText(next);
 
@@ -100,9 +103,10 @@ export default function NumberStepper({ value = 1, disabled = false, max = 100, 
 
     const onBlur = () => {
         setFocused(false);
+        const current = currentValueRef.current;
         const next = inputText === "" ? min : format(inputText);
         setInputText("");
-        if (next === currentValueRef.current) return;
+        if (disabled || inputText === String(current) || next === current) return;
         emitChange(next);
     };
 
@@ -123,7 +127,7 @@ export default function NumberStepper({ value = 1, disabled = false, max = 100, 
         <View className="tig-number-step flex stepper-shell-Y3RoeTIyODI">
             <View className={`minus btn flex align-center${minusClass}`} style={minusBg as any} onClick={() => step("minus")} />
             <View className="value flex align-center">
-                <Input value={focused ? inputText : String(currentValueRef.current)} type="number" placeholder="" onFocus={onFocus} onInput={onInput} onBlur={onBlur} />
+                <Input disabled={disabled} value={focused && !disabled ? inputText : String(currentValueRef.current)} type="number" placeholder="" onFocus={onFocus} onInput={onInput} onBlur={onBlur} />
             </View>
             <View className={`plus btn flex align-center${plusClass}`} style={plusBg as any} onClick={() => step("add")} />
         </View>

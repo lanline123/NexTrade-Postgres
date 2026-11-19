@@ -1,11 +1,12 @@
 //! 购物车服务：加购、改量、勾选、删除、价格汇总。
 //! 对应原 Java `CartServiceImpl`。
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use rust_decimal::Decimal;
 use serde::Serialize;
-use nextrade_core::entities::Cart;
+use nextrade_core::entities::{Cart, Product, ProductSku};
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::Repositories;
 
@@ -39,6 +40,7 @@ pub struct CartItemVO {
     pub original_price: String,
     pub quantity: i32,
     pub sku_id: Option<i32>,
+    pub sku: Option<CartSkuState>,
     pub shop_id: i32,
     pub r#type: i32,
     pub update_time: i64,
@@ -51,6 +53,8 @@ pub struct CartItemVO {
     pub limit_number: i32,
     /// 1 上架 / 0 下架。
     pub product_status: i32,
+    pub sale_status: i32,
+    pub sale_mode: i32,
     pub product_price: Decimal,
     pub member_price: Decimal,
     /// 行生效单价。
@@ -72,8 +76,14 @@ pub struct CartItemVO {
     pub wholesale_multiple: i32,
 }
 
-/// 店铺分组合计（Java `CartByStoreVO.CartStoreTotal`，未迁移优惠引擎的字段为 0）。
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CartSkuState {
+    pub is_enabled: i32,
+}
+
+/// 店铺分组合计（Java `CartByStoreVO.CartStoreTotal`，按已勾选且可购买的商品计算）。
+#[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CartStoreTotalVO {
     pub coupon_ids: Vec<i32>,
@@ -107,8 +117,8 @@ pub struct CartByStoreVO {
     pub cart_id: i32,
 }
 
-/// 购物车总合计（Java `CartListByStoreVO.CartTotal`，未迁移优惠引擎的字段为 0）。
-#[derive(Debug, Clone, Serialize)]
+/// 购物车总合计（Java `CartListByStoreVO.CartTotal`，按已勾选且可购买的商品计算）。
+#[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CartTotalVO {
     pub product_amount: Decimal,
@@ -355,7 +365,7 @@ impl CartService {
             .await?
             .ok_or_else(|| Error::NotFound("购物车记录不存在".into()))?;
         self.product
-            .check_purchasable(cart.product_id, cart.sku_id, quantity)
+            .check_purchasable(cart.product_id, cart.sku_id.filter(|id| *id > 0), quantity)
             .await?;
         self.repos.trade.cart.update_quantity(cart_id, user_id, quantity).await
     }
@@ -377,221 +387,225 @@ impl CartService {
         Ok(())
     }
 
-    /// 购物车列表（Java `CartServiceImpl#list` 契约：按店铺分组）。
-    ///
-    /// 实时回填商品名/图/状态/库存；优惠与活动引擎未迁移，相关字段为 0/空数组。
+    /// 购物车列表：实时计算可售状态、SKU 现价和已选商品优惠。
     pub async fn summary(&self, user_id: i32) -> Result<CartListByStoreVO> {
         let carts = self.repos.trade.cart.find_by_user(user_id, None).await?;
-        let (mut checked_qty, mut checked_amount, mut total_qty) = (0i64, Decimal::ZERO, 0i64);
-
-        // 按店铺分组（保持首次出现顺序；shop_id=0 自营）
-        let mut shop_order: Vec<i32> = Vec::new();
-        let mut groups: std::collections::HashMap<i32, Vec<Cart>> = std::collections::HashMap::new();
-        for c in carts {
-            if !groups.contains_key(&c.shop_id) {
-                shop_order.push(c.shop_id);
-            }
-            groups.entry(c.shop_id).or_default().push(c);
+        let product_ids: Vec<_> = carts.iter().map(|cart| cart.product_id).collect();
+        let products = super::check::load_products(&self.repos, &product_ids).await?;
+        let skus = load_cart_skus(&self.repos, &carts).await?;
+        let mut sale_states = HashMap::new();
+        for product in products.values().filter(|product| product.is_on_sale()) {
+            let state = self
+                .repos
+                .catalog
+                .product_sale
+                .setting(product.product_id, None)
+                .await?;
+            sale_states.insert(product.product_id, state.sale_status);
         }
 
+        let mut selected = Vec::new();
+        let mut invalid_checked_ids = Vec::new();
+        for cart in carts.iter().filter(|cart| cart.is_checked()) {
+            let product = products.get(&cart.product_id);
+            let sku = cart_line_sku(&skus, cart);
+            let sale_status = sale_states.get(&cart.product_id).copied().unwrap_or(1);
+            if disabled_reason(product, sku, cart, sale_status).is_empty() {
+                selected.push(cart.clone());
+            } else {
+                invalid_checked_ids.push(cart.cart_id);
+            }
+        }
+        self.repos
+            .trade
+            .cart
+            .uncheck_lines(user_id, &invalid_checked_ids)
+            .await?;
+
+        let now = nextrade_common::utils::now_seconds() as i32;
+        let pricing = super::check::price_cart_activities(
+            &self.repos,
+            user_id,
+            &selected,
+            &products,
+            &skus,
+            now,
+        )
+        .await?;
+        let promotions = if carts.is_empty() {
+            Vec::new()
+        } else {
+            self.repos
+                .marketing
+                .promotion
+                .find_available(None, i64::from(now))
+                .await?
+        };
+
+        let mut shop_order = Vec::new();
+        let mut groups: HashMap<i32, Vec<Cart>> = HashMap::new();
+        for cart in carts {
+            groups
+                .entry(cart.shop_id)
+                .or_insert_with(|| {
+                    shop_order.push(cart.shop_id);
+                    Vec::new()
+                })
+                .push(cart);
+        }
+
+        let mut total = CartTotalVO::default();
         let mut cart_list = Vec::with_capacity(shop_order.len());
         for shop_id in shop_order {
-            let rows = groups.remove(&shop_id).unwrap_or_default();
             let shop_title = if shop_id > 0 {
                 self.repos
                     .merchant
                     .shop
                     .find_by_id(shop_id)
-                    .await
-                    .ok()
-                    .flatten()
-                    .and_then(|s| s.shop_title)
+                    .await?
+                    .and_then(|shop| shop.shop_title)
                     .unwrap_or_default()
             } else {
                 String::new()
             };
-
-            let mut lines = Vec::with_capacity(rows.len());
-            let (mut store_qty, mut store_checked_qty, mut store_amount) =
-                (0i64, 0i64, Decimal::ZERO);
-            let mut group_all_checked = !rows.is_empty();
-
-            /**
-             * 购物车行的活动信息（activityInfo）。
-             *
-             * Java 侧购物车行的 activityInfo 来自商品促销（CartServiceImpl:962
-             * `cart.setActivityInfo(product.getActivityInfo())`），用于前台展示活动标签。
-             * Rust 侧此前恒为空数组 → 购物车不显示「秒杀/拼团/满减」标签。
-             *
-             * 匹配口径对齐 Java `ProductServiceImpl.getProductsPromotionByProductShop`
-             * （第 5863-5866 行注释）：**活动按「活动店铺 == 商品店铺」匹配**，
-             * 而不是「活动范围命中商品」这一条。故此处按商品的 shop_id 过滤活动，
-             * 避免把别的店铺的活动挂到本行商品上。
-             *
-             * 金额计算（parsePrice）未迁移，与 Java 购物车一致——购物车阶段的
-             * 优惠金额字段本就全为 0。
-             */
-            let available_promotions = self
-                .repos
-                .marketing
-                .promotion
-                .find_available(None, std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_secs() as i64)
-                    .unwrap_or(0))
-                .await
-                .unwrap_or_default();
-
-            for c in rows {
-                let pid = c.product_id;
-                let qty = c.quantity;
-                // 购物车行本身不存商品名/图，列表必须回填，否则前端会当成空行。
-                let product = self.repos.catalog.product.find_by_id(pid).await.ok().flatten();
-                let product_name = product
-                    .as_ref()
-                    .map(|p| p.product_name.clone())
+            let mut store = CartStoreTotalVO::default();
+            let mut lines = Vec::new();
+            for cart in groups.remove(&shop_id).unwrap_or_default() {
+                let product = products.get(&cart.product_id);
+                let sku = cart_line_sku(&skus, &cart);
+                let sale_status = sale_states.get(&cart.product_id).copied().unwrap_or(1);
+                let reason = disabled_reason(product, sku, &cart, sale_status);
+                let sku_id = cart.sku_id.filter(|id| *id > 0);
+                let is_checked = cart.is_checked() && reason.is_empty();
+                let quantity = Decimal::from(cart.quantity);
+                let base_price = cart_base_price(product, sku, &cart);
+                let price = pricing
+                    .prices
+                    .get(&cart.cart_id)
+                    .copied()
+                    .unwrap_or(base_price);
+                let stock = cart_line_stock(product, sku, &cart);
+                let (extra_sku_data, service_fee) = cart_extra_prices(&cart);
+                let market_price = sku
+                    .and_then(|s| s.market_price)
+                    .or_else(|| product.map(|p| p.market_price))
                     .unwrap_or_default();
-                let pic_thumb = product
-                    .as_ref()
-                    .map(|p| p.pic_thumb.clone())
-                    .unwrap_or_else(|| c.pic_thumb.clone().unwrap_or_default());
-                let product_sn = product
-                    .as_ref()
-                    .map(|p| p.product_sn.clone())
-                    .unwrap_or_default();
-                let (product_stock, product_status, product_type, limit_number) = product
-                    .as_ref()
-                    .map(|p| (p.product_stock, p.product_status, p.product_type, p.limit_number))
-                    .unwrap_or((0, 0, Some(0), 0));
-                let (product_price, market_price) = product
-                    .as_ref()
-                    .map(|p| (p.product_price, p.market_price))
-                    .unwrap_or((Decimal::ZERO, Decimal::ZERO));
+                let origin_price = if price < base_price {
+                    base_price
+                } else {
+                    market_price.max(price)
+                };
+                let sku_data = parse_cart_json_array(
+                    sku.and_then(|s| s.sku_data.as_deref())
+                        .or(cart.sku_data.as_deref()),
+                );
+                let has_sku = sku_id.is_some() || !sku_data.is_empty();
 
-                // original_price 为 NOT NULL；market_price 可空，仅作兜底
-                let price = if c.original_price > Decimal::ZERO {
-                    c.original_price
-                } else {
-                    c.market_price.unwrap_or(product_price)
-                };
-                let origin_price = if market_price > Decimal::ZERO {
-                    market_price
-                } else {
-                    price
-                };
-                let subtotal = price * Decimal::from(qty);
-                let checked = c.is_checked();
-                let is_disabled = product_status == 0;
-                let disabled_reason = if is_disabled {
-                    "已下架".to_string()
-                } else if product_stock < qty {
-                    "库存不足".to_string()
-                } else {
-                    String::new()
-                };
-                // cart.sku_data 存 JSON 字符串；H5 按数组读取规格值
-                let sku_data: serde_json::Value = c
-                    .sku_data
-                    .as_deref()
-                    .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
-                    .filter(|v| v.is_array())
-                    .unwrap_or_else(|| serde_json::Value::Array(vec![]));
-                let extra_sku_data: Vec<serde_json::Value> = c
-                    .extra_sku_data
-                    .as_deref()
-                    .and_then(|s| serde_json::from_str::<Vec<serde_json::Value>>(s).ok())
-                    .unwrap_or_default();
-                let has_sku = c.sku_id.map(|id| id > 0).unwrap_or(false)
-                    || sku_data.as_array().is_some_and(|a| !a.is_empty());
-
-                /**
-                 * 该商品命中的营销活动（用于购物车活动标签）。
-                 *
-                 * 两条过滤（对齐 Java `getProductsPromotionByProductShop`）：
-                 * 1. 活动店铺 == 商品店铺（`pr.shop_id == product.shop_id`）；
-                 * 2. 活动范围命中该商品（`promotion_covers_product`）。
-                 */
-                let product_shop_id = product.as_ref().map(|p| p.shop_id).unwrap_or(c.shop_id);
-                let activity_info: Vec<serde_json::Value> = available_promotions
-                    .iter()
+                let product_shop_id = product.map_or(shop_id, |p| p.shop_id);
+                let activity_info = promotions.iter()
                     .filter(|pr| pr.shop_id == product_shop_id)
-                    .filter(|pr| crate::catalog::product_manage_client::promotion_covers_product(pr, pid))
-                    .map(|pr| {
-                        serde_json::json!({
-                            "promotionId": pr.promotion_id,
-                            "promotionName": pr.promotion_name,
-                            "startTime": pr.start_time,
-                            "endTime": pr.end_time,
-                            "type": pr.r#type,
-                            "shopId": pr.shop_id,
-                            "relationId": pr.relation_id,
-                            "range": pr.range,
-                            "typeText": nextrade_core::models::marketing::promotion::type_text(pr.r#type),
-                        })
-                    })
+                    .filter(|pr| crate::catalog::product_manage_client::promotion_covers_product(pr, cart.product_id))
+                    .map(|pr| serde_json::json!({
+                        "promotionId": pr.promotion_id,
+                        "promotionName": pr.promotion_name,
+                        "startTime": pr.start_time,
+                        "endTime": pr.end_time,
+                        "type": pr.r#type,
+                        "shopId": pr.shop_id,
+                        "relationId": pr.relation_id,
+                        "range": pr.range,
+                        "typeText": nextrade_core::models::marketing::promotion::type_text(pr.r#type),
+                    }))
                     .collect();
 
-                if checked {
-                    checked_qty += i64::from(qty);
-                    checked_amount += subtotal;
-                    store_checked_qty += i64::from(qty);
-                    store_amount += subtotal;
-                } else {
-                    group_all_checked = false;
+                let subtotal = price * quantity;
+                if is_checked {
+                    store.checked_count += i64::from(cart.quantity);
+                    store.product_amount += base_price * quantity;
+                    store.discount_after += subtotal + service_fee;
+                    store.discounts += (base_price - price).max(Decimal::ZERO) * quantity;
+                    store.service_fee += service_fee;
                 }
-                total_qty += i64::from(qty);
-                store_qty += i64::from(qty);
-
+                store.total_count += i64::from(cart.quantity);
                 lines.push(CartItemVO {
-                    cart_id: c.cart_id,
-                    user_id: c.user_id,
-                    product_id: pid,
-                    pic_thumb,
+                    cart_id: cart.cart_id,
+                    user_id,
+                    product_id: cart.product_id,
+                    pic_thumb: product
+                        .map(|p| p.pic_thumb.clone())
+                        .or(cart.pic_thumb)
+                        .unwrap_or_default(),
                     market_price,
                     original_price: origin_price.to_string(),
-                    quantity: qty,
-                    sku_id: c.sku_id,
-                    shop_id: c.shop_id,
-                    r#type: c.r#type,
-                    update_time: i64::from(c.update_time),
-                    product_sn,
-                    product_name,
-                    product_type,
-                    product_stock,
-                    limit_number,
-                    product_status,
-                    product_price,
-                    member_price: price,
+                    quantity: cart.quantity,
+                    sku_id,
+                    sku: sku_id.map(|_| CartSkuState {
+                        is_enabled: sku.map_or(0, |s| s.is_enabled),
+                    }),
+                    shop_id,
+                    r#type: cart.r#type,
+                    update_time: i64::from(cart.update_time),
+                    product_sn: product
+                        .map(|p| p.product_sn.clone())
+                        .unwrap_or(cart.product_sn),
+                    product_name: product.map(|p| p.product_name.clone()).unwrap_or_default(),
+                    product_type: product
+                        .and_then(|p| p.product_type)
+                        .or(Some(cart.product_type)),
+                    product_stock: product.map_or(0, |p| p.product_stock),
+                    limit_number: product.map_or(0, |p| p.limit_number),
+                    product_status: i32::from(product.is_some_and(Product::is_on_sale)),
+                    sale_status,
+                    sale_mode: product.map_or(0, |p| p.sale_mode),
+                    product_price: product.map_or(base_price, |p| p.product_price),
+                    member_price: base_price,
                     price,
                     origin_price,
-                    stock: product_stock,
-                    is_checked: checked,
-                    sku_data,
+                    stock,
+                    is_checked,
                     has_sku,
+                    sku_data: serde_json::Value::Array(sku_data),
                     subtotal,
-                    is_disabled,
-                    disabled_reason,
+                    is_disabled: !reason.is_empty(),
+                    disabled_reason: reason.to_owned(),
                     activity_info,
                     extra_sku_data,
-                    service_fee: "0".to_string(),
+                    service_fee: service_fee.to_string(),
                     wholesale_multiple: 1,
                 });
             }
 
+            total.checked_count += store.checked_count;
+            total.total_count += store.total_count;
+            total.product_amount += store.product_amount;
+            total.discount_after += store.discount_after;
+            total.discounts += store.discounts;
+            total.service_fee += store.service_fee;
+            let mut selectable = lines.iter().filter(|line| !line.is_disabled).peekable();
+            let is_checked = selectable.peek().is_some() && selectable.all(|line| line.is_checked);
+            let gift = pricing
+                .gifts
+                .iter()
+                .filter(|gift| gift.shop_id == shop_id)
+                .map(|gift| {
+                    serde_json::json!({
+                        "giftId": gift.gift_id,
+                        "productId": gift.product_id,
+                        "skuId": gift.sku_id,
+                        "productName": gift.product_name,
+                        "productSn": gift.product_sn,
+                        "picThumb": gift.pic_thumb,
+                        "num": gift.num,
+                        "promotionId": gift.promotion_id,
+                    })
+                })
+                .collect();
             cart_list.push(CartByStoreVO {
-                total: CartStoreTotalVO {
-                    coupon_ids: vec![],
-                    product_amount: store_amount,
-                    total_count: store_qty,
-                    checked_count: store_checked_qty,
-                    discounts: Decimal::ZERO,
-                    discount_after: store_amount,
-                    service_fee: Decimal::ZERO,
-                },
+                total: store,
                 carts: lines,
                 used_promotions: vec![],
                 enable_use_promotion: vec![],
-                gift: vec![],
+                gift,
                 shop_id,
                 shop_title,
                 no_shipping: 0,
@@ -599,30 +613,17 @@ impl CartService {
                 min_order_amount_diff: Decimal::ZERO,
                 wholesale_group_hint: String::new(),
                 wholesale_configured: false,
-                is_checked: group_all_checked,
+                is_checked,
                 cart_id: shop_id,
             });
         }
-
+        total.discount_seckill_amount = pricing.seckill.values().copied().sum();
+        total.discount_group_buy_amount = pricing.groupon.values().copied().sum();
+        total.discount_time_discount_amount = pricing.time.values().copied().sum();
+        total.discount_product_promotion_amount = pricing.full_reduce.values().copied().sum();
+        total.discount_discount_amount = total.discounts;
         Ok(CartListByStoreVO {
-            total: CartTotalVO {
-                product_amount: checked_amount,
-                checked_count: checked_qty,
-                discounts: Decimal::ZERO,
-                discount_after: checked_amount,
-                discount_change_price: Decimal::ZERO,
-                pos_other_discount_amount: Decimal::ZERO,
-                total_count: total_qty,
-                discount_coupon_amount: Decimal::ZERO,
-                discount_seckill_amount: Decimal::ZERO,
-                discount_product_promotion_amount: Decimal::ZERO,
-                discount_time_discount_amount: Decimal::ZERO,
-                discount_group_buy_amount: Decimal::ZERO,
-                discount_discount_amount: Decimal::ZERO,
-                round_off_cents_amount: Decimal::ZERO,
-                round_off_dime_amount: Decimal::ZERO,
-                service_fee: Decimal::ZERO,
-            },
+            total,
             has_change_price: false,
             cart_list,
             is_wholesale_buyer: false,
@@ -636,5 +637,190 @@ impl CartService {
             .into_iter()
             .filter(|c| c.is_checked() && (cart_ids.is_empty() || cart_ids.contains(&c.cart_id)))
             .collect())
+    }
+}
+
+pub(crate) async fn load_cart_skus(
+    repos: &Repositories,
+    carts: &[Cart],
+) -> Result<HashMap<i32, ProductSku>> {
+    let ids: Vec<_> = carts
+        .iter()
+        .filter_map(|cart| cart.sku_id.filter(|id| *id > 0))
+        .collect();
+    Ok(repos
+        .catalog
+        .product
+        .find_skus_by_ids(&ids)
+        .await?
+        .into_iter()
+        .map(|sku| (sku.sku_id, sku))
+        .collect())
+}
+
+pub(crate) fn cart_line_sku<'a>(
+    skus: &'a HashMap<i32, ProductSku>,
+    cart: &Cart,
+) -> Option<&'a ProductSku> {
+    cart.sku_id
+        .and_then(|id| skus.get(&id))
+        .filter(|sku| sku.product_id == cart.product_id)
+}
+
+pub(crate) fn cart_base_price(
+    product: Option<&Product>,
+    sku: Option<&ProductSku>,
+    cart: &Cart,
+) -> Decimal {
+    sku.and_then(|s| s.sku_price)
+        .or_else(|| product.map(|p| p.product_price))
+        .unwrap_or(cart.original_price)
+}
+
+pub(crate) fn cart_line_stock(
+    product: Option<&Product>,
+    sku: Option<&ProductSku>,
+    cart: &Cart,
+) -> i32 {
+    if cart.sku_id.is_some_and(|id| id > 0) {
+        sku.map_or(0, |s| s.available_stock() as i32)
+    } else {
+        product.map_or(0, |p| p.product_stock.max(0))
+    }
+}
+
+fn disabled_reason(
+    product: Option<&Product>,
+    sku: Option<&ProductSku>,
+    cart: &Cart,
+    sale_status: i32,
+) -> &'static str {
+    let Some(product) = product.filter(|product| product.is_on_sale()) else {
+        return "product_offline";
+    };
+    if sale_status == 0 {
+        return "product_offline";
+    }
+    if cart.sku_id.is_some_and(|id| id > 0) && !sku.is_some_and(ProductSku::is_available) {
+        return "sku_disabled";
+    }
+    if product.is_inquiry == 1 || sku.is_some_and(|s| s.is_inquiry == 1) {
+        return "inquiry";
+    }
+    if !product.is_virtual_product()
+        && !nextrade_core::models::marketing::groupon_promotion_item::is_reservation_product(
+            product.product_type,
+        )
+    {
+        let stock = cart_line_stock(Some(product), sku, cart);
+        if stock == 0 {
+            return "sold_out";
+        }
+        if stock < cart.quantity {
+            return "insufficient_stock";
+        }
+    }
+    ""
+}
+
+fn parse_cart_json_array(raw: Option<&str>) -> Vec<serde_json::Value> {
+    raw.and_then(|value| serde_json::from_str(value).ok())
+        .unwrap_or_default()
+}
+
+fn extra_attr_price(attr: &serde_json::Value) -> Decimal {
+    let Some(price) = attr.get("attrPrice") else {
+        return Decimal::ZERO;
+    };
+    match price {
+        serde_json::Value::String(value) => value.parse().unwrap_or_default(),
+        serde_json::Value::Number(value) => value.to_string().parse().unwrap_or_default(),
+        _ => Decimal::ZERO,
+    }
+}
+
+pub(crate) fn cart_extra_price(cart: &Cart) -> Decimal {
+    parse_cart_json_array(cart.extra_sku_data.as_deref())
+        .iter()
+        .map(extra_attr_price)
+        .sum()
+}
+
+fn cart_extra_prices(cart: &Cart) -> (Vec<serde_json::Value>, Decimal) {
+    let mut attrs = parse_cart_json_array(cart.extra_sku_data.as_deref());
+    let mut total = Decimal::ZERO;
+    for attr in &mut attrs {
+        let price = (extra_attr_price(attr) * Decimal::from(cart.quantity)).round_dp(2);
+        if let Some(fields) = attr.as_object_mut() {
+            fields.insert(
+                "totalAttrPrice".into(),
+                serde_json::json!(price.to_string()),
+            );
+        }
+        total += price;
+    }
+    (attrs, total)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cart_uses_selected_sku_price_and_stock_for_existing_rows() {
+        let product = Product {
+            product_id: 20,
+            product_status: 1,
+            product_stock: 100,
+            product_price: Decimal::from(40),
+            ..Default::default()
+        };
+        let cart = Cart {
+            product_id: 20,
+            sku_id: Some(5),
+            quantity: 3,
+            original_price: Decimal::from(35),
+            ..Default::default()
+        };
+        let sku = ProductSku {
+            sku_id: 5,
+            product_id: 20,
+            sku_price: Some(Decimal::from(45)),
+            sku_stock: Some(2),
+            is_enabled: 1,
+            ..Default::default()
+        };
+        let skus = HashMap::from([(5, sku)]);
+        let sku = cart_line_sku(&skus, &cart);
+        assert_eq!(
+            cart_base_price(Some(&product), sku, &cart),
+            Decimal::from(45)
+        );
+        assert_eq!(cart_line_stock(Some(&product), sku, &cart), 2);
+        assert_eq!(
+            disabled_reason(Some(&product), sku, &cart, 1),
+            "insufficient_stock"
+        );
+        assert_eq!(
+            disabled_reason(Some(&product), None, &cart, 1),
+            "sku_disabled"
+        );
+        assert_eq!(
+            disabled_reason(Some(&product), sku, &cart, 0),
+            "product_offline"
+        );
+    }
+
+    #[test]
+    fn cart_adds_each_extra_fee_once_per_item() {
+        let cart = Cart {
+            quantity: 3,
+            extra_sku_data: Some(r#"[{"attrPrice":"1.25"},{"attrPrice":2}]"#.into()),
+            ..Default::default()
+        };
+        assert_eq!(cart_extra_price(&cart), Decimal::new(325, 2));
+        let (attrs, total) = cart_extra_prices(&cart);
+        assert_eq!(attrs[0]["totalAttrPrice"], "3.75");
+        assert_eq!(total, Decimal::new(975, 2));
     }
 }

@@ -146,6 +146,19 @@ impl CartRepository {
         Ok(())
     }
 
+    /// 只取消当前会员的失效行勾选，保留行供用户查看和删除。
+    pub async fn uncheck_lines(&self, user_id: i32, cart_ids: &[i32]) -> Result<()> {
+        if !cart_ids.is_empty() {
+            sqlx::query("UPDATE cart SET is_checked = 0 WHERE user_id = $1 AND cart_id = ANY($2) AND is_checked <> 0")
+                .bind(user_id)
+                .bind(cart_ids)
+                .execute(&self.pool)
+                .await
+                .map_err(map_err)?;
+        }
+        Ok(())
+    }
+
     /// 取消当前会员全部购物车勾选（立即购买前使用，避免旧勾选商品被结算）。
     pub async fn uncheck_all(&self, user_id: i32) -> Result<u64> {
         let res = sqlx::query("UPDATE cart SET is_checked = 0 WHERE user_id = $1")

@@ -9,7 +9,7 @@ import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import FormatPrice from "@/components/format-price/FormatPrice";
 import ActivityCard from "@/components/masonry/ActivityCard";
 import { getCart, updateCartItemData, updateCartCheck, removeCartItemData } from "@/api/cart/cart";
-import { updateCollectProduct } from "@/api/product/product";
+import { getCollectProduct, updateCollectProduct } from "@/api/product/product";
 import { getDeliveryOptions } from "@/api/store/store";
 import { useConfigStore } from "@/store/config";
 import { useCartStore } from "@/store/cart";
@@ -94,6 +94,8 @@ export default function CartJump() {
     const total = totalRef.current;
 
     const [cartManage, setCartManage] = useState(false);
+    const cartManageRef = useRef(false);
+    const editSelectionRef = useRef(new Set<number>());
     const allCheckedRef = useRef(false);
     const allChecked = allCheckedRef.current;
 
@@ -143,6 +145,21 @@ export default function CartJump() {
 
     const isCartLineInvalid = (product: any) => product.sku?.isEnabled === 0 || isProductUnavailable(product);
     const isCartProductDisabled = (product: any) => product.isDisabled || isCartLineInvalid(product);
+    const isQuantityDisabled = (product: any) =>
+        Number(product.stock) <= 0 || (isCartProductDisabled(product) && product.disabledReason !== "insufficient_stock");
+    const canSelect = (product: any) => cartManageRef.current || !isCartProductDisabled(product);
+    const isSelected = (product: any) =>
+        cartManageRef.current ? editSelectionRef.current.has(product.cartId) : product.isChecked === true;
+
+    const setSelected = (product: any, checked: boolean) => {
+        if (!cartManageRef.current) {
+            product.isChecked = checked;
+        } else if (checked) {
+            editSelectionRef.current.add(product.cartId);
+        } else {
+            editSelectionRef.current.delete(product.cartId);
+        }
+    };
 
     type CartMutationTask = { type: "quantity"; cartId: number; quantity: number } | { type: "selection"; checkData: updateCartCheckitem[] };
 
@@ -156,8 +173,8 @@ export default function CartJump() {
     const onCheckAll = () => {
         cartListRef.current.forEach((item: any) => {
             item.carts.forEach((product: any) => {
-                if (!isCartProductDisabled(product)) {
-                    product.isChecked = allCheckedRef.current;
+                if (canSelect(product)) {
+                    setSelected(product, allCheckedRef.current);
                 }
             });
         });
@@ -180,8 +197,8 @@ export default function CartJump() {
     const onCheckAllItem = (index: number) => {
         const item = cartListRef.current[index];
         item.carts.forEach((product: any) => {
-            if (!isCartProductDisabled(product)) {
-                product.isChecked = item.isChecked;
+            if (canSelect(product)) {
+                setSelected(product, item.isChecked);
             }
         });
         updateCheckbox();
@@ -201,11 +218,12 @@ export default function CartJump() {
      * 根据商品选中情况更新店铺全选状态和总全选状态
      */
     const updateCheckbox = () => {
-        cartListRef.current.forEach((item: any) => {
-            const validItem = item.carts.filter((product: any) => !isCartProductDisabled(product));
-            item.isChecked = validItem.every((product: any) => product.isChecked === true);
+        const selectable = cartListRef.current.flatMap((item: any) => {
+            const rows = item.carts.filter(canSelect);
+            item.isChecked = rows.length > 0 && rows.every(isSelected);
+            return rows;
         });
-        allCheckedRef.current = cartListRef.current.every((item: any) => item.isChecked === true);
+        allCheckedRef.current = selectable.length > 0 && selectable.every(isSelected);
         rerender();
     };
 
@@ -214,7 +232,7 @@ export default function CartJump() {
      * 管理模式下不同步，避免影响正常结算流程
      */
     const updateCheckData = async (waitForSync = false) => {
-        if (cartManage) return true;
+        if (cartManageRef.current) return true;
 
         invalidateCartListRequest();
         const checkData: updateCartCheckitem[] = [];
@@ -222,7 +240,7 @@ export default function CartJump() {
             item.carts.forEach((product: any) => {
                 checkData.push({
                     cartId: product.cartId,
-                    isChecked: product.isChecked && !isProductUnavailable(product) ? 1 : 0
+                    isChecked: product.isChecked && !isCartProductDisabled(product) ? 1 : 0
                 });
             });
         });
@@ -237,7 +255,7 @@ export default function CartJump() {
     const loginSuccess = () => {
         getCartList();
     };
-    const cartListRequestGuard = createLatestRequestGuard();
+    const [cartListRequestGuard] = useState(createLatestRequestGuard);
 
     const invalidateCartListRequest = () => {
         cartListRequestGuard.invalidate();
@@ -302,11 +320,12 @@ export default function CartJump() {
     const handleCartMutationError = (error: unknown, _key: string, task: CartMutationTask) => {
         console.error(error);
         hasCartMutationFailureRef.current = true;
-        if (!isCartPageActiveRef.current || task.type !== "quantity") return;
+        if (!isCartPageActiveRef.current) return;
 
         // 批发价失效或身份过期时刷新对应运行态，再拉取购物车恢复最新价格。
 
-        const message = error instanceof Error ? error.message : t("购物车数量更新失败");
+        const message = (error as { message?: string } | null)?.message ||
+            t(task.type === "quantity" ? "购物车数量更新失败" : "购物车勾选更新失败");
         Taro.showToast({
             title: message,
             icon: "none",
@@ -314,7 +333,7 @@ export default function CartJump() {
         });
     };
 
-    const cartMutationScheduler = createKeyedLatestTaskScheduler(executeCartMutation, 300, {
+    const [cartMutationScheduler] = useState(() => createKeyedLatestTaskScheduler(executeCartMutation, 300, {
         onError: handleCartMutationError,
         onIdle: async () => {
             if (!isCartPageActiveRef.current) return;
@@ -324,7 +343,7 @@ export default function CartJump() {
                 throw new Error("购物车列表刷新失败");
             }
         }
-    });
+    }));
 
     /**
      * @description 更新购物车商品数量（同一商品合并最新值，不同商品独立提交）
@@ -332,8 +351,12 @@ export default function CartJump() {
      * @param quantity 目标数量
      */
     const updateCartItem = (cartId: number, quantity: number) => {
+        const line = cartListRef.current.flatMap((group) => group.carts).find((item) => item.cartId === cartId);
+        if (!line || isQuantityDisabled(line) || line.quantity === quantity) return;
         invalidateCartListRequest();
+        line.quantity = quantity;
         cartMutationScheduler.schedule(getQuantityTaskKey(cartId), { type: "quantity", cartId, quantity });
+        rerender();
     };
 
     /**
@@ -341,7 +364,11 @@ export default function CartJump() {
      * 管理模式下可批量删除商品，非管理模式下可正常结算
      */
     const cartManageFun = () => {
-        setCartManage(!cartManage);
+        const editing = !cartManageRef.current;
+        editSelectionRef.current = new Set(editing ? getSelectedGoods().map((line) => line.cartId) : []);
+        cartManageRef.current = editing;
+        setCartManage(editing);
+        updateCheckbox();
     };
 
     /**
@@ -369,7 +396,7 @@ export default function CartJump() {
         const cartiDs: number[] = [];
         cartListRef.current.forEach((item: any) => {
             item.carts.forEach((product: any) => {
-                if (product.isChecked) cartiDs.push(product.cartId);
+                if (isSelected(product)) cartiDs.push(product.cartId);
             });
         });
         return cartiDs || [];
@@ -394,7 +421,7 @@ export default function CartJump() {
         const selected: any[] = [];
         cartListRef.current.forEach((shopGroup: any) => {
             shopGroup.carts.forEach((goods: any) => {
-                if (goods.isChecked) {
+                if (goods.isChecked && !isCartProductDisabled(goods)) {
                     selected.push(goods);
                 }
             });
@@ -465,7 +492,7 @@ export default function CartJump() {
         // 预售不混单：预售商品必须单独结算（且通常单门店）
         const selectedGoods = getSelectedGoods();
         const presaleGoods = selectedGoods.filter((g) => isPresaleGoods(g));
-        if (presaleGoods.length > 0) {
+        if (presaleGoods.length > 0 && selectedGoods.length > 1) {
             // 只保留第一个预售商品，其它一律取消勾选
             const keep = presaleGoods[0];
             cartListRef.current.forEach((shopGroup: any) => {
@@ -495,18 +522,23 @@ export default function CartJump() {
      */
     const handleCollect = async (productId: number, cartId: number) => {
         invalidateCartListRequest();
-        await cartMutationScheduler.cancel(getQuantityTaskKey(cartId));
         const cartUpdated = await cartMutationScheduler.flush();
         if (!cartUpdated || hasCartMutationFailureRef.current) return;
         try {
-            await updateCollectProduct({
-                productId
-            });
-        } catch (error) {
-            console.error(error);
-        } finally {
+            try {
+                await updateCollectProduct({ productId });
+            } catch (error) {
+                const alreadyCollected = await getCollectProduct({ id: productId }).catch(() => false);
+                if (!alreadyCollected) throw error;
+            }
             await removeCartItemData({ cartIds: [cartId] });
-            getCartList();
+            await getCartList();
+        } catch (error) {
+            Taro.showToast({
+                title: (error as { message?: string } | null)?.message || t("移入收藏失败"),
+                icon: "none"
+            });
+            await getCartList();
         }
     };
 
@@ -688,6 +720,7 @@ export default function CartJump() {
     const refreshSaleBeforeCheckout = async () => {
         if (saleCheckoutPendingRef.current) return false;
         saleCheckoutPendingRef.current = true;
+        const requestId = cartListRequestGuard.begin();
         const selectedIds = new Set(
             cartListRef.current
                 .flatMap((group: any) => group.carts ?? [])
@@ -696,17 +729,18 @@ export default function CartJump() {
         );
         try {
             const fresh = await getCart();
+            if (!isCartPageActiveRef.current || !cartListRequestGuard.isLatest(requestId)) return false;
             cartListRef.current = fresh.cartList;
             totalRef.current = fresh.total;
             updateCheckbox();
             const lines = fresh.cartList.flatMap((group: any) => group.carts ?? []);
-            const blocked = lines.some((line: any) => selectedIds.has(line.cartId) && isProductUnavailable(line));
+            const blocked = lines.some((line: any) => selectedIds.has(line.cartId) && isCartProductDisabled(line));
             if (blocked) {
-                await updateCartCheck({ data: lines.map((line: any) => ({ cartId: line.cartId, isChecked: line.isChecked && !isProductUnavailable(line) ? 1 : 0 })) });
-                Taro.showToast({ title: t("商品已下架"), icon: "none" });
+                await updateCartCheck({ data: lines.map((line: any) => ({ cartId: line.cartId, isChecked: line.isChecked && !isCartProductDisabled(line) ? 1 : 0 })) });
+                Taro.showToast({ title: t("部分商品已失效，请重新选择"), icon: "none" });
                 return false;
             }
-            return lines.some((line: any) => line.isChecked && !isProductUnavailable(line));
+            return lines.some((line: any) => line.isChecked && !isCartProductDisabled(line));
         } catch (error: any) {
             Taro.showToast({ title: error.message, icon: "none" });
             return false;
@@ -778,13 +812,13 @@ export default function CartJump() {
                                                                 >
                                                                     <View className={`check-item ${isCartLineInvalid(goods) ? "check-item-disabled" : ""}`}>
                                                                         <Checkbox
-                                                                            checked={goods.isChecked}
+                                                                            checked={isSelected(goods)}
                                                                             size={19}
                                                                             iconSize={18}
                                                                             disabled={cartManage ? false : isCartProductDisabled(goods)}
                                                                             onChange={() => {
                                                                                 // 旧 v-model:checked + @change：先翻转选中态，再走联动同步
-                                                                                goods.isChecked = !goods.isChecked;
+                                                                                setSelected(goods, !isSelected(goods));
                                                                                 rerender();
                                                                                 onChangeCheck();
                                                                             }}
@@ -845,11 +879,11 @@ export default function CartJump() {
                                                                                         priceData={goods.price}
                                                                                     />
                                                                                 </View>
-                                                                                <View className={`cart-num-box ${goods.isDisabled || goods.stock === 0 ? "cart-num-box-disabled" : ""}`}>
+                                                                                <View className={`cart-num-box ${isQuantityDisabled(goods) ? "cart-num-box-disabled" : ""}`}>
                                                                                     {isRetailLine(goods) && (
                                                                                         <NumberStepper
                                                                                             value={goods.quantity}
-                                                                                            disabled={isCartProductDisabled(goods) || goods.stock === 0}
+                                                                                            disabled={isQuantityDisabled(goods)}
                                                                                             min={1}
                                                                                             max={goods.stock}
                                                                                             isDelete={true}
@@ -883,7 +917,7 @@ export default function CartJump() {
                                                                                 <FormatPrice showText={false} isBottom={false} priceData={goods.price} />
                                                                             </View>
                                                                         )}
-                                                                        {goods.extraSkuData && goods.extraSkuData.length && (
+                                                                        {goods.extraSkuData?.length > 0 && (
                                                                             <View
                                                                                 className={`extraskudata ${isProductUnavailable(goods) ? "extra-sku-disabled" : ""}`}
                                                                                 onClick={() => {
