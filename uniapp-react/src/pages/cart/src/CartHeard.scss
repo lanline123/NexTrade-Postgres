@@ -51,10 +51,25 @@
     width: 100%;
 }
 
-/* navbarContent 的基础结构类（旧 components/navbarContent/index.vue 模板结构） */
-.cart-heard .navbar-box .navbar {
-    display: flex;
-    align-items: center;
+/* navbarContent 的基础结构类（旧 components/navbarContent/index.vue 的 <style scoped> 口径：
+   .navbar-box 满幅 100%、.status-bar 满幅高 0、.navbar 满幅居中。
+   此前移植只搬了模板与内联样式（position/top/z-index/background），漏搬这组 CSS——
+   fixed 盒无 width 时按内容收缩，顶栏白块浮在左上角、「编辑」挤在标题旁；
+   原版靠 width:100% 满幅锚定顶边。top/z-index 已由 TSX 内联给出，此处不重复。 */
+.cart-heard .navbar-box {
+    width: 100%;
+
+    .status-bar {
+        width: 100%;
+        height: 0;
+    }
+
+    .navbar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+    }
 }
 
 /* 原 flex / align-center 工具类（uniapp 全局 css 提供，目标工程无全局定义，随组件补齐） */
