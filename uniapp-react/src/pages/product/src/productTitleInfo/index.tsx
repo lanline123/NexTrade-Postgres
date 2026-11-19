@@ -7,7 +7,7 @@ import type { PresaleInfo } from "@/types/presale/presale";
 import { getCollectProduct, delCollectProduct, updateCollectProduct } from "@/api/product/product";
 import FormatPrice from "@/components/format-price/FormatPrice";
 import ProductShare from "../productShare";
-import ActivityCard from "@/components/masonry/ActivityCard";
+import ActivityCard, { isActivityVisible } from "@/components/masonry/ActivityCard";
 import { staticResource, rpx2px } from "@/utils";
 import { isShowB2bPriceText } from "@/utils/b2bPrice";
 import { ensureShareLogin } from "@/utils/shareLogin";
@@ -138,6 +138,12 @@ const ProductTitleInfo = forwardRef<ProductTitleInfoRef, Props>(function Product
     const useActivityCardLayout = isVortmallLayout || isOverseasLayout;
 
     const showB2bText = useMemo(() => isShowB2bPriceText(), []);
+
+    // 优惠行/活动标签行只按「能渲染出可见标签」的促销条目判定存在（与瀑布流卡同口径，见
+    // components/masonry/ActivityCard 的 isActivityVisible）：我方后端会下发 type=0 等无文案
+    // 条目，若仍按原始条目数判定，无可见标签时活动行只剩空壳与「领券」按钮、优惠行显示
+    // 不可见条目的名称——原版数据只有真实促销条目，按条目数判定即按可见性判定。
+    const visiblePromotionList = useMemo(() => promotionList.filter((item) => isActivityVisible(item)), [promotionList]);
 
     const [isNameExpanded, setIsNameExpanded] = useState(false);
     const [showNameExpandBtn, setShowNameExpandBtn] = useState(false);
@@ -493,9 +499,9 @@ const ProductTitleInfo = forwardRef<ProductTitleInfoRef, Props>(function Product
                                     {beforeStoreSwitchSlot}
                                     {/* A1 门店卡与活动/批发态使用同一外层宽度，避免被标题内容的横向内边距挤窄。 */}
                                     <View className="vortmall-store-switch">{storeSwitchSlot}</View>
-                                    {promotionList.length > 0 && (
+                                    {visiblePromotionList.length > 0 && (
                                         <View className="vortmall-coupon" onClick={handleCoupon}>
-                                            <View className="vortmall-coupon-text line1">{promotionList[0]?.promotionName || t("优惠活动")}</View>
+                                            <View className="vortmall-coupon-text line1">{visiblePromotionList[0]?.promotionName || t("优惠活动")}</View>
                                             <View className="vortmall-coupon-more">
                                                 {t("更多优惠券")}
                                                 <Text className="iconfont-h5 icon-a-gengduo20" />
@@ -537,9 +543,9 @@ const ProductTitleInfo = forwardRef<ProductTitleInfoRef, Props>(function Product
                                         )}
                                     </View>
                                     {/* 跨境风（A3）：优惠券条与价格同处一张白底卡片，样式与标准风（A1）一致 */}
-                                    {isOverseasLayout && promotionList.length > 0 && (
+                                    {isOverseasLayout && visiblePromotionList.length > 0 && (
                                         <View className="vortmall-coupon" onClick={handleCoupon}>
-                                            <View className="vortmall-coupon-text line1">{promotionList[0]?.promotionName || t("优惠活动")}</View>
+                                            <View className="vortmall-coupon-text line1">{visiblePromotionList[0]?.promotionName || t("优惠活动")}</View>
                                             <View className="vortmall-coupon-more">
                                                 {t("更多优惠券")}
                                                 <Text className="iconfont-h5 icon-a-gengduo20" />
@@ -568,10 +574,10 @@ const ProductTitleInfo = forwardRef<ProductTitleInfoRef, Props>(function Product
                         isActivityProduct && isVortmallLayout ? "product-name-card--vortmall-activity" : ""
                     }`}
                 >
-                    {promotionList.length > 0 && !isOverseasLayout && !isVortmallLayout && (
+                    {visiblePromotionList.length > 0 && !isOverseasLayout && !isVortmallLayout && (
                         <View className="activity-box" onClick={handleCoupon}>
                             <View className="flex">
-                                {(promotionList.length > 2 ? promotionList.slice(0, 2) : promotionList).map((item) => (
+                                {(visiblePromotionList.length > 2 ? visiblePromotionList.slice(0, 2) : visiblePromotionList).map((item) => (
                                     <ActivityCard key={item.promotionId} activityInfo={item} cardType="detail" />
                                 ))}
                             </View>

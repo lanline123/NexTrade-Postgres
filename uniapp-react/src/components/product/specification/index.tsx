@@ -1880,7 +1880,7 @@ const Specification = forwardRef<SpecificationRef, SpecificationProps>(function 
                         </View>
                     )}
                     {/* 开团阶梯 如果是阶梯团渲染出来 */}
-                    {isGroupon && grouponEnable && grouponInfo?.groupType === 2 && currentSkuGrouponLaders.length > 0 && (
+                    {!!isGroupon && grouponEnable && grouponInfo?.groupType === 2 && currentSkuGrouponLaders.length > 0 && (
                         <View className="product-sku-info">
                             <View className="sku-item">
                                 <View className="tit">{t("阶梯")}</View>

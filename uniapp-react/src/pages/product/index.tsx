@@ -12,6 +12,7 @@ import ProductComment from "./src/productComment";
 import EvaluateCard from "./src/evaluateCard";
 import MerchantShopInfo from "./src/merchantShopInfo";
 import Specification, { type SpecificationRef, type SpecificationSendValuePayload } from "@/components/product/specification";
+import { isActivityVisible } from "@/components/masonry/ActivityCard";
 import ProductCoupon from "./src/productCoupon";
 import ProductGrouponMore from "./src/productGrouponMore";
 import ProductContent from "./src/productContent";
@@ -291,6 +292,12 @@ export default function ProductIndex() {
         setProductPrice,
         setProduct
     } = detail;
+
+    // 优惠行只按「能渲染出可见标签」的促销条目判定存在（与瀑布流卡 / productTitleInfo 同口径，
+    // 见 components/masonry/ActivityCard 的 isActivityVisible）：无可见条目时整行不渲染，
+    // 行文案取第一个可见条目的名称，不再显示不可见条目（type=0 等）的名称。
+    const visiblePromotionList = useMemo(() => promotionList.filter((item) => isActivityVisible(item)), [promotionList]);
+
     const rawImageDownload = useProductRawImageDownload(detail.rawImageContext, detail.reloadRawImageDetail);
 
     // ===== 询价（第 3 期）+ 价格门控（第 2 期）=====
@@ -1052,13 +1059,13 @@ export default function ProductIndex() {
                             {!isWholesaleMode &&
                                 isOverseasStyle &&
                                 (isSeckill || isDiscount || isGroupon || isPresale || isCycleBuy) &&
-                                promotionList.length > 0 && (
+                                visiblePromotionList.length > 0 && (
                                     <View className="overseas-activity-coupon-box">
                                         <View
                                             className="overseas-activity-coupon"
                                             onClick={() => setShowCoupon(true)}
                                         >
-                                            <View className="coupon-title line1">{promotionList[0]?.promotionName || t("优惠活动")}</View>
+                                            <View className="coupon-title line1">{visiblePromotionList[0]?.promotionName || t("优惠活动")}</View>
                                             <View className="coupon-more">
                                                 {t("更多优惠券")}
                                                 <Text className="iconfont-h5 icon-a-gengduo20" />
@@ -1072,13 +1079,13 @@ export default function ProductIndex() {
                                 // 对应旧 computed showVortmallStandaloneCoupon
                                 const showVortmallStandaloneCoupon =
                                     isVortmallStyle &&
-                                    promotionList.length > 0 &&
+                                    visiblePromotionList.length > 0 &&
                                     !!(isSeckill || isDiscount || isGroupon || isCycleBuy || isSubCard || isPresale || activityBgImage);
                                 if (!showVortmallStandaloneCoupon) return null;
                                 return (
                                     <View className="vortmall-presale-coupon" onClick={() => setShowCoupon(true)}>
                                         <View className="coupon-content">
-                                            <View className="coupon-title line1">{promotionList[0]?.promotionName || t("优惠活动")}</View>
+                                            <View className="coupon-title line1">{visiblePromotionList[0]?.promotionName || t("优惠活动")}</View>
                                             <View className="coupon-more">
                                                 {t("更多优惠券")}
                                                 <Text className="iconfont-h5 icon-a-gengduo20" />
@@ -1096,7 +1103,7 @@ export default function ProductIndex() {
                             )}
 
                             {/* A1 补齐旧版除规格外的交易提示；规格快捷入口按当前装修方案保留不展示。 */}
-                            {!isWholesaleMode && isGroupon && !!totalGroupCount && (
+                            {!isWholesaleMode && !!isGroupon && !!totalGroupCount && (
                                 <View className={`group-card-row ${isVortmallStyle ? "group-card-row--vortmall" : ""}`}>
                                     <View className="flex justify-between align-center">
                                         <View className="group-num">{grouponValue.joinNumCount + t("人在拼单，可直接参与")}</View>
@@ -1178,7 +1185,7 @@ export default function ProductIndex() {
 
                                     {(configStoreShowSelledCount || attrList.normal?.length > 0 || product.fixedShippingType === 1 || serviceList.length > 0) && (
                                         <View className="card-row-flex">
-                                            {configStoreShowSelledCount && (
+                                            {!!configStoreShowSelledCount && (
                                                 <View className="cart-item flex align-center justify-between">
                                                     <View className="flex align-center">
                                                         <View className="title">{t("销量")}</View>
