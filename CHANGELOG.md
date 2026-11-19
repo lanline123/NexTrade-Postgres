@@ -370,3 +370,7 @@
 ### 修复
 
 - **后台 - 装修页批量删除加默认页护栏【原版有·我方改口径】**：用户 2026-11-19 拍板新增「默认页不可批删」，与原版的差异是——原版批删不排除默认页、后端 batch 无 isHome 护栏，勾中默认页可直接删除；我方新增三层护栏：①前端列表中默认页（isHome=1）行勾选框禁用（ListPage 框架新增 opt-in 的 `rowSelectable` 逐行判定 → Semi `getCheckboxProps`，全选亦不纳入），正常操作路径选不中默认页；②批删提交前若混入默认页，整批拦截并提示「所选页面包含默认页，默认页不可删除，已取消本次批量删除」、不调接口；③后端 `POST /decorate/decorate/batch`（services content/decorate.rs）在归属校验同一趟顺带查默认页，ids 中任一为默认页即整批拒绝（400「默认页不可删除（页面ID …），已取消本次批量删除」）、不做部分删除——选整批拒绝而非跳过，与该接口既有「任一越权 → 整批拒绝」口径一致，且避免批量操作的静默部分成功。单删本次不动：后端 del 仍无 isHome 校验、默认页保护仍靠前端不显示入口，与原版一致。因该列表组件被 PC 装修页管理复用，护栏对移动/PC 两端同时生效（与原版 List.vue 两端共用同理）。
+
+### 修复
+
+- **后台 - 装修页面管理名称字段错位（decorateName → decorateTitle）**：移动端页面管理（mobileDecorateManage）与 PC 自定义页（pcDecorateCustomManage）的列表列、搜索框、新建/编辑抽屉误用 `decorateName` 作为页面名称字段，但后端列表 VO 与创建/更新 DTO 的字段均为 `decorateTitle`（接口无 decorateName），按名搜索的后端入参为 `keyword`（decorate_title ILIKE）。后果三连：①列表「页面名称」列恒为空、只显示兜底文案（如店铺模板页真实标题「默认模板」从不显示）；②按页面名称搜索无效（参数被后端忽略）；③新建页面必报「装修页面名称不能为空」（抽屉把名称放进 decorateName 提交，后端读不到标题）——2026-11-19 上线点验复选框时实测复现。修复：两页的列 dataIndex 与抽屉字段改为 `decorateTitle`、搜索字段改为 `keyword`，移动端「更换默认页」弹窗的 pageName 取值改为 decorateTitle 优先。开屏广告的 decorateDiscrete 接口字段本就是 decorateName，未动。
