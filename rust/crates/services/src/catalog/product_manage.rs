@@ -2672,7 +2672,7 @@ mod tests {
     fn paid_content_gate_blanks_full_text_until_bought() {
         let full = serde_json::json!([{"type": "text", "html": "<p>付费全文</p>"}]);
         // 已购：全文下发
-        assert_eq!(apply_buy_gate(1, Some(full.clone())), Some(full));
+        assert_eq!(apply_buy_gate(1, Some(full.clone())), Some(full.clone()));
         // 未购：置空（公开详情接口不得泄露付费全文）
         assert_eq!(apply_buy_gate(0, Some(full.clone())), None);
         // 已购但商品本身无付费内容：保持空

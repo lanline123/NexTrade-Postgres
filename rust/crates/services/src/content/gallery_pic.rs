@@ -599,7 +599,7 @@ fn crc32(data: &[u8]) -> u32 {
 }
 
 /// 外部直链允许的扩展名（模型常量本地引用，避免长路径）。
-fn extensions() -> [&'static str; 6] {
+fn extensions() -> [&'static str; 7] {
     nextrade_core::models::content::gallery_pic::ALLOWED_IMAGE_EXTENSIONS
 }
 
