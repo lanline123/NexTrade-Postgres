@@ -16,7 +16,8 @@ use nextrade_core::models::content::decorate::{
     parse_json_opt, DecorateDiscreteMenuItemDTO, DecorateDiscreteUpdateParam, DecorateDiscreteVO,
     DecorateChildVO, DecorateCreateDTO, DecorateListQuery, DecorateMemberDataVO,
     DecorateModuleListVO, DecorateSaveDTO, DecorateShareInfoDTO, DecorateShareInfoVO,
-    DecorateShareListQuery, DecorateShareVO, DecorateUpdateDTO, DecorateVO, HomeDecorateQuery,
+    DecorateShareListQuery, DecorateShareVO, DecorateShopOptionVO, DecorateUpdateDTO, DecorateVO,
+    HomeDecorateQuery,
     MobileCatNavCreateDTO, MobileCatNavListQuery, MobileCatNavUpdateDTO, MobileCatNavVO,
     PcCatFloorCreateDTO, PcCatFloorListQuery, PcCatFloorUpdateDTO, PcCatFloorVO, PcNavTreeVO,
     PcNavigationCreateDTO, PcNavigationListQuery, PcNavigationUpdateDTO, PcNavigationVO,
@@ -1251,6 +1252,9 @@ impl DecorateService {
         DecorateFilter {
             // 多租户：店铺账号强制本店（含平台装修页）；平台账号不过滤
             shop_id: TenantScope::current_list_filter(),
+            // 店铺精确筛选【我方新增】：透传管理页下拉选中值（含 0=平台），
+            // 与租户可见口径在仓储层 AND，不放宽店铺账号的既有限制
+            filter_shop_id: q.shop_id,
             keyword: q.keyword.clone(),
             decorate_types: q.decorate_types(),
             page_types: q.page_types(),
@@ -1261,9 +1265,64 @@ impl DecorateService {
         }
     }
 
+    /// 店铺展示名【我方新增】：`shop_id = 0` 固定「平台」（shop 表平台行
+    /// 标题为脏数据，不可直用）；其余取 `shop.shop_title`，查不到回退 None
+    /// （前端显示店铺 ID）。
+    fn shop_display_name(shop_id: i32, title: Option<String>) -> Option<String> {
+        if shop_id == DEFAULT_SHOP_ID {
+            return Some("平台".to_string());
+        }
+        title.filter(|s| !s.trim().is_empty())
+    }
+
+    /// 店铺筛选选项【我方新增】（移动装修管理页店铺下拉数据源）。
+    ///
+    /// 只含当前账号可见范围内真正有装修页的店铺（distinct 聚合），
+    /// 平台账号见全部、店铺账号只见平台 + 本店（租户口径同列表）。
+    pub async fn shop_options(
+        &self,
+        q: &DecorateListQuery,
+    ) -> Result<Vec<DecorateShopOptionVO>> {
+        let rows = self
+            .repos
+            .content
+            .decorate
+            .distinct_shops(TenantScope::current_list_filter(), &q.decorate_types())
+            .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(shop_id, title, page_count)| DecorateShopOptionVO {
+                shop_id,
+                shop_name: Self::shop_display_name(shop_id, title),
+                page_count,
+            })
+            .collect())
+    }
+
     /// 实体批量转 VO（回填绑定的 H5 页面名）。
     async fn to_vos(&self, rows: Vec<Decorate>) -> Result<Vec<DecorateVO>> {
         let mut vos: Vec<DecorateVO> = rows.iter().map(DecorateVO::from).collect();
+        // 店铺名回填【我方新增】：按本页 distinct shop_id 批量取 shop_title
+        let mut shop_ids: Vec<i32> = vos.iter().filter_map(|v| v.shop_id).collect();
+        shop_ids.sort_unstable();
+        shop_ids.dedup();
+        if !shop_ids.is_empty() {
+            let titles = self
+                .repos
+                .content
+                .decorate
+                .find_shop_titles(&shop_ids)
+                .await?;
+            for v in &mut vos {
+                if let Some(shop_id) = v.shop_id {
+                    let title = titles
+                        .iter()
+                        .find(|(id, _)| *id == shop_id)
+                        .and_then(|(_, t)| t.clone());
+                    v.shop_name = Self::shop_display_name(shop_id, title);
+                }
+            }
+        }
         let mut h5_ids: Vec<i32> = vos
             .iter()
             .filter_map(|v| v.binded_h5_id)
@@ -1361,6 +1420,7 @@ impl DecorateService {
         };
         let filter = DecorateFilter {
             shop_id: Some(source.shop_id),
+            filter_shop_id: None,
             keyword: Some(prefix.clone()),
             decorate_types: source.decorate_type.into_iter().collect(),
             page_types: vec![source.page_type],
@@ -1954,6 +2014,26 @@ mod tests {
         assert_eq!(m["frame"]["boxRadius"], 8);
         // frame 缺失键被回填
         assert_eq!(m["frame"]["boxPadding"], 10);
+    }
+
+    #[test]
+    fn shop_display_name_platform_and_fallback() {
+        // 店铺列展示口径【我方新增】：平台固定「平台」，不取 shop 表脏标题
+        assert_eq!(
+            DecorateService::shop_display_name(0, Some("string".into())).as_deref(),
+            Some("平台")
+        );
+        assert_eq!(
+            DecorateService::shop_display_name(0, None).as_deref(),
+            Some("平台")
+        );
+        // 商家店铺取真实店名；查不到/空名回退 None（前端显示店铺 ID）
+        assert_eq!(
+            DecorateService::shop_display_name(1667501125, Some("锂源循环·济南".into())).as_deref(),
+            Some("锂源循环·济南")
+        );
+        assert_eq!(DecorateService::shop_display_name(9, None), None);
+        assert_eq!(DecorateService::shop_display_name(9, Some("  ".into())), None);
     }
 
     #[test]
