@@ -1,5 +1,6 @@
 import type { ApiEnvelope } from "@/types/api";
 import request from "@/utils/request";
+import { repairPreviewPriceList } from "@/utils/previewProductData";
 import type {
     GuessLikeDataResponse,
     GuessLikeIdsDataResponse,
@@ -244,12 +245,23 @@ export const getmobileAreaCode = () => {
  * @param params 筛选条件
  * @returns 商品列表及分页信息
  */
-export const getProductsList = (params: object) => {
-    return request<ProductsListResponse>({
+export const getProductsList = async (params: object) => {
+    const result = await request<ProductsListResponse>({
         url: "product/product/list",
         method: "get",
         params
     });
+    // 编辑器嵌入预览的真实价格回填【我方新增】（2026-11-20）：仅当本页是
+    // 装修编辑器嵌入预览页、且父页面（管理端）下发了真实价格表时，注册表
+    // 才被武装并按商品 id 回填被 isIdentity 门控遮罩的价格字段；真实店面
+    // 任何页面注册表恒为空、原样返回，门控口径不受影响。
+    // 见 utils/previewProductData 与 pages/decoratePreview。
+    const data: any = result as any;
+    if (data && typeof data === "object") {
+        if (Array.isArray(data.records)) repairPreviewPriceList(data.records);
+        if (Array.isArray(data.list)) repairPreviewPriceList(data.list);
+    }
+    return result;
 };
 
 /**
