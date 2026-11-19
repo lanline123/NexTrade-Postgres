@@ -1781,12 +1781,30 @@ impl AftersalesService {
             .await?
             .unwrap_or_default();
         if financial_review != "1" {
-            let _ = self
+            let transitioned = self
                 .repos
                 .payment
                 .refund_apply
                 .transition_status(refund_id, &[1], 2, Some("财务审核关闭自动执行退款"))
-                .await;
+                .await
+                .unwrap_or(false);
+            // 礼品卡返还（尽力而为）：自动执行退款与 mark_processed 同为
+            // 退款完成点，流转成功后按 usage_log 原额返还储值卡抵扣，
+            // 仓储层幂等（已返还则跳过）；失败只告警，不阻断售后收尾。
+            if transitioned && apply.order_id > 0 {
+                if let Err(e) = self
+                    .repos
+                    .marketing
+                    .gift_card_issue
+                    .return_stored_cards_for_order(apply.order_id, utils::now_seconds())
+                    .await
+                {
+                    tracing::warn!(
+                        "售后自动退款 礼品卡返还失败 aftersale_id={} order_id={}: {e}",
+                        aftersales.aftersale_id, apply.order_id
+                    );
+                }
+            }
             self.repo()
                 .insert_log(&build_log(
                     aftersales.aftersale_id,
@@ -2936,5 +2954,28 @@ mod tests {
             .as_deref(),
             Some("平台 400-000 山东省青岛市市南区某路")
         );
+    }
+
+    /// 礼品卡返还挂点不变量：财务审核关闭时的自动执行路径必须在退款
+    /// 申请流转成功（transitioned）之后调用 `return_stored_cards_for_order`，
+    /// 与支付域 mark_processed 完成点口径一致，防止重构误删/误挂。
+    #[test]
+    fn gift_card_return_wired_after_auto_refund_transition() {
+        let src = include_str!("aftersales.rs");
+        let f = src
+            .find("pub async fn create_refund_apply_and_handle_finance")
+            .expect("create_refund_apply_and_handle_finance 应存在");
+        let tail = &src[f..];
+        let transition = tail
+            .find("财务审核关闭自动执行退款")
+            .expect("自动执行退款流转应存在");
+        let hook = tail
+            .find("return_stored_cards_for_order")
+            .expect("自动退款路径应挂礼品卡返还");
+        assert!(transition < hook, "礼品卡返还必须在自动退款流转之后执行");
+        let guard = tail
+            .find("if transitioned && apply.order_id > 0")
+            .expect("返还应以流转成功为前提");
+        assert!(guard < hook, "礼品卡返还应受 transitioned 守卫");
     }
 }

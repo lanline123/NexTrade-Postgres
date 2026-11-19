@@ -925,4 +925,26 @@ mod tests {
         // 归属校验在详情 SQL 内
         assert!(src.contains("(c.claimed_user_id = $2 OR c.user_id = $2)"));
     }
+
+    #[test]
+    fn return_hook_idempotency_invariants() {
+        let src = include_str!("gift_card_issue.rs");
+        let f = src
+            .find("pub async fn return_stored_cards_for_order")
+            .expect("返还钩子应存在");
+        let end = src[f..]
+            .find("pub async fn find_exchange_order_ids")
+            .expect("下一函数应存在")
+            + f;
+        let body = &src[f..end];
+        // 幂等守卫：已有 type=2 返还流水的订单直接跳过
+        assert!(body.contains("WHERE order_id = $1 AND type = 2"));
+        // 返还对象是该订单全部 type=1 抵扣流水
+        assert!(body.contains("WHERE order_id = $1 AND type = 1"));
+        // 返还写 type=2 正额流水并恢复卡可用状态
+        assert!(body.contains("VALUES ($1, $2, $3, 2,"));
+        assert!(body.contains("status = 0"));
+        // 逐卡行锁防并发重复返还
+        assert!(body.contains("FOR UPDATE"));
+    }
 }

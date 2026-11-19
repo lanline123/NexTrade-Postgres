@@ -445,6 +445,22 @@ impl RefundApplyService {
             dto.refund_id,
             existing.offline_balance
         );
+        // 礼品卡返还（尽力而为）：线下退款以确认到账为完成点，口径同
+        // mark_processed；仓储层幂等，重复确认/重复调用不会重复返还。
+        if existing.order_id > 0 {
+            if let Err(e) = self
+                .repos
+                .marketing
+                .gift_card_issue
+                .return_stored_cards_for_order(existing.order_id, utils::now_seconds())
+                .await
+            {
+                tracing::warn!(
+                    "线下退款确认 礼品卡返还失败 refund_id={} order_id={}: {e}",
+                    dto.refund_id, existing.order_id
+                );
+            }
+        }
         Ok(())
     }
 
@@ -480,6 +496,23 @@ impl RefundApplyService {
         )
         .await?;
         tracing::info!("退款完成: refund_id={refund_id} trade_no={transaction_id}");
+        // 礼品卡返还（尽力而为）：退款完成後、按 usage_log 原额返还储值卡
+        // 抵扣并写 type=2 流水，仓储层幂等（已返还则跳过）；失败只告警，
+        // 不回滚已完成的退款（与订单取消返还口径一致）。
+        if existing.order_id > 0 {
+            if let Err(e) = self
+                .repos
+                .marketing
+                .gift_card_issue
+                .return_stored_cards_for_order(existing.order_id, utils::now_seconds())
+                .await
+            {
+                tracing::warn!(
+                    "退款完成 礼品卡返还失败 refund_id={refund_id} order_id={}: {e}",
+                    existing.order_id
+                );
+            }
+        }
         Ok(())
     }
 
@@ -708,5 +741,43 @@ mod tests {
         assert!(!audit_target_ok(0)); // 待处理不可作为审核目标
         assert!(!audit_target_ok(2)); // 已处理不可作为审核目标
         assert!(!audit_target_ok(9));
+    }
+
+    /// 礼品卡返还挂点不变量：两个退款完成点（mark_processed 置已处理、
+    /// offline_audit 确认线下到账）都必须在完成动作之后调用
+    /// `return_stored_cards_for_order`（仓储层幂等），防止后续重构把
+    /// 返还钩子误删或误挂到完成之前。
+    #[test]
+    fn gift_card_return_wired_after_refund_completion() {
+        let src = include_str!("refund_apply.rs");
+
+        // mark_processed：先流转到 Processed，再返还礼品卡
+        let mp = src
+            .find("pub async fn mark_processed")
+            .expect("mark_processed 应存在");
+        let tail = &src[mp..];
+        let transition = tail
+            .find("RefundApplyStatus::Processed as i32")
+            .expect("mark_processed 应流转到已处理");
+        let hook = tail
+            .find("return_stored_cards_for_order")
+            .expect("mark_processed 应挂礼品卡返还");
+        assert!(
+            transition < hook,
+            "礼品卡返还必须在退款完成流转之后执行"
+        );
+
+        // offline_audit：先 confirm_receive 成功，再返还礼品卡
+        let oa = src
+            .find("pub async fn offline_audit")
+            .expect("offline_audit 应存在");
+        let tail = &src[oa..];
+        let confirm = tail
+            .find("confirm_receive")
+            .expect("offline_audit 应确认线下到账");
+        let hook = tail
+            .find("return_stored_cards_for_order")
+            .expect("offline_audit 应挂礼品卡返还");
+        assert!(confirm < hook, "礼品卡返还必须在确认到账之后执行");
     }
 }
