@@ -7,6 +7,7 @@ import { MODULE_REGISTRY } from "@/pages/customPage/modules/registry";
 import ConfigPagePreview from "./configPages";
 import { configPageSlotIndices, resolveConfigPageBranch } from "./configPages/resolve";
 import { getIndex } from "@/api/home/home";
+import { setPreviewPriceData } from "@/utils/previewProductData";
 import { getShopDetail } from "@/api/shop/shop";
 import type { ShopDetailItem } from "@/types/shop/shop";
 
@@ -39,6 +40,14 @@ import "./index.scss";
  *   configPages/resolve 判定命中后改走整页分支（configPages/）：以编辑器实时
  *   数据作配置渲染真实页面组件；整页占 1 个槽位（配置模块下标），布局/就绪
  *   回报口径不变。不命中（其它页型/配置模块缺失）回退通用分发，行为不变。
+ * - 编辑器真实价格注入【我方新增】（2026-11-20）：isIdentity 价格门控开启后，
+ *   本页以匿名身份调公开商品列表接口，价格被遮罩为 null、画布按兜底渲染
+ *   成 0（页面 10019 实证）。编辑器是管理面、预览必须显示真实价：父页面
+ *   （管理端，管理员登录口径）随 decorate-data 下发 productData（按商品
+ *   id 的真实价格字段表），本页装入 utils/previewProductData 注册表，
+ *   商品列表响应在 api 层按 id 回填价格后再交给各模块渲染；价格表到达
+ *   或变化时整树重挂一次，让各模块重新取数。真实店面不加载本页、注册
+ *   表恒为空，店面门控不受影响；旧编辑器不下发该字段时行为不变。
  *
  * 通信安全：只接受 ALLOWED_ORIGINS 的消息；本机 localhost 调试时放行任意来源（仅按 hostname 判断）。
  * 方案：~/workspace/editor-unify/iframe-canvas-design.md
@@ -79,6 +88,8 @@ export default function DecoratePreview() {
     const [received, setReceived] = useState(false);
     /** 编辑器下发的页面类型（整页配置型分支判定用；旧编辑器不下发时为 0，恒走通用分发） */
     const [pageType, setPageType] = useState(0);
+    /** 编辑器下发真实价格表的版本：变化时整树重挂，让商品模块重新取数回填价格 */
+    const [priceDataVersion, setPriceDataVersion] = useState(0);
     const [shopId, setShopId] = useState(0);
     const [shopInfo, setShopInfo] = useState<ShopDetailItem | undefined>(undefined);
     const rootRef = useRef<any>(null);
@@ -116,6 +127,11 @@ export default function DecoratePreview() {
             if (typeof data.shopId === "number" && data.shopId !== shopIdRef.current) {
                 shopIdRef.current = data.shopId;
                 setShopId(data.shopId);
+            }
+            // 编辑器真实价格表（管理口径下发）：字段存在才处理（旧编辑器不
+            // 下发、向后兼容）；内容有变化时装入注册表并整树重挂一次。
+            if ("productData" in data && setPreviewPriceData(data.productData)) {
+                setPriceDataVersion((v) => v + 1);
             }
             setReceived(true);
         };
@@ -314,6 +330,7 @@ export default function DecoratePreview() {
                     <ConfigPagePreview branch={configBranch} />
                 ) : (
                     <DecorateModules
+                        key={priceDataVersion}
                         modules={modulesData}
                         pageModles={pageModule}
                         scrollTop={0}
