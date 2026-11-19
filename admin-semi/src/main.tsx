@@ -1,6 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import '@semi-css';
+// 2026-11-19 首屏优化第二轮：不再全量引入 semi.min.css（'@semi-css'）。Semi 各组件的
+// 样式由组件 JS 自带、随其所在 chunk 输出，全量引入与之重复约 660KB raw（入口 CSS
+// 因此膨胀到约 800KB）。vite.config 的 '@semi-css' alias 保留备用，不要恢复此 import，
+// 否则 Semi 样式会回到双份下发。
 import './styles.css';
 import App from './App';
 import { I18nProvider } from './i18n';
