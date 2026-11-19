@@ -104,15 +104,22 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          // 2026-11-19 首屏优化第二轮：不再把 semi-ui/semi-icons/semi-foundation 强制聚合为
-          // vendor-semi 单块——聚合会把只被冷门页面用到的 Semi 组件（如 Table/Form/DatePicker）
-          // 全部塞进首屏预加载。取消聚合后 Semi 代码跟随懒加载图自然拆分：壳层共用组件进
-          // 入口/共享块，页面专属组件进各自页面块或按需共享块。Semi 组件 CSS 同理由各组件
-          // 自带样式随块走，main.tsx 不再全量引入 semi.min.css（与组件自带 CSS 重复一份）。
-          'vendor-react': ['react', 'react-dom'],
-          'vendor-editor': ['@wangeditor/editor', '@wangeditor/editor-for-react'],
-          'vendor-charts': ['echarts'],
+        // 2026-11-19 首屏优化第二轮：不再把 semi-ui/semi-icons/semi-foundation 强制聚合为
+        // vendor-semi 单块——聚合会把只被冷门页面用到的 Semi 组件（如 Table/Form/DatePicker）
+        // 全部塞进首屏预加载。取消聚合后 Semi 代码跟随懒加载图自然拆分：壳层共用组件进
+        // 入口/共享块，页面专属组件进各自页面块或按需共享块。Semi 组件 CSS 同理由各组件
+        // 自带样式随块走，main.tsx 不再全量引入 semi.min.css（与组件自带 CSS 重复一份）。
+        // 改用函数式 manualChunks 的原因：数组式按包名匹配漏掉 react 的子路径模块
+        // （jsx-runtime / cjs 等），未被认领的 React 模块会被 editor-for-react 所在的
+        // vendor-editor 块吸收，导致入口静态依赖 vendor-editor、编辑器回到首屏预加载。
+        // 函数式按 node_modules 路径精确归组，保证 React 全部落 vendor-react。
+        manualChunks(id) {
+          const nid = id.replace(/\\/g, '/');
+          if (!nid.includes('node_modules')) return undefined;
+          if (/\/node_modules\/(react|react-dom|scheduler)\//.test(nid)) return 'vendor-react';
+          if (nid.includes('/node_modules/@wangeditor/')) return 'vendor-editor';
+          if (nid.includes('/node_modules/echarts/') || nid.includes('/node_modules/zrender/')) return 'vendor-charts';
+          return undefined;
         },
       },
     },
