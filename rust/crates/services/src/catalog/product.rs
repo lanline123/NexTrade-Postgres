@@ -14,8 +14,10 @@ use nextrade_infrastructure::db::Repositories;
 /// 商品详情缓存 TTL（秒）。
 const PRODUCT_CACHE_TTL: u64 = 300;
 
-/// 询价商品/型号禁购文案（2026-11-15；加购/结算/下单共用校验处使用）。
-const MSG_INQUIRY_NOT_PURCHASABLE: &str = "该商品为询价商品，请提交询价";
+/// 询价商品/型号禁购文案（2026-11-15；加购/结算/下单共用校验处使用；
+/// 批发批量加车的行级购买裁决同文案复用，见
+/// `wholesale::wholesale_client::batch_line_gate_error`）。
+pub(crate) const MSG_INQUIRY_NOT_PURCHASABLE: &str = "该商品为询价商品，请提交询价";
 
 #[derive(Clone)]
 pub struct ProductService {
