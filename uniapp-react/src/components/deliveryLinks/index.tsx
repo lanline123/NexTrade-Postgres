@@ -42,7 +42,7 @@ export default function DeliveryLinks({ html }: { html?: string | null }) {
     if (!urls.length) return null;
 
     const openUrl = (url: string) => {
-        if (TARO_ENV === "h5") {
+        if (process.env.TARO_ENV === "h5") {
             window.open(url, "_blank");
         } else {
             copy(url, () => {
