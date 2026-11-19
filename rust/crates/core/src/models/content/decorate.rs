@@ -93,6 +93,12 @@ pub struct DecorateListQuery {
     /// 按 `shop_id = ?` 精确过滤，与 keyword/decorateType/pageType 条件 AND。
     /// 注意与仓储层 `DecorateFilter.shop_id` 的租户可见口径不同，勿混用。
     pub shop_id: Option<i32>,
+    /// 排除某店铺【我方新增，店铺页签口径】：传了按 `shop_id != ?` 过滤。
+    /// 移动装修「店铺」并列页签传 `excludeShopId=0` 表示只列商家店铺页
+    /// （`shop_id != 0`）；与 `shop_id` 精确过滤、租户可见口径三者 AND 叠加，
+    /// 不放宽租户范围（店铺账号在店铺页签仍只能看到本店）。
+    /// 不传 = 不排除（与既有行为一致）。
+    pub exclude_shop_id: Option<i32>,
     pub sort_field: Option<String>,
     pub sort_order: Option<String>,
     pub page: Option<u64>,
@@ -810,6 +816,23 @@ mod tests {
         let q_platform: DecorateListQuery =
             serde_json::from_str(r#"{"shopId":0}"#).expect("shopId=0 应可解析");
         assert_eq!(q_platform.shop_id, Some(0));
+    }
+
+    #[test]
+    fn list_query_accepts_exclude_shop_id() {
+        // 店铺页签口径【我方新增】：excludeShopId=0 表示排除平台、只列商家店铺页
+        let q: DecorateListQuery = serde_json::from_str(r#"{"excludeShopId":0,"pageType":"1"}"#)
+            .expect("excludeShopId 入参应可解析");
+        assert_eq!(q.exclude_shop_id, Some(0));
+        assert_eq!(q.shop_id, None);
+        let q_all: DecorateListQuery =
+            serde_json::from_str(r#"{"pageType":"1"}"#).expect("无 excludeShopId 应可解析");
+        assert_eq!(q_all.exclude_shop_id, None);
+        // 与 shopId 精确过滤同传时两字段独立保留（仓储层 AND 叠加）
+        let q_both: DecorateListQuery =
+            serde_json::from_str(r#"{"shopId":5,"excludeShopId":0}"#).expect("同传应可解析");
+        assert_eq!(q_both.shop_id, Some(5));
+        assert_eq!(q_both.exclude_shop_id, Some(0));
     }
 
     #[test]
