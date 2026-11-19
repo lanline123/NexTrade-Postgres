@@ -87,7 +87,15 @@ export default function IframeCanvas({
         try {
             // shopId 随数据下发（店铺模板页才有值）：嵌入页据此拉真实店铺详情喂
             // shopInfo 等店铺模块；旧版嵌入页忽略未知字段，向后兼容。
-            win.postMessage({ type: "decorate-data", seq, moduleList: st.moduleList, pageModule: st.pageModule, shopId: st.shopId || 0 }, EMBED_ORIGIN);
+            // pageType 随数据下发（2026-11-19 整页配置型页型修复）：登录(5)/搜索(6)/
+            // 商品详情(8)的模块是「整页配置型」——前台页面本体消费 module 作整页
+            // 配置、没有积木渲染器，嵌入页须按 pageType 走整页分支渲染真实页面；
+            // 此前不下发 pageType 时嵌入页无从分支，三类页真实渲染整页空白。
+            // 旧版嵌入页忽略未知字段，向后兼容。
+            win.postMessage(
+                { type: "decorate-data", seq, moduleList: st.moduleList, pageModule: st.pageModule, shopId: st.shopId || 0, pageType: st.pageType || 0 },
+                EMBED_ORIGIN
+            );
         } catch {
             /* iframe 未就绪时忽略，就绪握手会补发 */
         }

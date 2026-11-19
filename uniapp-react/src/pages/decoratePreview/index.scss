@@ -7,6 +7,25 @@
         font-size: 13px;
         color: #999;
     }
+
+    /* 整页配置型分支（登录/搜索/商品详情）：整页内容即唯一槽位 */
+    &__config-page {
+        min-height: 100vh;
+    }
+
+    /* 整页分支的加载/空态占位（样例商品取数中、无在售商品、加载失败） */
+    &__config-note {
+        padding: 120px 0;
+        text-align: center;
+        font-size: 13px;
+        color: #999;
+    }
+
+    /* 商品详情底部购买栏在真实页是 fixed 贴底；预览画布高度随内容增长，
+     * 改回文档流排在内容末尾，否则会悬在 iframe 视口底部遮挡内容 */
+    .bottom-bar-box {
+        position: relative;
+    }
 }
 
 /* 嵌入态（编辑器 iframe）隐藏全部滚动条（用户 2026-11-19）：根滚动与模块内滚动都只滚不显条，

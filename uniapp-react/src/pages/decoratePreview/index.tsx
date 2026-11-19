@@ -4,6 +4,8 @@ import { useRouter } from "@tarojs/taro";
 
 import DecorateModules from "@/pages/customPage/components/DecorateModules";
 import { MODULE_REGISTRY } from "@/pages/customPage/modules/registry";
+import ConfigPagePreview from "./configPages";
+import { configPageSlotIndices, resolveConfigPageBranch } from "./configPages/resolve";
 import { getIndex } from "@/api/home/home";
 import { getShopDetail } from "@/api/shop/shop";
 import type { ShopDetailItem } from "@/types/shop/shop";
@@ -30,6 +32,13 @@ import "./index.scss";
  *   decorate-data 里下发的 shopId（或 ?shopId= 参数）拉 getShopDetail 后透传给
  *   DecorateModules，口径与 ShopModules 一致。此前不传曾让 shopInfo 模块无守卫
  *   直读崩溃、含 shopInfo 的页面（如 10079 店铺模板）真实渲染整页空白。
+ * - 整页配置型页型【原版有·我方改口径】（2026-11-19）：登录(5)/搜索(6)/商品详情(8)
+ *   的模块是整页配置（前台页面本体消费 module 作配置、无积木渲染器），通用分发
+ *   器无从渲染。此前 decorate-data 不带 pageType、本页无从分支，三类页真实渲染
+ *   整页空白（10103/10104/10105 实证）。现编辑器下发 pageType，本页经
+ *   configPages/resolve 判定命中后改走整页分支（configPages/）：以编辑器实时
+ *   数据作配置渲染真实页面组件；整页占 1 个槽位（配置模块下标），布局/就绪
+ *   回报口径不变。不命中（其它页型/配置模块缺失）回退通用分发，行为不变。
  *
  * 通信安全：只接受 ALLOWED_ORIGINS 的消息；本机 localhost 调试时放行任意来源（仅按 hostname 判断）。
  * 方案：~/workspace/editor-unify/iframe-canvas-design.md
@@ -55,11 +64,21 @@ function visibleSlotIndices(modules: any[]): number[] {
     return indices;
 }
 
+/**
+ * 当前数据的槽位下标：整页配置型分支命中时只有配置模块 1 个槽位，
+ * 否则走常规口径。布局测量与就绪计数共用，保证两处一致。
+ */
+function slotIndicesFor(pageType: number, modules: any[]): number[] {
+    return configPageSlotIndices(pageType, modules) ?? visibleSlotIndices(modules);
+}
+
 export default function DecoratePreview() {
     const router = useRouter();
     const [modulesData, setModulesData] = useState<any[]>([]);
     const [pageModule, setPageModule] = useState<any>({});
     const [received, setReceived] = useState(false);
+    /** 编辑器下发的页面类型（整页配置型分支判定用；旧编辑器不下发时为 0，恒走通用分发） */
+    const [pageType, setPageType] = useState(0);
     const [shopId, setShopId] = useState(0);
     const [shopInfo, setShopInfo] = useState<ShopDetailItem | undefined>(undefined);
     const rootRef = useRef<any>(null);
@@ -69,8 +88,8 @@ export default function DecoratePreview() {
     const shopFetchTokenRef = useRef(0);
     const renderedForRef = useRef<any[] | null>(null);
     const seqRef = useRef<number | null>(null);
-    const stateRef = useRef({ modulesData, pageModule, received });
-    stateRef.current = { modulesData, pageModule, received };
+    const stateRef = useRef({ modulesData, pageModule, received, pageType });
+    stateRef.current = { modulesData, pageModule, received, pageType };
 
     const postToParent = useCallback((msg: Record<string, any>) => {
         try {
@@ -91,6 +110,8 @@ export default function DecoratePreview() {
             if (typeof data.seq === "number") seqRef.current = data.seq;
             if (Array.isArray(data.moduleList)) setModulesData(data.moduleList);
             if (data.pageModule && typeof data.pageModule === "object") setPageModule(data.pageModule);
+            // 页面类型（整页配置型分支判定；旧编辑器不下发时保持 0，向后兼容）
+            if (typeof data.pageType === "number") setPageType(data.pageType);
             // 店铺上下文（向后兼容：旧编辑器不下发 shopId 时保持 0，模块走守卫空态）
             if (typeof data.shopId === "number" && data.shopId !== shopIdRef.current) {
                 shopIdRef.current = data.shopId;
@@ -140,6 +161,9 @@ export default function DecoratePreview() {
             shopIdRef.current = paramShopId;
             setShopId(paramShopId);
         }
+        // ?pageType= 自检参数：直接打开预览页时也能命中整页配置型分支
+        const paramPageType = Number(router.params.pageType);
+        if (paramPageType > 0 && !parentDataRef.current) setPageType(paramPageType);
         if (!id) return;
         void (async () => {
             try {
@@ -147,6 +171,7 @@ export default function DecoratePreview() {
                 if (parentDataRef.current || !res) return;
                 if (Array.isArray(res.moduleList)) setModulesData(res.moduleList);
                 if (res.pageModule) setPageModule(res.pageModule);
+                if (Number(res.pageType) > 0) setPageType(Number(res.pageType));
                 if (Number(res.shopId) > 0) {
                     shopIdRef.current = Number(res.shopId);
                     setShopId(Number(res.shopId));
@@ -172,7 +197,8 @@ export default function DecoratePreview() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // 嵌入态纯展示：拦截一切点击/双击，避免模块内链接在 iframe 里真的跳转
+    // 嵌入态纯展示：拦截一切点击/双击，避免模块内链接在 iframe 里真的跳转；
+    // submit 一并拦截（整页分支的登录页含真实表单，Enter 提交不能真的发登录请求）
     useEffect(() => {
         const block = (e: Event) => {
             e.preventDefault();
@@ -180,22 +206,26 @@ export default function DecoratePreview() {
         };
         document.addEventListener("click", block, true);
         document.addEventListener("dblclick", block, true);
+        document.addEventListener("submit", block, true);
         return () => {
             document.removeEventListener("click", block, true);
             document.removeEventListener("dblclick", block, true);
+            document.removeEventListener("submit", block, true);
         };
     }, []);
 
-    // 布局上报：DecorateModules 根节点的子节点与可见模块槽位一一对应（pageModule 标题 navbar 多占一个首子节点）
+    // 布局上报：DecorateModules 根节点的子节点与可见模块槽位一一对应（pageModule 标题 navbar 多占一个首子节点）；
+    // 整页配置型分支时容器是分支包裹节点、其唯一子节点即整页内容，槽位只有配置模块一个、无 navbar 偏移
     const reportLayout = useCallback(() => {
-        const { modulesData: mods, pageModule: pm, received: got } = stateRef.current;
+        const { modulesData: mods, pageModule: pm, received: got, pageType: pt } = stateRef.current;
         if (!got) return;
         const root = rootRef.current as HTMLElement | undefined;
         const container = (root?.firstElementChild as HTMLElement | undefined) ?? undefined;
         if (!container) return;
         const containerRect = container.getBoundingClientRect();
-        const slots = visibleSlotIndices(mods);
-        const offset = pm && pm.title ? 1 : 0;
+        const branch = resolveConfigPageBranch(pt, mods);
+        const slots = slotIndicesFor(pt, mods);
+        const offset = branch ? 0 : pm && pm.title ? 1 : 0;
         const items = slots
             .map((moduleIndex, i) => {
                 const child = container.children[i + offset] as HTMLElement | undefined;
@@ -218,32 +248,44 @@ export default function DecoratePreview() {
 
     // 首帧就绪信号 decorate-rendered：数据到达 + React 提交 + 双 rAF（首帧已绘制）+ 槽位 DOM 已存在，
     // 四个条件齐了才发；同一批数据只发一次，编辑器后续推新数据（新引用）会再发一次。
+    // 槽位 DOM 迟迟未出现时限次重试（整页分支组件懒加载 + 异步取数，首帧检查时
+    // 子节点可能尚未挂载；常规路径模块同为 lazy，此重试对两条路径一致生效）。
     useEffect(() => {
         if (!received) return;
         if (renderedForRef.current === modulesData) return;
         let cancelled = false;
+        let raf1 = 0;
         let raf2 = 0;
-        const raf1 = requestAnimationFrame(() => {
-            raf2 = requestAnimationFrame(() => {
-                if (cancelled) return;
-                const root = rootRef.current as HTMLElement | undefined;
-                const container = (root?.firstElementChild as HTMLElement | undefined) ?? undefined;
-                if (!container || container.children.length === 0) return;
-                renderedForRef.current = modulesData;
-                postToParent({
-                    type: "decorate-rendered",
-                    seq: seqRef.current,
-                    count: visibleSlotIndices(modulesData).length,
-                    totalHeight: Math.round(container.getBoundingClientRect().height)
+        let retryTimer: ReturnType<typeof setTimeout> | undefined;
+        let attempts = 0;
+        const attempt = () => {
+            raf1 = requestAnimationFrame(() => {
+                raf2 = requestAnimationFrame(() => {
+                    if (cancelled) return;
+                    const root = rootRef.current as HTMLElement | undefined;
+                    const container = (root?.firstElementChild as HTMLElement | undefined) ?? undefined;
+                    if (!container || container.children.length === 0) {
+                        if (++attempts <= 10) retryTimer = setTimeout(attempt, 300);
+                        return;
+                    }
+                    renderedForRef.current = modulesData;
+                    postToParent({
+                        type: "decorate-rendered",
+                        seq: seqRef.current,
+                        count: slotIndicesFor(pageType, modulesData).length,
+                        totalHeight: Math.round(container.getBoundingClientRect().height)
+                    });
                 });
             });
-        });
+        };
+        attempt();
         return () => {
             cancelled = true;
             cancelAnimationFrame(raf1);
             cancelAnimationFrame(raf2);
+            if (retryTimer) clearTimeout(retryTimer);
         };
-    }, [received, modulesData, pageModule, postToParent]);
+    }, [received, modulesData, pageModule, pageType, postToParent]);
 
     useEffect(() => {
         if (!received) return;
@@ -257,6 +299,10 @@ export default function DecoratePreview() {
         };
     }, [received, modulesData, pageModule, reportLayout]);
 
+    // 整页配置型分支（登录/搜索/商品详情）：命中时整页改走真实页面分支，
+    // 不经通用分发器；不命中与此前完全一致。
+    const configBranch = received ? resolveConfigPageBranch(pageType, modulesData) : null;
+
     return (
         <View
             ref={rootRef as any}
@@ -264,15 +310,19 @@ export default function DecoratePreview() {
             style={{ backgroundColor: pageModule?.backgroundColor || "#ffffff" }}
         >
             {received ? (
-                <DecorateModules
-                    modules={modulesData}
-                    pageModles={pageModule}
-                    scrollTop={0}
-                    shopInfo={shopInfo}
-                    shopId={shopId}
-                    onRefreshShopDetail={handleRefreshShopDetail}
-                    moduleErrorPlaceholder
-                />
+                configBranch ? (
+                    <ConfigPagePreview branch={configBranch} />
+                ) : (
+                    <DecorateModules
+                        modules={modulesData}
+                        pageModles={pageModule}
+                        scrollTop={0}
+                        shopInfo={shopInfo}
+                        shopId={shopId}
+                        onRefreshShopDetail={handleRefreshShopDetail}
+                        moduleErrorPlaceholder
+                    />
+                )
             ) : (
                 <View className="decorate-preview__waiting">等待编辑器数据…</View>
             )}
