@@ -87,6 +87,13 @@ export function middleware(request: NextRequest) {
   if (prefixLocale) {
     const url = request.nextUrl.clone();
     url.pathname = internalPath;
+    // rewrite 目标是**内部**地址，协议必须用进程自身的：next start 只提供明文 HTTP
+    // （TLS 由 nginx 终结），而 clone 出的 protocol 取自 x-forwarded-proto，是对外协议。
+    // 带着 https 目标时 Next 会把 rewrite 当外部地址走代理、对明文监听端口讲 TLS，
+    // 生产 /en 因此报 EPROTO 500（v46 回滚根因，journal 实证 "Failed to proxy
+    // https://localhost:3005/"）。与 externalUrl 同理：nextUrl 的分量不能照单全收，
+    // 对外地址按请求头拼、内部地址则把协议改回进程自身的 http。
+    url.protocol = 'http:';
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set('x-locale', prefixLocale);
     requestHeaders.set('x-pathname', internalPath);

@@ -352,3 +352,7 @@
 ### 其他
 
 - **后台 - 默认图/演示图批量转存自有 OSS【原版有】**：admin-semi 中原本引用 `oss.tigshop.com` 的默认图与演示图（编辑器模块默认值、Preview 演示数据、页面样式示例图等）批量转存至自有 OSS（nlatstore 桶），引用统一改为直连域名 `nlatstore.cn-qingdao.oss.aliyuncs.com`、路径不变；资源内容与原版一致，仅变更托管域名。对象侧共核对 237 个路径：232 个对象在自有桶中已存在且内容字节一致（sha256 相同，未重复上传），0 个冲突；代码侧 57 个文件共 341 处引用换主机（含 4 处非字面量构造点：cateCenterV1 的 `BASE_URL`、member/account 的 `pic()`、member/orderEntry 的 `j()`/`p()`、orderEntryV2 的 `j()`；2 处 `http://` 字面量一并归一为 https）。2 处源站本身即不存在的引用保留原域名并登记待处理：fixedFunctionalArea 预览背景 `img/gallery/202605/1779687135mCFnXgC37n5CN70APv.png`（源站与自有桶均 404）、shopTips 默认 picUrl `official/img/pc/202605/1779263739qL8q3AHR1CcdoNv4sD.pngg`（原版文件名笔误 `.pngg`，源站 404；同项 picThumb 的 `.png` 正常已切换）。客服表情图（emojiUrls）与 banner 图标说明注释中的域名提及不在本次范围。
+
+### 修复
+
+- **PC - 语言前缀 rewrite 内部协议修复【我方新增】**：语言路由（/en/ 前缀）为我方新增代码；其 middleware rewrite 分支用 `request.nextUrl.clone()` 构造内部 rewrite 目标时，带入了 `x-forwarded-proto` 的对外协议（https），而 Next 进程自身只提供明文 HTTP（TLS 由 nginx 终结）。生产经反代访问 /en 时，Next 将该目标误判为外部地址走代理、对明文监听端口讲 TLS，报 EPROTO 500（v46 上线后 /en 返回 500，已回滚 v45；journal 实证 `Failed to proxy https://localhost:3005/`）。修复：rewrite 目标协议强制改回进程自身的 http——与同文件 `externalUrl` 的既有口径一致（nextUrl 的分量不能照单全收：对外重定向地址按请求头拼，内部 rewrite 地址用进程自身协议），仅改 `pc-semi/middleware.ts` 一处。验证：在生产同型条件（`next start -H 127.0.0.1` + 请求带 `X-Forwarded-Proto: https` 与对外 Host）下先复现修复前 /en 500 与 EPROTO 日志，再验证修复后 /en、/en/login 均 200、locale cookie 与 `<html lang="en-US">` 正确、无头访问 /、/login、/en 均 200、会员守卫与大小写 308 的对外跳转不受影响；默认启动口径下同一矩阵亦全部通过。
