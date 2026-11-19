@@ -28,8 +28,8 @@ use axum::{
     routing::get,
     Router,
 };
+use axum::Extension;
 use serde::Deserialize;
-use nextrade_core::models::catalog::product_manage::ClientProductDetailVO;
 use nextrade_core::Error;
 use nextrade_security::web::{ok, ApiResult, AppError, AuthUser};
 use nextrade_security::JwtService;
@@ -97,10 +97,15 @@ struct DetailQuery {
     nearest_shop_id: Option<i32>,
 }
 
+fn user_id(auth: Option<Extension<AuthUser>>) -> Option<i32> {
+    auth.map(|Extension(u)| u.id).filter(|v| *v > 0)
+}
+
 async fn product_detail(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<DetailQuery>,
-) -> ApiResult<ClientProductDetailVO> {
+) -> ApiResult<serde_json::Value> {
     let sn = match q.sn.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         Some(sn) => sn.to_string(),
         // 对应 Java `getProductSnById`：按 ID 反查货号后走同一逻辑
@@ -112,7 +117,22 @@ async fn product_detail(
             None => return Err(AppError(Error::biz(400, "商品不存在"))),
         },
     };
-    ok(state.catalog.product_manage
+    let vo = state
+        .catalog
+        .product_manage
         .client_detail(&sn, q.shop_id, q.nearest_shop_id)
-        .await?)
+        .await?;
+    // 价格门控（第 2 期）：未登录/未认证时详情与 skuList 的真实价格
+    // 在接口层置空，载荷顶层带 priceVisible/priceGate 供前端渲染四态。
+    let access = state
+        .system
+        .config_client
+        .price_access(user_id(auth))
+        .await?;
+    let mut v = serde_json::to_value(&vo).unwrap_or(serde_json::Value::Null);
+    if !access.can_view() {
+        nextrade_services::system::price_gate::mask_price_keys(&mut v);
+    }
+    nextrade_services::system::price_gate::stamp_price_gate(&mut v, access);
+    ok(v)
 }

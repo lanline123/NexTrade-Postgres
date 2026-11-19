@@ -10,6 +10,7 @@ import { apiGet, apiPost } from '@/lib/client-api';
 import { formatDisplayPrice, formatPrice, splitDisplayPrice } from '@/lib/currency';
 import { resolveInquiryState, skuIsInquiry } from '@/lib/inquiry';
 import { defaultGrouponTier, grouponTierByNum, matchGrouponDetailRow, resolveGrouponTiers } from '@/lib/groupon-tiers';
+import { PRICE_GATE_COPY, hasAccessToken, usePriceAccess, type PriceAccessState } from '@/lib/price-gate';
 import InquiryFormModal from '@/components/InquiryFormModal';
 import RawImageDownloadButton from '@/components/RawImageDownloadButton';
 import ProductJoiningClient from '@/components/ProductJoiningClient';
@@ -188,7 +189,7 @@ function buildSkuGroups(detail: ProductDetailResponse): SkuGroup[] {
 }
 
 export default function ProductDetailClient({
-  detail,
+  detail: initialDetail,
   uiStyle = 'overseas',
 }: {
   detail: ProductDetailResponse;
@@ -196,6 +197,33 @@ export default function ProductDetailClient({
   uiStyle?: 'old' | 'new' | 'overseas';
 }) {
   const { t } = useTranslation();
+  /**
+   * 价格门控补拉（第 2 期）：SSR 载荷是服务端无登录态取数，门控开启时
+   * 价格已被后端置空（priceVisible=false）。本地有登录态时带 token
+   * 重拉一次详情：已认证会员直接换上真实价格载荷；未认证则维持
+   * 脱敏载荷并按 priceGate 渲染四态文案。
+   */
+  const [detailOverride, setDetailOverride] = useState<ProductDetailResponse | null>(null);
+  const detail = detailOverride ?? initialDetail;
+  const priceAccess = usePriceAccess();
+  const initialProductId = Number((initialDetail.item as any)?.productId) || 0;
+  useEffect(() => {
+    if ((initialDetail as any).priceVisible !== false) return;
+    if (!hasAccessToken() || !initialProductId) return;
+    let cancelled = false;
+    apiGet<ProductDetailResponse>(`product/product/detail?id=${initialProductId}`)
+      .then((fresh) => {
+        if (!cancelled && fresh && (fresh as any).priceVisible !== false) {
+          setDetailOverride(fresh);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // 仅挂载时按初始载荷判断一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const item = detail.item || {};
   const productId = Number(item.productId) || 0;
   const shopId = Number((detail as any).shopId ?? item.shopId) || 0;
@@ -346,6 +374,20 @@ export default function ProductDetailClient({
   const selectedInquiry = selectedSku
     ? skuIsInquiry(selectedSku, productIsInquiry)
     : productIsInquiry || resolveInquiryState(item) === 'all';
+  /**
+   * 价格门控（第 2 期）：载荷被后端脱敏（priceVisible=false）且非询价态时，
+   * 价格位渲染四态文案、购买区换门控入口。文案子态（审核中/驳回）由
+   * usePriceAccess 补查给出，hook 未就绪时按载荷 priceGate 兜底。
+   * 询价商品全员同态，不受门控影响。
+   */
+  const priceGated = (detail as any).priceVisible === false && !selectedInquiry;
+  const gateState: Exclude<PriceAccessState, 'visible'> =
+    priceAccess !== 'visible'
+      ? priceAccess
+      : (detail as any).priceGate === 'login'
+        ? 'needLogin'
+        : 'needAuth';
+  const gateCopy = priceGated ? PRICE_GATE_COPY[gateState] : null;
   /** 当前所选型号的展示文本（留资表单只读带入）：优先 skuValue 管道串，其次规格值拼接 */
   const selectedSkuValueText = selectedSku
     ? String(selectedSku.skuValue ?? '').replace(/\|/g, '，') ||
@@ -1233,7 +1275,21 @@ export default function ProductDetailClient({
   const marketPriceParts = splitDisplayPrice(item.marketPrice);
 
   const priceBlock =
-    uiStyle === 'overseas' ? (
+    priceGated && gateCopy ? (
+      /* 价格门控（第 2 期）：价格位只渲染门控文案（点击去登录/认证），
+         不露划线价/折扣（后端已置空，此处亦不渲染价格结构） */
+      <div className="basic">
+        <div className="item main-price-box">
+          <div className="price1">
+            <Link href={gateCopy.href}>
+              <div className="price align-bottom">
+                <div className="num pds-inquiry-word">{t(gateCopy.text)}</div>
+              </div>
+            </Link>
+          </div>
+        </div>
+      </div>
+    ) : uiStyle === 'overseas' ? (
       <div className="basic">
         <div className="item main-price-box">
           {selectedInquiry ? (
@@ -1619,7 +1675,15 @@ export default function ProductDetailClient({
    */
   const actions = (
     <div className="add_cart">
-      {selectedInquiry ? (
+      {priceGated && gateCopy ? (
+        /* 价格门控（第 2 期）：未认证不给购买入口，只给登录/认证入口；
+           后端在加购/改量/下单三处同样拦截，前台隐藏只是体验层。 */
+        <div className="buy mp-buy">
+          <Link href={gateCopy.href}>
+            <button type="button" className="buy-btn buynow">{t(gateCopy.text)}</button>
+          </Link>
+        </div>
+      ) : selectedInquiry ? (
         /* 询价态（用户口径 2026-11-17）：与普通商品完全一致，仅「立即购买」换成「立即询价」——
            加入购物车保留原样（走标准 add()，后端校验结果由 Toast 呈现），价格位另行显示「询价」 */
         <>

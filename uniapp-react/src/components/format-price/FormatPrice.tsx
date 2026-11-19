@@ -14,7 +14,7 @@ import "./FormatPrice.scss";
 type StyleObj = Record<string, string>;
 
 interface Props {
-    priceData?: string | number;
+    priceData?: string | number | null;
     isBottom?: boolean;
     currencyFormat?: boolean;
     currencyStyle?: StyleObj;
@@ -87,6 +87,19 @@ export default function FormatPrice({
         return value;
     }, [isIdentity, userInfo, showText]);
 
+    /**
+     * 价格门控（第 2 期，我方新增）：后端在无看价权时把价格置空（null）。
+     * 载荷价为 null 且 isIdentity 开启、当前用户无看价权时，同样渲染
+     * 门控文案而不是假的 ¥0.00——覆盖非 B2B 模式下原版展示门控不触发的
+     * 场景；有价商品的 priceData 永远非 null，不受影响。
+     */
+    const showMaskedGateText = useMemo(() => {
+        if (!showText || priceData !== null || isIdentity !== 1) return false;
+        return Object.keys(userInfo).length === 0 || !userInfo.isCompanyAuth;
+    }, [isIdentity, userInfo, showText, priceData]);
+
+    const showGateText = showB2bText || showMaskedGateText;
+
     const currency = useMemo(() => {
         const baseCurrency = dollarSign || "￥";
         if (base) return baseCurrency;
@@ -128,7 +141,7 @@ export default function FormatPrice({
 
     return (
         <View className={`price-content ${isBottom ? "bottom" : ""}${isWeapp ? " price-content--weapp" : ""}`}>
-            {showB2bText ? (
+            {showGateText ? (
                 <View className="line1 b2b-text">{b2bText}</View>
             ) : (
                 <>

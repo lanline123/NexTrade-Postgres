@@ -4,7 +4,7 @@ import Taro from "@tarojs/taro";
 
 import { designPxToDevicePx, designPxToRpx, formatFrame } from "@/components/modules";
 import SwiperDots from "@/components/SwiperDots";
-import FormatPrice from "@/components/format-price/FormatPrice";
+import InquiryPrice from "@/components/inquiry-price/InquiryPrice";
 import TigImage from "@/components/tig/tig-image/TigImage";
 import { getProductsList } from "@/api/common";
 import CommonTitle from "@/pages/customPage/modules/commonTitle/index";
@@ -274,7 +274,8 @@ export default function Product({ module, shopId = -1 }: Props) {
                                                                             {module?.showPrice && (
                                                                                 <View className="item-action">
                                                                                     <View className="item-price">
-                                                                                        <FormatPrice
+                                                                                        <InquiryPrice
+                                                                                            product={subItem}
                                                                                             fontStyle={{ fontSize: "32rpx" }}
                                                                                             currencyStyle={{
                                                                                                 fontSize: "22rpx"
@@ -353,7 +354,8 @@ export default function Product({ module, shopId = -1 }: Props) {
                                                                     {module.showPrice ? (
                                                                         <View className="item-action">
                                                                             <View className="item-price">
-                                                                                <FormatPrice
+                                                                                <InquiryPrice
+                                                                                    product={item}
                                                                                     fontStyle={{ fontSize: "32rpx" }}
                                                                                     currencyStyle={{ fontSize: "22rpx", position: "relative", top: "-3rpx" }}
                                                                                     priceData={item.deliveryMode === 2 ? item.cyclePrice : item.productPrice}
@@ -424,7 +426,8 @@ export default function Product({ module, shopId = -1 }: Props) {
                                                             {module.showPrice ? (
                                                                 <View className="item-action">
                                                                     <View className="item-price">
-                                                                        <FormatPrice
+                                                                        <InquiryPrice
+                                                                            product={item}
                                                                             fontStyle={{ fontSize: "32rpx" }}
                                                                             currencyStyle={{ fontSize: "22rpx", position: "relative", top: "-3rpx" }}
                                                                             priceData={item.deliveryMode === 2 ? item.cyclePrice : item.productPrice}

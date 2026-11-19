@@ -106,6 +106,28 @@ export const getProductConsultationList = (params: ProductConsultationListParams
 };
 
 /**
+ * @description 提交商品询价留资（询价线第 1/3 期；匿名可提交，登录时后端自动关联 user_id）
+ * 契约：mobile + content 必填，companyName / jobTitle / email 可选，
+ * skuId / skuValue 为目标型号快照（后端校验 skuId 归属并以库中行为准）。
+ */
+export const submitPriceInquiry = (data: {
+    productId: number;
+    mobile: string;
+    content: string;
+    companyName?: string;
+    jobTitle?: string;
+    email?: string;
+    skuId?: number;
+    skuValue?: string;
+}) => {
+    return request({
+        url: "product/product/priceInquiry",
+        method: "post",
+        data
+    });
+};
+
+/**
  * @description 提交商品咨询
  * @param data 咨询内容
  * @returns 提交结果

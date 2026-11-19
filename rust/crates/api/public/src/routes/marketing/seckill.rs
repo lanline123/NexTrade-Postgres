@@ -55,11 +55,23 @@ struct ListQuery {
 }
 
 /// `GET /api/promotion/seckill/list`：进行中的秒杀商品。
+///
+/// 价格门控（第 2 期）：未登录/未认证时秒杀价与原价置空并打标记
+/// （本域公开路由无登录态中间件，手动解析 `Authorization` 头）。
 async fn list(
     State(state): State<PublicState>,
+    headers: axum::http::HeaderMap,
     Query(q): Query<ListQuery>,
-) -> ApiResult<PageResult<SeckillPromotionVO>> {
-    ok(state.marketing.seckill.active_list(q.page, q.page_size).await?)
+) -> ApiResult<serde_json::Value> {
+    let page = state.marketing.seckill.active_list(q.page, q.page_size).await?;
+    let access = state
+        .system
+        .config_client
+        .price_access(crate::optional_user_id(&state, &headers))
+        .await?;
+    let mut v = serde_json::to_value(&page).unwrap_or(serde_json::Value::Null);
+    nextrade_services::system::price_gate::mask_page_items(&mut v, access);
+    ok(v)
 }
 
 /// 秒杀价查询参数。
@@ -73,10 +85,24 @@ struct PriceQuery {
 /// `GET /api/promotion/seckill/price`：查询当前秒杀价。
 ///
 /// 返回 `{"seckillPrice": "9.90"}`；无进行中活动时 `seckillPrice` 为 `null`。
+/// 价格门控（第 2 期）：无看价权时不下发秒杀价（置 `null` 并带门控标记）。
 async fn price(
     State(state): State<PublicState>,
+    headers: axum::http::HeaderMap,
     Query(q): Query<PriceQuery>,
 ) -> ApiResult<serde_json::Value> {
+    let access = state
+        .system
+        .config_client
+        .price_access(crate::optional_user_id(&state, &headers))
+        .await?;
+    if !access.can_view() {
+        return ok(serde_json::json!({
+            "seckillPrice": null,
+            "priceVisible": false,
+            "priceGate": access.gate_code(),
+        }));
+    }
     let price: Option<Decimal> = state.marketing.seckill
         .current_seckill_price(q.product_id, q.sku_id)
         .await?;

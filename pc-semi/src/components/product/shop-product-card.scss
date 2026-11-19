@@ -152,6 +152,14 @@
   color: var(--general, #e60012);
 }
 
+/* 价格门控文案（第 2 期）：登录后查看价格 / 认证后查看价格 */
+.shop-card__gate {
+  font-size: 14px;
+  line-height: 30px;
+  height: 30px;
+  color: var(--general, #e60012);
+}
+
 .shop-card__price-sym {
   margin-right: 2px;
 }

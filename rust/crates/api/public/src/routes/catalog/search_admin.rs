@@ -28,13 +28,13 @@ use axum::{
     middleware::{self, Next},
     response::Response,
     routing::{get, post},
-    Router,
+    Extension, Router,
 };
 // GET 查询参数含数组字段（`posProductSource` / `attrs`），axum 内置的
 // serde_urlencoded 不支持序列类型；沿用 product_manage 的 axum-extra Query。
 use axum_extra::extract::Query;
 use nextrade_core::models::catalog::search_admin::{
-    AttributeSuggestionVO, ProductSearchClientQuery, SearchFilterVO,
+    AttributeSuggestionVO, ProductSearchClientQuery,
 };
 use nextrade_core::models::catalog::product::ProductVO;
 use nextrade_core::types::PageResult;
@@ -118,14 +118,25 @@ async fn optional_auth(
     Ok(next.run(req).await)
 }
 
+fn user_id(auth: Option<Extension<AuthUser>>) -> Option<i32> {
+    auth.map(|Extension(u)| u.id).filter(|v| *v > 0)
+}
+
 /// `POST /api/search/search/getProduct`：商品搜索分页。
 ///
 /// 对应 Java `SearchController#list(@RequestBody ProductSearchClientDTO)`。
 async fn get_product(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Json(dto): Json<ProductSearchClientQuery>,
 ) -> ApiResult<PageResult<serde_json::Value>> {
     let page = state.catalog.search_admin.search_products(&dto).await?;
+    // 价格门控（第 2 期）：未登录/未认证时逐项置空真实价格并打标记。
+    let access = state
+        .system
+        .config_client
+        .price_access(user_id(auth))
+        .await?;
     let total = page.total;
     let list = page
         .list
@@ -142,6 +153,10 @@ async fn get_product(
                 obj.entry("productSku").or_insert_with(|| serde_json::json!([]));
                 obj.entry("deliveryMode").or_insert_with(|| serde_json::json!(1));
             }
+            if !access.can_view() {
+                nextrade_services::system::price_gate::mask_price_keys(&mut value);
+            }
+            nextrade_services::system::price_gate::stamp_price_gate(&mut value, access);
             value
         })
         .collect();
@@ -149,11 +164,26 @@ async fn get_product(
 }
 
 /// `POST /api/search/search/getFilter`：商品筛选（分类 / 品牌 / 最高价 + 已选）。
+///
+/// 价格门控（第 2 期）：无看价权时筛选里的价格带（最高价）置空，
+/// 前端同步隐藏价格筛选入口（按价格筛选本身会泄露价格带）。
 async fn get_filter(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Json(dto): Json<ProductSearchClientQuery>,
-) -> ApiResult<SearchFilterVO> {
-    ok(state.catalog.search_admin.get_filter(&dto).await?)
+) -> ApiResult<serde_json::Value> {
+    let vo = state.catalog.search_admin.get_filter(&dto).await?;
+    let access = state
+        .system
+        .config_client
+        .price_access(user_id(auth))
+        .await?;
+    let mut v = serde_json::to_value(&vo).unwrap_or(serde_json::Value::Null);
+    if !access.can_view() {
+        nextrade_services::system::price_gate::mask_price_keys(&mut v);
+    }
+    nextrade_services::system::price_gate::stamp_price_gate(&mut v, access);
+    ok(v)
 }
 
 /// `GET /api/search/search/getAttributeSuggestions`：属性搜索建议。

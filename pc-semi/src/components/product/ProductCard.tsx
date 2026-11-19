@@ -30,6 +30,7 @@ import Add from '@icon-park/react/es/icons/Add';
 import { apiPost } from '@/lib/client-api';
 import { splitDisplayPrice } from '@/lib/currency';
 import { resolveInquiryState, withInquiryParam } from '@/lib/inquiry';
+import { gateCopyForPayload } from '@/lib/price-gate';
 import { BuyButtonVisual, buyBtnClassName, type ResolvedBuyBtn } from '@/decorate/components/BuyButton';
 
 import { useTranslation } from 'react-i18next';
@@ -45,6 +46,10 @@ export interface ProductCardItem {
   isInquiry?: number | string;
   inquiryState?: string;
   minPricedPrice?: number | string | null;
+  /* 价格门控契约（第 2 期，后端下发）：false = 无看价权，价格已置空；
+     priceGate 给出缺的是哪一关（login | certification） */
+  priceVisible?: boolean;
+  priceGate?: string;
   productStock?: number | string;
   seckillStock?: number | string;
   virtualSales?: number | string;
@@ -147,6 +152,11 @@ export default function ProductCard({
   const href = productLink(product);
   /* 询价口径：all 价格位「询价」+ 按钮换询价入口；partial 最低价起 + 弱标记；none 零变化 */
   const inqState = resolveInquiryState(product);
+  /* 价格门控（第 2 期）：后端已置空价格时价格位渲染门控文案（询价商品
+     全员同态，优先于门控）；加购钮同步撤下（未认证购买由后端拦截，
+     前台不给入口）。旧载荷无 priceVisible 字段时按可见处理。 */
+  const priceGated = product.priceVisible === false && inqState !== 'all';
+  const gateCopy = priceGated ? gateCopyForPayload(product.priceGate) : null;
   // 原版 pickPic：picUrl > picThumb（picThumb 是 200px 缩略图，卡片 240px 放大会发虚）
   const image = product.picUrl || product.picThumb || '';
   const price = splitDisplayPrice(inqState === 'partial' ? (product.minPricedPrice ?? product.productPrice ?? product.price) : (product.productPrice ?? product.price));
@@ -310,6 +320,12 @@ export default function ProductCard({
               <div className="price align-bottom">
                 <div className="num">{t('询价')}</div>
               </div>
+            ) : priceGated && gateCopy ? (
+              <div className="price align-bottom">
+                <Link href={gateCopy.href} target="_blank" onClick={(event) => event.stopPropagation()}>
+                  <div className="num">{t(gateCopy.text)}</div>
+                </Link>
+              </div>
             ) : (
               <div className="price align-bottom">
                 <div className="util">{price.symbol || '￥'}</div>
@@ -320,7 +336,7 @@ export default function ProductCard({
               </div>
             )}
           </div>
-          {buyBtn && !buyBtn.show ? null : inqState === 'all' ? (
+          {priceGated ? null : buyBtn && !buyBtn.show ? null : inqState === 'all' ? (
             /* 全询价：加购圆钮换「询价」文字钮，跳详情页自动打开留资表单 */
             <div className="buy">
               <Link href={withInquiryParam(href)} target="_blank" onClick={(event) => event.stopPropagation()}>

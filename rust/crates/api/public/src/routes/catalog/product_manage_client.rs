@@ -155,27 +155,63 @@ async fn get_feedback_list(
     ok(state.catalog.product_manage_client.feedback_list(&q).await?)
 }
 
+/// 价格门控解析（第 2 期）：本域各价格读口共用。
+async fn price_access(
+    state: &PublicState,
+    auth: Option<Extension<AuthUser>>,
+) -> Result<nextrade_services::system::price_gate::PriceAccess, AppError> {
+    Ok(state
+        .system
+        .config_client
+        .price_access(user_id(auth))
+        .await?)
+}
+
 /// `GET /api/product/product/getProductAvailability?id=&skuId=`
 async fn get_product_availability(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<ProductAvailabilityQuery>,
 ) -> ApiResult<serde_json::Value> {
-    ok(state.catalog.product_manage_client.availability(&q).await?)
+    let access = price_access(&state, auth).await?;
+    let mut v = state.catalog.product_manage_client.availability(&q).await?;
+    if !access.can_view() {
+        nextrade_services::system::price_gate::mask_price_keys(&mut v);
+    }
+    nextrade_services::system::price_gate::stamp_price_gate(&mut v, access);
+    ok(v)
 }
 
 /// `POST /api/product/product/promotion`
 async fn promotion(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Json(dto): Json<ProductsPromotionDTO>,
 ) -> ApiResult<serde_json::Value> {
-    ok(state.catalog.product_manage_client.products_promotion(&dto).await?)
+    let access = price_access(&state, auth).await?;
+    let mut v = state
+        .catalog
+        .product_manage_client
+        .products_promotion(&dto)
+        .await?;
+    if !access.can_view() {
+        nextrade_services::system::price_gate::mask_price_keys(&mut v);
+    }
+    nextrade_services::system::price_gate::stamp_price_gate(&mut v, access);
+    ok(v)
 }
 
 /// `POST /api/product/product/getProductAmount`
 async fn get_product_amount(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Json(dto): Json<ProductAmountDTO>,
 ) -> ApiResult<serde_json::Value> {
+    // 实时金额即真实价格：门控拦截时直接按四态文案拒绝，不返回金额。
+    let access = price_access(&state, auth).await?;
+    if let Some(msg) = access.block_message() {
+        return Err(AppError(Error::biz(400, msg.to_string())));
+    }
     ok(state.catalog.product_manage_client.product_amount(&dto).await?)
 }
 
@@ -196,25 +232,50 @@ async fn price_inquiry(
 /// `GET /api/product/product/getPresaleDepositAmount?productId=&skuId=`
 async fn get_presale_deposit_amount(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<PresaleDepositQuery>,
 ) -> ApiResult<rust_decimal::Decimal> {
+    // 定金由售价推导，同实时金额口径：门控拦截时按四态文案拒绝。
+    let access = price_access(&state, auth).await?;
+    if let Some(msg) = access.block_message() {
+        return Err(AppError(Error::biz(400, msg.to_string())));
+    }
     ok(state.catalog.product_manage_client.presale_deposit(&q).await?)
 }
 
 /// `GET /api/product/product/getRelated?productId=`
 async fn get_related(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<RelatedQuery>,
 ) -> ApiResult<Vec<serde_json::Value>> {
-    ok(state.catalog.product_manage_client.related(q.product_id).await?)
+    let access = price_access(&state, auth).await?;
+    let mut list = state.catalog.product_manage_client.related(q.product_id).await?;
+    for item in list.iter_mut() {
+        if !access.can_view() {
+            nextrade_services::system::price_gate::mask_price_keys(item);
+        }
+        nextrade_services::system::price_gate::stamp_price_gate(item, access);
+    }
+    ok(list)
 }
 
 /// `GET /api/product/product/getBatchProductAvailability?skuIds=1,2,3`
 async fn get_batch_product_availability(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<BatchAvailabilityQuery>,
 ) -> ApiResult<serde_json::Value> {
-    ok(state.catalog.product_manage_client.batch_availability(&q).await?)
+    let access = price_access(&state, auth).await?;
+    let mut v = state
+        .catalog
+        .product_manage_client
+        .batch_availability(&q)
+        .await?;
+    if !access.can_view() {
+        nextrade_services::system::price_gate::mask_price_keys(&mut v);
+    }
+    ok(v)
 }
 
 /// `GET /api/product/product/getHistoryProduct?page=&size=`
@@ -222,12 +283,17 @@ async fn get_history_product(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
     Query(q): Query<HistoryProductQuery>,
-) -> ApiResult<nextrade_core::types::PageResult<serde_json::Value>> {
-    ok(state
+) -> ApiResult<serde_json::Value> {
+    let uid = user_id(auth);
+    let access = state.system.config_client.price_access(uid).await?;
+    let page = state
         .catalog
         .product_manage_client
-        .history_products(&q, user_id(auth))
-        .await?)
+        .history_products(&q, uid)
+        .await?;
+    let mut v = serde_json::to_value(&page).unwrap_or(serde_json::Value::Null);
+    nextrade_services::system::price_gate::mask_page_items(&mut v, access);
+    ok(v)
 }
 
 /// 可选登录态中间件（对应 Java `permitAll` + JWT 过滤器）。

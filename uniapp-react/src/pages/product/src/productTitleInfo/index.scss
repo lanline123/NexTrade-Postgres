@@ -323,3 +323,9 @@
         }
     }
 }
+
+/* 价格位覆盖文案（询价「询价」/ 价格门控四态）：与价格同位同色系 */
+.price-override-text {
+    color: var(--general, #e60012);
+    line-height: 1.2;
+}

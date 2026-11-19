@@ -1,0 +1,69 @@
+/* 询价留资表单（第 3 期）：底部弹层，字段与 PC 端留资弹窗同契约 */
+.inquiry-form {
+    padding: 32rpx 32rpx 48rpx;
+    background: #fff;
+
+    &__title {
+        font-size: 32rpx;
+        font-weight: 600;
+        color: #1a1a1a;
+        text-align: center;
+        margin-bottom: 16rpx;
+    }
+
+    &__product {
+        font-size: 26rpx;
+        color: #333;
+        margin-bottom: 8rpx;
+    }
+
+    &__sku {
+        font-size: 24rpx;
+        color: #999;
+        margin-bottom: 16rpx;
+    }
+
+    &__field {
+        margin-top: 24rpx;
+    }
+
+    &__label {
+        display: block;
+        font-size: 26rpx;
+        color: #333;
+        margin-bottom: 12rpx;
+    }
+
+    &__input {
+        height: 80rpx;
+        padding: 0 24rpx;
+        background: #f7f7f7;
+        border-radius: 8rpx;
+        font-size: 28rpx;
+    }
+
+    &__textarea {
+        width: 100%;
+        min-height: 160rpx;
+        padding: 20rpx 24rpx;
+        background: #f7f7f7;
+        border-radius: 8rpx;
+        font-size: 28rpx;
+        box-sizing: border-box;
+    }
+
+    &__submit {
+        margin-top: 40rpx;
+        height: 88rpx;
+        line-height: 88rpx;
+        text-align: center;
+        background: var(--general, #e60012);
+        color: #fff;
+        font-size: 30rpx;
+        border-radius: 8rpx;
+
+        &--disabled {
+            opacity: 0.6;
+        }
+    }
+}

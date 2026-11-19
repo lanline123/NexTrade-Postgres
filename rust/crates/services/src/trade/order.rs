@@ -92,6 +92,12 @@ impl OrderService {
         }
         // POS 收银：价格以购物车行（POS 改价后）为准，不叠加线上营销活动。
         let pos_mode = dto.order_source.as_deref() == Some("pos");
+        // 价格门控购买拦截（第 2 期，用户决策 3）：未认证用户不能下单
+        // （含门控开启前已留在购物车的行）。POS 收银是商家侧当面交易，
+        // 不走前台看价门控口径，豁免。
+        if !pos_mode {
+            crate::system::price_gate::ensure_purchase_allowed(&self.repos, user_id).await?;
+        }
 
         // 金额计算
         let mut product_amount = Decimal::ZERO;

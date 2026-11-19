@@ -3,7 +3,7 @@ import { View, Text, ScrollView } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 
 import TigImage from "@/components/tig/tig-image/TigImage";
-import FormatPrice from "@/components/format-price/FormatPrice";
+import InquiryPrice from "@/components/inquiry-price/InquiryPrice";
 import { getShopList } from "@/api/shop/shop";
 import type { shopListItem } from "@/types/shop/shop";
 import { pickPic } from "@/utils/format";
@@ -111,7 +111,8 @@ export default function ShopInfo({ info = null, keyword = "", shopId = null }: P
                                 >
                                     <TigImage src={pickPic(item)} />
                                     <View className="product-price">
-                                        <FormatPrice
+                                        <InquiryPrice
+                                            product={item}
                                             fontStyle={{ fontSize: "24rpx" }}
                                             currencyStyle={{ fontSize: "20rpx" }}
                                             decimalsStyle={{ fontSize: "22rpx" }}

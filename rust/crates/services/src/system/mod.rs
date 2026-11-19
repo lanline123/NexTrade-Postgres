@@ -10,6 +10,7 @@ pub mod buy_style;
 pub mod system_mode;
 pub mod font_settings;
 pub mod auth_gate;
+pub mod price_gate;
 pub mod config_client;
 pub mod csrf;
 pub mod example;

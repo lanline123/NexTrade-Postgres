@@ -207,17 +207,42 @@ async fn health() -> Json<ApiResponse<&'static str>> {
 
 // ————————————————————— 商品 —————————————————————
 
+/// 从 `Authorization` 头解析可选登录态（public_root 无中间件，手动取）。
+/// 令牌缺失/非法/过期一律按游客处理（与各域 `optional_auth` 口径一致）。
+pub(crate) fn optional_user_id(
+    state: &PublicState,
+    headers: &axum::http::HeaderMap,
+) -> Option<i32> {
+    let token = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok());
+    let claims = state.jwt.from_authorization(token).ok()?;
+    claims.sub.parse::<i32>().ok().filter(|id| *id > 0)
+}
+
 /// `GET /api/product/list`：商品分页。
+///
+/// 价格门控（第 2 期）：`isIdentity` 开启且访客未登录/未认证时，
+/// 价格键在接口层置空并打 `priceVisible/priceGate` 标记（见
+/// `services::system::price_gate`）；门控关闭时载荷与原口径一致。
 async fn product_list(
     State(state): State<PublicState>,
+    headers: axum::http::HeaderMap,
     Query(mut query): Query<ProductListQuery>,
-) -> ApiResult<PageResult<nextrade_core::models::ProductVO>> {
+) -> ApiResult<serde_json::Value> {
     // 前台只看上架商品
     if query.product_status.is_none() {
         query.product_status = Some(1);
     }
     let page = state.catalog.product.list(&query).await?;
-    ok(page)
+    let access = state
+        .system
+        .config_client
+        .price_access(optional_user_id(&state, &headers))
+        .await?;
+    let mut v = serde_json::to_value(&page).unwrap_or(serde_json::Value::Null);
+    nextrade_services::system::price_gate::mask_page_items(&mut v, access);
+    ok(v)
 }
 
 /// `GET /api/product/detail?id=`：商品详情。

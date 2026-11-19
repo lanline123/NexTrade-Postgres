@@ -32,6 +32,8 @@ export interface ProductTitleInfoRef {
 interface Props {
     productInfo?: ProductItem;
     productPrice?: string | number;
+    /** 价格位覆盖文案（询价态「询价」/ 价格门控四态文案）：存在时主价格位渲染该文案而非价格 */
+    priceOverrideText?: string;
     isSeckill?: number;
     isGroupon?: number;
     isDiscount?: number;
@@ -91,6 +93,7 @@ const ProductTitleInfo = forwardRef<ProductTitleInfoRef, Props>(function Product
     {
         productInfo = {} as ProductItem,
         productPrice = "0",
+        priceOverrideText = "",
         isSeckill = 0,
         isGroupon = 0,
         isDiscount = 0,
@@ -407,15 +410,21 @@ const ProductTitleInfo = forwardRef<ProductTitleInfoRef, Props>(function Product
                             <View className="activity-bg-overlay" />
                             <View className="activity-bg-content">
                                 <View className="activity-bg-price-row">
-                                    <FormatPrice
-                                        fontStyle={{ fontSize: "48rpx", fontWeight: "bold" }}
-                                        decimalsStyle={{ fontSize: "32rpx", fontWeight: "bold" }}
-                                        currencyStyle={{ fontSize: "28rpx", fontWeight: "bold" }}
-                                        priceData={productPrice}
-                                    />
+                                    {priceOverrideText ? (
+                                        <View className="price-override-text" style={{ fontSize: "48rpx", fontWeight: "bold" }}>
+                                            {priceOverrideText}
+                                        </View>
+                                    ) : (
+                                        <FormatPrice
+                                            fontStyle={{ fontSize: "48rpx", fontWeight: "bold" }}
+                                            decimalsStyle={{ fontSize: "32rpx", fontWeight: "bold" }}
+                                            currencyStyle={{ fontSize: "28rpx", fontWeight: "bold" }}
+                                            priceData={productPrice}
+                                        />
+                                    )}
                                     {type === "exchange" ? (
                                         renderExchangeBox()
-                                    ) : showMarketPrice && !showB2bText ? (
+                                    ) : showMarketPrice && !showB2bText && !priceOverrideText ? (
                                         <View className="activity-bg-origin-price">
                                             <FormatPrice isBottom={false} priceData={normalStrikePrice as any} fontStyle={{ textDecoration: "line-through" }} />
                                         </View>
@@ -448,17 +457,23 @@ const ProductTitleInfo = forwardRef<ProductTitleInfoRef, Props>(function Product
                                         </View>
                                     )}
                                     <View className="vortmall-price">
-                                        <FormatPrice
-                                            fontStyle={{ fontSize: "49rpx", fontWeight: "600" }}
-                                            decimalsStyle={{ fontSize: "49rpx", fontWeight: "600" }}
-                                            currencyStyle={{ fontSize: "30rpx", fontWeight: "600" }}
-                                            priceData={productPrice}
-                                        />
+                                        {priceOverrideText ? (
+                                            <View className="price-override-text" style={{ fontSize: "49rpx", fontWeight: "600" }}>
+                                                {priceOverrideText}
+                                            </View>
+                                        ) : (
+                                            <FormatPrice
+                                                fontStyle={{ fontSize: "49rpx", fontWeight: "600" }}
+                                                decimalsStyle={{ fontSize: "49rpx", fontWeight: "600" }}
+                                                currencyStyle={{ fontSize: "30rpx", fontWeight: "600" }}
+                                                priceData={productPrice}
+                                            />
+                                        )}
                                         {type === "exchange" ? (
                                             renderExchangeBox()
                                         ) : (
                                             <>
-                                                {type !== "exchange" && showMarketPrice && !showB2bText && (
+                                                {type !== "exchange" && showMarketPrice && !showB2bText && !priceOverrideText && (
                                                     <View className="title-top-market_price">
                                                         <FormatPrice
                                                             isBottom={false}
@@ -493,17 +508,23 @@ const ProductTitleInfo = forwardRef<ProductTitleInfoRef, Props>(function Product
                                 // 门店风（A2）等：价格在上、标题卡片在下
                                 <View className={`title-info-top ${isOverseasLayout ? "title-info-top--overseas" : ""}`}>
                                     <View className="title-top-price" style={priceColor ? { color: priceColor } : {}}>
-                                        <FormatPrice
-                                            fontStyle={{ fontSize: "48rpx", fontWeight: "bold" }}
-                                            decimalsStyle={{ fontSize: "32rpx", fontWeight: "bold" }}
-                                            currencyStyle={{ fontSize: "28rpx", fontWeight: "bold" }}
-                                            priceData={productPrice}
-                                        />
+                                        {priceOverrideText ? (
+                                            <View className="price-override-text" style={{ fontSize: "48rpx", fontWeight: "bold" }}>
+                                                {priceOverrideText}
+                                            </View>
+                                        ) : (
+                                            <FormatPrice
+                                                fontStyle={{ fontSize: "48rpx", fontWeight: "bold" }}
+                                                decimalsStyle={{ fontSize: "32rpx", fontWeight: "bold" }}
+                                                currencyStyle={{ fontSize: "28rpx", fontWeight: "bold" }}
+                                                priceData={productPrice}
+                                            />
+                                        )}
                                         {type === "exchange" ? (
                                             renderExchangeBox()
                                         ) : (
                                             <>
-                                                {type !== "exchange" && showMarketPrice && !showB2bText && (
+                                                {type !== "exchange" && showMarketPrice && !showB2bText && !priceOverrideText && (
                                                     <View className="title-top-market_price">
                                                         <FormatPrice
                                                             isBottom={false}

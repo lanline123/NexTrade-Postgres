@@ -75,6 +75,14 @@ interface Props {
     memberRestrictTip?: string;
     /** 当前用户不满足拼团的会员参团门槛 */
     grouponRestricted?: boolean;
+    /** 询价态（第 3 期）：购买区整组换成「立即询价」 */
+    inquiryMode?: boolean;
+    /** 打开询价留资表单 */
+    onInquiry?: () => void;
+    /** 价格门控文案（第 2 期）：存在时购买区整组换成门控入口按钮 */
+    priceGateText?: string;
+    /** 点击门控入口（去登录 / 去认证） */
+    onPriceGate?: () => void;
     /** 打开规格弹窗（加购 / 立即购买 / 单独购买 / 兑换 / 预约 / 预售）；isQuick=true 表示立即购买 */
     onShowSpecification?: (isQuick?: boolean) => void;
     /** 打开开团规格弹窗 */
@@ -115,6 +123,10 @@ const ProductActionBar = forwardRef<ProductActionBarRef, Props>(function Product
         memberRestricted = false,
         memberRestrictTip = "",
         grouponRestricted = false,
+        inquiryMode = false,
+        onInquiry,
+        priceGateText = "",
+        onPriceGate,
         onShowSpecification,
         onShowGrouponPopup,
         onToHome,
@@ -291,6 +303,29 @@ const ProductActionBar = forwardRef<ProductActionBarRef, Props>(function Product
                             }}
                         >
                             {t("查看其他商品")}
+                        </View>
+                    ) : inquiryMode ? (
+                        /* 询价态（第 3 期）：购买区换「立即询价」，打开留资表单 */
+                        <View
+                            className="other-products-btn"
+                            style={fullBtnStyle as any}
+                            onClick={() => {
+                                onInquiry?.();
+                            }}
+                        >
+                            {t("立即询价")}
+                        </View>
+                    ) : priceGateText ? (
+                        /* 价格门控（第 2 期）：未认证不给购买入口，只给登录/认证入口；
+                           后端在加购/改量/下单三处同样拦截，前台隐藏只是体验层 */
+                        <View
+                            className="other-products-btn"
+                            style={fullBtnStyle as any}
+                            onClick={() => {
+                                onPriceGate?.();
+                            }}
+                        >
+                            {priceGateText}
                         </View>
                     ) : (
                         <>

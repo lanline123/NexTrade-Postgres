@@ -28,6 +28,7 @@ import { Toast } from '@douyinfe/semi-ui';
 import { apiPost } from '@/lib/client-api';
 import { splitDisplayPrice } from '@/lib/currency';
 import { BuyButtonVisual, buyBtnClassName, resolveBuyBtnStyle } from '@/decorate/components/BuyButton';
+import { gateCopyForPayload } from '@/lib/price-gate';
 import '@/components/product/shop-product-card.scss';
 
 export type ShopCardVariant = 'standard' | 'land' | 'slide';
@@ -119,6 +120,19 @@ export function ShopProductCard({
   const image = product.picUrl || product.picThumb || '';
   const brief = product.productBrief || product.brief || '';
   const price = splitPrice(product.productPrice ?? product.price);
+  /* 价格门控（第 2 期）：后端置空价格时价格位渲染门控文案、撤下购买钮
+     （与共享 ProductCard 同口径；旧载荷无 priceVisible 时按可见处理） */
+  const priceGated = (product as any).priceVisible === false;
+  const gateCopy = priceGated ? gateCopyForPayload((product as any).priceGate) : null;
+  const priceNode = showPrice ? (
+    gateCopy ? (
+      <Link href={gateCopy.href} target="_blank" onClick={(event) => event.stopPropagation()}>
+        <span className="shop-card__gate">{gateCopy.text}</span>
+      </Link>
+    ) : (
+      <ShopPrice symbol={price.symbol} integer={price.integer} decimals={price.decimals} suffix={price.suffix} bold={bold} />
+    )
+  ) : null;
   const borderImage = styleMap?.[Number(product.productId)]?.borderImage;
 
   /** 旧版 ProductCard.vue：有 SKU 或 productType∈{5,6} 走详情页，其余直接加购 */
@@ -138,7 +152,7 @@ export function ShopProductCard({
     }
   }
 
-  const buyButton = buyBtn.show ? (
+  const buyButton = priceGated ? null : buyBtn.show ? (
     needsDetail ? (
       <Link
         href={href}
@@ -201,7 +215,7 @@ export function ShopProductCard({
                 {nameNode}
               </div>
               <div className="shop-card__action">
-                {showPrice ? <ShopPrice symbol={price.symbol} integer={price.integer} decimals={price.decimals} suffix={price.suffix} bold={bold} /> : null}
+                {priceNode}
                 {buyButton}
               </div>
             </div>
@@ -226,7 +240,7 @@ export function ShopProductCard({
             </div>
             {briefNode}
             <div className="shop-card__action">
-              {showPrice ? <ShopPrice symbol={price.symbol} integer={price.integer} decimals={price.decimals} suffix={price.suffix} bold={bold} /> : null}
+              {priceNode}
               {buyButton}
             </div>
           </div>
@@ -246,7 +260,7 @@ export function ShopProductCard({
           </div>
           {briefNode}
           <div className="shop-card__action">
-            {showPrice ? <ShopPrice symbol={price.symbol} integer={price.integer} decimals={price.decimals} suffix={price.suffix} bold={bold} /> : null}
+            {priceNode}
             {buyButton}
           </div>
         </div>

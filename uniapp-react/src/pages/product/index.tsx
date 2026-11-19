@@ -24,6 +24,8 @@ import Animation from "./src/animation";
 import ErrorComp from "./src/error";
 import Recommend from "@/components/recommend";
 import ProductActionBar, { type ProductActionBarRef } from "./components/ProductActionBar";
+import InquiryForm from "./src/inquiryForm";
+import { priceGateCopy, resolveInquiryState, skuIsInquiry } from "@/utils/inquiry";
 import TigLayout, { type TigLayoutRef } from "@/components/tig/tig-layout/TigLayout";
 import MainHeader from "@/components/mainHeader";
 import TigImage from "@/components/tig/tig-image/TigImage";
@@ -240,11 +242,20 @@ export default function ProductIndex() {
     // ===== 商品详情数据 =====
     const detail = useProductDetail({
         type,
-        onDetailLoaded: () => {
+        onDetailLoaded: (result?: any) => {
             // 对应旧 nextTick(() => layoutRef.value?.handleLog())
             setTimeout(() => {
                 layoutRef.current?.handleLog();
             }, 0);
+            // 价格门控（第 2 期）：记录详情载荷的门控标记，供价格位/购买区渲染四态
+            setDetailGate({
+                visible: result?.priceVisible !== false,
+                gate: result?.priceGate
+            });
+            // 卡片「询价」按钮跳入时带 ?inquiry=1：详情落地后自动打开留资表单
+            if (String(router.params?.inquiry ?? "") === "1") {
+                setInquiryOpen(true);
+            }
         }
     });
     const {
@@ -281,6 +292,24 @@ export default function ProductIndex() {
         setProduct
     } = detail;
     const rawImageDownload = useProductRawImageDownload(detail.rawImageContext, detail.reloadRawImageDetail);
+
+    // ===== 询价（第 3 期）+ 价格门控（第 2 期）=====
+    /** 留资表单显隐 */
+    const [inquiryOpen, setInquiryOpen] = useState(false);
+    /** 详情载荷的价格门控标记（后端下发；visible=false 时价格已被置空） */
+    const [detailGate, setDetailGate] = useState<{ visible: boolean; gate?: string }>({ visible: true });
+    /** 当前所选 SKU 行（skuId 由规格组件/默认 SKU 维护） */
+    const selectedSkuRow = (detail.skuList || []).find((s: any) => Number(s.skuId) === Number(skuId));
+    const productIsInquiry = Number((product as any).isInquiry) === 1;
+    /** 有效询价态：所选 SKU 询价，或未选规格且整品全询价（与 PC 同口径） */
+    const inquiryActive =
+        skuIsInquiry(selectedSkuRow as any, productIsInquiry) ||
+        (!selectedSkuRow && resolveInquiryState(product as any) === "all");
+    /** 门控生效（询价商品全员同态，不受门控影响） */
+    const gateActive = !detailGate.visible && !inquiryActive;
+    const gateCopy = gateActive ? priceGateCopy(detailGate.gate) : null;
+    /** 价格位覆盖文案：询价态显示「询价」，门控态显示四态文案 */
+    const priceOverrideText = inquiryActive ? t("询价") : gateCopy?.text;
 
     const showMerchantShop = useMemo(
         () =>
@@ -994,6 +1023,7 @@ export default function ProductIndex() {
                                 promotionList={promotionList}
                                 productInfo={product}
                                 productPrice={productPrice}
+                                priceOverrideText={priceOverrideText}
                                 isDiscount={isDiscount}
                                 type={type}
                                 exchangeIntegral={exchangeIntegral}
@@ -1317,6 +1347,12 @@ export default function ProductIndex() {
                             memberRestricted={memberRestricted}
                             memberRestrictTip={memberRestrictTip}
                             grouponRestricted={grouponValue?.canJoin === false}
+                            inquiryMode={inquiryActive}
+                            onInquiry={() => setInquiryOpen(true)}
+                            priceGateText={gateCopy?.text}
+                            onPriceGate={() => {
+                                if (gateCopy) void Taro.navigateTo({ url: gateCopy.url }).catch(() => {});
+                            }}
                             onShowSpecification={onShowSpecification}
                             onShowGrouponPopup={onShowGrouponPopup}
                             onToHome={handleToHome}
@@ -1358,6 +1394,16 @@ export default function ProductIndex() {
                                 shopId={shopId}
                             />
                         )}
+
+                        {/* 询价留资表单（第 3 期）：目标型号 = 当前所选 SKU */}
+                        <InquiryForm
+                            visible={inquiryOpen}
+                            onClose={() => setInquiryOpen(false)}
+                            productId={Number(productId)}
+                            productName={product.productName}
+                            skuId={selectedSkuRow ? Number((selectedSkuRow as any).skuId) : undefined}
+                            skuValue={selectedSkuRow ? String((selectedSkuRow as any).skuValue ?? "").replace(/\|/g, "，") : undefined}
+                        />
                         <Popup visible={showAttrRef} onClose={() => setShowAttrRef(false)}>
                             {/* 对应旧 tig-popup（up-popup 封装）→ NutUI Popup */}
                             <ScrollView scrollY className="attr_table-box">

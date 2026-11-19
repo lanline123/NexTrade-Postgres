@@ -8,6 +8,7 @@ import { Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
 import { formatDisplayPrice, splitDisplayPrice } from '@/lib/currency';
 import { resolveInquiryState, withInquiryParam } from '@/lib/inquiry';
+import { gateCopyForPayload } from '@/lib/price-gate';
 import { imageFormat } from '@/lib/image';
 import { urlFormat } from '@/lib/link';
 import FormatPrice from '@/components/FormatPrice';
@@ -804,7 +805,12 @@ function useDecorateProductList(
       setLoading(false);
       return undefined;
     }
-    fetch(`/api/product/product/list?${query}`)
+    // 价格门控（第 2 期）：带上登录态取数，已认证会员在装修楼层也能拿到
+    // 真实价格（无 token 时后端按游客口径脱敏，卡片渲染门控文案）。
+    const accessToken = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    fetch(`/api/product/product/list?${query}`, {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+    })
       .then((response) => response.json())
       .then((json) => {
         if (cancelled) return;
@@ -1068,18 +1074,20 @@ function PcProduct({ module, initialData }: ModuleProps) {
                               <div className="dec-pc-product__price" style={priceFontStyle}>
                                 {inqState === 'all'
                                   ? '询价'
-                                  : inqState === 'partial'
-                                    ? (
-                                      <>
-                                        {formatDisplayPrice(item.minPricedPrice ?? item.productPrice)}
-                                        {' 起'}
-                                        <span className="dec-pc-product__inquiry-note">部分型号询价</span>
-                                      </>
-                                    )
-                                    : formatDisplayPrice(item.productPrice)}
+                                  : (item as any).priceVisible === false
+                                    ? gateCopyForPayload((item as any).priceGate).text
+                                    : inqState === 'partial'
+                                      ? (
+                                        <>
+                                          {formatDisplayPrice(item.minPricedPrice ?? item.productPrice)}
+                                          {' 起'}
+                                          <span className="dec-pc-product__inquiry-note">部分型号询价</span>
+                                        </>
+                                      )
+                                      : formatDisplayPrice(item.productPrice)}
                               </div>
                             ) : null}
-                            {inqState === 'all' ? (
+                            {(item as any).priceVisible === false && inqState !== 'all' ? null : inqState === 'all' ? (
                               /* 全询价：购买按钮换「询价」，跳详情页自动打开留资表单 */
                               <div
                                 className="dec-pc-product__buy"

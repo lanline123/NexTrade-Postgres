@@ -4,8 +4,9 @@ import { View, Text } from "@tarojs/components";
 import TigLazyImage from "@/components/tig/tig-lazy-image/TigLazyImage";
 import ActivityCard from "@/components/masonry/ActivityCard";
 import Specification, { type SpecificationRef } from "@/components/product/specification";
-import FormatPrice from "@/components/format-price/FormatPrice";
+import InquiryPrice from "@/components/inquiry-price/InquiryPrice";
 import { redirect } from "@/utils";
+import { resolveInquiryState, withInquiryParam } from "@/utils/inquiry";
 import { shouldShowSoldOut } from "@/utils/productSoldOut";
 import type { SearchResultModuleData } from "@/components/modules/search-result/types";
 import { t } from "@/utils/i18n";
@@ -141,15 +142,29 @@ export default function SearchProductList({ productList = [], promotionList = {}
 
                             <View className="action">
                                 <View className="pricenum">
-                                    <FormatPrice
+                                    <InquiryPrice
+                                        product={item}
+                                        priceData={item.price}
                                         fontStyle={{ fontSize: "32rpx", fontWeight: "bold" }}
                                         currencyStyle={{ fontSize: "22rpx", fontWeight: "bold" }}
                                         decimalsStyle={{ fontSize: "25rpx", fontWeight: "bold" }}
-                                        priceData={item.price}
                                     />
                                 </View>
                                 {config.showShopTag !== false && <View className="shop-name">{item.shop?.shopTitle || t("官方自营店")}</View>}
-                                {config.showCartButton !== false && (
+                                {config.showCartButton !== false && item.priceVisible === false ? null : config.showCartButton !== false && resolveInquiryState(item) === "all" ? (
+                                    /* 全询价（用户决策 4）：按钮换「询价」，跳详情页自动打开留资表单 */
+                                    <View className="shop-btn">
+                                        <View
+                                            className="btn"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                redirect({ url: withInquiryParam(`/pages/product/index?id=${item.productId}`) });
+                                            }}
+                                        >
+                                            <Text>{t("询价")}</Text>
+                                        </View>
+                                    </View>
+                                ) : config.showCartButton !== false ? (
                                     <View className="shop-btn">
                                         <View
                                             className="btn"
@@ -162,7 +177,7 @@ export default function SearchProductList({ productList = [], promotionList = {}
                                             {item.isCheck ? <Text>…</Text> : <Text>{t("添加购物车")}</Text>}
                                         </View>
                                     </View>
-                                )}
+                                ) : null}
                             </View>
                         </View>
                     </View>

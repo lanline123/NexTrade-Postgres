@@ -1,0 +1,27 @@
+/* 卡片询价价格位（与 PC ProductCard 同口径） */
+.inquiry-price-box {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+}
+
+.inquiry-price-text {
+    color: var(--general, #e60012);
+    font-size: 32rpx;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.inquiry-price-from {
+    color: var(--general, #e60012);
+    font-size: 24rpx;
+    margin-left: 4rpx;
+    line-height: 1.2;
+}
+
+.inquiry-price-note {
+    width: 100%;
+    font-size: 20rpx;
+    color: #999;
+    line-height: 1.4;
+}

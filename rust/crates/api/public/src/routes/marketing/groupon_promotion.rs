@@ -126,13 +126,25 @@ async fn client_detail(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
     Query(q): Query<GrouponPromotionIdQuery>,
-) -> ApiResult<GrouponPromotionClientDetailVO> {
+) -> ApiResult<serde_json::Value> {
     let id = required_promotion_id(&q)?;
-    ok(state
+    let vo = state
         .marketing
         .groupon_promotion
         .client_detail(id, current_user_id(&auth))
-        .await?)
+        .await?;
+    // 价格门控（第 2 期）：未登录/未认证时拼团价/商品价置空并打标记。
+    let access = state
+        .system
+        .config_client
+        .price_access(current_user_id(&auth))
+        .await?;
+    let mut v = serde_json::to_value(&vo).unwrap_or(serde_json::Value::Null);
+    if !access.can_view() {
+        nextrade_services::system::price_gate::mask_price_keys(&mut v);
+    }
+    nextrade_services::system::price_gate::stamp_price_gate(&mut v, access);
+    ok(v)
 }
 
 /// `GET /api/promotion/groupon/itemList`：拼团活动商品列表。
@@ -140,12 +152,20 @@ async fn item_list(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
     Query(q): Query<GrouponItemPageQuery>,
-) -> ApiResult<PageResult<GrouponItemVO>> {
-    ok(state
+) -> ApiResult<serde_json::Value> {
+    let page = state
         .marketing
         .groupon_promotion
         .item_list(&q, current_user_id(&auth))
-        .await?)
+        .await?;
+    let access = state
+        .system
+        .config_client
+        .price_access(current_user_id(&auth))
+        .await?;
+    let mut v = serde_json::to_value(&page).unwrap_or(serde_json::Value::Null);
+    nextrade_services::system::price_gate::mask_page_items(&mut v, access);
+    ok(v)
 }
 
 /// `GET /api/promotion/groupon/imageList`：拼团图片列表。
@@ -166,12 +186,23 @@ async fn get_groupon_info(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
     Query(q): Query<GrouponProductIdQuery>,
-) -> ApiResult<Option<GrouponItemInfoVO>> {
-    ok(state
+) -> ApiResult<serde_json::Value> {
+    let info = state
         .marketing
         .groupon_promotion
         .get_groupon_info(q.product_id, current_user_id(&auth))
-        .await?)
+        .await?;
+    let access = state
+        .system
+        .config_client
+        .price_access(current_user_id(&auth))
+        .await?;
+    let mut v = serde_json::to_value(&info).unwrap_or(serde_json::Value::Null);
+    if !access.can_view() && !v.is_null() {
+        nextrade_services::system::price_gate::mask_price_keys(&mut v);
+        nextrade_services::system::price_gate::stamp_price_gate(&mut v, access);
+    }
+    ok(v)
 }
 
 #[cfg(test)]
