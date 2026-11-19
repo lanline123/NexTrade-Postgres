@@ -10,6 +10,9 @@
  * 取消勾选即移除，已存在券保留原 btnText、新券默认「立即领取」）；列表可拖拽排序、hover 删除，
  * 条目无字段编辑入口（同原版）。存量旧数据（couponId=0 + 内嵌 info）列表名以其内嵌 info 兜底展示，
  * 经弹窗重新确认后即按原版模型改写为 { couponId, btnText }。
+ * 商品卖点与商品的对应对齐原版 Edit.vue 两个 watch：productIds 增删/重排时按商品 ID
+ * 重映射 productBriefList（只按下标记忆位置会在改选/重排后张冠李戴并随保存落库）；
+ * productSelectType / productNumber 变化时把 briefList 长度对齐 productCount。
  */
 import { useEffect, useRef, useState } from "react";
 import { Checkbox, Input, Modal, Spin } from "@douyinfe/semi-ui";
@@ -36,6 +39,7 @@ type Patch = Record<string, any>;
 interface Props {
     data: Record<string, any>;
     onChange: (patch: Patch) => void;
+    moduleIndex?: number;
 }
 
 const SHOW_OPTIONS = [
@@ -293,7 +297,7 @@ function CouponListEditor({ data, onChange }: Props) {
     );
 }
 
-export default function NewcomerComboSettings({ data, onChange }: Props) {
+export default function NewcomerComboSettings({ data, onChange, moduleIndex }: Props) {
     const products = data?.products ?? {};
     const productCount =
         Number(products.productSelectType) === 1 ? (Array.isArray(products.productIds) ? products.productIds.length : 0) : Number(products.productNumber) || 0;
@@ -305,6 +309,59 @@ export default function NewcomerComboSettings({ data, onChange }: Props) {
         next[index] = v;
         onChange({ productBriefList: next });
     };
+
+    // ===== 卖点随商品重映射（对齐原版 Edit.vue 两个 watch）=====
+    // watch 1（immediate）：类型=1 时 productIds 增删/重排 → 按「旧 ID → 卖点」重排
+    // productBriefList（仍在选的保留、新选补 ""、移除的丢弃）；首次打开该模块仅登记
+    // 快照不重映射（存量 briefList 与 productIds 假定已按位对齐）；切走类型 1 清空快照。
+    // watch 2：productSelectType / productNumber 变化 → briefList 长度对齐 productCount。
+    // 写回均带 diff 守卫；按 moduleIndex 区分模块实例（同 wave2-data 写回口径）。
+    const dataRef = useRef(data);
+    dataRef.current = data;
+    const onChangeRef = useRef(onChange);
+    onChangeRef.current = onChange;
+    const briefSyncRef = useRef<{ key: string; prevIds: number[]; prevTypeNum: string } | null>(null);
+    useEffect(() => {
+        const key = moduleIndex !== undefined && moduleIndex !== null ? `idx:${moduleIndex}` : "single";
+        const d = dataRef.current ?? {};
+        const p = d.products ?? {};
+        const selectType = Number(p.productSelectType);
+        const ids: number[] = Array.isArray(p.productIds) ? p.productIds.map((x: any) => Number(x)) : [];
+        const typeNum = `${selectType}|${Number(p.productNumber) || 0}`;
+        const st = briefSyncRef.current;
+        if (!st || st.key !== key) {
+            briefSyncRef.current = { key, prevIds: selectType === 1 ? [...ids] : [], prevTypeNum: typeNum };
+            return;
+        }
+        let briefs: string[] = Array.isArray(d.productBriefList) ? d.productBriefList : [];
+        if (selectType !== 1) {
+            st.prevIds = [];
+        } else if (st.prevIds.length === 0 && ids.length > 0) {
+            st.prevIds = [...ids];
+        } else if (JSON.stringify(st.prevIds) !== JSON.stringify(ids)) {
+            const prevIdx = new Map<number, number>();
+            st.prevIds.forEach((id, i) => prevIdx.set(id, i));
+            const next = ids.map((id) => {
+                const oi = prevIdx.get(id);
+                return oi !== undefined ? briefs[oi] || "" : "";
+            });
+            st.prevIds = [...ids];
+            if (JSON.stringify(next) !== JSON.stringify(briefs)) {
+                onChangeRef.current({ productBriefList: next });
+                briefs = next;
+            }
+        }
+        if (st.prevTypeNum !== typeNum) {
+            st.prevTypeNum = typeNum;
+            const count = selectType === 1 ? ids.length : Number(p.productNumber) || 0;
+            if (briefs.length !== count) {
+                const next = [...briefs];
+                while (next.length < count) next.push("");
+                next.length = count;
+                onChangeRef.current({ productBriefList: next });
+            }
+        }
+    });
 
     const frame = data?.frame ?? {};
     const frameProps: Props = { data: frame, onChange: (patch: Patch) => onChange({ frame: { ...frame, ...patch } }) };

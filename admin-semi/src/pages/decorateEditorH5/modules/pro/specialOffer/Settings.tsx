@@ -6,11 +6,15 @@
  *   排序 productList；ProductGroupSelect 未移植，分组保留已选数量只读展示；
  * - 模块颜色风格切换的联动与原版 resetColor 一致：写回 moduleColor.countdownTitleColor 与
  *   contentStyle.gradientColorA/B 为 ModuleTheme 预设；
+ * - 打开设置时的主题色同步对齐原版 immediate watch：contentStyle.gradientColorA/B 均为空
+ *   （旧数据）时，按当前 moduleColorStyle 预设写回 countdownTitleColor 与 gradientColorA/B
+ *   （一次性守卫 + diff 守卫，同 wave2-data 写回口径）；
  * - prodcutTitles 逐项编辑：按原版 pushProductTitle 语义补齐（手动=productList 长度，
  *   分组=6），新项默认「自定义大标题/自定义卖点」，键名 title{n}/sellingPoints{n} 逐字保留；
  * - 按钮链接 SelectLink 以文本输入承接，写回 buttonLink.link.link 同一嵌套结构；
  * - 每日时间以原生 time 输入承接（原版 el-time-picker is-range），写回时间戳数组。
  */
+import { useEffect, useRef } from "react";
 import { DatePicker, Input, TimePicker } from "@douyinfe/semi-ui";
 import AlphaColorInput from "../../../../../components/AlphaColorInput";
 import {
@@ -32,6 +36,7 @@ type Patch = Record<string, any>;
 interface Props {
     data: Record<string, any>;
     onChange: (patch: Patch) => void;
+    moduleIndex?: number;
 }
 
 const SHOW_OPTIONS = [
@@ -61,7 +66,7 @@ function toDatetimeInput(ts: number): string {
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-export default function SpecialOfferSettings({ data, onChange }: Props) {
+export default function SpecialOfferSettings({ data, onChange, moduleIndex }: Props) {
     const { t } = useI18n();
     const mt = data?.moduleTitle ?? {};
     const mtProps: Props = { data: mt, onChange: (patch: Patch) => onChange({ moduleTitle: { ...mt, ...patch } }) };
@@ -94,6 +99,35 @@ export default function SpecialOfferSettings({ data, onChange }: Props) {
         }
         onChange(patch);
     };
+
+    // ===== 打开设置主题色同步（对齐原版 Edit.vue immediate watch）=====
+    // gradientColorA/B 均为空（旧数据）时，首次打开按当前 moduleColorStyle 预设写回
+    // countdownTitleColor 与 gradientColorA/B；每个模块仅执行一次，diff 为空不写回。
+    const dataRef = useRef(data);
+    dataRef.current = data;
+    const onChangeRef = useRef(onChange);
+    onChangeRef.current = onChange;
+    const themeSyncKeyRef = useRef<string | null>(null);
+    useEffect(() => {
+        const key = moduleIndex !== undefined && moduleIndex !== null ? `idx:${moduleIndex}` : "single";
+        if (themeSyncKeyRef.current === key) return;
+        themeSyncKeyRef.current = key;
+        const d = dataRef.current ?? {};
+        const style = d.moduleColorStyle ? String(d.moduleColorStyle) : "";
+        const theme = style ? SPECIAL_OFFER_THEMES[style] : undefined;
+        if (!theme) return;
+        const cs = d.contentStyle ?? {};
+        const isEmpty = (v: any) => v === "" || v === null || v === undefined;
+        if (!isEmpty(cs.gradientColorA) || !isEmpty(cs.gradientColorB)) return;
+        const patch: Patch = {
+            contentStyle: { ...cs, gradientColorA: theme.gradientColorA, gradientColorB: theme.gradientColorB }
+        };
+        const mcNow = d.moduleColor ?? {};
+        if (mcNow.countdownTitleColor !== theme.textColor) {
+            patch.moduleColor = { ...mcNow, countdownTitleColor: theme.textColor };
+        }
+        onChangeRef.current(patch);
+    });
 
     return (
         <div className="h5-editor-settings-body">

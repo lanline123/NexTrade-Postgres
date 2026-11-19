@@ -387,3 +387,9 @@
 
 - **后台 - H5 编辑器 shopTips 默认图 `.pngg` 笔误修正【原版有·原版笔误修正】**：shopTips（商品提示）模块第三项演示图默认 `picUrl` 的文件名在原版即多一个 `g`（`...qL8q3AHR1CcdoNv4sD.pngg`，源站 404），同项 `picThumb` 的 `.png` 正常。改为与 picThumb 同一对象 `official/img/pc/202605/1779263739qL8q3AHR1CcdoNv4sD.png`（自有桶实测 200、image/png、929 字节、合法 PNG 28×28）。仅改编辑器默认值一处（`admin-semi/src/pages/decorateEditorH5/modules/pro/shopTips/index.tsx`）；存量装修数据核查：`decorate.data` / `decorate.draft_data` 全表无 `pngg`，无已保存页面携带该笔误，无需数据修复。
 - **后端 - 删除营业执照未迁移死常量【其他清理】**：`nextrade-core` 商户模型中的 `MSG_LICENSE_UNAVAILABLE`（「营业执照上传功能未迁移…」）自批次B `uploadLicense` 证件私有通道落地后已无任何引用（全仓仅定义处一处），文案亦与现状不符，删除该死常量。无行为变化。
+
+## 0.0.2 续 · 2026-11-19 批次（H5 编辑器新人专享卖点重映射，未上线）
+
+### 修复
+
+- **后台 - H5 编辑器 newcomerCombo 卖点随商品 ID 重映射 + specialOffer 主题色同步**：原版 tigshop admin `mobilePro/newcomerCombo/Edit.vue` 有两个 watch 按商品 ID 重排 `productBriefList` 卖点（改选/重排/增删商品时卖点跟随对应商品、长度随选品类型与数量对齐），我方此前漏移植，卖点只按下标写回，改选或重排后张冠李戴并随保存落库；本次按原版状态机补齐（快照按 moduleIndex 隔离，同类型多模块不串扰）。specialOffer 打开设置时的主题色同步（原版 `specialOffer/Edit.vue` 的 immediate watch：moduleColorStyle 有预设且渐变色双空时写回预设渐变与倒计时文案色）一并补齐；与原版的口径差异仅在空值判定——原版数据模型恒有 `''` 默认值、只判空串，我方存量数据可能缺 gradientColorA/B 字段，故放宽为「空串或字段缺失均视为空」，一次性守卫写回、不重复触发。
