@@ -68,6 +68,7 @@
 - **装饰编辑器 - 推荐商品新建默认值**：模块背景改 `#ffffff`（不透明）、标题默认样式1 / 居中 / 24 号（仅 defaults，不动线上既有页面数据）；背景后按用户要求改回 `transparent`。
 - **后台 - 装修编辑器进入动画跟随主题色**：加载动画（logo / 进度条 / 转圈 / 光晕）此前写死 teal，改为随 `--primary` 主题变量；`main.tsx` 在挂载前同步应用本地缓存的外观，消除硬刷新时先闪默认色再跳主题色的问题。
 - **H5 前台 - 个人中心页编辑器真实渲染整页空白（原版有）**：个人中心页（10012，pageType=2）在 H5 装修编辑器默认「真实渲染」下中间画布纯白（左右栏与兼容渲染均正常）。根因：真实渲染的嵌入页 decoratePreview 与首页（10020）共用通用分发器 DecorateModules，但会员中心 11 个模块（userInfo/userInfoV2/userInfo3/orderEntry/orderEntryV2/myWallet/myWalletV2/adImage/myService/account/fixedFunctionalArea）只注册在会员页自己的 MemberDecorate 分发器里，通用注册表 MODULE_REGISTRY 里一个都没有，分发时一律跳过。按用户指示与 10020 同方案修复：把 11 型按 MemberDecorate 同映射注册进 MODULE_REGISTRY（含 kebab-case 别名，渲染器本体仍是会员页同一批组件，经新增适配器转接 `{module}`→`{data}`；myService 按会员页口径映射到 myServiceV2），DecorateModules 对 userInfo3 按会员页口径下发 immersive（pageModule.immersive 且首个可见模块）；decoratePreview 的槽位/布局计算查注册表，随之自动对齐，无需改嵌入页与管理端。新增注册表完整性与分发集成测试（含 10012 真实 6 模块清单）。
+- **后台 - 移动端页面管理（mobileDecorateManage）「商城首页」签表格冒出横向滚动条（我方新增页面的列宽口径问题）**：1920 宽实测表格比容器宽 56px，「删除」按钮被推出可视区、须横滚才可见，其余页签正常。根因有二：① 该页操作列有 4 个按钮（装修/复制/更换或设为默认/删除），内容实宽约 266px，却沿用框架默认 `actionWidth=160`，按钮把固定右列撑溢、整表被顶宽；② 框架 `ListPage` 的横滚总宽 `scrollX` 漏算勾选列（Semi rowSelection 另加一列、默认宽 60），临界宽度下误判「放得下」而不启用表格内横滚，溢出漏到表格/页面层。修法：本页按内容申报 `actionWidth=280`，并收紧明显过宽的列（ID 80→70、页面名称 220→210、店铺 180→150、发布状态 110→100、绑定H5页面 160→140，更新时间 170 不动）；`ListPage` 的 `scrollX` 计入勾选列 60px（全部可勾选列表页同受益，口径更诚实）。修后 1920 宽下整表在容器内放下、无横向滚动条、4 个操作按钮全可见。
 
 ### 其他
 
