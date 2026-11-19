@@ -1,7 +1,7 @@
 import emojiElements from "./emojiElements";
 import { escapeHtml } from "@/utils/escapeHtml";
 
-const EMOJI_BASE_URL = "https://oss.nextrade.com/official/emoji/";
+const EMOJI_BASE_URL = "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/emoji/";
 
 const emojiIdByName = new Map<string, string>(emojiElements.map((e) => [e.name, e.id]));
 

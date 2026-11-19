@@ -145,7 +145,7 @@ const stringReplaceEmoji = (input: string, elements: { name: string; id: string 
     const regex = new RegExp(`(${elements.map((e) => e.name).join("|")})`, "g");
     return input.replace(regex, (match) => {
         const foundElement = elements.find((element) => element.name === match);
-        return foundElement ? "http://oss.nextrade.com/official/emoji/" + foundElement.id + ".png" : match;
+        return foundElement ? "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/emoji/" + foundElement.id + ".png" : match;
     });
 };
 export default emojiElements;

@@ -25,7 +25,7 @@ export default function EmojiImage({ name = "", id = "", className = "" }: Props
         return emojiElements.find((element) => element.name === name)?.id;
     }, [id, name]);
 
-    const imgSrc = imgSrcId !== undefined ? "https://oss.nextrade.com/official/emoji/" + imgSrcId + ".png" : "";
+    const imgSrc = imgSrcId !== undefined ? "https://nlatstore.cn-qingdao.oss.aliyuncs.com/official/emoji/" + imgSrcId + ".png" : "";
 
     if (!imgSrc) return null;
     return <TigImage src={imgSrc} className={["emoji-image", className].filter(Boolean).join(" ")} />;
