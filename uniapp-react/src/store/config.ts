@@ -5,7 +5,7 @@ import { normalizeRawImageConfig } from "@/utils/productRawImageDownload";
 import { t } from "@/utils/i18n";
 import { isWeixinBrowser, isO2o } from "@/utils";
 import { resolveImageUrl } from "@/utils/imageUrl";
-import { initConfigSettings } from "@/api/common";
+import { getAuthGateConfig, initConfigSettings } from "@/api/common";
 import type { PageModule, HomeData } from "@/types/home/home";
 import { setPageMeta } from "@/utils/seo";
 import { applyAmapH5Config } from "@/utils/amapSecurity";
@@ -398,7 +398,10 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 function loadBaseConfigData(set: (partial: Partial<ConfigState>) => void, get: () => ConfigState) {
     return async (previewId?: number): Promise<void> => {
         try {
-            const res = await initConfigSettings(previewId);
+            const [res, gate] = await Promise.all([
+                initConfigSettings(previewId),
+                getAuthGateConfig().catch(() => null)
+            ]);
             set({
                 pageBackgroundColor: res?.decoratePageConfig?.backgroundColor,
                 baseInfo: {
@@ -428,7 +431,7 @@ function loadBaseConfigData(set: (partial: Partial<ConfigState>) => void, get: (
                 isOpenMobileAreaCode: res.isOpenMobileAreaCode,
                 showMarketprice: res.showMarketprice,
                 showSelledCount: res.showSelledCount,
-                isIdentity: res.isIdentity,
+                isIdentity: Number(res.isIdentity ?? gate?.isIdentity ?? 0),
                 shopRegClosed: res.shopRegClosed,
                 closeOrder: res.closeOrder,
                 useCoupon: res.useCoupon,

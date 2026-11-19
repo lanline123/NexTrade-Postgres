@@ -7,6 +7,7 @@ import { useConfigStore } from "@/store/config";
 import { useCurrencyStore } from "@/store/currency";
 import { useUserStore } from "@/store/user";
 import { isB2B, isOverseas, moneyFormat } from "@/utils";
+import { priceGateCopy } from "@/utils/inquiry";
 import { t } from "@/utils/i18n";
 
 import "./FormatPrice.scss";
@@ -94,14 +95,22 @@ export default function FormatPrice({
 
     /**
      * 价格门控（第 2 期，我方新增）：后端在无看价权时把价格置空（null）。
-     * 载荷价为 null 且 isIdentity 开启、当前用户无看价权时，同样渲染
+     * 载荷价为空且 isIdentity 开启、当前用户无看价权时，同样渲染
      * 门控文案而不是假的 ¥0.00——覆盖非 B2B 模式下原版展示门控不触发的
      * 场景；有价商品的 priceData 永远非 null，不受影响。
+     * 注意触发须用 == null：多处卡片以 `a ?? b` 链传价，脱敏 null 会被
+     * 兜底成 undefined，严格 === null 会漏触发（2026-11-20 首页/列表实证）。
      */
     const showMaskedGateText = useMemo(() => {
-        if (!showText || priceData !== null || isIdentity !== 1) return false;
+        if (!showText || priceData != null || isIdentity !== 1) return false;
         return Object.keys(userInfo).length === 0 || !userInfo.isCompanyAuth;
     }, [isIdentity, userInfo, showText, priceData]);
+
+    /** 脱敏路径门控文案与详情页同口径（utils/inquiry 的 priceGateCopy）：
+     * 未登录「登录后查看价格」，已登录未认证「认证后查看价格」。 */
+    const maskedGateText = useMemo(() => {
+        return priceGateCopy(Object.keys(userInfo).length === 0 ? "login" : "certification").text;
+    }, [userInfo]);
 
     const showGateText = showB2bText || showMaskedGateText;
 
@@ -147,7 +156,7 @@ export default function FormatPrice({
     return (
         <View className={`price-content ${isBottom ? "bottom" : ""}${isWeapp ? " price-content--weapp" : ""}`}>
             {showGateText ? (
-                <View className="line1 b2b-text">{b2bText}</View>
+                <View className="line1 b2b-text">{showB2bText ? b2bText : maskedGateText}</View>
             ) : (
                 <>
                     {currencyFormat && (
