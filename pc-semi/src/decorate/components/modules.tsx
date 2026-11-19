@@ -8,7 +8,7 @@ import { Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
 import { formatDisplayPrice, splitDisplayPrice } from '@/lib/currency';
 import { resolveInquiryState, withInquiryParam } from '@/lib/inquiry';
-import { gateCopyForPayload } from '@/lib/price-gate';
+import { cardGateCopy, usePriceAccess } from '@/lib/price-gate';
 import { imageFormat } from '@/lib/image';
 import { urlFormat } from '@/lib/link';
 import FormatPrice from '@/components/FormatPrice';
@@ -992,6 +992,7 @@ function PcProduct({ module, initialData }: ModuleProps) {
   const style = Number(module.style);
   const columns = style === 2 ? 5 : 4;
   const { products, loading } = useDecorateProductList(config, columns, module.shopId, initialData);
+  const priceAccess = usePriceAccess();
 
   const frame = module.frame || {};
   const containerModule = {
@@ -1054,6 +1055,7 @@ function PcProduct({ module, initialData }: ModuleProps) {
                   const href = item.seoLink || `/product/${item.productSn || item.productId || ''}`;
                   /* 询价口径：all 价格位「询价」+ 按钮换询价入口；partial 最低价起 + 弱标记；none 零变化 */
                   const inqState = resolveInquiryState(item);
+                  const gateCopy = cardGateCopy(item as any, item.productPrice, priceAccess, inqState === 'all');
                   const inquiryHref = withInquiryParam(href);
                   return (
                     <div className="dec-pc-product__item" key={item.productId ?? item.productSn ?? index}>
@@ -1074,8 +1076,8 @@ function PcProduct({ module, initialData }: ModuleProps) {
                               <div className="dec-pc-product__price" style={priceFontStyle}>
                                 {inqState === 'all'
                                   ? '询价'
-                                  : (item as any).priceVisible === false
-                                    ? gateCopyForPayload((item as any).priceGate).text
+                                  : gateCopy
+                                    ? gateCopy.text
                                     : inqState === 'partial'
                                       ? (
                                         <>
@@ -1500,6 +1502,7 @@ const themeAwareBadgeColor = themeAwareColor;
  * shopsTitle,shopsSubTitle,shopsSubTitleBg,shopsMoreText,shopsMoreLink,shopsTextColor}、style{...}。 */
 function HomeHero({ module, initialData }: ModuleProps) {
     const { t } = useTranslation();
+  const priceAccess = usePriceAccess();
   const left = module.left || {};
   const center = module.center || {};
   const right = module.right || {};
@@ -1722,6 +1725,7 @@ function HomeHero({ module, initialData }: ModuleProps) {
         card.products.slice(0, 2).map((product: any, index: number) => {
           /* 询价口径与其它卡片一致：all 显示「询价」且点击直达详情留资表单；partial 最低价起 + 弱标记 */
           const inqState = resolveInquiryState(product);
+          const gateCopy = cardGateCopy(product, product.productPrice ?? product.price, priceAccess, inqState === 'all');
           const detailHref = productDetailHref(product);
           return (
           <div
@@ -1754,9 +1758,11 @@ function HomeHero({ module, initialData }: ModuleProps) {
               <div className="dec-pc-home-hero__card-price">
                 {inqState === 'all'
                   ? '询价'
-                  : inqState === 'partial'
-                    ? `${formatDisplayPrice(product.minPricedPrice ?? product.productPrice ?? product.price)} 起`
-                    : formatDisplayPrice(product.productPrice ?? product.price)}
+                  : gateCopy
+                    ? gateCopy.text
+                    : inqState === 'partial'
+                      ? `${formatDisplayPrice(product.minPricedPrice ?? product.productPrice ?? product.price)} 起`
+                      : formatDisplayPrice(product.productPrice ?? product.price)}
               </div>
             ) : null}
             {inqState === 'partial' && card.showPrice !== 0 ? <div className="dec-pc-home-hero__card-inquiry-note">部分型号询价</div> : null}
@@ -3645,6 +3651,7 @@ async function collectRecommendSignals(algo: Record<string, any>): Promise<{ see
  * boxRadius,backgroundColor}；滚动分页（本实现按 productNumber 一次取满，见报告）。 */
 function RecommendProduct({ module, initialData }: ModuleProps) {
     const { t } = useTranslation();
+  const priceAccess = usePriceAccess();
   const frame = module.frame || {};
   const config = module.products || {};
   const columns = Number(frame.columns) > 0 ? Number(frame.columns) : 5;
@@ -4003,15 +4010,17 @@ const showPrice = Number((module as any).showProductPrice ?? 1) === 1;
                   <div className="dec-recommend-product__price">
                     {resolveInquiryState(product) === 'all'
                       ? '询价'
-                      : resolveInquiryState(product) === 'partial'
-                        ? (
-                          <>
-                            {formatDisplayPrice(product.minPricedPrice ?? product.productPrice)}
-                            {' 起'}
-                            <span className="dec-recommend-product__inquiry-note">部分型号询价</span>
-                          </>
-                        )
-                        : formatDisplayPrice(product.productPrice)}
+                      : cardGateCopy(product as any, product.productPrice, priceAccess, false)
+                        ? cardGateCopy(product as any, product.productPrice, priceAccess, false)?.text
+                        : resolveInquiryState(product) === 'partial'
+                          ? (
+                            <>
+                              {formatDisplayPrice(product.minPricedPrice ?? product.productPrice)}
+                              {' 起'}
+                              <span className="dec-recommend-product__inquiry-note">部分型号询价</span>
+                            </>
+                          )
+                          : formatDisplayPrice(product.productPrice)}
                   </div>
                 ) : null}
               </div>
@@ -4053,6 +4062,7 @@ const showPrice = Number((module as any).showProductPrice ?? 1) === 1;
  * contentStyle{paddingTop,paddingBottom,paddingLeftRight,boxRadius,backgroundColor}、buyBtnStyle.showBtn。 */
 function ProductGroup({ module, initialData }: ModuleProps) {
     const { t } = useTranslation();
+  const priceAccess = usePriceAccess();
   const groups: Array<Record<string, any>> = Array.isArray(module.productGroups) ? module.productGroups : [];
   const [active, setActive] = useState(0);
   const [products, setProducts] = useState<ProductItem[]>(() => initialData?.products ?? []);
@@ -4357,6 +4367,7 @@ function ProductGroup({ module, initialData }: ModuleProps) {
                 const inquiryHref = withInquiryParam(detailHref);
                 /* 价格走全站展示口径 splitDisplayPrice：达门槛按币种阶梯缩写（¥670万 / $1.5M），未达门槛小数固定两位 */
                 const price = splitDisplayPrice(inqState === 'partial' ? (product.minPricedPrice ?? product.productPrice ?? 0) : (product.productPrice ?? 0));
+                const gateCopy = cardGateCopy(product as any, product.productPrice, priceAccess, inqState === 'all');
                 const marketPrice = splitDisplayPrice((product as any).marketPrice ?? 0);
                 return (
                 // 旧 listStyle=5 瀑布：index%3===0 的项占满整行，其余两项各占一半
@@ -4391,6 +4402,10 @@ function ProductGroup({ module, initialData }: ModuleProps) {
                             inqState === 'all' ? (
                               <span className="dec-product-group__price">
                                 <span className="dec-product-group__price-int">询价</span>
+                              </span>
+                            ) : gateCopy ? (
+                              <span className="dec-product-group__price">
+                                <span className="dec-product-group__price-int">{gateCopy.text}</span>
                               </span>
                             ) : (
                               <span className="dec-product-group__price">

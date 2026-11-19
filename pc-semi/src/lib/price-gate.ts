@@ -52,6 +52,31 @@ export function gateCopyForPayload(priceGate?: string | null): PriceGateCopy {
     : PRICE_GATE_COPY.needAuth;
 }
 
+/**
+ * 装修卡片门控文案解析（首页各装修模块卡片共用）：
+ * - 载荷带 `priceVisible === false`（接口已置空价格）→ 门控文案。文案按当前
+ *   访客态细化：装修取数多为匿名请求、priceGate 恒为 login，已登录未认证时
+ *   以 usePriceAccess 的子态为准；匿名/未解析时与载荷口径一致；
+ * - 无标记的存储型快照（装修内嵌商品快照 price）：价格被递归脱敏置空
+ *   （null/undefined/''）且当前访客无看价权 → 同样门控；
+ * - 其余（有价可见、门控关、已认证）返回 null，调用方正常渲染价格，
+ *   绝不把脱敏价渲染成 ¥0.00 或空白。
+ */
+export function cardGateCopy(
+  item: { priceVisible?: boolean; priceGate?: string | null } | null | undefined,
+  priceValue: unknown,
+  state: PriceAccessState,
+  inquiryAll: boolean,
+): PriceGateCopy | null {
+  if (inquiryAll) return null;
+  if (item?.priceVisible === false) {
+    return state !== 'visible' ? PRICE_GATE_COPY[state] : gateCopyForPayload(item.priceGate);
+  }
+  const missing = priceValue === null || priceValue === undefined || priceValue === '';
+  if (missing && state !== 'visible') return PRICE_GATE_COPY[state];
+  return null;
+}
+
 export function hasAccessToken(): boolean {
   return (
     typeof window !== 'undefined' &&
