@@ -556,3 +556,9 @@
 
 - **后台 - vendor-semi 取消强制聚合、Semi 随懒加载图自然拆分【我方新增】**：第一轮页面懒加载后，首屏最大头是 vite.config manualChunks 把 `@douyinfe/semi-ui`/`@douyinfe/semi-icons`/`@douyinfe/semi-foundation` 聚成的 vendor-semi 单块（1.51MB raw / 约 417KB gzip，每次进入全量预加载）。审计实测：壳层静态可达模块仅 36 个文件、用到 29 个 Semi 组件；而 Table（69 个页面文件引用）、Form、DatePicker、Image、Popconfirm、Descriptions、Timeline、Steps 等 17 个组件只被懒加载页面使用，却被聚合一并塞进首屏。本批取消 vendor-semi 聚合（vendor-react/vendor-charts/vendor-editor 不变），Semi 代码与图标跟随懒加载图自然拆分：共用组件进共享块按需加载、冷门组件进各自页面块。Semi 图标全站均为具名 import（94 个），无全量引入点，未动。
 - **后台 - 入口 CSS 去掉重复的 Semi 全量样式**：入口 CSS 约 800KB raw 中约 660KB 是 main.tsx 全量引入的 semi.min.css，而 Semi 各组件 JS 自带的样式已另行组成一份约 662KB 的组件 CSS——同一套 Semi 样式首屏双份下发。本批移除 main.tsx 的全量引入，Semi 样式改由各组件随其 chunk 输出；自有全局 styles.css（179KB）与页面专属 CSS 的归属经审计无静态误入（入口静态模块只引入 styles.css + gallery-picker.css + MultilingualInput.css），保持不动。Semi 官方 CSS 无按组件官方拆分口径，vendor-semi.css 的全量形态即组件自带 CSS 的聚合结果，本批后按块拆开、总量不增。
+
+## 0.0.2 续 · 2026-11-19 批次（PC 店铺街推荐随 PC v53 上线 + 列表接口注释语法修复）
+
+### 修复
+
+- **PC - 店铺街列表接口文档注释块语法修复**：`pc-semi/src/lib/api.ts` 中 `getShopList` 的注释在补齐 `authToken` 说明时，首行被写成自闭合的单行注释、后续 ` *` 续行落在注释块之外且缺闭合，致 `next build` 语法错误（Expression expected @ api.ts:604）；批次十六的 PC 店铺街三文件此前未过云构建，此为首次构建暴露。现合并为完整块注释——仅注释形态修正，代码语义零变化。店铺街「推荐」Tab（默认智能推荐排序）/ 店铺卡「精选」「推广」角标 / SSR 登录态透传随 PC v53 合并发版上线（功能本体条目见 2026-11-18 批次「店铺街 - 投流前端」）。

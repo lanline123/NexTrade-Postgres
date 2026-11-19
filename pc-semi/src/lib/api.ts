@@ -600,12 +600,14 @@ export interface ShopListResponse {
   total: number;
 }
 
-/** 店铺街列表：服务端 SSR 拉取。 */
+/**
+ * 店铺街列表：服务端 SSR 拉取。
  *
  * `authToken`：店铺街页（app/shop/page.tsx）从 `accessToken` cookie 读出后透传，
  * 后端 public 域自带 optional_auth 中间件——带合法令牌才有 user_id 供
  * sortField=recommend 的千人千面打分；无令牌/令牌失效一律按游客处理，
  * 不影响综合/评分/keyword 的原有行为。不传（sitemap 等）即游客口径。
+ */
 export async function getShopList(params: { page?: number; size?: number; keyword?: string; sortField?: string; authToken?: string } = {}): Promise<ShopListResponse> {
   const query = new URLSearchParams();
   query.set('page', String(params.page || 1));
