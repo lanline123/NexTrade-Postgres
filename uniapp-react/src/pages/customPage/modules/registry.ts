@@ -26,12 +26,27 @@ onIsCut?: (val: boolean) => void;
 shopId?: number;
 shopInfo?: import("@/types/shop/shop").ShopDetailItem;
 onRefreshShopDetail?: (shopId?: number) => void;
+/** 会员页沉浸式（原版会员页分发口径）：仅 userInfo3 收到，分发器按 pageModule.immersive + 首个可见模块判定 */
+immersive?: boolean;
 }
 
 type ModuleLoader = () => Promise<{ default: ComponentType<DecorateModuleProps>}>;
 
 const lazyModule = (loader: ModuleLoader): ComponentType<DecorateModuleProps> =>
 lazy(loader) as unknown as ComponentType<DecorateModuleProps>;
+
+// 会员中心模块的懒加载组件（camelCase 与 kebab-case 别名共用同一实例，见 MODULE_REGISTRY 会员段注释）
+const MEMBER_USER_INFO = lazyModule(() => import(/* webpackChunkName: "mod-userInfo" */ "./userInfo/index"));
+const MEMBER_USER_INFO_V2 = lazyModule(() => import(/* webpackChunkName: "mod-userInfoV2" */ "./userInfoV2/index"));
+const MEMBER_USER_INFO_3 = lazyModule(() => import(/* webpackChunkName: "mod-userInfo3" */ "./userInfo3/index"));
+const MEMBER_ORDER_ENTRY = lazyModule(() => import(/* webpackChunkName: "mod-orderEntry" */ "./orderEntry/index"));
+const MEMBER_ORDER_ENTRY_V2 = lazyModule(() => import(/* webpackChunkName: "mod-orderEntryV2" */ "./orderEntryV2/index"));
+const MEMBER_MY_WALLET = lazyModule(() => import(/* webpackChunkName: "mod-myWallet" */ "./myWallet/index"));
+const MEMBER_MY_WALLET_V2 = lazyModule(() => import(/* webpackChunkName: "mod-myWalletV2" */ "./myWalletV2/index"));
+const MEMBER_AD_IMAGE = lazyModule(() => import(/* webpackChunkName: "mod-adImage" */ "./adImage/index"));
+const MEMBER_MY_SERVICE = lazyModule(() => import(/* webpackChunkName: "mod-myService" */ "./myService/index"));
+const MEMBER_ACCOUNT = lazyModule(() => import(/* webpackChunkName: "mod-account" */ "./account/index"));
+const MEMBER_FIXED_FUNCTIONAL_AREA = lazyModule(() => import(/* webpackChunkName: "mod-fixedFunctionalArea" */ "./fixedFunctionalArea/index"));
 
 export const MODULE_REGISTRY: Record<string, ComponentType<DecorateModuleProps>> = {
 navbar: lazyModule(() => import(/* webpackChunkName: "mod-navbar" */ "./navbar/index")),
@@ -93,7 +108,35 @@ shopInfo: lazyModule(() => import(/* webpackChunkName: "mod-shopInfo" */ "./shop
 article: lazyModule(() => import(/* webpackChunkName: "mod-article" */ "./article/index")),
 customProduct: lazyModule(() => import(/* webpackChunkName: "mod-customProduct" */ "./customProduct/index")),
 storeNav: lazyModule(() => import(/* webpackChunkName: "mod-storeNav" */ "./storeNav/index")),
-storeOrderCard: lazyModule(() => import(/* webpackChunkName: "mod-storeOrderCard" */ "./storeOrderCard/index"))
+storeOrderCard: lazyModule(() => import(/* webpackChunkName: "mod-storeOrderCard" */ "./storeOrderCard/index")),
+// 会员中心模块【原版有】（2026-11-19 补齐，与首页 10020 同一分发方案）：
+// 此前会员模块只在会员页的 MemberDecorate 分发器里，通用分发器未注册，
+// 编辑器真实渲染（decoratePreview 走通用分发器）整页跳过——个人中心页
+// 10012 中间画布空白。现与 MemberDecorate 同映射注册进本表（渲染器本体
+// 仍是会员页同一批组件，经各 type 目录下的适配器转接 {module}→{data}），
+// decoratePreview 的槽位计算（visibleSlotIndices 查本表）随之自动对齐。
+// kebab-case 别名与 MemberDecorate 的 switch 口径一致，兼容存量数据两种命名。
+userInfo: MEMBER_USER_INFO,
+"user-info": MEMBER_USER_INFO,
+userInfoV2: MEMBER_USER_INFO_V2,
+"user-info-v2": MEMBER_USER_INFO_V2,
+userInfo3: MEMBER_USER_INFO_3,
+"user-info3": MEMBER_USER_INFO_3,
+orderEntry: MEMBER_ORDER_ENTRY,
+"order-entry": MEMBER_ORDER_ENTRY,
+orderEntryV2: MEMBER_ORDER_ENTRY_V2,
+"order-entry-v2": MEMBER_ORDER_ENTRY_V2,
+myWallet: MEMBER_MY_WALLET,
+"my-wallet": MEMBER_MY_WALLET,
+myWalletV2: MEMBER_MY_WALLET_V2,
+"my-wallet-v2": MEMBER_MY_WALLET_V2,
+adImage: MEMBER_AD_IMAGE,
+"ad-image": MEMBER_AD_IMAGE,
+myService: MEMBER_MY_SERVICE,
+"my-service": MEMBER_MY_SERVICE,
+account: MEMBER_ACCOUNT,
+fixedFunctionalArea: MEMBER_FIXED_FUNCTIONAL_AREA,
+"fixed-functional-area": MEMBER_FIXED_FUNCTIONAL_AREA
 };
 
 /** 挂载在 catNav 分支之外的 sticky 变体（旧 catNav/sticky.vue） */

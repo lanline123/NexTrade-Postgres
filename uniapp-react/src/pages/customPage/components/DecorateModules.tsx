@@ -46,6 +46,8 @@ interface Props {
  */
 export default function DecorateModules({ modules, pageModles, scrollTop, onLoadGoodsList, shopInfo, shopId, onRefreshShopDetail, moduleErrorPlaceholder }: Props) {
     const effectiveShopId = shopId ?? shopInfo?.shopId;
+    /** 首个可见模块下标（会员页 MemberDecorate 同口径：isShow !== false 即可见，供 userInfo3 沉浸式判定） */
+    const firstVisibleModuleIndex = (modules ?? []).findIndex((m: any) => m?.isShow !== false);
     const [showCatNav, setShowCatNav] = useState(0);
     const [show, setShow] = useState(false);
     const catIdRef = useRef(0);
@@ -144,6 +146,12 @@ export default function DecorateModules({ modules, pageModles, scrollTop, onLoad
                     if (mod.type === "shopInfo" && shopInfo) {
                         props.shopInfo = shopInfo;
                         props.onRefreshShopDetail = onRefreshShopDetail;
+                    }
+                    // 会员页沉浸式分发（镜像 MemberDecorate 口径）：userInfo3 仅在
+                    // pageModule.immersive 为真且本模块是首个可见模块时沉浸，
+                    // 其渐变背景才延伸到页面顶部；其余情况 immersive=false。
+                    if (mod.type === "userInfo3" || mod.type === "user-info3") {
+                        props.immersive = !!(pageModles && pageModles.immersive) && index === firstVisibleModuleIndex;
                     }
                     return (
                         <View key={mod.moduleIndex} className={show ? "show" : ""}>

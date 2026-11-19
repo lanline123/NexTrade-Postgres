@@ -65,6 +65,7 @@
 - **PC 前台 - 限时秒杀商品卡片区与编辑器预览不一致**：① 商品名恢复契约字号色（16px/#1a1a1a，此前被 14px/#333 覆盖）并补预览的留白与字重；② 折扣角标改回文档流（去掉迁移期手写的绝对定位），且只在折扣 > 0 时渲染、保留 1 位小数（不再出现「优惠0%」）；③ 数据未给 `style` 时按预览布局渲染（竖向小卡、每行 6 个、可横向滚动），显式带 `style` 的老链页面行为不变；④ `style2` 一行五个的列宽 25%→20%，旧链适配补传 `goodsGap`。
 - **装饰编辑器 - 推荐商品新建默认值**：模块背景改 `#ffffff`（不透明）、标题默认样式1 / 居中 / 24 号（仅 defaults，不动线上既有页面数据）；背景后按用户要求改回 `transparent`。
 - **后台 - 装修编辑器进入动画跟随主题色**：加载动画（logo / 进度条 / 转圈 / 光晕）此前写死 teal，改为随 `--primary` 主题变量；`main.tsx` 在挂载前同步应用本地缓存的外观，消除硬刷新时先闪默认色再跳主题色的问题。
+- **H5 前台 - 个人中心页编辑器真实渲染整页空白（原版有）**：个人中心页（10012，pageType=2）在 H5 装修编辑器默认「真实渲染」下中间画布纯白（左右栏与兼容渲染均正常）。根因：真实渲染的嵌入页 decoratePreview 与首页（10020）共用通用分发器 DecorateModules，但会员中心 11 个模块（userInfo/userInfoV2/userInfo3/orderEntry/orderEntryV2/myWallet/myWalletV2/adImage/myService/account/fixedFunctionalArea）只注册在会员页自己的 MemberDecorate 分发器里，通用注册表 MODULE_REGISTRY 里一个都没有，分发时一律跳过。按用户指示与 10020 同方案修复：把 11 型按 MemberDecorate 同映射注册进 MODULE_REGISTRY（含 kebab-case 别名，渲染器本体仍是会员页同一批组件，经新增适配器转接 `{module}`→`{data}`；myService 按会员页口径映射到 myServiceV2），DecorateModules 对 userInfo3 按会员页口径下发 immersive（pageModule.immersive 且首个可见模块）；decoratePreview 的槽位/布局计算查注册表，随之自动对齐，无需改嵌入页与管理端。新增注册表完整性与分发集成测试（含 10012 真实 6 模块清单）。
 
 ### 其他
 
