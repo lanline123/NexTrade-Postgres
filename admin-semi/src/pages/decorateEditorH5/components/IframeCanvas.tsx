@@ -40,7 +40,12 @@ import {
     resetEmbedReadiness
 } from "./embedReadiness";
 import { useI18n } from "../../../i18n";
-import { collectProductSources, fetchPreviewProductData } from "./previewProductData";
+import {
+    collectFeedSources,
+    collectProductSources,
+    fetchPreviewFeedData,
+    fetchPreviewProductData
+} from "./previewProductData";
 
 const DRAG_THRESHOLD = 6;
 
@@ -162,23 +167,39 @@ export default function IframeCanvas({
         if (ready) sendData();
     }, [ready, sendData]);
 
-    // 商品来源集合变化时（防抖 250ms）以管理员口径预取真实价格：来源键
-    // 不变（只改样式/文案等）不重复请求；结果按内容比对、无变化不重发，
-    // 避免嵌入页无谓整树重挂。
+    // 商品/活动来源集合变化时（防抖 250ms）以管理员口径预取真实价格：
+    // 来源键不变（只改样式/文案等）不重复请求；结果按内容比对、无变化不
+    // 重发，避免嵌入页无谓整树重挂。
     const productSourcesKey = useMemo(
-        () => JSON.stringify(collectProductSources(s.moduleList)) + "|" + (s.shopId || 0),
+        () =>
+            JSON.stringify(collectProductSources(s.moduleList)) +
+            "|" +
+            JSON.stringify(collectFeedSources(s.moduleList)) +
+            "|" +
+            (s.shopId || 0),
         [s.moduleList, s.shopId]
     );
     useEffect(() => {
         let alive = true;
         const timer = window.setTimeout(() => {
             const st = editorStore.getState();
-            void fetchPreviewProductData(collectProductSources(st.moduleList), st.shopId || 0).then(
-                (data) => {
-                    if (!alive) return;
-                    setProductData((prev) => (JSON.stringify(prev) === JSON.stringify(data) ? prev : data));
+            // 商品来源表与活动 feed 表（秒杀/拼团）并行预取、按商品 id 合并
+            // 后一并下发：feed 表只补活动价键（seckillPrice/minGrouponPrice
+            // 等），同 id 时逐键合并，不整条替换商品表记录。
+            void Promise.all([
+                fetchPreviewProductData(collectProductSources(st.moduleList), st.shopId || 0),
+                fetchPreviewFeedData(collectFeedSources(st.moduleList))
+            ]).then(([productPart, feedPart]) => {
+                if (!alive) return;
+                const recordsById: Record<string, Record<string, any>> = {};
+                for (const part of [productPart, feedPart]) {
+                    for (const [id, entry] of Object.entries(part.recordsById)) {
+                        recordsById[id] = { ...(recordsById[id] || {}), ...entry };
+                    }
                 }
-            );
+                const data = { recordsById };
+                setProductData((prev) => (JSON.stringify(prev) === JSON.stringify(data) ? prev : data));
+            });
         }, 250);
         return () => {
             alive = false;
