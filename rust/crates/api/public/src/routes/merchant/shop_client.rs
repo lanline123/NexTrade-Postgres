@@ -54,7 +54,7 @@ use axum::{
     Extension, Json, Router,
 };
 use nextrade_core::models::merchant::shop_client::{
-    ClientShopDetailVO, ClientShopListQuery, ClientShopVO, CollectShopParam, CollectShopResultVO,
+    ClientShopListQuery, CollectShopParam, CollectShopResultVO,
     CommentVO, PickupListQuery, PickupListVO, ShopCommentListQuery, ShopDecorateQuery, ShopIdQuery,
     StoreDetailQuery, StoreDetailVO, StoreListQuery, StoreListVO,
 };
@@ -178,20 +178,48 @@ fn require_user_id(auth: &Option<Extension<AuthUser>>) -> Result<i32, AppError> 
     Ok(id)
 }
 
+/// 价格门控解析（第 2 期补漏）：本域带价读口共用，
+/// 与商品域同一谓词（`services::system::price_gate`）。
+async fn price_access(
+    state: &PublicState,
+    auth: &Option<Extension<AuthUser>>,
+) -> Result<nextrade_services::system::price_gate::PriceAccess, AppError> {
+    let user_id = auth.as_ref().map(|Extension(a)| a.id).filter(|id| *id > 0);
+    Ok(state.system.config_client.price_access(user_id).await?)
+}
+
+/// 存量装修类载荷门控：无看价权时递归把价格键置空（同 home 域装修口径）。
+fn gate_stored(
+    mut v: serde_json::Value,
+    access: nextrade_services::system::price_gate::PriceAccess,
+) -> serde_json::Value {
+    if !access.can_view() {
+        nextrade_services::system::price_gate::mask_price_keys(&mut v);
+    }
+    v
+}
+
 /// `GET /api/shop/shop/list`：前台店铺分页。
 ///
 /// 对应 Java `ShopClientController.list(ShopListDTO)` → `ShopServiceImpl#clientList`。
+///
+/// 价格门控（第 2 期补漏）：条目内嵌 `listingProduct`（product 行原样），
+/// 带商品价，此前零接入；无看价权时逐项递归脱敏 + 打标记。
 async fn client_list(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
     Query(q): Query<ClientShopListQuery>,
-) -> ApiResult<PageResult<ClientShopVO>> {
+) -> ApiResult<serde_json::Value> {
     // optional 登录态透传 user_id（游客 0）：店铺街 recommend 排序的千人千面信号源
-    ok(state
+    let page = state
         .merchant
         .shop_client
         .client_list(&q, current_user_id(&auth))
-        .await?)
+        .await?;
+    let access = price_access(&state, &auth).await?;
+    let mut v = serde_json::to_value(&page).unwrap_or(serde_json::Value::Null);
+    nextrade_services::system::price_gate::mask_page_items(&mut v, access);
+    ok(v)
 }
 
 /// `POST /api/shop/shop/collect`：收藏/取消收藏店铺（切换）。
@@ -219,51 +247,80 @@ struct ShopGroupQuery {
     shop_type: Option<i32>,
 }
 
-/// `GET /api/shop/shop/groupDetail`：装修选择分组详情。
+/// `GET /api/shop/shop/groupDetail`：装修选择分组详情
+/// （装修类载荷，价格门控同 shopDecorate 口径递归脱敏）。
 async fn shop_group_detail(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<ShopGroupQuery>,
 ) -> ApiResult<serde_json::Value> {
-    ok(state
+    let access = price_access(&state, &auth).await?;
+    let v = state
         .merchant
         .shop_client
         .group_detail(q.group_id.unwrap_or(0), q.shop_type.unwrap_or(1))
-        .await?)
+        .await?;
+    ok(gate_stored(v, access))
 }
 
+/// 店铺头部装修（装修类载荷，价格门控递归脱敏）。
 async fn shop_head(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<ShopIdQuery>,
-) -> ApiResult<nextrade_core::models::content::decorate::DecorateDiscreteVO> {
-    ok(state.merchant.shop_client.shop_head(&q).await?)
+) -> ApiResult<serde_json::Value> {
+    let access = price_access(&state, &auth).await?;
+    let vo = state.merchant.shop_client.shop_head(&q).await?;
+    ok(gate_stored(
+        serde_json::to_value(&vo).unwrap_or(serde_json::Value::Null),
+        access,
+    ))
 }
 
 /// `GET /api/shop/shop/detail?shopId=`：前台店铺详情。
 ///
 /// 对应 Java `ShopClientController.detail` → `ShopServiceImpl#clientDetail`。
+///
+/// 价格门控（第 2 期补漏）：详情同样内嵌 `listingProduct` 商品行，
+/// 无看价权时递归脱敏 + 打标记（同商品详情口径）。
 async fn shop_detail(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
     Query(q): Query<ShopIdQuery>,
-) -> ApiResult<ClientShopDetailVO> {
+) -> ApiResult<serde_json::Value> {
     // Java：游客 `getCurrentUserId()` 返回 0，`collectShop` 恒为 false
-    ok(state.merchant.shop_client.client_detail(q.shop_id, current_user_id(&auth)).await?)
+    let vo = state
+        .merchant
+        .shop_client
+        .client_detail(q.shop_id, current_user_id(&auth))
+        .await?;
+    let access = price_access(&state, &auth).await?;
+    let mut v = serde_json::to_value(&vo).unwrap_or(serde_json::Value::Null);
+    if !access.can_view() {
+        nextrade_services::system::price_gate::mask_price_keys(&mut v);
+    }
+    nextrade_services::system::price_gate::stamp_price_gate(&mut v, access);
+    ok(v)
 }
 
 /// `GET /api/shop/shop/decorate?shopId=&previewId=`：店铺首页装修数据。
 ///
 /// 对应 Java `ShopClientController.shopDecorate` →
 /// `DecorateServiceImpl#getShopIndexDecorateData`（`X-Locale-Code` 用于
-/// 子装修页回退）。
+/// 子装修页回退）。出参为存量装修 JSON（内嵌商品快照价），
+/// 价格门控（第 2 期补漏）递归脱敏。
 async fn shop_decorate(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     headers: axum::http::HeaderMap,
     Query(q): Query<ShopDecorateQuery>,
 ) -> ApiResult<serde_json::Value> {
     let locale_code = headers
         .get("X-Locale-Code")
         .and_then(|v| v.to_str().ok());
-    ok(state.merchant.shop_client.shop_decorate(&q, locale_code).await?)
+    let access = price_access(&state, &auth).await?;
+    let v = state.merchant.shop_client.shop_decorate(&q, locale_code).await?;
+    ok(gate_stored(v, access))
 }
 
 /// `GET /api/shop/shop/pickupList`：店铺关联自提点分页。
