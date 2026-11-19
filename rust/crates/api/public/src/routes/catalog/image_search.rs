@@ -94,6 +94,7 @@ async fn capabilities(State(state): State<PublicState>) -> ApiResult<Value> {
 
 async fn search(
     State(state): State<PublicState>,
+    headers: axum::http::HeaderMap,
     mut multipart: Multipart,
 ) -> ApiResult<Value> {
     let rows = rows(&state).await?;
@@ -178,7 +179,20 @@ async fn search(
         .iter()
         .filter_map(|a| a.get("ProductId").and_then(Value::as_str).and_then(|s| s.parse::<i64>().ok()))
         .collect();
-    let records = products(&state, &product_ids).await?;
+    let mut records = products(&state, &product_ids).await?;
+    // 价格门控（第 2 期补漏）：结果行是 product 原始行（含 productPrice/marketPrice），
+    // 此前零接入；无看价权时逐项脱敏 + 打标记，与商品列表同一口径。
+    let access = state
+        .system
+        .config_client
+        .price_access(crate::optional_user_id(&state, &headers))
+        .await?;
+    for item in records.iter_mut() {
+        if !access.can_view() {
+            nextrade_services::system::price_gate::mask_price_keys(item);
+        }
+        nextrade_services::system::price_gate::stamp_price_gate(item, access);
+    }
     ok(json!({
         "searchToken": "",
         "nextCursor": 0,
