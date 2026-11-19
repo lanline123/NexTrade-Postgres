@@ -98,6 +98,7 @@ export default function ListPage<T extends Record<string, any>>({
   batchActions,
   filterLayout = 'inline',
   onDataLoaded,
+  onReset,
   editRequest,
   onEditRequestHandled,
   toolbarExtra,
@@ -177,6 +178,8 @@ export default function ListPage<T extends Record<string, any>>({
     setFilterValues({});
     setPage(1);
     setReloadKey((key) => key + 1);
+    // 外部持有的筛选（如店铺）同步回全部，保证「重置」语义一致
+    onReset?.();
   };
 
   const openCreate = () => {
