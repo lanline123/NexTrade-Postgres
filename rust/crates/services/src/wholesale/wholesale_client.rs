@@ -25,13 +25,17 @@
 //!    `wholesale:isBuyer:{userId}` TTL 600s）：本实现每次都读库。功能等价，
 //!    仅性能差异；`invalidateAllBuyerCache` 类逻辑一并消失。
 //! 2. **`CartServiceImpl#addProductToCart` 只复刻了批发相关链路**。原方法
-//!    440 余行，还包含实名认证校验、限购、秒杀/拼团人群、赠品卡/兑换卡、
+//!    440 余行，还包含限购、秒杀/拼团人群、赠品卡/兑换卡、
 //!    快速购买临时行清理、预约商品日历库存、分销员、附加属性、店铺状态、
-//!    SKU 状态、营销价装配等。本切片**只**复刻：
+//!    SKU 状态、营销价装配等。本切片复刻：
 //!    商品存在/未删除、商品未下架、SKU 启用、数量 > 0、库存充足、
 //!    批发命中标记（`is_wholesale_line` / `wholesale_grade_id`）、
-//!    起批量 / 倍数硬校验（5320 等）、同款行合并落库。
-//!    因此这些未迁移校验造成的**行级失败在 Rust 侧不会出现**。
+//!    起批量 / 倍数硬校验（5320 等）、同款行合并落库；
+//!    另于 2026-11-20 收口补齐**购买门控（实名认证拦截）与询价禁购**
+//!    ——与普通加购同一条裁决链（`price_gate` 裁决表 +
+//!    `ProductService::is_inquiry_target`），失败走行级 `failed_items`
+//!    通道（见 [`batch_line_gate_error`]）。
+//!    因此其余未迁移校验造成的**行级失败在 Rust 侧不会出现**。
 //! 3. **购物车行零售价**取「有 SKU → `product_sku.sku_price`，无 SKU →
 //!    `Product::current_price()`（促销价优先）」，而 Java 走
 //!    `productService.getProductFinalPrice(...)`（含会员折扣 / 活动价）。
@@ -64,6 +68,9 @@ use nextrade_core::models::wholesale::wholesale_client::{
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::repo::wholesale::wholesale_client::{NewCartLine, CART_TYPE_NORMAL};
 use nextrade_infrastructure::db::Repositories;
+
+use crate::catalog::product::{ProductService, MSG_INQUIRY_NOT_PURCHASABLE};
+use crate::system::price_gate::{purchase_gate_error, resolve_price_access, PriceAccess};
 
 // ————————————————————— 业务码（Java `com.nextrade.common.constant.HttpStatus`） —————————————————————
 
@@ -492,6 +499,26 @@ fn failure_code(e: &Error) -> i32 {
     }
 }
 
+/// 批量加车行级购买裁决（纯函数）：给定看价权与目标询价命中，返回
+/// 行级失败 `(业务码, 文案)`；放行返回 `None`。
+///
+/// 与普通加购（`CartService::add`）同一条裁决链：购买门走
+/// [`purchase_gate_error`] 裁决表（命中询价时豁免拦截）；购买门
+/// 放行后命中询价的，以询价一期文案拒绝——普通加购链路中同一
+/// 文案由 `ProductService::check_purchasable` 给出，本处因不复用
+/// 其库存/禁售子集而直接物化（文案常量共用
+/// [`MSG_INQUIRY_NOT_PURCHASABLE`]，不另抄字面量）。
+#[must_use]
+fn batch_line_gate_error(access: PriceAccess, inquiry_hit: bool) -> Option<(i32, String)> {
+    if let Some((code, message)) = purchase_gate_error(access, inquiry_hit) {
+        return Some((code, message.to_string()));
+    }
+    if inquiry_hit {
+        return Some((400, MSG_INQUIRY_NOT_PURCHASABLE.to_string()));
+    }
+    None
+}
+
 // ═════════════════════════ 服务 ═════════════════════════
 
 pub struct WholesaleClientService {
@@ -631,13 +658,17 @@ impl WholesaleClientService {
             .await?
             .map_or(0, |w| w.grade_id);
 
+        // 购买门看价权（用户维度，整批只解析一次）：逐行与询价命中
+        // 组合裁决，见 add_one_item 内的 batch_line_gate_error。
+        let access = resolve_price_access(&self.repos, Some(user_id)).await?;
+
         let mut result = WholesaleCartBatchResultVO {
             success_count: 0,
             failed_count: 0,
             failed_items: Vec::new(),
         };
         for item in &items {
-            match self.add_one_item(user_id, item, grade_id).await {
+            match self.add_one_item(user_id, item, grade_id, access).await {
                 Ok(()) => result.success_count += 1,
                 Err(e) => {
                     tracing::warn!(
@@ -669,6 +700,7 @@ impl WholesaleClientService {
         user_id: i32,
         item: &ValidatedBatchItem,
         grade_id: i32,
+        access: PriceAccess,
     ) -> Result<()> {
         // 1. 商品存在性 / 上架状态
         let product = self
@@ -693,6 +725,23 @@ impl WholesaleClientService {
             return Err(Error::biz(SERVICE_DATA_ERROR, "商品规格已禁用，请重新选择"));
         }
         let sku_id = sku.map_or(0, |s| s.sku_id);
+
+        // 2.5 购买门 + 询价禁购（2026-11-20 收口，与普通加购同一条
+        // 校验链）：此前 addBatch 直写购物车行，绕过 CartService::add
+        // 的价格门控购买拦截与询价禁购——未认证用户可把普通/询价
+        // 商品经批发批量加车放进购物车（结算虽兜底拦截，口径与
+        // 文案错位）。现按落行 SKU 判定询价命中（与结算按行 SKU
+        // 复核同口径；自动解析的单规格 SKU 即落行 SKU），经同一
+        // 裁决表裁决；失败经 add_batch 的行级失败通道回报
+        // （failed_items），不阻断同批其它行——与 Java
+        // WholesaleCartBatchServiceImpl 逐项调用 addProductToCart、
+        // 逐项捕获失败的口径一致。
+        let inquiry_hit = ProductService::new(self.repos.clone(), None)
+            .is_inquiry_target(item.product_id, (sku_id > 0).then_some(sku_id))
+            .await?;
+        if let Some((code, message)) = batch_line_gate_error(access, inquiry_hit) {
+            return Err(Error::biz(code, message));
+        }
 
         // 批发行所属店铺（Java `addProductToCart`：非 O2O → `product.shopId`；
         // O2O 且 `dto.shopId != null` → `dto.shopId`。`WholesaleCartBatchServiceImpl`
@@ -1103,5 +1152,74 @@ mod tests {
         assert_eq!(failure_code(&Error::biz(WHOLESALE_MOQ_NOT_MET, "x")), 5320);
         assert_eq!(failure_code(&Error::Validation("x".into())), SERVICE_DATA_ERROR);
         assert_eq!(failure_reason(&Error::biz(5320, "该规格还差 1 件")), "该规格还差 1 件");
+    }
+
+    // ————————————— 批量加车购买门 / 询价禁购裁决 —————————————
+
+    #[test]
+    fn batch_gate_blocks_uncertified_for_normal_product() {
+        // 未认证 + 普通商品 → 购买门文案（与普通加购同一裁决表）
+        assert_eq!(
+            batch_line_gate_error(PriceAccess::NeedCertification, false),
+            Some((400, "请先完成实名认证后再购买".to_string()))
+        );
+        // 令牌用户已不存在 + 普通商品 → 登录文案
+        assert_eq!(
+            batch_line_gate_error(PriceAccess::NeedLogin, false),
+            Some((401, "请先登录".to_string()))
+        );
+    }
+
+    #[test]
+    fn batch_gate_inquiry_product_gets_inquiry_copy_at_every_access() {
+        // 命中询价：未认证经豁免后由询价文案拒绝，已认证同样拒绝
+        for access in [
+            PriceAccess::NeedLogin,
+            PriceAccess::NeedCertification,
+            PriceAccess::Visible,
+        ] {
+            assert_eq!(
+                batch_line_gate_error(access, true),
+                Some((400, MSG_INQUIRY_NOT_PURCHASABLE.to_string())),
+                "access={access:?}"
+            );
+        }
+        assert_eq!(MSG_INQUIRY_NOT_PURCHASABLE, "该商品为询价商品，请提交询价");
+    }
+
+    #[test]
+    fn batch_gate_certified_normal_product_passes() {
+        assert_eq!(batch_line_gate_error(PriceAccess::Visible, false), None);
+    }
+
+    #[test]
+    fn batch_gate_mixed_batch_rows_decide_independently() {
+        // 多行混合批（普通 / 询价 / 普通）：逐行独立裁决，行级失败
+        // 不阻断整批——未认证三行全败但文案各归其因，已认证仅询价行败
+        let rows = [false, true, false];
+        let uncertified: Vec<_> = rows
+            .iter()
+            .map(|hit| batch_line_gate_error(PriceAccess::NeedCertification, *hit))
+            .collect();
+        assert_eq!(
+            uncertified,
+            vec![
+                Some((400, "请先完成实名认证后再购买".to_string())),
+                Some((400, MSG_INQUIRY_NOT_PURCHASABLE.to_string())),
+                Some((400, "请先完成实名认证后再购买".to_string())),
+            ]
+        );
+        let certified: Vec<_> = rows
+            .iter()
+            .map(|hit| batch_line_gate_error(PriceAccess::Visible, *hit))
+            .collect();
+        assert_eq!(
+            certified,
+            vec![
+                None,
+                Some((400, MSG_INQUIRY_NOT_PURCHASABLE.to_string())),
+                None,
+            ]
+        );
     }
 }
