@@ -11,7 +11,9 @@
     }
 }
 
-.photo {
+/* 收进 .item-li 作用域：原版 product-item.vue 为 scoped 样式，此规则只作用于瀑布流卡自身；
+   此前无作用域的全局 .photo 会串扰购物车等页面的同名类（购物车 .photo 被压入 20rpx 内边距） */
+.item-li .photo {
     /* 原版 card.vue .photo{padding:20rpx}：图片四周 20rpx 白边 */
     padding: 20rpx;
     text-align: center;

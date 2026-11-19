@@ -1,16 +1,17 @@
 .goods-list-cart .cart_item {
     overflow: hidden;
+    margin-top: 20rpx;
 
-    & + .cart_item {
-        margin-top: 24rpx;
+    &:first-child {
+        margin-top: 0;
     }
 
     .cart_list_con {
         display: flex;
-        align-items: flex-start;
         box-sizing: border-box;
         width: 100%;
-        padding: 0 28rpx 0 24rpx;
+        min-height: 180rpx;
+        padding: 0 30rpx 0 88rpx;
         position: relative;
         z-index: 1;
     }
@@ -20,26 +21,33 @@
         opacity: 0.5;
     }
 
+    /* 原版 .check-item 为绝对定位悬浮于左侧 88rpx 槽位（cart_list_con 左内边距与之对应） */
     .check-item {
         display: flex;
         align-items: center;
-        justify-content: flex-start;
-        flex: 0 0 60rpx;
-        height: 180rpx;
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 1;
+        width: 88rpx;
+        height: 181rpx;
+        padding-left: 28rpx;
+        box-sizing: border-box;
     }
 
     .photo {
         display: block;
-        flex: 0 0 180rpx;
-        width: 180rpx;
-        height: 180rpx;
+        width: 181rpx;
+        height: 181rpx;
+        /* 防御：瀑布流 ProductItem 的 .photo 规则已收作用域，此处再显式清零内边距 */
+        padding: 0;
     }
 
     .photo-img {
-        width: 100%;
-        height: 100%;
+        width: 181rpx;
+        height: 181rpx;
         position: relative;
-        border-radius: 10rpx;
+        border-radius: 6rpx;
         overflow: hidden;
     }
 
@@ -57,74 +65,81 @@
         pointer-events: none;
     }
 
+    /* 原版 .cart-notice-row：图底 #333 深色 chip（高 36rpx、圆角 4rpx），非整幅遮罩 */
     .cart-notice-row {
         position: absolute;
         left: 0;
-        right: 0;
+        width: 180rpx;
         bottom: 0;
         z-index: 2;
+        box-sizing: border-box;
         text-align: center;
         color: #fff;
-        background: rgba(40, 40, 40, 0.8);
-        font-size: 21rpx;
+        font-weight: 500;
+        background-color: #333;
+        opacity: 0.9;
+        font-size: 20rpx;
+        height: 36rpx;
         line-height: 36rpx;
+        padding: 0 16rpx;
+        border-radius: 4rpx;
     }
 
     .cart-row {
         display: flex;
         flex: 1;
         flex-direction: column;
+        justify-content: space-between;
         min-width: 0;
-        min-height: 180rpx;
-        margin-left: 22rpx;
+        width: calc(100% - 180rpx);
+        min-height: 181rpx;
+        padding-left: 24rpx;
+        box-sizing: border-box;
     }
 
     .cart-row .name {
-        font-size: 26rpx;
-        font-weight: 500;
-        line-height: 34rpx;
+        font-size: 24rpx;
+        font-weight: 400;
+        line-height: 32rpx;
+        margin-bottom: 10rpx;
         color: #323233;
-        overflow-wrap: anywhere;
-        word-break: normal;
+        overflow: hidden;
     }
 
     .cart-sku-text {
-        color: #777b84;
-        font-size: 23rpx;
-        line-height: 32rpx;
-        margin-top: 8rpx;
+        color: #888b94;
+        font-size: 24.5rpx;
+        margin-top: 14rpx;
+        margin-bottom: 14rpx;
     }
 
     .activity-box {
         display: flex;
-        flex-wrap: wrap;
-        gap: 6rpx;
-        margin-top: 8rpx;
-
-        &:empty {
-            display: none;
-        }
+        margin-top: 14rpx;
+        margin-bottom: 14rpx;
     }
 
     .cart-price {
         display: flex;
-        flex-wrap: wrap;
         align-items: center;
         justify-content: space-between;
-        gap: 6rpx 12rpx;
-        margin-top: auto;
-        padding-top: 12rpx;
+        padding-top: 10rpx;
+        position: relative;
+
+        /* 无规格且无活动时价格行额外上距（tsx 按原版条件挂此类） */
+        &.cart-price-margin {
+            margin-top: 20rpx;
+        }
     }
 
     .price-one {
-        font-size: 32rpx;
+        font-size: 30rpx;
         color: var(--general);
         white-space: nowrap;
     }
 
     .cart-num-box {
         flex-shrink: 0;
-        margin-left: auto;
     }
 
     .cart-num-box-disabled {
@@ -135,17 +150,28 @@
     .origin-price {
         font-size: 21rpx;
         color: var(--ump-icon);
-        padding-top: 6rpx;
+        padding-top: 5rpx;
+    }
+
+    /* 失效行：原版 .cart-row-invalid 本体 + 提示行贴底 + 名称/规格子元素变淡
+       （原版子元素选择器为 > navigator，React 版名称链接层对应 .cart-name-link） */
+    .cart-row-invalid {
+        min-height: 180rpx;
     }
 
     .cart-row-invalid .cart-invalid-text {
         margin-top: auto;
-        padding-top: 10rpx;
+        margin-bottom: 0;
     }
 
+    .cart-row-invalid > .cart-name-link,
+    .cart-row-invalid > .cart-sku-text {
+        opacity: 0.5;
+    }
+
+    /* margin-top 由页面 index.scss 的 .extraskudata（20rpx，原版值）统一承载，此处不再覆盖 */
     .extraskudata {
         box-sizing: border-box;
-        margin-top: 10rpx;
     }
 
     .extraskudata-item .content-text {

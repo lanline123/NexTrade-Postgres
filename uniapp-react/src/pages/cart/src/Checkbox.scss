@@ -10,6 +10,12 @@
     }
 }
 
+/* 勾形字号：旧 up-checkbox 的 icon-size（购物车各调用点均为 18px），经 --cb-glyph-size 注入；
+   TigCheckbox 内部默认 0.6em（相对继承字号，非指定值），此处按调用点值覆盖 */
+.tig-checkbox.cart-checkbox .u-checkbox__icon {
+    font-size: var(--cb-glyph-size, 12px);
+}
+
 /* u-checkbox 图标外壳：购物车页旧样式里有 :deep(.u-checkbox__icon-wrap){border-width:2px} 覆盖 */
 .u-checkbox__icon-wrap {
     display: flex;

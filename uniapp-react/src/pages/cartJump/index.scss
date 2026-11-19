@@ -686,7 +686,7 @@
     margin: 0;
     flex-shrink: 0;
     border-radius: 40rpx;
-    background: var(--general);
+    /* 背景不在此覆盖：原版由 tig-button2.theme 的 var(--main-bg) 承载（TigButton2.scss 同口径） */
     display: flex;
     align-items: center;
     justify-content: center;

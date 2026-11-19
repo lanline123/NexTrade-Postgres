@@ -837,7 +837,7 @@ export default function CartJump() {
                                                                     </View>
                                                                     <View className={`cart-row ${isCartLineInvalid(goods) ? "cart-row-invalid" : ""}`}>
                                                                         <View
-                                                                            className={isProductUnavailable(goods) ? "product-link-disabled" : ""}
+                                                                            className={`cart-name-link ${isProductUnavailable(goods) ? "product-link-disabled" : ""}`}
                                                                             onClick={() => handleToProduct(goods, item.shopId)}
                                                                         >
                                                                             <View className={`name line2 ${isCartLineInvalid(goods) ? "product-name-disabled" : ""}`}>{goods.productName}</View>
@@ -855,7 +855,11 @@ export default function CartJump() {
                                                                         )}
 
                                                                         {!isCartLineInvalid(goods) ? (
-                                                                            <View className="cart-price">
+                                                                            <View
+                                                                                className={`cart-price ${
+                                                                                    (!goods.skuData || goods.skuData.length === 0) && !goods.activityInfo ? "cart-price-margin" : ""
+                                                                                }`}
+                                                                            >
                                                                                 <View className="price-one">
                                                                                     <FormatPrice
                                                                                         showText={false}

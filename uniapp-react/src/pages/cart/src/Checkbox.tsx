@@ -21,6 +21,10 @@ interface Props {
  * 已收敛到公共组件 TigCheckbox（components/tig/tig-checkbox），此处为购物车调用点的
  * props 适配层（size/iconSize 为 px 数值）；类名沿用 check / u-checkbox__icon-wrap，
  * 便于旧页面的 `.u-checkbox__icon-wrap` 局部覆盖样式（如购物车页描边加粗）继续生效。
+ *
+ * 尺寸语义对正（对齐旧 up-checkbox）：size = 勾选框盒尺寸（px），iconSize = 勾形字号（px）。
+ * TigCheckbox 内部以 iconSize 通道承载盒宽高，故此处把 size 送入该通道；
+ * 勾形字号改经 CSS 变量 --cb-glyph-size 注入，由 Checkbox.scss 覆盖其默认 0.6em。
  */
 export default function Checkbox({ checked, disabled = false, shape = "circle", size = 20, iconSize, activeColor, onChange }: Props) {
     return (
@@ -29,7 +33,8 @@ export default function Checkbox({ checked, disabled = false, shape = "circle", 
             disabled={disabled}
             shape={shape}
             size={String(size)}
-            iconSize={iconSize != null ? `${iconSize}px` : ""}
+            iconSize={`${size}px`}
+            style={{ "--cb-glyph-size": iconSize != null ? `${iconSize}px` : "12px" } as any}
             activeColor={activeColor}
             className="cart-checkbox"
             onChange={onChange}
