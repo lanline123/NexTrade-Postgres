@@ -28,6 +28,18 @@ const getActivityText = (type: number) => {
     return activityTypeText[type];
 };
 
+/**
+ * 该促销条目是否会渲染出可见标签（与下方组件的两个渲染分支严格同口径）：
+ * 有活动文案（type 1/3/4/5/6），或优惠券（type 2）且带券面描述。
+ * type=0、type=7（拼团，卡面另有内联「拼」标）、type=8（抽奖）及未知 type 均无可见标签——
+ * 父级据此决定标签行是否占位，避免无标签时空行把价格推远（原版渲染口径）。
+ */
+export const isActivityVisible = (activityInfo: any): boolean => {
+    if (!activityInfo) return false;
+    if (getActivityText(activityInfo.type)) return true;
+    return Number(activityInfo.type) === 2 && activityInfo.data?.promotionDesc != null;
+};
+
 /** 商品促销活动角标（自旧 masonry/activityCard.vue 移植） */
 export default function ActivityCard({ activityInfo = {}, cardType = "list", fontSize = "23rpx", themeColor = "" }: Props) {
     const cssVars = useMemo(() => {

@@ -3,7 +3,7 @@ import { View, Text, Image } from "@tarojs/components";
 import dayjs from "dayjs";
 
 import { productImage } from "@/utils/format";
-import ActivityCard from "./ActivityCard";
+import ActivityCard, { isActivityVisible } from "./ActivityCard";
 import FormatPrice from "@/components/format-price/FormatPrice";
 import TigLazyImage from "@/components/tig/tig-lazy-image/TigLazyImage";
 import { staticResource } from "@/utils";
@@ -116,7 +116,15 @@ export default function ProductItem({
         return activityInfo;
     }, [promotionList, item, showCoupon]);
 
-    const hasPromotionInfo = Object.keys(promotionList).length > 0 && currentPromotionInfo.length > 0;
+    // 标签行只按「能渲染出可见标签」的条目判定存在：原版 activityInfo 只含真实促销条目，
+    // 条目数判定即可见性判定；我方后端会下发 type=0 / type=8（抽奖）等无文案条目，
+    // 若仍按条目数判定，无促销标签时标签行仍占 55rpx 空高、把价格推远（与原版渲染口径不符）。
+    // 有可见标签时仍是原版 55rpx 标签行，无可见标签时整行不渲染、价格按原版无促销间距贴近标题。
+    const visiblePromotionInfo = useMemo(
+        () => currentPromotionInfo.filter((subItem: any) => isActivityVisible(subItem)),
+        [currentPromotionInfo]
+    );
+    const hasPromotionInfo = Object.keys(promotionList).length > 0 && visiblePromotionInfo.length > 0;
 
     const hasGrouponActivity = useMemo(() => {
         // 判断当前的活动是否有拼团活动
@@ -158,7 +166,7 @@ export default function ProductItem({
                 )}
                 {hasPromotionInfo && (
                     <View className="flex activity-box">
-                        {currentPromotionInfo.map((subItem: any) => (
+                        {visiblePromotionInfo.map((subItem: any) => (
                             <ActivityCard key={subItem.promotionId} activityInfo={subItem} themeColor={themeColor} />
                         ))}
                     </View>
