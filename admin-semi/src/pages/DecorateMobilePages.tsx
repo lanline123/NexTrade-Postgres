@@ -9,7 +9,6 @@ import {
   Input,
   TextArea,
   InputNumber,
-  Select,
   Tag,
   Typography,
   Modal,
@@ -298,8 +297,9 @@ export function ThemeStyle() {
 /* =========================================================================
  * 2. MobileDecoratePages (mobileDecorateManage 页面管理)
  * 契约对齐: java/view/admin/src/views/decorate/mobileDecorate/List.vue
- * 移动端按页面类型分 7 个页签（商城首页/分类页/个人中心页/自定义活动页/登录页/
- * 搜索页/商品详情页），每签只列该 pageType 的页面；新建带当前签 pageType；
+ * 移动端按页面类型分 8 个页签（商城首页/分类页/个人中心页/自定义活动页/登录页/
+ * 搜索页/商品详情页/店铺），每签只列该 pageType 的页面；新建带当前签 pageType；
+ * 其中商城首页签与店铺签同为 pageType=1、靠 shop 口径拆分（见下方店铺页签说明）；
  * 默认页（isHome=1）有标记且不可删，可通过「更换」弹窗或行内「设为默认」
  * 调用 /decorate/decorate/setHome 切换（后端会先清同类型旧标记）。
  * 删除口径（对齐原版 List.vue + DeleteRecord + api/decorate/mobileDecorate.ts）：
@@ -315,25 +315,45 @@ export function ThemeStyle() {
  * decorateName 字段）；按名搜索走 keyword（后端 decorate_title ILIKE）。
  * 本页曾误用 decorateName，导致列表名称列恒走兜底文案、搜索无效、新建必报
  * 「装修页面名称不能为空」，2026-11-19 已全量修正（PC 自定义页同病同改）。
- * 【我方新增】店铺筛选 + 店铺列（用户 2026-11-19 拍板）：原版 List.vue 全文
- * 无店铺列/店铺筛选（原版靠登录上下文单店铺运行）；我方平台账号列表跨店铺
- * 混排（商城首页 59 条 = 平台 3 条 + 56 家店铺各 1 条默认页），故在页签行后
- * 加可搜索店铺下拉（默认全部店铺=不传 shopId；选中后列表接口按 shopId 精确
- * 过滤），列表加「店铺」列（VO shopName，shop_id=0 显示「平台」，查不到名
- * 回退店铺 ID）。选项走新只读接口 GET /decorate/decorate/shopOptions
- * （decorate 表 distinct join 店铺表，只含真正有装修页的店铺）。
+ * 【我方新增】店铺列 + 店铺并列页签（用户 2026-11-19 拍板、22:24 纠正）：
+ * 原版 List.vue 全文无店铺列/筛选/页签（原版靠登录上下文单店铺运行）；
+ * 我方平台账号列表跨店铺混排（商城首页 59 条 = 平台 3 条 + 56 家店铺各 1 条
+ * 默认页）。2026-11-19 白天曾做成页签行店铺下拉筛选，用户 22:24 纠正：
+ * 「把店铺页面从首页移出去，单独做成一个并列的标签店铺，不是制作成筛选
+ * 项目」——现行口径：第 8 个并列页签「店铺」只列 pageType=1 且 shop_id!=0
+ * 的商家店铺页（列表接口传 excludeShopId=0），「商城首页」签只列
+ * pageType=1 且 shop_id=0 的平台页（传 shopId=0 精确过滤），其余页签不带
+ * 任何店铺约束；店铺下拉已移除（不再调 shopOptions，该接口保留供他用）。
+ * 列表「店铺」列保留（VO shopName，shop_id=0 显示「平台」，查不到名回退
+ * 店铺 ID）。店铺签内不显示「新建页面」（店铺页随店铺开通自动生成，平台
+ * 账号新建会落 shop_id=0 归属错误；增页走「复制」，复制沿用源行 shop_id）。
+ * 店铺签内默认标记/更换弹窗文案用店铺口径（默认店铺页），不写死商城首页。
  * labels: 页面名称, 店铺, 发布状态, 更新时间, 操作
  * props: decorateId, decorateTitle, shopId, shopName, status, updateTime, bingdingH5Name
  * ========================================================================= */
 
-const PAGE_TYPE_TABS: Array<{ key: string; label: string; pageType: number; defaultName: string }> = [
-  { key: 'home', label: '商城首页', pageType: 1, defaultName: '首页微页面' },
+type PageTab = {
+  key: string;
+  label: string;
+  pageType: number;
+  defaultName: string;
+  /** 店铺口径：platform = 只列 shop_id=0 平台页；shop = 只列 shop_id!=0 店铺页；缺省不约束 */
+  shopScope?: 'platform' | 'shop';
+  /** 默认标记/弹窗的页签维度文案覆盖（如店铺签的「店铺页」），缺省按 pageType 推导 */
+  defaultLabel?: string;
+  /** 店铺签禁用新建（见文件头店铺页签说明） */
+  hideCreate?: boolean;
+};
+
+const PAGE_TYPE_TABS: PageTab[] = [
+  { key: 'home', label: '商城首页', pageType: 1, defaultName: '首页微页面', shopScope: 'platform' },
   { key: 'classify', label: '分类页', pageType: 4, defaultName: '分类页' },
   { key: 'user', label: '个人中心页', pageType: 2, defaultName: '个人中心页' },
   { key: 'activity', label: '自定义活动页', pageType: 3, defaultName: '活动页' },
   { key: 'login', label: '登录页', pageType: 5, defaultName: '登录页' },
   { key: 'search', label: '搜索页', pageType: 6, defaultName: '搜索页' },
   { key: 'productDetail', label: '商品详情页', pageType: 8, defaultName: '商品详情页' },
+  { key: 'shop', label: '店铺', pageType: 1, defaultName: '店铺页', shopScope: 'shop', defaultLabel: '店铺页', hideCreate: true },
 ];
 
 function pageTypeLabel(pageType?: number): string {
@@ -352,6 +372,7 @@ function SwitchDefaultPageModal({
   pageType,
   currentId,
   shopId,
+  pageLabel,
   onClose,
   onDone,
 }: {
@@ -361,6 +382,8 @@ function SwitchDefaultPageModal({
   currentId: number;
   /** 当前默认页所属店铺：候选必须同店铺（默认页是按店铺生效的）【我方新增】 */
   shopId?: number;
+  /** 页签维度文案覆盖【我方新增】：店铺签传「店铺页」，标题/空态用店铺口径而非商城首页 */
+  pageLabel?: string;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -409,7 +432,7 @@ function SwitchDefaultPageModal({
     <OptionSelectModal
       visible={visible}
       width={640}
-      title={`${t('更换')}${pageTypeLabel(pageType)}`}
+      title={`${t('更换')}${pageLabel || pageTypeLabel(pageType)}`}
       subtitle={t('选择要设为默认的页面，确认后立即生效')}
       notice={
         currentRow ? (
@@ -439,7 +462,7 @@ function SwitchDefaultPageModal({
       onChange={(v) => setChoice(Number(v))}
       loading={loading}
       searchable
-      emptyText={t('暂无其他可更换的同类型页面')}
+      emptyText={pageLabel ? t('暂无其他可更换的{label}', { label: pageLabel }) : t('暂无其他可更换的同类型页面')}
       searchPlaceholder={t('搜索页面名称')}
       confirmText={t('确定')}
       cancelText={t('取消')}
@@ -456,17 +479,23 @@ export function MobileDecoratePageList({
   editPage = 'mobileDecorateEditor',
   returnPage,
   shopId,
-  onFiltersReset,
+  excludeShopId,
+  defaultLabel,
+  hideCreate,
 }: {
   decorateType?: number;
   pageType?: number;
   defaultName?: string;
   editPage?: string;
   returnPage?: string;
-  /** 店铺精确筛选【我方新增】：undefined = 全部店铺（不传 shopId） */
+  /** 店铺精确过滤【我方新增】：undefined = 不传 shopId；首页签传 0 只列平台页 */
   shopId?: number;
-  /** 列表「重置」时通知持有店铺筛选的上层一并回全部 */
-  onFiltersReset?: () => void;
+  /** 排除店铺【我方新增】：undefined = 不传；店铺签传 0 只列 shop_id!=0 的店铺页 */
+  excludeShopId?: number;
+  /** 默认标记/更换弹窗的页签维度文案覆盖【我方新增】：店铺签传「店铺页」 */
+  defaultLabel?: string;
+  /** 隐藏新建【我方新增】：店铺签为 true（ListPage 以 drawer 是否存在控制新建按钮） */
+  hideCreate?: boolean;
 } = {}) {
   const { t } = useI18n();
   const [listKey, setListKey] = useState(0);
@@ -483,7 +512,7 @@ export function MobileDecoratePageList({
         <Space>
           <span>{v || row?.bingdingH5Name || t(defaultName)}</span>
           {row?.isHome === 1 && (
-            <Tag color="red" size="small">{`${t('默认')}${pageTypeLabel(pageType).replace(/页$/, '')}`}</Tag>
+            <Tag color="red" size="small">{defaultLabel ? `${t('默认')}${defaultLabel}` : `${t('默认')}${pageTypeLabel(pageType).replace(/页$/, '')}`}</Tag>
           )}
         </Space>
       ),
@@ -565,15 +594,16 @@ export function MobileDecoratePageList({
   return (
     <div>
       <ListPage
-        key={`${listKey}-${shopId ?? 'all'}`}
+        key={`${listKey}-${shopId ?? 'all'}-${excludeShopId ?? 'none'}`}
         api="/decorate/decorate/list"
         query={{
           decorateType,
           ...(pageType ? { pageType } : {}),
-          // 店铺筛选【我方新增】：未选（全部店铺）时不传，与现行行为一致
+          // 店铺口径【我方新增】：首页签 shopId=0 只列平台页；店铺签
+          // excludeShopId=0 只列商家店铺页；其余页签两者都不传、不约束
           ...(shopId !== undefined ? { shopId } : {}),
+          ...(excludeShopId !== undefined ? { excludeShopId } : {}),
         }}
-        onReset={onFiltersReset}
         rowKey="decorateId"
         columns={columns}
         showEdit={false}
@@ -638,7 +668,7 @@ export function MobileDecoratePageList({
         filters={[
           { field: 'keyword', label: t('页面名称'), type: 'input' },
         ]}
-        drawer={{
+        drawer={hideCreate ? undefined : {
           title: t('新建移动端页面'),
           addText: t('新建页面'),
           width: 600,
@@ -663,6 +693,7 @@ export function MobileDecoratePageList({
           pageType={pageType}
           currentId={switchRow.decorateId}
           shopId={switchRow.shopId}
+          pageLabel={defaultLabel}
           onClose={() => setSwitchRow(null)}
           onDone={() => {
             setSwitchRow(null);
@@ -683,27 +714,11 @@ export function MobileDecoratePages(props: {
 } = {}) {
   const { t } = useI18n();
   const [activeKey, setActiveKey] = useState('home');
-  // 店铺筛选【我方新增】：状态持有在本层（页签之上），切页签不丢；
-  // undefined = 全部店铺（不传 shopId，与现行行为一致）
-  const [shopId, setShopId] = useState<number | undefined>(undefined);
-  const [shopOptions, setShopOptions] = useState<Array<{ shopId: number; shopName?: string; pageCount?: number }>>([]);
 
   // 进入 H5 编辑器前预热：空闲时预取 /mobile/ 入口资源，同会话只跑一次（见 prefetchMobileEmbed）
   useEffect(() => {
     scheduleMobileEmbedPrefetch();
   }, []);
-
-  // 店铺选项【我方新增】：只取有装修页的店铺（后端 distinct 接口），固定
-  // pageType 的用法（PC 搜索/登录页）不显示筛选、不发此请求
-  useEffect(() => {
-    if (props.pageType) return;
-    apiGet<any>('/decorate/decorate/shopOptions', { decorateType: props.decorateType ?? 1 })
-      .then((result) => {
-        const list = Array.isArray(result) ? result : result?.records || [];
-        setShopOptions(list);
-      })
-      .catch(() => setShopOptions([]));
-  }, [props.decorateType, props.pageType]);
 
   // 外部固定 pageType 时不显示页签（与 Java hasFixedPageType 一致）
   if (props.pageType) {
@@ -714,8 +729,9 @@ export function MobileDecoratePages(props: {
 
   return (
     <div>
-      {/* 页签行 + 店铺筛选【我方新增】：筛选控件紧跟 7 个页签同行右侧，
-          不是第 8 个页签；默认「全部店铺」，选中后各页签列表都只显示该店铺 */}
+      {/* 8 个并列页签【我方新增店铺签】：第 8 签「店铺」与商城首页同为
+          pageType=1，靠 shopScope 拆分（平台页 vs 商家店铺页）；页签行
+          不再有店铺筛选下拉（用户 2026-11-19 22:24 纠正） */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 320 }}>
           <Tabs type="line" activeKey={activeKey} onChange={(key) => setActiveKey(String(key))}>
@@ -723,26 +739,6 @@ export function MobileDecoratePages(props: {
               <TabPane key={tab.key} tab={t(tab.label)} itemKey={tab.key} />
             ))}
           </Tabs>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14, color: '#1f2329' }}>{t('店铺')}</span>
-          <Select
-            filter
-            showClear
-            value={shopId ?? 'all'}
-            style={{ width: 260 }}
-            placeholder={t('全部店铺')}
-            optionList={[
-              { label: t('全部店铺'), value: 'all' },
-              ...shopOptions.map((shop) => ({
-                label: `${shop.shopName || `${t('店铺')} ${shop.shopId}`}${shop.pageCount !== undefined ? ` (${shop.pageCount})` : ''}`,
-                value: shop.shopId,
-              })),
-            ]}
-            onChange={(value: any) => {
-              setShopId(value === 'all' || value === undefined || value === null || value === '' ? undefined : Number(value));
-            }}
-          />
         </div>
       </div>
       {activeTab.key === 'user' && (
@@ -781,8 +777,10 @@ export function MobileDecoratePages(props: {
         defaultName={activeTab.defaultName}
         editPage={props.editPage}
         returnPage={props.returnPage}
-        shopId={shopId}
-        onFiltersReset={() => setShopId(undefined)}
+        shopId={activeTab.shopScope === 'platform' ? 0 : undefined}
+        excludeShopId={activeTab.shopScope === 'shop' ? 0 : undefined}
+        defaultLabel={activeTab.defaultLabel}
+        hideCreate={activeTab.hideCreate}
       />
     </div>
   );
