@@ -635,14 +635,36 @@ impl ProductManageClientService {
                 .unwrap_or(0);
             match r#type {
                 1 => {
+                    let seckill_id = i32::try_from(relation_id).unwrap_or(0);
                     let items = self
                         .repos
                         .marketing
                         .seckill
-                        .find_items_by_skus(i32::try_from(relation_id).unwrap_or(0), &[sku_id])
+                        .find_items_by_skus(seckill_id, &[sku_id])
                         .await
                         .unwrap_or_default();
-                    if let Some(item) = items.first() {
+                    // 无 SKU 回退（原版有·我方改口径）：Java 详情以
+                    // `eq(SeckillItem::getSkuId, skuId ?: 0)` 取行，其商品恒有
+                    // 默认 SKU 故恒命中；我方无 SKU 商品的明细行 sku_id 为 NULL，
+                    // 严格 IN 匹配永远落空，秒杀价/库存回填不到（与首页秒杀 feed
+                    // 直读明细的口径也不一致）。sku 语境为 0 且 SKU 匹配落空时，
+                    // 改按本活动内 sku_id IS NULL 且商品匹配的行回填。
+                    let fallback_items;
+                    let item = match items.first() {
+                        Some(it) => Some(it),
+                        None if sku_id == 0 => {
+                            fallback_items = self
+                                .repos
+                                .marketing
+                                .seckill
+                                .find_items(seckill_id)
+                                .await
+                                .unwrap_or_default();
+                            pick_no_sku_item(&fallback_items, product.product_id)
+                        }
+                        None => None,
+                    };
+                    if let Some(item) = item {
                         if let Some(p) = item.seckill_price {
                             new_price = Some(p);
                         }
@@ -1230,6 +1252,14 @@ fn seckill_item_json(item: &SeckillItem) -> serde_json::Value {
     })
 }
 
+/// 无 SKU 秒杀明细选行（详情回填的无 SKU 回退，纯函数）：活动明细中
+/// `sku_id IS NULL` 且商品匹配的第一行；带 SKU 的行与其它商品的行不选。
+fn pick_no_sku_item<'a>(items: &'a [SeckillItem], product_id: i32) -> Option<&'a SeckillItem> {
+    items
+        .iter()
+        .find(|it| it.sku_id.is_none() && it.product_id == Some(product_id))
+}
+
 /// 优惠券实体 → `data`（Java `realPromotion` type=2：`Coupon` 实体 +
 /// `getCouponPromotionDesc` 券面描述）。
 fn coupon_data(c: &Coupon) -> serde_json::Value {
@@ -1410,6 +1440,36 @@ mod tests {
         assert_eq!(i64_of(&v, &["comment_id"]), 7);
         assert_eq!(i64_of(&v, &["rank"]), 4);
         assert_eq!(i64_of(&v, &["missing"]), 0);
+    }
+
+    #[test]
+    fn pick_no_sku_item_selects_null_sku_row_of_product() {
+        let items = vec![
+            SeckillItem {
+                rec_id: 1,
+                product_id: Some(1579),
+                sku_id: Some(1084),
+                ..Default::default()
+            },
+            SeckillItem {
+                rec_id: 2,
+                product_id: Some(1579),
+                sku_id: None,
+                ..Default::default()
+            },
+            SeckillItem {
+                rec_id: 3,
+                product_id: Some(1580),
+                sku_id: None,
+                ..Default::default()
+            },
+        ];
+        // 带 SKU 行跳过，命中本商品的无 SKU 行
+        assert_eq!(pick_no_sku_item(&items, 1579).map(|it| it.rec_id), Some(2));
+        assert_eq!(pick_no_sku_item(&items, 1580).map(|it| it.rec_id), Some(3));
+        // 无匹配商品 → 无回退
+        assert_eq!(pick_no_sku_item(&items, 9999), None);
+        assert_eq!(pick_no_sku_item(&[], 1579), None);
     }
 
     #[test]
