@@ -1,4 +1,5 @@
 import request from "@/utils/request";
+import { formatArguments } from "@/utils/requestArguments";
 import type { SearchFilterResult, ProductFilterResult, ProductFilterParams, ProductListResponse } from "@/types/search/search";
 import type { StoreSearchParams, StoreSearchResponse } from "@/types/search/storeSearch";
 
@@ -24,7 +25,9 @@ export const getCategoryProductFilter = (data: ProductFilterParams) => {
     return request<ProductFilterResult>({
         url: "search/search/getFilter",
         method: "post",
-        data
+        // 后端 DTO 不接受空串/空数组（如 max:"" 期望 Decimal）：发送前剔除空值，
+        // 与 GET 的 formatArguments 口径一致（原版 Java 后端容忍空串，Rust 不容忍）。
+        data: formatArguments(data as unknown as Record<string, any>) as unknown as ProductFilterParams
     });
 };
 
@@ -37,7 +40,9 @@ export const getCategoryProduct = (data: ProductFilterParams) => {
     return request<ProductListResponse>({
         url: "search/search/getProduct",
         method: "post",
-        data
+        // 同 getCategoryProductFilter：剔除空值后再发，否则 max:""/brand:[] 等
+        // 会被后端反序列化拒绝（400），搜索结果页恒空态。
+        data: formatArguments(data as unknown as Record<string, any>) as unknown as ProductFilterParams
     });
 };
 
