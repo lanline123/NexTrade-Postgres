@@ -1255,6 +1255,10 @@ impl DecorateService {
             // 店铺精确筛选【我方新增】：透传管理页下拉选中值（含 0=平台），
             // 与租户可见口径在仓储层 AND，不放宽店铺账号的既有限制
             filter_shop_id: q.shop_id,
+            // 排除店铺【我方新增，店铺页签口径】：透传 excludeShopId
+            // （店铺页签传 0 = 只列商家店铺页），与租户口径、精确过滤
+            // 在仓储层三者 AND 叠加，不放宽租户范围
+            exclude_shop_id: q.exclude_shop_id,
             keyword: q.keyword.clone(),
             decorate_types: q.decorate_types(),
             page_types: q.page_types(),
@@ -1421,6 +1425,7 @@ impl DecorateService {
         let filter = DecorateFilter {
             shop_id: Some(source.shop_id),
             filter_shop_id: None,
+            exclude_shop_id: None,
             keyword: Some(prefix.clone()),
             decorate_types: source.decorate_type.into_iter().collect(),
             page_types: vec![source.page_type],
