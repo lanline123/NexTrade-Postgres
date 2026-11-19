@@ -357,6 +357,12 @@
 
 - **PC - 语言前缀 rewrite 内部协议修复【我方新增】**：语言路由（/en/ 前缀）为我方新增代码；其 middleware rewrite 分支用 `request.nextUrl.clone()` 构造内部 rewrite 目标时，带入了 `x-forwarded-proto` 的对外协议（https），而 Next 进程自身只提供明文 HTTP（TLS 由 nginx 终结）。生产经反代访问 /en 时，Next 将该目标误判为外部地址走代理、对明文监听端口讲 TLS，报 EPROTO 500（v46 上线后 /en 返回 500，已回滚 v45；journal 实证 `Failed to proxy https://localhost:3005/`）。修复：rewrite 目标协议强制改回进程自身的 http——与同文件 `externalUrl` 的既有口径一致（nextUrl 的分量不能照单全收：对外重定向地址按请求头拼，内部 rewrite 地址用进程自身协议），仅改 `pc-semi/middleware.ts` 一处。验证：在生产同型条件（`next start -H 127.0.0.1` + 请求带 `X-Forwarded-Proto: https` 与对外 Host）下先复现修复前 /en 500 与 EPROTO 日志，再验证修复后 /en、/en/login 均 200、locale cookie 与 `<html lang="en-US">` 正确、无头访问 /、/login、/en 均 200、会员守卫与大小写 308 的对外跳转不受影响；默认启动口径下同一矩阵亦全部通过。
 
+## 0.0.2 续 · 2026-11-19 批次（H5 编辑器真实渲染 shopInfo 空白修复）
+
+### 修复
+
+- **H5 - 店铺信息模块在通用分发器下整页空白【原版有·我方改口径】**：店铺页原版口径是由页面拉店铺详情、经分发器把 shopInfo/shopId 传给店铺信息模块（我方 ShopModules 已按此实现）；但通用分发器 DecorateModules（首页/自定义页/编辑器嵌入预览 decoratePreview 共用）从不传 shopInfo，而 shopInfo 模块无守卫直读 `shopInfo.collectShop` 等字段，缺参必抛错且无错误隔离，含 shopInfo 的页面（如 10079 店铺模板「默认模板」）在 H5 编辑器真实渲染里整页空白。修复三层：① shopInfo 模块全面守卫，店铺详情缺失时渲染结构空态（计数 0、未收藏、handler 在 shopId=0 时不动作），绝不抛错；② 补通真实店铺数据链【原版有·我方改口径：原版由店铺页拉详情，我方改由编辑器下发 shopId、嵌入预览页拉详情】——管理端 editorStore 新增 shopId 状态（详情接口顶层字段）、IframeCanvas 下发 decorate-data 时带 shopId，decoratePreview 据此调 getShopDetail 拉真实店铺详情，DecorateModules 镜像 ShopModules 口径给 SHOP_ID 类模块传 shopId、给 shopInfo 模块传 shopInfo 与刷新回调，首页/自定义页不传时行为不变；③ 新增模块级错误隔离 ModuleErrorBoundary【我方新增】，DecorateModules 与 ShopModules 的每个模块都包一层：单模块渲染抛错只降级该模块（编辑器预览显示「该模块渲染失败，已跳过」占位、线上静默空占位），fallback 恒占一个 DOM 节点保住嵌入预览的布局槽位对齐，编辑器改好该模块数据（对象换新引用）后自动重试渲染。新增回归用例 5 条（shopInfo 守卫 2 + 分发器数据流/错误隔离 3）全过。
+
 ### 修复
 
 - **后台 - 移动端装修页面管理补齐批量删除【原版有】**：与原版（Java tigshop v5.8.61）`view/admin/src/views/decorate/mobileDecorate/List.vue` 逐项核对删除逻辑：单删我方已有（行内「删除」+ 确认 + `POST /decorate/decorate/del`，默认页 isHome=1 不显示入口，与原版 DeleteRecord 口径一致；确认文案由「确定删除？」对齐原版默认文案「您确认要删除该数据吗？」），但**批量删除缺失**——原版列表带勾选列与工具栏「批量删除」（el-popconfirm「您确认要批量删除所选数据吗？」→ `POST decorate/decorate/batch` {type:'del', ids}），我方后端 batch 接口早已存在且口径一致，前端从未接线。本次在页面管理列表（ListPage 框架）启用勾选 + 批量删除浮动条，按原版口径调 batch 接口，成功后清空勾选并刷新。护栏口径与原版保持一致未自加：原版批删不排除默认页、后端 del/batch 亦无 isHome/发布状态护栏（原版 DecorateServiceImpl#del/#batch 仅 super.del/super.batch + 失效首页缓存），单删的默认页保护仅在前端入口层；删除为硬删单行、多语言子页保留，两版一致。
