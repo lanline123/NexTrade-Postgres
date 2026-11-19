@@ -1,0 +1,151 @@
+/* 我的拍卖（我方新增） */
+.auction-my {
+    background: #f7f7f7;
+    min-height: 100vh;
+    padding-bottom: 24rpx;
+
+    .auction-tabs {
+        display: flex;
+        gap: 12rpx;
+        padding: 20rpx 24rpx;
+        .auction-tab {
+            padding: 10rpx 26rpx;
+            background: #fff;
+            border: 2rpx solid #eee;
+            font-size: 26rpx;
+            color: #333;
+            &.is-active {
+                background: var(--general);
+                border-color: var(--general);
+                color: #fff;
+            }
+        }
+    }
+}
+
+.auction-my-login {
+    text-align: center;
+    padding: 80rpx 0;
+    color: #999;
+    font-size: 27rpx;
+    .auction-my-login-btn {
+        display: inline-block;
+        margin-top: 24rpx;
+        padding: 16rpx 48rpx;
+        background: var(--general);
+        color: #fff;
+        font-size: 27rpx;
+    }
+}
+
+.auction-my-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16rpx;
+    padding: 0 24rpx;
+}
+
+.auction-my-row {
+    display: flex;
+    gap: 18rpx;
+    background: #fff;
+    padding: 20rpx;
+    align-items: flex-start;
+}
+
+.auction-my-thumb {
+    width: 150rpx;
+    height: 150rpx;
+    background: #f2f2f2;
+    flex: none;
+}
+
+.auction-my-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8rpx;
+}
+
+.auction-my-title {
+    font-size: 27rpx;
+    color: #333;
+    line-height: 1.4;
+}
+
+.auction-my-meta {
+    font-size: 23rpx;
+    color: #999;
+}
+
+.auction-my-price {
+    display: flex;
+    align-items: baseline;
+    gap: 10rpx;
+    .auction-my-price-label {
+        font-size: 22rpx;
+        color: #999;
+    }
+}
+
+.auction-my-warn {
+    font-size: 23rpx;
+    color: #e4393c;
+}
+
+.auction-dep-row {
+    display: flex;
+    gap: 18rpx;
+    background: #fff;
+    padding: 20rpx;
+    align-items: center;
+}
+
+.auction-dep-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6rpx;
+}
+
+.auction-dep-title {
+    font-size: 26rpx;
+    color: #333;
+}
+
+.auction-dep-time {
+    font-size: 22rpx;
+    color: #aaa;
+}
+
+.auction-dep-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4rpx;
+}
+
+.auction-dep-amount {
+    font-size: 27rpx;
+    color: #333;
+    font-weight: 600;
+}
+
+.auction-dep-status {
+    font-size: 23rpx;
+    color: #888;
+    &.is-1 {
+        color: var(--general);
+    }
+    &.is-4,
+    &.is-5 {
+        color: #e4393c;
+    }
+}
+
+.auction-dep-penalty {
+    font-size: 22rpx;
+    color: #e4393c;
+}

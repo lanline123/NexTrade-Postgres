@@ -117,6 +117,8 @@ export default function MemberNav() {
           { name: '我的订单', url: '/member/order/list', show: true },
           // 系统模式 giftcard：拼团属普通商城营销玩法，入口收起（数据与直达链接不受影响）
           { name: '我的拼团', url: OVERSEAS ? '/member/group/list' : '/member/joining/list', show: systemMode !== 'giftcard' },
+          // 拍卖（我方新增）：同拼团口径，giftcard 模式收起入口
+          { name: '我的拍卖', url: '/member/auction', show: systemMode !== 'giftcard' },
           // D1146：评价功能关闭时隐藏该入口
           { name: '评价晒单', url: '/member/comment/list', show: commentEnabled, badge: 'awaitComment' },
           { name: '我的购物车', url: '/cart', show: true },

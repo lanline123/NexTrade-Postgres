@@ -1,0 +1,309 @@
+/* 拍品详情页（我方新增）：底部固定出价栏 + 保证金半屏弹层 */
+.auction-detail {
+    background: #f7f7f7;
+    min-height: 100vh;
+}
+
+.auction-detail-img {
+    position: relative;
+    width: 100%;
+    height: 750rpx;
+    background: #f2f2f2;
+    image {
+        width: 100%;
+        height: 100%;
+    }
+    .auction-badge {
+        position: absolute;
+        left: 0;
+        top: 24rpx;
+        padding: 6rpx 18rpx;
+        font-size: 24rpx;
+        color: #fff;
+        background: #999;
+        &.is-running {
+            background: #e4393c;
+        }
+        &.is-preview {
+            background: #f0ad4e;
+        }
+        &.is-sold {
+            background: var(--general);
+        }
+    }
+}
+
+.auction-detail-head {
+    background: #fff;
+    padding: 24rpx;
+    display: flex;
+    flex-direction: column;
+    gap: 12rpx;
+}
+
+.auction-detail-title {
+    font-size: 32rpx;
+    font-weight: 600;
+    color: #1a1a1a;
+    line-height: 1.4;
+}
+
+.auction-detail-brief {
+    font-size: 24rpx;
+    color: #999;
+}
+
+.auction-detail-price {
+    display: flex;
+    align-items: baseline;
+    gap: 12rpx;
+    .auction-detail-price-label {
+        font-size: 24rpx;
+        color: #999;
+    }
+}
+
+.auction-tag {
+    font-size: 22rpx;
+    padding: 4rpx 12rpx;
+    background: #f0f0f0;
+    color: #666;
+    &.is-leader {
+        background: var(--general);
+        color: #fff;
+    }
+}
+
+.auction-detail-sub {
+    display: flex;
+    gap: 28rpx;
+    font-size: 24rpx;
+    color: #888;
+}
+
+.auction-detail-count {
+    font-size: 28rpx;
+    color: #333;
+    &.is-urgent {
+        color: #e4393c;
+        font-weight: 600;
+    }
+}
+
+.auction-detail-facts {
+    background: #fff;
+    margin-top: 16rpx;
+    padding: 20rpx 24rpx;
+    display: flex;
+    flex-wrap: wrap;
+    .auction-fact {
+        width: 50%;
+        display: flex;
+        gap: 14rpx;
+        padding: 8rpx 0;
+        font-size: 25rpx;
+        .auction-fact-k {
+            color: #999;
+        }
+        .auction-fact-v {
+            color: #333;
+        }
+    }
+}
+
+.auction-buyout-row {
+    display: flex;
+    gap: 16rpx;
+    padding: 20rpx 24rpx 0;
+    .auction-buyout-btn {
+        flex: 1;
+        text-align: center;
+        background: #333;
+        color: #fff;
+        font-size: 27rpx;
+        padding: 20rpx 0;
+    }
+    .auction-quit-btn {
+        text-align: center;
+        background: #fff;
+        color: #666;
+        font-size: 27rpx;
+        padding: 20rpx 28rpx;
+        border: 2rpx solid #e5e5e5;
+    }
+}
+
+.auction-detail-section {
+    background: #fff;
+    margin-top: 16rpx;
+    padding: 24rpx;
+}
+
+.auction-detail-section-title {
+    display: block;
+    font-size: 30rpx;
+    font-weight: 600;
+    margin-bottom: 16rpx;
+    color: #1a1a1a;
+}
+
+.auction-bid-row {
+    display: flex;
+    align-items: center;
+    gap: 16rpx;
+    padding: 14rpx 0;
+    border-bottom: 2rpx solid #f5f5f5;
+    font-size: 25rpx;
+    &.is-leader {
+        font-weight: 600;
+    }
+    .auction-bid-name {
+        flex: 1;
+        color: #555;
+    }
+    .auction-bid-price {
+        color: var(--general);
+    }
+    .auction-bid-time {
+        color: #aaa;
+        font-size: 22rpx;
+    }
+}
+
+.auction-detail-empty {
+    color: #999;
+    font-size: 25rpx;
+}
+
+.auction-more {
+    text-align: center;
+    padding: 18rpx 0 4rpx;
+    color: var(--general);
+    font-size: 25rpx;
+}
+
+.auction-rules-text {
+    font-size: 25rpx;
+    color: #888;
+    line-height: 1.8;
+}
+
+.auction-detail-spacer {
+    height: 140rpx;
+}
+
+/* 底部固定栏 */
+.auction-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    background: #fff;
+    border-top: 2rpx solid #eee;
+    padding: 16rpx 24rpx calc(16rpx + env(safe-area-inset-bottom));
+    display: flex;
+    align-items: center;
+    gap: 16rpx;
+}
+
+.auction-bar-btn {
+    flex: 1;
+    text-align: center;
+    padding: 20rpx 0;
+    font-size: 28rpx;
+    background: #fff;
+    border: 2rpx solid #d9d9d9;
+    color: #333;
+    &.is-primary {
+        background: var(--general);
+        border-color: var(--general);
+        color: #fff;
+    }
+    &.is-disabled {
+        opacity: 0.55;
+    }
+}
+
+.auction-bar-blocked {
+    flex: 1;
+    text-align: center;
+    color: #b42318;
+    font-size: 26rpx;
+    padding: 12rpx 0;
+}
+
+.auction-bar-leader {
+    flex: 1;
+    font-size: 26rpx;
+    color: #333;
+}
+
+.auction-bar-ended {
+    flex: 1;
+    font-size: 26rpx;
+    color: #555;
+}
+
+.auction-stepper {
+    display: flex;
+    align-items: stretch;
+    border: 2rpx solid #d9d9d9;
+    .auction-step-btn {
+        width: 72rpx;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 34rpx;
+        background: #fafafa;
+    }
+    .auction-bid-input {
+        width: 200rpx;
+        text-align: center;
+        font-size: 30rpx;
+        height: 84rpx;
+    }
+}
+
+/* 保证金半屏弹层 */
+.auction-sheet-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: flex-end;
+}
+
+.auction-sheet {
+    background: #fff;
+    width: 100%;
+    padding: 36rpx 32rpx calc(32rpx + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 20rpx;
+}
+
+.auction-sheet-title {
+    font-size: 32rpx;
+    font-weight: 600;
+    text-align: center;
+}
+
+.auction-sheet-amount {
+    text-align: center;
+    font-size: 34rpx;
+    color: var(--general);
+    font-weight: 700;
+}
+
+.auction-sheet-text {
+    font-size: 25rpx;
+    color: #777;
+    line-height: 1.8;
+}
+
+.auction-sheet-actions {
+    display: flex;
+    gap: 16rpx;
+}

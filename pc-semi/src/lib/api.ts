@@ -511,6 +511,47 @@ export interface SeckillListResponse {
   total: number;
 }
 
+/** 拍卖场次（我方新增）：服务端 SSR 拉取，公开接口。 */
+export async function getAuctionSessions(): Promise<import('./auction').AuctionSession[]> {
+  const response = await fetch(`${SERVER_API_BASE}/api/promotion/auction/sessions`, { cache: 'no-store' });
+  const data = await readData<any>(response);
+  return Array.isArray(data) ? data : [];
+}
+
+/** 拍卖拍品列表（我方新增）：服务端 SSR 拉取，公开接口。tab=all/preview/running/finished。 */
+export async function getAuctionItems(params: {
+  tab?: string;
+  sessionId?: number;
+  sort?: string;
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<{ records: import('./auction').AuctionItem[]; total: number }> {
+  const query = new URLSearchParams();
+  if (params.tab) query.set('tab', params.tab);
+  if (params.sessionId) query.set('sessionId', String(params.sessionId));
+  if (params.sort) query.set('sort', params.sort);
+  query.set('page', String(params.page || 1));
+  query.set('pageSize', String(params.pageSize || 20));
+  const response = await fetch(`${SERVER_API_BASE}/api/promotion/auction/items?${query.toString()}`, {
+    cache: 'no-store',
+  });
+  const data = await readData<any>(response);
+  return {
+    records: Array.isArray(data?.records) ? data.records : Array.isArray(data) ? data : [],
+    total: Number(data?.total || (Array.isArray(data) ? data.length : 0)),
+  };
+}
+
+/** 拍卖拍品详情（我方新增）：服务端 SSR 首屏拉取（无登录态，我的状态字段由客户端补拉）。 */
+export async function getAuctionDetail(id: number): Promise<import('./auction').AuctionItemDetail | null> {
+  const response = await fetch(`${SERVER_API_BASE}/api/promotion/auction/detail?id=${encodeURIComponent(String(id))}`, {
+    cache: 'no-store',
+  });
+  if (!response.ok) return null;
+  const data = await readData<any>(response).catch(() => null);
+  return data && typeof data === 'object' ? (data as import('./auction').AuctionItemDetail) : null;
+}
+
 /** 限时秒杀列表：服务端 SSR 拉取。 */
 export async function getSeckill(params: { page?: number; size?: number } = {}): Promise<SeckillListResponse> {
   const query = new URLSearchParams();

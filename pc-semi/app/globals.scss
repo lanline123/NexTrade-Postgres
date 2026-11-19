@@ -7006,6 +7006,8 @@ button.search-submit svg { display: block; }
 @import './cart-modern.scss';
 // 商品详情页三套风格（结构级布局，须置于最后以覆盖旧 .pdp / .pc-product-detail 规则）
 @import './product-detail-styles.scss';
+// 拍卖（我方新增）：频道 / 详情 / 我的拍卖
+@import './auction.scss';
 
 /* 预售步骤条（源码 pages/order/src/presaleSteps.vue） */
 .pc-presale-steps {
