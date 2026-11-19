@@ -311,8 +311,12 @@ export function ThemeStyle() {
  * super.del/super.batch + 失效首页缓存）；我方新增——默认页（isHome=1）行勾选框
  * 禁用、批删提交前混入默认页整批拦截并提示、后端 batch 对含默认页 id 的请求整批
  * 拒绝报错。单删后端仍无 isHome 校验（与原版一致，靠前端不显示入口），本次未动。
+ * 字段口径：页面名称在列表 VO / 创建·更新 DTO 中均为 decorateTitle（接口无
+ * decorateName 字段）；按名搜索走 keyword（后端 decorate_title ILIKE）。
+ * 本页曾误用 decorateName，导致列表名称列恒走兜底文案、搜索无效、新建必报
+ * 「装修页面名称不能为空」，2026-11-19 已全量修正（PC 自定义页同病同改）。
  * labels: 页面名称, 发布状态, 更新时间, 操作
- * props: decorateId, status, updateTime, bingdingH5Name
+ * props: decorateId, decorateTitle, status, updateTime, bingdingH5Name
  * ========================================================================= */
 
 const PAGE_TYPE_TABS: Array<{ key: string; label: string; pageType: number; defaultName: string }> = [
@@ -368,7 +372,7 @@ function SwitchDefaultPageModal({
       .finally(() => setLoading(false));
   }, [visible, decorateType, pageType]);
 
-  const pageName = (row: any) => row?.decorateName || row?.decorateTitle || row?.bingdingH5Name || t('首页微页面');
+  const pageName = (row: any) => row?.decorateTitle || row?.decorateName || row?.bingdingH5Name || t('首页微页面');
   const currentRow = rows.find((row) => row.decorateId === currentId);
   // 与 PC 端一致：候选不含当前默认页
   const candidates = rows.filter((row) => row.decorateId !== currentId);
@@ -450,7 +454,7 @@ export function MobileDecoratePageList({
     { title: 'ID', dataIndex: 'decorateId', width: 80 },
     {
       title: t('页面名称'),
-      dataIndex: 'decorateName',
+      dataIndex: 'decorateTitle',
       width: 220,
       render: (v: any, row: any) => (
         <Space>
@@ -591,7 +595,7 @@ export function MobileDecoratePageList({
           </Space>
         )}
         filters={[
-          { field: 'decorateName', label: t('页面名称'), type: 'input' },
+          { field: 'keyword', label: t('页面名称'), type: 'input' },
         ]}
         drawer={{
           title: t('新建移动端页面'),
@@ -605,7 +609,7 @@ export function MobileDecoratePageList({
               key: 'basic',
               title: t('基础信息'),
               fields: [
-                { field: 'decorateName', label: t('页面名称'), type: 'input', required: true },
+                { field: 'decorateTitle', label: t('页面名称'), type: 'input', required: true },
               ],
             },
           ],
