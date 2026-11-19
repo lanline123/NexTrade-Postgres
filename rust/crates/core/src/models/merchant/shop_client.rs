@@ -383,6 +383,12 @@ pub struct ClientShopVO {
     pub tip_names: Option<Vec<String>>,
     pub contact_configs: Option<Vec<ShopContactConfigVO>>,
     pub shop_open_close_config: Option<ShopOpenCloseConfigVO>,
+    /// 店铺街推荐排序：是否为平台置顶（本平台新增，老前端忽略无碍）
+    pub is_top: Option<bool>,
+    /// 店铺街推荐排序：是否为付费推广（前端须打「推广」标）
+    pub is_promoted: Option<bool>,
+    /// 店铺街推荐排序：推荐理由（如「你买过这家店」，可解释性预留）
+    pub recommend_reason: Option<String>,
 }
 
 /// 前台店铺详情内的商家信息（Java `ClientShopDetailVO.Merchant`）。

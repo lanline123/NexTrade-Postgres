@@ -1,5 +1,6 @@
 //! merchant 领域仓储。
 
+pub mod ad_campaign;
 pub mod admin_user_shop;
 pub mod deposit_account;
 pub mod deposit_log;
@@ -28,6 +29,7 @@ use crate::db::DbPool;
 
 #[derive(Clone)]
 pub struct Repositories {
+    pub ad_campaign: ad_campaign::AdCampaignRepository,
     pub merchant_client: merchant_client::MerchantClientRepository,
     pub order_config: order_config::OrderConfigRepository,
     pub shop: shop::ShopRepository,
@@ -57,6 +59,7 @@ impl Repositories {
     #[must_use]
     pub fn new(pool: DbPool) -> Self {
         Self {
+            ad_campaign: ad_campaign::AdCampaignRepository::new(pool.clone()),
             merchant_client: merchant_client::MerchantClientRepository::new(pool.clone()),
             order_config: order_config::OrderConfigRepository::new(pool.clone()),
             shop: shop::ShopRepository::new(pool.clone()),

@@ -87,6 +87,12 @@ export interface shopListItem {
     collectCount: number;
     listingCount: number;
     listingProduct: shopListListingProduct[];
+    /** 店铺街推荐排序：平台置顶（显示「精选」标），仅 recommend 排序时下发 */
+    isTop?: boolean;
+    /** 店铺街推荐排序：付费推广（须显示「推广」标），仅 recommend 排序时下发 */
+    isPromoted?: boolean;
+    /** 店铺街推荐排序：推荐理由（如「你买过这家店」） */
+    recommendReason?: string;
 }
 
 export interface shopListListingProduct {

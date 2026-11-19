@@ -42,6 +42,15 @@
                     /* -webkit-box 不支持 gap，用 margin 撑标签间距与行距 */
                     margin: 0 8rpx 8rpx 0;
                     white-space: nowrap;
+                    /* 店铺街推荐角标（本平台新增）：精选=主题色实底，推广=主题色描边 */
+                    &.ad-top {
+                        color: #fff;
+                        background-color: var(--general);
+                    }
+                    &.ad-promoted {
+                        color: var(--general);
+                        background-color: var(--vice-bg, #f3f6f8);
+                    }
                 }
             }
         }

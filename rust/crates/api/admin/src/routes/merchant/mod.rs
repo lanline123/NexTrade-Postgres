@@ -1,5 +1,6 @@
 //! 管理端 merchant 路由。
 
+pub mod ad_campaign;
 pub mod admin_user_shop;
 pub mod deposit_account;
 pub mod deposit_log;
@@ -29,6 +30,7 @@ use super::super::AdminState;
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
+        .merge(ad_campaign::routes(state))
         .merge(admin_user_shop::routes(state))
         .merge(deposit_account::routes(state))
         .merge(deposit_log::routes(state))
@@ -61,6 +63,7 @@ pub fn public_routes(state: &AdminState) -> Router<AdminState> {
 #[must_use]
 pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     let mut out = Vec::new();
+    out.extend(ad_campaign::implemented_routes());
     out.extend(admin_user_shop::implemented_routes());
     out.extend(deposit_account::implemented_routes());
     out.extend(deposit_log::implemented_routes());

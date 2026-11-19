@@ -279,6 +279,29 @@ impl ConfigBasicService {
         Ok(super::price_display::effective_price_display(stored.as_deref()))
     }
 
+    /// 读取投流配置（生效值：已存配置清洗后，或内置默认）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn get_ad_settings(&self) -> Result<Value> {
+        let stored = self
+            .repo()
+            .find_by_code(super::ad_settings::AD_SETTINGS_CODE)
+            .await?;
+        Ok(super::ad_settings::effective_ad_settings(stored.as_deref()))
+    }
+
+    /// 保存投流配置（清洗后整块 JSON 落 config 表 `adSettings` 行）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn save_ad_settings(&self, payload: &Value) -> Result<()> {
+        let clean = super::ad_settings::sanitize_ad_settings(payload);
+        self.repo()
+            .save_code(super::ad_settings::AD_SETTINGS_CODE, &clean.to_string())
+            .await
+    }
+
     /// 保存价格显示配置（清洗后整块 JSON 落 config 表 `priceDisplay` 行）。
     ///
     /// # Errors

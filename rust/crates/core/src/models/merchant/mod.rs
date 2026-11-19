@@ -1,5 +1,6 @@
 //! merchant 领域模型（DTO / Query / VO）。
 
+pub mod ad_campaign;
 pub mod admin_user_shop;
 pub mod deposit_account;
 pub mod deposit_log;

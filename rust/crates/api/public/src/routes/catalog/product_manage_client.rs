@@ -11,7 +11,7 @@
 //! | `GET  /product/product/getComment` | getComment | 已实现（统计子集） |
 //! | `GET  /product/product/getCommentList` | getCommentList | 已实现（10/页） |
 //! | `GET  /product/product/getFeedbackList` | getFeedbackList | 已实现 |
-//! | `GET  /product/product/getProductAvailability` | getProductAvailability | 已实现（sku 子集） |
+//! | `GET  /product/product/getProductAvailability` | getProductAvailability | 已实现（sku 子集 + promotion 详情聚合 + 定金字段） |
 //! | `POST /product/product/promotion` | getProductsPromotion | 已实现（商品自身促销字段） |
 //! | `POST /product/product/getProductAmount` | getProductAmount | 已实现（零售价×数量） |
 //! | `POST /product/product/priceInquiry` | priceInquiry | 已实现（写 price_inquiry） |

@@ -183,9 +183,15 @@ fn require_user_id(auth: &Option<Extension<AuthUser>>) -> Result<i32, AppError> 
 /// 对应 Java `ShopClientController.list(ShopListDTO)` → `ShopServiceImpl#clientList`。
 async fn client_list(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<ClientShopListQuery>,
 ) -> ApiResult<PageResult<ClientShopVO>> {
-    ok(state.merchant.shop_client.client_list(&q).await?)
+    // optional 登录态透传 user_id（游客 0）：店铺街 recommend 排序的千人千面信号源
+    ok(state
+        .merchant
+        .shop_client
+        .client_list(&q, current_user_id(&auth))
+        .await?)
 }
 
 /// `POST /api/shop/shop/collect`：收藏/取消收藏店铺（切换）。

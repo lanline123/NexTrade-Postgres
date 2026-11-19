@@ -210,6 +210,10 @@ export const navGroups: NavGroup[] = [
             "label": "店铺列表"
           },
           {
+            "key": "adCampaignManage",
+            "label": "投流管理"
+          },
+          {
             "key": "shopGroupManage",
             "label": "店铺分组"
           },
@@ -1381,6 +1385,10 @@ export const navGroups: NavGroup[] = [
           {
             "key": "productCloneSettings",
             "label": "商品复刻设置"
+          },
+          {
+            "key": "adSettingsManage",
+            "label": "投流定价"
           },
           {
             "key": "taxRateManage",

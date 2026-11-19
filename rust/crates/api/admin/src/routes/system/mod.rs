@@ -1,5 +1,6 @@
 //! 管理端 system 路由。
 
+pub mod ad_settings_config;
 pub mod admin_msg;
 pub mod ai_image;
 pub mod app_version_admin;
@@ -38,6 +39,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(cache_manage::routes(state))
         .merge(config_basic::routes(state))
         .merge(price_display_config::routes(state))
+        .merge(ad_settings_config::routes(state))
         .merge(buy_style_config::routes(state))
         .merge(system_mode_config::routes(state))
         .merge(font_settings_config::routes(state))
@@ -73,6 +75,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(cache_manage::implemented_routes());
     out.extend(config_basic::implemented_routes());
     out.extend(price_display_config::implemented_routes());
+    out.extend(ad_settings_config::implemented_routes());
     out.extend(buy_style_config::implemented_routes());
     out.extend(system_mode_config::implemented_routes());
     out.extend(font_settings_config::implemented_routes());

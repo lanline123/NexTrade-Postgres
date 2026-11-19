@@ -401,6 +401,159 @@ pub fn product_list_item(
     })
 }
 
+// ———————————————————— 详情促销聚合（promotion 字段）纯逻辑 ————————————————————
+//
+// 对应 Java：
+// - `PromotionServiceImpl#convert`（PromotionVO 的 startTime/endTime/timeText 组装）；
+// - `ProductServiceImpl#realPromotion` + `getProductPromotionDesc`（data.promotionDesc）；
+// - `CouponServiceImpl#getCouponPromotionDesc`（券 data.promotionDesc）；
+// - 文案模板出自 `tigshop-common/src/main/resources/i18n/messages.properties`
+//   （简体中文模板，与 Java `MessageHelper#getChineseTemplate` 同源）。
+//
+// 【原版有】本节全部函数均为 Java 既有口径的移植，无我方新增语义。
+
+use crate::entities::{Coupon, ProductPromotion, Promotion};
+use crate::models::marketing::product_promotion::PromotionTypeData;
+
+/// 秒级时间戳 → Java `TigUtils.handelTime`（`yyyy-MM-dd HH:mm:ss`；0/负数 → 空串）。
+#[must_use]
+pub fn handel_time_string(ts: i32) -> String {
+    crate::models::marketing::groupon_promotion::format_time(i64::from(ts))
+}
+
+/// 秒级时间戳 → Java `PromotionVO` 时间串（`convert` 口径：>0 格式化，否则 `"0"`）。
+#[must_use]
+pub fn promotion_time_string(ts: i32) -> String {
+    if ts > 0 {
+        handel_time_string(ts)
+    } else {
+        "0".to_string()
+    }
+}
+
+/// 活动有效期文案（Java `PromotionVO.timeText`，`PromotionServiceImpl#convert`）。
+///
+/// 优惠券且 `send_type = 0`（领券后生效）时展示相对有效期文案；活动起止均为 0
+/// 时为「长期有效」；其余为「开始 至 结束」（`handelTime` 拼接）。
+#[must_use]
+pub fn promotion_time_text(promotion: &Promotion, coupon: Option<&Coupon>) -> String {
+    if promotion.r#type == 2 {
+        if let Some(c) = coupon.filter(|c| c.send_type == 0) {
+            return if c.delay_day <= 0 {
+                format!("领券后立即生效，有效期{}天", c.use_day)
+            } else {
+                format!("领券后{}天生效，有效期{}天", c.delay_day, c.use_day)
+            };
+        }
+    }
+    if promotion.start_time == 0 && promotion.end_time == 0 {
+        return "长期有效".to_string();
+    }
+    format!(
+        "{} 至 {}",
+        handel_time_string(promotion.start_time),
+        handel_time_string(promotion.end_time)
+    )
+}
+
+/// 券面描述（Java `CouponServiceImpl#getCouponPromotionDesc`）。
+///
+/// 模板：`coupon.full.reduce`「满 {0} 减 {1}」/ `coupon.full.discount`「满 {0} 打 {1} 折」
+/// / `coupon.straight.reduce`「立减 {0}」/ `coupon.discount`「打 {0} 折」；数值按
+/// Java `String.valueOf(BigDecimal)` 原样输出（保留库中标度，如 `100.00`）。
+#[must_use]
+pub fn coupon_promotion_desc(coupon: &Coupon) -> String {
+    if coupon.reduce_type == 1 {
+        if coupon.coupon_type == 1 {
+            format!("满 {} 减 {}", coupon.min_order_amount, coupon.coupon_money)
+        } else {
+            format!(
+                "满 {} 打 {} 折",
+                coupon.min_order_amount, coupon.coupon_discount
+            )
+        }
+    } else if coupon.coupon_type == 1 {
+        format!("立减 {}", coupon.coupon_money)
+    } else {
+        format!("打 {} 折", coupon.coupon_discount)
+    }
+}
+
+/// 解析 `product_promotion.promotion_type_data`（与 marketing::product_promotion
+/// 服务层同口径：`serde_json::from_str(...).unwrap_or_default()`）。
+#[must_use]
+pub fn parse_promotion_type_data(raw: &str) -> Vec<PromotionTypeData> {
+    serde_json::from_str(raw).unwrap_or_default()
+}
+
+/// `Decimal` 去尾零输出（Java `BigDecimal.stripTrailingZeros().toPlainString()`）。
+fn plain_decimal(v: Decimal) -> String {
+    v.normalize().to_string()
+}
+
+/// 满减/满折/满赠展示描述（Java `ProductServiceImpl#getProductPromotionDesc`）。
+///
+/// 取首条规则：模板键 = `promotion.{each|full}.{reduce|discount|gift}.{amount|item}`
+/// （`rules_type = 0` 循环 → each，其余 → full；`unit = 2` → item 后缀）；满赠模板
+/// 只带门槛参数。规则缺失/首条无门槛/未知优惠类型时回退活动名称（Java 同口径：
+/// 返回本地化后的活动名）。
+#[must_use]
+pub fn product_promotion_desc(promotion: &ProductPromotion) -> String {
+    let fallback = promotion.promotion_name.clone();
+    let rules = parse_promotion_type_data(&promotion.promotion_type_data);
+    let Some(rule) = rules.first() else {
+        return fallback;
+    };
+    let Some(min_amount) = rule.min_amount else {
+        return fallback;
+    };
+    let threshold = plain_decimal(min_amount);
+    let item_unit = promotion.unit == 2;
+    let cyclic = promotion.rules_type == 0;
+    let value = rule
+        .reduce
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .and_then(|s| s.parse::<Decimal>().ok())
+        .map(plain_decimal)
+        .unwrap_or_else(|| "0".to_string());
+    match promotion.promotion_type {
+        1 => match (cyclic, item_unit) {
+            (true, true) => format!("每满{threshold}件减{value}"),
+            (true, false) => format!("每满{threshold}减{value}"),
+            (false, true) => format!("满{threshold}件减{value}"),
+            (false, false) => format!("满{threshold}减{value}"),
+        },
+        2 => match (cyclic, item_unit) {
+            (true, true) => format!("每满{threshold}件打{value}折"),
+            (true, false) => format!("每满{threshold}打{value}折"),
+            (false, true) => format!("满{threshold}件打{value}折"),
+            (false, false) => format!("满{threshold}打{value}折"),
+        },
+        3 => match (cyclic, item_unit) {
+            (true, true) => format!("每满{threshold}件送赠品"),
+            (true, false) => format!("每满{threshold}送赠品"),
+            (false, true) => format!("满{threshold}件送赠品"),
+            (false, false) => format!("满{threshold}送赠品"),
+        },
+        _ => fallback,
+    }
+}
+
+/// 固定文案型活动的 `promotionDesc`（Java `realPromotion` 模板分支：
+/// type 1 `promotion.seckill` / type 6 `promotion.time.discount` / type 7
+/// `promotion.groupon`）；其余类型返回 `None`（描述来自关联实体推导或为空对象）。
+#[must_use]
+pub fn fixed_promotion_desc(r#type: i32) -> Option<&'static str> {
+    match r#type {
+        1 => Some("秒杀价"),
+        6 => Some("限时折扣"),
+        7 => Some("拼团"),
+        _ => None,
+    }
+}
+
 /// HTML 转义（share 页拼接最小 HTML 用）。
 #[must_use]
 pub fn html_escape(raw: &str) -> String {
@@ -500,5 +653,137 @@ mod tests {
         let s = inquiry_summary(&product, &[sku(0, Some(120)), sku(0, None)]);
         assert_eq!(s.state, "none");
         assert_eq!(s.min_priced_price, Some(dec(100)));
+    }
+
+    #[test]
+    fn promotion_time_strings_match_java_convert() {
+        // 0 → VO 时间串为 "0"，handelTime 为空串
+        assert_eq!(promotion_time_string(0), "0");
+        assert_eq!(handel_time_string(0), "");
+        assert_eq!(promotion_time_string(-5), "0");
+        // 正时间戳 → 19 位 yyyy-MM-dd HH:mm:ss（具体时区随运行环境，只验形态）
+        let s = promotion_time_string(1_792_285_200);
+        assert_eq!(s.len(), 19);
+        assert_eq!(s, handel_time_string(1_792_285_200));
+    }
+
+    #[test]
+    fn promotion_time_text_branches() {
+        let mut p = Promotion {
+            r#type: 3,
+            start_time: 0,
+            end_time: 0,
+            ..Default::default()
+        };
+        // 起止均为 0 → 长期有效
+        assert_eq!(promotion_time_text(&p, None), "长期有效");
+        // 有起止 → handelTime 拼接
+        p.start_time = 1_792_285_200;
+        p.end_time = 1_792_285_200;
+        let text = promotion_time_text(&p, None);
+        assert!(text.contains(" 至 "));
+        assert_eq!(text.len(), 19 + 5 + 19); // 两段时间串 + " 至 "（空格+汉字3字节+空格）
+                                             // 券 + 领券后生效：相对文案（立即 / 延迟两支）
+        p.r#type = 2;
+        let mut c = Coupon {
+            send_type: 0,
+            delay_day: 0,
+            use_day: 30,
+            ..Default::default()
+        };
+        assert_eq!(
+            promotion_time_text(&p, Some(&c)),
+            "领券后立即生效，有效期30天"
+        );
+        c.delay_day = 2;
+        assert_eq!(
+            promotion_time_text(&p, Some(&c)),
+            "领券后2天生效，有效期30天"
+        );
+        // 券 + 固定时段（send_type=1）→ 回落活动起止文案
+        c.send_type = 1;
+        assert!(promotion_time_text(&p, Some(&c)).contains(" 至 "));
+    }
+
+    #[test]
+    fn coupon_promotion_desc_templates() {
+        let dec = |v: i64, s: u32| Decimal::new(v, s);
+        let mut c = Coupon {
+            reduce_type: 1,
+            coupon_type: 1,
+            min_order_amount: dec(10000, 2),
+            coupon_money: dec(1000, 2),
+            coupon_discount: dec(85, 1),
+            ..Default::default()
+        };
+        // 满减券：满 100.00 减 10.00（Java String.valueOf 保留标度）
+        assert_eq!(coupon_promotion_desc(&c), "满 100.00 减 10.00");
+        // 满折券
+        c.coupon_type = 2;
+        assert_eq!(coupon_promotion_desc(&c), "满 100.00 打 8.5 折");
+        // 无门槛立减 / 无门槛折扣
+        c.reduce_type = 2;
+        c.coupon_type = 1;
+        assert_eq!(coupon_promotion_desc(&c), "立减 10.00");
+        c.coupon_type = 2;
+        assert_eq!(coupon_promotion_desc(&c), "打 8.5 折");
+    }
+
+    #[test]
+    fn product_promotion_desc_templates_and_fallbacks() {
+        let pp = |promotion_type: i32, rules_type: i32, unit: i32, data: &str| ProductPromotion {
+            promotion_name: "活动名".into(),
+            promotion_type,
+            rules_type,
+            unit,
+            promotion_type_data: data.into(),
+            ..Default::default()
+        };
+        // 满减（阶梯/full + 金额单位）：首条规则 满100.50减10 → 去尾零
+        assert_eq!(
+            product_promotion_desc(&pp(1, 1, 1, r#"[{"minAmount":100.50,"reduce":"10.00"}]"#)),
+            "满100.5减10"
+        );
+        // 满减（循环/each + 件单位）
+        assert_eq!(
+            product_promotion_desc(&pp(1, 0, 2, r#"[{"minAmount":3,"reduce":"5"}]"#)),
+            "每满3件减5"
+        );
+        // 满折
+        assert_eq!(
+            product_promotion_desc(&pp(2, 1, 1, r#"[{"minAmount":200,"reduce":"8.5"}]"#)),
+            "满200打8.5折"
+        );
+        // 满赠只带门槛
+        assert_eq!(
+            product_promotion_desc(&pp(3, 1, 1, r#"[{"minAmount":99,"giftId":7}]"#)),
+            "满99送赠品"
+        );
+        // 规则为空 / 首条无门槛 / 未知类型 → 回退活动名（Java 同口径）
+        assert_eq!(product_promotion_desc(&pp(1, 1, 1, "[]")), "活动名");
+        assert_eq!(
+            product_promotion_desc(&pp(1, 1, 1, r#"[{"reduce":"5"}]"#)),
+            "活动名"
+        );
+        assert_eq!(
+            product_promotion_desc(&pp(9, 1, 1, r#"[{"minAmount":1,"reduce":"1"}]"#)),
+            "活动名"
+        );
+        // reduce 缺失 → 0（Java `rule.getReduce() == null → "0"`）
+        assert_eq!(
+            product_promotion_desc(&pp(1, 1, 1, r#"[{"minAmount":50}]"#)),
+            "满50减0"
+        );
+    }
+
+    #[test]
+    fn fixed_promotion_desc_only_for_template_types() {
+        assert_eq!(fixed_promotion_desc(1), Some("秒杀价"));
+        assert_eq!(fixed_promotion_desc(6), Some("限时折扣"));
+        assert_eq!(fixed_promotion_desc(7), Some("拼团"));
+        assert_eq!(fixed_promotion_desc(0), None);
+        assert_eq!(fixed_promotion_desc(2), None);
+        assert_eq!(fixed_promotion_desc(3), None);
+        assert_eq!(fixed_promotion_desc(8), None);
     }
 }

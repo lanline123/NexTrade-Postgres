@@ -204,6 +204,20 @@ impl ShopClientRepository {
         Ok((total.0.max(0) as u64, rows))
     }
 
+    /// 店铺街推荐排序用：全量候选店铺（仅开业 + 关键词过滤，不分页；
+    /// 打分/分段/分页在服务层内存完成，店铺量级几十到几百家）。
+    pub async fn list_all_client_shops(&self, keyword: Option<&str>) -> Result<Vec<Shop>> {
+        sqlx::query_as::<_, Shop>(
+            "SELECT * FROM shop WHERE status = 1 \
+             AND ($1::text IS NULL OR shop_title ILIKE CONCAT('%', $1, '%')) \
+             ORDER BY shop_id DESC",
+        )
+        .bind(keyword)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
     /// 按主键查询店铺。
     pub async fn find_shop(&self, shop_id: i32) -> Result<Option<Shop>> {
         sqlx::query_as::<_, Shop>("SELECT * FROM shop WHERE shop_id = $1 LIMIT 1")

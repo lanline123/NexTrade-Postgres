@@ -157,7 +157,16 @@ impl ShopClientService {
     /// 第 1 页且显式 `excludeSelfOperated=0` 时，在首位插入平台自营虚拟店
     /// （`shopId=0`，仅状态为「开业」时插入，且计入名称关键字匹配）。
     /// **注意**：与原 Java 一致，该占位**不计入 `total`**。
-    pub async fn client_list(&self, q: &ClientShopListQuery) -> Result<PageResult<ClientShopVO>> {
+    pub async fn client_list(
+        &self,
+        q: &ClientShopListQuery,
+        user_id: i32,
+    ) -> Result<PageResult<ClientShopVO>> {
+        // 店铺街推荐排序（千人千面 + 置顶/推广）：sortField=recommend 走新链路，
+        // 综合/评分等旧排序保持原 SQL 分页口径不变。
+        if q.sort_field.as_deref() == Some("recommend") {
+            return self.client_list_recommend(q, user_id).await;
+        }
         let page = q.page_query();
         let keyword = q
             .keyword
@@ -170,49 +179,292 @@ impl ShopClientService {
             .await?;
 
         let product_limit = q.product_limit();
-        let mut list: Vec<ClientShopVO> = Vec::new();
+        let mut list: Vec<ClientShopVO> = self.build_shop_vos(&rows, product_limit).await?;
 
-        if !rows.is_empty() {
-            let shop_ids: Vec<i32> = rows.iter().map(|s| s.shop_id).collect();
-
-            // 批量预取，避免逐店 N+1（Java 同样是 4 条批量查询）
-            let mut products_by_shop: HashMap<i32, Vec<Product>> = HashMap::new();
-            for p in self.repo().find_products_by_shops(&shop_ids).await? {
-                products_by_shop.entry(p.shop_id).or_default().push(p);
-            }
-            let counts: HashMap<i32, i64> = self
-                .repo()
-                .count_products_by_shops(&shop_ids)
+        // —— prependClientSelfOperatedStore ——
+        if q.page.unwrap_or(1) == 1
+            && q.exclude_self_operated == Some(0)
+            && !list.iter().any(|v| v.shop_id == Some(SELF_OPERATED_SHOP_ID))
+        {
+            if let Some(vo) = self
+                .build_client_self_operated_vo(q.keyword.as_deref(), product_limit)
                 .await?
-                .into_iter()
-                .collect();
-            let collects: HashMap<i32, i64> = self
-                .repo()
-                .count_collect_users_by_shops(&shop_ids)
-                .await?
-                .into_iter()
-                .collect();
-            let scores: HashMap<i32, Decimal> = self
-                .repo()
-                .avg_comment_rank_by_shops(&shop_ids)
-                .await?
-                .into_iter()
-                .collect();
-
-            for shop in &rows {
-                let mut product_list = products_by_shop.remove(&shop.shop_id).unwrap_or_default();
-                product_list.truncate(product_limit.max(0) as usize);
-
-                let mut vo = build_client_shop_vo(shop)?;
-                vo.listing_product = Some(product_list);
-                vo.listing_count = Some(counts.get(&shop.shop_id).copied().unwrap_or(0));
-                vo.collect_count = Some(collects.get(&shop.shop_id).copied().unwrap_or(0));
-                vo.product_score = Some(scores.get(&shop.shop_id).copied().unwrap_or(Decimal::ZERO));
-                list.push(vo);
+            {
+                list.insert(0, vo);
             }
         }
 
-        // —— prependClientSelfOperatedStore ——
+        Ok(PageResult::new(total, list, &page))
+    }
+
+    /// 批量构建店铺 VO（商品预览/上架数/收藏数/商品评分批量预取，避免 N+1）。
+    async fn build_shop_vos(
+        &self,
+        rows: &[Shop],
+        product_limit: i32,
+    ) -> Result<Vec<ClientShopVO>> {
+        let mut list: Vec<ClientShopVO> = Vec::new();
+        if rows.is_empty() {
+            return Ok(list);
+        }
+        let shop_ids: Vec<i32> = rows.iter().map(|s| s.shop_id).collect();
+        let mut products_by_shop: HashMap<i32, Vec<Product>> = HashMap::new();
+        for p in self.repo().find_products_by_shops(&shop_ids).await? {
+            products_by_shop.entry(p.shop_id).or_default().push(p);
+        }
+        let counts: HashMap<i32, i64> = self
+            .repo()
+            .count_products_by_shops(&shop_ids)
+            .await?
+            .into_iter()
+            .collect();
+        let collects: HashMap<i32, i64> = self
+            .repo()
+            .count_collect_users_by_shops(&shop_ids)
+            .await?
+            .into_iter()
+            .collect();
+        let scores: HashMap<i32, Decimal> = self
+            .repo()
+            .avg_comment_rank_by_shops(&shop_ids)
+            .await?
+            .into_iter()
+            .collect();
+        for shop in rows {
+            let mut product_list = products_by_shop.remove(&shop.shop_id).unwrap_or_default();
+            product_list.truncate(product_limit.max(0) as usize);
+            let mut vo = build_client_shop_vo(shop)?;
+            vo.listing_product = Some(product_list);
+            vo.listing_count = Some(counts.get(&shop.shop_id).copied().unwrap_or(0));
+            vo.collect_count = Some(collects.get(&shop.shop_id).copied().unwrap_or(0));
+            vo.product_score = Some(scores.get(&shop.shop_id).copied().unwrap_or(Decimal::ZERO));
+            list.push(vo);
+        }
+        Ok(list)
+    }
+
+    /// 店铺街推荐排序（`sortField=recommend`，PLAN §2/§3）。
+    ///
+    /// 无关键词：置顶段（pin_sort 顺序，上限 pinLimit）→ 推广段（weight 降序，
+    /// 分页时每页最多 promotedPerPage 个，溢出顺延后续页）→ 个性化段
+    /// （个人信号打分 + 质量兜底，同分 click/新店序确定性排序）。
+    /// 有关键词：置顶/推广不强插，只对命中的自然结果排序，命中的推广加权提前并打标。
+    /// 游客（user_id = 0）跳过个人信号，只走质量分。
+    async fn client_list_recommend(
+        &self,
+        q: &ClientShopListQuery,
+        user_id: i32,
+    ) -> Result<PageResult<ClientShopVO>> {
+        use nextrade_core::models::merchant::ad_campaign::{
+            recommend_reason, score_shop, ShopSignals, POSITION_SHOP_STREET,
+        };
+
+        let page = q.page_query();
+        let keyword = q
+            .keyword
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        let has_keyword = keyword.is_some();
+
+        let settings = {
+            let stored = self
+                .repos
+                .system
+                .config_basic
+                .find_by_code(crate::system::ad_settings::AD_SETTINGS_CODE)
+                .await?;
+            crate::system::ad_settings::effective_ad_settings(stored.as_deref())
+        };
+        let recommend_enabled = settings["recommendEnabled"].as_bool().unwrap_or(true);
+        let pin_limit = settings["pinLimit"].as_u64().unwrap_or(3) as usize;
+        let promoted_per_page = settings["promotedPerPage"].as_u64().unwrap_or(2) as usize;
+
+        let rows = self.repo().list_all_client_shops(keyword).await?;
+        let total = rows.len() as u64;
+        let product_limit = q.product_limit();
+        let mut vos = self.build_shop_vos(&rows, product_limit).await?;
+        let shop_by_id: HashMap<i32, &Shop> = rows.iter().map(|s| (s.shop_id, s)).collect();
+        let vo_index: HashMap<i32, usize> = vos
+            .iter()
+            .enumerate()
+            .filter_map(|(i, v)| v.shop_id.map(|id| (id, i)))
+            .collect();
+
+        // —— 投放段（置顶/推广）——
+        let now = i32::try_from(nextrade_common::utils::now_seconds()).unwrap_or(0);
+        let live = self
+            .repos
+            .merchant
+            .ad_campaign
+            .live_campaigns(POSITION_SHOP_STREET, now)
+            .await?;
+        let candidate: HashSet<i32> = rows.iter().map(|s| s.shop_id).collect();
+        let mut pin_order: Vec<i32> = Vec::new();
+        let mut promoted_order: Vec<i32> = Vec::new();
+        for c in &live {
+            if c.target_type != nextrade_core::models::merchant::ad_campaign::TARGET_SHOP {
+                continue;
+            }
+            if !candidate.contains(&c.shop_id) {
+                continue;
+            }
+            if c.is_pin == 1 {
+                if !pin_order.contains(&c.shop_id) {
+                    pin_order.push(c.shop_id);
+                }
+            } else if !promoted_order.contains(&c.shop_id) {
+                promoted_order.push(c.shop_id);
+            }
+        }
+        if !has_keyword {
+            pin_order.truncate(pin_limit);
+        }
+        let pin_set: HashSet<i32> = pin_order.iter().copied().collect();
+        let promoted_set: HashSet<i32> = promoted_order.iter().copied().collect();
+
+        // —— 个性化信号 + 质量分 ——
+        let ad_repo = &self.repos.merchant.ad_campaign;
+        let mut signals: HashMap<i32, ShopSignals> = HashMap::new();
+        if user_id > 0 && recommend_enabled {
+            for (shop_id, n) in ad_repo.purchased_orders_by_shop(user_id, 90).await? {
+                signals.entry(shop_id).or_default().purchased_orders = n;
+            }
+            for shop_id in ad_repo.collected_shops(user_id).await? {
+                signals.entry(shop_id).or_default().collected_shop = true;
+            }
+            for (shop_id, n) in ad_repo.cart_items_by_shop(user_id).await? {
+                signals.entry(shop_id).or_default().cart_items = n;
+            }
+            for (shop_id, n) in ad_repo.collected_products_by_shop(user_id).await? {
+                signals.entry(shop_id).or_default().collected_products = n;
+            }
+            // 浏览：history_product_ids 不带时间戳，按列表位置近似衰减
+            // （前 20 个视为 7 天内、21~70 视为 30 天内、其余更久）。
+            let history_ids = ad_repo.history_product_ids(user_id, 200).await?;
+            if !history_ids.is_empty() {
+                let pos_of: HashMap<i32, usize> = history_ids
+                    .iter()
+                    .enumerate()
+                    .map(|(i, id)| (*id, i))
+                    .collect();
+                for (pid, shop_id, _cat) in ad_repo.product_shop_categories(&history_ids).await? {
+                    let days = match pos_of.get(&pid).copied().unwrap_or(999) {
+                        0..=19 => 3.0,
+                        20..=69 => 20.0,
+                        _ => 40.0,
+                    };
+                    signals.entry(shop_id).or_default().history_decayed +=
+                        nextrade_core::models::merchant::ad_campaign::history_decay(days);
+                }
+            }
+            let user_cats: HashSet<i32> =
+                ad_repo.user_category_ids(user_id).await?.into_iter().collect();
+            if !user_cats.is_empty() {
+                let shop_ids: Vec<i32> = rows.iter().map(|s| s.shop_id).collect();
+                let mut hits: HashMap<i32, HashSet<i32>> = HashMap::new();
+                for (shop_id, cat) in ad_repo.shop_category_ids(&shop_ids).await? {
+                    if user_cats.contains(&cat) {
+                        hits.entry(shop_id).or_default().insert(cat);
+                    }
+                }
+                for (shop_id, cats) in hits {
+                    signals.entry(shop_id).or_default().category_hits = cats.len() as i64;
+                }
+            }
+            for (shop_id, n) in ad_repo.cohort_buyers_by_shop(user_id, 90).await? {
+                signals.entry(shop_id).or_default().cohort_buyers = n;
+            }
+        }
+
+        let mut score_of: HashMap<i32, f64> = HashMap::new();
+        for vo in &vos {
+            let Some(shop_id) = vo.shop_id else { continue };
+            let shop = shop_by_id.get(&shop_id).copied();
+            let quality = shop_quality(
+                shop.and_then(|s| s.shop_star).and_then(|d| d.to_string().parse::<f64>().ok()),
+                shop.and_then(|s| s.shop_sales).unwrap_or(0),
+                vo.collect_count.unwrap_or(0),
+                vo.listing_count.unwrap_or(0),
+                shop.and_then(|s| s.click_count).unwrap_or(0),
+            );
+            let sig = signals.get(&shop_id).cloned().unwrap_or_default();
+            let mut score = score_shop(&sig, quality);
+            if has_keyword && promoted_set.contains(&shop_id) {
+                // 关键词搜索：推广不强插全量结果，只在命中集合内加权提前
+                score += 20.0;
+            }
+            score_of.insert(shop_id, score);
+        }
+
+        // —— 组装全量顺序 ——
+        let mut ordered_ids: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut rest: Vec<i32> = rows.iter().map(|s| s.shop_id).collect();
+        if !has_keyword {
+            for id in &pin_order {
+                if rest.contains(id) {
+                    ordered_ids.push(*id);
+                }
+            }
+            if promoted_per_page > 0 {
+                for id in &promoted_order {
+                    if rest.contains(id) && !pin_set.contains(id) {
+                        ordered_ids.push(*id);
+                    }
+                }
+                rest.retain(|id| !pin_set.contains(id) && !promoted_set.contains(id));
+            } else {
+                // 推广位关闭（promotedPerPage=0）：推广店回落自然段，不打标
+                rest.retain(|id| !pin_set.contains(id));
+            }
+        }
+        rest.sort_by(|a, b| {
+            let sa = score_of.get(a).copied().unwrap_or(0.0);
+            let sb = score_of.get(b).copied().unwrap_or(0.0);
+            sb.partial_cmp(&sa)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| {
+                    let ca = shop_by_id.get(a).and_then(|s| s.click_count).unwrap_or(0);
+                    let cb = shop_by_id.get(b).and_then(|s| s.click_count).unwrap_or(0);
+                    cb.cmp(&ca)
+                })
+                .then_with(|| b.cmp(a))
+        });
+        ordered_ids.extend(rest);
+
+        // —— 分页（推广每页上限：溢出顺延）——
+        let page_ids: Vec<i32> = if has_keyword {
+            let start = ((page.page - 1) * page.page_size) as usize;
+            ordered_ids.iter().skip(start).take(page.page_size as usize).copied().collect()
+        } else {
+            paginate_with_promoted_cap(
+                &ordered_ids,
+                &promoted_set,
+                page.page_size as usize,
+                promoted_per_page,
+                page.page as usize,
+            )
+        };
+
+        let mut list: Vec<ClientShopVO> = Vec::with_capacity(page_ids.len());
+        for id in &page_ids {
+            let Some(&idx) = vo_index.get(id) else { continue };
+            let mut vo = vos[idx].clone();
+            if pin_set.contains(id) && !has_keyword {
+                vo.is_top = Some(true);
+            }
+            if promoted_set.contains(id) && (has_keyword || promoted_per_page > 0) {
+                vo.is_promoted = Some(true);
+            }
+            if let Some(sig) = signals.get(id) {
+                if let Some(reason) = recommend_reason(sig) {
+                    vo.recommend_reason = Some(reason.to_string());
+                }
+            }
+            list.push(vo);
+        }
+
+        // 平台自营虚拟店：与旧口径一致（第 1 页 + excludeSelfOperated=0 才插入，不计 total）
         if q.page.unwrap_or(1) == 1
             && q.exclude_self_operated == Some(0)
             && !list.iter().any(|v| v.shop_id == Some(SELF_OPERATED_SHOP_ID))
@@ -1350,6 +1602,82 @@ pub fn is_self_operated_suspended(s: &SelfOperatedSettings) -> bool {
 }
 
 /// `Shop` 实体 → `ClientShopVO`（不含需要批量预取的字段）。
+/// 店铺质量分（0..=10）：评星 40% + 销量/收藏/上架/点击各占一档归一化。
+/// 只作个性化排序的兜底与同分微调，不压过个人信号（见 core::score_shop）。
+fn shop_quality(
+    star: Option<f64>,
+    sales: i32,
+    collect_count: i64,
+    listing_count: i64,
+    click_count: i32,
+) -> f64 {
+    let star_part = (star.unwrap_or(4.8).clamp(0.0, 5.0) / 5.0) * 4.0;
+    let sales_part = (f64::from(sales.max(0)) / 1000.0).min(1.0) * 2.0;
+    let collect_part = (collect_count.max(0) as f64 / 100.0).min(1.0) * 2.0;
+    let listing_part = (listing_count.max(0) as f64 / 50.0).min(1.0) * 1.0;
+    let click_part = (f64::from(click_count.max(0)) / 10_000.0).min(1.0) * 1.0;
+    star_part + sales_part + collect_part + listing_part + click_part
+}
+
+/// 带推广位上限的分页（纯函数）：全量顺序不变，每页最多 `cap` 个推广店，
+/// 溢出的推广店顺延到后续页（保持相对顺序），保证翻页不重复、不丢店。
+fn paginate_with_promoted_cap(
+    ordered: &[i32],
+    promoted: &HashSet<i32>,
+    page_size: usize,
+    cap: usize,
+    page_no: usize,
+) -> Vec<i32> {
+    if page_size == 0 {
+        return Vec::new();
+    }
+    if cap == 0 {
+        // 推广位关闭时调用方不会把推广店放进推广段；这里兜底为普通分页
+        let start = (page_no.saturating_sub(1)) * page_size;
+        return ordered.iter().skip(start).take(page_size).copied().collect();
+    }
+    // 先把全量顺序切成页：逐页填充，推广超额则推迟到下一页队尾候选
+    let mut pages: Vec<Vec<i32>> = Vec::new();
+    let mut deferred: Vec<i32> = Vec::new();
+    let mut idx = 0usize;
+    loop {
+        let mut current: Vec<i32> = Vec::with_capacity(page_size);
+        let mut promoted_in_page = 0usize;
+        // 先消耗上一页顺延的推广（它们排在新内容之前，保证靠前页先出现）
+        let mut next_deferred: Vec<i32> = Vec::new();
+        for id in deferred.drain(..) {
+            if current.len() < page_size && promoted_in_page < cap {
+                current.push(id);
+                promoted_in_page += 1;
+            } else {
+                next_deferred.push(id);
+            }
+        }
+        deferred = next_deferred;
+        while current.len() < page_size && idx < ordered.len() {
+            let id = ordered[idx];
+            idx += 1;
+            if promoted.contains(&id) && promoted_in_page >= cap {
+                deferred.push(id);
+                continue;
+            }
+            if promoted.contains(&id) {
+                promoted_in_page += 1;
+            }
+            current.push(id);
+        }
+        let has_more = idx < ordered.len() || !deferred.is_empty();
+        pages.push(current);
+        if !has_more {
+            break;
+        }
+        if pages.len() > 10_000 {
+            break; // 防御：异常输入不死循环
+        }
+    }
+    pages.into_iter().nth(page_no.saturating_sub(1)).unwrap_or_default()
+}
+
 fn build_client_shop_vo(shop: &Shop) -> Result<ClientShopVO> {
     Ok(ClientShopVO {
         status_text: Some(shop_status_text(shop.status)?),
@@ -1680,6 +2008,44 @@ fn parse_json_opt(raw: Option<&str>) -> Option<serde_json::Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn promoted_cap_defers_overflow_to_next_page() {
+        // 全量顺序：推广 10/11/12 在最前，自然 1..=6 在后；每页 4 个、推广上限 2
+        let ordered = vec![10, 11, 12, 1, 2, 3, 4, 5, 6];
+        let promoted: HashSet<i32> = [10, 11, 12].into_iter().collect();
+        let p1 = paginate_with_promoted_cap(&ordered, &promoted, 4, 2, 1);
+        assert_eq!(p1, vec![10, 11, 1, 2], "第一页推广不得超过上限");
+        let p2 = paginate_with_promoted_cap(&ordered, &promoted, 4, 2, 2);
+        assert!(p2.contains(&12), "溢出推广顺延到第二页: {p2:?}");
+        // 全量不重不漏
+        let mut all: Vec<i32> = Vec::new();
+        for page in 1..=3 {
+            all.extend(paginate_with_promoted_cap(&ordered, &promoted, 4, 2, page));
+        }
+        let mut sorted = all.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(all.len(), ordered.len());
+        assert_eq!(sorted.len(), ordered.len());
+    }
+
+    #[test]
+    fn promoted_cap_zero_is_plain_pagination() {
+        let ordered = vec![1, 2, 3, 4, 5];
+        let promoted: HashSet<i32> = [1].into_iter().collect();
+        assert_eq!(paginate_with_promoted_cap(&ordered, &promoted, 2, 0, 2), vec![3, 4]);
+        assert!(paginate_with_promoted_cap(&ordered, &promoted, 2, 0, 99).is_empty());
+    }
+
+    #[test]
+    fn quality_score_bounds() {
+        assert!(shop_quality(None, 0, 0, 0, 0) > 3.0); // 缺省 4.8 星兜底
+        let max = shop_quality(Some(5.0), 5000, 500, 100, 99999);
+        assert!((max - 10.0).abs() < 1e-9, "quality 上限 10: {max}");
+        let low = shop_quality(Some(1.0), 0, 0, 0, 0);
+        assert!(low < shop_quality(Some(5.0), 0, 0, 0, 0));
+    }
 
     fn shop(status: Option<i32>, star_num: Option<i32>, star: Option<Decimal>) -> Shop {
         Shop {

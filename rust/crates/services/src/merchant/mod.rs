@@ -1,5 +1,6 @@
 //! merchant 领域服务。
 
+pub mod ad_campaign;
 pub mod admin_user_shop;
 pub mod deposit_account;
 pub mod deposit_log;
@@ -30,6 +31,7 @@ use std::sync::Arc;
 /// merchant 领域服务集合（由组合根装配一次，api 层只持有 `Arc<Services>`）。
 #[derive(Clone)]
 pub struct Services {
+    pub ad_campaign: Arc<ad_campaign::AdCampaignService>,
     pub merchant_client: Arc<merchant_client::MerchantClientService>,
     pub order_config: Arc<order_config::OrderConfigService>,
     pub shop: Arc<shop::ShopService>,

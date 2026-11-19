@@ -1,5 +1,6 @@
 //! 商城端 system 路由。
 
+pub mod ad_settings_client;
 pub mod app_version_admin;
 pub mod config_client;
 pub mod price_display_client;
@@ -28,6 +29,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .merge(app_version_admin::routes(state))
         .merge(config_client::routes(state))
         .merge(price_display_client::routes(state))
+        .merge(ad_settings_client::routes(state))
         .merge(buy_style_client::routes(state))
         .merge(system_mode_client::routes(state))
         .merge(font_settings_client::routes(state))
@@ -66,6 +68,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(app_version_admin::implemented_routes());
     out.extend(config_client::implemented_routes());
     out.extend(price_display_client::implemented_routes());
+    out.extend(ad_settings_client::implemented_routes());
     out.extend(buy_style_client::implemented_routes());
     out.extend(system_mode_client::implemented_routes());
     out.extend(font_settings_client::implemented_routes());

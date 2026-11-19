@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import Link from 'next/link';
 import PcHeader from '@/components/PcHeaderWithData';
 import PcFooter from '@/components/PcFooter';
@@ -28,6 +29,12 @@ export const dynamic = 'force-dynamic';
  *
  * 与旧版唯一保留的差异：旧版店铺搜索框由页头 defaultSearchType="shop" 承担，
  * 我们的 PcHeader 目前没有把该开关透传下去，所以页内保留一个纯表单搜索（不加自造类名）。
+ *
+ * 本平台新增：默认排序为智能推荐（sortField=recommend，置顶/推广/千人千面），
+ * Tab 新增「推荐」并设为默认；「综合」(sort=comprehensive) 与「评分」
+ * (sort=shopStar) 仍走旧排序。卡片角标（精选/推广）在 ShopInfoCard 内渲染。
+ * recommend 时从 `accessToken` cookie 透传登录态（见下方 authToken），
+ * 使 SSR 也能拿到 user_id 做千人千面；游客与其它排序不受影响。
  */
 export async function generateMetadata(): Promise<Metadata> {
   const t = getServerT();
@@ -54,16 +61,29 @@ export default async function ShopListPage({ searchParams }: PageProps) {
   const page = Math.max(1, Number(readParam(searchParams?.page)) || 1);
   const size = 10;
   const keyword = readParam(searchParams?.keyword);
-  const sort = readParam(searchParams?.sort) === 'shopStar' ? 'shopStar' : '';
+  // 排序口径（URL 参数 sort 与旧版衔接）：
+  // - 无 sort / sort=recommend ⇒ 默认智能推荐（后端 sortField=recommend：
+  //   置顶 → 推广 → 千人千面 → 质量兜底）
+  // - sort=comprehensive ⇒ 旧综合排序（不传 sortField，走后端原 SQL 分页）
+  // - sort=shopStar ⇒ 旧评分排序
+  const sortParam = readParam(searchParams?.sort);
+  const sortMode = sortParam === 'shopStar' ? 'shopStar' : sortParam === 'comprehensive' ? 'comprehensive' : 'recommend';
+  const sortField = sortMode === 'recommend' ? 'recommend' : sortMode === 'shopStar' ? 'shopStar' : undefined;
+  // 登录态透传（照 middleware / MemberAuthGuard 的既有口径）：登录时 token 同时写入
+  // localStorage 与 `accessToken` cookie（7 天），SSR 在服务端只能读 cookie。
+  // 只在 recommend 排序时透传给店铺街接口供千人千面打分；无 cookie 即游客，
+  // 综合/评分/keyword 行为完全不变。
+  const authToken = sortField === 'recommend' ? cookies().get('accessToken')?.value || undefined : undefined;
   const [data, header] = await Promise.all([
-    getShopList({ page, size, keyword, sortField: sort || undefined }).catch(() => ({ records: [], total: 0 })),
+    getShopList({ page, size, keyword, sortField, authToken }).catch(() => ({ records: [], total: 0 })),
     getPcHeader().catch(() => null),
   ]);
   const pages = Math.max(1, Math.ceil(data.total / size));
-  const hrefFor = (nextPage: number, nextSort = sort) => {
+  const hrefFor = (nextPage: number, nextSortMode: string = sortMode) => {
     const query = new URLSearchParams();
     if (keyword) query.set('keyword', keyword);
-    if (nextSort) query.set('sort', nextSort);
+    if (nextSortMode === 'shopStar') query.set('sort', 'shopStar');
+    else if (nextSortMode === 'comprehensive') query.set('sort', 'comprehensive');
     if (nextPage > 1) query.set('page', String(nextPage));
     return query.toString() ? `/shop?${query.toString()}` : '/shop';
   };
@@ -74,15 +94,18 @@ export default async function ShopListPage({ searchParams }: PageProps) {
         <PcHeader config={header as any} />
         <main className="container">
           <div className="filter-tabs">
-            <Link href={hrefFor(1, '')} className={`tab-item${!sort ? ' active' : ''}`}>
+            <Link href={hrefFor(1, 'recommend')} className={`tab-item${sortMode === 'recommend' ? ' active' : ''}`}>
+              {t('推荐')}
+            </Link>
+            <Link href={hrefFor(1, 'comprehensive')} className={`tab-item${sortMode === 'comprehensive' ? ' active' : ''}`}>
               {t('综合')}
             </Link>
-            <Link href={hrefFor(1, 'shopStar')} className={`tab-item${sort === 'shopStar' ? ' active' : ''}`}>
+            <Link href={hrefFor(1, 'shopStar')} className={`tab-item${sortMode === 'shopStar' ? ' active' : ''}`}>
               {t('评分')}
             </Link>
             <form action="/shop" method="get">
               <input name="keyword" defaultValue={keyword} placeholder={t('搜索店铺')} />
-              {sort ? <input type="hidden" name="sort" value={sort} /> : null}
+              {sortParam ? <input type="hidden" name="sort" value={sortParam} /> : null}
               <button type="submit">{t('搜索')}</button>
             </form>
           </div>

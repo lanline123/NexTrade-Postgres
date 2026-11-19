@@ -586,6 +586,12 @@ export interface ShopListItem {
   collectCount?: number;
   seoLink?: string;
   listingProduct?: ShopListingProduct[];
+  /** 店铺街推荐排序：平台置顶（前端显示「精选」标） */
+  isTop?: boolean;
+  /** 店铺街推荐排序：付费推广（前端须显示「推广」标） */
+  isPromoted?: boolean;
+  /** 店铺街推荐排序：推荐理由（如「你买过这家店」） */
+  recommendReason?: string;
   [key: string]: unknown;
 }
 
@@ -595,13 +601,20 @@ export interface ShopListResponse {
 }
 
 /** 店铺街列表：服务端 SSR 拉取。 */
-export async function getShopList(params: { page?: number; size?: number; keyword?: string; sortField?: string } = {}): Promise<ShopListResponse> {
+ *
+ * `authToken`：店铺街页（app/shop/page.tsx）从 `accessToken` cookie 读出后透传，
+ * 后端 public 域自带 optional_auth 中间件——带合法令牌才有 user_id 供
+ * sortField=recommend 的千人千面打分；无令牌/令牌失效一律按游客处理，
+ * 不影响综合/评分/keyword 的原有行为。不传（sitemap 等）即游客口径。
+export async function getShopList(params: { page?: number; size?: number; keyword?: string; sortField?: string; authToken?: string } = {}): Promise<ShopListResponse> {
   const query = new URLSearchParams();
   query.set('page', String(params.page || 1));
   query.set('size', String(params.size || 10));
   if (params.keyword) query.set('keyword', params.keyword);
   if (params.sortField) query.set('sortField', params.sortField);
-  const response = await fetch(`${SERVER_API_BASE}/api/shop/shop/list?${query.toString()}`, { cache: 'no-store' });
+  const headers: Record<string, string> = {};
+  if (params.authToken) headers.Authorization = `Bearer ${params.authToken}`;
+  const response = await fetch(`${SERVER_API_BASE}/api/shop/shop/list?${query.toString()}`, { cache: 'no-store', headers });
   const data = await readData<any>(response);
   return {
     records: Array.isArray(data?.records) ? data.records : Array.isArray(data) ? data : [],

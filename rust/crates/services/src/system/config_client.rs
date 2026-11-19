@@ -288,6 +288,21 @@ impl ConfigClientService {
     ///
     /// # Errors
     /// - 仓储层失败 ⇒ `Error::Database`
+    /// 广告投流配置（平台「投流设置」；未配置时为内置默认）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn ad_settings(&self) -> Result<serde_json::Value> {
+        let rows = self
+            .repos
+            .system
+            .config_client
+            .find_config_values(&[super::ad_settings::AD_SETTINGS_CODE])
+            .await?;
+        let stored = rows.first().and_then(|c| c.biz_val.as_deref());
+        Ok(super::ad_settings::effective_ad_settings(stored))
+    }
+
     pub async fn price_display(&self) -> Result<serde_json::Value> {
         let rows = self
             .repos

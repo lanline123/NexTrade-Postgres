@@ -449,6 +449,7 @@ async fn main() -> anyhow::Result<()> {
     // ---- merchant 域 ----
     let merchant_admin = Arc::new(MerchantService::new(repos.clone()));
     let merchant = Arc::new(nextrade_services::merchant::Services {
+        ad_campaign: Arc::new(nextrade_services::merchant::ad_campaign::AdCampaignService::new(repos.clone())),
         merchant_client: merchant_client.clone(),
         order_config: order_config.clone(),
         shop: shop.clone(),

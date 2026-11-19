@@ -46,7 +46,47 @@ export default function ShopInfoCard({ item }: { item: ShopListItem }) {
           <Link href={href} target="_blank" className="name-link">
             <span className="ellipsis">{item.shopTitle}</span>
           </Link>
+          {/* 店铺街推荐角标：置顶=「精选」（平台运营位）、付费推广=「推广」，主题色跟随 --general。
+              shop-page.scss 为生成文件勿手改，故角标用内联样式（颜色全走主题变量）。 */}
+          {item.isTop ? (
+            <span
+              style={{
+                display: 'inline-block',
+                verticalAlign: '2px',
+                marginLeft: 8,
+                padding: '1px 6px',
+                borderRadius: 3,
+                fontSize: 11,
+                fontWeight: 'normal',
+                lineHeight: '16px',
+                color: 'var(--main-text)',
+                background: 'var(--general)',
+              }}
+            >
+              {t('精选')}
+            </span>
+          ) : null}
+          {item.isPromoted ? (
+            <span
+              style={{
+                display: 'inline-block',
+                verticalAlign: '2px',
+                marginLeft: item.isTop ? 6 : 8,
+                padding: '0 5px',
+                borderRadius: 3,
+                border: '1px solid var(--general)',
+                fontSize: 11,
+                fontWeight: 'normal',
+                lineHeight: '16px',
+                color: 'var(--general)',
+                background: 'var(--vice-bg)',
+              }}
+            >
+              {t('推广')}
+            </span>
+          ) : null}
         </div>
+
         <div className="shop-rating-row">
           <div className="rating-box-container">
             {star ? (

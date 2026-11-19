@@ -27,6 +27,12 @@ export const shopNavGroups: NavGroup[] = [
     ],
   },
   {
+    key: 'shopPromotion',
+    label: '推广中心',
+    icon: <span style={{ fontSize: 16, lineHeight: '16px' }}>📣</span>,
+    items: [{ key: 'adPromotionManage', label: '我的推广' }],
+  },
+  {
     key: 'shopSetting',
     label: '店铺设置',
     icon: <span style={{ fontSize: 16, lineHeight: '16px' }}>🏪</span>,

@@ -1,5 +1,6 @@
 //! system 领域服务。
 
+pub mod ad_settings;
 pub mod admin_msg;
 pub mod app_version_admin;
 pub mod area_code;

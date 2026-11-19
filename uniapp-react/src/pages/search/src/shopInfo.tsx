@@ -75,6 +75,9 @@ export default function ShopInfo({ info = null, keyword = "", shopId = null }: P
                     <View className="shop-title-row shop-heading-eGlieTIyODI">
                         <View className="shop-title-text line1">{infoData.shopTitle} </View>
                         <View className="tipNames">
+                            {/* 店铺街推荐角标：置顶=「精选」、付费推广=「推广」（与 PC 同口径） */}
+                            {infoData.isTop ? <View className="tipName ad-top">{t("精选")}</View> : null}
+                            {infoData.isPromoted ? <View className="tipName ad-promoted">{t("推广")}</View> : null}
                             {(infoData.tipNames ?? []).map((item) => (
                                 <View key={item} className="tipName">
                                     {item}
