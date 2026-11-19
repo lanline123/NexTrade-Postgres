@@ -91,7 +91,7 @@ export const initConfigSettings = (previewId?: number) => {
  * @returns 门控配置（含 isIdentity）
  */
 export const getAuthGateConfig = () => {
-    return request<{ isIdentity?: number }>({
+    return request<{ code: number; message: string; data: { isIdentity?: number } }>({
         url: "common/config/authGate",
         method: "get"
     });
