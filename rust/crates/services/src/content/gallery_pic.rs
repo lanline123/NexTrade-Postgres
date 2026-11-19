@@ -599,8 +599,10 @@ fn crc32(data: &[u8]) -> u32 {
 }
 
 /// 外部直链允许的扩展名（模型常量本地引用，避免长路径）。
-fn extensions() -> [&'static str; 7] {
-    nextrade_core::models::content::gallery_pic::ALLOWED_IMAGE_EXTENSIONS
+/// 返回切片而非定长数组：白名单增减格式时此处不再随之改签名
+/// （v5.8.65 补 webp 时曾因定长 `[&str; 6]` 与常量 7 项不一致编译失败）。
+fn extensions() -> &'static [&'static str] {
+    &nextrade_core::models::content::gallery_pic::ALLOWED_IMAGE_EXTENSIONS
 }
 
 /// 上传实体 → 上传结果 VO（Java `buildResult`）。
