@@ -47,12 +47,6 @@ export const configHelp: Record<string, Record<string, string>> = {
     "kefuWhatsappPhone": "海外客户可通过 WhatsApp 联系客服，不填则不显示（需后端重新部署后生效）。"
   },
   "globalSetting": {
-    "shopTitleSuffix": "该后缀将显示在浏览器的标题栏，与SEO有关，建议长度不要超过20字符，效果如：“购物车 - Tig商城”",
-    "shopTitle": "商城首页的完整标题（不带后缀）",
-    "shopKeywords": "首页关键词，该设置与SEO有关，建议不要超过10个关键词（输入完请按回车键确认）",
-    "shopDesc": "首页描述，该设置与SEO有关，建议长度不要超过50字符",
-    "icoImg": "推荐使用高清128*128像素，格式为png或ico",
-    "defaultAvatar": "请上传1:1的200*200像素以内的图片",
     "pcDomain": "格式参考：https://www.***.com，填写后查看商城或查看商品默认跳PC端，不填则默认跳转环境解析的域名",
     "h5Domain": "格式参考：https://m.***.com，填写后查看商城或查看商品默认跳H5端，不填则默认跳转到PC端",
     "imDomain": "格式参考：wss://***.com/ws，填写后在线客服功能将使用该域名",
@@ -84,6 +78,13 @@ export const configHelp: Record<string, Record<string, string>> = {
     "storageCosSecretKey": "编辑完成后，点击下方提交按钮确认修改，请确保填写正确的KeySecret",
     "storageQiniuSecretKey": "编辑完成后，点击下方提交按钮确认修改，请确保填写正确的SecretKey(SK)",
     "storageS3SecretKey": "编辑完成后，点击下方提交按钮确认修改，请确保填写正确的Secret access key",
+  },
+  "seoSettings": {
+    "shopTitleSuffix": "该后缀将显示在浏览器的标题栏，与SEO有关，建议长度不要超过20字符，效果如：“购物车 - Tig商城”",
+    "shopTitle": "商城首页的完整标题（不带后缀）",
+    "shopKeywords": "首页关键词，该设置与SEO有关，建议不要超过10个关键词（输入完请按回车键确认）",
+    "shopDesc": "首页描述，该设置与SEO有关，建议长度不要超过50字符",
+    "icoImg": "推荐使用高清128*128像素，格式为png或ico"
   },
   "loginSetting": {
     "openWechatOauth": "此项设置控制是否开启微信注册及注册绑定手机，若为否将不支持开启微信注册及注册绑定手机",

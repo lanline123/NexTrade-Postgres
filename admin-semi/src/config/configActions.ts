@@ -23,6 +23,8 @@ export const configActions: Record<string, ConfigAction[]> = {
         await apiPost('/product/product/initAllToEs');
       },
     },
+  ],
+  seoSettings: [
     {
       label: '批量更新商品类目链接',
       section: '链接设置',

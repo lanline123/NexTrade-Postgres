@@ -201,17 +201,6 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
       ]
     },
     {
-      "title": "SEO设置",
-      "fields": [
-        "shopTitleSuffix",
-        "shopTitle",
-        "shopKeywords",
-        "shopDesc",
-        "icoImg",
-        "defaultAvatar"
-      ]
-    },
-    {
       "title": "域名设置",
       "fields": [
         "pcDomain",
@@ -256,13 +245,6 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
       ]
     },
     {
-      "title": "链接设置",
-      "fields": [
-        "seoCategoryEnable",
-        "seoProductEnable"
-      ]
-    },
-    {
       "title": "ICO图标库",
       "fields": [
         "icoDefinedCss"
@@ -295,6 +277,25 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
         "storageQiniuRegion",
         "storageS3Region",
         "storageS3Endpoint"
+      ]
+    }
+  ],
+  "seoSettings": [
+    {
+      "title": "SEO设置",
+      "fields": [
+        "shopTitleSuffix",
+        "shopTitle",
+        "shopKeywords",
+        "shopDesc",
+        "icoImg"
+      ]
+    },
+    {
+      "title": "链接设置",
+      "fields": [
+        "seoCategoryEnable",
+        "seoProductEnable"
       ]
     }
   ],

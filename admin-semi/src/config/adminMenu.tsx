@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import {
-  IconApartment, IconApps, IconArticle, IconBarChartVStroked, IconBell, IconBook, IconBox, IconBriefcase, IconCalendar, IconCart, IconCoinMoney, IconColorPalette, IconComment, IconCreditCard, IconCrown, IconCustomerSupport, IconDesktop, IconFile, IconFlag, IconGift, IconHistogram, IconHistory, IconHome, IconIdCard, IconImage, IconLanguage, IconLayers, IconLive, IconLock, IconMapPin, IconMember, IconMoneyExchangeStroked, IconMonitorStroked, IconNoteMoney, IconOrderedList, IconPieChartStroked, IconPriceTag, IconSafe, IconSend, IconServer, IconSetting, IconShare, IconShareMoneyStroked, IconShoppingBag, IconSmartphoneStroked, IconTaskMoneyStroked, IconUndo, IconUser, IconUserGroup, IconUserSetting, IconVerify, IconVideo,
+  IconApartment, IconApps, IconArticle, IconBarChartVStroked, IconBell, IconBook, IconBox, IconBriefcase, IconCalendar, IconCart, IconCoinMoney, IconColorPalette, IconComment, IconCreditCard, IconCrown, IconCustomerSupport, IconDesktop, IconFile, IconFlag, IconGift, IconGlobe, IconHistogram, IconHistory, IconHome, IconIdCard, IconImage, IconLanguage, IconLayers, IconLive, IconLock, IconMapPin, IconMember, IconMoneyExchangeStroked, IconMonitorStroked, IconNoteMoney, IconOrderedList, IconPieChartStroked, IconPriceTag, IconSafe, IconSend, IconServer, IconSetting, IconShare, IconShareMoneyStroked, IconShoppingBag, IconSmartphoneStroked, IconTaskMoneyStroked, IconUndo, IconUser, IconUserGroup, IconUserSetting, IconVerify, IconVideo,
 } from '@douyinfe/semi-icons';
 
 export interface NavItem {
@@ -1481,12 +1481,23 @@ export const navGroups: NavGroup[] = [
             "label": "地区管理"
           },
           {
-            "key": "friendLinksManage",
-            "label": "友情链接"
-          },
-          {
             "key": "licensed",
             "label": "授权信息"
+          }
+        ]
+      },
+      {
+        "key": "setting6",
+        "label": "SEO",
+        "icon": <IconGlobe />,
+        "children": [
+          {
+            "key": "seoSettings",
+            "label": "SEO设置"
+          },
+          {
+            "key": "friendLinksManage",
+            "label": "友情链接"
           }
         ]
       },
@@ -1831,6 +1842,7 @@ export const pageTitles: Record<string, string> = {
   "shippingTplManage": "运费模板",
   "logisticsCompanyConfigManage": "物流设置",
   "globalSetting": "全局设置",
+  "seoSettings": "SEO设置",
   "loginSetting": "登录设置",
   "paymentSetting": "支付设置",
   "appVersionManage": "APP版本",

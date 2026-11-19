@@ -68,6 +68,8 @@ const CONFIG_SECTION_ICONS: Record<string, ReactNode> = {
   客服信息: <IconBell />,
   聊天工具: <IconComment />,
   全局设置: <IconSetting />,
+  SEO设置: <IconGlobe />,
+  链接设置: <IconList />,
   存储设置: <IconServer />,
   多语言设置: <IconGlobe />,
   货币设置: <IconCreditCard />,
@@ -94,6 +96,8 @@ const CONFIG_SECTION_DESCRIPTIONS: Record<string, string> = {
   平台管理订单流转设置: '平台端可取消已支付或已发货订单的规则。',
   店铺后台订单流转设置: '店铺端取消已发货订单的规则。',
   平台代客下单设置: '平台代客下单时积分与余额的使用规则。',
+  SEO设置: '首页标题、标题后缀、关键词、描述与站点图标等搜索引擎展示信息。',
+  链接设置: '商品与商品类目链接使用基础链接或 SEO 链接，并可批量补齐存量 SEO 链接。',
 };
 
 export interface ConfigWhen {
@@ -359,6 +363,12 @@ interface AutoConfigPageProps {
   getApi: string;
   saveApi: string;
   sections?: Array<{ title: string; fields: string[] }>;
+  /**
+   * 严格分区模式：只渲染 sections 声明的字段，未声明字段不并入末尾分区。
+   * 用于多个配置页共用同一接口时按主题拆页（如全局设置与 SEO 设置共用
+   * globalSettings 接口）；保存仍提交接口全量值，未展示字段原样回写、不丢失。
+   */
+  sectionsOnly?: boolean;
   rules?: Record<string, ConfigFieldRule>;
   fieldGroups?: ConfigFieldGroup[];
   controls?: Record<string, ConfigControlType>;
@@ -574,6 +584,7 @@ export default function AutoConfigPage({
   getApi,
   saveApi,
   sections,
+  sectionsOnly,
   rules,
   fieldGroups,
   controls,
@@ -792,13 +803,15 @@ export default function AutoConfigPage({
           .filter((item): item is [string, unknown] => Boolean(item)),
       }))
       .filter((section) => section.items.length > 0);
-    const rest = entries.filter(([key]) => !known.has(key));
-    if (rest.length) {
-      if (result.length) result[result.length - 1].items.push(...rest);
-      else result.push({ title: t('其它'), items: rest });
+    if (!sectionsOnly) {
+      const rest = entries.filter(([key]) => !known.has(key));
+      if (rest.length) {
+        if (result.length) result[result.length - 1].items.push(...rest);
+        else result.push({ title: t('其它'), items: rest });
+      }
     }
     return result;
-  }, [entries, sections]);
+  }, [entries, sections, sectionsOnly]);
 
   const isFieldVisible = (key: string) => {
     if (hiddenFields?.includes(key)) return false;
