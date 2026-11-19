@@ -1468,8 +1468,8 @@ mod tests {
         assert_eq!(pick_no_sku_item(&items, 1579).map(|it| it.rec_id), Some(2));
         assert_eq!(pick_no_sku_item(&items, 1580).map(|it| it.rec_id), Some(3));
         // 无匹配商品 → 无回退
-        assert_eq!(pick_no_sku_item(&items, 9999), None);
-        assert_eq!(pick_no_sku_item(&[], 1579), None);
+        assert!(pick_no_sku_item(&items, 9999).is_none());
+        assert!(pick_no_sku_item(&[], 1579).is_none());
     }
 
     #[test]
