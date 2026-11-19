@@ -10,6 +10,15 @@
         .user-info {
             .user-name {
                 font-size: 24rpx;
+                .auto-tag {
+                    margin-left: 12rpx;
+                    padding: 2rpx 10rpx;
+                    border: 1rpx solid #91caff;
+                    border-radius: 4rpx;
+                    background: #e6f4ff;
+                    color: #1677ff;
+                    font-size: 20rpx;
+                }
                 .head_logo {
                     margin-right: 20rpx;
                     image {

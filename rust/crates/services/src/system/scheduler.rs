@@ -9,6 +9,9 @@
 //! - `order_auto_receive`：默认每 5 分钟扫描 `order_status=2` 且
 //!   `shipping_time <= now - autoDeliveryDays*86400` 的订单，置为已完成。
 //!
+//! - `auto_comment`：默认每 5 分钟扫 `order_auto_comment` 到期快照生成系统
+//!   自动评价（v5.8.65 收货后自动评价，我方新增 loop；店铺未开启不落快照）。
+//!
 //! 配置项与 Java 一致：`config` 表 `autoCancelOrderMinute` / `autoDeliveryDays`；
 //! 值为空或 <= 0 时该任务跳过（与 Java 默认关闭一致）。
 //!
@@ -77,8 +80,35 @@ pub fn spawn_all(repos: Arc<Repositories>, order: OrderService) -> Vec<JoinHandl
         tokio::spawn(wechat_live_order_sync_loop(repos.clone())),
         tokio::spawn(profit_sharing_schedule_loop(repos.clone())),
         tokio::spawn(auction_loop(repos.clone())),
+        tokio::spawn(auto_comment_loop(repos.clone())),
         tokio::spawn(exchange_rate_sync_loop(repos)),
     ]
+}
+
+/// 自动评价到期生成循环（`NEXTTRADE_SCHEDULER__AUTO_COMMENT_SECS`，默认 300s）。
+///
+/// 扫 `order_auto_comment` 中已到期的收货快照，逐件生成系统自动评价
+/// （`comment.is_default = 1`）；抢占式状态机 + 逐件已有评价检查防重复生成。
+/// 未开启自动评价的店铺不会落快照，本循环天然无活可干。
+async fn auto_comment_loop(repos: Arc<Repositories>) {
+    tokio::time::sleep(Duration::from_secs(
+        env_secs("NEXTTRADE_SCHEDULER__DELAY_SECS", 30) + 50,
+    ))
+    .await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
+        "NEXTTRADE_SCHEDULER__AUTO_COMMENT_SECS",
+        300,
+    )));
+    loop {
+        ticker.tick().await;
+        let service = crate::catalog::auto_comment::AutoCommentService::new(repos.clone());
+        let now = utils::now_seconds() as i32;
+        match service.run_due_scan(now).await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("定时任务：自动评价生成 {n} 条"),
+            Err(e) => tracing::warn!("定时任务：自动评价到期扫描失败: {e}"),
+        }
+    }
 }
 
 /// 拍卖循环（`NEXTTRADE_SCHEDULER__AUCTION_SECS`，默认 10s，下限 5s）：
@@ -704,6 +734,16 @@ pub async fn run_auto_receive(repos: Arc<Repositories>) -> Result<u64> {
                     .await;
                 crate::trade::settlement::SettlementService::new(repos.clone())
                     .after_order_completed(&order)
+                    .await;
+                // 自动评价收货快照（与买家手动确认收货共用同一入口）：
+                // 自动收货同样是「确认收货」，须按店铺当时设置落到期快照。
+                crate::catalog::auto_comment::AutoCommentService::new(repos.clone())
+                    .snapshot_on_received_quiet(
+                        order.order_id,
+                        order.shop_id,
+                        order.user_id,
+                        now as i32,
+                    )
                     .await;
             }
         }

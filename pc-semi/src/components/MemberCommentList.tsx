@@ -45,6 +45,8 @@ export interface MemberCommentItem {
   isAnonymous?: number;
   avatar?: string;
   commentTag?: string[];
+  /** 1 = 系统自动评价（收货后自动生成，comment.is_default） */
+  isDefault?: number;
   showPics?: Array<{ picUrl?: string; picThumb?: string }>;
   replies?: Array<{ commentId?: number; content?: string; addTime?: string; kefuName?: string }>;
   reply?: { commentId?: number; content?: string; addTime?: string; kefuName?: string };
@@ -81,6 +83,9 @@ export default function MemberCommentList({ comments }: { comments: MemberCommen
 
             {/* 评价内容 */}
             <div className="mcl-card__body">
+              {Number(item.isDefault) === 1 ? (
+                <Tag size="small" color="blue" style={{ marginBottom: 6 }}>{t('系统自动评价')}</Tag>
+              ) : null}
               {item.content ? <div className="mcl-card__content">{item.content}</div> : null}
               {(item.commentTag || []).length ? (
                 <div className="mcl-card__tags">

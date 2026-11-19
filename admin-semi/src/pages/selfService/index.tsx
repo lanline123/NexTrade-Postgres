@@ -10,11 +10,14 @@ import {
   Descriptions,
   Empty,
   Input,
+  InputNumber,
   Modal,
   Popconfirm,
   Space,
+  Switch,
   Table,
   Tag,
+  TextArea,
   Toast,
 } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '../../api';
@@ -439,8 +442,9 @@ export function ShopInfoManage() {
     ['shopAddress', t('地址')],
     ['shopDesc', t('店铺简介')],
   ];
+  const shopId = Number((info as Record<string, any>).shopId || localStorage.getItem('shopId') || 0);
   return (
-    <div style={{ padding: 20 }}>
+    <div style={{ padding: 20, display: 'grid', gap: 16 }}>
       <Card title={t('店铺信息')}>
         <div style={{ display: 'grid', gap: 12, maxWidth: 480 }}>
           {fields.map(([key, label]) => (
@@ -452,7 +456,102 @@ export function ShopInfoManage() {
           <Button theme="solid" type="primary" loading={saving} onClick={save} style={{ alignSelf: 'flex-start' }}>{t('保存')}</Button>
         </div>
       </Card>
+      <AutoCommentSettingCard shopId={shopId} />
     </div>
+  );
+}
+
+/**
+ * 自动评价设置（收货后自动评价，Tigshop v5.8.65 原版功能·我方改口径）：
+ * merchant/shop/getAutoCommentSetting 读 + updateAutoCommentSetting 写（本店）。
+ * 口径：开关默认关；开关/天数/文案修改只对之后确认收货的订单生效
+ * （收货时已按当时设置落快照）；生成的评价前台标注「系统自动评价」。
+ */
+function AutoCommentSettingCard({ shopId }: { shopId: number }) {
+  const { t } = useI18n();
+  const [enabled, setEnabled] = useState(false);
+  const [days, setDays] = useState<number>(7);
+  const [contents, setContents] = useState<string[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!shopId) return;
+    let alive = true;
+    apiGet<{ enabled?: number; days?: number; contents?: string[] }>('/merchant/shop/getAutoCommentSetting', { shopId })
+      .then((res) => {
+        if (!alive) return;
+        setEnabled(Number(res?.enabled) === 1);
+        setDays(Number.isFinite(Number(res?.days)) ? Number(res?.days) : 7);
+        setContents(Array.isArray(res?.contents) ? res.contents.map((c) => String(c)) : []);
+        setLoaded(true);
+      })
+      .catch((e) => Toast.error({ content: e instanceof Error ? e.message : t('加载失败') }));
+    return () => { alive = false; };
+  }, [shopId]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await apiPost(`/merchant/shop/updateAutoCommentSetting?shopId=${shopId}`, {
+        enabled: enabled ? 1 : 0,
+        days,
+        contents: contents.map((c) => c.trim()).filter(Boolean),
+      });
+      Toast.success({ content: t('保存成功') });
+    } catch (e) {
+      Toast.error({ content: e instanceof Error ? e.message : t('保存失败') });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!shopId) return null;
+  return (
+    <Card title={t('自动评价')}>
+      <div style={{ display: 'grid', gap: 12, maxWidth: 560 }}>
+        <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13 }}>
+          {t('开启后，买家确认收货超过设定天数仍未评价的订单，系统将自动生成五星好评。设置修改只对之后确认收货的订单生效；自动生成的评价在前台会标注「系统自动评价」。')}
+        </span>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Switch checked={enabled} onChange={setEnabled} disabled={!loaded} />
+          <span>{t('开启自动评价')}</span>
+        </label>
+        <label style={{ display: 'grid', gap: 4 }}>
+          <span>{t('收货后天数')}</span>
+          <InputNumber min={0} max={90} value={days} onChange={(v) => setDays(Number(v ?? 7))} disabled={!enabled} style={{ width: 160 }} />
+        </label>
+        <div style={{ display: 'grid', gap: 8 }}>
+          <span>{t('自动评价内容（多条时按订单轮换使用，最多10条）')}</span>
+          {contents.map((content, index) => (
+            <div key={index} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <TextArea
+                value={content}
+                maxCount={200}
+                rows={2}
+                disabled={!enabled}
+                onChange={(v) => setContents(contents.map((c, i) => (i === index ? v : c)))}
+                style={{ flex: 1 }}
+              />
+              <Button type="danger" theme="borderless" onClick={() => setContents(contents.filter((_, i) => i !== index))}>{t('删除')}</Button>
+            </div>
+          ))}
+          <Button
+            theme="borderless"
+            type="primary"
+            disabled={!enabled || contents.length >= 10}
+            onClick={() => setContents([...contents, ''])}
+            style={{ alignSelf: 'flex-start' }}
+          >
+            {t('添加文案')}
+          </Button>
+          {enabled && contents.length === 0 ? (
+            <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13 }}>{t('未填写文案时将使用系统默认文案')}</span>
+          ) : null}
+        </div>
+        <Button theme="solid" type="primary" loading={saving} disabled={!loaded} onClick={save} style={{ alignSelf: 'flex-start' }}>{t('保存')}</Button>
+      </div>
+    </Card>
   );
 }
 

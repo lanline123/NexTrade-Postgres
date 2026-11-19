@@ -396,6 +396,14 @@ export default function CommentList() {
                                                 <View className="cont">{item.content}</View>
                                             </View>
                                         </View>
+                                        {Number(item.isDefault) === 1 && (
+                                            <View className="comment-label flex">
+                                                <View className="name">{t("评价来源")}:</View>
+                                                <View className="content">
+                                                    <View className="product-tag">{t("系统自动评价")}</View>
+                                                </View>
+                                            </View>
+                                        )}
                                         {item.replies && item.replies.length > 0 && (
                                             <View className="reply-section">
                                                 <View className="reply-card">

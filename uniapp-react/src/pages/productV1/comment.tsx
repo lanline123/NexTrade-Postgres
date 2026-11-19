@@ -154,6 +154,9 @@ export default function ProductCommentPage() {
                                 </View>
                                 <View>
                                     <Text>{item.username}</Text>
+                                    {Number(item.isDefault) === 1 ? (
+                                        <Text className="auto-tag">{t("系统自动评价")}</Text>
+                                    ) : null}
                                     {renderRate(Number(item.commentRank ?? 0))}
                                 </View>
                             </View>

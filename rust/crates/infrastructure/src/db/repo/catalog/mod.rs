@@ -1,6 +1,7 @@
 //! catalog 领域仓储。
 
 pub mod attributes_tpl;
+pub mod auto_comment;
 pub mod brand;
 pub mod category;
 pub mod category_all;
@@ -29,6 +30,7 @@ use crate::db::DbPool;
 #[derive(Clone)]
 pub struct Repositories {
     pub attributes_tpl: attributes_tpl::AttributesTplRepository,
+    pub auto_comment: auto_comment::AutoCommentRepository,
     pub brand: brand::BrandRepository,
     pub category: category::CategoryRepository,
     pub category_all: category_all::CatalogRepository,
@@ -58,6 +60,7 @@ impl Repositories {
     pub fn new(pool: DbPool) -> Self {
         Self {
             attributes_tpl: attributes_tpl::AttributesTplRepository::new(pool.clone()),
+            auto_comment: auto_comment::AutoCommentRepository::new(pool.clone()),
             brand: brand::BrandRepository::new(pool.clone()),
             category: category::CategoryRepository::new(pool.clone()),
             category_all: category_all::CatalogRepository::new(pool.clone()),

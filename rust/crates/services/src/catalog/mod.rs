@@ -1,6 +1,7 @@
 //! catalog 领域服务。
 
 pub mod attributes_tpl;
+pub mod auto_comment;
 pub mod brand;
 pub mod category;
 pub mod category_all;
@@ -39,6 +40,7 @@ pub struct Services {
     pub short_url: Arc<short_url::ShortUrlService>,
     pub stock_warning: Arc<stock_warning::StockWarningService>,
     pub comment: Arc<comment::CommentService>,
+    pub auto_comment: Arc<auto_comment::AutoCommentService>,
     pub price_inquiry: Arc<price_inquiry::PriceInquiryService>,
     pub product_group: Arc<product_group::ProductGroupService>,
     pub e_card_group: Arc<e_card_group::ECardGroupService>,

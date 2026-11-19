@@ -36,6 +36,8 @@ interface CommentRow {
   isTop?: number;
   isRecommend?: number;
   isShowed?: number;
+  /** 1 = 系统自动评价（收货后自动生成，comment.is_default） */
+  isDefault?: number;
   sortOrder?: number;
   showPics?: Array<{ picThumb?: string; picUrl?: string }>;
   commentTag?: string[];
@@ -105,10 +107,15 @@ const buildColumns = (
     title: t('评价内容'),
     dataIndex: 'content',
     width: 240,
-    render: (value: string) => (
-      <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 220 }}>
-        {value || '-'}
-      </Text>
+    render: (value: string, record) => (
+      <Space>
+        <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>
+          {value || '-'}
+        </Text>
+        {Number(record.isDefault) === 1 && (
+          <Tag color="blue" size="small">{t('系统自动评价')}</Tag>
+        )}
+      </Space>
     ),
   },
   {

@@ -12304,5 +12304,13 @@
   "请为每个规格填写拼团价": "Please set a group price for every joined variant",
   "请至少选择一个参加拼团的规格": "Please select at least one variant to join the group buy",
   "进行中的团": "Active groups",
-  "阶梯团可设置多档人数，每档单独定价": "Ladder groups support multiple tiers, each priced separately"
+  "阶梯团可设置多档人数，每档单独定价": "Ladder groups support multiple tiers, each priced separately",
+  "系统自动评价": "System Auto Review",
+  "自动评价": "Auto Review",
+  "开启自动评价": "Enable auto review",
+  "收货后天数": "Days after receipt",
+  "开启后，买家确认收货超过设定天数仍未评价的订单，系统将自动生成五星好评。设置修改只对之后确认收货的订单生效；自动生成的评价在前台会标注「系统自动评价」。": "When enabled, orders that stay unreviewed past the configured days after receipt confirmation will automatically receive a five-star review. Changes only apply to orders received afterwards; auto-generated reviews are labeled \"System Auto Review\" on the storefront.",
+  "自动评价内容（多条时按订单轮换使用，最多10条）": "Auto review texts (rotated by order, up to 10)",
+  "添加文案": "Add text",
+  "未填写文案时将使用系统默认文案": "The system default text will be used when no text is provided"
 }

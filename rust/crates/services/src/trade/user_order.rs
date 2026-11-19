@@ -165,7 +165,13 @@ impl UserOrderService {
         if !can_confirm_receipt(order.order_status, order.is_del) {
             return Err(Error::biz_msg(MSG_ORDER_STATUS_ERROR));
         }
-        repo.complete_order(order.order_id, now_i32()).await?;
+        let received_now = now_i32();
+        repo.complete_order(order.order_id, received_now).await?;
+        // 自动评价收货快照（与 scheduler 自动收货共用同一入口）：按店铺当时
+        // 设置落到期快照；best-effort，失败不影响收货（见 catalog::auto_comment）。
+        crate::catalog::auto_comment::AutoCommentService::new(self.repos.clone())
+            .snapshot_on_received_quiet(order.order_id, order.shop_id, user_id, received_now)
+            .await;
         let description = if order.order_type == Some(ORDER_TYPE_RESERVATION_HOME) {
             "完成上门服务"
         } else {

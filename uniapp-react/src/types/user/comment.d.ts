@@ -27,6 +27,8 @@ export interface CommentFilterState {
     productName?: string;
     content?: string;
     commentId?: number;
+    /** 1 = 系统自动评价（收货后自动生成，comment.is_default） */
+    isDefault?: number;
     replies?: ReplyObject[];
     skuData: any[];
     showPics: any[];

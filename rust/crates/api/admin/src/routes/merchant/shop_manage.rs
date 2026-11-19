@@ -148,6 +148,17 @@ const ROUTE_TABLE: [(&str, &str, &str); 20] = [
         "/merchant/shop/updateVendorSetting",
         "ShopController.updateVendorSetting",
     ),
+    // 收货后自动评价设置（v5.8.65 原版功能，我方新增端点，无 Java 对应 handler）
+    (
+        "GET",
+        "/merchant/shop/getAutoCommentSetting",
+        "AutoCommentSetting.get",
+    ),
+    (
+        "POST",
+        "/merchant/shop/updateAutoCommentSetting",
+        "AutoCommentSetting.update",
+    ),
     (
         "GET",
         "/merchant/shop/getStoreListByProductId",
@@ -202,6 +213,14 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route(
             "/merchant/shop/updateVendorSetting",
             post(shop_update_vendor_setting),
+        )
+        .route(
+            "/merchant/shop/getAutoCommentSetting",
+            get(shop_get_auto_comment_setting),
+        )
+        .route(
+            "/merchant/shop/updateAutoCommentSetting",
+            post(shop_update_auto_comment_setting),
         )
         .route(
             "/merchant/shop/getStoreListByProductId",
@@ -636,6 +655,43 @@ async fn shop_update_vendor_setting(
         .merchant
         .shop_manage
         .update_vendor_setting(shop_id, &p)
+        .await?;
+    ok("保存成功")
+}
+
+/// `GET /adminapi/merchant/shop/getAutoCommentSetting?shopId=`：
+/// 读店铺收货后自动评价设置（v5.8.65 原版功能，我方新增端点）。
+///
+/// 租户收口与 `getVendorSetting` 一致：店铺账号强制本店，平台须显式指定
+/// （平台侧查看/代改，不存在平台统一开关覆盖店铺）。
+async fn shop_get_auto_comment_setting(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(q): Query<ShopIdQuery>,
+) -> ApiResult<nextrade_core::models::catalog::auto_comment::AutoCommentSettingDTO> {
+    let shop_id = target_shop(&tenant, q.shop_id)?;
+    let setting = state.catalog.auto_comment.get_setting(shop_id).await?;
+    ok(nextrade_core::models::catalog::auto_comment::AutoCommentSettingDTO {
+        shop_id: Some(setting.shop_id),
+        enabled: Some(setting.enabled),
+        days: Some(setting.days),
+        contents: Some(setting.contents),
+    })
+}
+
+/// `POST /adminapi/merchant/shop/updateAutoCommentSetting?shopId=`：
+/// 保存店铺收货后自动评价设置（开关/收货后天数/多条文案）。
+async fn shop_update_auto_comment_setting(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(q): Query<ShopIdQuery>,
+    Json(p): Json<nextrade_core::models::catalog::auto_comment::AutoCommentSettingDTO>,
+) -> ApiResult<&'static str> {
+    let shop_id = target_shop(&tenant, q.shop_id)?;
+    state
+        .catalog
+        .auto_comment
+        .update_setting(shop_id, &p)
         .await?;
     ok("保存成功")
 }

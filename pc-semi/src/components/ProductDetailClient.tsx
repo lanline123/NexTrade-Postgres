@@ -84,6 +84,9 @@ interface CommentRow {
   username?: string;
   nickname?: string;
   avatar?: string;
+  /** 1 = 系统自动评价（收货后自动生成，comment.is_default） */
+  isDefault?: number;
+  is_default?: number;
   pics?: Array<string | Record<string, any>>;
   replies?: Array<Record<string, any>>;
 }
@@ -1814,6 +1817,9 @@ export default function ProductDetailClient({
                 <div className="pds-comment__head">
                   {comment.avatar ? <img src={comment.avatar} alt="" /> : null}
                   <b>{comment.username || comment.nickname || '匿名用户'}</b>
+                  {Number(comment.isDefault ?? comment.is_default) === 1 ? (
+                    <span className="pds-comment__auto-tag">{t('系统自动评价')}</span>
+                  ) : null}
                   <span className="pds-comment__stars">{'★'.repeat(Number(comment.rank || 5))}</span>
                   <span className="pds-comment__time">{formatDateTime(comment.addTime)}</span>
                 </div>

@@ -1,6 +1,7 @@
 //! catalog 领域模型（DTO / Query / VO）。
 
 pub mod attributes_tpl;
+pub mod auto_comment;
 pub mod brand;
 pub mod category;
 pub mod category_all;

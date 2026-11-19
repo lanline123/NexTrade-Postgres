@@ -2214,6 +2214,27 @@ pub static PERMISSIONS: &[(&str, &str, &[&str])] = &[
             "storeSelfPackListUpdateManage",
         ],
     ),
+    // 收货后自动评价设置（我方新增端点，权限镜像 updateInfo）
+    (
+        "GET",
+        "/adminapi/merchant/shop/getAutoCommentSetting",
+        &[
+            "merchantShopModifyManage",
+            "shopSettingsUpdateManage",
+            "storeListUpdateManage",
+            "storeSelfPackListUpdateManage",
+        ],
+    ),
+    (
+        "POST",
+        "/adminapi/merchant/shop/updateAutoCommentSetting",
+        &[
+            "merchantShopModifyManage",
+            "shopSettingsUpdateManage",
+            "storeListUpdateManage",
+            "storeSelfPackListUpdateManage",
+        ],
+    ),
     (
         "POST",
         "/adminapi/merchant/shopProductCategory/batch",

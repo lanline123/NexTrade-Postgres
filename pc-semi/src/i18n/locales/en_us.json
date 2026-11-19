@@ -2845,5 +2845,6 @@
   "查看账户{name}、使用明细等": "View {name} balance and usage details",
   "不限": "Unlimited",
   "· 评分 {v} 星": " · {v} stars",
-  "· 客服 {p}": " · Service: {p}"
+  "· 客服 {p}": " · Service: {p}",
+  "系统自动评价": "System Auto Review"
 }

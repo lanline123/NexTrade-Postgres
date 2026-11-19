@@ -32,6 +32,7 @@ use nextrade_services::catalog::attributes_tpl::AttributesTplService;
 use nextrade_services::catalog::brand::BrandService;
 use nextrade_services::catalog::category::CategoryService;
 use nextrade_services::catalog::category_all::CatalogService;
+use nextrade_services::catalog::auto_comment::AutoCommentService;
 use nextrade_services::catalog::comment::CommentService;
 use nextrade_services::catalog::e_card::ECardService;
 use nextrade_services::catalog::e_card_group::ECardGroupService;
@@ -487,6 +488,7 @@ async fn main() -> anyhow::Result<()> {
         wholesale_product: wholesale_product.clone(),
     });
     let comment = Arc::new(CommentService::new(repos.clone()));
+    let auto_comment = Arc::new(AutoCommentService::new(repos.clone()));
     let price_inquiry = Arc::new(PriceInquiryService::new(repos.clone()));
     let product_group = Arc::new(ProductGroupService::new(repos.clone()));
     let e_card_group = Arc::new(ECardGroupService::new(repos.clone()));
@@ -512,6 +514,7 @@ async fn main() -> anyhow::Result<()> {
         short_url: short_url.clone(),
         stock_warning: stock_warning.clone(),
         comment: comment.clone(),
+        auto_comment: auto_comment.clone(),
         price_inquiry: price_inquiry.clone(),
         product_group: product_group.clone(),
         e_card_group: e_card_group.clone(),

@@ -343,6 +343,9 @@ impl ProductManageClientService {
                         "username".into(),
                         serde_json::json!(nick_map.get(&c.user_id).cloned().flatten()),
                     );
+                    // 系统自动评价来源标记（实体序列化为 is_default，
+                    // 显式补 camelCase 键供 PC/H5 展示「系统自动评价」标注）
+                    o.insert("isDefault".into(), serde_json::json!(c.is_default));
                     let parent = c.comment_id;
                     o.insert(
                         "replies".into(),
