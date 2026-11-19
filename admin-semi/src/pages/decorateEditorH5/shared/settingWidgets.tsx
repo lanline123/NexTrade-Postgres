@@ -169,7 +169,13 @@ export function SegmentedButtonRadio({ value, options, onChange }: { value: any;
         <RadioGroup
             type="button"
             className="dec-seg-btn-auto"
-            value={matched ? matched.value : value}
+            // 选中态兜底（2026-11-19 实测发现）：存量页面数据里背景图显示/填充
+            // 大小存的是空串 ""（如页面 10020），调用方 Number("")=0 命中不了
+            // 任何选项，整组无选中、蓝色胶囊不出现（标签行却按兜底文案显示
+            // 第一项，两者对不上）。现未命中时按第一项显示——同 PC
+            // PageSettings 对头部风格的口径（非 2 即 1）；仅显示兜底，
+            // 不回写数据，用户点选后才按原契约写入选项值。
+            value={matched ? matched.value : options[0]?.value}
             onChange={(e: any) => onChange(radioChangeValue(e?.target?.value, options))}
         >
             {options.map((o) => (
