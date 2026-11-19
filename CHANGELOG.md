@@ -417,3 +417,9 @@
 ### 新增
 
 - **后台 - 移动装修页面管理店铺筛选**（用户 2026-11-19 拍板）：原版移动装修列表（java v5.8.61 `view/admin/src/views/decorate/mobileDecorate/List.vue`）无店铺列、无店铺筛选（原版靠登录上下文单店铺运行）；我方平台账号列表跨店铺混排——线上实测商城首页签 59 条 = 平台（shop_id=0）3 条 + 56 家店铺各 1 条「默认模板」默认页，57 条带默认标记、无从分辨归属。本次新增：① admin 移动装修管理 7 个页签同行右侧加可搜索店铺下拉（Semi Select filter），默认「全部店铺」不传 shopId、与现行行为一致，选中后列表只显示该店铺页面，筛选状态持有在页签层、切页签不丢，列表「重置」同步回全部；② 列表新增「店铺」列；③ 后端 `GET /decorate/decorate/list` 新增可选入参 `shopId`（精确过滤，与 pageType/keyword/decorateType 条件 AND；仓储层与既有租户可见口径分开实现，店铺账号选他人店铺只得空集、不放宽限制），列表 VO 新增 `shopName`（服务层按 shop_id 回填 shop_title，shop_id=0 固定「平台」——shop 表平台行标题为脏数据「string」不可直用，查不到名时前端回退显示店铺 ID）；④ 新增只读接口 `GET /decorate/decorate/shopOptions` 作为下拉数据源（decorate 表 distinct shop_id join shop 取名 + 计数，只含真正有装修页的店铺；未复用 /merchant/shop/list 的理由：其默认 shopType=1、无平台 0 条目、含无装修页店铺且需分页假设）；⑤ 「更换默认页」弹窗候选改为限当前行同店铺（默认页按店铺生效，跨店铺混排下原候选含别家店页面）。固定 pageType 的用法（PC 搜索页/登录页装修）不显示筛选、行为不变。
+
+## 0.0.2 续 · 2026-11-19 批次（PC 优惠券边框成品色）
+
+### 修复
+
+- **PC 前台 - 商品详情页优惠券边框在部分浏览器仍发黑【原版有·我方改口径】**：券区彻底弃用 color-mix，改由主题变量设置处（`pc-semi/src/lib/theme-style.ts`）按主题色混白（边框 30% / 背景 7%，与原 color-mix 数学等值）算成成品 rgb 变量（`--pds-coupon-border` / `--pds-coupon-bg`）下发，样式侧（`product-detail-styles.scss` 的 `.pds-coupon`）以同值静态色兜底（边框 `#d1ede6` / 背景 `#f4fbf9`，按现行主题色 `#65c4aa` 精确算出，与主题自带色阶 `--primary-light-7` 一致）；2026-11-17 的双声明静态回退（d6f62fd）依赖浏览器对 color-mix 声明的丢弃/求值行为，弱内核处理不一致时回退形同虚设，用户两次复报仍黑。改后详情页样式 color-mix 归零，任何引擎拿到的都是成品色；支持 color-mix 的浏览器视觉零变化，主题换色仍经同一链路自动跟随。

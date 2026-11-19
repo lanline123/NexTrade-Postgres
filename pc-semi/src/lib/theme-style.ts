@@ -9,11 +9,16 @@
  * 旧版把变量塞进 `themeStore.themeColor` 再由全局样式消费；新版直接在 RootLayout
  * 服务端渲染 `<style>:root{...}</style>`，首屏即生效，无闪烁、无额外请求。
  *
- * 除原样下发后台变量外，额外派生两组：
+ * 除原样下发后台变量外，额外派生三组：
  *   1. `--general-rgb`：供 `rgba(var(--general-rgb), .1)` 这类半透明叠加使用
  *      （CSS 变量不能直接拆 RGB 分量）；
  *   2. `--semi-color-primary*`：Semi Design 组件（Checkbox / Switch / Pagination…）
- *      自己的主色变量，不派生的话后台换色后这些组件仍是 Semi 默认蓝。
+ *      自己的主色变量，不派生的话后台换色后这些组件仍是 Semi 默认蓝；
+ *   3. `--pds-coupon-border` / `--pds-coupon-bg`：商品详情页优惠券的边框/底色，
+ *      在这里按主题色混白算成成品 rgb 再下发（边框 30%、背景 7%，与旧
+ *      `color-mix` 口径数学等值）。详情页样式因此不再用 `color-mix`——
+ *      「静态回退 + color-mix 双声明」依赖浏览器对 color-mix 声明的丢弃行为，
+ *      用户浏览器里券框线仍发黑（2026-11-19 复报），成品色没有任何可丢弃的声明。
  */
 
 export interface ThemeVars {
@@ -75,6 +80,20 @@ function darken([r, g, b]: RGB, ratio: number): RGB {
 }
 
 /**
+ * 与纯白混合（ratio = 主题色占比），等值替代 CSS `color-mix(in srgb, 色 ratio, #fff)`。
+ * 在 TS 里算成成品色下发，浏览器侧不需要支持 color-mix（见文件头第 3 组派生说明）。
+ */
+function mixWithWhite([r, g, b]: RGB, ratio: number): RGB {
+  const mix = (channel: number) => Math.round(channel * ratio + 255 * (1 - ratio));
+  return [mix(r), mix(g), mix(b)];
+}
+
+/** `[101, 196, 170]` → `rgb(101, 196, 170)` */
+function rgbString([r, g, b]: RGB): string {
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+/**
  * Semi Design 组件主色别名。
  *
  * semi.css 把 `--semi-color-primary` 声明在 `body, body .semi-always-light` 上，
@@ -107,6 +126,11 @@ export function themeVarsToCss(vars: ThemeVars): string {
   const declarations = entries.map(([key, value]) => `${key}:${value};`);
   const rgb = vars['--general'] ? hexToRgb(vars['--general']) : null;
   if (rgb) declarations.push(`--general-rgb:${rgb.join(',')};`);
+  if (rgb) {
+    // 详情页优惠券成品色：边框 = 主题色 30% 混白、背景 = 7% 混白（旧 color-mix 口径）
+    declarations.push(`--pds-coupon-border:${rgbString(mixWithWhite(rgb, 0.3))};`);
+    declarations.push(`--pds-coupon-bg:${rgbString(mixWithWhite(rgb, 0.07))};`);
+  }
   const blocks = [`:root{${declarations.join('')}}`];
   if (rgb) blocks.push(semiAliasBlock(rgb));
   return blocks.join('');

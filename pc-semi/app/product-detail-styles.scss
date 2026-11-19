@@ -211,13 +211,15 @@
     align-items: center;
     gap: 12px;
     padding: 8px 12px;
-    /* 边框先给静态回退色（主题绿 30% 混白的等值色 #d1ede6）：不支持 color-mix 的浏览器
-       否则会整条丢弃 border 声明、框线回退成深色（2026-11-17 用户报优惠券框线发黑） */
-    border: 1px solid #d1ede6;
-    border: 1px solid color-mix(in srgb, var(--pds-primary) 30%, #ffffff);
+    /* 边框/底色用主题变量设置处（src/lib/theme-style.ts）按主题色算好的成品色变量：
+       边框 = 主题色 30% 混白、背景 = 主题色 7% 混白，与旧 color-mix 数学等值。
+       CSS 里不再出现 color-mix：2026-11-17 的「静态回退 + color-mix 双声明」依赖浏览器
+       对 color-mix 声明的丢弃行为，用户浏览器里框线仍发黑（2026-11-19 复报）；
+       成品色没有任何可被弱内核丢弃的函数声明。变量缺失（主题配置无 --general 等）
+       时用按当前主题色 #65c4aa 算出的等值静态色兜底（#d1ede6 / #f4fbf9）。 */
+    border: 1px solid var(--pds-coupon-border, #d1ede6);
     border-radius: 8px;
-    background: var(--pds-soft);
-    background: color-mix(in srgb, var(--pds-primary) 7%, #ffffff);
+    background: var(--pds-coupon-bg, #f4fbf9);
     &.is-received { border-color: var(--pds-line); background: var(--pds-soft); }
     &__value { flex: 0 0 auto; min-width: 74px; color: var(--pds-primary); font-size: 17px; font-weight: 700; white-space: nowrap; }
     &__value small { font-size: 12px; font-weight: 600; }
