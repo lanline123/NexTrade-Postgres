@@ -393,3 +393,9 @@
 ### 修复
 
 - **后台 - H5 编辑器 newcomerCombo 卖点随商品 ID 重映射 + specialOffer 主题色同步**：原版 tigshop admin `mobilePro/newcomerCombo/Edit.vue` 有两个 watch 按商品 ID 重排 `productBriefList` 卖点（改选/重排/增删商品时卖点跟随对应商品、长度随选品类型与数量对齐），我方此前漏移植，卖点只按下标写回，改选或重排后张冠李戴并随保存落库；本次按原版状态机补齐（快照按 moduleIndex 隔离，同类型多模块不串扰）。specialOffer 打开设置时的主题色同步（原版 `specialOffer/Edit.vue` 的 immediate watch：moduleColorStyle 有预设且渐变色双空时写回预设渐变与倒计时文案色）一并补齐；与原版的口径差异仅在空值判定——原版数据模型恒有 `''` 默认值、只判空串，我方存量数据可能缺 gradientColorA/B 字段，故放宽为「空串或字段缺失均视为空」，一次性守卫写回、不重复触发。
+
+## 0.0.2 续 · 2026-11-19 批次（拍卖迁移 SMALLINT 对齐，未上线）
+
+### 修复
+
+- **后端 - 拍卖迁移 `004_auction.sql` 的 SMALLINT 与实体 i32 解码对齐**：拍卖一期迁移把 10 个状态/标志列建为 SMALLINT（`auction_session.status`、`auction_item.status`、`auction_bid.is_buyout/is_proxy/status`、`auction_deposit.status`、`auction_breach.waived`、`auction_ban.ban_type/status`、`auction_remind.notified`），而实体（`crates/core/src/entities/auction.rs`）全部按 i32 解码，sqlx 严格类型校验下不兼容。批次八上线验收时拍卖表为空、解码路径未被真实行触发，**空表验收假绿**；拍卖前台联调落入真实数据后，sessions/items/my-joins 等接口立即 500（`wrong type: SMALLINT (column: status / is_buyout /...)`）。线上库已由前台线在服务器侧对同 10 列 `ALTER COLUMN... TYPE INT` 恢复，接口即时转好；本次仅把仓库迁移文件同 10 列 SMALLINT → INT 与线上现状及实体对齐，防止新装/重建环境重踩。同步完成全仓同类清扫：`rust/migrations/*.sql` 其余 SMALLINT 列仅黑名单 003 的 5 列（`user_blacklist.owner_type/apply_mode/source/status`、`user_blacklist_log.op_type`），其仓储行结构按 i16 解码、与 SMALLINT 一致，不动；`rust/deploy/pg` 礼品卡流水 `type smallint` 对 i16 亦一致。线上库与生产服务本次未动。
