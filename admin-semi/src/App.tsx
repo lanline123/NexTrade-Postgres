@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { apiGet, clearToken, enterDemo, getToken, isDemo } from './api';
 import { applyAppearance, saveAppearance, type AppearanceSettings } from './theme';
 import AdminLayout, { type PageKey } from './layout/AdminLayout';
@@ -8,276 +8,278 @@ import {
   type MallSettings,
 } from './mall';
 import { CountrySelectField, ShopRegionCascaderField } from './components/RegionSettingFields';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Products from './pages/Products';
-import Orders from './pages/Orders';
-import Members from './pages/Members';
-import Content from './pages/Content';
-import Brands from './pages/Brands';
-import ProductGroups from './pages/ProductGroups';
-import Categories from './pages/Categories';
-import ProductServices from './pages/ProductServices';
-import Comments from './pages/Comments';
-import AttributesTemplates from './pages/AttributesTemplates';
-import FriendLinks from './pages/FriendLinks';
-import Regions from './pages/Regions';
-import LogisticsCompanies from './pages/LogisticsCompanies';
-import AppVersion from './pages/AppVersion';
-import AdminLogs from './pages/AdminLogs';
-import AdminUsers from './pages/AdminUsers';
-import Roles from './pages/Roles';
-import AgreementPage from './pages/AgreementPage';
-import AccountManage from './pages/AccountManage';
-import TaxRates from './pages/TaxRates';
-import ShippingTypes from './pages/ShippingTypes';
-import ShippingSettingsPage from './pages/ShippingSettings';
-import AutoConfigPage, { BusinessLicenseConfigField, CopyrightConfigField, TechSupportConfigField, type ConfigRendererContext, type ConfigFieldGroup, type ConfigFieldRule, type ConfigNumberLimit } from './pages/AutoConfigPage';
+const Login = lazy(() => import('./pages/Login'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Products = lazy(() => import('./pages/Products'));
+const Orders = lazy(() => import('./pages/Orders'));
+const Members = lazy(() => import('./pages/Members'));
+const Content = lazy(() => import('./pages/Content'));
+const Brands = lazy(() => import('./pages/Brands'));
+const ProductGroups = lazy(() => import('./pages/ProductGroups'));
+const Categories = lazy(() => import('./pages/Categories'));
+const ProductServices = lazy(() => import('./pages/ProductServices'));
+const Comments = lazy(() => import('./pages/Comments'));
+const AttributesTemplates = lazy(() => import('./pages/AttributesTemplates'));
+const FriendLinks = lazy(() => import('./pages/FriendLinks'));
+const Regions = lazy(() => import('./pages/Regions'));
+const LogisticsCompanies = lazy(() => import('./pages/LogisticsCompanies'));
+const AppVersion = lazy(() => import('./pages/AppVersion'));
+const AdminLogs = lazy(() => import('./pages/AdminLogs'));
+const AdminUsers = lazy(() => import('./pages/AdminUsers'));
+const Roles = lazy(() => import('./pages/Roles'));
+const AgreementPage = lazy(() => import('./pages/AgreementPage'));
+const AccountManage = lazy(() => import('./pages/AccountManage'));
+const TaxRates = lazy(() => import('./pages/TaxRates'));
+const ShippingTypes = lazy(() => import('./pages/ShippingTypes'));
+const ShippingSettingsPage = lazy(() => import('./pages/ShippingSettings'));
+import type { ConfigRendererContext, ConfigFieldGroup, ConfigFieldRule, ConfigNumberLimit } from './pages/AutoConfigPage';
+const AutoConfigPage = lazy(() => import('./pages/AutoConfigPage'));
+const BusinessLicenseConfigField = lazy(() => import('./pages/AutoConfigPage').then((m) => ({ default: m.BusinessLicenseConfigField })));
+const CopyrightConfigField = lazy(() => import('./pages/AutoConfigPage').then((m) => ({ default: m.CopyrightConfigField })));
+const TechSupportConfigField = lazy(() => import('./pages/AutoConfigPage').then((m) => ({ default: m.TechSupportConfigField })));
 import MultilingualInput from './components/MultilingualInput';
 import AfterSalesReasonField from './config/AfterSalesReasonField';
-import LogisticsSettings from './pages/LogisticsSettings';
-import PayLogs from './pages/PayLogs';
-import RefundLogs from './pages/RefundLogs';
-import BalanceLogs from './pages/BalanceLogs';
-import StaffWalletLogs from './pages/StaffWalletLogs';
-import BuyerShow from './pages/BuyerShow';
-import IntegralLogs from './pages/IntegralLogs';
-import { RefundApplyList, WithdrawApplyList, RechargeOrderList, UserInvoiceList, OrderInvoiceList } from './pages/FinanceLists';
-import { DepositRules, DepositAccounts, DepositQuery, DepositAudit, DepositLogs, CategoryFeeRules, MerchantApplications, SubMerchants, ProfitSharing, StatementDownload } from './pages/FinanceMoreLists';
-import { PosWorkbench, CashierDevices } from './pages/PosPages';
-import PosCashierList from './pages/PosCashierList';
-import ReceiptPrintersPage from './pages/ReceiptPrinters';
-import PaymentSettings from './pages/PaymentSettings';
-import NoticeSettings from './pages/NoticeSettings';
-import WithdrawalSettings from './pages/WithdrawalSettings';
-import ProfitSharingSettings from './pages/ProfitSharingSettings';
-import DepositSettings from './pages/DepositSettings';
-import PriceDisplaySettings from './pages/PriceDisplaySettings';
-import AdCampaignManage from './pages/AdCampaignManage';
-import AdSettingsPage from './pages/AdSettings';
-import AdPromotionManage from './pages/selfService/AdPromotion';
-import BuyStyleSettings from './pages/BuyStyleSettings';
-import SystemModeSettings from './pages/SystemModeSettings';
-import FontSettings from './pages/FontSettings';
+const LogisticsSettings = lazy(() => import('./pages/LogisticsSettings'));
+const PayLogs = lazy(() => import('./pages/PayLogs'));
+const RefundLogs = lazy(() => import('./pages/RefundLogs'));
+const BalanceLogs = lazy(() => import('./pages/BalanceLogs'));
+const StaffWalletLogs = lazy(() => import('./pages/StaffWalletLogs'));
+const BuyerShow = lazy(() => import('./pages/BuyerShow'));
+const IntegralLogs = lazy(() => import('./pages/IntegralLogs'));
+const RefundApplyList = lazy(() => import('./pages/FinanceLists').then((m) => ({ default: m.RefundApplyList })));
+const WithdrawApplyList = lazy(() => import('./pages/FinanceLists').then((m) => ({ default: m.WithdrawApplyList })));
+const RechargeOrderList = lazy(() => import('./pages/FinanceLists').then((m) => ({ default: m.RechargeOrderList })));
+const UserInvoiceList = lazy(() => import('./pages/FinanceLists').then((m) => ({ default: m.UserInvoiceList })));
+const OrderInvoiceList = lazy(() => import('./pages/FinanceLists').then((m) => ({ default: m.OrderInvoiceList })));
+const DepositRules = lazy(() => import('./pages/FinanceMoreLists').then((m) => ({ default: m.DepositRules })));
+const DepositAccounts = lazy(() => import('./pages/FinanceMoreLists').then((m) => ({ default: m.DepositAccounts })));
+const DepositQuery = lazy(() => import('./pages/FinanceMoreLists').then((m) => ({ default: m.DepositQuery })));
+const DepositAudit = lazy(() => import('./pages/FinanceMoreLists').then((m) => ({ default: m.DepositAudit })));
+const DepositLogs = lazy(() => import('./pages/FinanceMoreLists').then((m) => ({ default: m.DepositLogs })));
+const CategoryFeeRules = lazy(() => import('./pages/FinanceMoreLists').then((m) => ({ default: m.CategoryFeeRules })));
+const MerchantApplications = lazy(() => import('./pages/FinanceMoreLists').then((m) => ({ default: m.MerchantApplications })));
+const SubMerchants = lazy(() => import('./pages/FinanceMoreLists').then((m) => ({ default: m.SubMerchants })));
+const ProfitSharing = lazy(() => import('./pages/FinanceMoreLists').then((m) => ({ default: m.ProfitSharing })));
+const StatementDownload = lazy(() => import('./pages/FinanceMoreLists').then((m) => ({ default: m.StatementDownload })));
+const PosWorkbench = lazy(() => import('./pages/PosPages').then((m) => ({ default: m.PosWorkbench })));
+const CashierDevices = lazy(() => import('./pages/PosPages').then((m) => ({ default: m.CashierDevices })));
+const PosCashierList = lazy(() => import('./pages/PosCashierList'));
+const ReceiptPrintersPage = lazy(() => import('./pages/ReceiptPrinters'));
+const PaymentSettings = lazy(() => import('./pages/PaymentSettings'));
+const NoticeSettings = lazy(() => import('./pages/NoticeSettings'));
+const WithdrawalSettings = lazy(() => import('./pages/WithdrawalSettings'));
+const ProfitSharingSettings = lazy(() => import('./pages/ProfitSharingSettings'));
+const DepositSettings = lazy(() => import('./pages/DepositSettings'));
+const PriceDisplaySettings = lazy(() => import('./pages/PriceDisplaySettings'));
+const AdCampaignManage = lazy(() => import('./pages/AdCampaignManage'));
+const AdSettingsPage = lazy(() => import('./pages/AdSettings'));
+const AdPromotionManage = lazy(() => import('./pages/selfService/AdPromotion'));
+const BuyStyleSettings = lazy(() => import('./pages/BuyStyleSettings'));
+const SystemModeSettings = lazy(() => import('./pages/SystemModeSettings'));
+const FontSettings = lazy(() => import('./pages/FontSettings'));
 import { applyAdminFont, type FontSettingsConfig } from './fontRegistry';
-import KefuSettings from './pages/KefuSettings';
-import ShopSettings from './pages/ShopSettings';
-import StoreSettings from './pages/StoreSettings';
-import StoreTips from './pages/StoreTips';
-import StoreAreas from './pages/StoreAreas';
-import StoreList from './pages/StoreList';
-import SelfPackList from './pages/SelfPackList';
-import { DeliverymanList, ServicemanList } from './pages/StaffPages';
-import { DeliveryStaffWithdraw, ServerStaffWithdraw } from './pages/StaffWithdrawPages';
-import { Wholesalers } from './pages/Wholesalers';
-import { WholesalerGrades } from './pages/WholesalerGrades';
-import { WholesaleSetting } from './pages/WholesaleSetting';
-import { WholesaleProducts } from './pages/WholesaleProducts';
-import { StorePickupSetting } from './pages/StorePickupSetting';
-import { StoreAppointmentTemplates } from './pages/StoreAppointmentTemplates';
-import { StoreEntryRuleSetting } from './pages/StoreEntryRuleSetting';
-import { WechatLiveMiniAppSetting } from './pages/WechatLiveMiniAppSetting';
-import { ShippingTemplates } from './pages/ShippingTemplates';
-import { MessageTypes } from './pages/MessageTypes';
-import SalesmanOverview, { SalesmanAnalysisTable, SalesmanRankingTable } from './pages/SalesmanOverview';
-import SalesmanSubgroup from './pages/SalesmanSubgroup';
-import { SalesmanNotice, SalesmanMaterialCategory, SalesmanMaterial } from './pages/SalesmanContent';
-import { SalesmanDetailed, CustomerTransactions } from './pages/SalesmanDetailedPages';
-import { SalesmanSettlementSetting, SalesmanPerformanceSettlement } from './pages/SalesmanSettlementPages';
-import { SalesmanPromoteMode, SalesmanProducts, SalesmanPromoters } from './pages/SalesmanPromoteAndProducts';
-import {
-  LanguagesList,
-  CurrencyManagement,
-  TranslationContent,
-  VerbalAssociation,
-  AreaCode,
-  AiImageSetting,
-} from './pages/MultiLanguagePages';
-import {
-  IntraCityDelivery,
-  HomeService,
-} from './pages/O2ODeliveryServicePages';
-import {
-  PremiumMembers,
-  PremiumMemberRights,
-} from './pages/PremiumMemberPages';
-import {
-  SupplierList,
-  SupplierCategories,
-  SupplierProducts,
-  PurchaseSetting,
-} from './pages/SupplyChainSupplierPages';
-import {
-  PurchaseOrders,
-  PurchaseInbound,
-  PurchaseReturns,
-  PurchaseReconciliation,
-} from './pages/SupplyChainPurchasePages';
-import {
-  ShopTipManage,
-  ShopGroupManage,
-  OfflinePaymentClaimManage,
-  ImageSearchManage,
-  VendorAccountManage,
-  VendorFundsManage,
-  VendorFinancialLogManage,
-} from './pages/OverseasExtraPages';
-import { ShopAccountOverview, ShopFundsManage, ShopFinancialLogManage } from './pages/ShopFundsPages';
-import LicensedPage from './pages/LicensedPage';
-import { KefuWorkbench, KefuWorkbenchStandalone, KefuHistory } from './pages/KefuWorkbench';
-import {
-  ShopInfoDashboard,
-  ShopStaffManage,
-  ShopTeamSettings,
-  VendorBindShopManage,
-  VendorStaffManage,
-} from './pages/MerchantVendorExtras';
-import PcDecorateEditor from './pages/PcDecorateEditor';
-import AiMcpSettings from './pages/AiMcpSettings';
-import AiMcpApprovals from './pages/AiMcpApprovals';
-import AiMcpLogs from './pages/AiMcpLogs';
-import {
-  ShopDashboardManage,
-  ShopBalanceManage,
-  ShopAccountListManage,
-  ShopWithdrawManage,
-  ShopDepositManage,
-  ShopFinancialLogSelfManage,
-  ShopProductCategoryManage,
-  VendorDashboardManage,
-  VendorBalanceManage,
-  VendorAccountListManage,
-  VendorWithdrawManage,
-  VendorDepositManage,
-  VendorInfoManage,
-  VendorProductStockManage,
-  VendorStockLogManage,
-} from './pages/selfService';
+const KefuSettings = lazy(() => import('./pages/KefuSettings'));
+const ShopSettings = lazy(() => import('./pages/ShopSettings'));
+const StoreSettings = lazy(() => import('./pages/StoreSettings'));
+const StoreTips = lazy(() => import('./pages/StoreTips'));
+const StoreAreas = lazy(() => import('./pages/StoreAreas'));
+const StoreList = lazy(() => import('./pages/StoreList'));
+const SelfPackList = lazy(() => import('./pages/SelfPackList'));
+const DeliverymanList = lazy(() => import('./pages/StaffPages').then((m) => ({ default: m.DeliverymanList })));
+const ServicemanList = lazy(() => import('./pages/StaffPages').then((m) => ({ default: m.ServicemanList })));
+const DeliveryStaffWithdraw = lazy(() => import('./pages/StaffWithdrawPages').then((m) => ({ default: m.DeliveryStaffWithdraw })));
+const ServerStaffWithdraw = lazy(() => import('./pages/StaffWithdrawPages').then((m) => ({ default: m.ServerStaffWithdraw })));
+const Wholesalers = lazy(() => import('./pages/Wholesalers').then((m) => ({ default: m.Wholesalers })));
+const WholesalerGrades = lazy(() => import('./pages/WholesalerGrades').then((m) => ({ default: m.WholesalerGrades })));
+const WholesaleSetting = lazy(() => import('./pages/WholesaleSetting').then((m) => ({ default: m.WholesaleSetting })));
+const WholesaleProducts = lazy(() => import('./pages/WholesaleProducts').then((m) => ({ default: m.WholesaleProducts })));
+const StorePickupSetting = lazy(() => import('./pages/StorePickupSetting').then((m) => ({ default: m.StorePickupSetting })));
+const StoreAppointmentTemplates = lazy(() => import('./pages/StoreAppointmentTemplates').then((m) => ({ default: m.StoreAppointmentTemplates })));
+const StoreEntryRuleSetting = lazy(() => import('./pages/StoreEntryRuleSetting').then((m) => ({ default: m.StoreEntryRuleSetting })));
+const WechatLiveMiniAppSetting = lazy(() => import('./pages/WechatLiveMiniAppSetting').then((m) => ({ default: m.WechatLiveMiniAppSetting })));
+const ShippingTemplates = lazy(() => import('./pages/ShippingTemplates').then((m) => ({ default: m.ShippingTemplates })));
+const MessageTypes = lazy(() => import('./pages/MessageTypes').then((m) => ({ default: m.MessageTypes })));
+const SalesmanOverview = lazy(() => import('./pages/SalesmanOverview'));
+const SalesmanAnalysisTable = lazy(() => import('./pages/SalesmanOverview').then((m) => ({ default: m.SalesmanAnalysisTable })));
+const SalesmanRankingTable = lazy(() => import('./pages/SalesmanOverview').then((m) => ({ default: m.SalesmanRankingTable })));
+const SalesmanSubgroup = lazy(() => import('./pages/SalesmanSubgroup'));
+const SalesmanNotice = lazy(() => import('./pages/SalesmanContent').then((m) => ({ default: m.SalesmanNotice })));
+const SalesmanMaterialCategory = lazy(() => import('./pages/SalesmanContent').then((m) => ({ default: m.SalesmanMaterialCategory })));
+const SalesmanMaterial = lazy(() => import('./pages/SalesmanContent').then((m) => ({ default: m.SalesmanMaterial })));
+const SalesmanDetailed = lazy(() => import('./pages/SalesmanDetailedPages').then((m) => ({ default: m.SalesmanDetailed })));
+const CustomerTransactions = lazy(() => import('./pages/SalesmanDetailedPages').then((m) => ({ default: m.CustomerTransactions })));
+const SalesmanSettlementSetting = lazy(() => import('./pages/SalesmanSettlementPages').then((m) => ({ default: m.SalesmanSettlementSetting })));
+const SalesmanPerformanceSettlement = lazy(() => import('./pages/SalesmanSettlementPages').then((m) => ({ default: m.SalesmanPerformanceSettlement })));
+const SalesmanPromoteMode = lazy(() => import('./pages/SalesmanPromoteAndProducts').then((m) => ({ default: m.SalesmanPromoteMode })));
+const SalesmanProducts = lazy(() => import('./pages/SalesmanPromoteAndProducts').then((m) => ({ default: m.SalesmanProducts })));
+const SalesmanPromoters = lazy(() => import('./pages/SalesmanPromoteAndProducts').then((m) => ({ default: m.SalesmanPromoters })));
+const LanguagesList = lazy(() => import('./pages/MultiLanguagePages').then((m) => ({ default: m.LanguagesList })));
+const CurrencyManagement = lazy(() => import('./pages/MultiLanguagePages').then((m) => ({ default: m.CurrencyManagement })));
+const TranslationContent = lazy(() => import('./pages/MultiLanguagePages').then((m) => ({ default: m.TranslationContent })));
+const VerbalAssociation = lazy(() => import('./pages/MultiLanguagePages').then((m) => ({ default: m.VerbalAssociation })));
+const AreaCode = lazy(() => import('./pages/MultiLanguagePages').then((m) => ({ default: m.AreaCode })));
+const AiImageSetting = lazy(() => import('./pages/MultiLanguagePages').then((m) => ({ default: m.AiImageSetting })));
+const IntraCityDelivery = lazy(() => import('./pages/O2ODeliveryServicePages').then((m) => ({ default: m.IntraCityDelivery })));
+const HomeService = lazy(() => import('./pages/O2ODeliveryServicePages').then((m) => ({ default: m.HomeService })));
+const PremiumMembers = lazy(() => import('./pages/PremiumMemberPages').then((m) => ({ default: m.PremiumMembers })));
+const PremiumMemberRights = lazy(() => import('./pages/PremiumMemberPages').then((m) => ({ default: m.PremiumMemberRights })));
+const SupplierList = lazy(() => import('./pages/SupplyChainSupplierPages').then((m) => ({ default: m.SupplierList })));
+const SupplierCategories = lazy(() => import('./pages/SupplyChainSupplierPages').then((m) => ({ default: m.SupplierCategories })));
+const SupplierProducts = lazy(() => import('./pages/SupplyChainSupplierPages').then((m) => ({ default: m.SupplierProducts })));
+const PurchaseSetting = lazy(() => import('./pages/SupplyChainSupplierPages').then((m) => ({ default: m.PurchaseSetting })));
+const PurchaseOrders = lazy(() => import('./pages/SupplyChainPurchasePages').then((m) => ({ default: m.PurchaseOrders })));
+const PurchaseInbound = lazy(() => import('./pages/SupplyChainPurchasePages').then((m) => ({ default: m.PurchaseInbound })));
+const PurchaseReturns = lazy(() => import('./pages/SupplyChainPurchasePages').then((m) => ({ default: m.PurchaseReturns })));
+const PurchaseReconciliation = lazy(() => import('./pages/SupplyChainPurchasePages').then((m) => ({ default: m.PurchaseReconciliation })));
+const ShopTipManage = lazy(() => import('./pages/OverseasExtraPages').then((m) => ({ default: m.ShopTipManage })));
+const ShopGroupManage = lazy(() => import('./pages/OverseasExtraPages').then((m) => ({ default: m.ShopGroupManage })));
+const OfflinePaymentClaimManage = lazy(() => import('./pages/OverseasExtraPages').then((m) => ({ default: m.OfflinePaymentClaimManage })));
+const ImageSearchManage = lazy(() => import('./pages/OverseasExtraPages').then((m) => ({ default: m.ImageSearchManage })));
+const VendorAccountManage = lazy(() => import('./pages/OverseasExtraPages').then((m) => ({ default: m.VendorAccountManage })));
+const VendorFundsManage = lazy(() => import('./pages/OverseasExtraPages').then((m) => ({ default: m.VendorFundsManage })));
+const VendorFinancialLogManage = lazy(() => import('./pages/OverseasExtraPages').then((m) => ({ default: m.VendorFinancialLogManage })));
+const ShopAccountOverview = lazy(() => import('./pages/ShopFundsPages').then((m) => ({ default: m.ShopAccountOverview })));
+const ShopFundsManage = lazy(() => import('./pages/ShopFundsPages').then((m) => ({ default: m.ShopFundsManage })));
+const ShopFinancialLogManage = lazy(() => import('./pages/ShopFundsPages').then((m) => ({ default: m.ShopFinancialLogManage })));
+const LicensedPage = lazy(() => import('./pages/LicensedPage'));
+const KefuWorkbench = lazy(() => import('./pages/KefuWorkbench').then((m) => ({ default: m.KefuWorkbench })));
+const KefuWorkbenchStandalone = lazy(() => import('./pages/KefuWorkbench').then((m) => ({ default: m.KefuWorkbenchStandalone })));
+const KefuHistory = lazy(() => import('./pages/KefuWorkbench').then((m) => ({ default: m.KefuHistory })));
+const ShopInfoDashboard = lazy(() => import('./pages/MerchantVendorExtras').then((m) => ({ default: m.ShopInfoDashboard })));
+const ShopStaffManage = lazy(() => import('./pages/MerchantVendorExtras').then((m) => ({ default: m.ShopStaffManage })));
+const ShopTeamSettings = lazy(() => import('./pages/MerchantVendorExtras').then((m) => ({ default: m.ShopTeamSettings })));
+const VendorBindShopManage = lazy(() => import('./pages/MerchantVendorExtras').then((m) => ({ default: m.VendorBindShopManage })));
+const VendorStaffManage = lazy(() => import('./pages/MerchantVendorExtras').then((m) => ({ default: m.VendorStaffManage })));
+const PcDecorateEditor = lazy(() => import('./pages/PcDecorateEditor'));
+const AiMcpSettings = lazy(() => import('./pages/AiMcpSettings'));
+const AiMcpApprovals = lazy(() => import('./pages/AiMcpApprovals'));
+const AiMcpLogs = lazy(() => import('./pages/AiMcpLogs'));
+const ShopDashboardManage = lazy(() => import('./pages/selfService').then((m) => ({ default: m.ShopDashboardManage })));
+const ShopBalanceManage = lazy(() => import('./pages/selfService').then((m) => ({ default: m.ShopBalanceManage })));
+const ShopAccountListManage = lazy(() => import('./pages/selfService').then((m) => ({ default: m.ShopAccountListManage })));
+const ShopWithdrawManage = lazy(() => import('./pages/selfService').then((m) => ({ default: m.ShopWithdrawManage })));
+const ShopDepositManage = lazy(() => import('./pages/selfService').then((m) => ({ default: m.ShopDepositManage })));
+const ShopFinancialLogSelfManage = lazy(() => import('./pages/selfService').then((m) => ({ default: m.ShopFinancialLogSelfManage })));
+const ShopProductCategoryManage = lazy(() => import('./pages/selfService').then((m) => ({ default: m.ShopProductCategoryManage })));
+const VendorDashboardManage = lazy(() => import('./pages/selfService').then((m) => ({ default: m.VendorDashboardManage })));
+const VendorBalanceManage = lazy(() => import('./pages/selfService').then((m) => ({ default: m.VendorBalanceManage })));
+const VendorAccountListManage = lazy(() => import('./pages/selfService').then((m) => ({ default: m.VendorAccountListManage })));
+const VendorWithdrawManage = lazy(() => import('./pages/selfService').then((m) => ({ default: m.VendorWithdrawManage })));
+const VendorDepositManage = lazy(() => import('./pages/selfService').then((m) => ({ default: m.VendorDepositManage })));
+const VendorInfoManage = lazy(() => import('./pages/selfService').then((m) => ({ default: m.VendorInfoManage })));
+const VendorProductStockManage = lazy(() => import('./pages/selfService').then((m) => ({ default: m.VendorProductStockManage })));
+const VendorStockLogManage = lazy(() => import('./pages/selfService').then((m) => ({ default: m.VendorStockLogManage })));
 // 简版移动装修编辑器已彻底移除（原 ./pages/MobileDecorateEditor 文件已删除，2026-11-15）；
 // ?page=mobileDecorateEditor 由下方 MobileDecorateEditorRedirect 跳转到新版 H5 装修编辑器。
-import H5DecorateEditor from './pages/decorateEditorH5';
-import {
-  AccountPanel,
-  DistributionCommission,
-  ShopWithdrawApplySummary,
-  StaffFundWallet,
-} from './pages/FinanceOverviewPages';
-import {
-  WechatMenu,
-  WechatKeywordReply,
-  WechatAutoReply,
-  VoiceBroadcast,
-} from './pages/WechatVoicePages';
-import {
-  PromotionOverview,
-  PromotionStyle,
-  RewardGift,
-  SignInSetting,
-  ECard,
-} from './pages/PromotionExtraPages';
-import Lottery from './pages/Lottery';
-import GiftCards from './pages/GiftCards';
-import PrintDesigner from './pages/PrintDesigner';
-import {
-  ThemeStyle,
-  MobileDecoratePages,
-  MobileSplashAd,
-  MobileNav,
-  ClassifyDecorate,
-  MobileUserDecorate,
-  MobileUserOverseas,
-  MobileSearchStyle,
-  MobileCatNav,
-} from './pages/DecorateMobilePages';
-import {
-  PcDecorateHome,
-  PcNavigation,
-  PcCatFloor,
-  PcCustomPage,
-  PcProductStyle,
-  PcSearchDecorate,
-  PcLoginDecorate,
-  PcSearchStyle,
-  PcDecorateOther,
-} from './pages/DecoratePcPages';
-import {
-  ConsumerRanking,
-  SaleTargets,
-  StatisticsGoods,
-  StatisticsUser,
-} from './pages/PanelStatisticsPages';
-import {
-  NewMembers,
-  StatisticsAccess,
-  StatisticsOrder,
-  StatisticsSale,
-} from './pages/PanelChartPages';
-import {
-  StatementDetails,
-  ShopWithdrawApplies,
-  VendorWithdrawApplies,
-  VendorStatementDownload,
-  VendorWithdrawSummary,
-} from './pages/FinanceStatementPages';
-import AdminMerchantSettings from './pages/AdminMerchantSettings';
-import StaffFundSettings from './pages/StaffFundSettings';
-import DeliverOrders from './pages/DeliverOrders';
-import AftersalesOrders from './pages/AftersalesOrders';
-import OrderExport from './pages/OrderExport';
-import ProxyShopping from './pages/ProxyShopping';
-import Coupons from './pages/Coupons';
-import RechargeSettings from './pages/RechargeSettings';
-import PointsExchanges from './pages/PointsExchanges';
-import ProductGifts from './pages/ProductGifts';
-import Seckills from './pages/Seckills';
-import AuctionItems from './pages/AuctionItems';
-import AuctionSessions from './pages/AuctionSessions';
-import AuctionDeposits from './pages/AuctionDeposits';
-import AuctionBreaches from './pages/AuctionBreaches';
-import AuctionSettings from './pages/AuctionSettings';
-import TimeDiscounts from './pages/TimeDiscounts';
-import ProductPromotions from './pages/ProductPromotions';
-import Groupons from './pages/Groupons';
-import InventoryQuery from './pages/InventoryQuery';
-import ProductInventoryLogs from './pages/ProductInventoryLogs';
-import InventoryAdjustments from './pages/InventoryAdjustments';
-import StockRecords from './pages/StockRecords';
-import InventoryTransfers from './pages/InventoryTransfers';
-import Enquiries from './pages/Enquiries';
-import StockWarnings from './pages/StockWarnings';
-import UserCertifications from './pages/UserCertifications';
-import MemberTags from './pages/MemberTags';
-import Feedbacks from './pages/Feedbacks';
-import MessageLogs from './pages/MessageLogs';
-import MemberLevels from './pages/MemberLevels';
-import ShopMemberSettings from './pages/ShopMemberSettings';
-import CustomerBlacklist from './pages/CustomerBlacklist';
-import UserAuthenticationSettings from './pages/UserAuthenticationSettings';
-import MemberLevelPros from './pages/MemberLevelPros';
-import ArticleCategories from './pages/ArticleCategories';
-import KefuList from './pages/KefuList';
-import KefuAccessSettings from './pages/KefuAccessSettings';
-import KefuQuickReplies from './pages/KefuQuickReplies';
-import KefuAccountInfo from './pages/KefuAccountInfo';
-import WechatLives from './pages/WechatLives';
-import WechatLiveGoods from './pages/WechatLiveGoods';
-import VideoNumbers from './pages/VideoNumbers';
-import Authorities from './pages/Authorities';
-import MaterialCenter from './pages/MaterialCenter';
-import SupplyChainPage from './pages/SupplyChainPages';
-import { CreditOrders, CreditUsers, CreditSettlements } from './pages/CreditPages';
-import ProductBatch from './pages/ProductBatch';
-import ProductClone from './pages/ProductClone';
-import ProductCloneSettings from './pages/ProductCloneSettings';
-import InventoryCalendars from './pages/InventoryCalendars';
-import ShopList from './pages/ShopList';
-import MerchantApplies from './pages/MerchantApplies';
-import Merchants from './pages/Merchants';
-import InvestmentContent from './pages/InvestmentContent';
-import VendorList from './pages/VendorList';
-import VendorProducts from './pages/VendorProducts';
-import VendorOrders from './pages/VendorOrders';
-import Placeholder from './pages/Placeholder';
+const H5DecorateEditor = lazy(() => import('./pages/decorateEditorH5'));
+const AccountPanel = lazy(() => import('./pages/FinanceOverviewPages').then((m) => ({ default: m.AccountPanel })));
+const DistributionCommission = lazy(() => import('./pages/FinanceOverviewPages').then((m) => ({ default: m.DistributionCommission })));
+const ShopWithdrawApplySummary = lazy(() => import('./pages/FinanceOverviewPages').then((m) => ({ default: m.ShopWithdrawApplySummary })));
+const StaffFundWallet = lazy(() => import('./pages/FinanceOverviewPages').then((m) => ({ default: m.StaffFundWallet })));
+const WechatMenu = lazy(() => import('./pages/WechatVoicePages').then((m) => ({ default: m.WechatMenu })));
+const WechatKeywordReply = lazy(() => import('./pages/WechatVoicePages').then((m) => ({ default: m.WechatKeywordReply })));
+const WechatAutoReply = lazy(() => import('./pages/WechatVoicePages').then((m) => ({ default: m.WechatAutoReply })));
+const VoiceBroadcast = lazy(() => import('./pages/WechatVoicePages').then((m) => ({ default: m.VoiceBroadcast })));
+const PromotionOverview = lazy(() => import('./pages/PromotionExtraPages').then((m) => ({ default: m.PromotionOverview })));
+const PromotionStyle = lazy(() => import('./pages/PromotionExtraPages').then((m) => ({ default: m.PromotionStyle })));
+const RewardGift = lazy(() => import('./pages/PromotionExtraPages').then((m) => ({ default: m.RewardGift })));
+const SignInSetting = lazy(() => import('./pages/PromotionExtraPages').then((m) => ({ default: m.SignInSetting })));
+const ECard = lazy(() => import('./pages/PromotionExtraPages').then((m) => ({ default: m.ECard })));
+const Lottery = lazy(() => import('./pages/Lottery'));
+const GiftCards = lazy(() => import('./pages/GiftCards'));
+const PrintDesigner = lazy(() => import('./pages/PrintDesigner'));
+const ThemeStyle = lazy(() => import('./pages/DecorateMobilePages').then((m) => ({ default: m.ThemeStyle })));
+const MobileDecoratePages = lazy(() => import('./pages/DecorateMobilePages').then((m) => ({ default: m.MobileDecoratePages })));
+const MobileSplashAd = lazy(() => import('./pages/DecorateMobilePages').then((m) => ({ default: m.MobileSplashAd })));
+const MobileNav = lazy(() => import('./pages/DecorateMobilePages').then((m) => ({ default: m.MobileNav })));
+const ClassifyDecorate = lazy(() => import('./pages/DecorateMobilePages').then((m) => ({ default: m.ClassifyDecorate })));
+const MobileUserDecorate = lazy(() => import('./pages/DecorateMobilePages').then((m) => ({ default: m.MobileUserDecorate })));
+const MobileUserOverseas = lazy(() => import('./pages/DecorateMobilePages').then((m) => ({ default: m.MobileUserOverseas })));
+const MobileSearchStyle = lazy(() => import('./pages/DecorateMobilePages').then((m) => ({ default: m.MobileSearchStyle })));
+const MobileCatNav = lazy(() => import('./pages/DecorateMobilePages').then((m) => ({ default: m.MobileCatNav })));
+const PcDecorateHome = lazy(() => import('./pages/DecoratePcPages').then((m) => ({ default: m.PcDecorateHome })));
+const PcNavigation = lazy(() => import('./pages/DecoratePcPages').then((m) => ({ default: m.PcNavigation })));
+const PcCatFloor = lazy(() => import('./pages/DecoratePcPages').then((m) => ({ default: m.PcCatFloor })));
+const PcCustomPage = lazy(() => import('./pages/DecoratePcPages').then((m) => ({ default: m.PcCustomPage })));
+const PcProductStyle = lazy(() => import('./pages/DecoratePcPages').then((m) => ({ default: m.PcProductStyle })));
+const PcSearchDecorate = lazy(() => import('./pages/DecoratePcPages').then((m) => ({ default: m.PcSearchDecorate })));
+const PcLoginDecorate = lazy(() => import('./pages/DecoratePcPages').then((m) => ({ default: m.PcLoginDecorate })));
+const PcSearchStyle = lazy(() => import('./pages/DecoratePcPages').then((m) => ({ default: m.PcSearchStyle })));
+const PcDecorateOther = lazy(() => import('./pages/DecoratePcPages').then((m) => ({ default: m.PcDecorateOther })));
+const ConsumerRanking = lazy(() => import('./pages/PanelStatisticsPages').then((m) => ({ default: m.ConsumerRanking })));
+const SaleTargets = lazy(() => import('./pages/PanelStatisticsPages').then((m) => ({ default: m.SaleTargets })));
+const StatisticsGoods = lazy(() => import('./pages/PanelStatisticsPages').then((m) => ({ default: m.StatisticsGoods })));
+const StatisticsUser = lazy(() => import('./pages/PanelStatisticsPages').then((m) => ({ default: m.StatisticsUser })));
+const NewMembers = lazy(() => import('./pages/PanelChartPages').then((m) => ({ default: m.NewMembers })));
+const StatisticsAccess = lazy(() => import('./pages/PanelChartPages').then((m) => ({ default: m.StatisticsAccess })));
+const StatisticsOrder = lazy(() => import('./pages/PanelChartPages').then((m) => ({ default: m.StatisticsOrder })));
+const StatisticsSale = lazy(() => import('./pages/PanelChartPages').then((m) => ({ default: m.StatisticsSale })));
+const StatementDetails = lazy(() => import('./pages/FinanceStatementPages').then((m) => ({ default: m.StatementDetails })));
+const ShopWithdrawApplies = lazy(() => import('./pages/FinanceStatementPages').then((m) => ({ default: m.ShopWithdrawApplies })));
+const VendorWithdrawApplies = lazy(() => import('./pages/FinanceStatementPages').then((m) => ({ default: m.VendorWithdrawApplies })));
+const VendorStatementDownload = lazy(() => import('./pages/FinanceStatementPages').then((m) => ({ default: m.VendorStatementDownload })));
+const VendorWithdrawSummary = lazy(() => import('./pages/FinanceStatementPages').then((m) => ({ default: m.VendorWithdrawSummary })));
+const AdminMerchantSettings = lazy(() => import('./pages/AdminMerchantSettings'));
+const StaffFundSettings = lazy(() => import('./pages/StaffFundSettings'));
+const DeliverOrders = lazy(() => import('./pages/DeliverOrders'));
+const AftersalesOrders = lazy(() => import('./pages/AftersalesOrders'));
+const OrderExport = lazy(() => import('./pages/OrderExport'));
+const ProxyShopping = lazy(() => import('./pages/ProxyShopping'));
+const Coupons = lazy(() => import('./pages/Coupons'));
+const RechargeSettings = lazy(() => import('./pages/RechargeSettings'));
+const PointsExchanges = lazy(() => import('./pages/PointsExchanges'));
+const ProductGifts = lazy(() => import('./pages/ProductGifts'));
+const Seckills = lazy(() => import('./pages/Seckills'));
+const AuctionItems = lazy(() => import('./pages/AuctionItems'));
+const AuctionSessions = lazy(() => import('./pages/AuctionSessions'));
+const AuctionDeposits = lazy(() => import('./pages/AuctionDeposits'));
+const AuctionBreaches = lazy(() => import('./pages/AuctionBreaches'));
+const AuctionSettings = lazy(() => import('./pages/AuctionSettings'));
+const TimeDiscounts = lazy(() => import('./pages/TimeDiscounts'));
+const ProductPromotions = lazy(() => import('./pages/ProductPromotions'));
+const Groupons = lazy(() => import('./pages/Groupons'));
+const InventoryQuery = lazy(() => import('./pages/InventoryQuery'));
+const ProductInventoryLogs = lazy(() => import('./pages/ProductInventoryLogs'));
+const InventoryAdjustments = lazy(() => import('./pages/InventoryAdjustments'));
+const StockRecords = lazy(() => import('./pages/StockRecords'));
+const InventoryTransfers = lazy(() => import('./pages/InventoryTransfers'));
+const Enquiries = lazy(() => import('./pages/Enquiries'));
+const StockWarnings = lazy(() => import('./pages/StockWarnings'));
+const UserCertifications = lazy(() => import('./pages/UserCertifications'));
+const MemberTags = lazy(() => import('./pages/MemberTags'));
+const Feedbacks = lazy(() => import('./pages/Feedbacks'));
+const MessageLogs = lazy(() => import('./pages/MessageLogs'));
+const MemberLevels = lazy(() => import('./pages/MemberLevels'));
+const ShopMemberSettings = lazy(() => import('./pages/ShopMemberSettings'));
+const CustomerBlacklist = lazy(() => import('./pages/CustomerBlacklist'));
+const UserAuthenticationSettings = lazy(() => import('./pages/UserAuthenticationSettings'));
+const MemberLevelPros = lazy(() => import('./pages/MemberLevelPros'));
+const ArticleCategories = lazy(() => import('./pages/ArticleCategories'));
+const KefuList = lazy(() => import('./pages/KefuList'));
+const KefuAccessSettings = lazy(() => import('./pages/KefuAccessSettings'));
+const KefuQuickReplies = lazy(() => import('./pages/KefuQuickReplies'));
+const KefuAccountInfo = lazy(() => import('./pages/KefuAccountInfo'));
+const WechatLives = lazy(() => import('./pages/WechatLives'));
+const WechatLiveGoods = lazy(() => import('./pages/WechatLiveGoods'));
+const VideoNumbers = lazy(() => import('./pages/VideoNumbers'));
+const Authorities = lazy(() => import('./pages/Authorities'));
+const MaterialCenter = lazy(() => import('./pages/MaterialCenter'));
+const SupplyChainPage = lazy(() => import('./pages/SupplyChainPages'));
+const CreditOrders = lazy(() => import('./pages/CreditPages').then((m) => ({ default: m.CreditOrders })));
+const CreditUsers = lazy(() => import('./pages/CreditPages').then((m) => ({ default: m.CreditUsers })));
+const CreditSettlements = lazy(() => import('./pages/CreditPages').then((m) => ({ default: m.CreditSettlements })));
+const ProductBatch = lazy(() => import('./pages/ProductBatch'));
+const ProductClone = lazy(() => import('./pages/ProductClone'));
+const ProductCloneSettings = lazy(() => import('./pages/ProductCloneSettings'));
+const InventoryCalendars = lazy(() => import('./pages/InventoryCalendars'));
+const ShopList = lazy(() => import('./pages/ShopList'));
+const MerchantApplies = lazy(() => import('./pages/MerchantApplies'));
+const Merchants = lazy(() => import('./pages/Merchants'));
+const InvestmentContent = lazy(() => import('./pages/InvestmentContent'));
+const VendorList = lazy(() => import('./pages/VendorList'));
+const VendorProducts = lazy(() => import('./pages/VendorProducts'));
+const VendorOrders = lazy(() => import('./pages/VendorOrders'));
+const Placeholder = lazy(() => import('./pages/Placeholder'));
 import { pageTitles } from './config/adminMenu';
 import { configSections } from './config/configSections';
 import { configHelp } from './config/configHelp';
@@ -923,6 +925,16 @@ function MobileDecorateEditorRedirect() {
   return null;
 }
 
+
+/** 懒加载页面 chunk 加载中的轻量占位（与后台浅灰背景一致，不引入额外依赖）。 */
+function PageLoadingFallback() {
+  return (
+    <div style={{ padding: '64px 0', textAlign: 'center', color: 'var(--text-secondary, #475467)', fontSize: 14 }}>
+      加载中…
+    </div>
+  );
+}
+
 export default function App() {
   const [authed, setAuthed] = useState(() => Boolean(getToken() || isDemo()));
   const [page, setPage] = useState<string>(initialPage);
@@ -991,12 +1003,20 @@ export default function App() {
   }, []);
 
   if (!authed) {
-    return <Login onSuccess={() => setAuthed(true)} />;
+    return (
+      <Suspense fallback={<PageLoadingFallback />}>
+        <Login onSuccess={() => setAuthed(true)} />
+      </Suspense>
+    );
   }
 
   // 客服工作台：独立全屏页（对齐旧版 /im/index 专属布局，菜单新标签打开）
   if (page === 'imWorkbench') {
-    return <KefuWorkbenchStandalone />;
+    return (
+      <Suspense fallback={<PageLoadingFallback />}>
+        <KefuWorkbenchStandalone />
+      </Suspense>
+    );
   }
 
   // H5 装修编辑器（NutUI-React 重构版）：独立全屏页
@@ -1004,6 +1024,7 @@ export default function App() {
     const h5EditorId = Number(new URLSearchParams(window.location.search).get('id') || 0);
     const h5PageType = Number(new URLSearchParams(window.location.search).get('pageType') || 1);
     return (
+      <Suspense fallback={<PageLoadingFallback />}>
       <H5DecorateEditor
         decorateId={h5EditorId}
         pageType={h5PageType}
@@ -1011,6 +1032,7 @@ export default function App() {
           window.location.href = `${window.location.origin}/?page=mobileDecorateManage`;
         }}
       />
+      </Suspense>
     );
   }
 
@@ -1023,6 +1045,7 @@ export default function App() {
   if (page === 'pcDecorateEditor') {
     const editorId = Number(new URLSearchParams(window.location.search).get('id') || 0);
     return (
+      <Suspense fallback={<PageLoadingFallback />}>
       <PcDecorateEditor
         decorateId={editorId}
         onExit={() => {
@@ -1030,6 +1053,7 @@ export default function App() {
           window.location.href = `${window.location.origin}/?page=${from}`;
         }}
       />
+      </Suspense>
     );
   }
 
@@ -1045,6 +1069,7 @@ export default function App() {
         setAuthed(false);
       }}
     >
+      <Suspense fallback={<PageLoadingFallback />}>
       {page === 'aiMcpManage' && <AiMcpSettings />}
       {page === 'aiMcpSettings' && <AiMcpSettings />}
       {page === 'aiMcpApprovals' && <AiMcpApprovals />}
@@ -1338,6 +1363,7 @@ export default function App() {
       {page === 'customerBlacklistManage' && <CustomerBlacklist />}
       {page === 'content' && <Content />}
       {!knownPages.has(page) && <Placeholder page={page} />}
+      </Suspense>
     </AdminLayout>
   );
 }
