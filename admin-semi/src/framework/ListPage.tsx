@@ -279,8 +279,12 @@ export default function ListPage<T extends Record<string, any>>({
     const option = config?.options?.find((item) => item.value === value);
     return option ? `：${t(String(option.label))}` : `：${value}`;
   };
+  // 勾选列不在 columns 内（Semi rowSelection 另加一列，默认宽 60），必须计入
+  // 总宽：漏算时临界宽度下 scroll 判断偏小，表格溢出会漏到页面层冒出横向滚动条
   const scrollX =
-    columns.reduce((sum, column) => sum + (column.width || 150), 0) + (hasActions ? actionWidth : 0);
+    columns.reduce((sum, column) => sum + (column.width || 150), 0) +
+    (hasActions ? actionWidth : 0) +
+    (selectable ? 60 : 0);
   const localizedColumns = columns.map((column) => ({
     ...column,
     title: typeof column.title === 'string' ? t(column.title) : column.title,
