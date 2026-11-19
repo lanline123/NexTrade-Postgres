@@ -9,6 +9,10 @@
 //!
 //! 购买侧连带（用户决策 3，2026-11-15）：未认证用户不能加购/下单，
 //! 否则购物车会漏价绕过门控——见 [`ensure_purchase_allowed`]。
+//! 例外（2026-11-20 裁定）：询价开启的商品不走购买门拦截——询价流程
+//! 本就是为未认证用户设计的获价通道，命中询价时由可购校验给出
+//! 询价一期文案「该商品为询价商品，请提交询价」，见
+//! [`ensure_purchase_allowed_for`]。
 //!
 //! 前端契约：被脱敏的商品载荷带 `priceVisible: false` 与
 //! `priceGate: "login" | "certification"`，前端据此渲染四态文案
@@ -108,6 +112,29 @@ pub async fn resolve_price_access(
     ))
 }
 
+/// 购买门控裁决（纯函数，可单测）：给定看价权与「目标是否询价开启」，
+/// 返回拦截错误 `(业务码, 文案)`；放行返回 `None`。
+///
+/// 询价豁免（2026-11-20 裁定）：命中询价商品时购买门不拦截——调用方
+/// 后续的可购校验（`ProductService::check_purchasable`）会以询价一期
+/// 文案「该商品为询价商品，请提交询价」拒绝加购/改量，询价通道对
+/// 未认证用户保持可用；普通商品维持决策 3 的无条件拦截。
+#[must_use]
+pub fn purchase_gate_error(
+    access: PriceAccess,
+    inquiry_exempt: bool,
+) -> Option<(i32, &'static str)> {
+    if inquiry_exempt {
+        return None;
+    }
+    match access {
+        PriceAccess::Visible => None,
+        // 购买链本身要求登录，NeedLogin 只会在令牌用户已不存在时出现
+        PriceAccess::NeedLogin => Some((401, "请先登录")),
+        PriceAccess::NeedCertification => Some((400, "请先完成实名认证后再购买")),
+    }
+}
+
 /// 购买门控（决策 3）：门控开启且未认证通过 ⇒ 拒绝加购/改量/下单。
 /// 门控关闭时直接放行（多一次配置查询，与黑名单校验同量级）。
 ///
@@ -115,25 +142,39 @@ pub async fn resolve_price_access(
 /// - 未认证 ⇒ 业务错误「请先完成实名认证后再购买」
 /// - 仓储失败 ⇒ `Error::Database`
 pub async fn ensure_purchase_allowed(repos: &Repositories, user_id: i32) -> Result<()> {
-    match resolve_price_access(repos, Some(user_id)).await? {
-        PriceAccess::Visible => Ok(()),
-        // 购买链本身要求登录，NeedLogin 只会在令牌用户已不存在时出现
-        PriceAccess::NeedLogin => Err(Error::biz(401, "请先登录".to_string())),
-        PriceAccess::NeedCertification => Err(Error::biz(
-            400,
-            "请先完成实名认证后再购买".to_string(),
-        )),
+    ensure_purchase_allowed_for(repos, user_id, false).await
+}
+
+/// 购买门控（带询价豁免）：`inquiry_exempt = true` 时直接放行（不读
+/// 门控配置），由调用方的可购校验接管询价文案；裁决表见
+/// [`purchase_gate_error`]。
+///
+/// # Errors
+/// - 未认证且非询价豁免 ⇒ 业务错误「请先完成实名认证后再购买」
+/// - 仓储失败 ⇒ `Error::Database`
+pub async fn ensure_purchase_allowed_for(
+    repos: &Repositories,
+    user_id: i32,
+    inquiry_exempt: bool,
+) -> Result<()> {
+    if inquiry_exempt {
+        return Ok(());
+    }
+    let access = resolve_price_access(repos, Some(user_id)).await?;
+    match purchase_gate_error(access, inquiry_exempt) {
+        None => Ok(()),
+        Some((code, message)) => Err(Error::biz(code, message.to_string())),
     }
 }
 
 /// 公众商品载荷中的价格键集合（脱敏时逐一置空）。覆盖：商品/型号价、
 /// 市场价、成本价、混合询价最低价、兼容价、搜索原价、门店价、促销价、
-/// 秒杀价、拼团价、会员价、批发价与筛选价格带。
+/// 秒杀价、拼团价、会员价、批发价（含阶梯价与首条批发价）与筛选价格带。
 ///
 /// 除驼峰键外同时列 snake_case 变体：个别公众载荷直接序列化实体行
 /// （如店铺街 `listingProduct` 的 product 实体，字段为 `product_price`），
 /// 只认驼峰会整行漏脱（2026-11-19 补漏审计发现）。
-pub const PRICE_KEYS: [&str; 31] = [
+pub const PRICE_KEYS: [&str; 33] = [
     "productPrice",
     "marketPrice",
     "costPrice",
@@ -148,6 +189,7 @@ pub const PRICE_KEYS: [&str; 31] = [
     "originPrice",
     "memberPrice",
     "wholesalePrice",
+    "firstWholesalePrice",
     "maxPrice",
     "minPrice",
     "product_price",
@@ -163,6 +205,7 @@ pub const PRICE_KEYS: [&str; 31] = [
     "origin_price",
     "member_price",
     "wholesale_price",
+    "first_wholesale_price",
     "max_price",
     "min_price",
 ];
@@ -315,5 +358,65 @@ mod tests {
         let mut page2 = json!({"list": [{"productPrice": "3.00"}]});
         mask_page_items(&mut page2, PriceAccess::Visible);
         assert_eq!(page2["list"][0]["productPrice"], "3.00");
+    }
+
+    #[test]
+    fn purchase_gate_blocks_uncertified_for_normal_product() {
+        // 三腿之二：未认证 + 普通商品 ⇒ 购买门文案（决策 3 不变）
+        assert_eq!(
+            purchase_gate_error(PriceAccess::NeedCertification, false),
+            Some((400, "请先完成实名认证后再购买"))
+        );
+        assert_eq!(
+            purchase_gate_error(PriceAccess::NeedLogin, false),
+            Some((401, "请先登录"))
+        );
+    }
+
+    #[test]
+    fn purchase_gate_exempts_inquiry_product() {
+        // 三腿之一：未认证 + 询价商品 ⇒ 购买门放行，交由可购校验
+        // 给出询价一期文案「该商品为询价商品，请提交询价」
+        assert_eq!(
+            purchase_gate_error(PriceAccess::NeedCertification, true),
+            None
+        );
+        assert_eq!(purchase_gate_error(PriceAccess::NeedLogin, true), None);
+    }
+
+    #[test]
+    fn purchase_gate_certified_unchanged() {
+        // 三腿之三：已认证 ⇒ 与现状一致，询价/普通商品门均不拦截
+        // （询价商品随后由可购校验按一期文案拒绝，与豁免前行为一致）
+        assert_eq!(purchase_gate_error(PriceAccess::Visible, true), None);
+        assert_eq!(purchase_gate_error(PriceAccess::Visible, false), None);
+    }
+
+    #[test]
+    fn wholesale_payload_masks_all_price_keys() {
+        // 裁定（2026-11-20）：批发域纳入价格门控，与全站同口径。
+        // 批发阶梯价（详情 wholesalePriceList）与首条批发价
+        // （列表/分类 firstWholesalePrice）的承载端点走同一遮罩层，
+        // 此处锁住共享层对批发价形状的覆盖（含 snake_case 变体、
+        // 阶梯内嵌 price、首条批发价键——后者曾不在名单内）。
+        let mut v = json!({
+            "productId": 7,
+            "firstWholesalePrice": "88.00",
+            "first_wholesale_price": "88.00",
+            "wholesalePriceList": [
+                {"minQty": 10, "price": "90.00", "wholesalePrice": "90.00"},
+                {"minQty": 50, "price": "85.00", "wholesale_price": "85.00"}
+            ]
+        });
+        mask_price_keys(&mut v);
+        assert!(v["firstWholesalePrice"].is_null());
+        assert!(v["first_wholesale_price"].is_null());
+        assert!(v["wholesalePriceList"][0]["price"].is_null());
+        assert!(v["wholesalePriceList"][0]["wholesalePrice"].is_null());
+        assert!(v["wholesalePriceList"][1]["price"].is_null());
+        assert!(v["wholesalePriceList"][1]["wholesale_price"].is_null());
+        // 非价格键不动
+        assert_eq!(v["wholesalePriceList"][0]["minQty"], 10);
+        assert_eq!(v["productId"], 7);
     }
 }
