@@ -130,7 +130,7 @@ export default function Countdown({ module }: Props) {
                                     className="item"
                                     style={`padding: ${designPxToRpx(module.productPadding)}; background-color: ${module.moduleColor.productBackgroundColor}; border-radius: ${designPxToRpx(module.productRadius)}`}
                                 >
-                                    <View className="imgBox" style={`padding-top: ${picScaleMap[module.picScale!]}`}>
+                                    <View className="imgBox" style={`padding-top: ${picScaleMap[module.picScale!] ?? picScaleMap["1:1"]}`}>
                                         <View
                                             className="img"
                                             style={` border-radius: ${productImageRadius};

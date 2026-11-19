@@ -250,7 +250,7 @@ export default function ProductGrouping({ module }: Props) {
                                                         border-radius: ${designPxToRpx(module.cardRadius)};`}
                                                 />
                                             )}
-                                            <View className="goods-img" style={`padding-top: ${picScaleMap[module.picScale!]}`}>
+                                            <View className="goods-img" style={`padding-top: ${picScaleMap[module.picScale!] ?? picScaleMap["1:1"]}`}>
                                                 {!item.__isBanner && (
                                                     <View
                                                         className="img"

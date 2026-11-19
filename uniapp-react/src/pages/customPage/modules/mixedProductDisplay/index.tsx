@@ -257,10 +257,10 @@ export default function MixedProductDisplay({ module }: Props) {
                                             className="item"
                                             onClick={() => item.productId && redirect({ url: urlFormat({ path: "product", data: { id: item.productId } }) })}
                                         >
-                                            <View className="goods-img" style={`padding-top: ${picScaleMap[module.picScale!]}; border-radius: ${designPxToRpx(module.productRadius)}`}>
+                                            <View className="goods-img" style={`padding-top: ${picScaleMap[module.picScale!] ?? picScaleMap["1:1"]}; border-radius: ${designPxToRpx(module.productRadius)}`}>
                                                 <View
                                                     className="img"
-                                                    style={`padding-top: ${picScaleMap[module.picScale!]};
+                                                    style={`padding-top: ${picScaleMap[module.picScale!] ?? picScaleMap["1:1"]};
                                                 border-radius: ${designPxToRpx(module.productRadius)};
                                                 background-size: ${module.picFillType};
                                                 background-image: url(${productImage(item)});`}
@@ -331,10 +331,10 @@ export default function MixedProductDisplay({ module }: Props) {
                                             className="item"
                                             onClick={() => item.productId && redirect({ url: urlFormat({ path: "product", data: { id: item.productId } }) })}
                                         >
-                                            <View className="goods-img" style={`padding-top: ${picScaleMap[module.picScale!]}; border-radius: ${designPxToRpx(module.productRadius)}`}>
+                                            <View className="goods-img" style={`padding-top: ${picScaleMap[module.picScale!] ?? picScaleMap["1:1"]}; border-radius: ${designPxToRpx(module.productRadius)}`}>
                                                 <View
                                                     className="img"
-                                                    style={`padding-top: ${picScaleMap[module.picScale!]};
+                                                    style={`padding-top: ${picScaleMap[module.picScale!] ?? picScaleMap["1:1"]};
                                                 border-radius: ${designPxToRpx(module.productRadius)};
                                                 background-size: ${module.picFillType};
                                                 background-image: url(${productImage(item)});`}

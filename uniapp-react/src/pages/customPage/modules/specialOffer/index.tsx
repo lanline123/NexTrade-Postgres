@@ -169,7 +169,7 @@ export default function SpecialOffer({ module }: Props) {
                                             <View
                                                 className="img"
                                                 style={`width: 100%;
-                                    padding-top: ${picScaleMap[module.picScale]};
+                                    padding-top: ${picScaleMap[module.picScale] ?? picScaleMap["1:1"]};
                                     background-size: ${module.picFillType};
                                     border-radius: ${designPxToRpx(module.productRadius)};
                                     background-image: url(${productImage(item)});`}
