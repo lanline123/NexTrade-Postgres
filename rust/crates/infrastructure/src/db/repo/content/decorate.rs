@@ -30,7 +30,10 @@ pub struct DecorateFilter {
     /// 叠加：店铺账号在店铺页签的条件为 `(shop_id=0 OR shop_id=本店)
     /// AND shop_id != 0`，交集只剩本店，不放宽租户范围；`None` 不过滤
     pub exclude_shop_id: Option<i32>,
-    /// 标题模糊关键词
+    /// 搜索关键词【我方新增扩展】：一个入参三路 OR 命中——页面名称
+    /// （decorate_title）、店铺名称（shop.shop_title，排除 shop_id=0 的
+    /// 脏标题行）、平台展示名（shop_id=0 按「平台」匹配）。整体作为一个
+    /// 条件与租户/页签等其他条件 AND（详见 build_paginate_where）
     pub keyword: Option<String>,
     /// 空表示不过滤
     pub decorate_types: Vec<i32>,
@@ -205,11 +208,28 @@ impl DecorateRepository {
             );
         }
         if let Some(kw) = f.keyword.as_ref().filter(|k| !k.trim().is_empty()) {
+            // 搜索口径【我方新增扩展，用户 2026-11-19 要求】：原版仅按页面
+            // 名称（decorate_title）模糊匹配；我方扩展为三路 OR——① 页面
+            // 名称；② 店铺名称：子查询 shop 表 shop_title 模糊匹配，且必须
+            // 排除 shop_id=0（平台行 shop_title 为脏数据字面量 `string`，
+            // 不可参与匹配）；③ 平台口径：shop_id=0 的页面按其展示名
+            // 「平台」参与匹配（搜「平台」命中平台页）。
+            // 三路整体用括号包成一个条件，与上方租户可见条件
+            // `(shop_id=0 OR shop_id=本店)` 在外层 AND：OR 只决定哪些行算
+            // 命中关键词，店铺账号搜别家店名时别家行仍被租户条件挡掉、
+            // 只得空集，不放宽租户范围。一个 keyword 入参产生 3 个绑定。
+            let like = format!("%{kw}%");
             push_cond(
                 &mut wh,
                 &mut params,
-                "decorate_title ILIKE ?",
-                &[Bind::S(format!("%{kw}%"))],
+                "(decorate_title ILIKE ? \
+                 OR shop_id IN (SELECT shop_id FROM shop WHERE shop_id <> 0 AND shop_title ILIKE ?) \
+                 OR (shop_id = 0 AND '平台' ILIKE ?))",
+                &[
+                    Bind::S(like.clone()),
+                    Bind::S(like.clone()),
+                    Bind::S(like),
+                ],
             );
         }
         push_in(&mut wh, &mut params, "decorate_type", &f.decorate_types);
@@ -1308,6 +1328,54 @@ mod tests {
         assert!(wh.contains("shop_id = ?"), "wh={wh}");
         assert!(wh.contains("shop_id != ?"), "wh={wh}");
         assert_eq!(params.len(), 2);
+    }
+
+    #[test]
+    fn paginate_where_keyword_matches_title_shop_name_and_platform() {
+        // 仅 keyword：三路 OR 成一个括号条件，一个入参产生 3 个绑定
+        let f = DecorateFilter {
+            keyword: Some("锂源".to_string()),
+            ..DecorateFilter::default()
+        };
+        let (wh, params) = DecorateRepository::build_paginate_where(&f);
+        assert!(wh.contains("decorate_title ILIKE ?"), "wh={wh}");
+        assert!(
+            wh.contains("shop_id IN (SELECT shop_id FROM shop WHERE shop_id <> 0 AND shop_title ILIKE ?)"),
+            "wh={wh}"
+        );
+        assert!(wh.contains("(shop_id = 0 AND '平台' ILIKE ?)"), "wh={wh}");
+        assert_eq!(params.len(), 3);
+
+        // 空白 keyword：不加条件（与现行行为一致）
+        let f = DecorateFilter {
+            keyword: Some("  ".to_string()),
+            ..DecorateFilter::default()
+        };
+        let (wh, params) = DecorateRepository::build_paginate_where(&f);
+        assert!(!wh.contains("ILIKE"), "wh={wh}");
+        assert_eq!(params.len(), 0);
+
+        // 租户 + keyword：租户条件在 OR 括号外 AND，搜别家店名只得空集
+        let f = DecorateFilter {
+            shop_id: Some(8),
+            keyword: Some("别家店".to_string()),
+            ..DecorateFilter::default()
+        };
+        let (wh, params) = DecorateRepository::build_paginate_where(&f);
+        assert!(wh.contains("(shop_id = 0 OR shop_id = ?)"), "wh={wh}");
+        assert!(wh.contains("AND (decorate_title ILIKE ?"), "wh={wh}");
+        assert_eq!(params.len(), 4);
+
+        // keyword + 店铺页签排除平台：两条件 AND 叠加（1 + 3 个绑定）
+        let f = DecorateFilter {
+            exclude_shop_id: Some(0),
+            keyword: Some("平台".to_string()),
+            ..DecorateFilter::default()
+        };
+        let (wh, params) = DecorateRepository::build_paginate_where(&f);
+        assert!(wh.contains("shop_id != ?"), "wh={wh}");
+        assert!(wh.contains("decorate_title ILIKE ?"), "wh={wh}");
+        assert_eq!(params.len(), 4);
     }
 
     #[test]
