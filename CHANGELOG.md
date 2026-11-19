@@ -499,3 +499,9 @@
 ### 修复
 
 - **H5 - 详情审计 §7 登记项前端三项收口**：① **cart/cartJump/search 活动行改按可见促销判定【原版有·我方改口径】**（复用 `isActivityVisible`，与瀑布流卡/详情页同口径）：购物车 `formatActivityList` 先按可见性过滤再选取——无可见标签不占行（原空壳占 28rpx），被不可见条目挤掉的可见标签恢复显示；search 的 type=7「拼团」标走独立分支、过滤时明确保留，type≠2 排除不变；order 确认页两处经审计为 type 1/6 白名单恒可见（与原版逐字相同），不改。② **DiscountInfo 及 order TotalCard/TotalCardStore 的 serviceFee 复合 `&&` 门改 `Number(...)>0` 单一比较【原版有·我方改口径】**：线上金额恒为字符串、与改前逐值等价、非活 bug；消除前端类型声明为 number 时数字 0 漏渲染游离「0」的潜伏缺陷。③ **productGroupon 空态守卫【我方新增】**：后端 `joinUser` 为 Option 可下发 null、`endTime` 可缺失——isMyGroup/remainMap/模板头像昵称 4 处加可选链与前置守卫，异常数据降级渲染不崩溃，正常数据口径逐字不变。新增单测 16 例（productGroupon 7 + DiscountInfo 4 + search List 5）。同批登记项 4（后端 getProductAvailability 促销聚合，Rust 3 文件）不在本前端发版内，另行随后端批次。
+
+## 0.0.2 续 · 2026-11-19 批次（瀑布流商品卡图片区内边距按现行原版去掉，随 H5 v25 热更新上线）
+
+### 修复
+
+- **H5 - 瀑布流商品卡图片区去掉 20rpx 内边距【原版有】**：现行原版 `components/masonry/product-item.vue`（GitHub 快照仓 lanline123/java-b2b2c-overseas-ref v5.8.61，blob fcdbd318）的 scoped `.photo` 只有 text-align / position / border-radius / overflow、图片 width:100% 满幅，无任何 padding；同目录只有 activityCard.vue / masonry.vue / product-item.vue、无 card.vue，我方文件注释所称「原版 card.vue .photo{padding:20rpx}」在现行原版快照中无出处，至多是更早代际口径。我方 `components/masonry/ProductItem.scss` 的 `.item-li .photo` 残留 `padding:20rpx`（H5 v22 已先收作用域、止住对购物车页的串扰），瀑布流卡图片四周因此多一圈 20rpx 白边、图幅被压小。用户 2026-11-19 拍板「按原版去掉，瀑布流也一起改」，本批删去该行；`.photo` 其余声明（text-align / position / border-radius / overflow、image 满宽、边框图与售罄遮罩的绝对定位结构）与原版逐字一致、不动，v22 的作用域隔离保留。去掉后无需别处补偿：图片回到原版满幅几何，标题/价格区间距由 `.detail` margin 与 `.action` / `.shop` padding 承担、与图区无关。另两处与现行原版的代际口径差只登记不改：原版 `.item-li` 有 padding-bottom:10rpx、`.info` 有 padding:10rpx 16rpx 0，我方以 `.detail{margin:0 20rpx 10rpx}` 等承担等价间距（product2 模块的自带副本已按现行原版逐字移植、无此差，含 `.photo` 无 padding）。同类清扫：全仓 `.photo` 规则其余各处（购物车卡显式 padding:0 防御、search 列表、IM 插件项、product2）均已作用域化且无此内边距，无同型未作用域残留。

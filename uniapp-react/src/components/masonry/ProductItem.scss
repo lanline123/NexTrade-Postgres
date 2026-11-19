@@ -14,8 +14,8 @@
 /* 收进 .item-li 作用域：原版 product-item.vue 为 scoped 样式，此规则只作用于瀑布流卡自身；
    此前无作用域的全局 .photo 会串扰购物车等页面的同名类（购物车 .photo 被压入 20rpx 内边距） */
 .item-li .photo {
-    /* 原版 card.vue .photo{padding:20rpx}：图片四周 20rpx 白边 */
-    padding: 20rpx;
+    /* 现行原版 product-item.vue 的 .photo 无 padding（快照仓 components/masonry/product-item.vue L276 起，scoped）：
+       图片满幅；此前一行的 padding:20rpx 系更早代际口径残留，用户 2026-11-19 拍板按现行原版去掉 */
     text-align: center;
     position: relative;
     border-radius: var(--pi-image-radius, 12rpx);
