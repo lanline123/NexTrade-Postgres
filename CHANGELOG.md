@@ -374,3 +374,9 @@
 ### 修复
 
 - **后台 - 装修页面管理名称字段错位（decorateName → decorateTitle）**：移动端页面管理（mobileDecorateManage）与 PC 自定义页（pcDecorateCustomManage）的列表列、搜索框、新建/编辑抽屉误用 `decorateName` 作为页面名称字段，但后端列表 VO 与创建/更新 DTO 的字段均为 `decorateTitle`（接口无 decorateName），按名搜索的后端入参为 `keyword`（decorate_title ILIKE）。后果三连：①列表「页面名称」列恒为空、只显示兜底文案（如店铺模板页真实标题「默认模板」从不显示）；②按页面名称搜索无效（参数被后端忽略）；③新建页面必报「装修页面名称不能为空」（抽屉把名称放进 decorateName 提交，后端读不到标题）——2026-11-19 上线点验复选框时实测复现。修复：两页的列 dataIndex 与抽屉字段改为 `decorateTitle`、搜索字段改为 `keyword`，移动端「更换默认页」弹窗的 pageName 取值改为 decorateTitle 优先。开屏广告的 decorateDiscrete 接口字段本就是 decorateName，未动。
+
+## 0.0.2 续 · 2026-11-19 批次（未上线）
+
+### 变更
+
+- **后台 - 购买按钮样式设置页改横排图标选择 + 默认色对齐 PC 主题色【我方新增】**（用户 2026-11-19 口径）：「全局购买按钮样式」由文字下拉改为单横排图标块——11 档样式（0 不显示 … 10 自定义图片）各渲染一份与前台同构的真实按钮样貌小预览（共享 PcBuyButtonVisual 按当前生效色渲染），一排选完、窄屏横向滚动不换行，选中态以主题色边框 + 浅底标示。图标颜色默认值改为 PC 端主题色：与 PC 前台同源读取后台「主题风格」themeStyle 的 `--general`（pc-semi 中 `--pc-primary: var(--general)`、SSR 注入 :root 的同一份配置；存量主题只有 `--main-bg` 时以其兜底，读取/解析失败回落 `#65c4aa`）。未显式保存过颜色（iconColor 为空，含线上现状）时把主题色初始化进表单并按此保存——预览与保存口径一致，保存后即为显式值、前台按既有 iconColor 消费链真实生效；已显式保存过颜色的老配置原样加载不被覆盖；颜色「重置」改为回到当前 PC 主题色。预览壳着色与前台对齐：图标色走 iconColor、实心文案款底色走 `--pc-primary`（主题色本身，不随 iconColor 变）。全局样式只作用于「跟随全局」模块的既有语义、统一枚举与后端接口均不变，仅改 admin-semi 设置页一文件。
