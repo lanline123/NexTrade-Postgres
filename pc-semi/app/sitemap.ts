@@ -46,6 +46,15 @@ function articleLastModified(addTime?: number): Date {
   return new Date();
 }
 
+/**
+ * 商品 `addTime`（上架时间，Unix 秒）转 Date，口径同 articleLastModified。
+ * 列表接口只下发 addTime、没有更新时间字段，故以 addTime 为 lastModified，
+ * 避免一律写生成时刻误导爬虫「全部商品刚刚更新」。
+ */
+function productLastModified(addTime?: number): Date {
+  return articleLastModified(addTime);
+}
+
 /** 分页拉全量（最多 MAX_LIST_PAGES 页），任何一页失败都向上抛由调用方降级。 */
 async function fetchAllPages<T>(
   loader: (page: number, size: number) => Promise<{ records: T[]; total?: number }>,
@@ -82,7 +91,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const product of products) {
       if (!product?.productId) continue;
       push(`${BASE}/product/${product.productId}`, {
-        lastModified: now,
+        lastModified: productLastModified(product.addTime),
         changeFrequency: 'weekly',
         priority: 0.8,
       });

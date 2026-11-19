@@ -308,3 +308,13 @@
 
 - **后台 - H5 编辑器首焦轮播多语言图标显示开关【我方新增】**：原版无此设置——多语言（地球）图标由海外版前端在搜索行无条件渲染、没有任何开关字段（用户 2026-11-19 要求新增）。banner defaults 的 searchContent 新增 showLang（默认 1 = 显示，保持现行为），设置面板在菜单/签到之后新增「多语言图标」显示/不显示开关（与搜索行左→右顺序一致），存量数据无此字段时面板按 1 呈现选中态。前端消费补丁（renderSearchTop 地球块加 showLang ?? 1 门控）已备说明交 uniapp 线，随前端批次落地后生效。
 - **后台 - H5 编辑器入口加载门 + 真实画布保活【我方新增】**：进入 H5 装修编辑器时先显示加载动画（DecorateLoading 主题色全屏门、拦截一切交互），编辑器详情请求与真实渲染 iframe 改为挂载即并行启动；双条件撤门——详情数据就绪且 iframe 首帧真实渲染完成（以本份数据下发后首个 decorate-layout 回传为凭，就绪状态机 embedReadiness 按数据纪元判定），8 秒超时兜底直接放行、撤门为闩锁（模式切换 / 草稿恢复 / 失败重试不再过门）。真实画布改常驻保活：切到兼容渲染时仅隐藏不卸载 iframe，切回即刻可用、不再整页重载。原版编辑器无 iframe 真实渲染画布，此为真实渲染模式（Phase 2）的配套能力，我方新增。
+
+### 修复
+
+- **PC 前台 - 商品 JSON-LD 库存状态恒为缺货**：结构化数据 availability 误读 `item.stock`（详情接口无此字段），导致全部商品输出 OutOfStock（实测库存 1000 的商品亦然）。改按详情页同口径判定：有 SKU 时取各 SKU 的 `skuStock` 汇总、无 SKU 时取 `item.productStock`，大于 0 输出 InStock。
+- **PC 前台 - 商品 meta description 过薄**：大量商品未填简介时 description 直接退化为商品名。改三级回退：简介 → 详情正文（descArr 富文本去标签后前 150 字）→ 关键词/商品名；页面 description、OpenGraph、Twitter 与 JSON-LD 共用同一结果。
+- **PC 前台 - sitemap 商品 lastModified 失真**：商品条目一律写生成时刻，误导爬虫「全部商品刚刚更新」。列表接口有下发上架时间 `addTime`（无更新时间字段），改用 addTime（异常值退回当前时间，口径同文章条目）。
+
+### 其他
+
+- **PC 前台 - hreflang 评估（未改代码）**：现语言机制为 `locale` cookie 同 URL 渲染，无 URL 级语言区分，此时加 hreflang 只会指向相同 URL、属错误实现；如需多语言 SEO，须先做 URL 级语言路由（如 /en/ 前缀），再补 alternates.languages。文章详情无路径式路由（仅 `?articleId=` 形式且页面 canonical 即该形式），sitemap 维持现状。

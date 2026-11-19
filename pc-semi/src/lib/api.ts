@@ -365,6 +365,8 @@ export interface ProductListItem {
   brief?: string;
   productStock?: number;
   sales?: number;
+  /** 上架时间（Unix 秒；列表接口有下发，sitemap lastModified 用） */
+  addTime?: number;
 }
 
 export interface ProductListResponse {
