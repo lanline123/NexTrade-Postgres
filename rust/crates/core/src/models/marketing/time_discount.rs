@@ -100,6 +100,19 @@ pub struct TimeDiscountCreateDTO {
     pub product_ids: Vec<i32>,
     #[serde(default)]
     pub item: Vec<TimeDiscountItemDTO>,
+    /// 适用会员范围：0-全部会员，1-指定标记的会员（Java `TimeDiscountSaveParam.memberRange`）。
+    /// 随活动写入 `promotion` 镜像行（Java `savePromotion`），此前未声明被 serde 静默丢弃。
+    #[serde(default, deserialize_with = "de_opt_i32")]
+    pub member_range: Option<i32>,
+    /// 选择的会员标记列表（Java `memberMarks`），写入镜像行时按 Java
+    /// `List.toString()` 落 `member_marks`。
+    pub member_marks: Option<Vec<i32>>,
+    /// 会员人群圈选（历史结构，Java `memberAudience`）；仅当 `sendUserTarget`
+    /// 缺省时用于升维出镜像行的 `member_scope`。
+    pub member_audience: Option<serde_json::Value>,
+    /// 参与人群（Java `sendUserTarget`，优先于 `memberAudience`），
+    /// 经 `resolve_member_scope` 归一后落镜像行 `member_scope`。
+    pub send_user_target: Option<serde_json::Value>,
 }
 
 /// 更新限时折扣请求。
@@ -333,6 +346,31 @@ mod tests {
         assert_eq!(d.product_ids, vec![7]);
         assert_eq!(d.item[0].sku_ids, vec![1, 2]);
         assert_eq!(d.item[0].discount_type, Some(1));
+    }
+
+    #[test]
+    fn create_dto_parses_member_fields() {
+        // Java TimeDiscountSaveParam 的会员字段（镜像行 member_* 来源）：
+        // 此前 DTO 未声明，提交了也被 serde 静默丢弃
+        let d: TimeDiscountCreateDTO = serde_json::from_str(
+            r#"{"promotionName":"会员折扣","memberRange":1,"memberMarks":[1,2],
+                "sendUserTarget":{"scope":1,"tagIds":[3]},"memberAudience":{"audienceType":2}}"#,
+        )
+        .unwrap();
+        assert_eq!(d.member_range, Some(1));
+        assert_eq!(d.member_marks, Some(vec![1, 2]));
+        assert_eq!(
+            d.send_user_target.as_ref().and_then(|v| v.get("scope")),
+            Some(&serde_json::json!(1))
+        );
+        assert!(d.member_audience.is_some());
+        // 缺省时全为 None（当前 admin 页面不提交这些字段，镜像落缺省口径）
+        let d2: TimeDiscountCreateDTO =
+            serde_json::from_str(r#"{"promotionName":"x"}"#).unwrap();
+        assert_eq!(d2.member_range, None);
+        assert_eq!(d2.member_marks, None);
+        assert!(d2.send_user_target.is_none());
+        assert!(d2.member_audience.is_none());
     }
 
     #[test]

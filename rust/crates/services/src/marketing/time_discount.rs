@@ -8,10 +8,13 @@
 //!   时间窗内不得同时参与限时折扣、秒杀、拼团
 //! - `handleStatusName`：时间状态推导（边界包含）
 //! - `parsePrice`：已按目标价则不再重复累计优惠（`alreadyApplied` 判定）
+//! - `savePromotion`：create/update 同步写 `promotion` type=6 镜像、
+//!   delete 级联删（2026-11-20 补齐；写侧口径逐条对照 Java，含更新
+//!   分支恒写 `sku_ids` 的限时折扣特有口径）
 //!
-//! 未迁移（依赖 `promotion` 表与人群服务）：
-//! - `savePromotion`（写 `promotion` 表关联记录）
-//! - `member_scope` / `memberRange` 人群匹配
+//! 未迁移（依赖人群服务）：
+//! - `member_scope` / `memberRange` 人群匹配（读侧判定；写侧已随
+//!   `savePromotion` 按 Java 口径落镜像行）
 //! - 拼团冲突校验（依赖 `groupon_promotion_item` 表，见 `groupon` 域）
 
 use std::collections::HashMap;
@@ -20,7 +23,10 @@ use std::sync::Arc;
 use rust_decimal::Decimal;
 use rust_decimal::RoundingStrategy;
 use nextrade_common::utils;
-use nextrade_core::entities::{TimeDiscount, TimeDiscountItem};
+use nextrade_core::entities::{Promotion, TimeDiscount, TimeDiscountItem};
+use nextrade_core::models::marketing::coupon_manage::java_list_string;
+use nextrade_core::models::marketing::promotion::TYPE_LIMIT_DISCOUNT;
+use nextrade_core::models::marketing::seckill::resolve_member_scope;
 use nextrade_core::models::marketing::time_discount::{
     parse_sku_ids, serialize_sku_ids, DiscountType, PromotionTimeStatus, TimeDiscountCreateDTO,
     TimeDiscountDetailVO, TimeDiscountItemDTO, TimeDiscountItemVO, TimeDiscountListQuery,
@@ -35,6 +41,10 @@ use nextrade_infrastructure::db::Repositories;
 const ERR_EXIST_DISCOUNT: &str = "该商品在时间段内已参与其他限时折扣活动";
 /// 商品已在秒杀活动中的提示。
 const ERR_EXIST_SECKILL: &str = "该商品在时间段内已参与秒杀活动";
+/// 活动范围：指定商品（Java `PromotionRangeEnum.PROMOTION_RANGE_PRODUCT`）。
+const PROMOTION_RANGE_PRODUCT: i32 = 3;
+/// 镜像行启用标记（Java 依赖表默认 1；显式落值与秒杀镜像口径一致）。
+const PROMOTION_AVAILABLE_YES: i32 = 1;
 
 pub struct TimeDiscountService {
     repos: Arc<Repositories>,
@@ -106,6 +116,9 @@ impl TimeDiscountService {
             self.repos.marketing.time_discount.insert_item(&row).await?;
         }
 
+        // 营销写入（Java create 步骤 3：savePromotion 写 promotion type=6 镜像）
+        self.save_promotion(discount_id, &activity, dto).await?;
+
         let log_info = format!("新增限时折扣活动:{}", activity.promotion_name);
         let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
         let sid = activity.shop_id;
@@ -160,6 +173,10 @@ impl TimeDiscountService {
             self.repos.marketing.time_discount.insert_item(&row).await?;
         }
 
+        // 营销写入（Java update 步骤 4：savePromotion 同步 promotion type=6 镜像）
+        self.save_promotion(dto.discount_id, &activity, &dto.base)
+            .await?;
+
         let log_info = format!("更新限时折扣活动:{}", activity.promotion_name);
         let admin_log = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
         let sid = activity.shop_id;
@@ -186,7 +203,46 @@ impl TimeDiscountService {
         // 多租户：删除前校验归属
         TenantScope::current_ensure_access(existing.shop_id)?;
         self.repos.marketing.time_discount.delete(discount_id).await?;
+        // 级联删镜像行（Java `del`：promotion relation_id = id AND type = 6）
+        self.repos
+            .marketing
+            .promotion
+            .delete_by_relation(discount_id, TYPE_LIMIT_DISCOUNT)
+            .await?;
         tracing::info!("删除限时折扣活动: id={discount_id}");
+        Ok(())
+    }
+
+    /// 同步 `promotion` 镜像行（Java `TimeDiscountServiceImpl#savePromotion`）。
+    ///
+    /// 镜像已存在（relation_id + type=6）→ 更新窗口/名称/会员字段 +
+    /// `range_data` + `sku_ids`（Java 更新分支恒写这两列，与秒杀更新
+    /// 分支不写 `sku_ids` 不同）；不存在 → 新建整行。镜像是详情促销
+    /// 聚合的活动池来源：缺行则详情页组装不出限时折扣条目、折后价
+    /// 不回填（本方法为其写侧修复）。
+    async fn save_promotion(
+        &self,
+        discount_id: i32,
+        activity: &TimeDiscount,
+        dto: &TimeDiscountCreateDTO,
+    ) -> Result<()> {
+        let repo = &self.repos.marketing.promotion;
+        let row = build_time_discount_promotion(activity, dto, discount_id);
+        if repo
+            .find_by_relation(discount_id, TYPE_LIMIT_DISCOUNT)
+            .await?
+            .is_some()
+        {
+            repo.update_mirror_fields(&row).await?;
+            repo.update_mirror_sku_ids(
+                discount_id,
+                TYPE_LIMIT_DISCOUNT,
+                row.sku_ids.as_deref(),
+            )
+            .await?;
+        } else {
+            repo.insert(&row).await?;
+        }
         Ok(())
     }
 
@@ -520,6 +576,49 @@ fn build_item(
     }
 }
 
+/// 构造 `promotion` 镜像行（Java `TimeDiscountServiceImpl#savePromotion`）。
+///
+/// 字段口径逐条对照 Java：type=6、relation_id=活动 id、名称/窗口取活动
+/// 本体、shop_id 取活动落库店铺、range=指定商品（3）、range_data = 全部
+/// 明细商品 `[p1, p2]`（Java `List.toString()`）、sku_ids = 各明细
+/// skuIds 展平后的 `List.toString()`（无则 `"[]"`——Java 恒写此列，
+/// 与秒杀「非空才写、否则留 NULL」不同）、member_range/member_marks/
+/// member_scope 取 DTO（scope 经 [`resolve_member_scope`] 归一）；
+/// is_available=1 / is_delete=0（Java 依赖表默认，PG 默认同为 1/0，
+/// 此处显式落值与秒杀口径一致）。
+fn build_time_discount_promotion(
+    activity: &TimeDiscount,
+    dto: &TimeDiscountCreateDTO,
+    discount_id: i32,
+) -> Promotion {
+    let product_ids: Vec<i32> = dto.item.iter().filter_map(|it| it.product_id).collect();
+    let sku_ids: Vec<i32> = dto
+        .item
+        .iter()
+        .flat_map(|it| it.sku_ids.iter().copied())
+        .collect();
+    Promotion {
+        promotion_id: 0,
+        promotion_name: activity.promotion_name.clone(),
+        start_time: activity.start_time,
+        end_time: activity.end_time,
+        r#type: TYPE_LIMIT_DISCOUNT,
+        shop_id: activity.shop_id,
+        relation_id: Some(discount_id),
+        range: Some(PROMOTION_RANGE_PRODUCT),
+        range_data: Some(java_list_string(&product_ids)),
+        sku_ids: Some(java_list_string(&sku_ids)),
+        is_available: Some(PROMOTION_AVAILABLE_YES),
+        is_delete: Some(0),
+        member_range: dto.member_range.unwrap_or(0),
+        member_marks: dto.member_marks.as_deref().map(java_list_string),
+        member_scope: resolve_member_scope(
+            dto.send_user_target.as_ref(),
+            dto.member_audience.as_ref(),
+        ),
+    }
+}
+
 /// 明细实体 → VO。
 fn to_item_vo(it: &TimeDiscountItem) -> TimeDiscountItemVO {
     let dtype = DiscountType::try_from(it.discount_type).ok();
@@ -781,5 +880,82 @@ mod tests {
         })
         .await;
         assert_eq!(filter, Some(9));
+    }
+
+    #[test]
+    fn time_discount_promotion_mirror_matches_java_save_promotion() {
+        // 多商品、无 SKU 明细（当前 admin 页面的提交形态）：range_data 含
+        // 全部商品，sku_ids 落 "[]"（Java 恒写此列），会员字段取缺省
+        let dto = TimeDiscountCreateDTO {
+            item: vec![
+                TimeDiscountItemDTO {
+                    product_id: Some(1444),
+                    ..Default::default()
+                },
+                TimeDiscountItemDTO {
+                    product_id: Some(1445),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        let activity = TimeDiscount {
+            discount_id: 2,
+            promotion_name: "限时折扣".into(),
+            start_time: 100,
+            end_time: 200,
+            shop_id: 0,
+            ..Default::default()
+        };
+        let row = build_time_discount_promotion(&activity, &dto, 2);
+        assert_eq!(row.r#type, TYPE_LIMIT_DISCOUNT);
+        assert_eq!(row.relation_id, Some(2));
+        assert_eq!(row.promotion_name, "限时折扣");
+        assert_eq!(row.start_time, 100);
+        assert_eq!(row.end_time, 200);
+        assert_eq!(row.shop_id, 0);
+        assert_eq!(row.range, Some(3));
+        assert_eq!(row.range_data.as_deref(), Some("[1444, 1445]"));
+        assert_eq!(row.sku_ids.as_deref(), Some("[]"));
+        assert_eq!(row.is_available, Some(1));
+        assert_eq!(row.is_delete, Some(0));
+        assert_eq!(row.member_range, 0);
+        assert_eq!(row.member_marks, None);
+        assert_eq!(row.member_scope, None);
+    }
+
+    #[test]
+    fn time_discount_promotion_mirror_collects_sku_ids_and_member_fields() {
+        // 明细 skuIds 展平（空明细不贡献），会员字段经归一落镜像行
+        let mut dto = TimeDiscountCreateDTO {
+            item: vec![
+                TimeDiscountItemDTO {
+                    product_id: Some(1444),
+                    sku_ids: vec![1116, 1117],
+                    ..Default::default()
+                },
+                TimeDiscountItemDTO {
+                    product_id: Some(1445),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        dto.member_range = Some(1);
+        dto.member_marks = Some(vec![1, 2]);
+        dto.send_user_target = Some(serde_json::json!({"scope": 1, "tagIds": [1, 2]}));
+        let activity = TimeDiscount {
+            promotion_name: "x".into(),
+            ..Default::default()
+        };
+        let row = build_time_discount_promotion(&activity, &dto, 9);
+        assert_eq!(row.range_data.as_deref(), Some("[1444, 1445]"));
+        assert_eq!(row.sku_ids.as_deref(), Some("[1116, 1117]"));
+        assert_eq!(row.member_range, 1);
+        assert_eq!(row.member_marks.as_deref(), Some("[1, 2]"));
+        let scope: serde_json::Value =
+            serde_json::from_str(row.member_scope.as_deref().unwrap()).unwrap();
+        assert_eq!(scope["scope"], 1);
+        assert_eq!(scope["tagIds"], serde_json::json!([1, 2]));
     }
 }

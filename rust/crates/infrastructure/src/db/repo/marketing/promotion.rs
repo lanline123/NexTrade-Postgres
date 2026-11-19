@@ -271,6 +271,27 @@ impl PromotionRepository {
         Ok(res.rows_affected() > 0)
     }
 
+    /// 更新镜像行 `sku_ids`（Java 限时折扣 `savePromotion` 更新分支恒写
+    /// `sku_ids`，与秒杀更新分支不写此列不同，故单独成法、不并入
+    /// [`Self::update_mirror_fields`] 以免改变秒杀口径）。
+    pub async fn update_mirror_sku_ids(
+        &self,
+        relation_id: i32,
+        promo_type: i32,
+        sku_ids: Option<&str>,
+    ) -> Result<bool> {
+        let res = sqlx::query(
+            "UPDATE promotion SET sku_ids = $1 WHERE relation_id = $2 AND type = $3",
+        )
+        .bind(sku_ids)
+        .bind(relation_id)
+        .bind(promo_type)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(res.rows_affected() > 0)
+    }
+
     /// 删除镜像行（Java `del` / `batch` 的 promotion 级联：
     /// `relation_id = ? AND type = ?`），返回删除行数。
     pub async fn delete_by_relation(&self, relation_id: i32, promo_type: i32) -> Result<u64> {
