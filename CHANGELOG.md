@@ -568,6 +568,7 @@
 ### 修复
 
 - **后端 - 秒杀活动补写 promotion 镜像行【原版有】**：Java `SeckillServiceImpl`（快照仓 tigshop-service/.../promotion/impl/SeckillServiceImpl.java）在 create/update 时经 `savePromotion` 同步 `promotion` 活动池镜像行（type=1 秒杀、relation_id=活动 id），del/batch 删除时级联删镜像，商品详情促销聚合只读活动池组装秒杀条目。我方秒杀服务此前未迁 `savePromotion`，批次十五建的 10 个长期秒杀只落 seckill 表、池中无镜像（仅有 2 条已过期的历史镜像），致批次十六上线的详情促销聚合组装不出秒杀条目、秒杀价/库存不回填。本批补齐写侧：创建/更新同步镜像——镜像已存在则按 Java 更新分支仅改窗口/名称/会员字段（活动商品变更时一并改 range/range_data），不存在则整行新建（range=指定商品、range_data=`[商品 id]`、sku_ids 按明细 skuId 收集、is_available=1）；单个删除级联删镜像（批量删除路径此前已处理）。创建 DTO 补回 Java 同名字段 memberRange/memberMarks/sendUserTarget/memberAudience（此前未声明、被 serde 静默丢弃，admin 秒杀表单实际有提交）：member_marks 按 Java `List.toString()` 落库，member_scope 按原版 `MemberAudienceServiceImpl#resolveWriteScope` 口径归一（全部会员不落库；部分会员 userIds/rankIds/tagIds 互斥归一、仅非空组落 JSON；Java 对「部分会员三组全空」的 validateTarget 抛错未复刻）。人群匹配读侧（canJoin/memberAudience）仍未迁移，与既有登记一致。上线后 10 个长期秒杀经管理接口原样重存回填镜像行（不手写 promotion 表）。
+- 批次十七补丁（1cfefb73）：详情秒杀价/库存回填补无 SKU 回退——无 SKU 商品明细 sku_id 为 NULL，严格 SKU 匹配永不命中致回填落空；sku 语境为 0 时改按 sku_id IS NULL 且商品匹配的行回填（原版有·我方改口径，Java 商品恒有默认 SKU 故其 eq 口径恒命中）。随下一合并后端批次上线。
 ## 0.0.2 续 · 2026-11-19 批次（后台「设置」新增 SEO 二级菜单，SEO 设置项归拢）
 
 ### 新增
@@ -593,7 +594,7 @@
 - **售后 - 申请/留言支持上传视频凭证**：用户 2026-11-19 指令。原版售后凭证只有图片（快照仓 v5.8.61 uniapp `pages/user/afterSale/edit.vue` 用 `<upload:limit="5">` + 文案「最多上传5张图片」，upload 组件 chooseImage/accept=image → `user/user/uploadImg`；`ReturnPicDTO` 仅 picName/picThumb/picUrl 三字段、无类型标记；原版 admin `order/aftersales/Info.vue` 凭证只用 Image 渲染）。原版虽有通用 `UserController.uploadVideo` 接口（我方后端已同名移植），但从未接入售后链路。本批以最小改动接入：① 数据口径零表结构变更——`aftersales.pics` 仍是 JSON 数组（两端服务本就 `Vec<Value>` 原样透传），视频条目带 `fileType:"video"` 标记、picUrl 存视频地址，各端按标记判读、无标记老数据按扩展名兜底（mp4/webm/mov/m4v）；② 后端 `POST /api/user/user/uploadVideo` 补我方校验（Java 原版无校验）：扩展名白名单 mp4/webm/mov + 50MB 上限（纯函数 + 单测），该路由请求体上限单独放宽到 64MB（axum 默认 2MB 装不下视频，图片路由不动），存储层补 mov/m4v 的 Content-Type；③ H5 新增共享组件 `TigMediaUpload`（与 TigImageUpload 同形同回写，图片链路不变，视频走 uploadVideo；H5 用原生 input + fetch 直传保真实文件名、非 H5 走 chooseVideo，客户端先行校验格式/大小并明示上限），售后申请页（5 个）与发表留言页（3 个）换用，文案改「支持图片或视频（视频≤50MB）」；④ 展示侧补齐：H5 售后详情新增凭证区（此前该页根本不渲染 pics，图片凭证也看不到，本批一并补上，视频可播放）、协商记录视频可播放、PC 申请页同口径可选视频（图片 2M 口径不变）+ PC 详情凭证/协商记录视频可播放、admin 售后详情弹窗新增问题描述与凭证行（此前弹窗不展示 pics，视频可播放供审核）。图片凭证老流程与存量数据零回归。
 
 
-## 0.0.2 续 · 2026-11-20 批次（装修模块「图片比例」渲染回退补齐，随 H5 v27 上线）
+## 0.0.2 续 · 2026-11-20 批次（装修模块「图片比例」渲染回退补齐，随 H5 v28 上线）
 
 ### 修复
 
