@@ -184,7 +184,15 @@ impl CartService {
         }
         // 价格门控购买拦截（第 2 期，用户决策 3）：isIdentity 开启时未认证
         // 用户不能加购，否则购物车漏价绕过看价门控。门控关闭时直接放行。
-        crate::system::price_gate::ensure_purchase_allowed(&self.repos, user_id).await?;
+        // 询价豁免（2026-11-20 裁定）：命中询价商品时不在此拦截，由下方
+        // check_purchasable 给出询价一期文案「该商品为询价商品，请提交询价」。
+        let inquiry_exempt = self.product.is_inquiry_target(product_id, sku_id).await?;
+        crate::system::price_gate::ensure_purchase_allowed_for(
+            &self.repos,
+            user_id,
+            inquiry_exempt,
+        )
+        .await?;
         // 商品归属店铺：黑名单判定与购物车行 shop_id 落值共用同一口径。
         // 购物车行 shop_id 必须等于商品归属店铺——下游购物车按店分组、结算
         // 分店金额 / 运费模板 / 满减匹配、订单明细 shop_id 归属都取行上的
@@ -362,15 +370,27 @@ impl CartService {
         if quantity <= 0 {
             return Err(Error::Validation("数量必须大于0".into()));
         }
-        // 价格门控购买拦截（第 2 期，用户决策 3）：与加购同一口径。
-        crate::system::price_gate::ensure_purchase_allowed(&self.repos, user_id).await?;
         let cart = self
             .repos.trade.cart
             .find_owned(cart_id, user_id)
             .await?
             .ok_or_else(|| Error::NotFound("购物车记录不存在".into()))?;
+        // 价格门控购买拦截（第 2 期，用户决策 3）：与加购同一口径，
+        // 含询价豁免（2026-11-20 裁定）——命中询价时由下方
+        // check_purchasable 给出询价一期文案。
+        let sku_id = cart.sku_id.filter(|id| *id > 0);
+        let inquiry_exempt = self
+            .product
+            .is_inquiry_target(cart.product_id, sku_id)
+            .await?;
+        crate::system::price_gate::ensure_purchase_allowed_for(
+            &self.repos,
+            user_id,
+            inquiry_exempt,
+        )
+        .await?;
         self.product
-            .check_purchasable(cart.product_id, cart.sku_id.filter(|id| *id > 0), quantity)
+            .check_purchasable(cart.product_id, sku_id, quantity)
             .await?;
         self.repos.trade.cart.update_quantity(cart_id, user_id, quantity).await
     }
