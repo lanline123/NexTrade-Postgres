@@ -3010,8 +3010,15 @@ mod tests {
         };
         let mut p = Product::default();
         apply_dto_to_product(&mut p, dto.clone(), true);
-        assert_eq!(p.pic_url, "a.jpg");
+        assert_eq!(
+            p.pic_url,
+            "a.jpg?x-oss-process=image/resize,m_pad,h_500,h_500"
+        );
         assert_eq!(p.pic_original, "a.jpg");
+        assert_eq!(
+            p.pic_large,
+            "a.jpg?x-oss-process=image/resize,m_pad,h_800,h_800"
+        );
         assert_eq!(p.pic_thumb, "a_thumb.jpg");
     }
 
