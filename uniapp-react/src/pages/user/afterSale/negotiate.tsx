@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Text, View } from "@tarojs/components";
+import { Text, Video, View } from "@tarojs/components";
 import Taro, { useRouter } from "@tarojs/taro";
 
 import TigImage from "@/components/tig/tig-image/TigImage";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import { viewRecordLog } from "@/api/user/afterSale";
 import type { NegotiateItem } from "@/types/user/afterSale";
+import { imageFormat, isVideoPic } from "@/utils/format";
 import { t } from "@/utils/i18n";
 import { usePageGuards } from "@/utils/pageMixin";
 
@@ -82,7 +83,17 @@ export default function AfterSaleNegotiate() {
                                         <View className="negotiate-pics">
                                             {item.returnPic.map((sunItem, index) => (
                                                 <View key={index} className="pics-item">
-                                                    <TigImage src={sunItem.picThumb} mode="aspectFill" />
+                                                    {isVideoPic(sunItem) ? (
+                                                        <Video
+                                                            className="pics-video"
+                                                            src={imageFormat(sunItem.picUrl || "")}
+                                                            controls
+                                                            showCenterPlayBtn
+                                                            objectFit="cover"
+                                                        />
+                                                    ) : (
+                                                        <TigImage src={sunItem.picThumb} mode="aspectFill" />
+                                                    )}
                                                 </View>
                                             ))}
                                         </View>

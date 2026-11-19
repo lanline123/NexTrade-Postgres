@@ -24,6 +24,8 @@ import { formatDisplayPriceWithExact, formatPrice } from '@/lib/currency';
 interface ReturnPic {
   picUrl?: string;
   picThumb?: string;
+  /** 视频凭证标记（2026-11-19 视频凭证起），图片不带 */
+  fileType?: string;
 }
 
 interface AfterSalesItem {
@@ -91,6 +93,14 @@ function imageUrl(pic?: ReturnPic | string | null): string {
   if (!pic) return '';
   if (typeof pic === 'string') return pic;
   return pic.picUrl || pic.picThumb || '';
+}
+
+/** 凭证条目是否为视频：fileType 标记优先，无标记的老数据按扩展名兜底 */
+function isVideoPic(pic?: ReturnPic | string | null): boolean {
+  if (!pic) return false;
+  if (typeof pic === 'string') return /\.(mp4|webm|mov|m4v)([?#].*)?$/i.test(pic);
+  if (pic.fileType) return pic.fileType.toLowerCase() === 'video';
+  return isVideoPic(pic.picUrl || pic.picThumb || '');
 }
 
 function fallbackSubText(status: number | undefined): string {
@@ -403,13 +413,22 @@ export default function AfterSalesDetailClient({ id }: { id: number }) {
               <td>
                 <div className="application-picture">
                   {pics.length ? pics.map((pic, index) => (
-                    <img
-                      key={index}
-                      src={imageUrl(pic)}
-                      alt=""
-                      style={{ width: 80, height: 80, objectFit: 'cover', cursor: 'zoom-in' }}
-                      onClick={() => setPreviewUrl(imageUrl(pic))}
-                    />
+                    isVideoPic(pic) ? (
+                      <video
+                        key={index}
+                        src={imageUrl(pic)}
+                        controls
+                        style={{ width: 160, height: 120, objectFit: 'cover', background: '#000' }}
+                      />
+                    ) : (
+                      <img
+                        key={index}
+                        src={imageUrl(pic)}
+                        alt=""
+                        style={{ width: 80, height: 80, objectFit: 'cover', cursor: 'zoom-in' }}
+                        onClick={() => setPreviewUrl(imageUrl(pic))}
+                      />
+                    )
                   )) : '-'}
                 </div>
               </td>
@@ -442,15 +461,24 @@ export default function AfterSalesDetailClient({ id }: { id: number }) {
                   <div className="bt-image">
                     <div>{log.logInfo || ''}</div>
                     {(log.returnPic || []).map((pic, picIndex) => (
-                      <img
-                        key={picIndex}
-                        className="bt-img"
-                        src={imageUrl(pic)}
-                        alt=""
-                        loading="lazy"
-                        style={{ objectFit: 'cover' }}
-                        onClick={() => setPreviewUrl(imageUrl(pic))}
-                      />
+                      isVideoPic(pic) ? (
+                        <video
+                          key={picIndex}
+                          src={imageUrl(pic)}
+                          controls
+                          style={{ width: 160, height: 120, objectFit: 'cover', background: '#000', display: 'block', marginTop: 6 }}
+                        />
+                      ) : (
+                        <img
+                          key={picIndex}
+                          className="bt-img"
+                          src={imageUrl(pic)}
+                          alt=""
+                          loading="lazy"
+                          style={{ objectFit: 'cover' }}
+                          onClick={() => setPreviewUrl(imageUrl(pic))}
+                        />
+                      )
                     ))}
                   </div>
                 </td>

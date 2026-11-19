@@ -3,7 +3,7 @@ import { Picker, Text, Textarea, View } from "@tarojs/components";
 import Taro, { useRouter } from "@tarojs/taro";
 
 import TigImage from "@/components/tig/tig-image/TigImage";
-import TigImageUpload, { type ImageUploadItem } from "@/components/tig/tig-image-upload/TigImageUpload";
+import TigMediaUpload, { type MediaUploadItem } from "@/components/tig/tig-media-upload/TigMediaUpload";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import TigNumberBox from "@/components/tig/tig-number-box/TigNumberBox";
 import FormatPrice from "@/components/format-price/FormatPrice";
@@ -16,7 +16,7 @@ import "./edit.scss";
 
 interface EditForm {
     items: { orderItemId: number; number: number }[];
-    pics: ImageUploadItem[];
+    pics: MediaUploadItem[];
     orderId: number;
     aftersaleType: number;
     aftersaleReason: string;
@@ -72,7 +72,7 @@ export default function AfterSaleEdit() {
     const [afterSalesReasonEnabled, setAfterSalesReasonEnabled] = useState(false);
     const [aftersaleTypeIndex, setAftersaleTypeIndex] = useState<number | null>(null);
     const [aftersaleReasonIndex, setAftersaleReasonIndex] = useState<number | null>(null);
-    const [fileLists, setFileLists] = useState<ImageUploadItem[]>([]);
+    const [fileLists, setFileLists] = useState<MediaUploadItem[]>([]);
 
     /**
      * 预约上门订单判断（用于将“上门服务费”合并到单品回显价格中）
@@ -221,7 +221,7 @@ export default function AfterSaleEdit() {
                 aftersaleReason: result.aftersaleReason,
                 aftersaleType: result.aftersaleType
             });
-            const pics: ImageUploadItem[] = (Array.isArray(result.pics) ? result.pics : []).map((pic: any) => {
+            const pics: MediaUploadItem[] = (Array.isArray(result.pics) ? result.pics : []).map((pic: any) => {
                 if (typeof pic === "string") {
                     return {
                         url: imageFormat(pic),
@@ -478,8 +478,8 @@ export default function AfterSaleEdit() {
                         <View className="form-row form-row--upload">
                             <View className="form-row-label">{t("上传凭证")}</View>
                             <View className="upload-box">
-                                <View className="upload-text">{t("最多上传5张图片")}</View>
-                                <TigImageUpload
+                                <View className="upload-text">{t("最多上传5个文件，支持图片或视频（视频≤50MB）")}</View>
+                                <TigMediaUpload
                                     limit={5}
                                     modelValue={fileLists}
                                     onModelValueChange={setFileLists}

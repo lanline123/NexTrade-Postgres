@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Text, Textarea, View } from "@tarojs/components";
 import Taro, { useRouter } from "@tarojs/taro";
 
-import TigImageUpload, { type ImageUploadItem } from "@/components/tig/tig-image-upload/TigImageUpload";
+import TigMediaUpload, { type MediaUploadItem } from "@/components/tig/tig-media-upload/TigMediaUpload";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import { aftersalesFeedback } from "@/api/user/afterSale";
 import { t } from "@/utils/i18n";
@@ -14,6 +14,8 @@ interface ReturnPic {
     picName: string;
     picThumb: string;
     picUrl: string;
+    /** 视频凭证标记（2026-11-19 视频凭证起），图片不带 */
+    fileType?: string;
 }
 
 interface LeaveMessageForm {
@@ -25,7 +27,7 @@ interface LeaveMessageForm {
 /**
  * 售后留言页（自旧 pages/user/afterSale/leaveMessage.vue 移植）
  * - 填写问题描述（最多100字）
- * - 上传凭证图片（最多3张）
+ * - 上传凭证（图片或视频，最多3个，视频≤50MB）
  * - 提交后跳转协商记录页
  */
 export default function AfterSaleLeaveMessage() {
@@ -40,7 +42,7 @@ export default function AfterSaleLeaveMessage() {
     const formRef = useRef(form);
     formRef.current = form;
 
-    const [fileLists, setFileLists] = useState<ImageUploadItem[]>([]);
+    const [fileLists, setFileLists] = useState<MediaUploadItem[]>([]);
 
     // 旧 onLoad：id 来自路由
     useEffect(() => {
@@ -52,7 +54,7 @@ export default function AfterSaleLeaveMessage() {
     }, []);
 
     /** 旧 uploadFile 成功回调：form.returnPic 只追加，删除图片时不同步移除（保持旧行为） */
-    const handleUploaded = (item: ImageUploadItem) => {
+    const handleUploaded = (item: MediaUploadItem) => {
         setForm((prev) => ({
             ...prev,
             returnPic: [
@@ -60,7 +62,8 @@ export default function AfterSaleLeaveMessage() {
                 {
                     picName: item.picName || "",
                     picThumb: item.picThumb || "",
-                    picUrl: item.picUrl || ""
+                    picUrl: item.picUrl || "",
+                    ...(item.fileType === "video" ? { fileType: "video" } : {})
                 }
             ]
         }));
@@ -111,8 +114,8 @@ export default function AfterSaleLeaveMessage() {
                     <View className="form-row">
                         <View className="form-row-label">{t("上传凭证")}</View>
                         <View className="upload-content">
-                            <View className="upload-title">{t("最多选择3张图片")}</View>
-                            <TigImageUpload
+                            <View className="upload-title">{t("最多选择3个文件，支持图片或视频（视频≤50MB）")}</View>
+                            <TigMediaUpload
                                 limit={3}
                                 modelValue={fileLists}
                                 onModelValueChange={setFileLists}

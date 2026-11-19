@@ -1,0 +1,67 @@
+/* 与 tig-image-upload 同网格视觉，视频格内嵌播放器 */
+.tig-media-upload {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15rpx;
+    width: 100%;
+
+    .tig-media-upload__item,
+    .tig-media-upload__trigger {
+        width: 160rpx;
+        height: 160rpx;
+        border-radius: 8rpx;
+        overflow: hidden;
+        position: relative;
+        box-sizing: border-box;
+    }
+
+    .tig-media-upload__item {
+        background-color: #f4f5f7;
+
+        .tig-media-upload__img,
+        .tig-media-upload__video {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .tig-media-upload__delete {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 44rpx;
+            height: 44rpx;
+            background-color: rgba(0, 0, 0, 0.45);
+            border-bottom-left-radius: 8rpx;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+
+            .tig-media-upload__delete-icon {
+                color: #fff;
+                font-size: 34rpx;
+                line-height: 1;
+            }
+        }
+    }
+
+    .tig-media-upload__trigger {
+        background-color: #f4f5f7;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        .tig-media-upload__camera {
+            font-size: 56rpx;
+            color: #cccccc;
+        }
+
+        .tig-media-upload__plus {
+            font-size: 60rpx;
+            line-height: 1;
+            color: #c8c9cc;
+            font-weight: 300;
+        }
+    }
+}

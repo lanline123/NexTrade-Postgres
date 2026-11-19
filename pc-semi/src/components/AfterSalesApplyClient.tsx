@@ -164,9 +164,21 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
         return Number(total.toFixed(2));
     }, [data, quantities, fullPointsExchange]);
 
-  /** 源码 form/src/UploadImage.vue：凭证上传 /api/user/user/uploadImg */
+  /** 凭证上传（源码 form/src/UploadImage.vue）：图片走 /api/user/user/uploadImg；
+   *  视频走 /api/user/user/uploadVideo（2026-11-19 我方新增视频凭证，落库带 fileType="video"） */
   const uploadPic = async (file: File) => {
-    if (file.size > 2 * 1024 * 1024) {
+    const isVideo =
+      file.type.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(file.name || '');
+    if (isVideo) {
+      if (!/\.(mp4|webm|mov)$/i.test(file.name || '')) {
+        Toast.error({ content: '仅支持 mp4、webm、mov 格式的视频' });
+        return;
+      }
+      if (file.size > 50 * 1024 * 1024) {
+        Toast.error({ content: '视频大小不能超过50MB' });
+        return;
+      }
+    } else if (file.size > 2 * 1024 * 1024) {
       Toast.error({ content: '只能上传 2M 以内的图片' });
       return;
     }
@@ -175,7 +187,7 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
       const token = localStorage.getItem('accessToken') || '';
       const body = new FormData();
       body.append('file', file);
-      const response = await fetch('/api/user/user/uploadImg', {
+      const response = await fetch(isVideo ? '/api/user/user/uploadVideo' : '/api/user/user/uploadImg', {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body,
@@ -187,6 +199,16 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
         return;
       }
       const data = json?.data;
+      if (isVideo) {
+        const url = typeof data === 'string' ? data : String(data?.videoUrl || '');
+        if (url) {
+          setPics((current) => [
+            ...current,
+            { picUrl: url, picThumb: String(data?.videoCover || ''), fileType: 'video' },
+          ]);
+        }
+        return;
+      }
       const url = typeof data === 'string' ? data : String(data?.picUrl || data?.url || '');
       if (url) setPics((current) => [...current, { picUrl: url, picThumb: String(data?.picThumb || url) }]);
     } catch (error) {
@@ -401,7 +423,15 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
                     <div className="aftersales-pics">
                       {pics.map((pic, index) => (
                         <span className="aftersales-pics__item" key={index}>
-                          <img src={String(pic.picThumb || pic.picUrl || '')} alt={t('凭证')} />
+                          {pic.fileType === 'video' ? (
+                            <video
+                              src={String(pic.picUrl || '')}
+                              controls
+                              style={{ width: 80, height: 80, objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <img src={String(pic.picThumb || pic.picUrl || '')} alt={t('凭证')} />
+                          )}
                           <button type="button" onClick={() => setPics((current) => current.filter((_, i) => i !== index))}>×</button>
                         </span>
                       ))}
@@ -410,7 +440,7 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
                           {uploading ? t('上传中...') : '+ 上传'}
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,video/mp4,video/webm,video/quicktime"
                             hidden
                             onChange={(event) => {
                               const file = event.target.files?.[0];
@@ -420,6 +450,9 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
                           />
                         </label>
                       ) : null}
+                    </div>
+                    <div style={{ color: '#999', fontSize: 12, marginTop: 6 }}>
+                      {t('支持图片（2M以内）或视频（50M以内，mp4/webm/mov），最多5个')}
                     </div>
                   </div>
                 </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Text, View } from "@tarojs/components";
+import { Text, Video, View } from "@tarojs/components";
 import Taro, { usePageScroll, useRouter, useUnload } from "@tarojs/taro";
 
 import FormatPrice from "@/components/format-price/FormatPrice";
@@ -8,7 +8,7 @@ import TigImage from "@/components/tig/tig-image/TigImage";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import { aftersalesCancel, aftersalesViewRecord } from "@/api/user/afterSale";
 import type { afterSaleInfoItem } from "@/types/user/afterSale";
-import { pickPic } from "@/utils/format";
+import { imageFormat, isVideoPic, pickPic } from "@/utils/format";
 import { t } from "@/utils/i18n";
 import { usePageGuards } from "@/utils/pageMixin";
 
@@ -374,6 +374,28 @@ export default function AfterSaleInfo() {
                                     <View className="value">{infoData.aftersaleReason}</View>
                                 </View>
                             </View>
+                            {Array.isArray(infoData.pics) && infoData.pics.length > 0 && (
+                                <View className="evidence-info">
+                                    <View className="label">{t("上传凭证")}：</View>
+                                    <View className="evidence-list">
+                                        {infoData.pics.map((pic: any, index: number) => (
+                                            <View className="evidence-item" key={index}>
+                                                {isVideoPic(pic) ? (
+                                                    <Video
+                                                        className="evidence-video"
+                                                        src={imageFormat(pic.picUrl || "")}
+                                                        controls
+                                                        showCenterPlayBtn
+                                                        objectFit="cover"
+                                                    />
+                                                ) : (
+                                                    <TigImage src={pic.picThumb || pic.picUrl} mode="aspectFill" />
+                                                )}
+                                            </View>
+                                        ))}
+                                    </View>
+                                </View>
+                            )}
                             <View className="after-sale">
                                 <View className="after-sale-item">
                                     <View className="label">{t("售后编号")}：</View>

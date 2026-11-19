@@ -229,6 +229,8 @@ interface ReturnPic {
     picName: string;
     picThumb: string;
     picUrl: string;
+    /** 视频凭证标记（2026-11-19 视频凭证起），图片不带 */
+    fileType?: string;
 }
 
 // 售后申请列表

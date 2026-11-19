@@ -1167,12 +1167,15 @@ impl UserCenterService {
     }
 
     /// 上传视频（Java `uploadVideo` → `GalleryVideoInfoService.uploadVideo`）。
+    ///
+    /// Java 侧未做格式/大小校验；2026-11-19 起为售后视频凭证补我方校验
+    /// （扩展名白名单 + 50MB 上限，见 [`validate_video_upload`]）。
     pub async fn upload_video(
         &self,
         file_name: Option<&str>,
         bytes: &[u8],
     ) -> Result<UploadVideoInfoVO> {
-        require_upload_file(file_name, bytes)?;
+        validate_video_upload(file_name, bytes)?;
         let name = file_name.unwrap_or("video.mp4");
         let url = nextrade_infrastructure::storage::save_local_upload("gallery_video", name, bytes).await?;
         Ok(UploadVideoInfoVO {
@@ -1488,6 +1491,31 @@ fn require_non_blank(value: Option<&str>, message: &str) -> Result<String> {
         .ok_or_else(|| Error::Validation(message.to_string()))
 }
 
+/// 前台视频上传大小上限（字节）：50MB（我方新增口径，Java `uploadVideo` 无校验）。
+pub const VIDEO_UPLOAD_MAX_SIZE: usize = 50 * 1024 * 1024;
+
+/// 前台视频上传允许的扩展名（小写）。
+pub const VIDEO_UPLOAD_EXTENSIONS: [&str; 3] = ["mp4", "webm", "mov"];
+
+/// 校验视频上传：非空 + 扩展名白名单 + 大小上限（纯函数，便于单测）。
+fn validate_video_upload(file_name: Option<&str>, bytes: &[u8]) -> Result<()> {
+    require_upload_file(file_name, bytes)?;
+    let ext = file_name
+        .and_then(|name| std::path::Path::new(name).extension())
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    if !VIDEO_UPLOAD_EXTENSIONS.contains(&ext.as_str()) {
+        return Err(Error::Validation(
+            "仅支持 mp4、webm、mov 格式的视频".to_string(),
+        ));
+    }
+    if bytes.len() > VIDEO_UPLOAD_MAX_SIZE {
+        return Err(Error::Validation("视频大小不能超过50MB".to_string()));
+    }
+    Ok(())
+}
+
 /// 校验上传文件非空（Java `MultipartFile.isEmpty()`）。
 fn require_upload_file(file_name: Option<&str>, bytes: &[u8]) -> Result<()> {
     if bytes.is_empty() {
@@ -1569,6 +1597,32 @@ mod tests {
     fn handel_time_matches_java() {
         assert_eq!(handel_time(0), "");
         assert_eq!(handel_time(1_700_000_000).len(), 19);
+    }
+
+    #[test]
+    fn validate_video_upload_accepts_whitelisted_extensions() {
+        let bytes = vec![0u8; 1024];
+        assert!(validate_video_upload(Some("clip.mp4"), &bytes).is_ok());
+        assert!(validate_video_upload(Some("clip.webm"), &bytes).is_ok());
+        assert!(validate_video_upload(Some("CLIP.MOV"), &bytes).is_ok());
+    }
+
+    #[test]
+    fn validate_video_upload_rejects_bad_extension_and_empty() {
+        let bytes = vec![0u8; 1024];
+        assert!(validate_video_upload(Some("clip.avi"), &bytes).is_err());
+        assert!(validate_video_upload(Some("clip.mp4.exe"), &bytes).is_err());
+        assert!(validate_video_upload(Some("noext"), &bytes).is_err());
+        assert!(validate_video_upload(None, &bytes).is_err());
+        assert!(validate_video_upload(Some("clip.mp4"), &[]).is_err());
+    }
+
+    #[test]
+    fn validate_video_upload_rejects_oversize() {
+        let bytes = vec![0u8; VIDEO_UPLOAD_MAX_SIZE + 1];
+        assert!(validate_video_upload(Some("clip.mp4"), &bytes).is_err());
+        let exact = vec![0u8; VIDEO_UPLOAD_MAX_SIZE];
+        assert!(validate_video_upload(Some("clip.mp4"), &exact).is_ok());
     }
 
     #[test]

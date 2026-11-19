@@ -32,6 +32,21 @@ interface AftersalesItem {
   number?: number;
 }
 
+interface AftersalePic {
+  picName?: string;
+  picThumb?: string;
+  picUrl?: string;
+  /** 视频凭证标记（2026-11-19 视频凭证起），图片不带 */
+  fileType?: string;
+}
+
+/** 凭证条目是否为视频：fileType 标记优先，无标记的老数据按扩展名兜底 */
+const isVideoPic = (pic: AftersalePic): boolean => {
+  if (pic.fileType) return pic.fileType.toLowerCase() === 'video';
+  const url = (pic.picUrl || pic.picThumb || '').split(/[?#]/)[0].toLowerCase();
+  return ['.mp4', '.webm', '.mov', '.m4v'].some((ext) => url.endsWith(ext));
+};
+
 interface AftersalesRow {
   aftersaleId: number;
   aftersalesSn: string;
@@ -44,6 +59,8 @@ interface AftersalesRow {
   aftersaleType: number;
   aftersalesTypeName?: string;
   aftersaleReason?: string;
+  description?: string;
+  pics?: AftersalePic[];
   status: number;
   statusName?: string;
   returnAddress?: string;
@@ -471,6 +488,39 @@ export default function AftersalesOrders() {
               <label>{t('售后原因')}</label>
               <span>{aftersaleDetail.aftersaleReason || '-'}</span>
             </div>
+            {aftersaleDetail.description ? (
+              <div className="aftersales-detail-row">
+                <label>{t('问题描述')}</label>
+                <span>{aftersaleDetail.description}</span>
+              </div>
+            ) : null}
+            {(aftersaleDetail.pics || []).length > 0 ? (
+              <div className="aftersales-detail-row">
+                <label>{t('上传凭证')}</label>
+                <span style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {(aftersaleDetail.pics || []).map((pic, index) =>
+                    isVideoPic(pic) ? (
+                      <video
+                        key={index}
+                        src={pic.picUrl || pic.picThumb || ''}
+                        controls
+                        style={{ width: 260, maxWidth: '100%', background: '#000' }}
+                      />
+                    ) : (
+                      <a key={index} href={pic.picUrl || pic.picThumb || ''} target="_blank" rel="noreferrer">
+                        <img
+                          src={pic.picThumb || pic.picUrl || ''}
+                          alt=""
+                          width={60}
+                          height={60}
+                          style={{ objectFit: 'cover' }}
+                        />
+                      </a>
+                    ),
+                  )}
+                </span>
+              </div>
+            ) : null}
             {(aftersaleDetail.aftersalesItems || []).map((item) => (
               <div className="aftersales-detail-row" key={item.itemId || item.productId}>
                 <label>{t('退换商品')}</label>

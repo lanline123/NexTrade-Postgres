@@ -14,6 +14,29 @@ export function imageFormat(path: string) {
     return resolveImageUrl(path, storageUrl);
 }
 
+/** 售后凭证等 pics 条目的媒体类型判断入参（与落库 JSON 同形） */
+export interface MediaPicLike {
+    picUrl?: string;
+    picThumb?: string;
+    fileType?: string;
+}
+
+const VIDEO_EXTENSIONS = [".mp4", ".webm", ".mov", ".m4v"];
+
+/**
+ * 判断凭证条目是否为视频：优先 `fileType="video"` 标记（2026-11-19 视频凭证起），
+ * 无标记的老数据按 picUrl/picThumb 扩展名兜底。
+ */
+export function isVideoPic(pic: MediaPicLike | string | null | undefined): boolean {
+    if (!pic) return false;
+    if (typeof pic === "string") {
+        const clean = pic.split(/[?#]/)[0].toLowerCase();
+        return VIDEO_EXTENSIONS.some((ext) => clean.endsWith(ext));
+    }
+    if (pic.fileType) return pic.fileType.toLowerCase() === "video";
+    return isVideoPic(pic.picUrl || pic.picThumb || "");
+}
+
 interface PicSource {
     picUrl?: string;
     picThumb?: string;

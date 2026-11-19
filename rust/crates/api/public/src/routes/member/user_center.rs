@@ -49,7 +49,7 @@
 use std::collections::HashMap;
 
 use axum::{
-    extract::{Multipart, Path, Query, State},
+    extract::{DefaultBodyLimit, Multipart, Path, Query, State},
     http::{header, HeaderMap},
     middleware,
     response::{IntoResponse, Response},
@@ -120,15 +120,20 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
 
     let anonymous = Router::new()
         .route("/user/user/uploadImg", post(upload_img))
-        .route("/user/user/uploadVideo", post(upload_video))
         .route("/user/user/levelList", get(level_list))
         .route("/user/user/levelInfo", get(level_info));
+
+    // 视频上传单独放宽请求体上限：axum 默认 2MB 装不下视频文件；
+    // 路由级上限 64MB，文件本体上限 50MB 由服务层 `validate_video_upload` 校验。
+    let video_upload = Router::new()
+        .route("/user/user/uploadVideo", post(upload_video))
+        .layer(DefaultBodyLimit::max(64 * 1024 * 1024));
 
     // 证件私有文件读取代理（批次B）：自带 JWT 校验（Header / Cookie /
     // `?token=` 三选一，`?token=` 供 <img> 直显场景），不套公开组中间件。
     let cert_file = Router::new().route("/cert/file/{name}", get(cert_file));
 
-    authorized.merge(anonymous).merge(cert_file)
+    authorized.merge(anonymous).merge(video_upload).merge(cert_file)
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -511,7 +516,8 @@ async fn cert_file(
 /// `POST /api/user/user/uploadVideo`：上传视频（`multipart/form-data`）。
 ///
 /// 对应 Java `UserController.uploadVideo(@RequestParam("file") MultipartFile file)`。
-/// **未迁移**：视频/对象存储服务。
+/// 经存储抽象落盘/OSS（`gallery_video` 前缀）；格式（mp4/webm/mov）与
+/// 50MB 上限在服务层校验，本路由请求体上限单独放宽到 64MB。
 async fn upload_video(
     State(state): State<PublicState>,
     mut multipart: Multipart,
