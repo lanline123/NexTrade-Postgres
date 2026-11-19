@@ -2021,7 +2021,7 @@ export function PcCustomPage() {
     { title: 'ID', dataIndex: 'decorateId', width: 80 },
     {
       title: t('页面名称'),
-      dataIndex: 'decorateName',
+      dataIndex: 'decorateTitle',
       width: 180,
       render: (v: any, row: any) => v || row?.bingdingH5Name || t('PC自定义微页面'),
     },
@@ -2054,7 +2054,7 @@ export function PcCustomPage() {
             {t('装修')}
           </Button>
         )}
-        filters={[{ field: 'decorateName', label: t('页面名称'), type: 'input' }]}
+        filters={[{ field: 'keyword', label: t('页面名称'), type: 'input' }]}
         drawer={{
           title: t('新建PC微页面'),
           addText: t('新建页面'),
@@ -2067,7 +2067,7 @@ export function PcCustomPage() {
               key: 'basic',
               title: t('基础配置'),
               fields: [
-                { field: 'decorateName', label: t('页面名称'), type: 'input', required: true },
+                { field: 'decorateTitle', label: t('页面名称'), type: 'input', required: true },
                 { field: 'sortOrder', label: t('排序'), type: 'input' },
               ],
             },
