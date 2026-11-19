@@ -65,6 +65,11 @@ export default function FormatPrice({
     const currencyStyleC = useMemo(() => convStyle(currencyStyle), [currencyStyle]);
     const fontStyleC = useMemo(() => convStyle(fontStyle), [fontStyle]);
     const decimalsStyleC = useMemo(() => convStyle(decimalsStyle), [decimalsStyle]);
+    const decimalStyle = {
+        ...fontStyleC,
+        ...(currencyStyleC.fontSize ? { fontSize: currencyStyleC.fontSize } : {}),
+        ...decimalsStyleC
+    };
     const integerStyleC = useMemo(() => convStyle(integerStyle), [integerStyle]);
 
     const b2bText = useMemo(() => {
@@ -157,7 +162,7 @@ export default function FormatPrice({
                         {price.integer}
                     </View>
                     {showDecimals && (
-                        <View className="num decimal" style={(hasContent(decimalsStyleC) ? decimalsStyleC : fontStyleC) as any}>
+                        <View className="num decimal" style={decimalStyle}>
                             {price.decimals}
                         </View>
                     )}

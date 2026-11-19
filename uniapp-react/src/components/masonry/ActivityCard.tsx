@@ -51,10 +51,10 @@ export default function ActivityCard({ activityInfo = {}, cardType = "list", fon
             className={`promotion ${cardType !== "list" ? "subbg" : ""} ${activityInfo.canJoin === false ? "promotion-disabled" : ""}`}
             style={{ fontSize, ...cssVars } as any}
         >
-            {activityInfo.type && activityInfo.type != 2 && getActivityText(activityInfo.type) && (
+            {getActivityText(activityInfo.type) && (
                 <View className="activity">{t(getActivityText(activityInfo.type))}</View>
             )}
-            {activityInfo.type && activityInfo.type == 2 && activityInfo.data?.promotionDesc != null && (
+            {Number(activityInfo.type) === 2 && activityInfo.data?.promotionDesc != null && (
                 <View className="ticket">
                     <View className="ticket-type">
                         {t("券")}

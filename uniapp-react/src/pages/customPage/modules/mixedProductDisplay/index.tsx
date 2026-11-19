@@ -219,7 +219,7 @@ export default function MixedProductDisplay({ module }: Props) {
                         >
                             <View className="mk-title" style={`color:${module.moduleColor.titleColor}`}>
                                 <Text className="line1">{t(module.productGroups[0].groupTitle)}</Text>
-                                {module.showCountdown && (
+                                {Number(module.showCountdown) === 1 && (
                                     <View className="time" style={`background:${module.moduleColor.countdownBackgroundColor}; color:${module.moduleColor.countdownColor}`}>
                                         {new Date().getTime() > Number(module.dailyTime[0]) ? (
                                             <CommonCountdown
@@ -266,7 +266,7 @@ export default function MixedProductDisplay({ module }: Props) {
                                                 background-image: url(${productImage(item)});`}
                                                 />
                                             </View>
-                                            {module.showProductPrice && (
+                                            {Number(module.showProductPrice) === 1 && (
                                                 <View className="price-box">
                                                     <View
                                                         className="price"
@@ -281,7 +281,7 @@ export default function MixedProductDisplay({ module }: Props) {
                                                     </View>
                                                 </View>
                                             )}
-                                            {module.crossedOutPrice && item.marketPrice && item.marketPrice > 0 && !showB2bText && (
+                                            {Number(module.crossedOutPrice) === 1 && Number(item.marketPrice) > 0 && !showB2bText && (
                                                 <View className="origin">
                                                     <View style={`color: ${module.moduleColor.crossedOutPriceColor};text-decoration: line-through;`}>
                                                         <FormatPrice fontStyle={{ fontSize: "24rpx", textDecoration: "line-through" } as any} priceData={item.marketPrice} />
@@ -340,7 +340,7 @@ export default function MixedProductDisplay({ module }: Props) {
                                                 background-image: url(${productImage(item)});`}
                                                 />
                                             </View>
-                                            {module.showProductPrice && (
+                                            {Number(module.showProductPrice) === 1 && (
                                                 <View className="price-box">
                                                     <View
                                                         className="price"
@@ -355,7 +355,7 @@ export default function MixedProductDisplay({ module }: Props) {
                                                     </View>
                                                 </View>
                                             )}
-                                            {item.marketPrice && module.crossedOutPrice && !showB2bText && (
+                                            {Number(item.marketPrice) > 0 && Number(module.crossedOutPrice) === 1 && !showB2bText && (
                                                 <View className="origin">
                                                     <View style={`color: ${module.moduleColor.crossedOutPriceColor};text-decoration: line-through;`}>
                                                         <FormatPrice fontStyle={{ fontSize: "24rpx", textDecoration: "line-through" } as any} priceData={item.marketPrice} />

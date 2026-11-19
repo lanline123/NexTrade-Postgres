@@ -139,12 +139,12 @@ export default function Countdown({ module }: Props) {
                                         />
                                     </View>
                                     <View className="goods-info" style={`padding-bottom: 0; text-align: ${module.textAlignment}`}>
-                                        {module.showProductName && (
+                                        {Number(module.showProductName) === 1 && (
                                             <View className="title line2" style={`color: ${module.moduleColor.productNameColor}`}>
                                                 {item.productName ? t(item.productName) : t("商品名称")}
                                             </View>
                                         )}
-                                        {module.showProductPrice && (
+                                        {Number(module.showProductPrice) === 1 && (
                                             <View className="priceBox" style={`justify-content: ${module.textAlignment}`}>
                                                 <View
                                                     className="price"
@@ -152,7 +152,7 @@ export default function Countdown({ module }: Props) {
                                                 >
                                                     <FormatPrice fontStyle={{ fontSize: "22rpx" }} priceData={item.price} />
                                                 </View>
-                                                {module.crossedOutPrice && item.marketPrice && item.marketPrice > 0 && !showB2bText && (
+                                                {Number(module.crossedOutPrice) === 1 && Number(item.marketPrice) > 0 && !showB2bText && (
                                                     <View className="origin" style={`color: ${module.moduleColor.crossedOutPriceColor}`}>
                                                         <FormatPrice
                                                             fontStyle={{ fontSize: "20rpx", textDecoration: "line-through" }}
@@ -168,7 +168,7 @@ export default function Countdown({ module }: Props) {
                         ))}
                     </View>
                 </View>
-                {module.countdownData.showCountdown && (
+                {Number(module.countdownData.showCountdown) === 1 && (
                     <View
                         className="countdown-mod"
                         style={`margin-top: -${designPxToRpx(module.countdownData.countdownPicBottom)}; border-radius: 0 0 12rpx 12rpx`}

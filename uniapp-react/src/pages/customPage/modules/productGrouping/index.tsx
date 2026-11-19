@@ -23,6 +23,9 @@ export default function ProductGrouping({ module }: Props) {
         return formatCommonStyle(module.moduleStyle, module.contentStyle);
     }, [module.moduleStyle, module.contentStyle]);
 
+    const configuredPriceSize = Number(module.productPriceSize ?? module.productPrice_size);
+    const priceSize = Number.isFinite(configuredPriceSize) && configuredPriceSize > 0 ? configuredPriceSize : 14;
+
     const groupTitlePadding = useMemo(() => {
         const padding = designPxToRpx(module.groupTitle.marginLeftRight);
         return padding ? `0 ${padding}` : "";
@@ -174,7 +177,7 @@ export default function ProductGrouping({ module }: Props) {
                 }
             >
                 <View className="productgrouping">
-                    {(module.groupTitle.showTitle || module.groupTitle.showSubTitle) && (
+                    {(Number(module.groupTitle.showTitle) === 1 || Number(module.groupTitle.showSubTitle) === 1) && (
                         <View className="tablist">
                             {(tabList || []).map((item: any, index: number) => (
                                 <View key={index} className="tablist-item" onClick={() => switchTab(Number(index))}>
@@ -182,7 +185,7 @@ export default function ProductGrouping({ module }: Props) {
                                         <View className="nav-item">
                                             {Number(index) > 0 && <View className="line" style={`border-color:${module.groupTitle.splitLineColor}`} />}
                                             <View className="nav-item-box" style={{ padding: groupTitlePadding }}>
-                                                {module.groupTitle.showTitle && (
+                                                {Number(module.groupTitle.showTitle) === 1 && (
                                                     <View
                                                         className="tab-title"
                                                         style={
@@ -193,7 +196,7 @@ export default function ProductGrouping({ module }: Props) {
                                                         {t(item.title)}
                                                     </View>
                                                 )}
-                                                {item.subTitle && module.groupTitle.showSubTitle && (
+                                                {item.subTitle && Number(module.groupTitle.showSubTitle) === 1 && (
                                                     <View
                                                         className="tab-sub"
                                                         style={
@@ -264,7 +267,7 @@ export default function ProductGrouping({ module }: Props) {
                                                 className="goods-info"
                                                 style={`text-align: left; padding: ${productInfoPadding}; ${item.__isBanner ? "visibility: hidden;" : ""}`}
                                             >
-                                                {module.showProductName && (
+                                                {Number(module.showProductName) === 1 && (
                                                     <View
                                                         className="goods-title"
                                                         style={`margin-top: 6rpx;
@@ -290,26 +293,26 @@ export default function ProductGrouping({ module }: Props) {
                                                                 {module.productPricePic && module.productPricePic.picUrl && (
                                                                     <Image className="icon" mode="heightFix" src={module.productPricePic.picUrl} />
                                                                 )}
-                                                                {module.showProductPrice && (
+                                                                {Number(module.showProductPrice) === 1 && (
                                                                     <View className="price">
                                                                         <FormatPrice
                                                                             fontStyle={
                                                                                 {
-                                                                                    fontSize: designPxToRpx(module.productPriceSize),
+                                                                                    fontSize: designPxToRpx(priceSize),
                                                                                     color: module.productColor.priceColor,
                                                                                     fontWeight: module.productPriceWeight
                                                                                 } as any
                                                                             }
                                                                             currencyStyle={
                                                                                 {
-                                                                                    fontSize: designPxToRpx(module.productPriceSize - 2),
+                                                                                    fontSize: designPxToRpx(Math.max(1, priceSize - 2)),
                                                                                     color: module.productColor.priceColor,
                                                                                     fontWeight: module.productPriceWeight
                                                                                 } as any
                                                                             }
                                                                             decimalsStyle={
                                                                                 {
-                                                                                    fontSize: designPxToRpx(module.productPriceSize - 2),
+                                                                                    fontSize: designPxToRpx(Math.max(1, priceSize - 2)),
                                                                                     color: module.productColor.priceColor,
                                                                                     fontWeight: module.productPriceWeight
                                                                                 } as any
@@ -318,7 +321,7 @@ export default function ProductGrouping({ module }: Props) {
                                                                         />
                                                                     </View>
                                                                 )}
-                                                                {module.crossedOutPrice && item.marketPrice && item.marketPrice > 0 && (
+                                                                {Number(module.crossedOutPrice) === 1 && Number(item.marketPrice) > 0 && (
                                                                     <View className="origin" style={`color: ${module.productColor.crossedOutPriceColor}`}>
                                                                         <FormatPrice
                                                                             fontStyle={{ fontSize: "24rpx", textDecoration: "line-through" } as any}

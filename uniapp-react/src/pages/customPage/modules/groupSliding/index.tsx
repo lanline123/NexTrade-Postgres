@@ -138,12 +138,12 @@ export default function GroupSliding({ module }: Props) {
                                                     background-size: cover;
                                                     background-image: url(${productImage(item)});`}
                                                     />
-                                                    {itemIndex <= 2 && module.showRanking && (
+                                                    {itemIndex <= 2 && Number(module.showRanking) === 1 && (
                                                         <Image mode="widthFix" className="ranking" src={rankingImgs[itemIndex]} />
                                                     )}
                                                 </View>
                                                 <View className="goods-info" style={`justify-content: center; padding: 0 0 0 20rpx`}>
-                                                    {module.showProductName && (
+                                                    {Number(module.showProductName) === 1 && (
                                                         <View
                                                             className="goods-title"
                                                             style={`margin-top: 0;
@@ -157,7 +157,7 @@ export default function GroupSliding({ module }: Props) {
                                                             {t(item.productName)}
                                                         </View>
                                                     )}
-                                                    {module.showProductLabel && formatLabel(group.label)[itemIndex] && (
+                                                    {Number(module.showProductLabel) === 1 && formatLabel(group.label)[itemIndex] && (
                                                         <View className="tag">
                                                             <View
                                                                 className="span line1"
@@ -174,7 +174,7 @@ export default function GroupSliding({ module }: Props) {
                                                         <View className="price-origin-sale">
                                                             <View className="price-origin-icon">
                                                                 <View className="price-icon">
-                                                                    {module.showProductPrice && (
+                                                                    {Number(module.showProductPrice) === 1 && (
                                                                         <View
                                                                             className="price"
                                                                             style={`color: ${module.moduleColor.productPriceColor}; font-weight: 700; font-family: font1`}
@@ -192,8 +192,7 @@ export default function GroupSliding({ module }: Props) {
                                                                         </View>
                                                                     )}
                                                                 </View>
-                                                                {module.crossedOutPrice &&
-                                                                    item.marketPrice &&
+                                                                {Number(module.crossedOutPrice) === 1 &&
                                                                     Number(item.marketPrice) > 0 &&
                                                                     !showB2bText && (
                                                                         <View

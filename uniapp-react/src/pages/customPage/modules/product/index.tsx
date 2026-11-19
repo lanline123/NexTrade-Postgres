@@ -245,7 +245,7 @@ export default function Product({ module, shopId = -1 }: Props) {
                                                                             )}
                                                                         </View>
                                                                         <View className="item-info">
-                                                                            {module.showName && (
+                                                                            {Number(module.showName) === 1 && (
                                                                                 <View className="item-name">
                                                                                     <View
                                                                                         className="item-name-a"
@@ -257,7 +257,7 @@ export default function Product({ module, shopId = -1 }: Props) {
                                                                                     >
                                                                                         <Text>{subItem.productName ?? ""}</Text>
                                                                                     </View>
-                                                                                    {module.showBrief && (
+                                                                                    {Number(module.showBrief) === 1 && (
                                                                                         <View
                                                                                             className="item-brief"
                                                                                             onClick={() =>
@@ -271,7 +271,7 @@ export default function Product({ module, shopId = -1 }: Props) {
                                                                                     )}
                                                                                 </View>
                                                                             )}
-                                                                            {module?.showPrice && (
+                                                                            {Number(module?.showPrice) === 1 && (
                                                                                 <View className="item-action">
                                                                                     <View className="item-price">
                                                                                         <InquiryPrice
@@ -339,7 +339,7 @@ export default function Product({ module, shopId = -1 }: Props) {
                                                                     )}
                                                                 </View>
                                                                 <View className="item-info">
-                                                                    {module.showName && (
+                                                                    {Number(module.showName) === 1 && (
                                                                         <View className="item-name">
                                                                             <View
                                                                                 className="item-name-a"
@@ -411,7 +411,7 @@ export default function Product({ module, shopId = -1 }: Props) {
                                                             )}
                                                         </View>
                                                         <View className="item-info">
-                                                            {module.showName && (
+                                                            {Number(module.showName) === 1 && (
                                                                 <View className="item-name">
                                                                     <View
                                                                         className="item-name-a"
