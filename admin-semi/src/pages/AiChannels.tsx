@@ -374,148 +374,201 @@ export default function AiChannels() {
         title={form.channelId ? '编辑渠道' : '新建渠道'}
         visible={modalOpen}
         onCancel={() => setModalOpen(false)}
-        onOk={() => void save()}
-        okText="保存"
-        confirmLoading={saving}
-        width={720}
+        width={760}
+        className="ai-channel-modal"
+        footer={
+          <div className="ai-channel-footer">
+            <Button theme="borderless" onClick={() => setModalOpen(false)}>
+              取消
+            </Button>
+            <Button theme="solid" type="primary" loading={saving} onClick={() => void save()}>
+              保存
+            </Button>
+          </div>
+        }
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <Input
-              placeholder="渠道名称，如 DeepSeek"
-              value={form.name}
-              onChange={(v) => setForm({ ...form, name: v })}
-              style={{ flex: 1 }}
-            />
-            <Select
-              value={form.kind}
-              onChange={(v) => setForm({ ...form, kind: Number(v) })}
-              style={{ width: 170 }}
-            >
-              {isPlatform() && <Select.Option value={1}>官方渠道（平台）</Select.Option>}
-              <Select.Option value={2}>OpenAI 兼容</Select.Option>
-              <Select.Option value={3}>蜂鸟专有</Select.Option>
-              <Select.Option value={4}>火山翻译</Select.Option>
-            </Select>
+        <div className="ai-channel-form">
+          <div className="ai-channel-section">
+            <div className="ai-channel-section-title">基础信息</div>
+            <div className="ai-channel-stack">
+              <div className="ai-channel-row">
+                <div className="ai-channel-field ai-channel-field-grow">
+                  <div className="ai-channel-label">渠道名称</div>
+                  <Input
+                    placeholder="如 DeepSeek"
+                    value={form.name}
+                    onChange={(v) => setForm({ ...form, name: v })}
+                  />
+                </div>
+                <div className="ai-channel-field ai-channel-field-kind">
+                  <div className="ai-channel-label">渠道类型</div>
+                  <Select
+                    value={form.kind}
+                    onChange={(v) => setForm({ ...form, kind: Number(v) })}
+                    style={{ width: '100%' }}
+                  >
+                    {isPlatform() && <Select.Option value={1}>官方渠道（平台）</Select.Option>}
+                    <Select.Option value={2}>OpenAI 兼容</Select.Option>
+                    <Select.Option value={3}>蜂鸟专有</Select.Option>
+                    <Select.Option value={4}>火山翻译</Select.Option>
+                  </Select>
+                </div>
+              </div>
+              {form.kind === 2 && (
+                <div className="ai-channel-field">
+                  <div className="ai-channel-label">接口地址（Base URL）</div>
+                  <Input
+                    className="ai-channel-mono"
+                    placeholder="如 https://api.deepseek.com"
+                    value={form.baseUrl}
+                    onChange={(v) => setForm({ ...form, baseUrl: v })}
+                  />
+                </div>
+              )}
+              {form.kind !== 1 && (
+                <div className="ai-channel-field">
+                  <div className="ai-channel-label">
+                    {form.kind === 3
+                      ? '蜂鸟 Authorization'
+                      : form.kind === 4
+                        ? '火山 AccessKey ID'
+                        : 'API 密钥'}
+                  </div>
+                  <Input
+                    mode="password"
+                    className="ai-channel-mono"
+                    placeholder={form.channelId ? '已配置，留空表示不修改' : '请输入'}
+                    value={form.apiKey}
+                    onChange={(v) => setForm({ ...form, apiKey: v })}
+                  />
+                  {!form.channelId && (
+                    <div className="ai-channel-hint">提交后加密存储，保存后不可查看原文。</div>
+                  )}
+                </div>
+              )}
+              {form.kind === 3 && (
+                <div className="ai-channel-field">
+                  <div className="ai-channel-label">蜂鸟 Project ID（第二凭据名）</div>
+                  <Input
+                    placeholder="请输入"
+                    value={form.extraKeyName}
+                    onChange={(v) => setForm({ ...form, extraKeyName: v })}
+                  />
+                </div>
+              )}
+              {form.kind === 4 && (
+                <div className="ai-channel-field">
+                  <div className="ai-channel-label">火山 Secret Access Key（第二凭据）</div>
+                  <Input
+                    mode="password"
+                    className="ai-channel-mono"
+                    placeholder={form.channelId ? '已配置，留空表示不修改' : '请输入'}
+                    value={form.extraKey}
+                    onChange={(v) => setForm({ ...form, extraKey: v })}
+                  />
+                </div>
+              )}
+            </div>
           </div>
           {form.kind === 2 && (
-            <Input
-              placeholder="接口地址 Base URL，如 https://api.deepseek.com"
-              value={form.baseUrl}
-              onChange={(v) => setForm({ ...form, baseUrl: v })}
-            />
-          )}
-          {form.kind !== 1 && (
-            <Input
-              mode="password"
-              placeholder={
-                form.channelId
-                  ? 'API 密钥（已配置，留空不修改）'
-                  : form.kind === 3
-                    ? '蜂鸟 Authorization'
-                    : form.kind === 4
-                      ? '火山 AccessKey ID'
-                      : 'API 密钥（加密存储）'
-              }
-              value={form.apiKey}
-              onChange={(v) => setForm({ ...form, apiKey: v })}
-            />
-          )}
-          {form.kind === 3 && (
-            <Input
-              placeholder="蜂鸟 Project ID（第二凭据名）"
-              value={form.extraKeyName}
-              onChange={(v) => setForm({ ...form, extraKeyName: v })}
-            />
-          )}
-          {form.kind === 4 && (
-            <Input
-              mode="password"
-              placeholder="火山 Secret Access Key（已配置则留空不修改）"
-              value={form.extraKey}
-              onChange={(v) => setForm({ ...form, extraKey: v })}
-            />
-          )}
-          {form.kind === 2 && (
-            <div>
-              <div style={{ fontSize: 13, marginBottom: 6 }}>模型列表</div>
+            <div className="ai-channel-section">
+              <div className="ai-channel-section-head">
+                <div className="ai-channel-section-title">模型列表</div>
+                <Button
+                  size="small"
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      models: [
+                        ...form.models,
+                        {
+                          modelCode: '',
+                          displayName: '',
+                          capabilities: 'chat',
+                          contextTokens: 0,
+                          isEnabled: true,
+                        },
+                      ],
+                    })
+                  }
+                >
+                  + 添加模型
+                </Button>
+              </div>
+              {form.models.length === 0 && (
+                <div className="ai-channel-empty">暂无模型，点击右上角「+ 添加模型」添加。</div>
+              )}
               {form.models.map((m, i) => (
-                <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-                  <Input
-                    placeholder="模型编码，如 deepseek-chat"
-                    value={m.modelCode}
-                    onChange={(v) => {
-                      const models = [...form.models];
-                      models[i] = { ...m, modelCode: v };
-                      setForm({ ...form, models });
-                    }}
-                    style={{ flex: 1.2 }}
-                  />
-                  <Input
-                    placeholder="显示名"
-                    value={m.displayName}
-                    onChange={(v) => {
-                      const models = [...form.models];
-                      models[i] = { ...m, displayName: v };
-                      setForm({ ...form, models });
-                    }}
-                    style={{ flex: 1 }}
-                  />
-                  <Select
-                    value={m.capabilities}
-                    onChange={(v) => {
-                      const models = [...form.models];
-                      models[i] = { ...m, capabilities: String(v) };
-                      setForm({ ...form, models });
-                    }}
-                    style={{ width: 150 }}
-                  >
-                    <Select.Option value="chat">对话</Select.Option>
-                    <Select.Option value="chat,vision">对话+视觉</Select.Option>
-                    <Select.Option value="image_gen">图片生成</Select.Option>
-                    <Select.Option value="chat,vision,image_gen">对话+视觉+生图</Select.Option>
-                  </Select>
-                  <Switch
-                    checked={m.isEnabled}
-                    onChange={(checked) => {
-                      const models = [...form.models];
-                      models[i] = { ...m, isEnabled: checked };
-                      setForm({ ...form, models });
-                    }}
-                  />
-                  <Button
-                    type="danger"
-                    onClick={() =>
-                      setForm({ ...form, models: form.models.filter((_, j) => j !== i) })
-                    }
-                  >
-                    删
-                  </Button>
+                <div className="ai-model-card" key={i}>
+                  <div className="ai-channel-field ai-model-card-code">
+                    <div className="ai-channel-label">模型编码</div>
+                    <Input
+                      className="ai-channel-mono"
+                      placeholder="如 deepseek-chat"
+                      value={m.modelCode}
+                      onChange={(v) => {
+                        const models = [...form.models];
+                        models[i] = { ...m, modelCode: v };
+                        setForm({ ...form, models });
+                      }}
+                    />
+                  </div>
+                  <div className="ai-channel-field ai-model-card-name">
+                    <div className="ai-channel-label">显示名</div>
+                    <Input
+                      placeholder="如 DeepSeek Chat"
+                      value={m.displayName}
+                      onChange={(v) => {
+                        const models = [...form.models];
+                        models[i] = { ...m, displayName: v };
+                        setForm({ ...form, models });
+                      }}
+                    />
+                  </div>
+                  <div className="ai-channel-field ai-model-card-cap">
+                    <div className="ai-channel-label">能力</div>
+                    <Select
+                      value={m.capabilities}
+                      onChange={(v) => {
+                        const models = [...form.models];
+                        models[i] = { ...m, capabilities: String(v) };
+                        setForm({ ...form, models });
+                      }}
+                      style={{ width: '100%' }}
+                    >
+                      <Select.Option value="chat">对话</Select.Option>
+                      <Select.Option value="chat,vision">对话+视觉</Select.Option>
+                      <Select.Option value="image_gen">图片生成</Select.Option>
+                      <Select.Option value="chat,vision,image_gen">对话+视觉+生图</Select.Option>
+                    </Select>
+                  </div>
+                  <div className="ai-model-card-actions">
+                    <Switch
+                      checked={m.isEnabled}
+                      onChange={(checked) => {
+                        const models = [...form.models];
+                        models[i] = { ...m, isEnabled: checked };
+                        setForm({ ...form, models });
+                      }}
+                    />
+                    <span className="ai-model-card-state">{m.isEnabled ? '启用' : '停用'}</span>
+                    <Button
+                      theme="borderless"
+                      type="danger"
+                      size="small"
+                      onClick={() =>
+                        setForm({ ...form, models: form.models.filter((_, j) => j !== i) })
+                      }
+                    >
+                      删除
+                    </Button>
+                  </div>
                 </div>
               ))}
-              <Button
-                onClick={() =>
-                  setForm({
-                    ...form,
-                    models: [
-                      ...form.models,
-                      {
-                        modelCode: '',
-                        displayName: '',
-                        capabilities: 'chat',
-                        contextTokens: 0,
-                        isEnabled: true,
-                      },
-                    ],
-                  })
-                }
-              >
-                + 添加模型
-              </Button>
             </div>
           )}
           {form.kind === 1 && (
-            <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12 }}>
+            <div className="ai-channel-note">
               官方渠道的模型与计费由平台在「官方渠道管理」（P3）中维护；此处仅登记渠道本身。
             </div>
           )}

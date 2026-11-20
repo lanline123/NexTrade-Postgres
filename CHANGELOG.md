@@ -947,3 +947,9 @@
 ### 改进
 
 - **管理端 - H5 装修图片魔方「添加图片」选图控件统一（我方新增——内部复用 PC 编辑器成熟组件，非原版口径）**：魔方选中图片位后的条目编辑原走 PicItemEditor 的 60×60 图盒 + 底部「更换图片」条打开素材中心，与同编辑器「标题图片」的选图入口形态不一致，且选图弹窗无商品直选。按用户指示统一：H5 共享层（decorateEditorH5/shared/settingWidgets）新增可复用组件 ProductPicItemEditor 与落卡构造 productPicPatch——选图入口改走 PicSelectBox（与「标题图片」同款 ImageUploader single：空态为图标+「素材中心」虚线盒、点击打开素材中心弹窗，经它选图/删图只回写 { picUrl, picThumb }，同旧口径）；工具条照 PC 编辑器 PicListEditor「编辑图片」弹窗的成熟方案加「从商品选择图片」，打开共享 ProductImagePickerModal：点单张商品图只替换当前槽位图片，勾选多商品批量落卡。图片魔方（imageSquareAd）已切换：批量落卡自当前槽位起顺延填充后续定长槽位（槽位不足丢弃并提示），每张落图 + 商品名作标题 + 商品详情链接；链接按 H5 前台 urlFormat 的 LinkType 口径构造（path=product + data{id,sn}，与链接选择器选商品经 PicLinkField 的回写逐键同形，不用 PC 的 /product/{id} 字符串）。标题/链接信息行与 × 清空槽位语义不变，picList 条目字段口径（picId/picUrl/picThumb/picName/picTitle/picLink）与改前完全一致，存量页面打开即正常回显。同类清扫：H5 编辑器已无手搓老式选图残留；PicListField 列表形态的 24 个模块设置仍为旧图盒入口（形态不同，本批只登记，后续可按同一共享组件统一）。
+
+## 0.0.2 续 · 2026-11-21 批次（AI 渠道弹窗视觉改版，未部署——随下一 admin 合并版上线）
+
+### 新增
+
+- **后台 - AI 渠道新建/编辑弹窗视觉改版（我方新增，用户 2026-11-21 00:03 指认「填 key 的弹窗设计太丑、一点都不现代化」，确认对象为本弹窗）**：`AiChannels.tsx` 渠道表单弹窗纯视觉/布局重构，字段、校验、条件显隐、提交口径与 API 调用零变化。改法：① 分区呈现——「基础信息」与「模型列表」两区各带分区小标题（13px/600）与留白，告别无标签 Input 纵向堆叠，每个字段补 12px 字段标签（原靠 placeholder 兼任标签）；② 模型行改卡片式——fill-0 底 + 1px 边框的直角卡片行，模型编码（等宽字体）/显示名/能力/启用开关 + 状态文案/删除钮一行可扫读，「+ 添加模型」移至分区标题行右侧，空列表给虚线边框空态提示；③ 密钥栏做成正经密码字段——标签按类型呈现（API 密钥 / 蜂鸟 Authorization / 火山 AccessKey ID），密码模式 + 等宽字体掩码，编辑态占位文案「已配置，留空表示不修改」（留空不改的既有语义不变），新建态补一行「提交后加密存储，保存后不可查看原文」小字，第二凭据字段（蜂鸟 Project ID / 火山 Secret Access Key）同样补标签并入基础信息区，显隐条件与改前逐一相同；④ 弹窗宽度 720→760（与客服历史详情 Modal 同宽）、弹窗与卡片直角（border-radius: 0），底部改自定义页脚（取消 borderless + 保存 solid primary，loading 沿用 saving 状态）。取值对齐 admin 内部近期改版口径：客服历史详情 Modal（fd2da8ae）的 fill-0 色带 + 1px 边框、订单卡新标准的直角与 text 层级；样式集中于 styles.css 的 `.ai-channel-*` / `.ai-model-card` 作用域类，未动 Semi 全局。代码级自查：新旧弹窗块的 value/onChange 绑定、kind 条件集合、模型增删改处理器逐项比对一致，弹窗外代码字节未变，esbuild 语法解析通过；待 CI 构建与目验。
