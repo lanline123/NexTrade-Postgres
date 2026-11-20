@@ -7,13 +7,13 @@
 * 文本输入写回 titleLink 同一结构）/自定义图片（bannerPic PicSelect）可编辑；组内商品
 * 走共享 ProductInfoSelect（快照式选品），可增删/更换/拖拽排序组内 productList；
 * 新建组默认值与删组下限（可删至 0 组）均按原版 GroupListEdit 口径。
-* 商品分组来源 ProductGroupSelect（DialogForm 选分组）无现成选择 API：分组名只读展示，
-* title/subTitle/menuTitle/productNumType/productNum 等普通字段本地可编辑。
+* 商品分组来源走共享 ProductGroupSelect（选分组弹窗 + 换组/拖拽排序/删除/添加，
+* 数据源 /product/productGroup/list）：组内 title/subTitle/menuTitle/productNumType/
+* productNum/bannerPic 等字段在卡内以 { data, onChange } 子协议编辑，契约不变。
 * 列表样式/字号/粗细原版为图标 radio，现走共享视觉选择器
 * 。
 * bottomMoreBtn 系列原版 Settings.vue 无编辑入口（仅 defaults + Preview 消费），故不提供。
 */
-import { InputNumber} from "@douyinfe/semi-ui";
 import {
 SettingGroup,
 SettingRow,
@@ -30,6 +30,7 @@ import { TemplateIconRadioField, TemplateIconRadioRowField} from "../../../share
 import { SettingsTabs, ExtensionStyleSettings, PicFillTypeField} from "../../../shared/styleEdits";
 import GroupListEditor from "../../../shared/GroupListEditor";
 import ProductInfoSelect from "../../../shared/ProductInfoSelect";
+import ProductGroupSelect from "../../../shared/ProductGroupSelect";
 import { cloneDeep, defaultBuyButtonStyle} from "../../../contract/sharedDefaults";
 import { useI18n} from "../../../../../i18n";
 
@@ -103,41 +104,15 @@ isMultiple
 
 function GroupSourceEditor({ data, onChange}: Props) {
 const list: Array<Record<string, any>> = Array.isArray(data?.groupList)? data.groupList: [];
-const patchItem = (index: number, patch: Patch) => onChange({ groupList: list.map((g, i) => (i === index? {...g,...patch}: g))});
 return (
 <div style={{ padding: "0 16px 10px"}}>
-<div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6, marginBottom: 8}}>
-商品分组选择器（ProductGroupSelect 弹窗）尚未接入本编辑器，已选分组保持不变；以下普通字段可直接编辑。
-</div>
-{list.length === 0? <div style={{ color: "#999", fontSize: 12}}>暂无已选商品分组</div>: null}
-{list.map((group, index) => {
-const sub: Props = { data: group, onChange: (patch: Patch) => patchItem(index, patch)};
-return (
-<div key={index} style={{ backgroundColor: "#fff", borderRadius: 2, boxShadow: "0 0 4px 0 rgba(10, 42, 97, 0.2)", padding: "6px 0", marginTop: 12}}>
-<SettingRow label="商品来源">
-<span style={{ fontSize: 13, color: "#155bd4"}}>{group.productGroupName || `分组${group.productGroupId?? ""}`}</span>
-</SettingRow>
-<TextField {...sub} field="menuTitle" label="菜单名称" placeholder="请输入菜单名称" />
-<RadioRowField
-{...sub}
-field="productNumType"
-label="商品个数"
-options={[
-{ value: "all", label: "全部"},
-{ value: "number", label: "指定数量"}
-]}
+<ProductGroupSelect
+value={list}
+onChange={(next) => onChange({ groupList: next})}
+isMultiple
+type="productGroup"
+showCustomImage
 />
-{group.productNumType === "number"? (
-<SettingRow label="商品数量">
-<InputNumber value={Number(group.productNum?? 6)} min={1} style={{ width: 120}} onChange={(v: any) => patchItem(index, { productNum: Number(v) || 0})} />
-</SettingRow>
-): null}
-<TextField {...sub} field="title" label="主标题" placeholder="请输入标题内容" />
-<TextField {...sub} field="subTitle" label="副标题" placeholder="请输入标题内容" />
-<PicSelectField {...sub} field="bannerPic" label="自定义图片" />
-</div>
-);
-})}
 </div>
 );
 }

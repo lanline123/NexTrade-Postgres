@@ -3,7 +3,8 @@
  *
  * 页签：商品设置 / 扩展设置（颜色设置 + ExtensionStyleSettings type="specialOffer"）。
  * - 商品来源：手动商品走共享 ProductInfoSelect（快照式选品），可增删/更换/拖拽
- *   排序 productList；ProductGroupSelect 未移植，分组保留已选数量只读展示；
+ *   排序 productList；商品分组走共享 ProductGroupSelect（默认口径：单组，
+ *   列表为空时可添加，卡内可换组/删除/编辑 menuTitle 与商品个数）；
  * - 模块颜色风格切换的联动与原版 resetColor 一致：写回 moduleColor.countdownTitleColor 与
  *   contentStyle.gradientColorA/B 为 ModuleTheme 预设；
  * - 打开设置时的主题色同步对齐原版 immediate watch：contentStyle.gradientColorA/B 均为空
@@ -29,6 +30,7 @@ import {
 } from "../../../shared/settingWidgets";
 import { SettingsTabs, ExtensionStyleSettings, PicFillTypeField } from "../../../shared/styleEdits";
 import ProductInfoSelect from "../../../shared/ProductInfoSelect";
+import ProductGroupSelect from "../../../shared/ProductGroupSelect";
 import { SPECIAL_OFFER_THEMES } from "./Preview";
 import { useI18n } from "../../../../../i18n";
 
@@ -151,9 +153,7 @@ export default function SpecialOfferSettings({ data, onChange, moduleIndex }: Pr
                             </SettingRow>
                         ) : (
                             <SettingRow label="商品分组" block>
-                                <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6 }}>
-                                    商品分组选择器（ProductGroupSelect 数据选择组件）尚未接入本编辑器，当前已选分组 {productGroups.length} 个，数据保持不变。
-                                </div>
+                                <ProductGroupSelect value={productGroups} onChange={(next) => onChange({ productGroups: next })} />
                             </SettingRow>
                         )}
                         <SettingRow label="模块颜色风格" block>
