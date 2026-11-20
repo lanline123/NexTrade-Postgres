@@ -8543,6 +8543,135 @@ body {
   justify-content: center;
 }
 
+/* 商品类型卡片式单选（ProductTypeSelector）：现代扁平直角，选中态主题色 + 右下角直角三角对勾 */
+.product-type-selector-wrap {
+  max-width: 760px;
+}
+
+.product-type-hint {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--semi-color-text-2);
+}
+
+.product-type-hint:first-child {
+  margin-bottom: 8px;
+}
+
+.product-type-hint:last-child {
+  margin-top: 8px;
+}
+
+.product-type-selector {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.product-type-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 12px 14px;
+  background: var(--semi-color-bg-0);
+  border: 1px solid var(--semi-color-border);
+  border-radius: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.product-type-card:hover {
+  border-color: var(--semi-color-primary);
+}
+
+.product-type-card:focus-visible {
+  outline: 2px solid var(--semi-color-primary);
+  outline-offset: 1px;
+}
+
+.product-type-card.is-selected {
+  background: var(--semi-color-primary-light-default);
+  border-color: var(--semi-color-primary);
+}
+
+.product-type-card-head {
+  display: flex;
+  align-items: center;
+}
+
+.product-type-card-title {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--semi-color-text-0);
+}
+
+.product-type-card.is-selected .product-type-card-title {
+  color: var(--semi-color-primary);
+  font-weight: 600;
+}
+
+.product-type-card-help {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  font-size: 14px;
+  color: var(--semi-color-text-3);
+  cursor: help;
+}
+
+.product-type-card-desc {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--semi-color-text-2);
+}
+
+.product-type-card-corner {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 22px;
+  height: 22px;
+  background: var(--semi-color-primary);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  color: var(--semi-color-bg-0);
+}
+
+.product-type-card-corner svg {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+}
+
+.product-type-tips {
+  display: block;
+  max-width: 240px;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: left;
+}
+
+.product-type-selector.is-disabled .product-type-card {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.product-type-selector.is-disabled .product-type-card:hover {
+  border-color: var(--semi-color-border);
+}
+
+.product-type-selector.is-disabled .product-type-card.is-selected {
+  opacity: 1;
+}
+
+.product-type-selector.is-disabled .product-type-card.is-selected:hover {
+  border-color: var(--semi-color-primary);
+}
+
 /* 按类型切换的条件配置区：轻入场动效 */
 .kefu-setting-type-panel {
   animation: kefu-panel-in 0.2s ease;

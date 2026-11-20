@@ -11,6 +11,7 @@ import RichTextEditor from './RichTextEditor';
 import ProductPicker from './ProductPicker';
 import ProductVideoField from './ProductVideoField';
 import DeliveryFilesField from './DeliveryFilesField';
+import ProductTypeSelector from './ProductTypeSelector';
 
 interface Option {
   id: number;
@@ -435,19 +436,14 @@ export default function ProductFormDrawer({
               {
                 field: 'productType',
                 label: t('商品类型'),
-                type: 'select',
-                disabled: Boolean(productId),
-                options: [
-                  { label: t('普通商品'), value: 1 },
-                  { label: t('虚拟商品'), value: 2 },
-                  { label: t('卡密商品'), value: 3 },
-                  { label: t('付费内容'), value: 4 },
-                  { label: t('预约到店'), value: 5 },
-                  { label: t('上门服务'), value: 6 },
-                  { label: t('实体礼品卡'), value: 7 },
-                  { label: t('电子礼品卡'), value: 8 },
-                ],
-                extraText: t('商品类型发布后不可修改。'),
+                type: 'custom',
+                render: ({ formApi, values }) => (
+                  <ProductTypeSelector
+                    value={Number(values.productType || 1)}
+                    disabled={Boolean(productId)}
+                    onChange={(next) => formApi?.setValue('productType', next)}
+                  />
+                ),
               },
               {
                 field: 'productName',
