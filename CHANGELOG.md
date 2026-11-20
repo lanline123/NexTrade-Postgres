@@ -855,3 +855,9 @@
 
 - 本批不做（后续批次/另行立项）：多笔订单合并开票（第二批）、金财数科自动开票、店铺/门店独立开票、微信小程序虚拟支付、已开发票与退款的红冲联动（设计注记见 invoice-batch1/REPORT.md，workspace）。
 - 行为变化提示：发票申请默认节点改为「订单完成后」——部署后未完成订单在申请页提交会被后端拒绝并提示原因；如需恢复旧口径，admin 交易设置把「可开票节点」改为「不限制」即可。
+
+## 0.0.2 续 · 2026-11-20 批次（H5 商品详情图底部被裁修复，未部署——随下一 H5 合并版上线）
+
+### 修复
+
+- **H5 - 商品详情图流「下图盖上图」（原版有·我方移植偏差）**：用户真机报告商品详情页「商品详情/商品介绍」图流中下面的图片覆盖上面图片的底部。根因不在数据（抽查商品 1535 的 descArr 为 4 张普通图，无宽高字段、无固定高样式）：Taro H5 的 Image 渲染为 Stencil 自定义元素 `taro-image-core`，其组件自带样式给宿主钉了小程序对齐的默认尺寸 `width:320px;height:240px;overflow:hidden`，而 widthFix 的高度补偿规则 `.taro-img.taro-img__widthfix{height:100%}` 要求宿主带 `taro-img` 类、Stencil 宿主从不添加该类（只有 `taro-img__widthfix`），补偿恒不生效；我方自旧 uniapp 原样拷出的 `.slide-image{display:block;width:100%}` 只放开了宽度，宿主高被钉死 240px，内部图按自然比例渲染（多为 370–490px）后被 overflow 裁掉底部，图盒按 240px 逐张堆叠，视觉上即「下一张盖住上一张底部」。原版 uniapp 的 image widthFix 无此默认尺寸宿主，块级宽 100% 自然比例、无重叠。修复（仅 CSS）：共享详情渲染器 productContent 与 descriptionCard 的 `.desc-pic-item .slide-image` 及付费内容占位 `.img` 补 `height:auto`，宿主随图高；两渲染器被商品页（含 productV1、团购页）共用，一并覆盖。无头 Chromium 以现网原样 DOM+CSS 复现：修复前四图宿主高恒 240px、底部裁剪 151/134/248/0px，修复后宿主高=图高、裁剪归零。

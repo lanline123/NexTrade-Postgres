@@ -54,6 +54,9 @@
 
         .img {
             width: 100%;
+            /* Taro H5 的 Image 宿主 taro-image-core 自带 320x240 默认尺寸（高 240px + overflow:hidden），
+               只给宽不给高时宿主高被钉死 240px、图被裁——必须显式 height:auto 让宿主随图高 */
+            height: auto;
         }
 
         .desc-text-item {
@@ -67,6 +70,8 @@
             .slide-image {
                 display: block;
                 width: 100%;
+                /* 同上：宿主默认高 240px 会裁掉详情图底部（下一图顶上来像重叠），放开为随图高 */
+                height: auto;
             }
         }
     }
