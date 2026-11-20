@@ -584,6 +584,9 @@
 
                 .icon {
                     width: 90rpx;
+                    /* Taro H5 宿主 taro-image-core 默认高 240px，widthFix 只给宽不给高时宿主高被钉死、
+                       整行被撑高；height:auto 让宿主随图高（原版 uni-app widthFix 回写宿主高） */
+                    height: auto;
                 }
             }
         }

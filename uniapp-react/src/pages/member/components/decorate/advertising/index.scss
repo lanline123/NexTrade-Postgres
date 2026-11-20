@@ -8,6 +8,9 @@
 
         .advertising-image {
             width: 100%;
+            /* Taro H5 宿主 taro-image-core 默认高 240px 且 overflow:hidden，widthFix 只给宽不给高时
+               宿主高被钉死：广告图高图被裁、矮图留白；height:auto 让宿主随图高（原版 uni-app widthFix 回写宿主高） */
+            height: auto;
         }
     }
 }

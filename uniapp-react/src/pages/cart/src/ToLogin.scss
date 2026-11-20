@@ -9,6 +9,13 @@
     flex-direction: column;
     position: fixed;
 
+    image {
+        /* Taro H5 宿主 taro-image-core 默认高 240px，widthFix 无高规则时宿主高被钉死：
+           login.png（390×222）按默认宽 320 渲染高约 182，宿主多出约 58px 空带；
+           height:auto 让宿主随图高（原版 uni-app widthFix 回写宿主高；宿主宽同为默认 320 不变） */
+        height: auto;
+    }
+
     .to-login-text {
         color: rgba(153, 153, 153, 1);
         font-size: 26rpx;
