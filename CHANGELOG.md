@@ -861,3 +861,9 @@
 ### 修复
 
 - **H5 - 商品详情图流「下图盖上图」（原版有·我方移植偏差）**：用户真机报告商品详情页「商品详情/商品介绍」图流中下面的图片覆盖上面图片的底部。根因不在数据（抽查商品 1535 的 descArr 为 4 张普通图，无宽高字段、无固定高样式）：Taro H5 的 Image 渲染为 Stencil 自定义元素 `taro-image-core`，其组件自带样式给宿主钉了小程序对齐的默认尺寸 `width:320px;height:240px;overflow:hidden`，而 widthFix 的高度补偿规则 `.taro-img.taro-img__widthfix{height:100%}` 要求宿主带 `taro-img` 类、Stencil 宿主从不添加该类（只有 `taro-img__widthfix`），补偿恒不生效；我方自旧 uniapp 原样拷出的 `.slide-image{display:block;width:100%}` 只放开了宽度，宿主高被钉死 240px，内部图按自然比例渲染（多为 370–490px）后被 overflow 裁掉底部，图盒按 240px 逐张堆叠，视觉上即「下一张盖住上一张底部」。原版 uniapp 的 image widthFix 无此默认尺寸宿主，块级宽 100% 自然比例、无重叠。修复（仅 CSS）：共享详情渲染器 productContent 与 descriptionCard 的 `.desc-pic-item .slide-image` 及付费内容占位 `.img` 补 `height:auto`，宿主随图高；两渲染器被商品页（含 productV1、团购页）共用，一并覆盖。无头 Chromium 以现网原样 DOM+CSS 复现：修复前四图宿主高恒 240px、底部裁剪 151/134/248/0px，修复后宿主高=图高、裁剪归零。
+
+## 0.0.2 续 · 2026-11-20 批次（PC 首页顶部搜索区与购物车页对齐，代码已入库待部署）
+
+### 修复
+
+- **PC - 首页（简约风页头）搜索区样式与购物车页对齐（原版有差异·我方按用户指示改口径）**：用户报告 PC 首页最上方字体/图标样式不对、应以购物车页为基准。实测定位（现网 SSR 标记 + 计算样式逐项比对）：最顶细顶栏 PcHeaderTopBar 两页共用同一组件、标记与计算样式一致，非差异层；差异在页头主体搜索区。原版 v5.8.61 本就分口径：简约风页头与购物车页头共用 DefSearchNew，其默认提交按钮为 58×32 图标按钮（快照仓 view/pc/components/common/components/DefSearchNew.vue L32-33、L455-470），仅购物车页头 PcHeaderCartContent 以 :deep 覆盖为主题色「搜索」文字按钮 + 输入框左侧放大镜（同文件 L183 注明照搬 vortmall 购物车页）；我方移植两侧均属忠实——header-source.scss 的文字按钮整块规则仅以 .pc-header-cart-content 为作用域，简约风页头只命中 globals/header-source 的通用图标按钮规则（58px 图标按钮、无左侧放大镜、边框灰色）。按用户 2026-11-20 指示改口径对齐购物车页：header-source.scss 该块作用域扩至 .pc-header-simple（主题色边框、按钮 ::after 输出「搜索」14px/500 且隐藏 svg、表单 ::before/::after 左侧放大镜、输入左内边距 28px）；cart-modern.scss 的按钮自适应宽（auto/min 72px/左右 20px）与 .i-icon 隐藏两条修正同步扩至 .pc-header-simple；PcHeaderSimple 与 PcHeaderCartContent 同口径注入 --search-btn-text（随语言切换）。购物车页自身样式零变化；跨境风（styleType=2）页头不在 .pc-header-simple 作用域内、不受影响。现网 DOM+CSS 回放验证：修复后首页搜索按钮宽 72px、::after=「搜索」14px、左侧放大镜 12px、表单左内边距 28px，与购物车页一致。

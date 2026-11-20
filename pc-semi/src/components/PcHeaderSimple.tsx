@@ -246,9 +246,11 @@ export default function PcHeaderSimple({
   const categoryNavStyle: React.CSSProperties = {
     ['--pc-header-category-mt' as string]: `${resolvePx(header.categoryMarginTop) ?? 0}px`,
   };
-  const searchAccentStyle: React.CSSProperties = searchAccentColor
-    ? ({ ['--pc-header-search-accent' as string]: searchAccentColor } as React.CSSProperties)
-    : {};
+  const searchAccentStyle: React.CSSProperties = {
+    // 与 PcHeaderCartContent 同口径：搜索按钮文案经 --search-btn-text 交给 ::after 输出（随语言切换）
+    ['--search-btn-text' as string]: `'${t('搜索')}'`,
+    ...(searchAccentColor ? { ['--pc-header-search-accent' as string]: searchAccentColor } : {}),
+  } as React.CSSProperties;
   const mainNavSpacingVars: React.CSSProperties = {
     ['--pc-header-main-nav-mt' as string]: `${resolveMainNavSpacingPx(header, 'top') ?? 0}px`,
     ...(resolveMainNavSpacingPx(header, 'bottom') != null

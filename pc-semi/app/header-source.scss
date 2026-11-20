@@ -662,7 +662,10 @@
   width: 100%;
 }
 
-.pc-header-cart-content .pc-header__search {
+/* 搜索框文字按钮口径：原版仅购物车页头（PcHeaderCartContent）有此覆盖，简约风页头用 DefSearchNew 默认图标按钮；
+ * 2026-11-20 用户指示以购物车页为基准对齐首页顶部，简约风页头（.pc-header-simple）一并纳入同一口径。 */
+.pc-header-cart-content .pc-header__search,
+.pc-header-simple .pc-header__search {
   .top-search {
     border-width: 1px;
     border-color: var(--general);

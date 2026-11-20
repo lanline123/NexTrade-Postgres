@@ -1363,18 +1363,21 @@
  * 旧规则 width:58px + padding:0 22px（border-box）只剩 14px 内容宽，
  * 14px 的「搜索」两字（约 28px）被压成一团，这里改为按内容自适应
  * ========================================================================= */
-.pc-header-cart-content .pc-header__search .top-search .search-submit {
+.pc-header-cart-content .pc-header__search .top-search .search-submit,
+.pc-header-simple .pc-header__search .top-search .search-submit {
   width: auto !important;
   min-width: 72px;
   padding: 0 20px !important;
   white-space: nowrap;
 }
 
-.pc-header-cart-content .pc-header__search .top-search .search-submit::after {
+.pc-header-cart-content .pc-header__search .top-search .search-submit::after,
+.pc-header-simple .pc-header__search .top-search .search-submit::after {
   white-space: nowrap;
 }
 
 /* IconPark 图标外层 span 不会被 svg{display:none} 隐藏，会留一个 18px 空位把文案挤偏 */
-.pc-header-cart-content .pc-header__search .top-search .search-submit .i-icon {
+.pc-header-cart-content .pc-header__search .top-search .search-submit .i-icon,
+.pc-header-simple .pc-header__search .top-search .search-submit .i-icon {
   display: none !important;
 }
