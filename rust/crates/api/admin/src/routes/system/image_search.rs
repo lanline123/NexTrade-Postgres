@@ -1,7 +1,10 @@
 //! 图像搜索管理端（v5.8.61 `/adminapi/setting/imageSearch`）。
 //!
 //! 配置存 `config` 表 `imageSearch*` 键；任务存 `image_search_sync_job`。
-//! 阿里云图库写入/检索适配器尚未接入，构建设置为 PENDING 台账任务。
+//! 阿里云适配器已接入：本文件 `run_build` 走 AddImage/DeleteImage 做全量建库与
+//! 单商品增量同步，前台检索走 SearchImageByPic（public `catalog/image_search.rs`）。
+//! 能否用取决于配置与阿里云实例状态（开通/地域/付费期），与代码无关；线上开通
+//! 状态以 config 表 `imageSearch*` 键与 `image_search_sync_job` 记录为准，不以注释为准。
 
 use axum::{
     extract::{Query, State},
@@ -401,6 +404,29 @@ pub(crate) async fn enqueue_product_sync(state: &AdminState, product_id: i32) {
     }
 }
 
+/// 整库刷新入队（表格导入/批量导入等拿不到受影响商品 ID 的写路径用）。
+///
+/// 与全量 build 共用同一 job_key（`{index}:build`），insert_job 的
+/// ON CONFLICT 语义保证重复入队只重置同一条任务，不堆积。
+pub(crate) async fn enqueue_full_sync(state: &AdminState) {
+    let Ok(rows) = load_config(state).await else {
+        return;
+    };
+    if cfg_get(&rows, "imageSearchEnabled") != "1" {
+        return;
+    }
+    if cfg_get(&rows, "imageSearchIndexName").is_empty()
+        || cfg_get(&rows, "imageSearchAliyunAccessKeyId").is_empty()
+        || cfg_get(&rows, "imageSearchAliyunAccessKeySecret").is_empty()
+    {
+        return;
+    }
+    let job_key = format!("{}:build", cfg_get(&rows, "imageSearchIndexName"));
+    if let Ok(id) = insert_job(state, &job_key, 0, &rows).await {
+        spawn_build(state.clone(), id, 0);
+    }
+}
+
 async fn insert_job(
     state: &AdminState,
     job_key: &str,
@@ -564,8 +590,31 @@ async fn run_build(state: AdminState, job_id: i64, product_id: i32) -> Result<()
             .bind(nextrade_common::utils::now_seconds() as i64).bind(job_id)
             .execute(&state.repos.pool).await.ok();
     }
-    sqlx::query("UPDATE image_search_sync_job SET state='COMPLETED', scanned=$1, added=$2, skipped=$3, updated_at=$4 WHERE id=$5")
-        .bind(scanned).bind(added).bind(skipped)
+    // 全量构建顺带清理残留：已删除/未上架商品不在上面的扫描集合里，
+    // 其索引条目只能在这里按 DB 现状逐个 DeleteImage，并计入 deleted。
+    let mut deleted = 0i64;
+    if product_id == 0 {
+        let stale = sqlx::query(
+            "SELECT product_id FROM product WHERE is_delete=1 OR product_status<>1",
+        )
+        .fetch_all(&state.repos.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        for row in stale {
+            let pid: i32 = row.try_get("product_id").unwrap_or(0);
+            if pid > 0 {
+                let pic_name = format!("product-{pid}.jpg");
+                if delete_image(&client, &region, &key, &secret, &index, pid, &pic_name)
+                    .await
+                    .is_ok()
+                {
+                    deleted += 1;
+                }
+            }
+        }
+    }
+    sqlx::query("UPDATE image_search_sync_job SET state='COMPLETED', scanned=$1, added=$2, skipped=$3, deleted=$4, updated_at=$5 WHERE id=$6")
+        .bind(scanned).bind(added).bind(skipped).bind(deleted)
         .bind(nextrade_common::utils::now_seconds() as i64).bind(job_id)
         .execute(&state.repos.pool).await.map_err(|e| e.to_string())?;
     Ok(())

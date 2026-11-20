@@ -59,7 +59,7 @@ use nextrade_core::models::catalog::product_sale::{ProductSaleParam, ProductSale
 use nextrade_core::types::PageResult;
 use nextrade_security::web::{ok, ApiResult, AppError, AuthUser};
 
-use crate::routes::system::image_search::enqueue_product_sync;
+use crate::routes::system::image_search::{enqueue_full_sync, enqueue_product_sync};
 use crate::AdminState;
 
 /// 商品域管理端路由（挂载于 `/adminapi` 下）。
@@ -368,7 +368,7 @@ async fn product_batch_modify(
 
     let parse_i32 = |key: &str| params.get(key).and_then(|v| v.trim().parse::<i32>().ok());
     let (file_name, bytes) = file.unwrap_or((None, Vec::new()));
-    ok(state
+    let vo = state
         .catalog
         .product_manage
         .batch_modify_scoped(
@@ -380,7 +380,12 @@ async fn product_batch_modify(
             &bytes,
             auth.scoped_shop_id(),
         )
-        .await?)
+        .await?;
+    if vo.add_num + vo.update_num > 0 {
+        // 表格导入/修改不回传受影响商品 ID，整库刷新一次（任务按 job_key 去重）。
+        enqueue_full_sync(&state).await;
+    }
+    ok(vo)
 }
 
 /// `POST /adminapi/product/productBatch/productBatchEdit`：商品批量修改。
@@ -392,9 +397,19 @@ async fn product_batch_edit(
     Extension(auth): Extension<AuthUser>,
     Json(dto): Json<ProductBatchEditDTO>,
 ) -> ApiResult<bool> {
-    ok(state
+    let result = state
         .catalog
         .product_manage
         .batch_edit_scoped(&dto, auth.scoped_shop_id())
-        .await?)
+        .await?;
+    if result {
+        if let Some(items) = &dto.edit_items {
+            for item in items {
+                if let Some(pid) = item.product_id {
+                    enqueue_product_sync(&state, pid).await;
+                }
+            }
+        }
+    }
+    ok(result)
 }

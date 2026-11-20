@@ -1861,6 +1861,10 @@ pub async fn call_tool(
                 .set_product_flags(&[id], Some(status), None, None)
                 .await
                 .map_err(|e| e.to_string())?;
+            if rows > 0 {
+                // 上下架直接决定图搜索引的去留，MCP 路径此前不入队导致索引与目录不一致。
+                crate::routes::system::image_search::enqueue_product_sync(state, id).await;
+            }
             Ok(json!({ "updatedRows": rows, "productStatus": status }))
         }
         "product_batch_preview" => {
@@ -1940,6 +1944,10 @@ pub async fn call_tool(
                         delete_products_cascade(&state.repos.pool, &ok_ids).await?;
                     }
                     _ => return Err("不支持的批量操作".into()),
+                }
+                // 批量上/下架、回收、恢复、删除都改变索引应含集合，逐个入队单品同步。
+                for pid in &ok_ids {
+                    crate::routes::system::image_search::enqueue_product_sync(state, *pid).await;
                 }
             }
             let after = if op == "del" {
@@ -2057,6 +2065,10 @@ pub async fn call_tool(
                         "error": err.to_string(),
                     })),
                 }
+            }
+            if !created.is_empty() {
+                // 批量导入新建的商品不在任何单品入队路径上，整库刷新一次兜底。
+                crate::routes::system::image_search::enqueue_full_sync(state).await;
             }
             Ok(json!({
                 "total": products.len(),
