@@ -309,8 +309,8 @@ impl AdminUserKefuRepository {
         sqlx::query(
             "INSERT INTO admin_user_shop \
              (admin_id, user_id, shop_id, username, email, avatar, auth_list, is_using, is_admin, \
-              add_time, role_id, work_on_time, default_pos_login) \
-             VALUES ($1, $2, $3, $4, $5, $6, '[\"all\"]', $7, 0, $8, $9, 0, 0)",
+              add_time, role_id, work_on_time, default_pos_login, last_login_system) \
+             VALUES ($1, $2, $3, $4, $5, $6, '[\"all\"]', $7, 0, $8, $9, 0, 0, '')",
         )
         .bind(admin_id)
         .bind(user_id)
@@ -413,6 +413,22 @@ fn day_end_secs(s: &str) -> Option<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn insert_binding_binds_last_login_system() {
+        // 回归守卫：客服绑定 insert 曾漏绑 NOT NULL 的 last_login_system
+        //（与商家员工 insert_binding 同类缺列），PG 无默认值即 500。
+        let src = include_str!("admin_user_kefu.rs");
+        let start = src
+            .find("INSERT INTO admin_user_shop")
+            .expect("insert statement exists");
+        let seg = &src[start..];
+        let end = seg.find("VALUES").expect("insert has VALUES");
+        assert!(
+            seg[..end].contains("last_login_system"),
+            "insert_binding 缺列: last_login_system"
+        );
+    }
 
     #[test]
     fn day_range_helpers_parse_iso_date() {

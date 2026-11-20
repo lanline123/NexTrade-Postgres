@@ -45,7 +45,7 @@ impl DepositPayeeAccountService {
     /// 创建。
     pub async fn create(&self, dto: &DepositPayeeAccountDTO) -> Result<()> {
         validate(dto)?;
-        self.repo().insert(dto, now_millis()).await?;
+        self.repo().insert(dto, now_secs()).await?;
         Ok(())
     }
 
@@ -53,7 +53,7 @@ impl DepositPayeeAccountService {
     pub async fn update(&self, dto: &DepositPayeeAccountDTO) -> Result<()> {
         let id = dto.id.filter(|v| *v > 0).ok_or_else(|| Error::Validation(MSG_ID_REQUIRED.into()))?;
         validate(dto)?;
-        let n = self.repo().update(dto, now_millis()).await?;
+        let n = self.repo().update(dto, now_secs()).await?;
         if n == 0 {
             return Err(Error::NotFound(MSG_ACCOUNT_NOT_FOUND.into()));
         }
@@ -86,8 +86,14 @@ fn validate(dto: &DepositPayeeAccountDTO) -> Result<()> {
     Ok(())
 }
 
-fn now_millis() -> i64 {
-    utils::now_millis()
+/// 当前秒级时间戳。
+///
+/// `shop_deposit_payee_account.add_time` / `update_time` 是 int4 列且口径为秒
+/// （VO 注释亦标「秒」，同仓 int 时间列主流口径）；此前误传毫秒值
+/// （~1.795e12）超出 int4 上限，PG 直接报 integer out of range，
+/// create/update 恒 500（该表此前 0 行、从未成功写入）。
+fn now_secs() -> i64 {
+    utils::now_seconds()
 }
 
 /// 行 → VO。
@@ -164,6 +170,18 @@ mod tests {
         });
         assert_eq!(vo.account_type_text, "支付宝");
         assert_eq!(vo.id, 3);
+    }
+
+    #[test]
+    fn now_secs_fits_int4_columns() {
+        // add_time / update_time 是 int4 秒级列：秒值必须装得下 int4，
+        // 且量级确为秒（毫秒值会溢出，正是本次修复的回归点）。
+        let now = now_secs();
+        assert!(now > 1_700_000_000, "时间戳量级异常: {now}");
+        assert!(
+            i32::try_from(now).is_ok(),
+            "秒级时间戳必须能装入 int4: {now}"
+        );
     }
 
     #[test]

@@ -271,8 +271,13 @@ impl AdminUserShopRepository {
         role_id: i32,
         add_time: i32,
     ) -> Result<i32> {
+        // 显式列出全部 NOT NULL 列（不依赖库默认值）：PG 侧 `last_login_system`
+        // 与 `default_pos_login` 无可用默认值时漏绑必报 NOT NULL 违例（此前
+        // insert 漏了这两列及 work_on_time / device_code，建员工恒 500）。
+        // 取值与 identity 仓储 insert_user_shop_in_tx 口径一致：未赋值的时间/
+        // 设备列写 NULL，default_pos_login = 0，last_login_system = ''。
         let r: i32 = sqlx::query_scalar(
-            "INSERT INTO admin_user_shop (admin_id, user_id, shop_id, username, email, avatar, auth_list, is_using, is_admin, add_time, role_id) VALUES ($1, $2, $3, $4, $5, $6, '[]', $7, $8, $9, $10) RETURNING id",
+            "INSERT INTO admin_user_shop (admin_id, user_id, shop_id, username, email, avatar, auth_list, is_using, is_admin, add_time, role_id, work_on_time, default_pos_login, last_login_system, device_code) VALUES ($1, $2, $3, $4, $5, $6, '[]', $7, $8, $9, $10, NULL, 0, '', NULL) RETURNING id",
         )
         .bind(admin_id)
         .bind(user_id)
@@ -467,16 +472,23 @@ impl AdminUserShopRepository {
         add_time: i32,
         password_hash: &str,
     ) -> Result<i32> {
+        // 显式列出全部可写列（不依赖库默认值）：此前漏绑 NOT NULL 的
+        // `initial_password`（及 suppliers_id / parent_id / shop_id /
+        // is_using / is_deleted），PG 无默认值即报 NOT NULL 违例、建号恒 500。
+        // 取值与平台建号口径一致（identity 仓储 insert_user / Java
+        // buildAdminUser）：计数/标记列置 0、标签/扩展列置 NULL、
+        // `initial_password` 置空串；avatar 落绑定行，账号行置空串
+        // （merchant_apply 建店主账号同口径）。
         let r: i32 = sqlx::query_scalar(
-            "INSERT INTO admin_user (username, mobile, email, password, admin_type, merchant_id, user_id, role_id, auth_list, add_time) VALUES ($1, $2, $3, $4, $5, $6, 0, 0, '[]', $7) RETURNING admin_id",
+            "INSERT INTO admin_user (username, admin_type, mobile, avatar, password, email, add_time, auth_list, user_id, suppliers_id, role_id, merchant_id, parent_id, menu_tag, order_export, extra, shop_id, is_using, initial_password, is_deleted) VALUES ($1, $2, $3, '', $4, $5, $6, '[]', 0, 0, 0, $7, 0, NULL, NULL, NULL, 0, 0, '', 0) RETURNING admin_id",
         )
         .bind(username)
-        .bind(mobile)
-        .bind(email)
-        .bind(password_hash)
         .bind(admin_type)
-        .bind(merchant_id)
+        .bind(mobile)
+        .bind(password_hash)
+        .bind(email)
         .bind(add_time)
+        .bind(merchant_id)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
@@ -577,6 +589,68 @@ fn map_err(e: sqlx::Error) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 取源码中某条 INSERT 语句的列清单段（`INSERT INTO ... (` 到 `) VALUES`）。
+    fn insert_columns(src: &str, marker: &str) -> String {
+        let start = src.find(marker).expect("insert statement exists");
+        let seg = &src[start..];
+        let end = seg.find(") VALUES").expect("insert has VALUES");
+        seg[..end].to_string()
+    }
+
+    #[test]
+    fn insert_admin_user_binds_all_not_null_columns() {
+        // 回归守卫：建号 insert 曾漏绑 initial_password 等 NOT NULL 列，
+        // PG 无默认值即 500（员工建号路径从未成功过）。全列显式绑定后
+        // 任一列名从列清单消失都应让本测试变红。
+        let src = include_str!("admin_user_shop.rs");
+        let cols = insert_columns(src, "INSERT INTO admin_user (");
+        for col in [
+            "username",
+            "admin_type",
+            "mobile",
+            "avatar",
+            "password",
+            "email",
+            "add_time",
+            "auth_list",
+            "user_id",
+            "suppliers_id",
+            "role_id",
+            "merchant_id",
+            "parent_id",
+            "shop_id",
+            "is_using",
+            "initial_password",
+            "is_deleted",
+        ] {
+            assert!(cols.contains(col), "insert_admin_user 缺列: {col}");
+        }
+    }
+
+    #[test]
+    fn insert_binding_binds_all_not_null_columns() {
+        // 回归守卫：绑定 insert 曾漏绑 last_login_system / default_pos_login。
+        let src = include_str!("admin_user_shop.rs");
+        let cols = insert_columns(src, "INSERT INTO admin_user_shop (");
+        for col in [
+            "admin_id",
+            "user_id",
+            "shop_id",
+            "username",
+            "email",
+            "avatar",
+            "auth_list",
+            "is_using",
+            "is_admin",
+            "add_time",
+            "role_id",
+            "default_pos_login",
+            "last_login_system",
+        ] {
+            assert!(cols.contains(col), "insert_binding 缺列: {col}");
+        }
+    }
 
     #[test]
     fn sort_column_is_whitelisted() {

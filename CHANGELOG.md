@@ -794,3 +794,10 @@
 ### 修复
 
 - **后端 - 结算建单订单头 shop_id 恒 0（单店铺订单）**（原版有·我方补齐）：此前 `OrderService::create` 建单从不给订单头赋值（恒 0），明细行归属虽已正确（批次六 c6e6a8a），但管理端订单列表/计数与商家作用域校验、店铺结算级联、销售统计、同城派送单生产者全部只认订单头——真实购物车商家单在商家后台不可见、不可操作（详情/发货 403）、完成不入店铺结算、商家销售统计漏计、同城单不生成派送单。原版口径（快照仓 lanline123/java-b2b2c-overseas-ref v5.8.61 `OrderCheckServiceImpl` 取证）：结算按店铺分组，单店铺分组时建单即把订单头置为该组店铺；多店铺时头保持 0 并在提交时按 shopId × vendorId 拆子单承载归属。本次先补齐无歧义的单店铺部分：全部明细同属一家店铺（含赠品行）时订单头 = 该店铺，纯平台自营仍为 0；新增纯函数 `header_shop_id` + 单测 3 项。跨店混合订单的头与拆单模型（提交时拆单 vs 明细归属口径）属模型级裁定，另行立项（见 workspace order-header-shop/REPORT.md），本批不动：跨店单头维持 0、行为与现状一致。覆盖面：前台结算、立即购买、POS 收银、代客下单共用同一 `create`，单点生效；拍卖单头此前已正确赋值，不受影响。存量历史订单头不回填（其明细归属可推导，回填与否随跨店立项一并裁定）。
+
+## 0.0.2 续 · 2026-11-20 批次（商家域两处既有缺陷修复：保证金收款账户写入 + 商家员工建号，未部署——随下一后端合并批上线）
+
+### 修复
+
+- **后端 - 保证金收款账户创建/更新恒 500（我方移植缺陷修复）**：`shop_deposit_payee_account.add_time` / `update_time` 为 int4 秒级列（VO 注释亦标「秒」），服务层却把 `now_millis()` 毫秒值（~1.795e12）绑入，PG 报 integer out of range，create/update 恒 500；该表此前 0 行、从未成功写入，属空表掩盖型缺陷，2026-11-20 商家窗口验收实测暴露（psql 直复现：毫秒必错、秒值成功）。修复：服务层改传 `utils::now_seconds()` 秒级时间戳（同仓 int 时间列主流口径），create/update 两路同修；新增单测守卫时间戳量级与 int4 可容纳性。同类清扫：仓内其余 `now_millis()` 写入点经核不在 int4 列上（`store_tip.add_time` 为 bigint、`config` 时间列为毫秒口径），仅此一处。
+- **后端 - 商家员工建号恒 500（我方移植缺陷修复）**：`POST /merchant/adminUserShop/create` 路径两处 insert 缺绑 NOT NULL 列——`insert_admin_user` 漏 `admin_user.initial_password`（及 suppliers_id / parent_id / shop_id / is_using / is_deleted），补后 `insert_binding` 又漏 `admin_user_shop.last_login_system`（及 default_pos_login）；生产 is_admin=0 绑定 0 条与「该路径从未成功过」互证。修复：两条 insert 改为全列显式绑定（不依赖库默认值），取值对齐平台建号口径（identity 仓储 `insert_user` / Java buildAdminUser：计数与标记列置 0、标签与扩展列置 NULL、`initial_password` 置空串；绑定行未赋值的时间/设备列写 NULL、default_pos_login = 0、last_login_system = ''）；逐列核对两表全部插入点（全仓 10 处），其余 8 处均全列绑定。同类清扫另命中一处：IM 客服建号 `insert_binding` 同漏 `last_login_system`，一并补齐。新增源码不变量单测 3 项，守卫三处 insert 的列清单完整性。
