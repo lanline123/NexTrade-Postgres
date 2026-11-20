@@ -141,6 +141,11 @@ export default function MixedProductDisplayPreview({ data }: { data: Record<stri
     // 两组各按 ids 拉取（原版逐组 getProductList({ids})）；组数固定为 2（原版模板写死 [0]/[1]）
     const fetched0 = useDecorateProductList({ productSelectType: idsOf(groups[0]).length ? 1 : 0, productIds: idsOf(groups[0]) });
     const fetched1 = useDecorateProductList({ productSelectType: idsOf(groups[1]).length ? 1 : 0, productIds: idsOf(groups[1]) });
+    // 全空判定：两组均无标题文案、无演示项、无拉取结果时整块无任何可见内容，
+    // 渲染标准空态占位（与同族模块 .module-ad-empty 口径一致），避免画布上只剩空壳列
+    const groupHasContent = (g: Record<string, any> | undefined, fetched: Array<Record<string, any>>) =>
+        !!g && (!!g.groupTitle || !!g.groupSubTitle || (g.pruductList ?? []).some((item: any) => item.productId === 0) || fetched.length > 0);
+    const allEmpty = !groupHasContent(groups[0], fetched0) && !groupHasContent(groups[1], fetched1);
 
     return (
         <div
@@ -163,13 +168,20 @@ export default function MixedProductDisplayPreview({ data }: { data: Record<stri
                     commonStyle.moduleContentStyle.innerPadding
                 )}
             >
-                <div className="mpd-comp">
-                    <GroupColumn module={module} group={groups[0] ?? {}} fetched={fetched0} isFirst />
-                    <div className="mpd-line-box">
-                        <div className="mpd-line" style={cssText(`background:${(module.moduleColor ?? {}).lineColor};`)} />
+                {allEmpty ? (
+                    <div className="module-ad-empty empty-image_ad">
+                        <div className="image-empty-goods-bg" />
+                        <div className="desc">点击添加商品</div>
                     </div>
-                    <GroupColumn module={module} group={groups[1] ?? {}} fetched={fetched1} isFirst={false} />
-                </div>
+                ) : (
+                    <div className="mpd-comp">
+                        <GroupColumn module={module} group={groups[0] ?? {}} fetched={fetched0} isFirst />
+                        <div className="mpd-line-box">
+                            <div className="mpd-line" style={cssText(`background:${(module.moduleColor ?? {}).lineColor};`)} />
+                        </div>
+                        <GroupColumn module={module} group={groups[1] ?? {}} fetched={fetched1} isFirst={false} />
+                    </div>
+                )}
             </div>
         </div>
     );

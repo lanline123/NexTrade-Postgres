@@ -46,12 +46,18 @@ export default function CategoryNavA3Preview({ data }: { data: Record<string, an
                     commonStyle.moduleContentStyle.paddingLeftRight
                 )}
             >
-                <div className="category-nav">
-                    <div
-                        className={`decorate-slide-box ${module.listStyleType}`}
-                        style={{ transform: `translate(${-Number(module.categoryPadding) || 0}px, 0px)` }}
-                    >
-                        {categoryList.map((item, index) => (
+                {categoryList.length === 0 ? (
+                    <div className="module-ad-empty empty-image_ad">
+                        <div className="image-empty-bg" />
+                        <div className="desc">点击添加分类</div>
+                    </div>
+                ) : (
+                    <div className="category-nav">
+                        <div
+                            className={`decorate-slide-box ${module.listStyleType}`}
+                            style={{ transform: `translate(${-Number(module.categoryPadding) || 0}px, 0px)` }}
+                        >
+                            {categoryList.map((item, index) => (
                             <div className="category-nav-item" key={index} style={{ flexShrink: 0, flexBasis: `${100 / rowNum}%` }}>
                                 <div className="item-box" style={{ paddingLeft: `${module.categoryPadding}px` }}>
                                     <div
@@ -79,8 +85,9 @@ export default function CategoryNavA3Preview({ data }: { data: Record<string, an
                                 </div>
                             </div>
                         ))}
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );

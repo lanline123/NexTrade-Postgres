@@ -152,9 +152,16 @@ export default function ImageAdPreview({ data }: { data: Record<string, any> }) 
                             {(module.picList as any[])?.map?.((pic, key) => (
                                 <div className="image-ad-item" key={key}>
                                     <div className="item-content" style={imgPaddingStyle}>
-                                        <div className="item-img-a">
-                                            <img className="item-img" src={imageFormat(pic.picUrl)} alt="" />
-                                        </div>
+                                        {pic.picUrl ? (
+                                            <div className="item-img-a">
+                                                <img className="item-img" src={imageFormat(pic.picUrl)} alt="" />
+                                            </div>
+                                        ) : (
+                                            <div className="module-ad-empty empty-image_ad">
+                                                <div className="image-empty-bg" />
+                                                <div className="desc">{t('点击添加图片广告')}</div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))}

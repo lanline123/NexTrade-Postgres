@@ -45,8 +45,15 @@ export default function CategoryNavA2Preview({ data }: { data: Record<string, an
                     commonStyle.moduleContentStyle.paddingLeftRight
                 )}
             >
-                <div className="category-nav">
-                    <div className={`decorate-slide-box ${module.listStyleType}`}>
+                {categoryList.length === 0 ? (
+                    <div className="module-ad-empty empty-image_ad">
+                        <div className="image-empty-bg" />
+                        <div className="desc">点击添加分类</div>
+                    </div>
+                ) : (
+                    <>
+                        <div className="category-nav">
+                            <div className={`decorate-slide-box ${module.listStyleType}`}>
                         {categoryList.map((item, index) => (
                             <div
                                 className="category-nav-item"
@@ -93,6 +100,8 @@ export default function CategoryNavA2Preview({ data }: { data: Record<string, an
                         </div>
                     </div>
                 ) : null}
+                    </>
+                )}
             </div>
         </div>
     );

@@ -17,9 +17,16 @@ function SquareItem({ pic, imgPadding }: { pic?: Record<string, any>; imgPadding
     return (
         <div className="image-ad-item">
             <div className="item-content" style={cssText(imgPadding)}>
-                <div className="item-img-a">
-                    <img className="item-img" src={imageFormat(pic?.picUrl)} alt="" />
-                </div>
+                {pic?.picUrl ? (
+                    <div className="item-img-a">
+                        <img className="item-img" src={imageFormat(pic.picUrl)} alt="" />
+                    </div>
+                ) : (
+                    <div className="module-ad-empty empty-image_ad">
+                        <div className="image-empty-bg" />
+                        <div className="desc">{t('点击添加模块图片广告')}</div>
+                    </div>
+                )}
             </div>
         </div>
     );

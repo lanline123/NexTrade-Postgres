@@ -38,6 +38,12 @@ export default function ComboSuggestionsPreview({ data }: { data: Record<string,
             )}
         >
             <div className="main">
+                {groups.length === 0 ? (
+                    <div className="module-ad-empty empty-image_ad">
+                        <div className="image-empty-bg" />
+                        <div className="desc">点击添加组合推荐</div>
+                    </div>
+                ) : null}
                 {groups.map((group, index) => (
                     <div className="list" key={index} style={{ ...cssText(listStyle), ...(index > 1 ? { marginTop: 10 } : {}) }}>
                         <div style={{ padding: 6 }}>

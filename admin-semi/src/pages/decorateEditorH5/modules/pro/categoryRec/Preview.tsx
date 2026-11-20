@@ -32,9 +32,15 @@ export default function CategoryRecPreview({ data }: { data: Record<string, any>
                 className="module-ad-content"
                 style={cssText(commonStyle.moduleContentStyle.backgroundImage, commonStyle.moduleContentStyle.backgroundSize, commonStyle.moduleContentStyle.boxRadius, commonStyle.moduleContentStyle.boxShadow, commonStyle.moduleContentStyle.innerPadding)}
             >
-                <div className="categoryrec">
-                    <div className="item-box">
-                        {categoryList.map((item, index) => (
+                {categoryList.length === 0 ? (
+                    <div className="module-ad-empty empty-image_ad">
+                        <div className="image-empty-bg" />
+                        <div className="desc">点击添加分类</div>
+                    </div>
+                ) : (
+                    <div className="categoryrec">
+                        <div className="item-box">
+                            {categoryList.map((item, index) => (
                             <div
                                 className="li"
                                 key={index}
@@ -70,8 +76,9 @@ export default function CategoryRecPreview({ data }: { data: Record<string, any>
                                 </div>
                             </div>
                         ))}
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );

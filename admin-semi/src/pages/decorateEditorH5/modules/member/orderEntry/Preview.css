@@ -96,3 +96,10 @@
     text-align: center;
     white-space: nowrap;
 }
+.module-member-order-entry .order-entry-empty {
+    width: 100%;
+    padding: 18px 0;
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+}

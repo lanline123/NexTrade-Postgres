@@ -57,8 +57,15 @@ export default function ImageShowcasePreview({ data }: { data: Record<string, an
                     <div className={`image-showcase-list ${isScroll ? "is-scroll" : "is-fixed"}`} style={isScroll ? { display: "flex", overflowX: "auto" } : { display: "grid", gridTemplateColumns: `repeat(${rowNum}, 1fr)`, gap: `${gap}px` }}>
                         {picList.map((pic, key) => (
                             <div className="image-showcase-item" key={key} style={itemStyle}>
-                                <div className="item-image-box" style={imageBoxStyle}>
-                                    <img className="item-image" src={imageFormat(pic.picUrl)} style={imageStyle} alt="" />
+                                <div
+                                    className="item-image-box"
+                                    style={pic.picUrl ? imageBoxStyle : { ...imageBoxStyle, paddingTop: ratioPadding || "100%", height: 0, background: "#f7f8fa" }}
+                                >
+                                    {pic.picUrl ? (
+                                        <img className="item-image" src={imageFormat(pic.picUrl)} style={imageStyle} alt="" />
+                                    ) : (
+                                        <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#999" }}>点击添加图片</span>
+                                    )}
                                 </div>
                             </div>
                         ))}

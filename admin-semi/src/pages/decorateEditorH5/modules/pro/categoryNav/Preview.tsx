@@ -43,20 +43,27 @@ export default function CategoryNavPreview({ data }: { data: Record<string, any>
                 className="module-ad-content"
                 style={cssText(commonStyle.moduleContentStyle.backgroundImage, commonStyle.moduleContentStyle.backgroundSize, commonStyle.moduleContentStyle.boxRadius, commonStyle.moduleContentStyle.boxShadow, commonStyle.moduleContentStyle.innerPadding)}
             >
-                <div className={`category-nav decorate-slide-box ${module.listStyleType}`}>
-                    {categoryList.map((item, index) => (
-                        <div className="category-nav-item" key={index} style={itemStyle}>
-                            <div className="item-box" style={{ padding: `${module.categoryPadding}px` }}>
-                                <div className="category-nav-item-img" style={{ backgroundImage: `url(${imageFormat(item.picUrl)})`, ...imgStyle }} />
-                                {module.subTitle?.showTitle ? (
-                                    <p className="category-nav-item-text" style={cssText(subTitle.textBlod, subTitle.textColor, subTitle.textFontSize)}>
-                                        {item.picTitle}
-                                    </p>
-                                ) : null}
+                {categoryList.length === 0 ? (
+                    <div className="module-ad-empty empty-image_ad">
+                        <div className="image-empty-bg" />
+                        <div className="desc">点击添加分类</div>
+                    </div>
+                ) : (
+                    <div className={`category-nav decorate-slide-box ${module.listStyleType}`}>
+                        {categoryList.map((item, index) => (
+                            <div className="category-nav-item" key={index} style={itemStyle}>
+                                <div className="item-box" style={{ padding: `${module.categoryPadding}px` }}>
+                                    <div className="category-nav-item-img" style={{ backgroundImage: `url(${imageFormat(item.picUrl)})`, ...imgStyle }} />
+                                    {module.subTitle?.showTitle ? (
+                                        <p className="category-nav-item-text" style={cssText(subTitle.textBlod, subTitle.textColor, subTitle.textFontSize)}>
+                                            {item.picTitle}
+                                        </p>
+                                    ) : null}
+                                </div>
                             </div>
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );

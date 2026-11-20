@@ -56,6 +56,9 @@ export default function OrderEntryPreview({ data }: { data: Record<string, any> 
                             </div>
                         ) : null}
                         <div className={`order-entry-list${layoutStyle === 1 ? " layout-style1" : ""}`}>
+                            {list.length === 0 ? (
+                                <div className="order-entry-empty">点击添加订单入口</div>
+                            ) : null}
                             {list.map((item, index) => (
                                 <Fragment key={index}>
                                     {layoutStyle === 2 && index === list.length - 1 ? <div className="order-entry-divider" /> : null}

@@ -55,6 +55,12 @@ export default function MixedNoticePreview({ data }: { data: Record<string, any>
             >
                 <div className="mixed-notice">
                     <div className="notices">
+                        {groups.length === 0 ? (
+                            <div className="module-ad-empty empty-image_ad">
+                                <div className="image-empty-bg" />
+                                <div className="desc">点击添加公告内容</div>
+                            </div>
+                        ) : null}
                         {groups.map((group, index) => {
                             const notices = group.notices || [];
                             return (

@@ -63,7 +63,13 @@ export default function SlideLargeImagePreview({ data }: { data: Record<string, 
             >
                 <div className="slidelarge-image">
                     {modTitle && modTitle.titlePosition === "top" && modTitle.titleText ? renderTitle() : null}
-                    <div style={{ marginTop: `${module.picMarginTop}%`, width: "100%", zIndex: 1, overflow: "hidden" }}>
+                    {picList.length === 0 ? (
+                        <div className="module-ad-empty empty-image_ad">
+                            <div className="image-empty-bg" />
+                            <div className="desc">点击添加图片</div>
+                        </div>
+                    ) : (
+                        <div style={{ marginTop: `${module.picMarginTop}%`, width: "100%", zIndex: 1, overflow: "hidden" }}>
                         <div
                             className={module.slidingEffect === "auto" ? "slidelarge-image-box" : undefined}
                             style={{
@@ -78,11 +84,17 @@ export default function SlideLargeImagePreview({ data }: { data: Record<string, 
                             {list.map((item, index) => (
                                 <div key={index} style={{ flexBasis: `${100 / rowNum}%`, flexShrink: 0 }}>
                                     <div style={{ marginRight: `${module.picMargin}px`, background: "none", borderRadius: `${module.picRadius}px`, position: "relative", overflow: "hidden" }}>
-                                        <img
-                                            src={imageFormat(item.picUrl)}
-                                            alt=""
-                                            style={{ width: "100%", display: "block", objectFit: module.picFillType === "contain" ? "contain" : "cover" }}
-                                        />
+                                        {item.picUrl ? (
+                                            <img
+                                                src={imageFormat(item.picUrl)}
+                                                alt=""
+                                                style={{ width: "100%", display: "block", objectFit: module.picFillType === "contain" ? "contain" : "cover" }}
+                                            />
+                                        ) : (
+                                            <div style={{ paddingTop: "50%", background: "#f7f8fa", position: "relative" }}>
+                                                <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#999" }}>点击添加图片</span>
+                                            </div>
+                                        )}
                                         {titleDesc.show && (item.picTitle || item.picDesc) ? (
                                             <div
                                                 style={{
@@ -108,8 +120,9 @@ export default function SlideLargeImagePreview({ data }: { data: Record<string, 
                                     </div>
                                 </div>
                             ))}
+                            </div>
                         </div>
-                    </div>
+                    )}
                     {modTitle && modTitle.titlePosition === "bottom" ? renderTitle() : null}
                 </div>
             </div>

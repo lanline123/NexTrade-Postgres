@@ -40,7 +40,13 @@ export default function SlidingImagePreview({ data }: { data: Record<string, any
         >
             <div className="module-ad-content">
                 <div className="slidingImage">
-                    <ul className="slidingImage-box">
+                    {picList.length === 0 ? (
+                        <div className="module-ad-empty empty-image_ad">
+                            <div className="image-empty-bg" />
+                            <div className="desc">点击添加图片</div>
+                        </div>
+                    ) : (
+                        <ul className="slidingImage-box">
                         {list.map((item, index) => (
                             <li className="item-box" key={index} style={{ width: `${module.picWidth}%` }}>
                                 <div
@@ -80,7 +86,8 @@ export default function SlidingImagePreview({ data }: { data: Record<string, any
                                 </div>
                             </li>
                         ))}
-                    </ul>
+                        </ul>
+                    )}
                 </div>
             </div>
         </div>

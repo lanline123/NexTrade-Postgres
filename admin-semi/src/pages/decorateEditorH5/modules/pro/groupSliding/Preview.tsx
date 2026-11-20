@@ -59,6 +59,12 @@ export default function GroupSlidingPreview({ data }: { data: Record<string, any
             >
                 <div>
                     <div className="groupsliding">
+                        {groupList.length === 0 ? (
+                            <div className="module-ad-empty empty-image_ad">
+                                <div className="image-empty-bg" />
+                                <div className="desc">点击添加分组</div>
+                            </div>
+                        ) : null}
                         {groupList.map((group, index) => (
                             <div
                                 className="slide-box"

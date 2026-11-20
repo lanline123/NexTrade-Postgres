@@ -129,7 +129,14 @@ export default function CountdownPreview({ data }: { data: Record<string, any> }
                     </div>
                 </div>
                 {Number(countdownData.showCountdown) === 1 ? (
-                    <div className="countdown" style={{ marginTop: `-${countdownData.countdownPicBottom}px`, borderRadius: "0px 0px 6px 6px" }}>
+                    <div
+                        className="countdown"
+                        style={
+                            countdownPicUrl
+                                ? { marginTop: `-${countdownData.countdownPicBottom}px`, borderRadius: "0px 0px 6px 6px" }
+                                : { marginTop: 0, height: 40, borderRadius: "0px 0px 6px 6px" }
+                        }
+                    >
                         <img className="countdown-img" src={countdownPicUrl ? imageFormat(countdownPicUrl) : undefined} alt="" />
                         <div className="count-down" style={{ top: `${countdownData.marginTop}%` }}>
                             <H5Countdown
