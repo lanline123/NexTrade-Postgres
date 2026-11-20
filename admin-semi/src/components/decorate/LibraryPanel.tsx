@@ -26,7 +26,8 @@ export interface LibraryGroup {
 
 export interface LibraryPanelProps {
     groups: LibraryGroup[];
-    onAdd: (groupKey: string, item: LibraryItem) => void;
+    /** 条目点击添加；第三参为原生点击事件（H5 编辑器据 detail 区分双击连点用，PC 编辑器可忽略） */
+    onAdd: (groupKey: string, item: LibraryItem, e?: React.MouseEvent) => void;
     /** 段头上方内容（如页签），可选 */
     header?: ReactNode;
     /** 紧凑模式：去掉分组区 35px 顶距（上方已有页签等头部时用） */
@@ -63,7 +64,7 @@ export default function LibraryPanel({ groups, onAdd, header, flush, onDragStart
                                         <div
                                             key={item.key}
                                             className="dec-lib__item"
-                                            onClick={() => onAdd(group.key, item)}
+                                            onClick={(e) => onAdd(group.key, item, e)}
                                             draggable={!!onDragStartItem}
                                             onDragStart={onDragStartItem ? (e) => onDragStartItem(group.key, item, e) : undefined}
                                             onPointerDown={onItemPointerDown ? (e) => onItemPointerDown(group.key, item, e) : undefined}

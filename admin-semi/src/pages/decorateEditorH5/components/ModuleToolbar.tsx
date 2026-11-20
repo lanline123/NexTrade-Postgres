@@ -8,8 +8,12 @@
  * 样式，2026-11-17 标准编辑器 Step 2 接入）。本文件只负责数据映射与添加动作。
  * 添加两路：点击添加（末尾/约束位）与拖拽添加（2026-11-18：pointer 长按拖入
  * 画布，按落点插入，控制器在 canvasBridge）；约束校验收敛到 store。
+ * 点击口径（2026-11-21 统一为「单击恰好一个」）：拖拽控制器的长按/位移激活
+ * 不再吞掉松手落在库内的 click（见 canvasBridge onUp）；同一次双击的第二下
+ * （detail>1）在 handleAdd 处不重复添加；拖入画布的落点添加仍走 onDrop 并
+ * 抑制紧随的 click。
  */
-import { useMemo } from "react";
+import { useMemo, type MouseEvent as ReactMouseEvent } from "react";
 import { Tabs, TabPane, Toast } from "@douyinfe/semi-ui";
 import LibraryPanel, { type LibraryGroup } from "../../../components/decorate/LibraryPanel";
 import { MODULE_ICONPARK } from "./moduleIcons";
@@ -126,9 +130,12 @@ export default function ModuleToolbar({ pageType, isShop }: { pageType: number; 
         }
     };
 
-    const handleAdd = (def: ModuleDefinition) => {
-        // 拖拽刚结束时紧随的 click 不是用户点击添加，吞掉
+    const handleAdd = (def: ModuleDefinition, e?: ReactMouseEvent) => {
+        // 拖入画布刚结束时紧随的 click 不是用户点击添加，吞掉
         if (consumeAddClickSuppression()) return;
+        // 同一次双击的第二下（detail>1）不重复添加：单击恰好一个；
+        // 有意连点（间隔超过系统双击间隔，detail 复位为 1）仍可连续添加
+        if (e && e.detail > 1) return;
         doAdd(def);
     };
 
@@ -162,9 +169,9 @@ export default function ModuleToolbar({ pageType, isShop }: { pageType: number; 
                                 <LibraryPanel
                                     flush
                                     groups={toLibraryGroups(tab.sections)}
-                                    onAdd={(_groupKey, item) => {
+                                    onAdd={(_groupKey, item, e) => {
                                         const def = defByKey.get(item.key);
-                                        if (def) handleAdd(def);
+                                        if (def) handleAdd(def, e);
                                     }}
                                     onItemPointerDown={(_groupKey, item, e) => {
                                         const def = defByKey.get(item.key);

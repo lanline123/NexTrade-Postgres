@@ -8,8 +8,11 @@
  *    判断落点；lineY 为插入指示线在「该模式画线容器」内的纵坐标（真实模式 = 覆盖
  *    层内、兼容模式 = 画布窗内），由各自画布组件消费本文件的拖拽状态渲染。
  * 3. 模块库拖拽控制器：pointer 事件实现（长按 220ms 或移动 >8px 进入拖拽态），
- *    拖拽影子跟随指针；松手时若解析出插入下标则回调 onDrop，否则静默取消。
- *    拖拽一旦激活，随后的 click（点击添加）会被抑制一次，避免拖完又被点击重复添加。
+ *    拖拽影子跟随指针；松手时若解析出插入下标则回调 onDrop 并抑制紧随的一次
+ *    click，避免拖入画布后又被点击重复添加；未落入画布（在库内取消拖拽）则
+ *    不抑制——松手落在条目上的 click 照常走点击添加，保证任意一次在条目上的
+ *    按下-松手恰好添加一个（2026-11-21 点击口径统一，此前「激活即抑制」会把
+ *    按住稍久/带位移的普通单击整下吞掉，表现为有的模块点一次没反应）。
  */
 import { useSyncExternalStore } from "react";
 
@@ -102,7 +105,7 @@ export function useLibraryDragState(): LibraryDragState {
     );
 }
 
-// ==================== 点击抑制（拖拽激活后吞掉紧随的 click 添加） ====================
+// ==================== 点击抑制（拖入画布成功后吞掉紧随的 click 添加） ====================
 
 let suppressUntil = 0;
 
@@ -187,9 +190,15 @@ export function beginLibraryDrag({ label, startX, startY, onDrop }: LibraryDragS
         const wasActivated = activated;
         cleanup();
         if (!wasActivated) return; // 普通点击：交给 LibraryPanel 的 onClick 添加
-        suppressAddClick();
         const res = resolveDrop(e.clientX, e.clientY);
-        if (res) onDrop(res.insertIndex);
+        if (res) {
+            // 真拖入画布：落点添加恰好一次，紧随的 click 抑制掉防重复添加
+            suppressAddClick();
+            onDrop(res.insertIndex);
+        }
+        // 拖拽激活但松手不在画布上（在库内取消）：不抑制 click——松手若落在
+        // 条目上，click 按单击口径添加一个，与普通点击一致；松手落在别处时
+        // click 不落在条目上，天然不添加。
     };
 
     const onKey = (e: KeyboardEvent) => {
