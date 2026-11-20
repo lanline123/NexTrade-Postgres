@@ -31,7 +31,9 @@ pub struct CartRow {
     pub product_type: i32,
     pub shop_id: i32,
     pub sku_data: Option<String>,
-    pub update_time: i64,
+    /// 更新时间（秒）。列为 int4，必须用 i32 解码：此前声明 i64，
+    /// 有行时 sqlx 解码 int4→i64 直接报错，代客购物车列表恒 500（空表掩盖）。
+    pub update_time: i32,
     pub product_name: Option<String>,
     pub product_status: Option<i32>,
     pub product_stock: Option<i32>,
@@ -62,7 +64,7 @@ impl CartRow {
             product_type: self.product_type,
             shop_id: self.shop_id,
             sku_data: self.sku_data.clone(),
-            update_time: self.update_time,
+            update_time: i64::from(self.update_time),
             product_name: self.product_name.clone(),
             product_status: self.product_status,
             product_stock: self.product_stock,
@@ -532,4 +534,29 @@ mod tests {
         assert_eq!(vo.original_price, Decimal::new(1999, 2));
         assert_eq!(vo.product_name.as_deref(), Some("商品"));
     }
+
+    /// 回归不变式：`cart.update_time` 是 int4 列，`CartRow`（代客下单
+    /// 购物车读路径）必须以 i32 解码。曾声明 i64，现网 cart 表已有
+    /// type=15（代客）行，sqlx 解码 int4→i64 报类型不兼容，代客
+    /// 购物车列表/按 ID 查询有行即 500（主 C 端购物车走 Cart 实体
+    /// i32，不受影响）。
+    ///
+    /// 扫描范围限定在行结构定义体内，且只匹配字段声明形态。
+    #[test]
+    fn cart_row_update_time_decodes_as_i32_for_int4_column() {
+        let src = include_str!("proxy_shopping_cart.rs");
+        let start = src
+            .find("pub struct CartRow")
+            .expect("row struct must exist");
+        let body = &src[start..src[start..].find("\n}\n").map(|e| start + e).unwrap_or(src.len())];
+        assert!(
+            body.contains("pub update_time: i32"),
+            "update_time 必须以 i32 解码 int4 列"
+        );
+        assert!(
+            !body.contains("pub update_time: i64"),
+            "update_time 不得再以 i64 声明（int4 列解码必炸）"
+        );
+    }
+
 }

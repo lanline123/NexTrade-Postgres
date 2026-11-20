@@ -901,3 +901,21 @@
 - **后端 - 子单退款通路（原版有·我方补齐）**：子单按父单全部 paylog 逐行复制（同 paySn、状态/交易号复制、金额按子单口径 resolve：balance 码取子单 balance、offline 取线下已付、其余取线上已付、未付取未付额），激活时再同步对齐——子单售后退款的 `assertRefundable` 占用校验由此有据（此前子单无 paylog 恒报「该笔支付已全额退款」，合并批 apply #11 实锤），金额校验未放松。渠道退款总额改取父单同 paySn paylog 的实付（原版 RefundApplyServiceImpl 口径），`PayService::refund_via_channel` 改为接收调用方已解析的支付记录，不再按 paySn 取最新一行（拆单后同 paySn 存在子单分摊行，误取会把分摊额当渠道总额）。
 - 存量盘点（2026-11-20 现网只读）：跨店未拆订单 0 单，无需回填；头 shop_id=0 的单店存量 55 单（已付 15/未付 40）中未付单将在支付时由单组分支顺手补头自愈，已付单的「仅补头」守卫脚本已备（未执行，待拍板）。
 - 周期购子单：原版快照与我方均无周期购子单生成（双向缺席，不虚构实现）；拆单子单经全字段复制继承周期字段（is_cycle_order/delivery_date 等），主单出现时不丢字段。
+
+## 0.0.2 续 · 2026-11-20 批次（平台保证金流水列表/详情有行即 500 修复，代码已入库待部署）
+
+### 修复
+
+- **后端 - 平台保证金流水（shop_deposit_log）列表/详情有行即 500（移植类型对齐）**：`infrastructure` 行结构 `DepositLogRow` 把 `add_time` 声明为 i64，而该列实为 int4（秒级，现网 information_schema 实测），sqlx 解码 int4→i64 报类型不兼容；现网该表已有 1 行，平台保证金流水列表/详情解码到该行即 500（已爆）。同表另三条读路径（core 实体 `ShopDepositLog`、deposit_account `LogRow`、vendor 侧实体读）本就 i32，不受影响。修复：行结构改 i32，服务层 `format_time` 入参以 `i64::from` widening（VO 仍为格式化字符串、线格式不变）；新增源码不变式测试（扫描范围限定行结构定义体）。本项为收款账户修复（DepositPayeeAccountRow）登记的三处同型嫌疑之一，经现网只读探针证实后同型修复；核查报告见 int4-suspects-check/REPORT.md（workspace）。
+
+## 0.0.2 续 · 2026-11-20 批次（代客下单购物车列表有行即 500 修复，代码已入库待部署）
+
+### 修复
+
+- **后端 - 代客下单购物车（cart type=15）列表/按 ID 查询有行即 500（移植类型对齐）**：`infrastructure` 行结构 `CartRow` 把 `update_time` 声明为 i64，而该列实为 int4（秒级，现网 information_schema 实测），sqlx 解码 int4→i64 报类型不兼容；现网 cart 表 7 行中 3 行为代客行，代客购物车读路径解码即 500（已爆）。主 C 端购物车走 core 实体 `Cart`（i32）与写侧 i32 绑定，不受影响。修复：行结构改 i32，`to_vo` 以 `i64::from` widening 回 VO（VO 对外仍 i64、线格式不变）；新增源码不变式测试（扫描范围限定行结构定义体）。本项为收款账户修复登记的三处同型嫌疑之一，经现网只读探针证实后同型修复；核查报告见 int4-suspects-check/REPORT.md（workspace）。
+
+## 0.0.2 续 · 2026-11-20 批次（优惠券发放日志列表潜伏 500 修复，代码已入库待部署）
+
+### 修复
+
+- **后端 - 优惠券发放日志列表潜伏 500（移植类型对齐，未爆先行修复）**：`infrastructure` 联表行结构 `IssueLogRow` 把 `used_time` 声明为 Option<i64>，而 `user_coupon.used_time` 实为 int4（秒级，现网 information_schema 实测），sqlx 解码 int4→i64 报类型不兼容。现网 coupon_issue_log 尚无行、暂未触发（未爆），但 user_coupon 已有 2 行且 used_time 非空，第一条发放日志出现后 admin 发放日志列表即 500，故先行修复：行结构改 Option<i32>，服务层映射以 `map(i64::from)` widening 回 VO（VO 对外仍 Option<i64>、线格式不变；`used` 标记计算口径不变）；新增源码不变式测试（扫描范围限定行结构定义体）。本项为收款账户修复登记的三处同型嫌疑之一，经现网只读探针证实后同型修复；核查报告见 int4-suspects-check/REPORT.md（workspace）。

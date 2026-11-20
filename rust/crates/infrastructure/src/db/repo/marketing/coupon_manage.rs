@@ -63,7 +63,9 @@ pub struct IssueLogRow {
     pub avatar: Option<String>,
     pub issue_time: i64,
     pub source_type: i32,
-    pub used_time: Option<i64>,
+    /// 使用时间（秒）。列为 int4，必须用 Option<i32> 解码：此前声明
+    /// Option<i64>，有行时 sqlx 解码 int4→i64 直接报错，发放日志列表恒 500。
+    pub used_time: Option<i32>,
 }
 
 /// 发放批次联表行。
@@ -732,4 +734,28 @@ mod tests {
         };
         assert_eq!(row.coupon_count, 3);
     }
+
+    /// 回归不变式：`user_coupon.used_time` 是 int4 列，发放日志联表行
+    /// `IssueLogRow` 必须以 Option<i32> 解码。曾声明 Option<i64>，
+    /// sqlx 解码 int4→i64 报类型不兼容；现网 coupon_issue_log 尚无
+    /// 行未爆，第一条发放日志出现后 admin 发放日志列表即 500。
+    ///
+    /// 扫描范围限定在行结构定义体内，且只匹配字段声明形态。
+    #[test]
+    fn issue_log_row_used_time_decodes_as_i32_for_int4_column() {
+        let src = include_str!("coupon_manage.rs");
+        let start = src
+            .find("pub struct IssueLogRow")
+            .expect("row struct must exist");
+        let body = &src[start..src[start..].find("\n}\n").map(|e| start + e).unwrap_or(src.len())];
+        assert!(
+            body.contains("pub used_time: Option<i32>"),
+            "used_time 必须以 Option<i32> 解码 int4 列"
+        );
+        assert!(
+            !body.contains("pub used_time: Option<i64>"),
+            "used_time 不得再以 Option<i64> 声明（int4 列解码必炸）"
+        );
+    }
+
 }

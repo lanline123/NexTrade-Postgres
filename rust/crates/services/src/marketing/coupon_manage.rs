@@ -419,7 +419,7 @@ impl CouponManageService {
                     source_type: row.source_type,
                     source_type_name: source_type_name(row.source_type).to_string(),
                     used: if row.used_time.unwrap_or(0) > 0 { 1 } else { 0 },
-                    used_time: row.used_time,
+                    used_time: row.used_time.map(i64::from),
                 }
             })
             .collect();

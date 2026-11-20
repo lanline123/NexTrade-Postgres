@@ -34,8 +34,9 @@ pub struct DepositLogRow {
     pub admin_id: i32,
     /// 备注
     pub remark: String,
-    /// 变动时间（秒）
-    pub add_time: i64,
+    /// 变动时间（秒）。列为 int4，必须用 i32 解码：此前声明 i64，
+    /// 有行时 sqlx 解码 int4→i64 直接报错，列表/详情恒 500（空表掩盖）。
+    pub add_time: i32,
     /// 归属主体名称（shop 标题；非店铺主体为空）
     pub shop_title: Option<String>,
     /// 店铺 ID（= owner_id when owner_type=1）
@@ -159,4 +160,31 @@ enum Bind {
     I32(i32),
     I64(i64),
     Str(String),
+}
+
+#[cfg(test)]
+mod tests {
+    /// 回归不变式：`shop_deposit_log.add_time` 是 int4 列，行结构必须以
+    /// i32 解码。曾声明 i64，现网该表已有 1 行，sqlx 解码 int4→i64
+    /// 报类型不兼容，平台保证金流水列表/详情有行即 500（同表族
+    /// shop_deposit_payee_account 读侧同病已于收款账户修复中改正）。
+    ///
+    /// 扫描范围限定在行结构定义体内（避免整文件扫描被断言自身的
+    /// 字面量污染），且只匹配字段声明形态。
+    #[test]
+    fn row_add_time_decodes_as_i32_for_int4_column() {
+        let src = include_str!("deposit_log.rs");
+        let start = src
+            .find("pub struct DepositLogRow")
+            .expect("row struct must exist");
+        let body = &src[start..src[start..].find("\n}\n").map(|e| start + e).unwrap_or(src.len())];
+        assert!(
+            body.contains("pub add_time: i32"),
+            "add_time 必须以 i32 解码 int4 列"
+        );
+        assert!(
+            !body.contains("pub add_time: i64"),
+            "add_time 不得再以 i64 声明（int4 列解码必炸）"
+        );
+    }
 }

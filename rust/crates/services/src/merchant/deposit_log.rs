@@ -51,7 +51,7 @@ impl DepositLogService {
                 order_id: r.order_id,
                 admin_id: r.admin_id,
                 remark: r.remark,
-                add_time: format_time(r.add_time),
+                add_time: format_time(i64::from(r.add_time)),
             })
             .collect();
         Ok(PageResult::new(total, list, &page))
@@ -81,7 +81,7 @@ impl DepositLogService {
             order_id: r.order_id,
             admin_id: r.admin_id,
             remark: r.remark,
-            add_time: format_time(r.add_time),
+            add_time: format_time(i64::from(r.add_time)),
         })
     }
 }
