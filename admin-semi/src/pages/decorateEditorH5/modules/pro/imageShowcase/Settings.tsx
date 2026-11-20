@@ -8,7 +8,7 @@
 * 视觉选择器；选项文案
 * 沿本模块既有口径（充满/周边留白）。
 */
-import { SettingGroup, SettingRow, RadioRowField, SegmentedRadio, RangeField, PicListField} from "../../../shared/settingWidgets";
+import { SettingGroup, SettingRow, RadioRowField, SegmentedRadio, RangeField, PicListEditorField} from "../../../shared/settingWidgets";
 import { TemplateIconRadioRowField} from "../../../shared/templateIcon";
 import { SettingsTabs, ModuleStyleSettingsField, ContentStyleSettingsField} from "../../../shared/styleEdits";
 
@@ -18,7 +18,7 @@ return (
 <SettingsTabs tabs={["图片设置", "扩展设置"]}>
 <>
 <SettingGroup title="基本设置">
-<PicListField data={data} onChange={onChange} field="picList" label="" max={20} showText={false} />
+<PicListEditorField data={data} onChange={onChange} field="picList" label="" max={20} showText={false} />
 </SettingGroup>
 <SettingGroup title="参数设置">
 <RadioRowField

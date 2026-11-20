@@ -8,7 +8,7 @@
  * 注：原版 PicList 带 showColor（逐项渐变色 gradientColorA/B），我方 PicListField 无逐项颜色编辑，
  * 逐项渐变色保持原数据不变（见交付摘要）。
  */
-import { SettingGroup, RadioRowField, RangeField, ColorField, PicListField } from "../../../shared/settingWidgets";
+import { SettingGroup, RadioRowField, RangeField, ColorField, PicListEditorField } from "../../../shared/settingWidgets";
 import { SettingsTabs, ModuleStyleSettingsField, SubTitleSettingsField } from "../../../shared/styleEdits";
 
 export default function SlidingImageSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
@@ -17,7 +17,7 @@ export default function SlidingImageSettings({ data, onChange }: { data: Record<
             <SettingsTabs tabs={["内容设置", "扩展设置"]}>
                 <>
                     <SettingGroup title="内容设置">
-                        <PicListField data={data} onChange={onChange} field="picList" label="" max={20} showDesc addText="添加图片+链接" />
+                        <PicListEditorField data={data} onChange={onChange} field="picList" label="" max={20} showDesc addText="添加图片+链接" />
                     </SettingGroup>
                     <SettingGroup title="图片样式设置">
                         <RadioRowField

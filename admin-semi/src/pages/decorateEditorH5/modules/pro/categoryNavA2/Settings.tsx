@@ -8,7 +8,7 @@
 * 「列表样式」原版为 iconfont-admin 图标钮，2026-11-20 起走共享视觉选择器
 * 。
 */
-import { SettingGroup, RadioRowField, RangeField, ColorField, PicListField, DecDivider, SegmentedRadio, SettingRow} from "../../../shared/settingWidgets";
+import { SettingGroup, RadioRowField, RangeField, ColorField, PicListEditorField, DecDivider, SegmentedRadio, SettingRow} from "../../../shared/settingWidgets";
 import { TemplateIconRadioRowField} from "../../../shared/templateIcon";
 import { SettingsTabs, ModuleStyleSettingsField, ContentStyleSettingsField, AnimationSettingsField, SubTitleSettingsField, PicFillTypeField} from "../../../shared/styleEdits";
 
@@ -20,7 +20,7 @@ return (
 <SettingsTabs tabs={["导航内容", "扩展设置"]}>
 <>
 <SettingGroup title="内容设置">
-<PicListField data={data} onChange={onChange} field="categoryList" label="" max={30} addText="添加一组" />
+<PicListEditorField data={data} onChange={onChange} field="categoryList" label="" max={30} addText="添加一组" />
 </SettingGroup>
 <SettingGroup title="参数设置">
 <TemplateIconRadioRowField

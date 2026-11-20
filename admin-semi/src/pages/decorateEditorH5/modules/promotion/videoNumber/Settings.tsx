@@ -18,7 +18,7 @@ import { useEffect, useRef, useState} from "react";
 import { Input, Select} from "@douyinfe/semi-ui";
 import { apiGet} from "../../../../../api";
 import { cloneDeep, defaultFrame, mergeDefaultModule } from "../../../contract/sharedDefaults";
-import { SettingGroup, SettingRow, SegmentedRadio, ColorField, PicListField, FrameSettingsField, RadioRowField } from "../../../shared/settingWidgets";
+import { SettingGroup, SettingRow, SegmentedRadio, ColorField, PicListEditorField, FrameSettingsField, RadioRowField } from "../../../shared/settingWidgets";
 
 const TIP = "视频号组件为视频号配套组件：通过该组件可以实现自定义进入视频号视频或直播，帮助商户提升视频号相关内容的曝光率，提升视频号热度。";
 
@@ -227,7 +227,7 @@ options={[
 <ColorField data={data} onChange={onChange} field="titleColor" label="显示颜色" resetValue="#2A2A2A" />
 ): null}
 </SettingGroup>
-<PicListField data={data} onChange={onChange} field="productImages" label="商品图片" max={3} addText="添加图片" />
+<PicListEditorField data={data} onChange={onChange} field="productImages" label="商品图片" max={3} addText="添加图片" />
 <div style={{ color: "#999", fontSize: 12, lineHeight: "18px"}}>最多可添加三个图片，支持拖拽排序</div>
 </>
 )}

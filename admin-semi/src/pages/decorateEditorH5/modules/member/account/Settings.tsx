@@ -5,7 +5,7 @@
  * （showText、showLink=false、showAddButton=false——PicListField 已补该门控，固定入口不可新增）；
  * 扩展：CommonFrameEdit 全量。
  */
-import { SettingGroup, TextField, PicListField, DecDivider, FrameSettingsField } from "../../../shared/settingWidgets";
+import { SettingGroup, TextField, PicListEditorField, DecDivider, FrameSettingsField } from "../../../shared/settingWidgets";
 import { SettingsTabs } from "../../../shared/styleEdits";
 
 export default function AccountSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
@@ -17,7 +17,7 @@ export default function AccountSettings({ data, onChange }: { data: Record<strin
                         <TextField data={data} onChange={onChange} field="moduleTitle" label="模块标题" placeholder="请输入标题" />
                     </SettingGroup>
                     <DecDivider />
-                    <PicListField data={data} onChange={onChange} field="accountList" label="账号列表设置" showText showDesc showLink={false} showAddButton={false} />
+                    <PicListEditorField data={data} onChange={onChange} field="accountList" label="账号列表设置" showText showDesc showLink={false} showAddButton={false} />
                 </div>
                 <div>
                     <FrameSettingsField data={data} onChange={onChange} />

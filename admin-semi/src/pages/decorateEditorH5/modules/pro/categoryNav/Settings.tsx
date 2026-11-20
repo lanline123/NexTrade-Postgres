@@ -9,7 +9,7 @@
 * 横向滑动=icon-kuaijiebiaoqian-youhuadong），2026-11-20 起走共享视觉选择器
 * 。
 */
-import { SettingGroup, RangeField, PicListField, DecDivider, SegmentedRadio, SettingRow} from "../../../shared/settingWidgets";
+import { SettingGroup, RangeField, PicListEditorField, DecDivider, SegmentedRadio, SettingRow} from "../../../shared/settingWidgets";
 import { TemplateIconRadioRowField} from "../../../shared/templateIcon";
 import { SettingsTabs, ExtensionStyleSettings, AnimationSettingsField, SubTitleSettingsField, PicFillTypeField} from "../../../shared/styleEdits";
 
@@ -21,7 +21,7 @@ tabs={["导航内容", "扩展设置"]}
 >
 <>
 <SettingGroup title="内容设置">
-<PicListField data={data} onChange={onChange} field="categoryList" label="" max={30} addText="添加一组" />
+<PicListEditorField data={data} onChange={onChange} field="categoryList" label="" max={30} addText="添加一组" />
 </SettingGroup>
 <SettingGroup title="参数设置">
 <TemplateIconRadioRowField

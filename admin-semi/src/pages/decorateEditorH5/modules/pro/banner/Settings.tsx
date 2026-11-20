@@ -25,6 +25,7 @@ RangeField,
 ColorField,
 TextField,
 PicListField,
+PicListEditorField,
 PicSelectField,
 PicLinkField,
 DecDivider
@@ -69,7 +70,7 @@ return (
 <RangeField data={data} onChange={onChange} field="logoHeight" label="图片高度" max={500} />
 </SettingGroup>
 <SettingGroup title="轮播内容设置" variant="spread">
-<PicListField {...bc} field="picList" label="" max={20} addText="添加一组" />
+<PicListEditorField {...bc} field="picList" label="" max={20} addText="添加一组" />
 <TemplateIconRadioRowField
 {...bc}
 field="picPageType"

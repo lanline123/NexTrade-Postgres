@@ -12,7 +12,7 @@ RadioRowField,
 NumberField,
 ColorField,
 SelectField,
-PicListField,
+PicListEditorField,
 TitleSettingsField,
 FrameSettingsField
 } from "../../../shared/settingWidgets";
@@ -55,7 +55,7 @@ options={[
 </div>
 </div>
 ): null}
-<PicListField data={data} onChange={onChange} field="picList" label="添加图片" />
+<PicListEditorField data={data} onChange={onChange} field="picList" label="添加图片" />
 </SettingGroup>
 {Number(data?.picType) === 2 && (
 <>

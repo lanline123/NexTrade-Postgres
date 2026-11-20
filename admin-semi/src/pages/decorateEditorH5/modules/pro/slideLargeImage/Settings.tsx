@@ -7,7 +7,7 @@
  * 标题页：SlidingLargeImageTitle（moduleTitle 嵌套编辑）；
  * 扩展页：ModuleStyleEdit（无 type）+ ContentStyleEdit（type="slideLargeImage"，含纯色渐变项）。
  */
-import { SettingGroup, RadioRowField, RangeField, ColorField, PicListField, SegmentedRadio, SettingRow, TextField } from "../../../shared/settingWidgets";
+import { SettingGroup, RadioRowField, RangeField, ColorField, PicListEditorField, SegmentedRadio, SettingRow, TextField } from "../../../shared/settingWidgets";
 import { SettingsTabs, ModuleStyleSettingsField, ContentStyleSettingsField, PicFillTypeField } from "../../../shared/styleEdits";
 
 type NestedProps = { data: Record<string, any>; onChange: (patch: Record<string, any>) => void };
@@ -34,7 +34,7 @@ export default function SlideLargeImageSettings({ data, onChange }: { data: Reco
             <SettingsTabs tabs={["内容设置", "标题设置", "扩展设置"]}>
                 <>
                     <SettingGroup title="内容设置">
-                        <PicListField data={data} onChange={onChange} field="picList" label="" max={20} showDesc addText="添加图片+链接" />
+                        <PicListEditorField data={data} onChange={onChange} field="picList" label="" max={20} showDesc addText="添加图片+链接" />
                     </SettingGroup>
                     <SettingGroup title="参数设置">
                         <SettingRow label="每行显示数量" block>

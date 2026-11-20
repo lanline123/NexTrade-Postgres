@@ -14,7 +14,7 @@ SettingGroup,
 RadioRowField,
 NumberField,
 ColorField,
-PicListField,
+PicListEditorField,
 TitleSettingsField,
 FrameSettingsField
 } from "../../../shared/settingWidgets";
@@ -104,7 +104,7 @@ options={[
 </div>
 </div>
 ): null}
-<PicListField data={data} onChange={onChange} field="picList" label="图片广告" />
+<PicListEditorField data={data} onChange={onChange} field="picList" label="图片广告" />
 <TitleSettingsField data={data} onChange={onChange} />
 <FrameSettingsField data={data} onChange={onChange} />
 </div>

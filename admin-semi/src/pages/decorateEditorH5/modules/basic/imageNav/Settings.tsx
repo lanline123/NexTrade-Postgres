@@ -15,7 +15,7 @@ SettingRow,
 RadioRowField,
 NumberField,
 ColorField,
-PicListField,
+PicListEditorField,
 FrameSettingsField
 } from "../../../shared/settingWidgets";
 import { TemplateIconRadioRowField} from "../../../shared/templateIcon";
@@ -94,7 +94,7 @@ options={[
 提示：您可以通过拖拽进行图片排序
 </div>
 </div>
-<PicListField data={data} onChange={onChange} field="picList" label="导航图片（图片+文字+链接）" />
+<PicListEditorField data={data} onChange={onChange} field="picList" label="导航图片（图片+文字+链接）" />
 <NumberField data={data} onChange={onChange} field="imgPadding" label="元素边距" suffix="px" max={30} />
 <RadioRowField
 data={data}

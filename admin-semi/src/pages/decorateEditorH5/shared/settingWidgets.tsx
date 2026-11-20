@@ -28,13 +28,14 @@
 * productPicPatch（魔方在调用点做商品批量落位与 H5 LinkType 链接适配时用）。
 */
 import { useState} from "react";
-import { Input, Radio, RadioGroup, Select, Switch} from "@douyinfe/semi-ui";
+import { Input, Radio, RadioGroup, Select, Switch, Toast} from "@douyinfe/semi-ui";
 import { IconPlus} from "@douyinfe/semi-icons";
 import AlphaColorInput from "../../../components/AlphaColorInput";
 import SliderWithInput from "../../../components/SliderWithInput";
 import SharedColorField from "../../../components/ColorField";
 import ImageUploader from "../../../components/ImageUploader";
 import GalleryPickerModal from "../../../components/GalleryPickerModal";
+import PicListEditor from "../../../components/PicListEditor";
 import { type PickedImage} from "../../../components/ProductImagePicker";
 import FloorIcon from "../../../components/FloorIcon";
 import { LinkField, type LinkValue} from "../../../components/LinkPicker";
@@ -811,6 +812,106 @@ export function PicListField({
                     setPickerOpen(false);
                 }}
             />
+        </div>
+    );
+}
+
+/**
+ * 图片列表编辑（统一形态，2026-11-21 用户拍板整批迁移）：
+ * 与 PicListField 同 props 的适配件——外层组标题外壳（dec-edit-group + label）
+ * 与 PicListField 逐一致，内层改调共享图片列表编辑器（PicListEditor，
+ * components/PicListEditor，与 PC 编辑器同一共享件）：卡片网格（拖拽排序，
+ * 取代上移/下移）+ 点卡开「编辑图片」弹窗（选图框在左、标题/描述/链接纵列
+ * 在右），素材中心选图与「从商品选择图片」两入口并列。
+ * 数据契约与 PicListField 一致：只经 onChange({ [field]: next }) 回写整表；
+ * 条目自有字段原样保留（PicListEditor 的 patch 为展开合并，不删字段）。
+ * 商品批量落位（onPickManyProducts）：PicListEditor 不回传当前编辑位，落位
+ * 口径定为「先按序填空图槽位、余者按 max 容量追加」；showText && showLink
+ * 的列表走 productPicPatch 全量口径（图 + 商品名作标题 + 商品链接，H5
+ * LinkType 形状），其余列表（无标题/无链接字段，如固定入口）只落图
+ * （picUrl/picThumb），不写标题/链接。
+ * showAddButton=false（固定入口列表）以 max=当前条数冻结添加（删除后条数
+ * 同步收缩、添加口不出现），与 PicListField 不渲染添加按钮等价。
+ * showImage=false 的纯文字列表（banner 导航文字）无对应形态，不经本件迁移，
+ * 仍走 PicListField。
+ */
+export function PicListEditorField({
+    data,
+    onChange,
+    field,
+    label,
+    max = 20,
+    showText = true,
+    showDesc = false,
+    showLink = true,
+    showAddButton = true,
+    addText = "添加图片"
+}: FieldProps & {
+    field: string;
+    label: string;
+    max?: number;
+    showText?: boolean;
+    showDesc?: boolean;
+    showLink?: boolean;
+    /** false 时冻结添加（固定入口列表），与 PicListField 的 showAddButton 同义 */
+    showAddButton?: boolean;
+    addText?: string;
+}) {
+    const { t } = useI18n();
+    const list: PicItem[] = Array.isArray(data?.[field]) ? data[field] : [];
+    const setList = (next: PicItem[]) => onChange({ [field]: next });
+    const effectiveMax = showAddButton ? max : list.length;
+    const fullProductPatch = showText && showLink;
+
+    const handlePickManyProducts = (items: PickedImage[]) => {
+        if (!items.length) return;
+        const next = [...list];
+        let used = 0;
+        // 先按序填空图槽位
+        for (let i = 0; i < next.length && used < items.length; i += 1) {
+            if (!String(next[i]?.picUrl || next[i]?.picThumb || "")) {
+                next[i] = fullProductPatch
+                    ? { ...next[i], ...productPicPatch(next[i], items[used], t('商品详情页')) }
+                    : { ...next[i], picUrl: items[used].url, picThumb: items[used].url };
+                used += 1;
+            }
+        }
+        // 余者按容量追加（新条目形状：全量口径同 productPicPatch，只落图口径同 PicListField 图库追加形状）
+        while (used < items.length && next.length < effectiveMax) {
+            const picked = items[used];
+            next.push(
+                fullProductPatch
+                    ? { ...productPicPatch({}, picked, t('商品详情页')) }
+                    : { picUrl: picked.url, picThumb: picked.url, picTitle: "", picDesc: "", picLink: { link: "", title: "" } }
+            );
+            used += 1;
+        }
+        if (used) {
+            setList(next);
+            Toast.success(t('已带入 {count} 张商品图片', { count: used }));
+        }
+        if (used < items.length) {
+            Toast.warning(t('最多只能添加 {max} 张图片', { max: effectiveMax }));
+        }
+    };
+
+    return (
+        <div className="dec-edit-group dec-edit-group-block">
+            <div className="dec-edit-group-title">
+                <div className="label">{t(label)}</div>
+            </div>
+            <div className="dec-edit-group-con">
+                <PicListEditor
+                    value={list as any}
+                    onChange={(nextList) => setList(nextList as PicItem[])}
+                    showText={showText}
+                    showDesc={showDesc}
+                    showLink={showLink}
+                    max={effectiveMax}
+                    addText={addText}
+                    onPickManyProducts={handlePickManyProducts}
+                />
+            </div>
         </div>
     );
 }

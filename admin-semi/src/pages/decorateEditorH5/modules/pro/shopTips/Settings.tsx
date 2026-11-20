@@ -7,7 +7,7 @@
  * 扩展页：ModuleStyleEdit（type="shopTips"，含模块左右外间距项）。
  * 注：原版「标题颜色」重置按钮写回 #333333（与默认值 #00C455 不同，为原版 @click 口径），此处照原版。
  */
-import { SettingGroup, RadioRowField, RangeField, ColorField, PicListField, SegmentedRadio, SettingRow } from "../../../shared/settingWidgets";
+import { SettingGroup, RadioRowField, RangeField, ColorField, PicListEditorField, SegmentedRadio, SettingRow } from "../../../shared/settingWidgets";
 import { SettingsTabs, ModuleStyleSettingsField } from "../../../shared/styleEdits";
 
 export default function ShopTipsSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
@@ -17,7 +17,7 @@ export default function ShopTipsSettings({ data, onChange }: { data: Record<stri
                 <>
                     <SettingGroup title="基本设置">
                         <div style={{ color: "#999", fontSize: 12, lineHeight: 1.6, padding: "0 16px 4px" }}>提示：您可以通过拖拽进行排序，最多添加4个</div>
-                        <PicListField data={data} onChange={onChange} field="picList" label="" max={4} addText="添加提示" />
+                        <PicListEditorField data={data} onChange={onChange} field="picList" label="" max={4} addText="添加提示" />
                     </SettingGroup>
                     <SettingGroup title="参数设置">
                         <SettingRow label="每行显示" block>

@@ -5,7 +5,7 @@
  * 内容页：基本设置（PicList 最多 4 个，含标题/描述）+ 参数设置（图片填充/图片圆角 max40/分类标题/副标题颜色）；
  * 扩展页：ModuleStyleEdit（type="categoryRec"）+ ContentStyleEdit（type="categoryA1"）。
  */
-import { SettingGroup, RangeField, ColorField, PicListField } from "../../../shared/settingWidgets";
+import { SettingGroup, RangeField, ColorField, PicListEditorField } from "../../../shared/settingWidgets";
 import { SettingsTabs, ModuleStyleSettingsField, ContentStyleSettingsField, SubTitleSettingsField, PicFillTypeField } from "../../../shared/styleEdits";
 
 export default function CategoryRecA1Settings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
@@ -14,7 +14,7 @@ export default function CategoryRecA1Settings({ data, onChange }: { data: Record
             <SettingsTabs tabs={["内容设置", "扩展设置"]}>
                 <>
                     <SettingGroup title="基本设置">
-                        <PicListField data={data} onChange={onChange} field="picList" label="" max={4} showDesc />
+                        <PicListEditorField data={data} onChange={onChange} field="picList" label="" max={4} showDesc />
                     </SettingGroup>
                     <SettingGroup title="参数设置">
                         <PicFillTypeField data={data} onChange={onChange} field="picFillType" />

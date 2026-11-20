@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Tag, Spin } from "@douyinfe/semi-ui";
 import { apiGet } from "../../../../../api";
-import { SettingGroup, TextField, SegmentedRadio, RangeField, DecDivider, PicListField, FrameSettingsField, RadioRowField } from "../../../shared/settingWidgets";
+import { SettingGroup, TextField, SegmentedRadio, RangeField, DecDivider, PicListEditorField, FrameSettingsField, RadioRowField } from "../../../shared/settingWidgets";
 import { SettingsTabs } from "../../../shared/styleEdits";
 
 export default function MyServiceSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
@@ -84,7 +84,7 @@ export default function MyServiceSettings({ data, onChange }: { data: Record<str
                             </div>
                         </Spin>
                     </SettingGroup>
-                    <PicListField data={data} onChange={onChange} field="serviceList" label="服务列表" showText addText="添加服务项" />
+                    <PicListEditorField data={data} onChange={onChange} field="serviceList" label="服务列表" showText addText="添加服务项" />
                 </div>
                 <div>
                     <FrameSettingsField data={data} onChange={onChange} />

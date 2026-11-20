@@ -6,7 +6,7 @@
 * 「指示器样式」原版（共享 BannerContent.vue）为 ico-decorate 图标 radio，
 * 现走共享视觉选择器。
 */
-import { RadioRowField, RangeField, ColorField, PicListField, TextField, DecDivider} from "../../../shared/settingWidgets";
+import { RadioRowField, RangeField, ColorField, PicListEditorField, TextField, DecDivider} from "../../../shared/settingWidgets";
 import { TemplateIconRadioRowField} from "../../../shared/templateIcon";
 import { SettingsTabs, ModuleStyleSettingsField} from "../../../shared/styleEdits";
 
@@ -22,7 +22,7 @@ return (
 <div className="h5-editor-settings-body">
 <SettingsTabs tabs={["基础设置", "样式设置", "扩展设置"]}>
 <>
-<PicListField data={bannerContent} onChange={setBanner} field="picList" label="轮播内容设置" max={10} showText={false} addText="添加一组" />
+<PicListEditorField data={bannerContent} onChange={setBanner} field="picList" label="轮播内容设置" max={10} showText={false} addText="添加一组" />
 <RangeField data={bannerContent} onChange={setBanner} field="picRadius" label="图片圆角" max={20} />
 <TemplateIconRadioRowField
 data={bannerContent}

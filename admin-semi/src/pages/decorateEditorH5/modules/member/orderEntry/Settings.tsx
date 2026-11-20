@@ -6,7 +6,7 @@
  * （showText、showLink=false；原版 showAddButton=false，我方无此门控，见摘要）；
  * 扩展：角标背景色/角标文字色（重置回当前样式默认）+ CommonFrameEdit 全量。
  */
-import { SettingGroup, TextField, SegmentedRadio, ColorField, DecDivider, PicListField, FrameSettingsField, RadioRowField } from "../../../shared/settingWidgets";
+import { SettingGroup, TextField, SegmentedRadio, ColorField, DecDivider, PicListEditorField, FrameSettingsField, RadioRowField } from "../../../shared/settingWidgets";
 import { SettingsTabs } from "../../../shared/styleEdits";
 import { orderEntryStyle1List, orderEntryStyle2List, orderEntryBadgeBg } from "./index";
 
@@ -49,7 +49,7 @@ export default function OrderEntrySettings({ data, onChange }: { data: Record<st
                             <DecDivider />
                         </>
                     ) : null}
-                    <PicListField data={data} onChange={onChange} field="entryList" label="订单入口列表" showText showLink={false} showAddButton={false} />
+                    <PicListEditorField data={data} onChange={onChange} field="entryList" label="订单入口列表" showText showLink={false} showAddButton={false} />
                 </div>
                 <div>
                     <SettingGroup>

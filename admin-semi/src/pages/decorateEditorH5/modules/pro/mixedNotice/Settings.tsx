@@ -7,7 +7,7 @@
 * 扩展页：颜色设置（大标题颜色/小标题颜色，键 moduleColor）+ ModuleStyleEdit +
 * ContentStyleEdit（type="mixedProductDisplay"）。
 */
-import { SettingGroup, ColorField, PicListField} from "../../../shared/settingWidgets";
+import { SettingGroup, ColorField, PicListEditorField} from "../../../shared/settingWidgets";
 import { SettingsTabs, ExtensionStyleSettings} from "../../../shared/styleEdits";
 
 import { useI18n} from '../../../../../i18n';
@@ -61,7 +61,7 @@ justifyContent: "space-between"
 <div className="dec-edit-group">
 <div style={{ width: "100%"}}>
 <div style={{ color: "var(--semi-color-primary)", fontSize: 12, marginBottom: 4}}>{t('图片: 宽20, 高20')}</div>
-<PicListField
+<PicListEditorField
 data={group}
 onChange={(patch) => setGroup(index, patch)}
 field="notices"

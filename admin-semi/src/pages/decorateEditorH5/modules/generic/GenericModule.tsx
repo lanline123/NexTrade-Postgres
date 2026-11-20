@@ -15,7 +15,7 @@ import {
   ColorField,
   FrameSettingsField,
   NumberField,
-  PicListField,
+  PicListEditorField,
   RadioRowField,
   SelectField,
   SettingGroup,
@@ -204,7 +204,7 @@ function GenericSettings({ data, onChange, spec }: { data: Record<string, any>; 
             case 'image':
               return <SinglePicField key={f.key} data={data} onChange={onChange} field={f.key} label={f.label} />;
             case 'pics':
-              return <PicListField key={f.key} data={data} onChange={onChange} field={f.key} label={f.label} />;
+              return <PicListEditorField key={f.key} data={data} onChange={onChange} field={f.key} label={f.label} />;
             case 'title':
               return <TitleSettingsField key={f.key} data={data} onChange={onChange} field={f.key} label={f.label} />;
             case 'frame':
