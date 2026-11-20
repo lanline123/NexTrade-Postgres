@@ -1069,7 +1069,10 @@ impl AftersalesService {
                 if let Err(e) = self
                     .create_refund_apply_and_handle_finance(
                         &aftersales,
-                        aftersales.refund_amount,
+                        // 传本次审核落定的金额（本地 refund_amount），不能用更新前
+                        // 快照的 aftersales.refund_amount——售后单创建时该值为 0，
+                        // 曾导致财务退款申请金额恒为 0.00（2026-11-20 售后#4 实测）。
+                        refund_amount.unwrap_or(aftersales.refund_amount),
                         reply,
                     )
                     .await

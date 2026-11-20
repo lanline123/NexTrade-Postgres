@@ -729,3 +729,26 @@
 
 - **后台 - 客服历史会话详情弹窗现代化改版**：原版详情（`views/im/src/HistoryInfo.vue`）仅在抽屉中复用 Message 预览组件，我方此前弹窗也只有消息列表本体——无会话元信息、无页脚。现改版为：顶部元信息带（方形头像、一级信息客户名 15px/600 + 状态标签 + 来源标签；二级信息弱化为 12px 灰字：接待客服、所属店铺（平台/店铺 #ID，会话 VO 仅有 shop_id 无店名）、会话 ID、开始/最后会话时间、备注）；主体聊天气泡流定高 440px 独立滚动（浅底面板 + 直角气泡，客户左/客服右、每条带发送方名与时间戳，图片消息在气泡内扁平化圆角，商品/订单卡沿用既有渲染，表情沿用现有 IM 表情口径；无发送方类型的消息居中灰字兜底——现数据模型消息 type 仅 1 用户/2 客服、无系统消息）；页脚左「删除对话」（危险色，与列表删除共用确认流）、右「关闭」。只动呈现与信息组织，取数接口（consultHistory / message/list）不变。报告：kefu-history-ux/REPORT.md（workspace）。
 - **后台 - 客服设置客服类型改名**：客服设置页（kefuSetting）客服类型选项 value=4 的 label 由「TigChat客服」改为「内置客服」（desc「平台内置在线会话」与枚举值不变）；后端 `home.rs` 客服类型派生注释同步改「内置客服」（纯注释，随下批后端部署生效）。
+
+## 0.0.2 续 · 2026-11-20 批次（isIdentity 价格门控前端视觉缺口修复，随 PC v55 / H5 上线）
+
+### 修复
+
+- PC 首页装修卡片（提交 a6414a3a）：price-gate 新增 cardGateCopy，PcProduct/HomeHero/ProductGroup/RecommendProduct 四渲染器接入门控态渲染——脱敏价显五态门控文案（登录后查看价格/认证后查看价格/认证审核中/认证未通过，查看原因），不再渲染 ¥0.00 或空白；无标记的装修快照价被脱敏置空时同样门控。
+- H5 全站价格（提交 f89ed623、37ee5f5a）：config store 的 isIdentity 此前永不填充（initConfigSettings 响应无该字段），loadBaseConfigData 改并行拉 common/config/authGate 填充；共享组件 FormatPrice 脱敏触发改 == null（覆盖?? 链兜底的 undefined），脱敏文案改与详情同口径（登录后查看价格/认证后查看价格），B2B 旧路径不变。修首页/分类/列表/搜索全部卡片 ￥0.00。
+- 上线：PC v55（BUILD_ID AGGum5cODwSN3T9aC5wYS）；H5 entry app.233ba79c.js（构建基线 f2a0eb1b），mini 257 文件保全。
+
+## 0.0.2 续 · 2026-11-20 批次（价格门控展示对齐原版，随 PC v56 / H5 v32 上线）
+
+### 修复
+
+- **价格门控展示对齐原版**：价格位文案「登录查看/实名查看」（原版有）+ PC 空白价位补齐
+- 原版取证（快照仓 lanline123/java-b2b2c-overseas-ref v5.8.61）：`isIdentity`（tigshop-bean `AuthSettingsVO` / `SettingsEnum.IS_IDENTITY`「是否实名后才能查看价格；0-关闭，1-开启」）在原版为**纯前端展示门控**——共享价格组件（view/uniapp `src/components/format-price/format-price.vue`、view/pc `components/format/Price.vue`）在开启且访客未认证时把整个价格位（币种+整数+小数）换成一句文案：未登录「登录查看」、已登录「实名查看」（谓词 `isShowB2bPriceText`，view/uniapp `src/utils/b2bPrice.ts`）；详情页伴随价（划线市场价、直降标、折扣角标）在门控时隐藏（productTitleInfo/productSeckillTitle/productGrouponTitle 等以 `showB2bText` 关断）；文案本身无点击跳转。原版 Java 后端不做价格脱敏（ProductServiceImpl、SeckillServiceImpl 全文无 isIdentity 消费）。我方服务端脱敏（价格置空 + `priceVisible/priceGate` 标记）属**原版有·我方改口径**（更严，本轮不动数据口径）。
+- 文案收敛（我方第 2 期自造文案纠偏）：PC `pc-semi/src/lib/price-gate.ts` 与 H5 `uniapp-react/src/utils/inquiry.ts` 的「登录后查看价格 / 认证后查看价格 / 认证审核中 / 认证未通过，查看原因」统一改为原版「登录查看 / 实名查看」（PC 审核中/驳回子态收敛为「实名查看」）；跳转目标保留第 2 期既有形态（原版无跳转，属呈现层增强，不改变门控数据口径）。
+- PC 空白价位补齐：`pc-semi/src/components/FormatPrice.tsx` 在值被后端置空（null/undefined/''）且当前访客无看价权时渲染门控文案，覆盖装修秒杀/团购/契约系列（ContractCatProductSimple、ContractRecommendProduct、ContractCatProductWide）等直接透传价格的模块；`SeckillListClient`（秒杀列表页）与 `ShopProductList`（店铺街行卡）新增门控分支（价格位文案、秒杀抢购位换门控入口）。H5 各价格面原本即经 FormatPrice/InquiryPrice 渲染门控文案，本轮仅详情页 priceGateCopy 文案随之对齐。
+
+## 0.0.2 续 · 2026-11-20 批次（仅退款审核财务申请金额恒 0 修复，随后端换版上线）
+
+### 修复
+
+- **后端 - 仅退款审核通过后财务退款申请金额恒为 0.00**：`AftersalesService::update` 审核通过时已把审核金额（管理员填写或按售后明细重算）正确写入售后行，却在随后创建财务退款申请时误传更新前快照的 `aftersales.refund_amount`（售后单创建时为 0），导致每一单仅退款生成的 `refund_apply.online_balance` 恒为 0.00、退款到不了买家。该路径此前被动态 UPDATE 占位符缺陷（同日已修）挡在 500 之后从未真正执行，属修复照亮的潜伏缺陷；2026-11-20 以售后 #4（订单 73，仅退款 ¥100）实测暴露：售后行金额 100.00 正确、财务申请 #2 金额 0.00。修复：财务钩子改传本次审核落定的本地金额（未填写且重算无果时回退快照值），与确认收货路径传 `final_refund_amount` 的口径对齐；同文件同类「传更新前快照字段」调用点已全量清扫，仅此一处。测试工件登记：`refund_apply` #2（售后 #4 的 ¥0 申请）为本缺陷生成的测试数据，不做数据订正，财务侧作废/忽略即可；售后 #4 本身数据正确、不回滚。另注：分销佣金退款回退（`salesman_order` 置失效）与退款入账买家余额属财务执行环节，前者在支付域退款服务中明列未迁移、后者走财务审核/执行流程，均不在本批范围。
