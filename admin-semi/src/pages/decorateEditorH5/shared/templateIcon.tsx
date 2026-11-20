@@ -1,8 +1,8 @@
 /**
 * 视觉模板选择器（共享）
 *
-* 原版契约（ref-editor view/admin editor/modules/**/Settings.vue 及
-* src/modules/**/Edit.vue）：「选择模板 / 列表样式 / 指示器样式 / 图片填充 /
+* 原版契约（ref-editor view/admin editor/modules 各 Settings.vue 及
+* src/modules 各 Edit.vue）：「选择模板 / 列表样式 / 指示器样式 / 图片填充 /
 * 对齐 / 字号 / 粗细」等字段为图标 radio——el-radio-button 内只有
 * <i class="ico-decorate icon-dec-*"> 或 <i class="iconfont-admin icon-*">
 * 字形，文字只出现在 el-tooltip 与标题行右侧.value（当前选中 label）。
