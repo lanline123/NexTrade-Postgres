@@ -11,7 +11,6 @@ const SHOP_MODULE_TYPES = [
     "article",
     "commonTitle",
     "imageAd2",
-    "navbar",
     "product2",
     "live",
     "groupon",

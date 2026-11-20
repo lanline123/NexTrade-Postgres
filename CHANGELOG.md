@@ -1055,3 +1055,9 @@
 ### 修复
 
 - **H5 - 热图绘制模块画完热区后整模块渲染失败（原版有·我方移植偏差）**：用户在 H5 编辑器（页面 10106）给热图绘制模块画完热区后，画布真渲染链提示「该模块渲染失败，已跳过」；商城端同一渲染器，任何带已画热区的页面在前台同样整模块降级。根因是数据契约错位：热区条目的存储契约是数字字段 `{left,top,width,height}`（画板 500 基准坐标系）+ `link` 对象（画板写回、uniapp 类型声明 HotareaType、现网 10106 存量数据三方一致），而 `position` 只是原版编辑器侧渲染器（admin Preview/View 的 updateWidth）在渲染时按容器宽派生的可选字段——原版画板、原版 Java 后端下发、我方画板均不生产它。uniapp 渲染器移植时只搬了原版 uniapp 的消费端 `convertPxToRpx(subItem.position)`、漏搬派生步，对 undefined 调 `.replace` 必抛 TypeError，未画热区时不触发、画完即炸，被模块错误边界降级。修复在渲染器内按契约派生（与 PC 商城端渲染器「数字字段为主、旧 position 字符串兜底」的既有口径一致）：新增 `hotareaStyle` 从数字字段换算样式——left/width 取容器宽百分比，top/height 按图片原始宽高比（TigImage onLoad 原始尺寸）折算为容器高百分比，与原版 resize(容器宽/500) 公式回代严格等价、与分辨率无关；宽高比未取得时暂不渲染该热区（图片就绪即出现，不再抛错）；更老世代只有 position 字符串的数据沿用旧换算兜底。顺带同点加固：热区点击此前把画板默认空链 `{link:"",name:""}` 喂给 urlFormat 得空值仍调 redirect，现改为解析出非空地址才跳转（与 PC navHref 空值不跳同义）。同类清扫：全仓渲染器消费 `.position` 仅此一处，admin 兼容预览从数字字段内联派生不中招；⑤ 同批 imageAd/imageSquareAd 渲染器所读字段经与设置写回/默认值逐项核对均有生产者，无同病。验证：以 10106 真实热区数据喂旧逻辑复现 TypeError（reading 'replace'），喂新派生函数产出正确百分比样式且与原版公式多组容器宽/宽高比回代一致；本地零构建，类型门走 CI build-h5。
+
+## 0.0.2 续 · 2026-11-21 批次（页面导航模块按原版契约撤下，未部署——随下一 admin 合并版与 H5 热更新上线）
+
+### 修复
+
+- **装修 - 「页面导航」不是列表模块，撤下编辑器误注册并对齐原版分发口径（原版有·我方移植偏差）**：原版 tigshop 里「页面导航」是页面级标题栏而非可拖拽模块——原版编辑器模块库（93 个模块）无此模块，标题栏由「页面设置」承载（原版 commonPage：页面标题 / 沉浸式标题 / 标题栏背景颜色 / 标题栏文字颜色 / 页面背景），数据存于页面数据的 pageModule 字段；原版前台分发器（uniapp customPage/modules/index.vue）仅在模块列表之前、以 pageModles 且 title 非空时渲染一次 navBar，模块循环内无 navbar 分支，店铺分发器（shopModules.vue）同样无此分支。我方此前在 H5 编辑器新注册了 navbar 列表模块（模块库可添加），但它在默认真实渲染画布中高度依赖 `--nav-height`（仅 TigLayout 壳内定义，编辑器嵌入预览页未挂该壳）而塌为 0 高、完全不可见，且与页面级标题栏语义重复。修复：① admin H5 编辑器注销 navbar 模块注册并删除其模块目录（decorateEditorH5/modules/basic/navbar），模块库不再出现「页面导航」，标题栏统一走页面设置（入口与字段与原版一致，此前已齐备）；② uniapp 通用分发器 DecorateModules 对列表中的 navbar 条目直接跳过（与原版循环无此分支一致），店铺分发器 SHOP_MODULE_TYPES 移除 navbar；MODULE_REGISTRY 中的 navbar 渲染器保留，页面级标题栏（pageModles 驱动）渲染路径不变。存量页面若含 navbar 列表条目：前台不再渲染该条目（与原版一致），编辑器兼容画布显示缺失预览占位、可直接删除该条目。
