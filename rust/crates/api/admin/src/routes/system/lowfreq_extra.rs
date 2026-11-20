@@ -387,7 +387,7 @@ async fn h_7(
     Extension(tenant): Extension<TenantContext>,
     Query(q): Query<Pg>,
 ) -> ApiResult<Value> {
-    Ok(do_available_staff(&state, &tenant, &q).await?)
+    ok(do_available_staff(&state, &tenant, &q).await?)
 }
 
 // post /order/dispatch/assign（同 h_6）
@@ -412,7 +412,7 @@ async fn h_9(
     Extension(tenant): Extension<TenantContext>,
     Query(q): Query<Pg>,
 ) -> ApiResult<Value> {
-    Ok(do_available_staff(&state, &tenant, &q).await?)
+    ok(do_available_staff(&state, &tenant, &q).await?)
 }
 
 // /o2o/homeService/saveConfig 与 /o2o/localDelivery/saveConfig 已由骑手 MVP
