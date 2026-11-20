@@ -243,7 +243,7 @@ export default function AftersalesOrders() {
     return (
       <Card className="aftersales-card" key={row.aftersaleId} shadows="hover">
         <div className="aftersales-head">
-          <span className="aftersales-sn">{t('订单编号：')}{row.orderSn}</span>
+          <span className="aftersales-sn aftersales-sn-main">{t('订单编号：')}{row.orderSn}</span>
           {row.outTradeNo ? <span className="aftersales-sn">{t('交易单号：')}{row.outTradeNo}</span> : null}
           <span className="aftersales-sn">{t('售后编号：')}{row.aftersalesSn}</span>
           <span className="aftersales-sn">{t('申请时间：')}{row.addTime}</span>
@@ -305,7 +305,7 @@ export default function AftersalesOrders() {
                 dataIndex: 'productName',
                 render: (_: unknown, item: AftersalesItem) => (
                   <div className="aftersales-product">
-                    {item.picThumb ? <img src={item.picThumb} alt="" width={36} height={36} /> : null}
+                    {item.picThumb ? <img src={item.picThumb} alt="" width={48} height={48} /> : null}
                     <span>{item.productName}</span>
                   </div>
                 ),

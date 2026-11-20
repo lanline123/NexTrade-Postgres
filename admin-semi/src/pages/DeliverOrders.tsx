@@ -462,7 +462,7 @@ export default function DeliverOrders({
           {row.mark ? (
             <Tag color={MARK_COLORS[row.mark] || 'blue'}>{t('标记{mark}', { mark: row.mark })}</Tag>
           ) : null}
-          <span className="deliver-order-sn">{t('订单编号：')}{row.orderSn}</span>
+          <span className="deliver-order-sn deliver-order-sn-main">{t('订单编号：')}{row.orderSn}</span>
           {row.outTradeNo ? (
             <>
               <span className="deliver-order-divider" />
@@ -509,7 +509,7 @@ export default function DeliverOrders({
                 render: (_: unknown, item: DeliverOrderItem) => (
                   <div className="deliver-order-product">
                     {item.picThumb ? (
-                      <img src={item.picThumb} alt="" width={36} height={36} />
+                      <img src={item.picThumb} alt="" width={48} height={48} />
                     ) : null}
                     <span>{item.productName}</span>
                   </div>
@@ -533,7 +533,7 @@ export default function DeliverOrders({
           <div className="deliver-order-info">
             <div className="deliver-order-cell">
               <div className="deliver-order-right">
-                <div className="order-card-strong">{money(row.totalAmount)}</div>
+                <div className="order-card-strong deliver-order-amount">{money(row.totalAmount)}</div>
                 <Text type="tertiary" size="small">
                   {t('含运费：')}{money(row.shippingFee)}
                 </Text>
@@ -555,7 +555,7 @@ export default function DeliverOrders({
               ) : null}
             </div>
             <div className="deliver-order-cell">
-              <span>{row.orderStatusName || '-'}</span>
+              <span className="deliver-order-status">{row.orderStatusName || '-'}</span>
               {row.afterSalesIng ? <Tag color="orange">{t('售后中')}</Tag> : null}
             </div>
             <div className="deliver-order-cell deliver-order-actions">
