@@ -49,6 +49,15 @@ import {
 
 const DRAG_THRESHOLD = 6;
 
+/**
+ * 画布高地板 = 一屏（375×667 逻辑屏）：手机窗恒不低于一屏，内容超一屏才
+ * 随内容长高。与嵌入页自身 .decorate-preview{min-height:100vh} 的口径一致
+ * （嵌入页回传的 totalHeight 只量分发器内容高、不含这层地板，故地板在父侧
+ * 兜）。2026-11-21 前地板是 120：空页靠 totalHeight=0 走假值分支停在 667，
+ * 加第一个模块后 totalHeight 转正即塌到 max(内容高,120)（页面 10106 实测）。
+ */
+const CANVAS_MIN_HEIGHT = 667;
+
 export default function IframeCanvas({
     preview = false,
     windowStyle,
@@ -89,7 +98,9 @@ export default function IframeCanvas({
     productDataRef.current = productData;
 
     const modules = s.moduleList;
-    const frameHeight = layout?.totalHeight ? Math.max(layout.totalHeight, 120) : 667;
+    // 画布高 = max(内容高, 一屏)：未回传/空页/内容不足一屏都保持一屏高，
+    // 内容超一屏随内容增长（滚动由中间列 .decorate-page-wrap 承担）。
+    const frameHeight = Math.max(layout?.totalHeight || 0, CANVAS_MIN_HEIGHT);
 
     // ---------------- 与嵌入页通信 ----------------
 
