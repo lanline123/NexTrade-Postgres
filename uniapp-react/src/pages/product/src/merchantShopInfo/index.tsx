@@ -6,6 +6,7 @@ import { shopCollection } from "@/api/shop/shop";
 import { imageFormat } from "@/utils/format";
 import { redirect } from "@/utils";
 import TigImage from "@/components/tig/tig-image/TigImage";
+import ShopLabelChips from "@/components/shop-label-chips/ShopLabelChips";
 import { t } from "@/utils/i18n";
 
 import "./index.scss";
@@ -67,6 +68,7 @@ export default function MerchantShopInfo({ shopInfo, variant = "o2o", onRefreshS
                     <TigImage src={imageFormat(shopInfo.shopLogo)} mode="aspectFit" />
                 </View>
                 <View className="merchant-shop-card__name line1">{shopInfo.shopTitle}</View>
+                <ShopLabelChips labels={shopInfo.labels} />
             </View>
             <View className="merchant-shop-card__actions">
                 <View className="merchant-shop-card__button" onClick={handleShopCollection}>

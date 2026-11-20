@@ -592,6 +592,8 @@ export interface ShopListItem {
   isPromoted?: boolean;
   /** 店铺街推荐排序：推荐理由（如「你买过这家店」） */
   recommendReason?: string;
+  /** 店铺标签（本平台新增）：平台分配的展示标签，紧贴店铺名 */
+  labels?: { labelId?: number; labelName?: string; color?: string }[];
   [key: string]: unknown;
 }
 

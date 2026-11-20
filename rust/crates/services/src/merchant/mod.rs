@@ -21,6 +21,7 @@ pub mod shop_account_log;
 pub mod shop_client;
 pub mod shop_client_category;
 pub mod shop_funds;
+pub mod shop_label;
 pub mod shop_manage;
 pub mod shop_product_category;
 pub mod shop_withdraw;
@@ -37,6 +38,7 @@ pub struct Services {
     pub shop: Arc<shop::ShopService>,
     pub shop_client: Arc<shop_client::ShopClientService>,
     pub shop_client_category: Arc<shop_client_category::ShopClientCategoryService>,
+    pub shop_label: Arc<shop_label::ShopLabelService>,
     pub shop_manage: Arc<shop_manage::ShopManageService>,
     pub shop_product_category: Arc<shop_product_category::ShopProductCategoryService>,
     pub vendor_deposit_shop: Arc<vendor_deposit_shop::VendorDepositShopService>,

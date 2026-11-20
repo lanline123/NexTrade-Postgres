@@ -21,6 +21,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 
 import { useTranslation } from 'react-i18next';
+import ShopLabelChips from './ShopLabelChips';
 export interface ShopHeaderInfo {
   shopId?: number;
   shopTitle?: string;
@@ -30,6 +31,8 @@ export interface ShopHeaderInfo {
   shopStar?: number;
   tipNames?: string[];
   businessLicensePic?: string;
+  /** 店铺标签（本平台新增）：平台分配的展示标签，紧贴店铺名 */
+  labels?: { labelId?: number; labelName?: string; color?: string }[];
   [key: string]: unknown;
 }
 
@@ -118,6 +121,7 @@ export default function ShopHeader({
               <div className="shop-meta">
                 <div className="shop-title-row">
                   <span className="shop-title">{shopInfo?.shopTitle || t('店铺名称')}</span>
+                  <ShopLabelChips labels={shopInfo?.labels} />
                   {hasLicense ? (
                     <Link href={`/shop/license?shopId=${shopInfo?.shopId || ''}`} className="meta-link">
                       {t('查看资质')}

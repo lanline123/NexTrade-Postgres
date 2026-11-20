@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ShopListItem } from '@/lib/api';
 import { getServerT } from '@/i18n/server';
+import ShopLabelChips from './ShopLabelChips';
 
 /**
  * 店铺街行卡片：左侧店铺信息卡。
@@ -66,6 +67,8 @@ export default function ShopInfoCard({ item }: { item: ShopListItem }) {
               {t('精选')}
             </span>
           ) : null}
+          {/* 店铺标签（本平台新增）：紧贴店铺名，与精选/推广角标并列 */}
+          <ShopLabelChips labels={item.labels} />
           {item.isPromoted ? (
             <span
               style={{

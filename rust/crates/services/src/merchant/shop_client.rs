@@ -240,6 +240,15 @@ impl ShopClientService {
             vo.product_score = Some(scores.get(&shop.shop_id).copied().unwrap_or(Decimal::ZERO));
             list.push(vo);
         }
+        // 店铺标签（本平台新增）：批量回填启用中标签，避免 N+1
+        let label_map =
+            crate::merchant::shop_label::fetch_labels_for_shops(&self.repos.pool, &shop_ids)
+                .await?;
+        for vo in &mut list {
+            if let Some(id) = vo.shop_id {
+                vo.labels = Some(label_map.get(&id).cloned().unwrap_or_default());
+            }
+        }
         Ok(list)
     }
 
@@ -719,6 +728,11 @@ impl ShopClientService {
                 .unwrap_or(Decimal::ZERO),
         );
         vo.collect_count = Some(self.repo().count_collect_users(shop.shop_id).await?);
+        // 店铺标签（本平台新增）
+        vo.labels = Some(
+            crate::merchant::shop_label::fetch_labels_for_shop(&self.repos.pool, shop.shop_id)
+                .await?,
+        );
         Ok(vo)
     }
 
@@ -1050,10 +1064,16 @@ impl ShopClientService {
             HashMap::new()
         };
 
+        // 店铺标签（本平台新增）：与优惠券/服务提示同一批预取
+        let store_label_map =
+            crate::merchant::shop_label::fetch_labels_for_shops(&self.repos.pool, &store_shop_ids)
+                .await?;
+
         for vo in &mut records {
             let shop_id = vo.shop_id.unwrap_or(SELF_OPERATED_SHOP_ID);
             let self_operated_placeholder = shop_id == SELF_OPERATED_SHOP_ID;
             if !self_operated_placeholder {
+                vo.labels = Some(store_label_map.get(&shop_id).cloned().unwrap_or_default());
                 // 占位行已由 fillSelfOperatedStoreListVO 写入，不能再用源数据覆盖
                 vo.contact_configs = parse_contact_configs(vo.contact_json.as_deref());
                 vo.tip_names = Some(
@@ -1216,6 +1236,11 @@ impl ShopClientService {
                 .find_collect(user_id, shop.shop_id)
                 .await?
                 .is_some(),
+        );
+        // 店铺标签（本平台新增）
+        vo.labels = Some(
+            crate::merchant::shop_label::fetch_labels_for_shop(&self.repos.pool, shop.shop_id)
+                .await?,
         );
 
         if let Some((lng, lat)) = valid_location(q.longitude, q.latitude) {

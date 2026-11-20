@@ -27,6 +27,15 @@ export interface ShopDetailItem {
     productScore?: number;
     /** 已通过合规快照的营业执照图；空串或 null 表示前台不公示 */
     businessLicensePic?: string | null;
+    /** 店铺标签（本平台新增）：平台分配的展示标签，紧贴店铺名 */
+    labels?: ShopLabelItem[];
+}
+
+/** 店铺标签（本平台新增） */
+export interface ShopLabelItem {
+    labelId?: number;
+    labelName?: string;
+    color?: string;
 }
 
 export interface ShopCategoryResponse {
@@ -93,6 +102,8 @@ export interface shopListItem {
     isPromoted?: boolean;
     /** 店铺街推荐排序：推荐理由（如「你买过这家店」） */
     recommendReason?: string;
+    /** 店铺标签（本平台新增）：平台分配的展示标签，紧贴店铺名 */
+    labels?: ShopLabelItem[];
 }
 
 export interface shopListListingProduct {

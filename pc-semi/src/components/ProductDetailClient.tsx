@@ -14,6 +14,7 @@ import { PRICE_GATE_COPY, hasAccessToken, usePriceAccess, type PriceAccessState 
 import InquiryFormModal from '@/components/InquiryFormModal';
 import DeliveryLinkRows from '@/components/DeliveryLinkRows';
 import DeliveryFileRows from '@/components/DeliveryFileRows';
+import ShopLabelChips from '@/components/ShopLabelChips';
 import RawImageDownloadButton from '@/components/RawImageDownloadButton';
 import ProductJoiningClient from '@/components/ProductJoiningClient';
 import ProductCard, { type ProductCardItem } from '@/components/product/ProductCard';
@@ -1017,6 +1018,7 @@ export default function ProductDetailClient({
                 {shopId > 0 ? <Link href={`/shop/${shopId}`}>{pickString(shopInfo, ['shopTitle'], '店铺')}</Link> : pickString(shopInfo, ['shopTitle'], '店铺')}
                 <i className="name-arrow" />
                 {pickString(shopInfo, ['shopBadge']) ? <span className="shop-badge">{pickString(shopInfo, ['shopBadge'])}</span> : null}
+                <ShopLabelChips labels={Array.isArray(shopInfo.labels) ? shopInfo.labels : undefined} />
               </div>
               <div className="shop-rate">
                 <span className="rate-score">{pickString(shopInfo, ['shopDetailedAddress'], '')}</span>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import ShopCategoryMenu from '@/components/ShopCategoryMenu';
+import ShopLabelChips from '@/components/ShopLabelChips';
 import { PC_MODULE_REGISTRY, CONTRACT_COMPONENTS } from '@/decorate/components/modules';
 import { CONTRACT_ADAPTERS } from '@/decorate/components/contract';
 import type { ShopDetail, ShopDecorateData } from '@/lib/api';
@@ -116,6 +117,7 @@ function ShopRefHeaderBlock({ shop, shopId }: { shop: ShopDetail | null; shopId:
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <h1 style={{ fontSize: 22, margin: 0, color: '#11192d', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{shop?.shopTitle || t('店铺名称')}</h1>
+            <ShopLabelChips labels={(shop as any)?.labels} style={{ marginLeft: 0 }} />
             {hasLicense ? <Link href={`/shop/license?id=${shopId}`} style={{ fontSize: 12, color: '#999', textDecoration: 'none', whiteSpace: 'nowrap' }}>{t('查看资质')}</Link> : null}
           </div>
           <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 13, color: '#888' }}>

@@ -1,6 +1,7 @@
 import { Text, View } from "@tarojs/components";
 
 import type { StoreDetailData } from "@/types/store/store";
+import ShopLabelChips from "@/components/shop-label-chips/ShopLabelChips";
 import { redirect } from "@/utils";
 import { imageFormat } from "@/utils/format";
 import { useRegionStore } from "@/store/region";
@@ -64,6 +65,7 @@ export default function ProductShopInfo({ storeInfo, productId, shopId, formType
                     <View className="shop-logo" style={{ backgroundImage: `url(${imageFormat(showStoreInfo.shopLogo)})` }} />
                 </View>
                 <View className="shop-info-title-right line1">{showStoreInfo.shopTitle}</View>
+                <ShopLabelChips labels={storeInfo?.labels} />
             </View>
 
             <View

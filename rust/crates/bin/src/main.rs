@@ -186,6 +186,7 @@ use nextrade_services::merchant::shop_account_log::ShopAccountLogService;
 use nextrade_services::merchant::shop_client::ShopClientService;
 use nextrade_services::merchant::shop_client_category::ShopClientCategoryService;
 use nextrade_services::merchant::shop_funds::ShopFundsService;
+use nextrade_services::merchant::shop_label::ShopLabelService;
 use nextrade_services::merchant::shop_manage::ShopManageService;
 use nextrade_services::merchant::shop_product_category::ShopProductCategoryService;
 use nextrade_services::merchant::shop_withdraw::ShopWithdrawService;
@@ -379,6 +380,7 @@ async fn main() -> anyhow::Result<()> {
     let web_socket = Arc::new(WebSocketService::new(repos.clone()));
     let wechat_live_sync_callback = Arc::new(WechatLiveSyncCallbackService::new(repos.clone()));
     let shop_client_category = Arc::new(ShopClientCategoryService::new(repos.clone()));
+    let shop_label = Arc::new(ShopLabelService::new(repos.clone()));
     let sunmi_print_callback = Arc::new(SunmiPrintCallbackService::new(repos.clone()));
     let user_points_log = Arc::new(UserPointsLogService::new(repos.clone()));
     let proxy_shopping_order_check = Arc::new(ProxyShoppingOrderCheckService::new(repos.clone()));
@@ -459,6 +461,7 @@ async fn main() -> anyhow::Result<()> {
         shop: shop.clone(),
         shop_client: shop_client.clone(),
         shop_client_category: shop_client_category.clone(),
+        shop_label: shop_label.clone(),
         shop_manage: shop_manage.clone(),
         shop_product_category: shop_product_category.clone(),
         vendor_deposit_shop: vendor_deposit_shop.clone(),

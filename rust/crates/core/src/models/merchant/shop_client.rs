@@ -343,6 +343,18 @@ pub struct ShopOpenCloseConfigVO {
 
 // ————————————————————— 店铺 VO —————————————————————
 
+/// 店铺标签（本平台新增，论坛帖 207878955346177229）：平台标签库分配给店铺的
+/// 展示标签，紧贴店铺名呈现（如「金牌商家」）。与门店服务提示 `tipNames`
+/// （原版 store_tip）是两套概念。老前端忽略无碍。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ShopLabelVO {
+    pub label_id: Option<i32>,
+    pub label_name: Option<String>,
+    /// 徽章底色（十六进制，如 `#E93B3D`；为空时前端用主题色兜底）
+    pub color: Option<String>,
+}
+
 /// 前台店铺列表项（Java `ClientShopVO`）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -383,6 +395,8 @@ pub struct ClientShopVO {
     pub tip_names: Option<Vec<String>>,
     pub contact_configs: Option<Vec<ShopContactConfigVO>>,
     pub shop_open_close_config: Option<ShopOpenCloseConfigVO>,
+    /// 店铺标签（本平台新增）：平台分配的展示标签，紧贴店铺名
+    pub labels: Option<Vec<ShopLabelVO>>,
     /// 店铺街推荐排序：是否为平台置顶（本平台新增，老前端忽略无碍）
     pub is_top: Option<bool>,
     /// 店铺街推荐排序：是否为付费推广（前端须打「推广」标）
@@ -446,6 +460,8 @@ pub struct ClientShopDetailVO {
     pub shop_star: Option<Decimal>,
     /// 审核通过或平台录入的营业执照图，无资料时为空串
     pub business_license_pic: Option<String>,
+    /// 店铺标签（本平台新增）：平台分配的展示标签，紧贴店铺名
+    pub labels: Option<Vec<ShopLabelVO>>,
 }
 
 // ————————————————————— O2O 门店 / 自提点 VO —————————————————————
@@ -461,6 +477,8 @@ pub struct StoreListVO {
     pub address: Option<String>,
     pub has_coupon: Option<i32>,
     pub tip_names: Option<Vec<String>>,
+    /// 店铺标签（本平台新增）：平台分配的展示标签，紧贴店铺名
+    pub labels: Option<Vec<ShopLabelVO>>,
     /// 距离（米）
     pub distance: Option<Decimal>,
     pub longitude: Option<Decimal>,
@@ -498,6 +516,8 @@ pub struct StoreDetailVO {
     pub shop_star_num: Option<i32>,
     pub shop_sales: Option<i32>,
     pub tip_names: Option<Vec<String>>,
+    /// 店铺标签（本平台新增）：平台分配的展示标签，紧贴店铺名
+    pub labels: Option<Vec<ShopLabelVO>>,
     pub collect_shop: Option<bool>,
     /// 距离（米），Java 为 `String`
     pub distance: Option<String>,

@@ -4,6 +4,7 @@ import { Image, PageMeta, Text, View } from "@tarojs/components";
 import { useDidShow, useLoad } from "@tarojs/taro";
 
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
+import ShopLabelChips from "@/components/shop-label-chips/ShopLabelChips";
 import TigLoadingPage from "@/components/tig/tig-loadingpage/index";
 import { getShopDetail } from "@/api/shop/shop";
 import type { ShopDetailItem } from "@/types/shop/shop";
@@ -134,6 +135,7 @@ export default function ShopInfo() {
                             <Image className="identity-logo" src={imageFormat(shopInfo.shopLogo || "")} mode="aspectFit" />
                             <View className="identity-meta">
                                 <View className="identity-name line1">{shopInfo.shopTitle || t("店铺名称")}</View>
+                                <ShopLabelChips labels={shopInfo.labels} />
                                 <View className="identity-rate">
                                     <View className="identity-stars" style={{ color: generalColor }}>
                                         <Text className="identity-stars-bg">★★★★★</Text>

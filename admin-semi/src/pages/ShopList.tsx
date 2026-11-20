@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Badge,
   Button,
+  Checkbox,
   Descriptions,
   Image,
   Modal,
@@ -56,6 +57,21 @@ interface ShopRow {
   addTime?: number | string;
 }
 
+interface ShopLabelItem {
+  labelId: number;
+  labelName: string;
+  color: string;
+  sortOrder: number;
+  status: number;
+}
+
+interface ShopLabelAssignment {
+  shopId: number;
+  labelId: number;
+  labelName: string;
+  color: string;
+}
+
 export default function ShopList() {
   const { t } = useI18n();
   const [reloadKey, setReloadKey] = useState(0);
@@ -63,17 +79,93 @@ export default function ShopList() {
   const [selectedMerchant, setSelectedMerchant] = useState<ShopMerchant | null>(null);
   const [adminModalVisible, setAdminModalVisible] = useState(false);
   const [selectedShop, setSelectedShop] = useState<ShopRow | null>(null);
+  // 店铺标签（本平台新增）：标签库 + 全量分配，平台账号才可读，失败静默
+  const [labelLibrary, setLabelLibrary] = useState<ShopLabelItem[]>([]);
+  const [labelMap, setLabelMap] = useState<Map<number, ShopLabelAssignment[]>>(new Map());
+  const [labelShop, setLabelShop] = useState<ShopRow | null>(null);
+  const [labelChecked, setLabelChecked] = useState<number[]>([]);
+  const [labelSaving, setLabelSaving] = useState(false);
+
+  const loadLabels = useCallback(async () => {
+    try {
+      const [library, assignments] = await Promise.all([
+        apiGet<ShopLabelItem[]>('/merchant/shopLabel/list'),
+        apiGet<ShopLabelAssignment[]>('/merchant/shopLabel/assignments'),
+      ]);
+      setLabelLibrary(Array.isArray(library) ? library : []);
+      const map = new Map<number, ShopLabelAssignment[]>();
+      (Array.isArray(assignments) ? assignments : []).forEach((a) => {
+        const list = map.get(a.shopId) || [];
+        list.push(a);
+        map.set(a.shopId, list);
+      });
+      setLabelMap(map);
+    } catch {
+      // 非平台账号无权读取标签接口时不阻断店铺列表
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadLabels();
+  }, [loadLabels]);
+
+  const openLabelModal = (record: ShopRow) => {
+    setLabelShop(record);
+    setLabelChecked((labelMap.get(record.shopId) || []).map((a) => a.labelId));
+  };
+
+  const saveLabels = async () => {
+    if (!labelShop) return;
+    setLabelSaving(true);
+    try {
+      await apiPost('/merchant/shopLabel/setShopLabels', {
+        shopId: labelShop.shopId,
+        labelIds: labelChecked,
+      });
+      Toast.success({ content: t('标签已更新') });
+      setLabelShop(null);
+      void loadLabels();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('保存失败') });
+    } finally {
+      setLabelSaving(false);
+    }
+  };
 
   const columns: ColumnConfig<ShopRow>[] = [
     {
       title: '店铺名称',
       dataIndex: 'shopTitle',
       width: 220,
-      render: (value: string, record) => (
-        <Space>
-          <Text strong>{value || record.shopName || '--'}</Text>
-        </Space>
-      ),
+      render: (value: string, record) => {
+        const chips = labelMap.get(record.shopId) || [];
+        return (
+          <div>
+            <Text strong>{value || record.shopName || '--'}</Text>
+            {chips.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                {chips.map((chip) => (
+                  <span
+                    key={chip.labelId}
+                    style={{
+                      display: 'inline-block',
+                      padding: '0 6px',
+                      height: 18,
+                      lineHeight: '18px',
+                      fontSize: 11,
+                      color: '#fff',
+                      background: chip.color || '#E93B3D',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {chip.labelName}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: '店铺LOGO',
@@ -200,7 +292,7 @@ export default function ShopList() {
         rowKey="shopId"
         pageSize={10}
         selectable
-        actionWidth={180}
+        actionWidth={240}
         filters={[
           {
             field: 'keyword',
@@ -266,6 +358,9 @@ export default function ShopList() {
               }}
             >
               {t('主账号管理')}
+            </Button>
+            <Button theme="borderless" size="small" onClick={() => openLabelModal(record)}>
+              {t('标签')}
             </Button>
           </Space>
         )}
@@ -376,6 +471,49 @@ export default function ShopList() {
               },
             ]}
           />
+        )}
+      </Modal>
+
+      {/* 店铺标签分配弹窗（本平台新增，平台打标） */}
+      <Modal
+        title={labelShop ? `${t('店铺标签')} · ${labelShop.shopTitle || labelShop.shopName || ''}` : t('店铺标签')}
+        visible={!!labelShop}
+        onCancel={() => setLabelShop(null)}
+        onOk={() => void saveLabels()}
+        okText={t('保存')}
+        cancelText={t('取消')}
+        confirmLoading={labelSaving}
+        width={420}
+      >
+        {labelLibrary.filter((l) => l.status === 1).length === 0 ? (
+          <Text type="tertiary">{t('标签库暂无启用标签，请先在「店铺标签」页新增。')}</Text>
+        ) : (
+          <Checkbox.Group
+            direction="vertical"
+            value={labelChecked}
+            onChange={(values) => setLabelChecked((values as number[]) || [])}
+          >
+            {labelLibrary
+              .filter((l) => l.status === 1)
+              .map((label) => (
+                <Checkbox key={label.labelId} value={label.labelId}>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      padding: '0 6px',
+                      height: 18,
+                      lineHeight: '18px',
+                      fontSize: 11,
+                      color: '#fff',
+                      background: label.color || '#E93B3D',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {label.labelName}
+                  </span>
+                </Checkbox>
+              ))}
+          </Checkbox.Group>
         )}
       </Modal>
 

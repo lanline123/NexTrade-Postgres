@@ -99,6 +99,8 @@ export interface StoreDetailData {
     distance: null;
     /** 已通过合规快照的营业执照图，空串或 null 表示前台不公示 */
     businessLicensePic?: string | null;
+    /** 店铺标签（本平台新增）：平台分配的展示标签，紧贴店铺名 */
+    labels?: Array<{ labelId?: number; labelName?: string; color?: string }>;
 }
 
 export interface PickupInfoResponse {

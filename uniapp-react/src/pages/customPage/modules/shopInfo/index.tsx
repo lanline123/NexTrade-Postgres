@@ -2,6 +2,7 @@ import { Input, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 
 import TigImage from "@/components/tig/tig-image/TigImage";
+import ShopLabelChips from "@/components/shop-label-chips/ShopLabelChips";
 import { shopCollection } from "@/api/shop/shop";
 import type { ShopDetailItem } from "@/types/shop/shop";
 import { imageFormat } from "@/utils/format";
@@ -156,6 +157,7 @@ export default function ShopInfoModule({ module, shopInfo, onRefreshShopDetail }
                                     <View className="cap-store-banner__right-content-title--middle" onClick={toShopInfo}>
                                         {shop.shopTitle ?? ""}
                                     </View>
+                                    <ShopLabelChips labels={shop.labels} />
                                     <View className="cap-store-banner__sum-content">
                                         <View className="cap-store-banner__sum-content-total">
                                             {t("全部商品")} {shop.productCount ?? 0}
