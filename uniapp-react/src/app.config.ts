@@ -4,6 +4,7 @@ export default defineAppConfig({
         "pages/search/index",
         "pages/search/result",
         "pages/search/image",
+        "pages/aiGuide/index",
         "pages/order/offlinePayment",
         "pages/product/index",
         "pages/product/comment",

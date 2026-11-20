@@ -121,3 +121,32 @@ page {
     padding: 20rpx;
     top: -20rpx;
 }
+
+/* AI 导购入口（我方新增）：扁平直角，与导购页同口径 */
+.guide-entry {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 24rpx 24rpx 0;
+    padding: 22rpx 24rpx;
+    background: #fff;
+    border: 1rpx solid #eee;
+}
+
+.guide-entry__title {
+    font-size: 28rpx;
+    font-weight: 600;
+    color: #222;
+}
+
+.guide-entry__desc {
+    margin-left: 16rpx;
+    font-size: 24rpx;
+    color: #999;
+}
+
+.guide-entry__arrow {
+    font-size: 36rpx;
+    color: #bbb;
+    line-height: 1;
+}

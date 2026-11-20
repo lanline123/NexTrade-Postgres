@@ -209,6 +209,19 @@ export default function SearchIndex() {
                         </View>
                     </View>
                 )}
+                {/* AI 导购入口（我方新增）：独立导购页，非 IM 会话；门店聚合搜索时不提供 */}
+                {!isStoreSearch && (
+                    <View
+                        className="guide-entry"
+                        onClick={() => Taro.navigateTo({ url: "/pages/aiGuide/index" }).catch(() => {})}
+                    >
+                        <View className="guide-entry__main">
+                            <Text className="guide-entry__title">{t("AI 导购")}</Text>
+                            <Text className="guide-entry__desc">{t("描述需求，帮你挑商品、查订单")}</Text>
+                        </View>
+                        <Text className="guide-entry__arrow">›</Text>
+                    </View>
+                )}
                 {searchHistory.length > 0 && (
                     <View className="search_init_box">
                         <View className="search_history_box">
