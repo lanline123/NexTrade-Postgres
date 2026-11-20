@@ -676,7 +676,12 @@ export default function DeliverOrders({
             }}
             tabList={tabs.map((tab) => ({
               tab: (
-                <Badge count={counts[tab.value]} type="danger" overflowCount={999}>
+                <Badge
+                  count={counts[tab.value]}
+                  // 计数徽标配色规则（用户 2026-11-20 定）：0 或无计数时中性灰，非 0 才红色强调
+                  type={counts[tab.value] ? 'danger' : 'tertiary'}
+                  overflowCount={999}
+                >
                   {t(tab.label)}
                 </Badge>
               ),
