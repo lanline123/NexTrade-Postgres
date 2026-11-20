@@ -15,12 +15,15 @@ export const productDetailBaseDefaults: Record<string, any> = {
     titleMaxLines: 2,
     priceColor: "#ff4d4f",
     marketPriceColor: "#999",
+    // 顺序 = 页面自然序（券→活动→规格→评价→售后，2026-11-21 方案二接通消费
+    // 后与前台 sortBlocks 口径对齐；此前为原版出厂序，前台视为未配置同样按
+    // 自然序渲染，新数据直接写自然序使存量与生效口径字面一致）
     moduleSortList: [
+        { key: "coupon", label: "领劵/优惠", visible: true },
         { key: "activity", label: "活动信息", visible: true },
         { key: "spec", label: "规格参数", visible: true },
         { key: "review", label: "评价入口", visible: true },
-        { key: "afterSale", label: "售后入口", visible: true },
-        { key: "coupon", label: "领劵/优惠", visible: true }
+        { key: "afterSale", label: "售后入口", visible: true }
     ],
     buyBarStyle: 1,
     buttonRadius: 5,

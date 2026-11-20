@@ -48,6 +48,10 @@ import "./index.scss";
  *   商品列表响应在 api 层按 id 回填价格后再交给各模块渲染；价格表到达
  *   或变化时整树重挂一次，让各模块重新取数。真实店面不加载本页、注册
  *   表恒为空，店面门控不受影响；旧编辑器不下发该字段时行为不变。
+ * - 预览样例商品可选【我方新增】（2026-11-21 方案二）：商品详情整页分支的
+ *   样例商品此前固定取第一条在售商品，活动态（秒杀/团购）与价格门控无从
+ *   验版。编辑器可随 decorate-data 下发 previewProductId 指定样例商品，
+ *   本页透传给 ProductConfigPreview；不下发/为 0 时保持原口径不变。
  * - 编辑器空模块占位【原版有·我方补齐】（2026-11-21）：真实渲染按前台口径，
  *   模块没填内容时渲染为 0 高，编辑器画布上不可见不可点、相邻模块贴死
  *   （页面 10106 实测）。原版编辑器各 Preview 对空态恒有 .module-ad-empty
@@ -94,6 +98,8 @@ export default function DecoratePreview() {
     const [received, setReceived] = useState(false);
     /** 编辑器下发的页面类型（整页配置型分支判定用；旧编辑器不下发时为 0，恒走通用分发） */
     const [pageType, setPageType] = useState(0);
+    /** 编辑器指定的预览样例商品 id（商品详情分支用；0 = 默认第一条在售商品） */
+    const [previewProductId, setPreviewProductId] = useState(0);
     /** 编辑器下发真实价格表的版本：变化时整树重挂，让商品模块重新取数回填价格 */
     const [priceDataVersion, setPriceDataVersion] = useState(0);
     const [shopId, setShopId] = useState(0);
@@ -129,6 +135,8 @@ export default function DecoratePreview() {
             if (data.pageModule && typeof data.pageModule === "object") setPageModule(data.pageModule);
             // 页面类型（整页配置型分支判定；旧编辑器不下发时保持 0，向后兼容）
             if (typeof data.pageType === "number") setPageType(data.pageType);
+            // 预览样例商品（商品详情分支用；旧编辑器不下发时保持 0 = 默认样例）
+            if (typeof data.previewProductId === "number") setPreviewProductId(data.previewProductId);
             // 店铺上下文（向后兼容：旧编辑器不下发 shopId 时保持 0，模块走守卫空态）
             if (typeof data.shopId === "number" && data.shopId !== shopIdRef.current) {
                 shopIdRef.current = data.shopId;
@@ -186,6 +194,9 @@ export default function DecoratePreview() {
         // ?pageType= 自检参数：直接打开预览页时也能命中整页配置型分支
         const paramPageType = Number(router.params.pageType);
         if (paramPageType > 0 && !parentDataRef.current) setPageType(paramPageType);
+        // ?previewProductId= 自检参数：直接打开预览页时也能指定样例商品
+        const paramPreviewProductId = Number(router.params.previewProductId);
+        if (paramPreviewProductId > 0 && !parentDataRef.current) setPreviewProductId(paramPreviewProductId);
         if (!id) return;
         void (async () => {
             try {
@@ -333,7 +344,7 @@ export default function DecoratePreview() {
         >
             {received ? (
                 configBranch ? (
-                    <ConfigPagePreview branch={configBranch} />
+                    <ConfigPagePreview branch={configBranch} previewProductId={previewProductId} />
                 ) : (
                     <DecorateModules
                         key={priceDataVersion}

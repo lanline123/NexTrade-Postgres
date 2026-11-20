@@ -319,7 +319,9 @@ onRemove,
 onMove,
 addText,
 collapsible = true,
-canRemove = true
+canRemove = true,
+canAdd = true,
+itemTitle
 }: {
 items: any[];
 renderItem: (item: any, index: number) => React.ReactNode;
@@ -329,6 +331,10 @@ onMove: (index: number, delta: number) => void;
 addText: string;
 collapsible?: boolean;
 canRemove?: boolean;
+/** 是否显示底部添加钮（默认 true）；固定成员列表（如详情区块排序）传 false */
+canAdd?: boolean;
+/** 卡头标题工厂（默认「第 N 组」）；成员自带名称的列表（如区块名）传此项 */
+itemTitle?: (item: any, index: number) => string;
 }) {
 const { t} = useI18n();
 const [openIndex, setOpenIndex] = useState(0);
@@ -362,7 +368,7 @@ cursor: collapsible? "pointer": "default"
 }}
 onClick={() => collapsible && setOpenIndex(open? -1: index)}
 >
-<span style={{ fontWeight: 600, color: "#1c1f23"}}>{`第${index + 1}组`}</span>
+<span style={{ fontWeight: 600, color: "#1c1f23"}}>{itemTitle ? itemTitle(item, index) : `第${index + 1}组`}</span>
 <span style={{ display: "flex", gap: 10, fontSize: 12}} onClick={(e) => e.stopPropagation()}>
 <a className={index === 0? "is-disabled": ""} onClick={() => onMove(index, -1)}>
 {t('上移')}
@@ -401,6 +407,7 @@ boxSizing: "border-box"
 </div>
 );
 })}
+{canAdd ? (
 <a
 onClick={onAdd}
 onMouseEnter={() => setAddHover(true)}
@@ -425,6 +432,7 @@ boxSizing: "border-box"
 <span style={{ fontSize: 15, lineHeight: 1}}>+</span>
 {t(addText)}
 </a>
+) : null}
 </div>
 );
 }

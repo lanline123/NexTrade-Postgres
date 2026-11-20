@@ -127,6 +127,10 @@ export default function IframeCanvas({
                     pageModule: st.pageModule,
                     shopId: st.shopId || 0,
                     pageType: st.pageType || 0,
+                    // 预览样例商品（2026-11-21 方案二）：商品详情整页分支据此
+                    // 选样例商品验活动态/价格门控；0 = 默认第一条在售商品。
+                    // 旧版嵌入页忽略未知字段，向后兼容。
+                    previewProductId: st.previewProductId || 0,
                     // 真实价格表（管理员口径预取，见 productData 状态）：嵌入页
                     // 据此回填被门控遮罩的价格；旧版嵌入页忽略未知字段。
                     productData: productDataRef.current
@@ -172,7 +176,7 @@ export default function IframeCanvas({
         window.clearTimeout(sendTimer.current);
         sendTimer.current = window.setTimeout(sendData, 200);
         return () => window.clearTimeout(sendTimer.current);
-    }, [s.moduleList, s.pageModule, productData, sendData]);
+    }, [s.moduleList, s.pageModule, s.previewProductId, productData, sendData]);
 
     useEffect(() => {
         if (ready) sendData();

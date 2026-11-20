@@ -38,6 +38,12 @@ interface EditorState {
     isDefault: boolean;
     /** 页面所属店铺（详情接口顶层 shopId；店铺模板页才有值）：供真实渲染 iframe 下发给嵌入页拉真实店铺详情 */
     shopId: number;
+    /**
+     * 预览样例商品 id（商品详情页编辑器指定，2026-11-21 方案二）：仅编辑会话
+     * 内的瞬态视图状态，随 decorate-data 下发给真实渲染预览选样例商品；
+     * 不属于装修数据——不进 getSaveData、不置 isDirty。0 = 默认样例。
+     */
+    previewProductId: number;
 }
 
 let state: EditorState = {
@@ -54,7 +60,8 @@ let state: EditorState = {
     localeId: 0,
     parentId: 0,
     isDefault: true,
-    shopId: 0
+    shopId: 0,
+    previewProductId: 0
 };
 
 const listeners = new Set<() => void>();
@@ -177,6 +184,40 @@ function getValidInsertIndex(type: string, preferredIndex?: number): number {
     }
 }
 
+// ==================== 商品详情三风格并存保留（2026-11-21 方案二 ④ 升级） ====================
+
+/**
+ * 三风格并存模型（对标模板并存切换，根治换风格丢配置）：
+ * - 生效风格的配置就是模块自身的 module 数据；其余两风格的最近配置以
+ *   module.styleVariants = { A1?, A2?, A3? } 挂在生效模块上，随页面一并
+ *   保存/加载（附加可选字段，前台与各预览面均按名取字段、不受影响）。
+ * - 本编辑器切换风格 = 删除旧模块 + 新增新模块（独占模块约束），两步之间
+ *   靠下方会话暂存衔接：删除详情模块时把三份配置收进暂存，新增详情模块
+ *   时按目标风格恢复其留存配置（无留存则用新模块默认值），其余风格继续
+ *   以 styleVariants 留存。共享字段与风格专属字段都不丢。
+ * - 暂存只活在编辑会话内：initDecorate / restoreFromDraft / applyTemplate /
+ *   reset 时清空，避免跨页面串味。
+ */
+const PD_STYLE_BY_TYPE: Record<string, "A1" | "A2" | "A3"> = {
+    productDetailA1: "A1",
+    productDetailA2: "A2",
+    productDetailA3: "A3"
+};
+
+let pdVariantsStash: Record<string, Record<string, any>> | null = null;
+
+/** 删除详情模块时收获三份风格配置到会话暂存 */
+function harvestPdVariants(moduleType: string, moduleData: Record<string, any> | undefined) {
+    const style = PD_STYLE_BY_TYPE[moduleType];
+    if (!style) return;
+    const data = cloneDeep(moduleData ?? {}) as Record<string, any>;
+    const variants: Record<string, Record<string, any>> = { ...(data.styleVariants ?? {}) };
+    delete data.styleVariants;
+    delete variants[style];
+    variants[style] = data;
+    pdVariantsStash = variants;
+}
+
 // ==================== store 动作 ====================
 
 export const editorStore = {
@@ -184,6 +225,11 @@ export const editorStore = {
     getState,
 
     // -------------------- 初始化 --------------------
+
+    /** 设置预览样例商品（瞬态视图状态：不置 isDirty、不进保存数据） */
+    setPreviewProductId(id: number) {
+        set({ previewProductId: id > 0 ? Math.floor(id) : 0 });
+    },
 
     /** 初始化装修数据（详情加载 / 从其他页面复制 / 模板导入共用），内置 url 回填 + 固定模块注入 */
     initDecorate(data: {
@@ -202,6 +248,7 @@ export const editorStore = {
         const pageModule = data.pageModule ? cloneDeep(data.pageModule) : {};
         const list = normalizeProductDetailStyles(updateModuleListWithUrls(cloneDeep(data.moduleList ?? [])));
         ensureFixedModules(list, data.pageType ?? 1);
+        pdVariantsStash = null;
         set({
             decorateId: data.decorateId,
             decorateType: data.decorateType,
@@ -214,6 +261,7 @@ export const editorStore = {
             parentId: data.parentId ?? 0,
             isDefault: data.isDefault ?? true,
             shopId: data.shopId ?? 0,
+            previewProductId: 0,
             activeModuleIndex: null,
             editMode: null,
             isDirty: false
@@ -224,6 +272,7 @@ export const editorStore = {
     restoreFromDraft(draftData: DecorateData) {
         const list = normalizeProductDetailStyles(cloneDeep(draftData.moduleList ?? []));
         ensureFixedModules(list, state.pageType);
+        pdVariantsStash = null;
         set({
             pageModule: draftData.pageModule ? cloneDeep(draftData.pageModule) : state.pageModule,
             moduleList: list,
@@ -237,6 +286,7 @@ export const editorStore = {
     applyTemplate(json: { moduleList?: DecorateModuleBase[]; pageModule?: PageModule }) {
         const list = normalizeProductDetailStyles(updateModuleListWithUrls(cloneDeep(json.moduleList ?? [])));
         ensureFixedModules(list, state.pageType);
+        pdVariantsStash = null;
         set({
             moduleList: list,
             pageModule: { ...state.pageModule, ...(json.pageModule ?? {}) },
@@ -270,6 +320,20 @@ export const editorStore = {
         if (!skipValidation) {
             const validation = canAddModule(moduleData.type, index);
             if (!validation.ok) return validation;
+        }
+        // 三风格并存：新增详情模块时恢复该风格的留存配置（暂存有则以留存
+        // 覆盖新默认值，新字段仍取默认值兜底），其余风格转挂 styleVariants。
+        const targetStyle = PD_STYLE_BY_TYPE[moduleData.type];
+        if (targetStyle && pdVariantsStash) {
+            const variants = { ...pdVariantsStash };
+            const saved = variants[targetStyle];
+            delete variants[targetStyle];
+            const restored: Record<string, any> = { ...cloneDeep(moduleData.module ?? {}), ...(saved ? cloneDeep(saved) : {}) };
+            restored.decorateStyle = targetStyle;
+            if (Object.keys(variants).length > 0) restored.styleVariants = variants;
+            else delete restored.styleVariants;
+            moduleData = { ...moduleData, module: restored };
+            pdVariantsStash = null;
         }
         const list = [...state.moduleList];
         const validIndex = getValidInsertIndex(moduleData.type, index);
@@ -339,6 +403,9 @@ export const editorStore = {
     removeModule(index: number) {
         if (index >= 0 && index < state.moduleList.length) {
             if (state.moduleList[index]?.fixed) return;
+            // 三风格并存：删详情模块前先收获三份风格配置（见 pdVariantsStash）
+            const removed = state.moduleList[index];
+            if (removed) harvestPdVariants(removed.type, removed.module as Record<string, any> | undefined);
             const list = state.moduleList.filter((_, i) => i !== index);
             let activeModuleIndex = state.activeModuleIndex;
             let editMode = state.editMode;
@@ -436,6 +503,7 @@ export const editorStore = {
     },
 
     reset() {
+        pdVariantsStash = null;
         set({
             decorateId: "",
             decorateType: 1,
@@ -450,7 +518,8 @@ export const editorStore = {
             localeId: 0,
             parentId: 0,
             isDefault: true,
-            shopId: 0
+            shopId: 0,
+            previewProductId: 0
         });
     }
 };

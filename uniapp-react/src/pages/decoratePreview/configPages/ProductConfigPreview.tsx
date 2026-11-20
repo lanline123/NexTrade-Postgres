@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { View, Text } from "@tarojs/components";
 
 import { getCategoryProduct } from "@/api/search/search";
@@ -20,6 +20,7 @@ import ProductDescription from "@/pages/product/src/productDescription";
 import DescriptionCard from "@/pages/product/src/descriptionCard";
 import ProductContent from "@/pages/product/src/productContent";
 import ProductActionBar from "@/pages/product/components/ProductActionBar";
+import { resolvePdSortBlocks, sortPdBlocks, type PdSortKey } from "@/pages/product/sortBlocks";
 import "@/pages/product/index.scss";
 
 /**
@@ -37,6 +38,15 @@ import "@/pages/product/index.scss";
  * 默认排序取第一条在售商品，再走详情接口取全量详情；取不到商品时渲染
  * 明确占位而非空白。admin 兼容渲染 Preview 的样例是写死演示数据（竖条纹
  * 衬衫），本分支取真实商品，口径差异见报告。
+ *
+ * 样例可选【我方新增】（2026-11-21 方案二）：编辑器可经 previewProductId
+ * 指定样例商品（如秒杀/团购活动商品），活动态与价格门控得以验版；不指定
+ * （0/缺省）时保持第一条在售商品的原口径不变。
+ *
+ * 区块排序【原版有·我方补齐】（2026-11-21 方案二）：本预览渲染的规格/
+ * 评价/售后三区块同样消费 moduleSortList（与详情页本体共用
+ * pages/product/sortBlocks 口径），编辑器里改的排序/显隐在预览即时可见；
+ * 本预览无券条/活动卡锚点，该两键不在场、不参与填回。
  */
 
 /** 装修字段归一（同详情页：布尔兼容 "false"/0/"0"，数字兼容字符串） */
@@ -49,7 +59,7 @@ const toDecorateNumber = (val: unknown) => {
     return Number(val);
 };
 
-export default function ProductConfigPreview({ module, type }: { module: any; type: string }) {
+export default function ProductConfigPreview({ module, type, previewProductId }: { module: any; type: string; previewProductId?: number }) {
     const config = (module ?? {}) as Record<string, any>;
     // 接口/编辑器未回 decorateStyle 时按模块 type 回填（同详情页 fetchDecorateConfig）
     const decorateStyle = config.decorateStyle || (type === "productDetailA1" ? "A1" : type === "productDetailA2" ? "A2" : type === "productDetailA3" ? "A3" : undefined);
@@ -60,10 +70,16 @@ export default function ProductConfigPreview({ module, type }: { module: any; ty
     const productCommentEnabled = useConfigStore((s) => s.productCommentEnabled);
     const showSelledCount = useConfigStore((s) => s.showSelledCount);
 
-    // ===== 样例商品：列表默认排序第一条在售商品 =====
+    // ===== 样例商品：编辑器指定优先，否则列表默认排序第一条在售商品 =====
     const [sampleId, setSampleId] = useState(0);
     const [sampleEmpty, setSampleEmpty] = useState(false);
     useEffect(() => {
+        // 编辑器指定样例商品时直接采用（活动态/门控验版），不走列表口径
+        if (previewProductId && previewProductId > 0) {
+            setSampleEmpty(false);
+            setSampleId(previewProductId);
+            return;
+        }
         let alive = true;
         void (async () => {
             try {
@@ -92,7 +108,7 @@ export default function ProductConfigPreview({ module, type }: { module: any; ty
         return () => {
             alive = false;
         };
-    }, []);
+    }, [previewProductId]);
 
     const detail = useProductDetail({});
     const { product, picList, videoList, attrList, serviceList, descArr, productPrice, productStock, promotionList, shopInfo, shopId, activityBgImage, detailLoaded, failLoad } = detail;
@@ -141,6 +157,36 @@ export default function ProductConfigPreview({ module, type }: { module: any; ty
         Object.keys(shopInfo).length > 0 &&
         Number.isInteger(shopInfo.shopId) &&
         shopInfo.shopId > 0;
+
+    // ===== 详情区块排序/显隐（moduleSortList；与详情页本体共用 sortBlocks 口径）=====
+    // 本预览只有规格/评价/售后三个锚点，在场集合按此三者计（页面自然序）。
+    const pdResolution = resolvePdSortBlocks(config.moduleSortList);
+    const pdSpecNode =
+        (isVortmallStyle || isOverseasStyle) && attrList.normal?.length > 0 ? (
+            <View className="attr-card-box">
+                <AttrCard normal={attrList.normal} overseas={isOverseasStyle} />
+            </View>
+        ) : null;
+    const pdReviewNode =
+        productCommentEnabled === 1 ? (
+            isVortmallStyle || isOverseasStyle ? (
+                <View className="evaluate-area">
+                    <EvaluateCard productId={product.productId} overseas={isOverseasStyle} />
+                </View>
+            ) : (
+                <View className="evaluate-area">
+                    <ProductComment productId={product.productId} shopId={shopId > -1 ? shopId : undefined} />
+                </View>
+            )
+        ) : null;
+    const pdAfterSaleNode = isOverseasStyle ? <AfterSaleCard id={product.productId} overseas={true} /> : null;
+    const pdNodes: Partial<Record<PdSortKey, ReactNode>> = { spec: pdSpecNode, review: pdReviewNode, afterSale: pdAfterSaleNode };
+    const pdPresent = (["spec", "review", "afterSale"] as PdSortKey[]).filter((key) => pdNodes[key] != null && !pdResolution.hidden.has(key));
+    const pdSorted = sortPdBlocks(pdResolution, pdPresent);
+    const pdSlot = (anchor: PdSortKey): ReactNode => {
+        const idx = pdPresent.indexOf(anchor);
+        return idx >= 0 ? pdNodes[pdSorted[idx]] : null;
+    };
 
     if (sampleEmpty) {
         return (
@@ -238,27 +284,13 @@ export default function ProductConfigPreview({ module, type }: { module: any; ty
                     />
                 )}
 
-                {(isVortmallStyle || isOverseasStyle) && attrList.normal?.length > 0 && (
-                    <View className="attr-card-box">
-                        <AttrCard normal={attrList.normal} overseas={isOverseasStyle} />
-                    </View>
-                )}
+                {pdSlot("spec")}
 
-                {productCommentEnabled === 1 ? (
-                    isVortmallStyle || isOverseasStyle ? (
-                        <View className="evaluate-area">
-                            <EvaluateCard productId={product.productId} overseas={isOverseasStyle} />
-                        </View>
-                    ) : (
-                        <View className="evaluate-area">
-                            <ProductComment productId={product.productId} shopId={shopId > -1 ? shopId : undefined} />
-                        </View>
-                    )
-                ) : null}
+                {pdSlot("review")}
 
                 {isOverseasStyle ? (
                     <>
-                        <AfterSaleCard id={product.productId} overseas={true} />
+                        {pdSlot("afterSale")}
                         <ProductDescription product={product} overseas={true} />
                         <View className="product-detail-area">
                             <DescriptionCard

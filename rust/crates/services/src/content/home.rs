@@ -54,6 +54,61 @@ const TENCENT_CUSTOMER_SERVICE_URL: &str = "https://yzf.qq.com/xv/web/static/cha
 /// 企业微信客服地址前缀（Java `Constants.QY_CUSTOMER_SERVICE_URL`）。
 const QY_CUSTOMER_SERVICE_URL: &str = "https://work.weixin.qq.com/kfid/";
 
+/// 商品详情页（pageType=8）内置默认装修数据（逐字对齐原版
+/// `ProductPageDecorateDefaults.PRODUCT_DETAIL`，普通版 = A2 门店风模板）。
+/// 仅作无生效记录时的服务层兜底，数据库有有效装修时始终以存量数据为准。
+/// 定界用 `r##`：JSON 内含 `"#ff4d4f"` 等颜色字面量，`r#"` 会被提前终止。
+pub const DEFAULT_PRODUCT_DETAIL_DECORATE_DATA: &str = r##"{
+    "pageModule": {
+        "type": "page",
+        "module": {},
+        "backgroundRepeat": "",
+        "backgroundSize": "",
+        "style": 0,
+        "headerStyle": 1,
+        "title": "",
+        "titleColor": "",
+        "immersive": false,
+        "titleBackgroundColor": "",
+        "backgroundImage": { "picUrl": "", "picThumb": "" },
+        "backgroundColor": ""
+    },
+    "moduleList": [
+        {
+            "type": "productDetailA2",
+            "url": "mobileProductDetail",
+            "label": "商品详情A2",
+            "isShow": true,
+            "module": {
+                "imageRatio": "1:1",
+                "imageMode": 1,
+                "imageRadiusStyle": "square",
+                "titleSize": "medium",
+                "titleColor": "#1a1a1a",
+                "titleMaxLines": 2,
+                "priceColor": "#ff4d4f",
+                "marketPriceColor": "#999",
+                "moduleSortList": [
+                    { "key": "activity", "label": "活动信息", "visible": true },
+                    { "key": "spec", "label": "规格参数", "visible": true },
+                    { "key": "review", "label": "评价入口", "visible": true },
+                    { "key": "afterSale", "label": "售后入口", "visible": true },
+                    { "key": "coupon", "label": "领劵/优惠", "visible": true }
+                ],
+                "buyBarStyle": 1,
+                "buttonRadius": 5,
+                "showHome": true,
+                "showService": true,
+                "showCart": true,
+                "backgroundColor": "#f5f5f5",
+                "contentBackgroundColor": "#ffffff",
+                "decorateStyle": "A2"
+            },
+            "moduleIndex": 1
+        }
+    ]
+}"##;
+
 /// 底部导航（pageType=7）默认数据（对齐 Java InitDecorateDataConstants.NAV_H5_DECORATE_DATA）
 pub const DEFAULT_NAV_H5_DECORATE_DATA: &str = r#"{
     "navList": [
@@ -217,12 +272,26 @@ impl HomeService {
     }
 
     /// `GET /api/home/home/h5ProductDetail`：H5 商品详情页装修。
+    ///
+    /// 内置默认兜底（原版有·我方补齐）：原版 `DecorateServiceImpl` 在查不到
+    /// 生效记录、或发布数据为空/模块为空时，回退 `ProductPageDecorateDefaults`
+    /// 的内置默认模板（普通版对齐 A2），前台永不因缺装修而无配置可用；我方
+    /// 此前直接返回空 moduleList，与原版分叉（新实例/数据清空时踩到）。
+    /// 口径：仅非预览请求兜底——带 preview_id 的真页预览须如实呈现该页数据
+    /// （含空模块），不以默认模板掩盖；跨境版默认（A3）在原版由部署属性
+    /// `tigshop.is-overseas` 选择，我方后端无对应部署标志，统一回退普通版。
     pub async fn h5_product_detail(
         &self,
         q: &DecoratePreviewQuery,
     ) -> Result<DecorateModuleListVO> {
-        self.decorate_module(DECORATE_TYPE_H5, PAGE_H5_PRODUCT_DETAIL, q.preview_id)
-            .await
+        let vo = self
+            .decorate_module(DECORATE_TYPE_H5, PAGE_H5_PRODUCT_DETAIL, q.preview_id)
+            .await?;
+        let is_preview = q.preview_id.is_some_and(|id| id > 0);
+        if !is_preview && vo.module_list.as_ref().is_none_or(Vec::is_empty) {
+            return Ok(product_detail_default_vo());
+        }
+        Ok(vo)
     }
 
     /// `GET /api/home/home/h5Member`：H5 个人中心装修。
@@ -410,6 +479,28 @@ fn module_vo(d: &Decorate) -> DecorateModuleListVO {
                 .collect::<Vec<_>>()
         });
     vo
+}
+
+/// 商品详情页内置默认模板 → `DecorateModuleListVO`（无生效记录时的兜底，
+/// 口径与 `module_vo` 一致：过滤隐藏模块、is_home=1、无 decorate_id）。
+#[must_use]
+fn product_detail_default_vo() -> DecorateModuleListVO {
+    let value = parse_json_opt(&Some(DEFAULT_PRODUCT_DETAIL_DECORATE_DATA.to_string()))
+        .unwrap_or_else(|| json!({}));
+    DecorateModuleListVO {
+        is_home: Some(1),
+        page_module: value.get("pageModule").cloned(),
+        module_list: value
+            .get("moduleList")
+            .and_then(Value::as_array)
+            .map(|arr| {
+                arr.iter()
+                    .filter(|m| module_visible(m))
+                    .cloned()
+                    .collect::<Vec<_>>()
+            }),
+        ..DecorateModuleListVO::default()
+    }
 }
 
 /// PC 头部配置：依次尝试 `pcHeader` / `pageModule.header` / 首个
@@ -613,6 +704,24 @@ mod tests {
         assert_eq!(vo.bind_decorate_id, Some(3));
         assert_eq!(vo.module_list.as_ref().unwrap().len(), 2);
         assert_eq!(vo.page_module.unwrap()["title"], "首页");
+    }
+
+    #[test]
+    fn product_detail_default_vo_matches_original_a2_template() {
+        let vo = product_detail_default_vo();
+        assert_eq!(vo.is_home, Some(1));
+        assert!(vo.decorate_id.is_none());
+        assert!(vo.page_module.is_some());
+        let list = vo.module_list.as_ref().unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0]["type"], "productDetailA2");
+        let module = &list[0]["module"];
+        assert_eq!(module["decorateStyle"], "A2");
+        assert_eq!(module["imageRatio"], "1:1");
+        assert_eq!(module["priceColor"], "#ff4d4f");
+        let sort = module["moduleSortList"].as_array().unwrap();
+        assert_eq!(sort.len(), 5);
+        assert!(sort.iter().all(|it| it["visible"] == true));
     }
 
     #[test]

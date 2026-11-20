@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Image, ScrollView, Text, View } from "@tarojs/components";
 import Taro, { useDidHide, useDidShow, useRouter, useShareAppMessage, useShareTimeline, useUnload } from "@tarojs/taro";
 import { Popup } from "@nutui/nutui-react-taro";
@@ -21,6 +21,7 @@ import AfterSaleCard from "./src/afterSaleCard";
 import ServiceCard from "./src/serviceCard";
 import ProductDescription from "./src/productDescription";
 import DescriptionCard from "./src/descriptionCard";
+import { PD_PAGE_ORDER, resolvePdSortBlocks, sortPdBlocks, type PdSortKey } from "./sortBlocks";
 import Animation from "./src/animation";
 import ErrorComp from "./src/error";
 import Recommend from "@/components/recommend";
@@ -103,6 +104,8 @@ interface ProductDecorateConfig {
     contentBackgroundColor?: string;
     /** 是否显示 A3 顶部商城头部 */
     showHeader?: boolean;
+    /** 五区块（活动/规格/评价/售后/领劵）排序与显隐，消费口径见 sortBlocks.ts */
+    moduleSortList?: Array<{ key: string; label?: string; visible?: boolean | string | number }>;
 }
 
 /** 规格弹窗 sendValue 载荷（旧 Ival：discountEndTime/cycleInfo 在 React 规格组件载荷中可能缺省） */
@@ -201,6 +204,9 @@ export default function ProductIndex() {
     // A1 / A2 / A3 功能区保持一致：O2O 普通商品均可查看当前门店并切换门店。
     // shopId 未落地时 productShopInfo 会显示商城兜底信息，仍可携带 productId 进入门店列表。
     const showStoreSwitch = isO2o() && type !== "exchange";
+
+    // 详情五区块排序/显隐解析（moduleSortList；口径见 sortBlocks.ts）
+    const pdResolution = useMemo(() => resolvePdSortBlocks(decorateConfig.moduleSortList), [decorateConfig.moduleSortList]);
 
     // 底栏装修配置
     const actionBarDecorate = useMemo(
@@ -903,6 +909,240 @@ export default function ProductIndex() {
         </View>
     );
 
+    // ===== 详情五区块节点（moduleSortList 排序/显隐，2026-11-21 方案二）=====
+    // 区块 JSX 从原渲染位置抽为节点常量，再按生效顺序填回各区块的原锚点
+    // （pdSlot）；未配置时填回结果与原位渲染逐字一致（见 sortBlocks.ts 口径）。
+    // A3 活动优惠券条（紧跟价格活动条，对齐海外版商详）
+    const pdCouponA3Node = !isWholesaleMode &&
+            isOverseasStyle &&
+            (isSeckill || isDiscount || isGroupon || isPresale || isCycleBuy) &&
+            visiblePromotionList.length > 0 ? (
+                <View className="overseas-activity-coupon-box">
+                    <View
+                        className="overseas-activity-coupon"
+                        onClick={() => setShowCoupon(true)}
+                    >
+                        <View className="coupon-title line1">{visiblePromotionList[0]?.promotionName || t("优惠活动")}</View>
+                        <View className="coupon-more">
+                            {t("更多优惠券")}
+                            <Text className="iconfont-h5 icon-a-gengduo20" />
+                        </View>
+                    </View>
+                </View>
+    ) : null;
+    // A1 预售优惠券条（位于门店入口下方，对齐 vortmall 商详的信息顺序）
+    const pdCouponA1Node = (() => {
+            // 对应旧 computed showVortmallStandaloneCoupon
+            const showVortmallStandaloneCoupon =
+                isVortmallStyle &&
+                visiblePromotionList.length > 0 &&
+                !!(isSeckill || isDiscount || isGroupon || isCycleBuy || isSubCard || isPresale || activityBgImage);
+            if (!showVortmallStandaloneCoupon) return null;
+            return (
+                <View className="vortmall-presale-coupon" onClick={() => setShowCoupon(true)}>
+                    <View className="coupon-content">
+                        <View className="coupon-title line1">{visiblePromotionList[0]?.promotionName || t("优惠活动")}</View>
+                        <View className="coupon-more">
+                            {t("更多优惠券")}
+                            <Text className="iconfont-h5 icon-a-gengduo20" />
+                        </View>
+                    </View>
+                </View>
+            );
+    })();
+    // 活动信息（拼团卡片行；规格快捷入口按当前装修方案保留不展示）
+    const pdActivityNode = !isWholesaleMode && !!isGroupon && !!totalGroupCount ? (
+            <View className={`group-card-row ${isVortmallStyle ? "group-card-row--vortmall" : ""}`}>
+                <View className="flex justify-between align-center">
+                    <View className="group-num">{grouponValue.joinNumCount + t("人在拼单，可直接参与")}</View>
+                    <View className="flex align-center group-desc" onClick={handleShowMore}>
+                        {t("查看更多")}
+                        <View className="iconfont-h5 icon-gengduo1 more" />
+                    </View>
+                </View>
+                <View className="group">
+                    <ProductGroupon groups={twoGroupList} padding="" vortmall={isVortmallStyle} onJoinClick={handleJoinGroup} />
+                </View>
+                <View className="instructions">
+                    <Text className="">{t("拼团说明")}</Text>
+                    <View className="process">
+                        <View className="process-item">
+                            <Image className="process-image" src={staticResource("groupon/groupon_open.png")} />
+                            <Text className="process-text-nowrap">{t("1.开团/参加")}</Text>
+                        </View>
+                        <View className="process-item">
+                            <Image className="process-image" src={staticResource("groupon/groupon_invite.png")} />
+                            <Text>{t("2.邀友参团")}</Text>
+                        </View>
+                        <View className="process-item">
+                            <Image className="process-image" src={staticResource("groupon/groupon_success.png")} />
+                            <Text>{t("3.人满成团")}</Text>
+                        </View>
+                    </View>
+                </View>
+            </View>
+    ) : null;
+    const pdSpecA2Node = !isOverseasStyle && !isVortmallStyle ? (
+            <View className="product-card-row">
+                <View
+                    className="cart-item flex align-center justify-between"
+                    onClick={() => onShowSpecification()}
+                >
+                    <View className="flex align-center">
+                        <View className="title">{t("规格")}</View>
+                        <View className="label">
+                            {isB2B() && attrList.spe?.length > 0 ? (
+                                <>
+                                    {attrList.spe.map((item: any, index: number) => (
+                                        <Text key={String(item.attrName) + "-" + index}>
+                                            {String(item.attrList.length) + t("种") + t(String(item.attrName))}
+                                        </Text>
+                                    ))}
+                                </>
+                            ) : (
+                                <>
+                                    {skuStr} {productNumber} {t("件")}
+                                </>
+                            )}
+                        </View>
+                    </View>
+                    <View>
+                        <Image className="icon-image" src={staticResource("common/more.png")} />
+                    </View>
+                </View>
+
+                {isPresale && productPresale && (
+                    <>
+                        {productPresale.saleMode === 2 && (
+                            <View className="cart-item flex align-center justify-between">
+                                <View className="flex align-center">
+                                    <View className="title">{t("尾款")}</View>
+                                    <View className="label">{paymentTimeText}</View>
+                                </View>
+                            </View>
+                        )}
+                        <View className="cart-item flex align-center justify-between">
+                            <View className="flex align-center">
+                                <View className="title">{t("发货")}</View>
+                                <View className="label">{deliverTimeText}</View>
+                            </View>
+                        </View>
+                    </>
+                )}
+
+                {(configStoreShowSelledCount || attrList.normal?.length > 0 || product.fixedShippingType === 1 || serviceList.length > 0) && (
+                    <View className="card-row-flex">
+                        {!!configStoreShowSelledCount && (
+                            <View className="cart-item flex align-center justify-between">
+                                <View className="flex align-center">
+                                    <View className="title">{t("销量")}</View>
+                                    <View className="label">
+                                        {product.virtualSales} {t("件")}
+                                    </View>
+                                </View>
+                            </View>
+                        )}
+
+                        {attrList.normal?.length > 0 && !isOverseasStyle && (
+                            <View className="cart-item flex align-center justify-between" onClick={showDrawer}>
+                                <View className="flex align-center">
+                                    <View className="title">{t("参数")}</View>
+                                    <View className="label attr_text line1">
+                                        <View className="shuxin">{t(shuxinText)}</View>
+                                    </View>
+                                </View>
+                                <View>
+                                    <Image className="icon-image" src={staticResource("common/more.png")} />
+                                </View>
+                            </View>
+                        )}
+
+                        {product.fixedShippingType === 1 &&
+                            Number(product.fixedShippingFee) == 0 &&
+                            ![2, 3, 4, 5, 6, 8].includes(product.productType as number) && (
+                                <View className="cart-item flex align-center justify-between">
+                                    <View className="flex align-center">
+                                        <View className="title">{t("运费")}</View>
+                                        <View className="label attr_text line1">
+                                            <View className="shuxin">
+                                                {/* 电子礼品卡、虚拟、付费、卡密商品详情页中运费为无需配送 */}
+                                                {[2, 3, 4, 8].includes(product.productType as number) ? t("无需配送") : t("包邮")}
+                                            </View>
+                                        </View>
+                                    </View>
+                                    <View>
+                                        <Image className="icon-image" src={staticResource("common/more.png")} />
+                                    </View>
+                                </View>
+                            )}
+                        {(product.productType === 7 || product.productType === 8) && (
+                            <View className="cart-item flex align-center justify-between">
+                                <View className="flex align-center">
+                                    <View className="title">{t("说明")}</View>
+                                    <View className="label attr_text line1">
+                                        <View className="shuxin">{t("此商品不支持售后，如需售后请联系客服")}</View>
+                                    </View>
+                                </View>
+                            </View>
+                        )}
+                        {serviceList.length > 0 && !isVortmallStyle && (
+                            <View className="cart-item">
+                                <View className="flex">
+                                    <View className="title">{t("服务")}</View>
+                                    <View className="label flex-wrap align-center servicelist">
+                                        {serviceList.map((item: any, index: number) => (
+                                            <View key={index} className="flex align-center service-item">
+                                                {/* 旧 tig-image 内联 15px 尺寸 → 外层 View 承载（TigImage 无 style prop） */}
+                                                {item.icoImg ? (
+                                                    <View style={{ width: "15px", height: "15px" }}>
+                                                        <TigImage src={item.icoImg} />
+                                                    </View>
+                                                ) : null}
+                                                {item.productServiceName}
+                                            </View>
+                                        ))}
+                                    </View>
+                                </View>
+                            </View>
+                        )}
+                    </View>
+                )}
+            </View>
+    ) : null;
+    // A1 / A3：规格参数使用独立折叠卡，对齐后台预览与 VortMall
+    const pdSpecCardNode = (isVortmallStyle || isOverseasStyle) && attrList.normal?.length > 0 ? (
+            <View className="attr-card-box">
+                <AttrCard normal={attrList.normal} overseas={isOverseasStyle} />
+            </View>
+    ) : null;
+    // A1 / A3 使用标准评价卡；A2 保留门店版评价与咨询入口
+    const pdReviewNode = configStoreProductCommentEnabled === 1 && (isVortmallStyle || isOverseasStyle) ? (
+            <View className="evaluate-area">
+                <EvaluateCard productId={product.productId} overseas={isOverseasStyle} />
+            </View>
+        ) : configStoreProductCommentEnabled === 1 ? (
+            <View className="evaluate-area">
+                <ProductComment productId={product.productId} shopId={shopId > -1 ? shopId : undefined} />
+            </View>
+    ) : null;
+    // 售后卡为 A3 专属区块：非 A3 时节点置空，不参与在场排序（锚点亦只在 A3 分支内）
+    const pdAfterSaleNode = isOverseasStyle ? <AfterSaleCard id={product.productId} overseas={true} /> : null;
+    const pdCouponNode = pdCouponA3Node ?? pdCouponA1Node;
+    const pdSpecNode = pdSpecA2Node ?? pdSpecCardNode;
+    const pdNodes: Record<PdSortKey, ReactNode> = {
+        coupon: pdCouponNode,
+        activity: pdActivityNode,
+        spec: pdSpecNode,
+        review: pdReviewNode,
+        afterSale: pdAfterSaleNode,
+    };
+    const pdPresent = PD_PAGE_ORDER.filter((key) => pdNodes[key] != null && !pdResolution.hidden.has(key));
+    const pdSorted = sortPdBlocks(pdResolution, pdPresent);
+    const pdSlot = (anchor: PdSortKey): ReactNode => {
+        const idx = pdPresent.indexOf(anchor);
+        return idx >= 0 ? pdNodes[pdSorted[idx]] : null;
+    };
+
     return (
         <View className={`product-detail-page product-detail-page--${productStyle}`} style={pageStyle as any}>
             <TigLayout ref={layoutRef} immediateLog={false} overflow={!isOverseasStyle} productId={productId} shopId={product.shopId}>
@@ -1055,45 +1295,9 @@ export default function ProductIndex() {
                                 }
                             />
 
-                            {/* A3 活动优惠券统一紧跟价格活动条，对齐海外版商详。 */}
-                            {!isWholesaleMode &&
-                                isOverseasStyle &&
-                                (isSeckill || isDiscount || isGroupon || isPresale || isCycleBuy) &&
-                                visiblePromotionList.length > 0 && (
-                                    <View className="overseas-activity-coupon-box">
-                                        <View
-                                            className="overseas-activity-coupon"
-                                            onClick={() => setShowCoupon(true)}
-                                        >
-                                            <View className="coupon-title line1">{visiblePromotionList[0]?.promotionName || t("优惠活动")}</View>
-                                            <View className="coupon-more">
-                                                {t("更多优惠券")}
-                                                <Text className="iconfont-h5 icon-a-gengduo20" />
-                                            </View>
-                                        </View>
-                                    </View>
-                                )}
+                            {isOverseasStyle ? pdSlot("coupon") : null}
 
-                            {/* A1 预售优惠券位于门店入口下方，对齐 vortmall 商详的信息顺序。 */}
-                            {(() => {
-                                // 对应旧 computed showVortmallStandaloneCoupon
-                                const showVortmallStandaloneCoupon =
-                                    isVortmallStyle &&
-                                    visiblePromotionList.length > 0 &&
-                                    !!(isSeckill || isDiscount || isGroupon || isCycleBuy || isSubCard || isPresale || activityBgImage);
-                                if (!showVortmallStandaloneCoupon) return null;
-                                return (
-                                    <View className="vortmall-presale-coupon" onClick={() => setShowCoupon(true)}>
-                                        <View className="coupon-content">
-                                            <View className="coupon-title line1">{visiblePromotionList[0]?.promotionName || t("优惠活动")}</View>
-                                            <View className="coupon-more">
-                                                {t("更多优惠券")}
-                                                <Text className="iconfont-h5 icon-a-gengduo20" />
-                                            </View>
-                                        </View>
-                                    </View>
-                                );
-                            })()}
+                            {isVortmallStyle ? pdSlot("coupon") : null}
 
                             {/* A1 标准风：服务保障使用与后台预览一致的独立卡片 */}
                             {isVortmallStyle && serviceList.length > 0 && <ServiceCard serviceList={serviceList} separated={showStoreSwitch} />}
@@ -1102,166 +1306,9 @@ export default function ProductIndex() {
                                 <MerchantShopInfo shopInfo={shopInfo} variant="vortmall" onRefreshShopDetail={(id) => void getShopInfo(id)} />
                             )}
 
-                            {/* A1 补齐旧版除规格外的交易提示；规格快捷入口按当前装修方案保留不展示。 */}
-                            {!isWholesaleMode && !!isGroupon && !!totalGroupCount && (
-                                <View className={`group-card-row ${isVortmallStyle ? "group-card-row--vortmall" : ""}`}>
-                                    <View className="flex justify-between align-center">
-                                        <View className="group-num">{grouponValue.joinNumCount + t("人在拼单，可直接参与")}</View>
-                                        <View className="flex align-center group-desc" onClick={handleShowMore}>
-                                            {t("查看更多")}
-                                            <View className="iconfont-h5 icon-gengduo1 more" />
-                                        </View>
-                                    </View>
-                                    <View className="group">
-                                        <ProductGroupon groups={twoGroupList} padding="" vortmall={isVortmallStyle} onJoinClick={handleJoinGroup} />
-                                    </View>
-                                    <View className="instructions">
-                                        <Text className="">{t("拼团说明")}</Text>
-                                        <View className="process">
-                                            <View className="process-item">
-                                                <Image className="process-image" src={staticResource("groupon/groupon_open.png")} />
-                                                <Text className="process-text-nowrap">{t("1.开团/参加")}</Text>
-                                            </View>
-                                            <View className="process-item">
-                                                <Image className="process-image" src={staticResource("groupon/groupon_invite.png")} />
-                                                <Text>{t("2.邀友参团")}</Text>
-                                            </View>
-                                            <View className="process-item">
-                                                <Image className="process-image" src={staticResource("groupon/groupon_success.png")} />
-                                                <Text>{t("3.人满成团")}</Text>
-                                            </View>
-                                        </View>
-                                    </View>
-                                </View>
-                            )}
+                            {pdSlot("activity")}
 
-                            {!isOverseasStyle && !isVortmallStyle && (
-                                <View className="product-card-row">
-                                    <View
-                                        className="cart-item flex align-center justify-between"
-                                        onClick={() => onShowSpecification()}
-                                    >
-                                        <View className="flex align-center">
-                                            <View className="title">{t("规格")}</View>
-                                            <View className="label">
-                                                {isB2B() && attrList.spe?.length > 0 ? (
-                                                    <>
-                                                        {attrList.spe.map((item: any, index: number) => (
-                                                            <Text key={String(item.attrName) + "-" + index}>
-                                                                {String(item.attrList.length) + t("种") + t(String(item.attrName))}
-                                                            </Text>
-                                                        ))}
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        {skuStr} {productNumber} {t("件")}
-                                                    </>
-                                                )}
-                                            </View>
-                                        </View>
-                                        <View>
-                                            <Image className="icon-image" src={staticResource("common/more.png")} />
-                                        </View>
-                                    </View>
-
-                                    {isPresale && productPresale && (
-                                        <>
-                                            {productPresale.saleMode === 2 && (
-                                                <View className="cart-item flex align-center justify-between">
-                                                    <View className="flex align-center">
-                                                        <View className="title">{t("尾款")}</View>
-                                                        <View className="label">{paymentTimeText}</View>
-                                                    </View>
-                                                </View>
-                                            )}
-                                            <View className="cart-item flex align-center justify-between">
-                                                <View className="flex align-center">
-                                                    <View className="title">{t("发货")}</View>
-                                                    <View className="label">{deliverTimeText}</View>
-                                                </View>
-                                            </View>
-                                        </>
-                                    )}
-
-                                    {(configStoreShowSelledCount || attrList.normal?.length > 0 || product.fixedShippingType === 1 || serviceList.length > 0) && (
-                                        <View className="card-row-flex">
-                                            {!!configStoreShowSelledCount && (
-                                                <View className="cart-item flex align-center justify-between">
-                                                    <View className="flex align-center">
-                                                        <View className="title">{t("销量")}</View>
-                                                        <View className="label">
-                                                            {product.virtualSales} {t("件")}
-                                                        </View>
-                                                    </View>
-                                                </View>
-                                            )}
-
-                                            {attrList.normal?.length > 0 && !isOverseasStyle && (
-                                                <View className="cart-item flex align-center justify-between" onClick={showDrawer}>
-                                                    <View className="flex align-center">
-                                                        <View className="title">{t("参数")}</View>
-                                                        <View className="label attr_text line1">
-                                                            <View className="shuxin">{t(shuxinText)}</View>
-                                                        </View>
-                                                    </View>
-                                                    <View>
-                                                        <Image className="icon-image" src={staticResource("common/more.png")} />
-                                                    </View>
-                                                </View>
-                                            )}
-
-                                            {product.fixedShippingType === 1 &&
-                                                Number(product.fixedShippingFee) == 0 &&
-                                                ![2, 3, 4, 5, 6, 8].includes(product.productType as number) && (
-                                                    <View className="cart-item flex align-center justify-between">
-                                                        <View className="flex align-center">
-                                                            <View className="title">{t("运费")}</View>
-                                                            <View className="label attr_text line1">
-                                                                <View className="shuxin">
-                                                                    {/* 电子礼品卡、虚拟、付费、卡密商品详情页中运费为无需配送 */}
-                                                                    {[2, 3, 4, 8].includes(product.productType as number) ? t("无需配送") : t("包邮")}
-                                                                </View>
-                                                            </View>
-                                                        </View>
-                                                        <View>
-                                                            <Image className="icon-image" src={staticResource("common/more.png")} />
-                                                        </View>
-                                                    </View>
-                                                )}
-                                            {(product.productType === 7 || product.productType === 8) && (
-                                                <View className="cart-item flex align-center justify-between">
-                                                    <View className="flex align-center">
-                                                        <View className="title">{t("说明")}</View>
-                                                        <View className="label attr_text line1">
-                                                            <View className="shuxin">{t("此商品不支持售后，如需售后请联系客服")}</View>
-                                                        </View>
-                                                    </View>
-                                                </View>
-                                            )}
-                                            {serviceList.length > 0 && !isVortmallStyle && (
-                                                <View className="cart-item">
-                                                    <View className="flex">
-                                                        <View className="title">{t("服务")}</View>
-                                                        <View className="label flex-wrap align-center servicelist">
-                                                            {serviceList.map((item: any, index: number) => (
-                                                                <View key={index} className="flex align-center service-item">
-                                                                    {/* 旧 tig-image 内联 15px 尺寸 → 外层 View 承载（TigImage 无 style prop） */}
-                                                                    {item.icoImg ? (
-                                                                        <View style={{ width: "15px", height: "15px" }}>
-                                                                            <TigImage src={item.icoImg} />
-                                                                        </View>
-                                                                    ) : null}
-                                                                    {item.productServiceName}
-                                                                </View>
-                                                            ))}
-                                                        </View>
-                                                    </View>
-                                                </View>
-                                            )}
-                                        </View>
-                                    )}
-                                </View>
-                            )}
+                            {pdSlot("spec")}
 
                             {showMerchantShop && isO2oStyle && (
                                 <MerchantShopInfo shopInfo={shopInfo} variant="o2o" onRefreshShopDetail={(id) => void getShopInfo(id)} />
@@ -1271,28 +1318,14 @@ export default function ProductIndex() {
                                 <MerchantShopInfo shopInfo={shopInfo} variant="overseas" onRefreshShopDetail={(id) => void getShopInfo(id)} />
                             )}
 
-                            {/* A1 / A3：规格参数使用独立折叠卡，对齐后台预览与 VortMall */}
-                            {(isVortmallStyle || isOverseasStyle) && attrList.normal?.length > 0 && (
-                                <View className="attr-card-box">
-                                    <AttrCard normal={attrList.normal} overseas={isOverseasStyle} />
-                                </View>
-                            )}
+                            {(isVortmallStyle || isOverseasStyle) ? pdSlot("spec") : null}
 
-                            {/* A1 / A3 使用标准评价卡；A2 保留门店版评价与咨询入口 */}
-                            {configStoreProductCommentEnabled === 1 && (isVortmallStyle || isOverseasStyle) ? (
-                                <View className="evaluate-area">
-                                    <EvaluateCard productId={product.productId} overseas={isOverseasStyle} />
-                                </View>
-                            ) : configStoreProductCommentEnabled === 1 ? (
-                                <View className="evaluate-area">
-                                    <ProductComment productId={product.productId} shopId={shopId > -1 ? shopId : undefined} />
-                                </View>
-                            ) : null}
+                            {pdSlot("review")}
 
                             {/* 跨境风格（A3）：售后服务 / 商品描述 / 商品详情 三张可展开卡片，对齐 nextrade-overseas */}
                             {isOverseasStyle ? (
                                 <>
-                                    <AfterSaleCard id={product.productId} overseas={true} />
+                                    {pdSlot("afterSale")}
                                     <ProductDescription product={product} overseas={true} />
                                     <View className="product-detail-area">
                                         <DescriptionCard

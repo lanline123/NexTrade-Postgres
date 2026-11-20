@@ -18,7 +18,7 @@ const LoginConfigPreview = lazy(() => import(/* webpackChunkName: "preview-login
 const SearchConfigPreview = lazy(() => import(/* webpackChunkName: "preview-search" */ "./SearchConfigPreview"));
 const ProductConfigPreview = lazy(() => import(/* webpackChunkName: "preview-product" */ "./ProductConfigPreview"));
 
-export default function ConfigPagePreview({ branch }: { branch: ConfigPageBranch }) {
+export default function ConfigPagePreview({ branch, previewProductId }: { branch: ConfigPageBranch; previewProductId?: number }) {
     return (
         <View className="decorate-preview__config-page">
             <Suspense fallback={null}>
@@ -27,7 +27,7 @@ export default function ConfigPagePreview({ branch }: { branch: ConfigPageBranch
                 ) : branch.pageType === 6 ? (
                     <SearchConfigPreview module={branch.module} />
                 ) : branch.pageType === 8 ? (
-                    <ProductConfigPreview module={branch.module} type={branch.type} />
+                    <ProductConfigPreview module={branch.module} type={branch.type} previewProductId={previewProductId} />
                 ) : null}
             </Suspense>
         </View>

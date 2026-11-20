@@ -31,6 +31,10 @@ export interface GroupListEditorProps {
     createItem?: () => Record<string, any>;
     /** 是否允许删组：布尔，或按当前列表判定（如 tagNav 至少保留 1 组） */
     canRemove?: boolean | ((list: Array<Record<string, any>>) => boolean);
+    /** 是否允许添加组（默认 true）；成员固定的列表（如详情区块排序）传 false */
+    canAdd?: boolean;
+    /** 卡头标题工厂（默认「第 N 组」）；成员自带名称时传，如 (item) => item.label */
+    itemTitle?: (item: Record<string, any>, index: number) => string;
     collapsible?: boolean;
     renderItem: (
         item: Record<string, any>,
@@ -47,6 +51,8 @@ export default function GroupListEditor({
     emptyItem,
     createItem,
     canRemove = true,
+    canAdd = true,
+    itemTitle,
     collapsible = true,
     renderItem
 }: GroupListEditorProps) {
@@ -67,6 +73,8 @@ export default function GroupListEditor({
             items={list}
             addText={addText}
             collapsible={collapsible}
+            canAdd={canAdd}
+            itemTitle={itemTitle}
             canRemove={typeof canRemove === "function" ? canRemove(list) : canRemove}
             onAdd={() => setList([...list, createItem ? createItem() : cloneDeep(emptyItem ?? {})])}
             onRemove={(index) => setList(list.filter((_, i) => i !== index))}

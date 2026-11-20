@@ -7,9 +7,13 @@
  * - showHeaderRow：A3 且海外版时显示「页面头部」组
  * 显隐类字段原版写 boolean（el-radio 1/0 → setVisibility 写 v===1），故用 SegmentedRadio 手工回写 boolean。
  */
+import { useMemo } from "react";
 import { ColorField, RangeField, SegmentedRadio, SettingGroup, SettingRow } from "../../../shared/settingWidgets";
+import GroupListEditor from "../../../shared/GroupListEditor";
 import { isMerchant, isOverseas } from "../../../contract/version";
 import { useI18n } from "../../../../../i18n";
+import { normalizePdSortList } from "./sortList";
+import PreviewSamplePicker from "./PreviewSamplePicker";
 
 interface Props {
     data: Record<string, any>;
@@ -30,8 +34,14 @@ export default function ProductDetailSettings({ data, onChange, showPriceColor, 
     const vis = (field: string) => (data[field] !== false ? 1 : 0);
     const setVis = (field: string) => (v: number | string) => onChange({ [field]: Number(v) === 1 });
     const showRadius = buyBarSwapped ? data.buyBarStyle === 2 : data.buyBarStyle !== 2;
+    // 区块排序编辑喂归一后的生效列表（与前台消费口径镜像，见 ./sortList）：
+    // 面板所见顺序/显隐即前台生效结果，任一编辑写回完整归一列表。
+    const sortListData = useMemo(() => ({ moduleSortList: normalizePdSortList(data.moduleSortList) }), [data.moduleSortList]);
     return (
         <div className="h5-editor-settings-body">
+            <SettingGroup title={t("预览样例")}>
+                <PreviewSamplePicker />
+            </SettingGroup>
             {showHeaderRow && isOverseas() ? (
                 <SettingGroup title={t("页面头部")}>
                     <SettingRow label={t("是否显示头部")}>
@@ -129,6 +139,28 @@ export default function ProductDetailSettings({ data, onChange, showPriceColor, 
                         </SettingRow>
                     </>
                 ) : null}
+            </SettingGroup>
+            <SettingGroup title={t("区块排序与显隐")}>
+                <GroupListEditor
+                    data={sortListData}
+                    onChange={(patch) => onChange({ moduleSortList: patch.moduleSortList })}
+                    field="moduleSortList"
+                    canAdd={false}
+                    canRemove={false}
+                    collapsible={false}
+                    itemTitle={(item) => item.label || item.key}
+                    renderItem={(item, _index, itemProps) => (
+                        <div style={{ padding: "0 12px 6px" }}>
+                            <SettingRow label={t("是否显示")}>
+                                <SegmentedRadio
+                                    value={item.visible !== false ? 1 : 0}
+                                    onChange={(v) => itemProps.onChange({ visible: Number(v) === 1 })}
+                                    options={VIS_OPTIONS(t)}
+                                />
+                            </SettingRow>
+                        </div>
+                    )}
+                />
             </SettingGroup>
             <SettingGroup title={t("背景设置")}>
                 <ColorField data={data} onChange={onChange} field="backgroundColor" label={t("背景颜色")} />
