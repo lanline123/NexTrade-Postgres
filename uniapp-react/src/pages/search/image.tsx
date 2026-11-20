@@ -11,12 +11,14 @@ import {
     isImageSearchExpired,
     searchByImage,
     type ImageSearchError,
-    type ImageSearchQuery
+    type ImageSearchQuery,
+    type ImageSearchSession
 } from "@/api/search/imageSearch";
 import { useConfigStore } from "@/store/config";
 import { useImageSearchStore } from "@/store/imageSearch";
 import { useUserStore } from "@/store/user";
 import type { attrsListData, Brand, filterSeleted } from "@/types/search/search";
+import getPromotionList from "@/utils/getPromotionList";
 import { getCaptureLayout, getHeaderInsets } from "@/utils/imageSearchLayout";
 import { getSearchShopId, leaveImageSearch, takePendingSearchImage, type PickedSearchImage } from "@/utils/imageSearchPick";
 import { getShellBridge } from "@/utils/nativeBridge";
@@ -42,6 +44,8 @@ import "./image.scss";
 interface ConfirmedQuery {
     image: PickedSearchImage;
     searchToken: string;
+    /** 无会话直返模式下上传响应携带的相似商品；null 表示走 searchToken 会话契约 */
+    records: any[] | null;
 }
 
 type Phase = "restoring" | "scanning" | "failed" | "done";
@@ -75,6 +79,17 @@ export default function ImageSearchResult() {
     const [hasResult, setHasResult] = useState(false);
     const [query, setQuery] = useState<PickedSearchImage>({ path: "", source: "camera" });
     const imagePath = query.path;
+
+    // 无会话直返模式（后端不保存图搜会话）：上传响应即全量结果，不走会话列表管线；
+    // 结果、促销单独存放，排序/筛选/翻页/会话内文字搜全部不可用（与 PC 端 records 直渲的取舍一致）
+    const [directMode, setDirectModeState] = useState(false);
+    const directModeRef = useRef(false);
+    const setDirectMode = (value: boolean) => {
+        directModeRef.current = value;
+        setDirectModeState(value);
+    };
+    const [directRecords, setDirectRecords] = useState<any[]>([]);
+    const [directPromotions, setDirectPromotions] = useState<Record<string, any>>({});
 
     // 最近一次成功的查询：重新检索期间保留，取消时恢复
     const confirmedRef = useRef<ConfirmedQuery | null>(null);
@@ -243,6 +258,8 @@ export default function ImageSearchResult() {
     });
 
     const openSearch = () => {
+        // 直返模式没有会话，文字层按会话取交集无从工作：不打开（与 PC 端无此层同口径），入口在样式上置灰禁用
+        if (directModeRef.current) return;
         filterBarRef.current?.close();
         setSearchLayerToken(confirmedRef.current?.searchToken || "");
         setSearchOpen(true);
@@ -270,13 +287,30 @@ export default function ImageSearchResult() {
 
     const failText = (err: ImageSearchError) => err.message || t("图片搜索失败，请重试");
 
+    /** 直返模式的促销补齐：与会话列表管线同一口径（useProductSearch 内同款逻辑），失败不阻断列表 */
+    const loadDirectPromotions = async (records: any[]) => {
+        if (!records.length) return;
+        try {
+            const promotions = await getPromotionList({
+                products: records.map((item: any) => ({ productId: item.productId })),
+                from: "list"
+            });
+            // 期间已换图或换了模式时丢弃迟到的促销，以 records 引用是否仍是当前确认为准
+            if (confirmedRef.current?.records === records) setDirectPromotions(promotions || {});
+        } catch (err) {
+            console.error("获取促销信息失败:", err);
+        }
+    };
+
     /**
-     * 用已有的图搜会话展示结果
-     * @param keep 是否保留当前的排序和筛选
+     * 展示一次上传的结果：带 searchToken 走会话契约（列表/筛选/翻页照旧）；
+     * 无 token 但带 records 时按 PC 口径直接渲染这批商品，不再发会话请求
+     * @param keep 是否保留当前的排序和筛选（直返模式无排序/筛选，仅会话契约用）
      */
-    const showResult = (picked: PickedSearchImage, searchToken: string, keep: boolean) => {
-        confirmedRef.current = { image: picked, searchToken };
-        rememberSearch(picked, searchToken);
+    const showResult = (picked: PickedSearchImage, session: ImageSearchSession, keep: boolean) => {
+        const records = session.records ?? null;
+        confirmedRef.current = { image: picked, searchToken: session.searchToken, records };
+        rememberSearch(picked, session.searchToken);
         setQuery(picked);
         setPhase("done");
         setHasResult(true);
@@ -286,6 +320,17 @@ export default function ImageSearchResult() {
             setFilters(emptyFilter());
             setFacets({ category: [], brand: [], attrs: [] });
         }
+        if (records) {
+            setDirectMode(true);
+            setDirectRecords(records);
+            setDirectPromotions({});
+            void loadDirectPromotions(records);
+            scrollToTop();
+            return;
+        }
+        setDirectMode(false);
+        setDirectRecords([]);
+        setDirectPromotions({});
         search();
         void loadFacets();
         scrollToTop();
@@ -309,7 +354,7 @@ export default function ImageSearchResult() {
             (session) => {
                 if (id !== uploadSeqRef.current) return;
                 uploadRef.current = null;
-                showResult(picked, session.searchToken, keep);
+                showResult(picked, session, keep);
             },
             (err: ImageSearchError) => {
                 if (id !== uploadSeqRef.current) return;
@@ -400,7 +445,7 @@ export default function ImageSearchResult() {
             const restored = await loadRestoredSearch();
             if (!active) return;
             if (!restored) return goBack();
-            if (restored.searchToken) showResult(restored.image, restored.searchToken, false);
+            if (restored.searchToken) showResult(restored.image, { searchToken: restored.searchToken }, false);
             else startSearch(restored.image);
         };
         void run();
@@ -411,8 +456,9 @@ export default function ImageSearchResult() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // 搜索层或筛选面板打开时底层列表不翻页
+    // 搜索层或筛选面板打开时底层列表不翻页；直返模式结果已全量在手，不触底翻页
     useReachBottom(() => {
+        if (directModeRef.current) return;
         if (phaseRef.current === "done" && !searchOpenRef.current && !filterBarRef.current?.isOpen()) reachBottom();
     });
 
@@ -493,7 +539,9 @@ export default function ImageSearchResult() {
 
     return (
         <TigLayout needSafeBottom={false} overflow={false}>
-            <View className={`image-result${hasResult || phase === "restoring" ? " image-result--done" : ""}`}>
+            <View
+                className={`image-result${hasResult || phase === "restoring" ? " image-result--done" : ""}${directMode ? " image-result--records" : ""}`}
+            >
                 {/* 用同一张图重新检索时盖在已有结果之上，取消后结果的列表和滚动位置原样还在 */}
                 {(phase === "scanning" || phase === "failed") && (
                     <View
@@ -566,14 +614,14 @@ export default function ImageSearchResult() {
                         </View>
                         <View className="result__list">
                             <ProductResult
-                                productList={productList}
-                                promotionList={promotionList}
-                                page={params.page}
-                                isLoading={isLoading}
-                                isLoadMore={isLoadMore}
-                                error={error}
+                                productList={directMode ? directRecords : productList}
+                                promotionList={directMode ? directPromotions : promotionList}
+                                page={directMode ? 1 : params.page}
+                                isLoading={directMode ? false : isLoading}
+                                isLoadMore={directMode ? false : isLoadMore}
+                                error={directMode ? null : error}
                                 emptyText={t("没有找到相似的商品")}
-                                onRetry={retry}
+                                onRetry={directMode ? retryUpload : retry}
                             />
                         </View>
                     </View>

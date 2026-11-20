@@ -9,6 +9,16 @@ $page-bg: #f5f5f5;
     &--done {
         background-color: $page-bg;
     }
+
+    // 无会话直返模式：排序/筛选行与会话内文字搜入口不可用，整行置灰禁用（布局高度不变，收起动画口径不受影响）；
+    // 与 PC 端同口径——PC 在该模式下整卡不渲染筛选、且无文字搜层
+    &--records {
+        .result__filter,
+        .result__search {
+            opacity: 0.45;
+            pointer-events: none;
+        }
+    }
 }
 
 .scan {

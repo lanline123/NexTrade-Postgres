@@ -13,6 +13,12 @@ export interface ImageSearchQuery {
 
 export interface ImageSearchSession {
     searchToken: string;
+    /**
+     * 无会话直返模式（Rust 现行后端）下上传响应直接携带的相似商品：
+     * 后端不保存图搜会话、searchToken 恒为空串，结果随上传一次返回，后续筛选/分页无从请求；
+     * 有 token 的会话契约（Java 口径）不带此字段。与 PC 端 ImageSearchClient 的双契约适配同口径。
+     */
+    records?: any[];
 }
 
 export interface ImageSearchError {
@@ -63,10 +69,10 @@ if (process.env.TARO_ENV === "h5" || process.env.TARO_ENV === "weapp") {
 const guestHeader = () => ({ "X-Image-Search-Session": getGuestSession() });
 
 /**
- * @description 上传图片并创建图搜会话
+ * @description 上传图片检索：有会话的后端返回 searchToken，无会话的后端（Rust 现行）直接返回相似商品 records
  * @param filePath 本地图片路径
  * @param shopId 店铺内搜索时传店铺 ID，省略为全站
- * @returns promise 解析为会话；abort 取消上传（不保证撤销后端已发出的云端检索）
+ * @returns promise 解析为会话（token 契约）或直返结果（records 契约）；abort 取消上传（不保证撤销后端已发出的云端检索）
  */
 export const searchByImage = (filePath: string, shopId?: number) => {
     let task: Taro.UploadTask | null = null;
@@ -94,8 +100,13 @@ export const searchByImage = (filePath: string, shopId?: number) => {
                     const body = JSON.parse(res.data);
                     if (body.code === 0 && body.data?.searchToken) {
                         resolve({ searchToken: body.data.searchToken });
+                    } else if (body.code === 0 && Array.isArray(body.data?.records)) {
+                        // 无会话直返：token 为空串但 records 在响应里，同样算成功，结果页直接渲染这批商品
+                        resolve({ searchToken: "", records: body.data.records });
                     } else {
-                        reject({ code: Number(body.code) || 0, message: body.message || "" } as ImageSearchError);
+                        // code 为 0 却既无会话又无结果，是响应形状异常：不透传后端 message（成功响应里是 "success"），
+                        // 留空让调用方用通用失败文案；code 非 0 时 message 是后端业务原因，照常透传
+                        reject({ code: Number(body.code) || 0, message: body.code === 0 ? "" : body.message || "" } as ImageSearchError);
                     }
                 } catch {
                     reject({ code: 0, message: "" } as ImageSearchError);
