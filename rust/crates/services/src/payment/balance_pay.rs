@@ -331,6 +331,13 @@ impl BalancePayService {
             if let Err(e) = generation.on_order_paid(order_id).await {
                 tracing::warn!("订单 {order_id} 分销生成链（余额支付）失败: {e}");
             }
+            // 骑手 MVP 派送单生产者（同为 best-effort；内含订单级幂等）。
+            let dispatch = crate::o2o::delivery_dispatch::DeliveryDispatchService::new(
+                self.repos.clone(),
+            );
+            if let Err(e) = dispatch.on_order_paid(order_id).await {
+                tracing::warn!("订单 {order_id} 派送单生产（余额支付）失败: {e}");
+            }
         }
 
         Ok(BalancePayResult {

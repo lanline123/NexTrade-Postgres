@@ -75,6 +75,8 @@ interface LocalDeliveryConfig {
   orderDispatchMode?: number;
   pickupPhotoEnabled?: number;
   deliveryCompletePhotoEnabled?: number;
+  defaultServiceFeeType?: number;
+  defaultServiceFeeValue?: number;
   distancePricingList?: LocalDeliveryRule[];
 }
 
@@ -118,6 +120,8 @@ const DEFAULT_LOCAL_DELIVERY: LocalDeliveryConfig = {
   orderDispatchMode: 1,
   pickupPhotoEnabled: 0,
   deliveryCompletePhotoEnabled: 0,
+  defaultServiceFeeType: 0,
+  defaultServiceFeeValue: 0,
   distancePricingList: [],
 };
 
@@ -158,6 +162,8 @@ export function IntraCityDelivery() {
           deliveryRadius: toNumber(localRes?.deliveryRadius, 1),
           minOrderAmount: toNumber(localRes?.minOrderAmount, 0),
           baseDeliveryFee: toNumber(localRes?.baseDeliveryFee, 0),
+          defaultServiceFeeType: Number(localRes?.defaultServiceFeeType) === 1 ? 1 : 0,
+          defaultServiceFeeValue: toNumber(localRes?.defaultServiceFeeValue, 0),
           distancePricingList: Array.isArray(localRes?.distancePricingList)
             ? localRes.distancePricingList
             : [],
@@ -279,6 +285,8 @@ export function IntraCityDelivery() {
         orderDispatchMode: Number(local.orderDispatchMode) === 2 ? 2 : 1,
         pickupPhotoEnabled: Number(local.pickupPhotoEnabled) === 1 ? 1 : 0,
         deliveryCompletePhotoEnabled: Number(local.deliveryCompletePhotoEnabled) === 1 ? 1 : 0,
+        defaultServiceFeeType: Number(local.defaultServiceFeeType) === 1 ? 1 : 0,
+        defaultServiceFeeValue: toNumber(local.defaultServiceFeeValue),
         distancePricingList: (local.distancePricingList || []).map((rule, index) => ({
           ...rule,
           distanceThreshold: toNumber(rule.distanceThreshold),
@@ -467,6 +475,29 @@ export function IntraCityDelivery() {
                   onChange={(checked) => updateLocal({ deliveryCompletePhotoEnabled: checked ? 1 : 0 })}
                 />
                 <p className="config-field__help">{t('开启后配送员完成订单需拍照上传送达照片')}</p>
+              </div>
+            </div>
+            <div className="config-field">
+              <label>{t('骑手默认服务费')}</label>
+              <div>
+                <div className="pmo-form-row">
+                  <RadioGroup
+                    value={local.defaultServiceFeeType}
+                    onChange={(event) => updateLocal({ defaultServiceFeeType: Number(event.target.value) })}
+                  >
+                    <Radio value={0}>{t('固定金额（元/件）')}</Radio>
+                    <Radio value={1}>{t('按比例（%）')}</Radio>
+                  </RadioGroup>
+                  <InputNumber
+                    min={0}
+                    value={local.defaultServiceFeeValue}
+                    onChange={(value) => updateLocal({ defaultServiceFeeValue: toNumber(value) })}
+                    style={{ width: 140 }}
+                  />
+                </div>
+                <p className="config-field__help">
+                  {t('配送完成时计入骑手钱包：商品/SKU 未单独设置服务费时按此门店默认计；平台设为总部统一配置时改按平台默认费率计。填 0 表示未设置')}
+                </p>
               </div>
             </div>
             <div className="config-field">
@@ -672,6 +703,8 @@ interface HomeServiceConfig {
   orderDispatchMode?: number;
   beforeServicePhotoEnabled?: number;
   afterServicePhotoEnabled?: number;
+  defaultServiceFeeType?: number;
+  defaultServiceFeeValue?: number | string;
   distancePricingList?: DistancePricingRule[];
 }
 
@@ -683,6 +716,8 @@ const DEFAULT_HOME_SERVICE: HomeServiceConfig = {
   orderDispatchMode: 1,
   beforeServicePhotoEnabled: 0,
   afterServicePhotoEnabled: 0,
+  defaultServiceFeeType: 0,
+  defaultServiceFeeValue: 0,
   distancePricingList: [],
 };
 
@@ -791,6 +826,8 @@ export function HomeService() {
         orderDispatchMode: Number(config.orderDispatchMode) === 2 ? 2 : 1,
         beforeServicePhotoEnabled: Number(config.beforeServicePhotoEnabled) === 1 ? 1 : 0,
         afterServicePhotoEnabled: Number(config.afterServicePhotoEnabled) === 1 ? 1 : 0,
+        defaultServiceFeeType: Number(config.defaultServiceFeeType) === 1 ? 1 : 0,
+        defaultServiceFeeValue: toRuleNumber(config.defaultServiceFeeValue),
         distancePricingList: (config.distancePricingList || []).map((rule, index) => ({
           distanceThreshold: toRuleNumber(rule.distanceThreshold),
           distanceUnit: toRuleNumber(rule.distanceUnit),
@@ -957,6 +994,29 @@ export function HomeService() {
               </div>
               <p className="config-field__help">
                 {t('商家未设置叠加溢价规则时，则所有订单统一上门服务费标准')}
+              </p>
+            </div>
+          </div>
+          <div className="config-field">
+            <label>{t('服务人员默认服务费')}</label>
+            <div>
+              <div className="pmo-form-row">
+                <RadioGroup
+                  value={Number(config.defaultServiceFeeType) === 1 ? 1 : 0}
+                  onChange={(e) => setConfig({ ...config, defaultServiceFeeType: Number(e.target.value) })}
+                >
+                  <Radio value={0}>{t('固定金额（元/件）')}</Radio>
+                  <Radio value={1}>{t('按比例（%）')}</Radio>
+                </RadioGroup>
+                <InputNumber
+                  style={{ width: 140 }}
+                  min={0}
+                  value={toRuleNumber(config.defaultServiceFeeValue)}
+                  onChange={(next) => setConfig({ ...config, defaultServiceFeeValue: Number(next ?? 0) })}
+                />
+              </div>
+              <p className="config-field__help">
+                {t('服务完成时计入服务人员钱包：商品/SKU 未单独设置服务费时按此门店默认计；平台设为总部统一配置时改按平台默认费率计。填 0 表示未设置')}
               </p>
             </div>
           </div>

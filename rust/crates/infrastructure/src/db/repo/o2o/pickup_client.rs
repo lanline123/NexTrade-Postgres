@@ -66,6 +66,31 @@ pub struct StockDayVO {
     pub available: i32,
 }
 
+/// 服务人员上下文（骑手 MVP：抢单大厅/抢单/动作的作用域与状态校验入参）。
+#[derive(Debug, Clone, Default, sqlx::FromRow)]
+pub struct StaffContext {
+    pub id: i32,
+    pub name: String,
+    pub phone: String,
+    /// 1=配送员 2=服务员。
+    #[sqlx(rename = "type")]
+    pub staff_type: i32,
+    /// 所属店铺（店铺作用域权威维度）。
+    pub store_id: i32,
+    /// 0=禁用 1=启用。
+    pub status: i32,
+    /// 0=已下班 1=空闲 2=忙碌。
+    pub work_status: i32,
+}
+
+impl StaffContext {
+    /// 可接单：已启用且未下班。
+    #[must_use]
+    pub fn can_take_orders(&self) -> bool {
+        self.status == 1 && self.work_status >= 1
+    }
+}
+
 #[derive(Clone)]
 pub struct PickupClientRepository {
     pool: PgPool,
@@ -315,6 +340,24 @@ impl PickupClientRepository {
     pub async fn staff_by_member(&self, member_id: i32) -> Result<Option<(i32, String, String, i32)>> {
         sqlx::query_as(
             "SELECT id, name, phone, type FROM service_staff WHERE member_id = $1 AND is_delete = 0 LIMIT 1",
+        )
+        .bind(member_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 当前会员绑定的服务人员（完整上下文：店铺作用域 + 状态 + 工作状态）。
+    ///
+    /// 骑手 MVP 抢单大厅/抢单的作用域校验以此为准（service_staff.store_id 为
+    /// 店铺维度权威，不另起权限体系）。
+    pub async fn staff_context_by_member(
+        &self,
+        member_id: i32,
+    ) -> Result<Option<StaffContext>> {
+        sqlx::query_as::<_, StaffContext>(
+            "SELECT id, name, phone, type, store_id, status, work_status \
+             FROM service_staff WHERE member_id = $1 AND is_delete = 0 LIMIT 1",
         )
         .bind(member_id)
         .fetch_optional(&self.pool)
@@ -655,23 +698,32 @@ impl PickupClientRepository {
     }
 
     /// 抢单：仅待派发且抢单模式的订单。
-    pub async fn grab_delivery(&self, staff_id: i32, name: &str, phone: &str, id: i32) -> Result<bool> {
+    ///
+    /// 骑手 MVP 作用域修复（原实现为全平台大厅、无任何校验）：原子 UPDATE 内
+    /// 同时校验 ① 订单店铺 == 人员所属店铺；② 订单类型 == 人员类型
+    /// （配送员只抢配送单、服务员只抢服务单）；③ 人员在职（status=1）。
+    /// 调用方须先经 `StaffContext::can_take_orders` 拦截下班/禁用人员。
+    pub async fn grab_delivery(&self, staff: &StaffContext, id: i32) -> Result<bool> {
         let now = nextrade_common::utils::now_seconds() as i32;
         let r = sqlx::query(
-            "UPDATE delivery_order SET staff_id = $1, staff_name = $2, staff_phone = $3, status = 20, grab_time = $4 WHERE delivery_order_id = $5 AND status = 10 AND dispatch_mode = 1 AND staff_id IS NULL",
+            "UPDATE delivery_order SET staff_id = $1, staff_name = $2, staff_phone = $3, status = 20, grab_time = $4 \
+             WHERE delivery_order_id = $5 AND status = 10 AND dispatch_mode = 1 AND staff_id IS NULL \
+             AND shop_id = $6 AND type = $7 AND is_delete = 0",
         )
-        .bind(staff_id)
-        .bind(name)
-        .bind(phone)
+        .bind(staff.id)
+        .bind(&staff.name)
+        .bind(&staff.phone)
         .bind(now)
         .bind(id)
+        .bind(staff.store_id)
+        .bind(staff.staff_type)
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
         Ok(r.rows_affected() > 0)
     }
 
-    /// 确认取货/开始服务。
+    /// 确认取货/开始服务（20→30）；成功后人员工作状态置忙碌（2，仅从空闲迁移）。
     pub async fn confirm_pickup(&self, staff_id: i32, id: i32, photos: &str) -> Result<bool> {
         let now = nextrade_common::utils::now_seconds() as i32;
         let r = sqlx::query(
@@ -684,30 +736,255 @@ impl PickupClientRepository {
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
-        Ok(r.rows_affected() > 0)
+        if r.rows_affected() > 0 {
+            sqlx::query(
+                "UPDATE service_staff SET work_status = 2 WHERE id = $1 AND work_status = 1 AND is_delete = 0",
+            )
+            .bind(staff_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
-    /// 完成配送/服务。
-    pub async fn complete_delivery(&self, staff_id: i32, id: i32, photos: &str) -> Result<bool> {
-        let now = nextrade_common::utils::now_seconds() as i32;
-        let r = sqlx::query(
-            "UPDATE delivery_order SET status = 40, complete_time = $1, complete_photo = $2 WHERE delivery_order_id = $3 AND staff_id = $4 AND status = 30",
+    /// 完成配送/服务（30→40）+ 服务费入账，单事务。
+    ///
+    /// 骑手 MVP 核心激活（原实现只翻状态、从不入账）：状态翻转成功即订单级
+    /// 幂等门（重复完成翻不动 → 返回 None 不重复入账）。费率三级链见
+    /// [`compute_service_fee`]。入账同事务完成：钱包 upsert（无钱包行则建）、
+    /// 流水 type=1（transaction_sn = 派送单号）、人员完成计数/金额累加、
+    /// 派送单 service_fee 快照、无在途单时工作状态 2→1 回落。
+    /// 返回 `Some(入账金额)`（0 = 无服务费，仅翻状态）；`None` = 状态不允许。
+    pub async fn complete_delivery(
+        &self,
+        staff_id: i32,
+        id: i32,
+        photos: &str,
+    ) -> Result<Option<rust_decimal::Decimal>> {
+        use rust_decimal::Decimal;
+        let now = nextrade_common::utils::now_seconds() as i64;
+        let mut tx = self.pool.begin().await.map_err(map_err)?;
+        let flipped: Option<(String, i32, i32, i32, Decimal)> = sqlx::query_as(
+            "UPDATE delivery_order SET status = 40, complete_time = $1, complete_photo = $2 \
+             WHERE delivery_order_id = $3 AND staff_id = $4 AND status = 30 \
+             RETURNING delivery_order_sn, order_id, shop_id, type, order_amount",
         )
-        .bind(now)
+        .bind(now as i32)
         .bind(photos)
         .bind(id)
         .bind(staff_id)
-        .execute(&self.pool)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(map_err)?;
-        Ok(r.rows_affected() > 0)
+        let Some((delivery_sn, order_id, shop_id, order_type, order_amount)) = flipped else {
+            tx.rollback().await.map_err(map_err)?;
+            return Ok(None);
+        };
+
+        // ——— 费率三级链入参 ———
+        let items: Vec<(i32, i32, Decimal, i32)> = sqlx::query_as(
+            "SELECT product_id, sku_id, price, quantity FROM order_item WHERE order_id = $1",
+        )
+        .bind(order_id)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        // 费率列按派送单类型二选一（type=1 配送列 / type=2 服务列）。
+        let (p_type_col, p_val_col, s_type_col, s_val_col) = if order_type == 2 {
+            (
+                "server_service_fee_type",
+                "server_service_fee_value",
+                "server_service_fee_type",
+                "server_service_fee_value",
+            )
+        } else {
+            (
+                "delivery_service_fee_type",
+                "delivery_service_fee_value",
+                "delivery_service_fee_type",
+                "delivery_service_fee_value",
+            )
+        };
+        let product_sql = format!(
+            "SELECT {p_type_col}, {p_val_col} FROM store_product \
+             WHERE product_id = $1 AND shop_id = $2 AND is_delete = 0 LIMIT 1"
+        );
+        let sku_sql = format!(
+            "SELECT {s_type_col}, {s_val_col} FROM store_product_sku \
+             WHERE product_id = $1 AND sku_id = $2 AND shop_id = $3 AND is_delete = 0 LIMIT 1"
+        );
+        let mut fee_items: Vec<FeeItem> = Vec::with_capacity(items.len());
+        for (product_id, sku_id, price, quantity) in items {
+            let (fee_type, fee_value): (i32, Decimal) = sqlx::query_as(&product_sql)
+                .bind(product_id)
+                .bind(shop_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(map_err)?
+                .unwrap_or((0, Decimal::ZERO));
+            let mut item = FeeItem {
+                price,
+                quantity,
+                product_fee: (fee_value > Decimal::ZERO).then_some((fee_type, fee_value)),
+                sku_fee: None,
+            };
+            if sku_id > 0 {
+                let sku_row: Option<(i32, Decimal)> = sqlx::query_as(&sku_sql)
+                    .bind(product_id)
+                    .bind(sku_id)
+                    .bind(shop_id)
+                    .fetch_optional(&mut *tx)
+                    .await
+                    .map_err(map_err)?;
+                if let Some((t, v)) = sku_row {
+                    if v > Decimal::ZERO {
+                        item.sku_fee = Some((t, v));
+                    }
+                }
+            }
+            fee_items.push(item);
+        }
+        let (assign_code, enabled_code, rate_code) = if order_type == 2 {
+            (
+                "storeAssignServerServiceFee",
+                "serverServiceFeeEnabled",
+                "defaultServerServiceFeeRate",
+            )
+        } else {
+            (
+                "storeAssignDeliveryServiceFee",
+                "deliveryServiceFeeEnabled",
+                "defaultDeliveryServiceFeeRate",
+            )
+        };
+        let cfg_rows: Vec<(String, Option<String>)> = sqlx::query_as(
+            "SELECT biz_code, biz_val FROM config WHERE biz_code = ANY($1) AND (is_del IS NULL OR is_del = 0)",
+        )
+        .bind([assign_code, enabled_code, rate_code])
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        let cfg_get = |code: &str| -> Option<String> {
+            cfg_rows
+                .iter()
+                .find(|(c, _)| c == code)
+                .and_then(|(_, v)| v.clone())
+        };
+        // 平台配置缺省口径与 config_basic FieldSpec 默认一致：开关开、费率 0、总部统一。
+        let fee_enabled = cfg_get(enabled_code).as_deref() != Some("0");
+        let store_assign = cfg_get(assign_code).as_deref() == Some("1");
+        let platform_rate: Decimal = cfg_get(rate_code)
+            .and_then(|v| v.trim().parse().ok())
+            .unwrap_or(Decimal::ZERO);
+        let shop_default: (i32, Decimal) = if order_type == 2 {
+            sqlx::query_as(
+                "SELECT default_service_fee_type, default_service_fee_value \
+                 FROM shop_home_service_config WHERE shop_id = $1 LIMIT 1",
+            )
+            .bind(shop_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(map_err)?
+            .unwrap_or((0, Decimal::ZERO))
+        } else {
+            sqlx::query_as(
+                "SELECT default_service_fee_type, default_service_fee_value \
+                 FROM shop_local_delivery_config WHERE shop_id = $1 LIMIT 1",
+            )
+            .bind(shop_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(map_err)?
+            .unwrap_or((0, Decimal::ZERO))
+        };
+        let fee = compute_service_fee(&fee_items, shop_default, store_assign, fee_enabled, platform_rate);
+
+        // ——— 入账（fee > 0 才写钱包/流水） ———
+        if fee > Decimal::ZERO {
+            let (wallet_id,): (i32,) = sqlx::query_as(
+                "INSERT INTO service_staff_wallet (staff_id, balance, frozen_balance, total_income, create_time, update_time) \
+                 VALUES ($1, 0, 0, 0, $2, $2) \
+                 ON CONFLICT (staff_id) DO UPDATE SET staff_id = EXCLUDED.staff_id \
+                 RETURNING wallet_id",
+            )
+            .bind(staff_id)
+            .bind(now)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(map_err)?;
+            let _ = wallet_id;
+            let (balance_after, frozen_after): (Decimal, Decimal) = sqlx::query_as(
+                "UPDATE service_staff_wallet SET balance = balance + $1, total_income = total_income + $1, update_time = $2 \
+                 WHERE staff_id = $3 RETURNING balance, frozen_balance",
+            )
+            .bind(fee)
+            .bind(now)
+            .bind(staff_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(map_err)?;
+            sqlx::query(
+                "INSERT INTO service_staff_wallet_log (staff_id, order_id, transaction_sn, amount, balance_after, frozen_after, business_type, type, remark, create_time) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, 1, $8, $9)",
+            )
+            .bind(staff_id)
+            .bind(order_id)
+            .bind(&delivery_sn)
+            .bind(fee)
+            .bind(balance_after)
+            .bind(frozen_after)
+            .bind(order_type)
+            .bind(if order_type == 2 { "上门服务费" } else { "配送服务费" })
+            .bind(now)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_err)?;
+            sqlx::query("UPDATE delivery_order SET service_fee = $1 WHERE delivery_order_id = $2")
+                .bind(fee)
+                .bind(id)
+                .execute(&mut *tx)
+                .await
+                .map_err(map_err)?;
+        }
+
+        // ——— 人员完成统计 + 工作状态回落 ———
+        sqlx::query(
+            "UPDATE service_staff SET completed_order_count = completed_order_count + 1, \
+             completed_order_amount = completed_order_amount + $1 WHERE id = $2 AND is_delete = 0",
+        )
+        .bind(order_amount)
+        .bind(staff_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        let (in_flight,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM delivery_order WHERE staff_id = $1 AND status = 30 AND is_delete = 0",
+        )
+        .bind(staff_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        if in_flight == 0 {
+            sqlx::query(
+                "UPDATE service_staff SET work_status = 1 WHERE id = $1 AND work_status = 2 AND is_delete = 0",
+            )
+            .bind(staff_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_err)?;
+        }
+        tx.commit().await.map_err(map_err)?;
+        Ok(Some(fee))
     }
 
-    /// C 端取消。
+    /// C 端取消（补 cancel_by=1 人员口径；原实现漏写）。
     pub async fn cancel_delivery(&self, staff_id: i32, id: i32, reason: &str) -> Result<bool> {
         let now = nextrade_common::utils::now_seconds() as i32;
         let r = sqlx::query(
-            "UPDATE delivery_order SET status = 50, cancel_reason = $1, cancel_time = $2 WHERE delivery_order_id = $3 AND staff_id = $4 AND status IN (20,30)",
+            "UPDATE delivery_order SET status = 50, cancel_reason = $1, cancel_time = $2, cancel_by = 1 WHERE delivery_order_id = $3 AND staff_id = $4 AND status IN (20,30)",
         )
         .bind(reason)
         .bind(now)
@@ -720,25 +997,284 @@ impl PickupClientRepository {
     }
 
     /// 待抢单列表（抢单模式、未分配）。
-    pub async fn grab_list(&self, page: u64, size: u64, r#type: Option<i32>) -> Result<(i64, Vec<Value>)> {
+    ///
+    /// 骑手 MVP 作用域修复（原实现不验身份、全平台一个大厅）：强制
+    /// shop_id = 人员所属店铺 AND type = 人员类型；`type` 入参只能在此基础上
+    /// 再收窄（传异类返回空）。跨店单在本店大厅不可见（负例验收点）。
+    pub async fn grab_list(
+        &self,
+        staff: &StaffContext,
+        page: u64,
+        size: u64,
+        r#type: Option<i32>,
+    ) -> Result<(i64, Vec<Value>)> {
         let offset = (page.max(1) - 1) * size;
-        let type_cond = r#type.map(|_| "AND type = ?").unwrap_or("");
-        let count_sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT COUNT(*) FROM delivery_order WHERE status = 10 AND dispatch_mode = 1 AND staff_id IS NULL {type_cond}"
-        ));
-        let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
-        if let Some(t) = r#type {
-            cq = cq.bind(t);
+        let want_type = r#type.unwrap_or(staff.staff_type);
+        if want_type != staff.staff_type {
+            return Ok((0, Vec::new()));
         }
-        let (total,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
-        let list_sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'status', status, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'orderAmount', order_amount, 'createTime', create_time) FROM delivery_order WHERE status = 10 AND dispatch_mode = 1 AND staff_id IS NULL {type_cond} ORDER BY delivery_order_id DESC LIMIT ? OFFSET ?"
-        ));
-        let mut q = sqlx::query_as::<_, (Value,)>(&list_sql);
-        if let Some(t) = r#type {
-            q = q.bind(t);
-        }
-        let rows = q.bind(size as i64).bind(offset as i64).fetch_all(&self.pool).await.map_err(map_err)?;
+        let (total,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM delivery_order WHERE status = 10 AND dispatch_mode = 1 \
+             AND staff_id IS NULL AND shop_id = $1 AND type = $2 AND is_delete = 0",
+        )
+        .bind(staff.store_id)
+        .bind(staff.staff_type)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        let rows: Vec<(Value,)> = sqlx::query_as(
+            "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'status', status, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'latitude', latitude, 'longitude', longitude, 'pickupAddress', pickup_address, 'pickupRegionNames', pickup_region_names, 'orderAmount', order_amount, 'serviceTime', service_time, 'createTime', create_time) FROM delivery_order WHERE status = 10 AND dispatch_mode = 1 AND staff_id IS NULL AND shop_id = $1 AND type = $2 AND is_delete = 0 ORDER BY delivery_order_id DESC LIMIT $3 OFFSET $4",
+        )
+        .bind(staff.store_id)
+        .bind(staff.staff_type)
+        .bind(size as i64)
+        .bind(offset as i64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
         Ok((total, rows.into_iter().map(|(v,)| v).collect()))
+    }
+
+    // ————————————————————— 骑手 MVP：生产者 / 买家进度 —————————————————————
+
+    /// 某主订单是否已有未删除的同类派送单（生产者订单级幂等查）。
+    pub async fn find_delivery_by_order(
+        &self,
+        order_id: i32,
+        order_type: i32,
+    ) -> Result<Option<i32>> {
+        sqlx::query_scalar(
+            "SELECT delivery_order_id FROM delivery_order \
+             WHERE order_id = $1 AND type = $2 AND is_delete = 0 LIMIT 1",
+        )
+        .bind(order_id)
+        .bind(order_type)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 新建派送单（生产者专用；字段由服务层按订单/店铺/配置组装）。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_delivery_order(
+        &self,
+        sn: &str,
+        order_id: i32,
+        order_sn: &str,
+        shop_id: i32,
+        order_type: i32,
+        dispatch_mode: i32,
+        consignee: &str,
+        mobile: &str,
+        address: &str,
+        region_names: &str,
+        latitude: Option<rust_decimal::Decimal>,
+        longitude: Option<rust_decimal::Decimal>,
+        pickup_address: &str,
+        pickup_region_names: &str,
+        pickup_phone: &str,
+        pickup_latitude: Option<rust_decimal::Decimal>,
+        pickup_longitude: Option<rust_decimal::Decimal>,
+        service_time: Option<i32>,
+        order_amount: rust_decimal::Decimal,
+        buyer_note: &str,
+    ) -> Result<i32> {
+        let now = nextrade_common::utils::now_seconds() as i32;
+        sqlx::query_scalar(
+            "INSERT INTO delivery_order (delivery_order_sn, order_id, order_sn, shop_id, type, \
+             dispatch_mode, status, consignee, mobile, address, region_names, latitude, longitude, \
+             pickup_address, pickup_region_names, pickup_phone, pickup_latitude, pickup_longitude, \
+             service_time, order_amount, buyer_note, carrier_type, create_time, update_time, is_delete) \
+             VALUES ($1,$2,$3,$4,$5,$6,10,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,1,$21,$21,0) \
+             RETURNING delivery_order_id",
+        )
+        .bind(sn)
+        .bind(order_id)
+        .bind(order_sn)
+        .bind(shop_id)
+        .bind(order_type)
+        .bind(dispatch_mode)
+        .bind(consignee)
+        .bind(mobile)
+        .bind(address)
+        .bind(region_names)
+        .bind(latitude)
+        .bind(longitude)
+        .bind(pickup_address)
+        .bind(pickup_region_names)
+        .bind(pickup_phone)
+        .bind(pickup_latitude)
+        .bind(pickup_longitude)
+        .bind(service_time)
+        .bind(order_amount)
+        .bind(buyer_note)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 买家侧派送进度（按主订单取最新一张派送单；归属校验在服务层做）。
+    pub async fn buyer_delivery_by_order(&self, order_id: i32) -> Result<Option<Value>> {
+        let row: Option<(Value,)> = sqlx::query_as(
+            "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'type', type, 'status', status, 'staffName', staff_name, 'staffPhone', staff_phone, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'serviceFee', service_fee) FROM delivery_order WHERE order_id = $1 AND is_delete = 0 ORDER BY delivery_order_id DESC LIMIT 1",
+        )
+        .bind(order_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.map(|(v,)| v))
+    }
+}
+
+/// 费率计算入参行（订单商品行 × 费率解析结果）。
+#[derive(Debug, Clone, Copy)]
+pub struct FeeItem {
+    /// 商品行成交单价。
+    pub price: rust_decimal::Decimal,
+    /// 购买数量。
+    pub quantity: i32,
+    /// 商品级费率 (type, value)：type 0=固定元/件，1=比例%（value<=0 视为未设置，不入参）。
+    pub product_fee: Option<(i32, rust_decimal::Decimal)>,
+    /// SKU 级费率（优先于商品级）。
+    pub sku_fee: Option<(i32, rust_decimal::Decimal)>,
+}
+
+/// 服务费三级费率计算（骑手 MVP 完成入账口径，我方新增规则层；费率字段为原版有）。
+///
+/// - 总开关关（`fee_enabled=false`）→ 0；
+/// - 总部统一配置（`store_assign=false`，平台 `storeAssign*ServiceFee=0`）：
+///   货款总额 × 平台默认费率% / 100（`default*ServiceFeeRate`，百分比口径与本仓
+///   分销佣金 rate/100 一致），四舍五入 2 位；
+/// - 门店独立配置（`store_assign=true`）：逐行取 SKU 级 → 商品级 → 门店默认
+///   （`shop_*_config.default_service_fee_*`，我方新增第二级）；固定 = 值 × 数量，
+///   比例 = 行金额 × 值% / 100（逐行四舍五入 2 位后求和）。
+#[must_use]
+pub fn compute_service_fee(
+    items: &[FeeItem],
+    shop_default: (i32, rust_decimal::Decimal),
+    store_assign: bool,
+    fee_enabled: bool,
+    platform_rate: rust_decimal::Decimal,
+) -> rust_decimal::Decimal {
+    use rust_decimal::{Decimal, RoundingStrategy};
+    if !fee_enabled {
+        return Decimal::ZERO;
+    }
+    if !store_assign {
+        let goods: Decimal = items.iter().map(|i| i.price * Decimal::from(i.quantity)).sum();
+        return (goods * platform_rate / Decimal::from(100))
+            .round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero);
+    }
+    let mut total = Decimal::ZERO;
+    for item in items {
+        let Some((fee_type, fee_value)) = item
+            .sku_fee
+            .or(item.product_fee)
+            .or((shop_default.1 > Decimal::ZERO).then_some(shop_default))
+        else {
+            continue;
+        };
+        let line = match fee_type {
+            0 => fee_value * Decimal::from(item.quantity),
+            1 => (item.price * Decimal::from(item.quantity) * fee_value / Decimal::from(100))
+                .round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero),
+            _ => Decimal::ZERO,
+        };
+        total += line;
+    }
+    total.round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero)
+}
+
+#[cfg(test)]
+mod fee_tests {
+    use super::*;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    fn d(s: &str) -> Decimal {
+        Decimal::from_str(s).unwrap()
+    }
+
+    fn item(price: &str, qty: i32, product: Option<(i32, &str)>, sku: Option<(i32, &str)>) -> FeeItem {
+        FeeItem {
+            price: d(price),
+            quantity: qty,
+            product_fee: product.map(|(t, v)| (t, d(v))),
+            sku_fee: sku.map(|(t, v)| (t, d(v))),
+        }
+    }
+
+    #[test]
+    fn fee_switch_off_yields_zero() {
+        let items = [item("100", 1, Some((0, "5")), None)];
+        assert_eq!(
+            compute_service_fee(&items, (0, d("0")), true, false, d("10")),
+            Decimal::ZERO
+        );
+    }
+
+    #[test]
+    fn platform_unified_rate_on_goods_total() {
+        // 总部统一：货款 250 × 4% = 10.00（商品级费率被忽略）
+        let items = [
+            item("100", 2, Some((0, "5")), None),
+            item("50", 1, None, None),
+        ];
+        assert_eq!(
+            compute_service_fee(&items, (0, d("3")), false, true, d("4")),
+            d("10.00")
+        );
+    }
+
+    #[test]
+    fn store_assign_fixed_and_ratio_lines() {
+        // 行1 固定 3 元/件 × 2 = 6；行2 比例 200 × 5% = 10 → 16.00
+        let items = [
+            item("80", 2, Some((0, "3")), None),
+            item("200", 1, Some((1, "5")), None),
+        ];
+        assert_eq!(
+            compute_service_fee(&items, (0, d("0")), true, true, d("0")),
+            d("16.00")
+        );
+    }
+
+    #[test]
+    fn sku_fee_wins_over_product_fee() {
+        let items = [item("100", 1, Some((0, "3")), Some((0, "7")))];
+        assert_eq!(
+            compute_service_fee(&items, (0, d("0")), true, true, d("0")),
+            d("7.00")
+        );
+    }
+
+    #[test]
+    fn shop_default_is_fallback_tier() {
+        // 商品无费率 → 门店默认 固定 2.5/件 × 3 = 7.50
+        let items = [item("10", 3, None, None)];
+        assert_eq!(
+            compute_service_fee(&items, (0, d("2.5")), true, true, d("0")),
+            d("7.50")
+        );
+    }
+
+    #[test]
+    fn no_fee_anywhere_yields_zero() {
+        let items = [item("10", 3, None, None)];
+        assert_eq!(
+            compute_service_fee(&items, (0, d("0")), true, true, d("0")),
+            Decimal::ZERO
+        );
+    }
+
+    #[test]
+    fn ratio_rounds_per_line() {
+        // 33.33 × 3 × 3% = 2.9997 → 逐行四舍五入 3.00
+        let items = [item("33.33", 3, Some((1, "3")), None)];
+        assert_eq!(
+            compute_service_fee(&items, (0, d("0")), true, true, d("0")),
+            d("3.00")
+        );
     }
 }

@@ -7,7 +7,7 @@ use serde_json::Value;
 use nextrade_core::Result;
 use nextrade_infrastructure::db::Repositories;
 pub use nextrade_infrastructure::db::repo::o2o::pickup_client::{
-    OrderPickupShipmentVO, ShopPickupTplVO, StockDayVO, UserPickupVO,
+    OrderPickupShipmentVO, ShopPickupTplVO, StaffContext, StockDayVO, UserPickupVO,
 };
 
 #[derive(Clone)]
@@ -123,6 +123,11 @@ impl PickupClientService {
         self.repos.o2o.pickup_client.staff_by_member(member_id).await
     }
 
+    /// 当前会员绑定的服务人员（完整上下文：店铺作用域 + 状态）。
+    pub async fn staff_context(&self, member_id: i32) -> Result<Option<StaffContext>> {
+        self.repos.o2o.pickup_client.staff_context_by_member(member_id).await
+    }
+
     pub async fn staff_info(&self, member_id: i32) -> Result<Option<Value>> {
         self.repos.o2o.pickup_client.staff_info_by_member(member_id).await
     }
@@ -215,15 +220,22 @@ impl PickupClientService {
         self.repos.o2o.pickup_client.delivery_detail(staff_id, id).await
     }
 
-    pub async fn grab_delivery(&self, staff_id: i32, name: &str, phone: &str, id: i32) -> Result<bool> {
-        self.repos.o2o.pickup_client.grab_delivery(staff_id, name, phone, id).await
+    /// 抢单（作用域校验在仓储原子 UPDATE 内：同店 + 同类 + 待派发）。
+    pub async fn grab_delivery(&self, staff: &StaffContext, id: i32) -> Result<bool> {
+        self.repos.o2o.pickup_client.grab_delivery(staff, id).await
     }
 
     pub async fn confirm_pickup(&self, staff_id: i32, id: i32, photos: &str) -> Result<bool> {
         self.repos.o2o.pickup_client.confirm_pickup(staff_id, id, photos).await
     }
 
-    pub async fn complete_delivery(&self, staff_id: i32, id: i32, photos: &str) -> Result<bool> {
+    /// 完成配送/服务 + 服务费入账。`None` = 状态不允许；`Some(fee)` = 已入账金额。
+    pub async fn complete_delivery(
+        &self,
+        staff_id: i32,
+        id: i32,
+        photos: &str,
+    ) -> Result<Option<rust_decimal::Decimal>> {
         self.repos.o2o.pickup_client.complete_delivery(staff_id, id, photos).await
     }
 
@@ -231,7 +243,19 @@ impl PickupClientService {
         self.repos.o2o.pickup_client.cancel_delivery(staff_id, id, reason).await
     }
 
-    pub async fn grab_list(&self, page: u64, size: u64, r#type: Option<i32>) -> Result<(i64, Vec<Value>)> {
-        self.repos.o2o.pickup_client.grab_list(page, size, r#type).await
+    /// 抢单大厅（按人员店铺作用域 + 类型过滤；调用方须先验人员身份）。
+    pub async fn grab_list(
+        &self,
+        staff: &StaffContext,
+        page: u64,
+        size: u64,
+        r#type: Option<i32>,
+    ) -> Result<(i64, Vec<Value>)> {
+        self.repos.o2o.pickup_client.grab_list(staff, page, size, r#type).await
+    }
+
+    /// 买家侧派送进度（归属校验由路由层以订单 user_id 做）。
+    pub async fn buyer_delivery(&self, order_id: i32) -> Result<Option<Value>> {
+        self.repos.o2o.pickup_client.buyer_delivery_by_order(order_id).await
     }
 }

@@ -1,6 +1,7 @@
 //! o2o 领域服务（本地生活/到店）。
 
 pub mod config;
+pub mod delivery_dispatch;
 pub mod pickup_client;
 pub mod reservation_tpl;
 pub mod stock_calendar;

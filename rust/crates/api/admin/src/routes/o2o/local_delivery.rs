@@ -11,25 +11,34 @@
 
 use axum::{
     extract::{Query, State},
-    routing::get,
+    routing::{get, post},
     Extension, Json, Router,
 };
 use serde_json::Value;
-use nextrade_core::models::o2o::config::ShopConfigQuery;
-use nextrade_security::web::{ApiResult, TenantContext};
+use nextrade_core::models::o2o::config::{ShopConfigQuery, ShopLocalDeliverySaveParam};
+use nextrade_security::web::{ApiResult, AppError, TenantContext};
 
 use crate::AdminState;
 
 /// 本域路由。
-const ROUTE_TABLE: [(&str, &str, &str); 1] = [(
-    "GET",
-    "/o2o/localDelivery/getConfig",
-    "ShopLocalDeliveryController.getConfig",
-)];
+const ROUTE_TABLE: [(&str, &str, &str); 2] = [
+    (
+        "GET",
+        "/o2o/localDelivery/getConfig",
+        "ShopLocalDeliveryController.getConfig",
+    ),
+    (
+        "POST",
+        "/o2o/localDelivery/saveConfig",
+        "ShopLocalDeliveryController.saveConfig",
+    ),
+];
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
-    Router::new().route("/o2o/localDelivery/getConfig", get(get_config))
+    Router::new()
+        .route("/o2o/localDelivery/getConfig", get(get_config))
+        .route("/o2o/localDelivery/saveConfig", post(save_config))
 }
 
 /// 本域已实现路由（覆盖率统计）。
@@ -55,5 +64,31 @@ async fn get_config(
     Ok(Json(nextrade_core::error::ApiResponse::success(
         vo.map(|v| serde_json::to_value(v).unwrap_or(Value::Null))
             .unwrap_or(Value::Object(serde_json::Map::new())),
+    )))
+}
+
+/// `POST /adminapi/o2o/localDelivery/saveConfig`（骑手 MVP 配置双轨统一新增）。
+///
+/// 作用域与 GET 相反收紧：门店账号只能存本店（`require_shop` fail-closed），
+/// 平台账号用 body.shopId（缺省 0）。此前该路径由 lowfreq_extra 的 cfg_set
+/// 占位接管（写通用 config JSON、GET 永不读回），已下线，统一落表。
+async fn save_config(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(body): Json<ShopLocalDeliverySaveParam>,
+) -> ApiResult<Value> {
+    let shop_id = if tenant.is_platform() {
+        body.shop_id.unwrap_or(0)
+    } else {
+        tenant.require_shop().map_err(AppError)?
+    };
+    let now = chrono::Utc::now().timestamp() as i32;
+    state
+        .o2o
+        .config
+        .save_local_delivery(shop_id, &body, now)
+        .await?;
+    Ok(Json(nextrade_core::error::ApiResponse::success(
+        Value::Null,
     )))
 }

@@ -30,7 +30,7 @@ impl O2oConfigRepository {
     /// 预约上门服务配置（按 shop_id 唯一键；无配置行返回 `None`）。
     pub async fn find_home_service(&self, shop_id: i32) -> Result<Option<ShopHomeServiceConfig>> {
         sqlx::query_as::<_, ShopHomeServiceConfig>(
-            "SELECT shop_home_service_config_id, shop_id, enabled, service_radius, home_fee, distance_pricing_enabled, order_dispatch_mode, before_service_photo_enabled, after_service_photo_enabled, add_time FROM shop_home_service_config WHERE shop_id = $1 LIMIT 1",
+            "SELECT shop_home_service_config_id, shop_id, enabled, service_radius, home_fee, distance_pricing_enabled, order_dispatch_mode, before_service_photo_enabled, after_service_photo_enabled, default_service_fee_type, default_service_fee_value, add_time FROM shop_home_service_config WHERE shop_id = $1 LIMIT 1",
         )
         .bind(shop_id)
         .fetch_optional(&self.pool)
@@ -44,7 +44,7 @@ impl O2oConfigRepository {
         shop_id: i32,
     ) -> Result<Option<ShopLocalDeliveryConfig>> {
         sqlx::query_as::<_, ShopLocalDeliveryConfig>(
-            "SELECT shop_local_delivery_config_id, shop_id, enabled, delivery_radius, min_order_amount, base_delivery_fee, distance_pricing_enabled, order_dispatch_mode, pickup_photo_enabled, delivery_complete_photo_enabled, add_time FROM shop_local_delivery_config WHERE shop_id = $1 LIMIT 1",
+            "SELECT shop_local_delivery_config_id, shop_id, enabled, delivery_radius, min_order_amount, base_delivery_fee, distance_pricing_enabled, order_dispatch_mode, pickup_photo_enabled, delivery_complete_photo_enabled, default_service_fee_type, default_service_fee_value, add_time FROM shop_local_delivery_config WHERE shop_id = $1 LIMIT 1",
         )
         .bind(shop_id)
         .fetch_optional(&self.pool)
@@ -61,12 +61,182 @@ impl O2oConfigRepository {
             return Ok(Vec::new());
         }
         sqlx::query_as::<_, ShopLocalDeliveryConfig>(
-            "SELECT shop_local_delivery_config_id, shop_id, enabled, delivery_radius, min_order_amount, base_delivery_fee, distance_pricing_enabled, order_dispatch_mode, pickup_photo_enabled, delivery_complete_photo_enabled, add_time FROM shop_local_delivery_config WHERE shop_id = ANY($1)",
+            "SELECT shop_local_delivery_config_id, shop_id, enabled, delivery_radius, min_order_amount, base_delivery_fee, distance_pricing_enabled, order_dispatch_mode, pickup_photo_enabled, delivery_complete_photo_enabled, default_service_fee_type, default_service_fee_value, add_time FROM shop_local_delivery_config WHERE shop_id = ANY($1)",
         )
         .bind(shop_ids)
         .fetch_all(&self.pool)
         .await
         .map_err(map_err)
+    }
+
+    /// 距离定价行（同城配送）：返回 (distance_threshold, distance_unit, additional_fee, sort_order)。
+    pub async fn find_local_pricing(
+        &self,
+        shop_id: i32,
+    ) -> Result<Vec<(rust_decimal::Decimal, rust_decimal::Decimal, rust_decimal::Decimal, i32)>> {
+        sqlx::query_as::<_, (rust_decimal::Decimal, rust_decimal::Decimal, rust_decimal::Decimal, i32)>(
+            "SELECT p.distance_threshold, p.distance_unit, p.additional_fee, p.sort_order \
+             FROM shop_local_delivery_distance_pricing p \
+             JOIN shop_local_delivery_config c \
+               ON c.shop_local_delivery_config_id = p.shop_local_delivery_config_id \
+             WHERE c.shop_id = $1 ORDER BY p.sort_order, p.shop_local_delivery_distance_pricing_id",
+        )
+        .bind(shop_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 距离定价行（上门服务）：返回 (distance_threshold, distance_unit, additional_fee, sort_order)。
+    pub async fn find_home_pricing(
+        &self,
+        shop_id: i32,
+    ) -> Result<Vec<(rust_decimal::Decimal, rust_decimal::Decimal, rust_decimal::Decimal, i32)>> {
+        sqlx::query_as::<_, (rust_decimal::Decimal, rust_decimal::Decimal, rust_decimal::Decimal, i32)>(
+            "SELECT p.distance_threshold, p.distance_unit, p.additional_fee, p.sort_order \
+             FROM shop_home_service_distance_pricing p \
+             JOIN shop_home_service_config c \
+               ON c.shop_home_service_config_id = p.shop_home_service_config_id \
+             WHERE c.shop_id = $1 ORDER BY p.sort_order, p.shop_home_service_distance_pricing_id",
+        )
+        .bind(shop_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 保存同城配送配置（upsert）+ 全量替换距离定价行。
+    ///
+    /// 骑手 MVP 配置双轨统一：此前 admin「保存」走通用 config JSON（h_11 cfg_set），
+    /// GET 却读本表，两轨不一致导致保存不生效；现统一落表，h_10/h_11 已下线。
+    pub async fn save_local_delivery(
+        &self,
+        cfg: &ShopLocalDeliveryConfig,
+        pricing: &[(rust_decimal::Decimal, rust_decimal::Decimal, rust_decimal::Decimal, i32)],
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await.map_err(map_err)?;
+        let (config_id,): (i64,) = sqlx::query_as(
+            "INSERT INTO shop_local_delivery_config (shop_id, enabled, delivery_radius, \
+             min_order_amount, base_delivery_fee, distance_pricing_enabled, order_dispatch_mode, \
+             pickup_photo_enabled, delivery_complete_photo_enabled, \
+             default_service_fee_type, default_service_fee_value, add_time) \
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) \
+             ON CONFLICT (shop_id) DO UPDATE SET enabled = EXCLUDED.enabled, \
+             delivery_radius = EXCLUDED.delivery_radius, \
+             min_order_amount = EXCLUDED.min_order_amount, \
+             base_delivery_fee = EXCLUDED.base_delivery_fee, \
+             distance_pricing_enabled = EXCLUDED.distance_pricing_enabled, \
+             order_dispatch_mode = EXCLUDED.order_dispatch_mode, \
+             pickup_photo_enabled = EXCLUDED.pickup_photo_enabled, \
+             delivery_complete_photo_enabled = EXCLUDED.delivery_complete_photo_enabled, \
+             default_service_fee_type = EXCLUDED.default_service_fee_type, \
+             default_service_fee_value = EXCLUDED.default_service_fee_value \
+             RETURNING shop_local_delivery_config_id",
+        )
+        .bind(cfg.shop_id)
+        .bind(cfg.enabled)
+        .bind(cfg.delivery_radius)
+        .bind(cfg.min_order_amount)
+        .bind(cfg.base_delivery_fee)
+        .bind(cfg.distance_pricing_enabled)
+        .bind(cfg.order_dispatch_mode)
+        .bind(cfg.pickup_photo_enabled)
+        .bind(cfg.delivery_complete_photo_enabled)
+        .bind(cfg.default_service_fee_type)
+        .bind(cfg.default_service_fee_value)
+        .bind(cfg.add_time)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        sqlx::query(
+            "DELETE FROM shop_local_delivery_distance_pricing \
+             WHERE shop_local_delivery_config_id = $1",
+        )
+        .bind(config_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        for (threshold, unit, fee, sort) in pricing {
+            sqlx::query(
+                "INSERT INTO shop_local_delivery_distance_pricing \
+                 (shop_local_delivery_config_id, distance_threshold, distance_unit, \
+                  additional_fee, sort_order, add_time) VALUES ($1,$2,$3,$4,$5,$6)",
+            )
+            .bind(config_id)
+            .bind(threshold)
+            .bind(unit)
+            .bind(fee)
+            .bind(sort)
+            .bind(cfg.add_time)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_err)?;
+        }
+        tx.commit().await.map_err(map_err)
+    }
+
+    /// 保存上门服务配置（upsert）+ 全量替换距离定价行（同上，配置双轨统一）。
+    pub async fn save_home_service(
+        &self,
+        cfg: &ShopHomeServiceConfig,
+        pricing: &[(rust_decimal::Decimal, rust_decimal::Decimal, rust_decimal::Decimal, i32)],
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await.map_err(map_err)?;
+        let (config_id,): (i32,) = sqlx::query_as(
+            "INSERT INTO shop_home_service_config (shop_id, enabled, service_radius, home_fee, \
+             distance_pricing_enabled, order_dispatch_mode, before_service_photo_enabled, \
+             after_service_photo_enabled, default_service_fee_type, default_service_fee_value, \
+             add_time) \
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) \
+             ON CONFLICT (shop_id) DO UPDATE SET enabled = EXCLUDED.enabled, \
+             service_radius = EXCLUDED.service_radius, home_fee = EXCLUDED.home_fee, \
+             distance_pricing_enabled = EXCLUDED.distance_pricing_enabled, \
+             order_dispatch_mode = EXCLUDED.order_dispatch_mode, \
+             before_service_photo_enabled = EXCLUDED.before_service_photo_enabled, \
+             after_service_photo_enabled = EXCLUDED.after_service_photo_enabled, \
+             default_service_fee_type = EXCLUDED.default_service_fee_type, \
+             default_service_fee_value = EXCLUDED.default_service_fee_value \
+             RETURNING shop_home_service_config_id",
+        )
+        .bind(cfg.shop_id)
+        .bind(cfg.enabled)
+        .bind(cfg.service_radius)
+        .bind(cfg.home_fee)
+        .bind(cfg.distance_pricing_enabled)
+        .bind(cfg.order_dispatch_mode)
+        .bind(cfg.before_service_photo_enabled)
+        .bind(cfg.after_service_photo_enabled)
+        .bind(cfg.default_service_fee_type)
+        .bind(cfg.default_service_fee_value)
+        .bind(cfg.add_time)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        sqlx::query(
+            "DELETE FROM shop_home_service_distance_pricing \
+             WHERE shop_home_service_config_id = $1",
+        )
+        .bind(config_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        for (threshold, unit, fee, sort) in pricing {
+            sqlx::query(
+                "INSERT INTO shop_home_service_distance_pricing \
+                 (shop_home_service_config_id, distance_threshold, distance_unit, \
+                  additional_fee, sort_order, add_time) VALUES ($1,$2,$3,$4,$5,$6)",
+            )
+            .bind(config_id)
+            .bind(threshold)
+            .bind(unit)
+            .bind(fee)
+            .bind(sort)
+            .bind(cfg.add_time)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_err)?;
+        }
+        tx.commit().await.map_err(map_err)
     }
 
     /// 自提配置（按 shop_id 唯一键）。

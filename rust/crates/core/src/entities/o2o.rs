@@ -105,6 +105,8 @@ pub struct DeliveryOrder {
     pub service_time: Option<i32>,
     /// 订单金额 [NOT NULL]
     pub order_amount: Decimal,
+    /// 完成入账的服务费快照（骑手 MVP 2026-11-20 增量列，我方新增；0=未入账/无服务费）
+    pub service_fee: Decimal,
     /// 买家备注
     pub buyer_note: Option<String>,
     /// 派单时间（Unix时间戳）
@@ -344,6 +346,10 @@ pub struct ShopHomeServiceConfig {
     pub before_service_photo_enabled: i32,
     /// 是否开启服务后拍照：0-关闭，1-开启 [NOT NULL]
     pub after_service_photo_enabled: i32,
+    /// 门店默认服务费类型 0=固定（元/件） 1=按比例（%）（骑手 MVP 2026-11-20 增量列，我方新增）
+    pub default_service_fee_type: i32,
+    /// 门店默认服务费值（固定=元/件；比例=百分比数值）（骑手 MVP 2026-11-20 增量列，我方新增）
+    pub default_service_fee_value: Decimal,
     /// 添加时间 [NOT NULL]
     pub add_time: i32,
 }
@@ -378,6 +384,10 @@ pub struct ShopLocalDeliveryConfig {
     pub pickup_photo_enabled: i32,
     /// 是否开启配送完成拍照：0-关闭，1-开启 [NOT NULL]
     pub delivery_complete_photo_enabled: i32,
+    /// 门店默认服务费类型 0=固定（元/件） 1=按比例（%）（骑手 MVP 2026-11-20 增量列，我方新增）
+    pub default_service_fee_type: i32,
+    /// 门店默认服务费值（固定=元/件；比例=百分比数值）（骑手 MVP 2026-11-20 增量列，我方新增）
+    pub default_service_fee_value: Decimal,
     /// 添加时间 [NOT NULL]
     pub add_time: i32,
 }

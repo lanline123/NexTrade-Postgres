@@ -267,6 +267,19 @@ async fn delivery_staff_of(
         .ok_or_else(|| nextrade_security::web::AppError(nextrade_core::Error::biz(1001, "当前账号未绑定服务人员")))
 }
 
+/// 骑手 MVP：解析当前会员的服务人员完整上下文（大厅/抢单的作用域与状态校验）。
+async fn delivery_staff_ctx(
+    state: &PublicState,
+    uid: i32,
+) -> std::result::Result<nextrade_services::o2o::pickup_client::StaffContext, nextrade_security::web::AppError> {
+    state
+        .o2o
+        .pickup_client
+        .staff_context(uid)
+        .await?
+        .ok_or_else(|| nextrade_security::web::AppError(nextrade_core::Error::biz(1001, "当前账号未绑定服务人员")))
+}
+
 async fn delivery_my_list(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
@@ -296,18 +309,26 @@ async fn delivery_total_count(
     ok(total)
 }
 
+/// 抢单大厅（骑手 MVP 修复：原实现**不验身份**、全平台一个大厅；
+/// 现强制登录 + 人员绑定，并按人员所属店铺 + 类型作用域过滤；
+/// 已下班/被禁用人员返回空大厅并在 records 外提示状态不可接单）。
 async fn delivery_grab_list(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<DeliveryListQuery>,
 ) -> ApiResult<Value> {
+    let staff = delivery_staff_ctx(&state, current_user_id(auth)?).await?;
     let page = q.page.unwrap_or(1).max(1);
     let size = q.size.unwrap_or(10).clamp(1, 100);
+    if !staff.can_take_orders() {
+        return ok(serde_json::json!({"records": [], "total": 0, "size": size, "current": page, "pages": 0, "canTakeOrders": false}));
+    }
     let (total, records) = state
         .o2o
         .pickup_client
-        .grab_list(page, size, q.r#type)
+        .grab_list(&staff, page, size, q.r#type)
         .await?;
-    ok(serde_json::json!({"records": records, "total": total, "size": size, "current": page, "pages": (total as u64 + size - 1) / size}))
+    ok(serde_json::json!({"records": records, "total": total, "size": size, "current": page, "pages": (total as u64 + size - 1) / size, "canTakeOrders": true}))
 }
 
 async fn delivery_detail(
@@ -329,11 +350,14 @@ async fn delivery_grab(
     auth: Option<Extension<AuthUser>>,
     Json(dto): Json<DeliveryAction>,
 ) -> ApiResult<()> {
-    let (staff_id, name, phone) = delivery_staff_of(&state, current_user_id(auth)?).await?;
+    let staff = delivery_staff_ctx(&state, current_user_id(auth)?).await?;
+    if !staff.can_take_orders() {
+        return Err(nextrade_security::web::AppError(nextrade_core::Error::biz(1001, "当前状态不可接单（已下班或被禁用）")));
+    }
     let ok_flag = state
         .o2o
         .pickup_client
-        .grab_delivery(staff_id, &name, &phone, dto.delivery_order_id.unwrap_or(0))
+        .grab_delivery(&staff, dto.delivery_order_id.unwrap_or(0))
         .await?;
     if !ok_flag {
         return Err(nextrade_security::web::AppError(nextrade_core::Error::biz(1001, "该订单已被抢或不可抢")));
@@ -359,22 +383,23 @@ async fn delivery_confirm(
     ok(())
 }
 
+/// 完成配送/服务：状态翻转 + 服务费入账（骑手 MVP 激活）。回执带本次入账金额。
 async fn delivery_complete(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
     Json(dto): Json<DeliveryAction>,
-) -> ApiResult<()> {
+) -> ApiResult<Value> {
     let (staff_id, _, _) = delivery_staff_of(&state, current_user_id(auth)?).await?;
     let photos = serde_json::to_string(&dto.photo).unwrap_or_else(|_| "[]".into());
-    let ok_flag = state
+    let fee = state
         .o2o
         .pickup_client
         .complete_delivery(staff_id, dto.delivery_order_id.unwrap_or(0), &photos)
         .await?;
-    if !ok_flag {
-        return Err(nextrade_security::web::AppError(nextrade_core::Error::biz(1001, "订单状态不允许完成")));
+    match fee {
+        Some(fee) => ok(serde_json::json!({"serviceFee": fee})),
+        None => Err(nextrade_security::web::AppError(nextrade_core::Error::biz(1001, "订单状态不允许完成"))),
     }
-    ok(())
 }
 
 async fn delivery_cancel(

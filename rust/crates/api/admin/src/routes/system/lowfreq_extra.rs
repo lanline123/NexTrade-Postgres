@@ -3,12 +3,12 @@
 use axum::{
     extract::{Path, Query, State},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde::Deserialize;
 use serde_json::Value;
 use nextrade_core::Error;
-use nextrade_security::web::{ok, ApiResult};
+use nextrade_security::web::{ok, ApiResult, TenantContext};
 
 use crate::AdminState;
 
@@ -252,45 +252,173 @@ async fn h_5(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()
     ok(())
 }
 
-// post /o2o/dispatch/assign
-async fn h_6(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
-    // 简化：按 delivery_order 主键指派配送员（staff_id 经 id 传入）
-    sqlx::query("UPDATE delivery_order SET status = 1 WHERE delivery_order_id = $1")
-        .bind(q.id.unwrap_or(0))
-        .execute(&pool(&state))
-        .await
-        .map_err(db)?;
+/// 指派/改派核心（h_6 / h_8 / h_delivery_dispatch 共用）。
+///
+/// 骑手 MVP 修复：原 h_6/h_8 是坏占位（乱写 `status = 1`——不在 10/20/30/40/50
+/// 状态机内、且不写人员）。现按契约重做，校验链：
+/// 派送单存在 → 租户作用域（店铺账号只能操作本店单；缺失作用域哨兵 -1
+/// fail-closed）→ 状态可指派（10 待派发 / 20 待取货改派 / 30 配送中改派）
+/// → 人员存在、在职（status=1）、同店、同类型（配送单↔配送员、服务单↔服务员）。
+/// 成功写人员快照 + dispatch_mode=2 + dispatch_time；10/20 → status=20，
+/// 30 改派保持 30（货已取走，新人员继续配送）；改派清 grab_time（非抢单所得）。
+async fn do_dispatch(
+    state: &AdminState,
+    tenant: &TenantContext,
+    delivery_order_id: i64,
+    staff_id: i64,
+) -> Result<(), Error> {
+    let row: Option<(i32, i32, i32)> = sqlx::query_as(
+        "SELECT shop_id, type, status FROM delivery_order WHERE delivery_order_id = $1 AND is_delete = 0",
+    )
+    .bind(delivery_order_id)
+    .fetch_optional(&pool(state))
+    .await
+    .map_err(db)?;
+    let Some((shop_id, order_type, status)) = row else {
+        return Err(Error::NotFound("派送单不存在".into()));
+    };
+    if let Some(scope) = tenant.scoped_shop_id() {
+        if scope != shop_id {
+            return Err(Error::Forbidden("无权操作其他店铺的派送单".into()));
+        }
+    }
+    if !matches!(status, 10 | 20 | 30) {
+        return Err(Error::Validation("当前状态不可指派".into()));
+    }
+    let staff: Option<(String, String, i32, i32, i32)> = sqlx::query_as(
+        "SELECT name, phone, store_id, type, status FROM service_staff WHERE id = $1 AND is_delete = 0",
+    )
+    .bind(staff_id)
+    .fetch_optional(&pool(state))
+    .await
+    .map_err(db)?;
+    let Some((name, phone, staff_shop, staff_type, staff_status)) = staff else {
+        return Err(Error::Validation("指派人员不存在".into()));
+    };
+    if staff_status != 1 {
+        return Err(Error::Validation("指派人员已被禁用".into()));
+    }
+    if staff_shop != shop_id {
+        return Err(Error::Validation("指派人员不属于该派送单店铺".into()));
+    }
+    if staff_type != order_type {
+        return Err(Error::Validation("指派人员类型与派送单类型不符".into()));
+    }
+    let now = nextrade_common::utils::now_seconds();
+    let new_status = if status == 30 { 30 } else { 20 };
+    let affected = sqlx::query(
+        "UPDATE delivery_order SET staff_id = $1, staff_name = $2, staff_phone = $3,          status = $4, dispatch_mode = 2, dispatch_time = $5, grab_time = NULL          WHERE delivery_order_id = $6 AND status = $7 AND is_delete = 0",
+    )
+    .bind(staff_id)
+    .bind(name)
+    .bind(phone)
+    .bind(new_status)
+    .bind(now as i32)
+    .bind(delivery_order_id)
+    .bind(status)
+    .execute(&pool(state))
+    .await
+    .map_err(db)?
+    .rows_affected();
+    if affected == 0 {
+        return Err(Error::Validation("派送单状态已变化，请刷新后重试".into()));
+    }
+    Ok(())
+}
+
+/// 可指派人员（h_7 / h_9 共用）。
+///
+/// 骑手 MVP 修复：原实现误查 `admin_user_pos`（POS 收银员表）。现查
+/// `service_staff`：店铺解析 = 店铺账号强制本店；平台用 `shopId` 入参，
+/// 或由 `deliveryOrderId` 反查派送单店铺；仅在职（status=1），可按 type 收窄。
+async fn do_available_staff(
+    state: &AdminState,
+    tenant: &TenantContext,
+    q: &Pg,
+) -> Result<Value, Error> {
+    let mut shop_id: i64 = q.shop_id.unwrap_or(0);
+    if shop_id <= 0 {
+        if let Some(doid) = q.delivery_order_id.or(q.id) {
+            let row: Option<(i32,)> = sqlx::query_as(
+                "SELECT shop_id FROM delivery_order WHERE delivery_order_id = $1 AND is_delete = 0",
+            )
+            .bind(doid)
+            .fetch_optional(&pool(state))
+            .await
+            .map_err(db)?;
+            shop_id = row.map(|(v,)| i64::from(v)).unwrap_or(0);
+        }
+    }
+    if let Some(scope) = tenant.scoped_shop_id() {
+        shop_id = i64::from(scope);
+    }
+    let want_type: i64 = q.r#type.unwrap_or(0);
+    let rows: Vec<(Value,)> = sqlx::query_as(
+        "SELECT json_build_object('id', id, 'name', name, 'phone', phone, 'storeId', store_id, 'type', type, 'status', status, 'workStatus', work_status, 'completedOrderCount', completed_order_count) FROM service_staff WHERE is_delete = 0 AND status = 1 AND ($1 = 0 OR store_id = $2) AND ($3 = 0 OR type = $4) ORDER BY work_status ASC, id DESC",
+    )
+    .bind(shop_id).bind(shop_id)
+    .bind(want_type).bind(want_type)
+    .fetch_all(&pool(state))
+    .await
+    .map_err(db)?;
+    Ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>()}))
+}
+
+// post /o2o/dispatch/assign —— 指派（与 /o2o/deliveryOrder/dispatch 同语义同核心）。
+// 入参兼容：deliveryOrderId（或 id）+ staffId。
+async fn h_6(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(body): Json<Value>,
+) -> ApiResult<()> {
+    let doid = body
+        .get("deliveryOrderId")
+        .or_else(|| body.get("id"))
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
+    let staff_id = body.get("staffId").and_then(Value::as_i64).unwrap_or(0);
+    do_dispatch(&state, &tenant, doid, staff_id).await?;
     ok(())
 }
 
 // get /o2o/dispatch/availableStaff
-async fn h_7(State(state): State<AdminState>) -> ApiResult<Value> {
-    let rows: Vec<(Value,)> = sqlx::query_as("SELECT json_build_object('id', id, 'username', username, 'shopId', shop_id, 'isUsing', is_using) FROM admin_user_pos WHERE is_using = 0 OR is_using = 1").fetch_all(&pool(&state)).await.map_err(db)?;
-    ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>()}))
+async fn h_7(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(q): Query<Pg>,
+) -> ApiResult<Value> {
+    Ok(do_available_staff(&state, &tenant, &q).await?)
 }
 
-// post /order/dispatch/assign
-async fn h_8(State(state): State<AdminState>, Json(q): Json<Pg>) -> ApiResult<()> {
-    // 简化：按 delivery_order 主键指派配送员（staff_id 经 id 传入）
-    sqlx::query("UPDATE delivery_order SET status = 1 WHERE delivery_order_id = $1")
-        .bind(q.id.unwrap_or(0))
-        .execute(&pool(&state))
-        .await
-        .map_err(db)?;
+// post /order/dispatch/assign（同 h_6）
+async fn h_8(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(body): Json<Value>,
+) -> ApiResult<()> {
+    let doid = body
+        .get("deliveryOrderId")
+        .or_else(|| body.get("id"))
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
+    let staff_id = body.get("staffId").and_then(Value::as_i64).unwrap_or(0);
+    do_dispatch(&state, &tenant, doid, staff_id).await?;
     ok(())
 }
 
-// get /order/dispatch/availableStaff
-async fn h_9(State(state): State<AdminState>) -> ApiResult<Value> {
-    let rows: Vec<(Value,)> = sqlx::query_as("SELECT json_build_object('id', id, 'username', username, 'shopId', shop_id, 'isUsing', is_using) FROM admin_user_pos WHERE is_using = 0 OR is_using = 1").fetch_all(&pool(&state)).await.map_err(db)?;
-    ok(serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>()}))
+// get /order/dispatch/availableStaff（同 h_7）
+async fn h_9(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(q): Query<Pg>,
+) -> ApiResult<Value> {
+    Ok(do_available_staff(&state, &tenant, &q).await?)
 }
 
-// post /o2o/homeService/saveConfig
-cfg_set!(h_10, "o2oHomeServiceConfig");
-
-// post /o2o/localDelivery/saveConfig
-cfg_set!(h_11, "o2oLocalDeliveryConfig");
+// /o2o/homeService/saveConfig 与 /o2o/localDelivery/saveConfig 已由骑手 MVP
+// 配置双轨统一迁往 o2o 路由模块的落表实现（routes/o2o/{home_service,
+// local_delivery}.rs），原 cfg_set 占位（写通用 config JSON、GET 永不读回）下线，
+// 路由注册同步移除（同路径双注册会使 axum 启动 panic）。
 
 // get /o2o/intraCityDelivery/platformConfig/getConfig
 cfg_get!(h_12, "o2oIntraCityDeliveryConfig");
@@ -432,25 +560,45 @@ async fn h_tip_update_field(State(state): State<AdminState>, Json(q): Json<Pg>) 
 // ————————————————————— O2O 服务人员（service_staff） —————————————————————
 
 // get /o2o/serviceStaff/list
-async fn h_staff_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+// 骑手 MVP 作用域对齐：店铺账号强制本店人员（service_staff.store_id 维度）；
+// 平台可按 shopId/type 筛选；缺失作用域哨兵/供应商 → 恒空。
+async fn h_staff_list(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(q): Query<Pg>,
+) -> ApiResult<Value> {
     let (p, s, off) = page_of(&q);
     let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
     let status = q.status.unwrap_or(-1);
+    let shop_id: i64 = match tenant.scoped_shop_id() {
+        Some(scope) if scope > 0 => i64::from(scope),
+        Some(_) => -1,
+        None => q.shop_id.unwrap_or(0),
+    };
+    let want_type: i64 = q.r#type.unwrap_or(0);
     let (total,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM service_staff WHERE is_delete = 0 AND ($1 = -1 OR status = $2) AND (name ILIKE $3 OR phone ILIKE $4)",
+        "SELECT COUNT(*) FROM service_staff WHERE is_delete = 0 AND ($1 = -1 OR status = $2) AND ($3 = 0 OR store_id = $4) AND ($5 = 0 OR type = $6) AND (name ILIKE $7 OR phone ILIKE $8)",
     )
     .bind(status)
     .bind(status)
+    .bind(shop_id)
+    .bind(shop_id)
+    .bind(want_type)
+    .bind(want_type)
     .bind(&kw)
     .bind(&kw)
     .fetch_one(&pool(&state))
     .await
     .map_err(db)?;
     let rows: Vec<(Value,)> = sqlx::query_as(
-        "SELECT json_build_object('id', id, 'name', name, 'nickname', nickname, 'avatar', avatar, 'phone', phone, 'memberId', member_id, 'storeId', store_id, 'type', type, 'status', status, 'workStatus', work_status, 'completedOrderCount', completed_order_count, 'completedOrderAmount', completed_order_amount, 'createTime', create_time) FROM service_staff WHERE is_delete = 0 AND ($1 = -1 OR status = $2) AND (name ILIKE $3 OR phone ILIKE $4) ORDER BY id DESC LIMIT $5 OFFSET $6",
+        "SELECT json_build_object('id', id, 'name', name, 'nickname', nickname, 'avatar', avatar, 'phone', phone, 'memberId', member_id, 'storeId', store_id, 'type', type, 'status', status, 'workStatus', work_status, 'completedOrderCount', completed_order_count, 'completedOrderAmount', completed_order_amount, 'createTime', create_time) FROM service_staff WHERE is_delete = 0 AND ($1 = -1 OR status = $2) AND ($3 = 0 OR store_id = $4) AND ($5 = 0 OR type = $6) AND (name ILIKE $7 OR phone ILIKE $8) ORDER BY id DESC LIMIT $9 OFFSET $10",
     )
     .bind(status)
     .bind(status)
+    .bind(shop_id)
+    .bind(shop_id)
+    .bind(want_type)
+    .bind(want_type)
     .bind(&kw)
     .bind(&kw)
     .bind(s)
@@ -490,9 +638,34 @@ async fn h_staff_show_mobile(
     ok(row.map(|(v,)| v).unwrap_or(Value::Null))
 }
 
+/// service_staff 写作用域守卫（骑手 MVP 对齐 B+A+D）：店铺账号只能改本店
+/// 人员；缺失作用域哨兵恒不相等 → fail-closed；平台放行。
+async fn guard_staff_scope(
+    state: &AdminState,
+    tenant: &TenantContext,
+    staff_id: i64,
+) -> Result<(), Error> {
+    if let Some(scope) = tenant.scoped_shop_id() {
+        let row: Option<(i32,)> = sqlx::query_as(
+            "SELECT store_id FROM service_staff WHERE id = $1 AND is_delete = 0",
+        )
+        .bind(staff_id)
+        .fetch_optional(&pool(state))
+        .await
+        .map_err(db)?;
+        return match row {
+            Some((store,)) if store == scope => Ok(()),
+            Some(_) => Err(Error::Forbidden("无权操作其他店铺的人员".into())),
+            None => Err(Error::NotFound("服务人员不存在".into())),
+        };
+    }
+    Ok(())
+}
+
 // post /o2o/serviceStaff/create
 async fn h_staff_create(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(body): Json<Value>,
 ) -> ApiResult<i64> {
     let now = std::time::SystemTime::now()
@@ -506,6 +679,16 @@ async fn h_staff_create(
             .to_string()
     };
     let gi = |k: &str| body.get(k).and_then(Value::as_i64).unwrap_or(0);
+    // 店铺账号新建人员强制本店（忽略 body storeId）；平台用 body 值。
+    let store_id = match tenant.scoped_shop_id() {
+        Some(scope) if scope > 0 => i64::from(scope),
+        Some(_) => {
+            return Err(nextrade_security::web::AppError(Error::Forbidden(
+                "缺少店铺作用域".into(),
+            )))
+        }
+        None => gi("storeId"),
+    };
     let r: i32 = sqlx::query_scalar(
         "INSERT INTO service_staff (name, nickname, avatar, phone, member_id, store_id, type, status, create_time, update_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
     )
@@ -514,7 +697,7 @@ async fn h_staff_create(
     .bind(gs("avatar"))
     .bind(gs("phone"))
     .bind(gi("memberId"))
-    .bind(gi("storeId"))
+    .bind(store_id)
     .bind(body.get("type").and_then(Value::as_i64).unwrap_or(1))
     .bind(body.get("status").and_then(Value::as_i64).unwrap_or(1))
     .bind(now)
@@ -526,7 +709,12 @@ async fn h_staff_create(
 }
 
 // post /o2o/serviceStaff/update
-async fn h_staff_update(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+async fn h_staff_update(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(body): Json<Value>,
+) -> ApiResult<()> {
+    guard_staff_scope(&state, &tenant, body.get("id").and_then(Value::as_i64).unwrap_or(0)).await?;
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -546,7 +734,10 @@ async fn h_staff_update(State(state): State<AdminState>, Json(body): Json<Value>
     .bind(gs("avatar"))
     .bind(gs("phone"))
     .bind(gi("memberId"))
-    .bind(gi("storeId"))
+    .bind(match tenant.scoped_shop_id() {
+        Some(scope) if scope > 0 => i64::from(scope),
+        _ => gi("storeId"),
+    })
     .bind(body.get("type").and_then(Value::as_i64).unwrap_or(1))
     .bind(body.get("status").and_then(Value::as_i64).unwrap_or(1))
     .bind(now)
@@ -560,9 +751,24 @@ async fn h_staff_update(State(state): State<AdminState>, Json(body): Json<Value>
 // post /o2o/serviceStaff/updateField
 async fn h_staff_update_field(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(body): Json<Value>,
 ) -> ApiResult<()> {
     let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    guard_staff_scope(&state, &tenant, id).await?;
+    // 店铺账号不得把人员改到他店（store_id 字段写守卫）。
+    if tenant.scoped_shop_id().is_some_and(|scope| scope > 0)
+        && matches!(body.get("field").and_then(Value::as_str), Some("storeId" | "store_id"))
+        && body
+            .get("val")
+            .or_else(|| body.get("value"))
+            .and_then(Value::as_i64)
+            != tenant.scoped_shop_id().map(i64::from)
+    {
+        return Err(nextrade_security::web::AppError(Error::Forbidden(
+            "无权将人员改到其他店铺".into(),
+        )));
+    }
     let field = body
         .get("field")
         .and_then(Value::as_str)
@@ -604,8 +810,15 @@ async fn h_staff_update_field(
 }
 
 // post /o2o/serviceStaff/del
-async fn h_staff_del(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+async fn h_staff_del(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(body): Json<Value>,
+) -> ApiResult<()> {
     let ids = json_ids(&body);
+    for id in &ids {
+        guard_staff_scope(&state, &tenant, *id).await?;
+    }
     if ids.is_empty() {
         return Err(nextrade_security::web::AppError(Error::Validation(
             "缺少 id".into(),
@@ -626,8 +839,12 @@ async fn h_staff_del(State(state): State<AdminState>, Json(body): Json<Value>) -
 }
 
 // post /o2o/serviceStaff/batch
-async fn h_staff_batch(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
-    h_staff_del(State(state), Json(body)).await
+async fn h_staff_batch(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Json(body): Json<Value>,
+) -> ApiResult<()> {
+    h_staff_del(State(state), Extension(tenant), Json(body)).await
 }
 
 // ————————————————————— O2O 区域管理（area_store_manager） —————————————————————
@@ -803,10 +1020,20 @@ async fn h_area_batch(State(state): State<AdminState>, Json(body): Json<Value>) 
 const DELIVERY_JSON: &str = "'deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'dispatchMode', dispatch_mode, 'status', status, 'staffId', staff_id, 'staffName', staff_name, 'staffPhone', staff_phone, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'orderAmount', order_amount, 'buyerNote', buyer_note, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'cancelReason', cancel_reason, 'createTime', create_time";
 
 // get /o2o/deliveryOrder/list
-async fn h_delivery_list(State(state): State<AdminState>, Query(q): Query<Pg>) -> ApiResult<Value> {
+// 骑手 MVP 作用域对齐（B+A+D 口径）：店铺账号强制本店（忽略请求 shopId）；
+// 缺失作用域哨兵/供应商 → 恒空（fail-closed，不退化为全量）。
+async fn h_delivery_list(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(q): Query<Pg>,
+) -> ApiResult<Value> {
     let (p, s, off) = page_of(&q);
     let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
-    let shop_id = q.shop_id.unwrap_or(0);
+    let shop_id = match tenant.scoped_shop_id() {
+        Some(scope) if scope > 0 => i64::from(scope),
+        Some(_) => -1,
+        None => q.shop_id.unwrap_or(0),
+    };
     let dtype = q.r#type.unwrap_or(0);
     let status = q.status.unwrap_or(-1);
     let staff_id = q.staff_id.unwrap_or(0);
@@ -838,48 +1065,43 @@ async fn h_delivery_list(State(state): State<AdminState>, Query(q): Query<Pg>) -
     )
 }
 
-// get /o2o/deliveryOrder/detail
+// get /o2o/deliveryOrder/detail（店铺账号查他店单 → 返回空，不泄露存在性）
 async fn h_delivery_detail(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Query(q): Query<Pg>,
 ) -> ApiResult<Value> {
-    let row: Option<(Value,)> = sqlx::query_as(&format!(
-        "SELECT json_build_object({DELIVERY_JSON}) FROM delivery_order WHERE delivery_order_id = $1"
+    let row: Option<(i32, Value)> = sqlx::query_as(&format!(
+        "SELECT shop_id, json_build_object({DELIVERY_JSON}) FROM delivery_order WHERE delivery_order_id = $1 AND is_delete = 0"
     ))
     .bind(q.id.or(q.delivery_order_id).unwrap_or(0))
     .fetch_optional(&pool(&state))
     .await
     .map_err(db)?;
-    ok(row.map(|(v,)| v).unwrap_or(Value::Null))
+    let out = match (row, tenant.scoped_shop_id()) {
+        (Some((shop, v)), Some(scope)) if scope != shop => Value::Null,
+        (Some((_, v)), _) => v,
+        _ => Value::Null,
+    };
+    ok(out)
 }
 
-// post /o2o/deliveryOrder/dispatch
+// post /o2o/deliveryOrder/dispatch —— 指派/改派（骑手 MVP 加固后与
+// /o2o/dispatch/assign 共用 do_dispatch 校验链；原实现无状态校验、无人员
+// 校验、人员不存在也写空快照）。入参 orderId 实为 delivery_order_id（历史
+// 前端口径），兼容 deliveryOrderId。
 async fn h_delivery_dispatch(
     State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
     Json(body): Json<Value>,
 ) -> ApiResult<()> {
-    let order_id = body.get("orderId").and_then(Value::as_i64).unwrap_or(0);
+    let doid = body
+        .get("deliveryOrderId")
+        .or_else(|| body.get("orderId"))
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
     let staff_id = body.get("staffId").and_then(Value::as_i64).unwrap_or(0);
-    let staff: Option<(String, String)> =
-        sqlx::query_as("SELECT name, phone FROM service_staff WHERE id = $1 AND is_delete = 0")
-            .bind(staff_id)
-            .fetch_optional(&pool(&state))
-            .await
-            .map_err(db)?;
-    let (name, phone) = staff.unwrap_or_default();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
-    sqlx::query("UPDATE delivery_order SET staff_id = $1, staff_name = $2, staff_phone = $3, status = 20, dispatch_mode = 2, dispatch_time = $4 WHERE delivery_order_id = $5")
-        .bind(staff_id)
-        .bind(name)
-        .bind(phone)
-        .bind(now)
-        .bind(order_id)
-        .execute(&pool(&state))
-        .await
-        .map_err(db)?;
+    do_dispatch(&state, &tenant, doid, staff_id).await?;
     ok(())
 }
 
@@ -900,13 +1122,20 @@ async fn h_delivery_cancel(
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
-    sqlx::query("UPDATE delivery_order SET status = 50, cancel_reason = $1, cancel_time = $2 WHERE delivery_order_id = $3")
+    // 骑手 MVP 加固：补 cancel_by=2（管理员）口径 + 状态守卫（已完成/已取消不可再取消）。
+    let affected = sqlx::query("UPDATE delivery_order SET status = 50, cancel_reason = $1, cancel_time = $2, cancel_by = 2 WHERE delivery_order_id = $3 AND status IN (10,20,30) AND is_delete = 0")
         .bind(reason)
         .bind(now)
         .bind(id)
         .execute(&pool(&state))
         .await
-        .map_err(db)?;
+        .map_err(db)?
+        .rows_affected();
+    if affected == 0 {
+        return Err(nextrade_security::web::AppError(Error::Validation(
+            "当前状态不可取消".into(),
+        )));
+    }
     ok(())
 }
 
@@ -1901,8 +2130,6 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/o2o/dispatch/availableStaff", get(h_7))
         .route("/order/dispatch/assign", post(h_8))
         .route("/order/dispatch/availableStaff", get(h_9))
-        .route("/o2o/homeService/saveConfig", post(h_10))
-        .route("/o2o/localDelivery/saveConfig", post(h_11))
         .route("/o2o/intraCityDelivery/platformConfig/getConfig", get(h_12))
         .route(
             "/o2o/intraCityDelivery/platformConfig/saveConfig",

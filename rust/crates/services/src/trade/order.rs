@@ -1129,6 +1129,13 @@ impl OrderService {
                 if let Err(e) = generation.on_order_paid(order_id).await {
                     tracing::warn!("订单 {order_id} 分销生成链（提交即付清）失败: {e}");
                 }
+                // 骑手 MVP 派送单生产者（同为 best-effort；内含订单级幂等）。
+                let dispatch = crate::o2o::delivery_dispatch::DeliveryDispatchService::new(
+                    self.repos.clone(),
+                );
+                if let Err(e) = dispatch.on_order_paid(order_id).await {
+                    tracing::warn!("订单 {order_id} 派送单生产（提交即付清）失败: {e}");
+                }
             }
         }
 
@@ -1503,6 +1510,18 @@ impl OrderService {
                 );
             if let Err(e) = generation.on_order_paid(order_id).await {
                 tracing::warn!("订单 {order_id} 分销生成链（支付节点）失败: {e}");
+            }
+        }
+
+        // 6. 骑手 MVP 派送单生产者（best-effort，失败仅告警）：同城配送/
+        // 上门服务订单付款成功后生成 delivery_order（生产者内含配置门与
+        // 订单级幂等；不适用订单静默跳过）。
+        {
+            let dispatch = crate::o2o::delivery_dispatch::DeliveryDispatchService::new(
+                self.repos.clone(),
+            );
+            if let Err(e) = dispatch.on_order_paid(order_id).await {
+                tracing::warn!("订单 {order_id} 派送单生产（支付节点）失败: {e}");
             }
         }
 
