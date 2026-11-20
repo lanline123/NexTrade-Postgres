@@ -40,7 +40,6 @@ use nextrade_services::catalog::exchange::ExchangeService;
 use nextrade_services::catalog::price_inquiry::PriceInquiryService;
 use nextrade_services::catalog::product::ProductService;
 use nextrade_services::catalog::product_batch::ProductBatchService;
-use nextrade_services::catalog::product_clone::ProductCloneService;
 use nextrade_services::catalog::product_group::ProductGroupService;
 use nextrade_services::catalog::product_inventory_log::ProductInventoryLogService;
 use nextrade_services::catalog::product_manage::ProductManageService;
@@ -494,7 +493,6 @@ async fn main() -> anyhow::Result<()> {
     let e_card_group = Arc::new(ECardGroupService::new(repos.clone()));
     let e_card = Arc::new(ECardService::new(repos.clone()));
     let product_batch = Arc::new(ProductBatchService::new(repos.clone()));
-    let product_clone = Arc::new(ProductCloneService::new(repos.clone(), product_manage.clone()));
     let search_admin = Arc::new(SearchAdminService::new(repos.clone()));
     let product_inventory_log = Arc::new(ProductInventoryLogService::new(repos.clone()));
     let product_search = Arc::new(ProductSearchService::new(repos.clone()));
@@ -520,7 +518,6 @@ async fn main() -> anyhow::Result<()> {
         e_card_group: e_card_group.clone(),
         e_card: e_card.clone(),
         product_batch: product_batch.clone(),
-        product_clone: product_clone.clone(),
         search_admin: search_admin.clone(),
         product_inventory_log: product_inventory_log.clone(),
         product_search: product_search.clone(),
