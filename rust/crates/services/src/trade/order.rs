@@ -69,6 +69,25 @@ pub fn normalize_is_showed(value: Option<i32>) -> Option<i32> {
     value.filter(|v| *v > -1)
 }
 
+/// 订单头店铺归属（原版 `OrderCheckServiceImpl` 结算建单口径，我方补齐）：
+/// 全部明细同属一家店铺时，订单头 `shop_id` = 该店铺（单店铺分组时
+/// Java 在建单时即把头置为该组店铺，见 `OrderCheckServiceImpl` 的
+/// `cartList.size() == 1` 分支）；纯平台自营明细时为 0。
+/// 跨店混合时原版保持头为 0 并在提交时按店拆子单承载归属——我方拆单
+/// 模型尚未裁定，跨店单头暂维持 0，不臆测首店/主店口径。
+#[must_use]
+pub fn header_shop_id(items: &[OrderItem]) -> i32 {
+    let mut iter = items.iter().map(|it| it.shop_id);
+    let Some(first) = iter.next() else {
+        return 0;
+    };
+    if iter.all(|shop_id| shop_id == first) {
+        first
+    } else {
+        0
+    }
+}
+
 impl OrderService {
     pub fn new(repos: Arc<Repositories>, product: ProductService, cart: CartService) -> Self {
         Self { repos, product, cart }
@@ -657,6 +676,7 @@ impl OrderService {
             region_names,
             use_points: points.used_points,
             points_amount,
+            shop_id: header_shop_id(&items),
             is_valid: 1,
             is_del: 0,
             total_amount: total,
@@ -2222,6 +2242,37 @@ mod tests {
         // 向上取整 (CEILING)：10.55 元 * 6.5% = 0.68575 -> 0.69
         let res = calc_tax_amount(Decimal::new(1055, 2), Decimal::new(65, 1));
         assert_eq!(res, Decimal::new(69, 2));
+    }
+}
+
+#[cfg(test)]
+mod header_shop_id_tests {
+    use super::header_shop_id;
+    use nextrade_core::entities::OrderItem;
+
+    fn item(shop_id: i32) -> OrderItem {
+        OrderItem {
+            shop_id,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn single_shop_items_set_header() {
+        assert_eq!(header_shop_id(&[item(7), item(7)]), 7);
+        assert_eq!(header_shop_id(&[item(7)]), 7);
+    }
+
+    #[test]
+    fn platform_only_items_keep_zero() {
+        assert_eq!(header_shop_id(&[item(0), item(0)]), 0);
+    }
+
+    #[test]
+    fn mixed_shops_keep_zero_pending_split_model() {
+        assert_eq!(header_shop_id(&[item(7), item(9)]), 0);
+        assert_eq!(header_shop_id(&[item(0), item(9)]), 0);
+        assert_eq!(header_shop_id(&[]), 0);
     }
 }
 
