@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Button,
   Card,
@@ -141,13 +141,101 @@ export default function ListPage<T extends Record<string, any>>({
     [rows, rowKey],
   );
 
+  // ===== 每页条数按浏览器高度自适应（我方新增，原版为固定条数）=====
+  // 口径：pageSize prop 只作首帧量测前与量测失败时的兜底；量测完成后一律按
+  // 「表格可用高度 ÷ 真实行高」取条数，下限 5（用户口径）、上限 50（防超大页拖垮接口与渲染）。
+  // 可用高度 = 滚动容器（.page-content）可视底边 − 表格顶 − 表头 − 分页器 − 卡片底部留白。
+  const ADAPTIVE_MIN_SIZE = 5;
+  const ADAPTIVE_MAX_SIZE = 50;
+  const FALLBACK_ROW_HEIGHT = 48; // 单元格上下 padding 12+12 + 内容行高约 21 + 边框 1 ≈ 46~48
+  const FALLBACK_HEAD_HEIGHT = 41;
+  const FALLBACK_PAGINATION_HEIGHT = 56;
+  const [adaptiveSize, setAdaptiveSize] = useState<number | null>(null);
+  const [sizeReady, setSizeReady] = useState(false);
+  const adaptiveSizeRef = useRef<number | null>(null);
+  const rowsCountRef = useRef(0);
+  rowsCountRef.current = tableRows.length; // 量测函数只读 ref，保证首帧注册的监听回调永远量到最新行数/行高
+  const rowHeightRef = useRef(0);
+  const tableWrapRef = useRef<HTMLDivElement | null>(null);
+  const measureTimerRef = useRef<number | null>(null);
+  const effectivePageSize = adaptiveSize ?? pageSize;
+
+  const computeAdaptiveSize = (): number | null => {
+    const wrap = tableWrapRef.current;
+    if (!wrap || typeof window === 'undefined') return null;
+    const wrapRect = wrap.getBoundingClientRect();
+    if (wrapRect.width === 0) return null; // 隐藏态（未激活页签等）不量测，可见时由 ResizeObserver 补量
+    const container = wrap.closest('.page-content') as HTMLElement | null;
+    let visibleBottom: number;
+    let wrapTop: number;
+    if (container) {
+      const containerRect = container.getBoundingClientRect();
+      wrapTop = wrapRect.top - containerRect.top + container.scrollTop;
+      visibleBottom = container.scrollTop + container.clientHeight - 20; // 内容区底部 padding 20
+    } else {
+      wrapTop = wrapRect.top + window.scrollY;
+      visibleBottom = window.scrollY + window.innerHeight;
+    }
+    const headEl = wrap.querySelector('.semi-table-thead');
+    const headHeight = headEl?.getBoundingClientRect().height || FALLBACK_HEAD_HEIGHT;
+    const paginationEl = wrap.querySelector('.semi-table-pagination-outer');
+    const paginationHeight = paginationEl
+      ? paginationEl.getBoundingClientRect().height + 16
+      : FALLBACK_PAGINATION_HEIGHT;
+    // 行高以真实首行为准（带图行更高，按本页实际行高算）；量不到沿用上次量测/兜底常量
+    if (rowsCountRef.current > 0) {
+      const firstRow = wrap.querySelector('.semi-table-tbody .semi-table-row');
+      const measured = firstRow?.getBoundingClientRect().height || 0;
+      if (measured >= 24 && measured <= 240) rowHeightRef.current = measured;
+    }
+    const rowHeight = rowHeightRef.current || FALLBACK_ROW_HEIGHT;
+    const bodyHeight = visibleBottom - wrapTop - headHeight - paginationHeight - 26; // 26 = 卡片底部 padding 18 + 安全余量 8
+    if (bodyHeight <= 0) return null;
+    const size = Math.floor(bodyHeight / rowHeight);
+    return Math.min(ADAPTIVE_MAX_SIZE, Math.max(ADAPTIVE_MIN_SIZE, size));
+  };
+
+  const applyMeasure = () => {
+    const next = computeAdaptiveSize();
+    setSizeReady(true);
+    if (next != null && next !== adaptiveSizeRef.current) {
+      adaptiveSizeRef.current = next;
+      setAdaptiveSize(next);
+      setPage(1); // 条数变化回到第 1 页重拉
+    }
+  };
+
+  const scheduleMeasure = () => {
+    if (typeof window === 'undefined') return;
+    if (measureTimerRef.current != null) window.clearTimeout(measureTimerRef.current);
+    measureTimerRef.current = window.setTimeout(applyMeasure, 120);
+  };
+
+  // 首帧量测赶在绘制前（layout effect 先于 fetch 的 passive effect），
+  // fetch 以 sizeReady 为门：首拉即带自适应条数，不先按兜底值白拉一遍。
+  useLayoutEffect(() => {
+    applyMeasure();
+  }, []);
+
+  useEffect(() => {
+    const onResize = () => scheduleMeasure();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // 数据渲染后按真实行高复量（带图行与普通行行高不同，首帧只能用兜底行高）
+  useEffect(() => {
+    scheduleMeasure();
+  }, [rows]);
+
   useEffect(() => {
     if (isDemo()) return;
+    if (!sizeReady) return;
     let alive = true;
     setLoading(true);
     const params = {
       page,
-      size: pageSize,
+      size: effectivePageSize,
       ...query,
       ...filterValues,
     };
@@ -167,7 +255,7 @@ export default function ListPage<T extends Record<string, any>>({
     return () => {
       alive = false;
     };
-  }, [api, listMethod, page, pageSize, query, filterValues, reloadKey]);
+  }, [api, listMethod, page, effectivePageSize, sizeReady, query, filterValues, reloadKey]);
 
   const search = () => {
     setPage(1);
@@ -262,6 +350,8 @@ export default function ListPage<T extends Record<string, any>>({
     if (!(element instanceof Element)) return;
     const observer = new ResizeObserver((entries) => {
       setContainerWidth(entries[0]?.contentRect.width || 0);
+      // 卡片尺寸变化（窗口缩放、筛选 chip 行增减、页签由隐藏转可见）都可能改变可用高度，防抖复量条数
+      scheduleMeasure();
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -428,6 +518,7 @@ export default function ListPage<T extends Record<string, any>>({
           </div>
         )}
 
+        <div ref={tableWrapRef}>
         <Table
           loading={loading}
           dataSource={tableRows}
@@ -453,12 +544,13 @@ export default function ListPage<T extends Record<string, any>>({
           scroll={containerWidth > 0 && scrollX > containerWidth - 48 ? { x: scrollX } : undefined}
           pagination={{
             currentPage: page,
-            pageSize,
+            pageSize: effectivePageSize,
             total,
             onChange: (nextPage: number) => setPage(nextPage),
           }}
           columns={tableColumns as any}
         />
+        </div>
       </Card>
       </div>
 

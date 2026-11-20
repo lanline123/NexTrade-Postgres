@@ -95,6 +95,7 @@ export interface ListPageProps<T = any> {
   columns: ColumnConfig<T>[];
   filters?: FilterConfig[];
   query?: Record<string, unknown>;
+  /** 每页条数兜底值：仅首帧量测前/量测失败时用；框架量测后按浏览器高度自适应（下限 5、上限 50），页面传值不再固定条数。 */
   pageSize?: number;
   drawer?: FormDrawerConfig;
   showEdit?: boolean;
