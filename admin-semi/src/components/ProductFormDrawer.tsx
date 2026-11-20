@@ -10,6 +10,7 @@ import ImageUploader from './ImageUploader';
 import RichTextEditor from './RichTextEditor';
 import ProductPicker from './ProductPicker';
 import ProductVideoField from './ProductVideoField';
+import DeliveryFilesField from './DeliveryFilesField';
 
 interface Option {
   id: number;
@@ -658,6 +659,17 @@ export default function ProductFormDrawer({
                       {t('保存商品后可设置定时可售/禁售。')}
                     </Text>
                   ),
+              },
+              {
+                // 文件型交付（我方新增）：仅虚拟/付费内容商品显示；
+                // 附件走独立端点保存，不随主表单提交（对齐 saleStatus 模式）。
+                field: 'deliveryFiles',
+                label: t('交付附件'),
+                type: 'custom',
+                render: ({ values }) =>
+                  [2, 4].includes(Number(values.productType || 0)) ? (
+                    <DeliveryFilesField productId={productId} />
+                  ) : null,
               },
             ],
           },

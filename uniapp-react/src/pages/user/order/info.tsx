@@ -5,6 +5,7 @@ import Taro, { useDidShow, useRouter, useUnload } from "@tarojs/taro";
 import CancelOrderReasonPopup from "@/components/order/CancelOrderReasonPopup";
 import type { CancelOrderReasonPopupRef } from "@/components/order/CancelOrderReasonPopup";
 import DeliveryLinks from "@/components/deliveryLinks";
+import DeliveryFiles from "@/components/deliveryFiles";
 import FormatPrice from "@/components/format-price/FormatPrice";
 import Service from "@/components/service";
 import TigButton2 from "@/components/tig/tig-button2/TigButton2";
@@ -272,6 +273,11 @@ export default function OrderInfo() {
     const virtualSampleItem = (() => {
         const items = ((orderInfo as any)?.items || []) as any[];
         return items.find((item) => Number(item?.productType) === 2 && !!item?.virtualSample) || null;
+    })();
+    // 交付附件（文件型交付，我方新增）：后端按交付门逐项下发 deliveryFiles，未达门为空数组
+    const deliveryFileItems = (() => {
+        const items = ((orderInfo as any)?.items || []) as any[];
+        return items.filter((item) => Array.isArray(item?.deliveryFiles) && item.deliveryFiles.length > 0);
     })();
     const isNoDeliveryOrder = (() => {
         const items = ((orderInfo as any)?.items || []) as any[];
@@ -850,6 +856,16 @@ export default function OrderInfo() {
                                     </View>
                                 </View>
                             ) : null}
+
+                            {deliveryFileItems.map((item) => (
+                                <View className="virtualsample card-space" key={item.itemId || item.productId}>
+                                    <View className="virtualsample-label">{t("交付附件")}：</View>
+                                    <View className="virtualsample-value">
+                                        {/* 点击申领限时令牌后下载（接口层强校验） */}
+                                        <DeliveryFiles files={item.deliveryFiles} orderId={orderInfo.orderId} />
+                                    </View>
+                                </View>
+                            ))}
 
                             <View className="money-card card-space">
                                 <View className="money-title-box" onClick={() => setShowUp((prev) => !prev)}>

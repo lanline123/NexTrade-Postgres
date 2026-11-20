@@ -5,6 +5,8 @@ import { formatRichText, isPro, staticResource } from "@/utils";
 import { imageFormat } from "@/utils/format";
 import { t } from "@/utils/i18n";
 import DeliveryLinks from "@/components/deliveryLinks";
+import DeliveryFiles from "@/components/deliveryFiles";
+import type { DeliveryFileItem } from "@/api/product/product";
 
 import "./index.scss";
 
@@ -14,6 +16,7 @@ interface Props {
     productType?: number;
     isBuy?: number;
     paidContent?: Array<any> | string;
+    deliveryFiles?: DeliveryFileItem[];
     overseas?: boolean;
     /** 对应旧 v-model:show-more */
     modelValue?: boolean;
@@ -31,6 +34,7 @@ export default function DescriptionCard({
     productType = 1,
     isBuy = 0,
     paidContent = [],
+    deliveryFiles = [],
     overseas = false,
     modelValue = false,
     onUpdateModelValue
@@ -77,6 +81,9 @@ export default function DescriptionCard({
                             <Image className="img" src={staticResource("product/paid_content_bg.png")} mode="widthFix" />
                         )
                     ) : null}
+
+                    {/* 交付附件（文件型交付，我方新增）：后端按 isBuy 门控下发，未购恒空 */}
+                    {isBuy === 1 ? <DeliveryFiles files={deliveryFiles} /> : null}
 
                     {descArr.map((item, index) => (
                         <View key={index}>

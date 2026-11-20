@@ -13,6 +13,7 @@ import { defaultGrouponTier, grouponTierByNum, matchGrouponDetailRow, resolveGro
 import { PRICE_GATE_COPY, hasAccessToken, usePriceAccess, type PriceAccessState } from '@/lib/price-gate';
 import InquiryFormModal from '@/components/InquiryFormModal';
 import DeliveryLinkRows from '@/components/DeliveryLinkRows';
+import DeliveryFileRows from '@/components/DeliveryFileRows';
 import RawImageDownloadButton from '@/components/RawImageDownloadButton';
 import ProductJoiningClient from '@/components/ProductJoiningClient';
 import ProductCard, { type ProductCardItem } from '@/components/product/ProductCard';
@@ -1794,10 +1795,25 @@ export default function ProductDetailClient({
     </div>
   ) : null;
 
+  /**
+   * 交付附件（文件型交付，我方新增）：后端按 isBuy 门控下发
+   * `item.deliveryFiles`（未购恒空、不下发文件名），已购时在付费
+   * 内容下方呈现附件行，下载点击走令牌申领（接口层强校验）。
+   */
+  const deliveryFiles = Array.isArray((item as any).deliveryFiles)
+    ? ((item as any).deliveryFiles as Array<Record<string, any>>)
+    : [];
+  const deliveryFilesBlock = deliveryFiles.length ? (
+    <div className="delivery-files">
+      <DeliveryFileRows files={deliveryFiles as any} />
+    </div>
+  ) : null;
+
   // —— 可复用内容：详情描述 / 规格参数 / 评价列表 / 咨询列表 ——
   const descContent = (
     <div className="pds-desc">
       {paidContentBlock}
+      {deliveryFilesBlock}
       {(detail.descArr || []).map((desc, index) =>
         desc.type === 'pic' || desc.pic ? (
           <img key={index} src={desc.pic} alt="" />
@@ -1805,7 +1821,7 @@ export default function ProductDetailClient({
           <div key={index} dangerouslySetInnerHTML={{ __html: desc.html }} />
         ) : null,
       )}
-      {!detail.descArr?.length && !showPaidContent ? <p className="pds-empty">{t('暂无详情')}</p> : null}
+      {!detail.descArr?.length && !showPaidContent && !deliveryFiles.length ? <p className="pds-empty">{t('暂无详情')}</p> : null}
     </div>
   );
 
@@ -1945,6 +1961,7 @@ export default function ProductDetailClient({
         <div className="goods_desc paidcontent" id="xiangqing">
           {/* 原版顺序：付费内容（已购）→ 属性 → 富文本详情 */}
           {paidContentBlock}
+          {deliveryFilesBlock}
           {detail.attrList?.normal?.length ? (
             <ul className="shuxin flex">
               {detail.attrList.normal.map((attr: any, index: number) => (
@@ -1962,7 +1979,7 @@ export default function ProductDetailClient({
                 <div className="desc-text-item" key={index} dangerouslySetInnerHTML={{ __html: desc.html }} />
               ) : null,
             )}
-            {!detail.descArr?.length && !showPaidContent ? <p className="pds-empty">{t('暂无详情')}</p> : null}
+            {!detail.descArr?.length && !showPaidContent && !deliveryFiles.length ? <p className="pds-empty">{t('暂无详情')}</p> : null}
           </div>
         </div>
       ) : null}

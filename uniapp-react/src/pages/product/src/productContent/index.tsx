@@ -5,6 +5,8 @@ import { formatRichText, isPro, staticResource } from "@/utils";
 import { imageFormat } from "@/utils/format";
 import { t } from "@/utils/i18n";
 import DeliveryLinks from "@/components/deliveryLinks";
+import DeliveryFiles from "@/components/deliveryFiles";
+import type { DeliveryFileItem } from "@/api/product/product";
 import AfterSaleService from "../afterSaleService";
 
 import "./index.scss";
@@ -15,6 +17,7 @@ interface Props {
     productType?: number;
     isBuy?: number;
     paidContent?: Array<any>;
+    deliveryFiles?: DeliveryFileItem[];
 }
 
 /**
@@ -23,7 +26,7 @@ interface Props {
  * - 富文本渲染商品详情描述
  * - 售后服务说明弹窗
  */
-export default function ProductContent({ descArr = [], productId = null, productType = 1, isBuy = 0, paidContent = [] }: Props) {
+export default function ProductContent({ descArr = [], productId = null, productType = 1, isBuy = 0, paidContent = [], deliveryFiles = [] }: Props) {
     const [tabIndex, setTabIndex] = useState(0);
     // 对应旧 formState（v-model:form-state 传给 afterSaleService 的双向值）
     const [formState, setFormState] = useState<any>({});
@@ -78,6 +81,9 @@ export default function ProductContent({ descArr = [], productId = null, product
                             <Image className="img" src={staticResource("product/paid_content_bg.png")} mode="widthFix" />
                         )
                     ) : null}
+
+                    {/* 交付附件（文件型交付，我方新增）：后端按 isBuy 门控下发，未购恒空 */}
+                    {isBuy === 1 ? <DeliveryFiles files={deliveryFiles} /> : null}
 
                     {descArr.map((item, index) => (
                         <Fragment key={index}>

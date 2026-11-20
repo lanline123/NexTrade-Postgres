@@ -1300,6 +1300,7 @@ export default function ProductIndex() {
                                             onUpdateModelValue={setDescShowMore}
                                             isBuy={product.isBuy}
                                             paidContent={product.paidContent as any}
+                                            deliveryFiles={(product as any).deliveryFiles}
                                             productType={product.productType}
                                             descArr={descArr as any}
                                             productId={product.productId}
@@ -1314,6 +1315,7 @@ export default function ProductIndex() {
                                         onUpdateModelValue={setDescShowMore}
                                         isBuy={product.isBuy}
                                         paidContent={product.paidContent as any}
+                                        deliveryFiles={(product as any).deliveryFiles}
                                         productType={product.productType}
                                         descArr={descArr as any}
                                         productId={product.productId}
@@ -1324,6 +1326,7 @@ export default function ProductIndex() {
                                     <ProductContent
                                         isBuy={product.isBuy}
                                         paidContent={product.paidContent as any}
+                                        deliveryFiles={(product as any).deliveryFiles}
                                         productType={product.productType}
                                         descArr={descArr as any}
                                         productId={product.productId}

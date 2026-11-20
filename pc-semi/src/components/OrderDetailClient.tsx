@@ -18,6 +18,7 @@ import { Button, Card, Modal, Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
 import MemberCancelOrderDialog from '@/components/MemberCancelOrderDialog';
 import DeliveryLinkRows from '@/components/DeliveryLinkRows';
+import DeliveryFileRows, { type DeliveryFileItem } from '@/components/DeliveryFileRows';
 import MemberLogisticsDialog from '@/components/MemberLogisticsDialog';
 import PresaleSteps from '@/components/PresaleSteps';
 
@@ -43,6 +44,8 @@ interface OrderItem {
   aftersalesItem?: { aftersaleId?: number; statusName?: string; status?: number };
   eCard?: Array<{ cardNumber?: string; cardPassword?: string; cardPwd?: string }>;
   virtualSample?: string;
+  /** 交付附件（文件型交付，我方新增；后端按交付门下发，未达门为空数组）。 */
+  deliveryFiles?: DeliveryFileItem[];
 }
 
 interface GiftCardInfo {
@@ -284,6 +287,7 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
   const giftCardInfo = detail.giftCardOrder?.giftCardOrderInfo || [];
   const ecardItems = items.filter((item) => (item.eCard || []).length > 0);
   const virtualSampleItem = items.find((item) => Number(item.productType) === 2 && Boolean(item.virtualSample));
+  const deliveryFileItems = items.filter((item) => (item.deliveryFiles || []).length > 0);
   const deliveryOrderInfo = detail.deliveryOrderInfo;
   const showDeliveryStaff = Number(deliveryOrderInfo?.type) === 1 && Boolean(deliveryOrderInfo?.staffName || deliveryOrderInfo?.staffPhone);
   const isOfflineOrder = Number(detail.payTypeId) === 3;
@@ -447,6 +451,13 @@ export default function OrderDetailClient({ orderId }: { orderId: number }) {
                 <DeliveryLinkRows html={virtualSampleItem.virtualSample} />
               </li>
             ) : null}
+            {deliveryFileItems.map((item) => (
+              <li key={item.itemId || item.productId} className="deliveryfiles">
+                交付附件{deliveryFileItems.length > 1 && item.productName ? `（${item.productName}）` : ''}：
+                {/* 文件型交付（我方新增）：点击申领限时令牌后下载 */}
+                <DeliveryFileRows files={item.deliveryFiles} orderId={detail.orderId} />
+              </li>
+            ))}
           </ul>
         </div>
 

@@ -22,6 +22,25 @@ import type {
  * @param id 商品ID或包含ID的对象
  * @returns 商品完整信息
  */
+/** 交付附件（文件型交付，我方新增）：商品详情/订单详情下发的附件元数据 */
+export interface DeliveryFileItem {
+    fileId: number;
+    productId: number;
+    fileName: string;
+    fileExt?: string;
+    fileSize: number;
+    addTime?: number;
+}
+
+/** 申领交付附件下载令牌：服务端强校验已购/订单归属后返回短时效下载地址 */
+export const requestDeliveryDownload = (data: { fileId: number; productId?: number; orderId?: number }) => {
+    return request<{ downloadUrl: string; expiresAt: number; fileName: string; fileSize: number }>({
+        url: "product/delivery/requestDownload",
+        method: "post",
+        data
+    });
+};
+
 export const getProductDetail = (id: number | ProductDetailParams) => {
     let params: ProductDetailParams = {};
 
