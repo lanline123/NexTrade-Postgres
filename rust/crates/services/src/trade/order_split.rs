@@ -463,7 +463,7 @@ impl OrderSplitService {
                 patch = patch.i32_val("shop_id", groups[0].shop_id);
                 patch = patch.opt_i32("vendor_id", groups[0].last_item_vendor());
             }
-            self.admin().update_order(order_id, patch).await?;
+            self.admin().update_order(order_id, &patch).await?;
             return Ok(true);
         }
         let children = self.create_children(&parent, &groups).await?;
@@ -472,7 +472,7 @@ impl OrderSplitService {
         self.admin()
             .update_order(
                 order_id,
-                OrderPatch::new()
+                &OrderPatch::new()
                     .i32_val("is_store_splited", 1)
                     .i32_val("is_valid", 1),
             )
@@ -532,7 +532,7 @@ impl OrderSplitService {
                 patch = patch.i32_val("shop_id", groups[0].shop_id);
                 patch = patch.opt_i32("vendor_id", groups[0].last_item_vendor());
             }
-            self.admin().update_order(order_id, patch).await?;
+            self.admin().update_order(order_id, &patch).await?;
             return Ok(true);
         }
         let children = self.create_children(&parent, &groups).await?;
@@ -579,7 +579,7 @@ impl OrderSplitService {
             if let Some(v) = shares.offline {
                 patch = patch.decimal("offline_paid_amount", v);
             }
-            self.admin().update_order(child.order_id, patch).await?;
+            self.admin().update_order(child.order_id, &patch).await?;
             // 子单 paylog 补齐/同步到已支付口径（退款通路前置）。
             let mut synced = child.clone();
             if let Some(v) = shares.paid {
@@ -611,7 +611,7 @@ impl OrderSplitService {
         self.remap_salesman_rows(parent.order_id, &item_map).await;
         // 父单标记无效（留痕不删除）。
         self.admin()
-            .update_order(parent.order_id, OrderPatch::new().i32_val("is_valid", 0))
+            .update_order(parent.order_id, &OrderPatch::new().i32_val("is_valid", 0))
             .await?;
         Ok(())
     }
@@ -1114,7 +1114,7 @@ impl OrderSplitService {
             .decimal("round_off_dime_amount", o.round_off_dime_amount)
             .decimal("round_off_cents_amount", o.round_off_cents_amount)
             .opt_decimal("tax_rate_amount", o.tax_rate_amount);
-        self.admin().update_order(o.order_id, patch).await?;
+        self.admin().update_order(o.order_id, &patch).await?;
         Ok(())
     }
 }
