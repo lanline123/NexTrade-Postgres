@@ -1,244 +1,238 @@
 /**
- * 商品分组 设置（对齐 view/admin mobilePro/productGrouping/Settings.vue）
- *
- * 页签：商品设置 / 扩展设置（商品颜色设置 + 分组标题设置 + ModuleStyle/ContentStyle
- * type="productGrouping"）。
- * 手动组 GroupListEdit 以 GroupCardList 承接：主标题/副标题/查看更多链接（SelectLink
- * 文本输入写回 titleLink 同一结构）/自定义图片（bannerPic PicSelect）可编辑；组内商品
- * 走共享 ProductInfoSelect（快照式选品），可增删/更换/拖拽排序组内 productList；
- * 新建组默认值与删组下限（可删至 0 组）均按原版 GroupListEdit 口径。
- * 商品分组来源 ProductGroupSelect（DialogForm 选分组）无现成选择 API：分组名只读展示，
- * title/subTitle/menuTitle/productNumType/productNum 等普通字段本地可编辑。
- * 列表样式/字号类原版为图标 radio，本实现以等值文字钮承接。
- * bottomMoreBtn 系列原版 Settings.vue 无编辑入口（仅 defaults + Preview 消费），故不提供。
- */
-import { Input, InputNumber } from "@douyinfe/semi-ui";
+* 商品分组 设置（对齐 view/admin mobilePro/productGrouping/Settings.vue）
+*
+* 页签：商品设置 / 扩展设置（商品颜色设置 + 分组标题设置 + ModuleStyle/ContentStyle
+* type="productGrouping"）。
+* 手动组 GroupListEdit 以 GroupCardList 承接：主标题/副标题/查看更多链接（SelectLink
+* 文本输入写回 titleLink 同一结构）/自定义图片（bannerPic PicSelect）可编辑；组内商品
+* 走共享 ProductInfoSelect（快照式选品），可增删/更换/拖拽排序组内 productList；
+* 新建组默认值与删组下限（可删至 0 组）均按原版 GroupListEdit 口径。
+* 商品分组来源 ProductGroupSelect（DialogForm 选分组）无现成选择 API：分组名只读展示，
+* title/subTitle/menuTitle/productNumType/productNum 等普通字段本地可编辑。
+* 列表样式/字号/粗细原版为图标 radio，现走共享视觉选择器
+* 。
+* bottomMoreBtn 系列原版 Settings.vue 无编辑入口（仅 defaults + Preview 消费），故不提供。
+*/
+import { InputNumber} from "@douyinfe/semi-ui";
 import {
-    SettingGroup,
-    SettingRow,
-    RadioRowField,
-    RadioField,
-    RangeField,
-    ColorField,
-    TextField,
-    PicSelectField,
-    DecDivider
+SettingGroup,
+SettingRow,
+RadioRowField,
+RadioField,
+RangeField,
+ColorField,
+TextField,
+PicSelectField,
+PicLinkField,
+DecDivider
 } from "../../../shared/settingWidgets";
-import { SettingsTabs, GroupCardList, ExtensionStyleSettings, PicFillTypeField } from "../../../shared/styleEdits";
+import { TemplateIconRadioField, TemplateIconRadioRowField} from "../../../shared/templateIcon";
+import { SettingsTabs, GroupCardList, ExtensionStyleSettings, PicFillTypeField} from "../../../shared/styleEdits";
 import ProductInfoSelect from "../../../shared/ProductInfoSelect";
-import { cloneDeep, defaultBuyButtonStyle } from "../../../contract/sharedDefaults";
-import { useI18n } from "../../../../../i18n";
+import { cloneDeep, defaultBuyButtonStyle} from "../../../contract/sharedDefaults";
+import { useI18n} from "../../../../../i18n";
 
 type Patch = Record<string, any>;
 interface Props {
-    data: Record<string, any>;
-    onChange: (patch: Patch) => void;
+data: Record<string, any>;
+onChange: (patch: Patch) => void;
 }
 
 const SHOW_OPTIONS = [
-    { value: 1, label: "显示" },
-    { value: 0, label: "不显示" }
+{ value: 1, label: "显示"},
+{ value: 0, label: "不显示"}
 ];
-const WEIGHT_OPTIONS = [
-    { value: 400, label: "常规体" },
-    { value: 700, label: "加粗体" }
+const WEIGHT_ICON_OPTIONS = [
+{ value: 400, label: "常规体", aSize: 14},
+{ value: 700, label: "加粗体", aSize: 14, aBold: true}
 ];
 
-function LinkInput({ value, onChangeValue, placeholder }: { value: string; onChangeValue: (v: string) => void; placeholder?: string }) {
-    const { t } = useI18n();
-    return (
-        <Input
-            value={value}
-            placeholder={placeholder ? t(placeholder) : undefined}
-            style={{ width: 240, maxWidth: "100%" }}
-            onChange={(v: string) => onChangeValue(v)}
-        />
-    );
+function LinkInput({ value, onChangeValue}: { value: any; onChangeValue: (v: any) => void}) {
+return <PicLinkField value={value?? null} onChange={(v) => onChangeValue(v)} />;
 }
 
-function ManualGroupEditor({ data, onChange }: Props) {
-    const { t } = useI18n();
-    const groups: Array<Record<string, any>> = Array.isArray(data?.productGroups) ? data.productGroups : [];
-    const setList = (next: Array<Record<string, any>>) => onChange({ productGroups: next });
-    const patchItem = (index: number, patch: Patch) => setList(groups.map((g, i) => (i === index ? { ...g, ...patch } : g)));
-    const moveItem = (index: number, delta: number) => {
-        const target = index + delta;
-        if (target < 0 || target >= groups.length) return;
-        const next = [...groups];
-        [next[index], next[target]] = [next[target], next[index]];
-        setList(next);
-    };
-    return (
-        <GroupCardList
-            items={groups}
-            addText="添加一组"
-            onAdd={() =>
-                setList([
-                    ...groups,
-                    {
-                        title: "",
-                        subTitle: "",
-                        productList: [],
-                        bannerPic: {},
-                        bannerLink: { link: { link: "", title: "" }, linkTitle: "" },
-                        titleLink: { link: { link: "", title: "" }, linkTitle: "" }
-                    }
-                ])
-            }
-            onRemove={(index) => setList(groups.filter((_, i) => i !== index))}
-            onMove={moveItem}
-            renderItem={(group, index) => {
-                const sub: Props = { data: group, onChange: (patch: Patch) => patchItem(index, patch) };
-                const linkUrl = group.titleLink?.link?.link ?? (typeof group.titleLink?.link === "string" ? group.titleLink.link : "");
-                return (
-                    <>
-                        <TextField {...sub} field="title" label="主标题" placeholder="请输入标题内容" />
-                        <TextField {...sub} field="subTitle" label="副标题" placeholder="请输入标题内容" />
-                        <SettingRow label="查看更多链接">
-                            <LinkInput
-                                value={linkUrl}
-                                placeholder="跳转链接，如 /pages/product/index?id=1"
-                                onChangeValue={(v) =>
-                                    patchItem(index, {
-                                        titleLink: { ...(group.titleLink || {}), link: { ...(group.titleLink?.link && typeof group.titleLink.link === "object" ? group.titleLink.link : {}), link: v } }
-                                    })
-                                }
-                            />
-                        </SettingRow>
-                        <PicSelectField {...sub} field="bannerPic" label="自定义图片" />
-                        <SettingRow label="选择商品" block>
-                            <ProductInfoSelect
-                                value={Array.isArray(group.productList) ? group.productList : []}
-                                onChange={(next) => patchItem(index, { productList: next })}
-                                isMultiple
-                            />
-                            <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6, marginTop: 8 }}>{t("提示：您可以通过拖拽进行商品排序")}</div>
-                        </SettingRow>
-                    </>
-                );
-            }}
-        />
-    );
+function ManualGroupEditor({ data, onChange}: Props) {
+const { t} = useI18n();
+const groups: Array<Record<string, any>> = Array.isArray(data?.productGroups)? data.productGroups: [];
+const setList = (next: Array<Record<string, any>>) => onChange({ productGroups: next});
+const patchItem = (index: number, patch: Patch) => setList(groups.map((g, i) => (i === index? {...g,...patch}: g)));
+const moveItem = (index: number, delta: number) => {
+const target = index + delta;
+if (target < 0 || target >= groups.length) return;
+const next = [...groups];
+[next[index], next[target]] = [next[target], next[index]];
+setList(next);
+};
+return (
+<GroupCardList
+items={groups}
+addText="添加一组"
+onAdd={() =>
+setList([
+...groups,
+{
+title: "",
+subTitle: "",
+productList: [],
+bannerPic: {},
+bannerLink: { link: { link: "", title: ""}, linkTitle: ""},
+titleLink: { link: { link: "", title: ""}, linkTitle: ""}
+}
+])
+}
+onRemove={(index) => setList(groups.filter((_, i) => i!== index))}
+onMove={moveItem}
+renderItem={(group, index) => {
+const sub: Props = { data: group, onChange: (patch: Patch) => patchItem(index, patch)};
+const linkValue = group.titleLink?.link && typeof group.titleLink.link === "object"? group.titleLink.link: typeof group.titleLink?.link === "string"? { link: group.titleLink.link, title: "" }: null;
+return (
+<>
+<TextField {...sub} field="title" label="主标题" placeholder="请输入标题内容" />
+<TextField {...sub} field="subTitle" label="副标题" placeholder="请输入标题内容" />
+<SettingRow label="查看更多链接">
+<LinkInput
+value={linkValue}
+onChangeValue={(v) =>
+patchItem(index, {
+titleLink: {...(group.titleLink || {}), link: v}
+})
+}
+/>
+</SettingRow>
+<PicSelectField {...sub} field="bannerPic" label="自定义图片" />
+<SettingRow label="选择商品" block>
+<ProductInfoSelect
+value={Array.isArray(group.productList)? group.productList: []}
+onChange={(next) => patchItem(index, { productList: next})}
+isMultiple
+/>
+<div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6, marginTop: 8}}>{t("提示：您可以通过拖拽进行商品排序")}</div>
+</SettingRow>
+</>
+);
+}}
+/>
+);
 }
 
-function GroupSourceEditor({ data, onChange }: Props) {
-    const list: Array<Record<string, any>> = Array.isArray(data?.groupList) ? data.groupList : [];
-    const patchItem = (index: number, patch: Patch) => onChange({ groupList: list.map((g, i) => (i === index ? { ...g, ...patch } : g)) });
-    return (
-        <div style={{ padding: "0 16px 10px" }}>
-            <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6, marginBottom: 8 }}>
-                商品分组选择器（ProductGroupSelect 弹窗）尚未接入本编辑器，已选分组保持不变；以下普通字段可直接编辑。
-            </div>
-            {list.length === 0 ? <div style={{ color: "#999", fontSize: 12 }}>暂无已选商品分组</div> : null}
-            {list.map((group, index) => {
-                const sub: Props = { data: group, onChange: (patch: Patch) => patchItem(index, patch) };
-                return (
-                    <div key={index} style={{ backgroundColor: "#fff", borderRadius: 2, boxShadow: "0 0 4px 0 rgba(10, 42, 97, 0.2)", padding: "6px 0", marginTop: 12 }}>
-                        <SettingRow label="商品来源">
-                            <span style={{ fontSize: 13, color: "#155bd4" }}>{group.productGroupName || `分组${group.productGroupId ?? ""}`}</span>
-                        </SettingRow>
-                        <TextField {...sub} field="menuTitle" label="菜单名称" placeholder="请输入菜单名称" />
-                        <RadioRowField
-                            {...sub}
-                            field="productNumType"
-                            label="商品个数"
-                            options={[
-                                { value: "all", label: "全部" },
-                                { value: "number", label: "指定数量" }
-                            ]}
-                        />
-                        {group.productNumType === "number" ? (
-                            <SettingRow label="商品数量">
-                                <InputNumber value={Number(group.productNum ?? 6)} min={1} style={{ width: 120 }} onChange={(v: any) => patchItem(index, { productNum: Number(v) || 0 })} />
-                            </SettingRow>
-                        ) : null}
-                        <TextField {...sub} field="title" label="主标题" placeholder="请输入标题内容" />
-                        <TextField {...sub} field="subTitle" label="副标题" placeholder="请输入标题内容" />
-                        <PicSelectField {...sub} field="bannerPic" label="自定义图片" />
-                    </div>
-                );
-            })}
-        </div>
-    );
+function GroupSourceEditor({ data, onChange}: Props) {
+const list: Array<Record<string, any>> = Array.isArray(data?.groupList)? data.groupList: [];
+const patchItem = (index: number, patch: Patch) => onChange({ groupList: list.map((g, i) => (i === index? {...g,...patch}: g))});
+return (
+<div style={{ padding: "0 16px 10px"}}>
+<div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6, marginBottom: 8}}>
+商品分组选择器（ProductGroupSelect 弹窗）尚未接入本编辑器，已选分组保持不变；以下普通字段可直接编辑。
+</div>
+{list.length === 0? <div style={{ color: "#999", fontSize: 12}}>暂无已选商品分组</div>: null}
+{list.map((group, index) => {
+const sub: Props = { data: group, onChange: (patch: Patch) => patchItem(index, patch)};
+return (
+<div key={index} style={{ backgroundColor: "#fff", borderRadius: 2, boxShadow: "0 0 4px 0 rgba(10, 42, 97, 0.2)", padding: "6px 0", marginTop: 12}}>
+<SettingRow label="商品来源">
+<span style={{ fontSize: 13, color: "#155bd4"}}>{group.productGroupName || `分组${group.productGroupId?? ""}`}</span>
+</SettingRow>
+<TextField {...sub} field="menuTitle" label="菜单名称" placeholder="请输入菜单名称" />
+<RadioRowField
+{...sub}
+field="productNumType"
+label="商品个数"
+options={[
+{ value: "all", label: "全部"},
+{ value: "number", label: "指定数量"}
+]}
+/>
+{group.productNumType === "number"? (
+<SettingRow label="商品数量">
+<InputNumber value={Number(group.productNum?? 6)} min={1} style={{ width: 120}} onChange={(v: any) => patchItem(index, { productNum: Number(v) || 0})} />
+</SettingRow>
+): null}
+<TextField {...sub} field="title" label="主标题" placeholder="请输入标题内容" />
+<TextField {...sub} field="subTitle" label="副标题" placeholder="请输入标题内容" />
+<PicSelectField {...sub} field="bannerPic" label="自定义图片" />
+</div>
+);
+})}
+</div>
+);
 }
 
-function BuyBtnFields({ data, onChange }: Props) {
-    const btn = data?.buyBtnStyle && typeof data.buyBtnStyle === "object" ? data.buyBtnStyle : cloneDeep(defaultBuyButtonStyle);
-    const sub: Props = { data: btn, onChange: (patch: Patch) => onChange({ buyBtnStyle: { ...btn, ...patch } }) };
-    return (
-        <>
-            <DecDivider />
-            <RadioRowField
-                {...sub}
-                field="showBtn"
-                label="购买按钮"
-                options={[
-                    { value: 0, label: "不显示" },
-                    { value: 1, label: "显示" }
-                ]}
-            />
-            {Number(btn.showBtn) === 1 ? (
-                <>
-                    <SettingRow label="购买按钮图标样式" block>
-                        <RadioField
-                            {...sub}
-                            field="btnType"
-                            options={[
-                                { value: 1, label: "样式一" },
-                                { value: 2, label: "样式二" },
-                                { value: 3, label: "样式三" },
-                                { value: 4, label: "样式四" },
-                                { value: 5, label: "自定义图片" }
-                            ]}
-                        />
-                    </SettingRow>
-                    {Number(btn.btnType) === 5 ? <PicSelectField {...sub} field="iconImage" label="自定义图标图片" /> : null}
-                    <RangeField {...sub} field="iconSize" label="图标尺寸" min={12} max={40} />
-                    <TextField {...sub} field="text" label="文字内容" placeholder="请输入按钮文字" />
-                    <RadioRowField
-                        {...sub}
-                        field="wrap"
-                        label="按钮换行"
-                        options={[
-                            { value: 0, label: "不换行" },
-                            { value: 1, label: "换行" }
-                        ]}
-                    />
-                    {Number(btn.wrap) === 1 ? (
-                        <RadioRowField
-                            {...sub}
-                            field="wrapAlign"
-                            label="换行后对齐"
-                            options={[
-                                { value: 1, label: "居左" },
-                                { value: 2, label: "居中" },
-                                { value: 3, label: "居右" }
-                            ]}
-                        />
-                    ) : null}
-                    <RangeField {...sub} field="textSize" label="文字字号" min={10} max={24} />
-                    <ColorField {...sub} field="textColor" label="文字颜色" resetValue="#ffffff" />
-                    <ColorField {...sub} field="iconColor" label="图标颜色" resetValue="#ffffff" />
-                    <RadioRowField
-                        {...sub}
-                        field="gradientType"
-                        label="背景渐变方向"
-                        options={[
-                            { value: "upDown", label: "上下" },
-                            { value: "leftRight", label: "左右" },
-                            { value: "diagonal", label: "斜向" },
-                            { value: "purity", label: "纯色" }
-                        ]}
-                    />
-                    <ColorField {...sub} field="gradientColorA" label="背景渐变颜色A" resetValue="#333333" />
-                    <ColorField {...sub} field="gradientColorB" label="背景渐变颜色B" resetValue="#333333" />
-                    <RangeField {...sub} field="radius" label="按钮圆角" max={20} />
-                    <RangeField {...sub} field="paddingTopBottom" label="按钮高度" max={10} />
-                    <RangeField {...sub} field="paddingLeftRight" label="按钮宽度" max={10} />
-                </>
-            ) : null}
-        </>
-    );
+function BuyBtnFields({ data, onChange}: Props) {
+const btn = data?.buyBtnStyle && typeof data.buyBtnStyle === "object"? data.buyBtnStyle: cloneDeep(defaultBuyButtonStyle);
+const sub: Props = { data: btn, onChange: (patch: Patch) => onChange({ buyBtnStyle: {...btn,...patch}})};
+return (
+<>
+<DecDivider />
+<RadioRowField
+{...sub}
+field="showBtn"
+label="购买按钮"
+options={[
+{ value: 0, label: "不显示"},
+{ value: 1, label: "显示"}
+]}
+/>
+{Number(btn.showBtn) === 1? (
+<>
+<SettingRow label="购买按钮图标样式" block>
+<RadioField
+{...sub}
+field="btnType"
+options={[
+{ value: 1, label: "样式一"},
+{ value: 2, label: "样式二"},
+{ value: 3, label: "样式三"},
+{ value: 4, label: "样式四"},
+{ value: 5, label: "自定义图片"}
+]}
+/>
+</SettingRow>
+{Number(btn.btnType) === 5? <PicSelectField {...sub} field="iconImage" label="自定义图标图片" />: null}
+<RangeField {...sub} field="iconSize" label="图标尺寸" min={12} max={40} />
+<TextField {...sub} field="text" label="文字内容" placeholder="请输入按钮文字" />
+<RadioRowField
+{...sub}
+field="wrap"
+label="按钮换行"
+options={[
+{ value: 0, label: "不换行"},
+{ value: 1, label: "换行"}
+]}
+/>
+{Number(btn.wrap) === 1? (
+<RadioRowField
+{...sub}
+field="wrapAlign"
+label="换行后对齐"
+options={[
+{ value: 1, label: "居左"},
+{ value: 2, label: "居中"},
+{ value: 3, label: "居右"}
+]}
+/>
+): null}
+<RangeField {...sub} field="textSize" label="文字字号" min={10} max={24} />
+<ColorField {...sub} field="textColor" label="文字颜色" resetValue="#ffffff" />
+<ColorField {...sub} field="iconColor" label="图标颜色" resetValue="#ffffff" />
+<RadioRowField
+{...sub}
+field="gradientType"
+label="背景渐变方向"
+options={[
+{ value: "upDown", label: "上下"},
+{ value: "leftRight", label: "左右"},
+{ value: "diagonal", label: "斜向"},
+{ value: "purity", label: "纯色"}
+]}
+/>
+<ColorField {...sub} field="gradientColorA" label="背景渐变颜色A" resetValue="#333333" />
+<ColorField {...sub} field="gradientColorB" label="背景渐变颜色B" resetValue="#333333" />
+<RangeField {...sub} field="radius" label="按钮圆角" max={20} />
+<RangeField {...sub} field="paddingTopBottom" label="按钮高度" max={10} />
+<RangeField {...sub} field="paddingLeftRight" label="按钮宽度" max={10} />
+</>
+): null}
+</>
+);
 }
 
 export default function ProductGroupingSettings({ data, onChange }: Props) {
@@ -282,20 +276,19 @@ export default function ProductGroupingSettings({ data, onChange }: Props) {
                                 ]}
                             />
                         </SettingRow>
-                        <SettingRow label="列表样式" block>
-                            <RadioField
-                                data={data}
-                                onChange={onChange}
-                                field="listStyle"
-                                options={[
-                                    { value: 1, label: "大图模式" },
-                                    { value: 2, label: "一行两个" },
-                                    { value: 3, label: "一行三个" },
-                                    { value: 4, label: "一行四个" },
-                                    { value: 5, label: "一大两小" }
-                                ]}
-                            />
-                        </SettingRow>
+                        <TemplateIconRadioField
+                            data={data}
+                            onChange={onChange}
+                            field="listStyle"
+                            label="列表样式"
+                            options={[
+                                { value: 1, label: "大图模式", icon: "up2end" },
+                                { value: 2, label: "一行两个", icon: "small" },
+                                { value: 3, label: "一行三个", icon: "three" },
+                                { value: 4, label: "一行四个", icon: "cuberow1" },
+                                { value: 5, label: "一大两小", icon: "hybrid" }
+                            ]}
+                        />
                         <RadioRowField
                             data={data}
                             onChange={onChange}
@@ -337,24 +330,24 @@ export default function ProductGroupingSettings({ data, onChange }: Props) {
                                     { value: 2, label: "两行" }
                                 ]}
                             />
-                            <RadioRowField data={data} onChange={onChange} field="productNameWeight" label="标题粗细" options={WEIGHT_OPTIONS} />
+                            <TemplateIconRadioRowField data={data} onChange={onChange} field="productNameWeight" label="标题粗细" options={WEIGHT_ICON_OPTIONS} />
                             <RangeField data={data} onChange={onChange} field="productNameSize" label="标题大小" min={12} max={16} />
                         </>
                     ) : null}
                     <RadioRowField data={data} onChange={onChange} field="showProductPrice" label="商品价格" options={SHOW_OPTIONS} />
                     {Number(data?.showProductPrice) === 1 ? (
                         <>
-                            <RadioRowField data={data} onChange={onChange} field="productPriceWeight" label="价格文字粗细" options={WEIGHT_OPTIONS} />
-                            <RadioRowField
+                            <TemplateIconRadioRowField data={data} onChange={onChange} field="productPriceWeight" label="价格文字粗细" options={WEIGHT_ICON_OPTIONS} />
+                            <TemplateIconRadioRowField
                                 data={data}
                                 onChange={onChange}
                                 field="productPriceSize"
                                 label="价格文字大小"
                                 options={[
-                                    { value: 12, label: "小(12号)" },
-                                    { value: 14, label: "小(14号)" },
-                                    { value: 16, label: "中(16号)" },
-                                    { value: 18, label: "大(18号)" }
+                                    { value: 12, label: "小(12号)", aSize: 12, aBold: true },
+                                    { value: 14, label: "小(14号)", aSize: 14, aBold: true },
+                                    { value: 16, label: "中(16号)", aSize: 16, aBold: true },
+                                    { value: 18, label: "大(18号)", aSize: 18, aBold: true }
                                 ]}
                             />
                             <PicSelectField data={data} onChange={onChange} field="productPricePic" label="价格标签图(宽不限,高20)" />
@@ -384,14 +377,14 @@ export default function ProductGroupingSettings({ data, onChange }: Props) {
                         <RadioRowField {...gtProps} field="showTitle" label="分组大标题" options={SHOW_OPTIONS} />
                         {Number(gt.showTitle) === 1 ? (
                             <>
-                                <RadioRowField
+                                <TemplateIconRadioRowField
                                     {...gtProps}
                                     field="bigTitleFontSize"
                                     label="大标题大小"
                                     options={[
-                                        { value: 14, label: "小(14号)" },
-                                        { value: 16, label: "中(16号)" },
-                                        { value: 18, label: "大(18号)" }
+                                        { value: 14, label: "小(14号)", aSize: 14, aBold: true },
+                                        { value: 16, label: "中(16号)", aSize: 16, aBold: true },
+                                        { value: 18, label: "大(18号)", aSize: 18, aBold: true }
                                     ]}
                                 />
                                 <ColorField {...gtProps} field="titleColor" label="大标题默认颜色" resetValue="" />
@@ -401,14 +394,14 @@ export default function ProductGroupingSettings({ data, onChange }: Props) {
                         <RadioRowField {...gtProps} field="showSubTitle" label="分组副标题" options={SHOW_OPTIONS} />
                         {Number(gt.showSubTitle) === 1 ? (
                             <>
-                                <RadioRowField
+                                <TemplateIconRadioRowField
                                     {...gtProps}
                                     field="titleFontSize"
                                     label="副标题大小"
                                     options={[
-                                        { value: 12, label: "小(12号)" },
-                                        { value: 14, label: "中(14号)" },
-                                        { value: 16, label: "大(16号)" }
+                                        { value: 12, label: "小(12号)", aSize: 12, aBold: true },
+                                        { value: 14, label: "中(14号)", aSize: 14, aBold: true },
+                                        { value: 16, label: "大(16号)", aSize: 16, aBold: true }
                                     ]}
                                 />
                                 <ColorField {...gtProps} field="subTitleColor" label="副标题默认颜色" resetValue="" />

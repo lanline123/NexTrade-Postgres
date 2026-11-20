@@ -20,3 +20,27 @@
 .decorate-image-hotarea .module-ad-content {
     overflow: hidden;
 }
+/* 2026-11-20 症状三：编辑器嵌入态在流占位（PC HotareaPreview 口径换算 rpx：
+   空态 paddingTop 60rpx / paddingBottom 100rpx / 200rpx 占位盒；条目未选图 40% 比例块）。
+   仅 decoratePreview 嵌入态渲染，前台不出现。 */
+.decorate-image-hotarea .image-hotarea-empty {
+    padding-top: 60rpx;
+    padding-bottom: 100rpx;
+    background-color: #f2f4f6;
+    text-align: center;
+}
+.decorate-image-hotarea .image-hotarea-empty__box {
+    width: 200rpx;
+    height: 200rpx;
+    margin: 0 auto 20rpx;
+    background-color: #e4e7eb;
+}
+.decorate-image-hotarea .image-hotarea-empty__text {
+    font-size: 26rpx;
+    color: #909399;
+}
+.decorate-image-hotarea .image-hotarea-img-placeholder {
+    width: 100%;
+    padding-top: 40%;
+    background-color: #f2f4f6;
+}

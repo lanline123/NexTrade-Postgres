@@ -1,39 +1,44 @@
 /**
- * 模块设置面板通用控件（Semi/React 版，壳层对齐 view/admin 的 dec-* 体系）
- *
- * 结构/数值口径（原版 src/css/decorate.less + 各共享 Edit 组件）：
- * - 字段行 `.dec-edit-group`（padding 10px 16px；标签 .label 14px #969799 margin-right 16px；控件区 .dec-edit-group-con flex:1 右对齐）
- * - 分组标题三形态：dec-spread-title（平面粗体）/ dec-edit-title-box（灰带 + 3px 蓝条）/ dec-edit-section-title
- * - 单选组：以 PC 编辑器为准（用户裁定 2026-11-19）——模块字段用普通 Semi RadioGroup
- *   圆点形态（同 PcDecorateEditor FieldControl 的 kind:'radio' 写法，无 type）；仅页面设置
- *   用 Semi RadioGroup type="button" 分段形态（同 PC PageSettings），见 SegmentedButtonRadio
- * - 滑杆 `.dec-range-group`：共享 SliderWithInput（Semi Slider + InputNumber，同 PC 编辑器）
- * - 颜色行：共享 components/ColorField 外壳（「重置」链 + AlphaColorInput，预置色为原版 SelectColor 14 色）
- * - 图片：单图走共享 ImageUploader、列表走 GalleryPickerModal（素材库口径，同 PC 编辑器；原 Semi Upload 直传已弃）
- * - 链接：共享 LinkField（components/LinkPicker），经 PicLinkField 适配——回写保留原链接
- *   对象全部字段（原版 SelectLink 的完整 LinkType：path/label/name/data 等），只更新 link/title
- * - 图片列表 `.dec-pic-group`：60×60 contain 图盒 + 底部 20px「更换图片」条 + hover 删除徽标 + 信息行 + 整宽添加按钮 + 上移/下移
- *
- * 统一 onChange(patch) 协议：所有控件只上报字段级 patch，由 store 浅合并进模块数据。
- */
-import { useState } from "react";
-import { Input, Radio, RadioGroup, Select, Switch } from "@douyinfe/semi-ui";
-import { IconPlus } from "@douyinfe/semi-icons";
+* 模块设置面板通用控件（Semi/React 版，壳层对齐 view/admin 的 dec-* 体系）
+*
+* 结构/数值口径（原版 src/css/decorate.less + 各共享 Edit 组件）：
+* - 字段行 `.dec-edit-group`（padding 10px 16px；标签.label 14px #969799 margin-right 16px；控件区.dec-edit-group-con flex:1 右对齐）
+* - 分组标题三形态：dec-spread-title（平面粗体）/ dec-edit-title-box（灰带 + 3px 蓝条）/ dec-edit-section-title
+* - 单选组：以 PC 编辑器为准（用户裁定 2026-11-19）——模块字段用普通 Semi RadioGroup
+* 圆点形态（同 PcDecorateEditor FieldControl 的 kind:'radio' 写法，无 type）；仅页面设置
+* 用 Semi RadioGroup type="button" 分段形态（同 PC PageSettings），见 SegmentedButtonRadio
+* - 滑杆 `.dec-range-group`：共享 SliderWithInput（Semi Slider + InputNumber，同 PC 编辑器）
+* - 颜色行：共享 components/ColorField 外壳（「重置」链 + AlphaColorInput，预置色为原版 SelectColor 14 色）
+* - 图片：单图走共享 ImageUploader、列表走 GalleryPickerModal（素材库口径，同 PC 编辑器；原 Semi Upload 直传已弃）
+* - 链接：共享 LinkField（components/LinkPicker），经 PicLinkField 适配——回写保留原链接
+* 对象全部字段（原版 SelectLink 的完整 LinkType：path/label/name/data 等），只更新 link/title
+* - 图片列表 `.dec-pic-group`：60×60 contain 图盒 + 底部 20px「更换图片」条 + hover 删除徽标 + 信息行 + 整宽添加按钮 + 上移/下移
+*
+* 统一 onChange(patch) 协议：所有控件只上报字段级 patch，由 store 浅合并进模块数据。
+*
+* PicItemEditor（2026-11-20 新增）：PicListField 的单条目编辑（图盒/标题/描述/链接/
+* 排序行/删除徽标）抽为共享组件，PicListField 内部改用它（既有使用方 DOM 与行为
+* 不变，图库弹窗仍由 PicListField 统一托管）；单图槽位模块（图片魔方 imageSquareAd）
+* 可直接复用它编辑 picList[picIndex]。
+*/
+import { useState} from "react";
+import { Input, Radio, RadioGroup, Select, Switch} from "@douyinfe/semi-ui";
+import { IconPlus} from "@douyinfe/semi-icons";
 import AlphaColorInput from "../../../components/AlphaColorInput";
 import SliderWithInput from "../../../components/SliderWithInput";
 import SharedColorField from "../../../components/ColorField";
 import ImageUploader from "../../../components/ImageUploader";
 import GalleryPickerModal from "../../../components/GalleryPickerModal";
 import FloorIcon from "../../../components/FloorIcon";
-import { LinkField, type LinkValue } from "../../../components/LinkPicker";
-import { imageFormat, pickPic } from "./format";
-import { defaultTitle, defaultFrame } from "../contract/sharedDefaults";
+import { LinkField, type LinkValue} from "../../../components/LinkPicker";
+import { imageFormat, pickPic} from "./format";
+import { defaultTitle, defaultFrame} from "../contract/sharedDefaults";
 
-import { useI18n } from '../../../i18n';
+import { useI18n} from '../../../i18n';
 type Patch = Record<string, any>;
 interface FieldProps {
-    data: Record<string, any>;
-    onChange: (patch: Patch) => void;
+data: Record<string, any>;
+onChange: (patch: Patch) => void;
 }
 
 // ---------------- 布局 ----------------
@@ -41,116 +46,116 @@ interface FieldProps {
 /** 分组标题形态：box=dec-edit-title-box（默认）/ spread=dec-spread-title / section=dec-edit-section-title */
 export type SettingGroupVariant = "box" | "spread" | "section";
 
-export function SettingGroup({ title, children, variant = "box" }: { title?: string; children: React.ReactNode; variant?: SettingGroupVariant }) {
-    const { t } = useI18n();
-    return (
-        <div className="h5-editor-setting-group">
-            {title ? (
-                variant === "spread" ? (
-                    <div className="dec-spread-title">
-                        <div className="title">{t(title)}</div>
-                    </div>
-                ) : variant === "section" ? (
-                    <div className="dec-edit-section-title">{t(title)}</div>
-                ) : (
-                    <div className="dec-edit-title-box">
-                        <div className="title">{t(title)}</div>
-                    </div>
-                )
-            ) : null}
-            {children}
-        </div>
-    );
+export function SettingGroup({ title, children, variant = "box"}: { title?: string; children: React.ReactNode; variant?: SettingGroupVariant}) {
+const { t} = useI18n();
+return (
+<div className="h5-editor-setting-group">
+{title? (
+variant === "spread"? (
+<div className="dec-spread-title">
+<div className="title">{t(title)}</div>
+</div>
+): variant === "section"? (
+<div className="dec-edit-section-title">{t(title)}</div>
+): (
+<div className="dec-edit-title-box">
+<div className="title">{t(title)}</div>
+</div>
+)
+): null}
+{children}
+</div>
+);
 }
 
-/** 平面分组标题（原版 .dec-spread-title） */
-export function DecSpreadTitle({ title }: { title: string }) {
-    const { t } = useI18n();
-    return (
-        <div className="dec-spread-title">
-            <div className="title">{t(title)}</div>
-        </div>
-    );
+/** 平面分组标题（原版.dec-spread-title） */
+export function DecSpreadTitle({ title}: { title: string}) {
+const { t} = useI18n();
+return (
+<div className="dec-spread-title">
+<div className="title">{t(title)}</div>
+</div>
+);
 }
 
-/** 分隔线（原版 .dec-divider-line） */
+/** 分隔线（原版.dec-divider-line） */
 export function DecDivider() {
-    return <div className="dec-divider-line" />;
+return <div className="dec-divider-line" />;
 }
 
-/** 字段行（原版 .dec-edit-group）：左标签 + 右控件区 */
-export function SettingRow({ label, children, block = false }: { label: string; children: React.ReactNode; block?: boolean }) {
-    const { t } = useI18n();
-    return (
-        <div className={`dec-edit-group${block ? " dec-edit-group-block" : ""}`}>
-            <div className="dec-edit-group-title">
-                <div className="label">{label ? t(label) : ""}</div>
-            </div>
-            <div className="dec-edit-group-con">{children}</div>
-        </div>
-    );
+/** 字段行（原版.dec-edit-group）：左标签 + 右控件区 */
+export function SettingRow({ label, children, block = false}: { label: string; children: React.ReactNode; block?: boolean}) {
+const { t} = useI18n();
+return (
+<div className={`dec-edit-group${block? " dec-edit-group-block": ""}`}>
+<div className="dec-edit-group-title">
+<div className="label">{label? t(label): ""}</div>
+</div>
+<div className="dec-edit-group-con">{children}</div>
+</div>
+);
 }
 
 // ---------------- 单选组（以 PC 编辑器为准，用户裁定 2026-11-19） ----------------
 
 interface RadioOption {
-    value: number | string;
-    label: string;
+value: number | string;
+label: string;
 }
 
 /**
- * 选中态/回写值归一：按 String 比较命中选项（容忍存量数据里 "1"/1 混写），
- * 命中时一律使用选项的原始类型值——字符串选项（"normal"/"bold"/"500" 等）
- * 绝不做 Number() 转换，数字选项也保持数字。
- */
+* 选中态/回写值归一：按 String 比较命中选项（容忍存量数据里 "1"/1 混写），
+* 命中时一律使用选项的原始类型值——字符串选项（"normal"/"bold"/"500" 等）
+* 绝不做 Number() 转换，数字选项也保持数字。
+*/
 function matchRadioOption(value: any, options: RadioOption[]): RadioOption | undefined {
-    return options.find((o) => String(o.value) === String(value));
+return options.find((o) => String(o.value) === String(value));
 }
 
 function radioChangeValue(raw: any, options: RadioOption[]): number | string {
-    const matched = matchRadioOption(raw, options);
-    return matched ? matched.value : raw;
+const matched = matchRadioOption(raw, options);
+return matched? matched.value: raw;
 }
 
 /** 裸单选组（无字段行外壳，供 dec-edit-group-block 等容器内嵌使用）
- *  模块字段口径（用户裁定 2026-11-19 以 PC 编辑器为准）：普通 Semi RadioGroup
- *  圆点形态，无 type——同 PcDecorateEditor FieldControl 的 kind:'radio' 写法。
- *  函数名沿用 SegmentedRadio（近百处模块调用点不改名），仅形态变更。 */
-export function SegmentedRadio({ value, options, onChange }: { value: any; options: RadioOption[]; onChange: (v: number | string) => void }) {
-    const { t } = useI18n();
-    const matched = matchRadioOption(value, options);
-    return (
-        <RadioGroup
-            value={matched ? matched.value : value}
-            onChange={(e: any) => onChange(radioChangeValue(e?.target?.value, options))}
-        >
-            {options.map((o) => (
-                <Radio key={String(o.value)} value={o.value}>
-                    {t(o.label)}
-                </Radio>
-            ))}
-        </RadioGroup>
-    );
+* 模块字段口径（用户裁定 2026-11-19 以 PC 编辑器为准）：普通 Semi RadioGroup
+* 圆点形态，无 type——同 PcDecorateEditor FieldControl 的 kind:'radio' 写法。
+* 函数名沿用 SegmentedRadio（近百处模块调用点不改名），仅形态变更。 */
+export function SegmentedRadio({ value, options, onChange}: { value: any; options: RadioOption[]; onChange: (v: number | string) => void}) {
+const { t} = useI18n();
+const matched = matchRadioOption(value, options);
+return (
+<RadioGroup
+value={matched? matched.value: value}
+onChange={(e: any) => onChange(radioChangeValue(e?.target?.value, options))}
+>
+{options.map((o) => (
+<Radio key={String(o.value)} value={o.value}>
+{t(o.label)}
+</Radio>
+))}
+</RadioGroup>
+);
 }
 
 /** 单选（无标签行，整行单选组） */
-export function RadioField({ data, onChange, field, options }: FieldProps & { field: string; options: RadioOption[] }) {
-    return (
-        <div className="dec-edit-group">
-            <div className="dec-edit-group-con">
-                <SegmentedRadio value={data?.[field]} options={options} onChange={(v) => onChange({ [field]: v })} />
-            </div>
-        </div>
-    );
+export function RadioField({ data, onChange, field, options}: FieldProps & { field: string; options: RadioOption[]}) {
+return (
+<div className="dec-edit-group">
+<div className="dec-edit-group-con">
+<SegmentedRadio value={data?.[field]} options={options} onChange={(v) => onChange({ [field]: v})} />
+</div>
+</div>
+);
 }
 
 /** 带标题的单选 */
-export function RadioRowField({ data, onChange, field, label, options }: FieldProps & { field: string; label: string; options: RadioOption[] }) {
-    return (
-        <SettingRow label={label}>
-            <SegmentedRadio value={data?.[field]} options={options} onChange={(v) => onChange({ [field]: v })} />
-        </SettingRow>
-    );
+export function RadioRowField({ data, onChange, field, label, options}: FieldProps & { field: string; label: string; options: RadioOption[]}) {
+return (
+<SettingRow label={label}>
+<SegmentedRadio value={data?.[field]} options={options} onChange={(v) => onChange({ [field]: v})} />
+</SettingRow>
+);
 }
 
 /** 裸分段单选组（Semi RadioGroup type="button"）：仅页面设置使用——
@@ -526,11 +531,141 @@ export interface PicItem {
 }
 
 /**
+ * 单图条目编辑器（2026-11-20 自 PicListField 条目抽出）：图盒（60×60 contain +
+ * 底部「更换图片」条）+ 信息行（标题/描述/链接）+ 可选排序行（上移/下移）+ 可选
+ * 删除徽标，DOM/类名与 PicListField 条目逐一致。
+ * - onPickImage 存在时点击图盒走外部托管的图库弹窗（PicListField 的追加/替换
+ *   共用弹窗即此口径）；缺省时组件自带 GalleryPickerModal 单选弹窗，回写
+ *   { picUrl, picThumb }（保留条目其余字段）——单图槽位模块（图片魔方）用此形态。
+ * - onRemove 存在才渲染 del-item；单图槽位场景由调用方传「清空槽位」语义的回调
+ *   （原版 PicList 单图模式 removePhoto 清空图对象、槽位保留）。
+ * - showAddBox=true 时空态图盒内渲染加号框（原版 PicList pic-add-box 口径）。
+ */
+export function PicItemEditor({
+    item,
+    onPatch,
+    showText = true,
+    showDesc = false,
+    showLink = true,
+    showImage = true,
+    showAddBox = false,
+    onPickImage,
+    onRemove,
+    onMove,
+    isFirst = false,
+    isLast = false
+}: {
+    item: PicItem;
+    onPatch: (patch: Partial<PicItem>) => void;
+    showText?: boolean;
+    showDesc?: boolean;
+    showLink?: boolean;
+    showImage?: boolean;
+    showAddBox?: boolean;
+    onPickImage?: () => void;
+    onRemove?: () => void;
+    onMove?: (delta: number) => void;
+    isFirst?: boolean;
+    isLast?: boolean;
+}) {
+    const { t } = useI18n();
+    const [pickerOpen, setPickerOpen] = useState(false);
+    const handlePick = () => {
+        if (onPickImage) onPickImage();
+        else setPickerOpen(true);
+    };
+    return (
+        <>
+            {showImage ? (
+                <div className="item-image">
+                    <div className="item-image-con" onClick={handlePick}>
+                        {pickPic(item) ? (
+                            <img src={imageFormat(pickPic(item))} alt="" />
+                        ) : showAddBox ? (
+                            <span
+                                className="pic-add-box"
+                                style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#999" }}
+                            >
+                                <IconPlus size={20} />
+                            </span>
+                        ) : null}
+                        <span className="change-image">{t('更换图片')}</span>
+                    </div>
+                </div>
+            ) : null}
+            <div className="item-info">
+                {showText ? (
+                    <div className="item-info-item">
+                        <span className="lable">{t('标题')}</span>
+                        <Input
+                            size="small"
+                            placeholder={t('建议10个字以内，可不填')}
+                            value={item.picTitle ?? ""}
+                            onChange={(v: string) => onPatch({ picTitle: v })}
+                        />
+                    </div>
+                ) : null}
+                {showDesc ? (
+                    <div className="item-info-item">
+                        <span className="lable">{t('描述')}</span>
+                        <Input
+                            size="small"
+                            placeholder={t('可不填')}
+                            value={item.picDesc ?? ""}
+                            onChange={(v: string) => onPatch({ picDesc: v })}
+                        />
+                    </div>
+                ) : null}
+                {showLink ? (
+                    <div className="item-info-item">
+                        <span className="lable">{t('链接')}</span>
+                        <PicLinkField
+                            value={item.picLink}
+                            onChange={(v) => onPatch({ picLink: { ...(item.picLink || {}), ...v } })}
+                        />
+                    </div>
+                ) : null}
+                {onMove ? (
+                    <div className="item-info-item dec-pic-sort-row">
+                        <a className={isFirst ? "is-disabled" : ""} onClick={() => onMove(-1)}>
+                            {t('上移')}
+                        </a>
+                        <a className={isLast ? "is-disabled" : ""} onClick={() => onMove(1)}>
+                            {t('下移')}
+                        </a>
+                    </div>
+                ) : null}
+            </div>
+            {onRemove ? (
+                <span className="del-item" title={t('删除')} onClick={onRemove}>
+                    ×
+                </span>
+            ) : null}
+            {!onPickImage ? (
+                <GalleryPickerModal
+                    visible={pickerOpen}
+                    multiple={false}
+                    limit={1}
+                    onCancel={() => setPickerOpen(false)}
+                    onConfirm={(urls: string[]) => {
+                        const u = urls[0];
+                        if (u) onPatch({ picUrl: u, picThumb: u });
+                        setPickerOpen(false);
+                    }}
+                />
+            ) : null}
+        </>
+    );
+}
+
+/**
  * 图片列表编辑器（原版 PicList 形态）：
  * 每项 = 60×60 contain 图盒（底部 20px「更换图片」条）+ 信息行（标题/描述/链接）+ hover 删除徽标 + 上移/下移；
  * 底部整宽 `.dec-pic-add-btn` 添加按钮。showText/showDesc/showLink/showAddButton 默认同原版（true/false/true/true）。
  * showImage 同原版 PicList（默认 true）：false 时不渲染图盒、添加按钮直接追加空文字项不开图库
  * （原版 onAdd 的 showImage=false 分支；BannerNav 导航文字即此口径——只有文字+链接、无图片字段）。
+ * 条目编辑走共享 PicItemEditor（2026-11-20 抽出），图库弹窗仍由本组件统一托管
+ * （追加多选/替换单选），既有使用方行为不变。
  */
 export function PicListField({
     data,
@@ -588,64 +723,22 @@ export function PicListField({
                     {list.map((item, index) => (
                         <div key={index} className="dec-pic-group-item">
                             <div className="dec-pic-group-item-con">
-                                {showImage ? (
-                                    <div className="item-image">
-                                        <div
-                                            className="item-image-con"
-                                            onClick={() => {
-                                                setPickerIndex(index);
-                                                setPickerOpen(true);
-                                            }}
-                                        >
-                                            {pickPic(item) ? <img src={imageFormat(pickPic(item))} alt="" /> : null}
-                                            <span className="change-image">{t('更换图片')}</span>
-                                        </div>
-                                    </div>
-                                ) : null}
-                                <div className="item-info">
-                                    {showText ? (
-                                        <div className="item-info-item">
-                                            <span className="lable">{t('标题')}</span>
-                                            <Input
-                                                size="small"
-                                                placeholder={t('建议10个字以内，可不填')}
-                                                value={item.picTitle ?? ""}
-                                                onChange={(v: string) => patchItem(index, { picTitle: v })}
-                                            />
-                                        </div>
-                                    ) : null}
-                                    {showDesc ? (
-                                        <div className="item-info-item">
-                                            <span className="lable">{t('描述')}</span>
-                                            <Input
-                                                size="small"
-                                                placeholder={t('可不填')}
-                                                value={item.picDesc ?? ""}
-                                                onChange={(v: string) => patchItem(index, { picDesc: v })}
-                                            />
-                                        </div>
-                                    ) : null}
-                                    {showLink ? (
-                                        <div className="item-info-item">
-                                            <span className="lable">{t('链接')}</span>
-                                            <PicLinkField
-                                                value={item.picLink}
-                                                onChange={(v) => patchItem(index, { picLink: { ...(item.picLink || {}), ...v } })}
-                                            />
-                                        </div>
-                                    ) : null}
-                                    <div className="item-info-item dec-pic-sort-row">
-                                        <a className={index === 0 ? "is-disabled" : ""} onClick={() => moveItem(index, -1)}>
-                                            {t('上移')}
-                                        </a>
-                                        <a className={index === list.length - 1 ? "is-disabled" : ""} onClick={() => moveItem(index, 1)}>
-                                            {t('下移')}
-                                        </a>
-                                    </div>
-                                </div>
-                                <span className="del-item" title={t('删除')} onClick={() => setList(list.filter((_, i) => i !== index))}>
-                                    ×
-                                </span>
+                                <PicItemEditor
+                                    item={item}
+                                    onPatch={(patch) => patchItem(index, patch)}
+                                    showText={showText}
+                                    showDesc={showDesc}
+                                    showLink={showLink}
+                                    showImage={showImage}
+                                    onPickImage={() => {
+                                        setPickerIndex(index);
+                                        setPickerOpen(true);
+                                    }}
+                                    onRemove={() => setList(list.filter((_, i) => i !== index))}
+                                    onMove={(delta) => moveItem(index, delta)}
+                                    isFirst={index === 0}
+                                    isLast={index === list.length - 1}
+                                />
                             </div>
                         </div>
                     ))}

@@ -6,6 +6,8 @@
  * 热区框：绝对定位 div，按容器实际宽度 / 500（绘制区域原始宽度 px）等比换算
  * width/height/top/left（与 Vue 版 updateWidth/resize 逻辑一致），不修改 store 数据。
  * 热区样式（半透明蓝框/遮罩）来自移植的全局 module.css / decorate.css。
+ * 2026-11-20 症状三：条目未选图（picUrl 为空）时改渲染在流比例占位块
+ * （PC HotareaPreview 同口径），此前 <img src=""> 塌成 0 高致画布模块重叠。
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import CommonTitle from "../../../shared/CommonTitle";
@@ -64,7 +66,13 @@ export default function ImageHotareaPreview({ data }: { data: Record<string, any
                             <div className="image-ad-item" key={index}>
                                 <div className="item-content" style={imgPaddingStyle}>
                                     <div className="item-content-hotatrea">
-                                        <img className="item-img-bg" alt={pic.picTitle} src={imageFormat(pic.picUrl)} style={{ display: "block" }} />
+                                        {pic.picUrl ? (
+                                            <img className="item-img-bg" alt={pic.picTitle} src={imageFormat(pic.picUrl)} style={{ display: "block" }} />
+                                        ) : (
+                                            /* 未选图条目在流占位（PC HotareaPreview 同口径：width:100% +
+                                               paddingTop:40% 比例块，高度永不塌陷） */
+                                            <div className="item-img-bg" style={{ width: "100%", paddingTop: "40%", backgroundColor: "#f2f4f6" }} />
+                                        )}
                                         {(pic.hotarea as any[])?.map?.((picHotarea, idx) => (
                                             <div
                                                 key={idx}

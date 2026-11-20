@@ -1,139 +1,35 @@
 /**
- * 热图绘制 设置（字段对齐 view/admin imageHotarea/Settings.vue + components/decorate ImageHotarea.vue）
- *
- * Vue 版为弹窗拖拽绘制热区（vue3-drag-resize-rotate）；此处按移植要求改为表单化：
- * 每张热图下支持增删热区，用 InputNumber 编辑坐标（left/top）与尺寸（width/height，
- * 坐标系为 500px 绘制区域原始宽度）。热区链接已恢复原版选链方式：PicLinkField
- * （原版在绘制弹窗内经 link/LinkSelect 抽屉选链，完整 LinkType 整体存入 hotarea.link）。
- */
-import { useState } from "react";
-import { Button, Input, InputNumber } from "@douyinfe/semi-ui";
-import { IconDelete, IconPlus } from "@douyinfe/semi-icons";
-import { SettingGroup, TitleSettingsField, FrameSettingsField, PicLinkField } from "../../../shared/settingWidgets";
-import GalleryPickerModal from "../../../../../components/GalleryPickerModal";
-import { imageFormat } from "../../../shared/format";
+* 热图绘制 设置（字段对齐 view/admin imageHotarea/Settings.vue + components/decorate ImageHotarea.vue）
+*
+* 结构与 PC 编辑器 pc-image-hotarea 同构（2026-11-20 用户指令：H5 向 PC 看齐，
+* 废止此前「表单化」改口径）：
+* - 「热图」走共享 PicListField（素材库选图、标题、条目链接，与 PC PicListEditor
+* 实际渲染同口径：def 未设 picNoLink/picNoText，标题与链接均显示）；
+* - 「热区绘制」走 HotareaPainter 画板（自 PcDecorateEditor 逐字移植至 shared/）：
+* 在图上拖拽框选/移位/缩放热区，坐标按 500px 基准存储，右键菜单或 inspector 设链，
+* 热区链接为完整 LinkType 对象（hotarea.link）。
+* 数据契约与旧实现完全同构：picList[{picUrl,picThumb,picTitle,picLink?,hotarea[
+* {left,top,width,height,link}]}]，零迁移。新加图片条目暂无 hotarea 键（画板按
+* 空数组处理，绘制后写入），与缺省等价。
+*
+*/
+import { SettingGroup, PicListField, TitleSettingsField, FrameSettingsField} from "../../../shared/settingWidgets";
+import HotareaPainter from "../../../shared/HotareaPainter";
+import { useI18n} from '../../../../../i18n';
 
-import { useI18n } from '../../../../../i18n';
-/** 与 Vue 版 ImageHotarea.vue addHotarea 的新区域初始值一致 */
-const emptyHotarea = { height: 100, width: 100, left: 10, top: 10 };
+export default function ImageHotareaSettings({ data, onChange}: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void}) {
+const { t} = useI18n();
+const picList: any[] = Array.isArray(data?.picList)? data.picList: [];
 
-const rowStyle = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 } as React.CSSProperties;
-
-export default function ImageHotareaSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
-    const { t } = useI18n();
-    const picList: any[] = Array.isArray(data?.picList) ? data.picList : [];
-
-    const setPicList = (next: any[]) => onChange({ picList: next });
-
-    const setPic = (index: number, patch: Record<string, any>) => {
-        const next = [...picList];
-        next[index] = { ...next[index], ...patch };
-        setPicList(next);
-    };
-
-    const setHotarea = (picIndex: number, hotarea: any[]) => {
-        setPic(picIndex, { hotarea });
-    };
-
-    // 添加热图（2026-11-15 换口径）：弃 Semi Upload 直传，改素材库 GalleryPickerModal
-    // （同 PicSelect/PicList 口径，弹窗内可上传新图）；数据契约不变，每张选中图追加
-    // 一条 { picUrl, picThumb, picTitle:"", hotarea:[] }。
-    const [pickerOpen, setPickerOpen] = useState(false);
-
-    return (
-        <div className="h5-editor-settings-body">
-            <SettingGroup title="绘制热区">
-                <div style={{ fontSize: 12, color: "#999", marginBottom: 8 }}>{t('提示：添加图片后，点击图片进入绘制')}</div>
-                {picList.map((pic, picIndex) => (
-                    <div key={picIndex} style={{ border: "1px solid #f0f0f0", borderRadius: 4, padding: 8, marginBottom: 8 }}>
-                        <div className="h5-editor-pic-row" style={{ marginBottom: 8 }}>
-                            <img src={imageFormat(pic.picThumb || pic.picUrl)} alt="" />
-                            <div style={{ flex: 1, display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                                <Input
-                                    size="small"
-                                    placeholder={t('图片标题')}
-                                    style={{ width: 120 }}
-                                    value={pic.picTitle ?? ""}
-                                    onChange={(v: string) => setPic(picIndex, { picTitle: v })}
-                                />
-                                <Button size="small" type="danger" icon={<IconDelete />} onClick={() => setPicList(picList.filter((_, i) => i !== picIndex))} />
-                            </div>
-                        </div>
-                        {(pic.hotarea as any[])?.map?.((hotarea: any, hotareaIndex: number) => (
-                            <div key={hotareaIndex} style={{ borderTop: "1px dashed #e0e0e0", paddingTop: 8, marginTop: 8 }}>
-                                <div style={{ fontSize: 12, color: "#666", marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
-                                    <span>热区 {hotareaIndex + 1}（坐标基于 500px 绘制宽度）</span>
-                                    <Button
-                                        size="small"
-                                        type="danger"
-                                        icon={<IconDelete />}
-                                        onClick={() => setHotarea(picIndex, pic.hotarea.filter((_: any, i: number) => i !== hotareaIndex))}
-                                    />
-                                </div>
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 8px", marginBottom: 8 }}>
-                                    {(
-                                        [
-                                            { field: "left", label: "左" },
-                                            { field: "top", label: "上" },
-                                            { field: "width", label: "宽" },
-                                            { field: "height", label: "高" }
-                                        ] as Array<{ field: string; label: string }>
-                                    ).map((cfg) => (
-                                        <div key={cfg.field} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                            <span style={{ fontSize: 13, flexShrink: 0 }}>{cfg.label}</span>
-                                            <InputNumber
-                                                size="small"
-                                                style={{ flex: 1 }}
-                                                min={0}
-                                                value={Number(hotarea[cfg.field] ?? 0)}
-                                                onChange={(v: any) =>
-                                                    setHotarea(
-                                                        picIndex,
-                                                        pic.hotarea.map((h: any, i: number) => (i === hotareaIndex ? { ...h, [cfg.field]: Number(v ?? 0) } : h))
-                                                    )
-                                                }
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                                <div style={rowStyle}>
-                                    <span style={{ fontSize: 13, flexShrink: 0 }}>{t('链接')}</span>
-                                    <div style={{ width: 220 }}>
-                                        <PicLinkField
-                                            value={hotarea.link ?? null}
-                                            onChange={(v) =>
-                                                setHotarea(
-                                                    picIndex,
-                                                    pic.hotarea.map((h: any, i: number) => (i === hotareaIndex ? { ...h, link: v } : h))
-                                                )
-                                            }
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                        <Button
-                            size="small"
-                            icon={<IconPlus />}
-                            onClick={() => setHotarea(picIndex, [...(pic.hotarea || []), { ...emptyHotarea }])}
-                        >{t('添加热区')}</Button>
-                    </div>
-                ))}
-                <Button size="small" icon={<IconPlus />} onClick={() => setPickerOpen(true)}>{t('添加新热图')}</Button>
-                <GalleryPickerModal
-                    visible={pickerOpen}
-                    multiple
-                    onCancel={() => setPickerOpen(false)}
-                    onConfirm={(urls: string[]) => {
-                        if (urls.length) {
-                            setPicList([...picList, ...urls.map((u) => ({ picUrl: u, picThumb: u, picTitle: "", hotarea: [] as any[] }))]);
-                        }
-                        setPickerOpen(false);
-                    }}
-                />
-            </SettingGroup>
-            <TitleSettingsField data={data} onChange={onChange} />
-            <FrameSettingsField data={data} onChange={onChange} />
-        </div>
-    );
+return (
+<div className="h5-editor-settings-body">
+<div style={{ fontSize: 12, color: "#999", padding: "0 16px", marginBottom: 4}}>{t('添加图片后，在下方「热区绘制」中直接在图上拖拽框选热区')}</div>
+<PicListField label={t('热图')} value={picList} onChange={(next) => onChange({ picList: next})} />
+<SettingGroup title={t('热区绘制')}>
+<HotareaPainter picList={picList} onChange={(next) => onChange({ picList: next})} />
+</SettingGroup>
+<TitleSettingsField data={data} onChange={onChange} />
+<FrameSettingsField data={data} onChange={onChange} />
+</div>
+);
 }
