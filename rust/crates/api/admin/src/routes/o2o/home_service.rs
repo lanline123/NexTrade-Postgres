@@ -49,7 +49,7 @@ async fn get_config(
     Query(q): Query<ShopConfigQuery>,
 ) -> ApiResult<Value> {
     let shop_id =
-        nextrade_services::o2o::config::O2oConfigService::resolve_shop_id(&q, tenant.shop_scope());
+        nextrade_services::o2o::config::O2oConfigService::resolve_shop_id(&q, tenant.scoped_shop_id());
     let vo = state.o2o.config.home_service_config(shop_id).await?;
     Ok(Json(nextrade_core::error::ApiResponse::success(
         vo.map(|v| serde_json::to_value(v).unwrap_or(Value::Null))

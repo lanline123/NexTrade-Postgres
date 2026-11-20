@@ -151,10 +151,11 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
 
 /// 当前账号的店铺范围（**仅来自认证身份**）：
 /// - 店铺/门店/POS 账号 → `Some(自身店铺)`（列表/写入强制本店）；
+///   缺失作用域 → 哨兵 `Some(MISSING_SHOP_SCOPE)`（fail-closed，命中空集）；
 /// - 平台账号 → `None`（可选按 `shopId` 过滤）。
 #[must_use]
 fn tenant_shop_scope(tenant: &TenantContext) -> Option<i32> {
-    tenant.shop_scope()
+    tenant.scoped_shop_id()
 }
 
 /// `GET /adminapi/merchant/shopProductCategory/list`：分类分页。
@@ -398,8 +399,12 @@ mod tests {
     fn shop_scope_comes_from_tenant_context() {
         assert_eq!(tenant_shop_scope(&shop(9)), Some(9));
         assert_eq!(tenant_shop_scope(&platform()), None);
-        // 缺失 shop_id 的店铺账号不会被当作平台
+        // 缺失 shop_id 的店铺账号不会被当作平台：统一解析返回哨兵，
+        // 过滤命中空集（fail-closed），不再是平台的 None（不过滤）。
         let broken = TenantContext::new(Some("shop".into()), None, None);
-        assert_eq!(tenant_shop_scope(&broken), None);
+        assert_eq!(
+            tenant_shop_scope(&broken),
+            Some(nextrade_security::web::MISSING_SHOP_SCOPE)
+        );
     }
 }

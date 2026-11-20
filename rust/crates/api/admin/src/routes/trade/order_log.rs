@@ -54,7 +54,7 @@ async fn list(
     Query(q): Query<OrderLogListQuery>,
 ) -> ApiResult<PageResult<OrderLogVO>> {
     // 多租户：店铺账号强制过滤本店日志；平台可见全部。
-    ok(state.trade.order_log.list(&q, tenant.shop_scope()).await?)
+    ok(state.trade.order_log.list(&q, tenant.scoped_shop_id()).await?)
 }
 
 /// `POST /adminapi/order/orderLog/create`
@@ -65,7 +65,7 @@ async fn create(
     Json(mut dto): Json<OrderLogCreateDTO>,
 ) -> ApiResult<()> {
     // 多租户：店铺账号的日志只能落本店；平台账号沿用请求体 shopId。
-    if let Some(scope) = tenant.shop_scope() {
+    if let Some(scope) = tenant.scoped_shop_id() {
         dto.shop_id = Some(scope);
     }
     dto.admin_id.get_or_insert(auth.id);

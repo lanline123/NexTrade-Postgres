@@ -29,11 +29,16 @@ pub const SEND_TYPE_FIXED: i32 = 1;
 
 /// 后台管理员：状态判定。
 impl AdminUser {
-    /// 是否为启用中的后台管理员。
+    /// 是否为启用中的后台账号（平台 / 店铺 / 供应商等全部后台类型）。
     ///
     /// 注意库中 `is_using` 语义为「是否停用」：1=停用，0=启用（见建表注释）。
+    ///
+    /// 历史口径曾附加 `admin_type == "admin"`，导致全部 shop 型商家账号在
+    /// 密码校验后必被拒（「账号已被停用」）——与原版登录 + 选店多租户模型
+    /// 矛盾的移植缺陷。类型区分由 JWT `typ` 与作用域守卫承担，本判定只管
+    /// 启用 / 停用 / 删除三态。
     pub fn is_active_admin(&self) -> bool {
-        self.admin_type == "admin" && self.is_using == 0 && self.is_deleted == 0
+        self.is_using == 0 && self.is_deleted == 0
     }
 
     /// 管理员ID。
@@ -357,6 +362,36 @@ mod tests {
     use super::*;
     use rust_decimal::Decimal;
     use std::str::FromStr;
+
+    #[test]
+    fn active_admin_accepts_all_backend_types() {
+        // 平台 / 店铺 / 供应商账号在启用且未删除时都应通过登录状态判定；
+        // 类型不再构成登录门（作用域由 JWT 与守卫承担）。
+        for admin_type in ["admin", "shop", "store", "pos", "merchant", "vendor", "suppliers"] {
+            let user = AdminUser {
+                admin_type: admin_type.to_string(),
+                is_using: 0,
+                is_deleted: 0,
+                ..Default::default()
+            };
+            assert!(user.is_active_admin(), "type={admin_type} 应可登录");
+        }
+        // 停用（is_using=1）与已删除一律拒绝，与类型无关。
+        let disabled = AdminUser {
+            admin_type: "shop".to_string(),
+            is_using: 1,
+            is_deleted: 0,
+            ..Default::default()
+        };
+        assert!(!disabled.is_active_admin());
+        let deleted = AdminUser {
+            admin_type: "admin".to_string(),
+            is_using: 0,
+            is_deleted: 1,
+            ..Default::default()
+        };
+        assert!(!deleted.is_active_admin());
+    }
 
     #[test]
     fn product_on_sale() {

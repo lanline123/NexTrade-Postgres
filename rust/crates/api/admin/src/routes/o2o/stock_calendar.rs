@@ -105,7 +105,7 @@ async fn page_list(
     ok(state
         .o2o
         .stock_calendar
-        .page_list(&q, tenant.shop_scope())
+        .page_list(&q, tenant.scoped_shop_id())
         .await?)
 }
 

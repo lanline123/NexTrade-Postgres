@@ -83,7 +83,7 @@ async fn list(
     Extension(tenant): Extension<TenantContext>,
     Query(q): Query<PosDeviceListQuery>,
 ) -> ApiResult<PageResult<PosDeviceVO>> {
-    ok(state.pos.device.list(&q, tenant.shop_scope()).await?)
+    ok(state.pos.device.list(&q, tenant.scoped_shop_id()).await?)
 }
 
 /// `GET /adminapi/pos/device/all`：设备全量（下拉）。
@@ -91,7 +91,7 @@ async fn list_all(
     State(state): State<AdminState>,
     Extension(tenant): Extension<TenantContext>,
 ) -> ApiResult<Vec<PosDeviceVO>> {
-    ok(state.pos.device.list_all(tenant.shop_scope()).await?)
+    ok(state.pos.device.list_all(tenant.scoped_shop_id()).await?)
 }
 
 /// `GET /adminapi/pos/device/detail?id=`：设备详情。
@@ -101,7 +101,7 @@ async fn detail(
     Query(q): Query<DeviceIdQuery>,
 ) -> ApiResult<PosDeviceVO> {
     let id = q.id.unwrap_or(0);
-    ok(state.pos.device.detail(id, tenant.shop_scope()).await?)
+    ok(state.pos.device.detail(id, tenant.scoped_shop_id()).await?)
 }
 
 /// `POST /adminapi/pos/device/create`：创建设备。
@@ -110,7 +110,7 @@ async fn create(
     Extension(tenant): Extension<TenantContext>,
     Json(p): Json<PosDeviceWritePayload>,
 ) -> ApiResult<i32> {
-    ok(state.pos.device.create(&p, tenant.shop_scope()).await?)
+    ok(state.pos.device.create(&p, tenant.scoped_shop_id()).await?)
 }
 
 /// `POST /adminapi/pos/device/update`：编辑设备。
@@ -119,7 +119,7 @@ async fn update(
     Extension(tenant): Extension<TenantContext>,
     Json(p): Json<PosDeviceWritePayload>,
 ) -> ApiResult<&'static str> {
-    state.pos.device.update(&p, tenant.shop_scope()).await?;
+    state.pos.device.update(&p, tenant.scoped_shop_id()).await?;
     ok("保存成功")
 }
 
@@ -132,7 +132,7 @@ async fn update_field(
     state
         .pos
         .device
-        .update_field(&dto, tenant.shop_scope())
+        .update_field(&dto, tenant.scoped_shop_id())
         .await?;
     ok("修改成功")
 }
@@ -143,5 +143,5 @@ async fn del(
     Extension(tenant): Extension<TenantContext>,
     Json(dto): Json<PosDeviceDelDTO>,
 ) -> ApiResult<u64> {
-    ok(state.pos.device.delete(&dto, tenant.shop_scope()).await?)
+    ok(state.pos.device.delete(&dto, tenant.scoped_shop_id()).await?)
 }

@@ -547,6 +547,25 @@ impl ShopManageRepository {
         .map_err(map_err)
     }
 
+    /// 某管理员的全部店铺绑定（登录作用域派生 / 权限解析用）。
+    ///
+    /// 排序：店主绑定（`is_admin = 1`）优先，其次按 id 升序——派生默认店铺
+    /// 时取第一条启用绑定即为店主店。启用过滤（`is_using = 0`）由调用方按
+    /// 场景施加，本方法返回全量以便诊断停用绑定。
+    pub async fn find_admin_bindings(
+        &self,
+        admin_id: i32,
+    ) -> Result<Vec<AdminUserShop>> {
+        sqlx::query_as::<_, AdminUserShop>(
+            "SELECT * FROM admin_user_shop
+              WHERE admin_id = $1 ORDER BY is_admin DESC, id ASC",
+        )
+        .bind(admin_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
     /// 管理员启用的店铺 ID 集合（Java `AdminUserShopService#getShopIds`：
     /// 仅 `is_using = 0`）。
     pub async fn find_enabled_shop_ids(&self, admin_id: i32) -> Result<Vec<i32>> {

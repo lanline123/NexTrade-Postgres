@@ -97,7 +97,7 @@ async fn page_list(
     ok(state
         .o2o
         .reservation_tpl
-        .page_list(&q, tenant.shop_scope())
+        .page_list(&q, tenant.scoped_shop_id())
         .await?)
 }
 
@@ -109,7 +109,7 @@ async fn list_all(
     ok(state
         .o2o
         .reservation_tpl
-        .list_all(tenant.shop_scope())
+        .list_all(tenant.scoped_shop_id())
         .await?)
 }
 
@@ -130,7 +130,7 @@ async fn create(
     ok(state
         .o2o
         .reservation_tpl
-        .create(&p, tenant.shop_scope())
+        .create(&p, tenant.scoped_shop_id())
         .await?)
 }
 
@@ -143,7 +143,7 @@ async fn update(
     state
         .o2o
         .reservation_tpl
-        .update(&p, tenant.shop_scope())
+        .update(&p, tenant.scoped_shop_id())
         .await?;
     ok("保存成功")
 }
@@ -157,7 +157,7 @@ async fn del(
     state
         .o2o
         .reservation_tpl
-        .delete(&dto, tenant.shop_scope())
+        .delete(&dto, tenant.scoped_shop_id())
         .await?;
     ok("删除成功")
 }

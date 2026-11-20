@@ -118,7 +118,7 @@ fn scope_from_tenant(tenant: &TenantContext, requested_shop: Option<i32>) -> Msg
     let shop_id = if platform {
         requested_shop.unwrap_or(0)
     } else {
-        tenant.shop_scope().unwrap_or(0)
+        tenant.scoped_shop_id().unwrap_or(0)
     };
     MsgScope::Shop { shop_id, platform }
 }

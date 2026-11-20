@@ -75,6 +75,14 @@ pub fn ok<T: serde::Serialize>(data: T) -> ApiResult<T> {
     Ok(Json(ApiResponse::success(data)))
 }
 
+/// 店铺型账号「缺失作用域」时的哨兵店铺 ID。
+///
+/// 真实店铺 ID 恒 ≥ 0（0 = 平台），故 -1 不与任何真实店铺相等：列表过滤
+/// 命中空集、归属比对恒不相等、作用域覆写落到不存在的店铺。与表示
+/// 「平台不限」的 `None` 严格区分——作用域缺失 ≠ 平台，是本仓租户隔离的
+/// 基本不变量（见 [`AuthUser::shop_scope_missing`]）。
+pub const MISSING_SHOP_SCOPE: i32 = -1;
+
 /// 已认证身份（写入请求扩展，handler 用 `Extension<AuthUser>` 提取）。
 #[derive(Debug, Clone)]
 pub struct AuthUser {
@@ -135,9 +143,25 @@ impl AuthUser {
         )
     }
 
+    /// 是否为「店铺型账号但令牌未携带店铺作用域」。
+    ///
+    /// 平台账号的作用域缺失表示「不限」，店铺型账号的作用域缺失只可能
+    /// 来自签发侧断裂（绑定未派生 / 未选店），绝不能按平台语义放行——
+    /// scoped 家族对该状态一律 fail-closed（哨兵 / 403），使签发侧再出
+    /// 问题时商家至多「用不了」，而不是「看光全平台」。
+    #[must_use]
+    pub fn shop_scope_missing(&self) -> bool {
+        !self.is_platform()
+            && !self.is_vendor()
+            && self.shop_id.filter(|&id| id > 0).is_none()
+    }
+
     /// 获取需要进行租户隔离的店铺 ID
     /// - 平台账号返回 None（查询不限制店铺）
     /// - 商户账号返回 Some(shop_id)（必须限制 WHERE shop_id = ?）
+    /// - 店铺型账号缺失作用域时返回 `Some(MISSING_SHOP_SCOPE)` 哨兵：
+    ///   与任何真实店铺都不相等，使过滤命中空集、比对恒失败（fail-closed），
+    ///   绝不退化为平台的 None 语义。
     /// - 供应商账号没有店铺维度，返回 `Some(0)` 作为**安全兜底**，避免其
     ///   误用店铺接口时拿到全量数据；供应商接口应改用 `TenantContext::vendor_scope`。
     #[must_use]
@@ -146,6 +170,8 @@ impl AuthUser {
             None
         } else if self.is_vendor() {
             Some(0)
+        } else if self.shop_scope_missing() {
+            Some(MISSING_SHOP_SCOPE)
         } else {
             self.shop_id.filter(|&id| id > 0)
         }
@@ -153,8 +179,14 @@ impl AuthUser {
 
     /// 解析查询/写入请求中的 `shopId`：
     /// - 店铺账号只能使用自己的 shop_id，传入其他值直接 403；
+    /// - 店铺型账号缺失作用域直接 403（fail-closed，不按平台语义放行）；
     /// - 平台账号可使用请求值（列表筛选/代运营），未传则不限制。
     pub fn resolve_shop_scope(&self, requested: Option<i32>) -> Result<Option<i32>, Error> {
+        if self.shop_scope_missing() {
+            return Err(Error::Forbidden(
+                "当前账号未绑定店铺，无法访问店铺数据".into(),
+            ));
+        }
         if let Some(scope) = self.scoped_shop_id() {
             if let Some(requested) = requested.filter(|id| *id > 0 && *id != scope) {
                 return Err(Error::Forbidden(format!(
@@ -167,7 +199,13 @@ impl AuthUser {
     }
 
     /// 写入必须落到一个具体店铺：店铺账号固定为自己，平台账号必须显式传 shopId。
+    /// 店铺型账号缺失作用域直接 403——绝不把哨兵值当作写入目标落库。
     pub fn require_shop_scope(&self, requested: Option<i32>) -> Result<i32, Error> {
+        if self.shop_scope_missing() {
+            return Err(Error::Forbidden(
+                "当前账号未绑定店铺，无法执行店铺写操作".into(),
+            ));
+        }
         if let Some(scope) = self.scoped_shop_id() {
             if let Some(requested) = requested.filter(|id| *id > 0 && *id != scope) {
                 return Err(Error::Forbidden(format!(
@@ -182,7 +220,13 @@ impl AuthUser {
     }
 
     /// 校验对指定店铺的访问权限（平台放行）。
+    /// 店铺型账号缺失作用域时对任何目标（含平台 shop_id = 0）一律拒绝。
     pub fn ensure_shop_access(&self, shop_id: i32) -> Result<(), Error> {
+        if self.shop_scope_missing() {
+            return Err(Error::Forbidden(
+                "当前账号未绑定店铺，无法访问店铺数据".into(),
+            ));
+        }
         match self.scoped_shop_id() {
             Some(scope) if scope != shop_id => Err(Error::Forbidden(format!(
                 "无权访问店铺 {shop_id} 的数据"
@@ -246,6 +290,26 @@ impl TenantContext {
             self.shop_id
         } else {
             None
+        }
+    }
+
+    /// 与 [`AuthUser::scoped_shop_id`] 同口径的统一作用域解析，供把
+    /// `Option<i32>` 直传服务层作过滤/归属的消费点使用：
+    /// - 平台账号 → None（不限制）；
+    /// - 供应商账号 → Some(0)（无店铺维度，兜底不放行全量）；
+    /// - 店铺型账号 → Some(本店)；缺失作用域 → `Some(MISSING_SHOP_SCOPE)`
+    ///   哨兵（fail-closed），绝不退化为 None 的「平台不限」语义。
+    ///
+    /// 注意：`require_shop` / `can_access_shop` 等严格守卫仍走
+    /// [`Self::shop_scope`] 的口径（缺失即拒绝），不经本方法。
+    #[must_use]
+    pub fn scoped_shop_id(&self) -> Option<i32> {
+        if self.is_platform() {
+            None
+        } else if self.is_vendor_account() {
+            Some(0)
+        } else {
+            self.shop_id.or(Some(MISSING_SHOP_SCOPE))
         }
     }
 
@@ -588,6 +652,78 @@ mod tests {
         assert!(vendor.is_vendor());
         // 供应商误用店铺接口时不能放行全量数据
         assert_eq!(vendor.scoped_shop_id(), Some(0));
+    }
+
+    #[test]
+    fn scopeless_shop_account_fails_closed() {
+        // 店铺型账号令牌未携带 shop_id（签发侧断裂状态）：过去被当作
+        // 「平台不限」全量放行，现在必须 fail-closed。
+        for admin_type in ["shop", "store", "pos", "merchant"] {
+            let scopeless = AuthUser {
+                id: 9,
+                username: "scopeless".into(),
+                role_id: None,
+                admin_type: Some(admin_type.into()),
+                shop_id: None,
+            };
+            assert!(!scopeless.is_platform(), "type={admin_type}");
+            assert!(scopeless.shop_scope_missing(), "type={admin_type}");
+            // 列表过滤哨兵：不等于任何真实店铺（含平台 0）
+            assert_eq!(scopeless.scoped_shop_id(), Some(MISSING_SHOP_SCOPE));
+            assert_ne!(scopeless.scoped_shop_id(), Some(0));
+            // 解析 / 写入 / 归属校验一律拒绝（含平台目标 0）
+            assert!(scopeless.resolve_shop_scope(None).is_err());
+            assert!(scopeless.resolve_shop_scope(Some(3)).is_err());
+            assert!(scopeless.require_shop_scope(None).is_err());
+            assert!(scopeless.ensure_shop_access(3).is_err());
+            assert!(scopeless.ensure_shop_access(0).is_err());
+        }
+        // shop_id = 0 的店铺型账号同属缺失作用域
+        let zero = AuthUser {
+            id: 10,
+            username: "zero".into(),
+            role_id: None,
+            admin_type: Some("shop".into()),
+            shop_id: Some(0),
+        };
+        assert!(zero.shop_scope_missing());
+        assert_eq!(zero.scoped_shop_id(), Some(MISSING_SHOP_SCOPE));
+
+        // 平台与供应商不受影响
+        let platform = AuthUser {
+            id: 1,
+            username: "admin".into(),
+            role_id: None,
+            admin_type: Some("admin".into()),
+            shop_id: None,
+        };
+        assert!(!platform.shop_scope_missing());
+        assert_eq!(platform.scoped_shop_id(), None);
+        let vendor = AuthUser {
+            id: 3,
+            username: "vendor".into(),
+            role_id: None,
+            admin_type: Some("vendor".into()),
+            shop_id: None,
+        };
+        assert!(!vendor.shop_scope_missing());
+        assert_eq!(vendor.scoped_shop_id(), Some(0));
+
+        // TenantContext 同口径：无作用域店铺账号 can_access 恒 false、require_shop 拒绝
+        let tenant = TenantContext::new(Some("shop".into()), None, None);
+        assert!(!tenant.can_access_shop(3));
+        assert!(!tenant.can_access_shop(0));
+        assert!(tenant.require_shop().is_err());
+        // 直传解析同走哨兵；平台仍为 None、带作用域店铺仍为本店
+        assert_eq!(tenant.scoped_shop_id(), Some(MISSING_SHOP_SCOPE));
+        assert_eq!(
+            TenantContext::new(Some("admin".into()), None, None).scoped_shop_id(),
+            None
+        );
+        assert_eq!(
+            TenantContext::new(Some("shop".into()), Some(9), None).scoped_shop_id(),
+            Some(9)
+        );
     }
 
     #[test]

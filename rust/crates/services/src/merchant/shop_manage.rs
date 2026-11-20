@@ -293,6 +293,18 @@ fn parse_delivery_info(raw: Option<&str>) -> Option<ShopDeliveryInfo> {
     serde_json::from_str::<ShopDeliveryInfo>(raw).ok()
 }
 
+/// 选店（choose）结果：视角标记 + 权限清单 + 选中的店铺与角色。
+///
+/// `shop_id` / `role_id` 供路由层在校验通过后换发带作用域的令牌
+/// （`AuthService::reissue_scoped_token`）；平台视角时均为 None。
+#[derive(Debug, Clone)]
+pub struct ChooseOutcome {
+    pub shop_view: bool,
+    pub authorities: Vec<String>,
+    pub shop_id: Option<i32>,
+    pub role_id: Option<i32>,
+}
+
 pub struct ShopManageService {
     repos: Arc<Repositories>,
     /// `nextradeProperties.isO2o == 1`（见模块头第 2 条差异）。
@@ -864,15 +876,15 @@ impl ShopManageService {
     /// 选择登录平台（对应 Java `ShopServiceImpl#choose`）。
     ///
     /// Java 把 `LoginChooseAuth{param, authorities}` 写入 Redis
-    /// （key `admin::auth::<adminId>`）。Rust 侧 JWT 无服务端会话、
-    /// Redis 未接入，故**只做校验并返回权限清单，不写缓存**。
-    ///
-    /// 返回 `(是否店铺视角, 权限清单)`。
+    /// （key `admin::auth::<adminId>`）。Rust 侧 JWT 无服务端会话，
+    /// 不写缓存：校验绑定后返回权限清单，并把选中的店铺/角色一并交回
+    /// 路由层，由其换发带作用域的新令牌（选项 A）——选择结果由此进入
+    /// 后续请求的服务端身份，而不是只停留在前端渲染。
     pub async fn choose(
         &self,
         param: &LoginChooseParam,
         admin_id: i32,
-    ) -> Result<(bool, Vec<String>)> {
+    ) -> Result<ChooseOutcome> {
         let admin = self
             .repos.merchant.shop_manage
             .find_admin_user(admin_id)
@@ -881,6 +893,7 @@ impl ShopManageService {
         let mut role_id = admin.role_id;
         let mut auth_raw = admin.auth_list.clone();
         let mut shop_view = false;
+        let mut chosen_shop_id: Option<i32> = None;
 
         if param.admin_type.as_deref() == Some("shop") {
             shop_view = true;
@@ -902,6 +915,7 @@ impl ShopManageService {
             }
             role_id = binding.role_id;
             auth_raw = binding.auth_list.clone().unwrap_or_default();
+            chosen_shop_id = Some(id);
         }
 
         // RBAC：有角色走角色权限
@@ -916,7 +930,16 @@ impl ShopManageService {
             param.admin_type,
             authorities.len()
         );
-        Ok((shop_view, authorities))
+        Ok(ChooseOutcome {
+            shop_view,
+            authorities,
+            shop_id: chosen_shop_id,
+            role_id: if shop_view && role_id > 0 {
+                Some(role_id)
+            } else {
+                None
+            },
+        })
     }
 
     // ————————————————————— shopList / staffShow —————————————————————

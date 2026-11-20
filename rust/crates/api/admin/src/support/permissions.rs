@@ -38,10 +38,16 @@ pub async fn enforce(
     let Some(required) = required else {
         return next.run(req).await;
     };
-    let Some(admin_id) = req.extensions().get::<AuthUser>().map(|u| u.id) else {
+    let Some((admin_id, shop_scope)) = req
+        .extensions()
+        .get::<AuthUser>()
+        .map(|u| (u.id, u.shop_id))
+    else {
         return denied();
     };
-    match permission.check(admin_id, required).await {
+    // 店铺型账号的权限源包含其店铺绑定/角色（与选店 choose 同口径），
+    // 按令牌携带的店铺作用域解析；平台账号 shop_id 为空/0，不受影响。
+    match permission.check_scoped(admin_id, shop_scope, required).await {
         Ok(true) => next.run(req).await,
         Ok(false) => denied(),
         Err(e) => {

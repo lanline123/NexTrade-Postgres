@@ -299,9 +299,13 @@ async fn shop_detail(
 }
 
 /// 当前账号的店铺范围（仅来自认证身份）。
+///
+/// 走统一作用域解析：店铺型账号缺失作用域时返回哨兵而非 None，
+/// 使各 `if let Some(scope)` 过滤点对无作用域账号命中空集（fail-closed），
+/// 不退化为「不过滤 = 全量」。
 #[must_use]
 fn tenant_shop(tenant: &TenantContext) -> Option<i32> {
-    tenant.shop_scope()
+    tenant.scoped_shop_id()
 }
 
 /// 平台级接口：店铺/供应商账号一律 403。
@@ -313,6 +317,8 @@ fn require_platform(tenant: &TenantContext) -> Result<(), AppError> {
 }
 
 /// 解析目标店铺：店铺账号强制自身店铺（越权 → 403）；平台账号必须显式指定。
+/// 店铺/供应商账号缺失作用域时一律 403——`shop_scope()` 的 None 只对平台
+/// 表示「不限」，对店铺型账号表示签发断裂，绝不能退化为采信请求参数。
 fn target_shop(tenant: &TenantContext, requested: Option<i32>) -> Result<i32, AppError> {
     match tenant.shop_scope() {
         Some(scope) => match requested.filter(|v| *v > 0) {
@@ -321,9 +327,17 @@ fn target_shop(tenant: &TenantContext, requested: Option<i32>) -> Result<i32, Ap
             }
             _ => Ok(scope),
         },
-        None => requested
-            .filter(|v| *v > 0)
-            .ok_or_else(|| nextrade_core::Error::Forbidden("平台账号必须指定店铺".into()).into()),
+        None => {
+            if !tenant.is_platform() {
+                return Err(nextrade_core::Error::Forbidden(
+                    "当前账号未绑定店铺，无法访问店铺数据".into(),
+                )
+                .into());
+            }
+            requested.filter(|v| *v > 0).ok_or_else(|| {
+                nextrade_core::Error::Forbidden("平台账号必须指定店铺".into()).into()
+            })
+        }
     }
 }
 
@@ -358,11 +372,17 @@ async fn shop_create(
     Json(p): Json<ShopWritePayload>,
 ) -> ApiResult<serde_json::Value> {
     // 平台端“新增店铺”不传 shopId，表示从平台直接创建，不能按 403 拒绝；
-    // 店铺账号仍强制自身店铺，传其它店铺继续拒绝。
+    // 店铺账号仍强制自身店铺，传其它店铺继续拒绝；
+    // 店铺/供应商账号缺失作用域时不许落入平台分支（fail-closed）。
     let scope = if tenant.shop_scope().is_some() {
         target_shop(&tenant, q.shop_id)?
-    } else {
+    } else if tenant.is_platform() {
         q.shop_id.filter(|v| *v > 0).unwrap_or(0)
+    } else {
+        return Err(nextrade_core::Error::Forbidden(
+            "当前账号未绑定店铺，无法执行该操作".into(),
+        )
+        .into());
     };
     let shop_id = state
         .merchant
@@ -497,19 +517,36 @@ async fn shop_record_login_system(
 /// （`@Deprecated`）→ `ShopServiceImpl#choose`。
 ///
 /// ⚠️ Java 会把权限清单写入 Redis（key `admin::auth::<adminId>`）；
-/// Rust 侧无服务端会话，**不写缓存**，只回传校验后的权限清单。
+/// Rust 侧无服务端会话，不写缓存。店铺视角校验通过后**换发带作用域的
+/// 新令牌对**并随响应下发（`token` / `accessToken` / `refreshToken` /
+/// `expiresIn` / `shopId`），前端存下后，后续请求即以该店铺作用域
+/// 运行——这是原 Java 「choose 后以所选店铺为准」在 JWT 模型下的等价
+/// 实现。平台视角不换发（响应不带令牌字段，行为与此前一致）。
 async fn shop_choose(
     State(state): State<AdminState>,
     Extension(auth): Extension<AuthUser>,
     Json(p): Json<LoginChooseParam>,
 ) -> ApiResult<serde_json::Value> {
-    let (shop_view, authorities) = state.merchant.shop_manage.choose(&p, auth.id).await?;
-    ok(serde_json::json!({
-        "shopView": shop_view,
-        "authorities": authorities,
+    let outcome = state.merchant.shop_manage.choose(&p, auth.id).await?;
+    let mut body = serde_json::json!({
+        "shopView": outcome.shop_view,
+        "authorities": outcome.authorities,
         // Java 写入 Redis 的键名，便于前端/运维对照
         "cacheKey": format!("admin::auth::[{}]", auth.id),
-    }))
+    });
+    if let Some(shop_id) = outcome.shop_id {
+        let vo = state
+            .identity
+            .auth
+            .reissue_scoped_token(auth.id, shop_id, outcome.role_id)
+            .await?;
+        body["shopId"] = serde_json::json!(shop_id);
+        body["token"] = serde_json::json!(vo.token);
+        body["accessToken"] = serde_json::json!(vo.access_token);
+        body["refreshToken"] = serde_json::json!(vo.refresh_token);
+        body["expiresIn"] = serde_json::json!(vo.expires_in);
+    }
+    ok(body)
 }
 
 /// `GET /adminapi/merchant/shop/shopList`：店铺标题与名称下拉列表。

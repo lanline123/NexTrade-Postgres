@@ -185,7 +185,7 @@ async fn pickup_list(
     Query(mut q): Query<PickupPageQuery>,
 ) -> ApiResult<PageResult<PickupListVO>> {
     // 多租户：店铺/门店/POS 账号只能查询自己门店的自提点；平台可传 shopId 过滤。
-    if let Some(scope) = tenant.shop_scope() {
+    if let Some(scope) = tenant.scoped_shop_id() {
         q.shop_id = Some(scope);
     }
     ok(state

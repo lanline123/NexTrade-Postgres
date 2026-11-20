@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Avatar, Button, Empty, Input, Modal, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
-import { apiGet, apiPost } from '../api';
+import { apiGet, apiPost, setToken } from '../api';
 import { useI18n } from '../i18n';
 
 /**
@@ -176,7 +176,7 @@ export default function SelectShopModal({ visible, onClose }: SelectShopModalPro
     const realType = posEntry ? 'shop' : type;
     try {
       // 1) 先让后端确认身份并下发该组织的权限位（原版 toIndex 第一步也是走这个接口）
-      const chosen = await apiPost<{ shopView?: boolean; authorities?: string[] }>(
+      const chosen = await apiPost<{ shopView?: boolean; authorities?: string[]; accessToken?: string }>(
         '/merchant/shop/choose',
         { adminType: realType, id: realType === 'admin' ? '' : String(id) },
       );
@@ -203,6 +203,12 @@ export default function SelectShopModal({ visible, onClose }: SelectShopModalPro
       }
       if (typeof chosen?.shopView === 'boolean') {
         localStorage.setItem('admin_shop_view', chosen.shopView ? '1' : '0');
+      }
+      // 后端在店铺视角校验通过后换发带店铺作用域的新令牌：存下它，
+      // 后续请求才真正以所选店铺作用域运行（无作用域的旧令牌调店铺
+      // 接口会被后端的 fail-closed 守卫拒绝）。平台视角不下发，跳过。
+      if (chosen?.accessToken) {
+        setToken(chosen.accessToken);
       }
 
       // 3) 切换组织后重新计时，避免「新订单」角标沿用上一个组织的窗口
