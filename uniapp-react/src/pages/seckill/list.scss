@@ -186,6 +186,11 @@ page {
                 .btn {
                     .img-btn {
                         height: 80rpx;
+                        /* Taro 宿主陷阱：taro-image-core 默认 width:320px，heightFix 只收拢内层 img，
+                           宿主不设 width:auto 时仍占 320px，会挤压同行（space-between）价格区且按钮图不贴右。
+                           原版 uni-app 的 heightFix 会回写宿主宽度，我方以 width:auto 让宿主随图收拢
+                           （groupSliding/categoryRec 渲染端同修先例）；图高 80rpx 与原版一致 */
+                        width: auto;
                     }
                 }
             }

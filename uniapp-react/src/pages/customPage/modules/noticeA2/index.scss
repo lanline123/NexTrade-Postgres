@@ -38,6 +38,11 @@
     display: block;
     margin-right: 10rpx;
     overflow: hidden;
+    /* Taro 宿主陷阱：自定义图标走 heightFix 时，taro-image-core 默认 width:320px 且 heightFix 只收拢内层 img，
+       宿主不设 width:auto 时仍占 320px，会把同行公告文字推开约 300px。原版 uni-app 的 heightFix 会回写宿主宽度，
+       我方以 width:auto 让宿主随图收拢（groupSliding/categoryRec 渲染端同修先例）；
+       默认图标分支 .default-icon 的 width:40rpx 特异性更高，不受此行影响 */
+    width: auto;
 
     &.default-icon {
         width: 40rpx;

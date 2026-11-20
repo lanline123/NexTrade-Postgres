@@ -1112,3 +1112,9 @@
 ### 修复
 
 - **PC - 积分换购列表原价未划线（原版有·我方补齐）**：原版 `view/pc/pages/exchange/List.vue` 的原价与兑换价均经 FormatPrice 组件渲染（.price > .util 符号 + .num 金额），样式 `.market_price :deep(.price){text-decoration:line-through}` 在原版生效；我方 `pc-semi/app/exchange/page.tsx` 两处价格误用 `formatPrice(...)` 渲染为纯字符串、无 .price 子元素，`app/exchange-page.scss`（旧版 .vue 样式原样搬运的生成文件）里 `.market_price .price` 与 `.exchange_price .price` 两条规则全部落空——原价无划线，兑换价的主题色/20px/粗体也一并丢失（划线价全站统一线观察项）。修复只动 TSX、不手改生成样式：新增本地 PriceSpans 以 span 渲染与共享 FormatPrice 等价的三段结构（分段口径逐项镜像 FormatPrice：.00 小数隐藏、后缀段同置），两处价格改走该结构——原价走 splitDisplayPrice（划线展示价，≥1万按后台价格显示设置缩写，与商品详情市场价同口径），兑换价走 splitCurrencyPrice 保持精确；符号与金额同处 .price 容器、同字号、一并划线（2026-11-21 划线价全站新规：符号与金额同字号一并划线），结构补齐后生成样式的原规则自然生效。同族核查：H5 积分兑换列表卡与商品详情 exchange 模式经原版 uniapp 源码对照均不渲染原价/市场价（原版同口径，market 价块在原版即以 type !== 'exchange' 为显条件），无此问题；PC 礼品卡兑换页不渲染价格，无此点；PC 积分兑换详情市场价符号在 <s> 外一点由划线价全站统一线暂存包（其 P4）承载，本包不重复。
+
+## 0.0.2 续 · 2026-11-21 批次（Taro 图片宿主同病收尾四处，未部署——随下一 H5 热更新上线）
+
+### 修复
+
+- **移动端 - Taro 图片宿主默认宽 320px 撑开同行内容（原版有·我方移植偏差修复）**：承接分组滑动标题图标间距修复的同型登记，全 uniapp 渲染端按「heightFix + 宿主类只设高不设宽」检索式清扫，确认四处同病并同批修复——Taro H5 的 Image 宿主 taro-image-core 自带 width:320px 默认尺寸，heightFix 只收拢内层 img（高度 100%、宽度按比例），宿主类不设 width 时仍占 320px，把同行内容推开约 300px；原版 uni-app 的 heightFix 会回写宿主宽度，无此问题。四处均只在宿主类补 width:auto 使宿主随图收拢，间距值本体与原版逐值一致、未动：① 组合推荐（comboSuggestions）组标题图 .img（高 30rpx，其后副标题徽章被推开）；② 商品分组（productGrouping）价格图标 .icon（高 28rpx，其后价格被推开）；③ 公告（noticeA2）自定义图标 .headlines-iconImg（mode 为动态条件 heightFix，字面检索的漏网点，其后公告文字被推开；默认图标分支自带 width:40rpx、特异性更高，不受影响）；④ 秒杀列表抢购按钮图 .img-btn（高 80rpx，宿主挤压同行 space-between 价格区且按钮图不贴右）。全量盘点闭合：heightFix 用点共 13 处逐一核毕——分类推荐、分组滑动已修（不在本批）；团购列表头图宽高齐设、秒杀火焰图标宽高齐设、TigImage 封装件内层图宽高 100% 由组件样式收口（团购详情/入驻成功图经其渲染）均非同病；秒杀标题图 .tit-img 只设高，但行内其后无同行内容、图左对齐位置正确、无受害，记录不动。
