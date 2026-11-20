@@ -1312,7 +1312,7 @@ export default function ProductDetailClient({
               {Number(item.marketPrice) > 0 ? (
                 <div className="market_price">
                   <div className="price align-bottom">
-                    <div className="util">{priceParts.symbol || '¥'}</div>
+                    <div className="util" style={{ textDecoration: 'line-through', fontSize: 'inherit' }}>{priceParts.symbol || '¥'}</div>
                     <div className="num" style={{ textDecoration: 'line-through' }}>{marketPriceParts.integer}{marketPriceParts.decimals}{marketPriceParts.suffix}</div>
                   </div>
                 </div>
@@ -1348,7 +1348,7 @@ export default function ProductDetailClient({
             <div className="tit">{t('市场价')}：</div>
             <div className="market_price">
               <div className="price align-bottom">
-                <div className="util">{priceParts.symbol || '¥'}</div>
+                <div className="util" style={{ textDecoration: 'line-through', fontSize: 'inherit' }}>{priceParts.symbol || '¥'}</div>
                 <div className="num" style={{ textDecoration: 'line-through' }}>{marketPriceParts.integer}{marketPriceParts.decimals}{marketPriceParts.suffix}</div>
               </div>
             </div>

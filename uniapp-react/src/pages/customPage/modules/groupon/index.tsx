@@ -285,8 +285,8 @@ export default function Groupon({ module }: Props) {
                                                                     <View style={{ marginLeft: "8rpx" }}>
                                                                         <FormatPrice
                                                                             fontStyle={{ fontSize: "20rpx", color: "#ccc", textDecoration: "line-through" } as any}
-                                                                            currencyStyle={{ fontSize: "18rpx", color: "#ccc", textDecoration: "line-through" } as any}
-                                                                            decimalsStyle={{ fontSize: "18rpx", color: "#ccc", textDecoration: "line-through" } as any}
+                                                                            currencyStyle={{ fontSize: "20rpx", color: "#ccc", textDecoration: "line-through" } as any}
+                                                                            decimalsStyle={{ fontSize: "20rpx", color: "#ccc", textDecoration: "line-through" } as any}
                                                                             priceData={item.productPrice}
                                                                         />
                                                                     </View>

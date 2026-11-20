@@ -9088,8 +9088,15 @@ position: relative;
     border-color: var(--main-bg, #ee0a24);
 }
 
-/* 划线原价口径：只划金额不划币种符号 —— .price-origin/.oldprice 容器级 line-through 已移除，改由金额段 .num 承担 */
+/* 划线原价口径（2026-11-21 全站统一）：符号与金额同字号、一并划线 —— .price-origin/.oldprice 的 .num 与 .util 同划，符号字号 inherit 与金额一致 */
 .price-origin .num,
-.oldprice .num {
+.price-origin .util,
+.oldprice .num,
+.oldprice .util {
     text-decoration: line-through;
+}
+
+.price-origin .util,
+.oldprice .util {
+    font-size: inherit;
 }

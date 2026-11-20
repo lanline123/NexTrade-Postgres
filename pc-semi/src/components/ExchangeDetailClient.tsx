@@ -182,7 +182,7 @@ export default function ExchangeDetailClient({ data }: { data: ExchangeDetailDat
             </>
           ) : null}
         </div>
-        {marketPrice > 0 ? <div className="exchange-detail-meta">{t('市场价：')}<span>{marketParts.symbol}</span><s>{marketParts.integer}{marketParts.decimals}{marketParts.suffix}</s></div> : null}
+        {marketPrice > 0 ? <div className="exchange-detail-meta">{t('市场价：')}<s><span>{marketParts.symbol}</span>{marketParts.integer}{marketParts.decimals}{marketParts.suffix}</s></div> : null}
         <div className="exchange-detail-meta">
           库存：
           {stock > 0 ? (

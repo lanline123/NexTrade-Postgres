@@ -339,7 +339,6 @@ export default function GroupBuying() {
                                     <View className="original-price">
                                         <FormatPrice
                                             fontStyle={{ textDecoration: "line-through" }}
-                                            currencyStyle={{ fontSize: "23rpx" }}
                                             priceData={grouponRecordDetail.productPrice}
                                         />
                                     </View>

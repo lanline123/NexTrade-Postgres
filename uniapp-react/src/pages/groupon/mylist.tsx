@@ -200,9 +200,6 @@ export default function GrouponMyList() {
                                             <View className="original-price">
                                                 <FormatPrice
                                                     fontStyle={{ textDecoration: "line-through" }}
-                                                    currencyStyle={{
-                                                        fontSize: "23rpx"
-                                                    }}
                                                     priceData={item.productPrice}
                                                 />
                                             </View>
