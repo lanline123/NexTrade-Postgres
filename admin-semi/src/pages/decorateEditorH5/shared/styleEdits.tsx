@@ -305,9 +305,11 @@ export function ExtensionStyleSettings({
 
 /**
 * 折叠卡片列表壳（对齐 CategoryGroupEdit/GroupListEdit 的.demo-collapse 形态）：
-* 卡 margin-top 12px、radius 2px、阴影 0 0 4px rgba(10,42,97,.2)，头 bg #f7f8fa、
-* 删除徽标 -10px 18px 圆形 #bbb，底部整宽.dec-pic-add-btn 添加按钮。
-* 原版为拖拽排序，本实现以卡头「上移/下移」文字钮承接（同 PicList 口径）。
+* 卡头显示「第 N 组」（原版 GroupListEdit 头为 第【N】组，编号自 index+1）、
+* 卡头「上移/下移」文字钮承接排序（原版为拖拽，同 PicList 口径）、删除徽标 -10px。
+* 2026-11-21 现代化（用户指示）：卡片改扁平直角 + 1px 干净边框（去圆角与重阴影），
+* 底部添加按钮改虚线整宽直角钮（+ 文案），与渠道弹窗/PicListEditor 改版同审美。
+* 数据层编辑（增删改移）由 ./GroupListEditor（分组列表编辑器）承接，本壳只管呈现。
 */
 export function GroupCardList({
 items,
@@ -330,6 +332,7 @@ canRemove?: boolean;
 }) {
 const { t} = useI18n();
 const [openIndex, setOpenIndex] = useState(0);
+const [addHover, setAddHover] = useState(false);
 return (
 <div style={{ padding: "0 10px 15px"}}>
 {items.map((item, index) => {
@@ -341,16 +344,17 @@ style={{
 width: "100%",
 position: "relative",
 marginTop: 12,
-borderRadius: 2,
+borderRadius: 0,
 backgroundColor: "#fff",
-boxShadow: "0 0 4px 0 rgba(10, 42, 97, 0.2)"
+border: "1px solid #e8eaed",
+boxSizing: "border-box"
 }}
 >
 <div
 style={{
 backgroundColor: "#f7f8fa",
-padding: "10px",
-fontSize: 14,
+padding: "10px 12px",
+fontSize: 13,
 display: "flex",
 alignItems: "center",
 justifyContent: "space-between",
@@ -358,7 +362,7 @@ cursor: collapsible? "pointer": "default"
 }}
 onClick={() => collapsible && setOpenIndex(open? -1: index)}
 >
-<span>{`第组`}</span>
+<span style={{ fontWeight: 600, color: "#1c1f23"}}>{`第${index + 1}组`}</span>
 <span style={{ display: "flex", gap: 10, fontSize: 12}} onClick={(e) => e.stopPropagation()}>
 <a className={index === 0? "is-disabled": ""} onClick={() => onMove(index, -1)}>
 {t('上移')}
@@ -380,7 +384,7 @@ top: -10,
 color: "#fff",
 background: "#bbb",
 border: "2px solid #fff",
-borderRadius: "50%",
+borderRadius: 0,
 zIndex: 2,
 width: 18,
 height: 18,
@@ -397,7 +401,28 @@ boxSizing: "border-box"
 </div>
 );
 })}
-<a className="dec-pic-add-btn" onClick={onAdd} style={{ marginTop: 12}}>
+<a
+onClick={onAdd}
+onMouseEnter={() => setAddHover(true)}
+onMouseLeave={() => setAddHover(false)}
+style={{
+marginTop: 12,
+display: "flex",
+alignItems: "center",
+justifyContent: "center",
+gap: 6,
+padding: "9px 16px",
+border: `1px dashed ${addHover? "var(--semi-color-primary, #155bd4)": "#c6cbd4"}`,
+borderRadius: 0,
+background: "#fff",
+color: addHover? "var(--semi-color-primary, #155bd4)": "#1c1f23",
+fontSize: 13,
+lineHeight: "20px",
+cursor: "pointer",
+boxSizing: "border-box"
+}}
+>
+<span style={{ fontSize: 15, lineHeight: 1}}>+</span>
 {t(addText)}
 </a>
 </div>

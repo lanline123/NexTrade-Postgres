@@ -61,7 +61,7 @@ return (
 {groups.map((group, index) => {
 const linkUrl = group.moreLink?.link?.link?? "";
 return (
-<SettingGroup key={index} title={`第组`}>
+<SettingGroup key={index} title={`第${index + 1}组`}>
 <SettingRow label="分组大标题">
 <Input
 value={group.groupTitle?? ""}

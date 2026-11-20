@@ -38,6 +38,10 @@
 
         .img {
             height: 40rpx;
+            /* Taro H5 的 Image 宿主 taro-image-core 自带 width:320px 默认尺寸：heightFix 只让内层 img 高度 100%、宽度按比例，
+               宿主不设 width:auto 时仍占 320px，图标与大标题被撑开约 300px。原版 uni-app 的 heightFix 会回写宿主宽度，
+               我方以 width:auto 让宿主随图收拢（categoryRec 渲染端同修先例）；间距本体 margin-right 6rpx 与原版一致 */
+            width: auto;
             margin-right: 6rpx;
         }
     }
@@ -88,6 +92,7 @@
                 top: 8rpx;
                 left: 8rpx;
                 width: 40rpx;
+                height: auto;
             }
         }
 

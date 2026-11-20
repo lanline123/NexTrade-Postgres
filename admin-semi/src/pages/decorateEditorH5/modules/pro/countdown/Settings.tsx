@@ -27,6 +27,7 @@ SegmentedRadio
 } from "../../../shared/settingWidgets";
 import { TemplateIconRadioRowField} from "../../../shared/templateIcon";
 import { SettingsTabs, ModuleStyleSettingsField, ContentStyleSettingsField, PicFillTypeField} from "../../../shared/styleEdits";
+import ProductInfoSelect from "../../../shared/ProductInfoSelect";
 
 type NestedProps = { data: Record<string, any>; onChange: (patch: Record<string, any>) => void};
 function nested(data: Record<string, any>, onChange: (patch: Record<string, any>) => void, key: string): NestedProps {
@@ -121,9 +122,12 @@ cd.data.countdownBackgroundPic && typeof cd.data.countdownBackgroundPic === "obj
             <SettingsTabs tabs={["商品设置", "扩展设置"]}>
                 <>
                     <SettingGroup title="请点击添加选择商品">
-                        <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6 }}>
-                            商品选择器（ProductInfoSelect 数据选择组件）尚未接入本编辑器，已选商品数据保持不变。
-                            <br />
+                        <ProductInfoSelect
+                            value={Array.isArray(data?.pruductList) ? data.pruductList : []}
+                            onChange={(next) => onChange({ pruductList: next })}
+                            isMultiple
+                        />
+                        <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6, marginTop: 8 }}>
                             提示：您可以通过拖拽进行商品排序
                         </div>
                     </SettingGroup>

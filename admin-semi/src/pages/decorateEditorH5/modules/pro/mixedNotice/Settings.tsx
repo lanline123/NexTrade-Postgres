@@ -48,7 +48,7 @@ alignItems: "center",
 justifyContent: "space-between"
 }}
 >
-<span>{`第组`}</span>
+<span>{`第${index + 1}组`}</span>
 <span style={{ display: "flex", gap: 10, fontSize: 12}}>
 <a className={index === 0? "is-disabled": ""} onClick={() => moveGroup(index, -1)}>
 {t('上移')}

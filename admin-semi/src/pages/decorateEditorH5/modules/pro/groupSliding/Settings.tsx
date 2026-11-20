@@ -2,8 +2,11 @@
  * 分组滑动 设置（对齐 view/admin mobilePro/groupSliding/Settings.vue）
  *
  * 页签：商品设置 / 扩展设置。
- * 商品设置：GroupListEdit 分组卡（大标题/副标题/标题链接/商品标签多行/背景颜色；
- * 组内商品为 ProductInfoSelect 数据选择器，未接入 → 只读提示）+ 参数设置
+ * 商品设置：分组卡（大标题/副标题/标题链接/商品标签多行/背景颜色）由共享
+ * GroupListEditor（分组列表编辑器）承接；组内商品走共享 ProductInfoSelect
+ * 快照式选品（可增删/更换/拖拽排序，2026-11-21 接入，此前为未接入只读提示）；
+ * 标题链接走共享 PicLinkField（原版 SelectLink 口径，此前为裸文本框且写回
+ * 形状会把扁平 titleLink 压成混合嵌套形）+ 参数设置
  * （分组宽度 60-100/分组圆角 max40/图片占比 20-50/图片圆角 max20/右侧圆角/排名/标签/
  * 商品标题组/商品价格组/划线价）+ BuyBtnEdit（buyBtnStyle 对象编辑，字段对齐 buyBtn/Edit.vue）；
  * 扩展设置：颜色设置（moduleColor 嵌套）+ ModuleStyleEdit（type="categoryRec"）。
@@ -11,7 +14,7 @@
  * 而原版 Settings.vue 绑定的是 productPriceWeight / productPriceSize（另一组键名，原版内部不一致）；
  * 此处绑定契约键 productPrice_weight / productPrice_size，以源码 defaults 为准（见交付摘要）。
  */
-import { Input, TextArea } from "@douyinfe/semi-ui";
+import { TextArea } from "@douyinfe/semi-ui";
 import AlphaColorInput from "../../../../../components/AlphaColorInput";
 import {
     SettingGroup,
@@ -21,9 +24,12 @@ import {
     ColorField,
     TextField,
     PicSelectField,
+    PicLinkField,
     DecDivider
 } from "../../../shared/settingWidgets";
-import { SettingsTabs, ModuleStyleSettingsField, GroupCardList } from "../../../shared/styleEdits";
+import { SettingsTabs, ModuleStyleSettingsField } from "../../../shared/styleEdits";
+import GroupListEditor from "../../../shared/GroupListEditor";
+import ProductInfoSelect from "../../../shared/ProductInfoSelect";
 import { defaultBuyButtonStyle } from "../../../contract/sharedDefaults";
 
 type NestedProps = { data: Record<string, any>; onChange: (patch: Record<string, any>) => void };
@@ -32,77 +38,15 @@ function nested(data: Record<string, any>, onChange: (patch: Record<string, any>
     return { data: sub, onChange: (patch: Record<string, any>) => onChange({ [key]: { ...sub, ...patch } }) };
 }
 
+/** 新组模板：titleLink 与模块 defaults 同为扁平 { link, title } 契约（PicLinkField 空契约同形） */
 const EMPTY_GROUP = {
     title: "",
     subTitle: "",
     label: "",
     backgroundColor: "",
     productList: [],
-    titleLink: { link: { link: "", title: "" }, linkTitle: "" }
+    titleLink: { link: "", title: "" }
 };
-
-function GroupListEditor({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
-    const list: Array<Record<string, any>> = Array.isArray(data?.groupList) ? data.groupList : [];
-    const setList = (next: Array<Record<string, any>>) => onChange({ groupList: next });
-    const patchItem = (index: number, patch: Record<string, any>) => setList(list.map((it, i) => (i === index ? { ...it, ...patch } : it)));
-    const moveItem = (index: number, delta: number) => {
-        const target = index + delta;
-        if (target < 0 || target >= list.length) return;
-        const next = [...list];
-        const [it] = next.splice(index, 1);
-        next.splice(target, 0, it);
-        setList(next);
-    };
-    return (
-        <GroupCardList
-            items={list}
-            addText="添加一组"
-            onAdd={() => setList([...list, JSON.parse(JSON.stringify(EMPTY_GROUP))])}
-            onRemove={(index) => setList(list.filter((_, i) => i !== index))}
-            onMove={moveItem}
-            renderItem={(item, index) => {
-                const itemProps = { data: item, onChange: (patch: Record<string, any>) => patchItem(index, patch) };
-                const linkUrl = item.titleLink?.link?.link ?? (typeof item.titleLink === "string" ? item.titleLink : "");
-                return (
-                    <>
-                        <TextField {...itemProps} field="title" label="分组大标题" placeholder="请输入标题内容" />
-                        <TextField {...itemProps} field="subTitle" label="分组副标题" placeholder="请输入标题内容" />
-                        <SettingRow label="标题链接">
-                            <Input
-                                value={linkUrl}
-                                placeholder="跳转链接，如 /pages/index/index"
-                                style={{ width: 240, maxWidth: "100%" }}
-                                onChange={(v: string) =>
-                                    patchItem(index, {
-                                        titleLink:
-                                            item.titleLink && typeof item.titleLink === "object"
-                                                ? { ...item.titleLink, link: { ...(item.titleLink.link || { title: "" }), link: v } }
-                                                : { link: { link: v, title: "" }, linkTitle: "" }
-                                    })
-                                }
-                            />
-                        </SettingRow>
-                        <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6, padding: "4px 16px" }}>
-                            商品选择器（ProductInfoSelect 数据选择组件）尚未接入本编辑器，已选商品（{(item.productList || []).length} 个）数据保持不变。
-                            <br />
-                            提示：您可以通过拖拽进行商品排序
-                        </div>
-                        <SettingRow label="商品标签" block>
-                            <TextArea
-                                value={item.label ?? ""}
-                                rows={4}
-                                placeholder="请输入商品标签"
-                                style={{ width: "100%" }}
-                                onChange={(v: string) => patchItem(index, { label: v })}
-                            />
-                        </SettingRow>
-                        <ColorField {...itemProps} field="backgroundColor" label="背景颜色" resetValue="" />
-                    </>
-                );
-            }}
-        />
-    );
-}
 
 function BuyBtnSettingsField({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
     const bb = nested(data, onChange, "buyBtnStyle");
@@ -210,7 +154,42 @@ export default function GroupSlidingSettings({ data, onChange }: { data: Record<
             <SettingsTabs tabs={["商品设置", "扩展设置"]}>
                 <>
                     <SettingGroup title="内容设置">
-                        <GroupListEditor data={data} onChange={onChange} />
+                        <GroupListEditor
+                            data={data}
+                            onChange={onChange}
+                            field="groupList"
+                            addText="添加一组"
+                            emptyItem={EMPTY_GROUP}
+                            renderItem={(item, _index, itemProps) => (
+                                <>
+                                    <TextField {...itemProps} field="title" label="分组大标题" placeholder="请输入标题内容" />
+                                    <TextField {...itemProps} field="subTitle" label="分组副标题" placeholder="请输入标题内容" />
+                                    <SettingRow label="标题链接">
+                                        <PicLinkField value={item.titleLink ?? null} onChange={(v) => itemProps.onChange({ titleLink: v })} />
+                                    </SettingRow>
+                                    <SettingRow label="选择商品" block>
+                                        <ProductInfoSelect
+                                            value={Array.isArray(item.productList) ? item.productList : []}
+                                            onChange={(next) => itemProps.onChange({ productList: next })}
+                                            isMultiple
+                                        />
+                                        <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6, marginTop: 8 }}>
+                                            提示：您可以通过拖拽进行商品排序
+                                        </div>
+                                    </SettingRow>
+                                    <SettingRow label="商品标签" block>
+                                        <TextArea
+                                            value={item.label ?? ""}
+                                            rows={4}
+                                            placeholder="请输入商品标签"
+                                            style={{ width: "100%" }}
+                                            onChange={(v: string) => itemProps.onChange({ label: v })}
+                                        />
+                                    </SettingRow>
+                                    <ColorField {...itemProps} field="backgroundColor" label="背景颜色" resetValue="" />
+                                </>
+                            )}
+                        />
                     </SettingGroup>
                     <SettingGroup title="参数设置">
                         <RangeField data={data} onChange={onChange} field="groupWidth" label="分组展示宽度" min={60} max={100} />

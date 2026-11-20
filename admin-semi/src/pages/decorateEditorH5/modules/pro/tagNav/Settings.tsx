@@ -10,44 +10,32 @@
 */
 import { SettingGroup, SettingRow, RangeField, ColorField, TextField, PicLinkField} from "../../../shared/settingWidgets";
 import { TemplateIconRadioRowField} from "../../../shared/templateIcon";
-import { SettingsTabs, GroupCardList, ModuleStyleSettingsField} from "../../../shared/styleEdits";
+import { SettingsTabs, ModuleStyleSettingsField} from "../../../shared/styleEdits";
+import GroupListEditor from "../../../shared/GroupListEditor";
 import AlphaColorInput from "../../../../../components/AlphaColorInput";
 
 const EMPTY_LINK = { link: { link: "", title: ""}, linkTitle: ""};
 
-function GroupListEditor({ data, onChange}: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void}) {
-const list: Array<Record<string, any>> = Array.isArray(data?.groupList)? data.groupList: [];
-const setList = (next: Array<Record<string, any>>) => onChange({ groupList: next});
-const patchItem = (index: number, patch: Record<string, any>) => setList(list.map((it, i) => (i === index? {...it,...patch}: it)));
-const moveItem = (index: number, delta: number) => {
-const target = index + delta;
-if (target < 0 || target >= list.length) return;
-const next = [...list];
-[next[index], next[target]] = [next[target], next[index]];
-setList(next);
-};
+function TagNavGroupEditor({ data, onChange}: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void}) {
 return (
-<GroupCardList
-items={list}
+<GroupListEditor
+data={data}
+onChange={onChange}
+field="groupList"
 addText="添加分组推荐"
-onAdd={() => setList([...list, { title: "", link: JSON.parse(JSON.stringify(EMPTY_LINK))}])}
-onRemove={(index) => setList(list.filter((_, i) => i!== index))}
-onMove={moveItem}
-canRemove={list.length > 1}
-renderItem={(item, index) => {
-const itemProps = { data: item, onChange: (patch: Record<string, any>) => patchItem(index, patch)};
-return (
+createItem={() => ({ title: "", link: JSON.parse(JSON.stringify(EMPTY_LINK))})}
+canRemove={(list) => list.length > 1}
+renderItem={(item, _index, itemProps) => (
 <>
 <TextField {...itemProps} field="title" label="标题" placeholder="请输入标题内容" />
 <SettingRow label="链接">
 <PicLinkField
 value={typeof item.link === "string"? { link: item.link, title: ""}: item.link?? null}
-onChange={(v) => patchItem(index, { link: v})}
+onChange={(v) => itemProps.onChange({ link: v})}
 />
 </SettingRow>
 </>
-);
-}}
+)}
 />
 );
 }
@@ -62,7 +50,7 @@ return (
 <SettingsTabs tabs={["分组设置", "扩展设置"]}>
 <>
 <SettingGroup title="基本设置">
-<GroupListEditor data={data} onChange={onChange} />
+<TagNavGroupEditor data={data} onChange={onChange} />
 </SettingGroup>
 <SettingGroup title="参数设置">
 <TemplateIconRadioRowField

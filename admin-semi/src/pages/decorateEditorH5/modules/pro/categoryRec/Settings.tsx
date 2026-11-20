@@ -14,48 +14,34 @@ import {
     ModuleStyleSettingsField,
     ContentStyleSettingsField,
     AnimationSettingsField,
-    SubTitleSettingsField,
-    GroupCardList
+    SubTitleSettingsField
 } from "../../../shared/styleEdits";
+import GroupListEditor from "../../../shared/GroupListEditor";
 
 const EMPTY_LINK = { link: { link: "", title: "" }, linkTitle: "" };
 
 function CategoryGroupEditor({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
-    const list: Array<Record<string, any>> = Array.isArray(data?.categoryList) ? data.categoryList : [];
-    const setList = (next: Array<Record<string, any>>) => onChange({ categoryList: next });
-    const patchItem = (index: number, patch: Record<string, any>) => setList(list.map((it, i) => (i === index ? { ...it, ...patch } : it)));
-    const moveItem = (index: number, delta: number) => {
-        const target = index + delta;
-        if (target < 0 || target >= list.length) return;
-        const next = [...list];
-        const [it] = next.splice(index, 1);
-        next.splice(target, 0, it);
-        setList(next);
-    };
     return (
-        <GroupCardList
-            items={list}
+        <GroupListEditor
+            data={data}
+            onChange={onChange}
+            field="categoryList"
             addText="添加一组"
-            onAdd={() => setList([...list, { title: "", link: JSON.parse(JSON.stringify(EMPTY_LINK)), titleColor: "#ffffff", backgroundColor: "#ffffff", catPic: {} }])}
-            onRemove={(index) => setList(list.filter((_, i) => i !== index))}
-            onMove={moveItem}
-            renderItem={(item, index) => {
-                const itemProps = { data: item, onChange: (patch: Record<string, any>) => patchItem(index, patch) };
-                return (
-                    <>
-                        <SinglePicField {...itemProps} field="catPic" label="分类图片" />
-                        <TextField {...itemProps} field="title" label="标题" placeholder="请输入标题内容" />
-                        <SettingRow label="链接">
-                            <PicLinkField
-                                value={typeof item.link === "string" ? { link: item.link, title: "" } : item.link ?? null}
-                                onChange={(v) => patchItem(index, { link: v })}
-                            />
-                        </SettingRow>
-                        <ColorField {...itemProps} field="titleColor" label="标题颜色" resetValue="" />
-                        <ColorField {...itemProps} field="backgroundColor" label="背景颜色" resetValue="" />
-                    </>
-                );
-            }}
+            createItem={() => ({ title: "", link: JSON.parse(JSON.stringify(EMPTY_LINK)), titleColor: "#ffffff", backgroundColor: "#ffffff", catPic: {} })}
+            renderItem={(item, _index, itemProps) => (
+                <>
+                    <SinglePicField {...itemProps} field="catPic" label="分类图片" />
+                    <TextField {...itemProps} field="title" label="标题" placeholder="请输入标题内容" />
+                    <SettingRow label="链接">
+                        <PicLinkField
+                            value={typeof item.link === "string" ? { link: item.link, title: "" } : item.link ?? null}
+                            onChange={(v) => itemProps.onChange({ link: v })}
+                        />
+                    </SettingRow>
+                    <ColorField {...itemProps} field="titleColor" label="标题颜色" resetValue="" />
+                    <ColorField {...itemProps} field="backgroundColor" label="背景颜色" resetValue="" />
+                </>
+            )}
         />
     );
 }

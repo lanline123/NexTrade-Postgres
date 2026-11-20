@@ -3,7 +3,7 @@
 *
 * 页签：商品设置 / 扩展设置（商品颜色设置 + 分组标题设置 + ModuleStyle/ContentStyle
 * type="productGrouping"）。
-* 手动组 GroupListEdit 以 GroupCardList 承接：主标题/副标题/查看更多链接（SelectLink
+* 手动组 GroupListEdit 以共享 GroupListEditor 承接：主标题/副标题/查看更多链接（SelectLink
 * 文本输入写回 titleLink 同一结构）/自定义图片（bannerPic PicSelect）可编辑；组内商品
 * 走共享 ProductInfoSelect（快照式选品），可增删/更换/拖拽排序组内 productList；
 * 新建组默认值与删组下限（可删至 0 组）均按原版 GroupListEdit 口径。
@@ -27,7 +27,8 @@ PicLinkField,
 DecDivider
 } from "../../../shared/settingWidgets";
 import { TemplateIconRadioField, TemplateIconRadioRowField} from "../../../shared/templateIcon";
-import { SettingsTabs, GroupCardList, ExtensionStyleSettings, PicFillTypeField} from "../../../shared/styleEdits";
+import { SettingsTabs, ExtensionStyleSettings, PicFillTypeField} from "../../../shared/styleEdits";
+import GroupListEditor from "../../../shared/GroupListEditor";
 import ProductInfoSelect from "../../../shared/ProductInfoSelect";
 import { cloneDeep, defaultBuyButtonStyle} from "../../../contract/sharedDefaults";
 import { useI18n} from "../../../../../i18n";
@@ -53,37 +54,22 @@ return <PicLinkField value={value?? null} onChange={(v) => onChangeValue(v)} />;
 
 function ManualGroupEditor({ data, onChange}: Props) {
 const { t} = useI18n();
-const groups: Array<Record<string, any>> = Array.isArray(data?.productGroups)? data.productGroups: [];
-const setList = (next: Array<Record<string, any>>) => onChange({ productGroups: next});
-const patchItem = (index: number, patch: Patch) => setList(groups.map((g, i) => (i === index? {...g,...patch}: g)));
-const moveItem = (index: number, delta: number) => {
-const target = index + delta;
-if (target < 0 || target >= groups.length) return;
-const next = [...groups];
-[next[index], next[target]] = [next[target], next[index]];
-setList(next);
-};
 return (
-<GroupCardList
-items={groups}
+<GroupListEditor
+data={data}
+onChange={onChange}
+field="productGroups"
 addText="添加一组"
-onAdd={() =>
-setList([
-...groups,
-{
+createItem={() => ({
 title: "",
 subTitle: "",
 productList: [],
 bannerPic: {},
 bannerLink: { link: { link: "", title: ""}, linkTitle: ""},
 titleLink: { link: { link: "", title: ""}, linkTitle: ""}
-}
-])
-}
-onRemove={(index) => setList(groups.filter((_, i) => i!== index))}
-onMove={moveItem}
-renderItem={(group, index) => {
-const sub: Props = { data: group, onChange: (patch: Patch) => patchItem(index, patch)};
+})}
+renderItem={(group, _index, itemProps) => {
+const sub: Props = itemProps;
 const linkValue = group.titleLink?.link && typeof group.titleLink.link === "object"? group.titleLink.link: typeof group.titleLink?.link === "string"? { link: group.titleLink.link, title: "" }: null;
 return (
 <>
@@ -93,7 +79,7 @@ return (
 <LinkInput
 value={linkValue}
 onChangeValue={(v) =>
-patchItem(index, {
+itemProps.onChange({
 titleLink: {...(group.titleLink || {}), link: v}
 })
 }
@@ -103,7 +89,7 @@ titleLink: {...(group.titleLink || {}), link: v}
 <SettingRow label="选择商品" block>
 <ProductInfoSelect
 value={Array.isArray(group.productList)? group.productList: []}
-onChange={(next) => patchItem(index, { productList: next})}
+onChange={(next) => itemProps.onChange({ productList: next})}
 isMultiple
 />
 <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6, marginTop: 8}}>{t("提示：您可以通过拖拽进行商品排序")}</div>
