@@ -5,7 +5,7 @@ import PcFooter from '@/components/PcFooter';
 import { getExchangeList, getIntegralName, getPcHeader } from '@/lib/api';
 
 import { getServerT } from '@/i18n/server';
-import { formatPrice } from '@/lib/currency';
+import { splitCurrencyPrice, splitDisplayPrice } from '@/lib/currency';
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -42,6 +42,31 @@ function readParam(value: string | string[] | undefined): string {
  *   CommonPageFooter → PcFooter
  */
 const PAGE_SIZES = [20, 40, 60];
+
+/**
+ * 价格三段结构（对照原版 List.vue 的 FormatPrice 组件：.price > .util + .num[.decimal]）。
+ * exchange-page.scss 的 `.market_price .price{line-through}` 与 `.exchange_price .price{…}`
+ * 两条规则都靠这层 .price 结构生效；此前两处价格误用 formatPrice 渲染为纯字符串，
+ * 无 .price 子元素，两条规则全部落空（原价无划线、兑换价主题色/20px/粗体全丢）。
+ * 本页为服务端组件且价格位于 <p> 内，这里以 span 渲染与 FormatPrice 等价的同构结构
+ * （分段口径逐项镜像 src/components/FormatPrice.tsx：.00 小数隐藏、display 时带缩写后缀），
+ * 符号与金额同处 .price 容器、同字号，一并被划线（2026-11-21 划线价全站新规）。
+ * 原价为划线展示价，走 splitDisplayPrice（≥1万按后台价格显示设置缩写，与商品详情市场价同口径）；
+ * 兑换价为实际兑换金额，走 splitCurrencyPrice 保持精确。
+ */
+function PriceSpans({ value, display }: { value: number; display?: boolean }) {
+  const parts = display ? splitDisplayPrice(value) : splitCurrencyPrice(value);
+  const suffix = display ? (parts as { suffix?: string }).suffix || '' : '';
+  const decimals = parts.decimals === '.00' ? '' : parts.decimals;
+  return (
+    <span className="price align-bottom">
+      <span className="util align-bottom">{parts.symbol}</span>
+      <span className="num">{parts.integer}</span>
+      {decimals ? <span className="num decimal">{decimals}</span> : null}
+      {suffix ? <span className="num suffix">{suffix}</span> : null}
+    </span>
+  );
+}
 
 export default async function ExchangePage({ searchParams }: PageProps) {
   const t = getServerT();
@@ -87,11 +112,11 @@ export default async function ExchangePage({ searchParams }: PageProps) {
                           </Link>
                         </p>
                         <p className="market_price">
-                          {t('原价')}：{formatPrice(Number(item.productPrice || 0))}
+                          {t('原价')}：<PriceSpans value={Number(item.productPrice || 0)} display />
                         </p>
                         <p className="exchange_price">
                           {integralName}
-                          {t('价')}：{formatPrice(Number(item.discountsPrice || 0))} +&nbsp;
+                          {t('价')}：<PriceSpans value={Number(item.discountsPrice || 0)} /> +&nbsp;
                           <span>{Number(item.exchangeIntegral || 0)}</span> {integralName}
                         </p>
                         <Link href={`/exchange/${item.id}`} target="_blank">

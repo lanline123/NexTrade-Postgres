@@ -1106,3 +1106,9 @@
 ### 改进
 
 - **管理端 - H5 装修「内容设置」分组列表编辑通用组件化（我方新增）**：新增共享组件 GroupListEditor（分组列表编辑器，shared/GroupListEditor.tsx），承接分组列表的数据层编辑（列表读取/整表写回/单组补丁/相邻移位/新增深拷贝/删除门控），组内字段仍由各模块以 renderItem 注入、字段组件继续吃 { data, onChange } 子协议，模块数据契约零变化。此前五模块各自手写的同构样板全部迁入：分组滑动（groupList）、分类推荐（categoryList）、组合推荐（comboGroups）、商品分组手动组（productGroups）、标签导航（groupList，保留「至少留一组」删除门控与「添加分组推荐」文案）。展示层 GroupCardList 同步现代化（用户 2026-11-21 指示）：卡片改直角 + 1px 干净边框去阴影、卡头 13px、「添加一组」由文本链接改整宽虚线直角按钮（悬停转主题色），对齐渠道弹窗/PicListEditor 改版审美，五模块同时受益。混搭公告（组=公告图列表）与混搭商品展示（组=不可折叠分区）结构分叉，未强行迁移，仅修编号并登记。
+
+## 0.0.2 续 · 2026-11-21 批次（积分换购列表原价补划线，未部署——随下一 PC 合并版上线）
+
+### 修复
+
+- **PC - 积分换购列表原价未划线（原版有·我方补齐）**：原版 `view/pc/pages/exchange/List.vue` 的原价与兑换价均经 FormatPrice 组件渲染（.price > .util 符号 + .num 金额），样式 `.market_price :deep(.price){text-decoration:line-through}` 在原版生效；我方 `pc-semi/app/exchange/page.tsx` 两处价格误用 `formatPrice(...)` 渲染为纯字符串、无 .price 子元素，`app/exchange-page.scss`（旧版 .vue 样式原样搬运的生成文件）里 `.market_price .price` 与 `.exchange_price .price` 两条规则全部落空——原价无划线，兑换价的主题色/20px/粗体也一并丢失（划线价全站统一线观察项）。修复只动 TSX、不手改生成样式：新增本地 PriceSpans 以 span 渲染与共享 FormatPrice 等价的三段结构（分段口径逐项镜像 FormatPrice：.00 小数隐藏、后缀段同置），两处价格改走该结构——原价走 splitDisplayPrice（划线展示价，≥1万按后台价格显示设置缩写，与商品详情市场价同口径），兑换价走 splitCurrencyPrice 保持精确；符号与金额同处 .price 容器、同字号、一并划线（2026-11-21 划线价全站新规：符号与金额同字号一并划线），结构补齐后生成样式的原规则自然生效。同族核查：H5 积分兑换列表卡与商品详情 exchange 模式经原版 uniapp 源码对照均不渲染原价/市场价（原版同口径，market 价块在原版即以 type !== 'exchange' 为显条件），无此问题；PC 礼品卡兑换页不渲染价格，无此点；PC 积分兑换详情市场价符号在 <s> 外一点由划线价全站统一线暂存包（其 P4）承载，本包不重复。
