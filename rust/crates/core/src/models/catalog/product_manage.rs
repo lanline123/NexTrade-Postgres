@@ -1018,6 +1018,10 @@ pub struct ClientProductInfoVO {
     /// 当前登录用户存在该商品的已支付未删订单时为 1，否则 0（匿名恒 0）。
     /// 未购时服务层把 `paid_content` 置空再下发，防止未付款扒全文。
     pub is_buy: i32,
+    /// 交付附件列表（我方新增）：仅 `is_buy = 1` 时由服务层回填，
+    /// 未购/匿名恒为空列表——不下发文件名，防未付款枚举交付物。
+    /// 列表只含展示元数据，下载须另行申领短时效令牌。
+    pub delivery_files: Vec<super::product_delivery::DeliveryFileVO>,
     pub prepay_price: Option<Decimal>,
     pub card_product: Option<i32>,
     /// 未迁移：预售信息（依赖预售域）

@@ -11,6 +11,7 @@ pub mod e_card_group;
 pub mod exchange;
 pub mod price_inquiry;
 pub mod product;
+pub mod product_delivery;
 pub mod product_batch;
 pub mod product_feed;
 pub mod product_group;

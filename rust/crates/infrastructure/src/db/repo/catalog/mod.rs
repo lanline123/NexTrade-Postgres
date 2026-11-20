@@ -11,6 +11,7 @@ pub mod e_card_group;
 pub mod exchange;
 pub mod price_inquiry;
 pub mod product;
+pub mod product_delivery;
 pub mod product_batch;
 pub mod product_feed;
 pub mod product_group;
@@ -53,6 +54,7 @@ pub struct Repositories {
     pub stock_warning: stock_warning::StockWarningRepository,
     pub product_manage_client: product_manage_client::ProductManageClientRepository,
     pub product_sale: product_sale::ProductSaleRepository,
+    pub product_delivery: product_delivery::ProductDeliveryRepository,
 }
 
 impl Repositories {
@@ -83,6 +85,7 @@ impl Repositories {
             stock_warning: stock_warning::StockWarningRepository::new(pool.clone()),
             product_manage_client: product_manage_client::ProductManageClientRepository::new(pool.clone()),
             product_sale: product_sale::ProductSaleRepository::new(pool.clone()),
+            product_delivery: product_delivery::ProductDeliveryRepository::new(pool.clone()),
         }
     }
 }

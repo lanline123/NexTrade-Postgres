@@ -18,6 +18,17 @@ pub trait Storage: Send + Sync {
 
     /// 删除对象。
     async fn delete(&self, key: &str) -> Result<()>;
+
+    /// 读取对象字节（文件型交付的服务端直读兜底）；默认不支持。
+    async fn get(&self, _key: &str) -> Result<Option<Vec<u8>>> {
+        Ok(None)
+    }
+
+    /// 生成限时签名 GET URL（私有读场景，如交付附件下载跳转）；
+    /// 不支持的后端返回 `None`，调用方改走服务端直读代理。
+    fn presigned_get_url(&self, _key: &str, _expires_at_unix: i64) -> Option<String> {
+        None
+    }
 }
 
 /// 本地磁盘存储（对应原 Spring `file.upload-dir`）。
@@ -64,6 +75,18 @@ impl Storage for LocalStorage {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(e) => Err(Error::Internal(format!("删除文件失败: {e}"))),
+        }
+    }
+
+    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        if key.contains("..") || key.starts_with('/') || key.contains('\\') {
+            return Err(Error::Validation(format!("非法存储路径: {key}")));
+        }
+        let path = std::path::Path::new(&self.base_dir).join(key);
+        match tokio::fs::read(&path).await {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(Error::Internal(format!("读取文件失败: {e}"))),
         }
     }
 }
@@ -168,6 +191,40 @@ impl Storage for AliyunOssStorage {
         let body = resp.text().await.unwrap_or_default();
         Err(Error::Internal(format!("OSS 删除失败 HTTP {status}: {body}")))
     }
+
+    /// OSS V1 限时签名 GET URL：`Expires` 占据签名串的 Date 槽位，
+    /// URL 参数携带 OSSAccessKeyId / Expires / Signature（文件型交付下载跳转用）。
+    fn presigned_get_url(&self, key: &str, expires_at_unix: i64) -> Option<String> {
+        if self.access_key_id.is_empty() || self.access_key_secret.is_empty() {
+            return None;
+        }
+        let clean_key = key.trim_start_matches('/');
+        let signature = self
+            .sign("GET", clean_key, "", "", &expires_at_unix.to_string())
+            .ok()?;
+        Some(format!(
+            "{}/{}?OSSAccessKeyId={}&Expires={}&Signature={}",
+            self.base_url(),
+            clean_key,
+            self.access_key_id,
+            expires_at_unix,
+            oss_query_encode(&signature),
+        ))
+    }
+}
+
+/// OSS 签名 URL 参数编码（base64 签名含 `+` `/` `=`，必须百分号编码）。
+fn oss_query_encode(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    for b in raw.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char);
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
 }
 
 impl AliyunOssStorage {
@@ -505,6 +562,36 @@ pub fn is_cert_file_url(url: &str) -> bool {
     url.contains("/cert/file/")
 }
 
+/// 保存交付附件对象到当前存储后端（key 由服务层生成，形如
+/// `delivery/{productId}/{md5}.{ext}`，不可枚举）。返回的公开 URL 被
+/// 丢弃——交付对象永不经公开 URL 访问，只经令牌端点放行。
+///
+/// # Errors
+/// 存储后端写入失败时返回内部错误。
+pub async fn put_delivery_object(key: &str, bytes: &[u8], content_type: &str) -> Result<()> {
+    global_storage()
+        .put(key, bytes.to_vec(), content_type)
+        .await
+        .map(|_| ())
+}
+
+/// 读取交付附件对象字节（本地后端直读兜底；OSS 后端优先签名 URL 跳转）。
+pub async fn read_delivery_object(key: &str) -> Result<Option<Vec<u8>>> {
+    global_storage().get(key).await
+}
+
+/// 交付附件限时签名 URL（OSS 后端）；当前后端不支持时返回 `None`，
+/// 调用方改走服务端直读。
+#[must_use]
+pub fn delivery_signed_url(key: &str, expires_at_unix: i64) -> Option<String> {
+    global_storage().presigned_get_url(key, expires_at_unix)
+}
+
+/// 删除交付附件对象（业务软删后的尽力清理，失败不阻断）。
+pub async fn delete_delivery_object(key: &str) {
+    let _ = global_storage().delete(key).await;
+}
+
 /// 按扩展名推断上传 Content-Type（OSS 访问/浏览器展示需要）。
 #[must_use]
 pub fn content_type_for(ext: &str) -> &'static str {
@@ -521,6 +608,17 @@ pub fn content_type_for(ext: &str) -> &'static str {
         "xls" => "application/vnd.ms-excel",
         "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "txt" => "text/plain",
+        "zip" => "application/zip",
+        "rar" => "application/vnd.rar",
+        "7z" => "application/x-7z-compressed",
+        "doc" => "application/msword",
+        "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "ppt" => "application/vnd.ms-powerpoint",
+        "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "epub" => "application/epub+zip",
+        "mp3" => "audio/mpeg",
+        "csv" => "text/csv",
+        "json" => "application/json",
         _ => "application/octet-stream",
     }
 }

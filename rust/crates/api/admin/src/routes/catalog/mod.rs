@@ -9,6 +9,7 @@ pub mod e_card;
 pub mod e_card_group;
 pub mod price_inquiry;
 pub mod product_batch;
+pub mod product_delivery;
 pub mod product_feed;
 pub mod product_group;
 pub mod product_inventory_log;
@@ -39,6 +40,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(e_card_group::routes(state))
         .merge(price_inquiry::routes(state))
         .merge(product_batch::routes(state))
+        .merge(product_delivery::routes(state))
         .merge(product_feed::routes(state))
         .merge(product_group::routes(state))
         .merge(product_inventory_log::routes(state))
@@ -70,6 +72,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(e_card_group::implemented_routes());
     out.extend(price_inquiry::implemented_routes());
     out.extend(product_batch::implemented_routes());
+    out.extend(product_delivery::implemented_routes());
     out.extend(product_feed::implemented_routes());
     out.extend(product_group::implemented_routes());
     out.extend(product_inventory_log::implemented_routes());

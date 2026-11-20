@@ -1107,6 +1107,16 @@ impl ProductManageService {
         let mut item = to_client_info(&product, &inquiry);
         item.is_buy = is_buy;
         item.paid_content = apply_buy_gate(is_buy, item.paid_content);
+        // 文件型交付（我方新增）：已购才下发附件列表，与 paid_content 同门；
+        // 未购恒空列表，不泄漏文件名。下载另走令牌申领接口强校验。
+        if is_buy == 1 {
+            item.delivery_files = self
+                .repos
+                .catalog
+                .product_delivery
+                .list_by_product(product_id)
+                .await?;
+        }
 
         Ok(ClientProductDetailVO {
             shop_id: product.shop_id,
@@ -2592,6 +2602,8 @@ fn to_client_info(p: &Product, inquiry: &InquirySummary) -> ClientProductInfoVO 
             .and_then(|raw| serde_json::from_str(raw).ok()),
         // 由 client_detail 按当前登录用户计算后回填（对应 Java isBuy）
         is_buy: 0,
+        // 由 client_detail 在 is_buy = 1 时回填（文件型交付，我方新增）
+        delivery_files: Vec::new(),
         prepay_price: p.prepay_price,
         card_product: None,
         presale_info: None,

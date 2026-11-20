@@ -10,6 +10,7 @@ use nextrade_core::models::trade::offline_claim::{
     status_name, stage_name, OfflinePaymentClaimAuditDTO, OfflinePaymentClaimSubmitDTO,
     OfflinePaymentClaimVO,
 };
+use nextrade_core::models::catalog::product_delivery::delivery_access;
 use nextrade_core::models::{OrderCreateDTO, OrderCreateVO, OrderVO};
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
@@ -1481,6 +1482,45 @@ impl OrderService {
                     Some(s) => serde_json::json!(s),
                     None => serde_json::Value::Null,
                 };
+        }
+        // 文件型交付（我方新增）：逐项注入附件列表，门控与 virtualSample
+        // 同构（delivery_access）——未达门恒空数组、不下发文件名；附件
+        // 按商品批量查询避免 N+1。下载另走令牌申领接口强校验。
+        let delivery_product_ids: Vec<i32> = items
+            .iter()
+            .filter(|it| matches!(it.product_type, 2 | 4))
+            .map(|it| it.product_id)
+            .collect();
+        let delivery_files = if delivery_product_ids.is_empty() {
+            Vec::new()
+        } else {
+            self.repos
+                .catalog
+                .product_delivery
+                .list_by_products(&delivery_product_ids)
+                .await?
+        };
+        for (idx, item) in items.iter().enumerate() {
+            let files: Vec<serde_json::Value> =
+                if delivery_access(item.product_type, order.pay_status, eff_shipping_status) {
+                    delivery_files
+                        .iter()
+                        .filter(|f| f.1 == item.product_id)
+                        .map(|f| {
+                            serde_json::json!({
+                                "fileId": f.0,
+                                "productId": f.1,
+                                "fileName": f.3,
+                                "fileExt": f.5,
+                                "fileSize": f.6,
+                                "addTime": f.8,
+                            })
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+            vo.items[idx]["deliveryFiles"] = serde_json::json!(files);
         }
         Ok((vo, items))
     }

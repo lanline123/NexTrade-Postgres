@@ -46,6 +46,7 @@ use nextrade_services::catalog::product_group::ProductGroupService;
 use nextrade_services::catalog::product_inventory_log::ProductInventoryLogService;
 use nextrade_services::catalog::product_manage::ProductManageService;
 use nextrade_services::catalog::product_manage_client::ProductManageClientService;
+use nextrade_services::catalog::product_delivery::ProductDeliveryService;
 use nextrade_services::catalog::product_manage_extra::ProductManageExtraService;
 use nextrade_services::catalog::product_search::ProductSearchService;
 use nextrade_services::catalog::product_stock::ProductStockService;
@@ -509,6 +510,7 @@ async fn main() -> anyhow::Result<()> {
     let exchange = Arc::new(ExchangeService::new(repos.clone()));
     let product_manage_extra = Arc::new(ProductManageExtraService::new(repos.clone()));
     let product_manage_client = Arc::new(ProductManageClientService::new(repos.clone()));
+    let product_delivery = Arc::new(ProductDeliveryService::new(repos.clone()));
     // ---- catalog 域 ----
     let catalog = Arc::new(nextrade_services::catalog::Services {
         attributes_tpl: attributes_tpl.clone(),
@@ -535,6 +537,7 @@ async fn main() -> anyhow::Result<()> {
         exchange: exchange.clone(),
         product_manage_extra: product_manage_extra.clone(),
         product_manage_client: product_manage_client.clone(),
+        product_delivery: product_delivery.clone(),
     });
     let user_order = Arc::new(UserOrderService::new(repos.clone()));
     let proxy_shopping_cart = Arc::new(ProxyShoppingCartService::new(repos.clone()));
