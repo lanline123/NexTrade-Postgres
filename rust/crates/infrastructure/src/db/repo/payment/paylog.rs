@@ -217,6 +217,64 @@ impl PaylogRepository {
         Ok(r)
     }
 
+    /// 取订单全部支付日志（拆单复制/激活同步用；按 paylog_id 升序）。
+    pub async fn find_all_by_order(
+        &self,
+        order_id: i32,
+        order_type: i32,
+    ) -> Result<Vec<Paylog>> {
+        sqlx::query_as::<_, Paylog>(
+            "SELECT * FROM paylog WHERE order_id = $1 AND order_type = $2 ORDER BY paylog_id ASC",
+        )
+        .bind(order_id)
+        .bind(order_type)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 按订单 + 支付号取最新一条（子单退款执行时以同 paySn 查父单 paylog，
+    /// 对应原版 RefundApplyServiceImpl 以 (parentOrderId, paySn) 取父单支付记录）。
+    pub async fn find_by_order_and_pay_sn(
+        &self,
+        order_id: i32,
+        pay_sn: &str,
+    ) -> Result<Option<Paylog>> {
+        sqlx::query_as::<_, Paylog>(
+            "SELECT * FROM paylog WHERE order_id = $1 AND pay_sn = $2 ORDER BY paylog_id DESC LIMIT 1",
+        )
+        .bind(order_id)
+        .bind(pay_sn)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 同步拆单子单 paylog 的金额与状态（对应原版 `syncSplitOrderPaylogAmount`：
+    /// 激活/尾差后按子单当前金额重算 payAmount 并对齐状态与交易号）。
+    pub async fn sync_split_amount(
+        &self,
+        paylog_id: i32,
+        pay_amount: Decimal,
+        order_amount: Decimal,
+        pay_status: i32,
+        transaction_id: &str,
+    ) -> Result<u64> {
+        let affected = sqlx::query(
+            "UPDATE paylog SET pay_amount = $1, order_amount = $2, pay_status = $3, transaction_id = $4 WHERE paylog_id = $5",
+        )
+        .bind(pay_amount)
+        .bind(order_amount)
+        .bind(pay_status)
+        .bind(transaction_id)
+        .bind(paylog_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?
+        .rows_affected();
+        Ok(affected)
+    }
+
     /// 不可变地绑定分账渠道快照。
     ///
     /// 对应 Java `bindProfitSharingChannel`：

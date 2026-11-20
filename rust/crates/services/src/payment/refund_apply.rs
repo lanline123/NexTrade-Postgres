@@ -606,8 +606,21 @@ impl RefundApplyService {
                 .execute(&self.repos.pool)
                 .await;
             let pay = crate::payment::pay::PayService::new(self.repos.clone());
+            // 拆单子单：渠道退款的订单总额取父单同 paySn 的 paylog
+            // （原版 RefundApplyServiceImpl L965-975）；退款流水与占用
+            // 仍记在子单自身 paylog 上（assertRefundable 口径不变）。
+            let channel_paylog = match self
+                .channel_total_paylog(existing.order_id, &paylog)
+                .await
+            {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::warn!("退款资金执行：父单 paylog 解析失败 refund_id={refund_id}: {e}");
+                    paylog.clone()
+                }
+            };
             match pay
-                .refund_via_channel(code, &paylog.pay_sn, &refund_sn, cash)
+                .refund_via_channel(&channel_paylog, &refund_sn, cash)
                 .await
             {
                 Ok(status) => {
@@ -628,6 +641,33 @@ impl RefundApplyService {
             "退款资金执行：支付方式 {code} 暂无自动退款轨，申请 {refund_id} 停处理中等待人工处理"
         );
         Ok((MoneyOutcome::ChannelPending, None))
+    }
+
+    /// 渠道退款的总额基准 paylog：拆单子单（parent_order_id > 0）时取
+    /// 父单同 paySn 的 paylog（其 pay_amount 为整单实付）；非子单或父单
+    /// 无对应记录时回退本单 paylog。对应原版 RefundApplyServiceImpl
+    /// 在渠道退款时以 (parentOrderId, paySn) 查父单 paylog 的口径——
+    /// 子单 paylog 只承载分摊额，不能作渠道总额。
+    async fn channel_total_paylog(
+        &self,
+        order_id: i32,
+        paylog: &nextrade_core::entities::Paylog,
+    ) -> Result<nextrade_core::entities::Paylog> {
+        let Some(order) = self.repos.trade.order_admin.find_order(order_id).await? else {
+            return Ok(paylog.clone());
+        };
+        if let Some(parent_id) = order.parent_order_id.filter(|id| *id > 0) {
+            if let Some(parent_log) = self
+                .repos
+                .payment
+                .paylog
+                .find_by_order_and_pay_sn(parent_id, &paylog.pay_sn)
+                .await?
+            {
+                return Ok(parent_log);
+            }
+        }
+        Ok(paylog.clone())
     }
 
     /// 余额支付部分的退款回补（Java `createRefundFlow` 余额分支 →
@@ -1339,6 +1379,43 @@ mod tests {
         assert!(
             !body.contains("== Ok(RefundApplyStatus::Wait as i32)"),
             "update 内不得再出现 == Wait 的反转状态门"
+        );
+    }
+
+    /// 源码不变量（拆单子单退款）：渠道退款的总额基准必须经
+    /// `channel_total_paylog` 解析（子单 → 父单同 paySn paylog），
+    /// 不得直接以子单自身 paylog 的分摊额充当渠道总额。
+    #[test]
+    fn channel_refund_total_resolves_parent_paylog_for_children() {
+        let src = include_str!("refund_apply.rs");
+        let start = src
+            .find("pub async fn execute_refund_money")
+            .expect("execute_refund_money 应存在");
+        let tail = &src[start..];
+        let end = tail
+            .find("\n    async fn credit_balance_refund")
+            .expect("execute_refund_money 后应有 credit_balance_refund");
+        let body = &tail[..end];
+        assert!(
+            body.contains(".channel_total_paylog(existing.order_id, &paylog)"),
+            "渠道退款前必须解析总额基准 paylog"
+        );
+        assert!(
+            body.contains(".refund_via_channel(&channel_paylog, &refund_sn, cash)"),
+            "渠道退款必须以解析后的 paylog 执行"
+        );
+        // channel_total_paylog 本体：按 parent_order_id + pay_sn 查父单
+        let helper = src
+            .find("async fn channel_total_paylog")
+            .expect("channel_total_paylog 应存在");
+        let htail = &src[helper..];
+        let hend = htail
+            .find("\n    /// 余额支付部分的退款回补")
+            .expect("channel_total_paylog 后应有 credit_balance_refund 注释");
+        let hbody = &htail[..hend];
+        assert!(
+            hbody.contains("find_by_order_and_pay_sn(parent_id, &paylog.pay_sn)"),
+            "父单 paylog 必须以 (parent_order_id, pay_sn) 解析"
         );
     }
 }

@@ -1137,6 +1137,257 @@ impl OrderAdminRepository {
         Ok(res)
     }
 
+    /// 插入子订单行（拆单专用，全列复制父单行）。
+    ///
+    /// 与 `insert_order`（下单路径的 47 列子集）不同，拆单子单必须完整
+    /// 继承父单的支付/费用/周期等全部字段，故按实体全列写入；
+    /// `table_no` / `table_area_name` 与下单路径一致写空串（实体未承载）。
+    pub async fn insert_order_full(&self, o: &Order) -> Result<i32> {
+        let r: i32 = sqlx::query_scalar(
+            "INSERT INTO \"order\" (
+                order_sn, user_id, parent_order_id, parent_order_sn, order_status,
+                shipping_status, pay_status, add_time, consignee, address,
+                region_ids, region_names, address_data, mobile, email,
+                buyer_note, admin_note, shipping_method, logistics_id, logistics_provider,
+                logistics_name, shipping_type_id, shipping_type_name, tracking_no, shipping_time,
+                received_time, pay_type_id, pay_time, use_points, is_need_commisson,
+                distribution_status, referrer_user_id, is_del, shop_id, is_store_splited,
+                is_valid, comment_status, total_amount, paid_amount, unpaid_amount,
+                unrefund_amount, product_amount, coupon_amount, points_amount, discount_amount,
+                balance, credit_amount, is_credit_order, online_paid_amount, offline_paid_amount,
+                service_fee, shipping_fee, invoice_fee, order_extension, order_source,
+                invoice_data, out_trade_no, is_settlement, is_exchange_order, order_type,
+                is_cycle_order, is_card_order, is_presale, presale_type, mark,
+                vendor_id, cancel_remark, cash_amount, cash_change_amount, round_off_dime_amount,
+                round_off_cents_amount, pos_user_id, device_code, discount_change_price, tax_rate,
+                tax_rate_amount, change_price_data, gift_card_amount, delivery_date, delivery_time_slot,
+                period_index, time_index, table_no, table_area_name
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+                $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
+                $31, $32, $33, $34, $35, $36, $37, $38, $39, $40,
+                $41, $42, $43, $44, $45, $46, $47, $48, $49, $50,
+                $51, $52, $53, $54, $55, $56, $57, $58, $59, $60,
+                $61, $62, $63, $64, $65, $66, $67, $68, $69, $70,
+                $71, $72, $73, $74, $75, $76, $77, $78, $79, $80,
+                $81, $82, $83, $84
+             ) RETURNING order_id",
+        )
+        .bind(&o.order_sn)
+        .bind(o.user_id)
+        .bind(o.parent_order_id.unwrap_or(0))
+        .bind(o.parent_order_sn.as_deref().unwrap_or(""))
+        .bind(o.order_status)
+        .bind(o.shipping_status)
+        .bind(o.pay_status)
+        .bind(o.add_time)
+        .bind(&o.consignee)
+        .bind(&o.address)
+        .bind(&o.region_ids)
+        .bind(&o.region_names)
+        .bind(&o.address_data)
+        .bind(&o.mobile)
+        .bind(&o.email)
+        .bind(&o.buyer_note)
+        .bind(&o.admin_note)
+        .bind(o.shipping_method)
+        .bind(o.logistics_id)
+        .bind(o.logistics_provider)
+        .bind(&o.logistics_name)
+        .bind(o.shipping_type_id)
+        .bind(&o.shipping_type_name)
+        .bind(&o.tracking_no)
+        .bind(o.shipping_time)
+        .bind(o.received_time)
+        .bind(o.pay_type_id)
+        .bind(o.pay_time)
+        .bind(o.use_points)
+        .bind(o.is_need_commisson)
+        .bind(o.distribution_status)
+        .bind(o.referrer_user_id)
+        .bind(o.is_del)
+        .bind(o.shop_id)
+        .bind(o.is_store_splited)
+        .bind(o.is_valid)
+        .bind(o.comment_status)
+        .bind(o.total_amount)
+        .bind(o.paid_amount)
+        .bind(o.unpaid_amount)
+        .bind(o.unrefund_amount)
+        .bind(o.product_amount)
+        .bind(o.coupon_amount)
+        .bind(o.points_amount)
+        .bind(o.discount_amount)
+        .bind(o.balance)
+        .bind(o.credit_amount)
+        .bind(o.is_credit_order)
+        .bind(o.online_paid_amount)
+        .bind(o.offline_paid_amount)
+        .bind(o.service_fee)
+        .bind(o.shipping_fee)
+        .bind(o.invoice_fee)
+        .bind(&o.order_extension)
+        .bind(&o.order_source)
+        .bind(&o.invoice_data)
+        .bind(&o.out_trade_no)
+        .bind(o.is_settlement)
+        .bind(o.is_exchange_order)
+        .bind(o.order_type)
+        .bind(o.is_cycle_order)
+        .bind(o.is_card_order)
+        .bind(o.is_presale)
+        .bind(o.presale_type)
+        .bind(o.mark)
+        .bind(o.vendor_id)
+        .bind(&o.cancel_remark)
+        .bind(o.cash_amount)
+        .bind(o.cash_change_amount)
+        .bind(o.round_off_dime_amount)
+        .bind(o.round_off_cents_amount)
+        .bind(o.pos_user_id)
+        .bind(&o.device_code)
+        .bind(o.discount_change_price)
+        .bind(o.tax_rate)
+        .bind(o.tax_rate_amount)
+        .bind(&o.change_price_data)
+        .bind(o.gift_card_amount)
+        .bind(&o.delivery_date)
+        .bind(&o.delivery_time_slot)
+        .bind(o.period_index)
+        .bind(o.time_index)
+        .bind("")
+        .bind("")
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r)
+    }
+
+    /// 插入子订单明细（拆单专用，全列复制父单明细行，含 `gift_card_id` /
+    /// `change_price_data`；恒为新行新 `item_id`，永不回指父单明细——
+    /// 对应原版 createSplitOrder 的明细复制语义，根除双写）。
+    pub async fn insert_order_item_full(&self, it: &OrderItem) -> Result<i32> {
+        let r: i32 = sqlx::query_scalar(
+            "INSERT INTO order_item (
+                order_id, order_sn, user_id, price, quantity, product_id, product_name,
+                product_sn, pic_thumb, sku_id, sku_data, delivery_quantity, product_type,
+                is_gift, shop_id, is_pin, prepay_price, commission, origin_price,
+                promotion_data, is_seckill, extra_sku_data, suppliers_id, card_group_name,
+                vendor_product_id, vendor_product_sku_id, vendor_id, vendor_product_supply_price,
+                change_price_data, admin_change_pre_price, gift_card_id, delivery_service_fee,
+                server_service_fee, is_wholesale_line, wholesale_grade_id, wholesale_base_price
+             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36) RETURNING item_id",
+        )
+        .bind(it.order_id)
+        .bind(&it.order_sn)
+        .bind(it.user_id)
+        .bind(it.price)
+        .bind(it.quantity)
+        .bind(it.product_id)
+        .bind(&it.product_name)
+        .bind(&it.product_sn)
+        .bind(&it.pic_thumb)
+        .bind(it.sku_id)
+        .bind(&it.sku_data)
+        .bind(it.delivery_quantity)
+        .bind(it.product_type)
+        .bind(it.is_gift)
+        .bind(it.shop_id)
+        .bind(it.is_pin)
+        .bind(it.prepay_price)
+        .bind(&it.commission)
+        .bind(it.origin_price)
+        .bind(&it.promotion_data)
+        .bind(it.is_seckill)
+        .bind(&it.extra_sku_data)
+        .bind(it.suppliers_id)
+        .bind(&it.card_group_name)
+        .bind(it.vendor_product_id)
+        .bind(it.vendor_product_sku_id)
+        .bind(it.vendor_id)
+        .bind(it.vendor_product_supply_price)
+        .bind(&it.change_price_data)
+        .bind(it.admin_change_pre_price)
+        .bind(it.gift_card_id)
+        .bind(it.delivery_service_fee)
+        .bind(it.server_service_fee)
+        .bind(it.is_wholesale_line)
+        .bind(it.wholesale_grade_id)
+        .bind(it.wholesale_base_price)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r)
+    }
+
+    /// 写入店铺金额明细（`order_amount_detail`，下单时逐店一行；
+    /// 对应原版结算 `creatOrderAmountDetail`，是拆单单 vendor 分支的数据源）。
+    pub async fn insert_amount_detail(
+        &self,
+        d: &nextrade_core::entities::OrderAmountDetail,
+    ) -> Result<i32> {
+        let r: i32 = sqlx::query_scalar(
+            "INSERT INTO order_amount_detail
+             (order_id, shop_id, shipping_fee, discount_amount, coupon_amount, time_discount_amount)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING order_discount_detail_id",
+        )
+        .bind(d.order_id)
+        .bind(d.shop_id)
+        .bind(d.shipping_fee)
+        .bind(d.discount_amount)
+        .bind(d.coupon_amount)
+        .bind(d.time_discount_amount)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r)
+    }
+
+    /// 写入优惠券明细（`order_coupon_detail`，下单时逐券一行）。
+    pub async fn insert_coupon_detail(
+        &self,
+        d: &nextrade_core::entities::OrderCouponDetail,
+    ) -> Result<i32> {
+        let r: i32 = sqlx::query_scalar(
+            "INSERT INTO order_coupon_detail (order_id, shop_id, coupon_id, coupon_fee)
+             VALUES ($1, $2, $3, $4) RETURNING order_coupon_detail_id",
+        )
+        .bind(d.order_id)
+        .bind(d.shop_id)
+        .bind(d.coupon_id)
+        .bind(d.coupon_fee)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r)
+    }
+
+    /// 查询订单优惠券明细（拆单时按子单店铺复制）。
+    pub async fn find_coupon_details(
+        &self,
+        order_id: i32,
+    ) -> Result<Vec<nextrade_core::entities::OrderCouponDetail>> {
+        sqlx::query_as::<_, nextrade_core::entities::OrderCouponDetail>(
+            "SELECT * FROM order_coupon_detail WHERE order_id = $1 ORDER BY order_coupon_detail_id ASC",
+        )
+        .bind(order_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 删除订单行（支付时拆单删除父单，对应原版 `removeById`；
+    /// 明细由 `delete_items` 另行删除）。
+    pub async fn delete_order_row(&self, order_id: i32) -> Result<u64> {
+        Ok(sqlx::query("DELETE FROM \"order\" WHERE order_id = $1")
+            .bind(order_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?
+            .rows_affected())
+    }
+
     /// 迁移订单项所属订单 ID。
     pub async fn update_item_order_id(&self, item_id: i32, new_order_id: i32) -> Result<()> {
         sqlx::query("UPDATE order_item SET order_id = $1 WHERE item_id = $2")

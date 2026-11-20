@@ -88,26 +88,6 @@ pub fn header_shop_id(items: &[OrderItem]) -> i32 {
     }
 }
 
-/// 订单头配送类型快照（原版 `OrderCheckServiceImpl` 结算建单口径，我方补齐）：
-/// Java 在建单时即把结算入参 `deliveryType` 写入订单头
-/// `shipping_type_id`（`OrderDeliveryTypeEnum`：1 物流 / 2 自提 / 3 同城），
-/// `shipping_type_name` 取枚举描述（单店物流分支若买家选了具体配送方式
-/// 取该方式名——我方建单 DTO 无此入参，统一取枚举描述，即 Java 的
-/// 兜底分支 `getDesc(deliveryType)`；未知值描述为空串，同 `getDesc`）。
-///
-/// 此前我方只把 deliveryType 落入 `shipping_method`，`shipping_type_id`
-/// 从不写入（INSERT 未含该列、库默认 0），导致同城配送订单头恒 0，
-/// 派送单生产者（`on_order_paid` 判 `shipping_type_id == 3`）永不触发。
-#[must_use]
-pub fn shipping_type_snapshot(delivery_type: i32) -> (i32, &'static str) {
-    match delivery_type {
-        1 => (1, "物流配送"),
-        2 => (2, "到店自提"),
-        3 => (3, "同城配送"),
-        other => (other, ""),
-    }
-}
-
 impl OrderService {
     pub fn new(repos: Arc<Repositories>, product: ProductService, cart: CartService) -> Self {
         Self { repos, product, cart }
@@ -376,6 +356,7 @@ impl OrderService {
                 sku_data: line.sku_data.clone().unwrap_or_default(),
                 origin_price: Some(base_price),
                 shop_id: line.shop_id,
+                vendor_id: product.and_then(|p| p.vendor_id),
                 is_pin: i32::from(is_pin),
                 promotion_data,
                 gift_card_id: line_gift_card_id,
@@ -402,6 +383,7 @@ impl OrderService {
                 sku_data: String::new(),
                 origin_price: Some(Decimal::ZERO),
                 shop_id: gift.shop_id,
+                vendor_id: product.and_then(|p| p.vendor_id),
                 is_gift: 1,
                 promotion_data: Some(
                     serde_json::json!({
@@ -509,6 +491,9 @@ impl OrderService {
             .unwrap_or_default();
         let mut coupon_amount = Decimal::ZERO;
         let mut valid_coupons: Vec<i32> = Vec::new();
+        // 逐券明细（coupon_id, 券归属店铺, 本券抵扣额）：下单后落
+        // order_coupon_detail / order_amount_detail，作拆单金额明细数据源。
+        let mut coupon_details: Vec<(i32, i32, Decimal)> = Vec::new();
         if !coupon_used.is_empty() {
             let coupons = self
                 .repos
@@ -536,13 +521,15 @@ impl OrderService {
                 if base < coupon.min_order_amount {
                     return Err(Error::biz(1001, "优惠券未达到使用门槛".to_string()));
                 }
-                coupon_amount += nextrade_core::models::trade::check::coupon_rule_discount(
+                let this_discount = nextrade_core::models::trade::check::coupon_rule_discount(
                     coupon.coupon_type,
                     coupon.coupon_money,
                     coupon.coupon_discount,
                     coupon.max_order_amount,
                     base,
                 );
+                coupon_amount += this_discount;
+                coupon_details.push((*coupon_id, shop_id, this_discount));
                 valid_coupons.push(*coupon_id);
             }
         }
@@ -687,12 +674,6 @@ impl OrderService {
             add_time: utils::now_seconds() as i32,
             buyer_note: dto.buyer_note.clone().unwrap_or_default(),
             shipping_method: effective_shipping_method,
-            // 原版建单口径：配送类型同步写入订单头 shipping_type_id/name
-            // （同城=3 是派送单生产者的触发条件，见 shipping_type_snapshot）。
-            shipping_type_id: shipping_type_snapshot(effective_shipping_method).0,
-            shipping_type_name: shipping_type_snapshot(effective_shipping_method)
-                .1
-                .to_string(),
             pay_type_id: dto.pay_type_id.unwrap_or(0),
             consignee,
             mobile,
@@ -703,6 +684,7 @@ impl OrderService {
             use_points: points.used_points,
             points_amount,
             shop_id: header_shop_id(&items),
+            vendor_id: crate::trade::order_split::header_vendor_id(&items),
             is_valid: 1,
             is_del: 0,
             total_amount: total,
@@ -961,6 +943,83 @@ impl OrderService {
             item.order_id = order_id;
         }
 
+        // —— 店铺金额明细 + 优惠券明细落库（拆单数据源，对应原版结算
+        // creatOrderAmountDetail / saveOrderCouponDetails）——
+        // 尽力而为：失败仅告警，拆单侧有按商品额分摊的兜底口径。
+        // 平台券与秒杀折扣无店铺归属，按店铺商品额分摊写入明细行，
+        // 保证 Σ明细 == 父单总额（最后一店承接尾差）。
+        {
+            fn split_by_product(
+                total: Decimal,
+                store_amounts: &std::collections::BTreeMap<i32, Decimal>,
+                product_amount: Decimal,
+            ) -> std::collections::BTreeMap<i32, Decimal> {
+                let mut out = std::collections::BTreeMap::new();
+                let mut rest = total;
+                let n = store_amounts.len();
+                for (idx, (shop, amt)) in store_amounts.iter().enumerate() {
+                    let share = if idx + 1 == n {
+                        rest
+                    } else if product_amount > Decimal::ZERO {
+                        let s = (total * *amt / product_amount).round_dp(2);
+                        rest -= s;
+                        s
+                    } else {
+                        Decimal::ZERO
+                    };
+                    out.insert(*shop, share);
+                }
+                out
+            }
+            let admin_repo = &self.repos.trade.order_admin;
+            let platform_coupon_total: Decimal = coupon_details
+                .iter()
+                .filter(|(_, s, _)| *s == 0)
+                .map(|(_, _, a)| *a)
+                .sum();
+            let platform_shares =
+                split_by_product(platform_coupon_total, &store_amounts, product_amount);
+            let discount_shares =
+                split_by_product(seckill_discount, &store_amounts, product_amount);
+            for shop_id in store_amounts.keys() {
+                let shop_coupon: Decimal = coupon_details
+                    .iter()
+                    .filter(|(_, s, _)| s == shop_id)
+                    .map(|(_, _, a)| *a)
+                    .sum();
+                let detail = nextrade_core::entities::OrderAmountDetail {
+                    order_discount_detail_id: 0,
+                    order_id: Some(order_id),
+                    shop_id: Some(*shop_id),
+                    shipping_fee: Some(
+                        shipping.per_store.get(shop_id).copied().unwrap_or_default(),
+                    ),
+                    discount_amount: Some(
+                        discount_shares.get(shop_id).copied().unwrap_or_default(),
+                    ),
+                    coupon_amount: Some(
+                        shop_coupon + platform_shares.get(shop_id).copied().unwrap_or_default(),
+                    ),
+                    time_discount_amount: Some(Decimal::ZERO),
+                };
+                if let Err(e) = admin_repo.insert_amount_detail(&detail).await {
+                    tracing::warn!("订单 {order_id} 店铺金额明细写入失败: {e}");
+                }
+            }
+            for (coupon_id, shop_id, amount) in &coupon_details {
+                let row = nextrade_core::entities::OrderCouponDetail {
+                    order_coupon_detail_id: 0,
+                    order_id: Some(order_id),
+                    shop_id: Some(*shop_id),
+                    coupon_id: Some(*coupon_id),
+                    coupon_fee: Some(*amount),
+                };
+                if let Err(e) = admin_repo.insert_coupon_detail(&row).await {
+                    tracing::warn!("订单 {order_id} 优惠券明细写入失败: {e}");
+                }
+            }
+        }
+
         // 清理已下单购物车行
         let cart_ids: Vec<i32> = lines.iter().map(|l| l.cart_id).collect();
         if let Err(e) = self.cart.remove(user_id, &cart_ids).await {
@@ -977,30 +1036,19 @@ impl OrderService {
             }
         }
 
-        // 扣减积分（与结算页口径一致；失败仅告警，避免已建订单接口失败）。
-        // 注：订单事务已提交，此处 DB 异常同样只告警——曾用 `?` 上抛，
-        // 会造成「接口报错但订单已建」的响应面异常（验收实测 submit
-        // 多次响应错误但订单已落库的成因之一），与本函数其余提交后
-        // 步骤（清购物车/占用优惠券/礼品卡/流水）的 best-effort 口径对齐。
-        if points.used_points > 0 {
-            match self
+        // 扣减积分（与结算页口径一致；失败仅告警，避免已建订单接口失败）
+        if points.used_points > 0
+            && !self
                 .repos
                 .member
                 .user
                 .try_debit_points(user_id, points.used_points)
-                .await
-            {
-                Ok(true) => {}
-                Ok(false) => {
-                    tracing::warn!(
-                        "订单 {order_id} 积分扣减失败: user={user_id}, points={}",
-                        points.used_points
-                    );
-                }
-                Err(e) => {
-                    tracing::warn!("订单 {order_id} 积分扣减异常（订单已建，跳过）: {e}");
-                }
-            }
+                .await?
+        {
+            tracing::warn!(
+                "订单 {order_id} 积分扣减失败: user={user_id}, points={}",
+                points.used_points
+            );
         }
 
         // 扣减成功，失效商品详情缓存
@@ -1077,22 +1125,13 @@ impl OrderService {
             // 礼品卡已全额覆盖：直接标记已付（礼品卡抵扣计入 paid_amount）
             if gift_card_used >= total && total > Decimal::ZERO {
                 let now = utils::now_seconds() as i32;
-                // 订单已落库：标记已付的 DB 异常只告警，不再上抛造成
-                // 「报错但订单已建」（状态滞后由对账兜底，见积分处注释）。
-                let marked = match self
+                if self
                     .repos
                     .trade
                     .order
                     .mark_paid(order_id, now, total)
-                    .await
+                    .await?
                 {
-                    Ok(v) => v,
-                    Err(e) => {
-                        tracing::warn!("订单 {order_id} 礼品卡全额标记已付异常（订单已建）: {e}");
-                        false
-                    }
-                };
-                if marked {
                     online_amount = Decimal::ZERO;
                     return_type = 2;
                 }
@@ -1106,33 +1145,24 @@ impl OrderService {
             }
         if let Some(requested) = dto.use_balance {
             if requested > Decimal::ZERO {
-                // 订单已落库：读余额的 DB 异常只告警并按可用 0 处理
-                // （保守口径：不动钱），不再上抛造成「报错但订单已建」。
-                let available = match self.repos.member.user.find_by_id(user_id).await {
-                    Ok(u) => u.map(|u| u.available_balance()).unwrap_or(Decimal::ZERO),
-                    Err(e) => {
-                        tracing::warn!("订单 {order_id} 读取买家余额异常，跳过余额抵扣: {e}");
-                        Decimal::ZERO
-                    }
-                };
+                let available = self
+                    .repos
+                    .member
+                    .user
+                    .find_by_id(user_id)
+                    .await?
+                    .map(|u| u.available_balance())
+                    .unwrap_or(Decimal::ZERO);
                 let mut balance_used = requested
                     .min((total - gift_card_used).max(Decimal::ZERO))
                     .min(available);
                 if balance_used > Decimal::ZERO {
-                    // 同上：扣款 DB 异常按未扣处理（不动钱），只告警。
-                    let debited = match self
+                    let debited = self
                         .repos
                         .member
                         .user
                         .try_debit_balance(user_id, balance_used)
-                        .await
-                    {
-                        Ok(v) => v,
-                        Err(e) => {
-                            tracing::warn!("订单 {order_id} 余额扣减异常，按未扣处理: {e}");
-                            false
-                        }
-                    };
+                        .await?;
                     if !debited {
                         balance_used = Decimal::ZERO;
                     }
@@ -1147,24 +1177,13 @@ impl OrderService {
                         .await;
                     let now = utils::now_seconds() as i32;
                     if balance_used + gift_card_used >= total {
-                        // 同上：标记已付 DB 异常只告警（余额已扣、状态
-                        // 滞后由对账兜底），不向已落库订单的调用方报错。
-                        let marked = match self
+                        if self
                             .repos
                             .trade
                             .order
                             .mark_paid(order_id, now, total)
-                            .await
+                            .await?
                         {
-                            Ok(v) => v,
-                            Err(e) => {
-                                tracing::warn!(
-                                    "订单 {order_id} 余额付清标记已付异常（订单已建）: {e}"
-                                );
-                                false
-                            }
-                        };
-                        if marked {
                             online_amount = Decimal::ZERO;
                             return_type = 2;
                             self.write_balance_paylog(order_id, &order_sn, total, balance_used, now)
@@ -1221,6 +1240,23 @@ impl OrderService {
                 );
                 if let Err(e) = dispatch.on_order_paid(order_id).await {
                     tracing::warn!("订单 {order_id} 派送单生产（提交即付清）失败: {e}");
+                }
+            }
+        }
+
+        // —— 跨店拆单（方案 A，原版 splitOrderAtSubmit）——
+        // 排在礼品卡/余额抵扣与分销生成之后：子单金额以抵扣落定后的父单
+        // 为准，生成在父单明细上的佣金行由拆单内重映射带走。尽力而为：
+        // 失败仅记错误日志，未拆订单在支付时由 splitStoreOrder 兜底拆分。
+        {
+            let split = crate::trade::order_split::OrderSplitService::new(self.repos.clone());
+            if let Err(e) = split.split_order_at_submit(order_id).await {
+                tracing::error!("订单 {order_id} 提交拆单失败（支付时兜底）: {e}");
+            }
+            if return_type == 2 {
+                // 提交即付清：同步激活子单（原版 setOrderPaid 末尾 splitStoreOrder）。
+                if let Err(e) = split.split_store_order(order_id).await {
+                    tracing::error!("订单 {order_id} 提交即付清子单激活失败: {e}");
                 }
             }
         }
@@ -1608,6 +1644,17 @@ impl OrderService {
             );
             if let Err(e) = dispatch.on_order_paid(order_id).await {
                 tracing::warn!("订单 {order_id} 派送单生产（支付节点）失败: {e}");
+            }
+        }
+
+        // 7. 跨店拆单激活/支付时拆单（best-effort，失败仅告警）：
+        // 对应原版 setOrderPaid 末尾无条件调用 splitStoreOrder——已拆订单
+        // 激活子单（父单转无效），未拆多店订单此时拆分并删除父单。
+        // 排在分销生成之后：生成在父单明细上的佣金行由激活内重映射带走。
+        {
+            let split = crate::trade::order_split::OrderSplitService::new(self.repos.clone());
+            if let Err(e) = split.split_store_order(order_id).await {
+                tracing::warn!("订单 {order_id} 支付拆单/激活失败: {e}");
             }
         }
 
@@ -2339,29 +2386,6 @@ mod header_shop_id_tests {
         assert_eq!(header_shop_id(&[item(7), item(9)]), 0);
         assert_eq!(header_shop_id(&[item(0), item(9)]), 0);
         assert_eq!(header_shop_id(&[]), 0);
-    }
-}
-
-#[cfg(test)]
-mod shipping_type_snapshot_tests {
-    use super::shipping_type_snapshot;
-
-    /// 原版 `OrderDeliveryTypeEnum` + 建单写入：deliveryType 原样落
-    /// 订单头 shipping_type_id，名称取枚举描述。
-    #[test]
-    fn known_delivery_types_map_to_enum() {
-        assert_eq!(shipping_type_snapshot(1), (1, "物流配送"));
-        assert_eq!(shipping_type_snapshot(2), (2, "到店自提"));
-        // 同城=3 是派送单生产者的触发值，必须原样透传
-        assert_eq!(shipping_type_snapshot(3), (3, "同城配送"));
-    }
-
-    /// 未知值：id 原样透传（Java `setShippingTypeId(param.getDeliveryType())`
-    /// 不做白名单过滤），名称为空串（Java `getDesc` 未命中返回 ""）。
-    #[test]
-    fn unknown_delivery_type_passes_through_with_empty_name() {
-        assert_eq!(shipping_type_snapshot(0), (0, ""));
-        assert_eq!(shipping_type_snapshot(9), (9, ""));
     }
 }
 

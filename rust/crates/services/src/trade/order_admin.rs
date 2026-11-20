@@ -1407,92 +1407,16 @@ impl OrderAdminService {
 
     /// 订单拆分（`POST /order/order/splitStoreOrder`）。
     ///
-    /// 对应 Java `splitStoreOrder`：
-    /// - 已拆单（`is_store_splited = 1`）→ 直接返回 false；
-    /// - 全部明细同店铺同供应商（单组）→ 只置 `is_store_splited = 1` 并返回 true。
-    /// - 多店铺/多供应商 → 按 (shop_id, vendor_id) 拆分子订单并置父单 `is_store_splited = 1, is_valid = 0`。
+    /// 已收敛到统一拆单实现 `OrderSplitService::split_store_order`
+    /// （方案 A 全量照迁原版模型）：已拆有子单 → 激活（父单未付时不激活）；
+    /// 未拆单组 → 只置 `is_store_splited = 1`；未拆多组 → 建子单
+    /// （金额明细行/分摊 + 尾差调整 + paylog 同 paySn 复制）后删除父单。
+    /// 子单明细恒为全新行——旧实现 `insert + update_item_order_id` 回指
+    /// 造成的明细双写已随收敛根除。
     pub async fn split_store_order(&self, id: i32) -> Result<bool> {
-        let order = self
-            .repos
-            .trade
-            .order_admin
-            .find_order(id)
-            .await?
-            .ok_or_else(|| Error::biz_msg("订单不存在"))?;
-        if order.is_store_splited == 1 {
-            return Ok(false);
-        }
-        let items = self.repos.trade.order_admin.find_items(id).await?;
-        let mut groups: HashMap<(i32, i32), Vec<OrderItem>> = HashMap::new();
-        for it in items {
-            groups.entry((it.shop_id, it.vendor_id.unwrap_or(0))).or_default().push(it);
-        }
-        if groups.len() <= 1 {
-            self.repos
-                .trade
-                .order_admin
-                .update_order(id, &OrderPatch::new().i32_val("is_store_splited", 1))
-                .await?;
-            return Ok(true);
-        }
-
-        // 多店铺/多供应商拆单
-        let now = utils::now_seconds() as i32;
-        for ((shop_id, vendor_id), group_items) in &groups {
-            let mut sub_order = order.clone();
-            sub_order.order_id = 0;
-            let sub_sn = utils::generate_order_sn();
-            sub_order.order_sn = sub_sn.clone();
-            sub_order.parent_order_id = Some(id);
-            sub_order.parent_order_sn = Some(order.order_sn.clone());
-            sub_order.shop_id = *shop_id;
-            sub_order.vendor_id = if *vendor_id > 0 { Some(*vendor_id) } else { None };
-            sub_order.is_store_splited = 1;
-            sub_order.is_valid = 1;
-
-            let mut sub_product_amount = Decimal::ZERO;
-            for it in group_items {
-                sub_product_amount += it.price * Decimal::from(it.quantity);
-            }
-            sub_order.product_amount = sub_product_amount;
-            if order.product_amount > Decimal::ZERO {
-                let ratio = (sub_product_amount / order.product_amount).min(Decimal::ONE);
-                sub_order.total_amount = (order.total_amount * ratio).round_dp(2);
-                sub_order.paid_amount = (order.paid_amount * ratio).round_dp(2);
-                sub_order.unpaid_amount = (sub_order.total_amount - sub_order.paid_amount).max(Decimal::ZERO);
-            } else {
-                sub_order.total_amount = sub_product_amount;
-            }
-
-            let sub_id = self.repos.trade.order.insert_order(&sub_order, group_items).await?;
-            for it in group_items {
-                let _ = self.repos.trade.order_admin.update_item_order_id(it.item_id, sub_id).await;
-            }
-            let _ = self.repos.trade.order_admin.insert_order_split_log(
-                id,
-                sub_id,
-                now,
-                &format!("店铺拆单：shop_id={}, vendor_id={}", shop_id, vendor_id),
-            ).await;
-        }
-
-        self.repos
-            .trade
-            .order_admin
-            .update_order(
-                id,
-                &OrderPatch::new()
-                    .i32_val("is_store_splited", 1)
-                    .i32_val("is_valid", 0),
-            )
-            .await?;
-        self.repos
-            .trade
-            .order_admin
-            .quick_order_log(id, &order.order_sn, "商品属于不同商铺/供应商，已拆分订单")
-            .await?;
-
-        Ok(true)
+        crate::trade::order_split::OrderSplitService::new(self.repos.clone())
+            .split_store_order(id)
+            .await
     }
 
     /// 设置已付款（`POST /order/order/setPaid`）。

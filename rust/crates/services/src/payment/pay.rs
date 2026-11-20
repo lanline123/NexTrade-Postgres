@@ -1115,20 +1115,20 @@ impl PayService {
     }
 
     /// 渠道退款入口（按 pay_code 分发）。
+    /// 按已解析的原支付记录执行渠道退款。
+    ///
+    /// `paylog` 必须由调用方按订单解析（拆单子单时为父单同 paySn 的
+    /// 记录，见 `RefundApplyService::channel_total_paylog`）：微信退款
+    /// 需要整单实付作 total_fee，若在此按 paySn 取最新一行，拆单后
+    /// 同 paySn 的子单分摊行会被误作总额。
     pub async fn refund_via_channel(
         &self,
-        pay_code: &str,
-        pay_sn: &str,
+        paylog: &Paylog,
         refund_sn: &str,
         refund_amount: rust_decimal::Decimal,
     ) -> Result<String> {
-        let paylog = self
-            .repos
-            .payment
-            .paylog
-            .find_latest_by_pay_sn(pay_sn)
-            .await?
-            .ok_or_else(|| Error::biz(500, "找不到原支付记录"))?;
+        let pay_code = paylog.pay_code.as_str();
+        let pay_sn = paylog.pay_sn.as_str();
         if paylog.transaction_id.trim().is_empty() {
             return Err(Error::biz(500, "原支付交易号缺失，无法退款"));
         }

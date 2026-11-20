@@ -888,3 +888,16 @@
 ### 修复
 
 - **后端 - 买家售后跨用户越权（我方新增校验，原版同缺；其中 applyData 为原版有·我方补齐）**：合并批验收以测试夹具实证——任一登录用户猜中他人已支付订单的 orderId+itemId，即可对他人订单发起售后，售后单 user_id 记发起人，商家/平台审核通过后退款落到发起人。原版核查（快照仓 v5.8.61）：`AftersalesServiceImpl#afterSalesApply` 同样无订单归属校验、`afterSalesApplyUpdate` 同样无售后归属校验（仅 detail `clientDetail` 有、applyData 靠查询条件 `.eq(Order::getUserId, 当前用户)` 限定）——我方涉出款场景刻意严于原版补齐：① create 在加载订单后、其余状态校验之前强制 `order.user_id == 调用者`，非归属人 403；校验通过后售后单 user_id 恒为订单归属人，退款去向随之自动归位（退款链不另改）；② update/feedback/cancel 补售后单归属校验（精确匹配，历史空归属售后单不接受买家侧写操作），置于状态校验之前；③ applyData 恢复原版归属限定口径——路由透传 token user_id，他人订单按「订单不存在」拒绝（此前该入口根本不带 user_id，可按 orderId 拉取他人订单明细/金额）。list/getRecord 本就按 user_id 限定、detail/detailLog 本就有归属校验，均未动。含归属门纯函数单测。
+
+## 0.0.2 续 · 2026-11-20 批次（跨店拆单方案 A：全量照迁原版拆单模型，代码已入库待部署）
+
+### 新增
+
+- **后端 - 跨店拆单全量照迁（原版有·全量照迁，用户 2026-11-20 批准立项）**：新增 `OrderSplitService`（services/trade/order_split.rs），照原版 v5.8.61 `OrderServiceImpl` 拆单族落地：①提交拆单 `splitOrderAtSubmit`——`OrderService::create` 全入口（商城结算/立即购买/POS/代客下单）在礼品卡/余额抵扣落定后按 shop ×（vendor＋配送组）分组，单组只置 `is_store_splited=1`、多组生成子单且父单保留为支付壳（is_valid=1）；礼品卡兑换单的虚拟商品逐件单独成组并标记「无需配送」。②子单金额：单 vendor 店铺取下单时新落的 `order_amount_detail` 店铺明细行，多 vendor 按 `allocatedAmount`（10 位比值 HALF_UP、2 位收口）以商品额分摊，礼品卡/积分/手续费/发票费/抹零恒按商品额分摊，已付构成按 total 之比分摊，税费按子单口径独立计算（基数＝商品＋运费－折扣、税率百分比语义、金额 CEILING），其后尾差调整（最后一单吸收 balance/线上/线下/券/折扣/积分/运费/手续费/发票费/礼品卡差额）＋税差调整（差额自最后一单起逐单吸收），保证子单各字段合计与父单恒等。③支付激活：`on_payment_success` 末尾与后台 `setPaid` 统一走 `splitStoreOrder`——已拆订单激活子单（已付按 total 之比分摊、父单 is_valid=0、逐子单触发配送分发），未拆多店订单在支付时拆分并删除父单（原版口径）；提交即付清（礼品卡/余额全额覆盖）同步激活。④分销佣金行随拆单重映射到子单新明细（原版 splitSalesmanOrdersForStoreSplit，失败仅记日志不阻断），退款扣回按子单售后精确匹配得以成立。⑤下单侧补写店铺金额明细与优惠券明细（原版结算 creatOrderAmountDetail 口径，此前全仓无 insert 路径）；订单头 vendor_id 同根补齐（取明细最后一行供应商，原版结算 defaultVendorId 语义），明细 vendor_id 以商品表为权威源参与分组。
+- **后端 - 手工拆单端点收敛（原版有·我方缺陷修复）**：后台 `splitStoreOrder` 改为委托统一拆单实现，根除旧实现的明细双写（insert 新行后又 update_item_order_id 回指原明细，致子单数量翻倍——合并批验收以子单 86/87 实锤）；子单明细恒为全列新行插入。未付父单经管理端触发时只拆不激活（激活等支付完成，防未付子单误标已付）。
+
+### 修复
+
+- **后端 - 子单退款通路（原版有·我方补齐）**：子单按父单全部 paylog 逐行复制（同 paySn、状态/交易号复制、金额按子单口径 resolve：balance 码取子单 balance、offline 取线下已付、其余取线上已付、未付取未付额），激活时再同步对齐——子单售后退款的 `assertRefundable` 占用校验由此有据（此前子单无 paylog 恒报「该笔支付已全额退款」，合并批 apply #11 实锤），金额校验未放松。渠道退款总额改取父单同 paySn paylog 的实付（原版 RefundApplyServiceImpl 口径），`PayService::refund_via_channel` 改为接收调用方已解析的支付记录，不再按 paySn 取最新一行（拆单后同 paySn 存在子单分摊行，误取会把分摊额当渠道总额）。
+- 存量盘点（2026-11-20 现网只读）：跨店未拆订单 0 单，无需回填；头 shop_id=0 的单店存量 55 单（已付 15/未付 40）中未付单将在支付时由单组分支顺手补头自愈，已付单的「仅补头」守卫脚本已备（未执行，待拍板）。
+- 周期购子单：原版快照与我方均无周期购子单生成（双向缺席，不虚构实现）；拆单子单经全字段复制继承周期字段（is_cycle_order/delivery_date 等），主单出现时不丢字段。
