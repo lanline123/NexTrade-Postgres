@@ -73,6 +73,20 @@ pub const STATUS_ENABLED: i32 = 1;
 /// 打印机状态：停用（Java `PrintStatusEnum.DISABLED.getCode()`）。
 pub const STATUS_DISABLED: i32 = 2;
 
+/// 打印设备在线状态：离线（**我方新增**，原版无此概念；
+/// 取值口径对齐飞鹅云 `Open_queryPrinterStatus` 的三态返回）。
+pub const ONLINE_OFFLINE: i32 = 0;
+
+/// 打印设备在线状态：在线且工作状态正常（**我方新增**）。
+pub const ONLINE_ONLINE: i32 = 1;
+
+/// 打印设备在线状态：在线但工作状态异常（**我方新增**；飞鹅口径多为缺纸）。
+pub const ONLINE_ABNORMAL: i32 = 2;
+
+/// 打印设备在线状态：未知（**我方新增**；平台查询失败 / 未配置 / 暂不支持时
+/// 一律回未知，**不得**误标为离线）。
+pub const ONLINE_UNKNOWN: i32 = 3;
+
 /// 语音播报开关默认值：开启（Java `create`：`voiceEnabled == null ? 1`）。
 pub const VOICE_ENABLED_DEFAULT: i32 = 1;
 
@@ -158,6 +172,40 @@ pub fn status_desc(code: Option<i32>) -> &'static str {
         Some(STATUS_ENABLED) => "启用",
         Some(STATUS_DISABLED) => "停用",
         _ => MSG_UNKNOWN,
+    }
+}
+
+/// 打印设备在线状态名称（**我方新增**）：
+/// 未知值 → [`MSG_UNKNOWN`]。
+#[must_use]
+pub fn online_status_desc(code: i32) -> &'static str {
+    match code {
+        ONLINE_OFFLINE => "离线",
+        ONLINE_ONLINE => "在线",
+        ONLINE_ABNORMAL => "在线（工作状态异常）",
+        _ => MSG_UNKNOWN,
+    }
+}
+
+/// 把飞鹅云 `Open_queryPrinterStatus` 的 `data` 原文映射为在线状态码
+/// （**我方新增**纯函数）。
+///
+/// 飞鹅官方口径只有三种返回：`离线` / `在线，工作状态正常` /
+/// `在线，工作状态不正常`。判定顺序有讲究：先判 `离线`
+/// （避免「不正常」等字样干扰），再判含 `不正常` 的在线异常，
+/// 其余含 `在线` 的按在线处理；**无法识别的原文一律回
+/// [`ONLINE_UNKNOWN`]**，不臆测。
+#[must_use]
+pub fn map_feieyun_status(data: &str) -> i32 {
+    let s = data.trim();
+    if s.contains("离线") {
+        ONLINE_OFFLINE
+    } else if s.contains("在线") && s.contains("不正常") {
+        ONLINE_ABNORMAL
+    } else if s.contains("在线") {
+        ONLINE_ONLINE
+    } else {
+        ONLINE_UNKNOWN
     }
 }
 
@@ -395,6 +443,31 @@ pub struct PrintDetailVO {
     pub update_time: String,
 }
 
+/// 打印设备在线状态查询结果（**我方新增**，原版无对应 VO）。
+///
+/// 状态是向云打印平台**实时查询**的瞬时值，不落库；
+/// `queryTime` 标明查询时刻。平台查询失败 / 账号未配置 / 平台暂不支持
+/// 时 `onlineStatus = `[`ONLINE_UNKNOWN`]，`rawStatus` 给出原因，
+/// 前端据此显示「未知」而非「离线」。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrintOnlineStatusVO {
+    /// 打印机 ID
+    pub print_id: i32,
+    /// 第三方平台 1 飞鹅云 2 商米云
+    pub platform: Option<i32>,
+    /// 平台名称（展示用）
+    pub platform_text: String,
+    /// 在线状态：0 离线 / 1 在线 / 2 在线（工作状态异常）/ 3 未知
+    pub online_status: i32,
+    /// 在线状态文本
+    pub online_status_text: String,
+    /// 平台原始状态文案（飞鹅 `data` 原文）或未知原因说明
+    pub raw_status: Option<String>,
+    /// 本次查询时间（`yyyy-MM-dd HH:mm:ss`）
+    pub query_time: String,
+}
+
 // ——————————————————————————————————————————————
 // 纯函数（可在无 DB 情况下单测）
 // ——————————————————————————————————————————————
@@ -617,6 +690,30 @@ mod tests {
         assert_eq!(status_desc(Some(STATUS_DISABLED)), "停用");
         assert_eq!(status_desc(None), MSG_UNKNOWN);
         assert_eq!(status_desc(Some(0)), MSG_UNKNOWN);
+    }
+
+    // ———————— 在线状态（我方新增） ————————
+
+    #[test]
+    fn online_status_descriptions() {
+        assert_eq!(online_status_desc(ONLINE_OFFLINE), "离线");
+        assert_eq!(online_status_desc(ONLINE_ONLINE), "在线");
+        assert_eq!(online_status_desc(ONLINE_ABNORMAL), "在线（工作状态异常）");
+        assert_eq!(online_status_desc(ONLINE_UNKNOWN), MSG_UNKNOWN);
+        assert_eq!(online_status_desc(99), MSG_UNKNOWN);
+    }
+
+    #[test]
+    fn feieyun_status_mapping_covers_official_three_states() {
+        // 飞鹅官方文档的三种 data 原文
+        assert_eq!(map_feieyun_status("离线"), ONLINE_OFFLINE);
+        assert_eq!(map_feieyun_status("在线，工作状态正常"), ONLINE_ONLINE);
+        assert_eq!(map_feieyun_status("在线，工作状态不正常"), ONLINE_ABNORMAL);
+        // 前后空白不影响判定
+        assert_eq!(map_feieyun_status(" 在线，工作状态正常 "), ONLINE_ONLINE);
+        // 无法识别的原文回未知，绝不臆测为离线
+        assert_eq!(map_feieyun_status(""), ONLINE_UNKNOWN);
+        assert_eq!(map_feieyun_status("未知状态"), ONLINE_UNKNOWN);
     }
 
     // ———————— 脱敏 ————————

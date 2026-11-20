@@ -60,8 +60,8 @@ use axum::{
 };
 use serde::Deserialize;
 use nextrade_core::models::logistics::print::{
-    OperateDTO, PrintAddDTO, PrintDetailVO, PrintPageQuery, PrintUpdateDTO, PrintVO,
-    UpdateFieldDTO, MSG_ID_REQUIRED, MSG_OPERATE_ID_REQUIRED,
+    OperateDTO, PrintAddDTO, PrintDetailVO, PrintOnlineStatusVO, PrintPageQuery,
+    PrintUpdateDTO, PrintVO, UpdateFieldDTO, MSG_ID_REQUIRED, MSG_OPERATE_ID_REQUIRED,
 };
 use nextrade_core::types::PageResult;
 use nextrade_security::web::{ok, ApiResult, AuthUser};
@@ -109,6 +109,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/print/print/del", post(print_del))
         .route("/print/print/hasEnabled", post(print_has_enabled))
         .route("/print/print/devicePrinters", get(print_device_printers))
+        // 我方新增（2026-11-21）：打印设备在线状态查询。原版无此接口，
+        // 故**不**进 ROUTE_TABLE（该表是与 Java 契约逐条对应的 8 条，
+        // 受契约单测守护），也不计入 implemented_routes 的 Java 覆盖率。
+        .route("/print/print/onlineStatus", get(print_online_status))
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -176,6 +180,25 @@ async fn print_detail(
         .logistics
         .print
         .detail(id, tenant::platform_or_shop_id(&auth))
+        .await?)
+}
+
+/// `GET /adminapi/print/print/onlineStatus?id=`：打印设备在线状态查询。
+///
+/// **我方新增**（原版无对应接口）：实时向云打印平台查询该打印机的
+/// 在线状态（飞鹅云三态；商米云暂回未知）。参数与 `detail` 同口径：
+/// 缺失报 `id不能为空`。
+async fn print_online_status(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(q): Query<IdQuery>,
+) -> ApiResult<PrintOnlineStatusVO> {
+    let id =
+        q.id.ok_or_else(|| nextrade_core::Error::Validation(MSG_ID_REQUIRED.into()))?;
+    ok(state
+        .logistics
+        .print
+        .online_status(id, tenant::platform_or_shop_id(&auth))
         .await?)
 }
 
@@ -431,6 +454,18 @@ mod tests {
         for (_, p, _) in ROUTE_TABLE.iter() {
             assert!(registered.contains(p), "{p} 未在 routes() 中注册");
         }
+    }
+
+    /// 我方新增的 `onlineStatus` 刻意**不**进 ROUTE_TABLE：
+    /// 该表是与 Java 契约逐条对应的清单（恒 8 条），新增路由只注册在
+    /// `routes()` 里。若日后原版补上同名接口，再按契约流程迁入表中。
+    #[test]
+    fn online_status_is_extra_contract_route() {
+        assert!(
+            !ROUTE_TABLE.iter().any(|(_, p, _)| *p == "/print/print/onlineStatus"),
+            "onlineStatus 是我方新增，不应混入 Java 契约表"
+        );
+        assert_eq!(ROUTE_TABLE.len(), 8, "Java 契约表仍为 8 条");
     }
 
     /// `detail` 的 `id` 缺失时必须报 `id不能为空`

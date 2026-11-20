@@ -1,6 +1,7 @@
 import ListPage from '../framework/ListPage';
 import type { ColumnConfig } from '../framework/types';
 import { useI18n } from '../i18n';
+import PrintOnlineStatusCell from './PrintOnlineStatusCell';
 
 interface ReceiptPrinterRow {
   printId: number;
@@ -8,6 +9,7 @@ interface ReceiptPrinterRow {
   platformText?: string;
   printSn?: string;
   deviceCode?: string;
+  onlineStatus?: number;
   paperSizeDesc?: string;
   statusText?: string;
   updateTime?: string;
@@ -18,6 +20,14 @@ const columns: ColumnConfig<ReceiptPrinterRow>[] = [
   { title: '打印机类型', dataIndex: 'platformText', width: 120 },
   { title: '打印机编码', dataIndex: 'printSn', width: 190 },
   { title: '绑定设备', dataIndex: 'deviceCode', width: 150, render: (value: string) => value || '-' },
+  {
+    title: '在线状态',
+    dataIndex: 'onlineStatus',
+    width: 190,
+    render: (_value: unknown, record: ReceiptPrinterRow) => (
+      <PrintOnlineStatusCell printId={record.printId} />
+    ),
+  },
   { title: '纸张', dataIndex: 'paperSizeDesc', width: 100, render: (value: string) => value || '-' },
   { title: '状态', dataIndex: 'statusText', width: 100 },
   { title: '更新时间', dataIndex: 'updateTime', width: 180, render: (value: string) => value || '-' },

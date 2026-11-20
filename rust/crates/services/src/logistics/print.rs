@@ -70,6 +70,14 @@
 //! 6. 打印日志 `PrintLogService` 的状态机（`createPending` / `markPushed` /
 //!    `markCallback`）不在本 feature 范围内（日志列表见
 //!    `logistics::print_log`；MQ 消费端未迁移）。
+//! 7. **在线状态查询为我方新增**（2026-11-21，论坛帖 667896 评估后新增）：
+//!    原版适配器契约只有 bind / push / unbind，`print` /
+//!    `print_pos_device` 均无在线字段。`online_status` 实时调飞鹅云
+//!    `Open_queryPrinterStatus`（不落库），失败回「未知」不误标离线；
+//!    商米云暂回未知（现网无商米打印机，其状态接口与已接入的 v2 推送族
+//!    不同源）。同批修正飞鹅签名口径：原版 `FeieyunApiUtils#generateSign`
+//!    为 SHA-1，本仓推送路径早期误植 MD5，已统一到
+//!    `print_config::feieyun_sig`。
 //!
 //! # 金额
 //!
@@ -84,11 +92,12 @@ use sha2::Sha256;
 use nextrade_core::entities::Print;
 use nextrade_core::models::logistics::print::{
     is_default_flag, mask_middle_half, normalize_field, normalize_paper_size,
-    normalize_platform, platform_desc, status_desc, status_or_disabled, validate_add,
-    validate_update, voice_content_type_or_default, voice_enabled_or_default, PrintAddDTO,
-    PrintDetailVO, PrintPageQuery, PrintUpdateDTO, PrintVO, UpdateFieldDTO,
-    MSG_FIELD_NAME_REQUIRED, MSG_FIELD_VALUE_REQUIRED, MSG_INVALID_FIELD_VALUE,
-    MSG_OPERATE_ID_REQUIRED, MSG_PRINTER_NOT_FOUND, PLATFORM_SUNMI,
+    normalize_platform, online_status_desc, platform_desc, status_desc, status_or_disabled,
+    validate_add, validate_update, voice_content_type_or_default, voice_enabled_or_default,
+    PrintAddDTO, PrintDetailVO, PrintOnlineStatusVO, PrintPageQuery, PrintUpdateDTO, PrintVO,
+    UpdateFieldDTO, MSG_FIELD_NAME_REQUIRED, MSG_FIELD_VALUE_REQUIRED, MSG_INVALID_FIELD_VALUE,
+    MSG_OPERATE_ID_REQUIRED, MSG_PRINTER_NOT_FOUND, ONLINE_UNKNOWN, PLATFORM_FEIEYUN,
+    PLATFORM_SUNMI,
 };
 use nextrade_core::models::logistics::print_config::{
     default_receipt_template, format_time, paper_size_code, paper_size_desc, CONFIG_TYPE_RECEIPT,
@@ -214,6 +223,64 @@ impl PrintService {
         let bindings = self.bindings(shop_id, &[print_id]).await?;
         let device_code = bindings.get(&print_id).cloned();
         Ok(to_detail_vo(&p, paper, device_code))
+    }
+
+    /// 查询打印设备在线状态（**我方新增**，原版无对应能力：
+    /// 原版适配器契约只有 bind / push / unbind，无状态查询）。
+    ///
+    /// 实时向云打印平台查询，不落库：
+    /// - 飞鹅云（platform = 1）：调 `Open_queryPrinterStatus`，
+    ///   三态（离线 / 在线 / 在线异常）由平台原文映射；
+    /// - 商米云（platform = 2）：其开放平台状态接口与我方已接入的
+    ///   v2 推送族不同源，现网亦无商米打印机，暂回**未知**并注明原因，
+    ///   不臆测；
+    /// - 账号 / SN 未配置、平台查询失败：一律回**未知**（不是离线）。
+    ///
+    /// # Errors
+    /// - 打印机不存在 → `Error::Biz { code: 500, msg: 打印机不存在 }`
+    /// - 数据库执行失败 → `Error::Database`
+    pub async fn online_status(
+        &self,
+        print_id: i32,
+        shop_id: i32,
+    ) -> Result<PrintOnlineStatusVO> {
+        let p = self
+            .repo()
+            .find_by_id_and_shop(print_id, shop_id)
+            .await?
+            .ok_or_else(|| Error::biz(500, MSG_PRINTER_NOT_FOUND))?;
+
+        let (online_status, raw_status) = match p.platform {
+            Some(PLATFORM_FEIEYUN) => {
+                let user = p.third_account.as_deref().unwrap_or_default().trim();
+                let ukey = p.third_key.as_deref().unwrap_or_default().trim();
+                let sn = p.print_sn.as_deref().unwrap_or_default().trim();
+                if user.is_empty() || ukey.is_empty() || sn.is_empty() {
+                    (
+                        ONLINE_UNKNOWN,
+                        Some("飞鹅云账号或打印机 SN 未配置".to_string()),
+                    )
+                } else {
+                    crate::logistics::print_config::feieyun_query_printer_status(user, ukey, sn)
+                        .await
+                }
+            }
+            Some(PLATFORM_SUNMI) => (
+                ONLINE_UNKNOWN,
+                Some("商米云暂不支持在线状态查询".to_string()),
+            ),
+            _ => (ONLINE_UNKNOWN, Some("未知平台".to_string())),
+        };
+
+        Ok(PrintOnlineStatusVO {
+            print_id: p.print_id,
+            platform: p.platform,
+            platform_text: platform_desc(p.platform).to_string(),
+            online_status,
+            online_status_text: online_status_desc(online_status).to_string(),
+            raw_status,
+            query_time: format_time(Some(now_secs_i32())),
+        })
     }
 
     /// 本店是否存在启用的打印机

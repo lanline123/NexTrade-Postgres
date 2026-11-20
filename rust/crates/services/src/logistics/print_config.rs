@@ -67,10 +67,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use hmac::{Hmac, Mac};
-use md5::{Digest, Md5};
+use sha1::{Digest, Sha1};
 use sha2::Sha256;
 
 use nextrade_core::entities::Print;
+use nextrade_core::models::logistics::print::{map_feieyun_status, ONLINE_UNKNOWN};
 use nextrade_core::models::logistics::print_config::{
     build_vo_template, default_receipt_template, format_time, normalize_device_code,
     paper_size_code, paper_size_desc, type_desc, validate_print, validate_update,
@@ -468,8 +469,7 @@ impl PrintConfigService {
             }
 
             let stime = nextrade_common::utils::now_seconds().to_string();
-            let sig_str = format!("{user}{ukey}{stime}");
-            let sig = format!("{:x}", <Md5 as Digest>::digest(sig_str.as_bytes()));
+            let sig = feieyun_sig(user, ukey, &stime);
             let content = receipt.clone();
 
             let client = reqwest::Client::builder()
@@ -620,6 +620,71 @@ fn now_secs_i32() -> i32 {
     i32::try_from(nextrade_common::utils::now_seconds()).unwrap_or(i32::MAX)
 }
 
+/// 飞鹅云开放 API 签名：`SHA1(user + UKEY + stime)` 的小写 hex。
+///
+/// 口径来源：原版 `FeieyunApiUtils#generateSign`
+/// （`MessageDigest.getInstance("SHA-1")`）与飞鹅官方 API 文档一致。
+/// ⚠️ 本仓早期移植曾误用 MD5（与原版/平台协议均不符，平台会验签失败），
+/// 2026-11-21 随在线状态查询一并修正，推送与查询共用本函数。
+#[must_use]
+pub(crate) fn feieyun_sig(user: &str, ukey: &str, stime: &str) -> String {
+    format!("{:x}", Sha1::digest(format!("{user}{ukey}{stime}").as_bytes()))
+}
+
+/// 向飞鹅云查询打印机在线状态
+/// （`Open_queryPrinterStatus`，**我方新增**能力）。
+///
+/// 返回 `(状态码, 原始文案)`：成功时状态码由
+/// [`map_feieyun_status`] 映射飞鹅 `data` 原文；
+/// **任何失败**（网络错误 / 响应不可解析 / 平台 `ret != 0`）一律回
+/// [`ONLINE_UNKNOWN`] 并在原始文案里给出原因——查询失败是「未知」，
+/// 不是「离线」，不得误标。
+pub(crate) async fn feieyun_query_printer_status(
+    user: &str,
+    ukey: &str,
+    sn: &str,
+) -> (i32, Option<String>) {
+    let stime = nextrade_common::utils::now_seconds().to_string();
+    let sig = feieyun_sig(user, ukey, &stime);
+    let params = [
+        ("user", user),
+        ("stime", &stime),
+        ("sig", &sig),
+        ("apiname", "Open_queryPrinterStatus"),
+        ("sn", sn),
+    ];
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => return (ONLINE_UNKNOWN, Some(format!("创建 HTTP 客户端失败: {e}"))),
+    };
+    let res = client
+        .post("http://api.feieyun.cn/Api/Open/")
+        .form(&params)
+        .send()
+        .await;
+    let text = match res {
+        Ok(resp) => resp.text().await.unwrap_or_default(),
+        Err(e) => return (ONLINE_UNKNOWN, Some(format!("查询失败: {e}"))),
+    };
+    let v: serde_json::Value = match serde_json::from_str(&text) {
+        Ok(v) => v,
+        Err(_) => return (ONLINE_UNKNOWN, Some("平台响应解析失败".to_string())),
+    };
+    let ret = v.get("ret").and_then(serde_json::Value::as_i64).unwrap_or(-1);
+    if ret != 0 {
+        let msg = v
+            .get("msg")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("平台查询失败");
+        return (ONLINE_UNKNOWN, Some(msg.to_string()));
+    }
+    let data = v.get("data").and_then(serde_json::Value::as_str).unwrap_or("");
+    (map_feieyun_status(data), Some(data.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -635,6 +700,23 @@ mod tests {
             status: Some(1),
             ..Default::default()
         }
+    }
+
+    // ————————————————————— 飞鹅签名（原版 SHA-1 口径） —————————————————————
+
+    #[test]
+    fn feieyun_sig_is_sha1_of_user_ukey_stime() {
+        // SHA1("abc") 的公开已知向量 = a9993e364706816aba3e25717850c26c9cd0d0d89d；
+        // user="a"、ukey="b"、stime="c" 拼接即 "abc"。
+        assert_eq!(
+            feieyun_sig("a", "b", "c"),
+            "a9993e364706816aba3e25717850c26c9cd0d0d89d"
+        );
+        // 与 MD5("abc")=900150983cd24fb0d6963f7d28e17f72 明确不同（防回退到误植算法）
+        assert_ne!(
+            feieyun_sig("a", "b", "c"),
+            "900150983cd24fb0d6963f7d28e17f72"
+        );
     }
 
     // ————————————————————— default_shop_id —————————————————————
