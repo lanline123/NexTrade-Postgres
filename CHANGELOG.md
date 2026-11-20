@@ -919,3 +919,15 @@
 ### 修复
 
 - **后端 - 优惠券发放日志列表潜伏 500（移植类型对齐，未爆先行修复）**：`infrastructure` 联表行结构 `IssueLogRow` 把 `used_time` 声明为 Option<i64>，而 `user_coupon.used_time` 实为 int4（秒级，现网 information_schema 实测），sqlx 解码 int4→i64 报类型不兼容。现网 coupon_issue_log 尚无行、暂未触发（未爆），但 user_coupon 已有 2 行且 used_time 非空，第一条发放日志出现后 admin 发放日志列表即 500，故先行修复：行结构改 Option<i32>，服务层映射以 `map(i64::from)` widening 回 VO（VO 对外仍 Option<i64>、线格式不变；`used` 标记计算口径不变）；新增源码不变式测试（扫描范围限定行结构定义体）。本项为收款账户修复登记的三处同型嫌疑之一，经现网只读探针证实后同型修复；核查报告见 int4-suspects-check/REPORT.md（workspace）。
+
+## 0.0.2 续 · 2026-11-20 批次（PC 首页 hero 快照卡已认证用户价格空白修复，未部署——随下一 PC 合并版上线）
+
+### 修复
+
+- **PC - 首页营销通栏（pc-home-hero）快照卡价格回填（我方新增——我方价格门实现的前端回填缺口修复）**：已认证用户在 PC 首页 hero 中心卡看不到价格（价格位空白）。根因：中心卡商品是装修内嵌快照，随 pcIndex 装修载荷下发——前端 `getHomeDecorate` 在服务端以匿名身份取数（不带登录态、且走 Next Data Cache 跨访客共享），后端 `gate_stored` 按匿名口径对载荷递归脱敏（`mask_price_keys` 把价格键置 null），快照价恒为 null 且不带 `priceVisible`/`priceGate` 标记；客户端 HomeHero 直接渲染快照、无任何客户端取数路径可刷新这批价格，已认证用户本地门控态为 visible、落不进 `cardGateCopy` 的门控文案分支，最终 `formatDisplayPrice(null)` 渲染为空串。分组卡位商品虽走实时列表，其服务端注水与客户端拉取同样是匿名口径，一并纳入。修复（仅 pc-semi `modules.tsx` 的 HomeHero）：在「isIdentity 开启 + 已登录」时按卡位商品 id 带 token 重拉 `product/product/list`（与 `useDecorateProductList` 同一接口、同一带 token 口径，ids 批量查、按 id 增量补拉），渲染时只把价格/门控/询价七个字段覆盖回快照（pic/label 等装修快照字段保留原文）。门控口径零放宽：只渲染接口针对当前身份真实返回的价格，接口仍返回脱敏价/门控标记时照旧渲染门控文案；未登录不发请求、渲染与改前逐字节一致；回填到达前保持首屏现状，不出现错误中间值。匿名用户「登录查看」路径未动。
+
+## 0.0.2 续 · 2026-11-20 批次（PC 装修商品模块注水价格身份口径补拉，未部署——随下一 PC 合并版上线）
+
+### 修复
+
+- **PC - 装修商品楼层已登录用户价格停在匿名口径（我方新增）**：装修页服务端首屏预取（server-prefetch）只取匿名口径并把结果注水给客户端组件，而共用取数 hook `useDecorateProductList` 在被注水时跳过首个 effect、其依赖项又不随登录态变化，注水模块此后永不带 token 刷新——价格门（isIdentity）开启时注水商品价为脱敏值（priceVisible=false），已认证用户在这些楼层看到的是「登录查看」文案、永远看不到真实价（与 hero 快照卡价格空白同病、表现形态不同）。现网首页（装修页 10023）实测命中：6 个 pc-product 模块全部经该 hook 且全部被注水（均为指定商品选品、查询非空）。修复在 hook 层统一处理（Product / PcProduct / ContractCatProductSimple / ContractCatProductWide 四个调用组件一并覆盖，活动装修页同链同修）：注水场景下，门控开启且本地有登录 token 时，按与注水逐字相同的查询带 token 补拉一次并整表替换为当前身份口径记录；匿名不发请求、渲染逐字节不变，未认证者拿到的是后端按其身份脱敏的记录（门控零放宽），补拉到达前保持注水首屏、无错误中间值；配置变化后的取数仍归原 effect（本身带 token），补拉只认首帧查询串、不重复触发。

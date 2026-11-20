@@ -8,7 +8,8 @@ import { Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
 import { formatDisplayPrice, splitDisplayPrice } from '@/lib/currency';
 import { resolveInquiryState, withInquiryParam } from '@/lib/inquiry';
-import { cardGateCopy, usePriceAccess } from '@/lib/price-gate';
+import { cardGateCopy, hasAccessToken, usePriceAccess } from '@/lib/price-gate';
+import { useAuthGate } from '@/lib/auth-gate';
 import { imageFormat } from '@/lib/image';
 import { urlFormat } from '@/lib/link';
 import FormatPrice from '@/components/FormatPrice';
@@ -792,6 +793,12 @@ function useDecorateProductList(
   const [loading, setLoading] = useState(() => initial === undefined);
   // 服务端已注水首屏数据时，首个 effect 不再重复取数（后续 config 变化仍照常取数）
   const seededRef = useRef(initial !== undefined);
+  // 注水时首屏查询串（首帧捕获）：注水数据是服务端匿名口径，见下方身份口径补拉
+  const seededQueryRef = useRef<string | null | undefined>(undefined);
+  if (seededQueryRef.current === undefined) {
+    seededQueryRef.current =
+      initial === undefined ? null : buildDecorateProductListQuery(config, columns, shopId);
+  }
   useEffect(() => {
     if (seededRef.current) {
       seededRef.current = false;
@@ -825,6 +832,44 @@ function useDecorateProductList(
       cancelled = true;
     };
   }, [JSON.stringify(config), columns, Number(shopId) > 0 ? String(shopId) : '']);
+
+  /**
+   * 注水数据的身份口径补拉（我方新增，与 hero 快照卡回填同口径）：
+   * SSR 注水只取匿名口径（server-prefetch 不带登录态），价格门开启时注水
+   * 商品价被脱敏（priceVisible=false），而注水又跳过了上方 effect 的带
+   * token 首拉 —— 已登录用户（尤其已认证）会一直停在匿名口径（已认证
+   * 呈现「登录查看」文案、看不到真实价）。故注水场景下，门控开启且本地
+   * 有 token 时，按与注水逐字相同的查询带 token 补拉一次并整表替换
+   * （注水与补拉同为 product/list 同一查询，记录同构，差异仅身份口径）；
+   * 匿名不发请求、渲染逐字节不变；未认证者拿到的是后端按其身份脱敏的
+   * 记录，门控零放宽；补拉到达前保持注水首屏，无错误中间值；config
+   * 变化后取数归上方 effect（其本身带 token），本补拉只认首帧查询串。
+   */
+  const authGate = useAuthGate();
+  const identityRefreshDoneRef = useRef(false);
+  useEffect(() => {
+    if (initial === undefined || identityRefreshDoneRef.current) return undefined;
+    if (authGate.isIdentity !== 1 || !hasAccessToken()) return undefined;
+    const query = buildDecorateProductListQuery(config, columns, shopId);
+    if (query === null || query !== seededQueryRef.current) return undefined;
+    identityRefreshDoneRef.current = true;
+    let cancelled = false;
+    const accessToken = localStorage.getItem('accessToken');
+    fetch(`/api/product/product/list?${query}`, {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+    })
+      .then((response) => response.json())
+      .then((json) => {
+        if (cancelled) return;
+        const records = json?.data?.records || json?.data || json?.records || [];
+        if (Array.isArray(records) && records.length) setProducts(records);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [authGate.isIdentity, JSON.stringify(config), columns, Number(shopId) > 0 ? String(shopId) : '']);
+
   return { products, loading };
 }
 
@@ -1496,6 +1541,19 @@ function themeAwareColor(value: unknown, fallback: string): string {
 /** 旧名保留（角标专用），实现与 themeAwareColor 一致 */
 const themeAwareBadgeColor = themeAwareColor;
 
+/** 价格回填时从实时商品记录覆盖到装修快照上的字段：价格本体、门控标记、询价态。
+ * 实时记录缺失的键从快照上删除（如已认证口径下接口不下发 priceVisible、
+ * 快照本身又无该标记来源时保持无标记），避免匿名快照的陈旧字段残留。 */
+const HERO_PRICE_OVERLAY_KEYS = ['productPrice', 'price', 'minPricedPrice', 'priceVisible', 'priceGate', 'isInquiry', 'inquiryState'] as const;
+function overlayHeroPriceFields(snapshot: any, fresh: any): any {
+  const merged = { ...snapshot };
+  HERO_PRICE_OVERLAY_KEYS.forEach((key) => {
+    if (fresh?.[key] !== undefined) merged[key] = fresh[key];
+    else delete merged[key];
+  });
+  return merged;
+}
+
 /** PcHomeHero.vue：left{backgroundColor,textColor,showCount,categories}（前台实际取 allCate API，
  * 本栈用配置分类兜底）、center{banners,modules[6]}（modal 0-1 推荐位、2-5 频道卡）、
  * right{user,userCardBackground,userCardGradientColorA/B/Type,premiumMember,shortcuts,
@@ -1503,6 +1561,7 @@ const themeAwareBadgeColor = themeAwareColor;
 function HomeHero({ module, initialData }: ModuleProps) {
     const { t } = useTranslation();
   const priceAccess = usePriceAccess();
+  const authGate = useAuthGate();
   const left = module.left || {};
   const center = module.center || {};
   const right = module.right || {};
@@ -1566,6 +1625,58 @@ function HomeHero({ module, initialData }: ModuleProps) {
   });
   const promoCards = enhancedCards.slice(0, 2);
   const productCards = enhancedCards.slice(2, 6);
+
+  /* ---- 价格门控回填（我方新增）：中心卡商品是装修内嵌快照，pcIndex 由服务端
+     以匿名身份取回（lib/api getHomeDecorate 不带登录态、且走 Data Cache 跨访客
+     共享），后端按匿名口径递归脱敏，快照价格恒为 null 且无 priceVisible 标记。
+     已认证用户本地态为 visible、落不进 cardGateCopy 的门控分支，价格位只剩
+     空白。这里在「门控开启 + 已登录」时按商品 id 带 token 重拉 product/list
+     （与 useDecorateProductList 同一接口、同一带 token 口径），渲染时只把
+     价格/门控/询价字段覆盖回快照（overlayHeroPriceFields）；接口针对当前
+     身份仍返回脱敏价/门控标记时照旧渲染门控文案，门控口径不放宽。
+     未登录不发请求、渲染与改造前逐字节一致；回填到达前保持首屏现状。 */
+  const [priceOverrides, setPriceOverrides] = useState<Record<number, any>>({});
+  const priceFetchedIdsRef = useRef<Set<number>>(new Set());
+  const heroPriceIds: number[] = [];
+  enhancedCards.forEach((card) => {
+    (Array.isArray(card.products) ? card.products : []).forEach((product: any) => {
+      const id = Number(product?.productId);
+      if (id && !heroPriceIds.includes(id)) heroPriceIds.push(id);
+    });
+  });
+  const heroPriceIdsKey = heroPriceIds.join(',');
+  useEffect(() => {
+    if (authGate.isIdentity !== 1 || !hasAccessToken()) return undefined;
+    const missing = heroPriceIds.filter((id) => !priceFetchedIdsRef.current.has(id));
+    if (!missing.length) return undefined;
+    // 先记已拉，避免分组卡位商品陆续到达时对同一 id 重复发请求；失败保持现状渲染
+    missing.forEach((id) => priceFetchedIdsRef.current.add(id));
+    let cancelled = false;
+    const accessToken = localStorage.getItem('accessToken');
+    const params = new URLSearchParams({ page: '1', ids: missing.join(','), size: String(missing.length) });
+    fetch(`/api/product/product/list?${params.toString()}`, {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+    })
+      .then((response) => response.json())
+      .then((json) => {
+        if (cancelled) return;
+        const records = json?.data?.records || json?.data || json?.records || [];
+        if (!Array.isArray(records) || !records.length) return;
+        setPriceOverrides((current) => {
+          const next = { ...current };
+          records.forEach((record: any) => {
+            const id = Number(record?.productId);
+            if (id) next[id] = record;
+          });
+          return next;
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authGate.isIdentity, heroPriceIdsKey]);
 
   /* 旧版依赖 commonStore.shopRegClosed / shopName：注册入口开关与未登录欢迎语（/api/common/config/base） */
   const [shopRegClosed, setShopRegClosed] = useState<number>(0);
@@ -1722,7 +1833,11 @@ function HomeHero({ module, initialData }: ModuleProps) {
   const renderCardProducts = (card: any) => (
     <div className="dec-pc-home-hero__card-products">
       {Array.isArray(card.products) && card.products.length ? (
-        card.products.slice(0, 2).map((product: any, index: number) => {
+        card.products.slice(0, 2).map((rawProduct: any, index: number) => {
+          /* 价格回填覆盖（见上方 priceOverrides）：带 token 重拉到的同 id 商品
+             只覆盖价格/门控/询价字段，pic/label 等装修快照字段保留原文 */
+          const fresh = rawProduct?.productId ? priceOverrides[Number(rawProduct.productId)] : undefined;
+          const product = fresh ? overlayHeroPriceFields(rawProduct, fresh) : rawProduct;
           /* 询价口径与其它卡片一致：all 显示「询价」且点击直达详情留资表单；partial 最低价起 + 弱标记 */
           const inqState = resolveInquiryState(product);
           const gateCopy = cardGateCopy(product, product.productPrice ?? product.price, priceAccess, inqState === 'all');
