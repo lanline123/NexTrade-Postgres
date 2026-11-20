@@ -65,6 +65,12 @@ const defaultFrame: ModuleFrameType = {
 export default function Live({ module }: Props) {
     const liveModule = module as LiveDecorateModule;
 
+    // 平台边界（对齐原版 uniapp）：原版模板全平台渲染，仅直播插件打开动作
+    // （wx.navigateTo plugin-private://…live-player-plugin）为微信专属。
+    // 旧移植曾在非 weapp 整模块 return null，导致 H5 商城与编辑器真渲染画布整模块不可见——已按原版口径收口至动作级
+    //（同 videoNumber 模块 2026-11-21 对齐口径）。
+    const isWeapp = process.env.TARO_ENV === "weapp";
+
     // 旧 setup 时构建一次（liveStatusTextMap 内含 t() 调用）
     const liveStatusTextMap: Record<number, string> = {
         101: "直播中",
@@ -126,6 +132,8 @@ export default function Live({ module }: Props) {
     };
 
     const handleOpenLive = (item: LiveRoomState) => {
+        // 非 weapp 端原版 wx 全局不存在、点击无可见效果，此处同口径无操作
+        if (!isWeapp) return;
         const roomId = Number(item.roomId || 0);
         if (!roomId) {
             Taro.showToast({
@@ -146,11 +154,6 @@ export default function Live({ module }: Props) {
             }
         });
     };
-
-    // 旧工程本模块整体包在 #ifdef MP-WEIXIN 条件编译中（小程序直播插件为微信专属），非 weapp 端不渲染
-    if (process.env.TARO_ENV !== "weapp") {
-        return null;
-    }
 
     // TODO(MIGRATION)：旧 Vue defineOptions({ options: { virtualHost: true } })，Taro React 侧如需去除自定义组件宿主节点，需在编译配置/页面配置中开启 virtualHost
     return (
