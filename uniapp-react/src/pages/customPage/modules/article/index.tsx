@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Image, Text, View } from "@tarojs/components";
 
-import { formatFrame } from "@/components/modules";
+import { formatFrame, designPxToRpx } from "@/components/modules";
 import { getArticleList } from "@/api/article/article";
 import { redirect } from "@/utils";
 import { imageFormat } from "@/utils/format";
@@ -24,6 +24,9 @@ interface Props {
  * 在前端过滤（兼容旧编辑器标量 0 写法），无分类时直接取 articleNum 条。
  * 阅读/点赞数不在列表返回类型 ArticleFilterState 中，记录实际下发时
  * 才展示（pageView/likeCount/viewNum/likeNum 字段存在才渲染）。
+ * 尺寸口径：样式表与 picRadius 均按 375 设计像素基准（rpx/designPxToRpx），
+ * 2026-11-21 审计收口——此前 SCSS 误写 px 字面量致真机渲染整体减半
+ * （见 index.scss 头注与 articlelist-audit/REPORT.md）。
  */
 export default function ArticleModule({ module }: Props) {
     const d = useMemo(() => {
@@ -81,7 +84,7 @@ export default function ArticleModule({ module }: Props) {
                         onClick={() => redirect({ url: `/pages/article/news/detail?id=${article.articleId}` })}
                     >
                         {article.articleThumb ? (
-                            <Image className="article-item__thumb" src={imageFormat(article.articleThumb)} mode="aspectFill" style={{ borderRadius: `${d.picRadius || 0}px` }} />
+                            <Image className="article-item__thumb" src={imageFormat(article.articleThumb)} mode="aspectFill" style={`border-radius: ${designPxToRpx(d.picRadius || 0)};`} />
                         ) : null}
                         <View className="article-item__main">
                             <Text
