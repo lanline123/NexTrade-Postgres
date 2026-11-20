@@ -1263,19 +1263,32 @@ mod tests {
     /// 核心），且仅在同步完成（Completed）时才 mark_processed——
     /// 防止后续重构退回「只有渠道分支、余额支付永不执行」的
     /// 缺陷 B 形态。
+    ///
+    /// 扫描口径（2026-11-20 re-pin）：限定 `audit` 函数体，且匹配
+    /// 调用形态（`.execute_refund_money(` / `self.mark_processed(`）。
+    /// 原裸标识符全文件尾扫描会被 `audit` 内说明注释污染——注释按
+    /// 「同步执行完成 → mark_processed 置已处理」叙述，`mark_processed`
+    /// 字样先于代码中的 `MoneyOutcome::Completed` 判定出现，顺序
+    /// 断言误报（check-rust 首个完整跑实证；生产代码的实际调用
+    /// 顺序为 执行→Completed 判定→mark_processed，无误）。改扫
+    /// 调用形态后断言的是真实调用顺序，强度不降。
     #[test]
     fn audit_executes_money_via_shared_core() {
         let src = include_str!("refund_apply.rs");
         let a = src.find("pub async fn audit").expect("audit 应存在");
         let tail = &src[a..];
-        let exec = tail
-            .find("execute_refund_money")
+        let end = tail
+            .find("\n    pub async fn ")
+            .expect("audit 后应有下一个方法");
+        let body = &tail[..end];
+        let exec = body
+            .find(".execute_refund_money(")
             .expect("audit 应调用统一资金执行");
-        let done = tail
+        let done = body
             .find("MoneyOutcome::Completed")
             .expect("audit 应按执行结果分支");
-        let mp = tail
-            .find("mark_processed")
+        let mp = body
+            .find("self.mark_processed(")
             .expect("audit 完成时应 mark_processed");
         assert!(exec < done && done < mp, "资金执行→完成判定→置已处理 顺序不可乱");
     }

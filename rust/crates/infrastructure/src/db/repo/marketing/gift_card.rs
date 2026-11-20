@@ -502,15 +502,30 @@ mod tests {
     /// （user_id / claimed_user_id 等为 None 时落 NULL），不得硬写 0——
     /// 发放侧以 IS NULL 判无归属，写 0 会让批次卡永不计入可用库存
     /// （2026-11-20 礼品卡 E2E 实证的缺陷 A）。
+    ///
+    /// 扫描口径（2026-11-20 re-pin）：限定 `insert_many` 函数体。
+    /// 本测试与被扫源码同文件（`include_str!` 自包含），原整文件
+    /// 负向扫描会命中断言自身的禁用字面量而自指失败（check-rust
+    /// 首个完整跑实证；生产代码本身全占位符绑定、无硬写 0）。
+    /// 限定函数体后强度不变：旧形态 SQL 回潮到 `insert_many`
+    /// 仍会被捕获。
     #[test]
     fn insert_many_binds_ownership_columns_not_zero() {
         let src = include_str!("gift_card.rs");
+        let start = src
+            .find("pub async fn insert_many")
+            .expect("insert_many 应存在");
+        let tail = &src[start..];
+        let end = tail
+            .find("\n    pub async fn")
+            .expect("insert_many 后应有下一个方法");
+        let body = &tail[..end];
         assert!(
-            src.contains("claimed_user_id, claimed_status, order_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)"),
+            body.contains("claimed_user_id, claimed_status, order_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)"),
             "insert_many 应全占位符绑定 13 列"
         );
         assert!(
-            !src.contains("0, 0, $7, $8, 0, 0, 0"),
+            !body.contains("0, 0, $7, $8, 0, 0, 0"),
             "insert_many 不得再硬写归属列为 0"
         );
     }

@@ -835,3 +835,9 @@
 ### 新增
 
 - **后台 - 供应商保证金页充值申请入口（原版有·我方补齐）**：原版店铺/供应商共用同一保证金页（快照仓 v5.8.61 view/admin/src/views/merchant/capitalfund/deposit/Index.vue + src/RechargeForm.vue），api 层按登录态切路径，供应商充值走 POST /deposit/recharge/vendorApply、收款账户走共用 GET /deposit/recharge/payeeAccountOptions、记录走 vendorPaymentAuditList 合并列表（api/merchant/capitalfund/deposit.ts 实证）。我方自助资金工厂页 makeDepositPage 的充值弹窗与提交逻辑本已齐备，但供应商页 VendorDepositManage 配置从未传 rechargeApplyApi/payeeListApi，「申请充值」按钮恒不渲染，供应商在后台无任何提交保证金充值的入口（后端 vendorApply 等端点早已齐备，属后端齐、前端入口缺）。本次补齐供应商配置三项（vendorApply + payeeAccountOptions + 充值记录列表），并给工厂页新增可选 rechargeListApi「充值记录」页签（款项审核合并列表 auditType=1，与既有「退还记录」页签同构；提交成功后自动切到该页签看待审核状态）。收款账户改走 payeeAccountOptions（登录态可用、仅启用账户）；店铺页原用 payeeAccount/list 为平台端接口（店铺/供应商登录 403、充值弹窗收款方下拉恒空），同批一并切换为 payeeAccountOptions。供应商身份与归属沿用后端 vendor_scope 锁定，前端不传归属参数。后端零改动。
+
+## 0.0.2 续 · 2026-11-20 批次（退款修复两项源码不变量测试 re-pin，代码已入库待部署）
+
+### 修复
+
+- **后端 - 退款/礼品卡源码不变量测试扫描口径订正（测试 re-pin，生产代码未动）**：check-rust 在含退款资金执行修复的树上首个完整跑（run 44711671218 @8c609dd）Cargo Check 绿、单测仅余两红，均为源码扫描型不变量测试的断言模式与现行源码文本形态不匹配，生产代码经逐行核证无回归：① `insert_many_binds_ownership_columns_not_zero`（infrastructure）——测试与被扫源码同文件（`include_str!` 自包含），负向断言的禁用字面量只存在于断言自身，整文件扫描恒自指失败；`insert_many` 实际 SQL 为 13 列全占位符逐字段绑定、无硬写 0。改扫限定 `insert_many` 函数体，正向（13 列全占位符）与负向（禁用硬写形态）两条断言强度不变。② `audit_executes_money_via_shared_core`（services）——`audit` 内说明注释按「同步执行完成 → mark_processed 置已处理」叙述，裸标识符首现扫描中 `mark_processed` 字样先于代码中的 `MoneyOutcome::Completed` 判定出现，顺序断言误报；实际调用顺序为 `.execute_refund_money(` → `MoneyOutcome::Completed` 判定 → `self.mark_processed(`，无误。改扫限定 `audit` 函数体并匹配调用形态，断言的真实调用顺序不变。两处 re-pin 理由均已写入各自测试的 doc 注释。
