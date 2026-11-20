@@ -50,7 +50,7 @@ pub struct FederationService {
     /// 凭证分钟级限流窗口：credential_id → (窗口起始秒, 计数)。
     rate_windows: Mutex<HashMap<i32, (i64, u32)>>,
     /// 凭证用量节流回写：credential_id → 上次回写秒。
-    last_touch: Mutex<HashMap<i32, i64>>,
+    last_touch: Mutex<HashMap<i32, i32>>,
 }
 
 impl FederationService {
@@ -160,7 +160,10 @@ impl FederationService {
                 String::new()
             },
             scopes: cred.scopes,
-            scope_names: scope_names(cred.scopes),
+            scope_names: scope_names(cred.scopes)
+                .into_iter()
+                .map(ToString::to_string)
+                .collect(),
             scope_all_shops: cred.scope_all_shops == 1,
             shop_ids,
             scope_mode: cred.scope_mode,
@@ -1614,7 +1617,8 @@ impl FederationService {
             if cred.direction != DIRECTION_OUTBOUND {
                 return Err(Error::Validation("仅出站凭证（单向接入）可同步".to_string()));
             }
-            (0, cred, cred.peer_base_url.clone())
+            let base_url = cred.peer_base_url.clone();
+            (0, cred, base_url)
         } else {
             return Err(Error::Validation("缺少 linkId 或 credentialId".to_string()));
         };
