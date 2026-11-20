@@ -486,7 +486,7 @@ fn cfg_int(map: &std::collections::HashMap<String, Option<String>>, key: &str) -
 
 /// 由客服设置派生 `ConfigCustomerDTO`（对齐 Java `ConfigService#getConfigCustomer`）。
 ///
-/// `kefuType`：0 无客服 / 1 腾讯云 / 2 企业微信 / 3 自定义链接 / 4 TigChat / 5 WhatsApp；
+/// `kefuType`：0 无客服 / 1 腾讯云 / 2 企业微信 / 3 自定义链接 / 4 内置客服 / 5 WhatsApp；
 /// `show = kefuType > 0`，`openType = kefuYzfType`，`url` 按类型拼接或取自定义链接。
 fn customer_service_vo(
     map: &std::collections::HashMap<String, Option<String>>,

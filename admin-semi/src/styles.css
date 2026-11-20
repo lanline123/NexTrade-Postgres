@@ -8869,6 +8869,90 @@ body[theme-mode='dark'] .kefu-setting-actions {
   text-align: right;
 }
 
+/* 历史会话详情弹窗（2026-11-20 改版）：元信息带 + 定高消息区 + 直角气泡 */
+.kefu-history-meta {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  background: var(--semi-color-fill-0);
+  border: 1px solid var(--semi-color-border);
+}
+
+.kefu-history-meta-main {
+  min-width: 0;
+}
+
+.kefu-history-meta-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kefu-history-meta-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--semi-color-text-0);
+}
+
+.kefu-history-meta-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+}
+
+.kefu-history-messages {
+  height: 440px;
+  background: var(--semi-color-fill-0);
+  border: 1px solid var(--semi-color-border);
+}
+
+.kefu-history-messages .kefu-message-bubble {
+  border-radius: 4px;
+}
+
+.kefu-history-messages .kefu-message-bubble img {
+  border-radius: 2px;
+}
+
+.kefu-message-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.kefu-message-row.is-mine .kefu-message-main {
+  align-items: flex-end;
+}
+
+.kefu-message-name {
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: var(--semi-color-text-2);
+}
+
+.kefu-message-system {
+  margin: 10px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+}
+
+.kefu-history-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.kefu-history-confirm-sub {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+}
+
 .kefu-send-box {
   border-top: 1px solid var(--semi-color-border);
   padding: 12px 16px 14px;

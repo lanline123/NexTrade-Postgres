@@ -29,7 +29,7 @@ const KEFU_TYPE_OPTIONS = [
   { value: 1, label: '腾讯云客服', desc: '接入腾讯云音视频客服' },
   { value: 2, label: '企业微信客服', desc: '通过企业微信联系客服' },
   { value: 3, label: '自定义客服', desc: '跳转自定义客服链接' },
-  { value: 4, label: 'TigChat客服', desc: '平台内置在线会话' },
+  { value: 4, label: '内置客服', desc: '平台内置在线会话' },
   { value: 5, label: 'WhatsApp客服', desc: '面向海外用户的即时沟通' },
 ];
 

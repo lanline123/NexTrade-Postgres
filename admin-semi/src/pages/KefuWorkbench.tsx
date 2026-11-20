@@ -21,6 +21,10 @@
  * （promptTone.vue，WebAudio 合成）、会员最近订单侧栏（OrderImList，复用
  * /order/order/list?userId=）。
  *
+ * 历史会话增强（2026-11-20）：详情弹窗改版（元信息带 + 气泡流 + 页脚删除入口），
+ * 历史列表新增「删除对话」（原版 History.vue 无此入口，删除能力原版有——工作台
+ * 删除 + 后端 del 接口；del 为逻辑删除 is_delete=1，消息保留仅置已读）。
+ *
  * 实时性：Rust 后端未迁移 WebSocket 推送，本页以 5s 轮询兜底，
  * 同时尝试连接 /ws（老版独立 IM 服务），连接成功后收到消息即时刷新。
  */
@@ -1020,6 +1024,7 @@ interface ConsultHistoryRow {
   lastUpdateTime?: string;
   userFrom?: string;
   status?: number;
+  shopId?: number;
   remark?: string;
   user?: ImUserVO | null;
   servant?: { username?: string } | null;
@@ -1032,9 +1037,12 @@ export function KefuHistory() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [detailVisible, setDetailVisible] = useState(false);
-  const [detailId, setDetailId] = useState<number | undefined>(undefined);
+  const [detailRow, setDetailRow] = useState<ConsultHistoryRow | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailMessages, setDetailMessages] = useState<MessageRow[]>([]);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [pendingDelete, setPendingDelete] = useState<ConsultHistoryRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [filters, setFilters] = useState<{
     timeType: number;
@@ -1083,11 +1091,11 @@ export function KefuHistory() {
     return () => {
       alive = false;
     };
-  }, [page, applied, t]);
+  }, [page, applied, refreshTick, t]);
 
   const openDetail = (row: ConsultHistoryRow) => {
     setDetailVisible(true);
-    setDetailId(row.id);
+    setDetailRow(row);
     setDetailLoading(true);
     apiGet<any>('/im/conversation/message/list', {
       conversationId: row.id,
@@ -1099,6 +1107,35 @@ export function KefuHistory() {
       .then((result) => setDetailMessages(result?.records || []))
       .catch((error) => Toast.error({ content: error?.message || t('加载消息失败') }))
       .finally(() => setDetailLoading(false));
+  };
+
+  /** 删除对话（后端 del 为逻辑删除：会话从各端列表消失，消息记录保留并置已读）。 */
+  const doDelete = async () => {
+    if (!pendingDelete?.id) {
+      setPendingDelete(null);
+      return;
+    }
+    const deletedId = pendingDelete.id;
+    setDeleting(true);
+    try {
+      await apiPost('/im/conversation/conversation/del', { conversationId: deletedId });
+      Toast.success({ content: t('删除成功') });
+      setPendingDelete(null);
+      if (detailVisible && detailRow?.id === deletedId) {
+        setDetailVisible(false);
+        setDetailRow(null);
+        setDetailMessages([]);
+      }
+      if (rows.length <= 1 && page > 1) {
+        setPage(page - 1);
+      } else {
+        setRefreshTick((tick) => tick + 1);
+      }
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('删除失败') });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const columns: ColumnConfig<ConsultHistoryRow>[] = [
@@ -1143,11 +1180,16 @@ export function KefuHistory() {
     },
     {
       title: '操作',
-      width: 100,
+      width: 170,
       render: (_value: unknown, row: ConsultHistoryRow) => (
-        <Button theme="borderless" size="small" onClick={() => openDetail(row)}>
-          {t('查看详情')}
-        </Button>
+        <Space>
+          <Button theme="borderless" size="small" onClick={() => openDetail(row)}>
+            {t('查看详情')}
+          </Button>
+          <Button theme="borderless" type="danger" size="small" onClick={() => setPendingDelete(row)}>
+            {t('删除')}
+          </Button>
+        </Space>
       ),
     },
   ];
@@ -1266,29 +1308,118 @@ export function KefuHistory() {
         title={t('会话详情')}
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
-        footer={null}
         width={760}
+        className="kefu-history-modal"
+        footer={
+          <div className="kefu-history-footer">
+            <Button
+              theme="borderless"
+              type="danger"
+              disabled={!detailRow}
+              onClick={() => detailRow && setPendingDelete(detailRow)}
+            >
+              {t('删除对话')}
+            </Button>
+            <Button theme="solid" type="primary" onClick={() => setDetailVisible(false)}>
+              {t('关闭')}
+            </Button>
+          </div>
+        }
       >
-        <Spin spinning={detailLoading}>
-          <div className="kefu-message-list" style={{ maxHeight: 480 }}>
-            {detailMessages.map((msg) => {
-              const mine = Number(msg.type) === 2;
-              return (
-                <div key={msg.id} className={`kefu-message-row ${mine ? 'is-mine' : ''}`}>
-                  <Avatar src={mine ? msg.servant?.avatar : msg.user?.avatar} size="small" alt="">
-                    {mine
-                      ? (msg.servant?.username || '?').slice(0, 1)
-                      : (msg.user?.nickname || msg.user?.username || '?').slice(0, 1)}
-                  </Avatar>
-                  <div className="kefu-message-bubble">
-                    <MessageBubbleContent content={msg.content} />
-                    <div className="kefu-message-time">{msg.sendTime || ''}</div>
-                  </div>
+        {detailRow && (
+          <div className="kefu-history-meta">
+            <Avatar shape="square" size="large" src={detailRow.user?.avatar} alt="">
+              {(detailRow.user?.nickname || detailRow.user?.username || '?').slice(0, 1)}
+            </Avatar>
+            <div className="kefu-history-meta-main">
+              <div className="kefu-history-meta-title">
+                <span className="kefu-history-meta-name">
+                  {detailRow.user?.nickname || detailRow.user?.username || '-'}
+                </span>
+                {Number(detailRow.status) === 1 ? (
+                  <Tag color="green">{t('会话中')}</Tag>
+                ) : (
+                  <Tag color="grey">{t('已结束')}</Tag>
+                )}
+                {detailRow.userFrom ? <Tag color="light-blue">{detailRow.userFrom}</Tag> : null}
+              </div>
+              <div className="kefu-history-meta-sub">
+                {t('接待客服')}：{detailRow.servant?.username || '-'} · {t('所属店铺')}：
+                {detailRow.shopId ? `${t('店铺')} #${detailRow.shopId}` : t('平台')} · {t('会话ID')}：
+                {detailRow.id ?? '-'}
+              </div>
+              <div className="kefu-history-meta-sub">
+                {t('开始时间')}：{detailRow.addTime || '--'} · {t('最后会话时间')}：
+                {detailRow.lastUpdateTime || '--'}
+              </div>
+              {detailRow.remark ? (
+                <div className="kefu-history-meta-sub">
+                  {t('会话备注')}：{detailRow.remark}
                 </div>
-              );
-            })}
+              ) : null}
+            </div>
+          </div>
+        )}
+        <Spin spinning={detailLoading}>
+          <div className="kefu-message-list kefu-history-messages">
+            {!detailLoading && detailMessages.length === 0 ? (
+              <Empty description={t('暂无消息记录')} style={{ paddingTop: 120 }} />
+            ) : (
+              detailMessages.map((msg) => {
+                const msgType = Number(msg.type);
+                if (msgType !== 1 && msgType !== 2) {
+                  return (
+                    <div key={msg.id} className="kefu-message-system">
+                      <MessageBubbleContent content={msg.content} />
+                      {msg.sendTime ? <span> · {msg.sendTime}</span> : null}
+                    </div>
+                  );
+                }
+                const mine = msgType === 2;
+                return (
+                  <div key={msg.id} className={`kefu-message-row ${mine ? 'is-mine' : ''}`}>
+                    <Avatar src={mine ? msg.servant?.avatar : msg.user?.avatar} size="small" alt="">
+                      {mine
+                        ? (msg.servant?.username || '?').slice(0, 1)
+                        : (msg.user?.nickname || msg.user?.username || '?').slice(0, 1)}
+                    </Avatar>
+                    <div className="kefu-message-main">
+                      <div className="kefu-message-name">
+                        {mine
+                          ? msg.servant?.username || t('客服')
+                          : msg.user?.nickname || msg.user?.username || t('客户')}
+                      </div>
+                      <div className="kefu-message-bubble">
+                        <MessageBubbleContent content={msg.content} />
+                        <div className="kefu-message-time">{msg.sendTime || ''}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </Spin>
+      </Modal>
+
+      <Modal
+        title={t('确认删除该会话？')}
+        visible={!!pendingDelete}
+        onCancel={() => setPendingDelete(null)}
+        onOk={() => void doDelete()}
+        okText={t('确认删除')}
+        cancelText={t('取消')}
+        okButtonProps={{ type: 'danger' }}
+        confirmLoading={deleting}
+        width={440}
+      >
+        <div>{t('删除后，该会话将从历史会话列表中移除且无法恢复。')}</div>
+        {pendingDelete && (
+          <div className="kefu-history-confirm-sub">
+            {t('客户')}：{pendingDelete.user?.nickname || pendingDelete.user?.username || '-'} ·{' '}
+            {t('开始时间')}：{pendingDelete.addTime || '--'}
+          </div>
+        )}
       </Modal>
     </div>
   );
