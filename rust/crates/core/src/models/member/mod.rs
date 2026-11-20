@@ -16,6 +16,7 @@ pub mod user_company;
 pub mod user_company_client;
 pub mod user_feedback_client;
 pub mod user_invoice_client;
+pub mod user_invoice_title;
 pub mod user_manage;
 pub mod user_member_tag;
 pub mod user_message;

@@ -6,7 +6,7 @@ import Taro, { useDidShow, useRouter } from "@tarojs/taro";
 import TigButton2 from "@/components/tig/tig-button2/TigButton2";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import { getCheckInvoice, getInvoiceStatus } from "@/api/order/invoice";
-import { getOrderInvoiceDetail, orderInvoiceInsert, orderInvoiceUpdate } from "@/api/user/invoiceManagemen";
+import { getInvoiceTitleList, getOrderInvoiceDetail, orderInvoiceInsert, orderInvoiceUpdate } from "@/api/user/invoiceManagemen";
 import { t } from "@/utils/i18n";
 import { usePageGuards } from "@/utils/pageMixin";
 
@@ -142,6 +142,9 @@ export default function ApplyInvoice() {
     const [orderId, setOrderId] = useState<any>(0);
     const [submitStatus, setSubmitStatus] = useState("insert");
     const [errors, setErrors] = useState<Record<string, string>>({});
+    // 常用发票抬头（v5.8.65 跟进）：默认抬头自动填充，可点选切换
+    const [titles, setTitles] = useState<any[]>([]);
+    const [selectedTitleId, setSelectedTitleId] = useState<number>(0);
 
     const getFormKey = () => `${formMirrorRef.current.invoiceType}-${formMirrorRef.current.titleType}`;
 
@@ -173,6 +176,44 @@ export default function ApplyInvoice() {
         next.companyBank = data.companyBank || "";
         next.companyAccount = data.companyAccount || "";
         setForm(next);
+    };
+
+    /** 用某条抬头填充表单（抬头类型随抬头走，仅普通发票场景使用） */
+    const fillFromTitle = (title: any) => {
+        const titleType = Number(title.titleType) === 2 ? 2 : 1;
+        if (titleType === 1) lastNormalTitleTypeRef.current = 1;
+        else lastNormalTitleTypeRef.current = 2;
+        currentFormKeyRef.current = `1-${titleType}`;
+        setSelectedTitleId(Number(title.id));
+        setForm({
+            ...formMirrorRef.current,
+            titleType,
+            companyName: title.titleName || "",
+            companyCode: titleType === 2 ? title.taxNo || "" : "",
+            companyAddress: titleType === 2 ? title.companyAddress || "" : "",
+            companyPhone: titleType === 2 ? title.companyPhone || "" : "",
+            companyBank: titleType === 2 ? title.bankName || "" : "",
+            companyAccount: titleType === 2 ? title.bankAccount || "" : ""
+        });
+    };
+
+    /** 拉抬头簿；有默认抬头则填充并返回 true（首次申请优先于「最近一次开票信息」回填） */
+    const __getInvoiceTitles = async (): Promise<boolean> => {
+        try {
+            const result: any = await getInvoiceTitleList();
+            const list = Array.isArray(result) ? result : result?.item ?? [];
+            if (!Array.isArray(list) || list.length === 0) return false;
+            setTitles(list);
+            const def = list.find((item: any) => Number(item.isDefault) === 1) ?? list[0];
+            if (def && formMirrorRef.current.invoiceType === 1) {
+                fillFromTitle(def);
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error(error);
+            return false;
+        }
     };
 
     const __getInvoiceStatus = async () => {
@@ -317,6 +358,13 @@ export default function ApplyInvoice() {
         return next;
     };
 
+    // 后端业务拒绝（未到开票节点/已超申请期限/发票类型未开放等）透出中文原因
+    const toastSubmitError = (error: any) => {
+        console.error(error);
+        const message = error?.message || error?.msg || t("提交失败");
+        Taro.showToast({ title: String(message), icon: "none" });
+    };
+
     const __orderInvoiceInsert = async () => {
         try {
             const data = {
@@ -328,7 +376,7 @@ export default function ApplyInvoice() {
                 url: "/pages/user/invoiceManagement/index?type=list"
             });
         } catch (error) {
-            console.error(error);
+            toastSubmitError(error);
         }
     };
 
@@ -343,7 +391,7 @@ export default function ApplyInvoice() {
                 url: "/pages/user/invoiceManagement/index?type=list"
             });
         } catch (error) {
-            console.error(error);
+            toastSubmitError(error);
         }
     };
 
@@ -370,8 +418,13 @@ export default function ApplyInvoice() {
         setOrderId(id);
         if (type === "update" && id) {
             void __getOrderInvoiceDetail(id);
+            void __getInvoiceTitles();
         } else {
-            void __getCheckInvoice();
+            // 默认抬头优先填充；无抬头簿时回落「最近一次开票信息」
+            void (async () => {
+                const filled = await __getInvoiceTitles();
+                if (!filled) void __getCheckInvoice();
+            })();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -414,6 +467,27 @@ export default function ApplyInvoice() {
                         {t("增值税专用发票")}
                     </View>
                 </View>
+
+                {formState.invoiceType === 1 ? (
+                    <View className="invoice-typemenu">
+                        {titles.map((title: any) => (
+                            <View
+                                key={title.id}
+                                className={`invoice-typemenu-item${selectedTitleId === Number(title.id) ? " active" : ""}`}
+                                onClick={() => fillFromTitle(title)}
+                            >
+                                {title.titleName}
+                                {Number(title.isDefault) === 1 ? `（${t("默认")}）` : ""}
+                            </View>
+                        ))}
+                        <View
+                            className="invoice-typemenu-item"
+                            onClick={() => Taro.navigateTo({ url: "/pages/user/invoiceManagement/titleManagement" })}
+                        >
+                            {t("抬头管理")}
+                        </View>
+                    </View>
+                ) : null}
 
                 <View className="invoice-formState">
                     {formState.invoiceType === 1 ? (

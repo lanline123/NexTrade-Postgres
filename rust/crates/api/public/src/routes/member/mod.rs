@@ -10,6 +10,7 @@ pub mod user_center;
 pub mod user_company_client;
 pub mod user_feedback_client;
 pub mod user_invoice_client;
+pub mod user_invoice_title;
 pub mod user_message;
 pub mod user_price_inquiry;
 pub mod user_sign;
@@ -29,6 +30,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .merge(user_company_client::routes(state))
         .merge(user_feedback_client::routes(state))
         .merge(user_invoice_client::routes(state))
+        .merge(user_invoice_title::routes(state))
         .merge(user_message::routes(state))
         .merge(user_price_inquiry::routes(state))
         .merge(user_sign::routes(state))
@@ -69,6 +71,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(user_company_client::implemented_routes());
     out.extend(user_feedback_client::implemented_routes());
     out.extend(user_invoice_client::implemented_routes());
+    out.extend(user_invoice_title::implemented_routes());
     out.extend(user_message::implemented_routes());
     out.extend(user_price_inquiry::implemented_routes());
     out.extend(user_sign::implemented_routes());

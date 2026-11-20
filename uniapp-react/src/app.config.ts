@@ -53,6 +53,7 @@ export default defineAppConfig({
         "pages/user/invoiceManagement/applyInvoice",
         "pages/user/invoiceManagement/invoiceInfo",
         "pages/user/invoiceManagement/imageView",
+        "pages/user/invoiceManagement/titleManagement",
         "pages/user/comment/list",
         "pages/user/comment/info",
         "pages/user/security/email",

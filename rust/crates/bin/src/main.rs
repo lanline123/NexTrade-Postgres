@@ -157,6 +157,7 @@ use nextrade_services::member::user_company::UserCompanyService;
 use nextrade_services::member::user_company_client::UserCompanyClientService;
 use nextrade_services::member::user_feedback_client::UserFeedbackClientService;
 use nextrade_services::member::user_invoice_client::UserInvoiceClientService;
+use nextrade_services::member::user_invoice_title::UserInvoiceTitleService;
 use nextrade_services::member::user_manage::UserManageService;
 use nextrade_services::member::user_member_tag::UserMemberTagService;
 use nextrade_services::member::user_message::UserMessageService;
@@ -700,6 +701,7 @@ async fn main() -> anyhow::Result<()> {
     let collect_product = Arc::new(CollectProductService::new(repos.clone()));
     let user_company_client = Arc::new(UserCompanyClientService::new(repos.clone()));
     let user_invoice_client = Arc::new(UserInvoiceClientService::new(repos.clone()));
+    let user_invoice_title = Arc::new(UserInvoiceTitleService::new(repos.clone()));
     let user_price_inquiry = Arc::new(UserPriceInquiryService::new(repos.clone()));
     let member_audience = Arc::new(MemberAudienceService::new(repos.clone()));
     let user_feedback_client = Arc::new(UserFeedbackClientService::new(repos.clone()));
@@ -727,6 +729,7 @@ async fn main() -> anyhow::Result<()> {
         collect_product: collect_product.clone(),
         user_company_client: user_company_client.clone(),
         user_invoice_client: user_invoice_client.clone(),
+        user_invoice_title: user_invoice_title.clone(),
         user_price_inquiry: user_price_inquiry.clone(),
         member_audience: member_audience.clone(),
         user_feedback_client: user_feedback_client.clone(),

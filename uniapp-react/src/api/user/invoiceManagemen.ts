@@ -86,3 +86,66 @@ export const getInvoiceStatus = () => {
         method: "get"
     });
 };
+
+/**
+ * @description 常用发票抬头列表（v5.8.65 跟进，默认在前）
+ * @returns 抬头列表
+ */
+export const getInvoiceTitleList = () => {
+    return request<any>({
+        url: "user/invoiceTitle/list",
+        method: "get"
+    });
+};
+
+/**
+ * @description 新建常用发票抬头
+ * @param data 抬头信息
+ * @returns 新抬头ID
+ */
+export const createInvoiceTitle = (data: object) => {
+    return request<any>({
+        url: "user/invoiceTitle/create",
+        method: "post",
+        data
+    });
+};
+
+/**
+ * @description 更新常用发票抬头
+ * @param data 抬头信息（含 id）
+ * @returns 操作结果
+ */
+export const updateInvoiceTitle = (data: object) => {
+    return request<any>({
+        url: "user/invoiceTitle/update",
+        method: "post",
+        data
+    });
+};
+
+/**
+ * @description 删除常用发票抬头（软删，删默认自动递补）
+ * @param id 抬头ID
+ * @returns 操作结果
+ */
+export const deleteInvoiceTitle = (id: number) => {
+    return request<any>({
+        url: "user/invoiceTitle/del",
+        method: "post",
+        data: { id }
+    });
+};
+
+/**
+ * @description 设置默认发票抬头
+ * @param id 抬头ID
+ * @returns 操作结果
+ */
+export const setDefaultInvoiceTitle = (id: number) => {
+    return request<any>({
+        url: "user/invoiceTitle/setDefault",
+        method: "post",
+        data: { id }
+    });
+};

@@ -86,7 +86,8 @@ use nextrade_core::models::system::config_client::{
     BIZ_MOBILE_SEARCH_STYLE_TYPE, BIZ_PRODUCT_DETAIL_STYLE_TYPE, BIZ_SEARCH_STYLE_TYPE,
     BIZ_SHOP_ICP_NO, BIZ_SHOP_LOGO, BIZ_SHOP_NAME, BIZ_SHOP_KEYWORDS, BIZ_SHOP_TITLE,
     BIZ_SHOP_TITLE_SUFFIX, BIZ_SHOP_DESC, BIZ_SHOW_TEMPLATE_CONTENT, BIZ_STORAGE_TYPE,
-    BIZ_TEMPLATE_CONTENT, BIZ_THEME_STYLE, BIZ_CAN_INVOICE, BIZ_INVOICE_ADDED, BIZ_USE_SURPLUS,
+    BIZ_TEMPLATE_CONTENT, BIZ_THEME_STYLE, BIZ_CAN_INVOICE, BIZ_INVOICE_ADDED,
+    BIZ_INVOICE_APPLY_DEADLINE_DAYS, BIZ_INVOICE_APPLY_NODE, BIZ_USE_SURPLUS,
     BIZ_USE_POINTS, BIZ_USE_COUPON, BIZ_AUTO_REDIRECT, BIZ_H5_DOMAIN, BIZ_PC_DOMAIN,
     BIZ_ADMIN_DOMAIN, BIZ_PRODUCT_RAW_IMAGE_DOWNLOAD_CHANNELS,
     DEFAULT_PRODUCT_RAW_IMAGE_DOWNLOAD_CHANNELS, DEFAULT_PRODUCT_RAW_IMAGE_DOWNLOAD_SCOPES,
@@ -685,6 +686,8 @@ pub fn assemble_init_config_settings(configs: &ConfigIndex) -> InitConfigSetting
     // 会隐藏余额抵扣、发票信息，或把“已售”显示为 0。
     vo.can_invoice = get_int(configs, BIZ_CAN_INVOICE);
     vo.invoice_added = get_int(configs, BIZ_INVOICE_ADDED);
+    vo.invoice_apply_node = get_int(configs, BIZ_INVOICE_APPLY_NODE);
+    vo.invoice_apply_deadline_days = get_int(configs, BIZ_INVOICE_APPLY_DEADLINE_DAYS);
     vo.use_surplus = get_int(configs, BIZ_USE_SURPLUS);
     vo.use_points = get_int(configs, BIZ_USE_POINTS);
     vo.use_coupon = get_int(configs, BIZ_USE_COUPON);

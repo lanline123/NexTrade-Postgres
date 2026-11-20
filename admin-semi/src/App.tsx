@@ -657,12 +657,15 @@ const configPages: Record<string, ConfigPageDef> = {
       continuousSignIn: '连续签到',
       canInvoice: '是否能开发票',
       invoiceAdded: '是否支持增值税专用发票',
+      invoiceApplyNode: '可开票节点',
+      invoiceApplyDeadlineDays: '发票申请期限（天）',
       returnConsignee: '回寄联系人设置',
       returnMobile: '回寄电话设置',
       returnAddress: '回寄地址设置',
     },
     controls: {
       orderSendPointNode: 'select',
+      invoiceApplyNode: 'select',
     },
     options: {
       orderSendPointNode: [
@@ -670,9 +673,17 @@ const configPages: Record<string, ConfigPageDef> = {
         { label: '已发货', value: 2 },
         { label: '已完成', value: 3 },
       ],
+      invoiceApplyNode: [
+        { label: '不限制', value: 0 },
+        { label: '支付后', value: 1 },
+        { label: '确认收货后', value: 2 },
+        { label: '订单完成后', value: 3 },
+      ],
     },
     fieldHelp: {
       orderSendPointNode: '选择下单赠送积分的节点',
+      invoiceApplyNode: '买家在订单达到该节点后才可申请发票，默认订单完成后',
+      invoiceApplyDeadlineDays: '节点达成后多少天内可申请发票，0 表示不限制期限',
       orderCompleteSendPointDays: '选择已完成节点时，订单完成多少天后赠送积分',
       integralPercentBaseAmount: '每消费该金额最多可使用下方比例的积分',
     },

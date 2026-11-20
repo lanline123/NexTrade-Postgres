@@ -1160,7 +1160,7 @@ static EP3_FIELDS: [FieldSpec; 17] = [
     },
 ];
 
-static EP4_FIELDS: [FieldSpec; 17] = [
+static EP4_FIELDS: [FieldSpec; 19] = [
     FieldSpec {
         field: "childAreaNeedRegion",
         code: "childAreaNeedRegion",
@@ -1309,6 +1309,28 @@ static EP4_FIELDS: [FieldSpec; 17] = [
         code: "invoiceAdded",
         ty: ValueType::Int,
         default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        field: "invoiceApplyNode",
+        code: "invoiceApplyNode",
+        ty: ValueType::Int,
+        default: Some("3"),
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        field: "invoiceApplyDeadlineDays",
+        code: "invoiceApplyDeadlineDays",
+        ty: ValueType::Int,
+        default: Some("0"),
         is_list: false,
         label: None,
         widget: None,
@@ -1350,7 +1372,7 @@ static EP4_FIELDS: [FieldSpec; 17] = [
     },
 ];
 
-static EP5_FIELDS: [FieldSpec; 17] = [
+static EP5_FIELDS: [FieldSpec; 19] = [
     FieldSpec {
         field: "childAreaNeedRegion",
         code: "childAreaNeedRegion",
@@ -1499,6 +1521,28 @@ static EP5_FIELDS: [FieldSpec; 17] = [
         code: "invoiceAdded",
         ty: ValueType::Int,
         default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        field: "invoiceApplyNode",
+        code: "invoiceApplyNode",
+        ty: ValueType::Int,
+        default: Some("3"),
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        field: "invoiceApplyDeadlineDays",
+        code: "invoiceApplyDeadlineDays",
+        ty: ValueType::Int,
+        default: Some("0"),
         is_list: false,
         label: None,
         widget: None,
@@ -10755,6 +10799,20 @@ mod tests {
             .filter(|ep| ep.verb == Verb::Get && !ep.fields.is_empty())
             .count();
         assert_eq!(total as usize, expected);
+    }
+
+    #[test]
+    fn shopping_settings_covers_invoice_apply_config() {
+        // 开票设置增强（v5.8.65）：交易设置 GET/POST 均须含节点与期限两项，
+        // 缺失时默认值分别为 3（订单完成后）与 0（不限）。
+        for path in ["/setting/config/shoppingSettings", "/setting/config/saveShopping"] {
+            let ep = find_endpoint(path).expect("交易设置端点应存在");
+            let value = build_group(ep.fields, ep.nested, &HashMap::new());
+            assert_eq!(value["invoiceApplyNode"], serde_json::json!(3), "{path}");
+            assert_eq!(value["invoiceApplyDeadlineDays"], serde_json::json!(0), "{path}");
+            assert!(value.get("canInvoice").is_some(), "{path}");
+            assert!(value.get("invoiceAdded").is_some(), "{path}");
+        }
     }
 
     #[test]

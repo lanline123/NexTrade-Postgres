@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { View } from "@tarojs/components";
-import { useReachBottom, useRouter } from "@tarojs/taro";
+import Taro, { useReachBottom, useRouter } from "@tarojs/taro";
 
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import { t } from "@/utils/i18n";
@@ -22,12 +22,18 @@ export default function InvoiceManagement() {
     const router = useRouter();
     const menuTypeList = [
         { type: "list", value: "发票申请" },
-        { type: "invoice", value: "增票资质" }
+        { type: "invoice", value: "增票资质" },
+        { type: "title", value: "发票抬头" }
     ];
     const invoiceListRef = useRef<InvoiceListRef>(null);
     const [currentType, setCurrentType] = useState("list");
 
     const handleMenuType = (type: string) => {
+        // 发票抬头是独立管理页（v5.8.65 跟进），不占用本页 tab 内容区
+        if (type === "title") {
+            Taro.navigateTo({ url: "/pages/user/invoiceManagement/titleManagement" });
+            return;
+        }
         setCurrentType(type);
     };
 

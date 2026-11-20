@@ -52,7 +52,7 @@ pub struct InvoiceUpdatePatch {
     pub amount: Option<Decimal>,
 }
 
-/// 订单快照（发票详情回填）。
+/// 订单快照（发票详情回填 + 开票规则校验）。
 #[derive(Debug, Clone, Default)]
 pub struct OrderBrief {
     pub order_sn: String,
@@ -60,6 +60,14 @@ pub struct OrderBrief {
     pub address: String,
     pub consignee: String,
     pub mobile: String,
+    /// 订单状态（0 待支付 1 待发货 2 已发货 3 已取消 4 无效 5 已完成）
+    pub order_status: i32,
+    /// 支付状态（0 未支付 1 支付中 2 已支付 3 退款中 4 已退款）
+    pub pay_status: i32,
+    /// 支付时间（秒，0=未支付）
+    pub pay_time: i32,
+    /// 收货时间（秒，0=未收货；确认收货/完成时写入）
+    pub received_time: i32,
 }
 
 /// 前台订单发票仓储。
@@ -113,8 +121,9 @@ impl OrderInvoiceClientRepository {
 
     /// 订单快照（归属校验 + 详情回填）。
     pub async fn find_order_brief(&self, order_id: i32, user_id: i32) -> Result<Option<OrderBrief>> {
-        let row = sqlx::query_as::<_, (String, Decimal, String, String, String)>(
-            "SELECT order_sn, total_amount, address, consignee, mobile
+        let row = sqlx::query_as::<_, (String, Decimal, String, String, String, i32, i32, i32, i32)>(
+            "SELECT order_sn, total_amount, address, consignee, mobile,
+                    order_status, pay_status, pay_time, received_time
              FROM \"order\" WHERE order_id = $1 AND user_id = $2 LIMIT 1",
         )
         .bind(order_id)
@@ -128,6 +137,10 @@ impl OrderInvoiceClientRepository {
             address: r.2,
             consignee: r.3,
             mobile: r.4,
+            order_status: r.5,
+            pay_status: r.6,
+            pay_time: r.7,
+            received_time: r.8,
         }))
     }
 

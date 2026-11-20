@@ -31,10 +31,46 @@ export default function InvoiceApplyClient({ orderId }: { orderId: number }) {
   const isReapply = Boolean((form as any).applyReply);
   const [invoiceStatus, setInvoiceStatus] = useState(false);
   const [saving, setSaving] = useState(false);
+  // 常用发票抬头（v5.8.65 跟进）：进入申请页填充默认抬头，可点选切换
+  const [titles, setTitles] = useState<any[]>([]);
+  const [selectedTitleId, setSelectedTitleId] = useState<number>(0);
 
   useEffect(() => {
     apiGet<any>('user/invoice/getStatus').then((result) => setInvoiceStatus(Boolean(result?.item ?? result))).catch(() => undefined);
+    apiGet<any>('user/invoiceTitle/list').then((result) => {
+      const list = Array.isArray(result) ? result : (result?.item ?? result?.data ?? []);
+      if (!Array.isArray(list) || list.length === 0) return;
+      setTitles(list);
+      const def = list.find((item: any) => Number(item.isDefault) === 1) ?? list[0];
+      if (def) {
+        setSelectedTitleId(Number(def.id));
+        setForm((current) => ({
+          ...current,
+          titleType: Number(def.titleType) === 2 ? 2 : 1,
+          companyName: def.titleName ?? '',
+          companyCode: def.taxNo ?? '',
+          companyAddress: def.companyAddress ?? '',
+          companyPhone: def.companyPhone ?? '',
+          companyBank: def.bankName ?? '',
+          companyAccount: def.bankAccount ?? '',
+        }));
+      }
+    }).catch(() => undefined);
   }, []);
+
+  const applyTitle = (title: any) => {
+    setSelectedTitleId(Number(title.id));
+    setForm((current) => ({
+      ...current,
+      titleType: Number(title.titleType) === 2 ? 2 : 1,
+      companyName: title.titleName ?? '',
+      companyCode: title.taxNo ?? '',
+      companyAddress: title.companyAddress ?? '',
+      companyPhone: title.companyPhone ?? '',
+      companyBank: title.bankName ?? '',
+      companyAccount: title.bankAccount ?? '',
+    }));
+  };
 
   const update = (key: keyof FormState, value: string | number) => setForm((current) => ({ ...current, [key]: value }));
 
@@ -85,6 +121,21 @@ export default function InvoiceApplyClient({ orderId }: { orderId: number }) {
           </div>
         ) : null}
         <p className="invoice-hint">{t('注意：有效增值税专用发票开票资质仅为一个')}</p>
+        {titles.length > 0 ? (
+          <>
+            <label>{t('常用抬头')}</label>
+            <div className="invoice-options">
+              {titles.map((title: any) => (
+                <button key={title.id} type="button" className={selectedTitleId === Number(title.id) ? 'is-active' : ''} onClick={() => applyTitle(title)}>
+                  {title.titleName}{Number(title.isDefault) === 1 ? `（${t('默认')}）` : ''}
+                </button>
+              ))}
+              <Link href="/member/invoicetitle">{t('抬头管理')}</Link>
+            </div>
+          </>
+        ) : (
+          <p className="invoice-hint"><Link href="/member/invoicetitle">{t('维护常用发票抬头，下次申请自动填充')}</Link></p>
+        )}
         {form.invoiceType === 1 ? (
           <>
             <label>{t('发票抬头')}</label>
@@ -136,6 +187,7 @@ export default function InvoiceApplyClient({ orderId }: { orderId: number }) {
           </Button>
           <Button onClick={() => window.history.back()}>{t('暂不开票')}</Button>
           <Link href="/member/userinvoice/confirminfo">{t('增票资质')}</Link>
+          <Link href="/member/invoicetitle">{t('发票抬头')}</Link>
         </div>
       </div>
     </Card>

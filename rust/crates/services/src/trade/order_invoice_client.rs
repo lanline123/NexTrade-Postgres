@@ -15,8 +15,12 @@
 use std::sync::Arc;
 
 use nextrade_common::utils::now_seconds;
+use nextrade_core::models::system::config_client::{
+    BIZ_CAN_INVOICE, BIZ_INVOICE_ADDED, BIZ_INVOICE_APPLY_DEADLINE_DAYS, BIZ_INVOICE_APPLY_NODE,
+};
 use nextrade_core::models::trade::order_invoice_client::{
-    validate_create, validate_edit, OrderInvoiceDetailVO, OrderInvoiceEditParam,
+    validate_create, validate_edit, validate_invoice_apply_rules, InvoiceApplyConfig,
+    InvoiceApplyOrderSnapshot, OrderInvoiceDetailVO, OrderInvoiceEditParam,
     OrderInvoiceSaveParam, INVOICE_STATUS_PENDING, MSG_ID_REQUIRED, MSG_INVOICE_ALREADY_APPLIED,
     MSG_INVOICE_NOT_EXIST, MSG_INVOICE_STATUS_INVALID, MSG_ORDER_NOT_EXIST,
 };
@@ -62,6 +66,49 @@ impl OrderInvoiceClientService {
         Ok(Some(build_detail_vo(&invoice, order.as_ref())))
     }
 
+    /// 读取开票规则配置（`config` 表四项，缺失按默认口径）。
+    async fn apply_config(&self) -> Result<InvoiceApplyConfig> {
+        let rows = self
+            .repos
+            .system
+            .config_basic
+            .find_by_codes(&[
+                BIZ_CAN_INVOICE,
+                BIZ_INVOICE_ADDED,
+                BIZ_INVOICE_APPLY_NODE,
+                BIZ_INVOICE_APPLY_DEADLINE_DAYS,
+            ])
+            .await?;
+        let get = |code: &str| {
+            rows.iter()
+                .find(|(c, _)| c == code)
+                .map(|(_, v)| v.as_str())
+        };
+        Ok(InvoiceApplyConfig::from_raw(
+            get(BIZ_CAN_INVOICE),
+            get(BIZ_INVOICE_ADDED),
+            get(BIZ_INVOICE_APPLY_NODE),
+            get(BIZ_INVOICE_APPLY_DEADLINE_DAYS),
+        ))
+    }
+
+    /// 按开票设置校验申请（类型开放 + 节点 + 期限），错误为中文业务提示。
+    async fn validate_apply_rules(
+        &self,
+        invoice_type: i32,
+        order: &nextrade_infrastructure::db::repo::trade::order_invoice_client::OrderBrief,
+    ) -> Result<()> {
+        let cfg = self.apply_config().await?;
+        let snapshot = InvoiceApplyOrderSnapshot {
+            order_status: order.order_status,
+            pay_status: order.pay_status,
+            pay_time: order.pay_time,
+            received_time: order.received_time,
+        };
+        validate_invoice_apply_rules(&cfg, invoice_type, &snapshot, now_seconds())
+            .map_err(Error::biz_msg)
+    }
+
     /// 发票申请（Java `clientCreate`）。
     pub async fn create(&self, user_id: i32, param: &OrderInvoiceSaveParam) -> Result<()> {
         validate_create(param).map_err(Error::Validation)?;
@@ -73,6 +120,10 @@ impl OrderInvoiceClientService {
         let Some(order) = repo.find_order_brief(order_id, user_id).await? else {
             return Err(Error::biz_msg(MSG_ORDER_NOT_EXIST));
         };
+        // 开票设置增强（v5.8.65）：类型/节点/期限校验先于重复申请校验，
+        // 让用户先看到「为什么现在不能申请」。
+        self.validate_apply_rules(param.invoice_type.unwrap_or(0), &order)
+            .await?;
         if repo.exists_invoice_for_order(user_id, order_id).await? {
             return Err(Error::biz_msg(MSG_INVOICE_ALREADY_APPLIED));
         }
@@ -112,6 +163,12 @@ impl OrderInvoiceClientService {
         };
         if invoice.status != INVOICE_STATUS_PENDING {
             return Err(Error::biz_msg(MSG_INVOICE_STATUS_INVALID));
+        }
+        // 开票设置增强（v5.8.65）：修改申请同样校验类型/节点/期限
+        // （类型取本次提交值，未提交时沿用原申请类型；订单取申请所属订单）。
+        if let Some(order) = repo.find_order_brief(invoice.order_id, user_id).await? {
+            let invoice_type = param.invoice_type.unwrap_or(invoice.invoice_type);
+            self.validate_apply_rules(invoice_type, &order).await?;
         }
         let patch = InvoiceUpdatePatch {
             invoice_type: param.invoice_type,

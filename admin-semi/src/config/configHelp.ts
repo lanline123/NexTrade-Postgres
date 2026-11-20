@@ -22,7 +22,9 @@ export const configHelp: Record<string, Record<string, string>> = {
     "useQiandaoPoint": "开启后，用户可通过签到获取积分。 查看示例",
     "continuousSignIn": "开启后漏签将重置签到天数；关闭后漏签不会影响签到进度。同一天只能签到一次，达到最大签到天数后将重新从第 1 天开始。",
     "canInvoice": "如果为否，订单结算时将不显示发票",
-    "invoiceAdded": "开启增值税专用发票会同步开启发票资质提交和审核，关闭则只显示“普通发票”"
+    "invoiceAdded": "开启增值税专用发票会同步开启发票资质提交和审核，关闭则只显示“普通发票”",
+    "invoiceApplyNode": "买家在订单达到该节点后才可申请发票：不限制/支付后/确认收货后/订单完成后，默认订单完成后",
+    "invoiceApplyDeadlineDays": "节点达成后多少天内可申请发票，0 表示不限制期限"
   },
   "baseOrderManage": {
     "autoCancelOrderMinute": "未支付的订单会自动取消，请填写分钟，比如10则代表10分钟未付款则取消订单，为0或空则不限制",

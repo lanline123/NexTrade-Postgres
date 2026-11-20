@@ -968,6 +968,44 @@ impl UserInvoice {
 }
 
 
+/// 用户常用发票抬头（抬头簿，v5.8.65 跟进；与 `user_invoice` 专票资质并行，互不迁移）
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct UserInvoiceTitle {
+    /// 抬头id [NOT NULL]
+    pub id: i32,
+    /// 会员id [NOT NULL]
+    pub user_id: i32,
+    /// 抬头类型：1 个人，2 企业 [NOT NULL]
+    pub title_type: i32,
+    /// 抬头名称（个人姓名 / 企业名称）[NOT NULL]
+    pub title_name: String,
+    /// 纳税人识别号（企业必填）[NOT NULL]
+    pub tax_no: String,
+    /// 单位地址 [NOT NULL]
+    pub company_address: String,
+    /// 单位电话 [NOT NULL]
+    pub company_phone: String,
+    /// 开户银行 [NOT NULL]
+    pub bank_name: String,
+    /// 开户账号 [NOT NULL]
+    pub bank_account: String,
+    /// 是否默认抬头：0 否，1 是（同用户未删除范围内唯一）[NOT NULL]
+    pub is_default: i32,
+    /// 是否删除：0 否，1 是（软删）[NOT NULL]
+    pub is_del: i32,
+    /// 添加时间（秒）[NOT NULL]
+    pub add_time: i32,
+    /// 更新时间（秒）[NOT NULL]
+    pub update_time: i32,
+}
+
+impl UserInvoiceTitle {
+    /// 数据库表名。
+    pub const TABLE: &'static str = "user_invoice_title";
+}
+
+
 /// 用户充值订单表
 #[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
 #[sqlx(rename_all = "snake_case")]

@@ -16,6 +16,7 @@ pub mod user_company;
 pub mod user_company_client;
 pub mod user_feedback_client;
 pub mod user_invoice_client;
+pub mod user_invoice_title;
 pub mod user_manage;
 pub mod user_member_tag;
 pub mod user_message;
@@ -49,6 +50,7 @@ pub struct Repositories {
     pub collect_product: collect_product::CollectProductRepository,
     pub user_company_client: user_company_client::UserCompanyClientRepository,
     pub user_invoice_client: user_invoice_client::UserInvoiceClientRepository,
+    pub user_invoice_title: user_invoice_title::UserInvoiceTitleRepository,
     pub user_price_inquiry: user_price_inquiry::UserPriceInquiryRepository,
     pub member_audience: member_audience::MemberAudienceRepository,
     pub user_feedback_client: user_feedback_client::UserFeedbackClientRepository,
@@ -79,6 +81,7 @@ impl Repositories {
             collect_product: collect_product::CollectProductRepository::new(pool.clone()),
             user_company_client: user_company_client::UserCompanyClientRepository::new(pool.clone()),
             user_invoice_client: user_invoice_client::UserInvoiceClientRepository::new(pool.clone()),
+            user_invoice_title: user_invoice_title::UserInvoiceTitleRepository::new(pool.clone()),
             user_price_inquiry: user_price_inquiry::UserPriceInquiryRepository::new(pool.clone()),
             member_audience: member_audience::MemberAudienceRepository::new(pool.clone()),
             user_feedback_client: user_feedback_client::UserFeedbackClientRepository::new(pool.clone()),

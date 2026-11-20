@@ -517,6 +517,8 @@ const labelMap: Record<string, string> = {
   dollarSignCn: '货币单位',
   canInvoice: '允许开发票',
   invoiceAdded: '发票附加',
+  invoiceApplyNode: '可开票节点',
+  invoiceApplyDeadlineDays: '发票申请期限（天）',
   integralName: '积分名称',
   integralPercent: '积分比例',
   autoCancelOrderMinute: '自动取消订单（分钟）',

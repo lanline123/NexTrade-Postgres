@@ -17,6 +17,7 @@ pub mod user_company;
 pub mod user_company_client;
 pub mod user_feedback_client;
 pub mod user_invoice_client;
+pub mod user_invoice_title;
 pub mod user_manage;
 pub mod user_member_tag;
 pub mod user_message;
@@ -53,6 +54,7 @@ pub struct Services {
     pub collect_product: Arc<collect_product::CollectProductService>,
     pub user_company_client: Arc<user_company_client::UserCompanyClientService>,
     pub user_invoice_client: Arc<user_invoice_client::UserInvoiceClientService>,
+    pub user_invoice_title: Arc<user_invoice_title::UserInvoiceTitleService>,
     pub user_price_inquiry: Arc<user_price_inquiry::UserPriceInquiryService>,
     pub member_audience: Arc<member_audience::MemberAudienceService>,
     pub user_feedback_client: Arc<user_feedback_client::UserFeedbackClientService>,

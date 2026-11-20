@@ -177,6 +177,10 @@ pub const BIZ_PRODUCT_CATEGORY_DECORATE_TYPE: &str = "productCategoryDecorateTyp
 pub const BIZ_CAN_INVOICE: &str = "canInvoice";
 /// `SettingsEnum.INVOICE_ADDED.bizCode`
 pub const BIZ_INVOICE_ADDED: &str = "invoiceAdded";
+/// 可开票节点（开票设置增强，v5.8.65 跟进；0=不限 1=支付后 2=确认收货后 3=订单完成后）
+pub const BIZ_INVOICE_APPLY_NODE: &str = "invoiceApplyNode";
+/// 发票申请期限天数（开票设置增强，v5.8.65 跟进；0=不限）
+pub const BIZ_INVOICE_APPLY_DEADLINE_DAYS: &str = "invoiceApplyDeadlineDays";
 /// `SettingsEnum.DEFAULT_SHOP_NAME.bizCode`
 pub const BIZ_DEFAULT_SHOP_NAME: &str = "defaultShopName";
 /// `SettingsEnum.USE_SURPLUS.bizCode`
@@ -642,6 +646,10 @@ pub struct InitConfigSettingsVO {
     pub can_invoice: Option<i32>,
     /// 是否支持增值税专用发票（`invoiceAdded`）
     pub invoice_added: Option<i32>,
+    /// 可开票节点（`invoiceApplyNode`；0=不限 1=支付后 2=确认收货后 3=订单完成后）
+    pub invoice_apply_node: Option<i32>,
+    /// 发票申请期限天数（`invoiceApplyDeadlineDays`；0=不限）
+    pub invoice_apply_deadline_days: Option<i32>,
 
     // *** 店铺设置 ***
     /// 默认店铺名（`defaultShopName`）
@@ -1339,6 +1347,14 @@ pub fn assemble_base(ctx: &BaseContext) -> serde_json::Map<String, serde_json::V
     m.insert(
         "invoiceAdded".into(),
         opt_str(get_str(cfgs, BIZ_INVOICE_ADDED)),
+    );
+    m.insert(
+        "invoiceApplyNode".into(),
+        opt_str(get_str(cfgs, BIZ_INVOICE_APPLY_NODE)),
+    );
+    m.insert(
+        "invoiceApplyDeadlineDays".into(),
+        opt_str(get_str(cfgs, BIZ_INVOICE_APPLY_DEADLINE_DAYS)),
     );
 
     // 店铺信息

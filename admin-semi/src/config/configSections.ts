@@ -111,7 +111,9 @@ export const configSections: Record<string, Array<{ title: string; fields: strin
       "title": "发票设置",
       "fields": [
         "canInvoice",
-        "invoiceAdded"
+        "invoiceAdded",
+        "invoiceApplyNode",
+        "invoiceApplyDeadlineDays"
       ]
     },
     {
