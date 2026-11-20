@@ -1166,3 +1166,9 @@
 ### 修复
 
 - **后端 - 飞鹅云推送签名口径修正（原版有·我方改口径纠正）**：评估在线状态时顺带发现——我方飞鹅云推送（print_config dispatch_print_task）的 sig 计算误用 MD5，而原版 `FeieyunApiUtils#generateSign` 与飞鹅官方文档均为 SHA1(user+UKEY+stime)，按现状平台验签应不通过（现网未实测飞鹅真实推送，属疑似存量缺陷）。本次抽出共享 `feieyun_sig`（SHA-1），推送与新增的状态查询共用同一签名实现，并以 SHA1("abc") 公开向量单测锁定、附与 MD5 结果不等的防回退断言。sha1 为 services 既有依赖，无新增依赖。
+
+## 0.0.2 续 · 2026-11-21 批次（PC 页头顶部图标与文字垂直对齐，未部署——随下一 PC 合并版上线）
+
+### 修复
+
+- **PC - 页头「最顶部的 icon 和文字」未对齐（我方移植偏差，用户 2026-11-21 再次反馈）**：像素级实测（线上 v58 构建 CSS 级联 + 字体度量 + logo 原图像素分析）定位到真正的未修项不在 logo/搜索框，而在 IconPark 图标：@icon-park/react 渲染的 `.i-icon` 外壳 span 全站无任何基础规则，内部 svg 按行内基线对齐（底边落在文字基线上），图标光学中心恒高于相邻文字——顶栏定位针（14px 图标）高约 2.0px、页头主行购物车图标（20px 图标）高约 3.1px（按 Alibaba PuHuiTi 实测 hhea ascent 1.06/descent 0.34 与各处行高推导）。globals.scss 补 `.i-icon` 基础规则（inline-flex 居中 + svg 块级 + line-height:0），图标按盒居中、与文字共中线，全站 IconPark 图标同受益；搜索按钮内被 `display:none !important` 隐藏的图标 span 不受影响。同批核查结论（均已对齐、不动）：logo 下移 2px 经 logo 原图 alpha 加权质心实测（质心 25.5/55）恰为居中、墨迹底边远离裁切区——此前按墨迹包围盒推导的「下移 4px」口径系误判，不采用；搜索胶囊 48px 居中于 60px 搜索区（80px 页头内上下各 16px），v57 文字按钮形态不变；顶栏购物车 mask 图标（定盒居中）、会员中心箭头（字形上偏约 1.6px 已由既有 margin-top:2px 补偿）、站内消息/我的订单 iconfont 字形（字体文件实测偏移 0.3~0.5px，亚像素）均已对齐；顶栏地区图标为 IconPark Local 单图标，无双图标/圆点（2026-11-18 登记项线上复验通过）。附带对齐：购物车页页头 logo 此前独缺 2px 光学补偿（与首页同图同口径，实测质心同样高约 2px），header-source.scss 给 `.pc-header-cart-content .pc-header__logo-link img` 补齐 translateY(2px)。

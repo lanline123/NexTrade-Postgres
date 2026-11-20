@@ -628,6 +628,10 @@
   img {
     max-height: 100%;
     display: block;
+    /* 与首页两变体同口径：logo 图（160×55）墨迹质心经像素实测比整图中心高约 2px
+     * （alpha 加权质心 25.5/55），下移 2px 后质心落回行中线；购物车页此前独缺此补偿，
+     * 同图同病一并对齐。此处行高 80px、无 overflow 裁切区，下移不裁图。 */
+    transform: translateY(2px);
   }
 }
 

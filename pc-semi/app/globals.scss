@@ -6839,6 +6839,14 @@ img {
 .pc-header-runtime .logo-link { max-width: 100%; height: 100%; display: inline-flex; align-items: center; }
 /* logo 主字光学中心比整图中心高约 4px，但整图高 55px、在 60px 的 logo-area 内下移 4px 会让整图底边（61.5px）被 overflow:hidden 裁掉 1.5px；下移量取 2px：主字距中线 ≤2px 且整图完整不裁（2.5+2+55=59.5≤60），logo 与搜索框/购物车共中线 */
 .pc-header-runtime .logo-link img { max-width: 100%; transform: translateY(2px); }
+/* IconPark 图标外壳（@icon-park/react 渲染的 .i-icon span）全站基础规则：此前全站没有任何
+ * .i-icon 规则，span 为普通行内元素、内部 svg 按基线对齐（底边落在文字基线上），图标光学中心
+ * 恒比相邻文字高——顶栏定位针（14px 图标）约高 2px、页头购物车（20px 图标）约高 3px
+ * （按 Alibaba PuHuiTi hhea ascent 1.06/descent 0.34 与各处行高实测推导），即用户反复反馈的
+ * 「页面最顶部的 icon 和文字没对齐」。改为 inline-flex 盒 + svg 块级后，图标按盒居中，
+ * 与文字共一条中线；行内场景下该盒基线仍为其底边，与原裸 svg 的对齐行为一致，不改变行高。 */
+.i-icon { display: inline-flex; align-items: center; justify-content: center; line-height: 0; flex-shrink: 0; }
+.i-icon svg { display: block; }
 .pc-header-runtime .pc-header__brand { min-width: 0; }
 .pc-header-runtime .page-header-home__center { min-width: 0; display: flex; align-items: flex-start; }
 .pc-header-runtime .search-nav-box { width: 100%; min-width: 0; display: flex; flex-direction: column; }
