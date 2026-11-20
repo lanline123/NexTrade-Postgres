@@ -266,7 +266,10 @@ fn buyer_coords(address_data: Option<&str>) -> (Option<rust_decimal::Decimal>, O
         for k in keys {
             match v.get(k) {
                 Some(serde_json::Value::Number(n)) => {
-                    if let Some(d) = rust_decimal::Decimal::from_f64_retain(n.as_f64()?) {
+                    // try_from 与地址写入侧 decimal_from_f64 同口径：只保留 f64
+                    // 保证精度内的最短表示（28.68 → 28.68）；from_f64_retain 会
+                    // 把二进制近似原样展开（28.679999999999999715782905687）落库。
+                    if let Some(d) = rust_decimal::Decimal::try_from(n.as_f64()?).ok() {
                         return Some(d);
                     }
                 }
@@ -318,6 +321,14 @@ mod tests {
         let (lat, lng) = buyer_coords(Some(r#"{"latitude":28.68,"longitude":"115.85"}"#));
         assert_eq!(lat.map(|d| d.to_string()), Some("28.68".to_string()));
         assert_eq!(lng.map(|d| d.to_string()), Some("115.85".to_string()));
+        // 整数坐标：数字与字符串两种输入都不带小数尾巴。
+        let (lat, lng) = buyer_coords(Some(r#"{"latitude":30,"longitude":"120"}"#));
+        assert_eq!(lat.map(|d| d.to_string()), Some("30".to_string()));
+        assert_eq!(lng.map(|d| d.to_string()), Some("120".to_string()));
+        // 负坐标（南纬/西经）：符号保留、仍是最短表示。
+        let (lat, lng) = buyer_coords(Some(r#"{"latitude":-33.86,"longitude":-151.21}"#));
+        assert_eq!(lat.map(|d| d.to_string()), Some("-33.86".to_string()));
+        assert_eq!(lng.map(|d| d.to_string()), Some("-151.21".to_string()));
         assert_eq!(buyer_coords(None), (None, None));
         assert_eq!(buyer_coords(Some("not-json")), (None, None));
     }
