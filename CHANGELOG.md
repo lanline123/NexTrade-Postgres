@@ -876,3 +876,9 @@
 ### 修复
 
 - **后端 - 同城配送订单永不生成派送单（原版有·我方补齐建单写入）**：原版 `OrderCheckServiceImpl` 建单时即把结算入参 `deliveryType` 写入订单头 `shipping_type_id`（`OrderDeliveryTypeEnum`：1 物流/2 自提/3 同城，快照仓 v5.8.61 `OrderCheckServiceImpl.java` L1363-1400、`OrderDeliveryTypeEnum.java`），派送单生产者以 `shipping_type_id == 3` 为触发条件。我方移植断裂：建单 DTO 的配送类型只落 `shipping_method`，订单头 `shipping_type_id` 无任何写点（infra 建单 INSERT 列清单根本未含该列），恒为库默认 0——买家选同城配送的订单付款后永不生成派送单（合并批验收以构造数据证明下游产单/抢单/取送/入账全链可用，唯触发条件不可达）。修复：`OrderService::create` 按纯函数 `shipping_type_snapshot`（1→物流配送/2→到店自提/3→同城配送，未知值 id 透传、名为空串，同 Java `getDesc` 兜底）同步写订单头 id+name；infra 建单 INSERT 补 `shipping_type_id` 列与绑定（占位符 $1-$48）。前台结算/立即购买/代客下单/POS 四条建单路径共用该 create+INSERT，一并覆盖；含映射单测与 INSERT 列不变式测试。附带同线修复：`POST /order/check/submit` 响应面异常（验收多次见「响应错误但订单已建」）——定性为提交后非幂等步骤的 DB 异常经 `?` 上抛所致（另叠加验收工具慢响应重试的重复提交），create() 事务提交后的积分扣减、余额读取/扣减、两处标记已付共四处 `?` 降级为告警续行（异常时按未扣/未付保守处理、不动钱），与本函数既有 best-effort 口径（清购物车/优惠券/礼品卡/流水）对齐。
+
+## 0.0.2 续 · 2026-11-20 批次（收款账户列表有行即 500 修复，代码已入库待部署）
+
+### 修复
+
+- **后端 - 保证金收款账户列表/详情有行即 500（移植类型对齐）**：`GET /deposit/payeeAccount/list` 在表中有行时恒 500——`infrastructure` 行结构 `DepositPayeeAccountRow` 把 `add_time`/`update_time` 声明为 i64，而两列实为 int4（秒级），sqlx 解码 int4→i64 报类型不兼容；空表不解码故长期被掩盖（建/改 API 已于 bb52694 修为秒级写入，唯读侧行结构漏改）。修复：行结构两字段改 i32，服务层 `to_vo` 以 `i64::from`  widening 回 VO（VO 对外仍 i64、线格式不变）；同表另一行形状 `ShopDepositPayeeAccount`（payeeAccountOptions 路径）本就是 i32，不受影响。新增源码不变式测试（扫描范围限定行结构定义体，断言两字段以 i32 声明）。同型隐患全仓静态扫描登记见修复报告（shop_deposit_log.add_time、cart.update_time、user_coupon.used_time 三处同形嫌疑待现网探针证实，本批不修）。

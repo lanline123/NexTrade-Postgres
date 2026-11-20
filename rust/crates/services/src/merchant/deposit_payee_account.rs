@@ -109,8 +109,8 @@ pub fn to_vo(r: DepositPayeeAccountRow) -> DepositPayeeAccountVO {
         bank_branch: r.bank_branch,
         status: r.status,
         sort_order: r.sort_order,
-        add_time: r.add_time,
-        update_time: r.update_time,
+        add_time: i64::from(r.add_time),
+        update_time: i64::from(r.update_time),
     }
 }
 
