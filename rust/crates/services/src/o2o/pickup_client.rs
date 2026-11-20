@@ -258,4 +258,58 @@ impl PickupClientService {
     pub async fn buyer_delivery(&self, order_id: i32) -> Result<Option<Value>> {
         self.repos.o2o.pickup_client.buyer_delivery_by_order(order_id).await
     }
+
+    /// 提交入驻申请（骑手 MVP 阶段二）。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn staff_apply(
+        &self,
+        member_id: i32,
+        shop_id: i32,
+        apply_type: i32,
+        name: &str,
+        phone: &str,
+        id_card: &str,
+        remark: &str,
+    ) -> Result<i32> {
+        if shop_id <= 0 {
+            return Err(nextrade_core::Error::Validation("请选择入驻店铺".into()));
+        }
+        if !matches!(apply_type, 1 | 2) {
+            return Err(nextrade_core::Error::Validation("申请类型不正确".into()));
+        }
+        if name.trim().is_empty() || phone.trim().is_empty() {
+            return Err(nextrade_core::Error::Validation("姓名与手机号不能为空".into()));
+        }
+        self.repos
+            .o2o
+            .pickup_client
+            .create_apply(member_id, shop_id, apply_type, name.trim(), phone.trim(), id_card.trim(), remark.trim())
+            .await
+    }
+
+    /// 我的入驻申请列表。
+    pub async fn my_applies(&self, member_id: i32) -> Result<Vec<Value>> {
+        self.repos.o2o.pickup_client.applies_of_member(member_id).await
+    }
+
+    /// 主订单归属会员（买家进度归属校验）。
+    pub async fn order_owner(&self, order_id: i32) -> Result<Option<i32>> {
+        self.repos.o2o.pickup_client.order_owner(order_id).await
+    }
+
+    /// 状态动作点定位打点（best-effort，失败不影响业务动作）。
+    pub async fn record_track_point(
+        &self,
+        staff_id: i32,
+        delivery_order_id: i32,
+        action: &str,
+        longitude: Option<rust_decimal::Decimal>,
+        latitude: Option<rust_decimal::Decimal>,
+    ) -> Result<()> {
+        self.repos
+            .o2o
+            .pickup_client
+            .record_track_point(staff_id, delivery_order_id, action, longitude, latitude)
+            .await
+    }
 }

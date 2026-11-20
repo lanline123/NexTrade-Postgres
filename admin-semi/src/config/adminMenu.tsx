@@ -320,6 +320,14 @@ export const navGroups: NavGroup[] = [
           {
             "key": "servicemanList",
             "label": "服务员管理"
+          },
+          {
+            "key": "staffApplyManage",
+            "label": "入驻审核"
+          },
+          {
+            "key": "deliveryOrderManage",
+            "label": "派送单管理"
           }
         ]
       },
@@ -1688,6 +1696,8 @@ export const pageTitles: Record<string, string> = {
   "storeTipManage": "标签管理",
   "storeSelfPackListManage": "自提点列表",
   "deliverymanList": "配送员管理",
+  "staffApplyManage": "入驻审核",
+  "deliveryOrderManage": "派送单管理",
   "servicemanList": "服务员管理",
   "applyManage": "入驻申请",
   "adminMerchantManage": "商户管理",

@@ -808,3 +808,18 @@
 
 - **后端 - 售后退款资金执行整体不可达**（原版有·我方移植错位修复）：礼品卡真单 E2E（2026-11-20）实证——现网配置下售后退款无任何可达完成路径：售后单终态 6 看似「退款完成」，买家余额、礼品卡返还、分销回退全部不触发，存量退款申请 #2/#3/#4 全卡死。根因链（代码 + 原版快照 v5.8.61 双实证）：① 售后建单 `create_refund_apply_and_handle_finance` 把 `refund_status` 误写 1（处理中）——原版 `RefundStatusEnum`（tigshop-bean/enums/finance）编号为 WAIT=0 / PROCESSING=1 / PROCESSED=2 / CANCEL=3 / REJECTED=4，与我方财务域枚举逐值一致，Java `AftersalesServiceImpl#createRefundApply` 明确写 `REFUND_STATUS_WAIT`（0），属售后侧移植错位（E2E 报告所称「Java WAIT=1」经快照原文核证为误记）；② 财务 `audit` 按 Java 同口径硬性要求申请为待处理（0）才可审，售后来源申请恒回 400「申请状态值错误」；③ 即便状态放行，`audit` 原只有渠道退款分支，余额支付订单（现网测试与真实买家主路径）无任何回补执行，`mark_processed` 不可达。另订正配置事实：代码实际读路径为 `ConfigBasicRepo::find_by_code`（只读 is_del=0 活行），生产 `financialReview` 活行 = "1"（开启）——回退节所记「生产当前 financialReview 关闭」与售后建单「属存量口径分歧」两处旧述以本节为准。修复：(a) 售后建单初始状态对齐 `RefundApplyStatus::Wait`（0）；(b) 抽出共用资金执行核心 `RefundApplyService::execute_refund_money`——现金部分按订单支付构成拆分（售后来源申请 online_balance 为退款总额口径，扣减礼品卡抵扣总额；卡部分由完成点钩子按 usage_log 原额返还），按最后一笔成功支付流水选轨：余额支付同步回补买家余额（事务内入账 + `user_balance_log`「退款到账」，Java `createRefundFlow` 的 `incBalance` 同口径）+ 累加 paylog 退款额；渠道支付建退款流水 + 调渠道退款（金额改按现金部分，纯渠道订单不变），同步成功才算完成、受理中停处理中等待回调；无支付流水/未支持方式停处理中待人工，不静默置已处理；(c) 财务 `audit` 审核通过段改走同一核心，同步完成即 `mark_processed`（礼品卡返还钩子随之触发）；(d) 财务审核关闭时的售后自动执行分支改走同一核心（对齐 Java 自动退款走同一 `audit`），流转源状态同步为 Wait，同步完成置已处理、渠道受理中/执行异常只置处理中，礼品卡返还仅在同步完成时触发、分销回退保持流转成功后触发（双挂点不变量与单次触发纪律不变）。现网 `financialReview` 值未动、未以翻配置代修。测试：现金拆分纯函数单测 2 项 + 建单状态/资金执行接线源码不变量 2 项（连同既有挂点不变量共保）。部署后按 refund-execution-fix/REPORT.md（workspace）验收脚本两态（审核开/关）各走一遍完整链，断言钱到账三落点（买家余额 + user_balance_log、礼品卡余额 + type=2 流水、申请终态已处理）；存量 #3（¥66.60 余额）/#4（卡 ¥50 + 余额 ¥50）按报告方案走修复后真实路径补执行，#2（¥0 工件）作废。
 - **后端 - 礼品卡批次卡发放恒「库存不足」**（原版有·我方移植错位修复）：制卡落库 `insert_many` 把 `user_id` / `claimed_user_id` 硬写 0，而发放侧可用数与分配查询以 `claimed_user_id IS NULL AND user_id IS NULL` 判无归属——0 ≠ NULL，批次卡永不计入库存，定向发放（issueSend）与 Excel 指定卡发放两路同失效（gift_cards 此前为空表、缺陷被空表掩盖，E2E 首次真发卡实证）。原版口径（快照 `GiftCardsServiceImpl#createGiftCardsBatch`）：构造实体不设 userId/claimedUserId/claimedStatus，落库 NULL；我方服务层构卡本就为 None，错位只在仓储落库一处。修复：`insert_many` 改逐字段绑定实体值（None → NULL），发放侧查询不动；补源码不变量测试钉住。存量卡 3（未发放备卡，归属列为 0）需一行守卫数据订正后方可发放，语句见 refund-execution-fix/REPORT.md（workspace）。
+
+## 0.0.2 续 · 2026-11-20 批次（自营骑手 MVP 阶段二·入驻与调度基础，代码已入库待部署）
+
+### 新增
+
+- **后端 - 人员入驻申请（我方新增）**：新表 `service_staff_apply`（迁移 `2026-11-20_rider_mvp.sql` 同文件）。会员端 `POST /o2o/serviceStaff/apply`（选店铺 + 配送员/服务人员类型 + 姓名/手机，待审重复与已入驻拦截）与 `GET /o2o/serviceStaff/myApplies` 申请进度；admin `GET /o2o/serviceStaffApply/list`（店铺作用域：商家仅本店申请）+ `POST /o2o/serviceStaffApply/audit`——通过即生成 `service_staff`（启用、下班状态），同一会员已有人员档案则拒绝二次绑定（C 端按会员全局解析身份），驳回留审核备注，全程事务 + 行锁防并发重复审核。
+- **后台 - 入驻审核与派送单管理页（我方新增）**：组织 > 员工管理新增「入驻审核」（状态页签 + 审核弹窗）与「派送单管理」（状态页签 + 详情字段 + 指派/改派弹窗 + 取消）。指派人员选项走 `availableStaff`（本店在职同类型），指派/改派/取消全部复用阶段一统一调度校验链，改派留痕（staff 快照 + dispatchTime 刷新，配送中改派状态保持）。
+
+## 0.0.2 续 · 2026-11-20 批次（自营骑手 MVP 阶段三·骑手模式页组 + 买家可见，代码已入库待部署）
+
+### 新增
+
+- **后端 - 动作点定位打点（我方新增）**：新表 `staff_track_point` / `staff_location_latest`（同迁移文件）。接单/确认取货/确认送达动作可附带经纬度，落轨迹点并刷新最新位置（配送中/服务中持续定位与猎鹰轨迹为 P2，不在 MVP）；定位缺失静默跳过，绝不阻塞业务动作。
+- **后端 - 买家派送进度（我方新增）**：`GET /o2o/deliveryOrder/buyerProgress?orderId=`——仅订单本人可见（他人订单与无派送单均返回 null 不泄露），输出状态步骤（已下单→已接单→已取货→配送中→已送达；上门服务为已预约→已接单→已开始服务→服务完成）与骑手姓名/电话。
+- **H5 - 骑手模式页组（我方新增，H5 先行）**：`pages/rider/*`——工作台（人员信息、上线/下线开关、单量统计、入驻申请入口与进度）、接单大厅（本店同类型待抢单，下线不可抢）、我的派送（待取货/配送中/已完成）、派送详情（地址/电话/高德导航唤起、按店铺配置执行的拍照凭证、动作定位打点、取消）、我的钱包（余额/明细/收款账号/提现申请与记录，复用原版钱包提现链）、入驻申请（店铺街同源店铺列表选店）。买家订单详情新增「配送进度/服务进度」卡（复用物流时间轴样式，有派送单才渲染）。工作台入口经会员装修「我的服务」链接位配置（运营侧），页面直达路径 `/pages/rider/index`。

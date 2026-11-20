@@ -1114,10 +1114,129 @@ impl PickupClientRepository {
         .map_err(map_err)
     }
 
+    // ————————————————————— 骑手 MVP 阶段二：入驻申请 —————————————————————
+
+    /// 提交入驻申请（会员 → 某店铺的配送员/服务员）。
+    ///
+    /// 守卫：同会员同店同类型已有待审核申请 → 拒绝重复提交；已是该店同类型
+    /// 在册人员 → 拒绝。返回新申请 id。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_apply(
+        &self,
+        member_id: i32,
+        shop_id: i32,
+        apply_type: i32,
+        name: &str,
+        phone: &str,
+        id_card: &str,
+        remark: &str,
+    ) -> Result<i32> {
+        let (pending,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM service_staff_apply WHERE member_id = $1 AND shop_id = $2 AND type = $3 AND status = 0 AND is_delete = 0",
+        )
+        .bind(member_id)
+        .bind(shop_id)
+        .bind(apply_type)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        if pending > 0 {
+            return Err(Error::Validation("已有待审核的入驻申请，请勿重复提交".into()));
+        }
+        let (bound,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM service_staff WHERE member_id = $1 AND store_id = $2 AND type = $3 AND is_delete = 0",
+        )
+        .bind(member_id)
+        .bind(shop_id)
+        .bind(apply_type)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        if bound > 0 {
+            return Err(Error::Validation("您已是该店铺的服务人员".into()));
+        }
+        let now = nextrade_common::utils::now_seconds();
+        sqlx::query_scalar(
+            "INSERT INTO service_staff_apply (member_id, shop_id, type, name, phone, id_card, remark, status, create_time, update_time) VALUES ($1,$2,$3,$4,$5,$6,$7,0,$8,$8) RETURNING apply_id",
+        )
+        .bind(member_id)
+        .bind(shop_id)
+        .bind(apply_type)
+        .bind(name)
+        .bind(phone)
+        .bind(id_card)
+        .bind(remark)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 我的入驻申请（会员侧，含审核状态与驳回原因）。
+    pub async fn applies_of_member(&self, member_id: i32) -> Result<Vec<Value>> {
+        let rows: Vec<(Value,)> = sqlx::query_as(
+            "SELECT json_build_object('applyId', apply_id, 'shopId', shop_id, 'type', type, 'name', name, 'phone', phone, 'status', status, 'auditRemark', audit_remark, 'staffId', staff_id, 'createTime', create_time, 'updateTime', update_time) FROM service_staff_apply WHERE member_id = $1 AND is_delete = 0 ORDER BY apply_id DESC",
+        )
+        .bind(member_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(rows.into_iter().map(|(v,)| v).collect())
+    }
+
+    /// 主订单归属会员（买家进度接口的归属校验）。
+    pub async fn order_owner(&self, order_id: i32) -> Result<Option<i32>> {
+        sqlx::query_scalar("SELECT user_id FROM \"order\" WHERE order_id = $1")
+            .bind(order_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    /// 状态动作点定位打点（阶段三：仅接单/取货/送达三个动作点，无连续轨迹）
+    /// + 最新位置 upsert。经纬度缺失时静默跳过（H5 定位授权失败不阻塞动作）。
+    pub async fn record_track_point(
+        &self,
+        staff_id: i32,
+        delivery_order_id: i32,
+        action: &str,
+        longitude: Option<rust_decimal::Decimal>,
+        latitude: Option<rust_decimal::Decimal>,
+    ) -> Result<()> {
+        let (Some(lng), Some(lat)) = (longitude, latitude) else {
+            return Ok(());
+        };
+        let now = nextrade_common::utils::now_seconds();
+        sqlx::query(
+            "INSERT INTO staff_track_point (staff_id, delivery_order_id, action, longitude, latitude, create_time) VALUES ($1,$2,$3,$4,$5,$6)",
+        )
+        .bind(staff_id)
+        .bind(delivery_order_id)
+        .bind(action)
+        .bind(lng)
+        .bind(lat)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        sqlx::query(
+            "INSERT INTO staff_location_latest (staff_id, longitude, latitude, update_time) VALUES ($1,$2,$3,$4) \
+             ON CONFLICT (staff_id) DO UPDATE SET longitude = EXCLUDED.longitude, latitude = EXCLUDED.latitude, update_time = EXCLUDED.update_time",
+        )
+        .bind(staff_id)
+        .bind(lng)
+        .bind(lat)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
     /// 买家侧派送进度（按主订单取最新一张派送单；归属校验在服务层做）。
     pub async fn buyer_delivery_by_order(&self, order_id: i32) -> Result<Option<Value>> {
         let row: Option<(Value,)> = sqlx::query_as(
-            "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'type', type, 'status', status, 'staffName', staff_name, 'staffPhone', staff_phone, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'serviceFee', service_fee) FROM delivery_order WHERE order_id = $1 AND is_delete = 0 ORDER BY delivery_order_id DESC LIMIT 1",
+            "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'type', type, 'status', status, 'staffName', staff_name, 'staffPhone', staff_phone, 'createTime', create_time, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'serviceFee', service_fee) FROM delivery_order WHERE order_id = $1 AND is_delete = 0 ORDER BY delivery_order_id DESC LIMIT 1",
         )
         .bind(order_id)
         .fetch_optional(&self.pool)

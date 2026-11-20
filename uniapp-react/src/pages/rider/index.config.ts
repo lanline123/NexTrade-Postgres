@@ -1,0 +1,4 @@
+export default definePageConfig({
+    navigationBarTitleText: "骑手工作台",
+    enablePullDownRefresh: true
+});

@@ -14,6 +14,7 @@ import TigLayout from "@/components/tig/tig-layout/TigLayout";
 import TigNavbar from "@/components/tig/tig-navbar/TigNavbar";
 import PresaleCard from "./src/PresaleCard";
 import { getOrder, confirmReceipt, getShippingInfo } from "@/api/user/order";
+import { buyerDeliveryProgress } from "@/api/rider/rider";
 import type { OrderInfoItemElement, OrderInfoResponseItem, ShippingInfoTrace } from "@/types/user/order";
 import { useUserStore } from "@/store/user";
 import { useConfigStore } from "@/store/config";
@@ -48,6 +49,8 @@ export default function OrderInfo() {
     const [orderInfo, setOrderInfo] = useState<OrderInfoResponseItem>({} as OrderInfoResponseItem);
     const [itemsGroup, setItemsGroup] = useState<any[][]>([]);
     const [shippingInfo, setShippingInfo] = useState<ShippingInfoTrace[]>([]);
+    // 同城配送/上门服务派送进度（自营骑手 MVP，我方新增；无派送单时为 null 不渲染）
+    const [deliveryProgress, setDeliveryProgress] = useState<any>(null);
     const [emptyText] = useState<string>("");
     const [showMore, setShowMore] = useState(false);
     // 金额明细默认展开
@@ -375,6 +378,15 @@ export default function OrderInfo() {
         }
     }
 
+    async function __getDeliveryProgress() {
+        try {
+            const result = await buyerDeliveryProgress(Number(idRef.current));
+            setDeliveryProgress(result || null);
+        } catch {
+            setDeliveryProgress(null);
+        }
+    }
+
     async function __getShippingInfo() {
         try {
             const result = await getShippingInfo({ id: idRef.current });
@@ -401,7 +413,7 @@ export default function OrderInfo() {
                 Taro.showLoading({
                     title: t("加载中")
                 });
-                void Promise.all([__getOrder(), __getShippingInfo()]);
+                void Promise.all([__getOrder(), __getShippingInfo(), __getDeliveryProgress()]);
             } catch (error) {
                 console.error(error);
             }
@@ -416,7 +428,7 @@ export default function OrderInfo() {
             return;
         }
         if (idRef.current) {
-            void Promise.all([__getOrder(), __getShippingInfo()]);
+            void Promise.all([__getOrder(), __getShippingInfo(), __getDeliveryProgress()]);
         }
     });
 
@@ -1058,6 +1070,44 @@ export default function OrderInfo() {
                                         <Text>{orderInfo.addTime}</Text>
                                     </View>
                                     {orderCardStatusText ? <View className="order-card-item">{orderCardStatusText}</View> : null}
+                                </View>
+                            ) : null}
+
+                            {deliveryProgress ? (
+                                <View className="expressage-card card-space">
+                                    <View className="shippingInfo-title">
+                                        {deliveryProgress.type === 2 ? t("服务进度") : t("配送进度")}
+                                        {deliveryProgress.staffName ? (
+                                            <Text style={{ marginLeft: "16rpx", fontSize: "26rpx", color: "#666" }}>
+                                                {deliveryProgress.type === 2 ? t("服务人员") : t("骑手")}：{deliveryProgress.staffName}
+                                                {deliveryProgress.staffPhone ? ` · ${deliveryProgress.staffPhone}` : ""}
+                                            </Text>
+                                        ) : null}
+                                    </View>
+                                    <View className="shipping-steps">
+                                        {(deliveryProgress.steps || []).map((step: any, index: number) => (
+                                            <View className="shipping-step" key={index}>
+                                                <View className={`step-dot${step.done ? " active" : ""}`} />
+                                                <View className="step-content">
+                                                    <View className="step-title">{step.label}</View>
+                                                    {step.time ? (
+                                                        <View className="step-desc">
+                                                            {(() => {
+                                                                const d = new Date(Number(step.time) * 1000);
+                                                                const p = (n: number) => String(n).padStart(2, "0");
+                                                                return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+                                                            })()}
+                                                        </View>
+                                                    ) : null}
+                                                </View>
+                                            </View>
+                                        ))}
+                                    </View>
+                                    {deliveryProgress.status === 50 && deliveryProgress.cancelReason ? (
+                                        <View style={{ fontSize: "26rpx", color: "#999", marginTop: "8rpx" }}>
+                                            {t("取消原因")}：{deliveryProgress.cancelReason}
+                                        </View>
+                                    ) : null}
                                 </View>
                             ) : null}
 

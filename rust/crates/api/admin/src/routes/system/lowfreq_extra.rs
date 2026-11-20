@@ -8,7 +8,7 @@ use axum::{
 use serde::Deserialize;
 use serde_json::Value;
 use nextrade_core::Error;
-use nextrade_security::web::{ok, ApiResult, TenantContext};
+use nextrade_security::web::{ok, ApiResult, AuthUser, TenantContext};
 
 use crate::AdminState;
 
@@ -845,6 +845,138 @@ async fn h_staff_batch(
     Json(body): Json<Value>,
 ) -> ApiResult<()> {
     h_staff_del(State(state), Extension(tenant), Json(body)).await
+}
+
+// ————————————————————— 骑手 MVP 阶段二：入驻申请审核 —————————————————————
+
+// get /o2o/serviceStaffApply/list（店铺账号强制本店申请；平台可按 shopId 筛）
+async fn h_apply_list(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    Query(q): Query<Pg>,
+) -> ApiResult<Value> {
+    let (p, s, off) = page_of(&q);
+    let kw = format!("%{}%", q.keyword.clone().unwrap_or_default().trim());
+    let status = q.status.unwrap_or(-1);
+    let shop_id: i64 = match tenant.scoped_shop_id() {
+        Some(scope) if scope > 0 => i64::from(scope),
+        Some(_) => -1,
+        None => q.shop_id.unwrap_or(0),
+    };
+    let (total,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM service_staff_apply WHERE is_delete = 0 AND ($1 = -1 OR status = $2) AND ($3 = 0 OR shop_id = $4) AND (name ILIKE $5 OR phone ILIKE $6)",
+    )
+    .bind(status).bind(status)
+    .bind(shop_id).bind(shop_id)
+    .bind(&kw).bind(&kw)
+    .fetch_one(&pool(&state))
+    .await
+    .map_err(db)?;
+    let rows: Vec<(Value,)> = sqlx::query_as(
+        "SELECT json_build_object('applyId', a.apply_id, 'memberId', a.member_id, 'shopId', a.shop_id, 'shopTitle', COALESCE(sh.shop_title, ''), 'type', a.type, 'name', a.name, 'phone', a.phone, 'idCard', a.id_card, 'remark', a.remark, 'status', a.status, 'auditRemark', a.audit_remark, 'staffId', a.staff_id, 'createTime', a.create_time, 'updateTime', a.update_time) FROM service_staff_apply a LEFT JOIN shop sh ON sh.shop_id = a.shop_id WHERE a.is_delete = 0 AND ($1 = -1 OR a.status = $2) AND ($3 = 0 OR a.shop_id = $4) AND (a.name ILIKE $5 OR a.phone ILIKE $6) ORDER BY a.apply_id DESC LIMIT $7 OFFSET $8",
+    )
+    .bind(status).bind(status)
+    .bind(shop_id).bind(shop_id)
+    .bind(&kw).bind(&kw)
+    .bind(s).bind(off)
+    .fetch_all(&pool(&state))
+    .await
+    .map_err(db)?;
+    ok(
+        serde_json::json!({"records": rows.into_iter().map(|(v,)| v).collect::<Vec<_>>(), "total": total, "page": p, "size": s}),
+    )
+}
+
+// post /o2o/serviceStaffApply/audit —— 通过则生成 service_staff（type 同申请），
+// 驳回置 status=2。通过前校验：申请待审核、作用域同店、该会员尚未绑定任何
+// 在册人员（C 端按 member_id 全局解析绑定，重复绑定会使解析不确定）。
+async fn h_apply_audit(
+    State(state): State<AdminState>,
+    Extension(tenant): Extension<TenantContext>,
+    auth: Option<Extension<AuthUser>>,
+    Json(body): Json<Value>,
+) -> ApiResult<()> {
+    let apply_id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    let pass = body.get("pass").and_then(Value::as_bool).unwrap_or(false);
+    let remark = body.get("remark").and_then(Value::as_str).unwrap_or_default();
+    let admin_id = auth.map(|Extension(u)| u.id).unwrap_or(0);
+    let pool = pool(&state);
+    let mut tx = pool.begin().await.map_err(db)?;
+    let row: Option<(i32, i32, i32, String, String, i32)> = sqlx::query_as(
+        "SELECT member_id, shop_id, type, name, phone, status FROM service_staff_apply WHERE apply_id = $1 AND is_delete = 0 FOR UPDATE",
+    )
+    .bind(apply_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(db)?;
+    let Some((member_id, shop_id, apply_type, name, phone, status)) = row else {
+        return Err(nextrade_security::web::AppError(Error::NotFound(
+            "入驻申请不存在".into(),
+        )));
+    };
+    if let Some(scope) = tenant.scoped_shop_id() {
+        if scope != shop_id {
+            return Err(nextrade_security::web::AppError(Error::Forbidden(
+                "无权审核其他店铺的入驻申请".into(),
+            )));
+        }
+    }
+    if status != 0 {
+        return Err(nextrade_security::web::AppError(Error::Validation(
+            "该申请已审核".into(),
+        )));
+    }
+    let now = nextrade_common::utils::now_seconds();
+    if pass {
+        let (bound,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM service_staff WHERE member_id = $1 AND is_delete = 0",
+        )
+        .bind(member_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(db)?;
+        if bound > 0 {
+            return Err(nextrade_security::web::AppError(Error::Validation(
+                "该会员已绑定服务人员，不能重复入驻".into(),
+            )));
+        }
+        let staff_id: i32 = sqlx::query_scalar(
+            "INSERT INTO service_staff (name, nickname, avatar, phone, member_id, store_id, type, status, work_status, create_time, update_time) VALUES ($1, '', '', $2, $3, $4, $5, 1, 0, $6, $6) RETURNING id",
+        )
+        .bind(&name)
+        .bind(&phone)
+        .bind(member_id)
+        .bind(shop_id)
+        .bind(apply_type)
+        .bind(now)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(db)?;
+        sqlx::query(
+            "UPDATE service_staff_apply SET status = 1, staff_id = $1, audit_remark = $2, audit_admin_id = $3, update_time = $4 WHERE apply_id = $5",
+        )
+        .bind(staff_id)
+        .bind(remark)
+        .bind(admin_id)
+        .bind(now)
+        .bind(apply_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+    } else {
+        sqlx::query(
+            "UPDATE service_staff_apply SET status = 2, audit_remark = $1, audit_admin_id = $2, update_time = $3 WHERE apply_id = $4",
+        )
+        .bind(remark)
+        .bind(admin_id)
+        .bind(now)
+        .bind(apply_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+    }
+    tx.commit().await.map_err(db)?;
+    ok(())
 }
 
 // ————————————————————— O2O 区域管理（area_store_manager） —————————————————————
@@ -2155,6 +2287,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/o2o/serviceStaff/updateField", post(h_staff_update_field))
         .route("/o2o/serviceStaff/del", post(h_staff_del))
         .route("/o2o/serviceStaff/batch", post(h_staff_batch))
+        .route("/o2o/serviceStaffApply/list", get(h_apply_list))
+        .route("/o2o/serviceStaffApply/audit", post(h_apply_audit))
         .route("/pos/table/cart/list", post(h_22))
         .route("/pos/table/cart/addToCart", post(h_23))
         .route("/pos/table/cart/removeItem", post(h_24))
