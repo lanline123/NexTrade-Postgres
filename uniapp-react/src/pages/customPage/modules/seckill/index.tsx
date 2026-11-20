@@ -22,7 +22,8 @@ interface Props {
 /**
  * 旧 tig-countdown.vue + uni-countdown（uni-ui）等价展开：
  * - 旧 tig-countdown 解析 "YYYY-MM-DD HH:mm:ss" 结束时间，挂载时算一次差值（days/hours/minutes/seconds）；
- * - 差值交给 uni-countdown 内部定时器逐秒递减展示（show-day：days>0 才显示天段，":" 分隔，两位补零）；
+ * - 差值交给 uni-countdown 内部定时器逐秒递减展示（show-day：days>0 才显示天段；uni-countdown 冒号模式
+ *   格式为「DD 天 HH:MM:SS」——天段分隔符恒为「天」，时/分/秒段间才是 ":"，两位补零）；
  * - React 侧合并为「挂载算一次 + 每秒重算」，口径一致。
  */
 function TigCountdown({ endTime }: { endTime: string }) {
@@ -75,7 +76,7 @@ function TigCountdown({ endTime }: { endTime: string }) {
             {timeData.days > 0 && (
                 <>
                     <Text className="uni-countdown__number">{formatTime(timeData.days)}</Text>
-                    <Text className="uni-countdown__splitor">:</Text>
+                    <Text className="uni-countdown__splitor">{t("天")}</Text>
                 </>
             )}
             <Text className="uni-countdown__number">{formatTime(timeData.hours)}</Text>

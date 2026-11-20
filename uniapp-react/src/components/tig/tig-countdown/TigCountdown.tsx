@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { Text, View } from "@tarojs/components";
 
+import { t } from "@/utils/i18n";
+
 import "./TigCountdown.scss";
 
 interface Props {
@@ -16,8 +18,9 @@ interface Props {
  * 倒计时（自旧 tig/tig-countdown/tig-countdown.vue 移植）：
  * - 旧组件内部是 uni-countdown（uni-ui），props 一一对应；
  * - 旧实现 countdownInit 仅在初始化时计算一次、无定时器刷新，此处保持同行为（不做每秒刷新）；
- * - uni-countdown 源码不在本仓库内，数字块/分隔符视觉按其默认样式（44rpx 行高、
- *   数字补零两位、块状背景色）复刻，TODO(MIGRATION)：如与线上视觉有出入再校准。
+ * - uni-countdown（@dcloudio/uni-ui）冒号模式（showColon 缺省 true）格式为「DD 天 HH:MM:SS」：
+ *   天段分隔符恒为「天」而非「:」（2026-11-21 查 uni-ui 源码模板核实，此前移植误写「:」已修正），
+ *   时/分/秒段间才是「:」；show-day=days>0，不足一天整段天段不渲染（不显示「0天」）。
  */
 export default function TigCountdown({
     color = "#fff",
@@ -86,7 +89,7 @@ export default function TigCountdown({
 
     return (
         <View className="tig-countdown">
-            {/* 旧模板：uni-countdown（show-day=days>0，数字块 + ":" 分隔符，数字补零两位） */}
+            {/* 旧模板：uni-countdown（show-day=days>0；天段分隔符为「天」，时/分/秒段间为 ":"，数字补零两位） */}
             {showDay ? (
                 <View className="tig-countdown__number" style={timeStyle}>
                     {pad2(countdown.days)}
@@ -94,7 +97,7 @@ export default function TigCountdown({
             ) : null}
             {showDay ? (
                 <Text className="tig-countdown__splitor" style={splitorStyle}>
-                    :
+                    {t("天")}
                 </Text>
             ) : null}
             <View className="tig-countdown__number" style={timeStyle}>
