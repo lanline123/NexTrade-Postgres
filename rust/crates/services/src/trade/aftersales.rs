@@ -1807,6 +1807,22 @@ impl AftersalesService {
                         aftersales.aftersale_id, apply.order_id
                     );
                 }
+                // 分销佣金回退（尽力而为）：自动执行退款与财务审核通过
+                // 同为分销回退触发点——Java 自动退款走
+                // RefundApplyServiceImpl#audit 的审核通过段调用
+                // handleSalesmanOrderOnRefund，本仓自动路径绕过服务层
+                // audit，在此同口径补挂；失败只告警，不阻断售后收尾。
+                if let Err(e) = crate::payment::refund_apply::RefundApplyService::new(
+                    self.repos.clone(),
+                )
+                .handle_salesman_order_on_refund(apply.order_id, aftersales.aftersale_id)
+                .await
+                {
+                    tracing::warn!(
+                        "售后自动退款 分销佣金回退失败 aftersale_id={} order_id={}: {e}",
+                        aftersales.aftersale_id, apply.order_id
+                    );
+                }
             }
             self.repo()
                 .insert_log(&build_log(
@@ -2980,5 +2996,31 @@ mod tests {
             .find("if transitioned && apply.order_id > 0")
             .expect("返还应以流转成功为前提");
         assert!(guard < hook, "礼品卡返还应受 transitioned 守卫");
+    }
+
+    /// 分销佣金回退挂点不变量：财务审核关闭时的自动执行路径必须在
+    /// 退款申请流转成功（transitioned）之后调用
+    /// `handle_salesman_order_on_refund`——Java 自动退款走
+    /// RefundApplyServiceImpl#audit 的审核通过段，本仓自动路径绕过
+    /// 服务层 audit、在此同口径补挂，防止重构误删/误挂。回退只许在
+    /// 此与财务 audit 两处触发（部分退款金额数学非幂等）。
+    #[test]
+    fn salesman_clawback_wired_after_auto_refund_transition() {
+        let src = include_str!("aftersales.rs");
+        let f = src
+            .find("pub async fn create_refund_apply_and_handle_finance")
+            .expect("create_refund_apply_and_handle_finance 应存在");
+        let tail = &src[f..];
+        let transition = tail
+            .find("财务审核关闭自动执行退款")
+            .expect("自动执行退款流转应存在");
+        let hook = tail
+            .find("handle_salesman_order_on_refund")
+            .expect("自动退款路径应挂分销佣金回退");
+        assert!(transition < hook, "分销佣金回退必须在自动退款流转之后执行");
+        let guard = tail
+            .find("if transitioned && apply.order_id > 0")
+            .expect("回退应以流转成功为前提");
+        assert!(guard < hook, "分销佣金回退应受 transitioned 守卫");
     }
 }

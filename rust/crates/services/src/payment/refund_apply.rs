@@ -14,13 +14,17 @@
 //! 未迁移（依赖其他域）：
 //! - 售后单状态同步（`aftersales` 域）
 //! - 信用订单退款（`credit_order`）
-//! - 分销佣金回退（`salesman_order`）
 //! - 积分退还（`returnUsePoints`）
 //! - 渠道实际扣款（依赖各支付渠道实现）
+//!
+//! 已补齐（2026-11-20）：分销佣金回退——Java `handleSalesmanOrderOnRefund`
+//! 照迁为 [`RefundApplyService::handle_salesman_order_on_refund`]，触发点
+//! 与 Java 一致为财务审核通过（本服务 `audit` 的 Processing 流转成功后；
+//! 售后自动执行路径在 `aftersales` 域的流转成功点同口径补挂，见该文件）。
 
 use std::sync::Arc;
 
-use rust_decimal::Decimal;
+use rust_decimal::{Decimal, RoundingStrategy};
 use nextrade_common::utils;
 use nextrade_core::entities::{RefundApply, RefundLog};
 use nextrade_core::models::payment::refund_apply::{
@@ -342,6 +346,24 @@ impl RefundApplyService {
                 )
                 .await?;
                 tracing::info!("退款申请进入处理中: id={}", dto.refund_id);
+                // 分销佣金回退（尽力而为）：财务审核通过即触发（Java 在
+                // audit 审核通过段调用 handleSalesmanOrderOnRefund，与
+                // 退款流水创建同点）；失败只告警，不阻断退款主流程
+                // （状态流转已落库，申请已进入处理中不会再被重复审核）。
+                if existing.order_id > 0 {
+                    if let Err(e) = self
+                        .handle_salesman_order_on_refund(
+                            existing.order_id,
+                            existing.aftersale_id,
+                        )
+                        .await
+                    {
+                        tracing::warn!(
+                            "财务审核通过 分销佣金回退失败 refund_id={} order_id={}: {e}",
+                            dto.refund_id, existing.order_id
+                        );
+                    }
+                }
                 // 线上金额走渠道退款：仅支持已实现退款方法的渠道，其余保持处理中人工处理。
                 if existing.online_balance > rust_decimal::Decimal::ZERO {
                     if let Some(paylog) = self
@@ -516,6 +538,158 @@ impl RefundApplyService {
         Ok(())
     }
 
+    // ————————————————————— 分销佣金回退 —————————————————————
+
+    /// 分销佣金回退（Java `RefundApplyServiceImpl#handleSalesmanOrderOnRefund` 照迁）。
+    ///
+    /// 触发点与 Java 一致：财务审核通过（退款进入执行）。Java 在 `audit`
+    /// 审核通过段与退款流水创建同事务调用；本仓为分步落库，挂点为：
+    /// - 本服务 `audit` 的 Wait→Processing 流转成功后；
+    /// - 售后域自动执行路径（`aftersales::create_refund_apply_and_handle_finance`
+    ///   的流转成功后——Java 自动退款走同一 `audit` 方法，本仓自动路径
+    ///   绕过服务层 `audit`，在该处同口径补挂）。
+    ///
+    /// 两处互斥（一笔退款申请只经其一），且都以状态流转成功为前提——
+    /// **严禁再从其他完成点重复调用**：部分退款的金额按历史已退数量
+    /// 反推原始金额，重复触发会把已扣减金额再次按比例扣减。
+    ///
+    /// 口径（逐条对照 Java）：
+    /// - 按售后商品项精确匹配 `salesman_order`（order_id + item_id）；
+    /// - 只处理 `status=0`（待结算）行；已结算（1）行原版**不动**——
+    ///   不置失效、不扣钱包；已失效（2）行跳过；
+    /// - 本次 + 历史已完成售后（`aftersales.status=6`，不含本次）的
+    ///   累计退货数量 ≥ 购买数量 → 整行置 `status=2`（已失效）；
+    /// - 未退满 → 按剩余数量占比扣减 `amount` / `order_amount`
+    ///   （占比 4 位小数 HALF_UP，金额 2 位；状态保持 0）；
+    /// - 不触碰 `salesman_customer` 与分销员钱包（Java 同）。
+    ///
+    /// 与 Java 的防御性差异（正常数据下为恒等）：本次售后同项多行先
+    /// 按订单项聚合数量；购买数量缺失、历史占比反推分母为 0 时跳过
+    /// 该项（Java 此处会除零异常）。
+    pub async fn handle_salesman_order_on_refund(
+        &self,
+        order_id: i32,
+        aftersale_id: i32,
+    ) -> Result<()> {
+        let pool = &self.repos.pool;
+        // 本次售后商品项（按订单项聚合本次退货数量）
+        let item_rows: Vec<(Option<i32>, Option<i32>)> = sqlx::query_as(
+            "SELECT order_item_id, number FROM aftersales_item WHERE aftersale_id = $1",
+        )
+        .bind(aftersale_id)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| Error::Database(e.to_string()))?;
+        if item_rows.is_empty() {
+            return Ok(());
+        }
+        let mut refund_qty_by_item: std::collections::HashMap<i32, i32> =
+            std::collections::HashMap::new();
+        for (order_item_id, number) in item_rows {
+            if let Some(item_id) = order_item_id {
+                *refund_qty_by_item.entry(item_id).or_insert(0) += number.unwrap_or(0);
+            }
+        }
+
+        for (item_id, refund_qty) in refund_qty_by_item {
+            // 该商品项的分销佣金行（一件商品可有两级分销两行）
+            let rows: Vec<(i32, Option<i32>, Option<Decimal>, Option<Decimal>)> =
+                sqlx::query_as(
+                    "SELECT salesman_order_id, status, amount, order_amount \
+                     FROM salesman_order WHERE order_id = $1 AND item_id = $2",
+                )
+                .bind(order_id)
+                .bind(item_id)
+                .fetch_all(pool)
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
+            if rows.is_empty() {
+                continue;
+            }
+            // 原订单商品项购买数量（缺失则无从按比例处理，跳过该项）
+            let buy_qty: Option<i32> =
+                sqlx::query_scalar("SELECT quantity FROM order_item WHERE item_id = $1")
+                    .bind(item_id)
+                    .fetch_optional(pool)
+                    .await
+                    .map_err(|e| Error::Database(e.to_string()))?;
+            let Some(buy_qty) = buy_qty else {
+                continue;
+            };
+            // 历史已完成售后（不含本次）对该商品项的累计退货数量
+            let prev_qty: i64 = sqlx::query_scalar(
+                "SELECT COALESCE(SUM(ai.number), 0) \
+                 FROM aftersales_item ai \
+                 JOIN aftersales a ON a.aftersale_id = ai.aftersale_id \
+                 WHERE a.order_id = $1 AND a.status = 6 \
+                   AND a.aftersale_id <> $2 AND ai.order_item_id = $3",
+            )
+            .bind(order_id)
+            .bind(aftersale_id)
+            .bind(item_id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+            let prev_qty = i32::try_from(prev_qty).unwrap_or(i32::MAX);
+            let total_qty = prev_qty.saturating_add(refund_qty);
+
+            for (row_id, status, amount, order_amount) in rows {
+                // 只处理待结算行（Java 同：status != 0 跳过，
+                // 已结算行不置失效、不扣钱包）
+                if status != Some(0) {
+                    continue;
+                }
+                match salesman_clawback_decision(
+                    buy_qty,
+                    prev_qty,
+                    total_qty,
+                    amount.unwrap_or(Decimal::ZERO),
+                    order_amount.unwrap_or(Decimal::ZERO),
+                ) {
+                    ClawbackDecision::Invalidate => {
+                        let n = sqlx::query(
+                            "UPDATE salesman_order SET status = 2 \
+                             WHERE salesman_order_id = $1 AND status = 0",
+                        )
+                        .bind(row_id)
+                        .execute(pool)
+                        .await
+                        .map_err(|e| Error::Database(e.to_string()))?
+                        .rows_affected();
+                        if n > 0 {
+                            tracing::info!(
+                                "分销佣金回退：订单 {order_id} 商品项 {item_id} 已全部退货，佣金行 {row_id} 置已失效"
+                            );
+                        }
+                    }
+                    ClawbackDecision::Rescale {
+                        amount: new_amount,
+                        order_amount: new_order_amount,
+                    } => {
+                        let n = sqlx::query(
+                            "UPDATE salesman_order SET amount = $1, order_amount = $2 \
+                             WHERE salesman_order_id = $3 AND status = 0",
+                        )
+                        .bind(new_amount)
+                        .bind(new_order_amount)
+                        .bind(row_id)
+                        .execute(pool)
+                        .await
+                        .map_err(|e| Error::Database(e.to_string()))?
+                        .rows_affected();
+                        if n > 0 {
+                            tracing::info!(
+                                "分销佣金回退：订单 {order_id} 商品项 {item_id} 部分退货，佣金行 {row_id} 金额扣减为 {new_amount}（订单金额 {new_order_amount}）"
+                            );
+                        }
+                    }
+                    ClawbackDecision::Skip => {}
+                }
+            }
+        }
+        Ok(())
+    }
+
     // ————————————————————— 额度校验 —————————————————————
 
     /// 校验订单在给定退款金额下是否可退。
@@ -607,6 +781,68 @@ impl RefundApplyService {
 }
 
 /// 实体 → VO。
+/// 分销佣金回退的单行决策（纯函数，供单测；金额数学对照 Java
+/// `handleSalesmanOrderOnRefund`：占比 scale 4 HALF_UP、金额 2 位）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ClawbackDecision {
+    /// 累计退货数量已达购买数量：整行置已失效（status=2）。
+    Invalidate,
+    /// 部分退货：`amount` / `order_amount` 扣减后的新值（状态保持 0）。
+    Rescale {
+        amount: Decimal,
+        order_amount: Decimal,
+    },
+    /// 不处理（购买数量异常等防御分支）。
+    Skip,
+}
+
+/// 计算一行待结算佣金的回退决策。
+///
+/// - `buy_qty`：订单商品项购买数量；
+/// - `prev_refund_qty`：历史已完成售后（不含本次）累计退货数量；
+/// - `total_refund_qty`：prev + 本次退货数量；
+/// - `amount` / `order_amount`：佣金行当前值（可能已被先前部分退款扣减）。
+pub(crate) fn salesman_clawback_decision(
+    buy_qty: i32,
+    prev_refund_qty: i32,
+    total_refund_qty: i32,
+    amount: Decimal,
+    order_amount: Decimal,
+) -> ClawbackDecision {
+    if buy_qty <= 0 {
+        return ClawbackDecision::Skip;
+    }
+    if total_refund_qty >= buy_qty {
+        return ClawbackDecision::Invalidate;
+    }
+    // 剩余有效数量占比（Java：divide(buyQuantity, 4, HALF_UP)）
+    let ratio = (Decimal::from(buy_qty - total_refund_qty) / Decimal::from(buy_qty))
+        .round_dp_with_strategy(4, RoundingStrategy::MidpointAwayFromZero);
+    // 历史已部分退货时，行内金额已被扣减过：先按历史剩余占比反推
+    // 原始金额（Java：divide(previousRatio, 4, HALF_UP)），再乘本次占比
+    let (orig_amount, orig_order_amount) = if prev_refund_qty > 0 {
+        let prev_ratio = (Decimal::from(buy_qty - prev_refund_qty) / Decimal::from(buy_qty))
+            .round_dp_with_strategy(4, RoundingStrategy::MidpointAwayFromZero);
+        if prev_ratio <= Decimal::ZERO {
+            return ClawbackDecision::Skip;
+        }
+        (
+            (amount / prev_ratio)
+                .round_dp_with_strategy(4, RoundingStrategy::MidpointAwayFromZero),
+            (order_amount / prev_ratio)
+                .round_dp_with_strategy(4, RoundingStrategy::MidpointAwayFromZero),
+        )
+    } else {
+        (amount, order_amount)
+    };
+    ClawbackDecision::Rescale {
+        amount: (orig_amount * ratio)
+            .round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero),
+        order_amount: (orig_order_amount * ratio)
+            .round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero),
+    }
+}
+
 fn to_vo(r: &RefundApply) -> RefundApplyVO {
     RefundApplyVO {
         refund_id: r.refund_id,
@@ -779,5 +1015,77 @@ mod tests {
             .find("return_stored_cards_for_order")
             .expect("offline_audit 应挂礼品卡返还");
         assert!(confirm < hook, "礼品卡返还必须在确认到账之后执行");
+    }
+
+    /// 分销回退决策：全部退货 → 整行失效（含历史累计达到购买数量）。
+    #[test]
+    fn clawback_full_refund_invalidates() {
+        assert_eq!(
+            salesman_clawback_decision(3, 0, 3, dec("90.00"), dec("900.00")),
+            ClawbackDecision::Invalidate
+        );
+        // 历史已退 2、本次再退 1，累计达到购买数量 3
+        assert_eq!(
+            salesman_clawback_decision(3, 2, 3, dec("30.00"), dec("300.00")),
+            ClawbackDecision::Invalidate
+        );
+    }
+
+    /// 分销回退决策：首次部分退货按剩余占比扣减。
+    /// 买 3 退 1：占比 2/3（4 位 HALF_UP）=0.6667；
+    /// 90.00×0.6667=60.003→60.00；900.00×0.6667=600.03。
+    #[test]
+    fn clawback_first_partial_rescales_by_remaining_ratio() {
+        assert_eq!(
+            salesman_clawback_decision(3, 0, 1, dec("90.00"), dec("900.00")),
+            ClawbackDecision::Rescale {
+                amount: dec("60.00"),
+                order_amount: dec("600.03"),
+            }
+        );
+    }
+
+    /// 分销回退决策：二次部分退货先按历史占比反推原始金额再扣减。
+    /// 买 3、首退 1 后金额为 60.00 / 600.03；再退 1：
+    /// 历史占比 0.6667 → 反推 60.00/0.6667=89.9955、600.03/0.6667=900.0000；
+    /// 本次占比 1/3=0.3333 → 89.9955×0.3333=29.9955→30.00、
+    /// 900.0000×0.3333=299.97。
+    #[test]
+    fn clawback_second_partial_back_derives_original() {
+        assert_eq!(
+            salesman_clawback_decision(3, 1, 2, dec("60.00"), dec("600.03")),
+            ClawbackDecision::Rescale {
+                amount: dec("30.00"),
+                order_amount: dec("299.97"),
+            }
+        );
+    }
+
+    /// 分销回退决策：购买数量异常时跳过（Java 此处会除零，我方防御）。
+    #[test]
+    fn clawback_skips_on_invalid_buy_qty() {
+        assert_eq!(
+            salesman_clawback_decision(0, 0, 0, dec("90.00"), dec("900.00")),
+            ClawbackDecision::Skip
+        );
+    }
+
+    /// 分销佣金回退挂点不变量：`audit` 必须在 Wait→Processing 流转
+    /// 之后调用 `handle_salesman_order_on_refund`（触发点=财务审核
+    /// 通过，与 Java 一致），防止后续重构把回退钩子误删或误挂到
+    /// 审核之前。部分退款金额数学非幂等，回退只许在此与售后自动
+    /// 执行路径两处触发（见 handler 方法文档）。
+    #[test]
+    fn salesman_clawback_wired_after_audit_processing_transition() {
+        let src = include_str!("refund_apply.rs");
+        let a = src.find("pub async fn audit").expect("audit 应存在");
+        let tail = &src[a..];
+        let transition = tail
+            .find("RefundApplyStatus::Processing as i32")
+            .expect("audit 应流转到处理中");
+        let hook = tail
+            .find("handle_salesman_order_on_refund")
+            .expect("audit 应挂分销佣金回退");
+        assert!(transition < hook, "分销佣金回退必须在审核通过流转之后执行");
     }
 }
