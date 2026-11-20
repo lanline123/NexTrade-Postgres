@@ -4,10 +4,24 @@
 import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultFrame, defaultTitle } from "../../../contract/sharedDefaults";
 
-/** 与 view/admin imageAd2Defaults 逐字段一致（契约） */
+/**
+ * 我方新增默认演示图（2026-11-21）：原版 defaults 的 picList 为空，新增模块在
+ * 画布上是空块；预置 1 张已迁移演示图（与首焦轮播演示图同源，实测 200），
+ * 新增即有图可看，用户可换可删。仅新增模块生效，不回填存量数据。
+ */
+const demoPicList = [
+    {
+        picId: 1415,
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731044101j8COoqtfDJCWrSts6b.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+        picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731301941uaSjIShOBNL2VBSr0y.webp",
+        picName: "Fv5iP2IHByVFUlGrLkXtPkClndla"
+    }
+];
+
+/** 与 view/admin imageAd2Defaults 逐字段一致（契约），仅 picList 为我方新增默认演示图 */
 export const imageAd2Defaults = {
     picType: 1,
-    picList: [],
+    picList: demoPicList,
     swiperPreView: 1,
     swiperPageColor: "",
     imgPadding: 0,

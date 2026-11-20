@@ -12,13 +12,65 @@ import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultAnimation, defaultModuleStyle, defaultContentStyle } from "../../../contract/sharedDefaults";
 
 /**
- * 字段与旧 mobilePro/customProduct/index.ts 逐字段一致（契约）；
- * pruductList / picUrl 的值取空（原版 defaults 内置的 4 个演示商品与预置海报
- * 均为 tigshop OSS 素材，不随重建引入，见交付报告差异点）。
+ * 演示商品（原版 defaults 内置 4 个 productId=0 演示商品，我方补齐 2026-11-21）：
+ * 商品名/价格与原版逐字一致，图片为原版同路径素材、宿主换我方 OSS
+ * （nlatstore 桶同路径文件已逐个实测 200 + image/jpeg）。
  */
+const pruductList = [
+    {
+        productId: 0,
+        productSn: "",
+        productName: "麦片商品的标题信息",
+        productDesc: "",
+        productPrice: 29.0,
+        marketPrice: 0,
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908662JqyhZ6f1BCsWeUJlgj.jpg"
+    },
+    {
+        productId: 0,
+        productSn: "",
+        productName: "巧克力棒商品的标题信息",
+        productDesc: "",
+        productPrice: 29.0,
+        marketPrice: 0,
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908662cOmZ28i8gKl6JiUBad.jpg"
+    },
+    {
+        productId: 0,
+        productSn: "",
+        productName: "汤达人商品的标题信息",
+        productDesc: "",
+        productPrice: 29.0,
+        marketPrice: 0,
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908662AztoZ2OADHp1b8vUoQ.jpg"
+    },
+    {
+        productId: 0,
+        productSn: "",
+        productName: "士力架商品的标题信息",
+        productDesc: "",
+        productPrice: 29.0,
+        marketPrice: 0,
+        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731908662O7VZIzaFtItS4OvAOR.jpg"
+    }
+];
+
+/**
+ * 侧图：原版预置海报（gallery/202411/1732167975uqaGwJU2aHObkmOmpb.png，picId 1516）
+ * 未随素材迁移进我方 OSS（同路径实测 404），以同批已迁移的演示图
+ * （商品混排演示图，picId 1454，实测 200）替代；对象形态与原版一致。
+ */
+const url = {
+    picId: 1454,
+    picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731650293Kfvp2BXElAzXCOY7pq.png?x-oss-process=image/resize,m_pad,h_200,h_200",
+    picUrl: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731650293Kfvp2BXElAzXCOY7pq.png",
+    picName: "Fi_ZwwrzwDQddtmqTBCAyht4dPI"
+};
+
+/** 字段与旧 mobilePro/customProduct/index.ts 逐字段一致（契约） */
 export const customProductDefaults = {
-    pruductList: [],
-    picUrl: { picUrl: "", picThumb: "" },
+    pruductList: pruductList,
+    picUrl: url,
     picLocation: "right",
     animation: defaultAnimation,
     picFillType: "cover",
