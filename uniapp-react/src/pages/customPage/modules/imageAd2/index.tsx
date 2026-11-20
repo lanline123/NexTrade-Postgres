@@ -71,7 +71,7 @@ export default function ImageAd2({ module }: Props) {
     // 对应旧 onMounted：轮播形态先测比例再按列数测高度
     useEffect(() => {
         (async () => {
-            if (module.picType == 2) {
+            if (module.picType == 2 && module.picList?.[0]?.picUrl) {
                 await getImgratio(module.picList[0].picUrl);
                 await getHeght(".image-ad-con", rootRef, columns);
             }
@@ -80,7 +80,7 @@ export default function ImageAd2({ module }: Props) {
     }, []);
 
     const windowResizeCallback = async () => {
-        if (module.picType == 2) {
+        if (module.picType == 2 && module.picList?.[0]?.picUrl) {
             await getImgratio(module.picList[0].picUrl);
             await getHeght(".image-ad-con", rootRef, columns);
         }
@@ -94,7 +94,7 @@ export default function ImageAd2({ module }: Props) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    if (!module.picList.length) {
+    if (!module.picList?.length) {
         return null;
     }
 

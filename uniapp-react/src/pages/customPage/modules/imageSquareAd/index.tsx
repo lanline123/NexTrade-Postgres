@@ -34,8 +34,8 @@ export default function ImageSquareAd({ module }: Props) {
             style={frameFormat.boxPadding + frameFormat.boxPaddingTop + frameFormat.boxPaddingBottom + format.imgRadiusVar}
         >
             <View className="module-ad-content" style={frameFormat.backgroundColor + " " + frameFormat.boxRadius}>
-                {module.title.showTitle == 1 && <CommonTitle module={module.title} />}
-                {module.picList.length > 0 && (
+                {module.title?.showTitle == 1 && <CommonTitle module={module.title} />}
+                {(module.picList?.length ?? 0) > 0 && (
                     <View className="image-ad-warp" style={frameFormat.innerPadding}>
                         <View className="image-ad-con">
                             {module.picList && (

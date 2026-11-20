@@ -667,3 +667,10 @@
 - `infrastructure` merchant_account 账户更新（商户结算账户编辑）
 
 修复统一为本仓既有口径：`?` 拼装 → `to_pg_placeholders` 转 `$n`，id/scope 绑定保持末位顺序不变。此前这些路径从未在真实数据上跑通过（无真实售后单/编辑动作触发，属「空表掩盖」同类），为我方代码缺陷（非原版口径问题）。修复后分销复验退款腿得以走完（见分销生成链报告 §6）。
+
+## 0.0.2 续 · 2026-11-20 批次（图文导航「渲染失败」定案：编辑器分片自愈失效修复 + H5 picList 裸读清扫，随 admin 热更新 + H5 合并包上线）
+
+### 修复
+
+- **后台 - 装修编辑器模块「渲染失败，已跳过」定案与自愈修复【我方新增（编辑器懒加载自愈机制）之缺陷修复】**：用户报图文导航模块在 H5 装修编辑器中显示「该模块渲染失败，已跳过（不影响其他模块）」。定案（DB + 访问日志实证，与图文导航数据无关）：全库装修数据（已发布 + 草稿）无一条含 imageNav 模块，故障页 10106（模块测试页）落库数据为空、模块只存在于编辑器会话内；故障时刻编辑器会话正跨越一次 admin 整包换版，未及加载的模块设置分片 `Settings-*.js` 于 01:19:02 与 01:19:58 两次实测 404，设置面板的模块错误边界遂降级显示该文案。既有自愈设计（2026-11-18：React.lazy 失败逐出缓存 + 分片错误整页刷新）存在结构性缺陷：React.lazy 把加载拒绝永久缓存在组件类型上，错误边界点「重试」只是以新 key 重挂同一组件类型、工厂函数永不重跑，逐出缓存与刷新判定都只剩首次失败的一次机会，且被 15 秒防刷新标记挡掉后整场会话卡死在红字上。修法：`admin-semi/src/pages/decorateEditorH5/contract/lazyModule.ts` 改自管理加载器——每个 type@url 一个稳定包装组件 + 独立加载记录（pending 抛 promise 给 Suspense、done 直渲染、error 先删记录再抛错），错误边界重试重挂时必然重新发起加载，并重新走分片错误判定与整页刷新自愈；画布预览与设置面板共用此加载器，全模块同受益。PC 编辑器模块预览为静态打包、无懒加载分片，不受此缺陷影响（已核）。
+- **H5 前台 - 图文导航等图片列表模块裸读字段补齐【原版有·我方移植漏合并默认值】**：同轮按同一抛错模式清扫 H5 渲染面：原版各图片模块 View 均先 `mergeDefaultModule` 按契约默认值补齐字段再裸读，我方移植时多模块漏了这一步——数据未经编辑器保存路径（编辑器未保存草稿直送预览、历史导入等）而缺字段时即抛错被错误边界降级。① 图文导航（imageNav）：补契约默认值合并（navType/navStyle/rowNum/colNum/picList/imgPadding/radioStyle/picPageType/swiperPageColor，只补 undefined/null/""、picList 非数组归一为空数组，与原版 imageNav/View.vue 的 defaultModule 逐字段一致），此前缺 picList 且 navType≠1 时分页计算读 length 直接抛错；另给 rowNum/colNum 被显式写 0 时的分页加单页兜底（原版此处会算出 Infinity 页数循环跑飞，编辑器下拉只产 3–6/1–3、属数据兜底）。② 图片广告2（imageAd2）：渲染守卫与挂载/缩放回调的 picList 裸读改可选链（此前缺 picList 时渲染期直接抛错）。③ 图片魔方（imageSquareAd）：title/picList 裸读改可选链。④ 图片广告（imageAd）：缩放回调 picList[0] 补可选链。⑤ 共享 `resolveImageUrl` 对非字符串 picUrl 归空（此前裸调 `.includes` 抛 TypeError，全模块同受益）。报告：imagenav-render-fix/REPORT.md（workspace）。

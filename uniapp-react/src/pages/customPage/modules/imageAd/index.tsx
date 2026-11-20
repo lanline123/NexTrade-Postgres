@@ -83,7 +83,7 @@ export default function ImageAd({ module }: Props) {
     useEffect(() => {
         const windowResizeCallback = () => {
             Taro.getImageInfo({
-                src: imageFormat(module.picList[0]?.picUrl),
+                src: imageFormat(module.picList?.[0]?.picUrl),
                 success: (e: any) => {
                     computeImgHeight(e.height, e.width);
                 }
