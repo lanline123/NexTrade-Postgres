@@ -14,9 +14,15 @@
 * PicItemEditor（与 PicListField 同源的条目编辑器：图盒+更换图片条/标题/链接选择器/
 * × 清空槽位）；此前手写老式编辑块（h5-editor-pic-row + 红色删除按钮 + 裸 URL 输入、
 * 且丢了原版「标题」字段）已废弃。
+* 2026-11-21 起改走共享 ProductPicItemEditor（用户 2026-11-20 指示）：选图入口与
+* 「标题图片」同款素材中心盒（PicSelectBox），并按 PC 编辑器成熟方案加「从商品
+* 选择图片」——勾选多商品时自当前槽位起顺延填充后续槽位（productPicPatch 落
+* 图+标题+商品链接，槽位不足时提示）。字段口径不变（picList 条目同前）。
 */
 import { useEffect, useState} from "react";
-import { SettingGroup, NumberField, TitleSettingsField, FrameSettingsField, PicItemEditor} from "../../../shared/settingWidgets";
+import { Toast} from "@douyinfe/semi-ui";
+import { SettingGroup, NumberField, TitleSettingsField, FrameSettingsField, ProductPicItemEditor, productPicPatch} from "../../../shared/settingWidgets";
+import type { PickedImage} from "../../../../components/ProductImagePicker";
 import { TemplateIconRadioField} from "../../../shared/templateIcon";
 import { imageFormat} from "../../../shared/format";
 
@@ -66,6 +72,24 @@ const showLayoutGrid = [1, 2, 3].includes(Number(data?.picType)) || ([4, 5, 6, 7
 // 原版 PicList 单图模式 removePhoto 语义：清空该槽位的图对象（槽位保留，长度由模板决定）
 const clearCurrent = () =>
 setPic(currentIndex, { picId: 0, picThumb: "", picUrl: "", picName: "", picTitle: "", picLink: { link: "", title: ""}});
+
+// 商品直选批量落位（PC PicListEditor onPickMany 的魔方等价形）：槽位由模板定长、
+// 不能追加，自当前槽位起顺延填充后续槽位；超出部分丢弃并提示。
+const fillFromProducts = (items: PickedImage[]) => {
+const next = [...picList];
+let filled = 0;
+items.forEach((picked, offset) => {
+const slot = currentIndex + offset;
+if (slot >= next.length) return;
+next[slot] = {...next[slot],...productPicPatch(next[slot], picked, t('商品详情页'))};
+filled += 1;
+});
+if (!filled) return;
+onChange({ picList: next});
+if (filled < items.length) {
+Toast.warning(t('图片位不足，已填入 {count} 个商品', { count: filled}));
+}
+};
 
 return (
 <div className="h5-editor-settings-body">
@@ -164,10 +188,10 @@ options={[
 <div className="dec-pic-group">
 <div className="dec-pic-group-item">
 <div className="dec-pic-group-item-con">
-<PicItemEditor
+<ProductPicItemEditor
 item={currentItem}
 onPatch={(patch) => setPic(currentIndex, patch)}
-showAddBox
+onPickManyProducts={fillFromProducts}
 onRemove={clearCurrent}
 />
 </div>

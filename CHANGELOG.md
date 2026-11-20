@@ -941,3 +941,9 @@
 ### 修复
 
 - **后端 - 拆单 order_split.rs 借用修复（我方代码编译修复）**：跨店拆单方案 A（caffe24）新增的 services/trade/order_split.rs 有 6 处调用把 OrderPatch 按值传给仓储层 update_order(&self, order_id, patch: &OrderPatch)（行 466/475/535/582/614/1117），与签名不一致。后端合并批次 3 的 CI 硬门 check-rust run 44766480630 @0cc2d5a 编译期以 E0308 共 6 条实证（拆单线在本地零构建纪律下仅做语法解析自查，类型错误入 main 后由首个全树 CI 暴露；批次 3 因此停在 CI 门、未构建未部署、现网未动）。修复按编译器 help 逐处加引用：变量处改 &patch、构造体直传处改 &OrderPatch::new()…，与 services/trade/order_admin.rs 既有调用点同一形态；order_split.rs 全文件及全仓其余 update_order 调用点已扫，无第 7 处同病。纯借用修正，零语义变化：补丁字段、调用顺序与落库行为与改前完全一致。
+
+## 0.0.2 续 · 2026-11-21 批次（H5 装修图片魔方选图控件统一，未部署——随下一 admin 合并版上线）
+
+### 改进
+
+- **管理端 - H5 装修图片魔方「添加图片」选图控件统一（我方新增——内部复用 PC 编辑器成熟组件，非原版口径）**：魔方选中图片位后的条目编辑原走 PicItemEditor 的 60×60 图盒 + 底部「更换图片」条打开素材中心，与同编辑器「标题图片」的选图入口形态不一致，且选图弹窗无商品直选。按用户指示统一：H5 共享层（decorateEditorH5/shared/settingWidgets）新增可复用组件 ProductPicItemEditor 与落卡构造 productPicPatch——选图入口改走 PicSelectBox（与「标题图片」同款 ImageUploader single：空态为图标+「素材中心」虚线盒、点击打开素材中心弹窗，经它选图/删图只回写 { picUrl, picThumb }，同旧口径）；工具条照 PC 编辑器 PicListEditor「编辑图片」弹窗的成熟方案加「从商品选择图片」，打开共享 ProductImagePickerModal：点单张商品图只替换当前槽位图片，勾选多商品批量落卡。图片魔方（imageSquareAd）已切换：批量落卡自当前槽位起顺延填充后续定长槽位（槽位不足丢弃并提示），每张落图 + 商品名作标题 + 商品详情链接；链接按 H5 前台 urlFormat 的 LinkType 口径构造（path=product + data{id,sn}，与链接选择器选商品经 PicLinkField 的回写逐键同形，不用 PC 的 /product/{id} 字符串）。标题/链接信息行与 × 清空槽位语义不变，picList 条目字段口径（picId/picUrl/picThumb/picName/picTitle/picLink）与改前完全一致，存量页面打开即正常回显。同类清扫：H5 编辑器已无手搓老式选图残留；PicListField 列表形态的 24 个模块设置仍为旧图盒入口（形态不同，本批只登记，后续可按同一共享组件统一）。

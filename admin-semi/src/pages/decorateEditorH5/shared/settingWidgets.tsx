@@ -20,15 +20,22 @@
 * 排序行/删除徽标）抽为共享组件，PicListField 内部改用它（既有使用方 DOM 与行为
 * 不变，图库弹窗仍由 PicListField 统一托管）；单图槽位模块（图片魔方 imageSquareAd）
 * 可直接复用它编辑 picList[picIndex]。
+*
+* ProductPicItemEditor（2026-11-21 新增）：单图槽位编辑器——选图入口改走
+* PicSelectBox（与「标题图片」同款 ImageUploader 素材中心盒，用户 2026-11-20 指示），
+* 并按 PC 编辑器 PicListEditor 的成熟方案加「从商品选择图片」工具条（共享
+* ProductImagePickerModal：点单张商品图替换当前槽位图、勾选多商品批量落卡）。
+* 图片魔方已切换至此组件；PicListField 列表形态不在此列（登记待后续统一）。
 */
 import { useState} from "react";
-import { Input, Radio, RadioGroup, Select, Switch} from "@douyinfe/semi-ui";
+import { Button, Input, Radio, RadioGroup, Select, Switch} from "@douyinfe/semi-ui";
 import { IconPlus} from "@douyinfe/semi-icons";
 import AlphaColorInput from "../../../components/AlphaColorInput";
 import SliderWithInput from "../../../components/SliderWithInput";
 import SharedColorField from "../../../components/ColorField";
 import ImageUploader from "../../../components/ImageUploader";
 import GalleryPickerModal from "../../../components/GalleryPickerModal";
+import ProductImagePickerModal, { type PickedImage} from "../../../components/ProductImagePicker";
 import FloorIcon from "../../../components/FloorIcon";
 import { LinkField, type LinkValue} from "../../../components/LinkPicker";
 import { imageFormat, pickPic} from "./format";
@@ -655,6 +662,134 @@ export function PicItemEditor({
                 />
             ) : null}
         </>
+    );
+}
+
+/**
+ * 商品直选落图卡的字段构造（PC 编辑器 PicListEditor 的 makeItem 口径在 H5 的等价形）：
+ * 图 + 商品名作 picName/picTitle + 商品详情链接。
+ * 链接不用 PC 的 { link: "/product/{id}" } 字符串——H5 前台 urlFormat 按 LinkType 的
+ * path+data 消费，故按共享 LinkPicker 选商品的形状构造（path/label/name/id/sn/data），
+ * 并与 PicLinkField 的回写合并逐键一致（在原 picLink 上合并、link 取 path、title 取 name），
+ * 保证经此组件选商品与经链接选择器选商品存下的数据完全同形。
+ */
+export function productPicPatch(current: PicItem, picked: PickedImage, productLabel: string): Partial<PicItem> {
+    const linkValue: Record<string, any> = {
+        path: "product",
+        label: productLabel,
+        name: picked.productName,
+        id: picked.productId,
+        sn: picked.productSn,
+        data: { id: picked.productId, sn: picked.productSn }
+    };
+    return {
+        picUrl: picked.url,
+        picThumb: picked.url,
+        picName: picked.productName,
+        picTitle: picked.productName,
+        picLink: { ...(current?.picLink || {}), ...linkValue, link: linkValue.path, title: linkValue.name }
+    };
+}
+
+/**
+ * 单图槽位编辑器（素材中心样式 + 商品直选，2026-11-21 新增，用户 2026-11-20 指示）：
+ * - 选图入口 = PicSelectBox（与「标题图片」同款：ImageUploader single，空态为
+ *   图标+「素材中心」虚线盒、点击打开素材中心弹窗），不再用 PicItemEditor 的
+ *   60×60 图盒+「更换图片」条；经它选图/删图只回写 { picUrl, picThumb }，同旧口径。
+ * - 工具条照 PC 编辑器 PicListEditor 的「编辑图片」弹窗： 「从商品选择图片」按钮
+ *   打开共享 ProductImagePickerModal——点单张商品图只替换当前槽位图片
+ *   （{ picUrl, picThumb }，同 PC onPick）；勾选多商品走 onPickManyProducts 落位
+ *   （由调用方决定，如魔方顺延填充后续槽位），缺省时只取第一件以
+ *   productPicPatch 落当前条目（图+标题+商品链接）。
+ * - 标题/描述/链接信息行与 PicItemEditor 逐一致（同 .item-info 结构与 PicLinkField）；
+ *   onRemove 语义同 PicItemEditor（单图槽位场景由调用方传「清空槽位」回调）。
+ * 根节点占满 item-con 一行宽，内部纵向排布（工具条/图盒/信息行）。
+ */
+export function ProductPicItemEditor({
+    item,
+    onPatch,
+    onPickManyProducts,
+    showText = true,
+    showDesc = false,
+    showLink = true,
+    onRemove
+}: {
+    item: PicItem;
+    onPatch: (patch: Partial<PicItem>) => void;
+    onPickManyProducts?: (items: PickedImage[]) => void;
+    showText?: boolean;
+    showDesc?: boolean;
+    showLink?: boolean;
+    onRemove?: () => void;
+}) {
+    const { t } = useI18n();
+    const [productPickerOpen, setProductPickerOpen] = useState(false);
+    return (
+        <div style={{ width: "100%" }}>
+            <div className="dec-pic-modal__toolbar" style={{ marginBottom: 10 }}>
+                <Button size="small" icon={<IconPlus />} onClick={() => setProductPickerOpen(true)}>
+                    {t('从商品选择图片')}
+                </Button>
+                <span className="dec-pic-modal__toolbar-hint">{t('可用商品头图或商品相册图片')}</span>
+            </div>
+            <PicSelectBox
+                pic={item}
+                onSelect={(p) => onPatch({ picUrl: p.picUrl, picThumb: p.picThumb })}
+            />
+            <div className="item-info">
+                {showText ? (
+                    <div className="item-info-item">
+                        <span className="lable">{t('标题')}</span>
+                        <Input
+                            size="small"
+                            placeholder={t('建议10个字以内，可不填')}
+                            value={item.picTitle ?? ""}
+                            onChange={(v: string) => onPatch({ picTitle: v })}
+                        />
+                    </div>
+                ) : null}
+                {showDesc ? (
+                    <div className="item-info-item">
+                        <span className="lable">{t('描述')}</span>
+                        <Input
+                            size="small"
+                            placeholder={t('可不填')}
+                            value={item.picDesc ?? ""}
+                            onChange={(v: string) => onPatch({ picDesc: v })}
+                        />
+                    </div>
+                ) : null}
+                {showLink ? (
+                    <div className="item-info-item">
+                        <span className="lable">{t('链接')}</span>
+                        <PicLinkField
+                            value={item.picLink}
+                            onChange={(v) => onPatch({ picLink: { ...(item.picLink || {}), ...v } })}
+                        />
+                    </div>
+                ) : null}
+            </div>
+            {onRemove ? (
+                <span className="del-item" title={t('删除')} onClick={onRemove}>
+                    ×
+                </span>
+            ) : null}
+            <ProductImagePickerModal
+                visible={productPickerOpen}
+                onCancel={() => setProductPickerOpen(false)}
+                onPick={(url) => {
+                    onPatch({ picUrl: url, picThumb: url });
+                    setProductPickerOpen(false);
+                }}
+                onPickMany={(items) => {
+                    if (items.length) {
+                        if (onPickManyProducts) onPickManyProducts(items);
+                        else onPatch(productPicPatch(item, items[0], t('商品详情页')));
+                    }
+                    setProductPickerOpen(false);
+                }}
+            />
+        </div>
     );
 }
 
