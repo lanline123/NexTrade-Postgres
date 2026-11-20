@@ -345,6 +345,48 @@ export const navGroups: NavGroup[] = [
             "label": "商户设置"
           }
         ]
+      },
+      {
+        "key": "organize6",
+        "label": "平台联邦",
+        "icon": <IconGlobe />,
+        "children": [
+          {
+            "key": "orgOverview",
+            "label": "组织概览"
+          },
+          {
+            "key": "hubLinks",
+            "label": "成员连接"
+          },
+          {
+            "key": "hubPairing",
+            "label": "配对审批"
+          },
+          {
+            "key": "myLinks",
+            "label": "我的连接"
+          },
+          {
+            "key": "hubCredentials",
+            "label": "API 凭证"
+          },
+          {
+            "key": "hubAggregation",
+            "label": "联邦商品聚合"
+          }
+        ]
+      },
+      {
+        "key": "organize7",
+        "label": "商品流通",
+        "icon": <IconLayers />,
+        "children": [
+          {
+            "key": "feedKeyManage",
+            "label": "对接 API 管理"
+          }
+        ]
       }
     ]
   },
@@ -1379,6 +1421,10 @@ export const navGroups: NavGroup[] = [
             "label": "系统模式"
           },
           {
+            "key": "federationSettings",
+            "label": "平台联邦"
+          },
+          {
             "key": "adSettingsManage",
             "label": "投流定价"
           },
@@ -1831,6 +1877,14 @@ export const pageTitles: Record<string, string> = {
   "buyStyleSettings": "购买按钮样式设置",
   "fontSettings": "网站字体设置",
   "systemMode": "系统模式",
+  "orgOverview": "组织概览",
+  "hubLinks": "成员连接",
+  "hubPairing": "配对审批",
+  "myLinks": "我的连接",
+  "hubCredentials": "API 凭证",
+  "hubAggregation": "联邦商品聚合",
+  "feedKeyManage": "对接 API 管理",
+  "federationSettings": "平台联邦",
   "taxRateManage": "税率管理",
   "wechatLiveMiniAppSetting": "小程序设置",
   "storeEntryRuleSetting": "进店规则",

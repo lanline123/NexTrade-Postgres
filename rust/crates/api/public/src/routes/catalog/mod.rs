@@ -5,6 +5,7 @@ pub mod category_all;
 pub mod comment;
 pub mod exchange;
 pub mod image_search;
+pub mod product_feed;
 pub mod product_manage;
 pub mod product_manage_client;
 pub mod product_raw_image;
@@ -38,7 +39,7 @@ pub fn public_routes() -> Router<PublicState> {
 /// 匿名可访问路由（需要 state，外层不套 require_auth）。
 pub fn anonymous_routes(state: &PublicState) -> Router<PublicState> {
     let _ = state;
-    Router::new()
+    Router::new().merge(product_feed::routes(state))
 }
 
 /// 需登录路由（外层统一套 require_auth）。
@@ -56,6 +57,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(comment::implemented_routes());
     out.extend(exchange::implemented_routes());
     out.extend(image_search::implemented_routes());
+    out.extend(product_feed::implemented_routes());
     out.extend(product_manage::implemented_routes());
     out.extend(product_manage_client::implemented_routes());
     out.extend(product_search::implemented_routes());

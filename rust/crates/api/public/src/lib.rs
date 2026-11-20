@@ -84,6 +84,8 @@ pub struct PublicState {
     /// o2o（本地生活）前台域：自提人/自提模板/预约库存日历。
     pub o2o: std::sync::Arc<nextrade_services::o2o::Services>,
     pub im: std::sync::Arc<nextrade_services::im::Services>,
+    /// 平台联邦（hub 上下文）。
+    pub hub: std::sync::Arc<nextrade_services::hub::Services>,
     pub jwt: JwtService,
     /// 本地上传/H5 静态资源目录（config.yaml `file.upload_dir`）。
     pub upload_dir: String,

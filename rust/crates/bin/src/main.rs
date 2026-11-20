@@ -40,6 +40,8 @@ use nextrade_services::catalog::exchange::ExchangeService;
 use nextrade_services::catalog::price_inquiry::PriceInquiryService;
 use nextrade_services::catalog::product::ProductService;
 use nextrade_services::catalog::product_batch::ProductBatchService;
+use nextrade_services::catalog::product_feed::ProductFeedService;
+use nextrade_services::hub::federation::FederationService;
 use nextrade_services::catalog::product_group::ProductGroupService;
 use nextrade_services::catalog::product_inventory_log::ProductInventoryLogService;
 use nextrade_services::catalog::product_manage::ProductManageService;
@@ -493,6 +495,12 @@ async fn main() -> anyhow::Result<()> {
     let e_card_group = Arc::new(ECardGroupService::new(repos.clone()));
     let e_card = Arc::new(ECardService::new(repos.clone()));
     let product_batch = Arc::new(ProductBatchService::new(repos.clone()));
+    let product_feed = Arc::new(ProductFeedService::new(repos.clone()));
+    // ---- hub 域（平台联邦 P1） ----
+    let federation = Arc::new(FederationService::new(repos.clone(), product_feed.clone()));
+    let hub = Arc::new(nextrade_services::hub::Services {
+        federation: federation.clone(),
+    });
     let search_admin = Arc::new(SearchAdminService::new(repos.clone()));
     let product_inventory_log = Arc::new(ProductInventoryLogService::new(repos.clone()));
     let product_search = Arc::new(ProductSearchService::new(repos.clone()));
@@ -518,6 +526,7 @@ async fn main() -> anyhow::Result<()> {
         e_card_group: e_card_group.clone(),
         e_card: e_card.clone(),
         product_batch: product_batch.clone(),
+        product_feed: product_feed.clone(),
         search_admin: search_admin.clone(),
         product_inventory_log: product_inventory_log.clone(),
         product_search: product_search.clone(),
@@ -910,6 +919,7 @@ async fn main() -> anyhow::Result<()> {
         vendor: vendor.clone(),
         pos: pos.clone(),
         o2o: o2o.clone(),
+        hub: hub.clone(),
         jwt: (*jwt).clone(),
         repos: repos.clone(),
     };
@@ -926,6 +936,7 @@ async fn main() -> anyhow::Result<()> {
         im: im.clone(),
         wholesale: wholesale.clone(),
         o2o: o2o.clone(),
+        hub: hub.clone(),
         jwt: (*jwt).clone(),
         upload_dir: cfg.file.upload_dir.clone(),
         internal_api_key: cfg.internal.api_key.clone(),

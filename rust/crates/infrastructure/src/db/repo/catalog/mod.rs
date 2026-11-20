@@ -12,6 +12,7 @@ pub mod exchange;
 pub mod price_inquiry;
 pub mod product;
 pub mod product_batch;
+pub mod product_feed;
 pub mod product_group;
 pub mod product_inventory_log;
 pub mod product_manage;
@@ -40,6 +41,7 @@ pub struct Repositories {
     pub price_inquiry: price_inquiry::PriceInquiryRepository,
     pub product: product::ProductRepository,
     pub product_batch: product_batch::ProductBatchRepository,
+    pub product_feed: product_feed::ProductFeedRepository,
     pub product_group: product_group::ProductGroupRepository,
     pub product_inventory_log: product_inventory_log::ProductInventoryLogRepository,
     pub product_manage: product_manage::ProductManageRepository,
@@ -69,6 +71,7 @@ impl Repositories {
             price_inquiry: price_inquiry::PriceInquiryRepository::new(pool.clone()),
             product: product::ProductRepository::new(pool.clone()),
             product_batch: product_batch::ProductBatchRepository::new(pool.clone()),
+            product_feed: product_feed::ProductFeedRepository::new(pool.clone()),
             product_group: product_group::ProductGroupRepository::new(pool.clone()),
             product_inventory_log: product_inventory_log::ProductInventoryLogRepository::new(pool.clone()),
             product_manage: product_manage::ProductManageRepository::new(pool.clone()),

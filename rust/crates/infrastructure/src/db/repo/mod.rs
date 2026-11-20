@@ -18,4 +18,5 @@ pub mod content;
 pub mod system;
 pub mod im;
 pub mod analytics;
+pub mod hub;
 pub mod lang;

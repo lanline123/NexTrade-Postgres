@@ -20,3 +20,4 @@ pub mod lang;
 pub mod vendor;
 pub mod pos;
 pub mod o2o;
+pub mod hub;

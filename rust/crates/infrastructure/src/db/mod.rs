@@ -217,6 +217,7 @@ pub struct Repositories {
     pub im: repo::im::Repositories,
     pub analytics: repo::analytics::Repositories,
     pub lang: repo::lang::Repositories,
+    pub hub: repo::hub::Repositories,
 }
 
 impl Repositories {
@@ -241,6 +242,7 @@ impl Repositories {
             im: repo::im::Repositories::new(pool.clone()),
             analytics: repo::analytics::Repositories::new(pool.clone()),
             lang: repo::lang::Repositories::new(pool.clone()),
+            hub: repo::hub::Repositories::new(pool.clone()),
         }
     }
 }

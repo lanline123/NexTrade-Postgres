@@ -12,6 +12,7 @@ pub mod logistics;
 pub mod content;
 pub mod system;
 pub mod im;
+pub mod hub;
 
 use axum::Router;
 
@@ -31,6 +32,7 @@ pub fn merge_public(state: &PublicState) -> Router<PublicState> {
         .merge(catalog::routes(state))
         .merge(catalog::public_routes())
         .merge(catalog::anonymous_routes(state))
+        .merge(hub::anonymous_routes(state))
         .merge(trade::routes(state))
         .merge(trade::public_routes())
         .merge(trade::anonymous_routes(state))
@@ -89,5 +91,6 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(content::implemented_routes());
     out.extend(system::implemented_routes());
     out.extend(im::implemented_routes());
+    out.extend(hub::implemented_routes());
     out
 }

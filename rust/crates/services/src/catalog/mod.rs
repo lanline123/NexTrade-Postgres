@@ -12,6 +12,7 @@ pub mod exchange;
 pub mod price_inquiry;
 pub mod product;
 pub mod product_batch;
+pub mod product_feed;
 pub mod product_group;
 pub mod product_inventory_log;
 pub mod product_manage;
@@ -45,6 +46,7 @@ pub struct Services {
     pub e_card_group: Arc<e_card_group::ECardGroupService>,
     pub e_card: Arc<e_card::ECardService>,
     pub product_batch: Arc<product_batch::ProductBatchService>,
+    pub product_feed: Arc<product_feed::ProductFeedService>,
     pub search_admin: Arc<search_admin::SearchAdminService>,
     pub product_inventory_log: Arc<product_inventory_log::ProductInventoryLogService>,
     pub product_search: Arc<product_search::ProductSearchService>,

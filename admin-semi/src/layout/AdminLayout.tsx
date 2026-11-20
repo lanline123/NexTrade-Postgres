@@ -23,6 +23,12 @@ import {
   getCachedSystemMode,
   type SystemMode,
 } from '../systemMode';
+import {
+  fetchFederationSettings,
+  filterNavGroupsByFederation,
+  getCachedFederationSettings,
+  type FederationSettings,
+} from '../federation';
 import MenuSearch from '../components/MenuSearch';
 import AdminMessageCenter from '../components/AdminMessageCenter';
 import LicensedBadge from '../components/LicensedBadge';
@@ -227,11 +233,33 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
     };
   }, []);
 
+  /**
+   * 平台联邦菜单门控（我方新增，仅渲染层）：先用本地缓存值渲染，挂载后拉后台
+   * federationSettings 配置刷新；总开关关（默认）时「组织」一级菜单整体不出现，
+   * 开时再按 capabilities/modules 摘子页（见 federation.ts）。不拦 ?page= 直达。
+   */
+  const [federationSettings, setFederationSettings] = useState<FederationSettings>(() =>
+    getCachedFederationSettings(),
+  );
+  useEffect(() => {
+    let alive = true;
+    void fetchFederationSettings().then((settings) => {
+      if (alive) setFederationSettings(settings);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   /** 全量菜单（含角色专属组）：商户端/供应商端登录后在平台组后追加自己的自助页面组。 */
   const roleNavGroups = useMemo(() => navGroupsForRole(localStorage.getItem('adminType')), []);
   const visibleNavGroups = useMemo(
-    () => filterNavGroupsBySystemMode(roleNavGroups, systemMode),
-    [roleNavGroups, systemMode],
+    () =>
+      filterNavGroupsByFederation(
+        filterNavGroupsBySystemMode(roleNavGroups, systemMode),
+        federationSettings,
+      ),
+    [roleNavGroups, systemMode, federationSettings],
   );
 
   const groups = useMemo(() => {

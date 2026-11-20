@@ -45,6 +45,7 @@ pub mod analytics;
 pub mod catalog;
 pub mod content;
 pub mod identity;
+pub mod hub;
 pub mod im;
 pub mod lang;
 pub mod logistics;
