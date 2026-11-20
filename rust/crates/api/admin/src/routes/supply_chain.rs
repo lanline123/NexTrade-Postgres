@@ -65,6 +65,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/supplyChain/purchaseOrder/detail", get(order_detail))
         .route("/supplyChain/purchaseOrder/create", post(order_create))
         .route("/supplyChain/purchaseOrder/update", post(order_update))
+        .route("/supplyChain/purchaseOrder/submit", post(order_submit))
+        .route("/supplyChain/purchaseOrder/delete", post(order_delete))
         .route("/supplyChain/purchaseOrder/finish", post(order_finish))
         // receipt
         .route("/supplyChain/purchaseReceipt/list", get(receipt_list))
@@ -149,6 +151,8 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
         ("GET", "/api/supplyChain/purchaseOrder/detail"),
         ("POST", "/api/supplyChain/purchaseOrder/create"),
         ("POST", "/api/supplyChain/purchaseOrder/update"),
+        ("POST", "/api/supplyChain/purchaseOrder/submit"),
+        ("POST", "/api/supplyChain/purchaseOrder/delete"),
         ("POST", "/api/supplyChain/purchaseOrder/finish"),
         ("GET", "/api/supplyChain/purchaseReceipt/list"),
         ("GET", "/api/supplyChain/purchaseReceipt/detail"),
@@ -735,28 +739,166 @@ async fn order_detail(State(state): State<AdminState>, Query(q): Query<Pg>) -> A
     }
     ok(order)
 }
-async fn order_create(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
-    use std::str::FromStr;
-    let vendor_id = body.get("vendorId").and_then(Value::as_i64).unwrap_or(0) as i32;
-    if vendor_id <= 0 {
-        return Err(AppError(Error::biz(400, "请选择供应商")));
+/// 采购单明细入参（create / update 共用解析口径，与历史 create 完全一致：
+/// purchasePrice 只按字符串解析，缺失/非法按 0）。
+#[derive(Debug, Clone)]
+struct OrderItemInput {
+    sku_id: i64,
+    qty: i64,
+    price: rust_decimal::Decimal,
+}
+
+fn parse_order_items(body: &Value) -> Vec<OrderItemInput> {
+    body.get("items")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        .map(|item| OrderItemInput {
+            sku_id: item
+                .get("vendorProductSkuId")
+                .and_then(Value::as_i64)
+                .unwrap_or(0),
+            qty: item.get("quantity").and_then(Value::as_i64).unwrap_or(0),
+            price: rust_decimal::Decimal::from_str(
+                item.get("purchasePrice")
+                    .and_then(Value::as_str)
+                    .unwrap_or("0"),
+            )
+            .unwrap_or(rust_decimal::Decimal::ZERO),
+        })
+        .collect()
+}
+
+/// 正式单全量校验（与现 create 同口径）：至少一行、每行规格与数量均合法。
+/// 入参为 (vendor_product_sku_id, quantity) 对，create 与 submit（校验已存明细）共用。
+fn validate_formal_pairs(pairs: &[(i64, i64)]) -> Result<(), &'static str> {
+    if pairs.is_empty() {
+        return Err("请选择采购商品");
     }
+    if pairs.iter().any(|(sku_id, qty)| *sku_id <= 0 || *qty <= 0) {
+        return Err("采购商品或数量不合法");
+    }
+    Ok(())
+}
+
+/// 草稿可落库的明细：只保留已选规格的行（未选规格的空行不落库），
+/// 数量未填按 0 暂存，待补全后提交时再走全量校验。
+fn draft_items(items: &[OrderItemInput]) -> Vec<OrderItemInput> {
+    items
+        .iter()
+        .filter(|item| item.sku_id > 0)
+        .map(|item| OrderItemInput {
+            sku_id: item.sku_id,
+            qty: item.qty.max(0),
+            price: item.price,
+        })
+        .collect()
+}
+
+/// 供应商快照（采购单落库口径与历史 create 一致：名称/编码/联系方式/所属店铺）。
+struct VendorSnapshot {
+    vendor_name: String,
+    vendor_code: String,
+    vendor_contact: String,
+    shop_id: i32,
+}
+
+async fn load_vendor_snapshot(
+    state: &AdminState,
+    vendor_id: i32,
+) -> Result<VendorSnapshot, AppError> {
     let vendor = sqlx::query("SELECT vendor_name, vendor_code, contact_mobile, shop_id FROM vendor WHERE vendor_id=$1 AND source_type=2 LIMIT 1")
         .bind(vendor_id)
         .fetch_optional(&state.repos.pool).await.map_err(db)?
         .ok_or_else(|| AppError(Error::biz(400, "供应商不存在")))?;
-    let vendor_name: String = vendor.try_get("vendor_name").unwrap_or_default();
-    let vendor_code: String = vendor.try_get("vendor_code").unwrap_or_default();
-    let vendor_contact: String = vendor.try_get("contact_mobile").unwrap_or_default();
-    let shop_id: i32 = vendor.try_get("shop_id").unwrap_or(0);
-    let items = body
-        .get("items")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    if items.is_empty() {
-        return Err(AppError(Error::biz(400, "请选择采购商品")));
+    Ok(VendorSnapshot {
+        vendor_name: vendor.try_get("vendor_name").unwrap_or_default(),
+        vendor_code: vendor.try_get("vendor_code").unwrap_or_default(),
+        vendor_contact: vendor.try_get("contact_mobile").unwrap_or_default(),
+        shop_id: vendor.try_get("shop_id").unwrap_or(0),
+    })
+}
+
+/// 明细逐行落库（create / update 共用；行规格必须可解析，口径与历史 create 一致）。
+/// 返回 (商品金额合计, 订购数量合计)。
+async fn insert_order_items(
+    tx: &mut sqlx::Transaction<'_, Postgres>,
+    order_id: i64,
+    items: &[OrderItemInput],
+    now: i64,
+) -> Result<(rust_decimal::Decimal, i64), AppError> {
+    let mut total_amount = rust_decimal::Decimal::ZERO;
+    let mut total_qty = 0i64;
+    for item in items {
+        let row = sqlx::query(
+            "SELECT s.id AS sku_id, s.vendor_product_id, s.source_sku_id, p.product_id, p.product_name, p.product_sn, p.pic_thumb, p.product_unit, s.sku_attr_val, s.sku_sn FROM vendor_product_sku s JOIN vendor_product vp ON vp.id=s.vendor_product_id JOIN product p ON p.product_id=vp.source_product_id WHERE s.id=$1 AND s.is_del=0 LIMIT 1",
+        )
+        .bind(item.sku_id)
+        .fetch_optional(&mut **tx).await.map_err(db)?
+        .ok_or_else(|| AppError(Error::biz(400, "供应商商品规格不存在")))?;
+        let product_id: i32 = row.try_get("product_id").unwrap_or(0);
+        let source_sku_id: Option<i32> = row.try_get("source_sku_id").ok().flatten();
+        let amount = item.price * rust_decimal::Decimal::from(item.qty);
+        sqlx::query(
+            "INSERT INTO purchase_order_item(order_id,vendor_product_id,vendor_product_sku_id,product_id,sku_id,product_name,sku_name,product_sn,sku_sn,pic_thumb,product_unit,quantity,received_quantity,purchase_price,amount,create_time,update_time) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,0,$13,$14,$15,$16)",
+        )
+        .bind(order_id)
+        .bind(row.try_get::<i64, _>("vendor_product_id").unwrap_or(0))
+        .bind(item.sku_id)
+        .bind(product_id)
+        .bind(source_sku_id.unwrap_or(0))
+        .bind(row.try_get::<String, _>("product_name").unwrap_or_default())
+        .bind(row.try_get::<String, _>("sku_attr_val").unwrap_or_default())
+        .bind(row.try_get::<String, _>("product_sn").unwrap_or_default())
+        .bind(row.try_get::<String, _>("sku_sn").unwrap_or_default())
+        .bind(row.try_get::<String, _>("pic_thumb").unwrap_or_default())
+        .bind(row.try_get::<String, _>("product_unit").unwrap_or_default())
+        .bind(item.qty)
+        .bind(item.price)
+        .bind(amount)
+        .bind(now).bind(now)
+        .execute(&mut **tx).await.map_err(db)?;
+        total_amount += amount;
+        total_qty += item.qty;
     }
+    Ok((total_amount, total_qty))
+}
+
+async fn order_create(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<i64> {
+    // 我方新增：draft=true 保存草稿（status=0），放宽必填校验——供应商/明细可暂缺，
+    // 已填内容原样落库；正式提交（draft 缺省/false）沿用历史全量校验，status=1 待入库。
+    let draft = body.get("draft").and_then(Value::as_bool).unwrap_or(false);
+    let vendor_id = body.get("vendorId").and_then(Value::as_i64).unwrap_or(0) as i32;
+    let inputs = parse_order_items(&body);
+    let snapshot = if vendor_id > 0 {
+        Some(load_vendor_snapshot(&state, vendor_id).await?)
+    } else if draft {
+        None
+    } else {
+        return Err(AppError(Error::biz(400, "请选择供应商")));
+    };
+    let items = if draft {
+        draft_items(&inputs)
+    } else {
+        let pairs: Vec<(i64, i64)> = inputs.iter().map(|i| (i.sku_id, i.qty)).collect();
+        validate_formal_pairs(&pairs).map_err(|msg| AppError(Error::biz(400, msg)))?;
+        inputs
+    };
+    let (vendor_name, vendor_code, vendor_contact, shop_id) = match &snapshot {
+        Some(s) => (
+            s.vendor_name.clone(),
+            s.vendor_code.clone(),
+            s.vendor_contact.clone(),
+            s.shop_id,
+        ),
+        None => (
+            String::new(),
+            String::new(),
+            String::new(),
+            body.get("shopId").and_then(Value::as_i64).unwrap_or(0) as i32,
+        ),
+    };
     let now = nextrade_common::utils::now_seconds() as i64;
     let order_sn = format!("PO{}{:04}", now, rand_suffix());
     let mut tx = state.repos.pool.begin().await.map_err(db)?;
@@ -769,7 +911,7 @@ async fn order_create(State(state): State<AdminState>, Json(body): Json<Value>) 
     .bind(&vendor_name)
     .bind(&vendor_code)
     .bind(&vendor_contact)
-    .bind(1)
+    .bind(if draft { 0 } else { 1 })
     .bind(body.get("expectedDeliveryDate").and_then(Value::as_i64).unwrap_or(0))
     .bind(body.get("shippingMethod").and_then(Value::as_i64).unwrap_or(1) as i32)
     .bind(body.get("logisticsId").and_then(Value::as_i64).unwrap_or(0) as i32)
@@ -779,55 +921,7 @@ async fn order_create(State(state): State<AdminState>, Json(body): Json<Value>) 
     .bind(now).bind(now)
     .fetch_one(&mut *tx).await.map_err(db)?;
 
-    let mut total_amount = rust_decimal::Decimal::ZERO;
-    let mut total_qty = 0i64;
-    for item in items {
-        let sku_id = item
-            .get("vendorProductSkuId")
-            .and_then(Value::as_i64)
-            .unwrap_or(0);
-        let qty = item.get("quantity").and_then(Value::as_i64).unwrap_or(0);
-        let price = rust_decimal::Decimal::from_str(
-            &item
-                .get("purchasePrice")
-                .and_then(Value::as_str)
-                .unwrap_or("0"),
-        )
-        .unwrap_or(rust_decimal::Decimal::ZERO);
-        if sku_id <= 0 || qty <= 0 {
-            return Err(AppError(Error::biz(400, "采购商品或数量不合法")));
-        }
-        let row = sqlx::query(
-            "SELECT s.id AS sku_id, s.vendor_product_id, s.source_sku_id, p.product_id, p.product_name, p.product_sn, p.pic_thumb, p.product_unit, s.sku_attr_val, s.sku_sn FROM vendor_product_sku s JOIN vendor_product vp ON vp.id=s.vendor_product_id JOIN product p ON p.product_id=vp.source_product_id WHERE s.id=$1 AND s.is_del=0 LIMIT 1",
-        )
-        .bind(sku_id)
-        .fetch_optional(&mut *tx).await.map_err(db)?
-        .ok_or_else(|| AppError(Error::biz(400, "供应商商品规格不存在")))?;
-        let product_id: i32 = row.try_get("product_id").unwrap_or(0);
-        let source_sku_id: Option<i32> = row.try_get("source_sku_id").ok().flatten();
-        let amount = price * rust_decimal::Decimal::from(qty);
-        sqlx::query(
-            "INSERT INTO purchase_order_item(order_id,vendor_product_id,vendor_product_sku_id,product_id,sku_id,product_name,sku_name,product_sn,sku_sn,pic_thumb,product_unit,quantity,received_quantity,purchase_price,amount,create_time,update_time) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,0,$13,$14,$15,$16)",
-        )
-        .bind(order_id)
-        .bind(row.try_get::<i64, _>("vendor_product_id").unwrap_or(0))
-        .bind(sku_id)
-        .bind(product_id)
-        .bind(source_sku_id.unwrap_or(0))
-        .bind(row.try_get::<String, _>("product_name").unwrap_or_default())
-        .bind(row.try_get::<String, _>("sku_attr_val").unwrap_or_default())
-        .bind(row.try_get::<String, _>("product_sn").unwrap_or_default())
-        .bind(row.try_get::<String, _>("sku_sn").unwrap_or_default())
-        .bind(row.try_get::<String, _>("pic_thumb").unwrap_or_default())
-        .bind(row.try_get::<String, _>("product_unit").unwrap_or_default())
-        .bind(qty)
-        .bind(price)
-        .bind(amount)
-        .bind(now).bind(now)
-        .execute(&mut *tx).await.map_err(db)?;
-        total_amount += amount;
-        total_qty += qty;
-    }
+    let (total_amount, total_qty) = insert_order_items(&mut tx, order_id, &items, now).await?;
     sqlx::query("UPDATE purchase_order SET product_amount=$1, ordered_quantity=$2 WHERE id=$3")
         .bind(total_amount)
         .bind(total_qty)
@@ -841,17 +935,216 @@ async fn order_create(State(state): State<AdminState>, Json(body): Json<Value>) 
 async fn order_update(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
     let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
     let now = nextrade_common::utils::now_seconds() as i64;
+    let row = sqlx::query("SELECT status, vendor_id, vendor_name, vendor_code, vendor_contact, shop_id FROM purchase_order WHERE id=$1 AND is_del=0 LIMIT 1")
+        .bind(id)
+        .fetch_optional(&state.repos.pool).await.map_err(db)?
+        .ok_or_else(|| AppError(Error::biz(400, "采购订单不存在")))?;
+    let status: i32 = row.try_get("status").unwrap_or(0);
+    if status == 3 || status == 4 {
+        return Err(AppError(Error::biz(400, "已完成或已关闭的采购单不可编辑")));
+    }
+    if status == 1 || status == 2 {
+        // 正式单沿用历史口径：仅更新期望送达/发货方式/物流/备注等头部字段，
+        // 不动供应商、明细与状态（历史 SQL 的 status NOT IN (3,4) 已由上方校验等价覆盖）。
+        sqlx::query(
+            "UPDATE purchase_order SET expected_delivery_date=COALESCE($1,expected_delivery_date), shipping_method=COALESCE($2,shipping_method), logistics_id=$3, logistics_name=$4, tracking_no=$5, remark=$6, update_time=$7 WHERE id=$8",
+        )
+        .bind(body.get("expectedDeliveryDate").and_then(Value::as_i64))
+        .bind(body.get("shippingMethod").and_then(Value::as_i64).map(|v| v as i32))
+        .bind(body.get("logisticsId").and_then(Value::as_i64).unwrap_or(0) as i32)
+        .bind(body.get("logisticsName").and_then(Value::as_str).unwrap_or(""))
+        .bind(body.get("trackingNo").and_then(Value::as_str).unwrap_or(""))
+        .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
+        .bind(now).bind(id)
+        .execute(&state.repos.pool).await.map_err(db)?;
+        return ok(());
+    }
+    // 草稿（status=0，我方新增）：可改供应商/头部/明细。
+    // draft=true 继续存草稿（放宽校验）；否则对最终内容执行全量校验后转正式单（status=1）。
+    let target_draft = body.get("draft").and_then(Value::as_bool).unwrap_or(false);
+    let cur_vendor_id: i32 = row.try_get("vendor_id").unwrap_or(0);
+    let vendor_touched = body.get("vendorId").is_some();
+    let vendor_id = if vendor_touched {
+        body.get("vendorId").and_then(Value::as_i64).unwrap_or(0) as i32
+    } else {
+        cur_vendor_id
+    };
+    // 供应商快照：入参改供应商或转正式单时按当前供应商行刷新（兼校验存在），
+    // 草稿未改供应商时沿用已存快照；清空供应商时快照置空、店铺取入参 shopId。
+    let snapshot = if vendor_id > 0 && (vendor_touched || !target_draft) {
+        Some(load_vendor_snapshot(&state, vendor_id).await?)
+    } else {
+        None
+    };
+    let (vendor_name, vendor_code, vendor_contact, shop_id) = if vendor_id <= 0 {
+        (
+            String::new(),
+            String::new(),
+            String::new(),
+            body.get("shopId").and_then(Value::as_i64).unwrap_or(0) as i32,
+        )
+    } else if let Some(s) = &snapshot {
+        (
+            s.vendor_name.clone(),
+            s.vendor_code.clone(),
+            s.vendor_contact.clone(),
+            s.shop_id,
+        )
+    } else {
+        (
+            row.try_get("vendor_name").unwrap_or_default(),
+            row.try_get("vendor_code").unwrap_or_default(),
+            row.try_get("vendor_contact").unwrap_or_default(),
+            row.try_get("shop_id").unwrap_or(0),
+        )
+    };
+    // 最终明细口径：入参带 items 时整体替换，否则沿用已存明细。
+    let inputs = parse_order_items(&body);
+    let has_items = body.get("items").and_then(Value::as_array).is_some();
+    let final_items = if has_items {
+        if target_draft {
+            draft_items(&inputs)
+        } else {
+            inputs
+        }
+    } else {
+        Vec::new()
+    };
+    let final_pairs: Vec<(i64, i64)> = if has_items {
+        final_items.iter().map(|i| (i.sku_id, i.qty)).collect()
+    } else {
+        let stored = sqlx::query(
+            "SELECT vendor_product_sku_id, quantity FROM purchase_order_item WHERE order_id=$1 AND is_del=0",
+        )
+        .bind(id)
+        .fetch_all(&state.repos.pool)
+        .await
+        .map_err(db)?;
+        stored
+            .iter()
+            .map(|r| {
+                (
+                    r.try_get("vendor_product_sku_id").unwrap_or(0),
+                    i64::from(r.try_get::<i32, _>("quantity").unwrap_or(0)),
+                )
+            })
+            .collect()
+    };
+    if !target_draft {
+        if vendor_id <= 0 {
+            return Err(AppError(Error::biz(400, "请选择供应商")));
+        }
+        validate_formal_pairs(&final_pairs).map_err(|msg| AppError(Error::biz(400, msg)))?;
+    }
+    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    if has_items {
+        sqlx::query("UPDATE purchase_order_item SET is_del=1 WHERE order_id=$1 AND is_del=0")
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        let (total_amount, total_qty) =
+            insert_order_items(&mut tx, id, &final_items, now).await?;
+        sqlx::query("UPDATE purchase_order SET product_amount=$1, ordered_quantity=$2 WHERE id=$3")
+            .bind(total_amount)
+            .bind(total_qty)
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+    }
     sqlx::query(
-        "UPDATE purchase_order SET expected_delivery_date=COALESCE($1,expected_delivery_date), shipping_method=COALESCE($2,shipping_method), logistics_id=$3, logistics_name=$4, tracking_no=$5, remark=$6, update_time=$7 WHERE id=$8 AND status NOT IN (3,4)",
+        "UPDATE purchase_order SET vendor_id=$1, vendor_name=$2, vendor_code=$3, vendor_contact=$4, shop_id=$5, expected_delivery_date=COALESCE($6,expected_delivery_date), shipping_method=COALESCE($7,shipping_method), logistics_id=$8, logistics_name=$9, tracking_no=$10, remark=$11, status=$12, update_time=$13 WHERE id=$14 AND status=0",
     )
+    .bind(vendor_id)
+    .bind(&vendor_name)
+    .bind(&vendor_code)
+    .bind(&vendor_contact)
+    .bind(shop_id)
     .bind(body.get("expectedDeliveryDate").and_then(Value::as_i64))
     .bind(body.get("shippingMethod").and_then(Value::as_i64).map(|v| v as i32))
     .bind(body.get("logisticsId").and_then(Value::as_i64).unwrap_or(0) as i32)
     .bind(body.get("logisticsName").and_then(Value::as_str).unwrap_or(""))
     .bind(body.get("trackingNo").and_then(Value::as_str).unwrap_or(""))
     .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
+    .bind(if target_draft { 0 } else { 1 })
     .bind(now).bind(id)
-    .execute(&state.repos.pool).await.map_err(db)?;
+    .execute(&mut *tx).await.map_err(db)?;
+    tx.commit().await.map_err(db)?;
+    ok(())
+}
+/// 提交草稿（我方新增）：对已存内容执行与 create 相同的全量校验，
+/// 通过后 status 0→1（待入库）并按当前供应商行刷新快照；校验不过不改状态。
+async fn order_submit(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    let row = sqlx::query("SELECT status, vendor_id FROM purchase_order WHERE id=$1 AND is_del=0 LIMIT 1")
+        .bind(id)
+        .fetch_optional(&state.repos.pool).await.map_err(db)?
+        .ok_or_else(|| AppError(Error::biz(400, "采购订单不存在")))?;
+    let status: i32 = row.try_get("status").unwrap_or(-1);
+    if status != 0 {
+        return Err(AppError(Error::biz(400, "只有草稿采购单可以提交")));
+    }
+    let vendor_id: i32 = row.try_get("vendor_id").unwrap_or(0);
+    if vendor_id <= 0 {
+        return Err(AppError(Error::biz(400, "请选择供应商")));
+    }
+    let snapshot = load_vendor_snapshot(&state, vendor_id).await?;
+    let stored = sqlx::query(
+        "SELECT vendor_product_sku_id, quantity FROM purchase_order_item WHERE order_id=$1 AND is_del=0",
+    )
+    .bind(id)
+    .fetch_all(&state.repos.pool)
+    .await
+    .map_err(db)?;
+    let pairs: Vec<(i64, i64)> = stored
+        .iter()
+        .map(|r| {
+            (
+                r.try_get("vendor_product_sku_id").unwrap_or(0),
+                i64::from(r.try_get::<i32, _>("quantity").unwrap_or(0)),
+            )
+        })
+        .collect();
+    validate_formal_pairs(&pairs).map_err(|msg| AppError(Error::biz(400, msg)))?;
+    let now = nextrade_common::utils::now_seconds() as i64;
+    sqlx::query("UPDATE purchase_order SET status=1, vendor_name=$1, vendor_code=$2, vendor_contact=$3, shop_id=$4, update_time=$5 WHERE id=$6 AND status=0")
+        .bind(&snapshot.vendor_name)
+        .bind(&snapshot.vendor_code)
+        .bind(&snapshot.vendor_contact)
+        .bind(snapshot.shop_id)
+        .bind(now).bind(id)
+        .execute(&state.repos.pool).await.map_err(db)?;
+    ok(())
+}
+/// 删除草稿（我方新增）：仅草稿（status=0）可删，订单与明细一并软删；
+/// 正式单沿用既有口径（本模块原本无采购单删除端点，正式单仍不可删）。
+async fn order_delete(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
+    let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    let row = sqlx::query("SELECT status FROM purchase_order WHERE id=$1 AND is_del=0 LIMIT 1")
+        .bind(id)
+        .fetch_optional(&state.repos.pool)
+        .await
+        .map_err(db)?
+        .ok_or_else(|| AppError(Error::biz(400, "采购订单不存在")))?;
+    let status: i32 = row.try_get("status").unwrap_or(-1);
+    if status != 0 {
+        return Err(AppError(Error::biz(400, "只有草稿采购单可以删除")));
+    }
+    let now = nextrade_common::utils::now_seconds() as i64;
+    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    sqlx::query("UPDATE purchase_order SET is_del=1, update_time=$1 WHERE id=$2 AND status=0")
+        .bind(now)
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+    sqlx::query("UPDATE purchase_order_item SET is_del=1 WHERE order_id=$1 AND is_del=0")
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+    tx.commit().await.map_err(db)?;
     ok(())
 }
 async fn order_finish(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
@@ -948,6 +1241,10 @@ async fn receipt_save(State(state): State<AdminState>, Json(body): Json<Value>) 
         .map_err(db)?
         .ok_or_else(|| AppError(Error::biz(400, "采购订单不存在")))?;
     let status: i32 = order.try_get("status").unwrap_or(0);
+    // 隔离守卫（草稿功能红线）：草稿（status=0）不是正式采购单，绝不可被入库引用。
+    if status == 0 {
+        return Err(AppError(Error::biz(400, "草稿采购单不能入库，请先提交")));
+    }
     if status != 1 && status != 2 {
         return Err(AppError(Error::biz(400, "采购订单已结束或状态不允许入库")));
     }
@@ -1434,4 +1731,73 @@ async fn setting_save(State(state): State<AdminState>, Json(body): Json<Value>) 
         .bind(now).bind(now)
         .execute(&state.repos.pool).await.map_err(db)?;
     ok(())
+}
+
+// ————————————————— 采购单草稿（我方新增）口径测试 —————————————————
+#[cfg(test)]
+mod purchase_draft_tests {
+    use super::*;
+
+    fn input(sku_id: i64, qty: i64) -> OrderItemInput {
+        OrderItemInput {
+            sku_id,
+            qty,
+            price: rust_decimal::Decimal::ZERO,
+        }
+    }
+
+    #[test]
+    fn formal_pairs_require_at_least_one_item() {
+        assert_eq!(validate_formal_pairs(&[]), Err("请选择采购商品"));
+    }
+
+    #[test]
+    fn formal_pairs_reject_bad_sku_or_qty() {
+        assert_eq!(
+            validate_formal_pairs(&[(0, 3)]),
+            Err("采购商品或数量不合法")
+        );
+        assert_eq!(
+            validate_formal_pairs(&[(9, 0)]),
+            Err("采购商品或数量不合法")
+        );
+        assert_eq!(
+            validate_formal_pairs(&[(9, -2)]),
+            Err("采购商品或数量不合法")
+        );
+        // 草稿里按 0 暂存的数量行在提交时必须被全量校验拦下
+        assert_eq!(
+            validate_formal_pairs(&[(9, 5), (8, 0)]),
+            Err("采购商品或数量不合法")
+        );
+    }
+
+    #[test]
+    fn formal_pairs_accept_valid_items() {
+        assert_eq!(validate_formal_pairs(&[(9, 5)]), Ok(()));
+        assert_eq!(validate_formal_pairs(&[(9, 5), (8, 1)]), Ok(()));
+    }
+
+    #[test]
+    fn draft_items_drop_unselected_rows_and_clamp_qty() {
+        let kept = draft_items(&[input(0, 3), input(9, 0), input(8, -4), input(7, 6)]);
+        // 未选规格的空行（sku=0）不落库；数量未填（0）与负数都按 0 暂存
+        let pairs: Vec<(i64, i64)> = kept.iter().map(|i| (i.sku_id, i.qty)).collect();
+        assert_eq!(pairs, vec![(9, 0), (8, 0), (7, 6)]);
+    }
+
+    #[test]
+    fn draft_isolation_invariants_hold_in_source() {
+        // 隔离守卫不变量（源码级断言，防后续改动悄悄拆守卫）。
+        // 针串用 concat! 拼装，避免断言行自身的字面量让 contains 恒真。
+        let src = include_str!("supply_chain.rs");
+        // 1) 入库 save 对草稿有显式拦截，且正式状态校验（仅 1/2 可入库）仍在
+        assert!(src.contains(concat!("草稿采购单不能入库", "，请先提交")));
+        assert!(src.contains(concat!("status != 1 &&", " status != 2")));
+        // 2) 提交/删除都只允许作用于草稿
+        assert!(src.contains(concat!("只有草稿采购单", "可以提交")));
+        assert!(src.contains(concat!("只有草稿采购单", "可以删除")));
+        // 3) create 的状态绑定：草稿落 0、正式落 1
+        assert!(src.contains(concat!("if draft { 0 }", " else { 1 }")));
+    }
 }

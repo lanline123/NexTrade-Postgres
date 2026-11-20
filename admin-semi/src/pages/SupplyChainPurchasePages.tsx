@@ -436,7 +436,7 @@ function ProductSelectorModal({
 /* ==================================================================
    1. 采购订单管理 (PurchaseOrders / purchaseOrderManage)
    列表字段与单据状态对齐原版 purchaseOrder/List.vue：
-   1 待入库, 2 部分入库, 3 已完成, 4 已关闭
+   1 待入库, 2 部分入库, 3 已完成, 4 已关闭；0 草稿为我方新增（原版无草稿）
 ================================================================== */
 interface PurchaseOrderItem {
   id?: number;
@@ -475,10 +475,13 @@ function PurchaseOrderCreateDrawer({
   visible,
   onClose,
   onSaved,
+  editOrder,
 }: {
   visible: boolean;
   onClose: () => void;
   onSaved: () => void;
+  // 我方新增：传入草稿单时进入编辑模式（回填详情，保存草稿/提交走 update）
+  editOrder?: PurchaseOrderItem | null;
 }) {
   const { t } = useI18n();
   const platform = isPlatformAdmin();
@@ -498,14 +501,6 @@ function PurchaseOrderCreateDrawer({
 
   useEffect(() => {
     if (!visible) return;
-    setShopId(platform ? '' : currentShopId());
-    setVendorId('');
-    setExpectedAt('');
-    setShippingMethod(1);
-    setLogisticsId('');
-    setTrackingNo('');
-    setRemark('');
-    setLines([]);
     (async () => {
       try {
         const [shops, logistics] = await Promise.all([fetchShopOptions(), fetchLogisticsOptions()]);
@@ -514,6 +509,68 @@ function PurchaseOrderCreateDrawer({
       } catch (error) {
         Toast.error({ content: errMsg(error, t) });
       }
+      if (editOrder) {
+        // 草稿编辑：拉详情回填（后端返回驼峰字段，蛇形兜底）
+        try {
+          const detail: any = await apiGet<any>('/supplyChain/purchaseOrder/detail', {
+            id: orderIdOf(editOrder),
+          });
+          const shopValue = String(
+            detail?.shopId ?? detail?.shop_id ?? editOrder.shopId ?? (platform ? '' : currentShopId()),
+          );
+          setShopId(shopValue === '0' ? '' : shopValue);
+          const vendorValue = detail?.vendorId ?? detail?.vendor_id;
+          setVendorId(vendorValue ? String(vendorValue) : '');
+          const exp = detail?.expectedDeliveryDate ?? detail?.expected_delivery_date;
+          if (typeof exp === 'string' && /^\d{4}-\d{2}-\d{2}/.test(exp)) {
+            setExpectedAt(exp.slice(0, 10));
+          } else if (Number(exp) > 0) {
+            setExpectedAt(formatUnix(exp, false));
+          } else {
+            setExpectedAt('');
+          }
+          setShippingMethod(Number(detail?.shippingMethod ?? detail?.shipping_method ?? 1) === 2 ? 2 : 1);
+          const logisticsValue = detail?.logisticsId ?? detail?.logistics_id;
+          setLogisticsId(logisticsValue ? String(logisticsValue) : '');
+          setTrackingNo(detail?.trackingNo ?? detail?.tracking_no ?? '');
+          setRemark(detail?.remark ?? '');
+          setLines(
+            (detail?.items || []).map((item: any) => ({
+              vendorProductSkuId: String(item.vendorProductSkuId ?? item.vendor_product_sku_id ?? ''),
+              skuId: String(item.skuId ?? item.sku_id ?? ''),
+              productId: String(item.productId ?? item.product_id ?? ''),
+              productName: item.productName ?? item.product_name ?? '',
+              skuName: item.skuName ?? item.sku_name ?? '',
+              categoryName: item.categoryName ?? item.category_name ?? '',
+              picThumb: item.picThumb ?? item.pic_thumb ?? '',
+              supplierStock: item.supplierStock ?? '',
+              minPurchaseQty: String(item.minPurchaseQty ?? ''),
+              purchasePrice: String(item.purchasePrice ?? item.purchase_price ?? ''),
+              quantity: String(item.quantity ?? ''),
+            })),
+          );
+          if (shopValue && shopValue !== '0') {
+            try {
+              setSupplierOptions(await fetchSupplierOptions(shopValue));
+            } catch {
+              setSupplierOptions([]);
+            }
+          } else {
+            setSupplierOptions([]);
+          }
+        } catch (error) {
+          Toast.error({ content: errMsg(error, t) });
+        }
+        return;
+      }
+      setShopId(platform ? '' : currentShopId());
+      setVendorId('');
+      setExpectedAt('');
+      setShippingMethod(1);
+      setLogisticsId('');
+      setTrackingNo('');
+      setRemark('');
+      setLines([]);
       if (!platform) {
         try {
           setSupplierOptions(await fetchSupplierOptions(currentShopId()));
@@ -524,7 +581,7 @@ function PurchaseOrderCreateDrawer({
         setSupplierOptions([]);
       }
     })();
-  }, [visible]);
+  }, [visible, editOrder]);
 
   const handleShopChange = async (value: any) => {
     const next = value === undefined || value === null ? '' : String(value);
@@ -642,7 +699,7 @@ function PurchaseOrderCreateDrawer({
     }
     setSaving(true);
     try {
-      await apiPost('/supplyChain/purchaseOrder/create', {
+      const payload = {
         shopId: Number(shopId),
         vendorId: Number(vendorId),
         expectedDeliveryDate: toUnixSeconds(expectedAt),
@@ -661,8 +718,63 @@ function PurchaseOrderCreateDrawer({
           quantity: lineQuantity(line),
           purchasePrice: Number(line.purchasePrice),
         })),
-      });
-      Toast.success(t('采购单创建成功'));
+      };
+      if (editOrder) {
+        // 草稿编辑后提交：与新建相同的全量校验（上方）通过后走 update 转正式单
+        await apiPost('/supplyChain/purchaseOrder/update', {
+          id: orderIdOf(editOrder),
+          draft: false,
+          ...payload,
+        });
+        Toast.success(t('采购单提交成功'));
+      } else {
+        await apiPost('/supplyChain/purchaseOrder/create', payload);
+        Toast.success(t('采购单创建成功'));
+      }
+      onSaved();
+    } catch (error) {
+      Toast.error({ content: errMsg(error, t) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 我方新增：保存草稿——只要求采购店铺，其余（供应商/日期/物流/明细）可暂缺，
+  // 已填内容原样提交，后端以 status=0 落库；之后可在列表里继续编辑/提交/删除。
+  const saveDraft = async () => {
+    if (!shopId) return Toast.warning(t('请选择采购店铺'));
+    setSaving(true);
+    try {
+      const payload = {
+        shopId: Number(shopId),
+        vendorId: Number(vendorId || 0),
+        expectedDeliveryDate: toUnixSeconds(expectedAt),
+        shippingMethod,
+        ...(shippingMethod === 1
+          ? {
+              logisticsId: Number(logisticsId || 0),
+              logisticsName:
+                logisticsOptions.find((item) => String(item.logisticsId) === String(logisticsId))?.logisticsName || '',
+              trackingNo: trackingNo.trim(),
+            }
+          : {}),
+        remark: remark.trim(),
+        items: lines.map((line) => ({
+          vendorProductSkuId: Number(line.vendorProductSkuId),
+          quantity: lineQuantity(line),
+          purchasePrice: Number(line.purchasePrice),
+        })),
+      };
+      if (editOrder) {
+        await apiPost('/supplyChain/purchaseOrder/update', {
+          id: orderIdOf(editOrder),
+          draft: true,
+          ...payload,
+        });
+      } else {
+        await apiPost('/supplyChain/purchaseOrder/create', { draft: true, ...payload });
+      }
+      Toast.success(t('草稿已保存'));
       onSaved();
     } catch (error) {
       Toast.error({ content: errMsg(error, t) });
@@ -673,7 +785,7 @@ function PurchaseOrderCreateDrawer({
 
   return (
     <SideSheet
-      title={t('新建采购单')}
+      title={editOrder ? t('编辑采购单') : t('新建采购单')}
       visible={visible}
       onCancel={onClose}
       width={960}
@@ -682,6 +794,9 @@ function PurchaseOrderCreateDrawer({
       footer={
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <Button onClick={onClose}>{t('取消')}</Button>
+          <Button loading={saving} onClick={saveDraft}>
+            {t('保存草稿')}
+          </Button>
           <Button theme="solid" type="primary" loading={saving} onClick={submit}>
             {t('提交')}
           </Button>
@@ -1168,13 +1283,14 @@ export function PurchaseOrders() {
   const { t } = useI18n();
   const [reloadKey, setReloadKey] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<PurchaseOrderItem | null>(null);
   const [inboundOrder, setInboundOrder] = useState<PurchaseOrderItem | null>(null);
   const [detailOrder, setDetailOrder] = useState<PurchaseOrderItem | null>(null);
 
   const statusName = (status: number) =>
-    ({ 1: t('待入库'), 2: t('部分入库'), 3: t('已完成'), 4: t('已关闭') })[status] || t('未知状态');
+    ({ 0: t('草稿'), 1: t('待入库'), 2: t('部分入库'), 3: t('已完成'), 4: t('已关闭') })[status] || t('未知状态');
   const statusColor = (status: number): any =>
-    ({ 1: 'orange', 2: 'blue', 3: 'green', 4: 'grey' })[status] || 'grey';
+    ({ 0: 'violet', 1: 'orange', 2: 'blue', 3: 'green', 4: 'grey' })[status] || 'grey';
 
   const columns: ColumnConfig<PurchaseOrderItem>[] = [
     {
@@ -1236,6 +1352,45 @@ export function PurchaseOrders() {
       width: 180,
       render: (_: any, record: PurchaseOrderItem) => (
         <Space spacing={2}>
+          {record.status === 0 ? (
+            <>
+              <Button theme="borderless" type="primary" size="small" onClick={() => setEditingOrder(record)}>
+                {t('编辑')}
+              </Button>
+              <Popconfirm
+                title={t('确认提交该草稿？提交后进入待入库。')}
+                onConfirm={async () => {
+                  try {
+                    await apiPost('/supplyChain/purchaseOrder/submit', { id: orderIdOf(record) });
+                    Toast.success(t('草稿已提交'));
+                    setReloadKey((k) => k + 1);
+                  } catch (error) {
+                    Toast.error({ content: errMsg(error, t) });
+                  }
+                }}
+              >
+                <Button theme="borderless" type="primary" size="small">
+                  {t('提交')}
+                </Button>
+              </Popconfirm>
+              <Popconfirm
+                title={t('确认删除该草稿？')}
+                onConfirm={async () => {
+                  try {
+                    await apiPost('/supplyChain/purchaseOrder/delete', { id: orderIdOf(record) });
+                    Toast.success(t('草稿已删除'));
+                    setReloadKey((k) => k + 1);
+                  } catch (error) {
+                    Toast.error({ content: errMsg(error, t) });
+                  }
+                }}
+              >
+                <Button theme="borderless" type="danger" size="small">
+                  {t('删除')}
+                </Button>
+              </Popconfirm>
+            </>
+          ) : null}
           {record.status === 1 || record.status === 2 ? (
             <Button theme="borderless" type="primary" size="small" onClick={() => setInboundOrder(record)}>
               {t('入库')}
@@ -1302,6 +1457,7 @@ export function PurchaseOrders() {
             type: 'select',
             options: [
               { label: t('全部'), value: '' },
+              { label: t('草稿'), value: 0 },
               { label: t('待入库'), value: 1 },
               { label: t('部分入库'), value: 2 },
               { label: t('已完成'), value: 3 },
@@ -1312,10 +1468,15 @@ export function PurchaseOrders() {
       />
 
       <PurchaseOrderCreateDrawer
-        visible={createOpen}
-        onClose={() => setCreateOpen(false)}
+        visible={createOpen || Boolean(editingOrder)}
+        editOrder={editingOrder}
+        onClose={() => {
+          setCreateOpen(false);
+          setEditingOrder(null);
+        }}
         onSaved={() => {
           setCreateOpen(false);
+          setEditingOrder(null);
           setReloadKey((k) => k + 1);
         }}
       />
