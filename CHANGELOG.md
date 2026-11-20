@@ -867,3 +867,6 @@
 ### 修复
 
 - **PC - 首页（简约风页头）搜索区样式与购物车页对齐（原版有差异·我方按用户指示改口径）**：用户报告 PC 首页最上方字体/图标样式不对、应以购物车页为基准。实测定位（现网 SSR 标记 + 计算样式逐项比对）：最顶细顶栏 PcHeaderTopBar 两页共用同一组件、标记与计算样式一致，非差异层；差异在页头主体搜索区。原版 v5.8.61 本就分口径：简约风页头与购物车页头共用 DefSearchNew，其默认提交按钮为 58×32 图标按钮（快照仓 view/pc/components/common/components/DefSearchNew.vue L32-33、L455-470），仅购物车页头 PcHeaderCartContent 以 :deep 覆盖为主题色「搜索」文字按钮 + 输入框左侧放大镜（同文件 L183 注明照搬 vortmall 购物车页）；我方移植两侧均属忠实——header-source.scss 的文字按钮整块规则仅以 .pc-header-cart-content 为作用域，简约风页头只命中 globals/header-source 的通用图标按钮规则（58px 图标按钮、无左侧放大镜、边框灰色）。按用户 2026-11-20 指示改口径对齐购物车页：header-source.scss 该块作用域扩至 .pc-header-simple（主题色边框、按钮 ::after 输出「搜索」14px/500 且隐藏 svg、表单 ::before/::after 左侧放大镜、输入左内边距 28px）；cart-modern.scss 的按钮自适应宽（auto/min 72px/左右 20px）与 .i-icon 隐藏两条修正同步扩至 .pc-header-simple；PcHeaderSimple 与 PcHeaderCartContent 同口径注入 --search-btn-text（随语言切换）。购物车页自身样式零变化；跨境风（styleType=2）页头不在 .pc-header-simple 作用域内、不受影响。现网 DOM+CSS 回放验证：修复后首页搜索按钮宽 72px、::after=「搜索」14px、左侧放大镜 12px、表单左内边距 28px，与购物车页一致。
+
+## 2026-11-20 H5 骑手 API 类型修复（我方新增前端缺陷）
+- uniapp-react/src/api/rider/rider.ts：12 处 request 泛型改传 RiderEnvelope 信封类型，对齐 @/utils/request 的 ResponseData 约束与 auction 模块成例；修复 build-h5-frontend Typecheck 28 个 TS2344。纯类型修复，运行时行为不变。

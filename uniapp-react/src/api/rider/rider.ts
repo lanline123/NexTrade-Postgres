@@ -6,6 +6,14 @@ import request from "@/utils/request";
  * 大厅/动作的作用域（本店 + 同类型）在后端强制校验。
  */
 
+/** 响应信封（与 @/utils/request 的 ResponseData 约束及 auction 等模块 *Result 口径一致）：
+ * request<T extends ResponseData> 返回 Promise<T["data"]>，故泛型须传信封而非载荷本身。 */
+type RiderEnvelope<T> = {
+    code?: number;
+    message: string;
+    data: T;
+};
+
 export interface RiderInfo {
     id: number;
     name: string;
@@ -52,19 +60,19 @@ export interface DeliveryOrderRow {
     cancelReason?: string;
 }
 
-export const riderMyInfo = () => request<RiderInfo | null>({ url: "o2o/serviceStaff/myInfo", method: "get" });
+export const riderMyInfo = () => request<RiderEnvelope<RiderInfo | null>>({ url: "o2o/serviceStaff/myInfo", method: "get" });
 
 export const riderUpdateWorkStatus = (workStatus: number) =>
     request({ url: "o2o/serviceStaff/updateWorkStatus", method: "post", data: { workStatus } });
 
 export const riderStatistics = () =>
-    request<{ total: number; pending: number; processing: number; completed: number }>({
+    request<RiderEnvelope<{ total: number; pending: number; processing: number; completed: number }>>({
         url: "o2o/deliveryOrder/statistics",
         method: "get"
     });
 
 export const riderGrabList = (params: { page: number; size: number; type?: number }) =>
-    request<{ records: DeliveryOrderRow[]; total: number; canTakeOrders?: boolean }>({
+    request<RiderEnvelope<{ records: DeliveryOrderRow[]; total: number; canTakeOrders?: boolean }>>({
         url: "o2o/deliveryOrder/grabList",
         method: "get",
         params
@@ -74,20 +82,20 @@ export const riderGrab = (data: { deliveryOrderId: number; longitude?: number; l
     request({ url: "o2o/deliveryOrder/grab", method: "post", data });
 
 export const riderMyList = (params: { page: number; size: number; tab?: string }) =>
-    request<{ records: DeliveryOrderRow[]; total: number }>({
+    request<RiderEnvelope<{ records: DeliveryOrderRow[]; total: number }>>({
         url: "o2o/deliveryOrder/myList",
         method: "get",
         params
     });
 
 export const riderDetail = (id: number) =>
-    request<DeliveryOrderRow | null>({ url: `o2o/deliveryOrder/detail?id=${id}`, method: "get" });
+    request<RiderEnvelope<DeliveryOrderRow | null>>({ url: `o2o/deliveryOrder/detail?id=${id}`, method: "get" });
 
 export const riderConfirmPickup = (data: { deliveryOrderId: number; photo: string[]; longitude?: number; latitude?: number }) =>
     request({ url: "o2o/deliveryOrder/confirmPickup", method: "post", data });
 
 export const riderComplete = (data: { deliveryOrderId: number; photo: string[]; longitude?: number; latitude?: number }) =>
-    request<{ serviceFee: number }>({ url: "o2o/deliveryOrder/complete", method: "post", data });
+    request<RiderEnvelope<{ serviceFee: number }>>({ url: "o2o/deliveryOrder/complete", method: "post", data });
 
 export const riderCancel = (data: { deliveryOrderId: number; cancelReason: string }) =>
     request({ url: "o2o/deliveryOrder/cancel", method: "post", data });
@@ -99,17 +107,17 @@ export const riderHomeConfig = (shopId: number) =>
     request<any>({ url: `o2o/config/homeServiceConfig?shopId=${shopId}`, method: "get" });
 
 export const riderWallet = () =>
-    request<{ walletId: number; balance: number; frozenBalance: number; totalIncome: number }>({
+    request<RiderEnvelope<{ walletId: number; balance: number; frozenBalance: number; totalIncome: number }>>({
         url: "o2o/staffWallet/myWallet",
         method: "get"
     });
 
 export const riderWalletLogs = (params: { page: number; size: number }) =>
-    request<{ records: any[]; total: number }>({ url: "o2o/staffWallet/myLogs", method: "get", params });
+    request<RiderEnvelope<{ records: any[]; total: number }>>({ url: "o2o/staffWallet/myLogs", method: "get", params });
 
 export const riderWithdrawConfig = () => request<any>({ url: "o2o/staffWallet/withdrawConfig", method: "get" });
 
-export const riderAccounts = () => request<any[]>({ url: "o2o/staffAccount/list", method: "get" });
+export const riderAccounts = () => request<RiderEnvelope<any[]>>({ url: "o2o/staffAccount/list", method: "get" });
 
 export const riderSaveAccount = (data: {
     accountId?: number;
@@ -123,7 +131,7 @@ export const riderApplyWithdraw = (data: { amount: number; accountId: number; re
     request({ url: "o2o/staffWallet/applyWithdraw", method: "post", data });
 
 export const riderWithdrawList = (params: { page: number; size: number }) =>
-    request<{ records: any[]; total: number }>({ url: "o2o/staffWallet/myWithdrawList", method: "get", params });
+    request<RiderEnvelope<{ records: any[]; total: number }>>({ url: "o2o/staffWallet/myWithdrawList", method: "get", params });
 
 export const riderApply = (data: {
     shopId: number;
@@ -132,10 +140,10 @@ export const riderApply = (data: {
     phone: string;
     idCard?: string;
     remark?: string;
-}) => request<number>({ url: "o2o/serviceStaff/apply", method: "post", data });
+}) => request<RiderEnvelope<number>>({ url: "o2o/serviceStaff/apply", method: "post", data });
 
 export const riderMyApplies = () =>
-    request<{ records: any[] }>({ url: "o2o/serviceStaff/myApplies", method: "get" });
+    request<RiderEnvelope<{ records: any[] }>>({ url: "o2o/serviceStaff/myApplies", method: "get" });
 
 /** 买家侧派送进度（订单详情页用；非本人订单/无派送单返回 null）。 */
 export const buyerDeliveryProgress = (orderId: number) =>
