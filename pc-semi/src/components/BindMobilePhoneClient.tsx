@@ -26,8 +26,22 @@ export default function BindMobilePhoneClient() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // 微信首登绑手机模式：扫码登录 type=2 时 LoginClient/RegisterClient 把后端
+  // openData（含一次性 bindTicket）存入 sessionStorage；提交时带上 openData，
+  // 后端走「授权归属到手机号账号 / 以手机号建号」并返回登录 JWT。无此数据时
+  // 为原有已登录用户换绑手机流程，行为不变。
+  const [wechatOpenData, setWechatOpenData] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('wechatBindOpenData');
+      if (raw) setWechatOpenData(JSON.parse(raw) as Record<string, unknown>);
+    } catch {
+      /* 解析失败按普通换绑处理 */
+    }
+  }, []);
 
   const startCountdown = () => {
     setCountdown(60);
@@ -95,6 +109,8 @@ export default function BindMobilePhoneClient() {
           mobileCode: code.trim(),
           password,
           areaCode,
+          // 微信首登模式才带 openData（内含 bindTicket）；普通换绑不带，后端走旧口径
+          ...(wechatOpenData ? { openData: wechatOpenData } : {}),
         }),
       });
       const json = await response.json().catch(() => ({}));
@@ -102,7 +118,22 @@ export default function BindMobilePhoneClient() {
         throw new Error(json.msg || json.message || t('绑定失败'));
       }
       Toast.success({ content: '绑定成功' });
-      setTimeout(() => window.location.replace('/member/security'), 600);
+      if (wechatOpenData) {
+        // 微信首登：bindMobile 返回会员 JWT，存令牌后进会员中心完成登录
+        const token = typeof json?.data === 'string' ? json.data : '';
+        if (token) {
+          localStorage.setItem('accessToken', token);
+          document.cookie = `accessToken=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax`;
+        }
+        try {
+          sessionStorage.removeItem('wechatBindOpenData');
+        } catch {
+          /* 忽略 */
+        }
+        setTimeout(() => window.location.replace('/member'), 600);
+      } else {
+        setTimeout(() => window.location.replace('/member/security'), 600);
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '绑定失败');
       setSaving(false);

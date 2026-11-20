@@ -94,8 +94,8 @@ export const configHelp: Record<string, Record<string, string>> = {
     "wechatServerToken": "请从微信公众号后台获取",
     "wechatServerSecret": "请从微信公众号后台获取，编辑完成后，点击下方提交按钮确认修改，请确保填写正确的微信服务器Secret",
     "openWechatPcLogin": "如果选是，PC端将显示微信扫码登录。",
-    "wechatRegisterBindPhone": "如果选是在微信登录时需绑定手机号方可注册，便于全站统一账号；若选择否，则不需要绑定手机，直接注册但不利于账号管理",
-    "openWechatRegister": "如果选是，小程序端将显示一键登录",
+    "wechatRegisterBindPhone": "微信首次登录现已统一先绑定手机号再完成注册，便于全站统一账号；本开关保留仅为兼容存量配置，不再单独决定是否绑定手机号",
+    "openWechatRegister": "如果选是，小程序端将显示一键登录；同时公众号授权登录允许新微信用户进入注册（先绑定手机号再建号，不再静默自动注册）",
     "wechatShareNeedLogin": "开启后，用户点击分享需先登录；小程序强制分享登录可能被微信处罚，建议关闭",
     "isOpenMobileAreaCode": "如果开启则会将区号存入数据库，请谨慎选择（开启后不建议关闭）。",
     "usernamePrefix": "仅用在自动注册生成username时有效，参考格式：NexTrade_"

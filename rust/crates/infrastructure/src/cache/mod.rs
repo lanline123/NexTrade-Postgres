@@ -216,6 +216,87 @@ impl CacheService {
         }
     }
 
+    /// 原子地「不存在才写入」（Redis `SET key value EX ttl NX`）：分布式锁
+    /// 抢占与一次性占位用。键已存在（含未过期）→ 返回 `false` 不覆盖。
+    /// `ttl_secs=0` 表示不过期。
+    ///
+    /// # Errors
+    /// 缓存写入失败。
+    pub async fn set_if_absent(&self, key: &str, value: &str, ttl_secs: u64) -> Result<bool> {
+        match &self.backend {
+            Backend::Redis(conn) => {
+                let mut conn = conn.clone();
+                let mut cmd = redis::cmd("SET");
+                cmd.arg(key).arg(value);
+                if ttl_secs > 0 {
+                    cmd.arg("EX").arg(ttl_secs);
+                }
+                cmd.arg("NX");
+                let ok: Option<String> = cmd
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(|e| Error::Cache(e.to_string()))?;
+                Ok(ok.is_some())
+            }
+            Backend::Memory(store) => {
+                let mut guard = store
+                    .lock()
+                    .map_err(|_| Error::Cache("内存缓存锁失败".into()))?;
+                if let Some((_, expire_at)) = guard.get(key) {
+                    if expire_at.is_none_or(|at| Instant::now() < at) {
+                        return Ok(false);
+                    }
+                }
+                let expire_at = if ttl_secs == 0 {
+                    None
+                } else {
+                    Some(Instant::now() + Duration::from_secs(ttl_secs))
+                };
+                guard.insert(key.to_string(), (value.to_string(), expire_at));
+                Ok(true)
+            }
+        }
+    }
+
+    /// 原子地「值相等才删除」（原始字符串比较）：分布式锁按持有令牌释放、
+    /// 一次性凭证消费用，避免误删他人刚写入的新值。
+    ///
+    /// # Errors
+    /// 缓存读写失败。
+    pub async fn del_if_eq(&self, key: &str, expected: &str) -> Result<bool> {
+        match &self.backend {
+            Backend::Redis(conn) => {
+                let mut conn = conn.clone();
+                let deleted: i64 = redis::cmd("EVAL")
+                    .arg("if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end return 0")
+                    .arg(1)
+                    .arg(key)
+                    .arg(expected)
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(|e| Error::Cache(e.to_string()))?;
+                Ok(deleted == 1)
+            }
+            Backend::Memory(store) => {
+                let mut guard = store
+                    .lock()
+                    .map_err(|_| Error::Cache("内存缓存锁失败".into()))?;
+                let Some((value, expires_at)) = guard.get(key) else {
+                    return Ok(false);
+                };
+                if expires_at.is_some_and(|at| Instant::now() >= at) {
+                    guard.remove(key);
+                    return Ok(false);
+                }
+                if value != expected {
+                    return Ok(false);
+                }
+                guard.remove(key);
+                Ok(true)
+            }
+        }
+    }
+
     /// 「读缓存 → 未命中回源 → 写缓存」。
     ///
     /// # Errors
@@ -318,6 +399,37 @@ mod tests {
         assert_eq!(cache.get_str("k").await.unwrap().as_deref(), Some("v"));
         tokio::time::sleep(Duration::from_millis(1100)).await;
         assert!(cache.get_str("k").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn set_if_absent_and_del_if_eq_semantics() {
+        let cache = memory_cache();
+        // 首次占位成功、二次被拒且不覆盖
+        assert!(cache.set_if_absent("lock", "tok-a", 60).await.unwrap());
+        assert!(!cache.set_if_absent("lock", "tok-b", 60).await.unwrap());
+        assert_eq!(cache.get_str("lock").await.unwrap().as_deref(), Some("tok-a"));
+        // 值不匹配不得删除（他人锁）
+        assert!(!cache.del_if_eq("lock", "tok-b").await.unwrap());
+        assert_eq!(cache.get_str("lock").await.unwrap().as_deref(), Some("tok-a"));
+        // 持有者释放成功，之后可重新占位
+        assert!(cache.del_if_eq("lock", "tok-a").await.unwrap());
+        assert!(cache.get_str("lock").await.unwrap().is_none());
+        assert!(cache.set_if_absent("lock", "tok-b", 60).await.unwrap());
+        // 不存在的键 del_if_eq = false
+        assert!(!cache.del_if_eq("missing", "x").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn set_if_absent_respects_expiry() {
+        let cache = memory_cache();
+        assert!(cache.set_if_absent("ttl-lock", "a", 1).await.unwrap());
+        assert!(!cache.set_if_absent("ttl-lock", "b", 1).await.unwrap());
+        tokio::time::sleep(Duration::from_millis(1100)).await;
+        // 过期后视为不存在，可重新占位
+        assert!(cache.set_if_absent("ttl-lock", "b", 60).await.unwrap());
+        assert_eq!(cache.get_str("ttl-lock").await.unwrap().as_deref(), Some("b"));
+        // 已过期键 del_if_eq 不得把新值误删（此处键未过期，值不符 → false）
+        assert!(!cache.del_if_eq("ttl-lock", "a").await.unwrap());
     }
 
     #[tokio::test]

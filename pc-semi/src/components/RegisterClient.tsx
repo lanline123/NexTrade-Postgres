@@ -159,24 +159,43 @@ export default function RegisterClient({
     stopWechat();
     setWechatExpired(false);
     try {
-      const response = await fetch('/api/user/login/getWxLoginUrl', { credentials: 'include' });
+      const response = await fetch('/api/user/login/getWxLoginUrl', {
+        credentials: 'include',
+        headers: { 'X-Client-Type': 'pc' },
+      });
       const json = await response.json();
-      const url = typeof json?.data === 'string' ? json.data : String(json?.data?.url || json?.data?.qrcodeUrl || '');
-      if (!url) {
+      const data = json?.data ?? {};
+      const url = typeof data === 'string' ? data : String(data.url || data.qrcodeUrl || '');
+      const ticket = typeof data === 'object' ? String(data.ticket || '') : '';
+      if (!url || !ticket) {
         setWechatExpired(true);
         return;
       }
       const QRCode = (await import('qrcode')).default;
       setWechatQr(await QRCode.toDataURL(url, { width: 220, margin: 1 }));
-      // 轮询扫码事件
+      // 轮询扫码事件（POST {key: ticket}，type=1 登录 / type=2 先绑手机）
       wechatTimer.current = setInterval(async () => {
         try {
-          const event = await fetch('/api/user/login/wechatEvent', { credentials: 'include' }).then((r) => r.json());
+          const event = await fetch('/api/user/login/wechatEvent', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-Client-Type': 'pc' },
+            body: JSON.stringify({ key: ticket }),
+          }).then((r) => r.json());
+          // 未扫码时后端回业务错误（1001 未登录），属轮询常态，继续等
+          if (event?.code !== undefined && event.code !== 0) return;
           const data = event?.data || event;
-          if (data?.status === 1 || data?.success) {
+          if (data?.type === 1 && data?.token) {
             stopWechat();
+            localStorage.setItem('accessToken', data.token);
+            document.cookie = `accessToken=${encodeURIComponent(data.token)}; path=/; max-age=604800; SameSite=Lax`;
             Toast.success({ content: '微信授权成功' });
             window.location.replace('/member');
+          } else if (data?.type === 2) {
+            // 首次微信登录：先绑手机号（后端 bindTicket 一次性凭证在 openData 内）
+            stopWechat();
+            sessionStorage.setItem('wechatBindOpenData', JSON.stringify(data.openData ?? {}));
+            window.location.replace('/member/bindmobilephone');
           }
         } catch {
           /* 轮询失败忽略，等待超时 */

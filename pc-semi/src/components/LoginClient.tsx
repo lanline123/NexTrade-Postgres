@@ -228,15 +228,21 @@ export default function LoginClient({
       setLoading(false);
     }
   };
-  /** 源码 showWechatLogin：微信扫码登录 */
+  /** 源码 showWechatLogin：微信扫码登录（X-Client-Type: pc 取二维码 + ticket，POST {key} 轮询 wechatEvent） */
   const openWechat = async () => {
     setWechatMode(true);
     setWechatExpired(false);
+    if (poll.current) clearInterval(poll.current);
     try {
-      const response = await fetch('/api/user/login/getWxLoginUrl', { credentials: 'include' });
+      const response = await fetch('/api/user/login/getWxLoginUrl', {
+        credentials: 'include',
+        headers: { 'X-Client-Type': 'pc' },
+      });
       const json = await response.json();
-      const url = typeof json?.data === 'string' ? json.data : String(json?.data?.url || json?.data?.qrcodeUrl || '');
-      if (!url) {
+      const data = json?.data ?? {};
+      const url = typeof data === 'string' ? data : String(data.url || data.qrcodeUrl || '');
+      const ticket = typeof data === 'object' ? String(data.ticket || '') : '';
+      if (!url || !ticket) {
         setWechatExpired(true);
         return;
       }
@@ -244,12 +250,26 @@ export default function LoginClient({
       setWechatQr(await QRCode.toDataURL(url, { width: 200, margin: 1 }));
       poll.current = setInterval(async () => {
         try {
-          const event = await fetch('/api/user/login/wechatEvent', { credentials: 'include' }).then((r) => r.json());
+          const event = await fetch('/api/user/login/wechatEvent', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-Client-Type': 'pc' },
+            body: JSON.stringify({ key: ticket }),
+          }).then((r) => r.json());
+          // 未扫码时后端回业务错误（1001 未登录），属轮询常态，继续等
+          if (event?.code !== undefined && event.code !== 0) return;
           const data = event?.data || event;
-          if (data?.status === 1 || data?.success) {
+          if (data?.type === 1 && data?.token) {
             if (poll.current) clearInterval(poll.current);
+            localStorage.setItem('accessToken', data.token);
+            document.cookie = `accessToken=${encodeURIComponent(data.token)}; path=/; max-age=604800; SameSite=Lax`;
             Toast.success({ content: '微信授权成功' });
             redirectAfterLogin();
+          } else if (data?.type === 2) {
+            // 首次微信登录：先绑手机号（后端 bindTicket 一次性凭证在 openData 内）
+            if (poll.current) clearInterval(poll.current);
+            sessionStorage.setItem('wechatBindOpenData', JSON.stringify(data.openData ?? {}));
+            window.location.replace('/member/bindmobilephone');
           }
         } catch {
           /* 忽略轮询异常 */

@@ -32,8 +32,14 @@
 //!    的会员登录完全一致），只返回 access token。
 //! 5. **微信生态**：`wechatEvent` / `getMobile` / `updateUserOpenid` /
 //!    `getWxLoginInfoByCode` / `bindWechat` / `wechatServer` 依赖微信开放平台
-//!    （OAuth/code2Session/小程序手机号/二维码/回调验签），本构建未迁移 →
-//!    服务层返回明确的 1001 业务错误，不伪造 token。
+//!    （OAuth/code2Session/小程序手机号/二维码/回调验签）——本段为早期构建
+//!    登记，上述端点已于后续批次全部迁移落地。
+//! 6. **首次微信登录建号口径（2026-11-21，我方改口径）**：原版在微信注册
+//!    开启时对未知 openid 直接新建空手机号账号（论坛帖 437883310890615995
+//!    实证为缺陷：手机号老用户扫码后被建成无手机号新号）。我方改为未知
+//!    openid 一律先绑手机：服务端签发一次性临时凭证（[`WechatBindData`]，
+//!    600 秒），`bindMobile` 以凭证载荷为权威身份完成合并/建号，空手机号
+//!    账号不再产生。详见 services `member::login` 模块文档。
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -45,6 +51,9 @@ pub const SERVICE_DATA_ERROR: i32 = 1001;
 pub const PASSWORD_RESET_PREFIX: &str = "password-reset:";
 /// Java `getWechatLoginUrl` 的 state 缓存键前缀。
 pub const WECHAT_STATE_PREFIX: &str = "wechat::state:";
+/// 微信首次登录「先绑手机」临时凭证的缓存键前缀（我方改口径新增，见
+/// [`WechatBindData`]）：`wechat-bind:{ticket}`。
+pub const WECHAT_BIND_PREFIX: &str = "wechat-bind:";
 
 /// 验证码有效期（Java `5, TimeUnit.MINUTES`）。
 pub const CODE_TTL_SECS: u64 = 300;
@@ -52,6 +61,9 @@ pub const CODE_TTL_SECS: u64 = 300;
 pub const RESET_TOKEN_TTL_SECS: u64 = 600;
 /// 微信 state 有效期（Java `300` 秒）。
 pub const WECHAT_STATE_TTL_SECS: u64 = 300;
+/// 微信绑手机临时凭证有效期（600 秒）：须覆盖「跳绑手机页 → 获取短信验证码
+/// （300 秒有效）→ 提交绑定」的完整操作窗口，取值与重置令牌 TTL 同档。
+pub const WECHAT_BIND_TTL_SECS: u64 = 600;
 
 /// 会员 JWT 的 `typ`（与 `api/public/src/lib.rs::user_login` 一致）。
 pub const MEMBER_TOKEN_TYPE: &str = "member";
@@ -93,6 +105,10 @@ pub const WECHAT_BOUND_OTHER: &str = "该微信号已绑定其他账号，请解
 pub const WECHAT_NOT_BOUND: &str = "该账号未绑定微信公众号";
 /// `UserServiceImpl#wechatEvent`：key 为空/openid 缺失。
 pub const NOT_LOGIN: &str = "未登录";
+/// 绑手机临时凭证缺失/过期/已被消费（我方改口径新增文案）。
+pub const WECHAT_BIND_EXPIRED: &str = "微信授权已过期，请重新扫码或授权后再绑定";
+/// 绑手机防并发锁在重试窗口内未取得（我方新增文案）。
+pub const BIND_IN_PROGRESS: &str = "绑定处理中，请稍后重试";
 /// `BindWechatParam` / `LoginGetMobileParam` 的 `@NotBlank` 文案。
 pub const CODE_PARAM_REQUIRED: &str = "code不能为空";
 /// `ConfigServiceImpl#getQuickLoginSetting` 使用 `x-client-type`。
@@ -250,6 +266,31 @@ pub struct LoginWechatEventVO {
     pub return_url: Option<String>,
 }
 
+/// 微信首次登录「先绑手机」临时凭证的服务端载荷（我方改口径新增，
+/// 原版无此结构：原版在微信注册开启时对未知 openid 直接建空手机号账号）。
+///
+/// 扫码（`wechatEvent`）/ 公众号 OAuth（`getWxLoginInfoByCode`）遇到未知
+/// openid 时，服务端把微信身份写入缓存（键 [`wechat_bind_key`]，TTL
+/// [`WECHAT_BIND_TTL_SECS`]），只把随机 `bindTicket` 随 `type=2` 的
+/// openData 下发给前端；前端在绑手机页回传 ticket，`bindMobile` 以缓存
+/// 载荷为权威身份（不信任客户端回传的 openid 等字段），并在绑定成功时
+/// 一次性消费该凭证。`authorize_type` 由发证路径写死（公众号 = 1），
+/// 避免 PC 扫码端按 `x-client-type=pc` 推导出错误的小程序类型。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct WechatBindData {
+    /// 微信 openid（公众号维度）。
+    pub openid: String,
+    /// 微信 unionid（OAuth 路径才有；扫码路径为空）。
+    pub unionid: Option<String>,
+    /// 微信昵称（OAuth 路径来自 sns/userinfo；扫码路径为空串）。
+    pub nickname: String,
+    /// 微信头像 URL（同上）。
+    pub headimgurl: String,
+    /// 授权类型（Java `AuthorizeTypeEnum`：1 微信公众号）。
+    pub authorize_type: i32,
+}
+
 /// 通过微信 code 获取微信用户信息（Java `WxLoginInfoByCodeVO`）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -301,6 +342,23 @@ pub fn password_reset_key(token_hash: &str) -> String {
 #[must_use]
 pub fn wechat_state_key(state: &str) -> String {
     format!("{WECHAT_STATE_PREFIX}{state}")
+}
+
+/// 微信绑手机临时凭证的缓存键：`wechat-bind:{ticket}`。
+#[must_use]
+pub fn wechat_bind_key(ticket: &str) -> String {
+    format!("{WECHAT_BIND_PREFIX}{ticket}")
+}
+
+/// 从（已 [`unwrap_open_data`] 解嵌套的）openData 中提取绑手机临时凭证
+/// `bindTicket`：缺失、非字符串、空白 → `None`（走旧 openData 直传口径）。
+#[must_use]
+pub fn extract_bind_ticket(open_data: &Map<String, Value>) -> Option<&str> {
+    open_data
+        .get("bindTicket")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
 }
 
 /// 校验短信/邮件验证码格式（Java `code.matches("[0-9]{6}")`）。
@@ -499,6 +557,40 @@ mod tests {
         // 只有一层时原样返回
         assert_eq!(unwrap_open_data(Some(&inner)), Some(&inner));
         assert_eq!(unwrap_open_data(None), None);
+    }
+
+    #[test]
+    fn wechat_bind_ticket_key_payload_and_extraction() {
+        assert_eq!(wechat_bind_key("t1"), "wechat-bind:t1");
+        assert_eq!(WECHAT_BIND_TTL_SECS, 600);
+
+        // 载荷 serde 往返（camelCase；缺字段走 Default）
+        let data = WechatBindData {
+            openid: "oABC".into(),
+            unionid: Some("uXYZ".into()),
+            nickname: "昵称".into(),
+            headimgurl: "https://img/1.png".into(),
+            authorize_type: 1,
+        };
+        let raw = serde_json::to_string(&data).unwrap();
+        assert!(raw.contains("\"authorizeType\":1"), "{raw}");
+        let back: WechatBindData = serde_json::from_str(&raw).unwrap();
+        assert_eq!(back, data);
+        let minimal: WechatBindData = serde_json::from_str(r#"{"openid":"o1"}"#).unwrap();
+        assert_eq!(minimal.openid, "o1");
+        assert_eq!(minimal.unionid, None);
+        assert_eq!(minimal.authorize_type, 0);
+
+        // bindTicket 提取：正常 / 空白 / 缺失 / 非字符串
+        let mut map = Map::new();
+        map.insert("bindTicket".into(), Value::String(" tk ".into()));
+        assert_eq!(extract_bind_ticket(&map), Some("tk"));
+        map.insert("bindTicket".into(), Value::String("  ".into()));
+        assert_eq!(extract_bind_ticket(&map), None);
+        map.insert("bindTicket".into(), Value::Bool(true));
+        assert_eq!(extract_bind_ticket(&map), None);
+        map.remove("bindTicket");
+        assert_eq!(extract_bind_ticket(&map), None);
     }
 
     #[test]

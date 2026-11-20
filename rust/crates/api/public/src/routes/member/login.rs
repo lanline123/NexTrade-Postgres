@@ -15,11 +15,11 @@
 //! | `POST /api/user/login/checkEmail` | `LoginController.checkEmail` | 匿名 |
 //! | `POST /api/user/login/forgetPassword` | `LoginController.forgetPassword` | 匿名 |
 //! | `POST /api/user/login/bindMobile` | `LoginController.bindMobile` | 匿名（绑定后返回会员 JWT） |
-//! | `POST /api/user/login/wechatEvent` | `LoginController.wechatEvent` | 匿名（未迁移） |
-//! | `POST /api/user/login/getMobile` | `LoginController.getMobile` | 匿名（未迁移） |
-//! | `POST /api/user/login/updateUserOpenid` | `LoginController.updateUserOpenId` | **需登录**（未迁移） |
-//! | `GET  /api/user/login/getWxLoginInfoByCode` | `LoginController.getWxLoginInfoByCode` | 匿名（未迁移） |
-//! | `POST /api/user/login/bindWechat` | `LoginController.bindWechat` | **需登录**（未迁移） |
+//! | `POST /api/user/login/wechatEvent` | `LoginController.wechatEvent` | 匿名 |
+//! | `POST /api/user/login/getMobile` | `LoginController.getMobile` | 匿名 |
+//! | `POST /api/user/login/updateUserOpenid` | `LoginController.updateUserOpenId` | **需登录** |
+//! | `GET  /api/user/login/getWxLoginInfoByCode` | `LoginController.getWxLoginInfoByCode` | 匿名 |
+//! | `POST /api/user/login/bindWechat` | `LoginController.bindWechat` | **需登录** |
 //! | `GET  /api/user/login/unbindWechat` | `LoginController.unbindWechat` | **需登录** |
 //! | `POST /adminapi/login/sendMobileCode` | `adminapi LoginController.sendMobileCode` | 匿名（**归 admin 应用挂载**） |
 //!
@@ -36,8 +36,10 @@
 //! > 其余 12 条匿名接口放 [`anonymous_routes`]；两者都并入 `merge_public`，
 //! > 外层不要再套鉴权（与 `member::user_center` 的约定一致）。
 //!
-//! > **未迁移**：6 条微信生态端点（见 `services/member/login.rs` 模块注释）返回
-//! > 明确的 1001 业务错误；验证码接口不做行为验证、短信/邮件只写缓存不实际发送。
+//! > **迁移状态**：微信生态端点已全部迁移（早期「未迁移」登记作废，见
+//! > `services/member/login.rs` 模块注释）；验证码接口不做行为验证。
+//! > **2026-11-21 口径**：`wechatEvent` / `getWxLoginInfoByCode` 对未知
+//! > openid 不再静默建号，统一回 `type=2` + `bindTicket` 先绑手机。
 
 use axum::{
     body::Bytes,
@@ -224,7 +226,7 @@ async fn get_wx_login_url(
         .await?)
 }
 
-/// `POST /api/user/login/wechatEvent`：扫码登录事件（未迁移）。
+/// `POST /api/user/login/wechatEvent`：扫码登录事件（已知授权直登；未知 openid 回 type=2 + bindTicket 先绑手机）。
 async fn wechat_event(
     State(state): State<PublicState>,
     Json(dto): Json<WechatEventDTO>,
@@ -232,7 +234,7 @@ async fn wechat_event(
     ok(state.member.login.wechat_event(&dto).await?)
 }
 
-/// `POST /api/user/login/getMobile`：小程序手机号（未迁移）。
+/// `POST /api/user/login/getMobile`：小程序手机号。
 async fn get_mobile(
     State(state): State<PublicState>,
     Json(dto): Json<CodeParamDTO>,
@@ -240,7 +242,7 @@ async fn get_mobile(
     ok(state.member.login.get_mobile(&dto).await?)
 }
 
-/// `GET /api/user/login/getWxLoginInfoByCode?code=`：微信 OAuth 用户信息（未迁移）。
+/// `GET /api/user/login/getWxLoginInfoByCode?code=`：微信 OAuth 用户信息（未知 openid 回 type=2 + bindTicket 先绑手机）。
 async fn get_wx_login_info_by_code(
     State(state): State<PublicState>,
     Query(q): Query<CodeQuery>,

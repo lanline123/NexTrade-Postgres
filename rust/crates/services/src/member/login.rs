@@ -27,12 +27,27 @@
 //! | `getWxLoginUrl` | `x-client-type=wechat` 时拼公众号 OAuth URL 并缓存 state（300s）；`pc` 扫码需要微信二维码 API（未迁移 → 明确报错） |
 //! | `unbindWechat` | 登录态；删除当前会员的 `user_authorize` 记录；未绑定 → 「该账号未绑定微信公众号」 |
 //!
-//! # 未迁移（明确 1001 业务错误，绝不伪造 token）
+//! # 微信生态端点迁移状态 + 2026-11-21 建号口径变更
 //!
-//! `wechatServer`（公众号服务器回调验签）、`wechatEvent`（扫码 openid 轮询 + 自动注册）、
-//! `getMobile`（小程序手机号 API）、`updateUserOpenid`（code2Session）、
-//! `getWxLoginInfoByCode`（公众号 OAuth）、`bindWechat`（公众号 OAuth）——
-//! 全部依赖微信开放平台接口 / 微信 JSSDK 配置，本构建未接入。
+//! `wechatServer` / `wechatEvent` / `getMobile` / `updateUserOpenid` /
+//! `getWxLoginInfoByCode` / `bindWechat` 已于后续批次全部迁移落地（早期
+//! 「未迁移」登记作废）。
+//!
+//! **建号口径变更（原版有·我方改口径，用户 2026-11-21 拍板方案 A；论坛
+//! 帖 437883310890615995）**：原版 `wechatEvent` / `getWxLoginInfoByCode`
+//! 对未知 openid 在微信注册开启时直接新建**空手机号**账号——手机号老
+//! 用户扫码后被建成无手机号新号、与原账号分裂（原版同病）。我方改为：
+//! 未知 openid 一律返回 `type=2` 先绑手机，服务端签发一次性临时凭证
+//! `bindTicket`（缓存 `wechat-bind:{ticket}` → `WechatBindData`，600
+//! 秒），`bindMobile` 以凭证载荷为权威身份，复用既有合并逻辑（授权改
+//! 归属到手机号已有账号；无账号才以该手机号建号），空号不再产生。
+//! 开关语义：`openWechatRegister` 在扫码路径不再参与决策（原「是否静默
+//! 建号」已废除；其余组合此前也都回 type=2，行为不变），在 OAuth 路径
+//! 保留为新用户准入门（关 → 明确拒绝，与原口径一致）；
+//! `wechatRegisterBindPhone` 并入统一口径、不再单独控制绑手机流程。
+//! 防重复建号：原版在建号外层有 Redis 分布式锁，我方此前漏迁；本次按
+//! 新架构把锁落在唯一建号点 `bindMobile`（手机号 + openid 双键、30 秒
+//! TTL、令牌释放），防并发绑手机建出重复账号/重复授权记录。
 //!
 //! # 其它已知差异
 //!
@@ -59,15 +74,16 @@ use sha2::Sha256;
 use nextrade_common::utils::now_seconds;
 use nextrade_core::entities::User;
 use nextrade_core::models::member::login::{
-    authorize_type_from_client, auto_nickname, email_code_key, password_reset_key, quick_login_flags,
-    sms_code_key, unwrap_open_data, validate_code_format, validate_email_basic, validate_reset_token, validate_sms_mobile,
+    authorize_type_from_client, auto_nickname, email_code_key, extract_bind_ticket,
+    password_reset_key, quick_login_flags, sms_code_key, unwrap_open_data, validate_code_format,
+    validate_email_basic, validate_reset_token, validate_sms_mobile, wechat_bind_key,
     wechat_h5_login_flags, wechat_state_key, BindMobileDTO, CheckEmailDTO, CheckMobileDTO,
     CodeParamDTO, ForgetPasswordDTO, LoginWechatEventVO, QuickLoginSettingVO, RegisterEmailDTO,
-    RegisterSmsDTO, WechatLoginUrlVO, WxLoginInfoByCodeVO, ACCOUNT_CANNOT_RESET,
-    BIND_PASSWORD_REQUIRED, CACHE_UNAVAILABLE, CODE_INVALID, CODE_TTL_SECS, EMAIL_REQUIRED,
-    IDENTITY_REQUIRED, MEMBER_TOKEN_TYPE, MOBILE_REQUIRED, PASSWORD_REQUIRED,
+    RegisterSmsDTO, WechatBindData, WechatLoginUrlVO, WxLoginInfoByCodeVO, ACCOUNT_CANNOT_RESET,
+    BIND_IN_PROGRESS, BIND_PASSWORD_REQUIRED, CACHE_UNAVAILABLE, CODE_INVALID, CODE_TTL_SECS,
+    EMAIL_REQUIRED, IDENTITY_REQUIRED, MEMBER_TOKEN_TYPE, MOBILE_REQUIRED, PASSWORD_REQUIRED,
     PASSWORD_UPDATE_FAILED, REGISTER_CLOSED, RESET_TOKEN_INVALID, SERVICE_DATA_ERROR, SWITCH_OFF,
-    SWITCH_ON, USER_STATUS_OK, WECHAT_NOT_BOUND,
+    SWITCH_ON, USER_STATUS_OK, WECHAT_BIND_EXPIRED, WECHAT_BIND_TTL_SECS, WECHAT_NOT_BOUND,
 };
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::cache::CacheService;
@@ -309,17 +325,21 @@ impl LoginService {
 
     /// `POST /api/user/login/bindMobile`：绑定手机号并返回会员 JWT。
     ///
-    /// Java `UserServiceImpl#bindMobile` 的等价流程：
+    /// Java `UserServiceImpl#bindMobile` 的等价流程 + 2026-11-21 口径变更：
     /// 1. `validateVerificationCode("login" + mobile, mobileCode)`；
-    /// 2. 已有该手机号 → 仅置 `mobile_validated=1`；否则检查 `shopRegClosed`
-    ///    （「系统已关闭注册」）→ 创建用户；
-    /// 3. `openData`（可多层嵌套）里的 `openid/unionid` 写入 `user_authorize`：
-    ///    先按 openid 找记录（有则改归属），再按用户找同类型记录（有则换 openid），
-    ///    否则新建；
+    /// 2. 解析微信身份：openData 带服务端签发的 `bindTicket` 时，以缓存中
+    ///    的凭证载荷为权威身份（扫码/OAuth 首次登录的统一入口，不信任客户
+    ///    端回传的 openid 等字段）；无票时走旧口径（客户端 openData 直传，
+    ///    小程序等存量流程，行为不变）；
+    /// 3. 在手机号（+openid）防并发锁内完成写入（[`Self::bind_mobile_under_lock`]）：
+    ///    一次性消费凭证 → 已有该手机号则仅置 `mobile_validated=1` 并把授
+    ///    权改归属到该账号（账号合并），否则检查 `shopRegClosed`（「系统已
+    ///    关闭注册」）后以该手机号创建用户 → `user_authorize` 两段 upsert；
     /// 4. 返回会员访问令牌（`JwtService#issue_pair`，`typ = "member"`）。
     ///
     /// # Errors
-    /// 验证码错误、注册关闭、密码为空、数据库/缓存失败 → 业务错误或 `Error::Database`。
+    /// 验证码错误、授权凭证过期、注册关闭、密码为空、锁忙、数据库/缓存
+    /// 失败 → 业务错误或 `Error::Database`。
     pub async fn bind_mobile(
         &self,
         dto: &BindMobileDTO,
@@ -333,10 +353,74 @@ impl LoginService {
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, BIND_PASSWORD_REQUIRED))?;
 
         // 1. 校验并一次性消费会员短信验证码（Java `validateVerificationCode`）。
-        self.consume_member_sms_code(&mobile, dto.mobile_code.as_deref()).await?;
+        self.consume_member_sms_code(&mobile, dto.mobile_code.as_deref())
+            .await?;
 
-        // 2. openData（兼容前端多套一层 openData）
+        // 2. 解析微信身份（凭证优先，旧 openData 直传兜底）
+        let identity = self.resolve_bind_identity(dto, client_type).await?;
+
+        // 3. 防并发锁内写入（建号/授权 upsert 的唯一入口，双键串行化）
+        let cache = self.cache()?.clone();
+        let locks = acquire_bind_locks(&cache, &mobile, identity.openid.as_deref()).await?;
+        let outcome = self
+            .bind_mobile_under_lock(
+                &mobile,
+                password,
+                dto.referrer_user_id.unwrap_or(0),
+                &identity,
+            )
+            .await;
+        locks.release().await;
+        let (user_id, username) = outcome?;
+
+        // 4. 签发会员访问令牌（与 `api/public/src/lib.rs::user_login` 同口径）
+        self.issue_member_token(user_id, &username)
+    }
+
+    /// 解析 `bindMobile` 的微信身份（二选一，见 [`ResolvedBindIdentity`]）。
+    ///
+    /// 带 `bindTicket`：预读服务端凭证（此处不消费，消费在持锁写入段原子
+    /// 完成），载荷即权威身份，授权类型用发证路径写死的值（公众号 = 1，
+    /// 不按 `x-client-type` 推导——PC 扫码端传的是 `pc`，推导会误落小程
+    /// 序类型 2，导致后续扫码按类型 1 查不到授权记录）。
+    /// 无票：沿用旧口径从客户端 openData 取字段，授权类型按客户端推导。
+    async fn resolve_bind_identity(
+        &self,
+        dto: &BindMobileDTO,
+        client_type: Option<&str>,
+    ) -> Result<ResolvedBindIdentity> {
+        // openData（兼容前端多套一层 openData）
         let open_data = unwrap_open_data(dto.open_data.as_ref());
+        if let Some(ticket) = open_data.and_then(extract_bind_ticket) {
+            let ticket = ticket.to_string();
+            let (raw, data) = self
+                .peek_wechat_bind_ticket(&ticket)
+                .await?
+                .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, WECHAT_BIND_EXPIRED))?;
+            // 落库 open_data 由载荷合成（不含 ticket 本身，nickname 按 Java
+            // 口径不入 open_data、单独走 open_name/昵称通道）
+            let mut stored = Map::new();
+            stored.insert("openid".into(), Value::String(data.openid.clone()));
+            if let Some(unionid) = &data.unionid {
+                stored.insert("unionid".into(), Value::String(unionid.clone()));
+            }
+            if !data.headimgurl.is_empty() {
+                stored.insert(
+                    "headimgurl".into(),
+                    Value::String(data.headimgurl.clone()),
+                );
+            }
+            return Ok(ResolvedBindIdentity {
+                openid: Some(data.openid.clone()),
+                unionid: data.unionid.clone(),
+                nickname: Some(data.nickname.clone()).filter(|n| !n.trim().is_empty()),
+                avatar: data.headimgurl.clone(),
+                authorize_type: data.authorize_type,
+                open_data_json: Some(Value::Object(stored).to_string()),
+                ticket_consume: Some((wechat_bind_key(&ticket), raw)),
+            });
+        }
+        // 旧口径：客户端 openData 直传（小程序等存量流程，行为与改前一致）
         let openid = open_data
             .and_then(|d| d.get("openid"))
             .and_then(Value::as_str)
@@ -358,9 +442,44 @@ impl LoginService {
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
+        let open_data_json = open_data.map(|d| {
+            let mut cleaned = d.clone();
+            // Java 为了避免特殊字符把 nickname 从 open_data 里移除；
+            // bindTicket 属服务端凭证，同样不得落库
+            cleaned.remove("nickname");
+            cleaned.remove("bindTicket");
+            Value::Object(cleaned).to_string()
+        });
+        Ok(ResolvedBindIdentity {
+            openid,
+            unionid,
+            nickname,
+            avatar,
+            authorize_type: authorize_type_from_client(client_type),
+            open_data_json,
+            ticket_consume: None,
+        })
+    }
 
-        // 3. 已注册 → 只更新手机验证状态；否则注册新用户
-        let existing = self.repo().find_user_by_mobile(&mobile).await?;
+    /// `bind_mobile` 的写入段（调用方已持防并发锁）：一次性消费凭证 →
+    /// 按手机号查/建用户 → 微信授权 upsert。返回 `(user_id, username)`。
+    async fn bind_mobile_under_lock(
+        &self,
+        mobile: &str,
+        password: &str,
+        referrer_user_id: i32,
+        identity: &ResolvedBindIdentity,
+    ) -> Result<(i32, String)> {
+        // 0. 一次性消费绑手机凭证：预读后被并发请求抢先消费 → 授权过期、
+        //    整体中止（防同一凭证被两路请求重复使用）。
+        if let Some((key, raw)) = &identity.ticket_consume {
+            if !self.cache()?.del_if_eq(key, raw).await? {
+                return Err(Error::biz(SERVICE_DATA_ERROR, WECHAT_BIND_EXPIRED));
+            }
+        }
+
+        // 1. 已注册 → 只更新手机验证状态；否则注册新用户
+        let existing = self.repo().find_user_by_mobile(mobile).await?;
         let (user_id, username) = match existing {
             Some((user_id, username, _status)) => {
                 self.repo().set_mobile_validated(user_id).await?;
@@ -377,7 +496,8 @@ impl LoginService {
                     return Err(Error::biz(SERVICE_DATA_ERROR, REGISTER_CLOSED));
                 }
                 let username = self.generate_unique_username().await?;
-                let nickname = nickname
+                let nickname = identity
+                    .nickname
                     .clone()
                     .unwrap_or_else(|| auto_nickname(None, &username));
                 let hash = hash_password(password)?;
@@ -386,27 +506,21 @@ impl LoginService {
                     .insert_registered_user(
                         &username,
                         &nickname,
-                        &avatar,
-                        &mobile,
+                        &identity.avatar,
+                        mobile,
                         &hash,
                         i32::try_from(now_seconds()).unwrap_or(0),
-                        dto.referrer_user_id.unwrap_or(0),
+                        referrer_user_id,
                     )
                     .await?;
                 (user_id, username)
             }
         };
 
-        // 4. 微信授权绑定（Java `bindMobile` 的 user_authorize upsert 三支）
-        if let Some(openid) = openid.as_deref() {
-            let authorize_type = authorize_type_from_client(client_type);
-            let open_data_json = open_data.map(|d| {
-                let mut cleaned = d.clone();
-                // Java 为了避免特殊字符把 nickname 从 open_data 里移除
-                cleaned.remove("nickname");
-                Value::Object(cleaned).to_string()
-            });
-            let open_name = nickname.clone().unwrap_or_default();
+        // 2. 微信授权绑定（Java `bindMobile` 的 user_authorize upsert 三支）
+        if let Some(openid) = identity.openid.as_deref() {
+            let authorize_type = identity.authorize_type;
+            let open_name = identity.nickname.clone().unwrap_or_default();
             let now = i32::try_from(now_seconds()).unwrap_or(0);
             if let Some((authorize_id, _owner)) = self
                 .repo()
@@ -417,8 +531,8 @@ impl LoginService {
                     .update_authorize_user(
                         authorize_id,
                         user_id,
-                        unionid.as_deref(),
-                        open_data_json.as_deref(),
+                        identity.unionid.as_deref(),
+                        identity.open_data_json.as_deref(),
                     )
                     .await?;
             } else if let Some((authorize_id, _)) =
@@ -428,8 +542,8 @@ impl LoginService {
                     .update_authorize_open(
                         authorize_id,
                         openid,
-                        unionid.as_deref(),
-                        open_data_json.as_deref(),
+                        identity.unionid.as_deref(),
+                        identity.open_data_json.as_deref(),
                     )
                     .await?;
             } else {
@@ -438,18 +552,43 @@ impl LoginService {
                         authorize_type,
                         user_id,
                         openid,
-                        open_data_json.as_deref(),
+                        identity.open_data_json.as_deref(),
                         &open_name,
-                        &avatar,
-                        unionid.as_deref(),
+                        &identity.avatar,
+                        identity.unionid.as_deref(),
                         now,
                     )
                     .await?;
             }
         }
 
-        // 5. 签发会员访问令牌（与 `api/public/src/lib.rs::user_login` 同口径）
-        self.issue_member_token(user_id, &username)
+        Ok((user_id, username))
+    }
+
+    /// 签发「先绑手机」临时凭证：微信身份写入缓存，只把随机 ticket 随
+    /// `type=2` 的 openData 下发前端（凭证形态/有效期见 `WechatBindData`）。
+    async fn issue_wechat_bind_ticket(&self, data: &WechatBindData) -> Result<String> {
+        let ticket = uuid::Uuid::new_v4().simple().to_string();
+        let raw = serde_json::to_string(data)
+            .map_err(|e| Error::Internal(format!("绑手机凭证序列化失败: {e}")))?;
+        self.cache()?
+            .set_str(&wechat_bind_key(&ticket), &raw, WECHAT_BIND_TTL_SECS)
+            .await?;
+        Ok(ticket)
+    }
+
+    /// 预读绑手机凭证（不消费）：返回 `(原始缓存值, 载荷)`；真正的一次性
+    /// 消费在持锁写入段用 `del_if_eq` 对原始值原子完成。
+    async fn peek_wechat_bind_ticket(
+        &self,
+        ticket: &str,
+    ) -> Result<Option<(String, WechatBindData)>> {
+        let Some(raw) = self.cache()?.get_str(&wechat_bind_key(ticket)).await? else {
+            return Ok(None);
+        };
+        let data: WechatBindData = serde_json::from_str(&raw)
+            .map_err(|e| Error::Internal(format!("绑手机凭证解析失败: {e}")))?;
+        Ok(Some((raw, data)))
     }
 
     /// `GET /api/user/login/unbindWechat`（需登录）。
@@ -470,7 +609,7 @@ impl LoginService {
         Ok(())
     }
 
-    // ————————————————————— 快捷登录 / 微信登录（部分未迁移） —————————————————————
+    // ————————————————————— 快捷登录 / 微信登录 —————————————————————
 
     /// `GET /api/user/login/getQuickLoginSetting`。
     ///
@@ -690,11 +829,14 @@ impl LoginService {
 
     /// `POST /api/user/login/wechatEvent`：扫码后前端轮询登录结果。
     ///
-    /// 对齐 Java `UserServiceImpl#wechatEvent`：
+    /// Java `UserServiceImpl#wechatEvent` 的主体流程（2026-11-21 建号口径
+    /// 已按方案 A 改，见模块文档）：
     /// - `key`（二维码 ticket）取缓存 openid；
-    /// - 已有 `user_authorize` → 直接签发会员 JWT；
-    /// - 无记录且允许微信注册 → 自动创建用户 + 授权记录后登录；
-    /// - 不允许注册 → 返回 `type=2` + openid，前端走绑定手机号。
+    /// - 已有 `user_authorize` → 直接签发会员 JWT（行为不变）；
+    /// - 未知 openid → **一律**返回 `type=2` + openData（含服务端签发的
+    ///   一次性 `bindTicket`），前端走绑定手机号合并/建号；原实现按
+    ///   `openWechatRegister` 静默新建空手机号账号的分支已删除，该开关
+    ///   在扫码路径不再参与决策（其余开关组合此前也都回 type=2）。
     pub async fn wechat_event(
         &self,
         dto: &nextrade_core::models::member::login::WechatEventDTO,
@@ -710,63 +852,31 @@ impl LoginService {
             .filter(|s| !s.trim().is_empty())
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "未登录"))?;
 
-        let mut user_id = self
+        let user_id = self
             .repo()
             .find_authorize_by_open(&openid, 1)
             .await?
             .map(|(_, uid)| uid);
-        if user_id.is_none() {
-            let shop_reg_closed = self
-                .repo()
-                .config_value("shopRegClosed")
-                .await?
-                .and_then(|v| v.trim().parse::<i32>().ok())
-                .unwrap_or(0);
-            let wechat_oauth = self
-                .repo()
-                .config_value("openWechatOauth")
-                .await?
-                .and_then(|v| v.trim().parse::<i32>().ok())
-                .unwrap_or(0);
-            let wechat_register = self
-                .repo()
-                .config_value("openWechatRegister")
-                .await?
-                .and_then(|v| v.trim().parse::<i32>().ok())
-                .unwrap_or(0);
-            if shop_reg_closed != 0 || wechat_oauth != 1 || wechat_register != 1 {
-                return Ok(LoginWechatEventVO {
-                    token: None,
-                    r#type: 2,
-                    open_data: Some(serde_json::json!({
-                        "openData": { "openid": openid }
-                    })),
-                    return_url: None,
-                });
-            }
-            let username = self.generate_unique_username().await?;
-            let raw_password = format!("wx_{}", &uuid::Uuid::new_v4().simple().to_string()[..12]);
-            let password_hash = hash_password(&raw_password)?;
-            let now = i32::try_from(now_seconds()).unwrap_or(i32::MAX);
-            let new_user_id = self
-                .repo()
-                .insert_registered_user(
-                    &username,
-                    &format!("user_{username}"),
-                    "",
-                    "",
-                    &password_hash,
-                    now,
-                    0,
-                )
+        let Some(user_id) = user_id else {
+            // 未知 openid：一律先绑手机（2026-11-21 改口径，见模块文档）。
+            let ticket = self
+                .issue_wechat_bind_ticket(&WechatBindData {
+                    openid: openid.clone(),
+                    unionid: None,
+                    nickname: String::new(),
+                    headimgurl: String::new(),
+                    authorize_type: 1,
+                })
                 .await?;
-            self.repo()
-                .insert_authorize(1, new_user_id, &openid, Some("{}"), "", "", None, now)
-                .await?;
-            user_id = Some(new_user_id);
-            tracing::info!("微信扫码自动注册会员: user_id={new_user_id}, openid={openid}");
-        }
-        let user_id = user_id.ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "未登录"))?;
+            return Ok(LoginWechatEventVO {
+                token: None,
+                r#type: 2,
+                open_data: Some(serde_json::json!({
+                    "openData": { "openid": openid, "bindTicket": ticket }
+                })),
+                return_url: None,
+            });
+        };
         let user = self
             .repos
             .member
@@ -950,10 +1060,13 @@ impl LoginService {
 
     /// `GET /api/user/login/getWxLoginInfoByCode`：公众号 OAuth code 换用户信息。
     ///
-    /// **未迁移**：依赖微信 OAuth2 API。
+    /// code 换 openid/unionid + sns/userinfo 后：已有授权 → 直接登录
+    /// （`type=1`）；未知 openid → 注册类开关为准入门（与原口径一致），
+    /// 通过后一律返回 `type=2` + openData（含一次性 `bindTicket`）走绑
+    /// 手机（2026-11-21 改口径，见模块文档）。
     ///
     /// # Errors
-    /// 恒返回 1001 业务错误。
+    /// code 为空、微信配置缺失、注册关闭/授权未开/微信注册未开 → 1001。
     pub async fn wx_login_info_by_code(
         &self,
         code: Option<&str>,
@@ -1051,7 +1164,10 @@ impl LoginService {
             });
         }
 
-        // 新用户：按 Java 开关决定「绑定手机号」或「自动注册」
+        // 新用户：注册类开关仍为准入门（关闭 → 明确拒绝，与原口径一致）；
+        // 通过后一律先绑手机（2026-11-21 改口径，见模块文档）——原实现
+        // 在 wechatRegisterBindPhone=0 时直接新建空手机号账号的分支已删
+        // 除，该开关并入统一口径、不再单独决策。
         let shop_reg_closed = self
             .repo()
             .config_value("shopRegClosed")
@@ -1079,66 +1195,28 @@ impl LoginService {
         if wechat_register != 1 {
             return Err(Error::biz(SERVICE_DATA_ERROR, "微信注册未开启"));
         }
-        let need_bind_phone = self
-            .repo()
-            .config_value("wechatRegisterBindPhone")
-            .await?
-            .and_then(|v| v.trim().parse::<i32>().ok())
-            == Some(1);
-        if need_bind_phone {
-            let mut open_data = Map::new();
-            open_data.insert("openid".into(), Value::String(openid));
-            if let Some(unionid) = unionid {
-                open_data.insert("unionid".into(), Value::String(unionid));
-            }
-            open_data.insert("nickname".into(), Value::String(nickname));
-            open_data.insert("headimgurl".into(), Value::String(headimgurl));
-            open_data.insert("mockMode".into(), Value::Bool(false));
-            return Ok(WxLoginInfoByCodeVO {
-                r#type: 2,
-                token: None,
-                open_data: Some(open_data),
-            });
+        let ticket = self
+            .issue_wechat_bind_ticket(&WechatBindData {
+                openid: openid.clone(),
+                unionid: unionid.clone(),
+                nickname: nickname.clone(),
+                headimgurl: headimgurl.clone(),
+                authorize_type: 1,
+            })
+            .await?;
+        let mut open_data = Map::new();
+        open_data.insert("openid".into(), Value::String(openid));
+        if let Some(unionid) = unionid {
+            open_data.insert("unionid".into(), Value::String(unionid));
         }
-
-        let username = self.generate_unique_username().await?;
-        let raw_password = format!("wx_{}", &uuid::Uuid::new_v4().simple().to_string()[..12]);
-        let password_hash = hash_password(&raw_password)?;
-        let now = i32::try_from(now_seconds()).unwrap_or(i32::MAX);
-        let nickname = if nickname.trim().is_empty() {
-            format!("user_{username}")
-        } else {
-            nickname
-        };
-        let user_id = self
-            .repo()
-            .insert_registered_user(
-                &username,
-                &nickname,
-                &headimgurl,
-                "",
-                &password_hash,
-                now,
-                0,
-            )
-            .await?;
-        self.repo()
-            .insert_authorize(
-                1,
-                user_id,
-                &openid,
-                Some("{}"),
-                &nickname,
-                &headimgurl,
-                unionid.as_deref(),
-                now,
-            )
-            .await?;
-        let token = self.issue_member_token(user_id, &username)?;
+        open_data.insert("nickname".into(), Value::String(nickname));
+        open_data.insert("headimgurl".into(), Value::String(headimgurl));
+        open_data.insert("mockMode".into(), Value::Bool(false));
+        open_data.insert("bindTicket".into(), Value::String(ticket));
         Ok(WxLoginInfoByCodeVO {
-            r#type: 1,
-            token: Some(token),
-            open_data: None,
+            r#type: 2,
+            token: None,
+            open_data: Some(open_data),
         })
     }
 
@@ -1683,6 +1761,86 @@ fn member_sms_login_key(mobile: &str) -> String {
     format!("{mobile}:member-sms-login")
 }
 
+/// `bindMobile` 解析后的微信身份（二选一，见 `LoginService::resolve_bind_identity`）。
+struct ResolvedBindIdentity {
+    openid: Option<String>,
+    unionid: Option<String>,
+    nickname: Option<String>,
+    avatar: String,
+    /// 授权类型：凭证路径用发证时写死的值；旧路径按客户端推导。
+    authorize_type: i32,
+    /// 落库 `user_authorize.open_data` 的 JSON（已剔除 nickname/bindTicket）。
+    open_data_json: Option<String>,
+    /// 一次性消费凭证：`(缓存键, 预读到的原始值)`，持锁写入段原子消费。
+    ticket_consume: Option<(String, String)>,
+}
+
+/// `bindMobile` 防并发锁的持有令牌组（手机号键 + openid 键）。
+///
+/// 原版在建号外层用 Redis 分布式锁（`wechat:register:lock:{openid}`，
+/// 30s）防重复建号；我方建号点已收敛到 `bindMobile`，锁随建号点落在此
+/// 处并扩到手机号维度（防同手机号并发建出两个账号）。释放按持有令牌
+/// `del_if_eq`（不误删他人锁），TTL 到期自动失效兜底。
+struct BindLockGuard {
+    cache: CacheService,
+    held: Vec<(String, String)>,
+}
+
+impl BindLockGuard {
+    /// 按持有令牌逆序逐个释放；失败仅记日志（TTL 兜底，不阻断主流程）。
+    async fn release(self) {
+        for (key, token) in self.held.iter().rev() {
+            if let Err(e) = self.cache.del_if_eq(key, token).await {
+                tracing::warn!("释放绑手机并发锁失败: key={key}, err={e}");
+            }
+        }
+    }
+}
+
+/// 绑手机防并发锁的 TTL（秒，与原版 `wechat:register:lock` 的 30s 同值）。
+const BIND_LOCK_TTL_SECS: u64 = 30;
+/// 单键抢锁重试次数（间隔 150ms，窗口约 3 秒，覆盖一次绑定的写入耗时）。
+const BIND_LOCK_ATTEMPTS: u32 = 20;
+
+/// 依次抢占绑手机防并发锁（固定顺序：手机号 → openid，避免交叉死锁）。
+/// 任一键在重试窗口内未取得 → 释放已持有键并报「绑定处理中」。
+async fn acquire_bind_locks(
+    cache: &CacheService,
+    mobile: &str,
+    openid: Option<&str>,
+) -> Result<BindLockGuard> {
+    let mut keys = vec![format!("wechat:bind:lock:mobile:{mobile}")];
+    if let Some(openid) = openid.filter(|s| !s.is_empty()) {
+        keys.push(format!("wechat:bind:lock:openid:{openid}"));
+    }
+    let mut held: Vec<(String, String)> = Vec::new();
+    for key in keys {
+        let token = uuid::Uuid::new_v4().simple().to_string();
+        let mut acquired = false;
+        for _ in 0..BIND_LOCK_ATTEMPTS {
+            if cache.set_if_absent(&key, &token, BIND_LOCK_TTL_SECS).await? {
+                acquired = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        }
+        if !acquired {
+            BindLockGuard {
+                cache: cache.clone(),
+                held,
+            }
+            .release()
+            .await;
+            return Err(Error::biz(SERVICE_DATA_ERROR, BIND_IN_PROGRESS));
+        }
+        held.push((key, token));
+    }
+    Ok(BindLockGuard {
+        cache: cache.clone(),
+        held,
+    })
+}
+
 /// 发码行为验证：请求带了 verifyToken 就必须校验通过（一次性令牌，防重放）；
 /// 没带令牌的调用方（如移动端原生流程）不拦截，改由频率限制兜底。
 fn validate_optional_verify_token(token: Option<&str>) -> Result<()> {
@@ -1824,6 +1982,77 @@ mod tests {
         let e = require_identity(Some("  "), MOBILE_REQUIRED).unwrap_err();
         assert!(e.to_string().contains(MOBILE_REQUIRED));
         assert_eq!(require_identity(Some(" 138 "), MOBILE_REQUIRED).unwrap(), "138");
+    }
+
+    /// 函数体切片（与 refund_apply 结构测试同款思路）：取 `async fn <name>`
+    /// 到下一个同级函数定义之间的源码（本文件含私有 async fn，故不带 pub
+    /// 前缀匹配；同级项均为 4 空格缩进，函数体内部不会出现该形态）。
+    fn fn_body<'a>(src: &'a str, name: &str) -> &'a str {
+        let start = src
+            .find(&format!("async fn {name}"))
+            .unwrap_or_else(|| panic!("{name} 应存在"));
+        let tail = &src[start..];
+        let mut end = tail.len();
+        for pat in ["\n    pub async fn ", "\n    async fn "] {
+            if let Some(i) = tail[1..].find(pat) {
+                end = end.min(i + 1);
+            }
+        }
+        &tail[..end]
+    }
+
+    #[test]
+    fn wechat_first_login_never_auto_registers_empty_mobile_user() {
+        // 2026-11-21 口径（论坛帖 437883，方案 A）：扫码/OAuth 首次登录对
+        // 未知 openid 不得再直接建号，必须签发 bindTicket 先走绑手机。
+        let src = include_str!("login.rs");
+        for name in ["wechat_event", "wx_login_info_by_code"] {
+            let body = fn_body(src, name);
+            assert!(
+                !body.contains("insert_registered_user"),
+                "{name} 不得直接新建用户（空手机号新号缺陷口径）"
+            );
+            assert!(
+                body.contains("issue_wechat_bind_ticket"),
+                "{name} 未知 openid 应签发 bindTicket 走先绑手机流程"
+            );
+        }
+        // 全文件合法建号点恰为三处：signin_by_mobile（短信登录注册）、
+        // bind_mobile_under_lock（绑手机建号）、oauth_callback（第三方
+        // OAuth 注册，独立流程不在本次口径内）。新增第四处建号调用前，
+        // 必须复核微信首登口径并同步改钉本断言与理由。
+        // 模式串用 \u{28} 转义左括号，避免断言行自身的字面文本被计入。
+        assert_eq!(
+            src.matches(".insert_registered_user\u{28}").count(),
+            3,
+            "建号点收敛：微信首登两路径不得再建号"
+        );
+    }
+
+    #[test]
+    fn bind_mobile_consumes_ticket_and_writes_under_lock() {
+        let src = include_str!("login.rs");
+        let body = fn_body(src, "bind_mobile");
+        assert!(
+            body.contains("acquire_bind_locks"),
+            "bind_mobile 写入前应先取得防并发锁"
+        );
+        assert!(
+            body.contains("bind_mobile_under_lock"),
+            "bind_mobile 写入应收敛到持锁写入段"
+        );
+        let identity = fn_body(src, "resolve_bind_identity");
+        assert!(identity.contains("extract_bind_ticket"));
+        assert!(identity.contains("peek_wechat_bind_ticket"));
+        let write = fn_body(src, "bind_mobile_under_lock");
+        assert!(
+            write.contains("del_if_eq"),
+            "持锁写入段应一次性原子消费 bindTicket"
+        );
+        assert!(
+            write.contains("find_user_by_mobile"),
+            "写入段应按手机号合并已有账号/建号"
+        );
     }
 
     #[test]
