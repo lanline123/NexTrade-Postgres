@@ -26,6 +26,7 @@ import {
   PaymentLogModal,
   SubOrderModal,
 } from './OrderExtraDialogs';
+import ProactiveRefundModal from './ProactiveRefundModal';
 
 const { Text } = Typography;
 
@@ -102,6 +103,7 @@ export default function OrderDetailModal({ visible, orderId, onCancel, onChanged
   const [logOpen, setLogOpen] = useState(false);
   const [payLogOpen, setPayLogOpen] = useState(false);
   const [traceOpen, setTraceOpen] = useState(false);
+  const [proactiveOpen, setProactiveOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -135,6 +137,11 @@ export default function OrderDetailModal({ visible, orderId, onCancel, onChanged
   const canDeliver = detail?.availableActions?.deliver === true;
   const canCancel = detail?.availableActions?.cancelOrder === true;
   const canModifyMoney = detail?.availableActions?.modifyOrderMoney === true;
+  // 主动退款【我方新增】：已支付（2）/退款中（3）且待发货/已发货/已完成
+  const canProactiveRefund =
+    detail != null &&
+    (Number(detail.payStatus) === 2 || Number(detail.payStatus) === 3) &&
+    (Number(detail.orderStatus) === 1 || Number(detail.orderStatus) === 2 || Number(detail.orderStatus) === 5);
 
   return (
     <>
@@ -166,6 +173,11 @@ export default function OrderDetailModal({ visible, orderId, onCancel, onChanged
             >
               <Button onClick={() => setMoreOpen((open) => !open)}>{t('更多')}</Button>
             </Dropdown>
+            {canProactiveRefund && (
+              <Button type="warning" theme="borderless" onClick={() => setProactiveOpen(true)}>
+                {t('主动退款')}
+              </Button>
+            )}
             {canCancel && (
               <Button type="danger" theme="borderless" onClick={() => setCancelOpen(true)}>
                 {t('取消订单')}
@@ -339,6 +351,13 @@ export default function OrderDetailModal({ visible, orderId, onCancel, onChanged
           setProductOpen(false);
           refresh();
         }}
+      />
+
+      <ProactiveRefundModal
+        visible={proactiveOpen}
+        orderId={orderId}
+        onCancel={() => setProactiveOpen(false)}
+        onSuccess={refresh}
       />
 
       <SubOrderModal visible={subOrderOpen} detail={detail} onCancel={() => setSubOrderOpen(false)} />

@@ -7,7 +7,7 @@
 //!   `aftersale_id` / `refund_status` / `add_time` / `refund_note` /
 //!   `online_balance` / `offline_balance` / `refund_balance` /
 //!   `is_online` / `is_offline` / `is_receive` / `paylog_refund_id` /
-//!   `shop_id` / `payment_voucher`
+//!   `shop_id` / `payment_voucher` / `initiator`（迁移 007，我方新增列）
 //! - `refund_log`：`log_id` / `refund_apply_id` / `refund_type` /
 //!   `refund_pay_code` / `transaction_id` / `refund_amount` / `add_time` /
 //!   `description` / `user_id`
@@ -142,8 +142,8 @@ impl RefundApplyRepository {
              (refund_type, order_id, user_id, aftersale_id, refund_status,
               add_time, refund_note, online_balance, offline_balance,
               refund_balance, is_online, is_offline, is_receive,
-              paylog_refund_id, shop_id, payment_voucher)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING refund_id",
+              paylog_refund_id, shop_id, payment_voucher, initiator)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING refund_id",
         )
         .bind(r.refund_type)
         .bind(r.order_id)
@@ -161,6 +161,7 @@ impl RefundApplyRepository {
         .bind(r.paylog_refund_id)
         .bind(r.shop_id)
         .bind(&r.payment_voucher)
+        .bind(r.initiator)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;

@@ -1766,6 +1766,8 @@ impl AftersalesService {
             paylog_refund_id: 0,
             shop_id: aftersales.shop_id,
             payment_voucher: None,
+            // 售后来源以 aftersale_id 识别，发起方标记恒 0
+            initiator: 0,
         };
         let refund_id = self.repos.payment.refund_apply.insert(&apply).await?;
 

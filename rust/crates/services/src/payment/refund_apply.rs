@@ -28,9 +28,10 @@ use rust_decimal::{Decimal, RoundingStrategy};
 use nextrade_common::utils;
 use nextrade_core::entities::{RefundApply, RefundLog};
 use nextrade_core::models::payment::refund_apply::{
-    total_refund, validate_reject_reason, OfflineAuditDTO, RefundApplyAuditDTO,
-    RefundApplyCreateDTO, RefundApplyDetailVO, RefundApplyListQuery, RefundApplyStatus,
-    RefundApplyUpdateDTO, RefundApplyVO, RefundLogVO, RefundType,
+    total_refund, validate_reject_reason, OfflineAuditDTO, ProactiveRefundPreviewVO,
+    RefundApplyAuditDTO, RefundApplyCreateDTO, RefundApplyDetailVO, RefundApplyListQuery,
+    RefundApplyStatus, RefundApplyUpdateDTO, RefundApplyVO, RefundInitiator, RefundLogVO,
+    RefundType,
 };
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
@@ -179,12 +180,284 @@ impl RefundApplyService {
             paylog_refund_id: 0,
             shop_id,
             payment_voucher: None,
+            // 通用创建（财务手工）发起方恒为 0；主动退款走 create_proactive
+            initiator: 0,
         };
         let id = self.repos.payment.refund_apply.insert(&r).await?;
         tracing::info!(
             "创建退款申请: id={id} order_id={order_id} amount={total}（线上{online}/线下{offline}）"
         );
         Ok(id)
+    }
+
+    // ————————————————————— 主动退款（我方新增） —————————————————————
+
+    /// 主动退款预检：作用域 + 订单状态门校验后，返回实付与可退余额
+    /// （后台弹窗打开时拉取，金额默认 = 可退余额）。
+    pub async fn proactive_preview(
+        &self,
+        order_id: i32,
+        scope_shop_id: Option<i32>,
+    ) -> Result<ProactiveRefundPreviewVO> {
+        let order = self.load_proactive_order(order_id, scope_shop_id).await?;
+        Ok(ProactiveRefundPreviewVO {
+            order_id: order.order_id,
+            order_sn: order.order_sn.clone(),
+            paid_amount: self.paid_amount(order_id).await?,
+            refundable_amount: self.refundable_amount(order_id).await?,
+            is_settlement: order.is_settlement.unwrap_or(0),
+        })
+    }
+
+    /// 发起主动退款（平台/商家对已支付订单协商退款：退差价等场景）。
+    ///
+    /// 口径（我方新增功能，评估 forum-post-877927 定版）：
+    /// - 买家、店铺一律取订单本身，发起方 `initiator` 与作用域由
+    ///   路由层按登录态推导（1 平台 / 2 商家），请求参数不采信；
+    /// - 金额为**退款总额口径**（与售后来源申请一致）：资金执行时
+    ///   先扣礼品卡抵扣部分走完成点返还钩子，现金部分走支付轨；
+    /// - 落 Wait 态 refund_apply 后走既有财务审核出款链；
+    ///   `financialReview != 1` 时与售后同口径自动执行；
+    /// - 不回补库存（纯资金返还，无退货语义）；买家以站内信通知。
+    pub async fn create_proactive(
+        &self,
+        order_id: i32,
+        amount: Decimal,
+        reason: &str,
+        initiator: i32,
+        scope_shop_id: Option<i32>,
+    ) -> Result<i32> {
+        let reason = reason.trim();
+        if reason.is_empty() {
+            return Err(Error::Validation("退款原因不能为空".into()));
+        }
+        if reason.chars().count() > 255 {
+            return Err(Error::Validation("退款原因不能超过255字".into()));
+        }
+        if amount <= Decimal::ZERO {
+            return Err(Error::Validation("退款金额必须大于0".into()));
+        }
+        if initiator != RefundInitiator::Platform as i32
+            && initiator != RefundInitiator::Merchant as i32
+        {
+            return Err(Error::Validation("发起方标记非法".into()));
+        }
+        let order = self.load_proactive_order(order_id, scope_shop_id).await?;
+        // 可退额度校验（实付 - 已占用，与售后/手工申请同一防线）
+        self.assert_refundable(order_id, amount).await?;
+
+        let now = utils::now_seconds() as i32;
+        let mut apply = RefundApply {
+            refund_id: 0,
+            refund_type: RefundType::Order as i32,
+            order_id,
+            user_id: order.user_id,
+            aftersale_id: 0,
+            refund_status: RefundApplyStatus::Wait as i32,
+            add_time: now,
+            refund_note: reason.to_string(),
+            online_balance: amount,
+            offline_balance: Decimal::ZERO,
+            refund_balance: amount,
+            is_online: 1,
+            is_offline: 0,
+            is_receive: 0,
+            paylog_refund_id: 0,
+            shop_id: order.shop_id,
+            payment_voucher: None,
+            initiator,
+        };
+        let refund_id = self.repos.payment.refund_apply.insert(&apply).await?;
+        apply.refund_id = refund_id;
+        let who = if initiator == RefundInitiator::Merchant as i32 {
+            "商家"
+        } else {
+            "平台"
+        };
+        // 发起日志（财务详情时间线可见，与售后建单日志同构；尽力而为）
+        let _ = self.repos.payment.refund_apply.insert_log(&RefundLog {
+            log_id: 0,
+            refund_apply_id: refund_id,
+            order_id,
+            refund_type: RefundType::Order as i32,
+            refund_pay_code: "online".into(),
+            transaction_id: String::new(),
+            refund_amount: amount,
+            add_time: now,
+            description: Some(format!("{who}主动退款发起：{reason}")),
+            user_id: order.user_id,
+        }).await;
+        tracing::info!(
+            "主动退款发起: id={refund_id} order_id={order_id} amount={amount} initiator={initiator}（{who}）"
+        );
+
+        // 买家站内信（best-effort：失败只告警，不回滚已创建的申请）
+        self.notify_buyer_proactive(&order, amount, reason, initiator)
+            .await;
+
+        // 财务审核关闭（financialReview != 1）时与售后同口径自动执行
+        let financial_review = self
+            .repos
+            .system
+            .config_basic
+            .find_by_code("financialReview")
+            .await?
+            .unwrap_or_default();
+        if financial_review != "1" {
+            self.auto_execute_proactive(&apply, refund_id).await;
+        }
+        Ok(refund_id)
+    }
+
+    /// 主动退款的目标订单加载 + 强校验：
+    /// - 作用域：商家账号（scope 有值）只能操作本店订单——店铺取
+    ///   订单本身比对，**不采信请求参数**；平台账号不限制；
+    /// - 状态门：见 [`proactive_gate_error`]（拆单父单/未支付/
+    ///   已取消/已失效一律拒绝，退款单位是有效（子）订单）。
+    async fn load_proactive_order(
+        &self,
+        order_id: i32,
+        scope_shop_id: Option<i32>,
+    ) -> Result<nextrade_core::entities::Order> {
+        if order_id <= 0 {
+            return Err(Error::Validation("订单ID无效".into()));
+        }
+        let order = self
+            .repos
+            .trade
+            .order_admin
+            .find_order(order_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("订单不存在".into()))?;
+        if let Some(scope) = scope_shop_id {
+            if order.shop_id != scope {
+                return Err(Error::Forbidden(format!(
+                    "无权访问店铺 {} 的数据",
+                    order.shop_id
+                )));
+            }
+        }
+        if let Some(msg) = proactive_gate_error(order.order_status, order.pay_status, order.is_valid)
+        {
+            return Err(Error::biz(400, msg));
+        }
+        Ok(order)
+    }
+
+    /// 财务审核关闭时的主动退款自动执行（与售后自动路径同构）：
+    /// 资金执行 → Wait 流转到已处理/处理中 → 完成点钩子（礼品卡
+    /// 返还 + 已结算扣回）与分销回退挂点（无退货项，自然空转）。
+    async fn auto_execute_proactive(&self, apply: &RefundApply, refund_id: i32) {
+        let (to_status, completed) = match self.execute_refund_money(apply, refund_id).await {
+            Ok((MoneyOutcome::Completed, _)) => (RefundApplyStatus::Processed as i32, true),
+            Ok((MoneyOutcome::ChannelPending, _)) => {
+                (RefundApplyStatus::Processing as i32, false)
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "主动退款自动执行 资金执行失败 refund_id={refund_id} order_id={}: {e}",
+                    apply.order_id
+                );
+                (RefundApplyStatus::Processing as i32, false)
+            }
+        };
+        let transitioned = self
+            .repos
+            .payment
+            .refund_apply
+            .transition_status(
+                refund_id,
+                &[RefundApplyStatus::Wait as i32],
+                to_status,
+                Some("财务审核关闭自动执行退款"),
+            )
+            .await
+            .unwrap_or(false);
+        if !transitioned {
+            return;
+        }
+        // 分销佣金回退挂点与财务审核路径保持同点：主动退款无退货
+        // 商品项，handler 按 aftersale_id=0 查不到退货项即空转返回
+        // （不退货即不按件回退佣金，口径见 handler 文档）。
+        if let Err(e) = self
+            .handle_salesman_order_on_refund(apply.order_id, 0)
+            .await
+        {
+            tracing::warn!(
+                "主动退款自动执行 分销佣金回退失败 refund_id={refund_id} order_id={}: {e}",
+                apply.order_id
+            );
+        }
+        if completed {
+            // 礼品卡返还（与 mark_processed 同为退款完成点，仓储层幂等）
+            if apply.order_id > 0 {
+                if let Err(e) = self
+                    .repos
+                    .marketing
+                    .gift_card_issue
+                    .return_stored_cards_for_order(apply.order_id, utils::now_seconds())
+                    .await
+                {
+                    tracing::warn!(
+                        "主动退款自动执行 礼品卡返还失败 refund_id={refund_id} order_id={}: {e}",
+                        apply.order_id
+                    );
+                }
+            }
+            self.settle_proactive_refund(refund_id, apply).await;
+        }
+    }
+
+    /// 主动退款完成后的结算收尾（best-effort）：已结算订单由
+    /// [`crate::trade::settlement::SettlementService`] 从商家结算款
+    /// 扣回并落负向流水；未结算订单在日后店铺结算时净额扣除
+    /// （store_settlement 已计入已完成主动退款）。售后来源申请的
+    /// 同等收尾由售后域 `on_refund_completed` 承担，互不重复。
+    async fn settle_proactive_refund(&self, refund_id: i32, apply: &RefundApply) {
+        let svc = crate::trade::settlement::SettlementService::new(self.repos.clone());
+        if let Err(e) = svc
+            .on_proactive_refund_completed(refund_id, apply.order_id, apply.refund_balance)
+            .await
+        {
+            tracing::warn!(
+                "主动退款结算扣回失败 refund_id={refund_id} order_id={}: {e}",
+                apply.order_id
+            );
+        }
+    }
+
+    /// 主动退款买家站内信（best-effort）。
+    async fn notify_buyer_proactive(
+        &self,
+        order: &nextrade_core::entities::Order,
+        amount: Decimal,
+        reason: &str,
+        initiator: i32,
+    ) {
+        if order.user_id <= 0 {
+            return;
+        }
+        let who = if initiator == RefundInitiator::Merchant as i32 {
+            "商家"
+        } else {
+            "平台"
+        };
+        let content = format!(
+            "您的订单 {} 已由{}发起退款，退款金额 ¥{}，原因：{}。退款将在审核通过后原路退回，请注意查收。",
+            order.order_sn, who, amount, reason
+        );
+        if let Err(e) = self
+            .repos
+            .member
+            .user_message
+            .insert_user_message(order.user_id, "退款通知", &content, 1, None)
+            .await
+        {
+            tracing::warn!(
+                "主动退款买家通知失败 order_id={} user={}: {e}",
+                order.order_id, order.user_id
+            );
+        }
     }
 
     /// 更新退款申请金额/备注（仅待处理状态可改）。
@@ -511,6 +784,12 @@ impl RefundApplyService {
                 );
             }
         }
+        // 主动退款（initiator > 0）完成收尾：已结算订单从商家结算
+        // 款扣回（best-effort）。售后来源申请的同等收尾由售后域
+        // on_refund_completed 承担，两条路径互不重复触发。
+        if existing.initiator > 0 {
+            self.settle_proactive_refund(refund_id, &existing).await;
+        }
         Ok(())
     }
 
@@ -522,10 +801,10 @@ impl RefundApplyService {
     /// 金额拆分（对齐 Java `createRefundFlow` 按订单支付构成执行）：
     /// - 礼品卡抵扣部分不走支付轨，由完成点的
     ///   `return_stored_cards_for_order` 按 usage_log 原额返还。
-    ///   售后来源申请的 `online_balance` 是退款总额口径（建单时写入
-    ///   审核落定金额），现金部分须扣减卡抵扣总额（纯函数
-    ///   [`cash_refund_amount`]）；手工申请的 `online_balance` 本
-    ///   就是财务填写的线上部分，不扣减。
+    ///   总额口径来源（售后 / 主动退款）的 `online_balance` 是
+    ///   退款总额（建单时写入落定金额），现金部分须扣减卡抵扣
+    ///   总额（纯函数 [`cash_refund_amount`]）；手工申请的
+    ///   `online_balance` 本就是财务填写的线上部分，不扣减。
     /// - 现金部分按订单最后一笔成功支付流水的 `pay_code` 选轨：
     ///   `balance` → 同步回补买家余额（写 user_balance_log
     ///   「退款到账」，Java `incBalance` 同口径）并累加 paylog
@@ -544,7 +823,7 @@ impl RefundApplyService {
         if existing.order_id <= 0 || existing.online_balance <= Decimal::ZERO {
             return Ok((MoneyOutcome::Completed, None));
         }
-        let deducted = if existing.aftersale_id > 0 {
+        let deducted = if existing.aftersale_id > 0 || existing.initiator > 0 {
             self.repos
                 .marketing
                 .gift_card_issue
@@ -556,7 +835,7 @@ impl RefundApplyService {
         let cash = cash_refund_amount(
             existing.online_balance,
             deducted,
-            existing.aftersale_id > 0,
+            existing.aftersale_id > 0 || existing.initiator > 0,
         );
         if cash <= Decimal::ZERO {
             // 全额由礼品卡抵扣构成：无现金可退，完成点钩子返还卡即可
@@ -965,18 +1244,45 @@ impl RefundApplyService {
 
 /// 现金退款部分拆分（纯函数，供单测）。
 ///
-/// 售后来源申请的 `online_balance` 为退款总额口径：扣减订单礼品卡
-/// 抵扣总额后才是走支付轨的现金部分（卡部分由完成点钩子按流水
-/// 原额返还）。手工申请的 `online_balance` 本就是线上部分，不扣减。
+/// 总额口径来源（售后 / 主动退款）的 `online_balance` 为退款
+/// 总额：扣减订单礼品卡抵扣总额后才是走支付轨的现金部分（卡
+/// 部分由完成点钩子按流水原额返还）。手工申请的 `online_balance`
+/// 本就是线上部分，不扣减。
 pub(crate) fn cash_refund_amount(
     online_balance: Decimal,
     gift_card_deducted: Decimal,
-    is_aftersale: bool,
+    is_total_caliber: bool,
 ) -> Decimal {
-    if is_aftersale {
+    if is_total_caliber {
         (online_balance - gift_card_deducted).max(Decimal::ZERO)
     } else {
         online_balance.max(Decimal::ZERO)
+    }
+}
+
+/// 主动退款的订单状态门（纯函数，供单测）：返回 `Some(拒绝原因)`
+/// 表示不可发起。退款单位必须是有效订单（拆单后父单为支付壳
+/// `is_valid=0`，退款落到子单）；订单状态限待发货（1）/ 已发货
+/// （2）/ 已完成（5，一期主场景）；支付状态限已支付（2）/ 退款中
+/// （3，部分退后仍可继续退，额度由 assert_refundable 兜底）。
+pub(crate) fn proactive_gate_error(
+    order_status: i32,
+    pay_status: i32,
+    is_valid: i32,
+) -> Option<&'static str> {
+    if is_valid != 1 {
+        return Some("该订单为拆单父单，请对子订单发起退款");
+    }
+    match order_status {
+        1 | 2 | 5 => {}
+        0 => return Some("订单尚未支付，无法发起退款"),
+        3 => return Some("订单已取消，无法发起退款"),
+        4 => return Some("订单已失效，无法发起退款"),
+        _ => return Some("当前订单状态不支持主动退款"),
+    }
+    match pay_status {
+        2 | 3 => None,
+        _ => Some("订单未支付，无法发起退款"),
     }
 }
 
@@ -1068,6 +1374,8 @@ fn to_vo(r: &RefundApply) -> RefundApplyVO {
         paylog_refund_id: r.paylog_refund_id,
         shop_id: r.shop_id,
         payment_voucher: r.payment_voucher.clone(),
+        initiator: r.initiator,
+        initiator_name: RefundInitiator::name(r.initiator, r.aftersale_id).to_string(),
     }
 }
 
@@ -1268,6 +1576,41 @@ mod tests {
             salesman_clawback_decision(0, 0, 0, dec("90.00"), dec("900.00")),
             ClawbackDecision::Skip
         );
+    }
+
+    /// 主动退款状态门：待发货/已发货/已完成 + 已支付可发起。
+    #[test]
+    fn proactive_gate_allows_paid_active_orders() {
+        assert_eq!(proactive_gate_error(1, 2, 1), None);
+        assert_eq!(proactive_gate_error(2, 2, 1), None);
+        assert_eq!(proactive_gate_error(5, 2, 1), None);
+        // 部分退款后 pay_status=3（退款中）仍可继续退
+        assert_eq!(proactive_gate_error(5, 3, 1), None);
+    }
+
+    /// 主动退款状态门：父单壳/未支付/已取消/已失效一律拒绝。
+    #[test]
+    fn proactive_gate_rejects_shell_and_unpaid() {
+        assert!(proactive_gate_error(5, 2, 0).is_some()); // 拆单父单
+        assert!(proactive_gate_error(0, 0, 1).is_some()); // 待支付
+        assert!(proactive_gate_error(1, 0, 1).is_some()); // 状态在途但未支付
+        assert!(proactive_gate_error(3, 2, 1).is_some()); // 已取消
+        assert!(proactive_gate_error(4, 2, 1).is_some()); // 已失效
+    }
+
+    /// 发起方来源名：主动（平台/商家）与售后/手工四分，VO 透出。
+    #[test]
+    fn vo_maps_initiator_names() {
+        let mut a = apply(0, "10.00", "0");
+        a.initiator = 1;
+        assert_eq!(to_vo(&a).initiator_name, "平台主动");
+        a.initiator = 2;
+        assert_eq!(to_vo(&a).initiator_name, "商家主动");
+        a.initiator = 0;
+        a.aftersale_id = 9;
+        assert_eq!(to_vo(&a).initiator_name, "买家售后");
+        a.aftersale_id = 0;
+        assert_eq!(to_vo(&a).initiator_name, "手工退款");
     }
 
     /// 现金拆分：售后来源申请扣减礼品卡抵扣（E2E 订单 77 口径：

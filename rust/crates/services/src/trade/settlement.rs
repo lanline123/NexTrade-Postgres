@@ -431,6 +431,20 @@ impl SettlementService {
                 refund_amount += self.vendor_refund_amount(order_id, None).await?;
             }
         }
+        // 已完成的主动退款（我方新增：initiator > 0 且 refund_status
+        // = 2 已处理）与售后退款同口径计入退款额——否则「先主动
+        // 退款、后订单结算」时已退给买家的钱会再结算给商家一遍。
+        // 已结算订单的主动退款则在完成点由
+        // on_proactive_refund_completed 扣回，两条路径互斥不重扣。
+        let proactive_refunded: Decimal = sqlx::query_scalar(
+            "SELECT COALESCE(SUM(refund_balance), 0) FROM refund_apply \
+             WHERE order_id = $1 AND initiator > 0 AND refund_status = 2",
+        )
+        .bind(order_id)
+        .fetch_one(self.pool())
+        .await
+        .map_err(db_err)?;
+        refund_amount += proactive_refunded;
         // 供应商应得（供应价 × 数量）
         let vendor_amount = if is_vendor_order {
             self.vendor_order_amount(order_id).await?
@@ -921,6 +935,122 @@ impl SettlementService {
         if let Err(e) = self.dissolve_group_by_captain_refund(order_id).await {
             tracing::warn!("结算级联：拼团整团解散失败 order={order_id} err={e}");
         }
+    }
+
+    /// 主动退款（我方新增，无售后单）完成后的结算收尾，与
+    /// [`Self::on_refund_completed`] 同口径镜像：
+    /// - 账期支付订单跳过店铺扣回（Java 同款门）；
+    /// - 已结算订单：落退款出账单（type 7，record = refund_apply
+    ///   id，record_sn = `PR{id}`，与售后行以 sn 区分、幂等防重）
+    ///   并从店铺余额扣回；
+    /// - 未结算订单不在此处扣回：金额已由 [`Self::store_settlement`]
+    ///   在结算公式中扣除，两条路径互斥。
+    ///
+    /// 与售后路径的差异：主动退款无退货商品行，故无供应商退款
+    /// 份额扣减；待结算佣金返还、线上分账/服务费分摊两分支与
+    /// [`Self::refund_settlement`] 保持一致。
+    pub async fn on_proactive_refund_completed(
+        &self,
+        refund_id: i32,
+        order_id: i32,
+        amount: Decimal,
+    ) -> Result<()> {
+        if amount <= Decimal::ZERO {
+            return Ok(());
+        }
+        let credit: Option<i32> = sqlx::query_scalar(
+            "SELECT credit_order_id FROM credit_order WHERE order_id = $1 LIMIT 1",
+        )
+        .bind(order_id)
+        .fetch_optional(self.pool())
+        .await
+        .map_err(db_err)?;
+        if credit.is_some() {
+            return Ok(());
+        }
+        let Some(order) = self.repos.trade.order.find_by_id(order_id).await? else {
+            return Ok(());
+        };
+        // 未结算订单由 store_settlement 净额扣除，此处不扣回
+        if order.is_settlement.unwrap_or(0) == 0 {
+            return Ok(());
+        }
+        // 退款出账单（幂等：record_id + record_type + record_sn）
+        let record_sn = format!("PR{refund_id}");
+        let exists: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM statement_output \
+             WHERE record_id = $1 AND record_type = $2 AND record_sn = $3",
+        )
+        .bind(refund_id)
+        .bind(statement_type::ORDER_REFUND)
+        .bind(&record_sn)
+        .fetch_one(self.pool())
+        .await
+        .unwrap_or(0);
+        if exists == 0 {
+            let _ = sqlx::query(
+                "INSERT INTO statement_output \
+                 (shop_id, vendor_id, income, expenditure, gmt_create, record_sn, \
+                  record_type, record_id, settlement_status, real_settlement) \
+                 VALUES ($1, $2, 0, $3, $4, $5, $6, $7, 0, 0)",
+            )
+            .bind(order.shop_id)
+            .bind(order.vendor_id)
+            .bind(amount)
+            .bind(now_i32() as i64)
+            .bind(&record_sn)
+            .bind(statement_type::ORDER_REFUND)
+            .bind(refund_id)
+            .execute(self.pool())
+            .await;
+        }
+        // 店铺扣回（refund_settlement 的主动退款镜像：无供应商份额）
+        let shop_row = sqlx::query_as::<_, (Option<Decimal>, Option<Decimal>)>(
+            "SELECT shop_money, frozen_money FROM shop WHERE shop_id = $1",
+        )
+        .bind(order.shop_id)
+        .fetch_optional(self.pool())
+        .await
+        .map_err(db_err)?;
+        let Some((shop_money, frozen_money)) = shop_row else {
+            return Ok(());
+        };
+        let mut shop_refund = amount;
+        // 待结算佣金返还店铺（减少店铺扣减额，与售后路径一致）
+        let pending: Decimal = sqlx::query_scalar(
+            "SELECT COALESCE(SUM(expenditure), 0) FROM statement_output \
+             WHERE record_id = $1 AND record_type = $2 AND real_settlement = 0",
+        )
+        .bind(order_id)
+        .bind(statement_type::DISTRIBUTION_COMMISSION)
+        .fetch_one(self.pool())
+        .await
+        .map_err(db_err)?;
+        if pending > Decimal::ZERO {
+            shop_refund -= pending;
+        }
+        if shop_refund == Decimal::ZERO {
+            return Ok(());
+        }
+        if let Some(online_amount) = self.resolve_online_split(&order).await? {
+            let decr = shop_money_decr_on_refund(shop_refund, order.paid_amount, online_amount);
+            if decr != Decimal::ZERO {
+                self.debit_shop(&order, shop_money, frozen_money, decr).await?;
+            }
+        } else {
+            let fee = if shop_refund > Decimal::ZERO {
+                let rate = self.shop_service_fee(order_id).await?;
+                (shop_refund * rate / Decimal::from(100)).round_dp_with_strategy(
+                    2,
+                    RoundingStrategy::MidpointAwayFromZero,
+                )
+            } else {
+                Decimal::ZERO
+            };
+            self.debit_shop(&order, shop_money, frozen_money, shop_refund - fee)
+                .await?;
+        }
+        Ok(())
     }
 
     /// Java `GrouponPromotionRecordServiceImpl#dissolveGroupByCaptainRefund`：

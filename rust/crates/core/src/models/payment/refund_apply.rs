@@ -57,6 +57,64 @@ pub struct OfflineAuditDTO {
     pub payment_voucher: Option<String>,
 }
 
+/// 主动退款发起方（对应库中 `refund_apply.initiator`，迁移 007，我方新增）。
+///
+/// 与售后来源正交：售后生成的申请以 `aftersale_id > 0` 识别且
+/// initiator 恒为 0；主动退款以 initiator 区分平台/商家。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RefundInitiator {
+    /// 买家售后 / 财务手工（存量默认）
+    Legacy = 0,
+    /// 平台主动发起
+    Platform = 1,
+    /// 商家主动发起
+    Merchant = 2,
+}
+
+impl RefundInitiator {
+    /// 列表展示名（来源列）。
+    ///
+    /// initiator=0 时按 aftersale_id 细分：有售后单为「买家售后」，
+    /// 无售后单为财务手工创建的「手工退款」。
+    #[must_use]
+    pub fn name(initiator: i32, aftersale_id: i32) -> &'static str {
+        match initiator {
+            1 => "平台主动",
+            2 => "商家主动",
+            _ if aftersale_id > 0 => "买家售后",
+            _ => "手工退款",
+        }
+    }
+}
+
+/// 主动退款发起请求（我方新增端点 `proactiveCreate`）。
+///
+/// 只收订单、金额、原因三项：买家、店铺、发起方全部由服务端
+/// 按订单与登录作用域推导，请求参数不携带也不采信 shopId/userId。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ProactiveRefundCreateDTO {
+    pub order_id: Option<i32>,
+    /// 退款金额（默认由前端填可退余额，服务端 assert_refundable 兜底）
+    pub amount: Option<Decimal>,
+    /// 退款原因（必填，写入 refund_note 并通知买家）
+    pub reason: Option<String>,
+}
+
+/// 主动退款预检 VO（弹窗打开时拉取：金额默认 = 可退余额）。
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProactiveRefundPreviewVO {
+    pub order_id: i32,
+    pub order_sn: String,
+    /// 订单实付（paylog 口径，与 assert_refundable 一致）
+    pub paid_amount: Decimal,
+    /// 当前可退余额（实付 - 已占用）
+    pub refundable_amount: Decimal,
+    /// 订单是否已结算给商家（1 = 退款完成后将从商家结算款扣回）
+    pub is_settlement: i32,
+}
+
 /// 更新退款申请请求。
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -94,6 +152,10 @@ pub struct RefundApplyVO {
     pub paylog_refund_id: i32,
     pub shop_id: i32,
     pub payment_voucher: Option<String>,
+    /// 发起方标记（迁移 007）：0 售后/手工 1 平台主动 2 商家主动
+    pub initiator: i32,
+    /// 来源展示名（平台主动 / 商家主动 / 买家售后 / 手工退款）
+    pub initiator_name: String,
 }
 
 /// 退款操作日志 VO。

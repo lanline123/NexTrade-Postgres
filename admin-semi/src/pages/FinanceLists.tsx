@@ -146,6 +146,8 @@ export function RefundApplyList() {
 
   const columns: ColumnConfig<FinanceRow>[] = [
     { title: t('退款类型'), dataIndex: 'refundTypeName', width: 120 },
+    // 来源【我方新增】：平台主动 / 商家主动 / 买家售后 / 手工退款
+    { title: t('来源'), dataIndex: 'initiatorName', width: 100 },
     {
       title: t('退款信息'),
       dataIndex: 'refundNote',

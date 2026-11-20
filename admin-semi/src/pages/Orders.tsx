@@ -23,6 +23,7 @@ import { useI18n } from '../i18n';
 import { mockOrderPage } from '../mock';
 import type { OrderRow, PageResult } from '../types';
 import OrderDetailModal from '../components/OrderDetailModal';
+import ProactiveRefundModal from '../components/ProactiveRefundModal';
 import { WriteOffModal } from '../components/OrderExtraDialogs';
 import {
   BatchDeliverImportModal,
@@ -94,6 +95,8 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
   const [reloadKey, setReloadKey] = useState(0);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | undefined>(undefined);
+  // 主动退款【我方新增】：已支付且待发货/已发货/已完成的订单可发起
+  const [proactiveOrderId, setProactiveOrderId] = useState<number | null>(null);
   const [writeOffOpen, setWriteOffOpen] = useState(false);
   // 批量操作（对齐旧版：添加标记 / 订单批量发货 / Excel批量发货）
   const [selectedIds, setSelectedIds] = useState<Array<string | number>>([]);
@@ -438,6 +441,13 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
                       {t('催发货')}
                     </Button>
                   )}
+                  {/* 主动退款【我方新增】：已支付（2）/退款中（3）且待发货/已发货/已完成 */}
+                  {(record.payStatus === 2 || record.payStatus === 3) &&
+                    (record.orderStatus === 1 || record.orderStatus === 2 || record.orderStatus === 5) && (
+                      <Button theme="borderless" size="small" onClick={() => setProactiveOrderId(record.orderId)}>
+                        {t('主动退款')}
+                      </Button>
+                    )}
                   {record.orderStatus === 2 && !record.isPickup && (
                     <Button theme="borderless" size="small" onClick={() => confirmReceipt(record)}>
                       {record.shippingTypeId === 3 ? t('完成配送') : t('确认收货')}
@@ -488,6 +498,13 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
         orderId={detailId}
         onCancel={() => setDetailOpen(false)}
         onChanged={reload}
+      />
+
+      <ProactiveRefundModal
+        visible={proactiveOrderId !== null}
+        orderId={proactiveOrderId}
+        onCancel={() => setProactiveOrderId(null)}
+        onSuccess={reload}
       />
 
       <WriteOffModal

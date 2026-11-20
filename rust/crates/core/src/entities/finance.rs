@@ -624,6 +624,9 @@ pub struct RefundApply {
     pub shop_id: i32,
     /// 打款凭证
     pub payment_voucher: Option<String>,
+    /// 发起方标记（迁移 007，我方新增）：0 买家售后/财务手工
+    /// 1 平台主动发起 2 商家主动发起 [NOT NULL]
+    pub initiator: i32,
 }
 
 impl RefundApply {

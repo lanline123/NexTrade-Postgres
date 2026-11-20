@@ -11,6 +11,8 @@
 //! | `POST /finance/refundApply/offlineAudit` | `RefundApplyController.offlineAudit` |
 //! | `POST /finance/refundApply/create` | `RefundApplyController.create` |
 //! | `POST /finance/refundApply/update` | `RefundApplyController.update` |
+//! | `GET  /finance/refundApply/proactivePreview` | 我方新增（无 Java 对应） |
+//! | `POST /finance/refundApply/proactiveCreate` | 我方新增（无 Java 对应） |
 //!
 //! 未迁移：`del` / `updateField` / `batch`（退款申请为审计数据，
 //! 原系统同样对删除有严格限制；待确认业务口径后补齐）。
@@ -22,8 +24,9 @@ use axum::{
 };
 use serde::Deserialize;
 use nextrade_core::models::payment::refund_apply::{
-    OfflineAuditDTO, RefundApplyAuditDTO, RefundApplyCreateDTO, RefundApplyDetailVO,
-    RefundApplyListQuery, RefundApplyUpdateDTO, RefundApplyVO,
+    OfflineAuditDTO, ProactiveRefundCreateDTO, ProactiveRefundPreviewVO, RefundApplyAuditDTO,
+    RefundApplyCreateDTO, RefundApplyDetailVO, RefundApplyListQuery, RefundApplyUpdateDTO,
+    RefundApplyVO, RefundInitiator,
 };
 use nextrade_core::types::PageResult;
 use nextrade_security::web::{ok, ApiResult, AppError, AuthUser};
@@ -41,6 +44,11 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/finance/refundApply/offlineAudit", post(offline_audit))
         .route("/finance/refundApply/create", post(create))
         .route("/finance/refundApply/update", post(update))
+        .route(
+            "/finance/refundApply/proactivePreview",
+            get(proactive_preview),
+        )
+        .route("/finance/refundApply/proactiveCreate", post(proactive_create))
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -81,6 +89,16 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
             "POST",
             "/adminapi/finance/refundApply/update",
             "RefundApplyController.update",
+        ),
+        (
+            "GET",
+            "/adminapi/finance/refundApply/proactivePreview",
+            "我方新增 proactiveRefund.preview（无 Java 对应）",
+        ),
+        (
+            "POST",
+            "/adminapi/finance/refundApply/proactiveCreate",
+            "我方新增 proactiveRefund.create（无 Java 对应）",
         ),
     ]
     .iter()
@@ -179,6 +197,62 @@ async fn create(
 ) -> ApiResult<i32> {
     dto.shop_id = Some(auth.require_shop_scope(dto.shop_id)?);
     ok(state.payment.refund_apply.create(&dto).await?)
+}
+
+/// 主动退款预检入参。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OrderIdQuery {
+    order_id: i32,
+}
+
+/// 主动退款的发起方与作用域一律按登录态推导（我方新增）：
+/// 平台账号 → initiator=平台、不限店铺；店铺账号 → initiator=
+/// 商家、作用域 = 登录店铺。请求体不携带也不采信 shopId/userId。
+fn proactive_actor(auth: &AuthUser) -> (i32, Option<i32>) {
+    match auth.scoped_shop_id() {
+        None => (RefundInitiator::Platform as i32, None),
+        scope => (RefundInitiator::Merchant as i32, scope),
+    }
+}
+
+/// `GET /adminapi/finance/refundApply/proactivePreview?orderId=`
+/// （我方新增）：主动退款弹窗预检——订单状态门 + 作用域校验后
+/// 返回实付与可退余额。
+async fn proactive_preview(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(q): Query<OrderIdQuery>,
+) -> ApiResult<ProactiveRefundPreviewVO> {
+    let (_, scope) = proactive_actor(&auth);
+    ok(state
+        .payment
+        .refund_apply
+        .proactive_preview(q.order_id, scope)
+        .await?)
+}
+
+/// `POST /adminapi/finance/refundApply/proactiveCreate`（我方新增）：
+/// 平台/商家对已支付订单发起主动退款，生成 Wait 态退款申请，
+/// 后续走既有财务审核出款链。
+async fn proactive_create(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(dto): Json<ProactiveRefundCreateDTO>,
+) -> ApiResult<i32> {
+    let (initiator, scope) = proactive_actor(&auth);
+    let order_id = dto.order_id.ok_or_else(|| {
+        AppError(nextrade_core::Error::Validation("订单ID不能为空".into()))
+    })?;
+    let amount = dto.amount.ok_or_else(|| {
+        AppError(nextrade_core::Error::Validation("退款金额不能为空".into()))
+    })?;
+    let reason = dto.reason.as_deref().unwrap_or("");
+    ok(state
+        .payment
+        .refund_apply
+        .create_proactive(order_id, amount, reason, initiator, scope)
+        .await?)
 }
 
 /// `POST /adminapi/finance/refundApply/update`：更新申请（仅待处理）。
