@@ -52,6 +52,18 @@
 //!    `cartService.addProductToCart`，每次调用的 `addCarts` 只有本项一行，
 //!    故 `CartWholesaleEnhancer#markAndValidateOnAdd` 的 `spuTotalQty`
 //!    永远等于本行数量——**不是整批合计**。本实现照抄该口径。
+//! 7. **店级批发开关（我方新增，论坛帖 777891，原版无此维度）**：
+//!    有效批发 = 全局 `wholesaleEnabled` AND 店级开关（表
+//!    `wholesale_shop_setting`，未配置默认开；shop 0 只看全局)。
+//!    门控落点：`buy_rule`（关店商品 `configured=false`，与加车同口径）、
+//!    `add_one_item`（有批发配置且本店已关 → 行级 5300 失败，不阻断
+//!    同批其它行；无批发配置的商品照常按普通行加入，不受影响）。
+//!    `me` / `is_wholesale_buyer` 是**买家级身份**（批发商身份跨店通用，
+//!    原版即买家全局口径），**刻意不按店收口**——店级差异只在具体商品
+//!    落点（buyRule / 加车）体现。前台批发价展示回填
+//!    （`wholesalePriceList` / `firstWholesalePrice`）尚未迁移、恒空，
+//!    无活展示面可门控；回填迁移时必须接同一
+//!    [`WholesaleClientService::shop_wholesale_effective`] 判定。
 
 use std::cmp::Ordering;
 use std::sync::Arc;
@@ -64,6 +76,9 @@ use nextrade_core::models::wholesale::wholesale_client::{
     ValidatedBatchItem, WholesaleCartBatchAddDTO, WholesaleCartBatchFailedItem,
     WholesaleCartBatchItem, WholesaleCartBatchResultVO, WholesaleMeVO, WholesaleProductBuyRuleVO,
     WholesaleSkuRuleVO,
+};
+use nextrade_core::models::wholesale::wholesale_setting::{
+    effective_shop_wholesale, shop_switch_allows as shop_switch_allows_value,
 };
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::repo::wholesale::wholesale_client::{NewCartLine, CART_TYPE_NORMAL};
@@ -408,6 +423,21 @@ pub fn is_client_eligible(
     }
 }
 
+/// 未配置批发能力时的 buyRule 回显：`configured = false`，其余为空
+/// （无批发配置 / 全局关 / 本店关三种情形共用同一形状，前台据此不渲染
+/// 批发规则与批发入口）。
+#[must_use]
+fn unconfigured_buy_rule(product_id: i32) -> WholesaleProductBuyRuleVO {
+    WholesaleProductBuyRuleVO {
+        product_id,
+        configured: false,
+        dimension: None,
+        moq: None,
+        sku_rules: Vec::new(),
+        hint: None,
+    }
+}
+
 /// 组装起批规则展示文案（Java
 /// `WholesaleProductQueryServiceImpl#buildBuyRuleHint`，CR-20260604-0937）。
 ///
@@ -575,6 +605,9 @@ impl WholesaleClientService {
     /// `WholesalerServiceImpl#isWholesaleBuyer`）。
     ///
     /// 短路顺序与 Java 一致：总开关未启用 → `false`（不查库）。
+    ///
+    /// 注：批发商身份是**买家级**（跨店通用），店级开关（我方新增）
+    /// 不在此收口——见模块头差异第 7 条。
     pub async fn is_wholesale_buyer(&self, user_id: i32) -> Result<bool> {
         if user_id <= 0 || !self.repos.wholesale.wholesale_client.wholesale_enabled().await? {
             return Ok(false);
@@ -586,6 +619,48 @@ impl WholesaleClientService {
             .is_some())
     }
 
+    // ————————————————————— 店级批发开关（我方新增，帖 777891） —————————————————————
+
+    /// 店级开关是否放行：`shop_id <= 0`（平台自营）恒放行；否则查店级
+    /// 行，未配置默认放行、显式 0 关闭。全局开关由调用方另行判定。
+    ///
+    /// # Errors
+    /// 数据库执行失败时返回 `Error::Database`。
+    async fn shop_switch_allows(&self, shop_id: i32) -> Result<bool> {
+        if shop_id <= 0 {
+            return Ok(true);
+        }
+        let stored = self
+            .repos
+            .wholesale
+            .wholesale_setting
+            .find_shop_switch(shop_id)
+            .await?;
+        Ok(shop_switch_allows_value(stored))
+    }
+
+    /// 有效批发开关 = 全局 AND 店级（core 纯函数
+    /// `effective_shop_wholesale` 的落库版，全部消费点共用同一判定）。
+    ///
+    /// # Errors
+    /// 数据库执行失败时返回 `Error::Database`。
+    async fn shop_wholesale_effective(
+        &self,
+        global_enabled: bool,
+        shop_id: i32,
+    ) -> Result<bool> {
+        let stored = if global_enabled && shop_id > 0 {
+            self.repos
+                .wholesale
+                .wholesale_setting
+                .find_shop_switch(shop_id)
+                .await?
+        } else {
+            None
+        };
+        Ok(effective_shop_wholesale(global_enabled, shop_id, stored))
+    }
+
     // ————————————————————— C2：商品起批规则 —————————————————————
 
     /// `GET /api/wholesale/product/buyRule`（Java
@@ -595,15 +670,23 @@ impl WholesaleClientService {
     /// `configured = false`（不抛错）。
     pub async fn buy_rule(&self, product_id: i32) -> Result<WholesaleProductBuyRuleVO> {
         let Some(config) = self.repos.wholesale.wholesale_client.find_active_config(product_id).await? else {
-            return Ok(WholesaleProductBuyRuleVO {
-                product_id,
-                configured: false,
-                dimension: None,
-                moq: None,
-                sku_rules: Vec::new(),
-                hint: None,
-            });
+            return Ok(unconfigured_buy_rule(product_id));
         };
+
+        // 店级门控（我方新增，帖 777891）：全局关或本店关 → configured=false，
+        // 与 addBatch 行级口径同批收口（关店商品不展示批发规则 / 批发入口）。
+        let global_enabled = self
+            .repos
+            .wholesale
+            .wholesale_client
+            .wholesale_enabled()
+            .await?;
+        if !self
+            .shop_wholesale_effective(global_enabled, config.shop_id)
+            .await?
+        {
+            return Ok(unconfigured_buy_rule(product_id));
+        }
 
         let sku_configs = self.repos.wholesale.wholesale_client.list_sku_configs(product_id).await?;
         let sku_rules: Vec<WholesaleSkuRuleVO> = sku_configs
@@ -783,6 +866,16 @@ impl WholesaleClientService {
         let mut is_wholesale_line = 0;
         let mut wholesale_grade_id = 0;
         if let Some(config) = self.repos.wholesale.wholesale_client.find_active_config(item.product_id).await? {
+            // 店级门控（我方新增，帖 777891）：本店已关闭批发 → 行级失败
+            // （5300 + 原因进 failed_items），不阻断同批其它行。全局开关
+            // 已在 add_batch 整批级校验，此处只查店级行。无批发配置的
+            // 商品不进本分支，照常按普通行加入（既有口径不变）。
+            if !self.shop_switch_allows(shop_id).await? {
+                return Err(Error::biz(
+                    WHOLESALE_DISABLED,
+                    "该店铺已关闭批发，无法按批发价购买",
+                ));
+            }
             if is_client_eligible(&config, self.is_o2o, Some(shop_id)) {
                 let candidates = self.repos.wholesale.wholesale_client.list_prices(item.product_id).await?;
                 let sku_configs = self.repos.wholesale.wholesale_client.list_sku_configs(item.product_id).await?;

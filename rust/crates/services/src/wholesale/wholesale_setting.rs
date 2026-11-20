@@ -9,6 +9,8 @@
 //! |---------------------------|---------|------|
 //! | `GET  /wholesale/setting/get` | `WholesaleSettingController.get` | [`WholesaleSettingService::get`] |
 //! | `POST /wholesale/setting/save` | `WholesaleSettingController.save` | [`WholesaleSettingService::save`] |
+//! | `GET  /wholesale/setting/shopSwitch` | **我方新增**（帖 777891） | [`WholesaleSettingService::get_shop_switch`] |
+//! | `POST /wholesale/setting/shopSwitch/save` | **我方新增**（帖 777891） | [`WholesaleSettingService::save_shop_switch`] |
 //!
 //! # 语义（逐条对照 Java）
 //!
@@ -33,8 +35,9 @@
 use std::sync::Arc;
 
 use nextrade_core::models::wholesale::wholesale_setting::{
-    parse_int_or_default, validate_business_rules, validate_save, WholesaleSettingSaveDTO,
-    WholesaleSettingVO,
+    effective_shop_wholesale, parse_int_or_default, shop_switch_allows, validate_business_rules,
+    validate_save, WholesaleSettingSaveDTO, WholesaleSettingVO, WholesaleShopSwitchVO,
+    BIZ_WHOLESALE_ENABLED, CODE_BAD_REQUEST,
 };
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::repo::wholesale::wholesale_setting::WholesaleSettingRepository;
@@ -129,6 +132,56 @@ impl WholesaleSettingService {
             .await?;
         tracing::info!("批发设置已保存: enabled={:?}", dto.wholesale_enabled);
         Ok(())
+    }
+
+    /// 店级批发开关查询（**我方新增**，论坛帖 777891）：返回全局 / 店级 /
+    /// 有效三值。`shop_id <= 0`（平台自营）不读店级行，店级恒开启、
+    /// 有效值只看全局。
+    ///
+    /// # Errors
+    /// 数据库执行失败时返回 `Error::Database`。
+    pub async fn get_shop_switch(&self, shop_id: i32) -> Result<WholesaleShopSwitchVO> {
+        let raw = self.repo().read_val(BIZ_WHOLESALE_ENABLED).await?;
+        let global_enabled = parse_int_or_default(raw.as_deref()) == 1;
+        let stored = if shop_id > 0 {
+            self.repo().find_shop_switch(shop_id).await?
+        } else {
+            None
+        };
+        Ok(WholesaleShopSwitchVO {
+            shop_id,
+            global_enabled,
+            shop_enabled: shop_id <= 0 || shop_switch_allows(stored),
+            effective_enabled: effective_shop_wholesale(global_enabled, shop_id, stored),
+        })
+    }
+
+    /// 店级批发开关保存（**我方新增**）：仅具体店铺（`shop_id > 0`）可
+    /// 落行；平台自营（0）由批发设置总开关控制，在此落值直接拒绝。
+    /// 全局关闭期间允许保存店级值，总闸打开后即生效。
+    ///
+    /// # Errors
+    /// - `shop_id <= 0` / `enabled` 非 0/1 → `Error::biz(400, …)`
+    /// - 数据库执行失败 → `Error::Database`
+    pub async fn save_shop_switch(
+        &self,
+        shop_id: i32,
+        enabled: i32,
+    ) -> Result<WholesaleShopSwitchVO> {
+        if shop_id <= 0 {
+            return Err(Error::biz(
+                CODE_BAD_REQUEST,
+                "平台自营商品由批发设置总开关控制，无店级开关",
+            ));
+        }
+        if enabled != 0 && enabled != 1 {
+            return Err(Error::biz(CODE_BAD_REQUEST, "enabled 只能为 0 或 1"));
+        }
+        self.repo()
+            .upsert_shop_switch(shop_id, enabled, now_secs())
+            .await?;
+        tracing::info!("店级批发开关已保存: shop_id={shop_id} enabled={enabled}");
+        self.get_shop_switch(shop_id).await
     }
 }
 

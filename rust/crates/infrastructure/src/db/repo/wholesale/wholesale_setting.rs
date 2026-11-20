@@ -14,6 +14,9 @@
 //!   `is_del` / `create_time` / `update_time`
 //! - `wholesaler_grade`（8 列，主键 `grade_id`）：本域只读
 //!   `grade_id` / `grade_name` / `status` / `is_delete`
+//! - `wholesale_shop_setting`（**我方新增**，论坛帖 777891）：店级批发
+//!   开关，一店一行（`shop_id` 主键 / `enabled` / 时间戳 epoch 秒），
+//!   迁移 `rust/deploy/pg/2026-11-21_wholesale_shop_switch.sql`
 //!
 //! 查询统一使用运行时 `sqlx::query_as`（**不使用** `query!` 宏）。
 //!
@@ -134,6 +137,41 @@ impl WholesaleSettingRepository {
                 Ok(true)
             }
         }
+    }
+
+    // ————————————————————— 店级批发开关（wholesale_shop_setting，我方新增） —————————————————————
+
+    /// 读取店级批发开关原始值（表 `wholesale_shop_setting`，迁移
+    /// `2026-11-21_wholesale_shop_switch.sql`）：无行返回 `None`（未配置，
+    /// 语义 = 默认开启、跟随全局，见 core `shop_switch_allows`）。
+    ///
+    /// # Errors
+    /// 数据库执行失败时返回 `Error::Database`。
+    pub async fn find_shop_switch(&self, shop_id: i32) -> Result<Option<i32>> {
+        let row: Option<(i32,)> =
+            sqlx::query_as("SELECT enabled FROM wholesale_shop_setting WHERE shop_id = $1")
+                .bind(shop_id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(map_err)?;
+        Ok(row.map(|(enabled,)| enabled))
+    }
+
+    /// 写入店级批发开关：`shop_id` 冲突则更新 `enabled` / `update_time`，
+    /// 否则插入新行（`create_time = update_time = now`，epoch 秒）。
+    ///
+    /// # Errors
+    /// 数据库执行失败时返回 `Error::Database`。
+    pub async fn upsert_shop_switch(&self, shop_id: i32, enabled: i32, now: i64) -> Result<()> {
+        sqlx::query("INSERT INTO wholesale_shop_setting (shop_id, enabled, create_time, update_time) VALUES ($1, $2, $3, $4) ON CONFLICT (shop_id) DO UPDATE SET enabled = EXCLUDED.enabled, update_time = EXCLUDED.update_time")
+            .bind(shop_id)
+            .bind(enabled)
+            .bind(now)
+            .bind(now)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
     }
 
     // ————————————————————— wholesaler_grade（只读） —————————————————————

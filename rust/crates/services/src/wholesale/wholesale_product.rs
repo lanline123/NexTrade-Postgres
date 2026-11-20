@@ -44,8 +44,10 @@
 //!
 //! # 差异
 //!
-//! 多租户 `shop_id` 由路由层传入（默认 0 = 平台）；价格区间文案读取
-//! `config.dollarSign`（缺省 `¥`）。其余详见 models 模块头。
+//! 多租户 `shop_id` 由路由层从 JWT 租户作用域传入（2026-11-21 商家
+//! 自助配置收口：此前路由层写死 0、两条 buyRule 保存路径走
+//! `default_shop_hint()` 写死 0，均已改为真实作用域；平台 = 0）；
+//! 价格区间文案读取 `config.dollarSign`（缺省 `¥`）。其余详见 models 模块头。
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -522,9 +524,12 @@ impl WholesaleProductService {
 
     /// 起批量设置（Java `updateMoq`）。
     ///
+    /// `shop_id` 为当前操作者作用域（2026-11-21 起由路由层从 JWT 传入，
+    /// 商家自助配置本店商品；此前写死平台 0）。
+    ///
     /// # Errors
     /// 400 / 5310 / 5314。
-    pub async fn buy_rule_save(&self, dto: &WholesaleBuyRuleSaveDTO) -> Result<()> {
+    pub async fn buy_rule_save(&self, dto: &WholesaleBuyRuleSaveDTO, shop_id: i32) -> Result<()> {
         let product_id = dto
             .product_id
             .ok_or_else(|| Error::biz(CODE_BAD_REQUEST, MSG_PRODUCT_ID_REQUIRED))?;
@@ -539,7 +544,7 @@ impl WholesaleProductService {
             .find_config(product_id)
             .await?
             .ok_or_else(|| Error::biz(CODE_PRODUCT_NOT_FOUND, MSG_PRODUCT_NOT_CONFIGURED))?;
-        self.assert_owned(config.shop_id, self.default_shop_hint())?;
+        self.assert_owned(config.shop_id, shop_id)?;
         let mut config = config;
         config.moq_dimension = dimension;
         config.moq = moq;
@@ -550,9 +555,15 @@ impl WholesaleProductService {
 
     /// 起批量批量设置（Java `batchUpdateMoq`），返回更新行数。
     ///
+    /// `shop_id` 同 [`WholesaleProductService::buy_rule_save`]。
+    ///
     /// # Errors
     /// 400 / 5310（任一商品未配置即整批报错）/ 5314。
-    pub async fn buy_rule_batch_save(&self, dto: &WholesaleBuyRuleBatchSaveDTO) -> Result<i32> {
+    pub async fn buy_rule_batch_save(
+        &self,
+        dto: &WholesaleBuyRuleBatchSaveDTO,
+        shop_id: i32,
+    ) -> Result<i32> {
         let raw = dto.product_ids.as_deref().unwrap_or(&[]);
         if raw.is_empty() {
             return Err(Error::biz(CODE_BAD_REQUEST, MSG_PRODUCT_IDS_REQUIRED));
@@ -582,7 +593,7 @@ impl WholesaleProductService {
             ));
         }
         for c in by_pid.values() {
-            self.assert_owned(c.shop_id, self.default_shop_hint())?;
+            self.assert_owned(c.shop_id, shop_id)?;
         }
         let now = now_secs();
         let mut updated = 0;
@@ -628,11 +639,6 @@ impl WholesaleProductService {
     }
 
     // ————————————————————— 内部 —————————————————————
-
-    /// 当前操作者 shopId（本任务控制台默认平台 0；Java 取请求头）。
-    fn default_shop_hint(&self) -> i32 {
-        0
-    }
 
     /// 归属断言：`config.shop_id` 必须与当前操作者一致（否则 5314）。
     fn assert_owned(&self, owner: i32, shop_id: i32) -> Result<()> {

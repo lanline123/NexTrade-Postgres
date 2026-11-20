@@ -117,6 +117,33 @@ pub struct WholesaleSettingSaveDTO {
     pub wholesale_give_points: Option<i32>,
 }
 
+/// 店级批发开关保存入参（**我方新增**，论坛帖 777891「按门店控制批发开关」）。
+///
+/// 原版批发只有全局 4 项配置、无店铺维度（且 `WholesaleSettingServiceImpl`
+/// 明确 5330「多店铺暂不支持批发功能」）；本 DTO 为商家端保存入口
+/// （`POST /adminapi/wholesale/setting/shopSwitch/save`）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct WholesaleShopSwitchSaveDTO {
+    /// 本店批发开关：0=关闭本店批发 1=开启（必填，缺失由服务层拦截）
+    pub enabled: Option<i32>,
+}
+
+/// 店级批发开关回显 VO（**我方新增**）：全局 / 店级 / 有效三值同出，
+/// 前端据此区分「平台总闸已关」与「本店已关」两种不生效原因。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WholesaleShopSwitchVO {
+    /// 店铺 ID（0 = 平台自营：店级不设行、只看全局）
+    pub shop_id: i32,
+    /// 平台批发总开关（`config.wholesaleEnabled`）
+    pub global_enabled: bool,
+    /// 本店开关（未配置回退默认开启 = `true`；shop 0 恒 `true`）
+    pub shop_enabled: bool,
+    /// 有效开关 = 全局 AND 店级
+    pub effective_enabled: bool,
+}
+
 /// 批发设置 VO（Java `WholesaleSettingVO`）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -157,6 +184,27 @@ pub fn validate_save(dto: &WholesaleSettingSaveDTO) -> std::result::Result<(), S
         return Err(MSG_GIVE_POINTS_REQUIRED.to_string());
     }
     Ok(())
+}
+
+/// 店级开关判定（纯函数，**我方新增**）：未配置（`None`）= 开启
+/// （跟随全局，口径 2）；显式 0 = 本店关闭；其余值按开启处理。
+#[must_use]
+pub fn shop_switch_allows(stored: Option<i32>) -> bool {
+    stored != Some(0)
+}
+
+/// 有效批发开关（纯函数，**我方新增**）：全局 AND 店级。
+///
+/// 平台自营（`shop_id <= 0`）无店级行，只看全局（口径 3）。
+#[must_use]
+pub fn effective_shop_wholesale(global_enabled: bool, shop_id: i32, stored: Option<i32>) -> bool {
+    if !global_enabled {
+        return false;
+    }
+    if shop_id <= 0 {
+        return true;
+    }
+    shop_switch_allows(stored)
 }
 
 /// 配置值解析（Java `parseIntOrNull`）：空 / 非法 → `None`。
@@ -318,5 +366,47 @@ mod tests {
         assert_eq!(json["wholesaleGivePoints"], 1);
         assert_eq!(json["defaultGradeName"], "一级批发商");
         assert_eq!(json["isMultiShop"], false);
+    }
+
+    /// 店级开关三断言（验收口径，论坛帖 777891）：
+    /// ① 关店后该店有效开关为关；② 他店不受影响（判定按店独立）；
+    /// ③ 全局关时店级开也无效。另含默认开与平台自营口径。
+    #[test]
+    fn shop_switch_effective_matrix() {
+        // 未配置 = 默认开（跟随全局）
+        assert!(effective_shop_wholesale(true, 5, None));
+        // 显式开启
+        assert!(effective_shop_wholesale(true, 5, Some(1)));
+        // ① 本店关闭 → 有效关
+        assert!(!effective_shop_wholesale(true, 5, Some(0)));
+        // ② 判定只取决于本店行：另一店的关闭行不影响本店
+        assert!(effective_shop_wholesale(true, 6, None));
+        assert!(effective_shop_wholesale(true, 6, Some(1)));
+        // ③ 全局关 → 店级开/未配置均无效
+        assert!(!effective_shop_wholesale(false, 5, Some(1)));
+        assert!(!effective_shop_wholesale(false, 5, None));
+        // 平台自营（shop 0）只看全局，不受任何店级行影响
+        assert!(effective_shop_wholesale(true, 0, Some(0)));
+        assert!(!effective_shop_wholesale(false, 0, None));
+        // 店级原值判定：仅显式 0 关闭
+        assert!(shop_switch_allows(None));
+        assert!(shop_switch_allows(Some(1)));
+        assert!(!shop_switch_allows(Some(0)));
+    }
+
+    /// 店级开关 VO 序列化字段名（camelCase 三值同出）。
+    #[test]
+    fn shop_switch_vo_serializes_camel_case() {
+        let vo = WholesaleShopSwitchVO {
+            shop_id: 5,
+            global_enabled: true,
+            shop_enabled: false,
+            effective_enabled: false,
+        };
+        let json = serde_json::to_value(&vo).unwrap();
+        assert_eq!(json["shopId"], 5);
+        assert_eq!(json["globalEnabled"], true);
+        assert_eq!(json["shopEnabled"], false);
+        assert_eq!(json["effectiveEnabled"], false);
     }
 }

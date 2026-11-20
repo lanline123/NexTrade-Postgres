@@ -20,12 +20,13 @@
 use axum::{
     extract::State,
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use nextrade_core::models::wholesale::wholesale_setting::{
-    WholesaleSettingSaveDTO, WholesaleSettingVO,
+    WholesaleSettingSaveDTO, WholesaleSettingVO, WholesaleShopSwitchSaveDTO, WholesaleShopSwitchVO,
 };
-use nextrade_security::web::{ok, ApiResult};
+use nextrade_core::Error;
+use nextrade_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
@@ -49,6 +50,14 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     Router::new()
         .route("/wholesale/setting/get", get(get_setting))
         .route("/wholesale/setting/save", post(save_setting))
+        // 我方新增（2026-11-21，论坛帖 777891）：店级批发开关。原版无此
+        // 接口，故**不**进 ROUTE_TABLE（该表是与 Java 契约逐条对应的
+        // 2 条），另有守护单测确认不混入契约表。
+        .route("/wholesale/setting/shopSwitch", get(get_shop_switch))
+        .route(
+            "/wholesale/setting/shopSwitch/save",
+            post(save_shop_switch),
+        )
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -79,6 +88,55 @@ async fn save_setting(
 ) -> ApiResult<()> {
     state.wholesale.wholesale_setting.save(&dto).await?;
     ok(())
+}
+
+/// `GET /adminapi/wholesale/setting/shopSwitch`：店级批发开关三值
+/// （**我方新增**，论坛帖 777891）。
+///
+/// 作用域：商家账号 → 本店；平台账号 → shop 0 语义（店级恒开、有效值
+/// 只看全局）；缺作用域的店铺账号直接 403（fail-closed，不回退平台语义）。
+async fn get_shop_switch(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+) -> ApiResult<WholesaleShopSwitchVO> {
+    let shop_id = shop_switch_scope(&auth)?;
+    ok(state
+        .wholesale
+        .wholesale_setting
+        .get_shop_switch(shop_id)
+        .await?)
+}
+
+/// 店级开关查询的作用域解析（纯函数）：缺作用域 → 403；平台 → 0；
+/// 商家 → 本店；vendor → 0（平台语义只读视图）。
+fn shop_switch_scope(auth: &AuthUser) -> Result<i32, Error> {
+    if auth.shop_scope_missing() {
+        return Err(Error::Forbidden(
+            "当前账号未绑定店铺，无法访问店铺数据".into(),
+        ));
+    }
+    Ok(auth.scoped_shop_id().unwrap_or(0))
+}
+
+/// `POST /adminapi/wholesale/setting/shopSwitch/save`：保存本店批发开关
+/// （**我方新增**，论坛帖 777891）。
+///
+/// 仅商家账号可写（平台账号走批发设置总开关，`require_shop_scope`
+/// 对平台返回 403 提示指定店铺，本入口不开放平台代改）。
+async fn save_shop_switch(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(dto): Json<WholesaleShopSwitchSaveDTO>,
+) -> ApiResult<WholesaleShopSwitchVO> {
+    let enabled = dto
+        .enabled
+        .ok_or_else(|| Error::Validation("enabled 不能为空".into()))?;
+    let shop_id = auth.require_shop_scope(None)?;
+    ok(state
+        .wholesale
+        .wholesale_setting
+        .save_shop_switch(shop_id, enabled)
+        .await?)
 }
 
 #[cfg(test)]
@@ -138,6 +196,21 @@ mod tests {
         assert_eq!(registered.len(), ROUTE_TABLE.len());
         for path in registered {
             assert!(ROUTE_TABLE.iter().any(|(_, p, _)| *p == path));
+        }
+    }
+
+    /// 我方新增的店级开关 2 条路径刻意**不**进 ROUTE_TABLE（契约表只含
+    /// Java 原版 2 条），但必须已在 `routes()` 注册（见 routes 函数体）。
+    #[test]
+    fn shop_switch_routes_stay_out_of_contract_table() {
+        for path in [
+            "/wholesale/setting/shopSwitch",
+            "/wholesale/setting/shopSwitch/save",
+        ] {
+            assert!(
+                !ROUTE_TABLE.iter().any(|(_, p, _)| *p == path),
+                "{path} 不应混入 Java 契约表"
+            );
         }
     }
 }

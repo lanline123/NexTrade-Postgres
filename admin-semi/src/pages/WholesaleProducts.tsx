@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Avatar,
   Banner,
@@ -13,6 +13,7 @@ import {
   RadioGroup,
   Select,
   Space,
+  Switch,
   Tag,
   Toast,
   Typography,
@@ -40,10 +41,48 @@ interface WholesaleProductRow {
   shelfStatus?: number;
 }
 
+interface ShopSwitchState {
+  globalEnabled: boolean;
+  shopEnabled: boolean;
+  effectiveEnabled: boolean;
+}
+
 export function WholesaleProducts() {
   const { t } = useI18n();
   const [reloadKey, setReloadKey] = useState(0);
   const [bannerVisible, setBannerVisible] = useState(true);
+
+  // 本店批发开关（我方新增）：仅商家账号（shop/store）显示；平台账号
+  // 的批发商品归平台批发设置总开关控制，本页不出现店级开关。
+  const isMerchant = (() => {
+    const adminType = localStorage.getItem('adminType') || '';
+    return adminType !== '' && adminType !== 'admin';
+  })();
+  const [shopSwitch, setShopSwitch] = useState<ShopSwitchState | null>(null);
+  const [switchSaving, setSwitchSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isMerchant) return;
+    apiGet<ShopSwitchState>('/wholesale/setting/shopSwitch')
+      .then((res) => setShopSwitch(res))
+      .catch(() => setShopSwitch(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleShopSwitchChange = async (checked: boolean) => {
+    setSwitchSaving(true);
+    try {
+      const res = await apiPost<ShopSwitchState>('/wholesale/setting/shopSwitch/save', {
+        enabled: checked ? 1 : 0,
+      });
+      setShopSwitch(res);
+      Toast.success({ content: t(checked ? '本店批发已开启' : '本店批发已关闭') });
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('保存失败') });
+    } finally {
+      setSwitchSaving(false);
+    }
+  };
 
   // 添加商品弹窗
   const [addVisible, setAddVisible] = useState(false);
@@ -342,6 +381,45 @@ export function WholesaleProducts() {
 
   return (
     <div>
+      {isMerchant && shopSwitch && (
+        <div
+          style={{
+            border: '1px solid var(--semi-color-border)',
+            padding: '14px 16px',
+            marginBottom: 16,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontWeight: 600 }}>{t('本店批发开关')}</span>
+            <Switch
+              checked={shopSwitch.shopEnabled}
+              loading={switchSaving}
+              onChange={handleShopSwitchChange}
+            />
+            <span>{shopSwitch.shopEnabled ? t('已开启') : t('已关闭')}</span>
+            <Text type={shopSwitch.effectiveEnabled ? 'success' : 'warning'}>
+              {shopSwitch.effectiveEnabled
+                ? t('当前生效中')
+                : shopSwitch.globalEnabled
+                  ? t('当前未生效（本店已关闭）')
+                  : t('当前未生效（平台总开关已关闭）')}
+            </Text>
+          </div>
+          {!shopSwitch.globalEnabled ? (
+            <Text type="tertiary">
+              {t('平台批发总开关已关闭：本店设置暂不生效，总闸打开后按本店设置生效。')}
+            </Text>
+          ) : !shopSwitch.shopEnabled ? (
+            <Text type="tertiary">
+              {t('本店批发已关闭：本店商品不展示批发规则、批发商无法按批发价购买本店商品；下方批发配置保留，重新开启即恢复。')}
+            </Text>
+          ) : null}
+        </div>
+      )}
+
       {bannerVisible && (
         <Banner
           type="warning"

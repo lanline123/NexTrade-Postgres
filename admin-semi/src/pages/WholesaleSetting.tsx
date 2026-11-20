@@ -125,6 +125,9 @@ export function WholesaleSetting() {
             <p className="config-field__help">
               {t('开启后，可根据配置的批发商品定价规则，已认证批发商登录可查看专属批发价并批量下单；关闭后批发配置失效，所有用户仅显示零售价，无法进行批发采购。')}
             </p>
+            <p className="config-field__help">
+              {t('各商家可在本店「批发商品」页单独关闭本店批发（默认开启）；本总开关关闭时，全店批发关闭，商家店级设置不生效。')}
+            </p>
           </div>
         </div>
       </SettingsCard>

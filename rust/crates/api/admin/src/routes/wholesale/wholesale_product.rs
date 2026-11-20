@@ -21,14 +21,18 @@
 //!
 //! # 多租户
 //!
-//! Java 用 `HeaderUtils.getShopId()`（平台 admin=0 / 商家=自己 shopId）；
-//! Rust 鉴权中间件尚未签发 `shop_id`，本模块统一传 `0`（平台），
-//! 待中间件补齐后改为从请求扩展取真实店铺 ID 即可。
+//! Java 用 `HeaderUtils.getShopId()`（平台 admin=0 / 商家=自己 shopId）。
+//! 本模块原先因「Rust 鉴权中间件尚未签发 shop_id」统一传 `0`（平台）；
+//! JWT 已于 2026-11-20 商家作用域修复起携带 `shop_id`，2026-11-21
+//! 商家自助配置收口（127889 缺口 D）改为从 `Extension<AuthUser>` 取
+//! 租户作用域（[`shop_id_of`]）：平台 → 0（平台商品）、商家 → 本店、
+//! 缺作用域的店铺账号 → `MISSING_SHOP_SCOPE`(-1) fail-closed（列表
+//! 命中空集、归属比对恒不相等，服务层 5314 拦截）。
 
 use axum::{
     extract::{Query, State},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde::Deserialize;
 use nextrade_core::models::wholesale::wholesale_product::{
@@ -40,7 +44,7 @@ use nextrade_core::models::wholesale::wholesale_product::{
     WholesaleSelectableProductVO, MSG_PRODUCT_ID_REQUIRED,
 };
 use nextrade_core::types::PageResult;
-use nextrade_security::web::{ok, ApiResult};
+use nextrade_security::web::{ok, ApiResult, AuthUser};
 
 use crate::AdminState;
 
@@ -153,9 +157,10 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
         .collect()
 }
 
-/// 本模块当前操作的店铺 ID（平台 0，见模块头多租户说明）。
-const fn shop_id() -> i32 {
-    0
+/// 当前操作者的店铺作用域（见模块头多租户说明）：平台 → 0、
+/// 商家 → 本店 shop_id、缺作用域 → -1 哨兵（fail-closed）。
+fn shop_id_of(auth: &AuthUser) -> i32 {
+    auth.scoped_shop_id().unwrap_or(0)
 }
 
 /// `productId` 查询参数（price/detail、buyRule/detail 共用）。
@@ -173,36 +178,39 @@ fn require_product_id(q: &ProductIdQuery) -> Result<i32, nextrade_core::Error> {
 /// `GET /adminapi/wholesale/product/page`
 async fn page(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<WholesaleProductPageQuery>,
 ) -> ApiResult<PageResult<WholesaleProductVO>> {
     ok(state
         .wholesale
         .wholesale_product
-        .page(&q, shop_id())
+        .page(&q, shop_id_of(&auth))
         .await?)
 }
 
 /// `GET /adminapi/wholesale/product/selectable/page`
 async fn selectable_page(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<WholesaleSelectableProductPageQuery>,
 ) -> ApiResult<PageResult<WholesaleSelectableProductVO>> {
     ok(state
         .wholesale
         .wholesale_product
-        .selectable_page(&q, shop_id())
+        .selectable_page(&q, shop_id_of(&auth))
         .await?)
 }
 
 /// `POST /adminapi/wholesale/product/add` → `{"productId": id}`
 async fn add(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<WholesaleProductAddDTO>,
 ) -> ApiResult<serde_json::Value> {
     let product_id = state
         .wholesale
         .wholesale_product
-        .add(&dto, shop_id())
+        .add(&dto, shop_id_of(&auth))
         .await?;
     ok(serde_json::json!({ "productId": product_id }))
 }
@@ -210,24 +218,26 @@ async fn add(
 /// `POST /adminapi/wholesale/product/batchAdd`
 async fn batch_add(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<WholesaleProductBatchAddDTO>,
 ) -> ApiResult<WholesaleProductBatchAddVO> {
     ok(state
         .wholesale
         .wholesale_product
-        .batch_add(&dto, shop_id())
+        .batch_add(&dto, shop_id_of(&auth))
         .await?)
 }
 
 /// `POST /adminapi/wholesale/product/batchDelete` → `{"deletedCount": n}`
 async fn batch_delete(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<WholesaleBatchDeleteDTO>,
 ) -> ApiResult<serde_json::Value> {
     let deleted = state
         .wholesale
         .wholesale_product
-        .batch_delete(&dto, shop_id())
+        .batch_delete(&dto, shop_id_of(&auth))
         .await?;
     ok(serde_json::json!({ "deletedCount": deleted }))
 }
@@ -235,25 +245,27 @@ async fn batch_delete(
 /// `GET /adminapi/wholesale/product/price/detail?productId=`
 async fn price_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ProductIdQuery>,
 ) -> ApiResult<WholesalePriceDetailVO> {
     let product_id = require_product_id(&q)?;
     ok(state
         .wholesale
         .wholesale_product
-        .price_detail(product_id, shop_id())
+        .price_detail(product_id, shop_id_of(&auth))
         .await?)
 }
 
 /// `POST /adminapi/wholesale/product/price/save`
 async fn price_save(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<WholesalePriceSaveDTO>,
 ) -> ApiResult<()> {
     state
         .wholesale
         .wholesale_product
-        .price_save(&dto, shop_id())
+        .price_save(&dto, shop_id_of(&auth))
         .await?;
     ok(())
 }
@@ -261,12 +273,13 @@ async fn price_save(
 /// `POST /adminapi/wholesale/product/price/batchSetCommon` → `{"affectedRows": n}`
 async fn batch_set_common(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<WholesaleBatchCommonDTO>,
 ) -> ApiResult<serde_json::Value> {
     let affected = state
         .wholesale
         .wholesale_product
-        .batch_set_common(&dto, shop_id())
+        .batch_set_common(&dto, shop_id_of(&auth))
         .await?;
     ok(serde_json::json!({ "affectedRows": affected }))
 }
@@ -274,12 +287,13 @@ async fn batch_set_common(
 /// `POST /adminapi/wholesale/product/price/batchSetByGrade` → `{"affectedRows": n}`
 async fn batch_set_grade(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<WholesaleBatchGradeDTO>,
 ) -> ApiResult<serde_json::Value> {
     let affected = state
         .wholesale
         .wholesale_product
-        .batch_set_grade(&dto, shop_id())
+        .batch_set_grade(&dto, shop_id_of(&auth))
         .await?;
     ok(serde_json::json!({ "affectedRows": affected }))
 }
@@ -287,25 +301,27 @@ async fn batch_set_grade(
 /// `GET /adminapi/wholesale/product/buyRule/detail?productId=`
 async fn buy_rule_detail(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Query(q): Query<ProductIdQuery>,
 ) -> ApiResult<WholesaleProductBuyRuleVO> {
     let product_id = require_product_id(&q)?;
     ok(state
         .wholesale
         .wholesale_product
-        .buy_rule_detail(product_id, shop_id())
+        .buy_rule_detail(product_id, shop_id_of(&auth))
         .await?)
 }
 
 /// `POST /adminapi/wholesale/product/buyRule/save`
 async fn buy_rule_save(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<WholesaleBuyRuleSaveDTO>,
 ) -> ApiResult<()> {
     state
         .wholesale
         .wholesale_product
-        .buy_rule_save(&dto)
+        .buy_rule_save(&dto, shop_id_of(&auth))
         .await?;
     ok(())
 }
@@ -313,12 +329,13 @@ async fn buy_rule_save(
 /// `POST /adminapi/wholesale/product/buyRule/batchSave` → `{"updatedCount": n}`
 async fn buy_rule_batch_save(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<WholesaleBuyRuleBatchSaveDTO>,
 ) -> ApiResult<serde_json::Value> {
     let updated = state
         .wholesale
         .wholesale_product
-        .buy_rule_batch_save(&dto)
+        .buy_rule_batch_save(&dto, shop_id_of(&auth))
         .await?;
     ok(serde_json::json!({ "updatedCount": updated }))
 }
@@ -326,12 +343,13 @@ async fn buy_rule_batch_save(
 /// `POST /adminapi/wholesale/product/multiple/save`
 async fn multiple_save(
     State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
     Json(dto): Json<WholesaleMultipleSaveDTO>,
 ) -> ApiResult<()> {
     state
         .wholesale
         .wholesale_product
-        .multiple_save(&dto, shop_id())
+        .multiple_save(&dto, shop_id_of(&auth))
         .await?;
     ok(())
 }
