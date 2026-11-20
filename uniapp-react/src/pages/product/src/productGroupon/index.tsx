@@ -96,14 +96,16 @@ export default function ProductGroupon({ groups = [], padding = "0 40rpx", botto
         };
     }, []);
 
-    /* 对应旧模板内 commonCountdown 插槽的 days/hours/minutes/seconds（按 specifyTime 时间戳计算剩余） */
+    /* 对应旧模板内 commonCountdown 插槽的 days/hours/minutes/seconds（按 specifyTime 时间戳计算剩余）。
+       days 保持数值：原版插槽 days 为 up-count-down 的数值，模板 v-if="days" 在 0 时整段不渲染；
+       若存 String(days)，"0" 为真值会误显「0天」（2026-11-21 按原版口径订正） */
     const remainMap = useMemo(() => {
-        const map: Record<number, { days: string; hours: string; minutes: string; seconds: string; ended: boolean }> = {};
+        const map: Record<number, { days: number; hours: string; minutes: string; seconds: string; ended: boolean }> = {};
         groups.forEach((item) => {
             // endTime 缺失时按「已结束/无倒计时」降级：isGroupEnd 对缺失 endTime 本就判已结束，
             // 此处跳过 dateStringToTimestamp（内部 dateString.split，缺失时会抛错）（我方新增守卫）
             if (!item.endTime) {
-                map[item.grouponPromotionRecordId] = { days: "", hours: "00", minutes: "00", seconds: "00", ended: true };
+                map[item.grouponPromotionRecordId] = { days: 0, hours: "00", minutes: "00", seconds: "00", ended: true };
                 return;
             }
             const endTimestamp = dateStringToTimestamp(item.endTime);
@@ -118,7 +120,7 @@ export default function ProductGroupon({ groups = [], padding = "0 40rpx", botto
             diff -= minutes * (1000 * 60);
             const seconds = Math.floor(diff / 1000);
             map[item.grouponPromotionRecordId] = {
-                days: String(days),
+                days,
                 hours: formatTime(String(hours)),
                 minutes: formatTime(String(minutes)),
                 seconds: formatTime(String(seconds)),
@@ -155,8 +157,8 @@ export default function ProductGroupon({ groups = [], padding = "0 40rpx", botto
                                         {/* 旧 <commonCountdown countdown-type="specifyTime" :specify-time="dateStringToTimestamp(item.endTime)"> 插槽 → 本地倒计时渲染 */}
                                         <View className="countdown">
                                             <View className="countdown-text">
-                                                {remainMap[item.grouponPromotionRecordId]?.days ? <Text>{remainMap[item.grouponPromotionRecordId].days}</Text> : null}
-                                                {remainMap[item.grouponPromotionRecordId]?.days ? (
+                                                {(remainMap[item.grouponPromotionRecordId]?.days ?? 0) > 0 ? <Text>{remainMap[item.grouponPromotionRecordId].days}</Text> : null}
+                                                {(remainMap[item.grouponPromotionRecordId]?.days ?? 0) > 0 ? (
                                                     <Text>{t("天")}&nbsp;</Text>
                                                 ) : null}
                                                 <Text className="countdown-bg">{remainMap[item.grouponPromotionRecordId]?.hours}</Text>

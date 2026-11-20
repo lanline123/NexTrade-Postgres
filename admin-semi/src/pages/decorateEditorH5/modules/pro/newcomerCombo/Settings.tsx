@@ -255,7 +255,7 @@ function CouponListEditor({ data, onChange }: Props) {
                         <span
                             title={t("删除")}
                             onClick={() => removeCoupon(index)}
-                            style={{ position: "absolute", right: -10, top: -10, color: "#fff", background: "#bbb", border: "2px solid #fff", borderRadius: "50%", zIndex: 2, width: 18, height: 18, textAlign: "center", lineHeight: "16px", cursor: "pointer", fontSize: 12, boxSizing: "border-box" }}
+                            style={{ position: "absolute", right: -10, top: -10, color: "#fff", background: "#bbb", border: "2px solid #fff", borderRadius: 0, zIndex: 2, width: 18, height: 18, textAlign: "center", lineHeight: "16px", cursor: "pointer", fontSize: 12, boxSizing: "border-box" }}
                         >
                             ×
                         </span>

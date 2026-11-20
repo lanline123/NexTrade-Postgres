@@ -984,52 +984,6 @@ body .layui-layer-tips.dec-tip-box i.layui-layer-TipsB {
 .dec-pic-group .dec-pic-group-item:hover .dec-pic-group-item-con .del-item {
     display: block;
 }
-.dec-pic-group .dec-pic-add-btn {
-    box-sizing: border-box;
-    position: relative;
-    display: -ms-flexbox;
-    display: flex;
-    -ms-flex-pack: center;
-    justify-content: center;
-    -ms-flex-align: center;
-    align-items: center;
-    margin-top: 12px;
-    padding: 9px 16px;
-    border: 1px solid #155bd4;
-    border-radius: 2px;
-    background: #fff;
-    color: #155bd4;
-    font-size: 14px;
-    line-height: 20px;
-    cursor: pointer;
-}
-.dec-pic-group .dec-pic-add-btn i {
-    position: absolute;
-    left: 15px;
-}
-.dec-pic-group .dec-con-add-btn {
-    box-sizing: border-box;
-    position: relative;
-    display: -ms-flexbox;
-    display: flex;
-    -ms-flex-pack: center;
-    justify-content: center;
-    -ms-flex-align: center;
-    align-items: center;
-    margin-top: 12px;
-    padding: 9px 16px;
-    border: 1px solid #155bd4;
-    border-radius: 2px;
-    background: #fff;
-    color: #155bd4;
-    font-size: 14px;
-    line-height: 20px;
-    cursor: pointer;
-}
-.dec-pic-group .dec-con-add-btn i {
-    position: absolute;
-    left: 15px;
-}
 .dec-pic-group .dec-pic-group-item .dec-pic-reset {
     position: relative;
     top: 30px;

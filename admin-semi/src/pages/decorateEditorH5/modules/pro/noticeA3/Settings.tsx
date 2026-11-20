@@ -103,7 +103,7 @@ function NoticeListEditor({ data, onChange }: { data: Record<string, any>; onCha
                                     color: "#fff",
                                     background: "#bbb",
                                     border: "2px solid #fff",
-                                    borderRadius: "50%",
+                                    borderRadius: 0,
                                     zIndex: 2,
                                     width: 18,
                                     height: 18,

@@ -24,8 +24,11 @@ interface Props {
  * 存量数据可渲染：pruductList 条目兼容三种形态——商品对象（直接渲染）、
  * 纯 ID、{id/productId} 对象（后两者走标准取数 getDecorateProducts
  * 的 productSelectType=1 通道，不新写取数）。
- * picUrl/picLocation：头图与其位置（right 时头图在商品区上方右侧块，
- * 其余按整宽头图处理——旧数据该字段实际取值以 right 为主）。
+ * picUrl/picLocation：头图与其位置。picLocation 在原版无任何渲染口径：
+ * 原版两代编辑器对该模块只渲染占位文本、原版 uniapp 无此模块渲染器，
+ * 字段仅存于数据契约（默认 right）。本渲染器不臆造左右布局，头图一律
+ * 整宽置于商品区上方；`custom-product__pic--<location>` 修饰类仅作契约
+ * 保留、无对应 SCSS 规则、无布局效果（2026-11-21 核查定性）。
  */
 export default function CustomProduct({ module, shopId = -1 }: Props) {
     const d = useMemo(() => {

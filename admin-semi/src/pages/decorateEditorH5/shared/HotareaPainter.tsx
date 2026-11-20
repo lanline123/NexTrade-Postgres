@@ -14,7 +14,7 @@
 */
 import { useEffect, useRef, useState} from "react";
 import { Button, InputNumber, Typography} from "@douyinfe/semi-ui";
-import { IconDelete, IconRefresh} from "@douyinfe/semi-icons";
+import { IconDelete, IconPlus} from "@douyinfe/semi-icons";
 import LinkPickerModal, { LinkField} from "../../../components/LinkPicker";
 import type { PicItem} from "./settingWidgets";
 import { useI18n} from "../../../i18n";
@@ -334,7 +334,7 @@ setMenu(null);
           size="small"
           type="primary"
           theme="light"
-          icon={<IconRefresh />}
+          icon={<IconPlus />}
           onClick={() => {
             updatePic({
               hotarea: [

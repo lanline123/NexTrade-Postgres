@@ -3980,7 +3980,7 @@ function HotareaPainter({
           size="small"
           type="primary"
           theme="light"
-          icon={<IconRefresh />}
+          icon={<IconPlus />}
           onClick={() => {
             updatePic({
               hotarea: [
