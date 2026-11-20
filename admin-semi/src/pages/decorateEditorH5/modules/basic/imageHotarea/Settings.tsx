@@ -24,7 +24,7 @@ const picList: any[] = Array.isArray(data?.picList)? data.picList: [];
 return (
 <div className="h5-editor-settings-body">
 <div style={{ fontSize: 12, color: "#999", padding: "0 16px", marginBottom: 4}}>{t('添加图片后，在下方「热区绘制」中直接在图上拖拽框选热区')}</div>
-<PicListField label={t('热图')} value={picList} onChange={(next) => onChange({ picList: next})} />
+<PicListField data={data} onChange={onChange} field="picList" label={t('热图')} />
 <SettingGroup title={t('热区绘制')}>
 <HotareaPainter picList={picList} onChange={(next) => onChange({ picList: next})} />
 </SettingGroup>

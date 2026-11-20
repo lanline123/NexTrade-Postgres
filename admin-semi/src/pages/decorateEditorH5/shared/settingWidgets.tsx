@@ -586,7 +586,7 @@ export function PicItemEditor({
                                 className="pic-add-box"
                                 style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#999" }}
                             >
-                                <IconPlus size={20} />
+                                <IconPlus style={{ fontSize: 20 }} />
                             </span>
                         ) : null}
                         <span className="change-image">{t('更换图片')}</span>
