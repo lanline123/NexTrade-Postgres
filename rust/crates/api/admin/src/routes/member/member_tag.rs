@@ -317,15 +317,23 @@ mod tests {
         }
     }
 
-    /// 默认店铺 ID 是平台 0（Java `HeaderUtils.getShopId() ?? 0`）。
+    /// 店铺作用域只取可信身份（JWT）：平台 0、店铺强制本店。
+    ///
+    /// 缺失作用域的店铺账号落哨兵 `MISSING_SHOP_SCOPE`（fail-closed）。
+    /// 旧口径归一到平台 0，但 shop_id=0 是平台店的真实数据作用域，
+    /// 归一等于让签发断裂的账号读写平台标签——与「缺失 ≠ 平台」的
+    /// 作用域不变量冲突，2026-11-20 商家作用域修复起改钉哨兵。
     #[test]
     fn shop_scope_uses_trusted_identity() {
         let admin = AuthUser::new(1, "a".into(), None, Some("admin".into()), Some(0));
         assert_eq!(shop_scope(&admin), 0);
         let shop = AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(7));
         assert_eq!(shop_scope(&shop), 7);
-        // 店铺账号缺 shop_id → 平台 0（无法越权）
+        // 店铺账号缺 shop_id → 哨兵：列表为空、归属校验恒不匹配
         let broken = AuthUser::new(3, "s".into(), None, Some("shop".into()), None);
-        assert_eq!(shop_scope(&broken), 0);
+        assert_eq!(
+            shop_scope(&broken),
+            nextrade_security::web::MISSING_SHOP_SCOPE
+        );
     }
 }

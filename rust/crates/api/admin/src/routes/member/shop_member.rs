@@ -391,8 +391,13 @@ mod tests {
         assert_eq!(context_shop_id(&admin), 0);
         let shop = AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(7));
         assert_eq!(context_shop_id(&shop), 7);
+        // 店铺账号缺 shop_id → 哨兵（旧口径归一平台 0 = 平台店真实作用域；
+        // 哨兵下店铺会员列表为空、归属校验恒不匹配，fail-closed）
         let broken = AuthUser::new(3, "s".into(), None, Some("shop".into()), None);
-        assert_eq!(context_shop_id(&broken), 0);
+        assert_eq!(
+            context_shop_id(&broken),
+            nextrade_security::web::MISSING_SHOP_SCOPE
+        );
     }
 
     #[test]

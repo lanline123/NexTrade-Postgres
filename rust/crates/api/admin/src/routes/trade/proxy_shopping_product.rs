@@ -116,7 +116,9 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
 /// 当前账号的店铺范围（**仅来自认证身份**，不信任请求头/查询参数）。
 ///
 /// - 店铺/门店/POS 账号 → `Some(自身店铺)`（列表强制过滤、详情参数被覆盖为本店）；
-/// - 平台账号 → `None`（不加 `shop_id` 条件，可见全部）。
+/// - 平台账号 → `None`（不加 `shop_id` 条件，可见全部）；
+/// - 店铺型账号缺失作用域 → `Some(MISSING_SHOP_SCOPE)` 哨兵（强制过滤/覆盖
+///   以哨兵生效，命中空集，不退化为平台的 None 语义）。
 #[must_use]
 pub fn shop_scope(auth: &AuthUser) -> Option<i32> {
     auth.scoped_shop_id()
@@ -240,8 +242,13 @@ mod tests {
         assert_eq!(shop_scope(&pos), Some(3));
         // 平台账号 → None（可见全部，不按店铺过滤）
         assert_eq!(shop_scope(&platform()), None);
-        // 店铺账号缺 shop_id → 不会伪装成平台可见
+        // 店铺账号缺 shop_id → Some(哨兵)：旧口径为 None，而 None 在本模块即
+        // 「平台可见全部」且 if-let 强制过滤不生效——正是伪装成平台；
+        // 哨兵使强制过滤/参数覆盖以空集生效（fail-closed）
         let broken = AuthUser::new(4, "shop2".into(), None, Some("shop".into()), None);
-        assert_eq!(shop_scope(&broken), None);
+        assert_eq!(
+            shop_scope(&broken),
+            Some(nextrade_security::web::MISSING_SHOP_SCOPE)
+        );
     }
 }

@@ -162,7 +162,8 @@ struct GroupIdQuery {
 ///
 /// ⚠️ 与 product_stock / im_servant 的 `shop_id_from_headers` **语义相同但各自独立
 /// 实现**：本切片不修改共享文件，因此不复用它们的私有函数。
-/// 可信租户店铺作用域：平台账号 `0`，店铺账号强制本店（来自 JWT）。
+/// 可信租户店铺作用域：平台账号 `0`，店铺账号强制本店（来自 JWT），
+/// 缺失作用域的店铺账号落哨兵 `MISSING_SHOP_SCOPE`（fail-closed）。
 fn shop_scope(auth: &AuthUser) -> i32 {
     auth.scoped_shop_id().unwrap_or(0)
 }
@@ -569,8 +570,12 @@ mod tests {
         assert_eq!(shop_scope(&admin), 0);
         let shop = AuthUser::new(2, "s".into(), None, Some("shop".into()), Some(7));
         assert_eq!(shop_scope(&shop), 7);
-        // 店铺账号缺 shop_id → 0，无法通过 query 伪造
+        // 店铺账号缺 shop_id → 哨兵（旧口径归一平台 0 = 平台店真实作用域，
+        // 等于可读写平台标签组；哨兵下过滤命中空集，且无法通过 query 伪造）
         let broken = AuthUser::new(3, "s".into(), None, Some("shop".into()), None);
-        assert_eq!(shop_scope(&broken), 0);
+        assert_eq!(
+            shop_scope(&broken),
+            nextrade_security::web::MISSING_SHOP_SCOPE
+        );
     }
 }

@@ -59,7 +59,9 @@ pub fn implemented_routes() -> Vec<RouteDoc> {
 /// 当前账号的店铺范围（**仅来自认证身份**，不信任请求头/查询参数）。
 ///
 /// - 店铺/门店/POS 账号 → `Some(自身店铺)`；
-/// - 平台账号 → `None`（不按店铺过滤）。
+/// - 平台账号 → `None`（不按店铺过滤）；
+/// - 店铺型账号缺失作用域 → `Some(MISSING_SHOP_SCOPE)` 哨兵（过滤命中空集，
+///   不退化为平台的 None 语义）。
 #[must_use]
 fn shop_scope(auth: &AuthUser) -> Option<i32> {
     auth.scoped_shop_id()
@@ -134,8 +136,12 @@ mod tests {
         assert_eq!(shop_scope(&shop_account(9)), Some(9));
         // 平台账号 → 不过滤
         assert_eq!(shop_scope(&platform()), None);
-        // 缺 shop_id 的非平台账号 → None（不会退化为“全平台可见”以外的越权）
+        // 缺 shop_id 的非平台账号 → Some(哨兵)：旧口径为 None，但下游 None 即
+        // 「平台不过滤」= 全平台可见；哨兵使过滤命中空集（fail-closed）
         let broken = AuthUser::new(3, "shop2".into(), None, Some("shop".into()), None);
-        assert_eq!(shop_scope(&broken), None);
+        assert_eq!(
+            shop_scope(&broken),
+            Some(nextrade_security::web::MISSING_SHOP_SCOPE)
+        );
     }
 }
