@@ -39,6 +39,7 @@ import { type PickedImage} from "../../../components/ProductImagePicker";
 import FloorIcon from "../../../components/FloorIcon";
 import { LinkField, type LinkValue} from "../../../components/LinkPicker";
 import { imageFormat, pickPic} from "./format";
+import AddItemButton from "./AddItemButton";
 import { defaultTitle, defaultFrame} from "../contract/sharedDefaults";
 
 import { useI18n} from '../../../i18n';
@@ -694,7 +695,7 @@ export function productPicPatch(current: PicItem, picked: PickedImage, productLa
 /**
  * 图片列表编辑器（原版 PicList 形态）：
  * 每项 = 60×60 contain 图盒（底部 20px「更换图片」条）+ 信息行（标题/描述/链接）+ hover 删除徽标 + 上移/下移；
- * 底部整宽 `.dec-pic-add-btn` 添加按钮。showText/showDesc/showLink/showAddButton 默认同原版（true/false/true/true）。
+ * 底部整宽共享 AddItemButton 添加按钮（2026-11-21 样式统一，取代旧 `.dec-pic-add-btn` 蓝框样式）。showText/showDesc/showLink/showAddButton 默认同原版（true/false/true/true）。
  * showImage 同原版 PicList（默认 true）：false 时不渲染图盒、添加按钮直接追加空文字项不开图库
  * （原版 onAdd 的 showImage=false 分支；BannerNav 导航文字即此口径——只有文字+链接、无图片字段）。
  * 条目编辑走共享 PicItemEditor（2026-11-20 抽出），图库弹窗仍由本组件统一托管
@@ -776,8 +777,7 @@ export function PicListField({
                         </div>
                     ))}
                     {showAddButton && list.length < max && (
-                        <a
-                            className="dec-pic-add-btn"
+                        <AddItemButton
                             onClick={() => {
                                 if (!showImage) {
                                     // 原版 PicList onAdd 的 showImage=false 分支：直接追加空文字项，不开图库
@@ -788,9 +788,8 @@ export function PicListField({
                                 setPickerOpen(true);
                             }}
                         >
-                            <IconPlus style={{ position: "absolute", left: 15 }} />
                             {t(addText)}
-                        </a>
+                        </AddItemButton>
                     )}
                 </div>
             </div>
@@ -1083,9 +1082,9 @@ export function ColorPairListField({
                         </button>
                     </div>
                 ))}
-                <button type="button" onClick={addOne} style={{ height: 26, fontSize: 12, border: "1px solid var(--semi-color-border)", borderRadius: 4, background: "transparent", cursor: "pointer" }}>
-                    + 添加配色
-                </button>
+                <AddItemButton onClick={addOne} style={{ marginTop: 0 }}>
+                    添加配色
+                </AddItemButton>
             </div>
         </SettingGroup>
     );

@@ -11,6 +11,7 @@
 import { Input } from "@douyinfe/semi-ui";
 import { SettingGroup, RangeField, ColorField, SwitchField, SinglePicField } from "../../../shared/settingWidgets";
 import { SettingsTabs, ExtensionStyleSettings } from "../../../shared/styleEdits";
+import AddItemButton from "../../../shared/AddItemButton";
 
 import { useI18n } from '../../../../../i18n';
 const MAX_NOTICE_COUNT = 12;
@@ -120,9 +121,9 @@ function NoticeListEditor({ data, onChange }: { data: Record<string, any>; onCha
                 );
             })}
             {list.length < MAX_NOTICE_COUNT ? (
-                <a className="dec-pic-add-btn" style={{ marginTop: 12 }} onClick={() => setList([...list, { title: "", prefix: "", link: {} }])}>
+                <AddItemButton onClick={() => setList([...list, { title: "", prefix: "", link: {} }])}>
                     {t('添加公告')}
-                </a>
+                </AddItemButton>
             ) : null}
         </div>
     );

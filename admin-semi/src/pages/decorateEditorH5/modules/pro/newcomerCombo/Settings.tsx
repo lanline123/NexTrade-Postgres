@@ -30,6 +30,7 @@ import {
     DecDivider
 } from "../../../shared/settingWidgets";
 import { SettingsTabs } from "../../../shared/styleEdits";
+import AddItemButton from "../../../shared/AddItemButton";
 import { newcomerComboDefaults as defaults } from "./index";
 import ProductsSourceField from "../../../shared/ProductsSourceField";
 import { ColorPairField } from "../../../../../components/ColorField";
@@ -261,9 +262,9 @@ function CouponListEditor({ data, onChange }: Props) {
                     </div>
                 );
             })}
-            <a className="dec-pic-add-btn" onClick={openPicker} style={{ marginTop: 12 }}>
+            <AddItemButton onClick={openPicker}>
                 {t("添加优惠券")}
-            </a>
+            </AddItemButton>
             <Modal title={t("选择优惠券")} visible={pickerOpen} onCancel={() => setPickerOpen(false)} onOk={confirmPicker} okText={t("确定")} cancelText={t("取消")} width={700}>
                 <Input
                     value={pickerKeyword}
