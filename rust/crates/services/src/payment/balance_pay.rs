@@ -15,8 +15,13 @@
 //! 未迁移：
 //! - 定金预售的余额抵扣上限（依赖 `product_presale` 域）
 //! - 账期支付互斥校验（依赖 `credit_user` 域）
-//! - 支付后积分赠送/拆单（依赖对应域）
-//! - 支付后分销佣金：已接（全额付清时触发 salesman_generation 支付节点）
+//!
+//! 已接：支付成功后置钩子单一入口——全额付清时调用
+//! `OrderService::run_post_payment_hooks`（订单日志/积分赠送/卡券分配/
+//! 对账单出账/分销生成/骑手派送/跨店拆单激活），与渠道回调、POS、
+//! 线下认款同口径。2026-11-21 批次 3 验收 P0 修复：此前本文件自管
+//! mark_paid 不走 on_payment_success，补偿块只补了分销+骑手两钩，
+//! 拆单激活缺失，余额付清的跨店父单子单永不激活（订单 93/100 实证）。
 
 use std::sync::Arc;
 
@@ -210,6 +215,9 @@ impl BalancePayService {
             None
         };
         let mut order_fully_paid = false;
+        // 全额付清时的累计已付额（后置钩子对账单出账口径与渠道路径一致：
+        // settle_order_by_pay_sn 传给 on_payment_success 的也是累计值）。
+        let mut fully_paid_amount = Decimal::ZERO;
         if let Some(ps) = presale {
             match ps.presale_status {
                 0 => {
@@ -259,6 +267,7 @@ impl BalancePayService {
                             self.repos.payment.paylog.delete_paylog(paylog_id).await?;
                             return Err(Error::Conflict("订单已支付，请刷新后重试".into()));
                         }
+                        fully_paid_amount = new_paid;
                         self.repos
                             .payment
                             .pay
@@ -300,6 +309,7 @@ impl BalancePayService {
                     self.repos.payment.paylog.delete_paylog(paylog_id).await?;
                     return Err(Error::Conflict("订单已支付，请刷新后重试".into()));
                 }
+                fully_paid_amount = new_paid;
                 tracing::info!(
                     "余额支付全额付清: order_id={order_id} deducted={deduct} paylog={paylog_id}"
                 );
@@ -320,24 +330,23 @@ impl BalancePayService {
             }
         }
 
-        // 分销生成链·支付节点（best-effort，失败仅告警）：余额支付不走
-        // `OrderService::on_payment_success`，全额付清时在此补触发微商模式
-        // 佣金生成（生成服务内含整单防重，重复触发/多通道不会双记）。
+        // 支付成功后置钩子（全仓单一入口）：余额支付自管 mark_paid 与
+        // 失败回滚、不走 `OrderService::on_payment_success`，全额付清时
+        // 在此调用与渠道回调/POS/线下认款共用的钩子入口——订单日志、
+        // 积分赠送、卡券分配、对账单出账、分销生成、骑手派送、跨店拆单
+        // 激活同口径触发（钩子内 best-effort 段失败仅告警）。
+        // 2026-11-21 批次 3 验收 P0：此前此处只补了分销+骑手两钩，拆单
+        // 激活缺失，余额付清的跨店父单子单永不激活（订单 93/100 实证），
+        // 积分/卡券/对账/日志四钩同缺，一并随单一入口补齐。
+        // 幂等：仅当上方 mark_paid 条件更新（pay_status<>2）本次真正
+        // 完成流转时 order_fully_paid 才为真；重复支付尝试先被入口的
+        // 已付校验拒绝，并发付清被条件更新拦下并回滚扣款删除流水，
+        // 钩子不会重复触发、不会重复动钱。
         if order_fully_paid {
-            let generation =
-                crate::marketing::salesman_generation::SalesmanGenerationService::new(
-                    self.repos.clone(),
-                );
-            if let Err(e) = generation.on_order_paid(order_id).await {
-                tracing::warn!("订单 {order_id} 分销生成链（余额支付）失败: {e}");
-            }
-            // 骑手 MVP 派送单生产者（同为 best-effort；内含订单级幂等）。
-            let dispatch = crate::o2o::delivery_dispatch::DeliveryDispatchService::new(
-                self.repos.clone(),
-            );
-            if let Err(e) = dispatch.on_order_paid(order_id).await {
-                tracing::warn!("订单 {order_id} 派送单生产（余额支付）失败: {e}");
-            }
+            let order_svc = crate::trade::order::OrderService::from_repos(self.repos.clone());
+            order_svc
+                .run_post_payment_hooks(&order, fully_paid_amount)
+                .await;
         }
 
         Ok(BalancePayResult {

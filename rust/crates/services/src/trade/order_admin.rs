@@ -1426,8 +1426,11 @@ impl OrderAdminService {
     /// 与 `paid_amount`；待支付订单同步转「已确认，待发货」并重算未付金额；
     /// 最后尝试自动拆单（单店铺分支）。返回 false 表示订单仍存在（未拆单）。
     ///
-    /// ⚠️ **未迁移**：定金预售（`presale_type = 2`）的定金/尾款状态机、
-    /// 积分赠送、电子卡券发放、拼团成团、分销佣金、店铺会员记账。
+    /// ⚠️ **未迁移**：拼团成团、店铺会员记账。支付成功后置钩子（积分
+    /// 赠送/电子卡券/对账单/分销/骑手/拆单激活）：非预售分支经
+    /// on_payment_success 触发；预售尾款分支 2026-11-21 前直写已付、
+    /// 钩子全缺（与余额支付 P0 同病），已改为同调 run_post_payment_hooks
+    /// 单一入口补齐。
     pub async fn set_paid(&self, id: i32, description: Option<&str>) -> Result<bool> {
         let order = self
             .repos
@@ -1506,6 +1509,17 @@ impl OrderAdminService {
                     {
                         tracing::warn!("尾款确认同步 paylog 失败: order={id}, err={e}");
                     }
+                    // 全额付清后置钩子（全仓单一入口）：该分支直写已付
+                    // 状态、不经 on_payment_success，此前除日志外钩子全
+                    // 缺（积分/卡券/对账/分销/骑手/拆单激活）——跨店预售
+                    // 单尾款经后台确认后子单不激活，与余额支付 P0 同病
+                    // （2026-11-21 同批补）。重复 set_paid 会先被
+                    // presale_status=2 的状态机挡下，钩子不会重复触发。
+                    let order_svc =
+                        crate::trade::order::OrderService::from_repos(self.repos.clone());
+                    order_svc
+                        .run_post_payment_hooks(&order, order.total_amount)
+                        .await;
                     return Ok(false);
                 }
                 _ => return Err(Error::biz_msg("预售订单已完成支付")),

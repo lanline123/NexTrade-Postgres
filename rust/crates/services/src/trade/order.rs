@@ -1618,6 +1618,35 @@ impl OrderService {
             .mark_paid(order_id, now, paid_amount)
             .await?;
 
+        self.run_post_payment_hooks(&order, paid_amount).await;
+
+        if let Some(no) = out_trade_no {
+            tracing::info!("订单支付成功: {order_id}, trade_no={no}");
+        }
+        Ok(())
+    }
+
+    /// 支付成功后置钩子（全仓单一入口）。
+    ///
+    /// 顺序：订单日志 → 积分赠送（Node 1）→ 电子卡券分配 → 对账单出账
+    /// → 分销生成 → 骑手派送 → 跨店拆单激活。各段均为 best-effort
+    /// （失败仅告警/忽略），本函数不返回错误。
+    ///
+    /// 调用方：`on_payment_success`（渠道回调 / POS / 线下认款 / 后台
+    /// 设置已支付）在其 mark_paid 后调用；自管 mark_paid 与回滚语义、
+    /// 不经 on_payment_success 的路径（余额支付全额付清、管理端预售
+    /// 尾款确认）在其状态流转落定后直接调用本入口，保证任何把订单
+    /// 推到已付的路径钩子齐全且实现唯一（禁止在各支付路径内手抄本
+    /// 序列的子集——2026-11-21 批次 3 验收 P0：余额路径曾只补分销+
+    /// 骑手两钩，拆单激活缺失，跨店子单永不激活）。
+    ///
+    /// 幂等前提：调用方须保证仅在订单本次真正完成付清流转时调用一次
+    /// （已付守卫 / mark_paid 条件更新 / 状态机门控）；各钩子自身另有
+    /// 订单级防重（分销整单防重、派送单订单级幂等、拆单按父单状态守卫）。
+    pub async fn run_post_payment_hooks(&self, order: &Order, paid_amount: Decimal) {
+        let order_id = order.order_id;
+        let now = utils::now_seconds() as i32;
+
         // 1. 记录订单日志
         let _ = self.repos.trade.user_order.insert_order_log(
             order_id,
@@ -1629,7 +1658,7 @@ impl OrderService {
         ).await;
 
         // 2. 积分赠送（待发货节点 Node 1）
-        let _ = self.order_success_point(&order, 1).await;
+        let _ = self.order_success_point(order, 1).await;
 
         // 3. 电子卡券分配
         if let Ok(items) = self.repos.trade.order.find_items(order_id).await {
@@ -1724,10 +1753,6 @@ impl OrderService {
             }
         }
 
-        if let Some(no) = out_trade_no {
-            tracing::info!("订单支付成功: {order_id}, trade_no={no}");
-        }
-        Ok(())
     }
 
     /// 订单节点赠送积分（对齐 Java OrderServiceImpl#orderSuccessPoint）
@@ -2545,3 +2570,89 @@ mod order_contract_tests {
     }
 }
 
+#[cfg(test)]
+mod post_payment_hooks_tests {
+    //! 结构断言（源码级，无 DB）：钉死「支付成功后置钩子单一入口」不变量——
+    //! 任何把订单推到已付的路径都必须经 `run_post_payment_hooks` 触发全套
+    //! 钩子，禁止再在单个支付路径里手抄子集（2026-11-21 批次 3 验收 P0：
+    //! 余额支付只补了分销+骑手两钩、拆单激活缺失，跨店子单永不激活）。
+    //! 切片区间以真实函数定义为界，测试模块位于文件尾，不会污染区间。
+
+    const ORDER_RS: &str = include_str!("order.rs");
+    const BALANCE_PAY_RS: &str = include_str!("../payment/balance_pay.rs");
+    const ORDER_ADMIN_RS: &str = include_str!("order_admin.rs");
+
+    /// 按起止标记切出函数体。
+    fn fn_body<'a>(src: &'a str, start: &str, end: &str) -> &'a str {
+        let s = src
+            .find(start)
+            .unwrap_or_else(|| panic!("未找到起点标记: {start}"));
+        let e = src[s..]
+            .find(end)
+            .unwrap_or_else(|| panic!("未找到终点标记: {end}"))
+            + s;
+        &src[s..e]
+    }
+
+    #[test]
+    fn shared_hook_entry_covers_all_seven_hooks() {
+        let body = fn_body(
+            ORDER_RS,
+            "pub async fn run_post_payment_hooks",
+            "pub async fn order_success_point",
+        );
+        for needle in [
+            "insert_order_log",             // 1 订单日志
+            "order_success_point",          // 2 积分赠送 Node 1
+            "allocate_cards_to_order_item", // 3 电子卡券分配
+            "insert_statement_output",      // 4 对账单出账
+            "SalesmanGenerationService",    // 5 分销生成
+            "DeliveryDispatchService",      // 6 骑手派送
+            "split_store_order",            // 7 跨店拆单激活
+        ] {
+            assert!(
+                body.contains(needle),
+                "run_post_payment_hooks 缺钩子: {needle}"
+            );
+        }
+    }
+
+    #[test]
+    fn on_payment_success_delegates_without_inlining_hooks() {
+        let body = fn_body(
+            ORDER_RS,
+            "pub async fn on_payment_success",
+            "pub async fn run_post_payment_hooks",
+        );
+        assert!(body.contains("run_post_payment_hooks"));
+        // 钩子实现只能在共享入口里有一份，on_payment_success 不得再内联
+        assert!(!body.contains("split_store_order"));
+        assert!(!body.contains("insert_statement_output"));
+        assert!(!body.contains("allocate_cards_to_order_item"));
+    }
+
+    #[test]
+    fn balance_pay_full_pay_goes_through_shared_entry() {
+        let body = fn_body(
+            BALANCE_PAY_RS,
+            "pub async fn pay_order",
+            "pub async fn refund",
+        );
+        assert!(body.contains("run_post_payment_hooks"));
+        // 旧手抄补偿块（只补分销+骑手两钩）必须已拆除，防止子集接线回潮
+        assert!(!body.contains("SalesmanGenerationService"));
+        assert!(!body.contains("DeliveryDispatchService"));
+    }
+
+    #[test]
+    fn admin_set_paid_covers_both_branches() {
+        let body = fn_body(
+            ORDER_ADMIN_RS,
+            "pub async fn set_paid",
+            "pub async fn cancel_order",
+        );
+        // 非预售分支经 on_payment_success；预售尾款分支直调共享入口
+        assert!(body.contains("on_payment_success"));
+        assert!(body.contains("run_post_payment_hooks"));
+    }
+}
