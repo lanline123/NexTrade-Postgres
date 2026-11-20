@@ -11,7 +11,6 @@ pub mod e_card_group;
 pub mod exchange;
 pub mod price_inquiry;
 pub mod product;
-pub mod product_clone;
 pub mod product_batch;
 pub mod product_group;
 pub mod product_inventory_log;
@@ -40,7 +39,6 @@ pub struct Repositories {
     pub exchange: exchange::ExchangeRepository,
     pub price_inquiry: price_inquiry::PriceInquiryRepository,
     pub product: product::ProductRepository,
-    pub product_clone: product_clone::ProductCloneRepository,
     pub product_batch: product_batch::ProductBatchRepository,
     pub product_group: product_group::ProductGroupRepository,
     pub product_inventory_log: product_inventory_log::ProductInventoryLogRepository,
@@ -70,7 +68,6 @@ impl Repositories {
             exchange: exchange::ExchangeRepository::new(pool.clone()),
             price_inquiry: price_inquiry::PriceInquiryRepository::new(pool.clone()),
             product: product::ProductRepository::new(pool.clone()),
-            product_clone: product_clone::ProductCloneRepository::new(pool.clone()),
             product_batch: product_batch::ProductBatchRepository::new(pool.clone()),
             product_group: product_group::ProductGroupRepository::new(pool.clone()),
             product_inventory_log: product_inventory_log::ProductInventoryLogRepository::new(pool.clone()),
