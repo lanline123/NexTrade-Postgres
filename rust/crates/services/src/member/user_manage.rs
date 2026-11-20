@@ -46,7 +46,7 @@
 //! - `logout`：Java 删除 Redis 中的登录令牌；Rust 侧 `AdminState` 无缓存句柄，
 //!   无法执行令牌吊销，返回明确业务错误而不是假装成功。
 //! - 「新增会员默认成为批发商」钩子（`wholesalerService.autoRegisterIfEnabled`）
-//!   未迁移，`create` 仅建会员本身。
+//!   已接线（2026-11-21 补齐）：`create` 落库后调用，失败不抛错。
 //! - 默认头像配置项（`SettingsEnum.DEFAULT_AVATAR`）未迁移，头像为空时保留空串。
 //! - 会员标签的 `shopId` 上下文（Java `HeaderUtils.getShopId()`）未迁移，
 //!   固定按平台 `0` 查询。
@@ -277,9 +277,9 @@ impl UserManageService {
     /// 3. 密码非空时 bcrypt 加密
     /// 4. `reg_time` 取当前时间
     ///
-    /// **未迁移**：Java 随后调用
-    /// `wholesalerService.autoRegisterIfEnabled(userId)`
-    /// （「新增会员默认成为批发商」钩子，内部双开关 + 失败不抛错）。
+    /// 落库后调用 `wholesalerService.autoRegisterIfEnabled(userId)`
+    /// （「新增会员默认成为批发商」钩子，内部双开关 + 失败不抛错，
+    /// 2026-11-21 补齐接线）。
     ///
     /// # Errors
     /// 用户名 / 手机号重复、缺少密码、数据库错误。
@@ -308,6 +308,12 @@ impl UserManageService {
         param.from_tag = Some(FROM_TAG_ADMIN_ADD);
         let reg_time = now_seconds();
         let user_id = self.repo.insert_user(&param, &hashed, reg_time).await?;
+
+        // Java 随后调用 wholesalerService.autoRegisterIfEnabled(userId)
+        // （双开关 + 默认等级，失败不抛错；开关关时无任何写操作）
+        crate::wholesale::wholesaler::WholesalerService::new(self.repos.clone())
+            .auto_register_if_enabled(user_id)
+            .await;
 
         Ok(UserCreateVO {
             user_id,

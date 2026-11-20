@@ -318,9 +318,14 @@ impl CategoryService {
     }
 
     /// 看了还看，对应 `ProductServiceImpl.getLookAlso`。
+    ///
+    /// `user_id` 为可选登录身份（2026-11-21 补齐批发首价回填）：
+    /// 登录且为启用中批发商时按其等级回填 `firstWholesalePrice`，
+    /// 匿名 / 非批发商恒 `null`。
     pub async fn relate_look_also(
         &self,
         q: &ProductRelateQuery,
+        user_id: Option<i32>,
     ) -> Result<Vec<ProductLookAlsoVO>> {
         let q = q.with_defaults();
         let product_id = q.product_id.unwrap_or(0);
@@ -341,7 +346,7 @@ impl CategoryService {
             .repo()
             .find_look_also_products(&category_ids, flag, q.size_or_default())
             .await?;
-        self.to_look_also_list(&products).await
+        self.to_look_also_list(&products, user_id).await
     }
 
     /// 相关排行，对应 `ProductServiceImpl.getRelateRank`。
@@ -376,9 +381,9 @@ impl CategoryService {
             .await?;
 
         Ok(RelateRankVO {
-            price: self.to_look_also_list(&price_rows).await?,
-            brand: self.to_look_also_list(&brand_rows).await?,
-            cate: self.to_look_also_list(&cate_rows).await?,
+            price: self.to_look_also_list(&price_rows, None).await?,
+            brand: self.to_look_also_list(&brand_rows, None).await?,
+            cate: self.to_look_also_list(&cate_rows, None).await?,
         })
     }
 
@@ -509,9 +514,13 @@ impl CategoryService {
     }
 
     /// 把商品行批量转成「看了还看」卡片（批量取 SKU 价，消除 N+1）。
+    ///
+    /// `user_id` 仅 `relate_look_also` 透传买家身份；`relate_rank`
+    /// 无买家上下文传 `None`，其卡片批发首价保持 `null`。
     async fn to_look_also_list(
         &self,
         products: &[RepoProductRow],
+        user_id: Option<i32>,
     ) -> Result<Vec<ProductLookAlsoVO>> {
         if products.is_empty() {
             return Ok(Vec::new());
@@ -524,6 +533,37 @@ impl CategoryService {
             .into_iter()
             .map(|r| (r.product_id, r.sku_price))
             .collect();
+
+        // 批发首价回填（2026-11-21 补齐）：买家等级口径，口径与商品
+        // 详情阶梯表共用同一生产者（WholesaleClientService::display_tiers）。
+        // 展示附带动作，失败只告警、卡片照常返回（批发字段保持 null）。
+        let wholesale_map = match user_id.filter(|v| *v > 0) {
+            Some(uid) => {
+                let svc = crate::wholesale::wholesale_client::WholesaleClientService::new(
+                    self.repos.clone(),
+                );
+                let filled = async {
+                    match svc.buyer_grade_id(uid).await? {
+                        Some(grade_id) => {
+                            let items: Vec<(i32, i32, Decimal)> = products
+                                .iter()
+                                .map(|p| (p.product_id, p.shop_id, p.product_price))
+                                .collect();
+                            svc.display_tiers(&items, grade_id).await
+                        }
+                        None => Ok(Default::default()),
+                    }
+                };
+                match filled.await {
+                    Ok(map) => map,
+                    Err(e) => {
+                        tracing::warn!("看了还看批发首价回填失败（已忽略）: err={e}");
+                        Default::default()
+                    }
+                }
+            }
+            None => Default::default(),
+        };
 
         Ok(products
             .iter()
@@ -544,8 +584,12 @@ impl CategoryService {
                     product_name: p.product_name.clone(),
                     product_sn: p.product_sn.clone(),
                     shop_id: p.shop_id,
-                    // 批发域未迁移：不猜测数值，保持 null
-                    first_wholesale_price: None,
+                    // 批发首价：买家等级口径回填（见上方 wholesale_map）；
+                    // moq 簇三字段无现网消费方，维持 null 不在本批口径内
+                    first_wholesale_price: wholesale_map
+                        .get(&p.product_id)
+                        .and_then(|tiers| tiers.first())
+                        .map(|t| t.price),
                     wholesale_card_moq: None,
                     wholesale_moq_dimension: None,
                     wholesale_multiple: None,

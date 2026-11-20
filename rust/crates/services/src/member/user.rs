@@ -49,7 +49,14 @@ impl UserService {
             order_count: 0,
             ..Default::default()
         };
-        self.repos.member.user.insert(&user).await
+        let user_id = self.repos.member.user.insert(&user).await?;
+        // 新会员自动成为批发商（Java autoRegisterIfEnabled；双开关 +
+        // 默认等级，失败不抛错。register_with_salesman 经本方法建号，
+        // 一并覆盖，与其分销绑定同为尽力而为口径）
+        crate::wholesale::wholesaler::WholesalerService::new(self.repos.clone())
+            .auto_register_if_enabled(user_id)
+            .await;
+        Ok(user_id)
     }
 
     /// 带分销归因的注册（原版 `UserServiceImpl#registerByMobile` 口径）：

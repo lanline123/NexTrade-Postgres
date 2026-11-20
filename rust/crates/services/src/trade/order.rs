@@ -1809,6 +1809,34 @@ impl OrderService {
             return Ok(());
         }
 
+        // 批发订单赠积分开关（`wholesaleGivePoints`，2026-11-21 接线，
+        // 此前该配置无任何消费方、批发单与普通单一样赠分，与设置脱节）。
+        // **整单口径**：订单含任一批发成交行（`is_wholesale_line = 1`，
+        // 由批发加车链路在建单时落行）即按批发单处理——开关关 → 整单
+        // 不赠分；开关开 → 与普通订单完全一致。取整单而非按行的理由：
+        // 本函数按订单总金额在订单级计算积分（Java `orderSuccessPoint`
+        // 原口径），积分流水也是订单级一条，无按行拆分结构；混合单
+        // （批发线 + 普通行）按批发单处理与原版订单级判定一致。
+        // 普通订单不读批发设置、行为逐字不变。
+        {
+            let items = self.repos.trade.order.find_items(order.order_id).await?;
+            if items.iter().any(|it| it.is_wholesale_line == 1) {
+                let setting = crate::wholesale::wholesale_setting::WholesaleSettingService::new(
+                    self.repos.clone(),
+                )
+                .get()
+                .await?;
+                if setting.wholesale_give_points != 1 {
+                    tracing::info!(
+                        "批发订单按设置不赠送积分: order_id={}, node={}",
+                        order.order_id,
+                        current_node
+                    );
+                    return Ok(());
+                }
+            }
+        }
+
         if current_node == 3 {
             let days_val = self
                 .repos

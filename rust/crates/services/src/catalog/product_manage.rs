@@ -148,13 +148,38 @@ impl ProductManageService {
             sale_map.insert(p.product_id, state);
         }
 
-        let list = rows
+        let mut list: Vec<ProductListItemVO> = rows
             .iter()
             .map(|p| {
                 let skus = sku_map.get(&p.product_id).cloned().unwrap_or_default();
                 to_list_item(p, &skus, sale_map.get(&p.product_id))
             })
             .collect();
+
+        // 批发首价回填（2026-11-21 补齐）：管理端无买家身份，按平台
+        // 通用口径（grade_id = 0，仅通用阶梯行）回填 firstWholesalePrice
+        // ——这是商品事实（该商品的通用首条批发价），与 C 端「按买家
+        // 等级回填」分开。批发总开关关 / 店级开关关 / 无可用价格行 →
+        // 保持 null（店级门控与 C 端共用 display_tiers 的同一判定）。
+        // 展示附带动作，失败只告警不影响列表。
+        let display_items: Vec<(i32, i32, Decimal)> = rows
+            .iter()
+            .map(|p| (p.product_id, p.shop_id, p.product_price))
+            .collect();
+        match crate::wholesale::wholesale_client::WholesaleClientService::new(self.repos.clone())
+            .display_tiers(&display_items, 0)
+            .await
+        {
+            Ok(map) => {
+                for item in &mut list {
+                    if let Some(tiers) = map.get(&item.product_id) {
+                        item.first_wholesale_price = tiers.first().map(|t| t.price);
+                    }
+                }
+            }
+            Err(e) => tracing::warn!("批发首价回填失败（已忽略）: err={e}"),
+        }
+
         Ok(PageResult::new(total, list, &page))
     }
 
@@ -1118,6 +1143,34 @@ impl ProductManageService {
                 .await?;
         }
 
+        // 批发价展示回填（2026-11-21 补齐，原 Java 详情口径）：
+        // 登录且为启用中批发商时按其等级回填阶梯价；匿名 / 非批发商
+        // 恒 None（不泄漏批发价）。价格门控在接口层另行遮罩
+        // （wholesalePriceList 内 price / wholesalePrice 键属 PRICE_KEYS
+        // 遮罩范围），本层回填不绕过门控。回填属展示附带动作，
+        // 失败只告警、详情照常返回。
+        let (wholesale_price_list, wholesale_price_mode) = match user_id.filter(|v| *v > 0) {
+            Some(uid) => match wholesale_detail_display(
+                &self.repos,
+                uid,
+                product.product_id,
+                product.shop_id,
+                product.product_price,
+            )
+            .await
+            {
+                Ok(pair) => pair,
+                Err(e) => {
+                    tracing::warn!(
+                        "批发价展示回填失败（已忽略）: product_id={}, err={e}",
+                        product.product_id
+                    );
+                    (None, None)
+                }
+            },
+            None => (None, None),
+        };
+
         Ok(ClientProductDetailVO {
             shop_id: product.shop_id,
             item,
@@ -1126,7 +1179,7 @@ impl ProductManageService {
             pic_list: gallery.iter().map(to_gallery_vo).collect(),
             video_list: videos.iter().map(to_video_vo).collect(),
             attr_list,
-            // 以下字段依赖评论 / 秒杀 / 拼团 / 积分 / 批发域，未迁移，保持空
+            // 以下字段依赖评论 / 秒杀 / 拼团 / 积分域，未迁移，保持空
             rank_detail: None,
             seckill_detail: Vec::new(),
             groupon_detail: None,
@@ -1141,8 +1194,8 @@ impl ProductManageService {
             } else {
                 "普通商品".to_string()
             },
-            wholesale_price_list: None,
-            wholesale_price_mode: None,
+            wholesale_price_list,
+            wholesale_price_mode,
         })
     }
 
@@ -2137,6 +2190,57 @@ fn parse_datetime_seconds(raw: &str) -> Option<i32> {
     trimmed.parse::<i32>().ok()
 }
 
+// ————————————————————— 批发价展示回填 —————————————————————
+
+/// 详情页批发价展示回填：买家等级 → 阶梯 JSON + 定价模式。
+///
+/// 非批发商 / 总开关关 / 无可用价格行 → `(None, None)`。
+/// 阶梯条目键名与前端容错口径对齐（PC 详情读 `minNum` / `price` 等
+/// 多键名；价格门控测试锁定 `price` / `wholesalePrice` 为遮罩键、
+/// `minQty` 不遮罩），价格以字符串下发（与门控测试载荷同形）。
+///
+/// `wholesale_price_mode` 我方口径（该字段原版 DTO 语义无从考证、
+/// 现网无消费方）：生效阶梯含等级专属行 → `2`（等级价），
+/// 仅通用阶梯 → `1`（阶梯价）。
+async fn wholesale_detail_display(
+    repos: &Arc<Repositories>,
+    user_id: i32,
+    product_id: i32,
+    shop_id: i32,
+    retail_price: Decimal,
+) -> Result<(Option<serde_json::Value>, Option<i32>)> {
+    let svc = crate::wholesale::wholesale_client::WholesaleClientService::new(repos.clone());
+    let Some(grade_id) = svc.buyer_grade_id(user_id).await? else {
+        return Ok((None, None));
+    };
+    let map = svc
+        .display_tiers(&[(product_id, shop_id, retail_price)], grade_id)
+        .await?;
+    let Some(tiers) = map.get(&product_id) else {
+        return Ok((None, None));
+    };
+    let mode = if tiers.iter().any(|t| t.grade_id > 0) {
+        2
+    } else {
+        1
+    };
+    let list: Vec<serde_json::Value> = tiers
+        .iter()
+        .map(|t| {
+            serde_json::json!({
+                "minQty": t.min_qty,
+                "minNum": t.min_qty,
+                "tierMinQty": t.min_qty,
+                "price": t.price.to_string(),
+                "wholesalePrice": t.price.to_string(),
+                "gradeId": t.grade_id,
+                "priceMode": t.price_mode,
+            })
+        })
+        .collect();
+    Ok((Some(serde_json::Value::Array(list)), Some(mode)))
+}
+
 // ————————————————————— 实体 → VO —————————————————————
 
 /// 商品实体 + 规格 → 列表项（对应 Java \"ProductListResDTO\"）。
@@ -2182,7 +2286,9 @@ fn to_list_item(
         sort_order: p.sort_order,
         sku_count: i32::try_from(sku_vo.len()).unwrap_or(i32::MAX),
         product_sku: sku_vo,
-        // —— 以下字段依赖营销/批发/周期购/O2O 域，本切片未迁移 ——
+        // —— 以下字段依赖营销/周期购/O2O 域，本切片未迁移；
+        // firstWholesalePrice 例外：由 admin_list 在构造后按平台通用
+        // 口径回填（见 admin_list 的批发首价回填段）——
         shop: None,
         distance: None,
         price: None,

@@ -181,6 +181,27 @@ impl WholesaleClientRepository {
             .map_err(map_err)
     }
 
+    /// 多个商品的全部批发价候选行（展示回填批量取数，口径同
+    /// [`Self::list_prices`]：仅 `is_delete = 0`，`status` / 维度匹配由
+    /// 服务层纯函数过滤）。空入参直接返回空集，不发查询。
+    pub async fn list_prices_by_product_ids(
+        &self,
+        product_ids: &[i32],
+    ) -> Result<Vec<ProductWholesalePrice>> {
+        if product_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let ph = vec!["?"; product_ids.len()].join(", ");
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT * FROM product_wholesale_price WHERE is_delete = 0 AND product_id IN ({ph})"
+        ));
+        let mut q = sqlx::query_as::<_, ProductWholesalePrice>(&sql);
+        for id in product_ids {
+            q = q.bind(id);
+        }
+        q.fetch_all(&self.pool).await.map_err(map_err)
+    }
+
     // ————————————————————— 购物车（`cart`） —————————————————————
 
     /// 已存在的同款购物车行 `(cart_id, quantity)`（Java

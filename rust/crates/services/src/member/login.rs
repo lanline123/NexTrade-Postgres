@@ -60,7 +60,8 @@
 //!   但 `open_name` / `open_photo` 用 openData 里的 `nickname` / `headimgurl` 填充
 //!   （Java 只写 `open_data`，两列取实体默认值）；
 //! - `bindMobile` 的 `wholesalerService.autoRegisterIfEnabled`（自动成为批发商）
-//!   与分销员初始化未迁移（依赖 wholesale/marketing 域）；
+//!   已接线（2026-11-21 补齐：bindMobile 建号分支与短信注册登录建号分支
+//!   均已调用，失败不抛错）；分销员初始化仍未迁移；
 //! - Java 登录成功后会把 token 写入 Redis（供 logout 吊销）；Rust 侧 C 端登录
 //!   （含 `api/public/src/lib.rs::user_login`）尚未实现该吊销表，这里保持一致不写。
 
@@ -177,6 +178,11 @@ impl LoginService {
                 .repo()
                 .insert_registered_user(&username, &nickname, "", mobile, &hash, now, 0)
                 .await?;
+            // 新会员自动成为批发商（Java autoRegisterIfEnabled；双开关 +
+            // 默认等级，失败不抛错；仅建号分支调用，存量会员登录不触发）
+            crate::wholesale::wholesaler::WholesalerService::new(self.repos.clone())
+                .auto_register_if_enabled(id)
+                .await;
             users.find_by_id(id).await?.ok_or_else(|| Error::NotFound("用户不存在".into()))?
         };
         if !user.can_login() {
@@ -513,6 +519,11 @@ impl LoginService {
                         referrer_user_id,
                     )
                     .await?;
+                // 新会员自动成为批发商（Java bindMobile 链路的
+                // autoRegisterIfEnabled；仅本次新建号时调用，失败不抛错）
+                crate::wholesale::wholesaler::WholesalerService::new(self.repos.clone())
+                    .auto_register_if_enabled(user_id)
+                    .await;
                 (user_id, username)
             }
         };

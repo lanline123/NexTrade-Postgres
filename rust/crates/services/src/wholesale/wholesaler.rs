@@ -60,7 +60,8 @@ use nextrade_core::models::wholesale::wholesaler::{
     CODE_USER_NOT_FOUND, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MSG_DEFAULT_GRADE_NOT_CONFIGURED,
     MSG_GRADE_DISABLED, MSG_GRADE_ID_REQUIRED, MSG_GRADE_NOT_FOUND, MSG_REMOVE_BY_GRADE_REQUIRED,
     MSG_REMOVE_REQUIRED, MSG_STATUS_INVALID, MSG_USER_ALREADY_EXISTS, MSG_USER_IDS_REQUIRED,
-    MSG_USER_NOT_FOUND, MSG_WHOLESALER_NOT_FOUND, SOURCE_IMPORT, SOURCE_MANUAL,
+    MSG_USER_NOT_FOUND, MSG_WHOLESALER_NOT_FOUND, SOURCE_AUTO_REGISTER, SOURCE_IMPORT,
+    SOURCE_MANUAL,
 };
 use nextrade_core::types::PageResult;
 use nextrade_core::{Error, Result};
@@ -496,6 +497,77 @@ impl WholesalerService {
         let removed = i32::try_from(targets.len()).unwrap_or(i32::MAX);
         tracing::info!("按 ID 移除批发商: removed={removed}");
         Ok(removed)
+    }
+
+    // ————————————————————— 自动成为批发商（注册钩子） —————————————————————
+
+    /// 新会员自动成为批发商（Java `WholesalerServiceImpl#autoRegisterIfEnabled`）。
+    ///
+    /// 由建号路径在用户落库后调用（自助注册 / 短信注册登录 / 绑定手机
+    /// 建号 / 后台建会员）。语义与 Java 一致：总开关与「自动成为批发商」
+    /// 双开关都开时，按配置的默认批发等级授予身份
+    /// （`source = 1 注册自动`、`status = 1`、`shop_id = 0`）；
+    /// 已是批发商（含禁用、含软删复活口径与 [`Self::add`] 相同）不重复授予。
+    ///
+    /// **失败不抛错**：本钩子是注册的附带动作，任何失败（配置读取、
+    /// 默认等级未配置 / 不存在 / 已禁用、写库异常）只记 `warn` 日志，
+    /// 绝不影响建号主流程。开关关闭时除读一次配置外不产生任何写操作，
+    /// 行为与未接线前一致。
+    pub async fn auto_register_if_enabled(&self, user_id: i32) {
+        if let Err(e) = self.try_auto_register(user_id).await {
+            tracing::warn!("自动成为批发商未生效（已忽略）: user_id={user_id}, err={e}");
+        }
+    }
+
+    async fn try_auto_register(&self, user_id: i32) -> Result<()> {
+        let setting =
+            crate::wholesale::wholesale_setting::WholesaleSettingService::new(self.repos.clone())
+                .get()
+                .await?;
+        if setting.wholesale_enabled != 1 || setting.wholesale_auto_register != 1 {
+            return Ok(());
+        }
+        let grade_id = setting.wholesale_default_grade_id;
+        if grade_id <= 0 {
+            tracing::warn!(
+                "自动成为批发商跳过: 未配置默认批发等级 user_id={user_id}"
+            );
+            return Ok(());
+        }
+        // 默认等级不存在 / 已禁用 → 跳过（不授予无有效等级的身份）
+        self.require_grade_enabled(grade_id).await?;
+
+        let now = now_secs();
+        if let Some(existing) = self.repo().find_by_user_id_include_deleted(user_id).await? {
+            if existing.is_delete == 0 {
+                // 已有身份（含被禁用者）：不覆盖等级、不改状态
+                return Ok(());
+            }
+            self.repo()
+                .revive_by_id(existing.wholesaler_id, grade_id, SOURCE_AUTO_REGISTER, "", now)
+                .await?;
+            tracing::info!(
+                "自动成为批发商（复活）: user_id={user_id}, wholesaler_id={}",
+                existing.wholesaler_id
+            );
+            return Ok(());
+        }
+
+        let entity = Wholesaler {
+            wholesaler_id: 0,
+            user_id,
+            grade_id,
+            status: 1,
+            source: SOURCE_AUTO_REGISTER,
+            shop_id: 0,
+            remark: String::new(),
+            is_delete: 0,
+            create_time: Some(now),
+            update_time: Some(now),
+        };
+        let id = self.repo().insert(&entity).await?;
+        tracing::info!("自动成为批发商: user_id={user_id}, wholesaler_id={id}, grade_id={grade_id}");
+        Ok(())
     }
 
     // ————————————————————— 内部 —————————————————————

@@ -20,8 +20,10 @@
 //! > **auth=optional**：原契约允许游客访问，登录后部分字段（批发价、会员价）
 //! > 会变化。本实现挂在**公开**路由组，未强制登录。
 //! >
-//! > **未迁移**：批发价回填（`wholesalerService` 未迁移，
-//! > `firstWholesalePrice` 等字段恒为 `null`）；最终成交价
+//! > **批发价回填**：已接线（2026-11-21 补齐）——`relateLookAlso`
+//! > 按买家批发等级回填 `firstWholesalePrice` 并过价格门控遮罩；
+//! > `relateRank` 无买家上下文，其卡片批发首价仍为 `null`。
+//! > **未迁移**：最终成交价
 //! > （Java `getProductSkuDetail` 的会员折扣/促销/秒杀/门店覆盖链路未迁移，
 //! > 这里只取 SKU 原始价 / 商品零售价，见 `CategoryService` 模块注释）；
 //! > 多语言翻译（`translatePackage`）。
@@ -37,13 +39,13 @@
 use axum::{
     extract::{Query, State},
     routing::get,
-    Router,
+    Extension, Router,
 };
 use nextrade_core::models::catalog::category::{
-    CategoryParentTreeVO, CategoryTreeVO, ProductLookAlsoVO, ProductRelateQuery, RelateArticleVO,
+    CategoryParentTreeVO, CategoryTreeVO, ProductRelateQuery, RelateArticleVO,
     RelateBrandVO, RelateCategoryVO, RelateRankVO,
 };
-use nextrade_security::web::{ok, ApiResult};
+use nextrade_security::web::{ok, ApiResult, AuthUser};
 use serde::Deserialize;
 
 use crate::PublicState;
@@ -139,11 +141,24 @@ async fn children_category_tree(
 ///
 /// 对应 Java `CategoryController.getRelateLookAlso(ProductRelateDTO dto)`
 /// → `ProductServiceImpl.getLookAlso`。
+///
+/// 可选登录身份用于批发首价回填（批发商按等级回填、其余恒 null）；
+/// 响应统一过价格门控：未登录 / 未认证时价格键置空（含回填的批发
+/// 首价），回填不绕过门控遮罩（本路由此前未接门控，本次一并补齐，
+/// 与详情等价格读口一致）。
 async fn relate_look_also(
     State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
     Query(q): Query<ProductRelateQuery>,
-) -> ApiResult<Vec<ProductLookAlsoVO>> {
-    ok(state.catalog.category.relate_look_also(&q).await?)
+) -> ApiResult<serde_json::Value> {
+    let uid = auth.map(|Extension(u)| u.id).filter(|v| *v > 0);
+    let rows = state.catalog.category.relate_look_also(&q, uid).await?;
+    let access = state.system.config_client.price_access(uid).await?;
+    let mut v = serde_json::to_value(&rows).unwrap_or(serde_json::Value::Null);
+    if !access.can_view() {
+        nextrade_services::system::price_gate::mask_price_keys(&mut v);
+    }
+    ok(v)
 }
 
 /// `GET /api/category/category/hot`：热门分类（`is_hot = 1`，最多 20 条）。

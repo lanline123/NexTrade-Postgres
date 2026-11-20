@@ -61,11 +61,13 @@
 //!    `me` / `is_wholesale_buyer` 是**买家级身份**（批发商身份跨店通用，
 //!    原版即买家全局口径），**刻意不按店收口**——店级差异只在具体商品
 //!    落点（buyRule / 加车）体现。前台批发价展示回填
-//!    （`wholesalePriceList` / `firstWholesalePrice`）尚未迁移、恒空，
-//!    无活展示面可门控；回填迁移时必须接同一
-//!    [`WholesaleClientService::shop_wholesale_effective`] 判定。
+//!    （`wholesalePriceList` / `firstWholesalePrice`）已于 2026-11-21
+//!    补齐（论坛帖 127889 D 项）：`display_tiers` 按商品所属店铺接同一
+//!    [`WholesaleClientService::shop_wholesale_effective`] 判定逐店门控，
+//!    本店已关的商品不回填批发价。
 
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use rust_decimal::{Decimal, RoundingStrategy};
@@ -314,6 +316,91 @@ pub fn resolve_wholesale_price(
         hit_grade_id: hit.grade_id,
         hit_sku_id: hit.sku_id,
     })
+}
+
+// ═════════════════════════ 纯函数：展示用阶梯价（详情 / 列表回填） ═════════════════════════
+
+/// 展示用批发阶梯行（商品详情 `wholesalePriceList` 与列表
+/// `firstWholesalePrice` 的生产原料）。
+///
+/// 只承载 SPU 级（`sku_id = 0`）价格行：详情阶梯表与列表首价都是
+/// 商品级展示口径，SKU 级价格行由加车链路实时解析（见
+/// [`resolve_wholesale_price`]），不进展示列表。
+#[derive(Debug, Clone, PartialEq)]
+pub struct WholesaleDisplayTier {
+    /// 阶梯起批量（`tier_min_qty`）。
+    pub min_qty: i32,
+    /// 该阶梯的最终批发价（已按 `price_mode` 换算，2 位小数）。
+    pub price: Decimal,
+    /// 命中行所属等级（`0` = 通用价，`> 0` = 等级专属价）。
+    pub grade_id: i32,
+    /// 命中行定价模式（`1` 折扣换算 / `2` 直接金额）。
+    pub price_mode: i32,
+}
+
+/// 由价格行集合构造某等级视角的展示阶梯表（纯函数）。
+///
+/// 过滤 / 锁定口径与成交解析 [`resolve_wholesale_price`] 完全一致：
+/// `status = 1`、未删除、`price_mode ∈ {1, 2}`、配了可用价格、
+/// `tier_min_qty > 0`、等级匹配（通用行或本等级行）；**等级锁定**——
+/// 本等级对该商品 SPU 级存在可用行时通用行整体剔除。
+/// 与成交解析的唯一区别：不按数量过滤（展示全部阶梯而非命中一档），
+/// 同阶梯多行时按成交优先级（精确等级 > 通用、`id` 升序）取一行。
+///
+/// `grade_id = 0` 表示平台通用口径（管理端列表用：只看通用行）。
+/// 结果按 `min_qty` 升序；首行即「首条批发价」。
+#[must_use]
+pub fn build_display_tiers(
+    rows: &[ProductWholesalePrice],
+    product_id: i32,
+    grade_id: i32,
+    retail_price: Decimal,
+) -> Vec<WholesaleDisplayTier> {
+    let usable = |p: &ProductWholesalePrice| {
+        p.product_id == product_id
+            && p.sku_id == 0
+            && p.status == 1
+            && p.is_delete == 0
+            && p.tier_min_qty > 0
+            && (p.price_mode == PRICE_MODE_DISCOUNT || p.price_mode == PRICE_MODE_FIXED)
+            && has_usable_price(p)
+    };
+    // 等级锁定（与 resolve 同口径，范围收窄到 SPU 级行）
+    let has_grade_specific = grade_id > 0
+        && rows
+            .iter()
+            .any(|p| usable(p) && is_exact_grade(p.grade_id, grade_id));
+    let mut valid: Vec<&ProductWholesalePrice> = rows
+        .iter()
+        .filter(|p| {
+            usable(p)
+                && matches_grade(p.grade_id, grade_id)
+                && !(has_grade_specific && !is_exact_grade(p.grade_id, grade_id))
+        })
+        .collect();
+    // 同阶梯内按成交优先级排序：精确等级在前、id 升序（compare_priority
+    // 的 SKU 维度在 SPU 级行上恒等，阶梯维度在此按升序另行处理）
+    valid.sort_by(|a, b| {
+        let a_grade = i32::from(is_exact_grade(a.grade_id, grade_id));
+        let b_grade = i32::from(is_exact_grade(b.grade_id, grade_id));
+        b_grade.cmp(&a_grade).then(a.id.cmp(&b.id))
+    });
+    // valid 已按成交优先级排序：同阶梯保留先出现者（优先级最高），
+    // 最后整体按阶梯起批量升序输出。
+    let mut tiers: Vec<WholesaleDisplayTier> = Vec::new();
+    for row in valid {
+        if tiers.iter().any(|t| t.min_qty == row.tier_min_qty) {
+            continue;
+        }
+        tiers.push(WholesaleDisplayTier {
+            min_qty: row.tier_min_qty,
+            price: compute_final_price(row, retail_price),
+            grade_id: row.grade_id,
+            price_mode: row.price_mode,
+        });
+    }
+    tiers.sort_by_key(|t| t.min_qty);
+    tiers
 }
 
 // ═════════════════════════ 纯函数：起批量 / 倍数（WholesaleBuyRuleValidator） ═════════════════════════
@@ -659,6 +746,72 @@ impl WholesaleClientService {
             None
         };
         Ok(effective_shop_wholesale(global_enabled, shop_id, stored))
+    // ————————————————————— C1b：展示用批发价（详情 / 列表回填） —————————————————————
+
+    /// 买家当前生效的批发等级（总开关关 / 非批发商 → `None`）。
+    ///
+    /// 展示回填专用：等级只用于决定可见的价格行集合，不做任何
+    /// 购买资格判定（资格仍走 [`Self::buy_rule`] / 加车链路）。
+    pub async fn buyer_grade_id(&self, user_id: i32) -> Result<Option<i32>> {
+        if user_id <= 0 || !self.repos.wholesale.wholesale_client.wholesale_enabled().await? {
+            return Ok(None);
+        }
+        Ok(self
+            .repos
+            .wholesale
+            .wholesale_client
+            .find_active_wholesaler(user_id)
+            .await?
+            .map(|w| w.grade_id))
+    }
+
+    /// 批量构造展示阶梯表：`items` 为 `(product_id, shop_id, 零售价)`，
+    /// `grade_id` 为视角等级（`0` = 平台通用口径）。
+    ///
+    /// 总开关关闭时返回空表（调用方据此保持字段为 `null`，与功能
+    /// 关闭时的现状一致）；无可用价格行的商品不出现在结果中。
+    /// 店级门控（模块头差异第 7 条）：按商品所属店铺接
+    /// [`Self::shop_wholesale_effective`] 逐店判定（同批同店只查一次），
+    /// 本店已关的商品不回填——与 buyRule / 加车同口径。
+    pub async fn display_tiers(
+        &self,
+        items: &[(i32, i32, Decimal)],
+        grade_id: i32,
+    ) -> Result<HashMap<i32, Vec<WholesaleDisplayTier>>> {
+        if items.is_empty()
+            || !self.repos.wholesale.wholesale_client.wholesale_enabled().await?
+        {
+            return Ok(HashMap::new());
+        }
+        let mut shop_ok: HashMap<i32, bool> = HashMap::new();
+        for (_, shop_id, _) in items {
+            if !shop_ok.contains_key(shop_id) {
+                let ok = self.shop_wholesale_effective(true, *shop_id).await?;
+                shop_ok.insert(*shop_id, ok);
+            }
+        }
+        let visible: Vec<&(i32, i32, Decimal)> = items
+            .iter()
+            .filter(|(_, shop_id, _)| shop_ok.get(shop_id).copied().unwrap_or(false))
+            .collect();
+        if visible.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let ids: Vec<i32> = visible.iter().map(|(id, _, _)| *id).collect();
+        let rows = self
+            .repos
+            .wholesale
+            .wholesale_client
+            .list_prices_by_product_ids(&ids)
+            .await?;
+        let mut out: HashMap<i32, Vec<WholesaleDisplayTier>> = HashMap::new();
+        for (product_id, _, retail_price) in visible {
+            let tiers = build_display_tiers(&rows, *product_id, grade_id, *retail_price);
+            if !tiers.is_empty() {
+                out.insert(*product_id, tiers);
+            }
+        }
+        Ok(out)
     }
 
     // ————————————————————— C2：商品起批规则 —————————————————————
@@ -1129,6 +1282,84 @@ mod tests {
         deleted.is_delete = 1;
         let rows = vec![disabled, deleted];
         assert!(resolve_wholesale_price(&input(5, 3, 10, None, &rows)).is_none());
+    }
+
+    // ————————————— 展示阶梯（build_display_tiers） —————————————
+
+    #[test]
+    fn display_tiers_lists_all_tiers_ascending_with_converted_prices() {
+        let rows = vec![
+            discount_row(1, 0, 0, 100, 400),
+            discount_row(2, 0, 0, 10, 800),
+            discount_row(3, 0, 0, 50, 600),
+        ];
+        let tiers = build_display_tiers(&rows, 7, 0, Decimal::new(10000, 2));
+        assert_eq!(tiers.len(), 3);
+        assert_eq!(tiers[0].min_qty, 10);
+        assert_eq!(tiers[0].price, Decimal::new(8000, 2));
+        assert_eq!(tiers[1].min_qty, 50);
+        assert_eq!(tiers[1].price, Decimal::new(6000, 2));
+        assert_eq!(tiers[2].min_qty, 100);
+        assert_eq!(tiers[2].price, Decimal::new(4000, 2));
+    }
+
+    #[test]
+    fn display_tiers_grade_lock_hides_universal_rows() {
+        let rows = vec![
+            discount_row(1, 0, 0, 10, 800),
+            price(
+                2,
+                0,
+                3,
+                20,
+                PRICE_MODE_FIXED,
+                Decimal::ZERO,
+                Decimal::new(5500, 2),
+            ),
+        ];
+        // 等级 3 视角：本等级有可用行 → 通用行整体剔除（与成交解析同口径）
+        let tiers = build_display_tiers(&rows, 7, 3, Decimal::new(10000, 2));
+        assert_eq!(tiers.len(), 1);
+        assert_eq!(tiers[0].min_qty, 20);
+        assert_eq!(tiers[0].price, Decimal::new(5500, 2));
+        assert_eq!(tiers[0].grade_id, 3);
+        // 通用口径（grade_id = 0）：只看通用行
+        let tiers = build_display_tiers(&rows, 7, 0, Decimal::new(10000, 2));
+        assert_eq!(tiers.len(), 1);
+        assert_eq!(tiers[0].grade_id, 0);
+        assert_eq!(tiers[0].price, Decimal::new(8000, 2));
+        // 其它等级视角：无本等级行 → 回退通用行（不锁定）
+        let tiers = build_display_tiers(&rows, 7, 9, Decimal::new(10000, 2));
+        assert_eq!(tiers.len(), 1);
+        assert_eq!(tiers[0].grade_id, 0);
+    }
+
+    #[test]
+    fn display_tiers_skips_sku_rows_shells_and_disabled() {
+        let mut disabled = discount_row(4, 0, 0, 30, 700);
+        disabled.status = 0;
+        let rows = vec![
+            discount_row(1, 9, 0, 10, 800), // SKU 级行不进展示
+            discount_row(2, 0, 0, 10, 0),   // 空壳行（折扣为 0）
+            discount_row(3, 0, 0, 0, 800),  // 阶梯为 0 的行
+            disabled,
+            discount_row(5, 0, 0, 10, 800),
+        ];
+        let tiers = build_display_tiers(&rows, 7, 0, Decimal::new(10000, 2));
+        assert_eq!(tiers.len(), 1);
+        assert_eq!(tiers[0].min_qty, 10);
+        assert_eq!(tiers[0].price, Decimal::new(8000, 2));
+    }
+
+    #[test]
+    fn display_tiers_same_tier_keeps_lowest_id_row() {
+        let rows = vec![
+            discount_row(5, 0, 0, 10, 800),
+            discount_row(3, 0, 0, 10, 900),
+        ];
+        let tiers = build_display_tiers(&rows, 7, 0, Decimal::new(10000, 2));
+        assert_eq!(tiers.len(), 1);
+        assert_eq!(tiers[0].price, Decimal::new(9000, 2));
     }
 
     // ————————————— SKU 配置 / 起批量 / 倍数 —————————————
