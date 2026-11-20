@@ -21,3 +21,4 @@ pub mod vendor;
 pub mod pos;
 pub mod o2o;
 pub mod hub;
+pub mod ai;

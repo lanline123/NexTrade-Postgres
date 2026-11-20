@@ -8,7 +8,8 @@
 pub mod channels;
 pub mod chat;
 pub mod usage;
-pub mod vault;
+/// 密钥库已下沉 services 共享层（2026-11-21 导购立项），此处再导出保持路径不变。
+pub use nextrade_services::ai::vault;
 
 use axum::{routing::{delete, get, post, put}, Router};
 use nextrade_core::Error;

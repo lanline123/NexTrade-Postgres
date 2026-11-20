@@ -118,32 +118,12 @@ async fn load_own_channel(
 }
 
 /// 取渠道现行密钥明文（仅服务端内部调用，永不下发）。
+/// 实现已下沉 services 共享层（`ai::channel`），此处保留签名委托。
 pub async fn load_channel_secret(
     pool: &sqlx::PgPool,
     channel_id: i32,
 ) -> Result<(String, String), String> {
-    let row: Option<(String, String, String, String)> = sqlx::query_as(
-        "SELECT key_cipher, key_nonce, extra_cipher, extra_nonce FROM ai_channel_key
-         WHERE channel_id = $1 AND status = 1 ORDER BY key_id DESC LIMIT 1",
-    )
-    .bind(channel_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| e.to_string())?;
-    let Some((kc, kn, ec, en)) = row else {
-        return Err("渠道未配置密钥".to_string());
-    };
-    let key = if kc.is_empty() {
-        String::new()
-    } else {
-        vault::decrypt(&kc, &kn)?
-    };
-    let extra = if ec.is_empty() {
-        String::new()
-    } else {
-        vault::decrypt(&ec, &en)?
-    };
-    Ok((key, extra))
+    nextrade_services::ai::channel::load_channel_secret(pool, channel_id).await
 }
 
 /// 保存/轮换密钥：旧现行行置为已轮换，新行加密落库。
@@ -204,23 +184,9 @@ async fn store_key(
 
 /// 蜂鸟凭据双读（DESIGN §8 P1）：注册表 kind=3 平台渠道优先，老 config 兜底
 /// 由调用方（ai_image.rs）在本函数返回 None 时继续走。
+/// 实现已下沉 services 共享层（`ai::channel`），此处保留签名委托。
 pub async fn fengniao_credentials(pool: &sqlx::PgPool) -> Option<(String, String)> {
-    let row: Option<(i32,)> = sqlx::query_as(
-        "SELECT channel_id FROM ai_channel
-         WHERE kind = 3 AND shop_id = 0 AND is_del = 0 AND is_enabled = 1
-         ORDER BY channel_id LIMIT 1",
-    )
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten();
-    let (channel_id,) = row?;
-    let (authorization, project_id) = load_channel_secret(pool, channel_id).await.ok()?;
-    if authorization.is_empty() {
-        None
-    } else {
-        Some((authorization, project_id))
-    }
+    nextrade_services::ai::channel::fengniao_credentials(pool).await
 }
 
 // ————————————————————— 预设 —————————————————————

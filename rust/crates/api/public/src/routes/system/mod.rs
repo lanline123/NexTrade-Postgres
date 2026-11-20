@@ -1,6 +1,7 @@
 //! 商城端 system 路由。
 
 pub mod ad_settings_client;
+pub mod ai_guide;
 pub mod app_version_admin;
 pub mod config_client;
 pub mod price_display_client;
@@ -58,13 +59,14 @@ pub fn anonymous_routes(state: &PublicState) -> Router<PublicState> {
 
 /// 需登录路由（外层统一套 require_auth）。
 pub fn authorized_routes() -> Router<PublicState> {
-    Router::new()
+    Router::new().merge(ai_guide::authorized_routes())
 }
 
 /// 本域已实现路由（覆盖率统计用）。
 #[must_use]
 pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     let mut out = Vec::new();
+    out.extend(ai_guide::implemented_routes());
     out.extend(app_version_admin::implemented_routes());
     out.extend(config_client::implemented_routes());
     out.extend(price_display_client::implemented_routes());

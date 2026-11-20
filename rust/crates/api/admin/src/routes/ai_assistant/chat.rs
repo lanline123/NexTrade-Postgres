@@ -285,65 +285,21 @@ pub struct CreateConvBody {
 }
 
 /// 解析默认渠道 + 模型：指定 → 本租户默认渠道 → 第一个启用渠道 → 官方渠道。
+/// 实现已下沉 services 共享层（`ai::channel`，SQL 与错误文案逐字一致），
+/// 本函数保留签名、以租户 shop_id 作为作用域参数委托。
 async fn resolve_channel_model(
     state: &AdminState,
     tenant: &AiTenant,
     channel_id: Option<i32>,
     model_code: Option<String>,
 ) -> Result<(i32, String), String> {
-    let pool = &state.repos.pool;
-    let channel: Option<(i32, i32)> = if let Some(id) = channel_id {
-        sqlx::query_as(
-            "SELECT channel_id, kind FROM ai_channel
-             WHERE channel_id = $1 AND is_del = 0 AND is_enabled = 1
-               AND (shop_id = $2 OR (kind = 1 AND shop_id = 0))",
-        )
-        .bind(id)
-        .bind(tenant.shop_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| e.to_string())?
-    } else {
-        sqlx::query_as(
-            "SELECT channel_id, kind FROM ai_channel
-             WHERE is_del = 0 AND is_enabled = 1
-               AND (shop_id = $1 OR (kind = 1 AND shop_id = 0))
-             ORDER BY (shop_id = $1) DESC, is_default DESC, sort, channel_id LIMIT 1",
-        )
-        .bind(tenant.shop_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| e.to_string())?
-    };
-    let Some((cid, _kind)) = channel else {
-        return Err("没有可用的渠道，请先在「渠道配置」中添加渠道与密钥".to_string());
-    };
-    if let Some(m) = model_code.filter(|s| !s.trim().is_empty()) {
-        let exists: Option<(i32,)> = sqlx::query_as(
-            "SELECT model_id FROM ai_model WHERE channel_id = $1 AND model_code = $2 AND is_del = 0 AND is_enabled = 1",
-        )
-        .bind(cid)
-        .bind(&m)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| e.to_string())?;
-        if exists.is_some() {
-            return Ok((cid, m));
-        }
-        return Err("所选模型在该渠道下不存在或未启用".to_string());
-    }
-    let model: Option<(String,)> = sqlx::query_as(
-        "SELECT model_code FROM ai_model WHERE channel_id = $1 AND is_del = 0 AND is_enabled = 1
-           AND capabilities LIKE '%chat%' ORDER BY sort, model_id LIMIT 1",
+    nextrade_services::ai::channel::resolve_channel_model(
+        &state.repos.pool,
+        tenant.shop_id,
+        channel_id,
+        model_code,
     )
-    .bind(cid)
-    .fetch_optional(pool)
     .await
-    .map_err(|e| e.to_string())?;
-    match model {
-        Some((m,)) => Ok((cid, m)),
-        None => Err("该渠道下没有可用的对话模型，请先在「渠道配置」中添加".to_string()),
-    }
 }
 
 async fn insert_conversation(
@@ -571,12 +527,8 @@ async fn touch_conv(pool: &sqlx::PgPool, conv_id: i32) {
 
 // ————————————————————— 历史重建（OpenAI 消息格式） —————————————————————
 
-#[derive(Debug, Clone)]
-pub struct ToolCall {
-    pub id: String,
-    pub name: String,
-    pub args: Value,
-}
+/// 工具调用结构已下沉 services 共享层（`ai::upstream`），再导出保持引用不变。
+pub use nextrade_services::ai::upstream::ToolCall;
 
 fn system_prompt(tenant: &AiTenant, shop_title: &str) -> String {
     let today = chrono::Local::now().format("%Y-%m-%d");
@@ -1062,17 +1014,14 @@ async fn upstream_round(
     let conv = &job.conv;
     let pool = &state.repos.pool;
 
-    // 解析渠道（自有或官方）与密钥。
-    let channel: Option<(String, i32, i32)> = sqlx::query_as(
-        "SELECT base_url, kind, is_enabled FROM ai_channel
-         WHERE channel_id = $1 AND is_del = 0 AND (shop_id = $2 OR (kind = 1 AND shop_id = 0))",
+    // 解析渠道（自有或官方）与密钥。端点读取已下沉 services 共享层
+    // （`ai::channel::load_channel_endpoint`，SQL 逐字一致）；三段错误文案保留在本层。
+    let channel = nextrade_services::ai::channel::load_channel_endpoint(
+        pool,
+        conv.channel_id,
+        tenant.shop_id,
     )
-    .bind(conv.channel_id)
-    .bind(tenant.shop_id)
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten();
+    .await;
     let Some((base_url, kind, is_enabled)) = channel else {
         send_event(tx, "error", json!({ "message": "会话绑定的渠道不存在或已被删除，请重新选择渠道" })).await;
         return (RoundKind::Failed, Vec::new());
@@ -1107,161 +1056,64 @@ async fn upstream_round(
     };
     send_event(tx, "assistant", json!({ "msgId": assistant_msg_id, "convId": conv.conv_id })).await;
 
-    let payload = json!({
-        "model": conv.model_code,
-        "messages": messages,
-        "tools": tools,
-        "stream": true,
-        "stream_options": { "include_usage": true },
-        "temperature": 0.3,
+    // 上游流式调用已下沉 services 共享层（`ai::upstream::stream_completion`：
+    // 连接重试、SSE 解析、工具分片拼装、usage 捕获）。本层保留消息行/事件/
+    // 用量口径：增量经通道转发为 SSE delta 事件，每 40 个增量把已生成文本
+    // 刷回消息行（断线可续读），与下沉前逐项一致。
+    let (mut dtx, mut drx) = futures::channel::mpsc::channel::<String>(64);
+    let mut fwd_tx = tx.clone();
+    let fwd_pool = pool.clone();
+    let forwarder = tokio::spawn(async move {
+        let mut acc = String::new();
+        let mut count: u32 = 0;
+        while let Some(d) = futures::StreamExt::next(&mut drx).await {
+            acc.push_str(&d);
+            count += 1;
+            send_event(&mut fwd_tx, "delta", json!({ "content": d })).await;
+            if count % 40 == 0 {
+                let _ = sqlx::query("UPDATE ai_message SET content = $1 WHERE msg_id = $2")
+                    .bind(&acc)
+                    .bind(assistant_msg_id)
+                    .execute(&fwd_pool)
+                    .await;
+            }
+        }
     });
-    let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
-    let client = match reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(600))
-        .connect_timeout(std::time::Duration::from_secs(15))
-        .build()
-    {
-        Ok(c) => c,
-        Err(e) => {
-            send_event(tx, "error", json!({ "message": format!("HTTP 客户端初始化失败：{e}") })).await;
+    let outcome = nextrade_services::ai::upstream::stream_completion(
+        &base_url,
+        &api_key,
+        &conv.model_code,
+        messages,
+        tools,
+        stop_flag,
+        assistant_msg_id,
+        &mut dtx,
+    )
+    .await;
+    drop(dtx);
+    let _ = forwarder.await;
+    let outcome = match outcome {
+        Ok(o) => o,
+        Err(msg) => {
+            // 分支口径与下沉前一致：客户端初始化失败只报错（不记用量、不删行）；
+            // 连接/上游失败记一条失败用量并删除空消息行。
+            if !msg.starts_with("HTTP 客户端初始化失败") {
+                record_usage(pool, tenant, conv.conv_id, conv.channel_id, &conv.model_code, 0, 0, 2, &msg).await;
+                let _ = sqlx::query("DELETE FROM ai_message WHERE msg_id = $1 AND content = ''")
+                    .bind(assistant_msg_id)
+                    .execute(pool)
+                    .await;
+            }
+            send_event(tx, "error", json!({ "message": msg })).await;
             return (RoundKind::Failed, Vec::new());
         }
     };
-    // 连接阶段重试（429/5xx/网络错误，最多 3 次）；一旦开始出流不再重试。
-    let mut attempt = 0;
-    let mut resp = loop {
-        attempt += 1;
-        match client.post(&url).bearer_auth(&api_key).json(&payload).send().await {
-            Ok(r) if r.status().is_success() => break r,
-            Ok(r) => {
-                let status = r.status();
-                if (status.as_u16() == 429 || status.is_server_error()) && attempt < 3 {
-                    tokio::time::sleep(std::time::Duration::from_millis(600 * attempt)).await;
-                    continue;
-                }
-                let body = r.text().await.unwrap_or_default();
-                let brief: String = body.chars().take(300).collect();
-                let msg = format!("上游返回 {status}：{brief}");
-                record_usage(pool, tenant, conv.conv_id, conv.channel_id, &conv.model_code, 0, 0, 2, &msg).await;
-                let _ = sqlx::query("DELETE FROM ai_message WHERE msg_id = $1 AND content = ''")
-                    .bind(assistant_msg_id)
-                    .execute(pool)
-                    .await;
-                send_event(tx, "error", json!({ "message": msg })).await;
-                return (RoundKind::Failed, Vec::new());
-            }
-            Err(e) => {
-                if attempt < 3 {
-                    tokio::time::sleep(std::time::Duration::from_millis(600 * attempt)).await;
-                    continue;
-                }
-                let msg = format!("连接上游失败：{e}");
-                record_usage(pool, tenant, conv.conv_id, conv.channel_id, &conv.model_code, 0, 0, 2, &msg).await;
-                let _ = sqlx::query("DELETE FROM ai_message WHERE msg_id = $1 AND content = ''")
-                    .bind(assistant_msg_id)
-                    .execute(pool)
-                    .await;
-                send_event(tx, "error", json!({ "message": msg })).await;
-                return (RoundKind::Failed, Vec::new());
-            }
-        }
-    };
-
-    let mut buf: Vec<u8> = Vec::new();
-    let mut text = String::new();
-    let mut calls_map: std::collections::BTreeMap<i64, (String, String, String)> =
-        std::collections::BTreeMap::new();
-    let mut prompt_tokens: i32 = 0;
-    let mut completion_tokens: i32 = 0;
-    let mut delta_count: u32 = 0;
-    let mut stream_broken = false;
-
-    'read: loop {
-        if stop_flag.load(Ordering::Relaxed) {
-            break 'read;
-        }
-        let chunk = match resp.chunk().await {
-            Ok(Some(c)) => c,
-            Ok(None) => break 'read,
-            Err(_) => {
-                stream_broken = true;
-                break 'read;
-            }
-        };
-        buf.extend_from_slice(&chunk);
-        while let Some(pos) = buf.iter().position(|b| *b == b'\n') {
-            let line: Vec<u8> = buf.drain(..=pos).collect();
-            let line = String::from_utf8_lossy(&line);
-            let line = line.trim();
-            let Some(data) = line.strip_prefix("data:") else {
-                continue;
-            };
-            let data = data.trim();
-            if data == "[DONE]" {
-                break 'read;
-            }
-            let Ok(v) = serde_json::from_str::<Value>(data) else {
-                continue;
-            };
-            if let Some(u) = v.get("usage").filter(|u| !u.is_null()) {
-                prompt_tokens = u.get("prompt_tokens").and_then(Value::as_i64).unwrap_or(0) as i32;
-                completion_tokens = u
-                    .get("completion_tokens")
-                    .and_then(Value::as_i64)
-                    .unwrap_or(0) as i32;
-            }
-            let delta = v.pointer("/choices/0/delta").cloned().unwrap_or(Value::Null);
-            if let Some(content) = delta.get("content").and_then(Value::as_str) {
-                if !content.is_empty() {
-                    text.push_str(content);
-                    delta_count += 1;
-                    send_event(tx, "delta", json!({ "content": content })).await;
-                    if delta_count % 40 == 0 {
-                        let _ = sqlx::query("UPDATE ai_message SET content = $1 WHERE msg_id = $2")
-                            .bind(&text)
-                            .bind(assistant_msg_id)
-                            .execute(pool)
-                            .await;
-                    }
-                }
-            }
-            if let Some(tcs) = delta.get("tool_calls").and_then(Value::as_array) {
-                for tc in tcs {
-                    let idx = tc.get("index").and_then(Value::as_i64).unwrap_or(0);
-                    let entry = calls_map.entry(idx).or_default();
-                    if let Some(id) = tc.get("id").and_then(Value::as_str) {
-                        if entry.0.is_empty() {
-                            entry.0 = id.to_string();
-                        }
-                    }
-                    if let Some(name) = tc.pointer("/function/name").and_then(Value::as_str) {
-                        entry.1.push_str(name);
-                    }
-                    if let Some(args) = tc.pointer("/function/arguments").and_then(Value::as_str) {
-                        entry.2.push_str(args);
-                    }
-                }
-            }
-        }
-    }
-
-    let stopped = stop_flag.load(Ordering::Relaxed);
-    let mut calls: Vec<ToolCall> = Vec::new();
-    for (idx, (id, name, args_buf)) in &calls_map {
-        if name.is_empty() {
-            continue;
-        }
-        let args: Value = serde_json::from_str(args_buf).unwrap_or_else(|_| json!({}));
-        calls.push(ToolCall {
-            id: if id.is_empty() {
-                format!("call_{assistant_msg_id}_{idx}")
-            } else {
-                id.clone()
-            },
-            name: name.clone(),
-            args,
-        });
-    }
+    let text = outcome.text;
+    let calls = outcome.calls;
+    let prompt_tokens = outcome.prompt_tokens;
+    let completion_tokens = outcome.completion_tokens;
+    let stream_broken = outcome.stream_broken;
+    let stopped = outcome.stopped;
     let tool_calls_json = if calls.is_empty() {
         None
     } else {

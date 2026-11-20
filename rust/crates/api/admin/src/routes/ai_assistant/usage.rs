@@ -127,21 +127,21 @@ pub async fn record_usage(
     status: i32,
     error: &str,
 ) {
-    let _ = sqlx::query(
-        "INSERT INTO ai_usage (shop_id, admin_id, conv_id, channel_id, model_code, kind,
-            prompt_tokens, completion_tokens, image_count, credits_charged, self_key, status, error, create_time)
-         VALUES ($1, $2, $3, $4, $5, 1, $6, $7, 0, 0, 1, $8, $9, $10)",
+    // 写入已下沉 services 共享层（ai::usage）；admin_chat 构造保持原写入口径
+    // （kind=1、image_count=0、credits=0、self_key=1），并补 scene=admin/user_id=0。
+    nextrade_services::ai::usage::record_usage(
+        pool,
+        &nextrade_services::ai::usage::UsageRecord::admin_chat(
+            tenant.shop_id,
+            tenant.admin_id,
+            conv_id,
+            channel_id,
+            model_code,
+            prompt_tokens,
+            completion_tokens,
+            status,
+            error,
+        ),
     )
-    .bind(tenant.shop_id)
-    .bind(tenant.admin_id)
-    .bind(conv_id)
-    .bind(channel_id)
-    .bind(model_code)
-    .bind(prompt_tokens)
-    .bind(completion_tokens)
-    .bind(status)
-    .bind(error.chars().take(500).collect::<String>())
-    .bind(super::now_secs())
-    .execute(pool)
     .await;
 }
