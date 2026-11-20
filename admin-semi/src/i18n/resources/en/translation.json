@@ -11889,7 +11889,6 @@
   "支持 JPG / PNG / WebP，单张图片。": "JPG / PNG / WebP, single image.",
   "支持 JPG / PNG / WebP，最多 {count} 张；第一张作为商品主图，可通过“设为主图”调整顺序。": "JPG / PNG / WebP, up to {count} images. The first one is the product main image; use \"Set as main image\" to change the order.",
   "支持 JPG / PNG / WebP，最多 {count} 张；拖拽可调整顺序，第一张自动作为商品主图。": "JPG / PNG / WebP, up to {count} images. Drag to reorder; the first image is the product main image.",
-  "支持 JPG / PNG / WebP / SVG，单张图片。": "JPG / PNG / WebP / SVG, single image.",
   "支持 JPG / PNG / WebP / SVG，最多 {count} 张；拖拽可调整顺序，第一张自动作为商品主图。": "JPG / PNG / WebP / SVG, up to {count} images. Drag to reorder; the first image is the product main image.",
   "支持 JPG / PNG / WebP / SVG，建议使用透明底图标": "JPG / PNG / WebP / SVG supported; a transparent-background icon is recommended",
   "属性名，如颜色": "Attribute name, e.g. Color",

@@ -1826,7 +1826,7 @@
 .dec-pic-grid__card {
   position: relative;
   border: 1px solid #edf0f4;
-  border-radius: 14px;
+  border-radius: 0;
   overflow: hidden;
   background: #f7f9fb;
   cursor: pointer;
@@ -1886,7 +1886,7 @@
   place-items: center;
   width: 24px;
   height: 24px;
-  border-radius: 8px;
+  border-radius: 0;
   background: rgba(15, 23, 42, 0.45);
   color: #fff;
   opacity: 0;
@@ -1922,7 +1922,7 @@
   gap: 6px;
   min-height: 120px;
   border: 1.5px dashed #d7dee8;
-  border-radius: 14px;
+  border-radius: 0;
   background: #fbfcfe;
   color: #7c8796;
   font-size: 12px;
@@ -1939,20 +1939,23 @@
   place-items: center;
   width: 34px;
   height: 34px;
-  border-radius: 12px;
+  border-radius: 0;
   background: #fff;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
   font-size: 16px;
 }
 .dec-pic-modal { display: flex; flex-direction: column; gap: 16px; }
+.dec-pic-modal__body { display: flex; gap: 16px; align-items: flex-start; }
+.dec-pic-modal__fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
 .dec-pic-modal__preview {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
   padding: 14px;
-  border-radius: 12px;
+  border-radius: 0;
   background: #f7f9fb;
+  flex-shrink: 0;
 }
 .dec-pic-modal__preview-hint { color: #8a94a3; font-size: 12px; }
 .dec-pic-modal__preview .image-uploader-tip { display: none; }
@@ -1962,7 +1965,7 @@
   width: 120px;
   height: 120px;
   min-width: 120px;
-  border-radius: 12px;
+  border-radius: 0;
 }
 .dec-pic-modal__preview .image-uploader-item img { width: 120px; height: 120px; object-fit: cover; }
 .dec-pic-modal__field { display: flex; flex-direction: column; gap: 6px; }

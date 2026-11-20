@@ -14,15 +14,21 @@
 * PicItemEditor（与 PicListField 同源的条目编辑器：图盒+更换图片条/标题/链接选择器/
 * × 清空槽位）；此前手写老式编辑块（h5-editor-pic-row + 红色删除按钮 + 裸 URL 输入、
 * 且丢了原版「标题」字段）已废弃。
-* 2026-11-21 起改走共享 ProductPicItemEditor（用户 2026-11-20 指示）：选图入口与
-* 「标题图片」同款素材中心盒（PicSelectBox），并按 PC 编辑器成熟方案加「从商品
-* 选择图片」——勾选多商品时自当前槽位起顺延填充后续槽位（productPicPatch 落
-* 图+标题+商品链接，槽位不足时提示）。字段口径不变（picList 条目同前）。
+* 2026-11-21 晚起改调共享图片列表编辑器（PicListEditor，components/PicListEditor，
+* 自 PcDecorateEditor 抽取升格，用户 2026-11-21 定版纠正落点）：以单槽位绑定
+* （value=[当前图片位]、max=1）编辑当前图片位——点卡打开「编辑图片」弹窗，弹窗内
+* 素材中心选图与「从商品选择图片」两入口并列、选图框在左标题/链接在右，与 PC
+* 编辑器同形；晨版 ProductPicItemEditor（卡面外挂工具条形态）已废弃移除。
+* 商品批量落位经 onPickManyProducts 委托回本文件 fillFromProducts：自当前槽位起
+* 顺延填充后续槽位（productPicPatch 落图+标题+商品链接，H5 LinkType 口径），
+* 槽位不足时提示；弹窗内「删除」= 清空当前槽位（clearCurrent 口径不变）。
+* 字段口径不变（picList 条目同前）。
 */
 import { useEffect, useState} from "react";
 import { Toast} from "@douyinfe/semi-ui";
-import { SettingGroup, NumberField, TitleSettingsField, FrameSettingsField, ProductPicItemEditor, productPicPatch} from "../../../shared/settingWidgets";
+import { SettingGroup, NumberField, TitleSettingsField, FrameSettingsField, productPicPatch} from "../../../shared/settingWidgets";
 import type { PickedImage} from "../../../../../components/ProductImagePicker";
+import PicListEditor from "../../../../../components/PicListEditor";
 import { TemplateIconRadioField} from "../../../shared/templateIcon";
 import { imageFormat} from "../../../shared/format";
 
@@ -185,18 +191,15 @@ options={[
 </SettingGroup>
 <SettingGroup title="添加图片">
 {currentItem? (
-<div className="dec-pic-group">
-<div className="dec-pic-group-item">
-<div className="dec-pic-group-item-con">
-<ProductPicItemEditor
-item={currentItem}
-onPatch={(patch) => setPic(currentIndex, patch)}
+<PicListEditor
+value={[currentItem]}
+max={1}
+onChange={(next) => {
+if (!next.length) { clearCurrent(); return; }
+setPic(currentIndex, next[0] as Record<string, any>);
+}}
 onPickManyProducts={fillFromProducts}
-onRemove={clearCurrent}
 />
-</div>
-</div>
-</div>
 ): (
 <div style={{ fontSize: 12, color: "#999"}}>{t('请先选择布局并选中图片位后编辑')}</div>
 )}

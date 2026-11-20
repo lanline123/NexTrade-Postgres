@@ -107,13 +107,13 @@ export default function ImageUploader({
           </button>
         )}
       </div>
-      <div className="image-uploader-tip">
-        {single
-          ? t('支持 JPG / PNG / WebP / SVG，单张图片。')
-          : t('支持 JPG / PNG / WebP / SVG，最多 {count} 张；拖拽可调整顺序，第一张自动作为商品主图。', {
-              count: max,
-            })}
-      </div>
+      {!single ? (
+        <div className="image-uploader-tip">
+          {t('支持 JPG / PNG / WebP / SVG，最多 {count} 张；拖拽可调整顺序，第一张自动作为商品主图。', {
+            count: max,
+          })}
+        </div>
+      ) : null}
       <GalleryPickerModal
         visible={pickerOpen}
         multiple={!single}
