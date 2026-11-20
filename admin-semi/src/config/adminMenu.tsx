@@ -441,10 +441,6 @@ export const navGroups: NavGroup[] = [
           {
             "key": "productBatchEditManage",
             "label": "批量修改"
-          },
-          {
-            "key": "productCloneManage",
-            "label": "商品复刻"
           }
         ]
       },
@@ -1383,10 +1379,6 @@ export const navGroups: NavGroup[] = [
             "label": "系统模式"
           },
           {
-            "key": "productCloneSettings",
-            "label": "商品复刻设置"
-          },
-          {
             "key": "adSettingsManage",
             "label": "投流定价"
           },
@@ -1669,7 +1661,6 @@ export const pageTitles: Record<string, string> = {
   "productBatchExportManage": "批量导出",
   "productBatchAddManage": "批量上传",
   "productBatchEditManage": "批量修改",
-  "productCloneManage": "商品复刻",
   "storeInventoryCalendarManage": "库存日历",
   "inventoryQueryManage": "库存查询",
   "inventoryGoodsArePutIntoStorageManage": "商品入库",
@@ -1840,7 +1831,6 @@ export const pageTitles: Record<string, string> = {
   "buyStyleSettings": "购买按钮样式设置",
   "fontSettings": "网站字体设置",
   "systemMode": "系统模式",
-  "productCloneSettings": "商品复刻设置",
   "taxRateManage": "税率管理",
   "wechatLiveMiniAppSetting": "小程序设置",
   "storeEntryRuleSetting": "进店规则",
