@@ -829,3 +829,9 @@
 ### 修复
 
 - **后端 - 派送单买家坐标落库为 f64 全精度展开串（我方新增代码的格式化订正）**：`delivery_dispatch::buyer_coords` 解析订单地址快照 JSON 时，数字型坐标走 `Decimal::from_f64_retain`，把 f64 的二进制近似原样展开（如 28.68 落成 28.679999999999999715782905687），与字符串型坐标及地址写入侧口径不一致。改走 `Decimal::try_from(f64)`（与同仓地址侧 `decimal_from_f64` 同口径：只保留 f64 保证精度内的最短表示，28.68 即 28.68），数值不变、落库与回显干净。单测 `buyer_coords_parses_number_and_string` 补整数坐标与负坐标各一组断言（数字/字符串两路均验）。
+
+## 0.0.2 续 · 2026-11-20 批次（供应商保证金充值入口补齐，未部署——随下一 admin 合并版上线）
+
+### 新增
+
+- **后台 - 供应商保证金页充值申请入口（原版有·我方补齐）**：原版店铺/供应商共用同一保证金页（快照仓 v5.8.61 view/admin/src/views/merchant/capitalfund/deposit/Index.vue + src/RechargeForm.vue），api 层按登录态切路径，供应商充值走 POST /deposit/recharge/vendorApply、收款账户走共用 GET /deposit/recharge/payeeAccountOptions、记录走 vendorPaymentAuditList 合并列表（api/merchant/capitalfund/deposit.ts 实证）。我方自助资金工厂页 makeDepositPage 的充值弹窗与提交逻辑本已齐备，但供应商页 VendorDepositManage 配置从未传 rechargeApplyApi/payeeListApi，「申请充值」按钮恒不渲染，供应商在后台无任何提交保证金充值的入口（后端 vendorApply 等端点早已齐备，属后端齐、前端入口缺）。本次补齐供应商配置三项（vendorApply + payeeAccountOptions + 充值记录列表），并给工厂页新增可选 rechargeListApi「充值记录」页签（款项审核合并列表 auditType=1，与既有「退还记录」页签同构；提交成功后自动切到该页签看待审核状态）。收款账户改走 payeeAccountOptions（登录态可用、仅启用账户）；店铺页原用 payeeAccount/list 为平台端接口（店铺/供应商登录 403、充值弹窗收款方下拉恒空），同批一并切换为 payeeAccountOptions。供应商身份与归属沿用后端 vendor_scope 锁定，前端不传归属参数。后端零改动。

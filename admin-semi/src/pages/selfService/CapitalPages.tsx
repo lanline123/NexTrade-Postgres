@@ -505,6 +505,7 @@ export function makeDepositPage(config: {
   refundApplyApi?: string;
   refundCheckApi?: string;
   refundListApi?: string;
+  rechargeListApi?: string;
   payeeListApi?: string;
 }) {
   return function DepositPage() {
@@ -514,7 +515,7 @@ export function makeDepositPage(config: {
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(true);
-    const [tab, setTab] = useState<'log' | 'frozen' | 'refund'>('log');
+    const [tab, setTab] = useState<'log' | 'frozen' | 'recharge' | 'refund'>('log');
     const [rechargeOpen, setRechargeOpen] = useState(false);
     const [payees, setPayees] = useState<any[]>([]);
     const [form, setForm] = useState<{ amount?: number; payeeId?: string; remark: string }>({ remark: '' });
@@ -530,9 +531,10 @@ export function makeDepositPage(config: {
 
     const load = (p = 1) => {
       setLoading(true);
-      if (tab === 'refund' && config.refundListApi) {
-        // 商家端退还记录复用款项审核合并列表（auditType=2 仅退还，后端按当前店铺/供应商隔离）
-        apiGet<{ records: any[]; total: number }>(config.refundListApi, { page: p, size: 15, auditType: 2 })
+      // 充值/退还记录同用款项审核合并列表（auditType=1 仅充值 / 2 仅退还，后端按当前店铺/供应商隔离）
+      const auditListApi = tab === 'refund' ? config.refundListApi : tab === 'recharge' ? config.rechargeListApi : undefined;
+      if (auditListApi) {
+        apiGet<{ records: any[]; total: number }>(auditListApi, { page: p, size: 15, auditType: tab === 'refund' ? 2 : 1 })
           .then((res) => {
             setRows(res.records || []);
             setTotal(res.total || 0);
@@ -582,7 +584,12 @@ export function makeDepositPage(config: {
         await apiPost(config.rechargeApplyApi, { amount: form.amount, payeeAccountId: form.payeeId ? Number(form.payeeId) : undefined, remark: form.remark });
         Toast.success({ content: t('充值申请已提交，等待平台审核') });
         setRechargeOpen(false);
-        load(1);
+        loadOverview();
+        if (config.rechargeListApi) {
+          setTab('recharge');
+        } else {
+          load(1);
+        }
       } catch (e) {
         Toast.error({ content: e instanceof Error ? e.message : t('提交失败') });
       } finally {
@@ -668,8 +675,24 @@ export function makeDepositPage(config: {
     ];
 
     const logColumns: ColumnProps<any>[] =
-      tab === 'refund'
+      tab === 'recharge'
         ? [
+            { title: t('充值金额'), dataIndex: 'amount', width: 130, render: (v: any) => money(v) },
+            {
+              title: t('状态'),
+              dataIndex: 'status',
+              width: 100,
+              render: (v: any, r: any) => {
+                const s = Number(v);
+                return <Tag color={s === 1 ? 'green' : s === 2 ? 'red' : 'orange'}>{r.statusText || (s === 1 ? t('已通过') : s === 2 ? t('未通过') : t('待审核'))}</Tag>;
+              },
+            },
+            { title: t('备注'), dataIndex: 'remark', render: (v: any) => v || '-' },
+            { title: t('审核备注'), dataIndex: 'auditRemark', render: (v: any) => v || '-' },
+            { title: t('申请时间'), dataIndex: 'addTimeText', width: 170, render: (v: any, r: any) => v || r.addTime || '-' },
+          ]
+        : tab === 'refund'
+          ? [
             { title: t('退还类型'), dataIndex: 'refundTypeText', width: 110, render: (v: any, r: any) => v || (Number(r.refundType) === 2 ? t('全部退还') : t('部分退还')) },
             { title: t('退还金额'), dataIndex: 'amount', width: 130, render: (v: any) => money(v) },
             {
@@ -713,6 +736,7 @@ export function makeDepositPage(config: {
         <Space style={{ marginBottom: 16 }}>
           <Button type={tab === 'log' ? 'primary' : 'tertiary'} onClick={() => setTab('log')}>{t('保证金流水')}</Button>
           {config.frozenApi && <Button type={tab === 'frozen' ? 'primary' : 'tertiary'} onClick={() => setTab('frozen')}>{t('冻结明细')}</Button>}
+          {config.rechargeListApi && <Button type={tab === 'recharge' ? 'primary' : 'tertiary'} onClick={() => setTab('recharge')}>{t('充值记录')}</Button>}
           {config.refundListApi && <Button type={tab === 'refund' ? 'primary' : 'tertiary'} onClick={() => setTab('refund')}>{t('退还记录')}</Button>}
           {config.rechargeApplyApi && <Button theme="solid" icon={<IconPlus />} onClick={openRecharge}>{t('申请充值')}</Button>}
           {config.refundApplyApi && <Button theme="solid" type="primary" onClick={openRefund}>{t('申请退还')}</Button>}

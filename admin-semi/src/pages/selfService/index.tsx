@@ -70,7 +70,7 @@ export const ShopDepositManage = makeDepositPage({
   refundApplyApi: '/deposit/refund/apply',
   refundCheckApi: '/deposit/refund/fullRefundCheck',
   refundListApi: '/deposit/recharge/shopPaymentAuditList',
-  payeeListApi: '/deposit/payeeAccount/list',
+  payeeListApi: '/deposit/recharge/payeeAccountOptions',
 });
 
 /* =============================== 供应商端财务中心 =============================== */
@@ -101,9 +101,12 @@ export const VendorDepositManage = makeDepositPage({
   overviewApi: '/deposit/vendor/overview',
   logApi: '/deposit/vendor/logList',
   frozenApi: '/deposit/vendor/frozenDetailList',
+  rechargeApplyApi: '/deposit/recharge/vendorApply',
   refundApplyApi: '/deposit/refund/vendorApply',
   refundCheckApi: '/deposit/refund/vendorFullRefundCheck',
   refundListApi: '/deposit/recharge/vendorPaymentAuditList',
+  rechargeListApi: '/deposit/recharge/vendorPaymentAuditList',
+  payeeListApi: '/deposit/recharge/payeeAccountOptions',
 });
 
 /* ============================== 供应商设置与自有库存 ============================== */
