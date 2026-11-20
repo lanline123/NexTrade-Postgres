@@ -22,7 +22,7 @@
 import { useEffect, useState} from "react";
 import { Toast} from "@douyinfe/semi-ui";
 import { SettingGroup, NumberField, TitleSettingsField, FrameSettingsField, ProductPicItemEditor, productPicPatch} from "../../../shared/settingWidgets";
-import type { PickedImage} from "../../../../components/ProductImagePicker";
+import type { PickedImage} from "../../../../../components/ProductImagePicker";
 import { TemplateIconRadioField} from "../../../shared/templateIcon";
 import { imageFormat} from "../../../shared/format";
 

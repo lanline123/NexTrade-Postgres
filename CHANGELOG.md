@@ -953,3 +953,7 @@
 ### 新增
 
 - **后台 - AI 渠道新建/编辑弹窗视觉改版（我方新增，用户 2026-11-21 00:03 指认「填 key 的弹窗设计太丑、一点都不现代化」，确认对象为本弹窗）**：`AiChannels.tsx` 渠道表单弹窗纯视觉/布局重构，字段、校验、条件显隐、提交口径与 API 调用零变化。改法：① 分区呈现——「基础信息」与「模型列表」两区各带分区小标题（13px/600）与留白，告别无标签 Input 纵向堆叠，每个字段补 12px 字段标签（原靠 placeholder 兼任标签）；② 模型行改卡片式——fill-0 底 + 1px 边框的直角卡片行，模型编码（等宽字体）/显示名/能力/启用开关 + 状态文案/删除钮一行可扫读，「+ 添加模型」移至分区标题行右侧，空列表给虚线边框空态提示；③ 密钥栏做成正经密码字段——标签按类型呈现（API 密钥 / 蜂鸟 Authorization / 火山 AccessKey ID），密码模式 + 等宽字体掩码，编辑态占位文案「已配置，留空表示不修改」（留空不改的既有语义不变），新建态补一行「提交后加密存储，保存后不可查看原文」小字，第二凭据字段（蜂鸟 Project ID / 火山 Secret Access Key）同样补标签并入基础信息区，显隐条件与改前逐一相同；④ 弹窗宽度 720→760（与客服历史详情 Modal 同宽）、弹窗与卡片直角（border-radius: 0），底部改自定义页脚（取消 borderless + 保存 solid primary，loading 沿用 saving 状态）。取值对齐 admin 内部近期改版口径：客服历史详情 Modal（fd2da8ae）的 fill-0 色带 + 1px 边框、订单卡新标准的直角与 text 层级；样式集中于 styles.css 的 `.ai-channel-*` / `.ai-model-card` 作用域类，未动 Semi 全局。代码级自查：新旧弹窗块的 value/onChange 绑定、kind 条件集合、模型增删改处理器逐项比对一致，弹窗外代码字节未变，esbuild 语法解析通过；待 CI 构建与目验。
+
+## 0.0.2 续 · 2026-11-21 批次（魔方选图 import 路径笔误修复，未部署——随 admin 合并版上线）
+
+- 修复 c4c7199 引入的一行笔误：imageSquareAd/Settings.tsx 引用 ProductImagePicker 时少写一层 ../（四层只到 src/pages，组件实在 src/components），build-admin 的 tsc 报 TS2307 找不到模块。改为五层 ../../../../../components/ProductImagePicker，与同文件 i18n 引用的层数一致。仅此一行，无其他变化。
