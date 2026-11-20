@@ -1043,3 +1043,9 @@
 ### 修复
 
 - **管理端/H5 - 分割线模块「分割类型」默认改为「分割线」（原版有·我方改口径，用户 2026-11-21 指示）**：原版 tigshop 分割线模块（whiteLine）的默认 lineType=1（空白）——证据：原版 admin 源码 editor/modules/mobile/whiteLine/index.ts 与旧 src/modules/mobile/whiteLine/View.vue 的 defaultModule 均为 lineType: 1，types.ts 注释 1=空白/2=分割线，原版 Settings.vue 选项构成相同；我方移植与原版一致、非移植偏差。用户指示默认应选「分割线」（模块名即分割线；且我方 PC 编辑器 pc-divider 同选项构成的默认本就是 lineType: 2，两端口径原不一致）。改动三层：① 默认数据模板 whiteLineDefaults.lineType 1→2——新插入模块的初始数据与编辑器画布预览的缺字段合并兜底同源生效；② 设置面存量兜底——SettingsPanel 直传原始存储 data、不合并默认值，缺 lineType 的存量模块打开设置时单选整组无选中且与预览渲染对不上，现 WhiteLineSettings 对两个单选字段先按 mergeDefaultModule(whiteLineDefaults) 同口径补齐再喂控件，缺字段回显「分割线/实线」且与渲染一致（仅读取显示，用户点选后按原契约回写落库）；③ 前台渲染口径归一——uniapp whiteLine 渲染器此前把缺字段的 lineType 拼成类名 ad-style__undefined、靠未命中空白规则偶然显线，现显式归一：仅 1 为空白，其余（含缺字段）按 2 分割线出类名。已显式存 1（空白）的存量模块不受影响。
+
+## 0.0.2 续 · 2026-11-21 批次（H5 编辑器真实渲染空模块占位，未部署——随下一 H5 合并版上线）
+
+### 修复
+
+- **H5 - 编辑器真实渲染画布空模块高度塌陷（原版有·我方补齐）**：编辑器默认真实渲染（iframe 嵌入 decoratePreview），分发器按前台口径渲染模块——模块没填内容时渲染器返回 null（如 imageAd 空 picList）或只剩 frame padding（如 imageSquareAd 空 picList），槽位高约 0，编辑器覆盖层无从点选、相邻模块贴死（用户 2026-11-21 在页面 10106 实测）。2026-11-20 的空态清扫（7d6568d）只覆盖兼容渲染面（admin Preview 组件 17 型），真实渲染面当时明确不在范围内、未被覆盖到——本批补这一面。原版基准：原版编辑器各 Preview 对空态恒渲染 .module-ad-empty 占位块（约 224 设计 px，见原版 imageAd/Preview.vue 等）。修法收口在分发器共享层：DecorateModules 新增 moduleEmptyPlaceholder 开关（仅 decoratePreview 传入），新组件 EditorEmptyShell 包裹每个槽位、量测内容真实高度，多轮确认判空才在槽位内补可见占位（不超过 4px 直接判空；不超过 14px 的近空带还须子树无图无字，覆盖只剩 frame padding 的魔方类空态；分割线/空白辅助豁免近空带；模块名 + 「暂无内容」提示，形态对齐原版 .module-ad-empty），内容出现（面板填入/异步取数落地）即撤、被清空后复挂；占位在槽位内，decorate-layout 上报高度随之非 0、覆盖层可点。前台首页/自定义页/活动页不传开关，不挂壳、DOM 与渲染逐字不变，商城端口径零影响。热图模块 2026-11-20 已有的单模块嵌入态占位（inEditorEmbed）保留不动，与本壳叠加时内容高度非 0、本壳不触发。

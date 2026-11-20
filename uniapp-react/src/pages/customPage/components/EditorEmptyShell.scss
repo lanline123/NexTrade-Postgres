@@ -1,0 +1,40 @@
+/* 编辑器空模块占位（仅 decoratePreview 嵌入态渲染，前台永不出现）。
+   形态对齐原版编辑器 .module-ad-empty：#f2f4f6 底 + 居中占位盒 + 文案。
+   尺寸用 rpx（750 设计宽）：占位总高约 250rpx ≈ 375 宽画布下 125px，
+   保证编辑器覆盖层有可点高度；内容出现即由组件撤下，不影响真实排版。 */
+.editor-empty-shell {
+    &__content {
+        /* 内容承接层：无样式，仅供组件量测真实内容高度 */
+    }
+
+    &__placeholder {
+        background-color: #f2f4f6;
+        border: 2rpx dashed #d5dbe1;
+        padding: 36rpx 20rpx 40rpx;
+        text-align: center;
+        box-sizing: border-box;
+    }
+
+    &__box {
+        width: 96rpx;
+        height: 96rpx;
+        margin: 0 auto 16rpx;
+        background-color: #e3e8ee;
+        border-radius: 8rpx;
+    }
+
+    &__text {
+        display: block;
+        font-size: 26rpx;
+        line-height: 36rpx;
+        color: #666666;
+    }
+
+    &__hint {
+        display: block;
+        margin-top: 8rpx;
+        font-size: 22rpx;
+        line-height: 30rpx;
+        color: #999999;
+    }
+}

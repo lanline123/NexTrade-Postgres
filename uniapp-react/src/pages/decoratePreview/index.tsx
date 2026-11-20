@@ -48,6 +48,12 @@ import "./index.scss";
  *   商品列表响应在 api 层按 id 回填价格后再交给各模块渲染；价格表到达
  *   或变化时整树重挂一次，让各模块重新取数。真实店面不加载本页、注册
  *   表恒为空，店面门控不受影响；旧编辑器不下发该字段时行为不变。
+ * - 编辑器空模块占位【原版有·我方补齐】（2026-11-21）：真实渲染按前台口径，
+ *   模块没填内容时渲染为 0 高，编辑器画布上不可见不可点、相邻模块贴死
+ *   （页面 10106 实测）。原版编辑器各 Preview 对空态恒有 .module-ad-empty
+ *   占位块。本页向分发器传 moduleEmptyPlaceholder，分发器以 EditorEmptyShell
+ *   量测每槽位内容高度，为空时在槽位内补可见占位（上报高度随之非 0，覆盖
+ *   层可点）；内容出现即撤。前台页面不传该开关，渲染逐字不变。
  *
  * 通信安全：只接受 ALLOWED_ORIGINS 的消息；本机 localhost 调试时放行任意来源（仅按 hostname 判断）。
  * 方案：~/workspace/editor-unify/iframe-canvas-design.md
@@ -338,6 +344,7 @@ export default function DecoratePreview() {
                         shopId={shopId}
                         onRefreshShopDetail={handleRefreshShopDetail}
                         moduleErrorPlaceholder
+                        moduleEmptyPlaceholder
                     />
                 )
             ) : (

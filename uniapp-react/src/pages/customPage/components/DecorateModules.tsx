@@ -1,4 +1,4 @@
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useRef, useState, type ReactNode } from "react";
 import { View, Image, Swiper, SwiperItem } from "@tarojs/components";
 
 import { MODULE_REGISTRY, STICKY_REGISTRY, type DecorateModuleProps } from "@/pages/customPage/modules/registry";
@@ -7,6 +7,7 @@ import { redirect, getElementRect } from "@/utils";
 import { imageFormat } from "@/utils/format";
 
 import ModuleErrorBoundary from "./ModuleErrorBoundary";
+import EditorEmptyShell from "./EditorEmptyShell";
 import "./DecorateModules.scss";
 
 /** 与 shopModules.tsx 的 SHOP_ID_MODULE_TYPES 保持一致（原版店铺页分发口径：这些模块带 shopId） */
@@ -37,6 +38,12 @@ interface Props {
     onRefreshShopDetail?: (shopId?: number) => void;
     /** 模块渲染失败时显示占位提示块（编辑器嵌入预览用）；默认静默空占位（线上口径） */
     moduleErrorPlaceholder?: boolean;
+    /**
+     * 模块无内容时显示编辑占位块（编辑器嵌入预览用）：空模块前台口径渲染为
+     * 0 高，编辑器里不可见不可点；开启后由 EditorEmptyShell 量测内容高度，
+     * 为空时在槽位内补可见占位。默认关闭（线上口径，DOM 不变）。
+     */
+    moduleEmptyPlaceholder?: boolean;
 }
 
 /**
@@ -44,7 +51,20 @@ interface Props {
  * - navbar（页面标题装修）+ 按 moduleIndex 顺序渲染已注册模块
  * - catNav 选中分类后的二级展示（banner 轮播 / 子分类 / 品牌）
  */
-export default function DecorateModules({ modules, pageModles, scrollTop, onLoadGoodsList, shopInfo, shopId, onRefreshShopDetail, moduleErrorPlaceholder }: Props) {
+export default function DecorateModules({ modules, pageModles, scrollTop, onLoadGoodsList, shopInfo, shopId, onRefreshShopDetail, moduleErrorPlaceholder, moduleEmptyPlaceholder }: Props) {
+    /**
+     * 编辑器空态壳：仅嵌入预览开启时包裹槽位内容（量测为空补占位高度）；
+     * 关闭时原样返回节点，前台 DOM 逐字不变。壳恒为槽位内的单根节点，
+     * decoratePreview 按容器 children 下标对齐槽位的契约不受影响。
+     */
+    const wrapSlot = (type: string, resetKey: unknown, node: ReactNode, key?: string | number): ReactNode =>
+        moduleEmptyPlaceholder ? (
+            <EditorEmptyShell key={key} moduleType={type} resetKey={resetKey}>
+                {node}
+            </EditorEmptyShell>
+        ) : (
+            node
+        );
     const effectiveShopId = shopId ?? shopInfo?.shopId;
     /** 首个可见模块下标（会员页 MemberDecorate 同口径：isShow !== false 即可见，供 userInfo3 沉浸式判定） */
     const firstVisibleModuleIndex = (modules ?? []).findIndex((m: any) => m?.isShow !== false);
@@ -95,21 +115,29 @@ export default function DecorateModules({ modules, pageModles, scrollTop, onLoad
 
             {modules.map((mod: any, index: number) => {
                 if (mod.type === "searchBar" && mod?.isShow) {
-                    return (
+                    return wrapSlot(
+                        mod.type,
+                        mod,
                         <ModuleErrorBoundary key={mod.moduleIndex} moduleType={mod.type} moduleIndex={index} resetKey={mod} placeholder={moduleErrorPlaceholder}>
                             <ModuleById type="searchBar" module={mod.module} />
-                        </ModuleErrorBoundary>
+                        </ModuleErrorBoundary>,
+                        mod.moduleIndex
                     );
                 }
                 if (mod.type === "searchBar2" && mod?.isShow) {
-                    return (
+                    return wrapSlot(
+                        mod.type,
+                        mod,
                         <ModuleErrorBoundary key={mod.moduleIndex} moduleType={mod.type} moduleIndex={index} resetKey={mod} placeholder={moduleErrorPlaceholder}>
                             <ModuleById type="searchBar2" module={mod.module} />
-                        </ModuleErrorBoundary>
+                        </ModuleErrorBoundary>,
+                        mod.moduleIndex
                     );
                 }
                 if (mod.type === "catNav" && mod?.isShow) {
-                    return (
+                    return wrapSlot(
+                        mod.type,
+                        mod,
                         <ModuleErrorBoundary key={mod.moduleIndex} moduleType={mod.type} moduleIndex={index} resetKey={mod} placeholder={moduleErrorPlaceholder}>
                             <View>
                                 <ModuleById
@@ -127,7 +155,8 @@ export default function DecorateModules({ modules, pageModles, scrollTop, onLoad
                                     onIsCut={setShow}
                                 />
                             </View>
-                        </ModuleErrorBoundary>
+                        </ModuleErrorBoundary>,
+                        mod.moduleIndex
                     );
                 }
 
@@ -155,11 +184,15 @@ export default function DecorateModules({ modules, pageModles, scrollTop, onLoad
                     }
                     return (
                         <View key={mod.moduleIndex} className={show ? "show" : ""}>
-                            <ModuleErrorBoundary moduleType={mod.type} moduleIndex={index} resetKey={mod} placeholder={moduleErrorPlaceholder}>
-                                <Suspense fallback={null}>
-                                    <Registered {...props} />
-                                </Suspense>
-                            </ModuleErrorBoundary>
+                            {wrapSlot(
+                                mod.type,
+                                mod,
+                                <ModuleErrorBoundary moduleType={mod.type} moduleIndex={index} resetKey={mod} placeholder={moduleErrorPlaceholder}>
+                                    <Suspense fallback={null}>
+                                        <Registered {...props} />
+                                    </Suspense>
+                                </ModuleErrorBoundary>
+                            )}
                         </View>
                     );
                 }
