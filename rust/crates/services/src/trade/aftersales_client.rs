@@ -39,12 +39,12 @@ use std::sync::Arc;
 use rust_decimal::prelude::Zero;
 use rust_decimal::{Decimal, RoundingStrategy};
 use nextrade_common::utils;
-use nextrade_core::entities::{Aftersales, AftersalesItem, AftersalesLog, Order, OrderItem, Product};
+use nextrade_core::entities::{Aftersales, AftersalesItem, AftersalesLog, Order, OrderItem, Product, ProductSku};
 use nextrade_core::models::trade::aftersales_client::{
     aftersales_status, aftersales_type, client_status_desc, client_status_name, type_name,
     AfterSalesApplyDataVO, AfterSalesClientDetailVO, AfterSalesClientItemVO, AfterSalesClientVO,
     AfterSalesDetailVO, AftersalesApplyItem, AftersalesConfigVO, AftersalesFeedbackParam,
-    AftersalesItemVO, AftersalesListQuery, AftersalesLogVO, AftersalesVO,
+    AftersalesItemVO, AftersalesListQuery, AftersalesLogVO, AftersalesVO, ExchangeSkuVO,
     AftersalesCancelParam, ClientAfterSalesUpdateParam, CreateAftersalesParam, SkuDataVO, StepStatusVO,
     StepVO, ERR_AFTERSALES_NOT_EXIST, ERR_AFTERSALES_TIME_EXPIRED, ERR_APPLY_NOT_EXIST,
     ERR_FULL_REFUND_ONLY, ERR_GIFTCARD_NOT_ALLOWED, ERR_ORDER_ITEM_NOT_EXIST, ERR_ORDER_NOT_EXIST,
@@ -591,9 +591,117 @@ pub fn auto_agree_end_time(
     i32::try_from(end).ok().map(fmt_time).filter(|s| !s.is_empty())
 }
 
+/// 换货进度条（我方新增）：提交申请 → 商家审核 → 买家回寄 → 商家收货 →
+/// 商家重发 → 已完成，共 6 步。
+#[must_use]
+pub fn build_exchange_step_status(a: &Aftersales) -> StepStatusVO {
+    let mut steps: Vec<StepVO> = vec![
+        StepVO {
+            title: STEP_TITLE_SUBMIT.into(),
+            active: true,
+            description: fmt_time(a.add_time),
+        },
+        StepVO {
+            title: "商家审核".into(),
+            active: false,
+            description: fmt_time_opt(a.audit_time).unwrap_or_default(),
+        },
+        StepVO {
+            title: "买家回寄".into(),
+            active: false,
+            description: String::new(),
+        },
+        StepVO {
+            title: "商家收货".into(),
+            active: false,
+            description: String::new(),
+        },
+        StepVO {
+            title: "商家重发".into(),
+            active: false,
+            description: String::new(),
+        },
+        StepVO {
+            title: STEP_TITLE_COMPLETED.into(),
+            active: false,
+            description: fmt_time_opt(a.final_time).unwrap_or_default(),
+        },
+    ];
+    let mut current = 0;
+    let mut status = STEP_STATUS_PROCESS.to_string();
+    match a.status {
+        aftersales_status::IN_REVIEW => {
+            current = 1;
+            steps[1].active = true;
+            steps[1].description = STEP_DESC_REVIEWING.into();
+        }
+        aftersales_status::REFUSE => {
+            current = 1;
+            steps[1].active = true;
+            steps[1].description = STEP_DESC_REJECTED.into();
+        }
+        aftersales_status::CANCEL => {
+            current = 1;
+            status = STEP_STATUS_FINISH.to_string();
+            steps[1].title = STEP_TITLE_CANCELLED.into();
+            steps[1].active = true;
+            steps[1].description = String::new();
+            steps.truncate(2);
+        }
+        aftersales_status::SEND_BACK => {
+            current = 2;
+            steps[1].active = true;
+            steps[2].active = true;
+            steps[2].description = STEP_DESC_WAIT_RETURN.into();
+        }
+        aftersales_status::RETURNED => {
+            current = 3;
+            steps[1].active = true;
+            steps[2].active = true;
+            steps[3].active = true;
+            steps[3].description = STEP_DESC_WAIT_MERCHANT_RECEIPT.into();
+        }
+        aftersales_status::EXCHANGE_WAIT_RESHIP => {
+            current = 4;
+            steps[1].active = true;
+            steps[2].active = true;
+            steps[3].active = true;
+            steps[4].active = true;
+            steps[4].description = "待商家重发".into();
+        }
+        aftersales_status::EXCHANGE_WAIT_CONFIRM => {
+            current = 5;
+            steps[1].active = true;
+            steps[2].active = true;
+            steps[3].active = true;
+            steps[4].active = true;
+            steps[5].active = false;
+            steps[4].description = "已重新发货，待确认收货".into();
+        }
+        aftersales_status::COMPLETE => {
+            current = 5;
+            status = STEP_STATUS_FINISH.to_string();
+            for s in &mut steps {
+                s.active = true;
+            }
+            steps[5].description = fmt_time(a.final_time);
+        }
+        _ => {}
+    }
+    StepStatusVO {
+        current,
+        status,
+        steps,
+    }
+}
+
 /// 售后进度条（Java `AftersalesServiceImpl#getStep`）。
 #[must_use]
 pub fn build_step_status(a: &Aftersales) -> StepStatusVO {
+    // 换货（我方新增类型）走 6 步进度条
+    if aftersales_type::is_exchange(Some(a.aftersale_type)) {
+        return build_exchange_step_status(a);
+    }
     let pay_return = aftersales_type::is_pay_return(Some(a.aftersale_type));
     let mut current = 0;
     let mut status = STEP_STATUS_PROCESS.to_string();
@@ -742,6 +850,87 @@ pub fn ensure_aftersale_owner(owner: Option<i32>, user_id: i32) -> Result<()> {
     Ok(())
 }
 
+/// SKU 口径价（换货等价校验用：`sku_price` 为空按 0 处理）。
+fn sku_price_or_zero(sku: &ProductSku) -> Decimal {
+    sku.sku_price.unwrap_or(Decimal::ZERO)
+}
+
+/// 换货等价校验（我方新增，纯函数）：解析一条售后明细的换货目标 SKU。
+///
+/// 口径（用户 2026-11-21 拍板「等价换 SKU」）：
+/// - 无 SKU 商品（`order_item.sku_id <= 0`）：目标即商品本身，返回 `None`；
+///   此时不接受指定目标 SKU。
+/// - 有 SKU 商品：目标缺省为原 SKU（同 SKU 补发）；目标必须属于同一商品、
+///   处于启用状态，且 `sku_price` 与原 SKU 严格相等（数值相等）。
+/// - 原 SKU 已不存在（被删除）时无法验证等价，拒绝换货。
+///
+/// `product_skus` 为该订单商品的全部 SKU 行。返回应写入
+/// `aftersales_item.exchange_sku_id` 的值。
+pub fn resolve_exchange_sku(
+    order_item: &OrderItem,
+    requested: Option<i32>,
+    product_skus: &[ProductSku],
+) -> Result<Option<i32>> {
+    if order_item.sku_id <= 0 {
+        if requested.is_some_and(|id| id > 0) {
+            return Err(Error::biz_msg("该商品无规格可选换货"));
+        }
+        return Ok(None);
+    }
+    let original = product_skus
+        .iter()
+        .find(|s| s.sku_id == order_item.sku_id)
+        .ok_or_else(|| Error::biz_msg("原商品规格不存在，无法申请换货"))?;
+    let target_id = requested.filter(|id| *id > 0).unwrap_or(order_item.sku_id);
+    let target = product_skus
+        .iter()
+        .find(|s| s.sku_id == target_id)
+        .ok_or_else(|| Error::biz_msg("所选换货规格不存在"))?;
+    if target.is_enabled != 1 {
+        return Err(Error::biz_msg("所选换货规格已停用"));
+    }
+    if sku_price_or_zero(target) != sku_price_or_zero(original) {
+        return Err(Error::biz_msg("换货只能选择与原规格等价的规格"));
+    }
+    Ok(Some(target_id))
+}
+
+/// 申请页换货目标清单（我方新增，纯函数）：与原 SKU 等价且启用的同商品 SKU。
+///
+/// 无 SKU 商品返回空表（换货即同商品补发，前端不展示选择器）。
+#[must_use]
+pub fn equal_price_exchange_skus(
+    order_item: &OrderItem,
+    product_skus: &[ProductSku],
+) -> Vec<ExchangeSkuVO> {
+    if order_item.sku_id <= 0 {
+        return Vec::new();
+    }
+    let Some(original) = product_skus.iter().find(|s| s.sku_id == order_item.sku_id) else {
+        return Vec::new();
+    };
+    let original_price = sku_price_or_zero(original);
+    product_skus
+        .iter()
+        .filter(|s| s.is_enabled == 1 && sku_price_or_zero(s) == original_price)
+        .map(|s| {
+            let sku_data = parse_sku_data(s.sku_data.as_deref().unwrap_or_default());
+            ExchangeSkuVO {
+                sku_id: s.sku_id,
+                sku_value: if s.sku_value.trim().is_empty() {
+                    Some(sku_value_of(&sku_data))
+                } else {
+                    Some(s.sku_value.clone())
+                },
+                sku_data,
+                price: s.sku_price,
+                stock: s.sku_stock,
+                is_original: s.sku_id == order_item.sku_id,
+            }
+        })
+        .collect()
+}
+
 /// 前台用户售后服务。
 pub struct AftersalesClientService {
     repos: Arc<Repositories>,
@@ -792,6 +981,11 @@ impl AftersalesClientService {
         types.insert(
             aftersales_type::PAY_RETURN.to_string(),
             nextrade_core::models::trade::aftersales_client::TYPE_NAME_PAY_RETURN.to_string(),
+        );
+        // 我方新增：3 换货
+        types.insert(
+            aftersales_type::EXCHANGE.to_string(),
+            nextrade_core::models::trade::aftersales_client::TYPE_NAME_EXCHANGE.to_string(),
         );
         Ok(AftersalesConfigVO {
             aftersale_type: types,
@@ -1043,6 +1237,13 @@ impl AftersalesClientService {
             }
         }
 
+        // 换货目标清单（我方新增）：按商品预取 SKU 列表
+        let mut skus_by_product: HashMap<i32, Vec<ProductSku>> = HashMap::new();
+        for pid in distinct(order_items.iter().map(|oi| oi.product_id)) {
+            let skus = self.repos.catalog.product.find_skus(pid).await?;
+            skus_by_product.insert(pid, skus);
+        }
+
         let tax_rate = order.tax_rate.unwrap_or(Decimal::ZERO);
         let mut list = Vec::with_capacity(order_items.len());
         for oi in &order_items {
@@ -1050,12 +1251,17 @@ impl AftersalesClientService {
             let price_with_tax = oi.price + unit_tax;
             let used = applied_qty.get(&oi.item_id).copied().unwrap_or(0);
             let sku_data = parse_sku_data(&oi.sku_data);
+            let exchange_skus = skus_by_product
+                .get(&oi.product_id)
+                .map_or_else(Vec::new, |skus| equal_price_exchange_skus(oi, skus));
             list.push(AfterSalesDetailVO {
                 item_id: oi.item_id,
                 pic_thumb: oi.pic_thumb.clone(),
                 product_sn: oi.product_sn.clone(),
                 product_id: oi.product_id,
                 product_name: oi.product_name.clone(),
+                sku_id: oi.sku_id,
+                exchange_skus,
                 price: price_with_tax,
                 tax_rate_amount: unit_tax,
                 quantity: oi.quantity,
@@ -1190,6 +1396,21 @@ impl AftersalesClientService {
 
         let now = utils::now_seconds() as i32;
         let aftersale_type_value = param.aftersale_type.unwrap_or(aftersales_type::PAY_RETURN);
+        // 换货（我方新增）：逐条按等价口径解析目标 SKU；
+        // 审核关闭（自动审核即审核时点）时同时校验目标库存
+        let is_exchange = aftersale_type_value == aftersales_type::EXCHANGE;
+        let exchange_targets = if is_exchange {
+            let targets = self
+                .resolve_exchange_items(&requested_items, &items)
+                .await?;
+            if !cfg.review_enabled {
+                self.check_exchange_stock(&requested_items, &items, &targets)
+                    .await?;
+            }
+            targets
+        } else {
+            HashMap::new()
+        };
         let pics = param.pics_json();
         let description = param.description.clone().unwrap_or_default();
         // Java `param.getRefundAmount() == null` 的等价物：前端是否传了金额
@@ -1211,7 +1432,12 @@ impl AftersalesClientService {
             aftersales_sn: Some(aftersales_sn(now)),
             order_id: Some(order.order_id),
             user_id: Some(user_id),
-            refund_amount: param.refund_amount.unwrap_or(Decimal::ZERO),
+            // 换货零资金动作：金额恒 0，忽略入参
+            refund_amount: if is_exchange {
+                Decimal::ZERO
+            } else {
+                param.refund_amount.unwrap_or(Decimal::ZERO)
+            },
             shop_id: order.shop_id,
             audit_time: 0,
             deal_time: 0,
@@ -1228,6 +1454,12 @@ impl AftersalesClientService {
                 order_item_id: i.order_item_id,
                 number: i.number,
                 aftersale_id: None,
+                exchange_sku_id: if is_exchange {
+                    i.order_item_id
+                        .and_then(|oid| exchange_targets.get(&oid).copied().flatten())
+                } else {
+                    None
+                },
             })
             .collect();
 
@@ -1306,6 +1538,13 @@ impl AftersalesClientService {
             if recalc > Decimal::ZERO {
                 aftersales.refund_amount = recalc;
             }
+            final_status = aftersales_status::SEND_BACK;
+            aftersales.reply = "系统自动审核通过".into();
+            aftersales.return_goods_tip = "您的售后申请已通过".into();
+        } else if aftersale_type_value == aftersales_type::EXCHANGE {
+            // 换货（我方新增）：零资金动作，金额恒 0，流转到「待回寄」；
+            // 目标库存已在申请阶段校验（自动审核即审核时点）
+            aftersales.refund_amount = Decimal::ZERO;
             final_status = aftersales_status::SEND_BACK;
             aftersales.reply = "系统自动审核通过".into();
             aftersales.return_goods_tip = "您的售后申请已通过".into();
@@ -1398,6 +1637,86 @@ impl AftersalesClientService {
 
             if quantity < number + used {
                 return Err(Error::biz_msg(ERR_QUANTITY_INSUFFICIENT));
+            }
+        }
+        Ok(())
+    }
+
+    /// 换货明细目标解析（我方新增）：逐条按等价口径校验目标 SKU，
+    /// 返回 `order_item_id -> exchange_sku_id`（无 SKU 商品为 `None` 值）。
+    async fn resolve_exchange_items(
+        &self,
+        order_items: &[OrderItem],
+        items: &[AftersalesApplyItem],
+    ) -> Result<HashMap<i32, Option<i32>>> {
+        let mut skus_by_product: HashMap<i32, Vec<ProductSku>> = HashMap::new();
+        let mut out: HashMap<i32, Option<i32>> = HashMap::new();
+        for item in items {
+            let Some(oid) = item.order_item_id else {
+                continue;
+            };
+            let Some(oi) = order_items.iter().find(|o| o.item_id == oid) else {
+                return Err(Error::biz_msg(ERR_ORDER_ITEM_NOT_EXIST));
+            };
+            if !skus_by_product.contains_key(&oi.product_id) {
+                let skus = self.repos.catalog.product.find_skus(oi.product_id).await?;
+                skus_by_product.insert(oi.product_id, skus);
+            }
+            let skus = skus_by_product
+                .get(&oi.product_id)
+                .map_or(&[][..], Vec::as_slice);
+            out.insert(oid, resolve_exchange_sku(oi, item.exchange_sku_id, skus)?);
+        }
+        Ok(out)
+    }
+
+    /// 换货目标库存校验（我方新增）：按目标 SKU（无 SKU 时按商品）汇总
+    /// 申请数量，库存不足即拒绝。审核开启时由 admin 审核环节执行同口径
+    /// 校验；此处用于审核关闭（自动审核）路径与申请阶段的提前拦截。
+    async fn check_exchange_stock(
+        &self,
+        order_items: &[OrderItem],
+        items: &[AftersalesApplyItem],
+        targets: &HashMap<i32, Option<i32>>,
+    ) -> Result<()> {
+        // (product_id, sku_id) -> 需求数量
+        let mut need: HashMap<(i32, Option<i32>), i32> = HashMap::new();
+        for item in items {
+            let Some(oid) = item.order_item_id else {
+                continue;
+            };
+            let Some(oi) = order_items.iter().find(|o| o.item_id == oid) else {
+                continue;
+            };
+            let target = targets.get(&oid).copied().flatten();
+            *need.entry((oi.product_id, target)).or_insert(0) += item.number.unwrap_or(0);
+        }
+        for ((product_id, sku_id), qty) in need {
+            if qty <= 0 {
+                continue;
+            }
+            let available = match sku_id {
+                Some(sid) => self
+                    .repos
+                    .catalog
+                    .product
+                    .find_skus_by_ids(&[sid])
+                    .await?
+                    .first()
+                    .and_then(|s| s.sku_stock)
+                    .unwrap_or(0),
+                None => self
+                    .repos
+                    .trade
+                    .aftersales_client
+                    .find_products(&[product_id])
+                    .await?
+                    .first()
+                    .map(|p| p.product_stock)
+                    .unwrap_or(0),
+            };
+            if available < qty {
+                return Err(Error::biz_msg("换货目标库存不足"));
             }
         }
         Ok(())
@@ -1506,6 +1825,20 @@ impl AftersalesClientService {
             aftersales.pics = pics;
         }
 
+        // 换货（我方新增）：最终类型为换货时按等价口径重解析目标 SKU，
+        // 金额强制归零（零资金动作）
+        let is_exchange = aftersales.aftersale_type == aftersales_type::EXCHANGE;
+        let exchange_targets = if is_exchange {
+            aftersales.refund_amount = Decimal::ZERO;
+            let order_items = self
+                .repos.trade.aftersales_client
+                .find_order_items(order_id, None)
+                .await?;
+            self.resolve_exchange_items(&order_items, &items).await?
+        } else {
+            HashMap::new()
+        };
+
         let af_items: Vec<AftersalesItem> = items
             .iter()
             .map(|i| AftersalesItem {
@@ -1513,6 +1846,12 @@ impl AftersalesClientService {
                 order_item_id: i.order_item_id,
                 number: i.number,
                 aftersale_id: Some(aftersale_id),
+                exchange_sku_id: if is_exchange {
+                    i.order_item_id
+                        .and_then(|oid| exchange_targets.get(&oid).copied().flatten())
+                } else {
+                    None
+                },
             })
             .collect();
 
@@ -1666,11 +2005,15 @@ impl AftersalesClientService {
         let finance_rejected = false;
         let display_status = a.status;
 
+        // 换货（我方新增）零资金动作：金额恒 0，不走待审核重算
+        let is_exchange = aftersales_type::is_exchange(Some(a.aftersale_type));
         let mut refund_amount = a.refund_amount;
-        if matches!(
-            a.status,
-            aftersales_status::IN_REVIEW | aftersales_status::WAIT_FOR_SUPPLIER_AUDIT
-        ) {
+        if !is_exchange
+            && matches!(
+                a.status,
+                aftersales_status::IN_REVIEW | aftersales_status::WAIT_FOR_SUPPLIER_AUDIT
+            )
+        {
             if let Some(order_id) = a.order_id {
                 if let Some(order) = self.repos.trade.aftersales_client.find_order(order_id).await? {
                     let order_items = self
@@ -1709,6 +2052,17 @@ impl AftersalesClientService {
             .repos.trade.aftersales_client
             .find_config_raw(CFG_AUTO_RETURN_GOODS)
             .await?;
+
+        // 换货重发物流（我方新增，仅换货单查侧表）
+        let exchange_delivery = if is_exchange {
+            self.repos
+                .trade
+                .aftersales_client
+                .find_exchange_delivery(id)
+                .await?
+        } else {
+            None
+        };
 
         let reply = Some(a.reply.as_str()).filter(|s| !s.is_empty());
         Ok(AfterSalesClientDetailVO {
@@ -1760,6 +2114,15 @@ impl AftersalesClientService {
                 auto_return_goods.as_deref(),
                 cfg.auto_return_goods_days.as_deref(),
             ),
+            exchange_logistics_name: exchange_delivery
+                .as_ref()
+                .map(|d| d.logistics_name.clone()),
+            exchange_tracking_no: exchange_delivery
+                .as_ref()
+                .map(|d| d.tracking_no.clone()),
+            exchange_ship_time: exchange_delivery
+                .as_ref()
+                .and_then(|d| fmt_time_opt(d.ship_time)),
             server_time: Some(fmt_time(utils::now_seconds() as i32)),
         })
     }
@@ -1879,6 +2242,51 @@ impl AftersalesClientService {
         Ok(())
     }
 
+    // ————————————————————— ⑪ 换货确认收货（我方新增） —————————————————————
+
+    /// `POST /api/user/aftersales/confirmExchange`（我方新增端点）：
+    /// 换货单在商家重发（状态 9 待买家确认）后，买家确认收到换货商品，
+    /// 售后完结（状态 6 + final_time）。零资金动作：不建退款申请、
+    /// 不动结算/佣金/礼品卡。
+    pub async fn confirm_exchange(&self, aftersale_id: i32, user_id: i32) -> Result<()> {
+        let a = self
+            .repos.trade.aftersales_client
+            .find_aftersales(aftersale_id)
+            .await?
+            .ok_or_else(|| Error::biz_msg(ERR_AFTERSALES_NOT_EXIST))?;
+        ensure_aftersale_owner(a.user_id, user_id)?;
+        if !aftersales_type::is_exchange(Some(a.aftersale_type)) {
+            return Err(Error::biz_msg("该售后不是换货申请"));
+        }
+        if a.status != aftersales_status::EXCHANGE_WAIT_CONFIRM {
+            return Err(Error::biz_msg("商家尚未重新发货，无法确认收货"));
+        }
+        let now = utils::now_seconds() as i32;
+        self.repos
+            .trade
+            .aftersales_client
+            .update_aftersales_status(aftersale_id, aftersales_status::COMPLETE, Some(now))
+            .await?;
+
+        let username = self.repos.trade.aftersales_client.find_username(user_id).await?;
+        let log = AftersalesLog {
+            log_id: 0,
+            aftersale_id,
+            log_info: "会员确认收到换货商品，换货完成".into(),
+            add_time: now,
+            admin_name: String::new(),
+            refund_money: Decimal::ZERO,
+            refund_type: 0,
+            refund_desc: String::new(),
+            user_name: username,
+            return_pic: Some(String::new()),
+            shop_id: Some(a.shop_id),
+            vendor_id: a.vendor_id,
+        };
+        self.repos.trade.aftersales_client.insert_aftersales_log(&log).await?;
+        Ok(())
+    }
+
     // ————————————————————— 内部：VO 组装 —————————————————————
 
     /// 按售后单批量组装明细 VO（对应 Java `AftersalesItemServiceImpl#getItemByIds`）。
@@ -1895,10 +2303,12 @@ impl AftersalesClientService {
             .await?;
         let map: HashMap<i32, &OrderItem> =
             order_items.iter().map(|it| (it.item_id, it)).collect();
-        Ok(items
+        let mut vos: Vec<AftersalesItemVO> = items
             .iter()
             .map(|it| self.item_vo(it, it.order_item_id.and_then(|id| map.get(&id).copied()), Some(order)))
-            .collect())
+            .collect();
+        self.fill_exchange_sku_values(&mut vos).await?;
+        Ok(vos)
     }
 
     /// 按售后单组装明细 VO（取该售后单所属订单的税率）。
@@ -1919,10 +2329,39 @@ impl AftersalesClientService {
             .await?;
         let map: HashMap<i32, &OrderItem> =
             order_items.iter().map(|it| (it.item_id, it)).collect();
-        Ok(items
+        let mut vos: Vec<AftersalesItemVO> = items
             .iter()
             .map(|it| self.item_vo(it, it.order_item_id.and_then(|id| map.get(&id).copied()), order.as_ref()))
-            .collect())
+            .collect();
+        self.fill_exchange_sku_values(&mut vos).await?;
+        Ok(vos)
+    }
+
+    /// 回填换货目标 SKU 规格值（我方新增）：按明细上的 `exchange_sku_id`
+    /// 批量取 SKU 行，`sku_value` 为空时由 `sku_data` 拼接兜底。
+    async fn fill_exchange_sku_values(&self, vos: &mut [AftersalesItemVO]) -> Result<()> {
+        let ids: Vec<i32> = vos.iter().filter_map(|v| v.exchange_sku_id).collect();
+        if ids.is_empty() {
+            return Ok(());
+        }
+        let skus = self.repos.catalog.product.find_skus_by_ids(&ids).await?;
+        let map: HashMap<i32, String> = skus
+            .iter()
+            .map(|s| {
+                let value = if s.sku_value.trim().is_empty() {
+                    sku_value_of(&parse_sku_data(s.sku_data.as_deref().unwrap_or_default()))
+                } else {
+                    s.sku_value.clone()
+                };
+                (s.sku_id, value)
+            })
+            .collect();
+        for vo in vos.iter_mut() {
+            if let Some(sid) = vo.exchange_sku_id {
+                vo.exchange_sku_value = map.get(&sid).cloned();
+            }
+        }
+        Ok(())
     }
 
     /// 多订单混合明细（`getRecord`）：逐条取所属订单的税率。
@@ -1943,14 +2382,16 @@ impl AftersalesClientService {
             .into_iter()
             .map(|o| (o.order_id, o))
             .collect();
-        Ok(items
+        let mut vos: Vec<AftersalesItemVO> = items
             .iter()
             .map(|it| {
                 let oi = it.order_item_id.and_then(|id| map.get(&id).copied());
                 let order = oi.and_then(|o| orders.get(&o.order_id));
                 self.item_vo(it, oi, order)
             })
-            .collect())
+            .collect();
+        self.fill_exchange_sku_values(&mut vos).await?;
+        Ok(vos)
     }
 
     /// 单条售后明细 → VO。
@@ -1965,6 +2406,8 @@ impl AftersalesClientService {
             order_item_id: ai.order_item_id,
             number: ai.number,
             aftersale_id: ai.aftersale_id,
+            // 换货目标 SKU（我方新增，规格值由异步回填补齐）
+            exchange_sku_id: ai.exchange_sku_id,
             ..Default::default()
         };
         let Some(oi) = oi else {
@@ -2114,7 +2557,119 @@ mod tests {
         AftersalesApplyItem {
             order_item_id: Some(item_id),
             number: Some(number),
+            exchange_sku_id: None,
         }
+    }
+
+    fn product_sku(sku_id: i32, product_id: i32, price: &str, enabled: i32) -> ProductSku {
+        ProductSku {
+            sku_id,
+            product_id,
+            sku_price: Some(dec(price)),
+            sku_stock: Some(10),
+            is_enabled: enabled,
+            ..Default::default()
+        }
+    }
+
+    // ————————————————— 换货等价校验（我方新增） —————————————————
+
+    #[test]
+    fn exchange_resolve_allows_equal_price_sku_and_same_sku() {
+        let mut oi = order_item(1, 1, "100.00");
+        oi.product_id = 7;
+        oi.sku_id = 11;
+        let skus = vec![
+            product_sku(11, 7, "100.00", 1),
+            product_sku(12, 7, "100.0", 1),
+            product_sku(13, 7, "99.00", 1),
+        ];
+        // 缺省 = 原 SKU（同 SKU 补发）
+        assert_eq!(resolve_exchange_sku(&oi, None, &skus).unwrap(), Some(11));
+        // 等价 SKU（100.0 与 100.00 数值相等）
+        assert_eq!(
+            resolve_exchange_sku(&oi, Some(12), &skus).unwrap(),
+            Some(12)
+        );
+        // 非等价 SKU 被拦
+        assert!(resolve_exchange_sku(&oi, Some(13), &skus).is_err());
+        // 不存在的 SKU 被拦
+        assert!(resolve_exchange_sku(&oi, Some(99), &skus).is_err());
+    }
+
+    #[test]
+    fn exchange_resolve_rejects_disabled_and_missing_original() {
+        let mut oi = order_item(1, 1, "100.00");
+        oi.product_id = 7;
+        oi.sku_id = 11;
+        let skus = vec![
+            product_sku(11, 7, "100.00", 1),
+            product_sku(12, 7, "100.00", 0),
+        ];
+        // 目标已停用
+        assert!(resolve_exchange_sku(&oi, Some(12), &skus).is_err());
+        // 原 SKU 已删除 → 无法验证等价
+        let skus_without_original = vec![product_sku(12, 7, "100.00", 1)];
+        assert!(resolve_exchange_sku(&oi, None, &skus_without_original).is_err());
+    }
+
+    #[test]
+    fn exchange_resolve_no_sku_product() {
+        let mut oi = order_item(1, 1, "100.00");
+        oi.product_id = 7;
+        oi.sku_id = 0;
+        // 无 SKU 商品：目标即商品本身
+        assert_eq!(resolve_exchange_sku(&oi, None, &[]).unwrap(), None);
+        assert_eq!(resolve_exchange_sku(&oi, Some(0), &[]).unwrap(), None);
+        // 无 SKU 商品不接受指定目标
+        assert!(resolve_exchange_sku(&oi, Some(11), &[]).is_err());
+    }
+
+    #[test]
+    fn exchange_equal_price_list_only_enabled_equal_skus() {
+        let mut oi = order_item(1, 1, "100.00");
+        oi.product_id = 7;
+        oi.sku_id = 11;
+        let skus = vec![
+            product_sku(11, 7, "100.00", 1),
+            product_sku(12, 7, "100.00", 1),
+            product_sku(13, 7, "80.00", 1),
+            product_sku(14, 7, "100.00", 0),
+        ];
+        let list = equal_price_exchange_skus(&oi, &skus);
+        let ids: Vec<i32> = list.iter().map(|s| s.sku_id).collect();
+        assert_eq!(ids, vec![11, 12]);
+        assert!(list[0].is_original);
+        assert!(!list[1].is_original);
+        // 无 SKU 商品 → 空表（前端不展示选择器）
+        oi.sku_id = 0;
+        assert!(equal_price_exchange_skus(&oi, &skus).is_empty());
+    }
+
+    #[test]
+    fn exchange_step_status_walks_six_steps() {
+        let mut a = Aftersales {
+            aftersale_type: aftersales_type::EXCHANGE,
+            status: aftersales_status::IN_REVIEW,
+            add_time: 1_700_000_000,
+            ..Default::default()
+        };
+        let s = build_step_status(&a);
+        assert_eq!(s.steps.len(), 6);
+        assert_eq!(s.current, 1);
+        a.status = aftersales_status::SEND_BACK;
+        assert_eq!(build_step_status(&a).current, 2);
+        a.status = aftersales_status::RETURNED;
+        assert_eq!(build_step_status(&a).current, 3);
+        a.status = aftersales_status::EXCHANGE_WAIT_RESHIP;
+        assert_eq!(build_step_status(&a).current, 4);
+        a.status = aftersales_status::EXCHANGE_WAIT_CONFIRM;
+        assert_eq!(build_step_status(&a).current, 5);
+        a.status = aftersales_status::COMPLETE;
+        let done = build_step_status(&a);
+        assert_eq!(done.current, 5);
+        assert_eq!(done.status, STEP_STATUS_FINISH);
+        assert!(done.steps.iter().all(|step| step.active));
     }
 
     // ————————————————— 金额计算 —————————————————

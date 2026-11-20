@@ -44,8 +44,8 @@ use axum::{
 use serde::Deserialize;
 use nextrade_core::models::trade::aftersales::{
     admin_type, AfterSalesCompleteParam, AfterSalesRejectReceiveParam, AftersalesCreateParam,
-    AftersalesEditParam, AftersalesListQuery, AftersalesReceiveParam, AftersalesRecordCreateParam,
-    AftersalesVO,
+    AftersalesEditParam, AftersalesExchangeReshipParam, AftersalesListQuery, AftersalesReceiveParam,
+    AftersalesRecordCreateParam, AftersalesVO,
 };
 use nextrade_core::types::PageResult;
 use nextrade_core::{Error, Result};
@@ -73,6 +73,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         )
         .route("/order/aftersales/record", post(aftersales_record))
         .route("/order/aftersales/complete", post(aftersales_complete))
+        .route(
+            "/order/aftersales/exchangeReship",
+            post(aftersales_exchange_reship),
+        )
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -415,4 +419,19 @@ async fn aftersales_complete(
     ensure_aftersales_access(&state, &auth, param.resolved_id()).await?;
     state.trade.aftersales.complete(&param).await?;
     ok("售后已关闭")
+}
+
+/// `POST /adminapi/order/aftersales/exchangeReship`：换货重发
+/// （我方新增端点，原 Java 无对应方法；权限口径同 `receive`）。
+///
+/// 商家确认收货（状态 8 待重发）后填写重发物流，扣减目标 SKU 库存，
+/// 售后流转到 9 待买家确认收货。
+async fn aftersales_exchange_reship(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(param): Json<AftersalesExchangeReshipParam>,
+) -> ApiResult<&'static str> {
+    ensure_aftersales_access(&state, &auth, param.id).await?;
+    state.trade.aftersales.exchange_reship(&param).await?;
+    ok("重发成功")
 }

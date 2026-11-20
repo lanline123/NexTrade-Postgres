@@ -41,6 +41,10 @@ pub mod aftersales_status {
     pub const WAIT_FOR_SUPPLIER_AUDIT: i32 = 21;
     /// 待供应商收货
     pub const WAIT_FOR_SUPPLIER_RECEIPT: i32 = 22;
+    /// 换货：商家已收货，待重新发货（我方新增，仅 type=3 换货单使用）
+    pub const EXCHANGE_WAIT_RESHIP: i32 = 8;
+    /// 换货：已重新发货，待买家确认收货（我方新增，仅 type=3 换货单使用）
+    pub const EXCHANGE_WAIT_CONFIRM: i32 = 9;
 
     /// closeType：商家审核驳回（Java `CLOSE_TYPE_AUDIT_REJECT`）。
     pub const CLOSE_TYPE_AUDIT_REJECT: i32 = 1;
@@ -60,26 +64,39 @@ pub mod aftersales_status {
             CANCEL => "已取消",
             WAIT_FOR_SUPPLIER_AUDIT => "待供应商审核",
             WAIT_FOR_SUPPLIER_RECEIPT => "待供应商收货",
+            EXCHANGE_WAIT_RESHIP => "待商家重发",
+            EXCHANGE_WAIT_CONFIRM => "待买家确认收货",
             _ => "",
         }
     }
 
-    /// 占用可售后数量的「有效状态」（Java `validStatus()`，不含 REFUSE）。
+    /// 占用可售后数量的「有效状态」（Java `validStatus()`，不含 REFUSE；
+    /// 我方新增换货状态 8/9 同口径占用）。
     #[must_use]
-    pub fn valid_statuses() -> [i32; 5] {
+    pub fn valid_statuses() -> [i32; 7] {
         [
             IN_REVIEW,
             APPROVED_FOR_PROCESSING,
             SEND_BACK,
             RETURNED,
             COMPLETE,
+            EXCHANGE_WAIT_RESHIP,
+            EXCHANGE_WAIT_CONFIRM,
         ]
     }
 
-    /// 「售后进行中」状态（Java `inProgressStatus()`，三个终态之外）。
+    /// 「售后进行中」状态（Java `inProgressStatus()`，三个终态之外；
+    /// 我方新增换货状态 8/9 同口径进行中）。
     #[must_use]
-    pub fn in_progress_statuses() -> [i32; 4] {
-        [IN_REVIEW, APPROVED_FOR_PROCESSING, SEND_BACK, RETURNED]
+    pub fn in_progress_statuses() -> [i32; 6] {
+        [
+            IN_REVIEW,
+            APPROVED_FOR_PROCESSING,
+            SEND_BACK,
+            RETURNED,
+            EXCHANGE_WAIT_RESHIP,
+            EXCHANGE_WAIT_CONFIRM,
+        ]
     }
 
     /// 「已申请售后」状态（Java `AftersalesServiceImpl#getAfterSalseStatusList`
@@ -112,6 +129,12 @@ pub mod aftersales_status {
         aftersale_type == Some(crate::models::trade::aftersales::aftersales_type::PAY_RETURN)
     }
 
+    /// 是否为「换货」（我方新增，`aftersale_type == 3`）。
+    #[must_use]
+    pub fn is_exchange(aftersale_type: Option<i32>) -> bool {
+        aftersale_type == Some(crate::models::trade::aftersales::aftersales_type::EXCHANGE)
+    }
+
     /// 后台售后详情状态头文案（Java `AftersalesStatusEnum.getAdminStatusName`）。
     #[must_use]
     pub fn admin_name(
@@ -142,6 +165,8 @@ pub mod aftersales_status {
             SEND_BACK => Some("售后已通过，待用户回寄"),
             RETURNED => Some("已退货，待商家收货"),
             WAIT_FOR_SUPPLIER_RECEIPT => Some("已退货，待供应商收货"),
+            EXCHANGE_WAIT_RESHIP => Some("已收到退货，待重新发货"),
+            EXCHANGE_WAIT_CONFIRM => Some("已重新发货，待买家确认收货"),
             COMPLETE => Some("售后已完成"),
             REFUSE | CANCEL => Some("售后已关闭"),
             _ => None,
@@ -181,10 +206,27 @@ pub mod aftersales_status {
             RETURNED | WAIT_FOR_SUPPLIER_RECEIPT => {
                 Some("买家已寄出商品，请及时确认收货".to_string())
             }
-            COMPLETE => Some("退款已成功，售后流程结束".to_string()),
+            EXCHANGE_WAIT_RESHIP => {
+                Some("买家退回商品已签收，请尽快重新发货".to_string())
+            }
+            EXCHANGE_WAIT_CONFIRM => Some("已重新发货，等待买家确认收货".to_string()),
+            COMPLETE => Some(if is_exchange(aftersale_type) {
+                "换货已完成，售后流程结束".to_string()
+            } else {
+                "退款已成功，售后流程结束".to_string()
+            }),
             REFUSE => {
                 if is_pay_return(aftersale_type) {
                     return Some(with_reason("退款申请已被拒绝，理由：", reply));
+                }
+                if is_exchange(aftersale_type) {
+                    if close_type == CLOSE_TYPE_REJECT_RECEIVE {
+                        return Some(format!(
+                            "{}，售后终止",
+                            with_reason("商家已拒收商品，理由：", reply)
+                        ));
+                    }
+                    return Some(with_reason("换货申请已被拒绝，理由：", reply));
                 }
                 if close_type == CLOSE_TYPE_REJECT_RECEIVE {
                     let prefix = if supplier {
@@ -248,6 +290,8 @@ pub mod aftersales_type {
     pub const RETURN: i32 = 1;
     /// 仅退款
     pub const PAY_RETURN: i32 = 2;
+    /// 换货（我方新增 2026-11-21，原版枚举无此类型）
+    pub const EXCHANGE: i32 = 3;
 
     /// 类型名（Java `AftersalesTypeEnum.getTypeName`，未知返回空串）。
     #[must_use]
@@ -255,6 +299,7 @@ pub mod aftersales_type {
         match code {
             Some(RETURN) => "退货/退款",
             Some(PAY_RETURN) => "仅退款",
+            Some(EXCHANGE) => "换货",
             _ => "",
         }
     }
@@ -487,6 +532,18 @@ pub struct AftersalesReceiveParam {
     pub id: Option<i32>,
 }
 
+/// 换货重发参数（我方新增：商家确认收货后重新发货）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AftersalesExchangeReshipParam {
+    /// 售后ID
+    pub id: Option<i32>,
+    /// 物流公司
+    pub logistics_name: Option<String>,
+    /// 物流单号
+    pub tracking_no: Option<String>,
+}
+
 // ————————————————————— 返回结构 —————————————————————
 
 /// 售后商品项 VO（对应 Java `AftersalesItemVO`）。
@@ -531,6 +588,10 @@ pub struct AftersalesItemVO {
     pub sku_data: Vec<serde_json::Value>,
     /// 规格值（`名称:值` 以 `|` 连接）
     pub sku_value: String,
+    /// 换货目标 SKU（我方新增，仅换货单下发）
+    pub exchange_sku_id: Option<i32>,
+    /// 换货目标 SKU 规格值（`名称:值` 以 `|` 连接，我方新增）
+    pub exchange_sku_value: String,
 }
 
 /// 售后协商记录 VO（对应 Java `AftersalesLogVO`）。
@@ -635,6 +696,14 @@ pub struct AftersalesVO {
     pub aftersales_items: Vec<AftersalesItemVO>,
     /// 售后协商记录
     pub aftersales_log: Vec<AftersalesLogVO>,
+
+    // *** 换货（我方新增） ***
+    /// 换货重发物流公司
+    pub exchange_logistics_name: Option<String>,
+    /// 换货重发物流单号
+    pub exchange_tracking_no: Option<String>,
+    /// 换货重发时间 `yyyy-MM-dd HH:mm:ss`
+    pub exchange_ship_time: Option<String>,
 }
 
 #[cfg(test)]
@@ -663,8 +732,8 @@ mod tests {
         assert_eq!(aftersales_status::CANCEL, 7);
         assert_eq!(aftersales_status::WAIT_FOR_SUPPLIER_AUDIT, 21);
         assert_eq!(aftersales_status::WAIT_FOR_SUPPLIER_RECEIPT, 22);
-        assert_eq!(aftersales_status::valid_statuses(), [1, 2, 4, 5, 6]);
-        assert_eq!(aftersales_status::in_progress_statuses(), [1, 2, 4, 5]);
+        assert_eq!(aftersales_status::valid_statuses(), [1, 2, 4, 5, 6, 8, 9]);
+        assert_eq!(aftersales_status::in_progress_statuses(), [1, 2, 4, 5, 8, 9]);
         assert_eq!(aftersales_status::applied_statuses(false), vec![1, 2, 4, 5]);
         assert_eq!(
             aftersales_status::applied_statuses(true),

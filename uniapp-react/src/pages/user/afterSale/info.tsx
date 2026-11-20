@@ -6,7 +6,7 @@ import FormatPrice from "@/components/format-price/FormatPrice";
 import TigCountdown from "@/components/tig/tig-countdown/TigCountdown";
 import TigImage from "@/components/tig/tig-image/TigImage";
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
-import { aftersalesCancel, aftersalesViewRecord } from "@/api/user/afterSale";
+import { aftersalesCancel, aftersalesConfirmExchange, aftersalesViewRecord } from "@/api/user/afterSale";
 import type { afterSaleInfoItem } from "@/types/user/afterSale";
 import { imageFormat, isVideoPic, pickPic } from "@/utils/format";
 import { t } from "@/utils/i18n";
@@ -234,6 +234,29 @@ export default function AfterSaleInfo() {
         });
     };
 
+    /** 换货确认收货（我方新增）：商家重发后买家确认，换货完结 */
+    const handleConfirmExchange = () => {
+        Taro.showModal({
+            title: t("提示"),
+            content: t("确认已收到换货商品吗？"),
+            confirmText: t("确定"),
+            cancelText: t("取消"),
+            success: async (res) => {
+                if (res.confirm) {
+                    try {
+                        await aftersalesConfirmExchange({ aftersaleId: infoData.aftersaleId });
+                        Taro.showToast({
+                            title: t("确认成功")
+                        });
+                        void fetchRef.current();
+                    } catch (error) {
+                        console.error(error);
+                    }
+                }
+            }
+        });
+    };
+
     // 旧 onLoad：取路由 id 并拉取详情
     useEffect(() => {
         const id = Number(router.params?.id);
@@ -325,6 +348,14 @@ export default function AfterSaleInfo() {
                                 </View>
                             </View>
                         )}
+                        {Number((infoData as any).aftersaleType) === 3 && infoData.status === 9 && (
+                            <View className="negotiate" onClick={handleConfirmExchange}>
+                                <View className="negotiate-text"> {t("确认收到换货")} </View>
+                                <View className="negotiate-icon">
+                                    <Text className="iconfont-h5 icon-gengduo1" style="font-size: 24rpx; color: #999" />
+                                </View>
+                            </View>
+                        )}
 
                         <View className="info-content">
                             <View className="info-content-title"> {t("售后信息")} </View>
@@ -351,6 +382,12 @@ export default function AfterSaleInfo() {
                                                 </View>
                                                 <View className="right-price-quantity">x {item.number}</View>
                                             </View>
+                                            {item.exchangeSkuId ? (
+                                                <View className="exchange-target">
+                                                    {t("换货至：")}
+                                                    {item.exchangeSkuValue || `#${item.exchangeSkuId}`}
+                                                </View>
+                                            ) : null}
                                         </View>
                                     </View>
                                 ))}
@@ -423,6 +460,27 @@ export default function AfterSaleInfo() {
                                         <View className="label">{t("快递单号")}：</View>
                                         <View className="value">{infoData.trackingNo}</View>
                                     </View>
+                                </View>
+                            </View>
+                        )}
+                        {(infoData as any).exchangeTrackingNo && (
+                            <View className="info-content">
+                                <View className="info-content-title"> {t("重发信息")} </View>
+                                <View className="after-sale">
+                                    <View className="after-sale-item">
+                                        <View className="label">{t("快递公司")}：</View>
+                                        <View className="value">{(infoData as any).exchangeLogisticsName}</View>
+                                    </View>
+                                    <View className="after-sale-item">
+                                        <View className="label">{t("快递单号")}：</View>
+                                        <View className="value">{(infoData as any).exchangeTrackingNo}</View>
+                                    </View>
+                                    {(infoData as any).exchangeShipTime ? (
+                                        <View className="after-sale-item">
+                                            <View className="label">{t("发货时间")}：</View>
+                                            <View className="value">{(infoData as any).exchangeShipTime}</View>
+                                        </View>
+                                    ) : null}
                                 </View>
                             </View>
                         )}

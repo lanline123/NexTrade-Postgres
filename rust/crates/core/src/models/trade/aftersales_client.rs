@@ -37,6 +37,8 @@ pub use crate::models::trade::order_admin::OrderVO;
 pub const TYPE_NAME_RETURN: &str = "退货/退款";
 /// `aftersales.type.refund.only`：仅退款。
 pub const TYPE_NAME_PAY_RETURN: &str = "仅退款";
+/// 换货（我方新增 2026-11-21，原版枚举无此类型）：换货。
+pub const TYPE_NAME_EXCHANGE: &str = "换货";
 
 /// `error.record.not.exist`：记录不存在。
 pub const ERR_RECORD_NOT_EXIST: &str = "记录不存在";
@@ -110,6 +112,7 @@ pub fn type_name(aftersale_type: Option<i32>) -> String {
     match aftersale_type {
         Some(aftersales_type::RETURN) => TYPE_NAME_RETURN.into(),
         Some(aftersales_type::PAY_RETURN) => TYPE_NAME_PAY_RETURN.into(),
+        Some(aftersales_type::EXCHANGE) => TYPE_NAME_EXCHANGE.into(),
         _ => String::new(),
     }
 }
@@ -130,6 +133,10 @@ pub mod aftersales_status {
     pub const COMPLETE: i32 = 6;
     /// 已取消（终态）
     pub const CANCEL: i32 = 7;
+    /// 换货：商家已收货，待重新发货（我方新增，仅 type=3 换货单使用）
+    pub const EXCHANGE_WAIT_RESHIP: i32 = 8;
+    /// 换货：已重新发货，待买家确认收货（我方新增，仅 type=3 换货单使用）
+    pub const EXCHANGE_WAIT_CONFIRM: i32 = 9;
     /// 待供应商审核
     pub const WAIT_FOR_SUPPLIER_AUDIT: i32 = 21;
     /// 待供应商收货
@@ -149,7 +156,7 @@ pub mod aftersales_status {
     /// ——这是 Java 该方法的字面行为（`isVendor == 1` 时追加），
     /// 而用户端接口在供应商模式下同样生效。见 `uncertain_points`。
     #[must_use]
-    pub fn applied_statuses() -> [i32; 6] {
+    pub fn applied_statuses() -> [i32; 8] {
         [
             IN_REVIEW,
             APPROVED_FOR_PROCESSING,
@@ -157,6 +164,8 @@ pub mod aftersales_status {
             RETURNED,
             WAIT_FOR_SUPPLIER_AUDIT,
             WAIT_FOR_SUPPLIER_RECEIPT,
+            EXCHANGE_WAIT_RESHIP,
+            EXCHANGE_WAIT_CONFIRM,
         ]
     }
 
@@ -164,7 +173,7 @@ pub mod aftersales_status {
     /// （Java `AftersalesServiceImpl#getAfterSalseValidStatusList`，
     /// 不含 REFUSE：审核未通过为终态，不占用额度）。
     #[must_use]
-    pub fn valid_statuses() -> [i32; 7] {
+    pub fn valid_statuses() -> [i32; 9] {
         [
             IN_REVIEW,
             APPROVED_FOR_PROCESSING,
@@ -173,6 +182,8 @@ pub mod aftersales_status {
             COMPLETE,
             WAIT_FOR_SUPPLIER_AUDIT,
             WAIT_FOR_SUPPLIER_RECEIPT,
+            EXCHANGE_WAIT_RESHIP,
+            EXCHANGE_WAIT_CONFIRM,
         ]
     }
 
@@ -189,11 +200,20 @@ pub mod aftersales_type {
     pub const RETURN: i32 = 1;
     /// 仅退款
     pub const PAY_RETURN: i32 = 2;
+    /// 换货（我方新增 2026-11-21：等价换 SKU，零资金动作；
+    /// 注意 DB 列注释把 2 写成换货是原版注释错误，2 恒为仅退款）
+    pub const EXCHANGE: i32 = 3;
 
     /// 是否「仅退款」。
     #[must_use]
     pub fn is_pay_return(v: Option<i32>) -> bool {
         v == Some(PAY_RETURN)
+    }
+
+    /// 是否「换货」。
+    #[must_use]
+    pub fn is_exchange(v: Option<i32>) -> bool {
+        v == Some(EXCHANGE)
     }
 }
 
@@ -220,6 +240,31 @@ pub fn client_status_name(
     finance_rejected: bool,
 ) -> Option<&'static str> {
     let status = status?;
+    // 换货（我方新增类型）：独立文案分支，不走退款口径。
+    if aftersales_type::is_exchange(aftersale_type) {
+        return Some(match status {
+            aftersales_status::IN_REVIEW | aftersales_status::WAIT_FOR_SUPPLIER_AUDIT => {
+                "申请换货"
+            }
+            aftersales_status::APPROVED_FOR_PROCESSING
+            | aftersales_status::EXCHANGE_WAIT_RESHIP => "商家已收货，待重新发货",
+            aftersales_status::SEND_BACK => "待退货",
+            aftersales_status::RETURNED | aftersales_status::WAIT_FOR_SUPPLIER_RECEIPT => {
+                "已退货，待商家收货"
+            }
+            aftersales_status::EXCHANGE_WAIT_CONFIRM => "已重新发货，待确认收货",
+            aftersales_status::COMPLETE => "换货成功",
+            aftersales_status::REFUSE => {
+                if close_type == Some(aftersales_status::CLOSE_TYPE_REJECT_RECEIVE) {
+                    "商家拒收"
+                } else {
+                    "换货申请被拒绝"
+                }
+            }
+            aftersales_status::CANCEL => "已取消",
+            _ => return None,
+        });
+    }
     let pay_return = aftersales_type::is_pay_return(aftersale_type);
     Some(match status {
         aftersales_status::IN_REVIEW | aftersales_status::WAIT_FOR_SUPPLIER_AUDIT => {
@@ -271,8 +316,42 @@ pub fn client_status_desc(
     finance_rejected: bool,
 ) -> Option<String> {
     let status = status?;
-    let pay_return = aftersales_type::is_pay_return(aftersale_type);
     let reply = reply.unwrap_or("");
+    // 换货（我方新增类型）：独立副文案分支，不出现退款字样。
+    if aftersales_type::is_exchange(aftersale_type) {
+        return Some(match status {
+            aftersales_status::IN_REVIEW | aftersales_status::WAIT_FOR_SUPPLIER_AUDIT => {
+                "你的换货申请已提交，等待商家审核，超时未处理将自动同意。".to_string()
+            }
+            aftersales_status::SEND_BACK => {
+                "申请已通过，请填写退货物流信息并寄回商品。".to_string()
+            }
+            aftersales_status::RETURNED | aftersales_status::WAIT_FOR_SUPPLIER_RECEIPT => {
+                "商品已寄出，等待商家签收，签收后将为你重新发货。".to_string()
+            }
+            aftersales_status::APPROVED_FOR_PROCESSING
+            | aftersales_status::EXCHANGE_WAIT_RESHIP => {
+                "商家已签收退回商品，正在为你重新发货，请耐心等待。".to_string()
+            }
+            aftersales_status::EXCHANGE_WAIT_CONFIRM => {
+                "商家已重新发货，请确认收到换货商品后完成售后。".to_string()
+            }
+            aftersales_status::COMPLETE => "换货已完成，售后流程已结束。".to_string(),
+            aftersales_status::REFUSE => {
+                if close_type == Some(aftersales_status::CLOSE_TYPE_REJECT_RECEIVE) {
+                    format!(
+                        "商家已拒收退回的商品，拒绝理由：{reply}，售后已终止，可联系商家协商。"
+                    )
+                } else {
+                    format!(
+                        "你的换货申请已被商家拒绝，拒绝理由：{reply}，可联系商家协商或重新申请。"
+                    )
+                }
+            }
+            _ => return None,
+        });
+    }
+    let pay_return = aftersales_type::is_pay_return(aftersale_type);
     Some(match status {
         aftersales_status::IN_REVIEW | aftersales_status::WAIT_FOR_SUPPLIER_AUDIT => {
             if pay_return {
@@ -330,6 +409,9 @@ pub struct AftersalesApplyItem {
     pub order_item_id: Option<i32>,
     /// 申请数量
     pub number: Option<i32>,
+    /// 换货目标 SKU（我方新增，仅 aftersale_type=3 时使用；
+    /// 与原 SKU 相同表示同 SKU 补发；无 SKU 商品不传）
+    pub exchange_sku_id: Option<i32>,
 }
 
 /// 售后申请参数（Java `AftersalesApplyParam`）。
@@ -557,6 +639,10 @@ pub struct AftersalesItemVO {
     pub sku_data: Vec<SkuDataVO>,
     /// 规格值（`name:value` 以 `|` 连接）
     pub sku_value: Option<String>,
+    /// 换货目标 SKU（我方新增，仅换货单下发）
+    pub exchange_sku_id: Option<i32>,
+    /// 换货目标 SKU 规格值（`name:value` 以 `|` 连接，我方新增）
+    pub exchange_sku_value: Option<String>,
 }
 
 /// 规格项（Java `ProductSkuDTO.SkuData`）。
@@ -622,6 +708,24 @@ pub struct AftersalesVO {
     pub server_time: Option<String>,
 }
 
+/// 换货可选目标 SKU（我方新增：与原 SKU 等价的同商品 SKU 清单）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ExchangeSkuVO {
+    /// 目标 SKU ID
+    pub sku_id: i32,
+    /// 规格数据
+    pub sku_data: Vec<SkuDataVO>,
+    /// 规格值（`name:value` 以 `|` 连接）
+    pub sku_value: Option<String>,
+    /// SKU 价格（与原 SKU 等价校验的口径价）
+    pub price: Option<Decimal>,
+    /// SKU 库存
+    pub stock: Option<i32>,
+    /// 是否为原 SKU（同 SKU 补发）
+    pub is_original: bool,
+}
+
 /// 售后申请数据明细（Java `AfterSalesDetailVO`）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -631,6 +735,10 @@ pub struct AfterSalesDetailVO {
     pub product_sn: String,
     pub product_id: i32,
     pub product_name: String,
+    /// 原购买 SKU ID（我方新增，换货目标选择用；无 SKU 商品为 0）
+    pub sku_id: i32,
+    /// 换货可选目标 SKU（我方新增，仅等价 SKU；非换货场景前端可忽略）
+    pub exchange_skus: Vec<ExchangeSkuVO>,
     /// 含税单价（`price + taxRateAmount`）
     pub price: Decimal,
     /// 单件税费（按订单税率，保留 2 位向上取整）
@@ -713,6 +821,12 @@ pub struct AfterSalesClientDetailVO {
     pub can_cancel: bool,
     /// 售后退货提示（仅状态=待回寄时下发，其余为 None）
     pub return_goods_tip: Option<String>,
+    /// 换货重发物流公司（我方新增，仅换货单已重发后下发）
+    pub exchange_logistics_name: Option<String>,
+    /// 换货重发物流单号（我方新增）
+    pub exchange_tracking_no: Option<String>,
+    /// 换货重发时间 `yyyy-MM-dd HH:mm:ss`（我方新增）
+    pub exchange_ship_time: Option<String>,
     /// 自动同意退款截止时间 `yyyy-MM-dd HH:mm:ss`
     pub auto_agree_end_time: Option<String>,
     /// 服务端当前时间 `yyyy-MM-dd HH:mm:ss`
@@ -786,15 +900,74 @@ mod tests {
     fn type_name_matches_java_enum() {
         assert_eq!(type_name(Some(1)), "退货/退款");
         assert_eq!(type_name(Some(2)), "仅退款");
+        // 我方新增：3 = 换货
+        assert_eq!(type_name(Some(3)), "换货");
         assert_eq!(type_name(Some(9)), "");
         assert_eq!(type_name(None), "");
     }
 
     #[test]
     fn status_sets_match_java_helpers() {
-        assert_eq!(aftersales_status::applied_statuses(), [1, 2, 4, 5, 21, 22]);
-        assert_eq!(aftersales_status::valid_statuses(), [1, 2, 4, 5, 6, 21, 22]);
+        assert_eq!(
+            aftersales_status::applied_statuses(),
+            [1, 2, 4, 5, 21, 22, 8, 9]
+        );
+        assert_eq!(
+            aftersales_status::valid_statuses(),
+            [1, 2, 4, 5, 6, 21, 22, 8, 9]
+        );
         assert_eq!(aftersales_status::terminal_statuses(), [6, 7, 3]);
+    }
+
+    #[test]
+    fn exchange_status_text_uses_exchange_wording() {
+        // 换货全链状态头：不出现退款字样
+        assert_eq!(
+            client_status_name(Some(3), Some(1), Some(0), false),
+            Some("申请换货")
+        );
+        assert_eq!(
+            client_status_name(Some(3), Some(4), Some(0), false),
+            Some("待退货")
+        );
+        assert_eq!(
+            client_status_name(Some(3), Some(5), Some(0), false),
+            Some("已退货，待商家收货")
+        );
+        assert_eq!(
+            client_status_name(Some(3), Some(8), Some(0), false),
+            Some("商家已收货，待重新发货")
+        );
+        assert_eq!(
+            client_status_name(Some(3), Some(9), Some(0), false),
+            Some("已重新发货，待确认收货")
+        );
+        assert_eq!(
+            client_status_name(Some(3), Some(6), Some(0), false),
+            Some("换货成功")
+        );
+        assert_eq!(
+            client_status_name(Some(3), Some(3), Some(1), false),
+            Some("换货申请被拒绝")
+        );
+        assert_eq!(
+            client_status_name(Some(3), Some(3), Some(2), false),
+            Some("商家拒收")
+        );
+        assert_eq!(
+            client_status_desc(Some(3), Some(6), Some(0), None, false).as_deref(),
+            Some("换货已完成，售后流程已结束。")
+        );
+        assert_eq!(
+            client_status_desc(Some(3), Some(9), Some(0), None, false).as_deref(),
+            Some("商家已重新发货，请确认收到换货商品后完成售后。")
+        );
+        assert_eq!(
+            client_status_desc(Some(3), Some(3), Some(1), Some("无货"), false).as_deref(),
+            Some("你的换货申请已被商家拒绝，拒绝理由：无货，可联系商家协商或重新申请。")
+        );
+        // 换货状态 8/9 对退货/仅退款类型不产生文案（状态本身不会出现）
+        assert_eq!(client_status_name(Some(1), Some(8), Some(0), false), None);
     }
 
     #[test]

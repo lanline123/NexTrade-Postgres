@@ -78,6 +78,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/user/aftersales/detailLog", get(aftersales_detail_log))
         .route("/user/aftersales/feedback", post(aftersales_feedback))
         .route("/user/aftersales/cancel", post(aftersales_cancel))
+        .route("/user/aftersales/confirmExchange", post(aftersales_confirm_exchange))
         .layer(middleware::from_fn_with_state(
             state.jwt.clone(),
             optional_auth,
@@ -369,4 +370,25 @@ async fn aftersales_cancel(
         .cancel(&param, user_id)
         .await?;
     ok("已取消")
+}
+
+/// `POST /api/user/aftersales/confirmExchange`：买家确认收到换货商品
+/// （我方新增端点，原 Java 无对应方法）。
+///
+/// 请求体 `{ aftersaleId }`，复用 `AftersalesCancelParam` 的字段形态。
+async fn aftersales_confirm_exchange(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Json(param): Json<AftersalesCancelParam>,
+) -> ApiResult<&'static str> {
+    let user_id = current_user_id(&auth)?;
+    let aftersale_id = param
+        .aftersale_id
+        .ok_or_else(|| AppError(Error::Validation("售后id不能为空".into())))?;
+    state
+        .trade
+        .aftersales_client
+        .confirm_exchange(aftersale_id, user_id)
+        .await?;
+    ok("确认成功")
 }

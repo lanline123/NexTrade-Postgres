@@ -176,3 +176,26 @@
         opacity: 0.7;
     }
 }
+/* 换货目标规格选择行（我方新增） */
+.exchange-sku-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 16rpx 0 4rpx;
+    border-top: 1rpx solid #f0f0f0;
+    margin-top: 12rpx;
+}
+
+.exchange-sku-label {
+    font-size: 26rpx;
+    color: #333;
+}
+
+.exchange-sku-value {
+    display: flex;
+    align-items: center;
+    gap: 8rpx;
+    font-size: 26rpx;
+    color: #666;
+}

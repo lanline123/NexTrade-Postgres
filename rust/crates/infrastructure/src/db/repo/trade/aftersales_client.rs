@@ -23,7 +23,8 @@ use std::collections::HashMap;
 
 use sqlx::PgPool;
 use nextrade_core::entities::{
-    Aftersales, AftersalesItem, AftersalesLog, Order, OrderItem, Product,
+    Aftersales, AftersalesExchangeDelivery, AftersalesItem, AftersalesLog, Order, OrderItem,
+    Product,
 };
 use nextrade_core::models::trade::aftersales_client::AftersalesListQuery;
 use nextrade_core::{Error, Result};
@@ -173,6 +174,44 @@ impl AftersalesClientRepository {
             .map_err(map_err)
     }
 
+    /// 换货重发物流（我方新增侧表 `aftersales_exchange_delivery`，一单至多一行）。
+    pub async fn find_exchange_delivery(
+        &self,
+        aftersale_id: i32,
+    ) -> Result<Option<AftersalesExchangeDelivery>> {
+        sqlx::query_as::<_, AftersalesExchangeDelivery>(
+            "SELECT aftersale_id, logistics_name, tracking_no, ship_time, add_time \
+             FROM aftersales_exchange_delivery WHERE aftersale_id = $1 LIMIT 1",
+        )
+        .bind(aftersale_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 定向更新售后状态（可选同时写完结时间），返回受影响行数。
+    ///
+    /// 换货买家确认收货用：只动 `status` / `final_time` 两列，
+    /// 不走整体覆盖更新，避免冲掉商家侧字段。
+    pub async fn update_aftersales_status(
+        &self,
+        aftersale_id: i32,
+        status: i32,
+        final_time: Option<i32>,
+    ) -> Result<u64> {
+        let r = sqlx::query(
+            "UPDATE aftersales SET status = $1, final_time = COALESCE($2, final_time) \
+             WHERE aftersale_id = $3",
+        )
+        .bind(status)
+        .bind(final_time)
+        .bind(aftersale_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r.rows_affected())
+    }
+
     /// 售后申请记录分页（对应 Java `AftersalesServiceImpl#list` 的单表部分）。
     ///
     /// 与 Java \"buildSortOrder\" 一致：\"BasePage\" 未传 \"sortField\" 时按**主键降序**。
@@ -189,11 +228,13 @@ impl AftersalesClientRepository {
         let mut conds: Vec<String> = vec!["a.user_id = ?".into()];
         let mut binds: Vec<Bind> = vec![Bind::I32(user_id)];
 
-        // Java：`aftersaleType` 仅在为 1/2 时参与过滤（`aftersalesTypeFlag`）
-        if let Some(t) = q
-            .aftersale_type
-            .filter(|t| *t == AFTERSALES_TYPE_RETURN || *t == AFTERSALES_TYPE_PAY_RETURN)
-        {
+        // Java：`aftersaleType` 仅在为 1/2 时参与过滤（`aftersalesTypeFlag`）；
+        // 我方新增类型 3（换货）同口径参与过滤
+        if let Some(t) = q.aftersale_type.filter(|t| {
+            *t == AFTERSALES_TYPE_RETURN
+                || *t == AFTERSALES_TYPE_PAY_RETURN
+                || *t == AFTERSALES_TYPE_EXCHANGE
+        }) {
             conds.push("a.aftersale_type = ?".into());
             binds.push(Bind::I32(t));
         }
@@ -358,11 +399,12 @@ impl AftersalesClientRepository {
 
         for it in items {
             sqlx::query(
-                "INSERT INTO aftersales_item (order_item_id, number, aftersale_id) VALUES ($1, $2, $3)",
+                "INSERT INTO aftersales_item (order_item_id, number, aftersale_id, exchange_sku_id) VALUES ($1, $2, $3, $4)",
             )
             .bind(it.order_item_id)
             .bind(it.number)
             .bind(aftersale_id)
+            .bind(it.exchange_sku_id)
             .execute(&mut *tx)
             .await
             .map_err(map_err)?;
@@ -420,11 +462,12 @@ impl AftersalesClientRepository {
 
         for it in items {
             sqlx::query(
-                "INSERT INTO aftersales_item (order_item_id, number, aftersale_id) VALUES ($1, $2, $3)",
+                "INSERT INTO aftersales_item (order_item_id, number, aftersale_id, exchange_sku_id) VALUES ($1, $2, $3, $4)",
             )
             .bind(it.order_item_id)
             .bind(it.number)
             .bind(a.aftersale_id)
+            .bind(it.exchange_sku_id)
             .execute(&mut *tx)
             .await
             .map_err(map_err)?;
@@ -463,7 +506,7 @@ impl AftersalesClientRepository {
     /// \"order_item_id\" 升序，保证 \"sku_value\" 拼接顺序稳定。
     pub async fn find_items(&self, aftersale_id: i32) -> Result<Vec<AftersalesItem>> {
         sqlx::query_as::<_, AftersalesItem>(
-            "SELECT aftersales_item_id, order_item_id, number, aftersale_id \
+            "SELECT aftersales_item_id, order_item_id, number, aftersale_id, exchange_sku_id \
              FROM aftersales_item WHERE aftersale_id = $1 ORDER BY aftersales_item_id ASC",
         )
         .bind(aftersale_id)
@@ -482,7 +525,7 @@ impl AftersalesClientRepository {
         }
         let ph = vec!["?"; aftersale_ids.len()].join(", ");
         let sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT aftersales_item_id, order_item_id, number, aftersale_id \
+            "SELECT aftersales_item_id, order_item_id, number, aftersale_id, exchange_sku_id \
                FROM aftersales_item WHERE aftersale_id IN ({ph}) ORDER BY aftersales_item_id ASC"
         ));
         let mut q = sqlx::query_as::<_, AftersalesItem>(&sql);
@@ -884,6 +927,8 @@ async fn insert_log(
 const AFTERSALES_TYPE_RETURN: i32 = 1;
 /// 售后类型「仅退款」（Java `AftersalesTypeEnum.PAYRETURN`）。
 const AFTERSALES_TYPE_PAY_RETURN: i32 = 2;
+/// 售后类型「换货」（我方新增）。
+const AFTERSALES_TYPE_EXCHANGE: i32 = 3;
 
 #[cfg(test)]
 mod tests {

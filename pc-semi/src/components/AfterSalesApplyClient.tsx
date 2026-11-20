@@ -42,6 +42,16 @@ interface ApplyItem {
   /** 含税单价（旧版 refundAmount 计算含 attrPrice） */
   attrPrice?: number;
   skuData?: Array<{ name?: string; value?: string }>;
+  /** 原购买 SKU ID（我方新增，换货用） */
+  skuId?: number;
+  /** 换货可选目标 SKU（我方新增：与原 SKU 等价的同商品 SKU） */
+  exchangeSkus?: Array<{
+    skuId: number;
+    skuValue?: string;
+    price?: number;
+    stock?: number;
+    isOriginal?: boolean;
+  }>;
 }
 
 interface ApplyData {
@@ -79,6 +89,8 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
     const [data, setData] = useState<ApplyData | null>(null);
     const [config, setConfig] = useState<ApplyConfig>({});
     const [quantities, setQuantities] = useState<Record<number, number>>({});
+    /** 换货目标 SKU 选择（我方新增）：itemId -> 目标 skuId，默认原 SKU */
+    const [exchangeTargets, setExchangeTargets] = useState<Record<number, number>>({});
     const [type, setType] = useState(1);
     const [reason, setReason] = useState('');
     const [description, setDescription] = useState('');
@@ -108,6 +120,12 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
                     if (target) initial[target.itemId] = Math.min(1, Number(target.canApplyQuantity || 1));
                 }
                 setQuantities(initial);
+                const exchangeInitial: Record<number, number> = {};
+                (dataResult?.list || []).forEach((item) => {
+                    const original = (item.exchangeSkus || []).find((s) => s.isOriginal) || (item.exchangeSkus || [])[0];
+                    if (original) exchangeInitial[item.itemId] = original.skuId;
+                });
+                setExchangeTargets(exchangeInitial);
                 setReason(configResult?.aftersaleReason?.[0] || '');
             })
             .catch((error) => {
@@ -133,19 +151,26 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
     /**
      * 旧版 return/Info.vue fetchAfterSalesConfig：
      * 订单状态为 1（待发货）时移除「退货/退款」售后类型。
+     * 我方新增「换货」同口径：待发货时同样移除（需实物回寄）。
      */
     const aftersaleTypeOptions = useMemo(() => {
-      const options = Object.entries(config.aftersaleType || { '1': '退货/退款', '2': '仅退款' });
+      const options = Object.entries(config.aftersaleType || { '1': '退货/退款', '2': '仅退款', '3': '换货' });
       if (Number(data?.order?.orderStatus ?? -1) !== 1) return options;
-      return options.filter(([, label]) => label !== '退货/退款');
+      return options.filter(([, label]) => label !== '退货/退款' && label !== '换货');
     }, [config.aftersaleType, data?.order?.orderStatus]);
 
     const selectedItems = useMemo(
         () =>
             Object.entries(quantities)
                 .filter(([, number]) => Number(number) > 0)
-                .map(([id, number]) => ({ orderItemId: Number(id), number: Number(number) })),
-        [quantities],
+                .map(([id, number]) => ({
+                    orderItemId: Number(id),
+                    number: Number(number),
+                    ...(type === 3 && exchangeTargets[Number(id)]
+                        ? { exchangeSkuId: exchangeTargets[Number(id)] }
+                        : {}),
+                })),
+        [quantities, type, exchangeTargets],
     );
 
     /**
@@ -375,6 +400,49 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
                   </div>
                 </div>
 
+                {type === 3 ? (
+                  <div className="el-form-item">
+                    <label className="el-form-item__label">{t('换货规格')}：</label>
+                    <div className="el-form-item__content">
+                      {(data?.list || [])
+                        .filter((item) => Number(quantities[item.itemId] || 0) > 0)
+                        .map((item) => (
+                          <div key={item.itemId} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <span style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {item.productName}
+                            </span>
+                            {(item.exchangeSkus || []).length > 0 ? (
+                              <span className="el-select">
+                                <select
+                                  className="el-select__wrapper"
+                                  style={{ width: 260 }}
+                                  value={exchangeTargets[item.itemId] ?? ''}
+                                  onChange={(event) =>
+                                    setExchangeTargets((current) => ({
+                                      ...current,
+                                      [item.itemId]: Number(event.target.value),
+                                    }))
+                                  }
+                                  aria-label={t('换货规格')}
+                                >
+                                  {(item.exchangeSkus || []).map((sku) => (
+                                    <option key={sku.skuId} value={sku.skuId}>
+                                      {sku.skuValue || `#${sku.skuId}`}
+                                      {sku.isOriginal ? `（${t('原规格')}）` : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              </span>
+                            ) : (
+                              <span style={{ color: '#999', fontSize: 12 }}>{t('原商品补发')}</span>
+                            )}
+                          </div>
+                        ))}
+                      <div style={{ color: '#999', fontSize: 12 }}>{t('换货仅支持与原规格等价的规格，不涉及退款')}</div>
+                    </div>
+                  </div>
+                ) : null}
+
                 {Number(config.afterSalesReasonEnabled ?? 1) === 1 && config.aftersaleReason?.length ? (
                   <div className="el-form-item">
                     <label className="el-form-item__label">{t('售后原因')}：</label>
@@ -397,12 +465,14 @@ export default function AfterSalesApplyClient({ orderId, itemId }: { orderId: nu
                   </div>
                 ) : null}
 
-                <div className="el-form-item">
-                  <label className="el-form-item__label">{t('预计退款金额')}：</label>
-                  <div className="el-form-item__content">
-                    <input className="el-input__inner" value={refundAmount.toFixed(2)} readOnly disabled placeholder={t('请输入申请金额')} />
+                {type !== 3 ? (
+                  <div className="el-form-item">
+                    <label className="el-form-item__label">{t('预计退款金额')}：</label>
+                    <div className="el-form-item__content">
+                      <input className="el-input__inner" value={refundAmount.toFixed(2)} readOnly disabled placeholder={t('请输入申请金额')} />
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
                 <div className="el-form-item">
                   <label className="el-form-item__label">{t('问题描述')}：</label>

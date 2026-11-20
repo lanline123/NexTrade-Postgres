@@ -15,7 +15,7 @@ import { usePageGuards } from "@/utils/pageMixin";
 import "./edit.scss";
 
 interface EditForm {
-    items: { orderItemId: number; number: number }[];
+    items: { orderItemId: number; number: number; exchangeSkuId?: number }[];
     pics: MediaUploadItem[];
     orderId: number;
     aftersaleType: number;
@@ -144,7 +144,11 @@ export default function AfterSaleEdit() {
                 });
                 const list = (result.list || []).map((item: any) => ({
                     ...item,
-                    number: item.canApplyQuantity
+                    number: item.canApplyQuantity,
+                    // 换货目标默认原规格（同 SKU 补发）
+                    exchangeSkuId:
+                        (item.exchangeSkus || []).find((s: any) => s.isOriginal)?.skuId ??
+                        (item.exchangeSkus || [])[0]?.skuId
                 }));
                 orderRef.current = result.order || {};
                 patchInfo({ list, order: result.order });
@@ -189,8 +193,8 @@ export default function AfterSaleEdit() {
             const isPickup = !!order?.isPickup;
             const typeList: any[] = [];
             Object.keys(result.aftersaleType).forEach((key) => {
-                // 退货退款(aftersaleType=1)限制：待发货订单 或 自提订单未完成提货时不可选
-                if (Number(key) === 1 && (orderStatus === 1 || (isPickup && orderStatus <= 2))) {
+                // 退货退款(1)/换货(3)限制：待发货订单 或 自提订单未完成提货时不可选（均需实物回寄）
+                if ((Number(key) === 1 || Number(key) === 3) && (orderStatus === 1 || (isPickup && orderStatus <= 2))) {
                     return;
                 } else {
                     typeList.push({
@@ -212,7 +216,24 @@ export default function AfterSaleEdit() {
     const __getAftersalesDetail = async () => {
         try {
             const result = await aftersalesViewRecord(aftersaleIdRef.current!);
-            patchInfo({ list: result.aftersalesItems, order: result.orders });
+            // 换货编辑：从申请数据合并等价目标 SKU 清单（按 orderItemId 对齐）
+            let detailList: any[] = result.aftersalesItems || [];
+            const detailOrderId = result.orderId ?? result.orders?.orderId;
+            if (detailOrderId) {
+                try {
+                    const applyData = await getAftersalesEdit({ orderId: detailOrderId });
+                    const skusByItem = new Map<number, any[]>(
+                        (applyData.list || []).map((d: any) => [d.itemId, d.exchangeSkus || []])
+                    );
+                    detailList = detailList.map((it: any) => ({
+                        ...it,
+                        exchangeSkus: skusByItem.get(it.orderItemId) || []
+                    }));
+                } catch (error) {
+                    console.error(error);
+                }
+            }
+            patchInfo({ list: detailList, order: result.orders });
             orderRef.current = result.orders || {};
             orderIdRef.current = result.orderId ?? result.orders?.orderId ?? orderIdRef.current;
             patchForm({
@@ -278,18 +299,27 @@ export default function AfterSaleEdit() {
             return;
         }
 
-        const items: { orderItemId: number; number: number }[] = [];
+        const isExchange = formRef.current.aftersaleType === 3;
+        const items: { orderItemId: number; number: number; exchangeSkuId?: number }[] = [];
         if (formRef.current.aftersaleId) {
             // 编辑模式：使用 orderItemId
             infoRef.current.list.forEach((item: any) => {
-                items.push({ orderItemId: item.orderItemId, number: item.number });
+                items.push({
+                    orderItemId: item.orderItemId,
+                    number: item.number,
+                    ...(isExchange ? { exchangeSkuId: item.exchangeSkuId } : {})
+                });
             });
             patchForm({ pics: fileLists, orderId: infoRef.current.order.orderId, items });
             await edit();
         } else {
             // 新建模式：使用 itemId
             infoRef.current.list.forEach((item: any) => {
-                items.push({ orderItemId: item.itemId, number: item.number });
+                items.push({
+                    orderItemId: item.itemId,
+                    number: item.number,
+                    ...(isExchange ? { exchangeSkuId: item.exchangeSkuId } : {})
+                });
             });
             patchForm({ pics: fileLists, orderId: infoRef.current.order.orderId, items });
             await add();
@@ -368,6 +398,14 @@ export default function AfterSaleEdit() {
         patchInfo({ list });
     };
 
+    /** 换货目标规格选择（仅换货类型时展示，选项为后端下发的等价 SKU 清单） */
+    const updateItemExchangeSku = (index: number, skuIndex: number) => {
+        const list = infoRef.current.list.map((item: any, i: number) =>
+            i === index ? { ...item, exchangeSkuId: (item.exchangeSkus || [])[skuIndex]?.skuId } : item
+        );
+        patchInfo({ list });
+    };
+
     return (
         <TigLayout title={t("申请售后")}>
             {Object.keys(infoData).length > 0 && (
@@ -408,6 +446,33 @@ export default function AfterSaleEdit() {
                                         />
                                     </View>
                                 </View>
+                                {form.aftersaleType === 3 && (
+                                    <View className="exchange-sku-box">
+                                        <Text className="exchange-sku-label">{t("换货规格")}</Text>
+                                        {(item.exchangeSkus || []).length > 0 ? (
+                                            <Picker
+                                                mode="selector"
+                                                range={item.exchangeSkus}
+                                                rangeKey="skuValue"
+                                                value={Math.max(
+                                                    0,
+                                                    (item.exchangeSkus || []).findIndex((s: any) => s.skuId === item.exchangeSkuId)
+                                                )}
+                                                onChange={(e) => updateItemExchangeSku(index, Number(e.detail.value))}
+                                            >
+                                                <View className="exchange-sku-value">
+                                                    <Text>
+                                                        {(item.exchangeSkus || []).find((s: any) => s.skuId === item.exchangeSkuId)
+                                                            ?.skuValue || t("请选择")}
+                                                    </Text>
+                                                    <Text className="iconfont-h5 icon-gengduo1" style="font-size: 21rpx; color: #999" />
+                                                </View>
+                                            </Picker>
+                                        ) : (
+                                            <Text className="exchange-sku-value">{t("原商品补发")}</Text>
+                                        )}
+                                    </View>
+                                )}
                             </View>
                         ))}
                     </View>

@@ -79,6 +79,19 @@ export const aftersalesCancel = (data: object) => {
 };
 
 /**
+ * @description 换货确认收货（我方新增：商家重发后买家确认收到换货商品）
+ * @param data 包含售后单ID（aftersaleId）
+ * @returns 操作结果
+ */
+export const aftersalesConfirmExchange = (data: object) => {
+    return request({
+        url: "user/aftersales/confirmExchange",
+        method: "post",
+        data
+    });
+};
+
+/**
  * @description 获取售后协商日志
  * @param id 售后单ID
  * @returns 协商记录列表

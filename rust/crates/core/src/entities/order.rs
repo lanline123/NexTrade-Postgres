@@ -79,6 +79,29 @@ pub struct AftersalesItem {
     pub number: Option<i32>,
     /// 售后申请id
     pub aftersale_id: Option<i32>,
+    /// 换货目标 SKU（我方新增，迁移 009；存量行/非换货单为 NULL。
+    /// `#[sqlx(default)]`：未显式列出本列的旧 SELECT 不报错）
+    #[sqlx(default)]
+    pub exchange_sku_id: Option<i32>,
+}
+
+/// 换货重发物流（我方新增，迁移 009 侧表 `aftersales_exchange_delivery`）。
+///
+/// 一售后单至多一行（`aftersale_id` 主键）：商家确认收货后「换货重发」时写入，
+/// 与买家回寄物流（`aftersales.logistics_name` / `tracking_no`）分开存放。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct AftersalesExchangeDelivery {
+    /// 售后申请id（主键）
+    pub aftersale_id: i32,
+    /// 重发物流公司
+    pub logistics_name: String,
+    /// 重发物流单号
+    pub tracking_no: String,
+    /// 重发时间（秒）
+    pub ship_time: i32,
+    /// 写入时间（秒）
+    pub add_time: i32,
 }
 
 impl AftersalesItem {

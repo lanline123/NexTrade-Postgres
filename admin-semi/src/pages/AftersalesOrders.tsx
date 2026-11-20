@@ -30,6 +30,9 @@ interface AftersalesItem {
   price: string | number;
   quantity: number;
   number?: number;
+  /** 换货目标 SKU（我方新增，仅换货单） */
+  exchangeSkuId?: number;
+  exchangeSkuValue?: string;
 }
 
 interface AftersalePic {
@@ -66,6 +69,10 @@ interface AftersalesRow {
   returnAddress?: string;
   mark?: number;
   aftersalesItems: AftersalesItem[];
+  /** 换货重发物流（我方新增，仅换货单已重发后） */
+  exchangeLogisticsName?: string;
+  exchangeTrackingNo?: string;
+  exchangeShipTime?: string;
 }
 
 interface HandleTarget {
@@ -80,6 +87,8 @@ const STATUS_COLORS: Record<number, 'orange' | 'black' | 'grey' | 'green' | 'blu
   3: 'grey',
   4: 'black',
   5: 'green',
+  8: 'blue',
+  9: 'blue',
 };
 
 const money = (value: unknown) => `¥${Number(value || 0).toFixed(2)}`;
@@ -115,6 +124,11 @@ export default function AftersalesOrders() {
     refundAmount: null,
     returnAddress: '',
     reply: '',
+  });
+  const [reshipTarget, setReshipTarget] = useState<AftersalesRow | null>(null);
+  const [reshipForm, setReshipForm] = useState<{ logisticsName: string; trackingNo: string }>({
+    logisticsName: '',
+    trackingNo: '',
   });
   const [saving, setSaving] = useState(false);
 
@@ -180,12 +194,16 @@ export default function AftersalesOrders() {
 
   const openHandle = (row: AftersalesRow, status: 2 | 3) => {
     setHandleForm({
-      refundAmount: Number(
-        (row.aftersalesItems || []).reduce(
-          (sum, item) => sum + Number(item.price || 0) * Number(item.number ?? item.quantity ?? 0),
-          0,
-        ),
-      ),
+      // 换货零资金动作：金额恒 0
+      refundAmount:
+        row.aftersaleType === 3
+          ? 0
+          : Number(
+              (row.aftersalesItems || []).reduce(
+                (sum, item) => sum + Number(item.price || 0) * Number(item.number ?? item.quantity ?? 0),
+                0,
+              ),
+            ),
       returnAddress: row.returnAddress || '',
       reply: '',
     });
@@ -195,7 +213,7 @@ export default function AftersalesOrders() {
   const submitHandle = async () => {
     if (!handleTarget) return;
     const { row, status } = handleTarget;
-    if (status === 2 && row.aftersaleType === 1 && !handleForm.returnAddress.trim()) {
+    if (status === 2 && (row.aftersaleType === 1 || row.aftersaleType === 3) && !handleForm.returnAddress.trim()) {
       Toast.error({ content: t('退货地址不能为空') });
       return;
     }
@@ -222,6 +240,33 @@ export default function AftersalesOrders() {
     }
   };
 
+  const submitReship = async () => {
+    if (!reshipTarget) return;
+    if (!reshipForm.logisticsName.trim()) {
+      Toast.error({ content: t('物流公司不能为空') });
+      return;
+    }
+    if (!reshipForm.trackingNo.trim()) {
+      Toast.error({ content: t('物流单号不能为空') });
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiPost('/order/aftersales/exchangeReship', {
+        id: reshipTarget.aftersaleId,
+        logisticsName: reshipForm.logisticsName.trim(),
+        trackingNo: reshipForm.trackingNo.trim(),
+      });
+      Toast.success({ content: t('操作成功') });
+      setReshipTarget(null);
+      reload();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('操作失败') });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const receiveAction = (row: AftersalesRow, action: 'receive' | 'rejectReceive', title: string) => {
     Modal.confirm({
       title,
@@ -239,7 +284,8 @@ export default function AftersalesOrders() {
 
   const renderRow = (row: AftersalesRow): ReactNode => {
     const canHandle = row.status === 1;
-    const canConfirmReceipt = row.aftersaleType === 1 && row.status === 5;
+    const canConfirmReceipt = (row.aftersaleType === 1 || row.aftersaleType === 3) && row.status === 5;
+    const canReship = row.aftersaleType === 3 && row.status === 8;
     return (
       <Card className="aftersales-card" key={row.aftersaleId} shadows="hover">
         <div className="aftersales-head">
@@ -306,7 +352,14 @@ export default function AftersalesOrders() {
                 render: (_: unknown, item: AftersalesItem) => (
                   <div className="aftersales-product">
                     {item.picThumb ? <img src={item.picThumb} alt="" width={48} height={48} /> : null}
-                    <span>{item.productName}</span>
+                    <span>
+                      {item.productName}
+                      {item.exchangeSkuId ? (
+                        <Text type="tertiary" size="small" style={{ display: 'block' }}>
+                          {t('换货至：')}{item.exchangeSkuValue || `#${item.exchangeSkuId}`}
+                        </Text>
+                      ) : null}
+                    </span>
                   </div>
                 ),
               },
@@ -355,6 +408,29 @@ export default function AftersalesOrders() {
               {row.aftersaleType === 2 && canHandle ? (
                 <Button theme="borderless" size="small" onClick={() => openHandle(row, 3)}>
                   {t('拒绝仅退款')}
+                </Button>
+              ) : null}
+              {row.aftersaleType === 3 && canHandle ? (
+                <Button type="danger" theme="borderless" size="small" onClick={() => openHandle(row, 2)}>
+                  {t('同意换货')}
+                </Button>
+              ) : null}
+              {row.aftersaleType === 3 && canHandle ? (
+                <Button theme="borderless" size="small" onClick={() => openHandle(row, 3)}>
+                  {t('拒绝换货')}
+                </Button>
+              ) : null}
+              {canReship ? (
+                <Button
+                  type="danger"
+                  theme="borderless"
+                  size="small"
+                  onClick={() => {
+                    setReshipForm({ logisticsName: '', trackingNo: '' });
+                    setReshipTarget(row);
+                  }}
+                >
+                  {t('换货重发')}
                 </Button>
               ) : null}
               {canConfirmReceipt ? (
@@ -526,11 +602,50 @@ export default function AftersalesOrders() {
                 <label>{t('退换商品')}</label>
                 <span>
                   {item.productName} × {item.quantity}（{t('退货数量：')}{item.number ?? item.quantity}）
+                  {item.exchangeSkuId ? (
+                    <>
+                      <br />
+                      {t('换货至：')}{item.exchangeSkuValue || `#${item.exchangeSkuId}`}
+                    </>
+                  ) : null}
                 </span>
               </div>
             ))}
+            {aftersaleDetail.exchangeTrackingNo ? (
+              <div className="aftersales-detail-row">
+                <label>{t('重发物流')}</label>
+                <span>
+                  {aftersaleDetail.exchangeLogisticsName} {aftersaleDetail.exchangeTrackingNo}
+                  {aftersaleDetail.exchangeShipTime ? `（${aftersaleDetail.exchangeShipTime}）` : ''}
+                </span>
+              </div>
+            ) : null}
           </div>
         ) : null}
+      </Modal>
+
+      <Modal
+        title={t('换货重发')}
+        visible={Boolean(reshipTarget)}
+        confirmLoading={saving}
+        onOk={submitReship}
+        onCancel={() => setReshipTarget(null)}
+      >
+        <div className="aftersales-form">
+          <label>{t('物流公司')}</label>
+          <Input
+            value={reshipForm.logisticsName}
+            onChange={(next) => setReshipForm((c) => ({ ...c, logisticsName: next }))}
+            placeholder={t('请输入物流公司')}
+          />
+          <label>{t('物流单号')}</label>
+          <Input
+            value={reshipForm.trackingNo}
+            onChange={(next) => setReshipForm((c) => ({ ...c, trackingNo: next }))}
+            placeholder={t('请输入物流单号')}
+          />
+          <p className="aftersales-muted">{t('提交后将扣减换货目标规格库存，并通知买家确认收货。')}</p>
+        </div>
       </Modal>
 
       <Modal
@@ -571,8 +686,12 @@ export default function AftersalesOrders() {
             ? handleTarget.status === 2
               ? handleTarget.row.aftersaleType === 1
                 ? t('同意退货退款')
-                : t('同意仅退款')
-              : t('拒绝退款')
+                : handleTarget.row.aftersaleType === 3
+                  ? t('同意换货')
+                  : t('同意仅退款')
+              : handleTarget.row.aftersaleType === 3
+                ? t('拒绝换货')
+                : t('拒绝退款')
             : t('处理售后')
         }
         visible={Boolean(handleTarget)}
@@ -582,14 +701,18 @@ export default function AftersalesOrders() {
       >
         {handleTarget?.status === 2 ? (
           <div className="aftersales-form">
-            <label>{t('退款金额')}</label>
-            <InputNumber
-              style={{ width: 200 }}
-              min={0}
-              value={handleForm.refundAmount ?? 0}
-              onChange={(next) => setHandleForm((c) => ({ ...c, refundAmount: Number(next ?? 0) }))}
-            />
-            {handleTarget.row.aftersaleType === 1 ? (
+            {handleTarget.row.aftersaleType !== 3 ? (
+              <>
+                <label>{t('退款金额')}</label>
+                <InputNumber
+                  style={{ width: 200 }}
+                  min={0}
+                  value={handleForm.refundAmount ?? 0}
+                  onChange={(next) => setHandleForm((c) => ({ ...c, refundAmount: Number(next ?? 0) }))}
+                />
+              </>
+            ) : null}
+            {handleTarget.row.aftersaleType === 1 || handleTarget.row.aftersaleType === 3 ? (
               <>
                 <label>{t('退货地址')}</label>
                 <TextArea
@@ -600,7 +723,9 @@ export default function AftersalesOrders() {
               </>
             ) : null}
             <p className="aftersales-muted">
-              {t('提交后按"同意并发送退货地址"处理，用户将收到退货地址与退款金额。')}
+              {handleTarget.row.aftersaleType === 3
+                ? t('换货为等价交换，不产生退款；提交后用户将收到退货地址，寄回后请确认收货并重发。')
+                : t('提交后按"同意并发送退货地址"处理，用户将收到退货地址与退款金额。')}
             </p>
           </div>
         ) : (

@@ -40,6 +40,9 @@ interface AfterSalesItem {
   quantity?: number;
   subtotal?: string | number;
   number?: number;
+  /** 换货目标 SKU（我方新增，仅换货单） */
+  exchangeSkuId?: number;
+  exchangeSkuValue?: string;
 }
 
 interface AfterSalesLog {
@@ -68,7 +71,13 @@ interface AfterSaleDetail {
   statusName?: string;
   statusDesc?: string;
   autoAgreeEndTime?: string;
+  /** 售后类型（我方新增下发：1 退货/退款 2 仅退款 3 换货） */
+  aftersaleType?: number;
   aftersalesTypeName?: string;
+  /** 换货重发物流（我方新增，仅换货单已重发后） */
+  exchangeLogisticsName?: string;
+  exchangeTrackingNo?: string;
+  exchangeShipTime?: string;
   addTime?: string;
   refundAmount?: string | number;
   description?: string;
@@ -107,6 +116,18 @@ function fallbackSubText(status: number | undefined): string {
   if ([0, 1, 21].includes(Number(status ?? -1))) return '您的售后申请正在处理，请耐心等待';
   if ([2, 4, 5, 22].includes(Number(status ?? -1))) return '您的退款申请已提交，请耐心等待财务处理';
   if (Number(status) === 6) return '您的退款申请已处理完成，款项将按原支付路径退回';
+  return '';
+}
+
+/** 换货状态副文案兜底（我方新增，不出现退款字样） */
+function exchangeFallbackSubText(status: number | undefined): string {
+  const s = Number(status ?? -1);
+  if ([0, 1, 21].includes(s)) return '您的换货申请正在处理，请耐心等待';
+  if (s === 4) return '申请已通过，请填写退货物流信息并寄回商品';
+  if (s === 5 || s === 22) return '商品已寄出，等待商家签收，签收后将为你重新发货';
+  if (s === 8) return '商家已签收退回商品，正在为你重新发货，请耐心等待';
+  if (s === 9) return '商家已重新发货，请确认收到换货商品后完成售后';
+  if (s === 6) return '换货已完成，售后流程已结束';
   return '';
 }
 
@@ -181,7 +202,11 @@ export default function AfterSalesDetailClient({ id }: { id: number }) {
   }, [autoAgreeEndMs, nowTs]);
 
   const status = Number(detail?.status ?? -1);
-  const statusSubText = showCountdown ? '' : String(detail?.statusDesc || '').trim() || fallbackSubText(status);
+  const isExchange = Number(detail?.aftersaleType) === 3;
+  const statusSubText = showCountdown
+    ? ''
+    : String(detail?.statusDesc || '').trim() ||
+      (isExchange ? exchangeFallbackSubText(status) : fallbackSubText(status));
 
   const cancel = () => {
     if (!id) return;
@@ -197,6 +222,26 @@ export default function AfterSalesDetailClient({ id }: { id: number }) {
           window.location.replace('/member/return/log');
         } catch (error) {
           Toast.error({ content: error instanceof Error ? error.message : '取消失败' });
+        }
+      },
+    });
+  };
+
+  /** 换货确认收货（我方新增）：商家重发后买家确认，换货完结 */
+  const confirmExchange = () => {
+    if (!id) return;
+    Modal.confirm({
+      title: '确认收到换货',
+      content: '确认已收到商家重发的换货商品吗？确认后本次换货售后完结。',
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await apiPost('user/aftersales/confirmExchange', { aftersaleId: detail?.aftersaleId || id });
+          Toast.success({ content: '确认成功' });
+          load();
+        } catch (error) {
+          Toast.error({ content: error instanceof Error ? error.message : '确认失败' });
         }
       },
     });
@@ -284,9 +329,14 @@ export default function AfterSalesDetailClient({ id }: { id: number }) {
       <div className="log-return-content">
       <div className="return-status-header">
         <div className="status-title">{detail.statusName || ''}</div>
-        {detail.canCancel ? (
+        {detail.canCancel || (isExchange && status === 9) ? (
           <div className="header-actions">
-            <Button className="cancel-button" onClick={cancel}>{t('撤销')}</Button>
+            {isExchange && status === 9 ? (
+              <Button type="primary" onClick={confirmExchange}>{t('确认收到换货')}</Button>
+            ) : null}
+            {detail.canCancel ? (
+              <Button className="cancel-button" onClick={cancel}>{t('撤销')}</Button>
+            ) : null}
           </div>
         ) : null}
         {showCountdown ? (
@@ -385,6 +435,9 @@ export default function AfterSalesDetailClient({ id }: { id: number }) {
                         <li className="product-name">{item.productName || '-'}</li>
                       </ul>
                       {item.skuValue ? <div className="sku">{item.skuValue}</div> : null}
+                      {item.exchangeSkuId ? (
+                        <div className="sku">{t('换货至')}：{item.exchangeSkuValue || `#${item.exchangeSkuId}`}</div>
+                      ) : null}
                     </div>
                   </Link>
                 </td>
@@ -405,7 +458,10 @@ export default function AfterSalesDetailClient({ id }: { id: number }) {
           <tbody>
             <tr><td>{t('买家问题描述')}:</td><td>{detail.description || '-'}</td></tr>
             <tr><td>{t('售后类型')}:</td><td>{detail.aftersalesTypeName || '-'}</td></tr>
-            <tr><td>{t('退款金额')}:</td><td>{formatDisplayPriceWithExact(detail.refundAmount)}</td></tr>
+            {isExchange ? null : <tr><td>{t('退款金额')}:</td><td>{formatDisplayPriceWithExact(detail.refundAmount)}</td></tr>}
+            {isExchange && detail.exchangeTrackingNo ? (
+              <tr><td>{t('重发物流')}:</td><td>{detail.exchangeLogisticsName || ''} {detail.exchangeTrackingNo}{detail.exchangeShipTime ? `（${detail.exchangeShipTime}）` : ''}</td></tr>
+            ) : null}
             <tr><td>{t('售后原因')}:</td><td>{detail.aftersaleReason || '-'}</td></tr>
             {status === 4 ? <tr><td>{t('退货地址')}:</td><td>{detail.returnAddress || '-'}</td></tr> : null}
             <tr>

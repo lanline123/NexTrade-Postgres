@@ -1136,6 +1136,7 @@ impl OrderAdminService {
                 order_item_id: Some(it.item_id),
                 number: Some(it.quantity),
                 aftersale_id: None,
+                exchange_sku_id: None,
             })
             .collect();
         let log = AftersalesLog {

@@ -26,7 +26,7 @@
 //! 查询统一使用运行时 `sqlx::query_as`（不使用 `query!` 宏）。
 
 use sqlx::PgPool;
-use nextrade_core::entities::{Aftersales, AftersalesItem, AftersalesLog, Order, OrderItem, RefundApply, Shop, User};
+use nextrade_core::entities::{Aftersales, AftersalesExchangeDelivery, AftersalesItem, AftersalesLog, Order, OrderItem, RefundApply, Shop, User};
 use nextrade_core::models::trade::aftersales::AftersalesListQuery;
 use nextrade_core::{Error, Result};
 
@@ -119,10 +119,12 @@ impl AftersalesRepository {
         cutoff: i32,
         limit: i64,
     ) -> Result<Vec<Aftersales>> {
+        // 换货（我方新增 type=3）不参与自动确认收货：其「确认收货」只入
+        // 待重发，不走退款完结，故在取数口径上直接排除
         sqlx::query_as::<_, Aftersales>(
             "SELECT * FROM aftersales \
              WHERE status IN (5, 22) AND deal_time > 0 AND deal_time <= $1 \
-               AND tracking_no <> '' \
+               AND tracking_no <> '' AND aftersale_type <> 3 \
              ORDER BY deal_time ASC LIMIT $2",
         )
         .bind(cutoff)
@@ -321,11 +323,12 @@ impl AftersalesRepository {
     pub async fn insert_items(&self, items: &[nextrade_core::entities::AftersalesItem]) -> Result<()> {
         for item in items {
             sqlx::query(
-                "INSERT INTO aftersales_item (order_item_id, number, aftersale_id) VALUES ($1, $2, $3)",
+                "INSERT INTO aftersales_item (order_item_id, number, aftersale_id, exchange_sku_id) VALUES ($1, $2, $3, $4)",
             )
             .bind(item.order_item_id)
             .bind(item.number)
             .bind(item.aftersale_id)
+            .bind(item.exchange_sku_id)
             .execute(&self.pool)
             .await
             .map_err(map_err)?;
@@ -678,6 +681,45 @@ impl AftersalesRepository {
             .await
             .map_err(map_err)?;
         Ok(r.rows_affected() > 0)
+    }
+
+    /// 换货重发物流（我方新增侧表 `aftersales_exchange_delivery`，一单至多一行）。
+    pub async fn find_exchange_delivery(
+        &self,
+        aftersale_id: i32,
+    ) -> Result<Option<AftersalesExchangeDelivery>> {
+        sqlx::query_as::<_, AftersalesExchangeDelivery>(
+            "SELECT aftersale_id, logistics_name, tracking_no, ship_time, add_time \
+             FROM aftersales_exchange_delivery WHERE aftersale_id = $1 LIMIT 1",
+        )
+        .bind(aftersale_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 写入/覆盖换货重发物流（商家「换货重发」时调用，重复提交以最新一次为准）。
+    pub async fn upsert_exchange_delivery(
+        &self,
+        delivery: &AftersalesExchangeDelivery,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO aftersales_exchange_delivery \
+             (aftersale_id, logistics_name, tracking_no, ship_time, add_time) \
+             VALUES ($1, $2, $3, $4, $5) \
+             ON CONFLICT (aftersale_id) DO UPDATE SET \
+             logistics_name = EXCLUDED.logistics_name, \
+             tracking_no = EXCLUDED.tracking_no, ship_time = EXCLUDED.ship_time",
+        )
+        .bind(delivery.aftersale_id)
+        .bind(&delivery.logistics_name)
+        .bind(&delivery.tracking_no)
+        .bind(delivery.ship_time)
+        .bind(delivery.add_time)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
     }
 
     /// 仅回写退款金额（对应 Java `lambdaUpdate().set(Aftersales::getRefundAmount, ...)`）。

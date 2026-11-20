@@ -450,29 +450,52 @@ pub mod aftersales_status {
     pub const WAIT_FOR_SUPPLIER_AUDIT: i32 = 21;
     /// 待供应商收货
     pub const WAIT_FOR_SUPPLIER_RECEIPT: i32 = 22;
+    /// 换货：商家已收货，待重新发货（我方新增，仅 type=3 换货单使用）
+    pub const EXCHANGE_WAIT_RESHIP: i32 = 8;
+    /// 换货：已重新发货，待买家确认收货（我方新增，仅 type=3 换货单使用）
+    pub const EXCHANGE_WAIT_CONFIRM: i32 = 9;
 
-    /// 占用可售后数量的「有效状态」（Java `AftersalesStatusEnum.validStatus()`）。
+    /// 占用可售后数量的「有效状态」（Java `AftersalesStatusEnum.validStatus()`；
+    /// 我方新增换货状态 8/9 同口径占用）。
     #[must_use]
-    pub fn valid_statuses() -> [i32; 5] {
+    pub fn valid_statuses() -> [i32; 7] {
         [
             IN_REVIEW,
             APPROVED_FOR_PROCESSING,
             SEND_BACK,
             RETURNED,
             COMPLETE,
+            EXCHANGE_WAIT_RESHIP,
+            EXCHANGE_WAIT_CONFIRM,
         ]
     }
 
-    /// 「售后进行中」状态（Java `inProgressStatus()`，不含已完成/已取消/已驳回）。
+    /// 「售后进行中」状态（Java `inProgressStatus()`，不含已完成/已取消/已驳回；
+    /// 我方新增换货状态 8/9 同口径进行中）。
     #[must_use]
-    pub fn in_progress_statuses() -> [i32; 4] {
-        [IN_REVIEW, APPROVED_FOR_PROCESSING, SEND_BACK, RETURNED]
+    pub fn in_progress_statuses() -> [i32; 6] {
+        [
+            IN_REVIEW,
+            APPROVED_FOR_PROCESSING,
+            SEND_BACK,
+            RETURNED,
+            EXCHANGE_WAIT_RESHIP,
+            EXCHANGE_WAIT_CONFIRM,
+        ]
     }
 
-    /// 「已申请售后」查询用状态（Java `getAfterSalseStatusList()` 的非供应商口径）。
+    /// 「已申请售后」查询用状态（Java `getAfterSalseStatusList()` 的非供应商口径；
+    /// 我方新增换货状态 8/9 同口径）。
     #[must_use]
-    pub fn applied_statuses() -> [i32; 4] {
-        [IN_REVIEW, APPROVED_FOR_PROCESSING, SEND_BACK, RETURNED]
+    pub fn applied_statuses() -> [i32; 6] {
+        [
+            IN_REVIEW,
+            APPROVED_FOR_PROCESSING,
+            SEND_BACK,
+            RETURNED,
+            EXCHANGE_WAIT_RESHIP,
+            EXCHANGE_WAIT_CONFIRM,
+        ]
     }
 }
 
@@ -482,6 +505,8 @@ pub mod aftersales_type {
     pub const RETURN: i32 = 1;
     /// 仅退款
     pub const PAY_RETURN: i32 = 2;
+    /// 换货（我方新增 2026-11-21，原版枚举无此类型）
+    pub const EXCHANGE: i32 = 3;
 }
 
 /// 订单类型（对应 Java `OrderType`，仅列出本切片用到的取值）。
@@ -1673,8 +1698,8 @@ mod tests {
 
     #[test]
     fn aftersales_status_sets_match_java() {
-        assert_eq!(aftersales_status::valid_statuses(), [1, 2, 4, 5, 6]);
-        assert_eq!(aftersales_status::in_progress_statuses(), [1, 2, 4, 5]);
+        assert_eq!(aftersales_status::valid_statuses(), [1, 2, 4, 5, 6, 8, 9]);
+        assert_eq!(aftersales_status::in_progress_statuses(), [1, 2, 4, 5, 8, 9]);
         assert_eq!(aftersales_type::PAY_RETURN, 2);
         assert_eq!(join_status::WAIT_GROUP, 1);
         assert_eq!(join_status::description(2), "拼团成功");
