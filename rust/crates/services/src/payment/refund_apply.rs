@@ -186,7 +186,7 @@ impl RefundApplyService {
 
         if RefundApplyStatus::try_from(existing.refund_status)
             .map(|s| s as i32)
-            == Ok(RefundApplyStatus::Wait as i32)
+            != Ok(RefundApplyStatus::Wait as i32)
         {
             return Err(Error::biz(400, "仅待处理的申请允许修改"));
         }
@@ -1087,5 +1087,35 @@ mod tests {
             .find("handle_salesman_order_on_refund")
             .expect("audit 应挂分销佣金回退");
         assert!(transition < hook, "分销佣金回退必须在审核通过流转之后执行");
+    }
+
+    /// 改金额状态门不变量：`update` 的状态门必须以 `!= Wait` 拒绝
+    /// 非待处理申请（与方法文档「仅待处理状态可改」、报错文案
+    /// 「仅待处理的申请允许修改」及 `audit` 的 Java Assert 口径一致）。
+    /// 2026-11-20 前该门误写 `== Wait`，待处理单恒被拒、已处理单
+    /// 反被放行改金额——本测试防止该反转回归。作用域限定在
+    /// `update` 函数体内（其后紧邻的 `audit` 用同一 `!=` 形态，
+    /// 不得串扰）。
+    #[test]
+    fn update_gate_rejects_non_wait_status() {
+        let src = include_str!("refund_apply.rs");
+        let u = src.find("pub async fn update").expect("update 应存在");
+        let tail = &src[u..];
+        let end = tail
+            .find("\n    pub async fn ")
+            .expect("update 后应有下一个方法");
+        let body = &tail[..end];
+
+        let gate = body
+            .find("!= Ok(RefundApplyStatus::Wait as i32)")
+            .expect("update 状态门必须以 != Wait 形式拒绝非待处理申请");
+        let err = body
+            .find("仅待处理的申请允许修改")
+            .expect("update 应保留状态门报错文案");
+        assert!(gate < err, "状态门必须先于报错返回出现");
+        assert!(
+            !body.contains("== Ok(RefundApplyStatus::Wait as i32)"),
+            "update 内不得再出现 == Wait 的反转状态门"
+        );
     }
 }
