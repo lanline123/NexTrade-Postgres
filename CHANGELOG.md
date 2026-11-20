@@ -957,3 +957,9 @@
 ## 0.0.2 续 · 2026-11-21 批次（魔方选图 import 路径笔误修复，未部署——随 admin 合并版上线）
 
 - 修复 c4c7199 引入的一行笔误：imageSquareAd/Settings.tsx 引用 ProductImagePicker 时少写一层 ../（四层只到 src/pages，组件实在 src/components），build-admin 的 tsc 报 TS2307 找不到模块。改为五层 ../../../../../components/ProductImagePicker，与同文件 i18n 引用的层数一致。仅此一行，无其他变化。
+
+## 0.0.2 续 · 2026-11-21 批次（骑手生产者修复被拆单整文件覆盖回退——三方合并重落，代码已入库待部署）
+
+### 修复
+
+- **后端 - 同城配送订单仍永不生成派送单（并行线整文件覆盖事故修复；原版有·我方补齐）**：批次 3 验收以真实同城单实证——付款成功但订单头 shipping_type_id 仍 0、delivery_order 不生成，批次 2 的 P0 修复（9e5a923）实际从未生效。git 实证：拆单 A（caffe24）的暂存基线为 343b4ad，其 services/trade/order.rs 整文件上传覆盖了 3 分钟前刚落地的 9e5a923 同文件改动，services 半截（纯函数 shipping_type_snapshot、create() 订单头实体写、事务提交后四处 ?→best-effort 降级、映射单测）签名计数 11→0；infra 半截（建单 INSERT 补列 + 绑定 + 不变式测试）因 caffe24 未触该文件而幸存，现网 INSERT 一直绑实体默认值 0。本修复以当前 main（b9379db）为基线逐段三方合并重落：增删行集与 9e5a923 原 diff 逐行比对完全一致、签名计数恢复 11，拆单改动（提交拆单接线、header_vendor_id 等）零损伤；拆单子单经 parent.clone() + insert_order_full（含 shipping_type_id 列）继承父单配送类型，生产者链路完整。附带全量回退签名扫描：caffe24 全部 9 文件 × 同轮前后脚提交（c92ab8c / 9e5a923 / 8eb283a / 21fd516 / aabb4a7 / 515c684 / 5e1eb29）逐文件核验——文件集交集机械证明回退面仅此一处，其余各线签名在当前 main 全部在位（详见修复报告 rider-relapse-fix/REPORT.md，含推送轮签名核验漏检复盘与改进清单）。真门：CI check-rust（重落的映射单测随本节回归）。
