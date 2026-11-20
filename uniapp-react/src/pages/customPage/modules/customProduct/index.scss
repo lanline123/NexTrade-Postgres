@@ -1,7 +1,11 @@
+/* 个性商品（customProduct）样式：尺寸对齐编辑器 Preview.css（cpr- 同值）
+   单位口径（2026-11-21 修复）：Preview.css 的 px 是 375 宽画布的设计 px、字面渲染；
+   本文件原误写 px 字面量，经 pxtransform /40 转 rem 后在 375 屏实际渲染减半。
+   现全量按 设计px×2 改写为 rpx，与预览面逐项对齐。 */
 .module-custom-product {
     .custom-product__pic {
         width: 100%;
-        height: 120px;
+        height: 240rpx;
         overflow: hidden;
 
         image {
@@ -13,23 +17,23 @@
     .custom-product__grid {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 8px;
+        gap: 16rpx;
+        margin-top: 16rpx;
     }
 
     .custom-product__item {
-        width: calc(50% - 4px);
-        padding: 8px;
+        width: calc(50% - 8rpx);
+        padding: 16rpx;
         box-sizing: border-box;
     }
 
     .custom-product__img {
         width: 100%;
-        height: 120px;
+        height: 240rpx;
     }
 
     .custom-product__name {
-        font-size: 13px;
+        font-size: 26rpx;
         overflow: hidden;
         text-overflow: ellipsis;
         display: -webkit-box;
@@ -40,11 +44,11 @@
     .custom-product__price-row {
         display: flex;
         align-items: baseline;
-        gap: 6px;
+        gap: 12rpx;
     }
 
     .custom-product__market {
-        font-size: 11px;
+        font-size: 22rpx;
         text-decoration: line-through;
     }
 }

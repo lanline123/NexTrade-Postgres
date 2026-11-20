@@ -1,14 +1,20 @@
 /* 点单卡片（storeOrderCard）样式：逐项对齐原版编辑器 Preview.vue 的 scoped 样式
-   （类名沿用原版 store-order-* 命名；px 为设计稿单位，由 Taro pxtransform 缩放） */
+   （类名沿用原版 store-order-* 命名）
+   单位口径（2026-11-21 修复）：原版 Preview.vue 的 px 是 375 宽画布的设计 px
+   （原版编辑器 .decorate-page-window 宽 375px、字面渲染）。本文件原样照抄其 px
+   字面量并误以为「由 Taro pxtransform 缩放」即可——实际上 px 与 rpx 同经
+   pxtransform /40 转 rem，375 屏下每个 px 字面值实际渲染减半。现全量按
+   设计px×2 改写为 rpx，与预览面逐项对齐（--card-gap 的 var 兜底同理，运行时
+   TSX 恒以 designPxToRpx 注入该变量，兜底仅防变量缺失时口径漂移）。 */
 .module-store-order-card {
     box-sizing: border-box;
 
     .store-order-row {
         display: flex;
-        gap: var(--card-gap, 8px);
+        gap: var(--card-gap, 16rpx);
 
         & + .store-order-row {
-            margin-top: var(--card-gap, 8px);
+            margin-top: var(--card-gap, 16rpx);
         }
 
         &.grid-cols-1 .store-order-item,
@@ -23,7 +29,7 @@
 
     .store-order-row.layout-3 {
         display: flex;
-        gap: var(--card-gap, 8px);
+        gap: var(--card-gap, 16rpx);
 
         .store-order-col-left,
         .store-order-col-right {
@@ -31,12 +37,12 @@
             min-width: 0;
             display: flex;
             flex-direction: column;
-            gap: var(--card-gap, 8px);
+            gap: var(--card-gap, 16rpx);
         }
 
         .store-order-col-left .store-order-item {
             flex: 1;
-            min-height: 152px;
+            min-height: 304rpx;
         }
     }
 
@@ -54,7 +60,7 @@
         flex-direction: column-reverse;
         justify-content: center;
         align-items: center;
-        gap: 4px;
+        gap: 8rpx;
         box-sizing: border-box;
         text-align: center;
 
@@ -64,7 +70,7 @@
         }
 
         .store-order-title {
-            font-size: 14px;
+            font-size: 28rpx;
             color: #333;
             font-weight: 500;
             line-height: 1.4;
@@ -74,9 +80,9 @@
         }
 
         .store-order-desc {
-            font-size: 12px;
+            font-size: 24rpx;
             color: #999;
-            margin-top: 2px;
+            margin-top: 4rpx;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -102,8 +108,8 @@
             .store-order-img-placeholder {
                 width: 100%;
                 height: 100%;
-                border: 1px solid #eee;
-                border-radius: 2px;
+                border: 2rpx solid #eee;
+                border-radius: 4rpx;
                 background: #f7f8fa;
                 box-sizing: border-box;
             }
@@ -114,8 +120,8 @@
             align-items: center;
             justify-content: space-between;
             text-align: left;
-            gap: 8px;
-            min-height: 90px;
+            gap: 16rpx;
+            min-height: 180rpx;
 
             .store-order-text {
                 flex: 1;
@@ -123,50 +129,50 @@
             }
 
             .store-order-title {
-                font-size: 16px;
+                font-size: 32rpx;
             }
 
             .store-order-desc {
-                font-size: 13px;
+                font-size: 26rpx;
             }
 
             .store-order-img {
-                width: 84px;
-                height: 84px;
+                width: 168rpx;
+                height: 168rpx;
             }
         }
 
         &.size-medium {
             .store-order-title {
-                font-size: 14px;
+                font-size: 28rpx;
             }
         }
 
         &.size-small {
             .store-order-title {
-                font-size: 13px;
+                font-size: 26rpx;
             }
 
             .store-order-desc {
-                font-size: 11px;
+                font-size: 22rpx;
             }
         }
     }
 
     .store-order-row.layout-3 .store-order-col-left .store-order-card-content.mode-textimg {
-        gap: 6px;
+        gap: 12rpx;
 
         .store-order-img {
-            width: 96px;
-            height: 96px;
+            width: 192rpx;
+            height: 192rpx;
         }
 
         .store-order-title {
-            font-size: 16px;
+            font-size: 32rpx;
         }
 
         .store-order-desc {
-            font-size: 13px;
+            font-size: 26rpx;
         }
     }
 

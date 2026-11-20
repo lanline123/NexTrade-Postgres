@@ -1,4 +1,8 @@
-/* 门店导航（storeNav）：样式一列表 / 样式二门店卡，尺寸对齐编辑器 Preview.css */
+/* 门店导航（storeNav）：样式一列表 / 样式二门店卡，尺寸对齐编辑器 Preview.css
+   单位口径（2026-11-21 修复）：Preview.css 的 px 是 375 宽画布的设计 px（原版编辑器
+   Preview.vue 注释明载「按 375 宽画布做 rpx -> px 折算」，原版移动端 storeSearchCard
+   的同元素尺寸恰为其 2 倍 rpx）。本文件原误写 px 字面量，经 pxtransform /40 转 rem 后
+   在 375 屏实际渲染减半；现全量按 设计px×2 改写为 rpx，与预览面逐项对齐。 */
 .module-store-nav {
     .store-nav__line1 {
         overflow: hidden;
@@ -23,12 +27,12 @@
     .store-nav__header {
         display: flex;
         align-items: center;
-        border-bottom: 1px solid #f4f4f4;
+        border-bottom: 2rpx solid #f4f4f4;
     }
 
     .store-nav__header-title {
         font-weight: 600;
-        font-size: 14px;
+        font-size: 28rpx;
         color: #1a1a1a;
     }
 
@@ -37,23 +41,23 @@
         display: flex;
         align-items: center;
         font-weight: 500;
-        font-size: 12px;
+        font-size: 24rpx;
         color: #2a2a2a;
-        column-gap: 2px;
+        column-gap: 4rpx;
     }
 
     .store-nav__list-item {
         width: 100%;
         display: flex;
         align-items: center;
-        column-gap: 12px;
+        column-gap: 24rpx;
         box-sizing: border-box;
     }
 
     .store-nav__list-logo {
-        width: 68px;
-        height: 68px;
-        border-radius: 8px;
+        width: 136rpx;
+        height: 136rpx;
+        border-radius: 16rpx;
         overflow: hidden;
         background-color: #f5f5f5;
         flex: none;
@@ -67,29 +71,29 @@
 
     .store-nav__list-main {
         flex: 1;
-        min-height: 68px;
+        min-height: 136rpx;
         overflow: hidden;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        padding-top: 2px;
+        padding-top: 4rpx;
     }
 
     .store-nav__list-score {
         font-weight: 400;
-        font-size: 14px;
+        font-size: 28rpx;
         color: #1a1a1a;
     }
 
     .store-nav__list-address-row {
         display: flex;
         align-items: center;
-        column-gap: 20px;
+        column-gap: 40rpx;
     }
 
     .store-nav__list-address {
         font-weight: 500;
-        font-size: 14px;
+        font-size: 28rpx;
         color: #1a1a1a;
         flex: 1;
         overflow: hidden;
@@ -97,10 +101,10 @@
 
     .store-nav__distance-pill {
         background: #f4f4f4;
-        font-size: 12px;
+        font-size: 24rpx;
         color: #666666;
-        border-radius: 999px;
-        padding: 4px 6px;
+        border-radius: 1998rpx;
+        padding: 8rpx 12rpx;
         flex: none;
     }
 
@@ -112,8 +116,8 @@
 
     .store-nav__card-logo {
         flex: none;
-        width: 40px;
-        height: 40px;
+        width: 80rpx;
+        height: 80rpx;
         border-radius: 50%;
         overflow: hidden;
         background-color: #f5f5f5;
@@ -128,14 +132,14 @@
     .store-nav__card-main {
         flex: 1;
         width: 0;
-        margin-left: 8px;
+        margin-left: 16rpx;
     }
 
     .store-nav__title-row {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        column-gap: 4px;
+        column-gap: 8rpx;
     }
 
     .store-nav__tag {
@@ -143,29 +147,29 @@
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
-        min-width: 53px;
-        height: 13px;
-        font-size: 8px;
+        min-width: 106rpx;
+        height: 26rpx;
+        font-size: 16rpx;
         color: #ffffff;
-        padding-left: 15px;
-        padding-right: 5px;
-        line-height: 13px;
+        padding-left: 30rpx;
+        padding-right: 10rpx;
+        line-height: 26rpx;
         box-sizing: border-box;
     }
 
     .store-nav__shop-title {
         flex: 1;
         width: 0;
-        line-height: 21px;
+        line-height: 42rpx;
     }
 
     .store-nav__collect-btn {
         flex-shrink: 0;
         display: flex;
         align-items: center;
-        height: 24px;
-        padding: 0 10px;
-        border-radius: 12px;
+        height: 48rpx;
+        padding: 0 20rpx;
+        border-radius: 24rpx;
         background-color: #ff4a1e;
         color: #ffffff;
 
@@ -176,7 +180,7 @@
     }
 
     .store-nav__collect-text {
-        font-size: 11px;
+        font-size: 22rpx;
         line-height: 1;
     }
 
@@ -184,31 +188,31 @@
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        margin-top: 5px;
-        column-gap: 8px;
-        row-gap: 3px;
+        margin-top: 10rpx;
+        column-gap: 16rpx;
+        row-gap: 6rpx;
     }
 
     .store-nav__star {
         font-weight: 600;
-        font-size: 11px;
+        font-size: 22rpx;
         color: #ff4a1e;
     }
 
     .store-nav__meta-item {
-        font-size: 11px;
+        font-size: 22rpx;
         color: #999999;
     }
 
     .store-nav__meta-price {
         display: flex;
         align-items: center;
-        column-gap: 2px;
+        column-gap: 4rpx;
     }
 
     .store-nav__product-scroll {
         width: 100%;
-        margin-top: 10px;
+        margin-top: 20rpx;
     }
 
     .store-nav__product-row {
@@ -217,13 +221,13 @@
 
     .store-nav__product-item {
         flex-shrink: 0;
-        width: 78px;
+        width: 156rpx;
     }
 
     .store-nav__product-image {
-        width: 78px;
-        height: 78px;
-        border-radius: 6px;
+        width: 156rpx;
+        height: 156rpx;
+        border-radius: 12rpx;
         overflow: hidden;
         background-color: #f5f5f5;
 
@@ -235,13 +239,13 @@
     }
 
     .store-nav__product-name {
-        margin-top: 5px;
-        font-size: 12px;
-        line-height: 17px;
+        margin-top: 10rpx;
+        font-size: 24rpx;
+        line-height: 34rpx;
         color: #333333;
     }
 
     .store-nav__product-price {
-        margin-top: 2px;
+        margin-top: 4rpx;
     }
 }

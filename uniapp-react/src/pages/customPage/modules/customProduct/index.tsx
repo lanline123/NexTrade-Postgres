@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Image, Text, View } from "@tarojs/components";
 
-import { formatFrame } from "@/components/modules";
+import { designPxToRpx, formatFrame } from "@/components/modules";
 import FormatPrice from "@/components/format-price/FormatPrice";
 import { getDecorateProducts } from "@/components/modules/useDecorateProducts";
 import { redirect } from "@/utils";
@@ -99,7 +99,7 @@ export default function CustomProduct({ module, shopId = -1 }: Props) {
                         <View
                             key={item.productId || item.id || i}
                             className="custom-product__item"
-                            style={{ background: colors.productBackgroundColor || "#fff", borderRadius: `${d.productRadius ?? 5}px` }}
+                            style={{ background: colors.productBackgroundColor || "#fff", borderRadius: designPxToRpx(d.productRadius ?? 5) }}
                             onClick={() => redirect({ url: `/pages/product/index?id=${item.productId || item.id}` })}
                         >
                             <Image className="custom-product__img" src={productImage(item)} mode="aspectFill" />
