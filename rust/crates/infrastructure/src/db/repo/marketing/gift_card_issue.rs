@@ -807,6 +807,22 @@ impl GiftCardIssueRepository {
         Ok(total)
     }
 
+    /// 订单的礼品卡抵扣总额（usage_log type=1 抵扣流水的金额绝对值
+    /// 合计）。退款资金执行按订单支付构成拆分现金部分时使用：
+    /// 退款总额 − 本值 = 需走支付轨（余额/渠道）的现金部分，卡部分
+    /// 由 `return_stored_cards_for_order` 按流水原额返还。
+    pub async fn deducted_total_for_order(&self, order_id: i32) -> Result<Decimal> {
+        let row: (Option<Decimal>,) = sqlx::query_as(
+            "SELECT COALESCE(SUM(-amount), 0) FROM gift_card_usage_log \
+             WHERE order_id = $1 AND type = 1",
+        )
+        .bind(order_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0.unwrap_or(Decimal::ZERO).max(Decimal::ZERO))
+    }
+
     /// 兑换订单 id（gift_card_order 与 order_item 两处关联合并去重）。
     pub async fn find_exchange_order_ids(&self, gift_cards_id: i32) -> Result<Vec<i32>> {
         let rows: Vec<(i32,)> = sqlx::query_as(

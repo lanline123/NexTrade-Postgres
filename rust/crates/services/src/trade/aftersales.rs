@@ -23,9 +23,12 @@
 //! - `create`：**裸插入**（忠实复刻 Java 该端点的语义，详见方法注释）。
 //!
 //! **仍未迁移（本切片明确不做，已在 `uncertain_points` 中列明）**：
-//! - **财务退款执行**：退款申请与 `refund_log` 已创建；`financialReview != 1`
-//!   时自动把申请置为处理中。实际渠道退款执行（微信/支付宝/线下）仍由支付域
-//!   负责；退款结算单/RabbitMQ 退款结算路由未迁移。
+//! - **财务退款执行**：退款申请（初始状态 = 待处理，与 Java
+//!   `createRefundApply` 写 `REFUND_STATUS_WAIT` = 0 及本仓财务域
+//!   枚举一致）与 `refund_log` 已创建；`financialReview != 1` 时经
+//!   支付域同一资金执行核心自动执行（余额回补 / 渠道退款 / 礼品卡
+//!   返还 / 分销回退），同步完成置已处理、渠道受理中置处理中等待
+//!   回调收尾；开启时由财务 `audit` 审核后走同一执行核心。
 //! - **整单售后退回优惠券**：仅退款审核通过且整单被售后覆盖时，
 //!   释放订单/父单的 `user_coupon` 占用（与 Java 一致）。
 //! - **供应商审核环节**：已读取 `vendor.after_sales_review`（仅
@@ -1747,7 +1750,11 @@ impl AftersalesService {
             order_id: aftersales.order_id.unwrap_or(0),
             user_id: aftersales.user_id.unwrap_or(0),
             aftersale_id: aftersales.aftersale_id,
-            refund_status: 1, // 待审核
+            // 待处理（Java `createRefundApply` 写 REFUND_STATUS_WAIT=0，
+            // 与本仓财务域 RefundApplyStatus::Wait 一致；曾误写 1=处理中，
+            // 财务 audit 的「仅待处理可审」状态门恒拒，售后退款资金
+            // 执行整体不可达——2026-11-20 礼品卡 E2E 实证的缺陷 B）
+            refund_status: RefundApplyStatus::Wait as i32,
             add_time: now,
             refund_note: refund_note.to_string(),
             online_balance: refund_amount,
@@ -1784,28 +1791,65 @@ impl AftersalesService {
             .await?
             .unwrap_or_default();
         if financial_review != "1" {
+            // 资金执行（与财务审核通过共用同一核心
+            // `RefundApplyService::execute_refund_money`，对齐 Java
+            // 自动退款走同一 `audit` 方法）：现金部分按订单支付
+            // 构成选轨——余额支付同步回补买家余额、渠道支付发起
+            // 渠道退款；礼品卡抵扣部分由下方返还钩子处理。
+            // 同步完成才置已处理；渠道受理中/执行异常只置处理中，
+            // 等待渠道回调 mark_processed 或财务人工收尾。
+            let finance = crate::payment::refund_apply::RefundApplyService::new(
+                self.repos.clone(),
+            );
+            let (to_status, money_completed) = match finance
+                .execute_refund_money(&apply, refund_id)
+                .await
+            {
+                Ok((crate::payment::refund_apply::MoneyOutcome::Completed, _)) => {
+                    (RefundApplyStatus::Processed as i32, true)
+                }
+                Ok((crate::payment::refund_apply::MoneyOutcome::ChannelPending, _)) => {
+                    (RefundApplyStatus::Processing as i32, false)
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "售后自动退款 资金执行失败 aftersale_id={} refund_id={refund_id}: {e}",
+                        aftersales.aftersale_id
+                    );
+                    (RefundApplyStatus::Processing as i32, false)
+                }
+            };
             let transitioned = self
                 .repos
                 .payment
                 .refund_apply
-                .transition_status(refund_id, &[1], 2, Some("财务审核关闭自动执行退款"))
+                .transition_status(
+                    refund_id,
+                    &[RefundApplyStatus::Wait as i32],
+                    to_status,
+                    Some("财务审核关闭自动执行退款"),
+                )
                 .await
                 .unwrap_or(false);
             // 礼品卡返还（尽力而为）：自动执行退款与 mark_processed 同为
-            // 退款完成点，流转成功后按 usage_log 原额返还储值卡抵扣，
-            // 仓储层幂等（已返还则跳过）；失败只告警，不阻断售后收尾。
+            // 退款完成点——仅在资金已同步完成（置已处理）时触发，
+            // 流转成功后按 usage_log 原额返还储值卡抵扣，仓储层幂等
+            // （已返还则跳过）；渠道受理中时完成点在回调
+            // mark_processed，此处不提前返还。失败只告警，不阻断售后收尾。
             if transitioned && apply.order_id > 0 {
-                if let Err(e) = self
-                    .repos
-                    .marketing
-                    .gift_card_issue
-                    .return_stored_cards_for_order(apply.order_id, utils::now_seconds())
-                    .await
-                {
-                    tracing::warn!(
-                        "售后自动退款 礼品卡返还失败 aftersale_id={} order_id={}: {e}",
-                        aftersales.aftersale_id, apply.order_id
-                    );
+                if money_completed {
+                    if let Err(e) = self
+                        .repos
+                        .marketing
+                        .gift_card_issue
+                        .return_stored_cards_for_order(apply.order_id, utils::now_seconds())
+                        .await
+                    {
+                        tracing::warn!(
+                            "售后自动退款 礼品卡返还失败 aftersale_id={} order_id={}: {e}",
+                            aftersales.aftersale_id, apply.order_id
+                        );
+                    }
                 }
                 // 分销佣金回退（尽力而为）：自动执行退款与财务审核通过
                 // 同为分销回退触发点——Java 自动退款走
@@ -2972,6 +3016,29 @@ mod tests {
             )
             .as_deref(),
             Some("平台 400-000 山东省青岛市市南区某路")
+        );
+    }
+
+    /// 建单状态不变量：售后创建财务退款申请必须以待处理
+    /// （RefundApplyStatus::Wait = 0）落库，与 Java
+    /// `createRefundApply` 写 REFUND_STATUS_WAIT 及财务 audit 的
+    /// 「仅待处理可审」状态门对齐——误写 1（处理中）会让售后退款
+    /// 资金执行整体不可达（2026-11-20 缺陷 B）；自动执行分支的
+    /// 流转源状态必须同为 Wait。
+    #[test]
+    fn aftersale_refund_apply_created_in_wait_status() {
+        let src = include_str!("aftersales.rs");
+        let f = src
+            .find("pub async fn create_refund_apply_and_handle_finance")
+            .expect("create_refund_apply_and_handle_finance 应存在");
+        let tail = &src[f..];
+        assert!(
+            tail.contains("refund_status: RefundApplyStatus::Wait as i32"),
+            "售后建单应以待处理状态落库"
+        );
+        assert!(
+            tail.contains("&[RefundApplyStatus::Wait as i32]"),
+            "自动执行流转应从待处理出发"
         );
     }
 

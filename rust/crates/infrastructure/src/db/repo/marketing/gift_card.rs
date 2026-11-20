@@ -383,11 +383,19 @@ impl GiftCardRepository {
     }
 
     /// 批量插入礼品卡（Java `saveBatch(cards, 500)`）。
+    ///
+    /// 归属列口径（对齐 Java `createGiftCardsBatch`）：Java 构造实体时
+    /// 不设 `userId` / `claimedUserId` / `claimedStatus` / `usedTime` /
+    /// `orderTime`，落库为 NULL；发放侧以 `claimed_user_id IS NULL AND
+    /// user_id IS NULL` 判「无归属」计库存。此处必须逐字段绑定实体值
+    /// （None → NULL）——曾硬写 0，导致 0 ≠ NULL、批次卡永不计入可用
+    /// 库存，定向发放与 Excel 指定卡发放恒报「库存不足」
+    /// （2026-11-20 礼品卡 E2E 首次真发卡实证）。
     pub async fn insert_many(&self, cards: &[GiftCards]) -> Result<u64> {
         let mut affected = 0u64;
         for card in cards {
             let res = sqlx::query(
-                "INSERT INTO gift_cards (card_groups_id, card_number, card_password, gift_card_sn, is_available, status, used_time, user_id, add_time, expired_time, claimed_user_id, claimed_status, order_time) VALUES ($1, $2, $3, $4, $5, $6, 0, 0, $7, $8, 0, 0, 0)",
+                "INSERT INTO gift_cards (card_groups_id, card_number, card_password, gift_card_sn, is_available, status, used_time, user_id, add_time, expired_time, claimed_user_id, claimed_status, order_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
             )
             .bind(card.card_groups_id)
             .bind(&card.card_number)
@@ -395,8 +403,13 @@ impl GiftCardRepository {
             .bind(&card.gift_card_sn)
             .bind(card.is_available)
             .bind(card.status)
+            .bind(card.used_time)
+            .bind(card.user_id)
             .bind(card.add_time)
             .bind(card.expired_time)
+            .bind(card.claimed_user_id)
+            .bind(card.claimed_status)
+            .bind(card.order_time)
             .execute(&self.pool)
             .await
             .map_err(map_err)?;
@@ -483,6 +496,23 @@ mod tests {
         let src = include_str!("gift_card.rs");
         assert!(src.contains("INSERT INTO user_recharge_order (user_id, amount, discount_money, add_time, paid_time, postscript, status)"));
         assert!(src.contains("WHERE gift_card_id = $1 LIMIT 1"));
+    }
+
+    /// 制卡归属列不变量：`insert_many` 必须逐字段绑定实体值
+    /// （user_id / claimed_user_id 等为 None 时落 NULL），不得硬写 0——
+    /// 发放侧以 IS NULL 判无归属，写 0 会让批次卡永不计入可用库存
+    /// （2026-11-20 礼品卡 E2E 实证的缺陷 A）。
+    #[test]
+    fn insert_many_binds_ownership_columns_not_zero() {
+        let src = include_str!("gift_card.rs");
+        assert!(
+            src.contains("claimed_user_id, claimed_status, order_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)"),
+            "insert_many 应全占位符绑定 13 列"
+        );
+        assert!(
+            !src.contains("0, 0, $7, $8, 0, 0, 0"),
+            "insert_many 不得再硬写归属列为 0"
+        );
     }
 
     #[test]

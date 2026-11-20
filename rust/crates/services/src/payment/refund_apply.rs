@@ -37,6 +37,17 @@ use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::repo::payment::paylog::ORDER_TYPE_PRODUCT;
 use nextrade_infrastructure::db::Repositories;
 
+/// 退款资金执行结果（`RefundApplyService::execute_refund_money`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MoneyOutcome {
+    /// 现金部分已同步执行完毕（余额已回补 / 渠道同步退款成功 /
+    /// 无现金部分），申请可置已处理。
+    Completed,
+    /// 渠道退款已受理待回调，或该支付方式无自动退款轨——申请
+    /// 停在处理中等待收尾，不得置已处理。
+    ChannelPending,
+}
+
 pub struct RefundApplyService {
     repos: Arc<Repositories>,
 }
@@ -364,58 +375,23 @@ impl RefundApplyService {
                         );
                     }
                 }
-                // 线上金额走渠道退款：仅支持已实现退款方法的渠道，其余保持处理中人工处理。
+                // 资金执行（与售后自动执行共用同一核心
+                // `execute_refund_money`）：现金部分按订单支付构成
+                // 选轨——余额支付同步回补买家余额、渠道支付发起渠道
+                // 退款；礼品卡抵扣部分由完成点钩子按流水原额返还。
+                // 同步执行完成 → mark_processed 置已处理（内含礼品卡
+                // 返还钩子）；渠道受理中/无自动退款轨 → 停在处理中，
+                // 等待渠道回调或人工收尾（钱未动前不置已处理）。
                 if existing.online_balance > rust_decimal::Decimal::ZERO {
-                    if let Some(paylog) = self
-                        .repos
-                        .payment
-                        .pay
-                        .find_last_success_paylog(existing.order_id, 0)
-                        .await?
-                    {
-                        let code = paylog.pay_code.as_str();
-                        if matches!(code, "stripe" | "paypal" | "xendit" | "wechat" | "alipay" | "antom" | "huifu" | "lakala" | "yeepay" | "yabandpay" | "yunpay") {
-                            let refund_sn = format!("RF{}{}", nextrade_common::utils::now_seconds(), dto.refund_id);
-                            let paylog_service = crate::payment::paylog::PaylogService::new(self.repos.clone());
-                            let refund_id = paylog_service
-                                .record_refund(
-                                    paylog.paylog_id,
-                                    existing.order_id,
-                                    &refund_sn,
-                                    existing.online_balance,
-                                    "退款审核通过",
-                                    0,
-                                    Some(code),
-                                )
-                                .await?;
-                            self.repos
-                                .payment
-                                .refund_apply
-                                .link_paylog_refund(dto.refund_id, refund_id)
-                                .await?;
-                            let _ = sqlx::query("UPDATE refund_apply SET paylog_refund_id=$1 WHERE refund_id=$2")
-                                .bind(refund_id)
-                                .bind(dto.refund_id)
-                                .execute(&self.repos.pool)
-                                .await;
-                            let pay = crate::payment::pay::PayService::new(self.repos.clone());
-                            match pay
-                                .refund_via_channel(code, &paylog.pay_sn, &refund_sn, existing.online_balance)
-                                .await
-                            {
-                                Ok(status) => {
-                                    let upper = status.to_ascii_uppercase();
-                                    if upper.contains("SUCCESS") || upper.contains("COMPLETED") {
-                                        self.mark_processed(dto.refund_id, &refund_sn).await?;
-                                    }
-                                    tracing::info!("渠道退款已受理: refund_id={} status={status}", dto.refund_id);
-                                }
-                                Err(e) => {
-                                    tracing::warn!("渠道退款失败: refund_id={} error={e}", dto.refund_id);
-                                    return Err(e);
-                                }
-                            }
-                        }
+                    let (outcome, refund_sn) = self
+                        .execute_refund_money(&existing, dto.refund_id)
+                        .await?;
+                    if outcome == MoneyOutcome::Completed {
+                        self.mark_processed(
+                            dto.refund_id,
+                            refund_sn.as_deref().unwrap_or_default(),
+                        )
+                        .await?;
                     }
                 }
 
@@ -535,6 +511,173 @@ impl RefundApplyService {
                 );
             }
         }
+        Ok(())
+    }
+
+    // ————————————————————— 资金执行 —————————————————————
+
+    /// 执行一笔已审核通过申请的现金部分退款（财务审核与售后自动
+    /// 执行共用；状态流转与完成点钩子由调用方负责）。
+    ///
+    /// 金额拆分（对齐 Java `createRefundFlow` 按订单支付构成执行）：
+    /// - 礼品卡抵扣部分不走支付轨，由完成点的
+    ///   `return_stored_cards_for_order` 按 usage_log 原额返还。
+    ///   售后来源申请的 `online_balance` 是退款总额口径（建单时写入
+    ///   审核落定金额），现金部分须扣减卡抵扣总额（纯函数
+    ///   [`cash_refund_amount`]）；手工申请的 `online_balance` 本
+    ///   就是财务填写的线上部分，不扣减。
+    /// - 现金部分按订单最后一笔成功支付流水的 `pay_code` 选轨：
+    ///   `balance` → 同步回补买家余额（写 user_balance_log
+    ///   「退款到账」，Java `incBalance` 同口径）并累加 paylog
+    ///   退款额，执行即完成；已实现渠道 → 建退款流水 + 调渠道
+    ///   退款，同步 SUCCESS 才算完成，受理/处理中为
+    ///   `ChannelPending`；无支付流水或未支持的支付方式 →
+    ///   `ChannelPending`（停处理中等待人工处理，不静默置已处理）。
+    ///
+    /// 返回 (结果, 退款单号)：渠道与余额两轨都生成 `RF...` 单号，
+    /// 供完成日志引用。
+    pub async fn execute_refund_money(
+        &self,
+        existing: &RefundApply,
+        refund_id: i32,
+    ) -> Result<(MoneyOutcome, Option<String>)> {
+        if existing.order_id <= 0 || existing.online_balance <= Decimal::ZERO {
+            return Ok((MoneyOutcome::Completed, None));
+        }
+        let deducted = if existing.aftersale_id > 0 {
+            self.repos
+                .marketing
+                .gift_card_issue
+                .deducted_total_for_order(existing.order_id)
+                .await?
+        } else {
+            Decimal::ZERO
+        };
+        let cash = cash_refund_amount(
+            existing.online_balance,
+            deducted,
+            existing.aftersale_id > 0,
+        );
+        if cash <= Decimal::ZERO {
+            // 全额由礼品卡抵扣构成：无现金可退，完成点钩子返还卡即可
+            return Ok((MoneyOutcome::Completed, None));
+        }
+        let Some(paylog) = self
+            .repos
+            .payment
+            .pay
+            .find_last_success_paylog(existing.order_id, 0)
+            .await?
+        else {
+            tracing::warn!(
+                "退款资金执行：订单 {} 无成功支付流水，申请 {refund_id} 停处理中等待人工处理",
+                existing.order_id
+            );
+            return Ok((MoneyOutcome::ChannelPending, None));
+        };
+        let code = paylog.pay_code.as_str();
+        if code == "balance" {
+            self.credit_balance_refund(existing, &paylog, cash).await?;
+            let refund_sn = format!("RF{}{}", utils::now_seconds(), refund_id);
+            return Ok((MoneyOutcome::Completed, Some(refund_sn)));
+        }
+        if matches!(code, "stripe" | "paypal" | "xendit" | "wechat" | "alipay" | "antom" | "huifu" | "lakala" | "yeepay" | "yabandpay" | "yunpay") {
+            let refund_sn = format!("RF{}{}", utils::now_seconds(), refund_id);
+            let paylog_service = crate::payment::paylog::PaylogService::new(self.repos.clone());
+            let paylog_refund_id = paylog_service
+                .record_refund(
+                    paylog.paylog_id,
+                    existing.order_id,
+                    &refund_sn,
+                    cash,
+                    "退款审核通过",
+                    0,
+                    Some(code),
+                )
+                .await?;
+            self.repos
+                .payment
+                .refund_apply
+                .link_paylog_refund(refund_id, paylog_refund_id)
+                .await?;
+            let _ = sqlx::query("UPDATE refund_apply SET paylog_refund_id=$1 WHERE refund_id=$2")
+                .bind(paylog_refund_id)
+                .bind(refund_id)
+                .execute(&self.repos.pool)
+                .await;
+            let pay = crate::payment::pay::PayService::new(self.repos.clone());
+            match pay
+                .refund_via_channel(code, &paylog.pay_sn, &refund_sn, cash)
+                .await
+            {
+                Ok(status) => {
+                    let upper = status.to_ascii_uppercase();
+                    if upper.contains("SUCCESS") || upper.contains("COMPLETED") {
+                        return Ok((MoneyOutcome::Completed, Some(refund_sn)));
+                    }
+                    tracing::info!("渠道退款已受理: refund_id={refund_id} status={status}");
+                    return Ok((MoneyOutcome::ChannelPending, Some(refund_sn)));
+                }
+                Err(e) => {
+                    tracing::warn!("渠道退款失败: refund_id={refund_id} error={e}");
+                    return Err(e);
+                }
+            }
+        }
+        tracing::warn!(
+            "退款资金执行：支付方式 {code} 暂无自动退款轨，申请 {refund_id} 停处理中等待人工处理"
+        );
+        Ok((MoneyOutcome::ChannelPending, None))
+    }
+
+    /// 余额支付部分的退款回补（Java `createRefundFlow` 余额分支 →
+    /// `userBalanceService.incBalance(amount, userId, "退款到账")`）。
+    ///
+    /// 同一事务内：买家余额入账 + `user_balance_log`（复用充值域
+    /// `inc_balance_in_tx`，即 Java incBalance 的等价实现）+ paylog
+    /// 累加退款额。额度守卫与 `BalancePayService::refund` 同口径：
+    /// 该笔余额支付流水的累计退款不得超过其实付额。
+    async fn credit_balance_refund(
+        &self,
+        existing: &RefundApply,
+        paylog: &nextrade_core::entities::Paylog,
+        amount: Decimal,
+    ) -> Result<()> {
+        if paylog.refund_amount + amount > paylog.pay_amount {
+            return Err(Error::biz(400, "退款金额超出余额支付金额"));
+        }
+        let now = utils::now_seconds() as i32;
+        let mut tx = self
+            .repos
+            .pool
+            .begin()
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+        let ok = self
+            .repos
+            .payment
+            .user_recharge_order
+            .inc_balance_in_tx(&mut tx, existing.user_id, amount, "退款到账", now)
+            .await?;
+        if !ok {
+            return Err(Error::NotFound("退款用户不存在".into()));
+        }
+        sqlx::query(
+            "UPDATE paylog SET refund_amount = refund_amount + $1 WHERE paylog_id = $2",
+        )
+        .bind(amount)
+        .bind(paylog.paylog_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| Error::Database(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+        tracing::info!(
+            "余额退款到账: refund_id={} user={} amount={amount}",
+            existing.refund_id,
+            existing.user_id
+        );
         Ok(())
     }
 
@@ -780,7 +923,23 @@ impl RefundApplyService {
     }
 }
 
-/// 实体 → VO。
+/// 现金退款部分拆分（纯函数，供单测）。
+///
+/// 售后来源申请的 `online_balance` 为退款总额口径：扣减订单礼品卡
+/// 抵扣总额后才是走支付轨的现金部分（卡部分由完成点钩子按流水
+/// 原额返还）。手工申请的 `online_balance` 本就是线上部分，不扣减。
+pub(crate) fn cash_refund_amount(
+    online_balance: Decimal,
+    gift_card_deducted: Decimal,
+    is_aftersale: bool,
+) -> Decimal {
+    if is_aftersale {
+        (online_balance - gift_card_deducted).max(Decimal::ZERO)
+    } else {
+        online_balance.max(Decimal::ZERO)
+    }
+}
+
 /// 分销佣金回退的单行决策（纯函数，供单测；金额数学对照 Java
 /// `handleSalesmanOrderOnRefund`：占比 scale 4 HALF_UP、金额 2 位）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -843,6 +1002,7 @@ pub(crate) fn salesman_clawback_decision(
     }
 }
 
+/// 实体 → VO。
 fn to_vo(r: &RefundApply) -> RefundApplyVO {
     RefundApplyVO {
         refund_id: r.refund_id,
@@ -1068,6 +1228,56 @@ mod tests {
             salesman_clawback_decision(0, 0, 0, dec("90.00"), dec("900.00")),
             ClawbackDecision::Skip
         );
+    }
+
+    /// 现金拆分：售后来源申请扣减礼品卡抵扣（E2E 订单 77 口径：
+    /// 退款总额 100 = 卡抵 50 + 现金 50）。
+    #[test]
+    fn cash_split_aftersale_deducts_gift_card() {
+        assert_eq!(
+            cash_refund_amount(dec("100.00"), dec("50.00"), true),
+            dec("50.00")
+        );
+        // 无卡抵扣：全额现金
+        assert_eq!(
+            cash_refund_amount(dec("66.60"), dec("0"), true),
+            dec("66.60")
+        );
+        // 全额卡抵扣：现金为 0（完成点钩子返还卡即可）
+        assert_eq!(cash_refund_amount(dec("50.00"), dec("50.00"), true), dec("0"));
+        // 抵扣大于金额（数据异常）时下限为 0，不产生负数退款
+        assert_eq!(cash_refund_amount(dec("40.00"), dec("50.00"), true), dec("0"));
+    }
+
+    /// 现金拆分：手工申请的 online_balance 本就是线上部分，不扣减。
+    #[test]
+    fn cash_split_manual_keeps_online_amount() {
+        assert_eq!(
+            cash_refund_amount(dec("50.00"), dec("50.00"), false),
+            dec("50.00")
+        );
+    }
+
+    /// 资金执行接线不变量：`audit` 审核通过段必须经
+    /// `execute_refund_money` 执行资金（余额回补/渠道退款共用
+    /// 核心），且仅在同步完成（Completed）时才 mark_processed——
+    /// 防止后续重构退回「只有渠道分支、余额支付永不执行」的
+    /// 缺陷 B 形态。
+    #[test]
+    fn audit_executes_money_via_shared_core() {
+        let src = include_str!("refund_apply.rs");
+        let a = src.find("pub async fn audit").expect("audit 应存在");
+        let tail = &src[a..];
+        let exec = tail
+            .find("execute_refund_money")
+            .expect("audit 应调用统一资金执行");
+        let done = tail
+            .find("MoneyOutcome::Completed")
+            .expect("audit 应按执行结果分支");
+        let mp = tail
+            .find("mark_processed")
+            .expect("audit 完成时应 mark_processed");
+        assert!(exec < done && done < mp, "资金执行→完成判定→置已处理 顺序不可乱");
     }
 
     /// 分销佣金回退挂点不变量：`audit` 必须在 Wait→Processing 流转
