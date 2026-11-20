@@ -8,6 +8,7 @@ const defaults = createProductDetailDefaults("A1");
 registerModule({
     type: "productDetailA1",
     label: "商品详情A1",
+    desc: "配置商品详情中的样式区域配置",
     icon: '<i class="h5-mod-ico">商</i>',
     url: "mobileProductDetail",
     platform: "mobile",

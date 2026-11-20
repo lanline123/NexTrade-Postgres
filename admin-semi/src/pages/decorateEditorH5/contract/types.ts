@@ -69,6 +69,8 @@ export interface ModuleDefinition {
     type: string;
     /** 显示名称 */
     label: string;
+    /** 设置面板标题区说明文字（可选；对齐 PC 编辑器 ModuleDef.desc 口径，原版各模块 Settings 标题下自带一句说明） */
+    desc?: string;
     /** 工具栏图标（icon class 或图片地址，与 view/admin ToolBar 项一致） */
     icon?: string;
     /** 模块分类目录（契约字段，写入模块实例并随保存持久化） */

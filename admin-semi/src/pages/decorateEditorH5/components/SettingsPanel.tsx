@@ -13,6 +13,7 @@ import { Input, Switch } from "@douyinfe/semi-ui";
 import DecSettingsPanel from "../../../components/decorate/DecSettingsPanel";
 import { editorStore, useEditorState } from "../store/editorStore";
 import { getLazyModuleComponent } from "../contract/lazyModule";
+import { getModuleDefinition } from "../contract/moduleRegistry";
 import ModuleErrorBoundary from "./ModuleErrorBoundary";
 import { ColorField, PicSelectField, SegmentedButtonRadio, SegmentedButtonRadioRowField, DecDivider } from "../shared/settingWidgets";
 import type { PageModule } from "../contract/types";
@@ -132,9 +133,12 @@ export default function SettingsPanel() {
     }, [isModuleMode, activeModule?.type, activeModule?.url, activeModule?.moduleIndex]);
 
     const headerTitle = isModuleMode && activeModule ? activeModule.label || activeModule.type : "页面设置";
+    // 标题区说明：原版各模块 Settings 标题下自带一句说明，我方移植时漏传（壳层 DecSettingsPanel 早已支持 desc）；
+    // 口径对齐 PC 编辑器——说明挂在模块注册定义（ModuleDefinition.desc）上，仅声明了的模块显示。
+    const headerDesc = isModuleMode && activeModule ? getModuleDefinition(activeModule.type, activeModule.url)?.desc : undefined;
 
     return (
-        <DecSettingsPanel title={t(headerTitle)} className="h5-editor-settings">
+        <DecSettingsPanel title={t(headerTitle)} desc={headerDesc ? t(headerDesc) : undefined} className="h5-editor-settings">
             {isModuleMode && activeModule && SettingsComp ? (
                 <ModuleErrorBoundary label={activeModule.type} resetKey={activeModule.moduleIndex}>
                     <Suspense fallback={<div className="h5-editor-preview-loading">{t('设置加载中…')}</div>}>
