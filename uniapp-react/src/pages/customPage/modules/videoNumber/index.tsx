@@ -40,6 +40,10 @@ interface VideoNumberModule {
 
 export default function VideoNumber({ module }: Props) {
     const videoNumberModule = module as VideoNumberModule;
+    // 平台边界（对齐原版 uniapp）：原版模板全平台渲染，仅 channel-video/channel-live
+    // 组件与 wx.openChannelsLive 为微信专属（H5 上 channel-* 为惰性空元素、卡片结构照常显示）。
+    // 旧移植曾在非 weapp 整模块 return null，导致 H5 商城与编辑器真渲染画布整模块不可见——已按原版口径收口至组件级。
+    const isWeapp = process.env.TARO_ENV === "weapp";
 
     const frameFormat = useMemo(() => {
         return formatFrame(
@@ -97,7 +101,9 @@ export default function VideoNumber({ module }: Props) {
             });
             return;
         }
-        // 旧 wx.openChannelsLive → Taro.openChannelsLive（仅微信小程序端可用）
+        // 旧 wx.openChannelsLive → Taro.openChannelsLive（仅微信小程序端可用）；
+        // 非 weapp 端原版 wx 全局不存在、点击无可见效果，此处同口径无操作
+        if (!isWeapp) return;
         Taro.openChannelsLive({
             finderUserName: finderUserName,
             fail: (error: any) => {
@@ -127,11 +133,6 @@ export default function VideoNumber({ module }: Props) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [videoNumberModule.videoNumberId]);
 
-    // 旧工程本模块整体包在 #ifdef MP-WEIXIN 条件编译中（channel-video/channel-live/wx API 均为微信专属），非 weapp 端不渲染
-    if (process.env.TARO_ENV !== "weapp") {
-        return null;
-    }
-
     // TODO(MIGRATION)：旧 Vue defineOptions({ options: { virtualHost: true } })，Taro React 侧如需去除自定义组件宿主节点，需在编译配置/页面配置中开启 virtualHost
     return (
         <View
@@ -142,7 +143,7 @@ export default function VideoNumber({ module }: Props) {
                 <View className="video-number-container" style={frameFormat.innerPadding}>
                     {isVideoType ? (
                         <View className="video-card video-card--video" style={cardRadiusStyle}>
-                            {hasVideoInfo ? (
+                            {hasVideoInfo && isWeapp ? (
                                 <ChannelVideo
                                     className="channel-video"
                                     style={cardRadiusStyle}
@@ -154,6 +155,9 @@ export default function VideoNumber({ module }: Props) {
                                     muted={false}
                                     onError={handleBinderror}
                                 />
+                            ) : hasVideoInfo ? (
+                                // 非 weapp：原版 channel-video 为惰性空元素，1:1 卡片区照常占位
+                                <View className="channel-video" style={cardRadiusStyle} />
                             ) : (
                                 <View className="video-placeholder" style={cardRadiusStyle}>
                                     <View className="video-placeholder__tag">{t("视频号")}</View>
@@ -165,11 +169,13 @@ export default function VideoNumber({ module }: Props) {
                     ) : (
                         <View className="video-card video-card--live" style={cardRadiusStyle} onClick={handleOpenLive}>
                             <View className="live-cover" style={cardRadiusStyle}>
-                                <ChannelLive
-                                    style={cardRadiusStyle}
-                                    finderUserName={finderUserName}
-                                    feedId={videoFeedId}
-                                />
+                                {isWeapp ? (
+                                    <ChannelLive
+                                        style={cardRadiusStyle}
+                                        finderUserName={finderUserName}
+                                        feedId={videoFeedId}
+                                    />
+                                ) : null}
                             </View>
 
                             <View className="live-content">

@@ -3,8 +3,8 @@
 *
 * 顶部说明 tip + 原版自有下划线页签（内容设置/样式设置）。
 * 内容：内容类型（video 视频/live 直播）→ 视频号ID 下拉（选项取既有接口 /content/wechatVideoAccount/list
-* 的 finderId，同原版 getWechatVideoAccountList 落地）+ 同主体提示（原版「去添加」跳路由页，
-* 本后台为单页应用无对应路由，未挂链接，见摘要）；video 时视频ID 输入 + 视频号助手提示
+* 的 finderId，同原版 getWechatVideoAccountList 落地）+ 同主体提示（原版「去添加」新开页跳视频号
+* 列表路由；本后台对应页为 ?page=videoNumber，2026-11-21 对齐补挂）；video 时视频ID 输入 + 视频号助手提示
 * （「去获取」外链 https://channels.weixin.qq.com/platform 同原版）；live 时标题（maxlength 14 带字数）、
 * 标题颜色（default/theme/custom 三段 + custom 时显示颜色，重置 #2A2A2A）、商品图片 PicList（max 3，
 * 原版为图库多选+拖拽列表，本实现以 dec PicListField 承接同结构 pic 对象数组）。
@@ -173,7 +173,12 @@ onChange(patch);
 }}
 optionList={options.map((o) => ({ value: String(o.finderId), label: String(o.finderId)}))}
 />
-<div style={{ marginTop: 8, color: "#999", fontSize: 12, lineHeight: "18px"}}>跳转的视频号需要与小程序为同主体或者关联主体</div>
+<div style={{ marginTop: 8, color: "#999", fontSize: 12, lineHeight: "18px"}}>
+跳转的视频号需要与小程序为同主体或者关联主体
+<a href="/?page=videoNumber" target="_blank" rel="noreferrer" style={{ marginLeft: 4, color: "#155bd4"}}>
+去添加
+</a>
+</div>
 </SettingRow>
 </SettingGroup>
 {contentType === "video"? (
@@ -186,7 +191,7 @@ style={{ width: "100%"}}
 onChange={(v: string) => onChange({ videoId: v})}
 />
 <div style={{ marginTop: 8, color: "#999", fontSize: 12, lineHeight: "18px"}}>
-视频ID可在获取
+视频ID可在【视频号助手】获取
 <a href="https://channels.weixin.qq.com/platform" target="_blank" rel="noreferrer" style={{ marginLeft: 4, color: "#155bd4"}}>
 去获取
 </a>
