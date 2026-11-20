@@ -229,11 +229,11 @@ async fn aftersales_apply_data(
     auth: Option<Extension<AuthUser>>,
     Query(q): Query<ApplyDataQuery>,
 ) -> ApiResult<AfterSalesApplyDataVO> {
-    let _ = current_user_id(&auth)?;
+    let user_id = current_user_id(&auth)?;
     ok(state
         .trade
         .aftersales_client
-        .apply_data(q.item_id, q.order_id)
+        .apply_data(q.item_id, q.order_id, user_id)
         .await?)
 }
 

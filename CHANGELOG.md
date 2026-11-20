@@ -882,3 +882,9 @@
 ### 修复
 
 - **后端 - 保证金收款账户列表/详情有行即 500（移植类型对齐）**：`GET /deposit/payeeAccount/list` 在表中有行时恒 500——`infrastructure` 行结构 `DepositPayeeAccountRow` 把 `add_time`/`update_time` 声明为 i64，而两列实为 int4（秒级），sqlx 解码 int4→i64 报类型不兼容；空表不解码故长期被掩盖（建/改 API 已于 bb52694 修为秒级写入，唯读侧行结构漏改）。修复：行结构两字段改 i32，服务层 `to_vo` 以 `i64::from`  widening 回 VO（VO 对外仍 i64、线格式不变）；同表另一行形状 `ShopDepositPayeeAccount`（payeeAccountOptions 路径）本就是 i32，不受影响。新增源码不变式测试（扫描范围限定行结构定义体，断言两字段以 i32 声明）。同型隐患全仓静态扫描登记见修复报告（shop_deposit_log.add_time、cart.update_time、user_coupon.used_time 三处同形嫌疑待现网探针证实，本批不修）。
+
+## 0.0.2 续 · 2026-11-20 批次（买家售后归属校验补齐，跨用户越权修复，代码已入库待部署）
+
+### 修复
+
+- **后端 - 买家售后跨用户越权（我方新增校验，原版同缺；其中 applyData 为原版有·我方补齐）**：合并批验收以测试夹具实证——任一登录用户猜中他人已支付订单的 orderId+itemId，即可对他人订单发起售后，售后单 user_id 记发起人，商家/平台审核通过后退款落到发起人。原版核查（快照仓 v5.8.61）：`AftersalesServiceImpl#afterSalesApply` 同样无订单归属校验、`afterSalesApplyUpdate` 同样无售后归属校验（仅 detail `clientDetail` 有、applyData 靠查询条件 `.eq(Order::getUserId, 当前用户)` 限定）——我方涉出款场景刻意严于原版补齐：① create 在加载订单后、其余状态校验之前强制 `order.user_id == 调用者`，非归属人 403；校验通过后售后单 user_id 恒为订单归属人，退款去向随之自动归位（退款链不另改）；② update/feedback/cancel 补售后单归属校验（精确匹配，历史空归属售后单不接受买家侧写操作），置于状态校验之前；③ applyData 恢复原版归属限定口径——路由透传 token user_id，他人订单按「订单不存在」拒绝（此前该入口根本不带 user_id，可按 orderId 拉取他人订单明细/金额）。list/getRecord 本就按 user_id 限定、detail/detailLog 本就有归属校验，均未动。含归属门纯函数单测。

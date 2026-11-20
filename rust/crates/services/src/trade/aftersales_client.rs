@@ -715,6 +715,33 @@ pub fn build_step_status(a: &Aftersales) -> StepStatusVO {
     }
 }
 
+/// 售后归属校验：订单必须属于调用者（**我方新增校验**）。
+///
+/// 原版 v5.8.61 `AftersalesServiceImpl#afterSalesApply` 同样没有这道
+/// 校验（仅把 token 的 userId 记到售后单上），任一登录用户猜中他人
+/// 已支付订单的 orderId+itemId 即可发起售后、审核通过后退款落到
+/// 发起人——合并批验收已用测试夹具实证（uid121 对 uid122 订单建
+/// 售后并收款）。售后涉出款，我方刻意严于原版补齐：非订单归属人
+/// 一律拒绝。校验通过后售后单 `user_id` 恒等于订单归属人，退款
+/// 去向（按售后单 user_id 退）随之自动归位，无需另改退款链。
+pub fn ensure_order_owner(order_user_id: i32, user_id: i32) -> Result<()> {
+    if order_user_id != user_id {
+        return Err(Error::Forbidden("无权对该订单申请售后".into()));
+    }
+    Ok(())
+}
+
+/// 售后归属校验：售后单必须属于调用者（**我方新增校验**，原版
+/// `afterSalesApplyUpdate` 等写入口同样无此校验；详情 `clientDetail`
+/// 原版有校验，我方已对齐）。写操作要求精确匹配，历史 `user_id`
+/// 为空的售后单不接受买家侧写操作。
+pub fn ensure_aftersale_owner(owner: Option<i32>, user_id: i32) -> Result<()> {
+    if owner != Some(user_id) {
+        return Err(Error::Forbidden("无权操作该售后记录".into()));
+    }
+    Ok(())
+}
+
 /// 前台用户售后服务。
 pub struct AftersalesClientService {
     repos: Arc<Repositories>,
@@ -937,6 +964,7 @@ impl AftersalesClientService {
         &self,
         item_id: Option<i32>,
         order_id: Option<i32>,
+        user_id: i32,
     ) -> Result<AfterSalesApplyDataVO> {
         let order_id = order_id.ok_or_else(|| Error::Validation("orderId 不能为空".into()))?;
         let order = self
@@ -944,6 +972,14 @@ impl AftersalesClientService {
             .find_order(order_id)
             .await?
             .ok_or_else(|| Error::biz_msg(ERR_ORDER_NOT_EXIST))?;
+
+        // 归属限定（原版有此口径、我方漏迁）：Java `applyData` 以
+        // `.eq(Order::getUserId, 当前用户)` 为条件查订单，他人订单
+        // 等同不存在。此前我方未传 user_id，任意登录用户可按
+        // orderId 拉取他人订单的售后申请数据（明细/金额）。
+        if order.user_id != user_id {
+            return Err(Error::biz_msg(ERR_ORDER_NOT_EXIST));
+        }
 
         // 店铺「确认收货后 N 天不可申请」限制
         let config_raw = self
@@ -1109,6 +1145,10 @@ impl AftersalesClientService {
             .find_order(order_id)
             .await?
             .ok_or_else(|| Error::biz_msg(ERR_ORDER_NOT_EXIST))?;
+
+        // 归属校验（我方新增，原版无）：只能对自己的订单申请售后。
+        // 置于其余状态校验之前，非归属人不得借错误信息探测订单状态。
+        ensure_order_owner(order.user_id, user_id)?;
 
         // 电子礼品卡（虚拟）不支持售后
         if !item_ids.is_empty() {
@@ -1421,6 +1461,10 @@ impl AftersalesClientService {
             .find_aftersales(aftersale_id)
             .await?
             .ok_or_else(|| Error::biz_msg(ERR_AFTERSALES_NOT_EXIST))?;
+
+        // 归属校验（我方新增，原版无）：只能修改自己的售后单
+        // （含退款金额/明细），置于状态校验之前。
+        ensure_aftersale_owner(aftersales.user_id, user_id)?;
 
         if aftersales.status != aftersales_status::IN_REVIEW {
             return Err(Error::biz_msg(ERR_STATUS_CANNOT_MODIFY));
@@ -1749,6 +1793,9 @@ impl AftersalesClientService {
             .await?
             .ok_or_else(|| Error::biz_msg(ERR_APPLY_NOT_EXIST))?;
 
+        // 归属校验（我方新增，原版无）：只能回寄自己的售后单。
+        ensure_aftersale_owner(a.user_id, user_id)?;
+
         let before_status = a.status;
         if can_submit_return_logistics(a.status) {
             a.tracking_no = param.tracking_no.clone().unwrap_or_default();
@@ -1803,6 +1850,9 @@ impl AftersalesClientService {
             .find_aftersales(aftersale_id)
             .await?
             .ok_or_else(|| Error::biz_msg(ERR_RECORD_NOT_EXIST))?;
+        // 归属校验（我方新增，原版无）：只能取消自己的售后单，
+        // 置于状态校验之前。
+        ensure_aftersale_owner(a.user_id, user_id)?;
         if a.status != aftersales_status::IN_REVIEW {
             return Err(Error::biz_msg(ERR_STATUS_CANNOT_CANCEL));
         }
@@ -2504,5 +2554,29 @@ mod tests {
         ));
         assert!(!can_submit_return_logistics(aftersales_status::IN_REVIEW));
         assert!(!can_submit_return_logistics(aftersales_status::COMPLETE));
+    }
+
+    /// 归属校验（我方新增）：订单归属人放行、他人拒绝（403 口径）。
+    #[test]
+    fn order_owner_gate() {
+        assert!(ensure_order_owner(121, 121).is_ok());
+        let err = ensure_order_owner(122, 121).unwrap_err();
+        assert!(matches!(err, Error::Forbidden(_)), "应为 Forbidden: {err}");
+        assert!(err.to_string().contains("无权对该订单申请售后"));
+    }
+
+    /// 归属校验（我方新增）：售后单归属人放行；他人与历史空归属
+    /// （user_id 为 None）在写操作口径下一律拒绝。
+    #[test]
+    fn aftersale_owner_gate() {
+        assert!(ensure_aftersale_owner(Some(121), 121).is_ok());
+        assert!(matches!(
+            ensure_aftersale_owner(Some(122), 121).unwrap_err(),
+            Error::Forbidden(_)
+        ));
+        assert!(matches!(
+            ensure_aftersale_owner(None, 121).unwrap_err(),
+            Error::Forbidden(_)
+        ));
     }
 }
