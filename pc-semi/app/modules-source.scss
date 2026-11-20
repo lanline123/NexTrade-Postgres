@@ -3146,7 +3146,7 @@
     color: var(--primary-dark-2, var(--dec-price-color));
   }
 
-  /* 划线价：整数/小数 14px，币种 12px，色 var(--dec-origin-price-color) */
+  /* 划线价：符号/整数/小数同字号 14px、一并划线（2026-11-21 全站统一口径），色 var(--dec-origin-price-color) */
   &__price-origin {
     margin-left: 5px;
     color: var(--dec-origin-price-color, #999999);
@@ -3158,7 +3158,7 @@
   }
 
   &__price-origin-currency {
-    font-size: 12px;
+    font-size: 14px;
   }
 
   /* 购买按钮（旧 32px 透明底，色 var(--dec-price-color)，btnType 1/2/3 三种形状） */

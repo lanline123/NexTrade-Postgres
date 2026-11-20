@@ -1004,3 +1004,23 @@
 
 - **后台 - 商品表单交付附件区（我方新增）**：商品编辑抽屉在类型为虚拟商品（type=2）/付费内容（type=4）时显示「交付附件」字段（新增共享组件 DeliveryFilesField），走独立端点即时保存（对齐 saleStatus 侧端点模式，不随主表单提交）：附件行呈现文件名 + 大小 + 删除，上传走既有 apiUpload（multipart），新建商品提示先保存再添加；与既有文本交付（虚拟内容/付费内容）并存互不影响。
 - **PC/H5 - 买家交付区附件行（我方新增）**：新增与既有交付链接行同款样式的附件行组件（PC DeliveryFileRows / H5 deliveryFiles）：呈现附件名 + 大小 + 下载钮与「链接 30 分钟内有效、最多下载 5 次」提示，点击先向服务端申领短时效令牌再打开一次性下载链接（过期重新点击即可），非 H5 端降级为复制完整链接。接入点：PC 商品详情（付费内容下方，数据源 item.deliveryFiles，后端按 isBuy 门控）与订单详情（逐项 deliveryFiles + 订单上下文）；H5 商品详情（DescriptionCard 两形态 + ProductContent 三处透传 deliveryFiles）与订单详情（逐项附件块，样式对齐虚拟内容块）。未购状态延续现行掩码口径——后端不下发文件名，前端无附件可渲染。
+
+## 0.0.2 续 · 2026-11-21 批次（划线价全站统一口径：H5 复核 + productA1 符号字号对齐，未部署——随下一 H5 合并版上线）
+
+### 口径变更与修复
+
+- **划线价口径变更（用户 2026-11-21 裁定）**：全站划线价统一为「货币符号与金额同字号、两者一并划线」，**推翻** 2026-11-15「只划金额」基线与 2026-11-19 团购面豁免，不再有只划金额与豁免面之分。本件原按旧基线暂存的「H5 非团购面 30 点改只划金额」已按新规翻转：该批改动从未推送上线，逐点复核确认其中 29 点的现网渲染（符号与金额共用同一 fontStyle、或整段单一 Text 渲染）本已满足新规，翻转即撤销未上线的只划金额改动、恢复原渲染；仅 1 点真不合规并已修复：
+- **H5 装修 productA1 模块**：划线价原符号 20rpx、金额 22rpx，且删除线靠容器整段样式 + 子节点 inherit 传播——改为符号与金额同为 22rpx，删除线改由价格组件 FormatPrice 的 fontStyle / currencyStyle 分段样式同划承载（`uniapp-react/src/pages/customPage/modules/productA1/index.tsx`、`index.scss`），字号对齐、划线连续。
+- 同批复核的其余 H5 划线点（详情标题族、规格弹窗、文章卡、订单卡、店铺卡、秒杀列表、装修倒计时 / 商品滑屏 / 商品分组 / 秒杀2 / 混合展示 / 限时特惠 / 商品轮播 / 商品滑页 / 自定义商品 / 新人礼包等，含原团购豁免面）逐点核对：符号与金额同字号且一并划线，均已合规，零改动；逐点清单见 strike-unify 线报告。
+
+## 0.0.2 续 · 2026-11-21 批次（PC 商品分组划线价按全站统一口径对齐，未部署——随下一 PC 合并版上线）
+
+### 修复
+
+- **PC 装修商品分组模块划线价**（`pc-semi/src/decorate/components/modules.tsx`、`pc-semi/app/modules-source.scss`）：原结构为货币符号独立 span 置于 `<s>` 之外（只划金额）、且符号字号 12px 小于金额 14px——按 2026-11-21 全站统一口径改为符号 span 移入 `<s>` 内与金额一并划线，`&__price-origin-currency` 字号 12px → 14px 与金额一致。本件原登记结论「现状即原版口径、核查零改动」随口径变更作废重核，改判需改并已改。
+
+## 0.0.2 续 · 2026-11-21 批次（PC 装修团购模块购买按钮补团购上下文，未部署——随下一 PC 合并版上线）
+
+### 修复
+
+- **PC 前台 - 装修团购模块购买按钮补齐团购上下文（我方新增，修原版同缺）**：模块内购买按钮原走共享 buyProduct 普通快速加购，完全不带 grouponData，买家以普通购买成交、不进团购流程。原版同缺证据：快照仓 v5.8.61 `view/pc/decorate/components/pc/PcGrouponLegacy.vue` 两处 ProductBuy 均未传 grouponDetail，而共享 `components/product/Buy.vue` 仅在收到 grouponDetail prop 时才拼 grouponData——原版模块内购买同样无上下文（详情页才有）。本次按详情页口径补齐（pc-semi/src/decorate/components/modules.tsx，+54/−2）：新增 buyGrouponProduct——先以模块已知事实组装上下文（活动 ID 来自模块配置 grouponPromotionId、活动商品 ID 来自 itemList 行 grouponPromotionItemId、价取 minGrouponPrice），再拉 promotion/groupon/getGrouponInfo 补成团明细行 grouponDetailId 与阶梯默认档（默认档=最低价档，与详情页 buildGrouponData 及 lib/groupon-tiers 同口径；阶梯团带 groupNumKey；开团不带 grouponPromotionRecordId）；活动对不上或取数失败时以模块上下文兜底、绝不退化为无上下文普通购买；上下文两 ID 不全时才回落原普通加购。多规格/预约商品仍跳详情页、售罄与未登录门与 buyProduct 一致；buyProduct 仅新增可选 grouponData 透传，秒杀等其他调用方零影响。后端契约：GrouponCartData.is_valid 只要求活动+活动商品两 ID，明细/档位/价结算时按明细行解析。H5 装修团购模块购买按钮为跳商品详情页、由详情页规格弹层带 grouponData 承接（与原版 navigateTo 口径一致），核查无缺口、未动。报告 groupon-registered/REPORT.md 第三节。

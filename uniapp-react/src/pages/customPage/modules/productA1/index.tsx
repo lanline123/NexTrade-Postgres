@@ -285,8 +285,8 @@ export default function ProductA1({ module, shopId = -1 }: Props) {
                                                             {showMarketPrice && (
                                                                 <View className="market_price">
                                                                     <FormatPrice
-                                                                        fontStyle={{ fontSize: "22rpx", color: "#999" }}
-                                                                        currencyStyle={{ fontSize: "20rpx", color: "#999" }}
+                                                                        fontStyle={{ fontSize: "22rpx", color: "#999", textDecoration: "line-through" }}
+                                                                        currencyStyle={{ fontSize: "22rpx", color: "#999", textDecoration: "line-through" }}
                                                                         priceData={item.marketPrice}
                                                                     />
                                                                 </View>

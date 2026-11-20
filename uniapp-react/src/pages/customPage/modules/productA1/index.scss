@@ -121,13 +121,7 @@
     .market_price {
         line-height: 1;
         font-weight: normal;
-        text-decoration: line-through;
-        // format-price 内部把货币 / 整数 / 小数拆成多个 view（display: inline-flex），
-        // 需在子节点显式继承 text-decoration 才能呈连续划线（与 admin canvas 视觉对齐）
-        .price-content,
-        .num {
-            text-decoration: inherit;
-        }
+        // 原整段删除线 + 子节点 inherit 传播已移除，改由 FormatPrice 分段承载（2026-11-21 全站统一口径：符号与金额同字号、一并划线）
     }
     .goods-ad-warp .goods-ad-item .item-info .item-buy {
         justify-content: center;

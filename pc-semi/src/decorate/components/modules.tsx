@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
 import { formatDisplayPrice, splitDisplayPrice } from '@/lib/currency';
+import { defaultGrouponTier, matchGrouponDetailRow, resolveGrouponTiers } from '@/lib/groupon-tiers';
 import { resolveInquiryState, withInquiryParam } from '@/lib/inquiry';
 import { cardGateCopy, hasAccessToken, usePriceAccess } from '@/lib/price-gate';
 import { useAuthGate } from '@/lib/auth-gate';
@@ -362,7 +363,7 @@ function needsProductDetail(product: any): boolean {
 }
 
 /** 旧版 ProductBuy 口径：多规格/预约商品 → 商品详情；单规格 → 加购（未登录跳登录）。 */
-async function buyProduct(product: any, options: { isQuick?: number } = {}): Promise<void> {
+async function buyProduct(product: any, options: { isQuick?: number; grouponData?: Record<string, number> } = {}): Promise<void> {
   if (needsProductDetail(product)) {
     openLink(productDetailHref(product));
     return;
@@ -378,11 +379,62 @@ async function buyProduct(product: any, options: { isQuick?: number } = {}): Pro
       number: 1,
       skuId: firstSkuId(product),
       isQuick: options.isQuick ?? 0,
+      ...(options.grouponData ? { grouponData: options.grouponData } : {}),
     });
     showToast('success', '已加入购物车');
   } catch (error) {
     showToast('error', errorText(error));
   }
+}
+
+/**
+ * 装修拼团模块购买（我方新增，修原版同缺）：原版 PcGrouponLegacy 的 ProductBuy 未传
+ * grouponDetail、共享 Buy.vue 仅在收到该 prop 时才拼 grouponData，故原版模块内加购同样是
+ * 无团购上下文的普通购买。详情页口径（旧版 Buy.vue / 本仓 ProductDetailClient）要求拼团
+ * 加购携带 grouponData；后端 GrouponCartData.is_valid 只要求活动 ID + 活动商品 ID，
+ * 明细/档位/价在结算时按明细行解析。此处以模块已知事实为底（活动 ID 来自模块配置、
+ * 活动商品 ID 来自 itemList 行），再拉 getGrouponInfo 补明细行与默认档位（与详情页
+ * buildGrouponData 同口径：默认档 = 最低价档；开团不带 grouponPromotionRecordId）；
+ * 活动对不上或取数失败时以模块上下文兜底，绝不退化为无上下文的普通购买。
+ */
+async function buyGrouponProduct(item: any, promotionId: string): Promise<void> {
+  if (needsProductDetail(item) || productSoldOut(item) || !isLoggedIn()) {
+    await buyProduct(item, { isQuick: 1 });
+    return;
+  }
+  const grouponData: Record<string, number> = {
+    grouponPromotionId: Number(promotionId) || 0,
+    grouponPromotionItemId: Number(item?.grouponPromotionItemId) || 0,
+    grouponDetailId: 0,
+    price: Number(item?.minGrouponPrice ?? item?.grouponPrice) || 0,
+  };
+  try {
+    const info = await apiGet<Record<string, any>>('promotion/groupon/getGrouponInfo', {
+      productId: Number(item?.productId),
+    });
+    // 仅当活动详情与模块配置的活动一致时才采信其明细/档位，避免串活动
+    if (info && Number(info.grouponPromotionId) === grouponData.grouponPromotionId) {
+      if (Number(info.grouponPromotionItemId) > 0) {
+        grouponData.grouponPromotionItemId = Number(info.grouponPromotionItemId);
+      }
+      const detailRow = matchGrouponDetailRow(info, firstSkuId(item));
+      if (detailRow) grouponData.grouponDetailId = Number(detailRow.grouponDetailId) || 0;
+      const tier = defaultGrouponTier(resolveGrouponTiers(info, detailRow));
+      if (tier) {
+        grouponData.price = tier.price;
+        grouponData.groupNumKey = tier.key;
+      } else if (!(grouponData.price > 0)) {
+        grouponData.price = Number(info.minGrouponPrice ?? info.grouponPrice) || 0;
+      }
+    }
+  } catch {
+    // 取不到活动详情时以模块已知上下文兜底，仍走拼团加购
+  }
+  await buyProduct(item, {
+    isQuick: 1,
+    grouponData:
+      grouponData.grouponPromotionId > 0 && grouponData.grouponPromotionItemId > 0 ? grouponData : undefined,
+  });
 }
 
 /** 用户详情（旧版 useUserStore：nickname/avatar/coupon/balance/points）。 */
@@ -2733,7 +2785,7 @@ function Groupon({ module, initialData }: ModuleProps) {
                                     onClick={(event) => {
                                       event.preventDefault();
                                       event.stopPropagation();
-                                      void buyProduct(item, { isQuick: 1 });
+                                      void buyGrouponProduct(item, promotionId);
                                     }}
                                   >
                                     <BuyButtonVisual style={buyBtn.style} customIcon={buyBtn.customIcon} />
@@ -4535,8 +4587,8 @@ function ProductGroup({ module, initialData }: ModuleProps) {
                           {inqState === 'partial' && showPrice ? <span className="dec-product-group__inquiry-note">部分型号询价</span> : null}
                           {showCrossed && inqState !== 'all' && Number((product as any).marketPrice) > 0 ? (
                             <span className="dec-product-group__price-origin">
-                              <span className="dec-product-group__price-origin-currency">{marketPrice.symbol || '￥'}</span>
                               <s>
+                                <span className="dec-product-group__price-origin-currency">{marketPrice.symbol || '￥'}</span>
                                 {marketPrice.integer}
                                 {marketPrice.decimals}
                                 {marketPrice.suffix}
