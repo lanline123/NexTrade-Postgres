@@ -139,7 +139,7 @@ impl OrderRepository {
             "INSERT INTO \"order\"
              (order_type, order_sn, user_id, order_status, shipping_status, pay_status,
               add_time, consignee, address, region_ids, region_names, mobile,
-              buyer_note, shipping_method, pay_type_id, shop_id, is_valid, is_del,
+              buyer_note, shipping_method, shipping_type_id, pay_type_id, shop_id, is_valid, is_del,
               total_amount, paid_amount, unpaid_amount, product_amount, coupon_amount,
               shipping_fee, referrer_user_id, order_source, vendor_id, order_extension,
               email, use_points, points_amount, balance, is_presale, presale_type,
@@ -147,8 +147,8 @@ impl OrderRepository {
               is_store_splited, pos_user_id, admin_note, logistics_name, shipping_type_name,
               tracking_no, table_no, table_area_name)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-                     $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41,
-                     $42, $43, $44, $45, $46, $47) RETURNING order_id",
+                     $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42,
+                     $43, $44, $45, $46, $47, $48) RETURNING order_id",
         )
         .bind(order.order_type.unwrap_or(0))
         .bind(&order.order_sn)
@@ -164,6 +164,7 @@ impl OrderRepository {
         .bind(&order.mobile)
         .bind(&order.buyer_note)
         .bind(order.shipping_method)
+        .bind(order.shipping_type_id)
         .bind(order.pay_type_id)
         .bind(order.shop_id)
         .bind(order.is_valid)
@@ -550,5 +551,34 @@ fn map_err(e: sqlx::Error) -> Error {
     match e {
         sqlx::Error::RowNotFound => Error::NotFound("订单不存在".into()),
         other => Error::Database(other.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// 回归不变式：建单 INSERT 必须写 `shipping_type_id` 列。
+    /// 此前列清单漏了该列，订单头恒落库默认 0，同城配送（=3）订单
+    /// 无法触发派送单生产者（骑手 MVP 断链）。
+    ///
+    /// 扫描范围限定在 `insert_order_in_tx` 的 INSERT 语句体内
+    /// （本文件其余 SELECT 亦含该列名，整文件扫描会假阳性）。
+    #[test]
+    fn insert_order_writes_shipping_type_id() {
+        let src = include_str!("order.rs");
+        let start = src
+            .find("INSERT INTO \\\"order\\\"")
+            .expect("insert_order_in_tx 的 INSERT 必须存在");
+        let stmt = &src[start..src[start..]
+            .find("RETURNING order_id")
+            .map(|e| start + e)
+            .unwrap_or(src.len())];
+        assert!(
+            stmt.contains("shipping_type_id"),
+            "建单 INSERT 列清单必须含 shipping_type_id"
+        );
+        assert!(
+            stmt.contains("$48"),
+            "加列后占位符应达 $48（列数与绑定数对齐）"
+        );
     }
 }

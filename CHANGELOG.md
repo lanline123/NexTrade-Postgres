@@ -870,3 +870,9 @@
 
 ## 2026-11-20 H5 骑手 API 类型修复（我方新增前端缺陷）
 - uniapp-react/src/api/rider/rider.ts：12 处 request 泛型改传 RiderEnvelope 信封类型，对齐 @/utils/request 的 ResponseData 约束与 auction 模块成例；修复 build-h5-frontend Typecheck 28 个 TS2344。纯类型修复，运行时行为不变。
+
+## 0.0.2 续 · 2026-11-20 批次（同城配送订单头配送类型写入，骑手生产者断链修复，代码已入库待部署）
+
+### 修复
+
+- **后端 - 同城配送订单永不生成派送单（原版有·我方补齐建单写入）**：原版 `OrderCheckServiceImpl` 建单时即把结算入参 `deliveryType` 写入订单头 `shipping_type_id`（`OrderDeliveryTypeEnum`：1 物流/2 自提/3 同城，快照仓 v5.8.61 `OrderCheckServiceImpl.java` L1363-1400、`OrderDeliveryTypeEnum.java`），派送单生产者以 `shipping_type_id == 3` 为触发条件。我方移植断裂：建单 DTO 的配送类型只落 `shipping_method`，订单头 `shipping_type_id` 无任何写点（infra 建单 INSERT 列清单根本未含该列），恒为库默认 0——买家选同城配送的订单付款后永不生成派送单（合并批验收以构造数据证明下游产单/抢单/取送/入账全链可用，唯触发条件不可达）。修复：`OrderService::create` 按纯函数 `shipping_type_snapshot`（1→物流配送/2→到店自提/3→同城配送，未知值 id 透传、名为空串，同 Java `getDesc` 兜底）同步写订单头 id+name；infra 建单 INSERT 补 `shipping_type_id` 列与绑定（占位符 $1-$48）。前台结算/立即购买/代客下单/POS 四条建单路径共用该 create+INSERT，一并覆盖；含映射单测与 INSERT 列不变式测试。附带同线修复：`POST /order/check/submit` 响应面异常（验收多次见「响应错误但订单已建」）——定性为提交后非幂等步骤的 DB 异常经 `?` 上抛所致（另叠加验收工具慢响应重试的重复提交），create() 事务提交后的积分扣减、余额读取/扣减、两处标记已付共四处 `?` 降级为告警续行（异常时按未扣/未付保守处理、不动钱），与本函数既有 best-effort 口径（清购物车/优惠券/礼品卡/流水）对齐。
