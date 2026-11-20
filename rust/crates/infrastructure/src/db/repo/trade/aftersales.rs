@@ -665,10 +665,14 @@ impl AftersalesRepository {
             return Ok(false);
         }
         binds.push(Bind::I32(aftersale_id));
-        let sql = format!(
-            "UPDATE aftersales SET {} WHERE aftersale_id = $1",
+        // 占位符口径与本文件其余查询一致：先用 `?` 拼装，再统一转 PG `$n`；
+        // aftersale_id 的绑定在 binds 末位，对应转换后的最后一个占位符。
+        // （此前误写死 `$1` 且漏调转换，生成的 SQL 在 PG 下语法错误，
+        // 后台售后审核 update 恒 500——2026-11-20 分销复验退款腿实测发现。）
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "UPDATE aftersales SET {} WHERE aftersale_id = ?",
             sets.join(", ")
-        );
+        ));
         let r = bind_all!(sqlx::query(&sql), binds)
             .execute(&self.pool)
             .await

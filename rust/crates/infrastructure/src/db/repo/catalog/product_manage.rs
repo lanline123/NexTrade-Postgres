@@ -1689,10 +1689,12 @@ impl ProductManageRepository {
         if sets.is_empty() {
             return Ok(0);
         }
-        let sql = format!(
-            "UPDATE product_sku SET {} WHERE sku_id = $1",
+        // 占位符口径：`?` 拼装后统一转 PG `$n`，id 绑定在末位对应最后一个占位符
+        // （此前误写死 `$1` 且漏调转换，PG 下语法错误恒 500——2026-11-20 实测发现）。
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "UPDATE product_sku SET {} WHERE sku_id = ?",
             sets.join(", ")
-        );
+        ));
         let mut q = sqlx::query(&sql);
         if let Some(v) = sku_stock {
             q = q.bind(v);

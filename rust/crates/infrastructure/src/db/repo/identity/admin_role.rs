@@ -312,10 +312,12 @@ impl AdminRoleRepository {
         }
         sets.push("is_system = ?");
 
-        let sql = format!(
-            "UPDATE admin_role SET {} WHERE role_id = $1",
+        // 占位符口径：`?` 拼装后统一转 PG `$n`，role_id 绑定在末位对应最后一个占位符
+        // （此前误写死 `$1` 且漏调转换，PG 下语法错误恒 500——2026-11-20 实测发现）。
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "UPDATE admin_role SET {} WHERE role_id = ?",
             sets.join(", ")
-        );
+        ));
         let mut q = sqlx::query(&sql);
         if let Some(role_name) = patch.role_name.as_deref() {
             q = q.bind(role_name);

@@ -161,10 +161,12 @@ impl MerchantAccountRepository {
             return Ok(false);
         }
         // 多租户：店铺账号的更新语句追加 `shop_id` 条件。
-        let sql = format!(
-            "UPDATE merchant_account SET {} WHERE account_id = $1 AND ($2 IS NULL OR shop_id = $3)",
+        // 占位符口径：`?` 拼装后统一转 PG `$n`，id/shop_scope 绑定在末位依次对应
+        // （此前误写死 `$1/$2/$3` 且漏调转换，PG 下语法错误恒 500——2026-11-20 实测发现）。
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "UPDATE merchant_account SET {} WHERE account_id = ? AND (? IS NULL OR shop_id = ?)",
             sets.join(", ")
-        );
+        ));
         let mut q = sqlx::query(&sql);
         if let Some(v) = account_type {
             q = q.bind(v);

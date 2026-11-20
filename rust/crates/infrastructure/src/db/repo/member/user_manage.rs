@@ -630,7 +630,12 @@ impl UserManageRepository {
             // Java `updateById` 在无非空字段时不产生 SQL（返回 false）
             return Ok(0);
         }
-        let sql = format!("UPDATE \"user\" SET {} WHERE user_id = $1", sets.join(", "));
+        // 占位符口径：`?` 拼装后统一转 PG `$n`，user_id 绑定在末位对应最后一个占位符
+        // （此前误写死 `$1` 且漏调转换，PG 下语法错误恒 500——2026-11-20 实测发现）。
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "UPDATE \"user\" SET {} WHERE user_id = ?",
+            sets.join(", ")
+        ));
         let affected = bind_all!(sqlx::query(&sql), binds)
             .bind(e.user_id)
             .execute(&self.pool)
