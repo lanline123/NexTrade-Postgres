@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Text, View } from "@tarojs/components";
 
 import { designPxToRpx, formatFrame } from "@/components/modules";
@@ -52,6 +52,54 @@ export default function ImageHotarea({ module }: Props) {
         });
     }
 
+    /** 热区坐标基准宽（画板口径 500，与 admin 预览 / PC 渲染器一致） */
+    const HOTAREA_BASE = 500;
+
+    /**
+     * 热区样式派生。数据契约（types/decorate HotareaType + 画板写回 + 现网存量数据）：
+     * hotarea[] 存 {left,top,width,height} 数字字段（500 基准坐标系），position 只是
+     * 原版编辑器侧渲染器（Preview/View 的 updateWidth）在渲染时派生的可选字段，
+     * 存储数据里从来没有——旧实现直接 convertPxToRpx(subItem.position) 对 undefined
+     * 调 .replace，未画热区时不触发、画完热区必抛 TypeError 被错误边界降级为
+     * 「该模块渲染失败，已跳过」（2026-11-21 10106 实测）。
+     * 换算与原版 resize(容器宽/500) 等价且与分辨率无关：left/width 取容器宽百分比；
+     * top/height 取容器高百分比（容器高 = 图片渲染高，故按图片原始宽高比
+     * aspect = 原始宽/原始高 折算：top% = top/500 × aspect × 100）。aspect 由
+     * TigImage onLoad 的原始尺寸得到，未取得时返回 undefined（暂不渲染该热区，
+     * 图片就绪即出现）。更老世代数据若只有 position 字符串，沿用旧换算兜底
+     * （与 PC 渲染器 parseCssText 兜底同义）。
+     */
+    function hotareaStyle(subItem: any, aspect: number | undefined): string | undefined {
+        const num = (v: any) => {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : 0;
+        };
+        const hasNumeric = ["left", "top", "width", "height"].some((k) => subItem?.[k] !== undefined && subItem?.[k] !== null && subItem?.[k] !== "");
+        if (hasNumeric) {
+            if (!aspect) return undefined;
+            const left = (num(subItem.left) / HOTAREA_BASE) * 100;
+            const width = (num(subItem.width) / HOTAREA_BASE) * 100;
+            const top = (num(subItem.top) / HOTAREA_BASE) * aspect * 100;
+            const height = (num(subItem.height) / HOTAREA_BASE) * aspect * 100;
+            return `left:${left}%;top:${top}%;width:${width}%;height:${height}%;`;
+        }
+        if (typeof subItem?.position === "string" && subItem.position) {
+            return convertPxToRpx(subItem.position);
+        }
+        return undefined;
+    }
+
+    /** 各图片条目的原始宽高比（onLoad 取得；热区纵向百分比换算用） */
+    const [imgAspects, setImgAspects] = useState<Record<number, number>>({});
+    const handleImgLoad = (itemIndex: number) => (e: any) => {
+        const w = Number(e?.detail?.width);
+        const h = Number(e?.detail?.height);
+        if (w > 0 && h > 0) {
+            const aspect = w / h;
+            setImgAspects((cur) => (cur[itemIndex] === aspect ? cur : { ...cur, [itemIndex]: aspect }));
+        }
+    };
+
     return (
         <View
             className={`module-ad-con decorate-image-hotarea module-ad-con- ad-radio_style__${module.radioStyle}`}
@@ -80,22 +128,28 @@ export default function ImageHotarea({ module }: Props) {
                                                 <View className="item-img-bg image-hotarea-img-placeholder" />
                                             ) : (
                                                 <View className="item-img-bg">
-                                                    <TigImage src={item.picUrl} mode="widthFix" />
+                                                    <TigImage src={item.picUrl} mode="widthFix" onLoad={handleImgLoad(itemIndex)} />
                                                 </View>
                                             )}
                                             {item.hotarea &&
-                                                item.hotarea.map((subItem: any, index: number) => (
-                                                    <View
-                                                        key={index}
-                                                        className="image-hotarea-link"
-                                                        style={convertPxToRpx(subItem.position)}
-                                                        onClick={() => {
-                                                            subItem.link && redirect({ url: urlFormat(subItem.link) });
-                                                        }}
-                                                    >
-                                                        <Text className="area_box_con_text">{subItem.link?.name ?? ""}</Text>
-                                                    </View>
-                                                ))}
+                                                item.hotarea.map((subItem: any, index: number) => {
+                                                    const style = hotareaStyle(subItem, imgAspects[itemIndex]);
+                                                    if (style === undefined) return null;
+                                                    return (
+                                                        <View
+                                                            key={index}
+                                                            className="image-hotarea-link"
+                                                            style={style}
+                                                            onClick={() => {
+                                                                if (!subItem.link) return;
+                                                                const url = urlFormat(subItem.link);
+                                                                if (url) redirect({ url });
+                                                            }}
+                                                        >
+                                                            <Text className="area_box_con_text">{subItem.link?.name ?? ""}</Text>
+                                                        </View>
+                                                    );
+                                                })}
                                         </View>
                                     </View>
                                 </View>
