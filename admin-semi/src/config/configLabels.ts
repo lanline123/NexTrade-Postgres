@@ -156,4 +156,5 @@ export const configLabels: Record<string, string> = {
   "storeAssignServerServiceFee": "分配商品服务费规则",
   "storeCustomSubmitShippingType": "客户下单配送方式",
   "storeShowOtherCityStore": "显示地区其他门店",
+  "regionIsolation": "区域硬隔离",
 };

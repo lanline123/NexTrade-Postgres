@@ -373,6 +373,7 @@ const configPages: Record<string, ConfigPageDef> = {
       storeAssignServerServiceFee: 'radio',
       storeCustomSubmitShippingType: 'radio',
       storeShowOtherCityStore: 'radio',
+      regionIsolation: 'radio',
     },
     options: {
       storePostAllocationStatus: [
@@ -400,6 +401,10 @@ const configPages: Record<string, ConfigPageDef> = {
         { label: '显示', value: 1 },
         { label: '不显示', value: 0 },
       ],
+      regionIsolation: [
+        { label: '开启', value: 1 },
+        { label: '关闭', value: 0 },
+      ],
     },
     rules: {
       shopProductNeedCheck: { visibleWhen: { field: 'storeIndependentGoods', equals: 1 } },
@@ -417,6 +422,8 @@ const configPages: Record<string, ConfigPageDef> = {
       storeAssignServerServiceFee: '用统一配置时，门店服务费将取总部统一配置，门店端不可修改。',
       storeCustomSubmitShippingType: '商品存在多种配送方式时客户下单默认优先采用的方式。',
       storeShowOtherCityStore: '是否在地区中展示其他城市的门店。',
+      regionIsolation:
+        '开启后，买家只能看到自己所在地区的门店，以及这些门店有售的商品（平台自营商品不受影响）；未填写地区的门店将不可见。开启后「显示地区其他门店」对门店列表与最近门店不再生效。默认关闭。',
     },
   },
 

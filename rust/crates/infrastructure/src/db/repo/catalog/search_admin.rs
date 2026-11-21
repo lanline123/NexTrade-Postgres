@@ -36,6 +36,10 @@ pub struct ProductSearchFilter {
     /// 就近门店过滤已解析出的最近门店 ID（服务层由经纬度解析，
     /// 就近门店群帖 377858）；`None` = 不启用就近过滤。
     pub nearby_shop_id: Option<i32>,
+    /// 区域硬隔离的买家地区 ID（服务层由平台开关 + 请求地区解析，
+    /// 就近门店二期帖 357858）；`None` = 不启用隔离。启用时结果
+    /// 只含平台自营（`shop_id = 0`）与本区门店有售的商品。
+    pub region_isolation_id: Option<i32>,
     pub shop_category_id: Option<i32>,
     /// 活动类型：`new` / `hot` / `best`
     pub intro: Option<String>,
@@ -251,6 +255,20 @@ fn normalize_attr_values(values: &Option<Vec<String>>) -> Vec<String> {
     out
 }
 
+/// 区域硬隔离的地区精确匹配片段（`QueryBuilder` 版）：与门店
+/// 仓储 `region_hard_match_sql` 同一口径（JSON 数组原文 + 元素级
+/// 全等），但占位符经 `push_bind` 生成（`QueryBuilder` 不转换
+/// 原始 `?`）。`column` 为门店表地区列名，可带别名。
+fn push_region_hard_match(qb: &mut QueryBuilder<'_, Postgres>, column: &str, region: &str) {
+    qb.push(format!(
+        "{column} ~ '^\\s*\\[.*\\]\\s*$' \
+         AND (',' || regexp_replace({column}, '[\\[\\]\"\\s]', '', 'g') || ',') \
+         LIKE CONCAT('%,', "
+    ));
+    qb.push_bind(region.to_string());
+    qb.push(", ',%')");
+}
+
 /// 追加公共 WHERE（顺序与 Java \"buildProductListDTO\" / 属性建议查询一致）。
 fn push_filters(qb: &mut QueryBuilder<'_, Postgres>, f: &ProductSearchFilter) {
     qb.push(" WHERE is_delete = 0");
@@ -307,6 +325,28 @@ fn push_filters(qb: &mut QueryBuilder<'_, Postgres>, f: &ProductSearchFilter) {
             )
             .push_bind(i64::from(nearby_shop_id))
             .push(" AND sp.product_status = 1 AND sp.is_delete = 0))");
+    }
+    if let Some(region_id) = f.region_isolation_id.filter(|v| *v > 0) {
+        // 区域硬隔离（二期）：平台自营恒可见；商家商品须本区门店
+        // 有售——门店自有（`product.shop_id` 命中本区门店）或经
+        // `store_product` 分配到本区门店且分配行在售。本区门店的
+        // 判定与门店列表硬口径同源（地区 ID 精确命中门店
+        // `shop_region_id` 数组元素，见 `push_region_hard_match`）。
+        let region = region_id.to_string();
+        qb.push(
+            " AND (shop_id = 0 OR shop_id IN (SELECT shop_id FROM shop \
+             WHERE shop_type = 2 AND (status = 1 OR status = 10) AND ",
+        );
+        push_region_hard_match(qb, "shop_region_id", &region);
+        qb.push(
+            ") OR EXISTS (SELECT 1 FROM store_product sp \
+             JOIN shop s2 ON s2.shop_id = sp.shop_id \
+             WHERE sp.product_id = product.product_id \
+             AND sp.product_status = 1 AND sp.is_delete = 0 \
+             AND s2.shop_type = 2 AND (s2.status = 1 OR s2.status = 10) AND ",
+        );
+        push_region_hard_match(qb, "s2.shop_region_id", &region);
+        qb.push("))");
     }
     if let Some(shop_category_id) = f.shop_category_id.filter(|v| *v > 0) {
         qb.push(" AND shop_category_id = ")
@@ -436,6 +476,25 @@ mod tests {
         // shop_id（i32）+ store_product.shop_id（i64）两个绑定，均走参数
         assert_eq!(sql.matches('$').count(), 2);
         assert!(!sql.contains("= 9"), "门店 ID 必须走绑定参数");
+    }
+
+    #[test]
+    fn region_isolation_filter_scopes_to_region_stores() {
+        let f = ProductSearchFilter {
+            region_isolation_id: Some(110105),
+            ..Default::default()
+        };
+        let sql = build_sql(&f);
+        // 平台自营恒可见 + 本区门店自有/分配双通道
+        assert!(sql.contains("shop_id = 0 OR shop_id IN (SELECT shop_id FROM shop"));
+        assert!(sql.contains("JOIN shop s2 ON s2.shop_id = sp.shop_id"));
+        // 双处地区判定均为精确元素匹配（归一化后全等），非子串软匹配
+        assert!(sql.contains("regexp_replace(shop_region_id"));
+        assert!(sql.contains("regexp_replace(s2.shop_region_id"));
+        assert!(!sql.contains("shop_region_id ILIKE"));
+        // 地区 ID 两处均走绑定参数
+        assert_eq!(sql.matches('$').count(), 2);
+        assert!(!sql.contains("110105"), "地区 ID 必须走绑定参数");
     }
 
     #[test]

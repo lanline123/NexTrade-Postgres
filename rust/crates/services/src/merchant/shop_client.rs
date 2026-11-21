@@ -86,6 +86,10 @@ const CFG_SHOP_LOGO: &str = "shopLogo";
 const CFG_DEFAULT_AVATAR: &str = "defaultAvatar";
 /// 配置项 `storeShowOtherCityStore`（Java `SettingsEnum.STORE_SHOW_OTHER_CITY_STORE`）。
 const CFG_STORE_SHOW_OTHER_CITY_STORE: &str = "storeShowOtherCityStore";
+/// 配置项 `regionIsolation`（我方新增，就近门店二期帖 357858）：
+/// `1` = 开启区域硬隔离（买家只见本区门店与本区有售商品）；
+/// 缺失/`0`（缺省）= 关闭，全部就近/地区口径与改造前逐字一致。
+const CFG_REGION_ISOLATION: &str = "regionIsolation";
 
 /// 平台自营门店配置项（Java `SettingsEnum.STORE_SELF_OPERATED_*` 的 `biz_code`）。
 const CFG_SELF_OPERATED: [&str; 12] = [
@@ -891,7 +895,12 @@ impl ShopClientService {
         user_id: i32,
     ) -> Result<PageResult<StoreListVO>> {
         let page = q.page_query();
-        let ignore_region = self.store_show_other_city().await?;
+        // 区域硬隔离（二期，帖 357858）：开启时隔离口径优先——
+        // `storeShowOtherCityStore` 的「清空 regionId」软口径被取代，
+        // 地区过滤改为精确成员匹配（仓储 `region_hard`）；关闭时
+        // （缺省）以下流程与改造前逐字一致。
+        let isolation = self.region_isolation_enabled().await?;
+        let ignore_region = !isolation && self.store_show_other_city().await?;
         // Java 顺序：先按 `storeShowOtherCityStore = 1` 清空 `regionId`，
         // 随后 `storeRegionId` 仍会覆盖它
         let mut region_id = if ignore_region {
@@ -903,6 +912,7 @@ impl ShopClientService {
             region_id = Some(store_region);
         }
         let region_id = region_id.filter(|s| !s.is_empty());
+        let (region_id, region_hard) = harden_region(isolation, region_id);
 
         let has_location = q.latitude.is_some_and(|v| v != Decimal::ZERO);
         let location = if has_location {
@@ -950,6 +960,7 @@ impl ShopClientService {
         let filter = StoreListFilter {
             keyword: q.keyword.clone(),
             region_id,
+            region_hard,
             shop_ids,
             delivery_types: q.delivery_types.clone(),
             within_delivery_range: in_range_filter,
@@ -1155,8 +1166,10 @@ impl ShopClientService {
             return Ok(None);
         };
         // 地区口径与 store_list 一致：配置要求展示外市门店时清空 regionId，
-        // 随后 storeRegionId 仍会覆盖它
-        let ignore_region = self.store_show_other_city().await?;
+        // 随后 storeRegionId 仍会覆盖它；区域硬隔离开启时同 store_list
+        // 改走精确成员匹配（二期，帖 357858）
+        let isolation = self.region_isolation_enabled().await?;
+        let ignore_region = !isolation && self.store_show_other_city().await?;
         let mut region_id = if ignore_region {
             None
         } else {
@@ -1166,10 +1179,11 @@ impl ShopClientService {
             region_id = Some(store_region);
         }
         let region_id = region_id.filter(|s| !s.is_empty());
+        let (region_id, region_hard) = harden_region(isolation, region_id);
 
         let Some(row) = self
             .repo()
-            .find_nearest_store(lng, lat, region_id.as_deref())
+            .find_nearest_store(lng, lat, region_id.as_deref(), region_hard)
             .await?
         else {
             return Ok(None);
@@ -1505,6 +1519,17 @@ impl ShopClientService {
             .find_config_val(CFG_STORE_SHOW_OTHER_CITY_STORE)
             .await?
             .as_deref()
+            == Some("1"))
+    }
+
+    /// `regionIsolation = 1`：区域硬隔离开启（我方新增，帖 357858）。
+    async fn region_isolation_enabled(&self) -> Result<bool> {
+        Ok(self
+            .repo()
+            .find_config_val(CFG_REGION_ISOLATION)
+            .await?
+            .as_deref()
+            .map(str::trim)
             == Some("1"))
     }
 
@@ -1939,6 +1964,32 @@ pub fn cfg_int(
     }
 }
 
+/// 地区 ID 解析（地区 ID 恒为正整数；异常值返回 `None`）。
+#[must_use]
+pub fn parse_region_id(raw: &str) -> Option<i32> {
+    raw.trim().parse::<i32>().ok().filter(|v| *v > 0)
+}
+
+/// 区域硬隔离的地区口径收口（纯函数，供单测；就近门店二期，
+/// 帖 357858）：隔离开启且地区 ID 为数值型时，地区值归一化为
+/// 整数串并标记硬匹配（与门店 `shop_region_id` 数组元素的归一化
+/// 口径对齐）；其余情况（隔离关闭 / 无地区 / 异常值）保持原值、
+/// 不硬匹配——行为与改造前一致（无地区 = 不知买家区域，不隔离；
+/// 异常值回落软匹配，避免误伤）。
+#[must_use]
+pub fn harden_region(isolation: bool, region_id: Option<String>) -> (Option<String>, bool) {
+    if !isolation {
+        return (region_id, false);
+    }
+    match region_id {
+        Some(raw) => match parse_region_id(&raw) {
+            Some(id) => (Some(id.to_string()), true),
+            None => (Some(raw), false),
+        },
+        None => (None, false),
+    }
+}
+
 /// JSON 数组串 → `Vec<i32>`（Java `JSONUtil.toList(json, Integer.class)`）。
 #[must_use]
 pub fn parse_int_list_json(raw: Option<&str>) -> Vec<i32> {
@@ -2280,6 +2331,35 @@ mod tests {
         let one = parse_show_pics(Some(r#"{"picId":2,"picUrl":"b.png"}"#)).unwrap();
         assert_eq!(one.len(), 1);
         assert_eq!(one[0].pic_id, Some(2));
+    }
+
+    #[test]
+    fn harden_region_only_when_isolation_and_numeric() {
+        // 隔离关闭：恒不硬匹配（缺省行为与改造前一致）
+        assert_eq!(
+            harden_region(false, Some("110105".to_string())),
+            (Some("110105".to_string()), false)
+        );
+        assert_eq!(harden_region(false, None), (None, false));
+        // 隔离开启 + 数值地区：归一化整数串 + 硬匹配
+        assert_eq!(
+            harden_region(true, Some("110105".to_string())),
+            (Some("110105".to_string()), true)
+        );
+        assert_eq!(
+            harden_region(true, Some(" 110105 ".to_string())),
+            (Some("110105".to_string()), true)
+        );
+        // 隔离开启 + 无地区 / 异常值：不硬匹配（回落原口径）
+        assert_eq!(harden_region(true, None), (None, false));
+        assert_eq!(
+            harden_region(true, Some("abc".to_string())),
+            (Some("abc".to_string()), false)
+        );
+        assert_eq!(
+            harden_region(true, Some("0".to_string())),
+            (Some("0".to_string()), false)
+        );
     }
 
     #[test]

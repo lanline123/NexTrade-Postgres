@@ -334,7 +334,8 @@ pub struct ShopHomeServiceConfig {
     pub shop_id: i32,
     /// 是否开启预约上门服务：0-关闭，1-开启 [NOT NULL]
     pub enabled: i32,
-    /// 服务半径（公里）
+    /// 服务半径（米；原 schema 注释标「公里」系误标，实证同
+    /// `ShopLocalDeliveryConfig::delivery_radius`：比对点均为米口径）
     pub service_radius: Option<Decimal>,
     /// 上门费（元） [NOT NULL]
     pub home_fee: Decimal,
@@ -370,7 +371,14 @@ pub struct ShopLocalDeliveryConfig {
     pub shop_id: i32,
     /// 是否开启同城配送 0=关闭 1=开启 [NOT NULL]
     pub enabled: i32,
-    /// 配送半径（公里） [NOT NULL]
+    /// 配送半径（米） [NOT NULL]
+    ///
+    /// 单位实证（就近门店二期专项核查，2026-11-21）：原 MySQL schema
+    /// 注释标「公里」系原版误标——管理端录入单位为米（配送半径字段
+    /// 单位标注 + 地图圈半径直传 AMap/Tianditu Circle，二者均以米
+    /// 为单位），后端全部比对点（storeList SQL 球面余弦 R=6371000、
+    /// `GpsDistanceUtil` haversine、结算范围校验）均为米口径直比。
+    /// 本字段实际口径恒为米，勿按公里换算。
     pub delivery_radius: Decimal,
     /// 起送价（元） [NOT NULL]
     pub min_order_amount: Decimal,

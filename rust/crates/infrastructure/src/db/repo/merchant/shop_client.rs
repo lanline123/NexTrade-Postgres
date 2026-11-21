@@ -99,6 +99,11 @@ pub struct StoreListRow {
 pub struct StoreListFilter {
     pub keyword: Option<String>,
     pub region_id: Option<String>,
+    /// 区域硬隔离（就近门店二期，帖 357858）：`true` 时 `region_id`
+    /// 不再走 ILIKE 子串软匹配，而是要求买家地区 ID 精确命中门店
+    /// `shop_region_id` JSON 数组的某一元素（区外门店不可见）；
+    /// `false`（缺省）时行为与改造前逐字一致。
+    pub region_hard: bool,
     /// 显式指定店铺集合（非空时按 `IN` 过滤）
     pub shop_ids: Vec<i32>,
     /// 配送类型多选（含 4 过滤同城配送、含 2 过滤预约上门）
@@ -109,6 +114,25 @@ pub struct StoreListFilter {
     pub selected_shop_id: Option<i32>,
     pub sort_field: Option<String>,
     pub sort_order: Option<String>,
+}
+
+/// 区域硬隔离的地区精确匹配 SQL 片段（就近门店二期，帖 357858；
+/// 商品搜索仓储的门店可见性子查询共用本片段）。
+///
+/// `shop_region_id` 为 JSON 数组串（如 `[110000,110100,110105]`，
+/// 元素可为数字或数字字符串）。片段要求：① 原文是 JSON 数组
+/// （与服务层 `parse_int_list_json` 对非数组返回空集的口径一致，
+/// 裸值/空值不算区域归属）；② 买家地区 ID（占位符 `?`，由调用方
+/// 绑定）精确等于归一化后的某一元素——归一化 = 去括号/引号/空白
+/// 后按逗号切分、元素级全等，杜绝软匹配 ILIKE 子串的误命中
+/// （如地区 `1101` 子串命中 `110105`）。`column` 为列名，可带
+/// 表别名（如 `s2.shop_region_id`）。
+pub fn region_hard_match_sql(column: &str) -> String {
+    format!(
+        "{column} ~ '^\\s*\\[.*\\]\\s*$' \
+         AND (',' || regexp_replace({column}, '[\\[\\]\"\\s]', '', 'g') || ',') \
+         LIKE CONCAT('%,', ?, ',%')"
+    )
 }
 
 /// 自提点列表投影（对应 `ShopMapper.pickupListByLocation`）。
@@ -286,6 +310,7 @@ impl ShopClientRepository {
         lng: Decimal,
         lat: Decimal,
         region_id: Option<&str>,
+        region_hard: bool,
     ) -> Result<Option<StoreListRow>> {
         let (select_sql, select_binds) = self.store_select(Some((lng, lat)));
         let mut where_sql = String::from(
@@ -294,7 +319,13 @@ impl ShopClientRepository {
         );
         let mut binds = select_binds;
         if let Some(region) = region_id.filter(|s| !s.is_empty()) {
-            where_sql.push_str(" AND shop_region_id ILIKE CONCAT('%', ?, '%')");
+            if region_hard {
+                // 区域硬隔离（二期）：最近门店只在本区门店中解析，
+                // 区外门店不参与（与 storeList 硬口径一致）
+                where_sql.push_str(&format!(" AND {}", region_hard_match_sql("shop_region_id")));
+            } else {
+                where_sql.push_str(" AND shop_region_id ILIKE CONCAT('%', ?, '%')");
+            }
             binds.push(Bind::Str(region.to_string()));
         }
         let sql = crate::db::to_pg_placeholders(&format!(
@@ -362,8 +393,13 @@ impl ShopClientRepository {
         let mut binds = Vec::new();
 
         if let Some(region) = f.region_id.as_deref().filter(|s| !s.is_empty()) {
-            sql.push_str(" AND shop_region_id ILIKE CONCAT('%', ?, '%')");
-            binds.push(Bind::Str(region.to_string()));
+            if f.region_hard {
+                sql.push_str(&format!(" AND {}", region_hard_match_sql("shop_region_id")));
+                binds.push(Bind::Str(region.to_string()));
+            } else {
+                sql.push_str(" AND shop_region_id ILIKE CONCAT('%', ?, '%')");
+                binds.push(Bind::Str(region.to_string()));
+            }
         }
         if let Some(kw) = f.keyword.as_deref().filter(|s| !s.is_empty()) {
             sql.push_str(" AND shop_title ILIKE CONCAT('%', ?, '%')");
@@ -396,7 +432,10 @@ impl ShopClientRepository {
             sql.push_str(&format!(" AND ({})", parts.join(" OR ")));
         }
 
-        // 仅在传了有效经纬度时生效
+        // 仅在传了有效经纬度时生效。
+        // 单位：距离表达式半径 6371000 → 结果为米；`delivery_radius`
+        // 实际口径同为米（专项核查实证，见实体 `ShopLocalDeliveryConfig`
+        // 注释），两侧同单位直比，无换算。
         if f.within_delivery_range {
             if let Some((lng, lat)) = location {
                 sql.push_str(

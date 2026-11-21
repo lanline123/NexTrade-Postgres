@@ -55,6 +55,8 @@ const CATEGORY_FILTER_LIMIT: i64 = 100;
 pub const MAX_SUGGESTION_ATTRS: usize = 6;
 /// 属性建议：每个属性名最多值数量（Java `values.subList(0, 20)`）。
 pub const MAX_SUGGESTION_VALUES: usize = 20;
+/// 配置项 `regionIsolation`（我方新增，就近门店二期帖 357858）。
+const CFG_REGION_ISOLATION: &str = "regionIsolation";
 
 pub struct SearchAdminService {
     repos: Arc<Repositories>,
@@ -268,6 +270,21 @@ impl SearchAdminService {
 
     // ————————————————————— 内部：过滤条件归一化 —————————————————————
 
+    /// `regionIsolation = 1`：区域硬隔离开启（我方新增，帖 357858；
+    /// 与 `services::merchant::shop_client` 的同名常量为同一 biz_code，
+    /// 配置读取走评价仓储的既有 `find_config_val` 通道）。
+    async fn region_isolation_enabled(&self) -> Result<bool> {
+        Ok(self
+            .repos
+            .catalog
+            .comment
+            .find_config_val(CFG_REGION_ISOLATION)
+            .await?
+            .as_deref()
+            .map(str::trim)
+            == Some("1"))
+    }
+
     /// 由前台搜索参数构建仓储过滤条件（Java `buildProductListDTO` 的可迁移部分）。
     async fn build_filter(&self, q: &ProductSearchClientQuery) -> Result<ProductSearchFilter> {
         let category_ids = match q.cat.filter(|c| *c > 0) {
@@ -292,9 +309,23 @@ impl SearchAdminService {
                 .repos
                 .merchant
                 .shop_client
-                .find_nearest_store(lng, lat, None)
+                .find_nearest_store(lng, lat, None, false)
                 .await?
                 .map(|row| row.shop_id),
+            None => None,
+        };
+        // 区域硬隔离（二期，帖 357858）：平台开关 `regionIsolation=1`
+        // 且买家带数值地区、未显式指定店铺时，结果收口为本区门店
+        // 有售 + 平台自营（仓储层子查询判定）；其余情况不启用，
+        // 行为与改造前逐字一致。
+        let region_isolation_id = match region_isolation_requested(q) {
+            Some(raw) => {
+                if self.region_isolation_enabled().await? {
+                    crate::merchant::shop_client::parse_region_id(raw)
+                } else {
+                    None
+                }
+            }
             None => None,
         };
         Ok(ProductSearchFilter {
@@ -310,6 +341,7 @@ impl SearchAdminService {
             max_price: q.max,
             shop_id: q.shop_id,
             nearby_shop_id,
+            region_isolation_id,
             shop_category_id: q.shop_category_id,
             intro: q.intro.clone(),
             // Java：productStatus 缺省 1（只搜上架）
@@ -339,6 +371,21 @@ pub fn nearby_filter_requested(q: &ProductSearchClientQuery) -> Option<(Decimal,
         (Some(lng), Some(lat)) if lat != Decimal::ZERO => Some((lng, lat)),
         _ => None,
     }
+}
+
+/// 区域硬隔离的入参判定（纯函数，供单测；二期帖 357858）：
+/// 未显式指定店铺（`shopId > 0` 时以显式店铺为准、隔离不启用，
+/// 与就近口径一致）且带非空地区时返回地区原文；是否真正启用
+/// 再由服务层结合平台开关（`regionIsolation`）与数值校验决定。
+#[must_use]
+pub fn region_isolation_requested(q: &ProductSearchClientQuery) -> Option<&str> {
+    if q.shop_id.is_some_and(|s| s > 0) {
+        return None;
+    }
+    q.region_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
 }
 
 /// 经纬度校验（Java `validateLocation`）：
@@ -530,6 +577,29 @@ mod tests {
     #[test]
     fn attribute_grouping_empty_input() {
         assert!(group_attribute_counts(&[]).is_empty());
+    }
+
+    #[test]
+    fn region_isolation_requires_region_and_no_explicit_shop() {
+        let base = ProductSearchClientQuery {
+            region_id: Some("110105".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(region_isolation_requested(&base), Some("110105"));
+        // 无地区 → 不隔离（不知买家区域）
+        assert!(region_isolation_requested(&ProductSearchClientQuery::default()).is_none());
+        // 空白地区视为未传
+        assert!(region_isolation_requested(&ProductSearchClientQuery {
+            region_id: Some("  ".to_string()),
+            ..base.clone()
+        })
+        .is_none());
+        // 显式店铺优先，隔离不启用
+        assert!(region_isolation_requested(&ProductSearchClientQuery {
+            shop_id: Some(5),
+            ..base
+        })
+        .is_none());
     }
 
     #[test]

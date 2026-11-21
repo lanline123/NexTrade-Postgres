@@ -31,6 +31,10 @@ pub struct StoreSearchParams {
     pub size: u64,
 }
 
+/// 配置项 `regionIsolation`（我方新增，就近门店二期帖 357858；
+/// 与 `services::merchant::shop_client` 的同名常量为同一 biz_code）。
+const CFG_REGION_ISOLATION: &str = "regionIsolation";
+
 #[derive(Clone)]
 pub struct PickupClientService {
     repos: std::sync::Arc<Repositories>,
@@ -156,9 +160,21 @@ impl PickupClientService {
             page: params.page.max(1),
             page_size: params.size.clamp(1, 50),
         };
+        // 区域硬隔离（二期，帖 357858）：开启且带数值地区时，候选
+        // 门店改走精确成员匹配（与 storeList 同口径，经
+        // `harden_region` 收口）；关闭（缺省）时行为与改造前一致。
+        let isolation = shop_repo
+            .find_config_val(CFG_REGION_ISOLATION)
+            .await?
+            .as_deref()
+            .map(str::trim)
+            == Some("1");
+        let (region_id, region_hard) =
+            crate::merchant::shop_client::harden_region(isolation, params.region_id.clone());
         let filter = StoreListFilter {
             keyword: None,
-            region_id: params.region_id.clone(),
+            region_id,
+            region_hard,
             shop_ids: restrict.unwrap_or_default(),
             delivery_types: params.delivery_types.clone(),
             within_delivery_range: params.within_delivery_range && location.is_some(),
@@ -461,9 +477,9 @@ fn assemble_store_products(rows: &[&StoreSearchCandidateRow]) -> (i64, Vec<serde
 /// 单店聚合记录组装（纯函数，字段对齐前端 `StoreSearchRecord`）。
 /// 同城配送三项（开关/起送价/基础运费）取 `shop_local_delivery_config`
 /// 且 `enabled = 1` 时才有值；`inLocalDeliveryRange` 与门店列表
-/// `storeList` 现行口径一致：`enabled = 1`、半径 > 0 且展示距离
-/// （米）≤ 半径数值直比（配置实体注释半径单位为公里、storeList
-/// 现行实现按数值直比，本处跟随现行口径，单位问题在报告中单列）。
+/// `storeList` 口径一致：`enabled = 1`、半径 > 0 且展示距离
+/// （米）≤ 半径数值直比。单位已实证同为米（就近门店二期专项
+/// 核查：原 schema「公里」注释系误标，实体注释已更正）。
 fn build_store_search_record(
     row: &StoreListRow,
     cfg: Option<&ShopLocalDeliveryConfig>,

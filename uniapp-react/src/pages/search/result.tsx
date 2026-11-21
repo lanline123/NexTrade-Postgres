@@ -214,16 +214,26 @@ export default function SearchResult() {
     // 未定位时接口返回的距离不可信，不展示
     const hasLocation = "longitude" in getCurrentLocationParams() && "latitude" in getCurrentLocationParams();
 
+    // 买家当前地区（region store 的 GPS/IP/手选结果）：平台开启
+    // 区域硬隔离时后端据此收口门店与商品可见范围；未定位/未选
+    // 地区时不传，后端不隔离（与定位参数同一降级口径）。
+    const getCurrentRegionParams = () => {
+        const regionId = useRegionStore.getState().currentRegion?.regionId;
+        return regionId ? { regionId } : {};
+    };
+
     const getProductRequestParams = (extraData: Record<string, any> = {}) => ({
         brand: brandIdsRef.current.join(","),
         ...extraData,
-        ...getCurrentLocationParams()
+        ...getCurrentLocationParams(),
+        ...getCurrentRegionParams()
     });
 
     const loadStoreList = () => {
         const extraData: Record<string, any> = {
             keyword: filterParams.keyword,
-            ...getCurrentLocationParams()
+            ...getCurrentLocationParams(),
+            ...getCurrentRegionParams()
         };
         if (filterParams.shopId) {
             extraData.shopId = filterParams.shopId;

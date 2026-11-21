@@ -35,7 +35,7 @@ const invertedCheckRenderer = (field: string, label: string) =>
  * storeIndependentGoods, shopProductNeedCheck, storeAssignProductName, storeAssignProductImage,
  * storeAssignProductPrice, storeUseSoloProductStock, storeUseTotalProductStock,
  * storeAssignDeliveryServiceFee, storeAssignServerServiceFee, storeCustomSubmitShippingType,
- * storeShowOtherCityStore
+ * storeShowOtherCityStore, regionIsolation（我方新增，区域硬隔离开关）
  *
  * labels:
  * 推荐商品数量, 最大管理员数, 商品分配后状态, 上架, 下架, 门店独立商品, 允许门店自建商品,
@@ -81,6 +81,7 @@ const def: {
         'storeAssignServerServiceFee',
         'storeCustomSubmitShippingType',
         'storeShowOtherCityStore',
+        'regionIsolation',
       ],
     },
   ],
@@ -99,6 +100,7 @@ const def: {
     storeAssignServerServiceFee: '分配商品服务费规则',
     storeCustomSubmitShippingType: '客户下单配送方式',
     storeShowOtherCityStore: '显示地区其他门店',
+    regionIsolation: '区域硬隔离',
   },
   controls: {
     storePostAllocationStatus: 'radio',
@@ -113,6 +115,7 @@ const def: {
     storeAssignServerServiceFee: 'radio',
     storeCustomSubmitShippingType: 'radio',
     storeShowOtherCityStore: 'radio',
+    regionIsolation: 'radio',
   },
   options: {
     storePostAllocationStatus: [
@@ -140,6 +143,10 @@ const def: {
       { label: '显示', value: 1 },
       { label: '不显示', value: 0 },
     ],
+    regionIsolation: [
+      { label: '开启', value: 1 },
+      { label: '关闭', value: 0 },
+    ],
   },
   rules: {
     shopProductNeedCheck: { visibleWhen: { field: 'storeIndependentGoods', equals: 1 } },
@@ -158,6 +165,8 @@ const def: {
     storeAssignServerServiceFee: '用统一配置时，门店服务费将取总部统一配置。',
     storeCustomSubmitShippingType: '商品存在多种配送方式时客户下单默认配送方式。',
     storeShowOtherCityStore: '是否在列表中显示地区其他门店。',
+    regionIsolation:
+      '开启后，买家只能看到自己所在地区的门店，以及这些门店有售的商品（平台自营商品不受影响）；未填写地区的门店将不可见。开启后「显示地区其他门店」对门店列表与最近门店不再生效。默认关闭。',
   },
   hiddenFields: [],
   defaults: {
@@ -175,6 +184,7 @@ const def: {
     storeAssignServerServiceFee: 0,
     storeCustomSubmitShippingType: 0,
     storeShowOtherCityStore: 1,
+    regionIsolation: 0,
   },
   renderers: {
     shopProductNeedCheck: invertedCheckRenderer('shopProductNeedCheck', '商品默认审核通过'),

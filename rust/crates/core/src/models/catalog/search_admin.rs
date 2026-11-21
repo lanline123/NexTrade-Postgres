@@ -61,6 +61,11 @@ pub struct ProductSearchClientQuery {
     /// 无定位/无带坐标门店时不启用、结果与未传时一致（降级）。
     #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub nearby_store: Option<i32>,
+    /// 买家当前地区 ID（我方新增，就近门店二期帖 357858）：仅在
+    /// 平台开启区域硬隔离（配置 `regionIsolation = 1`）且未显式
+    /// 指定店铺时生效——结果只含本区门店有售与平台自营商品；
+    /// 不传或隔离关闭时行为与改造前逐字一致。
+    pub region_id: Option<String>,
     /// 商品状态（缺省 1 上架）
     #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub product_status: Option<i32>,

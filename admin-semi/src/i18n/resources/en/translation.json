@@ -7409,6 +7409,8 @@
   "显示查看更多": "Show see more",
   "显示倒计时": "Show countdown",
   "显示地区其他门店": "Show other stores in area",
+  "区域硬隔离": "Regional hard isolation",
+  "开启后，买家只能看到自己所在地区的门店，以及这些门店有售的商品（平台自营商品不受影响）；未填写地区的门店将不可见。开启后「显示地区其他门店」对门店列表与最近门店不再生效。默认关闭。": "When on, buyers only see stores in their own region and products those stores sell (platform self-operated products are unaffected); stores without a region set become invisible. While on, \"Show other stores in area\" no longer applies to the store list or nearest store. Off by default.",
   "显示二级分类": "Show secondary categories",
   "显示分类": "Show categories",
   "显示划线价": "Show underlined price",

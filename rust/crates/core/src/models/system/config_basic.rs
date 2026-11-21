@@ -8502,7 +8502,7 @@ static EP83_FIELDS: [FieldSpec; 3] = [
     },
 ];
 
-static EP84_FIELDS: [FieldSpec; 18] = [
+static EP84_FIELDS: [FieldSpec; 19] = [
     FieldSpec {
         field: "maxRecommendProductCount",
         code: "maxRecommendProductCount",
@@ -8629,6 +8629,17 @@ static EP84_FIELDS: [FieldSpec; 18] = [
         code: "storeShowOtherCityStore",
         ty: ValueType::Int,
         default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        field: "regionIsolation",
+        code: "regionIsolation",
+        ty: ValueType::Int,
+        default: Some("0"),
         is_list: false,
         label: None,
         widget: None,
@@ -8703,7 +8714,7 @@ static EP84_FIELDS: [FieldSpec; 18] = [
     },
 ];
 
-static EP85_FIELDS: [FieldSpec; 14] = [
+static EP85_FIELDS: [FieldSpec; 15] = [
     FieldSpec {
         field: "maxRecommendProductCount",
         code: "maxRecommendProductCount",
@@ -8830,6 +8841,17 @@ static EP85_FIELDS: [FieldSpec; 14] = [
         code: "storeShowOtherCityStore",
         ty: ValueType::Int,
         default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        field: "regionIsolation",
+        code: "regionIsolation",
+        ty: ValueType::Int,
+        default: Some("0"),
         is_list: false,
         label: None,
         widget: None,
