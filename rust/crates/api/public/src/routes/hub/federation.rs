@@ -28,6 +28,9 @@
 //! | `POST` | `/hub/v1/orders/subStatus` | order.report + HMAC 签名 | 跨店下单·子单状态回传（三期③） |
 //! | `POST` | `/hub/v1/wallet/post` | wallet.post + HMAC 签名 | 中央账本·上行记账（三期④，迁移 045） |
 //! | `GET`  | `/hub/v1/wallet/balance?globalMemberId=` | wallet.post | 中央账本·余额查询（三期④） |
+//! | `POST` | `/hub/v1/settle/returns` | order.report + HMAC 签名 | 跨站结算·供货成交回传（三期⑤，迁移 046；feed 钥路径留端点位未落） |
+//! | `GET`  | `/hub/v1/settle/statements` | order.report | 跨站结算·结算单拉取（三期⑤） |
+//! | `POST` | `/hub/v1/settle/confirm` | order.report + HMAC 签名 | 跨站结算·对端确认结算单（三期⑤） |
 //!
 //! 每次带钥调用落 `hub_call_log`（凭证/端点/状态/条数/耗时）。
 
@@ -50,7 +53,8 @@ use nextrade_core::models::hub::federation::{
     MemberAnchorVO, MemberQueryVO, MemberSyncDTO, MemberSyncResultVO, OrderReportDTO,
     OrderReportResultVO, PairActivateVO, PairClaimDTO, PairClaimVO, PairStatusDTO, PairStatusVO,
     SsoAuthRequestDTO, SsoAuthRequestVO, SsoExchangeDTO, SsoExchangeVO, UpdateEndpointDTO,
-    WalletBalanceVO, WalletPostDTO, WalletPostVO, XorderReserveDTO, XorderReserveVO,
+    HubSettleStatementVO, SettleConfirmDTO, SettleReturnsDTO, SettleReturnsVO, WalletBalanceVO,
+    WalletPostDTO, WalletPostVO, XorderReserveDTO, XorderReserveVO,
     XorderRouteDTO, XorderRouteVO, XorderSubSnDTO, XorderSubStatusDTO,
     MSG_HUB_SIGNATURE_INVALID, MSG_HUB_UNAUTHORIZED, SCOPE_CONFIG_PULL, SCOPE_MEMBER_AUTH,
     SCOPE_MEMBER_READ, SCOPE_MEMBER_SYNC, SCOPE_META_READ, SCOPE_ORDER_PLACE, SCOPE_ORDER_REPORT,
@@ -63,7 +67,7 @@ use nextrade_security::web::{ok, ApiResult, AppError};
 use super::super::super::PublicState;
 
 /// 本域路由（去掉 `/api` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 24] = [
+const ROUTE_TABLE: [(&str, &str, &str); 27] = [
     ("POST", "/hub/v1/pair/claim", "HubApi.pairClaim"),
     ("POST", "/hub/v1/pair/status", "HubApi.pairStatus"),
     ("POST", "/hub/v1/pair/activate", "HubApi.pairActivate"),
@@ -88,6 +92,9 @@ const ROUTE_TABLE: [(&str, &str, &str); 24] = [
     ("POST", "/hub/v1/orders/subStatus", "HubApi.ordersSubStatus"),
     ("POST", "/hub/v1/wallet/post", "HubApi.walletPost"),
     ("GET", "/hub/v1/wallet/balance", "HubApi.walletBalance"),
+    ("POST", "/hub/v1/settle/returns", "HubApi.settleReturns"),
+    ("GET", "/hub/v1/settle/statements", "HubApi.settleStatements"),
+    ("POST", "/hub/v1/settle/confirm", "HubApi.settleConfirm"),
 ];
 
 /// 联邦面路由（自带凭证鉴权）。
@@ -118,6 +125,9 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/hub/v1/orders/subStatus", post(orders_sub_status))
         .route("/hub/v1/wallet/post", post(wallet_post))
         .route("/hub/v1/wallet/balance", get(wallet_balance))
+        .route("/hub/v1/settle/returns", post(settle_returns))
+        .route("/hub/v1/settle/statements", get(settle_statements))
+        .route("/hub/v1/settle/confirm", post(settle_confirm))
 }
 
 /// 本域已实现路由（覆盖率统计）。
@@ -816,6 +826,93 @@ async fn wallet_balance(
         .hub
         .federation
         .record_call(&cred, "/api/hub/v1/wallet/balance", "wallet.post", 200, 1, &client_ip(&headers), started)
+        .await;
+    ok(vo)
+}
+
+/// 三期⑤：供货成交回传（order.report + 签名，供货方 → 中枢）。
+async fn settle_returns(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> ApiResult<SettleReturnsVO> {
+    let started = Instant::now();
+    let cred = auth_cred(&state, &headers, SCOPE_ORDER_REPORT).await?;
+    let (ts, sig) = signature_parts(&headers)?;
+    let text = String::from_utf8(body.to_vec())
+        .map_err(|_| AppError(Error::Validation("请求体不是合法 UTF-8".into())))?;
+    state
+        .hub
+        .federation
+        .verify_push_signature(&cred, ts, &sig, &text)
+        .map_err(AppError)?;
+    let dto: SettleReturnsDTO = serde_json::from_str(&text)
+        .map_err(|_| AppError(Error::Validation("请求体不是合法的回传 JSON".into())))?;
+    let count = i32::try_from(dto.returns.len()).unwrap_or(i32::MAX);
+    let vo = state
+        .hub
+        .federation
+        .receive_settle_returns(&cred, &dto)
+        .await
+        .map_err(AppError)?;
+    state
+        .hub
+        .federation
+        .record_call(&cred, "/api/hub/v1/settle/returns", "order.report", 200, count, &client_ip(&headers), started)
+        .await;
+    ok(vo)
+}
+
+/// 三期⑤：结算单拉取（order.report，对端确认前查看）。
+async fn settle_statements(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+) -> ApiResult<Vec<HubSettleStatementVO>> {
+    let started = Instant::now();
+    let cred = auth_cred(&state, &headers, SCOPE_ORDER_REPORT).await?;
+    let list = state
+        .hub
+        .federation
+        .receive_settle_statements(&cred)
+        .await
+        .map_err(AppError)?;
+    let count = i32::try_from(list.len()).unwrap_or(i32::MAX);
+    state
+        .hub
+        .federation
+        .record_call(&cred, "/api/hub/v1/settle/statements", "order.report", 200, count, &client_ip(&headers), started)
+        .await;
+    ok(list)
+}
+
+/// 三期⑤：对端确认结算单（order.report + 签名）。
+async fn settle_confirm(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> ApiResult<HubSettleStatementVO> {
+    let started = Instant::now();
+    let cred = auth_cred(&state, &headers, SCOPE_ORDER_REPORT).await?;
+    let (ts, sig) = signature_parts(&headers)?;
+    let text = String::from_utf8(body.to_vec())
+        .map_err(|_| AppError(Error::Validation("请求体不是合法 UTF-8".into())))?;
+    state
+        .hub
+        .federation
+        .verify_push_signature(&cred, ts, &sig, &text)
+        .map_err(AppError)?;
+    let dto: SettleConfirmDTO = serde_json::from_str(&text)
+        .map_err(|_| AppError(Error::Validation("请求体不是合法的确认 JSON".into())))?;
+    let vo = state
+        .hub
+        .federation
+        .receive_settle_confirm(&cred, &dto)
+        .await
+        .map_err(AppError)?;
+    state
+        .hub
+        .federation
+        .record_call(&cred, "/api/hub/v1/settle/confirm", "order.report", 200, 1, &client_ip(&headers), started)
         .await;
     ok(vo)
 }

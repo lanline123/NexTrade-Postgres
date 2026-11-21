@@ -2649,6 +2649,348 @@ pub fn wallet_merge_biz_sn(link_id: i32, local_user_id: i32, currency: &str) -> 
     format!("merge-{link_id}-{local_user_id}-{currency}")
 }
 
+// ———————————————————— 三期⑤：跨站结算（迁移 046） ————————————————————
+//
+// 设计：~/workspace/federation-phase3/DESIGN.md §5（总设计 §11）。
+// 只记账、只生成结算单，不做真实跨站资金划拨；分账只记账目、渠道未执行。
+// 主体键恒为 link_id / credential_id；partner_user_id 只是快照（§11.6）。
+
+/// 账目来源：跨店分账。
+pub const SETTLE_SRC_XORDER: &str = "xorder";
+/// 账目来源：跨店退款冲抵。
+pub const SETTLE_SRC_XORDER_REFUND: &str = "xorder_refund";
+/// 账目来源：供货成交回传。
+pub const SETTLE_SRC_SUPPLY_RETURN: &str = "supply_return";
+/// 账目来源：供货退款冲抵。
+pub const SETTLE_SRC_SUPPLY_REFUND: &str = "supply_refund";
+/// 账目来源：预付扣减。
+pub const SETTLE_SRC_PREPAID_DEDUCT: &str = "prepaid_deduct";
+/// 账目来源：结转入。
+pub const SETTLE_SRC_CARRY_IN: &str = "carry_in";
+
+pub const SETTLE_LINE_NORMAL: i32 = 1;
+pub const SETTLE_LINE_SUSPENDED: i32 = 2;
+
+pub const SETTLE_EXEC_PENDING: i32 = 0;
+pub const SETTLE_EXEC_CONFIRMED: i32 = 1;
+pub const SETTLE_EXEC_SETTLED: i32 = 2;
+pub const SETTLE_EXEC_CARRIED: i32 = 3;
+
+pub const MSG_SETTLE_RATE_PENDING: &str = "周期内存在未定费率账目行，请先设置连接覆盖费率并重算费率";
+pub const MSG_SETTLE_NOT_FOUND: &str = "结算记录不存在";
+
+/// `hub_settle_account` 行（预付账户）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubSettleAccount {
+    pub id: i32,
+    pub subject_type: String,
+    pub subject_id: i32,
+    pub balance: Decimal,
+    pub warn_line: Decimal,
+    pub status: i16,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// `hub_settle_line` 行（账目行）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubSettleLine {
+    pub id: i32,
+    pub link_id: i32,
+    pub credential_id: i32,
+    pub partner_user_id: i32,
+    pub source_type: String,
+    pub remote_order_sn: String,
+    pub item_name: String,
+    pub quantity: i32,
+    pub deal_amount: Decimal,
+    pub supply_amount: Decimal,
+    pub rate: Decimal,
+    pub rate_pending: i16,
+    pub self_due: Decimal,
+    pub peer_due: Decimal,
+    pub statement_id: i32,
+    pub line_status: i16,
+    pub biz_sn: String,
+    pub remark: String,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// `hub_settle_statement` 行（结算单）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubSettleStatement {
+    pub id: i32,
+    pub statement_sn: String,
+    pub link_id: i32,
+    pub credential_id: i32,
+    pub partner_user_id: i32,
+    pub period_start: i32,
+    pub period_end: i32,
+    pub total_deal: Decimal,
+    pub self_total: Decimal,
+    pub peer_total: Decimal,
+    pub net_amount: Decimal,
+    pub line_count: i32,
+    pub diff_count: i32,
+    pub statement_type: i16,
+    pub self_confirm: i16,
+    pub peer_confirm: i16,
+    pub exec_status: i16,
+    pub carry_amount: Decimal,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// 管理端：预付账户 VO（带预警标记）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubSettleAccountVO {
+    pub id: i32,
+    pub subject_type: String,
+    pub subject_id: i32,
+    pub balance: Decimal,
+    pub warn_line: Decimal,
+    /// 余额低于预警线（含负数）。
+    pub warning: bool,
+    pub status: i32,
+    pub update_time: i32,
+}
+
+impl From<&HubSettleAccount> for HubSettleAccountVO {
+    fn from(r: &HubSettleAccount) -> Self {
+        Self {
+            id: r.id,
+            subject_type: r.subject_type.clone(),
+            subject_id: r.subject_id,
+            balance: r.balance,
+            warn_line: r.warn_line,
+            warning: r.balance < r.warn_line,
+            status: i32::from(r.status),
+            update_time: r.update_time,
+        }
+    }
+}
+
+/// 管理端：账目行 VO。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubSettleLineVO {
+    pub id: i32,
+    pub link_id: i32,
+    pub credential_id: i32,
+    pub partner_user_id: i32,
+    pub source_type: String,
+    pub remote_order_sn: String,
+    pub item_name: String,
+    pub quantity: i32,
+    pub deal_amount: Decimal,
+    pub supply_amount: Decimal,
+    pub rate: Decimal,
+    pub rate_pending: i32,
+    pub self_due: Decimal,
+    pub peer_due: Decimal,
+    pub statement_id: i32,
+    pub line_status: i32,
+    pub biz_sn: String,
+    pub remark: String,
+    pub add_time: i32,
+}
+
+impl From<&HubSettleLine> for HubSettleLineVO {
+    fn from(r: &HubSettleLine) -> Self {
+        Self {
+            id: r.id,
+            link_id: r.link_id,
+            credential_id: r.credential_id,
+            partner_user_id: r.partner_user_id,
+            source_type: r.source_type.clone(),
+            remote_order_sn: r.remote_order_sn.clone(),
+            item_name: r.item_name.clone(),
+            quantity: r.quantity,
+            deal_amount: r.deal_amount,
+            supply_amount: r.supply_amount,
+            rate: r.rate,
+            rate_pending: i32::from(r.rate_pending),
+            self_due: r.self_due,
+            peer_due: r.peer_due,
+            statement_id: r.statement_id,
+            line_status: i32::from(r.line_status),
+            biz_sn: r.biz_sn.clone(),
+            remark: r.remark.clone(),
+            add_time: r.add_time,
+        }
+    }
+}
+
+/// 结算单 VO（管理端与联邦面共用）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubSettleStatementVO {
+    pub id: i32,
+    pub statement_sn: String,
+    pub link_id: i32,
+    pub credential_id: i32,
+    pub partner_user_id: i32,
+    pub period_start: i32,
+    pub period_end: i32,
+    pub total_deal: Decimal,
+    pub self_total: Decimal,
+    pub peer_total: Decimal,
+    pub net_amount: Decimal,
+    pub line_count: i32,
+    pub diff_count: i32,
+    pub statement_type: i32,
+    pub self_confirm: i32,
+    pub peer_confirm: i32,
+    pub exec_status: i32,
+    pub carry_amount: Decimal,
+    pub add_time: i32,
+}
+
+impl From<&HubSettleStatement> for HubSettleStatementVO {
+    fn from(r: &HubSettleStatement) -> Self {
+        Self {
+            id: r.id,
+            statement_sn: r.statement_sn.clone(),
+            link_id: r.link_id,
+            credential_id: r.credential_id,
+            partner_user_id: r.partner_user_id,
+            period_start: r.period_start,
+            period_end: r.period_end,
+            total_deal: r.total_deal,
+            self_total: r.self_total,
+            peer_total: r.peer_total,
+            net_amount: r.net_amount,
+            line_count: r.line_count,
+            diff_count: r.diff_count,
+            statement_type: i32::from(r.statement_type),
+            self_confirm: i32::from(r.self_confirm),
+            peer_confirm: i32::from(r.peer_confirm),
+            exec_status: i32::from(r.exec_status),
+            carry_amount: r.carry_amount,
+            add_time: r.add_time,
+        }
+    }
+}
+
+/// `POST /api/hub/v1/settle/returns` 单条回传。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SettleReturnItemDTO {
+    pub biz_sn: String,
+    pub remote_order_sn: String,
+    pub item_name: String,
+    pub quantity: i32,
+    pub deal_price: Decimal,
+    pub supply_price: Decimal,
+    pub refund: bool,
+}
+
+/// `POST /api/hub/v1/settle/returns` 入参（批量）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SettleReturnsDTO {
+    pub returns: Vec<SettleReturnItemDTO>,
+}
+
+/// 供货回传处理回执。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettleReturnsVO {
+    pub accepted: i32,
+    pub duplicated: i32,
+    /// 同 bizSn 重报金额不一致被拒收的条数（差异计数）。
+    pub diffs: i32,
+}
+
+/// `POST /api/hub/v1/settle/confirm` 入参（对端按单号确认）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SettleConfirmDTO {
+    pub statement_sn: String,
+}
+
+/// 管理端：生成结算单入参（周期为 Unix 秒）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SettleGenerateDTO {
+    pub link_id: i32,
+    pub period_start: i32,
+    pub period_end: i32,
+}
+
+/// 管理端：预付账户开户入参。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SettleAccountOpenDTO {
+    pub subject_type: String,
+    pub subject_id: i32,
+    pub warn_line: Decimal,
+}
+
+/// 管理端：预付账户充值登记入参（amount 可正可负，只记账不划拨）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SettleAccountAdjustDTO {
+    pub id: i32,
+    pub amount: Decimal,
+}
+
+/// 管理端：账目行状态入参（1 恢复正常 / 2 差异挂起）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SettleLineStatusDTO {
+    pub id: i32,
+    pub line_status: i32,
+}
+
+/// 管理端：账目行列表查询。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HubSettleLineListQuery {
+    pub page: Option<u64>,
+    #[serde(alias = "size")]
+    pub page_size: Option<u64>,
+    pub link_id: Option<i32>,
+    pub source_type: Option<String>,
+    pub line_status: Option<i32>,
+    pub statement_id: Option<i32>,
+}
+
+/// 管理端：结算单列表查询。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HubSettleStatementListQuery {
+    pub page: Option<u64>,
+    #[serde(alias = "size")]
+    pub page_size: Option<u64>,
+    pub link_id: Option<i32>,
+    pub exec_status: Option<i32>,
+}
+
+/// 纯逻辑：连接费率解析（DESIGN §0 改口径 2 的单点收口）。
+/// 连接覆盖费率 > 0 → (费率， false)；未设 → (0, true) 未定费率。
+/// 后续接分销等级查表只改本函数内部，不影响账目模型。
+#[must_use]
+pub fn resolve_link_rate(rate_override: Decimal) -> (Decimal, bool) {
+    if rate_override > Decimal::ZERO {
+        (rate_override, false)
+    } else {
+        (Decimal::ZERO, true)
+    }
+}
+
+/// 纯逻辑：跨店分账拆分（成交额 × 费率% = 中枢佣金；店主应得 = 成交 − 佣金 + 运费）。
+#[must_use]
+pub fn xorder_split(deal: Decimal, shipping: Decimal, rate: Decimal) -> (Decimal, Decimal) {
+    let commission = deal * rate / Decimal::from(100);
+    (commission, deal - commission + shipping)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2852,6 +3194,24 @@ mod member_order_tests {
         ));
         assert!(!sso_return_url_allowed("", "https://shop.example.com"));
         assert!(!sso_return_url_allowed("https://shop.example.com/cb", ""));
+    }
+
+    #[test]
+    fn settle_rate_resolution_and_split() {
+        let (rate, pending) = resolve_link_rate(Decimal::new(5, 0));
+        assert_eq!(rate, Decimal::new(5, 0));
+        assert!(!pending);
+        let (rate, pending) = resolve_link_rate(Decimal::ZERO);
+        assert_eq!(rate, Decimal::ZERO);
+        assert!(pending);
+        // 成交 200、运费 10、费率 5% → 佣金 10、店主应得 200。
+        let (commission, peer) = xorder_split(
+            Decimal::new(200, 0),
+            Decimal::new(10, 0),
+            Decimal::new(5, 0),
+        );
+        assert_eq!(commission, Decimal::new(10, 0));
+        assert_eq!(peer, Decimal::new(200, 0));
     }
 
     #[test]

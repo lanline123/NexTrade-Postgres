@@ -3578,6 +3578,8 @@ impl FederationService {
                 self.repo()
                     .set_xorder_sub_status(sub.id, XSUB_REFUNDED, self.now())
                     .await?;
+                // 三期⑤钩子：退款成立且此前已记分账行 → 生成负行冲抵。
+                self.gen_xorder_refund_settle_line(&sub).await?;
                 self.refresh_xorder_aggregate(master.id).await
             }
             Err(e) => {
@@ -3619,6 +3621,10 @@ impl FederationService {
                 self.now(),
             )
             .await?;
+        // 三期⑤钩子：子单完成 → 生成跨店分账账目行（只记账目，渠道未执行）。
+        if dto.status == XSUB_COMPLETED {
+            self.gen_xorder_settle_line(&sub).await?;
+        }
         self.refresh_xorder_aggregate(sub.master_id).await
     }
 
@@ -3949,6 +3955,483 @@ impl FederationService {
             .set_route_status(route.id, mapped, self.now())
             .await?;
         Ok(json!({ "synced": true, "status": mapped }))
+    }
+
+    // ———————————————————— 三期⑤：跨站结算（迁移 046；DESIGN.md §5） ————————————————————
+
+    /// 跨店分账行生成（子单完成钩子；bizSn 幂等）。费率走 resolve_link_rate
+    /// 单点收口：未定费率照常落行打标，生成结算单时拦截。
+    pub async fn gen_xorder_settle_line(&self, sub: &HubXorderSub) -> Result<()> {
+        let biz_sn = format!("xo-{}", sub.sub_sn);
+        if self
+            .repo()
+            .find_settle_line_by_biz(sub.link_id, 0, &biz_sn)
+            .await?
+            .is_some()
+        {
+            return Ok(());
+        }
+        let link = self.load_link(sub.link_id).await?;
+        let (rate, pending) = resolve_link_rate(link.rate_override);
+        let (commission, peer) = xorder_split(sub.amount, sub.shipping_fee, rate);
+        let items = self.repo().list_xorder_items(sub.id).await?;
+        let line = HubSettleLine {
+            link_id: sub.link_id,
+            credential_id: 0,
+            partner_user_id: link.partner_user_id,
+            source_type: SETTLE_SRC_XORDER.to_string(),
+            remote_order_sn: sub.remote_order_sn.clone(),
+            item_name: items
+                .first()
+                .map(|i| i.product_name.clone())
+                .unwrap_or_default(),
+            quantity: items.iter().map(|i| i.quantity).sum(),
+            deal_amount: sub.amount,
+            supply_amount: Decimal::ZERO,
+            rate,
+            rate_pending: if pending { 1 } else { 0 },
+            self_due: commission,
+            peer_due: peer,
+            line_status: SETTLE_LINE_NORMAL as i16,
+            biz_sn,
+            remark: "账目分账，渠道未执行".to_string(),
+            add_time: self.now(),
+            ..Default::default()
+        };
+        self.repo().insert_settle_line(&line).await?;
+        Ok(())
+    }
+
+    /// 跨店退款冲抵行（退款成立钩子）：仅当正行已存在（子单曾完成记账）
+    /// 才镜像负行；未完成过的子单退款不记负行（无佣金可冲）。
+    pub async fn gen_xorder_refund_settle_line(&self, sub: &HubXorderSub) -> Result<()> {
+        let Some(src) = self
+            .repo()
+            .find_settle_line_by_biz(sub.link_id, 0, &format!("xo-{}", sub.sub_sn))
+            .await?
+        else {
+            return Ok(());
+        };
+        let line = HubSettleLine {
+            link_id: src.link_id,
+            credential_id: 0,
+            partner_user_id: src.partner_user_id,
+            source_type: SETTLE_SRC_XORDER_REFUND.to_string(),
+            remote_order_sn: src.remote_order_sn.clone(),
+            item_name: src.item_name.clone(),
+            quantity: src.quantity,
+            deal_amount: -src.deal_amount,
+            supply_amount: Decimal::ZERO,
+            rate: src.rate,
+            rate_pending: src.rate_pending,
+            self_due: -src.self_due,
+            peer_due: -src.peer_due,
+            line_status: SETTLE_LINE_NORMAL as i16,
+            biz_sn: format!("xor-{}", sub.sub_sn),
+            remark: "跨店退款冲抵（账目）".to_string(),
+            add_time: self.now(),
+            ..Default::default()
+        };
+        self.repo().insert_settle_line(&line).await?;
+        Ok(())
+    }
+
+    /// 联邦面：供货成交回传接收（order.report）。以 bizSn 幂等；同单号重报
+    /// 金额不一致拒收计差异。落行口径按连接结算模式：periodic（及未设/
+    /// commission）→ 供货方应得入 peer_due；prepaid → 扣回传方预付账户
+    /// （可扣负，扣负行标差异挂起）。feed 钥路径本批未落（见报告接缝）。
+    pub async fn receive_settle_returns(
+        &self,
+        cred: &HubCredential,
+        dto: &SettleReturnsDTO,
+    ) -> Result<SettleReturnsVO> {
+        if dto.returns.is_empty() || dto.returns.len() > 200 {
+            return Err(Error::Validation("回传条目为空或超过 200 条".into()));
+        }
+        let link = self.load_link(cred.link_id).await?;
+        let prepaid = link.settle_mode == "prepaid";
+        let mut vo = SettleReturnsVO::default();
+        for item in &dto.returns {
+            let biz_sn = item.biz_sn.trim();
+            if biz_sn.is_empty() || biz_sn.len() > 80 || item.quantity <= 0 {
+                vo.diffs += 1;
+                continue;
+            }
+            let amount = item.supply_price * Decimal::from(item.quantity);
+            let deal = item.deal_price * Decimal::from(item.quantity);
+            if let Some(exist) = self
+                .repo()
+                .find_settle_line_by_biz(cred.link_id, cred.id, biz_sn)
+                .await?
+            {
+                if exist.supply_amount.abs() != amount {
+                    vo.diffs += 1;
+                } else {
+                    vo.duplicated += 1;
+                }
+                continue;
+            }
+            let mut line = HubSettleLine {
+                link_id: cred.link_id,
+                credential_id: cred.id,
+                partner_user_id: link.partner_user_id,
+                remote_order_sn: item.remote_order_sn.trim().to_string(),
+                item_name: item.item_name.trim().to_string(),
+                quantity: item.quantity,
+                line_status: SETTLE_LINE_NORMAL as i16,
+                biz_sn: biz_sn.to_string(),
+                add_time: self.now(),
+                ..Default::default()
+            };
+            if prepaid {
+                let Some(account) = self
+                    .repo()
+                    .find_settle_account_by_subject("link", cred.link_id)
+                    .await?
+                else {
+                    // 无预付账户不可扣减：计差异待运营先开户。
+                    vo.diffs += 1;
+                    continue;
+                };
+                if item.refund {
+                    let balance = self
+                        .repo()
+                        .adjust_settle_account(account.id, amount, self.now())
+                        .await?
+                        .unwrap_or(account.balance + amount);
+                    line.source_type = SETTLE_SRC_SUPPLY_REFUND.to_string();
+                    line.supply_amount = -amount;
+                    line.remark = format!("预付退款回充，回充后余额 {balance}");
+                } else {
+                    let balance = self
+                        .repo()
+                        .adjust_settle_account(account.id, -amount, self.now())
+                        .await?
+                        .unwrap_or(account.balance - amount);
+                    line.source_type = SETTLE_SRC_PREPAID_DEDUCT.to_string();
+                    line.supply_amount = amount;
+                    line.remark = format!("预付扣减，扣后余额 {balance}");
+                    if balance < Decimal::ZERO {
+                        line.line_status = SETTLE_LINE_SUSPENDED as i16;
+                    }
+                }
+            } else if item.refund {
+                line.source_type = SETTLE_SRC_SUPPLY_REFUND.to_string();
+                line.deal_amount = -deal;
+                line.supply_amount = -amount;
+                line.peer_due = -amount;
+                line.remark = "供货退款冲抵".to_string();
+            } else {
+                line.source_type = SETTLE_SRC_SUPPLY_RETURN.to_string();
+                line.deal_amount = deal;
+                line.supply_amount = amount;
+                line.peer_due = amount;
+                line.remark = "供货成交回传（周期结算）".to_string();
+            }
+            self.repo().insert_settle_line(&line).await?;
+            vo.accepted += 1;
+        }
+        Ok(vo)
+    }
+
+    /// 联邦面：对端拉取本连接结算单（确认用）。
+    pub async fn receive_settle_statements(
+        &self,
+        cred: &HubCredential,
+    ) -> Result<Vec<HubSettleStatementVO>> {
+        let rows = self.repo().list_link_statements(cred.link_id).await?;
+        Ok(rows.iter().map(HubSettleStatementVO::from).collect())
+    }
+
+    /// 联邦面：对端确认结算单（双确认齐 → 已确认待结清）。
+    pub async fn receive_settle_confirm(
+        &self,
+        cred: &HubCredential,
+        dto: &SettleConfirmDTO,
+    ) -> Result<HubSettleStatementVO> {
+        let stmt = self
+            .repo()
+            .find_settle_statement_by_sn(dto.statement_sn.trim())
+            .await?
+            .filter(|s| s.link_id == cred.link_id)
+            .ok_or_else(|| Error::NotFound(MSG_SETTLE_NOT_FOUND.into()))?;
+        let updated = self
+            .repo()
+            .set_statement_peer_confirm(stmt.id, self.now())
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_SETTLE_NOT_FOUND.into()))?;
+        if updated.self_confirm == 1 && i32::from(updated.exec_status) == SETTLE_EXEC_PENDING {
+            self.repo()
+                .set_statement_exec(stmt.id, SETTLE_EXEC_CONFIRMED, self.now())
+                .await?;
+        }
+        let final_stmt = self
+            .repo()
+            .find_settle_statement(stmt.id)
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_SETTLE_NOT_FOUND.into()))?;
+        Ok(HubSettleStatementVO::from(&final_stmt))
+    }
+
+    /// 管理端：生成结算单。先把上期结转额以 carry_in 行带入本期，再汇聚
+    /// 周期内未入单正常行；未定费率行存在 → 拦截；net<0 → 整单结转下期。
+    pub async fn generate_statement(
+        &self,
+        dto: &SettleGenerateDTO,
+    ) -> Result<HubSettleStatementVO> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        if dto.link_id <= 0 || dto.period_end < dto.period_start {
+            return Err(Error::Validation("结算周期不合法".into()));
+        }
+        let link = self.load_link(dto.link_id).await?;
+        for st in self.repo().list_carried_statements(dto.link_id).await? {
+            let line = HubSettleLine {
+                link_id: dto.link_id,
+                credential_id: 0,
+                partner_user_id: link.partner_user_id,
+                source_type: SETTLE_SRC_CARRY_IN.to_string(),
+                self_due: st.carry_amount,
+                line_status: SETTLE_LINE_NORMAL as i16,
+                biz_sn: format!("carry-{}", st.statement_sn),
+                remark: format!("上期结算单 {} 结转入", st.statement_sn),
+                add_time: self.now(),
+                ..Default::default()
+            };
+            self.repo().insert_settle_line(&line).await?;
+        }
+        let lines = self
+            .repo()
+            .list_unstated_lines(dto.link_id, dto.period_start, dto.period_end)
+            .await?;
+        if lines.is_empty() {
+            return Err(Error::Validation("周期内无可入单账目行".into()));
+        }
+        if lines.iter().any(|l| l.rate_pending == 1) {
+            return Err(Error::Validation(MSG_SETTLE_RATE_PENDING.into()));
+        }
+        let mut total_deal = Decimal::ZERO;
+        let mut self_total = Decimal::ZERO;
+        let mut peer_total = Decimal::ZERO;
+        for l in &lines {
+            total_deal += l.deal_amount;
+            self_total += l.self_due;
+            peer_total += l.peer_due;
+        }
+        let net = peer_total - self_total;
+        let (exec_status, carry_amount) = if net < Decimal::ZERO {
+            (SETTLE_EXEC_CARRIED, -net)
+        } else {
+            (SETTLE_EXEC_PENDING, Decimal::ZERO)
+        };
+        let stmt = HubSettleStatement {
+            statement_sn: format!("ST{}-{}", self.now(), utils::random_hex(4)),
+            link_id: dto.link_id,
+            credential_id: 0,
+            partner_user_id: link.partner_user_id,
+            period_start: dto.period_start,
+            period_end: dto.period_end,
+            total_deal,
+            self_total,
+            peer_total,
+            net_amount: net,
+            line_count: i32::try_from(lines.len()).unwrap_or(i32::MAX),
+            diff_count: 0,
+            statement_type: if self_total > Decimal::ZERO && peer_total > Decimal::ZERO {
+                2
+            } else {
+                1
+            },
+            exec_status: exec_status as i16,
+            carry_amount,
+            add_time: self.now(),
+            ..Default::default()
+        };
+        let stmt_id = self.repo().insert_settle_statement(&stmt).await?;
+        let ids: Vec<i32> = lines.iter().map(|l| l.id).collect();
+        self.repo()
+            .assign_lines_to_statement(&ids, stmt_id, self.now())
+            .await?;
+        let saved = self
+            .repo()
+            .find_settle_statement(stmt_id)
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_SETTLE_NOT_FOUND.into()))?;
+        Ok(HubSettleStatementVO::from(&saved))
+    }
+
+    /// 管理端：本方确认结算单。
+    pub async fn confirm_statement_admin(&self, id: i32) -> Result<HubSettleStatementVO> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        let stmt = self
+            .repo()
+            .find_settle_statement(id)
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_SETTLE_NOT_FOUND.into()))?;
+        if i32::from(stmt.exec_status) == SETTLE_EXEC_CARRIED
+            || i32::from(stmt.exec_status) == SETTLE_EXEC_SETTLED
+        {
+            return Ok(HubSettleStatementVO::from(&stmt));
+        }
+        let updated = self
+            .repo()
+            .set_statement_self_confirm(id, self.now())
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_SETTLE_NOT_FOUND.into()))?;
+        if updated.peer_confirm == 1 && i32::from(updated.exec_status) == SETTLE_EXEC_PENDING {
+            self.repo()
+                .set_statement_exec(id, SETTLE_EXEC_CONFIRMED, self.now())
+                .await?;
+        }
+        let final_stmt = self
+            .repo()
+            .find_settle_statement(id)
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_SETTLE_NOT_FOUND.into()))?;
+        Ok(HubSettleStatementVO::from(&final_stmt))
+    }
+
+    /// 管理端：结清登记（只改状态记账，不动资金）。
+    pub async fn mark_statement_settled(&self, id: i32) -> Result<HubSettleStatementVO> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        let stmt = self
+            .repo()
+            .find_settle_statement(id)
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_SETTLE_NOT_FOUND.into()))?;
+        if i32::from(stmt.exec_status) != SETTLE_EXEC_CONFIRMED {
+            return Err(Error::Validation(
+                "结算单未双确认，不能结清登记".into(),
+            ));
+        }
+        self.repo()
+            .set_statement_exec(id, SETTLE_EXEC_SETTLED, self.now())
+            .await?;
+        let saved = self
+            .repo()
+            .find_settle_statement(id)
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_SETTLE_NOT_FOUND.into()))?;
+        Ok(HubSettleStatementVO::from(&saved))
+    }
+
+    /// 管理端：账目行差异挂起/恢复（仅未入单行）。
+    pub async fn set_settle_line_status(&self, dto: &SettleLineStatusDTO) -> Result<()> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        if dto.line_status != SETTLE_LINE_NORMAL && dto.line_status != SETTLE_LINE_SUSPENDED {
+            return Err(Error::Validation("行状态只可设为正常或差异挂起".into()));
+        }
+        let line = self
+            .repo()
+            .find_settle_line(dto.id)
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_SETTLE_NOT_FOUND.into()))?;
+        if line.statement_id != 0 {
+            return Err(Error::Validation("已入单的账目行不可变更状态".into()));
+        }
+        self.repo()
+            .set_settle_line_status(dto.id, dto.line_status, self.now())
+            .await?;
+        Ok(())
+    }
+
+    /// 管理端：未定费率行重算（连接须已设覆盖费率）。
+    pub async fn reprice_settle_lines(&self, link_id: i32) -> Result<Value> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        let link = self.load_link(link_id).await?;
+        let (rate, pending) = resolve_link_rate(link.rate_override);
+        if pending {
+            return Err(Error::Validation(
+                "请先在连接审批中设置覆盖费率，再重算".into(),
+            ));
+        }
+        let count = self
+            .repo()
+            .reprice_pending_lines(link_id, rate, self.now())
+            .await?;
+        Ok(json!({ "repriced": count, "rate": rate }))
+    }
+
+    /// 管理端：预付账户开户。
+    pub async fn open_settle_account_admin(
+        &self,
+        dto: &SettleAccountOpenDTO,
+    ) -> Result<HubSettleAccountVO> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        if !matches!(dto.subject_type.as_str(), "link" | "credential") || dto.subject_id <= 0 {
+            return Err(Error::Validation("结算账户主体不合法".into()));
+        }
+        let account = self
+            .repo()
+            .open_settle_account(
+                &dto.subject_type,
+                dto.subject_id,
+                dto.warn_line,
+                self.now(),
+            )
+            .await?;
+        Ok(HubSettleAccountVO::from(&account))
+    }
+
+    /// 管理端：预付账户充值登记（只记账，不划拨真实资金）。
+    pub async fn adjust_settle_account_admin(
+        &self,
+        dto: &SettleAccountAdjustDTO,
+    ) -> Result<Value> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        if dto.amount == Decimal::ZERO {
+            return Err(Error::Validation("登记金额不可为 0".into()));
+        }
+        let balance = self
+            .repo()
+            .adjust_settle_account(dto.id, dto.amount, self.now())
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_SETTLE_NOT_FOUND.into()))?;
+        Ok(json!({ "id": dto.id, "balance": balance }))
+    }
+
+    /// 管理端：预付账户列表。
+    pub async fn list_settle_accounts_admin(
+        &self,
+    ) -> Result<PageResult<HubSettleAccountVO>> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        let rows = self.repo().list_settle_accounts().await?;
+        let total = rows.len() as u64;
+        let list = rows.iter().map(HubSettleAccountVO::from).collect();
+        let page = PageQuery {
+            page: 1,
+            page_size: u64::try_from(total.max(1)).unwrap_or(20),
+        };
+        Ok(PageResult::new(total, list, &page))
+    }
+
+    /// 管理端：账目行列表。
+    pub async fn list_settle_lines_admin(
+        &self,
+        q: &HubSettleLineListQuery,
+    ) -> Result<PageResult<HubSettleLineVO>> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        let (rows, total) = self.repo().list_settle_lines(q).await?;
+        let list = rows.iter().map(HubSettleLineVO::from).collect();
+        let page = PageQuery {
+            page: q.page.unwrap_or(1),
+            page_size: q.page_size.unwrap_or(20),
+        };
+        Ok(PageResult::new(total.max(0) as u64, list, &page))
+    }
+
+    /// 管理端：结算单列表。
+    pub async fn list_settle_statements_admin(
+        &self,
+        q: &HubSettleStatementListQuery,
+    ) -> Result<PageResult<HubSettleStatementVO>> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        let (rows, total) = self.repo().list_settle_statements(q).await?;
+        let list = rows.iter().map(HubSettleStatementVO::from).collect();
+        let page = PageQuery {
+            page: q.page.unwrap_or(1),
+            page_size: q.page_size.unwrap_or(20),
+        };
+        Ok(PageResult::new(total.max(0) as u64, list, &page))
     }
 
     // ———————————————————— 三期④：中央账本（迁移 045；DESIGN.md §4） ————————————————————

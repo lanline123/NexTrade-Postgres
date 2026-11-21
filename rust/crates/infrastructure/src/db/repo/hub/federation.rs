@@ -19,8 +19,10 @@ use nextrade_core::models::hub::federation::{
     HubConfigApply, HubConfigApplyListQuery, HubConfigListQuery, HubConfigPackage, HubCredential,
     HubCredentialListQuery, HubLink, HubLinkListQuery, HubMemberConflict,
     HubMemberConflictListQuery, HubMemberLink, HubMemberListQuery, HubMemberMap, HubOrderSummary,
-    HubOrderSummaryListQuery, HubPairingCode, HubPriceOverride, HubProductMap, HubSsoListQuery,
-    HubSsoRequest, HubSsoState, HubStockHold, HubWalletAccount, HubWalletAccountListQuery,
+    HubOrderSummaryListQuery, HubPairingCode, HubPriceOverride, HubProductMap,
+    HubSettleAccount, HubSettleLine, HubSettleLineListQuery, HubSettleStatement,
+    HubSettleStatementListQuery, HubSsoListQuery, HubSsoRequest, HubSsoState, HubStockHold,
+    HubWalletAccount, HubWalletAccountListQuery,
     HubWalletLine, HubWalletLineListQuery, HubWalletLocalState, HubWalletMirror,
     HubWalletMirrorListQuery, HubXorder, HubXorderItem, HubXorderListQuery, HubXorderRoute,
     HubXorderRouteListQuery, HubXorderSub, LocalMemberRow, LocalOrderRow, OrderReportItem,
@@ -3735,6 +3737,455 @@ fn map_err(e: sqlx::Error) -> Error {
     }
 }
 
+impl HubFederationRepository {
+    // ———————————————————— 三期⑤：跨站结算（迁移 046） ————————————————————
+
+    /// 预付账户开户（已存在回既有行，不覆盖余额）。
+    pub async fn open_settle_account(
+        &self,
+        subject_type: &str,
+        subject_id: i32,
+        warn_line: Decimal,
+        now: i32,
+    ) -> Result<HubSettleAccount> {
+        sqlx::query(
+            "INSERT INTO hub_settle_account (subject_type, subject_id, warn_line, add_time, update_time) \
+             VALUES ($1, $2, $3, $4, $4) ON CONFLICT (subject_type, subject_id) DO NOTHING",
+        )
+        .bind(subject_type)
+        .bind(subject_id)
+        .bind(warn_line)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        self.find_settle_account_by_subject(subject_type, subject_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("结算账户不存在".into()))
+    }
+
+    pub async fn find_settle_account_by_subject(
+        &self,
+        subject_type: &str,
+        subject_id: i32,
+    ) -> Result<Option<HubSettleAccount>> {
+        sqlx::query_as::<_, HubSettleAccount>(
+            "SELECT * FROM hub_settle_account WHERE subject_type = $1 AND subject_id = $2",
+        )
+        .bind(subject_type)
+        .bind(subject_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn list_settle_accounts(&self) -> Result<Vec<HubSettleAccount>> {
+        sqlx::query_as::<_, HubSettleAccount>(
+            "SELECT * FROM hub_settle_account ORDER BY id ASC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 账户余额增减（充值登记/预付扣减/回充共用；允许扣成负，负额由页面告警）。
+    pub async fn adjust_settle_account(
+        &self,
+        id: i32,
+        amount: Decimal,
+        now: i32,
+    ) -> Result<Option<Decimal>> {
+        sqlx::query_scalar::<_, Decimal>(
+            "UPDATE hub_settle_account SET balance = balance + $2, update_time = $3 WHERE id = $1 RETURNING balance",
+        )
+        .bind(id)
+        .bind(amount)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 账目行落行（幂等：同 (link_id, credential_id, biz_sn) 已有 → 回 None）。
+    pub async fn insert_settle_line(&self, line: &HubSettleLine) -> Result<Option<i32>> {
+        sqlx::query_scalar::<_, i32>(
+            "INSERT INTO hub_settle_line (link_id, credential_id, partner_user_id, source_type, remote_order_sn, item_name, quantity, deal_amount, supply_amount, rate, rate_pending, self_due, peer_due, line_status, biz_sn, remark, add_time, update_time) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17) \
+             ON CONFLICT (link_id, credential_id, biz_sn) DO NOTHING RETURNING id",
+        )
+        .bind(line.link_id)
+        .bind(line.credential_id)
+        .bind(line.partner_user_id)
+        .bind(&line.source_type)
+        .bind(&line.remote_order_sn)
+        .bind(&line.item_name)
+        .bind(line.quantity)
+        .bind(line.deal_amount)
+        .bind(line.supply_amount)
+        .bind(line.rate)
+        .bind(line.rate_pending)
+        .bind(line.self_due)
+        .bind(line.peer_due)
+        .bind(line.line_status)
+        .bind(&line.biz_sn)
+        .bind(&line.remark)
+        .bind(line.add_time)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn find_settle_line_by_biz(
+        &self,
+        link_id: i32,
+        credential_id: i32,
+        biz_sn: &str,
+    ) -> Result<Option<HubSettleLine>> {
+        sqlx::query_as::<_, HubSettleLine>(
+            "SELECT * FROM hub_settle_line WHERE link_id = $1 AND credential_id = $2 AND biz_sn = $3",
+        )
+        .bind(link_id)
+        .bind(credential_id)
+        .bind(biz_sn)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn find_settle_line(&self, id: i32) -> Result<Option<HubSettleLine>> {
+        sqlx::query_as::<_, HubSettleLine>("SELECT * FROM hub_settle_line WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    pub async fn list_settle_lines(
+        &self,
+        q: &HubSettleLineListQuery,
+    ) -> Result<(Vec<HubSettleLine>, i64)> {
+        let page = q.page.unwrap_or(1).max(1);
+        let size = q.page_size.unwrap_or(20).clamp(1, 100);
+        let offset = ((page - 1) * size) as i64;
+        let total: (i64,) = settle_line_count_query(q)
+            .build_query_as()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+        let rows = settle_line_page_query(q, size as i64, offset)
+            .build_query_as::<HubSettleLine>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((rows, total.0.max(0)))
+    }
+
+    pub async fn set_settle_line_status(
+        &self,
+        id: i32,
+        line_status: i32,
+        now: i32,
+    ) -> Result<bool> {
+        let n = sqlx::query(
+            "UPDATE hub_settle_line SET line_status = $2, update_time = $3 WHERE id = $1",
+        )
+        .bind(id)
+        .bind(line_status as i16)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(n.rows_affected() > 0)
+    }
+
+    /// 未定费率行重算（仅未入单的跨店分账行）：新佣金 = 成交 × 新费率%；
+    /// 店主应得按差额平移（运费分量不变：peer += 旧佣金 − 新佣金）。
+    pub async fn reprice_pending_lines(
+        &self,
+        link_id: i32,
+        rate: Decimal,
+        now: i32,
+    ) -> Result<u64> {
+        let n = sqlx::query(
+            "UPDATE hub_settle_line \
+             SET peer_due = peer_due + self_due - deal_amount * $2 / 100, \
+                 self_due = deal_amount * $2 / 100, rate = $2, rate_pending = 0, update_time = $3 \
+             WHERE link_id = $1 AND rate_pending = 1 AND statement_id = 0 AND source_type = 'xorder'",
+        )
+        .bind(link_id)
+        .bind(rate)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(n.rows_affected())
+    }
+
+    /// 周期内可入单的行（未入单 + 正常状态）。
+    pub async fn list_unstated_lines(
+        &self,
+        link_id: i32,
+        period_start: i32,
+        period_end: i32,
+    ) -> Result<Vec<HubSettleLine>> {
+        sqlx::query_as::<_, HubSettleLine>(
+            "SELECT * FROM hub_settle_line WHERE link_id = $1 AND statement_id = 0 AND line_status = 1 AND add_time >= $2 AND add_time <= $3 ORDER BY id ASC",
+        )
+        .bind(link_id)
+        .bind(period_start)
+        .bind(period_end)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 某连接已结转待入的行来源结算单（exec_status=3）。
+    pub async fn list_carried_statements(
+        &self,
+        link_id: i32,
+    ) -> Result<Vec<HubSettleStatement>> {
+        sqlx::query_as::<_, HubSettleStatement>(
+            "SELECT * FROM hub_settle_statement WHERE link_id = $1 AND exec_status = 3 AND carry_amount > 0 ORDER BY id ASC",
+        )
+        .bind(link_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn insert_settle_statement(&self, stmt: &HubSettleStatement) -> Result<i32> {
+        sqlx::query_scalar::<_, i32>(
+            "INSERT INTO hub_settle_statement (statement_sn, link_id, credential_id, partner_user_id, period_start, period_end, total_deal, self_total, peer_total, net_amount, line_count, diff_count, statement_type, exec_status, carry_amount, add_time, update_time) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16) RETURNING id",
+        )
+        .bind(&stmt.statement_sn)
+        .bind(stmt.link_id)
+        .bind(stmt.credential_id)
+        .bind(stmt.partner_user_id)
+        .bind(stmt.period_start)
+        .bind(stmt.period_end)
+        .bind(stmt.total_deal)
+        .bind(stmt.self_total)
+        .bind(stmt.peer_total)
+        .bind(stmt.net_amount)
+        .bind(stmt.line_count)
+        .bind(stmt.diff_count)
+        .bind(stmt.statement_type)
+        .bind(stmt.exec_status)
+        .bind(stmt.carry_amount)
+        .bind(stmt.add_time)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 把行批量归入结算单（仅未入单行）。
+    pub async fn assign_lines_to_statement(
+        &self,
+        ids: &[i32],
+        statement_id: i32,
+        now: i32,
+    ) -> Result<u64> {
+        let n = sqlx::query(
+            "UPDATE hub_settle_line SET statement_id = $2, update_time = $3 WHERE id = ANY($1) AND statement_id = 0",
+        )
+        .bind(ids)
+        .bind(statement_id)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(n.rows_affected())
+    }
+
+    pub async fn find_settle_statement(&self, id: i32) -> Result<Option<HubSettleStatement>> {
+        sqlx::query_as::<_, HubSettleStatement>(
+            "SELECT * FROM hub_settle_statement WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn find_settle_statement_by_sn(
+        &self,
+        sn: &str,
+    ) -> Result<Option<HubSettleStatement>> {
+        sqlx::query_as::<_, HubSettleStatement>(
+            "SELECT * FROM hub_settle_statement WHERE statement_sn = $1",
+        )
+        .bind(sn)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn list_settle_statements(
+        &self,
+        q: &HubSettleStatementListQuery,
+    ) -> Result<(Vec<HubSettleStatement>, i64)> {
+        let page = q.page.unwrap_or(1).max(1);
+        let size = q.page_size.unwrap_or(20).clamp(1, 100);
+        let offset = ((page - 1) * size) as i64;
+        let total: (i64,) = settle_statement_count_query(q)
+            .build_query_as()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+        let rows = settle_statement_page_query(q, size as i64, offset)
+            .build_query_as::<HubSettleStatement>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((rows, total.0.max(0)))
+    }
+
+    /// 联邦面：某连接的结算单（对端拉取确认用，最近 50 张）。
+    pub async fn list_link_statements(
+        &self,
+        link_id: i32,
+    ) -> Result<Vec<HubSettleStatement>> {
+        sqlx::query_as::<_, HubSettleStatement>(
+            "SELECT * FROM hub_settle_statement WHERE link_id = $1 ORDER BY id DESC LIMIT 50",
+        )
+        .bind(link_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn set_statement_self_confirm(
+        &self,
+        id: i32,
+        now: i32,
+    ) -> Result<Option<HubSettleStatement>> {
+        sqlx::query_as::<_, HubSettleStatement>(
+            "UPDATE hub_settle_statement SET self_confirm = 1, update_time = $2 WHERE id = $1 RETURNING *",
+        )
+        .bind(id)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn set_statement_peer_confirm(
+        &self,
+        id: i32,
+        now: i32,
+    ) -> Result<Option<HubSettleStatement>> {
+        sqlx::query_as::<_, HubSettleStatement>(
+            "UPDATE hub_settle_statement SET peer_confirm = 1, update_time = $2 WHERE id = $1 RETURNING *",
+        )
+        .bind(id)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn set_statement_exec(
+        &self,
+        id: i32,
+        exec_status: i32,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE hub_settle_statement SET exec_status = $2, update_time = $3 WHERE id = $1",
+        )
+        .bind(id)
+        .bind(exec_status as i16)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+}
+
+fn push_settle_line_filters(
+    qb: &mut QueryBuilder<'static, Postgres>,
+    q: &HubSettleLineListQuery,
+) {
+    if let Some(l) = q.link_id.filter(|v| *v > 0) {
+        qb.push(" AND link_id = ");
+        qb.push_bind(l);
+    }
+    if let Some(s) = q.source_type.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+        qb.push(" AND source_type = ");
+        qb.push_bind(s.to_string());
+    }
+    if let Some(st) = q.line_status {
+        qb.push(" AND line_status = ");
+        qb.push_bind(st as i16);
+    }
+    if let Some(sid) = q.statement_id {
+        qb.push(" AND statement_id = ");
+        qb.push_bind(sid);
+    }
+}
+
+fn push_settle_statement_filters(
+    qb: &mut QueryBuilder<'static, Postgres>,
+    q: &HubSettleStatementListQuery,
+) {
+    if let Some(l) = q.link_id.filter(|v| *v > 0) {
+        qb.push(" AND link_id = ");
+        qb.push_bind(l);
+    }
+    if let Some(e) = q.exec_status {
+        qb.push(" AND exec_status = ");
+        qb.push_bind(e as i16);
+    }
+}
+
+fn settle_line_count_query(q: &HubSettleLineListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_settle_line WHERE 1=1");
+    push_settle_line_filters(&mut qb, q);
+    qb
+}
+
+fn settle_line_page_query(
+    q: &HubSettleLineListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_settle_line WHERE 1=1");
+    push_settle_line_filters(&mut qb, q);
+    qb.push(" ORDER BY id DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
+fn settle_statement_count_query(
+    q: &HubSettleStatementListQuery,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_settle_statement WHERE 1=1");
+    push_settle_statement_filters(&mut qb, q);
+    qb
+}
+
+fn settle_statement_page_query(
+    q: &HubSettleStatementListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_settle_statement WHERE 1=1");
+    push_settle_statement_filters(&mut qb, q);
+    qb.push(" ORDER BY id DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
 #[cfg(test)]
 mod list_sql_tests {
     use super::*;
@@ -4044,4 +4495,24 @@ mod list_sql_tests {
         assert_placeholders(wallet_mirror_count_query(&q).sql(), 2);
         assert_placeholders(wallet_mirror_page_query(&q, 20, 0).sql(), 4);
     }
+    #[test]
+    fn settle_list_filters() {
+        let q = HubSettleLineListQuery {
+            link_id: Some(3),
+            source_type: Some("xorder".into()),
+            line_status: Some(1),
+            statement_id: Some(0),
+            ..Default::default()
+        };
+        assert_placeholders(settle_line_count_query(&q).sql(), 4);
+        assert_placeholders(settle_line_page_query(&q, 20, 0).sql(), 6);
+        let q = HubSettleStatementListQuery {
+            link_id: Some(3),
+            exec_status: Some(0),
+            ..Default::default()
+        };
+        assert_placeholders(settle_statement_count_query(&q).sql(), 2);
+        assert_placeholders(settle_statement_page_query(&q, 20, 0).sql(), 4);
+    }
+
 }

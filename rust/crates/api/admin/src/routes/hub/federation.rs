@@ -55,6 +55,16 @@
 //! | `POST` | `/hub/wallet/releaseExpired` | 释放过期冻结（三期④，中枢侧） |
 //! | `GET`  | `/hub/wallet/mirror` | 本机账本镜像列表（三期④，成员侧） |
 //! | `POST` | `/hub/myLinks/mergeWallet` | 存量并账（三期④，成员侧） |
+//! | `GET`  | `/hub/settle/accounts` | 预付账户列表（三期⑤，迁移 046，订单模块闸） |
+//! | `POST` | `/hub/settle/accountOpen` | 预付账户开户（三期⑤） |
+//! | `POST` | `/hub/settle/accountAdjust` | 预付账户充值登记（三期⑤，只记账） |
+//! | `GET`  | `/hub/settle/lines` | 账目行列表（三期⑤） |
+//! | `POST` | `/hub/settle/setLineStatus` | 账目行差异挂起/恢复（三期⑤） |
+//! | `POST` | `/hub/settle/reprice` | 未定费率行重算（三期⑤，body.id = 连接 ID） |
+//! | `GET`  | `/hub/settle/statements` | 结算单列表（三期⑤） |
+//! | `POST` | `/hub/settle/generate` | 生成结算单（三期⑤） |
+//! | `POST` | `/hub/settle/confirm` | 本方确认结算单（三期⑤，body.id = 结算单 ID） |
+//! | `POST` | `/hub/settle/markSettled` | 结清登记（三期⑤，只记账不动资金） |
 
 use axum::{
     extract::{Query, State},
@@ -73,10 +83,12 @@ use nextrade_core::models::hub::federation::{
     ConfigDecideDTO, ConfigPublishDTO, HubConfigAckListQuery, HubConfigAckVO,
     HubConfigApplyListQuery, HubConfigApplyVO, HubConfigListQuery, HubConfigPackageVO,
     HubPairInitiateDTO, HubPairingCodeVO, HubPairingCreateDTO, HubPriceOverrideSaveDTO,
-    HubSsoListQuery, HubSsoRequestVO, HubWalletAccountListQuery, HubWalletLineListQuery,
-    HubWalletLineVO, HubWalletMirrorListQuery, HubWalletMirrorVO, HubXorderListQuery,
-    HubXorderRouteListQuery, HubXorderRouteVO, HubXorderVO, WalletAdminPostDTO,
-    WalletBalanceVO, WalletPostVO,
+    HubSettleAccountVO, HubSettleLineListQuery, HubSettleLineVO, HubSettleStatementListQuery,
+    HubSettleStatementVO, HubSsoListQuery, HubSsoRequestVO, HubWalletAccountListQuery,
+    HubWalletLineListQuery, HubWalletLineVO, HubWalletMirrorListQuery, HubWalletMirrorVO,
+    HubXorderListQuery, HubXorderRouteListQuery, HubXorderRouteVO, HubXorderVO,
+    SettleAccountAdjustDTO, SettleAccountOpenDTO, SettleGenerateDTO, SettleLineStatusDTO,
+    WalletAdminPostDTO, WalletBalanceVO, WalletPostVO,
 };
 use nextrade_core::types::PageResult;
 use nextrade_security::web::{ok, ApiResult};
@@ -84,7 +96,7 @@ use nextrade_security::web::{ok, ApiResult};
 use crate::AdminState;
 
 /// 本域路由（去掉 `/adminapi` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 49] = [
+const ROUTE_TABLE: [(&str, &str, &str); 59] = [
     ("GET", "/hub/overview", "HubController.overview"),
     ("GET", "/hub/credentials/list", "HubController.credentialList"),
     ("GET", "/hub/credentials/detail", "HubController.credentialDetail"),
@@ -134,6 +146,16 @@ const ROUTE_TABLE: [(&str, &str, &str); 49] = [
     ("POST", "/hub/wallet/releaseExpired", "HubController.walletReleaseExpired"),
     ("GET", "/hub/wallet/mirror", "HubController.walletMirror"),
     ("POST", "/hub/myLinks/mergeWallet", "HubController.myLinkMergeWallet"),
+    ("GET", "/hub/settle/accounts", "HubController.settleAccounts"),
+    ("POST", "/hub/settle/accountOpen", "HubController.settleAccountOpen"),
+    ("POST", "/hub/settle/accountAdjust", "HubController.settleAccountAdjust"),
+    ("GET", "/hub/settle/lines", "HubController.settleLines"),
+    ("POST", "/hub/settle/setLineStatus", "HubController.settleSetLineStatus"),
+    ("POST", "/hub/settle/reprice", "HubController.settleReprice"),
+    ("GET", "/hub/settle/statements", "HubController.settleStatements"),
+    ("POST", "/hub/settle/generate", "HubController.settleGenerate"),
+    ("POST", "/hub/settle/confirm", "HubController.settleConfirm"),
+    ("POST", "/hub/settle/markSettled", "HubController.settleMarkSettled"),
 ];
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {
@@ -186,6 +208,16 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/hub/wallet/releaseExpired", post(wallet_release_expired))
         .route("/hub/wallet/mirror", get(wallet_mirror))
         .route("/hub/myLinks/mergeWallet", post(my_link_merge_wallet))
+        .route("/hub/settle/accounts", get(settle_accounts))
+        .route("/hub/settle/accountOpen", post(settle_account_open))
+        .route("/hub/settle/accountAdjust", post(settle_account_adjust))
+        .route("/hub/settle/lines", get(settle_lines))
+        .route("/hub/settle/setLineStatus", post(settle_set_line_status))
+        .route("/hub/settle/reprice", post(settle_reprice))
+        .route("/hub/settle/statements", get(settle_statements))
+        .route("/hub/settle/generate", post(settle_generate))
+        .route("/hub/settle/confirm", post(settle_confirm))
+        .route("/hub/settle/markSettled", post(settle_mark_settled))
         .route("/hub/myLinks/syncMembers", post(my_link_sync_members))
         .route("/hub/myLinks/reportOrders", post(my_link_report_orders))
 }
@@ -596,6 +628,86 @@ async fn my_link_merge_wallet(
     Json(dto): Json<HubIdDTO>,
 ) -> ApiResult<Value> {
     ok(state.hub.federation.merge_wallet(dto.id).await?)
+}
+
+/// 三期⑤：预付账户列表。
+async fn settle_accounts(
+    State(state): State<AdminState>,
+) -> ApiResult<PageResult<HubSettleAccountVO>> {
+    ok(state.hub.federation.list_settle_accounts_admin().await?)
+}
+
+/// 三期⑤：预付账户开户。
+async fn settle_account_open(
+    State(state): State<AdminState>,
+    Json(dto): Json<SettleAccountOpenDTO>,
+) -> ApiResult<HubSettleAccountVO> {
+    ok(state.hub.federation.open_settle_account_admin(&dto).await?)
+}
+
+/// 三期⑤：预付账户充值登记（只记账）。
+async fn settle_account_adjust(
+    State(state): State<AdminState>,
+    Json(dto): Json<SettleAccountAdjustDTO>,
+) -> ApiResult<Value> {
+    ok(state.hub.federation.adjust_settle_account_admin(&dto).await?)
+}
+
+/// 三期⑤：账目行列表。
+async fn settle_lines(
+    State(state): State<AdminState>,
+    Query(q): Query<HubSettleLineListQuery>,
+) -> ApiResult<PageResult<HubSettleLineVO>> {
+    ok(state.hub.federation.list_settle_lines_admin(&q).await?)
+}
+
+/// 三期⑤：账目行差异挂起/恢复。
+async fn settle_set_line_status(
+    State(state): State<AdminState>,
+    Json(dto): Json<SettleLineStatusDTO>,
+) -> ApiResult<&'static str> {
+    state.hub.federation.set_settle_line_status(&dto).await?;
+    ok("行状态已更新")
+}
+
+/// 三期⑤：未定费率行重算（body.id = 连接 ID）。
+async fn settle_reprice(
+    State(state): State<AdminState>,
+    Json(dto): Json<HubIdDTO>,
+) -> ApiResult<Value> {
+    ok(state.hub.federation.reprice_settle_lines(dto.id).await?)
+}
+
+/// 三期⑤：结算单列表。
+async fn settle_statements(
+    State(state): State<AdminState>,
+    Query(q): Query<HubSettleStatementListQuery>,
+) -> ApiResult<PageResult<HubSettleStatementVO>> {
+    ok(state.hub.federation.list_settle_statements_admin(&q).await?)
+}
+
+/// 三期⑤：生成结算单。
+async fn settle_generate(
+    State(state): State<AdminState>,
+    Json(dto): Json<SettleGenerateDTO>,
+) -> ApiResult<HubSettleStatementVO> {
+    ok(state.hub.federation.generate_statement(&dto).await?)
+}
+
+/// 三期⑤：本方确认结算单（body.id = 结算单 ID）。
+async fn settle_confirm(
+    State(state): State<AdminState>,
+    Json(dto): Json<HubIdDTO>,
+) -> ApiResult<HubSettleStatementVO> {
+    ok(state.hub.federation.confirm_statement_admin(dto.id).await?)
+}
+
+/// 三期⑤：结清登记（只记账，不动资金）。
+async fn settle_mark_settled(
+    State(state): State<AdminState>,
+    Json(dto): Json<HubIdDTO>,
+) -> ApiResult<HubSettleStatementVO> {
+    ok(state.hub.federation.mark_statement_settled(dto.id).await?)
 }
 
 async fn my_link_sync_members(
