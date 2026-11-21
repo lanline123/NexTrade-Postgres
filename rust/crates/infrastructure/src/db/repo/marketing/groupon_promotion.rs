@@ -767,6 +767,12 @@ impl GrouponPromotionRepository {
     }
 
     /// 按商品 id 在允许的活动内取拼团商品（Java `selectOne(...).last("limit 1")`）。
+    ///
+    /// 定序补齐（2026-11-21，帖 237782）：同商品同时命中多个进行中活动时
+    /// （可经活动改期产生，活动 update 仅在过期重开时复检商品冲突），
+    /// 原版 `LIMIT 1` 无序、命中不确定；我方加 `ORDER BY
+    /// groupon_promotion_item_id ASC`，恒取最早绑定的活动商品，与
+    /// MySQL 主键序返回首行的实际效果一致。出处：原版有·我方补齐。
     pub async fn find_item_by_product(
         &self,
         product_id: i32,
@@ -784,7 +790,7 @@ impl GrouponPromotionRepository {
         for id in allowed_ids {
             sep.push_bind(*id);
         }
-        sep.push_unseparated(") LIMIT 1");
+        sep.push_unseparated(") ORDER BY groupon_promotion_item_id ASC LIMIT 1");
         drop(sep);
         qb.build_query_as()
             .fetch_optional(&self.pool)

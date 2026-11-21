@@ -27,6 +27,10 @@
 //! 3. `productSkus`/`product` 返回精简结构（Java `ProductSkuDTO`/`Product` 全字段
 //!    含翻译/多图字段，本实现保留核心展示字段）。
 //! 4. `post` 恒 `null`（与 Java 现状一致，推广能力未在 Java 实现）。
+//! 5. **拼团冲突下界改口径**（2026-11-21，帖 237782）：Java 拼团段以当前
+//!    时刻为下界，非重叠时段亦误判冲突；我方改为标准时间窗重叠判定
+//!    （与秒杀/限时折扣段一致），详见 `check_product_conflicts` 注释。
+//!    出处标注：原版有·我方改口径。
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -387,11 +391,12 @@ impl GrouponPromotionItemService {
                 .filter(|s| s.product_id == p.product_id)
                 .map(SkuLite::from_entity)
                 .collect();
+            // 与 create/update 拦截校验同口径（窗口重叠，见 check_product_conflicts）
             let is_other = self
                 .repos
                 .marketing
                 .groupon_promotion_item
-                .count_groupon_conflict(pid, promotion_id, now, promotion.end_time)
+                .count_groupon_conflict(pid, promotion_id, promotion.start_time, promotion.end_time)
                 .await?
                 > 0;
             let is_seckill = self
@@ -465,12 +470,19 @@ impl GrouponPromotionItemService {
         {
             return Err(Error::biz_msg(MSG_EXIST_TIME_DISCOUNT));
         }
-        let now = nextrade_common::utils::now_seconds();
+        // 拼团冲突口径（原版有·我方改口径，2026-11-21 帖 237782）：
+        // Java 原版以「当前时刻」为下界（other.end_time > now AND
+        // other.start_time < 本活动.end_time），会把时段并不重叠的活动误判
+        // 冲突——典型场景：同商品先建一个进行中活动后，再也建不了任何
+        // 开始时间在该活动结束之后的后续活动。我方改为与本文件秒杀 /
+        // 限时折扣段一致的标准时间窗重叠判定（other.end_time > 本活动
+        // .start_time AND other.start_time < 本活动.end_time），同商品
+        // 同时段双拼团仍禁止，错时段多活动可并行。
         if self
             .repos
             .marketing
             .groupon_promotion_item
-            .count_groupon_conflict(product_id, promotion_id, now, end_time)
+            .count_groupon_conflict(product_id, promotion_id, start_time, end_time)
             .await?
             > 0
         {

@@ -215,12 +215,18 @@ impl GrouponPromotionItemRepository {
 
     // ————————————————————— 冲突校验 —————————————————————
 
-    /// 时间段内已参与其它拼团活动计数（Java Mapper `getInGroupOnProductCount`）。
+    /// 时间段内已参与其它拼团活动计数（Java Mapper `getInGroupOnProductCount`）；
+    /// 判定为标准窗口重叠：对方 `end_time > 本活动 start_time`
+    /// 且对方 `start_time < 本活动 end_time`。
+    ///
+    /// 口径变更（2026-11-21，帖 237782）：Java 原版第三参数传当前时刻，
+    /// 非重叠时段亦误判冲突；我方改传本活动 `start_time`，与秒杀/限时
+    /// 折扣段统一。出处：原版有·我方改口径。
     pub async fn count_groupon_conflict(
         &self,
         product_id: i64,
         exclude_promotion_id: i64,
-        current_time: i64,
+        start_time: i64,
         end_time: i64,
     ) -> Result<i64> {
         let row: (i64,) = sqlx::query_as(
@@ -231,7 +237,7 @@ impl GrouponPromotionItemRepository {
         )
         .bind(product_id)
         .bind(exclude_promotion_id)
-        .bind(current_time)
+        .bind(start_time)
         .bind(end_time)
         .fetch_one(&self.pool)
         .await
