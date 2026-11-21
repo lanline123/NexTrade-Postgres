@@ -12319,5 +12319,20 @@
   "请为每个规格填写拼团价": "Please set a group price for every joined variant",
   "请至少选择一个参加拼团的规格": "Please select at least one variant to join the group buy",
   "进行中的团": "Active groups",
-  "阶梯团可设置多档人数，每档单独定价": "Ladder groups support multiple tiers, each priced separately"
+  "阶梯团可设置多档人数，每档单独定价": "Ladder groups support multiple tiers, each priced separately",
+  "扫码": "Scan",
+  "摄像头扫码": "Camera scan",
+  "将条码对准框内，即可自动读取": "Align the barcode inside the frame to read it automatically",
+  "已读取：{code}": "Read: {code}",
+  "正在打开摄像头…": "Opening camera…",
+  "当前浏览器不支持摄像头识别，请使用手动输入或扫码枪": "This browser cannot recognize barcodes with the camera. Please type the code manually or use a scanner gun",
+  "摄像头打开失败，请检查浏览器权限或使用手动输入": "Failed to open the camera. Check the browser permission or type the code manually",
+  "手动输入条码": "Enter barcode manually",
+  "请输入条码": "Please enter a barcode",
+  "该条码已属于商品「{name}」，请确认是否重复建品": "This barcode already belongs to product \"{name}\". Please confirm you are not creating a duplicate",
+  "扫码添加": "Scan to add",
+  "摄像头扫商品条码自动加入，重复扫码数量 +1": "Scan a product barcode with the camera to add it; scanning again increases quantity by 1",
+  "条码查询失败": "Barcode lookup failed",
+  "已加入：{name}": "Added: {name}",
+  "最多选择 {count} 项": "You can select at most {count} items"
 }

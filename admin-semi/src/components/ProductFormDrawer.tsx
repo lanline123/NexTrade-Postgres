@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Checkbox, DatePicker, Input, InputNumber, Modal, Radio, RadioGroup, Select, Switch, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Checkbox, DatePicker, Input, InputNumber, Modal, Radio, RadioGroup, Select, Space, Switch, Toast, Typography } from '@douyinfe/semi-ui';
 
 const { Text } = Typography;
 import { apiGet, apiPost, isDemo } from '../api';
@@ -9,6 +9,7 @@ import FormDrawer from '../framework/FormDrawer';
 import ImageUploader from './ImageUploader';
 import RichTextEditor from './RichTextEditor';
 import ProductPicker from './ProductPicker';
+import BarcodeScanButton from './BarcodeScanner';
 import ProductVideoField from './ProductVideoField';
 import DeliveryFilesField from './DeliveryFilesField';
 import ProductTypeSelector from './ProductTypeSelector';
@@ -478,7 +479,44 @@ export default function ProductFormDrawer({
                 options: shopCategories.map((item) => ({ label: item.categoryName, value: item.categoryId })),
               },
               { field: 'productSn', label: t('商品编码'), placeholder: t('不填自动生成') },
-              { field: 'productTsn', label: t('商品条码'), placeholder: t('如 69 开头的 13 位标准码') },
+              {
+                field: 'productTsn',
+                label: t('商品条码'),
+                type: 'custom',
+                render: ({ formApi, values }) => (
+                  <Space>
+                    <Input
+                      style={{ width: 240 }}
+                      placeholder={t('如 69 开头的 13 位标准码')}
+                      value={values.productTsn || ''}
+                      onChange={(value) => formApi?.setValue('productTsn', value)}
+                      showClear
+                    />
+                    <BarcodeScanButton
+                      onScan={async (code) => {
+                        formApi?.setValue('productTsn', code);
+                        // 扫到的码若已属于其他商品，提醒防重复建品（不阻塞回填）。
+                        try {
+                          const hit = await apiGet<any>('/product/product/findByBarcode', { code });
+                          if (
+                            hit?.matched &&
+                            hit.product &&
+                            Number(hit.product.productId) !== Number(productId || 0)
+                          ) {
+                            Toast.warning({
+                              content: t('该条码已属于商品「{name}」，请确认是否重复建品', {
+                                name: hit.product.productName || '',
+                              }),
+                            });
+                          }
+                        } catch {
+                          /* 查询失败不阻塞回填 */
+                        }
+                      }}
+                    />
+                  </Space>
+                ),
+              },
               { field: 'productWeight', label: t('商品重量'), type: 'number' },
               {
                 field: 'productStatus',

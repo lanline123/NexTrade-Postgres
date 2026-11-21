@@ -554,6 +554,52 @@ pub struct ProductListItemVO {
     pub wholesale_multiple: Option<i32>,
 }
 
+/// 条码精确匹配命中的商品摘要（摄像头扫码入库/回填用，我方新增）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct BarcodeProductVO {
+    pub product_id: i32,
+    pub product_name: String,
+    pub product_sn: String,
+    pub product_tsn: Option<String>,
+    pub product_price: Decimal,
+    pub product_stock: i32,
+    pub product_status: i32,
+    pub shop_id: i32,
+}
+
+/// 条码精确匹配命中的规格摘要。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct BarcodeSkuVO {
+    pub sku_id: i32,
+    pub product_id: i32,
+    pub sku_value: String,
+    pub sku_sn: Option<String>,
+    pub sku_tsn: Option<String>,
+    pub sku_price: Option<Decimal>,
+    pub sku_stock: Option<i32>,
+    pub is_enabled: i32,
+}
+
+/// 条码精确查询结果（`GET /adminapi/product/product/findByBarcode`，我方新增）。
+///
+/// 匹配优先级：规格条码/规格编码（`sku_tsn` / `sku_sn`）→ 商品条码
+/// （`product_tsn`）→ 商品编码（`product_sn`），均大小写不敏感精确匹配，
+/// 已删除商品不命中。`matchType` 取值：`skuTsn` / `skuSn` / `productTsn` /
+/// `productSn`；未命中时 `matched=false` 且其余字段为空。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct BarcodeLookupVO {
+    pub matched: bool,
+    pub match_type: String,
+    pub product: Option<BarcodeProductVO>,
+    /// 规格码命中时为命中的规格；商品码命中时为 `None`。
+    pub sku: Option<BarcodeSkuVO>,
+    /// 命中商品的全部启用规格（供前端在商品码命中多规格时让用户选规格）。
+    pub skus: Vec<BarcodeSkuVO>,
+}
+
 /// 管理端商品详情（对应 Java `ProductDetailDTO`）。
 ///
 /// 依赖预售/O2O 服务费/自动上下架/礼品卡/预约模板的字段本切片不编造，

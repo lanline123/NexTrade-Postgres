@@ -341,6 +341,22 @@ impl ProductManageRepository {
         .map_err(map_err)
     }
 
+    /// 按规格条码/规格编码精确查询规格（摄像头扫码用，我方新增）。
+    ///
+    /// 与 [`Self::find_product_by_sn`] 同口径：`LOWER(...)` 大小写不敏感
+    /// 精确匹配 `sku_tsn` 或 `sku_sn`；所属商品已删除时视为未命中
+    /// （由服务层结合 `find_product` 的 `is_delete` 再判定）。
+    pub async fn find_sku_by_code(&self, code: &str) -> Result<Option<ProductSku>> {
+        sqlx::query_as::<_, ProductSku>(
+            "SELECT * FROM product_sku WHERE LOWER(sku_tsn) = LOWER($1) OR LOWER(sku_sn) = LOWER($2) ORDER BY sku_id ASC LIMIT 1",
+        )
+        .bind(code)
+        .bind(code)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
     /// 商品点击量 +1（对应 Java \"detail\" 里 `setClickCount(+1)` 后 \"updateById\"）。
     pub async fn inc_click_count(&self, product_id: i32) -> Result<()> {
         sqlx::query("UPDATE product SET click_count = click_count + 1 WHERE product_id = $1")

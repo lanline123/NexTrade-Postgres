@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Button,
   Input,
@@ -17,6 +17,7 @@ import { apiGet, apiPost, apiUpload } from '../api';
 import ListPage from '../framework/ListPage';
 import FormDrawer from '../framework/FormDrawer';
 import SkuPicker from '../components/SkuPicker';
+import BarcodeScanButton from '../components/BarcodeScanner';
 import { useI18n } from '../i18n';
 import type { ColumnConfig, FormDrawerConfig } from '../framework/types';
 
@@ -66,8 +67,93 @@ export default function StockRecords({ inOrOut }: { inOrOut: 1 | 2 }) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+  /** 扫码命中多规格商品时的待选规格（apply 由抽屉 render 闭包注入） */
+  const [scanChoice, setScanChoice] = useState<{
+    product: Record<string, any>;
+    skus: Array<Record<string, any>>;
+    apply: (sku: Record<string, any>) => void;
+  } | null>(null);
+  const scanChoiceOpenRef = useRef(false);
+  const openScanChoice = (choice: typeof scanChoice) => {
+    scanChoiceOpenRef.current = Boolean(choice);
+    setScanChoice(choice);
+  };
 
   const reload = () => setReloadKey((key) => key + 1);
+
+  /**
+   * 摄像头扫码添加（我方新增）：条码精确查询 → 命中规格直接加入；
+   * 命中商品无规格/单规格直接加入；多规格弹窗选规格。重复扫码同
+   * 商品规格时数量 +1，便于连续扫码逐件累加。
+   */
+  const handleBarcodeScan = async (code: string, formApi: any, values: Record<string, any>) => {
+    if (scanChoiceOpenRef.current) return;
+    let hit: any;
+    try {
+      hit = await apiGet<any>('/product/product/findByBarcode', { code });
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('条码查询失败') });
+      return;
+    }
+    if (!hit?.matched || !hit.product) {
+      Toast.error({ content: t('未找到该条码对应的商品') });
+      return;
+    }
+    const product = hit.product;
+    const current: PickedProduct[] = values.productStockRecordDetailList || [];
+    const appendRow = (skuId: number, skuValue: string, stock?: number) => {
+      const existedIndex = current.findIndex(
+        (item) =>
+          Number(item.productId) === Number(product.productId) &&
+          Number((item as any).productSkuId ?? (item as any).skuId ?? 0) === skuId,
+      );
+      if (existedIndex >= 0) {
+        const next = [...current];
+        next[existedIndex] = {
+          ...next[existedIndex],
+          quantity: Number(next[existedIndex].quantity ?? 1) + 1,
+        };
+        formApi?.setValue('productStockRecordDetailList', next);
+      } else {
+        if (current.length >= 50) {
+          Toast.warning({ content: t('最多选择 {count} 项', { count: 50 }) });
+          return;
+        }
+        formApi?.setValue('productStockRecordDetailList', [
+          ...current,
+          {
+            productId: Number(product.productId),
+            productName: product.productName,
+            productSkuId: skuId,
+            skuValue,
+            stock,
+            quantity: 1,
+          },
+        ]);
+      }
+      Toast.success({ content: t('已加入：{name}', { name: product.productName || '' }) });
+    };
+    if (hit.sku) {
+      appendRow(Number(hit.sku.skuId), hit.sku.skuValue || '', hit.sku.skuStock ?? undefined);
+      return;
+    }
+    const skus: Array<Record<string, any>> = (hit.skus || []).filter(
+      (item: Record<string, any>) => Number(item.isEnabled ?? 1) !== 0,
+    );
+    if (!skus.length) {
+      appendRow(0, '', product.productStock);
+      return;
+    }
+    if (skus.length === 1) {
+      appendRow(Number(skus[0].skuId), skus[0].skuValue || '', skus[0].skuStock ?? undefined);
+      return;
+    }
+    openScanChoice({
+      product,
+      skus,
+      apply: (sku) => appendRow(Number(sku.skuId), sku.skuValue || '', sku.skuStock ?? undefined),
+    });
+  };
 
   const openCreate = () => {
     setDrawerInitial({ type: typeList[0].value, comment: '', productStockRecordDetailList: [] });
@@ -190,6 +276,18 @@ export default function StockRecords({ inOrOut }: { inOrOut: 1 | 2 }) {
               const picked: PickedProduct[] = values.productStockRecordDetailList || [];
               return (
                 <div className="stock-record-picker">
+                  <div style={{ marginBottom: 8 }}>
+                    <BarcodeScanButton
+                      continuous
+                      theme="solid"
+                      onScan={(code) => void handleBarcodeScan(code, formApi, values)}
+                    >
+                      {t('扫码添加')}
+                    </BarcodeScanButton>
+                    <Text type="tertiary" size="small" style={{ marginLeft: 8 }}>
+                      {t('摄像头扫商品条码自动加入，重复扫码数量 +1')}
+                    </Text>
+                  </div>
                   <SkuPicker
                     value={picked.map((item) => ({
                       productId: Number(item.productId),
@@ -348,6 +446,48 @@ export default function StockRecords({ inOrOut }: { inOrOut: 1 | 2 }) {
           />
           {!detailRows.length && !detailLoading ? <Text type="tertiary">{t('暂无数据')}</Text> : null}
         </Spin>
+      </Modal>
+
+      <Modal
+        title={t('选择规格')}
+        visible={Boolean(scanChoice)}
+        footer={null}
+        onCancel={() => openScanChoice(null)}
+        width={520}
+      >
+        {scanChoice && (
+          <div>
+            <div style={{ fontWeight: 500, marginBottom: 8 }}>{scanChoice.product.productName}</div>
+            {scanChoice.skus.map((sku) => (
+              <div
+                key={Number(sku.skuId)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '6px 0',
+                  borderTop: '1px solid var(--semi-color-border)',
+                }}
+              >
+                <span>
+                  {sku.skuValue || t('默认规格')}
+                  <Text type="tertiary" size="small" style={{ marginLeft: 8 }}>
+                    {sku.skuTsn || sku.skuSn || ''}
+                  </Text>
+                </span>
+                <Button
+                  size="small"
+                  onClick={() => {
+                    scanChoice.apply(sku);
+                    openScanChoice(null);
+                  }}
+                >
+                  {t('选择')}
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </Modal>
 
       <Modal

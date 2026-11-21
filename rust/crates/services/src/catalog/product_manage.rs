@@ -44,11 +44,11 @@ use nextrade_core::entities::{
     ProductInventoryLog, ProductSku, ProductVideo,
 };
 use nextrade_core::models::catalog::product_manage::{
-    AdminProductDetailVO, AdminProductListQuery, BrandOptionVO, CatAndBrandVO, CategoryOptionVO,
-    ClientProductDetailVO, ClientProductInfoVO, GalleryPicDTO, ProductAttrGroupVO,
-    ProductAttributeVO, ProductAttrsVO, ProductBatchEditDTO, ProductBatchModifyVO, ProductDescVO,
-    ProductGalleryVO, ProductListItemVO, ProductSaveDTO, ProductSkuSaveDTO, ProductSkuVO,
-    ProductVideoVO, ServicesVO,
+    AdminProductDetailVO, AdminProductListQuery, BarcodeLookupVO, BarcodeProductVO, BarcodeSkuVO,
+    BrandOptionVO, CatAndBrandVO, CategoryOptionVO, ClientProductDetailVO, ClientProductInfoVO,
+    GalleryPicDTO, ProductAttrGroupVO, ProductAttributeVO, ProductAttrsVO, ProductBatchEditDTO,
+    ProductBatchModifyVO, ProductDescVO, ProductGalleryVO, ProductListItemVO, ProductSaveDTO,
+    ProductSkuSaveDTO, ProductSkuVO, ProductVideoVO, ServicesVO,
 };
 use nextrade_core::models::catalog::product_manage_client::{inquiry_summary, InquirySummary};
 use nextrade_core::models::catalog::product_sale::ProductSaleState;
@@ -990,6 +990,67 @@ impl ProductManageService {
             .find_product(product_id)
             .await?
             .map(|p| p.product_sn))
+    }
+
+    /// 条码精确查询（摄像头扫码入库/回填用，我方新增）。
+    ///
+    /// 匹配优先级：规格条码/规格编码 → 商品条码 → 商品编码，全部大小写
+    /// 不敏感精确匹配；已删除商品不命中。与管理端商品域现状一致按平台
+    /// 账号语义处理（不做店铺过滤，与 `find_product_by_sn` 现行口径相同）。
+    pub async fn find_by_barcode(&self, code: &str) -> Result<BarcodeLookupVO> {
+        let code = code.trim();
+        if code.is_empty() {
+            return Ok(BarcodeLookupVO::default());
+        }
+        let repo = &self.repos.catalog.product_manage;
+
+        // 1) 规格码优先：一物一码时扫到的多是印在规格上的条码。
+        if let Some(sku) = repo.find_sku_by_code(code).await? {
+            if let Some(product) = repo.find_product(sku.product_id).await? {
+                if product.is_delete == 0 {
+                    let match_type = if sku
+                        .sku_tsn
+                        .as_deref()
+                        .is_some_and(|v| v.eq_ignore_ascii_case(code))
+                    {
+                        "skuTsn"
+                    } else {
+                        "skuSn"
+                    };
+                    let skus = repo.find_skus(product.product_id, false).await?;
+                    return Ok(BarcodeLookupVO {
+                        matched: true,
+                        match_type: match_type.to_string(),
+                        product: Some(barcode_product_vo(&product)),
+                        sku: Some(barcode_sku_vo(&sku)),
+                        skus: skus.iter().map(barcode_sku_vo).collect(),
+                    });
+                }
+            }
+        }
+
+        // 2) 商品条码 / 商品编码（复用既有 find_product_by_sn，已过滤删除）。
+        if let Some(product) = repo.find_product_by_sn(code).await? {
+            let match_type = if product
+                .product_tsn
+                .as_deref()
+                .is_some_and(|v| v.eq_ignore_ascii_case(code))
+            {
+                "productTsn"
+            } else {
+                "productSn"
+            };
+            let skus = repo.find_skus(product.product_id, false).await?;
+            return Ok(BarcodeLookupVO {
+                matched: true,
+                match_type: match_type.to_string(),
+                product: Some(barcode_product_vo(&product)),
+                sku: None,
+                skus: skus.iter().map(barcode_sku_vo).collect(),
+            });
+        }
+
+        Ok(BarcodeLookupVO::default())
     }
 
     /// 前台商品详情（对应 `ProductServiceImpl#clientDetail`）。
@@ -2619,6 +2680,34 @@ fn to_services_vo(s: &nextrade_core::entities::ProductServices) -> ServicesVO {
 }
 
 /// 分类实体 → 下拉项。
+/// 条码查询命中商品 → 前端摘要（摄像头扫码用）。
+fn barcode_product_vo(p: &Product) -> BarcodeProductVO {
+    BarcodeProductVO {
+        product_id: p.product_id,
+        product_name: p.product_name.clone(),
+        product_sn: p.product_sn.clone(),
+        product_tsn: p.product_tsn.clone(),
+        product_price: p.product_price,
+        product_stock: p.product_stock,
+        product_status: p.product_status,
+        shop_id: p.shop_id,
+    }
+}
+
+/// 条码查询命中规格 → 前端摘要（摄像头扫码用）。
+fn barcode_sku_vo(s: &ProductSku) -> BarcodeSkuVO {
+    BarcodeSkuVO {
+        sku_id: s.sku_id,
+        product_id: s.product_id,
+        sku_value: s.sku_value.clone(),
+        sku_sn: s.sku_sn.clone(),
+        sku_tsn: s.sku_tsn.clone(),
+        sku_price: s.sku_price,
+        sku_stock: s.sku_stock,
+        is_enabled: s.is_enabled,
+    }
+}
+
 fn to_category_option(c: &Category) -> CategoryOptionVO {
     CategoryOptionVO {
         category_id: c.category_id,

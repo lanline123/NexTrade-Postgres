@@ -19,6 +19,7 @@
 //! | `POST /product/product/del` | `ProductController.del` | `productDeleteManage` |
 //! | `GET  /product/product/saleStatus` | `ProductController.saleStatus` | `productManage` |
 //! | `POST /product/product/saleStatus` | `ProductController.saleStatus` | `productModifyManage` |
+//! | `GET  /product/product/findByBarcode` | （我方新增）摄像头扫码条码精确查询 | `productManage` |
 //!
 //! 注意路径中控制器前缀重复一次（`/product/product/...`、
 //! `/product/productBatch/...`），与原 Java `@RequestMapping` 组合结果逐字符一致。
@@ -52,8 +53,8 @@ use axum::{
 use axum_extra::extract::Query;
 use serde::Deserialize;
 use nextrade_core::models::catalog::product_manage::{
-    AdminProductDetailVO, AdminProductListQuery, CatAndBrandVO, ProductBatchEditDTO,
-    ProductBatchModifyVO, ProductDelDTO, ProductListItemVO, ProductSaveDTO,
+    AdminProductDetailVO, AdminProductListQuery, BarcodeLookupVO, CatAndBrandVO,
+    ProductBatchEditDTO, ProductBatchModifyVO, ProductDelDTO, ProductListItemVO, ProductSaveDTO,
 };
 use nextrade_core::models::catalog::product_sale::{ProductSaleParam, ProductSaleState};
 use nextrade_core::types::PageResult;
@@ -81,6 +82,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         )
         // —— ProductController @ /adminapi/product/product ——
         .route("/product/product/list", get(product_list))
+        .route("/product/product/findByBarcode", get(product_find_by_barcode))
         .route("/product/product/detail", get(product_detail))
         .route("/product/product/catAndBrandList", get(cat_and_brand_list))
         .route("/product/product/create", post(product_create))
@@ -115,6 +117,11 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
             "GET",
             "/adminapi/product/product/list",
             "ProductController.list",
+        ),
+        (
+            "GET",
+            "/adminapi/product/product/findByBarcode",
+            "（我方新增）摄像头扫码条码精确查询",
         ),
         (
             "GET",
@@ -206,6 +213,25 @@ async fn product_list(
         q.shop_id = Some(shop_id);
     }
     ok(state.catalog.product_manage.admin_list(&q).await?)
+}
+
+/// `GET /adminapi/product/product/findByBarcode?code=`：条码精确查询（我方新增）。
+///
+/// 供摄像头扫码入库/回填：按规格条码/规格编码 → 商品条码 → 商品编码
+/// 顺序精确匹配（大小写不敏感），未命中返回 `matched=false` 而非报错，
+/// 便于前端在商品创建场景把扫到的码直接回填为新商品条码。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BarcodeQuery {
+    code: String,
+}
+
+async fn product_find_by_barcode(
+    State(state): State<AdminState>,
+    Extension(_auth): Extension<AuthUser>,
+    Query(q): Query<BarcodeQuery>,
+) -> ApiResult<BarcodeLookupVO> {
+    ok(state.catalog.product_manage.find_by_barcode(&q.code).await?)
 }
 
 /// `GET /adminapi/product/product/detail?id=`：商品详情。
