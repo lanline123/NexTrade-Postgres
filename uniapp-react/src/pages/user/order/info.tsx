@@ -683,6 +683,36 @@ export default function OrderInfo() {
                                         {t("取消原因")}：{orderInfo.cancelRemark}
                                     </View>
                                 ) : null}
+                                {/* 拼团自提面板（我方新增，帖 407906）：自提点 + 核销码（订单号）+ 成团门提示 */}
+                                {(orderInfo as any)?.orderType === 2 && isPickupOrder ? (
+                                    <View className="card-space" style={{ background: "#fff", borderRadius: "18rpx", padding: "24rpx 28rpx", marginTop: "20rpx" }}>
+                                        <View style={{ display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                                            <Text style={{ fontSize: "30rpx", fontWeight: 600, color: "#1a1a1a" }}>{t("拼团自提")}</Text>
+                                            <Text style={{ fontSize: "26rpx", color: "#65c4aa" }}>{(orderInfo as any)?.joinStatusDesc || ""}</Text>
+                                        </View>
+                                        {(orderInfo as any)?.pickupDetail ? (
+                                            <View style={{ fontSize: "26rpx", color: "#666", marginTop: "10rpx" }}>
+                                                {t("自提点")}：{(orderInfo as any).pickupDetail.pickupName || (orderInfo as any).pickupDetail.shopTitle || ""}
+                                                {(orderInfo as any).pickupDetail.address ? ` · ${(orderInfo as any).pickupDetail.address}` : ""}
+                                            </View>
+                                        ) : null}
+                                        {(orderInfo as any)?.joinStatus === 1 ? (
+                                            <View style={{ fontSize: "24rpx", color: "#999", marginTop: "8rpx" }}>
+                                                {t("拼团成功后方可到店自提，请等待成团")}
+                                            </View>
+                                        ) : null}
+                                        {(orderInfo as any)?.joinStatus === 2 ? (
+                                            <View style={{ fontSize: "24rpx", color: "#999", marginTop: "8rpx" }}>
+                                                {t("已成团，请凭订单号（核销码）到自提点取货")}：{orderInfo.orderSn}
+                                            </View>
+                                        ) : null}
+                                        {(orderInfo as any)?.joinStatus === 3 ? (
+                                            <View style={{ fontSize: "24rpx", color: "#999", marginTop: "8rpx" }}>
+                                                {t("拼团失败，款项将自动原路退回，无需到店")}
+                                            </View>
+                                        ) : null}
+                                    </View>
+                                ) : null}
                                 {/* 送礼物面板（我方新增）：状态/赠言/分享/取消 */}
                                 {(orderInfo as any)?.isGiftOrder && (orderInfo as any)?.giftInfo ? (
                                     <View className="card-space" style={{ background: "#fff", borderRadius: "18rpx", padding: "24rpx 28rpx", marginTop: "20rpx" }}>

@@ -581,6 +581,30 @@ fn available_actions(o: &Order, full_aftersales: bool, rebuy_available: bool) ->
     a
 }
 
+/// 拼团核销门判定（纯函数，供单测；我方新增，论坛帖 407906）。
+///
+/// 拼团订单（含拼团自提单）的核销口径：
+/// - 无拼团记录 / 成团成功（`SUCCESS`）→ 放行（与普通自提单一致）；
+/// - 待成团（`WAIT_GROUP`）→ 拒绝：货款虽已付，团未成不可提前履约；
+/// - 拼团失败（`FAIL`）→ 拒绝：订单走拼团失败自动退款售后链，
+///   不存在可核销的履约；
+/// - 已取消等其它状态 → 拒绝。
+///
+/// # Errors
+/// 不放行时返回对应业务错误文案（商家核销台直接展示）。
+fn groupon_write_off_gate(join_status: Option<i32>) -> Result<()> {
+    match join_status {
+        None | Some(join_status::SUCCESS) => Ok(()),
+        Some(join_status::WAIT_GROUP) => {
+            Err(Error::biz_msg("拼团尚未成团，成团后方可核销"))
+        }
+        Some(join_status::FAIL) => {
+            Err(Error::biz_msg("拼团失败，订单将自动退款，无法核销"))
+        }
+        Some(_) => Err(Error::biz_msg("拼团已取消，无法核销")),
+    }
+}
+
 pub struct OrderAdminService {
     repos: Arc<Repositories>,
 }
@@ -2288,10 +2312,15 @@ impl OrderAdminService {
     ///    核销 = 置为已完成（`order_status = Completed`）并记录收货时间；
     /// 3. 写订单日志「核销」（不涉及核销员/门店归属校验）；
     /// 4. 返回核销后的订单详情 VO（前端把返回值 unshift 进核销列表）。
+    /// 5. 拼团订单（`order_type=PIN`，含拼团自提单）另过成团门
+    ///    （我方新增，论坛帖 407906）：必须成团成功才可核销，口径见
+    ///    [`groupon_write_off_gate`]，与发货门（deliver 的 WAIT_GROUP
+    ///    拦截）一致。
     ///
     /// # Errors
     /// `pickupSn` 为空 → `Validation`；订单不存在 → 业务错误
-    /// `订单不存在`；状态不允许 → 业务错误 `订单状态错误`。
+    /// `订单不存在`；状态不允许 → 业务错误 `订单状态错误`；
+    /// 拼团未成团/失败/取消 → 对应业务错误文案。
     pub async fn write_off(&self, pickup_sn: &str, admin_id: i32) -> Result<OrderVO> {
         let pickup_sn = pickup_sn.trim();
         if pickup_sn.is_empty() {
@@ -2313,6 +2342,20 @@ impl OrderAdminService {
         );
         if !can_write_off {
             return Err(Error::biz_msg("订单状态错误"));
+        }
+        // 拼团×自提核销门（我方新增，论坛帖 407906）：拼团单货款虽已付，
+        // 但团未成时提前核销等于绕过成团直接履约；失败单走既有拼团失败
+        // 自动退款售后链（scheduler 的 create_groupon_refund），核销拒绝。
+        if order.order_type == Some(order_type::PIN) {
+            let groupon = self
+                .repos
+                .trade
+                .order_admin
+                .find_groupon_records(&[order.order_id])
+                .await?
+                .into_iter()
+                .next();
+            groupon_write_off_gate(groupon.map(|(_, _, js)| js))?;
         }
         let now = utils::now_seconds() as i32;
         self.repos
@@ -5010,6 +5053,22 @@ mod tests {
         // 待成团不允许发货
         assert!(!vo.available_actions.deliver);
         assert!(!vo.way_bill);
+    }
+
+    #[test]
+    fn groupon_write_off_gate_matrix() {
+        // 无记录 / 成团成功 → 放行
+        assert!(groupon_write_off_gate(None).is_ok());
+        assert!(groupon_write_off_gate(Some(join_status::SUCCESS)).is_ok());
+        // 待成团 → 拒绝（成团后方可核销）
+        let wait = groupon_write_off_gate(Some(join_status::WAIT_GROUP)).unwrap_err();
+        assert!(wait.to_string().contains("尚未成团"), "{wait}");
+        // 拼团失败 → 拒绝（走自动退款链）
+        let fail = groupon_write_off_gate(Some(join_status::FAIL)).unwrap_err();
+        assert!(fail.to_string().contains("自动退款"), "{fail}");
+        // 已取消 → 拒绝
+        let cancelled = groupon_write_off_gate(Some(join_status::CANCELLED)).unwrap_err();
+        assert!(cancelled.to_string().contains("已取消"), "{cancelled}");
     }
 
     #[test]

@@ -13,6 +13,7 @@ use nextrade_core::models::trade::offline_claim::{
 };
 use nextrade_core::models::catalog::product_delivery::delivery_access;
 use nextrade_core::models::marketing::gift_card::{scoped_deduct_base, GiftCardScope};
+use nextrade_core::models::trade::order_admin::join_status;
 use nextrade_core::models::{OrderCreateDTO, OrderCreateVO, OrderVO};
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
@@ -109,6 +110,19 @@ pub fn shipping_type_snapshot(delivery_type: i32) -> (i32, &'static str) {
         3 => (3, "同城配送"),
         other => (other, ""),
     }
+}
+
+/// 从订单地址快照解析自提点 ID（建单文案 `门店自提 (自提点ID: N)`，
+/// 见 `create` 的自提地址快照分支）。无标记 / ID 非法时返回 None。
+fn parse_pickup_shop_id(address: &str) -> Option<i32> {
+    let marker = "自提点ID:";
+    let start = address.find(marker)? + marker.len();
+    let digits: String = address[start..]
+        .chars()
+        .skip_while(|c| *c == ' ')
+        .take_while(|c| c.is_ascii_digit())
+        .collect();
+    digits.parse::<i32>().ok().filter(|id| *id > 0)
 }
 
 impl OrderService {
@@ -1683,6 +1697,10 @@ impl OrderService {
                 }
             }
         }
+        // 拼团×自提回填（我方新增，论坛帖 407906）：拼团单成团状态 +
+        // 自提单自提点详情（此前买家侧两字段恒 None，拼团自提单在订单
+        // 详情看不到自提点与成团门提示）
+        self.attach_groupon_pickup(&order, &mut vo).await;
         // 卡密订单：补齐每个商品项已分配的电子卡券（原版 ECardItemVO）
         let mut has_card = false;
         for (idx, item) in items.iter().enumerate() {
@@ -1869,6 +1887,17 @@ impl OrderService {
         let gift_keys: Vec<(i32, Option<i32>)> =
             orders.iter().map(|o| (o.order_id, o.parent_order_id)).collect();
         let gift_map = gift_svc.resolve_map(&gift_keys).await.unwrap_or_default();
+        // 拼团成团状态批量预取（我方新增，论坛帖 407906）：order_id -> join_status
+        let groupon_map: std::collections::HashMap<i32, i32> = self
+            .repos
+            .trade
+            .order_admin
+            .find_groupon_records(&order_ids)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(oid, _, js)| (oid, js))
+            .collect();
         let mut list = Vec::with_capacity(orders.len());
         for o in &orders {
             let items = self.repos.trade.order.find_items(o.order_id).await?;
@@ -1882,6 +1911,10 @@ impl OrderService {
             if let Some(gift) = gift_map.get(&o.order_id) {
                 vo.is_gift_order = true;
                 vo.gift_status = Some(gift.gift_status);
+            }
+            if let Some(js) = groupon_map.get(&o.order_id) {
+                vo.join_status = Some(*js);
+                vo.join_status_desc = Some(join_status::description(*js));
             }
             list.push(vo);
         }
@@ -1900,6 +1933,83 @@ impl OrderService {
             .flatten();
         crate::system::paid_cancel_refund::effective_paid_cancel_refund(raw.as_deref())
             .enabled
+    }
+
+    /// 拼团×自提回填（我方新增，论坛帖 407906）：拼团订单回填成团状态
+    /// （`join_status` / `join_status_desc`，此前买家侧恒 None）；自提订单
+    /// （`shipping_method=2`，含拼团自提单）回填自提点详情 `pickup_detail`。
+    /// 均为展示增强：查询失败静默跳过，不阻断详情主链。
+    async fn attach_groupon_pickup(&self, order: &Order, vo: &mut OrderVO) {
+        if order.order_type == Some(2) {
+            if let Ok(records) = self
+                .repos
+                .trade
+                .order_admin
+                .find_groupon_records(&[order.order_id])
+                .await
+            {
+                if let Some((_, _, js)) = records.into_iter().next() {
+                    vo.join_status = Some(js);
+                    vo.join_status_desc = Some(join_status::description(js));
+                }
+            }
+        }
+        if order.shipping_method == 2 {
+            vo.pickup_detail = self.pickup_detail_for(order).await;
+        }
+    }
+
+    /// 自提点详情：自提点 ID 在建单时快照进地址文案
+    /// （`门店自提 (自提点ID: N)`，订单表无独立 pickup 列）；解析不到或
+    /// 门店不存在时回退到订单店铺的自提门店（与结算页
+    /// `check::build_delivery_option` 同一查询口径）。字段口径对齐前端
+    /// `PickupDetail`（shopId / shopTitle / pickupName / address）。
+    async fn pickup_detail_for(&self, order: &Order) -> Option<serde_json::Value> {
+        let mut shop: Option<nextrade_core::entities::Shop> = None;
+        if let Some(pickup_shop_id) = parse_pickup_shop_id(&order.address) {
+            shop = sqlx::query_as::<_, nextrade_core::entities::Shop>(
+                "SELECT * FROM shop WHERE shop_id = $1",
+            )
+            .bind(pickup_shop_id)
+            .fetch_optional(&self.repos.pool)
+            .await
+            .ok()
+            .flatten();
+        }
+        if shop.is_none() && order.shop_id > 0 {
+            shop = sqlx::query_as::<_, nextrade_core::entities::Shop>(
+                "SELECT * FROM shop WHERE store_parent_id = $1 AND status = 1 \
+                 ORDER BY shop_id LIMIT 1",
+            )
+            .bind(order.shop_id)
+            .fetch_optional(&self.repos.pool)
+            .await
+            .ok()
+            .flatten();
+        }
+        let shop = shop?;
+        let contact: serde_json::Value = shop
+            .shop_contact_json
+            .as_deref()
+            .and_then(|s| serde_json::from_str(s).ok())
+            .unwrap_or(serde_json::Value::Null);
+        let address = contact
+            .get("address")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        Some(serde_json::json!({
+            "shopId": shop.shop_id,
+            "shopTitle": shop.shop_title.clone().unwrap_or_default(),
+            "pickupName": shop.shop_title.unwrap_or_default(),
+            "address": address,
+            "contactMobile": shop.contact_mobile.clone().unwrap_or_default(),
+            "shopContact": contact,
+            "shopOpenCloseConfig": shop
+                .shop_open_close_json
+                .as_deref()
+                .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok()),
+        }))
     }
 
     /// 取消订单（仅待付款可取消，取消后回滚库存）。
@@ -3063,6 +3173,19 @@ mod shipping_type_snapshot_tests {
         assert_eq!(shipping_type_snapshot(2), (2, "到店自提"));
         // 同城=3 是派送单生产者的触发值，必须原样透传
         assert_eq!(shipping_type_snapshot(3), (3, "同城配送"));
+    }
+
+    #[test]
+    fn parse_pickup_shop_id_from_address_snapshot() {
+        use super::parse_pickup_shop_id;
+        // 建单自提快照原文
+        assert_eq!(parse_pickup_shop_id("门店自提 (自提点ID: 105)"), Some(105));
+        assert_eq!(parse_pickup_shop_id("门店自提 (自提点ID:105)"), Some(105));
+        // 普通配送地址 / 空快照 / 非法 ID → None（回退店铺自提门店）
+        assert_eq!(parse_pickup_shop_id("广东省深圳市南山区xx路1号"), None);
+        assert_eq!(parse_pickup_shop_id(""), None);
+        assert_eq!(parse_pickup_shop_id("门店自提 (自提点ID: 0)"), None);
+        assert_eq!(parse_pickup_shop_id("门店自提 (自提点ID: )"), None);
     }
 
     /// 未知值：id 原样透传（Java `setShippingTypeId(param.getDeliveryType())`
