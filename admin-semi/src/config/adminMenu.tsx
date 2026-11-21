@@ -1441,7 +1441,7 @@ export const navGroups: NavGroup[] = [
           },
           {
             "key": "buyStyleSettings",
-            "label": "购买按钮样式设置"
+            "label": "购买按钮样式"
           },
           {
             "key": "fontSettings",
@@ -1930,7 +1930,7 @@ export const pageTitles: Record<string, string> = {
   "baseReceiptManage": "小票打印",
   "personalizedManage": "个性化设置",
   "priceDisplaySettings": "价格显示设置",
-  "buyStyleSettings": "购买按钮样式设置",
+  "buyStyleSettings": "购买按钮样式",
   "fontSettings": "网站字体设置",
   "systemMode": "系统模式",
   "orgOverview": "组织概览",

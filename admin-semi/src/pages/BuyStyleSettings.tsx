@@ -1,20 +1,21 @@
 import { useEffect, useState, type CSSProperties } from 'react';
-import { Button, Card, Space, Spin, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Card, ColorPicker, Space, Spin, Toast, Typography } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '../api';
 import { useI18n } from '../i18n';
 import GalleryPickerModal from '../components/GalleryPickerModal';
-import ColorField from '../components/ColorField';
 import { PcBuyButtonVisual, resolvePcBuyBtn } from './decoratePc/previews/shared/PcBuyButton';
 
 const { Text, Title } = Typography;
 
 /**
- * 全站购买按钮样式设置（设置 → 商城设置 → 购买按钮样式设置）。
+ * 全站购买按钮样式（设置 → 商城设置 → 购买按钮样式；2026-11-21 由
+ * 「购买按钮样式设置」改名，用户口径：名字太长）。
  *
- * 商品类模块（商品/商品分组/拼团/秒杀/搜索结果）的购买按钮统一枚举 0–10，
+ * 商品类模块（商品/商品分组/拼团/秒杀/搜索结果）的购买按钮统一枚举 0–18，
  * 模块可单独选样式，也可设「跟随全局」用这里的配置。配置存后端 config code
  * `buyStyle`，前台通过 GET /api/common/config/buyStyle 读取。自定义图片（样式 10）
  * 从素材库选图（支持 SVG），模块自带图标优先、全局图标兜底。
+ * 11–18 为 2026-11-21 扩充（图标源自 IconPark 电商类目）。
  *
  * 样式选择为单横排图标块（用户 2026-11-19 口径）：每档渲染该样式的真实按钮
  * 样貌小预览，一排选完，不用下拉。图标颜色默认 = PC 端主题色：主题色与 PC
@@ -23,12 +24,25 @@ const { Text, Title } = Typography;
  * 颜色（iconColor 为空）时把主题色初始化进表单并按此保存，预览与保存口径
  * 一致；已显式保存过颜色的老配置原样加载、不被主题色覆盖；「重置」回到
  * 当前 PC 主题色。
+ *
+ * 样式管理（2026-11-21）：卡片右上角 × 可隐藏不想要的样式（当前全局正
+ * 选用的样式不可隐藏，卡上标「使用中」）；隐藏列表存同一份 buyStyle 配置
+ * 的 hiddenStyles，仅约束各编辑器选择器的可选项，渲染端不消费——已被
+ * 页面/模块选用的样式即使被隐藏，存量渲染照常。已隐藏样式在本页下方
+ * 列表里可随时恢复。
+ *
+ * 图标颜色控件（2026-11-21 修复）：此前用编辑器共享 ColorField
+ * （AlphaColorInput），其色块尺寸样式只存在于装修编辑器的 CSS 里，本页
+ * 不加载那份 CSS，色块塌成不成形的细条。改用 Semi ColorPicker（后台
+ * DecorateMobilePages 等页同款，自带样式），色块为正常方块，点开取色
+ * 交互不变；「重置」保留为独立文字钮。
  */
 
 interface BuyStyleConfig {
   style: number;
   customIcon: { picUrl: string; picThumb: string };
   iconColor: string;
+  hiddenStyles: number[];
 }
 
 const STYLE_OPTIONS: Array<{ value: number; label: string; short: string }> = [
@@ -43,13 +57,48 @@ const STYLE_OPTIONS: Array<{ value: number; label: string; short: string }> = [
   { value: 8, label: '“马上抢”（实心）', short: '马上抢·实心' },
   { value: 9, label: '圆圈购物车', short: '圆圈购物车' },
   { value: 10, label: '自定义图片', short: '自定义图片' },
+  { value: 11, label: '购物袋（描边）', short: '购物袋·描边' },
+  { value: 12, label: '购物袋（实心）', short: '购物袋·实心' },
+  { value: 13, label: '圆圈购物袋', short: '圆圈购物袋' },
+  { value: 14, label: '圆圈加号', short: '圆圈加号' },
+  { value: 15, label: '加购购物车', short: '加购购物车' },
+  { value: 16, label: '闪电', short: '闪电' },
+  { value: 17, label: '“立即购买”（描边）', short: '立即购买·描边' },
+  { value: 18, label: '“立即购买”（实心）', short: '立即购买·实心' },
 ];
 
 const DEFAULT_CFG: BuyStyleConfig = {
   style: 1,
   customIcon: { picUrl: '', picThumb: '' },
   iconColor: '',
+  hiddenStyles: [],
 };
+
+/** 清洗隐藏列表：0–18 整数、去重升序、剔除当前全局样式（与后端清洗同口径）。 */
+function cleanHiddenStyles(input: unknown, currentStyle: number): number[] {
+  if (!Array.isArray(input)) return [];
+  const set = new Set<number>();
+  for (const v of input) {
+    const n = Number(v);
+    if (Number.isInteger(n) && n >= 0 && n <= 18 && n !== currentStyle) set.add(n);
+  }
+  return [...set].sort((a, b) => a - b);
+}
+
+/**
+ * 把存量 iconColor 归一为 ColorPicker 可解析的 6 位 hex（仅喂给控件显示，
+ * 不改表单原值）：8 位 hex 去 alpha、rgba() 提取 rgb、其余原样返回。
+ */
+function toPickerHex(color: string): string {
+  const text = String(color || '').trim();
+  const hex8 = text.match(/^#([0-9a-f]{8})$/i);
+  if (hex8) return `#${hex8[1].slice(0, 6)}`;
+  const rgba = text.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i);
+  if (rgba) {
+    return `#${[1, 2, 3].map((i) => Math.min(255, Number(rgba[i]) || 0).toString(16).padStart(2, '0')).join('')}`;
+  }
+  return text;
+}
 
 /** PC 主题色兜底（与 pc-semi --pc-primary 的回落值、编辑器预览兜底一致）。 */
 const FALLBACK_THEME_COLOR = '#65c4aa';
@@ -109,8 +158,9 @@ export default function BuyStyleSettings() {
         if (data && typeof data === 'object') {
           const icon = (data.customIcon || {}) as Record<string, any>;
           const savedColor = String(data.iconColor || '').trim();
+          const style = Number.isFinite(Number(data.style)) ? Number(data.style) : 1;
           setCfg({
-            style: Number.isFinite(Number(data.style)) ? Number(data.style) : 1,
+            style,
             customIcon: {
               picUrl: String(icon.picUrl || ''),
               picThumb: String(icon.picThumb || ''),
@@ -118,12 +168,13 @@ export default function BuyStyleSettings() {
             // 未显式设色（空串）→ 默认色初始化为 PC 主题色；
             // 已保存过颜色的老配置原样保留，不被覆盖
             iconColor: savedColor || theme,
+            hiddenStyles: cleanHiddenStyles(data.hiddenStyles, style),
           });
         } else {
           setCfg((p) => ({ ...p, iconColor: p.iconColor || theme }));
         }
       } else {
-        Toast.error(t('加载购买按钮样式设置失败'));
+        Toast.error(t('加载购买按钮样式失败'));
       }
       setLoading(false);
     })();
@@ -142,6 +193,7 @@ export default function BuyStyleSettings() {
         style: cfg.style,
         customIcon: cfg.customIcon,
         iconColor: effectiveColor,
+        hiddenStyles: cleanHiddenStyles(cfg.hiddenStyles, cfg.style),
       });
       Toast.success(t('保存成功'));
     } catch {
@@ -149,6 +201,15 @@ export default function BuyStyleSettings() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const hideStyle = (v: number) => {
+    // 当前全局正选用的样式不可隐藏（UI 上该卡不给 ×，这里再兜一层）
+    if (v === cfg.style) return;
+    setCfg((p) => ({ ...p, hiddenStyles: cleanHiddenStyles([...p.hiddenStyles, v], p.style) }));
+  };
+  const restoreStyle = (v: number) => {
+    setCfg((p) => ({ ...p, hiddenStyles: p.hiddenStyles.filter((x) => x !== v) }));
   };
 
   // 实时预览走与前台/编辑器相同的解析链（-1 跟随全局 → 本页配置）
@@ -173,7 +234,7 @@ export default function BuyStyleSettings() {
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Title heading={4} style={{ margin: 0 }}>
-          {t('购买按钮样式设置')}
+          {t('购买按钮样式')}
         </Title>
       </div>
 
@@ -187,42 +248,141 @@ export default function BuyStyleSettings() {
                 flexWrap: 'nowrap',
                 gap: 10,
                 overflowX: 'auto',
-                padding: '12px 2px 8px',
+                padding: '12px 6px 8px',
               }}
             >
-              {STYLE_OPTIONS.map((o) => {
+              {STYLE_OPTIONS.filter((o) => !cfg.hiddenStyles.includes(o.value)).map((o) => {
                 const selected = cfg.style === o.value;
                 return (
-                  <button
+                  <div key={o.value} style={{ position: 'relative', flex: '0 0 auto' }}>
+                    <button
+                      type="button"
+                      title={t(o.label)}
+                      aria-pressed={selected}
+                      onClick={() => setCfg((p) => ({ ...p, style: o.value }))}
+                      style={{
+                        width: 88,
+                        padding: '10px 4px 8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 8,
+                        background: selected ? selectedBg : '#fff',
+                        border: `1px solid ${selected ? themeColor : '#e3e5e8'}`,
+                        boxShadow: selected ? `0 0 0 1px ${themeColor}` : undefined,
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        font: 'inherit',
+                      }}
+                    >
+                      <span
+                        style={{
+                          ...shellVars,
+                          height: 34,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: effectiveColor,
+                        }}
+                      >
+                        {o.value === 0 ? (
+                          <HiddenStyleGlyph />
+                        ) : (
+                          <PcBuyButtonVisual style={o.value} customIcon={o.value === 10 ? cfg.customIcon : null} />
+                        )}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 12,
+                          lineHeight: 1.35,
+                          color: selected ? '#1f2329' : '#5f6570',
+                          fontWeight: selected ? 600 : 400,
+                          textAlign: 'center',
+                        }}
+                      >
+                        {t(o.short)}
+                      </span>
+                    </button>
+                    {selected ? (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: -7,
+                          right: -4,
+                          padding: '0 5px',
+                          borderRadius: 7,
+                          background: themeColor,
+                          color: '#fff',
+                          fontSize: 10,
+                          lineHeight: '15px',
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        {t('使用中')}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        title={t('隐藏此样式')}
+                        aria-label={t('隐藏此样式')}
+                        onClick={() => hideStyle(o.value)}
+                        style={{
+                          position: 'absolute',
+                          top: -7,
+                          right: -4,
+                          width: 16,
+                          height: 16,
+                          padding: 0,
+                          border: '1px solid #e3e5e8',
+                          borderRadius: '50%',
+                          background: '#fff',
+                          color: '#8a8f98',
+                          fontSize: 11,
+                          lineHeight: '14px',
+                          textAlign: 'center',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {cfg.style === 0 ? (
+              <Text type="danger">{t('选「不显示」时，所有设为跟随全局的模块都不显示购买按钮')}</Text>
+            ) : null}
+            <Text type="tertiary">
+              {t('卡片右上角 × 可隐藏不想要的样式（隐藏后不再出现在各编辑器选择器中，已使用该样式的页面渲染不受影响）；当前全局选用的样式不可隐藏')}
+            </Text>
+          </div>
+
+          {cfg.hiddenStyles.length > 0 ? (
+            <div style={{ width: '100%' }}>
+              <Text strong>{t('已隐藏样式')}</Text>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, paddingTop: 12 }}>
+                {STYLE_OPTIONS.filter((o) => cfg.hiddenStyles.includes(o.value)).map((o) => (
+                  <div
                     key={o.value}
-                    type="button"
-                    title={t(o.label)}
-                    aria-pressed={selected}
-                    onClick={() => setCfg((p) => ({ ...p, style: o.value }))}
                     style={{
-                      flex: '0 0 auto',
-                      width: 88,
-                      padding: '10px 4px 8px',
                       display: 'flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
                       gap: 8,
-                      background: selected ? selectedBg : '#fff',
-                      border: `1px solid ${selected ? themeColor : '#e3e5e8'}`,
-                      boxShadow: selected ? `0 0 0 1px ${themeColor}` : undefined,
+                      padding: '6px 8px 6px 12px',
+                      border: '1px solid #e3e5e8',
                       borderRadius: 8,
-                      cursor: 'pointer',
-                      font: 'inherit',
+                      background: '#fafbfc',
                     }}
                   >
                     <span
                       style={{
                         ...shellVars,
-                        height: 34,
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         color: effectiveColor,
+                        opacity: 0.5,
                       }}
                     >
                       {o.value === 0 ? (
@@ -231,25 +391,15 @@ export default function BuyStyleSettings() {
                         <PcBuyButtonVisual style={o.value} customIcon={o.value === 10 ? cfg.customIcon : null} />
                       )}
                     </span>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        lineHeight: 1.35,
-                        color: selected ? '#1f2329' : '#5f6570',
-                        fontWeight: selected ? 600 : 400,
-                        textAlign: 'center',
-                      }}
-                    >
-                      {t(o.short)}
-                    </span>
-                  </button>
-                );
-              })}
+                    <span style={{ fontSize: 12, color: '#5f6570' }}>{t(o.short)}</span>
+                    <Button size="small" theme="borderless" onClick={() => restoreStyle(o.value)}>
+                      {t('恢复')}
+                    </Button>
+                  </div>
+                ))}
+              </div>
             </div>
-            {cfg.style === 0 ? (
-              <Text type="danger">{t('选「不显示」时，所有设为跟随全局的模块都不显示购买按钮')}</Text>
-            ) : null}
-          </div>
+          ) : null}
 
           {cfg.style === 10 ? (
             <Space align="center" spacing={12}>
@@ -286,14 +436,20 @@ export default function BuyStyleSettings() {
 
           <Space align="center" spacing={12}>
             <Text strong>{t('图标颜色')}</Text>
-            <ColorField
-              value={cfg.iconColor}
-              onChange={(v) => setCfg((p) => ({ ...p, iconColor: v }))}
-              resetValue={themeColor}
+            {/* Semi ColorPicker 自带方块色块样式，不依赖装修编辑器 CSS（修复色块塌陷）；
+                value 经 toPickerHex 归一仅供控件解析，表单原值不动 */}
+            <ColorPicker
+              value={toPickerHex(effectiveColor) as any}
+              onChange={(v: any) =>
+                setCfg((p) => ({ ...p, iconColor: typeof v === 'string' ? v : String(v?.hex || '') }))
+              }
             />
+            <Button theme="borderless" size="small" onClick={() => setCfg((p) => ({ ...p, iconColor: themeColor }))}>
+              {t('重置')}
+            </Button>
             <Text>{effectiveColor}</Text>
             {isThemeColor ? <Text type="tertiary">{t('（PC 主题色）')}</Text> : null}
-            <Text type="tertiary">{t('默认为 PC 端主题色，可自定义，重置即恢复主题色；仅对图标类样式（1–4、9）生效')}</Text>
+            <Text type="tertiary">{t('默认为 PC 端主题色，可自定义，重置即恢复主题色；仅对图标类样式（1–4、9、11–16）生效')}</Text>
           </Space>
 
           <Text type="tertiary">

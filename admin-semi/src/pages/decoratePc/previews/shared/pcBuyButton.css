@@ -42,6 +42,28 @@
   -webkit-mask-image: url('/assets/icons/plus-outline.svg');
 }
 
+/* 2026-11-21 扩充样式 11–16 的图标（源自 IconPark 电商类目，落盘为同源 mask 资源）：
+ * 11/12 购物袋（描边/实心）、15 加购购物车、16 闪电。 */
+.pc-buy-btn__ico--bag {
+  mask-image: url('/assets/icons/bag.svg');
+  -webkit-mask-image: url('/assets/icons/bag.svg');
+}
+
+.pc-buy-btn__ico--bag.is-outline {
+  mask-image: url('/assets/icons/bag-outline.svg');
+  -webkit-mask-image: url('/assets/icons/bag-outline.svg');
+}
+
+.pc-buy-btn__ico--cart-add {
+  mask-image: url('/assets/icons/cart-add.svg');
+  -webkit-mask-image: url('/assets/icons/cart-add.svg');
+}
+
+.pc-buy-btn__ico--lightning {
+  mask-image: url('/assets/icons/lightning.svg');
+  -webkit-mask-image: url('/assets/icons/lightning.svg');
+}
+
 /* 圆圈购物车（样式 9）重设计（2026-11-21）：不再是「粗圆环 + 缩小购物车」的单色
  * mask 字形（环厚约 2.6px、内嵌购物车仅约 13px，筐体/车轮细节在 24px 下糊成团），
  * 改为实心款家族形态——圆盘底 = currentColor（图标色/主题色，本元素 base 的
@@ -72,6 +94,45 @@
   -webkit-mask-repeat: no-repeat;
   -webkit-mask-position: center;
   -webkit-mask-size: contain;
+}
+
+/* 圆圈购物袋（样式 13）/ 圆圈加号（样式 14）：与 --cart-circle 同一圆盘形态
+ * （实心圆盘 = currentColor + 白色字形居中），仅 ::after 字形不同。
+ * 与 pc-semi 前台 modules-source.scss 的同名规则逐值一致。 */
+.pc-buy-btn__ico--bag-circle,
+.pc-buy-btn__ico--plus-circle {
+  position: relative;
+  border-radius: 50%;
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+.pc-buy-btn__ico--bag-circle::after,
+.pc-buy-btn__ico--plus-circle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 15px;
+  height: 15px;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+
+.pc-buy-btn__ico--bag-circle::after {
+  mask-image: url('/assets/icons/bag.svg');
+  -webkit-mask-image: url('/assets/icons/bag.svg');
+}
+
+.pc-buy-btn__ico--plus-circle::after {
+  mask-image: url('/assets/icons/plus.svg');
+  -webkit-mask-image: url('/assets/icons/plus.svg');
 }
 
 .pc-buy-btn__img {

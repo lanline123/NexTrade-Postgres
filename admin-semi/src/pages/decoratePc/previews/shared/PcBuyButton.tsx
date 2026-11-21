@@ -6,10 +6,16 @@ import './pcBuyButton.css';
  * PC 装修编辑器共享购买按钮（预览侧，与 pc-semi 前台 BuyButton 同口径）。
  *
  * 统一枚举（全站一致，见 pc-semi/src/lib/buy-style.ts）：
- *   -1 = 跟随全局（解析到后台「购买按钮样式设置」）  0 = 不显示
+ *   -1 = 跟随全局（解析到后台「购买按钮样式」）  0 = 不显示
  *    1 = 购物车（描边）  2 = 购物车（实心）  3 = 加号（描边）  4 = 加号（实心）
  *    5 = "购买"（描边）  6 = "购买"（实心）  7 = "马上抢"（描边）  8 = "马上抢"（实心）
  *    9 = 圆圈购物车      10 = 自定义图片（模块 buyBtnIcon 优先，全局 customIcon 兜底）
+ *   11 = 购物袋（描边） 12 = 购物袋（实心） 13 = 圆圈购物袋  14 = 圆圈加号
+ *   15 = 加购购物车      16 = 闪电          17 = "立即购买"（描边） 18 = "立即购买"（实心）
+ *   （11–16 图标源自 IconPark 电商类目，2026-11-21 扩充）
+ *
+ * 全局配置的 hiddenStyles（设置页隐藏的样式）只供选择器过滤选项，本文件
+ * 仅透传不消费：解析/渲染对已保存的样式 id 一律照常（隐藏不影响存量渲染）。
  *
  * resolvePcBuyBtn 做读时归一化（不回写数据）：数字/字符串原样；PC 商品分组
  * 旧对象型 {showBtn, btnType} 按 1→3、2→1、3→9 映射；H5 对象型同前台映射表。
@@ -29,16 +35,20 @@ export interface PcResolvedBuyBtn {
   iconColor: string;
 }
 
-interface GlobalBuyStyle {
+export interface GlobalBuyStyle {
   style: number;
   customIcon: PcBuyBtnPic;
   iconColor: string;
+  /** 设置页隐藏的样式 id（仅选择器过滤用，渲染不消费）；可选——存量调用方
+   * 手工构造的全局对象可不带此字段，消费方按空列表处理。 */
+  hiddenStyles?: number[];
 }
 
 const DEFAULT_GLOBAL: GlobalBuyStyle = {
   style: 1,
   customIcon: { picUrl: '', picThumb: '' },
   iconColor: '',
+  hiddenStyles: [],
 };
 
 /* ---------- 全局配置懒加载（解析 -1 时用；整个编辑器会话只拉一次） ---------- */
@@ -52,13 +62,17 @@ function sanitizeGlobal(input: unknown): GlobalBuyStyle {
   const raw = input as Record<string, any>;
   const styleNum = Number(raw.style);
   const icon = raw.customIcon && typeof raw.customIcon === 'object' ? raw.customIcon : {};
+  const hidden = Array.isArray(raw.hiddenStyles)
+    ? [...new Set(raw.hiddenStyles.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 18))]
+    : [];
   return {
-    style: Number.isInteger(styleNum) && styleNum >= 0 && styleNum <= 10 ? styleNum : DEFAULT_GLOBAL.style,
+    style: Number.isInteger(styleNum) && styleNum >= 0 && styleNum <= 18 ? styleNum : DEFAULT_GLOBAL.style,
     customIcon: {
       picUrl: String(icon.picUrl ?? '').trim(),
       picThumb: String(icon.picThumb ?? '').trim(),
     },
     iconColor: String(raw.iconColor ?? '').trim(),
+    hiddenStyles: hidden,
   };
 }
 
@@ -153,13 +167,16 @@ export function resolvePcBuyBtn(raw: unknown, opts?: ResolvePcBuyBtnOptions): Pc
   if (!Number.isFinite(n)) return fromGlobal();
   if (n === -1) return fromGlobal();
   if (n === 0 && opts?.zeroAs !== undefined) return finish(opts.zeroAs, true);
-  const style = Number.isInteger(n) && n >= 0 && n <= 10 ? n : 1;
+  const style = Number.isInteger(n) && n >= 0 && n <= 18 ? n : 1;
   return finish(style, true);
 }
 
 /* ---------- 视觉（与前台 BuyButtonVisual 同构：mask 图标 / 文案 / 自定义图片） ---------- */
 
-function maskIcon(kind: 'cart' | 'cart-circle' | 'plus', outline: boolean) {
+function maskIcon(
+  kind: 'cart' | 'cart-circle' | 'plus' | 'bag' | 'bag-circle' | 'plus-circle' | 'cart-add' | 'lightning',
+  outline: boolean,
+) {
   return (
     <i className="pc-buy-btn__icon">
       <span className={`pc-buy-btn__ico pc-buy-btn__ico--${kind}${outline ? ' is-outline' : ''}`} aria-hidden="true" />
@@ -186,12 +203,15 @@ export function PcBuyButtonVisual({
   if (style >= 1 && style <= 4) {
     return maskIcon(style <= 2 ? 'cart' : 'plus', style === 1 || style === 3);
   }
-  if (style >= 5) {
-    return (
-      <span className={`pc-buy-btn__text pc-buy-btn__text--${style === 6 || style === 8 ? 'solid' : 'outline'}`}>
-        {style >= 7 ? '马上抢' : '购买'}
-      </span>
-    );
+  if (style === 11 || style === 12) return maskIcon('bag', style === 11);
+  if (style === 13) return maskIcon('bag-circle', false);
+  if (style === 14) return maskIcon('plus-circle', false);
+  if (style === 15) return maskIcon('cart-add', false);
+  if (style === 16) return maskIcon('lightning', false);
+  if ((style >= 5 && style <= 8) || style === 17 || style === 18) {
+    const solid = style === 6 || style === 8 || style === 18;
+    const text = style === 17 || style === 18 ? '立即购买' : style >= 7 ? '马上抢' : '购买';
+    return <span className={`pc-buy-btn__text pc-buy-btn__text--${solid ? 'solid' : 'outline'}`}>{text}</span>;
   }
   return null;
 }

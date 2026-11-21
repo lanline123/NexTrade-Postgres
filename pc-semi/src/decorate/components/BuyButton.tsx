@@ -26,7 +26,7 @@ import { buyStyleConfig, BUY_STYLE_FOLLOW_GLOBAL, type BuyStylePic } from '@/lib
 export interface ResolvedBuyBtn {
   /** 是否显示（style=0 或对象型 showBtn 关时为 false）。 */
   show: boolean;
-  /** 解析后的统一枚举（0–10）。 */
+  /** 解析后的统一枚举（0–18）。 */
   style: number;
   /** 样式 10 时的生效图标（模块自带优先，全局兜底）；其它样式为 null。 */
   customIcon: BuyStylePic | null;
@@ -103,7 +103,7 @@ export function resolveBuyBtnStyle(raw: unknown, opts?: ResolveBuyBtnOptions): R
   if (!Number.isFinite(n)) return fromGlobal();
   if (n === BUY_STYLE_FOLLOW_GLOBAL) return fromGlobal();
   if (n === 0 && opts?.zeroAs !== undefined) return finish(opts.zeroAs, true);
-  const style = Number.isInteger(n) && n >= 0 && n <= 10 ? n : 1;
+  const style = Number.isInteger(n) && n >= 0 && n <= 18 ? n : 1;
   return finish(style, true);
 }
 
@@ -112,7 +112,10 @@ export function buyBtnClassName(style: number, extra?: string): string {
   return `dec-buy-btn dec-buy-btn--${style}${extra ? ` ${extra}` : ''}`;
 }
 
-function maskIcon(kind: 'cart' | 'cart-circle' | 'plus', outline: boolean) {
+function maskIcon(
+  kind: 'cart' | 'cart-circle' | 'plus' | 'bag' | 'bag-circle' | 'plus-circle' | 'cart-add' | 'lightning',
+  outline: boolean,
+) {
   return (
     <i className="dec-buy-btn__icon">
       <span
@@ -144,8 +147,17 @@ export function BuyButtonVisual({
   if (style >= 1 && style <= 4) {
     return maskIcon(style <= 2 ? 'cart' : 'plus', style === 1 || style === 3);
   }
-  if (style >= 5) {
-    return <span className="dec-buy-btn__text">{style >= 7 ? '马上抢' : '购买'}</span>;
+  if (style === 11 || style === 12) return maskIcon('bag', style === 11);
+  if (style === 13) return maskIcon('bag-circle', false);
+  if (style === 14) return maskIcon('plus-circle', false);
+  if (style === 15) return maskIcon('cart-add', false);
+  if (style === 16) return maskIcon('lightning', false);
+  if ((style >= 5 && style <= 8) || style === 17 || style === 18) {
+    return (
+      <span className="dec-buy-btn__text">
+        {style === 17 || style === 18 ? '立即购买' : style >= 7 ? '马上抢' : '购买'}
+      </span>
+    );
   }
   return null;
 }

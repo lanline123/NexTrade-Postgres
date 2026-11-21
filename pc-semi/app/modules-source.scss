@@ -543,7 +543,8 @@
   }
 
   &--5,
-  &--7 {
+  &--7,
+  &--17 {
     height: 32px;
     padding: 0 15px;
     border: 1px solid #dcdfe6;
@@ -556,7 +557,8 @@
   }
 
   &--6,
-  &--8 {
+  &--8,
+  &--18 {
     height: 32px;
     padding: 0 15px;
     border: 1px solid var(--general, var(--pc-primary));
@@ -569,13 +571,15 @@
   }
 
   &--5:hover,
-  &--7:hover {
+  &--7:hover,
+  &--17:hover {
     border-color: var(--general, var(--pc-primary));
     color: var(--general, var(--pc-primary));
   }
 
   &--6:hover,
-  &--8:hover {
+  &--8:hover,
+  &--18:hover {
     opacity: 0.88;
   }
 
@@ -601,6 +605,37 @@
     width: 24px;
     height: 24px;
     background: transparent;
+  }
+
+  /* 统一枚举扩容第二批（2026-11-21，11–16 图标源自 IconPark 电商类目）：
+     11 = 购物袋描边、12 = 购物袋实心、15 = 加购购物车、16 = 闪电（24px 纯图标）；
+     13 = 圆圈购物袋、14 = 圆圈加号（实心圆盘 + 白色字形，几何/动效同 9）；
+     17/18 文案款已并入上方 5/7、6/8 胶囊组。 */
+  &--11,
+  &--12,
+  &--15,
+  &--16 {
+    width: 24px;
+    height: 24px;
+    background: transparent;
+  }
+
+  &--13,
+  &--14 {
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    transition: opacity 0.15s ease;
+  }
+
+  &--13:hover,
+  &--14:hover {
+    opacity: 0.88;
+  }
+
+  &--13:active,
+  &--14:active {
+    opacity: 0.72;
   }
 
   &__img {
@@ -650,6 +685,29 @@
       }
     }
 
+    /* 扩充图标（2026-11-21，源自 IconPark 电商类目，落盘为同源 mask 资源）：
+       bag = 购物袋（11 描边 / 12 实心）、cart-add = 加购购物车（15）、
+       lightning = 闪电（16）。 */
+    &--bag {
+      mask-image: url('/assets/icons/bag.svg');
+      -webkit-mask-image: url('/assets/icons/bag.svg');
+
+      &.is-outline {
+        mask-image: url('/assets/icons/bag-outline.svg');
+        -webkit-mask-image: url('/assets/icons/bag-outline.svg');
+      }
+    }
+
+    &--cart-add {
+      mask-image: url('/assets/icons/cart-add.svg');
+      -webkit-mask-image: url('/assets/icons/cart-add.svg');
+    }
+
+    &--lightning {
+      mask-image: url('/assets/icons/lightning.svg');
+      -webkit-mask-image: url('/assets/icons/lightning.svg');
+    }
+
     /* 圆圈购物车（样式 9）重设计（2026-11-21）：不再是「粗圆环 + 缩小购物车」的单色
      * mask 字形（环厚约 2.6px、内嵌购物车仅约 13px，细节在 24px 下糊成团），改为
      * 实心款家族形态——圆盘底 = currentColor（图标色/主题色，本元素 base 的
@@ -680,6 +738,44 @@
         -webkit-mask-position: center;
         -webkit-mask-size: contain;
       }
+    }
+
+    /* 圆圈购物袋（样式 13）/ 圆圈加号（样式 14）：与 &--cart-circle 同一圆盘
+     * 形态（实心圆盘 = currentColor + 白色字形居中），仅 ::after 字形不同。
+     * 与后台 pcBuyButton.css 的同名规则逐值一致。 */
+    &--bag-circle,
+    &--plus-circle {
+      position: relative;
+      border-radius: 50%;
+      mask-image: none;
+      -webkit-mask-image: none;
+
+      &::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 15px;
+        height: 15px;
+        transform: translate(-50%, -50%);
+        background: #fff;
+        mask-repeat: no-repeat;
+        mask-position: center;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        -webkit-mask-size: contain;
+      }
+    }
+
+    &--bag-circle::after {
+      mask-image: url('/assets/icons/bag.svg');
+      -webkit-mask-image: url('/assets/icons/bag.svg');
+    }
+
+    &--plus-circle::after {
+      mask-image: url('/assets/icons/plus.svg');
+      -webkit-mask-image: url('/assets/icons/plus.svg');
     }
   }
 }
