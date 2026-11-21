@@ -710,7 +710,7 @@ mod tests {
         // user="a"、ukey="b"、stime="c" 拼接即 "abc"。
         assert_eq!(
             feieyun_sig("a", "b", "c"),
-            "a9993e364706816aba3e25717850c26c9cd0d0d89d"
+            "a9993e364706816aba3e25717850c26c9cd0d89d"
         );
         // 与 MD5("abc")=900150983cd24fb0d6963f7d28e17f72 明确不同（防回退到误植算法）
         assert_ne!(

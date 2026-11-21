@@ -435,9 +435,19 @@ mod tests {
     fn balance_log_insert_binds_wallet_type_not_literal() {
         // D1107 串账回归守卫：流水 INSERT 的 wallet_type 必须是绑定参数，
         // 不得再出现硬编码字面量 0（曾把佣金提现流水误标余额账户）。
+        // 断言范围锚定 insert_balance_log_in_tx 函数体：include_str! 的全文
+        // 含本测试源码，对全文做负向 contains 会命中断言自身的字面量而恒
+        // 失败（2026-11-21 CI 实证），故先切出函数体再断言。
         let src = include_str!("with_draw_apply_client.rs");
-        assert!(src.contains(".bind(log.wallet_type)"));
-        assert!(!src.contains("$10, 0, $11, $12"));
+        let start = src
+            .find("pub async fn insert_balance_log_in_tx")
+            .expect("insert_balance_log_in_tx 函数应存在");
+        let body = &src[start..];
+        let end = body.find("\n#[cfg(test)]").unwrap_or(body.len());
+        let body = &body[..end];
+        assert!(body.contains("INSERT INTO user_balance_log"));
+        assert!(body.contains(".bind(log.wallet_type)"));
+        assert!(!body.contains("$10, 0, $11, $12"));
     }
 
     #[test]
