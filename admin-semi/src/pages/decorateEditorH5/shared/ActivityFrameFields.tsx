@@ -10,7 +10,7 @@
  * 圆角 boxRadius / 内边距 innerPadding / 左右边距 boxPadding / 上边距 boxPaddingTop / 下边距 boxPaddingBottom。
  * 原版 selectLabel 中有 showBrief 但模板未渲染该组——此处同样不渲染（快照口径）。
  */
-import { SettingGroup, SegmentedRadio, RangeField, ColorField, RadioRowField } from "./settingWidgets";
+import { SettingGroup, SegmentedRadio, RangeField, ColorField, RadioRowField, BuyBtnStyleRowField } from "./settingWidgets";
 
 interface Props {
     data: Record<string, any>;
@@ -142,23 +142,7 @@ export default function ActivityFrameFields({
                 <RadioRowField data={data} onChange={onChange} field="showPrice" label="显示商品价格" options={SHOW} />
                 <RangeField data={data} onChange={onChange} field="goodsPadding" label="商品边距" max={50} />
                 {!hideBuyBtnStyle ? (
-                    <RadioRowField
-                        data={data}
-                        onChange={onChange}
-                        field="buyBtnStyle"
-                        label="购买按钮样式"
-                        options={[
-                            { value: 0, label: "不显示" },
-                            { value: 1, label: "样式一" },
-                            { value: 2, label: "样式二" },
-                            { value: 3, label: "样式三" },
-                            { value: 4, label: "样式四" },
-                            { value: 5, label: "样式五" },
-                            { value: 6, label: "样式六" },
-                            { value: 7, label: "样式七" },
-                            { value: 8, label: "样式八" }
-                        ]}
-                    />
+                    <BuyBtnStyleRowField data={data} onChange={onChange} field="buyBtnStyle" label="购买按钮样式" />
                 ) : null}
             </SettingGroup>
             <SettingGroup>

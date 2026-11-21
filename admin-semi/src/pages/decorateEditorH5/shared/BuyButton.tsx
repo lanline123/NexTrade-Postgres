@@ -40,6 +40,45 @@ function PlusIcon({ color, plus = true }: { color: string; plus?: boolean }) {
     );
 }
 
+/**
+ * btnType 图标单体（供购买按钮样式选择器 BuyBtnStylePicker 复用，与上方 BuyButton
+ * 渲染同源字形：1 购物车 / 2 购物篮 / 3 加号（圆） / 4 减号（圆） / 5 自定义图片）。
+ * btnType=5 未选图时渲染图片占位（选择器场景下模块可能还没选自定义图标）。
+ */
+export function BuyBtnTypeIcon({
+    btnType,
+    color = "#333333",
+    customIcon,
+    size = 24
+}: {
+    btnType: number;
+    color?: string;
+    customIcon?: unknown;
+    size?: number;
+}) {
+    const iconImageSrc =
+        customIcon && typeof customIcon === "object" ? pickPic(customIcon as { picUrl?: string; picThumb?: string }) : "";
+    return (
+        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: size, lineHeight: 1 }}>
+            {btnType === 1 ? <CartIcon color={color} /> : null}
+            {btnType === 2 ? <CartIcon2 color={color} /> : null}
+            {btnType === 3 ? <PlusIcon color={color} /> : null}
+            {btnType === 4 ? <PlusIcon color={color} plus={false} /> : null}
+            {btnType === 5 ? (
+                iconImageSrc ? (
+                    <img src={imageFormat(iconImageSrc)} style={{ width: size, height: size, objectFit: "contain" }} alt="" />
+                ) : (
+                    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" aria-hidden="true">
+                        <rect x="3" y="5" width="18" height="14" rx="2" stroke="#b6bcc4" strokeWidth="1.6" />
+                        <circle cx="9" cy="10" r="1.6" fill="#b6bcc4" />
+                        <path d="M4 17.5 10 12l3.5 3L17 11l3 3.5" stroke="#b6bcc4" strokeWidth="1.6" fill="none" />
+                    </svg>
+                )
+            ) : null}
+        </span>
+    );
+}
+
 interface BuyButtonStyle {
     showBtn?: number;
     btnType?: number;

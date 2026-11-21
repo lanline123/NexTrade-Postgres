@@ -23,6 +23,7 @@ import {
     SettingRow,
     RadioRowField,
     RadioField,
+    BuyBtnStyleField,
     RangeField,
     ColorField,
     PicSelectField,
@@ -47,17 +48,7 @@ const SHOW_OPTIONS = [
     { value: 1, label: "显示" },
     { value: 0, label: "不显示" }
 ];
-const BUY_BTN_OPTIONS = [
-    { value: 0, label: "不显示" },
-    { value: 1, label: "样式一" },
-    { value: 2, label: "样式二" },
-    { value: 3, label: "样式三" },
-    { value: 4, label: "样式四" },
-    { value: 5, label: "样式五" },
-    { value: 6, label: "样式六" },
-    { value: 7, label: "样式七" },
-    { value: 8, label: "样式八" }
-];
+
 
 function GradientPairField({ data, onChange, startField, endField, label }: Props & { startField: string; endField: string; label: string }) {
     return (
@@ -437,7 +428,7 @@ export default function NewcomerComboSettings({ data, onChange, moduleIndex }: P
                                 <RangeField data={data} onChange={onChange} field="productItemPadding" label="商品内边距" max={20} />
                                 <RadioRowField data={data} onChange={onChange} field="showMarketPrice" label="显示划线价" options={SHOW_OPTIONS} />
                                 <SettingRow label="购买按钮样式" block>
-                                    <RadioField data={data} onChange={onChange} field="buyBtnStyle" options={BUY_BTN_OPTIONS} />
+                                    <BuyBtnStyleField data={data} onChange={onChange} field="buyBtnStyle" />
                                 </SettingRow>
                             </>
                         ) : null}

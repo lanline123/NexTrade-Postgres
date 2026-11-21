@@ -20,6 +20,7 @@ import {
     SettingGroup,
     SettingRow,
     RadioRowField,
+    BuyBtnStyleRowField,
     RangeField,
     ColorField,
     TextField,
@@ -64,18 +65,7 @@ function BuyBtnSettingsField({ data, onChange }: { data: Record<string, any>; on
             />
             {Number(sub.showBtn) === 1 ? (
                 <>
-                    <RadioRowField
-                        {...bb}
-                        field="btnType"
-                        label="购买按钮图标样式"
-                        options={[
-                            { value: 1, label: "样式一" },
-                            { value: 2, label: "样式二" },
-                            { value: 3, label: "样式三" },
-                            { value: 4, label: "样式四" },
-                            { value: 5, label: "自定义图片" }
-                        ]}
-                    />
+                    <BuyBtnStyleRowField {...bb} field="btnType" label="购买按钮图标样式" visualSet="h5BtnType" customIcon={sub.iconImage} />
                     {Number(sub.btnType) === 5 ? <PicSelectField {...bb} field="iconImage" label="自定义图标图片" /> : null}
                     <RangeField {...bb} field="iconSize" label="图标尺寸" min={12} max={40} />
                     <TextField {...bb} field="text" label="文字内容" placeholder="请输入按钮文字内容" />

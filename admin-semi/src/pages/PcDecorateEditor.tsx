@@ -59,6 +59,7 @@ const tl = (key: string, params?: Record<string, string | number>) =>
 import DecorateLoading from './components/DecorateLoading';
 import ProductPickGrid, { mergePickedItems, type ProductPickItem } from '../components/ProductPickGrid';
 import ProductPickerModal from '../components/ProductPickerModal';
+import BuyBtnStylePicker, { BUY_BTN_STYLE_OPTIONS_UNIFIED } from '../components/BuyBtnStylePicker';
 import { PcBuyButtonVisual, resolvePcBuyBtn, usePcGlobalBuyStyle, SEARCH_LEGACY_MAP } from './decoratePc/previews/shared/PcBuyButton';
 import AlphaColorInput from '../components/AlphaColorInput';
 import ImageUploader from '../components/ImageUploader';
@@ -3191,7 +3192,7 @@ function ModuleSettingsPanel({
   const visibleSettings = tabbed
     ? def.settings.filter((field) => (activeTab === 'extend' ? isExtendField(field) : !isExtendField(field)))
     : def.settings;
-  const blockKinds = new Set(['picList', 'pic', 'textarea', 'products', 'title', 'container', 'hotarea', 'news', 'groupon', 'squareTemplate']);
+  const blockKinds = new Set(['picList', 'pic', 'textarea', 'products', 'title', 'container', 'hotarea', 'news', 'groupon', 'squareTemplate', 'buyBtnStyle']);
   const contentTabLabel = def.type === 'pc-product-group' ? t('商品设置') : '内容设置';
   const SECTION_LEVELS: Record<string, 1 | 2> = {
     // 模块级 / 内容级 / 扩展级
@@ -3693,7 +3694,7 @@ function SettingsFieldRows({
   onChange: (next: Record<string, any>) => void;
 }) {
   const { t } = useI18n();
-  const blockKinds = new Set(['picList', 'pic', 'textarea', 'products', 'title', 'container', 'hotarea', 'news', 'groupon', 'squareTemplate', 'groupList']);
+  const blockKinds = new Set(['picList', 'pic', 'textarea', 'products', 'title', 'container', 'hotarea', 'news', 'groupon', 'squareTemplate', 'groupList', 'buyBtnStyle']);
   return (
     <>
       {fields.map((field) => {
@@ -4589,6 +4590,23 @@ function FieldControl({
           onChange={(v) => set(v)}
         />
       );
+    case 'buyBtnStyle': {
+      // 购买按钮样式可视化点选（2026-11-21 用户口径）：共享 BuyBtnStylePicker，
+      // 与全局「购买按钮样式设置」页同形态；回写仍为选项原始数值，数据形状不变。
+      const pickerOptions = (field.options || []).map((o) => {
+        const v = Number(o.value);
+        const preset = BUY_BTN_STYLE_OPTIONS_UNIFIED.find((p) => p.value === v);
+        return { value: v, label: t(o.label), short: preset ? t(preset.short) : t(o.label) };
+      });
+      return (
+        <BuyBtnStylePicker
+          value={value ?? field.options?.[0]?.value}
+          options={pickerOptions}
+          customIcon={field.buyBtnIconKey ? getPath(moduleData, field.buyBtnIconKey) : undefined}
+          onChange={(v) => set(v)}
+        />
+      );
+    }
     case 'input':
       return <Input value={String(value ?? '')} onChange={(v) => set(v)} placeholder={field.placeholder ? t(field.placeholder) : undefined} />;
     case 'textarea':

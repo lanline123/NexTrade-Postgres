@@ -13,6 +13,7 @@ import {
     SettingRow,
     RadioRowField,
     RadioField,
+    BuyBtnStyleField,
     RangeField,
     ColorField,
     PicSelectField,
@@ -214,22 +215,7 @@ export default function LimitedSpecialSettings({ data, onChange }: Props) {
                         <RadioRowField data={data} onChange={onChange} field="showSales" label="商品销量" options={SHOW_OPTIONS} />
                         <RadioRowField data={data} onChange={onChange} field="showComment" label="商品评价" options={SHOW_OPTIONS} />
                         <SettingRow label="购买按钮样式" block>
-                            <RadioField
-                                data={data}
-                                onChange={onChange}
-                                field="buyBtnStyle"
-                                options={[
-                                    { value: 0, label: "不显示" },
-                                    { value: 1, label: "样式一" },
-                                    { value: 2, label: "样式二" },
-                                    { value: 3, label: "样式三" },
-                                    { value: 4, label: "样式四" },
-                                    { value: 5, label: "样式五" },
-                                    { value: 6, label: "样式六" },
-                                    { value: 7, label: "样式七" },
-                                    { value: 8, label: "样式八" }
-                                ]}
-                            />
+                            <BuyBtnStyleField data={data} onChange={onChange} field="buyBtnStyle" />
                         </SettingRow>
                     </SettingGroup>
                 </>

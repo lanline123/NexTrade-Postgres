@@ -13,6 +13,7 @@ import {
     SettingRow,
     RadioRowField,
     RadioField,
+    BuyBtnStyleField,
     RangeField,
     ColorField,
     TextField,
@@ -53,17 +54,7 @@ function BuyBtnFields({ data, onChange }: Props) {
             {Number(btn.showBtn) === 1 ? (
                 <>
                     <SettingRow label="购买按钮图标样式" block>
-                        <RadioField
-                            {...sub}
-                            field="btnType"
-                            options={[
-                                { value: 1, label: "样式一" },
-                                { value: 2, label: "样式二" },
-                                { value: 3, label: "样式三" },
-                                { value: 4, label: "样式四" },
-                                { value: 5, label: "自定义图片" }
-                            ]}
-                        />
+                        <BuyBtnStyleField {...sub} field="btnType" visualSet="h5BtnType" customIcon={btn.iconImage} />
                     </SettingRow>
                     {Number(btn.btnType) === 5 ? <PicSelectField {...sub} field="iconImage" label="自定义图标图片" /> : null}
                     <RangeField {...sub} field="iconSize" label="图标尺寸" min={12} max={40} />

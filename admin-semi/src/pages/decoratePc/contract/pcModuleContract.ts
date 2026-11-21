@@ -256,7 +256,7 @@ export interface SettingFieldDef {
     | 'radio' | 'switch' | 'select' | 'input' | 'textarea' | 'number' | 'slider'
     | 'color' | 'colorPair' | 'squareTemplate' | 'picList' | 'pic' | 'link' | 'linkList'
     | 'category' | 'categoryMulti' | 'products' | 'productIds' | 'groupon'
-    | 'title' | 'container' | 'hotarea' | 'groupList' | 'heroCards';
+    | 'title' | 'container' | 'hotarea' | 'groupList' | 'heroCards' | 'buyBtnStyle';
   key: string;
   label: string;
   hint?: string;
@@ -318,6 +318,8 @@ export interface SettingFieldDef {
   iconRadio?: boolean;
   /** 选项对应的装饰图标 code point（配合 iconRadio，与 options 等长或按 value 映射） */
   optionIcons?: Record<string | number, string>;
+  /** kind='buyBtnStyle' 时模块自带自定义图标的字段 key（样式 10 的选择器预览图；缺省 buyBtnIcon） */
+  buyBtnIconKey?: string;
 }
 
 export interface ModuleDef {
@@ -395,11 +397,14 @@ export const buyBtnFields = (opts: { key?: string; iconKey?: string; section?: s
   const section = opts.section ?? '购买按钮';
   return [
     {
-      kind: 'select',
+      // 2026-11-21 改可视化点选（共享 BuyBtnStylePicker，用户口径：直接显示图标，
+      // 不再用文字下拉）；kind/options/取值语义不变，仅控件形态变化。
+      kind: 'buyBtnStyle',
       key,
       label: '购买按钮',
       section,
       options: BUY_BTN_STYLE_OPTIONS,
+      buyBtnIconKey: iconKey,
       hint: '全站统一购买样式；「跟随全局」取后台「购买按钮样式设置」的全局值',
     },
     {

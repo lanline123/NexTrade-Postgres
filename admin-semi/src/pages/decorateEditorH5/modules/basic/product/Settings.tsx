@@ -13,7 +13,7 @@
 * 视觉选择器；
 * 模板组提示文案此前无左内边距、与字段标签不对齐，现补 padding 0 16px 同左缘。
 */
-import { SettingGroup, RadioRowField, RangeField, ColorField, TitleSettingsField} from "../../../shared/settingWidgets";
+import { SettingGroup, RadioRowField, BuyBtnStyleRowField, RangeField, ColorField, TitleSettingsField} from "../../../shared/settingWidgets";
 import { TemplateIconRadioField} from "../../../shared/templateIcon";
 import ProductsSourceField from "../../../shared/ProductsSourceField";
 
@@ -120,22 +120,11 @@ options={[
 <RadioRowField data={data} onChange={onChange} field="showName" label="显示商品名称" options={SHOW_OPTIONS} />
 <RadioRowField data={data} onChange={onChange} field="showPrice" label="显示商品价格" options={SHOW_OPTIONS} />
 <RangeField data={data} onChange={onChange} field="goodsPadding" label="商品边距" max={50} />
-<RadioRowField
+<BuyBtnStyleRowField
 data={data}
 onChange={onChange}
 field="buyBtnStyle"
 label="购买按钮样式"
-options={[
-{ value: 0, label: "不显示"},
-{ value: 1, label: "样式一"},
-{ value: 2, label: "样式二"},
-{ value: 3, label: "样式三"},
-{ value: 4, label: "样式四"},
-{ value: 5, label: "样式五"},
-{ value: 6, label: "样式六"},
-{ value: 7, label: "样式七"},
-{ value: 8, label: "样式八"}
-]}
 />
 </SettingGroup>
 <SettingGroup>

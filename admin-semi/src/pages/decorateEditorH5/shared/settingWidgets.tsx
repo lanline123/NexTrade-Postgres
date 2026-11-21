@@ -36,6 +36,7 @@ import SharedColorField from "../../../components/ColorField";
 import ImageUploader from "../../../components/ImageUploader";
 import GalleryPickerModal from "../../../components/GalleryPickerModal";
 import PicListEditor from "../../../components/PicListEditor";
+import BuyBtnStylePicker, { H5_BUY_BTN_STYLE_OPTIONS, H5_BUY_BTN_TYPE_OPTIONS, type BuyBtnStyleOption } from "../../../components/BuyBtnStylePicker";
 import { type PickedImage} from "../../../components/ProductImagePicker";
 import FloorIcon from "../../../components/FloorIcon";
 import { LinkField, type LinkValue} from "../../../components/LinkPicker";
@@ -165,6 +166,62 @@ return (
 <SegmentedRadio value={data?.[field]} options={options} onChange={(v) => onChange({ [field]: v})} />
 </SettingRow>
 );
+}
+
+// ---------------- 购买按钮样式（可视化点选，2026-11-21 用户口径） ----------------
+
+/**
+ * 购买按钮样式字段族：与 RadioField/RadioRowField 同接口（data/onChange/field），
+ * 控件本体为共享 BuyBtnStylePicker（直接显示按钮图标点选，形态对齐全局
+ * 「购买按钮样式设置」页）。只换形态：回写仍是 { [field]: 选项原始数值 }，
+ * 字段值/默认值/数据形状逐字不变。
+ * - 缺省 options = 数字型 buyBtnStyle 0–8（H5_BUY_BTN_STYLE_OPTIONS，unified 视觉集）；
+ * - 对象型 buyBtnStyle 的 btnType 子字段传 visualSet="h5BtnType"（选项自动换
+ *   H5_BUY_BTN_TYPE_OPTIONS 1–5），并把该对象的 iconImage 传 customIcon 供
+ *   「自定义图片」项预览。
+ */
+interface BuyBtnStyleFieldProps {
+    visualSet?: "unified" | "h5BtnType";
+    options?: BuyBtnStyleOption[];
+    customIcon?: unknown;
+}
+
+function buyBtnOptionsFor(props: BuyBtnStyleFieldProps): BuyBtnStyleOption[] {
+    if (props.options) return props.options;
+    return props.visualSet === "h5BtnType" ? H5_BUY_BTN_TYPE_OPTIONS : H5_BUY_BTN_STYLE_OPTIONS;
+}
+
+/** 购买按钮样式（裸控件，供 SettingRow block 等容器内嵌，与 SegmentedRadio 同位） */
+export function BuyBtnStyleRadio({ value, onChange, visualSet, options, customIcon }: { value: any; onChange: (v: number) => void } & BuyBtnStyleFieldProps) {
+    return (
+        <BuyBtnStylePicker
+            value={value}
+            options={buyBtnOptionsFor({ visualSet, options })}
+            visualSet={visualSet}
+            customIcon={customIcon}
+            onChange={onChange}
+        />
+    );
+}
+
+/** 购买按钮样式（无标签行，整行控件，与 RadioField 同位） */
+export function BuyBtnStyleField({ data, onChange, field, visualSet, options, customIcon }: FieldProps & { field: string } & BuyBtnStyleFieldProps) {
+    return (
+        <div className="dec-edit-group">
+            <div className="dec-edit-group-con">
+                <BuyBtnStyleRadio value={data?.[field]} visualSet={visualSet} options={options} customIcon={customIcon} onChange={(v) => onChange({ [field]: v })} />
+            </div>
+        </div>
+    );
+}
+
+/** 购买按钮样式（带标题，整宽块形态——可视化网格占整行，与原版整宽块口径一致） */
+export function BuyBtnStyleRowField({ data, onChange, field, label, visualSet, options, customIcon }: FieldProps & { field: string; label: string } & BuyBtnStyleFieldProps) {
+    return (
+        <SettingRow label={label} block>
+            <BuyBtnStyleRadio value={data?.[field]} visualSet={visualSet} options={options} customIcon={customIcon} onChange={(v) => onChange({ [field]: v })} />
+        </SettingRow>
+    );
 }
 
 /** 裸分段单选组（Semi RadioGroup type="button"）：仅页面设置使用——

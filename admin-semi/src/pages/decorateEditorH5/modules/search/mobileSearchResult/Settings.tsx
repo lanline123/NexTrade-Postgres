@@ -22,6 +22,7 @@ import { Switch } from "@douyinfe/semi-ui";
 import {
     SettingRow,
     SegmentedRadio,
+    BuyBtnStyleRadio,
     RadioRowField,
     RangeField,
     ColorField,
@@ -293,21 +294,8 @@ export default function MobileSearchResultSettings({ data, onChange }: Props) {
                                         </div>
                                     </div>
                                     <div className="dec-edit-group-con">
-                                        {/* 原版 .buy-btn-style-group：每钮 33.333% 宽、3 列换行 */}
-                                        <div className="dec-radio-group" style={{ flex: 1, minWidth: 0, display: "flex", flexWrap: "wrap" }}>
-                                            {BUY_BTN_LABELS.map((label, v) => (
-                                                <label
-                                                    key={v}
-                                                    className={`el-radio-button${buyBtnStyle === v ? " is-active" : ""}`}
-                                                    style={{ flex: "0 0 33.333333%", maxWidth: "33.333333%", boxSizing: "border-box" }}
-                                                    onClick={() => onChange({ buyBtnStyle: v })}
-                                                >
-                                                    <span className="el-radio-button__inner" style={{ width: "100%", padding: "0 8px", boxSizing: "border-box" }}>
-                                                        {label}
-                                                    </span>
-                                                </label>
-                                            ))}
-                                        </div>
+                                        {/* 2026-11-21 改可视化点选（共享 BuyBtnStylePicker）；原版为 .buy-btn-style-group 文字钮 3 列换行 */}
+                                        <BuyBtnStyleRadio value={buyBtnStyle} onChange={(v) => onChange({ buyBtnStyle: v })} />
                                     </div>
                                 </div>
                             ) : null}

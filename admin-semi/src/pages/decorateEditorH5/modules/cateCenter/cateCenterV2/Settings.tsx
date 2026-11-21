@@ -5,7 +5,7 @@
  * 显示商品名称 / 购买按钮样式（原版为标题在上的整宽块 + 三列等宽单选组）；
  * 颜色设置：14 色（留空跟随主题，重置回空串）。
  */
-import { SettingGroup, SettingRow, SegmentedRadio, RadioRowField, ColorField } from "../../../shared/settingWidgets";
+import { SettingGroup, SettingRow, BuyBtnStyleRadio, RadioRowField, ColorField } from "../../../shared/settingWidgets";
 
 const COLOR_FIELDS: Array<{ field: string; label: string }> = [
     { field: "themeColor", label: "主题色（价格、按钮、选中态）" },
@@ -22,18 +22,6 @@ const COLOR_FIELDS: Array<{ field: string; label: string }> = [
     { field: "productTitleColor", label: "商品标题色" },
     { field: "priceColor", label: "商品价格色" },
     { field: "buyBtnColor", label: "购买按钮色" }
-];
-
-const BUY_BTN_OPTIONS = [
-    { value: 0, label: "不显示" },
-    { value: 1, label: "样式一" },
-    { value: 2, label: "样式二" },
-    { value: 3, label: "样式三" },
-    { value: 4, label: "样式四" },
-    { value: 5, label: "样式五" },
-    { value: 6, label: "样式六" },
-    { value: 7, label: "样式七" },
-    { value: 8, label: "样式八" }
 ];
 
 export default function CateCenterV2Settings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
@@ -101,7 +89,7 @@ export default function CateCenterV2Settings({ data, onChange }: { data: Record<
                     ]}
                 />
                 <SettingRow label="购买按钮样式" block>
-                    <SegmentedRadio value={data?.buyBtnStyle ?? 1} options={BUY_BTN_OPTIONS} onChange={(v) => onChange({ buyBtnStyle: v })} />
+                    <BuyBtnStyleRadio value={data?.buyBtnStyle ?? 1} onChange={(v) => onChange({ buyBtnStyle: v })} />
                 </SettingRow>
             </SettingGroup>
             <SettingGroup title="颜色设置">
