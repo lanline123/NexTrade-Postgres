@@ -39,10 +39,22 @@ export default function MixedProductDisplay({ module }: Props) {
 
     const [isLoading, setIsLoading] = useState(true);
     const [productGroupsList, setProductGroupsList] = useState<Record<number, any[]>>({});
+    // 取数竞态守卫：连续快速改选时只有最后一次调用的结果可以落 state
+    const fetchSeqRef = useRef(0);
     const getProductGroupsList = async () => {
+        const seq = ++fetchSeqRef.current;
+        // 重拉时复位 isLoading，使既有 [isLoading] 量高 effect 在新列表渲染后重新量测图高
+        setIsLoading(true);
         const promises = module.productGroups.map(async (group: any, index: number) => {
             try {
-                const ids = group.pruductList.map((item: any) => item.productId);
+                const ids = (group.pruductList ?? [])
+                    .map((item: any) => Number(item.productId))
+                    .filter((id: number) => Number.isFinite(id) && id > 0);
+                // 无有效 id 的组直接清空、不发请求：删光商品时该组必须能清掉，
+                // 且空 ids 请求有返回未过滤商品的风险
+                if (ids.length === 0) {
+                    return { index, data: [] };
+                }
                 const result = await getProductsList({ ids: ids.join(","), size: ids.length });
                 return { index, data: result.records };
             } catch (error) {
@@ -52,6 +64,9 @@ export default function MixedProductDisplay({ module }: Props) {
         });
 
         const results = await Promise.all(promises);
+        if (seq !== fetchSeqRef.current) {
+            return;
+        }
         const next: Record<number, any[]> = {};
         results.forEach(({ index, data }) => {
             next[index] = data;
@@ -145,13 +160,21 @@ export default function MixedProductDisplay({ module }: Props) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // 对应旧 onMounted
+    // 各组商品 id 签名：逐组 pruductList 的 productId 以 , 连接、组间以 | 连接。
+    // 编辑器嵌入语境下组件按 moduleIndex 保活不重挂，原挂载取数一次的语义必须补成
+    // 「id 变化即重拉」——增删/替换/重排/跨组互换任一变化签名必变
+    // （与 customProduct 以 pruductList 为 effect 依赖同口径）。
+    const productGroupsSignature = useMemo(() => {
+        return (module.productGroups ?? []).map((group: any) => (group.pruductList ?? []).map((item: any) => item.productId).join(",")).join("|");
+    }, [module.productGroups]);
+
+    // 对应旧 onMounted + id 签名变化重拉
     useEffect(() => {
-        if (module.productGroups.length > 0) {
+        if ((module.productGroups ?? []).length > 0) {
             void getProductGroupsList();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [productGroupsSignature]);
 
     // 列表加载完成后延迟 350ms 量图高（slidesPerView=2 首屏定型，此处量到的即最终几何）
     useEffect(() => {
@@ -253,7 +276,7 @@ export default function MixedProductDisplay({ module }: Props) {
                                                         style={`background: ${module.moduleColor.priceBackgroundColor}; color: ${module.moduleColor.priceColor}; font-weight: 700; font-family: font1`}
                                                     >
                                                         <FormatPrice
-                                                            fontStyle={{ fontSize: "28rpx", lineHeight: 1 } as any}
+                                                            fontStyle={{ fontSize: "24rpx", lineHeight: 1 } as any}
                                                             currencyStyle={{ fontSize: "24rpx" } as any}
                                                             decimalsStyle={{ fontSize: "24rpx" } as any}
                                                             priceData={item.productPrice}
@@ -324,7 +347,7 @@ export default function MixedProductDisplay({ module }: Props) {
                                                         style={`background: ${module.moduleColor.priceBackgroundColor}; color: ${module.moduleColor.priceColor}; font-weight: 700; font-family: font1`}
                                                     >
                                                         <FormatPrice
-                                                            fontStyle={{ fontSize: "28rpx", lineHeight: 1 } as any}
+                                                            fontStyle={{ fontSize: "24rpx", lineHeight: 1 } as any}
                                                             currencyStyle={{ fontSize: "24rpx" } as any}
                                                             decimalsStyle={{ fontSize: "24rpx" } as any}
                                                             priceData={item.productPrice}
