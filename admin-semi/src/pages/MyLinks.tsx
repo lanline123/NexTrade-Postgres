@@ -1,4 +1,4 @@
-// 我方新增（平台联邦 P1）：我的连接页（组织 → 组织管理 → 我的连接，我是成员 role=2）。
+// 我方新增（万象互联 P1）：我的连接页（万象互联 → 我的连接，我是成员 role=2）。
 import { useMemo, useState } from 'react';
 import { Button, Card, Input, Space, Toast } from '@douyinfe/semi-ui';
 import { apiPost } from '../api';

@@ -1,4 +1,4 @@
-// 我方新增（平台联邦 P1）：平台联邦设置页（设置 → 商城设置 → 平台联邦）。
+// 我方新增（万象互联 P1）：万象互联设置页（设置 → 商城设置 → 万象互联）。
 import { useEffect, useState } from 'react';
 import { Button, Card, Checkbox, Input, Space, Spin, Switch, Toast, Typography } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '../api';
@@ -12,7 +12,7 @@ import {
 const { Text, Title } = Typography;
 
 /**
- * 平台联邦设置（我方新增，原版无）：配置存后端 config `federationSettings`，
+ * 万象互联设置（我方新增，原版无；原名「平台联邦」）：配置存后端 config `federationSettings`，
  * 后台读 GET /setting/config/federationSettings、写 POST /setting/config/saveFederationSettings
  * （整块保存）。本页不受总开关门控常驻——总开关关时正是从这里重新打开。
  * 保存 payload 必须带回 instanceUuid（从加载值原样回传，避免后端重生成）。
@@ -29,7 +29,7 @@ export default function FederationSettings() {
         const data = await apiGet<Record<string, any>>('/setting/config/federationSettings');
         setSettings(normalizeFederationSettings(data));
       } catch {
-        Toast.error(t('加载平台联邦设置失败'));
+        Toast.error(t('加载万象互联设置失败'));
       } finally {
         setLoading(false);
       }
@@ -69,7 +69,7 @@ export default function FederationSettings() {
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Title heading={4} style={{ margin: 0 }}>
-          {t('平台联邦')}
+          {t('万象互联')}
         </Title>
       </div>
 
@@ -82,7 +82,7 @@ export default function FederationSettings() {
           <div style={{ display: 'grid', gap: 4 }}>
             <Text strong>{settings.enabled ? t('已开启') : t('已关闭（默认）')}</Text>
             <Text type="tertiary">
-              {t('关闭时一级菜单「组织」整体不出现，/hub/* 接口后端返回 404；本设置页常驻不受影响。')}
+              {t('关闭时一级菜单「万象互联」不出现，「组织」组下「商品流通」栏一并隐藏，/hub/* 接口后端返回 404；本设置页常驻不受影响。')}
             </Text>
           </div>
         </Space>

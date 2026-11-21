@@ -1,4 +1,4 @@
-// 我方新增（平台联邦 P1）：联邦商品聚合页（组织 → 组织管理 → 联邦商品聚合）。
+// 我方新增（万象互联 P1）：联邦商品聚合页（万象互联 → 联邦商品聚合）。
 import { useState } from 'react';
 import { Button, Input, Modal, Select, Space, Tag, Toast } from '@douyinfe/semi-ui';
 import { apiPost } from '../api';

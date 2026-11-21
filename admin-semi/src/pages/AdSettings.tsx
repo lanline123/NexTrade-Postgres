@@ -1,5 +1,5 @@
 /**
- * 平台「投流定价」设置（设置 > 商城设置，与价格显示设置同组同形态）。
+ * 平台「投流定价」设置（设置 > 商城设置，与价格显示同组同形态）。
  *
  * 配置存后端 config code `adSettings`（整块 JSON）：
  * - GET  /adminapi/setting/config/adSettings      读取生效配置

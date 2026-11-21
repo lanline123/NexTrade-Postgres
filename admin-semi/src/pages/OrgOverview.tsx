@@ -1,4 +1,4 @@
-// 我方新增（平台联邦 P1）：组织概览页（组织 → 组织管理 → 组织概览）。
+// 我方新增（万象互联 P1）：组织概览页（万象互联 → 组织概览）。
 import { useEffect, useState } from 'react';
 import { Card, Col, Row, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { apiGet } from '../api';

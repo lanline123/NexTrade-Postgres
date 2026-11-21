@@ -1,4 +1,4 @@
-// 我方新增（平台联邦 P1）：对接 API 管理页（组织 → 商品流通 → 对接 API 管理，走既有 /product/feed/* 接口）。
+// 我方新增（万象互联 P1）：对接 API 管理页（组织 → 商品流通 → 对接 API 管理，走既有 /product/feed/* 接口）。
 import { useCallback, useState } from 'react';
 import {
   Button,

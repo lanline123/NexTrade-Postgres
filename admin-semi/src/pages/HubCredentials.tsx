@@ -1,4 +1,4 @@
-// 我方新增（平台联邦 P1）：API 凭证页（组织 → 组织管理 → API 凭证）。
+// 我方新增（万象互联 P1）：API 凭证页（万象互联 → API 凭证）。
 import { useCallback, useEffect, useState } from 'react';
 import {
   Button,

@@ -14,7 +14,7 @@ import {
 const { Text, Title } = Typography;
 
 /**
- * 网站字体设置（设置 → 商城设置 → 网站字体设置）。
+ * 网站字体（设置 → 商城设置 → 网站字体）。
  *
  * 前台字体按语言分别配置（PC locale code），另有全站默认与后台（admin）
  * 字体。配置存后端 config code `fontSettings`，前台通过

@@ -18,7 +18,7 @@ import { useI18n } from '../i18n';
 const { Text, Title } = Typography;
 
 /**
- * 全站价格显示设置（设置 → 商城设置 → 价格显示设置）。
+ * 全站价格显示（设置 → 商城设置 → 价格显示）。
  *
  * 大额商品展示价按币种单位阶梯缩写：人民币 万/亿、美元 K/M/B、印度卢比 K/L/Cr 等。
  * 每条规则 = 门槛（金额 ≥ at 时启用）+ 除数（显示值 = 金额 / div）+ 后缀（自由文本，
@@ -182,7 +182,7 @@ export default function PriceDisplaySettings() {
           });
         }
       } catch {
-        Toast.error(t('加载价格显示设置失败'));
+        Toast.error(t('加载价格显示失败'));
       } finally {
         setLoading(false);
       }
@@ -285,7 +285,7 @@ export default function PriceDisplaySettings() {
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Title heading={4} style={{ margin: 0 }}>
-          {t('价格显示设置')}
+          {t('价格显示')}
         </Title>
       </div>
 

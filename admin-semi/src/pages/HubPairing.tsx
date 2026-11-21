@@ -1,4 +1,4 @@
-// 我方新增（平台联邦 P1）：配对审批页（组织 → 组织管理 → 配对审批）。
+// 我方新增（万象互联 P1）：配对审批页（万象互联 → 配对审批）。
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, Input, Modal, Popconfirm, Space, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '../api';

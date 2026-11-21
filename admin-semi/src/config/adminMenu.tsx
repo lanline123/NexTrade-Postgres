@@ -363,37 +363,6 @@ export const navGroups: NavGroup[] = [
         ]
       },
       {
-        "key": "organize6",
-        "label": "平台联邦",
-        "icon": <IconGlobe />,
-        "children": [
-          {
-            "key": "orgOverview",
-            "label": "组织概览"
-          },
-          {
-            "key": "hubLinks",
-            "label": "成员连接"
-          },
-          {
-            "key": "hubPairing",
-            "label": "配对审批"
-          },
-          {
-            "key": "myLinks",
-            "label": "我的连接"
-          },
-          {
-            "key": "hubCredentials",
-            "label": "API 凭证"
-          },
-          {
-            "key": "hubAggregation",
-            "label": "联邦商品聚合"
-          }
-        ]
-      },
-      {
         "key": "organize7",
         "label": "商品流通",
         "icon": <IconLayers />,
@@ -403,6 +372,43 @@ export const navGroups: NavGroup[] = [
             "label": "对接 API 管理"
           }
         ]
+      }
+    ]
+  },
+  {
+    "key": "federation",
+    "label": "万象互联",
+    "icon": <IconGlobe />,
+    "items": [
+      {
+        "key": "orgOverview",
+        "label": "组织概览",
+        "icon": <IconApartment />
+      },
+      {
+        "key": "hubLinks",
+        "label": "成员连接",
+        "icon": <IconUserGroup />
+      },
+      {
+        "key": "hubPairing",
+        "label": "配对审批",
+        "icon": <IconVerify />
+      },
+      {
+        "key": "myLinks",
+        "label": "我的连接",
+        "icon": <IconShare />
+      },
+      {
+        "key": "hubCredentials",
+        "label": "API 凭证",
+        "icon": <IconLock />
+      },
+      {
+        "key": "hubAggregation",
+        "label": "联邦商品聚合",
+        "icon": <IconApps />
       }
     ]
   },
@@ -1437,7 +1443,7 @@ export const navGroups: NavGroup[] = [
           },
           {
             "key": "priceDisplaySettings",
-            "label": "价格显示设置"
+            "label": "价格显示"
           },
           {
             "key": "buyStyleSettings",
@@ -1445,7 +1451,7 @@ export const navGroups: NavGroup[] = [
           },
           {
             "key": "fontSettings",
-            "label": "网站字体设置"
+            "label": "网站字体"
           },
           {
             "key": "systemMode",
@@ -1453,7 +1459,7 @@ export const navGroups: NavGroup[] = [
           },
           {
             "key": "federationSettings",
-            "label": "平台联邦"
+            "label": "万象互联"
           },
           {
             "key": "adSettingsManage",
@@ -1929,9 +1935,9 @@ export const pageTitles: Record<string, string> = {
   "baseOrderManage": "订单设置",
   "baseReceiptManage": "小票打印",
   "personalizedManage": "个性化设置",
-  "priceDisplaySettings": "价格显示设置",
+  "priceDisplaySettings": "价格显示",
   "buyStyleSettings": "购买按钮样式",
-  "fontSettings": "网站字体设置",
+  "fontSettings": "网站字体",
   "systemMode": "系统模式",
   "orgOverview": "组织概览",
   "hubLinks": "成员连接",
@@ -1940,7 +1946,7 @@ export const pageTitles: Record<string, string> = {
   "hubCredentials": "API 凭证",
   "hubAggregation": "联邦商品聚合",
   "feedKeyManage": "对接 API 管理",
-  "federationSettings": "平台联邦",
+  "federationSettings": "万象互联",
   "adSettingsManage": "投流定价",
   "taxRateManage": "税率管理",
   "wechatLiveMiniAppSetting": "小程序设置",

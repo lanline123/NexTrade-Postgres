@@ -1,4 +1,4 @@
-// 我方新增（平台联邦 P1）：成员连接页（组织 → 组织管理 → 成员连接，我是中枢 role=1）。
+// 我方新增（万象互联 P1）：成员连接页（万象互联 → 成员连接，我是中枢 role=1）。
 import { useMemo, useState } from 'react';
 import { Button, Checkbox, Input, Modal, Popconfirm, Select, Space, Tag, Toast } from '@douyinfe/semi-ui';
 import { apiPost } from '../api';

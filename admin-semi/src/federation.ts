@@ -2,7 +2,7 @@ import { apiGet } from './api';
 import type { NavGroup } from './config/adminMenu';
 
 /**
- * 平台联邦（我方新增功能，原版无）：多实例经 API 联邦（hub-federation-design §2/§6）。
+ * 万象互联（我方新增功能，原版无；原名「平台联邦」）：多实例经 API 联邦（hub-federation-design §2/§6）。
  *
  * 设置走与 systemMode 同构的常驻接口（不受总开关门控，关时也能重新打开）：
  * - 后台读：GET /setting/config/federationSettings
@@ -10,7 +10,7 @@ import type { NavGroup } from './config/adminMenu';
  * 组织域接口挂 /hub/*，总开关关时后端 404。
  *
  * 门控口径（照 systemMode 模式，仅渲染层隐藏，不拦直达）：
- * - enabled=false → 「组织」组下联邦两栏（organize6/organize7）整体不出现；
+ * - enabled=false → 一级菜单「万象互联」整体不出现，「组织」组下「商品流通」栏一并不出现；
  * - enabled=true 时按 capabilities/modules 摘子页（见 filterNavGroupsByFederation）。
  */
 
@@ -94,7 +94,7 @@ export function cacheFederationSettings(settings: FederationSettings) {
   }
 }
 
-/** 拉取后台联邦设置并缓存；失败时返回缓存值（默认全关，组织菜单不出现）。 */
+/** 拉取后台联邦设置并缓存；失败时返回缓存值（默认全关，万象互联菜单不出现）。 */
 export async function fetchFederationSettings(): Promise<FederationSettings> {
   try {
     const data = await apiGet<Record<string, any>>('/setting/config/federationSettings');
@@ -107,17 +107,18 @@ export async function fetchFederationSettings(): Promise<FederationSettings> {
 }
 
 /**
- * 后台菜单门控（仅渲染层，不拦路由直达）。落位说明：原版已有同名一级组
- * 「组织」（key='organize'，店铺/供应商/门店/商户管理），联邦页不另建同名
- * 一级组，而是挂该组下 organize6「平台联邦」/ organize7「商品流通」两栏：
- * - enabled=false → 摘掉这两栏（组织组其余原版栏位不受影响）；
+ * 后台菜单门控（仅渲染层，不拦路由直达）。落位说明：联邦六页自成一级组
+ * 「万象互联」（key='federation'，2026-11-21 由「组织」组下二级栏位提为一级）；
+ * 「商品流通」（organize7）仍留「组织」组下，但同受本门控：
+ * - enabled=false → 「万象互联」整组不出现，organize7 一并摘掉（组织组其余原版栏位不受影响）；
  * - enabled=true：
  *   - capabilities.supplyOut 与 federation 皆关 → 摘 hubCredentials；
  *   - capabilities.federation 关 → 摘 hubLinks / hubPairing / myLinks；
  *   - modules.product 关 → 摘 hubAggregation 与 feedKeyManage；
- *   - 栏内子页摘空 → 整栏摘掉。
+ *   - 子页摘空 → 整组/整栏摘掉。
  */
-const FEDERATION_ITEM_KEYS = new Set(['organize6', 'organize7']);
+const FEDERATION_GROUP_KEY = 'federation';
+const CIRCULATION_ITEM_KEY = 'organize7';
 
 export function filterNavGroupsByFederation(groups: NavGroup[], settings: FederationSettings): NavGroup[] {
   const removeCredentials = !settings.capabilities.supplyOut && !settings.capabilities.federation;
@@ -130,22 +131,31 @@ export function filterNavGroupsByFederation(groups: NavGroup[], settings: Federa
     if (key === 'hubAggregation' || key === 'feedKeyManage') return removeProduct;
     return false;
   };
-  return groups.map((group) => {
-    if (group.key !== 'organize') return group;
-    return {
-      ...group,
-      items: group.items
-        .filter((item) => !FEDERATION_ITEM_KEYS.has(item.key) || settings.enabled)
-        .map((item) =>
-          FEDERATION_ITEM_KEYS.has(item.key)
-            ? { ...item, children: item.children?.filter((child) => !shouldRemove(child.key)) }
-            : item,
-        )
-        .filter(
-          (item) =>
-            !FEDERATION_ITEM_KEYS.has(item.key) || (item.children && item.children.length > 0),
-        ),
-    };
+  return groups.flatMap((group) => {
+    if (group.key === FEDERATION_GROUP_KEY) {
+      if (!settings.enabled) return [];
+      const items = group.items.filter((item) => !shouldRemove(item.key));
+      return items.length > 0 ? [{ ...group, items }] : [];
+    }
+    if (group.key === 'organize') {
+      return [
+        {
+          ...group,
+          items: group.items
+            .filter((item) => item.key !== CIRCULATION_ITEM_KEY || settings.enabled)
+            .map((item) =>
+              item.key === CIRCULATION_ITEM_KEY
+                ? { ...item, children: item.children?.filter((child) => !shouldRemove(child.key)) }
+                : item,
+            )
+            .filter(
+              (item) =>
+                item.key !== CIRCULATION_ITEM_KEY || (item.children && item.children.length > 0),
+            ),
+        },
+      ];
+    }
+    return [group];
   });
 }
 
