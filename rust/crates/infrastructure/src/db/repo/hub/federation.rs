@@ -36,35 +36,14 @@ impl HubFederationRepository {
         let page = q.page.unwrap_or(1).max(1);
         let size = q.page_size.unwrap_or(20).clamp(1, 100);
         let offset = ((page - 1) * size) as i64;
-        let mut cond = String::from(" WHERE 1=1");
-        if q.status.is_some() {
-            cond.push_str(" AND status = ?");
-        }
-        if q.conn_type.is_some() {
-            cond.push_str(" AND conn_type = ?");
-        }
-        if q.keyword.as_deref().is_some_and(|k| !k.trim().is_empty()) {
-            cond.push_str(" AND (cred_name ILIKE ? OR access_key ILIKE ?)");
-        }
-        let sql_cond = pg_placeholders(&cond);
 
-        let mut qb: QueryBuilder<'_, Postgres> =
-            QueryBuilder::new(format!("SELECT COUNT(*) FROM hub_credential{sql_cond}"));
-        push_cred_filters(&mut qb, q);
-        let total: (i64,) = qb
+        let total: (i64,) = cred_count_query(q)
             .build_query_as()
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
-        let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new(format!(
-            "SELECT * FROM hub_credential{sql_cond} ORDER BY credential_id DESC LIMIT "
-        ));
-        push_cred_filters(&mut qb, q);
-        qb.push_bind(size as i64);
-        qb.push(" OFFSET ");
-        qb.push_bind(offset);
-        let rows = qb
+        let rows = cred_page_query(q, size as i64, offset)
             .build_query_as::<HubCredential>()
             .fetch_all(&self.pool)
             .await
@@ -437,35 +416,14 @@ impl HubFederationRepository {
         let page = q.page.unwrap_or(1).max(1);
         let size = q.page_size.unwrap_or(20).clamp(1, 100);
         let offset = ((page - 1) * size) as i64;
-        let mut cond = String::from(" WHERE 1=1");
-        if q.status.is_some() {
-            cond.push_str(" AND status = ?");
-        }
-        if q.role.is_some() {
-            cond.push_str(" AND role = ?");
-        }
-        if q.keyword.as_deref().is_some_and(|k| !k.trim().is_empty()) {
-            cond.push_str(" AND (peer_name ILIKE ? OR peer_base_url ILIKE ? OR peer_instance_uuid ILIKE ?)");
-        }
-        let sql_cond = pg_placeholders(&cond);
 
-        let mut qb: QueryBuilder<'_, Postgres> =
-            QueryBuilder::new(format!("SELECT COUNT(*) FROM hub_link{sql_cond}"));
-        push_link_filters(&mut qb, q);
-        let total: (i64,) = qb
+        let total: (i64,) = link_count_query(q)
             .build_query_as()
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
 
-        let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new(format!(
-            "SELECT * FROM hub_link{sql_cond} ORDER BY link_id DESC LIMIT "
-        ));
-        push_link_filters(&mut qb, q);
-        qb.push_bind(size as i64);
-        qb.push(" OFFSET ");
-        qb.push_bind(offset);
-        let rows = qb
+        let rows = link_page_query(q, size as i64, offset)
             .build_query_as::<HubLink>()
             .fetch_all(&self.pool)
             .await
@@ -847,30 +805,14 @@ impl HubFederationRepository {
         let page = q.page.unwrap_or(1).max(1);
         let size = q.page_size.unwrap_or(20).clamp(1, 100);
         let offset = ((page - 1) * size) as i64;
-        let mut cond = String::from(" WHERE 1=1");
-        if q.credential_id.is_some_and(|id| id > 0) {
-            cond.push_str(" AND credential_id = ?");
-        }
-        if q.link_id.is_some_and(|id| id > 0) {
-            cond.push_str(" AND link_id = ?");
-        }
-        let sql_cond = pg_placeholders(&cond);
-        let mut qb: QueryBuilder<'_, Postgres> =
-            QueryBuilder::new(format!("SELECT COUNT(*) FROM hub_call_log{sql_cond}"));
-        push_log_filters(&mut qb, q);
-        let total: (i64,) = qb
+
+        let total: (i64,) = log_count_query(q)
             .build_query_as()
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
-        let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new(format!(
-            "SELECT * FROM hub_call_log{sql_cond} ORDER BY log_id DESC LIMIT "
-        ));
-        push_log_filters(&mut qb, q);
-        qb.push_bind(size as i64);
-        qb.push(" OFFSET ");
-        qb.push_bind(offset);
-        let rows = qb
+
+        let rows = log_page_query(q, size as i64, offset)
             .build_query_as::<nextrade_core::models::hub::federation::HubCallLogRow>()
             .fetch_all(&self.pool)
             .await
@@ -997,33 +939,14 @@ impl HubFederationRepository {
         let page = q.page.unwrap_or(1).max(1);
         let size = q.page_size.unwrap_or(20).clamp(1, 100);
         let offset = ((page - 1) * size) as i64;
-        let mut cond = String::from(" WHERE 1=1");
-        if q.link_id.is_some_and(|id| id > 0) {
-            cond.push_str(" AND link_id = ?");
-        }
-        if q.sync_state.is_some() {
-            cond.push_str(" AND sync_state = ?");
-        }
-        if q.keyword.as_deref().is_some_and(|k| !k.trim().is_empty()) {
-            cond.push_str(" AND (product_name ILIKE ? OR remote_shop_name ILIKE ?)");
-        }
-        let sql_cond = pg_placeholders(&cond);
-        let mut qb: QueryBuilder<'_, Postgres> =
-            QueryBuilder::new(format!("SELECT COUNT(*) FROM hub_product_map{sql_cond}"));
-        push_map_filters(&mut qb, q);
-        let total: (i64,) = qb
+
+        let total: (i64,) = map_count_query(q)
             .build_query_as()
             .fetch_one(&self.pool)
             .await
             .map_err(map_err)?;
-        let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new(format!(
-            "SELECT * FROM hub_product_map{sql_cond} ORDER BY map_id DESC LIMIT "
-        ));
-        push_map_filters(&mut qb, q);
-        qb.push_bind(size as i64);
-        qb.push(" OFFSET ");
-        qb.push_bind(offset);
-        let rows = qb
+
+        let rows = map_page_query(q, size as i64, offset)
             .build_query_as::<HubProductMap>()
             .fetch_all(&self.pool)
             .await
@@ -1058,76 +981,354 @@ impl HubFederationRepository {
     }
 }
 
+// ———————————————————— 列表查询构造（纯函数，供单测断言占位符序列） ————————————————————
+//
+// 占位符只由 QueryBuilder 的 push_bind 生成：条件片段与绑定必须交错 push，
+// 种子文本只含无占位符的 `WHERE 1=1`。严禁把 $n 预先烧进种子再 push_bind——
+// push_bind 按自身参数计数把占位符追加到串尾，与种子内预置的 $n 冲突错位，
+// 曾致四个列表接口带任一过滤即 500（`syntax error at or near "$1"`）。
+// 同口径先例：catalog/product_feed.rs 的钥列表构造。
+
+fn cred_count_query(q: &HubCredentialListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_credential WHERE 1=1");
+    push_cred_filters(&mut qb, q);
+    qb
+}
+
+fn cred_page_query(
+    q: &HubCredentialListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_credential WHERE 1=1");
+    push_cred_filters(&mut qb, q);
+    qb.push(" ORDER BY credential_id DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
+fn link_count_query(q: &HubLinkListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_link WHERE 1=1");
+    push_link_filters(&mut qb, q);
+    qb
+}
+
+fn link_page_query(
+    q: &HubLinkListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_link WHERE 1=1");
+    push_link_filters(&mut qb, q);
+    qb.push(" ORDER BY link_id DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
+fn log_count_query(q: &HubCallLogListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_call_log WHERE 1=1");
+    push_log_filters(&mut qb, q);
+    qb
+}
+
+fn log_page_query(
+    q: &HubCallLogListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_call_log WHERE 1=1");
+    push_log_filters(&mut qb, q);
+    qb.push(" ORDER BY log_id DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
+fn map_count_query(q: &HubAggregationListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_product_map WHERE 1=1");
+    push_map_filters(&mut qb, q);
+    qb
+}
+
+fn map_page_query(
+    q: &HubAggregationListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_product_map WHERE 1=1");
+    push_map_filters(&mut qb, q);
+    qb.push(" ORDER BY map_id DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
 fn push_cred_filters(qb: &mut QueryBuilder<'_, Postgres>, q: &HubCredentialListQuery) {
     if let Some(status) = q.status {
+        qb.push(" AND status = ");
         qb.push_bind(status);
     }
     if let Some(conn_type) = q.conn_type {
+        qb.push(" AND conn_type = ");
         qb.push_bind(conn_type);
     }
     if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         let like = format!("%{kw}%");
+        qb.push(" AND (cred_name ILIKE ");
         qb.push_bind(like.clone());
+        qb.push(" OR access_key ILIKE ");
         qb.push_bind(like);
+        qb.push(")");
     }
 }
 
 fn push_link_filters(qb: &mut QueryBuilder<'_, Postgres>, q: &HubLinkListQuery) {
     if let Some(status) = q.status {
+        qb.push(" AND status = ");
         qb.push_bind(status);
     }
     if let Some(role) = q.role {
+        qb.push(" AND role = ");
         qb.push_bind(role);
     }
     if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         let like = format!("%{kw}%");
+        qb.push(" AND (peer_name ILIKE ");
         qb.push_bind(like.clone());
+        qb.push(" OR peer_base_url ILIKE ");
         qb.push_bind(like.clone());
+        qb.push(" OR peer_instance_uuid ILIKE ");
         qb.push_bind(like);
+        qb.push(")");
     }
 }
 
 fn push_log_filters(qb: &mut QueryBuilder<'_, Postgres>, q: &HubCallLogListQuery) {
     if let Some(id) = q.credential_id.filter(|id| *id > 0) {
+        qb.push(" AND credential_id = ");
         qb.push_bind(id);
     }
     if let Some(id) = q.link_id.filter(|id| *id > 0) {
+        qb.push(" AND link_id = ");
         qb.push_bind(id);
     }
 }
 
 fn push_map_filters(qb: &mut QueryBuilder<'_, Postgres>, q: &HubAggregationListQuery) {
     if let Some(id) = q.link_id.filter(|id| *id > 0) {
+        qb.push(" AND link_id = ");
         qb.push_bind(id);
     }
     if let Some(state) = q.sync_state {
+        qb.push(" AND sync_state = ");
         qb.push_bind(state);
     }
     if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         let like = format!("%{kw}%");
+        qb.push(" AND (product_name ILIKE ");
         qb.push_bind(like.clone());
+        qb.push(" OR remote_shop_name ILIKE ");
         qb.push_bind(like);
+        qb.push(")");
     }
-}
-
-/// 把模板里的 `?` 顺序替换为 PG 的 `$1..$n`（模板内不得出现字面 `?`）。
-fn pg_placeholders(template: &str) -> String {
-    let mut out = String::with_capacity(template.len() + 8);
-    let mut n = 0;
-    for ch in template.chars() {
-        if ch == '?' {
-            n += 1;
-            out.push_str(&format!("${n}"));
-        } else {
-            out.push(ch);
-        }
-    }
-    out
 }
 
 fn map_err(e: sqlx::Error) -> Error {
     match e {
         sqlx::Error::RowNotFound => Error::NotFound("记录不存在".into()),
         other => Error::Database(other.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod list_sql_tests {
+    use super::*;
+
+    /// 按出现顺序抽出 SQL 文本中的 `$n` 占位符编号序列。
+    fn placeholder_seq(sql: &str) -> Vec<u32> {
+        let mut seq = Vec::new();
+        let mut chars = sql.chars().peekable();
+        while let Some(ch) = chars.next() {
+            if ch == '$' {
+                let mut num = String::new();
+                while let Some(&c) = chars.peek() {
+                    if c.is_ascii_digit() {
+                        num.push(c);
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+                if !num.is_empty() {
+                    seq.push(num.parse().expect("占位符编号必为数字"));
+                }
+            }
+        }
+        seq
+    }
+
+    /// 占位符序列必须恰为 `$1..=$binds` 连续递增：占位符个数与绑定数一致、
+    /// 无重复无跳号。旧构造（$n 烧种子 + push_bind 追加串尾）生成的序列形如
+    /// `$1,$1,$2…`，在此断言下必红——本组测试即为该缺陷的回归钉。
+    fn assert_placeholders(sql: &str, binds: u32) {
+        let expected: Vec<u32> = (1..=binds).collect();
+        assert_eq!(placeholder_seq(sql), expected, "sql: {sql}");
+    }
+
+    // ———— 凭证列表 ————
+
+    #[test]
+    fn cred_list_no_filter() {
+        let q = HubCredentialListQuery::default();
+        assert_eq!(
+            cred_count_query(&q).sql(),
+            "SELECT COUNT(*) FROM hub_credential WHERE 1=1"
+        );
+        assert_placeholders(cred_count_query(&q).sql(), 0);
+        assert_placeholders(cred_page_query(&q, 20, 0).sql(), 2);
+    }
+
+    #[test]
+    fn cred_list_all_filters() {
+        let q = HubCredentialListQuery {
+            status: Some(1),
+            conn_type: Some(3),
+            keyword: Some("hub".into()),
+            ..Default::default()
+        };
+        // status + conn_type + keyword×2 = 4 个过滤绑定；分页再 +2。
+        assert_placeholders(cred_count_query(&q).sql(), 4);
+        assert_placeholders(cred_page_query(&q, 20, 0).sql(), 6);
+    }
+
+    #[test]
+    fn cred_list_blank_keyword_is_no_filter() {
+        let q = HubCredentialListQuery {
+            keyword: Some("   ".into()),
+            ..Default::default()
+        };
+        assert_placeholders(cred_count_query(&q).sql(), 0);
+        assert_placeholders(cred_page_query(&q, 20, 0).sql(), 2);
+    }
+
+    // ———— 连接列表（验收 §3 撞 500 的原点） ————
+
+    #[test]
+    fn link_list_no_filter() {
+        let q = HubLinkListQuery::default();
+        assert_placeholders(link_count_query(&q).sql(), 0);
+        assert_placeholders(link_page_query(&q, 20, 0).sql(), 2);
+    }
+
+    #[test]
+    fn link_list_all_filters() {
+        let q = HubLinkListQuery {
+            status: Some(1),
+            role: Some(2),
+            keyword: Some("peer".into()),
+            ..Default::default()
+        };
+        // status + role + keyword×3 = 5 个过滤绑定；分页再 +2。
+        assert_placeholders(link_count_query(&q).sql(), 5);
+        assert_eq!(
+            link_page_query(&q, 20, 40).sql(),
+            "SELECT * FROM hub_link WHERE 1=1 AND status = $1 AND role = $2 \
+             AND (peer_name ILIKE $3 OR peer_base_url ILIKE $4 OR peer_instance_uuid ILIKE $5) \
+             ORDER BY link_id DESC LIMIT $6 OFFSET $7"
+        );
+    }
+
+    #[test]
+    fn link_list_keyword_only() {
+        let q = HubLinkListQuery {
+            keyword: Some("peer".into()),
+            ..Default::default()
+        };
+        assert_placeholders(link_count_query(&q).sql(), 3);
+        assert_placeholders(link_page_query(&q, 20, 0).sql(), 5);
+    }
+
+    // ———— 调用日志列表 ————
+
+    #[test]
+    fn log_list_no_filter() {
+        let q = HubCallLogListQuery::default();
+        assert_placeholders(log_count_query(&q).sql(), 0);
+        assert_placeholders(log_page_query(&q, 20, 0).sql(), 2);
+    }
+
+    #[test]
+    fn log_list_all_filters() {
+        let q = HubCallLogListQuery {
+            credential_id: Some(9),
+            link_id: Some(3),
+            ..Default::default()
+        };
+        assert_placeholders(log_count_query(&q).sql(), 2);
+        assert_placeholders(log_page_query(&q, 20, 0).sql(), 4);
+    }
+
+    #[test]
+    fn log_list_nonpositive_ids_are_no_filter() {
+        let q = HubCallLogListQuery {
+            credential_id: Some(0),
+            link_id: Some(-1),
+            ..Default::default()
+        };
+        assert_placeholders(log_count_query(&q).sql(), 0);
+        assert_placeholders(log_page_query(&q, 20, 0).sql(), 2);
+    }
+
+    // ———— 聚合映射列表（含删除路径） ————
+
+    #[test]
+    fn map_list_no_filter() {
+        let q = HubAggregationListQuery::default();
+        assert_placeholders(map_count_query(&q).sql(), 0);
+        assert_placeholders(map_page_query(&q, 20, 0).sql(), 2);
+    }
+
+    #[test]
+    fn map_list_all_filters() {
+        let q = HubAggregationListQuery {
+            link_id: Some(7),
+            sync_state: Some(1),
+            keyword: Some("shop".into()),
+            ..Default::default()
+        };
+        // link_id + sync_state + keyword×2 = 4 个过滤绑定；分页再 +2。
+        assert_placeholders(map_count_query(&q).sql(), 4);
+        assert_placeholders(map_page_query(&q, 20, 0).sql(), 6);
+    }
+
+    #[test]
+    fn map_list_link_id_only_delete_path() {
+        // 服务层 delete_link 删连接前以 link_id 分页扫 list_product_maps
+        // （services/src/hub/federation.rs::delete_link），与列表同构造；
+        // 该过滤形态单独钉死：1 个过滤绑定。
+        let q = HubAggregationListQuery {
+            link_id: Some(7),
+            ..Default::default()
+        };
+        assert_placeholders(map_count_query(&q).sql(), 1);
+        assert_eq!(
+            map_page_query(&q, 100, 0).sql(),
+            "SELECT * FROM hub_product_map WHERE 1=1 AND link_id = $1 \
+             ORDER BY map_id DESC LIMIT $2 OFFSET $3"
+        );
     }
 }
