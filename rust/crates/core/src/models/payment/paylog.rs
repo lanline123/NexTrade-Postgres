@@ -150,6 +150,8 @@ pub enum PayOrderType {
     Recharge = 1,
     /// 付费会员订单（`premium_member_order` 表）
     Premium = 2,
+    /// 联邦跨店主单（`hub_xorder` 表，我方新增三期③）
+    HubCrossOrder = 3,
 }
 
 impl PayOrderType {
@@ -158,6 +160,7 @@ impl PayOrderType {
             Self::Product => "商品订单",
             Self::Recharge => "充值单",
             Self::Premium => "付费会员订单",
+            Self::HubCrossOrder => "联邦跨店订单",
         }
     }
 }
@@ -170,6 +173,7 @@ impl TryFrom<i32> for PayOrderType {
             0 => Ok(Self::Product),
             1 => Ok(Self::Recharge),
             2 => Ok(Self::Premium),
+            3 => Ok(Self::HubCrossOrder),
             other => Err(format!("非法业务类型: {other}")),
         }
     }

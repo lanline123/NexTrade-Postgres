@@ -1395,7 +1395,7 @@ pub struct LocalOrderRow {
     pub version_time: i32,
 }
 
-// ———————————————————— 三期①：登录互认（迁移 039） ————————————————————
+// ———————————————————— 三期①：登录互认（迁移 042） ————————————————————
 //
 // 设计：~/workspace/federation-phase3/DESIGN.md §1（总设计 §6.3 授权码模式）。
 // 四步：成员后端登记请求（member.auth）→ 中枢会员本人同意（会员 JWT）→
@@ -1912,6 +1912,458 @@ pub fn config_package_in_window(effective_from: i32, effective_to: i32, now: i32
     (effective_from == 0 || effective_from <= now) && (effective_to == 0 || effective_to >= now)
 }
 
+// ———————————————————— 三期③：跨店下单（迁移 044） ————————————————————
+//
+// 设计：~/workspace/federation-phase3/DESIGN.md §3（总设计 §7.2）。
+// 中枢买家跨成员店铺下单：预占（店主确认价为准）→ 本站 paylog 付款 →
+// 路由落成员本地单（order_type=14）→ 状态回传聚合。分账只记账目（046）。
+
+/// 跨店单在成员侧落本地单的 order_type（迁移 036 外卖单为 13，本类为 14）。
+pub const XORDER_LOCAL_ORDER_TYPE: i32 = 14;
+/// 预占有效期（秒）：15 分钟。
+pub const XORDER_HOLD_TTL_SECONDS: i64 = 15 * 60;
+
+/// 主单状态。
+pub const XORDER_PENDING_PAY: i32 = 0;
+pub const XORDER_PAID: i32 = 1;
+pub const XORDER_ROUTED: i32 = 2;
+pub const XORDER_COMPLETED: i32 = 3;
+pub const XORDER_CLOSED: i32 = 4;
+pub const XORDER_AFTERSALE: i32 = 5;
+
+/// 子单状态。
+pub const XSUB_PENDING: i32 = 0;
+pub const XSUB_RESERVED: i32 = 1;
+pub const XSUB_ROUTED: i32 = 2;
+pub const XSUB_SHIPPED: i32 = 3;
+pub const XSUB_COMPLETED: i32 = 4;
+pub const XSUB_REJECTED: i32 = 5;
+pub const XSUB_RESERVE_FAILED: i32 = 6;
+pub const XSUB_REFUNDED: i32 = 7;
+pub const XSUB_REFUNDING: i32 = 8;
+/// 子单状态：已关闭（买家取消/超时释放）——设计枚举外补值，注释与迁移同步。
+pub const XSUB_CLOSED: i32 = 9;
+
+/// 预占状态。
+pub const HOLD_ACTIVE: i32 = 0;
+pub const HOLD_CONSUMED: i32 = 1;
+pub const HOLD_RELEASED: i32 = 2;
+pub const HOLD_EXPIRED: i32 = 3;
+
+pub const MSG_XORDER_NOT_FOUND: &str = "联邦跨店订单不存在";
+pub const MSG_XORDER_RESERVE_FAILED: &str = "跨店预占失败";
+
+/// `hub_xorder` 行（中枢侧主单）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubXorder {
+    pub id: i32,
+    pub xorder_sn: String,
+    pub buyer_user_id: i32,
+    pub global_member_id: String,
+    pub product_amount: Decimal,
+    pub shipping_fee: Decimal,
+    pub total_amount: Decimal,
+    pub pay_status: i16,
+    pub status: i16,
+    pub paylog_id: i32,
+    pub pay_sn: String,
+    pub consignee: String,
+    pub mobile: String,
+    pub address: String,
+    pub add_time: i32,
+    pub pay_time: i32,
+    pub update_time: i32,
+}
+
+/// `hub_xorder_sub` 行（中枢侧子单）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubXorderSub {
+    pub id: i32,
+    pub master_id: i32,
+    pub sub_sn: String,
+    pub link_id: i32,
+    pub remote_shop_id: i32,
+    pub remote_shop_name: String,
+    pub amount: Decimal,
+    pub shipping_fee: Decimal,
+    pub status: i16,
+    pub remote_order_id: i32,
+    pub remote_order_sn: String,
+    pub tracking_no: String,
+    pub logistics_name: String,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// `hub_xorder_item` 行（中枢侧单行）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubXorderItem {
+    pub id: i32,
+    pub sub_id: i32,
+    pub map_id: i32,
+    pub remote_product_id: i32,
+    pub remote_sku_id: i32,
+    pub product_name: String,
+    pub pic_url: String,
+    pub price: Decimal,
+    pub quantity: i32,
+    pub amount: Decimal,
+}
+
+/// `hub_stock_hold` 行（成员侧预占）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubStockHold {
+    pub id: i32,
+    pub link_id: i32,
+    pub hold_sn: String,
+    pub product_id: i32,
+    pub sku_id: i32,
+    pub quantity: i32,
+    pub status: i16,
+    pub expire_time: i32,
+    pub remote_order_id: i32,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// `hub_xorder_route` 行（成员侧路由登记）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubXorderRoute {
+    pub id: i32,
+    pub link_id: i32,
+    pub sub_sn: String,
+    pub local_order_id: i32,
+    pub local_order_sn: String,
+    pub buyer_global_member_id: String,
+    pub status: i16,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// 联邦面：预占/路由共用的单行（商品级口径，skuId 本批恒 0）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct XorderWireItem {
+    pub product_id: i32,
+    pub sku_id: i32,
+    pub quantity: i32,
+    /// 预占响应回带：成员本地当前售价（店主确认价）。
+    pub price: Option<Decimal>,
+    /// 路由请求回带：商品名/图快照（成员落单展示用）。
+    pub product_name: Option<String>,
+    pub pic_url: Option<String>,
+}
+
+/// `POST /api/hub/v1/orders/reserve` 入参（中枢 → 成员）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct XorderReserveDTO {
+    pub sub_sn: String,
+    pub items: Vec<XorderWireItem>,
+}
+
+/// `POST /api/hub/v1/orders/reserve` 响应。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XorderReserveVO {
+    pub confirmed: bool,
+    pub reason: String,
+    pub items: Vec<XorderWireItem>,
+    pub shipping_fee: Decimal,
+}
+
+/// `POST /api/hub/v1/orders/route` 入参（中枢 → 成员）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct XorderRouteDTO {
+    pub sub_sn: String,
+    pub master_sn: String,
+    pub items: Vec<XorderWireItem>,
+    pub buyer_global_member_id: String,
+    pub consignee: String,
+    pub mobile: String,
+    pub address: String,
+    /// 子单实付（商品额 + 运费），成员落单金额以此为准。
+    pub paid_amount: Decimal,
+    pub shipping_fee: Decimal,
+}
+
+/// `POST /api/hub/v1/orders/route` 响应。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XorderRouteVO {
+    pub local_order_id: i32,
+    pub local_order_sn: String,
+}
+
+/// `POST /api/hub/v1/orders/release` / `orders/refund` 入参。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct XorderSubSnDTO {
+    pub sub_sn: String,
+    pub reason: String,
+}
+
+/// `POST /api/hub/v1/orders/subStatus` 入参（成员 → 中枢）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct XorderSubStatusDTO {
+    pub sub_sn: String,
+    pub status: i32,
+    pub tracking_no: String,
+    pub logistics_name: String,
+}
+
+/// 中枢前台面：跨店下单入参。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct XorderCreateDTO {
+    pub items: Vec<XorderCreateItem>,
+    pub address_id: i32,
+}
+
+/// 中枢前台面：跨店下单单行入参（聚合映射 + 数量）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct XorderCreateItem {
+    pub map_id: i32,
+    pub quantity: i32,
+}
+
+/// 中枢前台面：按 id 操作入参（取消）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct XorderIdDTO {
+    pub id: i32,
+}
+
+/// 中枢前台面：子单退款入参。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct XorderRefundSubDTO {
+    pub sub_id: i32,
+    pub reason: String,
+}
+
+/// 跨店子单 VO（前台/管理端共用）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubXorderSubVO {
+    pub id: i32,
+    pub sub_sn: String,
+    pub link_id: i32,
+    pub remote_shop_id: i32,
+    pub remote_shop_name: String,
+    pub amount: Decimal,
+    pub shipping_fee: Decimal,
+    pub status: i32,
+    pub remote_order_id: i32,
+    pub remote_order_sn: String,
+    pub tracking_no: String,
+    pub logistics_name: String,
+    pub items: Vec<HubXorderItemVO>,
+}
+
+/// 跨店单行 VO。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubXorderItemVO {
+    pub id: i32,
+    pub map_id: i32,
+    pub remote_product_id: i32,
+    pub product_name: String,
+    pub pic_url: String,
+    pub price: Decimal,
+    pub quantity: i32,
+    pub amount: Decimal,
+}
+
+impl From<&HubXorderItem> for HubXorderItemVO {
+    fn from(r: &HubXorderItem) -> Self {
+        Self {
+            id: r.id,
+            map_id: r.map_id,
+            remote_product_id: r.remote_product_id,
+            product_name: r.product_name.clone(),
+            pic_url: r.pic_url.clone(),
+            price: r.price,
+            quantity: r.quantity,
+            amount: r.amount,
+        }
+    }
+}
+
+/// 跨店主单 VO（前台/管理端共用，带子单展开）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubXorderVO {
+    pub id: i32,
+    pub xorder_sn: String,
+    pub buyer_user_id: i32,
+    pub global_member_id: String,
+    pub product_amount: Decimal,
+    pub shipping_fee: Decimal,
+    pub total_amount: Decimal,
+    pub pay_status: i32,
+    pub status: i32,
+    pub pay_sn: String,
+    pub consignee: String,
+    pub mobile: String,
+    pub address: String,
+    pub add_time: i32,
+    pub pay_time: i32,
+    pub subs: Vec<HubXorderSubVO>,
+}
+
+impl From<&HubXorder> for HubXorderVO {
+    fn from(r: &HubXorder) -> Self {
+        Self {
+            id: r.id,
+            xorder_sn: r.xorder_sn.clone(),
+            buyer_user_id: r.buyer_user_id,
+            global_member_id: r.global_member_id.clone(),
+            product_amount: r.product_amount,
+            shipping_fee: r.shipping_fee,
+            total_amount: r.total_amount,
+            pay_status: i32::from(r.pay_status),
+            status: i32::from(r.status),
+            pay_sn: r.pay_sn.clone(),
+            consignee: r.consignee.clone(),
+            mobile: r.mobile.clone(),
+            address: r.address.clone(),
+            add_time: r.add_time,
+            pay_time: r.pay_time,
+            subs: Vec::new(),
+        }
+    }
+}
+
+/// 管理端（中枢）：跨店主单列表查询。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HubXorderListQuery {
+    pub page: Option<u64>,
+    #[serde(alias = "size")]
+    pub page_size: Option<u64>,
+    pub keyword: Option<String>,
+    pub status: Option<i32>,
+}
+
+/// 管理端（成员）：路由单列表查询。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HubXorderRouteListQuery {
+    pub page: Option<u64>,
+    #[serde(alias = "size")]
+    pub page_size: Option<u64>,
+    pub link_id: Option<i32>,
+    pub status: Option<i32>,
+}
+
+/// 管理端（成员）：路由单 VO（带本地单状态供同步判定）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubXorderRouteVO {
+    pub id: i32,
+    pub link_id: i32,
+    pub sub_sn: String,
+    pub local_order_id: i32,
+    pub local_order_sn: String,
+    pub buyer_global_member_id: String,
+    pub status: i32,
+    /// 本地订单当前状态（order_status 原值，同步映射在服务层）。
+    pub local_order_status: i32,
+    pub local_shipping_status: i32,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+impl From<&HubXorderRoute> for HubXorderRouteVO {
+    fn from(r: &HubXorderRoute) -> Self {
+        Self {
+            id: r.id,
+            link_id: r.link_id,
+            sub_sn: r.sub_sn.clone(),
+            local_order_id: r.local_order_id,
+            local_order_sn: r.local_order_sn.clone(),
+            buyer_global_member_id: r.buyer_global_member_id.clone(),
+            status: i32::from(r.status),
+            local_order_status: -1,
+            local_shipping_status: -1,
+            add_time: r.add_time,
+            update_time: r.update_time,
+        }
+    }
+}
+
+/// 纯逻辑：子单状态合法推进（只进不退；退款/拒单/关闭为旁路终态）。
+#[must_use]
+pub fn xsub_transition_allowed(from: i32, to: i32) -> bool {
+    if from == to {
+        return true;
+    }
+    matches!(
+        (from, to),
+        (XSUB_RESERVED, XSUB_ROUTED)
+            | (XSUB_ROUTED, XSUB_SHIPPED)
+            | (XSUB_ROUTED, XSUB_COMPLETED)
+            | (XSUB_SHIPPED, XSUB_COMPLETED)
+            | (XSUB_ROUTED, XSUB_REJECTED)
+            | (XSUB_RESERVED, XSUB_CLOSED)
+            | (XSUB_ROUTED, XSUB_REFUNDING)
+            | (XSUB_SHIPPED, XSUB_REFUNDING)
+            | (XSUB_REFUNDING, XSUB_REFUNDED)
+    )
+}
+
+/// 纯逻辑：主单状态聚合（全完成→完成；任一售后/拒单/退款→售后中；
+/// 全路由→已全部路由；其余保持已付待路由）。
+#[must_use]
+pub fn xorder_aggregate_status(sub_statuses: &[i32], current: i32) -> i32 {
+    if sub_statuses.is_empty() || current == XORDER_PENDING_PAY || current == XORDER_CLOSED {
+        return current;
+    }
+    if sub_statuses.iter().all(|s| *s == XSUB_COMPLETED || *s == XSUB_REFUNDED) {
+        return XORDER_COMPLETED;
+    }
+    if sub_statuses
+        .iter()
+        .any(|s| matches!(s, XSUB_REJECTED | XSUB_REFUNDING | XSUB_REFUNDED))
+    {
+        return XORDER_AFTERSALE;
+    }
+    if sub_statuses
+        .iter()
+        .all(|s| matches!(s, XSUB_ROUTED | XSUB_SHIPPED | XSUB_COMPLETED))
+    {
+        return XORDER_ROUTED;
+    }
+    XORDER_PAID
+}
+
+/// 纯逻辑：成员本地订单状态 → 子单状态映射（同步状态用）。
+/// 本地 order_status 口径（与订单上行页一致）：0 待付款 / 1 待发货 /
+/// 2 待收货 / 3 已完成 / 4 已取消 / 5 已关闭。映射：取消/关闭→拒单；
+/// 完成→完成；待收货或 shipping_status=1→已发货；其余→已路由。
+#[must_use]
+pub fn xsub_from_local_order(order_status: i32, shipping_status: i32) -> i32 {
+    if order_status == 4 || order_status == 5 {
+        return XSUB_REJECTED;
+    }
+    if order_status == 3 {
+        return XSUB_COMPLETED;
+    }
+    if shipping_status == 1 || order_status == 2 {
+        return XSUB_SHIPPED;
+    }
+    XSUB_ROUTED
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2115,6 +2567,46 @@ mod member_order_tests {
         ));
         assert!(!sso_return_url_allowed("", "https://shop.example.com"));
         assert!(!sso_return_url_allowed("https://shop.example.com/cb", ""));
+    }
+
+    #[test]
+    fn xorder_status_machines() {
+        // 子单只进不退
+        assert!(xsub_transition_allowed(XSUB_RESERVED, XSUB_ROUTED));
+        assert!(xsub_transition_allowed(XSUB_ROUTED, XSUB_SHIPPED));
+        assert!(xsub_transition_allowed(XSUB_SHIPPED, XSUB_COMPLETED));
+        assert!(!xsub_transition_allowed(XSUB_SHIPPED, XSUB_ROUTED));
+        assert!(!xsub_transition_allowed(XSUB_COMPLETED, XSUB_SHIPPED));
+        assert!(xsub_transition_allowed(XSUB_ROUTED, XSUB_REFUNDING));
+        assert!(xsub_transition_allowed(XSUB_REFUNDING, XSUB_REFUNDED));
+        // 主单聚合
+        assert_eq!(
+            xorder_aggregate_status(&[XSUB_COMPLETED, XSUB_COMPLETED], XORDER_PAID),
+            XORDER_COMPLETED
+        );
+        assert_eq!(
+            xorder_aggregate_status(&[XSUB_ROUTED, XSUB_SHIPPED], XORDER_PAID),
+            XORDER_ROUTED
+        );
+        assert_eq!(
+            xorder_aggregate_status(&[XSUB_ROUTED, XSUB_REFUNDED], XORDER_PAID),
+            XORDER_AFTERSALE
+        );
+        assert_eq!(
+            xorder_aggregate_status(&[XSUB_RESERVED], XORDER_PAID),
+            XORDER_PAID
+        );
+        // 未付/已关闭主单不被聚合改写
+        assert_eq!(
+            xorder_aggregate_status(&[XSUB_COMPLETED], XORDER_PENDING_PAY),
+            XORDER_PENDING_PAY
+        );
+        // 本地状态映射（4=已取消 5=已关闭 3=已完成 2=待收货）
+        assert_eq!(xsub_from_local_order(4, 0), XSUB_REJECTED);
+        assert_eq!(xsub_from_local_order(5, 0), XSUB_REJECTED);
+        assert_eq!(xsub_from_local_order(3, 1), XSUB_COMPLETED);
+        assert_eq!(xsub_from_local_order(2, 1), XSUB_SHIPPED);
+        assert_eq!(xsub_from_local_order(1, 0), XSUB_ROUTED);
     }
 
     #[test]

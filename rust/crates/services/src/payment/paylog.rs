@@ -311,6 +311,18 @@ impl PaylogService {
             .await?;
             return Ok(());
         }
+        // 联邦跨店主单结算（三期③，我方新增）：置已付并逐子单路由落成员本地单。
+        if paylog.order_type == PayOrderType::HubCrossOrder as i32 {
+            crate::hub::federation::FederationService::new(
+                self.repos.clone(),
+                Arc::new(crate::catalog::product_feed::ProductFeedService::new(
+                    self.repos.clone(),
+                )),
+            )
+            .on_cross_order_paid(order_id)
+            .await?;
+            return Ok(());
+        }
         if paylog.order_type != PayOrderType::Product as i32 {
             tracing::warn!(
                 "支付单 {pay_sn} 业务类型 {} 无回调结算链，跳过（order_id={order_id}）",

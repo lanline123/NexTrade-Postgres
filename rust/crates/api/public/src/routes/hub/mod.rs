@@ -11,6 +11,7 @@
 
 pub mod federation;
 pub mod sso;
+pub mod xorder;
 
 use axum::Router;
 
@@ -24,9 +25,11 @@ pub fn anonymous_routes(state: &PublicState) -> Router<PublicState> {
         .merge(sso::anonymous_routes(state))
 }
 
-/// 需会员登录路由（中枢侧 SSO 同意面，自套 require_auth）。
+/// 需会员登录路由（中枢侧 SSO 同意面 + 跨店下单前台面，自套 require_auth）。
 pub fn routes(state: &PublicState) -> Router<PublicState> {
-    sso::routes(state)
+    Router::new()
+        .merge(sso::routes(state))
+        .merge(xorder::routes(state))
 }
 
 /// 本域已实现路由（覆盖率统计用）。
@@ -34,5 +37,6 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
 pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     let mut out = federation::implemented_routes();
     out.extend(sso::implemented_routes());
+    out.extend(xorder::implemented_routes());
     out
 }

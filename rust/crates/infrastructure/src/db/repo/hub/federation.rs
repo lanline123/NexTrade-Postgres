@@ -9,15 +9,19 @@
 //!
 //! SQL 一律运行时 `sqlx::query` / `query_as`，`$n` 占位。
 
+use rust_decimal::Decimal;
 use sqlx::{PgPool, Postgres, QueryBuilder};
 
+use nextrade_core::entities::order::{Order, OrderItem};
 use nextrade_core::models::hub::federation::{
     HubAggregationListQuery, HubCallLogListQuery, HubConfigAck, HubConfigAckListQuery,
     HubConfigApply, HubConfigApplyListQuery, HubConfigListQuery, HubConfigPackage, HubCredential,
     HubCredentialListQuery, HubLink, HubLinkListQuery, HubMemberConflict,
     HubMemberConflictListQuery, HubMemberLink, HubMemberListQuery, HubMemberMap, HubOrderSummary,
     HubOrderSummaryListQuery, HubPairingCode, HubPriceOverride, HubProductMap, HubSsoListQuery,
-    HubSsoRequest, HubSsoState, LocalMemberRow, LocalOrderRow, OrderReportItem,
+    HubSsoRequest, HubSsoState, HubStockHold, HubXorder, HubXorderItem, HubXorderListQuery,
+    HubXorderRoute, HubXorderRouteListQuery, HubXorderSub, LocalMemberRow, LocalOrderRow,
+    OrderReportItem,
 };
 use nextrade_core::{Error, Result};
 
@@ -1564,7 +1568,7 @@ impl HubFederationRepository {
 }
 
 impl HubFederationRepository {
-    // ———————————————————— 三期①：登录互认（迁移 039） ————————————————————
+    // ———————————————————— 三期①：登录互认（迁移 042） ————————————————————
 
     /// 中枢侧落一条授权请求（待同意）。
     pub async fn insert_sso_request(
@@ -2018,6 +2022,763 @@ impl HubFederationRepository {
             .await
             .map_err(map_err)?;
         Ok((rows, total.0.max(0)))
+    }
+}
+
+impl HubFederationRepository {
+    // ———————————————————— 三期③：跨店下单（迁移 044） ————————————————————
+
+    pub async fn find_product_map_by_id(
+        &self,
+        map_id: i32,
+    ) -> Result<Option<HubProductMap>> {
+        sqlx::query_as::<_, HubProductMap>("SELECT * FROM hub_product_map WHERE map_id = $1")
+            .bind(map_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_xorder_master(
+        &self,
+        xorder_sn: &str,
+        buyer_user_id: i32,
+        global_member_id: &str,
+        product_amount: Decimal,
+        shipping_fee: Decimal,
+        total_amount: Decimal,
+        consignee: &str,
+        mobile: &str,
+        address: &str,
+        now: i32,
+    ) -> Result<i32> {
+        let row: (i32,) = sqlx::query_as(
+            "INSERT INTO hub_xorder (xorder_sn, buyer_user_id, global_member_id, product_amount, shipping_fee, total_amount, pay_status, status, consignee, mobile, address, add_time, update_time)
+             VALUES ($1, $2, $3, $4, $5, $6, 0, 0, $7, $8, $9, $10, $10) RETURNING id",
+        )
+        .bind(xorder_sn)
+        .bind(buyer_user_id)
+        .bind(global_member_id)
+        .bind(product_amount)
+        .bind(shipping_fee)
+        .bind(total_amount)
+        .bind(consignee)
+        .bind(mobile)
+        .bind(address)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_xorder_sub(
+        &self,
+        master_id: i32,
+        sub_sn: &str,
+        link_id: i32,
+        remote_shop_id: i32,
+        remote_shop_name: &str,
+        amount: Decimal,
+        shipping_fee: Decimal,
+        status: i32,
+        now: i32,
+    ) -> Result<i32> {
+        let row: (i32,) = sqlx::query_as(
+            "INSERT INTO hub_xorder_sub (master_id, sub_sn, link_id, remote_shop_id, remote_shop_name, amount, shipping_fee, status, add_time, update_time)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9) RETURNING id",
+        )
+        .bind(master_id)
+        .bind(sub_sn)
+        .bind(link_id)
+        .bind(remote_shop_id)
+        .bind(remote_shop_name)
+        .bind(amount)
+        .bind(shipping_fee)
+        .bind(status as i16)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_xorder_item(
+        &self,
+        sub_id: i32,
+        map_id: i32,
+        remote_product_id: i32,
+        product_name: &str,
+        pic_url: &str,
+        price: Decimal,
+        quantity: i32,
+        amount: Decimal,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO hub_xorder_item (sub_id, map_id, remote_product_id, remote_sku_id, product_name, pic_url, price, quantity, amount)
+             VALUES ($1, $2, $3, 0, $4, $5, $6, $7, $8)",
+        )
+        .bind(sub_id)
+        .bind(map_id)
+        .bind(remote_product_id)
+        .bind(product_name)
+        .bind(pic_url)
+        .bind(price)
+        .bind(quantity)
+        .bind(amount)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    pub async fn find_xorder(&self, id: i32) -> Result<Option<HubXorder>> {
+        sqlx::query_as::<_, HubXorder>("SELECT * FROM hub_xorder WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    pub async fn list_xorders(&self, q: &HubXorderListQuery) -> Result<(Vec<HubXorder>, i64)> {
+        let page = q.page.unwrap_or(1).max(1);
+        let size = q.page_size.unwrap_or(20).clamp(1, 100);
+        let offset = ((page - 1) * size) as i64;
+        let total: (i64,) = xorder_count_query(q)
+            .build_query_as()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+        let rows = xorder_page_query(q, size as i64, offset)
+            .build_query_as::<HubXorder>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((rows, total.0.max(0)))
+    }
+
+    /// 买家自己的跨店单分页（前台 myList）。
+    pub async fn list_xorders_by_buyer(
+        &self,
+        buyer_user_id: i32,
+        page: u64,
+        size: u64,
+    ) -> Result<(Vec<HubXorder>, i64)> {
+        let page = page.max(1);
+        let size = size.clamp(1, 100);
+        let offset = ((page - 1) * size) as i64;
+        let total: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM hub_xorder WHERE buyer_user_id = $1")
+                .bind(buyer_user_id)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(map_err)?;
+        let rows = sqlx::query_as::<_, HubXorder>(
+            "SELECT * FROM hub_xorder WHERE buyer_user_id = $1 ORDER BY id DESC LIMIT $2 OFFSET $3",
+        )
+        .bind(buyer_user_id)
+        .bind(size as i64)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok((rows, total.0.max(0)))
+    }
+
+    pub async fn list_xorder_subs(&self, master_id: i32) -> Result<Vec<HubXorderSub>> {
+        sqlx::query_as::<_, HubXorderSub>(
+            "SELECT * FROM hub_xorder_sub WHERE master_id = $1 ORDER BY id ASC",
+        )
+        .bind(master_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn list_xorder_items(&self, sub_id: i32) -> Result<Vec<HubXorderItem>> {
+        sqlx::query_as::<_, HubXorderItem>(
+            "SELECT * FROM hub_xorder_item WHERE sub_id = $1 ORDER BY id ASC",
+        )
+        .bind(sub_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn find_xorder_sub(&self, id: i32) -> Result<Option<HubXorderSub>> {
+        sqlx::query_as::<_, HubXorderSub>("SELECT * FROM hub_xorder_sub WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    pub async fn find_xorder_sub_by_sn(&self, sub_sn: &str) -> Result<Option<HubXorderSub>> {
+        sqlx::query_as::<_, HubXorderSub>("SELECT * FROM hub_xorder_sub WHERE sub_sn = $1")
+            .bind(sub_sn)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    /// 支付落账：未付 → 已付（条件更新保幂等），同时回填 paylog 关联。
+    pub async fn mark_xorder_paid(
+        &self,
+        id: i32,
+        paylog_id: i32,
+        pay_sn: &str,
+        now: i32,
+    ) -> Result<bool> {
+        let n = sqlx::query(
+            "UPDATE hub_xorder SET pay_status = 1, status = 1, paylog_id = CASE WHEN $2 > 0 THEN $2 ELSE paylog_id END, pay_sn = CASE WHEN $3 <> '' THEN $3 ELSE pay_sn END, pay_time = $4, update_time = $4 WHERE id = $1 AND pay_status = 0",
+        )
+        .bind(id)
+        .bind(paylog_id)
+        .bind(pay_sn)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(n.rows_affected() > 0)
+    }
+
+    pub async fn set_xorder_status(&self, id: i32, status: i32, now: i32) -> Result<()> {
+        sqlx::query("UPDATE hub_xorder SET status = $2, update_time = $3 WHERE id = $1")
+            .bind(id)
+            .bind(status as i16)
+            .bind(now)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
+
+    pub async fn set_xorder_pay_status(
+        &self,
+        id: i32,
+        pay_status: i32,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query("UPDATE hub_xorder SET pay_status = $2, update_time = $3 WHERE id = $1")
+            .bind(id)
+            .bind(pay_status as i16)
+            .bind(now)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
+
+    pub async fn set_xorder_sub_status(&self, id: i32, status: i32, now: i32) -> Result<()> {
+        sqlx::query("UPDATE hub_xorder_sub SET status = $2, update_time = $3 WHERE id = $1")
+            .bind(id)
+            .bind(status as i16)
+            .bind(now)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 路由成功回填成员本地单号。
+    pub async fn set_xorder_sub_remote_order(
+        &self,
+        id: i32,
+        remote_order_id: i32,
+        remote_order_sn: &str,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE hub_xorder_sub SET remote_order_id = $2, remote_order_sn = $3, status = 2, update_time = $4 WHERE id = $1",
+        )
+        .bind(id)
+        .bind(remote_order_id)
+        .bind(remote_order_sn)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 状态回传落子单（物流号非空才覆盖）。
+    pub async fn set_xorder_sub_tracking(
+        &self,
+        id: i32,
+        status: i32,
+        tracking_no: &str,
+        logistics_name: &str,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE hub_xorder_sub SET status = $2, tracking_no = CASE WHEN $3 <> '' THEN $3 ELSE tracking_no END, logistics_name = CASE WHEN $4 <> '' THEN $4 ELSE logistics_name END, update_time = $5 WHERE id = $1",
+        )
+        .bind(id)
+        .bind(status as i16)
+        .bind(tracking_no)
+        .bind(logistics_name)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    // ————— 成员侧：预占 / 路由 / 本地单 —————
+
+    /// 预占读本地商品（仅上架未删）：(名称, 图, 售价, 库存, 店铺)。
+    pub async fn find_local_product_for_order(
+        &self,
+        product_id: i32,
+    ) -> Result<Option<(String, String, Decimal, i32, i32)>> {
+        sqlx::query_as::<_, (String, String, Decimal, i32, i32)>(
+            "SELECT product_name, pic_thumb, product_price, product_stock, shop_id FROM product WHERE product_id = $1 AND product_status = 1 AND is_delete = 0",
+        )
+        .bind(product_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// SKU 现价（启用中的规格）。
+    pub async fn find_local_sku_price(
+        &self,
+        product_id: i32,
+        sku_id: i32,
+    ) -> Result<Option<Decimal>> {
+        let row: Option<(Option<Decimal>,)> = sqlx::query_as(
+            "SELECT sku_price FROM product_sku WHERE product_id = $1 AND sku_id = $2 AND is_enabled = 1",
+        )
+        .bind(product_id)
+        .bind(sku_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.and_then(|r| r.0))
+    }
+
+    /// 商品当前有效预占总量（未过期）。
+    pub async fn sum_active_holds(&self, product_id: i32, now: i32) -> Result<i64> {
+        let row: (i64,) = sqlx::query_as(
+            "SELECT COALESCE(SUM(quantity), 0)::bigint FROM hub_stock_hold WHERE product_id = $1 AND status = 0 AND expire_time > $2",
+        )
+        .bind(product_id)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0.max(0))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_stock_hold(
+        &self,
+        link_id: i32,
+        hold_sn: &str,
+        product_id: i32,
+        sku_id: i32,
+        quantity: i32,
+        expire_time: i32,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO hub_stock_hold (link_id, hold_sn, product_id, sku_id, quantity, status, expire_time, add_time, update_time)
+             VALUES ($1, $2, $3, $4, $5, 0, $6, $7, $7)
+             ON CONFLICT (link_id, hold_sn, product_id, sku_id) DO NOTHING",
+        )
+        .bind(link_id)
+        .bind(hold_sn)
+        .bind(product_id)
+        .bind(sku_id)
+        .bind(quantity)
+        .bind(expire_time)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    pub async fn list_holds_by_sn(
+        &self,
+        link_id: i32,
+        hold_sn: &str,
+    ) -> Result<Vec<HubStockHold>> {
+        sqlx::query_as::<_, HubStockHold>(
+            "SELECT * FROM hub_stock_hold WHERE link_id = $1 AND hold_sn = $2 ORDER BY id ASC",
+        )
+        .bind(link_id)
+        .bind(hold_sn)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 释放预占：存在已消费行则整体拒绝（返回 false），否则有效行全置释放。
+    pub async fn release_holds(&self, link_id: i32, hold_sn: &str, now: i32) -> Result<bool> {
+        let consumed: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM hub_stock_hold WHERE link_id = $1 AND hold_sn = $2 AND status = 1",
+        )
+        .bind(link_id)
+        .bind(hold_sn)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        if consumed.0 > 0 {
+            return Ok(false);
+        }
+        sqlx::query(
+            "UPDATE hub_stock_hold SET status = 2, update_time = $3 WHERE link_id = $1 AND hold_sn = $2 AND status = 0",
+        )
+        .bind(link_id)
+        .bind(hold_sn)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(true)
+    }
+
+    pub async fn find_route_by_sub_sn(&self, sub_sn: &str) -> Result<Option<HubXorderRoute>> {
+        sqlx::query_as::<_, HubXorderRoute>("SELECT * FROM hub_xorder_route WHERE sub_sn = $1")
+            .bind(sub_sn)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    /// 路由落单（单事务）：锁预占 → 验库存 → 扣库存 → 插本地单/行 →
+    /// 消费预占 → 落路由登记。任一步失败整单回滚（不留半单）。
+    /// 订单/行实体由服务层按外卖聚合落单先例组装（order_type=14）。
+    pub async fn land_route_order(
+        &self,
+        link_id: i32,
+        sub_sn: &str,
+        order: &Order,
+        items: &[OrderItem],
+        buyer_global_member_id: &str,
+        now: i32,
+    ) -> Result<(i32, String)> {
+        let mut tx = self.pool.begin().await.map_err(map_err)?;
+        let holds = sqlx::query_as::<_, HubStockHold>(
+            "SELECT * FROM hub_stock_hold WHERE link_id = $1 AND hold_sn = $2 AND status = 0 FOR UPDATE",
+        )
+        .bind(link_id)
+        .bind(sub_sn)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        if holds.is_empty() {
+            return Err(Error::Validation(
+                "预占不存在或已失效，无法路由落单".to_string(),
+            ));
+        }
+        if holds.iter().any(|h| h.expire_time <= now) {
+            return Err(Error::Validation("预占已过期，无法路由落单".to_string()));
+        }
+        // 逐商品锁行验库存（防路由瞬间被本地单抢空）。
+        for h in &holds {
+            let stock: (i32,) = sqlx::query_as(
+                "SELECT product_stock FROM product WHERE product_id = $1 FOR UPDATE",
+            )
+            .bind(h.product_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(map_err)?;
+            if stock.0 < h.quantity {
+                return Err(Error::Validation(format!(
+                    "商品 {} 库存不足，路由失败",
+                    h.product_id
+                )));
+            }
+        }
+        let order_id: i32 = sqlx::query_scalar(
+            "INSERT INTO \"order\"
+             (order_type, order_sn, user_id, order_status, shipping_status, pay_status, pay_time,
+              add_time, consignee, address, region_ids, region_names, mobile,
+              buyer_note, shipping_method, shipping_type_id, pay_type_id, shop_id, is_valid, is_del,
+              total_amount, paid_amount, unpaid_amount, product_amount, coupon_amount,
+              shipping_fee, referrer_user_id, order_source, vendor_id, order_extension,
+              email, use_points, points_amount, balance, is_presale, presale_type,
+              discount_amount, tax_rate, tax_rate_amount, parent_order_id, parent_order_sn,
+              is_store_splited, pos_user_id, admin_note, logistics_name, shipping_type_name,
+              tracking_no, table_no, table_area_name, external_channel, external_order_sn)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+                     $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38,
+                     $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51) RETURNING order_id",
+        )
+        .bind(order.order_type.unwrap_or(0))
+        .bind(&order.order_sn)
+        .bind(order.user_id)
+        .bind(order.order_status)
+        .bind(order.shipping_status)
+        .bind(order.pay_status)
+        .bind(now)
+        .bind(order.add_time)
+        .bind(&order.consignee)
+        .bind(&order.address)
+        .bind(&order.region_ids)
+        .bind(&order.region_names)
+        .bind(&order.mobile)
+        .bind(&order.buyer_note)
+        .bind(order.shipping_method)
+        .bind(order.shipping_type_id)
+        .bind(order.pay_type_id)
+        .bind(order.shop_id)
+        .bind(order.is_valid)
+        .bind(order.is_del)
+        .bind(order.total_amount)
+        .bind(order.paid_amount)
+        .bind(order.unpaid_amount)
+        .bind(order.product_amount)
+        .bind(order.coupon_amount)
+        .bind(order.shipping_fee)
+        .bind(order.referrer_user_id)
+        .bind(&order.order_source)
+        .bind(order.vendor_id)
+        .bind(&order.order_extension)
+        .bind(&order.email)
+        .bind(order.use_points)
+        .bind(order.points_amount)
+        .bind(order.balance)
+        .bind(order.is_presale)
+        .bind(order.presale_type)
+        .bind(order.discount_amount)
+        .bind(order.tax_rate)
+        .bind(order.tax_rate_amount)
+        .bind(order.parent_order_id.unwrap_or(0))
+        .bind(order.parent_order_sn.as_deref().unwrap_or(""))
+        .bind(order.is_store_splited)
+        .bind(order.pos_user_id)
+        .bind(&order.admin_note)
+        .bind(&order.logistics_name)
+        .bind(&order.shipping_type_name)
+        .bind(&order.tracking_no)
+        .bind("")
+        .bind("")
+        .bind(&order.external_channel)
+        .bind(&order.external_order_sn)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        for item in items {
+            sqlx::query(
+                "INSERT INTO order_item
+                 (order_id, order_sn, user_id, price, quantity, product_id,
+                  product_name, product_sn, pic_thumb, sku_id, sku_data,
+                  product_type, shop_id, origin_price, is_pin, promotion_data, card_group_name)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)",
+            )
+            .bind(order_id)
+            .bind(&order.order_sn)
+            .bind(item.user_id)
+            .bind(item.price)
+            .bind(item.quantity)
+            .bind(item.product_id)
+            .bind(&item.product_name)
+            .bind(&item.product_sn)
+            .bind(&item.pic_thumb)
+            .bind(item.sku_id)
+            .bind(&item.sku_data)
+            .bind(item.product_type)
+            .bind(item.shop_id)
+            .bind(item.origin_price)
+            .bind(item.is_pin)
+            .bind(&item.promotion_data)
+            .bind(&item.card_group_name)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_err)?;
+        }
+        for h in &holds {
+            sqlx::query(
+                "UPDATE product SET product_stock = product_stock - $2 WHERE product_id = $1",
+            )
+            .bind(h.product_id)
+            .bind(h.quantity)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_err)?;
+            sqlx::query(
+                "UPDATE hub_stock_hold SET status = 1, remote_order_id = $3, update_time = $4 WHERE id = $1 AND link_id = $2",
+            )
+            .bind(h.id)
+            .bind(link_id)
+            .bind(order_id)
+            .bind(now)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_err)?;
+        }
+        sqlx::query(
+            "INSERT INTO hub_xorder_route (link_id, sub_sn, local_order_id, local_order_sn, buyer_global_member_id, status, add_time, update_time)
+             VALUES ($1, $2, $3, $4, $5, 2, $6, $6)",
+        )
+        .bind(link_id)
+        .bind(sub_sn)
+        .bind(order_id)
+        .bind(&order.order_sn)
+        .bind(buyer_global_member_id)
+        .bind(now)
+        .execute(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        tx.commit().await.map_err(map_err)?;
+        Ok((order_id, order.order_sn.clone()))
+    }
+
+    /// 建单时回填 paylog 关联（主单仍未付）。
+    pub async fn set_xorder_paylog(
+        &self,
+        id: i32,
+        paylog_id: i32,
+        pay_sn: &str,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE hub_xorder SET paylog_id = $2, pay_sn = $3, update_time = $4 WHERE id = $1",
+        )
+        .bind(id)
+        .bind(paylog_id)
+        .bind(pay_sn)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 本地单状态窄读：(order_status, shipping_status, pay_status, shipping_time,
+    /// tracking_no, logistics_name)。
+    pub async fn find_local_order_state(
+        &self,
+        order_id: i32,
+    ) -> Result<Option<(i32, i32, i32, i32, String, String)>> {
+        sqlx::query_as::<_, (i32, i32, i32, i32, String, String)>(
+            "SELECT order_status, shipping_status, pay_status, shipping_time, tracking_no, logistics_name FROM \"order\" WHERE order_id = $1",
+        )
+        .bind(order_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 退款关单：本地单置已取消（仅未发货时由服务层调用）。
+    pub async fn close_local_order(&self, order_id: i32) -> Result<()> {
+        sqlx::query("UPDATE \"order\" SET order_status = 4 WHERE order_id = $1")
+            .bind(order_id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
+
+    pub async fn list_xorder_routes(
+        &self,
+        q: &HubXorderRouteListQuery,
+    ) -> Result<(Vec<HubXorderRoute>, i64)> {
+        let page = q.page.unwrap_or(1).max(1);
+        let size = q.page_size.unwrap_or(20).clamp(1, 100);
+        let offset = ((page - 1) * size) as i64;
+        let total: (i64,) = xroute_count_query(q)
+            .build_query_as()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+        let rows = xroute_page_query(q, size as i64, offset)
+            .build_query_as::<HubXorderRoute>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((rows, total.0.max(0)))
+    }
+
+    pub async fn find_xorder_route(&self, id: i32) -> Result<Option<HubXorderRoute>> {
+        sqlx::query_as::<_, HubXorderRoute>("SELECT * FROM hub_xorder_route WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    pub async fn set_route_status(&self, id: i32, status: i32, now: i32) -> Result<()> {
+        sqlx::query("UPDATE hub_xorder_route SET status = $2, update_time = $3 WHERE id = $1")
+            .bind(id)
+            .bind(status as i16)
+            .bind(now)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
+}
+
+fn xorder_count_query(q: &HubXorderListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_xorder WHERE 1=1");
+    push_xorder_filters(&mut qb, q);
+    qb
+}
+
+fn xorder_page_query(
+    q: &HubXorderListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_xorder WHERE 1=1");
+    push_xorder_filters(&mut qb, q);
+    qb.push(" ORDER BY id DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
+fn push_xorder_filters(qb: &mut QueryBuilder<'static, Postgres>, q: &HubXorderListQuery) {
+    if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        qb.push(" AND xorder_sn ILIKE ");
+        qb.push_bind(format!("%{kw}%"));
+    }
+    if let Some(status) = q.status {
+        qb.push(" AND status = ");
+        qb.push_bind(status as i16);
+    }
+}
+
+fn xroute_count_query(q: &HubXorderRouteListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_xorder_route WHERE 1=1");
+    push_xroute_filters(&mut qb, q);
+    qb
+}
+
+fn xroute_page_query(
+    q: &HubXorderRouteListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_xorder_route WHERE 1=1");
+    push_xroute_filters(&mut qb, q);
+    qb.push(" ORDER BY id DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
+fn push_xroute_filters(qb: &mut QueryBuilder<'static, Postgres>, q: &HubXorderRouteListQuery) {
+    if let Some(link_id) = q.link_id.filter(|v| *v > 0) {
+        qb.push(" AND link_id = ");
+        qb.push_bind(link_id);
+    }
+    if let Some(status) = q.status {
+        qb.push(" AND status = ");
+        qb.push_bind(status as i16);
     }
 }
 
@@ -2661,6 +3422,24 @@ mod list_sql_tests {
         let q = HubOrderSummaryListQuery::default();
         assert_placeholders(order_count_query(&q).sql(), 0);
         assert_placeholders(order_page_query(&q, 20, 0).sql(), 2);
+    }
+
+    #[test]
+    fn xorder_list_filters() {
+        let q = HubXorderListQuery {
+            keyword: Some("HX2026".into()),
+            status: Some(1),
+            ..Default::default()
+        };
+        assert_placeholders(xorder_count_query(&q).sql(), 2);
+        assert_placeholders(xorder_page_query(&q, 20, 0).sql(), 4);
+        let q = HubXorderRouteListQuery {
+            link_id: Some(2),
+            status: Some(2),
+            ..Default::default()
+        };
+        assert_placeholders(xroute_count_query(&q).sql(), 2);
+        assert_placeholders(xroute_page_query(&q, 20, 0).sql(), 4);
     }
 
     #[test]

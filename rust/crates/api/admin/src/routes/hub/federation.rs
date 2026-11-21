@@ -37,7 +37,7 @@
 //! | `GET`  | `/hub/orders/list` | 订单上行汇总分页（二期，订单模块闸） |
 //! | `POST` | `/hub/myLinks/syncMembers` | 成员侧手动同步会员（二期） |
 //! | `POST` | `/hub/myLinks/reportOrders` | 成员侧手动上报订单（二期） |
-//! | `GET`  | `/hub/sso/requests` | 登录互认授权审计（三期①，迁移 039，会员模块闸） |
+//! | `GET`  | `/hub/sso/requests` | 登录互认授权审计（三期①，迁移 042，会员模块闸） |
 //! | `GET`  | `/hub/config/packages` | 配置包列表（三期②，迁移 043） |
 //! | `POST` | `/hub/config/publish` | 发布配置包（三期②） |
 //! | `POST` | `/hub/config/revoke` | 撤销配置包（三期②） |
@@ -45,6 +45,10 @@
 //! | `GET`  | `/hub/config/applies` | 本机配置落地列表（三期②，成员侧） |
 //! | `POST` | `/hub/config/decide` | 手动包确认/拒绝（三期②，成员侧） |
 //! | `POST` | `/hub/myLinks/pullConfig` | 按连接拉取配置（三期②，成员侧） |
+//! | `GET`  | `/hub/xorder/list` | 跨店主单列表（三期③，迁移 044，订单模块闸） |
+//! | `POST` | `/hub/xorder/routeRetry` | 跨店路由重试（三期③，中枢侧） |
+//! | `GET`  | `/hub/xorder/routes` | 本机路由单列表（三期③，成员侧） |
+//! | `POST` | `/hub/xorder/syncRouteStatus` | 路由单状态同步（三期③，成员侧） |
 
 use axum::{
     extract::{Query, State},
@@ -63,7 +67,8 @@ use nextrade_core::models::hub::federation::{
     ConfigDecideDTO, ConfigPublishDTO, HubConfigAckListQuery, HubConfigAckVO,
     HubConfigApplyListQuery, HubConfigApplyVO, HubConfigListQuery, HubConfigPackageVO,
     HubPairInitiateDTO, HubPairingCodeVO, HubPairingCreateDTO, HubPriceOverrideSaveDTO,
-    HubSsoListQuery, HubSsoRequestVO,
+    HubSsoListQuery, HubSsoRequestVO, HubXorderListQuery, HubXorderRouteListQuery,
+    HubXorderRouteVO, HubXorderVO,
 };
 use nextrade_core::types::PageResult;
 use nextrade_security::web::{ok, ApiResult};
@@ -71,7 +76,7 @@ use nextrade_security::web::{ok, ApiResult};
 use crate::AdminState;
 
 /// 本域路由（去掉 `/adminapi` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 39] = [
+const ROUTE_TABLE: [(&str, &str, &str); 43] = [
     ("GET", "/hub/overview", "HubController.overview"),
     ("GET", "/hub/credentials/list", "HubController.credentialList"),
     ("GET", "/hub/credentials/detail", "HubController.credentialDetail"),
@@ -111,6 +116,10 @@ const ROUTE_TABLE: [(&str, &str, &str); 39] = [
     ("GET", "/hub/config/applies", "HubController.configApplies"),
     ("POST", "/hub/config/decide", "HubController.configDecide"),
     ("POST", "/hub/myLinks/pullConfig", "HubController.myLinkPullConfig"),
+    ("GET", "/hub/xorder/list", "HubController.xorderList"),
+    ("POST", "/hub/xorder/routeRetry", "HubController.xorderRouteRetry"),
+    ("GET", "/hub/xorder/routes", "HubController.xorderRoutes"),
+    ("POST", "/hub/xorder/syncRouteStatus", "HubController.xorderSyncRouteStatus"),
 ];
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {
@@ -153,6 +162,10 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/hub/config/applies", get(config_applies))
         .route("/hub/config/decide", post(config_decide))
         .route("/hub/myLinks/pullConfig", post(my_link_pull_config))
+        .route("/hub/xorder/list", get(xorder_list))
+        .route("/hub/xorder/routeRetry", post(xorder_route_retry))
+        .route("/hub/xorder/routes", get(xorder_routes))
+        .route("/hub/xorder/syncRouteStatus", post(xorder_sync_route_status))
         .route("/hub/myLinks/syncMembers", post(my_link_sync_members))
         .route("/hub/myLinks/reportOrders", post(my_link_report_orders))
 }
@@ -485,6 +498,39 @@ async fn my_link_pull_config(
     Json(dto): Json<HubIdDTO>,
 ) -> ApiResult<Value> {
     ok(state.hub.federation.pull_config(dto.id).await?)
+}
+
+/// 三期③：跨店主单列表（中枢）。
+async fn xorder_list(
+    State(state): State<AdminState>,
+    Query(q): Query<HubXorderListQuery>,
+) -> ApiResult<PageResult<HubXorderVO>> {
+    ok(state.hub.federation.list_xorders_admin(&q).await?)
+}
+
+/// 三期③：跨店路由重试（中枢，对已付主单重跑路由补落）。
+async fn xorder_route_retry(
+    State(state): State<AdminState>,
+    Json(dto): Json<HubIdDTO>,
+) -> ApiResult<&'static str> {
+    state.hub.federation.xorder_route_retry(dto.id).await?;
+    ok("路由已重跑")
+}
+
+/// 三期③：本机路由单列表（成员）。
+async fn xorder_routes(
+    State(state): State<AdminState>,
+    Query(q): Query<HubXorderRouteListQuery>,
+) -> ApiResult<PageResult<HubXorderRouteVO>> {
+    ok(state.hub.federation.list_xorder_routes_admin(&q).await?)
+}
+
+/// 三期③：路由单状态同步（成员，读本地单状态回传中枢）。
+async fn xorder_sync_route_status(
+    State(state): State<AdminState>,
+    Json(dto): Json<HubIdDTO>,
+) -> ApiResult<Value> {
+    ok(state.hub.federation.sync_route_status(dto.id).await?)
 }
 
 async fn my_link_sync_members(

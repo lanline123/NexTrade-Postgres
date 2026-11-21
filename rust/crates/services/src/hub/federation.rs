@@ -12,9 +12,9 @@
 //! secret 的 SHA-256 摘要（中枢侧只存哈希、永不存明文，故以摘要为共享密钥，
 //! 与设计「hmac(secret, …)」等价强度）。
 //!
-//! 三期（迁移 039 起，设计 `~/workspace/federation-phase3/DESIGN.md`）续补：
-//! 登录互认（§6.3 授权码模式，039）、配置分发（§8.3，040）、跨店下单
-//! （§7.2，041）、中央账本（§6.5，042）、跨站结算（§11，043）。账本与
+//! 三期（迁移 042 起，设计 `~/workspace/federation-phase3/DESIGN.md`）续补：
+//! 登录互认（§6.3 授权码模式，042）、配置分发（§8.3，043）、跨店下单
+//! （§7.2，044）、中央账本（§6.5，045）、跨站结算（§11，046）。账本与
 //! 结算只记账与生成结算单，不做真实跨站资金划拨（资金红线）。
 //!
 //! 安全口径：入站钥 secret 只存 SHA-256 哈希、明文仅签发时回一次；
@@ -3081,7 +3081,877 @@ impl FederationService {
         Ok(PageResult::new(total.max(0) as u64, list, &page))
     }
 
-    // ———————————————————— 三期①：登录互认（迁移 039；DESIGN.md §1） ————————————————————
+    // ———————————————————— 三期③：跨店下单（迁移 044；DESIGN.md §3） ————————————————————
+    //
+    // 中枢买家跨成员店铺下单：按 (连接, 远端店铺) 分组预占（价以成员确认价
+    // 为准）→ 全组成功才建单 → 本站 paylog 付款（order_type=3）→ 支付回调
+    // 路由落成员本地单（order_type=14）→ 成员回传状态聚合主单。
+    // 资金：付款只走本站既有通道；分账只记账目（结算批 046），不执行渠道拆分。
+
+    /// 中枢前台面：跨店下单（买家本人）。任一组预占失败 → 已预占组逐个
+    /// 释放、本单不建；建单后落 paylog 并回主单 VO（含 paySn）。
+    pub async fn xorder_create(
+        &self,
+        buyer_user_id: i32,
+        dto: &XorderCreateDTO,
+    ) -> Result<HubXorderVO> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        if dto.items.is_empty() {
+            return Err(Error::Validation("跨店下单明细不能为空".to_string()));
+        }
+        let addr = self
+            .repos
+            .member
+            .user_address_client
+            .find_by_id(dto.address_id)
+            .await?
+            .filter(|a| a.user_id == buyer_user_id)
+            .ok_or_else(|| Error::Validation("收货地址不存在或不属于当前买家".to_string()))?;
+        // 映射解析 + 分组（保持首次出现顺序）。
+        let mut groups: Vec<(i32, i32, String, Vec<(HubProductMap, i32)>)> = Vec::new();
+        for it in &dto.items {
+            if it.quantity <= 0 {
+                return Err(Error::Validation("购买数量必须大于 0".to_string()));
+            }
+            let map = self
+                .repo()
+                .find_product_map_by_id(it.map_id)
+                .await?
+                .ok_or_else(|| Error::Validation(format!("商品映射 {} 不存在", it.map_id)))?;
+            if i32::from(map.sync_state) != 1 {
+                return Err(Error::Validation(format!(
+                    "商品「{}」当前不可跨店购买",
+                    map.product_name
+                )));
+            }
+            match groups.iter_mut().find(|g| g.0 == map.link_id && g.1 == map.remote_shop_id) {
+                Some(g) => g.3.push((map, it.quantity)),
+                None => groups.push((
+                    map.link_id,
+                    map.remote_shop_id,
+                    map.remote_shop_name.clone(),
+                    vec![(map, it.quantity)],
+                )),
+            }
+        }
+        let now = self.now();
+        let xorder_sn = format!(
+            "HX{}{}",
+            utils::now_seconds(),
+            utils::random_hex(6).to_uppercase()
+        );
+        // 逐组预占；失败释放已成功组。
+        let mut reserved: Vec<XorderReservedGroup> = Vec::new();
+        for (idx, (link_id, shop_id, shop_name, items)) in groups.iter().enumerate() {
+            let sub_sn = format!("{xorder_sn}-{}", idx + 1);
+            let link = self.load_link(*link_id).await?;
+            if i32::from(link.role) != LINK_ROLE_HUB || i32::from(link.status) != LINK_ACTIVE {
+                self.release_reserved_groups(&reserved).await;
+                return Err(Error::Validation("目标成员连接未激活".to_string()));
+            }
+            if link.approved_modules & MODULE_ORDER == 0 {
+                self.release_reserved_groups(&reserved).await;
+                return Err(Error::Forbidden(MSG_ORDER_MODULE_OFF.to_string()));
+            }
+            let wire_items: Vec<XorderWireItem> = items
+                .iter()
+                .map(|(m, q)| XorderWireItem {
+                    product_id: m.remote_product_id,
+                    sku_id: 0,
+                    quantity: *q,
+                    price: None,
+                    product_name: None,
+                    pic_url: None,
+                })
+                .collect();
+            let resp = match self
+                .down_post_signed(
+                    &link,
+                    "/api/hub/v1/orders/reserve",
+                    &json!({ "subSn": sub_sn, "items": wire_items }),
+                )
+                .await
+            {
+                Ok(v) => v,
+                Err(e) => {
+                    self.release_reserved_groups(&reserved).await;
+                    return Err(e);
+                }
+            };
+            let confirmed = resp.get("confirmed").and_then(Value::as_bool).unwrap_or(false);
+            if !confirmed {
+                let reason = resp
+                    .get("reason")
+                    .and_then(Value::as_str)
+                    .unwrap_or("成员侧预占失败")
+                    .to_string();
+                self.release_reserved_groups(&reserved).await;
+                return Err(Error::Validation(format!(
+                    "{}（店铺 {}）",
+                    reason, shop_name
+                )));
+            }
+            let mut priced: Vec<(HubProductMap, i32, Decimal)> = Vec::new();
+            let mut amount = Decimal::ZERO;
+            for (m, q) in items {
+                let price = resp
+                    .get("items")
+                    .and_then(Value::as_array)
+                    .and_then(|arr| {
+                        arr.iter().find(|w| {
+                            w.get("productId").and_then(Value::as_i64)
+                                == Some(i64::from(m.remote_product_id))
+                        })
+                    })
+                    .map(|w| decimal_of(w.get("price")))
+                    .filter(|p| *p > Decimal::ZERO)
+                    .unwrap_or(m.price);
+                amount += price * Decimal::from(*q);
+                priced.push((m.clone(), *q, price));
+            }
+            let shipping_fee = decimal_of(resp.get("shippingFee"));
+            reserved.push(XorderReservedGroup {
+                link_id: *link_id,
+                remote_shop_id: *shop_id,
+                remote_shop_name: shop_name.clone(),
+                sub_sn,
+                items: priced,
+                shipping_fee,
+                amount,
+            });
+        }
+        // 全组预占成功 → 建主单/子单/行（此后失败靠预占 TTL 兜底过期）。
+        let product_amount: Decimal = reserved.iter().map(|g| g.amount).sum();
+        let shipping_total: Decimal = reserved.iter().map(|g| g.shipping_fee).sum();
+        let total = product_amount + shipping_total;
+        let buyer_gid = self
+            .repo()
+            .find_member_map_by_user(0, buyer_user_id)
+            .await?
+            .map(|m| m.global_member_id)
+            .unwrap_or_default();
+        let full_address = format!(
+            "{}{}{}",
+            addr.region_names.replace(',', " "),
+            addr.address,
+            addr.address_line_two.as_deref().unwrap_or_default()
+        );
+        let master_id = self
+            .repo()
+            .insert_xorder_master(
+                &xorder_sn,
+                buyer_user_id,
+                &buyer_gid,
+                product_amount,
+                shipping_total,
+                total,
+                &addr.consignee,
+                &addr.mobile,
+                full_address.trim(),
+                now,
+            )
+            .await?;
+        for g in &reserved {
+            let sub_id = self
+                .repo()
+                .insert_xorder_sub(
+                    master_id,
+                    &g.sub_sn,
+                    g.link_id,
+                    g.remote_shop_id,
+                    &g.remote_shop_name,
+                    g.amount,
+                    g.shipping_fee,
+                    XSUB_RESERVED,
+                    now,
+                )
+                .await?;
+            for (m, q, price) in &g.items {
+                self.repo()
+                    .insert_xorder_item(
+                        sub_id,
+                        m.map_id,
+                        m.remote_product_id,
+                        &m.product_name,
+                        &m.pic_url,
+                        *price,
+                        *q,
+                        *price * Decimal::from(*q),
+                    )
+                    .await?;
+            }
+        }
+        // 建 paylog（本站既有支付通道，业务类型 HubCrossOrder=3）。
+        let paylog = crate::payment::paylog::PaylogService::new(self.repos.clone())
+            .create_or_reuse(
+                None,
+                &crate::payment::paylog::PaylogOrderRef {
+                    order_id: master_id,
+                    order_sn: xorder_sn.clone(),
+                    total_amount: total,
+                    unpaid_amount: total,
+                    presale_type: None,
+                },
+                "",
+                nextrade_core::models::payment::paylog::PayOrderType::HubCrossOrder,
+                None,
+                None,
+            )
+            .await?;
+        self.repo()
+            .set_xorder_paylog(master_id, paylog.paylog_id, &paylog.pay_sn, now)
+            .await?;
+        let master = self
+            .repo()
+            .find_xorder(master_id)
+            .await?
+            .ok_or_else(|| Error::Internal("跨店主单落库后回读失败".to_string()))?;
+        self.xorder_vo(&master).await
+    }
+
+    /// 释放已预占分组（下单失败回滚用；单组失败只告警，预占 TTL 兜底）。
+    async fn release_reserved_groups(&self, groups: &[XorderReservedGroup]) {
+        for g in groups {
+            if let Ok(link) = self.load_link(g.link_id).await {
+                let _ = self
+                    .down_post_signed(
+                        &link,
+                        "/api/hub/v1/orders/release",
+                        &json!({ "subSn": g.sub_sn, "reason": "下单失败回滚" }),
+                    )
+                    .await;
+            }
+        }
+    }
+
+    /// 向成员发下行签名请求（跨店/账本等中枢→成员通道共用）。
+    async fn down_post_signed(&self, link: &HubLink, path: &str, body: &Value) -> Result<Value> {
+        let cred = self.load_credential(link.down_credential_id).await?;
+        let secret = self.decrypt_secret(&cred.secret_enc)?;
+        hub_post_json_signed(&link.peer_base_url, path, &cred.access_key, &secret, body).await
+    }
+
+    /// 组装主单 VO（子单 + 行展开）。
+    async fn xorder_vo(&self, master: &HubXorder) -> Result<HubXorderVO> {
+        let mut vo = HubXorderVO::from(master);
+        for s in self.repo().list_xorder_subs(master.id).await? {
+            let items = self
+                .repo()
+                .list_xorder_items(s.id)
+                .await?
+                .iter()
+                .map(HubXorderItemVO::from)
+                .collect();
+            vo.subs.push(HubXorderSubVO {
+                id: s.id,
+                sub_sn: s.sub_sn.clone(),
+                link_id: s.link_id,
+                remote_shop_id: s.remote_shop_id,
+                remote_shop_name: s.remote_shop_name.clone(),
+                amount: s.amount,
+                shipping_fee: s.shipping_fee,
+                status: i32::from(s.status),
+                remote_order_id: s.remote_order_id,
+                remote_order_sn: s.remote_order_sn.clone(),
+                tracking_no: s.tracking_no.clone(),
+                logistics_name: s.logistics_name.clone(),
+                items,
+            });
+        }
+        Ok(vo)
+    }
+
+    /// 中枢前台面：我的跨店单。
+    pub async fn xorder_my_list(
+        &self,
+        buyer_user_id: i32,
+        page: u64,
+        size: u64,
+    ) -> Result<PageResult<HubXorderVO>> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        let (rows, total) = self
+            .repo()
+            .list_xorders_by_buyer(buyer_user_id, page, size)
+            .await?;
+        let mut list = Vec::with_capacity(rows.len());
+        for r in &rows {
+            list.push(self.xorder_vo(r).await?);
+        }
+        let pq = PageQuery {
+            page,
+            page_size: size,
+        };
+        Ok(PageResult::new(total.max(0) as u64, list, &pq))
+    }
+
+    /// 中枢前台面：跨店单详情（仅本人）。
+    pub async fn xorder_detail(&self, buyer_user_id: i32, id: i32) -> Result<HubXorderVO> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        let master = self
+            .repo()
+            .find_xorder(id)
+            .await?
+            .filter(|m| m.buyer_user_id == buyer_user_id)
+            .ok_or_else(|| Error::NotFound(MSG_XORDER_NOT_FOUND.to_string()))?;
+        self.xorder_vo(&master).await
+    }
+
+    /// 中枢前台面：取消未付跨店单（逐子单释放预占后关单）。
+    pub async fn xorder_cancel(&self, buyer_user_id: i32, id: i32) -> Result<()> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        let master = self
+            .repo()
+            .find_xorder(id)
+            .await?
+            .filter(|m| m.buyer_user_id == buyer_user_id)
+            .ok_or_else(|| Error::NotFound(MSG_XORDER_NOT_FOUND.to_string()))?;
+        if i32::from(master.status) != XORDER_PENDING_PAY || i32::from(master.pay_status) != 0 {
+            return Err(Error::Validation("仅未支付的跨店单可取消".to_string()));
+        }
+        let now = self.now();
+        for s in self.repo().list_xorder_subs(id).await? {
+            if i32::from(s.status) == XSUB_RESERVED {
+                if let Ok(link) = self.load_link(s.link_id).await {
+                    let _ = self
+                        .down_post_signed(
+                            &link,
+                            "/api/hub/v1/orders/release",
+                            &json!({ "subSn": s.sub_sn, "reason": "买家取消" }),
+                        )
+                        .await;
+                }
+                self.repo()
+                    .set_xorder_sub_status(s.id, XSUB_CLOSED, now)
+                    .await?;
+            }
+        }
+        self.repo().set_xorder_status(id, XORDER_CLOSED, now).await
+    }
+
+    /// 支付回调分发（paylog order_type=3）：置已付并逐子单路由。
+    /// 幂等：已付主单重复回调时只补路由未路由子单（兼作路由重试入口）。
+    pub async fn on_cross_order_paid(&self, master_id: i32) -> Result<()> {
+        let master = self
+            .repo()
+            .find_xorder(master_id)
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_XORDER_NOT_FOUND.to_string()))?;
+        let now = self.now();
+        if i32::from(master.pay_status) == 0 {
+            self.repo()
+                .mark_xorder_paid(master_id, 0, "", now)
+                .await?;
+        }
+        for s in self.repo().list_xorder_subs(master_id).await? {
+            if i32::from(s.status) != XSUB_RESERVED {
+                continue;
+            }
+            let link = match self.load_link(s.link_id).await {
+                Ok(l) => l,
+                Err(e) => {
+                    tracing::warn!("跨店子单路由跳过（连接读取失败）: sub={}, err={e}", s.sub_sn);
+                    continue;
+                }
+            };
+            let items = self.repo().list_xorder_items(s.id).await?;
+            let wire_items: Vec<XorderWireItem> = items
+                .iter()
+                .map(|it| XorderWireItem {
+                    product_id: it.remote_product_id,
+                    sku_id: it.remote_sku_id,
+                    quantity: it.quantity,
+                    price: Some(it.price),
+                    product_name: Some(it.product_name.clone()),
+                    pic_url: Some(it.pic_url.clone()),
+                })
+                .collect();
+            let body = json!({
+                "subSn": s.sub_sn,
+                "masterSn": master.xorder_sn,
+                "items": wire_items,
+                "buyerGlobalMemberId": master.global_member_id,
+                "consignee": master.consignee,
+                "mobile": master.mobile,
+                "address": master.address,
+                "paidAmount": s.amount + s.shipping_fee,
+                "shippingFee": s.shipping_fee,
+            });
+            match self
+                .down_post_signed(&link, "/api/hub/v1/orders/route", &body)
+                .await
+            {
+                Ok(resp) => {
+                    let rid = resp.get("localOrderId").and_then(Value::as_i64).unwrap_or(0) as i32;
+                    let rsn = resp
+                        .get("localOrderSn")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default();
+                    self.repo()
+                        .set_xorder_sub_remote_order(s.id, rid, rsn, self.now())
+                        .await?;
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "跨店子单路由失败（子单保持已预占，可后台重试）: sub={}, err={e}",
+                        s.sub_sn
+                    );
+                }
+            }
+        }
+        self.refresh_xorder_aggregate(master_id).await
+    }
+
+    /// 按子单现状重算并落主单聚合状态。
+    async fn refresh_xorder_aggregate(&self, master_id: i32) -> Result<()> {
+        let master = self
+            .repo()
+            .find_xorder(master_id)
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_XORDER_NOT_FOUND.to_string()))?;
+        let subs = self.repo().list_xorder_subs(master_id).await?;
+        let statuses: Vec<i32> = subs.iter().map(|s| i32::from(s.status)).collect();
+        let agg = xorder_aggregate_status(&statuses, i32::from(master.status));
+        if agg != i32::from(master.status) {
+            self.repo()
+                .set_xorder_status(master_id, agg, self.now())
+                .await?;
+        }
+        // 全子单退款 → 主单支付状态置已退款（记账口径，渠道退款另行发起）。
+        if !statuses.is_empty()
+            && statuses.iter().all(|s| *s == XSUB_REFUNDED)
+            && i32::from(master.pay_status) == 1
+        {
+            self.repo()
+                .set_xorder_pay_status(master_id, 2, self.now())
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// 管理端（中枢）：路由重试（对已付主单重跑路由补落）。
+    pub async fn xorder_route_retry(&self, master_id: i32) -> Result<()> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        self.on_cross_order_paid(master_id).await
+    }
+
+    /// 中枢前台面：子单退款申请（已路由/已发货未完成时；成员确认未发货才关单）。
+    pub async fn xorder_refund_sub(
+        &self,
+        buyer_user_id: i32,
+        dto: &XorderRefundSubDTO,
+    ) -> Result<()> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        let sub = self
+            .repo()
+            .find_xorder_sub(dto.sub_id)
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_XORDER_NOT_FOUND.to_string()))?;
+        let master = self
+            .repo()
+            .find_xorder(sub.master_id)
+            .await?
+            .filter(|m| m.buyer_user_id == buyer_user_id)
+            .ok_or_else(|| Error::NotFound(MSG_XORDER_NOT_FOUND.to_string()))?;
+        let prev = i32::from(sub.status);
+        if prev != XSUB_ROUTED && prev != XSUB_SHIPPED {
+            return Err(Error::Validation("该子单当前状态不可申请退款".to_string()));
+        }
+        let now = self.now();
+        self.repo()
+            .set_xorder_sub_status(sub.id, XSUB_REFUNDING, now)
+            .await?;
+        let link = self.load_link(sub.link_id).await?;
+        let reason = if dto.reason.trim().is_empty() {
+            "买家申请退款"
+        } else {
+            dto.reason.trim()
+        };
+        match self
+            .down_post_signed(
+                &link,
+                "/api/hub/v1/orders/refund",
+                &json!({ "subSn": sub.sub_sn, "reason": reason }),
+            )
+            .await
+        {
+            Ok(_) => {
+                self.repo()
+                    .set_xorder_sub_status(sub.id, XSUB_REFUNDED, self.now())
+                    .await?;
+                self.refresh_xorder_aggregate(master.id).await
+            }
+            Err(e) => {
+                self.repo()
+                    .set_xorder_sub_status(sub.id, prev, self.now())
+                    .await?;
+                Err(e)
+            }
+        }
+    }
+
+    /// 中枢侧：接收成员子单状态回传（路由层已过 order.report 鉴权与签名）。
+    pub async fn receive_sub_status(
+        &self,
+        cred: &HubCredential,
+        dto: &XorderSubStatusDTO,
+    ) -> Result<()> {
+        let sub = self
+            .repo()
+            .find_xorder_sub_by_sn(dto.sub_sn.trim())
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_XORDER_NOT_FOUND.to_string()))?;
+        if sub.link_id != cred.link_id {
+            return Err(Error::Forbidden("子单不属于调用连接".to_string()));
+        }
+        let from = i32::from(sub.status);
+        if !xsub_transition_allowed(from, dto.status) {
+            return Err(Error::Validation(format!(
+                "子单状态不可从 {from} 推进到 {}",
+                dto.status
+            )));
+        }
+        self.repo()
+            .set_xorder_sub_tracking(
+                sub.id,
+                dto.status,
+                dto.tracking_no.trim(),
+                dto.logistics_name.trim(),
+                self.now(),
+            )
+            .await?;
+        self.refresh_xorder_aggregate(sub.master_id).await
+    }
+
+    // ————— 成员侧：被调用端（下行钥 order.place，路由层鉴权） —————
+
+    /// 成员侧：库存预占。逐商品验上架/库存（商品维度，扣有效预占），
+    /// 全通过才落预占；确认价 = 本地当前售价（SKU 优先）。运费本批回 0
+    /// （无统一运费模板可算，子单金额以商品额为准，页面如实标注）。
+    pub async fn receive_order_reserve(
+        &self,
+        cred: &HubCredential,
+        dto: &XorderReserveDTO,
+    ) -> Result<XorderReserveVO> {
+        let fail = |reason: &str| XorderReserveVO {
+            confirmed: false,
+            reason: reason.to_string(),
+            items: Vec::new(),
+            shipping_fee: Decimal::ZERO,
+        };
+        if cred.link_id <= 0 {
+            return Ok(fail("预占凭证未绑定连接"));
+        }
+        if dto.sub_sn.trim().is_empty() || dto.items.is_empty() {
+            return Ok(fail("预占参数不完整"));
+        }
+        let now = self.now();
+        // 幂等：同子单号已有有效预占 → 直接回确认（价格以现价回带，不重复验库存，
+        // 避免自身预占量把重试挤成假不足）。
+        let existing = self.repo().list_holds_by_sn(cred.link_id, dto.sub_sn.trim()).await?;
+        let already = existing
+            .iter()
+            .any(|h| i32::from(h.status) == HOLD_ACTIVE && h.expire_time > now);
+        let mut priced: Vec<XorderWireItem> = Vec::new();
+        for it in &dto.items {
+            let Some((_, _, product_price, stock, _)) =
+                self.repo().find_local_product_for_order(it.product_id).await?
+            else {
+                return Ok(fail("商品不存在或已下架"));
+            };
+            let price = if it.sku_id > 0 {
+                self.repo()
+                    .find_local_sku_price(it.product_id, it.sku_id)
+                    .await?
+                    .unwrap_or(product_price)
+            } else {
+                product_price
+            };
+            if !already {
+                let held = self.repo().sum_active_holds(it.product_id, now).await?;
+                if i64::from(stock) - held < i64::from(it.quantity) {
+                    return Ok(fail("库存不足"));
+                }
+            }
+            priced.push(XorderWireItem {
+                product_id: it.product_id,
+                sku_id: it.sku_id,
+                quantity: it.quantity,
+                price: Some(price),
+                product_name: None,
+                pic_url: None,
+            });
+        }
+        if !already {
+            let expire = i32::try_from(i64::from(now) + XORDER_HOLD_TTL_SECONDS)
+                .unwrap_or(i32::MAX);
+            for it in &dto.items {
+                self.repo()
+                    .insert_stock_hold(
+                        cred.link_id,
+                        dto.sub_sn.trim(),
+                        it.product_id,
+                        it.sku_id,
+                        it.quantity,
+                        expire,
+                        now,
+                    )
+                    .await?;
+            }
+        }
+        Ok(XorderReserveVO {
+            confirmed: true,
+            reason: String::new(),
+            items: priced,
+            shipping_fee: Decimal::ZERO,
+        })
+    }
+
+    /// 成员侧：路由落单（子单号幂等）。消费预占 + 守卫扣库存 + 直插本地单
+    /// （order_type=14，资金隔离口径同外卖聚合）同事务完成。
+    pub async fn receive_order_route(
+        &self,
+        cred: &HubCredential,
+        dto: &XorderRouteDTO,
+    ) -> Result<XorderRouteVO> {
+        if cred.link_id <= 0 {
+            return Err(Error::Validation("路由凭证未绑定连接".to_string()));
+        }
+        if let Some(route) = self.repo().find_route_by_sub_sn(dto.sub_sn.trim()).await? {
+            return Ok(XorderRouteVO {
+                local_order_id: route.local_order_id,
+                local_order_sn: route.local_order_sn.clone(),
+            });
+        }
+        let now = self.now();
+        let buyer_user_id = if dto.buyer_global_member_id.trim().is_empty() {
+            0
+        } else {
+            self.repo()
+                .find_member_map_by_global(cred.link_id, dto.buyer_global_member_id.trim())
+                .await?
+                .map(|m| m.local_user_id)
+                .unwrap_or(0)
+        };
+        // 店铺归属：子单内商品同店（中枢按店铺分组），取首个商品的店铺。
+        let first_shop = match dto.items.first() {
+            Some(it) => self
+                .repo()
+                .find_local_product_for_order(it.product_id)
+                .await?
+                .map(|p| p.4)
+                .unwrap_or(0),
+            None => 0,
+        };
+        let mut order = nextrade_core::entities::order::Order::default();
+        order.order_sn = utils::generate_order_sn();
+        order.order_type = Some(XORDER_LOCAL_ORDER_TYPE);
+        order.user_id = buyer_user_id;
+        order.order_status = 1; // 待发货（已付路由单）
+        order.shipping_status = 0;
+        order.pay_status = 2; // 已支付
+        order.add_time = now;
+        order.consignee = dto.consignee.chars().take(255).collect();
+        order.address = dto.address.clone();
+        order.region_ids = "[]".to_string();
+        order.region_names = String::new();
+        order.mobile = dto.mobile.clone();
+        order.shipping_method = 1;
+        order.shop_id = first_shop;
+        order.is_valid = 1;
+        order.total_amount = dto.paid_amount;
+        order.paid_amount = dto.paid_amount;
+        order.unpaid_amount = Decimal::ZERO;
+        order.product_amount = dto.paid_amount - dto.shipping_fee;
+        order.shipping_fee = dto.shipping_fee;
+        order.is_need_commisson = 0;
+        order.referrer_user_id = 0;
+        order.order_source = "联邦跨店".to_string();
+        order.order_extension = json!({
+            "hub": { "subSn": dto.sub_sn, "masterSn": dto.master_sn, "linkId": cred.link_id }
+        })
+        .to_string();
+        order.external_channel = "hub".to_string();
+        order.external_order_sn = dto.sub_sn.clone();
+        order.admin_note = format!("联邦跨店单 {}（主单 {}）", dto.sub_sn, dto.master_sn);
+        let mut order_items: Vec<nextrade_core::entities::order::OrderItem> = Vec::new();
+        for it in &dto.items {
+            let local = self.repo().find_local_product_for_order(it.product_id).await?;
+            let mut item = nextrade_core::entities::order::OrderItem::default();
+            item.user_id = buyer_user_id;
+            item.price = it.price.unwrap_or(Decimal::ZERO);
+            item.quantity = it.quantity;
+            item.product_id = it.product_id;
+            item.product_name = it
+                .product_name
+                .clone()
+                .filter(|s| !s.is_empty())
+                .or_else(|| local.as_ref().map(|p| p.0.clone()))
+                .unwrap_or_default()
+                .chars()
+                .take(255)
+                .collect();
+            item.pic_thumb = it
+                .pic_url
+                .clone()
+                .filter(|s| !s.is_empty())
+                .or_else(|| local.as_ref().map(|p| p.1.clone()))
+                .unwrap_or_default();
+            item.sku_id = it.sku_id;
+            item.sku_data = json!({ "hubSubSn": dto.sub_sn }).to_string();
+            item.product_type = 1;
+            item.shop_id = local.map(|p| p.4).unwrap_or(first_shop);
+            item.origin_price = it.price;
+            order_items.push(item);
+        }
+        let (order_id, order_sn) = self
+            .repo()
+            .land_route_order(
+                cred.link_id,
+                dto.sub_sn.trim(),
+                &order,
+                &order_items,
+                dto.buyer_global_member_id.trim(),
+                now,
+            )
+            .await?;
+        Ok(XorderRouteVO {
+            local_order_id: order_id,
+            local_order_sn: order_sn,
+        })
+    }
+
+    /// 成员侧：释放预占（已消费则拒绝）。
+    pub async fn receive_order_release(
+        &self,
+        cred: &HubCredential,
+        dto: &XorderSubSnDTO,
+    ) -> Result<()> {
+        if cred.link_id <= 0 {
+            return Err(Error::Validation("释放凭证未绑定连接".to_string()));
+        }
+        if !self
+            .repo()
+            .release_holds(cred.link_id, dto.sub_sn.trim(), self.now())
+            .await?
+        {
+            return Err(Error::Validation("预占已消费，不能释放".to_string()));
+        }
+        Ok(())
+    }
+
+    /// 成员侧：退款确认（本地单未发货才关单；已发货明确拒绝，中枢回滚子单状态）。
+    pub async fn receive_order_refund(
+        &self,
+        cred: &HubCredential,
+        dto: &XorderSubSnDTO,
+    ) -> Result<()> {
+        if cred.link_id <= 0 {
+            return Err(Error::Validation("退款凭证未绑定连接".to_string()));
+        }
+        let route = self
+            .repo()
+            .find_route_by_sub_sn(dto.sub_sn.trim())
+            .await?
+            .ok_or_else(|| Error::NotFound("本地无此跨店路由单".to_string()))?;
+        let state = self
+            .repo()
+            .find_local_order_state(route.local_order_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("本地订单不存在".to_string()))?;
+        if state.1 == 1 || state.3 > 0 || state.0 >= 2 {
+            return Err(Error::Validation(
+                "本地订单已发货，不能直接关单退款".to_string(),
+            ));
+        }
+        self.repo().close_local_order(route.local_order_id).await?;
+        self.repo()
+            .set_route_status(route.id, XSUB_REFUNDED, self.now())
+            .await?;
+        Ok(())
+    }
+
+    /// 管理端（中枢）：跨店主单列表（子单展开）。
+    pub async fn list_xorders_admin(
+        &self,
+        q: &HubXorderListQuery,
+    ) -> Result<PageResult<HubXorderVO>> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        let (rows, total) = self.repo().list_xorders(q).await?;
+        let mut list = Vec::with_capacity(rows.len());
+        for r in &rows {
+            list.push(self.xorder_vo(r).await?);
+        }
+        let page = PageQuery {
+            page: q.page.unwrap_or(1),
+            page_size: q.page_size.unwrap_or(20),
+        };
+        Ok(PageResult::new(total.max(0) as u64, list, &page))
+    }
+
+    /// 管理端（成员）：本机路由单列表（带本地单状态）。
+    pub async fn list_xorder_routes_admin(
+        &self,
+        q: &HubXorderRouteListQuery,
+    ) -> Result<PageResult<HubXorderRouteVO>> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        let (rows, total) = self.repo().list_xorder_routes(q).await?;
+        let mut list = Vec::with_capacity(rows.len());
+        for r in &rows {
+            let mut vo = HubXorderRouteVO::from(r);
+            if let Some(st) = self.repo().find_local_order_state(r.local_order_id).await? {
+                vo.local_order_status = st.0;
+                vo.local_shipping_status = st.1;
+            }
+            list.push(vo);
+        }
+        let page = PageQuery {
+            page: q.page.unwrap_or(1),
+            page_size: q.page_size.unwrap_or(20),
+        };
+        Ok(PageResult::new(total.max(0) as u64, list, &page))
+    }
+
+    /// 管理端（成员）：逐单同步状态到中枢（读本地单状态映射后上行回传，
+    /// 与二期手动同步同口径，不侵入本地订单状态机）。
+    pub async fn sync_route_status(&self, route_id: i32) -> Result<Value> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        let route = self
+            .repo()
+            .find_xorder_route(route_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("跨店路由单不存在".to_string()))?;
+        let st = self
+            .repo()
+            .find_local_order_state(route.local_order_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("本地订单不存在".to_string()))?;
+        let mapped = xsub_from_local_order(st.0, st.1);
+        if mapped == i32::from(route.status) {
+            return Ok(json!({ "synced": false, "status": mapped }));
+        }
+        let link = self.load_link(route.link_id).await?;
+        let cred = self.load_credential(link.up_credential_id).await?;
+        let secret = self.decrypt_secret(&cred.secret_enc)?;
+        hub_post_json_signed(
+            &link.peer_base_url,
+            "/api/hub/v1/orders/subStatus",
+            &cred.access_key,
+            &secret,
+            &json!({
+                "subSn": route.sub_sn,
+                "status": mapped,
+                "trackingNo": st.4,
+                "logisticsName": st.5,
+            }),
+        )
+        .await?;
+        self.repo()
+            .set_route_status(route.id, mapped, self.now())
+            .await?;
+        Ok(json!({ "synced": true, "status": mapped }))
+    }
+
+    // ———————————————————— 三期①：登录互认（迁移 042；DESIGN.md §1） ————————————————————
     //
     // 授权码模式：成员登记请求 → 中枢会员本人同意 → 一次性码（5 分钟）→
     // 成员兑换并落号。红线：兑换只回映射与展示字段；未验证手机号不签发
@@ -3717,6 +4587,18 @@ fn hex_decode(s: &str) -> Option<Vec<u8>> {
 /// 推送签名（设计 §9.3）：HMAC-SHA256(key, "{timestamp}.{body}") 的 hex。
 /// key = SHA-256(secret) 摘要字节——发送方由明文现算，接收方由 secret_hash
 /// hex 解码，两侧同一密钥，中枢永不存明文。
+/// 跨店下单预占分组（三期③下单过程中的中间态，模块级以便回滚释放共用）。
+struct XorderReservedGroup {
+    link_id: i32,
+    remote_shop_id: i32,
+    remote_shop_name: String,
+    sub_sn: String,
+    /// (聚合映射, 数量, 店主确认价)。
+    items: Vec<(HubProductMap, i32, Decimal)>,
+    shipping_fee: Decimal,
+    amount: Decimal,
+}
+
 /// 配置包签名（三期②）：HMAC-SHA256(key, "{packageId}.{version}.{contentHash}")。
 /// key = SHA-256(下行 secret) 摘要——中枢以密文解密值派生、成员以入站钥
 /// secret_hash 解码，双方同值且都不需要对方明文（与推送验签同一 trick）。

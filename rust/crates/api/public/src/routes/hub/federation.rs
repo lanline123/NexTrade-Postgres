@@ -17,10 +17,15 @@
 //! | `GET`  | `/hub/v1/members/query` | member.read | 会员资料下钻（二期） |
 //! | `GET`  | `/hub/v1/members/anchor` | member.sync | 全局 ID 锚点核对（二期） |
 //! | `POST` | `/hub/v1/orders/report` | order.report + HMAC 签名 | 订单头级汇总上行（二期） |
-//! | `POST` | `/hub/v1/auth/request` | member.auth + HMAC 签名 | 登录互认·登记授权请求（三期①，迁移 039） |
+//! | `POST` | `/hub/v1/auth/request` | member.auth + HMAC 签名 | 登录互认·登记授权请求（三期①，迁移 042） |
 //! | `POST` | `/hub/v1/auth/exchange` | member.auth + HMAC 签名 | 登录互认·兑换授权码（三期①） |
 //! | `GET`  | `/hub/v1/config/packages?sinceVersion=` | config.pull | 配置分发·拉取配置包（三期②，迁移 043） |
 //! | `POST` | `/hub/v1/config/ack` | config.pull + HMAC 签名 | 配置分发·应用回执（三期②） |
+//! | `POST` | `/hub/v1/orders/reserve` | order.place + HMAC 签名 | 跨店下单·库存预占（三期③，迁移 044） |
+//! | `POST` | `/hub/v1/orders/route` | order.place + HMAC 签名 | 跨店下单·路由落单（三期③） |
+//! | `POST` | `/hub/v1/orders/release` | order.place + HMAC 签名 | 跨店下单·释放预占（三期③） |
+//! | `POST` | `/hub/v1/orders/refund` | order.place + HMAC 签名 | 跨店下单·退款关单确认（三期③） |
+//! | `POST` | `/hub/v1/orders/subStatus` | order.report + HMAC 签名 | 跨店下单·子单状态回传（三期③） |
 //!
 //! 每次带钥调用落 `hub_call_log`（凭证/端点/状态/条数/耗时）。
 
@@ -43,9 +48,10 @@ use nextrade_core::models::hub::federation::{
     MemberAnchorVO, MemberQueryVO, MemberSyncDTO, MemberSyncResultVO, OrderReportDTO,
     OrderReportResultVO, PairActivateVO, PairClaimDTO, PairClaimVO, PairStatusDTO, PairStatusVO,
     SsoAuthRequestDTO, SsoAuthRequestVO, SsoExchangeDTO, SsoExchangeVO, UpdateEndpointDTO,
-    MSG_HUB_SIGNATURE_INVALID, MSG_HUB_UNAUTHORIZED, SCOPE_CONFIG_PULL, SCOPE_MEMBER_AUTH,
-    SCOPE_MEMBER_READ, SCOPE_MEMBER_SYNC, SCOPE_META_READ, SCOPE_ORDER_REPORT, SCOPE_PRODUCT_READ,
-    SCOPE_STATS_REPORT,
+    XorderReserveDTO, XorderReserveVO, XorderRouteDTO, XorderRouteVO, XorderSubSnDTO,
+    XorderSubStatusDTO, MSG_HUB_SIGNATURE_INVALID, MSG_HUB_UNAUTHORIZED, SCOPE_CONFIG_PULL,
+    SCOPE_MEMBER_AUTH, SCOPE_MEMBER_READ, SCOPE_MEMBER_SYNC, SCOPE_META_READ, SCOPE_ORDER_PLACE,
+    SCOPE_ORDER_REPORT, SCOPE_PRODUCT_READ, SCOPE_STATS_REPORT,
 };
 use nextrade_core::types::PageResult;
 use nextrade_core::Error;
@@ -54,7 +60,7 @@ use nextrade_security::web::{ok, ApiResult, AppError};
 use super::super::super::PublicState;
 
 /// 本域路由（去掉 `/api` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 17] = [
+const ROUTE_TABLE: [(&str, &str, &str); 22] = [
     ("POST", "/hub/v1/pair/claim", "HubApi.pairClaim"),
     ("POST", "/hub/v1/pair/status", "HubApi.pairStatus"),
     ("POST", "/hub/v1/pair/activate", "HubApi.pairActivate"),
@@ -72,6 +78,11 @@ const ROUTE_TABLE: [(&str, &str, &str); 17] = [
     ("POST", "/hub/v1/auth/exchange", "HubApi.authExchange"),
     ("GET", "/hub/v1/config/packages", "HubApi.configPackages"),
     ("POST", "/hub/v1/config/ack", "HubApi.configAck"),
+    ("POST", "/hub/v1/orders/reserve", "HubApi.ordersReserve"),
+    ("POST", "/hub/v1/orders/route", "HubApi.ordersRoute"),
+    ("POST", "/hub/v1/orders/release", "HubApi.ordersRelease"),
+    ("POST", "/hub/v1/orders/refund", "HubApi.ordersRefund"),
+    ("POST", "/hub/v1/orders/subStatus", "HubApi.ordersSubStatus"),
 ];
 
 /// 联邦面路由（自带凭证鉴权）。
@@ -95,6 +106,11 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/hub/v1/auth/exchange", post(auth_exchange))
         .route("/hub/v1/config/packages", get(config_packages))
         .route("/hub/v1/config/ack", post(config_ack))
+        .route("/hub/v1/orders/reserve", post(orders_reserve))
+        .route("/hub/v1/orders/route", post(orders_route))
+        .route("/hub/v1/orders/release", post(orders_release))
+        .route("/hub/v1/orders/refund", post(orders_refund))
+        .route("/hub/v1/orders/subStatus", post(orders_sub_status))
 }
 
 /// 本域已实现路由（覆盖率统计）。
@@ -574,6 +590,167 @@ async fn config_ack(
         .record_call(&cred, "/api/hub/v1/config/ack", "config.pull", 200, 1, &client_ip(&headers), started)
         .await;
     ok("回执已记录")
+}
+
+/// 三期③：跨店预占（order.place + 签名）。业务失败以 confirmed=false 回
+/// （不走错误信封，中枢据此整单回滚并展示成员给的原因）。
+async fn orders_reserve(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> ApiResult<XorderReserveVO> {
+    let started = Instant::now();
+    let cred = auth_cred(&state, &headers, SCOPE_ORDER_PLACE).await?;
+    let (ts, sig) = signature_parts(&headers)?;
+    let text = String::from_utf8(body.to_vec())
+        .map_err(|_| AppError(Error::Validation("请求体不是合法 UTF-8".into())))?;
+    state
+        .hub
+        .federation
+        .verify_push_signature(&cred, ts, &sig, &text)
+        .map_err(AppError)?;
+    let dto: XorderReserveDTO = serde_json::from_str(&text)
+        .map_err(|_| AppError(Error::Validation("请求体不是合法的预占 JSON".into())))?;
+    let vo = state
+        .hub
+        .federation
+        .receive_order_reserve(&cred, &dto)
+        .await
+        .map_err(AppError)?;
+    state
+        .hub
+        .federation
+        .record_call(&cred, "/api/hub/v1/orders/reserve", "order.place", 200, 1, &client_ip(&headers), started)
+        .await;
+    ok(vo)
+}
+
+/// 三期③：跨店路由落单（order.place + 签名，子单号幂等）。
+async fn orders_route(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> ApiResult<XorderRouteVO> {
+    let started = Instant::now();
+    let cred = auth_cred(&state, &headers, SCOPE_ORDER_PLACE).await?;
+    let (ts, sig) = signature_parts(&headers)?;
+    let text = String::from_utf8(body.to_vec())
+        .map_err(|_| AppError(Error::Validation("请求体不是合法 UTF-8".into())))?;
+    state
+        .hub
+        .federation
+        .verify_push_signature(&cred, ts, &sig, &text)
+        .map_err(AppError)?;
+    let dto: XorderRouteDTO = serde_json::from_str(&text)
+        .map_err(|_| AppError(Error::Validation("请求体不是合法的路由 JSON".into())))?;
+    let vo = state
+        .hub
+        .federation
+        .receive_order_route(&cred, &dto)
+        .await
+        .map_err(AppError)?;
+    state
+        .hub
+        .federation
+        .record_call(&cred, "/api/hub/v1/orders/route", "order.place", 200, 1, &client_ip(&headers), started)
+        .await;
+    ok(vo)
+}
+
+/// 三期③：释放预占（order.place + 签名）。
+async fn orders_release(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> ApiResult<&'static str> {
+    let started = Instant::now();
+    let cred = auth_cred(&state, &headers, SCOPE_ORDER_PLACE).await?;
+    let (ts, sig) = signature_parts(&headers)?;
+    let text = String::from_utf8(body.to_vec())
+        .map_err(|_| AppError(Error::Validation("请求体不是合法 UTF-8".into())))?;
+    state
+        .hub
+        .federation
+        .verify_push_signature(&cred, ts, &sig, &text)
+        .map_err(AppError)?;
+    let dto: XorderSubSnDTO = serde_json::from_str(&text)
+        .map_err(|_| AppError(Error::Validation("请求体不是合法的释放 JSON".into())))?;
+    state
+        .hub
+        .federation
+        .receive_order_release(&cred, &dto)
+        .await
+        .map_err(AppError)?;
+    state
+        .hub
+        .federation
+        .record_call(&cred, "/api/hub/v1/orders/release", "order.place", 200, 1, &client_ip(&headers), started)
+        .await;
+    ok("预占已释放")
+}
+
+/// 三期③：退款关单确认（order.place + 签名；已发货时成员明确拒绝）。
+async fn orders_refund(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> ApiResult<&'static str> {
+    let started = Instant::now();
+    let cred = auth_cred(&state, &headers, SCOPE_ORDER_PLACE).await?;
+    let (ts, sig) = signature_parts(&headers)?;
+    let text = String::from_utf8(body.to_vec())
+        .map_err(|_| AppError(Error::Validation("请求体不是合法 UTF-8".into())))?;
+    state
+        .hub
+        .federation
+        .verify_push_signature(&cred, ts, &sig, &text)
+        .map_err(AppError)?;
+    let dto: XorderSubSnDTO = serde_json::from_str(&text)
+        .map_err(|_| AppError(Error::Validation("请求体不是合法的退款 JSON".into())))?;
+    state
+        .hub
+        .federation
+        .receive_order_refund(&cred, &dto)
+        .await
+        .map_err(AppError)?;
+    state
+        .hub
+        .federation
+        .record_call(&cred, "/api/hub/v1/orders/refund", "order.place", 200, 1, &client_ip(&headers), started)
+        .await;
+    ok("已关单")
+}
+
+/// 三期③：子单状态回传（order.report + 签名，成员 → 中枢）。
+async fn orders_sub_status(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> ApiResult<&'static str> {
+    let started = Instant::now();
+    let cred = auth_cred(&state, &headers, SCOPE_ORDER_REPORT).await?;
+    let (ts, sig) = signature_parts(&headers)?;
+    let text = String::from_utf8(body.to_vec())
+        .map_err(|_| AppError(Error::Validation("请求体不是合法 UTF-8".into())))?;
+    state
+        .hub
+        .federation
+        .verify_push_signature(&cred, ts, &sig, &text)
+        .map_err(AppError)?;
+    let dto: XorderSubStatusDTO = serde_json::from_str(&text)
+        .map_err(|_| AppError(Error::Validation("请求体不是合法的状态回传 JSON".into())))?;
+    state
+        .hub
+        .federation
+        .receive_sub_status(&cred, &dto)
+        .await
+        .map_err(AppError)?;
+    state
+        .hub
+        .federation
+        .record_call(&cred, "/api/hub/v1/orders/subStatus", "order.report", 200, 1, &client_ip(&headers), started)
+        .await;
+    ok("状态已更新")
 }
 
 #[cfg(test)]

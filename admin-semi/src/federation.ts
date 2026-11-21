@@ -133,7 +133,7 @@ export function filterNavGroupsByFederation(groups: NavGroup[], settings: Federa
     if (key === 'hubLinks' || key === 'hubPairing' || key === 'myLinks' || key === 'hubConfig') return removeFederation;
     if (key === 'hubAggregation' || key === 'feedKeyManage') return removeProduct;
     if (key === 'hubMembers') return removeMember;
-    if (key === 'hubOrders') return removeOrder;
+    if (key === 'hubOrders' || key === 'hubXOrders') return removeOrder;
     if (key === 'hubSso') return removeMember;
     return false;
   };
