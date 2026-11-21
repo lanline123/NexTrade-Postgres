@@ -1584,6 +1584,10 @@ export const navGroups: NavGroup[] = [
             "label": "APP版本"
           },
           {
+            "key": "systemUpdate",
+            "label": "系统更新"
+          },
+          {
             "key": "regionManage",
             "label": "地区管理"
           },
@@ -2012,6 +2016,7 @@ export const pageTitles: Record<string, string> = {
   "loginSetting": "登录设置",
   "paymentSetting": "支付设置",
   "appVersionManage": "APP版本",
+  "systemUpdate": "系统更新",
   "regionManage": "地区管理",
   "friendLinksManage": "友情链接",
   "languagesListManage": "语言管理",

@@ -27,6 +27,68 @@ pub struct AppConfig {
     pub storage: StorageConfig,
     #[serde(default)]
     pub internal: InternalConfig,
+    #[serde(default)]
+    pub update: UpdateConfig,
+}
+
+/// admin 自助热更新配置（我方新增，设计见 hot-update-design/REPORT.md）。
+///
+/// 环境变量覆盖示例：`NEXTTRADE_UPDATE__GITHUB_REPO`、
+/// `NEXTTRADE_UPDATE__SPOOL_DIR` 等。
+///
+/// 安全口径：
+/// - `token_file` 只存**路径**：细粒度 PAT（单仓库 Contents 只读）放在
+///   root-only 文件里，后端与 updater 各自读取；令牌值不进 DB、不经任何
+///   API 回显、不进日志。
+/// - 各面站点根目录未配置时，对应面在「系统更新」页显示为「未配置」，
+///   不猜路径、不报错。
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateConfig {
+    /// 更新源仓库（`owner/repo`），只认该仓库的 Releases。
+    #[serde(default = "default_update_repo")]
+    pub github_repo: String,
+    /// GitHub 只读 PAT 文件路径（root-only）；为空/文件不存在时只能读
+    /// 已缓存清单与本地状态，不能拉取新清单（私有仓库必配）。
+    #[serde(default)]
+    pub token_file: String,
+    /// updater spool 目录（后端写 `jobs/`、updater 写 `status/` 与 `logs/`）。
+    /// 为空表示本机未安装 updater，更新页只能做版本感知（P1 只读）。
+    #[serde(default)]
+    pub spool_dir: String,
+    /// admin 站点根目录（读 `version.json` / `index.html` 指纹）。
+    #[serde(default)]
+    pub admin_root: String,
+    /// PC 站点根目录（读 `DEPLOY_INFO.txt` / `.next/BUILD_ID`）。
+    #[serde(default)]
+    pub pc_root: String,
+    /// H5 站点根目录（`mobile/`，读 `version.json` / `index.html` 指纹）。
+    #[serde(default)]
+    pub h5_root: String,
+    /// 是否允许每日自动检查新版本（只拉清单比对提醒，永不自动执行）。
+    #[serde(default = "default_true")]
+    pub auto_check: bool,
+}
+
+fn default_update_repo() -> String {
+    "lanline123/NexTrade-Postgres".into()
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl Default for UpdateConfig {
+    fn default() -> Self {
+        Self {
+            github_repo: default_update_repo(),
+            token_file: String::new(),
+            spool_dir: String::new(),
+            admin_root: String::new(),
+            pc_root: String::new(),
+            h5_root: String::new(),
+            auto_check: true,
+        }
+    }
 }
 
 /// 内部服务间调用配置（Java `internal.api.key`，`InternalApiFilter`）。
@@ -434,6 +496,16 @@ mod tests {
         assert_eq!(cfg.server.admin_port, 8080);
         assert_eq!(cfg.server.api_port, 8181);
         assert_eq!(cfg.jwt.access_expire_secs, 7200);
+    }
+
+    #[test]
+    fn update_config_defaults() {
+        let cfg = AppConfig::default();
+        // 更新源默认钉死本仓库；路径类默认空 = 未配置（页面降级只读感知）
+        assert_eq!(cfg.update.github_repo, "lanline123/NexTrade-Postgres");
+        assert!(cfg.update.token_file.is_empty());
+        assert!(cfg.update.spool_dir.is_empty());
+        assert!(cfg.update.auto_check);
     }
 
     #[test]

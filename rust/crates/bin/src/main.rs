@@ -226,6 +226,7 @@ use nextrade_services::payment::with_draw_apply_client::WithDrawApplyClientServi
 use nextrade_services::payment::yeepay_config::YeepayConfigService;
 use nextrade_services::system::admin_msg::AdminMsgService;
 use nextrade_services::system::app_version_admin::AppVersionAdminService;
+use nextrade_services::system::system_update::SystemUpdateService;
 use nextrade_services::system::area_code::AreaCodeService;
 use nextrade_services::system::cache_manage::CacheManageService;
 use nextrade_services::system::config_basic::ConfigBasicService;
@@ -409,6 +410,8 @@ async fn main() -> anyhow::Result<()> {
     let seo = Arc::new(SeoService::new(repos.clone()));
     let im_config = Arc::new(ImConfigService::new(repos.clone()));
     let app_version_admin = Arc::new(AppVersionAdminService::new(repos.clone()));
+    // 热更新（我方新增）：配置来自 config.yaml 的 update 段 / NEXTTRADE_UPDATE__* 环境变量
+    let system_update = Arc::new(SystemUpdateService::new(repos.clone(), cfg.update.clone()));
     let pc_navigation = Arc::new(PcNavigationService::new(repos.clone()));
     let pc_cat_floor = Arc::new(PcCatFloorService::new(repos.clone()));
     let pc = Arc::new(PcService::new(repos.clone()));
@@ -854,6 +857,7 @@ async fn main() -> anyhow::Result<()> {
         util: util.clone(),
         admin_msg: admin_msg.clone(),
         recommend: recommend.clone(),
+        system_update: system_update.clone(),
     });
     // ---- site_clone 域（站点搬家 P1，我方新增） ----
     let site_clone = Arc::new(nextrade_services::site_clone::Services {

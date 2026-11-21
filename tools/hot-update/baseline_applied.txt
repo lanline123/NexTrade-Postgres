@@ -1,0 +1,44 @@
+# 基线回填清单：已被历轮部署实证执行过的迁移文件（一行一个文件名）。
+#
+# 口径（设计报告 §4.1）：没有基线，更新器分不清「待执行」与「已执行未登记」，
+# 严禁在无基线时开放任何自动执行。每一行都必须先过探针核验
+# （baseline.py 生成的 baseline_probes.sql 在生产库只读跑通）才能保留；
+# 拿不准的文件宁可不登记（后果只是它在待执行清单里多挂一轮，由人工部署
+# 轮执行/确认后补登记），绝不能把没执行过的登记成已执行。
+#
+# —— 编号序列：部署轮报告（deploy-round-20261121-late/REPORT.md §五）以
+#    探列/探表实证生产迁移进度至 010，以下 001–010 为已实证部分。
+001_core_tables.sql
+002_pos_tables.sql
+003_customer_blacklist.sql
+004_auction.sql
+005_auto_comment.sql
+006_invoice_titles.sql
+007_delivery_files.sql
+007_refund_apply_initiator.sql
+009_aftersale_exchange.sql
+010_auction_item_own_product.sql
+#
+# —— 以下为日期命名文件候选（rust/migrations 与 rust/deploy/pg 两处同名/近名
+#    文件内容可能不同，登记以**实际执行过的那份**为准，sha 由 baseline.py
+#    按定位到的文件计算）。逐个探针核验通过后，取消注释并注明核验日期/人。
+# 2026-11-09_schema_align.sql
+# 2026-11-09_time_json_align.sql
+# 2026-11-10_ai_mcp.sql
+# 2026-11-10_p2_time_and_gin.sql
+# 2026-11-10_shop_deposit_unique.sql
+# 2026-11-10_unique_keys.sql
+# 2026-11-15_inquiry_flags.sql
+# 2026-11-18_ad_campaign.sql
+# 2026-11-18_cross_border_us_ca_region.sql
+# 2026-11-18_gift_card_issue.sql
+# 2026-11-18_product_clone.sql
+# 2026-11-18_product_feed.sql
+# 2026-11-18_product_feed_tables.sql
+# 2026-11-18_sku_default.sql
+# 2026-11-19_ai_assistant.sql
+# 2026-11-20_hub_federation.sql
+# 2026-11-20_hub_federation_tables.sql
+# 2026-11-20_rider_mvp.sql
+# 2026-11-21_ai_guide.sql
+# 2026-11-21_recharge_gift.sql

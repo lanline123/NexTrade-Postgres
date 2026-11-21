@@ -5,5 +5,6 @@
 pub mod config;
 pub mod log;
 pub mod utils;
+pub mod version;
 
 pub use config::AppConfig;

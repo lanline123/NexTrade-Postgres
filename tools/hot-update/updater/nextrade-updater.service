@@ -1,0 +1,19 @@
+# NextTrade 热更新执行器（oneshot，root 运行）。
+# 脚本与配置固定放在 /www/wwwroot/rust/updater/（root 所有，Web 进程不可写），
+# 本单元由 nextrade-updater.path 触发；也可人工 systemctl start 手动跑一轮。
+[Unit]
+Description=NextTrade 热更新执行器（admin 自助热更新 P2）
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/www/wwwroot/rust/updater/nextrade-updater.sh
+Environment=NEXTRADE_UPDATER_CONF=/www/wwwroot/rust/updater/updater.conf
+# 执行器需要写站点目录与重启 nextrade-pc，只收紧到不妨碍工作的程度
+ProtectSystem=false
+PrivateTmp=true
+TimeoutStartSec=1800
+
+[Install]
+WantedBy=multi-user.target

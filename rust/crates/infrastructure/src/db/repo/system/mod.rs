@@ -16,6 +16,7 @@ pub mod pc;
 pub mod recommend;
 pub mod region;
 pub mod region_client;
+pub mod system_update;
 pub mod tips_manage;
 pub mod util;
 
@@ -37,6 +38,7 @@ pub struct Repositories {
     pub pc: pc::PcRepository,
     pub region: region::RegionRepository,
     pub region_client: region_client::RegionClientRepository,
+    pub system_update: system_update::SystemUpdateRepository,
     pub tips_manage: tips_manage::TipsManageRepository,
     pub util: util::UtilRepository,
     pub admin_msg: admin_msg::AdminMsgRepository,
@@ -61,6 +63,7 @@ impl Repositories {
             pc: pc::PcRepository::new(pool.clone()),
             region: region::RegionRepository::new(pool.clone()),
             region_client: region_client::RegionClientRepository::new(pool.clone()),
+            system_update: system_update::SystemUpdateRepository::new(pool.clone()),
             tips_manage: tips_manage::TipsManageRepository::new(pool.clone()),
             util: util::UtilRepository::new(pool.clone()),
             admin_msg: admin_msg::AdminMsgRepository::new(pool.clone()),

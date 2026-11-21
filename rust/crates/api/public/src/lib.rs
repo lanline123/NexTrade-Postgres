@@ -149,6 +149,8 @@ pub fn router(state: PublicState) -> Router {
     Router::new()
         // 裸根健康检查（负载均衡探活用，不属于契约）
         .route("/health", get(health))
+        // 后端版本自报（我方新增，热更新 P1；与管理端 /version 同口径）
+        .route("/version", get(version))
         // WebSocket：`/ws?token=...&platform=...`（对齐 Java API 模块 `/ws`）
         .route("/ws", get(ws_handler))
         .nest(
@@ -277,6 +279,13 @@ fn openapi_state() -> nextrade_openapi::OpenApiState {
 /// `GET /api/health`。
 async fn health() -> Json<ApiResponse<&'static str>> {
     Json(ApiResponse::success("UP"))
+}
+
+/// `GET /version`：后端版本自报（我方新增，热更新 P1 版本感知）。
+async fn version() -> Json<ApiResponse<nextrade_common::version::BackendVersion>> {
+    Json(ApiResponse::success(
+        nextrade_common::version::backend_version(),
+    ))
 }
 
 // ————————————————————— 商品 —————————————————————

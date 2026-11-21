@@ -1,0 +1,13 @@
+# 监视 spool/jobs 目录：后端写入新 job 文件即触发 updater（root 安装）。
+# 安装：cp nextrade-updater.{service,path} /etc/systemd/system/ 后
+#       systemctl daemon-reload && systemctl enable --now nextrade-updater.path
+# PathExistsGlob 与 updater.conf 的 SPOOL_DIR 必须一致（默认见下）。
+[Unit]
+Description=NextTrade 热更新任务监视（spool/jobs）
+
+[Path]
+PathExistsGlob=/www/wwwroot/rust/updater/spool/jobs/*.json
+Unit=nextrade-updater.service
+
+[Install]
+WantedBy=multi-user.target

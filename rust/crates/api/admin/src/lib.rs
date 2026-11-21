@@ -141,6 +141,7 @@ pub fn router(state: AdminState) -> Router {
 
     Router::new()
         .route("/health", get(health))
+        .route("/version", get(version))
         .route("/metrics", get(metrics))
         // WebSocket（管理端客服工作台）：`/ws?token=...&platform=admin`
         .route("/ws", get(ws_handler))
@@ -224,6 +225,16 @@ async fn refresh(
 /// `GET /adminapi/health`：健康检查。
 async fn health() -> Json<ApiResponse<&'static str>> {
     Json(ApiResponse::success("UP"))
+}
+
+/// `GET /version`：后端版本自报（我方新增，热更新 P1 版本感知）。
+///
+/// 无需鉴权（与 `/health` 同级），供 updater 健康检查与运维探活比对版本戳；
+/// 只暴露版本号/commit/构建号，不含任何配置与凭据。
+async fn version() -> Json<ApiResponse<nextrade_common::version::BackendVersion>> {
+    Json(ApiResponse::success(
+        nextrade_common::version::backend_version(),
+    ))
 }
 
 /// 进程启动时间（首次抓取时初始化，用于 uptime）。

@@ -1,0 +1,26 @@
+# nextrade-updater 配置（部署时复制为 /www/wwwroot/rust/updater/updater.conf，
+# root:root 600）。后端 config.yaml 的 update 段必须与此保持一致：
+# spool_dir 同 SPOOL_DIR、token_file 同 TOKEN_FILE、各面根目录同名对应。
+
+# spool 目录：后端写 jobs/，updater 写 status/ 与 logs/（须在 Web 进程可写、
+# updater 可写的共享位置；目录本身与脚本归 root，jobs 子目录放行后端写入）
+SPOOL_DIR=/www/wwwroot/rust/updater/spool
+
+# GitHub 细粒度 PAT 文件（单仓库 Contents 只读，root:root 600，值不进任何日志）
+TOKEN_FILE=/www/wwwroot/rust/updater/github_token
+
+# 回滚备份目录（沿用 /www/backup 口径）
+BACKUP_DIR=/www/backup/hot-update
+
+# 三面站点根目录（与后端 update.admin_root / pc_root / h5_root 一致）
+ADMIN_ROOT=/www/wwwroot/admin.recy.cc
+PC_ROOT=/www/wwwroot/battery.recy.cc
+H5_ROOT=/www/wwwroot/battery.recy.cc/mobile
+
+# 健康检查地址（验内容不验状态码）
+ADMIN_URL=https://admin.recy.cc
+PC_LOCAL_URL=http://127.0.0.1:3005
+H5_URL=https://battery.recy.cc/mobile
+
+# PC 服务名
+PC_SERVICE=nextrade-pc
