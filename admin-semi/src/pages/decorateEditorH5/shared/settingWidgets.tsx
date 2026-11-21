@@ -275,6 +275,10 @@ export function SegmentedButtonRadioRowField({ data, onChange, field, label, opt
  * 本控件是图标选择器，形态例外保留 type="button" 分段（同 PC 编辑器图标单选的按钮组形态），
  * 不随模块字段的圆点口径变更。
  * 字形映射由调用方模块的共享映射表提供（如 banner 的 iconStyles.ts），与预览/前台同源。
+ * 排布（2026-11-21 用户口径）：挂专属类 dec-icon-radio，editor.less 给子项
+ * 42px 弹性基底——通用均分规则的 flex:1（basis 0%）会令 flex-wrap 失效、
+ * 选项多时（如菜单图标 9 项）硬挤一行被裁切；有基底后一行放不下自动换到
+ * 第二行，每行内仍均分。
  */
 export function IconStyleRadioField({
     data,
@@ -290,6 +294,7 @@ export function IconStyleRadioField({
         <SettingRow label={label}>
             <RadioGroup
                 type="button"
+                className="dec-icon-radio"
                 value={matched ? matched.value : value}
                 style={{ flex: 1, minWidth: 0 }}
                 onChange={(e: any) => onChange({ [field]: radioChangeValue(e?.target?.value, options) })}

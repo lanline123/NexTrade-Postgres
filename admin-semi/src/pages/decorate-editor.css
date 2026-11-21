@@ -1878,25 +1878,42 @@
   text-align: center;
   backdrop-filter: blur(4px);
 }
-.dec-pic-grid__handle {
+/* 卡片右上角删除 X（2026-11-21 用户口径，替代旧拖拽柄——排序改长按卡片
+   拖动）：形态对齐既有卡片删除钮 ProductPickGrid .dec-pick__remove
+   （贴角 20px、深色半透明底、悬停变红、卡片悬停/聚焦时才显形）。 */
+.dec-pic-grid__remove {
   position: absolute;
-  right: 8px;
-  top: 8px;
+  right: 0;
+  top: 0;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
   border-radius: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: rgba(16, 24, 40, 0.55);
   color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
   opacity: 0;
-  cursor: grab;
   transition: opacity 0.15s ease, background 0.15s ease;
-  backdrop-filter: blur(4px);
+  z-index: 2;
 }
-.dec-pic-grid__card:hover .dec-pic-grid__handle { opacity: 1; }
-.dec-pic-grid__handle:hover { background: var(--primary); }
-.dec-pic-grid__handle:active { cursor: grabbing; }
+.dec-pic-grid__card:hover .dec-pic-grid__remove,
+.dec-pic-grid__remove:focus-visible { opacity: 1; }
+.dec-pic-grid__remove:hover { background: var(--semi-color-danger, #e8443f); }
+/* 长按拖动态：禁划选、抓手光标、卡片悬停上浮关闭（防落点抖动） */
+.dec-pic-grid.is-sorting { user-select: none; }
+.dec-pic-grid.is-sorting .dec-pic-grid__card { cursor: grabbing; }
+.dec-pic-grid.is-sorting .dec-pic-grid__card:hover {
+  transform: none;
+  box-shadow: none;
+}
+.dec-pic-grid.is-sorting .dec-pic-grid__card.is-dragging {
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+}
 .dec-pic-grid__meta { padding: 10px 12px 12px; }
 .dec-pic-grid__title {
   color: #1f2937;
@@ -1915,7 +1932,7 @@
   text-overflow: ellipsis;
 }
 /* 无图条目模式（PicListEditor showImage=false，如 banner 导航文字）：
-   卡片无缩略图，序号/拖拽柄绝对定位在卡片顶部，meta 下移避让；添加卡矮化 */
+   卡片无缩略图，序号/删除钮绝对定位在卡片顶部，meta 下移避让；添加卡矮化 */
 .dec-pic-grid__card--imageless .dec-pic-grid__meta { padding: 40px 12px 12px; }
 .dec-pic-grid--imageless .dec-pic-grid__add { min-height: 76px; }
 .dec-pic-grid__add {

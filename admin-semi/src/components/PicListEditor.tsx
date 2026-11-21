@@ -18,7 +18,7 @@
  * 在其后插入新卡，受 max 容量约束，链接为 PC 的 /product/{id} 形状）。
  * PC 编辑器不传此 prop，行为与抽取前逐项一致。
  * showImage=false 为可选的「无图条目」模式（2026-11-21 补形态，对齐原版
- * PicList 的 showImage=false）：卡片不渲染缩略图（序号 + 拖拽柄 + 标题 +
+ * PicList 的 showImage=false）：卡片不渲染缩略图（序号 + 删除钮 + 标题 +
  * 链接摘要），编辑弹窗只剩标题 / 描述 / 链接字段（无选图区、无商品选图
  * 入口），添加的空条目形状与原版 PicList 无图添加逐字一致
  *（{ picTitle, picDesc, picLink: { link, title } }，不带任何图片键）。
@@ -36,11 +36,22 @@
  * 圆角口径核查（同日）：.dec-pic-grid__card / .dec-pic-modal__preview /
  * uploader 条目在 main 现行 CSS 中已为 border-radius: 0（直角扁平，与用户
  * 在现网旧版 admin 上看到的 14px 圆角不是同一版本），本批保持 0 不回加。
+ * 卡片交互（2026-11-21 用户口径）：排序改长按拖动——左键按住卡片 250ms
+ * 进入拖动态、移到目标卡松手落位（未达阈值的普通点击仍打开编辑弹窗，
+ * 不再用拖拽柄）；卡片右上角改删除 X（与 ProductPickGrid 的
+ * .dec-pick__remove 同形态：贴角 20px 深色半透明、悬停变红），点击走
+ * removeAt 与弹窗内「删除」同一回写路径，弹窗删除入口保留。
+ * 卡片缩略图口径（2026-11-21 对齐原版）：原版 PicList.vue 卡片图用
+ * picThumb（:src="imageFormat(element.picThumb)"），此前我方 picUrl 优先——
+ * 首焦轮播默认图 picUrl 为 webp 且在我方 OSS 上 Content-Type 为
+ * application/octet-stream，严格引擎不渲染、卡片图裂；改 picThumb 优先、
+ * picUrl 兜底，纯显示层、数据零变化。编辑弹窗内的图仍以 picUrl 为准
+ * （编辑对象本体）。
  * 通用组件登记：~/workspace/shared-components.md 第 1 条。
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import { IconHandle, IconPlus } from '@douyinfe/semi-icons';
+import { IconClose, IconPlus } from '@douyinfe/semi-icons';
 import { useI18n } from '../i18n';
 import ProductImagePickerModal, { type PickedImage } from './ProductImagePicker';
 import PicItemEditModal from './PicItemEditModal';
@@ -84,6 +95,10 @@ export function PicListEditor({
   const list = Array.isArray(value) ? value : [];
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<number | null>(null);
+  const overRef = useRef<number | null>(null);
+  const suppressClickRef = useRef(false);
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [productPickerOpen, setProductPickerOpen] = useState(false);
   const updateItem = (index: number, patch: Record<string, any>) => {
@@ -97,8 +112,64 @@ export function PicListEditor({
     onChange(next);
   };
   const endDrag = () => {
+    dragRef.current = null;
+    overRef.current = null;
     setDragIndex(null);
     setOverIndex(null);
+  };
+  /** 长按拖动排序（用户 2026-11-21 口径，替代旧拖拽柄 HTML5 DnD）：左键按住
+   *  卡片 250ms 进入拖动态，指针移到目标卡松手即落位回写（reorder，数据形状
+   *  不变）；未达阈值的普通点击仍走点卡打开编辑弹窗——拖完松手后的那次
+   *  click 由 suppressClickRef 吞掉（只吞真实拖放产生的那一次，同画布
+   *  palette-click 的点击抑制口径）。等待期内指针移动超过 8px 视为放弃
+   *  长按（划选/滚动意图），不进拖动态。手势监听挂 window、松手即拆，
+   *  闭包内 list/reorder 取按下那一渲染的值（手势期间列表不变）。 */
+  const LONG_PRESS_MS = 250;
+  const PRESS_MOVE_TOLERANCE = 8;
+  const beginPress = (event: React.PointerEvent, index: number) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if ((event.target as HTMLElement).closest('.dec-pic-grid__remove')) return;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let dragging = false;
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!dragging) {
+        if (Math.hypot(e.clientX - startX, e.clientY - startY) > PRESS_MOVE_TOLERANCE) cleanup();
+        return;
+      }
+      const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('.dec-pic-grid__card') as HTMLElement | null;
+      if (el && gridRef.current?.contains(el)) {
+        const idx = Number(el.dataset.index);
+        if (!Number.isNaN(idx) && idx !== overRef.current) {
+          overRef.current = idx;
+          setOverIndex(idx);
+        }
+      }
+    };
+    const onUp = () => {
+      if (dragging) {
+        suppressClickRef.current = true;
+        if (overRef.current !== null) reorder(index, overRef.current);
+      }
+      cleanup();
+      endDrag();
+    };
+    const timer = window.setTimeout(() => {
+      dragging = true;
+      dragRef.current = index;
+      overRef.current = index;
+      setDragIndex(index);
+      setOverIndex(index);
+    }, LONG_PRESS_MS);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   };
   const removeAt = (index: number) => {
     onChange(list.filter((_, i) => i !== index));
@@ -116,27 +187,29 @@ export function PicListEditor({
     setEditIndex(next.length - 1);
   };
   const renderIndexBadge = (index: number) => <span className="dec-pic-grid__index">{index + 1}</span>;
-  const renderDragHandle = (index: number) => (
-    <span
-      className="dec-pic-grid__handle"
-      draggable
-      title={t('拖拽排序')}
-      onClick={(event) => event.stopPropagation()}
-      onDragStart={(event) => {
+  const renderRemove = (index: number) => (
+    <button
+      type="button"
+      className="dec-pic-grid__remove"
+      aria-label={t('删除')}
+      title={t('删除')}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
         event.stopPropagation();
-        setDragIndex(index);
-        event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData('text/plain', String(index));
+        removeAt(index);
       }}
-      onDragEnd={endDrag}
     >
-      <IconHandle />
-    </span>
+      <IconClose />
+    </button>
   );
   return (
-    <div className={showImage ? 'dec-pic-grid' : 'dec-pic-grid dec-pic-grid--imageless'}>
+    <div
+      ref={gridRef}
+      className={`${showImage ? 'dec-pic-grid' : 'dec-pic-grid dec-pic-grid--imageless'}${dragIndex !== null ? ' is-sorting' : ''}`}
+    >
       {list.map((item, index) => {
-        const url = String(item.picUrl || item.picThumb || '');
+        // 卡片缩略图：原版 PicList 口径 picThumb 优先（见文件头注），picUrl 兜底
+        const url = String(item.picThumb || item.picUrl || '');
         // 无图卡片的次行摘要：链接目标（link 或 H5 LinkType 的 path），无描述时展示
         const linkText = showImage
           ? ''
@@ -147,34 +220,32 @@ export function PicListEditor({
               dragIndex === index ? ' is-dragging' : ''
             }${overIndex === index && dragIndex !== null && dragIndex !== index ? ' is-drop-target' : ''}`}
             key={String(item.picId || index)}
+            data-index={index}
             role="button"
             tabIndex={0}
-            onClick={() => setEditIndex(index)}
+            onPointerDown={(event) => beginPress(event, index)}
+            onClick={() => {
+              if (suppressClickRef.current) {
+                suppressClickRef.current = false;
+                return;
+              }
+              setEditIndex(index);
+            }}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') setEditIndex(index);
-            }}
-            onDragOver={(event) => {
-              if (dragIndex === null) return;
-              event.preventDefault();
-              if (overIndex !== index) setOverIndex(index);
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              if (dragIndex !== null) reorder(dragIndex, index);
-              endDrag();
             }}
           >
             {showImage ? (
               <div className="dec-pic-grid__thumb">
-                {url ? <img src={url} alt="" /> : <div className="dec-pic-grid__empty"><IconPlus /></div>}
+                {url ? <img src={url} alt="" draggable={false} /> : <div className="dec-pic-grid__empty"><IconPlus /></div>}
                 {renderIndexBadge(index)}
-                {renderDragHandle(index)}
+                {renderRemove(index)}
               </div>
             ) : (
-              // 无图模式：序号与拖拽柄直接挂卡片（绝对定位口径与缩略图内一致）
+              // 无图模式：序号与删除钮直接挂卡片（绝对定位口径与缩略图内一致）
               <>
                 {renderIndexBadge(index)}
-                {renderDragHandle(index)}
+                {renderRemove(index)}
               </>
             )}
             <div className="dec-pic-grid__meta">

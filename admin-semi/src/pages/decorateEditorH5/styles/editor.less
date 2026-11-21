@@ -512,6 +512,17 @@
     }
 }
 
+// 图标样式单选（IconStyleRadioField 专属类 dec-icon-radio）：上方均分规则的
+// flex:1 等价 flex-basis:0%，flex-wrap 按假想尺寸排版会判定「全部放得下」而
+// 永不换行——首焦轮播菜单图标 9 个选项（24px 字形 + 按钮内距）被硬挤一行、
+// 图标裁切、末项（自定义/不显示）溢出不可达（2026-11-21 用户实测）。子项给
+// 42px 弹性基底后：一行放不下即换到第二行（用户口径），每行内仍均分撑满。
+.dec-edit-group-con .semi-radioGroup-buttonRadio.dec-icon-radio {
+    .semi-radio {
+        flex: 1 1 42px;
+    }
+}
+
 // 页面设置分段单选（SegmentedButtonRadio 专属类 dec-seg-btn-auto）宽度复位
 // （2026-11-19，用户反馈「头部风格太宽了」）：PC 编辑器 PageSettings 的同名
 // 控件按内容自然宽度排列（单项约 76px、整组约 160px），H5 此前被上方均分
