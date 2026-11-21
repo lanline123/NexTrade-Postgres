@@ -367,7 +367,7 @@ export function ShopTeamSettings() {
   };
 
   return (
-    <div style={{ padding: 20, maxWidth: 760 }}>
+    <div style={{ padding: 20 }}>
       <Spin spinning={loading}>
         <Card title={t('店铺团队设置')}>
           <div className="shop-team-form">
@@ -472,7 +472,7 @@ export function ShopInfoDashboard() {
   ];
 
   return (
-    <div style={{ padding: 20, maxWidth: 760 }}>
+    <div style={{ padding: 20 }}>
       <Spin spinning={loading}>
         <Card title={t('店铺信息')}>
           <div className="shop-team-form">

@@ -141,7 +141,7 @@ export default function FontSettings() {
   });
 
   return (
-    <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 980 }}>
+    <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Card>
         <Title heading={5} style={{ marginBottom: 4 }}>前台字体（按语言）</Title>
         <Text type="tertiary">

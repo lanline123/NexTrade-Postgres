@@ -1508,7 +1508,7 @@ export function PurchaseSetting() {
 
   return (
     <Card title={t('采购与供应链设置')} loading={loading}>
-      <div style={{ maxWidth: 650, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div>
           <div style={{ marginBottom: 6, fontWeight: 500 }}>{t('采购单自动完结天数')}</div>
           <InputNumber

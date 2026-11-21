@@ -2239,7 +2239,7 @@ export function AiImageSetting() {
 
   return (
     <Card title={t('图片智能处理 / AI翻译设置')} loading={loading}>
-      <div style={{ maxWidth: 650, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div>
           <div style={{ marginBottom: 6, fontWeight: 500 }}>{t('启用图片AI翻译与消除')}</div>
           <Switch

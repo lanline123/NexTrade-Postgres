@@ -66,7 +66,7 @@ export default function FederationSettings() {
     setSettings((current) => ({ ...current, modules: { ...current.modules, [key]: value } }));
 
   return (
-    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 760 }}>
+    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Title heading={4} style={{ margin: 0 }}>
           {t('平台联邦')}

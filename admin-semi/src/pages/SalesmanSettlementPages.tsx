@@ -73,7 +73,7 @@ export function SalesmanSettlementSetting() {
 
   return (
     <Spin spinning={loading}>
-      <div style={{ maxWidth: 860 }}>
+      <div>
         <RadioGroup value={settlementType} onChange={(e) => setSettlementType(Number(e.target.value))}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div className={`salesman-settle-radio-card ${settlementType === 1 ? 'is-active' : ''}`}>

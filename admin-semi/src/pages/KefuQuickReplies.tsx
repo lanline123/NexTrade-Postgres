@@ -81,7 +81,7 @@ export default function KefuQuickReplies() {
         onChange={(key) => setActiveCode(String(key))}
         tabList={GREETING_TABS.map((tab) => ({ tab: t(tab.label), itemKey: tab.code }))}
       />
-      <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 640 }}>
+      <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Text strong>{t('启用')}</Text>
           <Checkbox

@@ -888,7 +888,7 @@ export function MobileSplashAd() {
   return (
     <div style={{ padding: 20 }}>
       <Card title={t('开屏广告')} loading={loading}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 22, maxWidth: 900 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
           <div style={{ display: 'flex', gap: 16 }}>
             <Text strong style={{ width: 140, flexShrink: 0 }}>{t('开屏广告')}</Text>
             <div>
@@ -1527,7 +1527,7 @@ export function MobileSearchStyle() {
 
   return (
     <div style={{ padding: 20 }}>
-      <Card title={t('移动端搜索风格')} style={{ maxWidth: 600 }}>
+      <Card title={t('移动端搜索风格')}>
         <div style={{ marginBottom: 20 }}>
           <Text strong style={{ display: 'block', marginBottom: 8 }}>{t('搜索框形状：')}</Text>
           <RadioGroup value={styleType} onChange={(e) => setStyleType(Number(e.target.value))}>

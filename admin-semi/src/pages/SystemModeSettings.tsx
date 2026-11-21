@@ -86,7 +86,7 @@ export default function SystemModeSettings() {
         {MODE_OPTIONS.map((opt) => {
           const selected = mode === opt.value;
           return (
-            <div key={opt.value} style={{ width: '100%', maxWidth: 720 }} onClick={() => setMode(opt.value)}>
+            <div key={opt.value} style={{ width: '100%' }} onClick={() => setMode(opt.value)}>
               <Card
                 style={{
                   width: '100%',

@@ -81,7 +81,7 @@ export default function LicensedPage() {
   return (
     <div style={{ padding: 20 }}>
       <Spin spinning={loading}>
-        <Card title={t('授权信息')} style={{ maxWidth: 760 }}>
+        <Card title={t('授权信息')}>
           <div className="licensed-form">
             <div className="licensed-row">
               <label>{t('授权码：')}</label>

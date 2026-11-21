@@ -137,7 +137,7 @@ export default function AuctionSettings() {
   );
 
   return (
-    <div style={{ padding: 16, maxWidth: 980 }}>
+    <div style={{ padding: 16 }}>
       <Title heading={4} style={{ marginBottom: 12 }}>
         {t('拍卖设置')}
       </Title>

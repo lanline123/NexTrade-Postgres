@@ -127,7 +127,7 @@ export default function AiMcpSettings() {
   const endpointUrl = `${window.location.origin}${endpoint}`;
 
   return (
-    <div style={{ maxWidth: 980 }}>
+    <div>
       <div style={sectionStyle}>
         <h3 style={{ margin: '0 0 8px' }}>MCP 服务</h3>
         <div style={rowStyle}>

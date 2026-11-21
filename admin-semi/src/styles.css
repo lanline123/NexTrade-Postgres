@@ -1698,7 +1698,6 @@ body {
 }
 
 .app-version-form {
-  max-width: 760px;
   padding: 0;
 }
 
@@ -4166,7 +4165,6 @@ body[theme-mode='dark'] .order-detail-summary {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: 480px;
 }
 .kefu-account-form > label {
   font-weight: 600;
@@ -6549,7 +6547,6 @@ body {
 
 /* 基础信息：对齐图像搜索页的 Semi Card 设计 */
 .base-settings-list {
-  max-width: 1100px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -6869,7 +6866,6 @@ body {
 /* 旧版设置页（config-page）应用新的卡片式设置风格 */
 .config-page {
   width: 100%;
-  max-width: 1120px;
   margin: 0 auto;
   padding: 0 20px;
 }
@@ -7634,7 +7630,6 @@ body {
 
 /* 公众号自动回复 */
 .wx-auto-page {
-  max-width: 960px;
   margin: 0 auto;
 }
 .wx-auto-card {

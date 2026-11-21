@@ -147,7 +147,7 @@ export function VendorInfoManage() {
   return (
     <div style={{ padding: 20 }}>
       <Card title={t('供应商信息')}>
-        <div style={{ display: 'grid', gap: 12, maxWidth: 480 }}>
+        <div style={{ display: 'grid', gap: 12 }}>
           {fields.map(([key, label]) => (
             <label key={key} style={{ display: 'grid', gap: 4 }}>
               <span>{label}</span>
@@ -449,7 +449,7 @@ export function ShopInfoManage() {
   return (
     <div style={{ padding: 20, display: 'grid', gap: 16 }}>
       <Card title={t('店铺信息')}>
-        <div style={{ display: 'grid', gap: 12, maxWidth: 480 }}>
+        <div style={{ display: 'grid', gap: 12 }}>
           {fields.map(([key, label]) => (
             <label key={key} style={{ display: 'grid', gap: 4 }}>
               <span>{label}</span>
@@ -512,7 +512,7 @@ function AutoCommentSettingCard({ shopId }: { shopId: number }) {
   if (!shopId) return null;
   return (
     <Card title={t('自动评价')}>
-      <div style={{ display: 'grid', gap: 12, maxWidth: 560 }}>
+      <div style={{ display: 'grid', gap: 12 }}>
         <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13 }}>
           {t('开启后，买家确认收货超过设定天数仍未评价的订单，系统将自动生成五星好评。设置修改只对之后确认收货的订单生效；自动生成的评价在前台会标注「系统自动评价」。')}
         </span>

@@ -456,7 +456,7 @@ export function SalesmanPromoteMode() {
 
   return (
     <Spin spinning={loading}>
-      <div style={{ maxWidth: 860 }}>
+      <div>
         <div className="salesman-mode-section-title">{t('分销模式')}</div>
         <RadioGroup value={mode} onChange={(e) => requestModeChange(Number(e.target.value))}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
