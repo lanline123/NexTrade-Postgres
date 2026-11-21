@@ -12,7 +12,7 @@ import { apiGet, apiPost } from '../api';
 import { useI18n } from '../i18n';
 import { AD_POSITIONS, type AdSettings } from './adCampaignShared';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 const DEFAULTS: AdSettings = {
   prices: { shop_street: 30, product_search: 20, product_list: 15, recommend_feed: 20 },
@@ -73,15 +73,6 @@ export default function AdSettingsPage() {
 
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Title heading={4} style={{ margin: 0 }}>
-          {t('投流定价')}
-        </Title>
-        <Button type="primary" theme="solid" loading={saving} onClick={() => void save()}>
-          {t('保存')}
-        </Button>
-      </div>
-
       <Card title={t('各投放位单价（元/天）')}>
         <Space vertical align="start" spacing={12}>
           {AD_POSITIONS.map((p) => (

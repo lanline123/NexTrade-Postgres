@@ -71,9 +71,6 @@ export default function FederationSettings() {
         <Title heading={4} style={{ margin: 0 }}>
           {t('平台联邦')}
         </Title>
-        <Button type="primary" theme="solid" loading={saving} onClick={save}>
-          {t('保存')}
-        </Button>
       </div>
 
       <Card title={t('总开关')}>

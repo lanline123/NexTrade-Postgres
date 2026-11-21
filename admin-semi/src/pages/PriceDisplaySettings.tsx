@@ -287,9 +287,6 @@ export default function PriceDisplaySettings() {
         <Title heading={4} style={{ margin: 0 }}>
           {t('价格显示设置')}
         </Title>
-        <Button type="primary" theme="solid" loading={saving} onClick={save}>
-          {t('保存')}
-        </Button>
       </div>
 
       <Card>

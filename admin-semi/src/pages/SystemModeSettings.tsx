@@ -80,9 +80,6 @@ export default function SystemModeSettings() {
         <Title heading={4} style={{ margin: 0 }}>
           {t('系统模式')}
         </Title>
-        <Button type="primary" theme="solid" loading={saving} onClick={save}>
-          {t('保存')}
-        </Button>
       </div>
 
       <Space vertical align="start" spacing={12} style={{ width: '100%' }}>

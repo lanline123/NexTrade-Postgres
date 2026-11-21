@@ -1554,3 +1554,11 @@
 ## 2026-11-21 PicItemEditModal 注释块合并损伤修复
 
 - 5686d1d 与 c63999a 在 PicItemEditModal.tsx 同一位置的 JSDoc 注释块经并集合并时丢失 tips 侧块的 `/**` 开头一行，注释正文裸露成非法代码、admin 云构建 25 处语法级联报错——补回该一行，注释层修复，运行时行为不变。
+
+## 0.0.2 续 · 2026-11-21 批次（设置页重复保存按钮全家族清除，未部署——随下一 admin 合并版上线）
+
+### 修复
+
+- **Admin - 设置类页面「同一保存按钮渲染两遍」全家族横扫【我方新增页面的模板复制缺陷修复】**（用户 2026-11-21 点名质问 `?page=systemMode` 与 `?page=federationSettings` 两页为何各有两个保存按钮）：定案为同族配置页的复制模板产物——页头标题行与表单末尾各放了一个绑定同一 `save` handler、同 loading、同文案「保存」的按钮，两按钮本就是同一动作（同一保存接口、同一 payload、同一成功提示与刷新口径），纯属重复渲染。全量横扫 `admin-semi/src` 全部 `<Button>` 保存按钮并逐页按组件边界核对同 handler 计数，命中同病共 5 页：系统模式 SystemModeSettings、平台联邦 FederationSettings、购买按钮样式 BuyStyleSettings（该家族的模板源头）、价格显示 PriceDisplaySettings、投流定价 AdSettings（handler 为同义内联形 `() => void save()`）。修复规则全家族统一：每页只删页头标题行里的那一个，保留表单末尾右对齐的那一个，保留按钮的 handler/loading/文案逐字不变，保存行为零变化（每页 diff 恰为删除 3 行）。已核不属本病、单独登记不动：AutoConfigPage 的两个保存按钮分处 modern/legacy 两条互斥渲染分支、任一时刻只渲染一个；多组件单文件（selfService/index、WechatVoicePages、DecorateMobilePages、SupplyChainSupplierPages、OrderDetailModal、OrderExtraDialogs）内的多个保存按钮分属不同组件/弹窗、各自独立 handler 或不同动作（含「保存并发布」「保存配置」等不同文案动作）；KefuSettings 仅一个表单提交按钮。验收：CI build-admin 绿后随下一 admin 合并版上线，部署后逐页打开上述 5 页——每页只剩表单末尾一个保存按钮，点击保存成功且行为与改前一致；报告 ~/workspace/dup-save-button/REPORT.md（工作区报告）。
+
+（同批补记：投流定价页 adSettingsManage 经用户 2026-11-21 点名，其页头「投流定价」标题行与框架页标题重复，整行一并去除——该页只保留卡片区与表单末尾保存按钮。）

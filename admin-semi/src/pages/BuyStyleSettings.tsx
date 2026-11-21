@@ -175,9 +175,6 @@ export default function BuyStyleSettings() {
         <Title heading={4} style={{ margin: 0 }}>
           {t('购买按钮样式设置')}
         </Title>
-        <Button type="primary" theme="solid" loading={saving} onClick={save}>
-          {t('保存')}
-        </Button>
       </div>
 
       <Card>
