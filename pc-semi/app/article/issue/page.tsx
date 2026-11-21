@@ -9,7 +9,7 @@ import SelfServiceIcon from '@/components/SelfServiceIcon';
 import type { SelfServiceIconName } from '@/components/SelfServiceIcon';
 import { getArticleNewsList, getFooterData, getIntegralName, getPcHeader } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '帮助中心 · 万物新生' };
 
@@ -24,7 +24,7 @@ export default async function ArticleIssuePage({ searchParams }: { searchParams?
    * zzfwList 里的积分名称跟随 getIntegralName（原版 commonStore.integralName）。
    */
   const [header, footer, integralName, hotData] = await Promise.all([
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
     getFooterData(),
     getIntegralName().catch(() => '积分'),
     getArticleNewsList({ page: 1, size: 8, categorySn: 'rmwt' }).catch(() => ({ records: [], total: 0 })),

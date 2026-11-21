@@ -5,7 +5,7 @@ import PcFooter from '@/components/PcFooter';
 import GrouponCountdown from '@/components/GrouponCountdown';
 import { getGrouponBanners, getGrouponItems, getPcHeader } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 import { formatPrice } from '@/lib/currency';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '拼团 · 万物新生', description: '拼团活动商品列表。' };
@@ -48,7 +48,7 @@ export default async function JoiningPage({ searchParams }: PageProps) {
   const [banners, data, header] = await Promise.all([
     getGrouponBanners().catch(() => [] as string[]),
     getGrouponItems({ page, size, keyword }).catch(() => ({ records: [], total: 0 })),
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
   ]);
   const pages = Math.max(1, Math.ceil(data.total / size));
   const href = (next: number) => (next > 1 ? `/joining?page=${next}` : '/joining');

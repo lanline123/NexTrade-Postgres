@@ -3,13 +3,14 @@ import PcHeader from '@/components/PcHeaderWithData';
 import PcFooter from '@/components/PcFooter';
 import MemberCenterClient from '@/components/MemberCenterClient';
 import { getPcHeader } from '@/lib/api';
+import { serverDecorateLocaleCode } from '@/i18n/server';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '会员中心 · 万物新生', robots: { index: false, follow: false } };
 
 /** 源码 pages/member/index.vue —— 现代化仪表盘改版（.mh-*，样式见 member-home.scss） */
 export default async function MemberPage() {
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
   return (
     <>
       <PcHeader config={header as any} />

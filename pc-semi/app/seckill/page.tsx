@@ -4,7 +4,7 @@ import PcFooter from '@/components/PcFooter';
 import { getPcHeader, getSeckill } from '@/lib/api';
 import SeckillListClient from '@/components/SeckillListClient';
 
-import { getServerT, resolveRequestLocale } from '@/i18n/server';
+import { getServerT, resolveRequestLocale, serverDecorateLocaleCode } from '@/i18n/server';
 import { buildLocaleAlternates } from '@/i18n/locale';
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +33,7 @@ export default async function SeckillPage({ searchParams }: PageProps) {
   const size = [15, 30, 50].includes(sizeRaw) ? sizeRaw : 15;
   const [data, header] = await Promise.all([
     getSeckill({ page, size }).catch(() => ({ records: [], total: 0 })),
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
   ]);
   return (
     <div className="seckill-page">

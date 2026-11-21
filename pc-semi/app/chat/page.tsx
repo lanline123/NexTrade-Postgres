@@ -4,7 +4,7 @@ import PcFooter from '@/components/PcFooter';
 import ChatClient from '@/components/ChatClient';
 import { getPcHeader } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 
 /**
@@ -26,7 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ChatPage() {
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
 
   return (
     <>

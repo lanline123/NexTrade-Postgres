@@ -5,7 +5,7 @@ import InvoiceDetailClient from '@/components/InvoiceDetailClient';
 import { getPcHeader } from '@/lib/api';
 import MemberShell from '@/components/MemberShell';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '发票详情 · 万物新生', robots: { index: false, follow: false } };
 
@@ -14,7 +14,7 @@ export default async function OrderInvoiceDetailPage({ searchParams }: { searchP
   const read = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] || '' : value || '');
   const id = read(searchParams?.id);
   const mode = read(searchParams?.type) === 'reapply' ? 'reapply' : 'info';
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
   return (
     <>
       <PcHeader config={header as any} />

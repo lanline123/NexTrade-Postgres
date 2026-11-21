@@ -5,7 +5,7 @@ import MemberShell from '@/components/MemberShell';
 import { getPcHeader } from '@/lib/api';
 import PcFooter from '@/components/PcFooter';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -18,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function MemberOrderListPage({ searchParams }: { searchParams?: { [key: string]: string | string[] | undefined } }) {
     const t = getServerT();
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
   // 旧版 MemberOrderList.vue：?type=awaitPay 等初始化 Tab
   const rawType = searchParams?.type;
   const initialType = Array.isArray(rawType) ? rawType[0] : rawType;

@@ -8,7 +8,7 @@ import ShopHeader from '@/components/ShopHeader';
 import ShopCategoryMenu from '@/components/ShopCategoryMenu';
 import ProductGrid from '@/components/ProductGrid';
 
-import { getServerT, resolveRequestLocale } from '@/i18n/server';
+import { getServerT, resolveRequestLocale, serverDecorateLocaleCode } from '@/i18n/server';
 import { buildLocaleAlternates, localizedPath } from '@/i18n/locale';
 export const dynamic = 'force-dynamic';
 
@@ -83,7 +83,7 @@ export default async function ShopDetailPage({ params, searchParams }: PageProps
       maxPrice: maxPrice || undefined,
       ...(sortMap[sort] || {}),
     }).catch(() => ({ records: [], total: 0 })),
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
     getShopHead(shopId).catch(() => null),
     getShopDecorate(shopId).catch(() => null),
   ]);

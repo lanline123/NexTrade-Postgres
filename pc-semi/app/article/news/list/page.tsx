@@ -6,7 +6,7 @@ import { getArticleNewsDetail, getProductDetail, getArticleNewsList, getPcHeader
 import ArticleSideNav from '@/components/ArticleSideNav';
 import type { SideNavArticle } from '@/components/ArticleSideNav';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 import { formatPrice } from '@/lib/currency';
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +31,7 @@ export default async function ArticleNewsPage({ searchParams }: PageProps) {
   const categorySn = readParam(searchParams?.categoryId) || readParam(searchParams?.categorySn) || 'zxzx';
   const page = Math.max(1, Number(readParam(searchParams?.page)) || 1);
   const size = 20;
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
   /** 源码 news/List.vue：侧栏四栏各自的文章列表（zxzx / bzgg / kfzx） */
   const [zxzxNav, bzggNav, kfzxNav] = await Promise.all([
     getArticleNewsList({ page: 1, size: 10, categorySn: 'zxzx' }).catch(() => ({ records: [], total: 0 })),

@@ -75,6 +75,16 @@ export function resolveRequestLocale(): string {
   return normalizeLocale(cookies().get(LOCALE_COOKIE)?.value);
 }
 
+/**
+ * 装修语言子页解析用：本次请求语言的后台短码（`X-Locale-Code`）。
+ * 默认语言 zh 返回 undefined——调用方不带头、走既有共享缓存路径，
+ * 默认语言行为与多语言装修补齐前逐字一致。只能在请求作用域内调用。
+ */
+export function serverDecorateLocaleCode(): string | undefined {
+  const code = toApiLocale(resolveRequestLocale());
+  return code === 'zh' ? undefined : code;
+}
+
 /** 按生效语言（URL 前缀优先）返回同步 t()。只能在请求作用域内调用。 */
 export function getServerT(): ServerT {
   const lng = resolveRequestLocale();

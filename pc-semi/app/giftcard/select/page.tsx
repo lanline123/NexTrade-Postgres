@@ -4,7 +4,7 @@ import PcFooter from '@/components/PcFooter';
 import GiftCardSelectClient from '@/components/GiftCardSelectClient';
 import { getPcHeader } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '礼品卡选品 · 万物新生', robots: { index: false, follow: false } };
 
@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: '礼品卡选品 · 万物新生', ro
  */
 export default async function GiftCardSelectPage() {
   const t = getServerT();
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
   return (
     <>
       <PcHeader config={header as any} />

@@ -8,7 +8,7 @@ import { prefetchDecorateModules } from '@/decorate/server-prefetch';
 import type { HomeDecorateResponse } from '@/decorate/types';
 import PcFooter from '@/components/PcFooter';
 
-import { getServerT, resolveRequestLocale } from '@/i18n/server';
+import { getServerT, resolveRequestLocale, serverDecorateLocaleCode } from '@/i18n/server';
 import { buildLocaleAlternates } from '@/i18n/locale';
 export const dynamic = 'force-dynamic';
 export async function generateMetadata(): Promise<Metadata> {
@@ -93,7 +93,7 @@ export default async function HomePage({
   let data: HomeDecorateResponse | null = null;
   let error = '';
   try {
-    data = await getHomeDecorate({ previewId });
+    data = await getHomeDecorate({ previewId, localeCode: serverDecorateLocaleCode() });
   } catch (reason) {
     error = reason instanceof Error ? reason.message : '装修数据加载失败';
   }

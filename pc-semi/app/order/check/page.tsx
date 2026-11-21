@@ -5,7 +5,7 @@ import CheckoutClient from '@/components/CheckoutClient';
 import { getPcHeader } from '@/lib/api';
 import PcFooter from '@/components/PcFooter';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -35,7 +35,7 @@ export default async function CheckoutPage({
   // 礼品卡兑换流（flowType=12）由 URL 带入 giftCardSn，结算页锁定该卡
   const snRaw = searchParams?.giftCardSn;
   const giftCardSn = (Array.isArray(snRaw) ? snRaw[0] || '' : snRaw || '').trim();
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
 
   return (
     <>

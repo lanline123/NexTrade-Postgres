@@ -69,6 +69,7 @@ import SliderWithInput from '../components/SliderWithInput';
 import SharedColorField, { ColorPairField } from '../components/ColorField';
 import { PC_LIB_META as LIB_META } from '../components/editorModuleIcons';
 import EditorShell from '../components/decorate/EditorShell';
+import EditorLocaleSwitch from '../components/decorate/EditorLocaleSwitch';
 import LibraryPanel from '../components/decorate/LibraryPanel';
 import DecSettingsPanel from '../components/decorate/DecSettingsPanel';
 import ViewGridList from '@icon-park/react/es/icons/ViewGridList';
@@ -153,6 +154,16 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   const [panelTab, setPanelTab] = useState<'module' | 'page' | 'pcHeader'>('module');
   const dirtyRef = useRef(false);
   const decorateIdRef = useRef(decorateId);
+  /** 语言子页会话（原版有 · 2026-11-21 补齐）：URL 带 parentId+localeId 时编辑
+   * 顶层页的语言子记录；decorateId=0 表示子页尚未建行，保存按 parentId+localeId
+   * 建行并回填子 id（handleSave 内），标题继承父页只读。 */
+  const sessionParentId = Number(new URLSearchParams(window.location.search).get('parentId') || 0);
+  const sessionLocaleId = Number(new URLSearchParams(window.location.search).get('localeId') || 0);
+  const sessionPageType = Number(new URLSearchParams(window.location.search).get('pageType') || 0);
+  const isLocaleChild = sessionParentId > 0 && sessionLocaleId > 0;
+  const topPageId = isLocaleChild ? sessionParentId : decorateId;
+  const [localeChildren, setLocaleChildren] = useState<Array<{ decorateId: number; localeId: number; language?: string }>>([]);
+  const [parentTitle, setParentTitle] = useState('');
   const moduleElRefs = useRef(new Map<number, HTMLElement>());
   const [railTops, setRailTops] = useState<Record<number, number>>({});
   const [railHeights, setRailHeights] = useState<Record<number, number>>({});
@@ -236,14 +247,32 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
       decorateId?: number;
       decorateTitle?: string;
       pageType?: number;
+      children?: Array<{ decorateId: number; localeId: number; language?: string }>;
       data?: { pageModule?: Record<string, any>; moduleList?: EditorModule[] } | null;
       draftData?: { pageModule?: Record<string, any>; moduleList?: EditorModule[] } | null;
-    }>('/decorate/decorate/detail', { id: decorateId, decorateType: 2, localeId: 0, parentId: 0 })
+    }>('/decorate/decorate/detail', { id: decorateId, decorateType: 2, localeId: sessionLocaleId, parentId: sessionParentId })
       .then((res) => {
         if (!alive) return;
         if (res?.decorateId) decorateIdRef.current = res.decorateId;
         setTitle(res?.decorateTitle || '');
-        const currentPageType = Number(res?.pageType) || 1;
+        if (isLocaleChild) {
+          // 子页会话：另拉父页详情取 children（切换目标解析）与父标题（标题继承父页）
+          apiGet<{
+            decorateTitle?: string;
+            children?: Array<{ decorateId: number; localeId: number; language?: string }>;
+          }>('/decorate/decorate/detail', { id: sessionParentId, decorateType: 2 })
+            .then((parent) => {
+              if (!alive) return;
+              setParentTitle(parent?.decorateTitle || '');
+              if (parent?.decorateTitle) setTitle(parent.decorateTitle);
+              setLocaleChildren(parent?.children || []);
+            })
+            .catch(() => {});
+        } else {
+          setParentTitle(res?.decorateTitle || '');
+          setLocaleChildren(res?.children || []);
+        }
+        const currentPageType = Number(res?.pageType) || sessionPageType || 1;
         setPageType(currentPageType);
         setHasDraft(Boolean(res?.draftData));
         const source = res?.draftData || res?.data || {};
@@ -353,8 +382,9 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
     id: decorateIdRef.current,
     decorateType: 2,
     pageType,
-    localeId: 0,
-    parentId: 0,
+    // 语言子页会话带会话值（后端按 parentId+localeId upsert 子行）；默认会话为 0
+    localeId: sessionLocaleId,
+    parentId: sessionParentId,
     data,
   });
 
@@ -369,13 +399,29 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   };
 
   const handleSave = async (mode: 'draft' | 'publish') => {
-    if (!decorateIdRef.current) {
+    if (!decorateIdRef.current && !isLocaleChild) {
       Toast.warning(t('缺少装修页面 ID'));
       return;
     }
     setSaving(mode);
     try {
       await apiPost(mode === 'draft' ? '/decorate/decorate/saveDraft' : '/decorate/decorate/publish', buildPayload(getSaveData()));
+      // 语言子页首次保存后回填子记录 id（原版 syncLocaleChildId）
+      if (isLocaleChild && !decorateIdRef.current) {
+        try {
+          const res = await apiGet<{ decorateId?: number }>('/decorate/decorate/detail', {
+            id: 0, decorateType: 2, localeId: sessionLocaleId, parentId: sessionParentId,
+          });
+          if (res?.decorateId) {
+            decorateIdRef.current = res.decorateId;
+            const url = new URL(window.location.href);
+            url.searchParams.set('id', String(res.decorateId));
+            window.history.replaceState(null, '', url.toString());
+          }
+        } catch {
+          // 回填失败不影响本次保存结果；下次保存仍按 parentId+localeId upsert 同一行
+        }
+      }
       Toast.success(mode === 'draft' ? t('草稿已保存') : t('发布成功'));
       dirtyRef.current = false;
     } catch (e: any) {
@@ -386,6 +432,8 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   };
 
   const handleRename = async () => {
+    // 语言子页标题继承父页，不独立改名（改名只在默认语言会话）
+    if (isLocaleChild) return;
     if (!title.trim()) {
       Toast.warning(t('页面名称不能为空'));
       return;
@@ -623,12 +671,21 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
             onChange={(v) => setTitle(v)}
             onBlur={handleRename}
             onEnterPress={handleRename}
+            readOnly={isLocaleChild}
             style={{ width: 280 }}
           />
           {hasDraft && <Tag color="blue">{t('草稿')}</Tag>}
           {dirtyRef.current && <Tag color="orange">{t('未保存')}</Tag>}
           {getSaveData().pageModule.homeStyleVersion === 'new' ? <Tag color="green">{t('新版装修')}</Tag> : <Tag color="grey">{t('旧版兼容')}</Tag>}
         </Space>
+        {/* 语言切换（原版有 · 2026-11-21 补齐）：切换当前装修页的语言版本（整页跳转） */}
+        <EditorLocaleSwitch
+          parentId={topPageId}
+          currentLocaleId={sessionLocaleId}
+          parentTitle={parentTitle || title}
+          pageType={pageType}
+          children={localeChildren}
+        />
         <div style={{ flex: 1 }} />
         <Button theme="light" loading={saving === 'draft'} onClick={() => handleSave('draft')}>
           {t('保存草稿')}

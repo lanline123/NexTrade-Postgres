@@ -6,7 +6,7 @@ import GiftCardCard from '@/components/GiftCardCard';
 import GiftCardClaimClient from '@/components/GiftCardClaimClient';
 import { getGiftCardDetail, getPcHeader } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 import { formatPrice } from '@/lib/currency';
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +46,7 @@ export default async function GiftCardTransferPage({ params }: PageProps) {
   const sn = decodeURIComponent(params.id);
   const [card, header] = await Promise.all([
     getGiftCardDetail(sn).catch(() => null),
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
   ]);
   const group = card?.giftCardGroups || {};
   const products = card?.giftCardProducts || group.giftCardProducts || [];

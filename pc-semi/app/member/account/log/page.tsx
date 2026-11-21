@@ -7,7 +7,7 @@ import { getPcHeader, getRechargeOrders } from '@/lib/api';
 import MemberShell from '@/components/MemberShell';
 import MemberAccountTabs from '@/components/MemberAccountTabs';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '充值记录 · 万物新生', robots: { index: false, follow: false } };
 
@@ -19,7 +19,7 @@ export default async function RechargeLogPage({ searchParams }: PageProps) {
   const size = 15;
   const [data, header] = await Promise.all([
     getRechargeOrders({ page, size }).catch(() => ({ records: [], total: 0 })),
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
   ]);
   const pages = Math.max(1, Math.ceil(data.total / size));
   const hrefFor = (next: number) => next > 1 ? `/member/account/log?page=${next}` : '/member/account/log';

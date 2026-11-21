@@ -8,6 +8,10 @@ const SERVER_API_BASE = (process.env.PC_API_BASE || 'https://battery.recy.cc').r
 interface RequestOptions {
   previewId?: number;
   revalidate?: number;
+  /** 非默认语言短码（`serverDecorateLocaleCode()`）：带 `X-Locale-Code` 头让后端
+   * 解析装修语言子页，并改走 no-store（不进跨访客共享 Data Cache，防语言串味）。
+   * 缺省/默认语言时行为与既往逐字一致。 */
+  localeCode?: string;
 }
 
 async function readData<T>(response: Response): Promise<T> {
@@ -29,8 +33,10 @@ export async function getHomeDecorate(options: RequestOptions = {}): Promise<Hom
   const params = new URLSearchParams();
   if (options.previewId) params.set('previewId', String(options.previewId));
   const query = params.toString() ? `?${params.toString()}` : '';
+  const localeHeaders = options.localeCode ? { 'X-Locale-Code': options.localeCode } : undefined;
   const response = await fetch(`${SERVER_API_BASE}/api/home/home/pcIndex${query}`, {
-    ...(options.previewId ? { cache: 'no-store' as const } : { next: { revalidate: options.revalidate ?? 60 } }),
+    ...(localeHeaders ? { headers: localeHeaders } : {}),
+    ...(options.previewId || localeHeaders ? { cache: 'no-store' as const } : { next: { revalidate: options.revalidate ?? 60 } }),
   });
   return readData<HomeDecorateResponse>(response);
 }
@@ -168,11 +174,15 @@ export async function getIntegralName(fallback = '积分'): Promise<string> {
   }
 }
 
-/** PC 公共头部：通常已经包含在 pageModule.pcHeader 中，此接口用于独立刷新。 */export async function getPcHeader(previewId?: number): Promise<Record<string, unknown> | null> {
+/** PC 公共头部：通常已经包含在 pageModule.pcHeader 中，此接口用于独立刷新。
+ * `localeCode` 非默认语言时带 `X-Locale-Code` 解析头部所属首页的语言子页并走
+ * no-store（口径同 getHomeDecorate）。 */export async function getPcHeader(previewId?: number, localeCode?: string): Promise<Record<string, unknown> | null> {
   const query = previewId ? `?previewId=${previewId}` : '';
+  const localeHeaders = localeCode ? { 'X-Locale-Code': localeCode } : undefined;
   const [headerResponse, configResponse] = await Promise.all([
     fetch(`${SERVER_API_BASE}/api/home/home/pcHeader${query}`, {
-      ...(previewId ? { cache: 'no-store' as const } : { next: { revalidate: 60 } }),
+      ...(localeHeaders ? { headers: localeHeaders } : {}),
+      ...(previewId || localeHeaders ? { cache: 'no-store' as const } : { next: { revalidate: 60 } }),
     }),
     fetch(`${SERVER_API_BASE}/api/common/config/base`, {
       next: { revalidate: 300 },
@@ -314,9 +324,12 @@ export interface PcLoginDecorate {
   [key: string]: unknown;
 }
 
-export async function getPcLoginDecorate(): Promise<PcLoginDecorate | null> {
+export async function getPcLoginDecorate(localeCode?: string): Promise<PcLoginDecorate | null> {
   try {
-    const response = await fetch(`${SERVER_API_BASE}/api/home/home/pcLogin`, { cache: 'no-store' });
+    const response = await fetch(`${SERVER_API_BASE}/api/home/home/pcLogin`, {
+      cache: 'no-store',
+      ...(localeCode ? { headers: { 'X-Locale-Code': localeCode } } : {}),
+    });
     const json: any = await response.json().catch(() => null);
     const list = json?.data?.moduleList || json?.moduleList || [];
     const item = (Array.isArray(list) ? list : []).find((row: any) => row?.type === 'pcLogin') || list?.[0];

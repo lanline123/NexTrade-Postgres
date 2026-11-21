@@ -96,6 +96,17 @@ impl LocalesRepository {
             .map_err(map_err)
     }
 
+    /// 按语言代码查单条（前台 `X-Locale-Code` 解析语言子页用；
+    /// Java `localesMapper.selectOne(eq(Locales::getLocaleCode, code))`）。
+    pub async fn find_by_code(&self, locale_code: &str) -> Result<Option<Locales>> {
+        let sql = Self::select_sql("WHERE locale_code = $1 ORDER BY id ASC LIMIT 1");
+        sqlx::query_as::<_, Locales>(&sql)
+            .bind(locale_code)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
     /// 全表（Java `localesService.list()`，`exchangeRateConfig` 等场景）。
     pub async fn find_all(&self) -> Result<Vec<Locales>> {
         let sql = Self::select_sql("ORDER BY id ASC");

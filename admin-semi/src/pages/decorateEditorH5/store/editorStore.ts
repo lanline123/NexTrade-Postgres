@@ -653,6 +653,12 @@ export const editorStore = {
         advanceSavedBaseline();
     },
 
+    /** 语言子页首次保存后回填子记录 id（原版 syncLocaleChildId）：
+     * 只换 id，不动文档内容/选中态/历史 */
+    setDecorateId(decorateId: string | number) {
+        set({ decorateId });
+    },
+
     markHasDraft(value: boolean) {
         set({ hasDraft: value });
     },

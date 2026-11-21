@@ -4,7 +4,7 @@ import PcHeader from '@/components/PcHeaderWithData';
 import PcFooter from '@/components/PcFooter';
 import { getArticleList, getPcHeader } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '资讯中心 · 万物新生' };
 
@@ -18,7 +18,7 @@ export default async function ArticlePage({ searchParams }: { searchParams?: { [
   const rawPage = Array.isArray(searchParams?.page) ? searchParams?.page[0] : searchParams?.page;
   const page = Math.max(1, Number(rawPage) || 1);
   const [header, data] = await Promise.all([
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
     getArticleList({ page, pageSize: 12 }).catch(() => ({ records: [], total: 0 })),
   ]);
   const totalPages = Math.max(1, Math.ceil((data.total || 0) / 12));

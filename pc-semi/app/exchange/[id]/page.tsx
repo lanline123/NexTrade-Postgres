@@ -5,7 +5,7 @@ import PcFooter from '@/components/PcFooter';
 import ExchangeDetailClient from '@/components/ExchangeDetailClient';
 import { getExchangeDetail, getPcHeader } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
@@ -35,7 +35,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function ExchangeDetailPage({ params }: PageProps) {
   const data = await load(params.id);
   if (!data) notFound();
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
 
   return (
     <div className="pg-exchange-detail">

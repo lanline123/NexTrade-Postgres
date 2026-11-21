@@ -5,7 +5,7 @@ import { getPcHeader } from '@/lib/api';
 import PcFooter from '@/components/PcFooter';
 import MemberShell from '@/components/MemberShell';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '申请售后 · 万物新生', robots: { index: false, follow: false } };
 
@@ -14,7 +14,7 @@ export default async function AfterSalesApplyPage({ searchParams }: { searchPara
   const read = (value: string | string[] | undefined) => Number(Array.isArray(value) ? value[0] : value) || 0;
   const orderId = read(searchParams?.orderId);
   const itemId = read(searchParams?.itemId);
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
   return (
     <>
       <PcHeader config={header as any} />

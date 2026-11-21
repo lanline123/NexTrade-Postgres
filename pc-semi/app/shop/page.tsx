@@ -7,7 +7,7 @@ import ShopInfoCard from '@/components/ShopInfoCard';
 import ShopProductList from '@/components/ShopProductList';
 import { getPcHeader, getShopList, type ShopListItem } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 
 /**
@@ -76,7 +76,7 @@ export default async function ShopListPage({ searchParams }: PageProps) {
   const authToken = sortField === 'recommend' ? cookies().get('accessToken')?.value || undefined : undefined;
   const [data, header] = await Promise.all([
     getShopList({ page, size, keyword, sortField, authToken }).catch(() => ({ records: [], total: 0 })),
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
   ]);
   const pages = Math.max(1, Math.ceil(data.total / size));
   const hrefFor = (nextPage: number, nextSortMode: string = sortMode) => {

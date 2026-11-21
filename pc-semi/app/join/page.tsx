@@ -4,7 +4,7 @@ import PcHeader from '@/components/PcHeaderWithData';
 import PcFooter from '@/components/PcFooter';
 import { getJoinData, getPcHeader, type JoinNavItem } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 
 /**
@@ -37,7 +37,7 @@ export default async function JoinPage({ searchParams }: PageProps) {
   const t = getServerT();
   const [items, header] = await Promise.all([
     getJoinData().catch(() => [] as JoinNavItem[]),
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
   ]);
   const banner = items[0];
   const platformMode = items[1];

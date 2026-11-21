@@ -4,6 +4,9 @@
  * 路由：?page=h5DecorateEditor&id={decorateId}&pageType={1首页|2会员|3活动|4分类|5登录|6搜索|8商品详情}
  * 链路：decorate/decorate/detail 加载 → store.initDecorate（url 回填 + 固定模块注入）→
  *       saveDraft/publish 保存（整体透传，契约红线）。
+ * 语言子页会话（2026-11-21 补齐，原版有）：URL 另带 parentId+localeId 时编辑顶层页的
+ * 语言子记录（顶栏 EditorLocaleSwitch 整页跳转切换）；id=0 = 子页未建行，保存按
+ * parentId+localeId 建行并回填子 id，标题继承父页只读。
  *
  * 2026-11-19 入口加载门（用户拍板）：进入编辑器先出 DecorateLoading 加载动画，
  * 详情请求与 iframe 嵌入页改为并行启动（此前是串行：详情回来才挂载画布、才开始
@@ -13,7 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Dropdown, Modal, Spin, Toast } from "@douyinfe/semi-ui";
-import { IconChevronDown, IconExit, IconLanguage, IconRedo, IconUndo } from "@douyinfe/semi-icons";
+import { IconChevronDown, IconExit, IconRedo, IconUndo } from "@douyinfe/semi-icons";
 import { apiGet, apiPost } from "../../api";
 import { editorStore, useEditorState } from "./store/editorStore";
 import ModuleToolbar from "./components/ModuleToolbar";
@@ -21,6 +24,7 @@ import Canvas from "./components/Canvas";
 import SettingsPanel from "./components/SettingsPanel";
 import CopyPageDrawer from "./components/CopyPageDrawer";
 import EditorShell from "../../components/decorate/EditorShell";
+import EditorLocaleSwitch from "../../components/decorate/EditorLocaleSwitch";
 import DecorateLoading from "../components/DecorateLoading";
 import { getStoredRenderMode } from "./components/canvasBridge";
 import { beginEmbedDataEpoch, resetEmbedReadiness, useEmbedReadiness } from "./components/embedReadiness";
@@ -53,6 +57,14 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
     const initialId = idProp ?? Number(query.get("id") || 0);
     const pageType = pageTypeProp ?? Number(query.get("pageType") || 1);
     const isAddMode = !initialId;
+    /** 语言子页会话（原版有 · 2026-11-21 补齐）：URL 带 parentId+localeId 时编辑的是
+     * 顶层页的语言子记录；id=0 表示子页尚未建行（首次保存由后端按
+     * parentId+localeId 建行，禁止走 create 建顶层记录）。 */
+    const queryParentId = Number(query.get("parentId") || 0);
+    const queryLocaleId = Number(query.get("localeId") || 0);
+    const isLocaleChild = queryParentId > 0 && queryLocaleId > 0;
+    /** 顶层页 id（语言切换的目标解析基准） */
+    const topPageId = isLocaleChild ? queryParentId : initialId;
 
     const [decorateTitleDraft, setDecorateTitleDraft] = useState("");
     const [saving, setSaving] = useState(false);
@@ -66,10 +78,14 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
      * 服务未部署或不可用）出提示卡 + 重试，画布不落到假空页面上（防误存覆盖
      * 真实数据）；加载中则由入口加载门覆盖（见文件头），仅超时兜底后仍在途
      * 才回落到画布区状态卡 */
-    const [detailLoading, setDetailLoading] = useState(!isAddMode);
+    const [detailLoading, setDetailLoading] = useState(!isAddMode || isLocaleChild);
     const [detailError, setDetailError] = useState("");
-    /** 加载门：数据就绪（详情成功写入 store；新建模式无详情请求、天然就绪） */
-    const [dataReady, setDataReady] = useState(isAddMode);
+    /** 语言切换的目标数据：父页已有子页清单 + 父页标题（子页标题继承父页） */
+    const [localeChildren, setLocaleChildren] = useState<Array<{ decorateId: number; localeId: number; language?: string }>>([]);
+    const [parentTitle, setParentTitle] = useState("");
+    /** 加载门：数据就绪（详情成功写入 store；新建模式无详情请求、天然就绪；
+     * 语言子页会话须等详情回来判定子页是否已建行，不算天然就绪） */
+    const [dataReady, setDataReady] = useState(isAddMode && !isLocaleChild);
     /** 加载门撤下闩锁：条件满足或超时撤下后，本次会话不再把守 */
     const [gateLifted, setGateLifted] = useState(false);
     const embed = useEmbedReadiness();
@@ -84,7 +100,10 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
             decorateType: decorateType as any,
             pageType,
             decorateTitle: query.get("title") || DEFAULT_DECORATE_TITLE,
-            moduleList: []
+            moduleList: [],
+            localeId: isLocaleChild ? queryLocaleId : 0,
+            parentId: isLocaleChild ? queryParentId : 0,
+            isDefault: !isLocaleChild
         });
         setDecorateTitleDraft(query.get("title") || DEFAULT_DECORATE_TITLE);
         // 嵌入页就绪状态机复位并开启首个数据纪元（初始结构一轮；详情成功后再推进一格）
@@ -105,27 +124,63 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
 
     // 加载装修详情（失败保留错误态供提示卡重试，不再只弹 Toast 后留假空画布）
     const loadDetail = useCallback(() => {
-        if (isAddMode) return;
+        if (isAddMode && !isLocaleChild) return;
         setDetailLoading(true);
         setDetailError("");
-        apiGet<any>("/decorate/decorate/detail", { id: initialId, decorateType })
-            .then((result) => {
+        const detailParams = isLocaleChild
+            ? { id: initialId, localeId: queryLocaleId, parentId: queryParentId, decorateType }
+            : { id: initialId, decorateType };
+        apiGet<any>("/decorate/decorate/detail", detailParams)
+            .then(async (result) => {
                 if (result == null) {
                     setDetailError(t("未获取到页面数据"));
                     return;
                 }
-                editorStore.initDecorate({
-                    decorateId: result.decorateId || initialId,
-                    decorateType: decorateType as any,
-                    pageType,
-                    decorateTitle: result.decorateTitle || query.get("title") || "",
-                    pageModule: result.data?.pageModule || {},
-                    moduleList: result.data?.moduleList || [],
-                    hasDraft: !!result.draftData,
-                    // 店铺模板页的所属店铺：真实渲染 iframe 据此拉真实店铺详情喂 shopInfo 模块
-                    shopId: result.shopId || 0
-                });
-                setDecorateTitleDraft(result.decorateTitle || "");
+                if (isLocaleChild) {
+                    // 子页会话：另拉父页详情取 children（切换目标解析）与父标题
+                    // （子页标题继承父页）；父页拉取失败不阻塞子页编辑本身
+                    let parent: any = null;
+                    try {
+                        parent = await apiGet<any>("/decorate/decorate/detail", { id: queryParentId, decorateType });
+                    } catch {
+                        parent = null;
+                    }
+                    const pTitle = parent?.decorateTitle || query.get("title") || "";
+                    setParentTitle(pTitle);
+                    setLocaleChildren(parent?.children || []);
+                    // 子页未建行时后端返回空 VO（decorateId=0）：以空骨架起步
+                    // （原版口径，不复制父页内容），首次保存按 parentId+localeId 建行
+                    const childExists = Number(result.decorateId || 0) > 0;
+                    editorStore.initDecorate({
+                        decorateId: childExists ? result.decorateId : 0,
+                        decorateType: decorateType as any,
+                        pageType,
+                        decorateTitle: pTitle,
+                        pageModule: childExists ? result.data?.pageModule || {} : {},
+                        moduleList: childExists ? result.data?.moduleList || [] : [],
+                        hasDraft: childExists ? !!result.draftData : false,
+                        localeId: queryLocaleId,
+                        parentId: queryParentId,
+                        isDefault: false,
+                        shopId: parent?.shopId || 0
+                    });
+                    setDecorateTitleDraft(pTitle);
+                } else {
+                    editorStore.initDecorate({
+                        decorateId: result.decorateId || initialId,
+                        decorateType: decorateType as any,
+                        pageType,
+                        decorateTitle: result.decorateTitle || query.get("title") || "",
+                        pageModule: result.data?.pageModule || {},
+                        moduleList: result.data?.moduleList || [],
+                        hasDraft: !!result.draftData,
+                        // 店铺模板页的所属店铺：真实渲染 iframe 据此拉真实店铺详情喂 shopInfo 模块
+                        shopId: result.shopId || 0
+                    });
+                    setDecorateTitleDraft(result.decorateTitle || "");
+                    setParentTitle(result.decorateTitle || "");
+                    setLocaleChildren(result.children || []);
+                }
                 // 真实数据已写入 store：推进数据纪元（本纪元的 layout 回传才算
                 // 首帧，防挂载初期空结构那一轮误开门）并标记数据就绪
                 beginEmbedDataEpoch();
@@ -157,6 +212,9 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
 
     /** 延迟创建：新建场景首次保存时校验名称并创建记录 */
     const ensureCreated = async (): Promise<boolean> => {
+        // 语言子页会话：子行由 saveDraft/publish 按 parentId+localeId 建行，
+        // 绝不走 create（那会建出顶层记录，原版同禁）
+        if (isLocaleChild) return true;
         if (editorStore.getState().decorateId) return true;
         const title = (editorStore.getState().decorateTitle || "").trim();
         if (!title || title === DEFAULT_DECORATE_TITLE) {
@@ -184,12 +242,49 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
         }
     };
 
-    const buildSavePayload = (data: Record<string, any>) => ({
-        id: editorStore.getState().decorateId,
-        decorateType,
-        pageType,
-        data
-    });
+    const buildSavePayload = (data: Record<string, any>) => {
+        const payload: Record<string, any> = {
+            id: editorStore.getState().decorateId,
+            decorateType,
+            pageType,
+            data
+        };
+        // 语言子页会话：带 parentId+localeId，后端据此 upsert 子行（原版保存口径）
+        if (isLocaleChild) {
+            payload.parentId = queryParentId;
+            payload.localeId = queryLocaleId;
+        }
+        return payload;
+    };
+
+    /** 语言子页首次保存后回填子记录 id（原版 syncLocaleChildId）：
+     * 按 parentId+localeId 回查详情，拿到子 id 后同步 store 与 URL */
+    const syncLocaleChildId = async () => {
+        if (!isLocaleChild) return;
+        if (Number(editorStore.getState().decorateId) > 0) return;
+        try {
+            const result = await apiGet<any>("/decorate/decorate/detail", {
+                id: 0,
+                localeId: queryLocaleId,
+                parentId: queryParentId,
+                decorateType
+            });
+            const childId = Number(result?.decorateId || 0);
+            if (childId > 0) {
+                editorStore.setDecorateId(childId);
+                const url = new URL(window.location.href);
+                url.searchParams.set("id", String(childId));
+                window.history.replaceState(null, "", url.toString());
+                setLocaleChildren((prev) =>
+                    prev.some((c) => Number(c.localeId) === queryLocaleId)
+                        ? prev
+                        : [...prev, { decorateId: childId, localeId: queryLocaleId }]
+                );
+            }
+        } catch {
+            // 回填失败不影响本次保存结果；下次保存仍会按 parentId+localeId upsert 同一行
+        }
+    };
 
     const onSavetoDraft = useCallback(async () => {
         if (saving) return;
@@ -198,6 +293,7 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
         try {
             await apiPost("/decorate/decorate/saveDraft", buildSavePayload(editorStore.getSaveData()));
             Toast.success(t("操作成功"));
+            await syncLocaleChildId();
             editorStore.markAsSaved();
         } catch (error: any) {
             Toast.error(error.message || t("保存草稿失败"));
@@ -219,6 +315,7 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
             }
             await apiPost("/decorate/decorate/publish", buildSavePayload(saveData));
             Toast.success(t("操作成功"));
+            await syncLocaleChildId();
             editorStore.markAsSaved();
         } catch (error: any) {
             Toast.error(error.message || t("发布失败"));
@@ -241,6 +338,8 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
     }, []);
 
     const commitTitle = async () => {
+        // 语言子页标题继承父页，不独立改名（改名只在默认语言会话）
+        if (isLocaleChild) return;
         const val = (decorateTitleDraft || "").trim();
         const oldVal = (editorStore.getState().decorateTitle || "").trim();
         if (!val) {
@@ -350,7 +449,12 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
                         </div>
                         <div className="topbar-now-txt topbar-now-txt-edit">
                             <span className="tit">{t('正在装修：')}</span>
-                            {editingTitle ? (
+                            {isLocaleChild ? (
+                                // 语言子页：标题继承父页，只读展示
+                                <span className="topbar-now-txt-title">
+                                    {decorateTitleDraft || s.decorateTitle || DEFAULT_DECORATE_TITLE}
+                                </span>
+                            ) : editingTitle ? (
                                 <input
                                     className="topbar-now-txt-input"
                                     value={decorateTitleDraft}
@@ -382,23 +486,17 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
                                 </span>
                             )}
                         </div>
-                        {/* 语言下拉：原版为海外版多语言装修入口，此处仅视觉占位（项为空操作） */}
-                        <Dropdown
-                            trigger="click"
-                            position="bottomLeft"
-                            render={
-                                <Dropdown.Menu>
-                                    <Dropdown.Item active>{t('简体中文')}</Dropdown.Item>
-                                    <Dropdown.Item>{t('English')}</Dropdown.Item>
-                                </Dropdown.Menu>
-                            }
-                        >
-                            <div className="lang-btn">
-                                <IconLanguage style={{ marginRight: 6 }} />
-                                {t('语言：简体中文')}
-                                <IconChevronDown style={{ marginLeft: 6 }} />
-                            </div>
-                        </Dropdown>
+                        {/* 语言切换（原版有 · 2026-11-21 补齐为真功能）：切换当前
+                            装修页的语言版本（整页跳转）；新建模式无父页不渲染 */}
+                        {(!isAddMode || isLocaleChild) && (
+                            <EditorLocaleSwitch
+                                parentId={topPageId}
+                                currentLocaleId={isLocaleChild ? queryLocaleId : 0}
+                                parentTitle={parentTitle || s.decorateTitle || ""}
+                                pageType={pageType}
+                                children={localeChildren}
+                            />
+                        )}
                     </div>
                     <div className="topbar-right">
                         <div className="topbar-btn-group">

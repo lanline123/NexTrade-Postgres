@@ -6,7 +6,7 @@ import { getCreditDetail, getPcHeader } from '@/lib/api';
 import TermPaySettlementButton from '@/components/TermPaySettlementButton';
 import MemberShell from '@/components/MemberShell';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 import { formatPrice } from '@/lib/currency';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '账期支付 · 万物新生', robots: { index: false, follow: false } };
@@ -18,7 +18,7 @@ export default async function TermPayPage({ searchParams }: PageProps) {
   const tab = searchParams?.tab === 'settled' ? 'settled' : 'pending';
   const [detail, header] = await Promise.all([
     getCreditDetail().catch(() => null),
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
   ]);
   const orders = tab === 'settled' ? (detail?.settledOrders || []) : (detail?.pendingOrders || []);
   const settlementText = Number(detail?.settlementType) === 2 ? t('季结') : '月结';

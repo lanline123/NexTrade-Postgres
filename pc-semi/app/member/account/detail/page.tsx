@@ -7,7 +7,7 @@ import { getAccountChanges, getPcHeader, getUserDetail } from '@/lib/api';
 import MemberShell from '@/components/MemberShell';
 import MemberAccountTabs from '@/components/MemberAccountTabs';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '账户明细 · 万物新生', robots: { index: false, follow: false } };
 
@@ -20,7 +20,7 @@ export default async function AccountDetailPage({ searchParams }: PageProps) {
   const [data, user, header] = await Promise.all([
     getAccountChanges({ page, size }).catch(() => ({ records: [], total: 0 })),
     getUserDetail().catch(() => null),
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
   ]);
   const pages = Math.max(1, Math.ceil(data.total / size));
   const userInfo: any = user || {};

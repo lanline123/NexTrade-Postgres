@@ -10,7 +10,7 @@ import { extractProductSnFromSlug, getPcHeader, getProductDetailStyle, loadProdu
 import { cookies } from 'next/headers';
 import { currencyCodeFrom } from '@/lib/currency';
 import { buildLocaleAlternates } from '@/i18n/locale';
-import { resolveRequestLocale } from '@/i18n/server';
+import { resolveRequestLocale, serverDecorateLocaleCode } from '@/i18n/server';
 
 /**
  * 商品详情页（服务端）
@@ -96,7 +96,7 @@ export default async function ProductDetailView({
   const detail = await loadProductBySlug(sn);
   if (!detail?.item) notFound();
   const [header, configuredStyle] = await Promise.all([
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
     getProductDetailStyle(),
   ]);
   const uiStyle: ProductUiStyle = resolveUiStyle(uiStyleParam, configuredStyle);

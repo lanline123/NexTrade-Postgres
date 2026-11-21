@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import PcFooter from '@/components/PcFooter';
 import RegisterClient from '@/components/RegisterClient';
 import { getHeaderBootstrap, getPcLoginDecorate } from '@/lib/api';
+import { serverDecorateLocaleCode } from '@/i18n/server';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '注册 · 万物新生' };
@@ -17,7 +18,7 @@ export const metadata: Metadata = { title: '注册 · 万物新生' };
  */
 export default async function RegisterPage() {
   const [decorate, bootstrap] = await Promise.all([
-    getPcLoginDecorate().catch(() => null),
+    getPcLoginDecorate(serverDecorateLocaleCode()).catch(() => null),
     getHeaderBootstrap().catch(() => null),
   ]);
   const base = bootstrap?.base || null;

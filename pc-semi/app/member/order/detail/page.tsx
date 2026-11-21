@@ -5,7 +5,7 @@ import { getPcHeader } from '@/lib/api';
 import PcFooter from '@/components/PcFooter';
 import MemberShell from '@/components/MemberShell';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -24,7 +24,7 @@ export default async function MemberOrderDetailPage({
     const t = getServerT();
   const raw = searchParams?.id;
   const orderId = Number(Array.isArray(raw) ? raw[0] : raw) || 0;
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
 
   return (
     <>

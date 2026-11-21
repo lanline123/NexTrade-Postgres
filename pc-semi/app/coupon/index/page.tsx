@@ -5,7 +5,7 @@ import PcFooter from '@/components/PcFooter';
 import { getPcHeader } from '@/lib/api';
 import CouponDetailClient from '@/components/CouponDetailClient';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '优惠券详情 · 万物新生', robots: { index: false, follow: false } };
 
@@ -13,7 +13,7 @@ export default async function CouponDetailPage({ searchParams }: { searchParams?
     const t = getServerT();
   const read = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] || '' : value || '');
   const id = read(searchParams?.id);
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
   return (
     <>
       <PcHeader config={header as any} />

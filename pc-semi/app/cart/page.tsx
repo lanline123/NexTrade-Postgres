@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 import PcHeader from '@/components/PcHeaderWithData';
 import CartClient from '@/components/CartClient';
 import { getPcHeader } from '@/lib/api';
@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function CartPage() {
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
   return (
     <>
       <PcHeader config={header as any} />

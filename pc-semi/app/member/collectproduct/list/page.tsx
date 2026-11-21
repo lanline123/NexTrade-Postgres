@@ -5,7 +5,7 @@ import MemberShell from '@/components/MemberShell';
 import CollectProductClient from '@/components/CollectProductClient';
 import { getPcHeader } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 /**
  * 心愿单 / 收藏商品（规范路径）
  * 源码对照：java-b2b2c-overseas-v5.8.61/view/pc/pages/member/collectproduct/List.vue
@@ -25,7 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function CollectProductListPage() {
     const t = getServerT();
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
   return (
     <>
       <PcHeader config={header as any} />

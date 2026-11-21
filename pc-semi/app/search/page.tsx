@@ -10,7 +10,7 @@ import type { ProductListItem } from '@/lib/api';
 import { SearchClassicLayout, type SearchLayoutContext } from '@/components/SearchLayoutVariants';
 import PcFooter from '@/components/PcFooter';
 
-import { getServerT, resolveRequestLocale } from '@/i18n/server';
+import { getServerT, resolveRequestLocale, serverDecorateLocaleCode } from '@/i18n/server';
 import { buildLocaleAlternates, localizedPath } from '@/i18n/locale';
 export const dynamic = 'force-dynamic';
 
@@ -269,7 +269,13 @@ async function postApi<T>(path: string, body: Record<string, unknown>): Promise<
   }
 }
 
-async function getApi<T>(path: string, params: Record<string, string | number | undefined>): Promise<T | null> {
+/** 非默认语言时给装修类取数带 X-Locale-Code（后端解析语言子页）；默认语言不带头 */
+function decorateLocaleHeaders(): Record<string, string> | undefined {
+  const code = serverDecorateLocaleCode();
+  return code ? { 'X-Locale-Code': code } : undefined;
+}
+
+async function getApi<T>(path: string, params: Record<string, string | number | undefined>, extraHeaders?: Record<string, string>): Promise<T | null> {
   try {
     const search = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
@@ -277,7 +283,7 @@ async function getApi<T>(path: string, params: Record<string, string | number | 
       search.set(key, String(value));
     });
     const response = await fetch(`${SERVER_API_BASE}/api/${path}?${search.toString()}`, {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(extraHeaders || {}) },
       cache: 'no-store',
     });
     const text = await response.text();
@@ -446,8 +452,8 @@ export default async function SearchPage(props: PageProps) {
   };
 
   const [header, searchDecorate, filterResult, shopResult, searchStyle] = await Promise.all([
-    getPcHeader().catch(() => null),
-    getApi<PcSearchEnvelope>('home/home/pcSearch', { previewId: previewId || undefined }).catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
+    getApi<PcSearchEnvelope>('home/home/pcSearch', { previewId: previewId || undefined }, decorateLocaleHeaders()).catch(() => null),
     postApi<SearchFilterEnvelope>('search/search/getFilter', basePayload),
     tab === 'shop'
       ? getApi<ShopListEnvelope>('shop/shop/list', {

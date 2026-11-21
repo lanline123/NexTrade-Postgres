@@ -5,7 +5,7 @@ import PayClient from '@/components/PayClient';
 import { getPcHeader } from '@/lib/api';
 import PcFooter from '@/components/PcFooter';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -23,7 +23,7 @@ export default async function PayPage({ searchParams }: { searchParams?: { [key:
   // 旧版渠道页会带 type 参数（/order/paypal?id=&type=paypal），用于默认选中渠道
   const typeRaw = searchParams?.type;
   const defaultChannel = String(Array.isArray(typeRaw) ? typeRaw[0] || '' : typeRaw || '').trim();
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
 
   return (
     <>

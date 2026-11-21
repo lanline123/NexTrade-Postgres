@@ -7,7 +7,7 @@ import ShopCategoryMenu from '@/components/ShopCategoryMenu';
 import ProductGrid from '@/components/ProductGrid';
 import { getPcHeader, getShopCategories, getShopDetail, getShopProducts } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -89,7 +89,7 @@ export default async function ShopSearchRedirect({
       maxPrice: maxPrice || undefined,
       ...(sortMap[sort] || {}),
     }).catch(() => ({ records: [], total: 0 })),
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
   ]);
   const pages = Math.max(1, Math.ceil(products.total / size));
 

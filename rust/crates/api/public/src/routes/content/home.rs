@@ -45,7 +45,7 @@
 
 use axum::{
     extract::{Extension, Query, Request, State},
-    http::header,
+    http::{header, HeaderMap},
     middleware::{self, Next},
     response::Response,
     routing::get,
@@ -239,16 +239,30 @@ async fn mobile_nav(
     ok(gate_stored(v, access))
 }
 
+/// 请求头 `X-Locale-Code` → 语言代码（前台语言子页解析，原版
+/// `HeaderUtils.getLocaleCode` 同源）；缺失/非 UTF-8 时为 None（默认语言）。
+fn locale_code(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("x-locale-code")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned)
+}
+
 /// `GET /api/home/home/pcLogin`：PC 登录页装修（匿名）。
 ///
 /// 价格门控（第 2 期补漏）：匿名路由无登录态中间件，按游客解析看价权后
 /// 对存量装修 JSON 递归脱敏（门控开启时游客恒无看价权）。
 async fn pc_login(
     State(state): State<PublicState>,
+    headers: HeaderMap,
     Query(q): Query<DecoratePreviewQuery>,
 ) -> ApiResult<serde_json::Value> {
     let access = state.system.config_client.price_access(None).await?;
-    let vo = state.content.home.pc_login(&q).await?;
+    let vo = state
+        .content
+        .home
+        .pc_login(&q, locale_code(&headers).as_deref())
+        .await?;
     ok(gate_stored_vo(&vo, access))
 }
 
@@ -256,10 +270,15 @@ async fn pc_login(
 async fn pc_search(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
+    headers: HeaderMap,
     Query(q): Query<DecoratePreviewQuery>,
 ) -> ApiResult<serde_json::Value> {
     let access = price_access(&state, auth).await?;
-    let vo = state.content.home.pc_search(&q).await?;
+    let vo = state
+        .content
+        .home
+        .pc_search(&q, locale_code(&headers).as_deref())
+        .await?;
     ok(gate_stored_vo(&vo, access))
 }
 
@@ -267,10 +286,15 @@ async fn pc_search(
 async fn pc_header(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
+    headers: HeaderMap,
     Query(q): Query<DecoratePreviewQuery>,
 ) -> ApiResult<serde_json::Value> {
     let access = price_access(&state, auth).await?;
-    let v = state.content.home.pc_header(&q).await?;
+    let v = state
+        .content
+        .home
+        .pc_header(&q, locale_code(&headers).as_deref())
+        .await?;
     ok(gate_stored(v, access))
 }
 
@@ -351,10 +375,15 @@ async fn member_decorate(
 async fn h5_category(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
+    headers: HeaderMap,
     Query(q): Query<DecoratePreviewQuery>,
 ) -> ApiResult<serde_json::Value> {
     let access = price_access(&state, auth).await?;
-    let vo = state.content.home.h5_category(&q).await?;
+    let vo = state
+        .content
+        .home
+        .h5_category(&q, locale_code(&headers).as_deref())
+        .await?;
     ok(gate_stored_vo(&vo, access))
 }
 
@@ -362,10 +391,15 @@ async fn h5_category(
 async fn h5_product_detail(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
+    headers: HeaderMap,
     Query(q): Query<DecoratePreviewQuery>,
 ) -> ApiResult<serde_json::Value> {
     let access = price_access(&state, auth).await?;
-    let vo = state.content.home.h5_product_detail(&q).await?;
+    let vo = state
+        .content
+        .home
+        .h5_product_detail(&q, locale_code(&headers).as_deref())
+        .await?;
     ok(gate_stored_vo(&vo, access))
 }
 
@@ -373,10 +407,15 @@ async fn h5_product_detail(
 async fn h5_member(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
+    headers: HeaderMap,
     Query(q): Query<DecoratePreviewQuery>,
 ) -> ApiResult<serde_json::Value> {
     let access = price_access(&state, auth).await?;
-    let vo = state.content.home.h5_member(&q).await?;
+    let vo = state
+        .content
+        .home
+        .h5_member(&q, locale_code(&headers).as_deref())
+        .await?;
     ok(gate_stored_vo(&vo, access))
 }
 
@@ -384,20 +423,30 @@ async fn h5_member(
 async fn h5_search(
     State(state): State<PublicState>,
     auth: Option<Extension<AuthUser>>,
+    headers: HeaderMap,
     Query(q): Query<DecoratePreviewQuery>,
 ) -> ApiResult<serde_json::Value> {
     let access = price_access(&state, auth).await?;
-    let vo = state.content.home.h5_search(&q).await?;
+    let vo = state
+        .content
+        .home
+        .h5_search(&q, locale_code(&headers).as_deref())
+        .await?;
     ok(gate_stored_vo(&vo, access))
 }
 
 /// `GET /api/home/home/mobileLogin`：移动端登录页装修（匿名，同 pcLogin 口径脱敏）。
 async fn mobile_login(
     State(state): State<PublicState>,
+    headers: HeaderMap,
     Query(q): Query<DecoratePreviewQuery>,
 ) -> ApiResult<serde_json::Value> {
     let access = state.system.config_client.price_access(None).await?;
-    let vo = state.content.home.mobile_login(&q).await?;
+    let vo = state
+        .content
+        .home
+        .mobile_login(&q, locale_code(&headers).as_deref())
+        .await?;
     ok(gate_stored_vo(&vo, access))
 }
 

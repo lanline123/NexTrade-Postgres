@@ -5,6 +5,7 @@ import JoinNav from '@/components/JoinNav';
 import JoinIntroClient from '@/components/JoinIntroClient';
 import MemberAuthGuard from '@/components/MemberAuthGuard';
 import { getPcHeader } from '@/lib/api';
+import { serverDecorateLocaleCode } from '@/i18n/server';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '入驻申请 · 万物新生' };
@@ -18,7 +19,7 @@ export const metadata: Metadata = { title: '入驻申请 · 万物新生' };
  *   .page-info > .card.container > step + .form-info > el-form.form-body
  */
 export default async function JoinIntroPage() {
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
   return (
     <MemberAuthGuard>
       <div className="pg-join-intro">

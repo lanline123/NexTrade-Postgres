@@ -6,7 +6,7 @@ import HelpCategoryMenu from '@/components/HelpCategoryMenu';
 import type { HelpCategory } from '@/components/HelpCategoryMenu';
 import { getArticleIssueInfo, getArticleNewsList, getFooterData, getPcHeader } from '@/lib/api';
 
-import { getServerT, resolveRequestLocale } from '@/i18n/server';
+import { getServerT, resolveRequestLocale, serverDecorateLocaleCode } from '@/i18n/server';
 import { buildLocaleAlternates, localizedPath } from '@/i18n/locale';
 export const dynamic = 'force-dynamic';
 
@@ -63,7 +63,7 @@ export default async function ArticleIssueInfoPage({ searchParams }: { searchPar
    * 旧版左侧固定是 IssueLeftMenu 分类菜单，新版保持同样的两栏结构。
    */
   const [header, footer] = await Promise.all([
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
     getFooterData(),
   ]);
   const categories = footer.helpCategories as unknown as HelpCategory[];

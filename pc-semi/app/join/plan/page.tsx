@@ -4,7 +4,7 @@ import PcFooter from '@/components/PcFooter';
 import JoinNav from '@/components/JoinNav';
 import { getJoinSection, getPcHeader } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 /**
  * 招商计划页。
  * 源码对照：view/pc/pages/join/plan.vue（getMobileNav { decorateSn: 'investmentPlan' }）
@@ -18,7 +18,7 @@ export const metadata: Metadata = { title: '招商计划 · 万物新生' };
 export default async function JoinPlanPage() {
   const [sections, header] = await Promise.all([
     getJoinSection('investmentPlan').catch(() => []),
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
   ]);
   return (
     <div className="pg-join-plan">

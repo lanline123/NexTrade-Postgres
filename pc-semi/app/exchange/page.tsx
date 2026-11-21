@@ -4,7 +4,7 @@ import PcHeader from '@/components/PcHeaderWithData';
 import PcFooter from '@/components/PcFooter';
 import { getExchangeList, getIntegralName, getPcHeader } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 import { splitCurrencyPrice, splitDisplayPrice } from '@/lib/currency';
 export const dynamic = 'force-dynamic';
 
@@ -75,7 +75,7 @@ export default async function ExchangePage({ searchParams }: PageProps) {
   const size = PAGE_SIZES.includes(sizeRaw) ? sizeRaw : 20;
   const [data, header, integralName] = await Promise.all([
     getExchangeList({ page, size }).catch(() => ({ records: [], total: 0 })),
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
     getIntegralName(),
   ]);
   const pages = Math.max(1, Math.ceil(data.total / size));

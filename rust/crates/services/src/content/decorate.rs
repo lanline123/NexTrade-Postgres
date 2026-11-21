@@ -1191,28 +1191,43 @@ impl DecorateService {
     // ————————————————————— 前台装修读取 —————————————————————
 
     /// H5 商城首页装修，对应 `HomeController#index`。
-    pub async fn home_index(&self, q: &HomeDecorateQuery) -> Result<DecorateModuleListVO> {
+    ///
+    /// `locale_code` 来自请求头 `X-Locale-Code`：非默认语言时解析语言子页
+    /// （原版 `DecorateServiceImpl#loadDecorateModule` 的 parentId/localeId 逻辑）；
+    /// 预览路径按确切记录取数，不做语言解析（原版同）。
+    pub async fn home_index(
+        &self,
+        q: &HomeDecorateQuery,
+        locale_code: Option<&str>,
+    ) -> Result<DecorateModuleListVO> {
         let mut vo = if let Some(preview_id) = q.preview_id.filter(|v| *v > 0) {
             self.preview_decorate(Some(1), preview_id, None, 1).await?
         } else {
-            self.decorate_module(Some(1), Some(1), true, Some(1)).await?
+            self.decorate_module(Some(1), Some(1), true, Some(1), locale_code)
+                .await?
         };
         convert_legacy_h5_modules(&mut vo);
         Ok(vo)
     }
 
     /// PC 商城首页装修，对应 `HomeController#pcIndex`。
-    pub async fn pc_index(&self, q: &HomeDecorateQuery) -> Result<DecorateModuleListVO> {
+    /// `locale_code` 语义同 `home_index`。
+    pub async fn pc_index(
+        &self,
+        q: &HomeDecorateQuery,
+        locale_code: Option<&str>,
+    ) -> Result<DecorateModuleListVO> {
         let preview = q.preview_id.filter(|v| *v > 0);
         let by_id = q.id.filter(|v| *v > 0);
         if preview.is_some() || by_id.is_some() {
             if q.decorate_type == Some(3) {
-                return self.custom_decorate().await;
+                return self.custom_decorate(locale_code).await;
             }
             let target = preview.or(by_id).unwrap_or(0);
             return self.preview_decorate(None, target, by_id, 1).await;
         }
-        self.decorate_module(Some(2), Some(1), true, Some(1)).await
+        self.decorate_module(Some(2), Some(1), true, Some(1), locale_code)
+            .await
     }
 
     /// 装修页分享导入，对应 `ShareController#import` + `getInfoBySn`：
@@ -1529,13 +1544,15 @@ impl DecorateService {
         Ok(vo)
     }
 
-    /// 按类型/页面用途读取已发布首页装修（`shop_id = 0`、`locale_id = 0`）。
+    /// 按类型/页面用途读取已发布首页装修（`shop_id = 0`、`locale_id = 0`），
+    /// 再按 `locale_code` 解析语言子页（原版 `loadDecorateModule`）。
     async fn decorate_module(
         &self,
         decorate_type: Option<i32>,
         page_type: Option<i32>,
         is_home: bool,
         status: Option<i32>,
+        locale_code: Option<&str>,
     ) -> Result<DecorateModuleListVO> {
         let decorate = self
             .repos.content.decorate
@@ -1554,6 +1571,7 @@ impl DecorateService {
                 ..DecorateModuleListVO::default()
             });
         };
+        let decorate = resolve_locale_child(&self.repos, decorate, locale_code).await?;
         let mut vo = Self::module_vo(decorate.decorate_id, &decorate.data);
         vo.bind_decorate_id = decorate.binded_h5_id;
         vo.is_home = decorate.is_home;
@@ -1592,13 +1610,18 @@ impl DecorateService {
     }
 
     /// 自定义页装修读取，对应 `DecorateServiceImpl#customDecorate`
-    /// （不按页面用途过滤，取该店铺最新一条自定义页）。
-    async fn custom_decorate(&self) -> Result<DecorateModuleListVO> {
+    /// （不按页面用途过滤，取该店铺最新一条自定义页），
+    /// 再按 `locale_code` 解析语言子页（原版同）。
+    async fn custom_decorate(
+        &self,
+        locale_code: Option<&str>,
+    ) -> Result<DecorateModuleListVO> {
         let decorate = self
             .repos.content.decorate
             .find_home_page(Some(3), None, Some(DEFAULT_SHOP_ID), None, Some(0))
             .await?
             .ok_or_else(|| Error::biz_msg("装修模板不存在!"))?;
+        let decorate = resolve_locale_child(&self.repos, decorate, locale_code).await?;
         let mut vo = Self::module_vo(decorate.decorate_id, &decorate.data);
         vo.bind_decorate_id = decorate.binded_h5_id;
         vo.is_home = decorate.is_home;
@@ -1642,6 +1665,46 @@ impl DecorateService {
             serde_json::Value::Number(n) => n.as_i64() != Some(0),
             _ => true,
         }
+    }
+}
+
+/// 语言子行采用判定（纯逻辑，单测覆盖）：非默认语言 + 子行已发布数据非空。
+///
+/// 子行只有草稿（`data` 为空）时不采用——回退基准页，避免未发布子页把前台打空；
+/// 与原版 `loadDecorateModule`「子行 data 为空回退默认数据」的可观察行为一致。
+#[must_use]
+pub(crate) fn locale_child_usable(is_default: bool, child_data: Option<&str>) -> bool {
+    !is_default && child_data.is_some_and(|d| !d.trim().is_empty())
+}
+
+/// 按请求语言解析基准页的语言子行（原版 `DecorateServiceImpl#getLocaleDecorate` /
+/// `loadDecorateModule` / `customDecorate` 的 parentId+localeId 解析逻辑，前台装修
+/// 读取共用）：`locale_code`（请求头 `X-Locale-Code`）为空、语言不存在或为默认
+/// 语言、子行不存在或未发布数据时，一律返回基准页本身。
+pub(crate) async fn resolve_locale_child(
+    repos: &Repositories,
+    base: Decorate,
+    locale_code: Option<&str>,
+) -> Result<Decorate> {
+    let Some(code) = locale_code.map(str::trim).filter(|c| !c.is_empty()) else {
+        return Ok(base);
+    };
+    let Some(locale) = repos.lang.locales.find_by_code(code).await? else {
+        return Ok(base);
+    };
+    if locale.is_default == Some(1) {
+        return Ok(base);
+    }
+    let child = repos
+        .content
+        .decorate
+        .find_by_parent_locale(base.decorate_id, Some(locale.id), base.decorate_type)
+        .await?;
+    match child {
+        Some(child) if locale_child_usable(locale.is_default == Some(1), child.data.as_deref()) => {
+            Ok(child)
+        }
+        _ => Ok(base),
     }
 }
 
@@ -2064,5 +2127,17 @@ mod tests {
         assert_eq!(item["type"], "imageNav");
         // imageNav 对空 picList 不渲染（v-if length > 0），安全降级
         assert_eq!(item["module"]["picList"].as_array().map(Vec::len), Some(0));
+    }
+
+    /// 语言子行采用判定：默认语言永不采用；非默认语言仅当子行已发布
+    /// 数据非空时采用（草稿子页/空白数据回退基准页）。
+    #[test]
+    fn locale_child_usable_only_for_published_non_default() {
+        let data = Some("{\"moduleList\":[]}");
+        assert!(locale_child_usable(false, data));
+        assert!(!locale_child_usable(true, data));
+        assert!(!locale_child_usable(false, None));
+        assert!(!locale_child_usable(false, Some("")));
+        assert!(!locale_child_usable(false, Some("   ")));
     }
 }

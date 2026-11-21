@@ -28,7 +28,11 @@
 //!    `type=header` 模块，取不到返回空对象。
 //! 5. **多租户**：Java 首页装修固定 `shop_id = 0`（平台）与离散装修
 //!    `shop_id = 0`；门店首页走显式 `shopId` 参数，Rust 与之一致。
-//! 6. `translatePackage` / 多语言 `locale_id` 未迁移：装修查询统一 `locale_id = 0`。
+//! 6. `translatePackage` 未迁移。语言子页已补齐（2026-11-21）：页面型装修读取
+//!    （登录/搜索/分类/商品详情/个人中心 + PC 头部）按请求头 `X-Locale-Code`
+//!    解析语言子行，未命中回退 `locale_id = 0` 基准页（见
+//!    `content::decorate::resolve_locale_child`）；mobileNav / o2oIndex /
+//!    getRecommend 按原版不做语言解析。
 
 use std::sync::Arc;
 
@@ -44,6 +48,8 @@ use nextrade_core::models::content::home::{
 };
 use nextrade_core::Result;
 use nextrade_infrastructure::db::Repositories;
+
+use crate::content::decorate::resolve_locale_child;
 
 /// 平台店铺 ID（Java 首页装修固定 `shop_id = 0`）。
 const PLATFORM_SHOP_ID: i32 = 0;
@@ -196,14 +202,24 @@ impl HomeService {
     }
 
     /// `GET /api/home/home/pcLogin`：PC 登录页装修（预览 pageType=5）。
-    pub async fn pc_login(&self, q: &DecoratePreviewQuery) -> Result<DecorateModuleListVO> {
-        self.decorate_module(DECORATE_TYPE_PC, PAGE_LOGIN, q.preview_id)
+    /// `locale_code`（请求头 `X-Locale-Code`）非默认语言时解析语言子页（原版
+    /// `getDecorateModule` 覆盖登录页）；预览不解析。以下页面型端点同。
+    pub async fn pc_login(
+        &self,
+        q: &DecoratePreviewQuery,
+        locale_code: Option<&str>,
+    ) -> Result<DecorateModuleListVO> {
+        self.decorate_module(DECORATE_TYPE_PC, PAGE_LOGIN, q.preview_id, locale_code)
             .await
     }
 
     /// `GET /api/home/home/pcSearch`：PC 搜索页装修。
-    pub async fn pc_search(&self, q: &DecoratePreviewQuery) -> Result<DecorateModuleListVO> {
-        self.decorate_module(DECORATE_TYPE_PC, PAGE_SEARCH, q.preview_id)
+    pub async fn pc_search(
+        &self,
+        q: &DecoratePreviewQuery,
+        locale_code: Option<&str>,
+    ) -> Result<DecorateModuleListVO> {
+        self.decorate_module(DECORATE_TYPE_PC, PAGE_SEARCH, q.preview_id, locale_code)
             .await
     }
 
@@ -218,9 +234,13 @@ impl HomeService {
     /// 若这里返回 `{}`（空对象），前台会把它当成「已配置新版头部」，
     /// 于是旧版首页模块套上 1264–1600 的新版宽度 → 首屏 Banner/分类栏/推荐位
     /// 与下方楼层错位（**2026-10-21 首页布局错乱的根因**）。
-    pub async fn pc_header(&self, q: &DecoratePreviewQuery) -> Result<Value> {
+    pub async fn pc_header(
+        &self,
+        q: &DecoratePreviewQuery,
+        locale_code: Option<&str>,
+    ) -> Result<Value> {
         let decorate = self
-            .find_page(DECORATE_TYPE_PC, PAGE_HOME, q.preview_id)
+            .find_page(DECORATE_TYPE_PC, PAGE_HOME, q.preview_id, locale_code)
             .await?;
         let header = decorate
             .as_ref()
@@ -266,8 +286,12 @@ impl HomeService {
     }
 
     /// `GET /api/home/home/h5Category`：H5 分类页装修。
-    pub async fn h5_category(&self, q: &DecoratePreviewQuery) -> Result<DecorateModuleListVO> {
-        self.decorate_module(DECORATE_TYPE_H5, PAGE_CATEGORY, q.preview_id)
+    pub async fn h5_category(
+        &self,
+        q: &DecoratePreviewQuery,
+        locale_code: Option<&str>,
+    ) -> Result<DecorateModuleListVO> {
+        self.decorate_module(DECORATE_TYPE_H5, PAGE_CATEGORY, q.preview_id, locale_code)
             .await
     }
 
@@ -283,9 +307,15 @@ impl HomeService {
     pub async fn h5_product_detail(
         &self,
         q: &DecoratePreviewQuery,
+        locale_code: Option<&str>,
     ) -> Result<DecorateModuleListVO> {
         let vo = self
-            .decorate_module(DECORATE_TYPE_H5, PAGE_H5_PRODUCT_DETAIL, q.preview_id)
+            .decorate_module(
+                DECORATE_TYPE_H5,
+                PAGE_H5_PRODUCT_DETAIL,
+                q.preview_id,
+                locale_code,
+            )
             .await?;
         let is_preview = q.preview_id.is_some_and(|id| id > 0);
         if !is_preview && vo.module_list.as_ref().is_none_or(Vec::is_empty) {
@@ -295,9 +325,13 @@ impl HomeService {
     }
 
     /// `GET /api/home/home/h5Member`：H5 个人中心装修。
-    pub async fn h5_member(&self, q: &DecoratePreviewQuery) -> Result<DecorateModuleListVO> {
+    pub async fn h5_member(
+        &self,
+        q: &DecoratePreviewQuery,
+        locale_code: Option<&str>,
+    ) -> Result<DecorateModuleListVO> {
         let mut vo = self
-            .decorate_module(DECORATE_TYPE_H5, PAGE_MEMBER, q.preview_id)
+            .decorate_module(DECORATE_TYPE_H5, PAGE_MEMBER, q.preview_id, locale_code)
             .await?;
         normalize_member_account_module(&mut vo);
         normalize_member_service_links(&mut vo);
@@ -305,14 +339,22 @@ impl HomeService {
     }
 
     /// `GET /api/home/home/h5Search`：移动端搜索页装修。
-    pub async fn h5_search(&self, q: &DecoratePreviewQuery) -> Result<DecorateModuleListVO> {
-        self.decorate_module(DECORATE_TYPE_H5, PAGE_SEARCH, q.preview_id)
+    pub async fn h5_search(
+        &self,
+        q: &DecoratePreviewQuery,
+        locale_code: Option<&str>,
+    ) -> Result<DecorateModuleListVO> {
+        self.decorate_module(DECORATE_TYPE_H5, PAGE_SEARCH, q.preview_id, locale_code)
             .await
     }
 
     /// `GET /api/home/home/mobileLogin`：移动端登录页装修。
-    pub async fn mobile_login(&self, q: &DecoratePreviewQuery) -> Result<DecorateModuleListVO> {
-        self.decorate_module(DECORATE_TYPE_H5, PAGE_LOGIN, q.preview_id)
+    pub async fn mobile_login(
+        &self,
+        q: &DecoratePreviewQuery,
+        locale_code: Option<&str>,
+    ) -> Result<DecorateModuleListVO> {
+        self.decorate_module(DECORATE_TYPE_H5, PAGE_LOGIN, q.preview_id, locale_code)
             .await
     }
 
@@ -353,7 +395,8 @@ impl HomeService {
         let decorate = match q.decorate_id.filter(|id| *id > 0) {
             Some(decorate_id) => self.find_decorate_by_id(decorate_id).await?,
             None => {
-                self.find_page(DECORATE_TYPE_H5, PAGE_HOME, q.preview_id)
+                // 原版 getRecommend 按已解析页取模块，不做语言解析
+                self.find_page(DECORATE_TYPE_H5, PAGE_HOME, q.preview_id, None)
                     .await?
             }
         };
@@ -388,8 +431,11 @@ impl HomeService {
         decorate_type: i32,
         page_type: i32,
         preview_id: Option<i32>,
+        locale_code: Option<&str>,
     ) -> Result<DecorateModuleListVO> {
-        let decorate = self.find_page(decorate_type, page_type, preview_id).await?;
+        let decorate = self
+            .find_page(decorate_type, page_type, preview_id, locale_code)
+            .await?;
         Ok(decorate
             .as_ref()
             .map(module_vo)
@@ -401,12 +447,14 @@ impl HomeService {
     }
 
     /// 查装修页：`preview_id > 0` 时按 ID 取（校验类型/页面类型），
-    /// 否则取已发布的首页版本（Java `getAppHomeDecorate` / `getDecorateModule`）。
+    /// 否则取已发布的首页版本（Java `getAppHomeDecorate` / `getDecorateModule`），
+    /// 再按 `locale_code` 解析语言子页（预览不解析，原版同）。
     async fn find_page(
         &self,
         decorate_type: i32,
         page_type: i32,
         preview_id: Option<i32>,
+        locale_code: Option<&str>,
     ) -> Result<Option<Decorate>> {
         if let Some(preview_id) = preview_id.filter(|id| *id > 0) {
             let decorate = self.find_decorate_by_id(preview_id).await?;
@@ -419,7 +467,8 @@ impl HomeService {
             }
             return Ok(None);
         }
-        self.repos
+        let base = self
+            .repos
             .content
             .decorate
             .find_home_page(
@@ -429,7 +478,13 @@ impl HomeService {
                 Some(DECORATE_PUBLISHED),
                 Some(0),
             )
-            .await
+            .await?;
+        match base {
+            Some(base) => Ok(Some(
+                resolve_locale_child(&self.repos, base, locale_code).await?,
+            )),
+            None => Ok(None),
+        }
     }
 
     async fn find_decorate_by_id(&self, decorate_id: i32) -> Result<Option<Decorate>> {

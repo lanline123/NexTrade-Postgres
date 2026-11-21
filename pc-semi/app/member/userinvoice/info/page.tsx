@@ -5,13 +5,13 @@ import InvoiceQualificationClient from '@/components/InvoiceQualificationClient'
 import { getPcHeader } from '@/lib/api';
 import MemberShell from '@/components/MemberShell';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '增票资质 · 万物新生', robots: { index: false, follow: false } };
 
 export default async function UserInvoicePage() {
     const t = getServerT();
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
   return (
     <>
       <PcHeader config={header as any} />

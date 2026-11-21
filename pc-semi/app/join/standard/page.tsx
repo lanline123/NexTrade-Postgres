@@ -4,7 +4,7 @@ import PcFooter from '@/components/PcFooter';
 import JoinNav from '@/components/JoinNav';
 import { getJoinSection, getPcHeader } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 /**
  * 招商标准页。
  * 源码对照：view/pc/pages/join/standard.vue（getMobileNav { decorateSn: 'investmentCriteria' }）
@@ -19,7 +19,7 @@ export default async function JoinStandardPage() {
   const t = getServerT();
   const [sections, header] = await Promise.all([
     getJoinSection('investmentCriteria').catch(() => []),
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
   ]);
   return (
     <div className="pg-join-standard">

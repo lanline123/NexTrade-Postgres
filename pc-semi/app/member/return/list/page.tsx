@@ -5,7 +5,7 @@ import MemberShell from '@/components/MemberShell';
 import ReturnApplyListClient from '@/components/ReturnApplyListClient';
 import { getPcHeader } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 /**
  * /member/return/list —— 可申请售后的订单列表。
  * 源码对照：java-b2b2c-overseas-v5.8.61/view/pc/pages/member/return/List.vue。
@@ -24,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ReturnApplyListPage() {
     const t = getServerT();
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
   return (
     <>
       <PcHeader config={header as any} />

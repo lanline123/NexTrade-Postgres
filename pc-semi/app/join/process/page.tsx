@@ -4,7 +4,7 @@ import PcFooter from '@/components/PcFooter';
 import JoinNav from '@/components/JoinNav';
 import { getJoinSection, getPcHeader } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 /**
  * 入驻流程页。
  * 源码对照：view/pc/pages/join/process.vue（getMobileNav { decorateSn: 'settlingProcess' }）
@@ -21,7 +21,7 @@ export default async function JoinProcessPage() {
   const t = getServerT();
   const [sections, header] = await Promise.all([
     getJoinSection('settlingProcess').catch(() => []),
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
   ]);
   return (
     <div className="pg-join-process">

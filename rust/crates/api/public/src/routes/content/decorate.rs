@@ -86,6 +86,15 @@ async fn open_advertising(
     ok(gate_stored(&state, &headers, v).await?)
 }
 
+/// 请求头 `X-Locale-Code` → 语言代码（前台语言子页解析，原版
+/// `HeaderUtils.getLocaleCode` 同源）；缺失/非 UTF-8 时为 None（默认语言）。
+fn locale_code(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("x-locale-code")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned)
+}
+
 /// `GET /api/home/home/index?previewId=`：H5 商城首页装修
 /// （存量装修 JSON 内嵌商品快照价，价格门控递归脱敏）。
 async fn home_index(
@@ -93,7 +102,11 @@ async fn home_index(
     headers: HeaderMap,
     Query(q): Query<HomeDecorateQuery>,
 ) -> ApiResult<serde_json::Value> {
-    let vo = state.content.decorate.home_index(&q).await?;
+    let vo = state
+        .content
+        .decorate
+        .home_index(&q, locale_code(&headers).as_deref())
+        .await?;
     let v = serde_json::to_value(&vo).unwrap_or(serde_json::Value::Null);
     ok(gate_stored(&state, &headers, v).await?)
 }
@@ -105,7 +118,11 @@ async fn pc_index(
     headers: HeaderMap,
     Query(q): Query<HomeDecorateQuery>,
 ) -> ApiResult<serde_json::Value> {
-    let vo = state.content.decorate.pc_index(&q).await?;
+    let vo = state
+        .content
+        .decorate
+        .pc_index(&q, locale_code(&headers).as_deref())
+        .await?;
     let v = serde_json::to_value(&vo).unwrap_or(serde_json::Value::Null);
     ok(gate_stored(&state, &headers, v).await?)
 }

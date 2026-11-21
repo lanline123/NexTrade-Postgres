@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getPcHeader } from '@/lib/api';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 /**
  * 招商专用头部导航。
  * 源码对照：view/pc/pages/join/joinHeader.vue（<template> 类名逐条照抄）
@@ -32,7 +32,7 @@ const ACTIVE_CLASS: Record<string, string> = {
 
 export default async function JoinHeaderPage() {
   const t = getServerT();
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
   const actActive = ACTIVE_CLASS.plan;
   return (
     <div className="pg-join-join-header">

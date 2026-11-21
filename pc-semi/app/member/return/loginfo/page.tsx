@@ -6,7 +6,7 @@ import AfterSalesDetailClient from '@/components/AfterSalesDetailClient';
 import { getPcHeader } from '@/lib/api';
 import MemberShell from '@/components/MemberShell';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '申请详情 · 万物新生', robots: { index: false, follow: false } };
 
@@ -27,7 +27,7 @@ export default async function ReturnLogInfoPage({ searchParams }: { searchParams
   const t = getServerT();
   const read = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] || '' : value || '');
   const id = Number(read(searchParams?.id) || read(searchParams?.aftersalesId)) || 0;
-  const header = await getPcHeader().catch(() => null);
+  const header = await getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null);
   return (
     <>
       <PcHeader config={header as any} />

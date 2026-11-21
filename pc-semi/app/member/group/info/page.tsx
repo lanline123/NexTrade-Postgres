@@ -7,7 +7,7 @@ import GrouponCountdown from '@/components/GrouponCountdown';
 import { getGrouponRecordDetail, getPcHeader } from '@/lib/api';
 import MemberShell from '@/components/MemberShell';
 
-import { getServerT } from '@/i18n/server';
+import { getServerT, serverDecorateLocaleCode } from '@/i18n/server';
 import { formatPrice } from '@/lib/currency';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: '拼团详情 · 万物新生', robots: { index: false, follow: false } };
@@ -25,7 +25,7 @@ export default async function GrouponInfoPage({ searchParams }: { searchParams?:
   const recordId = Number(Array.isArray(raw) ? raw[0] : raw) || 0;
   const [detail, header] = await Promise.all([
     recordId ? getGrouponRecordDetail(recordId).catch(() => null) : Promise.resolve(null),
-    getPcHeader().catch(() => null),
+    getPcHeader(undefined, serverDecorateLocaleCode()).catch(() => null),
   ]);
   const joinUsers = detail?.joinUsers || [];
   const joined = Number(detail?.joinNumCount || joinUsers.length || 0);
