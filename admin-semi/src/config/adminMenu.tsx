@@ -1602,6 +1602,8 @@ export const navGroups: NavGroup[] = [
           {
             "key": "systemUpdate",
             "label": "系统更新"
+            "key": "clientReleaseManage",
+            "label": "客户端发版登记"
           },
           {
             "key": "regionManage",
@@ -2037,6 +2039,7 @@ export const pageTitles: Record<string, string> = {
   "paymentSetting": "支付设置",
   "appVersionManage": "APP版本",
   "systemUpdate": "系统更新",
+  "clientReleaseManage": "客户端发版登记",
   "regionManage": "地区管理",
   "friendLinksManage": "友情链接",
   "languagesListManage": "语言管理",

@@ -15,6 +15,7 @@ pub mod pc;
 pub mod recommend;
 pub mod region;
 pub mod region_client;
+pub mod client_release;
 pub mod system_update;
 pub mod tips_manage;
 pub mod util;

@@ -27,6 +27,7 @@ pub mod mail_templates;
 pub mod message_type;
 pub mod recall_extra;
 pub mod region;
+pub mod client_release;
 pub mod system_update;
 pub mod tips_manage;
 pub mod verification;
@@ -66,6 +67,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(recall_extra::routes(state))
         .merge(region::routes(state))
         .merge(system_update::routes(state))
+        .merge(client_release::routes(state))
         .merge(tips_manage::routes(state))
 }
 
@@ -108,6 +110,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(message_type::implemented_routes());
     out.extend(region::implemented_routes());
     out.extend(system_update::implemented_routes());
+    out.extend(client_release::implemented_routes());
     out.extend(tips_manage::implemented_routes());
     out
 }

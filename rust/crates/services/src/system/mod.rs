@@ -31,6 +31,7 @@ pub mod region;
 pub mod notify;
 pub mod scheduler;
 pub mod region_client;
+pub mod client_release;
 pub mod system_update;
 pub mod tips_manage;
 pub mod util;
@@ -60,4 +61,5 @@ pub struct Services {
     pub admin_msg: Arc<admin_msg::AdminMsgService>,
     pub recommend: Arc<recommend::RecommendService>,
     pub system_update: Arc<system_update::SystemUpdateService>,
+    pub client_release: Arc<client_release::ClientReleaseService>,
 }

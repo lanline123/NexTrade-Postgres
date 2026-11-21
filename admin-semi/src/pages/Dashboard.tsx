@@ -25,6 +25,7 @@ import { mockDashboard, mockOrders } from '../mock';
 import type { DashboardData, OrderRow } from '../types';
 import type { PageKey } from '../layout/AdminLayout';
 import TrendChart from '../components/TrendChart';
+import ClientUpdateAlert from '../components/ClientUpdateAlert';
 import { useI18n } from '../i18n';
 
 const { Text } = Typography;
@@ -154,6 +155,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (page: PageKey) 
   return (
     <Spin spinning={loading} wrapperClassName="full-width">
       <Space vertical align="start" spacing={16} style={{ width: '100%' }}>
+        <ClientUpdateAlert onNavigate={onNavigate} />
         <Row gutter={16} style={{ width: '100%' }}>
           {stats.map((stat) => (
             <Col span={6} key={stat.label}>
