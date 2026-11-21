@@ -116,6 +116,10 @@ export default function AdminLayout({ page, layout = 'default', logo, mallUrl: m
       window.open(`${window.location.origin}/?page=imWorkbench`, '_blank');
       return;
     }
+    if (key === 'kefuH5') {
+      window.open(`${window.location.origin}/?page=kefuH5`, '_blank');
+      return;
+    }
     onPageChange(key);
   };
 

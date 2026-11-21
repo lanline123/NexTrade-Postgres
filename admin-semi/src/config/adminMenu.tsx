@@ -38,6 +38,12 @@ export const navGroups: NavGroup[] = [
         "blank": true
       },
       {
+        "key": "kefuH5",
+        "label": "客服工作台（移动端）",
+        "icon": <IconCustomerSupport />,
+        "blank": true
+      },
+      {
         "key": "customerService1",
         "label": "历史会话",
         "icon": <IconHistory />,
@@ -1699,6 +1705,7 @@ export const pageTitles: Record<string, string> = {
   "aiMcpLogs": "操作日志",
   "customerService0": "客服工作台",
   "imWorkbench": "客服工作台",
+  "kefuH5": "客服工作台（移动端）",
   "kefuHistoryList": "历史会话列表",
   "kefuQuickReply": "快捷回复",
   "kefuAccountInfo": "账户信息",
