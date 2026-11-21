@@ -416,6 +416,10 @@ export const navGroups: NavGroup[] = [
           {
             "key": "hubSso",
             "label": "登录互认"
+          },
+          {
+            "key": "hubConfig",
+            "label": "配置分发"
           }
         ]
       },
@@ -2024,6 +2028,7 @@ export const pageTitles: Record<string, string> = {
   "hubMembers": "会员联邦",
   "hubOrders": "订单上行",
   "hubSso": "登录互认",
+  "hubConfig": "配置分发",
   "feedKeyManage": "对接 API 管理",
   "federationSettings": "万象互联",
   "siteClone": "站点搬家",

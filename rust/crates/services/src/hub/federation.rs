@@ -12,7 +12,7 @@
 //! secret 的 SHA-256 摘要（中枢侧只存哈希、永不存明文，故以摘要为共享密钥，
 //! 与设计「hmac(secret, …)」等价强度）。
 //!
-//! 三期（迁移 042 起，设计 `~/workspace/federation-phase3/DESIGN.md`）续补：
+//! 三期（迁移 039 起，设计 `~/workspace/federation-phase3/DESIGN.md`）续补：
 //! 登录互认（§6.3 授权码模式，039）、配置分发（§8.3，040）、跨店下单
 //! （§7.2，041）、中央账本（§6.5，042）、跨站结算（§11，043）。账本与
 //! 结算只记账与生成结算单，不做真实跨站资金划拨（资金红线）。
@@ -1661,10 +1661,16 @@ impl FederationService {
         let payload = serde_json::to_string(dto).unwrap_or_default();
         let now = self.now();
         self.repo().update_link_heartbeat(link.link_id, &payload, now).await?;
+        // 三期②点亮：该连接有高于其回执水位的生效配置包时为 true。
+        let has_config_package = self
+            .repo()
+            .has_unacked_config_package(link.link_id, now)
+            .await
+            .unwrap_or(false);
         Ok(HeartbeatVO {
             server_time: i64::from(now),
             link_status: i32::from(link.status),
-            has_config_package: false,
+            has_config_package,
         })
     }
 
@@ -2623,7 +2629,459 @@ impl FederationService {
         String::from_utf8(plain).map_err(|_| Error::Internal("出站凭证明文非 UTF-8".to_string()))
     }
 
-    // ———————————————————— 三期①：登录互认（迁移 042；DESIGN.md §1） ————————————————————
+    // ———————————————————— 三期②：配置分发（迁移 043；DESIGN.md §2） ————————————————————
+    //
+    // 拉模式：中枢发布带版本包 → 成员拉取 → 下行钥派生签名 + 内容哈希双验
+    // → 落快照 → 自动/手动应用 → 回执。应用语义边界（DESIGN §2.3）：
+    // announcement 回写本地平台公告；其余类型只落快照并如实记录，不假装执行。
+
+    /// 中枢侧：成员拉取配置包（路由层已过 config.pull 鉴权）。逐包以该连接
+    /// 下行钥密钥派生签名（中枢解密 secret_enc 后取 SHA-256 摘要为 HMAC 钥；
+    /// 成员以其入站下行钥的 secret_hash 解码同一摘要验签）。
+    pub async fn config_packages(
+        &self,
+        cred: &HubCredential,
+        since_version: i32,
+    ) -> Result<ConfigPackagesVO> {
+        if cred.link_id <= 0 {
+            return Err(Error::Validation("配置拉取凭证未绑定连接".to_string()));
+        }
+        let link = self.load_link(cred.link_id).await?;
+        if i32::from(link.role) != LINK_ROLE_HUB || i32::from(link.status) != LINK_ACTIVE {
+            return Err(Error::Validation("仅已激活的中枢侧连接可拉取配置".to_string()));
+        }
+        let now = self.now();
+        let rows = self
+            .repo()
+            .list_effective_config_packages(since_version.max(0), now, CONFIG_PULL_LIMIT)
+            .await?;
+        let down = self.load_credential(link.down_credential_id).await?;
+        let secret = self.decrypt_secret(&down.secret_enc)?;
+        let key = Sha256::digest(secret.as_bytes());
+        let packages = rows
+            .iter()
+            .map(|p| ConfigPackageWireVO {
+                package_id: p.id,
+                package_type: p.package_type.clone(),
+                title: p.title.clone(),
+                version: p.version,
+                payload: p.payload.clone(),
+                content_hash: p.content_hash.clone(),
+                apply_mode: i32::from(p.apply_mode),
+                effective_from: p.effective_from,
+                effective_to: p.effective_to,
+                signature: config_package_signature(&key, p.id, p.version, &p.content_hash),
+            })
+            .collect();
+        Ok(ConfigPackagesVO {
+            packages,
+            latest_version: self.repo().max_config_version().await?,
+        })
+    }
+
+    /// 中枢侧：接收成员回执（路由层已过 config.pull 鉴权与签名）。
+    pub async fn receive_config_ack(
+        &self,
+        cred: &HubCredential,
+        dto: &ConfigAckDTO,
+    ) -> Result<()> {
+        if cred.link_id <= 0 {
+            return Err(Error::Validation("配置回执凭证未绑定连接".to_string()));
+        }
+        if !(CONFIG_ACK_APPLIED..=CONFIG_ACK_FAILED).contains(&dto.status) {
+            return Err(Error::Validation("回执状态不合法".to_string()));
+        }
+        let pkg = self
+            .repo()
+            .find_config_package(dto.package_id)
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_CONFIG_PACKAGE_INVALID.to_string()))?;
+        if pkg.version != dto.version {
+            return Err(Error::Validation("回执版本与配置包不一致".to_string()));
+        }
+        self.repo()
+            .upsert_config_ack(
+                cred.link_id,
+                dto.package_id,
+                dto.version,
+                dto.status,
+                dto.message.trim(),
+                self.now(),
+            )
+            .await
+    }
+
+    /// 管理端（中枢）：发布配置包（联邦能力闸）。version 取 max+1。
+    pub async fn publish_config_package(
+        &self,
+        dto: &ConfigPublishDTO,
+    ) -> Result<HubConfigPackageVO> {
+        let settings = self.gate().await?;
+        if !settings.capabilities.federation {
+            return Err(Error::Forbidden(MSG_FEDERATION_DISABLED.to_string()));
+        }
+        let package_type = dto.package_type.trim();
+        if !config_package_type_valid(package_type) {
+            return Err(Error::Validation(MSG_CONFIG_TYPE_UNKNOWN.to_string()));
+        }
+        let title = dto.title.trim();
+        if title.is_empty() {
+            return Err(Error::Validation("配置包标题不能为空".to_string()));
+        }
+        let apply_mode = dto.apply_mode.unwrap_or(CONFIG_APPLY_MANUAL);
+        if apply_mode != CONFIG_APPLY_MANUAL && apply_mode != CONFIG_APPLY_AUTO {
+            return Err(Error::Validation("应用方式不合法".to_string()));
+        }
+        let payload = serde_json::to_string(&dto.payload)
+            .map_err(|e| Error::Internal(format!("配置包内容序列化失败: {e}")))?;
+        let content_hash = utils::sha256_hex(&payload);
+        let now = self.now();
+        let version = self.repo().max_config_version().await? + 1;
+        let id = self
+            .repo()
+            .insert_config_package(
+                package_type,
+                title,
+                version,
+                &payload,
+                &content_hash,
+                apply_mode,
+                dto.effective_from.unwrap_or(0),
+                dto.effective_to.unwrap_or(0),
+                now,
+            )
+            .await?;
+        let row = self
+            .repo()
+            .find_config_package(id)
+            .await?
+            .ok_or_else(|| Error::Internal("配置包落库后回读失败".to_string()))?;
+        Ok(HubConfigPackageVO::from(&row))
+    }
+
+    /// 管理端（中枢）：配置包列表（带回执覆盖统计）。
+    pub async fn list_config_packages(
+        &self,
+        q: &HubConfigListQuery,
+    ) -> Result<PageResult<HubConfigPackageVO>> {
+        let settings = self.gate().await?;
+        if !settings.capabilities.federation {
+            return Err(Error::Forbidden(MSG_FEDERATION_DISABLED.to_string()));
+        }
+        let (rows, total) = self.repo().list_config_packages(q).await?;
+        let mut list = Vec::with_capacity(rows.len());
+        for r in &rows {
+            let mut vo = HubConfigPackageVO::from(r);
+            let (ack, applied) = self.repo().config_ack_counts(r.id).await?;
+            vo.ack_count = ack;
+            vo.applied_count = applied;
+            list.push(vo);
+        }
+        let page = PageQuery {
+            page: q.page.unwrap_or(1),
+            page_size: q.page_size.unwrap_or(20),
+        };
+        Ok(PageResult::new(total.max(0) as u64, list, &page))
+    }
+
+    /// 管理端（中枢）：撤销配置包（撤销后不再下发；已落地成员侧不受影响）。
+    pub async fn revoke_config_package(&self, id: i32) -> Result<()> {
+        let settings = self.gate().await?;
+        if !settings.capabilities.federation {
+            return Err(Error::Forbidden(MSG_FEDERATION_DISABLED.to_string()));
+        }
+        if !self.repo().revoke_config_package(id, self.now()).await? {
+            return Err(Error::Validation("配置包不存在或已撤销".to_string()));
+        }
+        Ok(())
+    }
+
+    /// 管理端（中枢）：回执列表（覆盖率核查）。
+    pub async fn list_config_acks(
+        &self,
+        q: &HubConfigAckListQuery,
+    ) -> Result<PageResult<HubConfigAckVO>> {
+        let settings = self.gate().await?;
+        if !settings.capabilities.federation {
+            return Err(Error::Forbidden(MSG_FEDERATION_DISABLED.to_string()));
+        }
+        let (rows, total) = self.repo().list_config_acks(q).await?;
+        let mut list = Vec::with_capacity(rows.len());
+        for r in &rows {
+            let mut vo = HubConfigAckVO::from(r);
+            if r.link_id > 0 {
+                if let Ok(link) = self.load_link(r.link_id).await {
+                    vo.peer_name = link.peer_name.clone();
+                }
+            }
+            list.push(vo);
+        }
+        let page = PageQuery {
+            page: q.page.unwrap_or(1),
+            page_size: q.page_size.unwrap_or(20),
+        };
+        Ok(PageResult::new(total.max(0) as u64, list, &page))
+    }
+
+    /// 成员侧：按连接拉取配置包并处理（管理端手动触发，口径同二期手动同步）。
+    /// 逐包双验（content_hash + 下行钥派生签名）→ 落快照 → 自动包即时应用、
+    /// 手动包待确认；终态包回执补发（upsert 幂等）。回处理计数摘要。
+    pub async fn pull_config(&self, link_id: i32) -> Result<Value> {
+        self.gate().await?;
+        let link = self.load_link(link_id).await?;
+        if i32::from(link.role) != LINK_ROLE_MEMBER || i32::from(link.status) != LINK_ACTIVE {
+            return Err(Error::Validation("仅已激活的成员连接可拉取配置".to_string()));
+        }
+        let cred = self.load_credential(link.up_credential_id).await?;
+        let secret = self.decrypt_secret(&cred.secret_enc)?;
+        let down = self.load_credential(link.down_credential_id).await?;
+        let verify_key = hex_decode(&down.secret_hash)
+            .filter(|k| k.len() == 32)
+            .ok_or_else(|| Error::Internal("入站下行钥缺少 secret 哈希，无法验签".to_string()))?;
+        let since = self.repo().max_apply_version(link_id).await?;
+        let resp = hub_get_json(
+            &link.peer_base_url,
+            &format!("/api/hub/v1/config/packages?sinceVersion={since}"),
+            &cred.access_key,
+            &secret,
+        )
+        .await?;
+        let wires = resp
+            .get("packages")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let now = self.now();
+        let (mut applied, mut pending, mut failed, mut rejected) = (0i64, 0i64, 0i64, 0i64);
+        for w in &wires {
+            let package_id = w.get("packageId").and_then(Value::as_i64).unwrap_or(0) as i32;
+            let version = w.get("version").and_then(Value::as_i64).unwrap_or(0) as i32;
+            let payload = w.get("payload").and_then(Value::as_str).unwrap_or_default();
+            let content_hash = w
+                .get("contentHash")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let signature = w.get("signature").and_then(Value::as_str).unwrap_or_default();
+            // 双验：内容哈希 + 下行钥派生签名，任一不过整包拒收（不落快照）。
+            let hash_ok = utils::sha256_hex(payload) == content_hash;
+            let expect = config_package_signature(&verify_key, package_id, version, content_hash);
+            let sig_ok = constant_time_eq(
+                expect.as_bytes(),
+                signature.trim().to_ascii_lowercase().as_bytes(),
+            );
+            if !hash_ok || !sig_ok || package_id <= 0 {
+                rejected += 1;
+                tracing::warn!(
+                    "联邦配置包验签失败已拒收: link={link_id}, package={package_id}, hash_ok={hash_ok}, sig_ok={sig_ok}"
+                );
+                continue;
+            }
+            let apply = self
+                .repo()
+                .upsert_config_apply(
+                    link_id,
+                    package_id,
+                    version,
+                    w.get("packageType").and_then(Value::as_str).unwrap_or("custom"),
+                    w.get("title").and_then(Value::as_str).unwrap_or_default(),
+                    payload,
+                    content_hash,
+                    w.get("applyMode").and_then(Value::as_i64).unwrap_or(1) as i32,
+                    now,
+                )
+                .await?;
+            if i32::from(apply.apply_status) != CONFIG_APPLY_PENDING {
+                continue; // 已终态：不复活（回执补发在下方统一处理）
+            }
+            if i32::from(apply.apply_mode) == CONFIG_APPLY_AUTO {
+                let (status, message) = self.apply_config_package(&apply).await;
+                self.repo()
+                    .set_config_apply_status(apply.id, status, &message, self.now())
+                    .await?;
+                let ack = if status == CONFIG_APPLY_APPLIED {
+                    CONFIG_ACK_APPLIED
+                } else {
+                    CONFIG_ACK_FAILED
+                };
+                self.send_config_ack(&link, &apply, ack, &message).await;
+                if status == CONFIG_APPLY_APPLIED {
+                    applied += 1;
+                } else {
+                    failed += 1;
+                }
+            } else {
+                pending += 1;
+            }
+        }
+        // 回执补发：本连接全部终态落地包重发回执（中枢 upsert 幂等，防丢报）。
+        let (terminal, _) = self
+            .repo()
+            .list_config_applies(&HubConfigApplyListQuery {
+                link_id: Some(link_id),
+                page: Some(1),
+                page_size: Some(100),
+                ..Default::default()
+            })
+            .await?;
+        for a in &terminal {
+            let st = i32::from(a.apply_status);
+            if st == CONFIG_APPLY_APPLIED || st == CONFIG_APPLY_DENIED || st == CONFIG_APPLY_FAILED
+            {
+                let ack = if st == CONFIG_APPLY_APPLIED {
+                    CONFIG_ACK_APPLIED
+                } else if st == CONFIG_APPLY_DENIED {
+                    CONFIG_ACK_DENIED
+                } else {
+                    CONFIG_ACK_FAILED
+                };
+                self.send_config_ack(&link, a, ack, &a.apply_message).await;
+            }
+        }
+        Ok(json!({
+            "fetched": wires.len(),
+            "applied": applied,
+            "pending": pending,
+            "failed": failed,
+            "rejected": rejected,
+        }))
+    }
+
+    /// 配置包业务应用（DESIGN §2.3 边界）：announcement 回写本地平台公告；
+    /// 其余类型只落快照。回 (落地状态, 说明)——说明如实记录落地形态。
+    async fn apply_config_package(&self, apply: &HubConfigApply) -> (i32, String) {
+        if apply.package_type == CONFIG_TYPE_ANNOUNCEMENT {
+            let parsed: Value = serde_json::from_str(&apply.payload).unwrap_or(Value::Null);
+            let title = parsed.get("title").and_then(Value::as_str).unwrap_or_default();
+            let content = parsed
+                .get("content")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if title.trim().is_empty() || content.trim().is_empty() {
+                return (
+                    CONFIG_APPLY_FAILED,
+                    "公告包内容缺少 title/content，未回写".to_string(),
+                );
+            }
+            let dto = nextrade_core::models::system::admin_msg::AnnouncementPublishDTO {
+                title: Some(title.to_string()),
+                content: Some(content.to_string()),
+            };
+            match crate::system::admin_msg::AdminMsgService::new(self.repos.clone())
+                .publish_announcement(0, &dto)
+                .await
+            {
+                Ok(vo) => (
+                    CONFIG_APPLY_APPLIED,
+                    format!("已回写本地平台公告（admin_msg 主行 #{})", vo.msg_id),
+                ),
+                Err(e) => (CONFIG_APPLY_FAILED, format!("公告回写失败: {e}")),
+            }
+        } else {
+            (
+                CONFIG_APPLY_APPLIED,
+                format!(
+                    "已落本地快照（类型 {} 业务回写未接入，仅归档）",
+                    apply.package_type
+                ),
+            )
+        }
+    }
+
+    /// 向中枢回执（失败只告警不回滚本地落地——pull 时会补发）。
+    async fn send_config_ack(
+        &self,
+        link: &HubLink,
+        apply: &HubConfigApply,
+        ack_status: i32,
+        message: &str,
+    ) {
+        let Ok(cred) = self.load_credential(link.up_credential_id).await else {
+            return;
+        };
+        let Ok(secret) = self.decrypt_secret(&cred.secret_enc) else {
+            return;
+        };
+        let body = json!({
+            "packageId": apply.package_id,
+            "version": apply.version,
+            "status": ack_status,
+            "message": message,
+        });
+        if let Err(e) = hub_post_json_signed(
+            &link.peer_base_url,
+            "/api/hub/v1/config/ack",
+            &cred.access_key,
+            &secret,
+            &body,
+        )
+        .await
+        {
+            tracing::warn!(
+                "联邦配置回执发送失败（下次拉取补发）: link={}, package={}, err={e}",
+                link.link_id,
+                apply.package_id
+            );
+        }
+    }
+
+    /// 管理端（成员）：手动包确认/拒绝。确认 → 应用并回执；拒绝 → 回执拒绝。
+    pub async fn decide_config_apply(&self, dto: &ConfigDecideDTO) -> Result<()> {
+        self.gate().await?;
+        let apply = self
+            .repo()
+            .find_config_apply(dto.apply_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("配置落地记录不存在".to_string()))?;
+        if i32::from(apply.apply_status) != CONFIG_APPLY_PENDING {
+            return Err(Error::Validation("该配置包已处理，不能重复确认".to_string()));
+        }
+        let link = self.load_link(apply.link_id).await?;
+        let now = self.now();
+        if dto.agree {
+            let (status, message) = self.apply_config_package(&apply).await;
+            if !self
+                .repo()
+                .set_config_apply_status(apply.id, status, &message, now)
+                .await?
+            {
+                return Err(Error::Validation("该配置包已处理，不能重复确认".to_string()));
+            }
+            let ack = if status == CONFIG_APPLY_APPLIED {
+                CONFIG_ACK_APPLIED
+            } else {
+                CONFIG_ACK_FAILED
+            };
+            self.send_config_ack(&link, &apply, ack, &message).await;
+        } else {
+            if !self
+                .repo()
+                .set_config_apply_status(apply.id, CONFIG_APPLY_DENIED, "成员侧人工拒绝", now)
+                .await?
+            {
+                return Err(Error::Validation("该配置包已处理，不能重复确认".to_string()));
+            }
+            self.send_config_ack(&link, &apply, CONFIG_ACK_DENIED, "成员侧人工拒绝")
+                .await;
+        }
+        Ok(())
+    }
+
+    /// 管理端（成员）：落地列表。
+    pub async fn list_config_applies(
+        &self,
+        q: &HubConfigApplyListQuery,
+    ) -> Result<PageResult<HubConfigApplyVO>> {
+        self.gate().await?;
+        let (rows, total) = self.repo().list_config_applies(q).await?;
+        let list = rows.iter().map(HubConfigApplyVO::from).collect();
+        let page = PageQuery {
+            page: q.page.unwrap_or(1),
+            page_size: q.page_size.unwrap_or(20),
+        };
+        Ok(PageResult::new(total.max(0) as u64, list, &page))
+    }
+
+    // ———————————————————— 三期①：登录互认（迁移 039；DESIGN.md §1） ————————————————————
     //
     // 授权码模式：成员登记请求 → 中枢会员本人同意 → 一次性码（5 分钟）→
     // 成员兑换并落号。红线：兑换只回映射与展示字段；未验证手机号不签发
@@ -3259,6 +3717,20 @@ fn hex_decode(s: &str) -> Option<Vec<u8>> {
 /// 推送签名（设计 §9.3）：HMAC-SHA256(key, "{timestamp}.{body}") 的 hex。
 /// key = SHA-256(secret) 摘要字节——发送方由明文现算，接收方由 secret_hash
 /// hex 解码，两侧同一密钥，中枢永不存明文。
+/// 配置包签名（三期②）：HMAC-SHA256(key, "{packageId}.{version}.{contentHash}")。
+/// key = SHA-256(下行 secret) 摘要——中枢以密文解密值派生、成员以入站钥
+/// secret_hash 解码，双方同值且都不需要对方明文（与推送验签同一 trick）。
+fn config_package_signature(key: &[u8], package_id: i32, version: i32, content_hash: &str) -> String {
+    let mut mac =
+        <Hmac<Sha256> as Mac>::new_from_slice(key).expect("HMAC 接受任意长度密钥");
+    mac.update(format!("{package_id}.{version}.{content_hash}").as_bytes());
+    mac.finalize()
+        .into_bytes()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
 fn hub_signature(key: &[u8], timestamp: i64, body: &str) -> String {
     let mut mac =
         <Hmac<Sha256> as Mac>::new_from_slice(key).expect("HMAC 接受任意长度密钥");
@@ -3567,5 +4039,19 @@ mod tests {
             body.contains("upsert_order_summary("),
             "订单上报应走幂等 upsert"
         );
+    }
+
+    /// 三期②配置包签名：同钥同串稳定、任一字段篡改即变（成员验签的根基）。
+    #[test]
+    fn config_package_signature_is_stable_and_tamper_sensitive() {
+        let key = [7u8; 32];
+        let a = config_package_signature(&key, 3, 5, "abc123");
+        let b = config_package_signature(&key, 3, 5, "abc123");
+        assert_eq!(a, b);
+        assert_eq!(a.len(), 64);
+        assert_ne!(a, config_package_signature(&key, 4, 5, "abc123"));
+        assert_ne!(a, config_package_signature(&key, 3, 6, "abc123"));
+        assert_ne!(a, config_package_signature(&key, 3, 5, "abc124"));
+        assert_ne!(a, config_package_signature(&[8u8; 32], 3, 5, "abc123"));
     }
 }

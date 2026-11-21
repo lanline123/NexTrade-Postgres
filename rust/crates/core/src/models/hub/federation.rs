@@ -1395,7 +1395,7 @@ pub struct LocalOrderRow {
     pub version_time: i32,
 }
 
-// ———————————————————— 三期①：登录互认（迁移 042） ————————————————————
+// ———————————————————— 三期①：登录互认（迁移 039） ————————————————————
 //
 // 设计：~/workspace/federation-phase3/DESIGN.md §1（总设计 §6.3 授权码模式）。
 // 四步：成员后端登记请求（member.auth）→ 中枢会员本人同意（会员 JWT）→
@@ -1613,6 +1613,305 @@ pub fn sso_return_url_allowed(return_url: &str, peer_base_url: &str) -> bool {
     return_url.trim().starts_with(base)
 }
 
+// ———————————————————— 三期②：配置分发（迁移 043） ————————————————————
+//
+// 设计：~/workspace/federation-phase3/DESIGN.md §2（总设计 §8.3 拉模式）。
+// 中枢发布带版本配置包 → 成员凭 config.pull 拉取 → 以下行钥派生签名验签
+// + content_hash 双验 → 落本地快照 → 按 apply_mode 应用并回执。
+
+/// 配置包类型：平台公告（唯一做业务回写的类型）。
+pub const CONFIG_TYPE_ANNOUNCEMENT: &str = "announcement";
+/// 配置包应用方式：成员侧手动确认。
+pub const CONFIG_APPLY_MANUAL: i32 = 1;
+/// 配置包应用方式：拉取后自动应用。
+pub const CONFIG_APPLY_AUTO: i32 = 2;
+
+/// 回执状态：已应用。
+pub const CONFIG_ACK_APPLIED: i32 = 1;
+/// 回执状态：已拒绝。
+pub const CONFIG_ACK_DENIED: i32 = 2;
+/// 回执状态：应用失败。
+pub const CONFIG_ACK_FAILED: i32 = 3;
+
+/// 落地状态：待处理。
+pub const CONFIG_APPLY_PENDING: i32 = 0;
+/// 落地状态：已应用。
+pub const CONFIG_APPLY_APPLIED: i32 = 1;
+/// 落地状态：已拒绝。
+pub const CONFIG_APPLY_DENIED: i32 = 2;
+/// 落地状态：失败。
+pub const CONFIG_APPLY_FAILED: i32 = 3;
+
+/// 单次拉取下发包数上限。
+pub const CONFIG_PULL_LIMIT: i64 = 50;
+
+pub const MSG_CONFIG_PACKAGE_INVALID: &str = "联邦配置包无效或验签失败";
+pub const MSG_CONFIG_TYPE_UNKNOWN: &str = "未知配置包类型";
+
+/// `hub_config_package` 行（中枢侧配置包）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubConfigPackage {
+    pub id: i32,
+    pub package_type: String,
+    pub title: String,
+    pub version: i32,
+    pub payload: String,
+    pub content_hash: String,
+    pub apply_mode: i16,
+    pub effective_from: i32,
+    pub effective_to: i32,
+    pub status: i16,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// `hub_config_ack` 行（中枢侧回执）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubConfigAck {
+    pub id: i32,
+    pub link_id: i32,
+    pub package_id: i32,
+    pub version: i32,
+    pub ack_status: i16,
+    pub message: String,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// `hub_config_apply` 行（成员侧落地）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubConfigApply {
+    pub id: i32,
+    pub link_id: i32,
+    pub package_id: i32,
+    pub version: i32,
+    pub package_type: String,
+    pub title: String,
+    pub payload: String,
+    pub content_hash: String,
+    pub apply_mode: i16,
+    pub apply_status: i16,
+    pub apply_message: String,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// 联邦面：单个配置包的线上形态（payload 为规范化 JSON 文本原样下发，
+/// 成员以原文验 content_hash，避免重序列化漂移）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigPackageWireVO {
+    pub package_id: i32,
+    pub package_type: String,
+    pub title: String,
+    pub version: i32,
+    pub payload: String,
+    pub content_hash: String,
+    pub apply_mode: i32,
+    pub effective_from: i32,
+    pub effective_to: i32,
+    /// 下行钥派生签名：HMAC-SHA256(key=SHA256(下行 secret), "{packageId}.{version}.{contentHash}")。
+    pub signature: String,
+}
+
+/// `GET /api/hub/v1/config/packages` 响应。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigPackagesVO {
+    pub packages: Vec<ConfigPackageWireVO>,
+    /// 中枢当前最大版本号（成员据此推进本地水位）。
+    pub latest_version: i32,
+}
+
+/// `POST /api/hub/v1/config/ack` 入参（成员 → 中枢）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ConfigAckDTO {
+    pub package_id: i32,
+    pub version: i32,
+    /// 1 已应用 / 2 已拒绝 / 3 应用失败。
+    pub status: i32,
+    pub message: String,
+}
+
+/// 管理端（中枢）：发布配置包入参。payload 为任意 JSON，落库时规范化为文本。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ConfigPublishDTO {
+    pub package_type: String,
+    pub title: String,
+    pub payload: serde_json::Value,
+    pub apply_mode: Option<i32>,
+    pub effective_from: Option<i32>,
+    pub effective_to: Option<i32>,
+}
+
+/// 管理端：配置包列表查询。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HubConfigListQuery {
+    pub page: Option<u64>,
+    #[serde(alias = "size")]
+    pub page_size: Option<u64>,
+    pub package_type: Option<String>,
+    pub status: Option<i32>,
+}
+
+/// 管理端：配置包 VO（带回执覆盖统计）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubConfigPackageVO {
+    pub id: i32,
+    pub package_type: String,
+    pub title: String,
+    pub version: i32,
+    pub payload: String,
+    pub content_hash: String,
+    pub apply_mode: i32,
+    pub effective_from: i32,
+    pub effective_to: i32,
+    pub status: i32,
+    /// 已回执连接数 / 其中已应用数（覆盖率展示）。
+    pub ack_count: i64,
+    pub applied_count: i64,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+impl From<&HubConfigPackage> for HubConfigPackageVO {
+    fn from(r: &HubConfigPackage) -> Self {
+        Self {
+            id: r.id,
+            package_type: r.package_type.clone(),
+            title: r.title.clone(),
+            version: r.version,
+            payload: r.payload.clone(),
+            content_hash: r.content_hash.clone(),
+            apply_mode: i32::from(r.apply_mode),
+            effective_from: r.effective_from,
+            effective_to: r.effective_to,
+            status: i32::from(r.status),
+            ack_count: 0,
+            applied_count: 0,
+            add_time: r.add_time,
+            update_time: r.update_time,
+        }
+    }
+}
+
+/// 管理端：回执列表查询。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HubConfigAckListQuery {
+    pub page: Option<u64>,
+    #[serde(alias = "size")]
+    pub page_size: Option<u64>,
+    pub package_id: Option<i32>,
+    pub link_id: Option<i32>,
+}
+
+/// 管理端：回执 VO。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubConfigAckVO {
+    pub id: i32,
+    pub link_id: i32,
+    pub peer_name: String,
+    pub package_id: i32,
+    pub version: i32,
+    pub ack_status: i32,
+    pub message: String,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+impl From<&HubConfigAck> for HubConfigAckVO {
+    fn from(r: &HubConfigAck) -> Self {
+        Self {
+            id: r.id,
+            link_id: r.link_id,
+            peer_name: String::new(),
+            package_id: r.package_id,
+            version: r.version,
+            ack_status: i32::from(r.ack_status),
+            message: r.message.clone(),
+            add_time: r.add_time,
+            update_time: r.update_time,
+        }
+    }
+}
+
+/// 管理端（成员）：落地列表查询。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HubConfigApplyListQuery {
+    pub page: Option<u64>,
+    #[serde(alias = "size")]
+    pub page_size: Option<u64>,
+    pub link_id: Option<i32>,
+    pub apply_status: Option<i32>,
+}
+
+/// 管理端（成员）：落地 VO。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubConfigApplyVO {
+    pub id: i32,
+    pub link_id: i32,
+    pub package_id: i32,
+    pub version: i32,
+    pub package_type: String,
+    pub title: String,
+    pub payload: String,
+    pub apply_mode: i32,
+    pub apply_status: i32,
+    pub apply_message: String,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+impl From<&HubConfigApply> for HubConfigApplyVO {
+    fn from(r: &HubConfigApply) -> Self {
+        Self {
+            id: r.id,
+            link_id: r.link_id,
+            package_id: r.package_id,
+            version: r.version,
+            package_type: r.package_type.clone(),
+            title: r.title.clone(),
+            payload: r.payload.clone(),
+            apply_mode: i32::from(r.apply_mode),
+            apply_status: i32::from(r.apply_status),
+            apply_message: r.apply_message.clone(),
+            add_time: r.add_time,
+            update_time: r.update_time,
+        }
+    }
+}
+
+/// 管理端（成员）：手动包确认/拒绝入参。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ConfigDecideDTO {
+    pub apply_id: i32,
+    pub agree: bool,
+}
+
+/// 纯逻辑：配置包类型白名单。
+#[must_use]
+pub fn config_package_type_valid(package_type: &str) -> bool {
+    matches!(package_type, "announcement" | "activity" | "channel" | "custom")
+}
+
+/// 纯逻辑：包在给定时刻是否处于生效窗口（status 与窗口由调用方另行判断状态位）。
+#[must_use]
+pub fn config_package_in_window(effective_from: i32, effective_to: i32, now: i32) -> bool {
+    (effective_from == 0 || effective_from <= now) && (effective_to == 0 || effective_to >= now)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1816,6 +2115,17 @@ mod member_order_tests {
         ));
         assert!(!sso_return_url_allowed("", "https://shop.example.com"));
         assert!(!sso_return_url_allowed("https://shop.example.com/cb", ""));
+    }
+
+    #[test]
+    fn config_package_window_and_type_rules() {
+        assert!(config_package_in_window(0, 0, 100));
+        assert!(config_package_in_window(50, 150, 100));
+        assert!(!config_package_in_window(101, 0, 100));
+        assert!(!config_package_in_window(0, 99, 100));
+        assert!(config_package_type_valid("announcement"));
+        assert!(config_package_type_valid("custom"));
+        assert!(!config_package_type_valid("script"));
     }
 
     #[test]

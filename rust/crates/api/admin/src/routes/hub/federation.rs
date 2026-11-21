@@ -37,7 +37,14 @@
 //! | `GET`  | `/hub/orders/list` | 订单上行汇总分页（二期，订单模块闸） |
 //! | `POST` | `/hub/myLinks/syncMembers` | 成员侧手动同步会员（二期） |
 //! | `POST` | `/hub/myLinks/reportOrders` | 成员侧手动上报订单（二期） |
-//! | `GET`  | `/hub/sso/requests` | 登录互认授权审计（三期①，迁移 042，会员模块闸） |
+//! | `GET`  | `/hub/sso/requests` | 登录互认授权审计（三期①，迁移 039，会员模块闸） |
+//! | `GET`  | `/hub/config/packages` | 配置包列表（三期②，迁移 043） |
+//! | `POST` | `/hub/config/publish` | 发布配置包（三期②） |
+//! | `POST` | `/hub/config/revoke` | 撤销配置包（三期②） |
+//! | `GET`  | `/hub/config/acks` | 配置回执列表（三期②） |
+//! | `GET`  | `/hub/config/applies` | 本机配置落地列表（三期②，成员侧） |
+//! | `POST` | `/hub/config/decide` | 手动包确认/拒绝（三期②，成员侧） |
+//! | `POST` | `/hub/myLinks/pullConfig` | 按连接拉取配置（三期②，成员侧） |
 
 use axum::{
     extract::{Query, State},
@@ -53,6 +60,8 @@ use nextrade_core::models::hub::federation::{
     HubCredentialVO, HubIdDTO, HubLinkApproveDTO, HubLinkListQuery, HubLinkRejectDTO,
     HubLinkVO, HubMemberConflictListQuery, HubMemberConflictVO, HubMemberLinkVO,
     HubMemberListQuery, HubMemberResolveDTO, HubOrderSummaryListQuery, HubOrderSummaryVO,
+    ConfigDecideDTO, ConfigPublishDTO, HubConfigAckListQuery, HubConfigAckVO,
+    HubConfigApplyListQuery, HubConfigApplyVO, HubConfigListQuery, HubConfigPackageVO,
     HubPairInitiateDTO, HubPairingCodeVO, HubPairingCreateDTO, HubPriceOverrideSaveDTO,
     HubSsoListQuery, HubSsoRequestVO,
 };
@@ -62,7 +71,7 @@ use nextrade_security::web::{ok, ApiResult};
 use crate::AdminState;
 
 /// 本域路由（去掉 `/adminapi` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 32] = [
+const ROUTE_TABLE: [(&str, &str, &str); 39] = [
     ("GET", "/hub/overview", "HubController.overview"),
     ("GET", "/hub/credentials/list", "HubController.credentialList"),
     ("GET", "/hub/credentials/detail", "HubController.credentialDetail"),
@@ -95,6 +104,13 @@ const ROUTE_TABLE: [(&str, &str, &str); 32] = [
     ("POST", "/hub/myLinks/syncMembers", "HubController.myLinkSyncMembers"),
     ("POST", "/hub/myLinks/reportOrders", "HubController.myLinkReportOrders"),
     ("GET", "/hub/sso/requests", "HubController.ssoRequests"),
+    ("GET", "/hub/config/packages", "HubController.configPackages"),
+    ("POST", "/hub/config/publish", "HubController.configPublish"),
+    ("POST", "/hub/config/revoke", "HubController.configRevoke"),
+    ("GET", "/hub/config/acks", "HubController.configAcks"),
+    ("GET", "/hub/config/applies", "HubController.configApplies"),
+    ("POST", "/hub/config/decide", "HubController.configDecide"),
+    ("POST", "/hub/myLinks/pullConfig", "HubController.myLinkPullConfig"),
 ];
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {
@@ -130,6 +146,13 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/hub/members/resolveConflict", post(member_resolve_conflict))
         .route("/hub/orders/list", get(order_summary_list))
         .route("/hub/sso/requests", get(sso_requests))
+        .route("/hub/config/packages", get(config_packages))
+        .route("/hub/config/publish", post(config_publish))
+        .route("/hub/config/revoke", post(config_revoke))
+        .route("/hub/config/acks", get(config_acks))
+        .route("/hub/config/applies", get(config_applies))
+        .route("/hub/config/decide", post(config_decide))
+        .route("/hub/myLinks/pullConfig", post(my_link_pull_config))
         .route("/hub/myLinks/syncMembers", post(my_link_sync_members))
         .route("/hub/myLinks/reportOrders", post(my_link_report_orders))
 }
@@ -404,6 +427,64 @@ async fn sso_requests(
     Query(q): Query<HubSsoListQuery>,
 ) -> ApiResult<PageResult<HubSsoRequestVO>> {
     ok(state.hub.federation.list_sso_requests(&q).await?)
+}
+
+/// 三期②：配置包列表（中枢）。
+async fn config_packages(
+    State(state): State<AdminState>,
+    Query(q): Query<HubConfigListQuery>,
+) -> ApiResult<PageResult<HubConfigPackageVO>> {
+    ok(state.hub.federation.list_config_packages(&q).await?)
+}
+
+/// 三期②：发布配置包（中枢）。
+async fn config_publish(
+    State(state): State<AdminState>,
+    Json(dto): Json<ConfigPublishDTO>,
+) -> ApiResult<HubConfigPackageVO> {
+    ok(state.hub.federation.publish_config_package(&dto).await?)
+}
+
+/// 三期②：撤销配置包（中枢）。
+async fn config_revoke(
+    State(state): State<AdminState>,
+    Json(dto): Json<HubIdDTO>,
+) -> ApiResult<&'static str> {
+    state.hub.federation.revoke_config_package(dto.id).await?;
+    ok("已撤销")
+}
+
+/// 三期②：配置回执列表（中枢）。
+async fn config_acks(
+    State(state): State<AdminState>,
+    Query(q): Query<HubConfigAckListQuery>,
+) -> ApiResult<PageResult<HubConfigAckVO>> {
+    ok(state.hub.federation.list_config_acks(&q).await?)
+}
+
+/// 三期②：本机配置落地列表（成员）。
+async fn config_applies(
+    State(state): State<AdminState>,
+    Query(q): Query<HubConfigApplyListQuery>,
+) -> ApiResult<PageResult<HubConfigApplyVO>> {
+    ok(state.hub.federation.list_config_applies(&q).await?)
+}
+
+/// 三期②：手动包确认/拒绝（成员）。
+async fn config_decide(
+    State(state): State<AdminState>,
+    Json(dto): Json<ConfigDecideDTO>,
+) -> ApiResult<&'static str> {
+    state.hub.federation.decide_config_apply(&dto).await?;
+    ok("已处理")
+}
+
+/// 三期②：按连接拉取配置（成员）。
+async fn my_link_pull_config(
+    State(state): State<AdminState>,
+    Json(dto): Json<HubIdDTO>,
+) -> ApiResult<Value> {
+    ok(state.hub.federation.pull_config(dto.id).await?)
 }
 
 async fn my_link_sync_members(

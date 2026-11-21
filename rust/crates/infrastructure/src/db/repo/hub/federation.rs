@@ -12,11 +12,12 @@
 use sqlx::{PgPool, Postgres, QueryBuilder};
 
 use nextrade_core::models::hub::federation::{
-    HubAggregationListQuery, HubCallLogListQuery, HubCredential, HubCredentialListQuery,
-    HubLink, HubLinkListQuery, HubMemberConflict, HubMemberConflictListQuery, HubMemberLink,
-    HubMemberListQuery, HubMemberMap, HubOrderSummary, HubOrderSummaryListQuery, HubPairingCode,
-    HubPriceOverride, HubProductMap, HubSsoListQuery, HubSsoRequest, HubSsoState, LocalMemberRow,
-    LocalOrderRow, OrderReportItem,
+    HubAggregationListQuery, HubCallLogListQuery, HubConfigAck, HubConfigAckListQuery,
+    HubConfigApply, HubConfigApplyListQuery, HubConfigListQuery, HubConfigPackage, HubCredential,
+    HubCredentialListQuery, HubLink, HubLinkListQuery, HubMemberConflict,
+    HubMemberConflictListQuery, HubMemberLink, HubMemberListQuery, HubMemberMap, HubOrderSummary,
+    HubOrderSummaryListQuery, HubPairingCode, HubPriceOverride, HubProductMap, HubSsoListQuery,
+    HubSsoRequest, HubSsoState, LocalMemberRow, LocalOrderRow, OrderReportItem,
 };
 use nextrade_core::{Error, Result};
 
@@ -1563,7 +1564,7 @@ impl HubFederationRepository {
 }
 
 impl HubFederationRepository {
-    // ———————————————————— 三期①：登录互认（迁移 042） ————————————————————
+    // ———————————————————— 三期①：登录互认（迁移 039） ————————————————————
 
     /// 中枢侧落一条授权请求（待同意）。
     pub async fn insert_sso_request(
@@ -1743,6 +1744,382 @@ impl HubFederationRepository {
         .await
         .map_err(map_err)?;
         Ok(())
+    }
+}
+
+impl HubFederationRepository {
+    // ———————————————————— 三期②：配置分发（迁移 043） ————————————————————
+
+    /// 当前最大版本号（发布取号与拉取水位）。
+    pub async fn max_config_version(&self) -> Result<i32> {
+        let row: (i32,) =
+            sqlx::query_as("SELECT COALESCE(MAX(version), 0) FROM hub_config_package")
+                .fetch_one(&self.pool)
+                .await
+                .map_err(map_err)?;
+        Ok(row.0)
+    }
+
+    /// 发布落包（version 由服务层取 max+1 传入，UNIQUE(version) 兜底防撞）。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_config_package(
+        &self,
+        package_type: &str,
+        title: &str,
+        version: i32,
+        payload: &str,
+        content_hash: &str,
+        apply_mode: i32,
+        effective_from: i32,
+        effective_to: i32,
+        now: i32,
+    ) -> Result<i32> {
+        let row: (i32,) = sqlx::query_as(
+            "INSERT INTO hub_config_package (package_type, title, version, payload, content_hash, apply_mode, effective_from, effective_to, status, add_time, update_time)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, $9, $9) RETURNING id",
+        )
+        .bind(package_type)
+        .bind(title)
+        .bind(version)
+        .bind(payload)
+        .bind(content_hash)
+        .bind(apply_mode as i16)
+        .bind(effective_from)
+        .bind(effective_to)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0)
+    }
+
+    pub async fn find_config_package(&self, id: i32) -> Result<Option<HubConfigPackage>> {
+        sqlx::query_as::<_, HubConfigPackage>("SELECT * FROM hub_config_package WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    /// 撤销包（仅生效中可撤）。
+    pub async fn revoke_config_package(&self, id: i32, now: i32) -> Result<bool> {
+        let n = sqlx::query(
+            "UPDATE hub_config_package SET status = 0, update_time = $2 WHERE id = $1 AND status = 1",
+        )
+        .bind(id)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(n.rows_affected() > 0)
+    }
+
+    /// 成员拉取：version 大于水位、生效中、窗口内的包（按 version 升序）。
+    pub async fn list_effective_config_packages(
+        &self,
+        since_version: i32,
+        now: i32,
+        limit: i64,
+    ) -> Result<Vec<HubConfigPackage>> {
+        sqlx::query_as::<_, HubConfigPackage>(
+            "SELECT * FROM hub_config_package WHERE status = 1 AND version > $1 AND (effective_from = 0 OR effective_from <= $2) AND (effective_to = 0 OR effective_to >= $2) ORDER BY version ASC LIMIT $3",
+        )
+        .bind(since_version)
+        .bind(now)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 心跳点亮判定：该连接是否存在「版本高于其最大已回执版本」的生效包。
+    pub async fn has_unacked_config_package(&self, link_id: i32, now: i32) -> Result<bool> {
+        let row: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM hub_config_package p WHERE p.status = 1 AND (p.effective_from = 0 OR p.effective_from <= $2) AND (p.effective_to = 0 OR p.effective_to >= $2) AND p.version > COALESCE((SELECT MAX(a.version) FROM hub_config_ack a WHERE a.link_id = $1), 0)",
+        )
+        .bind(link_id)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0 > 0)
+    }
+
+    /// 回执 upsert（一连接一包一行，后报覆盖先报）。
+    pub async fn upsert_config_ack(
+        &self,
+        link_id: i32,
+        package_id: i32,
+        version: i32,
+        ack_status: i32,
+        message: &str,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO hub_config_ack (link_id, package_id, version, ack_status, message, add_time, update_time)
+             VALUES ($1, $2, $3, $4, $5, $6, $6)
+             ON CONFLICT (link_id, package_id) DO UPDATE SET version = EXCLUDED.version, ack_status = EXCLUDED.ack_status, message = EXCLUDED.message, update_time = EXCLUDED.update_time",
+        )
+        .bind(link_id)
+        .bind(package_id)
+        .bind(version)
+        .bind(ack_status as i16)
+        .bind(message)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 包的回执覆盖统计：(回执连接数, 已应用数)。
+    pub async fn config_ack_counts(&self, package_id: i32) -> Result<(i64, i64)> {
+        let row: (i64, i64) = sqlx::query_as(
+            "SELECT COUNT(*), COALESCE(SUM(CASE WHEN ack_status = 1 THEN 1 ELSE 0 END), 0) FROM hub_config_ack WHERE package_id = $1",
+        )
+        .bind(package_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok((row.0.max(0), row.1.max(0)))
+    }
+
+    pub async fn list_config_packages(
+        &self,
+        q: &HubConfigListQuery,
+    ) -> Result<(Vec<HubConfigPackage>, i64)> {
+        let page = q.page.unwrap_or(1).max(1);
+        let size = q.page_size.unwrap_or(20).clamp(1, 100);
+        let offset = ((page - 1) * size) as i64;
+        let total: (i64,) = config_count_query(q)
+            .build_query_as()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+        let rows = config_page_query(q, size as i64, offset)
+            .build_query_as::<HubConfigPackage>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((rows, total.0.max(0)))
+    }
+
+    pub async fn list_config_acks(
+        &self,
+        q: &HubConfigAckListQuery,
+    ) -> Result<(Vec<HubConfigAck>, i64)> {
+        let page = q.page.unwrap_or(1).max(1);
+        let size = q.page_size.unwrap_or(20).clamp(1, 100);
+        let offset = ((page - 1) * size) as i64;
+        let total: (i64,) = config_ack_count_query(q)
+            .build_query_as()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+        let rows = config_ack_page_query(q, size as i64, offset)
+            .build_query_as::<HubConfigAck>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((rows, total.0.max(0)))
+    }
+
+    /// 成员侧落地 upsert：新包落待处理；已存在的包只刷新快照字段，
+    /// 应用状态不回退（已应用/已拒绝的包重拉不复活）。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn upsert_config_apply(
+        &self,
+        link_id: i32,
+        package_id: i32,
+        version: i32,
+        package_type: &str,
+        title: &str,
+        payload: &str,
+        content_hash: &str,
+        apply_mode: i32,
+        now: i32,
+    ) -> Result<HubConfigApply> {
+        sqlx::query_as::<_, HubConfigApply>(
+            "INSERT INTO hub_config_apply (link_id, package_id, version, package_type, title, payload, content_hash, apply_mode, apply_status, apply_message, add_time, update_time)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, '', $9, $9)
+             ON CONFLICT (link_id, package_id) DO UPDATE SET version = EXCLUDED.version, package_type = EXCLUDED.package_type, title = EXCLUDED.title, payload = EXCLUDED.payload, content_hash = EXCLUDED.content_hash, apply_mode = EXCLUDED.apply_mode, update_time = EXCLUDED.update_time
+             RETURNING *",
+        )
+        .bind(link_id)
+        .bind(package_id)
+        .bind(version)
+        .bind(package_type)
+        .bind(title)
+        .bind(payload)
+        .bind(content_hash)
+        .bind(apply_mode as i16)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn find_config_apply(&self, id: i32) -> Result<Option<HubConfigApply>> {
+        sqlx::query_as::<_, HubConfigApply>("SELECT * FROM hub_config_apply WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    /// 落地状态流转（仅待处理可流转，防重复确认）。
+    pub async fn set_config_apply_status(
+        &self,
+        id: i32,
+        status: i32,
+        message: &str,
+        now: i32,
+    ) -> Result<bool> {
+        let n = sqlx::query(
+            "UPDATE hub_config_apply SET apply_status = $2, apply_message = $3, update_time = $4 WHERE id = $1 AND apply_status = 0",
+        )
+        .bind(id)
+        .bind(status as i16)
+        .bind(message)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(n.rows_affected() > 0)
+    }
+
+    /// 本机对某连接的落地最大版本（拉取水位）。
+    pub async fn max_apply_version(&self, link_id: i32) -> Result<i32> {
+        let row: (i32,) = sqlx::query_as(
+            "SELECT COALESCE(MAX(version), 0) FROM hub_config_apply WHERE link_id = $1",
+        )
+        .bind(link_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0)
+    }
+
+    pub async fn list_config_applies(
+        &self,
+        q: &HubConfigApplyListQuery,
+    ) -> Result<(Vec<HubConfigApply>, i64)> {
+        let page = q.page.unwrap_or(1).max(1);
+        let size = q.page_size.unwrap_or(20).clamp(1, 100);
+        let offset = ((page - 1) * size) as i64;
+        let total: (i64,) = config_apply_count_query(q)
+            .build_query_as()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+        let rows = config_apply_page_query(q, size as i64, offset)
+            .build_query_as::<HubConfigApply>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((rows, total.0.max(0)))
+    }
+}
+
+fn config_count_query(q: &HubConfigListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_config_package WHERE 1=1");
+    push_config_filters(&mut qb, q);
+    qb
+}
+
+fn config_page_query(
+    q: &HubConfigListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_config_package WHERE 1=1");
+    push_config_filters(&mut qb, q);
+    qb.push(" ORDER BY version DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
+fn push_config_filters(qb: &mut QueryBuilder<'static, Postgres>, q: &HubConfigListQuery) {
+    if let Some(t) = q.package_type.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        qb.push(" AND package_type = ");
+        qb.push_bind(t.to_string());
+    }
+    if let Some(status) = q.status {
+        qb.push(" AND status = ");
+        qb.push_bind(status as i16);
+    }
+}
+
+fn config_ack_count_query(q: &HubConfigAckListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_config_ack WHERE 1=1");
+    push_config_ack_filters(&mut qb, q);
+    qb
+}
+
+fn config_ack_page_query(
+    q: &HubConfigAckListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_config_ack WHERE 1=1");
+    push_config_ack_filters(&mut qb, q);
+    qb.push(" ORDER BY id DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
+fn push_config_ack_filters(qb: &mut QueryBuilder<'static, Postgres>, q: &HubConfigAckListQuery) {
+    if let Some(package_id) = q.package_id.filter(|v| *v > 0) {
+        qb.push(" AND package_id = ");
+        qb.push_bind(package_id);
+    }
+    if let Some(link_id) = q.link_id.filter(|v| *v > 0) {
+        qb.push(" AND link_id = ");
+        qb.push_bind(link_id);
+    }
+}
+
+fn config_apply_count_query(q: &HubConfigApplyListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_config_apply WHERE 1=1");
+    push_config_apply_filters(&mut qb, q);
+    qb
+}
+
+fn config_apply_page_query(
+    q: &HubConfigApplyListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_config_apply WHERE 1=1");
+    push_config_apply_filters(&mut qb, q);
+    qb.push(" ORDER BY version DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
+fn push_config_apply_filters(
+    qb: &mut QueryBuilder<'static, Postgres>,
+    q: &HubConfigApplyListQuery,
+) {
+    if let Some(link_id) = q.link_id.filter(|v| *v > 0) {
+        qb.push(" AND link_id = ");
+        qb.push_bind(link_id);
+    }
+    if let Some(status) = q.apply_status {
+        qb.push(" AND apply_status = ");
+        qb.push_bind(status as i16);
     }
 }
 
@@ -2284,6 +2661,31 @@ mod list_sql_tests {
         let q = HubOrderSummaryListQuery::default();
         assert_placeholders(order_count_query(&q).sql(), 0);
         assert_placeholders(order_page_query(&q, 20, 0).sql(), 2);
+    }
+
+    #[test]
+    fn config_list_filters() {
+        let q = HubConfigListQuery {
+            package_type: Some("announcement".into()),
+            status: Some(1),
+            ..Default::default()
+        };
+        assert_placeholders(config_count_query(&q).sql(), 2);
+        assert_placeholders(config_page_query(&q, 20, 0).sql(), 4);
+        let q = HubConfigAckListQuery {
+            package_id: Some(3),
+            link_id: Some(2),
+            ..Default::default()
+        };
+        assert_placeholders(config_ack_count_query(&q).sql(), 2);
+        assert_placeholders(config_ack_page_query(&q, 20, 0).sql(), 4);
+        let q = HubConfigApplyListQuery {
+            link_id: Some(2),
+            apply_status: Some(0),
+            ..Default::default()
+        };
+        assert_placeholders(config_apply_count_query(&q).sql(), 2);
+        assert_placeholders(config_apply_page_query(&q, 20, 0).sql(), 4);
     }
 
     #[test]

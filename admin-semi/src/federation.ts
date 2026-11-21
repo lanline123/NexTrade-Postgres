@@ -130,7 +130,7 @@ export function filterNavGroupsByFederation(groups: NavGroup[], settings: Federa
   const shouldRemove = (key: string): boolean => {
     if (!settings.enabled) return true;
     if (key === 'hubCredentials') return removeCredentials;
-    if (key === 'hubLinks' || key === 'hubPairing' || key === 'myLinks') return removeFederation;
+    if (key === 'hubLinks' || key === 'hubPairing' || key === 'myLinks' || key === 'hubConfig') return removeFederation;
     if (key === 'hubAggregation' || key === 'feedKeyManage') return removeProduct;
     if (key === 'hubMembers') return removeMember;
     if (key === 'hubOrders') return removeOrder;
