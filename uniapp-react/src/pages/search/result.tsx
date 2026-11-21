@@ -476,6 +476,12 @@ export default function SearchResult() {
                     patchFilter({ onlyGiftCardProduct: 1 });
                     setNavbarTitle(t("礼品卡"));
                 }
+                // 就近门店群（帖 377858）：类目导航/金刚区链接带 nearbyStore=1 时，
+                // 商品流只显示最近门店有售商品；定位由 getProductRequestParams 合并带入，
+                // 无定位时后端自动降级为全部商品
+                if (String(option.nearbyStore ?? "") === "1") {
+                    patchFilter({ nearbyStore: 1 });
+                }
                 if (option.shopCategoryId) {
                     patchFilter({ shopCategoryId: option.shopCategoryId });
                 }

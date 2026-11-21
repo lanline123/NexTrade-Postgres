@@ -41,9 +41,9 @@ use nextrade_core::models::content::decorate::DecorateDiscreteVO;
 use nextrade_core::models::merchant::shop_client::{
     split_ints, ClientShopDetailVO, ClientShopListQuery, ClientShopMerchantVO, ClientShopVO,
     CollectShopResultVO, CommentReplyVO, CommentShowPicVO, CommentVO, PickupListQuery, PickupListVO,
-    ShopCommentListQuery, ShopContactConfigVO, ShopDecorateQuery, ShopIdQuery, ShopOpenCloseConfigVO,
-    ShopTimeRangeStartEndVO, ShopTimeRangeVO, StoreDetailQuery, StoreDetailVO, StoreListQuery,
-    StoreListVO,
+    NearestStoreQuery, ShopCommentListQuery, ShopContactConfigVO, ShopDecorateQuery, ShopIdQuery,
+    ShopOpenCloseConfigVO, ShopTimeRangeStartEndVO, ShopTimeRangeVO, StoreDetailQuery,
+    StoreDetailVO, StoreListQuery, StoreListVO,
 };
 use nextrade_core::types::PageResult;
 use nextrade_core::{Error, Result};
@@ -1133,6 +1133,68 @@ impl ShopClientService {
             total
         };
         Ok(PageResult::new(total, records, &page))
+    }
+
+    // ————————————————————— 7b. 最近门店 —————————————————————
+
+    /// `GET /api/shop/shop/nearestStore`：按用户坐标解析最近门店
+    /// （就近门店群帖 567745「直接定位最近门店」）。
+    ///
+    /// 我方新增端点：原版无独立端点（原版靠 `storeList` 距离序首行
+    /// 拿最近门店），本端点把该判定收口到数据层，供分类/搜索/金刚区
+    /// 等入口直接消费。口径与 `store_list` 经纬度变体一致：门店类型/
+    /// 状态/地区处理相同，排序距离用 SQL 球面余弦、展示距离再以
+    /// `GpsDistanceUtil` 口径覆盖。无有效坐标（不成对/零点）或无任何
+    /// 带坐标门店时返回 `None`，前端据此降级为不就近（不报错）。
+    pub async fn nearest_store(
+        &self,
+        q: &NearestStoreQuery,
+        user_id: i32,
+    ) -> Result<Option<StoreListVO>> {
+        let Some((lng, lat)) = valid_location(q.longitude, q.latitude) else {
+            return Ok(None);
+        };
+        // 地区口径与 store_list 一致：配置要求展示外市门店时清空 regionId，
+        // 随后 storeRegionId 仍会覆盖它
+        let ignore_region = self.store_show_other_city().await?;
+        let mut region_id = if ignore_region {
+            None
+        } else {
+            q.region_id.clone()
+        };
+        if let Some(store_region) = q.store_region_id.clone() {
+            region_id = Some(store_region);
+        }
+        let region_id = region_id.filter(|s| !s.is_empty());
+
+        let Some(row) = self
+            .repo()
+            .find_nearest_store(lng, lat, region_id.as_deref())
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let mut vo = store_row_to_vo(&row);
+        // 展示距离以 GpsDistanceUtil 口径覆盖（与 store_list 一致）
+        let distances = self
+            .repo()
+            .gps_distances_for_shops(lng, lat, &[row.shop_id])
+            .await?;
+        if let Some(d) = distances.get(&row.shop_id) {
+            vo.distance = Some(*d);
+        }
+        vo.contact_configs = parse_contact_configs(vo.contact_json.as_deref());
+        vo.shop_open_close_config = parse_open_close_config(vo.open_close_json.as_deref());
+        if let Some(star) = vo.shop_star {
+            vo.shop_star = Some(round_half_up_1(star));
+        }
+        // 收藏数（去重 user_id）与当前用户是否已收藏（与 store_list 同口径）
+        let collects = self.repo().find_collects_by_shops(&[row.shop_id]).await?;
+        let distinct_users: HashSet<i32> = collects.iter().map(|c| c.user_id).collect();
+        vo.shop_collect = Some(i64::try_from(distinct_users.len()).unwrap_or(0));
+        vo.collect_shop = Some(user_id != 0 && distinct_users.contains(&user_id));
+        Ok(Some(vo))
     }
 
     // ————————————————————— 8. 门店详情 —————————————————————

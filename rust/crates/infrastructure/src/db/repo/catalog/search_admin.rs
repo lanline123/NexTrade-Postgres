@@ -33,6 +33,9 @@ pub struct ProductSearchFilter {
     pub min_price: Option<Decimal>,
     pub max_price: Option<Decimal>,
     pub shop_id: Option<i32>,
+    /// 就近门店过滤已解析出的最近门店 ID（服务层由经纬度解析，
+    /// 就近门店群帖 377858）；`None` = 不启用就近过滤。
+    pub nearby_shop_id: Option<i32>,
     pub shop_category_id: Option<i32>,
     /// 活动类型：`new` / `hot` / `best`
     pub intro: Option<String>,
@@ -293,6 +296,18 @@ fn push_filters(qb: &mut QueryBuilder<'_, Postgres>, f: &ProductSearchFilter) {
     if let Some(shop_id) = f.shop_id.filter(|v| *v > 0) {
         qb.push(" AND shop_id = ").push_bind(shop_id);
     }
+    if let Some(nearby_shop_id) = f.nearby_shop_id.filter(|v| *v > 0) {
+        // 就近门店有售：门店自有商品，或经 `store_product` 分配到该
+        // 门店且分配行在售的商品（`store_product.shop_id` 为 int8）
+        qb.push(" AND (shop_id = ")
+            .push_bind(nearby_shop_id)
+            .push(
+                " OR EXISTS (SELECT 1 FROM store_product sp \
+                 WHERE sp.product_id = product.product_id AND sp.shop_id = ",
+            )
+            .push_bind(i64::from(nearby_shop_id))
+            .push(" AND sp.product_status = 1 AND sp.is_delete = 0))");
+    }
     if let Some(shop_category_id) = f.shop_category_id.filter(|v| *v > 0) {
         qb.push(" AND shop_category_id = ")
             .push_bind(shop_category_id);
@@ -407,6 +422,20 @@ mod tests {
         let sql = build_sql(&ProductSearchFilter::default());
         assert_eq!(sql.matches('$').count(), 0);
         assert!(sql.contains("WHERE is_delete = 0"));
+    }
+
+    #[test]
+    fn nearby_shop_filter_uses_store_product_exists() {
+        let f = ProductSearchFilter {
+            nearby_shop_id: Some(9),
+            ..Default::default()
+        };
+        let sql = build_sql(&f);
+        assert!(sql.contains("EXISTS (SELECT 1 FROM store_product sp"));
+        assert!(sql.contains("sp.product_status = 1 AND sp.is_delete = 0"));
+        // shop_id（i32）+ store_product.shop_id（i64）两个绑定，均走参数
+        assert_eq!(sql.matches('$').count(), 2);
+        assert!(!sql.contains("= 9"), "门店 ID 必须走绑定参数");
     }
 
     #[test]

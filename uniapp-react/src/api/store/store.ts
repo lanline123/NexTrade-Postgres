@@ -1,6 +1,6 @@
-import type { StoreListParams, StoreDetailParams, PickupInfoParams } from "@/types/store/store";
+import type { StoreListParams, StoreDetailParams, PickupInfoParams, NearestStoreParams } from "@/types/store/store";
 import request from "@/utils/request";
-import type { StoreListResponse, StoreDetailResponse, PickupInfoResponse } from "@/types/store/store";
+import type { StoreListResponse, StoreDetailResponse, PickupInfoResponse, NearestStoreResponse } from "@/types/store/store";
 
 /**
  * @description 获取门店列表
@@ -10,6 +10,19 @@ import type { StoreListResponse, StoreDetailResponse, PickupInfoResponse } from 
 export const getStoreList = (params: StoreListParams) => {
     return request<StoreListResponse>({
         url: "shop/shop/storeList",
+        method: "get",
+        params
+    });
+};
+
+/**
+ * @description 获取最近门店（就近门店群：直接定位最近门店）
+ * @param params 经纬度（+可选地区）
+ * @returns 距离最近的门店；无定位/无带坐标门店时 data 为 null，调用方据此降级
+ */
+export const getNearestStore = (params: NearestStoreParams) => {
+    return request<NearestStoreResponse>({
+        url: "shop/shop/nearestStore",
         method: "get",
         params
     });

@@ -38,6 +38,8 @@ export interface ProductFilterParams {
     shopId?: number;
     shopCategoryId?: number;
     pageType?: string;
+    /** 就近门店过滤（我方新增）：1 = 只看最近门店有售商品（需同时有定位，经纬度由页面定位参数合并带入） */
+    nearbyStore?: number;
 }
 export interface CouponProductParams {
     page: number;

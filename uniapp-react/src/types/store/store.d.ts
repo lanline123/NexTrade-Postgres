@@ -4,6 +4,20 @@ export interface StoreListResponse {
     data: StoreListResult;
 }
 
+/** 最近门店（`shop/shop/nearestStore`，我方新增）：无定位或无带坐标门店时 data 为 null */
+export interface NearestStoreResponse {
+    code: number;
+    message: string;
+    data: StoreListRecords | null;
+}
+
+export interface NearestStoreParams {
+    longitude?: number | string;
+    latitude?: number | string;
+    regionId?: string;
+    storeRegionId?: string;
+}
+
 export interface ContactConfigs {
     type: number;
     values: string;

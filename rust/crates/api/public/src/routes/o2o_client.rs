@@ -29,7 +29,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use nextrade_openapi::RouteDoc;
 use nextrade_security::web::{ok, ApiResult, AuthUser};
-use nextrade_services::o2o::pickup_client::StockDayVO;
+use nextrade_services::o2o::pickup_client::{StockDayVO, StoreSearchParams};
 
 use crate::PublicState;
 
@@ -49,7 +49,6 @@ const ROUTE_TABLE: [(&str, &str, &str); 36] = [
     ("POST", "/o2o/deliveryOrder/confirmPickup", "DeliveryOrderController.confirmPickup"),
     ("POST", "/o2o/deliveryOrder/complete", "DeliveryOrderController.complete"),
     ("POST", "/o2o/deliveryOrder/cancel", "DeliveryOrderController.cancel"),
-    ("POST", "/o2o/deliveryOrder/removeCancelled", "DeliveryOrderController.removeCancelled"),
     ("GET", "/o2o/deliveryOrder/statistics", "DeliveryOrderController.statistics"),
     ("GET", "/o2o/deliveryOrder/myList", "DeliveryOrderController.myList"),
     ("GET", "/o2o/deliveryOrder/myListTotalCount", "DeliveryOrderController.myListTotalCount"),
@@ -61,7 +60,6 @@ const ROUTE_TABLE: [(&str, &str, &str); 36] = [
     ("POST", "/o2o/serviceStaff/apply", "ServiceStaffController.apply"),
     ("GET", "/o2o/serviceStaff/myApplies", "ServiceStaffController.myApplies"),
     ("POST", "/o2o/serviceStaff/updateWorkStatus", "ServiceStaffController.updateWorkStatus"),
-    ("POST", "/o2o/serviceStaff/reportLocation", "ServiceStaffController.reportLocation"),
     ("GET", "/o2o/staffWallet/myWallet", "StaffWalletController.myWallet"),
     ("GET", "/o2o/staffWallet/myLogs", "StaffWalletController.myLogs"),
     ("GET", "/o2o/staffWallet/withdrawConfig", "StaffWalletController.withdrawConfig"),
@@ -92,7 +90,6 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/o2o/deliveryOrder/confirmPickup", post(delivery_confirm))
         .route("/o2o/deliveryOrder/complete", post(delivery_complete))
         .route("/o2o/deliveryOrder/cancel", post(delivery_cancel))
-        .route("/o2o/deliveryOrder/removeCancelled", post(delivery_remove_cancelled))
         .route("/o2o/deliveryOrder/statistics", get(delivery_statistics))
         .route("/o2o/deliveryOrder/myList", get(delivery_my_list))
         .route("/o2o/deliveryOrder/myListTotalCount", get(delivery_total_count))
@@ -104,7 +101,6 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/o2o/serviceStaff/apply", post(staff_apply))
         .route("/o2o/serviceStaff/myApplies", get(staff_my_applies))
         .route("/o2o/serviceStaff/updateWorkStatus", post(staff_update_work_status))
-        .route("/o2o/serviceStaff/reportLocation", post(staff_report_location))
         .route("/o2o/staffWallet/myWallet", get(staff_wallet))
         .route("/o2o/staffWallet/myLogs", get(staff_wallet_logs))
         .route("/o2o/staffWallet/withdrawConfig", get(staff_withdraw_config))
@@ -465,29 +461,6 @@ async fn delivery_cancel(
     ok(())
 }
 
-/// 配送员移除已取消单（论坛 417866，我方新增）：把指派给自己的已取消
-/// 派送单从本人列表移除（隐藏标记），数据不删、后台仍可查。非本人 /
-/// 非已取消 / 已移除过 → 业务错误，不静默成功。
-async fn delivery_remove_cancelled(
-    State(state): State<PublicState>,
-    auth: Option<Extension<AuthUser>>,
-    Json(dto): Json<DeliveryAction>,
-) -> ApiResult<()> {
-    let (staff_id, _, _) = delivery_staff_of(&state, current_user_id(auth)?).await?;
-    let ok_flag = state
-        .o2o
-        .pickup_client
-        .hide_cancelled_delivery(staff_id, dto.delivery_order_id.unwrap_or(0))
-        .await?;
-    if !ok_flag {
-        return Err(nextrade_security::web::AppError(nextrade_core::Error::biz(
-            1001,
-            "仅可移除本人已取消的派送单",
-        )));
-    }
-    ok(())
-}
-
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct BuyerProgressQuery {
@@ -540,8 +513,7 @@ async fn delivery_statistics(
     let (pending, _) = state.o2o.pickup_client.delivery_list(staff_id, Some("pending"), 1, 1).await?;
     let (processing, _) = state.o2o.pickup_client.delivery_list(staff_id, Some("processing"), 1, 1).await?;
     let (completed, _) = state.o2o.pickup_client.delivery_list(staff_id, Some("completed"), 1, 1).await?;
-    let (cancelled, _) = state.o2o.pickup_client.delivery_list(staff_id, Some("cancelled"), 1, 1).await?;
-    ok(serde_json::json!({"total": total, "pending": pending, "processing": processing, "completed": completed, "cancelled": cancelled}))
+    ok(serde_json::json!({"total": total, "pending": pending, "processing": processing, "completed": completed}))
 }
 
 async fn delivery_tab_counts(
@@ -557,13 +529,6 @@ async fn delivery_tab_counts(
 #[serde(rename_all = "camelCase", default)]
 struct WorkStatusBody {
     work_status: Option<i32>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-struct ReportLocationBody {
-    longitude: Option<f64>,
-    latitude: Option<f64>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -638,32 +603,6 @@ async fn staff_update_work_status(
     if !ok_flag {
         return Err(nextrade_security::web::AppError(nextrade_core::Error::biz(1001, "当前账号未绑定服务人员")));
     }
-    ok(())
-}
-
-/// 在岗位置上报（帖 487950 完整版，我方新增）：H5 骑手模式在岗期间周期上报
-/// 当前位置，落 staff_track_point（action='report'，delivery_order_id=0）并
-/// 刷新最新位置，供后台定位总览 / 轨迹查询消费。无骑手端 App 前提下的轨迹
-/// 来源 = 动作点（grab/pickup/complete）+ 在岗周期点。坐标缺失时静默成功
-/// （定位授权失败不阻塞骑手作业，与动作打点同口径，仓储层自动跳过）。
-async fn staff_report_location(
-    State(state): State<PublicState>,
-    auth: Option<Extension<AuthUser>>,
-    Json(body): Json<ReportLocationBody>,
-) -> ApiResult<()> {
-    let uid = current_user_id(auth)?;
-    let (staff_id, _, _) = delivery_staff_of(&state, uid).await?;
-    let lng = body
-        .longitude
-        .and_then(rust_decimal::Decimal::from_f64_retain);
-    let lat = body
-        .latitude
-        .and_then(rust_decimal::Decimal::from_f64_retain);
-    state
-        .o2o
-        .pickup_client
-        .record_track_point(staff_id, 0, "report", lng, lat)
-        .await?;
     ok(())
 }
 
@@ -1004,7 +943,13 @@ async fn stock_calendar(
         .await?)
 }
 
-/// 门店商品搜索：按 shop_id 过滤上架商品（名称前缀/模糊匹配），分页。
+/// 门店商品搜索。两种模式：
+/// - 单店模式（显式传 `shopId`）：按 shop_id 过滤上架商品，分页
+///   （原行为不变）；
+/// - 门店聚合模式（带 `shopIds` 或未传 `shopId`）：按门店聚合返回
+///   （前端 `StoreSearchParams`/`StoreSearchRecord` 契约，我方新增
+///   接线，就近门店群帖 377777/567745）——带经纬度时门店按距离
+///   升序，每店含命中商品与 `matchedProductCount`。
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct StoreProductQuery {
@@ -1012,6 +957,26 @@ pub struct StoreProductQuery {
     pub keyword: Option<String>,
     pub page: Option<u64>,
     pub size: Option<u64>,
+    /// 门店分组 ID（逗号分隔，聚合模式）
+    pub group_ids: Option<String>,
+    /// 门店 ID 集合（逗号分隔，聚合模式）
+    pub shop_ids: Option<String>,
+    pub longitude: Option<rust_decimal::Decimal>,
+    pub latitude: Option<rust_decimal::Decimal>,
+    pub region_id: Option<String>,
+    /// 配送方式（逗号分隔，聚合模式）
+    pub delivery_types: Option<String>,
+    pub within_delivery_range: Option<i32>,
+}
+
+/// 逗号分隔的 ID 串 → `Vec<i32>`（非法片段忽略）。
+fn parse_csv_i32(raw: Option<&str>) -> Vec<i32> {
+    raw.map(|s| {
+        s.split(',')
+            .filter_map(|p| p.trim().parse::<i32>().ok())
+            .collect()
+    })
+    .unwrap_or_default()
 }
 
 async fn store_product(
@@ -1020,6 +985,28 @@ async fn store_product(
 ) -> ApiResult<Value> {
     let page = q.page.unwrap_or(1).max(1);
     let size = q.size.unwrap_or(10).clamp(1, 50);
+    if q.shop_ids.is_some() || q.shop_id.is_none() {
+        let params = StoreSearchParams {
+            keyword: q.keyword.clone().unwrap_or_default(),
+            longitude: q.longitude,
+            latitude: q.latitude,
+            region_id: q.region_id.clone(),
+            group_ids: parse_csv_i32(q.group_ids.as_deref()),
+            shop_ids: parse_csv_i32(q.shop_ids.as_deref()),
+            delivery_types: parse_csv_i32(q.delivery_types.as_deref()),
+            within_delivery_range: q.within_delivery_range == Some(1),
+            page,
+            size,
+        };
+        let (total, records) = state
+            .o2o
+            .pickup_client
+            .store_product_search_aggregate(&params)
+            .await?;
+        return ok(
+            serde_json::json!({ "records": records, "total": total, "page": page, "size": size }),
+        );
+    }
     let (total, rows) = state
         .o2o
         .pickup_client

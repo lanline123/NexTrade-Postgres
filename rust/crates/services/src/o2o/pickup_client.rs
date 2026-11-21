@@ -3,12 +3,33 @@
 //! b2b2b 5.8.57 移动端新增接口（无 Java 控制器对应）：自提人信息 CRUD、
 //! 门店自提模板/订单自提单读取、到店预约库存日历。
 
+use rust_decimal::Decimal;
 use serde_json::Value;
+use nextrade_core::entities::ShopLocalDeliveryConfig;
+use nextrade_core::types::PageQuery;
 use nextrade_core::Result;
+use nextrade_infrastructure::db::repo::merchant::shop_client::{StoreListFilter, StoreListRow};
+use nextrade_infrastructure::db::repo::o2o::pickup_client::StoreSearchCandidateRow;
 use nextrade_infrastructure::db::Repositories;
 pub use nextrade_infrastructure::db::repo::o2o::pickup_client::{
     OrderPickupShipmentVO, ShopPickupTplVO, StaffContext, StockDayVO, UserPickupVO,
 };
+
+/// 门店聚合搜索参数（`getStoreProduct` 门店维度模式，我方新增接线；
+/// 字段与前端 `StoreSearchParams` 契约一一对应）。
+#[derive(Debug, Clone, Default)]
+pub struct StoreSearchParams {
+    pub keyword: String,
+    pub longitude: Option<Decimal>,
+    pub latitude: Option<Decimal>,
+    pub region_id: Option<String>,
+    pub group_ids: Vec<i32>,
+    pub shop_ids: Vec<i32>,
+    pub delivery_types: Vec<i32>,
+    pub within_delivery_range: bool,
+    pub page: u64,
+    pub size: u64,
+}
 
 #[derive(Clone)]
 pub struct PickupClientService {
@@ -102,6 +123,93 @@ impl PickupClientService {
             .pickup_client
             .store_product_search(shop_id, keyword, size, offset)
             .await
+    }
+
+    /// 门店聚合搜索（`getStoreProduct` 门店维度模式，我方新增接线）：
+    /// 按门店聚合的搜索结果。候选门店复用门店列表口径
+    /// （`paginate_stores`：门店类型/状态/地区/配送方式/配送范围），
+    /// 带有效坐标时按距离升序——最近门店在前（帖 377777/567745）；
+    /// 无坐标时沿用门店列表的评星序（无定位降级，行为与改造前
+    /// 一致）。每店商品 = 关键词命中（最新序，最多 10）在前 + 未命中
+    /// 按有效价升序补齐，命中总数以 `matchedProductCount` 返回。
+    /// 候选商品含门店自有商品与 `store_product` 分配商品。
+    pub async fn store_product_search_aggregate(
+        &self,
+        params: &StoreSearchParams,
+    ) -> Result<(i64, Vec<serde_json::Value>)> {
+        let shop_repo = &self.repos.merchant.shop_client;
+        // 显式 shopIds / groupIds → 候选门店白名单（未传 = 不限制）
+        let restrict: Option<Vec<i32>> = if !params.shop_ids.is_empty() {
+            Some(params.shop_ids.clone())
+        } else if !params.group_ids.is_empty() {
+            Some(shop_repo.find_shop_ids_by_groups(&params.group_ids).await?)
+        } else {
+            None
+        };
+        if restrict.as_ref().is_some_and(Vec::is_empty) {
+            // 显式指定了分组/门店但解析为空 → 无候选门店（不能放行为全部门店）
+            return Ok((0, Vec::new()));
+        }
+        let location =
+            crate::merchant::shop_client::valid_location(params.longitude, params.latitude);
+        let page = PageQuery {
+            page: params.page.max(1),
+            page_size: params.size.clamp(1, 50),
+        };
+        let filter = StoreListFilter {
+            keyword: None,
+            region_id: params.region_id.clone(),
+            shop_ids: restrict.unwrap_or_default(),
+            delivery_types: params.delivery_types.clone(),
+            within_delivery_range: params.within_delivery_range && location.is_some(),
+            selected_shop_id: None,
+            sort_field: None,
+            sort_order: None,
+        };
+        let (total, rows) = shop_repo.paginate_stores(&filter, location, &page).await?;
+        if rows.is_empty() {
+            return Ok((total, Vec::new()));
+        }
+        let shop_ids: Vec<i32> = rows.iter().map(|r| r.shop_id).collect();
+        // 展示距离以 GpsDistanceUtil 口径覆盖（与 storeList 一致）
+        let mut distances: std::collections::HashMap<i32, Decimal> = Default::default();
+        if let Some((lng, lat)) = location {
+            distances = shop_repo.gps_distances_for_shops(lng, lat, &shop_ids).await?;
+        }
+        let local_cfgs: std::collections::HashMap<i32, ShopLocalDeliveryConfig> = shop_repo
+            .find_local_delivery_configs(&shop_ids)
+            .await?
+            .into_iter()
+            .map(|c| (c.shop_id, c))
+            .collect();
+        let candidates = self
+            .repos
+            .o2o
+            .pickup_client
+            .store_search_candidates(&shop_ids, &params.keyword)
+            .await?;
+        let mut by_shop: std::collections::HashMap<i32, Vec<&StoreSearchCandidateRow>> =
+            Default::default();
+        for c in &candidates {
+            by_shop.entry(c.shop_id).or_default().push(c);
+        }
+        let mut records = Vec::with_capacity(rows.len());
+        for row in &rows {
+            let shop_rows: Vec<&StoreSearchCandidateRow> = by_shop
+                .get(&row.shop_id)
+                .map(|v| v.iter().copied().collect())
+                .unwrap_or_default();
+            let (matched, products) = assemble_store_products(&shop_rows);
+            let distance = distances.get(&row.shop_id).copied().or(row.distance);
+            records.push(build_store_search_record(
+                row,
+                local_cfgs.get(&row.shop_id),
+                distance,
+                matched,
+                products,
+            ));
+        }
+        Ok((total, records))
     }
 
     /// 到店预约库存日历（未来 days 天）。
@@ -239,12 +347,6 @@ impl PickupClientService {
         self.repos.o2o.pickup_client.complete_delivery(staff_id, id, photos).await
     }
 
-    /// 配送员移除本人已取消派送单（论坛 417866）：仅置配送员侧隐藏标记，
-    /// 数据不删，后台/买家侧不受影响。false = 非本人/非已取消/已移除。
-    pub async fn hide_cancelled_delivery(&self, staff_id: i32, id: i32) -> Result<bool> {
-        self.repos.o2o.pickup_client.hide_cancelled_delivery(staff_id, id).await
-    }
-
     pub async fn cancel_delivery(&self, staff_id: i32, id: i32, reason: &str) -> Result<bool> {
         self.repos.o2o.pickup_client.cancel_delivery(staff_id, id, reason).await
     }
@@ -317,5 +419,140 @@ impl PickupClientService {
             .pickup_client
             .record_track_point(staff_id, delivery_order_id, action, longitude, latitude)
             .await
+    }
+}
+
+/// 商品有效价：门店覆盖价（`store_product.product_price`）优先，
+/// 否则商品本体价。
+fn effective_price(r: &StoreSearchCandidateRow) -> Option<Decimal> {
+    r.store_price.or(r.product_price)
+}
+
+/// 单店商品组装（纯函数）：命中在前（保持仓储返回的 `product_id`
+/// 降序）、未命中按有效价升序补齐，合计最多 10 条；返回
+/// (同店命中总数, 商品 JSON 列表)。命中总数取候选行回填的
+/// `hit_total`（截断前的真实总数）。
+fn assemble_store_products(rows: &[&StoreSearchCandidateRow]) -> (i64, Vec<serde_json::Value>) {
+    let matched = rows.first().map_or(0, |r| r.hit_total);
+    let mut fills: Vec<&&StoreSearchCandidateRow> =
+        rows.iter().filter(|r| !r.is_hit).collect();
+    fills.sort_by(|a, b| {
+        effective_price(a)
+            .partial_cmp(&effective_price(b))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let hits = rows.iter().filter(|r| r.is_hit);
+    let mut out: Vec<serde_json::Value> = Vec::with_capacity(10);
+    for r in hits.chain(fills.into_iter()) {
+        if out.len() >= 10 {
+            break;
+        }
+        out.push(serde_json::json!({
+            "productId": r.product_id,
+            "productName": r.product_name,
+            "picThumb": r.pic_thumb,
+            "picUrl": r.pic_url,
+            "productPrice": effective_price(r),
+        }));
+    }
+    (matched, out)
+}
+
+/// 单店聚合记录组装（纯函数，字段对齐前端 `StoreSearchRecord`）。
+/// 同城配送三项（开关/起送价/基础运费）取 `shop_local_delivery_config`
+/// 且 `enabled = 1` 时才有值；`inLocalDeliveryRange` 与门店列表
+/// `storeList` 现行口径一致：`enabled = 1`、半径 > 0 且展示距离
+/// （米）≤ 半径数值直比（配置实体注释半径单位为公里、storeList
+/// 现行实现按数值直比，本处跟随现行口径，单位问题在报告中单列）。
+fn build_store_search_record(
+    row: &StoreListRow,
+    cfg: Option<&ShopLocalDeliveryConfig>,
+    distance: Option<Decimal>,
+    matched: i64,
+    products: Vec<serde_json::Value>,
+) -> serde_json::Value {
+    let local = cfg.filter(|c| c.enabled == 1);
+    let in_range = match (local, distance) {
+        (Some(c), Some(d)) => c.delivery_radius > Decimal::ZERO && d <= c.delivery_radius,
+        _ => false,
+    };
+    serde_json::json!({
+        "shopId": row.shop_id,
+        "shopName": row.shop_title,
+        "shopLogo": row.shop_logo,
+        "shopAddress": row.address,
+        "shopRegionNames": Vec::<String>::new(),
+        "longitude": row.longitude,
+        "latitude": row.latitude,
+        "distance": distance,
+        "shopStar": row.shop_star,
+        "shopSales": row.shop_sales,
+        "localDeliveryEnabled": local.is_some(),
+        "minOrderAmount": local.map(|c| c.min_order_amount),
+        "deliveryFee": local.map(|c| c.base_delivery_fee),
+        "inLocalDeliveryRange": in_range,
+        "matchedProductCount": matched,
+        "productList": products,
+    })
+}
+
+#[cfg(test)]
+mod store_search_tests {
+    use super::*;
+
+    fn cand(
+        product_id: i32,
+        price: Option<i64>,
+        store_price: Option<i64>,
+        is_hit: bool,
+        hit_total: i64,
+    ) -> StoreSearchCandidateRow {
+        StoreSearchCandidateRow {
+            shop_id: 1,
+            product_id,
+            product_name: format!("商品{product_id}"),
+            pic_thumb: String::new(),
+            pic_url: String::new(),
+            product_price: price.map(|v| Decimal::from(v)),
+            store_price: store_price.map(|v| Decimal::from(v)),
+            is_hit,
+            hit_total,
+        }
+    }
+
+    #[test]
+    fn hits_first_then_cheapest_fill_capped_at_10() {
+        let rows_owned: Vec<StoreSearchCandidateRow> = vec![
+            cand(30, Some(300), None, true, 2),
+            cand(20, Some(200), None, true, 2),
+            cand(9, Some(90), None, false, 2),
+            cand(8, Some(50), None, false, 2),
+            cand(7, Some(70), None, false, 2),
+        ];
+        let rows: Vec<&StoreSearchCandidateRow> = rows_owned.iter().collect();
+        let (matched, products) = assemble_store_products(&rows);
+        assert_eq!(matched, 2);
+        let ids: Vec<i64> = products
+            .iter()
+            .map(|p| p["productId"].as_i64().unwrap())
+            .collect();
+        // 命中（保持入参序）→ 未命中按价升序 50、70、90
+        assert_eq!(ids, vec![30, 20, 8, 7, 9]);
+    }
+
+    #[test]
+    fn store_price_overrides_product_price() {
+        let row = cand(1, Some(100), Some(80), true, 1);
+        assert_eq!(effective_price(&row), Some(Decimal::from(80)));
+        let (_, products) = assemble_store_products(&[&row]);
+        // 工作区 rust_decimal 启用 serde-with-str：Decimal 序列化为字符串
+        assert_eq!(products[0]["productPrice"], serde_json::json!("80"));
+    }
+
+    #[test]
+    fn empty_candidates_yield_zero_matched() {
+        let (matched, products) = assemble_store_products(&[]);
+        assert_eq!(matched, 0);
+        assert!(products.is_empty());
     }
 }

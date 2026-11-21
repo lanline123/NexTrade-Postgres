@@ -55,6 +55,12 @@ pub struct ProductSearchClientQuery {
     /// 店铺 ID
     #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub shop_id: Option<i32>,
+    /// 就近门店过滤（我方新增，就近门店群帖 377858）：传 `1` 且带有效
+    /// 经纬度、未显式传 `shopId` 时，服务层解析最近门店并只返回该
+    /// 门店有售的商品（门店自有商品 + `store_product` 分配商品）；
+    /// 无定位/无带坐标门店时不启用、结果与未传时一致（降级）。
+    #[serde(default, deserialize_with = "de_opt_i32_lenient")]
+    pub nearby_store: Option<i32>,
     /// 商品状态（缺省 1 上架）
     #[serde(default, deserialize_with = "de_opt_i32_lenient")]
     pub product_status: Option<i32>,

@@ -274,6 +274,55 @@ impl ShopClientRepository {
         Ok((total.0.max(0) as u64, rows))
     }
 
+    /// 最近门店（就近门店群，帖 567745）：带坐标门店中距离最小者。
+    ///
+    /// 口径与 `paginate_stores` 经纬度变体一致：`shop_type = 2`、
+    /// `status IN (1, 10)`、坐标非空；距离用与 `storeListByLocation`
+    /// 相同的球面余弦表达式（半径 6371000m）；同距以 `shop_id` 小者
+    /// 优先，保证结果确定。无任何带坐标门店时返回 `None`
+    /// （调用方据此降级为不就近）。
+    pub async fn find_nearest_store(
+        &self,
+        lng: Decimal,
+        lat: Decimal,
+        region_id: Option<&str>,
+    ) -> Result<Option<StoreListRow>> {
+        let (select_sql, select_binds) = self.store_select(Some((lng, lat)));
+        let mut where_sql = String::from(
+            "WHERE shop_type = 2 AND (status = 1 OR status = 10) \
+             AND shop_longitude IS NOT NULL AND shop_latitude IS NOT NULL",
+        );
+        let mut binds = select_binds;
+        if let Some(region) = region_id.filter(|s| !s.is_empty()) {
+            where_sql.push_str(" AND shop_region_id ILIKE CONCAT('%', ?, '%')");
+            binds.push(Bind::Str(region.to_string()));
+        }
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "{select_sql} {where_sql} ORDER BY distance ASC NULLS LAST, shop_id ASC LIMIT 1"
+        ));
+        let q = bind_all!(sqlx::query_as::<_, StoreListRow>(&sql), &binds);
+        q.fetch_optional(&self.pool).await.map_err(map_err)
+    }
+
+    /// 门店分组 → 门店 ID 集合（`shop_group_relation`，门店聚合搜索
+    /// 的 `groupIds` 参数用）。
+    pub async fn find_shop_ids_by_groups(&self, group_ids: &[i32]) -> Result<Vec<i32>> {
+        if group_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT DISTINCT shop_id FROM shop_group_relation \
+             WHERE group_id IN ({}) ORDER BY shop_id ASC",
+            placeholders(group_ids.len())
+        ));
+        let mut q = sqlx::query_as::<_, (i32,)>(&sql);
+        for id in group_ids {
+            q = q.bind(*id);
+        }
+        let rows = q.fetch_all(&self.pool).await.map_err(map_err)?;
+        Ok(rows.into_iter().map(|r| r.0).collect())
+    }
+
     /// 门店 SELECT 列表 + 其中的绑定（距离表达式占位）。
     fn store_select(&self, location: Option<(Decimal, Decimal)>) -> (String, Vec<Bind>) {
         let mut binds = Vec::new();
@@ -391,12 +440,22 @@ impl ShopClientRepository {
             "DESC"
         };
         if location.is_some() {
-            // 经纬度变体：sortField=distance 时按距离，否则按评星
-            if f.sort_field.as_deref() == Some("distance") {
-                // PG forbids referencing a SELECT alias inside an ORDER BY expression.
-                orders.push(format!("distance {dir} NULLS LAST"));
-            } else {
-                orders.push(format!("shop_star {dir}"));
+            // 经纬度变体：显式 sortField=distance 时按距离；未指定排序时默认
+            // 按距离由近及远依次展示（就近门店群口径，帖 377777——与
+            // `storeListByLocation` 的「计算 distance 并按 distance 排序」
+            // 本意一致，此前未指定排序时回落评星导致距离序不生效）；
+            // 其它显式字段仍按评星口径。
+            match f.sort_field.as_deref() {
+                Some("distance") => {
+                    // PG forbids referencing a SELECT alias inside an ORDER BY expression.
+                    orders.push(format!("distance {dir} NULLS LAST"));
+                }
+                None => {
+                    orders.push("distance ASC NULLS LAST".to_string());
+                }
+                _ => {
+                    orders.push(format!("shop_star {dir}"));
+                }
             }
         } else {
             // 地区变体固定按评星

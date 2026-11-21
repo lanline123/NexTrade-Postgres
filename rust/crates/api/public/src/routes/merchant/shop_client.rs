@@ -55,8 +55,8 @@ use axum::{
     Extension, Json, Router,
 };
 use nextrade_core::models::merchant::shop_client::{
-    ClientShopListQuery, CollectShopParam, CollectShopResultVO,
-    CommentVO, PickupListQuery, PickupListVO, ShopCommentListQuery, ShopDecorateQuery, ShopIdQuery,
+    ClientShopListQuery, CollectShopParam, CollectShopResultVO, CommentVO, NearestStoreQuery,
+    PickupListQuery, PickupListVO, ShopCommentListQuery, ShopDecorateQuery, ShopIdQuery,
     StoreDetailQuery, StoreDetailVO, StoreListQuery, StoreListVO,
 };
 use nextrade_core::types::PageResult;
@@ -79,6 +79,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/shop/shop/pickupDetail", get(pickup_detail))
         .route("/shop/shop/storeList", get(store_list))
         .route("/shop/shop/storeDetail", get(store_detail))
+        .route("/shop/shop/nearestStore", get(nearest_store))
         .route("/shop/shop/getCommentList", get(get_comment_list))
         .route("/shop/miniProgram/context", get(mini_program_context))
         .layer(middleware::from_fn_with_state(
@@ -133,6 +134,11 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
             "GET",
             "/api/shop/shop/storeDetail",
             "ShopClientController.storeDetail",
+        ),
+        (
+            "GET",
+            "/api/shop/shop/nearestStore",
+            "ShopClientController.nearestStore (本平台新增)",
         ),
         (
             "GET",
@@ -401,6 +407,21 @@ async fn store_list(
     Query(q): Query<StoreListQuery>,
 ) -> ApiResult<PageResult<StoreListVO>> {
     ok(state.merchant.shop_client.store_list(&q, current_user_id(&auth)).await?)
+}
+
+/// `GET /api/shop/shop/nearestStore?longitude=&latitude=`：最近门店
+/// （我方新增，就近门店群帖 567745）。无定位/无带坐标门店时返回
+/// `null`，前端据此降级为不就近。
+async fn nearest_store(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Query(q): Query<NearestStoreQuery>,
+) -> ApiResult<Option<StoreListVO>> {
+    ok(state
+        .merchant
+        .shop_client
+        .nearest_store(&q, current_user_id(&auth))
+        .await?)
 }
 
 /// `GET /api/shop/shop/storeDetail?shopId=`：门店详情。

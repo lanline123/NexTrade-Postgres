@@ -192,6 +192,35 @@ pub struct StoreDetailQuery {
     pub delivery_types: Vec<i32>,
 }
 
+/// 最近门店查询（我方新增端点 `GET /api/shop/shop/nearestStore`，
+/// 就近门店群帖 567745「直接定位最近门店」的数据层入口）。
+///
+/// 口径与 [`StoreListQuery`] 的地区处理一致：`storeRegionId` 非空时
+/// 覆盖 `regionId`；经纬度不成对或为零点时视为无定位，端点返回
+/// `null`（前端据此降级为不就近）。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct NearestStoreQuery {
+    #[serde(default, deserialize_with = "de_opt_dec")]
+    pub longitude: Option<Decimal>,
+    #[serde(default, deserialize_with = "de_opt_dec")]
+    pub latitude: Option<Decimal>,
+    pub region_id: Option<String>,
+    /// o2o-pc 模式下的门店查询（有值时覆盖 `regionId`）
+    pub store_region_id: Option<String>,
+}
+
+impl NearestStoreQuery {
+    /// `regionId`：`storeRegionId` 非空时覆盖原值。
+    #[must_use]
+    pub fn effective_region_id(&self) -> Option<&str> {
+        match self.store_region_id.as_deref().filter(|s| !s.is_empty()) {
+            Some(v) => Some(v),
+            None => self.region_id.as_deref().filter(|s| !s.is_empty()),
+        }
+    }
+}
+
 /// 店铺评论列表查询（Java `getCommentList(page, type, shopId)`）。
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]

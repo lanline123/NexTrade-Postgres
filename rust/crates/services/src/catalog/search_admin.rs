@@ -284,6 +284,19 @@ impl SearchAdminService {
             Some((field, order)) => (Some(field), Some(order)),
             None => (None, None),
         };
+        // 就近门店过滤（帖 377858）：显式开关 `nearbyStore=1` + 成对有效
+        // 坐标 + 未显式指定店铺时，解析最近门店；解析不到（无带坐标
+        // 门店）则不启用过滤，结果与未传开关时一致（无定位降级）。
+        let nearby_shop_id = match nearby_filter_requested(q) {
+            Some((lng, lat)) => self
+                .repos
+                .merchant
+                .shop_client
+                .find_nearest_store(lng, lat, None)
+                .await?
+                .map(|row| row.shop_id),
+            None => None,
+        };
         Ok(ProductSearchFilter {
             keyword_like: q
                 .keyword
@@ -296,6 +309,7 @@ impl SearchAdminService {
             min_price: q.min,
             max_price: q.max,
             shop_id: q.shop_id,
+            nearby_shop_id,
             shop_category_id: q.shop_category_id,
             intro: q.intro.clone(),
             // Java：productStatus 缺省 1（只搜上架）
@@ -308,6 +322,24 @@ impl SearchAdminService {
 }
 
 // ————————————————————— 纯函数（可单测） —————————————————————
+
+/// 就近门店过滤的启用判定（纯函数，供单测）：开关 `nearbyStore = 1`、
+/// 未显式指定店铺（`shopId > 0` 时以显式店铺为准）、经纬度成对且
+/// 纬度非零点（与门店列表 `valid_location` 的零点口径一致）。
+/// 返回 `Some((lng, lat))` 表示应解析最近门店。
+#[must_use]
+pub fn nearby_filter_requested(q: &ProductSearchClientQuery) -> Option<(Decimal, Decimal)> {
+    if q.nearby_store != Some(1) {
+        return None;
+    }
+    if q.shop_id.is_some_and(|s| s > 0) {
+        return None;
+    }
+    match (q.longitude, q.latitude) {
+        (Some(lng), Some(lat)) if lat != Decimal::ZERO => Some((lng, lat)),
+        _ => None,
+    }
+}
 
 /// 经纬度校验（Java `validateLocation`）：
 /// 都不传 → 不启用定位；只传一项或越界 → 业务错误。
@@ -498,5 +530,41 @@ mod tests {
     #[test]
     fn attribute_grouping_empty_input() {
         assert!(group_attribute_counts(&[]).is_empty());
+    }
+
+    #[test]
+    fn nearby_filter_requires_switch_location_and_no_explicit_shop() {
+        let base = ProductSearchClientQuery {
+            nearby_store: Some(1),
+            longitude: Some(Decimal::new(121_473_700, 6)),
+            latitude: Some(Decimal::new(31_230_400, 6)),
+            ..Default::default()
+        };
+        assert!(nearby_filter_requested(&base).is_some());
+        // 开关未开
+        assert!(nearby_filter_requested(&ProductSearchClientQuery {
+            nearby_store: None,
+            ..base.clone()
+        })
+        .is_none());
+        // 显式店铺优先，就近不启用
+        assert!(nearby_filter_requested(&ProductSearchClientQuery {
+            shop_id: Some(5),
+            ..base.clone()
+        })
+        .is_none());
+        // 无定位
+        assert!(nearby_filter_requested(&ProductSearchClientQuery {
+            longitude: None,
+            latitude: None,
+            ..base.clone()
+        })
+        .is_none());
+        // 零点坐标视为无定位
+        assert!(nearby_filter_requested(&ProductSearchClientQuery {
+            latitude: Some(Decimal::ZERO),
+            ..base
+        })
+        .is_none());
     }
 }

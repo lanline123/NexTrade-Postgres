@@ -6,26 +6,14 @@
 //! - `order_pickup_shipment`：订单自提配送读
 //! - `product_reservation_stock`：到店预约库存日历读（复用 admin 侧仓储逻辑）
 
+use rust_decimal::Decimal;
 use serde::Serialize;
 use serde_json::Value;
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, QueryBuilder};
 use nextrade_core::{Error, Result};
 
 fn map_err(e: sqlx::Error) -> Error {
     Error::Database(e.to_string())
-}
-
-/// 配送员「我的派送」页签 → 派送单状态过滤（None = 全部状态）。
-/// cancelled（已取消，论坛 417866）为本批新增页签：此前已取消单只会混在
-/// 全部列表里、无专属视图，配送员无从确认某单是被取消还是凭空消失。
-fn delivery_tab_status(tab: Option<&str>) -> Option<i32> {
-    match tab.unwrap_or_default() {
-        "pending" => Some(20),
-        "processing" => Some(30),
-        "completed" => Some(40),
-        "cancelled" => Some(50),
-        _ => None,
-    }
 }
 
 /// 自提人信息（Java `UserPickupInfo`）。
@@ -102,6 +90,25 @@ impl StaffContext {
     pub fn can_take_orders(&self) -> bool {
         self.status == 1 && self.work_status >= 1
     }
+}
+
+/// 门店聚合搜索候选商品行（自有 + 分配两路合并去重，带命中标记
+/// 与同店命中总数）。
+#[derive(Debug, Clone, Default, sqlx::FromRow)]
+pub struct StoreSearchCandidateRow {
+    pub shop_id: i32,
+    pub product_id: i32,
+    pub product_name: String,
+    pub pic_thumb: String,
+    pub pic_url: String,
+    /// 商品价（`product.product_price`）
+    pub product_price: Option<Decimal>,
+    /// 门店覆盖价（`store_product.product_price`），自有商品为 NULL
+    pub store_price: Option<Decimal>,
+    /// 是否命中关键词（关键词为空时恒 true）
+    pub is_hit: bool,
+    /// 同店去重后的命中总数（窗口回填每一行）
+    pub hit_total: i64,
 }
 
 #[derive(Clone)]
@@ -296,6 +303,95 @@ impl PickupClientRepository {
         .map_err(map_err)?;
         let rows = rows.into_iter().map(|(v,)| v).collect::<Vec<_>>();
         Ok((total.max(0), rows))
+    }
+
+    /// 门店聚合搜索（`getStoreProduct`）：一批门店的候选商品。
+    ///
+    /// 候选 = 门店自有在售商品（`product.shop_id`）∪ 经 `store_product`
+    /// 分配到该店且分配行在售、商品本体在售的商品；同店同商品两路都
+    /// 有时保留分配行（带门店覆盖价）。SQL 内按店截断：命中取最新
+    /// 10、未命中取最便宜 10（服务层再组装「命中在前、补齐在后」），
+    /// `hit_total` 为同店去重后的命中总数。关键词为空时全部视为命中。
+    pub async fn store_search_candidates(
+        &self,
+        shop_ids: &[i32],
+        keyword: &str,
+    ) -> Result<Vec<StoreSearchCandidateRow>> {
+        if shop_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let keyword = keyword.trim();
+        let empty = keyword.is_empty();
+        let pattern = format!("%{keyword}%");
+        let mut qb = QueryBuilder::<Postgres>::new(
+            "WITH cand AS (\
+               SELECT p.shop_id AS shop_id, p.product_id AS product_id, \
+                      p.product_name AS product_name, p.pic_thumb AS pic_thumb, \
+                      p.pic_url AS pic_url, p.product_price AS product_price, \
+                      NULL::numeric AS store_price, (",
+        );
+        qb.push_bind(empty);
+        qb.push(" OR p.product_name ILIKE ");
+        qb.push_bind(pattern.clone());
+        qb.push(
+            ") AS is_hit FROM product p \
+             WHERE p.product_status = 1 AND p.is_delete = 0 AND p.shop_id IN (",
+        );
+        for (i, id) in shop_ids.iter().enumerate() {
+            if i > 0 {
+                qb.push(", ");
+            }
+            qb.push_bind(*id);
+        }
+        qb.push(
+            ") UNION ALL \
+             SELECT sp.shop_id::int AS shop_id, p.product_id AS product_id, \
+                    p.product_name AS product_name, p.pic_thumb AS pic_thumb, \
+                    p.pic_url AS pic_url, p.product_price AS product_price, \
+                    sp.product_price AS store_price, (",
+        );
+        qb.push_bind(empty);
+        qb.push(" OR p.product_name ILIKE ");
+        qb.push_bind(pattern.clone());
+        qb.push(" OR sp.product_name ILIKE ");
+        qb.push_bind(pattern);
+        qb.push(
+            ") AS is_hit FROM store_product sp \
+             JOIN product p ON p.product_id = sp.product_id \
+             WHERE sp.product_status = 1 AND sp.is_delete = 0 \
+               AND p.product_status = 1 AND p.is_delete = 0 AND sp.shop_id IN (",
+        );
+        for (i, id) in shop_ids.iter().enumerate() {
+            if i > 0 {
+                qb.push(", ");
+            }
+            qb.push_bind(i64::from(*id));
+        }
+        qb.push(
+            ")), \
+             dedup AS (SELECT *, ROW_NUMBER() OVER (\
+               PARTITION BY shop_id, product_id ORDER BY store_price NULLS LAST\
+             ) AS rn FROM cand), \
+             ranked AS (SELECT *, \
+               COUNT(*) FILTER (WHERE is_hit) OVER (PARTITION BY shop_id) AS hit_total, \
+               ROW_NUMBER() OVER (\
+                 PARTITION BY shop_id, is_hit ORDER BY product_id DESC\
+               ) AS hit_rank, \
+               ROW_NUMBER() OVER (\
+                 PARTITION BY shop_id, is_hit \
+                 ORDER BY COALESCE(store_price, product_price) ASC NULLS LAST, product_id DESC\
+               ) AS fill_rank \
+             FROM dedup WHERE rn = 1) \
+             SELECT shop_id, product_id, product_name, pic_thumb, pic_url, \
+                    product_price, store_price, is_hit, hit_total \
+             FROM ranked \
+             WHERE (is_hit AND hit_rank <= 10) OR (NOT is_hit AND fill_rank <= 10) \
+             ORDER BY shop_id ASC, is_hit DESC, product_id DESC",
+        );
+        qb.build_query_as::<StoreSearchCandidateRow>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)
     }
 
     /// 到店预约库存日历：某商品（+可选门店）未来 \"days\" 天的余量。
@@ -669,13 +765,15 @@ impl PickupClientRepository {
         page: u64,
         size: u64,
     ) -> Result<(i64, Vec<Value>)> {
-        // 配送员侧列表恒排除已移除（staff_hidden=1）的单：移除只影响本人
-        // 列表/计数，后台与买家侧不走本函数、不受影响（论坛 417866）。
-        let status_val = delivery_tab_status(tab);
-        let status_cond = if status_val.is_some() { "AND status = ?" } else { "" };
+        let (status_cond, status_val) = match tab.unwrap_or_default() {
+            "pending" => ("AND status = ?", Some(20)),
+            "processing" => ("AND status = ?", Some(30)),
+            "completed" => ("AND status = ?", Some(40)),
+            _ => ("", None),
+        };
         let offset = (page.max(1) - 1) * size;
         let count_sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT COUNT(*) FROM delivery_order WHERE staff_id = ? AND staff_hidden = 0 {status_cond}"
+            "SELECT COUNT(*) FROM delivery_order WHERE staff_id = ? {status_cond}"
         ));
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql)
         .bind(staff_id);
@@ -684,7 +782,7 @@ impl PickupClientRepository {
         }
         let (total,) = count_q.fetch_one(&self.pool).await.map_err(map_err)?;
         let list_sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'dispatchMode', dispatch_mode, 'status', status, 'staffId', staff_id, 'staffName', staff_name, 'staffPhone', staff_phone, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'orderAmount', order_amount, 'buyerNote', buyer_note, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'cancelReason', cancel_reason, 'createTime', create_time) FROM delivery_order WHERE staff_id = ? AND staff_hidden = 0 {status_cond} ORDER BY delivery_order_id DESC LIMIT ? OFFSET ?"
+            "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'dispatchMode', dispatch_mode, 'status', status, 'staffId', staff_id, 'staffName', staff_name, 'staffPhone', staff_phone, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'orderAmount', order_amount, 'buyerNote', buyer_note, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'cancelReason', cancel_reason, 'createTime', create_time) FROM delivery_order WHERE staff_id = ? {status_cond} ORDER BY delivery_order_id DESC LIMIT ? OFFSET ?"
         ));
         let mut q = sqlx::query_as::<_, (Value,)>(&list_sql)
         .bind(staff_id);
@@ -698,7 +796,7 @@ impl PickupClientRepository {
     /// C 端派送订单详情（只允许本人订单）。
     pub async fn delivery_detail(&self, staff_id: i32, id: i32) -> Result<Option<Value>> {
         let row: Option<(Value,)> = sqlx::query_as(
-            "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'dispatchMode', dispatch_mode, 'status', status, 'staffId', staff_id, 'staffName', staff_name, 'staffPhone', staff_phone, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'latitude', latitude, 'longitude', longitude, 'pickupAddress', pickup_address, 'pickupPhone', pickup_phone, 'serviceTime', service_time, 'orderAmount', order_amount, 'buyerNote', buyer_note, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'cancelReason', cancel_reason, 'createTime', create_time) FROM delivery_order WHERE delivery_order_id = $1 AND staff_id = $2 AND staff_hidden = 0",
+            "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'dispatchMode', dispatch_mode, 'status', status, 'staffId', staff_id, 'staffName', staff_name, 'staffPhone', staff_phone, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'latitude', latitude, 'longitude', longitude, 'pickupAddress', pickup_address, 'pickupPhone', pickup_phone, 'serviceTime', service_time, 'orderAmount', order_amount, 'buyerNote', buyer_note, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'cancelReason', cancel_reason, 'createTime', create_time) FROM delivery_order WHERE delivery_order_id = $1 AND staff_id = $2",
         )
         .bind(id)
         .bind(staff_id)
@@ -989,24 +1087,6 @@ impl PickupClientRepository {
         }
         tx.commit().await.map_err(map_err)?;
         Ok(Some(fee))
-    }
-
-    /// 配送员移除已取消单（论坛 417866，我方新增）：仅本人 + 已取消（50）+
-    /// 未移除过的单可移除；只置 staff_hidden 标记、不删数据，后台派送单
-    /// 列表/详情与买家侧进度不受影响。重复移除返回 false（幂等门）。
-    pub async fn hide_cancelled_delivery(&self, staff_id: i32, id: i32) -> Result<bool> {
-        let now = nextrade_common::utils::now_seconds() as i32;
-        let r = sqlx::query(
-            "UPDATE delivery_order SET staff_hidden = 1, staff_hide_time = $1, update_time = $1 \
-             WHERE delivery_order_id = $2 AND staff_id = $3 AND status = 50 AND staff_hidden = 0",
-        )
-        .bind(now)
-        .bind(id)
-        .bind(staff_id)
-        .execute(&self.pool)
-        .await
-        .map_err(map_err)?;
-        Ok(r.rows_affected() > 0)
     }
 
     /// C 端取消（补 cancel_by=1 人员口径；原实现漏写）。
@@ -1424,27 +1504,5 @@ mod fee_tests {
             compute_service_fee(&items, (0, d("0")), true, true, d("0")),
             d("3.00")
         );
-    }
-}
-
-#[cfg(test)]
-mod delivery_tab_tests {
-    use super::delivery_tab_status;
-
-    #[test]
-    fn known_tabs_map_to_statuses() {
-        assert_eq!(delivery_tab_status(Some("pending")), Some(20));
-        assert_eq!(delivery_tab_status(Some("processing")), Some(30));
-        assert_eq!(delivery_tab_status(Some("completed")), Some(40));
-        // 论坛 417866：已取消专属页签
-        assert_eq!(delivery_tab_status(Some("cancelled")), Some(50));
-    }
-
-    #[test]
-    fn unknown_or_missing_tab_means_all() {
-        assert_eq!(delivery_tab_status(None), None);
-        assert_eq!(delivery_tab_status(Some("")), None);
-        assert_eq!(delivery_tab_status(Some("all")), None);
-        assert_eq!(delivery_tab_status(Some("whatever")), None);
     }
 }
