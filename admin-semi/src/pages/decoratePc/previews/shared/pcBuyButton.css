@@ -1,6 +1,7 @@
 /* PC 装修编辑器共享购买按钮视觉（与 pc-semi 前台 .dec-buy-btn 同几何/同 mask 资源）。
  * 宿主按钮壳（各预览自己的 32px 圆钮 / 分组价格色钮等）决定外层尺寸与底色，
- * 本文件只管内部：24px mask 图标、文案胶囊、自定义图片。 */
+ * 本文件只管内部：24px mask 图标、文案胶囊、自定义图片；
+ * 样式 9（圆圈购物车）例外：自带实心圆盘 + 白色购物车字形，见 --cart-circle。 */
 
 .pc-buy-btn__icon {
   display: block;
@@ -41,9 +42,36 @@
   -webkit-mask-image: url('/assets/icons/plus-outline.svg');
 }
 
+/* 圆圈购物车（样式 9）重设计（2026-11-21）：不再是「粗圆环 + 缩小购物车」的单色
+ * mask 字形（环厚约 2.6px、内嵌购物车仅约 13px，筐体/车轮细节在 24px 下糊成团），
+ * 改为实心款家族形态——圆盘底 = currentColor（图标色/主题色，本元素 base 的
+ * background 即 currentColor，去 mask 后即成圆盘），白色实心购物车字形居中，
+ * 与实心款 2/4/6/8 的「主题色填充 + 白色内容」同一视觉语言。
+ * 与 pc-semi 前台 modules-source.scss 的 .dec-buy-btn__ico--cart-circle 逐值一致。 */
 .pc-buy-btn__ico--cart-circle {
-  mask-image: url('/assets/icons/cart-circle.svg');
-  -webkit-mask-image: url('/assets/icons/cart-circle.svg');
+  position: relative;
+  border-radius: 50%;
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+.pc-buy-btn__ico--cart-circle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 15px;
+  height: 15px;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  mask-image: url('/assets/icons/cart.svg');
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-image: url('/assets/icons/cart.svg');
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
 }
 
 .pc-buy-btn__img {

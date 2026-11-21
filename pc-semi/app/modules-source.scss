@@ -580,11 +580,21 @@
   }
 
   /* 统一枚举扩容（购买样式全站统一）：
-     9 = 圆圈购物车（24px 纯图标，与 1–4 同几何）；10 = 自定义图片（原样显示）。 */
+     9 = 圆圈购物车（实心圆盘 + 白色购物车字形，几何仍 24px，见 &__ico--cart-circle）；
+     10 = 自定义图片（原样显示）。 */
   &--9 {
     width: 24px;
     height: 24px;
     background: transparent;
+    transition: opacity 0.15s ease;
+  }
+
+  &--9:hover {
+    opacity: 0.88;
+  }
+
+  &--9:active {
+    opacity: 0.72;
   }
 
   &--10 {
@@ -640,9 +650,36 @@
       }
     }
 
+    /* 圆圈购物车（样式 9）重设计（2026-11-21）：不再是「粗圆环 + 缩小购物车」的单色
+     * mask 字形（环厚约 2.6px、内嵌购物车仅约 13px，细节在 24px 下糊成团），改为
+     * 实心款家族形态——圆盘底 = currentColor（图标色/主题色，本元素 base 的
+     * background 即 currentColor，去 mask 后即成圆盘），白色实心购物车字形居中，
+     * 与实心款 2/4/6/8 的「主题色填充 + 白色内容」同一视觉语言。
+     * 与后台 pcBuyButton.css 的 .pc-buy-btn__ico--cart-circle 逐值一致。 */
     &--cart-circle {
-      mask-image: url('/assets/icons/cart-circle.svg');
-      -webkit-mask-image: url('/assets/icons/cart-circle.svg');
+      position: relative;
+      border-radius: 50%;
+      mask-image: none;
+      -webkit-mask-image: none;
+
+      &::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 15px;
+        height: 15px;
+        transform: translate(-50%, -50%);
+        background: #fff;
+        mask-image: url('/assets/icons/cart.svg');
+        mask-repeat: no-repeat;
+        mask-position: center;
+        mask-size: contain;
+        -webkit-mask-image: url('/assets/icons/cart.svg');
+        -webkit-mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        -webkit-mask-size: contain;
+      }
     }
   }
 }
@@ -675,6 +712,13 @@
   background: var(--general, var(--pc-primary));
   color: #fff;
   font-size: 14px;
+}
+
+/* 拼团/秒杀 .view_detail 宿主自带主题色圆底 + 白字：样式 9 在此不再自绘圆盘，
+ * 只出白色购物车字形（与宿主圆底合成完整的圆圈购物车，避免白盘叠白字形）。 */
+.module-seckill-goods_ad-wrapper .view_detail.dec-buy-btn--9 .dec-buy-btn__ico--cart-circle,
+.module-groupon-goods_ad .view_detail.dec-buy-btn--9 .dec-buy-btn__ico--cart-circle {
+  background: transparent;
 }
 
 /* ===================== pc-home-quick-nav ===================== */
