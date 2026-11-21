@@ -3,9 +3,12 @@
  *
  * 2026-11-21 自 PcDecorateEditor 页内本地函数抽取升格为共享件（用户定版：
  * PC 编辑器与 H5 图片魔方调同一共享件，不再各写一套）：卡片网格（拖拽排序）
- * + 点卡打开「编辑图片」弹窗——弹窗内工具栏「从商品选择图片」唤起共享
- * ProductImagePickerModal、素材中心选图走 ImageUploader（内含
- * GalleryPickerModal），两入口并列；标题 / 描述 / 链接在弹窗内编辑。
+ * + 点卡打开「编辑图片」弹窗——弹窗本体已于同日续抽为独立共享件「图片编辑
+ * 弹窗」PicItemEditModal（登记册第 16 条，可供其他场景独立调用），本组件
+ * 只负责把当前条目与回写口喂给它；弹窗内工具栏「从商品选择图片」经其
+ * onRequestProductPick 回到本组件唤起共享 ProductImagePickerModal（批量
+ * 落位口径在本组件，见 onPickManyProducts 说明），素材中心选图走弹窗内
+ * ImageUploader（内含 GalleryPickerModal）；标题 / 描述 / 链接在弹窗内编辑。
  * 编辑弹窗版式（2026-11-21 按用户指示调整，PC / H5 同形）：选图框在左、
  * 标题 / 链接字段纵列在右（.dec-pic-modal__body 横向布局）；抽取前 PC 现状
  * 为选图框居中在上、字段纵向堆叠在下。
@@ -27,18 +30,20 @@
  * （.dec-pic-modal__dialog 作用域：描边 + 柔和投影、头/脚描边分隔）、
  * 工具栏改浅底描边操作条、预览区改描边面板、字段标签加重；功能与数据
  * 契约零变化（选图/清除/素材中心更换/标题/描述/链接/删除/拖拽排序全保留）。
+ * 弹窗独立化续批（同日，用户在分类推荐 A1「基本设置」提出）：弹窗抽为
+ * 独立组件 PicItemEditModal 并改垂直居中（centered，此前贴顶呈现）、
+ * 内容超高时定高内部滚动；本组件调用口径与行为逐字不变。
  * 圆角口径核查（同日）：.dec-pic-grid__card / .dec-pic-modal__preview /
  * uploader 条目在 main 现行 CSS 中已为 border-radius: 0（直角扁平，与用户
  * 在现网旧版 admin 上看到的 14px 圆角不是同一版本），本批保持 0 不回加。
  * 通用组件登记：~/workspace/shared-components.md 第 1 条。
  */
 import { useState } from 'react';
-import { Button, Input, Modal, Toast } from '@douyinfe/semi-ui';
-import { IconClose, IconHandle, IconPlus } from '@douyinfe/semi-icons';
+import { Toast } from '@douyinfe/semi-ui';
+import { IconHandle, IconPlus } from '@douyinfe/semi-icons';
 import { useI18n } from '../i18n';
-import ImageUploader from './ImageUploader';
 import ProductImagePickerModal, { type PickedImage } from './ProductImagePicker';
-import { LinkField } from './LinkPicker';
+import PicItemEditModal from './PicItemEditModal';
 
 /** 图片条目（与 decoratePc/contract 的 PicItem 逐字段同形，抽取时对齐） */
 export interface PicItem {
@@ -110,76 +115,6 @@ export function PicListEditor({
     onChange(next);
     setEditIndex(next.length - 1);
   };
-  const current = editIndex !== null ? list[editIndex] : undefined;
-  const currentUrl = current ? String(current.picUrl || current.picThumb || '') : '';
-  const renderFields = (index: number) => (
-    <div className="dec-pic-modal__fields">
-      {showText && (
-        <label className="dec-pic-modal__field">
-          <span>{t('标题')}</span>
-          <Input
-            value={current?.picTitle || ''}
-            placeholder={t('建议10个字以内，可不填')}
-            onChange={(v) => updateItem(index, { picTitle: v })}
-          />
-        </label>
-      )}
-      {showDesc && (
-        <label className="dec-pic-modal__field">
-          <span>{t('描述')}</span>
-          <Input
-            value={current?.picDesc || ''}
-            placeholder={t('可不填')}
-            onChange={(v) => updateItem(index, { picDesc: v })}
-          />
-        </label>
-      )}
-      {showLink && (
-        <div className="dec-pic-modal__field">
-          <span>{t('链接')}</span>
-          <LinkField
-            value={current?.picLink}
-            onChange={(link) => updateItem(index, { picLink: link })}
-          />
-        </div>
-      )}
-    </div>
-  );
-  const renderEditor = (index: number) =>
-    showImage ? (
-      <div className="dec-pic-modal">
-        <div className="dec-pic-modal__toolbar">
-          <Button size="small" theme="light" type="primary" icon={<IconPlus />} onClick={() => setProductPickerOpen(true)}>
-            {t('从商品选择图片')}
-          </Button>
-          <span className="dec-pic-modal__toolbar-hint">{t('可用商品头图或商品相册图片')}</span>
-          {currentUrl ? (
-            <Button
-              size="small"
-              theme="borderless"
-              type="danger"
-              onClick={() => updateItem(index, { picUrl: '', picThumb: '' })}
-            >
-              {t('清除图片')}
-            </Button>
-          ) : null}
-        </div>
-        <div className="dec-pic-modal__body">
-          <div className="dec-pic-modal__preview">
-            <ImageUploader
-              single
-              value={currentUrl ? [currentUrl] : []}
-              onChange={(urls) => updateItem(index, { picUrl: urls[0] || '', picThumb: urls[0] || '' })}
-            />
-            <div className="dec-pic-modal__preview-hint">{t('点击图片从素材中心更换')}</div>
-          </div>
-          {renderFields(index)}
-        </div>
-      </div>
-    ) : (
-      // 无图模式：弹窗只有字段列，无选图区与商品选图入口
-      <div className="dec-pic-modal">{renderFields(index)}</div>
-    );
   const renderIndexBadge = (index: number) => <span className="dec-pic-grid__index">{index + 1}</span>;
   const renderDragHandle = (index: number) => (
     <span
@@ -259,30 +194,22 @@ export function PicListEditor({
           <span>{t(addText || '添加图片')}</span>
         </button>
       )}
-      <Modal
-        className="dec-pic-modal__dialog"
-        title={showImage ? t('编辑图片') : t('编辑条目')}
+      <PicItemEditModal
         visible={editIndex !== null}
-        onCancel={() => setEditIndex(null)}
-        width={560}
-        footer={
-          <div className="dec-pic-modal__footer">
-            <Button
-              type="danger"
-              theme="borderless"
-              icon={<IconClose />}
-              onClick={() => editIndex !== null && removeAt(editIndex)}
-            >
-              {t('删除')}
-            </Button>
-            <Button theme="solid" type="primary" onClick={() => setEditIndex(null)}>
-              {t('完成')}
-            </Button>
-          </div>
-        }
-      >
-        {editIndex !== null ? renderEditor(editIndex) : null}
-      </Modal>
+        item={editIndex !== null ? list[editIndex] : undefined}
+        showImage={showImage}
+        showText={showText}
+        showDesc={showDesc}
+        showLink={showLink}
+        onPatch={(patch) => {
+          if (editIndex !== null) updateItem(editIndex, patch);
+        }}
+        onRemove={() => {
+          if (editIndex !== null) removeAt(editIndex);
+        }}
+        onClose={() => setEditIndex(null)}
+        onRequestProductPick={showImage ? () => setProductPickerOpen(true) : undefined}
+      />
       {showImage ? (
       <ProductImagePickerModal
         visible={productPickerOpen}
