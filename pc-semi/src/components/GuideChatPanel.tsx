@@ -198,7 +198,16 @@ export default function GuideChatPanel({ open, onClose }: GuideChatPanelProps) {
   };
 
   const newChat = async () => {
-    if (sending) return;
+    // 流式进行中点新会话：先停掉当前流再建，避免按钮在 sending 期间静默无反应。
+    if (sending) {
+      streamRef.current?.abort();
+      streamRef.current = null;
+      if (convIdRef.current) {
+        void stopGuideChat(convIdRef.current).catch(() => undefined);
+      }
+      patchAssistant((m) => ({ ...m, pending: false }));
+      setSending(false);
+    }
     try {
       const { convId: id } = await createGuideConversation();
       setConv(id);
@@ -234,7 +243,7 @@ export default function GuideChatPanel({ open, onClose }: GuideChatPanelProps) {
         <div className="guide-chat">
           <div className="guide-toolbar">
             <span className="guide-toolbar__hint">{t('平台导购 · 价格以商品页为准')}</span>
-            <Button theme="borderless" size="small" onClick={newChat} disabled={sending}>
+            <Button theme="borderless" size="small" onClick={newChat}>
               {t('新会话')}
             </Button>
           </div>
@@ -274,9 +283,9 @@ export default function GuideChatPanel({ open, onClose }: GuideChatPanelProps) {
                   <div className="guide-bubble">
                     {m.content ? (
                       m.content
-                    ) : (
+                    ) : m.pending ? (
                       <span className="guide-thinking">{t('正在为你查找…')}</span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               ),
