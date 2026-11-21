@@ -22,6 +22,7 @@ pub mod product_gift;
 pub mod product_promotion;
 pub mod product_style_admin;
 pub mod promotion;
+pub mod recharge_gift;
 pub mod recharge_setting;
 pub mod salesman;
 pub mod salesman_admin;
@@ -70,6 +71,7 @@ pub struct Repositories {
     pub time_discount_batch: time_discount_batch::TimeDiscountBatchRepository,
     pub points_exchange: points_exchange::PointsExchangeRepository,
     pub product_gift: product_gift::ProductGiftRepository,
+    pub recharge_gift: recharge_gift::RechargeGiftRepository,
     pub recharge_setting: recharge_setting::RechargeSettingRepository,
     pub sign_in_setting: sign_in_setting::SignInSettingRepository,
     pub salesman_material: salesman_material::SalesmanMaterialRepository,
@@ -115,6 +117,7 @@ impl Repositories {
             time_discount_batch: time_discount_batch::TimeDiscountBatchRepository::new(pool.clone()),
             points_exchange: points_exchange::PointsExchangeRepository::new(pool.clone()),
             product_gift: product_gift::ProductGiftRepository::new(pool.clone()),
+            recharge_gift: recharge_gift::RechargeGiftRepository::new(pool.clone()),
             recharge_setting: recharge_setting::RechargeSettingRepository::new(pool.clone()),
             sign_in_setting: sign_in_setting::SignInSettingRepository::new(pool.clone()),
             salesman_material: salesman_material::SalesmanMaterialRepository::new(pool.clone()),

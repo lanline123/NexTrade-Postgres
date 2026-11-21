@@ -45,7 +45,7 @@ use crate::entities::UserRechargeOrder;
 // ——————————————————————————————————————————————
 
 /// `user_recharge_order` 8 列（顺序与实体一致）。
-pub const RECHARGE_COLUMNS: [&str; 8] = [
+pub const RECHARGE_COLUMNS: [&str; 9] = [
     "order_id",
     "user_id",
     "amount",
@@ -54,6 +54,8 @@ pub const RECHARGE_COLUMNS: [&str; 8] = [
     "paid_time",
     "postscript",
     "status",
+    // 我方新增 2026-11-21：下单时快照的命中档位 id（赠品发放按此取档）
+    "recharge_id",
 ];
 
 /// 主键列。
@@ -488,6 +490,7 @@ mod tests {
             paid_time: 0,
             postscript: "备注".into(),
             status: 0,
+            recharge_id: 3,
         }
     }
 

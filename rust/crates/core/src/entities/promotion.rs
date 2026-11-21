@@ -1041,10 +1041,6 @@ pub struct PointsExchange {
     pub is_enabled: i32,
     /// 属性ID
     pub sku_id: Option<i32>,
-    /// 兑换类型 [NOT NULL]（1=商品 2=优惠券；券型为我方新增，迁移 012）
-    pub exchange_type: i32,
-    /// 券模板ID（券型行的 coupon.coupon_id；商品型为 NULL）
-    pub coupon_id: Option<i32>,
 }
 
 impl PointsExchange {
@@ -1176,11 +1172,71 @@ pub struct RechargeSetting {
     pub sort_order: Option<i32>,
     /// 显示或者隐藏
     pub is_show: Option<i32>,
+    /// 赠送实物礼品：活动赠品池 `product_gift.gift_id`（0 = 不送实物）
+    /// 【我方新增 2026-11-21，论坛帖 717721；原版 recharge_setting 无此列】
+    pub gift_id: i32,
+    /// 每单赠送数量（gift_id > 0 时 ≥ 1）【我方新增 2026-11-21】
+    pub gift_quantity: i32,
 }
 
 impl RechargeSetting {
     /// 数据库表名。
     pub const TABLE: &'static str = "recharge_setting";
+}
+
+/// 充值赠品领取记录（表 `recharge_gift_record`）【我方新增 2026-11-21，论坛帖 717721】。
+///
+/// 充值单置「已支付」时同事务生成一条（`recharge_order_id` 唯一防重复发放）；
+/// gift/product/sku/shop 与 gift_name 均为发放时点快照，档位与赠品池事后
+/// 编辑不影响已生成记录。状态：0 待领取 / 1 已领取 / 2 已作废 / 3 异常。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct RechargeGiftRecord {
+    /// 记录 ID（bigserial，实体内以 i64 承载）
+    pub record_id: i64,
+    /// 来源充值单 `user_recharge_order.order_id`（唯一）
+    pub recharge_order_id: i32,
+    /// 来源档位 `recharge_setting.recharge_id`（快照）
+    pub recharge_id: i32,
+    /// 领取会员
+    pub user_id: i32,
+    /// 活动赠品池 `product_gift.gift_id`（快照）
+    pub gift_id: i32,
+    /// 赠品名称（快照）
+    pub gift_name: String,
+    /// 商品 ID（快照）
+    pub product_id: i32,
+    /// 规格 ID（快照）
+    pub sku_id: i32,
+    /// 履约店铺 ID（快照，履约单归属）
+    pub shop_id: i32,
+    /// 赠送数量
+    pub quantity: i32,
+    /// 状态：0 待领取 / 1 已领取 / 2 已作废 / 3 异常
+    pub status: i32,
+    /// 领取生成的履约订单 ID（未领取为 0）
+    pub order_id: i32,
+    /// 领取时选用的收货地址 ID
+    pub address_id: i32,
+    /// 收货人（领取快照）
+    pub consignee: String,
+    /// 收货手机（领取快照）
+    pub mobile: String,
+    /// 收货地址全文（领取快照：地区名 + 详细地址）
+    pub address_text: String,
+    /// 后台备注（异常原因 / 作废原因）
+    pub admin_note: String,
+    /// 生成时间（秒）
+    pub add_time: i32,
+    /// 领取时间（秒）
+    pub claim_time: i32,
+    /// 更新时间（秒）
+    pub update_time: i32,
+}
+
+impl RechargeGiftRecord {
+    /// 数据库表名。
+    pub const TABLE: &'static str = "recharge_gift_record";
 }
 
 

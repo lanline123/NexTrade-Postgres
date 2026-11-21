@@ -146,6 +146,8 @@ export default function MemberNav() {
           // 系统模式 mall：礼品卡整体收起（兑换与卡包入口隐藏；存量卡直达链接仍可打开）
           { name: '礼品卡兑换', url: '/member/giftcard/exchange', show: systemMode !== 'mall' },
           { name: '我的礼品卡', url: '/member/giftcard/list', show: systemMode !== 'mall' },
+          // 充值赠品（我方新增）：充值档位送实物礼品的领取入口，giftcard 模式收起
+          { name: '我的赠品', url: '/member/rechargegift', show: systemMode !== 'giftcard' },
         ],
       },
       {

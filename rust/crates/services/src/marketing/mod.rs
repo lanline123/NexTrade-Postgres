@@ -23,6 +23,7 @@ pub mod product_gift;
 pub mod product_promotion;
 pub mod product_style_admin;
 pub mod promotion;
+pub mod recharge_gift;
 pub mod recharge_setting;
 pub mod salesman;
 pub mod salesman_admin;
@@ -73,6 +74,7 @@ pub struct Services {
     pub time_discount_batch: Arc<time_discount_batch::TimeDiscountBatchService>,
     pub points_exchange: Arc<points_exchange::PointsExchangeService>,
     pub product_gift: Arc<product_gift::ProductGiftService>,
+    pub recharge_gift: Arc<recharge_gift::RechargeGiftService>,
     pub recharge_setting: Arc<recharge_setting::RechargeSettingService>,
     pub sign_in_setting: Arc<sign_in_setting::SignInSettingService>,
     pub salesman_material: Arc<salesman_material::SalesmanMaterialService>,

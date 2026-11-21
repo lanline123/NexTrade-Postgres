@@ -637,6 +637,10 @@ export const navGroups: NavGroup[] = [
             "label": "余额充值"
           },
           {
+            "key": "rechargeGiftRecordManage",
+            "label": "充值赠品记录"
+          },
+          {
             "key": "eCardManage",
             "label": "电子卡券"
           },
@@ -1782,6 +1786,7 @@ export const pageTitles: Record<string, string> = {
   "pointsExchangeManage": "积分商品",
   "signInSettingManage": "积分签到",
   "rechargeSettingManage": "余额充值",
+  "rechargeGiftRecordManage": "充值赠品记录",
   "eCardManage": "电子卡券",
   "buyerShowManage": "买家秀",
   "giftCardManage": "礼品卡",

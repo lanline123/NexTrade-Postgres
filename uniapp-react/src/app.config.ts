@@ -42,6 +42,7 @@ export default defineAppConfig({
         "pages/user/account/edit",
         "pages/user/account/list",
         "pages/user/account/deposit",
+        "pages/user/account/gifts",
         "pages/user/account/detail",
         "pages/user/account/log",
         "pages/user/account/raplyToCard",

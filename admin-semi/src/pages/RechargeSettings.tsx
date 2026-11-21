@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Modal, Space, Switch, Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '../api';
 import { useI18n } from '../i18n';
@@ -11,14 +11,49 @@ interface RechargeRow {
   discountMoney?: number | string;
   isShow?: number;
   sortOrder?: number;
+  /** 赠送实物礼品（我方新增）：活动赠品池 gift_id，0 = 不送 */
+  giftId?: number;
+  giftQuantity?: number;
+  giftName?: string;
 }
 
-/** 充值设置：对应旧版 promotion/rechargeSetting/List.vue + Info.vue。 */
+interface GiftOptionRow {
+  giftId: number;
+  giftName?: string;
+  giftStock?: number;
+}
+
+/** 充值设置：对应旧版 promotion/rechargeSetting/List.vue + Info.vue。
+ * 「实物赠品」两字段为我方新增（2026-11-21 论坛帖 717721），原版仅有赠送金额。 */
 export default function RechargeSettings() {
   const { t } = useI18n();
   const [reloadKey, setReloadKey] = useState(0);
+  const [giftOptions, setGiftOptions] = useState<Array<{ label: string; value: number }>>([
+    { label: '不送实物礼品', value: 0 },
+  ]);
 
   const reload = () => setReloadKey((key) => key + 1);
+
+  // 赠品下拉数据：既有活动赠品池（营销 → 活动赠品），档位只存 gift_id 一份引用
+  useEffect(() => {
+    apiGet<{ records?: GiftOptionRow[]; list?: GiftOptionRow[] }>('/promotion/productGift/list', {
+      page: 1,
+      size: 100,
+    })
+      .then((res) => {
+        const rows = (res as { records?: GiftOptionRow[]; list?: GiftOptionRow[] })?.records
+          || (res as { list?: GiftOptionRow[] })?.list
+          || [];
+        setGiftOptions([
+          { label: '不送实物礼品', value: 0 },
+          ...rows.map((g) => ({
+            label: `${g.giftName || `赠品 ${g.giftId}`}（库存 ${g.giftStock ?? 0}）`,
+            value: g.giftId,
+          })),
+        ]);
+      })
+      .catch(() => undefined);
+  }, []);
 
   const updateField = async (row: RechargeRow, field: string, value: unknown) => {
     try {
@@ -42,6 +77,17 @@ export default function RechargeSettings() {
       dataIndex: 'discountMoney',
       width: 160,
       render: (value: unknown) => <span title={t('赠送金额')}>{value != null ? String(value) : '-'}</span>,
+    },
+    {
+      title: '赠送实物',
+      dataIndex: 'giftName',
+      width: 200,
+      render: (_value: unknown, row: RechargeRow) =>
+        row.giftId && row.giftId > 0 ? (
+          <span>{`${row.giftName || `赠品 ${row.giftId}`} × ${row.giftQuantity ?? 1}`}</span>
+        ) : (
+          <span>-</span>
+        ),
     },
     {
       title: '是否显示',
@@ -123,6 +169,28 @@ export default function RechargeSettings() {
               },
             ],
           },
+          {
+            key: 'gift',
+            title: '实物赠品（可选）',
+            description:
+              '与赠送金额相互独立、可叠加：会员充值该档位并经后台确认到账后生成一条待领取赠品，会员在「我的赠品」选地址领取，系统生成赠品订单由对应商家发货（包邮）。赠品来自「营销 - 活动赠品」池，领取时扣减赠品库存；库存不足时记录会标记异常，可在「充值赠品记录」中处理。',
+            fields: [
+              {
+                field: 'giftId',
+                label: t('赠送礼品'),
+                type: 'select',
+                initValue: 0,
+                options: giftOptions,
+              },
+              {
+                field: 'giftQuantity',
+                label: t('赠送数量'),
+                type: 'number',
+                initValue: 1,
+                extraText: '选择赠品后生效（每笔充值赠送件数）',
+              },
+            ],
+          },
         ],
         toPayload: (values) => ({
           ...values,
@@ -130,6 +198,8 @@ export default function RechargeSettings() {
           discountMoney: Number(values.discountMoney ?? 0),
           sortOrder: Number(values.sortOrder ?? 1),
           isShow: Number(values.isShow ?? 1),
+          giftId: Number(values.giftId ?? 0),
+          giftQuantity: Number(values.giftQuantity ?? 1),
         }),
       }}
     />

@@ -250,6 +250,7 @@ pub use promotion::PointsExchange;
 pub use promotion::ProductGift;
 pub use promotion::ProductPromotion;
 pub use promotion::Promotion;
+pub use promotion::RechargeGiftRecord;
 pub use promotion::RechargeSetting;
 pub use promotion::Seckill;
 pub use promotion::SeckillItem;

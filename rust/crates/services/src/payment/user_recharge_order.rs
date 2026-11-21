@@ -11,6 +11,12 @@
 //! → 写 `user_balance_log`（`wallet_type=0`、`change_type=1`、备注
 //! 「充值订单审核通过增加余额」）→ 更新充值单（与 Java `@Transactional` 等价）。
 //!
+//! 【我方新增 2026-11-21，论坛帖 717721】同一入账事务内按充值单快照的
+//! 档位发放实物赠品记录（marketing::recharge_gift::grant_in_tx，档位未配
+//! 实物赠品时无操作）；充值单从「已支付」改回待确认时，同事务作废其
+//! 未领取/异常赠品记录（已领取不自动追回，口径见 recharge_gift 服务注释）。
+//! `updateField` 改 status 不入账的存量口径不变，赠品亦不随之发放/作废。
+//!
 //! # 偏差
 //!
 //! 1. `detail` 不存在 ID：业务 500「充值记录不存在」（Java 为异常 500）。
@@ -120,6 +126,8 @@ impl UserRechargeOrderService {
             paid_time: input.paid_time.unwrap_or(0),
             postscript: input.postscript,
             status: input.status,
+            // 后台建单不命中档位（我方新增列）：不发放实物赠品
+            recharge_id: 0,
         };
         let id = self.repo().insert(&entity).await?;
         tracing::info!("创建充值记录: order_id={id}");
@@ -153,7 +161,23 @@ impl UserRechargeOrderService {
             {
                 return Err(Error::biz(500, "会员不存在"));
             }
+            // 实物赠品发放（我方新增）：与入账同一事务；档位未配实物赠品
+            // 或充值单无档位快照时为无操作。重复置已支付由唯一约束防重。
+            crate::marketing::recharge_gift::RechargeGiftService::new(self.repos.clone())
+                .grant_in_tx(&mut tx, &merged)
+                .await?;
             self.repo().update(&merged).await?;
+            tx.commit()
+                .await
+                .map_err(|e| Error::Database(e.to_string()))?;
+        } else if existing.status == STATUS_SUCCESS {
+            // 从「已支付」改回待确认（撤销）：同事务作废未领取/异常赠品记录
+            // 并更新充值单（已领取记录不自动追回，口径见 recharge_gift 服务）。
+            let mut tx = self.repo().begin().await?;
+            crate::marketing::recharge_gift::RechargeGiftService::new(self.repos.clone())
+                .void_open_in_tx(&mut tx, merged.order_id)
+                .await?;
+            self.repo().update_in_tx(&mut tx, &merged).await?;
             tx.commit()
                 .await
                 .map_err(|e| Error::Database(e.to_string()))?;
@@ -287,6 +311,7 @@ mod tests {
             paid_time: 0,
             postscript: "备注".into(),
             status: 0,
+            recharge_id: 0,
         }
     }
 

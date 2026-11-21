@@ -24,7 +24,7 @@ use nextrade_core::models::payment::user_recharge_order::{
 use nextrade_core::{Error, Result};
 
 /// `user_recharge_order` 固定 SELECT 列清单。
-const RECHARGE_SELECT: &str = "SELECT order_id, user_id, amount, discount_money, add_time, paid_time, postscript, status FROM user_recharge_order";
+const RECHARGE_SELECT: &str = "SELECT order_id, user_id, amount, discount_money, add_time, paid_time, postscript, status, recharge_id FROM user_recharge_order";
 
 /// 用户装配行（`user`）。
 #[derive(Debug, Clone, Default, FromRow)]
@@ -126,7 +126,7 @@ impl UserRechargeOrderRepository {
     /// 新增（Java `save`；`add_time` 由服务层置为当前秒）。
     pub async fn insert(&self, entity: &UserRechargeOrder) -> Result<i32> {
         let res: i32 = sqlx::query_scalar(
-            "INSERT INTO user_recharge_order (user_id, amount, discount_money, add_time, paid_time, postscript, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING order_id",
+            "INSERT INTO user_recharge_order (user_id, amount, discount_money, add_time, paid_time, postscript, status, recharge_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING order_id",
         )
         .bind(entity.user_id)
         .bind(entity.amount)
@@ -135,6 +135,7 @@ impl UserRechargeOrderRepository {
         .bind(entity.paid_time)
         .bind(&entity.postscript)
         .bind(entity.status)
+        .bind(entity.recharge_id)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
@@ -144,7 +145,7 @@ impl UserRechargeOrderRepository {
     /// 整行更新（Java `updateById`，服务层按 NOT_NULL 语义合并后调用）。
     pub async fn update(&self, entity: &UserRechargeOrder) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE user_recharge_order SET user_id = $1, amount = $2, discount_money = $3, add_time = $4, paid_time = $5, postscript = $6, status = $7 WHERE order_id = $8",
+            "UPDATE user_recharge_order SET user_id = $1, amount = $2, discount_money = $3, add_time = $4, paid_time = $5, postscript = $6, status = $7, recharge_id = $8 WHERE order_id = $9",
         )
         .bind(entity.user_id)
         .bind(entity.amount)
@@ -153,8 +154,34 @@ impl UserRechargeOrderRepository {
         .bind(entity.paid_time)
         .bind(&entity.postscript)
         .bind(entity.status)
+        .bind(entity.recharge_id)
         .bind(entity.order_id)
         .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(res.rows_affected())
+    }
+
+    /// 整行更新（事务版，与 [`Self::update`] 同 SQL；充值撤销时与赠品记录
+    /// 作废同事务调用，我方新增 2026-11-21）。
+    pub async fn update_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        entity: &UserRechargeOrder,
+    ) -> Result<u64> {
+        let res = sqlx::query(
+            "UPDATE user_recharge_order SET user_id = $1, amount = $2, discount_money = $3, add_time = $4, paid_time = $5, postscript = $6, status = $7, recharge_id = $8 WHERE order_id = $9",
+        )
+        .bind(entity.user_id)
+        .bind(entity.amount)
+        .bind(entity.discount_money)
+        .bind(entity.add_time)
+        .bind(entity.paid_time)
+        .bind(&entity.postscript)
+        .bind(entity.status)
+        .bind(entity.recharge_id)
+        .bind(entity.order_id)
+        .execute(&mut **tx)
         .await
         .map_err(map_err)?;
         Ok(res.rows_affected())

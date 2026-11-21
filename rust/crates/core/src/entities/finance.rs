@@ -1029,6 +1029,9 @@ pub struct UserRechargeOrder {
     pub postscript: String,
     /// 状态，0：待支付，1：已支付，2：无效 [NOT NULL]
     pub status: i32,
+    /// 命中的充值档位 id（下单时快照，0 = 未命中/后台建单）
+    /// 【我方新增 2026-11-21，论坛帖 717721；支付成功发放赠品按此快照取档】
+    pub recharge_id: i32,
 }
 
 impl UserRechargeOrder {

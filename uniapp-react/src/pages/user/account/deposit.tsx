@@ -130,6 +130,13 @@ export default function Deposit({ onBackDetail }: Props) {
 
     return (
         <View>
+            <View
+                className="my-gifts-entry"
+                onClick={() => Taro.navigateTo({ url: "/pages/user/account/gifts" })}
+            >
+                <View>{t("我的赠品")}</View>
+                <View className="my-gifts-entry-sub">{t("充值赠品领取")} ›</View>
+            </View>
             <View className="recharge-box">
                 {filterState.length > 0 ? (
                     <View className="recharge-wrap">
@@ -164,6 +171,11 @@ export default function Deposit({ onBackDetail }: Props) {
                                                     isBottom={false}
                                                     fontStyle={{ fontSize: "11px" }}
                                                 />
+                                            </View>
+                                        ) : null}
+                                        {item.giftId && item.giftId > 0 ? (
+                                            <View className="recharge-give">
+                                                {t("送赠品")} {item.giftName || ""} ×{item.giftQuantity || 1}
                                             </View>
                                         ) : null}
                                     </>

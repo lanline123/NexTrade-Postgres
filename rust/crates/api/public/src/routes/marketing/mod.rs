@@ -8,6 +8,7 @@ pub mod groupon_promotion;
 pub mod groupon_records;
 pub mod lottery;
 pub mod product_style_admin;
+pub mod recharge_gift;
 pub mod salesman_admin;
 pub mod salesman_content;
 pub mod salesman_material;
@@ -45,6 +46,7 @@ pub fn public_routes(state: &PublicState) -> Router<PublicState> {
     Router::new()
         .merge(auction::public_routes())
         .merge(coupon::public_routes(state))
+        .merge(recharge_gift::public_routes(state))
         .merge(seckill::public_routes())
         .merge(time_discount::public_routes())
 }
@@ -75,6 +77,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(groupon_records::implemented_routes());
     out.extend(lottery::implemented_routes());
     out.extend(product_style_admin::implemented_routes());
+    out.extend(recharge_gift::implemented_routes());
     out.extend(salesman_admin::implemented_routes());
     out.extend(salesman_content::implemented_routes());
     out.extend(salesman_material::implemented_routes());

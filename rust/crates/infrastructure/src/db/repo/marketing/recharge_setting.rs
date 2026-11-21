@@ -1,5 +1,5 @@
 //! 充值余额配置域仓储（marketing::recharge_setting）。
-//! 表 `recharge_setting`（5 列，主键 recharge_id）。
+//! 表 `recharge_setting`（7 列，主键 recharge_id；gift 两列为我方新增）。
 
 use sqlx::{Postgres,PgPool, QueryBuilder};
 
@@ -9,7 +9,7 @@ use nextrade_core::models::marketing::recharge_setting::{
 };
 use nextrade_core::{Error, Result};
 
-const SELECT: &str = "SELECT recharge_id, money, discount_money, sort_order, is_show FROM recharge_setting";
+const SELECT: &str = "SELECT recharge_id, money, discount_money, sort_order, is_show, gift_id, gift_quantity FROM recharge_setting";
 
 /// 充值余额配置域仓储。
 #[derive(Clone)]
@@ -58,12 +58,14 @@ impl RechargeSettingRepository {
 
     pub async fn insert(&self, entity: &RechargeSetting) -> Result<i32> {
         let res: i32 = sqlx::query_scalar(
-            "INSERT INTO recharge_setting (money, discount_money, sort_order, is_show) VALUES ($1, $2, $3, $4) RETURNING recharge_id",
+            "INSERT INTO recharge_setting (money, discount_money, sort_order, is_show, gift_id, gift_quantity) VALUES ($1, $2, $3, $4, $5, $6) RETURNING recharge_id",
         )
         .bind(entity.money)
         .bind(entity.discount_money)
         .bind(entity.sort_order)
         .bind(entity.is_show)
+        .bind(entity.gift_id)
+        .bind(entity.gift_quantity)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
@@ -72,12 +74,14 @@ impl RechargeSettingRepository {
 
     pub async fn update(&self, entity: &RechargeSetting) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE recharge_setting SET money = $1, discount_money = $2, sort_order = $3, is_show = $4 WHERE recharge_id = $5",
+            "UPDATE recharge_setting SET money = $1, discount_money = $2, sort_order = $3, is_show = $4, gift_id = $5, gift_quantity = $6 WHERE recharge_id = $7",
         )
         .bind(entity.money)
         .bind(entity.discount_money)
         .bind(entity.sort_order)
         .bind(entity.is_show)
+        .bind(entity.gift_id)
+        .bind(entity.gift_quantity)
         .bind(entity.recharge_id)
         .execute(&self.pool)
         .await

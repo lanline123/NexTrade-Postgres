@@ -21,6 +21,7 @@ pub mod product_gift;
 pub mod product_promotion;
 pub mod product_style_admin;
 pub mod promotion;
+pub mod recharge_gift;
 pub mod recharge_setting;
 pub mod salesman;
 pub mod salesman_admin;

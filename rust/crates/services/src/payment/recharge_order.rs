@@ -124,16 +124,32 @@ impl RechargeOrderService {
             .recharge_order
             .paginate_settings(page, size)
             .await?;
-        let list = rows
-            .into_iter()
-            .map(|r| RechargeSettingVO {
+        let mut list = Vec::with_capacity(rows.len());
+        for r in rows {
+            // 赠品展示（我方新增）：档位配了实物赠品时补赠品名称
+            let gift_name = if r.gift_id > 0 {
+                self.repos
+                    .marketing
+                    .product_gift
+                    .find_by_id(r.gift_id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|g| g.gift_name)
+            } else {
+                None
+            };
+            list.push(RechargeSettingVO {
                 recharge_id: r.recharge_id,
                 money: r.money,
                 discount_money: r.discount_money,
                 sort_order: r.sort_order,
                 is_show: r.is_show,
-            })
-            .collect();
+                gift_id: r.gift_id,
+                gift_quantity: r.gift_quantity,
+                gift_name,
+            });
+        }
         let size = size.max(1) as u64;
         Ok(PageResult {
             total: total.max(0) as u64,
@@ -153,16 +169,21 @@ impl RechargeOrderService {
     /// `POST /api/user/rechargeOrder/update`：创建/获取充值单。
     pub async fn update(&self, dto: &nextrade_core::models::payment::recharge_order::ClientRechargeUpdateDTO) -> Result<RechargeUpdateOrderVO> {
         let user_id = authenticated_user(dto.user_id)?;
-        let (amount, discount_money) = if let Some(amount) = dto.amount {
-            let discount = self
+        // recharge_id 为命中的档位快照（我方新增，与 discount_money 同点写入；
+        // 自定义金额未匹配到档位时为 0，该单支付成功不发放实物赠品）。
+        let (amount, discount_money, recharge_id) = if let Some(amount) = dto.amount {
+            let setting = self
                 .repos
                 .payment
                 .recharge_order
                 .find_setting_by_money(amount)
-                .await?
+                .await?;
+            let discount = setting
+                .as_ref()
                 .and_then(|s| s.discount_money)
                 .unwrap_or_default();
-            (amount, discount)
+            let recharge_id = setting.map(|s| s.recharge_id).unwrap_or(0);
+            (amount, discount, recharge_id)
         } else {
             let id = dto.id.ok_or_else(|| Error::biz_msg(MSG_PARAM_MISSING))?;
             let setting = self
@@ -175,6 +196,7 @@ impl RechargeOrderService {
             (
                 setting.money.unwrap_or_default(),
                 setting.discount_money.unwrap_or_default(),
+                setting.recharge_id,
             )
         };
         let now = nextrade_common::utils::now_seconds() as i32;
@@ -182,7 +204,7 @@ impl RechargeOrderService {
             .repos
             .payment
             .recharge_order
-            .insert_recharge(user_id, amount, discount_money, now, "会员充值")
+            .insert_recharge(user_id, amount, discount_money, now, "会员充值", recharge_id)
             .await?;
         Ok(RechargeUpdateOrderVO { order_id })
     }

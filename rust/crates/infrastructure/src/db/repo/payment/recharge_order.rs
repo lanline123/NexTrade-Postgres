@@ -106,6 +106,8 @@ impl RechargeOrderRepository {
     }
 
     /// 新建充值单（Java `rechargeOperation` 保存；状态默认 0 待支付）。
+    /// `recharge_id` 为下单命中的档位快照（我方新增 2026-11-21；0 = 未命中），
+    /// 支付成功发放赠品时按快照取档。
     pub async fn insert_recharge(
         &self,
         user_id: i32,
@@ -113,16 +115,18 @@ impl RechargeOrderRepository {
         discount_money: Decimal,
         add_time: i32,
         postscript: &str,
+        recharge_id: i32,
     ) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
-            "INSERT INTO user_recharge_order (user_id, amount, discount_money, add_time, paid_time, postscript, status)
-             VALUES ($1,$2,$3,$4,0,$5,0) RETURNING order_id",
+            "INSERT INTO user_recharge_order (user_id, amount, discount_money, add_time, paid_time, postscript, status, recharge_id)
+             VALUES ($1,$2,$3,$4,0,$5,0,$6) RETURNING order_id",
         )
         .bind(user_id)
         .bind(amount)
         .bind(discount_money)
         .bind(add_time)
         .bind(postscript)
+        .bind(recharge_id)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;

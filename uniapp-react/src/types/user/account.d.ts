@@ -52,6 +52,10 @@ export interface DepositFilterState {
     money?: string;
     rechargeId?: number;
     selected?: boolean;
+    /** 赠送实物礼品（我方新增）：giftId > 0 时展示 giftName × giftQuantity */
+    giftId?: number;
+    giftQuantity?: number;
+    giftName?: string;
 }
 
 // 获取详情返回参数类型

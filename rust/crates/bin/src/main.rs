@@ -125,6 +125,7 @@ use nextrade_services::marketing::product_gift::ProductGiftService;
 use nextrade_services::marketing::product_promotion::ProductPromotionService;
 use nextrade_services::marketing::product_style_admin::ProductStyleAdminService;
 use nextrade_services::marketing::promotion::PromotionService;
+use nextrade_services::marketing::recharge_gift::RechargeGiftService;
 use nextrade_services::marketing::recharge_setting::RechargeSettingService;
 use nextrade_services::marketing::salesman::SalesmanService;
 use nextrade_services::marketing::salesman_admin::SalesmanAdminService;
@@ -645,6 +646,7 @@ async fn main() -> anyhow::Result<()> {
     let points_exchange = Arc::new(PointsExchangeService::new(repos.clone()));
     let product_gift = Arc::new(ProductGiftService::new(repos.clone()));
     let recharge_setting = Arc::new(RechargeSettingService::new(repos.clone()));
+    let recharge_gift = Arc::new(RechargeGiftService::new(repos.clone()));
     let sign_in_setting = Arc::new(SignInSettingService::new(repos.clone()));
     let salesman_material = Arc::new(SalesmanMaterialService::new(repos.clone()));
     let salesman_group = Arc::new(SalesmanGroupService::new(repos.clone()));
@@ -686,6 +688,7 @@ async fn main() -> anyhow::Result<()> {
         time_discount_batch: time_discount_batch.clone(),
         points_exchange: points_exchange.clone(),
         product_gift: product_gift.clone(),
+        recharge_gift: recharge_gift.clone(),
         recharge_setting: recharge_setting.clone(),
         sign_in_setting: sign_in_setting.clone(),
         salesman_material: salesman_material.clone(),

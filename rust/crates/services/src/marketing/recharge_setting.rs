@@ -2,7 +2,9 @@
 //!
 //! Java `RechargeSettingController`（7 端点）→ `RechargeSettingServiceImpl`。
 //! 创建校验「充值金额或赠送金额不能小于0」，更新需金额非空；`updateField`
-//! 白名单 `{money, discount_money, sort_order, is_show}`；`batch` 仅 del。
+//! 白名单 `{money, discount_money, sort_order, is_show, gift_id, gift_quantity}`；
+//! `batch` 仅 del。gift 两字段为我方新增（2026-11-21 充值送实物礼品）：
+//! gift_id 指向活动赠品池 product_gift，与 discount_money 相互独立、可叠加。
 
 //! # 多租户（N/A 判定）
 //!
@@ -18,8 +20,9 @@ use std::sync::Arc;
 
 use nextrade_core::entities::promotion::RechargeSetting;
 use nextrade_core::models::marketing::recharge_setting::{
-    BatchDTO, OperateDTO, RechargeSettingCreateDTO, RechargeSettingListQuery,
-    RechargeSettingUpdateDTO, RechargeSettingVO, UpdateFieldDTO, MSG_NOT_EXISTS,
+    normalize_gift, BatchDTO, OperateDTO, RechargeSettingCreateDTO, RechargeSettingListQuery,
+    RechargeSettingUpdateDTO, RechargeSettingVO, UpdateFieldDTO, MSG_GIFT_NOT_EXISTS,
+    MSG_NOT_EXISTS,
 };
 use nextrade_core::types::PageResult;
 use nextrade_core::{Error, Result};
@@ -45,7 +48,10 @@ impl RechargeSettingService {
         let page = to_page_query(q.page, q.size);
         let (limit, offset) = q.limit_offset();
         let (total, rows) = self.repo().paginate(q, limit, offset).await?;
-        let list = rows.iter().map(to_vo).collect();
+        let mut list = Vec::with_capacity(rows.len());
+        for row in &rows {
+            list.push(self.to_vo_with_gift(row).await);
+        }
         Ok(PageResult::new(u64::try_from(total).unwrap_or(0), list, &page))
     }
 
@@ -55,17 +61,45 @@ impl RechargeSettingService {
             .find_by_id(id)
             .await?
             .ok_or_else(|| Error::biz(500, MSG_NOT_EXISTS))?;
-        Ok(to_vo(&entity))
+        Ok(self.to_vo_with_gift(&entity).await)
+    }
+
+    /// VO 装配：gift_id > 0 时补赠品名称（赠品已被删时名称为空，前端回退显示 id）。
+    async fn to_vo_with_gift(&self, entity: &RechargeSetting) -> RechargeSettingVO {
+        let mut vo = to_vo(entity);
+        if entity.gift_id > 0 {
+            if let Ok(Some(gift)) =
+                self.repos.marketing.product_gift.find_by_id(entity.gift_id).await
+            {
+                vo.gift_name = Some(gift.gift_name);
+            }
+        }
+        vo
+    }
+
+    /// 赠品存在性校验（我方新增）：选了赠品必须能在活动赠品池中找到。
+    async fn ensure_gift_exists(&self, gift_id: i32) -> Result<()> {
+        if gift_id <= 0 {
+            return Ok(());
+        }
+        let gift = self.repos.marketing.product_gift.find_by_id(gift_id).await?;
+        if gift.is_none() {
+            return Err(Error::biz(500, MSG_GIFT_NOT_EXISTS));
+        }
+        Ok(())
     }
 
     pub async fn create(&self, dto: &RechargeSettingCreateDTO) -> Result<i32> {
         let input = dto.validate().map_err(Error::Validation)?;
+        self.ensure_gift_exists(input.gift_id).await?;
         let entity = RechargeSetting {
             recharge_id: 0,
             money: Some(input.money),
             discount_money: Some(input.discount_money),
             sort_order: Some(input.sort_order),
             is_show: Some(input.is_show),
+            gift_id: input.gift_id,
+            gift_quantity: input.gift_quantity,
         };
         Ok(self.repo().insert(&entity).await?)
     }
@@ -84,6 +118,20 @@ impl RechargeSettingService {
         }
         if let Some(v) = input.is_show {
             entity.is_show = Some(v);
+        }
+        // 赠品（我方新增）：传了 gift_id → 整对替换（含清除）；只传数量 →
+        // 与存量 gift_id 重新归一（无赠品时数量恒清零）。
+        if let Some((gift_id, quantity)) = input.gift {
+            entity.gift_id = gift_id;
+            entity.gift_quantity = quantity;
+        } else if let Some(quantity) = input.gift_quantity {
+            let (gift_id, quantity) =
+                normalize_gift(Some(entity.gift_id), Some(quantity)).map_err(Error::Validation)?;
+            entity.gift_id = gift_id;
+            entity.gift_quantity = quantity;
+        }
+        if input.gift.is_some() || input.gift_quantity.is_some() {
+            self.ensure_gift_exists(entity.gift_id).await?;
         }
         self.repo().update(&entity).await?;
         Ok(())
@@ -117,6 +165,9 @@ fn to_vo(entity: &RechargeSetting) -> RechargeSettingVO {
         discount_money: entity.discount_money,
         sort_order: entity.sort_order,
         is_show: entity.is_show,
+        gift_id: entity.gift_id,
+        gift_quantity: entity.gift_quantity,
+        gift_name: None,
     }
 }
 

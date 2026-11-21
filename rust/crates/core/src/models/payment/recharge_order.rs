@@ -109,7 +109,8 @@ impl RechargeSettingPageQuery {
     }
 }
 
-/// 充值配置行（Java `RechargeSettingVO`）。
+/// 充值配置行（Java `RechargeSettingVO`；gift 三字段为我方新增 2026-11-21，
+/// 供会员端充值页展示「送赠品 ×N」，gift_id = 0 时为空）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RechargeSettingVO {
@@ -118,6 +119,12 @@ pub struct RechargeSettingVO {
     pub discount_money: Option<Decimal>,
     pub sort_order: Option<i32>,
     pub is_show: Option<i32>,
+    /// 赠送实物礼品 gift_id（0 = 不送）【我方新增】
+    pub gift_id: i32,
+    /// 每单赠送数量【我方新增】
+    pub gift_quantity: i32,
+    /// 赠品名称（服务层装配）【我方新增】
+    pub gift_name: Option<String>,
 }
 
 /// 充值申请入参（Java `ClientUserRechargeOrderUpdateDTO`）。

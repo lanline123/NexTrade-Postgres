@@ -18,6 +18,7 @@ pub mod product_gift;
 pub mod product_promotion;
 pub mod product_style_admin;
 pub mod promotion;
+pub mod recharge_gift;
 pub mod recharge_setting;
 pub mod salesman;
 pub mod salesman_admin;
@@ -64,6 +65,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(product_style_admin::routes(state))
         .merge(promotion::routes(state))
         .merge(recharge_setting::routes(state))
+        .merge(recharge_gift::routes(state))
         .merge(salesman::routes(state))
         .merge(salesman_admin::routes(state))
         .merge(salesman_config::routes(state))
@@ -111,6 +113,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(product_style_admin::implemented_routes());
     out.extend(promotion::implemented_routes());
     out.extend(recharge_setting::implemented_routes());
+    out.extend(recharge_gift::implemented_routes());
     out.extend(salesman::implemented_routes());
     out.extend(salesman_admin::implemented_routes());
     out.extend(salesman_config::implemented_routes());

@@ -1,25 +1,41 @@
 //! 充值余额配置域（marketing::recharge_setting）DTO / VO / 纯函数。
 //! Java `RechargeSettingController`（7 端点）+ `RechargeSettingServiceImpl`。
-//! 表 `recharge_setting`（5 列，主键 recharge_id）。
+//! 表 `recharge_setting`（7 列，主键 recharge_id；gift_id / gift_quantity 两列为
+//! 我方新增 2026-11-21「充值送实物礼品」论坛帖 717721，原版无此列）。
 
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-pub const COLUMNS: [&str; 5] = [
+pub const COLUMNS: [&str; 7] = [
     "recharge_id",
     "money",
     "discount_money",
     "sort_order",
     "is_show",
+    "gift_id",
+    "gift_quantity",
 ];
 pub const KEY_COLUMN: &str = "recharge_id";
-pub const UPDATE_FIELDS: [&str; 4] = ["money", "discount_money", "sort_order", "is_show"];
+pub const UPDATE_FIELDS: [&str; 6] = [
+    "money",
+    "discount_money",
+    "sort_order",
+    "is_show",
+    "gift_id",
+    "gift_quantity",
+];
 
 pub const MSG_MONEY_REQUIRED: &str = "充值金额不能为空";
 pub const MSG_DISCOUNT_REQUIRED: &str = "赠送金额不能为空";
 pub const MSG_ID_REQUIRED: &str = "充值id不能为空";
 pub const MSG_NEGATIVE: &str = "充值金额或赠送金额不能小于0";
 pub const MSG_NOT_EXISTS: &str = "充值余额配置不存在";
+/// 我方新增：选了赠品但数量不合法。
+pub const MSG_GIFT_QUANTITY_INVALID: &str = "赠送数量必须大于0";
+/// 我方新增：赠品 id 为负。
+pub const MSG_GIFT_INVALID: &str = "赠品选择有误";
+/// 我方新增：所选赠品在活动赠品池中不存在。
+pub const MSG_GIFT_NOT_EXISTS: &str = "所选赠品不存在，请先在「活动赠品」中维护";
 
 #[must_use]
 pub fn map_order_column(field: &str) -> &'static str {
@@ -29,8 +45,31 @@ pub fn map_order_column(field: &str) -> &'static str {
         "discountMoney" | "discount_money" => "discount_money",
         "sortOrder" | "sort_order" => "sort_order",
         "isShow" | "is_show" => "is_show",
+        "giftId" | "gift_id" => "gift_id",
+        "giftQuantity" | "gift_quantity" => "gift_quantity",
         _ => KEY_COLUMN,
     }
+}
+
+/// 赠品两字段归一（我方新增）：未选赠品（gift_id ≤ 0，None 视为未选）→ (0, 0)；
+/// 选了赠品则数量必须 ≥ 1。金额赠送与实物赠送相互独立、可叠加，本函数不
+/// 触碰 discount_money。
+pub fn normalize_gift(
+    gift_id: Option<i32>,
+    gift_quantity: Option<i32>,
+) -> Result<(i32, i32), String> {
+    let gift_id = gift_id.unwrap_or(0);
+    if gift_id < 0 {
+        return Err(MSG_GIFT_INVALID.to_string());
+    }
+    if gift_id == 0 {
+        return Ok((0, 0));
+    }
+    let quantity = gift_quantity.unwrap_or(0);
+    if quantity < 1 {
+        return Err(MSG_GIFT_QUANTITY_INVALID.to_string());
+    }
+    Ok((gift_id, quantity))
 }
 
 #[must_use]
@@ -98,7 +137,7 @@ impl RechargeSettingListQuery {
     }
 }
 
-/// 创建入参（Java `RechargeSettingCreateDTO`）。
+/// 创建入参（Java `RechargeSettingCreateDTO`；gift 两字段为我方新增）。
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct RechargeSettingCreateDTO {
@@ -106,6 +145,10 @@ pub struct RechargeSettingCreateDTO {
     pub discount_money: Option<Decimal>,
     pub sort_order: Option<i32>,
     pub is_show: Option<i32>,
+    /// 赠送实物礼品（活动赠品池 gift_id，0/缺省 = 不送）【我方新增】
+    pub gift_id: Option<i32>,
+    /// 每单赠送数量【我方新增】
+    pub gift_quantity: Option<i32>,
 }
 
 /// 校验后的创建参数。
@@ -115,6 +158,8 @@ pub struct RechargeSettingCreate {
     pub discount_money: Decimal,
     pub sort_order: i32,
     pub is_show: i32,
+    pub gift_id: i32,
+    pub gift_quantity: i32,
 }
 
 impl RechargeSettingCreateDTO {
@@ -126,16 +171,19 @@ impl RechargeSettingCreateDTO {
         if money < Decimal::ZERO || discount_money < Decimal::ZERO {
             return Err(MSG_NEGATIVE.to_string());
         }
+        let (gift_id, gift_quantity) = normalize_gift(self.gift_id, self.gift_quantity)?;
         Ok(RechargeSettingCreate {
             money,
             discount_money,
             sort_order: self.sort_order.unwrap_or(0),
             is_show: self.is_show.unwrap_or(0),
+            gift_id,
+            gift_quantity,
         })
     }
 }
 
-/// 更新入参（Java `RechargeSettingUpdateDTO`）。
+/// 更新入参（Java `RechargeSettingUpdateDTO`；gift 两字段为我方新增）。
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct RechargeSettingUpdateDTO {
@@ -144,6 +192,10 @@ pub struct RechargeSettingUpdateDTO {
     pub discount_money: Option<Decimal>,
     pub sort_order: Option<i32>,
     pub is_show: Option<i32>,
+    /// 赠送实物礼品【我方新增】：None = 不修改（保留旧值），Some(0) = 清除赠品。
+    pub gift_id: Option<i32>,
+    /// 每单赠送数量【我方新增】：None = 不修改。
+    pub gift_quantity: Option<i32>,
 }
 
 /// 校验后的更新参数（金额 @NotNull）。
@@ -154,6 +206,10 @@ pub struct RechargeSettingUpdate {
     pub discount_money: Decimal,
     pub sort_order: Option<i32>,
     pub is_show: Option<i32>,
+    /// 归一后的赠品对（仅当 DTO 传了 gift_id 时为 Some）【我方新增】
+    pub gift: Option<(i32, i32)>,
+    /// DTO 单独传的赠送数量（未传 gift_id 时由服务层与存量 gift_id 重新归一）
+    pub gift_quantity: Option<i32>,
 }
 
 impl RechargeSettingUpdateDTO {
@@ -165,12 +221,20 @@ impl RechargeSettingUpdateDTO {
         let discount_money = self
             .discount_money
             .ok_or_else(|| MSG_DISCOUNT_REQUIRED.to_string())?;
+        // 仅传数量未传 gift_id 时无法判定目标赠品，按「不修改」处理（服务层
+        // 会以存量 gift_id 与新数量重新归一，见服务层 update）。
+        let gift = match self.gift_id {
+            Some(gift_id) => Some(normalize_gift(Some(gift_id), self.gift_quantity)?),
+            None => None,
+        };
         Ok(RechargeSettingUpdate {
             recharge_id,
             money,
             discount_money,
             sort_order: self.sort_order,
             is_show: self.is_show,
+            gift,
+            gift_quantity: self.gift_quantity,
         })
     }
 }
@@ -242,7 +306,7 @@ pub struct BatchDTO {
     pub value: Option<i32>,
 }
 
-/// 充值余额 VO（Java `RechargeSettingVO`）。
+/// 充值余额 VO（Java `RechargeSettingVO`；gift 三字段为我方新增）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RechargeSettingVO {
@@ -251,6 +315,12 @@ pub struct RechargeSettingVO {
     pub discount_money: Option<Decimal>,
     pub sort_order: Option<i32>,
     pub is_show: Option<i32>,
+    /// 赠送实物礼品 gift_id（0 = 不送）【我方新增】
+    pub gift_id: i32,
+    /// 每单赠送数量【我方新增】
+    pub gift_quantity: i32,
+    /// 赠品名称（服务层按 gift_id 装配，gift_id = 0 时为 None）【我方新增】
+    pub gift_name: Option<String>,
 }
 
 #[cfg(test)]
@@ -297,11 +367,42 @@ mod tests {
             ("discountMoney", "discount_money"),
             ("sortOrder", "sort_order"),
             ("is_show", "is_show"),
+            ("giftId", "gift_id"),
+            ("giftQuantity", "gift_quantity"),
         ] {
             assert_eq!(resolve_update_field(field), Some(column));
         }
         assert_eq!(resolve_update_field("rechargeId"), None);
         assert_eq!(limit_offset(None, None), (15, 0));
         assert_eq!(order_clause(None, None), " ORDER BY recharge_id DESC");
+    }
+
+    #[test]
+    fn gift_normalization() {
+        // 未选赠品 → (0, 0)，数量一律清零（存量档位零变化）
+        assert_eq!(normalize_gift(None, None), Ok((0, 0)));
+        assert_eq!(normalize_gift(Some(0), Some(5)), Ok((0, 0)));
+        // 选了赠品必须有数量
+        assert_eq!(
+            normalize_gift(Some(3), None),
+            Err(MSG_GIFT_QUANTITY_INVALID.to_string())
+        );
+        assert_eq!(
+            normalize_gift(Some(3), Some(0)),
+            Err(MSG_GIFT_QUANTITY_INVALID.to_string())
+        );
+        assert_eq!(normalize_gift(Some(3), Some(2)), Ok((3, 2)));
+        assert_eq!(normalize_gift(Some(-1), Some(1)), Err(MSG_GIFT_INVALID.to_string()));
+        // 创建 DTO：金额赠送与实物赠送可叠加
+        let dto = RechargeSettingCreateDTO {
+            money: Some(Decimal::new(10000, 2)),
+            discount_money: Some(Decimal::new(500, 2)),
+            gift_id: Some(7),
+            gift_quantity: Some(1),
+            ..Default::default()
+        };
+        let input = dto.validate().unwrap();
+        assert_eq!((input.gift_id, input.gift_quantity), (7, 1));
+        assert_eq!(input.discount_money, Decimal::new(500, 2));
     }
 }
