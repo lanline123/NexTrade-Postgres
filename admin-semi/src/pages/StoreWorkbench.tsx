@@ -484,9 +484,9 @@ export default function StoreWorkbench() {
                         key={index}
                         style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0' }}
                       >
-                        {item.productImage ? (
+                        {item.picThumb ? (
                           <img
-                            src={item.productImage}
+                            src={item.picThumb}
                             alt=""
                             style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4 }}
                           />
@@ -494,7 +494,7 @@ export default function StoreWorkbench() {
                         <Text style={{ flex: 1, minWidth: 0 }} ellipsis>
                           {item.productName}
                         </Text>
-                        <Text type="tertiary">× {item.productNum}</Text>
+                        <Text type="tertiary">× {item.quantity}</Text>
                       </div>
                     ))}
                   </div>

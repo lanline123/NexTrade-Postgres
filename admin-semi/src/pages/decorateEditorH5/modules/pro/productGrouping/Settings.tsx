@@ -27,6 +27,7 @@ PicSelectField,
 PicLinkField,
 DecDivider
 } from "../../../shared/settingWidgets";
+import { InputNumber } from "@douyinfe/semi-ui";
 import { TemplateIconRadioField, TemplateIconRadioRowField} from "../../../shared/templateIcon";
 import { SettingsTabs, ExtensionStyleSettings, PicFillTypeField} from "../../../shared/styleEdits";
 import GroupListEditor from "../../../shared/GroupListEditor";

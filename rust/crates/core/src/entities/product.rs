@@ -460,6 +460,10 @@ pub struct Product {
     /// 批发/零售/O2O 共用同一字段；2026-11-21 迁移 011 加列）
     #[sqlx(default)]
     pub min_buy_count: i32,
+    /// 销售渠道可见性：0 全渠道 1 仅线上 2 仅 POS 线下（我方新增，
+    /// 2026-11-21 迁移 018 加列）
+    #[sqlx(default)]
+    pub sale_channel: i32,
     /// 是否称重商品（POS 按重量计价）：0 否 1 是（我方新增，
     /// 2026-11-21 迁移 024 加列；与 product_weight 物流重量无关）
     #[sqlx(default)]
