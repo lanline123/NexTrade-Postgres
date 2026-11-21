@@ -23,6 +23,7 @@ pub mod shop_client_category;
 pub mod shop_funds;
 pub mod shop_label;
 pub mod shop_mini_program;
+pub mod shop_mini_program_auth;
 pub mod shop_manage;
 pub mod shop_product_category;
 pub mod shop_withdraw;

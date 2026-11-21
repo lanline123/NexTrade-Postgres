@@ -7,6 +7,7 @@ pub mod decorate;
 pub mod home;
 pub mod seo;
 pub mod share;
+pub mod wechat_component;
 pub mod wechat_live_sync_callback;
 
 use axum::Router;
@@ -22,6 +23,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .merge(home::routes(state))
         .merge(seo::routes(state))
         .merge(share::routes(state))
+        .merge(wechat_component::routes(state))
         .merge(wechat_live_sync_callback::routes(state))
 }
 
@@ -57,6 +59,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(home::implemented_routes());
     out.extend(seo::implemented_routes());
     out.extend(share::implemented_routes());
+    out.extend(wechat_component::implemented_routes());
     out.extend(wechat_live_sync_callback::implemented_routes());
     out
 }

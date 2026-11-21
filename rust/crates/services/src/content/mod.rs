@@ -24,6 +24,7 @@ pub mod wechat_auto_reply;
 pub mod wechat_kefu_capability;
 pub mod wechat_keyword_rule;
 pub mod wechat_client;
+pub mod wechat_component;
 pub mod wechat_mini;
 pub mod wechat_live;
 pub mod wechat_live_goods;

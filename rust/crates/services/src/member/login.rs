@@ -107,6 +107,75 @@ pub struct WechatServerQuery {
     pub msg_signature: Option<String>,
 }
 
+/// 小程序凭据解析结果（店铺独立绑定小程序，模式①直连 / 模式②第三方授权）。
+///
+/// - 直连（平台小程序 + 模式①店铺）：持有 appid + AppSecret，登录走
+///   直连版 `jscode2session`、取手机号走稳定版 `access_token`；
+/// - 授权（模式②店铺）：只有授权方 appid、没有 AppSecret——登录走
+///   component 代 `jscode2session`、取手机号走 `authorizer_access_token`
+///   （凭落库 refresh token 刷新）。
+///
+/// 两形态的 `scope_key` 口径一致（平台为空串哨兵、店铺为 appid 本身），
+/// `user_authorize` 分键与会员手机号归一不感知模式差异。
+enum MiniProgramCreds {
+    Direct {
+        app_id: String,
+        app_secret: String,
+        scope_key: String,
+    },
+    Authorized {
+        app_id: String,
+        scope_key: String,
+    },
+}
+
+impl MiniProgramCreds {
+    fn scope_key(&self) -> &str {
+        match self {
+            Self::Direct { scope_key, .. } | Self::Authorized { scope_key, .. } => scope_key,
+        }
+    }
+
+    /// code 换 openid（直连版 / component 代调用版按形态分工）。
+    async fn code2session(&self, repos: &Repositories, code: &str) -> Result<Value> {
+        match self {
+            Self::Direct {
+                app_id, app_secret, ..
+            } => crate::content::wechat_client::code2session(app_id, app_secret, code).await,
+            Self::Authorized { app_id, .. } => {
+                crate::content::wechat_component::component_code2session(repos, app_id, code)
+                    .await
+            }
+        }
+    }
+
+    /// 取手机号等 wxa 接口用的 access_token（直连稳定版 / 授权方令牌）。
+    async fn access_token(&self, repos: &Repositories) -> Result<String> {
+        match self {
+            Self::Direct {
+                app_id, app_secret, ..
+            } => crate::content::wechat_client::stable_access_token(app_id, app_secret).await,
+            Self::Authorized { app_id, .. } => {
+                crate::merchant::shop_mini_program_auth::authorizer_access_token(repos, app_id)
+                    .await
+            }
+        }
+    }
+
+    /// 清当前形态的 token 缓存（微信回 40001/42001 后重试前调用）。
+    async fn invalidate_token(&self) {
+        match self {
+            Self::Direct { app_id, .. } => {
+                crate::content::wechat_client::invalidate_token(app_id);
+            }
+            Self::Authorized { app_id, .. } => {
+                crate::merchant::shop_mini_program_auth::invalidate_authorizer_token(app_id)
+                    .await;
+            }
+        }
+    }
+}
+
 /// 会员登录域服务。
 pub struct LoginService {
     repos: Arc<Repositories>,
@@ -950,17 +1019,19 @@ impl LoginService {
     /// 配置缺失 / 微信 errcode / 未返回手机号时返回业务错误。
     /// 解析小程序凭据与授权作用域键（店铺独立绑定小程序，我方新增）。
     ///
-    /// 返回 `(appid, secret, scope_key)`：
-    /// - 未上报 appid 或上报的正是平台 appid → 全局配置凭据，作用域键
-    ///   为空串（与存量 `user_authorize.app_id` 哨兵口径一致）；
-    /// - 上报已绑定且启用的店铺 appid → 绑定表解密 Secret，作用域键为
-    ///   该 appid 本身；
-    /// - 未登记 / 已停用 / 已解绑的 appid → 业务错误（硬拒绝，绝不回落
-    ///   平台凭据，否则店铺小程序会串用平台身份）。
+    /// 返回 [`MiniProgramCreds`]（直连 / 授权两形态，作用域键口径一致）：
+    /// - 未上报 appid 或上报的正是平台 appid → 全局配置凭据（直连），
+    ///   作用域键为空串（与存量 `user_authorize.app_id` 哨兵口径一致）；
+    /// - 上报已绑定且启用的店铺 appid（模式①）→ 绑定表解密 Secret
+    ///   （直连），作用域键为该 appid 本身；
+    /// - 上报已授权的店铺 appid（模式②第三方授权）→ 授权形态（无
+    ///   Secret，登录/token 走 component 代调用），作用域键同为 appid；
+    /// - 未登记 / 已停用 / 已解绑 / 授权已撤销的 appid → 业务错误
+    ///   （硬拒绝，绝不回落平台凭据，否则店铺小程序会串用平台身份）。
     async fn mini_program_credentials(
         &self,
         reported_app_id: Option<&str>,
-    ) -> Result<(String, String, String)> {
+    ) -> Result<MiniProgramCreds> {
         let platform_app_id = self
             .repo()
             .config_value("wechatMiniProgramAppId")
@@ -969,20 +1040,44 @@ impl LoginService {
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信小程序 APPID 未配置"))?;
         let reported = reported_app_id.map(str::trim).filter(|s| !s.is_empty());
         if let Some(app_id) = reported.filter(|a| *a != platform_app_id) {
-            let row = crate::merchant::shop_mini_program::find_binding_by_app_id(
+            // 模式①：直连绑定（启用）→ 解密 Secret
+            if let Some(row) = crate::merchant::shop_mini_program::find_binding_by_app_id(
                 &self.repos.pool,
                 app_id,
             )
             .await?
             .filter(|r| {
                 r.status == crate::merchant::shop_mini_program::STATUS_ENABLED
-            })
-            .ok_or_else(|| {
-                Error::biz(SERVICE_DATA_ERROR, "该小程序未绑定店铺或绑定已停用")
-            })?;
-            let secret =
-                crate::merchant::shop_mini_program::decrypt_binding_secret(&row)?;
-            return Ok((app_id.to_string(), secret, app_id.to_string()));
+            }) {
+                let secret =
+                    crate::merchant::shop_mini_program::decrypt_binding_secret(&row)?;
+                return Ok(MiniProgramCreds::Direct {
+                    app_id: app_id.to_string(),
+                    app_secret: secret,
+                    scope_key: app_id.to_string(),
+                });
+            }
+            // 模式②：第三方授权（授权中）→ 无 Secret，走 component 代调用
+            let authorized =
+                crate::merchant::shop_mini_program_auth::find_authorization_by_app_id(
+                    &self.repos.pool,
+                    app_id,
+                )
+                .await?
+                .is_some_and(|r| {
+                    r.status
+                        == crate::merchant::shop_mini_program_auth::AUTH_STATUS_AUTHORIZED
+                });
+            if authorized {
+                return Ok(MiniProgramCreds::Authorized {
+                    app_id: app_id.to_string(),
+                    scope_key: app_id.to_string(),
+                });
+            }
+            return Err(Error::biz(
+                SERVICE_DATA_ERROR,
+                "该小程序未绑定店铺或绑定已停用",
+            ));
         }
         let app_secret = self
             .repo()
@@ -990,7 +1085,11 @@ impl LoginService {
             .await?
             .filter(|v| !v.trim().is_empty())
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信小程序 Secret 未配置"))?;
-        Ok((platform_app_id, app_secret, String::new()))
+        Ok(MiniProgramCreds::Direct {
+            app_id: platform_app_id,
+            app_secret,
+            scope_key: String::new(),
+        })
     }
 
     /// 由客户端上报的 appid 推导授权作用域键（bindMobile 旧 openData 路径
@@ -1020,6 +1119,21 @@ impl LoginService {
             Ok(Some(row))
                 if row.status == crate::merchant::shop_mini_program::STATUS_ENABLED =>
             {
+                return app_id.to_string();
+            }
+            _ => {}
+        }
+        // 模式②授权（授权中）同样以 appid 为作用域键
+        match crate::merchant::shop_mini_program_auth::find_authorization_by_app_id(
+            &self.repos.pool,
+            app_id,
+        )
+        .await
+        {
+            Ok(Some(row))
+                if row.status
+                    == crate::merchant::shop_mini_program_auth::AUTH_STATUS_AUTHORIZED =>
+            {
                 app_id.to_string()
             }
             _ => String::new(),
@@ -1033,15 +1147,16 @@ impl LoginService {
             .map(str::trim)
             .filter(|c| !c.is_empty())
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "code不能为空"))?;
-        // 店铺小程序按自身 appid 取绑定 Secret（平台/未上报走全局配置）
-        let (app_id, app_secret, _scope_key) = self
+        // 店铺小程序按自身 appid 解析凭据（模式①绑定 Secret / 模式②授权
+        // 令牌；平台/未上报走全局配置）
+        let creds = self
             .mini_program_credentials(dto.app_id.as_deref())
             .await?;
         let http = reqwest::Client::new();
-        // access_token 走稳定版接口 + 进程内缓存（与公众号共用同一份缓存），
-        // 不再每次直调老 token 接口作废全局上一个 token。
-        let mut access_token =
-            crate::content::wechat_client::stable_access_token(&app_id, &app_secret).await?;
+        // access_token：直连走稳定版接口 + 进程内缓存（与公众号共用同一份
+        // 缓存），不再每次直调老 token 接口作废全局上一个 token；模式②走
+        // 授权方令牌（凭 refresh token 刷新 + 缓存）。
+        let mut access_token = creds.access_token(&self.repos).await?;
         let body = serde_json::json!({ "code": code });
         let make_url = |token: &str| {
             format!(
@@ -1064,10 +1179,8 @@ impl LoginService {
             .ok()
             .and_then(|v| v.get("errcode").and_then(Value::as_i64));
         if matches!(raw_errcode, Some(40001) | Some(42001)) {
-            crate::content::wechat_client::invalidate_token(&app_id);
-            access_token =
-                crate::content::wechat_client::stable_access_token(&app_id, &app_secret)
-                    .await?;
+            creds.invalidate_token().await;
+            access_token = creds.access_token(&self.repos).await?;
             text = http
                 .post(make_url(&access_token))
                 .json(&body)
@@ -1132,11 +1245,12 @@ impl LoginService {
             .map(str::trim)
             .filter(|c| !c.is_empty())
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "缺少微信授权 code"))?;
-        let (app_id, app_secret, scope_key) = self
+        let creds = self
             .mini_program_credentials(dto.app_id.as_deref())
             .await?;
+        let scope_key = creds.scope_key().to_string();
 
-        let res = crate::content::wechat_client::code2session(&app_id, &app_secret, code).await?;
+        let res = creds.code2session(&self.repos, code).await?;
         let openid = res.get("openid").and_then(|v| v.as_str()).unwrap_or("");
         if openid.is_empty() {
             let errmsg = res.get("errmsg").and_then(|v| v.as_str()).unwrap_or("微信换取 openid 失败");
@@ -1193,14 +1307,9 @@ impl LoginService {
             .map(str::trim)
             .filter(|c| !c.is_empty())
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "code不能为空"))?;
-        let (resolved_app_id, app_secret, scope_key) =
-            self.mini_program_credentials(app_id).await?;
-        let res = crate::content::wechat_client::code2session(
-            &resolved_app_id,
-            &app_secret,
-            code,
-        )
-        .await?;
+        let creds = self.mini_program_credentials(app_id).await?;
+        let scope_key = creds.scope_key().to_string();
+        let res = creds.code2session(&self.repos, code).await?;
         let openid = res
             .get("openid")
             .and_then(Value::as_str)

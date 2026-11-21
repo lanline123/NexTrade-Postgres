@@ -153,6 +153,12 @@ pub fn decrypt_binding_secret(row: &BindingRow) -> Result<String> {
 
 /// 解析 appid 作用域：`platform_app_id` 为平台小程序 appid（全局配置值，
 /// 可为空——未配置时任何非空 appid 都只能来自绑定表）。
+///
+/// 解析顺序（模式①②共存，口径不变）：平台 appid → 模式①直连绑定
+/// （启用）→ 模式②第三方授权（授权中，见
+/// [`super::shop_mini_program_auth`]）→ 未登记硬拒绝。同一 appid 在
+/// 服务层互斥校验下不会同时存在启用直连绑定与生效授权，顺序无歧义；
+/// 授权被撤销/解绑后回落未登记拒绝，绝不回落平台全量。
 pub async fn resolve_app_id(
     pool: &sqlx::PgPool,
     app_id: &str,
@@ -165,10 +171,19 @@ pub async fn resolve_app_id(
     if !platform_app_id.is_empty() && app_id == platform_app_id {
         return Ok(AppResolution::Platform);
     }
-    match find_binding_by_app_id(pool, app_id).await? {
-        Some(row) if row.status == STATUS_ENABLED => Ok(AppResolution::Shop(row.shop_id)),
-        _ => Ok(AppResolution::Unknown),
+    if let Some(row) = find_binding_by_app_id(pool, app_id).await? {
+        if row.status == STATUS_ENABLED {
+            return Ok(AppResolution::Shop(row.shop_id));
+        }
     }
+    if let Some(auth) =
+        super::shop_mini_program_auth::find_authorization_by_app_id(pool, app_id).await?
+    {
+        if auth.status == super::shop_mini_program_auth::AUTH_STATUS_AUTHORIZED {
+            return Ok(AppResolution::Shop(auth.shop_id));
+        }
+    }
+    Ok(AppResolution::Unknown)
 }
 
 /// 凭据探活：强制绕开 token 缓存实调微信稳定版 token 接口校验
@@ -306,6 +321,17 @@ impl ShopMiniProgramService {
         let platform = self.platform_app_id().await?;
         if !platform.is_empty() && app_id == platform {
             return Err(biz("该 AppID 是平台小程序，不能绑定到店铺"));
+        }
+        // 与模式②互斥：同 appid 已有生效的第三方平台授权 → 先解绑授权
+        if let Some(auth) =
+            super::shop_mini_program_auth::find_authorization_by_app_id(self.pool(), &app_id)
+                .await?
+        {
+            if auth.status == super::shop_mini_program_auth::AUTH_STATUS_AUTHORIZED {
+                return Err(biz(
+                    "该小程序已通过第三方平台授权接入，请先在授权管理中解绑后再直连绑定",
+                ));
+            }
         }
         // 店铺必须真实存在
         let shop_exists: Option<(i32,)> =
