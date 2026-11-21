@@ -60,9 +60,10 @@ registerModule({
     url: "mobilePro",
     platform: "mobile",
     order: 68,
-    // 原版 enabled: () => isPro() && isStore()，映射为 isStore()（我方即 pro 版，同 storeNav 口径）
+    // 原版 enabled: () => isPro() && isStore()：isPro 省略（我方即 pro 版）；isStore 为原版
+    // VITE_IS_STORE 版本标志（contract/version 已按原版 env 口径实现，全量版 .env 置 1 恒真）。
+    // 原版注册无 shopOnly——2026-11-21 随点单卡片复核一并删除误加项，报告见 storeordercard-audit。
     enabled: () => isStore(),
-    shopOnly: true,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(bannerA2Defaults)

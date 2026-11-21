@@ -20,7 +20,7 @@ import "./basic/searchBar";
 import "./basic/searchBar2";
 import "./basic/catNav";
 import "./basic/commonTitle";
-// 不进工具栏（visible: false），仅保证老数据可渲染
+// 文章列表：注册 visible: true，进工具栏（旧注记称 visible:false 不进工具栏已不实，2026-11-21 点单卡片复核横扫时订正）
 import "./basic/article";
 
 // ==================== mobilePromotion 营销（第 8 步专属化，2026-11-15） ====================

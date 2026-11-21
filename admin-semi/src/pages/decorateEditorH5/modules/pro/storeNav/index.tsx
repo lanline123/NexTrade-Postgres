@@ -1,6 +1,9 @@
 /**
  * 门店导航（mobilePro 桶）— 注册信息与 defaults 对齐原版 editor/modules/mobilePro/storeNav/index.ts
- * 原版 `enabled: () => isPro() && isStore()` 映射为 enabled: () => isStore()（我方即 pro 版）。
+ * 原版 `enabled: () => isPro() && isStore()`：isPro 省略（我方即 pro 版）；isStore 为原版
+ * VITE_IS_STORE 版本标志（contract/version 已按原版 env 口径实现，全量版 .env 置 1 恒真）。
+ * 原版注册无 shopOnly——2026-11-21 随点单卡片复核一并删除我方误加的 shopOnly 并订正
+ * isStore 误译（曾致平台管理员模块库里无此模块），报告 ~/workspace/storeordercard-audit/REPORT.md。
  * storeStyle/storeSource 的原版枚举 StoreNavStyle{One:1,Two:2} / StoreNavSource{Auto:1,Assign:2}
  * 以数值字面量落 defaults（types.ts 口径）。
  */
@@ -49,7 +52,6 @@ registerModule({
     platform: "mobile",
     order: 23,
     enabled: () => isStore(),
-    shopOnly: true,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(storeNavDefaults)

@@ -55,7 +55,13 @@ const { t} = useI18n();
 const [picIndex, setPicIndex] = useState(0);
 const picType = Number(data?.picType) || 2;
 const cardList: Array<Record<string, any>> = Array.isArray(data?.cardList)? data.cardList: [];
-const current = cardList[picIndex];
+// 渲染期补齐（不直接回写）：存量 cardList 短于 LENGTH_MAP[picType]（含空数组）时按原版
+// Settings onMounted 的 rebuild 语义补空卡供编辑；编辑任一卡时 patchCard 写回补齐后的
+// 全表，与画布 Preview / 前台渲染器的补齐口径一致（原版为挂载时回写，我方为惰性回写）。
+const expectCount = LENGTH_MAP[picType] || 2;
+const cards: Array<Record<string, any>> = [...cardList];
+while (cards.length < expectCount) cards.push(buildDefaultCard());
+const current = cards[picIndex];
 const frame = data?.frame && typeof data.frame === "object"? data.frame: {};
 const frameProps: Props = { data: frame, onChange: (patch: Patch) => onChange({ frame: {...frame,...patch}})};
 
@@ -68,12 +74,12 @@ setPicIndex(0);
 onChange({ picType: next, cardList: list});
 };
 const patchCard = (patch: Patch) => {
-onChange({ cardList: cardList.map((c, i) => (i === picIndex? {...c,...patch}: c))});
+onChange({ cardList: cards.map((c, i) => (i === picIndex? {...c,...patch}: c))});
 };
 const hasEmptyPicCard =
 Number(data?.cardStyle) === 2
-? cardList.some((c) =>!c?.picUrl &&!c?.picThumb)
-: cardList.some((c) =>!c?.picUrl &&!c?.picThumb &&!c?.title &&!c?.desc);
+? cards.some((c) =>!c?.picUrl &&!c?.picThumb)
+: cards.some((c) =>!c?.picUrl &&!c?.picThumb &&!c?.title &&!c?.desc);
 const linkValue = current?.link?.link && typeof current.link.link === "object"? current.link.link: typeof current?.link?.link === "string"? { link: current.link.link, title: "" }: null;
 
 return (
@@ -104,7 +110,7 @@ options={[
 />
 <SettingRow label="选择卡片" block>
 <div style={{ display: "flex", flexWrap: "wrap", gap: 6}}>
-{cardList.map((card, index) => (
+{cards.map((card, index) => (
 <button
 key={index}
 type="button"
