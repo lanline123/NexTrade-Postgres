@@ -83,7 +83,7 @@
     justify-content: flex-end;
 }
 .module-promotion-seckill2 .iconh5-style {
-    color: #f23030;
+    color: var(--general, #f23030);
     font-size: 18px;
     margin-right: 5px;
 }

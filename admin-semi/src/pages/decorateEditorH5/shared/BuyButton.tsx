@@ -106,11 +106,23 @@ export default function BuyButton({ styleOptions }: { styleOptions: BuyButtonSty
 
     if (!options.btnType && !options.text) return null;
 
+    // 历史默认底色 #333333（defaultBuyButtonStyle 出厂值）视为「未自定义」：跟随主题色 --general
+    //（画布已注入现行 themeStyle），消除默认黑圈；改过任一端渐变色时按字段值原样渲染。与前台
+    // uniapp commonBuyButton 同口径。
+    const isLegacyBg = (v?: string) => {
+        const s = String(v ?? "")
+            .trim()
+            .toLowerCase();
+        return s === "" || s === "#333333" || s === "#333";
+    };
     let background = "";
     if (options.gradientType !== "purity") {
-        background = `background-image: linear-gradient(${gradientMap[options.gradientType ?? "leftRight"]}, ${options.gradientColorA}, ${options.gradientColorB});`;
+        const followTheme = isLegacyBg(options.gradientColorA) && isLegacyBg(options.gradientColorB);
+        const a = followTheme ? "var(--general)" : options.gradientColorA;
+        const b = followTheme ? "var(--general)" : options.gradientColorB;
+        background = `background-image: linear-gradient(${gradientMap[options.gradientType ?? "leftRight"]}, ${a}, ${b});`;
     } else {
-        background = `background-color:${options.gradientColorA};`;
+        background = `background-color:${isLegacyBg(options.gradientColorA) ? "var(--general)" : options.gradientColorA};`;
     }
 
     let paddingLeft = "padding-left:0";

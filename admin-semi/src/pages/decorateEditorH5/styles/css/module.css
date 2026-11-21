@@ -400,7 +400,7 @@
 .goods-ad-warp .goods-ad-item .item-info .item-buy i {
   width: 24px;
   height: 24px;
-  color: #f23030;
+  color: var(--general, #f23030);
   font-size: 18px;
 }
 .goods-ad-warp .goods-ad-item .item-info .item-buy i::before {
@@ -580,7 +580,7 @@
   font-size: 20px;
 }
 .ad-buy_btn_style__5 .goods-ad-warp .goods-ad-item .item-info .item-buy a {
-  color: #f23030;
+  color: var(--general, #f23030);
   height: 22px;
   line-height: 22px;
   padding: 0 8px;
@@ -588,7 +588,7 @@
   position: relative;
   border-radius: 2px;
   box-sizing: border-box;
-  border: 1px solid #f44;
+  border: 1px solid var(--general, #f23030);
 }
 .ad-buy_btn_style__5 .goods-ad-warp .goods-ad-item .item-info .item-buy a:before {
   position: absolute;
@@ -603,11 +603,11 @@
   transform-origin: 0 0;
   content: "";
   pointer-events: none;
-  border: 1px solid #f44;
+  border: 1px solid var(--general, #f23030);
   border-radius: 2px;
 }
 .ad-buy_btn_style__6 .goods-ad-warp .goods-ad-item .item-info .item-buy a {
-  background: #f23030;
+  background: var(--general, #f23030);
   color: #fff;
   height: 22px;
   line-height: 22px;
@@ -617,7 +617,7 @@
   border-radius: 22px;
 }
 .ad-buy_btn_style__7 .goods-ad-warp .goods-ad-item .item-info .item-buy a {
-  color: #f23030;
+  color: var(--general, #f23030);
   height: 22px;
   line-height: 22px;
   padding: 0 8px;
@@ -625,7 +625,7 @@
   position: relative;
   border-radius: 2px;
   box-sizing: border-box;
-  border: 1px solid #f44;
+  border: 1px solid var(--general, #f23030);
 }
 .ad-buy_btn_style__7 .goods-ad-warp .goods-ad-item .item-info .item-buy a:before {
   position: absolute;
@@ -640,11 +640,11 @@
   transform-origin: 0 0;
   content: "";
   pointer-events: none;
-  border: 1px solid #f44;
+  border: 1px solid var(--general, #f23030);
   border-radius: 2px;
 }
 .ad-buy_btn_style__8 .goods-ad-warp .goods-ad-item .item-info .item-buy a {
-  background: #f23030;
+  background: var(--general, #f23030);
   color: #fff;
   height: 22px;
   line-height: 22px;
@@ -1931,7 +1931,7 @@
 .goods-ad-pc-warp .goods-ad-item .item-info .item-buy i {
   width: 24px;
   height: 24px;
-  color: #f23030;
+  color: var(--general, #f23030);
   font-size: 18px;
 }
 .goods-ad-pc-warp .goods-ad-item .item-info .item-buy i::before {
@@ -2026,7 +2026,7 @@
   font-size: 20px;
 }
 .ad-buy_btn_style__5 .goods-ad-pc-warp .goods-ad-item .item-info .item-buy a {
-  color: #f23030;
+  color: var(--general, #f23030);
   height: 22px;
   line-height: 22px;
   padding: 0 8px;
@@ -2034,7 +2034,7 @@
   position: relative;
   border-radius: 2px;
   box-sizing: border-box;
-  border: 1px solid #f44;
+  border: 1px solid var(--general, #f23030);
 }
 .ad-buy_btn_style__5 .goods-ad-pc-warp .goods-ad-item .item-info .item-buy a:before {
   position: absolute;
@@ -2049,11 +2049,11 @@
   transform-origin: 0 0;
   content: "";
   pointer-events: none;
-  border: 1px solid #f44;
+  border: 1px solid var(--general, #f23030);
   border-radius: 2px;
 }
 .ad-buy_btn_style__6 .goods-ad-pc-warp .goods-ad-item .item-info .item-buy a {
-  background: #f23030;
+  background: var(--general, #f23030);
   color: #fff;
   height: 22px;
   line-height: 22px;
@@ -2063,7 +2063,7 @@
   border-radius: 22px;
 }
 .ad-buy_btn_style__7 .goods-ad-pc-warp .goods-ad-item .item-info .item-buy a {
-  color: #f23030;
+  color: var(--general, #f23030);
   height: 22px;
   line-height: 22px;
   padding: 0 8px;
@@ -2071,7 +2071,7 @@
   position: relative;
   border-radius: 2px;
   box-sizing: border-box;
-  border: 1px solid #f44;
+  border: 1px solid var(--general, #f23030);
 }
 .ad-buy_btn_style__7 .goods-ad-pc-warp .goods-ad-item .item-info .item-buy a:before {
   position: absolute;
@@ -2086,11 +2086,11 @@
   transform-origin: 0 0;
   content: "";
   pointer-events: none;
-  border: 1px solid #f44;
+  border: 1px solid var(--general, #f23030);
   border-radius: 2px;
 }
 .ad-buy_btn_style__8 .goods-ad-pc-warp .goods-ad-item .item-info .item-buy a {
-  background: #f23030;
+  background: var(--general, #f23030);
   color: #fff;
   height: 22px;
   line-height: 22px;

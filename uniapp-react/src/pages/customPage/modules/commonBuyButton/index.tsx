@@ -57,10 +57,23 @@ export default function CommonBuyButton({
 
     const background = useMemo(() => {
         let str = "";
+        // 历史默认底色 #333333（defaultBuyButtonStyle 出厂值）视为「未自定义」：跟随主题色 --general，
+        // 消除默认黑圈；用户在设置里改过任一端渐变色（非历史默认值）时仍按字段值原样渲染。
+        const isLegacyBg = (v?: string) => {
+            const s = String(v ?? "")
+                .trim()
+                .toLowerCase();
+            return s === "" || s === "#333333" || s === "#333";
+        };
+        const colorA = styleOptions.gradientColorA;
+        const colorB = styleOptions.gradientColorB;
         if (styleOptions.gradientType !== "purity") {
-            str = `background-image: linear-gradient(${gradientMap[styleOptions.gradientType]}, ${styleOptions?.gradientColorA}, ${styleOptions.gradientColorB});`;
+            const followTheme = isLegacyBg(colorA) && isLegacyBg(colorB);
+            const a = followTheme ? "var(--general)" : colorA;
+            const b = followTheme ? "var(--general)" : colorB;
+            str = `background-image: linear-gradient(${gradientMap[styleOptions.gradientType]}, ${a}, ${b});`;
         } else {
-            str = `background-color:${styleOptions?.gradientColorA};`;
+            str = `background-color:${isLegacyBg(colorA) ? "var(--general)" : colorA};`;
         }
         return str;
     }, [styleOptions.gradientType, styleOptions.gradientColorA, styleOptions.gradientColorB]);

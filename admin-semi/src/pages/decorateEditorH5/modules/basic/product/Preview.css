@@ -13,7 +13,7 @@
 /* 购买按钮图标 span（自 view/admin product/Preview.vue scoped .iconh5-style 逐条移植；
    仅 buyBtnStyle 1~4 的图标 span 使用，5~8 的文字 span 不套此类） */
 .iconh5-style {
-    color: #f23030;
+    color: var(--general, #f23030);
     font-size: 18px;
     margin-right: 5px;
 }

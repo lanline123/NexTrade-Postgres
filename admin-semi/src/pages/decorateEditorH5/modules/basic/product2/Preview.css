@@ -26,5 +26,5 @@
     position: relative;
 }
 .ad-style__2 .icon-gouwuche3 {
-    color: #f23030;
+    color: var(--general, #f23030);
 }

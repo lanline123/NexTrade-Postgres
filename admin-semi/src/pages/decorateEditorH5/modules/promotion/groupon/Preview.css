@@ -95,7 +95,7 @@
 }
 .module-promotion-groupon .lyecs-buyBtn .activeBtnStyle {
     display: inline-block;
-    background: #f23030;
+    background: var(--general, #f23030);
     padding: 3px 10px;
     font-size: 14px;
     color: #fff;
