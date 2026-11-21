@@ -182,6 +182,28 @@ impl CartService {
         if quantity <= 0 {
             return Err(Error::Validation("数量必须大于0".into()));
         }
+        // 店铺小程序作用域（我方新增）：他店商品禁止加购。显式按商品
+        // 归属校验——下方 detail() 的作用域错误会被 unwrap_or(0) 吞掉，
+        // 不能依赖它拦截。
+        if let Some(bound_shop_id) =
+            nextrade_infrastructure::db::repo::member::mini_shop_scope::MiniShopScope::current()
+                .shop_id()
+        {
+            let product = self
+                .repos
+                .catalog
+                .product
+                .find_by_id(product_id)
+                .await?
+                .ok_or_else(|| {
+                    Error::NotFound(format!("商品 {product_id} 不存在"))
+                })?;
+            if product.shop_id != bound_shop_id {
+                return Err(Error::Forbidden(
+                    "该商品不属于当前店铺，无法在此小程序购买".into(),
+                ));
+            }
+        }
         // 价格门控购买拦截（第 2 期，用户决策 3）：isIdentity 开启时未认证
         // 用户不能加购，否则购物车漏价绕过看价门控。门控关闭时直接放行。
         // 询价豁免（2026-11-20 裁定）：命中询价商品时不在此拦截，由下方
@@ -431,6 +453,22 @@ impl CartService {
         let carts = self.repos.trade.cart.find_by_user(user_id, None).await?;
         let product_ids: Vec<_> = carts.iter().map(|cart| cart.product_id).collect();
         let products = super::check::load_products(&self.repos, &product_ids).await?;
+        // 店铺小程序作用域（我方新增）：购物车跨端共享，店铺小程序内
+        // 只展示本店商品行（按商品归属过滤，不信任行上可能过期的
+        // shop_id 落值）；平台作用域不过滤，行为不变。
+        let carts = match nextrade_infrastructure::db::repo::member::mini_shop_scope::MiniShopScope::current()
+            .shop_id()
+        {
+            Some(bound_shop_id) => carts
+                .into_iter()
+                .filter(|c| {
+                    products
+                        .get(&c.product_id)
+                        .is_some_and(|p| p.shop_id == bound_shop_id)
+                })
+                .collect::<Vec<_>>(),
+            None => carts,
+        };
         let skus = load_cart_skus(&self.repos, &carts).await?;
         let mut sale_states = HashMap::new();
         for product in products.values().filter(|product| product.is_on_sale()) {

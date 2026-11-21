@@ -20,6 +20,7 @@ import { getSplashAd, getCateProduct } from "@/api/home/home";
 import type { GetProductFilterResult } from "@/types/home/home";
 import { usecatnavStore } from "@/store/catnav";
 import { useConfigStore } from "@/store/config";
+import { useMiniShopStore } from "@/store/miniShop";
 import { staticResource, isOverseas, isDesktopBrowser, parseQueryString } from "@/utils";
 import { setPageMeta } from "@/utils/seo";
 import { handleDecorateLoadError } from "@/utils/handleDecorateLoadError";
@@ -45,6 +46,17 @@ import "./index.scss";
 export default function Index() {
     usePageGuards();
     const router = useRouter();
+
+    // 店铺独立绑定小程序：店铺模式下平台首页不落地，解析一完成即转到
+    // 本店店铺页作首页（平台小程序 resolved 后 mode=platform，不触发）
+    const miniShopResolved = useMiniShopStore((s) => s.resolved);
+    const miniShopMode = useMiniShopStore((s) => s.mode);
+    const miniShopId = useMiniShopStore((s) => s.shopId);
+    useEffect(() => {
+        if (miniShopResolved && miniShopMode === "shop" && miniShopId > 0) {
+            Taro.redirectTo({ url: `/pages/shop/index?shopId=${miniShopId}` });
+        }
+    }, [miniShopResolved, miniShopMode, miniShopId]);
     const { scrollTop } = useScrollTop();
     const resetCatnav = usecatnavStore((s) => s.reset);
     const previewId = useConfigStore((s) => s.previewId);

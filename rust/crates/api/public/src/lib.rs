@@ -16,9 +16,10 @@
 use tower_http::services::ServeDir;
 
 use axum::{
-    extract::{Query, State},
+    extract::{Query, Request, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
-    middleware,
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
     routing::{get, post},
     Extension, Json, Router,
 };
@@ -148,7 +149,18 @@ pub fn router(state: PublicState) -> Router {
         .route("/health", get(health))
         // WebSocket：`/ws?token=...&platform=...`（对齐 Java API 模块 `/ws`）
         .route("/ws", get(ws_handler))
-        .nest("/api", authorized.merge(public_api).merge(public_root))
+        .nest(
+            "/api",
+            authorized
+                .merge(public_api)
+                .merge(public_root)
+                // 店铺小程序作用域：按 `x-mini-app-id` 解析绑定并把作用域
+                // 写入 task-local，未登记 appid 硬拒绝（见函数注释）。
+                .layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    mini_shop_scope_layer,
+                )),
+        )
         .merge(root_public)
         .merge(root_protected)
         // 本地对象存储（上传文件）。
@@ -162,6 +174,64 @@ pub fn router(state: PublicState) -> Router {
         .with_state(state)
         // —— 契约与覆盖率（重写期间对照用）——
         .merge(openapi::routes(openapi_state()))
+}
+
+/// 店铺小程序作用域中间件（店铺独立绑定小程序，我方新增）。
+///
+/// 客户端（微信小程序构建）在每请求带 `x-mini-app-id` 上报自身 appid：
+/// - 无此头（H5 / PC / 平台外渠道）→ 直接放行，作用域保持默认平台语义；
+/// - 平台小程序 appid → 放行（平台语义）；
+/// - 已绑定且启用的店铺 appid → 在 [`MiniShopScope`] 店铺作用域内执行，
+///   Service 层据此强制把商品/购物车/订单/支付收口到该店；
+/// - 未登记 / 已停用 / 已解绑的 appid → **403 硬拒绝**，绝不回落平台
+///   全量模式（防隔离击穿：解绑后旧包继续跑也不能看到全平台数据）。
+async fn mini_shop_scope_layer(
+    State(state): State<PublicState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    use nextrade_infrastructure::db::repo::member::mini_shop_scope::MiniShopScope;
+    use nextrade_services::merchant::shop_mini_program::AppResolution;
+
+    let app_id = req
+        .headers()
+        .get("x-mini-app-id")
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    let Some(app_id) = app_id else {
+        return next.run(req).await;
+    };
+    match state.merchant.shop_mini_program.resolve(&app_id).await {
+        Ok(AppResolution::Platform) => next.run(req).await,
+        Ok(AppResolution::Shop(shop_id)) => {
+            MiniShopScope::for_shop(shop_id).scope(next.run(req)).await
+        }
+        Ok(AppResolution::Unknown) => (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "code": 403,
+                "msg": "该小程序未绑定店铺或绑定已停用",
+                "data": null,
+                "timestamp": nextrade_common::utils::now_seconds(),
+            })),
+        )
+            .into_response(),
+        Err(e) => {
+            tracing::error!("店铺小程序作用域解析失败: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "code": 500,
+                    "msg": "小程序作用域解析失败",
+                    "data": null,
+                    "timestamp": nextrade_common::utils::now_seconds(),
+                })),
+            )
+                .into_response()
+        }
+    }
 }
 
 /// 本 crate 实际注册的路由（用于计算与原 Java 契约的覆盖率）。

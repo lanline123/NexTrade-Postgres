@@ -422,6 +422,7 @@ impl LoginService {
                 nickname: Some(data.nickname.clone()).filter(|n| !n.trim().is_empty()),
                 avatar: data.headimgurl.clone(),
                 authorize_type: data.authorize_type,
+                app_id: data.app_id.clone(),
                 open_data_json: Some(Value::Object(stored).to_string()),
                 ticket_consume: Some((wechat_bind_key(&ticket), raw)),
             });
@@ -456,12 +457,22 @@ impl LoginService {
             cleaned.remove("bindTicket");
             Value::Object(cleaned).to_string()
         });
+        // 店铺小程序：openData 携带自身 appId 时按绑定表推导作用域键
+        // （平台/未上报/未登记 → 空串键，口径见 scope_key_for_reported_app_id）
+        let reported_app_id = open_data
+            .and_then(|d| d.get("appId"))
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let app_id = self
+            .scope_key_for_reported_app_id(reported_app_id.as_deref())
+            .await;
         Ok(ResolvedBindIdentity {
             openid,
             unionid,
             nickname,
             avatar,
             authorize_type: authorize_type_from_client(client_type),
+            app_id,
             open_data_json,
             ticket_consume: None,
         })
@@ -528,14 +539,19 @@ impl LoginService {
             }
         };
 
-        // 2. 微信授权绑定（Java `bindMobile` 的 user_authorize upsert 三支）
+        // 2. 微信授权绑定（Java `bindMobile` 的 user_authorize upsert 三支；
+        //    店铺独立绑定小程序后全程按 appid 作用域键分键：第一支按
+        //    (openid, 类型, app_id) 命中本维度记录；第二支只在本维度内找
+        //    该用户已有行——不再像旧口径那样按 user 全局命中任意一行，
+        //    避免把公众号行的 openid 改写成店铺小程序 openid；平台/公众
+        //    号路径 app_id 恒为空串，与旧行为逐字一致）
         if let Some(openid) = identity.openid.as_deref() {
             let authorize_type = identity.authorize_type;
             let open_name = identity.nickname.clone().unwrap_or_default();
             let now = i32::try_from(now_seconds()).unwrap_or(0);
             if let Some((authorize_id, _owner)) = self
                 .repo()
-                .find_authorize_by_open(openid, authorize_type)
+                .find_authorize_by_open_scoped(openid, authorize_type, &identity.app_id)
                 .await?
             {
                 self.repo()
@@ -546,8 +562,10 @@ impl LoginService {
                         identity.open_data_json.as_deref(),
                     )
                     .await?;
-            } else if let Some((authorize_id, _)) =
-                self.repo().find_authorize_by_user(user_id).await?
+            } else if let Some((authorize_id, _)) = self
+                .repo()
+                .find_authorize_by_user_scoped(user_id, authorize_type, &identity.app_id)
+                .await?
             {
                 self.repo()
                     .update_authorize_open(
@@ -559,7 +577,7 @@ impl LoginService {
                     .await?;
             } else {
                 self.repo()
-                    .insert_authorize(
+                    .insert_authorize_scoped(
                         authorize_type,
                         user_id,
                         openid,
@@ -568,6 +586,7 @@ impl LoginService {
                         &identity.avatar,
                         identity.unionid.as_deref(),
                         now,
+                        &identity.app_id,
                     )
                     .await?;
             }
@@ -877,6 +896,7 @@ impl LoginService {
                     nickname: String::new(),
                     headimgurl: String::new(),
                     authorize_type: 1,
+                    app_id: String::new(),
                 })
                 .await?;
             return Ok(LoginWechatEventVO {
@@ -917,6 +937,84 @@ impl LoginService {
     ///
     /// # Errors
     /// 配置缺失 / 微信 errcode / 未返回手机号时返回业务错误。
+    /// 解析小程序凭据与授权作用域键（店铺独立绑定小程序，我方新增）。
+    ///
+    /// 返回 `(appid, secret, scope_key)`：
+    /// - 未上报 appid 或上报的正是平台 appid → 全局配置凭据，作用域键
+    ///   为空串（与存量 `user_authorize.app_id` 哨兵口径一致）；
+    /// - 上报已绑定且启用的店铺 appid → 绑定表解密 Secret，作用域键为
+    ///   该 appid 本身；
+    /// - 未登记 / 已停用 / 已解绑的 appid → 业务错误（硬拒绝，绝不回落
+    ///   平台凭据，否则店铺小程序会串用平台身份）。
+    async fn mini_program_credentials(
+        &self,
+        reported_app_id: Option<&str>,
+    ) -> Result<(String, String, String)> {
+        let platform_app_id = self
+            .repo()
+            .config_value("wechatMiniProgramAppId")
+            .await?
+            .filter(|v| !v.trim().is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信小程序 APPID 未配置"))?;
+        let reported = reported_app_id.map(str::trim).filter(|s| !s.is_empty());
+        if let Some(app_id) = reported.filter(|a| *a != platform_app_id) {
+            let row = crate::merchant::shop_mini_program::find_binding_by_app_id(
+                &self.repos.pool,
+                app_id,
+            )
+            .await?
+            .filter(|r| {
+                r.status == crate::merchant::shop_mini_program::STATUS_ENABLED
+            })
+            .ok_or_else(|| {
+                Error::biz(SERVICE_DATA_ERROR, "该小程序未绑定店铺或绑定已停用")
+            })?;
+            let secret =
+                crate::merchant::shop_mini_program::decrypt_binding_secret(&row)?;
+            return Ok((app_id.to_string(), secret, app_id.to_string()));
+        }
+        let app_secret = self
+            .repo()
+            .config_value("wechatMiniProgramSecret")
+            .await?
+            .filter(|v| !v.trim().is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信小程序 Secret 未配置"))?;
+        Ok((platform_app_id, app_secret, String::new()))
+    }
+
+    /// 由客户端上报的 appid 推导授权作用域键（bindMobile 旧 openData 路径
+    /// 用）：平台/未上报/未登记一律回空串键——bindMobile 是多端共用入口，
+    /// 未登记 appid 的硬拒绝由前台作用域中间件负责，此处只做授权分键，
+    /// 不因分键失败阻断存量绑定流。
+    async fn scope_key_for_reported_app_id(&self, reported: Option<&str>) -> String {
+        let Some(app_id) = reported.map(str::trim).filter(|s| !s.is_empty()) else {
+            return String::new();
+        };
+        let platform = self
+            .repo()
+            .config_value("wechatMiniProgramAppId")
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        if app_id == platform {
+            return String::new();
+        }
+        match crate::merchant::shop_mini_program::find_binding_by_app_id(
+            &self.repos.pool,
+            app_id,
+        )
+        .await
+        {
+            Ok(Some(row))
+                if row.status == crate::merchant::shop_mini_program::STATUS_ENABLED =>
+            {
+                app_id.to_string()
+            }
+            _ => String::new(),
+        }
+    }
+
     pub async fn get_mobile(&self, dto: &CodeParamDTO) -> Result<String> {
         let code = dto
             .code
@@ -924,18 +1022,10 @@ impl LoginService {
             .map(str::trim)
             .filter(|c| !c.is_empty())
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "code不能为空"))?;
-        let app_id = self
-            .repo()
-            .config_value("wechatMiniProgramAppId")
-            .await?
-            .filter(|v| !v.trim().is_empty())
-            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信小程序 APPID 未配置"))?;
-        let app_secret = self
-            .repo()
-            .config_value("wechatMiniProgramSecret")
-            .await?
-            .filter(|v| !v.trim().is_empty())
-            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信小程序 Secret 未配置"))?;
+        // 店铺小程序按自身 appid 取绑定 Secret（平台/未上报走全局配置）
+        let (app_id, app_secret, _scope_key) = self
+            .mini_program_credentials(dto.app_id.as_deref())
+            .await?;
         let http = reqwest::Client::new();
         // access_token 走稳定版接口 + 进程内缓存（与公众号共用同一份缓存），
         // 不再每次直调老 token 接口作废全局上一个 token。
@@ -1019,6 +1109,11 @@ impl LoginService {
     }
 
     /// `POST /api/user/login/updateUserOpenid`（需登录）：小程序 code2Session 绑定 openid。
+    ///
+    /// 店铺独立绑定小程序后按 appid 分键：凭据按请求 appid 解析（店铺
+    /// appid 取绑定 Secret），授权记录按 `(openid, type=2, app_id 作用域
+    /// 键)` 查/写——同一买家在平台与店铺小程序下的 openid 分行存放，
+    /// 不再互相覆盖。
     pub async fn update_user_openid(&self, dto: &CodeParamDTO, user_id: i32) -> Result<()> {
         let code = dto
             .code
@@ -1026,18 +1121,9 @@ impl LoginService {
             .map(str::trim)
             .filter(|c| !c.is_empty())
             .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "缺少微信授权 code"))?;
-        let app_id = self
-            .repo()
-            .config_value("wechatMiniProgramAppId")
-            .await?
-            .filter(|v| !v.trim().is_empty())
-            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信小程序 APPID 未配置"))?;
-        let app_secret = self
-            .repo()
-            .config_value("wechatMiniProgramSecret")
-            .await?
-            .filter(|v| !v.trim().is_empty())
-            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信小程序 Secret 未配置"))?;
+        let (app_id, app_secret, scope_key) = self
+            .mini_program_credentials(dto.app_id.as_deref())
+            .await?;
 
         let res = crate::content::wechat_client::code2session(&app_id, &app_secret, code).await?;
         let openid = res.get("openid").and_then(|v| v.as_str()).unwrap_or("");
@@ -1047,14 +1133,18 @@ impl LoginService {
         }
 
         let authorize_type = 2; // MINI_PROGRAM
-        if let Some((auth_id, _)) = self.repo().find_authorize_by_open(openid, authorize_type).await? {
+        if let Some((auth_id, _)) = self
+            .repo()
+            .find_authorize_by_open_scoped(openid, authorize_type, &scope_key)
+            .await?
+        {
             self.repo()
                 .update_authorize_user(auth_id, user_id, None, Some(&res.to_string()))
                 .await?;
         } else {
             let now = now_seconds() as i32;
             self.repo()
-                .insert_authorize(
+                .insert_authorize_scoped(
                     authorize_type,
                     user_id,
                     openid,
@@ -1063,10 +1153,113 @@ impl LoginService {
                     "",
                     None,
                     now,
+                    &scope_key,
                 )
                 .await?;
         }
         Ok(())
+    }
+
+    /// `POST /api/user/login/getMiniLoginInfoByCode`（匿名，本平台新增）：
+    /// 小程序 `wx.login` code 静默登录（店铺独立绑定小程序）。
+    ///
+    /// 与公众号 OAuth 路径（[`Self::wx_login_info_by_code`]）同口径：
+    /// 按请求 appid 解析凭据（店铺 appid 用绑定 Secret、未登记硬拒绝）→
+    /// `code2session` 换 openid → 已有 `(openid, type=2, appid 键)` 授权
+    /// 直接登录（`type=1`）；未知 openid 一律回 `type=2` + 一次性
+    /// `bindTicket` 先绑手机（437883 口径，会员以手机号归一——店铺小
+    /// 程序与平台小程序分属不同开放平台账号，unionid 不互通，不靠它
+    /// 认人），不再静默新建空手机号账号。
+    ///
+    /// # Errors
+    /// code 为空、appid 未登记/停用、微信配置缺失、注册关闭 → 1001。
+    pub async fn mini_login_info_by_code(
+        &self,
+        code: Option<&str>,
+        app_id: Option<&str>,
+    ) -> Result<WxLoginInfoByCodeVO> {
+        let code = code
+            .map(str::trim)
+            .filter(|c| !c.is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "code不能为空"))?;
+        let (resolved_app_id, app_secret, scope_key) =
+            self.mini_program_credentials(app_id).await?;
+        let res = crate::content::wechat_client::code2session(
+            &resolved_app_id,
+            &app_secret,
+            code,
+        )
+        .await?;
+        let openid = res
+            .get("openid")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "微信换取 openid 失败"))?
+            .to_string();
+        let unionid = res
+            .get("unionid")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string);
+
+        // 老用户（本小程序维度已授权）：直接登录
+        if let Some((_, user_id)) = self
+            .repo()
+            .find_authorize_by_open_scoped(&openid, 2, &scope_key)
+            .await?
+        {
+            let user = self
+                .repos
+                .member
+                .user
+                .find_by_id(user_id)
+                .await?
+                .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "会员不存在"))?;
+            if user.status.unwrap_or(0) != USER_STATUS_OK {
+                return Err(Error::biz(SERVICE_DATA_ERROR, "账号已被停用"));
+            }
+            let token = self.issue_member_token(user.user_id, &user.username)?;
+            return Ok(WxLoginInfoByCodeVO {
+                r#type: 1,
+                token: Some(token),
+                open_data: None,
+            });
+        }
+
+        // 新用户：注册关闭为准入门（与 bindMobile 建号口径一致），
+        // 通过后一律先绑手机（凭证 authorize_type 写死 2、作用域键写死
+        // 发证时的 scope_key，不按客户端类型推导）。
+        let shop_reg_closed = self
+            .repo()
+            .config_value("shopRegClosed")
+            .await?
+            .and_then(|v| v.trim().parse::<i32>().ok())
+            .unwrap_or(0);
+        if shop_reg_closed != 0 {
+            return Err(Error::biz(SERVICE_DATA_ERROR, "商城已停止注册"));
+        }
+        let ticket = self
+            .issue_wechat_bind_ticket(&WechatBindData {
+                openid: openid.clone(),
+                unionid: unionid.clone(),
+                nickname: String::new(),
+                headimgurl: String::new(),
+                authorize_type: 2,
+                app_id: scope_key,
+            })
+            .await?;
+        let mut open_data = Map::new();
+        open_data.insert("openid".into(), Value::String(openid));
+        if let Some(unionid) = unionid {
+            open_data.insert("unionid".into(), Value::String(unionid));
+        }
+        open_data.insert("mockMode".into(), Value::Bool(false));
+        open_data.insert("bindTicket".into(), Value::String(ticket));
+        Ok(WxLoginInfoByCodeVO {
+            r#type: 2,
+            token: None,
+            open_data: Some(open_data),
+        })
     }
 
     /// `GET /api/user/login/getWxLoginInfoByCode`：公众号 OAuth code 换用户信息。
@@ -1213,6 +1406,7 @@ impl LoginService {
                 nickname: nickname.clone(),
                 headimgurl: headimgurl.clone(),
                 authorize_type: 1,
+                app_id: String::new(),
             })
             .await?;
         let mut open_data = Map::new();
@@ -1780,6 +1974,9 @@ struct ResolvedBindIdentity {
     avatar: String,
     /// 授权类型：凭证路径用发证时写死的值；旧路径按客户端推导。
     authorize_type: i32,
+    /// 授权作用域键（店铺独立绑定小程序）：店铺小程序 appid 本身，
+    /// 平台/公众号为空串。与 `user_authorize.app_id` 落值口径一致。
+    app_id: String,
     /// 落库 `user_authorize.open_data` 的 JSON（已剔除 nickname/bindTicket）。
     open_data_json: Option<String>,
     /// 一次性消费凭证：`(缓存键, 预读到的原始值)`，持锁写入段原子消费。
@@ -2063,6 +2260,50 @@ mod tests {
         assert!(
             write.contains("find_user_by_mobile"),
             "写入段应按手机号合并已有账号/建号"
+        );
+    }
+
+    #[test]
+    fn mini_program_login_is_app_scoped_and_never_falls_back() {
+        // 店铺独立绑定小程序（论坛帖 487946）结构不变量：
+        // 1) 小程序登录按 (openid, type=2, appid 作用域键) 查授权，
+        //    未知 openid 签发 authorize_type=2 的 bindTicket 先绑手机，
+        //    且不得直接建号（与 437883 口径一致）；
+        // 2) 凭据解析对未登记 appid 必须报错，绝不回落平台 Secret；
+        // 3) 绑定写入段三支全部走 *_scoped 仓储函数（appid 分键）。
+        let src = include_str!("login.rs");
+        let body = fn_body(src, "mini_login_info_by_code");
+        assert!(
+            body.contains("find_authorize_by_open_scoped"),
+            "小程序登录应按 appid 作用域键查授权"
+        );
+        assert!(
+            body.contains("issue_wechat_bind_ticket"),
+            "小程序登录未知 openid 应签发 bindTicket"
+        );
+        assert!(
+            body.contains("authorize_type: 2"),
+            "小程序 bindTicket 的 authorize_type 应写死 2"
+        );
+        assert!(
+            !body.contains("insert_registered_user"),
+            "小程序登录不得直接建号"
+        );
+        let creds = fn_body(src, "mini_program_credentials");
+        assert!(
+            creds.contains("find_binding_by_app_id"),
+            "店铺 appid 凭据应查绑定表"
+        );
+        assert!(
+            creds.contains("该小程序未绑定店铺或绑定已停用"),
+            "未登记 appid 应硬拒绝而非回落平台凭据"
+        );
+        let write = fn_body(src, "bind_mobile_under_lock");
+        assert!(
+            write.contains("find_authorize_by_open_scoped")
+                && write.contains("find_authorize_by_user_scoped")
+                && write.contains("insert_authorize_scoped"),
+            "绑定写入段三支应全部按 appid 分键"
         );
     }
 

@@ -62,10 +62,10 @@ use nextrade_services::member::login::WechatServerQuery;
 
 use crate::PublicState;
 
-/// 契约全部 16 条（完整路径 + 原 Java 方法名）。
+/// 契约全部 17 条（完整路径 + 原 Java 方法名；末条为本平台新增）。
 ///
 /// `wechatServer` 在 Java 用 `@RequestMapping`（不限方法），故 method 记 `ANY`。
-const ROUTE_TABLE: [(&str, &str, &str); 16] = [
+const ROUTE_TABLE: [(&str, &str, &str); 17] = [
     ("ANY", "/api/user/login/wechatServer", "LoginController.wechatServer"),
     ("GET", "/api/user/login/getQuickLoginSetting", "LoginController.getQuickLoginSetting"),
     ("GET", "/api/user/login/getWxLoginUrl", "LoginController.getWechatLoginUrl"),
@@ -82,6 +82,7 @@ const ROUTE_TABLE: [(&str, &str, &str); 16] = [
     ("GET", "/api/user/login/getWxLoginInfoByCode", "LoginController.getWxLoginInfoByCode"),
     ("POST", "/api/user/login/bindWechat", "LoginController.bindWechat"),
     ("GET", "/api/user/login/unbindWechat", "LoginController.unbindWechat"),
+    ("POST", "/api/user/login/getMiniLoginInfoByCode", "LoginController.getMiniLoginInfoByCode (本平台新增)"),
 ];
 
 /// 需登录的 3 条（Java 内用 `getCurrentUserId()`）：自套 `require_auth`。
@@ -116,6 +117,7 @@ pub fn anonymous_routes(state: &PublicState) -> Router<PublicState> {
         .route("/user/login/wechatEvent", post(wechat_event))
         .route("/user/login/getMobile", post(get_mobile))
         .route("/user/login/getWxLoginInfoByCode", get(get_wx_login_info_by_code))
+        .route("/user/login/getMiniLoginInfoByCode", post(get_mini_login_info_by_code))
 }
 
 /// 本域已实现路由（完整契约路径，供 `/openapi/coverage`）。
@@ -234,6 +236,20 @@ async fn wechat_event(
     ok(state.member.login.wechat_event(&dto).await?)
 }
 
+/// `POST /api/user/login/getMiniLoginInfoByCode`：小程序 code 静默登录
+/// （本平台新增，店铺独立绑定小程序）：按 appId 解析凭据换 openid，
+/// 已授权直登（type=1），未知 openid 回 type=2 + bindTicket 先绑手机。
+async fn get_mini_login_info_by_code(
+    State(state): State<PublicState>,
+    Json(dto): Json<CodeParamDTO>,
+) -> ApiResult<WxLoginInfoByCodeVO> {
+    ok(state
+        .member
+        .login
+        .mini_login_info_by_code(dto.code.as_deref(), dto.app_id.as_deref())
+        .await?)
+}
+
 /// `POST /api/user/login/getMobile`：小程序手机号。
 async fn get_mobile(
     State(state): State<PublicState>,
@@ -334,12 +350,13 @@ async fn unbind_wechat(
 mod tests {
     use super::*;
 
-    /// 契约逐条守卫：16 条（含 `ANY` 的 wechatServer 与 /adminapi 那条）。
+    /// 契约逐条守卫：17 条（16 条 Java 契约 + 本平台新增小程序登录 1 条，
+    /// 含 `ANY` 的 wechatServer 与 /adminapi 那条）。
     #[test]
     fn implemented_routes_match_all_16_java_paths() {
         // 契约 16 条中 `/adminapi/login/sendMobileCode` 由 admin 应用挂载（见 api/admin/src/lib.rs），
-        // 本模块只负责 public 侧 15 条。
-        let expected: [(&str, &str); 16] = [
+        // 本模块只负责 public 侧 15 条；末条 getMiniLoginInfoByCode 为本平台新增。
+        let expected: [(&str, &str); 17] = [
             ("ANY", "/api/user/login/wechatServer"),
             ("GET", "/api/user/login/getQuickLoginSetting"),
             ("GET", "/api/user/login/getWxLoginUrl"),
@@ -356,9 +373,10 @@ mod tests {
             ("GET", "/api/user/login/getWxLoginInfoByCode"),
             ("POST", "/api/user/login/bindWechat"),
             ("GET", "/api/user/login/unbindWechat"),
+            ("POST", "/api/user/login/getMiniLoginInfoByCode"),
         ];
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 16, "public 侧 16 条（含 sendCode 别名）");
+        assert_eq!(docs.len(), 17, "public 侧 17 条（含 sendCode 别名与本平台新增）");
         for (doc, (method, path)) in docs.iter().zip(expected.iter()) {
             assert_eq!(doc.method, *method, "方法不匹配: {path}");
             assert_eq!(doc.path, *path, "路径不匹配");
@@ -367,7 +385,7 @@ mod tests {
         let mut keys: Vec<String> = docs.iter().map(|d| d.key()).collect();
         keys.sort();
         keys.dedup();
-        assert_eq!(keys.len(), 16);
+        assert_eq!(keys.len(), 17);
     }
 
     /// 15 条在 public 应用挂载；`/adminapi/login/sendMobileCode` 归 admin 应用。
@@ -378,7 +396,7 @@ mod tests {
             .map(|(_, p, _)| *p)
             .filter(|p| p.starts_with("/api/"))
             .collect();
-        assert_eq!(mounted.len(), 16);
+        assert_eq!(mounted.len(), 17);
         assert!(!mounted.iter().any(|p| p.starts_with("/adminapi/")));
         // 挂载前缀 = 契约路径去掉 `/api`
         for p in mounted {
@@ -387,7 +405,7 @@ mod tests {
         }
     }
 
-    /// 需登录 3 条 / 匿名 12 条（15 条挂载之内）。
+    /// 需登录 3 条 / 匿名 14 条（17 条挂载之内）。
     #[test]
     fn protected_and_anonymous_split_is_3_and_12() {
         let protected = [
@@ -401,7 +419,7 @@ mod tests {
                 .iter()
                 .any(|(_, full, _)| full == &format!("/api{p}")));
         }
-        assert_eq!(16 - protected.len(), 13);
+        assert_eq!(17 - protected.len(), 14);
     }
 
     /// 客户端类型从请求头读取（Java `HeaderUtils#getClientType`）。

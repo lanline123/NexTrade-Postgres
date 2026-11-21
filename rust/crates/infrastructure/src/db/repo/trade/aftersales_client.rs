@@ -224,9 +224,17 @@ impl AftersalesClientRepository {
         &self,
         q: &AftersalesListQuery,
         user_id: i32,
+        // 店铺小程序作用域（我方新增）：Some(shop_id) 时只保留本店售后
+        // （aftersales.shop_id 落值口径）；None 不过滤。
+        scope_shop_id: Option<i32>,
     ) -> Result<(u64, Vec<Aftersales>)> {
         let mut conds: Vec<String> = vec!["a.user_id = ?".into()];
         let mut binds: Vec<Bind> = vec![Bind::I32(user_id)];
+
+        if let Some(shop_id) = scope_shop_id {
+            conds.push("a.shop_id = ?".into());
+            binds.push(Bind::I32(shop_id));
+        }
 
         // Java：`aftersaleType` 仅在为 1/2 时参与过滤（`aftersalesTypeFlag`）；
         // 我方新增类型 3（换货）同口径参与过滤

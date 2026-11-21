@@ -2,6 +2,7 @@ import type { PropsWithChildren } from "react";
 import Taro, { useLaunch } from "@tarojs/taro";
 
 import { useConfigStore } from "@/store/config";
+import { resolveMiniShop, miniShopSilentLogin } from "@/store/miniShop";
 import { fetchSystemMode } from "@/utils/systemMode";
 import { configureRequestRuntime } from "@/utils/requestRuntime";
 import { handleLogin } from "@/utils/handleLogin";
@@ -19,6 +20,10 @@ installInlineRpxH5();
 
 function App({ children }: PropsWithChildren<any>) {
     useLaunch(() => {
+        // 店铺独立绑定小程序：先解析本小程序作用域（店铺模式后续请求
+        // 全带 X-Mini-App-Id 头），解析完成后在店铺模式下尝试静默登录
+        void resolveMiniShop().then(() => miniShopSilentLogin());
+
         // 请求运行时：clientType / locale / 401 登录 / 启动初始化
         configureRequestRuntime({
             getClientType: () => useConfigStore.getState().XClientType,

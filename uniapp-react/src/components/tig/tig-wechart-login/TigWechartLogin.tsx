@@ -5,6 +5,7 @@ import Taro, { useDidShow } from "@tarojs/taro";
 import { Popup } from "@nutui/nutui-react-taro";
 
 import { getOauthInfo, getOauthUrl, getWechartMobile, setMiniProgramOpenid } from "@/api/login/login";
+import { currentMiniAppId } from "@/store/miniShop";
 import { useUserStore } from "@/store/user";
 import { useConfigStore } from "@/store/config";
 import Checkbox from "@/pages/cart/src/Checkbox";
@@ -103,7 +104,8 @@ export default function TigWechartLogin({ onLoginSuccess }: Props) {
 
     const getPhoneNumber = async (e: any) => {
         try {
-            const result = await getWechartMobile({ code: e.detail.code });
+            // 店铺小程序带自身 appId：服务端按绑定 Secret 解密手机号
+            const result = await getWechartMobile({ code: e.detail.code, appId: currentMiniAppId() || undefined });
             useUserStore.getState().setToken(result);
             useUserStore.getState().getUserInfo();
             onLoginSuccess?.();
@@ -126,7 +128,9 @@ export default function TigWechartLogin({ onLoginSuccess }: Props) {
         Taro.login({
             success: async (res: any) => {
                 await setMiniProgramOpenid({
-                    code: res.code
+                    code: res.code,
+                    // 店铺小程序带自身 appId：openid 按 appid 分键落库
+                    appId: currentMiniAppId() || undefined
                 });
             },
             fail: (err: any) => {

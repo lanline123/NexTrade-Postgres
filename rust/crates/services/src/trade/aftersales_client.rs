@@ -1892,9 +1892,13 @@ impl AftersalesClientService {
         user_id: i32,
     ) -> Result<PageResult<AftersalesVO>> {
         let page = q.page_query();
+        // 店铺小程序作用域（我方新增）：售后记录只看本店（平台作用域不过滤）
+        let scope_shop_id =
+            nextrade_infrastructure::db::repo::member::mini_shop_scope::MiniShopScope::current()
+                .shop_id();
         let (total, rows) = self
             .repos.trade.aftersales_client
-            .paginate_aftersales(q, user_id)
+            .paginate_aftersales(q, user_id, scope_shop_id)
             .await?;
         if rows.is_empty() {
             return Ok(PageResult::empty(&page));

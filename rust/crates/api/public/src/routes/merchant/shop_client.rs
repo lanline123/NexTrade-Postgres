@@ -15,6 +15,7 @@
 //! | `GET  /shop/shop/storeList` | `ShopClientController.storeList` | optional |
 //! | `GET  /shop/shop/storeDetail` | `ShopClientController.storeDetail` | optional |
 //! | `GET  /shop/shop/getCommentList` | `ShopClientController.getCommentList` | optional |
+//! | `GET  /shop/miniProgram/context` | 本平台新增（店铺独立绑定小程序） | optional |
 //!
 //! > **路径说明**：控制器前缀**重复一次**（`/api/shop/shop/...`），
 //! > 这不是笔误，必须逐字符照抄；本文件挂在 `/api` 之下，
@@ -79,6 +80,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/shop/shop/storeList", get(store_list))
         .route("/shop/shop/storeDetail", get(store_detail))
         .route("/shop/shop/getCommentList", get(get_comment_list))
+        .route("/shop/miniProgram/context", get(mini_program_context))
         .layer(middleware::from_fn_with_state(
             state.jwt.clone(),
             optional_auth,
@@ -97,6 +99,11 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
         ),
         ("GET", "/api/shop/shop/head", "ShopClientController.shopHead"),
         ("GET", "/api/shop/shop/groupDetail", "ShopClientController.groupDetail"),
+        (
+            "GET",
+            "/api/shop/miniProgram/context",
+            "ShopMiniProgramController.context (本平台新增)",
+        ),
         (
             "GET",
             "/api/shop/shop/detail",
@@ -247,6 +254,13 @@ struct ShopGroupQuery {
     shop_type: Option<i32>,
 }
 
+/// `GET /api/shop/miniProgram/context?appId=` 查询参数。
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct MiniProgramContextQuery {
+    app_id: Option<String>,
+}
+
 /// `GET /api/shop/shop/groupDetail`：装修选择分组详情
 /// （装修类载荷，价格门控同 shopDecorate 口径递归脱敏）。
 async fn shop_group_detail(
@@ -261,6 +275,38 @@ async fn shop_group_detail(
         .group_detail(q.group_id.unwrap_or(0), q.shop_type.unwrap_or(1))
         .await?;
     ok(gate_stored(v, access))
+}
+
+/// `GET /api/shop/miniProgram/context?appId=`：小程序作用域解析
+/// （店铺独立绑定小程序，本平台新增）。
+///
+/// 客户端启动时以自身 appid 询问模式：平台 appid → `{mode:"platform"}`；
+/// 已绑定店铺 appid → `{mode:"shop", shopId, shopTitle}` 并进入店铺模式；
+/// 未登记/停用/解绑 → 403（与 `x-mini-app-id` 中间件同一口径，硬拒绝）。
+async fn mini_program_context(
+    State(state): State<PublicState>,
+    Query(q): Query<MiniProgramContextQuery>,
+) -> ApiResult<nextrade_services::merchant::shop_mini_program::MiniProgramContext> {
+    use nextrade_services::merchant::shop_mini_program::{AppResolution, MiniProgramContext};
+    let app_id = q.app_id.as_deref().map(str::trim).unwrap_or("");
+    let svc = &state.merchant.shop_mini_program;
+    match svc.resolve(app_id).await? {
+        AppResolution::Platform => ok(MiniProgramContext {
+            mode: "platform".to_string(),
+            shop_id: 0,
+            shop_title: String::new(),
+            app_id: app_id.to_string(),
+        }),
+        AppResolution::Shop(shop_id) => ok(MiniProgramContext {
+            mode: "shop".to_string(),
+            shop_id,
+            shop_title: svc.shop_title(shop_id).await?,
+            app_id: app_id.to_string(),
+        }),
+        AppResolution::Unknown => Err(Error::Forbidden(
+            "该小程序未绑定店铺或绑定已停用".into(),
+        )),
+    }
 }
 
 /// 店铺头部装修（装修类载荷，价格门控递归脱敏）。

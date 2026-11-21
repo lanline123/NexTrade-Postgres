@@ -338,6 +338,95 @@ impl LoginRepository {
         Ok(())
     }
 
+    /// 按 openid + 授权类型 + appid 查授权记录（店铺小程序维度）。
+    ///
+    /// `app_id` 为授权作用域键：平台小程序与公众号传 `""`（存量行迁移默认
+    /// 值），店铺自有小程序传其 appid 本身。同一买家在不同小程序下的
+    /// openid 可能字面相同，必须三键齐查才不会串号（店铺独立绑定小程序，
+    /// 论坛帖 487946315732211118，我方新增）。
+    ///
+    /// 返回 `(authorize_id, user_id)`。
+    ///
+    /// # Errors
+    /// 数据库失败 → `Error::Database`。
+    pub async fn find_authorize_by_open_scoped(
+        &self,
+        open_id: &str,
+        authorize_type: i32,
+        app_id: &str,
+    ) -> Result<Option<(i32, i32)>> {
+        let row: Option<(i32, i32)> = sqlx::query_as(
+            "SELECT authorize_id, user_id FROM user_authorize WHERE open_id = $1 AND authorize_type = $2 AND app_id = $3 LIMIT 1",
+        )
+        .bind(open_id)
+        .bind(authorize_type)
+        .bind(app_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row)
+    }
+
+    /// 按用户 + 授权类型 + appid 查授权记录（绑定链第二段 upsert 用：
+    /// 只在同维度内找该用户已有行，避免把公众号行改写成小程序 openid）。
+    ///
+    /// 返回 `(authorize_id, open_id)`。
+    ///
+    /// # Errors
+    /// 数据库失败 → `Error::Database`。
+    pub async fn find_authorize_by_user_scoped(
+        &self,
+        user_id: i32,
+        authorize_type: i32,
+        app_id: &str,
+    ) -> Result<Option<(i32, String)>> {
+        let row: Option<(i32, String)> = sqlx::query_as(
+            "SELECT authorize_id, open_id FROM user_authorize WHERE user_id = $1 AND authorize_type = $2 AND app_id = $3 LIMIT 1",
+        )
+        .bind(user_id)
+        .bind(authorize_type)
+        .bind(app_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row)
+    }
+
+    /// 插入带 appid 维度的授权记录（[`Self::insert_authorize`] 的作用域版）。
+    ///
+    /// # Errors
+    /// 数据库失败 → `Error::Database`。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_authorize_scoped(
+        &self,
+        authorize_type: i32,
+        user_id: i32,
+        open_id: &str,
+        open_data: Option<&str>,
+        open_name: &str,
+        open_photo: &str,
+        unionid: Option<&str>,
+        add_time: i32,
+        app_id: &str,
+    ) -> Result<i32> {
+        let result: i32 = sqlx::query_scalar(
+            "INSERT INTO user_authorize (authorize_type, user_id, open_id, open_data, open_name, open_photo, unionid, add_time, app_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING authorize_id",
+        )
+        .bind(authorize_type)
+        .bind(user_id)
+        .bind(open_id)
+        .bind(open_data)
+        .bind(open_name)
+        .bind(open_photo)
+        .bind(unionid)
+        .bind(add_time)
+        .bind(app_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(result)
+    }
+
     /// 按 openid 删除授权记录（Java `userAuthorizeService.remove(eq(openId))`）。
     ///
     /// # Errors

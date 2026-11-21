@@ -207,6 +207,10 @@ pub struct WechatEventDTO {
 pub struct CodeParamDTO {
     /// 微信 code
     pub code: Option<String>,
+    /// 发起请求的小程序 AppID（店铺独立绑定小程序，我方新增）：
+    /// 店铺小程序构建会上报自身 appid，服务端按绑定表取该店 Secret
+    /// 换取 openid/手机号；缺省/平台 appid 走平台全局配置。
+    pub app_id: Option<String>,
 }
 
 /// `POST /api/user/login/bindWechat` 入参（Java `BindWechatParam`）。
@@ -289,6 +293,12 @@ pub struct WechatBindData {
     pub headimgurl: String,
     /// 授权类型（Java `AuthorizeTypeEnum`：1 微信公众号）。
     pub authorize_type: i32,
+    /// 授权作用域键（店铺独立绑定小程序，我方新增）：小程序路径
+    /// （`authorize_type = 2`）发证时写入——店铺小程序为其 appid 本身，
+    /// 平台小程序与公众号路径为空串（与 `user_authorize.app_id` 的哨兵
+    /// 口径一致）。旧凭证无此字段，serde default 兜底为空串。
+    #[serde(default)]
+    pub app_id: String,
 }
 
 /// 通过微信 code 获取微信用户信息（Java `WxLoginInfoByCodeVO`）。
@@ -571,6 +581,7 @@ mod tests {
             nickname: "昵称".into(),
             headimgurl: "https://img/1.png".into(),
             authorize_type: 1,
+            app_id: "wxshop123".into(),
         };
         let raw = serde_json::to_string(&data).unwrap();
         assert!(raw.contains("\"authorizeType\":1"), "{raw}");
@@ -580,6 +591,8 @@ mod tests {
         assert_eq!(minimal.openid, "o1");
         assert_eq!(minimal.unionid, None);
         assert_eq!(minimal.authorize_type, 0);
+        // 旧凭证无 appId 字段 → 作用域键默认空串（平台口径）
+        assert_eq!(minimal.app_id, "");
 
         // bindTicket 提取：正常 / 空白 / 缺失 / 非字符串
         let mut map = Map::new();

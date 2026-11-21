@@ -18,6 +18,7 @@ pub mod shop;
 pub mod shop_account_log;
 pub mod shop_funds;
 pub mod shop_label;
+pub mod shop_mini_program;
 pub mod shop_manage;
 pub mod shop_product_category;
 pub mod shop_withdraw;
@@ -49,6 +50,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(shop_account_log::routes(state))
         .merge(shop_funds::routes(state))
         .merge(shop_label::routes(state))
+        .merge(shop_mini_program::routes(state))
         .merge(shop_manage::routes(state))
         .merge(shop_product_category::routes(state))
         .merge(shop_withdraw::routes(state))
@@ -83,6 +85,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(shop_account_log::implemented_routes());
     out.extend(shop_funds::implemented_routes());
     out.extend(shop_label::implemented_routes());
+    out.extend(shop_mini_program::implemented_routes());
     out.extend(shop_manage::implemented_routes());
     out.extend(shop_product_category::implemented_routes());
     out.extend(shop_withdraw::implemented_routes());

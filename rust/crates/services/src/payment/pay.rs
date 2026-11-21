@@ -576,6 +576,9 @@ impl PayService {
         }
         let notify_url = format!("{}/api/order/pay/notify/wechat", pc_domain.trim_end_matches('/'));
         let amount = (order.unpaid_amount * rust_decimal::Decimal::from(100)).round().to_string();
+        // JSAPI 分支实际使用的 appid：平台作用域恒为渠道配置 appid；
+        // 店铺小程序作用域下在 JSAPI 分支内改写为店铺 appid（见下）。
+        let mut jsapi_app_id = cfg.app_id.clone();
         let (path, body) = match client_type {
             "h5" => ("/v3/pay/transactions/h5", serde_json::json!({
                 "appid": cfg.app_id,
@@ -589,15 +592,54 @@ impl PayService {
             "wechat" | "wechatMini" | "miniProgram" => {
                 use sqlx::Row;
                 let auth_type = if matches!(client_type, "wechatMini" | "miniProgram") { 2 } else { 1 };
-                let row = sqlx::query("SELECT open_id FROM user_authorize WHERE user_id=$1 AND authorize_type=$2 ORDER BY authorize_id DESC LIMIT 1")
-                    .bind(user_id).bind(auth_type)
-                    .fetch_optional(&self.repos.pool).await.map_err(|e| Error::Database(e.to_string()))?;
+                // 店铺独立绑定小程序（我方新增）：店铺作用域 + 小程序端时，
+                // JSAPI 的 appid 换成店铺 appid、openid 按 appid 分键取本
+                // 店铺维度那一行；商户号仍用平台直连商户号——资金口径与
+                // 现网一致（平台收款、按现行口径结算），不捆绑商家自有
+                // 商户号直收（帖 687910 已否决）。注：设计稿原拟收付通
+                // 服务商模式（sp_appid/sub_openid），现网与代码均无服务商
+                // 通道，本批以直连 + 店铺 appid 落地，服务商模式另立项。
+                let scope = nextrade_infrastructure::db::repo::member::mini_shop_scope::MiniShopScope::current();
+                let shop_app_id = if auth_type == 2 {
+                    match scope.shop_id() {
+                        Some(bound_shop_id) => {
+                            crate::merchant::shop_mini_program::find_binding_by_shop(
+                                &self.repos.pool,
+                                bound_shop_id,
+                            )
+                            .await?
+                            .filter(|r| {
+                                r.status
+                                    == crate::merchant::shop_mini_program::STATUS_ENABLED
+                            })
+                            .map(|r| r.app_id)
+                        }
+                        None => None,
+                    }
+                } else {
+                    None
+                };
+                let row = match &shop_app_id {
+                    Some(app_id) => {
+                        sqlx::query("SELECT open_id FROM user_authorize WHERE user_id=$1 AND authorize_type=$2 AND app_id=$3 ORDER BY authorize_id DESC LIMIT 1")
+                            .bind(user_id).bind(auth_type).bind(app_id)
+                            .fetch_optional(&self.repos.pool).await.map_err(|e| Error::Database(e.to_string()))?
+                    }
+                    None => {
+                        sqlx::query("SELECT open_id FROM user_authorize WHERE user_id=$1 AND authorize_type=$2 ORDER BY authorize_id DESC LIMIT 1")
+                            .bind(user_id).bind(auth_type)
+                            .fetch_optional(&self.repos.pool).await.map_err(|e| Error::Database(e.to_string()))?
+                    }
+                };
                 let openid = row.and_then(|r| r.try_get::<String, _>("open_id").ok()).unwrap_or_default();
                 if openid.is_empty() {
                     return Err(Error::biz(1001, "微信支付需要用户 openid，请先授权登录"));
                 }
+                if let Some(app_id) = &shop_app_id {
+                    jsapi_app_id = app_id.clone();
+                }
                 ("/v3/pay/transactions/jsapi", serde_json::json!({
-                    "appid": cfg.app_id,
+                    "appid": jsapi_app_id.clone(),
                     "mchid": cfg.mchid,
                     "description": "订单支付",
                     "out_trade_no": pay_sn,
@@ -664,10 +706,11 @@ impl PayService {
                 let ts = nextrade_common::utils::now_seconds().to_string();
                 let n = uuid::Uuid::new_v4().simple().to_string();
                 let package = format!("prepay_id={prepay}");
-                let sign_msg = format!("{}\n{}\n{}\n{}\n", cfg.app_id, ts, n, package);
+                // paySign 的 appId 必须与下单 appid 一致（店铺作用域下为店铺 appid）
+                let sign_msg = format!("{}\n{}\n{}\n{}\n", jsapi_app_id, ts, n, package);
                 let pay_sign = wechat_sign(private_key, &sign_msg)?;
                 Ok(serde_json::json!({
-                    "paySn": pay_sn, "payType": "wechat", "appId": cfg.app_id,
+                    "paySn": pay_sn, "payType": "wechat", "appId": jsapi_app_id,
                     "timeStamp": ts, "nonceStr": n, "package": package,
                     "signType": "RSA", "paySign": pay_sign
                 }))

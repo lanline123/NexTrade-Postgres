@@ -12,6 +12,7 @@ import TigCheckbox from "@/components/tig/tig-checkbox/TigCheckbox";
 import TigMobileAreacode from "@/components/tig/tig-mobile-areacode/TigMobileAreacode";
 import { sendMobileCode, setMiniProgramOpenid, userSignin, csrfCreate, getOauth, getOauthUrl, getQuickLoginSetting, getWechartMobile } from "@/api/login/login";
 import { useUserStore } from "@/store/user";
+import { currentMiniAppId } from "@/store/miniShop";
 import { redirect, isOverseas, isWeixinBrowser, staticResource } from "@/utils";
 import { useI18nStore } from "@/store/i18n";
 import { t } from "@/utils/i18n";
@@ -338,7 +339,8 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
         signinPending.current = true;
         setLoginLoading(true);
         try {
-            const token: string = await getWechartMobile({ code: event.detail.code });
+            // 店铺小程序带自身 appId：服务端按绑定 Secret 解密手机号
+            const token: string = await getWechartMobile({ code: event.detail.code, appId: currentMiniAppId() || undefined });
             completeLogin(token);
         } catch (error: any) {
             void Taro.showToast({ title: error?.message || t("登录失败"), icon: "none" });
@@ -407,7 +409,9 @@ export default function BaseLogin({ loginType, onLoginTypeChange, csrfToken, onC
         Taro.login({
             success: async (res: any) => {
                 await setMiniProgramOpenid({
-                    code: res.code
+                    code: res.code,
+                    // 店铺小程序带自身 appId：openid 按 appid 分键落库
+                    appId: currentMiniAppId() || undefined
                 });
             },
             fail: (err: any) => {

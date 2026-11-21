@@ -9,6 +9,7 @@ import { getShopDecorate, getShopDetail } from "@/api/shop/shop";
 import type { ShopDetailItem } from "@/types/shop/shop";
 import type { PageModule } from "@/types/home/home";
 import { useConfigStore } from "@/store/config";
+import { useMiniShopStore } from "@/store/miniShop";
 import { setPageMeta } from "@/utils/seo";
 import { parseQueryString } from "@/utils";
 import { handleDecorateLoadError } from "@/utils/handleDecorateLoadError";
@@ -78,6 +79,22 @@ export default function ShopIndex() {
             void __getShopDecorate();
         }
     });
+
+    // 店铺独立绑定小程序：无 shopId 参数进入本页（tab 首页项已改指本页
+    // 但未带参、或解析晚于 useLoad）时，用绑定店铺兜底加载
+    const miniShopResolved = useMiniShopStore((s) => s.resolved);
+    const miniShopMode = useMiniShopStore((s) => s.mode);
+    const miniShopBoundId = useMiniShopStore((s) => s.shopId);
+    useEffect(() => {
+        if (shopIdRef.current > 0) return;
+        if (miniShopResolved && miniShopMode === "shop" && miniShopBoundId > 0) {
+            shopIdRef.current = miniShopBoundId;
+            setShopId(miniShopBoundId);
+            void getShopInfo();
+            void __getShopDecorate();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [miniShopResolved, miniShopMode, miniShopBoundId]);
 
     // 对应旧 onMounted 的 #ifdef H5
     useEffect(() => {

@@ -99,6 +99,20 @@ export const getWechartMobile = (data: any) => {
 };
 
 /**
+ * @description 小程序 code 静默登录（本平台新增，店铺独立绑定小程序）
+ * @param data { code, appId }：服务端按 appId 解析凭据换 openid，
+ * 已授权直登（type=1 带 token），未知 openid 回 type=2 + bindTicket
+ * @returns 登录结果
+ */
+export const getMiniLoginInfoByCode = (data: any) => {
+    return request({
+        url: "user/login/getMiniLoginInfoByCode",
+        method: "post",
+        data
+    });
+};
+
+/**
  * @description 更新用户微信OpenID
  * @param data 包含微信登录code
  * @returns 更新结果

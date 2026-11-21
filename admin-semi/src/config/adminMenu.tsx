@@ -230,6 +230,10 @@ export const navGroups: NavGroup[] = [
             "label": "店铺标签"
           },
           {
+            "key": "shopMiniProgramManage",
+            "label": "店铺小程序"
+          },
+          {
             "key": "ShopInfoManage",
             "label": "店铺信息"
           },
@@ -1689,6 +1693,7 @@ export const pageTitles: Record<string, string> = {
   "shopGroupManage": "店铺分组",
   "shopTipManage": "标签管理",
   "shopLabelManage": "店铺标签",
+  "shopMiniProgramManage": "店铺小程序",
   "offlinePaymentClaimManage": "线下收款审核",
   "imageSearchManage": "图像搜索",
   "vendorAccountManage": "资金概览",

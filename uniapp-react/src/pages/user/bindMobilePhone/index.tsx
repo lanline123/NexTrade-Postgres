@@ -8,6 +8,7 @@ import VerificationCode from "@/components/verificationCode/VerificationCode";
 import Verify from "@/components/verifition/Verify";
 import { sendMobileCode } from "@/api/login/login";
 import { bindMobilePhone } from "@/api/user/bindMobilePhone";
+import { currentMiniAppId } from "@/store/miniShop";
 import { useI18nStore } from "@/store/i18n";
 import { useUserStore } from "@/store/user";
 import { loginReturnUrl, redirectAfterLogin } from "@/utils/loginReturn";
@@ -68,7 +69,16 @@ export default function BindMobilePhone() {
                 mobileErrorCallback(t("请输入正确的手机号码"));
                 return;
             }
-            const payload = { ...form, openData: Taro.getStorageSync("openData") };
+            // 店铺小程序：openData 附带自身 appId，服务端据此把授权按
+            // appid 分键（bindTicket 路径以凭证内作用域为准，此处仅旧
+            // openData 路径需要）；平台/公众号场景 appId 为空不附带
+            const storedOpenData = Taro.getStorageSync("openData");
+            const miniAppId = currentMiniAppId();
+            const openData =
+                miniAppId && storedOpenData && typeof storedOpenData === "object"
+                    ? { ...storedOpenData, appId: miniAppId }
+                    : storedOpenData;
+            const payload = { ...form, openData };
             const result: any = await bindMobilePhone(payload);
             setToken(result);
             void getUserInfo();

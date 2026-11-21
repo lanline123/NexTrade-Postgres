@@ -463,6 +463,7 @@ async fn main() -> anyhow::Result<()> {
         shop_client: shop_client.clone(),
         shop_client_category: shop_client_category.clone(),
         shop_label: shop_label.clone(),
+        shop_mini_program: Arc::new(nextrade_services::merchant::shop_mini_program::ShopMiniProgramService::new(repos.clone())),
         shop_manage: shop_manage.clone(),
         shop_product_category: shop_product_category.clone(),
         vendor_deposit_shop: vendor_deposit_shop.clone(),

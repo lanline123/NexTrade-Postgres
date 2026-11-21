@@ -5,6 +5,7 @@ import { KEY, aesEncrypt } from "@/utils/crypto";
 import { baseUrl } from "@/utils/requestBaseUrl";
 import { formatArguments } from "@/utils/requestArguments";
 import { getRequestRuntime } from "@/utils/requestRuntime";
+import { useMiniShopStore } from "@/store/miniShop";
 
 export { baseUrl };
 
@@ -19,13 +20,20 @@ export const getSecret = () => {
 
 export function requestHeader(customHeaders: Record<string, string> = {}): Record<string, string> {
     const runtime = getRequestRuntime();
-    return {
+    const headers: Record<string, string> = {
         Authorization: "Bearer " + (Taro.getStorageSync("token") ? Taro.getStorageSync("token") : null),
         ...customHeaders,
         "X-Client-Type": runtime.getClientType(),
         "X-Locale-Code": runtime.getLocaleCode(),
         Secret: getSecret()
     };
+    // 店铺独立绑定小程序：上报自身 appid，服务端按绑定表强制店铺作用域
+    // （平台小程序上报平台 appid = 平台作用域；H5/App 无 appid 不带此头）
+    const miniAppId = useMiniShopStore.getState().appId;
+    if (miniAppId) {
+        headers["X-Mini-App-Id"] = miniAppId;
+    }
+    return headers;
 }
 
 /**

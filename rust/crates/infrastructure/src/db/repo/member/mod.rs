@@ -7,6 +7,7 @@ pub mod member_audience;
 pub mod member_lists;
 pub mod member_tag;
 pub mod member_tag_group;
+pub mod mini_shop_scope;
 pub mod shop_member;
 pub mod user;
 pub mod user_blacklist;

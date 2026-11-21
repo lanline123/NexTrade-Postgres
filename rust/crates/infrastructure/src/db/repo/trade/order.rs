@@ -344,9 +344,18 @@ impl OrderRepository {
         keyword: Option<&str>,
         page: u64,
         page_size: u64,
+        // 店铺小程序作用域（我方新增）：Some(shop_id) 时只保留含本店
+        // 明细行的订单（按 order_item.shop_id 判归属，不用订单头
+        // shop_id——跨店单头口径见拆单模型）；None 不过滤。
+        shop_id: Option<i32>,
     ) -> Result<(u64, Vec<Order>)> {
         let offset = page.saturating_sub(1) * page_size;
         let kw = keyword.map(|s| format!("%{s}%"));
+        let shop_sql = if shop_id.is_some() {
+            " AND EXISTS (SELECT 1 FROM order_item oi WHERE oi.order_id = \"order\".order_id AND oi.shop_id = ?)"
+        } else {
+            ""
+        };
         // 待晒单：Java 先查 comment 表（user_id + is_showed）得到 orderId 集合
         let show_sql = if is_showed.is_some() && user_id.is_some() {
             " AND order_id IN (SELECT order_id FROM \"comment\" WHERE user_id = $1 AND is_showed = $2)"
@@ -363,13 +372,16 @@ impl OrderRepository {
                      OR ($6 = 0 AND comment_status = 0 AND order_status = 5)
                      OR ($7 > 0 AND comment_status = $8)
                    )
-               AND ($9 IS NULL OR order_sn ILIKE $10 OR consignee ILIKE $11){show_sql}"
+               AND ($9 IS NULL OR order_sn ILIKE $10 OR consignee ILIKE $11){shop_sql}{show_sql}"
         ));
         let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql)
             .bind(user_id).bind(user_id)
             .bind(order_status).bind(order_status)
             .bind(comment_status).bind(comment_status).bind(comment_status).bind(comment_status)
             .bind(&kw).bind(&kw).bind(&kw);
+        if shop_id.is_some() {
+            cq = cq.bind(shop_id);
+        }
         if !show_sql.is_empty() {
             cq = cq.bind(user_id).bind(is_showed);
         }
@@ -385,7 +397,7 @@ impl OrderRepository {
                      OR ($6 = 0 AND comment_status = 0 AND order_status = 5)
                      OR ($7 > 0 AND comment_status = $8)
                    )
-               AND ($9 IS NULL OR order_sn ILIKE $10 OR consignee ILIKE $11){show_sql}
+               AND ($9 IS NULL OR order_sn ILIKE $10 OR consignee ILIKE $11){shop_sql}{show_sql}
              ORDER BY order_id DESC
              LIMIT $12 OFFSET $13"
         ));
@@ -397,9 +409,11 @@ impl OrderRepository {
         if !show_sql.is_empty() {
             rq = rq.bind(user_id).bind(is_showed);
         }
+        let mut rq = rq.bind(page_size as i64).bind(offset as i64);
+        if shop_id.is_some() {
+            rq = rq.bind(shop_id);
+        }
         let rows = rq
-            .bind(page_size as i64)
-            .bind(offset as i64)
             .fetch_all(&self.pool)
             .await
             .map_err(map_err)?;

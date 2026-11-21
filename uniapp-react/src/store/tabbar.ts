@@ -5,6 +5,7 @@ import { t } from "@/utils/i18n";
 import { rpxToDevicePx } from "@/components/modules";
 import { getMobileNav } from "@/api/tabbar";
 import { useConfigStore } from "@/store/config";
+import { useMiniShopStore } from "@/store/miniShop";
 import { urlFormat } from "@/utils/format";
 import ico1 from "@/static/images/common/ico_1.png";
 import ico2 from "@/static/images/common/ico_2.png";
@@ -153,15 +154,42 @@ export function useTabbarDerived() {
     const tabbarUnselectedTextColor = useTabbarStore((s) => s.tabbarUnselectedTextColor);
     const buyerShowEnabled = useConfigStore((s) => s.buyerShowEnabled);
     const safeBottom = useConfigStore((s) => s.safeAreaInsets.bottom);
+    const miniShopMode = useMiniShopStore((s) => s.mode);
+    const miniShopId = useMiniShopStore((s) => s.shopId);
 
     const tabbarList = useMemo(() => {
+        let list = tabbarListDefault;
         if (buyerShowEnabled !== 1) {
-            return tabbarListDefault.filter((item) => {
+            list = list.filter((item) => {
                 return item?.link !== "/pages/buyerShow/index" && item?.link !== "buyerShow";
             });
         }
-        return tabbarListDefault;
-    }, [tabbarListDefault, buyerShowEnabled]);
+        // 店铺独立绑定小程序（店铺模式）：首页项改指本店店铺页；跨店
+        // 入口（店铺街、指向其他店铺的店铺页）隐藏。分类/购物车/我的
+        // 保留——数据由服务端按 appid 作用域收口到本店。
+        if (miniShopMode === "shop" && miniShopId > 0) {
+            const shopHome = `/pages/shop/index?shopId=${miniShopId}`;
+            list = list
+                .map((item) => {
+                    const url = urlFormat(item.link);
+                    if (url.split("?")[0] === "/pages/index/index") {
+                        return { ...item, link: shopHome };
+                    }
+                    return item;
+                })
+                .filter((item) => {
+                    const url = urlFormat(item.link);
+                    const path = url.split("?")[0];
+                    if (path === "/pages/shop/list") return false;
+                    if (path === "/pages/shop/index") {
+                        const m = /[?&]shopId=(\d+)/.exec(url);
+                        return m ? Number(m[1]) === miniShopId : true;
+                    }
+                    return true;
+                });
+        }
+        return list;
+    }, [tabbarListDefault, buyerShowEnabled, miniShopMode, miniShopId]);
 
     const tabbarHeight = `${tabbarHeightNum + safeBottom}px`;
 

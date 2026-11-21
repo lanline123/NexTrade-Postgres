@@ -37,6 +37,14 @@ impl ProductService {
             page_size: query.page_size.unwrap_or(20),
         };
         let mut expanded = query.clone();
+        // 店铺小程序作用域（我方新增）：服务端强制只查本店商品，
+        // 覆盖客户端传入的任何 shopId（作用域中间件已按 appid 定店）。
+        if let Some(bound_shop_id) =
+            nextrade_infrastructure::db::repo::member::mini_shop_scope::MiniShopScope::current()
+                .shop_id()
+        {
+            expanded.shop_id = Some(bound_shop_id);
+        }
         // 原版首页/分类页的分类筛选包含子分类；公开列表此前只做精确
         // `category_id = ?`，导致父分类下的商品在首页为空。
         if expanded.category_ids.is_empty() {
@@ -134,10 +142,15 @@ impl ProductService {
             Ok(vo)
         };
 
-        match &self.cache {
+        let vo = match &self.cache {
             Some(cache) => cache.get_or_load(&key, PRODUCT_CACHE_TTL, loader).await,
             None => loader().await,
-        }
+        }?;
+        // 店铺小程序作用域：详情走缓存，加载后按归属强制校验
+        // （他店商品在店铺小程序内不可见，403）。
+        nextrade_infrastructure::db::repo::member::mini_shop_scope::MiniShopScope::current()
+            .ensure_access(vo.shop_id)?;
+        Ok(vo)
     }
 
     /// 目标商品/型号是否命中询价（与 [`Self::check_purchasable`] 的

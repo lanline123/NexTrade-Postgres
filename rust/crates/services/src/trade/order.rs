@@ -157,6 +157,26 @@ impl OrderService {
         let product_ids: Vec<i32> = lines.iter().map(|l| l.product_id).collect();
         let products = crate::trade::check::load_products(&self.repos, &product_ids).await?;
 
+        // 店铺小程序作用域（我方新增）：整单复检——任一行商品不属于
+        // 本店即整单拒绝（购物车跨端共享，历史行可能含他店商品；
+        // POS 收银是商家侧当面交易且无小程序作用域，天然不命中）。
+        if let Some(bound_shop_id) =
+            nextrade_infrastructure::db::repo::member::mini_shop_scope::MiniShopScope::current()
+                .shop_id()
+        {
+            let foreign = lines.iter().any(|l| {
+                products
+                    .get(&l.product_id)
+                    .is_some_and(|p| p.shop_id != bound_shop_id)
+            });
+            if foreign {
+                return Err(Error::biz(
+                    1001,
+                    "订单中包含不属于当前店铺的商品，请移除后再提交",
+                ));
+            }
+        }
+
         // 客户黑名单（下单限制）：checked_lines 后、算价前整单复检（§4.3），
         // 任一行命中即整单拒绝，文案点名命中店铺（blacklist-design §7）。
         {
@@ -1545,6 +1565,11 @@ impl OrderService {
         let comment_status = normalize_comment_status(comment_status);
         let is_showed = normalize_is_showed(is_showed);
         let keyword = normalize_keyword(keyword);
+        // 店铺小程序作用域（我方新增）：买家订单列表只保留含本店
+        // 明细的订单（作用域中间件已按 appid 定店；平台作用域不过滤）。
+        let scope_shop_id =
+            nextrade_infrastructure::db::repo::member::mini_shop_scope::MiniShopScope::current()
+                .shop_id();
         let (total, orders) = self
             .repos.trade.order
             .paginate(
@@ -1555,6 +1580,7 @@ impl OrderService {
                 keyword,
                 page.page,
                 page.page_size,
+                scope_shop_id,
             )
             .await?;
         let order_ids: Vec<i32> = orders.iter().map(|o| o.order_id).collect();
