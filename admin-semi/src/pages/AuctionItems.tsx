@@ -509,13 +509,13 @@ export default function AuctionItems() {
                 {t('强制结束')}
               </Button>
             )}
-            {row.status === 0 && (
+            {(row.status === 0 || row.status === 1) && (
               <Button
                 theme="borderless"
                 type="danger"
                 size="small"
                 onClick={() =>
-                  confirmAction(t('确认删除该草稿拍品吗？'), () =>
+                  confirmAction(t('确认删除该拍品吗？'), () =>
                     apiPost('/promotion/auction/item/del', { itemId: row.itemId }).then(() => undefined),
                   )
                 }

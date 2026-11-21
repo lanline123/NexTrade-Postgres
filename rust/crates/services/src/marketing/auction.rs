@@ -585,24 +585,44 @@ impl AuctionService {
         }
     }
 
+    /// 删除拍品（未开拍且无任何出价记录才可删）。
+    ///
+    /// 删除门与 `item_save` 的状态赋值对齐：保存只产出 PREVIEW / RUNNING，
+    /// DRAFT 仅来自违约处置回置——旧门只认 DRAFT，等于表单建的拍品永远
+    /// 删不掉。现门：落库状态为 DRAFT / PREVIEW，且
+    /// - 无任何出价记录：按 `auction_bid` 实际行数判定（含已作废行）。
+    ///   不能只看 `bid_count`——违约回置会清零它，但历史出价行仍在；
+    /// - 无冻结中的保证金：预告拍品可提前冻结保证金（`freeze_deposit`
+    ///   接受 PREVIEW），径直删除会让冻结资金失去全部解冻入口
+    ///   （退出/撤拍/结拍都先按 id 载入拍品），须先撤拍解冻。
+    /// 检查与删除同事务共用拍品行锁（与撤拍/强制结束同模式），防检查
+    /// 通过后出价或冻结抢先落账。
     pub async fn item_delete(&self, item_id: i32) -> Result<()> {
-        let item = self
-            .repo()
-            .find_item(item_id)
-            .await?
-            .ok_or_else(|| Error::NotFound("拍品不存在".into()))?;
-        if item.status != item_status::DRAFT {
-            return Err(Error::biz(400, "仅草稿拍品可删除"));
-        }
-        if item.bid_count > 0 {
-            return Err(Error::biz(400, "已有出价的拍品不可删除"));
-        }
-        self.repo().delete_item(item_id).await?;
+        let own_product_id = {
+            let mut tx = self.repo().begin().await?;
+            let item = self
+                .repo()
+                .find_item_for_update(&mut tx, item_id)
+                .await?
+                .ok_or_else(|| Error::NotFound("拍品不存在".into()))?;
+            if !matches!(item.status, item_status::DRAFT | item_status::PREVIEW) {
+                return Err(Error::biz(400, "仅草稿/预告中的拍品可删除"));
+            }
+            if self.repo().count_bids_in_tx(&mut tx, item_id).await? > 0 {
+                return Err(Error::biz(400, "已有出价记录的拍品不可删除"));
+            }
+            if !self.repo().find_frozen_deposits_in_tx(&mut tx, item_id).await?.is_empty() {
+                return Err(Error::biz(400, "该拍品已有冻结中的保证金，不可删除，请先撤拍解冻"));
+            }
+            self.repo().delete_item_in_tx(&mut tx, item_id).await?;
+            tx.commit().await.map_err(|e| Error::Database(e.to_string()))?;
+            (item.own_product == 1).then_some(item.product_id)
+        };
         // 拍品自建的专属商品一并清理（软删与商品侧同口径 + 清相册行），
         // 不留孤儿商品；存量拍品关联的是既有真实商品，只删拍品行、商品不动。
-        if item.own_product == 1 {
-            self.repos.catalog.product_manage.soft_delete_products(&[item.product_id]).await?;
-            self.repos.catalog.product_manage.delete_gallery(item.product_id).await?;
+        if let Some(product_id) = own_product_id {
+            self.repos.catalog.product_manage.soft_delete_products(&[product_id]).await?;
+            self.repos.catalog.product_manage.delete_gallery(product_id).await?;
         }
         Ok(())
     }

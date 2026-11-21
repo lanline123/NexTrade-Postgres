@@ -299,6 +299,21 @@ impl AuctionRepository {
         Ok(())
     }
 
+    /// 事务内删除拍品行（删除门的检查须与删除同事务、共用拍品行锁，
+    /// 防检查通过后、出价/保证金冻结抢先落账再删出孤儿记录）。
+    pub async fn delete_item_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        item_id: i32,
+    ) -> Result<()> {
+        sqlx::query("DELETE FROM auction_item WHERE item_id = $1")
+            .bind(item_id)
+            .execute(&mut **tx)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
+
     pub async fn find_item(&self, item_id: i32) -> Result<Option<AuctionItem>> {
         sqlx::query_as::<_, AuctionItem>("SELECT * FROM auction_item WHERE item_id = $1 LIMIT 1")
             .bind(item_id)
@@ -573,6 +588,23 @@ impl AuctionRepository {
             .fetch_optional(&self.pool)
             .await
             .map_err(map_err)
+    }
+
+    /// 事务内统计某拍品全部出价记录数（含已作废 status = 2）。
+    /// 与 `count_valid_bids_in_tx` 的区别：删除门看的是「有无出价历史」——
+    /// 违约处置会把拍品回置草稿并清零 bid_count，但作废出价行仍在，
+    /// 只按有效数或 bid_count 判定会误删带历史资金记录的拍品。
+    pub async fn count_bids_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        item_id: i32,
+    ) -> Result<i64> {
+        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM auction_bid WHERE item_id = $1")
+            .bind(item_id)
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(map_err)?;
+        Ok(row.0)
     }
 
     /// 事务内统计某拍品有效出价数（作废/结拍重算用）。
