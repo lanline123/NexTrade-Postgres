@@ -6,6 +6,7 @@ pub mod cart_summary;
 pub mod check;
 pub mod delivery_slot;
 pub mod gift_order;
+pub mod kitchen;
 pub mod offline_claim;
 pub mod order;
 pub mod order_admin;
