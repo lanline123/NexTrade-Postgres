@@ -83,6 +83,7 @@ export interface PicItemEditModalProps {
   showColor?: boolean;
   /** 条目本身缺渐变色时选色器的显示兜底（宿主按条目下标给的调色板一对）；不写回，除非用户改色 */
   colorFallback?: [string, string];
+  /**
    * 条目级标题颜色行（预设色块 + 末位自定义取色，写 item.titleColor，我方新增）；
    * 缺省 false 不渲染，既有调用点零变化。仅商品提示 shopTips 启用。
    */
