@@ -15,6 +15,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { IconPlus } from '@douyinfe/semi-icons';
 import { apiGet, apiPost } from '../api';
+import ShopLocationField from '../components/ShopLocationField';
 import { useI18n } from '../i18n';
 import ListPage from '../framework/ListPage';
 import type { ColumnConfig, FormDrawerConfig } from '../framework/types';
@@ -47,6 +48,9 @@ interface SelfPackRow {
   status: number;
   statusText?: string;
   shopDetailedAddress?: string;
+  /** 经纬度（GCJ-02，后端 Decimal 以字符串下发） */
+  shopLongitude?: string | number;
+  shopLatitude?: string | number;
   addTime?: string;
   createTime?: string;
 }
@@ -85,6 +89,15 @@ export default function SelfPackList() {
     idField: 'shopId',
     toPayload: (values) => ({
       ...values,
+      // 后端经纬度是 Decimal（serde-with-str），必须以字符串提交。
+      shopLongitude:
+        values.shopLongitude == null || values.shopLongitude === ''
+          ? values.shopLongitude
+          : String(values.shopLongitude),
+      shopLatitude:
+        values.shopLatitude == null || values.shopLatitude === ''
+          ? values.shopLatitude
+          : String(values.shopLatitude),
       shopType: 3, // 自提点类型
     }),
     sections: [
@@ -124,6 +137,14 @@ export default function SelfPackList() {
             required: true,
             placeholder: t('详细地址'),
             width: 320,
+          },
+          {
+            field: 'shopLocation',
+            label: t('自提点位置'),
+            type: 'custom',
+            render: ({ formApi, values }) => (
+              <ShopLocationField formApi={formApi} values={values} />
+            ),
           },
           {
             field: 'status',

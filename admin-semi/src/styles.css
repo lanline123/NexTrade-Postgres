@@ -7058,6 +7058,69 @@ body {
   font-size: 18px;
 }
 
+/* 门店/自提点地图选点（与配送范围地图同一视觉口径） */
+.shop-location-field {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 640px;
+}
+.shop-location-field__coords {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.map-location-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.map-location-picker__toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.map-location-picker__map {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  overflow: hidden;
+  border: 1px solid #e9edf2;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.map-location-picker__canvas {
+  width: 100%;
+  height: 100%;
+}
+.map-location-picker__state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+}
+.map-location-picker__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 18px;
+}
+.map-location-picker__hint {
+  min-height: 20px;
+}
+
 
 .base-settings-card .config-field--dispatch:has(.semi-radioGroup) > label {
   padding-top: 7px;

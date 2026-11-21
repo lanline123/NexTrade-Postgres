@@ -12334,5 +12334,20 @@
   "摄像头扫商品条码自动加入，重复扫码数量 +1": "Scan a product barcode with the camera to add it; scanning again increases quantity by 1",
   "条码查询失败": "Barcode lookup failed",
   "已加入：{name}": "Added: {name}",
-  "最多选择 {count} 项": "You can select at most {count} items"
+  "最多选择 {count} 项": "You can select at most {count} items",
+  "门店位置": "Store location",
+  "自提点位置": "Pickup point location",
+  "经度": "Longitude",
+  "纬度": "Latitude",
+  "如 120.123456": "e.g. 120.123456",
+  "如 30.123456": "e.g. 30.123456",
+  "请填写经度，或在下方地图上选点": "Enter the longitude, or pick a point on the map below",
+  "请填写纬度，或在下方地图上选点": "Enter the latitude, or pick a point on the map below",
+  "输入地址搜索定位": "Enter an address to search and locate",
+  "搜索定位": "Search",
+  "已选位置": "Selected location",
+  "点击地图或拖动标记选点，坐标自动回填经纬度，地址同步回填详细地址": "Click the map or drag the marker to pick a point; coordinates fill in automatically and the address syncs back to the detailed address",
+  "请先输入地址再搜索": "Enter an address before searching",
+  "未找到该地址，请在地图上点选": "Address not found; please pick a point on the map",
+  "地图搜索不可用，请直接在地图上点选": "Map search is unavailable; please pick a point on the map"
 }
