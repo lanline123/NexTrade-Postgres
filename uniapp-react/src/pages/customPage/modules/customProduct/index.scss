@@ -1,24 +1,38 @@
-/* 个性商品（customProduct）样式：尺寸对齐编辑器 Preview.css（cpr- 同值）
-   单位口径（2026-11-21 修复）：Preview.css 的 px 是 375 宽画布的设计 px、字面渲染；
-   本文件原误写 px 字面量，经 pxtransform /40 转 rem 后在 375 屏实际渲染减半。
-   现全量按 设计px×2 改写为 rpx，与预览面逐项对齐。 */
+/* 个性商品（customProduct）样式：与编辑器 Preview.css（cpr-）同口径
+   单位口径：Preview.css 的 px 是 375 宽画布的设计 px、字面渲染；本文件按
+   设计px×2 改写为 rpx（pxtransform /40），与预览面逐项对齐。
+   布局（2026-11-21 复核收口）：海报与商品区左右并置（picLocation 决定
+   左右，flex-direction 在组件内联），海报宽 37% ≈ 原版海报规格 280/750、
+   纵向拉伸至商品区高度、图绝对填充裁切——与 Preview.css .cpr-poster 一致，
+   不再整宽堆叠于商品上方。 */
 .module-custom-product {
-    .custom-product__pic {
-        width: 100%;
-        height: 240rpx;
+    .custom-product__body {
+        display: flex;
+        gap: 16rpx;
+        align-items: stretch;
+    }
+
+    .custom-product__poster {
+        width: 37%;
+        flex-shrink: 0;
         overflow: hidden;
+        position: relative;
+        min-height: 320rpx;
 
         image {
+            position: absolute;
+            inset: 0;
             width: 100%;
             height: 100%;
         }
     }
 
     .custom-product__grid {
+        flex: 1;
         display: flex;
         flex-wrap: wrap;
         gap: 16rpx;
-        margin-top: 16rpx;
+        align-content: flex-start;
     }
 
     .custom-product__item {
@@ -34,6 +48,8 @@
 
     .custom-product__name {
         font-size: 26rpx;
+        line-height: 1.4;
+        margin-top: 12rpx;
         overflow: hidden;
         text-overflow: ellipsis;
         display: -webkit-box;
@@ -45,6 +61,7 @@
         display: flex;
         align-items: baseline;
         gap: 12rpx;
+        margin-top: 8rpx;
     }
 
     .custom-product__market {

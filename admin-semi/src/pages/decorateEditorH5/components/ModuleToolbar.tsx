@@ -16,6 +16,7 @@
 import { useMemo, type MouseEvent as ReactMouseEvent } from "react";
 import { Tabs, TabPane, Toast } from "@douyinfe/semi-ui";
 import LibraryPanel, { type LibraryGroup } from "../../../components/decorate/LibraryPanel";
+import { fillDemoProducts } from "../../../components/demoProductFill";
 import { MODULE_ICONPARK } from "./moduleIcons";
 import { getModulesByContext, isExclusiveModule, createModuleInstance } from "../contract/moduleRegistry";
 import { getAvailableToolbarGroups, type ToolbarGroup } from "../contract/constants";
@@ -116,14 +117,17 @@ export default function ModuleToolbar({ pageType, isShop }: { pageType: number; 
         return TAB_ORDER.filter((k) => byTab.has(k)).map((k) => ({ key: k, sections: byTab.get(k)! }));
     }, [modules, groups]);
 
-    /** 添加模块：index 缺省走点击添加口径（约束位/末尾），给定则按拖拽落点插入（store 内再钳制） */
-    const doAdd = (def: ModuleDefinition, index?: number) => {
+    /** 添加模块：index 缺省走点击添加口径（约束位/末尾），给定则按拖拽落点插入（store 内再钳制）。
+     * 入库前先过演示商品真实化（用户口径 2026-11-21）：defaults 里的演示商品
+     * 换成商城在售商品随机抽样，取数失败/无在售则移除演示位，绝不编造入页。 */
+    const doAdd = async (def: ModuleDefinition, index?: number) => {
         if (isExclusiveModule(def.type) && editorStore.getState().moduleList.length > 0) {
             Toast.warning(t("该模块为独占模块，需要清空页面后才能添加"));
             return;
         }
         const instance = createModuleInstance(def.type, def.url);
         if (!instance) return;
+        await fillDemoProducts(instance.module as Record<string, any>);
         const result: any = editorStore.addModule(instance, index);
         if (result !== true && result && typeof result === "object" && "ok" in result && result.ok === false) {
             Toast.warning(t(String(result.reason || '')));

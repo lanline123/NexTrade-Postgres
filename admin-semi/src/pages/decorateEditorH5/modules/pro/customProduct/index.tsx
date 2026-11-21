@@ -15,6 +15,10 @@ import { cloneDeep, defaultAnimation, defaultModuleStyle, defaultContentStyle } 
  * 演示商品（原版 defaults 内置 4 个 productId=0 演示商品，我方补齐 2026-11-21）：
  * 商品名/价格与原版逐字一致，图片为原版同路径素材、宿主换我方 OSS
  * （nlatstore 桶同路径文件已逐个实测 200 + image/jpeg）。
+ * 注意（用户口径 2026-11-21）：此处仅为槽位脚手架——模块新建/插入时经
+ * 通用填充器 components/demoProductFill 换成商城在售商品随机抽样
+ * （取数失败/无在售则移除演示位），编造商品不再写入页面数据；
+ * 运行端渲染器亦不展示 productId=0 条目。
  */
 const pruductList = [
     {

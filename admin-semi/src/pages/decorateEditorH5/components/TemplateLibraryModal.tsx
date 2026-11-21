@@ -24,6 +24,7 @@ import { useMemo, useState } from "react";
 import { Button, Input, Modal, Toast } from "@douyinfe/semi-ui";
 import { IconClose, IconSearch } from "@douyinfe/semi-icons";
 import { editorStore } from "../store/editorStore";
+import { fillDemoProducts } from "../../../components/demoProductFill";
 import { useI18n } from "../../../i18n";
 import {
     buildTemplateData,
@@ -80,9 +81,15 @@ export default function TemplateLibraryModal({ visible, pageType, onClose }: Pro
         return map;
     }, [scoped]);
 
-    /** 使用模板：组装整页 → applyTemplate（与复制同链：url 回填 + 固定模块注入 + pageModule 合并，整页可撤销）→ 置脏走既有保存流 */
-    const onUseTemplate = (tpl: BuiltinTemplate) => {
-        editorStore.applyTemplate(buildTemplateData(tpl));
+    /** 使用模板：组装整页 → 各模块先过演示商品真实化（用户口径 2026-11-21，
+     * 与工具栏添加同机制）→ applyTemplate（与复制同链：url 回填 + 固定模块注入
+     * + pageModule 合并，整页可撤销）→ 置脏走既有保存流 */
+    const onUseTemplate = async (tpl: BuiltinTemplate) => {
+        const data = buildTemplateData(tpl);
+        for (const m of data.moduleList ?? []) {
+            await fillDemoProducts((m.module ?? {}) as Record<string, any>);
+        }
+        editorStore.applyTemplate(data);
         Toast.success(t("已套用模板，可继续编辑后保存"));
         onClose();
     };

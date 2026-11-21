@@ -12,11 +12,14 @@
  * 商品卡 = 图/名/价，颜色取 moduleColor、圆角取 productRadius，
  * crossedOutPrice=1 且有 marketPrice 时显示划线价（crossedOutPriceColor）。
  *
- * pruductList 条目三种形态与渲染端口径一致：带 productName/name 的对象以
- * 快照直渲；纯 ID 与 {id/productId} 对象走共享 useDecorateProductList
- * （productSelectType=1）取数。组装时按 pruductList 原顺序回填、同一商品
- * 不重复出卡（渲染端为 [...direct, ...fetched] 拼接，快照对象会重复出现，
- * 编辑器预览不复刻该拼接行为）。pruductList 为空显示空态提示，不写死演示商品。
+ * pruductList 条目三种形态与渲染端口径一致（2026-11-21 复核收口）：
+ * 带 productName/name 的快照对象与纯 ID / {id/productId} 对象统一走共享
+ * useDecorateProductList（productSelectType=1）取数，取到最新记录则整体
+ * 覆盖快照字段（与渲染端、productCarousel 同口径），未取到回退快照；
+ * 组装时按 pruductList 原顺序回填、同一商品不重复出卡。划线价门控与
+ * 渲染端一致：crossedOutPrice===1 且 marketPrice 数值 >0 才显示
+ * （字符串 "0" 为真值的陷阱已堵）。pruductList 为空显示空态提示，
+ * 不写死演示商品。
  */
 import { useMemo } from "react";
 import { cssText, pickPic, imageFormat, productImage, priceFormat } from "../../../shared/format";
@@ -47,18 +50,17 @@ export default function CustomProductPreview({ data }: { data: Record<string, an
         return map;
     }, [fetched]);
 
-    // 按 pruductList 原顺序组装：快照对象直渲；ID 形态以取数结果回填，未取到则跳过该位
+    // 按 pruductList 原顺序组装：取到最新记录整体覆盖快照（渲染端同口径）；
+    // ID 形态未取到则跳过该位，快照对象未取到回退快照本身
     const displayList: Array<Record<string, any>> = [];
     raw.forEach((x) => {
+        const id = x && typeof x === "object" ? Number(x.productId ?? x.id) : Number(x);
+        const hit = Number.isFinite(id) && id > 0 ? fetchedById.get(String(id)) : undefined;
         if (x && typeof x === "object" && (x.productName || x.name)) {
-            displayList.push(x);
+            displayList.push(hit ? { ...x, ...hit } : x);
             return;
         }
-        const id = x && typeof x === "object" ? Number(x.productId ?? x.id) : Number(x);
-        if (Number.isFinite(id) && id > 0) {
-            const hit = fetchedById.get(String(id));
-            if (hit) displayList.push(hit);
-        }
+        if (hit) displayList.push(hit);
     });
 
     const poster = pickPic(module.picUrl);
@@ -99,7 +101,7 @@ export default function CustomProductPreview({ data }: { data: Record<string, an
                                         <span className="cpr-price" style={cssText(`color:${mc.productPriceColor || "#72b76c"};`)}>
                                             ¥{priceFormat(item.productPrice ?? item.price)}
                                         </span>
-                                        {Number(module.crossedOutPrice) === 1 && item.marketPrice ? (
+                                        {Number(module.crossedOutPrice) === 1 && Number(item.marketPrice) > 0 ? (
                                             <span className="cpr-market" style={cssText(`color:${mc.crossedOutPriceColor || "#999"};`)}>
                                                 ¥{priceFormat(item.marketPrice)}
                                             </span>

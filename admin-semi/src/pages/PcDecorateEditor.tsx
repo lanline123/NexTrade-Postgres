@@ -60,6 +60,7 @@ import DecorateLoading from './components/DecorateLoading';
 import ProductPickGrid, { mergePickedItems, type ProductPickItem } from '../components/ProductPickGrid';
 import ProductPickerModal from '../components/ProductPickerModal';
 import BuyBtnStylePicker, { BUY_BTN_STYLE_OPTIONS_UNIFIED } from '../components/BuyBtnStylePicker';
+import { fillDemoProducts } from '../components/demoProductFill';
 import { PcBuyButtonVisual, resolvePcBuyBtn, usePcGlobalBuyStyle, SEARCH_LEGACY_MAP } from './decoratePc/previews/shared/PcBuyButton';
 import AlphaColorInput from '../components/AlphaColorInput';
 import ImageUploader from '../components/ImageUploader';
@@ -477,7 +478,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
     });
   };
 
-  const addModule = (def: ModuleDef) => {
+  const addModule = async (def: ModuleDef) => {
     if (isLoginPage) {
       const existing = moduleList.findIndex((m) => m.type === 'pcLogin');
       if (existing >= 0) {
@@ -502,6 +503,9 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
       isShow: true,
       module: def.defaults(),
     };
+    // 演示商品真实化（用户口径 2026-11-21，与 H5 编辑器同机制）：入库前把
+    // defaults 里的演示商品换成商城在售商品随机抽样，失败/无在售则移除演示位
+    await fillDemoProducts(item.module as Record<string, any>);
     setModuleList((prev) => [...prev, item]);
     setActiveIndex(moduleList.length);
     setPanelTab('module');
@@ -510,7 +514,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   };
 
   /** 拖拽入画布：插入到目标位置（原版 vuedraggable clone 行为） */
-  const addModuleAt = (def: ModuleDef, index: number) => {
+  const addModuleAt = async (def: ModuleDef, index: number) => {
     if (isLoginPage) {
       addModule(def);
       return;
@@ -523,6 +527,8 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
       isShow: true,
       module: def.defaults(),
     };
+    // 演示商品真实化（用户口径 2026-11-21）：同 addModule
+    await fillDemoProducts(item.module as Record<string, any>);
     setModuleList((prev) => [...prev.slice(0, index), item, ...prev.slice(index)]);
     setActiveIndex(index);
     setPanelTab('module');
@@ -3251,7 +3257,12 @@ function ModuleSettingsPanel({
     'pc-title-ad': '容器设置',
   };
   const extendTitle = EXTEND_TITLES[def.type];
-  const resetModuleToDefaults = () => onChange(JSON.parse(JSON.stringify(def.defaults())));
+  const resetModuleToDefaults = async () => {
+    // 重置同新建：演示商品先真实化（用户口径 2026-11-21），不把编造商品带回页面
+    const fresh = JSON.parse(JSON.stringify(def.defaults()));
+    await fillDemoProducts(fresh as Record<string, any>);
+    onChange(fresh);
+  };
   const CONTENT_TITLES: Record<string, string> = {
     'pc-banner2': '添加轮播图片',
     'pc-group-banner': '添加分组Banner轮播大图',
