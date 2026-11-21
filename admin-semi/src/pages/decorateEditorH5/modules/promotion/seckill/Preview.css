@@ -13,8 +13,27 @@
     font-weight: 700;
 }
 .module-seckill-goods_ad .iconh5-style {
-    color: #f23030;
+    /* 购买按钮（图标型）颜色跟随移动端主题色（2026-11-21 用户口径，我方改口径：
+       原版编辑器 Preview 写死 #f23030；变量由编辑器画布注入现行 themeStyle，
+       未注入时兜底原写死值。前台口径同为 var(--general)，见 uniapp modulesCommon.css） */
+    color: var(--general, #f23030);
     font-size: 18px;
     margin-right: 5px;
     display: inline-flex;
+}
+/* 价格颜色跟随主题色（同上口径）：覆盖 module.css 通用商品规则的写死 #f23030 */
+.module-seckill-goods_ad .goods-ad-warp .goods-ad-item .item-info .item-price {
+    color: var(--general, #f23030);
+}
+/* 购买按钮（文字型 5/7 描边、6/8 实心）颜色跟随主题色（同上口径，只改颜色来源，
+   不动形状：本模块根 class 为原版 ad-buyBtnStyle__，与 module.css 的
+   ad-buy_btn_style__ 规则不命中——原版编辑器同此形态，此处仅补色值） */
+.module-seckill-goods_ad.ad-buyBtnStyle__5 .goods-ad-warp .goods-ad-item .item-info .item-buy a,
+.module-seckill-goods_ad.ad-buyBtnStyle__7 .goods-ad-warp .goods-ad-item .item-info .item-buy a {
+    color: var(--general, #f23030);
+}
+.module-seckill-goods_ad.ad-buyBtnStyle__6 .goods-ad-warp .goods-ad-item .item-info .item-buy a,
+.module-seckill-goods_ad.ad-buyBtnStyle__8 .goods-ad-warp .goods-ad-item .item-info .item-buy a {
+    background: var(--general, #f23030);
+    color: #fff;
 }

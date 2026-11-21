@@ -4,9 +4,15 @@
 import { registerModule } from "../../../contract/moduleRegistry";
 import { cloneDeep, defaultFrame, defaultTitle } from "../../../contract/sharedDefaults";
 
-/** 与旧 mobilePromotion/seckill/View.vue 的 defaultModule 逐字段一致（契约） */
+/**
+ * 与旧 mobilePromotion/seckill/View.vue 的 defaultModule 逐字段一致（契约），
+ * 唯 style 例外：原版契约默认 1（一行一个），2026-11-21 用户指令改口径——
+ * 新建秒杀模块默认模板为 2（一行两个）。defaults 只在模块新建（getDefaultValue）
+ * 与 Preview 缺字段回填（mergeDefaultModule，仅填 undefined/null/空串）时消费，
+ * 存量已存页面的 style 不受影响。
+ */
 export const seckillDefaults = {
-    style: 1,
+    style: 2,
     goodsStyle: 1,
     goodsRadioStyle: 1,
     textAlign: 1,

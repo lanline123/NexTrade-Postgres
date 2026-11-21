@@ -39,6 +39,62 @@ import { RENDER_MODE_STORAGE_KEY, getStoredRenderMode, registerDropResolver, use
 import type { DecorateModuleBase } from "../contract/types";
 
 import { useI18n } from '../../../i18n';
+import { apiGet } from "../../../api";
+
+/* ---------- 兼容画布主题变量（会话级懒加载，同 BuyBtnStylePicker 的缓存法） ----------
+ * 兼容模式各模块 Preview 的主题色口径为 CSS 变量 var(--general) 等（秒杀价格/
+ * 购买按钮 2026-11-21 起改跟随移动端主题色）；原版编辑器画布不注入主题变量、
+ * 颜色走写死兜底。本编辑器从 themeStyleSettings 拉现行 themeStyle 注入兼容
+ * 画布窗根节点，与前台 TigLayout 的注入同源。真实渲染分支为 iframe 独立文档，
+ * 变量由嵌入页 decoratePreview 自行注入，父侧不处理。 */
+let editorThemeVarsCache: Record<string, string> | null = null;
+let editorThemeVarsPromise: Promise<void> | null = null;
+const editorThemeVarsListeners = new Set<() => void>();
+
+function loadEditorThemeVars(): void {
+    if (editorThemeVarsCache || editorThemeVarsPromise) return;
+    editorThemeVarsPromise = apiGet<{ themeStyle?: string | Record<string, any> }>("/setting/config/themeStyleSettings")
+        .then((data) => {
+            const vars: Record<string, string> = {};
+            try {
+                const parsed = typeof data?.themeStyle === "string" ? JSON.parse(data.themeStyle) : data?.themeStyle;
+                if (parsed && typeof parsed === "object") {
+                    for (const [key, raw] of Object.entries(parsed as Record<string, unknown>)) {
+                        if (!key.startsWith("--")) continue;
+                        if (typeof raw !== "string" && typeof raw !== "number") continue;
+                        const text = String(raw).trim();
+                        if (!text || /[;{}<>\\]/.test(text)) continue;
+                        vars[key] = text;
+                    }
+                }
+            } catch {
+                /* 解析失败保持空变量，模块颜色走 CSS 变量兜底值 */
+            }
+            editorThemeVarsCache = vars;
+        })
+        .catch(() => {
+            editorThemeVarsCache = {};
+        })
+        .finally(() => {
+            editorThemeVarsListeners.forEach((fn) => fn());
+            editorThemeVarsListeners.clear();
+        });
+}
+
+function useEditorThemeVars(): Record<string, string> {
+    const [, setTick] = useState(0);
+    useEffect(() => {
+        if (editorThemeVarsCache) return;
+        const fn = () => setTick((n) => n + 1);
+        editorThemeVarsListeners.add(fn);
+        loadEditorThemeVars();
+        return () => {
+            editorThemeVarsListeners.delete(fn);
+        };
+    }, []);
+    return editorThemeVarsCache ?? {};
+}
+
 /** 预览组件懒加载（缓存/失败逐出/部署切换自愈在 contract/lazyModule 统一处理） */
 function getLazyPreview(type: string, url?: string): React.ComponentType<any> | null {
     return getLazyModuleComponent("preview", type, url);
@@ -231,6 +287,8 @@ export default function Canvas({ preview = false }: { preview?: boolean }) {
     };
 
     const windowStyle = useMemo(() => pageBackgroundStyle(s.pageModule as Record<string, any>, s.pageType), [s.pageModule, s.pageType]);
+    /** 兼容画布主题变量（真实渲染分支不需要：iframe 内由嵌入页注入） */
+    const themeVars = useEditorThemeVars();
     const showPageConfig = !preview && s.pageType !== 6 && s.pageType !== 8;
 
     return (
@@ -259,7 +317,7 @@ export default function Canvas({ preview = false }: { preview?: boolean }) {
                 <IframeCanvas preview={preview} bare active={renderMode === "real"} />
             </div>
             {renderMode === "compat" ? (
-            <div className="decorate-page-window" ref={windowRef} style={windowStyle}>
+            <div className="decorate-page-window" ref={windowRef} style={{ ...windowStyle, ...themeVars } as React.CSSProperties}>
                 <div className="theme-modules-warp">
                     <PageHeaderPreview preview={preview} />
                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

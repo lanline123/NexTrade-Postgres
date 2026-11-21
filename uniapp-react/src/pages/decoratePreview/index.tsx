@@ -9,6 +9,7 @@ import { configPageSlotIndices, resolveConfigPageBranch } from "./configPages/re
 import { getIndex } from "@/api/home/home";
 import { setPreviewPriceData } from "@/utils/previewProductData";
 import { getShopDetail } from "@/api/shop/shop";
+import { useThemeStore } from "@/store/theme";
 import type { ShopDetailItem } from "@/types/shop/shop";
 
 import "./index.scss";
@@ -52,6 +53,10 @@ import "./index.scss";
  *   样例商品此前固定取第一条在售商品，活动态（秒杀/团购）与价格门控无从
  *   验版。编辑器可随 decorate-data 下发 previewProductId 指定样例商品，
  *   本页透传给 ProductConfigPreview；不下发/为 0 时保持原口径不变。
+ * - 主题变量注入【我方补齐】（2026-11-21）：真实页面由 TigLayout 根节点注入
+ *   themeStyle 的 CSS 变量（--general/--ump-*），本页不走 TigLayout、此前未注入，
+ *   各模块 var(--general) 在编辑器里无定义（秒杀价格/购买按钮颜色不跟随主题色
+ *   实证）。现根节点同源注入，编辑器真实渲染与真机口径一致；真实店面不加载本页。
  * - 编辑器空模块占位【原版有·我方补齐】（2026-11-21）：真实渲染按前台口径，
  *   模块没填内容时渲染为 0 高，编辑器画布上不可见不可点、相邻模块贴死
  *   （页面 10106 实测）。原版编辑器各 Preview 对空态恒有 .module-ad-empty
@@ -93,6 +98,11 @@ function slotIndicesFor(pageType: number, modules: any[]): number[] {
 
 export default function DecoratePreview() {
     const router = useRouter();
+    // 主题 CSS 变量注入（与 TigLayout 同源同机制）：真实页面由 TigLayout 根节点
+    // 注入 themeStyle（--general/--ump-* 等），本嵌入页不走 TigLayout，此前根节点
+    // 未注入，导致各模块 var(--general) 在编辑器真实渲染里无定义、价格/购买按钮
+    // 颜色不跟随主题色（2026-11-21 秒杀模块实证）。在此补齐，口径与 TigLayout 一致。
+    const themeStyle = useThemeStore((s) => s.themeStyle);
     const [modulesData, setModulesData] = useState<any[]>([]);
     const [pageModule, setPageModule] = useState<any>({});
     const [received, setReceived] = useState(false);
@@ -340,7 +350,7 @@ export default function DecoratePreview() {
         <View
             ref={rootRef as any}
             className="decorate-preview"
-            style={{ backgroundColor: pageModule?.backgroundColor || "#ffffff" }}
+            style={{ ...themeStyle, backgroundColor: pageModule?.backgroundColor || "#ffffff" } as Record<string, string>}
         >
             {received ? (
                 configBranch ? (

@@ -107,8 +107,12 @@ export default function Seckill({ module }: Props) {
         };
     }, [module]);
 
+    // 模板兜底与编辑器新建默认对齐（2026-11-21 用户口径：一行两个）：
+    // 存量数据 style 缺失时按 2 渲染，已存值逐字尊重、不做归一化。
+    const styleValue = module.style ?? 2;
+
     const className = useMemo(() => {
-        switch (module.style) {
+        switch (styleValue) {
             case 1:
                 return "big";
             case 2:
@@ -120,7 +124,7 @@ export default function Seckill({ module }: Props) {
             default:
                 return "";
         }
-    }, [module.style]);
+    }, [styleValue]);
 
     // 旧 uni.navigateTo → redirect（默认 navigateTo 模式）
     const buy = (id: any) => {
@@ -149,7 +153,7 @@ export default function Seckill({ module }: Props) {
             <View
                 className={
                     "module-ad-con decorate-seckill module-goods_ad module-seckill-goods_ad ad-style__" +
-                    module?.style +
+                    styleValue +
                     " ad-buy_btn_style__" +
                     module?.buyBtnStyle +
                     " ad-goods_style__" +
@@ -195,10 +199,10 @@ export default function Seckill({ module }: Props) {
                                                     className="item-image-a"
                                                     onClick={() => redirect({ url: "/pages/product/index?id=" + item.productId })}
                                                 >
-                                                    <TigImage src={pickPic(item)} mode={module?.style == 6 ? "aspectFill" : "widthFix"} />
+                                                    <TigImage src={pickPic(item)} mode={styleValue == 6 ? "aspectFill" : "widthFix"} />
                                                 </View>
                                                 <View className={"cap-seckill-goods__tag " + className}>
-                                                    {module?.style == 1 && <Text className="cap-seckill-goods__tag-title"> {t("秒杀")} </Text>}
+                                                    {styleValue == 1 && <Text className="cap-seckill-goods__tag-title"> {t("秒杀")} </Text>}
                                                     {/* 后端 getSeckill 返回扁平记录（seckillEndTime 在顶层），嵌套 seckkillData 仅旧契约有；直接读嵌套会抛错并整页白屏 */}
                                                     <TigCountdown endTime={item.seckkillData?.seckillEndTime ?? item.seckillEndTime} />
                                                 </View>

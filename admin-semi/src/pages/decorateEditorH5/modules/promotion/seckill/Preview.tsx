@@ -102,7 +102,7 @@ export default function SeckillPreview({ data }: { data: Record<string, any> }) 
         innerPadding: `padding: ${module.innerPadding ?? 0}px;`
     };
     const goodsPadding = cssText(`padding: ${module.goodsPadding ?? 5}px;`);
-    const style = Number(module.style ?? 1);
+    const style = Number(module.style ?? 2);
 
     // 无进行中活动时随机真实商品兜底（纯显示层，不落盘）
     const demoFallback = usePreviewDemoProducts(list.length === 0, 4);
