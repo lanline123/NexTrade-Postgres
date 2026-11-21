@@ -348,17 +348,20 @@ impl RefundApplyService {
     /// 资金执行 → Wait 流转到已处理/处理中 → 完成点钩子（礼品卡
     /// 返还 + 已结算扣回）与分销回退挂点（无退货项，自然空转）。
     async fn auto_execute_proactive(&self, apply: &RefundApply, refund_id: i32) {
-        let (to_status, completed) = match self.execute_refund_money(apply, refund_id).await {
-            Ok((MoneyOutcome::Completed, _)) => (RefundApplyStatus::Processed as i32, true),
-            Ok((MoneyOutcome::ChannelPending, _)) => {
-                (RefundApplyStatus::Processing as i32, false)
+        let (to_status, completed, card_part) =
+            match self.execute_refund_money(apply, refund_id).await {
+            Ok((MoneyOutcome::Completed, _, part)) => {
+                (RefundApplyStatus::Processed as i32, true, part)
+            }
+            Ok((MoneyOutcome::ChannelPending, _, _)) => {
+                (RefundApplyStatus::Processing as i32, false, Decimal::ZERO)
             }
             Err(e) => {
                 tracing::warn!(
                     "主动退款自动执行 资金执行失败 refund_id={refund_id} order_id={}: {e}",
                     apply.order_id
                 );
-                (RefundApplyStatus::Processing as i32, false)
+                (RefundApplyStatus::Processing as i32, false, Decimal::ZERO)
             }
         };
         let transitioned = self
@@ -389,13 +392,19 @@ impl RefundApplyService {
             );
         }
         if completed {
-            // 礼品卡返还（与 mark_processed 同为退款完成点，仓储层幂等）
+            // 礼品卡返还（与 mark_processed 同为退款完成点）：按
+            // 资金执行算出的本笔卡构成按额返还（子单/部分退款
+            // 精确化口径），仓储层以归属份额剩余额度钳制防重。
             if apply.order_id > 0 {
                 if let Err(e) = self
                     .repos
                     .marketing
                     .gift_card_issue
-                    .return_stored_cards_for_order(apply.order_id, utils::now_seconds())
+                    .return_stored_cards_amount(
+                        apply.order_id,
+                        card_part,
+                        utils::now_seconds(),
+                    )
                     .await
                 {
                     tracing::warn!(
@@ -651,18 +660,19 @@ impl RefundApplyService {
                 // 资金执行（与售后自动执行共用同一核心
                 // `execute_refund_money`）：现金部分按订单支付构成
                 // 选轨——余额支付同步回补买家余额、渠道支付发起渠道
-                // 退款；礼品卡抵扣部分由完成点钩子按流水原额返还。
+                // 退款；礼品卡抵扣部分由完成点钩子按本笔卡构成返还。
                 // 同步执行完成 → mark_processed 置已处理（内含礼品卡
                 // 返还钩子）；渠道受理中/无自动退款轨 → 停在处理中，
                 // 等待渠道回调或人工收尾（钱未动前不置已处理）。
                 if existing.online_balance > rust_decimal::Decimal::ZERO {
-                    let (outcome, refund_sn) = self
+                    let (outcome, refund_sn, card_part) = self
                         .execute_refund_money(&existing, dto.refund_id)
                         .await?;
                     if outcome == MoneyOutcome::Completed {
                         self.mark_processed(
                             dto.refund_id,
                             refund_sn.as_deref().unwrap_or_default(),
+                            card_part,
                         )
                         .await?;
                     }
@@ -736,7 +746,21 @@ impl RefundApplyService {
     }
 
     /// 标记退款完成（渠道扣款成功后调用）。
-    pub async fn mark_processed(&self, refund_id: i32, transaction_id: &str) -> Result<()> {
+    ///
+    /// `card_part` = 本笔退款的礼品卡构成，必须由调用方从
+    /// [`Self::execute_refund_money`] 的返回值贯穿传入（总额口径
+    /// 申请按此额返还到卡）。手工申请（非总额口径）不经资金
+    /// 执行拆分，完成点仍按归属剩余份额全额返还（历史口径）。
+    /// 未来新增完成点调用方（如渠道回调收尾）若无法经 execute
+    /// 取得 card_part，须按「含本笔的累计比例公式」自行补算
+    /// （见 [`gift_card_refund_part`]），不得以 0 冒充——0 只对
+    /// 「本笔卡构成确为 0」成立。
+    pub async fn mark_processed(
+        &self,
+        refund_id: i32,
+        transaction_id: &str,
+        card_part: Decimal,
+    ) -> Result<()> {
         let ok = self
             .repos.payment.refund_apply
             .transition_status(
@@ -767,17 +791,32 @@ impl RefundApplyService {
         )
         .await?;
         tracing::info!("退款完成: refund_id={refund_id} trade_no={transaction_id}");
-        // 礼品卡返还（尽力而为）：退款完成後、按 usage_log 原额返还储值卡
-        // 抵扣并写 type=2 流水，仓储层幂等（已返还则跳过）；失败只告警，
-        // 不回滚已完成的退款（与订单取消返还口径一致）。
+        // 礼品卡返还（尽力而为）：退款完成後返还储值卡抵扣并写
+        // type=2 流水，失败只告警、不回滚已完成的退款（与订单
+        // 取消返还口径一致）。总额口径申请（售后/主动退款）按
+        // 资金执行贯穿的本笔卡构成按额返还（子单/部分退款精确
+        // 化口径，仓储层以归属份额剩余额度钳制防重）；手工申请
+        // 沿用全额返还口径（其 online_balance 本就是财务填写的
+        // 现金部分，卡腿不经拆分）。
         if existing.order_id > 0 {
-            if let Err(e) = self
-                .repos
-                .marketing
-                .gift_card_issue
-                .return_stored_cards_for_order(existing.order_id, utils::now_seconds())
-                .await
-            {
+            let returned = if existing.aftersale_id > 0 || existing.initiator > 0 {
+                self.repos
+                    .marketing
+                    .gift_card_issue
+                    .return_stored_cards_amount(
+                        existing.order_id,
+                        card_part,
+                        utils::now_seconds(),
+                    )
+                    .await
+            } else {
+                self.repos
+                    .marketing
+                    .gift_card_issue
+                    .return_stored_cards_for_order(existing.order_id, utils::now_seconds())
+                    .await
+            };
+            if let Err(e) = returned {
                 tracing::warn!(
                     "退款完成 礼品卡返还失败 refund_id={refund_id} order_id={}: {e}",
                     existing.order_id
@@ -799,11 +838,14 @@ impl RefundApplyService {
     /// 执行共用；状态流转与完成点钩子由调用方负责）。
     ///
     /// 金额拆分（对齐 Java `createRefundFlow` 按订单支付构成执行）：
-    /// - 礼品卡抵扣部分不走支付轨，由完成点的
-    ///   `return_stored_cards_for_order` 按 usage_log 原额返还。
-    ///   总额口径来源（售后 / 主动退款）的 `online_balance` 是
-    ///   退款总额（建单时写入落定金额），现金部分须扣减卡抵扣
-    ///   总额（纯函数 [`cash_refund_amount`]）；手工申请的
+    /// - 礼品卡抵扣部分不走支付轨，由完成点按额返还到卡
+    ///   （`return_stored_cards_amount`）。总额口径来源（售后 /
+    ///   主动退款）的 `online_balance` 是退款总额（建单时写入
+    ///   落定金额），现金部分须扣减**本笔退款的卡构成**——按
+    ///   归属份额与累计退款比例算出（纯函数
+    ///   [`gift_card_refund_part`]，子单/部分退款精确化口径；
+    ///   单笔全额退款时恒等于整单抵扣额，与历史口径一致），
+    ///   再经纯函数 [`cash_refund_amount`] 扣减；手工申请的
     ///   `online_balance` 本就是财务填写的线上部分，不扣减。
     /// - 现金部分按订单最后一笔成功支付流水的 `pay_code` 选轨：
     ///   `balance` → 同步回补买家余额（写 user_balance_log
@@ -813,33 +855,63 @@ impl RefundApplyService {
     ///   `ChannelPending`；无支付流水或未支持的支付方式 →
     ///   `ChannelPending`（停处理中等待人工处理，不静默置已处理）。
     ///
-    /// 返回 (结果, 退款单号)：渠道与余额两轨都生成 `RF...` 单号，
-    /// 供完成日志引用。
+    /// 返回 (结果, 退款单号, 本笔礼品卡构成)：渠道与余额两轨都
+    /// 生成 `RF...` 单号，供完成日志引用；卡构成由完成点钩子
+    /// 按额返还（仅同步完成时生效，渠道受理中不提前返还）。
     pub async fn execute_refund_money(
         &self,
         existing: &RefundApply,
         refund_id: i32,
-    ) -> Result<(MoneyOutcome, Option<String>)> {
+    ) -> Result<(MoneyOutcome, Option<String>, Decimal)> {
         if existing.order_id <= 0 || existing.online_balance <= Decimal::ZERO {
-            return Ok((MoneyOutcome::Completed, None));
+            return Ok((MoneyOutcome::Completed, None, Decimal::ZERO));
         }
-        let deducted = if existing.aftersale_id > 0 || existing.initiator > 0 {
-            self.repos
+        let total_caliber = existing.aftersale_id > 0 || existing.initiator > 0;
+        // 本笔退款的礼品卡构成（子单/部分退款精确化）：归属份额
+        // （子单按拆单分摊、未拆单按流水总额）乘以累计退款比例，
+        // 尾差归本单最后一笔；手工申请不走此口径（恒 0）。
+        let mut card_part = Decimal::ZERO;
+        if total_caliber {
+            let share = self
+                .repos
                 .marketing
                 .gift_card_issue
                 .deducted_total_for_order(existing.order_id)
-                .await?
-        } else {
-            Decimal::ZERO
-        };
-        let cash = cash_refund_amount(
-            existing.online_balance,
-            deducted,
-            existing.aftersale_id > 0 || existing.initiator > 0,
-        );
+                .await?;
+            if share > Decimal::ZERO {
+                let already_returned = self
+                    .repos
+                    .marketing
+                    .gift_card_issue
+                    .returned_total_for_order(existing.order_id)
+                    .await?;
+                let base = self
+                    .repos
+                    .trade
+                    .order_admin
+                    .find_order(existing.order_id)
+                    .await?
+                    .map(|o| o.total_amount)
+                    .unwrap_or(Decimal::ZERO);
+                let prior_refunded = self
+                    .repos
+                    .payment
+                    .refund_apply
+                    .sum_completed_refund_total_by_order(existing.order_id, refund_id)
+                    .await?;
+                card_part = gift_card_refund_part(
+                    share,
+                    already_returned,
+                    base,
+                    prior_refunded,
+                    existing.online_balance,
+                );
+            }
+        }
+        let cash = cash_refund_amount(existing.online_balance, card_part, total_caliber);
         if cash <= Decimal::ZERO {
             // 全额由礼品卡抵扣构成：无现金可退，完成点钩子返还卡即可
-            return Ok((MoneyOutcome::Completed, None));
+            return Ok((MoneyOutcome::Completed, None, card_part));
         }
         let Some(paylog) = self
             .repos
@@ -852,13 +924,13 @@ impl RefundApplyService {
                 "退款资金执行：订单 {} 无成功支付流水，申请 {refund_id} 停处理中等待人工处理",
                 existing.order_id
             );
-            return Ok((MoneyOutcome::ChannelPending, None));
+            return Ok((MoneyOutcome::ChannelPending, None, card_part));
         };
         let code = paylog.pay_code.as_str();
         if code == "balance" {
             self.credit_balance_refund(existing, &paylog, cash).await?;
             let refund_sn = format!("RF{}{}", utils::now_seconds(), refund_id);
-            return Ok((MoneyOutcome::Completed, Some(refund_sn)));
+            return Ok((MoneyOutcome::Completed, Some(refund_sn), card_part));
         }
         if matches!(code, "stripe" | "paypal" | "xendit" | "wechat" | "alipay" | "antom" | "huifu" | "lakala" | "yeepay" | "yabandpay" | "yunpay") {
             let refund_sn = format!("RF{}{}", utils::now_seconds(), refund_id);
@@ -905,10 +977,10 @@ impl RefundApplyService {
                 Ok(status) => {
                     let upper = status.to_ascii_uppercase();
                     if upper.contains("SUCCESS") || upper.contains("COMPLETED") {
-                        return Ok((MoneyOutcome::Completed, Some(refund_sn)));
+                        return Ok((MoneyOutcome::Completed, Some(refund_sn), card_part));
                     }
                     tracing::info!("渠道退款已受理: refund_id={refund_id} status={status}");
-                    return Ok((MoneyOutcome::ChannelPending, Some(refund_sn)));
+                    return Ok((MoneyOutcome::ChannelPending, Some(refund_sn), card_part));
                 }
                 Err(e) => {
                     tracing::warn!("渠道退款失败: refund_id={refund_id} error={e}");
@@ -919,7 +991,7 @@ impl RefundApplyService {
         tracing::warn!(
             "退款资金执行：支付方式 {code} 暂无自动退款轨，申请 {refund_id} 停处理中等待人工处理"
         );
-        Ok((MoneyOutcome::ChannelPending, None))
+        Ok((MoneyOutcome::ChannelPending, None, card_part))
     }
 
     /// 渠道退款的总额基准 paylog：拆单子单（parent_order_id > 0）时取
@@ -1245,19 +1317,55 @@ impl RefundApplyService {
 /// 现金退款部分拆分（纯函数，供单测）。
 ///
 /// 总额口径来源（售后 / 主动退款）的 `online_balance` 为退款
-/// 总额：扣减订单礼品卡抵扣总额后才是走支付轨的现金部分（卡
-/// 部分由完成点钩子按流水原额返还）。手工申请的 `online_balance`
-/// 本就是线上部分，不扣减。
+/// 总额：扣减**本笔退款的礼品卡构成**（[`gift_card_refund_part`]
+/// 按归属份额与累计比例算出）后才是走支付轨的现金部分（卡
+/// 部分由完成点钩子按同一构成额返还到卡）。手工申请的
+/// `online_balance` 本就是线上部分，不扣减。
 pub(crate) fn cash_refund_amount(
     online_balance: Decimal,
-    gift_card_deducted: Decimal,
+    gift_card_part: Decimal,
     is_total_caliber: bool,
 ) -> Decimal {
     if is_total_caliber {
-        (online_balance - gift_card_deducted).max(Decimal::ZERO)
+        (online_balance - gift_card_part).max(Decimal::ZERO)
     } else {
         online_balance.max(Decimal::ZERO)
     }
+}
+
+/// 本笔退款的礼品卡构成（纯函数，供单测）——子单/部分退款
+/// 精确化口径：
+///
+/// ```text
+/// 本笔卡构成 = round2(归属份额 × min(此前已完成退款累计 + 本笔退款额, 可退基数) / 可退基数) − 已返还卡额
+/// ```
+///
+/// - `share`：归属份额（子单 = 拆单分摊额，未拆单 = 流水抵扣
+///   总额，仓储 `deducted_total_for_order` 口径）；
+/// - `base`：可退基数 = 订单 `total_amount`（退款额的度量基，
+///   与原版「退款累计与订单总额比对」同口径）；
+/// - 结果钳制于 [0, share − already_returned]：单笔全额退款
+///   （累计达到基数）时尾差归一、恒等于剩余额度，与历史整单
+///   口径逐分一致；分次退款时卡随退款进度同比例返还，Σ 恒
+///   等于份额；基数 ≤ 0（异常数据）时返回 0，不产生卡返还。
+pub(crate) fn gift_card_refund_part(
+    share: Decimal,
+    already_returned: Decimal,
+    base: Decimal,
+    prior_refunded: Decimal,
+    this_refund: Decimal,
+) -> Decimal {
+    if share <= Decimal::ZERO || base <= Decimal::ZERO {
+        return Decimal::ZERO;
+    }
+    let remaining = (share - already_returned).max(Decimal::ZERO);
+    if remaining <= Decimal::ZERO {
+        return Decimal::ZERO;
+    }
+    let cumulative = (prior_refunded + this_refund).min(base).max(Decimal::ZERO);
+    let target = (share * cumulative / base)
+        .round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero);
+    (target - already_returned).max(Decimal::ZERO).min(remaining)
 }
 
 /// 主动退款的订单状态门（纯函数，供单测）：返回 `Some(拒绝原因)`
@@ -1488,9 +1596,15 @@ mod tests {
     }
 
     /// 礼品卡返还挂点不变量：两个退款完成点（mark_processed 置已处理、
-    /// offline_audit 确认线下到账）都必须在完成动作之后调用
-    /// `return_stored_cards_for_order`（仓储层幂等），防止后续重构把
-    /// 返还钩子误删或误挂到完成之前。
+    /// offline_audit 确认线下到账）都必须在完成动作之后挂返还钩子，
+    /// 防止后续重构把返还钩子误删或误挂到完成之前。
+    ///
+    /// 2026-11-21 子单退款精确化 re-pin：mark_processed 的总额
+    /// 口径分支已由整笔 `return_stored_cards_for_order` 改为按额
+    /// `return_stored_cards_amount`（本笔卡构成贯穿），手工口径
+    /// 分支保留全额函数——断言随之双钉两条调用形态，挂点位置
+    /// （完成流转之后）与防重强度不变；offline_audit 仍为全额
+    /// 口径，断言不变。
     #[test]
     fn gift_card_return_wired_after_refund_completion() {
         let src = include_str!("refund_apply.rs");
@@ -1504,11 +1618,18 @@ mod tests {
             .find("RefundApplyStatus::Processed as i32")
             .expect("mark_processed 应流转到已处理");
         let hook = tail
-            .find("return_stored_cards_for_order")
-            .expect("mark_processed 应挂礼品卡返还");
+            .find("return_stored_cards_amount")
+            .expect("mark_processed 应挂按额礼品卡返还");
         assert!(
             transition < hook,
             "礼品卡返还必须在退款完成流转之后执行"
+        );
+        let full_hook = tail
+            .find("return_stored_cards_for_order")
+            .expect("mark_processed 手工口径应保留全额礼品卡返还");
+        assert!(
+            transition < full_hook,
+            "手工口径全额返还同样必须在退款完成流转之后执行"
         );
 
         // offline_audit：先 confirm_receive 成功，再返还礼品卡
@@ -1613,8 +1734,9 @@ mod tests {
         assert_eq!(to_vo(&a).initiator_name, "手工退款");
     }
 
-    /// 现金拆分：售后来源申请扣减礼品卡抵扣（E2E 订单 77 口径：
-    /// 退款总额 100 = 卡抵 50 + 现金 50）。
+    /// 现金拆分：售后来源申请扣减本笔礼品卡构成（E2E 订单 77
+    /// 口径：退款总额 100 = 卡构成 50 + 现金 50；整单全额退款时
+    /// 本笔卡构成恒等于整单抵扣额，见 gift_card_refund_part）。
     #[test]
     fn cash_split_aftersale_deducts_gift_card() {
         assert_eq!(
@@ -1638,6 +1760,111 @@ mod tests {
         assert_eq!(
             cash_refund_amount(dec("50.00"), dec("50.00"), false),
             dec("50.00")
+        );
+    }
+
+    /// 卡构成：单笔全额退款恒等于归属份额（与历史整单口径逐分
+    /// 一致，E2E 订单 77：份额 50 / 基数 100 / 本笔 100 → 50）。
+    #[test]
+    fn card_part_full_refund_equals_share() {
+        assert_eq!(
+            gift_card_refund_part(dec("50.00"), dec("0"), dec("100.00"), dec("0"), dec("100.00")),
+            dec("50.00")
+        );
+        // 子单份额同理（份额 20 / 子单基数 40 / 全额退 40 → 20）
+        assert_eq!(
+            gift_card_refund_part(dec("20.00"), dec("0"), dec("40.00"), dec("0"), dec("40.00")),
+            dec("20.00")
+        );
+    }
+
+    /// 卡构成：分次退款同比例返还且总额守恒（修复历史口径下
+    /// 「首笔整笔回卡 + 后续现金被整单抵扣重复扣减」的少退）：
+    /// 份额 50 / 基数 100，分两笔退 30 / 70 → 卡 15 + 35 = 50，
+    /// 现金 (30−15) + (70−35) = 50，合计恰 100。
+    #[test]
+    fn card_part_partial_sequence_conserves_total() {
+        let p1 = gift_card_refund_part(
+            dec("50.00"),
+            dec("0"),
+            dec("100.00"),
+            dec("0"),
+            dec("30.00"),
+        );
+        assert_eq!(p1, dec("15.00"));
+        let p2 = gift_card_refund_part(
+            dec("50.00"),
+            dec("15.00"),
+            dec("100.00"),
+            dec("30.00"),
+            dec("70.00"),
+        );
+        assert_eq!(p2, dec("35.00"));
+        assert_eq!(p1 + p2, dec("50.00"));
+    }
+
+    /// 卡构成：尾差归最后一笔——分币级拆分（如 33.33 分三笔）
+    /// 累计返还恰等于份额，不多不少。
+    #[test]
+    fn card_part_tail_difference_lands_on_last_refund() {
+        // 份额 10.00 / 基数 30.00，三笔各退 10.00
+        let p1 = gift_card_refund_part(
+            dec("10.00"),
+            dec("0"),
+            dec("30.00"),
+            dec("0"),
+            dec("10.00"),
+        );
+        assert_eq!(p1, dec("3.33"));
+        let p2 = gift_card_refund_part(
+            dec("10.00"),
+            dec("3.33"),
+            dec("30.00"),
+            dec("10.00"),
+            dec("10.00"),
+        );
+        assert_eq!(p2, dec("3.34"));
+        let p3 = gift_card_refund_part(
+            dec("10.00"),
+            dec("6.67"),
+            dec("30.00"),
+            dec("20.00"),
+            dec("10.00"),
+        );
+        assert_eq!(p3, dec("3.33"));
+        assert_eq!(p1 + p2 + p3, dec("10.00"));
+    }
+
+    /// 卡构成：未退满基数时（已发货不退运费等）卡只按已退比例
+    /// 返还，未退部分对应的卡份额不返还；已全额返还后再退恒 0；
+    /// 基数异常（≤0）恒 0。
+    #[test]
+    fn card_part_partial_base_and_guards() {
+        // 基数 100（运费 10 不退），只退 90 → 卡返还 50×90% = 45
+        assert_eq!(
+            gift_card_refund_part(dec("50.00"), dec("0"), dec("100.00"), dec("0"), dec("90.00")),
+            dec("45.00")
+        );
+        // 已返还满额
+        assert_eq!(
+            gift_card_refund_part(
+                dec("50.00"),
+                dec("50.00"),
+                dec("100.00"),
+                dec("100.00"),
+                dec("10.00")
+            ),
+            dec("0")
+        );
+        // 基数 ≤ 0
+        assert_eq!(
+            gift_card_refund_part(dec("50.00"), dec("0"), dec("0"), dec("0"), dec("10.00")),
+            dec("0")
+        );
+        // 无卡份额
+        assert_eq!(
+            gift_card_refund_part(dec("0"), dec("0"), dec("100.00"), dec("0"), dec("10.00")),
+            dec("0")
         );
     }
 

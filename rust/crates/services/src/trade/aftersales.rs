@@ -2211,22 +2211,22 @@ impl AftersalesService {
             let finance = crate::payment::refund_apply::RefundApplyService::new(
                 self.repos.clone(),
             );
-            let (to_status, money_completed) = match finance
+            let (to_status, money_completed, card_part) = match finance
                 .execute_refund_money(&apply, refund_id)
                 .await
             {
-                Ok((crate::payment::refund_apply::MoneyOutcome::Completed, _)) => {
-                    (RefundApplyStatus::Processed as i32, true)
+                Ok((crate::payment::refund_apply::MoneyOutcome::Completed, _, part)) => {
+                    (RefundApplyStatus::Processed as i32, true, part)
                 }
-                Ok((crate::payment::refund_apply::MoneyOutcome::ChannelPending, _)) => {
-                    (RefundApplyStatus::Processing as i32, false)
+                Ok((crate::payment::refund_apply::MoneyOutcome::ChannelPending, _, _)) => {
+                    (RefundApplyStatus::Processing as i32, false, Decimal::ZERO)
                 }
                 Err(e) => {
                     tracing::warn!(
                         "售后自动退款 资金执行失败 aftersale_id={} refund_id={refund_id}: {e}",
                         aftersales.aftersale_id
                     );
-                    (RefundApplyStatus::Processing as i32, false)
+                    (RefundApplyStatus::Processing as i32, false, Decimal::ZERO)
                 }
             };
             let transitioned = self
@@ -2243,8 +2243,9 @@ impl AftersalesService {
                 .unwrap_or(false);
             // 礼品卡返还（尽力而为）：自动执行退款与 mark_processed 同为
             // 退款完成点——仅在资金已同步完成（置已处理）时触发，
-            // 流转成功后按 usage_log 原额返还储值卡抵扣，仓储层幂等
-            // （已返还则跳过）；渠道受理中时完成点在回调
+            // 流转成功后按资金执行算出的本笔卡构成按额返还储值卡
+            // 抵扣（子单/部分退款精确化口径），仓储层以归属份额
+            // 剩余额度钳制防重；渠道受理中时完成点在回调
             // mark_processed，此处不提前返还。失败只告警，不阻断售后收尾。
             if transitioned && apply.order_id > 0 {
                 if money_completed {
@@ -2252,7 +2253,11 @@ impl AftersalesService {
                         .repos
                         .marketing
                         .gift_card_issue
-                        .return_stored_cards_for_order(apply.order_id, utils::now_seconds())
+                        .return_stored_cards_amount(
+                            apply.order_id,
+                            card_part,
+                            utils::now_seconds(),
+                        )
                         .await
                     {
                         tracing::warn!(
@@ -3510,8 +3515,13 @@ mod tests {
     }
 
     /// 礼品卡返还挂点不变量：财务审核关闭时的自动执行路径必须在退款
-    /// 申请流转成功（transitioned）之后调用 `return_stored_cards_for_order`，
-    /// 与支付域 mark_processed 完成点口径一致，防止重构误删/误挂。
+    /// 申请流转成功（transitioned）之后调用礼品卡返还，与支付域
+    /// mark_processed 完成点口径一致，防止重构误删/误挂。
+    ///
+    /// 2026-11-21 子单退款精确化 re-pin：返还已由整笔
+    /// return_stored_cards_for_order 改为按额
+    /// `return_stored_cards_amount`（本笔卡构成由资金执行贯穿），
+    /// 断言随之改钉按额形态，挂点位置与 transitioned 守卫不变。
     #[test]
     fn gift_card_return_wired_after_auto_refund_transition() {
         let src = include_str!("aftersales.rs");
@@ -3523,7 +3533,7 @@ mod tests {
             .find("财务审核关闭自动执行退款")
             .expect("自动执行退款流转应存在");
         let hook = tail
-            .find("return_stored_cards_for_order")
+            .find("return_stored_cards_amount")
             .expect("自动退款路径应挂礼品卡返还");
         assert!(transition < hook, "礼品卡返还必须在自动退款流转之后执行");
         let guard = tail

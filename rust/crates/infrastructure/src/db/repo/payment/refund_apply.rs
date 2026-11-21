@@ -340,6 +340,30 @@ impl RefundApplyRepository {
         .map_err(map_err)?;
         Ok(row.0.unwrap_or(Decimal::ZERO))
     }
+
+    /// 已完成的「总额口径」退款累计（礼品卡分次返还的比例基数）：
+    /// 只计已处理（refund_status = 2）且来源为售后 / 主动退款的
+    /// 申请（其 `online_balance` 为退款总额），排除指定申请自身；
+    /// 手工申请的 online_balance 本就是线上部分，不入此累计。
+    pub async fn sum_completed_refund_total_by_order(
+        &self,
+        order_id: i32,
+        exclude_refund_id: i32,
+    ) -> Result<Decimal> {
+        let row: (Option<Decimal>,) = sqlx::query_as(
+            "SELECT COALESCE(SUM(online_balance), 0) FROM refund_apply
+             WHERE order_id = $1
+               AND refund_status = 2
+               AND (aftersale_id > 0 OR initiator > 0)
+               AND refund_id <> $2",
+        )
+        .bind(order_id)
+        .bind(exclude_refund_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0.unwrap_or(Decimal::ZERO).max(Decimal::ZERO))
+    }
 }
 
 fn map_err(e: sqlx::Error) -> Error {

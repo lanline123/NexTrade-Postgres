@@ -736,82 +736,8 @@ impl GiftCardIssueRepository {
         }))
     }
 
-    /// 订单取消/退款返还（幂等）：按该订单 type=1 流水逐卡返还 balance，
-    /// 写 type=2 流水（amount 为正数表示返还）；已返还过的订单直接跳过。
-    /// 返还后卡 status 回 0（原已用完的卡恢复可用）。返回返还总金额。
-    pub async fn return_stored_cards_for_order(
-        &self,
-        order_id: i32,
-        now: i64,
-    ) -> Result<Decimal> {
-        let mut tx = self.pool.begin().await.map_err(map_err)?;
-        let already: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM gift_card_usage_log WHERE order_id = $1 AND type = 2",
-        )
-        .bind(order_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(map_err)?;
-        if already.0 > 0 {
-            return Ok(Decimal::ZERO);
-        }
-        let logs: Vec<UsageLogRow> = sqlx::query_as(
-            "SELECT id, gift_cards_id, user_id, order_id, type, amount, balance_before, balance_after, add_time \
-             FROM gift_card_usage_log WHERE order_id = $1 AND type = 1 ORDER BY id ASC",
-        )
-        .bind(order_id)
-        .fetch_all(&mut *tx)
-        .await
-        .map_err(map_err)?;
-        let mut total = Decimal::ZERO;
-        for log in logs {
-            let back = -log.amount;
-            if back <= Decimal::ZERO {
-                continue;
-            }
-            let cur: Option<(Option<Decimal>,)> = sqlx::query_as(
-                "SELECT balance FROM gift_cards WHERE gift_cards_id = $1 FOR UPDATE",
-            )
-            .bind(log.gift_cards_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(map_err)?;
-            let Some((cur_balance,)) = cur else { continue };
-            let before = cur_balance.unwrap_or(Decimal::ZERO);
-            let after = before + back;
-            sqlx::query(
-                "UPDATE gift_cards SET balance = $1, status = 0 WHERE gift_cards_id = $2",
-            )
-            .bind(after)
-            .bind(log.gift_cards_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(map_err)?;
-            sqlx::query(
-                "INSERT INTO gift_card_usage_log (gift_cards_id, user_id, order_id, type, amount, balance_before, balance_after, add_time) \
-                 VALUES ($1, $2, $3, 2, $4, $5, $6, $7)",
-            )
-            .bind(log.gift_cards_id)
-            .bind(log.user_id)
-            .bind(order_id)
-            .bind(back)
-            .bind(before)
-            .bind(after)
-            .bind(now)
-            .execute(&mut *tx)
-            .await
-            .map_err(map_err)?;
-            total += back;
-        }
-        tx.commit().await.map_err(map_err)?;
-        Ok(total)
-    }
-
-    /// 订单的礼品卡抵扣总额（usage_log type=1 抵扣流水的金额绝对值
-    /// 合计）。退款资金执行按订单支付构成拆分现金部分时使用：
-    /// 退款总额 − 本值 = 需走支付轨（余额/渠道）的现金部分，卡部分
-    /// 由 `return_stored_cards_for_order` 按流水原额返还。
-    pub async fn deducted_total_for_order(&self, order_id: i32) -> Result<Decimal> {
+    /// 抵扣流水合计（按记账订单 id 直查，不做归属解析）。
+    async fn deducted_sum_for_order_id(&self, order_id: i32) -> Result<Decimal> {
         let row: (Option<Decimal>,) = sqlx::query_as(
             "SELECT COALESCE(SUM(-amount), 0) FROM gift_card_usage_log \
              WHERE order_id = $1 AND type = 1",
@@ -821,6 +747,309 @@ impl GiftCardIssueRepository {
         .await
         .map_err(map_err)?;
         Ok(row.0.unwrap_or(Decimal::ZERO).max(Decimal::ZERO))
+    }
+
+    /// 订单头归属信息（父单 id 与礼品卡分摊额）。
+    async fn order_attribution_row(
+        &self,
+        order_id: i32,
+    ) -> Result<Option<(Option<i32>, Option<Decimal>)>> {
+        let row: Option<(Option<i32>, Option<Decimal>)> = sqlx::query_as(
+            "SELECT parent_order_id, gift_card_amount FROM \"order\" WHERE order_id = $1",
+        )
+        .bind(order_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row)
+    }
+
+    /// 子单份额清单（按父单 id 查子单头分摊，份额 > 0 才入列）。
+    async fn child_shares(&self, parent_order_id: i32) -> Result<Vec<(i32, Decimal)>> {
+        let rows: Vec<(i32, Option<Decimal>)> = sqlx::query_as(
+            "SELECT order_id, gift_card_amount FROM \"order\" \
+             WHERE parent_order_id = $1 AND gift_card_amount > 0 ORDER BY order_id ASC",
+        )
+        .bind(parent_order_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(rows
+            .into_iter()
+            .map(|(id, amt)| (id, amt.unwrap_or(Decimal::ZERO)))
+            .collect())
+    }
+
+    /// 归属解析（子单退款精确化）：返回 (记账订单 id, [(归属订单 id, 份额)])。
+    ///
+    /// 抵扣流水只记在建单订单（拆单前父单）名下，退款/取消的归属
+    /// 按订单头 `gift_card_amount` 的拆单分摊落到各子单（拆单侧
+    /// `compute_child_amounts` 按商品金额比例分摊、尾差归最后
+    /// 子单，Σ 与父单头额恒等；父单头额与流水同源同额）：
+    /// - 自身名下有流水：未拆单 → [(自身, 流水总额)]；已拆单 →
+    ///   各子单份额（再以流水总额校正尾差，防两边口径漂移）；
+    /// - 自身是子单（parent_order_id 指向记账订单）→ [(自身,
+    ///   min(子单头分摊, 父单流水总额))]；
+    /// - 无抵扣流水（未用卡/兑换流——兑换单头虽有
+    ///   gift_card_amount 但不写 usage_log）→ 空，恒不退储值余额。
+    async fn attribution_units(&self, order_id: i32) -> Result<(i32, Vec<(i32, Decimal)>)> {
+        let own_total = self.deducted_sum_for_order_id(order_id).await?;
+        if own_total > Decimal::ZERO {
+            let mut children = self.child_shares(order_id).await?;
+            if children.is_empty() {
+                return Ok((order_id, vec![(order_id, own_total)]));
+            }
+            let sum: Decimal = children.iter().map(|(_, s)| *s).sum();
+            if sum != own_total {
+                let diff = own_total - sum;
+                let last = children.last_mut().expect("children non-empty");
+                last.1 = (last.1 + diff).max(Decimal::ZERO);
+            }
+            return Ok((order_id, children));
+        }
+        if let Some((parent, gift)) = self.order_attribution_row(order_id).await? {
+            if let Some(parent_id) = parent.filter(|p| *p > 0) {
+                let family_total = self.deducted_sum_for_order_id(parent_id).await?;
+                if family_total > Decimal::ZERO {
+                    let share = gift
+                        .unwrap_or(Decimal::ZERO)
+                        .min(family_total)
+                        .max(Decimal::ZERO);
+                    if share > Decimal::ZERO {
+                        return Ok((parent_id, vec![(order_id, share)]));
+                    }
+                }
+            }
+        }
+        Ok((order_id, Vec::new()))
+    }
+
+    /// 归属订单已返还的储值卡金额（type=2 流水按归属订单 id 合计）。
+    pub async fn returned_total_for_order(&self, order_id: i32) -> Result<Decimal> {
+        let row: (Option<Decimal>,) = sqlx::query_as(
+            "SELECT COALESCE(SUM(amount), 0) FROM gift_card_usage_log \
+             WHERE order_id = $1 AND type = 2",
+        )
+        .bind(order_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0.unwrap_or(Decimal::ZERO).max(Decimal::ZERO))
+    }
+
+    /// 返还执行核心（单事务）：按归属单位逐个返还，`cap` 为本次
+    /// 总返还上限（None = 各单位剩余额度全额返还）。
+    ///
+    /// 防重口径（替代旧「任一 type=2 即整单跳过」的粗幂等）：逐
+    /// 单位以「该单位 type=2 合计 ≤ 其份额」硬钳制，逐卡再以
+    /// 「该卡在整个归属族（记账订单 + 各归属单位）名下 type=2
+    /// 合计 ≤ 其抵扣原额」钳制——存量按父单 id 整笔返还过的族
+    /// 不会二次返还。先锁全部相关卡行（FOR UPDATE）再读已返还
+    /// 合计，使并发完成事件在卡行锁上串行。返还写 type=2 流水
+    /// （amount 为正数、order_id 记归属单位），卡 status 回 0
+    /// （原已用完的卡恢复可用）。返回实际返还总额。
+    async fn execute_card_return(
+        &self,
+        order_id: i32,
+        cap: Option<Decimal>,
+        now: i64,
+    ) -> Result<Decimal> {
+        let (root_id, units) = self.attribution_units(order_id).await?;
+        if units.is_empty() {
+            return Ok(Decimal::ZERO);
+        }
+        let logs: Vec<UsageLogRow> = sqlx::query_as(
+            "SELECT id, gift_cards_id, user_id, order_id, type, amount, balance_before, balance_after, add_time \
+             FROM gift_card_usage_log WHERE order_id = $1 AND type = 1 ORDER BY id ASC",
+        )
+        .bind(root_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        if logs.is_empty() {
+            return Ok(Decimal::ZERO);
+        }
+        // 归属族 id 集合（记账订单 + 各归属单位）：逐卡已返还合计
+        // 按此集合统计，兼容存量按记账订单 id 落的 type=2 流水。
+        let mut family_ids: Vec<i32> = units.iter().map(|(id, _)| *id).collect();
+        if !family_ids.contains(&root_id) {
+            family_ids.push(root_id);
+        }
+        let mut tx = self.pool.begin().await.map_err(map_err)?;
+        // 先逐卡行锁（互斥点），再读已返还合计（见方法文档）。
+        let mut card_balance: std::collections::HashMap<i32, Decimal> =
+            std::collections::HashMap::new();
+        for log in &logs {
+            if card_balance.contains_key(&log.gift_cards_id) {
+                continue;
+            }
+            let cur: Option<(Option<Decimal>,)> = sqlx::query_as(
+                "SELECT balance FROM gift_cards WHERE gift_cards_id = $1 FOR UPDATE",
+            )
+            .bind(log.gift_cards_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(map_err)?;
+            if let Some((balance,)) = cur {
+                card_balance.insert(
+                    log.gift_cards_id,
+                    balance.unwrap_or(Decimal::ZERO),
+                );
+            }
+        }
+        // 逐卡已返还合计（归属族口径）。
+        let mut card_returned: std::collections::HashMap<i32, Decimal> =
+            std::collections::HashMap::new();
+        for log in &logs {
+            if card_returned.contains_key(&log.gift_cards_id) {
+                continue;
+            }
+            let rows: Vec<(i32, Option<Decimal>)> = sqlx::query_as(
+                "SELECT order_id, amount FROM gift_card_usage_log \
+                 WHERE gift_cards_id = $1 AND type = 2",
+            )
+            .bind(log.gift_cards_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(map_err)?;
+            let sum: Decimal = rows
+                .into_iter()
+                .filter(|(oid, _)| family_ids.contains(oid))
+                .map(|(_, amt)| amt.unwrap_or(Decimal::ZERO))
+                .sum();
+            card_returned.insert(log.gift_cards_id, sum.max(Decimal::ZERO));
+        }
+        let mut budget = cap;
+        let mut total = Decimal::ZERO;
+        for (unit_id, share) in &units {
+            if budget.map(|b| b <= Decimal::ZERO).unwrap_or(false) {
+                break;
+            }
+            let already: (Option<Decimal>,) = sqlx::query_as(
+                "SELECT COALESCE(SUM(amount), 0) FROM gift_card_usage_log \
+                 WHERE order_id = $1 AND type = 2",
+            )
+            .bind(*unit_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(map_err)?;
+            let already = already.0.unwrap_or(Decimal::ZERO).max(Decimal::ZERO);
+            let mut want = (*share - already).max(Decimal::ZERO);
+            if let Some(b) = budget {
+                want = want.min(b);
+            }
+            if want <= Decimal::ZERO {
+                continue;
+            }
+            // 本单位返还额按记账流水逐卡落（现行抵扣为单卡单笔，
+            // 即整额落该卡；多笔时按流水顺序、逐卡不超其未返还
+            // 原额）。
+            let mut remaining = want;
+            for log in &logs {
+                if remaining <= Decimal::ZERO {
+                    break;
+                }
+                let Some(balance) = card_balance.get(&log.gift_cards_id).copied() else {
+                    continue;
+                };
+                let card_cap = (-log.amount
+                    - card_returned
+                        .get(&log.gift_cards_id)
+                        .copied()
+                        .unwrap_or(Decimal::ZERO))
+                .max(Decimal::ZERO);
+                let give = remaining.min(card_cap);
+                if give <= Decimal::ZERO {
+                    continue;
+                }
+                let after = balance + give;
+                sqlx::query(
+                    "UPDATE gift_cards SET balance = $1, status = 0 WHERE gift_cards_id = $2",
+                )
+                .bind(after)
+                .bind(log.gift_cards_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(map_err)?;
+                sqlx::query(
+                    "INSERT INTO gift_card_usage_log (gift_cards_id, user_id, order_id, type, amount, balance_before, balance_after, add_time) \
+                     VALUES ($1, $2, $3, 2, $4, $5, $6, $7)",
+                )
+                .bind(log.gift_cards_id)
+                .bind(log.user_id)
+                .bind(*unit_id)
+                .bind(give)
+                .bind(balance)
+                .bind(after)
+                .bind(now)
+                .execute(&mut *tx)
+                .await
+                .map_err(map_err)?;
+                card_balance.insert(log.gift_cards_id, after);
+                *card_returned.entry(log.gift_cards_id).or_default() += give;
+                remaining -= give;
+                total += give;
+                if let Some(b) = budget.as_mut() {
+                    *b -= give;
+                }
+            }
+        }
+        tx.commit().await.map_err(map_err)?;
+        Ok(total)
+    }
+
+    /// 订单取消/手工完成点返还（全额口径，幂等）：按归属单位逐个
+    /// 返还各自剩余份额——未拆单即整笔原额返还（与历史口径
+    /// 一致）；父单逐子单落账；子单只返本子单份额。返还后卡
+    /// status 回 0。返回返还总金额。
+    pub async fn return_stored_cards_for_order(
+        &self,
+        order_id: i32,
+        now: i64,
+    ) -> Result<Decimal> {
+        self.execute_card_return(order_id, None, now).await
+    }
+
+    /// 退款完成点按额返还（子单/部分退款精确化）：返还金额由
+    /// 服务层按累计比例算出（见 services/payment/refund_apply 的
+    /// `gift_card_refund_part`），此处按归属落卡并钳制不超归属
+    /// 份额的剩余额度。返回实际返还总额。
+    pub async fn return_stored_cards_amount(
+        &self,
+        order_id: i32,
+        amount: Decimal,
+        now: i64,
+    ) -> Result<Decimal> {
+        if amount <= Decimal::ZERO {
+            return Ok(Decimal::ZERO);
+        }
+        self.execute_card_return(order_id, Some(amount), now).await
+    }
+
+    /// 订单归属的礼品卡抵扣份额（子单退款精确化口径）。退款资金
+    /// 执行按订单支付构成拆分现金部分时使用：未拆单 = 其名下
+    /// type=1 流水合计（历史口径）；子单 = 子单头
+    /// `gift_card_amount`（拆单分摊值）与父单流水总额的较小者；
+    /// 无抵扣（兑换流等）= 0。卡部分由完成点钩子按归属返还
+    /// （全额口径 `return_stored_cards_for_order` / 按额口径
+    /// `return_stored_cards_amount`）。
+    pub async fn deducted_total_for_order(&self, order_id: i32) -> Result<Decimal> {
+        let own = self.deducted_sum_for_order_id(order_id).await?;
+        if own > Decimal::ZERO {
+            return Ok(own);
+        }
+        if let Some((parent, gift)) = self.order_attribution_row(order_id).await? {
+            if let Some(parent_id) = parent.filter(|p| *p > 0) {
+                let family = self.deducted_sum_for_order_id(parent_id).await?;
+                if family > Decimal::ZERO {
+                    return Ok(gift
+                        .unwrap_or(Decimal::ZERO)
+                        .min(family)
+                        .max(Decimal::ZERO));
+                }
+            }
+        }
+        Ok(Decimal::ZERO)
     }
 
     /// 兑换订单 id（gift_card_order 与 order_item 两处关联合并去重）。
@@ -942,25 +1171,37 @@ mod tests {
         assert!(src.contains("(c.claimed_user_id = $2 OR c.user_id = $2)"));
     }
 
+    /// 返还防重不变量（2026-11-21 子单退款精确化 re-pin）：旧口径
+    /// 为「该订单已有任一 type=2 流水即整单跳过」的粗幂等，与
+    /// 子单归属/分次返还不兼容，已升级为逐单位钳制——归属解析按
+    /// parent_order_id 落子单份额、逐单位以 type=2 合计 ≤ 份额
+    /// 为界、逐卡以归属族口径钳制原额。断言随新口径重钉，防重
+    /// 强度不降（总额守恒由逐单位 + 逐卡双钳制保证）。
     #[test]
     fn return_hook_idempotency_invariants() {
         let src = include_str!("gift_card_issue.rs");
         let f = src
-            .find("pub async fn return_stored_cards_for_order")
-            .expect("返还钩子应存在");
+            .find("async fn order_attribution_row")
+            .expect("归属解析应存在");
         let end = src[f..]
             .find("pub async fn find_exchange_order_ids")
             .expect("下一函数应存在")
             + f;
         let body = &src[f..end];
-        // 幂等守卫：已有 type=2 返还流水的订单直接跳过
+        // 归属解析必须按父单关系落子单份额
+        assert!(body.contains("parent_order_id"));
+        // 已返还合计按归属订单 type=2 流水统计（逐单位钳制依据）
         assert!(body.contains("WHERE order_id = $1 AND type = 2"));
-        // 返还对象是该订单全部 type=1 抵扣流水
+        // 返还对象是记账订单全部 type=1 抵扣流水
         assert!(body.contains("WHERE order_id = $1 AND type = 1"));
         // 返还写 type=2 正额流水并恢复卡可用状态
         assert!(body.contains("VALUES ($1, $2, $3, 2,"));
         assert!(body.contains("status = 0"));
         // 逐卡行锁防并发重复返还
         assert!(body.contains("FOR UPDATE"));
+        // 按额返还入口必须存在（退款完成点精确返还）
+        assert!(body.contains("pub async fn return_stored_cards_amount"));
+        // 全额返还入口保留（取消/手工完成点口径）
+        assert!(body.contains("pub async fn return_stored_cards_for_order"));
     }
 }
