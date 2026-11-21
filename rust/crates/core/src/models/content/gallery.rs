@@ -56,6 +56,10 @@ pub const ERR_SOURCE_ID_REQUIRED: &str = "来源分组ID不能为空";
 pub const ERR_TARGET_ID_REQUIRED: &str = "目标分组ID不能为空";
 /// Java `GalleryMoveDTO.mode` 的 `@NotNull`。
 pub const ERR_MOVE_MODE_REQUIRED: &str = "转移方式不能为空";
+/// 下发设置仅平台账号可调用（我方新增）。
+pub const ERR_SET_SHARED_PLATFORM_ONLY: &str = "仅平台账号可设置素材下发";
+/// 下发目标必须是平台分组（我方新增）。
+pub const ERR_SET_SHARED_PLATFORM_GROUP_ONLY: &str = "只能下发平台素材分组";
 /// Java `GalleryServiceImpl#move` 的 `GlobalException`。
 pub const ERR_SAME_GROUP: &str = "来源分组和目标分组不能相同";
 /// Java `GalleryServiceImpl#move` 的 `GlobalException`。
@@ -262,6 +266,9 @@ pub struct GalleryDTO {
     pub gallery_thumb: Option<String>,
     /// 店铺 ID。
     pub shop_id: Option<i32>,
+    /// 是否下发给门店（我方新增）：1 = 平台共享（子树对门店可见）。
+    /// 仅详情/列表出参有意义；create/update 入参忽略（走独立 setShared 端点）。
+    pub is_shared: Option<i32>,
 }
 
 /// 相册更新入参（Java `GalleryUpdateDTO extends GalleryDTO`，多一个 `id`）。
@@ -350,6 +357,10 @@ pub struct GalleryTreeNodeVO {
     pub sort: i32,
     /// 素材数量（自身 + 所有子孙的累计值）。
     pub pic_count: i64,
+    /// 归属店铺（我方新增）：0 = 平台分组，供前端区分平台共享区与本店分组。
+    pub shop_id: i32,
+    /// 是否下发给门店（我方新增）：1 = 已下发（平台共享区）。
+    pub is_shared: i32,
     /// 子节点。
     pub children: Vec<GalleryTreeNodeVO>,
 }
@@ -372,6 +383,7 @@ impl From<&Gallery> for GalleryDTO {
             gallery_sort: Some(g.gallery_sort),
             gallery_thumb: Some(g.gallery_thumb.clone()),
             shop_id: Some(g.shop_id),
+            is_shared: Some(g.is_shared),
         }
     }
 }
@@ -407,6 +419,60 @@ pub fn has_delete_mode(delete_mode: Option<&str>) -> bool {
     delete_mode.map(str::trim).is_some_and(|m| !m.is_empty())
 }
 
+/// 下发开关入参（我方新增端点 `setShared`，图片/视频分组共用）。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SetSharedDTO {
+    /// 分组 ID。
+    pub id: Option<i32>,
+    /// 是否下发：1 = 下发给门店 / 0 = 收回（平台私有）。
+    pub is_shared: Option<i32>,
+}
+
+/// 校验下发开关入参，返回 `(分组 id, is_shared)`。
+///
+/// # Errors
+/// - `id` 缺失 → 「id不能为空」；`isShared` 缺失 → 「是否下发不能为空」。
+pub fn validate_set_shared(dto: &SetSharedDTO) -> Result<(i32, i32), String> {
+    let id = dto.id.ok_or_else(|| ERR_ID_REQUIRED.to_string())?;
+    let is_shared = dto
+        .is_shared
+        .ok_or_else(|| "是否下发不能为空".to_string())?;
+    Ok((id, if is_shared == 0 { 0 } else { 1 }))
+}
+
+/// 计算「平台共享子树」分组 id 集合（我方新增，互通口径核心）。
+///
+/// 入参为平台全部分组的 `(gallery_id, parent_id, is_shared)`；返回所有
+/// 已下发分组 **及其全部子孙** 的 id（下发按子树继承：父分组下发后，
+/// 其下子分组与素材对门店可见；子分组单独 `is_shared = 0` 不阻断继承）。
+#[must_use]
+pub fn shared_subtree_ids(rows: &[(i32, i32, i32)]) -> Vec<i32> {
+    use std::collections::{HashMap, HashSet};
+    let mut children_of: HashMap<i32, Vec<i32>> = HashMap::new();
+    let mut shared_roots: Vec<i32> = Vec::new();
+    for (id, parent_id, is_shared) in rows {
+        children_of.entry(*parent_id).or_default().push(*id);
+        if *is_shared != 0 {
+            shared_roots.push(*id);
+        }
+    }
+    let mut seen: HashSet<i32> = HashSet::new();
+    let mut out: Vec<i32> = Vec::new();
+    let mut stack: Vec<i32> = shared_roots;
+    while let Some(id) = stack.pop() {
+        if !seen.insert(id) {
+            continue;
+        }
+        out.push(id);
+        if let Some(children) = children_of.get(&id) {
+            stack.extend(children.iter().copied());
+        }
+    }
+    out.sort_unstable();
+    out
+}
+
 /// 由实体列表 + 各分组素材数组装统一分组树。
 ///
 /// 逐字复刻 Java `GalleryServiceImpl#tree`：
@@ -436,6 +502,8 @@ pub fn build_gallery_tree(
                 gallery_sort: g.gallery_sort,
                 sort: g.gallery_sort,
                 pic_count: pic_counts.get(&g.gallery_id).copied().unwrap_or(0),
+                shop_id: g.shop_id,
+                is_shared: g.is_shared,
                 children: Vec::new(),
             },
         );
@@ -516,6 +584,7 @@ mod tests {
             gallery_thumb: String::new(),
             shop_id: 0,
             vendor_id: None,
+            is_shared: 0,
         }
     }
 
@@ -682,6 +751,38 @@ mod tests {
     }
 
     #[test]
+    fn shared_subtree_ids_inherit_descendants() {
+        // 1(已下发) → 2 → 3；4(未下发) → 5；6(已下发)
+        let rows = vec![
+            (1, 0, 1),
+            (2, 1, 0),
+            (3, 2, 0),
+            (4, 0, 0),
+            (5, 4, 0),
+            (6, 0, 1),
+        ];
+        assert_eq!(shared_subtree_ids(&rows), vec![1, 2, 3, 6]);
+        // 无下发 → 空集（门店看不到任何平台分组）
+        assert!(shared_subtree_ids(&[(1, 0, 0), (2, 1, 0)]).is_empty());
+        // 脏数据成环不死循环
+        let cyc = vec![(1, 2, 1), (2, 1, 0)];
+        assert_eq!(shared_subtree_ids(&cyc), vec![1, 2]);
+    }
+
+    #[test]
+    fn set_shared_validation() {
+        let dto = SetSharedDTO { id: None, is_shared: Some(1) };
+        assert_eq!(validate_set_shared(&dto).unwrap_err(), ERR_ID_REQUIRED);
+        let dto = SetSharedDTO { id: Some(3), is_shared: None };
+        assert!(validate_set_shared(&dto).is_err());
+        let dto = SetSharedDTO { id: Some(3), is_shared: Some(5) };
+        // 非 0 一律归一为 1
+        assert_eq!(validate_set_shared(&dto).unwrap(), (3, 1));
+        let dto = SetSharedDTO { id: Some(3), is_shared: Some(0) };
+        assert_eq!(validate_set_shared(&dto).unwrap(), (3, 0));
+    }
+
+    #[test]
     fn tree_serializes_camel_case_and_empty_tree() {
         let tree = GalleryTreeVO {
             records: build_gallery_tree(&[gallery(1, 0, "A", 1)], &HashMap::new()),
@@ -692,6 +793,8 @@ mod tests {
         assert_eq!(node["galleryId"], 1);
         assert_eq!(node["galleryName"], "A");
         assert_eq!(node["picCount"], 0);
+        assert_eq!(node["shopId"], 0);
+        assert_eq!(node["isShared"], 0);
         assert!(node["children"].is_array());
 
         let empty = build_gallery_tree(&[], &HashMap::new());

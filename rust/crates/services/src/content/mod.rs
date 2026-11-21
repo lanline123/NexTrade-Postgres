@@ -10,6 +10,7 @@ pub mod decorate_template;
 pub mod friend_links;
 pub mod gallery;
 pub mod gallery_pic;
+pub mod gallery_share;
 pub mod gallery_video;
 pub mod gallery_video_info;
 pub mod home;
@@ -60,6 +61,7 @@ pub struct Services {
     pub api_wechat_live: Arc<api_wechat_live::ApiWechatLiveService>,
     pub decorate_promote: Arc<decorate_promote::DecoratePromoteService>,
     pub gallery_video_info: Arc<gallery_video_info::GalleryVideoInfoService>,
+    pub gallery_share: Arc<gallery_share::GalleryShareService>,
     pub wechat_video_account: Arc<wechat_video_account::WechatVideoAccountService>,
     pub wechat_keyword_rule: Arc<wechat_keyword_rule::WechatKeywordRuleService>,
     pub wechat_menu: Arc<wechat_menu::WechatMenuService>,

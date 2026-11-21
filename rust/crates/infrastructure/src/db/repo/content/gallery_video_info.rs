@@ -42,11 +42,13 @@ impl GalleryVideoInfoRepository {
     // ————————————————————— 读 —————————————————————
 
     /// 分页（Java `#list`）：租户 + 相册子树 + keyword/format/source 过滤，`id DESC`。
+    #[allow(clippy::too_many_arguments)]
     pub async fn paginate(
         &self,
         scope: VideoScope,
         q: &GalleryVideoInfoListQuery,
         gallery_ids: Option<&[i32]>,
+        shared_gallery_ids: Option<&[i32]>,
     ) -> Result<(u64, Vec<GalleryVideoInfo>)> {
         let page = q.page_query();
         let (limit, offset) = page.limit_offset();
@@ -78,6 +80,7 @@ impl GalleryVideoInfoRepository {
             keyword.as_deref(),
             format.as_deref(),
             source.as_deref(),
+            shared_gallery_ids,
         );
         let total: (i64,) = count_qb
             .build_query_as()
@@ -95,6 +98,7 @@ impl GalleryVideoInfoRepository {
             keyword.as_deref(),
             format.as_deref(),
             source.as_deref(),
+            shared_gallery_ids,
         );
         row_qb.push(" ORDER BY id DESC");
         row_qb.push(format!(" LIMIT {limit} OFFSET {offset}"));
@@ -107,6 +111,7 @@ impl GalleryVideoInfoRepository {
     }
 
     /// 追加租户 / 相册 / keyword / format / source 过滤。
+    #[allow(clippy::too_many_arguments)]
     fn push_filters(
         qb: &mut QueryBuilder<'_, Postgres>,
         scope: VideoScope,
@@ -114,12 +119,33 @@ impl GalleryVideoInfoRepository {
         keyword: Option<&str>,
         format: Option<&str>,
         source: Option<&str>,
+        shared_gallery_ids: Option<&[i32]>,
     ) {
         if let Some(shop_id) = scope.shop_id {
-            // 平台素材规则：店铺账号可见 `shop_id = 0`（平台素材）+ 本店
-            qb.push(" AND (shop_id = 0 OR shop_id = ");
-            qb.push_bind(shop_id);
-            qb.push(")");
+            match shared_gallery_ids {
+                // 互通口径（我方新增）：平台视频须所属分组在共享子树内
+                Some(ids) if shop_id > 0 => {
+                    qb.push(" AND ((shop_id = ");
+                    qb.push_bind(shop_id);
+                    qb.push(") OR (shop_id = 0 AND gallery_id IN (");
+                    let mut sep = qb.separated(", ");
+                    if ids.is_empty() {
+                        sep.push_unseparated("NULL");
+                    } else {
+                        for id in ids {
+                            sep.push_bind(*id);
+                        }
+                    }
+                    sep.push_unseparated(")))");
+                    drop(sep);
+                }
+                _ => {
+                    // 平台素材规则：店铺账号可见 `shop_id = 0`（平台素材）+ 本店
+                    qb.push(" AND (shop_id = 0 OR shop_id = ");
+                    qb.push_bind(shop_id);
+                    qb.push(")");
+                }
+            }
         }
         if let Some(vendor_id) = scope.vendor_id {
             qb.push(" AND vendor_id = ");

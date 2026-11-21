@@ -858,3 +858,112 @@
     line-height: 22px;
   }
 }
+
+/* ——— 相册互通（我方新增）：共享徽标 / 上报记录 / 审核 ——— */
+.mc-shared-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--semi-color-primary);
+  color: var(--semi-color-primary);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+  vertical-align: 1px;
+}
+
+.mc-card-badge {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  margin-left: 0;
+  background: var(--semi-color-bg-2);
+}
+
+.mc-share-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mc-share-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.mc-share-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.mc-share-thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  flex: none;
+  background: var(--semi-color-fill-0);
+}
+
+.mc-share-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mc-share-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.mc-share-meta {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-share-status {
+  flex: none;
+  font-size: 12px;
+  padding: 1px 8px;
+  border: 1px solid var(--semi-color-border);
+}
+
+.mc-share-status.is-0 {
+  color: var(--semi-color-warning);
+  border-color: var(--semi-color-warning);
+}
+
+.mc-share-status.is-1 {
+  color: var(--semi-color-success);
+  border-color: var(--semi-color-success);
+}
+
+.mc-share-status.is-2 {
+  color: var(--semi-color-danger);
+  border-color: var(--semi-color-danger);
+}
+
+.mc-share-pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.mc-review-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}

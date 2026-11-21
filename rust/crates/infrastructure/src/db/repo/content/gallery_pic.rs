@@ -22,6 +22,41 @@ use nextrade_core::{Error, Result};
 const SCOPE_WHERE: &str =
     "(? IS NULL OR shop_id = 0 OR shop_id = ?) AND (? IS NULL OR vendor_id = ?)";
 
+/// 互通口径（我方新增，迁移 026）：店铺账号的平台图片可见性收敛为
+/// 「本店 + 所属分组在平台共享子树内」。绑定顺序：
+/// `(shop_id, shared_ids..., vendor_id, vendor_id)`，由 `bind_scope!` 展开。
+/// 平台/供应商/未判定账号仍走 [`SCOPE_WHERE`]（调用方传 `None`）。
+fn scope_where_shared(shared_ids: &[i32]) -> String {
+    if shared_ids.is_empty() {
+        "(shop_id = ?) AND (? IS NULL OR vendor_id = ?)".to_string()
+    } else {
+        format!(
+            "((shop_id = ?) OR (shop_id = 0 AND gallery_id IN ({}))) AND (? IS NULL OR vendor_id = ?)",
+            placeholders(shared_ids.len())
+        )
+    }
+}
+
+/// 按口径绑定 scope 占位符（见 [`scope_where_shared`]）。
+macro_rules! bind_scope {
+    ($q:expr, $shop:expr, $vendor:expr, $shared:expr) => {{
+        let mut q = $q;
+        match $shared {
+            Some(ids) => {
+                q = q.bind($shop);
+                for id in ids {
+                    q = q.bind(*id);
+                }
+                q = q.bind($vendor).bind($vendor);
+            }
+            None => {
+                q = q.bind($shop).bind($shop).bind($vendor).bind($vendor);
+            }
+        }
+        q
+    }};
+}
+
 /// 相册图片域仓储（持有连接池）。
 #[derive(Clone)]
 pub struct GalleryPicRepository {
@@ -81,6 +116,7 @@ impl GalleryPicRepository {
     ///
     /// 过滤：scope（shop/vendor）+ `gallery_id IN 子树` + 关键词/格式/来源 +
     /// `hidden = 0 OR hidden IS NULL`；排序由 `column/desc` 决定。
+    #[allow(clippy::too_many_arguments)]
     pub async fn paginate(
         &self,
         shop_id: Option<i32>,
@@ -89,6 +125,7 @@ impl GalleryPicRepository {
         q: &GalleryPicListQuery,
         column: &'static str,
         desc: bool,
+        shared_gallery_ids: Option<&[i32]>,
     ) -> Result<(u64, Vec<GalleryPic>)> {
         let page = q.page_query();
         let (limit, offset) = page.limit_offset();
@@ -103,19 +140,20 @@ impl GalleryPicRepository {
         } else {
             format!(" AND gallery_id IN ({})", placeholders(gallery_ids.len()))
         };
+        let scope_where = match shared_gallery_ids {
+            Some(ids) => scope_where_shared(ids),
+            None => SCOPE_WHERE.to_string(),
+        };
         let where_sql = crate::db::to_pg_placeholders(&format!(
-            " WHERE {SCOPE_WHERE}{gallery_filter} \
+            " WHERE {scope_where}{gallery_filter} \
              AND (? IS NULL OR pic_name ILIKE ?) \
              AND (? IS NULL OR file_type = ?) \
              AND (? IS NULL OR source = ?) \
              AND (hidden = 0 OR hidden IS NULL)"
         ));
         let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM gallery_pic{where_sql}"));
-        let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql)
-            .bind(shop_id)
-            .bind(shop_id)
-            .bind(vendor_id)
-            .bind(vendor_id);
+        let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql);
+        count_q = bind_scope!(count_q, shop_id, vendor_id, shared_gallery_ids);
         for id in gallery_ids {
             count_q = count_q.bind(*id);
         }
@@ -133,11 +171,8 @@ impl GalleryPicRepository {
 
         let order = format!(" ORDER BY {column}{}", if desc { " DESC" } else { " ASC" });
         let list_sql = crate::db::to_pg_placeholders(&format!("SELECT * FROM gallery_pic{where_sql}{order} LIMIT ? OFFSET ?"));
-        let mut q_rows = sqlx::query_as::<_, GalleryPic>(&list_sql)
-            .bind(shop_id)
-            .bind(shop_id)
-            .bind(vendor_id)
-            .bind(vendor_id);
+        let mut q_rows = sqlx::query_as::<_, GalleryPic>(&list_sql);
+        q_rows = bind_scope!(q_rows, shop_id, vendor_id, shared_gallery_ids);
         for id in gallery_ids {
             q_rows = q_rows.bind(*id);
         }
@@ -387,5 +422,17 @@ mod tests {
         assert_eq!(SCOPE_WHERE.matches('?').count(), 4);
         // 平台素材规则：店铺账号可见 `shop_id = 0` + 本店
         assert!(SCOPE_WHERE.contains("shop_id = 0"));
+    }
+
+    #[test]
+    fn scope_where_shared_shape() {
+        // 互通口径：无下发 → 仅本店；有下发 → 平台图片须在共享分组内
+        assert_eq!(
+            scope_where_shared(&[]),
+            "(shop_id = ?) AND (? IS NULL OR vendor_id = ?)"
+        );
+        let w = scope_where_shared(&[7]);
+        assert!(w.contains("shop_id = 0 AND gallery_id IN (?)"));
+        assert_eq!(w.matches('?').count(), 4);
     }
 }

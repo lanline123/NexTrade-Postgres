@@ -81,7 +81,8 @@ impl GalleryService {
         q: &GalleryListQuery,
     ) -> Result<PageResult<GalleryDTO>> {
         let page = q.page_query();
-        let (total, rows) = self.repo().paginate(scope, q).await?;
+        let shared = self.shared_ids_for(scope).await?;
+        let (total, rows) = self.repo().paginate(scope, q, shared.as_deref()).await?;
         let list = rows.iter().map(GalleryDTO::from).collect();
         Ok(PageResult::new(total, list, &page))
     }
@@ -134,6 +135,8 @@ impl GalleryService {
             // 多租户：店铺账号强制落本店；平台账号请求值缺失 → 平台素材（0）
             shop_id: media_write_shop_id(scope.shop_id)?,
             vendor_id: scope.vendor_id,
+            // 我方新增：新建分组默认不下发，平台在素材中心显式下发
+            is_shared: 0,
         };
         let id = self.repo().insert(&row).await?;
         tracing::info!("创建相册成功: id={id}, parent_id={parent_id}");
@@ -220,7 +223,8 @@ impl GalleryService {
     /// # Errors
     /// - 数据库失败 → `Error::Database`
     pub async fn tree(&self, scope: GalleryScope, r#type: &str) -> Result<GalleryTreeVO> {
-        let galleries = self.repo().list_for_tree(scope).await?;
+        let shared = self.shared_ids_for(scope).await?;
+        let galleries = self.repo().list_for_tree(scope, shared.as_deref()).await?;
         let counts = if is_video_type(Some(r#type)) {
             self.repo().count_videos_by_gallery().await?
         } else {
@@ -229,6 +233,53 @@ impl GalleryService {
         Ok(GalleryTreeVO {
             records: build_gallery_tree(&galleries, &counts),
         })
+    }
+
+    /// 互通口径（我方新增）：店铺账号（`shop_id > 0` 且非供应商）才需要
+    /// 共享子树集合；平台/供应商/未判定账号返回 `None`（仓储走旧口径）。
+    async fn shared_ids_for(&self, scope: GalleryScope) -> Result<Option<Vec<i32>>> {
+        match scope.shop_id {
+            Some(n) if n > 0 && scope.vendor_id.is_none() => {
+                Ok(Some(self.repo().find_shared_subtree_ids().await?))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// 设置分组下发（我方新增 `POST /setting/gallery/setShared`）。
+    ///
+    /// 仅平台账号可调用；目标分组必须为平台分组（`shop_id = 0`）。
+    /// 下发对整个子树生效（仓储按祖先标记计算可见性）。
+    ///
+    /// # Errors
+    /// - 非平台账号 → 「仅平台账号可设置素材下发」
+    /// - 参数非法 → models 校验文案
+    /// - 分组不存在 → 「分组不存在」；非平台分组 → 「只能下发平台素材分组」
+    pub async fn set_shared(
+        &self,
+        dto: &nextrade_core::models::content::gallery::SetSharedDTO,
+    ) -> Result<()> {
+        let scope = crate::content::tenant_scope::TenantScope::current();
+        if !scope.is_platform() {
+            return Err(Error::biz_msg(
+                nextrade_core::models::content::gallery::ERR_SET_SHARED_PLATFORM_ONLY,
+            ));
+        }
+        let (id, is_shared) =
+            nextrade_core::models::content::gallery::validate_set_shared(dto)?;
+        let group = self
+            .repo()
+            .find_by_id(id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("分组不存在"))?;
+        if group.shop_id != 0 {
+            return Err(Error::biz_msg(
+                nextrade_core::models::content::gallery::ERR_SET_SHARED_PLATFORM_GROUP_ONLY,
+            ));
+        }
+        self.repo().update_shared(id, is_shared).await?;
+        tracing::info!("素材分组下发设置: gallery={} is_shared={}", id, is_shared);
+        Ok(())
     }
 
     /// 分组排序（Java `#sort`，`@Transactional`）。
@@ -311,6 +362,8 @@ fn merge_update(existing: Gallery, dto: &GalleryUpdateDTO, scope: GalleryScope) 
             .unwrap_or(existing.gallery_thumb),
         shop_id: scope.shop_id.unwrap_or(existing.shop_id),
         vendor_id: existing.vendor_id,
+        // 下发标记不走通用 update（有独立 setShared 端点 + 平台权限校验），保留原值
+        is_shared: existing.is_shared,
     })
 }
 
@@ -378,6 +431,7 @@ mod tests {
             gallery_thumb: "t.png".into(),
             shop_id: 5,
             vendor_id: Some(7),
+            is_shared: 0,
         }
     }
 

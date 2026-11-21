@@ -58,8 +58,56 @@ impl GalleryVideoService {
     /// # Errors
     /// 数据库失败 → `Error::Database`。
     pub async fn tree_list(&self, scope: VideoScope) -> Result<Vec<GalleryVideoListVO>> {
-        let rows = self.repo().list_for_tree(scope).await?;
+        let shared = self.shared_ids_for(scope).await?;
+        let rows = self.repo().list_for_tree(scope, shared.as_deref()).await?;
         Ok(build_video_tree(&rows))
+    }
+
+    /// 互通口径（我方新增）：店铺账号（`shop_id > 0` 且非供应商）才需要
+    /// 共享子树集合；其余账号返回 `None`（仓储走旧口径）。
+    async fn shared_ids_for(&self, scope: VideoScope) -> Result<Option<Vec<i32>>> {
+        match scope.shop_id {
+            Some(n) if n > 0 && scope.vendor_id.is_none() => {
+                Ok(Some(self.repo().find_shared_subtree_ids().await?))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// 设置视频分组下发（我方新增 `POST /setting/galleryVideo/setShared`）。
+    ///
+    /// 仅平台账号可调用；目标分组必须为平台分组（`shop_id = 0`），
+    /// 下发对整个子树生效。口径与图片域 `gallery/setShared` 一致。
+    ///
+    /// # Errors
+    /// - 非平台账号 → 「仅平台账号可设置素材下发」
+    /// - 参数非法 → models 校验文案
+    /// - 分组不存在 → 「分组不存在」；非平台分组 → 「只能下发平台素材分组」
+    pub async fn set_shared(
+        &self,
+        dto: &nextrade_core::models::content::gallery::SetSharedDTO,
+    ) -> Result<()> {
+        let scope = crate::content::tenant_scope::TenantScope::current();
+        if !scope.is_platform() {
+            return Err(Error::biz_msg(
+                nextrade_core::models::content::gallery::ERR_SET_SHARED_PLATFORM_ONLY,
+            ));
+        }
+        let (id, is_shared) =
+            nextrade_core::models::content::gallery::validate_set_shared(dto)?;
+        let group = self
+            .repo()
+            .find_by_id(id)
+            .await?
+            .ok_or_else(|| Error::biz_msg("分组不存在"))?;
+        if group.shop_id != 0 {
+            return Err(Error::biz_msg(
+                nextrade_core::models::content::gallery::ERR_SET_SHARED_PLATFORM_GROUP_ONLY,
+            ));
+        }
+        self.repo().update_shared(id, is_shared).await?;
+        tracing::info!("视频分组下发设置: gallery_video={} is_shared={}", id, is_shared);
+        Ok(())
     }
 
     /// 分页列表（Java `#list`）。
@@ -72,7 +120,8 @@ impl GalleryVideoService {
         q: &GalleryVideoListQuery,
     ) -> Result<PageResult<GalleryVideoVO>> {
         let page = q.page_query();
-        let (total, rows) = self.repo().paginate(scope, q).await?;
+        let shared = self.shared_ids_for(scope).await?;
+        let (total, rows) = self.repo().paginate(scope, q, shared.as_deref()).await?;
         let list = rows.iter().map(to_vo).collect();
         Ok(PageResult::new(total, list, &page))
     }
@@ -125,6 +174,8 @@ impl GalleryVideoService {
             add_time: now_seconds() as i32,
             add_user_id: admin_id,
             vendor_id: scope.vendor_id.unwrap_or(0),
+            // 我方新增：新建分组默认不下发，平台在素材中心显式下发
+            is_shared: 0,
         };
         let id = self.repo().insert(&row).await?;
         tracing::info!("创建视频相册: id={id}, parent_id={parent_id}");
@@ -225,6 +276,7 @@ mod tests {
             add_time: 1_700_000_000,
             add_user_id: 9,
             vendor_id: 0,
+            is_shared: 0,
         };
         let vo = to_vo(&row);
         assert_eq!(vo.id, 3);

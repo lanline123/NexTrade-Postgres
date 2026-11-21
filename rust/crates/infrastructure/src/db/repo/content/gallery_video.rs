@@ -18,7 +18,8 @@ use nextrade_core::models::content::gallery_video::{
 use nextrade_core::{Error, Result};
 
 /// `gallery_video` 表全部列。
-const VIDEO_COLUMNS: &str = "id, shop_id, parent_id, name, sort, add_time, add_user_id, vendor_id";
+const VIDEO_COLUMNS: &str =
+    "id, shop_id, parent_id, name, sort, add_time, add_user_id, vendor_id, is_shared";
 
 #[derive(Clone)]
 pub struct GalleryVideoRepository {
@@ -44,6 +45,7 @@ impl GalleryVideoRepository {
         &self,
         scope: VideoScope,
         q: &GalleryVideoListQuery,
+        shared_ids: Option<&[i32]>,
     ) -> Result<(u64, Vec<GalleryVideo>)> {
         let page = q.page_query();
         let (limit, offset) = page.limit_offset();
@@ -53,7 +55,7 @@ impl GalleryVideoRepository {
 
         let mut count_qb: QueryBuilder<'_, Postgres> =
             QueryBuilder::new("SELECT COUNT(*) FROM gallery_video WHERE 1 = 1");
-        Self::push_filters(&mut count_qb, scope, parent);
+        Self::push_filters(&mut count_qb, scope, parent, shared_ids);
         let total: (i64,) = count_qb
             .build_query_as()
             .fetch_one(&self.pool)
@@ -63,7 +65,7 @@ impl GalleryVideoRepository {
         let mut row_qb: QueryBuilder<'_, Postgres> = QueryBuilder::new(format!(
             "SELECT {VIDEO_COLUMNS} FROM gallery_video WHERE 1 = 1"
         ));
-        Self::push_filters(&mut row_qb, scope, parent);
+        Self::push_filters(&mut row_qb, scope, parent, shared_ids);
         row_qb.push(order);
         row_qb.push(format!(" LIMIT {limit} OFFSET {offset}"));
         let rows: Vec<GalleryVideo> = row_qb
@@ -75,11 +77,15 @@ impl GalleryVideoRepository {
     }
 
     /// 全部分组（树用）：租户过滤 + `sort ASC, id ASC`（Java `treeList`）。
-    pub async fn list_for_tree(&self, scope: VideoScope) -> Result<Vec<GalleryVideo>> {
+    pub async fn list_for_tree(
+        &self,
+        scope: VideoScope,
+        shared_ids: Option<&[i32]>,
+    ) -> Result<Vec<GalleryVideo>> {
         let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new(format!(
             "SELECT {VIDEO_COLUMNS} FROM gallery_video WHERE 1 = 1"
         ));
-        Self::push_filters(&mut qb, scope, None);
+        Self::push_filters(&mut qb, scope, None, shared_ids);
         qb.push(" ORDER BY sort ASC, id ASC");
         qb.build_query_as()
             .fetch_all(&self.pool)
@@ -87,12 +93,40 @@ impl GalleryVideoRepository {
             .map_err(map_err)
     }
 
-    /// 追加租户 + 父级过滤（平台素材规则：店铺账号可见 `shop_id = 0` + 本店）。
-    fn push_filters(qb: &mut QueryBuilder<'_, Postgres>, scope: VideoScope, parent: Option<i32>) {
+    /// 追加租户 + 父级过滤。
+    ///
+    /// `shared_ids = None`（平台/供应商/未判定账号）→ 旧口径：店铺账号可见
+    /// `shop_id = 0` + 本店。`Some(..)`（店铺账号，互通口径，我方新增）→
+    /// 平台分组仅共享子树内可见：`(shop_id = 本店) OR (shop_id = 0 AND id IN shared)`。
+    fn push_filters(
+        qb: &mut QueryBuilder<'_, Postgres>,
+        scope: VideoScope,
+        parent: Option<i32>,
+        shared_ids: Option<&[i32]>,
+    ) {
         if let Some(shop_id) = scope.shop_id {
-            qb.push(" AND (shop_id = 0 OR shop_id = ");
-            qb.push_bind(shop_id);
-            qb.push(")");
+            match shared_ids {
+                Some(ids) if shop_id > 0 => {
+                    qb.push(" AND ((shop_id = ");
+                    qb.push_bind(shop_id);
+                    qb.push(") OR (shop_id = 0 AND id IN (");
+                    let mut sep = qb.separated(", ");
+                    if ids.is_empty() {
+                        sep.push_unseparated("NULL");
+                    } else {
+                        for id in ids {
+                            sep.push_bind(*id);
+                        }
+                    }
+                    sep.push_unseparated(")))");
+                    drop(sep);
+                }
+                _ => {
+                    qb.push(" AND (shop_id = 0 OR shop_id = ");
+                    qb.push_bind(shop_id);
+                    qb.push(")");
+                }
+            }
         }
         if let Some(vendor_id) = scope.vendor_id {
             qb.push(" AND vendor_id = ");
@@ -102,6 +136,29 @@ impl GalleryVideoRepository {
             qb.push(" AND parent_id = ");
             qb.push_bind(parent_id);
         }
+    }
+
+    /// 平台共享子树分组 id 集合（我方新增）：已下发分组及其全部子孙
+    /// （纯计算与图片域共用 models 层 `shared_subtree_ids`）。
+    pub async fn find_shared_subtree_ids(&self) -> Result<Vec<i32>> {
+        let rows: Vec<(i32, i32, i32)> = sqlx::query_as(
+            "SELECT id, parent_id, is_shared FROM gallery_video WHERE shop_id = 0",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(nextrade_core::models::content::gallery::shared_subtree_ids(&rows))
+    }
+
+    /// 更新分组下发标记（我方新增 `setShared` 端点专用）。
+    pub async fn update_shared(&self, id: i32, is_shared: i32) -> Result<u64> {
+        let r = sqlx::query("UPDATE gallery_video SET is_shared = $1 WHERE id = $2")
+            .bind(is_shared)
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(r.rows_affected())
     }
 
     /// 按主键查询（Java `getById`）。
@@ -163,8 +220,8 @@ impl GalleryVideoRepository {
     pub async fn insert(&self, row: &GalleryVideo) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO gallery_video \
-             (shop_id, parent_id, name, sort, add_time, add_user_id, vendor_id) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+             (shop_id, parent_id, name, sort, add_time, add_user_id, vendor_id, is_shared) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
         )
         .bind(row.shop_id)
         .bind(row.parent_id)
@@ -173,6 +230,7 @@ impl GalleryVideoRepository {
         .bind(row.add_time)
         .bind(row.add_user_id)
         .bind(row.vendor_id)
+        .bind(row.is_shared)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;

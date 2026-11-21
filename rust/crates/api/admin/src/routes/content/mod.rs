@@ -9,6 +9,7 @@ pub mod decorate_template;
 pub mod friend_links;
 pub mod gallery;
 pub mod gallery_pic;
+pub mod gallery_share;
 pub mod gallery_video;
 pub mod gallery_video_info;
 pub mod mobile_cat_nav;
@@ -40,6 +41,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(friend_links::routes(state))
         .merge(gallery::routes(state))
         .merge(gallery_pic::routes(state))
+        .merge(gallery_share::routes(state))
         .merge(gallery_video::routes(state))
         .merge(gallery_video_info::routes(state))
         .merge(mobile_cat_nav::routes(state))
@@ -74,6 +76,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(friend_links::implemented_routes());
     out.extend(gallery::implemented_routes());
     out.extend(gallery_pic::implemented_routes());
+    out.extend(gallery_share::implemented_routes());
     out.extend(gallery_video::implemented_routes());
     out.extend(gallery_video_info::implemented_routes());
     out.extend(mobile_cat_nav::implemented_routes());

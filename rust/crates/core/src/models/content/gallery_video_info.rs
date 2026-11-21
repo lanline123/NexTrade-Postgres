@@ -274,6 +274,8 @@ pub struct GalleryVideoResVO {
     pub add_user_id: i32,
     /// 供应商 ID。
     pub vendor_id: i32,
+    /// 是否下发给门店（我方新增）：1 = 已下发（平台共享区）。
+    pub is_shared: i32,
     /// 该相册下前 4 条视频（Java `limit 4`）。
     pub gallery_video_info_list: Vec<GalleryVideoInfoItemVO>,
 }
@@ -289,6 +291,7 @@ impl From<&GalleryVideo> for GalleryVideoResVO {
             add_time: e.add_time,
             add_user_id: e.add_user_id,
             vendor_id: e.vendor_id,
+            is_shared: e.is_shared,
             gallery_video_info_list: Vec::new(),
         }
     }

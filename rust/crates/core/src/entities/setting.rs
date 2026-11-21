@@ -189,6 +189,9 @@ pub struct Gallery {
     pub shop_id: i32,
     /// 供应商 ID
     pub vendor_id: Option<i32>,
+    /// 是否下发给门店（我方新增，迁移 026）：仅平台分组（`shop_id = 0`）有意义，
+    /// 1 = 该分组及其子分组的素材对全部门店可见（平台共享区）；0 = 平台私有。
+    pub is_shared: i32,
 }
 
 impl Gallery {

@@ -66,9 +66,21 @@ impl GalleryVideoInfoService {
             Some(id) => Some(self.repo().find_gallery_subtree_ids(id).await?),
             None => None,
         };
+        // 互通口径（我方新增）：店铺账号的平台视频仅共享分组内可见
+        let shared = if scope.vendor_id.is_none() && matches!(scope.shop_id, Some(n) if n > 0) {
+            Some(
+                self.repos
+                    .content
+                    .gallery_video
+                    .find_shared_subtree_ids()
+                    .await?,
+            )
+        } else {
+            None
+        };
         let (total, rows) = self
             .repo()
-            .paginate(scope, q, gallery_ids.as_deref())
+            .paginate(scope, q, gallery_ids.as_deref(), shared.as_deref())
             .await?;
         let list: Vec<GalleryVideoInfoItemVO> = rows.iter().map(Into::into).collect();
 
@@ -84,6 +96,12 @@ impl GalleryVideoInfoService {
             let children = self.repo().find_child_galleries(id).await?;
             let mut child_list = Vec::with_capacity(children.len());
             for child in &children {
+                if let Some(ids) = &shared {
+                    let visible = Some(child.shop_id) == scope.shop_id || ids.contains(&child.id);
+                    if !visible {
+                        continue;
+                    }
+                }
                 let mut child_vo: GalleryVideoResVO = child.into();
                 let infos = self.repo().find_first_infos(child.id, 4).await?;
                 child_vo.gallery_video_info_list =
@@ -317,6 +335,7 @@ mod tests {
             add_time: 1_700_000_000,
             add_user_id: 7,
             vendor_id: 0,
+            is_shared: 0,
         };
         let vo = gallery_to_vo(&g);
         assert_eq!(vo.id, 2);

@@ -65,6 +65,7 @@ use nextrade_services::content::friend_links::FriendLinksService;
 use nextrade_services::content::gallery::GalleryService;
 use nextrade_services::content::gallery_pic::GalleryPicService;
 use nextrade_services::content::gallery_video::GalleryVideoService;
+use nextrade_services::content::gallery_share::GalleryShareService;
 use nextrade_services::content::gallery_video_info::GalleryVideoInfoService;
 use nextrade_services::content::home::HomeService;
 use nextrade_services::content::mobile_cat_nav::MobileCatNavService;
@@ -786,6 +787,7 @@ async fn main() -> anyhow::Result<()> {
     let api_wechat_live = Arc::new(ApiWechatLiveService::new(repos.clone()));
     let decorate_promote = Arc::new(DecoratePromoteService::new(repos.clone()));
     let gallery_video_info = Arc::new(GalleryVideoInfoService::new(repos.clone()));
+    let gallery_share = Arc::new(GalleryShareService::new(repos.clone()));
     let wechat_video_account = Arc::new(WechatVideoAccountService::new(repos.clone()));
     let wechat_keyword_rule = Arc::new(WechatKeywordRuleService::new(repos.clone()));
     let wechat_menu = Arc::new(WechatMenuService::new(repos.clone()));
@@ -815,6 +817,7 @@ async fn main() -> anyhow::Result<()> {
         api_wechat_live: api_wechat_live.clone(),
         decorate_promote: decorate_promote.clone(),
         gallery_video_info: gallery_video_info.clone(),
+        gallery_share: gallery_share.clone(),
         wechat_video_account: wechat_video_account.clone(),
         wechat_keyword_rule: wechat_keyword_rule.clone(),
         wechat_menu: wechat_menu.clone(),

@@ -46,6 +46,10 @@ interface GroupNode {
   parentId: number;
   name: string;
   count: number;
+  /** 归属店铺（我方新增·相册互通）：0 = 平台分组 */
+  shopId: number;
+  /** 是否已下发给门店（平台分组用） */
+  isShared: boolean;
   children: GroupNode[];
 }
 
@@ -64,6 +68,8 @@ interface PicItem {
 
 interface VideoItem {
   id: number;
+  /** 归属店铺：0 = 平台素材（门店端只读引用） */
+  shopId?: number;
   galleryId?: number;
   videoName?: string;
   videoUrl?: string;
@@ -79,6 +85,25 @@ interface VideoItem {
 
 type MaterialItem = PicItem | VideoItem;
 
+/** 上报审核记录（我方新增·相册互通，/setting/galleryShare/list 出参） */
+interface ShareRecord {
+  id: number;
+  shopId: number;
+  mediaType: string;
+  sourceGalleryId: number;
+  sourceItemId: number;
+  itemName: string;
+  itemUrl: string;
+  itemThumb: string;
+  status: number;
+  statusName: string;
+  submitTime: number;
+  reviewTime: number;
+  reviewRemark: string;
+  targetGalleryId: number;
+  resultItemId: number;
+}
+
 interface RawGalleryNode {
   id?: number;
   galleryId?: number;
@@ -86,6 +111,8 @@ interface RawGalleryNode {
   name?: string;
   galleryName?: string;
   picCount?: number;
+  shopId?: number;
+  isShared?: number;
   children?: RawGalleryNode[];
 }
 
@@ -93,6 +120,8 @@ interface RawVideoNode {
   id?: number;
   parentId?: number;
   name?: string;
+  shopId?: number;
+  isShared?: number;
   children?: RawVideoNode[];
 }
 
@@ -279,6 +308,8 @@ const normalizeGalleryNodes = (nodes: RawGalleryNode[]): GroupNode[] =>
     parentId: Number(node.parentId ?? 0),
     name: node.galleryName || node.name || '',
     count: Number(node.picCount ?? 0),
+    shopId: Number(node.shopId ?? 0),
+    isShared: Number(node.isShared ?? 0) === 1,
     children: normalizeGalleryNodes(node.children || []),
   }));
 
@@ -288,6 +319,8 @@ const normalizeVideoNodes = (nodes: RawVideoNode[]): GroupNode[] =>
     parentId: Number(node.parentId ?? 0),
     name: node.name || '',
     count: 0,
+    shopId: Number(node.shopId ?? 0),
+    isShared: Number(node.isShared ?? 0) === 1,
     children: normalizeVideoNodes(node.children || []),
   }));
 
@@ -621,6 +654,146 @@ export default function MaterialCenter() {
     return find(groups);
   }, [groups, albumId, tab, t]);
 
+  // ——— 相册互通（我方新增）：平台下发 / 门店上报 ———
+  // 账号类型与 api.ts getContextHeaders 同源：adminType 空或 'admin' = 平台账号，其余 = 门店账号
+  const adminType = localStorage.getItem('adminType') || '';
+  const isPlatformAccount = !adminType || adminType === 'admin';
+  const groupById = useMemo(() => {
+    const map = new Map<number, GroupNode>();
+    const walk = (nodes: GroupNode[]) => {
+      nodes.forEach((node) => {
+        map.set(node.id, node);
+        if (node.children.length) walk(node.children);
+      });
+    };
+    walk(groups);
+    return map;
+  }, [groups]);
+  /** 素材是否平台原件：视频看条目 shopId；图片 DTO 的 shopId 恒空，改按所属分组归属判定 */
+  const isPlatformItem = (item: MaterialItem): boolean => {
+    if (tab === 'video') return Number((item as VideoItem).shopId ?? -1) === 0;
+    const gid = Number((item as PicItem).galleryId ?? 0);
+    return groupById.get(gid)?.shopId === 0;
+  };
+  const selectedHasPlatformItem = () =>
+    items.some((item) => selectedIds.includes(itemId(item, tab)) && isPlatformItem(item));
+
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareRecords, setShareRecords] = useState<ShareRecord[]>([]);
+  const [shareTotal, setShareTotal] = useState(0);
+  const [sharePage, setSharePage] = useState(1);
+  const [shareStatus, setShareStatus] = useState<number | undefined>(undefined);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [reviewForm, setReviewForm] = useState<{ id: number; mediaType: string; targetGalleryId: number; remark: string } | null>(null);
+  const [reviewTargetOptions, setReviewTargetOptions] = useState<Array<{ label: string; value: number }>>([]);
+  const [reviewSaving, setReviewSaving] = useState(false);
+
+  const loadShareList = async (nextPage: number, nextStatus: number | undefined) => {
+    setShareLoading(true);
+    try {
+      const params: Record<string, unknown> = { page: nextPage, size: 20 };
+      if (nextStatus !== undefined) params.status = nextStatus;
+      const result = await apiGet<{ list?: ShareRecord[]; total?: number }>('/setting/galleryShare/list', params);
+      setShareRecords(result?.list || []);
+      setShareTotal(Number(result?.total || 0));
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('加载上报记录失败') });
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const openShareList = () => {
+    setShareOpen(true);
+    setSharePage(1);
+    void loadShareList(1, shareStatus);
+  };
+
+  /** 平台：切换分组下发（对整个子树生效） */
+  const toggleShared = async (node: GroupNode) => {
+    try {
+      await apiPost(tab === 'image' ? '/setting/gallery/setShared' : '/setting/galleryVideo/setShared', {
+        id: node.id,
+        isShared: node.isShared ? 0 : 1,
+      });
+      Toast.success({ content: node.isShared ? t('已取消下发') : t('已下发给门店') });
+      reload();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('设置下发失败') });
+    }
+  };
+
+  /** 门店：把已选本店素材上报平台审核 */
+  const submitShare = async () => {
+    if (!selectedIds.length) return;
+    if (selectedHasPlatformItem()) {
+      Toast.warning({ content: t('平台共享素材不能上报') });
+      return;
+    }
+    try {
+      const result = await apiPost<{ submitted?: number; skipped?: number }>('/setting/galleryShare/submit', {
+        type: tab,
+        ids: selectedIds,
+      });
+      Toast.success({
+        content: t('已上报{submitted}条，跳过{skipped}条（已在审核中）', {
+          submitted: Number(result?.submitted || 0),
+          skipped: Number(result?.skipped || 0),
+        }),
+      });
+      setSelectedIds([]);
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('上报失败') });
+    }
+  };
+
+  /** 平台：打开审核（按记录媒体类型拉取平台分组作落点选项） */
+  const openReview = async (record: ShareRecord) => {
+    setReviewForm({ id: record.id, mediaType: record.mediaType, targetGalleryId: 0, remark: '' });
+    const fallback = [{ label: t('未分组'), value: 0 }];
+    try {
+      let tree: GroupNode[] = [];
+      if (record.mediaType === 'image') {
+        const result = await apiGet<{ records?: RawGalleryNode[] }>('/setting/gallery/tree', { type: 'image' });
+        tree = normalizeGalleryNodes(result?.records || []);
+      } else {
+        const result = await apiGet<RawVideoNode[]>('/setting/galleryVideo/getAllCategory');
+        tree = normalizeVideoNodes(result || []);
+      }
+      const flat = [...fallback];
+      const walk = (nodes: GroupNode[], depth: number) => {
+        nodes.forEach((node) => {
+          if (node.shopId === 0) flat.push({ label: `${'　'.repeat(depth)}${node.name}`, value: node.id });
+          if (node.children.length) walk(node.children, depth + 1);
+        });
+      };
+      walk(tree, 0);
+      setReviewTargetOptions(flat);
+    } catch {
+      setReviewTargetOptions(fallback);
+    }
+  };
+
+  const submitReview = async (action: 'approve' | 'reject') => {
+    if (!reviewForm) return;
+    setReviewSaving(true);
+    try {
+      await apiPost('/setting/galleryShare/review', {
+        id: reviewForm.id,
+        action,
+        targetGalleryId: reviewForm.targetGalleryId,
+        remark: reviewForm.remark,
+      });
+      Toast.success({ content: action === 'approve' ? t('已通过并入平台库') : t('已驳回') });
+      setReviewForm(null);
+      void loadShareList(sharePage, shareStatus);
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('审核失败') });
+    } finally {
+      setReviewSaving(false);
+    }
+  };
+
   const isAllSelected = items.length > 0 && items.every((item) => selectedIds.includes(itemId(item, tab)));
   const isIndeterminate = selectedIds.length > 0 && !isAllSelected;
   const previewItem = previewIndex >= 0 ? items[previewIndex] : undefined;
@@ -778,6 +951,10 @@ export default function MaterialCenter() {
   // ——— 移动到 ———
   const openTransfer = () => {
     if (!selectedIds.length) return;
+    if (!isPlatformAccount && selectedHasPlatformItem()) {
+      Toast.warning({ content: t('平台共享素材不可移动') });
+      return;
+    }
     setTransferTarget(undefined);
     setTransferOpen(true);
   };
@@ -826,6 +1003,10 @@ export default function MaterialCenter() {
 
   const confirmBatchDelete = () => {
     if (!selectedIds.length) return;
+    if (!isPlatformAccount && selectedHasPlatformItem()) {
+      Toast.warning({ content: t('平台共享素材不可删除') });
+      return;
+    }
     Modal.confirm({
       title: t('确认批量删除已选中的 {count} 个素材吗？', { count: selectedIds.length }),
       onOk: async () => {
@@ -1386,22 +1567,35 @@ export default function MaterialCenter() {
           <span className="mc-tree-name" title={node.name}>
             {node.name}
             {node.count > 0 ? <span className="mc-tree-count">{node.count}</span> : null}
+            {!isPlatformAccount && node.shopId === 0 ? <span className="mc-shared-badge">{t('平台共享')}</span> : null}
+            {isPlatformAccount && node.shopId === 0 && node.isShared ? <span className="mc-shared-badge">{t('已下发')}</span> : null}
           </span>
-          <Dropdown
-            trigger="click"
-            position="bottomRight"
-            menu={[
-              { node: 'item', name: t('添加子分组'), onClick: () => openAlbumForm('add', node.id) },
-              { node: 'item', name: t('重命名'), onClick: () => openAlbumForm('rename', node.id, node.parentId || 0, node.name) },
-              { node: 'item', name: t('上移'), onClick: () => moveGroup(node, 'up', nodes) },
-              { node: 'item', name: t('下移'), onClick: () => moveGroup(node, 'down', nodes) },
-              { node: 'item', name: t('删除'), onClick: () => openAlbumDelete(node) },
-            ]}
-          >
-            <span className="mc-tree-more" onClick={(event) => event.stopPropagation()}>
-              <IconMore size="small" />
-            </span>
-          </Dropdown>
+          {!isPlatformAccount && node.shopId === 0 ? null : (
+            <Dropdown
+              trigger="click"
+              position="bottomRight"
+              menu={[
+                ...(isPlatformAccount && node.shopId === 0
+                  ? [
+                      {
+                        node: 'item' as const,
+                        name: node.isShared ? t('取消下发') : t('下发给门店'),
+                        onClick: () => void toggleShared(node),
+                      },
+                    ]
+                  : []),
+                { node: 'item', name: t('添加子分组'), onClick: () => openAlbumForm('add', node.id) },
+                { node: 'item', name: t('重命名'), onClick: () => openAlbumForm('rename', node.id, node.parentId || 0, node.name) },
+                { node: 'item', name: t('上移'), onClick: () => moveGroup(node, 'up', nodes) },
+                { node: 'item', name: t('下移'), onClick: () => moveGroup(node, 'down', nodes) },
+                { node: 'item', name: t('删除'), onClick: () => openAlbumDelete(node) },
+              ]}
+            >
+              <span className="mc-tree-more" onClick={(event) => event.stopPropagation()}>
+                <IconMore size="small" />
+              </span>
+            </Dropdown>
+          )}
         </div>
         {expandedIds.includes(node.id) && node.children.length ? renderTreeNodes(node.children, depth + 1) : null}
       </div>
@@ -1427,6 +1621,7 @@ export default function MaterialCenter() {
           .filter(Boolean)
           .join(' · ');
     const selected = selectedIds.includes(id);
+    const readOnlyShared = !isPlatformAccount && isPlatformItem(item);
     return (
       <li key={id} className={`mc-card${selected ? ' is-selected' : ''}`}>
         <div className="mc-thumb" onClick={() => openPreview(item)}>
@@ -1436,6 +1631,7 @@ export default function MaterialCenter() {
             <img src={thumb} alt={name} className="mc-thumb-img" loading="lazy" />
           )}
           {isVideo ? <span className="mc-play-badge" /> : null}
+          {readOnlyShared ? <span className="mc-shared-badge mc-card-badge">{t('平台共享')}</span> : null}
         </div>
         <div className="mc-card-info">
           <div className="mc-card-top">
@@ -1454,10 +1650,12 @@ export default function MaterialCenter() {
           </span>
         </div>
         <div className="mc-card-actions">
-          <Button theme="borderless" size="small" icon={<IconEdit />} title={t('编辑')} onClick={() => openEdit(item)} />
+          {readOnlyShared ? null : (
+            <Button theme="borderless" size="small" icon={<IconEdit />} title={t('编辑')} onClick={() => openEdit(item)} />
+          )}
           <Button theme="borderless" size="small" icon={<IconDownload />} title={t('下载')} onClick={() => downloadOne(item)} />
           <Button theme="borderless" size="small" icon={<IconLink />} title={t('复制链接')} onClick={() => copyOne(item)} />
-          {isVideo ? null : (
+          {isVideo || readOnlyShared ? null : (
             <Dropdown
               trigger="click"
               position="bottomRight"
@@ -1469,14 +1667,16 @@ export default function MaterialCenter() {
               <Button theme="borderless" size="small" icon={<IconMore />} title={t('AI图片处理')} />
             </Dropdown>
           )}
-          <Button
-            theme="borderless"
-            type="danger"
-            size="small"
-            icon={<IconDelete />}
-            title={t('删除')}
-            onClick={() => confirmDeleteOne(item)}
-          />
+          {readOnlyShared ? null : (
+            <Button
+              theme="borderless"
+              type="danger"
+              size="small"
+              icon={<IconDelete />}
+              title={t('删除')}
+              onClick={() => confirmDeleteOne(item)}
+            />
+          )}
         </div>
       </li>
     );
@@ -1646,6 +1846,14 @@ export default function MaterialCenter() {
                 </Button>
                 <Button size="small" disabled={!selectedIds.length} onClick={handleExportLinks}>
                   {t('导出链接')}
+                </Button>
+                {isPlatformAccount ? null : (
+                  <Button size="small" disabled={!selectedIds.length} onClick={() => void submitShare()}>
+                    {t('上报平台')}
+                  </Button>
+                )}
+                <Button size="small" onClick={openShareList}>
+                  {isPlatformAccount ? t('上报审核') : t('上报记录')}
                 </Button>
               </Space>
             </div>
@@ -2322,6 +2530,130 @@ export default function MaterialCenter() {
             </>
           ) : null}
         </div>
+      </Modal>
+      {/* 上报记录 / 上报审核（我方新增·相册互通） */}
+      <Modal
+        title={isPlatformAccount ? t('上报审核') : t('上报记录')}
+        visible={shareOpen}
+        footer={null}
+        onCancel={() => setShareOpen(false)}
+        width={860}
+      >
+        <div className="mc-share-toolbar">
+          <Select
+            placeholder={t('全部状态')}
+            value={shareStatus === undefined ? '' : String(shareStatus)}
+            optionList={[
+              { label: t('全部状态'), value: '' },
+              { label: t('待审核'), value: '0' },
+              { label: t('已通过'), value: '1' },
+              { label: t('已驳回'), value: '2' },
+            ]}
+            onChange={(next) => {
+              const status = next === '' || next === undefined ? undefined : Number(next);
+              setShareStatus(status);
+              setSharePage(1);
+              void loadShareList(1, status);
+            }}
+            style={{ width: 140 }}
+          />
+          <Button icon={<IconRefresh />} onClick={() => void loadShareList(sharePage, shareStatus)}>
+            {t('刷新')}
+          </Button>
+        </div>
+        <Spin spinning={shareLoading}>
+          {shareRecords.length ? (
+            <ul className="mc-share-list">
+              {shareRecords.map((record) => (
+                <li key={record.id} className="mc-share-row">
+                  {record.itemThumb ? (
+                    <img src={record.itemThumb} alt={record.itemName} className="mc-share-thumb" loading="lazy" />
+                  ) : (
+                    <span className="mc-share-thumb mc-share-thumb-empty" />
+                  )}
+                  <div className="mc-share-main">
+                    <span className="mc-share-name" title={record.itemName}>
+                      {record.itemName || record.itemUrl}
+                    </span>
+                    <span className="mc-share-meta">
+                      {record.mediaType === 'video' ? t('视频') : t('图片')}
+                      {isPlatformAccount ? ` · ${t('门店')} #${record.shopId}` : ''}
+                      {' · '}
+                      {formatDate(record.submitTime, true)}
+                      {record.reviewRemark ? ` · ${record.reviewRemark}` : ''}
+                    </span>
+                  </div>
+                  <span className={`mc-share-status is-${record.status}`}>{record.statusName}</span>
+                  {isPlatformAccount && record.status === 0 ? (
+                    <Button size="small" theme="solid" type="primary" onClick={() => void openReview(record)}>
+                      {t('审核')}
+                    </Button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Empty description={t('暂无上报记录')} />
+          )}
+        </Spin>
+        {shareTotal > 20 ? (
+          <div className="mc-share-pager">
+            <Pagination
+              total={shareTotal}
+              pageSize={20}
+              currentPage={sharePage}
+              onPageChange={(next) => {
+                setSharePage(next);
+                void loadShareList(next, shareStatus);
+              }}
+            />
+          </div>
+        ) : null}
+      </Modal>
+
+      {/* 审核动作（平台）：通过选落点分组 / 驳回填备注 */}
+      <Modal
+        title={t('审核上报素材')}
+        visible={reviewForm !== null}
+        footer={null}
+        onCancel={() => setReviewForm(null)}
+        width={460}
+      >
+        {reviewForm ? (
+          <div className="mc-transfer-form">
+            <div className="mc-form-row">
+              <label className="mc-form-label-inline">{t('落入分组')}</label>
+              <Select
+                placeholder={t('未分组')}
+                value={reviewForm.targetGalleryId}
+                optionList={reviewTargetOptions}
+                onChange={(next) =>
+                  setReviewForm((current) => (current ? { ...current, targetGalleryId: Number(next) } : current))
+                }
+                style={{ width: 260 }}
+              />
+            </div>
+            <div className="mc-form-row">
+              <label className="mc-form-label-inline">{t('审核备注')}</label>
+              <TextArea
+                value={reviewForm.remark}
+                placeholder={t('驳回时请填写原因')}
+                onChange={(next) =>
+                  setReviewForm((current) => (current ? { ...current, remark: next } : current))
+                }
+                style={{ width: 260 }}
+              />
+            </div>
+            <div className="mc-review-actions">
+              <Button loading={reviewSaving} onClick={() => void submitReview('reject')}>
+                {t('驳回')}
+              </Button>
+              <Button theme="solid" type="primary" loading={reviewSaving} onClick={() => void submitReview('approve')}>
+                {t('通过并入平台库')}
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Modal>
       {/* AI图片处理（v5.8.61） */}
       <AiTranslateDialog

@@ -35,6 +35,7 @@ use nextrade_core::models::content::gallery_video::{
     BatchDTO, GalleryDelDTO, GalleryVideoCreateDTO, GalleryVideoListQuery, GalleryVideoListVO,
     GalleryVideoUpdateDTO, GalleryVideoVO, VideoScope,
 };
+use nextrade_core::models::content::gallery::SetSharedDTO;
 use nextrade_core::types::PageResult;
 use nextrade_infrastructure::db::repo::marketing::tenant::TenantScope;
 use nextrade_security::web::{ok, ApiResult, AuthUser};
@@ -42,7 +43,7 @@ use nextrade_security::web::{ok, ApiResult, AuthUser};
 use crate::AdminState;
 
 /// 本域路由清单（去掉 `/adminapi` 前缀 + 原 Java 方法名）。
-const ROUTE_TABLE: [(&str, &str, &str); 8] = [
+const ROUTE_TABLE: [(&str, &str, &str); 9] = [
     (
         "GET",
         "/setting/galleryVideo/getAllCategory",
@@ -83,6 +84,11 @@ const ROUTE_TABLE: [(&str, &str, &str); 8] = [
         "/setting/galleryVideo/batch",
         "GalleryVideoController.batch",
     ),
+    (
+        "POST",
+        "/setting/galleryVideo/setShared",
+        "GalleryVideoController.setShared",
+    ),
 ];
 
 /// 视频相册路由（挂载于 `/adminapi` 下）。
@@ -100,6 +106,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/setting/galleryVideo/create", post(create))
         .route("/setting/galleryVideo/update", post(update))
         .route("/setting/galleryVideo/batch", post(batch))
+        .route("/setting/galleryVideo/setShared", post(set_shared))
 }
 
 /// 本域已实现路由（覆盖率统计用）。
@@ -179,6 +186,17 @@ async fn del(State(state): State<AdminState>, Json(dto): Json<GalleryDelDTO>) ->
 /// `POST /adminapi/setting/galleryVideo/batch`：批量操作。
 async fn batch(State(state): State<AdminState>, Json(dto): Json<BatchDTO>) -> ApiResult<bool> {
     ok(state.content.gallery_video.batch(&dto).await?)
+}
+
+/// `POST /adminapi/setting/galleryVideo/setShared`：设置视频分组下发给门店（我方新增）。
+///
+/// 仅平台账号、仅平台分组；口径与图片域 `gallery/setShared` 一致。
+async fn set_shared(
+    State(state): State<AdminState>,
+    Json(dto): Json<SetSharedDTO>,
+) -> ApiResult<()> {
+    state.content.gallery_video.set_shared(&dto).await?;
+    ok(())
 }
 
 /// 租户过滤模式：`Tree`（getAllCategory/create）与 `List`（list）规则不同。
@@ -275,7 +293,7 @@ mod tests {
 
     #[test]
     fn route_table_is_unique_and_prefixed() {
-        assert_eq!(ROUTE_TABLE.len(), 8);
+        assert_eq!(ROUTE_TABLE.len(), 9);
         for (i, (_, p, _)) in ROUTE_TABLE.iter().enumerate() {
             assert!(p.starts_with("/setting/galleryVideo/"), "路径前缀错误: {p}");
             for (_, p2, _) in ROUTE_TABLE.iter().skip(i + 1) {

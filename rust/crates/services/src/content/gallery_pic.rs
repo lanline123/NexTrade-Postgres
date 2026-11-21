@@ -92,6 +92,18 @@ impl GalleryPicService {
             Some(gallery_id) => Some(repo.find_self_and_child_ids(gallery_id).await?),
             None => None,
         };
+        // 互通口径（我方新增）：店铺账号的平台图片仅共享分组内可见
+        let shared = if scope.vendor_id.is_none() && matches!(scope.shop_id, Some(n) if n > 0) {
+            Some(
+                self.repos
+                    .content
+                    .gallery
+                    .find_shared_subtree_ids()
+                    .await?,
+            )
+        } else {
+            None
+        };
         let (column, desc) = resolve_sort(q.sort_field.as_deref(), q.sort_order.as_deref());
         let (total, rows) = repo
             .paginate(
@@ -101,6 +113,7 @@ impl GalleryPicService {
                 q,
                 column,
                 desc,
+                shared.as_deref(),
             )
             .await?;
         let pics: Vec<GalleryPicDTO> = rows.iter().map(GalleryPicDTO::from).collect();
@@ -111,6 +124,15 @@ impl GalleryPicService {
         if let Some(gallery_id) = q.gallery_filter() {
             let children = repo.find_child_galleries(gallery_id).await?;
             for child in children {
+                // 互通口径：店铺账号的子分组预览同样受共享集合约束
+                // （未下发的平台分组不泄漏其图片预览）
+                if let Some(ids) = &shared {
+                    let visible = Some(child.shop_id) == scope.shop_id
+                        || ids.contains(&child.gallery_id);
+                    if !visible {
+                        continue;
+                    }
+                }
                 let pics = repo
                     .find_pics_by_gallery(child.gallery_id, CHILD_PREVIEW_PIC_LIMIT)
                     .await?;
@@ -658,6 +680,7 @@ mod tests {
             gallery_thumb: String::new(),
             shop_id: 0,
             vendor_id: None,
+            is_shared: 0,
         };
         let dto = GalleryDTO::from(&gallery);
         assert_eq!(dto.gallery_id, Some(1));

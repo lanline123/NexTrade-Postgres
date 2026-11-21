@@ -21,7 +21,7 @@ use nextrade_core::{Error, Result};
 
 /// `gallery` 表全部列（顺序与 [`Gallery`] 字段一致，避免 `SELECT *` 映射错位）。
 const GALLERY_COLUMNS: &str = "gallery_id, parent_id, gallery_admin_id, gallery_name, \
-     gallery_sort, gallery_thumb, shop_id, vendor_id";
+     gallery_sort, gallery_thumb, shop_id, vendor_id, is_shared";
 
 /// 分页查询的公共过滤条件（多租户 + 分组）。
 ///
@@ -31,6 +31,48 @@ const GALLERY_COLUMNS: &str = "gallery_id, parent_id, gallery_admin_id, gallery_
 /// 绑定顺序仍为 `(shop_id, shop_id, vendor_id, vendor_id)`。
 const SCOPE_WHERE: &str =
     "(? IS NULL OR shop_id = 0 OR shop_id = ?) AND (? IS NULL OR vendor_id = ?)";
+
+/// 互通口径（我方新增，迁移 026）：店铺账号的平台素材可见性收敛为
+/// 「本店 + 已下发分组子树」。`shared_ids` 为平台共享子树分组 id 集合
+/// （由 [`GalleryRepository::find_shared_subtree_ids`] 计算）；平台/供应商/
+/// 未判定账号仍走 [`SCOPE_WHERE`] 旧口径（调用方传 `None`）。
+/// 绑定顺序：共享口径 `(shop_id, shared_ids..., vendor_id, vendor_id)`，
+/// 由 `bind_scope!` 宏在各查询点展开。
+fn scope_where_shared(shared_ids: &[i32]) -> String {
+    if shared_ids.is_empty() {
+        // 无任何下发分组：平台素材对门店整体不可见
+        "(shop_id = ?) AND (? IS NULL OR vendor_id = ?)".to_string()
+    } else {
+        format!(
+            "((shop_id = ?) OR (shop_id = 0 AND gallery_id IN ({}))) AND (? IS NULL OR vendor_id = ?)",
+            placeholders(shared_ids.len())
+        )
+    }
+}
+
+/// 按口径绑定 scope 占位符（见 [`scope_where_shared`]）。
+macro_rules! bind_scope {
+    ($q:expr, $scope:expr, $shared:expr) => {{
+        let mut q = $q;
+        match $shared {
+            Some(ids) => {
+                q = q.bind($scope.shop_id);
+                for id in ids {
+                    q = q.bind(*id);
+                }
+                q = q.bind($scope.vendor_id).bind($scope.vendor_id);
+            }
+            None => {
+                q = q
+                    .bind($scope.shop_id)
+                    .bind($scope.shop_id)
+                    .bind($scope.vendor_id)
+                    .bind($scope.vendor_id);
+            }
+        }
+        q
+    }};
+}
 
 #[derive(Clone)]
 pub struct GalleryRepository {
@@ -62,19 +104,22 @@ impl GalleryRepository {
         &self,
         scope: GalleryScope,
         q: &GalleryListQuery,
+        shared_ids: Option<&[i32]>,
     ) -> Result<(u64, Vec<Gallery>)> {
         let page = q.page_query();
         let (limit, offset) = page.limit_offset();
         let parent = q.parent_filter();
         let (column, desc) = resolve_sort(q.sort_field.as_deref(), q.sort_order.as_deref());
         let order_sql = order_by(column, desc);
+        let where_scope = match shared_ids {
+            Some(ids) => scope_where_shared(ids),
+            None => SCOPE_WHERE.to_string(),
+        };
 
-        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM gallery WHERE {SCOPE_WHERE} AND (? IS NULL OR parent_id = ?)"));
-        let total: (i64,) = sqlx::query_as(&count_sql)
-            .bind(scope.shop_id)
-            .bind(scope.shop_id)
-            .bind(scope.vendor_id)
-            .bind(scope.vendor_id)
+        let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM gallery WHERE {where_scope} AND (? IS NULL OR parent_id = ?)"));
+        let count_q = sqlx::query_as(&count_sql);
+        let count_q = bind_scope!(count_q, scope, shared_ids);
+        let total: (i64,) = count_q
             .bind(parent)
             .bind(parent)
             .fetch_one(&self.pool)
@@ -83,14 +128,12 @@ impl GalleryRepository {
 
         let list_sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {GALLERY_COLUMNS} FROM gallery
-             WHERE {SCOPE_WHERE} AND (? IS NULL OR parent_id = ?){order_sql}
+             WHERE {where_scope} AND (? IS NULL OR parent_id = ?){order_sql}
              LIMIT ? OFFSET ?"
         ));
-        let rows = sqlx::query_as::<_, Gallery>(&list_sql)
-            .bind(scope.shop_id)
-            .bind(scope.shop_id)
-            .bind(scope.vendor_id)
-            .bind(scope.vendor_id)
+        let list_q = sqlx::query_as::<_, Gallery>(&list_sql);
+        let list_q = bind_scope!(list_q, scope, shared_ids);
+        let rows = list_q
             .bind(parent)
             .bind(parent)
             .bind(limit)
@@ -114,20 +157,46 @@ impl GalleryRepository {
 
     /// 全部分组（树用）：多租户过滤 + `gallery_sort ASC, gallery_id ASC`
     /// （Java `GalleryServiceImpl#tree` 的排序逐字一致）。
-    pub async fn list_for_tree(&self, scope: GalleryScope) -> Result<Vec<Gallery>> {
+    pub async fn list_for_tree(
+        &self,
+        scope: GalleryScope,
+        shared_ids: Option<&[i32]>,
+    ) -> Result<Vec<Gallery>> {
+        let where_scope = match shared_ids {
+            Some(ids) => scope_where_shared(ids),
+            None => SCOPE_WHERE.to_string(),
+        };
         let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {GALLERY_COLUMNS} FROM gallery
-             WHERE {SCOPE_WHERE}
+             WHERE {where_scope}
              ORDER BY gallery_sort ASC, gallery_id ASC"
         ));
-        sqlx::query_as::<_, Gallery>(&sql)
-            .bind(scope.shop_id)
-            .bind(scope.shop_id)
-            .bind(scope.vendor_id)
-            .bind(scope.vendor_id)
-            .fetch_all(&self.pool)
+        let q = sqlx::query_as::<_, Gallery>(&sql);
+        let q = bind_scope!(q, scope, shared_ids);
+        q.fetch_all(&self.pool).await.map_err(map_err)
+    }
+
+    /// 平台共享子树分组 id 集合（我方新增）：平台全部分组中已下发分组
+    /// 及其全部子孙（纯计算在 models 层 `shared_subtree_ids`）。
+    pub async fn find_shared_subtree_ids(&self) -> Result<Vec<i32>> {
+        let rows: Vec<(i32, i32, i32)> = sqlx::query_as(
+            "SELECT gallery_id, parent_id, is_shared FROM gallery WHERE shop_id = 0",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(nextrade_core::models::content::gallery::shared_subtree_ids(&rows))
+    }
+
+    /// 更新分组下发标记（我方新增 `setShared` 端点专用）。
+    pub async fn update_shared(&self, gallery_id: i32, is_shared: i32) -> Result<u64> {
+        let r = sqlx::query("UPDATE gallery SET is_shared = $1 WHERE gallery_id = $2")
+            .bind(is_shared)
+            .bind(gallery_id)
+            .execute(&self.pool)
             .await
-            .map_err(map_err)
+            .map_err(map_err)?;
+        Ok(r.rows_affected())
     }
 
     /// 各分组的素材数量（\"gallery_pic\" 按 \"gallery_id\" 分组计数）。
@@ -165,8 +234,8 @@ impl GalleryRepository {
     pub async fn insert(&self, g: &Gallery) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO gallery
-               (parent_id, gallery_admin_id, gallery_name, gallery_sort, gallery_thumb, shop_id, vendor_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING gallery_id",
+               (parent_id, gallery_admin_id, gallery_name, gallery_sort, gallery_thumb, shop_id, vendor_id, is_shared)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING gallery_id",
         )
         .bind(g.parent_id)
         .bind(g.gallery_admin_id)
@@ -175,6 +244,7 @@ impl GalleryRepository {
         .bind(&g.gallery_thumb)
         .bind(g.shop_id)
         .bind(g.vendor_id)
+        .bind(g.is_shared)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
@@ -185,8 +255,8 @@ impl GalleryRepository {
     pub async fn update(&self, g: &Gallery) -> Result<u64> {
         let r = sqlx::query(
             "UPDATE gallery SET parent_id = $1, gallery_admin_id = $2, gallery_name = $3,
-                gallery_sort = $4, gallery_thumb = $5, shop_id = $6, vendor_id = $7
-             WHERE gallery_id = $8",
+                gallery_sort = $4, gallery_thumb = $5, shop_id = $6, vendor_id = $7, is_shared = $8
+             WHERE gallery_id = $9",
         )
         .bind(g.parent_id)
         .bind(g.gallery_admin_id)
@@ -195,6 +265,7 @@ impl GalleryRepository {
         .bind(&g.gallery_thumb)
         .bind(g.shop_id)
         .bind(g.vendor_id)
+        .bind(g.is_shared)
         .bind(g.gallery_id)
         .execute(&self.pool)
         .await
@@ -393,6 +464,19 @@ mod tests {
     fn placeholders_renders_in_clause() {
         assert_eq!(placeholders(1), "?");
         assert_eq!(placeholders(3), "?, ?, ?");
+    }
+
+    #[test]
+    fn scope_where_shared_shape() {
+        // 无下发：仅本店
+        assert_eq!(
+            scope_where_shared(&[]),
+            "(shop_id = ?) AND (? IS NULL OR vendor_id = ?)"
+        );
+        // 有下发：本店 OR (平台 AND 分组在共享子树)
+        let w = scope_where_shared(&[3, 5]);
+        assert!(w.contains("shop_id = 0 AND gallery_id IN (?, ?)"));
+        assert!(w.starts_with("((shop_id = ?) OR"));
     }
 
     #[test]

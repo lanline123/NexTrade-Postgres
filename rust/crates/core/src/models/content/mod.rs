@@ -10,6 +10,7 @@ pub mod decorate_template;
 pub mod friend_links;
 pub mod gallery;
 pub mod gallery_pic;
+pub mod gallery_share;
 pub mod gallery_video;
 pub mod gallery_video_info;
 pub mod home;

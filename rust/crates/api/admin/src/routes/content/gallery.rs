@@ -46,7 +46,7 @@ use axum::{
 use serde::Deserialize;
 use nextrade_core::models::content::gallery::{
     BatchDTO, GalleryDTO, GalleryDelDTO, GalleryListQuery, GalleryMoveDTO, GalleryScope,
-    GallerySortDTO, GalleryTreeVO, GalleryUpdateDTO,
+    GallerySortDTO, GalleryTreeVO, GalleryUpdateDTO, SetSharedDTO,
 };
 use nextrade_core::types::PageResult;
 use nextrade_infrastructure::db::repo::marketing::tenant::TenantScope;
@@ -58,7 +58,7 @@ use crate::AdminState;
 ///
 /// **这是 `implemented_routes()` 的唯一来源**；顺序与原 Java `GalleryController`
 /// 一致，供逐字符对照 `rust/docs/api-contract.json`。
-const ROUTE_TABLE: [(&str, &str, &str); 9] = [
+const ROUTE_TABLE: [(&str, &str, &str); 10] = [
     ("GET", "/setting/gallery/list", "GalleryController.list"),
     ("GET", "/setting/gallery/detail", "GalleryController.detail"),
     ("POST", "/setting/gallery/del", "GalleryController.del"),
@@ -76,6 +76,11 @@ const ROUTE_TABLE: [(&str, &str, &str); 9] = [
     ("GET", "/setting/gallery/tree", "GalleryController.tree"),
     ("POST", "/setting/gallery/sort", "GalleryController.sort"),
     ("POST", "/setting/gallery/move", "GalleryController.move"),
+    (
+        "POST",
+        "/setting/gallery/setShared",
+        "GalleryController.setShared",
+    ),
 ];
 
 /// 相册域路由（挂载于 `/adminapi` 下）。
@@ -91,6 +96,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/setting/gallery/tree", get(tree))
         .route("/setting/gallery/sort", post(sort))
         .route("/setting/gallery/move", post(move_group))
+        .route("/setting/gallery/setShared", post(set_shared))
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -223,6 +229,18 @@ async fn move_group(
     ok(())
 }
 
+/// `POST /adminapi/setting/gallery/setShared`：设置分组下发给门店（我方新增）。
+///
+/// 仅平台账号、仅平台分组；下发对整个子树生效（门店素材库可见、可引用、
+/// 不可改原件——写路径由既有租户校验拦截）。
+async fn set_shared(
+    State(state): State<AdminState>,
+    Json(dto): Json<SetSharedDTO>,
+) -> ApiResult<()> {
+    state.content.gallery.set_shared(&dto).await?;
+    ok(())
+}
+
 fn header_str(headers: &HeaderMap, name: &str) -> Option<String> {
     headers
         .get(name)
@@ -319,7 +337,7 @@ mod tests {
     /// 路径表必须恰好 9 条、互不重复、以控制器前缀开头。
     #[test]
     fn route_table_is_unique_and_prefixed() {
-        assert_eq!(ROUTE_TABLE.len(), 9);
+        assert_eq!(ROUTE_TABLE.len(), 10);
         for (i, (m, p, _)) in ROUTE_TABLE.iter().enumerate() {
             assert!(p.starts_with("/setting/gallery/"), "路径前缀错误: {p}");
             assert!(*m == "GET" || *m == "POST");
@@ -329,7 +347,7 @@ mod tests {
         }
     }
 
-    /// `routes()` 注册的路径必须与 [`ROUTE_TABLE`] 完全一致（9/9，防漏挂/多挂）。
+    /// `routes()` 注册的路径必须与 [`ROUTE_TABLE`] 完全一致（10/10，防漏挂/多挂）。
     #[test]
     fn routes_registers_all_table_paths() {
         let registered = [
@@ -342,6 +360,7 @@ mod tests {
             "/setting/gallery/tree",
             "/setting/gallery/sort",
             "/setting/gallery/move",
+            "/setting/gallery/setShared",
         ];
         assert_eq!(registered.len(), ROUTE_TABLE.len());
         for path in registered {

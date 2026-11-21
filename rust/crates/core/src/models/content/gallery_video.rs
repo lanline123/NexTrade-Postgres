@@ -264,6 +264,10 @@ pub struct GalleryVideoListVO {
     pub name: String,
     /// 排序。
     pub sort: i32,
+    /// 归属店铺（我方新增）：0 = 平台分组，供前端区分平台共享区。
+    pub shop_id: i32,
+    /// 是否下发给门店（我方新增）：1 = 已下发（平台共享区）。
+    pub is_shared: i32,
     /// 子节点。
     pub children: Vec<GalleryVideoListVO>,
 }
@@ -339,6 +343,8 @@ pub fn build_video_tree(items: &[GalleryVideo]) -> Vec<GalleryVideoListVO> {
                 parent_id: g.parent_id,
                 name: g.name.clone(),
                 sort: g.sort,
+                shop_id: g.shop_id,
+                is_shared: g.is_shared,
                 children: Vec::new(),
             },
         );
@@ -401,6 +407,7 @@ mod tests {
             add_time: 1_700_000_000,
             add_user_id: 1,
             vendor_id: 0,
+            is_shared: 0,
         }
     }
 
