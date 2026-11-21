@@ -40,7 +40,7 @@ const MAX_INFLIGHT_PER_USER: usize = 2;
 const TOOL_RESULT_LIMIT: usize = 6000;
 
 /// 导购系统提示词（价格/事实红线明文写死，探针用例集据此验收）。
-const GUIDE_SYSTEM_PROMPT: &str = "你是 NexTrade 商城的 AI 导购助手，帮助买家找商品、了解商品详情、按其购买与浏览偏好推荐商品、查询他自己的订单状态。\n\n必须遵守的规则：\n1. 商品的价格、库存、销量、规格参数只能来自工具返回，并且只能逐字引用工具返回的数值；工具没有返回的价格绝不猜测、绝不估算、绝不引用其它商品的价格。\n2. 工具返回中某商品 priceVisible=false 时，该商品价格不可见：按其 priceGate 口径向用户说明（login=需要登录查看、certification=需要完成实名认证查看），不要给出任何数字价格。\n3. 只能介绍工具返回过的商品；找不到时如实说明并建议更换关键词，不要虚构商品名称、型号、参数或活动。\n4. 订单只能通过工具查询当前用户自己的订单，不要尝试查询或推测他人的订单信息。\n5. 兼容性、适用性问题只引用商品详情返回的事实字段，并提醒以商品详情页为准。\n6. 回答用简体中文，简洁友好；推荐时简要说明理由，理由只能基于工具返回的事实（如销量、类目、名称），不要编造用户评价或口碑。";
+const GUIDE_SYSTEM_PROMPT: &str = "你是 NexTrade 商城的 AI 导购助手，帮助买家找商品、了解商品详情、按其购买与浏览偏好推荐商品、查询他自己的订单状态。\n\n必须遵守的规则：\n1. 商品的价格、库存、销量、规格参数只能来自工具返回，并且只能逐字引用工具返回的数值；工具没有返回的价格绝不猜测、绝不估算、绝不引用其它商品的价格。\n2. 工具返回中某商品 priceVisible=false 时，该商品价格不可见：按其 priceGate 口径向用户说明（login=需要登录查看、certification=需要完成实名认证查看），不要给出任何数字价格。\n3. 只能介绍工具返回过的商品，不要虚构商品名称、型号、参数或活动。用用户问法中的品牌、型号、品类等关键词搜索后没有结果时，必须如实说明没有找到该商品并建议用户更换关键词；不得自行改用更宽泛的关键词再次搜索来凑结果，无命中时不得展示任何商品、不得引用任何商品的价格（换关键词重新搜索只能由用户提出）。凡在回答中展示了商品，正文必须逐项点名所展示的商品并说明它与用户问法的关系，不得出现正文未提及的商品卡。\n4. 订单只能通过工具查询当前用户自己的订单，不要尝试查询或推测他人的订单信息；回答订单问题时只说用户问到的那笔订单，不要主动罗列其未问及的其他订单信息。\n5. 兼容性、适用性问题只引用商品详情返回的事实字段，并提醒以商品详情页为准。\n6. 回答用简体中文，简洁友好；推荐时简要说明理由，理由只能基于工具返回的事实（如销量、类目、名称），不要编造用户评价或口碑。\n7. 涉及账号归属时要说清是『你的账号/你的订单』，不要把用户的账号说成自己的账号（不要说『我账号』）。";
 
 /// 导购设置（`config.aiGuideSettings` JSON；缺省值见 `Default`）。
 #[derive(Debug, Clone)]
@@ -83,6 +83,42 @@ pub enum GuideEvent {
     Error(String),
     /// 回合结束。
     Done { stopped: bool },
+}
+
+/// 无命中门控触发时替换工具结果的说明文本（喂回模型 + 随 tool 行落库）。
+/// 不得以 `{"error"` 开头：回合循环按此前缀判工具成败，抑制不是失败。
+const NO_HIT_SUPPRESSED_TEXT: &str = "{\"suppressed\":true,\"reason\":\"本回合先前的精确搜索无命中，按『无命中不出卡』口径，本次放宽搜索/推荐的结果不予展示。请如实告知用户没有找到其所问的商品并建议更换关键词，不要提及任何商品名称或价格。\"}";
+
+/// 回合级商品卡透出门控（用户 2026-11-21 裁决：无命中不出卡，维持验收
+/// 定版标准「虚构/无命中问法 0 卡 0 价格」）。
+///
+/// 背景（复核 `ai-guide-probe-recheck` 定案）：无命中问法下，模型先按问法
+/// 原词精确搜索（total=0），随后自行放宽到「电池/电芯」等宽词再搜，引擎
+/// 把工具卡原样挂出——正文虽如实声明无此商品，界面仍出卡带价。提示词
+/// 第 3 条已明文禁止放宽出卡；本门控在引擎层兜底：本回合一旦出现过
+/// search_products 无命中，后续轮次的 search_products / recommend_products
+/// 结果不再透出（文本替换为抑制说明、卡清空），模型无从引用其名称与价格。
+///
+/// 轮次内并行的一批调用视为同一次尝试：门控按批开始前的状态判定、
+/// 批末统一登记无命中——避免同一批里的关键词变体互相误伤（先窄后宽的
+/// 变体若命中仍可正常出卡，正常购物路径零影响）。get_product_detail 与
+/// my_order_status 不是商品发现入口，不受门控。
+#[derive(Debug, Default)]
+struct TurnCardGate {
+    /// 本回合是否已有 search_products 返回 total=0（无命中）。
+    search_missed: bool,
+}
+
+impl TurnCardGate {
+    /// 本批调用执行前判定：已无命中时，商品发现类工具的结果不再透出。
+    fn suppresses(&self, tool: &str) -> bool {
+        self.search_missed && matches!(tool, "search_products" | "recommend_products")
+    }
+
+    /// 一批调用执行完后登记：本批出现过无命中搜索则武装门控。
+    fn note_search_miss(&mut self) {
+        self.search_missed = true;
+    }
 }
 
 /// 导购服务（public 二进制按请求从各域 Services 组装，均为 Arc 克隆）。
@@ -390,20 +426,36 @@ impl GuideService {
         ]
     }
 
-    /// 执行一个只读工具。返回（喂回模型的文本, 商品卡列表）。
+    /// 执行一个只读工具。返回（喂回模型的文本, 商品卡列表, 搜索命中总数）。
+    /// 搜索命中总数仅 search_products 成功时为 Some（供回合级无命中门控
+    /// 判定），其余工具恒为 None。
     /// 价格红线在本层落地：商品数据先经 `price_gate` 按当前买家身份脱敏，
     /// 卡与文本同源于脱敏后的载荷，模型无从接触未脱敏价格。
-    async fn execute_tool(&self, user_id: i32, name: &str, args: &Value) -> (String, Vec<Value>) {
+    async fn execute_tool(
+        &self,
+        user_id: i32,
+        name: &str,
+        args: &Value,
+    ) -> (String, Vec<Value>, Option<i64>) {
         let access = match self.config_client.price_access(Some(user_id)).await {
             Ok(a) => a,
-            Err(e) => return (format!("{{\"error\":\"价格权限判定失败：{e}\"}}"), Vec::new()),
+            Err(e) => return (format!("{{\"error\":\"价格权限判定失败：{e}\"}}"), Vec::new(), None),
         };
         match name {
             "search_products" => self.tool_search(args, access).await,
-            "get_product_detail" => self.tool_detail(args, access).await,
-            "recommend_products" => self.tool_recommend(user_id, args, access).await,
-            "my_order_status" => self.tool_orders(user_id, args).await,
-            _ => (format!("{{\"error\":\"未知工具 {name}\"}}"), Vec::new()),
+            "get_product_detail" => {
+                let (text, cards) = self.tool_detail(args, access).await;
+                (text, cards, None)
+            }
+            "recommend_products" => {
+                let (text, cards) = self.tool_recommend(user_id, args, access).await;
+                (text, cards, None)
+            }
+            "my_order_status" => {
+                let (text, cards) = self.tool_orders(user_id, args).await;
+                (text, cards, None)
+            }
+            _ => (format!("{{\"error\":\"未知工具 {name}\"}}"), Vec::new(), None),
         }
     }
 
@@ -411,7 +463,7 @@ impl GuideService {
         &self,
         args: &Value,
         access: price_gate::PriceAccess,
-    ) -> (String, Vec<Value>) {
+    ) -> (String, Vec<Value>, Option<i64>) {
         let keyword = args.get("keyword").and_then(Value::as_str).unwrap_or("").trim().to_string();
         let mut qv = json!({
             "keyword": keyword,
@@ -424,21 +476,22 @@ impl GuideService {
         }
         let query: ProductListQuery = match serde_json::from_value(qv) {
             Ok(q) => q,
-            Err(e) => return (format!("{{\"error\":\"参数错误：{e}\"}}"), Vec::new()),
+            Err(e) => return (format!("{{\"error\":\"参数错误：{e}\"}}"), Vec::new(), None),
         };
         match self.product.list(&query).await {
             Ok(page) => {
                 let mut v = serde_json::to_value(&page).unwrap_or(Value::Null);
                 price_gate::mask_page_items(&mut v, access);
+                let total = v.get("total").and_then(Value::as_i64);
                 let cards = page_cards(&v);
                 let text = json!({
                     "total": v.get("total").cloned().unwrap_or(json!(0)),
                     "products": cards,
                 })
                 .to_string();
-                (truncate_chars(&text, TOOL_RESULT_LIMIT), cards)
+                (truncate_chars(&text, TOOL_RESULT_LIMIT), cards, total)
             }
-            Err(e) => (format!("{{\"error\":\"搜索失败：{e}\"}}"), Vec::new()),
+            Err(e) => (format!("{{\"error\":\"搜索失败：{e}\"}}"), Vec::new(), None),
         }
     }
 
@@ -609,6 +662,8 @@ impl GuideService {
         let mut messages = rebuild_history(&rows);
 
         let tools = Self::tool_defs();
+        // 无命中门控是回合级状态：跨轮次保留、下一回合（新用户消息）重建。
+        let mut card_gate = TurnCardGate::default();
         for round in 0..MAX_ROUNDS {
             if stop_flag.load(Ordering::Relaxed) {
                 let _ = tx.send(GuideEvent::Done { stopped: true }).await;
@@ -756,13 +811,29 @@ impl GuideService {
                     .collect(),
             );
             messages.push(assistant_msg);
+            let mut batch_missed = false;
             for call in &outcome.calls {
                 if stop_flag.load(Ordering::Relaxed) {
                     let _ = tx.send(GuideEvent::Done { stopped: true }).await;
                     return;
                 }
                 let _ = tx.send(GuideEvent::ToolStart { name: call.name.clone() }).await;
-                let (text, cards) = self.execute_tool(user_id, &call.name, &call.args).await;
+                // 门控按本批开始前的回合状态判定；本批的无命中在批末统一
+                // 登记，同批并行的关键词变体互不误伤。
+                let suppressed = card_gate.suppresses(&call.name);
+                let (text, cards, search_total) =
+                    self.execute_tool(user_id, &call.name, &call.args).await;
+                if search_total == Some(0) {
+                    batch_missed = true;
+                }
+                // 已无命中后的放宽搜索/推荐：工具照常执行（只读、无副作用），
+                // 但结果不透出——文本替换为抑制说明、卡清空，落库的 tool 行
+                // 即抑制标记本身，刷新回显与后续回合上下文口径一致。
+                let (text, cards) = if suppressed {
+                    (NO_HIT_SUPPRESSED_TEXT.to_string(), Vec::new())
+                } else {
+                    (text, cards)
+                };
                 let ok = !text.starts_with("{\"error\"");
                 // cards 随 tool 行落库（tool_calls 列借位存 {callId, cards}），刷新回显不丢卡。
                 let _ = self
@@ -783,6 +854,9 @@ impl GuideService {
                     "tool_call_id": call.id,
                     "content": truncate_chars(&text, TOOL_RESULT_LIMIT),
                 }));
+            }
+            if batch_missed {
+                card_gate.note_search_miss();
             }
             // 回合间预算复查（单会话熔断优先在下一轮开头拦）。
             if let Some(block) = self.budget_block(&settings, user_id, conv_id).await {
@@ -1149,5 +1223,37 @@ mod tests {
         assert!(GUIDE_SYSTEM_PROMPT.contains("逐字引用"));
         assert!(GUIDE_SYSTEM_PROMPT.contains("绝不猜测"));
         assert!(GUIDE_SYSTEM_PROMPT.contains("不要虚构商品"));
+    }
+
+    #[test]
+    fn system_prompt_states_no_hit_no_card_rules() {
+        // 无命中不出卡（用户 2026-11-21 裁决）：禁止自行放宽关键词凑结果、
+        // 展示须正文逐项点名（治卡文脱节）。
+        assert!(GUIDE_SYSTEM_PROMPT.contains("不得自行改用更宽泛的关键词"));
+        assert!(GUIDE_SYSTEM_PROMPT.contains("不得出现正文未提及的商品卡"));
+        // 话术收敛：订单只答所问、人称归属说清。
+        assert!(GUIDE_SYSTEM_PROMPT.contains("不要主动罗列其未问及的其他订单信息"));
+        assert!(GUIDE_SYSTEM_PROMPT.contains("不要把用户的账号说成自己的账号"));
+    }
+
+    #[test]
+    fn card_gate_suppresses_discovery_tools_only_after_miss() {
+        let mut gate = TurnCardGate::default();
+        assert!(!gate.suppresses("search_products"));
+        assert!(!gate.suppresses("recommend_products"));
+        gate.note_search_miss();
+        assert!(gate.suppresses("search_products"));
+        assert!(gate.suppresses("recommend_products"));
+        // 非商品发现入口不受门控：详情追问与订单查询照常。
+        assert!(!gate.suppresses("get_product_detail"));
+        assert!(!gate.suppresses("my_order_status"));
+    }
+
+    #[test]
+    fn suppressed_text_is_not_an_error_payload() {
+        // 回合循环按 {"error" 前缀判工具成败；抑制说明必须不触发失败分支，
+        // 且自带 suppressed 标记供落库审计。
+        assert!(!NO_HIT_SUPPRESSED_TEXT.starts_with("{\"error\""));
+        assert!(NO_HIT_SUPPRESSED_TEXT.contains("\"suppressed\":true"));
     }
 }
