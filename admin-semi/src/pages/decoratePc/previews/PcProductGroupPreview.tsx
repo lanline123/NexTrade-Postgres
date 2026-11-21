@@ -6,13 +6,17 @@
  * 取数：
  * - sourceType=productGroup：product/product/list?productGroupId=...&page=1&size=cols*3
  * - sourceType=products：优先 ids 批量取数，失败/为空回退配置内商品列表
- * - 取数失败时回退配置内演示商品（与旧版行为一致）
+ * - 组内无已选商品时（或仅存演示条目）以在售商品池随机真实商品展示
+ *   （共享 demoProductFill 的 fetchOnSaleProductPool，纯显示层不落盘；
+ *   2026-11-21 用户口径收口，代旧版配置内演示商品回退）；池空/取数失败
+ *   时列表为空（诚实空态）
  *
  * 与旧版差异：Vue <Transition> 的进出场动画迁移为 key 变化时的 CSS 入场动画；其余结构/样式一致。
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { apiGet } from '../../../api';
+import { fetchOnSaleProductPool } from '../../../components/demoProductFill';
 import { PcBuyButtonVisual, resolvePcBuyBtn, usePcGlobalBuyStyle } from './shared/PcBuyButton';
 import './pcProductGroup.css';
 
@@ -67,65 +71,12 @@ const defaultGroupTitle = {
   activeBgMarginRight: 0,
 };
 
-/** 演示商品列表（与旧版 pc-product-group/index.ts 的 demoProductList 一致）。 */
-const demoProductList: ProductItem[] = [
-  {
-    productId: 0,
-    productSn: '',
-    productName: '商品的大标题雨价格在后台他会自动调用读取',
-    productDesc: '',
-    productPrice: 88.8,
-    marketPrice: 98.8,
-    picThumb: 'https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/1732004872pw39D1oGqdAaZMpvyo.jpg',
-  },
-  {
-    productId: 0,
-    productSn: '',
-    productName: '商品的大标题雨价格在后台他会自动调用读取',
-    productDesc: '',
-    productPrice: 56.8,
-    marketPrice: 68.88,
-    picThumb: 'https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/1732004872f6EcZnbAqdW5kIGzxL.jpg',
-  },
-  {
-    productId: 0,
-    productSn: '',
-    productName: '商品的大标题雨价格在后台他会自动调用读取',
-    productDesc: '',
-    productPrice: 48.8,
-    marketPrice: 69.9,
-    picThumb: 'https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/1732004872o3s8aqPGdICr1DOCdB.jpg',
-  },
-  {
-    productId: 0,
-    productSn: '',
-    productName: '商品的大标题雨价格在后台他会自动调用读取',
-    productDesc: '',
-    productPrice: 48.8,
-    marketPrice: 69.9,
-    picThumb: 'https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/1732004872Mry8L9BWOCiawPhp72.jpg',
-  },
-  {
-    productId: 0,
-    productSn: '',
-    productName: '商品的大标题雨价格在后台他会自动调用读取',
-    productDesc: '',
-    productPrice: 32.0,
-    marketPrice: 39.0,
-    picThumb: 'https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/1732004872yPYr4zSj7AXrfw9oON.jpg',
-  },
-  {
-    productId: 0,
-    productSn: '',
-    productName: '商品的大标题雨价格在后台他会自动调用读取',
-    productDesc: '',
-    productPrice: 32.0,
-    marketPrice: 39.0,
-    picThumb: 'https://oss.vortmall.com/upload/c4ca4238/img/gallery/202411/1732004872NlX49KeGeYSN4Tw0wa.jpg',
-  },
-];
-
-const demoProductGroups: ProductGroupItem[] = [
+/**
+ * 内置默认分组结构（组标题/标题图为原版演示文案与图片，非商品，
+ * 不在演示商品真实化口径内，保留）；商品列表恒为空，展示时由
+ * 在售商品池填充（见下方取数 effect）。
+ */
+const defaultProductGroups: ProductGroupItem[] = [
   {
     sourceType: 'products',
     title: '为你推荐',
@@ -133,32 +84,32 @@ const demoProductGroups: ProductGroupItem[] = [
       picUrl: 'https://oss.vortmall.com/demo/upload/c4ca4238/2026/02/07/147580fe25834bb09199267ee601b834.png',
       picThumb: 'https://oss.vortmall.com/demo/upload/c4ca4238/2026/02/07/147580fe25834bb09199267ee601b834.png',
     },
-    productList: [...demoProductList],
+    productList: [],
   },
   {
     sourceType: 'products',
     title: '热卖',
     titlePic: { picUrl: '', picThumb: '' },
-    productList: [...demoProductList],
+    productList: [],
   },
   {
     sourceType: 'products',
     title: '折扣',
     titlePic: { picUrl: '', picThumb: '' },
-    productList: [...demoProductList],
+    productList: [],
   },
   {
     sourceType: 'products',
     title: '预售',
     titlePic: { picUrl: '', picThumb: '' },
-    productList: [...demoProductList],
+    productList: [],
   },
 ];
 
 /** 商品分组模块默认值（对应旧版 productGroupDefaults）。 */
 const productGroupDefaults: AnyRecord = {
   productSource: 'products',
-  productGroups: demoProductGroups,
+  productGroups: defaultProductGroups,
   groupList: [],
   productCardStyle: 1,
   listStyle: 4,
@@ -336,8 +287,11 @@ export default function PcProductGroupPreview({ data }: { data: Record<string, a
         } catch {
           if (alive) setCurrentProductList(group.productList || []);
         }
-      } else if (alive) {
-        setCurrentProductList(group.productList || []);
+      } else {
+        // 无已选商品（组内为空或仅存演示条目）：以在售池随机真实商品
+        // 展示（纯显示层，不落盘）；池空/失败为空列表（诚实空态）
+        const pool = await fetchOnSaleProductPool();
+        if (alive) setCurrentProductList(pool.slice(0, 6) as ProductItem[]);
       }
     };
     void run();

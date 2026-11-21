@@ -2,56 +2,19 @@
  * 限时特惠 预览（移植自 view/admin editor/modules/mobilePro/limitedSpecial/Preview.vue）
  *
  * 左侧「查看更多」热区（宽 productAreaLeft%）+ 右侧横滑商品轨；
- * 商品按 products 来源拉取（useDecorateProductList），无来源/无结果时用原版演示商品兜底
- * （与原版 _getProductList 的 demoProducts 回退一致）。
+ * 商品按 products 来源拉取（useDecorateProductList），无来源/无结果时以在售商品池
+ * 随机真实商品兜底展示（共享 demoProductFill 的 usePreviewDemoProducts，纯显示层
+ * 不落盘；原版 _getProductList 的 demoProducts 回退改为真实池回退，2026-11-21
+ * 用户口径收口）；池空/取数失败时走既有空态，不再写死演示商品。
  * 购买钮 1~4 为 iconfont 字形，本实现以语义对应的内联 SVG 承接（同 basic/product 口径）。
  */
 import { useMemo } from "react";
 import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
 import { mergeDefaultModule } from "../../../contract/sharedDefaults";
+import { usePreviewDemoProducts } from "../../../../../components/demoProductFill";
 import { limitedSpecialDefaults } from "./index";
 import "./Preview.css";
-
-/** 原版 Preview.vue 内置演示商品（契约冻结） */
-const demoProducts: Array<Record<string, any>> = [
-    {
-        productId: 0,
-        productName: "婴儿连体衣 会员特价",
-        productPrice: 699.0,
-        marketPrice: 999.0,
-        salesVolume: 1200,
-        commentCount: 320,
-        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17319190474y0XWFxO8GJZF0dg64.jpg"
-    },
-    {
-        productId: 0,
-        productName: "纯棉新生儿套装 超级会员日",
-        productPrice: 699.0,
-        marketPrice: 999.0,
-        salesVolume: 860,
-        commentCount: 210,
-        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071axvkfUDkQNFbIzF1iY.jpg"
-    },
-    {
-        productId: 0,
-        productName: "可折叠婴儿浴盆 限时特惠",
-        productPrice: 699.0,
-        marketPrice: 999.0,
-        salesVolume: 540,
-        commentCount: 130,
-        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071lOa0ZBx2mYlvq1lgjr.jpg"
-    },
-    {
-        productId: 0,
-        productName: "婴儿洗护礼盒 热卖中",
-        productPrice: 699.0,
-        marketPrice: 999.0,
-        salesVolume: 320,
-        commentCount: 88,
-        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071xUnObq2LokKPFecwXq.jpg"
-    }
-];
 
 const ratioPaddingMap: Record<string, string> = {
     default: "",
@@ -84,7 +47,8 @@ export default function LimitedSpecialPreview({ data }: { data: Record<string, a
     }, [data]);
 
     const fetched = useDecorateProductList(module.products);
-    const productList = fetched.length > 0 ? fetched : demoProducts;
+    const demoFallback = usePreviewDemoProducts(fetched.length === 0, 4);
+    const productList = fetched.length > 0 ? fetched : demoFallback;
 
     const f = module.frame ?? {};
     const outerStyle = cssText(

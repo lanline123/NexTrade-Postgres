@@ -2,7 +2,9 @@
  * 商品A1 预览（移植自 view/admin editor/modules/mobilePro/productA1/Preview.vue）
  *
  * 共享 goods-ad 类（全局 module.css）+ 本模块 scoped 规则（Preview.css，pa1- 作用域）。
- * 商品按 products 来源拉取，无有效来源/无结果时用原版演示商品兜底。
+ * 商品按 products 来源拉取，无有效来源/无结果时以在售商品池随机真实商品
+ * 兜底展示（共享 demoProductFill 的 usePreviewDemoProducts，纯显示层不落盘）；
+ * 池空/取数失败时走下方既有空态，不再写死演示商品。
  * buyBtnStyle 历史草稿可能为数字：非对象时回退默认对象（原版 Preview 同口径）。
  * 购买钮用共享 BuyButton（CommonBuyButton 口径）。
  */
@@ -11,17 +13,9 @@ import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
 import { mergeDefaultModule, cloneDeep } from "../../../contract/sharedDefaults";
 import BuyButton from "../../../shared/BuyButton";
+import { usePreviewDemoProducts } from "../../../../../components/demoProductFill";
 import { productA1Defaults } from "./index";
 import "./Preview.css";
-
-const demoProductList: Array<Record<string, any>> = [
-    { productId: 0, productSn: "", productName: "刺身拼盘", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731485756wtyOOnqoeEn6W2XfNP.jpg" },
-    { productId: 0, productSn: "", productName: "冰鲜剥皮鱼", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731485756sGPXRzI7o84S5HAPo5.jpg" },
-    { productId: 0, productSn: "", productName: "北极甜虾", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731485756JsgKabEE4BO09iRqnc.jpg" },
-    { productId: 0, productSn: "", productName: "秋刀鱼", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731485756ivBG9CydBhi21do1xk.jpg" },
-    { productId: 0, productSn: "", productName: "德宝纸巾", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731650293KF9TjvpDKHOATMR3H7.jpg" },
-    { productId: 0, productSn: "", productName: "薯片", productDesc: "", productPrice: 39.0, marketPrice: 99.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731650294a4EsPq1zkYme6p5OhC.jpg" }
-];
 
 export default function ProductA1Preview({ data }: { data: Record<string, any> }) {
     const module = useMemo(() => {
@@ -34,7 +28,8 @@ export default function ProductA1Preview({ data }: { data: Record<string, any> }
     }, [data]);
 
     const fetched = useDecorateProductList(module.products);
-    const productList = fetched.length > 0 ? fetched : demoProductList;
+    const demoFallback = usePreviewDemoProducts(fetched.length === 0, 6);
+    const productList = fetched.length > 0 ? fetched : demoFallback;
 
     const allFormat = {
         backgroundColor: module.backgroundColor ? `background-color:${module.backgroundColor};` : "",

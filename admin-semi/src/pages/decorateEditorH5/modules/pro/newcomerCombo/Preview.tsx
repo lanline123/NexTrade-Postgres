@@ -2,7 +2,10 @@
  * 新人二重礼 预览（移植自 view/admin editor/modules/mobilePro/newcomerCombo/Preview.vue）
  *
  * 头部 + 1 重礼商品横滑卡 + 2 重礼优惠券横排卡。
- * 商品按 products 来源拉取，无来源/无结果时用原版演示商品兜底。
+ * 商品按 products 来源拉取，无来源/无结果时以在售商品池随机真实商品兜底展示
+ * （共享 demoProductFill 的 usePreviewDemoProducts，纯显示层不落盘）；池空/
+ * 取数失败时走既有空态，不再写死演示商品。演示券 demoCoupons 非商品，不在
+ * 演示商品真实化口径内，保留原口径。
  * 优惠券：对齐原版 displayCoupons——条目只存 { couponId, btnText }，券面 info 经
  * useCouponInfoMap 按 couponId 从接口拉取，无 info 的券被过滤，加载中显示
  * 「优惠券信息加载中...」，coupons 为空时用原版演示券兜底。存量旧数据
@@ -14,15 +17,9 @@ import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
 import { useCouponInfoMap } from "../../../shared/useCouponInfoMap";
 import { mergeDefaultModule } from "../../../contract/sharedDefaults";
+import { usePreviewDemoProducts } from "../../../../../components/demoProductFill";
 import { newcomerComboDefaults } from "./index";
 import "./Preview.css";
-
-const demoProducts: Array<Record<string, any>> = [
-    { productId: 0, productSn: "", productName: "草莓500g 新人尝鲜", productDesc: "", productPrice: 89.0, marketPrice: 129.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17319190474y0XWFxO8GJZF0dg64.jpg" },
-    { productId: 0, productSn: "", productName: "鲜切牛排 新人尝鲜", productDesc: "", productPrice: 89.0, marketPrice: 129.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071axvkfUDkQNFbIzF1iY.jpg" },
-    { productId: 0, productSn: "", productName: "鲜活大虾 限时折扣", productDesc: "", productPrice: 89.0, marketPrice: 129.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071lOa0ZBx2mYlvq1lgjr.jpg" },
-    { productId: 0, productSn: "", productName: "冷冻鸡腿 热卖中", productDesc: "", productPrice: 89.0, marketPrice: 129.0, picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071xUnObq2LokKPFecwXq.jpg" }
-];
 
 const demoCoupons: Array<Record<string, any>> = [
     { couponId: 0, btnText: "立即领取", info: { couponName: "新人专享 满600减40", couponType: 1, couponMoney: 40, minOrderAmount: 600, reduceType: 1 } },
@@ -56,7 +53,8 @@ export default function NewcomerComboPreview({ data }: { data: Record<string, an
     }, [data]);
 
     const fetched = useDecorateProductList(module.products);
-    const productList = fetched.length > 0 ? fetched : demoProducts;
+    const demoFallback = usePreviewDemoProducts(fetched.length === 0, 4);
+    const productList = fetched.length > 0 ? fetched : demoFallback;
 
     const coupons: Array<Record<string, any>> = Array.isArray(module.coupons) ? module.coupons : [];
     const { couponInfoMap, fetchCouponInfo } = useCouponInfoMap();

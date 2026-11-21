@@ -21,7 +21,16 @@
 * 演示条目判定：对象形态、productName 为非空字符串、且 productId 非
 * 正数。空占位条目（如 PC 营销通栏卡位空槽 productName 为空）不命中，
 * 不受影响；带 productSn 的存量快照不在本机制处理范围（仅新建实例）。
+*
+* 二期（B-3 收口，2026-11-21 用户拍板一并改掉）：编辑器 compat
+* Preview 内部写死的兜底演示清单（productA1/productSlide/
+* limitedSpecial/newcomerCombo/groupon/PC 商品分组）同样改走本池。
+* fetchOnSaleProductPool 为填充器与 Preview 侧共用的唯一取池函数，
+* 不另写第二套取数/洗牌逻辑；Preview 侧纯显示层（usePreviewDemoProducts
+* 或直接调用取池函数），无来源/无结果时异步取池随机展示，池空/失败
+* 显示诚实空态，不落盘、不改任何数据契约。
 */
+import { useEffect, useState } from "react";
 import { apiGet } from "../api";
 
 const isDemoEntry = (x: any): boolean =>
@@ -46,8 +55,11 @@ Object.values(root).forEach((v) => collectDemoSlots(v, slots));
 }
 }
 
-/** 拉取在售商品池并洗牌（去重后返回原始记录数组）；失败返回空数组 */
-async function fetchShuffledOnSalePool(): Promise<Array<Record<string, any>>> {
+/**
+* 拉取在售商品池并洗牌（去重后返回原始记录数组）；失败返回空数组。
+* 填充器与编辑器 Preview 兜底共用的唯一取池函数（见文件头二期说明）。
+*/
+export async function fetchOnSaleProductPool(): Promise<Array<Record<string, any>>> {
 try {
 const result = await apiGet<{ records?: Array<Record<string, any>>; list?: Array<Record<string, any>>}>(
 "/product/product/list",
@@ -79,7 +91,7 @@ export async function fillDemoProducts<T extends Record<string, any>>(data: T): 
 const slots: Array<{ arr: any[]; index: number}> = [];
 collectDemoSlots(data, slots);
 if (!slots.length) return data;
-const pool = await fetchShuffledOnSalePool();
+const pool = await fetchOnSaleProductPool();
 // 先替换（下标不变），余位按数组分组从后往前移除，避免下标漂移
 const removals = new Map<any[], number[]>();
 slots.forEach((slot, i) => {
@@ -98,4 +110,28 @@ indexes
 .forEach((index) => arr.splice(index, 1));
 });
 return data;
+}
+
+/**
+* Preview 兜底演示商品 hook（纯显示层，不落盘）：
+* enabled 为真（模块无来源/来源无结果）时异步取在售池，随机取前
+* count 条返回；取池中/池为空/取数失败均返回空数组，由 Preview 按
+* 各自既有空态渲染（诚实空态），绝不回退写死假商品。
+*/
+export function usePreviewDemoProducts(enabled: boolean, count: number): Array<Record<string, any>> {
+const [items, setItems] = useState<Array<Record<string, any>>>([]);
+useEffect(() => {
+if (!enabled || count <= 0) {
+setItems([]);
+return;
+}
+let alive = true;
+fetchOnSaleProductPool().then((pool) => {
+if (alive) setItems(pool.slice(0, count));
+});
+return () => {
+alive = false;
+};
+}, [enabled, count]);
+return items;
 }

@@ -1,6 +1,8 @@
 /**
  * 商品滑动 预览（对齐 view/admin mobilePro/productSlide/Preview.vue）
- * - 按 module.products 来源拉真实商品（useDecorateProductList），无来源/拉取为空时用原版演示商品兜底；
+ * - 按 module.products 来源拉真实商品（useDecorateProductList），无来源/拉取为空时以在售商品池
+ *   随机真实商品兜底展示（共享 demoProductFill 的 usePreviewDemoProducts，纯显示层不落盘），
+ *   池空/取数失败时列表为空（诚实空态），不再写死演示商品；
  * - 逐卡渐变底（cardGradientStartList/EndList，缺省走原版兜底调色板）、逐卡大标题、
  *   图片比例盒（padding-top 占位）、图片平台阴影、卖点徽标、价格/原价/销量、数字购买钮；
  * - 购买钮 1~4 的 iconfont 以内联 SVG 等价承接（gouwuche/gouwuche1/jia/jia1），5/6「购买」7/8「马上抢」；
@@ -12,6 +14,7 @@ import { useMemo } from "react";
 import { mergeDefaultModule, cloneDeep, defaultProductSlide } from "../../../contract/sharedDefaults";
 import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
+import { usePreviewDemoProducts } from "../../../../../components/demoProductFill";
 
 interface Props {
     data: Record<string, any>;
@@ -22,49 +25,6 @@ const GRADIENT_FALLBACK: Array<[string, string]> = [
     ["#FF8FB8", "#FF5E96"],
     ["#FFD98A", "#FBC25A"],
     ["#C7BEF8", "#9C8CF0"]
-];
-
-const DEMO_PRODUCTS: Array<Record<string, any>> = [
-    {
-        productId: 0,
-        productName: "纯棉婴儿连体衣",
-        productPrice: 89.0,
-        marketPrice: 129.0,
-        salesVolume: 1200,
-        brief: "新品",
-        feature: "A类纯棉 亲肤透气",
-        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/17319190474y0XWFxO8GJZF0dg64.jpg"
-    },
-    {
-        productId: 0,
-        productName: "婴幼儿配方奶粉",
-        productPrice: 89.0,
-        marketPrice: 129.0,
-        salesVolume: 860,
-        brief: "热卖",
-        feature: "0 蔗糖 易吸收",
-        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071axvkfUDkQNFbIzF1iY.jpg"
-    },
-    {
-        productId: 0,
-        productName: "婴儿洗护套装",
-        productPrice: 89.0,
-        marketPrice: 129.0,
-        salesVolume: 540,
-        brief: "推荐",
-        feature: "温和无泪 弱酸性",
-        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071lOa0ZBx2mYlvq1lgjr.jpg"
-    },
-    {
-        productId: 0,
-        productName: "可折叠婴儿浴盆",
-        productPrice: 89.0,
-        marketPrice: 129.0,
-        salesVolume: 320,
-        brief: "好评",
-        feature: "加大加厚 防滑",
-        picThumb: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202411/1731919071xUnObq2LokKPFecwXq.jpg"
-    }
 ];
 
 const RATIO_PADDING: Record<string, string> = {
@@ -97,7 +57,8 @@ function cardStyleBg(cardStyle: string): string {
 export default function ProductSlidePreview({ data }: Props) {
     const m = useMemo(() => { const merged = JSON.parse(JSON.stringify(data ?? {})); mergeDefaultModule(merged, cloneDeep(defaultProductSlide)); return merged; }, [data]);
     const fetched = useDecorateProductList(m.products);
-    const list = fetched.length > 0 ? fetched : DEMO_PRODUCTS;
+    const demoFallback = usePreviewDemoProducts(fetched.length === 0, 4);
+    const list = fetched.length > 0 ? fetched : demoFallback;
 
     const f = m.frame ?? {};
     const bgImg = m.moduleBgImage?.picUrl;

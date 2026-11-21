@@ -3,9 +3,12 @@
  *
  * 根 class 与 seckill 同构（module-seckill-goods_ad + ad-* 系列），根节点无 frame 外层样式（原版如此）；
  * 内容层 frame 背景/圆角后叠模块 allFormat。数据流同原版 getData：size 按 style 取（<5 取 style、5 取 1），
- * 未选活动或接口列表为空时以原版 defaultGrouponItems 演示数据补足（原版 processData
- * 的 `grouponItemList.value < size` 数组/数字比较怪癖使补足仅在列表为空时发生，
- * 条数不足但非空时不补）；已选活动时取既有接口
+ * 未选活动或接口列表为空时以在售商品池随机真实商品补足展示（共享
+ * demoProductFill 的 fetchOnSaleProductPool，纯显示层不落盘；补足触发条件
+ * 沿原版 processData 的 `grouponItemList.value < size` 数组/数字比较怪癖——
+ * 仅在列表为空时发生，条数不足但非空时不补；池空/取数失败时不补、列表为空。
+ * 补足条目以真实商品记录映射拼团展示字段：主价取该商品真实拼团价字段，
+ * 无则取其真实售价，划线价即其真实售价，不编造商品与价格）；已选活动时取既有接口
  * /promotion/groupon/item/list（后台拼团商品管理同源接口，参数 grouponPromotionId/page/size，不改路径）。
  * 标签条仅 style<3 或 5 显示（style 1 显示「拼团」，倒计时在原版已注释不渲染）；
  * 名称前成团人数 chip 由 getMinGroupNum 逐字复刻（groupNum 为 JSON 数组串时取最小 groupNum，否则 0）；
@@ -18,77 +21,8 @@ import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
 import { isOverseas } from "../../../contract/version";
 import { grouponDefaults } from "./index";
+import { fetchOnSaleProductPool } from "../../../../../components/demoProductFill";
 import "./Preview.css";
-
-const DEFAULT_GROUPON_ITEMS = [
-    {
-        grouponPromotionItemId: 0,
-        productId: 0,
-        groupNum: 2,
-        sort: 1,
-        productName: "PP折叠盆",
-        productSn: "",
-        picLarge: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202510/1761024185GjoiVoxyZCFBgz02sj.jpeg?x-oss-process=image/resize,m_pad,h_800,h_800",
-        productPrice: "15.80",
-        minGroupPrice: "8.8",
-        maxGroupPrice: "12.8",
-        minGroupNum: 2,
-        maxGroupNum: 5,
-        minLimitNum: 10,
-        maxLimitNum: 12
-    },
-    {
-        grouponPromotionItemId: 0,
-        productId: 0,
-        groupNum: 2,
-        sort: 1,
-        productName: "曲奇饼饼",
-        productSn: "",
-        picLarge: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202510/17605171914YIcsTf34FQjP0qq3r.jpeg?x-oss-process=image/resize,m_pad,h_800,h_800",
-        productPrice: "30.00",
-        minGroupPrice: "18.8",
-        maxGroupPrice: "26.8",
-        minGroupNum: 3,
-        maxGroupNum: 8,
-        minLimitNum: 10,
-        maxLimitNum: 12,
-        productBrief: ""
-    },
-    {
-        grouponPromotionItemId: 0,
-        productId: 0,
-        groupNum: 2,
-        sort: 1,
-        productName: "脚踏车",
-        productSn: "",
-        picLarge: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/gallery/202508/1755141476MeZ9q6HfncgkfbysBG.jpeg?x-oss-process=image/resize,m_pad,h_800,h_800",
-        productPrice: "30.00",
-        minGroupPrice: "15.8",
-        maxGroupPrice: "22.8",
-        minGroupNum: 2,
-        maxGroupNum: 6,
-        minLimitNum: 10,
-        maxLimitNum: 12,
-        productBrief: ""
-    },
-    {
-        grouponPromotionItemId: 0,
-        productId: 0,
-        groupNum: 2,
-        sort: 1,
-        productName: "传统阿胶糕1000g东阿原产即食胶原蛋白阿胶片营养品",
-        productSn: "",
-        picLarge: "https://nlatstore.cn-qingdao.oss.aliyuncs.com/img/item/demo/1682046308g5LOOn4OKbSHNNn7kT!!pic800x800.jpeg",
-        productPrice: "93.00",
-        minGroupPrice: "48.00",
-        maxGroupPrice: "68.8",
-        minGroupNum: 4,
-        maxGroupNum: 10,
-        minLimitNum: 10,
-        maxLimitNum: 12,
-        productBrief: ""
-    }
-];
 
 /** 成团人数（逐字复刻原版 getMinGroupNum：groupNum 为 JSON 数组串时取最小 groupNum） */
 function getMinGroupNum(item: any): number | undefined {
@@ -147,28 +81,35 @@ export default function GrouponPreview({ data }: { data: Record<string, any> }) 
 
     useEffect(() => {
         let alive = true;
-        // 与原版 processData 一致：仅列表为空时才补演示数据（原版 `list.value < size`
-        // 对非空数组恒为 false），条数不足但非空时原样展示，不混入演示商品
-        const pad = (list: any[]) => {
+        // 与原版 processData 一致：仅列表为空时才补足（原版 `list.value < size`
+        // 对非空数组恒为 false），条数不足但非空时原样展示，不混入补足商品。
+        // 补足来源 = 在售商品池随机真实商品（见文件头），映射拼团展示字段。
+        const pad = async (list: any[]) => {
             if (list.length > 0) return list;
-            const next = [...list];
-            let index = 0;
-            for (let i = next.length; i < size; i++) {
-                next.push(DEFAULT_GROUPON_ITEMS[index]);
-                index++;
-            }
-            return next;
+            const pool = await fetchOnSaleProductPool();
+            return pool.slice(0, size).map((p) => ({
+                ...p,
+                grouponPromotionItemId: p.productId,
+                picLarge: p.picLarge || p.picUrl || p.picThumb || "",
+                minGroupPrice: p.minGroupPrice ?? p.minGrouponPrice ?? p.grouponPrice ?? p.productPrice
+            }));
         };
         if (!activityId) {
-            setItems(pad([]));
-            return;
+            pad([]).then((next) => {
+                if (alive) setItems(next);
+            });
+            return () => {
+                alive = false;
+            };
         }
         apiGet<any>("/promotion/groupon/item/list", { grouponPromotionId: activityId, page: 1, size })
-            .then((res: any) => {
-                if (alive) setItems(pad(res?.records || res?.list || []));
+            .then(async (res: any) => {
+                const next = await pad(res?.records || res?.list || []);
+                if (alive) setItems(next);
             })
-            .catch(() => {
-                if (alive) setItems(pad([]));
+            .catch(async () => {
+                const next = await pad([]);
+                if (alive) setItems(next);
             });
         return () => {
             alive = false;
