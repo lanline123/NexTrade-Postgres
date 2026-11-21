@@ -1,7 +1,6 @@
 .link-field {
   display: flex;
   align-items: center;
-  gap: 6px;
   width: 100%;
   min-width: 0;
 }
@@ -11,6 +10,32 @@
 }
 .link-field-input input {
   cursor: pointer;
+}
+/* 清除按钮：输入框内右侧小方钮（2026-11-21 改版，原框外独立按钮废止）。
+   20px 命中区、图标 12px、常态浅灰、悬停浅底深色；扁平方角与编辑器语言一致。 */
+.link-field-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: #98a2b3;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.link-field-clear:hover {
+  background: rgba(16, 24, 40, 0.06);
+  color: #344054;
+}
+.link-field-clear svg {
+  display: block;
 }
 
 .link-picker {

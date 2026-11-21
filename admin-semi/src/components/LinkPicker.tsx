@@ -276,6 +276,7 @@ export function LinkField({
 }) {
   const { t } = useI18n();
   const [visible, setVisible] = useState(false);
+  const hasValue = !!(value && Object.keys(value).length > 0);
   return (
     <div className="link-field">
       <Input
@@ -284,10 +285,25 @@ export function LinkField({
         placeholder={placeholder || t('请选择链接地址')}
         onClick={() => !disabled && setVisible(true)}
         className="link-field-input"
+        suffix={
+          // 清除 X 置于输入框内右侧（2026-11-21 改版：原为框外独立按钮，
+          // 占一格 flex 槽位、出现/消失时输入框宽度跳动且与框体脱节显丑）。
+          // suffix 在 Semi 输入框边框内占位，文本区自动让位不重叠；点击须
+          // 吞掉冒泡，否则会顺带触发输入框 onClick 打开选择器。
+          hasValue && !disabled ? (
+            <button
+              type="button"
+              className="link-field-clear"
+              aria-label={t('清除链接')}
+              title={t('清除链接')}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onChange({}); }}
+            >
+              <IconClose />
+            </button>
+          ) : undefined
+        }
       />
-      {value && Object.keys(value).length > 0 && !disabled && (
-        <Button size="small" theme="borderless" icon={<IconClose />} onClick={() => onChange({})} />
-      )}
       <LinkPicker
         visible={visible}
         value={value}

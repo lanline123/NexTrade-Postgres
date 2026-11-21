@@ -27,6 +27,16 @@
  * 投影、头/脚描边分隔、浅底描边操作条、描边预览面板、字段标签加重），
  * 本批续补：内容超高时弹窗定高、body 内部滚动不溢出屏幕；工具栏/底部
  * 按钮与字段输入框在弹窗作用域内改直角，与后台扁平直角语言一致。
+ *
+ * 现代化改版二轮（2026-11-21，用户点名）：① 链接字段的清除 X 原是挂在
+ * 输入框外的独立按钮（占位、与框体脱节显丑），已随共享 LinkField 改版
+ * 移入输入框内右侧（Semi suffix 占位，见 components/LinkPicker.tsx），
+ * 本弹窗经 LinkField 自动受益、链接行 JSX 不变；② 弹窗视觉统一一轮：
+ * .dec-pic-modal* 色板收敛为一套灰阶（描边 #e4e7ec / 分隔 #eaecf0 /
+ * 浅底 #f9fafb / 标签 #344054 / 提示 #98a2b3）、间距收敛 16/20 节奏、
+ * 投影改双层克制、底部操作区加浅底分层、预览面板随字段列等高居中；
+ * ③ 工具栏在无「从商品选择图片」入口且无图可清除时整条不渲染（原为
+ * 空描边条占位）。props 与 PicItem 契约逐字不变，全部调用点零改动。
  * 样式：pages/decorate-editor.css 的 .dec-pic-modal*（PC 与 H5 编辑器入口
  * 均已引入该样式表，独立调用方需保证该样式表在场）。
  * 通用组件登记：~/workspace/shared-components.md 第 16 条。
@@ -141,26 +151,29 @@ export function PicItemEditModal({
       {item ? (
         showImage ? (
           <div className="dec-pic-modal">
-            <div className="dec-pic-modal__toolbar">
-              {onRequestProductPick ? (
-                <>
-                  <Button size="small" theme="light" type="primary" icon={<IconPlus />} onClick={onRequestProductPick}>
-                    {t('从商品选择图片')}
+            {/* 工具栏两入口皆无时整条不渲染（原为空描边条占位） */}
+            {onRequestProductPick || currentUrl ? (
+              <div className="dec-pic-modal__toolbar">
+                {onRequestProductPick ? (
+                  <>
+                    <Button size="small" theme="light" type="primary" icon={<IconPlus />} onClick={onRequestProductPick}>
+                      {t('从商品选择图片')}
+                    </Button>
+                    <span className="dec-pic-modal__toolbar-hint">{t('可用商品头图或商品相册图片')}</span>
+                  </>
+                ) : null}
+                {currentUrl ? (
+                  <Button
+                    size="small"
+                    theme="borderless"
+                    type="danger"
+                    onClick={() => onPatch({ picUrl: '', picThumb: '' })}
+                  >
+                    {t('清除图片')}
                   </Button>
-                  <span className="dec-pic-modal__toolbar-hint">{t('可用商品头图或商品相册图片')}</span>
-                </>
-              ) : null}
-              {currentUrl ? (
-                <Button
-                  size="small"
-                  theme="borderless"
-                  type="danger"
-                  onClick={() => onPatch({ picUrl: '', picThumb: '' })}
-                >
-                  {t('清除图片')}
-                </Button>
-              ) : null}
-            </div>
+                ) : null}
+              </div>
+            ) : null}
             <div className="dec-pic-modal__body">
               <div className="dec-pic-modal__preview">
                 <ImageUploader
