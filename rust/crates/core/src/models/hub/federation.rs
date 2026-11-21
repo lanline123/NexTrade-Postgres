@@ -376,6 +376,12 @@ pub struct HubLink {
     pub reject_reason: String,
     pub last_heartbeat_time: i32,
     pub heartbeat_payload: String,
+    /// 成员侧会员同步游标：已成功推送的最大本地 user_id（迁移 028；中枢侧恒 0）。
+    pub member_sync_cursor: i32,
+    /// 成员侧订单上报游标：已成功上报的最大本地 order_id（迁移 028）。
+    pub order_sync_cursor: i32,
+    /// 成员侧订单最近一次上报完成时间（变更重扫窗口基准，迁移 028）。
+    pub order_sync_time: i32,
     pub add_time: i32,
     pub update_time: i32,
 }
@@ -878,6 +884,517 @@ pub fn shops_scope_valid(shop_ids: &HashSet<i32>) -> bool {
     shop_ids.iter().all(|id| *id > 0)
 }
 
+// ———————————————————— 二期：会员同步 / 订单上行（迁移 028） ————————————————————
+//
+// 设计 §6（会员面）与 §7.1（订单头级上行）。本批落「同步核」：
+// 全局 ID 映射 + 手机号匹配/冲突队列 + 资料快照后写优先 + 订单汇总幂等上行。
+// 登录互认（§6.3）与中央账本（§6.5）、跨店下单（§7.2）、结算（§11）不在本批。
+
+/// 会员映射状态：已关联。
+pub const MEMBER_LINK_LINKED: i32 = 1;
+/// 会员映射状态：已解绑。
+pub const MEMBER_LINK_UNBOUND: i32 = 3;
+
+/// 冲突状态：待处理。
+pub const MEMBER_CONFLICT_PENDING: i32 = 0;
+/// 冲突状态：已裁决关联到既有全局会员。
+pub const MEMBER_CONFLICT_LINKED: i32 = 1;
+/// 冲突状态：已裁决独立建号。
+pub const MEMBER_CONFLICT_SEPARATE: i32 = 2;
+/// 冲突状态：已忽略。
+pub const MEMBER_CONFLICT_IGNORED: i32 = 3;
+
+/// 冲突类型：同一连接内同一手机号对应多个远端会员（一对多）。
+pub const CONFLICT_MOBILE_MULTI_REMOTE: &str = "mobile_multi_remote";
+/// 冲突类型：同一手机号已对应多个全局 ID（多对一/历史多号）。
+pub const CONFLICT_MOBILE_CLAIMED: &str = "mobile_claimed";
+/// 冲突类型：手机号相同但实名姓名不一致。
+pub const CONFLICT_IDENTITY_MISMATCH: &str = "identity_mismatch";
+/// 冲突类型：手机号未经验证，不满足自动关联前提。
+pub const CONFLICT_UNVERIFIED_MOBILE: &str = "unverified_mobile";
+
+pub const MSG_MEMBER_MODULE_OFF: &str = "会员联邦模块未开启";
+pub const MSG_ORDER_MODULE_OFF: &str = "订单模块未开启";
+pub const MSG_MEMBER_NOT_FOUND: &str = "联邦会员不存在";
+pub const MSG_CONFLICT_NOT_FOUND: &str = "会员冲突记录不存在";
+pub const MSG_HUB_SIGNATURE_INVALID: &str = "联邦推送签名无效或已过期";
+
+/// 推送类端点签名时间戳窗口（秒，设计 §9.3 ±5 分钟）。
+pub const HUB_SIGNATURE_WINDOW_SECONDS: i64 = 300;
+
+/// 全局会员 ID 形态：`gm_` + UUID（设计 §6.1，终身不变、不复用）。
+#[must_use]
+pub fn format_global_member_id(uuid: &str) -> String {
+    format!("gm_{}", uuid.trim())
+}
+
+/// 纯逻辑：手机号脱敏（前 3 后 4；短串全掩）。日志/看板/VO 共用（设计 §6.6）。
+#[must_use]
+pub fn mask_mobile(mobile: &str) -> String {
+    let chars: Vec<char> = mobile.chars().collect();
+    if chars.len() < 7 {
+        return "****".to_string();
+    }
+    let head: String = chars.iter().take(3).collect();
+    let tail: String = chars.iter().skip(chars.len() - 4).collect();
+    format!("{head}****{tail}")
+}
+
+/// 同手机号既有映射的精简视图（匹配纯逻辑入参）。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MobileMatchRow {
+    pub global_member_id: String,
+    pub link_id: i32,
+    pub remote_member_id: i32,
+    pub real_name: String,
+}
+
+/// 手机号匹配裁决（设计 §6.2）：系统永不凭弱信号自动合并。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MemberMatchDecision {
+    /// 新建全局 ID 并关联。
+    CreateNew,
+    /// 关联到既有全局 ID。
+    LinkTo(String),
+    /// 进冲突队列人工裁决（冲突类型 + 候选全局 ID，可空）。
+    Conflict(&'static str, String),
+}
+
+/// 纯逻辑：给定同手机号的全部已关联映射行，为（link_id, remote_member_id）
+/// 的一次新上报裁决去向。调用方保证该（连接, 远端会员）尚无映射行。
+#[must_use]
+pub fn decide_member_match(
+    rows: &[MobileMatchRow],
+    link_id: i32,
+    real_name: &str,
+) -> MemberMatchDecision {
+    let mut globals: Vec<&str> = Vec::new();
+    for row in rows {
+        if !globals.contains(&row.global_member_id.as_str()) {
+            globals.push(row.global_member_id.as_str());
+        }
+    }
+    match globals.len() {
+        0 => MemberMatchDecision::CreateNew,
+        1 => {
+            let gid = globals[0].to_string();
+            // 同一连接内已有别的远端会员占住这个全局 ID：一对多，人工裁决。
+            if rows.iter().any(|r| r.link_id == link_id) {
+                return MemberMatchDecision::Conflict(CONFLICT_MOBILE_MULTI_REMOTE, gid);
+            }
+            // 实名不一致是强冲突信号：两侧都给了实名且不同 → 人工裁决。
+            let known_name = rows
+                .iter()
+                .map(|r| r.real_name.trim())
+                .find(|n| !n.is_empty())
+                .unwrap_or("");
+            if !real_name.trim().is_empty() && !known_name.is_empty() && real_name.trim() != known_name {
+                return MemberMatchDecision::Conflict(CONFLICT_IDENTITY_MISMATCH, gid);
+            }
+            MemberMatchDecision::LinkTo(gid)
+        }
+        _ => MemberMatchDecision::Conflict(
+            CONFLICT_MOBILE_CLAIMED,
+            globals[0].to_string(),
+        ),
+    }
+}
+
+/// `hub_member_link` 行（中枢侧映射）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubMemberLink {
+    pub id: i32,
+    pub global_member_id: String,
+    pub link_id: i32,
+    pub remote_member_id: i32,
+    pub mobile_hash: String,
+    pub mobile_enc: String,
+    pub nickname: String,
+    pub avatar: String,
+    pub birthday: String,
+    pub email: String,
+    pub real_name: String,
+    pub profile_updated_at: i32,
+    pub status: i16,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// `hub_member_map` 行（成员侧映射）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubMemberMap {
+    pub id: i32,
+    pub link_id: i32,
+    pub local_user_id: i32,
+    pub global_member_id: String,
+    pub profile_updated_at: i32,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// `hub_member_conflict` 行（中枢侧冲突队列，带上报快照）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubMemberConflict {
+    pub id: i32,
+    pub link_id: i32,
+    pub remote_member_id: i32,
+    pub mobile_hash: String,
+    pub mobile_enc: String,
+    pub nickname: String,
+    pub avatar: String,
+    pub birthday: String,
+    pub email: String,
+    pub real_name: String,
+    pub profile_updated_at: i32,
+    pub candidate_global_member_id: String,
+    pub conflict_type: String,
+    pub status: i16,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// `hub_order_summary` 行（中枢侧订单头级汇总）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubOrderSummary {
+    pub id: i32,
+    pub link_id: i32,
+    pub remote_instance_uuid: String,
+    pub remote_order_sn: String,
+    pub remote_shop_id: i32,
+    pub remote_shop_name: String,
+    pub remote_user_id: i32,
+    pub global_member_id: String,
+    pub order_amount: Decimal,
+    pub paid_amount: Decimal,
+    pub order_status: i32,
+    pub pay_status: i32,
+    pub item_count: i32,
+    pub order_time: i32,
+    pub pay_time: i32,
+    pub status_version: i64,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// 调用日志 VO（管理端；全仓统一 camelCase——行结构 HubCallLogRow 是
+/// snake_case 的 DB 形态，不得直出 API，前端表格按 camelCase 取数）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubCallLogVO {
+    pub log_id: i32,
+    pub link_id: i32,
+    pub credential_id: i32,
+    pub access_key: String,
+    pub endpoint: String,
+    pub scope: String,
+    pub direction: i32,
+    pub http_status: i32,
+    pub result_count: i32,
+    pub client_ip: String,
+    pub duration_ms: i32,
+    pub add_time: i32,
+}
+
+impl From<&HubCallLogRow> for HubCallLogVO {
+    fn from(r: &HubCallLogRow) -> Self {
+        Self {
+            log_id: r.log_id,
+            link_id: r.link_id,
+            credential_id: r.credential_id,
+            access_key: r.access_key.clone(),
+            endpoint: r.endpoint.clone(),
+            scope: r.scope.clone(),
+            direction: i32::from(r.direction),
+            http_status: r.http_status,
+            result_count: r.result_count,
+            client_ip: r.client_ip.clone(),
+            duration_ms: r.duration_ms,
+            add_time: r.add_time,
+        }
+    }
+}
+
+// ———————— 联邦面：会员同步（member.sync，推送类、HMAC 签名） ————————
+
+/// 会员同步事件（成员 → 中枢，一批多条）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MemberSyncEvent {
+    pub remote_member_id: i32,
+    /// `upsert`（默认）/ `unbind`。
+    pub event_type: String,
+    pub mobile: String,
+    pub mobile_validated: bool,
+    pub email: String,
+    pub nickname: String,
+    pub avatar: String,
+    pub birthday: String,
+    pub real_name: String,
+    /// 远端资料版本戳（秒；后写优先比较用）。
+    pub profile_updated_at: i64,
+}
+
+/// `POST /api/hub/v1/members/sync` 入参。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MemberSyncDTO {
+    pub events: Vec<MemberSyncEvent>,
+}
+
+/// 单条同步结果。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemberSyncItemVO {
+    pub remote_member_id: i32,
+    /// 已裁决的全局 ID；冲突/跳过时为空（冲突裁决后经 anchor/轮询回补）。
+    pub global_member_id: String,
+    /// `created` / `linked` / `conflict` / `unbound` / `skipped`。
+    pub outcome: String,
+}
+
+/// `POST /api/hub/v1/members/sync` 响应。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemberSyncResultVO {
+    pub results: Vec<MemberSyncItemVO>,
+    pub server_time: i64,
+}
+
+/// `GET /api/hub/v1/members/query` 响应（中枢按全局 ID/手机号下钻成员侧会员）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemberQueryVO {
+    pub global_member_id: String,
+    pub local_member_id: i32,
+    /// 脱敏手机号（全号只在映射密文里，接口不回明文）。
+    pub mobile_masked: String,
+    pub nickname: String,
+    pub avatar: String,
+    pub birthday: String,
+    pub email: String,
+    /// 本地账号状态（user.status：1 启用 / 0 禁用，可能为空回 -1）。
+    pub account_status: i32,
+}
+
+/// `GET /api/hub/v1/members/anchor` 响应（成员向中枢核对身份锚点状态）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemberAnchorVO {
+    pub global_member_id: String,
+    pub exists: bool,
+    /// 本连接名下的映射状态（1 已关联 / 3 已解绑 / 0 无映射）。
+    pub link_status: i32,
+    pub mobile_masked: String,
+    pub profile_updated_at: i32,
+}
+
+// ———————— 联邦面：订单上行（order.report，推送类、HMAC 签名） ————————
+
+/// 订单头级汇总条目（成员 → 中枢；设计 §7.1 白名单字段，无地址/明细）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct OrderReportItem {
+    pub remote_order_sn: String,
+    pub remote_shop_id: i32,
+    pub remote_shop_name: String,
+    pub remote_user_id: i32,
+    pub global_member_id: String,
+    pub order_amount: Decimal,
+    pub paid_amount: Decimal,
+    pub order_status: i32,
+    pub pay_status: i32,
+    pub item_count: i32,
+    pub order_time: i32,
+    pub pay_time: i32,
+    /// 远端事件时间戳（add/pay/ship/receive 取大），旧版本不覆盖新版本。
+    pub status_version: i64,
+}
+
+/// `POST /api/hub/v1/orders/report` 入参。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct OrderReportDTO {
+    pub orders: Vec<OrderReportItem>,
+}
+
+/// `POST /api/hub/v1/orders/report` 响应（幂等计数）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderReportResultVO {
+    pub created: i64,
+    pub updated: i64,
+    /// 旧版本/非法条目被跳过数。
+    pub skipped: i64,
+    pub server_time: i64,
+}
+
+// ———————— 管理端：会员联邦 / 订单上行 ————————
+
+/// 会员映射列表查询（中枢侧）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HubMemberListQuery {
+    pub page: Option<u64>,
+    #[serde(alias = "size")]
+    pub page_size: Option<u64>,
+    pub link_id: Option<i32>,
+    pub status: Option<i32>,
+    /// 全局 ID / 昵称模糊。
+    pub keyword: Option<String>,
+}
+
+/// 会员映射 VO（手机号只出脱敏）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubMemberLinkVO {
+    pub id: i32,
+    pub global_member_id: String,
+    pub link_id: i32,
+    pub remote_member_id: i32,
+    pub mobile_masked: String,
+    pub nickname: String,
+    pub avatar: String,
+    pub birthday: String,
+    pub email: String,
+    pub profile_updated_at: i32,
+    pub status: i32,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// 冲突队列查询。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HubMemberConflictListQuery {
+    pub page: Option<u64>,
+    #[serde(alias = "size")]
+    pub page_size: Option<u64>,
+    pub link_id: Option<i32>,
+    pub status: Option<i32>,
+}
+
+/// 冲突 VO（手机号只出脱敏）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubMemberConflictVO {
+    pub id: i32,
+    pub link_id: i32,
+    pub remote_member_id: i32,
+    pub mobile_masked: String,
+    pub nickname: String,
+    pub email: String,
+    pub candidate_global_member_id: String,
+    pub conflict_type: String,
+    pub status: i32,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// 冲突裁决入参：`link` 关联候选全局 ID / `separate` 独立建号 / `ignore` 忽略。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HubMemberResolveDTO {
+    pub conflict_id: i32,
+    pub action: String,
+}
+
+/// 订单上行列表查询（中枢侧）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HubOrderSummaryListQuery {
+    pub page: Option<u64>,
+    #[serde(alias = "size")]
+    pub page_size: Option<u64>,
+    pub link_id: Option<i32>,
+    /// 远端订单号模糊。
+    pub keyword: Option<String>,
+}
+
+/// 订单汇总 VO。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubOrderSummaryVO {
+    pub id: i32,
+    pub link_id: i32,
+    pub remote_instance_uuid: String,
+    pub remote_order_sn: String,
+    pub remote_shop_id: i32,
+    pub remote_shop_name: String,
+    pub remote_user_id: i32,
+    pub global_member_id: String,
+    pub order_amount: Decimal,
+    pub paid_amount: Decimal,
+    pub order_status: i32,
+    pub pay_status: i32,
+    pub item_count: i32,
+    pub order_time: i32,
+    pub pay_time: i32,
+    pub update_time: i32,
+}
+
+impl From<&HubOrderSummary> for HubOrderSummaryVO {
+    fn from(r: &HubOrderSummary) -> Self {
+        Self {
+            id: r.id,
+            link_id: r.link_id,
+            remote_instance_uuid: r.remote_instance_uuid.clone(),
+            remote_order_sn: r.remote_order_sn.clone(),
+            remote_shop_id: r.remote_shop_id,
+            remote_shop_name: r.remote_shop_name.clone(),
+            remote_user_id: r.remote_user_id,
+            global_member_id: r.global_member_id.clone(),
+            order_amount: r.order_amount,
+            paid_amount: r.paid_amount,
+            order_status: r.order_status,
+            pay_status: r.pay_status,
+            item_count: r.item_count,
+            order_time: r.order_time,
+            pay_time: r.pay_time,
+            update_time: r.update_time,
+        }
+    }
+}
+
+/// 本地会员扫描行（成员侧发送端读 `"user"` 表的窄列视图）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct LocalMemberRow {
+    pub user_id: i32,
+    pub mobile: String,
+    pub mobile_validated: i32,
+    pub email: Option<String>,
+    pub nickname: Option<String>,
+    pub avatar: Option<String>,
+    pub birthday: Option<String>,
+    pub status: Option<i32>,
+    pub reg_time: i32,
+    pub last_login: i32,
+}
+
+/// 本地订单扫描行（成员侧上报端读 `"order"` 头 + 件数聚合的窄列视图）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct LocalOrderRow {
+    pub order_id: i32,
+    pub order_sn: String,
+    pub user_id: i32,
+    pub shop_id: i32,
+    pub shop_name: String,
+    pub order_status: i32,
+    pub pay_status: i32,
+    pub total_amount: Decimal,
+    pub paid_amount: Decimal,
+    pub item_count: i32,
+    pub add_time: i32,
+    pub pay_time: i32,
+    /// GREATEST(add/pay/shipping/received) —— 状态版本戳。
+    pub version_time: i32,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -965,5 +1482,101 @@ mod tests {
         assert!(validate_settle_fields("bogus", "", "", "").is_err());
         assert!(validate_settle_fields("", "t_plus_7", "channel_split", "link_override").is_ok());
         assert!(validate_settle_fields("", "daily", "", "").is_err());
+    }
+}
+
+#[cfg(test)]
+mod member_order_tests {
+    use super::*;
+
+    fn row(gid: &str, link_id: i32, remote: i32, name: &str) -> MobileMatchRow {
+        MobileMatchRow {
+            global_member_id: gid.to_string(),
+            link_id,
+            remote_member_id: remote,
+            real_name: name.to_string(),
+        }
+    }
+
+    #[test]
+    fn match_creates_new_when_no_existing() {
+        assert_eq!(decide_member_match(&[], 7, ""), MemberMatchDecision::CreateNew);
+    }
+
+    #[test]
+    fn match_links_single_global_from_other_link() {
+        let rows = vec![row("gm_a", 3, 11, "")];
+        assert_eq!(
+            decide_member_match(&rows, 7, ""),
+            MemberMatchDecision::LinkTo("gm_a".to_string())
+        );
+    }
+
+    #[test]
+    fn match_conflicts_when_same_link_other_remote() {
+        // 同一成员实例内两个本地账号共用一个手机号：一对多，永不自动合并。
+        let rows = vec![row("gm_a", 7, 11, "")];
+        assert_eq!(
+            decide_member_match(&rows, 7, ""),
+            MemberMatchDecision::Conflict(CONFLICT_MOBILE_MULTI_REMOTE, "gm_a".to_string())
+        );
+    }
+
+    #[test]
+    fn match_conflicts_when_mobile_claimed_by_two_globals() {
+        let rows = vec![row("gm_a", 3, 11, ""), row("gm_b", 4, 12, "")];
+        assert_eq!(
+            decide_member_match(&rows, 7, ""),
+            MemberMatchDecision::Conflict(CONFLICT_MOBILE_CLAIMED, "gm_a".to_string())
+        );
+    }
+
+    #[test]
+    fn match_conflicts_on_real_name_mismatch_only() {
+        let rows = vec![row("gm_a", 3, 11, "张三")];
+        assert_eq!(
+            decide_member_match(&rows, 7, "李四"),
+            MemberMatchDecision::Conflict(CONFLICT_IDENTITY_MISMATCH, "gm_a".to_string())
+        );
+        // 同名或任一侧未给实名 → 正常关联
+        assert_eq!(
+            decide_member_match(&rows, 7, "张三"),
+            MemberMatchDecision::LinkTo("gm_a".to_string())
+        );
+        assert_eq!(
+            decide_member_match(&rows, 7, ""),
+            MemberMatchDecision::LinkTo("gm_a".to_string())
+        );
+    }
+
+    #[test]
+    fn mask_mobile_cases() {
+        assert_eq!(mask_mobile("13812345678"), "138****5678");
+        assert_eq!(mask_mobile("12345"), "****");
+        assert_eq!(mask_mobile(""), "****");
+    }
+
+    #[test]
+    fn global_member_id_format() {
+        assert_eq!(
+            format_global_member_id("329e736b-90b0-4d8b"),
+            "gm_329e736b-90b0-4d8b"
+        );
+    }
+
+    #[test]
+    fn call_log_vo_uses_camel_case_keys() {
+        let row = HubCallLogRow {
+            log_id: 5,
+            http_status: 200,
+            client_ip: "1.2.3.4".to_string(),
+            ..Default::default()
+        };
+        let vo = HubCallLogVO::from(&row);
+        let v = serde_json::to_value(&vo).expect("serialize");
+        assert_eq!(v["logId"], 5);
+        assert_eq!(v["httpStatus"], 200);
+        assert_eq!(v["clientIp"], "1.2.3.4");
+        assert!(v.get("log_id").is_none(), "VO 不得再出 snake_case 键");
     }
 }

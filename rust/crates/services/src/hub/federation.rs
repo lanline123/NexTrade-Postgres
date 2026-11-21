@@ -5,7 +5,13 @@
 //! 通用凭证（§4，新表族 hub_credential*，不改 feed 旧表；商品范围/价格规则
 //! 复用 product_feed 的 FeedAudience 纯口径）、三档连接与配对（§3）、
 //! 商品上行聚合（§5，拉取为主）、心跳与注册表（§8）。
-//! 会员/订单/结算 P1 只落开关与结构，功能分别在 P2/P3。
+//!
+//! 二期（迁移 028）续补「同步核」：会员同步（§6.1/§6.2/§6.4：全局 ID 映射、
+//! 手机号匹配与冲突队列、资料快照后写优先、锚点核对）与订单头级上行
+//! （§7.1：幂等 + 版本守卫）。推送类端点按 §9.3 加 HMAC 签名：签名密钥为
+//! secret 的 SHA-256 摘要（中枢侧只存哈希、永不存明文，故以摘要为共享密钥，
+//! 与设计「hmac(secret, …)」等价强度）。登录互认（§6.3）、中央账本（§6.5）、
+//! 跨店下单（§7.2）与结算（§11）不在本批。
 //!
 //! 安全口径：入站钥 secret 只存 SHA-256 哈希、明文仅签发时回一次；
 //! 出站钥 secret 以 AES-GCM 加密落库（主密钥 env `NEXTTRADE_FED_SECRET_KEY`，
@@ -18,8 +24,10 @@ use std::time::Instant;
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::Engine;
+use hmac::{Hmac, Mac};
 use rust_decimal::Decimal;
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 
 use nextrade_common::utils;
 use nextrade_core::models::catalog::product_feed::{
@@ -126,6 +134,10 @@ impl FederationService {
             "linksDisabled": repo.count_links_by_status(LINK_DISABLED).await?,
             "credentials": repo.count_credentials().await?,
             "aggregationProducts": repo.count_maps().await?,
+            // 二期计数（迁移 028 未执行时回落 0，不拖垮概览）。
+            "membersLinked": repo.count_member_links().await.unwrap_or(0),
+            "memberConflictsPending": repo.count_pending_conflicts().await.unwrap_or(0),
+            "ordersReported": repo.sum_order_summaries(None).await.map(|t| t.0).unwrap_or(0),
         }))
     }
 
@@ -862,13 +874,16 @@ impl FederationService {
     pub async fn list_call_logs(
         &self,
         q: &HubCallLogListQuery,
-    ) -> Result<PageResult<HubCallLogRow>> {
+    ) -> Result<PageResult<HubCallLogVO>> {
         let (rows, total) = self.repo().list_call_logs(q).await?;
+        // 行结构是 snake_case 的 DB 形态，一律经 VO 转 camelCase 出 API
+        //（全仓 VO 口径统一；前端表格按 camelCase 取数）。
+        let list: Vec<HubCallLogVO> = rows.iter().map(HubCallLogVO::from).collect();
         let page = PageQuery {
             page: q.page.unwrap_or(1),
             page_size: q.page_size.unwrap_or(20),
         };
-        Ok(PageResult::new(total.max(0) as u64, rows, &page))
+        Ok(PageResult::new(total.max(0) as u64, list, &page))
     }
 
     // ———————————————————— 联邦面：商品与元信息 ————————————————————
@@ -1855,6 +1870,713 @@ impl FederationService {
         }))
     }
 
+    // ———————————————————— 二期：模块闸与推送签名（设计 §2.3/§9.3） ————————————————————
+
+    /// 管理端模块闸：模块开关关 ⇒ 403（联邦面由 authenticate 的模块交集把关）。
+    async fn gate_module(&self, module: i64, msg: &str) -> Result<FederationSettings> {
+        let settings = self.gate().await?;
+        if settings.module_bits() & module == 0 {
+            return Err(Error::Forbidden(msg.to_string()));
+        }
+        Ok(settings)
+    }
+
+    /// 校验推送类端点的 HMAC 签名（路由层在 authenticate 通过后调用）。
+    /// 签名 = HMAC-SHA256(key = SHA-256(secret) 摘要, "{timestamp}.{body}")；
+    /// 中枢侧只存 secret_hash（即摘要的 hex），解码即同一密钥。
+    ///
+    /// # Errors
+    /// 时间戳超 ±5 分钟窗口 / 签名不符 → Forbidden 统一文案。
+    pub fn verify_push_signature(
+        &self,
+        cred: &HubCredential,
+        timestamp: i64,
+        signature: &str,
+        body: &str,
+    ) -> Result<()> {
+        verify_signature_with_hash(&cred.secret_hash, timestamp, signature, body)
+    }
+
+    /// 手机号密文（落映射/冲突快照用）：主密钥未配置时回落空串（展示全掩），
+    /// 不因加密不可用拖垮整批同步——哈希匹配面不受影响。
+    fn encrypt_mobile(&self, mobile: &str) -> String {
+        if mobile.is_empty() {
+            return String::new();
+        }
+        self.encrypt_secret(mobile).unwrap_or_default()
+    }
+
+    /// 映射行手机号脱敏展示（解密失败/无密文 → 全掩）。
+    fn masked_mobile_of(&self, mobile_enc: &str) -> String {
+        if mobile_enc.is_empty() {
+            return "****".to_string();
+        }
+        match self.decrypt_secret(mobile_enc) {
+            Ok(m) if !m.is_empty() => mask_mobile(&m),
+            _ => "****".to_string(),
+        }
+    }
+
+    // ———————————————————— 二期：会员同步（设计 §6.1/§6.2/§6.4） ————————————————————
+
+    /// 中枢侧接收一批会员同步事件（member.sync 已由路由鉴权 + 验签）。
+    pub async fn receive_member_sync(
+        &self,
+        cred: &HubCredential,
+        dto: &MemberSyncDTO,
+    ) -> Result<MemberSyncResultVO> {
+        if cred.link_id <= 0 {
+            return Err(Error::Validation("会员同步凭证未绑定连接".to_string()));
+        }
+        let link = self.load_link(cred.link_id).await?;
+        let now = self.now();
+        let mut results = Vec::with_capacity(dto.events.len());
+        for ev in &dto.events {
+            results.push(self.apply_member_event(&link, ev, now).await?);
+        }
+        Ok(MemberSyncResultVO {
+            results,
+            server_time: i64::from(now),
+        })
+    }
+
+    /// 单条会员事件落账：已有映射走快照后写优先；新面孔走手机号匹配裁决。
+    async fn apply_member_event(
+        &self,
+        link: &HubLink,
+        ev: &MemberSyncEvent,
+        now: i32,
+    ) -> Result<MemberSyncItemVO> {
+        let remote = ev.remote_member_id;
+        let item = |gid: &str, outcome: &str| MemberSyncItemVO {
+            remote_member_id: remote,
+            global_member_id: gid.to_string(),
+            outcome: outcome.to_string(),
+        };
+        if remote <= 0 {
+            return Ok(item("", "skipped"));
+        }
+        let link_id = link.link_id;
+        if ev.event_type.trim() == "unbind" {
+            return match self.repo().find_member_link_by_remote(link_id, remote).await? {
+                Some(row) => {
+                    self.repo()
+                        .set_member_link_status(link_id, remote, MEMBER_LINK_UNBOUND, now)
+                        .await?;
+                    Ok(item(&row.global_member_id, "unbound"))
+                }
+                None => Ok(item("", "skipped")),
+            };
+        }
+        let mobile = ev.mobile.trim().to_string();
+        let stamp = i32::try_from(ev.profile_updated_at).unwrap_or(i32::MAX);
+        if let Some(row) = self.repo().find_member_link_by_remote(link_id, remote).await? {
+            // 换号且新号已被别的全局 ID 占用 → 身份类变更不自动覆盖，进冲突队列。
+            if !mobile.is_empty() {
+                let new_hash = utils::sha256_hex(&mobile);
+                if new_hash != row.mobile_hash {
+                    let others = self.repo().list_member_links_by_mobile_hash(&new_hash).await?;
+                    if let Some(other) = others
+                        .iter()
+                        .find(|r| r.global_member_id != row.global_member_id)
+                    {
+                        let gid = other.global_member_id.clone();
+                        self.enqueue_conflict(link_id, ev, &new_hash, CONFLICT_MOBILE_CLAIMED, &gid, now)
+                            .await?;
+                        return Ok(item("", "conflict"));
+                    }
+                }
+            }
+            if stamp >= row.profile_updated_at {
+                let (hash, enc) = if mobile.is_empty() {
+                    (row.mobile_hash.clone(), row.mobile_enc.clone())
+                } else {
+                    (utils::sha256_hex(&mobile), self.encrypt_mobile(&mobile))
+                };
+                self.repo()
+                    .update_member_link_snapshot(
+                        row.id,
+                        &hash,
+                        &enc,
+                        ev.nickname.trim(),
+                        ev.avatar.trim(),
+                        ev.birthday.trim(),
+                        ev.email.trim(),
+                        ev.real_name.trim(),
+                        stamp,
+                        now,
+                    )
+                    .await?;
+            }
+            return Ok(item(&row.global_member_id, "linked"));
+        }
+        // 新面孔：只有已验证手机号能进自动匹配（设计 §6.2）。
+        if mobile.is_empty() {
+            return Ok(item("", "skipped"));
+        }
+        let hash = utils::sha256_hex(&mobile);
+        if !ev.mobile_validated {
+            self.enqueue_conflict(link_id, ev, &hash, CONFLICT_UNVERIFIED_MOBILE, "", now)
+                .await?;
+            return Ok(item("", "conflict"));
+        }
+        let rows = self.repo().list_member_links_by_mobile_hash(&hash).await?;
+        let match_rows: Vec<MobileMatchRow> = rows
+            .iter()
+            .map(|r| MobileMatchRow {
+                global_member_id: r.global_member_id.clone(),
+                link_id: r.link_id,
+                remote_member_id: r.remote_member_id,
+                real_name: r.real_name.clone(),
+            })
+            .collect();
+        match decide_member_match(&match_rows, link_id, ev.real_name.trim()) {
+            MemberMatchDecision::CreateNew => {
+                let gid = format_global_member_id(&uuid::Uuid::new_v4().to_string());
+                self.insert_member_link_from_event(&gid, link_id, ev, &hash, stamp, now)
+                    .await?;
+                Ok(item(&gid, "created"))
+            }
+            MemberMatchDecision::LinkTo(gid) => {
+                self.insert_member_link_from_event(&gid, link_id, ev, &hash, stamp, now)
+                    .await?;
+                Ok(item(&gid, "linked"))
+            }
+            MemberMatchDecision::Conflict(kind, candidate) => {
+                self.enqueue_conflict(link_id, ev, &hash, kind, &candidate, now)
+                    .await?;
+                Ok(item("", "conflict"))
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn insert_member_link_from_event(
+        &self,
+        gid: &str,
+        link_id: i32,
+        ev: &MemberSyncEvent,
+        mobile_hash: &str,
+        stamp: i32,
+        now: i32,
+    ) -> Result<()> {
+        self.repo()
+            .insert_member_link(
+                gid,
+                link_id,
+                ev.remote_member_id,
+                mobile_hash,
+                &self.encrypt_mobile(ev.mobile.trim()),
+                ev.nickname.trim(),
+                ev.avatar.trim(),
+                ev.birthday.trim(),
+                ev.email.trim(),
+                ev.real_name.trim(),
+                stamp,
+                now,
+            )
+            .await?;
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn enqueue_conflict(
+        &self,
+        link_id: i32,
+        ev: &MemberSyncEvent,
+        mobile_hash: &str,
+        conflict_type: &str,
+        candidate: &str,
+        now: i32,
+    ) -> Result<()> {
+        self.repo()
+            .insert_member_conflict(
+                link_id,
+                ev.remote_member_id,
+                mobile_hash,
+                &self.encrypt_mobile(ev.mobile.trim()),
+                ev.nickname.trim(),
+                ev.avatar.trim(),
+                ev.birthday.trim(),
+                ev.email.trim(),
+                ev.real_name.trim(),
+                i32::try_from(ev.profile_updated_at).unwrap_or(i32::MAX),
+                candidate,
+                conflict_type,
+                now,
+            )
+            .await
+    }
+
+    /// 成员侧应答中枢下钻（member.read）：按全局 ID（经本地映射）或手机号
+    /// 回本地会员资料。查无此人 → 404（范围外与不存在不区分，设计 §9.4）。
+    pub async fn hub_member_query(
+        &self,
+        cred: &HubCredential,
+        global_member_id: &str,
+        mobile: &str,
+    ) -> Result<MemberQueryVO> {
+        if cred.link_id <= 0 {
+            return Err(Error::Validation("会员查询凭证未绑定连接".to_string()));
+        }
+        let gid = global_member_id.trim();
+        let user = if !gid.is_empty() {
+            let map = self
+                .repo()
+                .find_member_map_by_global(cred.link_id, gid)
+                .await?
+                .ok_or_else(|| Error::NotFound(MSG_MEMBER_NOT_FOUND.to_string()))?;
+            self.repo()
+                .find_local_member_by_id(map.local_user_id)
+                .await?
+        } else if !mobile.trim().is_empty() {
+            self.repo().find_local_member_by_mobile(mobile.trim()).await?
+        } else {
+            return Err(Error::Validation("缺少 globalMemberId 或 mobile".to_string()));
+        };
+        let user = user.ok_or_else(|| Error::NotFound(MSG_MEMBER_NOT_FOUND.to_string()))?;
+        let mapped_gid = self
+            .repo()
+            .find_member_map_by_user(cred.link_id, user.user_id)
+            .await?
+            .map(|m| m.global_member_id)
+            .unwrap_or_else(|| gid.to_string());
+        Ok(MemberQueryVO {
+            global_member_id: mapped_gid,
+            local_member_id: user.user_id,
+            mobile_masked: mask_mobile(&user.mobile),
+            nickname: user.nickname.clone().unwrap_or_default(),
+            avatar: user.avatar.clone().unwrap_or_default(),
+            birthday: user.birthday.clone().unwrap_or_default(),
+            email: user.email.clone().unwrap_or_default(),
+            account_status: user.status.unwrap_or(-1),
+        })
+    }
+
+    /// 中枢侧应答成员锚点核对（member.sync 通道）：回该全局 ID 在调用方
+    /// 连接名下的映射状态与资料版本戳（身份类以中枢为准，设计 §6.4）。
+    pub async fn hub_member_anchor(
+        &self,
+        cred: &HubCredential,
+        global_member_id: &str,
+    ) -> Result<MemberAnchorVO> {
+        if cred.link_id <= 0 {
+            return Err(Error::Validation("锚点核对凭证未绑定连接".to_string()));
+        }
+        let gid = global_member_id.trim();
+        let any = self.repo().find_member_link_by_global(gid).await?;
+        let mine = self
+            .repo()
+            .find_member_link_by_link_global(cred.link_id, gid)
+            .await?;
+        Ok(MemberAnchorVO {
+            global_member_id: gid.to_string(),
+            exists: any.is_some(),
+            link_status: mine
+                .as_ref()
+                .map(|r| i32::from(r.status))
+                .unwrap_or(0),
+            mobile_masked: mine
+                .as_ref()
+                .map(|r| self.masked_mobile_of(&r.mobile_enc))
+                .unwrap_or_else(|| "****".to_string()),
+            profile_updated_at: mine.map(|r| r.profile_updated_at).unwrap_or(0),
+        })
+    }
+
+    /// 成员侧手动同步会员到中枢（自动调度同心跳口径留后续）：按 user_id
+    /// 游标增量分批推送，回执的全局 ID 落本地映射 hub_member_map。
+    pub async fn sync_members(&self, link_id: i32) -> Result<Value> {
+        let settings = self.gate().await?;
+        if !settings.modules.member {
+            return Err(Error::Forbidden(MSG_MEMBER_MODULE_OFF.to_string()));
+        }
+        let link = self.load_link(link_id).await?;
+        if i32::from(link.role) != LINK_ROLE_MEMBER || i32::from(link.status) != LINK_ACTIVE {
+            return Err(Error::Validation("仅已激活的成员连接可同步会员".to_string()));
+        }
+        if link.approved_modules & MODULE_MEMBER == 0 {
+            return Err(Error::Forbidden(MSG_MEMBER_MODULE_OFF.to_string()));
+        }
+        let cred = self.load_credential(link.up_credential_id).await?;
+        let secret = self.decrypt_secret(&cred.secret_enc)?;
+        let now = self.now();
+        let mut cursor = link.member_sync_cursor;
+        let (mut scanned, mut created, mut linked, mut conflict, mut skipped) =
+            (0i64, 0i64, 0i64, 0i64, 0i64);
+        for _ in 0..20 {
+            let rows = self.repo().list_local_members_after(cursor, 100).await?;
+            if rows.is_empty() {
+                break;
+            }
+            let events: Vec<MemberSyncEvent> = rows
+                .iter()
+                .map(|u| MemberSyncEvent {
+                    remote_member_id: u.user_id,
+                    event_type: "upsert".to_string(),
+                    mobile: u.mobile.clone(),
+                    mobile_validated: u.mobile_validated == 1,
+                    email: u.email.clone().unwrap_or_default(),
+                    nickname: u.nickname.clone().unwrap_or_default(),
+                    avatar: u.avatar.clone().unwrap_or_default(),
+                    birthday: u.birthday.clone().unwrap_or_default(),
+                    real_name: String::new(),
+                    profile_updated_at: i64::from(u.reg_time.max(u.last_login)),
+                })
+                .collect();
+            let resp = hub_post_json_signed(
+                &link.peer_base_url,
+                "/api/hub/v1/members/sync",
+                &cred.access_key,
+                &secret,
+                &json!({ "events": events }),
+            )
+            .await?;
+            let results = resp
+                .get("results")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            for (u, r) in rows.iter().zip(results.iter()) {
+                let outcome = r.get("outcome").and_then(Value::as_str).unwrap_or("");
+                let gid = r
+                    .get("globalMemberId")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                match outcome {
+                    "created" => created += 1,
+                    "linked" => linked += 1,
+                    "conflict" => conflict += 1,
+                    _ => skipped += 1,
+                }
+                if !gid.is_empty() && matches!(outcome, "created" | "linked") {
+                    self.repo()
+                        .upsert_member_map(
+                            link_id,
+                            u.user_id,
+                            gid,
+                            u.reg_time.max(u.last_login),
+                            now,
+                        )
+                        .await?;
+                }
+            }
+            scanned += rows.len() as i64;
+            cursor = rows.last().map(|u| u.user_id).unwrap_or(cursor);
+            self.repo().update_link_member_cursor(link_id, cursor, now).await?;
+            if rows.len() < 100 {
+                break;
+            }
+        }
+        tracing::info!(
+            "联邦会员同步完成: link={link_id}, scanned={scanned}, created={created}, linked={linked}, conflict={conflict}"
+        );
+        Ok(json!({
+            "scanned": scanned,
+            "created": created,
+            "linked": linked,
+            "conflict": conflict,
+            "skipped": skipped,
+            "cursor": cursor,
+        }))
+    }
+
+    /// 管理端：会员映射列表（中枢侧，会员模块闸）。
+    pub async fn list_members(
+        &self,
+        q: &HubMemberListQuery,
+    ) -> Result<PageResult<HubMemberLinkVO>> {
+        self.gate_module(MODULE_MEMBER, MSG_MEMBER_MODULE_OFF).await?;
+        let (rows, total) = self.repo().list_member_links(q).await?;
+        let list = rows
+            .iter()
+            .map(|r| HubMemberLinkVO {
+                id: r.id,
+                global_member_id: r.global_member_id.clone(),
+                link_id: r.link_id,
+                remote_member_id: r.remote_member_id,
+                mobile_masked: self.masked_mobile_of(&r.mobile_enc),
+                nickname: r.nickname.clone(),
+                avatar: r.avatar.clone(),
+                birthday: r.birthday.clone(),
+                email: r.email.clone(),
+                profile_updated_at: r.profile_updated_at,
+                status: i32::from(r.status),
+                add_time: r.add_time,
+                update_time: r.update_time,
+            })
+            .collect();
+        let page = PageQuery {
+            page: q.page.unwrap_or(1),
+            page_size: q.page_size.unwrap_or(20),
+        };
+        Ok(PageResult::new(total.max(0) as u64, list, &page))
+    }
+
+    /// 管理端：冲突队列列表。
+    pub async fn list_member_conflicts(
+        &self,
+        q: &HubMemberConflictListQuery,
+    ) -> Result<PageResult<HubMemberConflictVO>> {
+        self.gate_module(MODULE_MEMBER, MSG_MEMBER_MODULE_OFF).await?;
+        let (rows, total) = self.repo().list_member_conflicts(q).await?;
+        let list = rows
+            .iter()
+            .map(|r| HubMemberConflictVO {
+                id: r.id,
+                link_id: r.link_id,
+                remote_member_id: r.remote_member_id,
+                mobile_masked: self.masked_mobile_of(&r.mobile_enc),
+                nickname: r.nickname.clone(),
+                email: r.email.clone(),
+                candidate_global_member_id: r.candidate_global_member_id.clone(),
+                conflict_type: r.conflict_type.clone(),
+                status: i32::from(r.status),
+                add_time: r.add_time,
+                update_time: r.update_time,
+            })
+            .collect();
+        let page = PageQuery {
+            page: q.page.unwrap_or(1),
+            page_size: q.page_size.unwrap_or(20),
+        };
+        Ok(PageResult::new(total.max(0) as u64, list, &page))
+    }
+
+    /// 管理端：冲突裁决（link 关联候选 / separate 独立建号 / ignore 忽略）。
+    /// 裁决落映射时复用冲突行内的上报快照，不回源再取。
+    pub async fn resolve_member_conflict(&self, dto: &HubMemberResolveDTO) -> Result<()> {
+        self.gate_module(MODULE_MEMBER, MSG_MEMBER_MODULE_OFF).await?;
+        let conflict = self
+            .repo()
+            .find_member_conflict(dto.conflict_id)
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_CONFLICT_NOT_FOUND.to_string()))?;
+        if i32::from(conflict.status) != MEMBER_CONFLICT_PENDING {
+            return Err(Error::Validation("该冲突已处理".to_string()));
+        }
+        let now = self.now();
+        let (gid, resolved) = match dto.action.trim() {
+            "link" => {
+                if conflict.candidate_global_member_id.is_empty() {
+                    return Err(Error::Validation(
+                        "该冲突无候选全局会员，请改用独立建号".to_string(),
+                    ));
+                }
+                (conflict.candidate_global_member_id.clone(), MEMBER_CONFLICT_LINKED)
+            }
+            "separate" => (
+                format_global_member_id(&uuid::Uuid::new_v4().to_string()),
+                MEMBER_CONFLICT_SEPARATE,
+            ),
+            "ignore" => (String::new(), MEMBER_CONFLICT_IGNORED),
+            _ => return Err(Error::Validation("裁决动作非法".to_string())),
+        };
+        if !gid.is_empty()
+            && self
+                .repo()
+                .find_member_link_by_remote(conflict.link_id, conflict.remote_member_id)
+                .await?
+                .is_none()
+        {
+            self.repo()
+                .insert_member_link(
+                    &gid,
+                    conflict.link_id,
+                    conflict.remote_member_id,
+                    &conflict.mobile_hash,
+                    &conflict.mobile_enc,
+                    &conflict.nickname,
+                    &conflict.avatar,
+                    &conflict.birthday,
+                    &conflict.email,
+                    &conflict.real_name,
+                    conflict.profile_updated_at,
+                    now,
+                )
+                .await?;
+        }
+        self.repo()
+            .update_member_conflict_status(conflict.id, resolved, now)
+            .await
+    }
+
+    // ———————————————————— 二期：订单上行（设计 §7.1） ————————————————————
+
+    /// 中枢侧接收一批订单头级汇总（order.report 已由路由鉴权 + 验签）。
+    /// 幂等键（连接, 远端订单号）+ status_version 守卫：旧版本不覆盖新版本。
+    pub async fn receive_order_report(
+        &self,
+        cred: &HubCredential,
+        dto: &OrderReportDTO,
+    ) -> Result<OrderReportResultVO> {
+        if cred.link_id <= 0 {
+            return Err(Error::Validation("订单上报凭证未绑定连接".to_string()));
+        }
+        let link = self.load_link(cred.link_id).await?;
+        let now = self.now();
+        let (mut created, mut updated, mut skipped) = (0i64, 0i64, 0i64);
+        for item in &dto.orders {
+            let sn = item.remote_order_sn.trim();
+            if sn.is_empty() {
+                skipped += 1;
+                continue;
+            }
+            match self.repo().find_order_summary(cred.link_id, sn).await? {
+                None => {
+                    self.repo()
+                        .upsert_order_summary(cred.link_id, &link.peer_instance_uuid, item, now)
+                        .await?;
+                    created += 1;
+                }
+                Some(old) if item.status_version >= old.status_version => {
+                    self.repo()
+                        .upsert_order_summary(cred.link_id, &link.peer_instance_uuid, item, now)
+                        .await?;
+                    updated += 1;
+                }
+                Some(_) => skipped += 1,
+            }
+        }
+        Ok(OrderReportResultVO {
+            created,
+            updated,
+            skipped,
+            server_time: i64::from(now),
+        })
+    }
+
+    /// 成员侧手动上报订单到中枢：新增按 order_id 游标增量、存量按
+    /// 「版本戳 > 上次上报时间 - 1 天」重扫补状态推进，汇总计数回执。
+    pub async fn report_orders(&self, link_id: i32) -> Result<Value> {
+        let settings = self.gate().await?;
+        if !settings.modules.order {
+            return Err(Error::Forbidden(MSG_ORDER_MODULE_OFF.to_string()));
+        }
+        let link = self.load_link(link_id).await?;
+        if i32::from(link.role) != LINK_ROLE_MEMBER || i32::from(link.status) != LINK_ACTIVE {
+            return Err(Error::Validation("仅已激活的成员连接可上报订单".to_string()));
+        }
+        if link.approved_modules & MODULE_ORDER == 0 {
+            return Err(Error::Forbidden(MSG_ORDER_MODULE_OFF.to_string()));
+        }
+        let cred = self.load_credential(link.up_credential_id).await?;
+        let secret = self.decrypt_secret(&cred.secret_enc)?;
+        let now = self.now();
+        let mut cursor = link.order_sync_cursor;
+        let (mut reported, mut created, mut updated, mut skipped) = (0i64, 0i64, 0i64, 0i64);
+        for _ in 0..20 {
+            let rows = self.repo().list_local_orders_after(cursor, 100).await?;
+            if rows.is_empty() {
+                break;
+            }
+            let items = self.order_items_for(link_id, &rows).await?;
+            let resp = hub_post_json_signed(
+                &link.peer_base_url,
+                "/api/hub/v1/orders/report",
+                &cred.access_key,
+                &secret,
+                &json!({ "orders": items }),
+            )
+            .await?;
+            created += resp.get("created").and_then(Value::as_i64).unwrap_or(0);
+            updated += resp.get("updated").and_then(Value::as_i64).unwrap_or(0);
+            skipped += resp.get("skipped").and_then(Value::as_i64).unwrap_or(0);
+            reported += rows.len() as i64;
+            cursor = rows.last().map(|r| r.order_id).unwrap_or(cursor);
+            if rows.len() < 100 {
+                break;
+            }
+        }
+        // 存量变更重扫：上次上报后 1 天窗口内有状态推进的老订单（版本守卫去重）。
+        if link.order_sync_time > 0 {
+            let changed = self
+                .repo()
+                .list_local_orders_changed_since(
+                    link.order_sync_time - 86_400,
+                    link.order_sync_cursor,
+                    200,
+                )
+                .await?;
+            if !changed.is_empty() {
+                let items = self.order_items_for(link_id, &changed).await?;
+                let resp = hub_post_json_signed(
+                    &link.peer_base_url,
+                    "/api/hub/v1/orders/report",
+                    &cred.access_key,
+                    &secret,
+                    &json!({ "orders": items }),
+                )
+                .await?;
+                created += resp.get("created").and_then(Value::as_i64).unwrap_or(0);
+                updated += resp.get("updated").and_then(Value::as_i64).unwrap_or(0);
+                skipped += resp.get("skipped").and_then(Value::as_i64).unwrap_or(0);
+                reported += changed.len() as i64;
+            }
+        }
+        self.repo()
+            .update_link_order_cursor(link_id, cursor, now, now)
+            .await?;
+        tracing::info!(
+            "联邦订单上报完成: link={link_id}, reported={reported}, created={created}, updated={updated}, skipped={skipped}"
+        );
+        Ok(json!({
+            "reported": reported,
+            "created": created,
+            "updated": updated,
+            "skipped": skipped,
+            "cursor": cursor,
+        }))
+    }
+
+    /// 本地订单扫描行 → 上行条目（买家全局 ID 经本地映射带上，未关联为空）。
+    async fn order_items_for(
+        &self,
+        link_id: i32,
+        rows: &[LocalOrderRow],
+    ) -> Result<Vec<OrderReportItem>> {
+        let mut items = Vec::with_capacity(rows.len());
+        for r in rows {
+            let gid = self
+                .repo()
+                .find_member_map_by_user(link_id, r.user_id)
+                .await?
+                .map(|m| m.global_member_id)
+                .unwrap_or_default();
+            items.push(OrderReportItem {
+                remote_order_sn: r.order_sn.clone(),
+                remote_shop_id: r.shop_id,
+                remote_shop_name: r.shop_name.clone(),
+                remote_user_id: r.user_id,
+                global_member_id: gid,
+                order_amount: r.total_amount,
+                paid_amount: r.paid_amount,
+                order_status: r.order_status,
+                pay_status: r.pay_status,
+                item_count: r.item_count,
+                order_time: r.add_time,
+                pay_time: r.pay_time,
+                status_version: i64::from(r.version_time),
+            });
+        }
+        Ok(items)
+    }
+
+    /// 管理端：订单上行汇总列表（中枢侧，订单模块闸）。
+    pub async fn list_order_summaries(
+        &self,
+        q: &HubOrderSummaryListQuery,
+    ) -> Result<PageResult<HubOrderSummaryVO>> {
+        self.gate_module(MODULE_ORDER, MSG_ORDER_MODULE_OFF).await?;
+        let (rows, total) = self.repo().list_order_summaries(q).await?;
+        let list = rows.iter().map(HubOrderSummaryVO::from).collect();
+        let page = PageQuery {
+            page: q.page.unwrap_or(1),
+            page_size: q.page_size.unwrap_or(20),
+        };
+        Ok(PageResult::new(total.max(0) as u64, list, &page))
+    }
+
     // ———————————————————— 出站钥加解密（AES-GCM，主密钥走 env） ————————————————————
 
     fn encrypt_secret(&self, plain: &str) -> Result<String> {
@@ -2067,6 +2789,95 @@ async fn hub_post_json(
     parse_hub_response(resp).await
 }
 
+/// 推送验签核心（与服务状态无关，便于单测）：窗口检查 + 常量时间比对。
+fn verify_signature_with_hash(
+    secret_hash_hex: &str,
+    timestamp: i64,
+    signature: &str,
+    body: &str,
+) -> Result<()> {
+    let now = utils::now_seconds();
+    if (now - timestamp).abs() > HUB_SIGNATURE_WINDOW_SECONDS {
+        return Err(Error::Forbidden(MSG_HUB_SIGNATURE_INVALID.to_string()));
+    }
+    let key = hex_decode(secret_hash_hex)
+        .filter(|k| k.len() == 32)
+        .ok_or_else(|| Error::Internal("入站凭证缺少 secret 哈希，无法验签".to_string()))?;
+    let expected = hub_signature(&key, timestamp, body);
+    if !constant_time_eq(
+        expected.as_bytes(),
+        signature.trim().to_ascii_lowercase().as_bytes(),
+    ) {
+        return Err(Error::Forbidden(MSG_HUB_SIGNATURE_INVALID.to_string()));
+    }
+    Ok(())
+}
+
+/// hex 解码（签名密钥 / 哈希比对用）；非法字符 → None。
+fn hex_decode(s: &str) -> Option<Vec<u8>> {
+    let s = s.trim();
+    if s.len() % 2 != 0 {
+        return None;
+    }
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(s.len() / 2);
+    let mut i = 0;
+    while i < bytes.len() {
+        let hi = (bytes[i] as char).to_digit(16)?;
+        let lo = (bytes[i + 1] as char).to_digit(16)?;
+        out.push(u8::try_from(hi * 16 + lo).ok()?);
+        i += 2;
+    }
+    Some(out)
+}
+
+/// 推送签名（设计 §9.3）：HMAC-SHA256(key, "{timestamp}.{body}") 的 hex。
+/// key = SHA-256(secret) 摘要字节——发送方由明文现算，接收方由 secret_hash
+/// hex 解码，两侧同一密钥，中枢永不存明文。
+fn hub_signature(key: &[u8], timestamp: i64, body: &str) -> String {
+    let mut mac =
+        <Hmac<Sha256> as Mac>::new_from_slice(key).expect("HMAC 接受任意长度密钥");
+    mac.update(format!("{timestamp}.").as_bytes());
+    mac.update(body.as_bytes());
+    mac.finalize()
+        .into_bytes()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+/// 带签名的出站 POST（会员同步 / 订单上报）：body 只序列化一次，签名与
+/// 发送用同一字节串，避免「签的和发的不是同一份」。
+async fn hub_post_json_signed(
+    base: &str,
+    path: &str,
+    access_key: &str,
+    secret: &str,
+    body: &Value,
+) -> Result<Value> {
+    let text = serde_json::to_string(body)
+        .map_err(|e| Error::Internal(format!("联邦签名请求序列化失败: {e}")))?;
+    let ts = utils::now_seconds();
+    let key = Sha256::digest(secret.as_bytes());
+    let signature = hub_signature(&key, ts, &text);
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| Error::Internal(format!("联邦 HTTP 客户端构建失败: {e}")))?;
+    let resp = client
+        .post(format!("{}{}", base.trim_end_matches('/'), path))
+        .header("Content-Type", "application/json")
+        .header("X-Fed-Access-Key", access_key)
+        .header("X-Fed-Secret", secret)
+        .header("X-Fed-Timestamp", ts.to_string())
+        .header("X-Fed-Signature", signature)
+        .body(text)
+        .send()
+        .await
+        .map_err(|e| Error::Validation(format!("连接对端失败: {e}")))?;
+    parse_hub_response(resp).await
+}
+
 /// 统一信封解析：HTTP 非 2xx 或业务 code 非 0 → 错误（带对端 msg）。
 async fn parse_hub_response(resp: reqwest::Response) -> Result<Value> {
     let status = resp.status();
@@ -2248,6 +3059,88 @@ mod tests {
         assert!(
             svc.contains("delete_link(link_id)"),
             "服务层 delete_link 应收口到 repo 的事务删除"
+        );
+    }
+
+    /// 删凭证清映射不变量（二期续补 delete_link 同款口径）：单向接入
+    /// （type-② 出站凭证直连聚合）的映射行 link_id=0、只挂 credential_id，
+    /// 删该凭证必须同事务清掉这些行，否则永久孤儿。
+    #[test]
+    fn delete_credential_clears_product_maps_too() {
+        let repo_src = include_str!("../../../infrastructure/src/db/repo/hub/federation.rs");
+        let body = fn_body(repo_src, "pub async fn delete_credential");
+        assert!(
+            body.contains("\"hub_product_map\""),
+            "repo delete_credential 的级联表清单应含 hub_product_map"
+        );
+        assert!(
+            body.contains("WHERE credential_id"),
+            "映射清理应按 credential_id 定向删除"
+        );
+    }
+
+    /// 推送签名往返：发送方用明文 secret 的 SHA-256 摘要签名，接收方用
+    /// secret_hash（同一摘要的 hex）必须验得过；篡改 body/签名必须验不过；
+    /// 超窗时间戳必须拒。
+    #[test]
+    fn push_signature_roundtrip_and_tamper_rejection() {
+        let secret = "fed_test_secret_0123456789abcdef";
+        let body = r#"{"events":[]}"#;
+        let ts = utils::now_seconds();
+        let key = Sha256::digest(secret.as_bytes());
+        let sig = hub_signature(&key, ts, body);
+        let hash = utils::sha256_hex(secret);
+        verify_signature_with_hash(&hash, ts, &sig, body).expect("同密钥签名应验过");
+        assert!(
+            verify_signature_with_hash(&hash, ts, &sig, "{\"events\":[1]}").is_err(),
+            "body 被篡改必须验签失败"
+        );
+        assert!(
+            verify_signature_with_hash(&hash, ts, "deadbeef", body).is_err(),
+            "伪造签名必须失败"
+        );
+        assert!(
+            verify_signature_with_hash(&hash, ts - 3600, &sig, body).is_err(),
+            "超窗时间戳必须拒"
+        );
+    }
+
+    /// 会员同步守则：未验证手机号绝不自动匹配（进冲突队列）、换号撞号
+    /// 进冲突、已有映射只做快照后写优先——三条都在 apply_member_event 内。
+    #[test]
+    fn member_sync_guards_verified_mobile_and_conflicts() {
+        let src = include_str!("federation.rs");
+        let body = fn_body(src, "async fn apply_member_event");
+        assert!(
+            body.contains("CONFLICT_UNVERIFIED_MOBILE"),
+            "未验证手机号应入冲突队列"
+        );
+        assert!(
+            body.contains("CONFLICT_MOBILE_CLAIMED"),
+            "换号撞号应入冲突队列"
+        );
+        assert!(
+            body.contains("decide_member_match("),
+            "新面孔匹配应走纯函数裁决"
+        );
+        assert!(
+            body.contains("stamp >= row.profile_updated_at"),
+            "已有映射快照更新应有后写优先守卫"
+        );
+    }
+
+    /// 订单上行守则：幂等 upsert + status_version 版本守卫，旧版本跳过。
+    #[test]
+    fn order_report_has_version_guard() {
+        let src = include_str!("federation.rs");
+        let body = fn_body(src, "pub async fn receive_order_report");
+        assert!(
+            body.contains("item.status_version >= old.status_version"),
+            "订单上报应有版本守卫"
+        );
+        assert!(
+            body.contains("upsert_order_summary("),
+            "订单上报应走幂等 upsert"
         );
     }
 }

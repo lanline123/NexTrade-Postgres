@@ -13,12 +13,17 @@
 //! | `GET`  | `/hub/v1/products/detail?productId=` | product.read | 商品详情（越权 404） |
 //! | `POST` | `/hub/v1/heartbeat` | stats.report | 成员心跳上报 |
 //! | `POST` | `/hub/v1/link/updateEndpoint` | meta.read | 地址变更报备 |
+//! | `POST` | `/hub/v1/members/sync` | member.sync + HMAC 签名 | 会员同步推送（二期，迁移 028） |
+//! | `GET`  | `/hub/v1/members/query` | member.read | 会员资料下钻（二期） |
+//! | `GET`  | `/hub/v1/members/anchor` | member.sync | 全局 ID 锚点核对（二期） |
+//! | `POST` | `/hub/v1/orders/report` | order.report + HMAC 签名 | 订单头级汇总上行（二期） |
 //!
 //! 每次带钥调用落 `hub_call_log`（凭证/端点/状态/条数/耗时）。
 
 use std::time::Instant;
 
 use axum::{
+    body::Bytes,
     extract::{Query, State},
     http::HeaderMap,
     routing::{get, post},
@@ -30,9 +35,11 @@ use nextrade_core::models::catalog::product_feed::{
     FeedCategoryVO, FeedProductDetailVO, FeedProductListQuery, FeedProductVO,
 };
 use nextrade_core::models::hub::federation::{
-    HeartbeatDTO, HeartbeatVO, HubCredential, HubMetaVO, PairActivateVO, PairClaimDTO,
-    PairClaimVO, PairStatusDTO, PairStatusVO, UpdateEndpointDTO, MSG_HUB_UNAUTHORIZED,
-    SCOPE_META_READ, SCOPE_PRODUCT_READ, SCOPE_STATS_REPORT,
+    HeartbeatDTO, HeartbeatVO, HubCredential, HubMetaVO, MemberAnchorVO, MemberQueryVO,
+    MemberSyncDTO, MemberSyncResultVO, OrderReportDTO, OrderReportResultVO, PairActivateVO,
+    PairClaimDTO, PairClaimVO, PairStatusDTO, PairStatusVO, UpdateEndpointDTO,
+    MSG_HUB_SIGNATURE_INVALID, MSG_HUB_UNAUTHORIZED, SCOPE_MEMBER_READ, SCOPE_MEMBER_SYNC,
+    SCOPE_META_READ, SCOPE_ORDER_REPORT, SCOPE_PRODUCT_READ, SCOPE_STATS_REPORT,
 };
 use nextrade_core::types::PageResult;
 use nextrade_core::Error;
@@ -41,7 +48,7 @@ use nextrade_security::web::{ok, ApiResult, AppError};
 use super::super::super::PublicState;
 
 /// 本域路由（去掉 `/api` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 9] = [
+const ROUTE_TABLE: [(&str, &str, &str); 13] = [
     ("POST", "/hub/v1/pair/claim", "HubApi.pairClaim"),
     ("POST", "/hub/v1/pair/status", "HubApi.pairStatus"),
     ("POST", "/hub/v1/pair/activate", "HubApi.pairActivate"),
@@ -51,6 +58,10 @@ const ROUTE_TABLE: [(&str, &str, &str); 9] = [
     ("GET", "/hub/v1/products/detail", "HubApi.productDetail"),
     ("POST", "/hub/v1/heartbeat", "HubApi.heartbeat"),
     ("POST", "/hub/v1/link/updateEndpoint", "HubApi.updateEndpoint"),
+    ("POST", "/hub/v1/members/sync", "HubApi.membersSync"),
+    ("GET", "/hub/v1/members/query", "HubApi.membersQuery"),
+    ("GET", "/hub/v1/members/anchor", "HubApi.membersAnchor"),
+    ("POST", "/hub/v1/orders/report", "HubApi.ordersReport"),
 ];
 
 /// 联邦面路由（自带凭证鉴权）。
@@ -66,6 +77,10 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/hub/v1/products/detail", get(product_detail))
         .route("/hub/v1/heartbeat", post(heartbeat))
         .route("/hub/v1/link/updateEndpoint", post(update_endpoint))
+        .route("/hub/v1/members/sync", post(members_sync))
+        .route("/hub/v1/members/query", get(members_query))
+        .route("/hub/v1/members/anchor", get(members_anchor))
+        .route("/hub/v1/orders/report", post(orders_report))
 }
 
 /// 本域已实现路由（覆盖率统计）。
@@ -276,6 +291,150 @@ async fn update_endpoint(
         .await
         .map_err(AppError)?;
     ok("地址已更新")
+}
+
+// ———————————————————— 二期：会员同步 / 锚点 / 下钻 / 订单上行 ————————————————————
+
+/// 推送类端点的签名头（X-Fed-Timestamp / X-Fed-Signature，设计 §9.3）。
+fn signature_parts(headers: &HeaderMap) -> Result<(i64, String), AppError> {
+    let ts = headers
+        .get("x-fed-timestamp")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.trim().parse::<i64>().ok());
+    let sig = headers
+        .get("x-fed-signature")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    match (ts, sig) {
+        (Some(ts), Some(sig)) => Ok((ts, sig)),
+        _ => Err(AppError(Error::Forbidden(
+            MSG_HUB_SIGNATURE_INVALID.into(),
+        ))),
+    }
+}
+
+async fn members_sync(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> ApiResult<MemberSyncResultVO> {
+    let started = Instant::now();
+    let cred = auth_cred(&state, &headers, SCOPE_MEMBER_SYNC).await?;
+    let (ts, sig) = signature_parts(&headers)?;
+    let text = String::from_utf8(body.to_vec())
+        .map_err(|_| AppError(Error::Validation("请求体不是合法 UTF-8".into())))?;
+    state
+        .hub
+        .federation
+        .verify_push_signature(&cred, ts, &sig, &text)
+        .map_err(AppError)?;
+    let dto: MemberSyncDTO = serde_json::from_str(&text)
+        .map_err(|_| AppError(Error::Validation("请求体不是合法的会员同步 JSON".into())))?;
+    let count = i32::try_from(dto.events.len()).unwrap_or(i32::MAX);
+    let vo = state
+        .hub
+        .federation
+        .receive_member_sync(&cred, &dto)
+        .await
+        .map_err(AppError)?;
+    state
+        .hub
+        .federation
+        .record_call(&cred, "/api/hub/v1/members/sync", "member.sync", 200, count, &client_ip(&headers), started)
+        .await;
+    ok(vo)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MemberQueryParams {
+    global_member_id: Option<String>,
+    mobile: Option<String>,
+}
+
+async fn members_query(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    Query(q): Query<MemberQueryParams>,
+) -> ApiResult<MemberQueryVO> {
+    let started = Instant::now();
+    let cred = auth_cred(&state, &headers, SCOPE_MEMBER_READ).await?;
+    let vo = state
+        .hub
+        .federation
+        .hub_member_query(
+            &cred,
+            q.global_member_id.as_deref().unwrap_or_default(),
+            q.mobile.as_deref().unwrap_or_default(),
+        )
+        .await
+        .map_err(AppError)?;
+    state
+        .hub
+        .federation
+        .record_call(&cred, "/api/hub/v1/members/query", "member.read", 200, 1, &client_ip(&headers), started)
+        .await;
+    ok(vo)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AnchorQuery {
+    global_member_id: String,
+}
+
+async fn members_anchor(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    Query(q): Query<AnchorQuery>,
+) -> ApiResult<MemberAnchorVO> {
+    let started = Instant::now();
+    let cred = auth_cred(&state, &headers, SCOPE_MEMBER_SYNC).await?;
+    let vo = state
+        .hub
+        .federation
+        .hub_member_anchor(&cred, &q.global_member_id)
+        .await
+        .map_err(AppError)?;
+    state
+        .hub
+        .federation
+        .record_call(&cred, "/api/hub/v1/members/anchor", "member.sync", 200, 1, &client_ip(&headers), started)
+        .await;
+    ok(vo)
+}
+
+async fn orders_report(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> ApiResult<OrderReportResultVO> {
+    let started = Instant::now();
+    let cred = auth_cred(&state, &headers, SCOPE_ORDER_REPORT).await?;
+    let (ts, sig) = signature_parts(&headers)?;
+    let text = String::from_utf8(body.to_vec())
+        .map_err(|_| AppError(Error::Validation("请求体不是合法 UTF-8".into())))?;
+    state
+        .hub
+        .federation
+        .verify_push_signature(&cred, ts, &sig, &text)
+        .map_err(AppError)?;
+    let dto: OrderReportDTO = serde_json::from_str(&text)
+        .map_err(|_| AppError(Error::Validation("请求体不是合法的订单上报 JSON".into())))?;
+    let vo = state
+        .hub
+        .federation
+        .receive_order_report(&cred, &dto)
+        .await
+        .map_err(AppError)?;
+    let count = i32::try_from(vo.created + vo.updated).unwrap_or(i32::MAX);
+    state
+        .hub
+        .federation
+        .record_call(&cred, "/api/hub/v1/orders/report", "order.report", 200, count, &client_ip(&headers), started)
+        .await;
+    ok(vo)
 }
 
 #[cfg(test)]

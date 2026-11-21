@@ -31,6 +31,12 @@
 //! | `POST` | `/hub/aggregation/sync` | 执行一次聚合拉取 |
 //! | `POST` | `/hub/aggregation/setState` | 聚合映射状态调整 |
 //! | `GET`  | `/hub/callLogs/list` | 调用日志分页 |
+//! | `GET`  | `/hub/members/list` | 会员映射分页（二期，会员模块闸） |
+//! | `GET`  | `/hub/members/conflicts` | 会员冲突队列（二期） |
+//! | `POST` | `/hub/members/resolveConflict` | 冲突裁决（二期） |
+//! | `GET`  | `/hub/orders/list` | 订单上行汇总分页（二期，订单模块闸） |
+//! | `POST` | `/hub/myLinks/syncMembers` | 成员侧手动同步会员（二期） |
+//! | `POST` | `/hub/myLinks/reportOrders` | 成员侧手动上报订单（二期） |
 
 use axum::{
     extract::{Query, State},
@@ -41,11 +47,12 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use nextrade_core::models::hub::federation::{
-    HubAggregationListQuery, HubAggregationVO, HubCallLogListQuery, HubCallLogRow,
+    HubAggregationListQuery, HubAggregationVO, HubCallLogListQuery, HubCallLogVO,
     HubCredentialDetailVO, HubCredentialListQuery, HubCredentialSaveDTO, HubCredentialSecretVO,
     HubCredentialVO, HubIdDTO, HubLinkApproveDTO, HubLinkListQuery, HubLinkRejectDTO,
-    HubLinkVO, HubPairInitiateDTO, HubPairingCodeVO, HubPairingCreateDTO,
-    HubPriceOverrideSaveDTO,
+    HubLinkVO, HubMemberConflictListQuery, HubMemberConflictVO, HubMemberLinkVO,
+    HubMemberListQuery, HubMemberResolveDTO, HubOrderSummaryListQuery, HubOrderSummaryVO,
+    HubPairInitiateDTO, HubPairingCodeVO, HubPairingCreateDTO, HubPriceOverrideSaveDTO,
 };
 use nextrade_core::types::PageResult;
 use nextrade_security::web::{ok, ApiResult};
@@ -53,7 +60,7 @@ use nextrade_security::web::{ok, ApiResult};
 use crate::AdminState;
 
 /// 本域路由（去掉 `/adminapi` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 25] = [
+const ROUTE_TABLE: [(&str, &str, &str); 31] = [
     ("GET", "/hub/overview", "HubController.overview"),
     ("GET", "/hub/credentials/list", "HubController.credentialList"),
     ("GET", "/hub/credentials/detail", "HubController.credentialDetail"),
@@ -79,6 +86,12 @@ const ROUTE_TABLE: [(&str, &str, &str); 25] = [
     ("POST", "/hub/aggregation/sync", "HubController.aggregationSync"),
     ("POST", "/hub/aggregation/setState", "HubController.aggregationSetState"),
     ("GET", "/hub/callLogs/list", "HubController.callLogList"),
+    ("GET", "/hub/members/list", "HubController.memberList"),
+    ("GET", "/hub/members/conflicts", "HubController.memberConflicts"),
+    ("POST", "/hub/members/resolveConflict", "HubController.memberResolveConflict"),
+    ("GET", "/hub/orders/list", "HubController.orderSummaryList"),
+    ("POST", "/hub/myLinks/syncMembers", "HubController.myLinkSyncMembers"),
+    ("POST", "/hub/myLinks/reportOrders", "HubController.myLinkReportOrders"),
 ];
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {
@@ -109,6 +122,12 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/hub/aggregation/sync", post(aggregation_sync))
         .route("/hub/aggregation/setState", post(aggregation_set_state))
         .route("/hub/callLogs/list", get(call_log_list))
+        .route("/hub/members/list", get(member_list))
+        .route("/hub/members/conflicts", get(member_conflicts))
+        .route("/hub/members/resolveConflict", post(member_resolve_conflict))
+        .route("/hub/orders/list", get(order_summary_list))
+        .route("/hub/myLinks/syncMembers", post(my_link_sync_members))
+        .route("/hub/myLinks/reportOrders", post(my_link_report_orders))
 }
 
 /// 本域已实现路由（覆盖率统计）。
@@ -339,9 +358,54 @@ async fn aggregation_set_state(
 async fn call_log_list(
     State(state): State<AdminState>,
     Query(q): Query<HubCallLogListQuery>,
-) -> ApiResult<PageResult<HubCallLogRow>> {
+) -> ApiResult<PageResult<HubCallLogVO>> {
     state.hub.federation.gate().await?;
     ok(state.hub.federation.list_call_logs(&q).await?)
+}
+
+// ———————————————————— 二期：会员联邦 / 订单上行 ————————————————————
+
+async fn member_list(
+    State(state): State<AdminState>,
+    Query(q): Query<HubMemberListQuery>,
+) -> ApiResult<PageResult<HubMemberLinkVO>> {
+    ok(state.hub.federation.list_members(&q).await?)
+}
+
+async fn member_conflicts(
+    State(state): State<AdminState>,
+    Query(q): Query<HubMemberConflictListQuery>,
+) -> ApiResult<PageResult<HubMemberConflictVO>> {
+    ok(state.hub.federation.list_member_conflicts(&q).await?)
+}
+
+async fn member_resolve_conflict(
+    State(state): State<AdminState>,
+    Json(dto): Json<HubMemberResolveDTO>,
+) -> ApiResult<&'static str> {
+    state.hub.federation.resolve_member_conflict(&dto).await?;
+    ok("裁决已生效")
+}
+
+async fn order_summary_list(
+    State(state): State<AdminState>,
+    Query(q): Query<HubOrderSummaryListQuery>,
+) -> ApiResult<PageResult<HubOrderSummaryVO>> {
+    ok(state.hub.federation.list_order_summaries(&q).await?)
+}
+
+async fn my_link_sync_members(
+    State(state): State<AdminState>,
+    Json(dto): Json<HubIdDTO>,
+) -> ApiResult<Value> {
+    ok(state.hub.federation.sync_members(dto.id).await?)
+}
+
+async fn my_link_report_orders(
+    State(state): State<AdminState>,
+    Json(dto): Json<HubIdDTO>,
+) -> ApiResult<Value> {
+    ok(state.hub.federation.report_orders(dto.id).await?)
 }
 
 #[cfg(test)]

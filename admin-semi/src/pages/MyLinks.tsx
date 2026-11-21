@@ -60,6 +60,31 @@ export default function MyLinks() {
     }
   };
 
+  // 二期：会员同步 / 订单上报（模块未开时后端 403，错误文案直接透出）。
+  const syncMembers = async (record: HubLinkRow) => {
+    try {
+      const result = await apiPost<Record<string, any>>('/hub/myLinks/syncMembers', { id: record.linkId });
+      Toast.success(
+        `${t('会员同步完成')}：${t('扫描')} ${result?.scanned ?? 0} / ${t('新建')} ${result?.created ?? 0} / ${t('关联')} ${result?.linked ?? 0} / ${t('冲突')} ${result?.conflict ?? 0}`,
+      );
+      refresh();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('会员同步失败') });
+    }
+  };
+
+  const reportOrders = async (record: HubLinkRow) => {
+    try {
+      const result = await apiPost<Record<string, any>>('/hub/myLinks/reportOrders', { id: record.linkId });
+      Toast.success(
+        `${t('订单上报完成')}：${t('上报')} ${result?.reported ?? 0} / ${t('新建')} ${result?.created ?? 0} / ${t('更新')} ${result?.updated ?? 0} / ${t('跳过')} ${result?.skipped ?? 0}`,
+      );
+      refresh();
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('订单上报失败') });
+    }
+  };
+
   const columns: ColumnConfig<HubLinkRow>[] = [
     { title: '连接ID', dataIndex: 'linkId', width: 90 },
     {
@@ -142,6 +167,16 @@ export default function MyLinks() {
             {record.status === 2 && (
               <Button theme="borderless" size="small" onClick={() => void heartbeat(record)}>
                 {t('发送心跳')}
+              </Button>
+            )}
+            {record.status === 2 && (
+              <Button theme="borderless" size="small" onClick={() => void syncMembers(record)}>
+                {t('同步会员')}
+              </Button>
+            )}
+            {record.status === 2 && (
+              <Button theme="borderless" size="small" onClick={() => void reportOrders(record)}>
+                {t('上报订单')}
               </Button>
             )}
           </Space>

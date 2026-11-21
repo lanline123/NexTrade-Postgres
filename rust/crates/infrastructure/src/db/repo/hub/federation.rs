@@ -4,14 +4,18 @@
 //! - `hub_credential` + 店铺/商品/分类/覆盖 4 子表
 //! - `hub_link`（类型③连接，兼实例注册表）
 //! - `hub_pairing_code`、`hub_call_log`、`hub_product_map`
+//! - 二期（迁移 028）：`hub_member_link` / `hub_member_map` /
+//!   `hub_member_conflict`（会员同步）、`hub_order_summary`（订单上行汇总）
 //!
 //! SQL 一律运行时 `sqlx::query` / `query_as`，`$n` 占位。
 
 use sqlx::{PgPool, Postgres, QueryBuilder};
 
 use nextrade_core::models::hub::federation::{
-    HubCallLogListQuery, HubCredential, HubCredentialListQuery, HubLink, HubLinkListQuery,
-    HubPairingCode, HubPriceOverride, HubProductMap, HubAggregationListQuery,
+    HubAggregationListQuery, HubCallLogListQuery, HubCredential, HubCredentialListQuery,
+    HubLink, HubLinkListQuery, HubMemberConflict, HubMemberConflictListQuery, HubMemberLink,
+    HubMemberListQuery, HubMemberMap, HubOrderSummary, HubOrderSummaryListQuery, HubPairingCode,
+    HubPriceOverride, HubProductMap, LocalMemberRow, LocalOrderRow, OrderReportItem,
 };
 use nextrade_core::{Error, Result};
 
@@ -285,11 +289,15 @@ impl HubFederationRepository {
     }
 
     pub async fn delete_credential(&self, credential_id: i32) -> Result<()> {
+        // hub_product_map 同在清理之列：单向接入（类型②）凭证的聚合映射只挂
+        // credential_id（link_id=0），删连接的事务清理覆盖不到，删凭证时不清
+        // 即成无主孤儿（与 delete_link 清映射同一口径）。
         for table in [
             "hub_credential_shop",
             "hub_credential_product",
             "hub_credential_category",
             "hub_credential_price_override",
+            "hub_product_map",
         ] {
             sqlx::query(&format!(
                 "DELETE FROM {table} WHERE credential_id = $1"
@@ -990,6 +998,567 @@ impl HubFederationRepository {
             .map_err(map_err)?;
         Ok(row.0.max(0))
     }
+
+    // ———————————————————— 会员同步（迁移 028，设计 §6） ————————————————————
+
+    /// 中枢侧：按（连接, 远端会员）查映射行。
+    pub async fn find_member_link_by_remote(
+        &self,
+        link_id: i32,
+        remote_member_id: i32,
+    ) -> Result<Option<HubMemberLink>> {
+        sqlx::query_as::<_, HubMemberLink>(
+            "SELECT * FROM hub_member_link WHERE link_id = $1 AND remote_member_id = $2",
+        )
+        .bind(link_id)
+        .bind(remote_member_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 中枢侧：同手机号的全部已关联映射（匹配裁决入参）。
+    pub async fn list_member_links_by_mobile_hash(
+        &self,
+        mobile_hash: &str,
+    ) -> Result<Vec<HubMemberLink>> {
+        sqlx::query_as::<_, HubMemberLink>(
+            "SELECT * FROM hub_member_link WHERE mobile_hash = $1 AND status = 1 ORDER BY id ASC",
+        )
+        .bind(mobile_hash)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 中枢侧：按全局 ID 查任一行（锚点核对/冲突快照取实名用）。
+    pub async fn find_member_link_by_global(
+        &self,
+        global_member_id: &str,
+    ) -> Result<Option<HubMemberLink>> {
+        sqlx::query_as::<_, HubMemberLink>(
+            "SELECT * FROM hub_member_link WHERE global_member_id = $1 ORDER BY id ASC LIMIT 1",
+        )
+        .bind(global_member_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 中枢侧：按（连接, 全局 ID）查该连接名下的映射行（锚点核对用）。
+    pub async fn find_member_link_by_link_global(
+        &self,
+        link_id: i32,
+        global_member_id: &str,
+    ) -> Result<Option<HubMemberLink>> {
+        sqlx::query_as::<_, HubMemberLink>(
+            "SELECT * FROM hub_member_link WHERE link_id = $1 AND global_member_id = $2 LIMIT 1",
+        )
+        .bind(link_id)
+        .bind(global_member_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_member_link(
+        &self,
+        global_member_id: &str,
+        link_id: i32,
+        remote_member_id: i32,
+        mobile_hash: &str,
+        mobile_enc: &str,
+        nickname: &str,
+        avatar: &str,
+        birthday: &str,
+        email: &str,
+        real_name: &str,
+        profile_updated_at: i32,
+        now: i32,
+    ) -> Result<i32> {
+        let row: (i32,) = sqlx::query_as(
+            "INSERT INTO hub_member_link (global_member_id, link_id, remote_member_id, mobile_hash, mobile_enc, nickname, avatar, birthday, email, real_name, profile_updated_at, status, add_time, update_time)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, $12, $12) RETURNING id",
+        )
+        .bind(global_member_id)
+        .bind(link_id)
+        .bind(remote_member_id)
+        .bind(mobile_hash)
+        .bind(mobile_enc)
+        .bind(nickname)
+        .bind(avatar)
+        .bind(birthday)
+        .bind(email)
+        .bind(real_name)
+        .bind(profile_updated_at)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0)
+    }
+
+    /// 中枢侧：刷新映射快照（调用方已做后写优先比较）+ 置已关联（解绑后重报即复活）。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn update_member_link_snapshot(
+        &self,
+        id: i32,
+        mobile_hash: &str,
+        mobile_enc: &str,
+        nickname: &str,
+        avatar: &str,
+        birthday: &str,
+        email: &str,
+        real_name: &str,
+        profile_updated_at: i32,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE hub_member_link SET mobile_hash = $2, mobile_enc = $3, nickname = $4, avatar = $5, birthday = $6, email = $7, real_name = $8, profile_updated_at = $9, status = 1, update_time = $10 WHERE id = $1",
+        )
+        .bind(id)
+        .bind(mobile_hash)
+        .bind(mobile_enc)
+        .bind(nickname)
+        .bind(avatar)
+        .bind(birthday)
+        .bind(email)
+        .bind(real_name)
+        .bind(profile_updated_at)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    pub async fn set_member_link_status(
+        &self,
+        link_id: i32,
+        remote_member_id: i32,
+        status: i32,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE hub_member_link SET status = $3, update_time = $4 WHERE link_id = $1 AND remote_member_id = $2",
+        )
+        .bind(link_id)
+        .bind(remote_member_id)
+        .bind(status)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    pub async fn list_member_links(
+        &self,
+        q: &HubMemberListQuery,
+    ) -> Result<(Vec<HubMemberLink>, i64)> {
+        let page = q.page.unwrap_or(1).max(1);
+        let size = q.page_size.unwrap_or(20).clamp(1, 100);
+        let offset = ((page - 1) * size) as i64;
+
+        let total: (i64,) = member_count_query(q)
+            .build_query_as()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+
+        let rows = member_page_query(q, size as i64, offset)
+            .build_query_as::<HubMemberLink>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((rows, total.0.max(0)))
+    }
+
+    pub async fn count_member_links(&self) -> Result<i64> {
+        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM hub_member_link WHERE status = 1")
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(row.0.max(0))
+    }
+
+    /// 冲突入队（同连接+远端会员+类型已有待处理行则跳过，防重复上报刷屏队列）。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_member_conflict(
+        &self,
+        link_id: i32,
+        remote_member_id: i32,
+        mobile_hash: &str,
+        mobile_enc: &str,
+        nickname: &str,
+        avatar: &str,
+        birthday: &str,
+        email: &str,
+        real_name: &str,
+        profile_updated_at: i32,
+        candidate_global_member_id: &str,
+        conflict_type: &str,
+        now: i32,
+    ) -> Result<()> {
+        let existing: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM hub_member_conflict WHERE link_id = $1 AND remote_member_id = $2 AND conflict_type = $3 AND status = 0",
+        )
+        .bind(link_id)
+        .bind(remote_member_id)
+        .bind(conflict_type)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        if existing.0 > 0 {
+            return Ok(());
+        }
+        sqlx::query(
+            "INSERT INTO hub_member_conflict (link_id, remote_member_id, mobile_hash, mobile_enc, nickname, avatar, birthday, email, real_name, profile_updated_at, candidate_global_member_id, conflict_type, status, add_time, update_time)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, $13, $13)",
+        )
+        .bind(link_id)
+        .bind(remote_member_id)
+        .bind(mobile_hash)
+        .bind(mobile_enc)
+        .bind(nickname)
+        .bind(avatar)
+        .bind(birthday)
+        .bind(email)
+        .bind(real_name)
+        .bind(profile_updated_at)
+        .bind(candidate_global_member_id)
+        .bind(conflict_type)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    pub async fn find_member_conflict(&self, id: i32) -> Result<Option<HubMemberConflict>> {
+        sqlx::query_as::<_, HubMemberConflict>(
+            "SELECT * FROM hub_member_conflict WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn update_member_conflict_status(
+        &self,
+        id: i32,
+        status: i32,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE hub_member_conflict SET status = $2, update_time = $3 WHERE id = $1 AND status = 0",
+        )
+        .bind(id)
+        .bind(status)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    pub async fn list_member_conflicts(
+        &self,
+        q: &HubMemberConflictListQuery,
+    ) -> Result<(Vec<HubMemberConflict>, i64)> {
+        let page = q.page.unwrap_or(1).max(1);
+        let size = q.page_size.unwrap_or(20).clamp(1, 100);
+        let offset = ((page - 1) * size) as i64;
+
+        let total: (i64,) = conflict_count_query(q)
+            .build_query_as()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+
+        let rows = conflict_page_query(q, size as i64, offset)
+            .build_query_as::<HubMemberConflict>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((rows, total.0.max(0)))
+    }
+
+    pub async fn count_pending_conflicts(&self) -> Result<i64> {
+        let row: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM hub_member_conflict WHERE status = 0")
+                .fetch_one(&self.pool)
+                .await
+                .map_err(map_err)?;
+        Ok(row.0.max(0))
+    }
+
+    /// 成员侧：落/刷新本地映射（同步回执与 query 下钻共用）。
+    pub async fn upsert_member_map(
+        &self,
+        link_id: i32,
+        local_user_id: i32,
+        global_member_id: &str,
+        profile_updated_at: i32,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO hub_member_map (link_id, local_user_id, global_member_id, profile_updated_at, add_time, update_time)
+             VALUES ($1, $2, $3, $4, $5, $5)
+             ON CONFLICT (link_id, local_user_id) DO UPDATE SET global_member_id = EXCLUDED.global_member_id, profile_updated_at = EXCLUDED.profile_updated_at, update_time = EXCLUDED.update_time",
+        )
+        .bind(link_id)
+        .bind(local_user_id)
+        .bind(global_member_id)
+        .bind(profile_updated_at)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    pub async fn find_member_map_by_global(
+        &self,
+        link_id: i32,
+        global_member_id: &str,
+    ) -> Result<Option<HubMemberMap>> {
+        sqlx::query_as::<_, HubMemberMap>(
+            "SELECT * FROM hub_member_map WHERE link_id = $1 AND global_member_id = $2 LIMIT 1",
+        )
+        .bind(link_id)
+        .bind(global_member_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn find_member_map_by_user(
+        &self,
+        link_id: i32,
+        local_user_id: i32,
+    ) -> Result<Option<HubMemberMap>> {
+        sqlx::query_as::<_, HubMemberMap>(
+            "SELECT * FROM hub_member_map WHERE link_id = $1 AND local_user_id = $2",
+        )
+        .bind(link_id)
+        .bind(local_user_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 成员侧发送端：按 user_id 游标增量扫本地会员（仅正式会员 user_type=0）。
+    pub async fn list_local_members_after(
+        &self,
+        cursor: i32,
+        limit: i64,
+    ) -> Result<Vec<LocalMemberRow>> {
+        sqlx::query_as::<_, LocalMemberRow>(
+            "SELECT user_id, mobile, mobile_validated, email, nickname, avatar, birthday, status, reg_time, last_login FROM \"user\" WHERE user_id > $1 AND user_type = 0 ORDER BY user_id ASC LIMIT $2",
+        )
+        .bind(cursor)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn find_local_member_by_id(
+        &self,
+        user_id: i32,
+    ) -> Result<Option<LocalMemberRow>> {
+        sqlx::query_as::<_, LocalMemberRow>(
+            "SELECT user_id, mobile, mobile_validated, email, nickname, avatar, birthday, status, reg_time, last_login FROM \"user\" WHERE user_id = $1",
+        )
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn find_local_member_by_mobile(
+        &self,
+        mobile: &str,
+    ) -> Result<Option<LocalMemberRow>> {
+        sqlx::query_as::<_, LocalMemberRow>(
+            "SELECT user_id, mobile, mobile_validated, email, nickname, avatar, birthday, status, reg_time, last_login FROM \"user\" WHERE mobile = $1 AND user_type = 0 LIMIT 1",
+        )
+        .bind(mobile)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 成员侧同步游标回写（会员/订单分开推进）。
+    pub async fn update_link_member_cursor(
+        &self,
+        link_id: i32,
+        member_cursor: i32,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE hub_link SET member_sync_cursor = $2, update_time = $3 WHERE link_id = $1",
+        )
+        .bind(link_id)
+        .bind(member_cursor)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    pub async fn update_link_order_cursor(
+        &self,
+        link_id: i32,
+        order_cursor: i32,
+        order_time: i32,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE hub_link SET order_sync_cursor = $2, order_sync_time = $3, update_time = $4 WHERE link_id = $1",
+        )
+        .bind(link_id)
+        .bind(order_cursor)
+        .bind(order_time)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    // ———————————————————— 订单上行（迁移 028，设计 §7.1） ————————————————————
+
+    /// 中枢侧：按（连接, 远端订单号）查既有汇总（版本比较用）。
+    pub async fn find_order_summary(
+        &self,
+        link_id: i32,
+        remote_order_sn: &str,
+    ) -> Result<Option<HubOrderSummary>> {
+        sqlx::query_as::<_, HubOrderSummary>(
+            "SELECT * FROM hub_order_summary WHERE link_id = $1 AND remote_order_sn = $2",
+        )
+        .bind(link_id)
+        .bind(remote_order_sn)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 中枢侧：订单汇总 upsert（唯一键冲突更新；版本守卫在服务层先行比较）。
+    pub async fn upsert_order_summary(
+        &self,
+        link_id: i32,
+        remote_instance_uuid: &str,
+        item: &OrderReportItem,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO hub_order_summary (link_id, remote_instance_uuid, remote_order_sn, remote_shop_id, remote_shop_name, remote_user_id, global_member_id, order_amount, paid_amount, order_status, pay_status, item_count, order_time, pay_time, status_version, add_time, update_time)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)
+             ON CONFLICT (link_id, remote_order_sn) DO UPDATE SET remote_instance_uuid = EXCLUDED.remote_instance_uuid, remote_shop_id = EXCLUDED.remote_shop_id, remote_shop_name = EXCLUDED.remote_shop_name, remote_user_id = EXCLUDED.remote_user_id, global_member_id = EXCLUDED.global_member_id, order_amount = EXCLUDED.order_amount, paid_amount = EXCLUDED.paid_amount, order_status = EXCLUDED.order_status, pay_status = EXCLUDED.pay_status, item_count = EXCLUDED.item_count, order_time = EXCLUDED.order_time, pay_time = EXCLUDED.pay_time, status_version = EXCLUDED.status_version, update_time = EXCLUDED.update_time",
+        )
+        .bind(link_id)
+        .bind(remote_instance_uuid)
+        .bind(&item.remote_order_sn)
+        .bind(item.remote_shop_id)
+        .bind(&item.remote_shop_name)
+        .bind(item.remote_user_id)
+        .bind(&item.global_member_id)
+        .bind(item.order_amount)
+        .bind(item.paid_amount)
+        .bind(item.order_status)
+        .bind(item.pay_status)
+        .bind(item.item_count)
+        .bind(item.order_time)
+        .bind(item.pay_time)
+        .bind(item.status_version)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    pub async fn list_order_summaries(
+        &self,
+        q: &HubOrderSummaryListQuery,
+    ) -> Result<(Vec<HubOrderSummary>, i64)> {
+        let page = q.page.unwrap_or(1).max(1);
+        let size = q.page_size.unwrap_or(20).clamp(1, 100);
+        let offset = ((page - 1) * size) as i64;
+
+        let total: (i64,) = order_count_query(q)
+            .build_query_as()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+
+        let rows = order_page_query(q, size as i64, offset)
+            .build_query_as::<HubOrderSummary>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((rows, total.0.max(0)))
+    }
+
+    /// 中枢侧订单汇总合计（看板口径：单量 + 订单额 + 实付额）。
+    pub async fn sum_order_summaries(
+        &self,
+        link_id: Option<i32>,
+    ) -> Result<(i64, rust_decimal::Decimal, rust_decimal::Decimal)> {
+        let row: (i64, Option<rust_decimal::Decimal>, Option<rust_decimal::Decimal>) =
+            sqlx::query_as(
+                "SELECT COUNT(*), SUM(order_amount), SUM(paid_amount) FROM hub_order_summary WHERE ($1::int IS NULL OR link_id = $1)",
+            )
+            .bind(link_id)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((
+            row.0.max(0),
+            row.1.unwrap_or_default(),
+            row.2.unwrap_or_default(),
+        ))
+    }
+
+    /// 成员侧上报端：按 order_id 游标增量扫本地有效订单头（件数 = 数量合计）。
+    pub async fn list_local_orders_after(
+        &self,
+        cursor: i32,
+        limit: i64,
+    ) -> Result<Vec<LocalOrderRow>> {
+        sqlx::query_as::<_, LocalOrderRow>(
+            "SELECT o.order_id, o.order_sn, o.user_id, o.shop_id, COALESCE(s.shop_name, '') AS shop_name, o.order_status, o.pay_status, o.total_amount, o.paid_amount, COALESCE((SELECT SUM(oi.quantity) FROM order_item oi WHERE oi.order_id = o.order_id), 0)::int AS item_count, o.add_time, o.pay_time, GREATEST(o.add_time, o.pay_time, o.shipping_time, o.received_time) AS version_time FROM \"order\" o LEFT JOIN shop s ON s.shop_id = o.shop_id WHERE o.order_id > $1 AND o.is_valid = 1 AND o.is_del = 0 ORDER BY o.order_id ASC LIMIT $2",
+        )
+        .bind(cursor)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 成员侧上报端：重扫窗口内有状态推进的有效订单（游标之后的变更靠版本戳发现）。
+    pub async fn list_local_orders_changed_since(
+        &self,
+        since_version_time: i32,
+        max_order_id: i32,
+        limit: i64,
+    ) -> Result<Vec<LocalOrderRow>> {
+        sqlx::query_as::<_, LocalOrderRow>(
+            "SELECT o.order_id, o.order_sn, o.user_id, o.shop_id, COALESCE(s.shop_name, '') AS shop_name, o.order_status, o.pay_status, o.total_amount, o.paid_amount, COALESCE((SELECT SUM(oi.quantity) FROM order_item oi WHERE oi.order_id = o.order_id), 0)::int AS item_count, o.add_time, o.pay_time, GREATEST(o.add_time, o.pay_time, o.shipping_time, o.received_time) AS version_time FROM \"order\" o LEFT JOIN shop s ON s.shop_id = o.shop_id WHERE o.order_id <= $2 AND o.is_valid = 1 AND o.is_del = 0 AND GREATEST(o.add_time, o.pay_time, o.shipping_time, o.received_time) > $1 ORDER BY o.order_id ASC LIMIT $3",
+        )
+        .bind(since_version_time)
+        .bind(max_order_id)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
 }
 
 // ———————————————————— 列表查询构造（纯函数，供单测断言占位符序列） ————————————————————
@@ -1155,6 +1724,113 @@ fn push_map_filters(qb: &mut QueryBuilder<'_, Postgres>, q: &HubAggregationListQ
         qb.push(" OR remote_shop_name ILIKE ");
         qb.push_bind(like);
         qb.push(")");
+    }
+}
+
+fn member_count_query(q: &HubMemberListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_member_link WHERE 1=1");
+    push_member_filters(&mut qb, q);
+    qb
+}
+
+fn member_page_query(
+    q: &HubMemberListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_member_link WHERE 1=1");
+    push_member_filters(&mut qb, q);
+    qb.push(" ORDER BY id DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
+fn push_member_filters(qb: &mut QueryBuilder<'_, Postgres>, q: &HubMemberListQuery) {
+    if let Some(id) = q.link_id.filter(|id| *id > 0) {
+        qb.push(" AND link_id = ");
+        qb.push_bind(id);
+    }
+    if let Some(status) = q.status {
+        qb.push(" AND status = ");
+        qb.push_bind(status);
+    }
+    if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        let like = format!("%{kw}%");
+        qb.push(" AND (global_member_id ILIKE ");
+        qb.push_bind(like.clone());
+        qb.push(" OR nickname ILIKE ");
+        qb.push_bind(like);
+        qb.push(")");
+    }
+}
+
+fn conflict_count_query(q: &HubMemberConflictListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_member_conflict WHERE 1=1");
+    push_conflict_filters(&mut qb, q);
+    qb
+}
+
+fn conflict_page_query(
+    q: &HubMemberConflictListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_member_conflict WHERE 1=1");
+    push_conflict_filters(&mut qb, q);
+    qb.push(" ORDER BY id DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
+fn push_conflict_filters(qb: &mut QueryBuilder<'_, Postgres>, q: &HubMemberConflictListQuery) {
+    if let Some(id) = q.link_id.filter(|id| *id > 0) {
+        qb.push(" AND link_id = ");
+        qb.push_bind(id);
+    }
+    if let Some(status) = q.status {
+        qb.push(" AND status = ");
+        qb.push_bind(status);
+    }
+}
+
+fn order_count_query(q: &HubOrderSummaryListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_order_summary WHERE 1=1");
+    push_order_filters(&mut qb, q);
+    qb
+}
+
+fn order_page_query(
+    q: &HubOrderSummaryListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_order_summary WHERE 1=1");
+    push_order_filters(&mut qb, q);
+    qb.push(" ORDER BY id DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
+fn push_order_filters(qb: &mut QueryBuilder<'_, Postgres>, q: &HubOrderSummaryListQuery) {
+    if let Some(id) = q.link_id.filter(|id| *id > 0) {
+        qb.push(" AND link_id = ");
+        qb.push_bind(id);
+    }
+    if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        qb.push(" AND remote_order_sn ILIKE ");
+        qb.push_bind(format!("%{kw}%"));
     }
 }
 
@@ -1340,5 +2016,55 @@ mod list_sql_tests {
             "SELECT * FROM hub_product_map WHERE 1=1 AND link_id = $1 \
              ORDER BY map_id DESC LIMIT $2 OFFSET $3"
         );
+    }
+
+    // ———— 二期：会员映射 / 冲突 / 订单汇总列表 ————
+
+    #[test]
+    fn member_list_no_filter() {
+        let q = HubMemberListQuery::default();
+        assert_placeholders(member_count_query(&q).sql(), 0);
+        assert_placeholders(member_page_query(&q, 20, 0).sql(), 2);
+    }
+
+    #[test]
+    fn member_list_all_filters() {
+        let q = HubMemberListQuery {
+            link_id: Some(3),
+            status: Some(1),
+            keyword: Some("gm_".into()),
+            ..Default::default()
+        };
+        // link_id + status + keyword×2 = 4 个过滤绑定；分页再 +2。
+        assert_placeholders(member_count_query(&q).sql(), 4);
+        assert_placeholders(member_page_query(&q, 20, 0).sql(), 6);
+    }
+
+    #[test]
+    fn conflict_list_filters() {
+        let q = HubMemberConflictListQuery {
+            link_id: Some(3),
+            status: Some(0),
+            ..Default::default()
+        };
+        assert_placeholders(conflict_count_query(&q).sql(), 2);
+        assert_placeholders(conflict_page_query(&q, 20, 0).sql(), 4);
+        let q = HubMemberConflictListQuery::default();
+        assert_placeholders(conflict_count_query(&q).sql(), 0);
+        assert_placeholders(conflict_page_query(&q, 20, 0).sql(), 2);
+    }
+
+    #[test]
+    fn order_list_filters() {
+        let q = HubOrderSummaryListQuery {
+            link_id: Some(3),
+            keyword: Some("SN2026".into()),
+            ..Default::default()
+        };
+        assert_placeholders(order_count_query(&q).sql(), 2);
+        assert_placeholders(order_page_query(&q, 20, 0).sql(), 4);
+        let q = HubOrderSummaryListQuery::default();
+        assert_placeholders(order_count_query(&q).sql(), 0);
+        assert_placeholders(order_page_query(&q, 20, 0).sql(), 2);
     }
 }

@@ -404,6 +404,14 @@ export const navGroups: NavGroup[] = [
           {
             "key": "hubAggregation",
             "label": "联邦商品聚合"
+          },
+          {
+            "key": "hubMembers",
+            "label": "会员联邦"
+          },
+          {
+            "key": "hubOrders",
+            "label": "订单上行"
           }
         ]
       },
@@ -2003,6 +2011,8 @@ export const pageTitles: Record<string, string> = {
   "myLinks": "我的连接",
   "hubCredentials": "API 凭证",
   "hubAggregation": "联邦商品聚合",
+  "hubMembers": "会员联邦",
+  "hubOrders": "订单上行",
   "feedKeyManage": "对接 API 管理",
   "federationSettings": "万象互联",
   "siteClone": "站点搬家",

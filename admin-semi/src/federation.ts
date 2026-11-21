@@ -116,6 +116,7 @@ export async function fetchFederationSettings(): Promise<FederationSettings> {
  *   - capabilities.supplyOut 与 federation 皆关 → 摘 hubCredentials；
  *   - capabilities.federation 关 → 摘 hubLinks / hubPairing / myLinks；
  *   - modules.product 关 → 摘 hubAggregation 与 feedKeyManage；
+ *   - modules.member 关 → 摘 hubMembers；modules.order 关 → 摘 hubOrders（二期）；
  *   - 栏内子页摘空 → 整栏摘掉。
  */
 const FEDERATION_ITEM_KEYS = new Set(['organize6', 'organize7']);
@@ -124,11 +125,15 @@ export function filterNavGroupsByFederation(groups: NavGroup[], settings: Federa
   const removeCredentials = !settings.capabilities.supplyOut && !settings.capabilities.federation;
   const removeFederation = !settings.capabilities.federation;
   const removeProduct = !settings.modules.product;
+  const removeMember = !settings.modules.member;
+  const removeOrder = !settings.modules.order;
   const shouldRemove = (key: string): boolean => {
     if (!settings.enabled) return true;
     if (key === 'hubCredentials') return removeCredentials;
     if (key === 'hubLinks' || key === 'hubPairing' || key === 'myLinks') return removeFederation;
     if (key === 'hubAggregation' || key === 'feedKeyManage') return removeProduct;
+    if (key === 'hubMembers') return removeMember;
+    if (key === 'hubOrders') return removeOrder;
     return false;
   };
   return groups.map((group) => {
