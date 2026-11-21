@@ -3148,3 +3148,525 @@ export function PurchaseReconciliation() {
     </div>
   );
 }
+
+/* ==================================================================
+   5. 采购结算/应付 (PurchasePayable / purchasePayableManage)【我方新增】
+   对账通过后由后端生成应付单（与对账单 1:1），本页只做付款登记
+   台账：分次登记付款（金额/日期/方式/流水号/凭证备注），应付状态
+   （1 待付款，2 部分付款，3 已结清）由后端按登记汇总推导，前端
+   不提供任何改状态入口；不接真实支付通道、不动钱。
+================================================================== */
+interface PurchasePayableItem {
+  id?: number;
+  payableSn: string;
+  reconciliationSn?: string;
+  vendorName?: string;
+  payableAmount?: string;
+  paidAmount?: string;
+  unpaidAmount?: string;
+  status: number; // 1 待付款，2 部分付款，3 已结清（后端推导）
+  createTime?: number | string;
+}
+
+const PAY_METHOD_OPTIONS = [
+  { label: '银行转账', value: 'bank' },
+  { label: '微信', value: 'wechat' },
+  { label: '支付宝', value: 'alipay' },
+  { label: '现金', value: 'cash' },
+  { label: '其他', value: 'other' },
+];
+
+function payMethodLabel(code?: string): string {
+  return PAY_METHOD_OPTIONS.find((o) => o.value === code)?.label || code || '--';
+}
+
+function payableStatusTag(status: number, t: (key: string) => string) {
+  if (status === 3) return <Tag color="green">{t('已结清')}</Tag>;
+  if (status === 2) return <Tag color="blue">{t('部分付款')}</Tag>;
+  return <Tag color="orange">{t('待付款')}</Tag>;
+}
+
+function PaymentRegisterModal({
+  visible,
+  payable,
+  onClose,
+  onSaved,
+}: {
+  visible: boolean;
+  payable: PurchasePayableItem | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { t } = useI18n();
+  const [amount, setAmount] = useState('');
+  const [payDate, setPayDate] = useState<Date | undefined>(new Date());
+  const [payMethod, setPayMethod] = useState<string>('bank');
+  const [serialNo, setSerialNo] = useState('');
+  const [voucherRemark, setVoucherRemark] = useState('');
+  const [remark, setRemark] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    setAmount('');
+    setPayDate(new Date());
+    setPayMethod('bank');
+    setSerialNo('');
+    setVoucherRemark('');
+    setRemark('');
+  }, [visible]);
+
+  const unpaidCents = payable ? Math.round(Number(payable.unpaidAmount ?? 0) * 100) : 0;
+
+  const submit = async () => {
+    if (!payable?.id) return;
+    const cents = parseMoneyToMinorUnits(amount);
+    if (cents === null || cents <= 0) {
+      Toast.error({ content: t('请输入正确的付款金额') });
+      return;
+    }
+    if (cents > unpaidCents) {
+      Toast.error({ content: t('付款金额超过未付金额') });
+      return;
+    }
+    if (!payDate) {
+      Toast.error({ content: t('请选择付款日期') });
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiPost('/supplyChain/purchasePayable/payment/create', {
+        payableId: Number(payable.id),
+        amount: centsToYuanText(cents),
+        payDate: Math.floor(payDate.getTime() / 1000),
+        payMethod,
+        serialNo: serialNo.trim(),
+        voucherRemark: voucherRemark.trim(),
+        remark: remark.trim(),
+      });
+      Toast.success(t('登记成功'));
+      onSaved();
+    } catch (error) {
+      Toast.error({ content: errMsg(error, t) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={t('登记付款')}
+      visible={visible}
+      onCancel={onClose}
+      width={520}
+      footer={
+        <Space>
+          <Button onClick={onClose}>{t('取消')}</Button>
+          <Button theme="solid" type="primary" loading={saving} onClick={submit}>
+            {t('保存')}
+          </Button>
+        </Space>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Text type="tertiary" size="small">
+          {t('应付单')} {payable?.payableSn || '--'} · {t('未付金额')} ¥{fmtYuan(payable?.unpaidAmount)}
+        </Text>
+        <Field label={t('付款金额(元)')} required>
+          <Input
+            placeholder={t('请输入付款金额')}
+            value={amount}
+            style={{ width: 240 }}
+            onChange={(val) => setAmount(val)}
+          />
+        </Field>
+        <Field label={t('付款日期')} required>
+          <DatePicker
+            type="date"
+            value={payDate}
+            style={{ width: 240 }}
+            onChange={(date: any) => setPayDate(date ? (date instanceof Date ? date : new Date(date)) : undefined)}
+          />
+        </Field>
+        <Field label={t('付款方式')} required>
+          <Select
+            style={{ width: 240 }}
+            value={payMethod}
+            optionList={PAY_METHOD_OPTIONS.map((o) => ({ label: t(o.label), value: o.value }))}
+            onChange={(val) => setPayMethod(String(val || 'bank'))}
+          />
+        </Field>
+        <Field label={t('流水号/凭证号')}>
+          <Input
+            placeholder={t('银行流水号或凭证编号')}
+            value={serialNo}
+            style={{ width: 320 }}
+            onChange={(val) => setSerialNo(val)}
+          />
+        </Field>
+        <Field label={t('凭证备注')}>
+          <TextArea
+            placeholder={t('凭证说明，如凭证存放位置、附件说明')}
+            value={voucherRemark}
+            rows={2}
+            onChange={(val) => setVoucherRemark(val)}
+          />
+        </Field>
+        <Field label={t('备注')}>
+          <TextArea value={remark} rows={2} onChange={(val) => setRemark(val)} />
+        </Field>
+        <Text type="tertiary" size="small">
+          {t('仅登记台账，不发起真实付款；登记后应付状态按已付汇总自动更新。')}
+        </Text>
+      </div>
+    </Modal>
+  );
+}
+
+function PayableDetailSheet({
+  visible,
+  payableId,
+  onClose,
+  onChanged,
+}: {
+  visible: boolean;
+  payableId: number;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const { t } = useI18n();
+  const [loading, setLoading] = useState(false);
+  const [detail, setDetail] = useState<any>(null);
+  const [registerOpen, setRegisterOpen] = useState(false);
+
+  const load = React.useCallback(() => {
+    if (!payableId) return;
+    setLoading(true);
+    apiGet<any>('/supplyChain/purchasePayable/detail', { id: payableId })
+      .then((res) => setDetail(res))
+      .catch((error) => Toast.error({ content: errMsg(error, t) }))
+      .finally(() => setLoading(false));
+  }, [payableId, t]);
+
+  useEffect(() => {
+    if (visible) load();
+  }, [visible, load]);
+
+  const payments: any[] = detail?.payments || [];
+  const settled = Number(detail?.status) === 3;
+
+  return (
+    <SideSheet
+      title={t('应付单详情')}
+      visible={visible}
+      onCancel={onClose}
+      width={860}
+      placement="right"
+      bodyStyle={{ overflowY: 'auto' }}
+    >
+      {loading || !detail ? (
+        <Text type="tertiary">{t('加载中...')}</Text>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <SectionTitle text={t('应付信息')} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', rowGap: 8 }}>
+              <Text>
+                {t('应付单号')}：<span style={{ fontWeight: 600 }}>{detail.payableSn}</span>
+              </Text>
+              <Text>
+                {t('付款状态')}：{payableStatusTag(Number(detail.status), t)}
+              </Text>
+              <Text>
+                {t('对账单号')}：{detail.reconciliationSn || '--'}
+              </Text>
+              <Text>
+                {t('供应商')}：{detail.vendorName || '--'}
+              </Text>
+              <Text>
+                {t('应付金额(元)')}：{fmtYuan(detail.payableAmount)}
+              </Text>
+              <Text>
+                {t('已付金额(元)')}：{fmtYuan(detail.paidAmount)}
+              </Text>
+              <Text>
+                {t('未付金额(元)')}：{fmtYuan(detail.unpaidAmount)}
+              </Text>
+              <Text>
+                {t('生成时间')}：{formatUnix(detail.createTime)}
+              </Text>
+            </div>
+            {detail.reconciliation ? (
+              <Text type="tertiary" size="small">
+                {t('对账构成')}：{t('入库额')} ¥{fmtYuan(detail.reconciliation.receiptAmount)} −{' '}
+                {t('退货额')} ¥{fmtYuan(detail.reconciliation.returnAmount)} = ¥
+                {fmtYuan(detail.reconciliation.totalAmount)}
+              </Text>
+            ) : null}
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <SectionTitle text={t('付款记录')} />
+              <Button
+                theme="solid"
+                type="primary"
+                size="small"
+                disabled={settled}
+                onClick={() => setRegisterOpen(true)}
+              >
+                {t('登记付款')}
+              </Button>
+            </div>
+            <Table
+              loading={loading}
+              dataSource={payments}
+              rowKey={(row: any) => String(row.id)}
+              pagination={false}
+              empty={t('暂无付款记录')}
+              columns={
+                [
+                  {
+                    title: t('付款日期'),
+                    dataIndex: 'payDate',
+                    width: 110,
+                    render: (val: any) => formatUnix(val, false),
+                  },
+                  {
+                    title: t('金额(元)'),
+                    dataIndex: 'amount',
+                    width: 110,
+                    render: (val: any) => fmtYuan(val),
+                  },
+                  {
+                    title: t('方式'),
+                    dataIndex: 'payMethod',
+                    width: 100,
+                    render: (val: any) => t(payMethodLabel(val)),
+                  },
+                  { title: t('流水号/凭证号'), dataIndex: 'serialNo', width: 150, render: (val: any) => val || '--' },
+                  { title: t('凭证备注'), dataIndex: 'voucherRemark', render: (val: any) => val || '--' },
+                  { title: t('登记人'), dataIndex: 'createByName', width: 100, render: (val: any) => val || '--' },
+                  {
+                    title: t('登记时间'),
+                    dataIndex: 'createTime',
+                    width: 160,
+                    render: (val: any) => formatUnix(val),
+                  },
+                  {
+                    title: t('操作'),
+                    width: 80,
+                    render: (_: any, record: any) => (
+                      <Popconfirm
+                        title={t('确认作废这条付款登记吗？作废后应付状态将按剩余登记重新计算。')}
+                        onConfirm={async () => {
+                          try {
+                            await apiPost('/supplyChain/purchasePayable/payment/delete', {
+                              id: Number(record.id),
+                            });
+                            Toast.success(t('已作废'));
+                            load();
+                            onChanged();
+                          } catch (error) {
+                            Toast.error({ content: errMsg(error, t) });
+                          }
+                        }}
+                      >
+                        <Button theme="borderless" type="danger" size="small">
+                          {t('作废')}
+                        </Button>
+                      </Popconfirm>
+                    ),
+                  },
+                ] as any
+              }
+            />
+          </div>
+        </div>
+      )}
+
+      <PaymentRegisterModal
+        visible={registerOpen}
+        payable={detail}
+        onClose={() => setRegisterOpen(false)}
+        onSaved={() => {
+          setRegisterOpen(false);
+          load();
+          onChanged();
+        }}
+      />
+    </SideSheet>
+  );
+}
+
+export function PurchasePayable() {
+  const { t } = useI18n();
+  const [reloadKey, setReloadKey] = useState(0);
+  const [keywordInput, setKeywordInput] = useState('');
+  const [statusInput, setStatusInput] = useState('');
+  const [applied, setApplied] = useState<{ keyword?: string; status?: string }>({});
+  const [listKey, setListKey] = useState(0);
+  const [registerTarget, setRegisterTarget] = useState<PurchasePayableItem | null>(null);
+  const [detailId, setDetailId] = useState(0);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const query = useMemo(() => {
+    const q: Record<string, unknown> = { ...applied };
+    const shopId = currentShopId();
+    if (!isPlatformAdmin() && shopId) q.shopId = Number(shopId);
+    return q;
+  }, [applied]);
+
+  const applyFilters = () => {
+    setApplied({
+      keyword: keywordInput.trim() || undefined,
+      status: statusInput || undefined,
+    });
+    setListKey((k) => k + 1);
+  };
+
+  const resetFilters = () => {
+    setKeywordInput('');
+    setStatusInput('');
+    setApplied({});
+    setListKey((k) => k + 1);
+  };
+
+  const columns: ColumnConfig<PurchasePayableItem>[] = [
+    {
+      title: t('应付单号'),
+      dataIndex: 'payableSn',
+      width: 200,
+      render: (val: any) => <span style={{ fontWeight: 600 }}>{val}</span>,
+    },
+    {
+      title: t('对账单号'),
+      dataIndex: 'reconciliationSn',
+      width: 190,
+      render: (val: any) => val || '--',
+    },
+    {
+      title: t('供应商'),
+      dataIndex: 'vendorName',
+      width: 150,
+      render: (val: any) => val || '--',
+    },
+    {
+      title: t('应付金额(元)'),
+      dataIndex: 'payableAmount',
+      width: 120,
+      render: (val: any) => fmtYuan(val),
+    },
+    {
+      title: t('已付金额(元)'),
+      dataIndex: 'paidAmount',
+      width: 120,
+      render: (val: any) => fmtYuan(val),
+    },
+    {
+      title: t('未付金额(元)'),
+      dataIndex: 'unpaidAmount',
+      width: 120,
+      render: (val: any) => fmtYuan(val),
+    },
+    {
+      title: t('付款状态'),
+      dataIndex: 'status',
+      width: 110,
+      render: (val: any) => payableStatusTag(Number(val), t),
+    },
+    {
+      title: t('生成时间'),
+      dataIndex: 'createTime',
+      width: 170,
+      render: (val: any) => formatUnix(val),
+    },
+    {
+      title: t('操作'),
+      width: 170,
+      render: (_: any, record: PurchasePayableItem) => (
+        <Space>
+          <Button
+            theme="borderless"
+            type="primary"
+            size="small"
+            onClick={() => {
+              setDetailId(Number(record.id ?? 0));
+              setDetailOpen(true);
+            }}
+          >
+            {t('详情')}
+          </Button>
+          {Number(record.status) !== 3 ? (
+            <Button
+              theme="borderless"
+              type="primary"
+              size="small"
+              onClick={() => setRegisterTarget(record)}
+            >
+              {t('登记付款')}
+            </Button>
+          ) : null}
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <ListPage<PurchasePayableItem>
+        key={`${reloadKey}-${listKey}`}
+        api="/supplyChain/purchasePayable/list"
+        rowKey={(row) => String(row.id ?? '')}
+        columns={columns}
+        query={query}
+        toolbarExtra={
+          <>
+            <Input
+              prefix={<IconSearch />}
+              placeholder={t('输入应付单号/对账单号/供应商')}
+              value={keywordInput}
+              showClear
+              style={{ width: 240 }}
+              onChange={(val) => setKeywordInput(val)}
+              onEnterPress={applyFilters}
+            />
+            <Select
+              placeholder={t('付款状态')}
+              style={{ width: 140 }}
+              value={statusInput || undefined}
+              optionList={[
+                { label: t('全部'), value: '' },
+                { label: t('待付款'), value: '1' },
+                { label: t('部分付款'), value: '2' },
+                { label: t('已结清'), value: '3' },
+              ]}
+              onChange={(val) => setStatusInput(val === undefined || val === null ? '' : String(val))}
+            />
+            <Button type="primary" theme="solid" icon={<IconSearch />} onClick={applyFilters}>
+              {t('搜索')}
+            </Button>
+            <Button onClick={resetFilters}>{t('重置')}</Button>
+          </>
+        }
+      />
+
+      <PaymentRegisterModal
+        visible={!!registerTarget}
+        payable={registerTarget}
+        onClose={() => setRegisterTarget(null)}
+        onSaved={() => {
+          setRegisterTarget(null);
+          setReloadKey((k) => k + 1);
+        }}
+      />
+
+      <PayableDetailSheet
+        visible={detailOpen}
+        payableId={detailId}
+        onClose={() => setDetailOpen(false)}
+        onChanged={() => setReloadKey((k) => k + 1)}
+      />
+    </div>
+  );
+}

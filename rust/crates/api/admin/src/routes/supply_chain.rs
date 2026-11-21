@@ -118,6 +118,17 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
             "/supplyChain/purchaseReconciliation/void",
             post(reconciliation_void),
         )
+        // payable（采购结算：应付 + 付款登记台账，我方新增）
+        .route("/supplyChain/purchasePayable/list", get(payable_list))
+        .route("/supplyChain/purchasePayable/detail", get(payable_detail))
+        .route(
+            "/supplyChain/purchasePayable/payment/create",
+            post(payment_create),
+        )
+        .route(
+            "/supplyChain/purchasePayable/payment/delete",
+            post(payment_delete),
+        )
         // return
         .route("/supplyChain/purchaseReturn/list", get(return_list))
         .route("/supplyChain/purchaseReturn/detail", get(return_detail))
@@ -173,6 +184,10 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
         ("POST", "/api/supplyChain/purchaseReconciliation/reject"),
         ("POST", "/api/supplyChain/purchaseReconciliation/resubmit"),
         ("POST", "/api/supplyChain/purchaseReconciliation/void"),
+        ("GET", "/api/supplyChain/purchasePayable/list"),
+        ("GET", "/api/supplyChain/purchasePayable/detail"),
+        ("POST", "/api/supplyChain/purchasePayable/payment/create"),
+        ("POST", "/api/supplyChain/purchasePayable/payment/delete"),
         ("GET", "/api/supplyChain/purchaseReturn/list"),
         ("GET", "/api/supplyChain/purchaseReturn/detail"),
         ("POST", "/api/supplyChain/purchaseReturn/save"),
@@ -2384,6 +2399,10 @@ async fn reconciliation_approve(
         .bind(nextrade_common::utils::now_seconds() as i64)
         .bind(nextrade_common::utils::now_seconds() as i64)
         .bind(id).execute(&state.repos.pool).await.map_err(db)?;
+    // 结算环节（我方新增）：对账通过即生成应付单（与对账单 1:1、幂等）。
+    // ensure 内部按对账单 status=2 条件生成——本次更新未命中（单据本
+    // 非待审核）时，已通过的存量单在此自愈补生成，其余状态不误生成。
+    ensure_payable_for(&state, id).await?;
     ok(())
 }
 async fn reconciliation_reject(
@@ -2456,6 +2475,394 @@ async fn reconciliation_void(
             .await
             .map_err(db)?;
     }
+    tx.commit().await.map_err(db)?;
+    ok(())
+}
+
+// ————————————————— 采购结算：应付 + 付款登记（我方新增） —————————————————
+// 背景：采购链此前（与原版一致）止于对账通过，无应付/付款单据
+// （演练报告 D13）；用户 2026-11-21 拍板在对账后新增结算环。
+// 红线：只做登记台账——不接任何真实支付通道、不动钱；不改变对账
+// 及此前各环的任何既有口径。
+// 口径：应付与对账单 1:1（迁移 038，UNIQUE reconciliation_id），
+// 对账通过时生成（approve 钩子），存量已通过对账单由列表回填补齐；
+// 应付金额 = 对账单 total_amount 快照；付款登记支持分次付款，
+// 应付状态只由 derive_payable_status 按已付汇总推导落列，
+// 任何接口都不接受外部传入 status / paidAmount。
+
+/// 应付状态推导（纯函数，单测覆盖）：1 待付款 / 2 部分付款 / 3 已结清。
+/// 应付额 ≤ 0（退货净额抵平或反超对账总额）时无付款义务，直接结清。
+fn derive_payable_status(
+    payable_amount: rust_decimal::Decimal,
+    paid_amount: rust_decimal::Decimal,
+) -> i32 {
+    if payable_amount <= rust_decimal::Decimal::ZERO || paid_amount >= payable_amount {
+        3
+    } else if paid_amount <= rust_decimal::Decimal::ZERO {
+        1
+    } else {
+        2
+    }
+}
+
+/// 应付生成 SQL（单条与批量回填共用）：从已通过（status=2）对账单
+/// 派生，应付号 = PS + 生成秒级时间戳 + 对账单 id 补零 6 位——
+/// 同秒批量回填也不会撞号（uk_purchase_payable_sn 兜底）。
+fn payable_insert_select(where_sql: &str) -> String {
+    format!(
+        "INSERT INTO purchase_payable(payable_sn, reconciliation_id, reconciliation_sn, shop_id, vendor_id, supplier_snapshot, payable_amount, paid_amount, status, create_time, update_time) \
+         SELECT 'PS' || $1::text || LPAD(r.id::text, 6, '0'), r.id, r.reconciliation_sn, r.shop_id, r.vendor_id, r.supplier_snapshot, r.total_amount, 0, \
+         CASE WHEN r.total_amount <= 0 THEN 3 ELSE 1 END, $1, $1 \
+         FROM purchase_reconciliation r WHERE r.is_del = 0 AND r.status = 2 AND {where_sql} \
+         ON CONFLICT (reconciliation_id) DO NOTHING"
+    )
+}
+
+/// 对账通过 → 生成应付（幂等，已生成则无操作）。
+async fn ensure_payable_for(state: &AdminState, reconciliation_id: i64) -> Result<(), AppError> {
+    let now = nextrade_common::utils::now_seconds() as i64;
+    sqlx::query(&payable_insert_select("r.id = $2"))
+        .bind(now)
+        .bind(reconciliation_id)
+        .execute(&state.repos.pool)
+        .await
+        .map_err(db)?;
+    Ok(())
+}
+
+/// 存量回填：本功能上线前已通过的对账单在应付列表打开时补生成。
+async fn backfill_payables(state: &AdminState) -> Result<(), AppError> {
+    let now = nextrade_common::utils::now_seconds() as i64;
+    sqlx::query(&payable_insert_select("1 = 1"))
+        .bind(now)
+        .execute(&state.repos.pool)
+        .await
+        .map_err(db)?;
+    Ok(())
+}
+
+fn payable_row_json(row: &PgRow) -> Value {
+    let payable_amount: rust_decimal::Decimal =
+        row.try_get("payable_amount").unwrap_or_default();
+    let paid_amount: rust_decimal::Decimal = row.try_get("paid_amount").unwrap_or_default();
+    json!({
+        "id": row.try_get::<i64, _>("id").unwrap_or(0),
+        "payableSn": row.try_get::<String, _>("payable_sn").unwrap_or_default(),
+        "reconciliationId": row.try_get::<i64, _>("reconciliation_id").unwrap_or(0),
+        "reconciliationSn": row.try_get::<String, _>("reconciliation_sn").unwrap_or_default(),
+        "shopId": row.try_get::<i32, _>("shop_id").unwrap_or(0),
+        "vendorId": row.try_get::<i32, _>("vendor_id").unwrap_or(0),
+        "vendorName": row.try_get::<Option<String>, _>("vendor_name").ok().flatten().unwrap_or_default(),
+        "payableAmount": payable_amount.to_string(),
+        "paidAmount": paid_amount.to_string(),
+        "unpaidAmount": (payable_amount - paid_amount).to_string(),
+        // 展示状态按金额现算，与落列 status 同一推导函数，双保险防漂移
+        "status": derive_payable_status(payable_amount, paid_amount),
+        "remark": row.try_get::<Option<String>, _>("remark").ok().flatten().unwrap_or_default(),
+        "createTime": row.try_get::<i64, _>("create_time").unwrap_or(0),
+    })
+}
+
+fn payment_row_json(row: &PgRow) -> Value {
+    json!({
+        "id": row.try_get::<i64, _>("id").unwrap_or(0),
+        "payableId": row.try_get::<i64, _>("payable_id").unwrap_or(0),
+        "amount": row.try_get::<rust_decimal::Decimal, _>("amount").unwrap_or_default().to_string(),
+        "payDate": row.try_get::<i64, _>("pay_date").unwrap_or(0),
+        "payMethod": row.try_get::<String, _>("pay_method").unwrap_or_default(),
+        "serialNo": row.try_get::<String, _>("serial_no").unwrap_or_default(),
+        "voucherRemark": row.try_get::<String, _>("voucher_remark").unwrap_or_default(),
+        "remark": row.try_get::<Option<String>, _>("remark").ok().flatten().unwrap_or_default(),
+        "createTime": row.try_get::<i64, _>("create_time").unwrap_or(0),
+        "createByName": row.try_get::<String, _>("create_by_name").unwrap_or_default(),
+    })
+}
+
+async fn payable_list(
+    State(state): State<AdminState>,
+    Query(q): Query<Pg>,
+) -> ApiResult<Value> {
+    backfill_payables(&state).await?;
+    let (page, size, offset) = page_of(&q);
+    let mut cq: QueryBuilder<'_, Postgres> = QueryBuilder::new(
+        "SELECT COUNT(*) FROM purchase_payable p LEFT JOIN vendor v ON v.vendor_id = p.vendor_id WHERE p.is_del = 0",
+    );
+    let mut rq: QueryBuilder<'_, Postgres> = QueryBuilder::new(
+        "SELECT p.*, v.vendor_name AS vendor_name FROM purchase_payable p LEFT JOIN vendor v ON v.vendor_id = p.vendor_id WHERE p.is_del = 0",
+    );
+    if let Some(vendor_id) = q.vendor_id {
+        cq.push(" AND p.vendor_id = ").push_bind(vendor_id);
+        rq.push(" AND p.vendor_id = ").push_bind(vendor_id);
+    }
+    if let Some(shop_id) = q.shop_id {
+        cq.push(" AND p.shop_id = ").push_bind(shop_id);
+        rq.push(" AND p.shop_id = ").push_bind(shop_id);
+    }
+    if let Some(status) = q.status {
+        cq.push(" AND p.status = ").push_bind(status);
+        rq.push(" AND p.status = ").push_bind(status);
+    }
+    if let Some(kw) = q
+        .keyword
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        let like = format!("%{kw}%");
+        for qb in [&mut cq, &mut rq] {
+            qb.push(" AND (p.payable_sn ILIKE ")
+                .push_bind(like.clone())
+                .push(" OR p.reconciliation_sn ILIKE ")
+                .push_bind(like.clone())
+                .push(" OR v.vendor_name ILIKE ")
+                .push_bind(like.clone())
+                .push(")");
+        }
+    }
+    rq.push(" ORDER BY p.id DESC LIMIT ")
+        .push_bind(size as i64)
+        .push(" OFFSET ")
+        .push_bind(offset);
+    let (total,): (i64,) = cq
+        .build_query_as()
+        .fetch_one(&state.repos.pool)
+        .await
+        .map_err(db)?;
+    let rows = rq.build().fetch_all(&state.repos.pool).await.map_err(db)?;
+    let records: Vec<Value> = rows.iter().map(payable_row_json).collect();
+    ok(json!({"records": records, "total": total, "page": page, "size": size}))
+}
+
+async fn payable_detail(
+    State(state): State<AdminState>,
+    Query(q): Query<Pg>,
+) -> ApiResult<Value> {
+    let id = q.id.unwrap_or(0);
+    let row = sqlx::query(
+        "SELECT p.*, v.vendor_name AS vendor_name FROM purchase_payable p LEFT JOIN vendor v ON v.vendor_id = p.vendor_id WHERE p.id = $1 AND p.is_del = 0 LIMIT 1",
+    )
+    .bind(id)
+    .fetch_optional(&state.repos.pool)
+    .await
+    .map_err(db)?;
+    let Some(row) = row else {
+        return ok(Value::Null);
+    };
+    let mut obj = payable_row_json(&row);
+    let reconciliation_id: i64 = row.try_get("reconciliation_id").unwrap_or(0);
+    let payments = sqlx::query(
+        "SELECT * FROM purchase_payment WHERE payable_id = $1 AND is_del = 0 ORDER BY pay_date DESC, id DESC",
+    )
+    .bind(id)
+    .fetch_all(&state.repos.pool)
+    .await
+    .map_err(db)?;
+    let rec = sqlx::query(
+        "SELECT id, reconciliation_sn, receipt_amount, return_amount, total_amount, create_time FROM purchase_reconciliation WHERE id = $1 LIMIT 1",
+    )
+    .bind(reconciliation_id)
+    .fetch_optional(&state.repos.pool)
+    .await
+    .map_err(db)?;
+    if let Some(map) = obj.as_object_mut() {
+        map.insert(
+            "payments".into(),
+            Value::Array(payments.iter().map(payment_row_json).collect()),
+        );
+        map.insert(
+            "reconciliation".into(),
+            rec.as_ref().map(|r| {
+                json!({
+                    "id": r.try_get::<i64, _>("id").unwrap_or(0),
+                    "reconciliationSn": r.try_get::<String, _>("reconciliation_sn").unwrap_or_default(),
+                    "receiptAmount": r.try_get::<rust_decimal::Decimal, _>("receipt_amount").unwrap_or_default().to_string(),
+                    "returnAmount": r.try_get::<rust_decimal::Decimal, _>("return_amount").unwrap_or_default().to_string(),
+                    "totalAmount": r.try_get::<rust_decimal::Decimal, _>("total_amount").unwrap_or_default().to_string(),
+                    "createTime": r.try_get::<i64, _>("create_time").unwrap_or(0),
+                })
+            }).unwrap_or(Value::Null),
+        );
+    }
+    ok(obj)
+}
+
+/// 付款日期入参：unix 秒（数字/数字串）或 yyyy-MM-dd 日期串。
+fn parse_pay_date(v: Option<&Value>) -> i64 {
+    match v {
+        Some(Value::Number(n)) => n.as_i64().unwrap_or(0),
+        Some(Value::String(s)) => {
+            let s = s.trim();
+            if let Ok(ts) = s.parse::<i64>() {
+                ts
+            } else if let Ok(d) =
+                sqlx::types::chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
+            {
+                d.and_hms_opt(0, 0, 0)
+                    .map(|dt| dt.and_utc().timestamp())
+                    .unwrap_or(0)
+            } else {
+                0
+            }
+        }
+        _ => 0,
+    }
+}
+
+async fn payment_create(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<Value>,
+) -> ApiResult<i64> {
+    let payable_id = body.get("payableId").and_then(Value::as_i64).unwrap_or(0);
+    if payable_id <= 0 {
+        return Err(AppError(Error::biz(400, "请选择应付单")));
+    }
+    // 金额走双口径解析（数字/字符串均可），与采购价同口径
+    let amount = parse_decimal_flex(body.get("amount"));
+    if amount <= rust_decimal::Decimal::ZERO {
+        return Err(AppError(Error::biz(400, "付款金额必须大于0")));
+    }
+    let pay_date = parse_pay_date(body.get("payDate"));
+    if pay_date <= 0 {
+        return Err(AppError(Error::biz(400, "请选择付款日期")));
+    }
+    let pay_method = body
+        .get("payMethod")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if pay_method.is_empty() || pay_method.chars().count() > 32 {
+        return Err(AppError(Error::biz(400, "请选择付款方式")));
+    }
+    let serial_no: String = body
+        .get("serialNo")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .chars()
+        .take(128)
+        .collect();
+    let voucher_remark = body
+        .get("voucherRemark")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let remark = body
+        .get("remark")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let now = nextrade_common::utils::now_seconds() as i64;
+    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    // 锁应付行后校验未付额：并发登记不能超付（与收货/退货 D6 的
+    // 单据行锁同口径），登记与应付汇总更新同事务。
+    let row = sqlx::query(
+        "SELECT payable_amount, paid_amount FROM purchase_payable WHERE id = $1 AND is_del = 0 FOR UPDATE",
+    )
+    .bind(payable_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(db)?
+    .ok_or_else(|| AppError(Error::biz(400, "应付单不存在")))?;
+    let payable_amount: rust_decimal::Decimal =
+        row.try_get("payable_amount").unwrap_or_default();
+    let paid_amount: rust_decimal::Decimal = row.try_get("paid_amount").unwrap_or_default();
+    if paid_amount + amount > payable_amount {
+        return Err(AppError(Error::biz(400, "付款金额超过未付金额")));
+    }
+    let payment_id: i64 = sqlx::query_scalar(
+        "INSERT INTO purchase_payment(payable_id, amount, pay_date, pay_method, serial_no, voucher_remark, remark, create_time, create_by_id, create_by_name, update_time) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id",
+    )
+    .bind(payable_id)
+    .bind(amount)
+    .bind(pay_date)
+    .bind(&pay_method)
+    .bind(&serial_no)
+    .bind(&voucher_remark)
+    .bind(&remark)
+    .bind(now)
+    .bind(i64::from(auth.id))
+    .bind(&auth.username)
+    .bind(now)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(db)?;
+    let new_paid = paid_amount + amount;
+    sqlx::query(
+        "UPDATE purchase_payable SET paid_amount = $1, status = $2, update_time = $3, update_by_id = $4, update_by_name = $5 WHERE id = $6",
+    )
+    .bind(new_paid)
+    .bind(derive_payable_status(payable_amount, new_paid))
+    .bind(now)
+    .bind(i64::from(auth.id))
+    .bind(&auth.username)
+    .bind(payable_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(db)?;
+    tx.commit().await.map_err(db)?;
+    ok(payment_id)
+}
+
+async fn payment_delete(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<Value>,
+) -> ApiResult<()> {
+    let payment_id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    if payment_id <= 0 {
+        return Err(AppError(Error::biz(400, "请选择付款登记")));
+    }
+    let now = nextrade_common::utils::now_seconds() as i64;
+    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    let prow = sqlx::query(
+        "SELECT payable_id FROM purchase_payment WHERE id = $1 AND is_del = 0 LIMIT 1",
+    )
+    .bind(payment_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(db)?
+    .ok_or_else(|| AppError(Error::biz(400, "付款登记不存在")))?;
+    let payable_id: i64 = prow.try_get("payable_id").unwrap_or(0);
+    let arow = sqlx::query(
+        "SELECT payable_amount FROM purchase_payable WHERE id = $1 AND is_del = 0 FOR UPDATE",
+    )
+    .bind(payable_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(db)?
+    .ok_or_else(|| AppError(Error::biz(400, "应付单不存在")))?;
+    let payable_amount: rust_decimal::Decimal =
+        arow.try_get("payable_amount").unwrap_or_default();
+    sqlx::query("UPDATE purchase_payment SET is_del = 1, update_time = $1 WHERE id = $2")
+        .bind(now)
+        .bind(payment_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+    // 作废后按有效登记汇总重算（不做增减推算，防历史漂移）
+    let (paid,): (rust_decimal::Decimal,) = sqlx::query_as(
+        "SELECT COALESCE(SUM(amount), 0) FROM purchase_payment WHERE payable_id = $1 AND is_del = 0",
+    )
+    .bind(payable_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(db)?;
+    sqlx::query(
+        "UPDATE purchase_payable SET paid_amount = $1, status = $2, update_time = $3, update_by_id = $4, update_by_name = $5 WHERE id = $6",
+    )
+    .bind(paid)
+    .bind(derive_payable_status(payable_amount, paid))
+    .bind(now)
+    .bind(i64::from(auth.id))
+    .bind(&auth.username)
+    .bind(payable_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(db)?;
     tx.commit().await.map_err(db)?;
     ok(())
 }
@@ -3047,5 +3454,60 @@ mod purchase_draft_tests {
         assert!(src.contains(concat!("unique_doc", "_sn")));
         assert_eq!(src.matches(concat!("unique_doc", "_sn(&state")).count(), 3);
         assert_eq!(src.matches(concat!("unique_doc", "_sn(state")).count(), 1);
+    }
+
+    // ——— 采购结算（应付/付款登记，我方新增）口径测试 ———
+
+    #[test]
+    fn payable_status_is_derived_from_amounts() {
+        use rust_decimal::Decimal;
+        let d = |s: &str| Decimal::from_str(s).unwrap();
+        // 未付 → 待付款
+        assert_eq!(derive_payable_status(d("100.00"), d("0")), 1);
+        // 部分付 → 部分付款
+        assert_eq!(derive_payable_status(d("100.00"), d("40.50")), 2);
+        // 付清 / 超付（守卫上不会发生，推导仍收敛为结清）
+        assert_eq!(derive_payable_status(d("100.00"), d("100.00")), 3);
+        assert_eq!(derive_payable_status(d("100.00"), d("120.00")), 3);
+        // 应付额为 0 或负数（退货净额抵平/反超）→ 无付款义务，直接结清
+        assert_eq!(derive_payable_status(d("0"), d("0")), 3);
+        assert_eq!(derive_payable_status(d("-20.00"), d("0")), 3);
+    }
+
+    #[test]
+    fn pay_date_accepts_unix_and_date_string() {
+        assert_eq!(parse_pay_date(Some(&json!(1763845600))), 1763845600);
+        assert_eq!(parse_pay_date(Some(&json!("1763845600"))), 1763845600);
+        // 日期串按 UTC 零点落秒（只记日期口径）
+        assert_eq!(parse_pay_date(Some(&json!("2026-11-21"))), 1795219200);
+        assert_eq!(parse_pay_date(Some(&json!(""))), 0);
+        assert_eq!(parse_pay_date(Some(&json!("abc"))), 0);
+        assert_eq!(parse_pay_date(None), 0);
+    }
+
+    #[test]
+    fn payable_settlement_invariants_hold_in_source() {
+        // 源码级不变量（同 draft_isolation 手法，concat! 拼针防自证）。
+        let src = include_str!("supply_chain.rs");
+        // 1) 应付四端点已注册
+        assert!(src.contains(concat!("purchasePayable", "/list")));
+        assert!(src.contains(concat!("purchasePayable/payment", "/create")));
+        assert!(src.contains(concat!("purchasePayable/payment", "/delete")));
+        // 2) 对账通过钩子在位：approve 后生成应付
+        assert!(src.contains(concat!("ensure_payable", "_for(&state, id)")));
+        // 3) 生成与对账单 1:1 幂等：ON CONFLICT 不重复生成
+        assert!(src.contains(concat!(
+            "ON CONFLICT (reconciliation_id)",
+            " DO NOTHING"
+        )));
+        // 4) 登记防超付 + 应付行锁（并发口径）
+        assert!(src.contains(concat!("付款金额超过", "未付金额")));
+        assert!(src.contains(concat!(
+            "FROM purchase_payable WHERE id = $1 AND is_del = 0",
+            " FOR UPDATE"
+        )));
+        // 5) 状态只由推导函数产生：入参里不存在可写 status 的字段名
+        assert!(!src.contains(concat!("body.get(\"payable", "Status\")")));
+        assert!(!src.contains(concat!("body.get(\"paid", "Amount\")")));
     }
 }

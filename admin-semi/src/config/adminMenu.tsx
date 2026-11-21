@@ -773,6 +773,10 @@ export const navGroups: NavGroup[] = [
           {
             "key": "purchaseReconciliationManage",
             "label": "采购对账单"
+          },
+          {
+            "key": "purchasePayableManage",
+            "label": "采购应付单"
           }
         ]
       },
@@ -1865,6 +1869,7 @@ export const pageTitles: Record<string, string> = {
   "purchaseReceiptManage": "采购入库单",
   "purchaseReturnManage": "采购退货单",
   "purchaseReconciliationManage": "采购对账单",
+  "purchasePayableManage": "采购应付单",
   "selfVendorManage": "供应商资料",
   "selfVendorCategoryManage": "供应商分类",
   "selfVendorProductManage": "供应商商品",

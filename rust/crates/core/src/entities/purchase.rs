@@ -628,3 +628,92 @@ impl PurchaseSupplierCategory {
     /// 数据库表名。
     pub const TABLE: &'static str = "purchase_supplier_category";
 }
+
+
+/// 采购应付单（我方新增，迁移 038）：与采购对账单 1:1，对账通过时生成；
+/// status 为推导值（1 待付款，2 部分付款，3 已结清），由付款登记汇总
+/// 推导维护，禁止手工改。只做登记台账，不接真实支付通道。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct PurchasePayable {
+    /// [NOT NULL]
+    pub id: i64,
+    /// 应付单号（PS + 生成秒级时间戳 + 对账单 id 补零 6 位）[NOT NULL]
+    pub payable_sn: String,
+    /// 来源对账单 ID（唯一，1:1）[NOT NULL]
+    pub reconciliation_id: i64,
+    /// 来源对账单号快照 [NOT NULL]
+    pub reconciliation_sn: String,
+    /// 采购组织 ID（随对账单）[NOT NULL]
+    pub shop_id: i32,
+    /// 供应商 ID [NOT NULL]
+    pub vendor_id: i32,
+    /// 供应商快照 JSON（随对账单复制）[NOT NULL]
+    pub supplier_snapshot: String,
+    /// 应付金额（对账单 total_amount 快照）[NOT NULL]
+    pub payable_amount: Decimal,
+    /// 已付金额（有效付款登记汇总，事务内维护）[NOT NULL]
+    pub paid_amount: Decimal,
+    /// 推导状态：1 待付款，2 部分付款，3 已结清 [NOT NULL]
+    pub status: i32,
+    /// [NOT NULL]
+    pub remark: String,
+    /// [NOT NULL]
+    pub create_time: i64,
+    /// [NOT NULL]
+    pub create_by_id: i64,
+    /// [NOT NULL]
+    pub create_by_name: String,
+    /// [NOT NULL]
+    pub update_time: i64,
+    /// [NOT NULL]
+    pub update_by_id: i64,
+    /// [NOT NULL]
+    pub update_by_name: String,
+    /// [NOT NULL]
+    pub is_del: i32,
+}
+
+impl PurchasePayable {
+    /// 数据库表名。
+    pub const TABLE: &'static str = "purchase_payable";
+}
+
+
+/// 采购付款登记（我方新增，迁移 038）：一次付款登记一行，支持分次付款；
+/// 作废走软删（is_del=1），作废后应付汇总按有效行重算。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct PurchasePayment {
+    /// [NOT NULL]
+    pub id: i64,
+    /// 所属应付单 ID [NOT NULL]
+    pub payable_id: i64,
+    /// 本次付款金额（元，>0）[NOT NULL]
+    pub amount: Decimal,
+    /// 付款日期（epoch 秒，按日登记）[NOT NULL]
+    pub pay_date: i64,
+    /// 付款方式代码：bank/wechat/alipay/cash/other [NOT NULL]
+    pub pay_method: String,
+    /// 流水号 / 凭证号 [NOT NULL]
+    pub serial_no: String,
+    /// 凭证备注 [NOT NULL]
+    pub voucher_remark: String,
+    /// [NOT NULL]
+    pub remark: String,
+    /// [NOT NULL]
+    pub create_time: i64,
+    /// [NOT NULL]
+    pub create_by_id: i64,
+    /// [NOT NULL]
+    pub create_by_name: String,
+    /// [NOT NULL]
+    pub update_time: i64,
+    /// [NOT NULL]
+    pub is_del: i32,
+}
+
+impl PurchasePayment {
+    /// 数据库表名。
+    pub const TABLE: &'static str = "purchase_payment";
+}
