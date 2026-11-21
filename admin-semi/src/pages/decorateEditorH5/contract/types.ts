@@ -45,6 +45,20 @@ export interface PageModule {
     headerStyle?: number;
     /** 页面标题沉浸式（仅会员中心页使用） */
     immersive?: boolean;
+    /**
+     * 会员中心顶部背景自定义（我方新增，仅会员中心页 pageType=2 使用；
+     * 论坛帖 257746 子项，原版仅列入需求建议表未上线）。
+     * type：1 纯色 / 2 渐变 / 3 背景图；缺省或 0 = 跟随默认（不启用，
+     * H5 会员中心保持现行样式零变化）。gradient 镜像会员模块既有
+     * gradient 口径（colorA/colorB/gradientType）；image 为 PicSelect
+     * 单图对象（picUrl/picThumb），兼容纯字符串。
+     */
+    topBackground?: {
+        type?: number;
+        color?: string;
+        gradient?: { colorA?: string; colorB?: string; gradientType?: string };
+        image?: string | { picUrl?: string; picThumb?: string } | null;
+    };
     [key: string]: any;
 }
 

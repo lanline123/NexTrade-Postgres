@@ -14,6 +14,7 @@ import TigUpload from "@/components/tig/tig-upload/TigUpload";
 import { getMemberDecorate, getMemberDecorateLegacy } from "@/api/home/home";
 import { getMyGiftCards } from "@/api/giftCard/giftCard";
 import MemberDecorate from "@/pages/member/components/decorate";
+import { memberTopBackgroundCss, memberTopBackgroundFadeCss, resolveMemberTopBackground } from "@/pages/member/topBackground";
 import Account from "@/pages/member/components/decorate/account";
 import Advertising from "@/pages/member/components/decorate/advertising";
 import MyService from "@/pages/member/components/decorate/myService";
@@ -222,6 +223,10 @@ export default function Member() {
         : "var(--nav-height, 0px)";
     const firstVisibleModule = modules.find((module) => module.isShow !== false);
 
+    // 会员中心顶部背景自定义（我方新增，pageModule.topBackground）：未配置/值无效时为 null，
+    // 页面保持现行默认样式零变化；仅装修生效时消费（兜底布局 pageModule 为空天然不触发）
+    const topBackground = hasDecorate ? resolveMemberTopBackground(pageModule) : null;
+
     const pageGradientStyle = (() => {
         if (!hasDecorate) return {} as Record<string, string>;
         const first = firstVisibleModule;
@@ -243,7 +248,7 @@ export default function Member() {
 
     // 跨境外贸头背景：沉浸式随滚动渐显，否则取后台标题栏背景色，缺省白色
     const headerBackground = (() => {
-        if (immersive) {
+        if (immersive || topBackground) {
             const progress = Math.min(1, scrollTop / 70);
             return `rgba(255, 255, 255, ${progress})`;
         }
@@ -252,8 +257,8 @@ export default function Member() {
 
     const navbarBackground = (() => {
         const configBg = pageModule?.titleBackgroundColor;
-        // 沉浸式：随滚动从透明渐显到白色
-        if (immersive) {
+        // 沉浸式 / 顶部背景自定义：随滚动从透明渐显到白色（顶部透出顶部背景层）
+        if (immersive || topBackground) {
             const progress = Math.min(1, scrollTop / 70);
             return `rgba(255, 255, 255, ${progress})`;
         }
@@ -310,6 +315,20 @@ export default function Member() {
         const bg = pageModule?.backgroundColor;
         if (!bg || immersive) return undefined;
         return bg;
+    })();
+
+    // 顶部背景启用时：.user 容器只保留布局偏移（margin/padding），背景绘制让给顶部背景层，
+    // 避免与 userInfo/userInfo3 自带渐变叠绘
+    const userWrapStyle = (() => {
+        const base = (immersive ? pageImmersiveStyle : pageGradientStyle) as Record<string, string>;
+        if (!topBackground) return base;
+        const rest = { ...base };
+        delete rest.background;
+        delete rest.backgroundImage;
+        delete rest.backgroundSize;
+        delete rest.backgroundRepeat;
+        delete rest.backgroundColor;
+        return rest;
     })();
 
     const fetchLegacyMemberDecorate = async () => {
@@ -402,6 +421,19 @@ export default function Member() {
             <View className="member-page" style={{ "--member-header-offset": pageHeaderOffset, "--member-page-bg": pageBg } as any}>
                 {/* 沉浸式：铺一层固定页面底色，与 userInfo3 渐变的渐隐目标色一致 */}
                 {immersive ? <View className="immersive-page-bg" /> : null}
+                {/* 会员中心顶部背景层（我方新增）：绝对定位于页面顶部，底部渐隐至页面背景 */}
+                {topBackground ? (
+                    <View className="member-top-bg">
+                        {topBackground.kind === "image" ? (
+                            <>
+                                <Image className="member-top-bg-img" src={imageFormat(topBackground.image || "")} mode="aspectFill" />
+                                <View className="member-top-bg-fade" style={{ background: memberTopBackgroundFadeCss(topBackground) }} />
+                            </>
+                        ) : (
+                            <View className="member-top-bg-fill" style={{ background: memberTopBackgroundCss(topBackground) }} />
+                        )}
+                    </View>
+                ) : null}
                 {/* tig-layout 内 sticky 会被 overflow:hidden 截断，与首页一致用 fixed + 占位 */}
                 {isOverseasSkin ? <MainHeader position="fixed" background={headerBackground} onHeightChange={setHeaderHeight} /> : null}
                 {/* 沉浸式不占位，让首个模块的渐变铺到头部背后 */}
@@ -412,7 +444,7 @@ export default function Member() {
 
                 {decorateLoaded ? (
                     hasDecorate ? (
-                        <View className={`user${immersive ? " user--immersive" : ""}`} style={(immersive ? pageImmersiveStyle : pageGradientStyle) as any}>
+                        <View className={`user${immersive ? " user--immersive" : ""}${topBackground ? " user--topbg" : ""}`} style={userWrapStyle as any}>
                             <MemberDecorate modules={modules} immersive={immersive} />
                         </View>
                     ) : showFallbackLayout ? (

@@ -15,7 +15,8 @@ import { editorStore, useEditorState } from "../store/editorStore";
 import { getLazyModuleComponent } from "../contract/lazyModule";
 import { getModuleDefinition } from "../contract/moduleRegistry";
 import ModuleErrorBoundary from "./ModuleErrorBoundary";
-import { ColorField, PicSelectField, SegmentedButtonRadio, SegmentedButtonRadioRowField, DecDivider } from "../shared/settingWidgets";
+import { ColorField, PicSelectField, SegmentedButtonRadio, SegmentedButtonRadioRowField, DecDivider, SettingRow } from "../shared/settingWidgets";
+import AlphaColorInput from "../../../components/AlphaColorInput";
 import type { PageModule } from "../contract/types";
 
 import { useI18n } from '../../../i18n';
@@ -32,6 +33,16 @@ function PageSettings({ pageModule, pageType }: { pageModule: PageModule; pageTy
     const fp = { data, onChange };
     const repeatLabels: Record<number, string> = { 1: "不平铺", 2: "平铺", 3: "纵向平铺", 4: "横向平铺" };
     const sizeLabels: Record<number, string> = { 1: "横向100%", 2: "纵向100%", 3: "100%填充" };
+    // 会员中心顶部背景自定义（我方新增，仅 pageType=2）：pageModule.topBackground 嵌套对象，
+    // 读写都经 tbOnChange 整体回写（updatePageModule 按顶层键合并，嵌套须整对象提交）。
+    const tbRaw: Record<string, any> = data.topBackground && typeof data.topBackground === "object" ? data.topBackground : {};
+    const tbOnChange = (patch: Record<string, any>) => onChange({ topBackground: { ...tbRaw, ...patch } });
+    const topBgType = Number(tbRaw.type ?? 0);
+    const topBgTypeLabels: Record<number, string> = { 0: "跟随默认", 1: "纯色", 2: "渐变", 3: "背景图" };
+    const tbGradient: Record<string, any> = tbRaw.gradient && typeof tbRaw.gradient === "object" ? tbRaw.gradient : {};
+    const tbGradientDefaults = { colorA: "#fcf6fc", colorB: "#f3f3fe", gradientType: "leftRight" };
+    const tbGradientDirLabels: Record<string, string> = { upDown: "上下", leftRight: "左右", diagonal: "斜向" };
+    const tbGradientOnChange = (patch: Record<string, any>) => tbOnChange({ gradient: { ...tbGradient, ...patch } });
 
     return (
         <div className="h5-editor-settings-body">
@@ -57,6 +68,83 @@ function PageSettings({ pageModule, pageType }: { pageModule: PageModule; pageTy
                         <Switch checked={data.immersive === true || Number(data.immersive) === 1} onChange={(v: boolean) => onChange({ immersive: v })} />
                     </div>
                 </div>
+            ) : null}
+            {pageType === 2 ? (
+                <>
+                    <DecDivider />
+                    {/* 会员中心顶部背景自定义（我方新增）：作用于标题栏与用户信息区，
+                        底部渐隐至页面背景；「跟随默认」= 不启用，与未配置等价零变化 */}
+                    <div className="dec-edit-group dec-edit-group-block">
+                        <div className="dec-edit-group-title">
+                            <div className="label">{t('顶部背景')}</div>
+                            <div className="value">{t(topBgTypeLabels[topBgType] || "跟随默认")}</div>
+                        </div>
+                        <div className="dec-edit-group-con">
+                            <SegmentedButtonRadio
+                                value={topBgType}
+                                options={[
+                                    { value: 0, label: "跟随默认" },
+                                    { value: 1, label: "纯色" },
+                                    { value: 2, label: "渐变" },
+                                    { value: 3, label: "背景图" }
+                                ]}
+                                onChange={(v) => tbOnChange({ type: Number(v) })}
+                            />
+                        </div>
+                    </div>
+                    {topBgType === 1 ? <ColorField data={tbRaw} onChange={tbOnChange} field="color" label="背景颜色" resetValue="" /> : null}
+                    {topBgType === 2 ? (
+                        <>
+                            <SettingRow label="渐变颜色">
+                                <div className="dec-color-group">
+                                    <div className="dec-color-button">
+                                        <a className="dec-color-reset" onClick={() => tbOnChange({ gradient: { ...tbGradientDefaults } })}>
+                                            {t("重置")}
+                                        </a>
+                                        <span className="dec-color-trigger">
+                                            <AlphaColorInput
+                                                value={String(tbGradient.colorA ?? tbGradientDefaults.colorA)}
+                                                onChange={(v) => tbGradientOnChange({ colorA: v })}
+                                            />
+                                        </span>
+                                        <span style={{ margin: "0 10px" }}>-</span>
+                                        <span className="dec-color-trigger">
+                                            <AlphaColorInput
+                                                value={String(tbGradient.colorB ?? tbGradientDefaults.colorB)}
+                                                onChange={(v) => tbGradientOnChange({ colorB: v })}
+                                            />
+                                        </span>
+                                    </div>
+                                </div>
+                            </SettingRow>
+                            <div className="dec-edit-group dec-edit-group-block">
+                                <div className="dec-edit-group-title">
+                                    <div className="label">{t('渐变方向')}</div>
+                                    <div className="value">
+                                        {t(tbGradientDirLabels[String(tbGradient.gradientType || "leftRight")] || "左右")}
+                                    </div>
+                                </div>
+                                <div className="dec-edit-group-con">
+                                    <SegmentedButtonRadio
+                                        value={String(tbGradient.gradientType || "leftRight")}
+                                        options={[
+                                            { value: "upDown", label: "上下" },
+                                            { value: "leftRight", label: "左右" },
+                                            { value: "diagonal", label: "斜向" }
+                                        ]}
+                                        onChange={(v) => tbGradientOnChange({ gradientType: String(v) })}
+                                    />
+                                </div>
+                            </div>
+                        </>
+                    ) : null}
+                    {topBgType === 3 ? <PicSelectField data={tbRaw} onChange={tbOnChange} field="image" label="背景图" /> : null}
+                    <div className="dec-edit-group">
+                        <div className="dec-edit-group-desc" style={{ marginTop: 0 }}>
+                            {t('提示：顶部背景仅适用于会员中心，底部自动渐隐至页面背景色；选「跟随默认」即恢复原样式。')}
+                        </div>
+                    </div>
+                </>
             ) : null}
             {/* 页面设置以 PC 编辑器 PageSettings 为准：分段按钮（type="button"），非模块字段的圆点口径 */}
             <SegmentedButtonRadioRowField

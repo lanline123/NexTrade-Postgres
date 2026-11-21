@@ -3,6 +3,8 @@
     background: var(--member-page-bg, linear-gradient(90deg, #fcf6fc, #f3f3fe));
     min-height: 100vh;
     box-sizing: border-box;
+    /* 顶部背景层（.member-top-bg）绝对定位的锚点 */
+    position: relative;
 }
 
 /* 固定页头在正常模式下只保留一份占位。 */
@@ -24,6 +26,38 @@
 }
 
 .user--immersive {
+    position: relative;
+    z-index: 1;
+}
+
+/* 会员中心顶部背景层（我方新增）：绝对定位于页面顶部，高度与沉浸式渐变带一致（880rpx），
+   底部由内联渐隐层渐隐至页面背景；内容区 .user--topbg 抬升至其上 */
+.member-top-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 880rpx;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+.member-top-bg-fill,
+.member-top-bg-fade {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+.member-top-bg-img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+.user--topbg {
     position: relative;
     z-index: 1;
 }

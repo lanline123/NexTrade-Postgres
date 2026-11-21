@@ -128,12 +128,53 @@ function pageBackgroundStyle(pageModule: Record<string, any>, pageType: number):
     return out as React.CSSProperties;
 }
 
+/**
+ * 会员中心顶部背景层（我方新增，兼容画布预览用；解析口径与 H5
+ * pages/member/topBackground.ts 镜像：type 1 纯色 / 2 渐变 / 3 背景图，
+ * 未配置或值无效返回 null）。画布窗宽 390px，顶部带高 880rpx 按
+ * 390/750 折算 ≈458px。真实渲染分支由 iframe 内 H5 会员页自行绘制。
+ */
+function memberTopBackgroundStyle(pageModule: Record<string, any>): React.CSSProperties | null {
+    const tb = pageModule?.topBackground;
+    if (!tb || typeof tb !== "object") return null;
+    const fade = (typeof pageModule?.backgroundColor === "string" && pageModule.backgroundColor) || "#f5f5f5";
+    const fadeLayer = `linear-gradient(to bottom, transparent 55%, ${fade} 100%)`;
+    const base: React.CSSProperties = { position: "absolute", top: 0, left: 0, right: 0, height: 458, pointerEvents: "none", zIndex: 0 };
+    const type = Number(tb.type ?? 0);
+    if (type === 1) {
+        const color = typeof tb.color === "string" ? tb.color.trim() : "";
+        if (!color) return null;
+        return { ...base, backgroundImage: `${fadeLayer}, linear-gradient(${color}, ${color})` };
+    }
+    if (type === 2) {
+        const g: Record<string, any> = tb.gradient && typeof tb.gradient === "object" ? tb.gradient : {};
+        const dirMap: Record<string, string> = { upDown: "to bottom", leftRight: "to right", diagonal: "135deg" };
+        const dir = dirMap[String(g.gradientType || "leftRight")] || "to right";
+        return { ...base, backgroundImage: `${fadeLayer}, linear-gradient(${dir}, ${g.colorA || "#fcf6fc"}, ${g.colorB || "#f3f3fe"})` };
+    }
+    if (type === 3) {
+        const raw = tb.image;
+        const url = typeof raw === "string" ? raw : raw && typeof raw === "object" ? raw.picUrl || "" : "";
+        if (!url) return null;
+        return {
+            ...base,
+            backgroundImage: `${fadeLayer}, url("${url}")`,
+            backgroundSize: "100% 100%, cover",
+            backgroundPosition: "center top, center top",
+            backgroundRepeat: "no-repeat"
+        };
+    }
+    return null;
+}
+
 /** 页面头模拟件（原版 src/modules/src/commonPage/View.vue，经 MobilePageHeaderPreview 包装） */
 function PageHeaderPreview({ preview }: { preview?: boolean }) {
     const s = useEditorState();
     // 原版 Index.vue：pageType 6（搜索）/8（商品详情）不渲染页面头
     if (s.pageType === 6 || s.pageType === 8) return null;
     const immersive = s.pageType === 2 && !!s.pageModule.immersive;
+    // 会员中心顶部背景启用时标题栏透出顶部背景层（与 H5 会员页口径一致），不再铺标题栏背景色
+    const topBgActive = s.pageType === 2 && memberTopBackgroundStyle(s.pageModule as Record<string, any>) !== null;
     const transparent = !immersive && Number((s.pageModule as Record<string, any>).headerStyle) === 2;
     const isActive = s.editMode === "page" && !preview;
     const classes = [
@@ -154,7 +195,7 @@ function PageHeaderPreview({ preview }: { preview?: boolean }) {
         >
             <div
                 className="module-ad-con module-topbar-warp"
-                style={s.pageModule.titleBackgroundColor ? { backgroundColor: s.pageModule.titleBackgroundColor } : undefined}
+                style={s.pageModule.titleBackgroundColor && !topBgActive ? { backgroundColor: s.pageModule.titleBackgroundColor } : undefined}
             >
                 <div className="module-topbar-con">
                     <div className="module-topbar-title-con">
@@ -287,6 +328,11 @@ export default function Canvas({ preview = false }: { preview?: boolean }) {
     };
 
     const windowStyle = useMemo(() => pageBackgroundStyle(s.pageModule as Record<string, any>, s.pageType), [s.pageModule, s.pageType]);
+    /** 会员中心顶部背景层（仅兼容画布；真实渲染由 iframe 内 H5 会员页绘制） */
+    const topBgLayerStyle = useMemo(
+        () => (s.pageType === 2 ? memberTopBackgroundStyle(s.pageModule as Record<string, any>) : null),
+        [s.pageModule, s.pageType]
+    );
     /** 兼容画布主题变量（真实渲染分支不需要：iframe 内由嵌入页注入） */
     const themeVars = useEditorThemeVars();
     const showPageConfig = !preview && s.pageType !== 6 && s.pageType !== 8;
@@ -318,6 +364,7 @@ export default function Canvas({ preview = false }: { preview?: boolean }) {
             </div>
             {renderMode === "compat" ? (
             <div className="decorate-page-window" ref={windowRef} style={{ ...windowStyle, ...themeVars } as React.CSSProperties}>
+                {topBgLayerStyle ? <div style={topBgLayerStyle} /> : null}
                 <div className="theme-modules-warp">
                     <PageHeaderPreview preview={preview} />
                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
