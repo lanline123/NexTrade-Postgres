@@ -85,3 +85,13 @@ view {
 .show {
     animation: fade-in 0.4s ease-in-out both;
 }
+
+/* H5 大图预览层级修复（论坛帖 567933「H5 大图查看被遮挡」在我方移植栈的对应缺口）：
+   Taro H5 的 Taro.previewImage 预览容器（.preview-image）内联 z-index 仅 1050，
+   低于 NutUI 弹层口径 9999（如规格弹窗 Popup zIndex=9999），在弹窗内点图看大图时
+   预览会被弹窗遮罩压住。原版 uni.previewImage 为顶层预览、不受 tig-popup 9999 影响。
+   此处全局抬升预览层至全部弹层之上（点击任意处/路由变化即关闭，不长期占用层级）；
+   小程序端预览为系统级页面，本规则无对应节点、无副作用。 */
+.preview-image {
+    z-index: 10001 !important;
+}
