@@ -45,7 +45,6 @@ export const MODULE_TYPE_LABELS: Record<string, string> = {
     commonTitle: "通用标题",
     countdown: "倒计时",
     coupon: "优惠券",
-    customProduct: "个性商品",
     fixedFunctionalArea: "固定功能区",
     "fixed-functional-area": "固定功能区",
     groupSliding: "分组滑动",

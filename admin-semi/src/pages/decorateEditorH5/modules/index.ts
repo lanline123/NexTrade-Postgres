@@ -42,7 +42,6 @@ import "./pro/categoryNav";
 import "./pro/categoryRec";
 import "./pro/mixedNotice";
 import "./pro/bannerA2";
-import "./pro/customProduct";
 // 第 8 步专属化批次 A（2026-11-15）
 import "./pro/banner";
 import "./pro/categoryNavA1";
@@ -96,7 +95,6 @@ import "./pro/storeOrderCard";
 // import "./pro/limitedSpecial";
 // import "./pro/productSlide";
 // import "./pro/productCarousel";
-// import "./pro/customProduct";
 // import "./pro/storeNav";
 // import "./pro/storeOrderCard";
 

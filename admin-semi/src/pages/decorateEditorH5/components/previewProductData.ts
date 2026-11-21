@@ -49,8 +49,8 @@ function idsFromList(list: any[]): Array<string | number> {
  * 递归收集模块数据里的全部商品来源，与兼容渲染各 Preview 的取数集合一致：
  * - 带 productSelectType 的对象（product/product2/productA1/productSlide/
  *   limitedSpecial/newcomerCombo 等模块的 products 配置）；
- * - 带 pruductList 的对象（customProduct 的条目表、mixedProductDisplay 的
- *   productGroups 分组），按其 id 集合合成指定商品来源。
+ * - 带 pruductList 的对象（mixedProductDisplay 的 productGroups 分组等），
+ *   按其 id 集合合成指定商品来源。
  * 快照型模块（productGrouping 等，价格已存页面数据）不经接口取数，其快照
  * 对象不带上述两种形态，不会被误收。
  */

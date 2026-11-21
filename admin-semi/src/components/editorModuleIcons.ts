@@ -94,7 +94,6 @@ export const MODULE_ICONPARK: Record<string, IconParkIcon> = {
     product: Commodity,
     product2: Commodity,
     productA1: Commodity,
-    customProduct: Commodity,
     productDetailA1: Commodity,
     productDetailA2: Commodity,
     productDetailA3: Commodity,

@@ -147,7 +147,7 @@ const formatScore = (shopStar: unknown): string => {
  * getStoreDetail 按 shopId 补拉详情，仍补不到就只渲染 storeList 原始条目
  * （shopId/shopTitle/shopLogo），不编造评分/距离/商品。
  * 关注钮走真实收藏接口 shopCollection（原版卡片同口径）。
- * 无门店数据（加载中/接口空/指定列表为空）时整模块不渲染（与 customProduct 等邻居模块一致）。
+ * 无门店数据（加载中/接口空/指定列表为空）时整模块不渲染（与邻居模块一致）。
  */
 export default function StoreNav({ module }: Props) {
     const d = useMemo<StoreNavData>(() => {

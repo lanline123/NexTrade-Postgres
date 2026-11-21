@@ -101,12 +101,13 @@ imageTextComponent: lazyModule(() => import(/* webpackChunkName: "mod-imageTextC
 videoNumber: lazyModule(() => import(/* webpackChunkName: "mod-videoNumber" */ "./videoNumber/index")),
 live: lazyModule(() => import(/* webpackChunkName: "mod-live" */ "./live/index")),
 shopInfo: lazyModule(() => import(/* webpackChunkName: "mod-shopInfo" */ "./shopInfo/index")),
-// 四个模块均有原版编辑器源契约（article 在 mobile 组，余三者在 mobilePro 组）；
-// 2026-11-18 补齐：编辑器侧已全部可放置（article/customProduct 放开 visible、
-// storeNav/storeOrderCard 解放置死锁），storeNav/storeOrderCard 渲染器按原版
-// 编辑器契约重建（原版 uniapp 从未有这两个渲染器），契约见各自模块文件头
+// 三个模块均有原版编辑器源契约（article 在 mobile 组，余二者在 mobilePro 组）；
+// 2026-11-18 补齐：编辑器侧已全部可放置（storeNav/storeOrderCard 解放置死锁），
+// storeNav/storeOrderCard 渲染器按原版编辑器契约重建（原版 uniapp 从未有这
+// 两个渲染器），契约见各自模块文件头。同批补齐的 customProduct（个性商品）
+// 已于 2026-11-21 经用户拍板彻底移除（原版注册 visible:false、仅供老数据
+// 渲染），存量数据走本表未注册类型渲染 null 的既有口径。
 article: lazyModule(() => import(/* webpackChunkName: "mod-article" */ "./article/index")),
-customProduct: lazyModule(() => import(/* webpackChunkName: "mod-customProduct" */ "./customProduct/index")),
 storeNav: lazyModule(() => import(/* webpackChunkName: "mod-storeNav" */ "./storeNav/index")),
 storeOrderCard: lazyModule(() => import(/* webpackChunkName: "mod-storeOrderCard" */ "./storeOrderCard/index")),
 // 会员中心模块【原版有】（2026-11-19 补齐，与首页 10020 同一分发方案）：

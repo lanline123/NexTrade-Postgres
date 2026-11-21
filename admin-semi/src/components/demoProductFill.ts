@@ -115,7 +115,6 @@ source?: number;
 
 export const DEMO_FILL_TARGETS: Record<string, DemoFillTarget> = {
 /* H5 快照型（个数 = 原版 defaults 条数 = 画布完整形态，本轮登记定案） */
-customProduct: { list: 4 }, // 个性商品：海报 + 2×2 网格；设置选品上限即 4，不可超
 comboSuggestions: { list: 4 }, // 组合推荐：每组横排每屏 2 件 × 2 屏
 countdown: { list: 4 }, // 倒计时：横滑行一屏 + 滑出感
 groupSliding: { list: 5 }, // 分组滑动：原版每组 5 件
