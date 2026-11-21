@@ -1399,3 +1399,9 @@
 ### 修复
 
 - **装修编辑器 - PC 拼团三份 Preview 无活动 mock 商品清单真实化【原版有·我方改口径】**（用户 2026-11-21 拍板「PC 拼团三处也同法收口」，承接同日 Preview 兜底收口批次的边界 1）：PC 拼团三份 Preview（decoratePc/modules/pc-home-groupon、decoratePc/modules/pcGroupon、decoratePc/previews/PcGrouponPreview）未选活动时写死的 mock 商品清单（「拼团商品示例一号…六号」+ dummyimage 占位图、含编造拼团价/原价）全部删除，改走共享填充器 demoProductFill 的在售池（经 usePreviewDemoProducts 异步取池，复用共用取池 fetchOnSaleProductPool，不另写第二套取数/洗牌）：仅活动商品列表为空时补足展示（非空不混，与 H5 拼团 Preview 定案逐项同构），条数沿各文件原口径（新版两份 style 2→4 个、4→6 个、其余 6 个；旧版 pcGroupon 按列数、横滑 6 个）；补足条目以真实商品记录映射拼团展示字段——主价取该商品真实拼团价字段（minGroupPrice/minGrouponPrice/grouponPrice），无则取其真实售价，划线价即其真实售价，不编造商品与价格；池空/取数失败时不补、商品区为空（标题/框体照常）。纯显示层：不改 defaults、不改保存形状、不落盘，已选活动且有商品时显示逐字不变。横扫实证：改后三份文件 mock 字面量清零，全仓 133 个 Preview 文件写死商品清单（productName 字面量 / dummyimage）清零、无同性质漏网（秒杀三份仍走活动配置无写死清单；移动搜索结果/分类中心 V2 整页静态 mock 与 PC 通栏 SN 快照机制性质不同、维持原登记口径）。报告 ~/workspace/preview-demo-fill/REPORT2.md（工作区报告）。
+
+## 0.0.2 续 · 2026-11-21 批次（点单卡片等三模块全账号可见：用户裁决改口径，未部署——随下一 admin 合并版上线）
+
+### 修复
+
+- **装修编辑器 - 点单卡片/门店导航/首焦轮播A2 店铺账号亦可见（原版有·我方改口径，用户 2026-11-21 裁决「全部的都可见」，偏离原版口径）**：上一批（点单卡片模块全面复核）按原版口径修复三模块对平台管理员的模块库缺席后，店铺账号仍不见三者——原版口径即店铺端不见整个高级组（getModulesByContext 对店铺上下文滤除 advanced 组）。用户裁决三模块对平台与店铺账号全部可见。本批以注册层显式口径最小放开：ModuleDefinition 新增 `shopVisible` 字段（与 shopOnly 相反：shopOnly 为平台端不可见、仅店铺端；shopVisible 为两端都可见），仅 storeOrderCard/storeNav/bannerA2 三个注册标示 `shopVisible: true`，getModulesByContext 的高级组过滤对标示者豁免；全局过滤默认行为不变，其余任何模块门控未动（店铺信息 shopInfo 的 shopOnly 等原版自带口径一律保留）。双上下文清单脚本实证（全注册表 72 个模块按过滤链逐项模拟）：平台侧改前改后逐字一致（首页 pageType=1 共 52 个）；店铺侧仅多此三模块（21→24，isShopEnd 两种取值下结论相同），其余 pageType 双上下文零变化。店铺账号添加链路静态核通：工具栏渲染无第二层账号过滤、addModule 校验（位置/独占约束）与账号无关、保存走通用链路、uniapp 前台 registry 与 shopModules 白名单三者俱在。报告 ~/workspace/storeordercard-audit/REPORT2.md。

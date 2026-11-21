@@ -64,6 +64,9 @@ registerModule({
     // VITE_IS_STORE 版本标志（contract/version 已按原版 env 口径实现，全量版 .env 置 1 恒真）。
     // 原版注册无 shopOnly——2026-11-21 随点单卡片复核一并删除误加项，报告见 storeordercard-audit。
     enabled: () => isStore(),
+    // 店铺端亦可见：用户 2026-11-21 裁决「全部的都可见」（原版有·我方改口径，
+    // 原版店铺端不见高级组），经 shopVisible 显式豁免，见 storeordercard-audit/REPORT2.md。
+    shopVisible: true,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(bannerA2Defaults)

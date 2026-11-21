@@ -105,9 +105,14 @@ export function getModulesByContext(decorateType: DecorateTypeValue, pageType: n
         if (m.shopOnly && !isShop) return false;
         const group = getModuleToolbarGroup(m.url, m.toolbarGroup as ToolbarGroup | undefined);
         if (!rule.allowedGroups.includes(group)) return false;
-        // 店铺专属模块（shopOnly，如门店导航/点单卡片）本身就是给店铺账号用的，
-        // 不受「店铺账号不见 advanced 组」的限制——否则 enabled:isStore 与本条互抵、两种账号都放不出来（放置死锁）。
-        if (isShop && group === "advanced" && !m.shopOnly) return false;
+        // 店铺账号不见 advanced 组（原版口径），仅两类显式豁免：
+        // ① shopOnly 店铺专属模块（advanced 组内目前无此组合——唯一的 shopInfo
+        //    在 other 组，其店铺可见靠上方 shopOnly 条、平台端已滤除）；
+        // ② shopVisible 注册显式标示「店铺端亦可见」者——目前仅点单卡片/
+        //    门店导航/首焦轮播A2，用户 2026-11-21 裁决「全部的都可见」
+        //    （原版有·我方改口径，偏离原版店铺端不见高级组，见
+        //    storeordercard-audit/REPORT2.md）。未标示的默认行为不变。
+        if (isShop && group === "advanced" && !m.shopOnly && !m.shopVisible) return false;
         return true;
     });
 }

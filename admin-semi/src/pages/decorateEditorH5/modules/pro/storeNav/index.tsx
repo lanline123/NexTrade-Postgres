@@ -4,6 +4,8 @@
  * VITE_IS_STORE 版本标志（contract/version 已按原版 env 口径实现，全量版 .env 置 1 恒真）。
  * 原版注册无 shopOnly——2026-11-21 随点单卡片复核一并删除我方误加的 shopOnly 并订正
  * isStore 误译（曾致平台管理员模块库里无此模块），报告 ~/workspace/storeordercard-audit/REPORT.md。
+ * 店铺端可见性：用户 2026-11-21 裁决与点单卡片/首焦轮播A2 一并「全部的都可见」，
+ * 注册以 shopVisible 显式豁免（原版有·我方改口径），报告同目录 REPORT2.md。
  * storeStyle/storeSource 的原版枚举 StoreNavStyle{One:1,Two:2} / StoreNavSource{Auto:1,Assign:2}
  * 以数值字面量落 defaults（types.ts 口径）。
  */
@@ -52,6 +54,9 @@ registerModule({
     platform: "mobile",
     order: 23,
     enabled: () => isStore(),
+    // 店铺端亦可见：用户 2026-11-21 裁决「全部的都可见」（原版有·我方改口径，
+    // 原版店铺端不见高级组），经 shopVisible 显式豁免，见 storeordercard-audit/REPORT2.md。
+    shopVisible: true,
     preview: () => import("./Preview"),
     settings: () => import("./Settings"),
     getDefaultValue: () => cloneDeep(storeNavDefaults)

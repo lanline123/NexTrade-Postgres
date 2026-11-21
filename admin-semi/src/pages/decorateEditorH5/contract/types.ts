@@ -97,4 +97,10 @@ export interface ModuleDefinition {
     exclusive?: boolean;
     /** 店铺端专属：仅 adminType=shop 显示 */
     shopOnly?: boolean;
+    /** 店铺端亦可见：店铺账号上下文下豁免「不见 advanced 组」过滤、两端都可见
+     * （与 shopOnly 相反：shopOnly 是平台端不可见、仅店铺端）。默认不标 = 原版
+     * 口径（店铺端不见高级组）；目前仅 storeOrderCard/storeNav/bannerA2 经用户
+     * 2026-11-21 裁决「全部的都可见」标示（原版有·我方改口径，偏离原版店铺端
+     * 不见高级组），见 storeordercard-audit/REPORT2.md */
+    shopVisible?: boolean;
 }
