@@ -5,6 +5,7 @@
  * 结构：分组标题栏（可横向滚动 + 左右箭头 + 标题图/分割线/选中态）+ 商品列表（多种列宽/一大两小）。
  * 取数：
  * - sourceType=productGroup：product/product/list?productGroupId=...&page=1&size=cols*3
+ * - sourceType=all：product/product/list?page=1&size=cols*3（全部商品，我方新增，无过滤）
  * - sourceType=products：优先 ids 批量取数，失败/为空回退配置内商品列表
  * - 组内无已选商品时（或仅存演示条目）以在售商品池随机真实商品展示
  *   （共享 demoProductFill 的 fetchOnSaleProductPool，纯显示层不落盘；
@@ -40,7 +41,7 @@ interface ProductItem {
 
 interface ProductGroupItem {
   id?: string | number;
-  sourceType?: 'products' | 'productGroup';
+  sourceType?: 'products' | 'productGroup' | 'all';
   productGroupId?: string | number;
   title?: string;
   titlePic?: { picUrl?: string; picThumb?: string };
@@ -262,6 +263,21 @@ export default function PcProductGroupPreview({ data }: { data: Record<string, a
           const cols = getColumnsCount();
           const result = await apiGet<{ records?: ProductItem[]; list?: ProductItem[] }>('/product/product/list', {
             productGroupId: group.productGroupId,
+            page: 1,
+            size: cols * 3,
+          });
+          if (alive) setCurrentProductList(result.records || result.list || []);
+        } catch {
+          if (alive) setCurrentProductList([]);
+        }
+        return;
+      }
+
+      if (sourceType === 'all') {
+        // 全部商品（我方新增）：无过滤取全站上架商品，size 口径与商品分组一致（cols*3）
+        try {
+          const cols = getColumnsCount();
+          const result = await apiGet<{ records?: ProductItem[]; list?: ProductItem[] }>('/product/product/list', {
             page: 1,
             size: cols * 3,
           });

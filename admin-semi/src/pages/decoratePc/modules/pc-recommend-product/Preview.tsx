@@ -213,6 +213,8 @@ function useProductList(config: AnyRecord) {
         1: ['productIds'],
         2: ['productCategoryId', 'productNumber'],
         3: ['productTag', 'productNumber'],
+        // 4 全部商品（我方新增）：仅 productNumber→size，无任何过滤
+        4: ['productNumber'],
       };
       const paramsKeyMap: Record<string, string> = {
         productIds: 'ids',

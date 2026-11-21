@@ -44,6 +44,11 @@ export function buildDecorateProductListQuery(
   } else if (productSelectType === 3) {
     params.set('introType', String(config.productTag ?? ''));
     params.set('size', String(pxNum(config.productNumber, columns * 2)));
+  } else if (productSelectType === 4) {
+    // 全部商品（我方新增，论坛 B 类 237824）：无 ids/分类/标签过滤，仅 page+size；
+    // 数量未配（0）时回退列数*2（与分类/标签的缺省口径同量级），不走 size=0 的不取数分支
+    const num = pxNum(config.productNumber, 0);
+    params.set('size', String(num > 0 ? num : columns * 2));
   } else {
     params.set('size', '0');
   }
@@ -61,7 +66,8 @@ export function apiQueryString(params?: Record<string, unknown>): string {
   return query.toString();
 }
 
-/** RecommendProduct.buildParams：{page, size} + 按 selectType 附加 ids / categoryId / introType。 */
+/** RecommendProduct.buildParams：{page, size} + 按 selectType 附加 ids / categoryId / introType。
+ * selectType=4（全部商品，我方新增）：不附加任何过滤，仅 {page, size}，上限由调用方 maxNum 口径决定。 */
 export function recommendPageParams(
   config: Record<string, any>,
   pageNo: number,
@@ -87,7 +93,8 @@ export function contractRecommendMaxNum(config: Record<string, any>): number {
   return selectType === 1 ? ids.length : Math.max(0, pxNum(config.productNumber, 0));
 }
 
-/** ContractRecommendProduct.buildParams：size 按 sizeOf(page) 推导（每页 20，末页取余）。 */
+/** ContractRecommendProduct.buildParams：size 按 sizeOf(page) 推导（每页 20，末页取余）。
+ * selectType=4（全部商品，我方新增）：不附加过滤，上限走 contractRecommendMaxNum 的 productNumber 口径。 */
 export function contractRecommendPageParams(
   config: Record<string, any>,
   pageNo: number,
@@ -116,6 +123,7 @@ export function productGroupColumns(module: Record<string, any>): number {
 /**
  * ProductGroup 首个（或指定）分组的查询串，与组件 effect 内的构造逐字一致：
  * - sourceType=productGroup：page=1&size=columns*3&productGroupId=…
+ * - sourceType=all：page=1&size=columns*3（全部商品，我方新增，无过滤）
  * - 指定商品：ids=…&size=ids 个数（无 page 参数）
  * 返回 null 表示该分组不会发请求（无分组 / 指定商品为空）。
  */
@@ -129,6 +137,12 @@ export function productGroupTabQuery(
       page: '1',
       size: String(columns * 3),
       productGroupId: String(group.productGroupId),
+    }).toString();
+  }
+  if (group.sourceType === 'all') {
+    return new URLSearchParams({
+      page: '1',
+      size: String(columns * 3),
     }).toString();
   }
   const fromList = Array.isArray(group.productList) ? group.productList : [];
@@ -145,5 +159,13 @@ export function heroGroupProductsQuery(productGroupId: unknown): string {
     page: '1',
     size: '2',
     productGroupId: String(productGroupId),
+  }).toString();
+}
+
+/** HomeHero 全部商品卡位取数查询串（page=1&size=2，无过滤；我方新增来源）。 */
+export function heroAllProductsQuery(): string {
+  return new URLSearchParams({
+    page: '1',
+    size: '2',
   }).toString();
 }

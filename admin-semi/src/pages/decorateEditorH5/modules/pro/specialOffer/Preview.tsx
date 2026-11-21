@@ -63,9 +63,12 @@ export default function SpecialOfferPreview({ data }: Props) {
         if (m.productSource === "products") {
             return `products:${(m.productList ?? []).map((p: any) => p.productId).join(",")}`;
         }
+        if (m.productSource === "all") {
+            return `all:${m.productNum ?? 100}`;
+        }
         const g = m.productGroups?.[0];
         return g ? `group:${g.productGroupId}:${g.productNumType}:${g.productNum}` : "none";
-    }, [m.productSource, m.productList, m.productGroups]);
+    }, [m.productSource, m.productList, m.productGroups, m.productNum]);
 
     const [fetched, setFetched] = useState<Array<Record<string, any>>>([]);
     useEffect(() => {
@@ -79,6 +82,12 @@ export default function SpecialOfferPreview({ data }: Props) {
                         return;
                     }
                     const res: any = await apiGet("/product/product/list", { ids: ids.join(",") });
+                    if (!cancelled) setFetched(Array.isArray(res?.records) ? res.records : []);
+                } else if (m.productSource === "all") {
+                    // 全部商品（我方新增）：仅 size，无任何过滤（口径同店面渲染端）
+                    const res: any = await apiGet("/product/product/list", {
+                        size: Number(m.productNum) > 0 ? Number(m.productNum) : 100
+                    });
                     if (!cancelled) setFetched(Array.isArray(res?.records) ? res.records : []);
                 } else if (m.productSource === "productGroup" && m.productGroups?.[0]) {
                     const { productGroupId, productNum, productNumType } = m.productGroups[0];

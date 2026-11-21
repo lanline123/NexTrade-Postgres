@@ -1,7 +1,8 @@
 /**
  * 装修预览商品列表 hook（与 view/admin product/Preview.vue _getproductList 语义一致）
  *
- * productSelectType: 1 指定商品(ids) / 2 按分类(categoryId+size) / 3 按标签(introType+size)。
+ * productSelectType: 1 指定商品(ids) / 2 按分类(categoryId+size) / 3 按标签(introType+size) /
+ * 4 全部商品（我方新增，论坛 B 类 237824：无任何过滤，仅 page+size 取全站上架商品）。
  * 未配置来源时不请求接口、不渲染列表（与 PcProductPreview useProductList 一致）。
  */
 import { useEffect, useMemo, useState } from "react";
@@ -82,9 +83,10 @@ export function useDecorateProductList(products: Record<string, any> | undefined
                 param.page = 1;
                 if (type === 2) {
                     param.categoryId = categoryLeafId;
-                } else {
+                } else if (type === 3) {
                     param.introType = products.productTag;
                 }
+                // type === 4（全部商品）：不带任何过滤参数，仅 page+size
                 param.size = products.productNumber ?? 15;
             }
             try {

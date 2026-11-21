@@ -34,6 +34,9 @@ export default function SpecialOffer({ module }: Props) {
                 const ids = module.productList.map((item: any) => item.productId);
                 params.ids = ids.join(",");
                 params.size = ids.length;
+            } else if (module.productSource === "all") {
+                // 全部商品（我方新增，论坛 B 类 237824）：仅 size，无任何过滤
+                params.size = Number(module.productNum) > 0 ? Number(module.productNum) : 100;
             } else {
                 const { productGroupId, productNum, productNumType } = module.productGroups[0];
                 params.productGroupId = productGroupId;

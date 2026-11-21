@@ -131,6 +131,10 @@ function useProductList(products: AnyRecord | undefined): ProductItem[] {
         param.page = 1;
         param.introType = products.productTag;
         param.size = products.productNumber ?? 8;
+      } else if (type === 4) {
+        // 全部商品（我方新增）：不带任何过滤参数，仅 page+size
+        param.page = 1;
+        param.size = products.productNumber ?? 8;
       } else {
         if (alive) setList([]);
         return;

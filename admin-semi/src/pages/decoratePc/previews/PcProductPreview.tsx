@@ -211,9 +211,10 @@ function useProductList(config: AnyRecord) {
         param.page = 1;
         if (type === 2) {
           param.categoryId = products.productCategoryId;
-        } else {
+        } else if (type === 3) {
           param.introType = products.productTag;
         }
+        // type === 4（全部商品，我方新增）：不带任何过滤参数，仅 page+size
         param.size = products.productNumber ?? 15;
       }
 

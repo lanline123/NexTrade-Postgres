@@ -38,6 +38,9 @@ const demoGroup = (title: string, subTitle: string) => ({
 /** 与旧 mobilePro/productGrouping/index.ts productGroupingDefaults 逐字段一致（契约） */
 export const productGroupingDefaults = {
     productSource: "products",
+    // 「全部商品」来源（productSource="all"，我方新增，论坛 B 类 237824）的取数数量；
+    // 原版契约无此字段与来源，仅 all 来源消费，其余来源忽略
+    productNum: 100,
     productGroups: [demoGroup("新品", "每月上新"), demoGroup("热卖", "特别精选"), demoGroup("折扣", "便宜好货"), demoGroup("预售", "提前锁定")],
     groupList: [],
 

@@ -240,7 +240,9 @@ export default function NewcomerCombo({ module, shopId = -1 }: Props) {
     const paramsValueMap: Record<number, string[]> = {
         1: ["productIds"],
         2: ["productCategoryId", "productNumber"],
-        3: ["productTag", "productNumber"]
+        3: ["productTag", "productNumber"],
+        // 4 全部商品（我方新增，论坛 B 类 237824）：仅 size，无任何过滤
+        4: ["productNumber"]
     };
     const paramsKeyMap: Record<string, string> = {
         productIds: "ids",
@@ -275,6 +277,8 @@ export default function NewcomerCombo({ module, shopId = -1 }: Props) {
             keys.forEach((key) => {
                 param[paramsKeyMap[key]] = products[key];
             });
+            // 全部商品：数量未配时不传 size，走后端默认分页（与共享 hook 同口径）
+            if (type == 4 && !(Number(param.size) > 0)) delete param.size;
         }
         if (shopId && shopId != -1) {
             param.shopId = shopId;

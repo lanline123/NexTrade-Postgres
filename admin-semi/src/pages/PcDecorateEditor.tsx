@@ -1998,48 +1998,60 @@ function useHeroLeftCategories(configCategories: PicItem[], showCount: number) {
   return categories.slice(0, Math.max(0, Math.floor(showCount)));
 }
 
-/** 卡位商品来源为 productGroup 时：分组详情拿 productIds → 按 ids 查商品（取前 2） */
+/** 卡位商品来源为 productGroup 时：分组详情拿 productIds → 按 ids 查商品（取前 2）；
+ * 来源为 all（全部商品，我方新增）时：无过滤查全站上架商品取前 2，多个 all 卡位共用一次取数。 */
 function useHeroGroupProducts(cards: Array<Record<string, any>>) {
   const [groupProductsMap, setGroupProductsMap] = useState<Record<number, PreviewProduct[]>>({});
   const key = JSON.stringify(cards.map((c) => ({ src: c.productSource, gid: c.productGroupId })));
   useEffect(() => {
     const pending: Array<{ idx: number; gid: string }> = [];
+    const pendingAll: number[] = [];
     cards.forEach((card, idx) => {
       if (card.productSource === 'productGroup' && card.productGroupId) {
         pending.push({ idx, gid: String(card.productGroupId) });
+      } else if (card.productSource === 'all') {
+        pendingAll.push(idx);
       }
     });
-    if (!pending.length) {
+    if (!pending.length && !pendingAll.length) {
       setGroupProductsMap({});
       return;
     }
+    const toPreviewRows = (records: PreviewProduct[] | undefined): PreviewProduct[] =>
+      (records || []).map((item) => ({
+        productId: item.productId,
+        productName: item.productName || '',
+        picUrl: item.picUrl || '',
+        picThumb: item.picThumb || '',
+        productPrice: item.productPrice ? `¥${item.productPrice}` : '¥0',
+      }));
     let alive = true;
-    Promise.all(
-      pending.map(async ({ idx, gid }) => {
-        try {
-          const group = await apiGet<Record<string, any>>('/product/productGroup/detail', { id: gid });
-          const productIds = Array.isArray(group?.productIds) ? (group.productIds as Array<number | string>).slice(0, 2) : [];
-          if (!productIds.length) return [idx, []] as const;
-          const result = await apiGet<{ records?: PreviewProduct[] }>('/product/product/list', {
-            ids: productIds.join(','), size: 2, page: 1,
-          });
-          const records = (result.records || []).map((item) => ({
-            productId: item.productId,
-            productName: item.productName || '',
-            picUrl: item.picUrl || '',
-            picThumb: item.picThumb || '',
-            productPrice: item.productPrice ? `¥${item.productPrice}` : '¥0',
-          }));
-          return [idx, records] as const;
-        } catch {
-          return [idx, []] as const;
-        }
-      }),
-    ).then((entries) => {
+    const groupJobs = pending.map(async ({ idx, gid }) => {
+      try {
+        const group = await apiGet<Record<string, any>>('/product/productGroup/detail', { id: gid });
+        const productIds = Array.isArray(group?.productIds) ? (group.productIds as Array<number | string>).slice(0, 2) : [];
+        if (!productIds.length) return [idx, []] as const;
+        const result = await apiGet<{ records?: PreviewProduct[] }>('/product/product/list', {
+          ids: productIds.join(','), size: 2, page: 1,
+        });
+        return [idx, toPreviewRows(result.records)] as const;
+      } catch {
+        return [idx, []] as const;
+      }
+    });
+    const allJob: Promise<PreviewProduct[]> = pendingAll.length
+      ? apiGet<{ records?: PreviewProduct[] }>('/product/product/list', { size: 2, page: 1 })
+          .then((result) => toPreviewRows(result.records))
+          .catch(() => [])
+      : Promise.resolve([]);
+    Promise.all([Promise.all(groupJobs), allJob]).then(([entries, allRows]) => {
       if (!alive) return;
       const map: Record<number, PreviewProduct[]> = {};
       entries.forEach(([idx, rows]) => {
         map[idx] = rows as PreviewProduct[];
+      });
+      pendingAll.forEach((idx) => {
+        map[idx] = allRows;
       });
       setGroupProductsMap(map);
     });
@@ -2102,7 +2114,7 @@ function HeroPreview({ data }: { data: Record<string, any> }) {
 
   /** 卡位商品渲染：productGroup 来源走 groupProductsMap，products 来源走 card.products（已滤空占位） */
   const getCardProducts = (card: Record<string, any>, idx: number): PreviewProduct[] => {
-    if (card.productSource === 'productGroup') return groupProductsMap[idx] || [];
+    if (card.productSource === 'productGroup' || card.productSource === 'all') return groupProductsMap[idx] || [];
     return getRawCardProducts(card).map((p) => ({
       productId: 0,
       productName: '',
@@ -4344,11 +4356,20 @@ function ProductsSettingField({
           type="button"
           buttonSize="small"
           value={selectType}
-          onChange={(e: any) => onChange({ ...value, productSelectType: Number(e.target.value) })}
+          onChange={(e: any) => {
+            const nextType = Number(e.target.value);
+            // 切到「全部商品」且数量未配（0/未填）时播种默认 10，避免店面取到空/单件
+            if (nextType === 4 && !(Number(value.productNumber) > 0)) {
+              onChange({ ...value, productSelectType: nextType, productNumber: 10 });
+            } else {
+              onChange({ ...value, productSelectType: nextType });
+            }
+          }}
         >
           <Radio value={1}>{t('选商品')}</Radio>
           <Radio value={2}>{t('按分类')}</Radio>
           <Radio value={3}>{t('按标签')}</Radio>
+          <Radio value={4}>{t('全部商品')}</Radio>
         </RadioGroup>
       </div>
 
@@ -4475,6 +4496,24 @@ function ProductsSettingField({
               style={{ width: '100%' }}
             />
           </label>
+        </div>
+      )}
+
+      {selectType === 4 && (
+        <div className="dec-prod-pick__row">
+          <label className="dec-prod-pick__field">
+            <span>{t('商品数量')}</span>
+            <InputNumber
+              value={value.productNumber ?? 10}
+              onChange={(v) => onChange({ ...value, productNumber: v ?? 10 })}
+              min={field.numberMin ?? 1}
+              max={field.numberMax}
+              style={{ width: '100%' }}
+            />
+          </label>
+          <div style={{ color: '#646a73', fontSize: 12, lineHeight: 1.6, alignSelf: 'center' }}>
+            {t('自动展示全站上架商品（含门店商品），新上架商品会自动进入。')}
+          </div>
         </div>
       )}
     </div>
@@ -4910,13 +4949,20 @@ function FieldControl({
                       onChange={(e: any) => updateCard(ci, (c) => ({
                         ...c,
                         productSource: e.target.value,
-                        productGroupId: e.target.value === 'custom' ? undefined : c.productGroupId,
-                        productGroupName: e.target.value === 'custom' ? undefined : c.productGroupName,
+                        // 仅「商品分组」保留分组绑定，其余来源（含全部商品）清空
+                        productGroupId: e.target.value === 'productGroup' ? c.productGroupId : undefined,
+                        productGroupName: e.target.value === 'productGroup' ? c.productGroupName : undefined,
                       }))}
                     >
                       <Radio value="custom">{t('自定义商品')}</Radio>
                       <Radio value="productGroup">{t('商品分组')}</Radio>
+                      <Radio value="all">{t('全部商品')}</Radio>
                     </RadioGroup>
+                    {source === 'all' ? (
+                      <div style={{ color: '#646a73', fontSize: 12, lineHeight: 1.6, marginTop: 6 }}>
+                        {t('自动展示全站上架商品（含门店商品）的前 2 个，新上架商品会自动进入。')}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
@@ -5060,18 +5106,26 @@ function FieldControl({
                 <RadioGroup type="button" buttonSize="small" value={g.sourceType || 'products'} onChange={(e: any) => {
                   const type = e.target.value;
                   if ((g.sourceType || 'products') === type) return;
-                  // 对齐原版 handleSourceTypeChange：切换来源时清空对应数据
+                  // 对齐原版 handleSourceTypeChange：切换来源时清空对应数据；
+                  // 「全部商品」（我方新增来源）两边数据都清（无手选、无分组绑定）
                   set(groups.map((x, i) => (i === index
                     ? (type === 'products'
                       ? { ...x, sourceType: type, productGroupId: undefined, productGroupName: undefined }
-                      : { ...x, sourceType: type, productList: [] })
+                      : type === 'productGroup'
+                        ? { ...x, sourceType: type, productList: [] }
+                        : { ...x, sourceType: type, productList: [], productGroupId: undefined, productGroupName: undefined })
                     : x)));
                 }}>
                   <Radio value="products">{t('选择商品')}</Radio>
                   <Radio value="productGroup">{t('商品分组')}</Radio>
+                  <Radio value="all">{t('全部商品')}</Radio>
                 </RadioGroup>
               </div>
-              {(g.sourceType || 'products') === 'products' ? (
+              {(g.sourceType || 'products') === 'all' ? (
+                <div style={{ color: '#646a73', fontSize: 12, lineHeight: 1.6 }}>
+                  {t('自动展示全站上架商品（含门店商品），新上架商品会自动进入。')}
+                </div>
+              ) : (g.sourceType || 'products') === 'products' ? (
                 <ProductPickGrid
                   compact
                   ids={groupIds}

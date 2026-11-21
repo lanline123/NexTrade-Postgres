@@ -22,6 +22,7 @@ import {
   buildDecorateProductListQuery,
   contractRecommendMaxNum,
   contractRecommendPageParams,
+  heroAllProductsQuery,
   heroGroupProductsQuery,
   productGroupColumns,
   productGroupTabQuery,
@@ -228,7 +229,8 @@ async function prefetchContractRecommend(module: AnyRecord): Promise<ProductItem
 /**
  * 营销通栏（pc-home-hero）：中心卡商品在装修数据内（已 SSR），只补两处客户端取数：
  * 左侧类目楼层 getCatFloor（整包 JSON 下发，客户端用同一映射函数消费）与
- * productSource=productGroup 的卡位分组商品（按卡位下标对齐）。
+ * productSource=productGroup 的卡位分组商品（按卡位下标对齐）；
+ * productSource=all 的卡位（全部商品，我方新增）同位补拉无过滤前 2 个。
  */
 async function prefetchHomeHero(
   module: AnyRecord,
@@ -255,6 +257,15 @@ async function prefetchHomeHero(
           const query = heroGroupProductsQuery(card.productGroupId);
           const data = query ? await fetchData(`product/product/list?${query}`) : null;
           // 客户端口径：取数失败该卡位记空数组（渲染回落卡位自带商品）
+          const records = (data as AnyRecord)?.records || data;
+          groupProducts[idx] = Array.isArray(records) ? records : [];
+        })(),
+      );
+    } else if (card?.productSource === 'all') {
+      jobs.push(
+        (async () => {
+          const query = heroAllProductsQuery();
+          const data = query ? await fetchData(`product/product/list?${query}`) : null;
           const records = (data as AnyRecord)?.records || data;
           groupProducts[idx] = Array.isArray(records) ? records : [];
         })(),

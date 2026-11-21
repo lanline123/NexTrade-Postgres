@@ -92,6 +92,9 @@ export function collectProductSources(moduleList: any[]): PreviewProductSource[]
             if (node.productTag) {
                 push({ productSelectType: 3, productTag: node.productTag, productNumber: node.productNumber });
             }
+        } else if (type === 4) {
+            // 全部商品（我方新增）：无过滤条件，恒收集（数量缺省走 buildSourceParams 兜底）
+            push({ productSelectType: 4, productNumber: node.productNumber });
         }
         if (Array.isArray(node.pruductList)) {
             const ids = idsFromList(node.pruductList);
@@ -120,6 +123,10 @@ function buildSourceParams(source: PreviewProductSource): Record<string, any> | 
     if (type === 3) {
         if (!source.productTag || String(source.productTag).trim() === "") return null;
         return { page: 1, introType: source.productTag, size: source.productNumber ?? 15 };
+    }
+    if (type === 4) {
+        // 全部商品：仅 page+size，无 ids/分类/标签过滤（与 useDecorateProductList 同口径）
+        return { page: 1, size: source.productNumber ?? 15 };
     }
     return null;
 }

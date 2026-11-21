@@ -16,7 +16,7 @@
  * - 每日时间以原生 time 输入承接（原版 el-time-picker is-range），写回时间戳数组。
  */
 import { useEffect, useRef } from "react";
-import { DatePicker, Input, TimePicker } from "@douyinfe/semi-ui";
+import { DatePicker, Input, InputNumber, TimePicker } from "@douyinfe/semi-ui";
 import AlphaColorInput from "../../../../../components/AlphaColorInput";
 import {
     SettingGroup,
@@ -143,7 +143,8 @@ export default function SpecialOfferSettings({ data, onChange, moduleIndex }: Pr
                             label="商品来源"
                             options={[
                                 { value: "products", label: "手动选择" },
-                                { value: "productGroup", label: "商品分组" }
+                                { value: "productGroup", label: "商品分组" },
+                                { value: "all", label: "全部商品" }
                             ]}
                         />
                         {data?.productSource === "products" ? (
@@ -151,6 +152,20 @@ export default function SpecialOfferSettings({ data, onChange, moduleIndex }: Pr
                                 <ProductInfoSelect value={productList} onChange={(next) => onChange({ productList: next })} isMultiple />
                                 <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6, marginTop: 8 }}>{t("提示：您可以通过拖拽进行商品排序")}</div>
                             </SettingRow>
+                        ) : data?.productSource === "all" ? (
+                            <>
+                                <SettingRow label="商品数量">
+                                    <InputNumber
+                                        value={Number(data?.productNum ?? 100)}
+                                        min={1}
+                                        style={{ width: 120 }}
+                                        onChange={(v: any) => onChange({ productNum: Number(v) || 0 })}
+                                    />
+                                </SettingRow>
+                                <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6, marginTop: 8 }}>
+                                    {t("自动展示全站上架商品（含门店商品），新上架商品会自动进入。")}
+                                </div>
+                            </>
                         ) : (
                             <SettingRow label="商品分组" block>
                                 <ProductGroupSelect value={productGroups} onChange={(next) => onChange({ productGroups: next })} />

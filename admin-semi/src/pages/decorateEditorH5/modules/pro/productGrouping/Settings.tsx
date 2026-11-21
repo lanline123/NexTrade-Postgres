@@ -218,12 +218,27 @@ export default function ProductGroupingSettings({ data, onChange }: Props) {
                             label="商品来源"
                             options={[
                                 { value: "products", label: "手动选择" },
-                                { value: "productGroup", label: "商品分组" }
+                                { value: "productGroup", label: "商品分组" },
+                                { value: "all", label: "全部商品" }
                             ]}
                         />
                     </SettingGroup>
                     {data?.productSource === "productGroup" ? (
                         <GroupSourceEditor data={data} onChange={onChange} />
+                    ) : data?.productSource === "all" ? (
+                        <div style={{ padding: "0 16px 10px" }}>
+                            <div style={{ color: "#646a73", fontSize: 12, lineHeight: 1.6, marginBottom: 8 }}>
+                                自动展示全站上架商品（含门店商品），不分选项卡，仅保留第一组的标题与横幅外观；新上架商品会自动进入。
+                            </div>
+                            <SettingRow label="商品数量">
+                                <InputNumber
+                                    value={Number(data?.productNum ?? 100)}
+                                    min={1}
+                                    style={{ width: 120 }}
+                                    onChange={(v: any) => onChange({ productNum: Number(v) || 0 })}
+                                />
+                            </SettingRow>
+                        </div>
                     ) : (
                         <ManualGroupEditor data={data} onChange={onChange} />
                     )}

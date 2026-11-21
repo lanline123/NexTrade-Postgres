@@ -2,6 +2,9 @@
  * 商品来源设置控件（对齐 view/admin src/modules/src/commonProduct/Edit.vue CommonProductEdit）
  *
  * 选商品 / 按分类（分类树）/ 按标签（商品标签）三种来源。
+ * 2026-11-21 我方新增第四种来源「全部商品」（productSelectType=4，论坛 B 类
+ * 237824）：无 ids/分类/标签过滤，按现有分页口径取全站上架商品（含门店商品），
+ * 只配商品数量；原版 CommonProductEdit 仅三种来源，此为我方扩展。
  * 选商品 2026-11-15 合一：弃旧 ProductPicker（按钮+表格+SideSheet），改走与 PC 编辑器
  * 相同的 ProductPickGrid（卡片网格）+ 共享 ProductPickerModal（卡片选品弹窗）。
  * 数据契约不变：模块数据仍只写 productIds（H5 数据本就没有 productItems 展示缓存字段），
@@ -136,10 +139,22 @@ export default function ProductsSourceField({
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <RadioGroup value={type} onChange={(e: any) => set({ productSelectType: Number(e.target.value) })}>
+            <RadioGroup
+                value={type}
+                onChange={(e: any) => {
+                    const nextType = Number(e.target.value);
+                    // 切到「全部商品」且数量未配（0/未填）时播种默认 20，避免店面 size=0 被后端 clamp 成 1 件
+                    if (nextType === 4 && !(Number(products.productNumber) > 0)) {
+                        set({ productSelectType: nextType, productNumber: 20 });
+                    } else {
+                        set({ productSelectType: nextType });
+                    }
+                }}
+            >
                 <Radio value={1}>{t('选商品')}</Radio>
                 <Radio value={2}>{t('按分类')}</Radio>
                 <Radio value={3}>{t('按标签')}</Radio>
+                <Radio value={4}>{t('全部商品')}</Radio>
             </RadioGroup>
             {type === 1 ? (
                 <>
@@ -198,6 +213,14 @@ export default function ProductsSourceField({
                         optionList={tagOptions}
                         onChange={(next) => set({ productTag: String(next ?? '') })}
                     />
+                    {numberRow}
+                </>
+            ) : null}
+            {type === 4 ? (
+                <>
+                    <div style={{ color: '#646a73', fontSize: 12, lineHeight: 1.6 }}>
+                        {t('自动展示全站上架商品（含门店商品），无需逐个挑选；新上架商品会自动进入。')}
+                    </div>
                     {numberRow}
                 </>
             ) : null}

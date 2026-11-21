@@ -37,15 +37,42 @@ export default function ProductGroupingPreview({ data }: { data: Record<string, 
     const pc = module.productColor ?? {};
 
     const isGroupSource = module.productSource === "productGroup";
-    const tabList: Array<Record<string, any>> = (isGroupSource ? module.groupList : module.productGroups) ?? [];
+    // 全部商品（我方新增）：不分选项卡，仅借首组的标题/横幅外观，商品全站自动取数
+    const isAllSource = module.productSource === "all";
+    const tabList: Array<Record<string, any>> = (isGroupSource ? module.groupList : isAllSource ? (module.productGroups ?? []).slice(0, 1) : module.productGroups) ?? [];
     const [currentIndex, setCurrentIndex] = useState(0);
     const safeIndex = Math.min(currentIndex, Math.max(0, tabList.length - 1));
     const activeGroup = tabList[safeIndex] ?? null;
 
     // 手动组：按 ids 拉取
-    const manualIds = !isGroupSource && activeGroup ? (activeGroup.productList ?? []).map((i: any) => i.productId).filter(Boolean) : [];
+    const isManualSource = !isGroupSource && !isAllSource;
+    const manualIds = isManualSource && activeGroup ? (activeGroup.productList ?? []).map((i: any) => i.productId).filter(Boolean) : [];
     const manualFetched = useDecorateProductList({ productSelectType: manualIds.length ? 1 : 0, productIds: manualIds });
-    const manualDemo = !isGroupSource && activeGroup ? (activeGroup.productList ?? []).filter((i: any) => i.productId === 0) : [];
+    const manualDemo = isManualSource && activeGroup ? (activeGroup.productList ?? []).filter((i: any) => i.productId === 0) : [];
+
+    // 全部商品：无过滤拉取（size 口径同店面渲染端）
+    const [allFetched, setAllFetched] = useState<Array<Record<string, any>>>([]);
+    const allSize = Number(module.productNum) > 0 ? Number(module.productNum) : 100;
+    useEffect(() => {
+        if (!isAllSource) {
+            setAllFetched([]);
+            return;
+        }
+        let alive = true;
+        apiGet<{ records?: Array<Record<string, any>>; list?: Array<Record<string, any>> }>("/product/product/list", {
+            size: allSize
+        })
+            .then((result) => {
+                if (alive) setAllFetched(result.records || result.list || []);
+            })
+            .catch(() => {
+                if (alive) setAllFetched([]);
+            });
+        return () => {
+            alive = false;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAllSource, allSize]);
 
     // 分组组：按 productGroupId 拉取
     const [groupFetched, setGroupFetched] = useState<Array<Record<string, any>>>([]);
@@ -72,7 +99,7 @@ export default function ProductGroupingPreview({ data }: { data: Record<string, 
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [groupKey]);
 
-    const list = isGroupSource ? groupFetched : [...manualDemo, ...manualFetched];
+    const list = isAllSource ? allFetched : isGroupSource ? groupFetched : [...manualDemo, ...manualFetched];
 
     const activeBannerPic = activeGroup?.bannerPic && (activeGroup.bannerPic.picThumb || activeGroup.bannerPic.picUrl) ? activeGroup.bannerPic : null;
     const displayList = useMemo(() => {

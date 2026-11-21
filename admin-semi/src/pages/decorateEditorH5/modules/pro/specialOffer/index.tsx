@@ -25,6 +25,9 @@ function daysLaterEndTime(days: number): number {
 
 export const specialOfferDefaults = {
     productSource: "products",
+    // 「全部商品」来源（productSource="all"，我方新增，论坛 B 类 237824）的取数数量；
+    // 原版契约无此字段与来源，仅 all 来源消费
+    productNum: 100,
     productGroups: [] as Array<Record<string, any>>,
     productList: [
         {

@@ -833,7 +833,8 @@ interface ProductItem {
  * goodsPadding、frame、showName/showBrief/showPrice、buyBtnStyle。 */
 /**
  * 装修商品楼层共用取数（旧版 PcProduct.vue / pages/activity/pcProduct/index.vue 的
- * paramsValueMap/paramsKeyMap 逻辑）：1 指定 ids / 2 分类 / 3 标签，附带 shopId 过滤。
+ * paramsValueMap/paramsKeyMap 逻辑）：1 指定 ids / 2 分类 / 3 标签 /
+ * 4 全部商品（我方新增，无过滤仅 size），附带 shopId 过滤。
  */
 function useDecorateProductList(
   config: Record<string, any>,
@@ -1629,6 +1630,7 @@ function HomeHero({ module, initialData }: ModuleProps) {
 
   /* 旧版 fetchGroupProducts：卡位配置 productSource=productGroup 时按分组拉商品（size=2），
      拉到结果后替换该卡位的 products（admin PcHomeHeroPreview 支持该配置）。
+     productSource=all（全部商品，我方新增）同 size 口径、无分组过滤拉全站前 2 个。
      服务端注水（initialData.groupProducts）覆盖的卡位不再重复拉取。 */
   const [groupProductsMap, setGroupProductsMap] = useState<Record<number, any[]>>(
     () => initialData?.groupProducts ?? {},
@@ -1641,8 +1643,9 @@ function HomeHero({ module, initialData }: ModuleProps) {
     let cancelled = false;
     allCards.forEach((card, idx) => {
       if (seededGroupIdxRef.current.has(idx)) return;
-      if (card.productSource === 'productGroup' && card.productGroupId) {
-        const params = new URLSearchParams({ page: '1', size: '2', productGroupId: String(card.productGroupId) });
+      if (card.productSource === 'all' || (card.productSource === 'productGroup' && card.productGroupId)) {
+        const params = new URLSearchParams({ page: '1', size: '2' });
+        if (card.productSource === 'productGroup') params.set('productGroupId', String(card.productGroupId));
         fetch(`/api/product/product/list?${params.toString()}`)
           .then((response) => response.json())
           .then((json) => {
@@ -1661,10 +1664,11 @@ function HomeHero({ module, initialData }: ModuleProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupCardKeys]);
 
-  // 旧版 enhancedModules：商品分组卡位使用拉取到的商品数据（pic 包装成 {picUrl,picThumb,picLarge}）
+  // 旧版 enhancedModules：商品分组卡位使用拉取到的商品数据（pic 包装成 {picUrl,picThumb,picLarge}）；
+  // 全部商品卡位（productSource=all）同口径使用拉取结果
   const enhancedCards = allCards.map((card, idx) => {
     const fetched = groupProductsMap[idx];
-    if (card.productSource === 'productGroup' && Array.isArray(fetched) && fetched.length) {
+    if ((card.productSource === 'productGroup' || card.productSource === 'all') && Array.isArray(fetched) && fetched.length) {
       return {
         ...card,
         products: fetched.map((item: any) => ({
@@ -4368,8 +4372,10 @@ function ProductGroup({ module, initialData }: ModuleProps) {
       setLockedHeight(null);
     }
     setLoading(true);
-    if (group.sourceType === 'productGroup' && group.productGroupId) {
-      const params = new URLSearchParams({ page: '1', size: String(columns * 3), productGroupId: String(group.productGroupId) });
+    if (group.sourceType === 'all' || (group.sourceType === 'productGroup' && group.productGroupId)) {
+      // sourceType=all（全部商品，我方新增）：与分组同 size 口径、无 productGroupId 过滤
+      const params = new URLSearchParams({ page: '1', size: String(columns * 3) });
+      if (group.sourceType === 'productGroup') params.set('productGroupId', String(group.productGroupId));
       fetch(`/api/product/product/list?${params.toString()}`)
         .then((response) => response.json())
         .then((json) => {

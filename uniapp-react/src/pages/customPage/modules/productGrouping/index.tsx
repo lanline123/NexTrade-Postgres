@@ -89,6 +89,9 @@ export default function ProductGrouping({ module }: Props) {
     }, [module?.listStyle]);
 
     const tabList = useMemo(() => {
+        // 全部商品（我方新增，论坛 B 类 237824）：不分选项卡，仅借首组的标题/横幅外观，
+        // 商品由下方 effect 按全站口径自动取数
+        if (module.productSource === "all") return (module.productGroups ?? []).slice(0, 1);
         return module.productSource === "productGroup" ? module.groupList : module.productGroups;
     }, [module.productSource, module.groupList, module.productGroups]);
 
@@ -137,7 +140,11 @@ export default function ProductGrouping({ module }: Props) {
     // 对应旧 watchEffect：tab 来源/当前 tab 变化时重建查询参数并拉取商品
     useEffect(() => {
         const currentGroupData: any = {};
-        if (module.productSource && module.productSource === "productGroup") {
+        if (module.productSource === "all") {
+            // 全部商品：无 ids/分组/分类过滤，仅 size（缺省 100，与分组「全部」口径一致）
+            currentGroupData.size = Number(module.productNum) > 0 ? Number(module.productNum) : 100;
+            void getGroupProductList(currentGroupData);
+        } else if (module.productSource && module.productSource === "productGroup") {
             if (module.groupList.length > 0) {
                 const { productGroupId, productNum, productNumType } = module.groupList[currentIndex];
                 currentGroupData.productGroupId = productGroupId;
@@ -151,7 +158,7 @@ export default function ProductGrouping({ module }: Props) {
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [module.productSource, module.groupList, module.productGroups, currentIndex]);
+    }, [module.productSource, module.groupList, module.productGroups, module.productNum, currentIndex]);
 
     return (
         <View
