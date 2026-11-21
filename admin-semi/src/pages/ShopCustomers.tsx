@@ -12,10 +12,10 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import { IconPlus, IconSearch } from '@douyinfe/semi-icons';
-import { apiDownload, apiGet, apiPost, apiUpload, getContextHeaders, getToken } from '../services/api';
+import { apiDownload, apiGet, apiPost, apiUpload, getContextHeaders, getToken } from '../api';
 import { isPlatformAccount } from '../components/BlacklistAddModal';
 import TagFilter from '../framework/TagFilter';
-import { useI18n } from '../i18n/I18nContext';
+import { useI18n } from '../i18n';
 
 const { Text } = Typography;
 
@@ -644,7 +644,7 @@ export default function ShopCustomers() {
           <Text type="tertiary">
             {t('已选客户')}：{selectedKeys.length} {t('人')}
           </Text>
-          <TagFilter value={tagIds} onChange={setTagIds} width={360} />
+          <TagFilter value={tagIds} onChange={(v) => setTagIds(v.map(Number))} width={360} />
         </div>
       </Modal>
     </div>

@@ -56,11 +56,11 @@ export default function PrintOnlineStatusCell({ printId }: { printId: number }) 
         .join(' · ');
 
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+    <span title={hint || undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
       {status === undefined ? (
         <Tag color="grey">查询中…</Tag>
       ) : (
-        <Tag color={TAG_COLORS[status] ?? 'grey'} title={hint || undefined}>
+        <Tag color={TAG_COLORS[status] ?? 'grey'}>
           {text}
         </Tag>
       )}
