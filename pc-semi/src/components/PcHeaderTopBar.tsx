@@ -21,6 +21,13 @@ import AuthBadge from '@/components/AuthBadge';
 import { formatPrice } from '@/lib/currency';
 import PcLocaleSelect from '@/components/PcLocaleSelect';
 import { useRegionSeed } from '@/components/RegionSeedProvider';
+import { normalizeLocale } from '@/i18n';
+import {
+  countryDisplayNameEn,
+  deriveRegionPathInfo,
+  type RegionPathInfo,
+  type RegionPathRow,
+} from '@/lib/region-seed';
 import Local from '@icon-park/react/es/icons/Local';
 
 /** B2B 部署开关（默认关）：=1 时顶栏显示企业认证标识（对齐旧版 isB2B()） */
@@ -108,12 +115,19 @@ export default function PcHeaderTopBar({
   /** 服务端预取的站点配置（shopRegClosed），避免顶部条再等一次客户端请求 */
   baseConfig?: Record<string, any> | null;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // 服务端地区种子（RootLayout 按 Cookie/IP 预解析）：SSR 首屏即真实定位，
   // 客户端 effect 只在无种子时才回退到浏览器侧定位。
   const regionSeed = useRegionSeed();
   const [regions, setRegions] = useState<Region[]>(() => regionSeed?.provinces ?? []);
   const [regionId, setRegionId] = useState<string>(() => regionSeed?.regionId ?? '');
+  // 定位文案的路径派生（省份/国家/国家代码）：种子已在服务端经 getRegionPath
+  // 派生，首屏即终态；客户端仅在地区被重新解析/手动切换时才补拉路径。
+  const [regionPath, setRegionPath] = useState<RegionPathInfo>(() => ({
+    provinceName: regionSeed?.provinceName ?? null,
+    countryName: regionSeed?.countryName ?? null,
+    countryCode: regionSeed?.countryCode ?? null,
+  }));
   const [regionOpen, setRegionOpen] = useState(false);
   const [user, setUser] = useState<Record<string, any> | null>(null);
   const [siteNav, setSiteNav] = useState<NavItem[]>([]);
@@ -136,6 +150,21 @@ export default function PcHeaderTopBar({
   const showTopOrders = readNumber(config.showTopOrders, 1) !== 0;
   const showTopSiteNav = readNumber(config.showTopSiteNav, 1) !== 0;
   const showTopMenuCart = readNumber(config.topMenuCartShow, 1) !== 0;
+
+  /** 已为哪个 regionId 拉过路径派生（种子覆盖的 id 初始即记账，避免重复请求）。 */
+  const regionPathForRef = useRef<string>(regionSeed?.regionId ?? '');
+  /** 按 regionId 补拉 getRegionPath 并派生省份/国家（种子未覆盖时才发请求）。 */
+  const refreshRegionPath = (id: string) => {
+    if (!id || regionPathForRef.current === id) return;
+    regionPathForRef.current = id;
+    fetch(`/api/sys/region/getRegionPath?regionId=${encodeURIComponent(id)}`)
+      .then((response) => response.json())
+      .then((json) => {
+        const rows = (Array.isArray(json?.data) ? json.data : []) as RegionPathRow[];
+        if (rows.length) setRegionPath(deriveRegionPathInfo(rows));
+      })
+      .catch(() => undefined);
+  };
 
   useEffect(() => {
     fetch('/api/common/pc/getNav')
@@ -165,6 +194,8 @@ export default function PcHeaderTopBar({
       // 手动选择过的省份（Cookie）优先级最高，与服务端种子口径一致
       setRegionId(cookieId);
       if (!regionSeed?.provinces?.length) void fetchProvinceList();
+      // 种子未覆盖该 Cookie 地区时（如种子按 IP 解析到了别处），补拉其路径派生
+      if (regionSeed?.regionId !== cookieId) refreshRegionPath(cookieId);
     } else if (regionSeed?.regionId) {
       // 服务端已在加载前按 IP 解析，列表亦已种子化，无需再请求
       if (!regionSeed.provinces?.length) void fetchProvinceList();
@@ -175,8 +206,22 @@ export default function PcHeaderTopBar({
       ])
         .then(([regionJson, userRegionJson]) => {
           setRegions(Array.isArray(regionJson?.data) ? regionJson.data : []);
-          const id = userRegionJson?.data?.regionId ?? userRegionJson?.regionId;
-          if (id !== undefined && id !== null) setRegionId(String(id));
+          const row = (userRegionJson?.data ?? userRegionJson) as RegionPathRow | undefined;
+          const id = row?.regionId;
+          if (id !== undefined && id !== null) {
+            setRegionId(String(id));
+            if (Number(row?.level) === 1 || Number(id) === 0) {
+              // 定位直接命中国家行（国外访客）：行本身即国家，免再拉路径
+              regionPathForRef.current = String(id);
+              setRegionPath({
+                provinceName: null,
+                countryName: row?.regionName ? String(row.regionName) : null,
+                countryCode: row?.standardCode ? String(row.standardCode).trim().toUpperCase() : null,
+              });
+            } else {
+              refreshRegionPath(String(id));
+            }
+          }
         })
         .catch(() => undefined);
     }
@@ -224,8 +269,14 @@ export default function PcHeaderTopBar({
     // 不再回退装修配置的 topRegionText（那是写死的默认文案，不是访客定位）：
     // 列表未命中时用种子名（IP 定位可能是城市级），再无则「全国」。
     const seedName = regionSeed && regionId && regionSeed.regionId === regionId ? regionSeed.regionName : null;
-    return String(selected?.regionName || seedName || t('全国'));
-  }, [regions, regionId, regionSeed, t]);
+    // 定位文案语言口径（用户 2026-11-21 定）：中文只显示省份、非中文只显示
+    // 国家英文名。省份/国家均由地区路径派生（种子或补拉），不拼字符串切割。
+    const isZh = normalizeLocale(i18n.language).toLowerCase().startsWith('zh');
+    if (isZh) {
+      return String(regionPath.provinceName || selected?.regionName || seedName || regionPath.countryName || t('全国'));
+    }
+    return String(countryDisplayNameEn(regionPath) || selected?.regionName || seedName || t('全国'));
+  }, [regions, regionId, regionSeed, regionPath, t, i18n.language]);
 
   const memberCenterItems: Array<{ title: string; link: string }> = useMemo(() => {
     const configured = config.memberCenterItems;
@@ -302,6 +353,8 @@ export default function PcHeaderTopBar({
     setRegionId(String(region.regionId));
     document.cookie = `userProvinceId=${region.regionId}; path=/; max-age=31536000; SameSite=Lax`;
     setRegionOpen(false);
+    // 手动选的是省份：路径派生同步刷新（非中文口径要回到其所属国家）
+    refreshRegionPath(String(region.regionId));
   };
 
   const logout = () => {

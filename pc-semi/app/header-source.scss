@@ -225,7 +225,8 @@
   gap: 4px;
   color: #ffffffd6;
   font-size: 12px;
-  font-weight: 600;
+  /* 与顶栏本体统一 400（原 600 独此一处加粗，用户 2026-11-21 指出不一致） */
+  font-weight: 400;
   min-width: 0;
   cursor: pointer;
   position: relative;
@@ -2086,9 +2087,45 @@
   }
 }
 
-/* 顶栏语言/货币双入口间距（语言在左、货币在右并排） */
+/* 顶栏语言/货币双入口间距（语言在左、货币在右并排）：
+   .benefit-bar__right 的 flex gap 已统一按 18px 分隔各项，原先再叠 16px
+   margin 使两入口间距达 34px、与顶栏其它项不一致，现归零只走容器 gap。 */
 .benefit-bar .lang-box.top-currency-select {
-  margin-left: 16px;
+  margin-left: 0;
+}
+
+/* =========================================================================
+ * 顶栏内语言/货币入口与顶栏本体口径统一（用户 2026-11-21）：
+ * .lang-box 基础样式来自头部主行口径（.pc-header-runtime .lang-box：
+ * 14px/500、箭头 align-self:self-end + margin-bottom:2px、地球图标 17px），
+ * 放进 12px/400 的顶栏显得又大又粗且不居中。这里只在 .benefit-bar 作用域内
+ * 收敛到顶栏口径（12px/400、随顶栏文字色、40px 高 flex 垂直居中、前导图标
+ * 14px 与定位 Local 对齐）；.language-bar / .pc-header-runtime 主行语境不动。
+ * ========================================================================= */
+.benefit-bar .lang-box {
+  height: 40px;
+  font-size: 12px;
+  color: inherit;
+
+  .lang-text {
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 40px;
+  }
+
+  svg.language {
+    width: 14px;
+    height: 14px;
+  }
+
+  .arrow {
+    align-self: center;
+    margin-bottom: 0;
+  }
+
+  &:hover {
+    color: var(--pc-header-top-menu-hover-color, #ffffff);
+  }
 }
 
 /* =========================================================================

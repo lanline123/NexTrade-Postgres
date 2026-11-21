@@ -1,6 +1,14 @@
 import type { HomeDecorateResponse } from '@/decorate/types';
 import type { HeaderBootstrapCurrency, HeaderBootstrapLocale, PcHeaderBootstrap } from '@/lib/header-bootstrap';
-import { isPublicIp, shortenProvinceName, type RegionSeed } from '@/lib/region-seed';
+import {
+  deriveRegionPathInfo,
+  EMPTY_REGION_PATH,
+  isPublicIp,
+  shortenProvinceName,
+  type RegionPathInfo,
+  type RegionPathRow,
+  type RegionSeed,
+} from '@/lib/region-seed';
 import i18n from '@/i18n';
 
 const SERVER_API_BASE = (process.env.PC_API_BASE || 'https://battery.recy.cc').replace(/\/$/, '');
@@ -90,6 +98,8 @@ export async function getHeaderBootstrap(): Promise<PcHeaderBootstrap> {
  * 优先级：手动选择 Cookie（userProvinceId）→ 来访 IP 定位（getLocationByIp 显式传 IP，
  * 避免反代覆写 X-Forwarded-For 时定位失效）。内网/无 IP 时不定位（返回省份列表 +
  * 空地区，顶栏回落「全国」），不使用任何硬编码默认地区。
+ * 同时经 getRegionPath 派生所属省份/国家/国家代码一并种子化，顶栏定位文案
+ * 按语言口径（中文只显示省份、非中文只显示国家英文名）SSR 首屏即定稿，不闪变。
  */
 export async function getRegionSeed(ip: string | null, cookieProvinceId: string | null): Promise<RegionSeed | null> {
   const request = async <T,>(path: string, cacheInit: RequestInit & { next?: { revalidate: number } }): Promise<T | null> => {
@@ -114,9 +124,37 @@ export async function getRegionSeed(ip: string | null, cookieProvinceId: string 
     .filter((item) => item && item.regionId !== undefined && item.regionId !== null)
     .map((item) => ({ regionId: item.regionId as number | string, regionName: String(item.regionName || '') }));
 
+  // 路径派生（顶栏定位文案的语言口径用）：真实 id 走 getRegionPath 回溯
+  // （城市级 → 所属省份、任意地区 → 所属国家 + 标准代码）；国外 IP 的合成
+  // 国家行只有国家名（id=0），按名在国家列表里对齐 standardCode。
+  const resolvePathInfo = async (regionId: string, locatedName?: string | null): Promise<RegionPathInfo> => {
+    const numericId = Number(regionId);
+    if (Number.isFinite(numericId) && numericId > 0) {
+      const rows = await request<RegionPathRow[]>(`sys/region/getRegionPath?regionId=${encodeURIComponent(regionId)}`, {
+        next: { revalidate: 300 },
+      });
+      if (Array.isArray(rows) && rows.length) return deriveRegionPathInfo(rows);
+      return { ...EMPTY_REGION_PATH };
+    }
+    if (locatedName) {
+      const countries = await request<RegionPathRow[]>('sys/region/getCountryList', { next: { revalidate: 300 } });
+      const hit = (Array.isArray(countries) ? countries : []).find((row) => row?.regionName === locatedName);
+      if (hit) {
+        return {
+          provinceName: null,
+          countryName: String(hit.regionName),
+          countryCode: hit.standardCode ? String(hit.standardCode).trim().toUpperCase() : null,
+        };
+      }
+      return { provinceName: null, countryName: locatedName, countryCode: null };
+    }
+    return { ...EMPTY_REGION_PATH };
+  };
+
   if (cookieProvinceId) {
     const hit = provinces.find((item) => String(item.regionId) === String(cookieProvinceId));
-    return { regionId: String(cookieProvinceId), regionName: hit?.regionName ?? null, provinces };
+    const pathInfo = await resolvePathInfo(String(cookieProvinceId));
+    return { regionId: String(cookieProvinceId), regionName: hit?.regionName ?? null, provinces, ...pathInfo };
   }
 
   if (isPublicIp(ip)) {
@@ -127,15 +165,17 @@ export async function getRegionSeed(ip: string | null, cookieProvinceId: string 
     if (located?.regionId !== undefined && located?.regionId !== null) {
       const regionId = String(located.regionId);
       const hit = provinces.find((item) => String(item.regionId) === regionId);
+      const pathInfo = await resolvePathInfo(regionId, located.regionName ? String(located.regionName) : null);
       return {
         regionId,
         regionName: hit?.regionName ?? (located.regionName ? shortenProvinceName(String(located.regionName)) : null),
         provinces,
+        ...pathInfo,
       };
     }
   }
 
-  return provinces.length ? { regionId: '', regionName: null, provinces } : null;
+  return provinces.length ? { regionId: '', regionName: null, provinces, ...EMPTY_REGION_PATH } : null;
 }
 
 /**
