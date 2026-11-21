@@ -1652,7 +1652,8 @@ export const navGroups: NavGroup[] = [
         children: [
           { key: 'aiAssistant', label: 'AI 助手对话' },
           { key: 'aiChannels', label: '渠道配置' },
-          { key: 'aiUsage', label: '用量记录' }
+          { key: 'aiUsage', label: '用量记录' },
+          { key: 'aiGuideSettings', label: '导购配置' }
         ]
       },
       {
@@ -1673,6 +1674,7 @@ export const pageTitles: Record<string, string> = {
   "aiAssistant": "AI 助手对话",
   "aiChannels": "渠道配置",
   "aiUsage": "用量记录",
+  "aiGuideSettings": "导购配置",
   "aiMcpManage": "MCP 管理",
   "aiMcpSettings": "商品 MCP 设置",
   "aiMcpApprovals": "审批中心",

@@ -7,6 +7,7 @@
 
 pub mod channels;
 pub mod chat;
+pub mod guide_config;
 pub mod usage;
 /// 密钥库已下沉 services 共享层（2026-11-21 导购立项），此处再导出保持路径不变。
 pub use nextrade_services::ai::vault;
@@ -137,4 +138,6 @@ pub fn routes(_state: &AdminState) -> Router<AdminState> {
         .route("/ai/chat/stop", post(chat::chat_stop))
         // 用量
         .route("/ai/usage", get(usage::list_usage))
+        // 导购配置（平台面独立配置区，platform_only 在子路由内自带）
+        .merge(guide_config::routes())
 }

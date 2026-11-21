@@ -66,6 +66,130 @@ impl Default for GuideSettings {
     }
 }
 
+impl GuideSettings {
+    /// 存储 JSON 形（`config.aiGuideSettings` 的 `biz_val`；管理端读/写与
+    /// 引擎解析共用同一形，避免两处口径漂移）。
+    #[must_use]
+    pub fn to_value(&self) -> Value {
+        json!({
+            "enabled": self.enabled,
+            "sessionTokens": self.session_token_budget,
+            "userDailyTokens": self.user_daily_token_budget,
+            "globalDailyTokens": self.global_daily_token_budget,
+        })
+    }
+
+    /// 按存储 JSON 解析生效设置（与引擎既有口径逐字一致：缺键走默认；
+    /// `enabled` 仅在为布尔时覆盖；预算仅在 > 0 时覆盖——0/负数视为
+    /// 未配置、回退默认值）。
+    #[must_use]
+    pub fn from_stored_value(v: &Value) -> Self {
+        let mut out = Self::default();
+        if let Some(b) = v.get("enabled").and_then(Value::as_bool) {
+            out.enabled = b;
+        }
+        for (key, slot) in [
+            ("sessionTokens", &mut out.session_token_budget),
+            ("userDailyTokens", &mut out.user_daily_token_budget),
+            ("globalDailyTokens", &mut out.global_daily_token_budget),
+        ] {
+            if let Some(n) = v.get(key).and_then(Value::as_i64) {
+                if n > 0 {
+                    *slot = n;
+                }
+            }
+        }
+        out
+    }
+}
+
+/// 读生效中的导购设置（config 行缺失/解析失败走内置默认）。
+///
+/// 引擎每回合调用（`GuideService::run_turn` 开头经 `settings()`），**无
+/// 缓存**：管理端保存落行后，下一回合即按新值执行，无需重启或刷新。
+pub async fn load_guide_settings(repos: &Repositories) -> GuideSettings {
+    if let Ok(rows) = repos
+        .system
+        .config_client
+        .find_config_values(&[GUIDE_CONFIG_CODE])
+        .await
+    {
+        if let Some(raw) = rows.first().and_then(|c| c.biz_val.as_deref()) {
+            if let Ok(v) = serde_json::from_str::<Value>(raw) {
+                return GuideSettings::from_stored_value(&v);
+            }
+        }
+    }
+    GuideSettings::default()
+}
+
+/// 保存导购设置（config 表「先删后插」单行口径，同 Java
+/// `SettingsHelper#set` / 联邦设置 `save_code`）。落行后下一回合即生效
+/// （读路径无缓存，见 [`load_guide_settings`]）。
+///
+/// # Errors
+/// 数据库写入失败 ⇒ 错误文案。
+pub async fn store_guide_settings(
+    repos: &Repositories,
+    settings: &GuideSettings,
+) -> Result<(), String> {
+    let text = settings.to_value().to_string();
+    repos
+        .system
+        .config_basic
+        .save_code(GUIDE_CONFIG_CODE, &text)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 管理端保存校验（严格，区别于引擎的宽容解析）：四字段必填；
+/// `enabled` 必须为布尔；三档预算必须为正整数——缺失/负数/小数/字符串
+/// 一律拒绝并在错误文案中指明字段。预算 0 单独拒绝：引擎口径里 0 =
+/// 未配置（回退默认值），存 0 会让页面显示值与实际生效值不符；如需
+/// 停用导购应关闭总开关。
+///
+/// # Errors
+/// 任一字段非法 ⇒ 指明字段的中文错误文案。
+pub fn validate_guide_settings(payload: &Value) -> Result<GuideSettings, String> {
+    let obj = payload
+        .as_object()
+        .ok_or_else(|| "导购设置必须为 JSON 对象".to_string())?;
+    let enabled = match obj.get("enabled") {
+        Some(v) => v
+            .as_bool()
+            .ok_or_else(|| "enabled（总开关）必须为布尔值 true/false".to_string())?,
+        None => return Err("缺少字段 enabled（总开关）".to_string()),
+    };
+    let budget = |key: &str, label: &str| -> Result<i64, String> {
+        let raw = obj
+            .get(key)
+            .ok_or_else(|| format!("缺少字段 {key}（{label}）"))?;
+        let n = raw
+            .as_i64()
+            .or_else(|| {
+                raw.as_f64()
+                    .filter(|f| f.is_finite() && f.fract() == 0.0)
+                    .map(|f| f as i64)
+            })
+            .ok_or_else(|| format!("{key}（{label}）必须为整数"))?;
+        if n < 0 {
+            return Err(format!("{key}（{label}）不能为负数"));
+        }
+        if n == 0 {
+            return Err(format!(
+                "{key}（{label}）必须为正整数：填 0 不会生效（引擎将 0 视为未配置、回退默认值），如需停用导购请关闭总开关"
+            ));
+        }
+        Ok(n)
+    };
+    Ok(GuideSettings {
+        enabled,
+        session_token_budget: budget("sessionTokens", "单会话 Token 预算")?,
+        user_daily_token_budget: budget("userDailyTokens", "单用户每日 Token 预算")?,
+        global_daily_token_budget: budget("globalDailyTokens", "全局每日 Token 预算")?,
+    })
+}
+
 /// 导购引擎事件（路由层翻译为 SSE；事件名与运营助手对齐）。
 #[derive(Debug, Clone)]
 pub enum GuideEvent {
@@ -148,36 +272,10 @@ impl GuideService {
 
     // —— 设置与预算 ——
 
-    /// 读导购设置（缺失/解析失败走默认）。
+    /// 读导购设置（缺失/解析失败走默认；实现见 [`load_guide_settings`]，
+    /// 每回合现读、无缓存）。
     pub async fn settings(&self) -> GuideSettings {
-        let mut out = GuideSettings::default();
-        if let Ok(rows) = self
-            .repos
-            .system
-            .config_client
-            .find_config_values(&[GUIDE_CONFIG_CODE])
-            .await
-        {
-            if let Some(raw) = rows.first().and_then(|c| c.biz_val.as_deref()) {
-                if let Ok(v) = serde_json::from_str::<Value>(raw) {
-                    if let Some(b) = v.get("enabled").and_then(Value::as_bool) {
-                        out.enabled = b;
-                    }
-                    for (key, slot) in [
-                        ("sessionTokens", &mut out.session_token_budget),
-                        ("userDailyTokens", &mut out.user_daily_token_budget),
-                        ("globalDailyTokens", &mut out.global_daily_token_budget),
-                    ] {
-                        if let Some(n) = v.get(key).and_then(Value::as_i64) {
-                            if n > 0 {
-                                *slot = n;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        out
+        load_guide_settings(&self.repos).await
     }
 
     /// 三级预算检查；返回命中的熔断提示（None = 放行）。
@@ -1255,5 +1353,98 @@ mod tests {
         // 且自带 suppressed 标记供落库审计。
         assert!(!NO_HIT_SUPPRESSED_TEXT.starts_with("{\"error\""));
         assert!(NO_HIT_SUPPRESSED_TEXT.contains("\"suppressed\":true"));
+    }
+
+    #[test]
+    fn stored_value_parse_matches_engine_caliber() {
+        // 缺键走默认（现网无 config 行时的行为，逐项与 Default 一致）。
+        let d = GuideSettings::from_stored_value(&json!({}));
+        assert!(d.enabled);
+        assert_eq!(d.session_token_budget, 60_000);
+        assert_eq!(d.user_daily_token_budget, 200_000);
+        assert_eq!(d.global_daily_token_budget, 5_000_000);
+        // 正数覆盖；0/负数不覆盖（视为未配置）；enabled 为布尔才覆盖。
+        let s = GuideSettings::from_stored_value(&json!({
+            "enabled": false,
+            "sessionTokens": 0,
+            "userDailyTokens": -5,
+            "globalDailyTokens": 123,
+        }));
+        assert!(!s.enabled);
+        assert_eq!(s.session_token_budget, 60_000);
+        assert_eq!(s.user_daily_token_budget, 200_000);
+        assert_eq!(s.global_daily_token_budget, 123);
+    }
+
+    #[test]
+    fn settings_value_roundtrip() {
+        let s = GuideSettings {
+            enabled: false,
+            session_token_budget: 1,
+            user_daily_token_budget: 2,
+            global_daily_token_budget: 3,
+        };
+        let back = GuideSettings::from_stored_value(&s.to_value());
+        assert_eq!(back.enabled, s.enabled);
+        assert_eq!(back.session_token_budget, 1);
+        assert_eq!(back.user_daily_token_budget, 2);
+        assert_eq!(back.global_daily_token_budget, 3);
+    }
+
+    #[test]
+    fn validate_guide_settings_accepts_full_valid_payload() {
+        let s = validate_guide_settings(&json!({
+            "enabled": true,
+            "sessionTokens": 60000,
+            "userDailyTokens": 200000,
+            "globalDailyTokens": 5000000,
+        }))
+        .expect("合法 payload 应通过");
+        assert!(s.enabled);
+        assert_eq!(s.session_token_budget, 60_000);
+        assert_eq!(s.user_daily_token_budget, 200_000);
+        assert_eq!(s.global_daily_token_budget, 5_000_000);
+    }
+
+    #[test]
+    fn validate_guide_settings_rejects_bad_values_with_field_names() {
+        // enabled 非布尔
+        let e = validate_guide_settings(&json!({
+            "enabled": "yes", "sessionTokens": 1, "userDailyTokens": 1, "globalDailyTokens": 1,
+        }))
+        .unwrap_err();
+        assert!(e.contains("enabled"), "{e}");
+        // 缺字段
+        let e = validate_guide_settings(&json!({
+            "enabled": true, "sessionTokens": 1, "userDailyTokens": 1,
+        }))
+        .unwrap_err();
+        assert!(e.contains("globalDailyTokens"), "{e}");
+        // 负数
+        let e = validate_guide_settings(&json!({
+            "enabled": true, "sessionTokens": -1, "userDailyTokens": 1, "globalDailyTokens": 1,
+        }))
+        .unwrap_err();
+        assert!(e.contains("sessionTokens"), "{e}");
+        // 0（引擎视为未配置：拒绝以免页面显示与实际生效不符）
+        let e = validate_guide_settings(&json!({
+            "enabled": true, "sessionTokens": 1, "userDailyTokens": 0, "globalDailyTokens": 1,
+        }))
+        .unwrap_err();
+        assert!(e.contains("userDailyTokens"), "{e}");
+        // 小数
+        let e = validate_guide_settings(&json!({
+            "enabled": true, "sessionTokens": 1, "userDailyTokens": 1, "globalDailyTokens": 1.5,
+        }))
+        .unwrap_err();
+        assert!(e.contains("globalDailyTokens"), "{e}");
+        // 字符串数字
+        let e = validate_guide_settings(&json!({
+            "enabled": true, "sessionTokens": "60000", "userDailyTokens": 1, "globalDailyTokens": 1,
+        }))
+        .unwrap_err();
+        assert!(e.contains("sessionTokens"), "{e}");
+        // 非对象
+        assert!(validate_guide_settings(&json!([1, 2])).is_err());
     }
 }
