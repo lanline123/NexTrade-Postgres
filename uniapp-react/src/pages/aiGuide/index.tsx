@@ -9,6 +9,7 @@ import {
     getGuideMessages,
     stopGuideChat,
     streamGuideChat,
+    GUIDE_LOGIN_EXPIRED_MSG,
     type GuideCard,
     type GuideMessage
 } from "@/api/guide";
@@ -22,6 +23,7 @@ import "./index.scss";
 /**
  * AI 导购（我方新增，受限 MVP）：独立入口页，非 IM 会话。
  * - 仅登录买家可用（未登录给登录引导，后端接口本身也在 require_auth 组）；
+ *   登录态被后端拒绝（401）时同样切到引导态并带「去登录」入口，不只留一句提示；
  * - 流式回复（SSE），工具产出的商品卡随消息渲染，价格走既有门控口径
  *   （卡数据已由后端按当前买家身份脱敏：priceVisible=false 时显示门控文案，
  *   可见时用 FormatPrice 渲染，与全站列表/详情同一口径）；
@@ -81,6 +83,8 @@ function GuideProductCard({ card }: { card: GuideCard }) {
 
 export default function AiGuide() {
     const token = useUserStore((s) => s.token);
+    // 本地有令牌但被后端拒绝（401）：与未登录同形态切引导态，文案用过期提示
+    const [authExpired, setAuthExpired] = useState(false);
     const [convId, setConvId] = useState<number | null>(null);
     const [messages, setMessages] = useState<DisplayMsg[]>([]);
     const [input, setInput] = useState("");
@@ -97,6 +101,8 @@ export default function AiGuide() {
 
     // 进页续接最近会话（无则等首条消息由后端建会话）
     useEffect(() => {
+        // 令牌变化（重新登录/退出）时复位过期态，避免引导态残留
+        setAuthExpired(false);
         if (!token) return;
         let cancelled = false;
         (async () => {
@@ -155,6 +161,8 @@ export default function AiGuide() {
                 onError: (message) => {
                     patchAssistant((m) => (m.content ? m : { ...m, content: message }));
                     Taro.showToast({ title: message, icon: "none" }).catch(() => {});
+                    // 令牌被拒：切到带「去登录」入口的引导态（与未登录同形态）
+                    if (message === GUIDE_LOGIN_EXPIRED_MSG) setAuthExpired(true);
                 },
                 onDone: () => {
                     patchAssistant((m) => ({ ...m, pending: false }));
@@ -188,11 +196,13 @@ export default function AiGuide() {
         }
     };
 
-    if (!token) {
+    if (!token || authExpired) {
         return (
             <View className="guide-login">
                 <Text className="guide-login__title">{t("AI 导购")}</Text>
-                <Text className="guide-login__desc">{t("登录后可使用导购：帮你挑商品、查订单")}</Text>
+                <Text className="guide-login__desc">
+                    {t(authExpired ? GUIDE_LOGIN_EXPIRED_MSG : "登录后可使用导购：帮你挑商品、查订单")}
+                </Text>
                 <View className="guide-login__btn" onClick={handleLogin}>
                     {t("去登录")}
                 </View>

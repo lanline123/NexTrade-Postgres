@@ -6,6 +6,7 @@
  *
  * 与 H5 导购页（uniapp-react/src/pages/aiGuide）同一套后端接口与口径：
  * - 仅登录买家可用（未登录给登录引导，后端接口本身也在 require_auth 组）；
+ *   登录态被后端拒绝（401）时同样切到引导态并带「去登录」入口，不只留一句提示；
  * - 打开时续接最近会话（无则首条消息由后端建会话），新会话按钮手动重开；
  * - 流式回复（SSE），工具产出的商品卡随消息渲染，价格走既有门控口径
  *   （卡数据已由后端按当前买家身份脱敏：priceVisible=false 时渲染
@@ -26,6 +27,7 @@ import {
   getGuideMessages,
   stopGuideChat,
   streamGuideChat,
+  GUIDE_LOGIN_EXPIRED_MSG,
   type GuideCard,
   type GuideMessage,
 } from '@/lib/guide-api';
@@ -96,6 +98,8 @@ export interface GuideChatPanelProps {
 export default function GuideChatPanel({ open, onClose }: GuideChatPanelProps) {
   const { t } = useTranslation();
   const [loggedIn, setLoggedIn] = useState(false);
+  // 本地有令牌但被后端拒绝（401）：与未登录同形态切引导态，文案用过期提示
+  const [authExpired, setAuthExpired] = useState(false);
   const [, setConvId] = useState<number | null>(null);
   const [messages, setMessages] = useState<DisplayMsg[]>([]);
   const [input, setInput] = useState('');
@@ -116,6 +120,7 @@ export default function GuideChatPanel({ open, onClose }: GuideChatPanelProps) {
     if (!open) return;
     const has = hasAccessToken();
     setLoggedIn(has);
+    setAuthExpired(false);
     if (!has || resumedRef.current) return;
     resumedRef.current = true;
     let cancelled = false;
@@ -175,6 +180,8 @@ export default function GuideChatPanel({ open, onClose }: GuideChatPanelProps) {
           const text = t(message);
           patchAssistant((m) => (m.content ? m : { ...m, content: text }));
           Toast.error(text);
+          // 令牌被拒：切到带「去登录」入口的引导态（与未登录同形态）
+          if (message === GUIDE_LOGIN_EXPIRED_MSG) setAuthExpired(true);
         },
         onDone: () => {
           patchAssistant((m) => ({ ...m, pending: false }));
@@ -229,10 +236,12 @@ export default function GuideChatPanel({ open, onClose }: GuideChatPanelProps) {
       className="guide-sheet"
       bodyStyle={{ padding: 0 }}
     >
-      {!loggedIn ? (
+      {!loggedIn || authExpired ? (
         <div className="guide-login">
           <div className="guide-login__title">{t('AI 导购')}</div>
-          <div className="guide-login__desc">{t('登录后可使用导购：帮你挑商品、查订单')}</div>
+          <div className="guide-login__desc">
+            {t(authExpired ? GUIDE_LOGIN_EXPIRED_MSG : '登录后可使用导购：帮你挑商品、查订单')}
+          </div>
           <Link href="/login">
             <Button theme="solid" type="primary">
               {t('去登录')}

@@ -16,6 +16,9 @@
  */
 import { apiGet, apiPost } from '@/lib/client-api';
 
+/** 登录态被后端拒绝（401）时的统一错误文案（同时是 i18n key，面板据此识别并切登录引导）。 */
+export const GUIDE_LOGIN_EXPIRED_MSG = '登录已过期，请重新登录';
+
 export interface GuideCard {
   productId: number;
   productName: string;
@@ -107,7 +110,7 @@ export function streamGuideChat(
       return;
     }
     if (!resp.ok || !resp.body) {
-      handlers.onError?.(resp.status === 401 ? '登录已过期，请重新登录' : '导购服务暂不可用');
+      handlers.onError?.(resp.status === 401 ? GUIDE_LOGIN_EXPIRED_MSG : '导购服务暂不可用');
       handlers.onDone?.(false);
       return;
     }
@@ -119,7 +122,7 @@ export function streamGuideChat(
       let msg = '导购服务暂不可用';
       try {
         const data = JSON.parse(await resp.text()) as { code?: number; msg?: string };
-        if (data?.code === 401) msg = '登录已过期，请重新登录';
+        if (data?.code === 401) msg = GUIDE_LOGIN_EXPIRED_MSG;
         else if (data?.msg) msg = String(data.msg);
       } catch {
         /* 非 JSON 响应：用默认文案 */

@@ -1,5 +1,8 @@
 import request, { baseUrl, requestHeader } from "@/utils/request";
 
+/** 登录态被后端拒绝（401）时的统一错误文案（导购页据此识别并切登录引导）。 */
+export const GUIDE_LOGIN_EXPIRED_MSG = "登录已过期，请重新登录";
+
 /**
  * 买家侧 AI 导购（我方新增）—— 后端 /api/ai/guide/*（仅登录，平台维度会话）。
  * 普通接口走统一 request；流式对话走 fetch + ReadableStream 读 SSE
@@ -129,7 +132,25 @@ export function streamGuideChat(
             return;
         }
         if (!resp.ok || !resp.body) {
-            handlers.onError?.(resp.status === 401 ? "登录已过期，请重新登录" : "导购服务暂不可用");
+            handlers.onError?.(resp.status === 401 ? GUIDE_LOGIN_EXPIRED_MSG : "导购服务暂不可用");
+            handlers.onDone?.(false);
+            return;
+        }
+        // 后端鉴权/业务拒绝走 HTTP 200 + JSON 信封（不是 SSE）：必须按信封解析报错，
+        // 否则信封会被当作 SSE 静默吞掉，页面只剩一个空气泡（PC 端 v63 已修同病，
+        // 本次补齐 H5：401 信封 → 过期文案，页面据此切带登录入口的引导态）。
+        const contentType = resp.headers.get("content-type") || "";
+        if (!contentType.includes("text/event-stream")) {
+            let msg = "导购服务暂不可用";
+            try {
+                const data = JSON.parse(await resp.text()) as { code?: number; msg?: string; message?: string };
+                if (data?.code === 401) msg = GUIDE_LOGIN_EXPIRED_MSG;
+                else if (data?.msg) msg = String(data.msg);
+                else if (data?.message) msg = String(data.message);
+            } catch {
+                /* 非 JSON 响应：用默认文案 */
+            }
+            handlers.onError?.(msg);
             handlers.onDone?.(false);
             return;
         }
