@@ -300,6 +300,55 @@ impl ShopMemberRepository {
         Ok(row.0)
     }
 
+    /// 支付记账原子累加（Java `ShopMemberServiceImpl#accumulate`）：
+    /// 命中未删除绑定时 order_count+1、order_amount+amount、刷新最近消费时间。
+    /// 返回 true 表示命中并已累加。
+    pub async fn accumulate_paid_order(
+        &self,
+        shop_id: i32,
+        user_id: i32,
+        amount: Decimal,
+        now: i64,
+    ) -> Result<bool> {
+        let res = sqlx::query(
+            "UPDATE shop_member SET order_count = order_count + 1, order_amount = order_amount + $1, last_consume_time = $2, update_time = $3 WHERE shop_id = $4 AND user_id = $5 AND is_del = 0",
+        )
+        .bind(amount)
+        .bind(now)
+        .bind(now)
+        .bind(shop_id)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    /// 支付记账首次入会（Java `recordOnPaid` 的 `save` 分支）：
+    /// order_count=1、order_amount=amount、join_time/last_consume_time=now。
+    pub async fn insert_paid_member(
+        &self,
+        shop_id: i32,
+        user_id: i32,
+        amount: Decimal,
+        now: i64,
+    ) -> Result<i64> {
+        let res: i64 = sqlx::query_scalar(
+            "INSERT INTO shop_member (user_id, shop_id, order_count, order_amount, join_time, last_consume_time, create_time, update_time, is_del) VALUES ($1, $2, 1, $3, $4, $5, $6, $7, 0) RETURNING id",
+        )
+        .bind(user_id)
+        .bind(shop_id)
+        .bind(amount)
+        .bind(now)
+        .bind(now)
+        .bind(now)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(res)
+    }
+
     /// 新建会员绑定（Java `bindMember` 的 `save`）。
     pub async fn insert_member(&self, shop_id: i32, user_id: i32, now: i64) -> Result<i64> {
         let res: i64 = sqlx::query_scalar(

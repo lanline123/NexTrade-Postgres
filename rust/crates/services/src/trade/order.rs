@@ -1695,7 +1695,7 @@ impl OrderService {
     /// 支付成功后置钩子（全仓单一入口）。
     ///
     /// 顺序：订单日志 → 积分赠送（Node 1）→ 电子卡券分配 → 对账单出账
-    /// → 分销生成 → 骑手派送 → 跨店拆单激活。各段均为 best-effort
+    /// → 分销生成 → 骑手派送 → 跨店拆单激活 → 店铺会员记账。各段均为 best-effort
     /// （失败仅告警/忽略），本函数不返回错误。
     ///
     /// 调用方：`on_payment_success`（渠道回调 / POS / 线下认款 / 后台
@@ -1819,6 +1819,64 @@ impl OrderService {
             }
         }
 
+        // 8. 店铺会员记账（best-effort，失败仅告警）：原版 recordOnPaid——
+        // 支付成功后按成交店铺把买家沉淀为该店会员并累计已支付订单数/金额。
+        // 必须排在拆单（钩子 7）之后：成交单元以拆单落定结果为准（见
+        // record_shop_member_on_paid）。记账不受店铺会员总开关控制（原版
+        // 实现口径：总开关只冻结店铺端展示/写操作）。
+        {
+            let member = crate::member::shop_member::ShopMemberService::new(self.repos.clone());
+            if let Err(e) = self
+                .record_shop_member_on_paid(&member, order, paid_amount)
+                .await
+            {
+                tracing::warn!("订单 {order_id} 店铺会员记账失败: {e}");
+            }
+        }
+
+    }
+
+    /// 店铺会员记账的成交单元解析（钩子 8 本体）。
+    ///
+    /// 拆单已在钩子 7 落定：有已付子单 ⇒ 逐子单按子单 `shop_id` +
+    /// `paid_amount` 记账（跨店单天然分店沉淀）；无子单 ⇒ 按本单记账
+    /// （重读订单取拆单回填后的 `shop_id` 与累计 `paid_amount`，读不到
+    /// 回退入参快照 + 本次支付额）。子单不经 `on_payment_success`，不会
+    /// 与本钩子重复记账。平台自营（shop_id<=0）在服务层跳过。
+    async fn record_shop_member_on_paid(
+        &self,
+        member: &crate::member::shop_member::ShopMemberService,
+        order: &Order,
+        paid_amount: Decimal,
+    ) -> Result<()> {
+        let now = utils::now_seconds();
+        let children = self
+            .repos
+            .trade
+            .order_admin
+            .find_children(order.order_id)
+            .await?;
+        // pay_status=2 为已支付；已取消子单不记账。
+        let paid_children: Vec<&Order> = children
+            .iter()
+            .filter(|c| c.order_status != status::CANCELED && c.pay_status == 2)
+            .collect();
+        if !paid_children.is_empty() {
+            for child in paid_children {
+                member
+                    .record_on_paid(child.shop_id, child.user_id, child.paid_amount, now)
+                    .await?;
+            }
+            return Ok(());
+        }
+        let fresh = self.repos.trade.order.find_by_id(order.order_id).await?;
+        let (shop_id, amount) = match &fresh {
+            Some(o) => (o.shop_id, o.paid_amount),
+            None => (order.shop_id, paid_amount),
+        };
+        member
+            .record_on_paid(shop_id, order.user_id, amount, now)
+            .await
     }
 
     /// 订单节点赠送积分（对齐 Java OrderServiceImpl#orderSuccessPoint）
@@ -2689,7 +2747,7 @@ mod post_payment_hooks_tests {
     }
 
     #[test]
-    fn shared_hook_entry_covers_all_seven_hooks() {
+    fn shared_hook_entry_covers_all_eight_hooks() {
         let body = fn_body(
             ORDER_RS,
             "pub async fn run_post_payment_hooks",
@@ -2703,6 +2761,7 @@ mod post_payment_hooks_tests {
             "SalesmanGenerationService",    // 5 分销生成
             "DeliveryDispatchService",      // 6 骑手派送
             "split_store_order",            // 7 跨店拆单激活
+            "ShopMemberService",            // 8 店铺会员记账
         ] {
             assert!(
                 body.contains(needle),

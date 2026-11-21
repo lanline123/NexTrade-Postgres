@@ -1260,6 +1260,10 @@ export const navGroups: NavGroup[] = [
             "label": "会员设置"
           },
           {
+            "key": "shopMemberCustomerManage",
+            "label": "店铺客户"
+          },
+          {
             "key": "feedbackManage",
             "label": "会员留言"
           },
@@ -1876,6 +1880,7 @@ export const pageTitles: Record<string, string> = {
   "userLevelProManage": "会员等级设置",
   "levelManageManage": "会员等级设置",
   "shopMemberSettingManage": "会员设置",
+  "shopMemberCustomerManage": "店铺客户",
   "feedbackManage": "会员留言",
   "memberTagManage": "会员标签",
   "userAuthenticationManage": "认证设置",

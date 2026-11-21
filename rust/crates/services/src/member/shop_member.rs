@@ -8,6 +8,8 @@
 //! # 已完整实现
 //!
 //! `setting/get`、`setting/save`、`shopList`、`list`、`detail`、`add`。
+//! 2026-11-21 补齐支付记账 `record_on_paid`（此前未移植，自动沉淀从未
+//! 发生，仅 add/import 能产生绑定行）——由订单支付成功共享钩子调用。
 //!
 //! # 未迁移（Excel 能力缺失，明确报错）
 //!
@@ -21,6 +23,7 @@
 //! - 会员列表/详情读的是 `user` 表实时字段（与 Java 一致）；`rankName` /
 //!   `shopPoints` / `growth` 为 Java 占位字段，恒为 `null`。
 
+use rust_decimal::Decimal;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -107,6 +110,51 @@ impl ShopMemberService {
         self.repo()
             .set_config_value(biz_code, &value.to_string(), now_seconds())
             .await
+    }
+
+    // ————————————————————— 支付记账 —————————————————————
+
+    /// 订单支付成功记账（Java `ShopMemberServiceImpl#recordOnPaid`）。
+    ///
+    /// 口径（从 Java 实现取，而非其已过时的接口注释）：记账**不受总开关
+    /// 控制**——总开关只冻结店铺端展示/写操作；shop_id<=0（平台自营）或
+    /// user_id<=0 直接跳过；已存在绑定原子累加，未存在插入
+    /// （order_count=1），唯一键冲突回退累加（并发支付）。金额由调用方按
+    /// 成交单元传入（子单 = 子单 paid_amount；本单 = 订单 paid_amount
+    /// 累计已付）。退款不回冲（Java 同口径，无回冲方法）。
+    pub async fn record_on_paid(
+        &self,
+        shop_id: i32,
+        user_id: i32,
+        amount: Decimal,
+        now: i64,
+    ) -> Result<()> {
+        if shop_id <= 0 || user_id <= 0 {
+            return Ok(());
+        }
+        if self
+            .repo()
+            .accumulate_paid_order(shop_id, user_id, amount, now)
+            .await?
+        {
+            return Ok(());
+        }
+        match self
+            .repo()
+            .insert_paid_member(shop_id, user_id, amount, now)
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                tracing::warn!(
+                    "[shop-member] insert conflict, fallback to accumulate. shopId={shop_id}, userId={user_id}: {e}"
+                );
+                self.repo()
+                    .accumulate_paid_order(shop_id, user_id, amount, now)
+                    .await?;
+                Ok(())
+            }
+        }
     }
 
     // ————————————————————— 平台店铺列表 —————————————————————
