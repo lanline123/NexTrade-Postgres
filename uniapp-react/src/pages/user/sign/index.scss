@@ -3,33 +3,33 @@
     position: relative;
 
     .title {
-        font-size: 16px;
+        font-size: 32rpx;
         font-weight: 500;
         text-align: center;
         color: #fff;
-        height: 50px;
-        line-height: 50px;
+        height: 100rpx;
+        line-height: 100rpx;
         background: #e45363;
     }
 
     .wrap {
         // 旧 background-image: v-bind(qiandaoBg) 已改为组件内联 style
         background-repeat: no-repeat;
-        background-size: 100% 280px;
-        min-height: 300px;
-        padding: 40px 30px;
+        background-size: 100% 560rpx;
+        min-height: 600rpx;
+        padding: 80rpx 60rpx;
         box-sizing: border-box;
 
         .samll-title {
             padding-left: 3%;
-            font-size: 14px;
+            font-size: 28rpx;
             font-weight: 500;
-            margin-bottom: 20px;
+            margin-bottom: 40rpx;
         }
 
         .samll-title span {
             color: #dd9260;
-            margin: 0 3px;
+            margin: 0 6rpx;
         }
     }
 
@@ -45,42 +45,42 @@
 
         .line {
             position: absolute;
-            top: 18px;
+            top: 36rpx;
             left: 10%;
             width: 80%;
-            height: 1px;
+            height: 2rpx;
             background: #d8d9d8;
             z-index: 1;
         }
 
         .item {
             display: inline-block;
-            width: 50px;
+            width: 100rpx;
             flex: none;
             text-align: center;
             position: relative;
-            height: 80px;
+            height: 160rpx;
 
             .item-content {
                 width: 100%;
-                height: 50px;
+                height: 100rpx;
                 color: #dd9260;
                 position: absolute;
                 top: 0;
                 left: 0;
                 z-index: 2;
-                font-size: 12px;
+                font-size: 24rpx;
 
                 .num {
                     margin: 0 auto;
-                    width: 30px;
-                    height: 30px;
-                    line-height: 30px;
+                    width: 60rpx;
+                    height: 60rpx;
+                    line-height: 60rpx;
                     background-image: url("https://demo.nextrade.cn/static/mini/images/user/qiandao/2.png");
                     background-repeat: no-repeat;
                     background-size: 100%;
                     border-radius: 50%;
-                    margin-bottom: 10px;
+                    margin-bottom: 20rpx;
                 }
             }
 
@@ -91,20 +91,20 @@
     }
 
     .qiandaoBtnBox {
-        padding: 0 10px;
-        padding-top: 25px;
+        padding: 0 20rpx;
+        padding-top: 50rpx;
 
         .qdBtn {
             position: relative;
             width: 100%;
-            max-width: 375px;
-            height: 40px;
-            line-height: 40px;
+            max-width: 750rpx;
+            height: 80rpx;
+            line-height: 80rpx;
             margin: 0 auto;
             text-align: center;
             color: #fff;
             font-weight: 500;
-            font-size: 14px;
+            font-size: 28rpx;
             background-image: url("https://demo.nextrade.cn/static/mini/images/user/qiandao/btn-def.png");
             background-repeat: no-repeat;
             background-size: 100% 100%;
@@ -113,10 +113,10 @@
         .dk-now::after {
             content: "";
             position: absolute;
-            top: 14px;
-            margin-left: 5px;
-            width: 12px;
-            height: 12px;
+            top: 28rpx;
+            margin-left: 10rpx;
+            width: 24rpx;
+            height: 24rpx;
             background-image: url("https://demo.nextrade.cn/static/mini/images/user/qiandao/gif-icon.png");
             background-repeat: no-repeat;
             background-size: 100% 100%;
@@ -125,26 +125,26 @@
 }
 
 .recgoodsBox {
-    margin: 0 10px;
+    margin: 0 20rpx;
     background: #fff;
     border-radius: 9px;
 
     .title {
         display: flex;
         flex-wrap: nowrap;
-        height: 50px;
-        line-height: 50px;
+        height: 100rpx;
+        line-height: 100rpx;
         justify-content: space-between;
 
         .bg {
             // 旧 background-image: v-bind(hotBg) 已改为组件内联 style
-            width: 200px;
-            height: 50px;
+            width: 400rpx;
+            height: 100rpx;
             background-repeat: no-repeat;
             background-size: 100% 100%;
             padding-left: 100rpx;
             font-weight: bold;
-            line-height: 55px;
+            line-height: 110rpx;
             white-space: nowrap;
             box-sizing: border-box;
         }
@@ -152,19 +152,19 @@
         .moregoods {
             display: flex;
             align-items: center;
-            font-size: 12px;
+            font-size: 24rpx;
             color: #999;
-            padding-top: 5px;
-            padding-right: 10px;
+            padding-top: 10rpx;
+            padding-right: 20rpx;
         }
     }
 
     .wrapGoods {
-        padding: 10px;
+        padding: 20rpx;
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        column-gap: 5px;
-        row-gap: 10px;
+        column-gap: 10rpx;
+        row-gap: 20rpx;
 
         .item {
             display: flex;
@@ -173,24 +173,24 @@
 
             .rec-img {
                 width: 100%;
-                height: 80px;
+                height: 160rpx;
                 border-radius: 9px;
                 border: 2rpx solid #efefef;
             }
 
             .name {
-                padding: 0 15px;
-                height: 20px;
-                line-height: 20px;
+                padding: 0 30rpx;
+                height: 40rpx;
+                line-height: 40rpx;
                 overflow: hidden;
                 font-weight: 500;
                 color: #333;
-                font-size: 12px;
-                margin-top: 4px;
+                font-size: 24rpx;
+                margin-top: 8rpx;
             }
 
             .price {
-                font-size: 12px;
+                font-size: 24rpx;
                 color: #e45363;
             }
         }

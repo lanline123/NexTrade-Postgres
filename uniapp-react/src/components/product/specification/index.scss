@@ -15,7 +15,7 @@
     .subline {
         position: absolute;
         width: 50%;
-        height: 2px;
+        height: 4rpx;
         background-color: var(--general);
     }
     .line {
@@ -23,7 +23,7 @@
     }
     .subline {
         bottom: 0;
-        height: 1px;
+        height: 2rpx;
         background-color: #eee;
     }
 
@@ -75,7 +75,7 @@
                 align-items: center;
                 height: 35rpx;
                 .line {
-                    width: 1px;
+                    width: 2rpx;
                     height: 100%;
                     background-color: #dadada;
                     margin: 0 12rpx;
