@@ -15,7 +15,11 @@
 * 粗细的「A」字形，与原版 icon-zitiyanse / icon-bianji-ziti 以字号和
 * 粗细区分选项的口径一致）呈现；数据契约（字段名/数值/默认值）零变化。
 * 形态与既有 IconStyleRadioField 先例一致：Semi RadioGroup type="button"
-* 分段，editor.less 既有规则令其在.dec-edit-group-con 内整宽等分。
+* 分段，同挂专属类 dec-icon-radio——editor.less 专属规则令其按内容紧凑宽
+* 排布（2026-11-21 用户点名过宽后定案；此前无专属类、被通用均分规则整宽
+* 拉伸，两选项时每项各占控件区一半）。原版 .dec-radio-group 同为紧凑宽
+* （组无 width:100%，靠右于 .dec-edit-group-con，组内 flex:1 仅在紧凑宽
+* 内均分，原版 decorate.less:933-950）。
 */
 import { Radio, RadioGroup, Tooltip} from "@douyinfe/semi-ui";
 import { SettingRow} from "./settingWidgets";
@@ -309,7 +313,7 @@ return (
 return <TemplatePictogram icon={option.icon?? ""} />;
 }
 
-/** 裸视觉单选组（Semi RadioGroup type="button"，整宽等分；悬停 Tooltip 显示文字 label，另带 title 兜底） */
+/** 裸视觉单选组（Semi RadioGroup type="button"，dec-icon-radio 紧凑宽；悬停 Tooltip 显示文字 label，另带 title 兜底） */
 export function TemplateIconRadio({
 value,
 options,
@@ -324,8 +328,8 @@ const matched = matchOption(value, options);
 return (
 <RadioGroup
 type="button"
+className="dec-icon-radio"
 value={matched? matched.value: value}
-style={{ flex: 1, minWidth: 0}}
 onChange={(e: any) => onChange(changeValue(e?.target?.value, options))}
 >
 {options.map((o) => (

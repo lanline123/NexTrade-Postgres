@@ -487,7 +487,8 @@
 // - 分段变体（.semi-radioGroup-buttonRadio）默认保留旧规则：均分控件区宽度、
 //   文字居中，皮肤走共享壳 editor-shell.css 的 .dec-settings-scope 胶囊段
 //   （同 PC）；例外：页面设置 SegmentedButtonRadio 挂 dec-seg-btn-auto 按 PC
-//   自然宽度复位（见下方专属规则，2026-11-19），图标单选仍走均分。
+//   自然宽度复位（见下方专属规则，2026-11-19），图标单选挂 dec-icon-radio
+//   按内容紧凑宽复位（见下方专属规则，2026-11-21）。
 .dec-edit-group-con .semi-radioGroup:not(.semi-radioGroup-buttonRadio) {
     display: inline-flex;
     flex-wrap: wrap;
@@ -512,14 +513,29 @@
     }
 }
 
-// 图标样式单选（IconStyleRadioField 专属类 dec-icon-radio）：上方均分规则的
-// flex:1 等价 flex-basis:0%，flex-wrap 按假想尺寸排版会判定「全部放得下」而
-// 永不换行——首焦轮播菜单图标 9 个选项（24px 字形 + 按钮内距）被硬挤一行、
-// 图标裁切、末项（自定义/不显示）溢出不可达（2026-11-21 用户实测）。子项给
-// 42px 弹性基底后：一行放不下即换到第二行（用户口径），每行内仍均分撑满。
+// 图标样式单选（专属类 dec-icon-radio，IconStyleRadioField 与 TemplateIconRadio
+// 共用）两段口径：
+// ① 换行（2026-11-21 晨）：上方均分规则的 flex:1 等价 flex-basis:0%，
+// flex-wrap 按假想尺寸排版会判定「全部放得下」而永不换行——首焦轮播菜单
+// 图标 9 个选项（24px 字形 + 按钮内距）被硬挤一行、图标裁切、末项
+// （自定义/不显示）溢出不可达（用户实测）。子项给 42px 弹性基底后：
+// 一行放不下即换到第二行（用户口径）。
+// ② 紧凑宽（2026-11-21 晚，用户点名首焦轮播A2「搜索框/导航效果」两枚图标、
+// 商品提示扩展设置「图片填充」、文章列表「标题粗细」太宽）：原版
+// .dec-radio-group 无 width:100%，组宽由内容决定、在 .dec-edit-group-con
+// （justify-content:flex-end）内靠右呈紧凑宽，组内 el-radio-button 的
+// flex:1 只在该紧凑宽内均分（原版 decorate.less:933-950 实证，两图标选项
+// 实宽各约 50px）；我方通用均分规则给组 width:100%，少选项时每项被拉到
+// 控件区等分宽（两项各约 135px）。现与 dec-seg-btn-auto 同法复位：组
+// inline-flex + width:auto 按内容收窄，子项 flex:0 1 42px 不再横向拉伸
+// （42px 基底保留、承接①的换行口径）；行布局下靠右、块布局下左对齐，
+// 均同原版观感。
 .dec-edit-group-con .semi-radioGroup-buttonRadio.dec-icon-radio {
+    display: inline-flex;
+    width: auto;
+
     .semi-radio {
-        flex: 1 1 42px;
+        flex: 0 1 42px;
     }
 }
 
@@ -528,7 +544,7 @@
 // 控件按内容自然宽度排列（单项约 76px、整组约 160px），H5 此前被上方均分
 // 规则撑满控件区（实测轨道 267px、每项 133px）。本类只复位宽度与子项弹性，
 // 皮肤仍走共享壳胶囊段（同 PC）；图标单选 IconStyleRadioField 不挂此��、
-// 继续走上方全宽均分规则。行布局下控件区 justify-content:flex-end 令其靠右，
+// 走 dec-icon-radio 专属紧凑宽规则（2026-11-21）。行布局下控件区 justify-content:flex-end 令其靠右，
 // block 布局下自然左对齐（同 PC 上下结构），均与 PC 观感一致。
 // 续修（同日上线后实测发现）：只改 width:auto 在 block 布局（背景图显示 /
 // 背景图填充大小）下不收窄——display:flex 的块级 flex 容器 width:auto 仍

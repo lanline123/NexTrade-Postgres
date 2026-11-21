@@ -232,7 +232,7 @@ export function BuyBtnStyleRowField({ data, onChange, field, label, visualSet, o
  *  又被 editor.less 的分段均分规则撑满控件区（实测轨道 267px、每项 133px，
  *  而 PC 口径单项仅约 76px、整组约 160px）。现去掉行内拉伸并挂专属类
  *  dec-seg-btn-auto，由 editor.less 对该类复位 width:auto / 子项 flex:none；
- *  图标样式单选 IconStyleRadioField 不挂此��、保留全宽均分形态。 */
+ *  图标样式单选 IconStyleRadioField 不挂此��、走 dec-icon-radio 专属紧凑宽规则（见下方该控件注释，2026-11-21）。 */
 export function SegmentedButtonRadio({ value, options, onChange }: { value: any; options: RadioOption[]; onChange: (v: number | string) => void }) {
     const { t } = useI18n();
     const matched = matchRadioOption(value, options);
@@ -275,10 +275,14 @@ export function SegmentedButtonRadioRowField({ data, onChange, field, label, opt
  * 本控件是图标选择器，形态例外保留 type="button" 分段（同 PC 编辑器图标单选的按钮组形态），
  * 不随模块字段的圆点口径变更。
  * 字形映射由调用方模块的共享映射表提供（如 banner 的 iconStyles.ts），与预览/前台同源。
- * 排布（2026-11-21 用户口径）：挂专属类 dec-icon-radio，editor.less 给子项
- * 42px 弹性基底——通用均分规则的 flex:1（basis 0%）会令 flex-wrap 失效、
- * 选项多时（如菜单图标 9 项）硬挤一行被裁切；有基底后一行放不下自动换到
- * 第二行，每行内仍均分。
+ * 排布（2026-11-21 用户口径）：挂专属类 dec-icon-radio，editor.less 两段
+ * 口径——子项 42px 弹性基底令 flex-wrap 生效（通用均分规则的 flex:1
+ * （basis 0%）会令 flex-wrap 失效、选项多时如菜单图标 9 项硬挤一行被
+ * 裁切；有基底后一行放不下自动换到第二行）；组本身 inline-flex 按内容
+ * 紧凑宽、子项不拉伸（同日晚间追加：通用规则的组 width:100% 令少选项时
+ * 每项被拉到控件区等分宽、图标钮过宽——用户点名 A2 搜索框导航效果 /
+ * 商品提示图片填充 / 文章列表标题粗细，与原版 .dec-radio-group 紧凑宽
+ * 对齐；本控件与 TemplateIconRadio 同挂此、RadioGroup 不再带行内 flex:1）。
  */
 export function IconStyleRadioField({
     data,
@@ -296,7 +300,6 @@ export function IconStyleRadioField({
                 type="button"
                 className="dec-icon-radio"
                 value={matched ? matched.value : value}
-                style={{ flex: 1, minWidth: 0 }}
                 onChange={(e: any) => onChange({ [field]: radioChangeValue(e?.target?.value, options) })}
             >
                 {options.map((o) => (
