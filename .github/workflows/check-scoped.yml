@@ -1,0 +1,66 @@
+name: check-scoped
+
+# 诊断专用：按包并行最小范围编译，一次运行暴露全仓编译错误清单。
+# 仅手动 workflow_dispatch 触发，不随 push 运行，不替代 check-rust 门禁。
+# 每个包一个 job 并行跑 cargo check -p <pkg> --all-targets --keep-going：
+# --keep-going 让 cargo 越过首个错误继续编译其余单元，一次报全；
+# --all-targets 连测试代码一起查（单测里的编译错误也在这一轮现形）。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check ${{ matrix.pkg }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg:
+          - nextrade-common
+          - nextrade-core
+          - nextrade-security
+          - nextrade-infrastructure
+          - nextrade-services
+          - nextrade-admin-api
+          - nextrade-api
+          - nextrade-openapi
+          - nextrade-server
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/crates -> target
+          key: scoped-${{ matrix.pkg }}
+
+      - name: Cargo check (scoped, keep-going)
+        working-directory: rust/crates
+        run: |
+          set -o pipefail
+          mkdir -p ../ci-logs
+          cargo check -p ${{ matrix.pkg }} --all-targets --keep-going 2>&1 | tee ../ci-logs/cargo-check-${{ matrix.pkg }}.log
+
+      - name: Upload CI logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scoped-log-${{ matrix.pkg }}-${{ github.run_id }}
+          path: ci-logs/
+          retention-days: 7
+          if-no-files-found: ignore
