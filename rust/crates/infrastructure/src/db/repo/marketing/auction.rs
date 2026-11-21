@@ -215,8 +215,8 @@ impl AuctionRepository {
              (session_id, product_id, sku_id, shop_id, title, start_price, reserve_price, buyout_price,
               deposit_amount, start_time, end_time, real_end_time, extend_count, status, current_price,
               current_bid_id, bid_count, winner_user_id, final_price, order_id, proxy_max_price,
-              create_admin_id, add_time, update_time)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+              create_admin_id, add_time, update_time, own_product)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
              RETURNING item_id",
         )
         .bind(it.session_id)
@@ -243,6 +243,7 @@ impl AuctionRepository {
         .bind(it.create_admin_id)
         .bind(it.add_time)
         .bind(it.update_time)
+        .bind(it.own_product)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;

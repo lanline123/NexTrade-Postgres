@@ -178,6 +178,12 @@ pub struct AuctionSessionSaveDTO {
 }
 
 /// 拍品保存入参（`itemId` 为空 = 新增）。
+///
+/// 商品口径（2026-11-21 用户变更）：拍品不再从既有商品中选择——新建时
+/// 系统按 `productName/pics/marketPrice/productBrief/productDesc` 同步新建
+/// 一个拍卖专属商品（下架态），编辑时把这组字段同步回拍品关联商品。
+/// `productId/skuId` 为旧契约字段，现已不读（保留解析兼容旧客户端），
+/// 拍品关联商品一律以服务端落库为准。
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AuctionItemSaveDTO {
@@ -198,6 +204,17 @@ pub struct AuctionItemSaveDTO {
     pub start_time: Option<i32>,
     #[serde(default, deserialize_with = "crate::models::serde_helpers::deserialize_opt_i32")]
     pub end_time: Option<i32>,
+    /// 商品名称（新建专属商品 / 编辑同步关联商品）
+    pub product_name: Option<String>,
+    /// 商品简介（同步至商品 `product_brief`）
+    pub product_brief: Option<String>,
+    /// 商品详情 HTML（同步至商品 `product_desc`）
+    pub product_desc: Option<String>,
+    /// 市场价（同步至商品 `product_price` 与 `market_price` 两列：
+    /// 前台拍品详情以 `product_price` 展示为「市场价」并据此做高价二次确认）
+    pub market_price: Option<Decimal>,
+    /// 商品图集（首图为主图；同步至商品 `pic_*` 与 `product_gallery`）
+    pub pics: Option<Vec<String>>,
 }
 
 /// 单 id 入参。
@@ -297,6 +314,26 @@ pub struct AuctionItemVO {
     pub order_id: Option<i32>,
     /// 服务器当前时间（前端倒计时校准）
     pub server_time: i64,
+}
+
+/// 管理端拍品详情 VO（卡片 VO 之外补齐编辑表单所需的商品资料回读）。
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuctionItemAdminDetailVO {
+    #[serde(flatten)]
+    pub item: AuctionItemVO,
+    /// 商品简介（商品 `product_brief`）
+    pub product_brief: String,
+    /// 商品详情 HTML（商品 `product_desc`）
+    pub product_desc: Option<String>,
+    /// 商品本店售价（前台拍品详情展示为「市场价」的那一列）
+    pub product_price: Decimal,
+    /// 商品市场价列
+    pub market_price: Decimal,
+    /// 商品图集（按相册排序，首图为主图；无相册行时回退商品主图单张）
+    pub pics: Vec<String>,
+    /// 是否为拍品自建的专属商品（false = 存量拍品关联的既有商品）
+    pub own_product: bool,
 }
 
 /// 拍品详情 VO（前台）。

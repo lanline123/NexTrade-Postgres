@@ -4,7 +4,9 @@ import { apiGet, apiPost } from '../api';
 import { useI18n } from '../i18n';
 import ListPage from '../framework/ListPage';
 import FormDrawer from '../framework/FormDrawer';
-import ProductPicker from '../components/ProductPicker';
+import ImageUploader from '../components/ImageUploader';
+import RichTextEditor from '../components/RichTextEditor';
+import { descHtmlToEditorHtml, editorHtmlToDescHtml } from '../utils/descHtml';
 import type { ColumnConfig, FormDrawerConfig } from '../framework/types';
 import './auction-bids-modal.css';
 
@@ -33,6 +35,24 @@ interface ItemRow {
   endTime?: number;
   buyoutPrice?: string | number | null;
   hasReserve?: boolean;
+}
+
+/** 管理端拍品详情（编辑回读）：卡片字段 + 关联商品资料。 */
+interface ItemDetail {
+  itemId: number;
+  title?: string;
+  sessionId?: number | null;
+  startPrice?: string | number;
+  buyoutPrice?: string | number | null;
+  startTime?: number;
+  endTime?: number;
+  productName?: string;
+  productBrief?: string;
+  productDesc?: string | null;
+  productPrice?: string | number;
+  marketPrice?: string | number;
+  pics?: string[];
+  ownProduct?: boolean;
 }
 
 interface BidRow {
@@ -126,7 +146,11 @@ export default function AuctionItems() {
     setDrawerMode('create');
     setEditingId(null);
     setDrawerInitial({
-      productPick: [] as number[],
+      productName: '',
+      pics: [] as string[],
+      marketPrice: undefined,
+      productBrief: '',
+      productDesc: '',
       title: '',
       sessionId: undefined,
       startPrice: undefined,
@@ -138,26 +162,53 @@ export default function AuctionItems() {
     setDrawerOpen(true);
   };
 
-  const openEdit = (row: ItemRow) => {
+  /** 编辑 = 编辑拍品 + 其关联商品资料：经管理端详情接口回读商品字段。 */
+  const openEdit = async (row: ItemRow) => {
     setDrawerMode('edit');
     setEditingId(row.itemId);
+    let detail: ItemDetail | null = null;
+    try {
+      detail = await apiGet<ItemDetail>('/promotion/auction/item/detail', { id: row.itemId });
+    } catch {
+      detail = null;
+    }
+    if (!detail) {
+      Toast.error({ content: t('拍品详情加载失败，请重试') });
+      return;
+    }
+    // 表单「市场价」对应前台实际展示的 product_price 列（两列不一致的存量
+    // 商品以展示列为准，避免编辑一保存就悄悄改掉前台划线价）。
+    const shownPrice = Number(detail.productPrice);
+    const marketPrice = shownPrice > 0 ? shownPrice : Number(detail.marketPrice) || undefined;
     setDrawerInitial({
-      productPick: row.productId ? [row.productId] : [],
-      title: row.title || '',
-      sessionId: row.sessionId ?? undefined,
-      startPrice: row.startPrice != null ? Number(row.startPrice) : undefined,
+      productName: detail.productName || row.productName || '',
+      pics: detail.pics && detail.pics.length > 0 ? detail.pics : row.picThumb ? [row.picThumb] : [],
+      marketPrice,
+      productBrief: detail.productBrief || '',
+      productDesc: descHtmlToEditorHtml(detail.productDesc || ''),
+      title: detail.title || row.title || '',
+      sessionId: detail.sessionId ?? row.sessionId ?? undefined,
+      startPrice: detail.startPrice != null ? Number(detail.startPrice) : undefined,
       reservePrice: undefined,
-      buyoutPrice: row.buyoutPrice != null ? Number(row.buyoutPrice) : undefined,
-      startText: stampToText(row.startTime),
-      endText: stampToText(row.endTime),
+      buyoutPrice: detail.buyoutPrice != null ? Number(detail.buyoutPrice) : undefined,
+      startText: stampToText(detail.startTime ?? row.startTime),
+      endText: stampToText(detail.endTime ?? row.endTime),
     });
     setDrawerOpen(true);
   };
 
   const save = async (payload: Record<string, any>) => {
-    const productId = (payload.productPick as number[] | undefined)?.[0];
-    if (drawerMode === 'create' && !productId) {
-      Toast.error({ content: t('请选择拍品商品') });
+    if (!String(payload.productName || '').trim()) {
+      Toast.error({ content: t('请填写商品名称') });
+      return;
+    }
+    const pics = (payload.pics as string[] | undefined) || [];
+    if (pics.length === 0) {
+      Toast.error({ content: t('请至少上传一张商品图片') });
+      return;
+    }
+    if (!(Number(payload.marketPrice) > 0)) {
+      Toast.error({ content: t('请填写市场价') });
       return;
     }
     if (!String(payload.title || '').trim()) {
@@ -172,7 +223,11 @@ export default function AuctionItems() {
     try {
       await apiPost('/promotion/auction/item/save', {
         itemId: drawerMode === 'edit' ? editingId : undefined,
-        productId: productId || undefined,
+        productName: String(payload.productName).trim(),
+        pics,
+        marketPrice: payload.marketPrice,
+        productBrief: payload.productBrief || '',
+        productDesc: editorHtmlToDescHtml(String(payload.productDesc || '')),
         title: payload.title,
         sessionId: payload.sessionId || undefined,
         startPrice: payload.startPrice,
@@ -285,25 +340,53 @@ export default function AuctionItems() {
   const drawerConfig: FormDrawerConfig = {
     createApi: '/promotion/auction/item/save',
     title: t('拍卖拍品'),
-    width: 640,
+    width: 760,
     labelWidth: 110,
     sections: [
+      {
+        key: 'goods',
+        title: t('商品资料'),
+        fields: [
+          { field: 'productName', label: t('商品名称'), type: 'input', required: true },
+          {
+            field: 'pics',
+            label: t('商品图片'),
+            type: 'custom',
+            extraText: t('拍品即新建一个专属商品（不上架普通售卖）；首图为主图，可拖动排序'),
+            render: ({ formApi, values }) => (
+              <ImageUploader
+                value={(values.pics as string[]) || []}
+                onChange={(urls) => formApi?.setValue('pics', urls)}
+              />
+            ),
+          },
+          { field: 'marketPrice', label: t('市场价(元)'), type: 'number', required: true, extraText: t('前台拍品详情的划线价') },
+          { field: 'productBrief', label: t('商品简介'), type: 'textarea' },
+        ],
+      },
+      {
+        key: 'detail',
+        title: t('商品详情'),
+        fields: [
+          {
+            field: 'productDesc',
+            label: t('商品详情'),
+            hideLabel: true,
+            type: 'custom',
+            render: ({ formApi, values }) => (
+              <RichTextEditor
+                value={values.productDesc || ''}
+                onChange={(html) => formApi?.setValue('productDesc', html)}
+                height={360}
+              />
+            ),
+          },
+        ],
+      },
       {
         key: 'basic',
         title: t('拍品设置'),
         fields: [
-          {
-            field: 'productPick',
-            label: t('拍品商品'),
-            type: 'custom',
-            render: ({ formApi, values }) => (
-              <ProductPicker
-                value={(values.productPick as number[]) || []}
-                onChange={(ids) => formApi?.setValue('productPick', ids.slice(0, 1))}
-                max={1}
-              />
-            ),
-          },
           { field: 'title', label: t('拍品标题'), type: 'input', required: true },
           {
             field: 'sessionId',

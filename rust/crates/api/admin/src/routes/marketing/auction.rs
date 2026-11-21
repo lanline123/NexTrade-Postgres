@@ -32,8 +32,9 @@ use serde::Deserialize;
 
 use nextrade_core::models::marketing::auction::{
     AuctionAdminBidVO, AuctionBanSaveDTO, AuctionBanVO, AuctionBidListQuery, AuctionBreachListQuery,
-    AuctionBreachVO, AuctionDepositListQuery, AuctionDepositVO, AuctionIdDTO, AuctionItemListQuery,
-    AuctionItemSaveDTO, AuctionItemVO, AuctionSessionSaveDTO, AuctionSessionVO, AuctionStatsVO,
+    AuctionBreachVO, AuctionDepositListQuery, AuctionDepositVO, AuctionIdDTO,
+    AuctionItemAdminDetailVO, AuctionItemListQuery, AuctionItemSaveDTO, AuctionItemVO,
+    AuctionSessionSaveDTO, AuctionSessionVO, AuctionStatsVO,
 };
 use nextrade_core::types::PageResult;
 use nextrade_security::web::{ok, ApiResult, AuthUser};
@@ -115,7 +116,7 @@ async fn item_list(
 async fn item_detail(
     State(state): State<AdminState>,
     Query(q): Query<IdQuery>,
-) -> ApiResult<AuctionItemVO> {
+) -> ApiResult<AuctionItemAdminDetailVO> {
     ok(state.marketing.auction.item_detail_admin(q.id).await?)
 }
 

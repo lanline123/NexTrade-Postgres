@@ -20,15 +20,15 @@ use serde_json::{json, Value};
 use nextrade_common::utils;
 use nextrade_core::entities::{
     AuctionBan, AuctionBid, AuctionBreach, AuctionDeposit, AuctionItem, AuctionSession, Order,
-    OrderItem, Product, User, UserAddress,
+    OrderItem, Product, ProductGallery, User, UserAddress,
 };
 use nextrade_core::models::marketing::auction::{
-    bid_status, deposit_status, fmt_time, item_status, mask_name, AuctionAdminBidVO, AuctionBanSaveDTO,
-    AuctionBanVO, AuctionBidDTO, AuctionBidListQuery, AuctionBidVO, AuctionBreachListQuery,
-    AuctionBreachVO, AuctionDepositListQuery, AuctionDepositVO, AuctionItemDetailVO,
-    AuctionItemListQuery, AuctionItemSaveDTO, AuctionItemVO, AuctionMyJoinVO, AuctionPollVO,
-    AuctionPublicListQuery, AuctionSessionSaveDTO, AuctionSessionVO, AuctionStatsVO,
-    AUCTION_ORDER_TYPE,
+    bid_status, deposit_status, fmt_time, item_status, mask_name, AuctionAdminBidVO,
+    AuctionBanSaveDTO, AuctionBanVO, AuctionBidDTO, AuctionBidListQuery, AuctionBidVO,
+    AuctionBreachListQuery, AuctionBreachVO, AuctionDepositListQuery, AuctionDepositVO,
+    AuctionItemAdminDetailVO, AuctionItemDetailVO, AuctionItemListQuery, AuctionItemSaveDTO,
+    AuctionItemVO, AuctionMyJoinVO, AuctionPollVO, AuctionPublicListQuery, AuctionSessionSaveDTO,
+    AuctionSessionVO, AuctionStatsVO, AUCTION_ORDER_TYPE,
 };
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
@@ -314,7 +314,9 @@ impl AuctionService {
         Ok(PageResult::new(total, list, &page))
     }
 
-    pub async fn item_detail_admin(&self, item_id: i32) -> Result<AuctionItemVO> {
+    /// 管理端拍品详情（编辑表单回读）：卡片 VO + 关联商品资料
+    /// （简介/详情/价格/图集），图集取相册行排序，无相册行时回退主图单张。
+    pub async fn item_detail_admin(&self, item_id: i32) -> Result<AuctionItemAdminDetailVO> {
         let item = self
             .repo()
             .find_item(item_id)
@@ -322,28 +324,62 @@ impl AuctionService {
             .ok_or_else(|| Error::NotFound("拍品不存在".into()))?;
         let products = self.load_products(&[item.product_id]).await?;
         let winners = self.winner_names(std::slice::from_ref(&item)).await?;
-        Ok(self.item_vo(&item, &products, &winners, Self::now()))
+        let vo = self.item_vo(&item, &products, &winners, Self::now());
+        let product = products.get(&item.product_id);
+        let gallery = self.repos.catalog.product_manage.find_gallery(item.product_id).await?;
+        let mut pics: Vec<String> = gallery.into_iter().map(|g| g.pic_url).filter(|u| !u.is_empty()).collect();
+        if pics.is_empty() {
+            if let Some(p) = product {
+                if !p.pic_url.is_empty() {
+                    pics.push(p.pic_url.clone());
+                }
+            }
+        }
+        Ok(AuctionItemAdminDetailVO {
+            item: vo,
+            product_brief: product.map(|p| p.product_brief.clone()).unwrap_or_default(),
+            product_desc: product.and_then(|p| p.product_desc.clone()),
+            product_price: product.map(|p| p.product_price).unwrap_or_default(),
+            market_price: product.map(|p| p.market_price).unwrap_or_default(),
+            pics,
+            own_product: item.own_product == 1,
+        })
+    }
+
+    /// 同步拍品关联商品相册（整表重写：先清后按序写入，首图即主图）。
+    /// 口径与商品保存的 `sync_gallery` 一致：相册行 `shop_id` 恒 0（平台图
+    /// 口径，与仓储 find/delete 的过滤一致）、缩略图/大图按 OSS 派生规则生成。
+    async fn sync_item_gallery(&self, product_id: i32, pics: &[String]) -> Result<()> {
+        let pm = &self.repos.catalog.product_manage;
+        pm.delete_gallery(product_id).await?;
+        for (idx, url) in pics.iter().enumerate() {
+            pm.insert_gallery(&ProductGallery {
+                product_id,
+                pic_url: url.clone(),
+                pic_desc: String::new(),
+                pic_thumb: utils::normalize_pic_thumb(url, ""),
+                pic_original: url.clone(),
+                pic_large: utils::pic_sized_800(url),
+                sort_order: i32::try_from(idx).unwrap_or(i32::MAX),
+                shop_id: 0,
+                ..Default::default()
+            })
+            .await?;
+        }
+        Ok(())
     }
 
     /// 新建/编辑拍品。编辑仅限草稿/预告状态；保证金按当前设置重算。
+    ///
+    /// 商品口径（2026-11-21 用户变更）：拍品不再选既有商品——新建时按表单
+    /// 商品资料同步新建一个拍卖专属商品（下架态 `product_status = 0`：不进
+    /// 普通列表/搜索、普通详情下架拦截、不可加购下单，但按 id 引用不受
+    /// 状态过滤，拍品展示与结拍订单照常；库存恒 1 件），拍品行标记
+    /// `own_product = 1`；编辑时把商品资料同步回拍品关联商品（存量拍品
+    /// 关联的既有商品同口径回写）。
     pub async fn item_save(&self, dto: &AuctionItemSaveDTO, admin_id: i32) -> Result<i32> {
         let settings = self.get_settings().await?;
         let now = Self::now();
-        let product_id = dto.product_id.filter(|id| *id > 0).ok_or_else(|| Error::Validation("请选择商品".into()))?;
-        let product = self
-            .repos
-            .catalog
-            .product
-            .find_by_id(product_id)
-            .await?
-            .ok_or_else(|| Error::NotFound("商品不存在".into()))?;
-        let sku_id = dto.sku_id.unwrap_or(0);
-        if sku_id > 0 {
-            let skus = self.repos.catalog.product.find_skus(product_id).await?;
-            if !skus.iter().any(|s| s.sku_id == sku_id) {
-                return Err(Error::Validation("所选 SKU 不属于该商品".into()));
-            }
-        }
         let start_price = dto.start_price.unwrap_or_default();
         if start_price <= Decimal::ZERO {
             return Err(Error::Validation("起拍价必须大于 0".into()));
@@ -382,19 +418,41 @@ impl AuctionService {
         if end_time <= now {
             return Err(Error::Validation("结束时间已过".into()));
         }
-        let editing = dto.item_id.filter(|id| *id > 0);
-        if self.repo().exists_conflicting_item(product_id, start_time, end_time, editing).await? {
-            return Err(Error::biz(400, "该商品在此时段已有未结束的拍品"));
+        // —— 商品资料校验（新建/编辑同口径，表单必填项与后端校验一一对应） ——
+        let product_name = dto
+            .product_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| Error::Validation("请填写商品名称".into()))?
+            .to_string();
+        let pics: Vec<String> = dto
+            .pics
+            .clone()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        if pics.is_empty() {
+            return Err(Error::Validation("请至少上传一张商品图片".into()));
         }
+        let market_price = dto
+            .market_price
+            .filter(|p| *p > Decimal::ZERO)
+            .ok_or_else(|| Error::Validation("请填写市场价".into()))?;
+        let product_brief = dto.product_brief.clone().unwrap_or_default();
+        let product_desc = dto.product_desc.clone().filter(|s| !s.trim().is_empty());
+
+        let editing = dto.item_id.filter(|id| *id > 0);
         let status = if start_time > now { item_status::PREVIEW } else { item_status::RUNNING };
         let title = dto
             .title
             .as_deref()
             .map(str::trim)
             .filter(|s| !s.is_empty())
-            .unwrap_or(&product.product_name)
+            .unwrap_or(&product_name)
             .to_string();
-        let shop_id = dto.shop_id.unwrap_or(product.shop_id);
         if let Some(id) = editing {
             let existing = self
                 .repo()
@@ -407,11 +465,38 @@ impl AuctionService {
             if existing.bid_count > 0 {
                 return Err(Error::biz(400, "已有出价的拍品不可编辑"));
             }
+            if self
+                .repo()
+                .exists_conflicting_item(existing.product_id, start_time, end_time, editing)
+                .await?
+            {
+                return Err(Error::biz(400, "该商品在此时段已有未结束的拍品"));
+            }
+            // 商品资料同步回拍品关联商品（专属商品与存量关联商品同口径回写；
+            // 商品归属/状态/库存不在此改动，拍品关联不可换绑）。
+            let mut product = self
+                .repos
+                .catalog
+                .product
+                .find_by_id(existing.product_id)
+                .await?
+                .ok_or_else(|| Error::NotFound("拍品关联商品不存在".into()))?;
+            product.product_name = product_name.clone();
+            product.product_brief = product_brief;
+            product.product_desc = product_desc;
+            product.product_price = market_price;
+            product.market_price = market_price;
+            product.pic_url = pics[0].clone();
+            product.pic_thumb = utils::normalize_pic_thumb(&pics[0], "");
+            product.pic_original = pics[0].clone();
+            product.pic_large = utils::pic_sized_800(&pics[0]);
+            product.last_update = now;
+            self.repos.catalog.product_manage.update_product(&product).await?;
+            self.sync_item_gallery(existing.product_id, &pics).await?;
+            let shop_id = existing.shop_id;
             let mut row = existing;
             row.session_id = dto.session_id;
-            row.product_id = product_id;
-            row.sku_id = sku_id;
-            row.shop_id = shop_id;
+            // product_id / sku_id / shop_id / own_product 保持既有关联不变
             row.title = title;
             row.start_price = start_price;
             row.reserve_price = reserve_price;
@@ -426,10 +511,47 @@ impl AuctionService {
             self.admin_log(shop_id, &format!("编辑拍品:{}(#{})", row.title, id)).await;
             Ok(id)
         } else {
+            let shop_id = dto.shop_id.unwrap_or(0);
+            // 新建拍卖专属商品：下架态隔离普通售卖通道，库存恒 1 件、单规格。
+            // 货号回填 AUC{product_id}（先插入拿 id，再全量回写，与商品新建同路数）。
+            let mut product = Product {
+                product_name: product_name.clone(),
+                product_stock: 1,
+                product_price: market_price,
+                market_price,
+                product_status: 0,
+                product_type: Some(1),
+                delivery_mode: 1,
+                sale_mode: 0,
+                shop_id,
+                check_status: 1,
+                product_brief,
+                product_desc,
+                pic_url: pics[0].clone(),
+                pic_thumb: utils::normalize_pic_thumb(&pics[0], ""),
+                pic_original: pics[0].clone(),
+                pic_large: utils::pic_sized_800(&pics[0]),
+                is_logistics: 1,
+                add_time: now,
+                last_update: now,
+                remark: "拍卖拍品专属商品（建拍品时系统新建）".into(),
+                ..Default::default()
+            };
+            let product_id = self.repos.catalog.product_manage.insert_product(&product).await?;
+            product.product_id = product_id;
+            product.product_sn = format!("AUC{product_id}");
+            self.repos.catalog.product_manage.update_product(&product).await?;
+            self.repos
+                .catalog
+                .product_manage
+                .insert_inventory_log(product_id, 0, 1, 1, "库存新增", shop_id)
+                .await?;
+            self.sync_item_gallery(product_id, &pics).await?;
             let row = AuctionItem {
                 session_id: dto.session_id,
                 product_id,
-                sku_id,
+                sku_id: 0,
+                own_product: 1,
                 shop_id,
                 title,
                 start_price,
@@ -463,7 +585,14 @@ impl AuctionService {
         if item.bid_count > 0 {
             return Err(Error::biz(400, "已有出价的拍品不可删除"));
         }
-        self.repo().delete_item(item_id).await
+        self.repo().delete_item(item_id).await?;
+        // 拍品自建的专属商品一并清理（软删与商品侧同口径 + 清相册行），
+        // 不留孤儿商品；存量拍品关联的是既有真实商品，只删拍品行、商品不动。
+        if item.own_product == 1 {
+            self.repos.catalog.product_manage.soft_delete_products(&[item.product_id]).await?;
+            self.repos.catalog.product_manage.delete_gallery(item.product_id).await?;
+        }
+        Ok(())
     }
 
     /// 撤拍（竞价开始前）：状态置已撤拍，已冻结保证金全额解冻。

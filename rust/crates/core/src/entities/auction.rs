@@ -45,6 +45,11 @@ pub struct AuctionItem {
     pub session_id: Option<i32>,
     /// 商品 id
     pub product_id: i32,
+    /// 商品归属：1 = 建拍品时系统新建的拍卖专属商品（下架态，删除草稿
+    /// 拍品时一并软删）；0 = 关联的既有商品（存量拍品，删除拍品不动商品）。
+    /// 迁移 010 加列；`sqlx(default)` 兼容迁移未执行时缺列读回 0。
+    #[sqlx(default)]
+    pub own_product: i32,
     /// sku id（无 SKU 商品为 0）
     pub sku_id: i32,
     /// 店铺 id（0 = 平台自营）
