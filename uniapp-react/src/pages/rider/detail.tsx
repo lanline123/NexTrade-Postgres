@@ -9,6 +9,7 @@ import {
     riderDetail,
     riderHomeConfig,
     riderLocalConfig,
+    riderRemoveCancelled,
     type DeliveryOrderRow
 } from "@/api/rider/rider";
 import { uploadImage } from "@/utils/upload";
@@ -206,6 +207,29 @@ export default function RiderDetail() {
             {row.status === 50 && (
                 <View className="rider-card">
                     <View className="rider-sub">{t("取消原因")}：{row.cancelReason || "-"}</View>
+                    <View className="rider-remove-row">
+                        <Text
+                            className="rider-remove-btn"
+                            onClick={() => {
+                                Taro.showModal({
+                                    title: t("移除已取消订单"),
+                                    content: t("移除后该单将不再出现在你的列表中，确认移除吗？"),
+                                    success: async (res) => {
+                                        if (!res.confirm) return;
+                                        try {
+                                            await riderRemoveCancelled({ deliveryOrderId: row.deliveryOrderId });
+                                            Taro.showToast({ title: t("已移除"), icon: "success" });
+                                            setTimeout(() => Taro.navigateBack(), 600);
+                                        } catch (err: any) {
+                                            Taro.showToast({ title: err?.message || t("移除失败"), icon: "none" });
+                                        }
+                                    }
+                                });
+                            }}
+                        >
+                            {t("移除")}
+                        </Text>
+                    </View>
                 </View>
             )}
         </View>

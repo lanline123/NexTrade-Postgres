@@ -139,6 +139,11 @@ pub struct DeliveryOrder {
     pub update_time: i32,
     /// 是否删除：0-否，1-是 [NOT NULL]
     pub is_delete: i32,
+    /// 配送员侧移除（隐藏）：0-否，1-是（论坛 417866，我方新增；仅影响配送员
+    /// 本人列表/计数/详情，后台与买家侧不受影响，数据不删）[NOT NULL]
+    pub staff_hidden: i32,
+    /// 配送员侧移除时间（Unix时间戳）
+    pub staff_hide_time: Option<i32>,
     /// 运力类型 1自建配送 2美团配送 [NOT NULL]
     pub carrier_type: i32,
     /// 合作方配送单号（发给美团的 delivery_id，本系统唯一）

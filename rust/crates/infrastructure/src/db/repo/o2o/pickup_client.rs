@@ -15,6 +15,19 @@ fn map_err(e: sqlx::Error) -> Error {
     Error::Database(e.to_string())
 }
 
+/// 配送员「我的派送」页签 → 派送单状态过滤（None = 全部状态）。
+/// cancelled（已取消，论坛 417866）为本批新增页签：此前已取消单只会混在
+/// 全部列表里、无专属视图，配送员无从确认某单是被取消还是凭空消失。
+fn delivery_tab_status(tab: Option<&str>) -> Option<i32> {
+    match tab.unwrap_or_default() {
+        "pending" => Some(20),
+        "processing" => Some(30),
+        "completed" => Some(40),
+        "cancelled" => Some(50),
+        _ => None,
+    }
+}
+
 /// 自提人信息（Java `UserPickupInfo`）。
 #[derive(Debug, Clone, Default, sqlx::FromRow, Serialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -656,15 +669,13 @@ impl PickupClientRepository {
         page: u64,
         size: u64,
     ) -> Result<(i64, Vec<Value>)> {
-        let (status_cond, status_val) = match tab.unwrap_or_default() {
-            "pending" => ("AND status = ?", Some(20)),
-            "processing" => ("AND status = ?", Some(30)),
-            "completed" => ("AND status = ?", Some(40)),
-            _ => ("", None),
-        };
+        // 配送员侧列表恒排除已移除（staff_hidden=1）的单：移除只影响本人
+        // 列表/计数，后台与买家侧不走本函数、不受影响（论坛 417866）。
+        let status_val = delivery_tab_status(tab);
+        let status_cond = if status_val.is_some() { "AND status = ?" } else { "" };
         let offset = (page.max(1) - 1) * size;
         let count_sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT COUNT(*) FROM delivery_order WHERE staff_id = ? {status_cond}"
+            "SELECT COUNT(*) FROM delivery_order WHERE staff_id = ? AND staff_hidden = 0 {status_cond}"
         ));
         let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql)
         .bind(staff_id);
@@ -673,7 +684,7 @@ impl PickupClientRepository {
         }
         let (total,) = count_q.fetch_one(&self.pool).await.map_err(map_err)?;
         let list_sql = crate::db::to_pg_placeholders(&format!(
-            "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'dispatchMode', dispatch_mode, 'status', status, 'staffId', staff_id, 'staffName', staff_name, 'staffPhone', staff_phone, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'orderAmount', order_amount, 'buyerNote', buyer_note, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'cancelReason', cancel_reason, 'createTime', create_time) FROM delivery_order WHERE staff_id = ? {status_cond} ORDER BY delivery_order_id DESC LIMIT ? OFFSET ?"
+            "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'dispatchMode', dispatch_mode, 'status', status, 'staffId', staff_id, 'staffName', staff_name, 'staffPhone', staff_phone, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'orderAmount', order_amount, 'buyerNote', buyer_note, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'cancelReason', cancel_reason, 'createTime', create_time) FROM delivery_order WHERE staff_id = ? AND staff_hidden = 0 {status_cond} ORDER BY delivery_order_id DESC LIMIT ? OFFSET ?"
         ));
         let mut q = sqlx::query_as::<_, (Value,)>(&list_sql)
         .bind(staff_id);
@@ -687,7 +698,7 @@ impl PickupClientRepository {
     /// C 端派送订单详情（只允许本人订单）。
     pub async fn delivery_detail(&self, staff_id: i32, id: i32) -> Result<Option<Value>> {
         let row: Option<(Value,)> = sqlx::query_as(
-            "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'dispatchMode', dispatch_mode, 'status', status, 'staffId', staff_id, 'staffName', staff_name, 'staffPhone', staff_phone, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'latitude', latitude, 'longitude', longitude, 'pickupAddress', pickup_address, 'pickupPhone', pickup_phone, 'serviceTime', service_time, 'orderAmount', order_amount, 'buyerNote', buyer_note, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'cancelReason', cancel_reason, 'createTime', create_time) FROM delivery_order WHERE delivery_order_id = $1 AND staff_id = $2",
+            "SELECT json_build_object('deliveryOrderId', delivery_order_id, 'deliveryOrderSn', delivery_order_sn, 'orderId', order_id, 'orderSn', order_sn, 'shopId', shop_id, 'type', type, 'dispatchMode', dispatch_mode, 'status', status, 'staffId', staff_id, 'staffName', staff_name, 'staffPhone', staff_phone, 'consignee', consignee, 'mobile', mobile, 'address', address, 'regionNames', region_names, 'latitude', latitude, 'longitude', longitude, 'pickupAddress', pickup_address, 'pickupPhone', pickup_phone, 'serviceTime', service_time, 'orderAmount', order_amount, 'buyerNote', buyer_note, 'dispatchTime', dispatch_time, 'grabTime', grab_time, 'pickupTime', pickup_time, 'completeTime', complete_time, 'cancelTime', cancel_time, 'cancelReason', cancel_reason, 'createTime', create_time) FROM delivery_order WHERE delivery_order_id = $1 AND staff_id = $2 AND staff_hidden = 0",
         )
         .bind(id)
         .bind(staff_id)
@@ -978,6 +989,24 @@ impl PickupClientRepository {
         }
         tx.commit().await.map_err(map_err)?;
         Ok(Some(fee))
+    }
+
+    /// 配送员移除已取消单（论坛 417866，我方新增）：仅本人 + 已取消（50）+
+    /// 未移除过的单可移除；只置 staff_hidden 标记、不删数据，后台派送单
+    /// 列表/详情与买家侧进度不受影响。重复移除返回 false（幂等门）。
+    pub async fn hide_cancelled_delivery(&self, staff_id: i32, id: i32) -> Result<bool> {
+        let now = nextrade_common::utils::now_seconds() as i32;
+        let r = sqlx::query(
+            "UPDATE delivery_order SET staff_hidden = 1, staff_hide_time = $1, update_time = $1 \
+             WHERE delivery_order_id = $2 AND staff_id = $3 AND status = 50 AND staff_hidden = 0",
+        )
+        .bind(now)
+        .bind(id)
+        .bind(staff_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r.rows_affected() > 0)
     }
 
     /// C 端取消（补 cancel_by=1 人员口径；原实现漏写）。
@@ -1395,5 +1424,27 @@ mod fee_tests {
             compute_service_fee(&items, (0, d("0")), true, true, d("0")),
             d("3.00")
         );
+    }
+}
+
+#[cfg(test)]
+mod delivery_tab_tests {
+    use super::delivery_tab_status;
+
+    #[test]
+    fn known_tabs_map_to_statuses() {
+        assert_eq!(delivery_tab_status(Some("pending")), Some(20));
+        assert_eq!(delivery_tab_status(Some("processing")), Some(30));
+        assert_eq!(delivery_tab_status(Some("completed")), Some(40));
+        // 论坛 417866：已取消专属页签
+        assert_eq!(delivery_tab_status(Some("cancelled")), Some(50));
+    }
+
+    #[test]
+    fn unknown_or_missing_tab_means_all() {
+        assert_eq!(delivery_tab_status(None), None);
+        assert_eq!(delivery_tab_status(Some("")), None);
+        assert_eq!(delivery_tab_status(Some("all")), None);
+        assert_eq!(delivery_tab_status(Some("whatever")), None);
     }
 }

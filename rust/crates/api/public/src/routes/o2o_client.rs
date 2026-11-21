@@ -49,6 +49,7 @@ const ROUTE_TABLE: [(&str, &str, &str); 36] = [
     ("POST", "/o2o/deliveryOrder/confirmPickup", "DeliveryOrderController.confirmPickup"),
     ("POST", "/o2o/deliveryOrder/complete", "DeliveryOrderController.complete"),
     ("POST", "/o2o/deliveryOrder/cancel", "DeliveryOrderController.cancel"),
+    ("POST", "/o2o/deliveryOrder/removeCancelled", "DeliveryOrderController.removeCancelled"),
     ("GET", "/o2o/deliveryOrder/statistics", "DeliveryOrderController.statistics"),
     ("GET", "/o2o/deliveryOrder/myList", "DeliveryOrderController.myList"),
     ("GET", "/o2o/deliveryOrder/myListTotalCount", "DeliveryOrderController.myListTotalCount"),
@@ -90,6 +91,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/o2o/deliveryOrder/confirmPickup", post(delivery_confirm))
         .route("/o2o/deliveryOrder/complete", post(delivery_complete))
         .route("/o2o/deliveryOrder/cancel", post(delivery_cancel))
+        .route("/o2o/deliveryOrder/removeCancelled", post(delivery_remove_cancelled))
         .route("/o2o/deliveryOrder/statistics", get(delivery_statistics))
         .route("/o2o/deliveryOrder/myList", get(delivery_my_list))
         .route("/o2o/deliveryOrder/myListTotalCount", get(delivery_total_count))
@@ -461,6 +463,29 @@ async fn delivery_cancel(
     ok(())
 }
 
+/// 配送员移除已取消单（论坛 417866，我方新增）：把指派给自己的已取消
+/// 派送单从本人列表移除（隐藏标记），数据不删、后台仍可查。非本人 /
+/// 非已取消 / 已移除过 → 业务错误，不静默成功。
+async fn delivery_remove_cancelled(
+    State(state): State<PublicState>,
+    auth: Option<Extension<AuthUser>>,
+    Json(dto): Json<DeliveryAction>,
+) -> ApiResult<()> {
+    let (staff_id, _, _) = delivery_staff_of(&state, current_user_id(auth)?).await?;
+    let ok_flag = state
+        .o2o
+        .pickup_client
+        .hide_cancelled_delivery(staff_id, dto.delivery_order_id.unwrap_or(0))
+        .await?;
+    if !ok_flag {
+        return Err(nextrade_security::web::AppError(nextrade_core::Error::biz(
+            1001,
+            "仅可移除本人已取消的派送单",
+        )));
+    }
+    ok(())
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct BuyerProgressQuery {
@@ -513,7 +538,8 @@ async fn delivery_statistics(
     let (pending, _) = state.o2o.pickup_client.delivery_list(staff_id, Some("pending"), 1, 1).await?;
     let (processing, _) = state.o2o.pickup_client.delivery_list(staff_id, Some("processing"), 1, 1).await?;
     let (completed, _) = state.o2o.pickup_client.delivery_list(staff_id, Some("completed"), 1, 1).await?;
-    ok(serde_json::json!({"total": total, "pending": pending, "processing": processing, "completed": completed}))
+    let (cancelled, _) = state.o2o.pickup_client.delivery_list(staff_id, Some("cancelled"), 1, 1).await?;
+    ok(serde_json::json!({"total": total, "pending": pending, "processing": processing, "completed": completed, "cancelled": cancelled}))
 }
 
 async fn delivery_tab_counts(

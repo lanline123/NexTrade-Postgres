@@ -255,7 +255,17 @@ interface DeliveryRow {
   orderAmount?: number;
   serviceFee?: number;
   createTime?: number;
+  cancelTime?: number;
+  cancelReason?: string;
+  cancelBy?: number | null;
 }
+
+/** 取消方口径与后端 delivery_order.cancel_by 一致：1-配送员/服务员，2-后台管理员，3-系统。 */
+const CANCEL_BY_TEXT: Record<number, string> = {
+  1: '配送员取消',
+  2: '后台取消',
+  3: '系统取消',
+};
 
 interface StaffOption {
   id: number;
@@ -408,6 +418,21 @@ export function DeliveryOrderManage() {
           </span>
         ) : (
           <Text type="tertiary">{t('未分配')}</Text>
+        ),
+    },
+    {
+      title: t('取消信息'),
+      width: 190,
+      render: (_: unknown, r: DeliveryRow) =>
+        r.status === 50 ? (
+          <div>
+            <div>{t(CANCEL_BY_TEXT[r.cancelBy || 3] || '系统取消')}</div>
+            <Text type="tertiary" size="small">
+              {r.cancelReason || '-'} · {fmtTs(r.cancelTime)}
+            </Text>
+          </div>
+        ) : (
+          <Text type="tertiary">-</Text>
         ),
     },
     {

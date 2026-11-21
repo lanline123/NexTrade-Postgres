@@ -86,6 +86,21 @@
     color: #12a150;
 }
 
+/* 已取消单「移除」动作行（论坛 417866）：列表卡片与详情页共用 */
+.rider-remove-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12rpx;
+}
+
+.rider-remove-btn {
+    font-size: 24rpx;
+    color: #e93d3d;
+    border: 1rpx solid #f0c1c1;
+    background: #fff;
+    padding: 6rpx 22rpx;
+}
+
 .rider-empty {
     text-align: center;
     color: #8a8f98;

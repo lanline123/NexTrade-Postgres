@@ -239,6 +239,12 @@ impl PickupClientService {
         self.repos.o2o.pickup_client.complete_delivery(staff_id, id, photos).await
     }
 
+    /// 配送员移除本人已取消派送单（论坛 417866）：仅置配送员侧隐藏标记，
+    /// 数据不删，后台/买家侧不受影响。false = 非本人/非已取消/已移除。
+    pub async fn hide_cancelled_delivery(&self, staff_id: i32, id: i32) -> Result<bool> {
+        self.repos.o2o.pickup_client.hide_cancelled_delivery(staff_id, id).await
+    }
+
     pub async fn cancel_delivery(&self, staff_id: i32, id: i32, reason: &str) -> Result<bool> {
         self.repos.o2o.pickup_client.cancel_delivery(staff_id, id, reason).await
     }

@@ -66,7 +66,7 @@ export const riderUpdateWorkStatus = (workStatus: number) =>
     request({ url: "o2o/serviceStaff/updateWorkStatus", method: "post", data: { workStatus } });
 
 export const riderStatistics = () =>
-    request<RiderEnvelope<{ total: number; pending: number; processing: number; completed: number }>>({
+    request<RiderEnvelope<{ total: number; pending: number; processing: number; completed: number; cancelled: number }>>({
         url: "o2o/deliveryOrder/statistics",
         method: "get"
     });
@@ -99,6 +99,10 @@ export const riderComplete = (data: { deliveryOrderId: number; photo: string[]; 
 
 export const riderCancel = (data: { deliveryOrderId: number; cancelReason: string }) =>
     request({ url: "o2o/deliveryOrder/cancel", method: "post", data });
+
+/** 移除已取消单（论坛 417866）：仅从本人列表隐藏，后台仍可查、数据不删。 */
+export const riderRemoveCancelled = (data: { deliveryOrderId: number }) =>
+    request({ url: "o2o/deliveryOrder/removeCancelled", method: "post", data });
 
 export const riderLocalConfig = (shopId: number) =>
     request<any>({ url: `o2o/config/localDeliveryConfig?shopId=${shopId}`, method: "get" });
