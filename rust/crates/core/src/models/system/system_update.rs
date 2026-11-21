@@ -133,7 +133,7 @@ pub struct SurfaceVersionVO {
     pub latest_stamp: Option<String>,
     /// 是否有可用更新（两边戳都可得且不同；后端比产品版本+commit）。
     pub update_available: bool,
-    /// 本期是否支持一键更新（P2 仅静态三面；后端为 false 并注明 P3）。
+    /// 本期是否支持一键更新（P2 仅静态三面；P3 起后端开放，含迁移阶段）。
     pub updatable: bool,
 }
 
@@ -212,8 +212,11 @@ pub struct UpdateJobVO {
     pub job_id: String,
     pub product_version: String,
     pub surfaces: Vec<String>,
-    /// 状态机：queued/downloading/verifying/backing_up/swapping/health_checking/
-    /// done/failed/rolling_back/rolled_back/rollback_failed。
+    /// 状态机：queued/downloading/verifying/backing_up/migrating/swapping/
+    /// health_checking/done/failed/migration_failed/rolling_back/
+    /// rolled_back/rollback_failed（migrating 与 migration_failed 为 P3 新增：
+    /// 前者在 backing_up 与 swapping 之间执行迁移，后者为「停在迁移阶段、
+    /// 未换任何面、待人工」的终态）。
     pub status: String,
     pub stage: String,
     pub message: String,
@@ -233,6 +236,7 @@ impl UpdateJobVO {
                 | "downloading"
                 | "verifying"
                 | "backing_up"
+                | "migrating"
                 | "swapping"
                 | "health_checking"
                 | "rolling_back"
@@ -334,5 +338,16 @@ mod tests {
             ..UpdateJobVO::default()
         };
         assert!(!done.is_active());
+        // P3：迁移阶段为进行中；迁移失败终态不是进行中（待人工，不轮询等待）
+        let migrating = UpdateJobVO {
+            status: "migrating".into(),
+            ..UpdateJobVO::default()
+        };
+        assert!(migrating.is_active());
+        let migration_failed = UpdateJobVO {
+            status: "migration_failed".into(),
+            ..UpdateJobVO::default()
+        };
+        assert!(!migration_failed.is_active());
     }
 }

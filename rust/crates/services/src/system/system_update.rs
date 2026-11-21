@@ -9,6 +9,14 @@
 //!   密码再认证、基线就绪、版本钉死、minSchema 门、破坏性知情确认、全局单
 //!   job）后把 job 审计行落库并把 job 描述以 spool 文件交给独立 updater
 //!   执行（下载/校验/备份/换面/健康检查/回滚全在 updater，本进程不自改）；
+//! - **P3 后端 + 迁移一键更新**：选中面可含 `backend`；含 backend 的 job
+//!   在 spool 文件中带 `includeMigrations=true`，updater 在换任何面之前
+//!   先经迁移阶段（pg_dump 备份门 → 逐文件事务执行 → 登记，见
+//!   `tools/hot-update/migrate-runner.sh`），迁移失败 job 落终态
+//!   `migration_failed`、不换任何面；后端换版由 updater 走
+//!   `tools/hot-update/backend-swap.sh`（版本端点严验、失败自动回滚
+//!   程序面；schema 只进不退）。破坏性确认位自 P3 起同时是 updater 的
+//!   执行门（spool 文件 `destructiveAck`）。
 //!   job 进度由 updater 写 `status/<job_id>.json`，本服务读回同步落库供页面轮询。
 //!
 //! 安全红线（设计 §8 对照）：
@@ -45,8 +53,8 @@ const MANIFEST_ASSET: &str = "release-manifest.json";
 const PRODUCT_TAG_PREFIX: &str = "v";
 /// 清单缓存有效期：24 小时（每日自动检查口径）。
 const MANIFEST_TTL_SECS: i64 = 24 * 3600;
-/// P2 允许一键更新的面（后端在 P3）。
-const UPDATABLE_SURFACES: [&str; 3] = ["admin", "pc", "h5"];
+/// 允许一键更新的面（P2 静态三面 + P3 后端）。
+const UPDATABLE_SURFACES: [&str; 4] = ["admin", "pc", "h5", "backend"];
 
 /// 进程内清单缓存。
 #[derive(Clone)]
@@ -198,7 +206,7 @@ impl SystemUpdateService {
             update_available: manifest
                 .and_then(|m| m.surfaces.backend.as_ref())
                 .is_some_and(|a| !a.stamp.is_empty() && a.stamp != backend_stamp),
-            updatable: false, // P3 开放
+            updatable: true, // P3 开放（含迁移阶段；发起仍受基线/单 job 等门约束）
         });
         for (surface, label, root) in [
             ("admin", "管理后台", self.cfg.admin_root.as_str()),
@@ -235,7 +243,7 @@ impl SystemUpdateService {
     // P2：发起 / 查询 job
     // ————————————————————————————————
 
-    /// 发起一次静态三面更新 job（校验链见模块头注释）。
+    /// 发起一次更新 job（P2 静态三面 / P3 可含后端+迁移；校验链见模块头注释）。
     pub async fn create_job(
         &self,
         param: &CreateUpdateJobParam,
@@ -301,16 +309,12 @@ impl SystemUpdateService {
                 "目标版本与最新清单不一致（可能已有更新的版本），请刷新后重新确认",
             ));
         }
-        // 6) 面校验：非空、仅静态三面、清单中必须有产物
+        // 6) 面校验：非空、仅可更新面（P3 起含 backend）、清单中必须有产物
         if param.surfaces.is_empty() {
             return Err(Error::Validation("至少选择一个要更新的面".into()));
         }
+        let includes_backend = param.surfaces.iter().any(|s| s == "backend");
         for s in &param.surfaces {
-            if s == "backend" {
-                return Err(Error::biz_msg(
-                    "后端（Rust）一键更新将在 P3 开放，本期仅支持 admin / PC / H5",
-                ));
-            }
             if !UPDATABLE_SURFACES.contains(&s.as_str()) {
                 return Err(Error::Validation(format!("未知更新面：{s}")));
             }
@@ -320,12 +324,22 @@ impl SystemUpdateService {
                 )));
             }
         }
-        // 7) minSchema 门：清单声明的前置迁移未执行 → 拦截静态面更新
+        // 7) minSchema 门：清单声明的前置迁移未执行 → 拦截静态面更新。
+        //    含 backend 的 job 例外：其迁移阶段会按清单序执行全部待执行
+        //    迁移，minSchema 若在清单内即被本 job 满足；若 minSchema 不在
+        //    本版清单且未登记，本 job 也满足不了，照样拦截。
         if let Some(min_schema) = &manifest.compat.min_schema {
             if !applied_set.contains(min_schema.as_str()) {
-                return Err(Error::biz_msg(format!(
-                    "最新版本要求先执行迁移 {min_schema}（当前未登记），请先通过后端部署轮完成该迁移后再更新静态面"
-                )));
+                let covered_by_this_job = includes_backend
+                    && manifest
+                        .migrations
+                        .iter()
+                        .any(|m| m.file == *min_schema);
+                if !covered_by_this_job {
+                    return Err(Error::biz_msg(format!(
+                        "最新版本要求先执行迁移 {min_schema}（当前未登记），请先通过后端部署轮完成该迁移后再更新静态面"
+                    )));
+                }
             }
         }
         // 8) 破坏性知情确认：目标版本含未执行的破坏性迁移时必须勾选
@@ -371,6 +385,10 @@ impl SystemUpdateService {
             "operator": operator_name,
             "surfaces": param.surfaces,
             "schemaReady": true,
+            // P3：含 backend 的 job 由 updater 先跑迁移阶段；破坏性确认位
+            // 同时是迁移执行门（migrate-runner 复扫 + 此位双闸）。
+            "includeMigrations": includes_backend,
+            "destructiveAck": param.confirm_destructive,
             "manifestSha256": cached.sha256,
             "manifest": manifest,
         });

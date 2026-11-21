@@ -12,11 +12,13 @@ use nextrade_core::models::system::system_update::UpdateJobRow;
 use nextrade_core::{Error, Result};
 
 /// 进行中状态集合（与状态机一致；找活跃 job 用）。
-const ACTIVE_STATUSES: [&str; 7] = [
+/// P3 新增 `migrating`（迁移阶段）；`migration_failed` 是终态不入此集。
+const ACTIVE_STATUSES: [&str; 8] = [
     "queued",
     "downloading",
     "verifying",
     "backing_up",
+    "migrating",
     "swapping",
     "health_checking",
     "rolling_back",
@@ -146,7 +148,7 @@ impl SystemUpdateRepository {
     pub async fn find_active_job(&self) -> Result<Option<UpdateJobRow>> {
         let sql = format!(
             "SELECT {JOB_COLUMNS} FROM sys_update_job \
-             WHERE status IN ('queued','downloading','verifying','backing_up','swapping','health_checking','rolling_back') \
+             WHERE status IN ('queued','downloading','verifying','backing_up','migrating','swapping','health_checking','rolling_back') \
              ORDER BY created_at DESC LIMIT 1"
         );
         let row = sqlx::query_as::<_, JobDbRow>(&sql)
