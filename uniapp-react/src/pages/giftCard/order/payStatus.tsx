@@ -62,7 +62,7 @@ export default function GiftCardPayStatus() {
                                         fontWeight: "400"
                                     }}
                                     isBottom={true}
-                                    priceData={info.orderAmount}
+                                    withExact priceData={info.orderAmount}
                                 />
                             </View>
                         </View>

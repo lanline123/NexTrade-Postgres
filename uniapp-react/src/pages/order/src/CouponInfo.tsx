@@ -9,6 +9,7 @@ import type { CouponList } from "@/types/order/check";
 import { useConfigStore } from "@/store/config";
 import { useCurrencyStore } from "@/store/currency";
 import { isOverseas } from "@/utils";
+import { DEFAULT_PRICE_DISPLAY, formatDisplayPriceWithExact } from "@/utils/priceDisplay";
 import { t } from "@/utils/i18n";
 
 import "./CouponInfo.scss";
@@ -43,9 +44,16 @@ export default function CouponInfo({
     const [, rerender] = useReducer((c: number) => c + 1, 0);
 
     const dollarSign = useConfigStore((s) => s.dollarSign);
+    const priceDisplay = useConfigStore((s) => s.priceDisplay);
     const currentCurrencyData = useCurrencyStore((s) => s.currentCurrencyData);
     // 旧 useCurrency().currency：海外按当前货币符号，缺省回退后台 dollarSign（与 FormatPrice 取值一致）
     const currency = isOverseas() ? currentCurrencyData?.symbol || dollarSign || "￥" : dollarSign || "￥";
+
+    // 对账双段（与 PC 结算页券抵扣额 formatDisplayPriceWithExact 同口径）：仅国内裸文本分支用——
+    // 触发缩写时整串双段，未触发返回 null 回落原精确拼接（逐字不变）；海外分支走 FormatPrice 的 withExact
+    const dualCouponAmount = isOverseas()
+        ? null
+        : formatDisplayPriceWithExact(Number(couponAmount), "CNY", priceDisplay ?? DEFAULT_PRICE_DISPLAY, currency);
 
     // 旧 ref(couponListData)：初始为空列表，打开弹层时深拷贝 props.couponList
     const couponListDataRef = useRef<CouponList | any>({ enableCoupons: [], disableCoupons: [] });
@@ -193,11 +201,11 @@ export default function CouponInfo({
                                         fontStyle={{ fontSize: "24.5rpx" }}
                                         currencyStyle={{ fontSize: "24.5rpx" }}
                                         decimalsStyle={{ fontSize: "24.5rpx" }}
-                                        priceData={couponAmount}
+                                        withExact priceData={couponAmount}
                                     />
                                 </View>
                             ) : (
-                                <View className="coupon-text">-{currency + couponAmount}</View>
+                                <View className="coupon-text">-{dualCouponAmount ?? currency + couponAmount}</View>
                             )
                         ) : null}
                         <View className="iconfont-h5 icon-fanhui" />
@@ -248,7 +256,7 @@ export default function CouponInfo({
                                                     <FormatPrice
                                                         fontStyle={{ fontSize: "48rpx", lineHeight: "1" }}
                                                         currencyStyle={{ alignSelf: "flex-end", fontSize: "24rpx" }}
-                                                        priceData={item.couponMoney}
+                                                        withExact priceData={item.couponMoney}
                                                     />
                                                 )}
                                             </View>
@@ -289,7 +297,7 @@ export default function CouponInfo({
                                                     <FormatPrice
                                                         fontStyle={{ fontSize: "48rpx", lineHeight: "1" }}
                                                         currencyStyle={{ alignSelf: "flex-end", fontSize: "24rpx" }}
-                                                        priceData={item.couponMoney}
+                                                        withExact priceData={item.couponMoney}
                                                     />
                                                 )}
                                             </View>

@@ -377,7 +377,7 @@ export default function AfterSaleInfo() {
                                                         showText={false}
                                                         decimalsStyle={{ fontSize: "23rpx", fontWeight: "bold" }}
                                                         currencyStyle={{ fontSize: "21rpx", fontWeight: "bold" }}
-                                                        priceData={getDisplayPrice(item)}
+                                                        withExact priceData={getDisplayPrice(item)}
                                                     />
                                                 </View>
                                                 <View className="right-price-quantity">x {item.number}</View>
@@ -397,7 +397,7 @@ export default function AfterSaleInfo() {
                                     <View className="refund-info-item">
                                         <View className="label">{t("退款金额")}：</View>
                                         <View className="value price">
-                                            <FormatPrice base showText={false} isBottom={false} priceData={infoData.refundAmount} />
+                                            <FormatPrice base showText={false} isBottom={false} withExact priceData={infoData.refundAmount} />
                                         </View>
                                     </View>
                                 )}
@@ -493,7 +493,7 @@ export default function AfterSaleInfo() {
                                         <View className="after-sale-item">
                                             <View className="label">{t("线上退款")}：</View>
                                             <View className="value">
-                                                <FormatPrice base showText={false} isBottom={false} priceData={infoData.refund.onlineBalance} />
+                                                <FormatPrice base showText={false} isBottom={false} withExact priceData={infoData.refund.onlineBalance} />
                                             </View>
                                             <View className="after-sale-status">{infoData.refund.isOnline === 2 ? t("退款成功") : t("退款中")}</View>
                                         </View>
@@ -502,7 +502,7 @@ export default function AfterSaleInfo() {
                                         <View className="after-sale-item">
                                             <View className="label">{t("线下退款")}：</View>
                                             <View className="value">
-                                                <FormatPrice base showText={false} isBottom={false} priceData={infoData.refund.offlineBalance} />
+                                                <FormatPrice base showText={false} isBottom={false} withExact priceData={infoData.refund.offlineBalance} />
                                             </View>
                                             <View className="after-sale-status">{infoData.refund.isOnline === 2 ? t("退款成功") : t("退款中")}</View>
                                         </View>
@@ -511,7 +511,7 @@ export default function AfterSaleInfo() {
                                         <View className="after-sale-item">
                                             <View className="label">{t("余额退款")}：</View>
                                             <View className="value">
-                                                <FormatPrice base showText={false} isBottom={false} priceData={infoData.refund.refundBalance} />
+                                                <FormatPrice base showText={false} isBottom={false} withExact priceData={infoData.refund.refundBalance} />
                                             </View>
                                             <View className="after-sale-status">{infoData.refund.isOnline === 2 ? t("退款成功") : t("退款中")}</View>
                                         </View>

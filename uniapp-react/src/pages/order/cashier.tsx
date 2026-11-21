@@ -412,7 +412,7 @@ export default function Cashier() {
                         <View className="cashier-amount">
                             <FormatPrice
                                 isBottom={false}
-                                priceData={payAmount as string}
+                                withExact priceData={payAmount as string}
                                 currencyStyle={{ fontWeight: "500", fontSize: "34rpx" }}
                                 fontStyle={{ fontWeight: "500", fontSize: "64rpx", lineHeight: "1" }}
                                 decimalsStyle={{ fontWeight: "500", fontSize: "40rpx" }}
@@ -457,7 +457,7 @@ export default function Cashier() {
                                 <Text>{t(isRechargeRef.current ? "立即支付" : "重新支付")}</Text>
                                 <FormatPrice
                                     isBottom={false}
-                                    priceData={payAmount as string}
+                                    withExact priceData={payAmount as string}
                                     currencyStyle={{ color: "#fff", fontSize: "26rpx", fontWeight: "bold" }}
                                     fontStyle={{ color: "#fff", fontSize: "30rpx", fontWeight: "bold" }}
                                     decimalsStyle={{ color: "#fff", fontSize: "26rpx", fontWeight: "bold" }}

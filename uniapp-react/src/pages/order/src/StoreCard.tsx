@@ -172,7 +172,7 @@ export default function StoreCard({
                                                                 <View className="right">
                                                                     {/* 旧 <format-price class="price">：FormatPrice 无 className 透传，外层 View 承接类名钩子 */}
                                                                     <View className="price">
-                                                                        <FormatPrice priceData={attr.attrPrice} />
+                                                                        <FormatPrice withExact priceData={attr.attrPrice} />
                                                                     </View>
                                                                     <View className="num">x{subItem.quantity}</View>
                                                                 </View>
@@ -202,7 +202,7 @@ export default function StoreCard({
                                                 <TigImage src={pickSkuPic(subItem)} />
                                             </View>
                                             <View className="item-price flex justify-center">
-                                                <FormatPrice integerStyle={{ fontSize: "18px", lineHeight: "24px" }} priceData={subItem.price} />
+                                                <FormatPrice integerStyle={{ fontSize: "18px", lineHeight: "24px" }} withExact priceData={subItem.price} />
                                             </View>
                                         </View>
                                     ))}
@@ -326,7 +326,7 @@ export default function StoreCard({
                                                 <View className="label">{subItem.attrValue}</View>
                                                 <View className="line-box" />
                                                 <View className="value">
-                                                    <FormatPrice priceData={subItem.attrPrice} />
+                                                    <FormatPrice withExact priceData={subItem.attrPrice} />
                                                 </View>
                                             </View>
                                         </View>

@@ -63,7 +63,7 @@ const BalanceCard = forwardRef<BalanceCardInstance, Props>(({ balance, balanceAm
                             fontStyle={{ fontSize: "22rpx" }}
                             currencyStyle={{ fontSize: "22rpx" }}
                             decimalsStyle={{ fontSize: "22rpx" }}
-                            priceData={balance}
+                            withExact priceData={balance}
                         />
                     </View>
                 ) : (
@@ -80,7 +80,7 @@ const BalanceCard = forwardRef<BalanceCardInstance, Props>(({ balance, balanceAm
                             fontStyle={{ fontSize: "24.5rpx" }}
                             currencyStyle={{ fontSize: "24.5rpx" }}
                             decimalsStyle={{ fontSize: "24.5rpx" }}
-                            priceData={balanceAmount}
+                            withExact priceData={balanceAmount}
                         />
                     </View>
                 )}

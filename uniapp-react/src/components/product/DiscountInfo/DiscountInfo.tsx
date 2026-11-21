@@ -48,7 +48,7 @@ export default function DiscountInfo({ show, onShowChange, total = {}, discountT
                             {itemCount > 0 && <Text className="item-label-text">{`(${itemCount}${t("件")})`}</Text>}
                         </View>
                         <View className="item-value">
-                            <FormatPrice showText={false} isBottom={false} priceData={(total as any).productAmount} />
+                            <FormatPrice showText={false} isBottom={false} withExact priceData={(total as any).productAmount} />
                         </View>
                     </View>
                     <View className="line" />
@@ -58,7 +58,7 @@ export default function DiscountInfo({ show, onShowChange, total = {}, discountT
                         <View className="discount-item-box">
                             <View className="item-label">{t("附加费用")}</View>
                             <View className="item-value">
-                                <FormatPrice showText={false} isBottom={false} priceData={(total as any).serviceFee} />
+                                <FormatPrice showText={false} isBottom={false} withExact priceData={(total as any).serviceFee} />
                             </View>
                         </View>
                     )}
@@ -66,7 +66,7 @@ export default function DiscountInfo({ show, onShowChange, total = {}, discountT
                         <View className="item-label">{t("共优惠")}</View>
                         <View className="item-value discounts-value" style={{ color: "var(--general)" } as any}>
                             -
-                            <FormatPrice showText={false} isBottom={false} priceData={(total as any).discounts} />
+                            <FormatPrice showText={false} isBottom={false} withExact priceData={(total as any).discounts} />
                         </View>
                     </View>
                     {(total as any).discountCouponAmount > 0 && (
@@ -74,7 +74,7 @@ export default function DiscountInfo({ show, onShowChange, total = {}, discountT
                             <View className="item-label">{t("优惠券")}</View>
                             <View className="item-value discounts-value">
                                 -
-                                <FormatPrice showText={false} isBottom={false} priceData={(total as any).discountCouponAmount} />
+                                <FormatPrice showText={false} isBottom={false} withExact priceData={(total as any).discountCouponAmount} />
                             </View>
                         </View>
                     )}
@@ -83,7 +83,7 @@ export default function DiscountInfo({ show, onShowChange, total = {}, discountT
                             <View className="item-label">{t("其他优惠")}</View>
                             <View className="item-value discounts-value">
                                 -
-                                <FormatPrice showText={false} isBottom={false} priceData={(total as any).discountDiscountAmount} />
+                                <FormatPrice showText={false} isBottom={false} withExact priceData={(total as any).discountDiscountAmount} />
                             </View>
                         </View>
                     )}
@@ -91,7 +91,7 @@ export default function DiscountInfo({ show, onShowChange, total = {}, discountT
                     <View className="discount-item-box discount-total">
                         <View className="item-label fontWeight">{t("合计")}</View>
                         <View className="item-value">
-                            <FormatPrice showText={false} isBottom={false} priceData={(total as any).discountAfter || (total as any).totalAmount} fontStyle={{}} />
+                            <FormatPrice showText={false} isBottom={false} withExact priceData={(total as any).discountAfter || (total as any).totalAmount} fontStyle={{}} />
                         </View>
                     </View>
                     {!discountType && <View className="discount-desc">{t("以上优惠不包含运费，实际优惠金额请以确认订单页为准")}</View>}

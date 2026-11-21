@@ -116,14 +116,14 @@ export default function TotalCard({
                         <Text>{`(${Number((total as Total)?.totalCount) || 0}${t("件")})`}</Text>
                     </View>
                     <View className="card-item-value">
-                        <FormatPrice isBottom={false} priceData={(total as Total).productAmount} />
+                        <FormatPrice isBottom={false} withExact priceData={(total as Total).productAmount} />
                     </View>
                 </View>
                 {Number((total as Total).serviceFee) > 0 && (
                     <View className="total-card-item">
                         <View className="card-item-label">{t("附加费用")}</View>
                         <View className="card-item-value">
-                            <FormatPrice isBottom={false} priceData={(total as Total).serviceFee} />
+                            <FormatPrice isBottom={false} withExact priceData={(total as Total).serviceFee} />
                         </View>
                     </View>
                 )}
@@ -132,7 +132,7 @@ export default function TotalCard({
                         <View className="card-item-label shipping-label">{t(shippingFeeTitleKey)}</View>
                         <View className="card-item-value">
                             {showShippingFeeAmount ? (
-                                <FormatPrice isBottom={false} priceData={shippingFeeAmount} />
+                                <FormatPrice isBottom={false} withExact priceData={shippingFeeAmount} />
                             ) : (
                                 <Text>{t("包邮")}</Text>
                             )}
@@ -143,7 +143,7 @@ export default function TotalCard({
                     <View className="total-card-item">
                         <View className="card-item-label">{t("使用余额")}</View>
                         <View className="card-item-value">
-                            - <FormatPrice isBottom={false} priceData={(total as Total).balance} />
+                            - <FormatPrice isBottom={false} withExact priceData={(total as Total).balance} />
                         </View>
                     </View>
                 )}
@@ -151,7 +151,7 @@ export default function TotalCard({
                     <View className="total-card-item">
                         <View className="card-item-label">{t("礼品卡")}</View>
                         <View className="card-item-value">
-                            - <FormatPrice isBottom={false} priceData={(total as Total).giftCardAmount} />
+                            - <FormatPrice isBottom={false} withExact priceData={(total as Total).giftCardAmount} />
                         </View>
                     </View>
                 )}
@@ -159,7 +159,7 @@ export default function TotalCard({
                     <View className="total-card-item">
                         <View className="card-item-label">{`${configIntegralName}${t("减免")}`}</View>
                         <View className="card-item-value">
-                            - <FormatPrice isBottom={false} priceData={(total as Total).pointsAmount} />
+                            - <FormatPrice isBottom={false} withExact priceData={(total as Total).pointsAmount} />
                         </View>
                     </View>
                 )}
@@ -171,7 +171,7 @@ export default function TotalCard({
                             <Text className="discount-info-icon">ⓘ</Text>
                         </View>
                         <View className="card-item-value">
-                            - <FormatPrice isBottom={false} priceData={(total as Total).discounts} />
+                            - <FormatPrice isBottom={false} withExact priceData={(total as Total).discounts} />
                         </View>
                     </View>
                 )}
@@ -191,7 +191,7 @@ export default function TotalCard({
                             </View>
                         </View>
                         <View className="card-item-value">
-                            <FormatPrice isBottom={false} priceData={(total as Total).taxRateAmount} />
+                            <FormatPrice isBottom={false} withExact priceData={(total as Total).taxRateAmount} />
                         </View>
                     </View>
                 )}
@@ -204,11 +204,11 @@ export default function TotalCard({
                         {flowType != 12 && (
                             <View className="price-info-discount">
                                 <Text className="discount-text">{t("共减")}</Text>
-                                <FormatPrice isBottom={false} fontStyle={{ fontSize: "25rpx" }} priceData={(total as Total)?.discounts} />
+                                <FormatPrice isBottom={false} fontStyle={{ fontSize: "25rpx" }} withExact priceData={(total as Total)?.discounts} />
                             </View>
                         )}
                         <View className="price-info-total">
-                            <FormatPrice isBottom={false} priceData={(total as Total)?.unpaidAmount} />
+                            <FormatPrice isBottom={false} withExact priceData={(total as Total)?.unpaidAmount} />
                         </View>
                     </View>
                 </View>

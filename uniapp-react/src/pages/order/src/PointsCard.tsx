@@ -7,6 +7,7 @@ import TigButton2 from "@/components/tig/tig-button2/TigButton2";
 import { useConfigStore } from "@/store/config";
 import { useCurrencyStore } from "@/store/currency";
 import { isOverseas, moneyFormat } from "@/utils";
+import { currencyCodeFrom, DEFAULT_PRICE_DISPLAY, formatDisplayPriceWithExact } from "@/utils/priceDisplay";
 import { t } from "@/utils/i18n";
 
 import "./PointsCard.scss";
@@ -30,6 +31,7 @@ interface Props {
 export default function PointsCard({ points, availablePoints, pointsAmount, usePoint, onUsePointChange, onChange }: Props) {
     const configIntegralName = useConfigStore((s) => s.integralName);
     const dollarSign = useConfigStore((s) => s.dollarSign);
+    const priceDisplay = useConfigStore((s) => s.priceDisplay);
     const currentCurrencyData = useCurrencyStore((s) => s.currentCurrencyData);
 
     // 旧 useCurrency().currency：海外按当前货币符号，缺省回退后台 dollarSign（与 FormatPrice 取值一致）
@@ -43,6 +45,15 @@ export default function PointsCard({ points, availablePoints, pointsAmount, useP
         }
         return num;
     })();
+
+    // 对账双段（与 PC 结算页积分抵扣金额 formatDisplayPriceWithExact 同口径）：
+    // 触发缩写时为整串「符号+缩写（符号+精确）」；未触发返回 null，下方回落原精确拼接（逐字不变）
+    const dualPointsAmount = formatDisplayPriceWithExact(
+        Number(displayPointsAmount),
+        isOverseas() ? currencyCodeFrom(currentCurrencyData?.name, currentCurrencyData?.symbol) : "CNY",
+        priceDisplay ?? DEFAULT_PRICE_DISPLAY,
+        currency
+    );
 
     const [showPoints, setShowPoints] = useState(false);
     const [usePointsInput, setUsePointsInput] = useState<number>(0);
@@ -101,7 +112,7 @@ export default function PointsCard({ points, availablePoints, pointsAmount, useP
                 <View className="points-content">
                     {pointsAmount > 0 ? (
                         <View className="points-text">
-                            -{isOverseas() ? currency + displayPointsAmount : currency + pointsAmount}
+                            -{dualPointsAmount ?? (isOverseas() ? currency + displayPointsAmount : currency + pointsAmount)}
                         </View>
                     ) : (
                         points === 0 && pointsAmount === 0 && <View className="points-text">{`${t("暂无可用")}${configIntegralName}`}</View>

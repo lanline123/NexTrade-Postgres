@@ -125,7 +125,7 @@ export default function PresaleCard({ presaleInfo, total }: Props) {
                                 <View className="title-box">
                                     <Text className="title">{t("定金")}</Text>
                                     <View className="price">
-                                        <FormatPrice priceData={presaleInfo?.depositAmount} />
+                                        <FormatPrice withExact priceData={presaleInfo?.depositAmount} />
                                     </View>
                                 </View>
                                 <Text className="title">{t("预售商品，定金不退")}</Text>
@@ -142,7 +142,7 @@ export default function PresaleCard({ presaleInfo, total }: Props) {
                                 <View className="title-box">
                                     <Text className="title">{t("尾款")}</Text>
                                     <View className="price">
-                                        <FormatPrice priceData={presaleInfo?.finalPaymentAmount} />
+                                        <FormatPrice withExact priceData={presaleInfo?.finalPaymentAmount} />
                                     </View>
                                 </View>
                                 <Text>{paymentTimeText()}</Text>
@@ -175,7 +175,7 @@ export default function PresaleCard({ presaleInfo, total }: Props) {
                             <View className="flow-header">
                                 <Text className="title">{t("全款预售")}</Text>
                                 <View className="price">
-                                    <FormatPrice priceData={total.productAmount} />
+                                    <FormatPrice withExact priceData={total.productAmount} />
                                 </View>
                             </View>
                         </View>

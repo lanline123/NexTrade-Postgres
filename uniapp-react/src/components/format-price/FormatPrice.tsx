@@ -28,6 +28,8 @@ interface Props {
     base?: boolean;
     /** 展示价标记：按后台「价格显示设置」缩写大额（≥1万显示 XX万 等），与 PC FormatPrice 同名同口径；缺省精确显示，购物车/结算/订单等对账场景不传 */
     displayPrice?: boolean;
+    /** 对账价标记：与 PC formatDisplayPriceWithExact 同口径——触发缩写时渲染「缩写（符号+精确到分）」双段（如 ¥6.5万（¥65000.00），全角括号、精确段固定两位小数），未触发时与缺省精确渲染逐字一致；购物车/结算/收银台/订单/售后等对账场景传，与 displayPrice 二选一 */
+    withExact?: boolean;
 }
 
 /**
@@ -35,6 +37,7 @@ interface Props {
  * - 海外站点按当前货币汇率换算，货币符号优先取当前货币，缺省回退后台 dollarSign
  * - B2B 且未登录 / 未实名时显示「登录查看 / 实名查看」文案
  * - displayPrice 标记时按后台「价格显示设置」缩写大额展示价（与 PC 同口径，见 utils/priceDisplay）
+ * - withExact 标记时按 PC formatDisplayPriceWithExact 同口径渲染对账双段：缩写主读数 + 全角括号内精确额
  */
 export default function FormatPrice({
     priceData,
@@ -47,7 +50,8 @@ export default function FormatPrice({
     showDecimals = true,
     showText = true,
     base = false,
-    displayPrice = false
+    displayPrice = false,
+    withExact = false
 }: Props) {
     const dollarSign = useConfigStore((s) => s.dollarSign);
     const isIdentity = useConfigStore((s) => s.isIdentity);
@@ -145,23 +149,34 @@ export default function FormatPrice({
             return {
                 integer: "0",
                 decimals: ".00",
-                suffix: ""
+                suffix: "",
+                exact: ""
             };
         }
         if (!base && isOverseas() && currentCurrencyData.rate) {
             num = moneyFormat((Number(num) * Number(currentCurrencyData.rate)).toString());
         }
-        // 展示价缩写（displayPrice 标记，后台「价格显示设置」，与 PC 同口径）：
+        // 价格缩写（displayPrice / withExact 标记，后台「价格显示设置」，与 PC 同口径）：
         // 在换算后金额上按当前币种阶梯缩写，未触发时回落下面的精确拆分；
-        // 门控文案分支在渲染层先行，本处只处理有价数字，不影响门控逻辑
-        if (displayPrice) {
+        // 门控文案分支在渲染层先行，本处只处理有价数字，不影响门控逻辑。
+        // withExact 触发时另带精确段（换算后金额固定两位小数、无千分位，与 PC
+        // formatPrice 的数字部分逐字一致），渲染层拼成「缩写（符号+精确）」双段；
+        // 缩写与精确恰好同串时（如除数为 1 且后缀为空）按 PC 的 display===exact
+        // 守卫回落单段精确，不渲染重复括号段。
+        if (displayPrice || withExact) {
             const code = base
                 ? "CNY"
                 : isOverseas()
                   ? currencyCodeFrom(currentCurrencyData.name, currentCurrencyData.symbol)
                   : "CNY";
             const abbr = abbreviateDisplayPrice(Number(num), code, priceDisplay ?? DEFAULT_PRICE_DISPLAY);
-            if (abbr) return abbr;
+            if (abbr) {
+                if (!withExact) return { ...abbr, exact: "" };
+                const exactText = Number(num).toFixed(2);
+                if (`${abbr.integer}${abbr.decimals}${abbr.suffix}` !== exactText) {
+                    return { ...abbr, exact: exactText };
+                }
+            }
         }
         // 检测小数点和后续数字
         const match = num.match(/^(\d+)(\.\d+)?$/);
@@ -172,16 +187,18 @@ export default function FormatPrice({
             return {
                 integer: integerPart,
                 decimals: decimalPart,
-                suffix: ""
+                suffix: "",
+                exact: ""
             };
         } else {
             return {
                 integer: "0",
                 decimals: ".00",
-                suffix: ""
+                suffix: "",
+                exact: ""
             };
         }
-    }, [priceData, base, currentCurrencyData.rate, currentCurrencyData.name, currentCurrencyData.symbol, displayPrice, priceDisplay]);
+    }, [priceData, base, currentCurrencyData.rate, currentCurrencyData.name, currentCurrencyData.symbol, displayPrice, withExact, priceDisplay]);
 
     // 原版 #ifdef MP-WEIXIN 的 1–2rpx 微调（.util padding-right 5rpx、bottom 态 padding-bottom 3rpx）：
     // Taro 侧按本仓既有口径用 TARO_ENV 加修饰类承载（见 FormatPrice.scss），H5 不加类、零变化
@@ -212,6 +229,11 @@ export default function FormatPrice({
                     {price.suffix ? (
                         <View className="num suffix" style={decimalStyle}>
                             {price.suffix}
+                        </View>
+                    ) : null}
+                    {price.exact ? (
+                        <View className="num exact" style={fontStyleC as any}>
+                            {`（${currency}${price.exact}）`}
                         </View>
                     ) : null}
                 </>

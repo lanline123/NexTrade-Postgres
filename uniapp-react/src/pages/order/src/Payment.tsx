@@ -100,7 +100,7 @@ export default function Payment({ paymentList, modelValue, onModelChange, balanc
                                             <View>{t("余额支付")}</View>
                                             <View className="payment-info-balance__amount">
                                                 {t("可用余额")}
-                                                <FormatPrice isBottom={false} priceData={balance} />
+                                                <FormatPrice isBottom={false} withExact priceData={balance} />
                                             </View>
                                         </View>
                                     </>

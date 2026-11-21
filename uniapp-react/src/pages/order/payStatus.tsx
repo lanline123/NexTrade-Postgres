@@ -118,7 +118,7 @@ export default function PayStatus() {
                                                 fontWeight: "400"
                                             }}
                                             isBottom={true}
-                                            priceData={info.payAmount}
+                                            withExact priceData={info.payAmount}
                                         />
                                     </View>
                                 </View>

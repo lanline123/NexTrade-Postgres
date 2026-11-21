@@ -16,6 +16,7 @@ import { useRegionStore } from "@/store/region";
 import { redirect } from "@/utils";
 import { getOrderPickupParams, filterDayList } from "@/utils/store";
 import { getCartReservationFlowType } from "@/utils/productSoldOut";
+import { DEFAULT_PRICE_DISPLAY, formatDisplayPriceWithExact } from "@/utils/priceDisplay";
 import { t } from "@/utils/i18n";
 import { currentSystemMode } from "@/utils/systemMode";
 import type { CartList, Total, PaymentTypeItem, ShippingTypeItem, DateStockList, CreditPaymentInfo, StockCalendarParams } from "@/types/order/check";
@@ -62,6 +63,7 @@ export default function Check() {
     usePageGuards();
     const configXClientType = useConfigStore((s) => s.XClientType);
     const configIntegralName = useConfigStore((s) => s.integralName);
+    const priceDisplay = useConfigStore((s) => s.priceDisplay);
     const userInfo = useUserStore((s) => s.userInfo);
     const userGetUserInfo = useUserStore((s) => s.getUserInfo);
 
@@ -1595,10 +1597,12 @@ export default function Check() {
                                         <View className="gift-card-name">{card.cardGroupName || t("礼品卡")}</View>
                                         <View className="gift-card-sub">
                                             {card.cardNumberMasked || card.cardNumber || ""}
+                                            {/* 余额/面额与 PC 结算页礼品卡选项标签同口径双段（formatDisplayPriceWithExact）：
+                                                触发缩写时「¥X万（¥精确）」，未触发回落原 ¥+原值拼接（逐字不变）；礼品卡为人民币计值，符号/币种固定 ¥/CNY */}
                                             {card.balance !== undefined && card.balance !== null && card.balance !== ""
-                                                ? ` · ${t("余额")} ¥${card.balance}`
+                                                ? ` · ${t("余额")} ${formatDisplayPriceWithExact(Number(card.balance), "CNY", priceDisplay ?? DEFAULT_PRICE_DISPLAY, "¥") ?? `¥${card.balance}`}`
                                                 : card.faceAmount !== undefined && card.faceAmount !== null && card.faceAmount !== ""
-                                                  ? ` · ${t("面额")} ¥${card.faceAmount}`
+                                                  ? ` · ${t("面额")} ${formatDisplayPriceWithExact(Number(card.faceAmount), "CNY", priceDisplay ?? DEFAULT_PRICE_DISPLAY, "¥") ?? `¥${card.faceAmount}`}`
                                                   : ""}
                                         </View>
                                     </View>
@@ -1710,7 +1714,7 @@ export default function Check() {
                                 fontSize: "23rpx",
                                 fontWeight: "bold"
                             }}
-                            priceData={productPresale?.saleMode === 2 ? totalData?.actualPayDepositAmount : totalData?.unpaidAmount}
+                            withExact priceData={productPresale?.saleMode === 2 ? totalData?.actualPayDepositAmount : totalData?.unpaidAmount}
                         />
                     </View>
                     <View>

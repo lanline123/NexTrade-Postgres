@@ -966,7 +966,7 @@ export default function Cart() {
                                                                                             fontSize: "23rpx",
                                                                                             fontWeight: "bold"
                                                                                         }}
-                                                                                        priceData={goods.price}
+                                                                                        withExact priceData={goods.price}
                                                                                     />
                                                                                 </View>
                                                                                 <View className={`cart-num-box ${isQuantityDisabled(goods) ? "cart-num-box-disabled" : ""}`}>
@@ -1004,7 +1004,7 @@ export default function Cart() {
                                                                         {!isCartLineInvalid(goods) && goods.price && goods.originPrice !== goods.price && (
                                                                             <View className="origin-price">
                                                                                 {t("每件预计到手")}
-                                                                                <FormatPrice showText={false} isBottom={false} priceData={goods.price} />
+                                                                                <FormatPrice showText={false} isBottom={false} withExact priceData={goods.price} />
                                                                             </View>
                                                                         )}
                                                                         {goods.extraSkuData?.length > 0 && (
@@ -1024,7 +1024,7 @@ export default function Cart() {
                                                                                             <View className="content">
                                                                                                 <Text className="line1 content-text">{attr.attrValue}</Text>
                                                                                                 <View className="price price-box">
-                                                                                                    <FormatPrice showText={false} priceData={attr.totalAttrPrice} />
+                                                                                                    <FormatPrice showText={false} withExact priceData={attr.totalAttrPrice} />
                                                                                                 </View>
                                                                                                 <Text className="iconfont-h5 icon-xiajiantou1-copy" />
                                                                                             </View>
@@ -1039,7 +1039,7 @@ export default function Cart() {
                                                                                         <View className="content">
                                                                                             <Text className="line1 content-text">{`已选${goods.extraSkuData.length}项`}</Text>
                                                                                             <View className="price price-box">
-                                                                                                <FormatPrice showText={false} priceData={goods.serviceFee} />
+                                                                                                <FormatPrice showText={false} withExact priceData={goods.serviceFee} />
                                                                                             </View>
 
                                                                                             <Text className="iconfont-h5 icon-xiajiantou1-copy" />
@@ -1148,7 +1148,7 @@ export default function Cart() {
                                                             <FormatPrice
                                                                 showText={false}
                                                                 isBottom={false}
-                                                                priceData={total.discountAfter}
+                                                                withExact priceData={total.discountAfter}
                                                                 fontStyle={{ fontWeight: "bold" }}
                                                                 currencyStyle={{ fontSize: "22rpx", fontWeight: "bold" }}
                                                                 decimalsStyle={{ fontSize: "22rpx", fontWeight: "bold" }}
@@ -1158,7 +1158,7 @@ export default function Cart() {
                                                             {total.discounts > 0 && (
                                                                 <View className="cart-footer-discount">
                                                                     {t("优惠")}：
-                                                                    <FormatPrice showText={false} isBottom={false} priceData={total.discounts} />
+                                                                    <FormatPrice showText={false} isBottom={false} withExact priceData={total.discounts} />
                                                                 </View>
                                                             )}
                                                             <View

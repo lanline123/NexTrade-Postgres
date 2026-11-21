@@ -281,7 +281,7 @@ export default function OfflinePayment() {
                     <View className="form-line">
                         <Text>{t("付款金额")}</Text>
                         <View className="value">
-                            <FormatPrice showText={false} isBottom={false} priceData={amount} />
+                            <FormatPrice showText={false} isBottom={false} withExact priceData={amount} />
                         </View>
                     </View>
                     <View className="form-line" onClick={() => mode !== "detail" && setShowDatetime(true)}>

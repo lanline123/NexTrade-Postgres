@@ -381,7 +381,7 @@ export default function StoreCardStore({
                                                                     <Text className="line1 content-text">{attr.attrValue}</Text>
                                                                     <View className="price">
                                                                         {/* 旧 <format-price :show-text="false">：外层 View 承接类名钩子 */}
-                                                                        <FormatPrice showText={false} priceData={attr.attrPrice} />
+                                                                        <FormatPrice showText={false} withExact priceData={attr.attrPrice} />
                                                                     </View>
                                                                     <View className="num">x{subItem.quantity}</View>
                                                                 </View>
@@ -402,7 +402,7 @@ export default function StoreCardStore({
                                                             fontSize: "20rpx",
                                                             fontWeight: "bold"
                                                         }}
-                                                        priceData={subItem.price}
+                                                        withExact priceData={subItem.price}
                                                     />
                                                     {subItem.originPrice && subItem.originPrice !== subItem.price && (
                                                         <FormatPrice
@@ -436,7 +436,7 @@ export default function StoreCardStore({
                                                             <Text className="line1 content-text">{attr.attrValue}</Text>
                                                             <View className="right">
                                                                 <View className="price">
-                                                                    <FormatPrice priceData={attr.attrPrice} />
+                                                                    <FormatPrice withExact priceData={attr.attrPrice} />
                                                                 </View>
                                                                 <View className="num">x{subItem.quantity}</View>
                                                             </View>
@@ -631,7 +631,7 @@ export default function StoreCardStore({
                                                 <View className="label">{subItem.attrValue}</View>
                                                 <View className="line-box" />
                                                 <View className="value">
-                                                    <FormatPrice priceData={subItem.attrPrice} />
+                                                    <FormatPrice withExact priceData={subItem.attrPrice} />
                                                 </View>
                                             </View>
                                         </View>

@@ -113,7 +113,7 @@ export default function AbandonPayDialog({
                     <View className="abandon-btn confirm" onClick={onConfirm}>
                         <View className="abandon-btn-inner">
                             {t("立即支付")}
-                            <FormatPrice priceData={amount} />
+                            <FormatPrice withExact priceData={amount} />
                         </View>
                     </View>
                 </View>

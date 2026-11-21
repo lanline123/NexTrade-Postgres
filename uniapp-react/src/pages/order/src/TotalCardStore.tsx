@@ -114,14 +114,14 @@ export default function TotalCardStore({
                 <View className="total-card-item">
                     <View className="total-card-item-left">{t("商品总价")}</View>
                     <View className="total-card-item-right">
-                        <FormatPrice isBottom={false} priceData={(total as Total).productAmount} />
+                        <FormatPrice isBottom={false} withExact priceData={(total as Total).productAmount} />
                     </View>
                 </View>
                 {Number((total as Total).serviceFee) > 0 && (
                     <View className="total-card-item">
                         <View className="total-card-item-left">{t("附加费用")}</View>
                         <View className="total-card-item-right">
-                            <FormatPrice isBottom={false} priceData={(total as Total).serviceFee} />
+                            <FormatPrice isBottom={false} withExact priceData={(total as Total).serviceFee} />
                         </View>
                     </View>
                 )}
@@ -134,7 +134,7 @@ export default function TotalCardStore({
                             {hasShippingRule && <Text className="iconfont-h5 icon-wenhao-xianxingyuankuang" />}
                         </View>
                         <View className="total-card-item-right special-text">
-                            <FormatPrice isBottom={false} priceData={shippingFeeAmount} />
+                            <FormatPrice isBottom={false} withExact priceData={shippingFeeAmount} />
                         </View>
                     </View>
                 )}
@@ -151,7 +151,7 @@ export default function TotalCardStore({
                     <View className="total-card-item">
                         <View className="total-card-item-left">{t("使用余额")}</View>
                         <View className="total-card-item-right">
-                            - <FormatPrice isBottom={false} priceData={(total as Total).balance} />
+                            - <FormatPrice isBottom={false} withExact priceData={(total as Total).balance} />
                         </View>
                     </View>
                 )}
@@ -159,7 +159,7 @@ export default function TotalCardStore({
                     <View className="total-card-item">
                         <View className="total-card-item-left">{t("使用账期")}</View>
                         <View className="total-card-item-right">
-                            - <FormatPrice isBottom={false} priceData={(total as Total).creditAmount} />
+                            - <FormatPrice isBottom={false} withExact priceData={(total as Total).creditAmount} />
                         </View>
                     </View>
                 )}
@@ -167,7 +167,7 @@ export default function TotalCardStore({
                     <View className="total-card-item">
                         <View className="total-card-item-left">{`${configIntegralName}${t("减免")}`}</View>
                         <View className="total-card-item-right">
-                            - <FormatPrice isBottom={false} priceData={(total as Total).pointsAmount} />
+                            - <FormatPrice isBottom={false} withExact priceData={(total as Total).pointsAmount} />
                         </View>
                     </View>
                 )}
@@ -181,7 +181,7 @@ export default function TotalCardStore({
                         <View className="total-card-item-right">
                             <View>
                                 {" "}
-                                - <FormatPrice isBottom={false} priceData={(total as Total).discounts} />{" "}
+                                - <FormatPrice isBottom={false} withExact priceData={(total as Total).discounts} />{" "}
                             </View>
                         </View>
                     </View>
@@ -202,7 +202,7 @@ export default function TotalCardStore({
                             </View>
                         </View>
                         <View className="total-card-item-right">
-                            <FormatPrice isBottom={false} priceData={(total as Total).taxRateAmount} />
+                            <FormatPrice isBottom={false} withExact priceData={(total as Total).taxRateAmount} />
                         </View>
                     </View>
                 )}

@@ -700,7 +700,7 @@ export default function OrderInfo() {
                                                                     fontStyle={amountStyle}
                                                                     currencyStyle={amountStyle}
                                                                     decimalsStyle={amountStyle}
-                                                                    priceData={item.price}
+                                                                    withExact priceData={item.price}
                                                                 />
                                                             </View>
                                                         </View>
@@ -721,7 +721,7 @@ export default function OrderInfo() {
                                                                             <View className="content">
                                                                                 <Text className="content-text">{attr.attrValue}</Text>
                                                                                 <View className="price">
-                                                                                    <FormatPrice showText={false} priceData={attr.attrPrice} />
+                                                                                    <FormatPrice showText={false} withExact priceData={attr.attrPrice} />
                                                                                 </View>
                                                                                 <View className="num">x{item.quantity}</View>
                                                                             </View>
@@ -881,7 +881,7 @@ export default function OrderInfo() {
                                                 fontStyle={totalStyle}
                                                 currencyStyle={totalStyle}
                                                 decimalsStyle={totalStyle}
-                                                priceData={orderInfo.totalAmount}
+                                                withExact priceData={orderInfo.totalAmount}
                                             />
                                         </View>
                                         {showUp ? (
@@ -901,7 +901,7 @@ export default function OrderInfo() {
                                                 fontStyle={amountStyle}
                                                 currencyStyle={amountStyle}
                                                 decimalsStyle={amountStyle}
-                                                priceData={orderInfo.productAmount}
+                                                withExact priceData={orderInfo.productAmount}
                                             />
                                         </View>
                                         {orderInfo.unpaidAmount && orderInfo.unpaidAmount > 0 ? (
@@ -913,7 +913,7 @@ export default function OrderInfo() {
                                                     fontStyle={amountStyle}
                                                     currencyStyle={amountStyle}
                                                     decimalsStyle={amountStyle}
-                                                    priceData={orderInfo.unpaidAmount}
+                                                    withExact priceData={orderInfo.unpaidAmount}
                                                 />
                                             </View>
                                         ) : null}
@@ -927,7 +927,7 @@ export default function OrderInfo() {
                                                     fontStyle={amountStyle}
                                                     currencyStyle={amountStyle}
                                                     decimalsStyle={amountStyle}
-                                                    priceData={taxRateAmountValue}
+                                                    withExact priceData={taxRateAmountValue}
                                                 />
                                             </View>
                                         ) : null}
@@ -940,7 +940,7 @@ export default function OrderInfo() {
                                                     fontStyle={amountStyle}
                                                     currencyStyle={amountStyle}
                                                     decimalsStyle={amountStyle}
-                                                    priceData={orderInfo.serviceFee}
+                                                    withExact priceData={orderInfo.serviceFee}
                                                 />
                                             </View>
                                         ) : null}
@@ -955,7 +955,7 @@ export default function OrderInfo() {
                                                         fontStyle={amountStyle}
                                                         currencyStyle={amountStyle}
                                                         decimalsStyle={amountStyle}
-                                                        priceData={shippingFeeAmount}
+                                                        withExact priceData={shippingFeeAmount}
                                                     />
                                                 ) : (
                                                     <Text className="free-text">{t(shippingFeeFreeTextKey)}</Text>
@@ -988,7 +988,7 @@ export default function OrderInfo() {
                                                     fontStyle={discountStyle}
                                                     currencyStyle={discountStyle}
                                                     decimalsStyle={discountStyle}
-                                                    priceData={orderInfo.balance}
+                                                    withExact priceData={orderInfo.balance}
                                                 />
                                             </View>
                                         ) : null}
@@ -1003,7 +1003,7 @@ export default function OrderInfo() {
                                                     fontStyle={discountStyle}
                                                     currencyStyle={discountStyle}
                                                     decimalsStyle={discountStyle}
-                                                    priceData={orderInfo.pointsAmount}
+                                                    withExact priceData={orderInfo.pointsAmount}
                                                 />
                                             </View>
                                         ) : null}
@@ -1016,7 +1016,7 @@ export default function OrderInfo() {
                                                     fontStyle={discountStyle}
                                                     currencyStyle={discountStyle}
                                                     decimalsStyle={discountStyle}
-                                                    priceData={orderInfo.couponAmount}
+                                                    withExact priceData={orderInfo.couponAmount}
                                                 />
                                             </View>
                                         ) : null}
@@ -1029,7 +1029,7 @@ export default function OrderInfo() {
                                                     fontStyle={discountStyle}
                                                     currencyStyle={discountStyle}
                                                     decimalsStyle={discountStyle}
-                                                    priceData={orderInfo.discountAmount}
+                                                    withExact priceData={orderInfo.discountAmount}
                                                 />
                                             </View>
                                         ) : null}
@@ -1042,7 +1042,7 @@ export default function OrderInfo() {
                                                     fontStyle={amountStyle}
                                                     currencyStyle={amountStyle}
                                                     decimalsStyle={amountStyle}
-                                                    priceData={orderInfo.totalAmount}
+                                                    withExact priceData={orderInfo.totalAmount}
                                                 />
                                             </View>
                                         ) : null}
@@ -1205,7 +1205,7 @@ export default function OrderInfo() {
                                                                 <Text className="presale-final-btn-text">{t("尾款")}</Text>
                                                                 <FormatPrice
                                                                     isBottom={false}
-                                                                    priceData={productPresale?.finalPaymentAmount}
+                                                                    withExact priceData={productPresale?.finalPaymentAmount}
                                                                     fontStyle={{ fontSize: "26rpx", fontWeight: "bold" }}
                                                                 />
                                                             </View>

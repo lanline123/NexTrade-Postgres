@@ -124,7 +124,7 @@ export default function PresaleCard({ presaleInfo, total, deliveryType }: Props)
                             <View className="flow-header">
                                 <Text className="title">{t("全款预售")}</Text>
                                 <View className="price">
-                                    <FormatPrice priceData={total?.productAmount} />
+                                    <FormatPrice withExact priceData={total?.productAmount} />
                                 </View>
                             </View>
                         </View>
@@ -159,7 +159,7 @@ export default function PresaleCard({ presaleInfo, total, deliveryType }: Props)
                                     </View>
                                 </View>
                                 <View className="price">
-                                    <FormatPrice priceData={total?.depositAmount} />
+                                    <FormatPrice withExact priceData={total?.depositAmount} />
                                 </View>
                             </View>
                         </View>
@@ -175,7 +175,7 @@ export default function PresaleCard({ presaleInfo, total, deliveryType }: Props)
                                     {t("尾款")}({paymentTimeText()})
                                 </Text>
                                 <View className="price">
-                                    <FormatPrice priceData={total?.finalPaymentAmount} />
+                                    <FormatPrice withExact priceData={total?.finalPaymentAmount} />
                                 </View>
                             </View>
                             <View className="desc">{t("如有运费、赠品、优惠等将在尾款结算")}</View>

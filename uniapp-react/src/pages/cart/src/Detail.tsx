@@ -31,11 +31,11 @@ export default function Detail({ show, onShowChange, detail = {} }: Props) {
                         </View>
                         <View className="product-info">
                             <View className="price price-box">
-                                <FormatPrice showText={false} currencyStyle={{ fontSize: "24rpx", fontWeight: "500" }} priceData={detail?.price} />
+                                <FormatPrice showText={false} currencyStyle={{ fontSize: "24rpx", fontWeight: "500" }} withExact priceData={detail?.price} />
                             </View>
                             {detail?.originPrice && detail?.originPrice > detail?.price && (
                                 <View className="origin_price price-box">
-                                    <FormatPrice showText={false} priceData={detail?.originPrice} />
+                                    <FormatPrice showText={false} withExact priceData={detail?.originPrice} />
                                 </View>
                             )}
                             <View className="product-num">{`已选${detail.quantity}件`}</View>
@@ -50,7 +50,7 @@ export default function Detail({ show, onShowChange, detail = {} }: Props) {
                                         <Text className="line1 content-text">{attr.attrValue}</Text>
                                         <View className="right">
                                             <View className="price price-box">
-                                                <FormatPrice showText={false} priceData={attr.attrPrice} />
+                                                <FormatPrice showText={false} withExact priceData={attr.attrPrice} />
                                             </View>
                                             <View className="num">x{detail.quantity}</View>
                                         </View>

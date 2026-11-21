@@ -634,11 +634,11 @@ export default function Pay() {
                     <View className="order_infos">
                         {typeText !== "recharge" ? (
                             <View className="order_amount">
-                                <FormatPrice isBottom={false} priceData={order.unpaidAmount} />
+                                <FormatPrice isBottom={false} withExact priceData={order.unpaidAmount} />
                             </View>
                         ) : (
                             <View className="order_amount">
-                                <FormatPrice isBottom={false} priceData={order.amount} />
+                                <FormatPrice isBottom={false} withExact priceData={order.amount} />
                             </View>
                         )}
                         {typeText !== "recharge" && (

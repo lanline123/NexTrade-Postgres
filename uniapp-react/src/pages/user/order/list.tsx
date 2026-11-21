@@ -450,7 +450,7 @@ export default function OrderList() {
                                             fontStyle={{ fontWeight: "600", fontSize: "24rpx" }}
                                             showText={false}
                                             isBottom={false}
-                                            priceData={item.totalAmount}
+                                            withExact priceData={item.totalAmount}
                                         />
                                         <View className="icon iconfont icon-xiangyou" />
                                     </View>
@@ -504,7 +504,7 @@ export default function OrderList() {
                                                                             <View className="content">
                                                                                 <Text className="content-text">{attr.attrValue}</Text>
                                                                                 <View className="price">
-                                                                                    <FormatPrice showText={false} priceData={attr.attrPrice} />
+                                                                                    <FormatPrice showText={false} withExact priceData={attr.attrPrice} />
                                                                                 </View>
                                                                                 <View className="num">x{subItem.quantity}</View>
                                                                             </View>

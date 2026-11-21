@@ -66,7 +66,7 @@ export default function ProductItem({ product }: Props) {
 
                 <View className="right-price-box">
                     <View className="store-card-item-content-right-price">
-                        <FormatPrice priceData={product.price} integerStyle={{ fontSize: "18px", lineHeight: "24px" }} />
+                        <FormatPrice withExact priceData={product.price} integerStyle={{ fontSize: "18px", lineHeight: "24px" }} />
                     </View>
                     <View className="store-card-item-content-right-num"> x{product.quantity}</View>
                 </View>

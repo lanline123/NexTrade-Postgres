@@ -7,8 +7,10 @@
  * GET /api/common/config/priceDisplay 下发，基础配置拉取时一并写入
  * config store（见 store/config 的 loadBaseConfigData，随回前台刷新同路更新）。
  *
- * 仅展示场景消费（FormatPrice 的 displayPrice 标记，与 PC 同名同口径）；
- * 购物车 / 结算 / 订单等对账金额不经此路，始终精确到分。
+ * 展示场景走纯缩写（FormatPrice 的 displayPrice 标记，与 PC 同名同口径）；
+ * 购物车 / 结算 / 订单等对账金额走双段（FormatPrice 的 withExact 标记 /
+ * 本文件 formatDisplayPriceWithExact，与 PC formatDisplayPriceWithExact 同口径：
+ * 缩写在前、精确到分在全角括号内，未触发缩写时只显示精确额）。
  * 配置缺失/未拉到时用内置默认（与后端默认、PC 内置默认一致），行为零漂移。
  */
 
@@ -264,4 +266,28 @@ export function abbreviateDisplayPrice(
         decimals: dot >= 0 ? signed.slice(dot) : "",
         suffix: rule.suffix
     };
+}
+
+/**
+ * 结算类双段价格整串（PC currency.ts 的 formatDisplayPriceWithExact 同名同口径移植）：
+ * 触发缩写时返回「符号+缩写（符号+精确）」整串，如 ¥6.5万（¥65000.00）——全角括号、
+ * 精确段固定两位小数、无千分位，与 PC 逐字一致；未触发（未启用 / 金额为 0 /
+ * 未达门槛 / 该币种规则为空 / 缩写与精确恰好同串）返回 null，调用方回落各自既有
+ * 精确渲染（逐字不变）。与 PC 的差异仅在入参：PC 靠全局货币上下文隐式取符号/
+ * 汇率/币种代码，本函数显式收已换算金额、币种代码、配置与符号（移动端上下文在
+ * 各组件 store 里）。分段渲染场景走 FormatPrice 的 withExact 标记，不用本函数；
+ * 本函数供裸文本拼接的价格位（积分抵扣行、券抵扣行、礼品卡选项标签等）使用。
+ */
+export function formatDisplayPriceWithExact(
+    converted: number,
+    code: string,
+    cfg: PriceDisplayConfig,
+    symbol: string
+): string | null {
+    const abbr = abbreviateDisplayPrice(converted, code, cfg);
+    if (!abbr) return null;
+    const display = `${symbol}${abbr.integer}${abbr.decimals}${abbr.suffix}`;
+    const exact = `${symbol}${converted.toFixed(2)}`;
+    if (display === exact) return null;
+    return `${display}（${exact}）`;
 }

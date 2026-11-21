@@ -291,7 +291,7 @@ export default function GiftCardOrderInfo() {
                                                                         currencyStyle={{
                                                                             fontSize: "20rpx"
                                                                         }}
-                                                                        priceData={item.price}
+                                                                        withExact priceData={item.price}
                                                                     />
                                                                 </View>
                                                             </View>
@@ -321,7 +321,7 @@ export default function GiftCardOrderInfo() {
                                                                                         <View className="price">
                                                                                             <FormatPrice
                                                                                                 showText={false}
-                                                                                                priceData={attr.attrPrice}
+                                                                                                withExact priceData={attr.attrPrice}
                                                                                             />
                                                                                         </View>
                                                                                         <View className="num">x{item.quantity}</View>
@@ -494,12 +494,12 @@ export default function GiftCardOrderInfo() {
                             <View className="money-card card-space">
                                 <View className="money-card-item">
                                     <Text className="order-item-label">{t("订单金额")}：</Text>
-                                    <FormatPrice showText={false} isBottom={false} priceData={orderInfo.productAmount} />
+                                    <FormatPrice showText={false} isBottom={false} withExact priceData={orderInfo.productAmount} />
                                 </View>
                                 {/* 旧注释保留：附加费用行已停用 */}
                                 <View className="money-card-item">
                                     <Text className="order-item-label">{t("优惠券")}：</Text>
-                                    <FormatPrice showText={false} isBottom={false} priceData={orderInfo.couponAmount} />
+                                    <FormatPrice showText={false} isBottom={false} withExact priceData={orderInfo.couponAmount} />
                                 </View>
                                 {/* 旧注释保留：快递 / 其他优惠行已停用 */}
                             </View>
