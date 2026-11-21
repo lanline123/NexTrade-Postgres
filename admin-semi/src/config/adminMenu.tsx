@@ -1454,10 +1454,6 @@ export const navGroups: NavGroup[] = [
             "label": "购买按钮样式"
           },
           {
-            "key": "accountSecuritySettings",
-            "label": "账号安全"
-          },
-          {
             "key": "fontSettings",
             "label": "网站字体"
           },
@@ -1468,6 +1464,10 @@ export const navGroups: NavGroup[] = [
           {
             "key": "federationSettings",
             "label": "万象互联"
+          },
+          {
+            "key": "siteClone",
+            "label": "站点搬家"
           },
           {
             "key": "adSettingsManage",
@@ -1948,7 +1948,6 @@ export const pageTitles: Record<string, string> = {
   "paidCancelRefundSettings": "买家取消退款",
   "giftOrderSettings": "送礼物设置",
   "buyStyleSettings": "购买按钮样式",
-  "accountSecuritySettings": "账号安全",
   "fontSettings": "网站字体",
   "systemMode": "系统模式",
   "orgOverview": "组织概览",
@@ -1959,6 +1958,7 @@ export const pageTitles: Record<string, string> = {
   "hubAggregation": "联邦商品聚合",
   "feedKeyManage": "对接 API 管理",
   "federationSettings": "万象互联",
+  "siteClone": "站点搬家",
   "adSettingsManage": "投流定价",
   "taxRateManage": "税率管理",
   "wechatLiveMiniAppSetting": "小程序设置",

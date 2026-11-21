@@ -80,6 +80,8 @@ pub struct AdminState {
     pub o2o: std::sync::Arc<nextrade_services::o2o::Services>,
     /// 平台联邦（hub 上下文）。
     pub hub: std::sync::Arc<nextrade_services::hub::Services>,
+    /// 站点搬家（site_clone 上下文）。
+    pub site_clone: std::sync::Arc<nextrade_services::site_clone::Services>,
     /// 仓储聚合直通（少量收银辅助 handler 直接读库）。
     pub repos: std::sync::Arc<nextrade_infrastructure::db::Repositories>,
     pub jwt: JwtService,

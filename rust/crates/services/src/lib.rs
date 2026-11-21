@@ -22,3 +22,4 @@ pub mod pos;
 pub mod o2o;
 pub mod hub;
 pub mod ai;
+pub mod site_clone;

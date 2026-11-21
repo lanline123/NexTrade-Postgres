@@ -22,6 +22,7 @@ pub mod trade;
 pub mod vendor;
 pub mod wholesale;
 pub mod hub;
+pub mod site_clone;
 
 use axum::Router;
 
@@ -53,6 +54,7 @@ pub fn merge_all(state: &AdminState) -> Router<AdminState> {
         .merge(ai_mcp::routes(state))
         .merge(ai_assistant::routes(state))
         .merge(hub::routes(state))
+        .merge(site_clone::routes(state))
 }
 
 /// 汇总所有免登录路由（`router()` 单独 nest 到 `/adminapi`）。
@@ -99,5 +101,6 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(supply_chain::implemented_routes());
     out.extend(shop_group::implemented_routes());
     out.extend(hub::implemented_routes());
+    out.extend(site_clone::implemented_routes());
     out
 }

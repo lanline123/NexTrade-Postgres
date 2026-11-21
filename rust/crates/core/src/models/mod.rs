@@ -56,6 +56,7 @@ pub mod o2o;
 pub mod payment;
 pub mod pos;
 pub mod serde_helpers;
+pub mod site_clone;
 pub mod system;
 pub mod trade;
 pub mod vendor;

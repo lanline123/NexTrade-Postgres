@@ -20,3 +20,4 @@ pub mod im;
 pub mod analytics;
 pub mod hub;
 pub mod lang;
+pub mod site_clone;
