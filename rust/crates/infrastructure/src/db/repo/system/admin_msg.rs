@@ -358,6 +358,91 @@ impl AdminMsgRepository {
         Ok(r)
     }
 
+    /// 插入平台公告行（我方新增）：主行（`shop_id = 0`、`is_broadcast = 1`，
+    /// 平台消息中心可见）与店铺分发行（`shop_id = 店铺`、`is_broadcast = 0`，
+    /// 该店消息中心可见）共用本方法，`admin_id` 记发布人。
+    /// 下列 SQL 中的 `msg_type = 59` 即 core 的 `ANNOUNCE_MSG_TYPE`
+    /// （i32 常量直插，与本文件 `build_where` 的 msg_type 口径一致）。
+    ///
+    /// # Errors
+    /// 数据库失败 → `Error::Database`。
+    pub async fn insert_announcement(
+        &self,
+        admin_id: i32,
+        shop_id: i32,
+        is_broadcast: i32,
+        title: &str,
+        content: &str,
+        related_data: &str,
+    ) -> Result<i32> {
+        let now = nextrade_common::utils::now_seconds() as i32;
+        let r: i32 = sqlx::query_scalar(
+            "INSERT INTO admin_msg \
+             (msg_type, send_time, is_readed, shop_id, admin_id, order_id, product_id, title, content, msg_link, related_data, is_broadcast, vendor_id) \
+             VALUES (59, $1, 0, $2, $3, 0, 0, $4, $5, '', $6, $7, 0) RETURNING msg_id",
+        )
+        .bind(now)
+        .bind(shop_id)
+        .bind(admin_id)
+        .bind(title)
+        .bind(content)
+        .bind(related_data)
+        .bind(is_broadcast)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r)
+    }
+
+    /// 全部未删除店铺 ID（公告分发目标）。
+    ///
+    /// # Errors
+    /// 数据库失败 → `Error::Database`。
+    pub async fn all_shop_ids(&self) -> Result<Vec<i32>> {
+        let rows: Vec<(i32,)> = sqlx::query_as(
+            "SELECT shop_id FROM \"shop\" WHERE (is_delete IS NULL OR is_delete = 0) ORDER BY shop_id ASC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(rows.into_iter().map(|r| r.0).collect())
+    }
+
+    /// 某公告的分发/已读计数：`(分发行数, 已读行数)`。
+    /// 分发行以 `related_data.announcementId` 回指主行 `msg_id`（写入侧保证为 JSON）。
+    ///
+    /// # Errors
+    /// 数据库失败 → `Error::Database`。
+    pub async fn announcement_read_stats(&self, announcement_id: i32) -> Result<(i64, i64)> {
+        let row: (i64, i64) = sqlx::query_as(
+            "SELECT COUNT(*), COUNT(*) FILTER (WHERE is_readed = 1) FROM admin_msg \
+             WHERE msg_type = 59 AND shop_id > 0 \
+             AND (related_data::jsonb ->> 'announcementId') = $1",
+        )
+        .bind(announcement_id.to_string())
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row)
+    }
+
+    /// 删除公告：主行 + 全部分发行一并删除，返回删除行数。
+    ///
+    /// # Errors
+    /// 数据库失败 → `Error::Database`。
+    pub async fn delete_announcement(&self, announcement_id: i32) -> Result<u64> {
+        let r = sqlx::query(
+            "DELETE FROM admin_msg WHERE msg_type = 59 AND (msg_id = $1 \
+             OR (related_data::jsonb ->> 'announcementId') = $2)",
+        )
+        .bind(announcement_id)
+        .bind(announcement_id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(r.rows_affected())
+    }
+
     /// 插入供应商维度的管理员通知消息（Java `AdminMsgCreateDTO.vendorId`）。
     pub async fn create_vendor_message(
         &self,

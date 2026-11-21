@@ -6,6 +6,9 @@
 //! # 已实现
 //! `list`（身份可见性 + msgType + title ILIKE + 排序）、`msgTypeArr`（分类树 + 未读累加）、
 //! `homeSummary`（未读总数 + 最新一条）、`setReaded`、`setAllReaded`。
+//! 平台公告（我方新增）：`publish_announcement`（主行 + 全店铺分发）、
+//! `announcement_list`（主行 + 已读统计）、`delete_announcement`（主行 + 分发行全删），
+//! 已读状态复用本域既有 `is_readed` 口径，不另建已读体系。
 //!
 //! # 已实现 / 简化
 //! - `msgCount`：路由层已实现 SSE，周期性调用
@@ -19,8 +22,8 @@ use std::sync::Arc;
 
 use nextrade_core::models::system::admin_msg::{
     build_type_tree, format_time, AdminMsgBroadcastVO, AdminMsgCountVO, AdminMsgListQuery,
-    AdminMsgTypeListVO, AdminMsgVO, HomeMsgLatestVO, HomeMsgSummaryVO, MsgScope,
-    SERVICE_DATA_ERROR,
+    AdminMsgTypeListVO, AdminMsgVO, AnnouncementPublishDTO, AnnouncementVO, HomeMsgLatestVO,
+    HomeMsgSummaryVO, MsgScope, ANNOUNCE_MSG_TYPE, SERVICE_DATA_ERROR,
 };
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
@@ -156,6 +159,123 @@ impl AdminMsgService {
     /// `POST /adminapi/msg/adminMsg/setAllReaded`：全部已读。
     pub async fn set_all_readed(&self, scope: MsgScope) -> Result<u64> {
         self.repo().set_all_readed(scope).await
+    }
+
+    /// 发布平台公告（我方新增，论坛帖 587859 余子项；路由层限平台管理员）。
+    ///
+    /// 落一行平台主行（广播行，平台消息中心可见）+ 向全部未删除店铺各分发
+    /// 一行（`related_data.announcementId` 回指主行）。每家店铺的分发行有
+    /// 独立 `is_readed`，已读/未读提醒完全复用消息中心既有口径
+    /// （`msgTypeArr` 分类树未读累加、SSE 未读总数、铃铛下拉），不另建已读表。
+    pub async fn publish_announcement(
+        &self,
+        admin_id: i32,
+        dto: &AnnouncementPublishDTO,
+    ) -> Result<AnnouncementVO> {
+        let title = dto
+            .title
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "公告标题不能为空"))?;
+        if title.chars().count() > 100 {
+            return Err(Error::biz(SERVICE_DATA_ERROR, "公告标题不能超过 100 字"));
+        }
+        let content = dto
+            .content
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "公告内容不能为空"))?;
+        if content.chars().count() > 2000 {
+            return Err(Error::biz(SERVICE_DATA_ERROR, "公告内容不能超过 2000 字"));
+        }
+        let master_related =
+            serde_json::json!({ "route": "platformAnnouncement" }).to_string();
+        let master_id = self
+            .repo()
+            .insert_announcement(admin_id, 0, 1, title, content, &master_related)
+            .await?;
+        let shop_ids = self.repo().all_shop_ids().await?;
+        let copy_related = serde_json::json!({
+            "announcementId": master_id,
+            "route": "platformAnnouncement",
+        })
+        .to_string();
+        for shop_id in &shop_ids {
+            self.repo()
+                .insert_announcement(admin_id, *shop_id, 0, title, content, &copy_related)
+                .await?;
+        }
+        let row = self
+            .repo()
+            .find_by_id(master_id)
+            .await?
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "公告发布失败"))?;
+        Ok(AnnouncementVO {
+            msg_id: master_id,
+            title: row.title.clone(),
+            content: row.content.clone(),
+            send_time: format_time(Some(row.send_time)),
+            admin_id: row.admin_id,
+            delivered_count: i64::try_from(shop_ids.len()).unwrap_or(0),
+            read_count: 0,
+        })
+    }
+
+    /// 平台公告列表（平台视角）：公告主行分页 + 逐条分发/已读统计。
+    pub async fn announcement_list(
+        &self,
+        page: u64,
+        size: u64,
+    ) -> Result<PageResult<AnnouncementVO>> {
+        let q = AdminMsgListQuery {
+            msg_type: Some(ANNOUNCE_MSG_TYPE),
+            page: Some(page),
+            size: Some(size),
+            ..Default::default()
+        };
+        let scope = MsgScope::Shop {
+            shop_id: 0,
+            platform: true,
+        };
+        let (total, rows) = self.repo().paginate(scope, &q).await?;
+        let mut list = Vec::with_capacity(rows.len());
+        for r in &rows {
+            let (delivered, read) = self.repo().announcement_read_stats(r.msg_id).await?;
+            list.push(AnnouncementVO {
+                msg_id: r.msg_id,
+                title: r.title.clone(),
+                content: r.content.clone(),
+                send_time: format_time(Some(r.send_time)),
+                admin_id: r.admin_id,
+                delivered_count: delivered,
+                read_count: read,
+            });
+        }
+        let (page, size) = q.page_params();
+        Ok(PageResult::new(
+            total,
+            list,
+            &PageQuery {
+                page,
+                page_size: size,
+            },
+        ))
+    }
+
+    /// 删除平台公告（主行 + 全部分发行）；目标不是公告主行时按不存在处理。
+    pub async fn delete_announcement(&self, msg_id: Option<i32>) -> Result<u64> {
+        let msg_id = msg_id.ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "msgId不能为空"))?;
+        let row = self
+            .repo()
+            .find_by_id(msg_id)
+            .await?
+            .ok_or_else(|| Error::biz(SERVICE_DATA_ERROR, "公告不存在"))?;
+        if row.msg_type != ANNOUNCE_MSG_TYPE || row.is_broadcast != 1 || row.shop_id != 0 {
+            return Err(Error::biz(SERVICE_DATA_ERROR, "公告不存在"));
+        }
+        self.repo().delete_announcement(msg_id).await
     }
 }
 

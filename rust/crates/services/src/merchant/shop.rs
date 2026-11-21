@@ -20,7 +20,7 @@ use nextrade_core::models::merchant::shop::{
     shop_status_text, withdraw_status_text, ClientShopDetailVO, ShopAccountLogListQuery,
     ShopAccountLogVO, ShopCategoryTreeNode, ShopListQuery, ShopMerchantAdminVO, ShopMerchantVO,
     ShopProductCategoryListQuery, ShopProductCategoryVO, ShopUpdateDTO, ShopVO,
-    ShopWithdrawAuditDTO, ShopWithdrawListQuery, ShopWithdrawVO,
+    ShopWithdrawAuditDTO, ShopWithdrawListQuery, ShopWithdrawVO, StoreMapVO,
 };
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
@@ -128,6 +128,42 @@ impl ShopService {
         }
         vo.merchant = merchant;
         Ok(vo)
+    }
+
+    /// 门店分布图（我方新增，论坛帖 587859 余子项）：全量门店打点 +
+    /// 各自同城配送范围（`shop_local_delivery_config.delivery_radius`，米）。
+    ///
+    /// `scoped_shop_id` 为店铺账号的租户收敛（只回本店一行），
+    /// 平台账号传 `None` 回全部未删除店铺。
+    pub async fn store_map(&self, scoped_shop_id: Option<i32>) -> Result<Vec<StoreMapVO>> {
+        let rows = self.repos.merchant.shop.list_for_map(scoped_shop_id).await?;
+        let shop_ids: Vec<i32> = rows.iter().map(|r| r.shop_id).collect();
+        let delivery_cfgs = self
+            .repos
+            .o2o
+            .config
+            .find_local_delivery_for_shops(&shop_ids)
+            .await?;
+        let delivery_map: HashMap<i32, &ShopLocalDeliveryConfig> =
+            delivery_cfgs.iter().map(|c| (c.shop_id, c)).collect();
+        Ok(rows
+            .into_iter()
+            .map(|r| {
+                let cfg = delivery_map.get(&r.shop_id).copied();
+                StoreMapVO {
+                    shop_id: r.shop_id,
+                    shop_title: r.shop_title.unwrap_or_default(),
+                    shop_type: r.shop_type,
+                    status: r.status,
+                    region_ids: r.shop_region_id,
+                    address: r.shop_detailed_address,
+                    longitude: r.shop_longitude.and_then(decimal_to_f64),
+                    latitude: r.shop_latitude.and_then(decimal_to_f64),
+                    delivery_radius: cfg.map(|c| c.delivery_radius).and_then(decimal_to_f64),
+                    delivery_enabled: cfg.map(|c| c.enabled),
+                }
+            })
+            .collect())
     }
 
     /// 更新店铺（`ShopController.update` → `ShopServiceImpl#update`）。
@@ -614,6 +650,12 @@ fn merchant_vo(m: &Merchant, with_type_text: bool) -> ShopMerchantVO {
         },
         admin: None,
     }
+}
+
+/// `Decimal` → `f64`（地图 VO 序列化为 JSON number）。
+fn decimal_to_f64(value: Decimal) -> Option<f64> {
+    use rust_decimal::prelude::ToPrimitive;
+    value.to_f64()
 }
 
 /// 评星（`ShopMapper` 的 `calculateShopStar` 片段）：

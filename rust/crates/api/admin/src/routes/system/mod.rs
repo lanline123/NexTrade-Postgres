@@ -2,6 +2,7 @@
 
 pub mod ad_settings_config;
 pub mod admin_msg;
+pub mod announcement;
 pub mod ai_image;
 pub mod app_version_admin;
 pub mod area_code;
@@ -38,6 +39,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     let _ = state;
     Router::new()
         .merge(admin_msg::routes(state))
+        .merge(announcement::routes(state))
         .merge(ai_image::routes(state))
         .merge(app_version_admin::routes(state))
         .merge(area_code::routes(state))
@@ -79,6 +81,7 @@ pub fn public_routes(state: &AdminState) -> Router<AdminState> {
 pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(admin_msg::implemented_routes());
+    out.extend(announcement::implemented_routes());
     out.extend(ai_image::implemented_routes());
     out.extend(app_version_admin::implemented_routes());
     out.extend(area_code::implemented_routes());

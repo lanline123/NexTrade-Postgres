@@ -7086,6 +7086,11 @@ body {
   position: relative;
   width: 100%;
   height: 300px;
+/* 门店分布图（全门店打点 + 配送范围圈） */
+.store-distribution-map {
+  position: relative;
+  width: 100%;
+  height: 560px;
   overflow: hidden;
   border: 1px solid #e9edf2;
   border-radius: 12px;
@@ -7096,6 +7101,11 @@ body {
   height: 100%;
 }
 .map-location-picker__state {
+.store-distribution-map__canvas {
+  width: 100%;
+  height: 100%;
+}
+.store-distribution-map__state {
   position: absolute;
   inset: 0;
   display: flex;
@@ -7107,6 +7117,7 @@ body {
   text-align: center;
 }
 .map-location-picker__icon {
+.store-distribution-map__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -7119,6 +7130,89 @@ body {
 }
 .map-location-picker__hint {
   min-height: 20px;
+.store-map-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.store-map-page__head .semi-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.store-map-page__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .store-map-page__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.store-map-page__map .semi-card-body {
+  padding: 12px;
+}
+.store-map-page__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 560px;
+}
+.store-map-page__detail {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--primary-soft);
+  line-height: 1.7;
+  font-size: 13px;
+}
+.store-map-page__detail-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+.store-map-page__list {
+  display: flex;
+  flex-direction: column;
+  max-height: 430px;
+  overflow-y: auto;
+}
+.store-map-page__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  width: 100%;
+  padding: 10px 8px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #eef1f5;
+  cursor: pointer;
+  text-align: left;
+}
+.store-map-page__row:hover {
+  background: #f8fafc;
+}
+.store-map-page__row.is-selected {
+  background: var(--primary-soft);
+}
+.store-map-page__row-name {
+  font-weight: 600;
+  color: var(--semi-color-text-0);
+}
+.store-map-page__row-sub {
+  flex-basis: 100%;
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.store-map-page__unlocated {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #eef1f5;
+  line-height: 1.8;
+  font-size: 13px;
 }
 
 

@@ -298,6 +298,10 @@ export const navGroups: NavGroup[] = [
             "label": "门店列表"
           },
           {
+            "key": "storeMapManage",
+            "label": "门店分布图"
+          },
+          {
             "key": "storeSettingsManage",
             "label": "门店设置"
           },
@@ -1653,6 +1657,10 @@ export const navGroups: NavGroup[] = [
             "label": "消息管理"
           },
           {
+            "key": "platformAnnouncement",
+            "label": "平台公告"
+          },
+          {
             "key": "voiceBroadcastManage",
             "label": "语音播报"
           }
@@ -1758,6 +1766,7 @@ export const pageTitles: Record<string, string> = {
   "vendorListManage": "供应商列表",
   "vendorSettingManage": "供应商设置",
   "storeListManage": "门店列表",
+  "storeMapManage": "门店分布图",
   "storeSettingsManage": "门店设置",
   "storeAreaManage": "区域管理",
   "storeTipManage": "标签管理",
@@ -2013,6 +2022,7 @@ export const pageTitles: Record<string, string> = {
   "verbalAssociationManage": "语言关联设置",
   "baseNoticeManage": "通知设置",
   "messageTypeManage": "消息管理",
+  "platformAnnouncement": "平台公告",
   "voiceBroadcastManage": "语音播报",
   "wechatMenu": "公众号菜单",
   "wechatKeywordReply": "关键字回复",

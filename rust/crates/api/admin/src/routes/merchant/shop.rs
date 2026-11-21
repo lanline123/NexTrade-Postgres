@@ -8,6 +8,7 @@
 //! | 路由 | 原 Java |
 //! |------|---------|
 //! | `GET /adminapi/merchant/shop/list` | `ShopController.list` |
+//! | `GET /adminapi/merchant/shop/storeMap` | 我方新增（门店分布图） |
 //! | `GET /adminapi/merchant/shop/detail` | `ShopController.detail` |
 //! | `POST /adminapi/merchant/shop/update` | `ShopController.update` |
 //! | `GET /adminapi/merchant/shopAccount/logList` | `AccountController.logList` |
@@ -24,7 +25,7 @@ use axum::{
 use serde::Deserialize;
 use nextrade_core::models::merchant::shop::{
     ShopAccountLogListQuery, ShopAccountLogVO, ShopListQuery, ShopUpdateDTO, ShopVO,
-    ShopWithdrawAuditDTO, ShopWithdrawListQuery, ShopWithdrawVO,
+    ShopWithdrawAuditDTO, ShopWithdrawListQuery, ShopWithdrawVO, StoreMapVO,
 };
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_security::web::{ok, ApiResult, AppError, AuthUser};
@@ -35,6 +36,7 @@ use crate::AdminState;
 pub fn routes(_state: &AdminState) -> Router<AdminState> {
     Router::new()
         .route("/merchant/shop/list", get(shop_list))
+        .route("/merchant/shop/storeMap", get(shop_store_map))
         .route("/merchant/shop/detail", get(shop_detail))
         .route("/merchant/shop/update", post(shop_update))
         .route("/merchant/shopAccount/logList", get(account_log_list))
@@ -51,6 +53,11 @@ pub fn routes(_state: &AdminState) -> Router<AdminState> {
 pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     [
         ("GET", "/adminapi/merchant/shop/list", "ShopController.list"),
+        (
+            "GET",
+            "/adminapi/merchant/shop/storeMap",
+            "ShopController.storeMap（我方新增）",
+        ),
         (
             "GET",
             "/adminapi/merchant/shop/detail",
@@ -108,6 +115,16 @@ async fn shop_list(
         return ok(PageResult::new(1, vec![vo], &page));
     }
     ok(state.merchant.shop.list(&q).await?)
+}
+
+/// `GET /adminapi/merchant/shop/storeMap`：门店分布图（我方新增）。
+///
+/// 平台返回全部未删除店铺的打点 + 配送半径；店铺账号按租户收敛只回本店。
+async fn shop_store_map(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+) -> ApiResult<Vec<StoreMapVO>> {
+    ok(state.merchant.shop.store_map(auth.scoped_shop_id()).await?)
 }
 
 /// 店铺详情入参（原 Java `@RequestParam("shopId")`）。

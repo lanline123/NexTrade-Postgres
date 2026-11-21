@@ -72,8 +72,13 @@ pub const MSG_CATEGORIES: [(i32, &str); 6] = [
     (6, "财务消息"),
 ];
 
+/// 平台公告消息类型（我方新增，论坛帖 587859 余子项）：平台后台发布、
+/// 按店铺分发（每店一行、各自已读状态），归「其它消息」分类。
+/// 原版 `AdminMsgTypeEnum` 无此类型（原版消息均为业务事件生成，无公告发布形态）。
+pub const ANNOUNCE_MSG_TYPE: i32 = 59;
+
 /// 全部叶子消息类型：`(msgType, name, 父分类 catId, 是否店铺可见, 是否供应商可见)`，
-/// 逐条来自 `AdminMsgTypeEnum`（不含历史兼容 15/16）。
+/// 逐条来自 `AdminMsgTypeEnum`（不含历史兼容 15/16），末条 59 为我方新增「平台公告」。
 pub const MSG_TYPES: [(i32, &str, i32, bool, bool); 32] = [
     (11, "新订单", 1, true, true),
     (12, "已付款订单", 1, true, true),
@@ -105,6 +110,7 @@ pub const MSG_TYPES: [(i32, &str, i32, bool, bool); 32] = [
     (55, "建议", 5, true, true),
     (56, "投诉", 5, true, true),
     (57, "其它反馈", 5, true, true),
+    (59, "平台公告", 5, true, false),
     // 以下两条为历史兼容枚举（ORDER_PROBLEM/CONSULTATION 已在上面列出，
     // 这里补齐交易类 13/31 之外的展示项无需重复；保留数组长度稳定）
     (11 + 1000, "", 0, false, false),
@@ -297,6 +303,31 @@ pub struct AdminMsgUpdateDTO {
     pub msg_type: Option<i32>,
 }
 
+/// 平台公告发布入参（我方新增）：平台管理员填写标题 + 正文，
+/// 发布即向全部店铺各分发一行（msg_type = 59），已读状态走 admin_msg 既有口径。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AnnouncementPublishDTO {
+    pub title: Option<String>,
+    pub content: Option<String>,
+}
+
+/// 平台公告列表项（我方新增）：主行（平台广播行）+ 分发/已读统计。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AnnouncementVO {
+    pub msg_id: i32,
+    pub title: String,
+    pub content: String,
+    pub send_time: String,
+    /// 发布人管理员 ID。
+    pub admin_id: i32,
+    /// 已分发的店铺行数。
+    pub delivered_count: i64,
+    /// 已读的店铺行数。
+    pub read_count: i64,
+}
+
 /// 智能构建分类树（与 Java `getAdminMsgTypeList` 相同的「父分类累加子分类未读数」）。
 #[must_use]
 pub fn build_type_tree(
@@ -347,6 +378,22 @@ mod tests {
         let vendor_types = visible_types(true);
         assert!(!vendor_types.iter().any(|(t, _, _)| *t == 41)); // 供应商不可见
         assert!(vendor_types.iter().any(|(t, _, _)| *t == 44));
+    }
+
+    #[test]
+    fn announce_type_is_registered_for_shops_only() {
+        assert_eq!(msg_type_name(ANNOUNCE_MSG_TYPE), "平台公告");
+        assert_eq!(msg_type_parent(ANNOUNCE_MSG_TYPE), 5);
+        let shop_types = visible_types(false);
+        assert!(shop_types.iter().any(|(t, _, _)| *t == ANNOUNCE_MSG_TYPE));
+        let vendor_types = visible_types(true);
+        assert!(!vendor_types.iter().any(|(t, _, _)| *t == ANNOUNCE_MSG_TYPE));
+        // 公告未读应计入「其它消息」分类未读累加
+        let mut unread = std::collections::HashMap::new();
+        unread.insert(ANNOUNCE_MSG_TYPE, 4);
+        let tree = build_type_tree(false, &unread);
+        let other = tree.iter().find(|t| t.cat_id == 5).unwrap();
+        assert_eq!(other.unread_count, 4);
     }
 
     #[test]

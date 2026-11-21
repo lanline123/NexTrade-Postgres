@@ -17,6 +17,19 @@ use nextrade_core::models::merchant::shop::ShopUpdateDTO;
 use nextrade_core::types::PageQuery;
 use nextrade_core::{Error, Result};
 
+/// 门店分布图行（`shop` 打点投影，我方新增）。
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct ShopMapRow {
+    pub shop_id: i32,
+    pub shop_title: Option<String>,
+    pub shop_type: Option<i32>,
+    pub status: Option<i32>,
+    pub shop_region_id: Option<String>,
+    pub shop_detailed_address: Option<String>,
+    pub shop_longitude: Option<Decimal>,
+    pub shop_latitude: Option<Decimal>,
+}
+
 #[derive(Clone)]
 pub struct ShopRepository {
     pool: PgPool,
@@ -122,6 +135,23 @@ impl ShopRepository {
             .fetch_optional(&self.pool)
             .await
             .map_err(map_err)
+    }
+
+    /// 门店分布图全量行（我方新增）：未删除店铺的打点字段。
+    ///
+    /// `shop_id` 传 `Some` 时只返回该店（店铺账号租户收敛），
+    /// 平台传 `None` 返回全部。含无经纬度的店铺（前端归「未定位」名单）。
+    pub async fn list_for_map(&self, shop_id: Option<i32>) -> Result<Vec<ShopMapRow>> {
+        sqlx::query_as::<_, ShopMapRow>(
+            "SELECT shop_id, shop_title, shop_type, status, shop_region_id, \
+             shop_detailed_address, shop_longitude, shop_latitude FROM \"shop\" \
+             WHERE (is_delete IS NULL OR is_delete = 0) \
+             AND ($1 IS NULL OR shop_id = $1) ORDER BY shop_id ASC",
+        )
+        .bind(shop_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
     }
 
     /// 更新店铺可写字段（`ShopServiceImpl#update` → `updateById`）。

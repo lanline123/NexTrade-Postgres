@@ -212,6 +212,34 @@ impl From<&Shop> for ShopVO {
     }
 }
 
+/// 门店分布图单店数据（我方新增，论坛帖 587859 余子项）。
+///
+/// 后台「门店分布图」页一次拉全量：门店打点用经纬度（GCJ-02，与门店
+/// 坐标存储口径一致）、配送范围圈用同城配送配置的 `delivery_radius`
+/// （单位米，与买家端距离判定 SQL 及单店配送范围地图同口径）。
+/// 无经纬度的门店 `longitude`/`latitude` 为空，前端归入「未定位」名单；
+/// 无同城配送配置的门店 `delivery_radius` 为空，只打点不画圈。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoreMapVO {
+    pub shop_id: i32,
+    pub shop_title: String,
+    /// 店铺类型（1 店铺 / 2 门店）。
+    pub shop_type: Option<i32>,
+    /// 门店状态（1 开业 / 4 停业 / 10 打烊，其余原样透传）。
+    pub status: Option<i32>,
+    /// 区域 ID 串（`shop_region_id` 原值，前端可再解析名称）。
+    pub region_ids: Option<String>,
+    /// 详细地址。
+    pub address: Option<String>,
+    pub longitude: Option<f64>,
+    pub latitude: Option<f64>,
+    /// 同城配送半径（米）；无配置为 `None`。
+    pub delivery_radius: Option<f64>,
+    /// 同城配送是否开启（1 开启）；无配置为 `None`。
+    pub delivery_enabled: Option<i32>,
+}
+
 /// 店铺更新请求（`ShopUpdateDTO`，`update` / `updateField` 共用）。
 ///
 /// 字段集合对齐 `ShopUpdateDTO` + 父类 `StoreExtendedDto` 中

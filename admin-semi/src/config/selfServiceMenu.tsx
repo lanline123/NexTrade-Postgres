@@ -1,5 +1,5 @@
 import {
-  IconApartment, IconBox, IconBriefcase, IconCreditCard, IconExport, IconFile, IconHistogram, IconLink, IconList, IconMapPin, IconMenu, IconNoteMoney, IconPriceTag, IconSafe, IconSend, IconUserGroup,
+  IconApartment, IconBell, IconBox, IconBriefcase, IconCreditCard, IconExport, IconFile, IconHistogram, IconLink, IconList, IconMapPin, IconMenu, IconNoteMoney, IconPriceTag, IconSafe, IconSend, IconUserGroup,
 } from '@douyinfe/semi-icons';
 import { navGroups, type NavGroup } from './adminMenu';
 
@@ -16,7 +16,10 @@ export const shopNavGroups: NavGroup[] = [
     key: 'shopWorkbench',
     label: '门店工作台',
     icon: <span style={{ fontSize: 16, lineHeight: '16px' }}>🧰</span>,
-    items: [{ key: 'storeWorkbench', label: '工作台', icon: <IconBox /> }],
+    items: [
+      { key: 'storeWorkbench', label: '工作台', icon: <IconBox /> },
+      { key: 'platformAnnouncement', label: '平台公告', icon: <IconBell /> },
+    ],
   },
   {
     key: 'shopCapital',
