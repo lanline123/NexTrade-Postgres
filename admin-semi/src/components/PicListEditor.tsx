@@ -24,6 +24,13 @@
  *（{ picTitle, picDesc, picLink: { link, title } }，不带任何图片键）。
  * 缺省 true，既有调用方（PC 编辑器 + H5 全部图片列表）行为与落盘逐项不变；
  * 首个使用方为 H5 首焦轮播的导航文字列表（banner navList）。
+ * showColor 逐项渐变色（2026-11-21 补形态，对齐原版 PicList 的 showColor）：
+ * 原版 PicList 在 showColor 时每条目带「背景色」A/B 选色器且添加时同步写
+ * gradientColorA/B 两键；此前我方无此形态——小图滑动等逐项消费渐变色的
+ * 模块里，用户新加的条目永无渐变色、渲染端又无条件消费该字段，结果卡片
+ * 无背景「没样式」且无处可改。现以可选 prop 补齐：弹窗内出背景色字段、
+ * 新条目按 colorPalette 播种；缺省 false，全部既有调用方零变化。首个使用
+ * 方为 H5 小图滑动（slidingImage）。
  * 样式：pages/decorate-editor.css 的 .dec-pic-grid* / .dec-pic-modal*
  * （PC 与 H5 编辑器入口均已引入该样式表）。
  * 编辑弹窗现代化（2026-11-21，用户在 10023 页提出）：弹窗壳改直角扁平
@@ -66,6 +73,9 @@ export interface PicItem {
   picDesc?: string;
   /** 分类导航3 卡片级图片背景色（原版 PcCategoryNav3Item） */
   imageBackgroundColor?: string;
+  /** 逐项渐变色 A/B（原版 PicList showColor 字段，小图滑动等模块逐项消费） */
+  gradientColorA?: string;
+  gradientColorB?: string;
   picLink?: { link?: string; name?: string; title?: string };
 }
 
@@ -77,6 +87,8 @@ export function PicListEditor({
   showLink = true,
   showText = true,
   showImage = true,
+  showColor = false,
+  colorPalette,
   max,
   onPickManyProducts,
 }: {
@@ -88,11 +100,22 @@ export function PicListEditor({
   showText?: boolean;
   /** false = 无图条目模式（纯文字 + 链接列表，如导航文字）；缺省 true */
   showImage?: boolean;
+  /**
+   * true = 逐项渐变色模式（对齐原版 PicList 的 showColor，如小图滑动）：
+   * 编辑弹窗内多「背景色」A/B 两色字段，新条目按 colorPalette 播种
+   * gradientColorA/B（与模块默认条目同形状）；缺省 false，既有调用方零变化。
+   */
+  showColor?: boolean;
+  /** showColor 时新条目的渐变色播种调色板（[A, B] 对，按条目下标循环取） */
+  colorPalette?: Array<[string, string]>;
   max?: number;
   onPickManyProducts?: (items: PickedImage[]) => void;
 }) {
   const { t } = useI18n();
   const list = Array.isArray(value) ? value : [];
+  /** showColor 播种：按条目下标在调色板内循环取一对渐变色（无调色板时为空对，键仍落盘） */
+  const palettePair = (index: number): [string, string] =>
+    colorPalette && colorPalette.length ? colorPalette[index % colorPalette.length] : ['', ''];
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -178,7 +201,18 @@ export function PicListEditor({
   };
   const addItem = () => {
     const emptyItem = showImage
-      ? ({ picUrl: '', picThumb: '', picName: '', picTitle: '', picLink: { link: '', name: '' } } as PicItem)
+      ? ({
+          picUrl: '',
+          picThumb: '',
+          picName: '',
+          picTitle: '',
+          picLink: { link: '', name: '' },
+          // showColor 模式：新条目出生即带渐变色（原版 PicList onAdd 在 showColor 时
+          // 同步写 gradientColorA/B 两键），按其落位下标取调色板一对，与默认条目同形状
+          ...(showColor
+            ? { gradientColorA: palettePair(list.length)[0], gradientColorB: palettePair(list.length)[1] }
+            : {}),
+        } as PicItem)
       : // 无图模式空条目：与原版 PicList showImage=false 的添加形状逐字一致
         //（只有文字列表的实际字段 picTitle/picDesc/picLink，不带图片键）
         ({ picTitle: '', picDesc: '', picLink: { link: '', title: '' } } as unknown as PicItem);
@@ -272,6 +306,8 @@ export function PicListEditor({
         showText={showText}
         showDesc={showDesc}
         showLink={showLink}
+        showColor={showColor}
+        colorFallback={editIndex !== null ? palettePair(editIndex) : undefined}
         onPatch={(patch) => {
           if (editIndex !== null) updateItem(editIndex, patch);
         }}
@@ -326,6 +362,18 @@ export function PicListEditor({
             next.splice(editIndex + 1, 0, ...usable.slice(1).map(makeItem));
           } else {
             next.splice(editIndex + 1, 0, ...usable.map(makeItem));
+          }
+          if (showColor) {
+            // 本次落位的新条目（含被首件回填的当前卡）按最终下标补渐变色，
+            // 只补缺失、不覆盖既有值，与默认条目同形状
+            const from = hasPic ? editIndex + 1 : editIndex;
+            const to = Math.min(next.length - 1, from + usable.length - 1);
+            for (let i = from; i <= to; i += 1) {
+              if (next[i] && !String(next[i].gradientColorA || '')) {
+                const pair = palettePair(i);
+                next[i] = { ...next[i], gradientColorA: pair[0], gradientColorB: pair[1] };
+              }
+            }
           }
           onChange(next);
           Toast.success(t('已带入 {count} 张商品图片（含标题和链接）', { count: usable.length }));

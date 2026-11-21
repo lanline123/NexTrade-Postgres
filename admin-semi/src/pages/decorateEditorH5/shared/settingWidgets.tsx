@@ -909,6 +909,8 @@ export function PicListEditorField({
     showDesc = false,
     showLink = true,
     showImage = true,
+    showColor = false,
+    colorPalette,
     showAddButton = true,
     addText = "添加图片"
 }: FieldProps & {
@@ -920,6 +922,10 @@ export function PicListEditorField({
     showLink?: boolean;
     /** 原版 PicList 的 showImage：false 时走 PicListEditor 无图条目模式（纯文字+链接列表） */
     showImage?: boolean;
+    /** 原版 PicList 的 showColor：true 时逐项渐变色可编辑且新条目播种（透传 PicListEditor） */
+    showColor?: boolean;
+    /** showColor 时新条目的渐变色播种调色板（[A, B] 对，按条目下标循环取） */
+    colorPalette?: Array<[string, string]>;
     /** false 时冻结添加（固定入口列表），与 PicListField 的 showAddButton 同义 */
     showAddButton?: boolean;
     addText?: string;
@@ -934,24 +940,36 @@ export function PicListEditorField({
         if (!items.length) return;
         const next = [...list];
         let used = 0;
+        const touched: number[] = [];
         // 先按序填空图槽位
         for (let i = 0; i < next.length && used < items.length; i += 1) {
             if (!String(next[i]?.picUrl || next[i]?.picThumb || "")) {
                 next[i] = fullProductPatch
                     ? { ...next[i], ...productPicPatch(next[i], items[used], t('商品详情页')) }
                     : { ...next[i], picUrl: items[used].url, picThumb: items[used].url };
+                touched.push(i);
                 used += 1;
             }
         }
         // 余者按容量追加（新条目形状：全量口径同 productPicPatch，只落图口径同 PicListField 图库追加形状）
         while (used < items.length && next.length < effectiveMax) {
             const picked = items[used];
+            touched.push(next.length);
             next.push(
                 fullProductPatch
                     ? { ...productPicPatch({}, picked, t('商品详情页')) }
                     : { picUrl: picked.url, picThumb: picked.url, picTitle: "", picDesc: "", picLink: { link: "", title: "" } }
             );
             used += 1;
+        }
+        if (showColor) {
+            // 本次落位条目按最终下标补渐变色（只补缺失、不覆盖既有值），与默认条目同形状
+            for (const i of touched) {
+                if (next[i] && !String(next[i].gradientColorA || "")) {
+                    const pair = colorPalette && colorPalette.length ? colorPalette[i % colorPalette.length] : ["", ""];
+                    next[i] = { ...next[i], gradientColorA: pair[0], gradientColorB: pair[1] };
+                }
+            }
         }
         if (used) {
             setList(next);
@@ -975,6 +993,8 @@ export function PicListEditorField({
                     showDesc={showDesc}
                     showLink={showLink}
                     showImage={showImage}
+                    showColor={showColor}
+                    colorPalette={colorPalette}
                     max={effectiveMax}
                     addText={addText}
                     onPickManyProducts={showImage ? handlePickManyProducts : undefined}

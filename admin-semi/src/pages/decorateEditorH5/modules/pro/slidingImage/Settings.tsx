@@ -5,11 +5,19 @@
  * 内容页：内容设置（PicList 含描述）+ 图片样式设置（背景渐变方向/图片宽度 max50/图片间距 max20/
  * 图片内距 max10/图片圆角 max40/缩小比例 max1 step0.01/标题/描述文字及颜色）；
  * 扩展页：ModuleStyleEdit（无 type）+「轮播扩展设置」组（自动轮播/轮播时间间隔 max10）。
- * 注：原版 PicList 带 showColor（逐项渐变色 gradientColorA/B），我方 PicListField 无逐项颜色编辑，
- * 逐项渐变色保持原数据不变（见交付摘要）。
+ * 逐项渐变色（2026-11-21 修复）：原版 PicList 带 showColor（逐项渐变色 gradientColorA/B 的
+ * 选色器 + 添加时写键），我方此前无此形态——新加条目永无渐变色、渲染端无条件消费该字段，
+ * 卡片无背景「没样式」且无处可改。现 PicListEditorField 开 showColor：编辑弹窗内可逐项
+ * 改背景色，新条目按默认调色板（slidingImageDefaults 四对）播种，与默认条目同形状。
  */
 import { SettingGroup, RadioRowField, RangeField, ColorField, PicListEditorField } from "../../../shared/settingWidgets";
 import { SettingsTabs, ModuleStyleSettingsField, SubTitleSettingsField } from "../../../shared/styleEdits";
+import { slidingImageDefaults } from "./index";
+
+/** 逐项渐变色播种调色板 = 模块默认四条目的 [A, B] 对（与 defaults 同源，新条目按下标循环取） */
+const COLOR_PALETTE: Array<[string, string]> = slidingImageDefaults.picList.map(
+    (item) => [item.gradientColorA, item.gradientColorB] as [string, string]
+);
 
 export default function SlidingImageSettings({ data, onChange }: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void }) {
     return (
@@ -17,7 +25,7 @@ export default function SlidingImageSettings({ data, onChange }: { data: Record<
             <SettingsTabs tabs={["内容设置", "扩展设置"]}>
                 <>
                     <SettingGroup title="内容设置">
-                        <PicListEditorField data={data} onChange={onChange} field="picList" label="" max={20} showDesc addText="添加图片+链接" />
+                        <PicListEditorField data={data} onChange={onChange} field="picList" label="" max={20} showDesc showColor colorPalette={COLOR_PALETTE} addText="添加图片+链接" />
                     </SettingGroup>
                     <SettingGroup title="图片样式设置">
                         <RadioRowField

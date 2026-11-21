@@ -37,6 +37,11 @@
  * 投影改双层克制、底部操作区加浅底分层、预览面板随字段列等高居中；
  * ③ 工具栏在无「从商品选择图片」入口且无图可清除时整条不渲染（原为
  * 空描边条占位）。props 与 PicItem 契约逐字不变，全部调用点零改动。
+ * 逐项渐变色（2026-11-21 续补）：新增可选 showColor——开启时字段列尾加
+ * 「背景色」行（渐变色 A - B 两只 AlphaColorInput，即时回写 gradientColorA/B），
+ * 对齐原版 PicList showColor 的逐项选色器；条目缺色时以宿主给的
+ * colorFallback 显示（渲染端同口径兜底，见小图滑动修复）。缺省关，全部
+ * 既有调用点零改动；首个使用方为经 PicListEditor 的 H5 小图滑动。
  * 样式：pages/decorate-editor.css 的 .dec-pic-modal*（PC 与 H5 编辑器入口
  * 均已引入该样式表，独立调用方需保证该样式表在场）。
  * 通用组件登记：~/workspace/shared-components.md 第 16 条。
@@ -44,6 +49,7 @@
 import { Button, Input, Modal } from '@douyinfe/semi-ui';
 import { IconClose, IconPlus } from '@douyinfe/semi-icons';
 import { useI18n } from '../i18n';
+import AlphaColorInput from './AlphaColorInput';
 import ImageUploader from './ImageUploader';
 import { LinkField } from './LinkPicker';
 import type { PicItem } from './PicListEditor';
@@ -58,6 +64,13 @@ export interface PicItemEditModalProps {
   showText?: boolean;
   showDesc?: boolean;
   showLink?: boolean;
+  /**
+   * true = 多「背景色」字段（渐变色 A - B 两只选色器，对齐原版 PicList
+   * showColor 的逐项背景色行）；缺省 false，既有调用方零变化。
+   */
+  showColor?: boolean;
+  /** 条目本身缺渐变色时选色器的显示兜底（宿主按条目下标给的调色板一对）；不写回，除非用户改色 */
+  colorFallback?: [string, string];
   /** 字段 / 图片即时回写：宿主对当前条目做展开合并 patch（与 PicItem 契约一致） */
   onPatch: (patch: Partial<PicItem>) => void;
   /** 删除当前条目；不传则不渲染「删除」按钮 */
@@ -78,6 +91,8 @@ export function PicItemEditModal({
   showText = true,
   showDesc = false,
   showLink = true,
+  showColor = false,
+  colorFallback,
   onPatch,
   onRemove,
   onClose,
@@ -115,6 +130,22 @@ export function PicItemEditModal({
             value={item?.picLink}
             onChange={(link) => onPatch({ picLink: link })}
           />
+        </div>
+      )}
+      {showColor && (
+        <div className="dec-pic-modal__field">
+          <span>{t('背景色')}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <AlphaColorInput
+              value={String(item?.gradientColorA || colorFallback?.[0] || '')}
+              onChange={(v) => onPatch({ gradientColorA: v })}
+            />
+            <span>-</span>
+            <AlphaColorInput
+              value={String(item?.gradientColorB || colorFallback?.[1] || '')}
+              onChange={(v) => onPatch({ gradientColorB: v })}
+            />
+          </div>
         </div>
       )}
     </div>

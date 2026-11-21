@@ -9,6 +9,20 @@ import { t } from "@/utils/i18n";
 
 import "./index.scss";
 
+/**
+ * 逐项渐变色兼容读兜底调色板 = 编辑器模块默认四条目的 gradientColorA
+ * （admin-semi slidingImage/index.ts defaults，与原版 index.ts 默认值逐字一致）。
+ * 条目缺 gradientColorA（旧编辑器添加链不写该字段的存量条目）时按其在 picList
+ * 中的下标取此表——统一缺字段读法，有值条目恒用自身颜色；新条目已由编辑器
+ * 添加链播种同形状颜色（2026-11-21 小图滑动修复）。
+ */
+const FALLBACK_GRADIENT_A = [
+    "rgba(235, 152, 115, 1)",
+    "rgba(243, 115, 130, 1)",
+    "rgba(219, 123, 248, 1)",
+    "rgba(116, 214, 172, 1)"
+];
+
 interface Props {
     module: any;
     moduleIndex?: number;
@@ -204,6 +218,13 @@ export default function SlidingImage({ module }: Props) {
     };
     void handleLink;
 
+    // 条目有效渐变色：自身 gradientColorA 优先；缺失时按 picList 下标取默认调色板（兼容读，存量自愈）。
+    // list 为 picList 的 3 份复制，下标须先对 picList 长度取模还原条目原位。
+    const picCount = module.picList?.length || 0;
+    const colorAOf = (item: any, index: number) =>
+        String(item?.gradientColorA || "") ||
+        FALLBACK_GRADIENT_A[(picCount ? index % picCount : 0) % FALLBACK_GRADIENT_A.length];
+
     return (
         <View
             ref={rootRef}
@@ -250,10 +271,11 @@ export default function SlidingImage({ module }: Props) {
                                             itemStyle +
                                             `${
                                                 module.backgroundGradientType === "purity"
-                                                    ? `background-color:${item?.gradientColorA};`
-                                                    : `background-image:linear-gradient(${gradientMap[module.backgroundGradientType]},${item?.gradientColorA},${
-                                                          item?.gradientColorA
-                                                      });`
+                                                    ? `background-color:${colorAOf(item, index)};`
+                                                    : `background-image:linear-gradient(${gradientMap[module.backgroundGradientType]},${colorAOf(item, index)},${colorAOf(
+                                                          item,
+                                                          index
+                                                      )});`
                                             }transform: scale(${isEvenOrOdd(index) === isEvenOrOdd(numberState) ? 1 : module.picReducePercent});`
                                         }
                                     >
@@ -266,10 +288,11 @@ export default function SlidingImage({ module }: Props) {
                                                         `color: ${module.descColor};` +
                                                         `${
                                                             module.backgroundGradientType === "purity"
-                                                                ? `background-color:${item?.gradientColorA};`
-                                                                : `background-image:linear-gradient(${gradientMap[module.backgroundGradientType]},${
-                                                                      item?.gradientColorA
-                                                                  },${item?.gradientColorA});`
+                                                                ? `background-color:${colorAOf(item, index)};`
+                                                                : `background-image:linear-gradient(${gradientMap[module.backgroundGradientType]},${colorAOf(
+                                                                      item,
+                                                                      index
+                                                                  )},${colorAOf(item, index)});`
                                                         }`
                                                     }
                                                 >
