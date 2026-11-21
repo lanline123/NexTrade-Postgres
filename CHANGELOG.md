@@ -1282,3 +1282,9 @@
 ### 修复
 
 - **后台 - 开屏广告「跳转」配置改回链接选择器（原版有·移植降级修复，论坛帖 847785757618364410「开屏广告点图片直达分类页/自定义链接」）**：核查实证整链三段中两段本已齐全且与原版同口径——后端 `open_advertising` 将装修离散数据（decorateSn=openAdvertising）原样透传；前台首页把 redirectType/redirectUrl 透传 SplashAd 组件，点击素材在 redirectType==1 时经 urlFormat 解析后 navigateTo 并关闭（与原版 v5.8.61 `view/uniapp/src/components/SplashAd/index.vue` 逐条一致）。唯一缺口在后台配置控件：原版 `view/admin/src/views/decorate/mobileDecorate/SplashAd.vue` 用 SelectLink 选择器存 LinkType 对象，我方移植降级为手填文本框——存储契约本就是 LinkType 对象（现网存量 redirectUrl={}），文本框既选不了分类页/商品页等系统链接（帖子主诉求无从配置），回显对象值亦坏值。本批（`admin-semi/src/pages/DecorateMobilePages.tsx`）将跳转链接控件换为共享 LinkField（components/LinkPicker，与装修编辑器同源），落盘 LinkType 对象、清空回 {}，并补原版同款必填校验（整体跳转未选链接拦截保存）；存量手填字符串按自定义链接归一回显（appLink=原串），旧手填路径仍可直达。同批修共享选择器一处同链缺口（`admin-semi/src/components/LinkPicker.tsx`）：自定义链接此前只写 link 不写 appLink，而前台 urlFormat 的 custom 分支只读 appLink（原版 LinkCustom 双输入契约），经选择器选出的自定义链接在前台一律解析为空——改为单输入值兼作 link/appLink，并使回显初始化兼容只有 appLink 的存量对象；该修复对全部 LinkField/PicLinkField 调用面一致生效。前台与后端零改动。
+
+## 0.0.2 续 · 2026-11-21 批次（CI 编译修复：换货实体再导出补齐 + 批量搜索单测借用修正，未部署——随下一后端部署轮上线）
+
+### 修复
+
+- **check-rust 自换货包（02aed88）起持续编译红修复（阻断全部后端部署）**：① `rust/crates/core/src/entities/mod.rs` 补一行 `pub use order::AftersalesExchangeDelivery;`——换货包新增实体 `AftersalesExchangeDelivery`（定义在 `entities/order.rs`）漏入 entities 再导出清单，infrastructure 售后仓储两处（`trade/aftersales.rs`、`trade/aftersales_client.rs`）与 services 售后服务一处经 `nextrade_core::entities::` 引用报 E0432，全仓静态核查确认这是唯一未导出的实体名，补一行即全解；② `rust/crates/infrastructure/src/db/repo/trade/order_admin.rs` 单测 `split_batch_order_sns_dedupes_trims_and_caps` 改为先 `let binding` 绑定 `split_batch_order_sns(...)` 返回的 Vec 再借用迭代（E0716 临时值在借用期间被释放，仅测试代码，按编译器建议口径）。两处均为一行级修正，生产行为零变化。同批核查换货迁移 009（`aftersales_item.exchange_sku_id` 列与侧表 `aftersales_exchange_delivery` 五列）与实体字段、两仓储 SELECT/INSERT 列清单逐项对齐，无其他同类未导出/未对齐问题。

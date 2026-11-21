@@ -154,6 +154,7 @@ pub use o2o::Tip;
 pub use o2o::UserPickupInfo;
 pub use order::OfflinePaymentClaim;
 pub use order::Aftersales;
+pub use order::AftersalesExchangeDelivery;
 pub use order::AftersalesItem;
 pub use order::AftersalesLog;
 pub use order::LogisticsApiLog;

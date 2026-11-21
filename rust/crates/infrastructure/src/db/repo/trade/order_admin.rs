@@ -2056,10 +2056,8 @@ mod tests {
 
     #[test]
     fn split_batch_order_sns_dedupes_trims_and_caps() {
-        let got: Vec<&str> = split_batch_order_sns(" a ，b、a;c\nd ")
-            .iter()
-            .map(String::as_str)
-            .collect();
+        let binding = split_batch_order_sns(" a ，b、a;c\nd ");
+        let got: Vec<&str> = binding.iter().map(String::as_str).collect();
         assert_eq!(got, vec!["a", "b", "c", "d"]);
         assert!(split_batch_order_sns("").is_empty());
         assert_eq!(split_batch_order_sns("  x  "), vec!["x".to_string()]);
