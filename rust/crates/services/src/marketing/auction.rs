@@ -20,7 +20,7 @@ use serde_json::{json, Value};
 use nextrade_common::utils;
 use nextrade_core::entities::{
     AuctionBan, AuctionBid, AuctionBreach, AuctionDeposit, AuctionItem, AuctionSession, Order,
-    OrderItem, Product, ProductGallery, User, UserAddress,
+    OrderItem, Product, ProductGallery, ProductInventoryLog, User, UserAddress,
 };
 use nextrade_core::models::marketing::auction::{
     bid_status, deposit_status, fmt_time, item_status, mask_name, AuctionAdminBidVO,
@@ -541,10 +541,22 @@ impl AuctionService {
             product.product_id = product_id;
             product.product_sn = format!("AUC{product_id}");
             self.repos.catalog.product_manage.update_product(&product).await?;
+            let log = ProductInventoryLog {
+                product_id: Some(product_id),
+                spec_id: Some(0),
+                number: Some(1),
+                add_time: Some(now),
+                old_number: Some(0),
+                r#type: Some(1),
+                change_number: Some(1),
+                desc: Some("库存新增".into()),
+                shop_id,
+                ..Default::default()
+            };
             self.repos
                 .catalog
                 .product_manage
-                .insert_inventory_log(product_id, 0, 1, 1, "库存新增", shop_id)
+                .insert_inventory_log(&log)
                 .await?;
             self.sync_item_gallery(product_id, &pics).await?;
             let row = AuctionItem {

@@ -1646,3 +1646,9 @@
 ### 修复
 
 - **PC - AI 导购面板问答假死与新建会话失败修复**（用户 2026-11-21 18:02/18:03 实报：提问后只显示「正在为你查找…」永不回复、「新建会话」也失败）：定案为两个独立问题。①面板缺陷（本批代码）：后端鉴权/业务拒绝走 HTTP 200 + JSON 信封（非 SSE），`streamGuideChat` 不辨 Content-Type 把信封当 SSE 解析、零事件静默结束，助手气泡永远为空并恒显「正在为你查找…」（该文案此前只看内容为空、不看 pending）；旁证：用户当次三请求（拉列表/发流/建会话）均被鉴权层以 401 信封拒绝（访问日志响应字节数与废令牌信封 gzip 后字节数逐一同量级、导购库内零落库），而走 apiPost 的建会话因会查信封码反而弹出「新建会话失败」——同因不同表现。修复：streamGuideChat 先按 Content-Type 分流，非 SSE 时解析信封报错（401→「登录已过期，请重新登录」，其余透传后端 msg）；新增 90 秒无数据看门狗（任意字节含 keep-alive 注释均刷新计时，超时取消流并报「导购响应超时，请重试」）；流结束无 done 且零事件时不再静默、按失败报错收口；气泡「正在为你查找…」改仅 pending 时显示；「新会话」按钮在流进行中不再禁用/静默返回，改为先停当前流再建会话。i18n 新增「导购响应超时，请重试」中英各一键。②nginx 缓冲（服务器配置、已先行上线，不在本批代码）：公网 /api/ location 未关 proxy_buffering，导购 SSE 经公网路径被整段缓冲至生成完成才一次交付；已在站点扩展 conf 为 /api/ai/guide/ 新增专用 location（proxy_buffering off / proxy_cache off / gzip off / 读写超时 600s，其余口径与 /api/ 一致），改前备份、nginx -t 通过后 reload，复测公网路径 150 个 delta 到达跨度 2.7s（修复前跨度 0、全挤在完成瞬间），与直连后端同量级；普通 /api 与首页回归无影响，回滚 = 还原备份 conf 后 reload。报告 ~/workspace/pc-guide-sse-fix/REPORT.md（工作区报告）。
+
+## 0.0.2 续 · 2026-11-21 批次（拍卖新建专属商品编译修复，未部署——随拍卖三件套后端合并版上线）
+
+### 修复
+
+- **后端 - 拍卖建品库存日志调用改结构体口径**：check-rust @ea98079 唯一红点（run 44894398954；check-scoped 分包 run 44894610776 实证全仓恰 1 个 error）——`services/src/marketing/auction.rs` 新建拍品写库存日志时按 6 个标量参数调用 `insert_inventory_log`，而仓储方法（`infrastructure/src/db/repo/catalog/product_manage.rs`）只收 `&ProductInventoryLog` 结构体。按普通建品现行写法（`services/src/catalog/product_manage.rs`）逐字段对照改：先组 `ProductInventoryLog`（product_id/spec_id=0/number=1/add_time=now 秒级/old_number=0/type=1/change_number=1/desc=「库存新增」/shop_id）再传引用调用；实体导入补 `ProductInventoryLog`。全仓其余调用点本就是结构体口径，无第二处同类问题。行为不变，仅修编译。
