@@ -1395,6 +1395,224 @@ pub struct LocalOrderRow {
     pub version_time: i32,
 }
 
+// ———————————————————— 三期①：登录互认（迁移 042） ————————————————————
+//
+// 设计：~/workspace/federation-phase3/DESIGN.md §1（总设计 §6.3 授权码模式）。
+// 四步：成员后端登记请求（member.auth）→ 中枢会员本人同意（会员 JWT）→
+// 生成一次性授权码（5 分钟、只存哈希）→ 成员后端兑换（member.auth）→
+// 成员侧按映射找/建影子账号并签发本地会员令牌。
+
+/// SSO 请求状态：待同意。
+pub const SSO_PENDING: i32 = 0;
+/// SSO 请求状态：已同意（码已生成）。
+pub const SSO_APPROVED: i32 = 1;
+/// SSO 请求状态：已拒绝。
+pub const SSO_DENIED: i32 = 2;
+/// SSO 请求状态：已过期。
+pub const SSO_EXPIRED: i32 = 3;
+
+/// 授权码有效期（秒）：5 分钟（总设计 §6.3 写死）。
+pub const SSO_CODE_TTL_SECONDS: i64 = 300;
+/// 授权请求待同意有效期（秒）：30 分钟（超时未同意按过期处理）。
+pub const SSO_REQUEST_TTL_SECONDS: i64 = 30 * 60;
+
+pub const MSG_SSO_REQUEST_INVALID: &str = "联邦登录请求无效或已过期";
+pub const MSG_SSO_CODE_INVALID: &str = "联邦授权码无效或已被使用";
+pub const MSG_SSO_MOBILE_UNVERIFIED: &str = "当前账号手机号未验证，不能用于联邦登录";
+pub const MSG_SSO_STATE_INVALID: &str = "联邦登录会话无效或已过期";
+
+/// `hub_sso_request` 行（中枢侧授权请求）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubSsoRequest {
+    pub id: i32,
+    pub link_id: i32,
+    /// 成员生成的防 CSRF state（非凭据，同意后回跳原样回带）。
+    pub state: String,
+    pub return_url: String,
+    pub status: i16,
+    pub hub_user_id: i32,
+    pub global_member_id: String,
+    pub code_hash: String,
+    pub code_expire_time: i32,
+    pub code_used: i16,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// `hub_sso_state` 行（成员侧发起记录）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubSsoState {
+    pub id: i32,
+    pub link_id: i32,
+    pub state_hash: String,
+    pub status: i16,
+    pub local_user_id: i32,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// `POST /api/hub/v1/auth/request` 入参（成员后端 → 中枢）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SsoAuthRequestDTO {
+    /// 成员生成的防 CSRF state（明文只过境，中枢只存哈希）。
+    pub state: String,
+    /// 同意后浏览器回跳地址（必须以连接登记的成员地址为前缀）。
+    pub return_url: String,
+}
+
+/// `POST /api/hub/v1/auth/request` 响应。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SsoAuthRequestVO {
+    pub request_id: i32,
+    /// 中枢授权页地址（前端约定路径 /federation/authorize?requestId=）。
+    pub authorize_url: String,
+}
+
+/// `POST /api/hub/v1/auth/exchange` 入参（成员后端 → 中枢，兑换授权码）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SsoExchangeDTO {
+    pub code: String,
+}
+
+/// `POST /api/hub/v1/auth/exchange` 响应：只给映射与展示必需字段，
+/// 绝不含密码哈希等任何凭据类字段（总设计 §6.3 写死）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SsoExchangeVO {
+    pub global_member_id: String,
+    pub mobile: String,
+    pub nickname: String,
+    pub avatar: String,
+}
+
+/// 中枢会员面：授权请求信息（同意页展示）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SsoRequestInfoVO {
+    pub request_id: i32,
+    /// 申请方实例名（连接对端名）。
+    pub peer_name: String,
+    pub peer_base_url: String,
+    pub status: i32,
+    pub add_time: i32,
+}
+
+/// 中枢会员面：同意/拒绝入参。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SsoConsentDTO {
+    pub request_id: i32,
+    pub agree: bool,
+}
+
+/// 中枢会员面：同意结果（浏览器据此回跳成员站）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SsoConsentVO {
+    pub redirect_url: String,
+}
+
+/// 成员面：发起联邦登录入参（前台登录页调本机后端）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SsoStartDTO {
+    pub link_id: i32,
+    /// 本机回调页地址（前端拼好回传，须以本机 instanceBaseUrl 为前缀）。
+    pub callback_url: String,
+}
+
+/// 成员面：发起结果（浏览器跳中枢授权页）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SsoStartVO {
+    pub authorize_url: String,
+}
+
+/// 成员面：回调落号入参（中枢回跳带 code + state）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SsoCallbackDTO {
+    pub code: String,
+    pub state: String,
+}
+
+/// 成员面：回调落号结果（本地会员令牌，与登录 VO 同字段口径 + 联邦标记）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SsoCallbackVO {
+    #[serde(rename = "token")]
+    pub token: String,
+    #[serde(rename = "accessToken")]
+    pub access_token: <redacted>
+    #[serde(rename = "refreshToken")]
+    pub refresh_token: <redacted>
+    pub expires_in: i64,
+    pub user_id: i32,
+    pub global_member_id: String,
+    /// 本次是否新建了影子账号。
+    pub created: bool,
+}
+
+/// 管理端：SSO 请求列表查询。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HubSsoListQuery {
+    pub page: Option<u64>,
+    #[serde(alias = "size")]
+    pub page_size: Option<u64>,
+    pub link_id: Option<i32>,
+    pub status: Option<i32>,
+}
+
+/// 管理端：SSO 请求 VO（授权审计）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubSsoRequestVO {
+    pub id: i32,
+    pub link_id: i32,
+    pub peer_name: String,
+    pub return_url: String,
+    pub status: i32,
+    pub hub_user_id: i32,
+    pub global_member_id: String,
+    pub code_used: i32,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+impl From<&HubSsoRequest> for HubSsoRequestVO {
+    fn from(r: &HubSsoRequest) -> Self {
+        Self {
+            id: r.id,
+            link_id: r.link_id,
+            peer_name: String::new(),
+            return_url: r.return_url.clone(),
+            status: i32::from(r.status),
+            hub_user_id: r.hub_user_id,
+            global_member_id: r.global_member_id.clone(),
+            code_used: i32::from(r.code_used),
+            add_time: r.add_time,
+            update_time: r.update_time,
+        }
+    }
+}
+
+/// 纯逻辑：returnUrl 白名单校验——必须以连接登记的成员地址为前缀
+/// （配对登记地址即白名单，总设计 §6.3 redirect_uri 白名单的实现形态）。
+#[must_use]
+pub fn sso_return_url_allowed(return_url: &str, peer_base_url: &str) -> bool {
+    let base = peer_base_url.trim().trim_end_matches('/');
+    if base.is_empty() || return_url.trim().is_empty() {
+        return false;
+    }
+    return_url.trim().starts_with(base)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1578,5 +1796,40 @@ mod member_order_tests {
         assert_eq!(v["httpStatus"], 200);
         assert_eq!(v["clientIp"], "1.2.3.4");
         assert!(v.get("log_id").is_none(), "VO 不得再出 snake_case 键");
+    }
+
+    #[test]
+    fn sso_return_url_must_stay_on_peer_origin() {
+        assert!(sso_return_url_allowed(
+            "https://shop.example.com/federation/callback",
+            "https://shop.example.com"
+        ));
+        // 尾斜杠登记不影响前缀判定
+        assert!(sso_return_url_allowed(
+            "https://shop.example.com/cb",
+            "https://shop.example.com/"
+        ));
+        // 跨源回跳一律拒绝（开放重定向防线）
+        assert!(!sso_return_url_allowed(
+            "https://evil.example.com/cb",
+            "https://shop.example.com"
+        ));
+        assert!(!sso_return_url_allowed("", "https://shop.example.com"));
+        assert!(!sso_return_url_allowed("https://shop.example.com/cb", ""));
+    }
+
+    #[test]
+    fn sso_exchange_vo_has_no_credential_fields() {
+        let vo = SsoExchangeVO {
+            global_member_id: "gm_x".to_string(),
+            mobile: "13800000000".to_string(),
+            nickname: "n".to_string(),
+            avatar: String::new(),
+        };
+        let v = serde_json::to_value(&vo).expect("serialize");
+        let obj = v.as_object().expect("object");
+        assert_eq!(obj.len(), 4, "兑换响应只给映射与展示必需的 4 个字段");
+        assert!(obj.get("password").is_none());
+        assert!(obj.get("passwordHash").is_none());
     }
 }

@@ -15,7 +15,8 @@ use nextrade_core::models::hub::federation::{
     HubAggregationListQuery, HubCallLogListQuery, HubCredential, HubCredentialListQuery,
     HubLink, HubLinkListQuery, HubMemberConflict, HubMemberConflictListQuery, HubMemberLink,
     HubMemberListQuery, HubMemberMap, HubOrderSummary, HubOrderSummaryListQuery, HubPairingCode,
-    HubPriceOverride, HubProductMap, LocalMemberRow, LocalOrderRow, OrderReportItem,
+    HubPriceOverride, HubProductMap, HubSsoListQuery, HubSsoRequest, HubSsoState, LocalMemberRow,
+    LocalOrderRow, OrderReportItem,
 };
 use nextrade_core::{Error, Result};
 
@@ -1561,6 +1562,223 @@ impl HubFederationRepository {
     }
 }
 
+impl HubFederationRepository {
+    // ———————————————————— 三期①：登录互认（迁移 042） ————————————————————
+
+    /// 中枢侧落一条授权请求（待同意）。
+    pub async fn insert_sso_request(
+        &self,
+        link_id: i32,
+        state: &str,
+        return_url: &str,
+        now: i32,
+    ) -> Result<i32> {
+        let row: (i32,) = sqlx::query_as(
+            "INSERT INTO hub_sso_request (link_id, state, return_url, status, add_time, update_time)
+             VALUES ($1, $2, $3, 0, $4, $4) RETURNING id",
+        )
+        .bind(link_id)
+        .bind(state)
+        .bind(return_url)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0)
+    }
+
+    pub async fn find_sso_request(&self, id: i32) -> Result<Option<HubSsoRequest>> {
+        sqlx::query_as::<_, HubSsoRequest>("SELECT * FROM hub_sso_request WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    pub async fn find_sso_request_by_code_hash(
+        &self,
+        code_hash: &str,
+    ) -> Result<Option<HubSsoRequest>> {
+        sqlx::query_as::<_, HubSsoRequest>(
+            "SELECT * FROM hub_sso_request WHERE code_hash = $1 AND code_hash <> ''",
+        )
+        .bind(code_hash)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 同意落码：仅待同意（status=0）可流转，条件更新防并发重复同意。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn approve_sso_request(
+        &self,
+        id: i32,
+        hub_user_id: i32,
+        global_member_id: &str,
+        code_hash: &str,
+        code_expire_time: i32,
+        now: i32,
+    ) -> Result<bool> {
+        let n = sqlx::query(
+            "UPDATE hub_sso_request SET status = 1, hub_user_id = $2, global_member_id = $3, code_hash = $4, code_expire_time = $5, code_used = 0, update_time = $6 WHERE id = $1 AND status = 0",
+        )
+        .bind(id)
+        .bind(hub_user_id)
+        .bind(global_member_id)
+        .bind(code_hash)
+        .bind(code_expire_time)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(n.rows_affected() > 0)
+    }
+
+    /// 拒绝：仅待同意可流转。
+    pub async fn deny_sso_request(&self, id: i32, now: i32) -> Result<bool> {
+        let n = sqlx::query(
+            "UPDATE hub_sso_request SET status = 2, update_time = $2 WHERE id = $1 AND status = 0",
+        )
+        .bind(id)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(n.rows_affected() > 0)
+    }
+
+    /// 置过期（读时惰性流转）。
+    pub async fn expire_sso_request(&self, id: i32, now: i32) -> Result<()> {
+        sqlx::query(
+            "UPDATE hub_sso_request SET status = 3, update_time = $2 WHERE id = $1 AND status = 0",
+        )
+        .bind(id)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 兑换烧码：未用 → 已用，条件更新保证一次性（并发兑换只有一个成功）。
+    pub async fn burn_sso_code(&self, id: i32, now: i32) -> Result<bool> {
+        let n = sqlx::query(
+            "UPDATE hub_sso_request SET code_used = 1, update_time = $2 WHERE id = $1 AND status = 1 AND code_used = 0",
+        )
+        .bind(id)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(n.rows_affected() > 0)
+    }
+
+    /// 管理端：SSO 请求分页（授权审计）。
+    pub async fn list_sso_requests(
+        &self,
+        q: &HubSsoListQuery,
+    ) -> Result<(Vec<HubSsoRequest>, i64)> {
+        let page = q.page.unwrap_or(1).max(1);
+        let size = q.page_size.unwrap_or(20).clamp(1, 100);
+        let offset = ((page - 1) * size) as i64;
+
+        let total: (i64,) = sso_count_query(q)
+            .build_query_as()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+        let rows = sso_page_query(q, size as i64, offset)
+            .build_query_as::<HubSsoRequest>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((rows, total.0.max(0)))
+    }
+
+    /// 成员侧落发起记录（state 只存哈希）。
+    pub async fn insert_sso_state(
+        &self,
+        link_id: i32,
+        state_hash: &str,
+        now: i32,
+    ) -> Result<i32> {
+        let row: (i32,) = sqlx::query_as(
+            "INSERT INTO hub_sso_state (link_id, state_hash, status, add_time, update_time)
+             VALUES ($1, $2, 0, $3, $3) RETURNING id",
+        )
+        .bind(link_id)
+        .bind(state_hash)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row.0)
+    }
+
+    pub async fn find_sso_state_by_hash(
+        &self,
+        state_hash: &str,
+    ) -> Result<Option<HubSsoState>> {
+        sqlx::query_as::<_, HubSsoState>("SELECT * FROM hub_sso_state WHERE state_hash = $1")
+            .bind(state_hash)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_err)
+    }
+
+    /// 回调落号完成：置已完成并记本地会员。
+    pub async fn complete_sso_state(
+        &self,
+        state_hash: &str,
+        local_user_id: i32,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE hub_sso_state SET status = 1, local_user_id = $2, update_time = $3 WHERE state_hash = $1",
+        )
+        .bind(state_hash)
+        .bind(local_user_id)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+}
+
+fn sso_count_query(q: &HubSsoListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_sso_request WHERE 1=1");
+    push_sso_filters(&mut qb, q);
+    qb
+}
+
+fn sso_page_query(
+    q: &HubSsoListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_sso_request WHERE 1=1");
+    push_sso_filters(&mut qb, q);
+    qb.push(" ORDER BY id DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
+fn push_sso_filters(qb: &mut QueryBuilder<'static, Postgres>, q: &HubSsoListQuery) {
+    if let Some(link_id) = q.link_id.filter(|v| *v > 0) {
+        qb.push(" AND link_id = ");
+        qb.push_bind(link_id);
+    }
+    if let Some(status) = q.status {
+        qb.push(" AND status = ");
+        qb.push_bind(status as i16);
+    }
+}
+
 // ———————————————————— 列表查询构造（纯函数，供单测断言占位符序列） ————————————————————
 //
 // 占位符只由 QueryBuilder 的 push_bind 生成：条件片段与绑定必须交错 push，
@@ -2066,5 +2284,19 @@ mod list_sql_tests {
         let q = HubOrderSummaryListQuery::default();
         assert_placeholders(order_count_query(&q).sql(), 0);
         assert_placeholders(order_page_query(&q, 20, 0).sql(), 2);
+    }
+
+    #[test]
+    fn sso_list_filters() {
+        let q = HubSsoListQuery {
+            link_id: Some(3),
+            status: Some(1),
+            ..Default::default()
+        };
+        assert_placeholders(sso_count_query(&q).sql(), 2);
+        assert_placeholders(sso_page_query(&q, 20, 0).sql(), 4);
+        let q = HubSsoListQuery::default();
+        assert_placeholders(sso_count_query(&q).sql(), 0);
+        assert_placeholders(sso_page_query(&q, 20, 0).sql(), 2);
     }
 }

@@ -10,8 +10,12 @@
 //! 手机号匹配与冲突队列、资料快照后写优先、锚点核对）与订单头级上行
 //! （§7.1：幂等 + 版本守卫）。推送类端点按 §9.3 加 HMAC 签名：签名密钥为
 //! secret 的 SHA-256 摘要（中枢侧只存哈希、永不存明文，故以摘要为共享密钥，
-//! 与设计「hmac(secret, …)」等价强度）。登录互认（§6.3）、中央账本（§6.5）、
-//! 跨店下单（§7.2）与结算（§11）不在本批。
+//! 与设计「hmac(secret, …)」等价强度）。
+//!
+//! 三期（迁移 042 起，设计 `~/workspace/federation-phase3/DESIGN.md`）续补：
+//! 登录互认（§6.3 授权码模式，039）、配置分发（§8.3，040）、跨店下单
+//! （§7.2，041）、中央账本（§6.5，042）、跨站结算（§11，043）。账本与
+//! 结算只记账与生成结算单，不做真实跨站资金划拨（资金红线）。
 //!
 //! 安全口径：入站钥 secret 只存 SHA-256 哈希、明文仅签发时回一次；
 //! 出站钥 secret 以 AES-GCM 加密落库（主密钥 env `NEXTTRADE_FED_SECRET_KEY`，
@@ -2617,6 +2621,427 @@ impl FederationService {
             .decrypt(Nonce::from_slice(nonce), ciphertext)
             .map_err(|_| Error::Internal("出站凭证解密失败（主密钥不匹配）".to_string()))?;
         String::from_utf8(plain).map_err(|_| Error::Internal("出站凭证明文非 UTF-8".to_string()))
+    }
+
+    // ———————————————————— 三期①：登录互认（迁移 042；DESIGN.md §1） ————————————————————
+    //
+    // 授权码模式：成员登记请求 → 中枢会员本人同意 → 一次性码（5 分钟）→
+    // 成员兑换并落号。红线：兑换只回映射与展示字段；未验证手机号不签发
+    // 全局身份；影子账号密码为随机不可用值（只能经联邦登录或本地找回重置）。
+
+    /// 中枢侧：成员登记授权请求（路由层已过 member.auth 鉴权与签名）。
+    pub async fn sso_auth_request(
+        &self,
+        cred: &HubCredential,
+        dto: &SsoAuthRequestDTO,
+    ) -> Result<SsoAuthRequestVO> {
+        let settings = self.gate().await?;
+        if cred.link_id <= 0 {
+            return Err(Error::Validation("登录互认凭证未绑定连接".to_string()));
+        }
+        let link = self.load_link(cred.link_id).await?;
+        if i32::from(link.role) != LINK_ROLE_HUB || i32::from(link.status) != LINK_ACTIVE {
+            return Err(Error::Validation("仅已激活的中枢侧连接可发起联邦登录".to_string()));
+        }
+        let state = dto.state.trim();
+        if state.len() < 16 || state.len() > 128 {
+            return Err(Error::Validation("state 长度不合法".to_string()));
+        }
+        if !sso_return_url_allowed(&dto.return_url, &link.peer_base_url) {
+            return Err(Error::Validation(
+                "returnUrl 不在连接登记地址白名单内".to_string(),
+            ));
+        }
+        let now = self.now();
+        let id = self
+            .repo()
+            .insert_sso_request(cred.link_id, state, dto.return_url.trim(), now)
+            .await?;
+        Ok(SsoAuthRequestVO {
+            request_id: id,
+            authorize_url: format!(
+                "{}/federation/authorize?requestId={}",
+                settings.instance_base_url.trim_end_matches('/'),
+                id
+            ),
+        })
+    }
+
+    /// 中枢侧：兑换授权码。先校验（连接归属/已同意/未用/未过期）再条件烧码，
+    /// 并发双兑只有一个成功；响应只含映射与展示字段（总设计 §6.3）。
+    pub async fn sso_exchange(
+        &self,
+        cred: &HubCredential,
+        dto: &SsoExchangeDTO,
+    ) -> Result<SsoExchangeVO> {
+        if cred.link_id <= 0 {
+            return Err(Error::Validation("登录互认凭证未绑定连接".to_string()));
+        }
+        let code = dto.code.trim();
+        if code.is_empty() {
+            return Err(Error::Validation(MSG_SSO_CODE_INVALID.to_string()));
+        }
+        let row = self
+            .repo()
+            .find_sso_request_by_code_hash(&utils::sha256_hex(code))
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_SSO_CODE_INVALID.to_string()))?;
+        let now = self.now();
+        if row.link_id != cred.link_id
+            || i32::from(row.status) != SSO_APPROVED
+            || i32::from(row.code_used) != 0
+            || row.code_expire_time <= now
+        {
+            return Err(Error::Validation(MSG_SSO_CODE_INVALID.to_string()));
+        }
+        if !self.repo().burn_sso_code(row.id, now).await? {
+            return Err(Error::Validation(MSG_SSO_CODE_INVALID.to_string()));
+        }
+        let user = self
+            .repo()
+            .find_local_member_by_id(row.hub_user_id)
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_SSO_CODE_INVALID.to_string()))?;
+        Ok(SsoExchangeVO {
+            global_member_id: row.global_member_id.clone(),
+            mobile: user.mobile.clone(),
+            nickname: user.nickname.clone().unwrap_or_default(),
+            avatar: user.avatar.clone().unwrap_or_default(),
+        })
+    }
+
+    /// 读授权请求并惰性流转过期（待同意超 30 分钟）。
+    async fn load_sso_request_fresh(&self, request_id: i32) -> Result<HubSsoRequest> {
+        let mut row = self
+            .repo()
+            .find_sso_request(request_id)
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_SSO_REQUEST_INVALID.to_string()))?;
+        if i32::from(row.status) == SSO_PENDING
+            && i64::from(row.add_time) + SSO_REQUEST_TTL_SECONDS < i64::from(self.now())
+        {
+            self.repo().expire_sso_request(row.id, self.now()).await?;
+            row.status = i16::try_from(SSO_EXPIRED).unwrap_or(3);
+        }
+        Ok(row)
+    }
+
+    /// 中枢会员面：授权请求信息（同意页展示申请方）。
+    pub async fn sso_request_info(&self, request_id: i32) -> Result<SsoRequestInfoVO> {
+        self.gate_module(MODULE_MEMBER, MSG_MEMBER_MODULE_OFF).await?;
+        let row = self.load_sso_request_fresh(request_id).await?;
+        let link = self.load_link(row.link_id).await?;
+        Ok(SsoRequestInfoVO {
+            request_id: row.id,
+            peer_name: link.peer_name.clone(),
+            peer_base_url: link.peer_base_url.clone(),
+            status: i32::from(row.status),
+            add_time: row.add_time,
+        })
+    }
+
+    /// 中枢会员面：同意/拒绝。同意时解析（或新签）当前会员的全局 ID 并落码；
+    /// 未验证手机号拒绝签发（与会员同步同口径，设计 §6.2/§6.3）。
+    pub async fn sso_consent(
+        &self,
+        hub_user_id: i32,
+        dto: &SsoConsentDTO,
+    ) -> Result<SsoConsentVO> {
+        self.gate_module(MODULE_MEMBER, MSG_MEMBER_MODULE_OFF).await?;
+        let row = self.load_sso_request_fresh(dto.request_id).await?;
+        if i32::from(row.status) != SSO_PENDING {
+            return Err(Error::Validation(MSG_SSO_REQUEST_INVALID.to_string()));
+        }
+        let now = self.now();
+        let sep = if row.return_url.contains('?') { '&' } else { '?' };
+        let base = format!("{}{sep}", row.return_url);
+        if !dto.agree {
+            self.repo().deny_sso_request(row.id, now).await?;
+            return Ok(SsoConsentVO {
+                redirect_url: format!("{base}federationSso=denied"),
+            });
+        }
+        let user = self
+            .repo()
+            .find_local_member_by_id(hub_user_id)
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_MEMBER_NOT_FOUND.to_string()))?;
+        if user.mobile_validated != 1 || user.mobile.trim().is_empty() {
+            return Err(Error::Forbidden(MSG_SSO_MOBILE_UNVERIFIED.to_string()));
+        }
+        let gid = self.resolve_global_id_for_local_user(&user, now).await?;
+        let code = utils::random_hex(32);
+        let expire = i32::try_from(i64::from(now) + SSO_CODE_TTL_SECONDS).unwrap_or(i32::MAX);
+        let ok = self
+            .repo()
+            .approve_sso_request(
+                row.id,
+                hub_user_id,
+                &gid,
+                &utils::sha256_hex(&code),
+                expire,
+                now,
+            )
+            .await?;
+        if !ok {
+            return Err(Error::Validation(MSG_SSO_REQUEST_INVALID.to_string()));
+        }
+        Ok(SsoConsentVO {
+            redirect_url: format!("{base}code={code}&state={}", row.state),
+        })
+    }
+
+    /// 中枢本地会员 → 全局 ID：先查自映射（link_id=0），再按已验证手机号
+    /// 哈希命中既有全局 ID 挂靠，都没有则新签（与会员同步 created 同口径）。
+    async fn resolve_global_id_for_local_user(
+        &self,
+        user: &LocalMemberRow,
+        now: i32,
+    ) -> Result<String> {
+        if let Some(row) = self.repo().find_member_link_by_remote(0, user.user_id).await? {
+            if i32::from(row.status) == 1 {
+                return Ok(row.global_member_id);
+            }
+        }
+        let hash = utils::sha256_hex(user.mobile.trim());
+        let rows = self.repo().list_member_links_by_mobile_hash(&hash).await?;
+        let mut gids: Vec<String> = rows.iter().map(|r| r.global_member_id.clone()).collect();
+        gids.sort();
+        gids.dedup();
+        let gid = if gids.len() == 1 {
+            gids[0].clone()
+        } else {
+            // 0 个 → 新签；多个（历史脏数据）→ 不猜，新签并留痕待人工核对。
+            format_global_member_id(&uuid::Uuid::new_v4().to_string())
+        };
+        self.repo()
+            .insert_member_link(
+                &gid,
+                0,
+                user.user_id,
+                &hash,
+                &self.encrypt_mobile(user.mobile.trim()),
+                user.nickname.as_deref().unwrap_or_default(),
+                user.avatar.as_deref().unwrap_or_default(),
+                user.birthday.as_deref().unwrap_or_default(),
+                user.email.as_deref().unwrap_or_default(),
+                "",
+                user.reg_time.max(user.last_login),
+                now,
+            )
+            .await?;
+        self.repo()
+            .upsert_member_map(0, user.user_id, &gid, user.reg_time.max(user.last_login), now)
+            .await?;
+        Ok(gid)
+    }
+
+    /// 成员面：发起联邦登录。后端生成 state（只存哈希），向上登记请求，
+    /// 回中枢授权页地址供浏览器跳转。callback_url 必须以本机登记地址为
+    /// 前缀（第一道闸；中枢侧再按连接登记地址复核）。
+    pub async fn sso_start(&self, dto: &SsoStartDTO) -> Result<SsoStartVO> {
+        let settings = self.gate_module(MODULE_MEMBER, MSG_MEMBER_MODULE_OFF).await?;
+        let link = self.load_link(dto.link_id).await?;
+        if i32::from(link.role) != LINK_ROLE_MEMBER || i32::from(link.status) != LINK_ACTIVE {
+            return Err(Error::Validation("仅已激活的成员连接可发起联邦登录".to_string()));
+        }
+        if link.approved_modules & MODULE_MEMBER == 0 {
+            return Err(Error::Forbidden(MSG_MEMBER_MODULE_OFF.to_string()));
+        }
+        if !sso_return_url_allowed(&dto.callback_url, &settings.instance_base_url) {
+            return Err(Error::Validation("回调地址必须为本站地址".to_string()));
+        }
+        let cred = self.load_credential(link.up_credential_id).await?;
+        let secret = self.decrypt_secret(&cred.secret_enc)?;
+        let state = utils::random_hex(24);
+        let now = self.now();
+        self.repo()
+            .insert_sso_state(dto.link_id, &utils::sha256_hex(&state), now)
+            .await?;
+        let resp = hub_post_json_signed(
+            &link.peer_base_url,
+            "/api/hub/v1/auth/request",
+            &cred.access_key,
+            &secret,
+            &json!({ "state": state, "returnUrl": dto.callback_url.trim() }),
+        )
+        .await?;
+        let authorize_url = resp
+            .get("authorizeUrl")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| Error::Internal("中枢未返回授权页地址".to_string()))?;
+        Ok(SsoStartVO {
+            authorize_url: authorize_url.to_string(),
+        })
+    }
+
+    /// 成员面：回调落号。校验 state → 向中枢兑换 → 按映射/手机号找号，
+    /// 无号建影子账号（随机不可用密码）→ 落映射与发起记录完成态。
+    /// 返回 (本地 user_id, username, 全局 ID, 是否新建) 供路由签发本地令牌。
+    pub async fn sso_callback(
+        &self,
+        dto: &SsoCallbackDTO,
+    ) -> Result<(i32, String, String, bool)> {
+        self.gate_module(MODULE_MEMBER, MSG_MEMBER_MODULE_OFF).await?;
+        let state = dto.state.trim();
+        let code = dto.code.trim();
+        if state.is_empty() || code.is_empty() {
+            return Err(Error::Validation(MSG_SSO_STATE_INVALID.to_string()));
+        }
+        let state_hash = utils::sha256_hex(state);
+        let srow = self
+            .repo()
+            .find_sso_state_by_hash(&state_hash)
+            .await?
+            .ok_or_else(|| Error::NotFound(MSG_SSO_STATE_INVALID.to_string()))?;
+        let now = self.now();
+        if i32::from(srow.status) != 0
+            || i64::from(srow.add_time) + SSO_REQUEST_TTL_SECONDS < i64::from(now)
+        {
+            return Err(Error::Validation(MSG_SSO_STATE_INVALID.to_string()));
+        }
+        let link = self.load_link(srow.link_id).await?;
+        if i32::from(link.role) != LINK_ROLE_MEMBER || i32::from(link.status) != LINK_ACTIVE {
+            return Err(Error::Validation(MSG_SSO_STATE_INVALID.to_string()));
+        }
+        let cred = self.load_credential(link.up_credential_id).await?;
+        let secret = self.decrypt_secret(&cred.secret_enc)?;
+        let resp = hub_post_json_signed(
+            &link.peer_base_url,
+            "/api/hub/v1/auth/exchange",
+            &cred.access_key,
+            &secret,
+            &json!({ "code": code }),
+        )
+        .await?;
+        let gid = resp
+            .get("globalMemberId")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| Error::Internal("中枢兑换响应缺少全局会员 ID".to_string()))?
+            .to_string();
+        let mobile = resp
+            .get("mobile")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        let nickname = resp
+            .get("nickname")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let avatar = resp
+            .get("avatar")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        if mobile.is_empty() {
+            return Err(Error::Internal("中枢兑换响应缺少手机号".to_string()));
+        }
+        // 落号三级：映射 → 手机号既有账号 → 新建影子账号。
+        let mut created = false;
+        let user_id = if let Some(map) = self
+            .repo()
+            .find_member_map_by_global(srow.link_id, &gid)
+            .await?
+        {
+            map.local_user_id
+        } else if let Some(existing) = self.repos.member.user.find_by_mobile(&mobile).await? {
+            self.repo()
+                .upsert_member_map(srow.link_id, existing.user_id, &gid, now, now)
+                .await?;
+            existing.user_id
+        } else {
+            let hash = nextrade_security::hash_password(&utils::random_hex(32))
+                .map_err(|e| Error::Internal(format!("影子账号密码哈希失败: {e}")))?;
+            let user = nextrade_core::entities::User {
+                username: mobile.clone(),
+                mobile: mobile.clone(),
+                nickname: if nickname.is_empty() {
+                    None
+                } else {
+                    Some(nickname.clone())
+                },
+                avatar: avatar.clone(),
+                password: hash,
+                status: Some(1),
+                mobile_validated: 1,
+                reg_time: now,
+                ..Default::default()
+            };
+            match self.repos.member.user.insert(&user).await {
+                Ok(id) => {
+                    created = true;
+                    self.repo()
+                        .upsert_member_map(srow.link_id, id, &gid, now, now)
+                        .await?;
+                    id
+                }
+                Err(_) => {
+                    // 并发落号撞手机号唯一约束：回查既有账号继续。
+                    if let Some(existing) =
+                        self.repos.member.user.find_by_mobile(&mobile).await?
+                    {
+                        self.repo()
+                            .upsert_member_map(srow.link_id, existing.user_id, &gid, now, now)
+                            .await?;
+                        existing.user_id
+                    } else {
+                        // 手机号未被占而失败 = 用户名撞占：换 fed_ 前缀用户名重试
+                        // （设计 §1.2：username 被占则 fed_ + 全局 ID 短码）。
+                        let short: String = gid.chars().filter(|c| *c != '_').take(14).collect();
+                        let retry = nextrade_core::entities::User {
+                            username: format!("fed_{short}"),
+                            ..user
+                        };
+                        let id = self.repos.member.user.insert(&retry).await?;
+                        created = true;
+                        self.repo()
+                            .upsert_member_map(srow.link_id, id, &gid, now, now)
+                            .await?;
+                        id
+                    }
+                }
+            }
+        };
+        self.repo()
+            .complete_sso_state(&state_hash, user_id, now)
+            .await?;
+        let username = self
+            .repos
+            .member
+            .user
+            .find_by_id(user_id)
+            .await?
+            .map(|u| u.username)
+            .unwrap_or_else(|| mobile.clone());
+        Ok((user_id, username, gid, created))
+    }
+
+    /// 管理端：SSO 请求列表（授权审计，会员模块闸）。
+    pub async fn list_sso_requests(
+        &self,
+        q: &HubSsoListQuery,
+    ) -> Result<PageResult<HubSsoRequestVO>> {
+        self.gate_module(MODULE_MEMBER, MSG_MEMBER_MODULE_OFF).await?;
+        let (rows, total) = self.repo().list_sso_requests(q).await?;
+        let mut list = Vec::with_capacity(rows.len());
+        for r in &rows {
+            let mut vo = HubSsoRequestVO::from(r);
+            if r.link_id > 0 {
+                if let Ok(link) = self.load_link(r.link_id).await {
+                    vo.peer_name = link.peer_name.clone();
+                }
+            }
+            list.push(vo);
+        }
+        let page = PageQuery {
+            page: q.page.unwrap_or(1),
+            page_size: q.page_size.unwrap_or(20),
+        };
+        Ok(PageResult::new(total.max(0) as u64, list, &page))
     }
 }
 

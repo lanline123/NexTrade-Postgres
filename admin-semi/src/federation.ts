@@ -116,7 +116,7 @@ export async function fetchFederationSettings(): Promise<FederationSettings> {
  *   - capabilities.supplyOut 与 federation 皆关 → 摘 hubCredentials；
  *   - capabilities.federation 关 → 摘 hubLinks / hubPairing / myLinks；
  *   - modules.product 关 → 摘 hubAggregation 与 feedKeyManage；
- *   - modules.member 关 → 摘 hubMembers；modules.order 关 → 摘 hubOrders（二期）；
+ *   - modules.member 关 → 摘 hubMembers 与 hubSso（三期①登录互认）；modules.order 关 → 摘 hubOrders（二期）；
  *   - 栏内子页摘空 → 整栏摘掉。
  */
 const FEDERATION_ITEM_KEYS = new Set(['organize6', 'organize7']);
@@ -134,6 +134,7 @@ export function filterNavGroupsByFederation(groups: NavGroup[], settings: Federa
     if (key === 'hubAggregation' || key === 'feedKeyManage') return removeProduct;
     if (key === 'hubMembers') return removeMember;
     if (key === 'hubOrders') return removeOrder;
+    if (key === 'hubSso') return removeMember;
     return false;
   };
   return groups.map((group) => {

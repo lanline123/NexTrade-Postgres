@@ -35,6 +35,7 @@ pub fn merge_public(state: &PublicState) -> Router<PublicState> {
         .merge(catalog::public_routes())
         .merge(catalog::anonymous_routes(state))
         .merge(hub::anonymous_routes(state))
+        .merge(hub::routes(state))
         .merge(site_clone::anonymous_routes(state))
         .merge(takeout::anonymous_routes(state))
         .merge(trade::routes(state))

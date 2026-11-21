@@ -412,6 +412,10 @@ export const navGroups: NavGroup[] = [
           {
             "key": "hubOrders",
             "label": "订单上行"
+          },
+          {
+            "key": "hubSso",
+            "label": "登录互认"
           }
         ]
       },
@@ -773,10 +777,6 @@ export const navGroups: NavGroup[] = [
           {
             "key": "purchaseReconciliationManage",
             "label": "采购对账单"
-          },
-          {
-            "key": "purchasePayableManage",
-            "label": "采购应付单"
           }
         ]
       },
@@ -1869,7 +1869,6 @@ export const pageTitles: Record<string, string> = {
   "purchaseReceiptManage": "采购入库单",
   "purchaseReturnManage": "采购退货单",
   "purchaseReconciliationManage": "采购对账单",
-  "purchasePayableManage": "采购应付单",
   "selfVendorManage": "供应商资料",
   "selfVendorCategoryManage": "供应商分类",
   "selfVendorProductManage": "供应商商品",
@@ -2024,6 +2023,7 @@ export const pageTitles: Record<string, string> = {
   "hubAggregation": "联邦商品聚合",
   "hubMembers": "会员联邦",
   "hubOrders": "订单上行",
+  "hubSso": "登录互认",
   "feedKeyManage": "对接 API 管理",
   "federationSettings": "万象互联",
   "siteClone": "站点搬家",

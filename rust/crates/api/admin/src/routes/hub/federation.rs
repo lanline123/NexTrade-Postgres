@@ -37,6 +37,7 @@
 //! | `GET`  | `/hub/orders/list` | 订单上行汇总分页（二期，订单模块闸） |
 //! | `POST` | `/hub/myLinks/syncMembers` | 成员侧手动同步会员（二期） |
 //! | `POST` | `/hub/myLinks/reportOrders` | 成员侧手动上报订单（二期） |
+//! | `GET`  | `/hub/sso/requests` | 登录互认授权审计（三期①，迁移 042，会员模块闸） |
 
 use axum::{
     extract::{Query, State},
@@ -53,6 +54,7 @@ use nextrade_core::models::hub::federation::{
     HubLinkVO, HubMemberConflictListQuery, HubMemberConflictVO, HubMemberLinkVO,
     HubMemberListQuery, HubMemberResolveDTO, HubOrderSummaryListQuery, HubOrderSummaryVO,
     HubPairInitiateDTO, HubPairingCodeVO, HubPairingCreateDTO, HubPriceOverrideSaveDTO,
+    HubSsoListQuery, HubSsoRequestVO,
 };
 use nextrade_core::types::PageResult;
 use nextrade_security::web::{ok, ApiResult};
@@ -60,7 +62,7 @@ use nextrade_security::web::{ok, ApiResult};
 use crate::AdminState;
 
 /// 本域路由（去掉 `/adminapi` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 31] = [
+const ROUTE_TABLE: [(&str, &str, &str); 32] = [
     ("GET", "/hub/overview", "HubController.overview"),
     ("GET", "/hub/credentials/list", "HubController.credentialList"),
     ("GET", "/hub/credentials/detail", "HubController.credentialDetail"),
@@ -92,6 +94,7 @@ const ROUTE_TABLE: [(&str, &str, &str); 31] = [
     ("GET", "/hub/orders/list", "HubController.orderSummaryList"),
     ("POST", "/hub/myLinks/syncMembers", "HubController.myLinkSyncMembers"),
     ("POST", "/hub/myLinks/reportOrders", "HubController.myLinkReportOrders"),
+    ("GET", "/hub/sso/requests", "HubController.ssoRequests"),
 ];
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {
@@ -126,6 +129,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/hub/members/conflicts", get(member_conflicts))
         .route("/hub/members/resolveConflict", post(member_resolve_conflict))
         .route("/hub/orders/list", get(order_summary_list))
+        .route("/hub/sso/requests", get(sso_requests))
         .route("/hub/myLinks/syncMembers", post(my_link_sync_members))
         .route("/hub/myLinks/reportOrders", post(my_link_report_orders))
 }
@@ -392,6 +396,14 @@ async fn order_summary_list(
     Query(q): Query<HubOrderSummaryListQuery>,
 ) -> ApiResult<PageResult<HubOrderSummaryVO>> {
     ok(state.hub.federation.list_order_summaries(&q).await?)
+}
+
+/// 三期①：登录互认授权审计列表。
+async fn sso_requests(
+    State(state): State<AdminState>,
+    Query(q): Query<HubSsoListQuery>,
+) -> ApiResult<PageResult<HubSsoRequestVO>> {
+    ok(state.hub.federation.list_sso_requests(&q).await?)
 }
 
 async fn my_link_sync_members(
