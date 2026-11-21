@@ -297,7 +297,7 @@ fn download_block_reason(product_type: i32, pay_status: i32, shipping_status: i3
     }
 }
 
-fn row_to_vo(r: &DeliveryFileRow) -> DeliveryFileVO {
+pub(crate) fn row_to_vo(r: &DeliveryFileRow) -> DeliveryFileVO {
     DeliveryFileVO {
         file_id: r.0,
         product_id: r.1,

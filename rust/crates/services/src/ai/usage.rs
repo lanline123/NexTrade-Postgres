@@ -122,7 +122,7 @@ pub async fn record_usage(pool: &sqlx::PgPool, rec: &UsageRecord) {
     .bind(rec.scene)
     .bind(rec.conv_id)
     .bind(rec.channel_id)
-    .bind(rec.model_code)
+    .bind(rec.model_code.clone())
     .bind(rec.kind)
     .bind(rec.prompt_tokens)
     .bind(rec.completion_tokens)

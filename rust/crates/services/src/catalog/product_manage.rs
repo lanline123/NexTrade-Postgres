@@ -1140,7 +1140,10 @@ impl ProductManageService {
                 .catalog
                 .product_delivery
                 .list_by_product(product_id)
-                .await?;
+                .await?
+                .iter()
+                .map(crate::catalog::product_delivery::row_to_vo)
+                .collect();
         }
 
         // 批发价展示回填（2026-11-21 补齐，原 Java 详情口径）：

@@ -126,7 +126,7 @@ pub async fn find_binding_by_app_id(
     )
     .bind(app_id)
     .fetch_optional(pool)
-    .await?;
+    .await.map_err(|e| Error::Database(e.to_string()))?;
     Ok(row)
 }
 
@@ -141,7 +141,7 @@ pub async fn find_binding_by_shop(
     )
     .bind(shop_id)
     .fetch_optional(pool)
-    .await?;
+    .await.map_err(|e| Error::Database(e.to_string()))?;
     Ok(row)
 }
 
@@ -256,7 +256,7 @@ impl ShopMiniProgramService {
         )
         .bind(kw.map(|k| format!("%{k}%")))
         .fetch_all(self.pool())
-        .await?;
+        .await.map_err(|e| Error::Database(e.to_string()))?;
         Ok(rows)
     }
 
@@ -273,7 +273,7 @@ impl ShopMiniProgramService {
         )
         .bind(shop_id)
         .fetch_optional(self.pool())
-        .await?;
+        .await.map_err(|e| Error::Database(e.to_string()))?;
         Ok(row)
     }
 
@@ -312,7 +312,7 @@ impl ShopMiniProgramService {
             sqlx::query_as("SELECT shop_id FROM shop WHERE shop_id = $1 LIMIT 1")
                 .bind(shop_id)
                 .fetch_optional(self.pool())
-                .await?;
+                .await.map_err(|e| Error::Database(e.to_string()))?;
         if shop_exists.is_none() {
             return Err(biz("店铺不存在"));
         }
@@ -344,7 +344,7 @@ impl ShopMiniProgramService {
             .bind(now_i32())
             .bind(mine.id)
             .execute(self.pool())
-            .await?;
+            .await.map_err(|e| Error::Database(e.to_string()))?;
             return Ok(mine.id);
         }
 
@@ -367,7 +367,7 @@ impl ShopMiniProgramService {
         .bind(&remark)
         .bind(now)
         .fetch_one(self.pool())
-        .await?;
+        .await.map_err(|e| Error::Database(e.to_string()))?;
         Ok(row.0)
     }
 
@@ -384,7 +384,7 @@ impl ShopMiniProgramService {
         .bind(now_i32())
         .bind(id)
         .execute(self.pool())
-        .await?
+        .await.map_err(|e| Error::Database(e.to_string()))?
         .rows_affected();
         if affected == 0 {
             return Err(biz("绑定记录不存在"));
@@ -400,7 +400,7 @@ impl ShopMiniProgramService {
         .bind(now_i32())
         .bind(id)
         .execute(self.pool())
-        .await?
+        .await.map_err(|e| Error::Database(e.to_string()))?
         .rows_affected();
         if affected == 0 {
             return Err(biz("绑定记录不存在"));
@@ -420,7 +420,7 @@ impl ShopMiniProgramService {
             sqlx::query_as("SELECT COALESCE(shop_title, '') FROM shop WHERE shop_id = $1 LIMIT 1")
                 .bind(shop_id)
                 .fetch_optional(self.pool())
-                .await?;
+                .await.map_err(|e| Error::Database(e.to_string()))?;
         Ok(row.map(|r| r.0).unwrap_or_default())
     }
 }

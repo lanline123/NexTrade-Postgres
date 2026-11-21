@@ -91,7 +91,7 @@ pub async fn fetch_labels_for_shops(
     )
     .bind(shop_ids)
     .fetch_all(pool)
-    .await?;
+    .await.map_err(|e| Error::Database(e.to_string()))?;
     for row in rows {
         map.entry(row.shop_id).or_default().push(ShopLabelVO {
             label_id: Some(row.label_id),
@@ -136,7 +136,7 @@ impl ShopLabelService {
              FROM shop_label ORDER BY sort_order ASC, label_id ASC",
         )
         .fetch_all(self.pool())
-        .await?;
+        .await.map_err(|e| Error::Database(e.to_string()))?;
         Ok(rows)
     }
 
@@ -153,7 +153,7 @@ impl ShopLabelService {
         .bind(if p.status == Some(0) { 0 } else { 1 })
         .bind(now_i32())
         .fetch_one(self.pool())
-        .await?;
+        .await.map_err(|e| Error::Database(e.to_string()))?;
         Ok(row.0)
     }
 
@@ -174,7 +174,7 @@ impl ShopLabelService {
         .bind(p.sort_order.unwrap_or(0))
         .bind(if p.status == Some(0) { 0 } else { 1 })
         .execute(self.pool())
-        .await?
+        .await.map_err(|e| Error::Database(e.to_string()))?
         .rows_affected();
         if affected == 0 {
             return Err(Error::biz(SERVICE_DATA_ERROR, "标签不存在"));
@@ -187,20 +187,20 @@ impl ShopLabelService {
         if label_id <= 0 {
             return Err(Error::biz(SERVICE_DATA_ERROR, "标签ID不能为空"));
         }
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.pool().begin().await.map_err(|e| Error::Database(e.to_string()))?;
         sqlx::query("DELETE FROM shop_label_rel WHERE label_id = $1")
             .bind(label_id)
             .execute(&mut *tx)
-            .await?;
+            .await.map_err(|e| Error::Database(e.to_string()))?;
         let affected = sqlx::query("DELETE FROM shop_label WHERE label_id = $1")
             .bind(label_id)
             .execute(&mut *tx)
-            .await?
+            .await.map_err(|e| Error::Database(e.to_string()))?
             .rows_affected();
         if affected == 0 {
             return Err(Error::biz(SERVICE_DATA_ERROR, "标签不存在"));
         }
-        tx.commit().await?;
+        tx.commit().await.map_err(|e| Error::Database(e.to_string()))?;
         Ok(())
     }
 
@@ -214,7 +214,7 @@ impl ShopLabelService {
              ORDER BY l.sort_order ASC, l.label_id ASC",
         )
         .fetch_all(self.pool())
-        .await?;
+        .await.map_err(|e| Error::Database(e.to_string()))?;
         Ok(rows
             .into_iter()
             .map(|r| ShopLabelAssignment {
@@ -232,7 +232,7 @@ impl ShopLabelService {
             sqlx::query_as("SELECT label_id FROM shop_label_rel WHERE shop_id = $1 ORDER BY label_id ASC")
                 .bind(shop_id)
                 .fetch_all(self.pool())
-                .await?;
+                .await.map_err(|e| Error::Database(e.to_string()))?;
         Ok(rows.into_iter().map(|(id,)| id).collect())
     }
 
@@ -247,7 +247,7 @@ impl ShopLabelService {
         )
         .bind(shop_id)
         .fetch_optional(self.pool())
-        .await?;
+        .await.map_err(|e| Error::Database(e.to_string()))?;
         if shop_exists.is_none() {
             return Err(Error::biz(SERVICE_DATA_ERROR, "店铺不存在"));
         }
@@ -265,16 +265,16 @@ impl ShopLabelService {
                 sqlx::query_as("SELECT label_id FROM shop_label WHERE label_id = ANY($1)")
                     .bind(&unique)
                     .fetch_all(self.pool())
-                    .await?;
+                    .await.map_err(|e| Error::Database(e.to_string()))?;
             if found.len() != unique.len() {
                 return Err(Error::biz(SERVICE_DATA_ERROR, "所选标签不存在"));
             }
         }
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.pool().begin().await.map_err(|e| Error::Database(e.to_string()))?;
         sqlx::query("DELETE FROM shop_label_rel WHERE shop_id = $1")
             .bind(shop_id)
             .execute(&mut *tx)
-            .await?;
+            .await.map_err(|e| Error::Database(e.to_string()))?;
         for id in &unique {
             sqlx::query(
                 "INSERT INTO shop_label_rel (shop_id, label_id) VALUES ($1, $2) \
@@ -283,9 +283,9 @@ impl ShopLabelService {
             .bind(shop_id)
             .bind(id)
             .execute(&mut *tx)
-            .await?;
+            .await.map_err(|e| Error::Database(e.to_string()))?;
         }
-        tx.commit().await?;
+        tx.commit().await.map_err(|e| Error::Database(e.to_string()))?;
         Ok(())
     }
 }
