@@ -31,6 +31,7 @@ import { getStoredRenderMode } from "./components/canvasBridge";
 import { beginEmbedDataEpoch, resetEmbedReadiness, useEmbedReadiness } from "./components/embedReadiness";
 import { setStorageUrl } from "./shared/format";
 import { ensureFixedModules } from "./contract/normalize";
+import { createNewPageModule } from "./contract/sharedDefaults";
 import "./styles/css/module.css";
 import "./styles/css/decorate.css";
 import "../../components/decorate/editor-shell.css";
@@ -105,6 +106,9 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
             decorateType: decorateType as any,
             pageType,
             decorateTitle: query.get("title") || DEFAULT_DECORATE_TITLE,
+            // 新建模式在此播种页面背景默认值 #f7f8fa（用户 2026-11-21 指令）：
+            // 已有页随后由详情 initDecorate 以存量数据整体覆盖，本播种不触及存量页
+            pageModule: isAddMode ? createNewPageModule() : undefined,
             moduleList: [],
             localeId: isLocaleChild ? queryLocaleId : 0,
             parentId: isLocaleChild ? queryParentId : 0,
@@ -161,7 +165,8 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
                         decorateType: decorateType as any,
                         pageType,
                         decorateTitle: pTitle,
-                        pageModule: childExists ? result.data?.pageModule || {} : {},
+                        // 子页未建行 = 新建页面：骨架同样播种背景默认值（不复制父页内容，原口径不变）
+                        pageModule: childExists ? result.data?.pageModule || {} : createNewPageModule(),
                         moduleList: childExists ? result.data?.moduleList || [] : [],
                         hasDraft: childExists ? !!result.draftData : false,
                         localeId: queryLocaleId,

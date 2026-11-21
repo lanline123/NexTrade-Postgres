@@ -1526,3 +1526,9 @@
 ### 修复
 
 - **Admin 构建 - PC 秒杀三份 Preview 无活动兜底的类型对齐【我方新增（演示商品个数推广四期）的类型层补齐】**（admin 第五轮合并部署构建 run 44884825414 @c63999a 红于 TypeScript 检查：共 22 处错误，全部出自演示商品个数推广（e6c49c4）新增的 PC 秒杀无活动兜底代码，三份文件自入 main 后首次过云构建——同「未过云构建文件隐藏断裂」先例）：①previews/PcSeckillPreview.tsx 的 demoProductFill 导入路径少一级（../../components 应为 ../../../components，TS2307，并连带该文件 3 处参数隐式 any TS7006）；②三份 Preview（previews/PcSeckillPreview、modules/pcSeckill、modules/pc-home-seckill）的兜底行构造中，usePreviewDemoProducts 返回 Array<Record<string, any>>，map 展开后的对象字面量被推断为仅含 seckkillData 一键的类型，与 rows 的 PreviewProduct[] 组成联合类型后，渲染段 18 处字段访问（seckillPrice/productPrice/marketPrice/productId/picThumb/picUrl/productName）TS2339。修复仅类型层、运行时行为逐字不变：导入路径改对；三处 displayRows 显式标注 PreviewProduct[] 且 map 回调标注返回 PreviewProduct（PreviewProduct 接口本已含可选 seckkillData，展开形状不变）。验收：本修复经主聊推送后，admin 第五轮以新 HEAD 重打临时 tag 重跑 build-admin，绿后继续打包/部署/验收全流程；报告 ~/workspace/admin-deploy-round5/REPORT.md（工作区报告）。
+
+## 0.0.2 续 · 2026-11-21 批次（H5 新建页面默认背景色统一 #f7f8fa，未部署——随下一 admin 合并版上线）
+
+### 新增
+
+- **H5 装修编辑器 - 新建页面默认背景色 #f7f8fa【我方新增口径 · 用户 2026-11-21 指令】**：此前新建页面 pageModule 无 backgroundColor（编辑器画布无色、店面与真实渲染预览走各自兜底），现只在创建时刻统一播种：共享工厂 createNewPageModule（contract/sharedDefaults.ts，常量 NEW_PAGE_BACKGROUND_COLOR = "#f7f8fa"）仅两处创建侧消费——编辑器新建模式挂载初始化（isAddMode 时 initDecorate 播种，首次保存经 getSaveData 整体透传落盘）、语言子页未建行时的空骨架（不复制父页内容的原口径不变）。模板套用走 applyTemplate 合并、脚手架播种值保留；唯一自带 pageModule 背景的内置模板用其主题色 #faf3ee（模板设计色，不动）。后端 create 只存标题/类型/pageType、不下发背景默认值，已实证默认值不在后端。后端店铺开通自动生成页（default_decorate.rs，backgroundColor 为空）不经编辑器创建流，不在本批范围。红线：渲染兜底零改动——存量页未存 backgroundColor 时真实渲染预览仍 #ffffff、兼容画布与店面仍无色，打开存量页呈现与改前逐字一致、编辑保存不回填；页面设置面板打开新页即显 #f7f8fa，用户手动改色不受影响。验收：CI build-admin 绿后随下一 admin 合并版上线，部署后新建空白页与新建语言子页验画布背景与设置面板同为 #f7f8fa、存量页抽验呈现不变；报告 ~/workspace/h5-page-bg-default/REPORT.md（工作区报告）。

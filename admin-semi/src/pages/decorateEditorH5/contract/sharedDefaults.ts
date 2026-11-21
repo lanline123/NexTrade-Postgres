@@ -5,6 +5,17 @@
 // 默认值均为纯 JSON 结构，JSON 序列化深拷贝足够（与 lodash cloneDeep 行为一致）
 export const cloneDeep = <T>(obj: T): T => JSON.parse(JSON.stringify(obj));
 
+/**
+ * 新建页面脚手架默认值【我方新增口径 · 用户 2026-11-21 指令：H5 编辑器新建页面
+ * 背景色统一 #f7f8fa】。仅供**创建时刻**播种新页面的 pageModule（编辑器新建模式
+ * 初始化 + 未建行的语言子页骨架），首次保存即以该值落盘。
+ * 红线：这不是渲染兜底——存量页面未存 backgroundColor 时的呈现兜底在各渲染端
+ * 自行处理（真实渲染预览 #ffffff、兼容画布无色、店面无色），不得引用本工厂，
+ * 避免存量页面呈现被连带改变。
+ */
+export const NEW_PAGE_BACKGROUND_COLOR = "#f7f8fa";
+export const createNewPageModule = (): { backgroundColor: string } => ({ backgroundColor: NEW_PAGE_BACKGROUND_COLOR });
+
 // 模块设置默认值
 export const defaultFrame = {
     textColor: "",
