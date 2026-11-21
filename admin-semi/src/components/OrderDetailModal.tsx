@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Avatar,
+  Banner,
   Button,
   Dropdown,
   Form,
@@ -208,6 +209,7 @@ export default function OrderDetailModal({ visible, orderId, onCancel, onChanged
                 </Tag>
                 <Tag color="green">{t(detail.payStatusName || '-')}</Tag>
                 {detail.shippingStatusName && <Tag color="cyan">{t(detail.shippingStatusName)}</Tag>}
+                {detail.afterSalesIng ? <Tag color="orange">{t('售后中')}</Tag> : null}
               </Space>
             </div>
 
@@ -483,6 +485,14 @@ function DeliverModal({
         </Space>
       }
     >
+      {detail?.afterSalesIng ? (
+        <Banner
+          type="warning"
+          closeIcon={null}
+          description={t('该订单有进行中的售后，发货前请先确认售后处理情况，避免误发')}
+          style={{ marginBottom: 12 }}
+        />
+      ) : null}
       <Form getFormApi={setFormApi} labelPosition="top">
         <Form.Select
           field="logisticsId"

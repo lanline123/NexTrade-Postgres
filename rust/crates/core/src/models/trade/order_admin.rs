@@ -930,6 +930,11 @@ pub struct OrderVO {
     pub is_change_order_status: i32,
     /// 一次购买/转评论等入口是否展示（Java `toAftersalses`）
     pub to_aftersalses: bool,
+    /// 是否有进行中售后（原版有·我方移植漏迁，2026-11-21 补齐，论坛帖 547763106330314531）：
+    /// 1 = 该订单存在未完结售后（状态 ∈ 进行中集合，含待供应商审核/收货），0 = 无。
+    /// 原版前端发货单页已预留同名字段与「售后中」标记，我方后端此前未下发导致标记永不亮；
+    /// 由服务层在 list/detail 组装后按售后表实时回填，`build_vo` 默认 0。
+    pub after_sales_ing: i32,
     /// 拼团状态；1-待成团 2-拼团成功 3-拼团失败 4-已取消（仅拼团订单）
     pub join_status: Option<i32>,
     /// 拼团状态描述

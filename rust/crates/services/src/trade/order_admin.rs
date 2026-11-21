@@ -216,6 +216,17 @@ pub fn compute_deliver_plan(
     Ok(plan)
 }
 
+/// `OrderVO.afterSalesIng`（售后中标记）的状态口径：进行中集合
+/// （`in_progress_statuses`，含换货 8/9）+ 供应商待审核/待收货（21/22）——
+/// 对商家/平台视角两者同为「售后未完结」，故展示口径合并；终态
+/// （驳回 3 / 完成 6 / 取消 7）不亮标记。
+fn aftersales_ing_statuses() -> Vec<i32> {
+    let mut v = aftersales_status::in_progress_statuses().to_vec();
+    v.push(aftersales_status::WAIT_FOR_SUPPLIER_AUDIT);
+    v.push(aftersales_status::WAIT_FOR_SUPPLIER_RECEIPT);
+    v
+}
+
 /// `build_vo` 的外部数据集合。
 struct VoInput<'a> {
     order: &'a Order,
@@ -392,6 +403,7 @@ fn build_vo(input: VoInput<'_>) -> OrderVO {
         pre_order_status_desc: None,
         is_change_order_status: 0,
         to_aftersalses: actions.to_aftersales,
+        after_sales_ing: 0,
         join_status: join_status_code,
         join_status_desc,
         groupon_promotion_record_id: groupon_record_id,
@@ -628,6 +640,14 @@ impl OrderAdminService {
             .into_iter()
             .collect();
 
+        // 「售后中」标记（afterSalesIng）：有任一进行中售后即亮，部分售后同样计入
+        let aftersales_ing: HashSet<i32> = self
+            .repos.trade.order_admin
+            .order_ids_with_aftersales_in_statuses(&order_ids, &aftersales_ing_statuses())
+            .await?
+            .into_iter()
+            .collect();
+
         let product_ids = distinct_i32(
             orders
                 .iter()
@@ -664,7 +684,7 @@ impl OrderAdminService {
             let order_items = items_by_order.get(&o.order_id).unwrap_or(&empty);
             let rebuy_available = order_items.is_empty()
                 || order_items.iter().any(|it| on_sale.contains(&it.product_id));
-            list.push(build_vo(VoInput {
+            let mut vo = build_vo(VoInput {
                 order: o,
                 items: order_items,
                 user: user_map.get(&o.user_id),
@@ -677,7 +697,9 @@ impl OrderAdminService {
                 way_bill: false,
                 now,
                 offline_claim: claims.get(&o.order_id).cloned(),
-            }));
+            });
+            vo.after_sales_ing = i32::from(aftersales_ing.contains(&o.order_id));
+            list.push(vo);
         }
         Ok(PageResult::new(total, list, &page))
     }
@@ -753,6 +775,15 @@ impl OrderAdminService {
             vo.order_status_name = admin.to_string();
         }
         vo.order_status_tip = OrderStatus::of(order.order_status).map(|s| s.tip().to_string());
+        // 「售后中」标记（afterSalesIng）：与列表同一口径回填
+        vo.after_sales_ing = i32::from(
+            self.repos
+                .trade
+                .order_admin
+                .order_ids_with_aftersales_in_statuses(&[order_id], &aftersales_ing_statuses())
+                .await?
+                .contains(&order_id),
+        );
         Ok(vo)
     }
 
@@ -4801,6 +4832,23 @@ mod tests {
         assert_eq!(shop_status_text(Some(1)), "开业");
         assert_eq!(shop_status_text(Some(10)), "打烊");
         assert_eq!(shop_status_text(None), "");
+    }
+
+    #[test]
+    fn aftersales_ing_statuses_cover_in_progress_and_supplier_pending_only() {
+        // 「售后中」标记口径：进行中（1/2/4/5 + 换货 8/9）+ 供应商待审核/待收货（21/22）；
+        // 终态（驳回 3 / 完成 6 / 取消 7）绝不亮标记。
+        let statuses = aftersales_ing_statuses();
+        for expected in [1, 2, 4, 5, 8, 9, 21, 22] {
+            assert!(statuses.contains(&expected), "missing {expected}");
+        }
+        for terminal in [
+            aftersales_status::REFUSE,
+            aftersales_status::COMPLETE,
+            aftersales_status::CANCEL,
+        ] {
+            assert!(!statuses.contains(&terminal), "terminal {terminal} must not flag");
+        }
     }
 
     #[test]

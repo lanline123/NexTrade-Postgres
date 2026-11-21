@@ -417,8 +417,13 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
             {
               title: t('订单状态'),
               dataIndex: 'orderStatusName',
-              width: 110,
-              render: (value: string) => <Tag color={(statusColor[value] || 'blue') as any}>{value ? t(value) : '-'}</Tag>,
+              width: 170,
+              render: (value: string, record: OrderRow) => (
+                <Space spacing={4}>
+                  <Tag color={(statusColor[value] || 'blue') as any}>{value ? t(value) : '-'}</Tag>
+                  {record.afterSalesIng ? <Tag color="orange">{t('售后中')}</Tag> : null}
+                </Space>
+              ),
             },
             { title: t('下单时间'), dataIndex: 'addTime', width: 180 },
             {

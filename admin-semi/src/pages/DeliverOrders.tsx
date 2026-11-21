@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   Badge,
+  Banner,
   Button,
   Card,
   Checkbox,
@@ -776,6 +777,14 @@ export default function DeliverOrders({
         onCancel={() => setDeliverTarget(null)}
         width={620}
       >
+        {deliverTarget?.afterSalesIng ? (
+          <Banner
+            type="warning"
+            closeIcon={null}
+            description={t('该订单有进行中的售后，发货前请先确认售后处理情况，避免误发')}
+            style={{ marginBottom: 12 }}
+          />
+        ) : null}
         <div className="deliver-order-form">
           <label>{t('配送方式')}</label>
           <RadioGroup
@@ -821,6 +830,17 @@ export default function DeliverOrders({
         onCancel={() => setBatchShipOpen(false)}
         width={680}
       >
+        {(() => {
+          const ingCount = rows.filter((row) => selectedIds.includes(row.orderId) && row.afterSalesIng).length;
+          return ingCount > 0 ? (
+            <Banner
+              type="warning"
+              closeIcon={null}
+              description={t('所选订单中有 {count} 单存在进行中的售后，发货前请先确认售后处理情况，避免误发', { count: ingCount })}
+              style={{ marginBottom: 12 }}
+            />
+          ) : null;
+        })()}
         <div className="deliver-order-form">
           <p className="deliver-order-muted">{t('支持逐单编辑物流信息，也可先设置统一物流信息后一键应用到全部。', { count: selectedIds.length })}</p>
           <label>{t('统一物流公司')}</label>

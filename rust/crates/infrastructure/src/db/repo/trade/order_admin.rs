@@ -405,6 +405,39 @@ impl OrderAdminRepository {
         Ok(rows.into_iter().map(|r| r.0).collect())
     }
 
+    /// 批量判定「有进行中售后」的订单（`OrderVO.afterSalesIng` 下发用，
+    /// 2026-11-21 补齐，论坛帖 547763106330314531）。
+    ///
+    /// 语义：订单在 `aftersales` 表中存在至少一条状态 ∈ 传入集合的售后单。
+    /// 只看售后主表（不联明细）：部分售后同样要亮标记，与整单口径的
+    /// `fully_covered_order_ids` 区分。
+    pub async fn order_ids_with_aftersales_in_statuses(
+        &self,
+        order_ids: &[i32],
+        statuses: &[i32],
+    ) -> Result<Vec<i32>> {
+        if order_ids.is_empty() || statuses.is_empty() {
+            return Ok(Vec::new());
+        }
+        let order_ph = vec!["?"; order_ids.len()].join(", ");
+        let status_ph = vec!["?"; statuses.len()].join(", ");
+        let sql = crate::db::to_pg_placeholders(&format!(
+            "SELECT DISTINCT a.order_id
+               FROM aftersales a
+              WHERE a.order_id IN ({order_ph})
+                AND a.status IN ({status_ph})"
+        ));
+        let mut q = sqlx::query_as::<_, (i32,)>(&sql);
+        for id in order_ids {
+            q = q.bind(*id);
+        }
+        for s in statuses {
+            q = q.bind(*s);
+        }
+        let rows = q.fetch_all(&self.pool).await.map_err(map_err)?;
+        Ok(rows.into_iter().map(|r| r.0).collect())
+    }
+
     /// 仍在售（`product_status = 1`）的商品ID集合（对应 Java `hasAvailableRebuyItems`）。
     pub async fn on_sale_product_ids(&self, product_ids: &[i32]) -> Result<Vec<i32>> {
         if product_ids.is_empty() {

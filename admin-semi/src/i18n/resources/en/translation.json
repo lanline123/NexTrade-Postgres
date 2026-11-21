@@ -6352,6 +6352,8 @@
   "问题描述": "Problem description",
   "上传凭证": "Evidence uploads",
   "售后中": "In aftersales",
+  "该订单有进行中的售后，发货前请先确认售后处理情况，避免误发": "This order has an in-progress aftersale. Please check its aftersale status before shipping to avoid a mistaken shipment.",
+  "所选订单中有 {count} 单存在进行中的售后，发货前请先确认售后处理情况，避免误发": "{count} of the selected orders have an in-progress aftersale. Please check their aftersale status before shipping to avoid mistaken shipments.",
   "售后状态": "Aftersales status",
   "售后状态：": "Aftersales status:",
   "售价": "selling price",

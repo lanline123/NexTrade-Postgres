@@ -115,6 +115,7 @@ interface BatchOrderDetail {
   orderId: number;
   orderSn: string;
   trackingNo?: string;
+  afterSalesIng?: number;
   items?: Array<{
     itemId?: number;
     productName?: string;
@@ -215,6 +216,16 @@ export function BatchShipModal({
       width={760}
     >
       <Spin spinning={loading}>
+        {orders.some((order) => order.afterSalesIng) ? (
+          <Banner
+            type="warning"
+            closeIcon={null}
+            description={t('所选订单中有 {count} 单存在进行中的售后，发货前请先确认售后处理情况，避免误发', {
+              count: orders.filter((order) => order.afterSalesIng).length,
+            })}
+            style={{ marginBottom: 12 }}
+          />
+        ) : null}
         <Space style={{ marginBottom: 12 }} wrap>
           <Select
             placeholder={t('物流公司')}
@@ -229,6 +240,7 @@ export function BatchShipModal({
           <div key={order.orderId} style={{ marginBottom: 14, border: '1px solid var(--semi-color-border)', borderRadius: 6, padding: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
               <span className="mono">{order.orderSn}</span>
+              {order.afterSalesIng ? <Tag color="orange">{t('售后中')}</Tag> : null}
               <Input
                 value={trackingNos[order.orderId] || ''}
                 onChange={(v) => setTrackingNos((prev) => ({ ...prev, [order.orderId]: v }))}
