@@ -275,7 +275,7 @@ export default function Groupon({ module }: Props) {
                                                     {module.showPrice ? (
                                                         <View className="item-action">
                                                             <View className="item-price">
-                                                                <FormatPrice
+                                                                <FormatPrice displayPrice
                                                                     fontStyle={groupPirceStyle as any}
                                                                     currencyStyle={groupCurrencyStyle as any}
                                                                     decimalsStyle={groupCurrencyStyle as any}
@@ -283,7 +283,7 @@ export default function Groupon({ module }: Props) {
                                                                 />
                                                                 {(module.style == 1 || module.style == 5) && (
                                                                     <View style={{ marginLeft: "8rpx" }}>
-                                                                        <FormatPrice
+                                                                        <FormatPrice displayPrice
                                                                             fontStyle={{ fontSize: "20rpx", color: "#ccc", textDecoration: "line-through" } as any}
                                                                             currencyStyle={{ fontSize: "20rpx", color: "#ccc", textDecoration: "line-through" } as any}
                                                                             decimalsStyle={{ fontSize: "20rpx", color: "#ccc", textDecoration: "line-through" } as any}

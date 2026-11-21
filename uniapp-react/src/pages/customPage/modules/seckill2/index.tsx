@@ -168,7 +168,7 @@ export default function Seckill2({ module }: Props) {
                                                     {module.showPrice ? (
                                                         <View className="item-action">
                                                             <View className="item-price">
-                                                                <FormatPrice
+                                                                <FormatPrice displayPrice
                                                                     fontStyle={{ fontSize: "32rpx", fontWeight: "bold" }}
                                                                     currencyStyle={{
                                                                         fontSize: "24rpx",
@@ -182,7 +182,7 @@ export default function Seckill2({ module }: Props) {
                                                                 />
                                                                 {module.style == 10 && !showB2bText && (
                                                                     <View className="price-through">
-                                                                        <FormatPrice
+                                                                        <FormatPrice displayPrice
                                                                             fontStyle={{ textDecoration: "line-through" }}
                                                                             priceData={item.orgProductPrice}
                                                                             showDecimals={false}

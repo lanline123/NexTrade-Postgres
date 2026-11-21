@@ -142,7 +142,7 @@ export default function SeckillList() {
                             <View className="qianggou-money-box">
                                 <View className="qianggou-num">
                                     <View className="num">
-                                        <FormatPrice
+                                        <FormatPrice displayPrice
                                             fontStyle={{ fontSize: "30rpx", color: "#1a1a1a", fontWeight: "bold" }}
                                             currencyStyle={{
                                                 fontSize: "30rpx",
@@ -158,7 +158,7 @@ export default function SeckillList() {
                                         />
                                     </View>
                                     <View className="del">
-                                        <FormatPrice
+                                        <FormatPrice displayPrice
                                             fontStyle={{
                                                 textDecoration: "line-through",
                                                 color: "#888b94",

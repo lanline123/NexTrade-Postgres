@@ -1656,6 +1656,7 @@ const Specification = forwardRef<SpecificationRef, SpecificationProps>(function 
                                     {type === "exchange" ? (
                                         <View className="exchange-box">
                                             <FormatPrice
+                                                displayPrice
                                                 fontStyle={{ fontSize: isDecoratedHeaderStyle ? "36rpx" : "32rpx" }}
                                                 currencyStyle={{
                                                     fontSize: "22rpx"
@@ -1671,6 +1672,7 @@ const Specification = forwardRef<SpecificationRef, SpecificationProps>(function 
                                         </View>
                                     ) : (
                                         <FormatPrice
+                                            displayPrice
                                             fontStyle={{ fontSize: isDecoratedHeaderStyle ? "36rpx" : "32rpx" }}
                                             currencyStyle={{
                                                 fontSize: "22rpx"
@@ -1687,7 +1689,7 @@ const Specification = forwardRef<SpecificationRef, SpecificationProps>(function 
                                 ) : null}
                                 {showOriginPrice ? (
                                     <View className="del-box">
-                                        <FormatPrice isBottom={false} priceData={productOriginPrice} fontStyle={{ textDecoration: "line-through" }} />
+                                        <FormatPrice displayPrice isBottom={false} priceData={productOriginPrice} fontStyle={{ textDecoration: "line-through" }} />
                                     </View>
                                 ) : null}
                                 <View className="name line2">{productName}</View>
@@ -1834,7 +1836,7 @@ const Specification = forwardRef<SpecificationRef, SpecificationProps>(function 
                                                 <View className="title line2">{item.title}</View>
                                                 <View className="desc">
                                                     <View className="price">
-                                                        <FormatPrice priceData={item.price} />
+                                                        <FormatPrice displayPrice priceData={item.price} />
                                                     </View>
                                                     <View className="line" />
                                                     <View className="stock">
@@ -1880,7 +1882,7 @@ const Specification = forwardRef<SpecificationRef, SpecificationProps>(function 
                                             >
                                                 <View className="label">{subItem.attrValue}</View>
                                                 <View className="value">
-                                                    <FormatPrice priceData={subItem.attrPrice} />
+                                                    <FormatPrice displayPrice priceData={subItem.attrPrice} />
                                                 </View>
                                             </View>
                                         ))}

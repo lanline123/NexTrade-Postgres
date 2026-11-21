@@ -110,7 +110,7 @@ export default function ProductGrouponTitle({
                         )}
                         <View className="price-box">
                             <View className="price">
-                                <FormatPrice
+                                <FormatPrice displayPrice
                                     fontStyle={{
                                         fontSize: vortmall ? "49rpx" : "48rpx",
                                         fontWeight: vortmall ? "600" : "bold",
@@ -134,7 +134,7 @@ export default function ProductGrouponTitle({
                             {!showB2bText && (
                                 <View className="originalprice-box">
                                     <View>
-                                        <FormatPrice
+                                        <FormatPrice displayPrice
                                             isBottom={false}
                                             priceData={productOriginPrice}
                                             fontStyle={{

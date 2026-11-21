@@ -75,7 +75,7 @@ export default function ProductSeckillTitle({
                             </View>
                         </View>
                         <View className="overseas-activity-price">
-                            <FormatPrice
+                            <FormatPrice displayPrice
                                 fontStyle={{ fontSize: "49rpx", fontWeight: "600", color: mainPriceColor }}
                                 decimalsStyle={{ fontSize: "49rpx", fontWeight: "600", color: mainPriceColor }}
                                 currencyStyle={{ fontSize: "28rpx", fontWeight: "600", color: mainPriceColor }}
@@ -84,7 +84,7 @@ export default function ProductSeckillTitle({
                         </View>
                         {showOriginPrice ? (
                             <View className="overseas-origin-discount flex align-center">
-                                <FormatPrice
+                                <FormatPrice displayPrice
                                     priceData={productOriginPrice}
                                     fontStyle={{ textDecoration: "line-through", fontWeight: "600", fontSize: "28rpx", color: originPriceColor }}
                                 />
@@ -100,7 +100,7 @@ export default function ProductSeckillTitle({
                             <View className="title-top-price">
                                 <View className="price-box">
                                     <View className="price">
-                                        <FormatPrice
+                                        <FormatPrice displayPrice
                                             fontStyle={{ fontSize: "48rpx", fontWeight: "bold", color: mainPriceColor }}
                                             decimalsStyle={{
                                                 fontSize: "32rpx",
@@ -125,7 +125,7 @@ export default function ProductSeckillTitle({
                                         <View className="originalprice-box">
                                             {t("价格")}
                                             <View>
-                                                <FormatPrice
+                                                <FormatPrice displayPrice
                                                     isBottom={false}
                                                     priceData={productOriginPrice}
                                                     fontStyle={{ textDecoration: "line-through", color: originPriceColor }}

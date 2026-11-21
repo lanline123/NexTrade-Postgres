@@ -112,7 +112,7 @@ export default function ArticleProductItem({ productIds = [] }: Props) {
                             <View className="product-item-title line2">{product.productName}</View>
                             <View className="product-item-price-box">
                                 <View className="product-item-price">
-                                    <FormatPrice
+                                    <FormatPrice displayPrice
                                         fontStyle={{ fontWeight: "bold", fontSize: "28rpx" }}
                                         decimalsStyle={{
                                             fontSize: "20rpx",
@@ -125,7 +125,7 @@ export default function ArticleProductItem({ productIds = [] }: Props) {
                                         priceData={product.productPrice}
                                     />
                                     {product.marketPrice && product.marketPrice !== product.productPrice && (
-                                        <FormatPrice
+                                        <FormatPrice displayPrice
                                             fontStyle={{
                                                 fontWeight: "400",
                                                 textDecoration: "line-through",

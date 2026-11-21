@@ -225,7 +225,7 @@ function GuideProductCard({ card }: { card: GuideCard }) {
                 <Text className="guide-card__gate">{gate.text}</Text>
             ) : (
                 <View className="guide-card__price">
-                    <FormatPrice priceData={card.productPrice} />
+                    <FormatPrice displayPrice priceData={card.productPrice} />
                 </View>
             )}
         </View>

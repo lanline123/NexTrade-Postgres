@@ -76,7 +76,7 @@ export default function RecProduct({ url }: Props) {
                         <View className="info">
                             <View className="name">{item.productName}</View>
                             <View className="price">
-                                <FormatPrice priceData={item.productPrice} />
+                                <FormatPrice displayPrice priceData={item.productPrice} />
                             </View>
                         </View>
                     </View>

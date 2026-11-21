@@ -150,7 +150,7 @@ export default function ProductConsultPage() {
                     <View className="product-info-title line2">{product.productName}</View>
                     {product.marketPrice && Number(product.marketPrice) > 0 ? (
                         <View className="product-info-price">
-                            <FormatPrice isBottom={false} priceData={product.marketPrice} />
+                            <FormatPrice displayPrice isBottom={false} priceData={product.marketPrice} />
                         </View>
                     ) : null}
                 </View>

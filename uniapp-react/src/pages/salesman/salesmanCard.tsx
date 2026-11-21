@@ -137,7 +137,7 @@ export default function SalesmanCard() {
                                 <View className="content-item-text">
                                     <View className="item-text-name line2">{item.productName}</View>
                                     <View className="item-text-price">
-                                        <FormatPrice priceData={item.productPrice} />
+                                        <FormatPrice displayPrice priceData={item.productPrice} />
                                         <Text className="iconfont-h5 icon-gouwuche3" />
                                     </View>
                                 </View>

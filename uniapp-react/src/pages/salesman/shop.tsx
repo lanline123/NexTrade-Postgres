@@ -140,7 +140,7 @@ export default function ShellShop() {
                                         <View className="shell-shop-item-text">
                                             <View className="shell-shop-item-name line2">{item.productName}</View>
                                             <View className="shell-shop-item-price">
-                                                <FormatPrice priceData={item.productPrice} />
+                                                <FormatPrice displayPrice priceData={item.productPrice} />
                                                 <Text className="iconfont-h5 icon-gouwuche3" />
                                             </View>
                                         </View>

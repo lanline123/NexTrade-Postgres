@@ -5,7 +5,9 @@ import { normalizeRawImageConfig } from "@/utils/productRawImageDownload";
 import { t } from "@/utils/i18n";
 import { isWeixinBrowser, isO2o } from "@/utils";
 import { resolveImageUrl } from "@/utils/imageUrl";
-import { getAuthGateConfig, initConfigSettings } from "@/api/common";
+import { getAuthGateConfig, getPriceDisplayConfig, initConfigSettings } from "@/api/common";
+import { sanitizePriceDisplay } from "@/utils/priceDisplay";
+import type { PriceDisplayConfig } from "@/utils/priceDisplay";
 import type { PageModule, HomeData } from "@/types/home/home";
 import { setPageMeta } from "@/utils/seo";
 import { applyAmapH5Config } from "@/utils/amapSecurity";
@@ -64,6 +66,8 @@ export interface ConfigState {
     shopRegClosed: number;
     isIdentity: number;
     isLogin: number;
+    /** 后台「价格显示设置」生效配置（已清洗）；null = 尚未拉到，消费侧回落内置默认（与后端/PC 默认一致） */
+    priceDisplay: PriceDisplayConfig | null;
     closeOrder: number;
     useCoupon: number;
     usePoints: number;
@@ -194,6 +198,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     closeOrder: 0,
     isIdentity: 0,
     isLogin: 0,
+    priceDisplay: null,
     useCoupon: 0,
     usePoints: 0,
     useSurplus: 0,
@@ -400,11 +405,14 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 function loadBaseConfigData(set: (partial: Partial<ConfigState>) => void, get: () => ConfigState) {
     return async (previewId?: number): Promise<void> => {
         try {
-            const [res, gate] = await Promise.all([
+            const [res, gate, priceDisplayRaw] = await Promise.all([
                 initConfigSettings(previewId),
-                getAuthGateConfig().catch(() => null)
+                getAuthGateConfig().catch(() => null),
+                getPriceDisplayConfig().catch(() => null)
             ]);
+            const priceDisplay = sanitizePriceDisplay(priceDisplayRaw);
             set({
+                ...(priceDisplay ? { priceDisplay } : {}),
                 pageBackgroundColor: res?.decoratePageConfig?.backgroundColor,
                 baseInfo: {
                     shopLogo: res.shopLogo,

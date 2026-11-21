@@ -412,7 +412,7 @@ function Product2MasonryItem({
 
                 <View className="action">
                     <View className="pricenum">
-                        <FormatPrice
+                        <FormatPrice displayPrice
                             fontStyle={{ fontSize: "32rpx" }}
                             currencyStyle={{ fontSize: "22rpx" }}
                             decimalsStyle={{ fontSize: "25rpx" }}

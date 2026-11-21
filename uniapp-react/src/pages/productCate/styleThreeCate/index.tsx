@@ -242,7 +242,7 @@ export default function StyleThreeCate({ height: heightProp = 0, module = {} as 
                                                     )}
                                                     <View className="item-right-meta">
                                                         <View className="item-right-price">
-                                                            <FormatPrice
+                                                            <FormatPrice displayPrice
                                                                 decimalsStyle={{
                                                                     fontSize: "24rpx",
                                                                     fontWeight: "bold"

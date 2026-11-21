@@ -421,7 +421,7 @@ const ProductTitleInfo = forwardRef<ProductTitleInfoRef, Props>(function Product
                                             {priceOverrideText}
                                         </View>
                                     ) : (
-                                        <FormatPrice
+                                        <FormatPrice displayPrice
                                             fontStyle={{ fontSize: "48rpx", fontWeight: "bold" }}
                                             decimalsStyle={{ fontSize: "32rpx", fontWeight: "bold" }}
                                             currencyStyle={{ fontSize: "28rpx", fontWeight: "bold" }}
@@ -432,7 +432,7 @@ const ProductTitleInfo = forwardRef<ProductTitleInfoRef, Props>(function Product
                                         renderExchangeBox()
                                     ) : showMarketPrice && !showB2bText && !priceOverrideText ? (
                                         <View className="activity-bg-origin-price">
-                                            <FormatPrice isBottom={false} priceData={normalStrikePrice as any} fontStyle={{ textDecoration: "line-through" }} />
+                                            <FormatPrice displayPrice isBottom={false} priceData={normalStrikePrice as any} fontStyle={{ textDecoration: "line-through" }} />
                                         </View>
                                     ) : null}
                                 </View>
@@ -468,7 +468,7 @@ const ProductTitleInfo = forwardRef<ProductTitleInfoRef, Props>(function Product
                                                 {priceOverrideText}
                                             </View>
                                         ) : (
-                                            <FormatPrice
+                                            <FormatPrice displayPrice
                                                 fontStyle={{ fontSize: "49rpx", fontWeight: "600" }}
                                                 decimalsStyle={{ fontSize: "49rpx", fontWeight: "600" }}
                                                 currencyStyle={{ fontSize: "30rpx", fontWeight: "600" }}
@@ -481,7 +481,7 @@ const ProductTitleInfo = forwardRef<ProductTitleInfoRef, Props>(function Product
                                             <>
                                                 {type !== "exchange" && showMarketPrice && !showB2bText && !priceOverrideText && (
                                                     <View className="title-top-market_price">
-                                                        <FormatPrice
+                                                        <FormatPrice displayPrice
                                                             isBottom={false}
                                                             priceData={normalStrikePrice as any}
                                                             fontStyle={{
@@ -519,7 +519,7 @@ const ProductTitleInfo = forwardRef<ProductTitleInfoRef, Props>(function Product
                                                 {priceOverrideText}
                                             </View>
                                         ) : (
-                                            <FormatPrice
+                                            <FormatPrice displayPrice
                                                 fontStyle={{ fontSize: "48rpx", fontWeight: "bold" }}
                                                 decimalsStyle={{ fontSize: "32rpx", fontWeight: "bold" }}
                                                 currencyStyle={{ fontSize: "28rpx", fontWeight: "bold" }}
@@ -532,7 +532,7 @@ const ProductTitleInfo = forwardRef<ProductTitleInfoRef, Props>(function Product
                                             <>
                                                 {type !== "exchange" && showMarketPrice && !showB2bText && !priceOverrideText && (
                                                     <View className="title-top-market_price">
-                                                        <FormatPrice
+                                                        <FormatPrice displayPrice
                                                             isBottom={false}
                                                             priceData={normalStrikePrice as any}
                                                             fontStyle={{ textDecoration: "line-through", color: marketPriceColor || "#999" }}

@@ -1,5 +1,6 @@
 import type { ApiEnvelope } from "@/types/api";
 import request from "@/utils/request";
+import type { PriceDisplayConfig } from "@/utils/priceDisplay";
 import { repairPreviewPriceList } from "@/utils/previewProductData";
 import type {
     GuessLikeDataResponse,
@@ -106,6 +107,20 @@ export const initConfigSettings = (previewId?: number) => {
 export const getAuthGateConfig = () => {
     return request<{ code: number; message: string; data: { isIdentity?: number; isLogin?: number } }>({
         url: "common/config/authGate",
+        method: "get"
+    });
+};
+
+/**
+ * @description 获取价格显示配置（后台「价格显示设置」，与 PC 前台同一公开端点）
+ * 大额展示价的单位缩写规则（万/亿、K/M/B 等）；基础配置拉取时一并取回
+ * 写入 config store，供 FormatPrice 的展示价（displayPrice）消费。
+ * 未保存过设置时后端返回内置默认；购物车/结算/订单金额不读此配置。
+ * @returns 价格显示配置
+ */
+export const getPriceDisplayConfig = () => {
+    return request<{ code: number; message: string; data: PriceDisplayConfig }>({
+        url: "common/config/priceDisplay",
         method: "get"
     });
 };

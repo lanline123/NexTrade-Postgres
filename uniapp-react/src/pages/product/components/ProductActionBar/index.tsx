@@ -351,7 +351,7 @@ const ProductActionBar = forwardRef<ProductActionBarRef, Props>(function Product
                                         >
                                             {productPresale.saleMode === 2 ? (
                                                 <>
-                                                    <FormatPrice
+                                                    <FormatPrice displayPrice
                                                         fontStyle={{ fontWeight: "bold" }}
                                                         decimalsStyle={{
                                                             fontSize: "24rpx",

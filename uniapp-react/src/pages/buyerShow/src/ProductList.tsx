@@ -65,7 +65,7 @@ export default function ProductList({ products = [], total = 0, productListHeigh
                             <View className="title">{item.productName}</View>
                             {/* 旧 format-price 根节点带 class="price"，这里包一层保留 .content .price 样式 */}
                             <View className="price">
-                                <FormatPrice priceData={item.productPrice} fontStyle={{ fontSize: "28rpx" }} />
+                                <FormatPrice displayPrice priceData={item.productPrice} fontStyle={{ fontSize: "28rpx" }} />
                             </View>
                         </View>
                         <View

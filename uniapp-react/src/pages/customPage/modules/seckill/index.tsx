@@ -228,7 +228,7 @@ export default function Seckill({ module }: Props) {
                                                 {module.showPrice ? (
                                                     <View className="item-action">
                                                         <View className="item-price">
-                                                            <FormatPrice
+                                                            <FormatPrice displayPrice
                                                                 fontStyle={{ fontSize: "32rpx" }}
                                                                 currencyStyle={{
                                                                     fontSize: "22rpx"

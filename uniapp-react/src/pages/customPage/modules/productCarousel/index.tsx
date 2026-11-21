@@ -310,7 +310,7 @@ export default function ProductCarousel({ module, shopId = -1 }: Props) {
                                                 {showPrice ? (
                                                     <View className="pc-prices">
                                                         <View className="price-current">
-                                                            <FormatPrice
+                                                            <FormatPrice displayPrice
                                                                 fontStyle={priceFontStyle as any}
                                                                 currencyStyle={priceCurrencyStyle as any}
                                                                 priceData={item.deliveryMode === 2 ? item.cyclePrice : item.productPrice}
@@ -318,7 +318,7 @@ export default function ProductCarousel({ module, shopId = -1 }: Props) {
                                                         </View>
                                                         {showMarketPrice && marketPriceVisible(item) ? (
                                                             <View className="price-market">
-                                                                <FormatPrice
+                                                                <FormatPrice displayPrice
                                                                     fontStyle={marketPriceFontStyle as any}
                                                                     currencyStyle={marketPriceFontStyle as any}
                                                                     priceData={item.marketPrice}

@@ -276,7 +276,7 @@ export default function ProductA1({ module, shopId = -1 }: Props) {
                                                 {showPrice && (
                                                     <View className="item-action" style={actionAlignStyle}>
                                                         <View className="item-price" style={priceAlignStyle}>
-                                                            <FormatPrice
+                                                            <FormatPrice displayPrice
                                                                 fontStyle={{ fontSize: "32rpx" }}
                                                                 currencyStyle={{ fontSize: "22rpx", position: "relative", top: "-3rpx" }}
                                                                 priceData={item.deliveryMode === 2 ? item.cyclePrice : item.productPrice}
@@ -284,7 +284,7 @@ export default function ProductA1({ module, shopId = -1 }: Props) {
                                                             {/* 划线价只受装修开关控制，不再判断划线价是否为 0 或是否大于售价 */}
                                                             {showMarketPrice && (
                                                                 <View className="market_price">
-                                                                    <FormatPrice
+                                                                    <FormatPrice displayPrice
                                                                         fontStyle={{ fontSize: "22rpx", color: "#999", textDecoration: "line-through" }}
                                                                         currencyStyle={{ fontSize: "22rpx", color: "#999", textDecoration: "line-through" }}
                                                                         priceData={item.marketPrice}

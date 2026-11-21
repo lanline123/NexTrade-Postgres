@@ -190,7 +190,7 @@ export default function SpecialOffer({ module }: Props) {
                                             {module.showProductPrice ? (
                                                 <View className="price-box" style={`color: rgb(255, 255, 255); font-weight: 700; font-family: inherit`}>
                                                     <View className="price">
-                                                        <FormatPrice
+                                                        <FormatPrice displayPrice
                                                             fontStyle={{ fontSize: "28rpx", lineHeight: 1 } as any}
                                                             currencyStyle={{ fontSize: "24rpx" } as any}
                                                             decimalsStyle={{ fontSize: "24rpx" } as any}

@@ -242,7 +242,7 @@ export default function ComboSuggestions({ module }: Props) {
                                                                 module.regularPriceSize || 14
                                                             )};`}
                                                         >
-                                                            <FormatPrice priceData={item.productPrice} />
+                                                            <FormatPrice displayPrice priceData={item.productPrice} />
                                                         </View>
                                                     </View>
                                                 </View>

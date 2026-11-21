@@ -176,7 +176,7 @@ export default function ProductItem({
                     <View className="pricenum">
                         {type === "exchange" ? (
                             <View className="exchange-box">
-                                <FormatPrice
+                                <FormatPrice displayPrice
                                     fontStyle={{ fontSize: "32rpx" }}
                                     currencyStyle={{ fontSize: "22rpx" }}
                                     decimalsStyle={{ fontSize: "25rpx" }}
@@ -187,7 +187,7 @@ export default function ProductItem({
                                 <Text className="exchange-text">{item.exchangeIntegral}</Text>
                             </View>
                         ) : (
-                            <FormatPrice
+                            <FormatPrice displayPrice
                                 fontStyle={{ fontSize: "32rpx" }}
                                 currencyStyle={{ fontSize: "22rpx", position: "relative", top: "3rpx" }}
                                 priceData={item.price ?? item.productPrice}

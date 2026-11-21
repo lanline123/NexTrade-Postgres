@@ -98,7 +98,7 @@ export default function GrouponItem({
                         <View className="flex align-end">
                             <View className="group-price">
                                 {/* <Text className="price-text">{t("拼团价")}:</Text> */}
-                                <FormatPrice
+                                <FormatPrice displayPrice
                                     currencyStyle={{
                                         fontSize: "22rpx"
                                     }}
@@ -106,7 +106,7 @@ export default function GrouponItem({
                                 />
                             </View>
                             <View className="original-price">
-                                <FormatPrice fontStyle={{ textDecoration: "line-through" }} priceData={item.productPrice} />
+                                <FormatPrice displayPrice fontStyle={{ textDecoration: "line-through" }} priceData={item.productPrice} />
                             </View>
                         </View>
                         <View className="act-btn">
@@ -162,7 +162,7 @@ export default function GrouponItem({
                             <View className="flex price-box">
                                 <View className="group-price">
                                     {/* <Text className="price-text">{t("拼团价")}:</Text> */}
-                                    <FormatPrice
+                                    <FormatPrice displayPrice
                                         currencyStyle={{
                                             fontSize: "20rpx"
                                         }}
@@ -171,7 +171,7 @@ export default function GrouponItem({
                                     />
                                 </View>
                                 <View className="original-price">
-                                    <FormatPrice fontStyle={{ textDecoration: "line-through" }} priceData={item.productPrice} />
+                                    <FormatPrice displayPrice fontStyle={{ textDecoration: "line-through" }} priceData={item.productPrice} />
                                 </View>
                             </View>
                         </View>

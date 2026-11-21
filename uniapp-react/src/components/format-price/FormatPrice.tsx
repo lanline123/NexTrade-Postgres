@@ -8,6 +8,7 @@ import { useCurrencyStore } from "@/store/currency";
 import { useUserStore } from "@/store/user";
 import { isB2B, isOverseas, moneyFormat } from "@/utils";
 import { priceGateCopy } from "@/utils/inquiry";
+import { abbreviateDisplayPrice, currencyCodeFrom, DEFAULT_PRICE_DISPLAY } from "@/utils/priceDisplay";
 import { t } from "@/utils/i18n";
 
 import "./FormatPrice.scss";
@@ -25,12 +26,15 @@ interface Props {
     showDecimals?: boolean;
     showText?: boolean;
     base?: boolean;
+    /** 展示价标记：按后台「价格显示设置」缩写大额（≥1万显示 XX万 等），与 PC FormatPrice 同名同口径；缺省精确显示，购物车/结算/订单等对账场景不传 */
+    displayPrice?: boolean;
 }
 
 /**
  * 价格展示（自旧 format-price.vue 移植）：
  * - 海外站点按当前货币汇率换算，货币符号优先取当前货币，缺省回退后台 dollarSign
  * - B2B 且未登录 / 未实名时显示「登录查看 / 实名查看」文案
+ * - displayPrice 标记时按后台「价格显示设置」缩写大额展示价（与 PC 同口径，见 utils/priceDisplay）
  */
 export default function FormatPrice({
     priceData,
@@ -42,11 +46,13 @@ export default function FormatPrice({
     integerStyle = {},
     showDecimals = true,
     showText = true,
-    base = false
+    base = false,
+    displayPrice = false
 }: Props) {
     const dollarSign = useConfigStore((s) => s.dollarSign);
     const isIdentity = useConfigStore((s) => s.isIdentity);
     const isLogin = useConfigStore((s) => s.isLogin);
+    const priceDisplay = useConfigStore((s) => s.priceDisplay);
     const currentCurrencyData = useCurrencyStore((s) => s.currentCurrencyData);
     const userInfo = useUserStore((s) => s.userInfo);
 
@@ -138,11 +144,24 @@ export default function FormatPrice({
         if (!num) {
             return {
                 integer: "0",
-                decimals: ".00"
+                decimals: ".00",
+                suffix: ""
             };
         }
         if (!base && isOverseas() && currentCurrencyData.rate) {
             num = moneyFormat((Number(num) * Number(currentCurrencyData.rate)).toString());
+        }
+        // 展示价缩写（displayPrice 标记，后台「价格显示设置」，与 PC 同口径）：
+        // 在换算后金额上按当前币种阶梯缩写，未触发时回落下面的精确拆分；
+        // 门控文案分支在渲染层先行，本处只处理有价数字，不影响门控逻辑
+        if (displayPrice) {
+            const code = base
+                ? "CNY"
+                : isOverseas()
+                  ? currencyCodeFrom(currentCurrencyData.name, currentCurrencyData.symbol)
+                  : "CNY";
+            const abbr = abbreviateDisplayPrice(Number(num), code, priceDisplay ?? DEFAULT_PRICE_DISPLAY);
+            if (abbr) return abbr;
         }
         // 检测小数点和后续数字
         const match = num.match(/^(\d+)(\.\d+)?$/);
@@ -152,15 +171,17 @@ export default function FormatPrice({
             const decimalPart = rawDecimal.length < 3 ? rawDecimal.padEnd(3, "0") : rawDecimal;
             return {
                 integer: integerPart,
-                decimals: decimalPart
+                decimals: decimalPart,
+                suffix: ""
             };
         } else {
             return {
                 integer: "0",
-                decimals: ".00"
+                decimals: ".00",
+                suffix: ""
             };
         }
-    }, [priceData, base, currentCurrencyData.rate]);
+    }, [priceData, base, currentCurrencyData.rate, currentCurrencyData.name, currentCurrencyData.symbol, displayPrice, priceDisplay]);
 
     // 原版 #ifdef MP-WEIXIN 的 1–2rpx 微调（.util padding-right 5rpx、bottom 态 padding-bottom 3rpx）：
     // Taro 侧按本仓既有口径用 TARO_ENV 加修饰类承载（见 FormatPrice.scss），H5 不加类、零变化
@@ -183,11 +204,16 @@ export default function FormatPrice({
                     <View className="num integer" style={(hasContent(integerStyleC) ? integerStyleC : fontStyleC) as any}>
                         {price.integer}
                     </View>
-                    {showDecimals && (
+                    {showDecimals && price.decimals ? (
                         <View className="num decimal" style={decimalStyle}>
                             {price.decimals}
                         </View>
-                    )}
+                    ) : null}
+                    {price.suffix ? (
+                        <View className="num suffix" style={decimalStyle}>
+                            {price.suffix}
+                        </View>
+                    ) : null}
                 </>
             )}
         </View>

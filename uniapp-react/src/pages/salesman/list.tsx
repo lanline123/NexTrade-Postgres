@@ -230,7 +230,7 @@ export default function SalesmanList() {
                             <View className="salesman-item-text">
                                 <View className="line2 name">{item.productName}</View>
                                 <View className="price">
-                                    <FormatPrice currencyStyle={{ fontSize: "21rpx" }} priceData={item.productPrice} />
+                                    <FormatPrice displayPrice currencyStyle={{ fontSize: "21rpx" }} priceData={item.productPrice} />
                                 </View>
                             </View>
                         </View>

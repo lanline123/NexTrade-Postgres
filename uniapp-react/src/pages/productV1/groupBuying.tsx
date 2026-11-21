@@ -331,13 +331,13 @@ export default function GroupBuying() {
                                 <View className="flex">
                                     <View className="group-price">
                                         <Text className="price-text">{t("拼团价")}:</Text>
-                                        <FormatPrice
+                                        <FormatPrice displayPrice
                                             currencyStyle={{ fontSize: "23rpx" }}
                                             priceData={grouponRecordDetail.grouponPrice}
                                         />
                                     </View>
                                     <View className="original-price">
-                                        <FormatPrice
+                                        <FormatPrice displayPrice
                                             fontStyle={{ textDecoration: "line-through" }}
                                             priceData={grouponRecordDetail.productPrice}
                                         />

@@ -275,7 +275,7 @@ export default function MixedProductDisplay({ module }: Props) {
                                                         className="price"
                                                         style={`background: ${module.moduleColor.priceBackgroundColor}; color: ${module.moduleColor.priceColor}; font-weight: 700; font-family: font1`}
                                                     >
-                                                        <FormatPrice
+                                                        <FormatPrice displayPrice
                                                             fontStyle={{ fontSize: "24rpx", lineHeight: 1 } as any}
                                                             currencyStyle={{ fontSize: "24rpx" } as any}
                                                             decimalsStyle={{ fontSize: "24rpx" } as any}
@@ -287,7 +287,7 @@ export default function MixedProductDisplay({ module }: Props) {
                                             {Number(module.crossedOutPrice) === 1 && Number(item.marketPrice) > 0 && !showB2bText && (
                                                 <View className="origin">
                                                     <View style={`color: ${module.moduleColor.crossedOutPriceColor};text-decoration: line-through;`}>
-                                                        <FormatPrice fontStyle={{ fontSize: "24rpx", textDecoration: "line-through" } as any} priceData={item.marketPrice} />
+                                                        <FormatPrice displayPrice fontStyle={{ fontSize: "24rpx", textDecoration: "line-through" } as any} priceData={item.marketPrice} />
                                                     </View>
                                                 </View>
                                             )}
@@ -346,7 +346,7 @@ export default function MixedProductDisplay({ module }: Props) {
                                                         className="price"
                                                         style={`background: ${module.moduleColor.priceBackgroundColor}; color: ${module.moduleColor.priceColor}; font-weight: 700; font-family: font1`}
                                                     >
-                                                        <FormatPrice
+                                                        <FormatPrice displayPrice
                                                             fontStyle={{ fontSize: "24rpx", lineHeight: 1 } as any}
                                                             currencyStyle={{ fontSize: "24rpx" } as any}
                                                             decimalsStyle={{ fontSize: "24rpx" } as any}
@@ -358,7 +358,7 @@ export default function MixedProductDisplay({ module }: Props) {
                                             {Number(item.marketPrice) > 0 && Number(module.crossedOutPrice) === 1 && !showB2bText && (
                                                 <View className="origin">
                                                     <View style={`color: ${module.moduleColor.crossedOutPriceColor};text-decoration: line-through;`}>
-                                                        <FormatPrice fontStyle={{ fontSize: "24rpx", textDecoration: "line-through" } as any} priceData={item.marketPrice} />
+                                                        <FormatPrice displayPrice fontStyle={{ fontSize: "24rpx", textDecoration: "line-through" } as any} priceData={item.marketPrice} />
                                                     </View>
                                                 </View>
                                             )}

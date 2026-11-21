@@ -215,7 +215,7 @@ export default function LimitedSpecial({ module, shopId = -1 }: Props) {
                                         <View className="ls-prices">
                                             {showPrice ? (
                                                 <View className="price-current">
-                                                    <FormatPrice
+                                                    <FormatPrice displayPrice
                                                         fontStyle={priceFontStyle as any}
                                                         currencyStyle={priceCurrencyStyle as any}
                                                         priceData={item.deliveryMode === 2 ? item.cyclePrice : item.productPrice}
@@ -224,7 +224,7 @@ export default function LimitedSpecial({ module, shopId = -1 }: Props) {
                                             ) : null}
                                             {showMarketPrice && marketPriceVisible(item) ? (
                                                 <View className="price-market">
-                                                    <FormatPrice fontStyle={marketPriceStyle as any} currencyStyle={marketPriceStyle as any} priceData={item.marketPrice} />
+                                                    <FormatPrice displayPrice fontStyle={marketPriceStyle as any} currencyStyle={marketPriceStyle as any} priceData={item.marketPrice} />
                                                 </View>
                                             ) : null}
                                             {buyBtnStyleNum > 0 ? (

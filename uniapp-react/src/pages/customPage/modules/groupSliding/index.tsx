@@ -179,7 +179,7 @@ export default function GroupSliding({ module }: Props) {
                                                                             className="price"
                                                                             style={`color: ${module.moduleColor.productPriceColor}; font-weight: 700; font-family: font1`}
                                                                         >
-                                                                            <FormatPrice
+                                                                            <FormatPrice displayPrice
                                                                                 fontStyle={{ fontSize: "28rpx" }}
                                                                                 currencyStyle={{
                                                                                     fontSize: "22rpx"
@@ -199,7 +199,7 @@ export default function GroupSliding({ module }: Props) {
                                                                             className="origin"
                                                                             style={`color: ${module.moduleColor.crossedOutPriceColor}`}
                                                                         >
-                                                                            <FormatPrice
+                                                                            <FormatPrice displayPrice
                                                                                 fontStyle={{ fontSize: "22rpx", textDecoration: "line-through" }}
                                                                                 priceData={item.marketPrice}
                                                                             />

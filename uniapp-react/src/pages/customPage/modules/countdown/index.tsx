@@ -150,11 +150,11 @@ export default function Countdown({ module }: Props) {
                                                     className="price"
                                                     style={`color: ${module.moduleColor.productPriceColor}; font-weight: ${module.priceWeight}; font-family: inherit`}
                                                 >
-                                                    <FormatPrice fontStyle={{ fontSize: "22rpx" }} priceData={item.price} />
+                                                    <FormatPrice displayPrice fontStyle={{ fontSize: "22rpx" }} priceData={item.price} />
                                                 </View>
                                                 {Number(module.crossedOutPrice) === 1 && Number(item.marketPrice) > 0 && !showB2bText && (
                                                     <View className="origin" style={`color: ${module.moduleColor.crossedOutPriceColor}`}>
-                                                        <FormatPrice
+                                                        <FormatPrice displayPrice
                                                             fontStyle={{ fontSize: "20rpx", textDecoration: "line-through" }}
                                                             priceData={item.marketPrice}
                                                         />

@@ -59,7 +59,7 @@ export default function ProductItem({ product, productStyle = null }: Props) {
                 <View className="product-price">
                     {/* 旧 :style 作用在 format-price 根节点 → 外层容器承载同款内联样式 */}
                     <View style={{ fontSize: "36rpx", color: "#A9781B" }}>
-                        <FormatPrice
+                        <FormatPrice displayPrice
                             currencyStyle={{
                                 fontSize: "24rpx"
                             }}

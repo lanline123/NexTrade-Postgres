@@ -295,7 +295,7 @@ export default function ProductGrouping({ module }: Props) {
                                                                 )}
                                                                 {Number(module.showProductPrice) === 1 && (
                                                                     <View className="price">
-                                                                        <FormatPrice
+                                                                        <FormatPrice displayPrice
                                                                             fontStyle={
                                                                                 {
                                                                                     fontSize: designPxToRpx(priceSize),
@@ -323,7 +323,7 @@ export default function ProductGrouping({ module }: Props) {
                                                                 )}
                                                                 {Number(module.crossedOutPrice) === 1 && Number(item.marketPrice) > 0 && (
                                                                     <View className="origin" style={`color: ${module.productColor.crossedOutPriceColor}`}>
-                                                                        <FormatPrice
+                                                                        <FormatPrice displayPrice
                                                                             fontStyle={{ fontSize: "24rpx", textDecoration: "line-through" } as any}
                                                                             priceData={item.marketPrice}
                                                                         />

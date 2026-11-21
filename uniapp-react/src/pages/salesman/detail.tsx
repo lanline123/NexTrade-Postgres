@@ -102,7 +102,7 @@ export default function SalesmanDetail() {
                 <View className="salesman-pro-detail-info">
                     <View className="salesman-pro-detail-price">
                         <View className="salesman-pro-detail-price-num">
-                            <FormatPrice priceData={detailData.productPrice} />
+                            <FormatPrice displayPrice priceData={detailData.productPrice} />
                         </View>
                         {Number(detailData.finalCommissionPrice) > 0 ? (
                             <View className="salesman-pro-detail-price-tip">

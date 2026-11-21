@@ -66,14 +66,14 @@ export default function ProductPresaleTitle({
                             </View>
                             <Text>{t("定金")}</Text>
                             <View className="deposit-amount-price">
-                                <FormatPrice priceData={presaleInfo.depositAmount} fontStyle={{ color: "#fff" }} />
+                                <FormatPrice displayPrice priceData={presaleInfo.depositAmount} fontStyle={{ color: "#fff" }} />
                             </View>
                         </View>
                     ) : null}
 
                     <View className="presale-price-row flex align-baseline">
                         {presaleInfo.saleMode === 1 ? <Text className="presale-label">{t("预售价")}</Text> : null}
-                        <FormatPrice
+                        <FormatPrice displayPrice
                             fontStyle={{ fontWeight: "bold", fontSize: "48rpx", color: "#fff" }}
                             decimalsStyle={{
                                 fontSize: "32rpx",
@@ -90,7 +90,7 @@ export default function ProductPresaleTitle({
                     </View>
                     {overseas && originPriceNum > 0 ? (
                         <View className="origin-discount-line flex align-center">
-                            <FormatPrice
+                            <FormatPrice displayPrice
                                 priceData={originPrice}
                                 fontStyle={{
                                     textDecoration: "line-through",
