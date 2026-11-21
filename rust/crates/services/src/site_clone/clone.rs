@@ -760,7 +760,7 @@ pub(crate) fn build_save_dto(
             attr_color: a.attr_color.clone().filter(|s| !s.is_empty()),
             attr_pic: a.attr_pic.clone().filter(|s| !s.is_empty()),
             attr_pic_thumb: a.attr_pic_thumb.clone().filter(|s| !s.is_empty()),
-            sort_order: Some(a.sort_order),
+            sort_order: a.sort_order,
         };
         if let Some(group) = bucket.iter_mut().find(|g| g.attr_name == a.attr_name) {
             group.attr_list.push(vo);
