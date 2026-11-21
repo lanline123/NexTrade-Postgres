@@ -72,6 +72,7 @@ interface SkuRow {
   isInquiry?: number;
   isEnabled?: number | null;
   limitNumber?: number;
+  minBuyCount?: number;
   picThumb?: string;
   picUrl?: string;
   /** 规格值（旧版 skuValue，管道符分隔，如「红色|L」），B2B 批量列表标题用 */
@@ -361,6 +362,8 @@ export default function ProductDetailClient({
   const liveStock = availability?.stock;
   const stock = Number(liveStock ?? selectedSku?.skuStock ?? item.productStock ?? 0);
   const limit = Number(selectedSku?.limitNumber ?? item.limitNumber ?? 0);
+  const minBuy = Number(item.minBuyCount ?? 0);
+  const minQuantity = minBuy >= 2 ? minBuy : 1;
   const maxQuantity = limit > 0 ? limit : stock > 0 ? stock : 1;
   const outOfStock = stock <= 0;
   const skuDisabled = selectedSku?.isEnabled === 0;
@@ -435,6 +438,10 @@ export default function ProductDetailClient({
   useEffect(() => {
     if (quantity > maxQuantity) setQuantity(maxQuantity);
   }, [maxQuantity, quantity]);
+
+  useEffect(() => {
+    if (!outOfStock && quantity < minQuantity) setQuantity(minQuantity);
+  }, [minQuantity, quantity, outOfStock]);
 
   useEffect(() => {
     if (skuGroups.length === 0 && skuList.length === 1 && !skuId) {
@@ -638,7 +645,10 @@ export default function ProductDetailClient({
 
   const changeQuantity = (value: number) => {
     const next = Math.floor(Number(value) || 1);
-    if (next < 1) return;
+    if (next < minQuantity) {
+      Toast.error({ content: t('起售{n}件', { n: minQuantity }) });
+      return;
+    }
     if (next > maxQuantity) {
       Toast.error({ content: limit > 0 && maxQuantity === limit ? t('限购{n}件', { n: limit }) : t('库存不足') });
       return;
@@ -1636,15 +1646,16 @@ export default function ProductDetailClient({
       <div className="title">{t('数量')}：</div>
       <div className="con">
         <InputNumber
-          min={1}
+          min={minQuantity}
           max={maxQuantity}
           value={quantity}
           disabled={outOfStock}
-          onChange={(value) => changeQuantity(Math.max(1, Math.min(maxQuantity, Number(value) || 1)))}
+          onChange={(value) => changeQuantity(Math.max(minQuantity, Math.min(maxQuantity, Number(value) || minQuantity)))}
         />
         <span className="stock-text">
           {t('件')}
           {limit > 0 ? `（${t('限购')} ${limit} ${t('件')}）` : ''}
+          {minBuy >= 2 ? `（${t('起售')} ${minBuy} ${t('件')}）` : ''}
         </span>
       </div>
     </div>

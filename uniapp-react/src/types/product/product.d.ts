@@ -50,6 +50,7 @@ export interface ProductItem {
     suppliersId?: number;
     virtualSales?: number;
     limitNumber?: number;
+    minBuyCount?: number;
     productCare?: string;
     productRelated?: any;
     productServiceIds?: any;

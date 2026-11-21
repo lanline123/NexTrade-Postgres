@@ -43,6 +43,7 @@ export interface Cart {
     marketPrice: string;
     originalPrice: string;
     quantity: number;
+    minBuyCount?: number;
     skuId: number;
     skuData: SkuDatum[];
     productType: number;

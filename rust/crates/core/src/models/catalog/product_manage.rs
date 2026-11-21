@@ -516,6 +516,8 @@ pub struct ProductListItemVO {
     pub is_need_re_import_vendor_product: Option<i32>,
     pub attributes_tpl_id: Option<i32>,
     pub limit_number: i32,
+    /// 商品起售量（件）：0/1 不限，>=2 生效
+    pub min_buy_count: i32,
     pub delivery_mode: i32,
     /// 未迁移：礼品卡组类型
     pub group_type: Option<i32>,
@@ -616,6 +618,8 @@ pub struct AdminProductDetailVO {
     pub suppliers_id: Option<i32>,
     pub virtual_sales: i32,
     pub limit_number: i32,
+    /// 商品起售量（件）：0/1 不限，>=2 生效
+    pub min_buy_count: i32,
     pub product_care: Option<String>,
     pub product_related: Vec<i32>,
     pub is_support_return: i32,
@@ -767,6 +771,8 @@ pub struct ProductSaveDTO {
     pub suppliers_id: Option<i32>,
     pub virtual_sales: Option<i32>,
     pub limit_number: Option<i32>,
+    /// 商品起售量（件）：0/1 不限，>=2 生效
+    pub min_buy_count: Option<i32>,
     pub product_care: Option<String>,
     pub is_support_return: Option<i32>,
     pub is_support_cod: Option<i32>,
@@ -997,6 +1003,8 @@ pub struct ClientProductInfoVO {
     pub rank_integral: i32,
     pub virtual_sales: i32,
     pub limit_number: i32,
+    /// 商品起售量（件）：0/1 不限，>=2 生效
+    pub min_buy_count: i32,
     pub product_weight: Decimal,
     /// 单件商品体积 m³（v5.8.61）
     pub product_volume: Option<Decimal>,

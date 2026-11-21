@@ -56,6 +56,7 @@ const emptyValues: Record<string, any> = {
   saleMode: 0,
   isInquiry: 0,
   limitNumber: 0,
+  minBuyCount: 0,
   shippingTplId: undefined,
   freeShipping: true,
   isLogistics: true,
@@ -290,6 +291,7 @@ export default function ProductFormDrawer({
           saleMode: Number(detail.saleMode || 0),
           isInquiry: Number(detail.isInquiry || 0) === 1,
           limitNumber: Number(detail.limitNumber || 0),
+          minBuyCount: Number(detail.minBuyCount || 0),
           shippingTplId: detail.shippingTplId || undefined,
           freeShipping: Number(detail.freeShipping || 0) === 1,
           isLogistics: Number(detail.isLogistics ?? 1) === 1,
@@ -587,6 +589,7 @@ export default function ProductFormDrawer({
               { field: 'costPrice', label: t('成本价'), type: 'number' },
               { field: 'productStock', label: t('库存'), type: 'number' },
               { field: 'limitNumber', label: t('限购数量'), type: 'number' },
+              { field: 'minBuyCount', label: t('起售量'), type: 'number' },
               {
                 field: 'skuType',
                 label: t('规格类型'),

@@ -240,6 +240,30 @@ impl OrderService {
             crate::trade::check::load_groupon_prices(&self.repos, &lines, i64::from(now_activity))
                 .await?
         };
+        // 起售量整单复检（合并同商品行后判定）：同一商品跨 SKU/跨行
+        // 合计数量须 >= 起售量；礼品卡兑换行与拼团行不计入（非普通购买）。
+        {
+            let mut totals: std::collections::HashMap<i32, i32> =
+                std::collections::HashMap::new();
+            for line in &lines {
+                let is_gift_exchange = line.extra_data.as_deref().is_some_and(|raw| {
+                    raw.contains("giftCardsId")
+                });
+                if is_gift_exchange || groupon_prices.contains_key(&line.cart_id) {
+                    continue;
+                }
+                *totals.entry(line.product_id).or_default() += line.quantity.max(1);
+            }
+            for (pid, total) in &totals {
+                if let Some(p) = products.get(pid) {
+                    crate::catalog::product::ensure_min_buy_count(
+                        &p.product_name,
+                        p.min_buy_count,
+                        *total,
+                    )?;
+                }
+            }
+        }
         let mut seckill_discount = Decimal::ZERO;
         // (rec_id, 数量, 商品ID, 活动开始, 活动结束, 活动ID)
         let mut seckill_lines: Vec<(i32, i32, i32, i32, i32, i32)> = Vec::new();

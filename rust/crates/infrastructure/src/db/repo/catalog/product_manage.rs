@@ -518,9 +518,10 @@ impl ProductManageRepository {
         let product_id = r;
         // v5.8.61 体积列：保留旧 INSERT 列清单，插入后补写，避免影响历史字段顺序。
         // 2026-11-15 询价标志同路补写。
-        sqlx::query("UPDATE product SET product_volume = $1, is_inquiry = $2 WHERE product_id = $3")
+        sqlx::query("UPDATE product SET product_volume = $1, is_inquiry = $2, min_buy_count = $3 WHERE product_id = $4")
             .bind(p.product_volume)
             .bind(p.is_inquiry)
+            .bind(p.min_buy_count)
             .bind(product_id)
             .execute(&self.pool)
             .await
@@ -618,9 +619,10 @@ impl ProductManageRepository {
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
-        sqlx::query("UPDATE product SET product_volume = $1, is_inquiry = $2 WHERE product_id = $3")
+        sqlx::query("UPDATE product SET product_volume = $1, is_inquiry = $2, min_buy_count = $3 WHERE product_id = $4")
             .bind(p.product_volume)
             .bind(p.is_inquiry)
+            .bind(p.min_buy_count)
             .bind(p.product_id)
             .execute(&self.pool)
             .await

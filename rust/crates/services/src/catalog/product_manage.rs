@@ -1990,6 +1990,10 @@ fn apply_dto_to_product(product: &mut Product, dto: ProductSaveDTO, is_create: b
     set_some!(suppliers_id, dto.suppliers_id);
     set_opt!(virtual_sales, dto.virtual_sales);
     set_opt!(limit_number, dto.limit_number);
+    // 起售量：负数归 0（不限），0/1 不限、>=2 生效
+    if let Some(v) = dto.min_buy_count {
+        product.min_buy_count = v.max(0);
+    }
     set_some!(product_care, dto.product_care);
     set_opt!(is_support_return, dto.is_support_return);
     set_opt!(is_support_cod, dto.is_support_cod);
@@ -2303,6 +2307,7 @@ fn to_list_item(
         is_need_re_import_vendor_product: p.is_need_re_import_vendor_product,
         attributes_tpl_id: p.attributes_tpl_id,
         limit_number: p.limit_number,
+        min_buy_count: p.min_buy_count,
         delivery_mode: p.delivery_mode,
         group_type: None,
         is_cycle_product: None,
@@ -2392,6 +2397,7 @@ fn to_admin_detail(
         suppliers_id: p.suppliers_id,
         virtual_sales: p.virtual_sales,
         limit_number: p.limit_number,
+        min_buy_count: p.min_buy_count,
         product_care: p.product_care.clone(),
         product_related: parse_id_json_lossy(p.product_related.as_deref().unwrap_or("")),
         is_support_return: p.is_support_return,
@@ -2690,6 +2696,7 @@ fn to_client_info(p: &Product, inquiry: &InquirySummary) -> ClientProductInfoVO 
         rank_integral: p.rank_integral,
         virtual_sales: p.virtual_sales,
         limit_number: p.limit_number,
+        min_buy_count: p.min_buy_count,
         product_weight: p.product_weight,
         product_volume: p.product_volume,
         product_unit: p.product_unit.clone(),

@@ -456,6 +456,10 @@ pub struct Product {
     /// 型号级覆盖见 `product_sku.is_inquiry`）
     #[sqlx(default)]
     pub is_inquiry: i32,
+    /// 商品起售量（件）：0 或 1 = 不限，>= 2 生效（原版 v5.8.32 起售量/起购量，
+    /// 批发/零售/O2O 共用同一字段；2026-11-21 迁移 011 加列）
+    #[sqlx(default)]
+    pub min_buy_count: i32,
 }
 
 impl Product {

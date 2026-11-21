@@ -974,7 +974,7 @@ export default function Cart() {
                                                                                         <NumberStepper
                                                                                             value={goods.quantity}
                                                                                             disabled={isQuantityDisabled(goods)}
-                                                                                            min={1}
+                                                                                            min={goods.minBuyCount && goods.minBuyCount >= 2 ? goods.minBuyCount : 1}
                                                                                             max={goods.stock}
                                                                                             isDelete={true}
                                                                                             onChange={(e) => updateCartItem(goods.cartId, e?.value ?? goods.quantity)}

@@ -187,6 +187,8 @@ const Specification = forwardRef<SpecificationRef, SpecificationProps>(function 
         presaleInfo: {} as AnyObject,
         // 商品限购
         limitNumber: 0,
+        // 商品起售量（0/1 不限，>=2 生效）
+        minBuyCount: 0,
         // 周期购/次卡当前选中的营销规格 ID
         selectedCycleSpecId: 0 as number,
         loadedBatchSkuIds: "",
@@ -565,6 +567,10 @@ const Specification = forwardRef<SpecificationRef, SpecificationProps>(function 
                     s.current.productImage = result.item.picUrl || "";
                     s.current.grouponInfo = result.grouponDetail;
                     s.current.limitNumber = result.item.limitNumber || 0; // 商品限购
+                    s.current.minBuyCount = result.item.minBuyCount || 0; // 商品起售量
+                    if (s.current.minBuyCount >= 2 && s.current.productNumber < s.current.minBuyCount) {
+                        s.current.productNumber = s.current.minBuyCount;
+                    }
             }
             s.current.productType = result.item.productType;
             s.current.productIsBuy = result.item.isBuy;
@@ -1187,7 +1193,11 @@ const Specification = forwardRef<SpecificationRef, SpecificationProps>(function 
 
     const handleOverlimit = (event: string) => {
         if (event === "minus") {
-            Taro.showToast({ title: t("商品数量不能小于1"), icon: "none" });
+            if (s.current.minBuyCount >= 2) {
+                Taro.showToast({ title: `${t("起售")}${s.current.minBuyCount}${t("件")}`, icon: "none" });
+            } else {
+                Taro.showToast({ title: t("商品数量不能小于1"), icon: "none" });
+            }
         }
         if (event === "plus") {
             if (s.current.limitNumber > 0) {
@@ -1687,7 +1697,7 @@ const Specification = forwardRef<SpecificationRef, SpecificationProps>(function 
                                             <>
                                                 <TigNumberBox
                                                     value={productNumber}
-                                                    min={1}
+                                                    min={s.current.minBuyCount >= 2 ? s.current.minBuyCount : 1}
                                                     max={maxProductNumber}
                                                     inputWidth={20}
                                                     buttonWidth={20}
@@ -1708,7 +1718,7 @@ const Specification = forwardRef<SpecificationRef, SpecificationProps>(function 
                                             <>
                                                 <TigNumberBox
                                                     value={productNumber}
-                                                    min={1}
+                                                    min={s.current.minBuyCount >= 2 ? s.current.minBuyCount : 1}
                                                     max={maxProductNumber}
                                                     onOverlimit={handleOverlimit}
                                                     onChange={(val) => {
@@ -1728,7 +1738,7 @@ const Specification = forwardRef<SpecificationRef, SpecificationProps>(function 
                                             <>
                                                 <TigNumberBox
                                                     value={productNumber}
-                                                    min={1}
+                                                    min={s.current.minBuyCount >= 2 ? s.current.minBuyCount : 1}
                                                     max={s.current.limitNumber || productStock}
                                                     onOverlimit={handleOverlimit}
                                                     onChange={(val) => {

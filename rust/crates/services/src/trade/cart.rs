@@ -51,6 +51,8 @@ pub struct CartItemVO {
     /// 限购上限（Java `CartServiceImpl:433` `cartVO.setLimitNumber(product.getLimitNumber())`）。
     /// 0 表示不限购。
     pub limit_number: i32,
+    /// 起售量（件）：0/1 不限，>=2 生效（购物车步进器下限与改量校验共用）。
+    pub min_buy_count: i32,
     /// 1 上架 / 0 下架。
     pub product_status: i32,
     pub sale_status: i32,
@@ -237,6 +239,23 @@ impl CartService {
                 )
                 .await?;
         }
+        // 起售量校验（合并同商品行后判定）：本会员购物车内该商品现有
+        // 普通行数量合计 + 本次数量须 >= 起售量；拼团行是活动独立行不计入。
+        if groupon_data.is_none() {
+            let existing_total: i32 = self
+                .repos
+                .trade
+                .cart
+                .find_by_user(user_id, None)
+                .await?
+                .iter()
+                .filter(|l| l.product_id == product_id && l.extra_data.is_none())
+                .map(|l| l.quantity)
+                .sum();
+            self.product
+                .ensure_min_buy(product_id, existing_total + quantity)
+                .await?;
+        }
         // 校验商品可购
         self.product.check_purchasable(product_id, sku_id, quantity).await?;
 
@@ -411,6 +430,25 @@ impl CartService {
             .find_owned(cart_id, user_id)
             .await?
             .ok_or_else(|| Error::NotFound("购物车记录不存在".into()))?;
+        // 起售量校验（合并同商品行后判定）：其余普通行合计 + 本次目标
+        // 数量须 >= 起售量（删除行走 remove，不受此限）。
+        {
+            let other_total: i32 = self
+                .repos
+                .trade
+                .cart
+                .find_by_user(user_id, None)
+                .await?
+                .iter()
+                .filter(|l| {
+                    l.product_id == cart.product_id && l.cart_id != cart_id && l.extra_data.is_none()
+                })
+                .map(|l| l.quantity)
+                .sum();
+            self.product
+                .ensure_min_buy(cart.product_id, other_total + quantity)
+                .await?;
+        }
         // 价格门控购买拦截（第 2 期，用户决策 3）：与加购同一口径，
         // 含询价豁免（2026-11-20 裁定）——命中询价时由下方
         // check_purchasable 给出询价一期文案。
@@ -632,6 +670,7 @@ impl CartService {
                         .or(Some(cart.product_type)),
                     product_stock: product.map_or(0, |p| p.product_stock),
                     limit_number: product.map_or(0, |p| p.limit_number),
+                    min_buy_count: product.map_or(0, |p| p.min_buy_count),
                     product_status: i32::from(product.is_some_and(Product::is_on_sale)),
                     sale_status,
                     sale_mode: product.map_or(0, |p| p.sale_mode),

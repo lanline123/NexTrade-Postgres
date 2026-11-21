@@ -211,6 +211,14 @@ impl ProductService {
         Ok(())
     }
 
+    /// 起售量校验（原版 v5.8.32 起售量/起购量）：按同一商品的合计数量判定。
+    pub async fn ensure_min_buy(&self, product_id: i32, total_quantity: i32) -> Result<()> {
+        let Some(p) = self.repos.catalog.product.find_by_id(product_id).await? else {
+            return Ok(());
+        };
+        ensure_min_buy_count(&p.product_name, p.min_buy_count, total_quantity)
+    }
+
     /// 扣减库存（下单核心，失败即库存不足）。
     pub async fn deduct_stock(
         &self,
@@ -292,5 +300,34 @@ fn to_vo(p: Product) -> ProductVO {
         store_pic_url: None,
         store_product_status: None,
         store_product_stock: None,
+    }
+}
+/// 起售量纯校验：`min_buy_count` 0/1 = 不限，>= 2 时合计数量不足即报错
+/// （文案含商品名与起售件数）。加购（合并同商品行后）与下单创建共用。
+pub fn ensure_min_buy_count(product_name: &str, min_buy_count: i32, total_quantity: i32) -> Result<()> {
+    if min_buy_count >= 2 && total_quantity < min_buy_count {
+        return Err(Error::biz(
+            400,
+            format!("商品「{product_name}」起售{min_buy_count}件，当前购买数量不足，请增加购买数量"),
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod min_buy_tests {
+    use super::ensure_min_buy_count;
+
+    #[test]
+    fn min_buy_zero_and_one_mean_unlimited() {
+        assert!(ensure_min_buy_count("x", 0, 1).is_ok());
+        assert!(ensure_min_buy_count("x", 1, 1).is_ok());
+    }
+
+    #[test]
+    fn min_buy_blocks_below_and_allows_at_threshold() {
+        assert!(ensure_min_buy_count("x", 3, 2).is_err());
+        assert!(ensure_min_buy_count("x", 3, 3).is_ok());
+        assert!(ensure_min_buy_count("x", 3, 5).is_ok());
     }
 }
