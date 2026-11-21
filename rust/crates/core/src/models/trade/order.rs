@@ -93,6 +93,12 @@ pub struct OrderCreateDTO {
     /// 赠言（送礼物模式，可选，上限 200 字）
     #[serde(default)]
     pub gift_message: Option<String>,
+    /// 同城配送送达时段选择（我方新增，论坛帖 467744）：仅同城配送
+    /// （shipping_method = 3）时有效；涉单店铺开启时段选择时必传，
+    /// 服务端逐店校验（日期范围/时段命中/截单/容量）后落
+    /// order_delivery_slot。缺省 = 未选择。
+    #[serde(default)]
+    pub delivery_time_slot: Option<super::delivery_slot::DeliverySlotSelection>,
 }
 
 /// 兼容前端三种 `useBalance` 入参：数字（余额抵扣金额）、布尔、字符串数字。
@@ -140,6 +146,7 @@ impl Default for OrderCreateDTO {
             line_price_overrides: None,
             is_gift_order: None,
             gift_message: None,
+            delivery_time_slot: None,
         }
     }
 }
@@ -279,6 +286,17 @@ pub struct OrderVO {
     /// 已拒绝 / 已退回）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paid_cancel_refund_status_name: Option<String>,
+    // ————— 同城送达时段（我方新增，论坛帖 467744） —————
+    /// 送达时段开始 Unix 秒（服务层在列表/详情后置附加，`to_vo`
+    /// 本体恒 None；未选时段为 null）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delivery_time_start: Option<i32>,
+    /// 送达时段结束 Unix 秒
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delivery_time_end: Option<i32>,
+    /// 送达时段展示文案（`yyyy-MM-dd HH:mm-HH:mm`）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delivery_time_text: Option<String>,
     // ————— 送礼物订单（我方新增） —————
     /// 是否送礼物订单（根订单或其拆单子单命中 order_gift 即为 true）
     pub is_gift_order: bool,

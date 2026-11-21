@@ -44,7 +44,7 @@ impl O2oConfigRepository {
         shop_id: i32,
     ) -> Result<Option<ShopLocalDeliveryConfig>> {
         sqlx::query_as::<_, ShopLocalDeliveryConfig>(
-            "SELECT shop_local_delivery_config_id, shop_id, enabled, delivery_radius, min_order_amount, base_delivery_fee, distance_pricing_enabled, order_dispatch_mode, pickup_photo_enabled, delivery_complete_photo_enabled, default_service_fee_type, default_service_fee_value, add_time FROM shop_local_delivery_config WHERE shop_id = $1 LIMIT 1",
+            "SELECT shop_local_delivery_config_id, shop_id, enabled, delivery_radius, min_order_amount, base_delivery_fee, distance_pricing_enabled, order_dispatch_mode, pickup_photo_enabled, delivery_complete_photo_enabled, default_service_fee_type, default_service_fee_value, time_slot_enabled, time_slots, booking_days, cutoff_minutes, add_time FROM shop_local_delivery_config WHERE shop_id = $1 LIMIT 1",
         )
         .bind(shop_id)
         .fetch_optional(&self.pool)
@@ -61,7 +61,7 @@ impl O2oConfigRepository {
             return Ok(Vec::new());
         }
         sqlx::query_as::<_, ShopLocalDeliveryConfig>(
-            "SELECT shop_local_delivery_config_id, shop_id, enabled, delivery_radius, min_order_amount, base_delivery_fee, distance_pricing_enabled, order_dispatch_mode, pickup_photo_enabled, delivery_complete_photo_enabled, default_service_fee_type, default_service_fee_value, add_time FROM shop_local_delivery_config WHERE shop_id = ANY($1)",
+            "SELECT shop_local_delivery_config_id, shop_id, enabled, delivery_radius, min_order_amount, base_delivery_fee, distance_pricing_enabled, order_dispatch_mode, pickup_photo_enabled, delivery_complete_photo_enabled, default_service_fee_type, default_service_fee_value, time_slot_enabled, time_slots, booking_days, cutoff_minutes, add_time FROM shop_local_delivery_config WHERE shop_id = ANY($1)",
         )
         .bind(shop_ids)
         .fetch_all(&self.pool)
@@ -119,8 +119,9 @@ impl O2oConfigRepository {
             "INSERT INTO shop_local_delivery_config (shop_id, enabled, delivery_radius, \
              min_order_amount, base_delivery_fee, distance_pricing_enabled, order_dispatch_mode, \
              pickup_photo_enabled, delivery_complete_photo_enabled, \
-             default_service_fee_type, default_service_fee_value, add_time) \
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) \
+             default_service_fee_type, default_service_fee_value, \
+             time_slot_enabled, time_slots, booking_days, cutoff_minutes, add_time) \
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) \
              ON CONFLICT (shop_id) DO UPDATE SET enabled = EXCLUDED.enabled, \
              delivery_radius = EXCLUDED.delivery_radius, \
              min_order_amount = EXCLUDED.min_order_amount, \
@@ -130,7 +131,11 @@ impl O2oConfigRepository {
              pickup_photo_enabled = EXCLUDED.pickup_photo_enabled, \
              delivery_complete_photo_enabled = EXCLUDED.delivery_complete_photo_enabled, \
              default_service_fee_type = EXCLUDED.default_service_fee_type, \
-             default_service_fee_value = EXCLUDED.default_service_fee_value \
+             default_service_fee_value = EXCLUDED.default_service_fee_value, \
+             time_slot_enabled = EXCLUDED.time_slot_enabled, \
+             time_slots = EXCLUDED.time_slots, \
+             booking_days = EXCLUDED.booking_days, \
+             cutoff_minutes = EXCLUDED.cutoff_minutes \
              RETURNING shop_local_delivery_config_id",
         )
         .bind(cfg.shop_id)
@@ -144,6 +149,10 @@ impl O2oConfigRepository {
         .bind(cfg.delivery_complete_photo_enabled)
         .bind(cfg.default_service_fee_type)
         .bind(cfg.default_service_fee_value)
+        .bind(cfg.time_slot_enabled)
+        .bind(&cfg.time_slots)
+        .bind(cfg.booking_days)
+        .bind(cfg.cutoff_minutes)
         .bind(cfg.add_time)
         .fetch_one(&mut *tx)
         .await

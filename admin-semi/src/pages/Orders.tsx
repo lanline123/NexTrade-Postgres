@@ -64,6 +64,7 @@ type OrderFilters = {
   addTime: string[];
   mark: number; // -1 不限（旧版「订单标记」筛选）
   isGift: number | undefined; // 送礼物筛选（我方新增）：1 只看礼物订单
+  deliveryDate: string; // 送达日期筛选（我方新增，论坛帖 467744）：yyyy-MM-dd，空 = 不筛
 };
 
 const emptyFilters: OrderFilters = {
@@ -77,6 +78,7 @@ const emptyFilters: OrderFilters = {
   addTime: [],
   mark: -1,
   isGift: undefined,
+  deliveryDate: '',
 };
 
 /** 会员标签筛选状态（对齐旧版「按会员标签筛选订单」弹窗）。 */
@@ -211,6 +213,7 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
       mobile: applied.mobile || undefined,
       payStatus: applied.payStatus,
       isGift: applied.isGift,
+      deliveryDate: applied.deliveryDate || undefined,
       mark: applied.mark !== -1 ? applied.mark : undefined,
       shippingStatus: applied.shippingStatus,
       addStartTime: applied.addTime?.[0] || undefined,
@@ -236,6 +239,7 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
     filters.mobile,
     filters.email,
     filters.address,
+    filters.deliveryDate,
   ].filter((value) => value.trim()).length;
   const batchSnCount = /[\n,，]/.test(filters.keyword)
     ? filters.keyword
@@ -487,6 +491,23 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
               onEnterPress={search}
               showClear
             />
+            {/* 送达日期筛选（我方新增，论坛帖 467744）：按买家所选送达时段备货 */}
+            <DatePicker
+              type="date"
+              placeholder={t('送达日期')}
+              value={filters.deliveryDate || undefined}
+              onChange={(next) => {
+                let date = '';
+                if (next instanceof Date) {
+                  const pad = (n: number) => String(n).padStart(2, '0');
+                  date = `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}`;
+                } else if (typeof next === 'string') {
+                  date = next.slice(0, 10);
+                }
+                setFilters((current) => ({ ...current, deliveryDate: date }));
+              }}
+              style={{ width: 150 }}
+            />
           </div>
         )}
 
@@ -618,6 +639,23 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
                   ) : null}
                 </div>
               ),
+            },
+            {
+              // 送达时段（我方新增，论坛帖 467744）：同城单买家所选时段，商家按时段备货
+              title: t('送达时段'),
+              dataIndex: 'deliveryTimeText',
+              width: 170,
+              render: (value: string | null | undefined) =>
+                value ? (
+                  <span>
+                    {value.slice(5)}
+                    <Tag color="cyan" style={{ marginLeft: 6 }}>
+                      {t('同城')}
+                    </Tag>
+                  </span>
+                ) : (
+                  '-'
+                ),
             },
             {
               title: t('操作'),

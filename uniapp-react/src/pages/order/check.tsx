@@ -113,6 +113,9 @@ export default function Check() {
         isGiftOrder?: boolean;
         /** 赠言（送礼物模式选填，上限 200 字） */
         giftMessage?: string;
+        /** 同城送达时段选择（我方新增，论坛帖 467744）：仅同城配送时提交，
+            结构与后端 DeliverySlotSelection 对齐（date=yyyy-MM-dd，start/end=HH:mm） */
+        deliveryTimeSlot?: { date: string; start: string; end: string };
         invoiceData: any;
         useDefaultCouponIds?: number;
         productReservationTimeId?: number;
@@ -414,6 +417,59 @@ export default function Check() {
     const storeShippingRuleRef = useRef<any>(null);
     const storeShippingRule = storeShippingRuleRef.current;
     const shopDeliveryDataRef = useRef<any>([]);
+    // 同城送达时段选项（我方新增，论坛帖 467744）：check 响应
+    // deliveryOption.shopDeliveryTimeSlots 逐店下发，这里合并为整单
+    // 一份选项（多店取时段交集，任一店约满/截单则整单该时段不可选）
+    const deliverySlotDaysRef = useRef<any[]>([]);
+    const deliverySlotDateRef = useRef<string>("");
+
+    const mergeDeliverySlotDays = (shops: any[]): any[] => {
+        if (!Array.isArray(shops) || shops.length === 0) return [];
+        const [first, ...rest] = shops;
+        return (first?.days || [])
+            .map((day: any) => ({
+                ...day,
+                slots: (day.slots || [])
+                    .filter((slot: any) =>
+                        rest.every((s: any) =>
+                            (s.days || []).some(
+                                (d: any) => d.date === day.date && (d.slots || []).some((x: any) => x.start === slot.start && x.end === slot.end)
+                            )
+                        )
+                    )
+                    .map((slot: any) => {
+                        let full = !!slot.full;
+                        let available = slot.available !== false;
+                        rest.forEach((s: any) => {
+                            const d = (s.days || []).find((x: any) => x.date === day.date);
+                            const x = (d?.slots || []).find((y: any) => y.start === slot.start && y.end === slot.end);
+                            if (x) {
+                                if (x.full) full = true;
+                                if (x.available === false) available = false;
+                            }
+                        });
+                        return { ...slot, full, available };
+                    })
+            }))
+            .filter((day: any) => day.slots.length > 0);
+    };
+
+    const applyDeliverySlotOptions = (deliveryOption: any) => {
+        deliverySlotDaysRef.current = mergeDeliverySlotDays(deliveryOption?.shopDeliveryTimeSlots || []);
+        const days = deliverySlotDaysRef.current;
+        if (!days.some((d: any) => d.date === deliverySlotDateRef.current)) {
+            deliverySlotDateRef.current = days[0]?.date || "";
+        }
+        // 已选时段若已不在可选集合（约满/截单/配置变更），清空要求重选
+        const sel = formState.deliveryTimeSlot;
+        if (sel) {
+            const day = days.find((d: any) => d.date === sel.date);
+            const slot = day?.slots?.find((s: any) => s.start === sel.start && s.end === sel.end);
+            if (!slot || slot.full || slot.available === false) {
+                delete formState.deliveryTimeSlot;
+            }
+        }
+    };
 
     const isPresaleDeposit = () => productPresaleRef.current?.saleMode === 2;
     const payableAmount = () => {
@@ -642,6 +698,9 @@ export default function Check() {
                 }
 
                 shopDeliveryDataRef.current = deliveryOption?.shopDeliveryData;
+
+                // 同城送达时段选项（我方新增，论坛帖 467744）
+                applyDeliverySlotOptions(deliveryOption);
             }
 
             // 如果后端默认的 deliveryType 被当前 tab 过滤掉了，兜底切换到 tab 允许的第一个可选项
@@ -777,6 +836,9 @@ export default function Check() {
                 }
 
                 shopDeliveryDataRef.current = result.deliveryOption?.shopDeliveryData;
+
+                // 同城送达时段选项（我方新增，论坛帖 467744）
+                applyDeliverySlotOptions(result.deliveryOption);
             }
 
             // 切换配送方式后同步配送规则，快递配送（运费模板计费）不返回规则
@@ -984,11 +1046,17 @@ export default function Check() {
 
         formState.deliveryType = deliveryTypeRef.current;
 
+        // 同城送达时段（我方新增，论坛帖 467744）：非同城配送不带时段字段
+        if (deliveryTypeRef.current !== 3) {
+            delete formState.deliveryTimeSlot;
+        }
+
         // 送礼物模式（我方新增）：不带买家地址、固定快递配送，
         // 收货地址由好友领取时填写
         if (formState.isGiftOrder) {
             delete formState.addressId;
             formState.deliveryType = 1;
+            delete formState.deliveryTimeSlot;
         }
     };
 
@@ -1106,6 +1174,20 @@ export default function Check() {
         // 验证配送方式和联系信息
         if (!validateDeliveryAndContact()) {
             return;
+        }
+
+        // 同城送达时段必选（我方新增，论坛帖 467744）：店铺开启时段
+        // 选择时未选不可提交（后端逐店同口径强校验，此处先行拦截）
+        if (
+            !formState.isGiftOrder &&
+            deliveryTypeRef.current === 3 &&
+            deliverySlotDaysRef.current.length > 0 &&
+            !formState.deliveryTimeSlot
+        ) {
+            return Taro.showToast({
+                title: t("请选择送达时间"),
+                icon: "none"
+            });
         }
 
         if (formState.payTypeId === 0) {
@@ -1673,6 +1755,93 @@ export default function Check() {
                     )}
                 </View>
             )}
+
+            {/* 同城送达时段选择（我方新增，论坛帖 467744）：仅同城配送且涉单店铺
+                开启时段选择时展示；整单选一个时段（日期 + 时段两级），约满/已截单
+                时段置灰不可选，未选不可提交（submit 同口径拦截，后端逐店强校验） */}
+            {deliveryTypeRef.current === 3 &&
+                !formState.isGiftOrder &&
+                deliverySlotDaysRef.current.length > 0 &&
+                (() => {
+                    const days = deliverySlotDaysRef.current;
+                    const activeDate = days.some((d: any) => d.date === deliverySlotDateRef.current)
+                        ? deliverySlotDateRef.current
+                        : days[0].date;
+                    const activeDay = days.find((d: any) => d.date === activeDate) || days[0];
+                    const sel = formState.deliveryTimeSlot;
+                    return (
+                        <View
+                            style={{
+                                background: "#fff",
+                                borderRadius: "18rpx",
+                                margin: "20rpx 24rpx 0",
+                                padding: "24rpx 28rpx"
+                            }}
+                        >
+                            <Text style={{ fontSize: "30rpx", color: "#1a1a1a", fontWeight: 600 }}>{t("送达时间")}</Text>
+                            <View style={{ display: "flex", flexDirection: "row", flexWrap: "wrap", marginTop: "18rpx" }}>
+                                {days.map((day: any) => {
+                                    const active = day.date === activeDate;
+                                    return (
+                                        <View
+                                            key={day.date}
+                                            onClick={() => {
+                                                deliverySlotDateRef.current = day.date;
+                                                rerender();
+                                            }}
+                                            style={{
+                                                padding: "10rpx 22rpx",
+                                                marginRight: "14rpx",
+                                                marginBottom: "12rpx",
+                                                borderRadius: "10rpx",
+                                                background: active ? "#65c4aa" : "#f2f3f5"
+                                            }}
+                                        >
+                                            <Text style={{ fontSize: "26rpx", color: active ? "#fff" : "#333" }}>
+                                                {day.dateLabel} {day.date.slice(5)}
+                                            </Text>
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                            <View style={{ display: "flex", flexDirection: "row", flexWrap: "wrap" }}>
+                                {(activeDay.slots || []).map((slot: any) => {
+                                    const disabled = slot.full || slot.available === false;
+                                    const selected = !!sel && sel.date === activeDate && sel.start === slot.start && sel.end === slot.end;
+                                    return (
+                                        <View
+                                            key={`${slot.start}-${slot.end}`}
+                                            onClick={() => {
+                                                if (disabled) return;
+                                                formState.deliveryTimeSlot = { date: activeDate, start: slot.start, end: slot.end };
+                                                rerender();
+                                            }}
+                                            style={{
+                                                padding: "12rpx 22rpx",
+                                                marginRight: "14rpx",
+                                                marginBottom: "12rpx",
+                                                borderRadius: "10rpx",
+                                                border: selected ? "2rpx solid #65c4aa" : "2rpx solid #eeeeee",
+                                                background: selected ? "#eefaf5" : disabled ? "#f7f7f7" : "#fff"
+                                            }}
+                                        >
+                                            <Text style={{ fontSize: "26rpx", color: disabled ? "#bbbbbb" : selected ? "#1a9e78" : "#333333" }}>
+                                                {slot.label}
+                                                {slot.full
+                                                    ? ` ${t("已约满")}`
+                                                    : slot.available === false
+                                                      ? ` ${t("已截单")}`
+                                                      : slot.remaining != null
+                                                        ? ` ${t("剩")}${slot.remaining}`
+                                                        : ""}
+                                            </Text>
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                        </View>
+                    );
+                })()}
 
             {/* 礼品卡单选区（原版口径：单选一张、再点已选卡取消；可选卡来自 check 响应
                 availableGiftCards；flowType=12 时锁定 giftCardSn 对应卡不可改。

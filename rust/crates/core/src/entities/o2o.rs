@@ -388,6 +388,14 @@ pub struct ShopLocalDeliveryConfig {
     pub default_service_fee_type: i32,
     /// 门店默认服务费值（固定=元/件；比例=百分比数值）（骑手 MVP 2026-11-20 增量列，我方新增）
     pub default_service_fee_value: Decimal,
+    /// 是否开启送达时间选择 0=关闭 1=开启（送达时段 2026-11-21 增量列，我方新增，迁移 025）
+    pub time_slot_enabled: i32,
+    /// 送达时段定义 JSON 数组文本：[{"start":"09:00","end":"11:00","capacity":20}]，capacity=0 不限量（迁移 025）
+    pub time_slots: String,
+    /// 可预约天数（含今日，1=仅今日，上限 7）（迁移 025）
+    pub booking_days: i32,
+    /// 截单提前量（分钟）：今日时段在开始前该分钟数停止接单（迁移 025）
+    pub cutoff_minutes: i32,
     /// 添加时间 [NOT NULL]
     pub add_time: i32,
 }

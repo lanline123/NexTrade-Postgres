@@ -75,6 +75,14 @@ pub struct ShopLocalDeliveryConfigVO {
     pub default_service_fee_value: rust_decimal::Decimal,
     /// 距离溢价规则行（此前 GET 不回此字段、前端恒空数组；现补齐往返保真）。
     pub distance_pricing_list: Vec<DistancePricingVO>,
+    /// 是否开启送达时间选择（我方新增，论坛帖 467744，迁移 025）：0-关闭，1-开启。
+    pub time_slot_enabled: i32,
+    /// 送达时段定义（开启时段选择时生效；capacity=0 不限量）。
+    pub time_slots: Vec<crate::models::trade::delivery_slot::DeliverySlotDef>,
+    /// 可预约天数（含今日，1=仅今日，上限 7）。
+    pub booking_days: i32,
+    /// 截单提前量（分钟）：今日时段在开始前该分钟数停止接单。
+    pub cutoff_minutes: i32,
     pub add_time: i32,
 }
 
@@ -95,6 +103,14 @@ pub struct ShopLocalDeliverySaveParam {
     pub default_service_fee_type: Option<i32>,
     pub default_service_fee_value: Option<rust_decimal::Decimal>,
     pub distance_pricing_list: Option<Vec<DistancePricingSaveRow>>,
+    /// 送达时间选择开关（我方新增，迁移 025）。
+    pub time_slot_enabled: Option<i32>,
+    /// 送达时段定义全量替换（提交时给定则以提交为准）。
+    pub time_slots: Option<Vec<crate::models::trade::delivery_slot::DeliverySlotDef>>,
+    /// 可预约天数（含今日，上限 7）。
+    pub booking_days: Option<i32>,
+    /// 截单提前量（分钟，>= 0）。
+    pub cutoff_minutes: Option<i32>,
 }
 
 /// `POST /adminapi/o2o/homeService/saveConfig` 入参（前端整表提交）。

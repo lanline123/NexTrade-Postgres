@@ -436,6 +436,10 @@ fn build_vo(input: VoInput<'_>) -> OrderVO {
         // 送礼物标记由 list 在 build_vo 后回填（默认非礼物）
         is_gift_order: false,
         gift_status: None,
+        // 同城送达时段由 list/detail 在 build_vo 后回填（默认未选时段）
+        delivery_time_text: None,
+        delivery_time_start: None,
+        delivery_time_end: None,
     }
 }
 
@@ -727,6 +731,10 @@ impl OrderAdminService {
             orders.iter().map(|o| (o.order_id, o.parent_order_id)).collect();
         let gift_map = gift_svc.resolve_map(&gift_keys).await.unwrap_or_default();
 
+        // 同城送达时段批量解析（我方新增，论坛帖 467744；子单经父单命中）
+        let slot_svc = crate::trade::delivery_slot::DeliverySlotService::new(self.repos.clone());
+        let slot_map = slot_svc.resolve_map(&gift_keys).await.unwrap_or_default();
+
         let now = utils::now_seconds() as i32;
         let mut list = Vec::with_capacity(orders.len());
         for o in &orders {
@@ -754,6 +762,11 @@ impl OrderAdminService {
             if let Some(gift) = gift_map.get(&o.order_id) {
                 vo.is_gift_order = true;
                 vo.gift_status = Some(gift.gift_status);
+            }
+            if let Some(slot) = slot_map.get(&o.order_id) {
+                vo.delivery_time_text = Some(slot.slot_text.clone());
+                vo.delivery_time_start = Some(slot.slot_start);
+                vo.delivery_time_end = Some(slot.slot_end);
             }
             list.push(vo);
         }
@@ -828,6 +841,16 @@ impl OrderAdminService {
             if let Ok(Some(gift)) = gift_svc.resolve_for_order(order_id).await {
                 vo.is_gift_order = true;
                 vo.gift_status = Some(gift.gift_status);
+            }
+        }
+        // 同城送达时段（我方新增，论坛帖 467744，详情与列表同口径）
+        {
+            let slot_svc =
+                crate::trade::delivery_slot::DeliverySlotService::new(self.repos.clone());
+            if let Ok(Some(slot)) = slot_svc.resolve_for_order(order_id).await {
+                vo.delivery_time_text = Some(slot.slot_text);
+                vo.delivery_time_start = Some(slot.slot_start);
+                vo.delivery_time_end = Some(slot.slot_end);
             }
         }
 

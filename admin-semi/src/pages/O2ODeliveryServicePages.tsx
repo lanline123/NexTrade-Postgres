@@ -66,6 +66,12 @@ interface LocalDeliveryRule {
   sortOrder?: number;
 }
 
+interface LocalDeliveryTimeSlot {
+  start: string; // HH:mm
+  end: string; // HH:mm
+  capacity: number; // 每时段最大单量，0 = 不限量
+}
+
 interface LocalDeliveryConfig {
   enabled?: number;
   deliveryRadius?: number;
@@ -78,6 +84,14 @@ interface LocalDeliveryConfig {
   defaultServiceFeeType?: number;
   defaultServiceFeeValue?: number;
   distancePricingList?: LocalDeliveryRule[];
+  // 送达时间选择（我方新增，论坛帖 467744）：开关默认关，开启后买家
+  // 在同城配送结算时必须选择送达时段；timeSlots 为每日时段定义，
+  // bookingDays 为含今天的可预约天数（1..7），cutoffMinutes 为当日
+  // 时段提前截单分钟数（时段开始前不足该分钟数不可选）
+  timeSlotEnabled?: number;
+  timeSlots?: LocalDeliveryTimeSlot[];
+  bookingDays?: number;
+  cutoffMinutes?: number;
 }
 
 interface MeituanPlatformConfig {
@@ -123,6 +137,10 @@ const DEFAULT_LOCAL_DELIVERY: LocalDeliveryConfig = {
   defaultServiceFeeType: 0,
   defaultServiceFeeValue: 0,
   distancePricingList: [],
+  timeSlotEnabled: 0,
+  timeSlots: [],
+  bookingDays: 2,
+  cutoffMinutes: 30,
 };
 
 export function IntraCityDelivery() {
@@ -167,6 +185,16 @@ export function IntraCityDelivery() {
           distancePricingList: Array.isArray(localRes?.distancePricingList)
             ? localRes.distancePricingList
             : [],
+          timeSlotEnabled: Number(localRes?.timeSlotEnabled) === 1 ? 1 : 0,
+          timeSlots: Array.isArray(localRes?.timeSlots)
+            ? localRes.timeSlots.map((s) => ({
+                start: String(s?.start || ''),
+                end: String(s?.end || ''),
+                capacity: toNumber(s?.capacity, 0),
+              }))
+            : [],
+          bookingDays: toNumber(localRes?.bookingDays, 2),
+          cutoffMinutes: toNumber(localRes?.cutoffMinutes, 30),
         });
         setStore(storeRes || {});
       })
@@ -225,6 +253,33 @@ export function IntraCityDelivery() {
     });
   };
 
+  // 送达时段行编辑（我方新增，论坛帖 467744）
+  const updateSlot = (index: number, patch: Partial<LocalDeliveryTimeSlot>) => {
+    setLocal((prev) => {
+      const list = (prev.timeSlots || []).slice();
+      list[index] = { ...list[index], ...patch };
+      return { ...prev, timeSlots: list };
+    });
+  };
+
+  const addSlot = () => {
+    setLocal((prev) => {
+      const list = prev.timeSlots || [];
+      if (list.length >= 10) {
+        Toast.error({ content: t('最多只能添加10个送达时段') });
+        return prev;
+      }
+      return { ...prev, timeSlots: [...list, { start: '09:00', end: '11:00', capacity: 0 }] };
+    });
+  };
+
+  const removeSlot = (index: number) => {
+    setLocal((prev) => ({
+      ...prev,
+      timeSlots: (prev.timeSlots || []).filter((_, i) => i !== index),
+    }));
+  };
+
   const openThirdPartyManage = async () => {
     setThirdPartyVisible(true);
     setThirdPartyLoading(true);
@@ -268,6 +323,21 @@ export function IntraCityDelivery() {
       Toast.error({ content: t('开启叠加溢价时，至少需要添加一条溢价规则') });
       return;
     }
+    if (Number(local.timeSlotEnabled) === 1) {
+      const slots = local.timeSlots || [];
+      if (slots.length === 0) {
+        Toast.error({ content: t('开启送达时间选择时，至少需要添加一个送达时段') });
+        return;
+      }
+      const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+      const invalid = slots.some(
+        (s) => !timePattern.test(s.start || '') || !timePattern.test(s.end || '') || s.start >= s.end,
+      );
+      if (invalid) {
+        Toast.error({ content: t('送达时段需为 HH:mm 格式且结束时间晚于开始时间') });
+        return;
+      }
+    }
     setSaving(true);
     try {
       await apiPost('/o2o/intraCityDelivery/platformConfig/saveConfig', {
@@ -294,6 +364,14 @@ export function IntraCityDelivery() {
           additionalFee: toNumber(rule.additionalFee),
           sortOrder: index + 1,
         })),
+        timeSlotEnabled: Number(local.timeSlotEnabled) === 1 ? 1 : 0,
+        timeSlots: (local.timeSlots || []).map((slot) => ({
+          start: String(slot.start || ''),
+          end: String(slot.end || ''),
+          capacity: Math.max(0, Math.floor(toNumber(slot.capacity))),
+        })),
+        bookingDays: Math.min(7, Math.max(1, Math.floor(toNumber(local.bookingDays, 2)) || 2)),
+        cutoffMinutes: Math.max(0, Math.floor(toNumber(local.cutoffMinutes, 30))),
       });
       Toast.success({ content: t('修改成功') });
     } catch (error) {
@@ -532,6 +610,80 @@ export function IntraCityDelivery() {
                 <p className="config-field__help">
                   {t('未开启叠加溢价时，所有订单统一使用基础运费')}
                 </p>
+              </div>
+            </div>
+            <div className="config-field">
+              <label>{t('送达时间选择')}</label>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Switch
+                    checked={Number(local.timeSlotEnabled) === 1}
+                    onChange={(checked) => updateLocal({ timeSlotEnabled: checked ? 1 : 0 })}
+                  />
+                  <span className="pmo-help">{t('开启后，买家同城配送下单时必须选择送达时段，商家按时段备货')}</span>
+                </div>
+                {Number(local.timeSlotEnabled) === 1 && (
+                  <div className="pmo-pricing-block">
+                    <div className="pmo-form-row">
+                      <span>{t('可预约天数（含今天）')}</span>
+                      <InputNumber
+                        min={1}
+                        max={7}
+                        value={local.bookingDays}
+                        onChange={(value) => updateLocal({ bookingDays: toNumber(value, 2) })}
+                        style={{ width: 100 }}
+                      />
+                      <span>{t('天；当日时段提前')}</span>
+                      <InputNumber
+                        min={0}
+                        value={local.cutoffMinutes}
+                        onChange={(value) => updateLocal({ cutoffMinutes: toNumber(value, 30) })}
+                        style={{ width: 100 }}
+                      />
+                      <span>{t('分钟截单（时段开始前不足该分钟数不可选）')}</span>
+                    </div>
+                    {(local.timeSlots || []).map((slot, index) => (
+                      <div className="pmo-form-row" key={index}>
+                        <span>{t('时段')}</span>
+                        <Input
+                          value={slot.start}
+                          placeholder="09:00"
+                          onChange={(value) => updateSlot(index, { start: value })}
+                          style={{ width: 90 }}
+                        />
+                        <span>~</span>
+                        <Input
+                          value={slot.end}
+                          placeholder="11:00"
+                          onChange={(value) => updateSlot(index, { end: value })}
+                          style={{ width: 90 }}
+                        />
+                        <span>{t('每时段最多')}</span>
+                        <InputNumber
+                          min={0}
+                          value={slot.capacity}
+                          onChange={(value) => updateSlot(index, { capacity: toNumber(value) })}
+                          style={{ width: 100 }}
+                        />
+                        <span>{t('单（0 = 不限量）')}</span>
+                        <Button theme="borderless" type="danger" size="small" onClick={() => removeSlot(index)}>
+                          {t('删除')}
+                        </Button>
+                      </div>
+                    ))}
+                    <div>
+                      <Button
+                        icon={<IconPlus />}
+                        theme="borderless"
+                        type="primary"
+                        disabled={(local.timeSlots || []).length >= 10}
+                        onClick={addSlot}
+                      >
+                        {t('添加送达时段')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             <div className="config-field">

@@ -686,6 +686,11 @@ pub struct OrderListQuery {
     /// 送礼物筛选（我方新增）：Some(1) 只看礼物订单，Some(0) 只看非礼物，None = 不筛
     #[serde(default)]
     pub is_gift: Option<i32>,
+    /// 送达日期筛选（我方新增，论坛帖 467744）：`yyyy-MM-dd`，按买家
+    /// 所选送达时段的开始时刻所在日筛选（子单经父单命中）；商家按
+    /// 日备货用。None/空 = 不筛
+    #[serde(default)]
+    pub delivery_date: Option<String>,
 }
 
 impl OrderListQuery {
@@ -1027,6 +1032,17 @@ pub struct OrderVO {
     pub is_gift_order: bool,
     /// 礼物子状态（0 待付款 1 待领取 2 已领取 3 已关闭 4 已取消）；非礼物为 null
     pub gift_status: Option<i32>,
+
+    // *** 同城送达时段（我方新增，论坛帖 467744） ***
+    /// 买家所选送达时段文案（`yyyy-MM-dd HH:mm-HH:mm`）；未选时段
+    /// 为 null。服务层在 list/detail 组装后按 order_delivery_slot
+    /// 回填（子单经父单命中），`build_vo` 默认 null。商家据此按
+    /// 时段备货，列表可用 `deliveryDate` 按送达日期筛选。
+    pub delivery_time_text: Option<String>,
+    /// 送达时段开始 Unix 秒；未选为 null
+    pub delivery_time_start: Option<i32>,
+    /// 送达时段结束 Unix 秒；未选为 null
+    pub delivery_time_end: Option<i32>,
 }
 
 /// 订单商品 VO（对应 Java `OrderItemVO` 的展示必需字段）。

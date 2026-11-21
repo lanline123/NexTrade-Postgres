@@ -202,6 +202,11 @@ export default function OrderDetailModal({ visible, orderId, onCancel, onChanged
                 <div className="order-detail-time">
                   {t('下单时间')} {detail.addTime || '-'}
                 </div>
+                {(detail as { deliveryTimeText?: string | null }).deliveryTimeText ? (
+                  <div className="order-detail-time">
+                    {t('送达时段')} {(detail as { deliveryTimeText?: string | null }).deliveryTimeText}
+                  </div>
+                ) : null}
               </div>
               <Space wrap>
                 <Tag color={(statusColor[detail.orderStatusName] || 'blue') as any}>

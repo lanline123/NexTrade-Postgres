@@ -929,6 +929,24 @@ impl CheckService {
             })
             .collect();
 
+        // 同城送达时段选项（我方新增，论坛帖 467744）：涉单店铺开启
+        // 时段选择时逐店下发可选日期+时段（含已约满标记），前端在
+        // 同城配送下渲染选择区、整单选一个时段随提交带回。未开启
+        // 的店铺不出现在此列表，前端不渲染、后端不要求。
+        let slot_svc = crate::trade::delivery_slot::DeliverySlotService::new(self.repos.clone());
+        let mut slot_shops: Vec<i32> = carts.iter().map(|c| c.shop_id).collect();
+        slot_shops.sort_unstable();
+        slot_shops.dedup();
+        let mut shop_delivery_time_slots: Vec<serde_json::Value> = Vec::new();
+        for shop_id in slot_shops {
+            if let Ok(Some(days)) = slot_svc.options_for_shop(shop_id).await {
+                shop_delivery_time_slots.push(json!({
+                    "shopId": shop_id,
+                    "days": serde_json::to_value(days).unwrap_or(serde_json::Value::Null),
+                }));
+            }
+        }
+
         let assemble =
             |dp: Vec<serde_json::Value>, pp: Vec<serde_json::Value>, sp: Vec<serde_json::Value>| {
                 json!({
@@ -937,6 +955,7 @@ impl CheckService {
                     "pickupProducts": pp,
                     "shopDeliveryProducts": sp,
                     "shopDeliveryData": shop_delivery_data,
+                    "shopDeliveryTimeSlots": shop_delivery_time_slots,
                 })
             };
 
@@ -1648,6 +1667,15 @@ pub(crate) fn product_price(products: &HashMap<i32, Product>, cart: &Cart) -> De
 ///
 /// 口径：包邮商品/包邮模板/满额包邮 = 0；按件或按重、首件首重 + 续件续重。
 /// 地区规则：地址地区命中模板区域时用该区域，否则用默认区域（`is_default=1`）或首条。
+///
+/// 同城配送费口径核查结论（2026-11-21，论坛帖 467744 送达时间批）：
+/// 本函数是结算运费的**唯一**计算路径——快递与同城配送
+/// （delivery_type = 3）共用同一模板计费，自提（2）恒 0；满额包邮
+/// 在 `calc_shipping_fee` 内按**店铺商品金额**与模板区域行
+/// `free_price` 判定，同城订单同享、无同城专属分支。门店同城配
+/// 置的 `base_delivery_fee`（基础运费）仅为配置面字段，**不进入**
+/// 本结算计费（前端结算页亦不叠加），勿在此另起同城计费分支
+/// 造成双轨。
 pub(crate) async fn calculate_shipping(
     repos: &Repositories,
     carts: &[Cart],

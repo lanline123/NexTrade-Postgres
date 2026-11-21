@@ -866,6 +866,20 @@ impl OrderService {
             }
         }
 
+        // —— 同城配送送达时段校验（我方新增，论坛帖 467744）——
+        // 仅同城配送（method = 3）且非 POS、非送礼物时生效：涉单店铺
+        // 开启时段选择则必选并逐店校验（日期/时段/截单/容量），通过
+        // 后落 order_delivery_slot（与订单同事务，见下方写入点）。
+        // 未开启的店铺不要求选择，存量行为不变。
+        let delivery_slot = if effective_shipping_method == 3 && !pos_mode && !gift_mode {
+            let shop_ids: Vec<i32> = store_amounts.keys().copied().collect();
+            crate::trade::delivery_slot::DeliverySlotService::new(self.repos.clone())
+                .validate_for_order(&shop_ids, dto.delivery_time_slot.as_ref())
+                .await?
+        } else {
+            None
+        };
+
         let order = Order {
             is_presale: if presale_row.is_some() { 1 } else { 0 },
             presale_type: presale_row.as_ref().map(|_| 2),
@@ -1137,6 +1151,28 @@ impl OrderService {
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            // 同城送达时段行与订单同事务写入（order_delivery_slot，
+            // 迁移 025）：「有订单必有时段行」原子成立
+            if result.is_ok() {
+                if let (Some(oid), Some(slot)) =
+                    (result.as_ref().ok().copied(), delivery_slot.as_ref())
+                {
+                    if let Err(e) =
+                        crate::trade::delivery_slot::DeliverySlotService::insert_in_tx(
+                            &mut tx,
+                            oid,
+                            &order_sn,
+                            order.shop_id,
+                            slot,
+                            now_ts,
+                        )
+                        .await
+                    {
+                        result = Err(e);
                     }
                 }
             }
@@ -1697,6 +1733,16 @@ impl OrderService {
                 }
             }
         }
+        // 同城送达时段（我方新增，论坛帖 467744）：详情回显买家所选时段
+        {
+            let slot_svc =
+                crate::trade::delivery_slot::DeliverySlotService::new(self.repos.clone());
+            if let Ok(Some(slot)) = slot_svc.resolve_for_order(order_id).await {
+                vo.delivery_time_start = Some(slot.slot_start);
+                vo.delivery_time_end = Some(slot.slot_end);
+                vo.delivery_time_text = Some(slot.slot_text);
+            }
+        }
         // 拼团×自提回填（我方新增，论坛帖 407906）：拼团单成团状态 +
         // 自提单自提点详情（此前买家侧两字段恒 None，拼团自提单在订单
         // 详情看不到自提点与成团门提示）
@@ -1887,6 +1933,9 @@ impl OrderService {
         let gift_keys: Vec<(i32, Option<i32>)> =
             orders.iter().map(|o| (o.order_id, o.parent_order_id)).collect();
         let gift_map = gift_svc.resolve_map(&gift_keys).await.unwrap_or_default();
+        // 同城送达时段批量解析（我方新增，论坛帖 467744；子单经父单命中）
+        let slot_svc = crate::trade::delivery_slot::DeliverySlotService::new(self.repos.clone());
+        let slot_map = slot_svc.resolve_map(&gift_keys).await.unwrap_or_default();
         // 拼团成团状态批量预取（我方新增，论坛帖 407906）：order_id -> join_status
         let groupon_map: std::collections::HashMap<i32, i32> = self
             .repos
@@ -1911,6 +1960,11 @@ impl OrderService {
             if let Some(gift) = gift_map.get(&o.order_id) {
                 vo.is_gift_order = true;
                 vo.gift_status = Some(gift.gift_status);
+            }
+            if let Some(slot) = slot_map.get(&o.order_id) {
+                vo.delivery_time_start = Some(slot.slot_start);
+                vo.delivery_time_end = Some(slot.slot_end);
+                vo.delivery_time_text = Some(slot.slot_text.clone());
             }
             if let Some(js) = groupon_map.get(&o.order_id) {
                 vo.join_status = Some(*js);
@@ -3049,6 +3103,10 @@ pub(crate) fn paid_cancel_status_name(status: i32) -> &'static str {
         3 => "已拒绝",
         4 => "已退回",
         _ => "退款中",
+        // 同城送达时段由 list/detail 在 to_vo 后回填（默认未选时段）
+        delivery_time_start: None,
+        delivery_time_end: None,
+        delivery_time_text: None,
         // 送礼物标记由 list/detail 在 to_vo 后回填（默认非礼物）
         is_gift_order: false,
         gift_status: None,

@@ -145,6 +145,15 @@ impl DeliveryDispatchService {
         };
         let (lat, lng) = buyer_coords(order.address_data.as_deref());
         let sn = delivery_sn(order.order_id, 1);
+        // 同城送达时段（我方新增，论坛帖 467744）：买家所选时段开始
+        // 时刻写入派送单 service_time（期望送达），骑手/商家按时段
+        // 履约；未选时段（未开启或存量单）为 None，与原口径一致。
+        let slot_start = crate::trade::delivery_slot::DeliverySlotService::new(self.repos.clone())
+            .resolve_for_order(order.order_id)
+            .await
+            .ok()
+            .flatten()
+            .map(|s| s.slot_start);
         self.repos
             .o2o
             .pickup_client
@@ -166,7 +175,7 @@ impl DeliveryDispatchService {
                 &pickup_phone,
                 pickup_lat,
                 pickup_lng,
-                None,
+                slot_start,
                 order.total_amount,
                 &order.buyer_note,
             )

@@ -88,6 +88,11 @@ export interface OrderRow {
   isGiftOrder?: boolean;
   /** 礼物子状态：0 待付款 1 待领取 2 已领取 3 已关闭 4 已取消。 */
   giftStatus?: number | null;
+  /** 同城送达时段文案（我方新增，论坛帖 467744）：后端按 order_delivery_slot 回填，未选时段为空。 */
+  deliveryTimeText?: string | null;
+  /** 送达时段开始/结束 Unix 秒。 */
+  deliveryTimeStart?: number | null;
+  deliveryTimeEnd?: number | null;
   /** 配送方式：3 为同城配送，列表行操作文案用「完成配送」而非「确认收货」。 */
   shippingTypeId?: number;
   /** 自提订单不展示确认收货入口。 */

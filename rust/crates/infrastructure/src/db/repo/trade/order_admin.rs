@@ -1554,6 +1554,19 @@ fn build_filter(q: &OrderListQuery, platform_view: bool) -> Result<(String, Vec<
         }
     }
 
+    // 送达日期筛选（我方新增，论坛帖 467744）：时段行挂根单，子单经
+    // parent_order_id 命中；按时段开始时刻所在本地日筛选，商家按日备货
+    if let Some(delivery_date) = non_empty(&q.delivery_date) {
+        conds.push(
+            "EXISTS (SELECT 1 FROM order_delivery_slot s \
+             WHERE (s.order_id = \"order\".order_id OR s.order_id = \"order\".parent_order_id) \
+               AND s.slot_start >= ? AND s.slot_start <= ?)"
+                .into(),
+        );
+        binds.push(Bind::I64(day_start_seconds(delivery_date)?));
+        binds.push(Bind::I64(day_end_seconds(delivery_date)?));
+    }
+
     if let Some(ref uids) = q.tag_user_ids {
         if uids.is_empty() {
             conds.push("user_id = -1".into());

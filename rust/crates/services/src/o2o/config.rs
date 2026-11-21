@@ -98,6 +98,12 @@ impl O2oConfigService {
             default_service_fee_type: c.default_service_fee_type,
             default_service_fee_value: c.default_service_fee_value,
             distance_pricing_list: pricing_vo(pricing),
+            time_slot_enabled: c.time_slot_enabled,
+            time_slots: nextrade_core::models::trade::delivery_slot::parse_slot_defs(
+                &c.time_slots,
+            ),
+            booking_days: c.booking_days,
+            cutoff_minutes: c.cutoff_minutes,
             add_time: c.add_time,
         }))
     }
@@ -135,6 +141,28 @@ impl O2oConfigService {
             default_service_fee_value: p
                 .default_service_fee_value
                 .unwrap_or(base.default_service_fee_value),
+            // 送达时段（我方新增，迁移 025）：时段定义提交时全量替换
+            // 并经纯逻辑清洗（非法行丢弃、按开始时刻排序去重）；数值
+            // 字段做范围钳制（天数 1..=7、截单分钟 >= 0）。
+            time_slot_enabled: p.time_slot_enabled.unwrap_or(base.time_slot_enabled),
+            time_slots: p
+                .time_slots
+                .as_deref()
+                .map(nextrade_core::models::trade::delivery_slot::slot_defs_json)
+                .unwrap_or(base.time_slots),
+            // 无存量行时 base 为全零默认，须回落到口径默认（天数 2 / 截单 30 分钟，与迁移 025 列默认一致）
+            booking_days: {
+                let v = p.booking_days.unwrap_or(base.booking_days);
+                if v <= 0 { 2 } else { v.clamp(1, 7) }
+            },
+            cutoff_minutes: {
+                let v = p.cutoff_minutes.unwrap_or(base.cutoff_minutes);
+                if existing.is_none() && p.cutoff_minutes.is_none() {
+                    30
+                } else {
+                    v.max(0)
+                }
+            },
             add_time: if base.add_time > 0 { base.add_time } else { now },
         };
         let pricing = pricing_rows(p.distance_pricing_list.as_deref());

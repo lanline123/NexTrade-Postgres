@@ -1038,6 +1038,12 @@ impl PosCashierService {
             order_source: Some("pos".into()),
             pos_user_id: Some(admin_id),
             line_price_overrides: None,
+            // 送礼物/送达时段字段补齐（存量字面构造缺失 is_gift_order /
+            // gift_message 两字段，本批一并补 None；POS 单恒不走这两口径，
+            // 送达时段亦由 create() 的 pos_mode 豁免，行为不变）
+            is_gift_order: None,
+            gift_message: None,
+            delivery_time_slot: None,
         };
 
         let order_service = crate::trade::order::OrderService::from_repos(self.repos.clone());

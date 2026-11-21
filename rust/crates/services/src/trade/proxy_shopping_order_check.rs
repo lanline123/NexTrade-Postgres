@@ -1197,6 +1197,12 @@ impl ProxyShoppingOrderCheckService {
             line_price_overrides: cross_mode
                 .as_ref()
                 .map(|m| m.line_price_overrides.clone()),
+            // 送礼物/送达时段字段补齐（存量字面构造缺失 is_gift_order /
+            // gift_message 两字段，本批一并补 None；代客下单不走这两口径，
+            // 行为不变）
+            is_gift_order: None,
+            gift_message: None,
+            delivery_time_slot: None,
         };
 
         let product_svc = crate::catalog::product::ProductService::new(self.repos.clone(), None);
