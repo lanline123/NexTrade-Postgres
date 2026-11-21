@@ -9,6 +9,7 @@
 */
 import { SettingGroup, ColorField, PicListEditorField} from "../../../shared/settingWidgets";
 import { SettingsTabs, ExtensionStyleSettings} from "../../../shared/styleEdits";
+import GroupCardHeader from "../../../../../components/GroupCardHeader";
 
 import { useI18n} from '../../../../../i18n';
 function NoticeGroupsEditor({ data, onChange}: { data: Record<string, any>; onChange: (patch: Record<string, any>) => void}) {
@@ -38,26 +39,12 @@ backgroundColor: "#fff",
 boxShadow: "0 0 4px 0 rgba(10, 42, 97, 0.2)"
 }}
 >
-<div
-style={{
-backgroundColor: "#f7f8fa",
-padding: "10px",
-fontSize: 14,
-display: "flex",
-alignItems: "center",
-justifyContent: "space-between"
-}}
->
-<span>{`第${index + 1}组`}</span>
-<span style={{ display: "flex", gap: 10, fontSize: 12}}>
-<a className={index === 0? "is-disabled": ""} onClick={() => moveGroup(index, -1)}>
-{t('上移')}
-</a>
-<a className={index === groups.length - 1? "is-disabled": ""} onClick={() => moveGroup(index, 1)}>
-{t('下移')}
-</a>
-</span>
-</div>
+<GroupCardHeader
+title={`第${index + 1}组`}
+isFirst={index === 0}
+isLast={index === groups.length - 1}
+onMove={(delta) => moveGroup(index, delta)}
+/>
 <div className="dec-edit-group">
 <div style={{ width: "100%"}}>
 <div style={{ color: "var(--semi-color-primary)", fontSize: 12, marginBottom: 4}}>{t('图片: 宽20, 高20')}</div>

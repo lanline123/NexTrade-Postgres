@@ -13,6 +13,7 @@
 */
 import { useState} from "react";
 import { ColorPairField} from "../../../components/ColorField";
+import GroupCardHeader from "../../../components/GroupCardHeader";
 import {
 SettingRow,
 SegmentedRadio,
@@ -306,7 +307,10 @@ export function ExtensionStyleSettings({
 /**
 * 折叠卡片列表壳（对齐 CategoryGroupEdit/GroupListEdit 的.demo-collapse 形态）：
 * 卡头显示「第 N 组」（原版 GroupListEdit 头为 第【N】组，编号自 index+1）、
-* 卡头「上移/下移」文字钮承接排序（原版为拖拽，同 PicList 口径）、删除徽标 -10px。
+* 卡头「上移/下移」文字钮承接排序（原版为拖拽，同 PicList 口径）。
+* 2026-11-21 卡头行改走共享组头控件 GroupCardHeader（components/，用户指示）：
+* 删除 × 自卡片右上角外挂灰徽标（-10px）移入卡头行、列于下移右侧，颜色跟随
+* 后台主题色（themeStyle --general）；本壳只组装标题/边界/回调喂给该控件。
 * 2026-11-21 现代化（用户指示）：卡片改扁平直角 + 1px 干净边框（去圆角与重阴影），
 * 底部添加按钮改虚线整宽直角钮（+ 文案），与渠道弹窗/PicListEditor 改版同审美。
 * 数据层编辑（增删改移）由 ./GroupListEditor（分组列表编辑器）承接，本壳只管呈现。
@@ -356,54 +360,15 @@ border: "1px solid #e8eaed",
 boxSizing: "border-box"
 }}
 >
-<div
-style={{
-backgroundColor: "#f7f8fa",
-padding: "10px 12px",
-fontSize: 13,
-display: "flex",
-alignItems: "center",
-justifyContent: "space-between",
-cursor: collapsible? "pointer": "default"
-}}
-onClick={() => collapsible && setOpenIndex(open? -1: index)}
->
-<span style={{ fontWeight: 600, color: "#1c1f23"}}>{itemTitle ? itemTitle(item, index) : `第${index + 1}组`}</span>
-<span style={{ display: "flex", gap: 10, fontSize: 12}} onClick={(e) => e.stopPropagation()}>
-<a className={index === 0? "is-disabled": ""} onClick={() => onMove(index, -1)}>
-{t('上移')}
-</a>
-<a className={index === items.length - 1? "is-disabled": ""} onClick={() => onMove(index, 1)}>
-{t('下移')}
-</a>
-</span>
-</div>
+<GroupCardHeader
+title={itemTitle ? itemTitle(item, index) : `第${index + 1}组`}
+isFirst={index === 0}
+isLast={index === items.length - 1}
+onMove={(delta) => onMove(index, delta)}
+onRemove={canRemove ? () => onRemove(index) : undefined}
+onClick={collapsible ? () => setOpenIndex(open ? -1 : index) : undefined}
+/>
 {open? <div>{renderItem(item, index)}</div>: null}
-{canRemove? (
-<span
-title={t('删除')}
-onClick={() => onRemove(index)}
-style={{
-position: "absolute",
-right: -10,
-top: -10,
-color: "#fff",
-background: "#bbb",
-border: "2px solid #fff",
-borderRadius: 0,
-zIndex: 2,
-width: 18,
-height: 18,
-textAlign: "center",
-lineHeight: "16px",
-cursor: "pointer",
-fontSize: 12,
-boxSizing: "border-box"
-}}
->
-×
-</span>
-): null}
 </div>
 );
 })}
