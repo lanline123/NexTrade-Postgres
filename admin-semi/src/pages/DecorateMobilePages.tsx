@@ -27,6 +27,7 @@ import { useI18n } from '../i18n';
 import ListPage from '../framework/ListPage';
 import { IconInfoCircle } from '@douyinfe/semi-icons';
 import OptionSelectModal from '../components/OptionSelectModal';
+import { LinkField, type LinkValue } from '../components/LinkPicker';
 import { scheduleMobileEmbedPrefetch } from '../components/decorate/prefetchMobileEmbed';
 import ImageUploader from '../components/ImageUploader';
 import ColorField from '../components/ColorField';
@@ -800,7 +801,25 @@ export function MobileDecoratePages(props: {
  * 契约对齐: java/view/admin/src/views/decorate/mobileDecorate/SplashAd.vue
  * labels: 开屏广告, 添加素材, 最大等待时长, 跳转
  * props: state, autoReturnGoods, materialImg, materialVideo, maxWaitTime, redirectType, redirectUrl
+ * 2026-11-21 修复（论坛帖 847785757618364410）：redirectUrl 控件由手填文本框
+ * 改回原版 SelectLink 口径的共享链接选择器（LinkField）——存储契约本就是
+ * LinkType 对象（现网存量值为 {}），文本框既无法选分类/商品等系统链接，
+ * 回显对象值还会坏值；前台 SplashAd 点击跳转（redirectType==1 时
+ * urlFormat(redirectUrl) 后 navigateTo）与后端离散数据透传本已齐全，
+ * 缺口仅在此配置控件。存量手填字符串按自定义链接（appLink=原串）回显，
+ * 旧手填路径保存后仍可直达。
  * ========================================================================= */
+
+/** 开屏跳转链接归一：存量对象原样喂选择器；手填遗留字符串包装为自定义链接对象（appLink 即原串，前台 urlFormat 的 custom 分支按 appLink 消费）。 */
+function splashRedirectLinkValue(v: any): LinkValue {
+  if (!v) return {};
+  if (typeof v === 'string') {
+    const s = v.trim();
+    return s ? { path: 'custom', label: '自定义链接', name: s, link: s, appLink: s } : {};
+  }
+  return v as LinkValue;
+}
+
 export function MobileSplashAd() {
   const { t } = useI18n();
   const [config, setConfig] = useState<any>({
@@ -831,6 +850,11 @@ export function MobileSplashAd() {
   useEffect(load, []);
 
   const save = async () => {
+    // 对齐原版 redirectUrl 必填校验：选了「整体跳转」必须已选链接，否则前台点击无目标
+    if (Number(config.redirectType) === 1 && Object.keys(splashRedirectLinkValue(config.redirectUrl)).length === 0) {
+      Toast.error(t('请选择跳转链接'));
+      return;
+    }
     setSaving(true);
     try {
       await apiPost('/decorate/decorateDiscrete/update', {
@@ -925,13 +949,13 @@ export function MobileSplashAd() {
                 <Radio value={1}>{t('整体跳转')}</Radio>
               </RadioGroup>
               {config.redirectType === 1 ? (
-                <Input
-                  value={config.redirectUrl}
-                  disabled={config.state === 0}
-                  onChange={(v: string) => setConfig({ ...config, redirectUrl: v })}
-                  placeholder={t('请输入跳转链接')}
-                  style={{ marginTop: 10 }}
-                />
+                <div style={{ marginTop: 10 }}>
+                  <LinkField
+                    value={splashRedirectLinkValue(config.redirectUrl)}
+                    disabled={config.state === 0}
+                    onChange={(link) => setConfig({ ...config, redirectUrl: link })}
+                  />
+                </div>
               ) : null}
             </div>
           </div>

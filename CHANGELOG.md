@@ -1276,3 +1276,9 @@
 ### 新增
 
 - **商品 - 批量导出选品跨页全选（我方新增，论坛帖 227792427047478518）**：原版 v5.8.61 批量导出「以下商品 / 不含以下商品」的选品弹窗（SelectProduct）只有逐页勾选 + 跨页保留已选（reserve-selection），表头全选仅作用于当前页，无「全选全部页」能力，本帖即是对原版的该项诉求；我方移植的 ProductPicker 同样只有逐页勾选与跨页累积已选。现为 ProductPicker 新增可选开关 `allowSelectAll`（默认关、其余调用方零影响），仅商品批量导出页的指定商品 / 不含以下商品选品开启：弹窗搜索栏旁新增「全选全部」按钮，一键把当前筛选（已生效关键词 + 服务端店铺作用域，与表格所见口径一致）下的全部商品跨所有分页取齐 id 合并进已选（后端列表 pageSize 上限 200、逐页取齐），之后可逐个取消少数不要的，正合帖子「先跨页全勾、再去掉少数」的用法。仍受该页既有可选上限 500 件约束：筛选结果超限时只选中前 500 件并弹提示明示总数与上限，不静默截断；后端导出接口对 rangeIds 数量无上限，约束仅在前端选品层。后端零改动。
+
+## 0.0.2 续 · 2026-11-21 批次（开屏广告点图跳转补齐：配置控件改回链接选择器，未部署——随下一 admin 合并版上线）
+
+### 修复
+
+- **后台 - 开屏广告「跳转」配置改回链接选择器（原版有·移植降级修复，论坛帖 847785757618364410「开屏广告点图片直达分类页/自定义链接」）**：核查实证整链三段中两段本已齐全且与原版同口径——后端 `open_advertising` 将装修离散数据（decorateSn=openAdvertising）原样透传；前台首页把 redirectType/redirectUrl 透传 SplashAd 组件，点击素材在 redirectType==1 时经 urlFormat 解析后 navigateTo 并关闭（与原版 v5.8.61 `view/uniapp/src/components/SplashAd/index.vue` 逐条一致）。唯一缺口在后台配置控件：原版 `view/admin/src/views/decorate/mobileDecorate/SplashAd.vue` 用 SelectLink 选择器存 LinkType 对象，我方移植降级为手填文本框——存储契约本就是 LinkType 对象（现网存量 redirectUrl={}），文本框既选不了分类页/商品页等系统链接（帖子主诉求无从配置），回显对象值亦坏值。本批（`admin-semi/src/pages/DecorateMobilePages.tsx`）将跳转链接控件换为共享 LinkField（components/LinkPicker，与装修编辑器同源），落盘 LinkType 对象、清空回 {}，并补原版同款必填校验（整体跳转未选链接拦截保存）；存量手填字符串按自定义链接归一回显（appLink=原串），旧手填路径仍可直达。同批修共享选择器一处同链缺口（`admin-semi/src/components/LinkPicker.tsx`）：自定义链接此前只写 link 不写 appLink，而前台 urlFormat 的 custom 分支只读 appLink（原版 LinkCustom 双输入契约），经选择器选出的自定义链接在前台一律解析为空——改为单输入值兼作 link/appLink，并使回显初始化兼容只有 appLink 的存量对象；该修复对全部 LinkField/PicLinkField 调用面一致生效。前台与后端零改动。

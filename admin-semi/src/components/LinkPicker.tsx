@@ -85,7 +85,7 @@ export default function LinkPicker({
     setActive('member');
     setKeyword('');
     setCustomName(value?.name || '');
-    setCustomLink(value?.link || '');
+    setCustomLink(value?.link || value?.appLink || '');
   }, [visible, value]);
 
   const loadRows = async () => {
@@ -159,7 +159,10 @@ export default function LinkPicker({
 
   const chooseCustom = () => {
     if (!customLink.trim()) return;
-    setSelected({ path: 'custom', label: t('自定义链接'), name: customName.trim() || customLink.trim(), link: customLink.trim() });
+    // 前台 urlFormat 的 custom 分支只读 appLink（原版 LinkCustom 双输入 link/appLink
+    // 契约）；本选择器为单输入形态，同一值兼作 PC/移动两端。此前只写 link，
+    // 经本选择器选出的自定义链接在前台一律解析为空、点击无跳转（2026-11-21 修复）。
+    setSelected({ path: 'custom', label: t('自定义链接'), name: customName.trim() || customLink.trim(), link: customLink.trim(), appLink: customLink.trim() });
   };
 
   const isPreset = active === 'member' || active === 'base';
