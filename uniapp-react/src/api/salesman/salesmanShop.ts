@@ -29,12 +29,25 @@ export interface ShellShopMine {
     customized: boolean;
 }
 
+/** 响应包（与全仓 request<T extends ResponseData> 惯例一致：T 为整包，返回 T["data"]） */
+interface ShellShopDetailResponse {
+    data: ShellShopDetail;
+    code: number;
+    message: string;
+}
+
+interface ShellShopMineResponse {
+    data: ShellShopMine;
+    code: number;
+    message: string;
+}
+
 /**
  * @description 买家侧外壳店详情（公开，含游客）
  * @param salesmanId 分销员 ID（既有公开标识，与分享链/名片同款）
  */
 export const getShellShopDetail = (salesmanId: number) => {
-    return request<ShellShopDetail>({
+    return request<ShellShopDetailResponse>({
         url: "salesman/shop/detail",
         method: "get",
         params: { salesmanId }
@@ -45,7 +58,7 @@ export const getShellShopDetail = (salesmanId: number) => {
  * @description 分销员自助视图（需登录；非分销员返回业务错误）
  */
 export const getMyShellShop = () => {
-    return request<ShellShopMine>({
+    return request<ShellShopMineResponse>({
         url: "salesman/shop/myShop",
         method: "get"
     });
@@ -55,7 +68,7 @@ export const getMyShellShop = () => {
  * @description 分销员保存店名/店招/简介（需登录）
  */
 export const saveMyShellShop = (data: { shopName: string; banner: string; intro: string }) => {
-    return request<ShellShopMine>({
+    return request<ShellShopMineResponse>({
         url: "salesman/shop/save",
         method: "post",
         data

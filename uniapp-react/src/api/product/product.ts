@@ -32,9 +32,24 @@ export interface DeliveryFileItem {
     addTime?: number;
 }
 
+/** 申领交付附件下载令牌的返回数据（响应包的 data 部分） */
+export interface DeliveryDownloadResult {
+    downloadUrl: string;
+    expiresAt: number;
+    fileName: string;
+    fileSize: number;
+}
+
+/** 响应包（与全仓 request<T extends ResponseData> 惯例一致：T 为整包，返回 T["data"]） */
+interface DeliveryDownloadResponse {
+    data: DeliveryDownloadResult;
+    code: number;
+    message: string;
+}
+
 /** 申领交付附件下载令牌：服务端强校验已购/订单归属后返回短时效下载地址 */
 export const requestDeliveryDownload = (data: { fileId: number; productId?: number; orderId?: number }) => {
-    return request<{ downloadUrl: string; expiresAt: number; fileName: string; fileSize: number }>({
+    return request<DeliveryDownloadResponse>({
         url: "product/delivery/requestDownload",
         method: "post",
         data
