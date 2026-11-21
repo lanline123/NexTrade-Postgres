@@ -18,7 +18,7 @@ import {
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import { IconRefresh, IconSearch } from '@douyinfe/semi-icons';
+import { IconChevronDown, IconImage, IconRefresh, IconSearch } from '@douyinfe/semi-icons';
 import { apiGet, apiPost, isDemo } from '../api';
 import { useI18n } from '../i18n';
 import { mockOrderPage } from '../mock';
@@ -32,6 +32,7 @@ import {
   BatchSignModal,
   ChangeStatusModal,
 } from '../components/OrderBatchDialogs';
+import './orders.css';
 
 const { Text } = Typography;
 
@@ -86,6 +87,72 @@ type MemberTagFilter = {
 
 const emptyMemberTagFilter: MemberTagFilter = { memberTagIds: [], memberTagMatchMode: 0 };
 
+/** 组合搜索字段定义（搜索栏改版）：label/placeholder 为 i18n key，渲染时经 t() 翻译。 */
+type ComboField = 'keyword' | 'outTradeNo' | 'mobile' | 'email' | 'address';
+const comboFieldDefs: Array<{ field: ComboField; label: string; placeholder: string }> = [
+  { field: 'keyword', label: '综合', placeholder: '搜索订单号 / 收货人 / 商品名称' },
+  { field: 'outTradeNo', label: '交易单号', placeholder: '请输入交易单号' },
+  { field: 'mobile', label: '手机号', placeholder: '手机号' },
+  { field: 'email', label: '邮箱', placeholder: 'Email' },
+  { field: 'address', label: '地址', placeholder: '详细地址' },
+];
+
+/** 商品缩略图：无图 / 加载失败时渲染规范占位，不裂图。 */
+function ProductThumb({ src, size }: { src?: string; size: number }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <div className="order-thumb order-thumb-empty" style={{ width: size, height: size }}>
+        <IconImage size={size <= 24 ? 'small' : undefined} />
+      </div>
+    );
+  }
+  return (
+    <img
+      className="order-thumb"
+      src={src}
+      alt=""
+      width={size}
+      height={size}
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+/** 订单商品主体区（改版新增）：首件图 + 标题 + 规格，其余件小图条与共 N 件摘要；点击打开详情。 */
+function OrderProductCell({ record, onOpen }: { record: OrderRow; onOpen: () => void }) {
+  const { t } = useI18n();
+  const items = record.items || [];
+  const first = items[0];
+  if (!first) return <Text type="tertiary">-</Text>;
+  const totalQty = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  return (
+    <div className="order-product-cell" onClick={onOpen} title={t('查看详情')}>
+      <ProductThumb src={first.picThumb} size={48} />
+      <div className="order-product-main">
+        <div className="order-product-name">{first.productName || '-'}</div>
+        <div className="order-product-meta">
+          {first.skuValue ? <span className="order-product-sku">{first.skuValue}</span> : null}
+          <span>×{first.quantity ?? 1}</span>
+        </div>
+        {items.length > 1 ? (
+          <div className="order-product-more">
+            <span className="order-mini-thumbs">
+              {items.slice(1, 5).map((item, idx) => (
+                <ProductThumb key={item.itemId ?? idx} src={item.picThumb} size={20} />
+              ))}
+            </span>
+            <Text type="tertiary" size="small">
+              {t('共')} {totalQty} {t('件')} · {items.length} {t('种商品')}
+            </Text>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export default function Orders({ onNavigate }: { onNavigate?: (page: string) => void } = {}) {
   const { t } = useI18n();
   const [rows, setRows] = useState<OrderRow[]>(isDemo() ? mockOrderPage.records : []);
@@ -115,6 +182,11 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
   const [memberTagDialogOpen, setMemberTagDialogOpen] = useState(false);
   const [tagGroups, setTagGroups] = useState<Array<{ groupId: number; groupName: string; tags: Array<{ id: number; tagName: string }> }>>([]);
   const [tagLoading, setTagLoading] = useState(false);
+  // 搜索栏改版：组合搜索当前字段 / 高级筛选展开 / 批量订单号弹窗
+  const [comboField, setComboField] = useState<ComboField>('keyword');
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [batchSnOpen, setBatchSnOpen] = useState(false);
+  const [batchSnText, setBatchSnText] = useState('');
 
   useEffect(() => {
     if (isDemo()) return;
@@ -158,6 +230,20 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
     };
   }, [page, status, applied, appliedMemberTagFilter, reloadKey]);
 
+  const advancedFilledCount = [
+    filters.keyword,
+    filters.outTradeNo,
+    filters.mobile,
+    filters.email,
+    filters.address,
+  ].filter((value) => value.trim()).length;
+  const batchSnCount = /[\n,，]/.test(filters.keyword)
+    ? filters.keyword
+        .split(/[\n,，]+/)
+        .map((part) => part.trim())
+        .filter(Boolean).length
+    : 0;
+
   const search = () => {
     setPage(1);
     setApplied({ ...filters });
@@ -166,6 +252,8 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
   const reset = () => {
     setFilters(emptyFilters);
     setApplied(emptyFilters);
+    setComboField('keyword');
+    setBatchSnText('');
     setPage(1);
   };
 
@@ -246,161 +334,191 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
           tabList={statusTabs.map((item) => ({ tab: t(item.tab), itemKey: item.key }))}
         />
 
-        <div className="table-toolbar" style={{ marginTop: 16, flexWrap: 'wrap', gap: 8 }}>
-          <Space wrap>
-            {/* 批量订单号【我方新增】：多行输入，多个订单号可换行或用逗号分隔批量查询；
-                Enter 搜索、Shift+Enter 换行 */}
-            <TextArea
-              placeholder={t('搜索订单号 / 收货人 / 商品名称（多个订单号可换行或用逗号分隔）')}
+        {/* 搜索栏（改版）：原关键词项是多行 TextArea（批量订单号），在单行搜索栏里独占两行高；
+            改版后文本检索合并为「字段下拉 + 单行输入」组合控件，批量订单号移入弹窗，
+            其余筛选项统一单行高度、按容器宽度自然换行。五个文本字段的值各自保存在
+            filters 中（切换字段不丢值、搜索时全部生效），高级筛选展开区可同时直填，能力不减。 */}
+        <div className="orders-filter-bar">
+          <Input
+            className="orders-combo"
+            addonBefore={
+              <Select
+                className="orders-combo-field"
+                value={comboField}
+                optionList={comboFieldDefs.map((def) => ({ label: t(def.label), value: def.field }))}
+                onChange={(next) => setComboField(next as ComboField)}
+              />
+            }
+            placeholder={t(comboFieldDefs.find((def) => def.field === comboField)?.placeholder || '')}
+            value={filters[comboField]}
+            onChange={(next) => setFilters((current) => ({ ...current, [comboField]: next }))}
+            onEnterPress={search}
+            showClear
+          />
+          <Button
+            onClick={() => {
+              setBatchSnText(filters.keyword);
+              setBatchSnOpen(true);
+            }}
+          >
+            {t('批量订单号')}
+            {batchSnCount > 1 ? ` (${batchSnCount})` : ''}
+          </Button>
+          <Select
+            className="orders-filter-select"
+            placeholder={t('支付状态')}
+            value={filters.payStatus}
+            optionList={[
+              { label: t('全部'), value: -1 },
+              { label: t('未付款'), value: 0 },
+              { label: t('已付款'), value: 1 },
+            ]}
+            onChange={(next) =>
+              setFilters((current) => ({
+                ...current,
+                payStatus: Number(next) === -1 ? undefined : Number(next),
+              }))
+            }
+          />
+          <Select
+            className="orders-filter-select"
+            placeholder={t('订单标记')}
+            value={filters.mark}
+            showClear
+            optionList={[
+              { label: t('全部订单'), value: -1 },
+              { label: <span style={{ color: '#ff5050' }}>●</span>, value: 1 },
+              { label: <span style={{ color: '#ffba1f' }}>●</span>, value: 2 },
+              { label: <span style={{ color: '#2ecf92' }}>●</span>, value: 3 },
+              { label: <span style={{ color: '#16afff' }}>●</span>, value: 4 },
+              { label: <span style={{ color: '#792dff' }}>●</span>, value: 5 },
+            ]}
+            onChange={(next) => setFilters((current) => ({ ...current, mark: Number(next ?? -1) }))}
+          />
+          <Select
+            className="orders-filter-select"
+            placeholder={t('送礼物')}
+            value={filters.isGift}
+            optionList={[
+              { label: t('全部订单'), value: -1 },
+              { label: t('礼物订单'), value: 1 },
+              { label: t('非礼物订单'), value: 0 },
+            ]}
+            onChange={(next) =>
+              setFilters((current) => ({
+                ...current,
+                isGift: Number(next) === -1 ? undefined : Number(next),
+              }))
+            }
+          />
+          <Select
+            className="orders-filter-select"
+            placeholder={t('发货状态')}
+            value={filters.shippingStatus}
+            optionList={[
+              { label: t('全部'), value: -1 },
+              { label: t('未发货'), value: 0 },
+              { label: t('部分发货'), value: 1 },
+              { label: t('已发货'), value: 2 },
+            ]}
+            onChange={(next) =>
+              setFilters((current) => ({
+                ...current,
+                shippingStatus: Number(next) === -1 ? undefined : Number(next),
+              }))
+            }
+          />
+          <DatePicker
+            className="orders-filter-date"
+            type="dateRange"
+            value={filters.addTime as never}
+            onChange={(next) => setFilters((current) => ({ ...current, addTime: (next as string[]) || [] }))}
+          />
+          <Button theme="solid" type="primary" icon={<IconSearch />} onClick={search}>
+            {t('搜索')}
+          </Button>
+          <Button onClick={reset}>{t('重置')}</Button>
+          <Button onClick={openMemberTagDialog}>
+            {t('按会员标签筛选')}
+            {appliedMemberTagFilter.memberTagIds.length > 0 ? ` (${appliedMemberTagFilter.memberTagIds.length})` : ''}
+          </Button>
+          <Button theme="borderless" onClick={() => setAdvancedOpen((open) => !open)}>
+            {t('高级筛选')}
+            {advancedFilledCount > 0 ? ` (${advancedFilledCount})` : ''}
+            <IconChevronDown
+              style={{ transform: advancedOpen ? 'rotate(180deg)' : undefined, transition: 'transform .2s' }}
+            />
+          </Button>
+        </div>
+        {advancedOpen && (
+          <div className="orders-filter-advanced">
+            <Input
+              placeholder={t('订单号 / 收货人 / 商品名称')}
               value={filters.keyword}
               onChange={(next) => setFilters((current) => ({ ...current, keyword: next }))}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault();
-                  search();
-                }
-              }}
-              autosize={{ minRows: 1, maxRows: 5 }}
-              style={{ width: 260 }}
+              onEnterPress={search}
+              showClear
             />
             <Input
-              placeholder={t('请输入交易单号')}
+              placeholder={t('交易单号')}
               value={filters.outTradeNo}
               onChange={(next) => setFilters((current) => ({ ...current, outTradeNo: next }))}
-              style={{ width: 160 }}
-            />
-            <Input
-              placeholder={t('详细地址')}
-              value={filters.address}
-              onChange={(next) => setFilters((current) => ({ ...current, address: next }))}
-              style={{ width: 150 }}
+              onEnterPress={search}
+              showClear
             />
             <Input
               placeholder={t('手机号')}
               value={filters.mobile}
               onChange={(next) => setFilters((current) => ({ ...current, mobile: next }))}
-              style={{ width: 140 }}
+              onEnterPress={search}
+              showClear
             />
             <Input
               placeholder="Email"
               value={filters.email}
               onChange={(next) => setFilters((current) => ({ ...current, email: next }))}
-              style={{ width: 150 }}
-            />
-            <Select
-              placeholder={t('支付状态')}
-              value={filters.payStatus}
-              optionList={[
-                { label: t('全部'), value: -1 },
-                { label: t('未付款'), value: 0 },
-                { label: t('已付款'), value: 1 },
-              ]}
-              onChange={(next) =>
-                setFilters((current) => ({
-                  ...current,
-                  payStatus: Number(next) === -1 ? undefined : Number(next),
-                }))
-              }
-              style={{ width: 130 }}
-            />
-            <Select
-              placeholder={t('订单标记：')}
-              value={filters.mark}
+              onEnterPress={search}
               showClear
-              optionList={[
-                { label: t('全部订单'), value: -1 },
-                { label: <span style={{ color: '#ff5050' }}>●</span>, value: 1 },
-                { label: <span style={{ color: '#ffba1f' }}>●</span>, value: 2 },
-                { label: <span style={{ color: '#2ecf92' }}>●</span>, value: 3 },
-                { label: <span style={{ color: '#16afff' }}>●</span>, value: 4 },
-                { label: <span style={{ color: '#792dff' }}>●</span>, value: 5 },
-              ]}
-              onChange={(next) =>
-                setFilters((current) => ({ ...current, mark: Number(next ?? -1) }))
-              }
-              style={{ width: 120 }}
             />
-            <Select
-              placeholder={t('送礼物')}
-              value={filters.isGift}
-              optionList={[
-                { label: t('全部订单'), value: -1 },
-                { label: t('礼物订单'), value: 1 },
-                { label: t('非礼物订单'), value: 0 },
-              ]}
-              onChange={(next) =>
-                setFilters((current) => ({
-                  ...current,
-                  isGift: Number(next) === -1 ? undefined : Number(next),
-                }))
-              }
-              style={{ width: 130 }}
+            <Input
+              placeholder={t('详细地址')}
+              value={filters.address}
+              onChange={(next) => setFilters((current) => ({ ...current, address: next }))}
+              onEnterPress={search}
+              showClear
             />
-            <Select
-              placeholder={t('发货状态')}
-              value={filters.shippingStatus}
-              optionList={[
-                { label: t('全部'), value: -1 },
-                { label: t('未发货'), value: 0 },
-                { label: t('部分发货'), value: 1 },
-                { label: t('已发货'), value: 2 },
-              ]}
-              onChange={(next) =>
-                setFilters((current) => ({
-                  ...current,
-                  shippingStatus: Number(next) === -1 ? undefined : Number(next),
-                }))
-              }
-              style={{ width: 130 }}
-            />
-            <DatePicker
-              type="dateRange"
-              value={filters.addTime as never}
-              onChange={(next) =>
-                setFilters((current) => ({ ...current, addTime: (next as string[]) || [] }))
-              }
-              style={{ width: 250 }}
-            />
-            <Button theme="solid" type="primary" icon={<IconSearch />} onClick={search}>
-              {t('搜索')}
-            </Button>
-            <Button onClick={reset}>{t('重置')}</Button>
-            <Button onClick={openMemberTagDialog}>
-              {t('按会员标签筛选')}
-              {appliedMemberTagFilter.memberTagIds.length > 0
-                ? ` (${appliedMemberTagFilter.memberTagIds.length})`
-                : ''}
-            </Button>
-          </Space>
-          <Space>
-            <Button icon={<IconRefresh />} onClick={reload}>
-              {t('刷新')}
-            </Button>
-            <Button onClick={() => setWriteOffOpen(true)}>{t('核销')}</Button>
-            <Button disabled={selectedIds.length === 0} onClick={() => setBatchShipOpen(true)}>
-              {t('订单批量发货')}
-              {selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
-            </Button>
-            <Button onClick={() => setBatchImportOpen(true)}>{t('Excel批量发货')}</Button>
-            <Button disabled={selectedIds.length === 0} onClick={() => setBatchSignOpen(true)}>
-              {t('添加标记')}
-              {selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
-            </Button>
-            <Button
-              onClick={() => {
-                if (onNavigate) onNavigate('orderExportManage');
-                else window.location.href = `${window.location.origin}/?page=orderExportManage`;
-              }}
-            >
-              {t('导出订单')}
-            </Button>
-          </Space>
+          </div>
+        )}
+
+        <div className="orders-action-bar">
+          <Button icon={<IconRefresh />} onClick={reload}>
+            {t('刷新')}
+          </Button>
+          <Button onClick={() => setWriteOffOpen(true)}>{t('核销')}</Button>
+          <Button disabled={selectedIds.length === 0} onClick={() => setBatchShipOpen(true)}>
+            {t('订单批量发货')}
+            {selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
+          </Button>
+          <Button onClick={() => setBatchImportOpen(true)}>{t('Excel批量发货')}</Button>
+          <Button disabled={selectedIds.length === 0} onClick={() => setBatchSignOpen(true)}>
+            {t('添加标记')}
+            {selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
+          </Button>
+          <Button
+            onClick={() => {
+              if (onNavigate) onNavigate('orderExportManage');
+              else window.location.href = `${window.location.origin}/?page=orderExportManage`;
+            }}
+          >
+            {t('导出订单')}
+          </Button>
         </div>
 
         <Table
           loading={loading}
           dataSource={rows}
           rowKey="orderId"
+          scroll={{ x: 1240 }}
           rowSelection={{
             selectedRowKeys: selectedIds,
             onChange: (keys: any) => setSelectedIds((keys || []) as Array<string | number>),
@@ -413,13 +531,34 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
           }}
           columns={[
             {
-              title: t('订单号'),
+              title: t('订单信息'),
               dataIndex: 'orderSn',
-              render: (value: string) => <span className="mono">{value}</span>,
+              width: 200,
+              render: (value: string, record: OrderRow) => (
+                <div>
+                  <div className="mono order-sn">{value}</div>
+                  <div className="order-sub-text">{record.addTime || '-'}</div>
+                </div>
+              ),
+            },
+            {
+              title: t('商品'),
+              dataIndex: 'items',
+              width: 360,
+              render: (_: unknown, record: OrderRow) => (
+                <OrderProductCell
+                  record={record}
+                  onOpen={() => {
+                    setDetailId(record.orderId);
+                    setDetailOpen(true);
+                  }}
+                />
+              ),
             },
             {
               title: t('收货人'),
               dataIndex: 'consignee',
+              width: 140,
               render: (value: string, record: OrderRow) => (
                 <div>
                   <div>{value || '-'}</div>
@@ -432,42 +571,58 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
             {
               title: t('订单金额'),
               dataIndex: 'totalAmount',
-              width: 140,
-              render: (value: string) => <span className="money">¥ {Number(value || 0).toLocaleString()}</span>,
-            },
-            {
-              title: t('支付状态'),
-              dataIndex: 'payStatusName',
-              width: 110,
-              render: (value: string) => <Tag color={value === '已付款' ? 'green' : 'orange'}>{value ? t(value) : '-'}</Tag>,
-            },
-            {
-              title: t('订单状态'),
-              dataIndex: 'orderStatusName',
-              width: 170,
+              width: 130,
               render: (value: string, record: OrderRow) => (
-                <Space spacing={4}>
-                  <Tag color={(statusColor[value] || 'blue') as any}>{value ? t(value) : '-'}</Tag>
-                  {record.afterSalesIng ? <Tag color="orange">{t('售后中')}</Tag> : null}
-                  {record.paidCancelRefundStatus === 0 || record.paidCancelRefundStatus === 1 ? (
-                    <Tag color="orange">{t('买家取消退款中')}</Tag>
+                <div>
+                  <span className="money order-amount">¥ {Number(value || 0).toLocaleString()}</span>
+                  {Number(record.paidAmount || 0) > 0 && String(record.paidAmount) !== String(value) ? (
+                    <div className="order-sub-text">
+                      {t('已付')} ¥ {Number(record.paidAmount).toLocaleString()}
+                    </div>
                   ) : null}
-                  {record.paidCancelRefundStatus === 2 ? (
-                    <Tag color="grey">{t('买家取消已退款')}</Tag>
-                  ) : null}
-                  {record.isGiftOrder ? (
-                    <Tag color="violet">
-                      {t('礼物')}
-                      {record.giftStatus === 1 ? `·${t('待领取')}` : record.giftStatus === 2 ? `·${t('已领取')}` : ''}
-                    </Tag>
-                  ) : null}
-                </Space>
+                </div>
               ),
             },
-            { title: t('下单时间'), dataIndex: 'addTime', width: 180 },
+            {
+              title: t('状态'),
+              dataIndex: 'orderStatusName',
+              width: 180,
+              render: (value: string, record: OrderRow) => (
+                <div className="order-status-cell">
+                  <Space spacing={4} wrap>
+                    <Tag color={(statusColor[value] || 'blue') as any}>{value ? t(value) : '-'}</Tag>
+                    <Tag color={record.payStatusName === '已付款' ? 'green' : 'orange'}>
+                      {record.payStatusName ? t(record.payStatusName) : '-'}
+                    </Tag>
+                  </Space>
+                  {record.afterSalesIng ||
+                  record.paidCancelRefundStatus === 0 ||
+                  record.paidCancelRefundStatus === 1 ||
+                  record.paidCancelRefundStatus === 2 ||
+                  record.isGiftOrder ? (
+                    <Space spacing={4} wrap>
+                      {record.afterSalesIng ? <Tag color="orange">{t('售后中')}</Tag> : null}
+                      {record.paidCancelRefundStatus === 0 || record.paidCancelRefundStatus === 1 ? (
+                        <Tag color="orange">{t('买家取消退款中')}</Tag>
+                      ) : null}
+                      {record.paidCancelRefundStatus === 2 ? (
+                        <Tag color="grey">{t('买家取消已退款')}</Tag>
+                      ) : null}
+                      {record.isGiftOrder ? (
+                        <Tag color="violet">
+                          {t('礼物')}
+                          {record.giftStatus === 1 ? `·${t('待领取')}` : record.giftStatus === 2 ? `·${t('已领取')}` : ''}
+                        </Tag>
+                      ) : null}
+                    </Space>
+                  ) : null}
+                </div>
+              ),
+            },
             {
               title: t('操作'),
-              width: 250,
+              width: 240,
+              fixed: 'right',
               render: (_: unknown, record: OrderRow) => (
                 <Space>
                   <Button
@@ -600,6 +755,29 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
           reload();
         }}
       />
+
+      <Modal
+        title={t('批量订单号')}
+        visible={batchSnOpen}
+        width={560}
+        okText={t('搜索')}
+        cancelText={t('取消')}
+        onCancel={() => setBatchSnOpen(false)}
+        onOk={() => {
+          setFilters((current) => ({ ...current, keyword: batchSnText }));
+          setApplied({ ...filters, keyword: batchSnText });
+          setComboField('keyword');
+          setPage(1);
+          setBatchSnOpen(false);
+        }}
+      >
+        <TextArea
+          placeholder={t('粘贴多个订单号，可换行或用逗号分隔')}
+          value={batchSnText}
+          onChange={(next) => setBatchSnText(next)}
+          autosize={{ minRows: 5, maxRows: 10 }}
+        />
+      </Modal>
 
       <Modal
         title={t('按会员标签筛选订单')}

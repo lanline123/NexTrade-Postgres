@@ -92,7 +92,17 @@ export interface OrderRow {
   shippingTypeId?: number;
   /** 自提订单不展示确认收货入口。 */
   isPickup?: boolean;
-  items?: Array<{ productName?: string; productNum?: number; productImage?: string }>;
+  /** 订单商品行（后端 OrderVO.items，列表已全量回填）：字段与后端 OrderItemVO 对齐。 */
+  items?: Array<{
+    itemId?: number;
+    productId?: number;
+    productName?: string;
+    picThumb?: string;
+    skuValue?: string | null;
+    price?: string | number;
+    quantity?: number;
+    isGift?: number;
+  }>;
   /** 行级「取消订单/取消发货」入口（旧版 isChangeOrderStatus，1 展示）。 */
   isChangeOrderStatus?: number;
   /** 取消目标状态：3 取消订单 / 1 取消发货（旧版 ChangeStatus preOrderStatus）。 */

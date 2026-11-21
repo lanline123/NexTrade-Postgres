@@ -165,6 +165,10 @@ export const mockOrders: OrderRow[] = [
     totalAmount: '1200.00',
     paidAmount: '1200.00',
     addTime: '2026-10-26 21:30:52',
+    items: [
+      { itemId: 101, productId: 11, productName: 'NCM811 三元锂电芯 3.7V 50Ah', picThumb: '', skuValue: '容量:50Ah', price: '10.00', quantity: 100 },
+      { itemId: 102, productId: 12, productName: '电池回收专用周转箱', picThumb: '', skuValue: '规格:大号', price: '10.00', quantity: 20 },
+    ],
   },
   {
     orderId: 36,
@@ -181,6 +185,9 @@ export const mockOrders: OrderRow[] = [
     totalAmount: '280000.00',
     paidAmount: '280000.00',
     addTime: '2026-10-26 18:20:11',
+    items: [
+      { itemId: 103, productId: 13, productName: '磷酸铁锂电池组 51.2V 100Ah 储能系统', picThumb: '', skuValue: '型号:51.2V/100Ah', price: '280000.00', quantity: 1 },
+    ],
   },
   {
     orderId: 35,
