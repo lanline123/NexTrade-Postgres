@@ -85,14 +85,54 @@ impl HubFederationRepository {
         .map_err(map_err)
     }
 
-    pub async fn find_credential_by_access_key(
+    /// 鉴权专用查找：按 access_key 取**入站**行（我签发、只存哈希的那一行）。
+    /// 同一把钥在持有方另有一行出站孪生行（同 access_key、direction=2），
+    /// 回环同库时两行共存——鉴权必须定向取入站行，不许按钥裸查后靠行序碰运气；
+    /// (access_key, direction) 唯一索引保证至多一行。
+    pub async fn find_inbound_credential_by_access_key(
         &self,
         access_key: &str,
     ) -> Result<Option<HubCredential>> {
         sqlx::query_as::<_, HubCredential>(
-            "SELECT * FROM hub_credential WHERE access_key = $1",
+            "SELECT * FROM hub_credential WHERE access_key = $1 AND direction = 1",
         )
         .bind(access_key)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 按（钥、方向、连接）精确查一行：配对落钥前的复用判定
+    /// （同一连接同一角色方向至多一行，见 (access_key, direction) 唯一口径）。
+    pub async fn find_credential_by_key_dir_link(
+        &self,
+        access_key: &str,
+        direction: i32,
+        link_id: i32,
+    ) -> Result<Option<HubCredential>> {
+        sqlx::query_as::<_, HubCredential>(
+            "SELECT * FROM hub_credential WHERE access_key = $1 AND direction = $2 AND link_id = $3",
+        )
+        .bind(access_key)
+        .bind(direction)
+        .bind(link_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 查某连接在某方向上已落库的凭证（配对流程每方向至多一把角色钥）：
+    /// poll 重入时据此复用已领取的上行钥，不再重复向中枢领取。
+    pub async fn find_link_credential(
+        &self,
+        link_id: i32,
+        direction: i32,
+    ) -> Result<Option<HubCredential>> {
+        sqlx::query_as::<_, HubCredential>(
+            "SELECT * FROM hub_credential WHERE link_id = $1 AND direction = $2 ORDER BY credential_id ASC LIMIT 1",
+        )
+        .bind(link_id)
+        .bind(direction)
         .fetch_optional(&self.pool)
         .await
         .map_err(map_err)
@@ -623,6 +663,26 @@ impl HubFederationRepository {
     }
 
     /// 成员侧领取激活：置已激活 + 落中枢批准的模块上限。
+    /// 只落批准模块、不动状态：成员领取上行钥**之前**先行落库，
+    /// 使领取后回填失败时，poll 的复用路径能从本地行读到批准模块补完激活。
+    pub async fn update_link_approved_modules(
+        &self,
+        link_id: i32,
+        approved_modules: i64,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE hub_link SET approved_modules = $2, update_time = $3 WHERE link_id = $1",
+        )
+        .bind(link_id)
+        .bind(approved_modules)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
     pub async fn update_link_activation(
         &self,
         link_id: i32,

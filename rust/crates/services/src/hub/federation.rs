@@ -723,11 +723,12 @@ impl FederationService {
         required_scope: i64,
     ) -> Result<(HubCredential, Option<HubLink>, FederationSettings)> {
         let settings = self.gate().await?;
+        // 定向取入站行：同一把钥在持有方另有出站孪生行（同 access_key），
+        // 回环同库时两行共存，按钥裸查取行不确定——鉴权只认入站行（存哈希方）。
         let cred = self
             .repo()
-            .find_credential_by_access_key(access_key.trim())
+            .find_inbound_credential_by_access_key(access_key.trim())
             .await?
-            .filter(|c| i32::from(c.direction) == DIRECTION_INBOUND)
             .ok_or_else(|| Error::Unauthorized(MSG_HUB_UNAUTHORIZED.to_string()))?;
         let provided = utils::sha256_hex(secret.trim());
         if !constant_time_eq(provided.as_bytes(), cred.secret_hash.as_bytes()) {
@@ -1003,6 +1004,9 @@ impl FederationService {
             return Err(Error::Forbidden(MSG_PAIRING_EXPIRED.to_string()));
         }
         let claim_token = gen_claim_token();
+        // 先加密后落库：加密失败（主密钥缺失）须在建连接行之前暴露，
+        // 不许落进下方补偿区再用 ? 提前返回、绕过孤儿清理。
+        let down_secret_enc = self.encrypt_secret(dto.down_secret.trim())?;
         let link_id = self
             .repo()
             .insert_link(
@@ -1021,7 +1025,11 @@ impl FederationService {
         let down_scopes = dto
             .down_scopes
             .unwrap_or(SCOPE_META_READ | SCOPE_PRODUCT_READ | SCOPE_ORDER_READ | SCOPE_ORDER_PLACE | SCOPE_MEMBER_READ | SCOPE_WALLET_POST | SCOPE_CONFIG_PULL);
-        let down_cred_id = self
+        // 落钥三步任一失败 → 补偿删除已落的凭证行与连接行，不留孤儿：
+        // 配对码尚未标记已用，成员可用同一码重新 claim（从零开始）。
+        let mut down_cred_id = 0;
+        let mut fail: Option<Error> = None;
+        match self
             .repo()
             .insert_credential(
                 CONN_FEDERATION,
@@ -1031,7 +1039,7 @@ impl FederationService {
                 &format!("下行钥·{}", dto.instance_name.trim()),
                 dto.down_access_key.trim(),
                 "",
-                &self.encrypt_secret(dto.down_secret.trim())?,
+                &down_secret_enc,
                 down_scopes,
                 1,
                 1,
@@ -1044,11 +1052,32 @@ impl FederationService {
                 "",
                 now,
             )
-            .await?;
-        self.repo()
-            .update_link_credentials(link_id, 0, down_cred_id, now)
-            .await?;
-        self.repo().mark_pairing_used(pairing.id, link_id).await?;
+            .await
+        {
+            Ok(id) => down_cred_id = id,
+            Err(e) => fail = Some(e),
+        }
+        if fail.is_none() {
+            if let Err(e) = self
+                .repo()
+                .update_link_credentials(link_id, 0, down_cred_id, now)
+                .await
+            {
+                fail = Some(e);
+            }
+        }
+        if fail.is_none() {
+            if let Err(e) = self.repo().mark_pairing_used(pairing.id, link_id).await {
+                fail = Some(e);
+            }
+        }
+        if let Some(e) = fail {
+            if down_cred_id > 0 {
+                let _ = self.repo().delete_credential(down_cred_id).await;
+            }
+            let _ = self.repo().delete_link(link_id).await;
+            return Err(e);
+        }
         tracing::info!("联邦配对 claim 成功: link={link_id}, member={}", dto.instance_uuid);
         Ok(PairClaimVO {
             link_id,
@@ -1117,10 +1146,30 @@ impl FederationService {
                 now,
             )
             .await?;
-        self.repo()
+        // 回填/清 token 任一失败 → 补偿：先把连接的上行指针归零，再删已落的上行钥，
+        // 不留「连接不知情、却真实有效」的悬空入站钥；claim token 未清，
+        // 成员可重新领取（届时重新生成一把新钥，本把已删干净）。
+        let mut fail: Option<Error> = None;
+        if let Err(e) = self
+            .repo()
             .update_link_credentials(link.link_id, up_id, link.down_credential_id, now)
-            .await?;
-        self.repo().clear_link_claim_token(link.link_id, now).await?;
+            .await
+        {
+            fail = Some(e);
+        }
+        if fail.is_none() {
+            if let Err(e) = self.repo().clear_link_claim_token(link.link_id, now).await {
+                fail = Some(e);
+            }
+        }
+        if let Some(e) = fail {
+            let _ = self
+                .repo()
+                .update_link_credentials(link.link_id, 0, link.down_credential_id, now)
+                .await;
+            let _ = self.repo().delete_credential(up_id).await;
+            return Err(e);
+        }
         tracing::info!("联邦配对领取上行钥: link={}", link.link_id);
         Ok(PairActivateVO {
             link_id: link.link_id,
@@ -1346,36 +1395,65 @@ impl FederationService {
                 now,
             )
             .await?;
-        self.repo()
-            .update_link_peer_link_id(link_id, hub_link_id, now)
-            .await?;
-        let down_cred_id = self
+        // 本地落行三步任一失败 → 补偿删除已落的下行钥行与连接行，不留孤儿连接
+        // （§3 实测：失败后留下 status=待审批、down_credential_id=0 的悬空行）。
+        // 中枢侧连接已建、配对码已消耗，补偿只清本侧；成员须向中枢索取新码重试，
+        // 中枢侧那条待审批连接由中枢管理员拒绝/过期处置（设计 §3.5）。
+        let mut down_cred_id = 0;
+        let mut fail: Option<Error> = None;
+        if let Err(e) = self
             .repo()
-            .insert_credential(
-                CONN_FEDERATION,
-                link_id,
-                DIRECTION_INBOUND,
-                "",
-                "下行钥·中枢",
-                &down_access_key,
-                &utils::sha256_hex(&down_secret),
-                "",
-                down_scopes,
-                1,
-                1,
-                0,
-                "none",
-                Decimal::ZERO,
-                0,
-                600,
-                0,
-                "",
-                now,
-            )
-            .await?;
-        self.repo()
-            .update_link_credentials(link_id, 0, down_cred_id, now)
-            .await?;
+            .update_link_peer_link_id(link_id, hub_link_id, now)
+            .await
+        {
+            fail = Some(e);
+        }
+        if fail.is_none() {
+            match self
+                .repo()
+                .insert_credential(
+                    CONN_FEDERATION,
+                    link_id,
+                    DIRECTION_INBOUND,
+                    "",
+                    "下行钥·中枢",
+                    &down_access_key,
+                    &utils::sha256_hex(&down_secret),
+                    "",
+                    down_scopes,
+                    1,
+                    1,
+                    0,
+                    "none",
+                    Decimal::ZERO,
+                    0,
+                    600,
+                    0,
+                    "",
+                    now,
+                )
+                .await
+            {
+                Ok(id) => down_cred_id = id,
+                Err(e) => fail = Some(e),
+            }
+        }
+        if fail.is_none() {
+            if let Err(e) = self
+                .repo()
+                .update_link_credentials(link_id, 0, down_cred_id, now)
+                .await
+            {
+                fail = Some(e);
+            }
+        }
+        if let Some(e) = fail {
+            if down_cred_id > 0 {
+                let _ = self.repo().delete_credential(down_cred_id).await;
+            }
+            let _ = self.repo().delete_link(link_id).await;
+            return Err(e);
+        }
         let link = self.load_link(link_id).await?;
         Ok(link_to_vo(&link, utils::now_seconds()))
     }
@@ -1387,12 +1465,32 @@ impl FederationService {
         if i32::from(link.role) != LINK_ROLE_MEMBER || link.claim_token_enc.is_empty() {
             return Ok(link_to_vo(&link, utils::now_seconds()));
         }
+        let now = self.now();
+        // 角色感知复用（先于一切远程调用）：本连接已有出站行（= 上行钥本地副本）时，
+        // 说明上一轮 poll 已领取并落库、只是回填连接中途失败。此刻中枢侧 claim
+        // token 已在领取时烧毁，重走 pair/status 只会被以 token 失效拒绝——而本地
+        // 这一行是上行 secret 的唯一副本，绝不可删、也无从再领。直接用它补完
+        // 回填（批准模块已在领取前先行落库，见 ACTIVE 分支），全程幂等。
+        if let Some(existing) = self
+            .repo()
+            .find_link_credential(link_id, DIRECTION_OUTBOUND)
+            .await?
+        {
+            self.repo()
+                .update_link_credentials(link_id, existing.credential_id, link.down_credential_id, now)
+                .await?;
+            self.repo()
+                .update_link_activation(link_id, link.approved_modules, now)
+                .await?;
+            self.repo().clear_link_claim_token(link_id, now).await?;
+            let link = self.load_link(link_id).await?;
+            return Ok(link_to_vo(&link, utils::now_seconds()));
+        }
         let token = self.decrypt_secret(&link.claim_token_enc)?;
         let body = json!({ "linkId": link.peer_link_id, "claimToken": token });
         let status = hub_post_json(&link.peer_base_url, "/api/hub/v1/pair/status", "", "", &body)
             .await?;
         let remote_status = status.get("status").and_then(Value::as_i64).unwrap_or(0) as i32;
-        let now = self.now();
         match remote_status {
             LINK_PENDING => Ok(link_to_vo(&link, utils::now_seconds())),
             LINK_REJECTED => {
@@ -1424,6 +1522,12 @@ impl FederationService {
                     .get("approvedModules")
                     .and_then(Value::as_i64)
                     .unwrap_or(0);
+                // 先把批准模块落本地再领取：领取是一次性动作（中枢随即烧 token），
+                // 此后任何一步失败都靠 poll 头部的复用路径补完回填，
+                // 而复用路径只能从本地行读批准模块——故必须先行落库。
+                self.repo()
+                    .update_link_approved_modules(link_id, approved_modules, now)
+                    .await?;
                 let act = hub_post_json(
                     &link.peer_base_url,
                     "/api/hub/v1/pair/activate",
@@ -1440,30 +1544,62 @@ impl FederationService {
                 if up_access_key.is_empty() || up_secret.is_empty() {
                     return Err(Error::Internal("中枢 activate 响应不完整".to_string()));
                 }
-                let up_id = self
+                // 落钥带复用守卫：同（钥, 方向, 连接）已有行则复用，绝不重复插；
+                // 插入报错时再复查一次（连接中断类错误下行可能已落库），查到即复用。
+                // 注意失败时不删已落行：它已是上行 secret 的唯一副本（见 poll 头部复用）。
+                let up_id = match self
                     .repo()
-                    .insert_credential(
-                        CONN_FEDERATION,
-                        link_id,
-                        DIRECTION_OUTBOUND,
-                        "",
-                        "上行钥·中枢",
+                    .find_credential_by_key_dir_link(
                         up_access_key,
-                        "",
-                        &self.encrypt_secret(up_secret)?,
-                        up_scopes_for_modules(approved_modules),
-                        1,
-                        1,
-                        0,
-                        "none",
-                        Decimal::ZERO,
-                        0,
-                        600,
-                        0,
-                        "",
-                        now,
+                        DIRECTION_OUTBOUND,
+                        link_id,
                     )
-                    .await?;
+                    .await?
+                {
+                    Some(existing) => existing.credential_id,
+                    None => {
+                        let up_secret_enc = self.encrypt_secret(up_secret)?;
+                        match self
+                            .repo()
+                            .insert_credential(
+                                CONN_FEDERATION,
+                                link_id,
+                                DIRECTION_OUTBOUND,
+                                "",
+                                "上行钥·中枢",
+                                up_access_key,
+                                "",
+                                &up_secret_enc,
+                                up_scopes_for_modules(approved_modules),
+                                1,
+                                1,
+                                0,
+                                "none",
+                                Decimal::ZERO,
+                                0,
+                                600,
+                                0,
+                                "",
+                                now,
+                            )
+                            .await
+                        {
+                            Ok(id) => id,
+                            Err(e) => match self
+                                .repo()
+                                .find_credential_by_key_dir_link(
+                                    up_access_key,
+                                    DIRECTION_OUTBOUND,
+                                    link_id,
+                                )
+                                .await
+                            {
+                                Ok(Some(existing)) => existing.credential_id,
+                                _ => return Err(e),
+                            },
+                        }
+                    }
+                };
                 self.repo()
                     .update_link_credentials(link_id, up_id, link.down_credential_id, now)
                     .await?;
@@ -1972,4 +2108,127 @@ async fn parse_hub_response(resp: reqwest::Response) -> Result<Value> {
         }
     }
     Ok(parsed.get("data").cloned().unwrap_or(Value::Null))
+}
+
+#[cfg(test)]
+mod tests {
+    /// 截取某个 `pub async fn` 的函数体（到下一个同级函数签名为止），
+    /// 结构断言一律限定在函数体内，避免被文件其它位置的同名串误命中
+    /// （含本测试模块自己的断言字面量——它们都在被截函数体之后）。
+    fn fn_body<'a>(src: &'a str, sig: &str) -> &'a str {
+        let start = src.find(sig).unwrap_or_else(|| panic!("应存在函数 {sig}"));
+        let rest = &src[start + sig.len()..];
+        let end = rest
+            .find("\n    pub async fn ")
+            .or_else(|| rest.find("\n    async fn "))
+            .unwrap_or(rest.len());
+        &rest[..end]
+    }
+
+    /// 回环双写修复的模式口径：同一把钥的入站行（签发方）与出站行（持有方）
+    /// 必须能在同库共存——唯一索引是 (access_key, direction) 复合，
+    /// 而非单列 access_key；存量迁移按名拆旧建新。
+    #[test]
+    fn credential_unique_index_is_key_plus_direction() {
+        let migration = include_str!(
+            "../../../../deploy/pg/2026-11-21_hub_credential_access_key_dir.sql"
+        );
+        assert!(
+            migration.contains("DROP INDEX IF EXISTS uk_hub_credential_access_key"),
+            "存量迁移应先拆旧单列唯一索引"
+        );
+        assert!(
+            migration.contains("ON hub_credential (access_key, direction)"),
+            "存量迁移应建 (access_key, direction) 复合唯一索引"
+        );
+        for create_sql in [
+            include_str!("../../../../deploy/pg/2026-11-20_hub_federation.sql"),
+            include_str!("../../../../migrations/2026-11-20_hub_federation_tables.sql"),
+        ] {
+            assert!(
+                create_sql.contains("ON hub_credential (access_key, direction)"),
+                "新建表 SQL 应直接建复合唯一索引"
+            );
+            assert!(
+                !create_sql.contains("ON hub_credential (access_key);"),
+                "新建表 SQL 不应再有单列唯一索引"
+            );
+        }
+    }
+
+    /// 鉴权必须定向取入站行：回环时同一 access_key 有入站/出站两行，
+    /// 按钥裸查取行不确定，出站行（secret_enc、无哈希）绝不能进鉴权。
+    #[test]
+    fn authenticate_resolves_inbound_twin_only() {
+        let src = include_str!("federation.rs");
+        let body = fn_body(src, "pub async fn authenticate");
+        assert!(
+            body.contains("find_inbound_credential_by_access_key("),
+            "authenticate 应走入站定向查找"
+        );
+        let repo_src = include_str!("../../../infrastructure/src/db/repo/hub/federation.rs");
+        let finder = fn_body(repo_src, "pub async fn find_inbound_credential_by_access_key");
+        assert!(
+            finder.contains("direction = 1"),
+            "入站定向查找的 SQL 必须带 direction = 1 条件"
+        );
+    }
+
+    /// poll 复用不变量：已落库的上行钥复用检查必须排在一切远程调用之前
+    /// （中枢 token 已烧毁，远程状态查询必失败），且批准模块先于领取落本地。
+    #[test]
+    fn poll_link_reuses_stored_up_credential_before_remote_calls() {
+        let src = include_str!("federation.rs");
+        let body = fn_body(src, "pub async fn poll_link");
+        let reuse = body
+            .find("find_link_credential(")
+            .expect("poll_link 应有按连接查已落库出站行的复用检查");
+        let status_call = body
+            .find("\"/api/hub/v1/pair/status\"")
+            .expect("poll_link 应调 pair/status");
+        assert!(
+            reuse < status_call,
+            "复用检查必须在 pair/status 远程调用之前"
+        );
+        let persist_modules = body
+            .find("update_link_approved_modules(")
+            .expect("领取前应先把批准模块落本地");
+        let activate_call = body
+            .find("\"/api/hub/v1/pair/activate\"")
+            .expect("poll_link 应调 pair/activate");
+        assert!(
+            persist_modules < activate_call,
+            "批准模块落库必须在 pair/activate 领取之前"
+        );
+        assert!(
+            body.contains("find_credential_by_key_dir_link("),
+            "落钥前应按（钥, 方向, 连接）做复用守卫"
+        );
+    }
+
+    /// 孤儿补偿不变量：配对三处落行流程失败时必须补偿删除已落的行——
+    /// claim/initiate 删凭证+连接；activate 先归零连接指针再删上行钥。
+    #[test]
+    fn pairing_flows_compensate_orphans_on_failure() {
+        let src = include_str!("federation.rs");
+        let claim = fn_body(src, "pub async fn pair_claim");
+        assert!(
+            claim.contains("delete_credential(") && claim.contains("delete_link("),
+            "pair_claim 失败须补偿删除已落的出站凭证与连接行"
+        );
+        let initiate = fn_body(src, "pub async fn initiate_pairing");
+        assert!(
+            initiate.contains("delete_credential(") && initiate.contains("delete_link("),
+            "initiate_pairing 失败须补偿删除已落的下行钥与本地连接行"
+        );
+        let activate = fn_body(src, "pub async fn pair_activate");
+        assert!(
+            activate.contains("delete_credential("),
+            "pair_activate 回填失败须删除已落的上行钥"
+        );
+        assert!(
+            activate.contains("update_link_credentials(link.link_id, 0"),
+            "pair_activate 补偿须先把连接的上行指针归零再删钥"
+        );
+    }
 }

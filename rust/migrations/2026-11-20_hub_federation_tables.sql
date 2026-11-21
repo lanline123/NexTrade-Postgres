@@ -29,7 +29,9 @@ CREATE TABLE IF NOT EXISTS hub_credential (
     add_time        integer      NOT NULL DEFAULT 0,
     update_time     integer      NOT NULL DEFAULT 0
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uk_hub_credential_access_key ON hub_credential (access_key);
+-- 唯一口径：(access_key, direction)——同一把钥签发方记入站行、持有方记出站行，
+-- 两侧各存一行 access_key 相同（设计 §4.2）；同方向内唯一、跨方向孪生共存（回环同库必需）。
+CREATE UNIQUE INDEX IF NOT EXISTS uk_hub_credential_access_key ON hub_credential (access_key, direction);
 CREATE INDEX IF NOT EXISTS idx_hub_credential_link ON hub_credential (link_id);
 CREATE INDEX IF NOT EXISTS idx_hub_credential_status ON hub_credential (status);
 
