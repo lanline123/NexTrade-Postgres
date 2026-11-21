@@ -1,7 +1,9 @@
 // 我方新增（外卖聚合一期）：设置 → 商城设置 → 外卖聚合。
-// 四段：渠道配置（凭据走配置位，密钥只进不出、空表示不修改）、门店绑定
-// （ISV + 逐店授权，app_poi_code 为绑定键）、SKU 映射（渠道 SKU → 我方
-// 商品，长期运维项）、外部订单（汇入落库的履约单与兜底状态，含手动
+// 五段：渠道配置（凭据走配置位，密钥只进不出、空表示不修改）、门店绑定
+// （ISV + 逐店授权，app_poi_code 为绑定键）、抖音券码核销（二期后续小批：
+// 选抖音绑定 + 输明文券码，走后端既有核销链，成功后回显抖音订单号与
+// 匹配到的本地订单，失败如实展示渠道返回原因）、SKU 映射（渠道 SKU →
+// 我方商品，长期运维项）、外部订单（汇入落库的履约单与兜底状态，含手动
 // 确认接单 / 物流同步 / 退款应答 / 重新处理）。未配置凭据时后端诚实
 // 返回未启用，页面如实展示，不假成功。
 import { useCallback, useEffect, useState } from 'react';
@@ -89,6 +91,22 @@ interface PageResult<T> {
   total?: number;
 }
 
+interface DouyinVerifyResult {
+  verified: boolean;
+  orderId: string;
+  localOrder: {
+    id: number;
+    internalOrderId: number;
+    shopId: number;
+    statusUpdated: boolean;
+  } | null;
+  channelResult?: unknown;
+}
+
+type VerifyOutcome =
+  | { ok: true; res: DouyinVerifyResult }
+  | { ok: false; message: string };
+
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
   paid: { color: 'blue', label: '待确认' },
   confirmed: { color: 'cyan', label: '已确认' },
@@ -115,6 +133,10 @@ export default function TakeoutManage() {
   const [mappingModal, setMappingModal] = useState<Partial<MappingRow> | null>(null);
   const [detail, setDetail] = useState<(ExternalOrderRow & { rawPayload?: string }) | null>(null);
   const [loading, setLoading] = useState(false);
+  const [verifyBindingId, setVerifyBindingId] = useState<number | undefined>(undefined);
+  const [verifyCode, setVerifyCode] = useState('');
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const [verifyOutcome, setVerifyOutcome] = useState<VerifyOutcome | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -206,6 +228,35 @@ export default function TakeoutManage() {
       void reload();
     } catch (e) {
       Toast.error(`保存失败：${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  const doVerifyDouyin = async () => {
+    if (!verifyBindingId) {
+      Toast.warning('请先选择抖音门店绑定');
+      return;
+    }
+    if (!verifyCode.trim()) {
+      Toast.warning('请输入顾客出示的券码');
+      return;
+    }
+    setVerifyBusy(true);
+    setVerifyOutcome(null);
+    try {
+      const res = await apiPost<DouyinVerifyResult>('/setting/takeout/douyin/verify', {
+        bindingId: verifyBindingId,
+        code: verifyCode.trim(),
+      });
+      setVerifyOutcome({ ok: true, res });
+      setVerifyCode('');
+      Toast.success('核销成功');
+      void reload();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setVerifyOutcome({ ok: false, message });
+      Toast.error(`核销失败：${message}`);
+    } finally {
+      setVerifyBusy(false);
     }
   };
 
@@ -355,6 +406,65 @@ export default function TakeoutManage() {
             },
           ]}
         />
+      </Card>
+
+      <Card title="抖音券码核销">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <Space>
+            <Select
+              placeholder="选择抖音门店绑定"
+              style={{ width: 320 }}
+              value={verifyBindingId}
+              optionList={bindings
+                .filter((b) => b.channel === 'douyin')
+                .map((b) => ({
+                  value: b.id,
+                  label: `门店 ${b.shopId} · ${b.externalPoiName || b.appPoiCode}${b.enabled ? '' : '（已停用）'}`,
+                }))}
+              onChange={(v) => setVerifyBindingId(Number(v))}
+            />
+            <Input
+              placeholder="顾客出示的券码（口头/截图均可，输入明文券码）"
+              style={{ width: 320 }}
+              value={verifyCode}
+              onChange={(v) => setVerifyCode(v)}
+              onEnterPress={() => void doVerifyDouyin()}
+            />
+            <Button type="primary" loading={verifyBusy} onClick={() => void doVerifyDouyin()}>
+              核销
+            </Button>
+          </Space>
+          {verifyOutcome && verifyOutcome.ok && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <Text type="success">
+                核销成功{verifyOutcome.res.orderId ? `，抖音订单号：${verifyOutcome.res.orderId}` : ''}
+              </Text>
+              {verifyOutcome.res.localOrder ? (
+                <Text type="tertiary">
+                  对应本地订单：外部单 #{verifyOutcome.res.localOrder.id}
+                  {verifyOutcome.res.localOrder.internalOrderId > 0
+                    ? `，内部订单 ${verifyOutcome.res.localOrder.internalOrderId}`
+                    : ''}
+                  {verifyOutcome.res.localOrder.statusUpdated
+                    ? '，状态已同步为「已核销」'
+                    : '，本地状态此前已是「已核销」'}
+                </Text>
+              ) : (
+                <Text type="tertiary">
+                  未匹配到本地订单（券可能来自尚未同步到本系统的订单）；渠道侧核销已成立，订单通知回流后状态会再对齐。
+                </Text>
+              )}
+            </div>
+          )}
+          {verifyOutcome && !verifyOutcome.ok && (
+            <Text type="danger">核销失败：{verifyOutcome.message}（未做任何状态变更）</Text>
+          )}
+          <Text type="tertiary">
+            顾客在抖音端出示券码、商家口头或截图拿到券码时在此核销（prepare → verify
+            真实调用抖音接口）。核销要求所选绑定已启用、已配置商家授权令牌，且已填写渠道门店
+            ID（抖音 POI，在门店绑定中维护）；失败时上方会如实展示渠道返回的原因，不会假成功。
+          </Text>
+        </div>
       </Card>
 
       <Card

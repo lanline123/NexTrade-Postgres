@@ -2236,3 +2236,9 @@
 ### 修复
 
 - **管理端菜单合并损伤修复（存量损伤，非功能变更）**：`admin-semi/src/config/adminMenu.tsx`「设置 → 系统设置」组内，「系统更新」（`systemUpdate`）与「客户端发版登记」（`clientReleaseManage`）两条目自热更新 P4 推送（a20c47b5）并集合并时被融成一个对象（前者缺闭合、对象内 key/label 重复，运行时只剩 clientReleaseManage、无独立 systemUpdate 叶子，授权客户端的菜单档位过滤对 systemUpdate 因此不生效——授权系统客户端线报告第五节登记）。本次按损伤前形态恢复为两个独立同级条目（字段口径与同组三级叶子一致：仅 key/label、无图标；位置不变：APP版本 之后、地区管理 之前）。App.tsx knownPages 与 pageTitles 中两 token 本就各自独立，未动。出处登记：`~/workspace/license-client/REPORT.md` §五；修复报告：`~/workspace/adminmenu-merge-fix/REPORT.md`。
+
+## 0.0.2 续 · 2026-11-22 批次（外卖聚合：抖音团购券管理端手工输码核销入口，未部署——无迁移，随下一后端 + admin 合并版上线）
+
+### 新增
+
+- **抖音团购券手工输码核销入口（我方新增·外卖聚合二期登记后续小批）**：二期已实装抖音验券链（`DouyinAdapter::verify_certificate`：prepare → verify），但管理端无入口，商家拿到顾客口头/截图券码时无处核销。本批补齐：后端新增管理服务 `verify_douyin_certificate` 与路由 `POST /adminapi/setting/takeout/douyin/verify`（入参 bindingId + 明文券码）——按绑定取商家授权令牌与渠道门店 ID（抖音 POI，取绑定 `external_poi_id`）走既有核销链，权限与绑定/外部订单同口径（平台全部、门店仅本店，`TenantScope` 校验）；核销成功后按抖音订单号匹配本地外部单并置「已核销」（completed）+ 内部单状态同步，匹配不到如实回 `localOrder = null` 不假装已对齐；失败一律原样透传渠道错误（券码不可用/已核销/接口报错），不假成功。为此 `verify_certificate` 成功时把 prepare 阶段的抖音订单号以 `order_id` 键补入返回载荷（渠道原始响应已有同名键则不覆盖）。管理端「外卖聚合」页新增「抖音券码核销」卡：选抖音绑定 + 输码 → 核销，成功回显抖音订单号与对应本地订单（外部单/内部单/状态同步结果），失败红字展示渠道返回原因。无迁移。验收口径：CI check-rust + build-admin 绿后随合并版上线；真实核销须等抖音凭据点亮（服务商入驻/应用/商家授权，见二期报告凭据清单）后以真实券码实调，并顺带校准 D-3（prepare 响应字段名）。

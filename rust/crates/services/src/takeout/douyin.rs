@@ -118,8 +118,10 @@ impl DouyinAdapter {
     }
 
     /// 团购券核销（明文券码路径）：验券准备 → 验券确认完整链。
-    /// 顾客到店出示券码时由门店侧调用；后台核销入口接线为后续
-    /// 小批，本方法先行实装并保证口径与官方文档一致。
+    /// 顾客到店出示券码时由门店侧调用；后台输码核销入口已接线
+    /// （`takeout::admin::verify_douyin_certificate`）。成功时把准备
+    /// 阶段得到的抖音订单号以 `order_id` 键补入返回载荷（渠道原始
+    /// 响应已有同名键则不覆盖），供后台匹配本地外部订单。
     ///
     /// # Errors
     /// 未启用 / 未授权 / 准备未返回可用券 / 验券未成功 → Err。
@@ -159,7 +161,7 @@ impl DouyinAdapter {
                 prep.to_string().chars().take(200).collect::<String>()
             )));
         }
-        client
+        let mut data = client
             .certificate_verify(
                 access_token,
                 poi_id,
@@ -172,7 +174,14 @@ impl DouyinAdapter {
                 },
                 None,
             )
-            .await
+            .await?;
+        if !order_id.is_empty() {
+            if let Some(obj) = data.as_object_mut() {
+                obj.entry("order_id".to_string())
+                    .or_insert_with(|| Value::String(order_id.clone()));
+            }
+        }
+        Ok(data)
     }
 }
 

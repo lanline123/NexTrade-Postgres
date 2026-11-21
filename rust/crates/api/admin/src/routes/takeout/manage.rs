@@ -16,6 +16,7 @@
 //! | `POST /setting/takeout/orders/logistics` | 同步自配送物流状态 |
 //! | `POST /setting/takeout/orders/refund` | 退款应答（同意/驳回，执行在渠道侧） |
 //! | `POST /setting/takeout/orders/reprocess` | 重新处理（补绑/补映射后补单） |
+//! | `POST /setting/takeout/douyin/verify` | 抖音团购券手工输码核销（走既有核销链） |
 
 use axum::{
     extract::{Query, State},
@@ -36,7 +37,7 @@ use nextrade_security::web::{ok, ApiResult};
 use crate::AdminState;
 
 /// 本模块路由表（路径 + 处理名，覆盖率统计用）。
-const ROUTE_TABLE: [(&str, &str, &str); 14] = [
+const ROUTE_TABLE: [(&str, &str, &str); 15] = [
     ("GET", "/setting/takeout/overview", "TakeoutController.overview"),
     ("POST", "/setting/takeout/config/save", "TakeoutController.saveConfig"),
     ("GET", "/setting/takeout/bindings", "TakeoutController.bindings"),
@@ -51,6 +52,7 @@ const ROUTE_TABLE: [(&str, &str, &str); 14] = [
     ("POST", "/setting/takeout/orders/logistics", "TakeoutController.syncLogistics"),
     ("POST", "/setting/takeout/orders/refund", "TakeoutController.respondRefund"),
     ("POST", "/setting/takeout/orders/reprocess", "TakeoutController.reprocess"),
+    ("POST", "/setting/takeout/douyin/verify", "TakeoutController.verifyDouyin"),
 ];
 
 /// 本域路由汇总。
@@ -71,6 +73,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/setting/takeout/orders/logistics", post(sync_logistics))
         .route("/setting/takeout/orders/refund", post(respond_refund))
         .route("/setting/takeout/orders/reprocess", post(reprocess))
+        .route("/setting/takeout/douyin/verify", post(verify_douyin))
 }
 
 /// 本模块已实现路由（用于 `/openapi/coverage` 覆盖率统计，完整契约路径）。
@@ -120,6 +123,16 @@ pub struct RefundDTO {
     pub agree: bool,
     /// 驳回原因（驳回时必填口径在渠道侧校验）。
     pub reason: String,
+}
+
+/// 抖音券码核销入参。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DouyinVerifyDTO {
+    /// 门店绑定 id（须为抖音渠道绑定）。
+    pub binding_id: i32,
+    /// 顾客出示的明文券码。
+    pub code: String,
 }
 
 async fn overview(State(state): State<AdminState>) -> ApiResult<Value> {
@@ -229,4 +242,15 @@ async fn reprocess(
 ) -> ApiResult<()> {
     state.takeout.admin.reprocess(dto.id).await?;
     ok(())
+}
+
+async fn verify_douyin(
+    State(state): State<AdminState>,
+    Json(dto): Json<DouyinVerifyDTO>,
+) -> ApiResult<Value> {
+    ok(state
+        .takeout
+        .admin
+        .verify_douyin_certificate(dto.binding_id, &dto.code)
+        .await?)
 }

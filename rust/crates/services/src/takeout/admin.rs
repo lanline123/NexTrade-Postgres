@@ -1,5 +1,6 @@
 //! 后台管理服务（takeout::admin，我方新增）：渠道配置、门店绑定、
-//! SKU 映射、外部订单与出站动作（确认/物流同步/退款应答/重新处理）。
+//! SKU 映射、外部订单与出站动作（确认/物流同步/退款应答/重新处理）、
+//! 抖音团购券手工输码核销。
 //!
 //! 权限口径（走认证中间件写入的 `TenantScope`，不信任客户端租户头）：
 //! - 渠道配置（含凭据）：**仅平台账号**可读写；
@@ -14,7 +15,7 @@ use nextrade_common::utils::now_seconds;
 use nextrade_core::models::takeout::{
     settings_to_value, settings_view, validate_binding, validate_mapping, BindingSaveDTO,
     ChannelConfigSaveDTO, ExternalOrderListQuery, ExternalOrderVO, IdDTO, MappingSaveDTO,
-    EXT_STATUS_CONFIRMED, TAKEOUT_SETTINGS_CODE,
+    CHANNEL_DOUYIN, EXT_STATUS_COMPLETED, EXT_STATUS_CONFIRMED, TAKEOUT_SETTINGS_CODE,
 };
 use nextrade_core::types::PageResult;
 use nextrade_core::{Error, Result};
@@ -23,6 +24,7 @@ use nextrade_infrastructure::db::repo::takeout::order::ExternalOrderRow;
 use nextrade_infrastructure::db::Repositories;
 
 use super::channel::adapter_for;
+use super::douyin::DouyinAdapter;
 use super::ingest::TakeoutIngestService;
 
 /// 文案：渠道配置平台专属。
@@ -485,6 +487,122 @@ impl TakeoutAdminService {
     pub async fn reprocess(&self, id: i32) -> Result<()> {
         let _ = self.load_order_checked(id).await?;
         self.ingest.reprocess(id).await
+    }
+
+    /// 抖音团购券手工输码核销（二期登记后续小批）：商家拿到顾客
+    /// 口头/截图券码时，在后台选门店绑定 + 输码，直接走既有核销链
+    /// （`DouyinAdapter::verify_certificate`：prepare → verify）。
+    /// 核销成功后按抖音订单号匹配本地外部单并置「已核销」
+    /// （completed），内部单状态同步；匹配不到本地单时如实回
+    /// `localOrder = null`（券可能来自尚未同步的订单，渠道侧核销
+    /// 本身已成立，订单通知回流后状态会再对齐）。失败一律原样
+    /// 透传渠道错误（券码不可用/已核销/接口报错），不假成功。
+    ///
+    /// 权限：与绑定/外部订单同口径——平台可操作全部绑定，门店
+    /// 账号只能操作本店绑定（`TenantScope::ensure_access`）。
+    ///
+    /// # Errors
+    /// 券码为空 / 绑定不存在或非抖音 / 越权 / 绑定停用或未配令牌 /
+    /// 绑定未填渠道门店 ID / 渠道未启用 / 渠道核销失败 → 业务错误。
+    pub async fn verify_douyin_certificate(&self, binding_id: i32, code: &str) -> Result<Value> {
+        let code = code.trim();
+        if code.is_empty() {
+            return Err(Error::biz_msg("券码不能为空"));
+        }
+        let binding = self
+            .repos
+            .takeout
+            .binding
+            .find_by_id(binding_id)
+            .await?
+            .ok_or_else(|| Error::biz_msg(ERR_BINDING_NOT_FOUND))?;
+        TenantScope::current().ensure_access(binding.shop_id)?;
+        if binding.channel != CHANNEL_DOUYIN {
+            return Err(Error::biz_msg("所选绑定不是抖音渠道，无法核销抖音券码"));
+        }
+        if binding.enabled != 1 {
+            return Err(Error::biz_msg("所选门店绑定已停用"));
+        }
+        if binding.access_token.trim().is_empty() {
+            return Err(Error::biz_msg("所选绑定未配置商家授权令牌"));
+        }
+        let poi_id = binding.external_poi_id.trim();
+        if poi_id.is_empty() {
+            return Err(Error::biz_msg(
+                "所选绑定未填写渠道门店 ID（抖音 POI），请先在门店绑定中补全后再核销",
+            ));
+        }
+        let settings = self.ingest.settings().await?;
+        let cfg = settings
+            .channel(CHANNEL_DOUYIN)
+            .cloned()
+            .ok_or_else(|| Error::biz_msg("未知渠道"))?;
+        let data = DouyinAdapter
+            .verify_certificate(&cfg, &binding.access_token, poi_id, code)
+            .await?;
+        let order_id = data
+            .get("order_id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let mut local_order: Option<Value> = None;
+        if !order_id.is_empty() {
+            if let Some(row) = self
+                .repos
+                .takeout
+                .order
+                .find(CHANNEL_DOUYIN, &order_id)
+                .await?
+            {
+                let same_shop = row.shop_id == binding.shop_id;
+                if !same_shop && !TenantScope::current().is_platform() {
+                    // 匹配单属其他门店：门店账号不返回其信息，按未匹配回。
+                    return Ok(json!({
+                        "verified": true,
+                        "orderId": order_id,
+                        "localOrder": Value::Null,
+                        "channelResult": data,
+                    }));
+                }
+                let mut status_updated = false;
+                if same_shop && row.status != EXT_STATUS_COMPLETED {
+                    let mut updated = row.clone();
+                    updated.status = EXT_STATUS_COMPLETED.to_string();
+                    updated.last_error = String::new();
+                    updated.update_time = Self::now();
+                    self.repos.takeout.order.update(&updated).await?;
+                    if updated.internal_order_id > 0 {
+                        self.repos
+                            .takeout
+                            .order
+                            .update_internal_order_status(
+                                updated.internal_order_id,
+                                nextrade_core::models::takeout::internal_order_status(
+                                    EXT_STATUS_COMPLETED,
+                                ),
+                                nextrade_core::models::takeout::internal_pay_status(
+                                    EXT_STATUS_COMPLETED,
+                                ),
+                                None,
+                            )
+                            .await?;
+                    }
+                    status_updated = true;
+                }
+                local_order = Some(json!({
+                    "id": row.id,
+                    "internalOrderId": row.internal_order_id,
+                    "shopId": row.shop_id,
+                    "statusUpdated": status_updated,
+                }));
+            }
+        }
+        Ok(json!({
+            "verified": true,
+            "orderId": order_id,
+            "localOrder": local_order,
+            "channelResult": data,
+        }))
     }
 
     /// 出站动作的共同上下文：生效配置 + 适配器 + 该单绑定。
