@@ -1795,6 +1795,7 @@ export const pageTitles: Record<string, string> = {
   "lotteryManage": "抽奖",
   "promotion2": "营销样式",
   "orders": "全部订单",
+  "storeWorkbench": "门店工作台",
   "cycleBuyManage": "周期购订单",
   "deliverManage": "发货管理",
   "exchangeOrderManage": "积分订单",

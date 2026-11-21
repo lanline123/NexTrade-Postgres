@@ -13,6 +13,12 @@ import { navGroups, type NavGroup } from './adminMenu';
 /** 商户端（adminType=shop）：资产中心 + 店铺设置（旧 merchant/capitalfund + merchant/setting）。 */
 export const shopNavGroups: NavGroup[] = [
   {
+    key: 'shopWorkbench',
+    label: '门店工作台',
+    icon: <span style={{ fontSize: 16, lineHeight: '16px' }}>🧰</span>,
+    items: [{ key: 'storeWorkbench', label: '工作台', icon: <IconBox /> }],
+  },
+  {
     key: 'shopCapital',
     label: '资产中心',
     icon: <span style={{ fontSize: 16, lineHeight: '16px' }}>💰</span>,
