@@ -8,6 +8,7 @@ pub mod cart_summary;
 pub mod check;
 pub mod delivery_slot;
 pub mod gift_order;
+pub mod kitchen;
 pub mod order;
 pub mod order_admin;
 pub mod order_invoice_client;
@@ -52,4 +53,5 @@ pub struct Services {
     pub proxy_shopping_delivery: Arc<proxy_shopping_delivery::ProxyShoppingDeliveryService>,
     pub shop_order_config: Arc<shop_order_config::ShopOrderConfigService>,
     pub gift_order: Arc<gift_order::GiftOrderService>,
+    pub kitchen: Arc<kitchen::KitchenService>,
 }
