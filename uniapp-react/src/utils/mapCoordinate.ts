@@ -48,3 +48,20 @@ export const weixinLocationToTianditu = (location: string): string => transformL
 
 /** 将 "lng,lat" 从天地图接口坐标转成微信 GCJ-02。 */
 export const tiandituLocationToWeixin = (location: string): string => transformLocation(location, tiandituToWeixinCoordinate);
+
+/**
+ * H5 天地图 iframe 渲染边界专用：GCJ-02 -> CGCS2000（按 WGS84 处理），
+ * **无条件**转换（不走上面小程序专属的 shouldTransform 门控——H5 端
+ * weixinToTiandituCoordinate 因门控恒等返回，不能用于 iframe 喂数）。
+ * TigMap 天地图分支把中心点/标记转成天地图坐标系后再传托管页。
+ */
+export const gcj02ToTiandituCoordinate = (coordinate: MapCoordinate): MapCoordinate => {
+    const [longitude, latitude] = gcoord.transform([coordinate.longitude, coordinate.latitude], gcoord.GCJ02, gcoord.WGS84);
+    return { longitude, latitude };
+};
+
+/** H5 天地图 iframe 渲染边界专用：CGCS2000（按 WGS84 处理）-> GCJ-02，无条件转换。 */
+export const tiandituToGcj02Coordinate = (coordinate: MapCoordinate): MapCoordinate => {
+    const [longitude, latitude] = gcoord.transform([coordinate.longitude, coordinate.latitude], gcoord.WGS84, gcoord.GCJ02);
+    return { longitude, latitude };
+};

@@ -390,23 +390,45 @@ async fn get_location_by_ip(
     ok(region_json(&region))
 }
 
-/// `GET /api/sys/region/getLocationByLocation?longitude=&latitude=`：
-/// 按经纬度定位（逆地理需高德 Key；未配置 → 默认城市降级）。
+/// `GET /api/sys/region/getLocationByLocation`：按经纬度定位。
+///
+/// 参数双形态：`longitude=&latitude=`（分开）或 `location=lng,lat`
+/// （合并，前端 `api/region.ts` 实际在用此形态，此前路由不认、
+/// 服务层亦忽略坐标，定位恒降级默认城市——本批一并接通）。
+/// 逆地理按服务商分流（天地图 Web 服务 / 其余降级），见服务层。
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct LocationByLocationQuery {
     longitude: Option<String>,
     latitude: Option<String>,
+    location: Option<String>,
+}
+
+impl LocationByLocationQuery {
+    /// 归一为 (longitude, latitude)：分开参数优先，缺失时拆合并参数。
+    fn lng_lat(&self) -> (Option<&str>, Option<&str>) {
+        if self.longitude.is_some() || self.latitude.is_some() {
+            return (self.longitude.as_deref(), self.latitude.as_deref());
+        }
+        if let Some(raw) = self.location.as_deref() {
+            let mut parts = raw.split(',');
+            if let (Some(lng), Some(lat)) = (parts.next(), parts.next()) {
+                return (Some(lng.trim()), Some(lat.trim()));
+            }
+        }
+        (None, None)
+    }
 }
 
 async fn get_location_by_location(
     State(state): State<PublicState>,
     Query(q): Query<LocationByLocationQuery>,
 ) -> ApiResult<serde_json::Value> {
+    let (longitude, latitude) = q.lng_lat();
     let region = state
         .system
         .region_client
-        .location_by_location(q.longitude.as_deref(), q.latitude.as_deref())
+        .location_by_location(longitude, latitude)
         .await?;
     ok(region_json(&region))
 }
@@ -426,18 +448,23 @@ async fn get_location_by_region_id(
         .map(region_json))
 }
 
-/// `GET /api/sys/region/getRegeoDetail?longitude=&latitude=`：逆地理详情。
+/// `GET /api/sys/region/getRegeoDetail`：逆地理详情。
 ///
-/// 高德 regeo 未配置凭据 → 返回默认城市的降级结果
-/// （`regeo: false` 标记非真实逆编码）。
+/// 天地图分支命中真实逆编码时 `regeo: true`；未配置凭据 / 调用失败
+/// → 返回默认城市的降级结果（`regeo: false` 标记非真实逆编码）。
 async fn get_regeo_detail(
     State(state): State<PublicState>,
-    Query(_q): Query<LocationByLocationQuery>,
+    Query(q): Query<LocationByLocationQuery>,
 ) -> ApiResult<serde_json::Value> {
-    let region = state.system.region_client.regeo_detail().await?;
+    let (longitude, latitude) = q.lng_lat();
+    let (region, regeo) = state
+        .system
+        .region_client
+        .regeo_detail(longitude, latitude)
+        .await?;
     let mut value = region_json(&region);
     if let Some(obj) = value.as_object_mut() {
-        obj.insert("regeo".into(), serde_json::json!(false));
+        obj.insert("regeo".into(), serde_json::json!(regeo));
     }
     ok(value)
 }

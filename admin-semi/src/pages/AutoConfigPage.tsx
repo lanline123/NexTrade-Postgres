@@ -526,6 +526,7 @@ const labelMap: Record<string, string> = {
   autoDeliveryDays: '自动发货（天）',
   afterSalesLimitDays: '售后期限（天）',
   afterSalesReview: '售后审核',
+  returnRestockEnabled: '退货退款回补库存',
   afterSalesReasonEnabled: '售后原因启用',
   kefuPhone: '客服电话',
   kefuTime: '客服时间',

@@ -1770,6 +1770,18 @@ impl AftersalesService {
             return Ok(false);
         }
 
+        // 退货回补库存（我方新增开关 `returnRestockEnabled`，默认关）：
+        // 仅退货退款（type=1）在本次调用真正完成「确认收货」迁移后，
+        // 按售后明细数量回补原 SKU 库存。回补只挂这一处迁移——重复调用
+        // 会被函数入口的状态门拦下（人工路径报错、自动路径返回 false），
+        // 且本段位于 `updated` 守卫之后，未实际迁移的调用到不了这里，
+        // 不会重复回补。开关关时整段跳过，行为与现网逐字一致。
+        if aftersales.aftersale_type == aftersales_type::RETURN
+            && self.return_restock_enabled().await
+        {
+            self.restock_returned_items(&rows).await;
+        }
+
         // 协商记录（Java：系统自动走 `addSystemAftersaleLog`，人工走 `addAftersaleLog`）
         let (log_info, log_user, log_shop, log_vendor) = if system_auto {
             let vendor_receipt = is_vendor_return_aftersales(&aftersales);
@@ -1850,6 +1862,59 @@ impl AftersalesService {
              system_auto={system_auto}"
         );
         Ok(true)
+    }
+
+    /// 退货回补库存开关（我方新增）：config `returnRestockEnabled` == "1"
+    /// 才开启；无配置行、其它值、读取失败一律按关处理——**默认关**，
+    /// 部署后行为与现网一致（退货确认收货不回补库存），运营在
+    /// 「商城设置 - 订单设置」开启后才生效。
+    async fn return_restock_enabled(&self) -> bool {
+        match self
+            .repos
+            .system
+            .config_basic
+            .find_by_code("returnRestockEnabled")
+            .await
+        {
+            Ok(v) => return_restock_switch_on(v.as_deref()),
+            Err(e) => {
+                tracing::warn!("读取退货回补库存开关失败，按关处理: {e}");
+                false
+            }
+        }
+    }
+
+    /// 退货商品回补（我方新增）：逐行按售后明细数量（审核通过的退货量）
+    /// 回补订单明细原 SKU 库存；无 SKU 商品按整商品口径（`sku = None`），
+    /// 与换货确认收货的回补同一 machinery（catalog `restore_stock`）。
+    /// 单行失败只记日志、不阻断退款完结链（与本函数其余收尾步骤同口径）。
+    async fn restock_returned_items(&self, rows: &[AftersalesItemRow]) {
+        for row in rows {
+            let Some(order_item) = row.order_item.as_ref() else {
+                continue;
+            };
+            let qty = row.item.number.unwrap_or(0);
+            if qty <= 0 {
+                continue;
+            }
+            let sku = if order_item.sku_id > 0 {
+                Some(order_item.sku_id)
+            } else {
+                None
+            };
+            if let Err(e) = self
+                .repos
+                .catalog
+                .product
+                .restore_stock(order_item.product_id, sku, qty)
+                .await
+            {
+                tracing::warn!(
+                    "退货回补库存失败 product_id={} sku={sku:?} qty={qty}: {e}",
+                    order_item.product_id
+                );
+            }
+        }
     }
 
     // ————————————————————— 拒收（rejectReceive） —————————————————————
@@ -2388,6 +2453,12 @@ fn apply_exchange_sku_values(vos: &mut [AftersalesItemVO], map: &HashMap<i32, St
 /// 售后明细行列表 → VO 列表。
 fn to_item_vos(rows: &[AftersalesItemRow], order: Option<&Order>) -> Vec<AftersalesItemVO> {
     rows.iter().map(|r| to_item_vo(r, order)).collect()
+}
+
+/// 退货回补库存开关解析（我方新增）：仅 `"1"` 为开；无配置行（`None`）、
+/// `"0"`、空串及其它值一律关——默认关是口径红线，单测钉死。
+fn return_restock_switch_on(value: Option<&str>) -> bool {
+    value == Some("1")
 }
 
 /// 把「售后明细行」与「订单明细」配对（仅保留能配上订单明细的行），
@@ -3572,5 +3643,76 @@ mod tests {
             .find("on_refund_completed")
             .expect("守卫后应是退款收尾调用");
         assert!(settle < 400, "退款收尾调用应紧随换货守卫");
+    }
+
+    /// 退货回补库存开关口径（我方新增）：仅 "1" 为开，无配置行 / "0" /
+    /// 空串 / 其它值一律关——默认关是红线（部署后行为与现网一致）。
+    #[test]
+    fn return_restock_switch_defaults_off() {
+        assert!(return_restock_switch_on(Some("1")));
+        assert!(!return_restock_switch_on(None));
+        assert!(!return_restock_switch_on(Some("0")));
+        assert!(!return_restock_switch_on(Some("")));
+        assert!(!return_restock_switch_on(Some("true")));
+    }
+
+    /// 退货回补不变量：回补只挂 `complete_return_aftersales` 一处迁移、
+    /// 位于状态迁移守卫（`if !updated`）之后、被「类型 == RETURN + 开关」
+    /// 双重门控；回补函数体只动库存、不碰退款资金链。防止重构把回补
+    /// 挪到别的迁移点（会重复回补）或扩散到仅退款/换货。
+    #[test]
+    fn return_restock_single_gated_hook() {
+        let src = include_str!("aftersales.rs");
+
+        // complete_return_aftersales 函数体切片（止于紧随其后的开关读取函数）
+        let start = src
+            .find("async fn complete_return_aftersales(")
+            .expect("complete_return_aftersales 应存在");
+        let end = src[start..]
+            .find("async fn return_restock_enabled")
+            .expect("return_restock_enabled 应紧随其后")
+            + start;
+        let body = &src[start..end];
+
+        let guard = body.find("if !updated {").expect("应有状态迁移守卫");
+        let gate = body
+            .find("aftersales.aftersale_type == aftersales_type::RETURN")
+            .expect("回补应有退货退款类型门");
+        let switch = body
+            .find("self.return_restock_enabled().await")
+            .expect("回补应有开关门");
+        let call = body
+            .find("self.restock_returned_items(&rows).await")
+            .expect("应有回补调用");
+        assert!(guard < gate && gate < call, "回补必须在迁移守卫与类型门之后");
+        assert!(gate < switch && switch < call, "回补必须先过开关再执行");
+        assert_eq!(
+            body.matches("restock_returned_items").count(),
+            1,
+            "complete_return_aftersales 内回补调用必须恰好一处"
+        );
+
+        // 回补函数体：只回补库存一处，不碰退款资金链
+        let hstart = src
+            .find("async fn restock_returned_items")
+            .expect("restock_returned_items 应存在");
+        let hend = src[hstart..]
+            .find("拒收（rejectReceive）")
+            .expect("回补函数结束标记应存在")
+            + hstart;
+        let hbody = &src[hstart..hend];
+        assert_eq!(
+            hbody.matches(".restore_stock(").count(),
+            1,
+            "回补函数内 restore_stock 必须恰好一处"
+        );
+        assert!(
+            !hbody.contains("create_refund_apply"),
+            "回补函数不得创建退款申请"
+        );
+        assert!(
+            !hbody.contains("on_refund_completed"),
+            "回补函数不得触发退款结算收尾"
+        );
     }
 }

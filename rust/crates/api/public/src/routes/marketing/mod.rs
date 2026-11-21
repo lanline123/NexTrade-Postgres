@@ -13,6 +13,7 @@ pub mod salesman_content;
 pub mod salesman_material;
 pub mod salesman_order;
 pub mod salesman_product;
+pub mod salesman_shop;
 pub mod seckill;
 pub mod time_discount;
 
@@ -36,6 +37,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .merge(salesman_material::routes(state))
         .merge(salesman_order::routes(state))
         .merge(salesman_product::routes(state))
+        .merge(salesman_shop::routes(state))
 }
 
 /// 匿名可访问路由（coupon 公开组自带 optional_auth，需要 state）。

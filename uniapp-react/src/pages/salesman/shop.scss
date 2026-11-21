@@ -1,0 +1,131 @@
+/* 分销员外壳店「店中店」买家页（我方新增）。扁平直角，与全站现行风格一致。 */
+.shell-shop-state {
+    padding: 160rpx 40rpx;
+    text-align: center;
+    font-size: 28rpx;
+    color: #969799;
+}
+
+.shell-shop-header {
+    background-color: #fff;
+
+    .shell-shop-banner {
+        width: 100%;
+        height: 300rpx;
+        overflow: hidden;
+    }
+
+    .shell-shop-profile {
+        display: flex;
+        align-items: center;
+        padding: 24rpx 30rpx 30rpx;
+
+        .shell-shop-avatar {
+            width: 96rpx;
+            height: 96rpx;
+            border-radius: 50%;
+            overflow: hidden;
+            flex-shrink: 0;
+            margin-right: 20rpx;
+        }
+
+        .shell-shop-meta {
+            flex: 1;
+            min-width: 0;
+
+            .shell-shop-name {
+                font-size: 32rpx;
+                font-weight: 500;
+                word-break: break-all;
+            }
+
+            .shell-shop-intro {
+                margin-top: 8rpx;
+                font-size: 24rpx;
+                color: #969799;
+                word-break: break-all;
+            }
+        }
+    }
+}
+
+.shell-shop-list {
+    background-color: #fff;
+    padding: 0 30rpx 30rpx;
+    margin-top: 20rpx;
+
+    .shell-shop-list-title {
+        font-size: 30rpx;
+        text-align: center;
+        padding: 36rpx 0;
+        font-weight: 500;
+    }
+
+    .shell-shop-item {
+        display: flex;
+        margin-bottom: 20rpx;
+
+        &:last-child {
+            margin-bottom: 0;
+        }
+
+        .shell-shop-item-img {
+            height: 276rpx;
+            width: 276rpx;
+            margin-right: 16rpx;
+            flex-shrink: 0;
+        }
+
+        .shell-shop-item-text {
+            width: calc(100% - 292rpx);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+
+            .shell-shop-item-name {
+                max-height: 80rpx;
+                font-size: 28rpx;
+                line-height: 40rpx;
+            }
+
+            .shell-shop-item-price {
+                color: #f44;
+                display: flex;
+                font-size: 36rpx;
+                justify-content: space-between;
+                align-items: center;
+
+                .icon-gouwuche3 {
+                    font-size: 44rpx;
+                }
+            }
+        }
+    }
+}
+
+/* 与分销员名片页同名底部栏样式（该页 scss 未全局加载，本页自带一份） */
+.bottom-btns {
+    height: 100%;
+    width: 100%;
+    display: flex;
+
+    .bottom-btns-item {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        color: #969799;
+
+        .bottom-btns-item-icon {
+            font-size: 50rpx;
+        }
+        .bottom-btns-item-text {
+            font-size: 23rpx;
+        }
+
+        &.active {
+            color: #f44;
+        }
+    }
+}

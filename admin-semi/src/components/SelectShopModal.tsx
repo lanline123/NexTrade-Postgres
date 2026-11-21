@@ -159,6 +159,9 @@ export default function SelectShopModal({ visible, onClose }: SelectShopModalPro
   const filteredShops = useMemo(() => shopList.filter((item) => match(item.shopTitle)), [shopList, normalized]);
   const filteredVendors = useMemo(() => vendorList.filter((item) => match(item.vendorName)), [vendorList, normalized]);
   const hasResults = showAdmin || filteredShops.length > 0 || filteredVendors.length > 0;
+  /** 原版 showSearchEmpty：仅「已输入关键词且无任何结果」时才显示搜索空态；
+   *  列表本身为空（未输入关键词）时不显示，原版该语境下列表区留空 */
+  const showSearchEmpty = normalized.length > 0 && !hasResults;
 
   /**
    * 切换组织。对齐跨境版 SelectShop.vue::toIndex / utils/util.ts。
@@ -269,7 +272,7 @@ export default function SelectShopModal({ visible, onClose }: SelectShopModalPro
 
           <Spin spinning={loading}>
             <div className="select-shop-list">
-              {!loading && !hasResults ? (
+              {!loading && showSearchEmpty ? (
                 <Empty description={t('暂无搜索结果')} style={{ padding: 60 }} />
               ) : (
                 <>

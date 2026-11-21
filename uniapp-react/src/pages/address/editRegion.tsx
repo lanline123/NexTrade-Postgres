@@ -13,6 +13,7 @@ import { isO2o, isOverseas, staticResource } from "@/utils";
 import {
     CROSS_BORDER_COUNTRIES,
     buildCrossBorderAddressData,
+    buildGenericCrossBorderCountry,
     emptyCrossBorderAddressFields,
     formatCrossBorderAddress,
     getCrossBorderAddressDataFieldKey,
@@ -346,8 +347,10 @@ export default function EditRegion() {
             const nextOptions = regions
                 .map((region): CountryOption | null => {
                     const code = String(region.standardCode || "").toUpperCase() as CrossBorderCountry["code"];
-                    const country = CROSS_BORDER_COUNTRIES.find((item) => item.code === code);
-                    if (!country) return null;
+                    if (!code) return null;
+                    // 注册表有专属配置的国家用专属布局；其余国家（地区表已全量导入）
+                    // 走通用布局兜底，不再因缺配置被挡在选择器之外（2026-11-21，帖 407879）。
+                    const country = CROSS_BORDER_COUNTRIES.find((item) => item.code === code) || buildGenericCrossBorderCountry(code, region.regionName || code);
                     return {
                         ...country,
                         id: String(region.regionId || country.code),

@@ -34,6 +34,8 @@
  * `@/lib/crossBorderAddress` 注册表（与 H5 同一口径，含 US/CA）；CN 保持
  * 原三级联动，非 CN 按注册表渲染州/省（有地区树子级时下拉、否则文本）
  * + 城市 + 地址行 + 邮编，保存时下发 countryCode/addressData/formattedAddress。
+ * 2026-11-21（帖 407879）：地区表全量导入 246 国后，无专属配置的国家不再
+ * 被交集滤掉，改走 buildGenericCrossBorderCountry 通用布局（与 H5 同口径）。
  */
 import { useCallback, useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
@@ -41,6 +43,7 @@ import { Modal, Select, Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
 import {
   buildAddressData,
+  buildGenericCrossBorderCountry,
   CROSS_BORDER_COUNTRIES,
   emptyCrossBorderValues,
   formatFullAddress,
@@ -144,12 +147,18 @@ export default function MemberAddressDialog({
     setProvinces(Array.isArray(list) ? list : []);
   }, []);
 
-  /** 国家列表：后端 level=1 地区行 ∩ 前端注册表（standardCode 匹配）。 */
+  /** 国家列表：后端 level=1 地区行为准（standardCode 匹配注册表；
+   * 无专属配置的国家注册通用布局兜底，2026-11-21 帖 407879）。 */
   const loadCountries = useCallback(async () => {
     const list = await apiGet<Region[]>('sys/region/getCountryList').catch(() => []);
-    const known = (Array.isArray(list) ? list : []).filter((item) =>
-      CROSS_BORDER_COUNTRIES.some((c) => c.code === String(item.standardCode || '').toUpperCase()),
-    );
+    const known = (Array.isArray(list) ? list : []).filter((item) => {
+      const code = String(item.standardCode || '').toUpperCase();
+      if (!code) return false;
+      if (!CROSS_BORDER_COUNTRIES.some((c) => c.code === code)) {
+        buildGenericCrossBorderCountry(code, item.regionName || code);
+      }
+      return true;
+    });
     setCountries(known);
     return known;
   }, []);

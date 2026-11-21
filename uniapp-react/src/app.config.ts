@@ -100,6 +100,8 @@ export default defineAppConfig({
         "pages/salesman/orderPromote",
         "pages/salesman/relationList",
         "pages/salesman/salesmanCard",
+        "pages/salesman/shop",
+        "pages/salesman/shopSetting",
         "pages/salesman/businessCard",
         "pages/salesman/businessCardExternal",
         "pages/salesman/assetsCenter",

@@ -367,6 +367,17 @@ export default function SalesmanIndex() {
                                 </View>
                             </View>
                         </View>
+                        <View className="promotion-item van-grid-item" onClick={() => goPages("/pages/salesman/shopSetting")}>
+                            <View className="van-grid-item__content van-grid-item__content--horizontal van-hairline">
+                                <View>
+                                    <View className="promotion-item__title">{t("我的小店")}</View>
+                                    <View className="promotion-item__desc">{t("专属店面分享获客")}</View>
+                                </View>
+                                <View className="van-image">
+                                    <Image src={staticResource("salesman/tuiguang.png!small.webp")} className="van-image__img" />
+                                </View>
+                            </View>
+                        </View>
                     </View>
                 </View>
                 <View className="operation-block">

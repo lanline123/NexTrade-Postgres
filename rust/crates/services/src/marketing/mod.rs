@@ -35,6 +35,7 @@ pub mod salesman_material;
 pub mod salesman_material_category;
 pub mod salesman_order;
 pub mod salesman_product;
+pub mod salesman_shop;
 pub mod seckill;
 pub mod seckill_batch;
 pub mod sign_in_setting;
@@ -66,6 +67,7 @@ pub struct Services {
     pub salesman_admin: Arc<salesman_admin::SalesmanAdminService>,
     pub lottery_activity: Arc<lottery_activity::LotteryActivityService>,
     pub salesman_product: Arc<salesman_product::SalesmanProductService>,
+    pub salesman_shop: Arc<salesman_shop::SalesmanShopService>,
     pub product_promotion: Arc<product_promotion::ProductPromotionService>,
     pub groupon_promotion_item: Arc<groupon_promotion_item::GrouponPromotionItemService>,
     pub time_discount_batch: Arc<time_discount_batch::TimeDiscountBatchService>,

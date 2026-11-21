@@ -203,8 +203,43 @@ export const CROSS_BORDER_COUNTRIES: CrossBorderCountry[] = [
     }
 ];
 
+/**
+ * 通用国家布局（2026-11-21，论坛帖 407879）：地区表已全量导入 246 个国家，
+ * 未在上方注册表里配置专属字段的国家一律走此布局——州/省（有地区树子级时
+ * 下拉选择、无子级退化文本输入）、城市文本、详细地址必填、邮编选填，
+ * 字段形状与 US/CA 保持一致。按国家代码懒注册到 genericCountries，
+ * getCrossBorderCountry 命中后所有组装/校验路径即按该国口径工作。
+ * 区号不内置：手机号区号由表单的区号选择器单独驱动（area_code 口径），
+ * 校验走 validateInternationalMobile 的通用国际号分支。
+ */
+const genericCountries = new Map<string, CrossBorderCountry>();
+
+export const buildGenericCrossBorderCountry = (code: string, name: string): CrossBorderCountry => {
+    const normalized = String(code || "").toUpperCase();
+    const cached = genericCountries.get(normalized);
+    if (cached) return cached;
+    const country: CrossBorderCountry = {
+        code: normalized as CrossBorderCountryCode,
+        name: name || normalized,
+        dialCode: "",
+        regionFields: [
+            { key: "province", label: "州/省", placeholder: "请输入州/省", required: true },
+            { key: "city", label: "城市", placeholder: "请输入城市", required: true }
+        ],
+        fields: [
+            { key: "addressLine1", label: "详细地址", placeholder: "请输入街道名称及门牌号", required: true },
+            { key: "addressLineTwo", label: "补充地址", placeholder: "选填" },
+            { key: "postcode", label: "邮政编码", placeholder: "选填" }
+        ]
+    };
+    genericCountries.set(normalized, country);
+    return country;
+};
+
 export const getCrossBorderCountry = (code?: string): CrossBorderCountry =>
-    CROSS_BORDER_COUNTRIES.find((item) => item.code === String(code || "").toUpperCase()) || CROSS_BORDER_COUNTRIES[0]!;
+    CROSS_BORDER_COUNTRIES.find((item) => item.code === String(code || "").toUpperCase()) ||
+    genericCountries.get(String(code || "").toUpperCase()) ||
+    CROSS_BORDER_COUNTRIES[0]!;
 
 export const emptyCrossBorderAddressFields = (): Record<CrossBorderAddressFieldKey, string> => ({
     province: "",

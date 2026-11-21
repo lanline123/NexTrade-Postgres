@@ -75,13 +75,20 @@ const LEVEL_PROVINCE: i32 = 2;
 const LEVEL_CITY: i32 = 3;
 
 /// 国家层级（o2o H5 `getCountryList` 的 `level = 1` 口径）。
+///
+/// 历史坑（2026-11-16 实测）：存量国家行曾为 level = 0（中国 id=1 等），
+/// 与本口径错位，`getCountryList` 一度漏掉中国。2026-11-21 已由迁移
+/// `2026-11-21_region_level_fix.sql` 统一：带 standard_code 的根行一律
+/// level = 1（同轮另有 243 国导入，国家行共 246）；仅一行无代码的遗留
+/// 空根行（id=820218「美国」，无子级）刻意保留 level = 0，不参与国家匹配。
 const LEVEL_COUNTRY: i32 = 1;
 
-/// 国家在本库数据集中的实际层级：2026-11-16 线上实测 region 表
-/// 国家行 level = 0（中国 id=1、美国 id=820218 均为 0，level=1 无任何行），
-/// 与 Java 原版数据集口径不同；IP 定位的国家匹配按数据集实测值取 0。
-const LEVEL_COUNTRY_DATA: i32 = 0;
+/// 地图服务商配置项的 `biz_code`（与 `config_basic` 注册表 EP88 同码，
+/// 经地区仓储的 `find_config_val` 读 `config` 表活行）。
+const CONFIG_MAP_PROVIDER: &str = "mapProvider";
 
+/// 天地图 Web 服务 TK 配置项的 `biz_code`（同上）。
+const CONFIG_TIANDITU_WEB_TK: &str = "tiandituWebTk";
 pub struct RegionClientService {
     repos: Arc<Repositories>,
 }
@@ -180,9 +187,9 @@ impl RegionClientService {
     /// IP 为内网或 `unknown` / 查询失败时，与 Java 一致回落 `"北京"`。
     ///
     /// 2026-11-16 补国外口径：xdb 国家段非「中国」时只认国家级定位，
-    /// 在地区表按国家名（level=0，本库实测口径）匹配返回国家行
-    /// （如「美国」）；本库国家行仅中国/美国两行，其余国家合成
-    /// 一个仅含国家名的地区返回——国外访客顶栏显示真实国家名，
+    /// 在地区表按国家名（level=1，2026-11-21 口径统一后）匹配返回国家行
+    /// （如「美国」）；2026-11-21 全量导入后国家行共 246 行，匹配不到的
+    /// 国家合成一个仅含国家名的地区返回——国外访客顶栏显示真实国家名，
     /// 不落国内省份、更不兜底成北京。
     pub async fn user_region(&self, ip: Option<&str>) -> Result<Region> {
         if let Some(ip) = ip {
@@ -190,19 +197,19 @@ impl RegionClientService {
                 if let Some(country) = country.as_deref().filter(|c| *c != "中国") {
                     if let Some(hit) = self
                         .regions()
-                        .find_by_name_like(country, Some(LEVEL_COUNTRY_DATA))
+                        .find_by_name_like(country, Some(LEVEL_COUNTRY))
                         .await?
                         .into_iter()
                         .next()
                     {
                         return Ok(hit);
                     }
-                    // 本库国家行只有中国/美国两行，其余国家不在表中：
+                    // 国家行已全量导入（246 行），仍匹配不到的国家不在表中：
                     // 合成一个仅含国家名的地区返回，保证国外访客显示
                     // 真实国家名，而不是落到国内兜底城市。
                     return Ok(Region {
                         region_id: 0,
-                        level: Some(LEVEL_COUNTRY_DATA),
+                        level: Some(LEVEL_COUNTRY),
                         region_name: country.to_string(),
                         parent_id: 0,
                         is_hot: 0,
@@ -374,13 +381,23 @@ impl RegionClientService {
 
     /// 按经纬度定位（`getLocationByLocation`）。
     ///
-    /// 逆地理编码需高德 Key（未配置）→ 降级为默认城市，与
-    /// `getLocationByIp` 同一兜底口径。
+    /// 逆地理编码按地图服务商分流：
+    /// - `mapProvider = tianditu` 且已配 `tiandituWebTk` → 调天地图
+    ///   Web 服务逆地理编码（见 [`Self::tianditu_regeo_region`]），
+    ///   结果地名回表匹配为地区行；
+    /// - 其余情形（高德未接服务端逆编码 / 未配置 / 调用失败）→
+    ///   降级为默认城市，与 `getLocationByIp` 同一兜底口径，
+    ///   行为与补齐前一致。
     pub async fn location_by_location(
         &self,
-        _longitude: Option<&str>,
-        _latitude: Option<&str>,
+        longitude: Option<&str>,
+        latitude: Option<&str>,
     ) -> Result<Region> {
+        if let (Some(lng), Some(lat)) = (longitude, latitude) {
+            if let Some(region) = self.tianditu_regeo_region(lng, lat).await {
+                return Ok(region);
+            }
+        }
         self.user_region(None).await
     }
 
@@ -390,12 +407,93 @@ impl RegionClientService {
         self.regions().find_by_id(region_id).await
     }
 
-    /// 逆地理编码详情（`getRegeoDetail`：高德 regeo，需 Key）。
+    /// 逆地理编码详情（`getRegeoDetail`）。
     ///
-    /// 未配置凭据 → 返回默认城市的降级结果
-    /// （`{ regionId, regionName, ... }`，`regeo: false` 标记非真实逆编码）。
-    pub async fn regeo_detail(&self) -> Result<Region> {
-        self.user_region(None).await
+    /// 返回 `(地区, 是否真实逆编码)`：
+    /// - 天地图分支命中（服务商 = tianditu、Web TK 已配、调用成功且
+    ///   地名回表命中）→ `(地区, true)`；
+    /// - 其余情形 → 默认城市的降级结果 + `false`（路由层据此回
+    ///   `regeo: false`，与补齐前口径一致）。
+    pub async fn regeo_detail(
+        &self,
+        longitude: Option<&str>,
+        latitude: Option<&str>,
+    ) -> Result<(Region, bool)> {
+        if let (Some(lng), Some(lat)) = (longitude, latitude) {
+            if let Some(region) = self.tianditu_regeo_region(lng, lat).await {
+                return Ok((region, true));
+            }
+        }
+        Ok((self.user_region(None).await?, false))
+    }
+
+    /// 天地图 Web 服务逆地理编码 -> 地区表行（本批补齐，消费
+    /// 此前无消费方的 `tiandituWebTk`）。
+    ///
+    /// 触发条件：`mapProvider = "tianditu"` 且 `tiandituWebTk` 已配、
+    /// 经纬度可解析。调用天地图 geocoder（`type=geocode`），取
+    /// `result.addressComponent` 的市/区县/省名依次回表匹配
+    /// （先城市层级、再不限层级，与 `user_region` 的模糊匹配口径一致）。
+    /// 任何失败（未触发 / 网络错误 / 状态非 0 / 无地名 / 回表未命中）
+    /// 一律返回 `None`，由调用方走原降级路径——定位失败永不报错。
+    ///
+    /// 坐标口径：入参按前端接口边界约定为天地图坐标系（CGCS2000）；
+    /// 前端 `api/region.ts` 在 provider=tianditu 时已做 GCJ-02 转换
+    /// （小程序端），H5 直传的 GCJ-02 与之差数百米，仅影响城市级
+    /// 匹配的边界情形。
+    async fn tianditu_regeo_region(&self, longitude: &str, latitude: &str) -> Option<Region> {
+        let provider = self
+            .regions()
+            .find_config_val(CONFIG_MAP_PROVIDER)
+            .await
+            .ok()??;
+        if provider.trim() != "tianditu" {
+            return None;
+        }
+        let tk = self
+            .regions()
+            .find_config_val(CONFIG_TIANDITU_WEB_TK)
+            .await
+            .ok()??;
+        let tk = tk.trim();
+        if tk.is_empty() || tk == "0" {
+            return None;
+        }
+        let lng: f64 = longitude.trim().parse().ok()?;
+        let lat: f64 = latitude.trim().parse().ok()?;
+        if !lng.is_finite() || !lat.is_finite() {
+            return None;
+        }
+
+        let url = tianditu_geocoder_url(lng, lat, tk);
+        let value: serde_json::Value = reqwest::Client::new()
+            .get(url)
+            .timeout(std::time::Duration::from_secs(5))
+            .send()
+            .await
+            .ok()?
+            .json()
+            .await
+            .ok()?;
+        let names = parse_tianditu_geocoder_names(&value)?;
+
+        for name in names {
+            if let Ok(hits) = self
+                .regions()
+                .find_by_name_like(&name, Some(LEVEL_CITY))
+                .await
+            {
+                if let Some(hit) = hits.into_iter().next() {
+                    return Some(hit);
+                }
+            }
+            if let Ok(hits) = self.regions().find_by_name_like(&name, None).await {
+                if let Some(hit) = hits.into_iter().next() {
+                    return Some(hit);
+                }
+            }
+        }
+        None
     }
 
     /// 关键词搜索地区（`searchByKeywords`：`region_name ILIKE`，
@@ -409,6 +507,68 @@ impl RegionClientService {
     #[must_use]
     pub fn repos(&self) -> &Arc<Repositories> {
         &self.repos
+    }
+}
+
+/// 拼天地图 geocoder 逆地理编码 URL（纯函数，便于单测）。
+///
+/// 官方口径：`GET https://api.tianditu.gov.cn/geocoder?postStr=
+/// {"lon":<lng>,"lat":<lat>,"ver":1}&type=geocode&tk=<tk>`，
+/// postStr 需 URL 编码（此处手工拼串后整段 percent-encode，
+/// 避免为单个调用点引入 urlencoding 依赖）。
+#[must_use]
+pub fn tianditu_geocoder_url(lng: f64, lat: f64, tk: &str) -> String {
+    let post_str = format!("{{\"lon\":{lng},\"lat\":{lat},\"ver\":1}}");
+    format!(
+        "https://api.tianditu.gov.cn/geocoder?postStr={}&type=geocode&tk={}",
+        percent_encode(&post_str),
+        percent_encode(tk),
+    )
+}
+
+/// 最小 percent-encode：非保留字符按 UTF-8 字节编码
+/// （postStr 仅含 ASCII 结构字符与数字，tk 为字母数字串）。
+fn percent_encode(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len() * 2);
+    for byte in raw.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(byte as char)
+            }
+            _ => out.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    out
+}
+
+/// 解析天地图 geocoder 响应，取可回表匹配的地名候选（市 -> 区县 -> 省）。
+///
+/// 响应形态：`{"status":"0","result":{"addressComponent":
+/// {"province":"山东省","city":"青岛市","county":"市南区",...}}}`。
+/// 状态非 `"0"`、结构缺失或三段地名全空 -> `None`。
+/// 直辖市等情形 city 可能为空，此时以 county / province 兜底。
+#[must_use]
+pub fn parse_tianditu_geocoder_names(value: &serde_json::Value) -> Option<Vec<String>> {
+    if value.get("status").and_then(serde_json::Value::as_str) != Some("0") {
+        return None;
+    }
+    let component = value.get("result")?.get("addressComponent")?;
+    let pick = |key: &str| {
+        component
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+    };
+    let names: Vec<String> = ["city", "county", "province"]
+        .into_iter()
+        .filter_map(|key| pick(key))
+        .collect();
+    if names.is_empty() {
+        None
+    } else {
+        Some(names)
     }
 }
 
@@ -719,6 +879,59 @@ mod tests {
             first_word: first_word.to_string(),
             standard_code: None,
         }
+    }
+
+    // ————————————————————— 天地图 geocoder —————————————————————
+
+    #[test]
+    fn tianditu_geocoder_url_encodes_post_str_and_tk() {
+        let url = tianditu_geocoder_url(120.3826, 36.0671, "abc123");
+        assert!(url.starts_with("https://api.tianditu.gov.cn/geocoder?postStr="));
+        assert!(url.contains("%7B%22lon%22%3A120.3826%2C%22lat%22%3A36.0671%2C%22ver%22%3A1%7D"));
+        assert!(url.ends_with("&type=geocode&tk=abc123"));
+    }
+
+    #[test]
+    fn tianditu_geocoder_names_prefers_city_then_county_then_province() {
+        let value = serde_json::json!({
+            "status": "0",
+            "result": {
+                "addressComponent": {
+                    "province": "山东省",
+                    "city": "青岛市",
+                    "county": "市南区"
+                }
+            }
+        });
+        assert_eq!(
+            parse_tianditu_geocoder_names(&value),
+            Some(vec!["青岛市".to_string(), "市南区".to_string(), "山东省".to_string()])
+        );
+    }
+
+    #[test]
+    fn tianditu_geocoder_names_falls_back_when_city_missing() {
+        let value = serde_json::json!({
+            "status": "0",
+            "result": {
+                "addressComponent": { "province": "北京市", "city": "", "county": "海淀区" }
+            }
+        });
+        assert_eq!(
+            parse_tianditu_geocoder_names(&value),
+            Some(vec!["海淀区".to_string(), "北京市".to_string()])
+        );
+    }
+
+    #[test]
+    fn tianditu_geocoder_names_rejects_error_status_and_empty() {
+        let err = serde_json::json!({ "status": "1", "msg": "tk invalid" });
+        assert_eq!(parse_tianditu_geocoder_names(&err), None);
+        let empty = serde_json::json!({
+            "status": "0",
+            "result": { "addressComponent": { "province": "", "city": "", "county": "" } }
+        });
+        assert_eq!(parse_tianditu_geocoder_names(&empty), None);
     }
 
     // ————————————————————— sortByFirstWord —————————————————————

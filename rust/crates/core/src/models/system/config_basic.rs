@@ -1584,7 +1584,7 @@ static EP5_FIELDS: [FieldSpec; 19] = [
     },
 ];
 
-static EP6_FIELDS: [FieldSpec; 16] = [
+static EP6_FIELDS: [FieldSpec; 17] = [
     FieldSpec { field: "autoDeliveryDays", code: "autoDeliveryDays", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "autoReturnGoods", code: "autoReturnGoods", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "autoReturnGoodsDays", code: "autoReturnGoodsDays", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
@@ -1596,6 +1596,7 @@ static EP6_FIELDS: [FieldSpec; 16] = [
     FieldSpec { field: "isShopCancelDeliverOrder", code: "isShopCancelDeliverOrder", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "afterSalesReview", code: "afterSalesReview", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "financialReview", code: "financialReview", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "returnRestockEnabled", code: "returnRestockEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "virtualOrderAutoDeliver", code: "virtualOrderAutoDeliver", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "afterSalesReasonEnabled", code: "afterSalesReasonEnabled", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "afterSalesReasonList", code: "afterSalesReasonList", ty: ValueType::JsonArray, default: Some("[\"多拍/拍错/不喜欢\",\"未按约定时间发货\",\"协商一致退款\",\"地址/电话填错了\",\"其他\"]"), is_list: true, label: None, widget: None, required: None, group: None },
@@ -1603,7 +1604,7 @@ static EP6_FIELDS: [FieldSpec; 16] = [
     FieldSpec { field: "adminShoppingUseBalance", code: "adminShoppingUseBalance", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
-static EP7_FIELDS: [FieldSpec; 16] = [
+static EP7_FIELDS: [FieldSpec; 17] = [
     FieldSpec { field: "autoDeliveryDays", code: "autoDeliveryDays", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "autoReturnGoods", code: "autoReturnGoods", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "autoReturnGoodsDays", code: "autoReturnGoodsDays", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
@@ -1615,6 +1616,7 @@ static EP7_FIELDS: [FieldSpec; 16] = [
     FieldSpec { field: "isShopCancelDeliverOrder", code: "isShopCancelDeliverOrder", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "afterSalesReview", code: "afterSalesReview", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "financialReview", code: "financialReview", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "returnRestockEnabled", code: "returnRestockEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "virtualOrderAutoDeliver", code: "virtualOrderAutoDeliver", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "afterSalesReasonEnabled", code: "afterSalesReasonEnabled", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "afterSalesReasonList", code: "afterSalesReasonList", ty: ValueType::JsonArray, default: Some("[\"多拍/拍错/不喜欢\",\"未按约定时间发货\",\"协商一致退款\",\"地址/电话填错了\",\"其他\"]"), is_list: true, label: None, widget: None, required: None, group: None },

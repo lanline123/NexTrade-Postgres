@@ -33,6 +33,7 @@ pub mod salesman_material;
 pub mod salesman_material_category;
 pub mod salesman_order;
 pub mod salesman_product;
+pub mod salesman_shop;
 pub mod seckill;
 pub mod seckill_batch;
 pub mod auction;
@@ -63,6 +64,7 @@ pub struct Repositories {
     pub salesman_admin: salesman_admin::SalesmanAdminRepository,
     pub lottery_activity: lottery_activity::LotteryActivityRepository,
     pub salesman_product: salesman_product::SalesmanProductRepository,
+    pub salesman_shop: salesman_shop::SalesmanShopRepository,
     pub product_promotion: product_promotion::ProductPromotionRepository,
     pub groupon_promotion_item: groupon_promotion_item::GrouponPromotionItemRepository,
     pub time_discount_batch: time_discount_batch::TimeDiscountBatchRepository,
@@ -107,6 +109,7 @@ impl Repositories {
             salesman_admin: salesman_admin::SalesmanAdminRepository::new(pool.clone()),
             lottery_activity: lottery_activity::LotteryActivityRepository::new(pool.clone()),
             salesman_product: salesman_product::SalesmanProductRepository::new(pool.clone()),
+            salesman_shop: salesman_shop::SalesmanShopRepository::new(pool.clone()),
             product_promotion: product_promotion::ProductPromotionRepository::new(pool.clone()),
             groupon_promotion_item: groupon_promotion_item::GrouponPromotionItemRepository::new(pool.clone()),
             time_discount_batch: time_discount_batch::TimeDiscountBatchRepository::new(pool.clone()),

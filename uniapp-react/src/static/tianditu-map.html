@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>天地图</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #f5f5f5; }
+  #mapDiv { position: absolute; inset: 0; }
+  #fallback { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; color: #999; font-size: 12px; font-family: sans-serif; text-align: center; padding: 16px; }
+</style>
+</head>
+<body>
+<div id="mapDiv"></div>
+<div id="fallback"></div>
+<script>
+/**
+ * 天地图 H5 渲染托管页（供 uniapp-react 的 TigMap 天地图分支以 iframe 嵌入）。
+ *
+ * 背景：原版 uniapp 用 renderjs 注入天地图 JS API 真渲染，Taro 无 renderjs
+ * 等价物，故按 TigMap 组件头注既定路线改为 iframe 嵌本页实现。
+ * 本文件经 Taro copy 规则（src/static/ → dist/static/）发布，
+ * 线上路径为 /mobile/static/tianditu-map.html。
+ *
+ * 协议（父页 TigMap 与本页同源，postMessage 双方均校验 origin）：
+ * - 入参（URL query）：tk（天地图 JS TK）、lng/lat（中心点，CGCS2000）、
+ *   zoom（3–18）、markers（URL 编码的 JSON 数组，元素
+ *   {id, lng, lat, title, iconPath, width, height}，坐标均为 CGCS2000）。
+ * - 父 → 本：{ type: "tianditu:update", center: {lng, lat}, zoom, markers }
+ * - 本 → 父：{ type: "tianditu:ready" }
+ *           { type: "tianditu:error", message }
+ *           { type: "tianditu:tap", lng, lat }（CGCS2000，父页转回 GCJ-02）
+ *           { type: "tianditu:markertap", markerId }
+ */
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  var tk = params.get("tk") || "";
+  var fallbackEl = document.getElementById("fallback");
+
+  function postToParent(data) {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage(data, window.location.origin);
+    }
+  }
+
+  function fail(message) {
+    fallbackEl.textContent = message;
+    fallbackEl.style.display = "flex";
+    postToParent({ type: "tianditu:error", message: message });
+  }
+
+  function parseMarkers(raw) {
+    if (!raw) return [];
+    try {
+      var parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function toFinite(value, defaults) {
+    var n = Number(value);
+    return Number.isFinite(n) ? n : defaults;
+  }
+
+  var state = {
+    lng: toFinite(params.get("lng"), 0),
+    lat: toFinite(params.get("lat"), 0),
+    zoom: Math.min(18, Math.max(3, toFinite(params.get("zoom"), 16))),
+    markers: parseMarkers(params.get("markers"))
+  };
+
+  if (!tk) {
+    fail("未配置天地图 JS TK");
+    return;
+  }
+
+  var script = document.createElement("script");
+  script.src = "https://api.tianditu.gov.cn/api?v=4.0&tk=" + encodeURIComponent(tk);
+  script.async = true;
+  script.onerror = function () { fail("天地图 JS API 加载失败"); };
+  script.onload = function () {
+    if (typeof window.T === "undefined" || !window.T.Map) {
+      fail("天地图 JS API 加载失败");
+      return;
+    }
+    init();
+  };
+  document.head.appendChild(script);
+
+  var map = null;
+  var markerOverlays = [];
+
+  function clearMarkers() {
+    markerOverlays.forEach(function (m) { map.removeOverLay(m); });
+    markerOverlays = [];
+  }
+
+  function renderMarkers(markers) {
+    if (!map) return;
+    clearMarkers();
+    markers.forEach(function (item) {
+      var lng = toFinite(item.lng, NaN);
+      var lat = toFinite(item.lat, NaN);
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
+      var lnglat = new T.LngLat(lng, lat);
+      var marker;
+      if (item.iconPath) {
+        var width = toFinite(item.width, 24);
+        var height = toFinite(item.height, 24);
+        var icon = new T.Icon({
+          iconUrl: item.iconPath,
+          iconSize: new T.Point(width, height),
+          iconAnchor: new T.Point(Math.round(width / 2), height)
+        });
+        marker = new T.Marker(lnglat, { icon: icon });
+      } else {
+        marker = new T.Marker(lnglat);
+      }
+      (function (current, data) {
+        current.addEventListener("click", function () {
+          if (data.title) {
+            var info = new T.InfoWindow(String(data.title));
+            current.openInfoWindow(info);
+          }
+          postToParent({ type: "tianditu:markertap", markerId: data.id });
+        });
+      })(marker, item);
+      map.addOverLay(marker);
+      markerOverlays.push(marker);
+    });
+  }
+
+  function applyState() {
+    if (!map) return;
+    map.centerAndZoom(new T.LngLat(state.lng, state.lat), state.zoom);
+    renderMarkers(state.markers);
+  }
+
+  function init() {
+    try {
+      map = new T.Map("mapDiv");
+      map.enableScrollWheelZoom();
+      applyState();
+      map.addEventListener("click", function (e) {
+        if (e && e.lnglat) {
+          postToParent({ type: "tianditu:tap", lng: e.lnglat.getLng(), lat: e.lnglat.getLat() });
+        }
+      });
+      postToParent({ type: "tianditu:ready" });
+    } catch (err) {
+      fail("天地图初始化失败");
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (event.origin !== window.location.origin) return;
+    var data = event.data || {};
+    if (data.type !== "tianditu:update") return;
+    if (data.center) {
+      state.lng = toFinite(data.center.lng, state.lng);
+      state.lat = toFinite(data.center.lat, state.lat);
+    }
+    if (data.zoom != null) {
+      state.zoom = Math.min(18, Math.max(3, toFinite(data.zoom, state.zoom)));
+    }
+    if (Array.isArray(data.markers)) {
+      state.markers = data.markers;
+    }
+    applyState();
+  });
+})();
+</script>
+</body>
+</html>

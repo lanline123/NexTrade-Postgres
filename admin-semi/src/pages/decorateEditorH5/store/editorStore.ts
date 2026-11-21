@@ -6,6 +6,10 @@
  * - 不做 moduleIndex 去重（契约红线）
  * - initDecorate / restoreFromDraft 内置旧编辑器的加载侧归一化链
  * - 固定模块（fixed）不可删除 / 复制 / 隐藏
+ * - 会话级撤销/重做（我方新增，原版与旧移植均无）：全部文档变更经本 store 单一
+ *   漏斗，在变更前对整页文档 {pageModule, moduleList} 做快照入历史栈；高频变更
+ *   （滑杆/连续输入/颜色拖选）按「动作+目标+字段」合并键在时间窗内只记一步；
+ *   撤销/重做后的脏标记以与保存点快照的比对为准（回到保存点即回落为未脏）
  *
  * 实现方式：vanilla external store + useSyncExternalStore（不引入额外依赖）。
  */
@@ -33,6 +37,9 @@ interface EditorState {
     editMode: EditMode;
     hasDraft: boolean;
     isDirty: boolean;
+    /** 撤销/重做可用性（历史栈派生，供顶栏按钮禁用态） */
+    canUndo: boolean;
+    canRedo: boolean;
     localeId: string | number;
     parentId: string | number;
     isDefault: boolean;
@@ -57,6 +64,8 @@ let state: EditorState = {
     editMode: null,
     hasDraft: false,
     isDirty: false,
+    canUndo: false,
+    canRedo: false,
     localeId: 0,
     parentId: 0,
     isDefault: true,
@@ -82,6 +91,105 @@ function getState() {
 
 /** 深拷贝（默认值/模块数据均为纯 JSON 结构） */
 const cloneDeep = <T>(obj: T): T => JSON.parse(JSON.stringify(obj));
+
+// ==================== 会话级撤销/重做（我方新增） ====================
+
+/** 历史快照：与 getSaveData 同形状的整页文档 */
+interface DocSnapshot {
+    pageModule: PageModule;
+    moduleList: DecorateModuleBase[];
+}
+
+/** 历史栈上限：整页快照每份约数十 KB，100 步足够覆盖一次编辑会话且不撑内存 */
+const HISTORY_LIMIT = 100;
+/** 高频变更合并窗口（毫秒）：滑杆拖动 / 连续输入 / 颜色拖选在窗口内同目标同字段只记一步 */
+const HISTORY_COALESCE_MS = 800;
+
+let historyPast: DocSnapshot[] = [];
+let historyFuture: DocSnapshot[] = [];
+/**
+ * 保存点快照（JSON 串）：initDecorate / restoreFromDraft / markAsSaved 时刷新。
+ * 撤销/重做后的脏标记以当前文档与它的比对为准——回到保存点即回落未脏，
+ * 不绕过既有未保存退出拦截。
+ */
+let savedDocJson = "";
+/** 上一步的合并键与时刻：同键且在窗口内 → 不再压栈（栈顶已是该高频流开始前的状态） */
+let lastCoalesceKey: string | null = null;
+let lastCoalesceAt = 0;
+
+function docSnapshot(): DocSnapshot {
+    return { pageModule: cloneDeep(state.pageModule), moduleList: cloneDeep(state.moduleList) };
+}
+
+function docJsonOf(doc: DocSnapshot): string {
+    return JSON.stringify({ pageModule: doc.pageModule, moduleList: doc.moduleList });
+}
+
+function currentDocJson(): string {
+    return docJsonOf({ pageModule: state.pageModule, moduleList: state.moduleList });
+}
+
+function historyFlags(): { canUndo: boolean; canRedo: boolean } {
+    return { canUndo: historyPast.length > 0, canRedo: historyFuture.length > 0 };
+}
+
+/** 基线切换（进入编辑器 / 草稿恢复 / 重置）：清空历史，并以当前文档为保存点 */
+function resetHistoryBaseline() {
+    historyPast = [];
+    historyFuture = [];
+    lastCoalesceKey = null;
+    lastCoalesceAt = 0;
+    savedDocJson = currentDocJson();
+}
+
+/** 保存成功后推进保存点；历史保留（可继续撤销跨越保存点），合并键复位（跨保存点不合并） */
+function advanceSavedBaseline() {
+    savedDocJson = currentDocJson();
+    lastCoalesceKey = null;
+    lastCoalesceAt = 0;
+}
+
+/**
+ * 变更前记录：把当前文档压入历史栈并清空重做栈。
+ * 带 coalesceKey 且与上一步同键、在合并窗口内时不再压栈、只刷新时刻——
+ * 持续拖动/输入始终并作一步，停顿超过窗口再继续则另起一步。
+ * 与栈顶内容相同的快照不重复压栈（无实际变化的调用不占历史步数）。
+ */
+function recordHistory(coalesceKey?: string) {
+    historyFuture = [];
+    const now = Date.now();
+    if (coalesceKey && coalesceKey === lastCoalesceKey && now - lastCoalesceAt <= HISTORY_COALESCE_MS) {
+        lastCoalesceAt = now;
+        return;
+    }
+    const snap = docSnapshot();
+    const top = historyPast[historyPast.length - 1];
+    if (!top || docJsonOf(top) !== docJsonOf(snap)) {
+        historyPast.push(snap);
+        if (historyPast.length > HISTORY_LIMIT) historyPast.shift();
+    }
+    lastCoalesceKey = coalesceKey ?? null;
+    lastCoalesceAt = now;
+}
+
+/** 把历史快照写回 store（撤销/重做共用）：选中模块越界时收敛，脏标记按保存点比对 */
+function applyHistorySnapshot(snap: DocSnapshot) {
+    const list = cloneDeep(snap.moduleList);
+    let activeModuleIndex = state.activeModuleIndex;
+    let editMode = state.editMode;
+    if (activeModuleIndex !== null && activeModuleIndex >= list.length) {
+        activeModuleIndex = list.length > 0 ? list.length - 1 : null;
+        if (activeModuleIndex === null) editMode = null;
+    }
+    set({
+        pageModule: cloneDeep(snap.pageModule),
+        moduleList: list,
+        activeModuleIndex,
+        editMode,
+        isDirty: docJsonOf(snap) !== savedDocJson,
+        ...historyFlags()
+    });
+}
 
 // ==================== 模块约束校验 ====================
 
@@ -264,8 +372,12 @@ export const editorStore = {
             previewProductId: 0,
             activeModuleIndex: null,
             editMode: null,
-            isDirty: false
+            isDirty: false,
+            canUndo: false,
+            canRedo: false
         });
+        // 新页面基线：历史清空，加载内容即保存点
+        resetHistoryBaseline();
     },
 
     /** 从草稿恢复：只注入固定模块，不回填 url（草稿保存时已带 url） */
@@ -278,19 +390,25 @@ export const editorStore = {
             moduleList: list,
             hasDraft: false,
             activeModuleIndex: null,
-            editMode: null
+            editMode: null,
+            canUndo: false,
+            canRedo: false
         });
+        // 草稿是已落库的保存形态：以草稿内容为新基线（历史清空、保存点=草稿）
+        resetHistoryBaseline();
     },
 
-    /** 应用模板（url 回填 + 固定模块注入，pageModule 合并而非替换） */
+    /** 应用模板（url 回填 + 固定模块注入，pageModule 合并而非替换）；整页替换可撤销 */
     applyTemplate(json: { moduleList?: DecorateModuleBase[]; pageModule?: PageModule }) {
+        recordHistory();
         const list = normalizeProductDetailStyles(updateModuleListWithUrls(cloneDeep(json.moduleList ?? [])));
         ensureFixedModules(list, state.pageType);
         pdVariantsStash = null;
         set({
             moduleList: list,
             pageModule: { ...state.pageModule, ...(json.pageModule ?? {}) },
-            isDirty: true
+            isDirty: true,
+            ...historyFlags()
         });
     },
 
@@ -335,6 +453,7 @@ export const editorStore = {
             moduleData = { ...moduleData, module: restored };
             pdVariantsStash = null;
         }
+        recordHistory();
         const list = [...state.moduleList];
         const validIndex = getValidInsertIndex(moduleData.type, index);
         const newModule = {
@@ -343,17 +462,18 @@ export const editorStore = {
             isShow: moduleData.isShow ?? true
         } as DecorateModuleBase;
         list.splice(validIndex, 0, newModule);
-        set({ moduleList: list, activeModuleIndex: validIndex, editMode: "module", isDirty: true });
+        set({ moduleList: list, activeModuleIndex: validIndex, editMode: "module", isDirty: true, ...historyFlags() });
         return newModule.moduleIndex;
     },
 
-    /** 更新指定模块数据（浅合并） */
+    /** 更新指定模块数据（浅合并）；同模块同字段的高频变更（滑杆/输入/颜色）在窗口内合并为一步 */
     updateModule(index: number, data: Record<string, any>) {
         const list = [...state.moduleList];
         const target = list[index];
         if (target) {
+            recordHistory(`upd:${index}:${Object.keys(data).sort().join(",")}`);
             list[index] = { ...target, module: { ...target.module, ...data } };
-            set({ moduleList: list, isDirty: true });
+            set({ moduleList: list, isDirty: true, ...historyFlags() });
         }
     },
 
@@ -370,8 +490,9 @@ export const editorStore = {
             const list = [...state.moduleList];
             const target = list[state.activeModuleIndex];
             if (target) {
+                recordHistory();
                 list[state.activeModuleIndex] = { ...target, module: data };
-                set({ moduleList: list, isDirty: true });
+                set({ moduleList: list, isDirty: true, ...historyFlags() });
             }
         }
     },
@@ -384,19 +505,21 @@ export const editorStore = {
             if (current?.module) {
                 const parent = current.module[parentKey];
                 if (parent && typeof parent === "object") {
+                    recordHistory(`patch:${state.activeModuleIndex}:${parentKey}.${childKey}`);
                     list[state.activeModuleIndex] = {
                         ...current,
                         module: { ...current.module, [parentKey]: { ...parent, [childKey]: value } }
                     };
-                    set({ moduleList: list, isDirty: true });
+                    set({ moduleList: list, isDirty: true, ...historyFlags() });
                 }
             }
         }
     },
 
-    /** 更新页面设置 */
+    /** 更新页面设置；同字段高频变更在窗口内合并为一步 */
     updatePageModule(data: Partial<PageModule>) {
-        set({ pageModule: { ...state.pageModule, ...data }, isDirty: true });
+        recordHistory(`page:${Object.keys(data).sort().join(",")}`);
+        set({ pageModule: { ...state.pageModule, ...data }, isDirty: true, ...historyFlags() });
     },
 
     /** 删除模块（固定模块不可删除） */
@@ -419,7 +542,8 @@ export const editorStore = {
                     activeModuleIndex = activeModuleIndex - 1;
                 }
             }
-            set({ moduleList: list, activeModuleIndex, editMode, isDirty: true });
+            recordHistory();
+            set({ moduleList: list, activeModuleIndex, editMode, isDirty: true, ...historyFlags() });
         }
     },
 
@@ -427,11 +551,12 @@ export const editorStore = {
     copyModule(index: number) {
         const source = state.moduleList[index];
         if (source && !source.fixed) {
+            recordHistory();
             const copied = cloneDeep(source);
             copied.moduleIndex = Date.now();
             const list = [...state.moduleList];
             list.splice(index + 1, 0, copied);
-            set({ moduleList: list, activeModuleIndex: index + 1, isDirty: true });
+            set({ moduleList: list, activeModuleIndex: index + 1, isDirty: true, ...historyFlags() });
         }
     },
 
@@ -449,8 +574,9 @@ export const editorStore = {
             const list = [...state.moduleList];
             const [moved] = list.splice(fromIndex, 1);
             if (moved) {
+                recordHistory();
                 list.splice(toIndex, 0, moved);
-                set({ moduleList: list, activeModuleIndex: toIndex, isDirty: true });
+                set({ moduleList: list, activeModuleIndex: toIndex, isDirty: true, ...historyFlags() });
             }
         }
         return true;
@@ -470,9 +596,10 @@ export const editorStore = {
     toggleModuleVisibility(index: number) {
         const target = state.moduleList[index];
         if (target && !target.fixed) {
+            recordHistory();
             const list = [...state.moduleList];
             list[index] = { ...target, isShow: !target.isShow };
-            set({ moduleList: list, isDirty: true });
+            set({ moduleList: list, isDirty: true, ...historyFlags() });
         }
     },
 
@@ -494,8 +621,36 @@ export const editorStore = {
 
     // -------------------- 状态管理 --------------------
 
+    /**
+     * 撤销一步（会话级）：回到上一个文档快照。
+     * 脏标记按保存点比对回落——撤回到保存点状态即未脏，退出拦截随之解除；
+     * 撤过保存点则保持脏。风格并存暂存（pdVariantsStash）不随撤销动：
+     * 快照内的模块数据自带 styleVariants，文档层恢复自洽。
+     */
+    undo() {
+        const prev = historyPast.pop();
+        if (!prev) return;
+        historyFuture.push(docSnapshot());
+        lastCoalesceKey = null;
+        lastCoalesceAt = 0;
+        applyHistorySnapshot(prev);
+    },
+
+    /** 重做一步（会话级）：回到下一个文档快照，脏标记同样按保存点比对 */
+    redo() {
+        const next = historyFuture.pop();
+        if (!next) return;
+        historyPast.push(docSnapshot());
+        if (historyPast.length > HISTORY_LIMIT) historyPast.shift();
+        lastCoalesceKey = null;
+        lastCoalesceAt = 0;
+        applyHistorySnapshot(next);
+    },
+
     markAsSaved() {
         set({ isDirty: false, hasDraft: false });
+        // 保存点推进到当前文档（历史保留：保存后仍可撤销跨越保存点）
+        advanceSavedBaseline();
     },
 
     markHasDraft(value: boolean) {
@@ -515,12 +670,15 @@ export const editorStore = {
             editMode: null,
             hasDraft: false,
             isDirty: false,
+            canUndo: false,
+            canRedo: false,
             localeId: 0,
             parentId: 0,
             isDefault: true,
             shopId: 0,
             previewProductId: 0
         });
+        resetHistoryBaseline();
     }
 };
 

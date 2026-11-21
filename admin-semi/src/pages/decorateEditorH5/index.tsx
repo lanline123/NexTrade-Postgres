@@ -13,12 +13,13 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Dropdown, Modal, Spin, Toast } from "@douyinfe/semi-ui";
-import { IconChevronDown, IconExit, IconLanguage } from "@douyinfe/semi-icons";
+import { IconChevronDown, IconExit, IconLanguage, IconRedo, IconUndo } from "@douyinfe/semi-icons";
 import { apiGet, apiPost } from "../../api";
 import { editorStore, useEditorState } from "./store/editorStore";
 import ModuleToolbar from "./components/ModuleToolbar";
 import Canvas from "./components/Canvas";
 import SettingsPanel from "./components/SettingsPanel";
+import CopyPageDrawer from "./components/CopyPageDrawer";
 import EditorShell from "../../components/decorate/EditorShell";
 import DecorateLoading from "../components/DecorateLoading";
 import { getStoredRenderMode } from "./components/canvasBridge";
@@ -59,6 +60,8 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
     const [editingTitle, setEditingTitle] = useState(false);
     /** 预览态：隐藏编辑外壳（模块库/设置面板/画布操作件），只看画布 */
     const [preview, setPreview] = useState(false);
+    /** 「从其他页面复制」抽屉开关 */
+    const [copyVisible, setCopyVisible] = useState(false);
     /** 详情加载态（2026-11-18 立规、2026-11-19 加载门沿用）：加载失败（接口/H5
      * 服务未部署或不可用）出提示卡 + 重试，画布不落到假空页面上（防误存覆盖
      * 真实数据）；加载中则由入口加载门覆盖（见文件头），仅超时兜底后仍在途
@@ -306,6 +309,28 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
         return () => window.removeEventListener("beforeunload", onBeforeUnload);
     }, []);
 
+    // 会话级撤销/重做快捷键（我方新增）：Ctrl+Z 撤销 / Ctrl+Shift+Z、Ctrl+Y 重做
+    // （macOS 含 Cmd）。焦点在输入框/文本域/下拉/可编辑区时不拦截——文本编辑走
+    // 控件自身的原生撤销，其值变化仍经 onChange 进 store 并被历史合并记录。
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+            const key = e.key.toLowerCase();
+            if (key !== "z" && key !== "y") return;
+            const target = e.target as HTMLElement | null;
+            if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
+            if (key === "y" || (key === "z" && e.shiftKey)) {
+                e.preventDefault();
+                editorStore.redo();
+            } else {
+                e.preventDefault();
+                editorStore.undo();
+            }
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, []);
+
     return (
         <div className="h5-editor-root">
             {/* 标准编辑器壳（Step 2）：顶栏槽 + 三栏（左库 295 / 画布 / 右栏 380），
@@ -377,6 +402,15 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
                     </div>
                     <div className="topbar-right">
                         <div className="topbar-btn-group">
+                            {/* 会话级撤销/重做（我方新增）：可用性由 store 历史栈派生 */}
+                            <button type="button" className="dec-topbar-btn" disabled={!s.canUndo} title={t('撤销 (Ctrl+Z)')} onClick={() => editorStore.undo()}>
+                                <IconUndo style={{ marginRight: 4, verticalAlign: -2 }} />
+                                {t('撤销')}
+                            </button>
+                            <button type="button" className="dec-topbar-btn" disabled={!s.canRedo} title={t('重做 (Ctrl+Shift+Z)')} onClick={() => editorStore.redo()}>
+                                <IconRedo style={{ marginRight: 4, verticalAlign: -2 }} />
+                                {t('重做')}
+                            </button>
                             <button type="button" className="dec-topbar-btn" onClick={() => setPreview((v) => !v)}>
                                 {preview ? t('退出预览') : t('预览')}
                             </button>
@@ -387,13 +421,13 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
                                 {t('保存并发布')}
                             </button>
                         </div>
-                        {/* 更多菜单：原版海外版含复制/删除页面，此处仅占位（不放真实删除） */}
+                        {/* 更多菜单：原版海外版含复制/删除页面；复制已功能化（原版有·我方补齐），删除不放（列表侧已有删除能力） */}
                         <Dropdown
                             trigger="click"
                             position="bottomRight"
                             render={
                                 <Dropdown.Menu>
-                                    <Dropdown.Item>{t('从其他页面复制')}</Dropdown.Item>
+                                    <Dropdown.Item onClick={() => setCopyVisible(true)}>{t('从其他页面复制')}</Dropdown.Item>
                                 </Dropdown.Menu>
                             }
                         >
@@ -443,6 +477,7 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
                 )}
             </div>
             </EditorShell>
+            <CopyPageDrawer visible={copyVisible} decorateType={decorateType} onClose={() => setCopyVisible(false)} />
         </div>
     );
 }

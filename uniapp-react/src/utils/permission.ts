@@ -31,6 +31,7 @@ const whiteList = [
     "/pages/im/index",
     "/pages/user/bindMobilePhone/index",
     "/pages/salesman/salesmanCard",
+    "/pages/salesman/shop",
     "/pages/reset/index",
     "/pages/customPage/index",
     "/pages/store/index",

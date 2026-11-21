@@ -844,6 +844,10 @@ export const navGroups: NavGroup[] = [
             "label": "分销员管理"
           },
           {
+            "key": "salesmanShopManage",
+            "label": "分销小店"
+          },
+          {
             "key": "customerTransactionsManage",
             "label": "客户成交"
           },
@@ -1796,6 +1800,7 @@ export const pageTitles: Record<string, string> = {
   "salesmanProductManage": "商品佣金管理",
   "analysisTableManage": "成交分析",
   "promoterManage": "分销员管理",
+  "salesmanShopManage": "分销小店",
   "customerTransactionsManage": "客户成交",
   "subgroupManage": "分销员分组",
   "rankingTableManage": "分销员排行",

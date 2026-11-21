@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
     buildCrossBorderAddressData,
+    buildGenericCrossBorderCountry,
     CROSS_BORDER_COUNTRIES,
     emptyCrossBorderAddressFields,
     formatCrossBorderAddress,
@@ -93,5 +94,47 @@ describe("crossBorderAddress US/CA 注册", () => {
         expect(formatCrossBorderAddress("MY", { ...base, addressLine1: "Jalan 1", address: "X" })).toBe("Jalan 1");
         expect(formatCrossBorderAddress("CN", { ...base, address: "中山路 1 号" })).toBe("中山路 1 号");
         expect(getCrossBorderCountry("XX").code).toBe("CN");
+    });
+});
+
+describe("crossBorderAddress 通用国家布局（2026-11-21，帖 407879）", () => {
+    it("未注册国家经 buildGenericCrossBorderCountry 注册后可被解析，字段形状同 US/CA", () => {
+        const de = buildGenericCrossBorderCountry("de", "德国");
+        expect(de.code).toBe("DE");
+        expect(de.name).toBe("德国");
+        expect(de.regionFields.map((field) => field.key)).toEqual(["province", "city"]);
+        expect(de.fields.map((field) => field.key)).toEqual(["addressLine1", "addressLineTwo", "postcode"]);
+        expect(de.fields.find((field) => field.key === "postcode")?.required).toBeUndefined();
+        expect(de.postcodePattern).toBeUndefined();
+        // 注册后 getCrossBorderCountry 命中通用布局而非 CN 兜底，且重复构建幂等
+        expect(getCrossBorderCountry("DE")).toBe(de);
+        expect(buildGenericCrossBorderCountry("DE", "德国")).toBe(de);
+        // 注册表 10 国不受影响
+        expect(getCrossBorderCountry("US").dialCode).toBe("1");
+    });
+
+    it("通用国家组装：address_data 含州/城市/街道，主地址取 addressLine1", () => {
+        buildGenericCrossBorderCountry("JP", "日本");
+        const values = {
+            ...emptyCrossBorderAddressFields(),
+            province: "Tokyo",
+            city: "Chiyoda",
+            addressLine1: "1-1 Marunouchi",
+            postcode: "100-0005"
+        };
+        expect(buildCrossBorderAddressData("JP", values)).toEqual({
+            province: "Tokyo",
+            city: "Chiyoda",
+            addressLineOne: "1-1 Marunouchi",
+            postcode: "100-0005"
+        });
+        expect(formatCrossBorderAddress("JP", values)).toBe("1-1 Marunouchi");
+    });
+
+    it("通用国家手机号校验走国际号通用分支（不误报本国规则）", () => {
+        buildGenericCrossBorderCountry("DE", "德国");
+        // 区号 49 不在 MOBILE_RULES：按 E.164 总长口径校验
+        expect(validateInternationalMobile("DE", "15123456789", "49", identity)).toBe("");
+        expect(validateInternationalMobile("DE", "12", "49", identity)).not.toBe("");
     });
 });

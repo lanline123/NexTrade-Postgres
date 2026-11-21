@@ -136,6 +136,7 @@ use nextrade_services::marketing::salesman_material::SalesmanMaterialService;
 use nextrade_services::marketing::salesman_material_category::SalesmanMaterialCategoryService;
 use nextrade_services::marketing::salesman_order::SalesmanOrderService;
 use nextrade_services::marketing::salesman_product::SalesmanProductService;
+use nextrade_services::marketing::salesman_shop::SalesmanShopService;
 use nextrade_services::marketing::seckill::SeckillService;
 use nextrade_services::marketing::seckill_batch::SeckillBatchService;
 use nextrade_services::marketing::sign_in_setting::SignInSettingService;
@@ -636,6 +637,7 @@ async fn main() -> anyhow::Result<()> {
     let salesman_admin = Arc::new(SalesmanAdminService::new(repos.clone()));
     let lottery_activity = Arc::new(LotteryActivityService::new(repos.clone()));
     let salesman_product = Arc::new(SalesmanProductService::new(repos.clone()));
+    let salesman_shop = Arc::new(SalesmanShopService::new(repos.clone()));
     let product_promotion = Arc::new(ProductPromotionService::new(repos.clone()));
     let groupon_promotion_item = Arc::new(GrouponPromotionItemService::new(repos.clone()));
     let time_discount_batch = Arc::new(TimeDiscountBatchService::new(repos.clone()));
@@ -677,6 +679,7 @@ async fn main() -> anyhow::Result<()> {
         salesman_admin: salesman_admin.clone(),
         lottery_activity: lottery_activity.clone(),
         salesman_product: salesman_product.clone(),
+        salesman_shop: salesman_shop.clone(),
         product_promotion: product_promotion.clone(),
         groupon_promotion_item: groupon_promotion_item.clone(),
         time_discount_batch: time_discount_batch.clone(),

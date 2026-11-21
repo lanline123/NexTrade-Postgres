@@ -13,3 +13,12 @@ export const isNativeMapProvider = (): boolean => {
     const { mapProvider, tiandituJsTk } = useConfigStore.getState();
     return mapProvider !== "tianditu" || !tiandituJsTk;
 };
+
+/**
+ * 当前生效的天地图 JS TK（未选天地图或未配置时为空串）。
+ * 供 TigMap 的 H5 天地图 iframe 分支拼托管页入参用。
+ */
+export const getTiandituJsTk = (): string => {
+    const { mapProvider, tiandituJsTk } = useConfigStore.getState();
+    return mapProvider === "tianditu" ? String(tiandituJsTk || "") : "";
+};

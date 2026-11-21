@@ -29,6 +29,7 @@ pub mod salesman_material;
 pub mod salesman_material_category;
 pub mod salesman_order;
 pub mod salesman_product;
+pub mod salesman_shop;
 pub mod seckill;
 pub mod seckill_batch;
 pub mod sign_in_setting;
@@ -73,6 +74,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(salesman_material_category::routes(state))
         .merge(salesman_order::routes(state))
         .merge(salesman_product::routes(state))
+        .merge(salesman_shop::routes(state))
         .merge(seckill::routes(state))
         .merge(seckill_batch::routes(state))
         .merge(sign_in_setting::routes(state))

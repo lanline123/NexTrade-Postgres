@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Form, Toast, Typography } from '@douyinfe/semi-ui';
-import { IconArrowLeft, IconHome, IconLock, IconPhone, IconUser } from '@douyinfe/semi-icons';
+import { Button, Form, Input, Toast, Typography } from '@douyinfe/semi-ui';
+import { IconArrowLeft, IconHome, IconLock, IconPhone, IconSearch, IconUser } from '@douyinfe/semi-icons';
 import { apiGet, login, LoginApiError, loginMobile, sendMobileCode, setToken } from '../api';
 import VerifySlide from '../components/VerifySlide';
 import { useI18n } from '../i18n';
@@ -32,6 +32,7 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
   const [account, setAccount] = useState('');
   const [adminType, setAdminType] = useState('admin');
   const [shops, setShops] = useState<OrgShop[]>([]);
+  const [orgKeyword, setOrgKeyword] = useState('');
   const [mode, setMode] = useState<'password' | 'mobile'>('password');
   const [mobileValue, setMobileValue] = useState('');
   const [sending, setSending] = useState(false);
@@ -118,11 +119,18 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
       });
       const list: OrgShop[] = resultShops?.shop?.list || [];
       setShops(list);
+      setOrgKeyword('');
       setStep('org');
     } catch {
       onSuccess();
     }
   };
+
+  /** 组织选择搜索：与顶栏 SelectShopModal 同口径（trim + 小写子串匹配店铺名，清空恢复全量） */
+  const orgNormalized = orgKeyword.trim().toLocaleLowerCase();
+  const filteredShops = orgNormalized
+    ? shops.filter((shop) => String(shop.shopTitle ?? '').toLocaleLowerCase().includes(orgNormalized))
+    : shops;
 
   const sendCode = async () => {
     if (sending || countdown > 0) return;
@@ -383,25 +391,39 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
 
                 <div className="login-org-section">
                   <div className="login-org-label">店铺</div>
+                  {shops.length > 0 && (
+                    <Input
+                      prefix={<IconSearch />}
+                      value={orgKeyword}
+                      placeholder={t('请输入组织名称')}
+                      showClear
+                      onChange={setOrgKeyword}
+                      style={{ width: '100%', marginBottom: 10 }}
+                    />
+                  )}
                   {shops.length ? (
-                    shops.map((shop) => (
-                      <button
-                        key={shop.shopId}
-                        type="button"
-                        className="login-org-card"
-                        onClick={() => chooseShop(shop)}
-                      >
-                        <span className="login-org-avatar">
-                          {shop.shopLogo ? <img src={shop.shopLogo} alt="" /> : <IconHome />}
-                        </span>
-                        <span className="login-org-main">
-                          <span className="login-org-name">{shop.shopTitle || `店铺 ${shop.shopId}`}</span>
-                          <span className="login-org-meta">
-                            {shop.shopType === 1 ? '单机设备' : '店铺'} · {shop.shopId}
+                    filteredShops.length ? (
+                      filteredShops.map((shop) => (
+                        <button
+                          key={shop.shopId}
+                          type="button"
+                          className="login-org-card"
+                          onClick={() => chooseShop(shop)}
+                        >
+                          <span className="login-org-avatar">
+                            {shop.shopLogo ? <img src={shop.shopLogo} alt="" /> : <IconHome />}
                           </span>
-                        </span>
-                      </button>
-                    ))
+                          <span className="login-org-main">
+                            <span className="login-org-name">{shop.shopTitle || `店铺 ${shop.shopId}`}</span>
+                            <span className="login-org-meta">
+                              {shop.shopType === 1 ? '单机设备' : '店铺'} · {shop.shopId}
+                            </span>
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="login-org-empty">{t('暂无搜索结果')}</div>
+                    )
                   ) : (
                     <div className="login-org-empty">暂无可用店铺</div>
                   )}

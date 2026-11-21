@@ -32,6 +32,7 @@ pub mod salesman_material;
 pub mod salesman_material_category;
 pub mod salesman_order;
 pub mod salesman_product;
+pub mod salesman_shop;
 pub mod seckill;
 pub mod seckill_batch;
 pub mod auction;
