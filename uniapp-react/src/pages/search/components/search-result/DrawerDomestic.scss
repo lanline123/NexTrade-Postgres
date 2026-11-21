@@ -95,7 +95,7 @@
                 text-align: center;
                 line-height: 29px;
                 background-color: #f0f2f5;
-                border: 1px solid #f0f2f5;
+                border: 2rpx solid #f0f2f5;
                 border-radius: 5px;
                 overflow: hidden;
                 white-space: nowrap;
@@ -109,7 +109,7 @@
                 }
             }
             .active {
-                border: 1px solid var(--search-theme, var(--general));
+                border: 2rpx solid var(--search-theme, var(--general));
                 color: var(--search-theme, var(--general));
                 .iconfont-h5 {
                     color: var(--search-theme, var(--general)) !important;
@@ -136,7 +136,7 @@
         width: 100%;
         padding-bottom: 20rpx;
         background-color: #fff;
-        border-top: 1px solid #f0f2f5;
+        border-top: 2rpx solid #f0f2f5;
 
         &.safe-btn {
             padding-bottom: var(--safe-bottom);

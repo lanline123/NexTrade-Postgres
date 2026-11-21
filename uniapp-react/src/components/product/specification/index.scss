@@ -106,13 +106,13 @@
                 overflow: hidden;
                 padding: 10rpx 20rpx;
                 line-height: 42rpx;
-                border: 1px solid #f7f8fa;
+                border: 2rpx solid #f7f8fa;
                 &:first-child {
                     margin-left: 0;
                 }
                 &.checked {
                     color: var(--general);
-                    border: 1px solid var(--general);
+                    border: 2rpx solid var(--general);
                     box-sizing: border-box;
                 }
             }
@@ -315,20 +315,20 @@
                     margin: 10rpx 0;
                     color: #1a1a1a;
                     background: transparent;
-                    border: 1px solid #c2c4cc;
+                    border: 2rpx solid #c2c4cc;
                     border-radius: 4px;
 
                     &.checked {
                         color: var(--general);
                         border-color: var(--general);
-                        border-width: 1.5px;
+                        border-width: 3rpx;
                         font-weight: 600;
                     }
 
                     &.disabled {
                         color: #c2c4cc;
                         background: transparent;
-                        border: 1.5px dashed #e0e1e5;
+                        border: 3rpx dashed #e0e1e5;
                         font-weight: 400;
                     }
 
@@ -394,7 +394,7 @@
                 align-items: center;
                 justify-content: center;
                 padding: 0 10rpx;
-                border: 1px solid #f7f8fa;
+                border: 2rpx solid #f7f8fa;
                 .tag-img {
                     width: 45rpx;
                     height: 45rpx;
@@ -409,17 +409,17 @@
             }
             .checked {
                 color: var(--general);
-                border: 1px solid var(--general);
+                border: 2rpx solid var(--general);
                 box-sizing: border-box;
             }
             .disabled {
-                border: 1px dashed #eee;
+                border: 2rpx dashed #eee;
                 color: #c8c9cc;
                 cursor: not-allowed;
                 background-color: #f7f8fa;
             }
             .checked.disabled {
-                border: 1px solid var(--general);
+                border: 2rpx solid var(--general);
                 color: #c8c9cc;
             }
         }
@@ -660,7 +660,7 @@
                 box-sizing: border-box;
                 color: #1a1a1a;
                 background: #fff;
-                border: 2px solid #505259;
+                border: 4rpx solid #505259;
                 border-radius: var(--spec-button-radius);
             }
 

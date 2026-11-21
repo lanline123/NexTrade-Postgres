@@ -13,7 +13,7 @@ page {
         align-items: flex-start;
         margin: 10rpx 25rpx 10rpx 25rpx;
         padding: 20rpx 0;
-        border-bottom: 1px solid #eee;
+        border-bottom: 2rpx solid #eee;
 
         &:last-child {
             border-bottom: none;
@@ -59,7 +59,7 @@ page {
     bottom: 0;
     z-index: 10;
     background-color: #fff;
-    border-top: 1px solid #eee;
+    border-top: 2rpx solid #eee;
     padding-bottom: var(--safe-bottom);
     box-sizing: content-box;
 }

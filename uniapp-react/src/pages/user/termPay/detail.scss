@@ -247,7 +247,7 @@ uni-page-body {
 
         .remit-popup__header {
             padding: 26rpx 24rpx 12rpx;
-            border-bottom: 1px solid #f5f5f5;
+            border-bottom: 2rpx solid #f5f5f5;
         }
 
         .remit-popup__title {
@@ -300,7 +300,7 @@ uni-page-body {
     bottom: 0;
     z-index: 10;
     background-color: #fff;
-    border-top: 1px solid #f0f1f2;
+    border-top: 2rpx solid #f0f1f2;
     padding-bottom: var(--safe-bottom);
     box-sizing: content-box;
 }

@@ -34,7 +34,7 @@
                 position: relative;
                 .line {
                     content: "";
-                    border-right: #dadada solid 1px;
+                    border-right: #dadada solid 2rpx;
                     position: absolute;
                     left: 0;
                     top: 0;
@@ -216,7 +216,7 @@
             line-height: 80rpx;
             font-size: 28rpx;
             color: #333333;
-            border: 1px solid #eee;
+            border: 2rpx solid #eee;
             border-radius: 10rpx;
             display: inline-block;
             text-align: center;

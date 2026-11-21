@@ -59,7 +59,7 @@
             height: 80rpx;
             border-radius: 15rpx;
             overflow: hidden;
-            border: 1px solid #eee;
+            border: 2rpx solid #eee;
         }
 
         .shop-title-text {
@@ -87,7 +87,7 @@
                 /* 旧 tig-button :plain + :plain-main-color：透明底 + 主题色描边/文字 */
                 background-color: transparent;
                 color: var(--general);
-                border: 1px solid var(--general);
+                border: 2rpx solid var(--general);
                 border-radius: 50rpx;
             }
         }

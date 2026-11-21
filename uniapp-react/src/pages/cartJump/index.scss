@@ -92,7 +92,7 @@
         bottom: auto;
         -webkit-transform: scaleY(0.5);
         transform: scaleY(0.5);
-        border-top: 1px solid #ebedf0;
+        border-top: 2rpx solid #ebedf0;
     }
 
     .gift-content-item {
@@ -219,7 +219,7 @@
     width: 110rpx;
     height: 46rpx;
     border-radius: 6rpx;
-    border: 1px solid #868686;
+    border: 2rpx solid #868686;
 }
 .shoppingCart .list {
     margin-top: 171rpx;
@@ -384,7 +384,7 @@
     font-size: 28rpx;
     color: #999;
     border-radius: 50rpx;
-    border: 1px solid #999;
+    border: 2rpx solid #999;
     width: 160rpx;
     height: 60rpx;
     text-align: center;
@@ -586,7 +586,7 @@
     position: fixed;
     bottom: 0;
     padding: 0 28rpx;
-    border-top: 1px solid #f0f1f2;
+    border-top: 2rpx solid #f0f1f2;
     box-sizing: border-box;
     z-index: 88;
 }
@@ -898,5 +898,5 @@
 
 /* 旧 :deep(.u-checkbox__icon-wrap)：复选框描边加粗（仅购物车页局部生效） */
 .shoppingCart .u-checkbox__icon-wrap {
-    border-width: 2px;
+    border-width: 4rpx;
 }

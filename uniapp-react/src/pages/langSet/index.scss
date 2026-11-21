@@ -13,7 +13,7 @@
         color: #1a1a1a;
 
         &:nth-child(n + 2) {
-            border-top: 1px solid #e5e7eb;
+            border-top: 2rpx solid #e5e7eb;
         }
 
         .cell-name {
@@ -137,7 +137,7 @@
             left: 0;
             right: 0;
             background-color: #fff;
-            border-top: 1px solid #f0f0f0;
+            border-top: 2rpx solid #f0f0f0;
 
             /* 原 tig-button2 theme 的视觉等价（TODO(MIGRATION)：tig-button2 尚无 React 版） */
             .btn {

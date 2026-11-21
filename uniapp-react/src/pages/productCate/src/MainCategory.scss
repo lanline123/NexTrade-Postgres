@@ -35,7 +35,7 @@
         width: 100%;
         height: 100%;
         white-space: nowrap;
-        border-bottom: 1px solid #f4f4f4;
+        border-bottom: 2rpx solid #f4f4f4;
 
         .category-item-box {
             display: inline-block;
@@ -63,7 +63,7 @@
                 height: 84rpx;
                 background-color: #f8f8f8;
                 border-radius: 50%;
-                border: 1px solid transparent;
+                border: 2rpx solid transparent;
 
                 .cate-img {
                     width: 100%;
@@ -84,7 +84,7 @@
 
             &.active {
                 .item-img-box {
-                    border: 1px solid var(--general);
+                    border: 2rpx solid var(--general);
                 }
 
                 .item-text {
@@ -139,7 +139,7 @@
                 height: 84rpx;
                 background-color: #f8f8f8;
                 border-radius: 50%;
-                border: 1px solid transparent;
+                border: 2rpx solid transparent;
 
                 .cate-img {
                     width: 100%;
@@ -160,7 +160,7 @@
 
             &.active {
                 .item-img-box {
-                    border: 1px solid var(--general);
+                    border: 2rpx solid var(--general);
                 }
 
                 .item-text {

@@ -20,23 +20,23 @@
         border: 0 solid #fff;
 
         &--tl {
-            border-top-width: 3px;
-            border-left-width: 3px;
+            border-top-width: 6rpx;
+            border-left-width: 6rpx;
         }
 
         &--tr {
-            border-top-width: 3px;
-            border-right-width: 3px;
+            border-top-width: 6rpx;
+            border-right-width: 6rpx;
         }
 
         &--bl {
-            border-bottom-width: 3px;
-            border-left-width: 3px;
+            border-bottom-width: 6rpx;
+            border-left-width: 6rpx;
         }
 
         &--br {
-            border-bottom-width: 3px;
-            border-right-width: 3px;
+            border-bottom-width: 6rpx;
+            border-right-width: 6rpx;
         }
     }
 
@@ -155,7 +155,7 @@
         align-items: center;
         justify-content: center;
         border-radius: 36px;
-        border: 3px solid #fff;
+        border: 6rpx solid #fff;
         box-sizing: border-box;
 
         &--off {

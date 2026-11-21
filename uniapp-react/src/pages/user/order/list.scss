@@ -137,7 +137,7 @@
     margin-bottom: 20rpx;
     position: static;
     z-index: 88;
-    border-top: 1px solid #f0f1f2;
+    border-top: 2rpx solid #f0f1f2;
 
     .order-menu-item {
         flex: 1;
@@ -230,7 +230,7 @@
             align-items: center;
             justify-content: space-between;
             height: 78rpx;
-            border-bottom: 1px solid #f0f1f2;
+            border-bottom: 2rpx solid #f0f1f2;
             margin-bottom: 10rpx;
 
             .status-name {

@@ -112,7 +112,7 @@
                 }
 
                 .active {
-                    outline: 1.5px solid #1a1a1a;
+                    outline: 3rpx solid #1a1a1a;
                     outline-offset: -1px;
                     color: #1a1a1a;
                     background-color: #f7f8fc;
@@ -130,7 +130,7 @@
         justify-content: center;
         gap: 16rpx;
         padding: 20rpx 32rpx;
-        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        border-top: 2rpx solid rgba(0, 0, 0, 0.08);
         background-color: #fff;
 
         &.safe-btn {
@@ -145,7 +145,7 @@
             font-size: 24.5rpx;
             border-radius: 4px;
             border-style: solid;
-            border-width: 1px;
+            border-width: 2rpx;
             box-sizing: border-box;
             line-height: normal;
             position: relative;
