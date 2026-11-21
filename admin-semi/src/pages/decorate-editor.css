@@ -1914,6 +1914,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* 无图条目模式（PicListEditor showImage=false，如 banner 导航文字）：
+   卡片无缩略图，序号/拖拽柄绝对定位在卡片顶部，meta 下移避让；添加卡矮化 */
+.dec-pic-grid__card--imageless .dec-pic-grid__meta { padding: 40px 12px 12px; }
+.dec-pic-grid--imageless .dec-pic-grid__add { min-height: 76px; }
 .dec-pic-grid__add {
   display: flex;
   flex-direction: column;

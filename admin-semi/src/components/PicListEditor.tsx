@@ -14,6 +14,13 @@
  * H5 LinkType 口径在调用点适配）；不传时走内置口径（当前卡填首件、余者
  * 在其后插入新卡，受 max 容量约束，链接为 PC 的 /product/{id} 形状）。
  * PC 编辑器不传此 prop，行为与抽取前逐项一致。
+ * showImage=false 为可选的「无图条目」模式（2026-11-21 补形态，对齐原版
+ * PicList 的 showImage=false）：卡片不渲染缩略图（序号 + 拖拽柄 + 标题 +
+ * 链接摘要），编辑弹窗只剩标题 / 描述 / 链接字段（无选图区、无商品选图
+ * 入口），添加的空条目形状与原版 PicList 无图添加逐字一致
+ *（{ picTitle, picDesc, picLink: { link, title } }，不带任何图片键）。
+ * 缺省 true，既有调用方（PC 编辑器 + H5 全部图片列表）行为与落盘逐项不变；
+ * 首个使用方为 H5 首焦轮播的导航文字列表（banner navList）。
  * 样式：pages/decorate-editor.css 的 .dec-pic-grid* / .dec-pic-modal*
  * （PC 与 H5 编辑器入口均已引入该样式表）。
  */
@@ -45,6 +52,7 @@ export function PicListEditor({
   addText,
   showLink = true,
   showText = true,
+  showImage = true,
   max,
   onPickManyProducts,
 }: {
@@ -54,6 +62,8 @@ export function PicListEditor({
   addText?: string;
   showLink?: boolean;
   showText?: boolean;
+  /** false = 无图条目模式（纯文字 + 链接列表，如导航文字）；缺省 true */
+  showImage?: boolean;
   max?: number;
   onPickManyProducts?: (items: PickedImage[]) => void;
 }) {
@@ -83,85 +93,116 @@ export function PicListEditor({
     else if (editIndex !== null && editIndex > index) setEditIndex(editIndex - 1);
   };
   const addItem = () => {
-    const next = [
-      ...list,
-      { picUrl: '', picThumb: '', picName: '', picTitle: '', picLink: { link: '', name: '' } } as PicItem,
-    ];
+    const emptyItem = showImage
+      ? ({ picUrl: '', picThumb: '', picName: '', picTitle: '', picLink: { link: '', name: '' } } as PicItem)
+      : // 无图模式空条目：与原版 PicList showImage=false 的添加形状逐字一致
+        //（只有文字列表的实际字段 picTitle/picDesc/picLink，不带图片键）
+        ({ picTitle: '', picDesc: '', picLink: { link: '', title: '' } } as unknown as PicItem);
+    const next = [...list, emptyItem];
     onChange(next);
     setEditIndex(next.length - 1);
   };
   const current = editIndex !== null ? list[editIndex] : undefined;
   const currentUrl = current ? String(current.picUrl || current.picThumb || '') : '';
-  const renderEditor = (index: number) => (
-    <div className="dec-pic-modal">
-      <div className="dec-pic-modal__toolbar">
-        <Button size="small" icon={<IconPlus />} onClick={() => setProductPickerOpen(true)}>
-          {t('从商品选择图片')}
-        </Button>
-        <span className="dec-pic-modal__toolbar-hint">{t('可用商品头图或商品相册图片')}</span>
-        {currentUrl ? (
-          <Button
-            size="small"
-            theme="borderless"
-            type="danger"
-            onClick={() => updateItem(index, { picUrl: '', picThumb: '' })}
-          >
-            {t('清除图片')}
-          </Button>
-        ) : null}
-      </div>
-      <div className="dec-pic-modal__body">
-        <div className="dec-pic-modal__preview">
-          <ImageUploader
-            single
-            value={currentUrl ? [currentUrl] : []}
-            onChange={(urls) => updateItem(index, { picUrl: urls[0] || '', picThumb: urls[0] || '' })}
+  const renderFields = (index: number) => (
+    <div className="dec-pic-modal__fields">
+      {showText && (
+        <label className="dec-pic-modal__field">
+          <span>{t('标题')}</span>
+          <Input
+            value={current?.picTitle || ''}
+            placeholder={t('建议10个字以内，可不填')}
+            onChange={(v) => updateItem(index, { picTitle: v })}
           />
-          <div className="dec-pic-modal__preview-hint">{t('点击图片从素材中心更换')}</div>
+        </label>
+      )}
+      {showDesc && (
+        <label className="dec-pic-modal__field">
+          <span>{t('描述')}</span>
+          <Input
+            value={current?.picDesc || ''}
+            placeholder={t('可不填')}
+            onChange={(v) => updateItem(index, { picDesc: v })}
+          />
+        </label>
+      )}
+      {showLink && (
+        <div className="dec-pic-modal__field">
+          <span>{t('链接')}</span>
+          <LinkField
+            value={current?.picLink}
+            onChange={(link) => updateItem(index, { picLink: link })}
+          />
         </div>
-        <div className="dec-pic-modal__fields">
-          {showText && (
-            <label className="dec-pic-modal__field">
-              <span>{t('标题')}</span>
-              <Input
-                value={current?.picTitle || ''}
-                placeholder={t('建议10个字以内，可不填')}
-                onChange={(v) => updateItem(index, { picTitle: v })}
-              />
-            </label>
-          )}
-          {showDesc && (
-            <label className="dec-pic-modal__field">
-              <span>{t('描述')}</span>
-              <Input
-                value={current?.picDesc || ''}
-                placeholder={t('可不填')}
-                onChange={(v) => updateItem(index, { picDesc: v })}
-              />
-            </label>
-          )}
-          {showLink && (
-            <div className="dec-pic-modal__field">
-              <span>{t('链接')}</span>
-              <LinkField
-                value={current?.picLink}
-                onChange={(link) => updateItem(index, { picLink: link })}
-              />
-            </div>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
+  const renderEditor = (index: number) =>
+    showImage ? (
+      <div className="dec-pic-modal">
+        <div className="dec-pic-modal__toolbar">
+          <Button size="small" icon={<IconPlus />} onClick={() => setProductPickerOpen(true)}>
+            {t('从商品选择图片')}
+          </Button>
+          <span className="dec-pic-modal__toolbar-hint">{t('可用商品头图或商品相册图片')}</span>
+          {currentUrl ? (
+            <Button
+              size="small"
+              theme="borderless"
+              type="danger"
+              onClick={() => updateItem(index, { picUrl: '', picThumb: '' })}
+            >
+              {t('清除图片')}
+            </Button>
+          ) : null}
+        </div>
+        <div className="dec-pic-modal__body">
+          <div className="dec-pic-modal__preview">
+            <ImageUploader
+              single
+              value={currentUrl ? [currentUrl] : []}
+              onChange={(urls) => updateItem(index, { picUrl: urls[0] || '', picThumb: urls[0] || '' })}
+            />
+            <div className="dec-pic-modal__preview-hint">{t('点击图片从素材中心更换')}</div>
+          </div>
+          {renderFields(index)}
+        </div>
+      </div>
+    ) : (
+      // 无图模式：弹窗只有字段列，无选图区与商品选图入口
+      <div className="dec-pic-modal">{renderFields(index)}</div>
+    );
+  const renderIndexBadge = (index: number) => <span className="dec-pic-grid__index">{index + 1}</span>;
+  const renderDragHandle = (index: number) => (
+    <span
+      className="dec-pic-grid__handle"
+      draggable
+      title={t('拖拽排序')}
+      onClick={(event) => event.stopPropagation()}
+      onDragStart={(event) => {
+        event.stopPropagation();
+        setDragIndex(index);
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(index));
+      }}
+      onDragEnd={endDrag}
+    >
+      <IconHandle />
+    </span>
+  );
   return (
-    <div className="dec-pic-grid">
+    <div className={showImage ? 'dec-pic-grid' : 'dec-pic-grid dec-pic-grid--imageless'}>
       {list.map((item, index) => {
         const url = String(item.picUrl || item.picThumb || '');
+        // 无图卡片的次行摘要：链接目标（link 或 H5 LinkType 的 path），无描述时展示
+        const linkText = showImage
+          ? ''
+          : String(item.picLink?.link || (item.picLink as Record<string, any> | undefined)?.path || '');
         return (
           <div
-            className={`dec-pic-grid__card${dragIndex === index ? ' is-dragging' : ''}${
-              overIndex === index && dragIndex !== null && dragIndex !== index ? ' is-drop-target' : ''
-            }`}
+            className={`dec-pic-grid__card${showImage ? '' : ' dec-pic-grid__card--imageless'}${
+              dragIndex === index ? ' is-dragging' : ''
+            }${overIndex === index && dragIndex !== null && dragIndex !== index ? ' is-drop-target' : ''}`}
             key={String(item.picId || index)}
             role="button"
             tabIndex={0}
@@ -180,28 +221,26 @@ export function PicListEditor({
               endDrag();
             }}
           >
-            <div className="dec-pic-grid__thumb">
-              {url ? <img src={url} alt="" /> : <div className="dec-pic-grid__empty"><IconPlus /></div>}
-              <span className="dec-pic-grid__index">{index + 1}</span>
-              <span
-                className="dec-pic-grid__handle"
-                draggable
-                title={t('拖拽排序')}
-                onClick={(event) => event.stopPropagation()}
-                onDragStart={(event) => {
-                  event.stopPropagation();
-                  setDragIndex(index);
-                  event.dataTransfer.effectAllowed = 'move';
-                  event.dataTransfer.setData('text/plain', String(index));
-                }}
-                onDragEnd={endDrag}
-              >
-                <IconHandle />
-              </span>
-            </div>
+            {showImage ? (
+              <div className="dec-pic-grid__thumb">
+                {url ? <img src={url} alt="" /> : <div className="dec-pic-grid__empty"><IconPlus /></div>}
+                {renderIndexBadge(index)}
+                {renderDragHandle(index)}
+              </div>
+            ) : (
+              // 无图模式：序号与拖拽柄直接挂卡片（绝对定位口径与缩略图内一致）
+              <>
+                {renderIndexBadge(index)}
+                {renderDragHandle(index)}
+              </>
+            )}
             <div className="dec-pic-grid__meta">
               <div className="dec-pic-grid__title">{item.picTitle || t('未命名')}</div>
-              {showDesc && item.picDesc ? <div className="dec-pic-grid__desc">{item.picDesc}</div> : null}
+              {showDesc && item.picDesc ? (
+                <div className="dec-pic-grid__desc">{item.picDesc}</div>
+              ) : linkText ? (
+                <div className="dec-pic-grid__desc">{linkText}</div>
+              ) : null}
             </div>
           </div>
         );
@@ -213,7 +252,7 @@ export function PicListEditor({
         </button>
       )}
       <Modal
-        title={t('编辑图片')}
+        title={showImage ? t('编辑图片') : t('编辑条目')}
         visible={editIndex !== null}
         onCancel={() => setEditIndex(null)}
         width={560}
@@ -235,6 +274,7 @@ export function PicListEditor({
       >
         {editIndex !== null ? renderEditor(editIndex) : null}
       </Modal>
+      {showImage ? (
       <ProductImagePickerModal
         visible={productPickerOpen}
         onCancel={() => setProductPickerOpen(false)}
@@ -285,6 +325,7 @@ export function PicListEditor({
           setProductPickerOpen(false);
         }}
       />
+      ) : null}
     </div>
   );
 }

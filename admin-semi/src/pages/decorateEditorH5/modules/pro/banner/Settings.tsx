@@ -7,7 +7,8 @@
 * 轮播圆角 max50/弧度背景高度 max500/弧度背景圆角 max100/弧度背景方向）+ BannerSearch
 * （显示开关/默认搜索词/菜单图标 1-7+自定义+不显示/菜单链接/签到图标 1-4+自定义+不显示/签到链接
 * ／多语言图标显示开关 showLang——我方新增：原版无此设置、多语言图标由前端无条件渲染）
-* + BannerNav（显示开关/文字列表，PicList showImage=false 同原版：只有文字+链接、无图片字段）；
+* + BannerNav（显示开关/文字列表，PicList showImage=false 同原版：只有文字+链接、无图片字段；
+* 2026-11-21 起经 PicListEditorField 走共享 PicListEditor 的无图条目模式，条目形状与落盘不变）；
 * 样式：BannerStyle（type 非 bannerA2 全集）；
 * 扩展：ModuleStyleEdit（type="banner"，含 bannerMarginTop）。
 * 注：SelectLink（菜单/签到跳转链接）走共享 PicLinkField 选择，写回原字段（字符串型，与原版默认值同形）；
@@ -24,7 +25,6 @@ IconStyleRadioField,
 RangeField,
 ColorField,
 TextField,
-PicListField,
 PicListEditorField,
 PicSelectField,
 PicLinkField,
@@ -164,7 +164,7 @@ options={[
                             ]}
                         />
                         {Number(nc.data.showNav) === 1 ? (
-                            <PicListField {...nc} field="navList" label="" max={20} showText showImage={false} addText="添加文字和链接" />
+                            <PicListEditorField {...nc} field="navList" label="" max={20} showText showImage={false} addText="添加文字和链接" />
                         ) : null}
                     </SettingGroup>
                 </>

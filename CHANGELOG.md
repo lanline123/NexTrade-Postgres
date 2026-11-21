@@ -1289,3 +1289,9 @@
 ### 修复
 
 - **check-rust 自换货包（02aed88）起持续编译红修复（阻断全部后端部署）**：① `rust/crates/core/src/entities/mod.rs` 补一行 `pub use order::AftersalesExchangeDelivery;`——换货包新增实体 `AftersalesExchangeDelivery`（定义在 `entities/order.rs`）漏入 entities 再导出清单，infrastructure 售后仓储两处（`trade/aftersales.rs`、`trade/aftersales_client.rs`）与 services 售后服务一处经 `nextrade_core::entities::` 引用报 E0432，全仓静态核查确认这是唯一未导出的实体名，补一行即全解；② `rust/crates/infrastructure/src/db/repo/trade/order_admin.rs` 单测 `split_batch_order_sns_dedupes_trims_and_caps` 改为先 `let binding` 绑定 `split_batch_order_sns(...)` 返回的 Vec 再借用迭代（E0716 临时值在借用期间被释放，仅测试代码，按编译器建议口径）。两处均为一行级修正，生产行为零变化。同批核查换货迁移 009（`aftersales_item.exchange_sku_id` 列与侧表 `aftersales_exchange_delivery` 五列）与实体字段、两仓储 SELECT/INSERT 列清单逐项对齐，无其他同类未导出/未对齐问题。
+
+## 0.0.2 续 · 2026-11-21 批次（图片列表编辑器补无图条目形态，banner 导航文字迁共享编辑器，未部署——随下一 admin 合并版上线）
+
+### 修复
+
+- **装修编辑器 - PicListEditor 补「无图条目」形态 + banner 导航文字（navList）迁共享编辑器（原版有·我方统一组件补形态）**：图片列表控件整批统一（piclist-unify）时登记的唯一余项——banner 的 navList 是纯文字+链接列表（原版 PicList 的 showImage=false 模式），共享 PicListEditor 当时没有无图形态，强迁会给文字项凭空加选图入口并改变条目形状，故保留旧 PicListField。本批给共享 PicListEditor 新增可选 prop `showImage`（缺省 true）：false 时进入无图条目模式——卡片不渲染缩略图（序号 + 拖拽柄 + 标题 + 链接摘要，拖拽排序口径不变）、编辑弹窗标题改「编辑条目」且只剩标题/描述/链接字段（无选图区、无「从商品选择图片」入口、商品选图弹窗不渲染）、添加的空条目形状与原版 PicList 无图添加逐字一致（`{ picTitle, picDesc, picLink: { link, title } }`，不带 picUrl/picThumb/picName 任何图片键）。H5 适配件 PicListEditorField 同步透传该 prop（无图模式下不下传商品批量落位委托），banner 设置面 navList 由 PicListField 切换为 PicListEditorField（props 逐字不变：max=20、showText、addText=「添加文字和链接」）。兼容口径：showImage 缺省 true，PC 编辑器与 H5 既有 22 个图片列表等全部调用方行为与落盘逐项不变；navList 条目编辑仍走展开合并 patch、条目自有字段不被触碰，存量页面打开/不改保存数据不走样，前台渲染只读 picTitle 与 picLink（urlFormat 消费口径不变）；重选链接时写共享 LinkField 标准形状（与整批统一时登记的链接编辑口径一致）。配套：decorate-editor.css 新增无图模式两条修饰规则（卡片 meta 避让序号/拖拽柄、添加卡矮化），i18n 新增「编辑条目」词条（zh-CN/en）。PicListField 本体保留（comboSuggestions 分组内 picList 仍在使用）。

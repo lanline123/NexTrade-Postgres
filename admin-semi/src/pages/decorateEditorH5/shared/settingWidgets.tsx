@@ -832,8 +832,10 @@ export function PicListField({
  * （picUrl/picThumb），不写标题/链接。
  * showAddButton=false（固定入口列表）以 max=当前条数冻结添加（删除后条数
  * 同步收缩、添加口不出现），与 PicListField 不渲染添加按钮等价。
- * showImage=false 的纯文字列表（banner 导航文字）无对应形态，不经本件迁移，
- * 仍走 PicListField。
+ * showImage=false（纯文字列表，如 banner 导航文字）走 PicListEditor 的无图
+ * 条目模式（2026-11-21 补形态后经本件迁移）：卡片无缩略图、弹窗只有标题/
+ * 描述/链接字段、空条目形状与 PicListField 的 showImage=false 添加形状逐字
+ * 一致；无图模式下商品选图不启用（onPickManyProducts 不下传）。
  */
 export function PicListEditorField({
     data,
@@ -844,6 +846,7 @@ export function PicListEditorField({
     showText = true,
     showDesc = false,
     showLink = true,
+    showImage = true,
     showAddButton = true,
     addText = "添加图片"
 }: FieldProps & {
@@ -853,6 +856,8 @@ export function PicListEditorField({
     showText?: boolean;
     showDesc?: boolean;
     showLink?: boolean;
+    /** 原版 PicList 的 showImage：false 时走 PicListEditor 无图条目模式（纯文字+链接列表） */
+    showImage?: boolean;
     /** false 时冻结添加（固定入口列表），与 PicListField 的 showAddButton 同义 */
     showAddButton?: boolean;
     addText?: string;
@@ -907,9 +912,10 @@ export function PicListEditorField({
                     showText={showText}
                     showDesc={showDesc}
                     showLink={showLink}
+                    showImage={showImage}
                     max={effectiveMax}
                     addText={addText}
-                    onPickManyProducts={handlePickManyProducts}
+                    onPickManyProducts={showImage ? handlePickManyProducts : undefined}
                 />
             </div>
         </div>
