@@ -314,11 +314,13 @@ export interface SettingFieldDef {
   onChangeExtra?: (moduleData: Record<string, any>, newValue: unknown) => Record<string, any>;
   showIf?: (m: Record<string, any>) => boolean;
   /**
-   * radio 字段渲染成原版的「图标按钮组」：每个选项显示 `ico-decorate` 字形并带 tooltip 文案。
-   * 原版 el-radio-button + el-tooltip 的形态（如 选择模板 / 指示器样式）。
+   * radio 字段渲染成原版的「图标按钮组」：走共享视觉选择器 TemplateIconRadio
+   * （decorateEditorH5/shared/templateIcon，H5 / PC 两端同一组件、同一紧凑宽
+   * 口径），每个选项显示图谱 SVG 并带 tooltip 文案。原版 el-radio-button +
+   * el-tooltip 的形态（如 选择模板 / 指示器样式）。
    */
   iconRadio?: boolean;
-  /** 选项对应的装饰图标 code point（配合 iconRadio，与 options 等长或按 value 映射） */
+  /** 选项对应的图谱名（共享 TemplatePictogram 图谱名，配合 iconRadio 按 value 映射） */
   optionIcons?: Record<string | number, string>;
   /** kind='buyBtnStyle' 时模块自带自定义图标的字段 key（样式 10 的选择器预览图；缺省 buyBtnIcon） */
   buyBtnIconKey?: string;

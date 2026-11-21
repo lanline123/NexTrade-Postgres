@@ -15,9 +15,12 @@
 * 粗细的「A」字形，与原版 icon-zitiyanse / icon-bianji-ziti 以字号和
 * 粗细区分选项的口径一致）呈现；数据契约（字段名/数值/默认值）零变化。
 * 形态与既有 IconStyleRadioField 先例一致：Semi RadioGroup type="button"
-* 分段，同挂专属类 dec-icon-radio——editor.less 专属规则令其按内容紧凑宽
-* 排布（2026-11-21 用户点名过宽后定案；此前无专属类、被通用均分规则整宽
-* 拉伸，两选项时每项各占控件区一半）。原版 .dec-radio-group 同为紧凑宽
+* 分段，同挂专属类 dec-icon-radio——共享壳 editor-shell.css 的专属规则
+* 令其按内容紧凑宽排布（2026-11-21 用户点名过宽后定案，规则原在 H5
+* editor.less、同日晚 PC 编辑器统一调用本组件后上收共享壳、全仓一份；
+* 此前无专属类、被通用均分规则整宽拉伸，两选项时每项各占控件区一半）。
+* PC 编辑器经 PcDecorateEditor 的 FieldControl（kind:'radio' + iconRadio）
+* 调用本组件，与 H5 同一组件同一口径。原版 .dec-radio-group 同为紧凑宽
 * （组无 width:100%，靠右于 .dec-edit-group-con，组内 flex:1 仅在紧凑宽
 * 内均分，原版 decorate.less:933-950）。
 */

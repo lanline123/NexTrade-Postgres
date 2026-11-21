@@ -251,6 +251,23 @@
   font-weight: 600;
 }
 
+/* 图标样式单选（共享视觉选择器 TemplateIconRadio 与 IconStyleRadioField，
+   专属类 dec-icon-radio）紧凑宽口径——全仓唯一一份，两端共用（2026-11-21
+   PC 编辑器图标单选统一到同一共享组件后上收至本共享壳，原规则在 H5
+   editor.less、同步删除）：组 inline-flex + width:auto 按内容收窄，子项
+   flex:0 1 42px 不拉伸。口径沿革：原版 .dec-radio-group 无 width:100%，
+   组宽由内容决定、组内 flex:1 只在紧凑宽内均分（原版 decorate.less:
+   933-950 实证，两图标选项实宽各约 50px）；42px 基底承接多图标换行
+   口径（一行放不下换第二行，首焦轮播 9 图标实测）。皮肤（胶囊底/内衬/
+   选中填充）由上方 .semi-radioGroup-buttonRadio 段统一承担，本段只管宽。 */
+.dec-settings-scope .semi-radioGroup-buttonRadio.dec-icon-radio {
+  display: inline-flex;
+  width: auto;
+}
+.dec-settings-scope .semi-radioGroup-buttonRadio.dec-icon-radio .semi-radio {
+  flex: 0 1 42px;
+}
+
 /* 内容卡：12px 外距、1px #eaecf0 边框、10px 圆角、白底（PC 口径，H5 已拆出见下） */
 .dec-settings-scope .dec-settings-body,
 .dec-settings-scope .pc-module-settings__body {

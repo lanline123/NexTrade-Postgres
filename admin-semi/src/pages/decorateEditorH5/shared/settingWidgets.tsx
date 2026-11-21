@@ -275,8 +275,9 @@ export function SegmentedButtonRadioRowField({ data, onChange, field, label, opt
  * 本控件是图标选择器，形态例外保留 type="button" 分段（同 PC 编辑器图标单选的按钮组形态），
  * 不随模块字段的圆点口径变更。
  * 字形映射由调用方模块的共享映射表提供（如 banner 的 iconStyles.ts），与预览/前台同源。
- * 排布（2026-11-21 用户口径）：挂专属类 dec-icon-radio，editor.less 两段
- * 口径——子项 42px 弹性基底令 flex-wrap 生效（通用均分规则的 flex:1
+ * 排布（2026-11-21 用户口径）：挂专属类 dec-icon-radio，共享壳
+ * editor-shell.css 专属规则两段口径（原在 editor.less、同日晚 PC 统一后
+ * 上收共享壳）——子项 42px 弹性基底令 flex-wrap 生效（通用均分规则的 flex:1
  * （basis 0%）会令 flex-wrap 失效、选项多时如菜单图标 9 项硬挤一行被
  * 裁切；有基底后一行放不下自动换到第二行）；组本身 inline-flex 按内容
  * 紧凑宽、子项不拉伸（同日晚间追加：通用规则的组 width:100% 令少选项时

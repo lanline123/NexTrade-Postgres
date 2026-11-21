@@ -3124,55 +3124,13 @@
   display: none;
 }
 
-/* ===== 「选择模板 / 指示器样式」图标按钮组（对齐原版 .dec-radio-group .el-radio-button）=====
-   原版用 el-radio-button + ico-decorate 字体图标 + el-tooltip 文案，
-   这里以同样视觉呈现：首尾圆角、选中浅蓝底 + 主色描边。 */
-.dec-icon-radio-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0;
-  width: 100%;
-}
-
-.dec-icon-radio {
-  flex: 1 1 0;
-  min-width: 44px;
-  position: relative;
-  z-index: 1;
-  margin-left: -1px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 32px;
-  padding: 0 12px;
-  box-sizing: border-box;
-  background-color: #fff;
-  border: 1px solid #ebedf0;
-  border-radius: 0;
-  color: #979797;
-  cursor: pointer;
-  transition: all 0.3s;
-  font-size: 14px;
-  font-family: inherit;
-  line-height: 1;
-}
-
-.dec-icon-radio:first-child { margin-left: 0; border-radius: 2px 0 0 2px; }
-.dec-icon-radio:last-child { border-radius: 0 2px 2px 0; }
-.dec-icon-radio:only-child { border-radius: 2px; }
-
-.dec-icon-radio:hover {
-  z-index: 9;
-  border-color: #155bd4;
-  color: #155bd4;
-}
-
-.dec-icon-radio.is-active {
-  z-index: 10;
-  border-color: #155bd4;
-  background: #e0edff;
-  color: #3773da;
-}
+/* 「选择模板 / 指示器样式」图标按钮组已统一走共享视觉选择器
+   TemplateIconRadio（2026-11-21，用户指令 PC 一并改）：旧自有 div 控件
+   .dec-icon-radio-group / .dec-icon-radio 的整套规则删除。类名
+   dec-icon-radio 现为共享组件 Semi 单选组的专属类，其紧凑宽规则在共享
+   壳 components/decorate/editor-shell.css 的 .dec-settings-scope 段
+   （全仓唯一一份）；本文件的旧按钮规则若保留，会以裸类名命中共享组件
+   的组容器造成串扰，故必须随迁移一并删除。 */
 
 /* ===== 热区绘制器（现代化重写，替代原「手填数字」表格） ===== */
 .hotarea-painter { display: flex; flex-direction: column; gap: 10px; width: 100%; }

@@ -488,7 +488,7 @@
 //   文字居中，皮肤走共享壳 editor-shell.css 的 .dec-settings-scope 胶囊段
 //   （同 PC）；例外：页面设置 SegmentedButtonRadio 挂 dec-seg-btn-auto 按 PC
 //   自然宽度复位（见下方专属规则，2026-11-19），图标单选挂 dec-icon-radio
-//   按内容紧凑宽复位（见下方专属规则，2026-11-21）。
+//   按内容紧凑宽复位（规则在共享壳 editor-shell.css，2026-11-21 上收）。
 .dec-edit-group-con .semi-radioGroup:not(.semi-radioGroup-buttonRadio) {
     display: inline-flex;
     flex-wrap: wrap;
@@ -513,31 +513,13 @@
     }
 }
 
-// 图标样式单选（专属类 dec-icon-radio，IconStyleRadioField 与 TemplateIconRadio
-// 共用）两段口径：
-// ① 换行（2026-11-21 晨）：上方均分规则的 flex:1 等价 flex-basis:0%，
-// flex-wrap 按假想尺寸排版会判定「全部放得下」而永不换行——首焦轮播菜单
-// 图标 9 个选项（24px 字形 + 按钮内距）被硬挤一行、图标裁切、末项
-// （自定义/不显示）溢出不可达（用户实测）。子项给 42px 弹性基底后：
-// 一行放不下即换到第二行（用户口径）。
-// ② 紧凑宽（2026-11-21 晚，用户点名首焦轮播A2「搜索框/导航效果」两枚图标、
-// 商品提示扩展设置「图片填充」、文章列表「标题粗细」太宽）：原版
-// .dec-radio-group 无 width:100%，组宽由内容决定、在 .dec-edit-group-con
-// （justify-content:flex-end）内靠右呈紧凑宽，组内 el-radio-button 的
-// flex:1 只在该紧凑宽内均分（原版 decorate.less:933-950 实证，两图标选项
-// 实宽各约 50px）；我方通用均分规则给组 width:100%，少选项时每项被拉到
-// 控件区等分宽（两项各约 135px）。现与 dec-seg-btn-auto 同法复位：组
-// inline-flex + width:auto 按内容收窄，子项 flex:0 1 42px 不再横向拉伸
-// （42px 基底保留、承接①的换行口径）；行布局下靠右、块布局下左对齐，
-// 均同原版观感。
-.dec-edit-group-con .semi-radioGroup-buttonRadio.dec-icon-radio {
-    display: inline-flex;
-    width: auto;
-
-    .semi-radio {
-        flex: 0 1 42px;
-    }
-}
+// 图标样式单选（专属类 dec-icon-radio，IconStyleRadioField 与共享视觉
+// 选择器 TemplateIconRadio 共用）的紧凑宽规则已上收共享壳
+// components/decorate/editor-shell.css 的 .dec-settings-scope 段（全仓唯一
+// 一份）：2026-11-21 PC 编辑器图标单选统一到同一共享组件后，两端设置
+// 面板同根 .dec-settings-scope、共用同一规则，本处原专属规则删除。
+// 口径沿革（换行 42px 基底 + 紧凑宽定案、原版实证）见共享壳该段注释与
+// iconradio-width / pc-iconradio-unify 两报告。
 
 // 页面设置分段单选（SegmentedButtonRadio 专属类 dec-seg-btn-auto）宽度复位
 // （2026-11-19，用户反馈「头部风格太宽了」）：PC 编辑器 PageSettings 的同名

@@ -70,6 +70,7 @@ import LinkPickerModal, { LinkField } from '../components/LinkPicker';
 import SliderWithInput from '../components/SliderWithInput';
 import SharedColorField, { ColorPairField } from '../components/ColorField';
 import { PC_LIB_META as LIB_META } from '../components/editorModuleIcons';
+import { TemplateIconRadio, type TemplateIconOption } from './decorateEditorH5/shared/templateIcon';
 import EditorShell from '../components/decorate/EditorShell';
 import EditorLocaleSwitch from '../components/decorate/EditorLocaleSwitch';
 import LibraryPanel from '../components/decorate/LibraryPanel';
@@ -4559,29 +4560,20 @@ function FieldControl({
   switch (field.kind) {
     case 'radio':
       if (field.iconRadio) {
-        // 原版 el-radio-button + el-tooltip：以 ico-decorate 图标直观看模板/指示器样式
+        // 图标按钮组走共享视觉选择器 TemplateIconRadio（与 H5 编辑器同一组件、
+        // 同一紧凑宽口径；2026-11-21 用户指令「PC 的一起改、全部调用修订后的
+        // 共享组件」）：原版 el-radio-button + el-tooltip 形态由该组件承接
+        // （Semi button 单选 + TemplatePictogram 图谱 SVG + Tooltip），选项图标
+        // 取 field.optionIcons 的图谱名。回写为选项声明值——现有 iconRadio 字段
+        // 选项均为数值，与此前 Number(o.value) 强转结果逐字一致，数据契约不变。
+        // 旧自有 div 控件 .dec-icon-radio-group 已废弃（CSS 规则同步删除）。
         const current = (value ?? field.options?.[0]?.value) as string | number | undefined;
-        return (
-          <div className="dec-icon-radio-group">
-            {(field.options || []).map((o) => {
-              const icon = field.optionIcons?.[o.value as string | number];
-              const active = String(current) === String(o.value);
-              return (
-                <Tooltip key={String(o.value)} content={t(o.label)} position="bottom">
-                  <button
-                    type="button"
-                    className={`dec-icon-radio${active ? ' is-active' : ''}`}
-                    onClick={() => set(Number(o.value))}
-                    aria-label={t(o.label)}
-                    aria-pressed={active}
-                  >
-                    {icon ? <i className="ico-decorate" style={{ fontSize: 18 }}>{icon}</i> : t(o.label)}
-                  </button>
-                </Tooltip>
-              );
-            })}
-          </div>
-        );
+        const iconOptions: TemplateIconOption[] = (field.options || []).map((o) => ({
+          value: o.value,
+          label: o.label,
+          icon: field.optionIcons?.[o.value as string | number],
+        }));
+        return <TemplateIconRadio value={current} options={iconOptions} onChange={(v) => set(v)} />;
       }
       return (
         <RadioGroup value={(value ?? field.options?.[0]?.value) as string | number | undefined} onChange={(e: any) => set(Number(e.target.value))}>

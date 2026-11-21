@@ -16,8 +16,11 @@ const def: ModuleDef = {
   }),
   settings: [
     { kind: 'radio', key: 'picType', label: '选择模板', iconRadio: true,
-      // 原版 pc-image-ad/Settings.vue：el-radio-button 内为 ico-decorate 图标 + el-tooltip 文案
-      optionIcons: { 1: '\ue603', 2: '\ue601', 5: '\ue61c', 6: '\ue61d', 7: '\ue61b' },
+      // 原版 pc-image-ad/Settings.vue：el-radio-button 内为 ico-decorate 图标 + el-tooltip 文案；
+      // 现走共享 TemplateIconRadio，图标改用其 TemplatePictogram 图谱名（与 H5 imageAd
+      // 同字段同值口径一致：1 一行一个 up2end / 2 轮播 carousel / 5 一行两个 cuberow /
+      // 6 一行三个 cuberow2 / 7 一行四个 cuberow1）
+      optionIcons: { 1: 'up2end', 2: 'carousel', 5: 'cuberow', 6: 'cuberow2', 7: 'cuberow1' },
       options: [
         { label: '一行一个', value: 1 },
         { label: '轮播', value: 2 },
@@ -34,8 +37,9 @@ const def: ModuleDef = {
         return '';
       } },
     { kind: 'radio', key: 'picPageType', label: '指示器样式', iconRadio: true, showIf: (m) => Number(m.picType) === 2,
-      // 原版：el-radio-button + ico-decorate icon-dec-indicator-1/2/3 + el-tooltip「样式一/二/三」
-      optionIcons: { 1: '\ue604', 2: '\ue606', 3: '\ue605' },
+      // 原版：el-radio-button + ico-decorate icon-dec-indicator-1/2/3 + el-tooltip「样式一/二/三」；
+      // 图谱名 indicator-1/2/3 与 H5 imageAd 同字段同口径
+      optionIcons: { 1: 'indicator-1', 2: 'indicator-2', 3: 'indicator-3' },
       options: [{ label: '样式一', value: 1 }, { label: '样式二', value: 2 }, { label: '样式三', value: 3 }] },
     { kind: 'color', key: 'swiperPageColor', label: '指示器颜色', resetValue: '#333333', showIf: (m) => Number(m.picType) === 2 },
     { kind: 'select', key: 'swiperPreView', label: '轮播一行显示', options: [1, 2, 3, 4].map((n) => ({ label: `${n}个`, value: n })), showIf: (m) => Number(m.picType) === 2 },
