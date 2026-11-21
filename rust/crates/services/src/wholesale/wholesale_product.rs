@@ -76,6 +76,9 @@ use nextrade_core::models::wholesale::wholesale_product::{
     MSG_PRODUCT_NOT_FOUND_OR_CONFIG, MSG_PRODUCT_TYPE_NOT_SUPPORTED, MSG_PRICE_ROWS_REQUIRED,
     MSG_MOQ_INVALID, MSG_TIERS_REQUIRED, SKU_SPU_FALLBACK, SINGLE_SPEC_SPEC_TEXT,
 };
+use nextrade_core::models::wholesale::wholesale_summary::{
+    shop_display_title, WholesaleShopProductPageQuery, WholesaleShopProductVO,
+};
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::repo::wholesale::wholesale_product::WholesaleProductRepository;
@@ -130,8 +133,71 @@ impl WholesaleProductService {
                 offset,
             )
             .await?;
+        let list = self.assemble_product_vos(&configs).await?;
+        Ok(PageResult::new(total, list, &page))
+    }
+
+    /// 门店级批发清单（我方新增，二期）：跨店分页 + 门店回填。
+    ///
+    /// `shop_filter = None` 时不限门店（总部跨店清单）；行 VO 与
+    /// [`Self::page`] 同装配同口径，额外带归属门店（`shop_id` 取 config
+    /// 冗余列，与商品归属恒一致）。
+    ///
+    /// # Errors
+    /// 数据库执行失败时返回 `Error::Database`。
+    pub async fn page_multi(
+        &self,
+        q: &WholesaleShopProductPageQuery,
+        shop_filter: Option<i32>,
+    ) -> Result<PageResult<WholesaleShopProductVO>> {
+        let page = PageQuery {
+            page: q.page.unwrap_or(1),
+            page_size: q.page_size.unwrap_or(DEFAULT_PAGE_SIZE).min(MAX_PAGE_SIZE),
+        };
+        let keyword = q.keyword.as_deref().map(str::trim).filter(|s| !s.is_empty());
+        let keyword_ids = match keyword {
+            Some(k) => Some(self.repo().product_ids_by_keyword(k).await?),
+            None => None,
+        };
+        let (limit, offset) = page.limit_offset();
+        let (total, configs) = self
+            .repo()
+            .paginate_configs_multi(
+                shop_filter,
+                q.moq_dimension,
+                keyword_ids.as_deref(),
+                limit,
+                offset,
+            )
+            .await?;
+        let vos = self.assemble_product_vos(&configs).await?;
+        let shop_ids: Vec<i32> = configs.iter().map(|c| c.shop_id).collect();
+        let titles: HashMap<i32, String> = self
+            .repo()
+            .shop_titles(&shop_ids)
+            .await?
+            .into_iter()
+            .collect();
+        let list = configs
+            .iter()
+            .zip(vos)
+            .map(|(c, product)| WholesaleShopProductVO {
+                shop_id: c.shop_id,
+                shop_title: shop_display_title(c.shop_id, titles.get(&c.shop_id).map(String::as_str)),
+                product,
+            })
+            .collect();
+        Ok(PageResult::new(total, list, &page))
+    }
+
+    /// 批发商品 VO 装配（[`Self::page`] 与 [`Self::page_multi`] 共用，
+    /// 保证两处展示口径逐字一致）。
+    async fn assemble_product_vos(
+        &self,
+        configs: &[ProductWholesaleConfig],
+    ) -> Result<Vec<WholesaleProductVO>> {
         if configs.is_empty() {
-            return Ok(PageResult::new(total, Vec::new(), &page));
+            return Ok(Vec::new());
         }
         let product_ids: Vec<i32> = configs.iter().map(|c| c.product_id).collect();
         let mut products = HashMap::new();
@@ -145,7 +211,7 @@ impl WholesaleProductService {
         let currency = self.repo().currency_symbol().await?;
 
         let mut list = Vec::with_capacity(configs.len());
-        for c in &configs {
+        for c in configs {
             let empty_skus = Vec::new();
             let product_skus: Vec<_> = skus.iter().filter(|s| s.product_id == c.product_id).collect();
             let prices = self.repo().list_prices(c.product_id).await?;
@@ -153,7 +219,7 @@ impl WholesaleProductService {
                 .to_product_vo(c, products.get(&c.product_id), &product_skus, &empty_skus, &sku_configs, &prices, &currency)
                 .await?);
         }
-        Ok(PageResult::new(total, list, &page))
+        Ok(list)
     }
 
     /// 可选批发商品分页（Java `selectablePage`）。

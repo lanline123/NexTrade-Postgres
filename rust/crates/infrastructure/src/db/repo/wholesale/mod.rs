@@ -3,6 +3,7 @@
 pub mod wholesale_client;
 pub mod wholesale_product;
 pub mod wholesale_setting;
+pub mod wholesale_summary;
 pub mod wholesaler;
 pub mod wholesaler_grade;
 
@@ -15,6 +16,7 @@ pub struct Repositories {
     pub wholesaler_grade: wholesaler_grade::WholesalerGradeRepository,
     pub wholesaler: wholesaler::WholesalerRepository,
     pub wholesale_product: wholesale_product::WholesaleProductRepository,
+    pub wholesale_summary: wholesale_summary::WholesaleSummaryRepository,
 }
 
 impl Repositories {
@@ -26,6 +28,7 @@ impl Repositories {
             wholesaler_grade: wholesaler_grade::WholesalerGradeRepository::new(pool.clone()),
             wholesaler: wholesaler::WholesalerRepository::new(pool.clone()),
             wholesale_product: wholesale_product::WholesaleProductRepository::new(pool.clone()),
+            wholesale_summary: wholesale_summary::WholesaleSummaryRepository::new(pool),
         }
     }
 }

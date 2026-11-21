@@ -3,6 +3,7 @@
 pub mod wholesale_client;
 pub mod wholesale_product;
 pub mod wholesale_setting;
+pub mod wholesale_summary;
 pub mod wholesaler;
 pub mod wholesaler_grade;
 
@@ -16,4 +17,5 @@ pub struct Services {
     pub wholesaler_grade: Arc<wholesaler_grade::WholesalerGradeService>,
     pub wholesaler: Arc<wholesaler::WholesalerService>,
     pub wholesale_product: Arc<wholesale_product::WholesaleProductService>,
+    pub wholesale_summary: Arc<wholesale_summary::WholesaleSummaryService>,
 }

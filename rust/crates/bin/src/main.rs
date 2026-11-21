@@ -267,6 +267,7 @@ use nextrade_services::trade::user_order::UserOrderService;
 use nextrade_services::wholesale::wholesale_client::WholesaleClientService;
 use nextrade_services::wholesale::wholesale_product::WholesaleProductService;
 use nextrade_services::wholesale::wholesale_setting::WholesaleSettingService;
+use nextrade_services::wholesale::wholesale_summary::WholesaleSummaryService;
 use nextrade_services::wholesale::wholesaler::WholesalerService;
 use nextrade_services::wholesale::wholesaler_grade::WholesalerGradeService;
 
@@ -497,6 +498,10 @@ async fn main() -> anyhow::Result<()> {
     let wholesaler_grade = Arc::new(WholesalerGradeService::new(repos.clone()));
     let wholesaler = Arc::new(WholesalerService::new(repos.clone()));
     let wholesale_product = Arc::new(WholesaleProductService::new(repos.clone()));
+    let wholesale_summary = Arc::new(WholesaleSummaryService::new(
+        repos.clone(),
+        wholesale_product.clone(),
+    ));
     // ---- wholesale 域 ----
     let wholesale = Arc::new(nextrade_services::wholesale::Services {
         wholesale_client: wholesale_client.clone(),
@@ -504,6 +509,7 @@ async fn main() -> anyhow::Result<()> {
         wholesaler_grade: wholesaler_grade.clone(),
         wholesaler: wholesaler.clone(),
         wholesale_product: wholesale_product.clone(),
+        wholesale_summary: wholesale_summary.clone(),
     });
     let comment = Arc::new(CommentService::new(repos.clone()));
     let auto_comment = Arc::new(AutoCommentService::new(repos.clone()));

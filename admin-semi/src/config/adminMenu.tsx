@@ -1426,6 +1426,10 @@ export const navGroups: NavGroup[] = [
           {
             "key": "wholesaleProductManage",
             "label": "批发商品列表"
+          },
+          {
+            "key": "wholesaleSummaryManage",
+            "label": "批发汇总"
           }
         ]
       }
@@ -1980,6 +1984,7 @@ export const pageTitles: Record<string, string> = {
   "wholesalerGradeManage": "等级管理",
   "wholesaleSettingManage": "批发设置",
   "wholesaleProductManage": "批发商品列表",
+  "wholesaleSummaryManage": "批发汇总",
   "baseBasicManage": "基础信息",
   "baseProductManage": "商品设置",
   "baseShoppingManage": "交易设置",

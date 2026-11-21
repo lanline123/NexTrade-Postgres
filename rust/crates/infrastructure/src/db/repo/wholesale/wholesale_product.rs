@@ -149,7 +149,34 @@ impl WholesaleProductRepository {
         limit: i64,
         offset: i64,
     ) -> Result<(u64, Vec<ProductWholesaleConfig>)> {
-        let mut where_parts: Vec<String> = vec!["is_delete = 0".into(), "shop_id = ?".into()];
+        self.paginate_configs_multi(
+            Some(shop_id),
+            moq_dimension,
+            keyword_product_ids,
+            limit,
+            offset,
+        )
+        .await
+    }
+
+    /// 批发商品分页（跨店版，我方新增——门店级批发清单）：`shop_id = None`
+    /// 时不限门店（总部跨店清单），其余过滤/排序与 [`Self::paginate_configs`]
+    /// 逐字一致。
+    ///
+    /// # Errors
+    /// 数据库执行失败时返回 `Error::Database`。
+    pub async fn paginate_configs_multi(
+        &self,
+        shop_id: Option<i32>,
+        moq_dimension: Option<i32>,
+        keyword_product_ids: Option<&[i32]>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<(u64, Vec<ProductWholesaleConfig>)> {
+        let mut where_parts: Vec<String> = vec!["is_delete = 0".into()];
+        if shop_id.is_some() {
+            where_parts.push("shop_id = ?".into());
+        }
         if moq_dimension.is_some() {
             where_parts.push("moq_dimension = ?".into());
         }
@@ -165,7 +192,10 @@ impl WholesaleProductRepository {
         let where_sql = format!("WHERE {}", where_parts.join(" AND "));
 
         let count_sql = crate::db::to_pg_placeholders(&format!("SELECT COUNT(*) FROM product_wholesale_config {where_sql}"));
-        let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql).bind(shop_id);
+        let mut cq = sqlx::query_as::<_, (i64,)>(&count_sql);
+        if let Some(v) = shop_id {
+            cq = cq.bind(v);
+        }
         if let Some(v) = moq_dimension {
             cq = cq.bind(v);
         }
@@ -179,7 +209,10 @@ impl WholesaleProductRepository {
         let list_sql = crate::db::to_pg_placeholders(&format!(
             "{CONFIG_SELECT} {where_sql} ORDER BY create_time DESC LIMIT ? OFFSET ?"
         ));
-        let mut lq = sqlx::query_as::<_, ProductWholesaleConfig>(&list_sql).bind(shop_id);
+        let mut lq = sqlx::query_as::<_, ProductWholesaleConfig>(&list_sql);
+        if let Some(v) = shop_id {
+            lq = lq.bind(v);
+        }
         if let Some(v) = moq_dimension {
             lq = lq.bind(v);
         }
@@ -195,6 +228,24 @@ impl WholesaleProductRepository {
             .await
             .map_err(map_err)?;
         Ok((total.0.max(0) as u64, rows))
+    }
+
+    /// 批量门店名（`shop_id → shop_title`；门店级批发清单回填用）。
+    ///
+    /// # Errors
+    /// 数据库执行失败时返回 `Error::Database`。
+    pub async fn shop_titles(&self, ids: &[i32]) -> Result<Vec<(i32, String)>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let rows: Vec<(i32, String)> = sqlx::query_as(
+            "SELECT shop_id, shop_title FROM shop WHERE shop_id = ANY($1)",
+        )
+        .bind(ids)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(rows)
     }
 
     /// 批量按 product_id 取未删配置（Java `selectByProductIds`；

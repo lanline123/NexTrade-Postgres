@@ -2,6 +2,7 @@
 
 pub mod wholesale_product;
 pub mod wholesale_setting;
+pub mod wholesale_summary;
 pub mod wholesaler;
 pub mod wholesaler_grade;
 
@@ -15,6 +16,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
     Router::new()
         .merge(wholesale_product::routes(state))
         .merge(wholesale_setting::routes(state))
+        .merge(wholesale_summary::routes(state))
         .merge(wholesaler::routes(state))
         .merge(wholesaler_grade::routes(state))
 }
@@ -31,6 +33,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     let mut out = Vec::new();
     out.extend(wholesale_product::implemented_routes());
     out.extend(wholesale_setting::implemented_routes());
+    out.extend(wholesale_summary::implemented_routes());
     out.extend(wholesaler::implemented_routes());
     out.extend(wholesaler_grade::implemented_routes());
     out
