@@ -1420,3 +1420,78 @@ impl TimeDiscountItem {
     /// 数据库表名。
     pub const TABLE: &'static str = "time_discount_item";
 }
+
+/// 营销活动下发批次（我方新增表 `marketing_distribution`，论坛帖 177866）。
+/// 一次「平台活动 → 多个目标店铺」的下发动作一行；逐店铺结果在
+/// [`MarketingDistributionItem`]。状态：1 已下发 / 2 已撤销 / 3 部分撤销。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct MarketingDistribution {
+    /// 批次 ID（bigserial，实体内以 i64 承载）
+    pub distribution_id: i64,
+    /// 来源类型：1 优惠券 / 2 满减
+    pub source_kind: i32,
+    /// 来源活动 ID（coupon.coupon_id / product_promotion.promotion_id）
+    pub source_id: i32,
+    /// 来源活动名称（下发时点快照）
+    pub source_name: String,
+    /// 目标店铺数（去重后）
+    pub target_count: i32,
+    /// 成功生成副本数
+    pub success_count: i32,
+    /// 跳过数（已有有效副本）
+    pub skipped_count: i32,
+    /// 失败数
+    pub failed_count: i32,
+    /// 已撤销副本数
+    pub revoked_count: i32,
+    /// 批次状态：1 已下发 / 2 已撤销 / 3 部分撤销
+    pub status: i32,
+    /// 下发备注
+    pub remark: String,
+    /// 操作管理员 ID（0 = 未知）
+    pub admin_id: i32,
+    /// 下发时间（秒）
+    pub add_time: i32,
+    /// 更新时间（秒）
+    pub update_time: i32,
+}
+
+impl MarketingDistribution {
+    /// 数据库表名。
+    pub const TABLE: &'static str = "marketing_distribution";
+}
+
+/// 营销活动下发逐店铺记录（我方新增表 `marketing_distribution_item`）。
+/// 状态：0 待处理 / 1 已生成 / 2 已跳过 / 3 已撤销 / 4 失败。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct MarketingDistributionItem {
+    /// 记录 ID（bigserial，实体内以 i64 承载）
+    pub item_id: i64,
+    /// 所属批次
+    pub distribution_id: i64,
+    /// 来源类型：1 优惠券 / 2 满减
+    pub source_kind: i32,
+    /// 来源活动 ID
+    pub source_id: i32,
+    /// 目标店铺 ID
+    pub target_shop_id: i32,
+    /// 目标店铺名称（下发时点快照）
+    pub target_shop_name: String,
+    /// 生成的副本 ID（coupon.coupon_id / product_promotion.promotion_id；未生成为 0）
+    pub copy_id: i32,
+    /// 状态：0 待处理 / 1 已生成 / 2 已跳过 / 3 已撤销 / 4 失败
+    pub status: i32,
+    /// 结果说明（跳过/失败/撤销原因）
+    pub message: String,
+    /// 下发时间（秒）
+    pub add_time: i32,
+    /// 更新时间（秒）
+    pub update_time: i32,
+}
+
+impl MarketingDistributionItem {
+    /// 数据库表名。
+    pub const TABLE: &'static str = "marketing_distribution_item";
+}

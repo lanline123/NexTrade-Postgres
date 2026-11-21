@@ -110,6 +110,7 @@ use nextrade_services::marketing::buyer_show_comment::BuyerShowCommentService;
 use nextrade_services::marketing::buyer_show_group::BuyerShowGroupService;
 use nextrade_services::marketing::coupon::CouponService;
 use nextrade_services::marketing::coupon_manage::CouponManageService;
+use nextrade_services::marketing::distribution::DistributionService;
 use nextrade_services::marketing::gift_card::GiftCardService;
 use nextrade_services::marketing::gift_card_groups::GiftCardGroupsService;
 use nextrade_services::marketing::gift_card_issue::GiftCardIssueService;
@@ -635,6 +636,7 @@ async fn main() -> anyhow::Result<()> {
     });
     let groupon_promotion = Arc::new(GrouponPromotionService::new(repos.clone()));
     let coupon_manage = Arc::new(CouponManageService::new(repos.clone()));
+    let distribution = Arc::new(DistributionService::new(repos.clone()));
     let salesman_content = Arc::new(SalesmanContentService::new(repos.clone()));
     let gift_card = Arc::new(GiftCardService::new(repos.clone()));
     let gift_card_groups = Arc::new(GiftCardGroupsService::new(repos.clone()));
@@ -678,6 +680,7 @@ async fn main() -> anyhow::Result<()> {
         time_discount: time_discount.clone(),
         groupon_promotion: groupon_promotion.clone(),
         coupon_manage: coupon_manage.clone(),
+        distribution: distribution.clone(),
         salesman_content: salesman_content.clone(),
         gift_card: gift_card.clone(),
         gift_card_groups: gift_card_groups.clone(),

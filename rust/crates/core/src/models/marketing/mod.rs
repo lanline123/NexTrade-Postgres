@@ -6,6 +6,7 @@ pub mod buyer_show_comment;
 pub mod buyer_show_group;
 pub mod coupon;
 pub mod coupon_manage;
+pub mod distribution;
 pub mod gift_card;
 pub mod gift_card_groups;
 pub mod gift_card_issue;

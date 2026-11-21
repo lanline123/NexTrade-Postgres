@@ -8,6 +8,7 @@ pub mod buyer_show_comment;
 pub mod buyer_show_group;
 pub mod coupon;
 pub mod coupon_manage;
+pub mod distribution;
 pub mod gift_card;
 pub mod gift_card_groups;
 pub mod gift_card_issue;
@@ -61,6 +62,7 @@ pub struct Services {
     pub time_discount: Arc<time_discount::TimeDiscountService>,
     pub groupon_promotion: Arc<groupon_promotion::GrouponPromotionService>,
     pub coupon_manage: Arc<coupon_manage::CouponManageService>,
+    pub distribution: Arc<distribution::DistributionService>,
     pub salesman_content: Arc<salesman_content::SalesmanContentService>,
     pub gift_card: Arc<gift_card::GiftCardService>,
     pub gift_card_groups: Arc<gift_card_groups::GiftCardGroupsService>,
