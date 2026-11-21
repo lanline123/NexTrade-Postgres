@@ -906,6 +906,11 @@ impl OrderAdminService {
                 proxy_amount: ext.proxy_amount,
                 fulfill_amount: ext.fulfill_amount,
                 split_status: ext.split_status,
+                hall_status: ext.hall_status,
+                hall_deadline: ext.hall_deadline,
+                accept_time: ext.accept_time,
+                assign_type: ext.assign_type,
+                reassign_count: ext.reassign_count,
             });
         }
         Ok(vo)

@@ -326,6 +326,34 @@ impl ProxyShoppingOrderCheckRepository {
         Ok(())
     }
 
+    /// 接单大厅单落 ext（我方新增，二期）：履约店待定（fulfill_shop_id=0）、
+    /// hall_status=1 待接单、带接单截止时间；比例按提交时配置快照，
+    /// 接单后结算链据 fulfill_shop_id 走一期三方分成口径。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_proxy_order_ext_hall(
+        &self,
+        order_id: i32,
+        proxy_shop_id: i32,
+        platform_rate: Decimal,
+        proxy_rate: Decimal,
+        fulfill_rate: Decimal,
+        hall_deadline: i32,
+        add_time: i32,
+    ) -> Result<()> {
+        sqlx::query("INSERT INTO proxy_order_ext (order_id, proxy_shop_id, fulfill_shop_id, platform_rate, proxy_rate, fulfill_rate, split_status, hall_status, hall_deadline, add_time) VALUES ($1, $2, 0, $3, $4, $5, 0, 1, $6, $7) ON CONFLICT (order_id) DO NOTHING")
+            .bind(order_id)
+            .bind(proxy_shop_id)
+            .bind(platform_rate)
+            .bind(proxy_rate)
+            .bind(fulfill_rate)
+            .bind(hall_deadline)
+            .bind(add_time)
+            .execute(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok(())
+    }
+
     pub async fn find_region_names(&self, ids: &[i32]) -> Result<Vec<RegionNameRow>> {
         if ids.is_empty() {
             return Ok(Vec::new());

@@ -321,8 +321,36 @@ export default function OrderDetailModal({ visible, orderId, onCancel, onChanged
                 </div>
                 <div className="order-info-row is-block">
                   <span>{t('履约门店')}</span>
-                  <b>{detail.proxySplit.fulfillShopTitle || detail.proxySplit.fulfillShopId}</b>
+                  <b>
+                    {detail.proxySplit.hallStatus === 1
+                      ? t('接单大厅待接单')
+                      : detail.proxySplit.fulfillShopTitle || detail.proxySplit.fulfillShopId}
+                  </b>
                 </div>
+                {detail.proxySplit.hallStatus > 0 && (
+                  <div className="order-info-row is-block">
+                    <span>{t('接单状态')}</span>
+                    <b>
+                      {detail.proxySplit.hallStatus === 1
+                        ? t('待接单')
+                        : detail.proxySplit.hallStatus === 2
+                          ? t('已接单')
+                          : detail.proxySplit.hallStatus === 3
+                            ? t('已备货')
+                            : t('已关闭')}
+                      {detail.proxySplit.assignType === 1
+                        ? `（${t('抢单')}）`
+                        : detail.proxySplit.assignType === 2
+                          ? `（${t('派单')}）`
+                          : detail.proxySplit.assignType === 3
+                            ? `（${t('超时改派')}）`
+                            : ''}
+                      {detail.proxySplit.reassignCount > 0
+                        ? ` · ${t('改派 {count} 次', { count: detail.proxySplit.reassignCount })}`
+                        : ''}
+                    </b>
+                  </div>
+                )}
                 <div className="order-info-row is-block">
                   <span>{t('分成比例（平台/下单店/履约店）')}</span>
                   <b>

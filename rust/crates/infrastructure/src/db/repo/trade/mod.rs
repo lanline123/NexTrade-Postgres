@@ -10,6 +10,7 @@ pub mod order_admin;
 pub mod offline_payment_claim;
 pub mod order_invoice_client;
 pub mod order_log;
+pub mod proxy_hall;
 pub mod proxy_shopping_cart;
 pub mod proxy_shopping_delivery;
 pub mod proxy_shopping_order_check;
@@ -31,6 +32,7 @@ pub struct Repositories {
     pub order: order::OrderRepository,
     pub order_admin: order_admin::OrderAdminRepository,
     pub proxy_shopping_order_check: proxy_shopping_order_check::ProxyShoppingOrderCheckRepository,
+    pub proxy_hall: proxy_hall::ProxyHallRepository,
     pub proxy_shopping_pickup_contact: proxy_shopping_pickup_contact::ProxyShoppingPickupContactRepository,
     pub proxy_shopping_product: proxy_shopping_product::ProxyShoppingProductRepository,
     pub proxy_shopping_user: proxy_shopping_user::ProxyShoppingUserRepository,
@@ -57,6 +59,7 @@ impl Repositories {
             order: order::OrderRepository::new(pool.clone()),
             order_admin: order_admin::OrderAdminRepository::new(pool.clone()),
             proxy_shopping_order_check: proxy_shopping_order_check::ProxyShoppingOrderCheckRepository::new(pool.clone()),
+            proxy_hall: proxy_hall::ProxyHallRepository::new(pool.clone()),
             proxy_shopping_pickup_contact: proxy_shopping_pickup_contact::ProxyShoppingPickupContactRepository::new(pool.clone()),
             proxy_shopping_product: proxy_shopping_product::ProxyShoppingProductRepository::new(pool.clone()),
             proxy_shopping_user: proxy_shopping_user::ProxyShoppingUserRepository::new(pool.clone()),

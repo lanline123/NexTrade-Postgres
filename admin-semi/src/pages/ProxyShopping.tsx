@@ -160,7 +160,11 @@ export default function ProxyShopping() {
   // 跨店履约（我方新增）：候选门店与所选履约店（undefined = 本店履约）
   const [fulfillCandidates, setFulfillCandidates] = useState<any[]>([]);
   const [fulfillShopId, setFulfillShopId] = useState<number | undefined>();
+  // 履约方式（二期接单大厅）：0 = 指定门店（一期）/ 1 = 接单大厅
+  // （提交后进待接单池、由门店抢单或派单；与指定门店互斥）
+  const [fulfillMode, setFulfillMode] = useState(0);
   const isCrossFulfill =
+    fulfillMode === 0 &&
     fulfillShopId != null &&
     fulfillCandidates.some((c) => Number(c.shopId) === fulfillShopId && !c.isSelf);
   // 地址编辑（对应旧版地址新增/编辑表单）
@@ -400,6 +404,7 @@ export default function ProxyShopping() {
   const goCheck = () => {
     if (!user || !cartItems.length) return;
     setFulfillShopId(undefined);
+    setFulfillMode(0);
     setStep('check');
     setCheckLoading(true);
     apiPost<any>('/proxyShopping/order/check/index', { userId: user.userId, flowType: 15, selectFrom: 1 })
@@ -457,7 +462,8 @@ export default function ProxyShopping() {
           pickupId: deliveryType === 2 ? pickupId : undefined,
           pickupContactName: deliveryType === 2 ? pickupContactName : undefined,
           pickupContactMobile: deliveryType === 2 ? pickupContactMobile : undefined,
-          fulfillShopId: fulfillShopId || undefined,
+          fulfillShopId: fulfillMode === 1 ? undefined : fulfillShopId || undefined,
+          fulfillMode: fulfillMode === 1 ? 1 : undefined,
         },
       );
       Toast.success({
@@ -468,6 +474,7 @@ export default function ProxyShopping() {
       setStep('index');
       setCheckData(null);
       setFulfillShopId(undefined);
+      setFulfillMode(0);
       setFulfillCandidates([]);
       setBuyerNote('');
       setSelectedCouponIds([]);
@@ -781,28 +788,51 @@ export default function ProxyShopping() {
               {fulfillCandidates.some((c) => !c.isSelf) && (
                 <div className="proxy-check-section">
                   <Text strong>{t('履约门店')}</Text>
-                  <Select
-                    style={{ width: 360 }}
-                    value={fulfillShopId ?? 0}
-                    optionList={[
-                      { label: t('本店履约'), value: 0 },
-                      ...fulfillCandidates
-                        .filter((c) => !c.isSelf)
-                        .map((c) => ({
-                          label: `${c.shopTitle || ''}${
-                            c.distanceMeters != null
-                              ? `（${(Number(c.distanceMeters) / 1000).toFixed(1)} km）`
-                              : ''
-                          }${c.recommended ? ` · ${t('推荐')}` : ''}`,
-                          value: Number(c.shopId),
-                        })),
-                    ]}
-                    onChange={(next: any) => {
-                      const id = Number(next) || undefined;
-                      setFulfillShopId(id);
-                      updateCheck({ fulfillShopId: id });
-                    }}
-                  />
+                  <div style={{ margin: '8px 0' }}>
+                    <RadioGroup
+                      value={fulfillMode}
+                      onChange={(e) => {
+                        const next = Number(e.target.value);
+                        setFulfillMode(next);
+                        if (next === 1) {
+                          setFulfillShopId(undefined);
+                          updateCheck({ fulfillShopId: undefined });
+                        }
+                      }}
+                    >
+                      <Radio value={0}>{t('指定门店')}</Radio>
+                      <Radio value={1}>{t('接单大厅')}</Radio>
+                    </RadioGroup>
+                  </div>
+                  {fulfillMode === 0 && (
+                    <Select
+                      style={{ width: 360 }}
+                      value={fulfillShopId ?? 0}
+                      optionList={[
+                        { label: t('本店履约'), value: 0 },
+                        ...fulfillCandidates
+                          .filter((c) => !c.isSelf)
+                          .map((c) => ({
+                            label: `${c.shopTitle || ''}${
+                              c.distanceMeters != null
+                                ? `（${(Number(c.distanceMeters) / 1000).toFixed(1)} km）`
+                                : ''
+                            }${c.recommended ? ` · ${t('推荐')}` : ''}`,
+                            value: Number(c.shopId),
+                          })),
+                      ]}
+                      onChange={(next: any) => {
+                        const id = Number(next) || undefined;
+                        setFulfillShopId(id);
+                        updateCheck({ fulfillShopId: id });
+                      }}
+                    />
+                  )}
+                  {fulfillMode === 1 && (
+                    <Text type="tertiary" style={{ display: 'block' }}>
+                      {t('订单提交后进入接单大厅，由同体系门店抢单或派单履约；价格按下单店口径，订单完成后按平台三方比例分成（接单大厅需在订单设置中开启）')}
+                    </Text>
+                  )}
                   {isCrossFulfill && (
                     <Text type="warning" style={{ display: 'block', marginTop: 6 }}>
                       {t('跨店履约：价格以履约门店为准，不可改价；订单完成后按平台三方比例分成')}

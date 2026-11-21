@@ -83,8 +83,36 @@ pub fn spawn_all(repos: Arc<Repositories>, order: OrderService) -> Vec<JoinHandl
         tokio::spawn(auto_comment_loop(repos.clone())),
         tokio::spawn(gift_expire_loop(repos.clone())),
         tokio::spawn(purchase_auto_finish_loop(repos.clone())),
+        tokio::spawn(proxy_hall_timeout_loop(repos.clone())),
         tokio::spawn(exchange_rate_sync_loop(repos)),
     ]
+}
+
+/// 代客接单大厅超时兜底循环（`NEXTTRADE_SCHEDULER__PROXY_HALL_SECS`，
+/// 默认 60s，我方新增二期）：扫接单截止已过仍无人接单的大厅单——
+/// 按订单设置 `proxyHallFallback` 改派下单店自履约（默认）或清除
+/// 截止继续留池；并联动关闭订单已取消的大厅单。处置逻辑在
+/// `trade::proxy_hall::ProxyHallService::run_timeout_scan`，全部走
+/// 条件更新、幂等，重复执行无副作用。
+async fn proxy_hall_timeout_loop(repos: Arc<Repositories>) {
+    tokio::time::sleep(Duration::from_secs(
+        env_secs("NEXTTRADE_SCHEDULER__DELAY_SECS", 30) + 75,
+    ))
+    .await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(env_secs(
+        "NEXTTRADE_SCHEDULER__PROXY_HALL_SECS",
+        60,
+    )));
+    loop {
+        ticker.tick().await;
+        let service = crate::trade::proxy_hall::ProxyHallService::new(repos.clone());
+        let now = utils::now_seconds() as i32;
+        match service.run_timeout_scan(now).await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("定时任务：接单大厅超时/取消兜底处置 {n} 笔"),
+            Err(e) => tracing::warn!("定时任务：接单大厅兜底扫描失败: {e}"),
+        }
+    }
 }
 
 /// 送礼物领取到期循环（`NEXTTRADE_SCHEDULER__GIFT_EXPIRE_SECS`，默认 300s）。

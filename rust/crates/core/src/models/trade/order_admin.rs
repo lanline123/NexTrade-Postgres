@@ -856,6 +856,17 @@ pub struct ProxySplitVO {
     pub fulfill_amount: Option<Decimal>,
     /// 分成状态：0 待分成 / 1 已分成 / 2 已跳过（线上分账渠道）。
     pub split_status: i32,
+    /// 接单大厅状态（我方新增，二期）：0 非大厅单 / 1 待接单 /
+    /// 2 已接单 / 3 已备货 / 4 已关闭；非大厅单恒 0。
+    pub hall_status: i32,
+    /// 接单截止时间（epoch 秒；0 = 不限时）。
+    pub hall_deadline: i32,
+    /// 接单时间（epoch 秒；未接单为 None）。
+    pub accept_time: Option<i32>,
+    /// 接单方式：0 无 / 1 抢单 / 2 派单 / 3 超时兜底改派。
+    pub assign_type: i32,
+    /// 改派次数（拒单回池次数）。
+    pub reassign_count: i32,
 }
 
 /// 订单 VO（对应 Java `OrderVO`，见模块头「未迁移字段」说明）。

@@ -501,7 +501,13 @@ impl SettlementService {
                 .execute(self.pool())
                 .await;
             }
-        } else if let Some(ext) = &proxy_ext {
+        } else if let Some(ext) = proxy_ext.as_ref().filter(|e| {
+            // 接单大厅单（二期，我方新增）：履约店未产生（fulfill_shop_id
+            // = 0，订单在接单前即完成）或超时兜底改派回下单店
+            // （fulfill = proxy）时退化同店口径——走下方现行服务费分支，
+            // 不给 0 号店入账、不重复给下单店分成。
+            e.fulfill_shop_id > 0 && e.fulfill_shop_id != e.proxy_shop_id
+        }) {
             // —— 代客跨店三方分成（我方新增）——
             // 基数 = paid_amount（已扣退款/供应商/分销佣金，与现行口径同点）；
             // 平台快照比例取代通用服务费（不双扣）。平台份不入任何店铺

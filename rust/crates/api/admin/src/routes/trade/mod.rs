@@ -5,6 +5,7 @@ pub mod kitchen;
 pub mod offline_claim;
 pub mod order_admin;
 pub mod order_log;
+pub mod proxy_hall;
 pub mod proxy_shopping_cart;
 pub mod proxy_shopping_delivery;
 pub mod proxy_shopping_order_check;
@@ -28,6 +29,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .merge(offline_claim::routes(state))
         .merge(order_admin::routes(state))
         .merge(order_log::routes(state))
+        .merge(proxy_hall::routes(state))
         .merge(proxy_shopping_cart::routes(state))
         .merge(proxy_shopping_delivery::routes(state))
         .merge(proxy_shopping_order_check::routes(state))
@@ -54,6 +56,7 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(offline_claim::implemented_routes());
     out.extend(order_admin::implemented_routes());
     out.extend(order_log::implemented_routes());
+    out.extend(proxy_hall::implemented_routes());
     out.extend(proxy_shopping_cart::implemented_routes());
     out.extend(proxy_shopping_delivery::implemented_routes());
     out.extend(proxy_shopping_order_check::implemented_routes());

@@ -148,6 +148,12 @@ pub struct ProxyOrderExtRow {
     pub proxy_amount: Option<rust_decimal::Decimal>,
     pub fulfill_amount: Option<rust_decimal::Decimal>,
     pub split_status: i32,
+    /// 接单大厅状态（我方新增，二期；迁移 028 列，非大厅单恒 0）。
+    pub hall_status: i32,
+    pub hall_deadline: i32,
+    pub accept_time: Option<i32>,
+    pub assign_type: i32,
+    pub reassign_count: i32,
 }
 
 #[derive(Clone)]
@@ -182,7 +188,7 @@ impl OrderAdminRepository {
         &self,
         order_id: i32,
     ) -> Result<Option<ProxyOrderExtRow>> {
-        let row = sqlx::query_as::<_, ProxyOrderExtRow>("SELECT e.proxy_shop_id, (SELECT shop_title FROM shop WHERE shop_id = e.proxy_shop_id) AS proxy_shop_title, e.fulfill_shop_id, (SELECT shop_title FROM shop WHERE shop_id = e.fulfill_shop_id) AS fulfill_shop_title, e.platform_rate, e.proxy_rate, e.fulfill_rate, e.split_base, e.platform_amount, e.proxy_amount, e.fulfill_amount, e.split_status FROM proxy_order_ext e WHERE e.order_id = $1 LIMIT 1")
+        let row = sqlx::query_as::<_, ProxyOrderExtRow>("SELECT e.proxy_shop_id, (SELECT shop_title FROM shop WHERE shop_id = e.proxy_shop_id) AS proxy_shop_title, e.fulfill_shop_id, (SELECT shop_title FROM shop WHERE shop_id = e.fulfill_shop_id) AS fulfill_shop_title, e.platform_rate, e.proxy_rate, e.fulfill_rate, e.split_base, e.platform_amount, e.proxy_amount, e.fulfill_amount, e.split_status, e.hall_status, e.hall_deadline, e.accept_time, e.assign_type, e.reassign_count FROM proxy_order_ext e WHERE e.order_id = $1 LIMIT 1")
             .bind(order_id)
             .fetch_optional(&self.pool)
             .await

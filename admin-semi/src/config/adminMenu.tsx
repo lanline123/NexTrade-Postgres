@@ -720,6 +720,10 @@ export const navGroups: NavGroup[] = [
           {
             "key": "proxyShoppingManage",
             "label": "代客下单"
+          },
+          {
+            "key": "proxyHallManage",
+            "label": "接单大厅"
           }
         ]
       },
@@ -1837,6 +1841,7 @@ export const pageTitles: Record<string, string> = {
   "exchangeOrderManage": "积分订单",
   "orderExportManage": "订单导出",
   "proxyShoppingManage": "代客下单",
+  "proxyHallManage": "接单大厅",
   "aftersalesManage": "售后申请",
   "purchaseOrderManage": "采购订单",
   "purchaseReceiptManage": "采购入库单",

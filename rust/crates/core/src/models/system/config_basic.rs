@@ -1606,7 +1606,7 @@ static EP5_FIELDS: [FieldSpec; 20] = [
     },
 ];
 
-static EP6_FIELDS: [FieldSpec; 21] = [
+static EP6_FIELDS: [FieldSpec; 24] = [
     FieldSpec { field: "autoDeliveryDays", code: "autoDeliveryDays", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "autoReturnGoods", code: "autoReturnGoods", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "autoReturnGoodsDays", code: "autoReturnGoodsDays", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
@@ -1628,9 +1628,12 @@ static EP6_FIELDS: [FieldSpec; 21] = [
     FieldSpec { field: "proxyPlatformRate", code: "proxyPlatformRate", ty: ValueType::Decimal, default: Some("5"), is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "proxyShopRate", code: "proxyShopRate", ty: ValueType::Decimal, default: Some("5"), is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "proxyFulfillRate", code: "proxyFulfillRate", ty: ValueType::Decimal, default: Some("90"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "proxyHallEnabled", code: "proxyHallEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "proxyHallTimeoutMinutes", code: "proxyHallTimeoutMinutes", ty: ValueType::Int, default: Some("30"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "proxyHallFallback", code: "proxyHallFallback", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
-static EP7_FIELDS: [FieldSpec; 21] = [
+static EP7_FIELDS: [FieldSpec; 24] = [
     FieldSpec { field: "autoDeliveryDays", code: "autoDeliveryDays", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "autoReturnGoods", code: "autoReturnGoods", ty: ValueType::Int, default: None, is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "autoReturnGoodsDays", code: "autoReturnGoodsDays", ty: ValueType::Decimal, default: None, is_list: false, label: None, widget: None, required: None, group: None },
@@ -1652,6 +1655,9 @@ static EP7_FIELDS: [FieldSpec; 21] = [
     FieldSpec { field: "proxyPlatformRate", code: "proxyPlatformRate", ty: ValueType::Decimal, default: Some("5"), is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "proxyShopRate", code: "proxyShopRate", ty: ValueType::Decimal, default: Some("5"), is_list: false, label: None, widget: None, required: None, group: None },
     FieldSpec { field: "proxyFulfillRate", code: "proxyFulfillRate", ty: ValueType::Decimal, default: Some("90"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "proxyHallEnabled", code: "proxyHallEnabled", ty: ValueType::Int, default: Some("0"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "proxyHallTimeoutMinutes", code: "proxyHallTimeoutMinutes", ty: ValueType::Int, default: Some("30"), is_list: false, label: None, widget: None, required: None, group: None },
+    FieldSpec { field: "proxyHallFallback", code: "proxyHallFallback", ty: ValueType::Int, default: Some("1"), is_list: false, label: None, widget: None, required: None, group: None },
 ];
 
 static EP8_FIELDS: [FieldSpec; 12] = [
