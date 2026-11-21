@@ -1415,3 +1415,13 @@
 ### 修复
 
 - **后端 - 平台联邦 hub 四个列表查询 SQL 构造缺陷【我方新增功能之缺陷修复】**（2026-11-21 配对验收 §3 撞出，存量缺陷、与 SMALLINT 及配对修复均无关）：`GET /adminapi/hub/links/list` 带任一过滤参数（role/status/keyword）即 500 `syntax error at or near "$1"`、`POST /adminapi/hub/links/del` 同样 500。机理：`hub/federation.rs` 的列表构造把经 `pg_placeholders` 转成 `$n` 的条件串用 format! 烧进 sqlx QueryBuilder 种子文本，再由 push_*_filters 以 push_bind 追加绑定——push_bind 按自身参数计数把占位符追加到串尾，与种子内预置的 `$n` 冲突错位；无过滤时仅 LIMIT/OFFSET 两次 push_bind 恰落正确位置故表面正常。删除路径经服务层 delete_link 先以 link_id 过滤分页扫 list_product_maps 而同病，实际 DELETE 永不达。同文件同族全扫定案：list_credentials / list_links / list_call_logs / list_product_maps 四个列表函数全中，mark_map_missing 为纯 QueryBuilder 交错构造无此病、仓内其它 to_pg_placeholders 用法为整串 SQL + 位置绑定不在此列，均未动。修复 = 统一为全程 QueryBuilder 交错构造（与同域 product_feed.rs 钥列表先例同口径）：种子只含无占位符的 `WHERE 1=1`，条件片段与绑定交错 push、占位符只由 push_bind 生成；四个列表函数的构造抽为纯函数（*_count_query / *_page_query），push_*_filters 改为片段+绑定同推，文件私有 pg_placeholders 删除。口径不变式：过滤语义（status/role/conn_type/credential_id/link_id/sync_state 等值、keyword 多列 ILIKE %kw%、空白 keyword 与非正 id 视为无过滤）、排序（主键 DESC）、分页（page/page_size 口径）与改前意图逐字一致，无过滤结果集不变。回归测试 12 个（纯单元、不连真库）：四个列表函数 ×（无过滤 / 全过滤 / 特殊门控）断言生成 SQL 的占位符序列恰为 $1..$n 连续且与绑定数一致，连接全过滤与聚合 link_id-only（删除路径形态）另加 SQL 全文逐字断言。验收：CI check-rust 绿后随下一后端合并版换版，重跑 federation acceptance §3–§6；报告 ~/workspace/federation-list-sql-fix/REPORT.md（工作区报告）。
+
+## 0.0.2 续 · 2026-11-21 批次（联邦收尾两项：删连接清聚合映射、联邦设置读端点口径登记，未部署——随下一后端合并版上线）
+
+### 修复
+
+- **后端 - 平台联邦删连接残留聚合映射【我方新增功能之缺陷修复，原版无此功能】**（2026-11-21 §3–§6 全过验收观察项 ②）：`POST /adminapi/hub/links/del` 删连接后，该连接在 `hub_product_map` 的聚合映射行残留成无主孤儿（验收实测残 63 行靠人工清扫）。原服务层口径承设计 §3.5「映射置已断开（sync_state=4）保留」，连接行既删、映射保留即失主，本批改口径为随连接一并删除（代码注释已注明偏离 §3.5 及理由）。修复 = repo `delete_link` 改为单事务：先 `DELETE FROM hub_product_map WHERE link_id` 再删 `hub_link` 本体；服务层删连接去掉分页扫映射逐行置状态的旧路径，收口到该事务删除；双向凭证删除（含凭证四子表连带清理）为既有行为不变。从属行处置全量核查（建表 SQL 逐表）：`hub_credential.link_id` 类型③凭证由既有凭证删除路径处理；`hub_call_log.link_id` 属审计流水**保留**（与 §3.5 原口径一致）；`hub_pairing_code.used_link_id` 为配对码消费史**保留**（无运行时行为依赖）；`hub_link.peer_link_id` 是对端行的回指、不级联；product_feed_* 各表无 link_id 列不涉及。回归测试 1 个（结构断言，沿用本域 fn_body 口径）：钉住 repo 删除顺序（映射先于本体）、同事务（begin/commit）、不触 call_log、服务层不再出现 set_map_state 置保留路径。验收：CI check-rust 绿后随下一后端合并版换版，复跑删连接场景断言删后该 link 映射为 0；报告 ~/workspace/federation-tail-fix/REPORT.md（工作区报告）。
+
+### 登记
+
+- **平台联邦设置读端点口径登记（观察项 ③，不新增端点）**：验收脚本探 `/setting/config/getFederationSettings` 得 404，核查定案——该串只是路由表中的 OpenAPI 处理器名（`FederationConfigController.getFederationSettings`），从不是路径；管理端设置页的实际读路径为 `GET /setting/config/federationSettings`（FederationSettings.tsx 与 federation.ts 均走此路径，后端路由已注册并合并入 system 路由、保存后重开读取正常）。页面不依赖 getFederationSettings 路径，无功能缺口，故不新增别名端点；后续脚本/验收一律以 `federationSettings` 为读路径。

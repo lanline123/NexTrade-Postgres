@@ -592,12 +592,23 @@ impl HubFederationRepository {
         Ok(())
     }
 
+    /// 删除连接本体：同一事务内先清该连接的聚合映射（hub_product_map），
+    /// 再删 hub_link 行。映射是连接聚合行为的从属行，连接删除后残留即无主
+    /// 孤儿（2026-11-21 验收观察项：API 删连接后残 63 行映射靠人工清扫）。
+    /// 调用日志（hub_call_log）属审计流水，不在此列、保留。
     pub async fn delete_link(&self, link_id: i32) -> Result<()> {
-        sqlx::query("DELETE FROM hub_link WHERE link_id = $1")
+        let mut tx = self.pool.begin().await.map_err(map_err)?;
+        sqlx::query("DELETE FROM hub_product_map WHERE link_id = $1")
             .bind(link_id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await
             .map_err(map_err)?;
+        sqlx::query("DELETE FROM hub_link WHERE link_id = $1")
+            .bind(link_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_err)?;
+        tx.commit().await.map_err(map_err)?;
         Ok(())
     }
 
@@ -1316,9 +1327,8 @@ mod list_sql_tests {
     }
 
     #[test]
-    fn map_list_link_id_only_delete_path() {
-        // 服务层 delete_link 删连接前以 link_id 分页扫 list_product_maps
-        // （services/src/hub/federation.rs::delete_link），与列表同构造；
+    fn map_list_link_id_only() {
+        // link_id 单过滤形态（聚合列表按连接查看映射的常用形态）；
         // 该过滤形态单独钉死：1 个过滤绑定。
         let q = HubAggregationListQuery {
             link_id: Some(7),

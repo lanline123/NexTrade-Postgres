@@ -1296,12 +1296,14 @@ impl FederationService {
             .await
     }
 
-    /// 删除连接（设计 §3.5：双向凭证删除、聚合映射置「已断开」保留、
-    /// 已同步数据不自动删、调用日志保留）。
+    /// 删除连接（双向凭证删除、已同步数据不自动删、调用日志保留）。
+    /// 聚合映射口径变更（2026-11-21 验收观察项后定，偏离设计 §3.5 原口径）：
+    /// §3.5 原定映射「置已断开（sync_state=4）保留」，但连接行删除后映射成
+    /// 无主孤儿（验收实测 API 删连接后残 63 行、靠人工清扫）；改为随连接
+    /// 一并删除——repo delete_link 在同一事务内先删映射、再删连接本体。
     pub async fn delete_link(&self, link_id: i32) -> Result<()> {
         self.gate().await?;
         let link = self.load_link(link_id).await?;
-        let now = self.now();
         if link.up_credential_id > 0 {
             self.repo().delete_credential(link.up_credential_id).await?;
         }
@@ -1309,24 +1311,6 @@ impl FederationService {
             self.repo()
                 .delete_credential(link.down_credential_id)
                 .await?;
-        }
-        // 聚合映射置已断开（sync_state=4），不删行（分页扫全）。
-        for page in 1..=100u64 {
-            let (maps, _) = self
-                .repo()
-                .list_product_maps(&HubAggregationListQuery {
-                    link_id: Some(link_id),
-                    page: Some(page),
-                    page_size: Some(100),
-                    ..Default::default()
-                })
-                .await?;
-            if maps.is_empty() {
-                break;
-            }
-            for m in &maps {
-                self.repo().set_map_state(m.map_id, 4, now).await?;
-            }
         }
         self.repo().delete_link(link_id).await
     }
@@ -2229,6 +2213,41 @@ mod tests {
         assert!(
             activate.contains("update_link_credentials(link.link_id, 0"),
             "pair_activate 补偿须先把连接的上行指针归零再删钥"
+        );
+    }
+
+    /// 删连接清映射不变量（2026-11-21 验收观察项）：repo delete_link 必须在
+    /// 同一事务内先删该连接的 hub_product_map、再删 hub_link 本体——删后该
+    /// link 的映射为 0、无孤儿残留；且不得触碰审计流水 hub_call_log。
+    /// 服务层不得再走「分页扫映射置已断开保留」的旧路径。
+    #[test]
+    fn delete_link_clears_product_maps_in_same_transaction() {
+        let repo_src = include_str!("../../../infrastructure/src/db/repo/hub/federation.rs");
+        let body = fn_body(repo_src, "pub async fn delete_link");
+        let maps = body
+            .find("DELETE FROM hub_product_map WHERE link_id")
+            .expect("repo delete_link 应删除该连接的聚合映射");
+        let link = body
+            .find("DELETE FROM hub_link WHERE link_id")
+            .expect("repo delete_link 应删除连接本体");
+        assert!(maps < link, "必须先删映射、再删连接本体");
+        assert!(
+            body.contains("pool.begin()") && body.contains("commit()"),
+            "映射删除与连接本体删除必须在同一事务内"
+        );
+        assert!(
+            !body.contains("hub_call_log"),
+            "调用日志属审计流水，删连接不得触碰"
+        );
+        let src = include_str!("federation.rs");
+        let svc = fn_body(src, "pub async fn delete_link");
+        assert!(
+            !svc.contains("set_map_state"),
+            "服务层 delete_link 不应再把映射置已断开保留"
+        );
+        assert!(
+            svc.contains("delete_link(link_id)"),
+            "服务层 delete_link 应收口到 repo 的事务删除"
         );
     }
 }
