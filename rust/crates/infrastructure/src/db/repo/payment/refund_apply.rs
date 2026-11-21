@@ -394,13 +394,25 @@ impl RefundApplyRepository {
     /// 对应 Java `sumOccupiedRefundAmount` 的口径：
     /// 只有待处理/处理中/已处理状态的申请会计入已占用额度，
     /// 否则一条被拒绝的申请会永久占用可退额度。
-    pub async fn sum_occupied_by_order(&self, order_id: i32) -> Result<Decimal> {
+    ///
+    /// `exclude_refund_id`：排除指定申请自身（与
+    /// `sum_completed_refund_total_by_order` 的排除写法同款口径）。
+    /// 财务审核复核时传被审申请的 refund_id——否则申请自身（待处理）
+    /// 会被算进占用，全额退款恒被误判「已全额退款」；创建/预览等
+    /// 尚无申请自身的场景传 0（refund_id 为自增主键，0 不排除任何行）。
+    pub async fn sum_occupied_by_order(
+        &self,
+        order_id: i32,
+        exclude_refund_id: i32,
+    ) -> Result<Decimal> {
         let row: (Option<Decimal>,) = sqlx::query_as(
             "SELECT SUM(refund_balance) FROM refund_apply
              WHERE order_id = $1
-               AND refund_status IN (0, 1, 2)",
+               AND refund_status IN (0, 1, 2)
+               AND refund_id <> $2",
         )
         .bind(order_id)
+        .bind(exclude_refund_id)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;

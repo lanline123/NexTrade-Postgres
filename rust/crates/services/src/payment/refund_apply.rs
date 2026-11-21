@@ -157,8 +157,8 @@ impl RefundApplyService {
             return Err(Error::Validation("退款金额必须大于0".into()));
         }
 
-        // 可退额度校验
-        self.assert_refundable(order_id, total).await?;
+        // 可退额度校验（新申请尚无自身，排除参数传 0）
+        self.assert_refundable(order_id, total, 0).await?;
 
         let r = RefundApply {
             // 自增主键占位
@@ -243,8 +243,8 @@ impl RefundApplyService {
             return Err(Error::Validation("发起方标记非法".into()));
         }
         let order = self.load_proactive_order(order_id, scope_shop_id).await?;
-        // 可退额度校验（实付 - 已占用，与售后/手工申请同一防线）
-        self.assert_refundable(order_id, amount).await?;
+        // 可退额度校验（实付 - 已占用，与售后/手工申请同一防线；新申请传 0）
+        self.assert_refundable(order_id, amount, 0).await?;
 
         let now = utils::now_seconds() as i32;
         let mut apply = RefundApply {
@@ -335,7 +335,7 @@ impl RefundApplyService {
             return Err(Error::Validation("退款金额必须大于0".into()));
         }
         let order = self.load_proactive_order(order_id, None).await?;
-        self.assert_refundable(order_id, amount).await?;
+        self.assert_refundable(order_id, amount, 0).await?;
 
         let now = utils::now_seconds() as i32;
         let mut apply = RefundApply {
@@ -995,13 +995,14 @@ impl RefundApplyService {
             return Err(Error::Validation("退款金额必须大于0".into()));
         }
 
-        // 差额校验：新总额不能超过「可退额度 + 原申请占用」
+        // 差额校验：新总额不能超过可退额度；占用统计排除原申请自身
+        //（其待处理态金额本计入占用，与审核复核同一排除口径）
         let occupied = self
             .repos.payment.refund_apply
-            .sum_occupied_by_order(existing.order_id)
+            .sum_occupied_by_order(existing.order_id, existing.refund_id)
             .await?;
         let paid = self.paid_amount(existing.order_id).await?;
-        let refundable = (paid - (occupied - existing.refund_balance)).max(Decimal::ZERO);
+        let refundable = (paid - occupied).max(Decimal::ZERO);
         if total > refundable {
             return Err(Error::biz(
                 400,
@@ -1127,9 +1128,16 @@ impl RefundApplyService {
                 tracing::info!("退款申请退回售后: id={}", dto.refund_id);
             }
             RefundApplyStatus::Processing => {
-                // 进入退款流程前再次校验额度（防止排队期间被其他申请占满）
-                self.assert_refundable(existing.order_id, existing.refund_balance)
-                    .await?;
+                // 进入退款流程前再次校验额度（防止排队期间被其他申请占满）。
+                // 占用统计必须排除被审申请自身：它处于待处理态、本身计入
+                // 占用，不排除则可退余额恒少自身金额，全额退款与分笔退款
+                // 的最后一笔永远审不过（误报「该笔支付已全额退款」）。
+                self.assert_refundable(
+                    existing.order_id,
+                    existing.refund_balance,
+                    existing.refund_id,
+                )
+                .await?;
                 let ok = self
                     .repos.payment.refund_apply
                     .transition_status(
@@ -1752,11 +1760,21 @@ impl RefundApplyService {
     /// 对应 Java `assertRefundable`：
     /// - 可退额度 ≤ 0 → 「该笔支付已全额退款，无需重复发起」
     /// - 本次金额 > 可退额度 → 「退款金额超出可退余额，本笔最多可退 X」
-    pub async fn assert_refundable(&self, order_id: i32, refund_amount: Decimal) -> Result<()> {
+    ///
+    /// `exclude_refund_id`：占用统计排除的申请自身（口径同仓储层
+    /// `sum_occupied_by_order`）。创建路径传 0；财务审核复核传被审
+    /// 申请的 refund_id——被审申请处于待处理态、本身计入占用，
+    /// 不排除会把全额退款（及分笔退款的最后一笔）恒误判为超额。
+    pub async fn assert_refundable(
+        &self,
+        order_id: i32,
+        refund_amount: Decimal,
+        exclude_refund_id: i32,
+    ) -> Result<()> {
         let paid = self.paid_amount(order_id).await?;
         let occupied = self
             .repos.payment.refund_apply
-            .sum_occupied_by_order(order_id)
+            .sum_occupied_by_order(order_id, exclude_refund_id)
             .await?;
         let refundable = (paid - occupied).max(Decimal::ZERO);
 
@@ -1778,12 +1796,12 @@ impl RefundApplyService {
         Ok(())
     }
 
-    /// 订单可退余额。
+    /// 订单可退余额（无申请自身上下文，占用不排除任何申请）。
     pub async fn refundable_amount(&self, order_id: i32) -> Result<Decimal> {
         let paid = self.paid_amount(order_id).await?;
         let occupied = self
             .repos.payment.refund_apply
-            .sum_occupied_by_order(order_id)
+            .sum_occupied_by_order(order_id, 0)
             .await?;
         Ok((paid - occupied).max(Decimal::ZERO))
     }
@@ -2580,5 +2598,82 @@ mod tests {
             hbody.contains("find_by_order_and_pay_sn(parent_id, &paylog.pay_sn)"),
             "父单 paylog 必须以 (parent_order_id, pay_sn) 解析"
         );
+    }
+
+    /// 审核复核排除自身不变量（2026-11-22 存量缺陷修复）：`audit`
+    /// 的 Processing 分支复核额度时必须把被审申请自身排除出占用
+    /// 统计——被审申请处于待处理态、本身计入占用，不排除则可退
+    /// 余额恒少自身金额，全额退款与分笔退款最后一笔永远审不过
+    ///（误报「该笔支付已全额退款」）。三条创建路径尚无申请自身，
+    /// 排除参数必须传 0；`update` 改额度的差额校验同口径排除自身；
+    /// `refundable_amount` 无申请上下文，必须传 0。
+    #[test]
+    fn audit_recheck_excludes_self_from_occupied() {
+        let src = include_str!("refund_apply.rs");
+        let a = src.find("pub async fn audit").expect("audit 应存在");
+        let tail = &src[a..];
+        let end = tail
+            .find("\n    pub async fn ")
+            .expect("audit 后应有下一个方法");
+        let body = &tail[..end];
+        assert!(
+            body.contains(
+                "existing.refund_balance,\n                    existing.refund_id,"
+            ),
+            "audit 复核必须以 existing.refund_id 排除被审申请自身"
+        );
+        // 计数只许在生产代码段（tests 模块自身的字符串字面量含同样
+        // 文本，全文计数会自计入）
+        let prod = &src[..src.find("#[cfg(test)]").expect("应有 tests 模块")];
+        assert_eq!(
+            prod.matches("assert_refundable(order_id, total, 0)").count(),
+            1,
+            "create 创建路径排除参数必须传 0"
+        );
+        assert_eq!(
+            prod.matches("assert_refundable(order_id, amount, 0)").count(),
+            2,
+            "主动退款/系统退款两条创建路径排除参数必须传 0"
+        );
+        let u = src.find("pub async fn update").expect("update 应存在");
+        let utail = &src[u..];
+        let uend = utail
+            .find("\n    pub async fn ")
+            .expect("update 后应有下一个方法");
+        assert!(
+            utail[..uend].contains("sum_occupied_by_order(existing.order_id, existing.refund_id)"),
+            "update 差额校验必须排除原申请自身"
+        );
+        let r = src
+            .find("pub async fn refundable_amount")
+            .expect("refundable_amount 应存在");
+        let rtail = &src[r..];
+        let rend = rtail
+            .find("\n    /// ")
+            .expect("refundable_amount 后应有下一节注释");
+        assert!(
+            rtail[..rend].contains("sum_occupied_by_order(order_id, 0)"),
+            "refundable_amount 无申请上下文，排除参数必须传 0"
+        );
+    }
+
+    /// 占用状态判定表：计入占用的状态恰为待处理(0)/处理中(1)/
+    /// 已处理(2)，与仓储层 `sum_occupied_by_order` 的
+    /// `refund_status IN (0, 1, 2)` 逐项对应；已取消(3)/已拒绝(4)
+    /// 不计入（否则被拒申请会永久占用额度）。审核复核排除自身后：
+    /// 被审申请（待处理）不计入、其他申请按本表计入——全额退款
+    /// 与分笔末笔可审过，另一笔独立申请占用时仍拦截超额。
+    #[test]
+    fn occupied_status_table_matches_quota_enum() {
+        for (status, occupies) in [
+            (RefundApplyStatus::Wait, true),
+            (RefundApplyStatus::Processing, true),
+            (RefundApplyStatus::Processed, true),
+            (RefundApplyStatus::Cancel, false),
+            (RefundApplyStatus::Rejected, false),
+        ] {
+            assert_eq!(status.occupies_quota(), occupies);
+            assert_eq!(status as i32 <= 2, occupies);
+        }
     }
 }
