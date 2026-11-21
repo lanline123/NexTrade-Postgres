@@ -77,6 +77,9 @@ pub struct BalanceLogInsert {
     pub change_desc: String,
     /// 变动类型：1 增加 / 2 减少
     pub change_type: i32,
+    /// 钱包类型：0 余额账户 / 1 佣金账户（D1107，流水必须按所属账户回标，
+    /// 佣金提现流水误标 0 会串入余额明细——论坛帖 657752 的核心诉求）
+    pub wallet_type: i32,
 }
 
 /// 前台用户提现仓储。
@@ -281,36 +284,45 @@ impl WithDrawApplyClientRepository {
         .map_err(map_err)
     }
 
-    /// 余额提现：冻结余额 `+= amount`（Java `user.frozenBalance.add(amount)`）。
-    pub async fn freeze_balance(&self, user_id: i32, amount: Decimal) -> Result<()> {
-        sqlx::query("UPDATE \"user\" SET frozen_balance = frozen_balance + $1 WHERE user_id = $2")
-            .bind(amount)
-            .bind(user_id)
-            .execute(&self.pool)
-            .await
-            .map_err(map_err)?;
-        Ok(())
+    /// 开启事务（提现申请的「写申请 + 改钱包 + 写流水」必须原子，
+    /// 对应 Java `apply` / `applyCommission` 的 `@Transactional`；
+    /// 池级写方法已删除，防绕过事务的旧调用面回归）。
+    pub async fn begin(&self) -> Result<sqlx::Transaction<'_, sqlx::Postgres>> {
+        self.pool.begin().await.map_err(map_err)
     }
 
-    /// 佣金提现：冻结佣金 `+= amount` 且可用佣金 `-= amount`
-    /// （Java `incFrozenCommissionBalance` + `decCommissionBalance`）。
-    pub async fn freeze_and_deduct_commission(&self, user_id: i32, amount: Decimal) -> Result<()> {
-        sqlx::query(
-            "UPDATE \"user\" SET frozen_commission_balance = frozen_commission_balance + $1, \
-             commission_balance = commission_balance - $2 WHERE user_id = $3",
-        )
-        .bind(amount)
-        .bind(amount)
-        .bind(user_id)
-        .execute(&self.pool)
-        .await
-        .map_err(map_err)?;
-        Ok(())
+    /// 读取平台配置值（`config` 表，`is_del = 0`；缺行返回 `None`）。
+    /// 与 `repo::catalog::short_url::find_config_val` 同一口径。
+    pub async fn find_config_val(&self, biz_code: &str) -> Result<Option<String>> {
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT biz_val FROM config WHERE biz_code = $1 AND is_del = 0 LIMIT 1")
+                .bind(biz_code)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(map_err)?;
+        Ok(row.map(|r| r.0))
     }
 
-    /// 插入提现申请，返回自增主键。
-    pub async fn insert_apply(
+    /// 事务内：用户钱包快照（`FOR UPDATE` 行锁，防并发申请竞态）。
+    pub async fn find_wallet_in_tx(
         &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        user_id: i32,
+    ) -> Result<Option<UserWalletRow>> {
+        sqlx::query_as::<_, UserWalletRow>(
+            "SELECT balance, frozen_balance, commission_balance, frozen_commission_balance \
+             FROM \"user\" WHERE user_id = $1 FOR UPDATE",
+        )
+        .bind(user_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 事务内：插入提现申请，返回自增主键。
+    pub async fn insert_apply_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         user_id: i32,
         wallet_type: i32,
         amount: Decimal,
@@ -329,19 +341,66 @@ impl WithDrawApplyClientRepository {
         .bind(add_time)
         .bind(status)
         .bind(account_data)
-        .fetch_one(&self.pool)
+        .fetch_one(&mut **tx)
         .await
         .map_err(map_err)?;
         Ok(r as u64)
     }
 
-    /// 插入余额流水（\"user_balance_log\"）。
-    pub async fn insert_balance_log(&self, log: &BalanceLogInsert) -> Result<()> {
+    /// 事务内：余额提现冻结 + 扣减可用余额（Java `apply` 两步：
+    /// `frozenBalance += amount` 后 `balance -= amount`，缺一不可——
+    /// 只冻结不扣减会让同一笔余额被重复消费/重复申请，审核拒绝返还会造钱）。
+    pub async fn freeze_and_deduct_balance_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        user_id: i32,
+        amount: Decimal,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE \"user\" SET frozen_balance = frozen_balance + $1, \
+             balance = balance - $2 WHERE user_id = $3",
+        )
+        .bind(amount)
+        .bind(amount)
+        .bind(user_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 事务内：佣金提现冻结 + 扣减可用佣金
+    /// （Java `incFrozenCommissionBalance` + `decCommissionBalance`）。
+    pub async fn freeze_and_deduct_commission_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        user_id: i32,
+        amount: Decimal,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE \"user\" SET frozen_commission_balance = frozen_commission_balance + $1, \
+             commission_balance = commission_balance - $2 WHERE user_id = $3",
+        )
+        .bind(amount)
+        .bind(amount)
+        .bind(user_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    /// 事务内：插入余额流水（钱包类型取 `log.wallet_type`，禁止硬编码）。
+    pub async fn insert_balance_log_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        log: &BalanceLogInsert,
+    ) -> Result<()> {
         sqlx::query(
             "INSERT INTO user_balance_log \
              (user_id, before_balance, balance, after_balance, frozen_balance, before_frozen_balance, \
               after_frozen_balance, change_time, change_desc, change_type, wallet_type, new_balance, new_frozen_balance) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, $11, $12)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
         )
         .bind(log.user_id)
         .bind(log.before_balance)
@@ -353,9 +412,10 @@ impl WithDrawApplyClientRepository {
         .bind(log.change_time)
         .bind(&log.change_desc)
         .bind(log.change_type)
+        .bind(log.wallet_type)
         .bind(log.after_balance)
         .bind(log.after_frozen_balance)
-        .execute(&self.pool)
+        .execute(&mut **tx)
         .await
         .map_err(map_err)?;
         Ok(())
@@ -369,5 +429,23 @@ mod tests {
         // 编译期验证：仓储可跨 await 持有（axum handler 里 Arc<Repositories> 需要 Send+Sync）。
         fn assert_send<T: Send>() {}
         assert_send::<super::WithDrawApplyClientRepository>();
+    }
+
+    #[test]
+    fn balance_log_insert_binds_wallet_type_not_literal() {
+        // D1107 串账回归守卫：流水 INSERT 的 wallet_type 必须是绑定参数，
+        // 不得再出现硬编码字面量 0（曾把佣金提现流水误标余额账户）。
+        let src = include_str!("with_draw_apply_client.rs");
+        assert!(src.contains(".bind(log.wallet_type)"));
+        assert!(!src.contains("$10, 0, $11, $12"));
+    }
+
+    #[test]
+    fn balance_withdraw_deducts_available_balance() {
+        // 余额提现必须冻结 + 扣减可用余额同事务完成（Java `apply` 口径）；
+        // 只冻结不扣减时审核拒绝返还会造钱、余额可重复消费。
+        let src = include_str!("with_draw_apply_client.rs");
+        assert!(src.contains("balance = balance - $2"));
+        assert!(src.contains("freeze_and_deduct_balance_in_tx"));
     }
 }

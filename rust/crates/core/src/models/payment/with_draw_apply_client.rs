@@ -36,6 +36,14 @@ pub const MSG_AMOUNT_EXCEED_BALANCE: &str = "提现金额大于账户的可用�
 pub const MSG_AMOUNT_EXCEED_COMMISSION: &str = "提现金额大于账户的可用佣金";
 /// 请选择提现方式。
 pub const MSG_ACCOUNT_TYPE_REQUIRED: &str = "请选择提现方式";
+/// 会员余额提现功能已关闭（Java `apply` 的开关门禁文案，D1107）。
+pub const MSG_MEMBER_WITHDRAWAL_DISABLED: &str = "会员余额提现功能已关闭";
+/// 该提现方式已关闭（Java `checkReceiptMethodEnabled` 文案，D1107）。
+pub const MSG_RECEIPT_METHOD_DISABLED: &str = "该提现方式已关闭";
+/// 会员余额提现收款方式配置键（JSON 数组，如 `[1,2,3]`；原版
+/// `checkReceiptMethodEnabled` 只作用于余额提现，佣金提现不校验——见服务层注释）。
+/// 开关键复用 `models::system::config_client::BIZ_MEMBER_WITHDRAWAL_ENABLED`。
+pub const BIZ_MEMBER_WITHDRAWAL_RECEIPT_METHOD: &str = "memberWithdrawalReceiptMethod";
 /// 会员不存在。
 pub const MSG_USER_NOT_FOUND: &str = "会员不存在";
 /// 提现账号不存在。
