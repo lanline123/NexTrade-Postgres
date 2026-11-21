@@ -6,7 +6,7 @@ import { useI18n } from '../i18n';
 const { Text, Title } = Typography;
 
 /**
- * 拍卖设置（营销 → 营销管理 → 拍卖设置）。
+ * 拍卖设置（商品 → 拍卖 → 拍卖设置）。
  * 全部策略项存后端 config code `auctionSettings`（整块 JSON），
  * 未保存过时后端返回出厂推荐值。金额/比例字段后端以字符串返回，保存时同样回传字符串。
  */

@@ -95,7 +95,7 @@ const statusColor = (status?: number) => {
   }
 };
 
-/** 拍卖商品管理（营销 → 营销管理 → 拍卖商品）。 */
+/** 拍卖商品管理（商品 → 拍卖 → 拍卖商品）。 */
 export default function AuctionItems() {
   const { t } = useI18n();
   const [reloadKey, setReloadKey] = useState(0);

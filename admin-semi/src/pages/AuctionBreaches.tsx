@@ -34,7 +34,7 @@ interface BanRow {
   addTimeText?: string;
 }
 
-/** 拍卖违约处理（营销 → 营销管理 → 违约处理）：违约记录 + 扣罚改判 + 参拍封禁管理。 */
+/** 拍卖违约处理（商品 → 拍卖 → 违约处理）：违约记录 + 扣罚改判 + 参拍封禁管理。 */
 export default function AuctionBreaches() {
   const { t } = useI18n();
   const [reloadKey, setReloadKey] = useState(0);

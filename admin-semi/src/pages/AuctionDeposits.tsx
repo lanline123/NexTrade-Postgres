@@ -44,7 +44,7 @@ const statusColor = (status?: number) => {
   }
 };
 
-/** 拍卖保证金流水（营销 → 营销管理 → 保证金流水），只读。 */
+/** 拍卖保证金流水（商品 → 拍卖 → 保证金流水），只读。 */
 export default function AuctionDeposits() {
   const { t } = useI18n();
 

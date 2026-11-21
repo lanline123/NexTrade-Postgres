@@ -551,6 +551,33 @@ export const navGroups: NavGroup[] = [
             "label": "商品询价"
           }
         ]
+      },
+      {
+        "key": "product4",
+        "label": "拍卖",
+        "icon": <IconCoinMoney />,
+        "children": [
+          {
+            "key": "auctionItemManage",
+            "label": "拍卖商品"
+          },
+          {
+            "key": "auctionSessionManage",
+            "label": "拍卖场次"
+          },
+          {
+            "key": "auctionDepositManage",
+            "label": "拍卖保证金流水"
+          },
+          {
+            "key": "auctionBreachManage",
+            "label": "拍卖违约处理"
+          },
+          {
+            "key": "auctionSettings",
+            "label": "拍卖设置"
+          }
+        ]
       }
     ]
   },
@@ -576,26 +603,6 @@ export const navGroups: NavGroup[] = [
           {
             "key": "seckillManage",
             "label": "限时秒杀"
-          },
-          {
-            "key": "auctionItemManage",
-            "label": "拍卖商品"
-          },
-          {
-            "key": "auctionSessionManage",
-            "label": "拍卖场次"
-          },
-          {
-            "key": "auctionDepositManage",
-            "label": "拍卖保证金流水"
-          },
-          {
-            "key": "auctionBreachManage",
-            "label": "拍卖违约处理"
-          },
-          {
-            "key": "auctionSettings",
-            "label": "拍卖设置"
           },
           {
             "key": "fullReductionManage",

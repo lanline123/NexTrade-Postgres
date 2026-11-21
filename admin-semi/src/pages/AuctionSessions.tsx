@@ -28,7 +28,7 @@ const stampToText = (stamp?: number) => {
 
 const textToStamp = (value: string) => Math.floor(new Date(value.replace(/-/g, '/')).getTime() / 1000);
 
-/** 拍卖场次管理（营销 → 营销管理 → 拍卖场次）。场次仅作组织/展示分组，接口返回全量数组。 */
+/** 拍卖场次管理（商品 → 拍卖 → 拍卖场次）。场次仅作组织/展示分组，接口返回全量数组。 */
 export default function AuctionSessions() {
   const { t } = useI18n();
   const [rows, setRows] = useState<SessionRow[]>([]);
