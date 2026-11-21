@@ -6,14 +6,15 @@
 //!
 //! | 端点 | Java 实现 | 本实现 |
 //! |------|-----------|--------|
-//! | `GET /api/common/util/qrCode?url=` | `QrCodeUtil.generateAsBase64`（hutool） | 本地参数校验后返回 1001「未迁移」 |
-//! | `GET /api/common/util/miniCode?path=&id=&salesmanId=&shopId=` | `WechatOAuthService.getMiniCode` | 同上 |
-//! | `GET /api/common/util/miniScene?scene=` | `WechatOAuthService.resolveMiniScene` | 同上 |
+//! | `GET /api/common/util/qrCode?url=` | `QrCodeUtil.generateAsBase64`（hutool） | 本地生成二维码 PNG Base64 |
+//! | `GET /api/common/util/miniCode?path=&id=&salesmanId=&shopId=` | `WechatOAuthService.getMiniCode` | 小程序凭据调 `getwxacodeunlimit`；未配置/失败时降级为 H5 链接二维码 |
+//! | `GET /api/common/util/miniScene?scene=` | `WechatOAuthService.resolveMiniScene` | query 形式直解 + 短码查缓存映射 |
+//! | `GET /api/common/util/shareLink?path=&id=&salesmanId=&shopId=` | 无（我方新增） | 结构化分享结果：小程序 URL Link + 小程序码，降级时 `degraded/notice` 明示 |
 //!
-//! 外部依赖（二维码编码库 / 微信 OAuth 客户端）本波次未迁移，按任务要求
-//! **保留端点并返回明确「未迁移」业务错误，不伪造成功**。
+//! 历史口径（已废止）：二维码/小程序码曾因外部依赖未迁移而返回 1001
+//! 「未迁移」；现均已落地，降级路径一律如实标注，不伪造成功。
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// 二维码生成未迁移（Java `QrCodeUtil.generateAsBase64`）。
 pub const MSG_QRCODE_NOT_MIGRATED: &str = "二维码生成功能未迁移（QrCodeUtil.generateAsBase64）";
@@ -62,6 +63,35 @@ pub struct MiniSceneQuery {
     pub scene: Option<String>,
 }
 
+/// 分享通道：小程序直达（`miniProgram`）。
+pub const SHARE_CHANNEL_MINI_PROGRAM: &str = "miniProgram";
+/// 分享通道：H5 回退（`h5`）。
+pub const SHARE_CHANNEL_H5: &str = "h5";
+
+/// `GET /api/common/util/shareLink` 响应（分享直达小程序，我方新增接口）。
+///
+/// 降级铁律的接口口径：小程序未配置或微信接口失败时**不伪造成功**——
+/// `channel` 如实回 `h5`、`degraded=true`、`notice` 写明降级原因，
+/// `urlLink`/`miniCode` 为 `null`，分享目标改用恒有值的 `h5Url`。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareLinkVO {
+    /// 实际下发通道：`miniProgram` 小程序直达 / `h5` 降级回退。
+    pub channel: String,
+    /// 是否发生降级（未配置小程序或微信接口失败时为 true）。
+    pub degraded: bool,
+    /// 降级原因（`degraded=true` 时必有值；正常时为 null）。
+    pub notice: Option<String>,
+    /// 小程序 URL Link（`https://wxaurl.cn/...`；降级时为 null）。
+    pub url_link: Option<String>,
+    /// 小程序码图片 data URL（降级时为 null）。
+    pub mini_code: Option<String>,
+    /// H5 分享链接（恒有值；降级时即为实际分享目标）。
+    pub h5_url: String,
+    /// 本次分享实际使用的小程序 scene（全量参数串或短码）。
+    pub scene: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -85,6 +115,27 @@ mod tests {
         assert_eq!(q.id, Some(7));
         assert_eq!(q.salesman_id, Some(8));
         assert_eq!(q.shop_id, Some(9));
+    }
+
+    #[test]
+    fn share_link_vo_serializes_camel_case_with_degrade_fields() {
+        let vo = ShareLinkVO {
+            channel: SHARE_CHANNEL_H5.into(),
+            degraded: true,
+            notice: Some("微信小程序未配置".into()),
+            url_link: None,
+            mini_code: None,
+            h5_url: "https://m.example.com/mobile/pages/product/index?id=1".into(),
+            scene: "id=1&salesmanId=0&shopId=0".into(),
+        };
+        let v = serde_json::to_value(&vo).unwrap();
+        assert_eq!(v["channel"], "h5");
+        assert_eq!(v["degraded"], true);
+        assert_eq!(v["notice"], "微信小程序未配置");
+        assert!(v["urlLink"].is_null());
+        assert!(v["miniCode"].is_null());
+        assert!(v["h5Url"].as_str().unwrap().contains("pages/product/index"));
+        assert_eq!(v["scene"], "id=1&salesmanId=0&shopId=0");
     }
 
     #[test]

@@ -15,7 +15,8 @@ import ErrorComp from "./src/error";
 import { useUserStore } from "@/store/user";
 import { useConfigStore } from "@/store/config";
 import { useRegionStore } from "@/store/region";
-import { redirect, staticResource } from "@/utils";
+import { redirect, staticResource, parseQueryString } from "@/utils";
+import { resolveMiniScene } from "@/api/common";
 import type { ProductItem } from "@/types/product/product";
 import type { ShopDetailItem } from "@/types/shop/shop";
 import type { GrouponRecordDetail, GrouponJoinUser } from "@/types/groupon/groupon";
@@ -270,13 +271,32 @@ export default function GroupBuying() {
 
     // 页面加载
     useEffect(() => {
-        const recordId = Number(router.params.grouponPromotionRecordId || 0);
-        if (recordId) {
-            setGrouponPromotionRecordId(recordId);
-        } else {
-            setFailLoad(true);
-            setLoadEndStatus(false);
-        }
+        const init = async () => {
+            let recordId = Number(router.params.grouponPromotionRecordId || 0);
+            // 小程序码直达（帖 907763）：scene 承载参数——query 形式本地
+            // 解析、短码经后端 miniScene 回查（与商品详情页同款口径；
+            // 此前本页不解 scene，小程序码扫入必然参数无效）
+            if (!recordId && process.env.TARO_ENV === "weapp" && router.params.scene) {
+                const sceneStr = decodeURIComponent(String(router.params.scene));
+                if (sceneStr.includes("=")) {
+                    recordId = Number(parseQueryString(sceneStr).grouponPromotionRecordId || 0);
+                } else {
+                    try {
+                        const resolved: any = await resolveMiniScene(sceneStr);
+                        recordId = Number(resolved?.grouponPromotionRecordId || 0);
+                    } catch (error) {
+                        console.error(error);
+                    }
+                }
+            }
+            if (recordId) {
+                setGrouponPromotionRecordId(recordId);
+            } else {
+                setFailLoad(true);
+                setLoadEndStatus(false);
+            }
+        };
+        void init();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 

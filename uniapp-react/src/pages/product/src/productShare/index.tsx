@@ -9,6 +9,7 @@ import { useConfigStore } from "@/store/config";
 import { useUserStore } from "@/store/user";
 import { baseUrl } from "@/utils/request";
 import { t } from "@/utils/i18n";
+import { getShareLink } from "@/api/common";
 
 import "./index.scss";
 
@@ -153,6 +154,47 @@ export default function ProductShare({ modelValue, productId, productInfo, produ
         });
     };
 
+    /**
+     * 复制小程序直达链接（分享直达小程序，帖 907763）：
+     * 后端 shareLink 返回小程序 URL Link 时复制该链接；发生降级
+     * （小程序未配置/微信接口失败）时改复制 H5 链接，并把后端
+     * notice 原样提示给用户——如实标注降级，绝不假装小程序链接成功。
+     */
+    const handleCopyMiniLink = async () => {
+        setShow(false);
+        try {
+            const salesmanId = productInfo.isDistribution ? getCurrentSalesmanId() : undefined;
+            const res: any = await getShareLink(
+                "pages/product/index",
+                productId,
+                salesmanId,
+                resolveProductShopId(productInfo.shopId, isO2o())
+            );
+            if (res?.channel === "miniProgram" && res.urlLink) {
+                copy(res.urlLink, () => {
+                    Taro.showToast({
+                        title: t("小程序链接已复制"),
+                        icon: "none"
+                    });
+                });
+            } else {
+                const fallback = res?.h5Url || getShareUrl();
+                copy(fallback, () => {
+                    Taro.showToast({
+                        title: res?.notice || t("已复制 H5 链接"),
+                        icon: "none",
+                        duration: 2500
+                    });
+                });
+            }
+        } catch (error: any) {
+            Taro.showToast({
+                title: error?.message || t("获取分享链接失败"),
+                icon: "none"
+            });
+        }
+    };
+
     const showShareFriend = (() => {
         if (configStore.XClientType === "miniProgram" || configStore.XClientType === "wechat") {
             return true;
@@ -223,6 +265,16 @@ export default function ProductShare({ modelValue, productId, productInfo, produ
                             <Text className="share-item-text">{t("复制链接")}</Text>
                         </View>
                     ) : null}
+                    {/* 小程序直达链接（我方新增，帖 907763）：降级时复制 H5 链接并提示原因 */}
+                    <View
+                        className="share-item"
+                        onClick={() => {
+                            void handleCopyMiniLink();
+                        }}
+                    >
+                        <Text className="iconfont-h5 icon-link" />
+                        <Text className="share-item-text">{t("小程序链接")}</Text>
+                    </View>
                     {/* 原 #ifdef H5 || APP-PLUS */}
                     {process.env.TARO_ENV === "h5" && isOverseasLayout ? (
                         <View

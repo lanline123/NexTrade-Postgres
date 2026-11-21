@@ -189,6 +189,40 @@ export const resolveMiniScene = (scene: string) => {
     });
 };
 
+/** 分享直达小程序的结构化结果（后端 shareLink 接口，我方新增） */
+export interface ShareLinkResult {
+    /** 实际下发通道：miniProgram 小程序直达 / h5 降级回退 */
+    channel: "miniProgram" | "h5";
+    /** 是否发生降级（小程序未配置或微信接口失败） */
+    degraded: boolean;
+    /** 降级原因（degraded 时必有值，前端须如实提示，不假成功） */
+    notice?: string | null;
+    /** 小程序 URL Link（降级时为 null） */
+    urlLink?: string | null;
+    /** 小程序码图片 data URL（降级时为 null） */
+    miniCode?: string | null;
+    /** H5 分享链接（恒有值，降级时即为实际分享目标） */
+    h5Url: string;
+    /** 本次分享使用的小程序 scene */
+    scene: string;
+}
+
+/**
+ * @description 获取分享直达链接（小程序 URL Link + 小程序码 / 降级 H5）
+ * @param path 小程序页面路径（如 pages/product/index，可内嵌 query）
+ * @param id 业务 ID（商品/活动等）
+ * @param salesmanId 分销员ID，分享分销商品时携带，用于佣金归因
+ * @param shopId 门店ID
+ * @returns 结构化分享结果；degraded=true 时必须按 notice 如实提示用户
+ */
+export const getShareLink = (path: string, id: number, salesmanId?: string | number, shopId?: number) => {
+    return request<ApiEnvelope<ShareLinkResult>>({
+        url: "common/util/shareLink",
+        method: "get",
+        params: { path, id, salesmanId, shopId }
+    });
+};
+
 /**
  * @description 获取客服配置
  * @returns 客服类型、联系方式、工作时间等

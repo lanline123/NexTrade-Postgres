@@ -6,7 +6,7 @@ import { Popup } from "@nutui/nutui-react-taro";
 import { imageFormat } from "@/utils/format";
 import type { ProductItem } from "@/types/product/product";
 import type { GrouponPromotionDetail, GrouponRecordDetail } from "@/types/groupon/groupon";
-import { getMiniCode, getQrCode } from "@/api/common";
+import { getShareLink, getQrCode } from "@/api/common";
 import { getGrouponRecordDetail } from "@/api/groupon/groupon";
 import { getImageInfo, rpx2px } from "@/utils";
 import { t } from "@/utils/i18n";
@@ -110,8 +110,17 @@ export default function GrouponPoster({
                 // #ifdef MP-WEIXIN
                 // const page = currRoute();
                 const page = `/pages/product/groupBuying?grouponPromotionRecordId=${grouponPromotionRecordId}`;
-                const res = await getMiniCode(page ?? "", productId);
-                qrImgValue = res;
+                // 分享直达小程序（帖 907763）：优先真小程序码；降级时用
+                // H5 链接二维码兜底海报，并把降级原因如实提示，不假成功
+                const res: any = await getShareLink(page ?? "", productId);
+                if (res?.miniCode) {
+                    qrImgValue = res.miniCode;
+                } else if (res?.h5Url) {
+                    qrImgValue = await getQrCode(res.h5Url);
+                }
+                if (res?.degraded && res.notice) {
+                    Taro.showToast({ title: res.notice, icon: "none", duration: 2500 });
+                }
                 // #endif
             }
             setQrImg(qrImgValue);
