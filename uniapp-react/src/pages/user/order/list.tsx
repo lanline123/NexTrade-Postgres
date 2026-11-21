@@ -478,6 +478,8 @@ export default function OrderList() {
                                 {item.paidCancelRefundStatus != null && item.paidCancelRefundStatusName ? (
                                     <View className="cancel-reason">
                                         {t("买家取消退款")}：{item.paidCancelRefundStatusName}
+                                    </View>
+                                ) : null}
                                 {(item as any).isGiftOrder ? (
                                     <View
                                         style={{

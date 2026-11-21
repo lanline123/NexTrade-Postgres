@@ -1160,7 +1160,7 @@ static EP3_FIELDS: [FieldSpec; 17] = [
     },
 ];
 
-static EP4_FIELDS: [FieldSpec; 19] = [
+static EP4_FIELDS: [FieldSpec; 20] = [
     FieldSpec {
         field: "childAreaNeedRegion",
         code: "childAreaNeedRegion",
@@ -1383,7 +1383,7 @@ static EP4_FIELDS: [FieldSpec; 19] = [
     },
 ];
 
-static EP5_FIELDS: [FieldSpec; 19] = [
+static EP5_FIELDS: [FieldSpec; 20] = [
     FieldSpec {
         field: "childAreaNeedRegion",
         code: "childAreaNeedRegion",

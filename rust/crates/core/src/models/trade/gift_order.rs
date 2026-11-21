@@ -35,14 +35,14 @@ pub fn gift_status_name(status: i32) -> &'static str {
 }
 
 /// 领取页预览请求（按 token；token 为不可猜随机串，库内只存摘要）。
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GiftClaimPreviewDTO {
     pub token: String,
 }
 
 /// 领取提交请求（必须登录；地址取领取人自己的地址簿）。
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GiftClaimDTO {
     pub token: String,

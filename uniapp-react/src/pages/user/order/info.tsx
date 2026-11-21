@@ -458,6 +458,11 @@ export default function OrderInfo() {
                     void __getOrder();
                 } catch (e: any) {
                     Taro.showToast({ title: e?.message || t("提交失败"), icon: "none" });
+                }
+            }
+        });
+    };
+
     /** 送礼物分享（我方新增）：重新生成链接（旧链接作废）并复制到剪贴板 */
     const handleShareGift = async (id: number) => {
         try {

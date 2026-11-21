@@ -1452,6 +1452,8 @@ export const navGroups: NavGroup[] = [
           {
             "key": "paidCancelRefundSettings",
             "label": "买家取消退款"
+          },
+          {
             "key": "giftOrderSettings",
             "label": "送礼物设置"
           },

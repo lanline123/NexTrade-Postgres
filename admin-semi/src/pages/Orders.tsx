@@ -454,6 +454,7 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
                   ) : null}
                   {record.paidCancelRefundStatus === 2 ? (
                     <Tag color="grey">{t('买家取消已退款')}</Tag>
+                  ) : null}
                   {record.isGiftOrder ? (
                     <Tag color="violet">
                       {t('礼物')}
