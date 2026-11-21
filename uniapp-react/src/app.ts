@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from "react";
-import Taro, { useLaunch } from "@tarojs/taro";
+import Taro, { useLaunch, useDidShow } from "@tarojs/taro";
 
 import { useConfigStore } from "@/store/config";
 import { resolveMiniShop, miniShopSilentLogin } from "@/store/miniShop";
@@ -18,8 +18,13 @@ import "@/static/css/style.css";
 
 installInlineRpxH5();
 
+/** 基础配置（含 isIdentity 价格门控开关）上次拉取时刻：App 回前台时
+ * 距上次超过 60 秒才重拉，避免频繁切前台反复请求。 */
+let lastBaseConfigAt = 0;
+
 function App({ children }: PropsWithChildren<any>) {
     useLaunch(() => {
+        lastBaseConfigAt = Date.now();
         // 店铺独立绑定小程序：先解析本小程序作用域（店铺模式后续请求
         // 全带 X-Mini-App-Id 头），解析完成后在店铺模式下尝试静默登录
         void resolveMiniShop().then(() => miniShopSilentLogin());
@@ -60,6 +65,21 @@ function App({ children }: PropsWithChildren<any>) {
 
         // 系统模式（我方新增）：启动拉取一次存全局缓存，供各页入口级门控同步读取
         void fetchSystemMode();
+    });
+
+    // 基础配置回前台刷新（2026-11-21 修复）：此前配置只在启动时拉一次，
+    // 后台切换 isIdentity 等开关后，已打开的会话在重启前永远读旧值
+    // （关掉实名看价后仍显示「认证后查看价格」）。回前台且距上次拉取
+    // 超过 60 秒时重拉基础配置（getBaseConfigData 自带在途去重，
+    // 与启动拉取并发时自动合并为同一请求）。
+    useDidShow(() => {
+        const now = Date.now();
+        if (now - lastBaseConfigAt < 60_000) return;
+        lastBaseConfigAt = now;
+        void useConfigStore
+            .getState()
+            .getBaseConfigData()
+            .catch(() => undefined);
     });
 
     // children 即当前渲染的页面
