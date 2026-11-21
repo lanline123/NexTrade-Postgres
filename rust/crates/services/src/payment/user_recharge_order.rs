@@ -17,6 +17,12 @@
 //! 未领取/异常赠品记录（已领取不自动追回，口径见 recharge_gift 服务注释）。
 //! `updateField` 改 status 不入账的存量口径不变，赠品亦不随之发放/作废。
 //!
+//! 【接线补齐 2026-11-21，小缺口批】在线渠道支付的充值单由此服务的
+//! `settle_paid_by_callback` 入账：支付日志服务按 `paylog.order_type=1`
+//! 分发，与后台置「已支付」共用同一入账事务体，重复回调不重复入账。
+//! 此前 `settle_order_by_pay_sn` 只结算商城订单，在线充值永不到账
+//! （充值送礼品批登记的存量缺口，本批关闭）。
+//!
 //! # 偏差
 //!
 //! 1. `detail` 不存在 ID：业务 500「充值记录不存在」（Java 为异常 500）。
@@ -152,20 +158,8 @@ impl UserRechargeOrderService {
             let amount = input.amount.unwrap_or(existing.amount);
             let discount = input.discount_money.or(existing.discount_money);
             let credit = recharge_credit_amount(amount, discount);
-            let now = i32::try_from(now_seconds()).unwrap_or_default();
             let mut tx = self.repo().begin().await?;
-            if !self
-                .repo()
-                .inc_balance_in_tx(&mut tx, merged.user_id, credit, DESC_RECHARGE_INC, now)
-                .await?
-            {
-                return Err(Error::biz(500, "会员不存在"));
-            }
-            // 实物赠品发放（我方新增）：与入账同一事务；档位未配实物赠品
-            // 或充值单无档位快照时为无操作。重复置已支付由唯一约束防重。
-            crate::marketing::recharge_gift::RechargeGiftService::new(self.repos.clone())
-                .grant_in_tx(&mut tx, &merged)
-                .await?;
+            self.credit_paid_in_tx(&mut tx, &merged, credit).await?;
             self.repo().update(&merged).await?;
             tx.commit()
                 .await
@@ -186,6 +180,70 @@ impl UserRechargeOrderService {
         }
         tracing::info!("更新充值记录: order_id={}", input.order_id);
         Ok(())
+    }
+
+    /// 置「已支付」的入账事务体（后台 `update` 与渠道回调结算共用单点）：
+    /// 余额入账（`amount + 赠送金额`，写余额流水）+ 实物赠品发放，
+    /// 与调用方开启的同一事务提交。赠品发放由记录表唯一约束防重。
+    async fn credit_paid_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        merged: &UserRechargeOrder,
+        credit: rust_decimal::Decimal,
+    ) -> Result<()> {
+        let now = i32::try_from(now_seconds()).unwrap_or_default();
+        if !self
+            .repo()
+            .inc_balance_in_tx(tx, merged.user_id, credit, DESC_RECHARGE_INC, now)
+            .await?
+        {
+            return Err(Error::biz(500, "会员不存在"));
+        }
+        // 实物赠品发放（我方新增）：与入账同一事务；档位未配实物赠品
+        // 或充值单无档位快照时为无操作。重复置已支付由唯一约束防重。
+        crate::marketing::recharge_gift::RechargeGiftService::new(self.repos.clone())
+            .grant_in_tx(tx, merged)
+            .await?;
+        Ok(())
+    }
+
+    /// 渠道支付回调结算充值单（小缺口批 2026-11-21 接线，我方新增）：
+    /// 在线支付的充值单此前不经任何入账链（`settle_order_by_pay_sn`
+    /// 只按商城订单表结算），支付成功后余额永不到账。本入口由支付日志
+    /// 服务按 `paylog.order_type = 1` 分发调用，与后台 `update` 置
+    /// 「已支付」走同一入账事务体（`credit_paid_in_tx`），口径一致。
+    ///
+    /// 幂等：已是「已支付」→ 直接返回 `false`（重复回调不重复入账）；
+    /// 「无效」等非待支付终态同样不入账。返回 `true` 表示本次完成入账。
+    ///
+    /// # Errors
+    /// 充值单不存在、会员不存在、数据库错误。
+    pub async fn settle_paid_by_callback(&self, order_id: i32) -> Result<bool> {
+        let existing = self
+            .repo()
+            .find_by_id(order_id)
+            .await?
+            .ok_or_else(|| Error::biz(500, MSG_NOT_EXISTS))?;
+        if existing.status != 0 {
+            // 0 = 待支付才可入账；1 = 已支付（重复回调）、2 = 无效均跳过。
+            tracing::info!(
+                "充值单 {order_id} 状态 {} 非待支付，回调结算跳过",
+                existing.status
+            );
+            return Ok(false);
+        }
+        let mut merged = existing.clone();
+        merged.status = STATUS_SUCCESS;
+        merged.paid_time = i32::try_from(now_seconds()).unwrap_or_default();
+        let credit = recharge_credit_amount(merged.amount, merged.discount_money);
+        let mut tx = self.repo().begin().await?;
+        self.credit_paid_in_tx(&mut tx, &merged, credit).await?;
+        self.repo().update_in_tx(&mut tx, &merged).await?;
+        tx.commit()
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+        tracing::info!("充值单 {order_id} 渠道回调结算入账完成: credit={credit}");
+        Ok(true)
     }
 
     // ————————————————————— 5) del —————————————————————

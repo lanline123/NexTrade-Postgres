@@ -273,11 +273,15 @@ impl PaylogService {
         Ok(ok)
     }
 
-    /// 渠道回调成功后推进订单/定金预售状态（幂等）。
+    /// 渠道回调成功后按支付单业务类型分发结算（幂等）。
     ///
-    /// - 定金预售 status 0：定金到账 → 订单已付+定金、未付改尾款、status 1；
-    /// - 定金预售 status 1：尾款到账 → 订单全额付清、status 2；
-    /// - 普通订单：累计已付达到订单总额时标记已支付。
+    /// `paylog.order_id` 三类业务共用会撞号，必须先按 `order_type` 分发：
+    /// - 充值单（1）：走充值单入账（置已支付 + 余额入账 + 赠品发放，
+    ///   与后台审核入账同一事务体；重复回调不重复入账）；
+    /// - 商品订单（0）：定金预售 status 0 → 定金到账、status 1 → 尾款
+    ///   到账；普通订单累计已付达到订单总额时标记已支付；
+    /// - 其余类型（如付费会员 2）：本服务无对应结算链，明确跳过并记录，
+    ///   严禁用充值/会员单的 id 去结算同号的商城订单（串单入账）。
     pub async fn settle_order_by_pay_sn(
         &self,
         pay_sn: &str,
@@ -296,6 +300,24 @@ impl PaylogService {
             return Ok(());
         }
         let order_id = paylog.order_id;
+        // 充值单结算（小缺口批 2026-11-21 接线）：此前本函数只查商城
+        // 订单表，在线充值的支付成功回调永不到账（且 id 撞号时有串单
+        // 结算同号商城订单的风险）。入账口径与幂等见充值单服务。
+        if paylog.order_type == PayOrderType::Recharge as i32 {
+            crate::payment::user_recharge_order::UserRechargeOrderService::new(
+                self.repos.clone(),
+            )
+            .settle_paid_by_callback(order_id)
+            .await?;
+            return Ok(());
+        }
+        if paylog.order_type != PayOrderType::Product as i32 {
+            tracing::warn!(
+                "支付单 {pay_sn} 业务类型 {} 无回调结算链，跳过（order_id={order_id}）",
+                paylog.order_type
+            );
+            return Ok(());
+        }
         let Some(order) = self.repos.payment.pay.find_order_by_id(order_id).await? else {
             return Ok(());
         };

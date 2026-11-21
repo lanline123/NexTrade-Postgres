@@ -70,7 +70,7 @@ use nextrade_infrastructure::db::repo::member::user_manage::{
     address_to_vo, apply_rank, user_to_vo, UserManageRepository, UserEdit, UserPageFilter,
 };
 use nextrade_infrastructure::db::Repositories;
-use nextrade_security::hash_password;
+use nextrade_security::{hash_password, validate_password_strength};
 
 /// Excel 能力未迁移时的统一提示。
 pub const EXCEL_UNMIGRATED_MSG: &str =
@@ -302,6 +302,9 @@ impl UserManageService {
             // 这里显式拒绝（见 uncertain_points）。
             return Err(Error::Validation("密码不能为空".into()));
         }
+        // 服务端密码强度（小缺口批 2026-11-21 补接）：后台代建会员
+        // 此前未走账号安全批的统一规则，可写入弱密码。
+        validate_password_strength(raw_password)?;
         let hashed = hash_password(raw_password)?;
 
         let mut param = p.clone();
@@ -347,12 +350,18 @@ impl UserManageService {
 
         // Java：`String password = user.getPassword().replace(" ", "")`；
         // null 在 Java 侧会 NPE，这里按「不修改密码」处理（见 uncertain_points）
+        // 服务端密码强度（小缺口批 2026-11-21 补接）：后台编辑会员
+        // 代设密码此前未走账号安全批的统一规则；实际要落库时才校验，
+        // 留空（不改密码）不触发。
         let password = p
             .password
             .as_deref()
             .map(|s| s.replace(' ', ""))
             .filter(|s| !s.is_empty())
-            .map(|s| hash_password(&s))
+            .map(|s| {
+                validate_password_strength(&s)?;
+                hash_password(&s)
+            })
             .transpose()?;
 
         if let Some(email) = non_empty(p.email.as_deref()) {

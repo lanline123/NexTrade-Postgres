@@ -71,7 +71,9 @@ use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::repo::identity::admin_user::{AdminUserPageFilter, RoleScopeFilter};
 use nextrade_infrastructure::db::Repositories;
-use nextrade_security::{hash_password, verify_password};
+use nextrade_security::{
+    hash_password, validate_password_not_reused, validate_password_strength, verify_password,
+};
 
 /// 每个管理员的有效 Token 上限（Java `AdminApiTokenServiceImpl.MAX_TOKENS_PER_USER`）。
 pub const MAX_TOKENS_PER_USER: i64 = 10;
@@ -687,10 +689,16 @@ impl AdminUserService {
         password: Option<&str>,
         initial_password: Option<&str>,
     ) -> Result<Option<String>> {
+        // 服务端密码强度（小缺口批 2026-11-21 补接）：本函数是后台
+        // 新建 / 编辑管理员时「代设密码」的单点（create 与 update 共用），
+        // 与注册 / 自助改密共用同一规则（账号安全批的单点函数），
+        // 此前代设路径可绕过前端规则写入弱密码。
         if let Some(p) = initial_password.filter(|s| !s.is_empty()) {
+            validate_password_strength(p)?;
             return Ok(Some(hash_password(p)?));
         }
         if let Some(p) = password.filter(|s| !s.is_empty()) {
+            validate_password_strength(p)?;
             return Ok(Some(hash_password(p)?));
         }
         Ok(None)
@@ -702,6 +710,47 @@ impl AdminUserService {
     ///
     /// Java 在删除成功后还会清理 Redis token 缓存；Rust 用无状态 JWT，
     /// 无 token 黑名单设施（见模块头「未迁移」）。
+    /// 管理员登录锁定状态（小缺口批 2026-11-21 补界面后端）：后台账号
+    /// 登录失败锁定在账号安全批已生效（`identity::auth` 按
+    /// `SCOPE_ADMIN` 计数/锁定），但管理端一直没有查看入口——与会员侧
+    /// `member_login_lock_status` 同形状，供管理员列表「登录安全」查看。
+    ///
+    /// # Errors
+    /// 缓存读取失败 → `Error::Cache`。
+    pub async fn login_lock_status(&self, admin_id: i32) -> Result<serde_json::Value> {
+        let settings = crate::system::account_security::load_settings(&self.repos).await;
+        let cache = nextrade_infrastructure::cache::get_cache();
+        let status = crate::system::account_security::lock_status(
+            cache,
+            crate::system::account_security::SCOPE_ADMIN,
+            admin_id,
+        )
+        .await?;
+        Ok(serde_json::json!({
+            "enabled": settings.enabled,
+            "maxFailures": settings.max_failures,
+            "lockMinutes": settings.lock_minutes,
+            "locked": status.locked,
+            "remainingSeconds": status.remaining_seconds,
+            "failCount": status.fail_count,
+        }))
+    }
+
+    /// 手动解除管理员登录锁定（同时清失败计数）。锁定到期本会自动
+    /// 解除，此入口供核实身份后立即放行；与会员侧解锁同底座。
+    ///
+    /// # Errors
+    /// 缓存删除失败 → `Error::Cache`。
+    pub async fn unlock_login(&self, admin_id: i32) -> Result<()> {
+        let cache = nextrade_infrastructure::cache::get_cache();
+        crate::system::account_security::clear_account_state(
+            cache,
+            crate::system::account_security::SCOPE_ADMIN,
+            admin_id,
+        )
+        .await
+    }
+
     pub async fn del(&self, id: i32, current_admin_id: i32) -> Result<()> {
         if id == current_admin_id {
             return Err(Error::biz_msg("不能删除当前登录用户"));
@@ -800,6 +849,11 @@ impl AdminUserService {
                         return Err(Error::biz_msg("两次密码不一致"));
                     }
                 }
+                // 服务端密码强度 + 禁复用（小缺口批 2026-11-21 补接）：
+                // 个人中心改密此前只有原密码校验，与账号安全批已接的
+                // 其他改密入口统一口径。
+                validate_password_strength(password)?;
+                validate_password_not_reused(password, &current.password)?;
                 let hash = hash_password(password)?;
                 let affected = self
                     .repos.identity.admin_user

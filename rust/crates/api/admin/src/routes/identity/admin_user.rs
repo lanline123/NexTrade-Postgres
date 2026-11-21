@@ -17,6 +17,8 @@
 //! | `POST /authority/adminUser/apiToken/generate` | `AdminUserController.generateApiToken` | 登录 |
 //! | `GET  /authority/adminUser/apiToken/list` | `AdminUserController.listApiTokens` | 登录 |
 //! | `POST /authority/adminUser/apiToken/revoke` | `AdminUserController.revokeApiToken` | 登录 |
+//! | `GET  /authority/adminUser/loginLockStatus` | **本平台新增**（账号安全：管理员登录锁定状态） | `adminUserManage` |
+//! | `POST /authority/adminUser/unlockLogin` | **本平台新增**（账号安全：手动解除管理员登录锁定） | `adminUserUpdateManage` |
 //!
 //! > **路径说明**：控制器前缀 `/adminapi/authority/adminUser` 与类名同名段
 //! > `adminUser`，故契约路径里 `authority/adminUser` 是**真实组合结果**，不是笔误。
@@ -83,6 +85,11 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
             "/authority/adminUser/apiToken/revoke",
             post(api_token_revoke),
         )
+        .route(
+            "/authority/adminUser/loginLockStatus",
+            get(login_lock_status),
+        )
+        .route("/authority/adminUser/unlockLogin", post(unlock_login))
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -152,6 +159,16 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
             "POST",
             "/adminapi/authority/adminUser/apiToken/revoke",
             "AdminUserController.revokeApiToken",
+        ),
+        (
+            "GET",
+            "/adminapi/authority/adminUser/loginLockStatus",
+            "AdminUserController.loginLockStatus (本平台新增)",
+        ),
+        (
+            "POST",
+            "/adminapi/authority/adminUser/unlockLogin",
+            "AdminUserController.unlockLogin (本平台新增)",
         ),
     ]
     .iter()
@@ -249,6 +266,33 @@ async fn detail(
     let dto = state.identity.admin_user.detail(q.id).await?;
     check_admin_scope(&auth, &dto)?;
     ok(dto)
+}
+
+/// `GET /adminapi/authority/adminUser/loginLockStatus?id=`：管理员登录
+/// 锁定状态（本平台新增，小缺口批 2026-11-21）：后台账号登录失败锁定
+/// 在账号安全批已生效，此前管理端无查看入口。租户范围与 detail 同口径。
+async fn login_lock_status(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Query(q): Query<AdminUserIdQuery>,
+) -> ApiResult<serde_json::Value> {
+    let dto = state.identity.admin_user.detail(q.id).await?;
+    check_admin_scope(&auth, &dto)?;
+    ok(state.identity.admin_user.login_lock_status(q.id).await?)
+}
+
+/// `POST /adminapi/authority/adminUser/unlockLogin`：手动解除管理员
+/// 登录锁定（本平台新增，小缺口批 2026-11-21）：清锁定标记与失败
+/// 计数。租户范围与 detail 同口径，防跨租户解锁他人账号。
+async fn unlock_login(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(param): Json<AdminUserIdQuery>,
+) -> ApiResult<&'static str> {
+    let dto = state.identity.admin_user.detail(param.id).await?;
+    check_admin_scope(&auth, &dto)?;
+    state.identity.admin_user.unlock_login(param.id).await?;
+    ok("已解除锁定")
 }
 
 // ——————————————————————————————————————————————
@@ -456,6 +500,8 @@ mod tests {
             ("POST", "/adminapi/authority/adminUser/apiToken/generate"),
             ("GET", "/adminapi/authority/adminUser/apiToken/list"),
             ("POST", "/adminapi/authority/adminUser/apiToken/revoke"),
+            ("GET", "/adminapi/authority/adminUser/loginLockStatus"),
+            ("POST", "/adminapi/authority/adminUser/unlockLogin"),
         ];
         let docs = implemented_routes();
         assert_eq!(docs.len(), expected.len());
