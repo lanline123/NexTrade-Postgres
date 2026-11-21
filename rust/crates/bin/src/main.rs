@@ -883,6 +883,17 @@ async fn main() -> anyhow::Result<()> {
             product_manage.clone(),
         )),
     });
+    // ---- takeout 域（外卖聚合一期，我方新增） ----
+    let takeout_ingest = Arc::new(
+        nextrade_services::takeout::ingest::TakeoutIngestService::new(repos.clone()),
+    );
+    let takeout = Arc::new(nextrade_services::takeout::Services {
+        ingest: takeout_ingest.clone(),
+        admin: Arc::new(nextrade_services::takeout::admin::TakeoutAdminService::new(
+            repos.clone(),
+            takeout_ingest,
+        )),
+    });
     let im_conversation = Arc::new(ImConversationService::new(repos.clone()));
     let admin_user_kefu = Arc::new(AdminUserKefuService::new(repos.clone()));
     let admin_shop_kefu_config = Arc::new(AdminShopKefuConfigService::new(repos.clone()));
@@ -977,6 +988,7 @@ async fn main() -> anyhow::Result<()> {
         o2o: o2o.clone(),
         hub: hub.clone(),
         site_clone: site_clone.clone(),
+        takeout: takeout.clone(),
         jwt: (*jwt).clone(),
         repos: repos.clone(),
     };
@@ -995,6 +1007,7 @@ async fn main() -> anyhow::Result<()> {
         o2o: o2o.clone(),
         hub: hub.clone(),
         site_clone: site_clone.clone(),
+        takeout: takeout.clone(),
         jwt: (*jwt).clone(),
         upload_dir: cfg.file.upload_dir.clone(),
         internal_api_key: cfg.internal.api_key.clone(),

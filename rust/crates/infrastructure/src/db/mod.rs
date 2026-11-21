@@ -219,6 +219,7 @@ pub struct Repositories {
     pub lang: repo::lang::Repositories,
     pub hub: repo::hub::Repositories,
     pub site_clone: repo::site_clone::Repositories,
+    pub takeout: repo::takeout::Repositories,
 }
 
 impl Repositories {
@@ -244,7 +245,8 @@ impl Repositories {
             analytics: repo::analytics::Repositories::new(pool.clone()),
             lang: repo::lang::Repositories::new(pool.clone()),
             hub: repo::hub::Repositories::new(pool.clone()),
-            site_clone: repo::site_clone::Repositories::new(pool),
+            site_clone: repo::site_clone::Repositories::new(pool.clone()),
+            takeout: repo::takeout::Repositories::new(pool),
         }
     }
 }

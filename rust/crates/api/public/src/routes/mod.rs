@@ -14,6 +14,7 @@ pub mod system;
 pub mod im;
 pub mod hub;
 pub mod site_clone;
+pub mod takeout;
 
 use axum::Router;
 
@@ -35,6 +36,7 @@ pub fn merge_public(state: &PublicState) -> Router<PublicState> {
         .merge(catalog::anonymous_routes(state))
         .merge(hub::anonymous_routes(state))
         .merge(site_clone::anonymous_routes(state))
+        .merge(takeout::anonymous_routes(state))
         .merge(trade::routes(state))
         .merge(trade::public_routes())
         .merge(trade::anonymous_routes(state))
@@ -95,5 +97,6 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
     out.extend(im::implemented_routes());
     out.extend(hub::implemented_routes());
     out.extend(site_clone::implemented_routes());
+    out.extend(takeout::implemented_routes());
     out
 }

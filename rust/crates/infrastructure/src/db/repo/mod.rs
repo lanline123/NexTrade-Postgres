@@ -21,3 +21,4 @@ pub mod analytics;
 pub mod hub;
 pub mod lang;
 pub mod site_clone;
+pub mod takeout;

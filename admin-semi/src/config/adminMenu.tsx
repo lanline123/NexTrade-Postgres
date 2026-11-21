@@ -1510,6 +1510,10 @@ export const navGroups: NavGroup[] = [
             "label": "站点搬家"
           },
           {
+            "key": "takeoutManage",
+            "label": "外卖聚合"
+          },
+          {
             "key": "adSettingsManage",
             "label": "投流定价"
           },
@@ -2018,6 +2022,7 @@ export const pageTitles: Record<string, string> = {
   "feedKeyManage": "对接 API 管理",
   "federationSettings": "万象互联",
   "siteClone": "站点搬家",
+  "takeoutManage": "外卖聚合",
   "adSettingsManage": "投流定价",
   "taxRateManage": "税率管理",
   "wechatLiveMiniAppSetting": "小程序设置",

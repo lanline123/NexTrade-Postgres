@@ -58,6 +58,7 @@ pub mod pos;
 pub mod serde_helpers;
 pub mod site_clone;
 pub mod system;
+pub mod takeout;
 pub mod trade;
 pub mod vendor;
 pub mod wholesale;

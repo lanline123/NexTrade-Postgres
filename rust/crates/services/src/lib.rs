@@ -23,3 +23,4 @@ pub mod o2o;
 pub mod hub;
 pub mod ai;
 pub mod site_clone;
+pub mod takeout;

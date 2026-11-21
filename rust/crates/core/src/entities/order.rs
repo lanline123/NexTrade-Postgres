@@ -340,6 +340,15 @@ pub struct Order {
     pub period_index: Option<i32>,
     /// 期内第几次（周期购子订单）
     pub time_index: Option<i32>,
+    /// 外部渠道来源（我方新增，迁移 030；空串 = 非外部单）。
+    /// 外卖聚合外部单（`order_type = 13`）落库时写入渠道 id，资金链
+    /// （结算 / 分销 / 售后出款）以本列非空为排除判据。
+    /// `#[sqlx(default)]`：未显式列出本列的旧 SELECT 不报错。
+    #[sqlx(default)]
+    pub external_channel: String,
+    /// 外部渠道订单号（我方新增，迁移 030；空串 = 非外部单）。
+    #[sqlx(default)]
+    pub external_order_sn: String,
 }
 
 impl Order {

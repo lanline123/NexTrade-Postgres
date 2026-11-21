@@ -89,6 +89,8 @@ pub struct PublicState {
     pub hub: std::sync::Arc<nextrade_services::hub::Services>,
     /// 站点搬家（site_clone 上下文）。
     pub site_clone: std::sync::Arc<nextrade_services::site_clone::Services>,
+    /// 外卖聚合（takeout 上下文）。
+    pub takeout: std::sync::Arc<nextrade_services::takeout::Services>,
     pub jwt: JwtService,
     /// 本地上传/H5 静态资源目录（config.yaml `file.upload_dir`）。
     pub upload_dir: String,

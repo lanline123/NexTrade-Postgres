@@ -82,6 +82,8 @@ pub struct AdminState {
     pub hub: std::sync::Arc<nextrade_services::hub::Services>,
     /// 站点搬家（site_clone 上下文）。
     pub site_clone: std::sync::Arc<nextrade_services::site_clone::Services>,
+    /// 外卖聚合（takeout 上下文）。
+    pub takeout: std::sync::Arc<nextrade_services::takeout::Services>,
     /// 仓储聚合直通（少量收银辅助 handler 直接读库）。
     pub repos: std::sync::Arc<nextrade_infrastructure::db::Repositories>,
     pub jwt: JwtService,
