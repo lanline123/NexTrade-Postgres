@@ -14,8 +14,8 @@ import CommonTitle from "../../../shared/CommonTitle";
 import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
 import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
-import { resolveH5DigitalBuyBtn } from "../../../../components/buyStyleObj";
-import { usePcGlobalBuyStyle } from "../../../decoratePc/previews/shared/PcBuyButton";
+import { resolveH5DigitalBuyBtn } from "../../../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../../../decoratePc/previews/shared/PcBuyButton";
 import { productDefaults } from "./index";
 import { usePreviewDemoProducts, demoTargetCount } from "../../../../../components/demoProductFill";
 

@@ -33,8 +33,8 @@ import GroupListEditor from "../../../shared/GroupListEditor";
 import ProductInfoSelect from "../../../shared/ProductInfoSelect";
 import ProductGroupSelect from "../../../shared/ProductGroupSelect";
 import { cloneDeep, defaultBuyButtonStyle} from "../../../contract/sharedDefaults";
-import { resolveObjBuyButton } from "../../../../components/buyStyleObj";
-import { usePcGlobalBuyStyle } from "../../../decoratePc/previews/shared/PcBuyButton";
+import { resolveObjBuyButton } from "../../../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../../../decoratePc/previews/shared/PcBuyButton";
 import BuyBtnFollowRow from "../../../shared/BuyBtnFollowRow";
 import { useI18n} from "../../../../../i18n";
 

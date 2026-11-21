@@ -22,8 +22,8 @@ import {
 } from "../../../shared/settingWidgets";
 import { SettingsTabs } from "../../../shared/styleEdits";
 import { cloneDeep, defaultProductCarousel as defaults } from "../../../contract/sharedDefaults";
-import { resolveObjBuyButton } from "../../../../components/buyStyleObj";
-import { usePcGlobalBuyStyle } from "../../../decoratePc/previews/shared/PcBuyButton";
+import { resolveObjBuyButton } from "../../../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../../../decoratePc/previews/shared/PcBuyButton";
 import BuyBtnFollowRow from "../../../shared/BuyBtnFollowRow";
 import ProductInfoSelect from "../../../shared/ProductInfoSelect";
 import { productCarouselDefaults } from "./index";

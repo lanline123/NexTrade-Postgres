@@ -32,8 +32,8 @@ import { SettingsTabs, ModuleStyleSettingsField } from "../../../shared/styleEdi
 import GroupListEditor from "../../../shared/GroupListEditor";
 import ProductInfoSelect from "../../../shared/ProductInfoSelect";
 import { defaultBuyButtonStyle } from "../../../contract/sharedDefaults";
-import { resolveObjBuyButton } from "../../../../components/buyStyleObj";
-import { usePcGlobalBuyStyle } from "../../../decoratePc/previews/shared/PcBuyButton";
+import { resolveObjBuyButton } from "../../../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../../../decoratePc/previews/shared/PcBuyButton";
 import BuyBtnFollowRow from "../../../shared/BuyBtnFollowRow";
 
 type NestedProps = { data: Record<string, any>; onChange: (patch: Record<string, any>) => void };

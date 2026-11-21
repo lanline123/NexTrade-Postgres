@@ -1,4 +1,5 @@
 import request from "@/utils/request";
+import type { ApiEnvelope } from "@/types/api";
 import type {
     LotteryInfoResponse,
     DrawResultResponse,
@@ -64,7 +65,7 @@ export const confirmReceive = (data: ConfirmReceiveParams) => {
  * @returns 入账结果与最新剩余次数
  */
 export const shareRewardLottery = (data: ShareRewardParams) => {
-    return request<ShareRewardResult>({
+    return request<ApiEnvelope<ShareRewardResult>>({
         url: "promotion/lottery/shareReward",
         method: "post",
         data

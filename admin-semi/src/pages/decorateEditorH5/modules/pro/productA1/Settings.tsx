@@ -26,8 +26,8 @@ DecDivider
 import { TemplateIconRadioField} from "../../../shared/templateIcon";
 import { SettingsTabs} from "../../../shared/styleEdits";
 import { cloneDeep, defaultProductA1} from "../../../contract/sharedDefaults";
-import { resolveObjBuyButton } from "../../../../components/buyStyleObj";
-import { usePcGlobalBuyStyle } from "../../../decoratePc/previews/shared/PcBuyButton";
+import { resolveObjBuyButton } from "../../../../../components/buyStyleObj";
+import { usePcGlobalBuyStyle } from "../../../../decoratePc/previews/shared/PcBuyButton";
 import BuyBtnFollowRow from "../../../shared/BuyBtnFollowRow";
 import ProductsSourceField from "../../../shared/ProductsSourceField";
 import { useI18n} from "../../../../../i18n";

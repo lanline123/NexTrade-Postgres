@@ -1,4 +1,5 @@
 import request from "@/utils/request";
+import type { ApiEnvelope } from "@/types/api";
 
 /**
  * 送礼物订单流 API（我方新增，论坛帖 197742）。
@@ -64,7 +65,7 @@ export interface GiftReceivedVO {
 
 /** 领取页预览（可匿名；无价格） */
 export const giftClaimPreview = (token: string) => {
-    return request<GiftClaimPreviewVO>({
+    return request<ApiEnvelope<GiftClaimPreviewVO>>({
         url: "order/gift/claimPreview",
         method: "post",
         data: { token }
@@ -73,7 +74,7 @@ export const giftClaimPreview = (token: string) => {
 
 /** 领取（必须登录，addressId 为领取人自己的地址） */
 export const giftClaim = (token: string, addressId: number) => {
-    return request<GiftInfoVO>({
+    return request<ApiEnvelope<GiftInfoVO>>({
         url: "order/gift/claim",
         method: "post",
         data: { token, addressId }
@@ -82,7 +83,7 @@ export const giftClaim = (token: string, addressId: number) => {
 
 /** 买家订单礼物面板 */
 export const getGiftInfo = (orderId: number) => {
-    return request<GiftInfoVO | null>({
+    return request<ApiEnvelope<GiftInfoVO | null>>({
         url: "user/order/giftInfo",
         method: "get",
         params: { orderId }
@@ -91,7 +92,7 @@ export const getGiftInfo = (orderId: number) => {
 
 /** 重新生成分享链接（旧链接作废），返回新 token 与领取路径 */
 export const regenerateGiftShareToken = (orderId: number) => {
-    return request<{ token: string; claimPath: string }>({
+    return request<ApiEnvelope<{ token: string; claimPath: string }>>({
         url: "user/order/giftShareToken",
         method: "post",
         data: { orderId }
@@ -100,7 +101,7 @@ export const regenerateGiftShareToken = (orderId: number) => {
 
 /** 买家取消礼物订单（未付款直取消 / 待领取退款关闭） */
 export const cancelGiftOrder = (orderId: number) => {
-    return request<boolean>({
+    return request<ApiEnvelope<boolean>>({
         url: "user/order/giftCancel",
         method: "post",
         data: { orderId }
@@ -109,7 +110,7 @@ export const cancelGiftOrder = (orderId: number) => {
 
 /** 我收到的礼物（领取人视角，无价格） */
 export const getReceivedGifts = () => {
-    return request<GiftReceivedVO[]>({
+    return request<ApiEnvelope<GiftReceivedVO[]>>({
         url: "user/gift/received",
         method: "get"
     });

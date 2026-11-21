@@ -347,6 +347,7 @@ mod tests {
             discount_money: Some(Decimal::new(500, 2)),
             sort_order: Some(2),
             is_show: Some(1),
+            ..Default::default()
         };
         let input = dto.validate().unwrap();
         assert_eq!(input.money, Decimal::new(10000, 2));
