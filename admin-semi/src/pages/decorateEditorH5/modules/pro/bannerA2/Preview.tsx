@@ -3,10 +3,9 @@
  *
  * 背景 = 当前轮播图放大模糊 + 渐变遮罩；顶部定位 + 搜索框；下方圆角轮播。
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Swiper, SwiperItem } from "@nutui/nutui-react";
 import { cssText, imageFormat } from "../../../shared/format";
-import { useSwiperHeight } from "../../../shared/useSwiperHeight";
 import { mergeDefaultModule, formatCommonStyle } from "../../../contract/sharedDefaults";
 import { bannerA2Defaults } from "./index";
 import "./Preview.css";
@@ -24,11 +23,51 @@ export default function BannerA2Preview({ data }: { data: Record<string, any> })
     const picList: any[] = bannerContent.picList || [];
     const [realIndex, setRealIndex] = useState(0);
     const bgUrl = picList[realIndex]?.picUrl || picList[0]?.picUrl || "";
-    // 轮播定高：与首焦轮播 banner 同病同口径（不定高时按图片自然高度跳变），按首图比例锁定
-    const { wrapRef: swiperWrapRef, height: swiperHeight } = useSwiperHeight(
-        picList[0]?.picUrl ? imageFormat(picList[0].picUrl) : undefined,
-        { fallbackRatio: 2 }
-    );
+    // 轮播定高（2026-11-21 与原版对齐改版）：原版编辑器 Preview 用 Swiper.js，无定高逻辑——
+    // 容器高度 = 最高一张幻灯的自然高（img 宽 100%、高 auto、不裁剪、无封顶）。
+    // 此前我方借首焦轮播 banner 口径按首图比例定高 + object-fit:cover 裁剪，且 useSwiperHeight
+    // 有 375px 上限封顶，混比例/高图时与原版明显不符。现按原版几何测高：离屏测全部图片
+    // 高宽比取 max，未测得先按高宽比 0.5 估算、测得后自动修正（与 imageAd2 改版同法）。
+    const swiperWrapRef = useRef<HTMLDivElement | null>(null);
+    const [wrapWidth, setWrapWidth] = useState(0);
+    const [hwRatios, setHwRatios] = useState<Record<string, number>>({});
+    // 编辑器画布宽度固定，渲染后测一次容器实际宽度（与 useSwiperHeight 同测法）
+    useEffect(() => {
+        if (swiperWrapRef.current) {
+            const w = swiperWrapRef.current.clientWidth;
+            if (w > 0) setWrapWidth((prev) => (prev === w ? prev : w));
+        }
+    });
+    useEffect(() => {
+        let alive = true;
+        picList.forEach((p: any) => {
+            const url = p?.picUrl ? imageFormat(p.picUrl) : "";
+            if (!url) return;
+            const im = new Image();
+            im.onload = () => {
+                if (alive && im.naturalWidth > 0 && im.naturalHeight > 0) {
+                    setHwRatios((cur) => (cur[url] != null ? cur : { ...cur, [url]: im.naturalHeight / im.naturalWidth }));
+                }
+            };
+            im.src = url;
+        });
+        return () => {
+            alive = false;
+        };
+    }, [picList]);
+    const FALLBACK_HW = 0.5;
+    const swiperHeight =
+        wrapWidth > 0 && picList.length > 0
+            ? Math.round(
+                  wrapWidth *
+                      Math.max(
+                          ...picList.map((p: any) => {
+                              const url = p?.picUrl ? imageFormat(p.picUrl) : "";
+                              return (url && hwRatios[url]) || FALLBACK_HW;
+                          })
+                      )
+              )
+            : undefined;
 
     // 原版 searchStyle：仅 height/border-radius/background-color 三项内联（其余走 CSS）
     const searchStyle: React.CSSProperties = {
@@ -45,7 +84,7 @@ export default function BannerA2Preview({ data }: { data: Record<string, any> })
     };
 
     return (
-        <div className="module-ad-con ad-pic_type__2">
+        <div className="module-ad-con ad-pic_type__2 banner-a2">
             {bgUrl ? (
                 <>
                     <div className="banner-bg">
@@ -98,7 +137,7 @@ export default function BannerA2Preview({ data }: { data: Record<string, any> })
                         <div className="image-ad-warp">
                             <div
                                 ref={swiperWrapRef}
-                                className={`image-ad-con pagination-bullet${bannerContent.picPageType}`}
+                                className={`image-ad-con banner-a2-con--fixedh pagination-bullet${bannerContent.picPageType}`}
                                 style={{ borderRadius: `${bannerContent.picRadius}px`, overflow: "hidden", ...(swiperHeight ? { height: swiperHeight } : {}) }}
                             >
                                 <Swiper
@@ -115,7 +154,7 @@ export default function BannerA2Preview({ data }: { data: Record<string, any> })
                                         </SwiperItem>
                                     ))}
                                 </Swiper>
-                                {picList.length > 1 ? (
+                                {picList.length > 0 ? (
                                     <div className="banner-a2-dots">
                                         {picList.map((_, i) => (
                                             <i

@@ -264,7 +264,9 @@ export default function BannerA2({ module, index, needStatusBar = true }: Props)
             style={{ "--select-color": selectColor, "--indicator-color": indicatorColor } as Record<string, string>}
         >
             <View className="banner-bg">
-                <Image src={currentImageUrl} onLoad={handleImageLoad} />
+                {/* className 落 Taro H5 宿主 taro-image-core 承接满幅+模糊样式（原 scss 的 image 元素
+                    选择器在 H5 不命中宿主，背景图曾落默认 320×240 无模糊，2026-11-21 修复） */}
+                <Image className="banner-bg-img" src={currentImageUrl} onLoad={handleImageLoad} />
             </View>
             <View className="bg-gradient" />
             <View

@@ -62,7 +62,12 @@ Taro scss 无 uniapp 条件编译，直接引入会破坏 H5 端样式；TODO(MI
     filter: blur(0);
     overflow: hidden;
 
-    image {
+    /* 原 uniapp 稿为 image 元素选择器；Taro H5 的 Image 宿主是 taro-image-core，元素选择器
+       永不命中（构建无选择器改写），背景图宿主曾落 Taro 默认 320×240 且无模糊/放大。
+       改以 className 落宿主承接（与 404 页等宿主定尺寸的已验证口径一致），内层 img 由
+       Taro 组件内部样式填满宿主（默认 scaleToFill）。 */
+    .banner-bg-img {
+        display: block;
         width: 100%;
         height: 100%;
         filter: blur(34rpx);
@@ -205,6 +210,8 @@ Taro scss 无 uniapp 条件编译，直接引入会破坏 H5 端样式；TODO(MI
     }
 
     .navbar {
+        /* 原 navbarContent 模板带 flex 工具类（display:flex），此前平移漏掉、align/justify 为死规则 */
+        display: flex;
         width: 100%;
         align-items: center;
         justify-content: center;

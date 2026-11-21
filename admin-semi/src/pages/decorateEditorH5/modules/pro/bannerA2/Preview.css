@@ -1,9 +1,13 @@
-/* 首焦轮播A2 预览样式（逐条移植自 view/admin bannerA2/Preview.vue scoped less） */
-.module-ad-con.ad-pic_type__2 {
+/* 首焦轮播A2 预览样式（逐条移植自 view/admin bannerA2/Preview.vue scoped less + module.less 全局口径）
+   作用域：全部规则以根类 .banner-a2 自包含。原版 Vue scoped 不外泄，我方普通 CSS 若用裸类名
+   （.bar/.search/.image-ad-warp 等）会污染同画布其他模块（如 .search 的 1.5px 黑边框漏进
+   首焦轮播 banner 的搜索框）、也被其他模块的同名规则污染，故统一加根类前缀；
+   全局 module.css 的 .ad-pic_type__2 系列规则仍靠根上的 module-ad-con/ad-pic_type__2 类命中，不受影响。 */
+.banner-a2.module-ad-con {
     position: relative;
     overflow: hidden;
 }
-.banner-bg {
+.banner-a2 .banner-bg {
     position: absolute;
     width: 100%;
     height: 100%;
@@ -12,13 +16,13 @@
     filter: blur(0);
     overflow: hidden;
 }
-.banner-bg img {
+.banner-a2 .banner-bg img {
     width: 100%;
     height: 100%;
     filter: blur(17px);
     transform: scale(1.4);
 }
-.bg-gradient {
+.banner-a2 .bg-gradient {
     position: absolute;
     left: 0;
     top: 0;
@@ -27,12 +31,12 @@
     overflow: hidden;
     background-image: linear-gradient(rgba(248, 248, 248, 0) 0%, rgba(248, 248, 248, 0) 50%, rgb(248, 248, 248) 100%);
 }
-.bar {
+.banner-a2 .bar {
     position: relative;
     overflow: hidden;
     margin: 0 3px 10px;
 }
-.search-top {
+.banner-a2 .search-top {
     display: flex;
     flex-wrap: nowrap;
     justify-content: space-between;
@@ -40,14 +44,14 @@
     align-items: center;
     column-gap: 10px;
 }
-.search-top .area-select-box {
+.banner-a2 .search-top .area-select-box {
     font-weight: 600;
     font-size: 14px;
     display: flex;
     align-items: center;
     column-gap: 5px;
 }
-.search-top .search {
+.banner-a2 .search-top .search {
     flex: 1;
     display: flex;
     flex-wrap: nowrap;
@@ -63,14 +67,14 @@
     column-gap: 4px;
     box-sizing: border-box;
 }
-.search-top .search .search-icon {
+.banner-a2 .search-top .search .search-icon {
     margin-left: 12px;
     font-size: 14px;
     display: flex;
     align-items: center;
     flex-shrink: 0;
 }
-.search-top .search .search-form {
+.banner-a2 .search-top .search .search-form {
     height: 100%;
     padding: 0 0 0 3px;
     flex-grow: 1;
@@ -79,7 +83,7 @@
     position: relative;
     margin: 0;
 }
-.search-top .search .search-input {
+.banner-a2 .search-top .search .search-input {
     display: block;
     box-sizing: border-box;
     width: 100%;
@@ -91,56 +95,54 @@
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.image-ad-warp {
-    padding: 0 3px;
-    position: relative;
-    z-index: 1;
-}
-.image-ad-con {
+/* 原版 .image-ad-warp 无横向 padding：轮播与模块内容同宽，仅 .bar 有 0 3px 10px 边距
+   （此前我方多加 padding: 0 3px，轮播比原版两侧各窄 3px，已去除） */
+.banner-a2 .image-ad-warp {
     position: relative;
 }
-.image-ad-item img {
+.banner-a2 .image-ad-con {
+    position: relative;
+}
+.banner-a2 .image-ad-item img {
     width: 100%;
+    height: auto;
     display: block;
 }
-.banner-a2-dots {
+/* 指示点：原版为 Swiper.js 分页（容器 bottom 10px、bullet 8×8、margin 0 4px 即 pitch 16px、
+   激活色 swiperPageColor 兜底 #fff、默认色 indicatorColor 兜底 rgba(0,0,0,0.2)）；
+   picPageType=2 时仅激活点加宽 14px + 圆角 5px（原版 :deep 规则只作用于 -active） */
+.banner-a2 .banner-a2-dots {
     position: absolute;
-    bottom: 8px;
+    bottom: 10px;
     left: 0;
     right: 0;
     display: flex;
     justify-content: center;
-    gap: 5px;
+    gap: 8px;
 }
-.banner-a2-dots i {
-    /* 原版为 Swiper 默认 bullet 尺寸 8×8 */
+.banner-a2 .banner-a2-dots i {
     width: 8px;
     height: 8px;
     border-radius: 50%;
     opacity: 1;
     transition: width 0.2s;
 }
-.pagination-bullet2 .banner-a2-dots i {
+.banner-a2 .pagination-bullet2 .banner-a2-dots i.on {
+    width: 14px;
     border-radius: 5px;
 }
-.pagination-bullet2 .banner-a2-dots i.on {
-    width: 14px;
-}
 
-/* 轮播定高（2026-11-18，与 banner 同口径）：容器高度由 useSwiperHeight 按首图比例锁定，
-   幻灯与图片填满定高区，不再随图片自然高度跳变、指示点不再被挤出 */
-.Banner .image-ad-con .nut-swiper {
+/* 轮播定高（2026-11-21 与原版对齐改版）：容器高度由 Preview.tsx 按原版几何测得后内联写入
+   （= 最高一张幻灯的自然高，无封顶），此处只负责让 NutUI 幻灯链填满定高区；
+   图片按原版自然高显示（宽 100%、高 auto、不裁剪，矮图在幻灯内顶部对齐、下方留白，
+   与原版 Swiper.js 行为一致）。类名 banner-a2-con--fixedh 自包含，避免与 imageAd 家族的
+   .image-ad-con--fixedh（首图定高 + cover 口径）同名互覆。 */
+.banner-a2-con--fixedh .nut-swiper {
     height: 100%;
 }
-.Banner .image-ad-con .nut-swiper-item {
+.banner-a2-con--fixedh .nut-swiper-item {
     height: 100%;
 }
-.Banner .image-ad-con .image-ad-item {
+.banner-a2-con--fixedh .image-ad-item {
     height: 100%;
-}
-.Banner .image-ad-con .image-ad-item img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
 }
