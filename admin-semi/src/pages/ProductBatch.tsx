@@ -205,7 +205,7 @@ export default function ProductBatch({ mode }: ProductBatchPageProps) {
           ) : null}
           {dealRange === 3 || dealRange === 4 ? (
             <div className="batch-form-row">
-              <ProductPicker value={rangeIds} onChange={setRangeIds} max={500} />
+              <ProductPicker value={rangeIds} onChange={setRangeIds} max={500} allowSelectAll />
             </div>
           ) : null}
           <Button theme="solid" type="primary" loading={exporting} onClick={submitExport}>

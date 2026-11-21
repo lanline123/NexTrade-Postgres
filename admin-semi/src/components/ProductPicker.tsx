@@ -18,6 +18,8 @@ interface ProductPickerProps {
   onChange: (ids: number[]) => void;
   max?: number;
   disabled?: boolean;
+  /** 是否显示「全选全部」：一键选中当前筛选（关键词）条件下的全部商品（跨所有分页），再逐个取消少数不要的。仅批量导出等场景开启。 */
+  allowSelectAll?: boolean;
 }
 
 export default function ProductPicker({
@@ -25,6 +27,7 @@ export default function ProductPicker({
   onChange,
   max = 10,
   disabled,
+  allowSelectAll = false,
 }: ProductPickerProps) {
   const { t } = useI18n();
   const [visible, setVisible] = useState(false);
@@ -35,6 +38,9 @@ export default function ProductPicker({
   const [loading, setLoading] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<number[]>(value);
   const [selectedRows, setSelectedRows] = useState<ProductItem[]>([]);
+  /** 当前表格实际生效的筛选关键词（点搜索/回车后才更新，全选口径与表格所见一致） */
+  const [appliedKeyword, setAppliedKeyword] = useState('');
+  const [selectingAll, setSelectingAll] = useState(false);
 
   const loadSelected = async (ids: number[]) => {
     if (!ids.length) {
@@ -68,10 +74,50 @@ export default function ProductPicker({
       setRows(result.records || []);
       setTotal(result.total || 0);
       setPage(nextPage);
+      setAppliedKeyword(nextKeyword);
     } catch (error) {
       Toast.error({ content: error instanceof Error ? error.message : t('商品加载失败') });
     } finally {
       setLoading(false);
+    }
+  };
+
+  /** 全选当前筛选条件下的全部商品（跨所有分页合并进已选，可再逐个取消少数不要的） */
+  const selectAllFiltered = async () => {
+    setSelectingAll(true);
+    try {
+      const ids: number[] = [];
+      let totalCount = 0;
+      let nextPage = 1;
+      // 后端列表 pageSize 上限 200，逐页取齐当前筛选下的全部商品 id
+      for (;;) {
+        const result = await apiGet<{ records: ProductItem[]; total: number }>(
+          '/product/product/list',
+          { keyword: appliedKeyword, page: nextPage, pageSize: 200 },
+        );
+        const records = result.records || [];
+        totalCount = result.total || 0;
+        records.forEach((item) => ids.push(Number(item.productId)));
+        if (records.length === 0 || ids.length >= totalCount || nextPage > 500) break;
+        nextPage += 1;
+      }
+      const merged = Array.from(new Set([...selectedKeys, ...ids]));
+      if (max > 0 && merged.length > max) {
+        setSelectedKeys(merged.slice(0, max));
+        Toast.warning({
+          content: t('当前筛选共 {total} 件，已达可选上限 {max} 件，仅选中前 {max} 件', {
+            total: totalCount,
+            max,
+          }),
+        });
+      } else {
+        setSelectedKeys(merged);
+        Toast.success({ content: t('已选中当前筛选下全部 {count} 件商品', { count: merged.length }) });
+      }
+    } catch (error) {
+      Toast.error({ content: error instanceof Error ? error.message : t('全选失败') });
+    } finally {
+      setSelectingAll(false);
     }
   };
 
@@ -206,6 +252,11 @@ export default function ProductPicker({
             style={{ width: 300 }}
           />
           <Button onClick={() => loadProducts(1)}>{t('搜索')}</Button>
+          {allowSelectAll ? (
+            <Button loading={selectingAll} disabled={total === 0} onClick={() => void selectAllFiltered()}>
+              {t('全选全部')}
+            </Button>
+          ) : null}
         </Space>
         <Table
           loading={loading}
