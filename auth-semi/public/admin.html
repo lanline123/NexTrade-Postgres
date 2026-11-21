@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>管理端 · NexTrade 授权中心</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f5f6f8; color: #1f2329; }
+  .topbar { background: #fff; border-bottom: 1px solid #e4e6eb; }
+  .topbar-inner { max-width: 1180px; margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  .logo { font-size: 18px; font-weight: 700; color: #1f2329; text-decoration: none; }
+  .logo span { color: #1664ff; }
+  .spacer { flex: 1; }
+  .muted { color: #86909c; font-size: 13px; }
+  .wrap { max-width: 1180px; margin: 20px auto; padding: 0 16px 40px; }
+  .panel { background: #fff; border: 1px solid #e4e6eb; padding: 18px; margin-bottom: 18px; }
+  .panel h2 { margin: 0 0 12px; font-size: 16px; }
+  .hidden { display: none !important; }
+  .btn { display: inline-block; border: 1px solid #c9cdd4; background: #fff; color: #1f2329; padding: 6px 14px; font-size: 13px; cursor: pointer; text-decoration: none; }
+  .btn:hover { border-color: #1664ff; color: #1664ff; }
+  .btn.primary { background: #1664ff; border-color: #1664ff; color: #fff; }
+  .btn.primary:hover { background: #0e4fd6; color: #fff; }
+  .btn.danger:hover { border-color: #d92d20; color: #d92d20; }
+  .btn.small { padding: 3px 9px; font-size: 12px; }
+  .flabel { display: block; font-size: 13px; color: #4e5969; margin: 10px 0 4px; }
+  input[type=text], input[type=password], input[type=number], input[type=date], select, textarea {
+    width: 100%; padding: 7px 9px; border: 1px solid #c9cdd4; font-size: 14px; background: #fff; color: #1f2329;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { border-bottom: 1px solid #eef0f3; padding: 8px 8px; text-align: left; vertical-align: top; }
+  th { color: #4e5969; font-weight: 600; background: #fafbfc; }
+  .badge { display: inline-block; padding: 1px 7px; font-size: 12px; border: 1px solid #c9cdd4; color: #4e5969; }
+  .badge.ok { border-color: #12b76a; color: #027a48; background: #ecfdf3; }
+  .badge.bad { border-color: #f04438; color: #b42318; background: #fef3f2; }
+  .badge.warn { border-color: #f79009; color: #b54708; background: #fffaeb; }
+  .badge.ent { border-color: #1664ff; color: #1664ff; background: #eff6ff; }
+  tr.quota-full td { background: #fef3f2; }
+  .chip { display: inline-block; border: 1px solid #e4e6eb; background: #f7f8fa; padding: 1px 6px; margin: 0 4px 4px 0; font-size: 12px; }
+  .chip button { border: none; background: none; color: #b42318; cursor: pointer; font-size: 12px; padding: 0 0 0 4px; }
+  .row-actions { white-space: nowrap; }
+  .row-actions .btn { margin-right: 4px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .login-box { max-width: 380px; margin: 60px auto; }
+  .err { color: #b42318; font-size: 13px; min-height: 18px; }
+  code { background: #f2f3f5; padding: 1px 5px; font-size: 12px; }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="logo" href="/admin.html">授权<span>中心</span></a>
+    <div class="muted">管理端</div>
+    <div class="spacer"></div>
+    <button class="btn small hidden" id="logoutBtn">退出登录</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- 登录 -->
+  <section class="panel login-box" id="loginPanel">
+    <h2>管理员登录</h2>
+    <form id="loginForm">
+      <label class="flabel" for="password">管理密码</label>
+      <input type="password" id="password" autocomplete="current-password" required>
+      <div style="margin-top:14px">
+        <button class="btn primary" type="submit" style="width:100%">登录</button>
+      </div>
+      <p class="err" id="loginHint"></p>
+    </form>
+  </section>
+
+  <div id="adminMain" class="hidden">
+    <!-- 授权列表 -->
+    <section class="panel">
+      <div style="display:flex; align-items:center">
+        <h2 style="margin:0">授权列表</h2>
+        <div class="spacer"></div>
+        <button class="btn primary" id="newLicenseBtn">新建授权</button>
+        <button class="btn" id="refreshBtn" style="margin-left:8px">刷新</button>
+      </div>
+      <p class="muted">商业授权 = 绑定 1 个固定域名；企业授权 = 绑定 1 个泛域名，子域名首次上报自动登记占用额度，额度可在列表里直接增减（续费/加购）。</p>
+      <div style="overflow-x:auto">
+      <table id="licenseTable">
+        <thead><tr>
+          <th>客户 / 备注</th><th>版本</th><th>绑定</th><th>子域名额度</th><th>到期</th><th>状态</th><th>操作</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- 新建 / 编辑授权 -->
+    <section class="panel hidden" id="licenseFormPanel">
+      <h2 id="licenseFormTitle">新建授权</h2>
+      <form id="licenseForm">
+        <input type="hidden" id="fId">
+        <div class="grid2">
+          <div>
+            <label class="flabel">客户名</label>
+            <input type="text" id="fCustomer" placeholder="如：某某科技">
+          </div>
+          <div>
+            <label class="flabel">版本档位</label>
+            <select id="fTier">
+              <option value="commercial">商业授权（1 个固定域名）</option>
+              <option value="enterprise">企业授权（泛域名 + 子域名额度）</option>
+            </select>
+          </div>
+          <div id="fDomainWrap">
+            <label class="flabel">固定域名</label>
+            <input type="text" id="fDomain" placeholder="如 shop.example.com">
+          </div>
+          <div id="fWildcardWrap" class="hidden">
+            <label class="flabel">泛域名（基域）</label>
+            <input type="text" id="fWildcard" placeholder="如 example.com（其子域名计入额度）">
+          </div>
+          <div id="fLimitWrap" class="hidden">
+            <label class="flabel">子域名额度</label>
+            <input type="number" id="fLimit" min="0" step="1" value="5">
+          </div>
+          <div>
+            <label class="flabel">到期日期（留空 = 永不过期）</label>
+            <input type="date" id="fExpires">
+          </div>
+          <div>
+            <label class="flabel">状态</label>
+            <select id="fStatus">
+              <option value="active">启用</option>
+              <option value="disabled">停用</option>
+            </select>
+          </div>
+        </div>
+        <label class="flabel">备注</label>
+        <input type="text" id="fNote" placeholder="备注（合同号、渠道等）">
+        <p class="err" id="licenseFormErr"></p>
+        <div>
+          <button class="btn primary" type="submit">保存</button>
+          <button class="btn" type="button" id="licenseFormCancel">取消</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- 实例上报 -->
+    <section class="panel">
+      <h2>实例上报</h2>
+      <p class="muted">每个部署实例访问 admin 时会上报（无网时待有网回传）。红行 = 企业版子域名额度已满，该实例被判未授权，需增购额度或释放子域名。</p>
+      <div style="overflow-x:auto">
+      <table id="instanceTable">
+        <thead><tr>
+          <th>实例</th><th>admin 地址</th><th>站点域名</th><th>程序版本</th><th>首次 / 最近上报</th><th>判定</th><th>操作</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      </div>
+    </section>
+
+    <!-- 最近上报记录 -->
+    <section class="panel">
+      <h2>最近上报记录</h2>
+      <div style="overflow-x:auto">
+      <table id="checkinTable">
+        <thead><tr><th>时间</th><th>实例</th><th>admin 地址</th><th>判定</th><th>原因</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtTime = (ms) => ms ? new Date(ms).toLocaleString('zh-CN', { hour12: false }) : '—';
+const fmtDate = (ms) => !ms ? '永不过期' : new Date(ms).toLocaleDateString('zh-CN');
+const toDateInput = (ms) => {
+  if (!ms) return '';
+  const d = new Date(ms);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+const REASON_TEXT = {
+  commercial_match: '命中商业授权固定域名',
+  enterprise_registered: '命中企业授权（已登记子域名）',
+  enterprise_auto_registered: '命中企业授权（新子域名自动登记）',
+  quota_full: '企业授权子域名额度已满',
+  expired: '授权已到期',
+  no_match: '无任何授权命中',
+};
+
+async function api(method, path, body) {
+  const resp = await fetch(path, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok || data.code !== 0) throw new Error(data.msg || `HTTP ${resp.status}`);
+  return data.data;
+}
+
+let licenses = [];
+
+async function loadAll() {
+  licenses = await api('GET', '/api/admin/licenses');
+  renderLicenses();
+  renderInstances(await api('GET', '/api/admin/instances'));
+  renderCheckins(await api('GET', '/api/admin/checkins?limit=50'));
+}
+
+function renderLicenses() {
+  const tb = document.querySelector('#licenseTable tbody');
+  if (!licenses.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="muted">暂无授权，点右上角「新建授权」。</td></tr>';
+    return;
+  }
+  tb.innerHTML = licenses.map((l) => {
+    const tierBadge = l.tier === 'enterprise' ? '<span class="badge ent">企业授权</span>' : '<span class="badge">商业授权</span>';
+    const bind = l.tier === 'enterprise' ? `*.${esc(l.wildcardDomain)}` : esc(l.domain);
+    let quota = '—';
+    if (l.tier === 'enterprise') {
+      const chips = l.subdomains.map((s) =>
+        `<span class="chip">${esc(s)}<button title="释放该子域名" onclick="releaseSub(${l.id}, '${esc(s)}')">×</button></span>`).join('');
+      quota = `已用 ${l.subdomainsUsed} / ${l.subdomainLimit}
+        <button class="btn small" onclick="adjustLimit(${l.id}, -1)">−1</button>
+        <button class="btn small" onclick="adjustLimit(${l.id}, 1)">+1</button>
+        <button class="btn small" onclick="adjustLimit(${l.id}, 5)">+5</button>
+        <div style="margin-top:4px">${chips || '<span class="muted">暂无子域名登记</span>'}</div>`;
+    }
+    const statusBadge = l.status === 'disabled'
+      ? '<span class="badge bad">已停用</span>'
+      : (l.expired ? '<span class="badge warn">已到期</span>' : '<span class="badge ok">生效中</span>');
+    return `<tr>
+      <td><b>${esc(l.customerName) || '—'}</b><br><span class="muted">${esc(l.note)}</span></td>
+      <td>${tierBadge}</td>
+      <td><code>${bind}</code></td>
+      <td>${quota}</td>
+      <td>${fmtDate(l.expiresAt)}</td>
+      <td>${statusBadge}</td>
+      <td class="row-actions">
+        <button class="btn small" onclick="editLicense(${l.id})">编辑</button>
+        <button class="btn small" onclick="toggleLicense(${l.id})">${l.status === 'disabled' ? '启用' : '停用'}</button>
+        <button class="btn small danger" onclick="deleteLicense(${l.id})">删除</button>
+      </td></tr>`;
+  }).join('');
+}
+
+function renderInstances(list) {
+  const tb = document.querySelector('#instanceTable tbody');
+  if (!list.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="muted">暂无实例上报。</td></tr>';
+    return;
+  }
+  tb.innerHTML = list.map((i) => {
+    const verdict = i.lastStatus === 'authorized'
+      ? `<span class="badge ok">已授权</span> <span class="badge ${i.lastTier === 'enterprise' ? 'ent' : ''}">${i.lastTier === 'enterprise' ? '企业授权' : '商业授权'}</span>`
+      : `<span class="badge bad">未授权</span>${i.quotaFull ? ' <span class="badge bad">额度已满</span>' : ''}<br><span class="muted">${esc(REASON_TEXT[i.lastReason] || i.lastReason)}</span>`;
+    return `<tr class="${i.quotaFull ? 'quota-full' : ''}">
+      <td><code title="${esc(i.instanceKey)}">${esc(i.instanceKey.slice(0, 12))}…</code><br><span class="muted">共 ${i.checkinCount} 次</span></td>
+      <td>${esc(i.adminHost) || '—'}</td>
+      <td>${(i.siteDomains || []).map(esc).join('<br>') || '—'}</td>
+      <td>${esc(i.appVersion) || '—'}</td>
+      <td>${fmtTime(i.firstSeenAt)}<br>${fmtTime(i.lastSeenAt)}</td>
+      <td>${verdict}</td>
+      <td class="row-actions"><button class="btn small danger" onclick="deleteInstance('${esc(i.instanceKey)}')">清除记录</button></td></tr>`;
+  }).join('');
+}
+
+function renderCheckins(list) {
+  const tb = document.querySelector('#checkinTable tbody');
+  if (!list.length) {
+    tb.innerHTML = '<tr><td colspan="5" class="muted">暂无上报记录。</td></tr>';
+    return;
+  }
+  tb.innerHTML = list.map((c) => `<tr>
+    <td>${fmtTime(c.at)}</td>
+    <td><code>${esc(String(c.instanceKey).slice(0, 12))}…</code></td>
+    <td>${esc(c.adminHost) || '—'}</td>
+    <td>${c.status === 'authorized' ? '<span class="badge ok">已授权</span>' : '<span class="badge bad">未授权</span>'}</td>
+    <td class="muted">${esc(REASON_TEXT[c.reason] || c.reason)}</td></tr>`).join('');
+}
+
+/* 表单 */
+function tierFormSync() {
+  const ent = $('fTier').value === 'enterprise';
+  $('fDomainWrap').classList.toggle('hidden', ent);
+  $('fWildcardWrap').classList.toggle('hidden', !ent);
+  $('fLimitWrap').classList.toggle('hidden', !ent);
+}
+$('fTier').addEventListener('change', tierFormSync);
+
+function openLicenseForm(l) {
+  $('licenseFormPanel').classList.remove('hidden');
+  $('licenseFormTitle').textContent = l ? `编辑授权 #${l.id}` : '新建授权';
+  $('licenseFormErr').textContent = '';
+  $('fId').value = l ? l.id : '';
+  $('fCustomer').value = l ? l.customerName : '';
+  $('fTier').value = l ? l.tier : 'commercial';
+  $('fDomain').value = l && l.domain ? l.domain : '';
+  $('fWildcard').value = l && l.wildcardDomain ? l.wildcardDomain : '';
+  $('fLimit').value = l && l.subdomainLimit !== null ? l.subdomainLimit : 5;
+  $('fExpires').value = l ? toDateInput(l.expiresAt) : '';
+  $('fStatus').value = l ? l.status : 'active';
+  $('fNote').value = l ? l.note : '';
+  tierFormSync();
+  $('licenseFormPanel').scrollIntoView({ behavior: 'smooth' });
+}
+$('newLicenseBtn').addEventListener('click', () => openLicenseForm(null));
+$('licenseFormCancel').addEventListener('click', () => $('licenseFormPanel').classList.add('hidden'));
+window.editLicense = (id) => openLicenseForm(licenses.find((l) => l.id === id));
+
+$('licenseForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = $('fId').value;
+  const tier = $('fTier').value;
+  const body = {
+    customerName: $('fCustomer').value,
+    tier,
+    note: $('fNote').value,
+    status: $('fStatus').value,
+    expiresAt: $('fExpires').value ? new Date(`${$('fExpires').value}T23:59:59`).getTime() : 0,
+  };
+  if (tier === 'commercial') body.domain = $('fDomain').value;
+  else { body.wildcardDomain = $('fWildcard').value; body.subdomainLimit = Number($('fLimit').value); }
+  try {
+    if (id) await api('PUT', `/api/admin/licenses/${id}`, body);
+    else await api('POST', '/api/admin/licenses', body);
+    $('licenseFormPanel').classList.add('hidden');
+    await loadAll();
+  } catch (err) {
+    $('licenseFormErr').textContent = err.message;
+  }
+});
+
+window.toggleLicense = async (id) => {
+  const l = licenses.find((x) => x.id === id);
+  await api('PUT', `/api/admin/licenses/${id}`, { status: l.status === 'disabled' ? 'active' : 'disabled' });
+  await loadAll();
+};
+window.deleteLicense = async (id) => {
+  if (!confirm('确认删除该授权？删除后命中它的实例将变为未授权。')) return;
+  await api('DELETE', `/api/admin/licenses/${id}`);
+  await loadAll();
+};
+window.adjustLimit = async (id, delta) => {
+  await api('POST', `/api/admin/licenses/${id}/adjust-limit`, { delta });
+  await loadAll();
+};
+window.releaseSub = async (id, sub) => {
+  if (!confirm(`释放子域名 ${sub}？释放后该子域名下次上报会重新占用额度。`)) return;
+  await api('DELETE', `/api/admin/licenses/${id}/subdomains/${encodeURIComponent(sub)}`);
+  await loadAll();
+};
+window.deleteInstance = async (key) => {
+  if (!confirm('清除该实例的上报记录？（不影响授权本身）')) return;
+  await api('DELETE', `/api/admin/instances/${encodeURIComponent(key)}`);
+  await loadAll();
+};
+
+$('refreshBtn').addEventListener('click', loadAll);
+
+/* 登录 */
+$('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('loginHint').textContent = '';
+  try {
+    await api('POST', '/api/admin/login', { password: $('password').value });
+    await boot();
+  } catch (err) {
+    $('loginHint').textContent = err.message;
+  }
+});
+$('logoutBtn').addEventListener('click', async () => {
+  await api('POST', '/api/admin/logout');
+  location.reload();
+});
+
+async function boot() {
+  const me = await fetch('/api/admin/me').then((r) => r.json()).then((d) => d.data).catch(() => null);
+  if (me && me.authed) {
+    $('loginPanel').classList.add('hidden');
+    $('adminMain').classList.remove('hidden');
+    $('logoutBtn').classList.remove('hidden');
+    await loadAll();
+  } else {
+    $('loginPanel').classList.remove('hidden');
+    if (me && !me.enabled) $('loginHint').textContent = '管理端未配置密码（AUTH_ADMIN_PASSWORD），请联系部署方。';
+  }
+}
+boot();
+</script>
+</body>
+</html>
