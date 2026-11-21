@@ -177,11 +177,19 @@ impl BuyerShowClientService {
     ///
     /// `current_user_id`：登录会员 id；**游客传 `0`**
     /// （Java `SecurityUtils.getCurrentUserId()` 的游客返回值）。
+    ///
+    /// 例外（我方新增，论坛帖 757744）：`q.mine = 1` 的仅本人模式下
+    /// 游客直接返回业务码 `401`「用户未登录」，不按游客口径查列表。
     pub async fn client_list(
         &self,
         q: &BuyerShowPageClientQuery,
         current_user_id: i32,
     ) -> Result<PageResult<BuyerShowPageClientVO>> {
+        // 仅本人模式（我方新增，论坛帖 757744）：必须登录，且过滤所用
+        // user_id 只取令牌解析出的 current_user_id，绝不接受前端传参指定他人。
+        if q.is_mine() && current_user_id <= 0 {
+            return Err(Error::biz(CODE_UNAUTHORIZED, ERR_NOT_LOGGED_IN));
+        }
         let page_query = PageQuery {
             page: q.page_no(),
             page_size: q.page_size(),

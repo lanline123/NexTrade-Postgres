@@ -126,6 +126,7 @@ export default defineAppConfig({
         "pages/productV1/consult",
         "pages/productV1/groupBuying",
         "pages/buyerShow/index",
+        "pages/buyerShow/myList",
         "pages/buyerShow/buyerShowDetail",
         "pages/buyerShow/addBuyerShow",
         "pages/buyerShow/videoFeed",

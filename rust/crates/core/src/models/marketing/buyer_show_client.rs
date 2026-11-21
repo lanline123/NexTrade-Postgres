@@ -80,6 +80,12 @@ pub struct BuyerShowPageClientQuery {
     /// 商品 ID（Java `Integer productId`，`JSON_CONTAINS(range_data, ?)`）
     #[serde(default, deserialize_with = "de_opt_i32")]
     pub product_id: Option<i32>,
+    /// 仅本人模式（我方新增，论坛帖 757744「个人买家秀列表」）：`mine=1` 时
+    /// 列表只返回当前登录会员本人发布的买家秀。过滤所用的 user_id 由
+    /// 服务层以登录令牌为准注入，**不接受**前端传入的任何 user_id；
+    /// 未登录（令牌 user_id <= 0）访问该模式由服务层返回 401「用户未登录」。
+    #[serde(default, deserialize_with = "de_opt_i32")]
+    pub mine: Option<i32>,
 }
 
 impl BuyerShowPageClientQuery {
@@ -93,6 +99,12 @@ impl BuyerShowPageClientQuery {
     #[must_use]
     pub fn page_size(&self) -> u64 {
         self.size.unwrap_or(15).clamp(1, 100)
+    }
+
+    /// 是否「仅本人」模式（仅 `mine=1` 生效，其余值按普通列表处理）。
+    #[must_use]
+    pub fn is_mine(&self) -> bool {
+        self.mine == Some(1)
     }
 }
 
@@ -846,6 +858,29 @@ mod tests {
         };
         assert_eq!(q.page_size(), 100, "BasePage#getSize 上限 100");
         assert_eq!(q.page_no(), 1, "page 最小为 1");
+    }
+
+    #[test]
+    fn mine_mode_only_enabled_by_value_one() {
+        // 论坛 757744：mine 缺省 / 非 1 值均为普通列表，仅 mine=1 为仅本人模式
+        assert!(!BuyerShowPageClientQuery::default().is_mine());
+        assert!(!BuyerShowPageClientQuery {
+            mine: Some(0),
+            ..Default::default()
+        }
+        .is_mine());
+        assert!(BuyerShowPageClientQuery {
+            mine: Some(1),
+            ..Default::default()
+        }
+        .is_mine());
+        // 查询串口径：mine 以字符串数字传入同样生效，空串归一为未传
+        let q: BuyerShowPageClientQuery =
+            serde_json::from_value(json!({ "mine": "1" })).unwrap();
+        assert!(q.is_mine());
+        let q: BuyerShowPageClientQuery =
+            serde_json::from_value(json!({ "mine": "" })).unwrap();
+        assert!(!q.is_mine());
     }
 
     #[test]

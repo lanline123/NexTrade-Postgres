@@ -22,6 +22,9 @@ export interface BuyerShowListParams {
     sortOrder?: string;
     goodsId?: number;
     productId?: number;
+    // 仅本人模式（论坛 757744 个人买家秀列表）：传 1 时后端以登录令牌的
+    // user_id 过滤本人发布的买家秀，未登录返回需登录
+    mine?: number;
 }
 
 export interface BuyerShowData {

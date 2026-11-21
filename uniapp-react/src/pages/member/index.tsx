@@ -507,6 +507,11 @@ export default function Member() {
                                         <View className="item" onClick={() => goPages("/pages/user/historyProduct/index")}>
                                             <View className="tit">{t("浏览记录")}</View>
                                         </View>
+                                        {configStore.buyerShowEnabled === 1 ? (
+                                            <View className="item" onClick={() => goPages("/pages/buyerShow/myList")}>
+                                                <View className="tit">{t("我的买家秀")}</View>
+                                            </View>
+                                        ) : null}
                                     </View>
                                 ) : null}
                             </View>

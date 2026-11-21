@@ -38,6 +38,7 @@ export default function MyServiceV2({ data = {} }: { data: MyServiceData }) {
     const userInfo = useUserStore((s) => s.userInfo) || {};
     const canInvoice = useConfigStore((s) => s.canInvoice);
     const closeAuth = useConfigStore((s) => s.closeAuth);
+    const buyerShowEnabled = useConfigStore((s) => s.buyerShowEnabled);
 
     const layoutStyle = data?.layoutStyle || 1;
 
@@ -68,6 +69,19 @@ export default function MyServiceV2({ data = {} }: { data: MyServiceData }) {
     }
     if (!isB2B() || closeAuth === 0) {
         serviceList = serviceList.filter((item) => safeT(item.picTitle) !== t("实名认证"));
+    }
+    // 我的买家秀入口（论坛 757744 个人买家秀列表）：买家秀功能开启时程式化补入
+    // （同上方发票管理的补入口径）；装修数据里已配置同名入口时不重复添加。
+    // 图标沿发票管理补入项口径留空（pickPic 为空时本组件不渲染图标位）。
+    if (buyerShowEnabled === 1 && !serviceList.some((item) => safeT(item.picTitle) === t("我的买家秀"))) {
+        serviceList = [
+            ...serviceList,
+            {
+                picTitle: "我的买家秀",
+                picUrl: "",
+                picLink: "/pages/buyerShow/myList"
+            }
+        ];
     }
 
     const cssVars = useFrameVars(data, {

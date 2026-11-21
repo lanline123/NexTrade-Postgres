@@ -154,6 +154,10 @@ impl BuyerShowClientRepository {
     /// `user_id = 0`（Java `getCurrentUserId()` 返回 `0`，不是 `null`），
     /// 即非真实用户（`user_id = 0`）的买家秀对游客可见——原实现如此，照抄。
     ///
+    /// 仅本人模式（`q.mine = 1`，我方新增）例外：首个条件替换为纯
+    /// `user_id = currentUserId`（不带 `OR is_show = 1`），其余过滤
+    /// （keyword / goodsId / productId）与排序口径不变。
+    ///
     /// ⚠️ 排序**固定**：Java 显式 `page.setOrders(buildClientFeedOrders())`，
     /// 不接受 `sortField` / `sortOrder` 覆盖（否则宫格点入视频流的
     /// `startId` 锚点会落错位置）。
@@ -165,7 +169,15 @@ impl BuyerShowClientRepository {
         let mut conds: Vec<String> = Vec::new();
         let mut binds: Vec<Bind> = Vec::new();
 
-        conds.push("(user_id = ? OR is_show = 1)".to_string());
+        if q.is_mine() {
+            // 仅本人模式（我方新增，论坛帖 757744）：只返回令牌会员本人发布的
+            // 买家秀，不再叠加 `is_show = 1` 的公开可见性——本人待审核
+            // （status = 0）/ 未显示（is_show = 0）的作品也要能在个人列表看到。
+            // 调用方（服务层）已保证该模式下 current_user_id > 0。
+            conds.push("user_id = ?".to_string());
+        } else {
+            conds.push("(user_id = ? OR is_show = 1)".to_string());
+        }
         binds.push(Bind::I32(current_user_id));
 
         if let Some(keyword) = q.keyword.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
