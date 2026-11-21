@@ -217,6 +217,8 @@ export interface OrderSubmitPayload {
     addressId?: number;
     productReservationTimeId?: number;
     reservationDate?: string;
+    /** 下单幂等键（我方新增）：一次结算会话一个，重复提交只建一单 */
+    idempotencyKey?: string;
     [key: string]: unknown;
 }
 

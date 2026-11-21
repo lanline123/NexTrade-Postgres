@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Checkbox, InputNumber, Modal, Toast } from '@douyinfe/semi-ui';
 import { apiGet, apiPost } from '@/lib/client-api';
@@ -24,6 +24,17 @@ import { getSystemMode } from '@/lib/system-mode';
  * - order/check/updateCoupon 选券/自动选券；order/check/submit 提交 formState
  * - 余额为勾选（全额抵扣），积分/账期与余额互斥；flowType=3 积分兑换、12 礼品卡
  */
+
+/**
+ * 生成下单幂等键（我方新增）：一次结算会话一个键，本页全部提交
+ * （含失败重试）共用；服务端同键只建一单、重复提交返回原单。
+ */
+const newIdempotencyKey = () =>
+  'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 
 interface Address {
   addressId: number;
@@ -252,6 +263,8 @@ export default function CheckoutClient({
   const [updating, setUpdating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  /** 下单幂等键（我方新增）：进入结算页生成一次，本页内所有提交共用 */
+  const idempotencyKeyRef = useRef(newIdempotencyKey());
   const [needLogin, setNeedLogin] = useState(false);
   /** 账户维度余额/积分（user/user/memberCenter），旧版取 userStore.userInfo.balance/points */
   const [memberCenter, setMemberCenter] = useState<{ balance?: number; points?: number }>({});
@@ -592,6 +605,7 @@ export default function CheckoutClient({
           invoiceData: giftCardMode ? {} : invoiceData,
           isGiftOrder: giftMode || undefined,
           giftMessage: giftMode ? giftMessage : undefined,
+          idempotencyKey: idempotencyKeyRef.current,
           ...giftCardParams(),
         },
       );

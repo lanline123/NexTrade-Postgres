@@ -1047,6 +1047,10 @@ impl PosCashierService {
             // 预约接线字段补齐（论坛帖 497863+377834）：POS 单恒不走预约接线（OrderService::create 的 pos_mode 豁免），补 None 保持字面构造完整。
             product_reservation_time_id: None,
             reservation_date: None,
+            // 下单幂等键（我方新增）：透传收银台下发的键，重复结账
+            // 命中时 create 返回原单，本函数后续 mark_paid 对已付单
+            // 有已付守卫（on_payment_success 幂等），不会重复记账。
+            idempotency_key: dto.idempotency_key.clone(),
         };
 
         let order_service = crate::trade::order::OrderService::from_repos(self.repos.clone());

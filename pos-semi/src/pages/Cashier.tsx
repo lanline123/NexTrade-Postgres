@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import Dialog from '../components/Dialog';
@@ -8,6 +8,17 @@ import ScaleConnect from '../components/ScaleConnect';
 import WeighDialog from '../components/WeighDialog';
 import productEmpty from '../legacy/productEmpty-P1dhOWH0.png';
 import { toast } from '../toast';
+
+/**
+ * 生成下单幂等键（我方新增）：每次打开结算弹窗生成一个，本次结账
+ * 的重复点击/超时重试共用；服务端同键只建一单、重复结账返回原单。
+ */
+const newIdempotencyKey = () =>
+  'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 
 interface Category {
   categoryId: number;
@@ -151,6 +162,9 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
   const [rechargeOpen, setRechargeOpen] = useState(false);
   const [rechargeValue, setRechargeValue] = useState('');
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
+  /** 本次结账的幂等键（打开结算弹窗时生成，见 checkout） */
+  const checkoutKeyRef = useRef('');
   const [balanceInput, setBalanceInput] = useState('');
   const [pointsInput, setPointsInput] = useState('');
   const [couponOpen, setCouponOpen] = useState(false);
@@ -489,10 +503,12 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
     }
     setBalanceInput('');
     setPointsInput('');
+    checkoutKeyRef.current = newIdempotencyKey();
     setCheckoutOpen(true);
   };
 
   const submitCheckout = async () => {
+    if (checkoutSubmitting) return;
     const useBalance = Number(balanceInput || 0);
     const usePoints = Number(pointsInput || 0);
     if (balanceInput && (!Number.isFinite(useBalance) || useBalance <= 0)) {
@@ -503,6 +519,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
       toast('请输入正确的积分数量', 'error');
       return;
     }
+    setCheckoutSubmitting(true);
     try {
       const result = await api.post<{ orderId: number; orderSn: string; totalAmount: string | number }>(
         '/pos/order/check/submit',
@@ -513,6 +530,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
           useBalance: balanceInput ? useBalance : undefined,
           usePoints: pointsInput ? usePoints : undefined,
           useCouponIds: selectedCouponIds.length ? selectedCouponIds : undefined,
+          idempotencyKey: checkoutKeyRef.current || undefined,
         },
       );
       setCheckoutOpen(false);
@@ -536,6 +554,8 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
       toast(`结账成功：${result.orderSn}`);
     } catch (error) {
       toast(message(error), 'error');
+    } finally {
+      setCheckoutSubmitting(false);
     }
   };
 
@@ -1074,7 +1094,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
             <button type="button" className="el-button" onClick={() => setCheckoutOpen(false)}>
               <span>取消</span>
             </button>
-            <button type="button" className="el-button el-button--primary" style={primaryStyle} onClick={() => void submitCheckout()}>
+            <button type="button" className="el-button el-button--primary" style={primaryStyle} disabled={checkoutSubmitting} onClick={() => void submitCheckout()}>
               <span>确认收款</span>
             </button>
           </>

@@ -108,6 +108,35 @@ pub struct OrderCreateDTO {
     /// 预约日期 `yyyy-MM-dd`（预约商品结算提交，与时段 ID 成对）。
     #[serde(default)]
     pub reservation_date: Option<String>,
+    /// 下单幂等键（我方新增）：客户端为一次结算会话生成一个 UUID，
+    /// 本次结算的全部提交（含弱网重试/重复点击）共用。服务端同
+    /// (user_id, 键) 在窗口内只建一单，重复提交返回原单结果而非
+    /// 报错。缺省/非法 = 不启用幂等（存量客户端行为逐字不变）。
+    /// 口径见 `normalize_idempotency_key` 与 services `trade::order`。
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
+}
+
+/// 下单幂等键有效窗口（秒）：窗口内同 (user_id, key) 只建一单；
+/// 窗口过后键可被新结算重新占用（登记行过期删除）。
+pub const IDEMPOTENCY_WINDOW_SECONDS: i64 = 24 * 3600;
+
+/// 归一幂等键：去首尾空白后长度 16..=64 且仅含 `[A-Za-z0-9_-]`
+/// 才有效，其余（缺省/过短/过长/含非法字符）一律视为未传键——
+/// 宁可不启用幂等，也绝不因怪键阻断正常下单。
+#[must_use]
+pub fn normalize_idempotency_key(raw: Option<&str>) -> Option<String> {
+    let key = raw?.trim();
+    if key.len() < 16 || key.len() > 64 {
+        return None;
+    }
+    if !key
+        .bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    {
+        return None;
+    }
+    Some(key.to_string())
 }
 
 /// 兼容前端三种 `useBalance` 入参：数字（余额抵扣金额）、布尔、字符串数字。
@@ -158,6 +187,7 @@ impl Default for OrderCreateDTO {
             delivery_time_slot: None,
             product_reservation_time_id: None,
             reservation_date: None,
+            idempotency_key: None,
         }
     }
 }
@@ -190,6 +220,11 @@ pub struct OrderCreateVO {
     /// 后续分享走「重新生成」接口）
     #[serde(default)]
     pub gift_token: Option<String>,
+    /// 本次响应是否为幂等重放（我方新增）：同键重复提交命中原单时
+    /// 为 true，首次建单恒 false。供服务端内部链路（POS/代客下单
+    /// 据此跳过重复后置动作）与排障使用，前端可忽略。
+    #[serde(default)]
+    pub idempotent_replay: bool,
 }
 
 fn default_return_type() -> i32 {
@@ -315,4 +350,58 @@ pub struct OrderVO {
     pub gift_status: Option<i32>,
     /// 礼物详情（仅订单详情接口填充：有效期/领取人脱敏/关闭原因等）
     pub gift_info: Option<super::gift_order::GiftInfoVO>,
+}
+
+#[cfg(test)]
+mod idempotency_key_tests {
+    use super::normalize_idempotency_key;
+
+    #[test]
+    fn uuid_shaped_key_is_accepted() {
+        let key = "3f8a2c1e-9b4d-4e5f-a6b7-c8d9e0f1a2b3";
+        assert_eq!(
+            normalize_idempotency_key(Some(key)).as_deref(),
+            Some(key)
+        );
+        // 首尾空白被裁掉
+        assert_eq!(
+            normalize_idempotency_key(Some("  3f8a2c1e-9b4d-4e5f-a6b7-c8d9e0f1a2b3  ")).as_deref(),
+            Some(key)
+        );
+        // 下划线合法
+        assert_eq!(
+            normalize_idempotency_key(Some("checkout_20261121_abcd")).as_deref(),
+            Some("checkout_20261121_abcd")
+        );
+    }
+
+    #[test]
+    fn missing_or_malformed_key_means_no_idempotency() {
+        assert_eq!(normalize_idempotency_key(None), None);
+        assert_eq!(normalize_idempotency_key(Some("")), None);
+        assert_eq!(normalize_idempotency_key(Some("   ")), None);
+        // 过短（< 16）
+        assert_eq!(normalize_idempotency_key(Some("abc123")), None);
+        // 过长（> 64）
+        assert_eq!(normalize_idempotency_key(Some(&"a".repeat(65))), None);
+        // 非法字符（空格/中文/斜杠）
+        assert_eq!(normalize_idempotency_key(Some("abcd efgh ijkl mnop")), None);
+        assert_eq!(normalize_idempotency_key(Some("下单幂等键下单幂等键下单幂等")), None);
+        assert_eq!(normalize_idempotency_key(Some("abcd/efgh/ijkl/mnop")), None);
+    }
+
+    #[test]
+    fn dto_without_key_still_deserializes() {
+        let dto: super::OrderCreateDTO =
+            serde_json::from_str(r#"{"cartIds":[1]}"#).expect("deserialize");
+        assert_eq!(dto.idempotency_key, None);
+        let dto: super::OrderCreateDTO = serde_json::from_str(
+            r#"{"cartIds":[1],"idempotencyKey":"3f8a2c1e-9b4d-4e5f-a6b7-c8d9e0f1a2b3"}"#,
+        )
+        .expect("deserialize");
+        assert_eq!(
+            dto.idempotency_key.as_deref(),
+            Some("3f8a2c1e-9b4d-4e5f-a6b7-c8d9e0f1a2b3")
+        );
+    }
 }

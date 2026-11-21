@@ -185,6 +185,11 @@ pub struct PosCheckoutDTO {
     pub remark: Option<String>,
     /// 线下现金收银默认直接记已支付；线上支付传 false。
     pub mark_paid: Option<bool>,
+    /// 下单幂等键（我方新增）：收银台每次打开结算弹窗生成一个，
+    /// 本次结账的重复点击/超时重试共用，同键只建一单并返回原单。
+    /// 缺省 = 不启用幂等（旧端行为不变）。口径见
+    /// `models::trade::order::normalize_idempotency_key`。
+    pub idempotency_key: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]

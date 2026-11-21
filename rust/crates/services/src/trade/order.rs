@@ -14,6 +14,7 @@ use nextrade_core::models::trade::offline_claim::{
 use nextrade_core::models::catalog::product_delivery::delivery_access;
 use nextrade_core::models::marketing::gift_card::{scoped_deduct_base, GiftCardScope};
 use nextrade_core::models::trade::order_admin::join_status;
+use nextrade_core::models::trade::order::{normalize_idempotency_key, IDEMPOTENCY_WINDOW_SECONDS};
 use nextrade_core::models::{OrderCreateDTO, OrderCreateVO, OrderVO};
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
@@ -112,6 +113,13 @@ pub fn shipping_type_snapshot(delivery_type: i32) -> (i32, &'static str) {
     }
 }
 
+/// 唯一约束冲突判定（仓内既有惯用法，见 repo/pos/device.rs）：
+/// 下单幂等登记行主键冲突时 sqlx 以 Database 错误上抛，据此
+/// 区分「同键并发双发」与真实 DB 故障。
+fn is_unique_violation(e: &sqlx::Error) -> bool {
+    matches!(e, sqlx::Error::Database(db) if db.kind() == sqlx::error::ErrorKind::UniqueViolation)
+}
+
 /// 从订单地址快照解析自提点 ID（建单文案 `门店自提 (自提点ID: N)`，
 /// 见 `create` 的自提地址快照分支）。无标记 / ID 非法时返回 None。
 fn parse_pickup_shop_id(address: &str) -> Option<i32> {
@@ -142,6 +150,17 @@ impl OrderService {
     /// 3. 生成订单号并写入 order + order_item
     /// 4. 清理已下单的购物车行
     pub async fn create(&self, user_id: i32, dto: &OrderCreateDTO) -> Result<OrderCreateVO> {
+        // 下单幂等（我方新增）：带合法幂等键且窗口内已有同键登记时，
+        // 直接返回原单结果，不再走读车/算价/扣库存/建单全链——顺序
+        // 重试（响应丢失后重提）与重复点击在此收口；并发双发的竞态
+        // 由建单事务内的登记行唯一约束仲裁（见下方事务段）。
+        // 未传键/键非法时 idem_key 为 None，全链行为逐字不变。
+        let idem_key = normalize_idempotency_key(dto.idempotency_key.as_deref());
+        if let Some(key) = idem_key.as_deref() {
+            if let Some(vo) = self.idempotent_replay(user_id, key).await? {
+                return Ok(vo);
+            }
+        }
         let lines = self.cart.checked_lines(user_id, &dto.cart_ids).await?;
         if lines.is_empty() {
             return Err(Error::Validation("未选择任何商品".into()));
@@ -952,6 +971,9 @@ impl OrderService {
         // 送礼物领取 token 明文（事务内生成，仅随建单响应返回一次）
         let mut gift_token: Option<String> = None;
 
+        // 幂等并发冲突标记：建单事务内登记键已被先行事务占用时置位，
+        // 本事务回滚后据此返回原单而非报错（见事务块后处理）。
+        let mut idem_conflict = false;
         let order_id = {
             let mut tx = self
                 .repos.trade.order
@@ -961,6 +983,36 @@ impl OrderService {
 
             let mut deducted: Vec<(i32, Option<i32>, i32)> = Vec::with_capacity(items.len());
             let mut result: Result<i32> = Ok(0);
+
+            // 幂等登记（与建单同事务，先占键再扣库存/建单）：同键并发
+            // 双发时，后到事务的登记 INSERT 会阻塞至先行事务提交，
+            // 随后主键唯一约束冲突 → 本事务整体回滚（已扣库存随回滚
+            // 撤销，不会双扣），出事务后按登记行返回原单。登记行随
+            // 本事务回滚一并消失，建单失败（库存不足等）不留占键，
+            // 同键修正后重试可正常建单。
+            if let Some(key) = idem_key.as_deref() {
+                match sqlx::query(
+                    "INSERT INTO order_idempotency \
+                     (user_id, idem_key, order_id, order_sn, response_json, add_time) \
+                     VALUES ($1, $2, NULL, $3, '', $4)",
+                )
+                .bind(user_id)
+                .bind(key)
+                .bind(&order_sn)
+                .bind(utils::now_seconds() as i32)
+                .execute(&mut **tx)
+                .await
+                {
+                    Ok(_) => {}
+                    Err(e) if is_unique_violation(&e) => {
+                        idem_conflict = true;
+                        result = Err(Error::biz(1001, "重复提交".to_string()));
+                    }
+                    Err(e) => {
+                        result = Err(Error::Database(e.to_string()));
+                    }
+                }
+            }
 
             for (idx, item) in items.iter().enumerate() {
                 let pid = item.product_id;
@@ -1029,6 +1081,27 @@ impl OrderService {
                     .repos.trade.order
                     .insert_order_in_tx(&mut tx, &order, &items)
                     .await;
+            }
+
+            // 幂等登记回填订单号（与建单同事务）：事务提交后登记行即
+            // 完整，窗口内同键提交由 create 入口的重放查询返回原单。
+            if result.is_ok() {
+                if let (Some(key), Some(oid)) =
+                    (idem_key.as_deref(), result.as_ref().ok().copied())
+                {
+                    if let Err(e) = sqlx::query(
+                        "UPDATE order_idempotency SET order_id = $1 \
+                         WHERE user_id = $2 AND idem_key = $3",
+                    )
+                    .bind(oid)
+                    .bind(user_id)
+                    .bind(key)
+                    .execute(&mut **tx)
+                    .await
+                    {
+                        result = Err(Error::Database(e.to_string()));
+                    }
+                }
             }
 
             // 预约名额占用 + 预约行落库（与订单同事务）：时段余量不足
@@ -1251,10 +1324,28 @@ impl OrderService {
                     for (pid, _, _) in &deducted {
                         self.product.invalidate_detail_cache(*pid).await;
                     }
-                    return Err(e);
+                    if idem_conflict {
+                        // 同键并发双发：先行事务已提交，原单即结果。
+                        // 返回占位 0，由事务块后统一走重放返回。
+                        0
+                    } else {
+                        return Err(e);
+                    }
                 }
             }
         };
+
+        if idem_conflict {
+            // 先行事务提交后登记行即可见；极少数时序下多试几次。
+            let key = idem_key.as_deref().expect("idem_conflict implies key");
+            for _ in 0..5 {
+                if let Some(vo) = self.idempotent_replay(user_id, key).await? {
+                    return Ok(vo);
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+            return Err(Error::biz(1001, "订单已提交，请勿重复提交".to_string()));
+        }
 
         for item in items.iter_mut() {
             item.order_id = order_id;
@@ -1667,7 +1758,7 @@ impl OrderService {
         }
 
         let out_trade_no = format!("PAY{order_sn}");
-        Ok(OrderCreateVO {
+        let vo = OrderCreateVO {
             order_id,
             order_sn,
             total_amount: total,
@@ -1678,7 +1769,105 @@ impl OrderService {
             balance: if final_balance_used > Decimal::ZERO { Some(final_balance_used) } else { None },
             is_card_redeem: Some(false),
             gift_token,
-        })
+            idempotent_replay: false,
+        };
+        // 幂等响应快照（best-effort，失败仅告警）：窗口内同键重放
+        // 优先返回快照，与首次响应逐字一致（含余额/礼品卡抵扣后的
+        // online_amount 与 return_type，无法从订单行反推的部分以
+        // 快照为准）。gift_token 明文不落库（order_gift 只存摘要的
+        // 既有口径），快照内恒 None；重放命中礼物单时买家从订单
+        // 详情走「重新生成分享」入口，不影响领取链。
+        if let Some(key) = idem_key.as_deref() {
+            let mut snapshot = vo.clone();
+            snapshot.gift_token = None;
+            if let Ok(json) = serde_json::to_string(&snapshot) {
+                if let Err(e) = sqlx::query(
+                    "UPDATE order_idempotency SET response_json = $1 \
+                     WHERE user_id = $2 AND idem_key = $3",
+                )
+                .bind(json)
+                .bind(user_id)
+                .bind(key)
+                .execute(&self.repos.pool)
+                .await
+                {
+                    tracing::warn!("订单 {order_id} 幂等响应快照写入失败: {e}");
+                }
+            }
+        }
+        Ok(vo)
+    }
+
+    /// 幂等重放（我方新增）：查窗口内的同键登记行，命中则组装原单
+    /// 结果返回（不重新建单）。三种情形：
+    /// - 登记行已过期 → 删除后按未命中处理，键可被新结算重新占用；
+    /// - 有响应快照 → 快照原样返回（与首次响应逐字一致），仅
+    ///   `idempotent_replay` 置 true；
+    /// - 无快照（首次请求已提交、快照尚未落库的极窄窗口）→ 按订单
+    ///   行重建近似结果（金额以订单落库值为准，拼团记录 ID 不回填）。
+    async fn idempotent_replay(
+        &self,
+        user_id: i32,
+        key: &str,
+    ) -> Result<Option<OrderCreateVO>> {
+        let row: Option<(Option<i32>, String, String, i32)> = sqlx::query_as::<
+            _,
+            (Option<i32>, String, String, i32),
+        >(
+            "SELECT order_id, order_sn, response_json, add_time \
+             FROM order_idempotency WHERE user_id = $1 AND idem_key = $2",
+        )
+        .bind(user_id)
+        .bind(key)
+        .fetch_optional(&self.repos.pool)
+        .await
+        .map_err(|e| Error::Database(e.to_string()))?;
+        let Some((order_id, _order_sn, response_json, add_time)) = row else {
+            return Ok(None);
+        };
+        if i64::from(add_time) < utils::now_seconds() - IDEMPOTENCY_WINDOW_SECONDS {
+            let _ = sqlx::query(
+                "DELETE FROM order_idempotency WHERE user_id = $1 AND idem_key = $2",
+            )
+            .bind(user_id)
+            .bind(key)
+            .execute(&self.repos.pool)
+            .await;
+            return Ok(None);
+        }
+        if !response_json.is_empty() {
+            if let Ok(mut vo) = serde_json::from_str::<OrderCreateVO>(&response_json) {
+                vo.idempotent_replay = true;
+                return Ok(Some(vo));
+            }
+        }
+        let Some(order_id) = order_id else {
+            return Ok(None);
+        };
+        let Some(order) = self.repos.trade.order.find_by_id(order_id).await? else {
+            return Ok(None);
+        };
+        Ok(Some(OrderCreateVO {
+            order_id: order.order_id,
+            order_sn: order.order_sn.clone(),
+            total_amount: order.total_amount,
+            online_amount: order.unpaid_amount,
+            out_trade_no: format!("PAY{}", order.order_sn),
+            return_type: if order.unpaid_amount == Decimal::ZERO {
+                2
+            } else {
+                1
+            },
+            groupon_promotion_record_id: None,
+            balance: if order.balance > Decimal::ZERO {
+                Some(order.balance)
+            } else {
+                None
+            },
+            is_card_redeem: Some(false),
+            gift_token: None,
+            idempotent_replay: true,
+        }))
     }
 
     /// 余额抵扣流水（对应 Java `PaylogService#creatPayLog(payCode="balance")`）。
@@ -3099,6 +3288,14 @@ fn to_vo(o: &Order, items: &[OrderItem], claim: Option<&OfflinePaymentClaim>) ->
         // 买家取消直退进度由 list/detail 后置附加（需查退款申请表）
         paid_cancel_refund_status: None,
         paid_cancel_refund_status_name: None,
+        // 同城送达时段由 list/detail 在 to_vo 后回填（默认未选时段）
+        delivery_time_start: None,
+        delivery_time_end: None,
+        delivery_time_text: None,
+        // 送礼物标记由 list/detail 在 to_vo 后回填（默认非礼物）
+        is_gift_order: false,
+        gift_status: None,
+        gift_info: None,
     }
 }
 
@@ -3168,14 +3365,6 @@ pub(crate) fn paid_cancel_status_name(status: i32) -> &'static str {
         3 => "已拒绝",
         4 => "已退回",
         _ => "退款中",
-        // 同城送达时段由 list/detail 在 to_vo 后回填（默认未选时段）
-        delivery_time_start: None,
-        delivery_time_end: None,
-        delivery_time_text: None,
-        // 送礼物标记由 list/detail 在 to_vo 后回填（默认非礼物）
-        is_gift_order: false,
-        gift_status: None,
-        gift_info: None,
     }
 }
 

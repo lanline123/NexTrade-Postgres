@@ -47,6 +47,17 @@ import { usePageGuards } from "@/utils/pageMixin";
 type CycleConfig = any;
 
 /**
+ * 生成下单幂等键（我方新增）：一次结算会话一个键，本页全部提交
+ * （含失败重试）共用；服务端同键只建一单、重复提交返回原单。
+ */
+const newIdempotencyKey = () =>
+    "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+    });
+
+/**
  * 订单结算页（自旧 pages/order/check.vue 移植）
  * - 支持多种配送方式：商城配送、门店自提、同城配送
  * - 支持预约服务：预约到店(flowType=9)、预约上门(flowType=10)
@@ -1251,7 +1262,10 @@ export default function Check() {
      */
     const submitOrder = async () => {
         try {
-            const result = await orderSubmit(formState as any);
+            const result = await orderSubmit({
+                ...(formState as any),
+                idempotencyKey: idempotencyKeyRef.current
+            });
             if (result.returnType === 2) {
                 // 如果有拼团记录id，则跳转到拼团详情页
                 if (result.grouponPromotionRecordId) {
@@ -1307,6 +1321,9 @@ export default function Check() {
 
     const { startPay, stopPolling } = usePayment();
 
+    /** 下单幂等键（我方新增）：进入结算页生成一次，本页内所有提交共用；
+     * 建单成功后页面即跳转离开，天然换键；失败重试同键不会重复建单 */
+    const idempotencyKeyRef = useRef(newIdempotencyKey());
     /** 支付中标记：页内收银台弹层关闭会触发 onShow，此时购物车已被下单清空，需跳过结算数据重拉 */
     const payingRef = useRef(false);
     /** 直选支付已创建的待支付订单，取消支付后用于进入收银台 */

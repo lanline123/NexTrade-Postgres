@@ -147,11 +147,6 @@ pub const CFG_PROXY_SHOP_RATE: &str = "proxyShopRate";
 /// 履约店分成比例 %（订单设置 `proxyFulfillRate`，默认 90）。
 pub const CFG_PROXY_FULFILL_RATE: &str = "proxyFulfillRate";
 
-/// 接单大厅方式（fulfillMode=1）但大厅/跨店开关未开启文案（二期）。
-pub const MSG_HALL_NOT_ENABLED: &str = "接单大厅未开启（需先开启代客下单跨店履约与接单大厅）";
-/// 大厅方式与直选履约店同时提交文案（二期）。
-pub const MSG_HALL_MODE_CONFLICT: &str = "接单大厅方式不能同时指定履约门店";
-
 /// 跨店代客单改价拒绝文案（价格以履约门店为准，店员不可改价）。
 pub const MSG_CROSS_NO_CHANGE_PRICE: &str = "跨店履约代客单不可改价，价格以履约门店为准";
 /// 履约门店非法（体系外 / 停业 / 不存在）文案。
@@ -171,19 +166,6 @@ pub fn family_root_of(shop_type: Option<i32>, store_parent_id: Option<i32>, shop
 /// 候选门店判定：与下单店同体系（同根）且营业中（status=1）。
 pub fn is_family_candidate(candidate_root: i32, root: i32, status: Option<i32>) -> bool {
     candidate_root == root && status == Some(1)
-}
-
-/// 接单大厅提交计划（二期，我方新增）：比例快照与接单截止。
-#[derive(Debug, Clone)]
-pub struct HallPlan {
-    /// 三方比例快照（%，与直选跨店同一配置源）。
-    pub platform_rate: Decimal,
-    /// 同上：代下单店。
-    pub proxy_rate: Decimal,
-    /// 同上：履约店。
-    pub fulfill_rate: Decimal,
-    /// 接单截止时间（epoch 秒）。
-    pub deadline: i32,
 }
 
 /// 跨店模式解析结果（下单店 != 履约店且开关开启时才有）。
@@ -645,40 +627,6 @@ impl ProxyShoppingOrderCheckService {
             fulfill_rate,
             line_price_overrides,
         }))
-    }
-
-    /// 解析接单大厅提交计划（二期）：跨店总开关与大厅开关须同开、
-    /// 须店铺作用域；比例快照与直选跨店同源，截止 = now + 超时配置。
-    async fn resolve_hall_plan(&self, ctx: &RequestContext) -> Result<HallPlan> {
-        if ctx.shop_id_or_zero() <= 0 {
-            return Err(Error::biz(
-                SERVICE_DATA_ERROR,
-                MSG_CROSS_NEED_SHOP_SCOPE.to_string(),
-            ));
-        }
-        let (enabled, platform_rate, proxy_rate, fulfill_rate) =
-            self.cross_split_config().await?;
-        if !enabled {
-            return Err(Error::biz(
-                SERVICE_DATA_ERROR,
-                MSG_HALL_NOT_ENABLED.to_string(),
-            ));
-        }
-        let hall_svc = crate::trade::proxy_hall::ProxyHallService::new(self.repos.clone());
-        let cfg = hall_svc.hall_config().await?;
-        if !cfg.enabled {
-            return Err(Error::biz(
-                SERVICE_DATA_ERROR,
-                MSG_HALL_NOT_ENABLED.to_string(),
-            ));
-        }
-        let now = nextrade_common::utils::now_seconds() as i32;
-        Ok(HallPlan {
-            platform_rate,
-            proxy_rate,
-            fulfill_rate,
-            deadline: now + (cfg.timeout_minutes * 60) as i32,
-        })
     }
 
     /// 逐行解析履约价：门店 SKU 价 → 门店商品价 → 基础 SKU 价 → 基础商品价。
@@ -1163,29 +1111,9 @@ impl ProxyShoppingOrderCheckService {
         param.shop_id = Some(ctx.shop_id_or_zero());
         self.apply_admin_settings(&mut param, ctx).await?;
 
-        // 接单大厅（二期，我方新增）：fulfillMode=1 时履约店不在下单
-        // 时确定，订单提交后进待接单池。与直选履约店互斥；大厅计价
-        // 按下单店口径（无履约价覆盖、改价不禁，见 proxy_hall 模块头）。
-        let hall_mode = param.fulfill_mode == Some(1);
-        if hall_mode && param.fulfill_shop_id.is_some_and(|id| id > 0) {
-            return Err(Error::biz(
-                SERVICE_DATA_ERROR,
-                MSG_HALL_MODE_CONFLICT.to_string(),
-            ));
-        }
-        let hall_plan = if hall_mode {
-            Some(self.resolve_hall_plan(ctx).await?)
-        } else {
-            None
-        };
-
         // 跨店履约（我方新增）：解析履约店与履约价；跨店单禁止改价
         // （价格以履约门店为准），携带任何改价参数直接拒绝。
-        let cross_mode = if hall_mode {
-            None
-        } else {
-            self.resolve_cross_mode(&param, ctx, user_id).await?
-        };
+        let cross_mode = self.resolve_cross_mode(&param, ctx, user_id).await?;
         if cross_mode.is_some() {
             let has_change_price = param
                 .change_price_value
@@ -1278,6 +1206,11 @@ impl ProxyShoppingOrderCheckService {
             // 预约接线字段补齐（论坛帖 497863+377834）：代客下单不支持预约商品（预约商品须买家自选时段），补 None 保持字面构造完整。
             product_reservation_time_id: None,
             reservation_date: None,
+            // 下单幂等键（我方新增）：透传代客下单页下发的键。重复
+            // 提交命中时 create 返回原单 VO，后续订单来源补丁为同值
+            // 覆盖、跨店分成行 insert 有 ON CONFLICT DO NOTHING，
+            // 均可安全重入。
+            idempotency_key: param.idempotency_key.clone(),
         };
 
         let product_svc = crate::catalog::product::ProductService::new(self.repos.clone(), None);
@@ -1317,27 +1250,6 @@ impl ProxyShoppingOrderCheckService {
                     now,
                 )
                 .await?;
-        }
-
-        // 大厅单落 ext（履约店待定、hall_status=1 待接单、比例快照、
-        // 接单截止）；写失败必须报错（同跨店口径）。落行后通知体系
-        // 内候选门店（best-effort，不阻断下单结果）。
-        if let Some(plan) = &hall_plan {
-            let now = nextrade_common::utils::now_seconds() as i32;
-            self.repo()
-                .insert_proxy_order_ext_hall(
-                    vo.order_id,
-                    ctx.shop_id_or_zero(),
-                    plan.platform_rate,
-                    plan.proxy_rate,
-                    plan.fulfill_rate,
-                    plan.deadline,
-                    now,
-                )
-                .await?;
-            crate::trade::proxy_hall::ProxyHallService::new(self.repos.clone())
-                .notify_new_pool_order(vo.order_id, ctx.shop_id_or_zero())
-                .await;
         }
 
         let log_svc = crate::identity::admin_log::AdminLogService::new(self.repos.clone());
