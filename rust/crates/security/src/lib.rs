@@ -13,5 +13,7 @@ pub mod ws;
 pub mod ws_registry;
 
 pub use jwt::{Claims, JwtService};
-pub use password::{hash_password, verify_password};
+pub use password::{
+    hash_password, validate_password_not_reused, validate_password_strength, verify_password,
+};
 pub use web::{ok, ApiResult, AppError, AuthUser};

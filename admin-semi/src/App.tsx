@@ -75,6 +75,7 @@ const AdCampaignManage = lazy(() => import('./pages/AdCampaignManage'));
 const AdSettingsPage = lazy(() => import('./pages/AdSettings'));
 const AdPromotionManage = lazy(() => import('./pages/selfService/AdPromotion'));
 const BuyStyleSettings = lazy(() => import('./pages/BuyStyleSettings'));
+const AccountSecuritySettings = lazy(() => import('./pages/AccountSecuritySettings'));
 const SystemModeSettings = lazy(() => import('./pages/SystemModeSettings'));
 const FederationSettings = lazy(() => import('./pages/FederationSettings'));
 const OrgOverview = lazy(() => import('./pages/OrgOverview'));
@@ -1214,6 +1215,7 @@ export default function App() {
       {page === 'depositSettingManage' && <DepositSettings />}
       {page === 'priceDisplaySettings' && <PriceDisplaySettings />}
       {page === 'buyStyleSettings' && <BuyStyleSettings />}
+      {page === 'accountSecuritySettings' && <AccountSecuritySettings />}
       {page === 'systemMode' && <SystemModeSettings />}
       {page === 'federationSettings' && <FederationSettings />}
       {page === 'orgOverview' && <OrgOverview />}

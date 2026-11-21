@@ -785,6 +785,48 @@ impl UserManageService {
         Ok(())
     }
 
+    // ————————————————————— 登录安全（我方新增） —————————————————————
+
+    /// 会员登录锁定状态（账号安全批 2026-11-21）：供管理端会员详情
+    /// 「登录安全」区块展示。状态存缓存（失败计数 / 锁定标记），附带
+    /// 当前生效设置便于管理员对照。
+    ///
+    /// # Errors
+    /// 缓存读取失败 → `Error::Cache`。
+    pub async fn member_login_lock_status(&self, user_id: i32) -> Result<serde_json::Value> {
+        let settings = crate::system::account_security::load_settings(&self.repos).await;
+        let cache = nextrade_infrastructure::cache::get_cache();
+        let status = crate::system::account_security::lock_status(
+            cache,
+            crate::system::account_security::SCOPE_MEMBER,
+            user_id,
+        )
+        .await?;
+        Ok(serde_json::json!({
+            "enabled": settings.enabled,
+            "maxFailures": settings.max_failures,
+            "lockMinutes": settings.lock_minutes,
+            "locked": status.locked,
+            "remainingSeconds": status.remaining_seconds,
+            "failCount": status.fail_count,
+        }))
+    }
+
+    /// 手动解除会员登录锁定（同时清失败计数）。锁定到期本会自动解除，
+    /// 此入口供客服核实身份后立即放行。
+    ///
+    /// # Errors
+    /// 缓存删除失败 → `Error::Cache`。
+    pub async fn unlock_member_login(&self, user_id: i32) -> Result<()> {
+        let cache = nextrade_infrastructure::cache::get_cache();
+        crate::system::account_security::clear_account_state(
+            cache,
+            crate::system::account_security::SCOPE_MEMBER,
+            user_id,
+        )
+        .await
+    }
+
     // ————————————————————————— 搜索 —————————————————————————
 
     /// 会员搜索（对应 Java `UserController.searchByMobile` →

@@ -19,6 +19,8 @@
 //! | `GET  /user/user/userFundDetail` | `UserController.userFundDetail` | `userManage` |
 //! | `POST /user/user/logout` | `UserController.logout` | 契约标记 anonymous |
 //! | `POST /user/user/setAdminNote` | `UserController.setAdminNote` | `userModifyManage` |
+//! | `GET  /user/user/loginLockStatus` | **本平台新增**（账号安全：登录锁定状态） | `userManage` |
+//! | `POST /user/user/unlockLogin` | **本平台新增**（账号安全：手动解除登录锁定） | `userModifyManage` |
 //!
 //! > **路径说明**：控制器前缀 `/adminapi/user/user` 与包名同名，故出现
 //! > `user/user` 重复一段，与 Java `@RequestMapping` 组合结果**逐字符一致**，
@@ -95,6 +97,8 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/user/user/userFundDetail", get(user_fund_detail))
         .route("/user/user/logout", post(user_logout))
         .route("/user/user/setAdminNote", post(user_set_admin_note))
+        .route("/user/user/loginLockStatus", get(user_login_lock_status))
+        .route("/user/user/unlockLogin", post(user_unlock_login))
 }
 
 /// 本域已实现路由（用于 `/openapi/coverage` 覆盖率统计）。
@@ -160,6 +164,16 @@ pub fn implemented_routes() -> Vec<nextrade_openapi::RouteDoc> {
             "/adminapi/user/user/setAdminNote",
             "UserController.setAdminNote",
         ),
+        (
+            "GET",
+            "/adminapi/user/user/loginLockStatus",
+            "UserController.loginLockStatus (本平台新增)",
+        ),
+        (
+            "POST",
+            "/adminapi/user/user/unlockLogin",
+            "UserController.unlockLogin (本平台新增)",
+        ),
     ]
     .iter()
     .map(|(m, p, j)| nextrade_openapi::RouteDoc::new(m, p, j))
@@ -208,6 +222,35 @@ async fn user_detail(
         .ensure_shop_member(id, auth.scoped_shop_id())
         .await?;
     ok(state.member.user_manage.detail(id).await?)
+}
+
+/// `GET /adminapi/user/user/loginLockStatus?id=`：会员登录锁定状态
+/// （本平台新增，账号安全批 2026-11-21）：是否锁定、剩余秒数、当前
+/// 窗口内失败次数与生效设置，供会员详情「登录安全」区块展示。
+async fn user_login_lock_status(
+    State(state): State<AdminState>,
+    Query(q): Query<IdQuery>,
+) -> ApiResult<serde_json::Value> {
+    let id = q
+        .id
+        .ok_or_else(|| nextrade_core::Error::Validation("会员ID不能为空".into()))?;
+    ok(state.member.user_manage.member_login_lock_status(id).await?)
+}
+
+/// `POST /adminapi/user/user/unlockLogin`：手动解除会员登录锁定
+/// （本平台新增，账号安全批 2026-11-21）：清锁定标记与失败计数，
+/// 仅平台账号可执行（会员写操作口径）。
+async fn user_unlock_login(
+    State(state): State<AdminState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(param): Json<IdQuery>,
+) -> ApiResult<&'static str> {
+    require_platform(&auth)?;
+    let id = param
+        .id
+        .ok_or_else(|| nextrade_core::Error::Validation("会员ID不能为空".into()))?;
+    state.member.user_manage.unlock_member_login(id).await?;
+    ok("已解除锁定")
 }
 
 // ————————————————————————— 新增 / 更新 / 删除 —————————————————————————

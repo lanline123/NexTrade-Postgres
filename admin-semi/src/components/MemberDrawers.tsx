@@ -37,6 +37,8 @@ export function MemberDetailDrawer({
   const { t } = useI18n();
   const [detail, setDetail] = useState<Record<string, any> | null>(null);
   const [tags, setTags] = useState<Array<Record<string, any>>>([]);
+  const [lockStatus, setLockStatus] = useState<Record<string, any> | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
 
   useEffect(() => {
     if (!visible || !member) return;
@@ -47,10 +49,34 @@ export function MemberDetailDrawer({
     apiGet<Array<Record<string, any>>>('/user/userMemberTag/listByUser', { userId: member.userId })
       .then((result) => alive && setTags(result || []))
       .catch(() => undefined);
+    apiGet<Record<string, any>>('/user/user/loginLockStatus', { id: member.userId })
+      .then((result) => alive && setLockStatus(result))
+      .catch(() => alive && setLockStatus(null));
     return () => {
       alive = false;
     };
   }, [visible, member]);
+
+  const refreshLockStatus = () => {
+    if (!member) return;
+    apiGet<Record<string, any>>('/user/user/loginLockStatus', { id: member.userId })
+      .then((result) => setLockStatus(result))
+      .catch(() => setLockStatus(null));
+  };
+
+  const unlockLogin = async () => {
+    if (!member) return;
+    setUnlocking(true);
+    try {
+      await apiPost('/user/user/unlockLogin', { id: member.userId });
+      Toast.success(t('已解除登录锁定'));
+      refreshLockStatus();
+    } catch {
+      Toast.error(t('解除失败，请稍后重试'));
+    } finally {
+      setUnlocking(false);
+    }
+  };
 
   const data: Record<string, any> = detail || (member as Record<string, any>) || {};
   const address = data.userAddress || {};
@@ -134,6 +160,34 @@ export function MemberDetailDrawer({
           { key: t('状态'), value: data.status === 1 ? t('启用') : t('禁用') },
         ]}
       />
+
+      <div className="detail-section-title">{t('登录安全')}</div>
+      {lockStatus ? (
+        <Space align="center" spacing={12} style={{ marginBottom: 16 }}>
+          {lockStatus.locked ? (
+            <>
+              <Tag color="red">{t('登录已锁定')}</Tag>
+              <Text>
+                {`${t('约')} ${Math.max(1, Math.ceil(Number(lockStatus.remainingSeconds || 0) / 60))} ${t('分钟后自动解除')}`}
+              </Text>
+              <Button size="small" loading={unlocking} onClick={unlockLogin}>
+                {t('手动解除锁定')}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Tag color="green">{t('登录正常')}</Tag>
+              <Text type="tertiary">
+                {lockStatus.enabled
+                  ? `${t('当前窗口内失败')} ${Number(lockStatus.failCount || 0)} / ${Number(lockStatus.maxFailures || 5)} ${t('次')}`
+                  : t('登录失败锁定未启用')}
+              </Text>
+            </>
+          )}
+        </Space>
+      ) : (
+        <Text type="tertiary">{t('暂无数据')}</Text>
+      )}
 
       <div className="detail-section-title">{t('资金信息')}</div>
       <Descriptions

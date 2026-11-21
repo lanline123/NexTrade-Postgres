@@ -64,6 +64,7 @@ use nextrade_core::types::PageResult;
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::repo::member::user_center::{ProductFlag, UserCenterRepository};
 use nextrade_infrastructure::db::Repositories;
+use nextrade_security::{hash_password, validate_password_not_reused, validate_password_strength};
 
 /// 是否为 Pro 版本（Java `nextrade.is-pro`，本项目 `application.yaml` = 1）。
 ///
@@ -958,6 +959,13 @@ impl UserCenterService {
     }
 
     /// 校验手机验证码并改密码（Java `checkModifyPasswordMobileCode`）。
+    ///
+    /// 审计修正（账号安全批 2026-11-21）：此前实现只校验验证码、**从未
+    /// 落库新密码**，前端（H5 / PC 安全页）却按「修改成功」提示并退出
+    /// 登录——DTO 的 `password` 字段被整体忽略。本次补齐落库：验证码
+    /// 通过且 DTO 带新密码时，依次做服务端强度校验、禁复用校验后更新
+    /// 密码并一次性消费验证码；DTO 未带密码时保持原「仅校验」行为
+    /// （兼容只做校验的调用方）。
     pub async fn check_modify_password_mobile_code(
         &self,
         user_id: i32,
@@ -967,9 +975,20 @@ impl UserCenterService {
         let mobile = u.mobile;
         let code = require_non_blank(dto.code.as_deref(), "验证码不能为空")?;
         let key = format!("sms:code:modify_password:{mobile}");
-        let cached: Option<String> = nextrade_infrastructure::cache::get_cache().get_json(&key).await?;
+        let cache = nextrade_infrastructure::cache::get_cache();
+        let cached: Option<String> = cache.get_json(&key).await?;
         if cached.as_deref() != Some(code.as_str()) {
             return Err(Error::biz(1001, "验证码错误或已过期"));
+        }
+        if let Some(new_password) = dto.password.as_deref().filter(|p| !p.is_empty()) {
+            validate_password_strength(new_password)?;
+            validate_password_not_reused(new_password, u.password.as_str())?;
+            let hash = hash_password(new_password)?;
+            if !self.repos.member.login.update_password(user_id, &hash).await? {
+                return Err(Error::biz(1001, "密码修改失败"));
+            }
+            // 改密成功后验证码一次性消费，防窗口内重放。
+            let _ = cache.del(&key).await;
         }
         Ok(())
     }

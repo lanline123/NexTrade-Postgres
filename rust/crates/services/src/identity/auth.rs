@@ -9,10 +9,14 @@ use nextrade_core::models::{LoginDTO, LoginVO, MobileLoginDTO};
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::cache::CacheService;
 use nextrade_infrastructure::db::Repositories;
-use nextrade_security::{hash_password, verify_password, JwtService};
+use nextrade_security::{
+    hash_password, validate_password_not_reused, validate_password_strength, verify_password,
+    JwtService,
+};
 use validator::Validate;
 
 use crate::identity::permission::is_shop_family_type;
+use crate::system::account_security;
 
 pub struct AuthService {
     repos: Arc<Repositories>,
@@ -59,6 +63,22 @@ impl AuthService {
             return Err(Error::biz(403, "账号已被停用"));
         }
 
+        // 账号安全（我方新增）：密码登录失败计数与临时锁定，作用域 admin
+        // 覆盖平台 / 商家 / 供应商全部后台账号（共用本认证链）。锁定中
+        // 直接拒绝（即使密码正确）；与既有滑块验证码计数并行不悖（后者
+        // 仍按进程内计数触发验证码）。缓存故障放行，密码校验本身仍在。
+        let sec = account_security::load_settings(&self.repos).await;
+        let cache = self
+            .cache
+            .clone()
+            .unwrap_or_else(|| nextrade_infrastructure::cache::get_cache().clone());
+        if let Some(remaining) =
+            account_security::guard_locked(&cache, account_security::SCOPE_ADMIN, user.admin_id, &sec)
+                .await
+        {
+            return Err(account_security::locked_error(remaining));
+        }
+
         let hash = user.password.as_str();
         if !verify_password(&dto.password, hash)? {
             let count = crate::system::captcha::increment_login_error(&dto.username);
@@ -68,9 +88,20 @@ impl AuthService {
                 client_ip,
                 count
             );
+            if let Some(remaining) = account_security::note_failure(
+                &cache,
+                account_security::SCOPE_ADMIN,
+                user.admin_id,
+                &sec,
+            )
+            .await
+            {
+                return Err(account_security::locked_error(remaining));
+            }
             return Err(Error::biz(400, "用户名或密码错误"));
         }
         crate::system::captcha::reset_login_error(&dto.username);
+        account_security::note_success(&cache, account_security::SCOPE_ADMIN, user.admin_id).await;
 
         self.issue_for_user(&user, client_ip).await
     }
@@ -288,9 +319,9 @@ impl AuthService {
         old_password: &str,
         new_password: &str,
     ) -> Result<()> {
-        if new_password.len() < 6 {
-            return Err(Error::Validation("新密码长度不能少于6位".into()));
-        }
+        // 服务端密码强度（账号安全批，我方新增）：替代原「长度 ≥ 6」
+        // 弱校验，与前台既有规则同规。
+        validate_password_strength(new_password)?;
         let user = self
             .repos
             .identity
@@ -302,6 +333,8 @@ impl AuthService {
         if !verify_password(old_password, hash)? {
             return Err(Error::biz(400, "原密码错误"));
         }
+        // 禁复用：新密码不得与当前密码相同（账号安全批，我方新增）。
+        validate_password_not_reused(new_password, hash)?;
         let new_hash = hash_password(new_password)?;
         self.repos
             .identity

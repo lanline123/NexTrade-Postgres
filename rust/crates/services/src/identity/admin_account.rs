@@ -65,7 +65,9 @@ use nextrade_core::models::identity::admin_account::{
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::Repositories;
-use nextrade_security::hash_password;
+use nextrade_security::{
+    hash_password, validate_password_not_reused, validate_password_strength,
+};
 
 /// Java `new Page<>()` 的默认分页尺寸（`Page` 无参构造：current=1, size=10）。
 const JAVA_EMPTY_PAGE_SIZE: u64 = 10;
@@ -467,6 +469,9 @@ impl AdminAccountService {
         if Some(password) != p.pwd_confirm.as_deref() {
             return Err(Error::biz_msg(MSG_PASSWORD_MISMATCH));
         }
+        // 服务端密码强度 + 禁复用（账号安全批 2026-11-21，我方新增）。
+        validate_password_strength(password)?;
+        validate_password_not_reused(password, admin.password.as_str())?;
         let hash = hash_password(password)?;
         repo.update_admin_password(admin.admin_id, &hash).await?;
         Ok(())

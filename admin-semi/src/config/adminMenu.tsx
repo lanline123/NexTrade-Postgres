@@ -1444,6 +1444,10 @@ export const navGroups: NavGroup[] = [
             "label": "购买按钮样式"
           },
           {
+            "key": "accountSecuritySettings",
+            "label": "账号安全"
+          },
+          {
             "key": "fontSettings",
             "label": "网站字体"
           },
@@ -1931,6 +1935,7 @@ export const pageTitles: Record<string, string> = {
   "personalizedManage": "个性化设置",
   "priceDisplaySettings": "价格显示",
   "buyStyleSettings": "购买按钮样式",
+  "accountSecuritySettings": "账号安全",
   "fontSettings": "网站字体",
   "systemMode": "系统模式",
   "orgOverview": "组织概览",

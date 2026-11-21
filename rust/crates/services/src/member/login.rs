@@ -90,7 +90,9 @@ use nextrade_core::{Error, Result};
 use nextrade_infrastructure::cache::CacheService;
 use nextrade_infrastructure::db::repo::member::login::LoginRepository;
 use nextrade_infrastructure::db::Repositories;
-use nextrade_security::{hash_password, JwtService};
+use nextrade_security::{
+    hash_password, validate_password_not_reused, validate_password_strength, JwtService,
+};
 
 use super::wechat_mp;
 
@@ -318,6 +320,12 @@ impl LoginService {
         if self.repo().user_status(user_id).await? != Some(USER_STATUS_OK) {
             return Err(Error::biz(SERVICE_DATA_ERROR, ACCOUNT_CANNOT_RESET));
         }
+        // 账号安全（我方新增）：服务端强度 + 禁复用校验，放在消费令牌
+        // 之前——校验不过不烧令牌，用户修正密码后可继续用同一令牌提交。
+        validate_password_strength(password)?;
+        if let Some(u) = self.repos.member.user.find_by_id(user_id).await? {
+            validate_password_not_reused(password, u.password.as_str())?;
+        }
         // 先一次性消费再写库（Java 注释：写库失败也不恢复凭据）
         cache.del(&key).await?;
         let hash = hash_password(password)?;
@@ -517,6 +525,9 @@ impl LoginService {
                     .nickname
                     .clone()
                     .unwrap_or_else(|| auto_nickname(None, &username));
+                // 仅建号分支真正落密码：服务端强度校验（账号安全批，
+                // 我方新增）；已有账号合并路径不写密码，不在此校验。
+                validate_password_strength(password)?;
                 let hash = hash_password(password)?;
                 let user_id = self
                     .repo()

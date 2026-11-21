@@ -380,6 +380,30 @@ impl ConfigBasicService {
             .await
     }
 
+    /// 读取账号安全设置（生效值：已存配置清洗后，或内置默认
+    /// ——默认开启、5 次 / 15 分钟，口径见 `account_security` 模块）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn get_account_security(&self) -> Result<Value> {
+        let stored = self
+            .repo()
+            .find_by_code(super::account_security::ACCOUNT_SECURITY_CODE)
+            .await?;
+        Ok(super::account_security::effective_account_security(stored.as_deref()))
+    }
+
+    /// 保存账号安全设置（清洗后整块 JSON 落 config 表 `accountSecurity` 行）。
+    ///
+    /// # Errors
+    /// - 仓储层失败 ⇒ `Error::Database`
+    pub async fn save_account_security(&self, payload: &Value) -> Result<()> {
+        let clean = super::account_security::sanitize_account_security(payload);
+        self.repo()
+            .save_code(super::account_security::ACCOUNT_SECURITY_CODE, &clean.to_string())
+            .await
+    }
+
     /// 读取运营代码与验证配置（生效值：已存配置清洗后，或内置默认
     /// ——全部为空串 = 前台零注入）。
     ///

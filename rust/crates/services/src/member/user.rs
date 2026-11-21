@@ -7,7 +7,9 @@ use std::sync::Arc;
 use nextrade_core::entities::User;
 use nextrade_core::{Error, Result};
 use nextrade_infrastructure::db::Repositories;
-use nextrade_security::{hash_password, verify_password};
+use nextrade_security::{hash_password, validate_password_strength, verify_password};
+
+use crate::system::account_security;
 
 pub struct UserService {
     repos: Arc<Repositories>,
@@ -28,9 +30,9 @@ impl UserService {
         if mobile.len() < 6 {
             return Err(Error::Validation("手机号格式错误".into()));
         }
-        if password.len() < 6 {
-            return Err(Error::Validation("密码长度不能少于6位".into()));
-        }
+        // 服务端密码强度（账号安全批，我方新增）：与前台既有规则同规，
+        // 替代原「长度 ≥ 6」弱校验；仅约束新设密码，存量不受影响。
+        validate_password_strength(password)?;
         if self.repos.member.user.find_by_mobile(mobile).await?.is_some() {
             return Err(Error::biz(400, "该手机号已注册"));
         }
@@ -97,11 +99,33 @@ impl UserService {
         if !user.can_login() {
             return Err(Error::biz(403, "账号已被禁用"));
         }
+        // 账号安全（我方新增）：密码登录失败计数与临时锁定。锁定中直接
+        // 拒绝（即使密码正确）；失败达阈值本次即返回锁定提示；成功清零。
+        // 缓存故障一律放行（密码校验本身仍在），不因缓存不可用锁全站。
+        let sec = account_security::load_settings(&self.repos).await;
+        let cache = nextrade_infrastructure::cache::get_cache();
+        if let Some(remaining) =
+            account_security::guard_locked(cache, account_security::SCOPE_MEMBER, user.user_id, &sec)
+                .await
+        {
+            return Err(account_security::locked_error(remaining));
+        }
         // password 为 NOT NULL 裸 String，无需 Option 解包
         let hash = user.password.as_str();
         if !verify_password(password, hash)? {
+            if let Some(remaining) = account_security::note_failure(
+                cache,
+                account_security::SCOPE_MEMBER,
+                user.user_id,
+                &sec,
+            )
+            .await
+            {
+                return Err(account_security::locked_error(remaining));
+            }
             return Err(Error::biz(400, "账号或密码错误"));
         }
+        account_security::note_success(cache, account_security::SCOPE_MEMBER, user.user_id).await;
         Ok(user)
     }
 
