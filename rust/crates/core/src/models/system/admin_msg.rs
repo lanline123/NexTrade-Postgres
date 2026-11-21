@@ -79,7 +79,7 @@ pub const ANNOUNCE_MSG_TYPE: i32 = 59;
 
 /// 全部叶子消息类型：`(msgType, name, 父分类 catId, 是否店铺可见, 是否供应商可见)`，
 /// 逐条来自 `AdminMsgTypeEnum`（不含历史兼容 15/16），末条 59 为我方新增「平台公告」。
-pub const MSG_TYPES: [(i32, &str, i32, bool, bool); 32] = [
+pub const MSG_TYPES: [(i32, &str, i32, bool, bool); 33] = [
     (11, "新订单", 1, true, true),
     (12, "已付款订单", 1, true, true),
     (13, "订单完成", 1, true, true),

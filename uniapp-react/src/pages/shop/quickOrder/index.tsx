@@ -351,7 +351,7 @@ export default function QuickOrder() {
                         </Text>
                     ) : null}
                     <View className="quick-order-product-bottom">
-                        <FormatPrice priceData={product.productPrice} fontStyle={{ color: "#e64340", fontWeight: 600 }} />
+                        <FormatPrice priceData={product.productPrice} fontStyle={{ color: "#e64340", fontWeight: "600" }} />
                         {soldOut ? (
                             <Text className="quick-order-soldout">{t("已售罄")}</Text>
                         ) : showSkuButton ? (
@@ -429,7 +429,7 @@ export default function QuickOrder() {
                             {t("已选")} {totalCount} {t("件")}
                         </View>
                         <View className="quick-order-cart-total">
-                            <FormatPrice priceData={totalAmount} fontStyle={{ color: "#e64340", fontWeight: 600 }} />
+                            <FormatPrice priceData={totalAmount} fontStyle={{ color: "#e64340", fontWeight: "600" }} />
                         </View>
                     </View>
                     <View className={`quick-order-submit ${totalCount === 0 || submitting ? "disabled" : ""}`} onClick={() => void handleSubmit()}>
@@ -477,7 +477,7 @@ export default function QuickOrder() {
                             </View>
                             <View className="quick-order-drawer-foot">
                                 <View className="quick-order-cart-total">
-                                    <FormatPrice priceData={totalAmount} fontStyle={{ color: "#e64340", fontWeight: 600 }} />
+                                    <FormatPrice priceData={totalAmount} fontStyle={{ color: "#e64340", fontWeight: "600" }} />
                                 </View>
                                 <View
                                     className="quick-order-drawer-confirm"

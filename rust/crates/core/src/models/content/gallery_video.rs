@@ -520,6 +520,8 @@ mod tests {
             parent_id: 0,
             name: "A".into(),
             sort: 1,
+            shop_id: 0,
+            is_shared: 0,
             children: Vec::new(),
         };
         vo.children = vec![GalleryVideoListVO {
@@ -527,6 +529,8 @@ mod tests {
             parent_id: 1,
             name: "B".into(),
             sort: 1,
+            shop_id: 0,
+            is_shared: 0,
             children: Vec::new(),
         }];
         let json = serde_json::to_value(&vo).unwrap();
