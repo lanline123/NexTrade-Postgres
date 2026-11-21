@@ -198,7 +198,7 @@ impl ProductFeedService {
     pub async fn update(&self, dto: &FeedKeyUpdateDTO) -> Result<()> {
         let existing = self.load_key(dto.feed_key_id).await?;
         let now = self.now();
-        let scope_mode = dto.scope_mode.unwrap_or(existing.scope_mode);
+        let scope_mode = dto.scope_mode.unwrap_or(i32::from(existing.scope_mode));
         let rule_type = dto
             .price_rule_type
             .as_deref()
@@ -223,11 +223,11 @@ impl ProductFeedService {
             .update_key(
                 dto.feed_key_id,
                 &name,
-                dto.status.unwrap_or(existing.status),
+                dto.status.unwrap_or(i32::from(existing.status)),
                 scope_mode,
                 dto.include_inquiry
                     .map(i32::from)
-                    .unwrap_or(existing.include_inquiry),
+                    .unwrap_or(i32::from(existing.include_inquiry)),
                 &rule_type,
                 rule_value,
                 expire_time,
@@ -407,7 +407,7 @@ impl ProductFeedService {
     pub async fn meta(&self, key: &FeedKey) -> Result<FeedMetaVO> {
         Ok(FeedMetaVO {
             key_name: key.key_name.clone(),
-            scope_mode: key.scope_mode,
+            scope_mode: i32::from(key.scope_mode),
             include_inquiry: key.include_inquiry == 1,
             product_count: self.count_visible(key).await?,
             server_time: utils::now_seconds(),
@@ -423,12 +423,12 @@ impl ProductFeedService {
     /// 数据库错误 → `Error::Database`。
     pub async fn audience_for_key(&self, key: &FeedKey) -> Result<FeedAudience> {
         let mut aud = FeedAudience {
-            scope_mode: key.scope_mode,
+            scope_mode: i32::from(key.scope_mode),
             include_inquiry: key.include_inquiry == 1,
             default_rule: self.default_rule(key),
             ..Default::default()
         };
-        match key.scope_mode {
+        match i32::from(key.scope_mode) {
             SCOPE_PRODUCTS => {
                 aud.product_ids = Some(
                     self.repo()
@@ -723,7 +723,7 @@ impl ProductFeedService {
             include_inquiry: key.include_inquiry == 1,
             ..Default::default()
         };
-        match key.scope_mode {
+        match i32::from(key.scope_mode) {
             SCOPE_PRODUCTS => {
                 filter.product_ids =
                     Some(self.repo().list_key_product_ids(key.feed_key_id).await?);
@@ -888,8 +888,8 @@ fn key_to_vo(key: &FeedKey, product_count: i64) -> FeedKeyVO {
         feed_key_id: key.feed_key_id,
         key_name: key.key_name.clone(),
         access_key: key.access_key.clone(),
-        status: key.status,
-        scope_mode: key.scope_mode,
+        status: i32::from(key.status),
+        scope_mode: i32::from(key.scope_mode),
         include_inquiry: key.include_inquiry == 1,
         price_rule_type: key.price_rule_type.clone(),
         price_rule_value: key.price_rule_value,

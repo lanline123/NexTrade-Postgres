@@ -133,7 +133,7 @@ impl FederationService {
 
     /// 凭证 → VO（范围 id 列表按需回填；product_count 入站钥实时算，出站钥 -1）。
     async fn credential_vo(&self, cred: &HubCredential, _with_ids: bool) -> Result<HubCredentialVO> {
-        let (shop_ids, product_count) = if cred.direction == DIRECTION_INBOUND {
+        let (shop_ids, product_count) = if i32::from(cred.direction) == DIRECTION_INBOUND {
             let shops = if cred.scope_all_shops == 1 {
                 Vec::new()
             } else {
@@ -148,13 +148,13 @@ impl FederationService {
         };
         Ok(HubCredentialVO {
             credential_id: cred.credential_id,
-            conn_type: cred.conn_type,
+            conn_type: i32::from(cred.conn_type),
             link_id: cred.link_id,
-            direction: cred.direction,
+            direction: i32::from(cred.direction),
             peer_base_url: cred.peer_base_url.clone(),
             cred_name: cred.cred_name.clone(),
             access_key: cred.access_key.clone(),
-            secret_masked: if cred.direction == DIRECTION_OUTBOUND {
+            secret_masked: if i32::from(cred.direction) == DIRECTION_OUTBOUND {
                 mask_secret(&self.decrypt_secret(&cred.secret_enc).unwrap_or_default())
             } else {
                 String::new()
@@ -166,11 +166,11 @@ impl FederationService {
                 .collect(),
             scope_all_shops: cred.scope_all_shops == 1,
             shop_ids,
-            scope_mode: cred.scope_mode,
+            scope_mode: i32::from(cred.scope_mode),
             include_inquiry: cred.include_inquiry == 1,
             price_rule_type: cred.price_rule_type.clone(),
             price_rule_value: cred.price_rule_value,
-            status: cred.status,
+            status: i32::from(cred.status),
             expire_time: cred.expire_time,
             rate_limit_per_min: cred.rate_limit_per_min,
             daily_quota: cred.daily_quota,
@@ -434,7 +434,7 @@ impl FederationService {
             .unwrap_or(&existing.cred_name)
             .to_string();
         let scopes = dto.scopes.unwrap_or(existing.scopes);
-        let scope_mode = dto.scope_mode.unwrap_or(existing.scope_mode);
+        let scope_mode = dto.scope_mode.unwrap_or(i32::from(existing.scope_mode));
         let rule_type = dto
             .price_rule_type
             .as_deref()
@@ -456,7 +456,7 @@ impl FederationService {
             expire_time,
             now,
         )?;
-        let peer_base_url = if existing.direction == DIRECTION_OUTBOUND {
+        let peer_base_url = if i32::from(existing.direction) == DIRECTION_OUTBOUND {
             match dto.peer_base_url.as_deref().map(str::trim) {
                 Some(url) if !url.is_empty() => {
                     validate_base_url(url).map_err(Error::Validation)?;
@@ -477,7 +477,7 @@ impl FederationService {
                 i32::from(dto.include_inquiry.unwrap_or(existing.include_inquiry == 1)),
                 &rule_type,
                 rule_value,
-                dto.status.unwrap_or(existing.status),
+                dto.status.unwrap_or(i32::from(existing.status)),
                 expire_time,
                 dto.rate_limit_per_min
                     .unwrap_or(existing.rate_limit_per_min),
@@ -490,7 +490,7 @@ impl FederationService {
             )
             .await?;
         // 出站钥换钥：填了新 secret/accessKey 才更新。
-        if existing.direction == DIRECTION_OUTBOUND {
+        if i32::from(existing.direction) == DIRECTION_OUTBOUND {
             if let Some(secret) = dto
                 .peer_secret
                 .as_deref()
@@ -524,7 +524,7 @@ impl FederationService {
     ) -> Result<HubCredentialSecretVO> {
         self.gate().await?;
         let cred = self.load_credential(credential_id).await?;
-        if cred.direction != DIRECTION_INBOUND {
+        if i32::from(cred.direction) != DIRECTION_INBOUND {
             return Err(Error::Validation(
                 "出站凭证的 secret 由对端签发，不能在此重置".to_string(),
             ));
@@ -605,7 +605,7 @@ impl FederationService {
                 "",
                 scopes,
                 1,
-                key.scope_mode,
+                i32::from(key.scope_mode),
                 i32::from(key.include_inquiry),
                 &key.price_rule_type,
                 key.price_rule_value,
@@ -651,7 +651,7 @@ impl FederationService {
         cred: &HubCredential,
     ) -> Result<FeedAudience> {
         let repo = self.repo();
-        let product_ids = if cred.scope_mode == SCOPE_PRODUCTS {
+        let product_ids = if i32::from(cred.scope_mode) == SCOPE_PRODUCTS {
             Some(
                 repo.list_id_list("hub_credential_product", "product_id", cred.credential_id)
                     .await?
@@ -661,7 +661,7 @@ impl FederationService {
         } else {
             None
         };
-        let category_ids = if cred.scope_mode == SCOPE_CATEGORIES {
+        let category_ids = if i32::from(cred.scope_mode) == SCOPE_CATEGORIES {
             let selected = repo
                 .list_id_list("hub_credential_category", "category_id", cred.credential_id)
                 .await?;
@@ -699,7 +699,7 @@ impl FederationService {
             })
             .collect::<HashMap<i32, PriceRule>>();
         Ok(FeedAudience {
-            scope_mode: cred.scope_mode,
+            scope_mode: i32::from(cred.scope_mode),
             include_inquiry: cred.include_inquiry == 1,
             product_ids,
             category_ids,
@@ -727,7 +727,7 @@ impl FederationService {
             .repo()
             .find_credential_by_access_key(access_key.trim())
             .await?
-            .filter(|c| c.direction == DIRECTION_INBOUND)
+            .filter(|c| i32::from(c.direction) == DIRECTION_INBOUND)
             .ok_or_else(|| Error::Unauthorized(MSG_HUB_UNAUTHORIZED.to_string()))?;
         let provided = utils::sha256_hex(secret.trim());
         if !constant_time_eq(provided.as_bytes(), cred.secret_hash.as_bytes()) {
@@ -741,7 +741,7 @@ impl FederationService {
             return Err(Error::Forbidden(MSG_HUB_EXPIRED.to_string()));
         }
         // 能力门：单向供货钥要求「开放供货」开；联邦钥要求「全联邦」开。
-        match cred.conn_type {
+        match i32::from(cred.conn_type) {
             CONN_SUPPLY_OUT => {
                 if !settings.capabilities.supply_out && !settings.capabilities.federation {
                     return Err(Error::Forbidden(MSG_FEDERATION_DISABLED.to_string()));
@@ -761,7 +761,7 @@ impl FederationService {
                 .find_link_by_id(cred.link_id)
                 .await?
                 .ok_or_else(|| Error::Forbidden(MSG_HUB_LINK_INACTIVE.to_string()))?;
-            if link.status != LINK_ACTIVE {
+            if i32::from(link.status) != LINK_ACTIVE {
                 return Err(Error::Forbidden(MSG_HUB_LINK_INACTIVE.to_string()));
             }
             Some(link)
@@ -848,7 +848,7 @@ impl FederationService {
                 &cred.access_key,
                 endpoint,
                 scope,
-                cred.direction,
+                i32::from(cred.direction),
                 http_status,
                 result_count,
                 client_ip,
@@ -994,7 +994,7 @@ impl FederationService {
             .find_pairing_by_hash(&hash)
             .await?
             .ok_or_else(|| Error::Forbidden(MSG_PAIRING_INVALID.to_string()))?;
-        match pairing.status {
+        match i32::from(pairing.status) {
             PAIRING_USED => return Err(Error::Forbidden(MSG_PAIRING_EXPIRED.to_string())),
             PAIRING_VOID => return Err(Error::Forbidden(MSG_PAIRING_FORBIDDEN.to_string())),
             _ => {}
@@ -1063,7 +1063,7 @@ impl FederationService {
         let link = self.load_claim_link(dto).await?;
         Ok(PairStatusVO {
             link_id: link.link_id,
-            status: link.status,
+            status: i32::from(link.status),
             reject_reason: link.reject_reason.clone(),
             approved_modules: link.approved_modules,
         })
@@ -1074,14 +1074,14 @@ impl FederationService {
         let settings = self.gate().await?;
         let link = self.load_claim_link(dto).await?;
         let now = self.now();
-        if link.status == LINK_ACTIVE && link.claim_expire_time != 0 && link.claim_expire_time <= now
+        if i32::from(link.status) == LINK_ACTIVE && link.claim_expire_time != 0 && link.claim_expire_time <= now
         {
             self.repo()
                 .update_link_status(link.link_id, LINK_EXPIRED, "", now)
                 .await?;
             return Err(Error::Forbidden(MSG_PAIRING_EXPIRED.to_string()));
         }
-        if link.status != LINK_ACTIVE {
+        if i32::from(link.status) != LINK_ACTIVE {
             return Err(Error::Forbidden(MSG_HUB_LINK_INACTIVE.to_string()));
         }
         if link.up_credential_id > 0 {
@@ -1169,7 +1169,7 @@ impl FederationService {
     pub async fn approve_link(&self, dto: &HubLinkApproveDTO) -> Result<()> {
         let settings = self.gate().await?;
         let link = self.load_link(dto.link_id).await?;
-        if link.status != LINK_PENDING {
+        if i32::from(link.status) != LINK_PENDING {
             return Err(Error::Validation("仅待审批连接可批准".to_string()));
         }
         let modules = dto.approved_modules.unwrap_or(settings.module_bits());
@@ -1219,7 +1219,7 @@ impl FederationService {
     pub async fn reject_link(&self, dto: &HubLinkRejectDTO) -> Result<()> {
         self.gate().await?;
         let link = self.load_link(dto.link_id).await?;
-        if link.status != LINK_PENDING {
+        if i32::from(link.status) != LINK_PENDING {
             return Err(Error::Validation("仅待审批连接可拒绝".to_string()));
         }
         self.repo()
@@ -1239,7 +1239,7 @@ impl FederationService {
         if !matches!(status, LINK_ACTIVE | LINK_DISABLED) {
             return Err(Error::Validation("仅支持启用/停用两种状态".to_string()));
         }
-        if link.status != LINK_ACTIVE && link.status != LINK_DISABLED {
+        if i32::from(link.status) != LINK_ACTIVE && i32::from(link.status) != LINK_DISABLED {
             return Err(Error::Validation("该连接当前状态不可启停".to_string()));
         }
         self.repo()
@@ -1384,7 +1384,7 @@ impl FederationService {
     pub async fn poll_link(&self, link_id: i32) -> Result<HubLinkVO> {
         self.gate().await?;
         let link = self.load_link(link_id).await?;
-        if link.role != LINK_ROLE_MEMBER || link.claim_token_enc.is_empty() {
+        if i32::from(link.role) != LINK_ROLE_MEMBER || link.claim_token_enc.is_empty() {
             return Ok(link_to_vo(&link, utils::now_seconds()));
         }
         let token = self.decrypt_secret(&link.claim_token_enc)?;
@@ -1482,7 +1482,7 @@ impl FederationService {
     pub async fn send_heartbeat(&self, link_id: i32) -> Result<()> {
         let settings = self.gate().await?;
         let link = self.load_link(link_id).await?;
-        if link.role != LINK_ROLE_MEMBER || link.status != LINK_ACTIVE {
+        if i32::from(link.role) != LINK_ROLE_MEMBER || i32::from(link.status) != LINK_ACTIVE {
             return Err(Error::Validation("仅已激活的成员连接可发送心跳".to_string()));
         }
         let cred = self.load_credential(link.up_credential_id).await?;
@@ -1524,7 +1524,7 @@ impl FederationService {
         self.repo().update_link_heartbeat(link.link_id, &payload, now).await?;
         Ok(HeartbeatVO {
             server_time: i64::from(now),
-            link_status: link.status,
+            link_status: i32::from(link.status),
             has_config_package: false,
         })
     }
@@ -1582,7 +1582,7 @@ impl FederationService {
                 market_price: m.market_price,
                 stock: m.stock,
                 content_hash: m.content_hash.clone(),
-                sync_state: m.sync_state,
+                sync_state: i32::from(m.sync_state),
                 last_sync_time: m.last_sync_time,
             })
             .collect();
@@ -1607,14 +1607,14 @@ impl FederationService {
         self.gate().await?;
         let (eff_link_id, cred, base_url) = if link_id > 0 {
             let link = self.load_link(link_id).await?;
-            if link.role != LINK_ROLE_HUB || link.status != LINK_ACTIVE {
+            if i32::from(link.role) != LINK_ROLE_HUB || i32::from(link.status) != LINK_ACTIVE {
                 return Err(Error::Validation("仅已激活的中枢侧连接可同步".to_string()));
             }
             let cred = self.load_credential(link.down_credential_id).await?;
             (link_id, cred, link.peer_base_url.clone())
         } else if credential_id > 0 {
             let cred = self.load_credential(credential_id).await?;
-            if cred.direction != DIRECTION_OUTBOUND {
+            if i32::from(cred.direction) != DIRECTION_OUTBOUND {
                 return Err(Error::Validation("仅出站凭证（单向接入）可同步".to_string()));
             }
             let base_url = cred.peer_base_url.clone();
@@ -1844,12 +1844,12 @@ fn up_scopes_for_modules(modules: i64) -> i64 {
 fn link_to_vo(link: &HubLink, now: i64) -> HubLinkVO {
     HubLinkVO {
         link_id: link.link_id,
-        role: link.role,
+        role: i32::from(link.role),
         peer_instance_uuid: link.peer_instance_uuid.clone(),
         peer_name: link.peer_name.clone(),
         peer_base_url: link.peer_base_url.clone(),
         peer_version: link.peer_version.clone(),
-        status: link.status,
+        status: i32::from(link.status),
         heartbeat_state: heartbeat_state(link.last_heartbeat_time, now).to_string(),
         approved_modules: link.approved_modules,
         up_credential_id: link.up_credential_id,

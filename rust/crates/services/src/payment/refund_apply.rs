@@ -265,7 +265,7 @@ impl RefundApplyService {
             paylog_refund_id: 0,
             shop_id: order.shop_id,
             payment_voucher: None,
-            initiator,
+            initiator: i16::try_from(initiator).unwrap_or_default(),
         };
         let refund_id = self.repos.payment.refund_apply.insert(&apply).await?;
         apply.refund_id = refund_id;
@@ -1374,8 +1374,8 @@ fn to_vo(r: &RefundApply) -> RefundApplyVO {
         paylog_refund_id: r.paylog_refund_id,
         shop_id: r.shop_id,
         payment_voucher: r.payment_voucher.clone(),
-        initiator: r.initiator,
-        initiator_name: RefundInitiator::name(r.initiator, r.aftersale_id).to_string(),
+        initiator: i32::from(r.initiator),
+        initiator_name: RefundInitiator::name(i32::from(r.initiator), r.aftersale_id).to_string(),
     }
 }
 

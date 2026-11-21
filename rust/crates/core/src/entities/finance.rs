@@ -626,7 +626,7 @@ pub struct RefundApply {
     pub payment_voucher: Option<String>,
     /// 发起方标记（迁移 007，我方新增）：0 买家售后/财务手工
     /// 1 平台主动发起 2 商家主动发起 [NOT NULL]
-    pub initiator: i32,
+    pub initiator: i16,
 }
 
 impl RefundApply {
