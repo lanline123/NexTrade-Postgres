@@ -1778,23 +1778,38 @@ fn build_filter(q: &OrderListQuery, platform_view: bool) -> Result<(String, Vec<
 
     // 关键词：订单号 / 收货人 / 商品名 / 订单ID
     if let Some(kw) = non_empty(&q.keyword) {
-        let like = format!("%{kw}%");
-        let mut parts = vec![
-            "order_sn ILIKE ?".to_string(),
-            "consignee ILIKE ?".to_string(),
-            "EXISTS (SELECT 1 FROM order_item oi WHERE oi.order_id = \"order\".order_id \
-             AND oi.product_name ILIKE ?)"
-                .to_string(),
-        ];
-        binds.push(Bind::Str(like.clone()));
-        binds.push(Bind::Str(like.clone()));
-        binds.push(Bind::Str(like));
-        // Java `eq(Order::getOrderId, keyword)`：订单ID精确匹配（非数字时跳过）
-        if let Ok(id) = kw.parse::<i32>() {
-            parts.push("order_id = ?".into());
-            binds.push(Bind::I32(id));
+        // 批量订单号【我方新增，论坛帖 117785766292515870】：关键词含分隔符且
+        // 拆出 ≥2 个词元时，按订单号精确 IN 查询（其余筛选条件口径不变）；
+        // 单值仍走下方原模糊口径（词元归一化仅去掉首尾分隔符）。
+        let tokens = split_batch_order_sns(kw);
+        if tokens.len() >= 2 {
+            conds.push(format!(
+                "order_sn IN ({})",
+                vec!["?"; tokens.len()].join(", ")
+            ));
+            for sn in tokens {
+                binds.push(Bind::Str(sn));
+            }
+        } else {
+            let kw = tokens.first().map(String::as_str).unwrap_or(kw);
+            let like = format!("%{kw}%");
+            let mut parts = vec![
+                "order_sn ILIKE ?".to_string(),
+                "consignee ILIKE ?".to_string(),
+                "EXISTS (SELECT 1 FROM order_item oi WHERE oi.order_id = \"order\".order_id \
+                 AND oi.product_name ILIKE ?)"
+                    .to_string(),
+            ];
+            binds.push(Bind::Str(like.clone()));
+            binds.push(Bind::Str(like.clone()));
+            binds.push(Bind::Str(like));
+            // Java `eq(Order::getOrderId, keyword)`：订单ID精确匹配（非数字时跳过）
+            if let Ok(id) = kw.parse::<i32>() {
+                parts.push("order_id = ?".into());
+                binds.push(Bind::I32(id));
+            }
+            conds.push(format!("({})", parts.join(" OR ")));
         }
-        conds.push(format!("({})", parts.join(" OR ")));
     }
 
     if conds.is_empty() {
@@ -1867,6 +1882,25 @@ fn sort_column(field: &str) -> Option<&'static str> {
 /// 取非空的去空白字符串。
 fn non_empty(v: &Option<String>) -> Option<&str> {
     v.as_deref().map(str::trim).filter(|s| !s.is_empty())
+}
+
+/// 批量订单号拆分【我方新增，论坛帖 117785766292515870】：以逗号（半/全角）、
+/// 顿号、分号（半/全角）、换行、回车、制表符为分隔符，去空白、去空词、去重，
+/// 上限 200 个。空格**不**作分隔符——收货人姓名可含空格，单值关键词的
+/// 模糊口径不得被误伤。
+fn split_batch_order_sns(keyword: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for part in keyword.split([',', '，', '、', ';', '；', '\n', '\r', '\t']) {
+        let token = part.trim();
+        if token.is_empty() || out.iter().any(|t| t == token) {
+            continue;
+        }
+        out.push(token.to_string());
+        if out.len() >= 200 {
+            break;
+        }
+    }
+    out
 }
 
 /// `yyyy-MM-dd` → 当日 00:00:00 秒级时间戳（服务器本地时区，对齐 Java
@@ -1988,6 +2022,53 @@ mod tests {
         let (sql, binds) = build_filter(&q, true).unwrap();
         assert!(sql.contains("order_id = ?"));
         assert_eq!(sql.matches('?').count(), binds.len());
+    }
+
+    #[test]
+    fn keyword_batch_order_sns_uses_exact_in() {
+        // 逗号 / 换行 / 全角逗号混排 + 重复订单号 → 去重后精确 IN，不走模糊口径
+        let q: OrderListQuery = serde_json::from_str(
+            r#"{"keyword":"20260101000000000001,20260101000000000002\n20260101000000000003，20260101000000000001"}"#,
+        )
+        .unwrap();
+        let (sql, binds) = build_filter(&q, true).unwrap();
+        assert!(sql.contains("order_sn IN (?, ?, ?)"), "{sql}");
+        assert!(!sql.contains("order_sn ILIKE"));
+        assert!(!sql.contains("oi.product_name ILIKE"));
+        assert_eq!(sql.matches('?').count(), binds.len());
+    }
+
+    #[test]
+    fn keyword_single_value_keeps_fuzzy_semantics() {
+        // 含空格的收货人名不是批量（空格非分隔符）
+        let q: OrderListQuery = serde_json::from_str(r#"{"keyword":"John Smith"}"#).unwrap();
+        let (sql, _) = build_filter(&q, true).unwrap();
+        assert!(sql.contains("order_sn ILIKE ?"));
+        assert!(!sql.contains("order_sn IN"));
+
+        // 尾随分隔符的单个订单号归一化为单值口径
+        let q: OrderListQuery =
+            serde_json::from_str(r#"{"keyword":"20260101000000000001,"}"#).unwrap();
+        let (sql, _) = build_filter(&q, true).unwrap();
+        assert!(sql.contains("order_sn ILIKE ?"));
+        assert!(!sql.contains("order_sn IN"));
+    }
+
+    #[test]
+    fn split_batch_order_sns_dedupes_trims_and_caps() {
+        let got: Vec<&str> = split_batch_order_sns(" a ，b、a;c\nd ")
+            .iter()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(got, vec!["a", "b", "c", "d"]);
+        assert!(split_batch_order_sns("").is_empty());
+        assert_eq!(split_batch_order_sns("  x  "), vec!["x".to_string()]);
+
+        let many = (0..250)
+            .map(|i| format!("SN{i}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        assert_eq!(split_batch_order_sns(&many).len(), 200);
     }
 
     #[test]

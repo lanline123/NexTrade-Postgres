@@ -14,6 +14,7 @@ import {
   Table,
   Tabs,
   Tag,
+  TextArea,
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
@@ -244,13 +245,20 @@ export default function Orders({ onNavigate }: { onNavigate?: (page: string) => 
 
         <div className="table-toolbar" style={{ marginTop: 16, flexWrap: 'wrap', gap: 8 }}>
           <Space wrap>
-            <Input
-              prefix={<IconSearch />}
-              placeholder={t('搜索订单号 / 收货人 / 商品名称')}
+            {/* 批量订单号【我方新增】：多行输入，多个订单号可换行或用逗号分隔批量查询；
+                Enter 搜索、Shift+Enter 换行 */}
+            <TextArea
+              placeholder={t('搜索订单号 / 收货人 / 商品名称（多个订单号可换行或用逗号分隔）')}
               value={filters.keyword}
               onChange={(next) => setFilters((current) => ({ ...current, keyword: next }))}
-              onEnterPress={search}
-              style={{ width: 240 }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  search();
+                }
+              }}
+              autosize={{ minRows: 1, maxRows: 5 }}
+              style={{ width: 260 }}
             />
             <Input
               placeholder={t('请输入交易单号')}
