@@ -63,6 +63,35 @@ fn json_decimal(value: Option<&serde_json::Value>) -> Decimal {
     }
 }
 
+/// JSON 整数读取（商品称重标志/计价单位克数）。
+fn json_i64(value: Option<&serde_json::Value>) -> i64 {
+    match value {
+        Some(serde_json::Value::Number(number)) => number.as_i64().unwrap_or(0),
+        Some(serde_json::Value::String(text)) => text.trim().parse().unwrap_or(0),
+        _ => 0,
+    }
+}
+
+/// 结账落单的 sku_data：称重行把称重快照并入 JSON（键 `weighing`），
+/// 使订单明细/小票可追溯重量与计价口径；普通行原样透传（我方新增）。
+fn checkout_sku_data(item: &nextrade_core::entities::o2o::PosPendingOrderItem) -> Option<String> {
+    if !item.is_weighing() {
+        return item.sku_data.clone();
+    }
+    let mut base = item
+        .sku_data
+        .as_deref()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
+        .filter(|v| v.is_object())
+        .unwrap_or_else(|| serde_json::json!({}));
+    base["weighing"] = serde_json::json!({
+        "weightGrams": item.weight_grams,
+        "unitPrice": item.weigh_unit_price,
+        "unitGrams": item.weigh_unit_grams,
+    });
+    Some(base.to_string())
+}
+
 /// POS 收银域服务（挂载于 `AdminState.pos.cashier`）。
 pub struct PosCashierService {
     repos: Arc<Repositories>,
@@ -416,6 +445,10 @@ impl PosCashierService {
                 .sku_data
                 .as_deref()
                 .and_then(|s| serde_json::from_str(s).ok()),
+            is_weighing: i.is_weighing(),
+            weight_grams: i.weight_grams,
+            weigh_unit_price: i.weigh_unit_price,
+            weigh_unit_grams: i.weigh_unit_grams,
         }
     }
 
@@ -487,6 +520,34 @@ impl PosCashierService {
             .to_string();
         let price = json_decimal(product.get("productPrice"));
         let sku_id = dto.sku_id.unwrap_or(0);
+        // 称重商品（我方新增）：必须带称重克数，按商品计价单价/单位克数
+        // 折算行金额落行（quantity 恒 1、price 恒行金额），并快照单价/单位；
+        // 每次称重为独立一行，不与已有行合并（同商品两次称重重量必不同）。
+        if json_i64(product.get("isWeighing")) != 0 {
+            let weight = dto
+                .weight_grams
+                .filter(|w| *w > 0)
+                .ok_or_else(|| Error::Validation("称重商品需先称重并录入重量".into()))?;
+            let unit_grams =
+                normalize_weigh_unit_grams(json_i64(product.get("weighUnitGrams")) as i32);
+            let line_amount = weigh_line_amount(price, weight, unit_grams)
+                .ok_or_else(|| Error::Validation("称重金额计算失败".into()))?;
+            return self
+                .repo()
+                .item_insert(
+                    draft.pending_id,
+                    dto.product_id,
+                    sku_id,
+                    &name,
+                    &pic,
+                    line_amount,
+                    line_amount,
+                    1,
+                    None,
+                    Some((weight, price, unit_grams)),
+                )
+                .await;
+        }
         if let Some(existing) = self
             .repo()
             .item_merge_same(draft.pending_id, dto.product_id, sku_id, dto.quantity.unwrap_or(1))
@@ -505,6 +566,7 @@ impl PosCashierService {
                 price,
                 dto.quantity.unwrap_or(1),
                 None,
+                None,
             )
             .await
     }
@@ -514,8 +576,53 @@ impl PosCashierService {
             .item_id
             .or(dto.cart_id)
             .ok_or_else(|| Error::Validation("缺少明细ID".into()))?;
-        if let Some(qty) = dto.quantity {
-            self.repo().item_update_quantity(item_id, qty).await?;
+        if dto.weight_grams.is_some() || dto.quantity.is_some() {
+            let item = self
+                .repo()
+                .item_find_by_id(item_id)
+                .await?
+                .ok_or_else(|| Error::NotFound("购物车明细不存在".into()))?;
+            if let Some(weight) = dto.weight_grams {
+                // 称重行改重：按行内快照单价/单位重算行金额；
+                // 整单改价过的行（price != 未改价金额）按原比例保留折扣。
+                if !item.is_weighing() {
+                    return Err(Error::Validation("该商品不是称重商品".into()));
+                }
+                if weight <= 0 {
+                    return Err(Error::Validation("重量必须大于 0".into()));
+                }
+                let (Some(unit_price), Some(unit_grams_raw)) =
+                    (item.weigh_unit_price, item.weigh_unit_grams)
+                else {
+                    return Err(Error::Validation("称重快照缺失，无法改重".into()));
+                };
+                let unit_grams = normalize_weigh_unit_grams(unit_grams_raw);
+                let new_origin = weigh_line_amount(unit_price, weight, unit_grams)
+                    .ok_or_else(|| Error::Validation("称重金额计算失败".into()))?;
+                let old_origin = item
+                    .weight_grams
+                    .and_then(|w| weigh_line_amount(unit_price, w, unit_grams));
+                let new_price = match old_origin {
+                    Some(old) if old > Decimal::ZERO && item.price != old => {
+                        (new_origin * item.price / old).round_dp_with_strategy(
+                            2,
+                            rust_decimal::RoundingStrategy::MidpointAwayFromZero,
+                        )
+                    }
+                    _ => new_origin,
+                };
+                self.repo()
+                    .item_update_weight(item_id, weight, new_price, new_origin)
+                    .await?;
+                return Ok(());
+            }
+            if item.is_weighing() {
+                // 称重行数量恒 1，改量无意义，引导走改重
+                return Err(Error::Validation("称重商品请通过改重调整".into()));
+            }
+            if let Some(qty) = dto.quantity {
+                self.repo().item_update_quantity(item_id, qty).await?;
+            }
         }
         if let Some(checked) = dto.is_checked {
             self.repo().item_update_checked(item_id, checked).await?;
@@ -892,7 +999,7 @@ impl PosCashierService {
                 original_price: item.price,
                 quantity: item.quantity.max(1),
                 sku_id: (item.sku_id > 0).then_some(item.sku_id as i32),
-                sku_data: item.sku_data.clone(),
+                sku_data: checkout_sku_data(item),
                 product_type: 1,
                 is_checked: 1,
                 shop_id,

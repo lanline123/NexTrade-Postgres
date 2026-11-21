@@ -2066,6 +2066,16 @@ fn apply_dto_to_product(product: &mut Product, dto: ProductSaveDTO, is_create: b
     if let Some(v) = dto.sale_channel {
         product.sale_channel = if matches!(v, 0 | 1 | 2) { v } else { 0 };
     }
+    // 称重商品（我方新增）：开关归一为 0/1，计价单位克数非法值回落 500（元/500g）
+    if let Some(v) = dto.is_weighing {
+        product.is_weighing = i32::from(v != 0);
+    }
+    if let Some(v) = dto.weigh_unit_grams {
+        product.weigh_unit_grams = v;
+    }
+    if product.weigh_unit_grams <= 0 {
+        product.weigh_unit_grams = 500;
+    }
     set_some!(product_care, dto.product_care);
     set_opt!(is_support_return, dto.is_support_return);
     set_opt!(is_support_cod, dto.is_support_cod);
@@ -2381,6 +2391,8 @@ fn to_list_item(
         limit_number: p.limit_number,
         min_buy_count: p.min_buy_count,
         sale_channel: p.sale_channel,
+        is_weighing: p.is_weighing,
+        weigh_unit_grams: p.weigh_unit_grams,
         delivery_mode: p.delivery_mode,
         group_type: None,
         is_cycle_product: None,
@@ -2472,6 +2484,8 @@ fn to_admin_detail(
         limit_number: p.limit_number,
         min_buy_count: p.min_buy_count,
         sale_channel: p.sale_channel,
+        is_weighing: p.is_weighing,
+        weigh_unit_grams: p.weigh_unit_grams,
         product_care: p.product_care.clone(),
         product_related: parse_id_json_lossy(p.product_related.as_deref().unwrap_or("")),
         is_support_return: p.is_support_return,
@@ -2800,6 +2814,8 @@ fn to_client_info(p: &Product, inquiry: &InquirySummary) -> ClientProductInfoVO 
         limit_number: p.limit_number,
         min_buy_count: p.min_buy_count,
         sale_channel: p.sale_channel,
+        is_weighing: p.is_weighing,
+        weigh_unit_grams: p.weigh_unit_grams,
         product_weight: p.product_weight,
         product_volume: p.product_volume,
         product_unit: p.product_unit.clone(),

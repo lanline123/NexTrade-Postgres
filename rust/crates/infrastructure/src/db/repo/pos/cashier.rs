@@ -237,7 +237,8 @@ impl PosCashierRepository {
     pub async fn items(&self, pending_id: i32) -> Result<Vec<PosPendingOrderItem>> {
         sqlx::query_as::<_, PosPendingOrderItem>(
             "SELECT item_id, pending_id, product_id, sku_id, product_name, pic_thumb, price, \
-             origin_price, quantity, is_checked, sku_data, add_time \
+             origin_price, quantity, is_checked, sku_data, add_time, \
+             weight_grams, weigh_unit_price, weigh_unit_grams \
              FROM pos_pending_order_item WHERE pending_id = $1 ORDER BY item_id",
         )
         .bind(pending_id)
@@ -249,7 +250,8 @@ impl PosCashierRepository {
     pub async fn item_find(&self, pending_id: i32, item_id: i64) -> Result<Option<PosPendingOrderItem>> {
         sqlx::query_as::<_, PosPendingOrderItem>(
             "SELECT item_id, pending_id, product_id, sku_id, product_name, pic_thumb, price, \
-             origin_price, quantity, is_checked, sku_data, add_time \
+             origin_price, quantity, is_checked, sku_data, add_time, \
+             weight_grams, weigh_unit_price, weigh_unit_grams \
              FROM pos_pending_order_item WHERE pending_id = $1 AND item_id = $2",
         )
         .bind(pending_id)
@@ -271,11 +273,20 @@ impl PosCashierRepository {
         origin_price: Decimal,
         quantity: i32,
         sku_data: Option<&str>,
+        // 称重行快照（重量克数, 计价单价, 计价单位克数）；普通行传 None（我方新增）
+        weight: Option<(i32, Decimal, i32)>,
     ) -> Result<i64> {
+        let (weight_grams, weigh_unit_price, weigh_unit_grams) = match weight {
+            Some((grams, unit_price, unit_grams)) => {
+                (Some(grams), Some(unit_price), Some(unit_grams))
+            }
+            None => (None, None, None),
+        };
         let r: i64 = sqlx::query_scalar(
             "INSERT INTO pos_pending_order_item (pending_id, product_id, sku_id, product_name, \
-             pic_thumb, price, origin_price, quantity, is_checked, sku_data, add_time) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, $9, $10) RETURNING item_id",
+             pic_thumb, price, origin_price, quantity, is_checked, sku_data, add_time, \
+             weight_grams, weigh_unit_price, weigh_unit_grams) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, $9, $10, $11, $12, $13) RETURNING item_id",
         )
         .bind(pending_id)
         .bind(product_id)
@@ -287,10 +298,50 @@ impl PosCashierRepository {
         .bind(quantity)
         .bind(sku_data)
         .bind(now())
+        .bind(weight_grams)
+        .bind(weigh_unit_price)
+        .bind(weigh_unit_grams)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
         Ok(r)
+    }
+
+    /// 按明细 ID 直查（改重/改量需先读行内称重快照，不限定草稿）。
+    pub async fn item_find_by_id(&self, item_id: i64) -> Result<Option<PosPendingOrderItem>> {
+        sqlx::query_as::<_, PosPendingOrderItem>(
+            "SELECT item_id, pending_id, product_id, sku_id, product_name, pic_thumb, price, \
+             origin_price, quantity, is_checked, sku_data, add_time, \
+             weight_grams, weigh_unit_price, weigh_unit_grams \
+             FROM pos_pending_order_item WHERE item_id = $1",
+        )
+        .bind(item_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 称重行改重：同步更新重量快照、行金额（price）与未改价金额（origin_price）。
+    /// 两价由服务层按快照重算（整单改价过的行按原比例保留折扣，见服务层）。
+    pub async fn item_update_weight(
+        &self,
+        item_id: i64,
+        weight_grams: i32,
+        price: Decimal,
+        origin_price: Decimal,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE pos_pending_order_item SET weight_grams = $1, price = $2, \
+             origin_price = $3 WHERE item_id = $4",
+        )
+        .bind(weight_grams)
+        .bind(price)
+        .bind(origin_price)
+        .bind(item_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
     }
 
     pub async fn item_merge_same(
@@ -774,9 +825,6 @@ impl PosCashierRepository {
     // ————————————————————— 商品 / 会员 / 地址 / 订单 —————————————————————
 
     /// 收银商品搜索（上架 + 关键词 + 可选类目）。
-    ///
-    /// 渠道可见性（我方新增，论坛帖 507800）：POS 口径排除「仅线上」
-    /// （`sale_channel = 1`），全渠道与「仅 POS 线下」均可见。
     pub async fn products(
         &self,
         keyword: Option<&str>,
@@ -786,7 +834,7 @@ impl PosCashierRepository {
     ) -> Result<(i64, Vec<serde_json::Value>)> {
         let kw = format!("%{}%", keyword.unwrap_or_default().trim());
         let (total,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM product WHERE product_status = 1 AND sale_channel <> 1 AND product_name ILIKE $1 \
+            "SELECT COUNT(*) FROM product WHERE product_status = 1 AND product_name ILIKE $1 \
              AND ($2 IS NULL OR category_id = $3)",
         )
         .bind(&kw)
@@ -798,8 +846,9 @@ impl PosCashierRepository {
         let rows = sqlx::query_as::<_, (serde_json::Value,)>(
             "SELECT json_build_object('productId', product_id, 'productName', product_name, \
              'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price, \
-             'productStock', product_stock, 'productSn', product_sn, 'categoryId', category_id) \
-             FROM product WHERE product_status = 1 AND sale_channel <> 1 AND product_name ILIKE $1 \
+             'productStock', product_stock, 'productSn', product_sn, 'categoryId', category_id, \
+             'isWeighing', is_weighing, 'weighUnitGrams', weigh_unit_grams) \
+             FROM product WHERE product_status = 1 AND product_name ILIKE $1 \
              AND ($2 IS NULL OR category_id = $3) ORDER BY product_id DESC LIMIT $4 OFFSET $5",
         )
         .bind(&kw)
@@ -816,7 +865,7 @@ impl PosCashierRepository {
 
     pub async fn product_one(&self, product_id: i64) -> Result<Option<serde_json::Value>> {
         let row: Option<(serde_json::Value,)> = sqlx::query_as::<_, (serde_json::Value,)>(
-            "SELECT json_build_object('productId', product_id, 'productName', product_name,              'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price,              'productStock', product_stock, 'productSn', product_sn, 'productStatus',              product_status) FROM product WHERE product_id = $1 AND sale_channel <> 1",
+            "SELECT json_build_object('productId', product_id, 'productName', product_name,              'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price,              'productStock', product_stock, 'productSn', product_sn, 'productStatus',              product_status, 'isWeighing', is_weighing, 'weighUnitGrams', weigh_unit_grams) FROM product WHERE product_id = $1",
         )
         .bind(product_id)
         .fetch_optional(&self.pool)

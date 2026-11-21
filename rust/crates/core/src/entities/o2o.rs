@@ -139,11 +139,6 @@ pub struct DeliveryOrder {
     pub update_time: i32,
     /// 是否删除：0-否，1-是 [NOT NULL]
     pub is_delete: i32,
-    /// 配送员侧移除（隐藏）：0-否，1-是（论坛 417866，我方新增；仅影响配送员
-    /// 本人列表/计数/详情，后台与买家侧不受影响，数据不删）[NOT NULL]
-    pub staff_hidden: i32,
-    /// 配送员侧移除时间（Unix时间戳）
-    pub staff_hide_time: Option<i32>,
     /// 运力类型 1自建配送 2美团配送 [NOT NULL]
     pub carrier_type: i32,
     /// 合作方配送单号（发给美团的 delivery_id，本系统唯一）
@@ -737,10 +732,25 @@ pub struct PosPendingOrderItem {
     pub is_checked: i32,
     pub sku_data: Option<String>,
     pub add_time: Option<i32>,
+    /// 称重行快照：本次称重克数（非称重行为 NULL；2026-11-21 迁移 024 加列，我方新增）
+    #[sqlx(default)]
+    pub weight_grams: Option<i32>,
+    /// 称重行快照：加行时点计价单价（元/计价单位，改重按快照重算行金额）
+    #[sqlx(default)]
+    pub weigh_unit_price: Option<Decimal>,
+    /// 称重行快照：计价单位克数（如下单后商品改单位，存量行仍按快照结算）
+    #[sqlx(default)]
+    pub weigh_unit_grams: Option<i32>,
 }
 
 impl PosPendingOrderItem {
     pub const TABLE: &'static str = "pos_pending_order_item";
+
+    /// 是否称重行（重量快照在即称重行，quantity 恒 1、price 恒为行金额）。
+    #[must_use]
+    pub fn is_weighing(&self) -> bool {
+        self.weight_grams.is_some()
+    }
 }
 
 /// POS 收银员（线上 admin_user_pos 表）

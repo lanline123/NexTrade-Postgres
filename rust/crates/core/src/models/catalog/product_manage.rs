@@ -520,6 +520,10 @@ pub struct ProductListItemVO {
     pub min_buy_count: i32,
     /// 销售渠道可见性（我方新增，论坛帖 507800）：0 全渠道 1 仅线上 2 仅 POS 线下
     pub sale_channel: i32,
+    /// 是否称重商品（POS 按重量计价，我方新增）：0 否 1 是
+    pub is_weighing: i32,
+    /// 称重计价单位（克）：售价为每该克数的价格，默认 500
+    pub weigh_unit_grams: i32,
     pub delivery_mode: i32,
     /// 未迁移：礼品卡组类型
     pub group_type: Option<i32>,
@@ -670,6 +674,10 @@ pub struct AdminProductDetailVO {
     pub min_buy_count: i32,
     /// 销售渠道可见性（我方新增，论坛帖 507800）：0 全渠道 1 仅线上 2 仅 POS 线下
     pub sale_channel: i32,
+    /// 是否称重商品（POS 按重量计价，我方新增）：0 否 1 是
+    pub is_weighing: i32,
+    /// 称重计价单位（克）：售价为每该克数的价格，默认 500
+    pub weigh_unit_grams: i32,
     pub product_care: Option<String>,
     pub product_related: Vec<i32>,
     pub is_support_return: i32,
@@ -825,6 +833,10 @@ pub struct ProductSaveDTO {
     pub min_buy_count: Option<i32>,
     /// 销售渠道可见性（我方新增，论坛帖 507800）：0 全渠道 1 仅线上 2 仅 POS 线下
     pub sale_channel: Option<i32>,
+    /// 是否称重商品（POS 按重量计价，我方新增）：0 否 1 是
+    pub is_weighing: Option<i32>,
+    /// 称重计价单位（克）：售价为每该克数的价格，默认 500
+    pub weigh_unit_grams: Option<i32>,
     pub product_care: Option<String>,
     pub is_support_return: Option<i32>,
     pub is_support_cod: Option<i32>,
@@ -1059,6 +1071,10 @@ pub struct ClientProductInfoVO {
     pub min_buy_count: i32,
     /// 销售渠道可见性（我方新增，论坛帖 507800）：0 全渠道 1 仅线上 2 仅 POS 线下
     pub sale_channel: i32,
+    /// 是否称重商品（POS 按重量计价，我方新增）：0 否 1 是
+    pub is_weighing: i32,
+    /// 称重计价单位（克）：售价为每该克数的价格，默认 500
+    pub weigh_unit_grams: i32,
     pub product_weight: Decimal,
     /// 单件商品体积 m³（v5.8.61）
     pub product_volume: Option<Decimal>,

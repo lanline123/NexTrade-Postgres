@@ -534,12 +534,14 @@ impl ProductManageRepository {
         let product_id = r;
         // v5.8.61 体积列：保留旧 INSERT 列清单，插入后补写，避免影响历史字段顺序。
         // 2026-11-15 询价标志同路补写。
-        // 2026-11-21 销售渠道可见性（我方新增，论坛帖 507800）同路补写。
-        sqlx::query("UPDATE product SET product_volume = $1, is_inquiry = $2, min_buy_count = $3, sale_channel = $4 WHERE product_id = $5")
+        // 2026-11-21 销售渠道可见性（论坛帖 507800）与称重标志/计价单位（迁移 024）同路补写（均为我方新增）。
+        sqlx::query("UPDATE product SET product_volume = $1, is_inquiry = $2, min_buy_count = $3, sale_channel = $4, is_weighing = $5, weigh_unit_grams = $6 WHERE product_id = $7")
             .bind(p.product_volume)
             .bind(p.is_inquiry)
             .bind(p.min_buy_count)
             .bind(p.sale_channel)
+            .bind(p.is_weighing)
+            .bind(p.weigh_unit_grams)
             .bind(product_id)
             .execute(&self.pool)
             .await
@@ -637,11 +639,14 @@ impl ProductManageRepository {
         .execute(&self.pool)
         .await
         .map_err(map_err)?;
-        sqlx::query("UPDATE product SET product_volume = $1, is_inquiry = $2, min_buy_count = $3, sale_channel = $4 WHERE product_id = $5")
+        // 2026-11-21 销售渠道可见性（论坛帖 507800）与称重标志/计价单位（迁移 024）同路补写（均为我方新增）。
+        sqlx::query("UPDATE product SET product_volume = $1, is_inquiry = $2, min_buy_count = $3, sale_channel = $4, is_weighing = $5, weigh_unit_grams = $6 WHERE product_id = $7")
             .bind(p.product_volume)
             .bind(p.is_inquiry)
             .bind(p.min_buy_count)
             .bind(p.sale_channel)
+            .bind(p.is_weighing)
+            .bind(p.weigh_unit_grams)
             .bind(p.product_id)
             .execute(&self.pool)
             .await

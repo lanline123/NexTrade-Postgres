@@ -4,6 +4,8 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import Dialog from '../components/Dialog';
 import Price from '../components/Price';
+import ScaleConnect from '../components/ScaleConnect';
+import WeighDialog from '../components/WeighDialog';
 import productEmpty from '../legacy/productEmpty-P1dhOWH0.png';
 import { toast } from '../toast';
 
@@ -18,6 +20,10 @@ interface Product {
   productPrice?: string | number;
   productStock?: number;
   picThumb?: string;
+  /** 称重商品（我方新增）：1 = 按重量计价，productPrice 为每计价单位的价格 */
+  isWeighing?: number;
+  /** 称重计价单位（克），默认 500 */
+  weighUnitGrams?: number;
 }
 
 interface ProductPage {
@@ -37,7 +43,16 @@ interface CartItem {
   quantity: number;
   subtotal: string | number;
   isChecked: boolean;
+  /** 称重行（我方新增）：price 为整行金额、quantity 恒 1 */
+  isWeighing?: boolean;
+  weightGrams?: number | null;
+  weighUnitPrice?: string | number | null;
+  weighUnitGrams?: number | null;
 }
+
+type WeighTarget =
+  | { mode: 'add'; product: Product }
+  | { mode: 'edit'; item: CartItem };
 
 interface CartStore {
   carts: CartItem[];
@@ -142,6 +157,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [selectedCouponIds, setSelectedCouponIds] = useState<number[]>([]);
   const [couponLoading, setCouponLoading] = useState(false);
+  const [weighTarget, setWeighTarget] = useState<WeighTarget | null>(null);
 
   const loadProducts = useCallback(async (nextKeyword: string, nextCategory: number | undefined) => {
     setLoading(true);
@@ -220,6 +236,39 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
       });
       await loadCart();
       toast(`${product.productName} 已加入购物车`);
+    } catch (error) {
+      toast(message(error), 'error');
+    }
+  };
+
+  /** 商品点击分流：称重商品先开称重弹窗（秤读数/手工录入），普通商品直接加行。 */
+  const handleProductClick = (product: Product) => {
+    if (Number(product.isWeighing || 0) === 1) {
+      setWeighTarget({ mode: 'add', product });
+      return;
+    }
+    void addProduct(product);
+  };
+
+  const confirmWeigh = async (weightGrams: number) => {
+    const target = weighTarget;
+    setWeighTarget(null);
+    if (!target) return;
+    try {
+      if (target.mode === 'add') {
+        await api.post('/pos/cart/addToCart', {
+          productId: target.product.productId,
+          quantity: 1,
+          weightGrams,
+          shopId: shopIdOf(),
+          tableId,
+        });
+        toast(`${target.product.productName} 已称重加入`);
+      } else {
+        await api.post('/pos/cart/updateItem', { cartId: target.item.cartId, weightGrams });
+        toast('重量已更新');
+      }
+      await loadCart();
     } catch (error) {
       toast(message(error), 'error');
     }
@@ -608,6 +657,12 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
                             <div className="product-sn flex">
                               编码: <span />
                             </div>
+                            {item.isWeighing ? (
+                              <div className="weigh-meta">
+                                称重 {item.weightGrams ?? 0}g · ¥
+                                {Number(item.weighUnitPrice ?? 0).toFixed(2)}/{item.weighUnitGrams ?? 500}g
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       </div>
@@ -618,28 +673,46 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
                         <Price value={item.price} size={16} />
                       </div>
                       <div className="col-4 flex">
-                        <div className="cart-num-box flex">
-                          <div className="delete btn flex algin-center" onClick={() => void removeItem(item)}>
-                            <div className="iconfont-pos icon-shanchu" />
+                        {item.isWeighing ? (
+                          <div className="cart-num-box flex">
+                            <div className="delete btn flex algin-center" onClick={() => void removeItem(item)}>
+                              <div className="iconfont-pos icon-shanchu" />
+                            </div>
+                            <div className="weigh-cell">
+                              <span className="weigh-cell-value">{item.weightGrams ?? 0}g</span>
+                              <button
+                                type="button"
+                                className="weigh-cell-btn"
+                                onClick={() => setWeighTarget({ mode: 'edit', item })}
+                              >
+                                改重量
+                              </button>
+                            </div>
                           </div>
-                          <div className="num-box">
-                            <input
-                              key={`${item.cartId}-${item.quantity}`}
-                              type="text"
-                              defaultValue={item.quantity}
-                              onBlur={(event) => void changeQuantity(item, Number(event.target.value))}
-                              onKeyDown={(event) => {
-                                if (event.key === 'Enter') event.currentTarget.blur();
-                              }}
-                            />
+                        ) : (
+                          <div className="cart-num-box flex">
+                            <div className="delete btn flex algin-center" onClick={() => void removeItem(item)}>
+                              <div className="iconfont-pos icon-shanchu" />
+                            </div>
+                            <div className="num-box">
+                              <input
+                                key={`${item.cartId}-${item.quantity}`}
+                                type="text"
+                                defaultValue={item.quantity}
+                                onBlur={(event) => void changeQuantity(item, Number(event.target.value))}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter') event.currentTarget.blur();
+                                }}
+                              />
+                            </div>
+                            <div
+                              className="plus btn flex algin-center"
+                              onClick={() => void changeQuantity(item, item.quantity + 1)}
+                            >
+                              <div className="iconfont-pos icon-zengjia" />
+                            </div>
                           </div>
-                          <div
-                            className="plus btn flex algin-center"
-                            onClick={() => void changeQuantity(item, item.quantity + 1)}
-                          >
-                            <div className="iconfont-pos icon-zengjia" />
-                          </div>
-                        </div>
+                        )}
                       </div>
                       <div className="col-5 flex">
                         <Price value={item.subtotal} size={16} />
@@ -681,6 +754,9 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
                 <button type="button" className="el-button btn" onClick={openPrice}>
                   <span>改价</span>
                 </button>
+              </div>
+              <div className="dialog-link" style={{ display: 'inline-flex' }}>
+                <ScaleConnect />
               </div>
               <div className="badge-box">
                 <button type="button" className="el-button btn" onClick={openPending}>
@@ -806,7 +882,10 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
             {products.map((product) => {
               const quantity = quantityByProduct.get(product.productId) ?? 0;
               const soldOut = (product.productStock ?? 1) <= 0;
-              const price = `¥${Number(product.productPrice ?? 0).toFixed(2)}`;
+              const weighing = Number(product.isWeighing || 0) === 1;
+              const price = weighing
+                ? `¥${Number(product.productPrice ?? 0).toFixed(2)}/${product.weighUnitGrams || 500}g`
+                : `¥${Number(product.productPrice ?? 0).toFixed(2)}`;
               return (
                 <div
                   className="product-item-wrapper"
@@ -816,7 +895,7 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
                       toast('该商品已售罄', 'error');
                       return;
                     }
-                    void addProduct(product);
+                    handleProductClick(product);
                   }}
                 >
                   <div className="badge-box">
@@ -836,7 +915,10 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
                           <img src={product.picThumb || productEmpty} alt="" />
                         </div>
                         <div className="product-info">
-                          <div className="name pos-ellipsis-1">{product.productName}</div>
+                          <div className="name pos-ellipsis-1">
+                            {weighing ? <span className="weigh-tag">称重</span> : null}
+                            {product.productName}
+                          </div>
                           <div className="price">{price}</div>
                         </div>
                       </div>
@@ -844,7 +926,8 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
                       <div className={`product-item${quantity > 0 ? ' active' : ''}${soldOut ? ' soldout' : ''}`}>
                         <div className="product-info2">
                           <div className="name">
-                            {soldOut ? <span className="soldout">售罄</span> : null} {product.productName}
+                            {soldOut ? <span className="soldout">售罄</span> : null}
+                            {weighing ? <span className="weigh-tag">称重</span> : null} {product.productName}
                           </div>
                           <div className="price">{price}</div>
                         </div>
@@ -1223,6 +1306,37 @@ export default function Cashier({ primaryStyle }: { primaryStyle: CSSProperties 
           <div className="member-empty">输入手机号查询会员</div>
         )}
       </Dialog>
+
+      <WeighDialog
+        open={!!weighTarget}
+        productName={
+          weighTarget?.mode === 'add'
+            ? weighTarget.product.productName
+            : weighTarget?.mode === 'edit'
+              ? weighTarget.item.productName
+              : ''
+        }
+        unitPrice={
+          weighTarget?.mode === 'add'
+            ? Number(weighTarget.product.productPrice ?? 0)
+            : weighTarget?.mode === 'edit'
+              ? Number(weighTarget.item.weighUnitPrice ?? 0)
+              : 0
+        }
+        unitGrams={
+          weighTarget?.mode === 'add'
+            ? weighTarget.product.weighUnitGrams || 500
+            : weighTarget?.mode === 'edit'
+              ? weighTarget.item.weighUnitGrams ?? 500
+              : 500
+        }
+        initialWeightGrams={
+          weighTarget?.mode === 'edit' ? (weighTarget.item.weightGrams ?? undefined) : undefined
+        }
+        confirmText={weighTarget?.mode === 'edit' ? '确认改重' : '加入购物车'}
+        onClose={() => setWeighTarget(null)}
+        onConfirm={(grams) => void confirmWeigh(grams)}
+      />
 
       <Dialog
         open={!!confirmState}

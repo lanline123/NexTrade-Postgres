@@ -129,6 +129,9 @@ pub struct PosCartAddDTO {
     pub user_id: Option<i32>,
     pub shop_id: Option<i32>,
     pub table_id: Option<i32>,
+    /// 称重商品加行时的称重克数（我方新增）：称重商品必填且须 > 0，
+    /// 非称重商品忽略。重量来源（蓝牙秤/手工录入）对后端无区别。
+    pub weight_grams: Option<i32>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -139,6 +142,9 @@ pub struct PosCartUpdateDTO {
     pub quantity: Option<i32>,
     pub is_checked: Option<bool>,
     pub user_id: Option<i32>,
+    /// 称重行改重（我方新增）：给出时按行内快照单价/单位重算行金额，
+    /// quantity 对称重行无意义、被忽略。
+    pub weight_grams: Option<i32>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -204,6 +210,12 @@ pub struct PosCartItemVO {
     pub subtotal: Decimal,
     pub is_checked: bool,
     pub sku_data: Option<serde_json::Value>,
+    /// 是否称重行（我方新增）：true 时 price/subtotal 为整行金额、
+    /// quantity 恒 1，重量与计价快照见下三字段；普通行恒 false/None。
+    pub is_weighing: bool,
+    pub weight_grams: Option<i32>,
+    pub weigh_unit_price: Option<Decimal>,
+    pub weigh_unit_grams: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -301,3 +313,101 @@ pub struct PosOrderPayCreateDTO {
 }
 
 pub const POS_ADMIN_USER_FIELDS: [&str; 3] = ["username", "email", "is_using"];
+
+// ————————————————————— 称重计价（我方新增） —————————————————————
+
+/// 称重计价单位缺省克数：500（元/500g，即俗称元/斤）。
+pub const DEFAULT_WEIGH_UNIT_GRAMS: i32 = 500;
+
+/// 称重行金额（纯函数）：行金额 = 计价单价 × 重量克数 ÷ 计价单位克数，
+/// 四舍五入到分（MidpointAwayFromZero，与零售口径一致）。
+/// 入参非法（重量 <= 0、单位 <= 0、单价为负）返回 None，调用方据此报错。
+/// 前端预览必须与本函数同口径（整数分计算），保证预览与落库金额一致。
+#[must_use]
+pub fn weigh_line_amount(unit_price: Decimal, weight_grams: i32, unit_grams: i32) -> Option<Decimal> {
+    if weight_grams <= 0 || unit_grams <= 0 || unit_price < Decimal::ZERO {
+        return None;
+    }
+    let raw = unit_price * Decimal::from(weight_grams) / Decimal::from(unit_grams);
+    Some(raw.round_dp_with_strategy(
+        2,
+        rust_decimal::RoundingStrategy::MidpointAwayFromZero,
+    ))
+}
+
+/// 计价单位克数归一：非法值（<= 0）回落缺省 500。
+#[must_use]
+pub fn normalize_weigh_unit_grams(unit_grams: i32) -> i32 {
+    if unit_grams > 0 {
+        unit_grams
+    } else {
+        DEFAULT_WEIGH_UNIT_GRAMS
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    fn dec(text: &str) -> Decimal {
+        Decimal::from_str(text).expect("decimal")
+    }
+
+    #[test]
+    fn weigh_amount_per_500g() {
+        // 12.80 元/500g，称 750g → 19.20
+        assert_eq!(
+            weigh_line_amount(dec("12.80"), 750, 500),
+            Some(dec("19.20"))
+        );
+        // 恰好一个计价单位
+        assert_eq!(
+            weigh_line_amount(dec("12.80"), 500, 500),
+            Some(dec("12.80"))
+        );
+    }
+
+    #[test]
+    fn weigh_amount_per_kg_and_rounding() {
+        // 30.00 元/1000g，称 333g → 9.99
+        assert_eq!(
+            weigh_line_amount(dec("30.00"), 333, 1000),
+            Some(dec("9.99"))
+        );
+        // 10.00 元/500g，称 25g → 0.50；称 24g → 0.48
+        assert_eq!(
+            weigh_line_amount(dec("10.00"), 25, 500),
+            Some(dec("0.50"))
+        );
+        assert_eq!(
+            weigh_line_amount(dec("10.00"), 24, 500),
+            Some(dec("0.48"))
+        );
+        // 半分四舍五入（远离零）：10.05 元/500g 称 250g = 5.025 → 5.03
+        assert_eq!(
+            weigh_line_amount(dec("10.05"), 250, 500),
+            Some(dec("5.03"))
+        );
+    }
+
+    #[test]
+    fn weigh_amount_rejects_invalid() {
+        assert_eq!(weigh_line_amount(dec("10.00"), 0, 500), None);
+        assert_eq!(weigh_line_amount(dec("10.00"), -5, 500), None);
+        assert_eq!(weigh_line_amount(dec("10.00"), 100, 0), None);
+        assert_eq!(weigh_line_amount(dec("-1.00"), 100, 500), None);
+        // 免费称重（单价 0）合法，金额 0
+        assert_eq!(
+            weigh_line_amount(dec("0"), 100, 500),
+            Some(dec("0.00"))
+        );
+    }
+
+    #[test]
+    fn weigh_unit_normalization() {
+        assert_eq!(normalize_weigh_unit_grams(1000), 1000);
+        assert_eq!(normalize_weigh_unit_grams(0), DEFAULT_WEIGH_UNIT_GRAMS);
+        assert_eq!(normalize_weigh_unit_grams(-1), DEFAULT_WEIGH_UNIT_GRAMS);
+    }
+}

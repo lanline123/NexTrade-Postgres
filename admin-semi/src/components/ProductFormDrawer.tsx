@@ -59,6 +59,8 @@ const emptyValues: Record<string, any> = {
   limitNumber: 0,
   minBuyCount: 0,
   saleChannel: 0,
+  isWeighing: 0,
+  weighUnitGrams: 500,
   shippingTplId: undefined,
   freeShipping: true,
   isLogistics: true,
@@ -295,6 +297,8 @@ export default function ProductFormDrawer({
           limitNumber: Number(detail.limitNumber || 0),
           minBuyCount: Number(detail.minBuyCount || 0),
           saleChannel: Number(detail.saleChannel || 0),
+          isWeighing: Number(detail.isWeighing || 0) === 1,
+          weighUnitGrams: Number(detail.weighUnitGrams || 500),
           shippingTplId: detail.shippingTplId || undefined,
           freeShipping: Number(detail.freeShipping || 0) === 1,
           isLogistics: Number(detail.isLogistics ?? 1) === 1,
@@ -641,6 +645,42 @@ export default function ProductFormDrawer({
               { field: 'limitNumber', label: t('限购数量'), type: 'number' },
               { field: 'minBuyCount', label: t('起售量'), type: 'number' },
               {
+                field: 'isWeighing',
+                label: t('称重商品'),
+                type: 'switch',
+                checkedText: t('按重量计价'),
+                uncheckedText: t('按件计价'),
+              },
+              {
+                // 称重计价单位：销售价为每该克数的价格（默认 500 = 元/500g）。
+                // 未开启称重时禁用，走 custom 渲染读实时 values 联动（同 productPrice 先例）。
+                field: 'weighUnitGrams',
+                label: t('称重计价单位'),
+                type: 'custom',
+                render: ({ formApi, values }) => {
+                  const presets = [500, 1000, 250, 100];
+                  const current = Number(values.weighUnitGrams || 500);
+                  const options = (presets.includes(current) ? presets : [current, ...presets]).map((grams) => ({
+                    label:
+                      grams === 500
+                        ? t('每 500 克（1 斤）')
+                        : grams === 1000
+                          ? t('每 1000 克（1 公斤）')
+                          : `${t('每')} ${grams} ${t('克')}`,
+                    value: grams,
+                  }));
+                  return (
+                    <Select
+                      value={current}
+                      optionList={options}
+                      disabled={!isInquiryOn(values.isWeighing)}
+                      onChange={(value) => formApi?.setValue('weighUnitGrams', Number(value))}
+                      style={{ width: 420 }}
+                    />
+                  );
+                },
+              },
+              {
                 field: 'skuType',
                 label: t('规格类型'),
                 type: 'custom',
@@ -866,6 +906,8 @@ export default function ProductFormDrawer({
           isSupportReturn: values.isSupportReturn ? 1 : 0,
           isSupportCod: values.isSupportCod ? 1 : 0,
           isInquiry: values.isInquiry ? 1 : 0,
+          isWeighing: values.isWeighing ? 1 : 0,
+          weighUnitGrams: Math.max(1, Math.floor(Number(values.weighUnitGrams || 500))),
           skuType: Number(values.skuType || 1),
           productList:
             Number(values.skuType) === 2
