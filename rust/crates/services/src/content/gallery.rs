@@ -266,7 +266,7 @@ impl GalleryService {
             ));
         }
         let (id, is_shared) =
-            nextrade_core::models::content::gallery::validate_set_shared(dto)?;
+            nextrade_core::models::content::gallery::validate_set_shared(dto).map_err(Error::biz_msg)?;
         let group = self
             .repo()
             .find_by_id(id)

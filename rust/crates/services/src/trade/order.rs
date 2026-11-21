@@ -3099,6 +3099,14 @@ fn to_vo(o: &Order, items: &[OrderItem], claim: Option<&OfflinePaymentClaim>) ->
         // 买家取消直退进度由 list/detail 后置附加（需查退款申请表）
         paid_cancel_refund_status: None,
         paid_cancel_refund_status_name: None,
+        // 同城送达时段由 list/detail 在 to_vo 后回填（默认未选时段）
+        delivery_time_start: None,
+        delivery_time_end: None,
+        delivery_time_text: None,
+        // 送礼物标记由 list/detail 在 to_vo 后回填（默认非礼物）
+        is_gift_order: false,
+        gift_status: None,
+        gift_info: None,
     }
 }
 
@@ -3168,14 +3176,6 @@ pub(crate) fn paid_cancel_status_name(status: i32) -> &'static str {
         3 => "已拒绝",
         4 => "已退回",
         _ => "退款中",
-        // 同城送达时段由 list/detail 在 to_vo 后回填（默认未选时段）
-        delivery_time_start: None,
-        delivery_time_end: None,
-        delivery_time_text: None,
-        // 送礼物标记由 list/detail 在 to_vo 后回填（默认非礼物）
-        is_gift_order: false,
-        gift_status: None,
-        gift_info: None,
     }
 }
 

@@ -1089,7 +1089,7 @@ impl RefundApplyService {
                 // 买家取消来源被拒：退款不发生，订单继续履约——
                 // 支付状态从「退款中」恢复「已支付」，发货拦截随
                 // 申请终态自动解除。
-                if existing.initiator == RefundInitiator::BuyerCancel as i32 {
+                if existing.initiator == RefundInitiator::BuyerCancel as i16 {
                     self.set_order_pay_status(existing.order_id, 3, 2).await;
                 }
                 tracing::info!("退款申请已拒绝: id={} 原因={}", dto.refund_id, reason);
@@ -1121,7 +1121,7 @@ impl RefundApplyService {
                 .await?;
                 // 买家取消来源被退回：同拒绝口径，订单恢复「已支付」
                 // 继续履约（买家可改走售后通道）。
-                if existing.initiator == RefundInitiator::BuyerCancel as i32 {
+                if existing.initiator == RefundInitiator::BuyerCancel as i16 {
                     self.set_order_pay_status(existing.order_id, 3, 2).await;
                 }
                 tracing::info!("退款申请退回售后: id={}", dto.refund_id);
@@ -1347,7 +1347,7 @@ impl RefundApplyService {
         // 买家取消来源（initiator = 3）：退款完成即关闭订单
         // （待发货 → 已取消 + 库存回补 + 券释放 + 置已退款），
         // 收口在 close_order_for_buyer_cancel（原子流转，幂等）。
-        if existing.initiator == RefundInitiator::BuyerCancel as i32 {
+        if existing.initiator == RefundInitiator::BuyerCancel as i16 {
             self.close_order_for_buyer_cancel(existing.order_id).await;
         }
         Ok(())

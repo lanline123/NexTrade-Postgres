@@ -16,7 +16,7 @@
 //! - [`media_write_shop_id`]：create 强制落库店铺（店铺→本店；平台→请求值或 0）。
 
 use nextrade_core::Result;
-use nextrade_infrastructure::db::repo::marketing::tenant::TenantScope;
+pub use nextrade_infrastructure::db::repo::marketing::tenant::TenantScope;
 
 /// 当前请求的素材列表过滤值（`None` = 平台账号/无上下文，不加店铺条件）。
 #[must_use]

@@ -116,7 +116,7 @@ impl SiteCloneService {
         Ok(CloneKeySecretVO {
             key_id,
             key_code: key_code.clone(),
-            secret: plain,
+            secret: plain.clone(),
             token: build_token(dto.origin.as_deref().unwrap_or(""), &key_code, &plain),
         })
     }
@@ -179,7 +179,7 @@ impl SiteCloneService {
         Ok(CloneKeySecretVO {
             key_id,
             key_code: key.key_code.clone(),
-            secret: plain,
+            secret: plain.clone(),
             token: build_token(dto.origin.as_deref().unwrap_or(""), &key.key_code, &plain),
         })
     }
@@ -604,7 +604,7 @@ pub(crate) fn resolve_source(
     } else {
         let origin = source.origin.as_deref().unwrap_or("").trim().trim_end_matches('/').to_string();
         let key_code = source.key_id.as_deref().unwrap_or("").trim().to_string();
-        let secret = source.secret.as_deref().unwrap_or("").trim().to_string();
+        let secret = source.secret.trim().to_string();
         if origin.is_empty() || key_code.is_empty() || secret.is_empty() {
             return Err(Error::biz(400, "请粘贴搬家口令，或完整填写来源地址/密钥 ID/密钥"));
         }
@@ -757,9 +757,9 @@ pub(crate) fn build_save_dto(
             attr_name: a.attr_name.clone(),
             attr_value: a.attr_value.clone(),
             attr_price: a.attr_price,
-            attr_color: if a.attr_color.is_empty() { None } else { Some(a.attr_color.clone()) },
-            attr_pic: if a.attr_pic.is_empty() { None } else { Some(a.attr_pic.clone()) },
-            attr_pic_thumb: if a.attr_pic_thumb.is_empty() { None } else { Some(a.attr_pic_thumb.clone()) },
+            attr_color: a.attr_color.clone().filter(|s| !s.is_empty()),
+            attr_pic: a.attr_pic.clone().filter(|s| !s.is_empty()),
+            attr_pic_thumb: a.attr_pic_thumb.clone().filter(|s| !s.is_empty()),
             sort_order: Some(a.sort_order),
         };
         if let Some(group) = bucket.iter_mut().find(|g| g.attr_name == a.attr_name) {
@@ -868,6 +868,9 @@ pub(crate) fn build_save_dto(
         server_service_fee_value: Some(p.server_service_fee_value),
         auto_online_time: None,
         auto_offline_time: None,
+        sale_channel: None,
+        is_weighing: None,
+        weigh_unit_grams: None,
     }
 }
 

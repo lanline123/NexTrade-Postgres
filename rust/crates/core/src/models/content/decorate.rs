@@ -422,6 +422,12 @@ pub struct PcNavigationCreateDTO {
     pub r#type: Option<i32>,
     pub parent_id: Option<i32>,
     pub icon: Option<String>,
+    /// 入口类型（我方新增）：`qrcode` = 扫码入口，其余/缺省 = 普通链接
+    pub entry_type: Option<String>,
+    /// 二维码类型（我方新增）：`wecom` 企业微信 / `official` 公众号
+    pub qr_type: Option<String>,
+    /// 二维码图片 URL（我方新增）
+    pub qr_image: Option<String>,
 }
 
 /// 更新 PC 导航请求，对应 Java `PcNavigationUpdateDTO`。
@@ -437,6 +443,12 @@ pub struct PcNavigationUpdateDTO {
     pub r#type: Option<i32>,
     pub parent_id: Option<i32>,
     pub icon: Option<String>,
+    /// 入口类型（我方新增）：`qrcode` = 扫码入口，普通链接为空串
+    pub entry_type: Option<String>,
+    /// 二维码类型（我方新增）：`wecom` 企业微信 / `official` 公众号
+    pub qr_type: Option<String>,
+    /// 二维码图片 URL（我方新增）
+    pub qr_image: Option<String>,
 }
 
 // ————————————————————— PC 分类楼层（pc_cat_floor） —————————————————————
