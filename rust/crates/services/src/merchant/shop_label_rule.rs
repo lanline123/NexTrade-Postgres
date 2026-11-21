@@ -44,7 +44,7 @@
 //!   与一二期逐字不变。
 //! 迁移：`rust/migrations/028_shop_label_auto_rule.sql`（二期，部署前必须
 //! 先执行）；三期维度列与 scope_text 见
-//! `rust/migrations/039_shop_label_dimension.sql`。
+//! `rust/migrations/040_shop_label_dimension.sql`。
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
