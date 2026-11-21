@@ -9,7 +9,7 @@
   "batch": [],
   "interactionChecks": ["rust/web/admin-semi/scripts/verify-engine.cjs"],
   "notes": [
-    "认证设置：接口 /setting/config/authSettings + saveAuth（closeAuth/type/isIdentity/smsNote/tips）。",
-    "closeAuth=0 时认证类型与实名看价置灰（与旧版一致）；询价功能/批量采购项在旧版已注释，未迁移。"
+    "认证设置：接口 /setting/config/authSettings + saveAuth（closeAuth/type/isIdentity/isLogin/smsNote/tips）。",
+    "closeAuth=0 时认证类型与实名看价置灰（与旧版一致）；登录看价（isLogin，我方新增）与认证功能独立、不置灰；询价功能/批量采购项在旧版已注释，未迁移。"
   ]
 }

@@ -41,6 +41,7 @@ export default function GrouponShare({
     onChange
 }: Props) {
     const isIdentity = useConfigStore((s) => s.isIdentity);
+    const isLogin = useConfigStore((s) => s.isLogin);
     const clientType = useConfigStore((s) => s.XClientType);
     const userToken = useUserStore((s) => s.token);
     const userInfo = useUserStore((s) => s.userInfo);
@@ -55,7 +56,7 @@ export default function GrouponShare({
 
     const handlePoster = () => {
         onChange?.(false);
-        if (isIdentity === 1) {
+        if (isIdentity === 1 || isLogin === 1) {
             if (Object.keys(userInfo).length === 0) {
                 const str = t("登录后查看");
                 Taro.showToast({
@@ -64,7 +65,7 @@ export default function GrouponShare({
                 });
                 return;
             }
-            if (userInfo.isCompanyAuth !== 1) {
+            if (isIdentity === 1 && userInfo.isCompanyAuth !== 1) {
                 const str = t("实名后查看");
                 Taro.showToast({
                     title: t(str),

@@ -35,6 +35,7 @@ export default function SalesmanList() {
 
     const langCode = useI18nStore((s) => s.langCode);
     const isIdentity = useConfigStore((s) => s.isIdentity);
+    const isLogin = useConfigStore((s) => s.isLogin);
     const userInfo = useUserStore((s) => s.userInfo);
 
     const { height, contentHeight, contentWidth, statusBarHeight } = useSaveTopBoxHeight(60);
@@ -132,7 +133,7 @@ export default function SalesmanList() {
     const [showShare, setShowShare] = useState(false);
 
     const handleShowShare = (data: SalesmanProductListFilterResult) => {
-        if (isIdentity === 1) {
+        if (isIdentity === 1 || isLogin === 1) {
             let str = t("登录后查看");
             if (Object.keys(userInfo).length === 0) {
                 Taro.showToast({
@@ -141,7 +142,7 @@ export default function SalesmanList() {
                 });
                 return;
             }
-            if (!userInfo.isCompanyAuth) {
+            if (isIdentity === 1 && !userInfo.isCompanyAuth) {
                 str = t("实名后查看");
                 Taro.showToast({
                     title: t(str),

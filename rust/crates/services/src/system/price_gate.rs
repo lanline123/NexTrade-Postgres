@@ -1,14 +1,22 @@
-//! 价格门控执行层（第 2 期：登录 + 认证看价）。
+//! 价格门控执行层（第 2 期：登录 + 认证看价；2026-11-21 拆双开关）。
 //!
-//! 口径见 `inquiry-design/proposal.md` 第四节：后台「会员认证设置」的
-//! `isIdentity` 开启时，看价权谓词 = 已登录 && `user.is_company_auth = 1`；
-//! 关闭时人人可见（行为与门控上线前完全一致）。谓词在**接口层**执行：
-//! 公众读接口在谓词不满足时不下发真实价格（价格键置空），只藏 UI 无效。
-//! 询价商品/型号本身不出价，其载荷的价格键同样置空（混合商品的
-//! `minPricedPrice` 是真实价，必须脱敏）。
+//! 口径见 `inquiry-design/proposal.md` 第四节 + 2026-11-21 用户拍板：
+//! 价格查看门控拆为两个**独立**开关（后台「会员认证设置」）——
+//! - `isLogin`（开关①，我方新增）：开启后匿名用户看不到价格，
+//!   任意已登录用户可查；**只管查看，不管购买**。
+//! - `isIdentity`（开关②，原有）：开启后看价权谓词 = 已登录 &&
+//!   `user.is_company_auth = 1`。
 //!
-//! 购买侧连带（用户决策 3，2026-11-15）：未认证用户不能加购/下单，
-//! 否则购物车会漏价绕过门控——见 [`ensure_purchase_allowed`]。
+//! 两开关都关时人人可见（行为与门控上线前完全一致）。谓词在**接口层**
+//! 执行：公众读接口在谓词不满足时不下发真实价格（价格键置空），
+//! 只藏 UI 无效。询价商品/型号本身不出价，其载荷的价格键同样置空
+//! （混合商品的 `minPricedPrice` 是真实价，必须脱敏）。
+//!
+//! 购买侧连带（用户决策 3，2026-11-15；2026-11-21 拆分时确认不变）：
+//! 未认证用户不能加购/下单，否则购物车会漏价绕过门控——见
+//! [`ensure_purchase_allowed`]。购买拦截**只跟随开关②**：购买裁决走
+//! [`resolve_purchase_access`]（登录开关强制关闭），开关①开、②关时
+//! 已登录未认证用户照常购买。
 //! 例外（2026-11-20 裁定）：询价开启的商品不走购买门拦截——询价流程
 //! 本就是为未认证用户设计的获价通道，命中询价时由可购校验给出
 //! 询价一期文案「该商品为询价商品，请提交询价」，见
@@ -65,28 +73,39 @@ impl PriceAccess {
     }
 }
 
-/// 纯谓词（无 IO，可单测）：`is_identity != 1` 时人人可见；
-/// 开启时 = 已登录 && `is_company_auth == 1`。
+/// 纯谓词（无 IO，可单测）：看价权按两开关分层判定——
+/// `is_identity == 1` 时 = 已登录 && `is_company_auth == 1`（优先级最高）；
+/// 否则 `is_login == 1` 时 = 已登录即可；两开关都关时人人可见。
 /// `user` 为 `(user_id, is_company_auth)`，`None` 表示未登录。
 #[must_use]
-pub fn decide_price_access(is_identity: i64, user: Option<(i32, i32)>) -> PriceAccess {
-    if is_identity != 1 {
-        return PriceAccess::Visible;
+pub fn decide_price_access(
+    is_login: i64,
+    is_identity: i64,
+    user: Option<(i32, i32)>,
+) -> PriceAccess {
+    if is_identity == 1 {
+        return match user {
+            None => PriceAccess::NeedLogin,
+            Some((_, is_company_auth)) if is_company_auth == 1 => PriceAccess::Visible,
+            Some(_) => PriceAccess::NeedCertification,
+        };
     }
-    match user {
-        None => PriceAccess::NeedLogin,
-        Some((_, is_company_auth)) if is_company_auth == 1 => PriceAccess::Visible,
-        Some(_) => PriceAccess::NeedCertification,
+    if is_login == 1 {
+        return match user {
+            None => PriceAccess::NeedLogin,
+            Some(_) => PriceAccess::Visible,
+        };
     }
+    PriceAccess::Visible
 }
 
-/// 解析当前访客的看价权：读认证门控配置 + （必要时）查用户认证标志。
-///
-/// # Errors
-/// - 配置/用户仓储失败 ⇒ `Error::Database`
-pub async fn resolve_price_access(
+/// 解析门控裁决的共用实现：读认证门控配置 + （任一相关开关开启时）
+/// 查用户认证标志。`include_login_gate = false` 时登录开关强制按关
+/// 处理（购买裁决专用口径，见 [`resolve_purchase_access`]）。
+async fn resolve_access(
     repos: &Repositories,
     user_id: Option<i32>,
+    include_login_gate: bool,
 ) -> Result<PriceAccess> {
     let rows = repos
         .system
@@ -99,7 +118,12 @@ pub async fn resolve_price_access(
         .collect();
     let gate = effective_auth_gate(&pairs);
     let is_identity = gate["isIdentity"].as_i64().unwrap_or(0);
-    if is_identity != 1 {
+    let is_login = if include_login_gate {
+        gate["isLogin"].as_i64().unwrap_or(0)
+    } else {
+        0
+    };
+    if is_identity != 1 && is_login != 1 {
         return Ok(PriceAccess::Visible);
     }
     let Some(uid) = user_id.filter(|v| *v > 0) else {
@@ -107,9 +131,30 @@ pub async fn resolve_price_access(
     };
     let user = repos.member.user_center.find_user_by_id(uid).await?;
     Ok(decide_price_access(
+        is_login,
         is_identity,
         user.map(|u| (u.user_id, u.is_company_auth)),
     ))
+}
+
+/// 解析当前访客的看价权（查看口径：两开关都参与判定）。
+///
+/// # Errors
+/// - 配置/用户仓储失败 ⇒ `Error::Database`
+pub async fn resolve_price_access(
+    repos: &Repositories,
+    user_id: Option<i32>,
+) -> Result<PriceAccess> {
+    resolve_access(repos, user_id, true).await
+}
+
+/// 解析购买裁决用的看价权（购买口径：**只跟随开关② `isIdentity`**，
+/// 登录开关强制按关——开关①只管查看、不拦购买，2026-11-21 拍板）。
+///
+/// # Errors
+/// - 配置/用户仓储失败 ⇒ `Error::Database`
+pub async fn resolve_purchase_access(repos: &Repositories, user_id: i32) -> Result<PriceAccess> {
+    resolve_access(repos, Some(user_id), false).await
 }
 
 /// 购买门控裁决（纯函数，可单测）：给定看价权与「目标是否询价开启」，
@@ -135,8 +180,10 @@ pub fn purchase_gate_error(
     }
 }
 
-/// 购买门控（决策 3）：门控开启且未认证通过 ⇒ 拒绝加购/改量/下单。
-/// 门控关闭时直接放行（多一次配置查询，与黑名单校验同量级）。
+/// 购买门控（决策 3）：认证开关（`isIdentity`）开启且未认证通过 ⇒
+/// 拒绝加购/改量/下单。只跟随认证开关，登录开关不拦购买
+/// （裁决走 [`resolve_purchase_access`]）；认证开关关闭时直接放行
+/// （多一次配置查询，与黑名单校验同量级）。
 ///
 /// # Errors
 /// - 未认证 ⇒ 业务错误「请先完成实名认证后再购买」
@@ -160,7 +207,7 @@ pub async fn ensure_purchase_allowed_for(
     if inquiry_exempt {
         return Ok(());
     }
-    let access = resolve_price_access(repos, Some(user_id)).await?;
+    let access = resolve_purchase_access(repos, user_id).await?;
     match purchase_gate_error(access, inquiry_exempt) {
         None => Ok(()),
         Some((code, message)) => Err(Error::biz(code, message.to_string())),
@@ -287,19 +334,63 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn gate_off_everyone_visible() {
-        assert_eq!(decide_price_access(0, None), PriceAccess::Visible);
-        assert_eq!(decide_price_access(0, Some((7, 0))), PriceAccess::Visible);
+    fn both_gates_off_everyone_visible() {
+        assert_eq!(decide_price_access(0, 0, None), PriceAccess::Visible);
+        assert_eq!(
+            decide_price_access(0, 0, Some((7, 0))),
+            PriceAccess::Visible
+        );
+        assert_eq!(
+            decide_price_access(0, 0, Some((7, 1))),
+            PriceAccess::Visible
+        );
     }
 
     #[test]
-    fn gate_on_requires_login_and_certification() {
-        assert_eq!(decide_price_access(1, None), PriceAccess::NeedLogin);
+    fn login_gate_only_any_logged_in_user_visible() {
+        // 开关①（isLogin）单开：匿名拦登录，任意已登录用户可见（不问认证）
+        assert_eq!(decide_price_access(1, 0, None), PriceAccess::NeedLogin);
         assert_eq!(
-            decide_price_access(1, Some((7, 0))),
-            PriceAccess::NeedCertification
+            decide_price_access(1, 0, Some((7, 0))),
+            PriceAccess::Visible
         );
-        assert_eq!(decide_price_access(1, Some((7, 1))), PriceAccess::Visible);
+        assert_eq!(
+            decide_price_access(1, 0, Some((7, 1))),
+            PriceAccess::Visible
+        );
+    }
+
+    #[test]
+    fn identity_gate_requires_login_and_certification() {
+        // 开关②（isIdentity）单开与双开同态：未认证一律拦（与拆分前口径一致）
+        for is_login in [0, 1] {
+            assert_eq!(
+                decide_price_access(is_login, 1, None),
+                PriceAccess::NeedLogin
+            );
+            assert_eq!(
+                decide_price_access(is_login, 1, Some((7, 0))),
+                PriceAccess::NeedCertification
+            );
+            assert_eq!(
+                decide_price_access(is_login, 1, Some((7, 1))),
+                PriceAccess::Visible
+            );
+        }
+    }
+
+    #[test]
+    fn purchase_decision_ignores_login_gate() {
+        // 购买口径的纯函数构成（resolve_purchase_access 把登录开关强制
+        // 按关传入谓词）：开关①开、②关时已登录未认证用户购买不拦；
+        // ②开时未认证照旧拦（purchase_gate_error 裁决不变）。
+        let access = decide_price_access(0, 0, Some((7, 0)));
+        assert_eq!(purchase_gate_error(access, false), None);
+        let access = decide_price_access(0, 1, Some((7, 0)));
+        assert_eq!(
+            purchase_gate_error(access, false),
+            Some((400, "请先完成实名认证后再购买"))
+        );
     }
 
     #[test]

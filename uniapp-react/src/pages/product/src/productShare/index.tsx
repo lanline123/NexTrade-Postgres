@@ -99,7 +99,7 @@ export default function ProductShare({ modelValue, productId, productInfo, produ
     const [showPoster, setShowPoster] = useState(false);
     const handlePoster = () => {
         setShow(false);
-        if (configStore.isIdentity === 1) {
+        if (configStore.isIdentity === 1 || configStore.isLogin === 1) {
             let str = t("登录后查看");
             if (Object.keys(userStore.userInfo).length === 0) {
                 Taro.showToast({
@@ -108,7 +108,7 @@ export default function ProductShare({ modelValue, productId, productInfo, produ
                 });
                 return;
             }
-            if (!userStore.userInfo.isCompanyAuth) {
+            if (configStore.isIdentity === 1 && !userStore.userInfo.isCompanyAuth) {
                 str = t("实名后查看");
                 Taro.showToast({
                     title: t(str),

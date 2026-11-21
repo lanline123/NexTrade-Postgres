@@ -6275,7 +6275,7 @@ static EP43_FIELDS: [FieldSpec; 28] = [
     },
 ];
 
-static EP44_FIELDS: [FieldSpec; 5] = [
+static EP44_FIELDS: [FieldSpec; 6] = [
     FieldSpec {
         field: "closeAuth",
         code: "closeAuth",
@@ -6301,6 +6301,17 @@ static EP44_FIELDS: [FieldSpec; 5] = [
     FieldSpec {
         field: "isIdentity",
         code: "isIdentity",
+        ty: ValueType::Int,
+        default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        field: "isLogin",
+        code: "isLogin",
         ty: ValueType::Int,
         default: None,
         is_list: false,
@@ -6333,7 +6344,7 @@ static EP44_FIELDS: [FieldSpec; 5] = [
     },
 ];
 
-static EP45_FIELDS: [FieldSpec; 5] = [
+static EP45_FIELDS: [FieldSpec; 6] = [
     FieldSpec {
         field: "closeAuth",
         code: "closeAuth",
@@ -6359,6 +6370,17 @@ static EP45_FIELDS: [FieldSpec; 5] = [
     FieldSpec {
         field: "isIdentity",
         code: "isIdentity",
+        ty: ValueType::Int,
+        default: None,
+        is_list: false,
+        label: None,
+        widget: None,
+        required: None,
+        group: None,
+    },
+    FieldSpec {
+        field: "isLogin",
+        code: "isLogin",
         ty: ValueType::Int,
         default: None,
         is_list: false,

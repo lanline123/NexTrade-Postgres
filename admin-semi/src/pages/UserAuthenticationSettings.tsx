@@ -13,6 +13,7 @@ export default function UserAuthenticationSettings() {
     closeAuth: 0,
     type: 0,
     isIdentity: 0,
+    isLogin: 0,
     smsNote: 0,
     tips: '',
   });
@@ -47,7 +48,7 @@ export default function UserAuthenticationSettings() {
         icon={<IconSafe />}
         title={t('会员认证设置')}
         description={t('会员实名认证、认证类型与审核规则。')}
-        count={t('{count} 项', { count: 5 })}
+        count={t('{count} 项', { count: 6 })}
       >
         <div className="config-field">
           <label>{t('会员认证')}</label>
@@ -83,6 +84,21 @@ export default function UserAuthenticationSettings() {
             </RadioGroup>
             <p className="config-field__help">
               {t('开启后，前台商城的商品价格需要用户实名认证之后才能查看。')}
+            </p>
+          </div>
+        </div>
+        <div className="config-field">
+          <label>{t('是否登录后才能查看价格')}</label>
+          <div>
+            <RadioGroup
+              value={formState.isLogin}
+              onChange={(event) => setFormState((c) => ({ ...c, isLogin: Number(event.target.value) }))}
+            >
+              <Radio value={1}>{t('开启')}</Radio>
+              <Radio value={0}>{t('关闭')}</Radio>
+            </RadioGroup>
+            <p className="config-field__help">
+              {t('开启后，前台商城的商品价格需要用户登录之后才能查看，无需实名认证。此开关只影响查看，购买拦截只跟随实名开关。')}
             </p>
           </div>
         </div>

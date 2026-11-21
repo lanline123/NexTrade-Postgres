@@ -63,6 +63,7 @@ export interface ConfigState {
     showSelledCount: number;
     shopRegClosed: number;
     isIdentity: number;
+    isLogin: number;
     closeOrder: number;
     useCoupon: number;
     usePoints: number;
@@ -192,6 +193,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     shopRegClosed: 0,
     closeOrder: 0,
     isIdentity: 0,
+    isLogin: 0,
     useCoupon: 0,
     usePoints: 0,
     useSurplus: 0,
@@ -432,6 +434,7 @@ function loadBaseConfigData(set: (partial: Partial<ConfigState>) => void, get: (
                 showMarketprice: res.showMarketprice,
                 showSelledCount: res.showSelledCount,
                 isIdentity: Number(res.isIdentity ?? gate?.isIdentity ?? 0),
+                isLogin: Number(res.isLogin ?? gate?.isLogin ?? 0),
                 shopRegClosed: res.shopRegClosed,
                 closeOrder: res.closeOrder,
                 useCoupon: res.useCoupon,

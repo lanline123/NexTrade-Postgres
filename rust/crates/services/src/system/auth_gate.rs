@@ -12,6 +12,10 @@
 //!   `authClosed = (closeAuth === 0)`，即 **1 = 认证开启、0 = 关闭**
 //!   （规格表默认 `"0"`）。
 //! - `isIdentity`：是否实名（认证通过）后才能查看价格，1 = 开启。
+//! - `isLogin`：是否登录后才能查看价格，1 = 开启（我方新增，
+//!   2026-11-21 用户拍板把价格门控由单开关拆为两个独立开关：
+//!   `isLogin` 只管查看、不管购买；购买拦截只跟随 `isIdentity`，
+//!   见 `system::price_gate`）。
 //! - `type`：可申请的认证类型，1 = 仅企业认证、0 = 个人 + 企业。
 //!
 //! 读取语义与管理端 `parse_field`（Int）对齐：缺失/空白 ⇒ 0，
@@ -23,11 +27,18 @@ use serde_json::{json, Value};
 pub const CLOSE_AUTH_CODE: &str = "closeAuth";
 /// config 表中的业务编码：是否实名后才能查看价格。
 pub const IS_IDENTITY_CODE: &str = "isIdentity";
+/// config 表中的业务编码：是否登录后才能查看价格（我方新增）。
+pub const IS_LOGIN_CODE: &str = "isLogin";
 /// config 表中的业务编码：认证类型（1 仅企业 / 0 个人+企业）。
 pub const AUTH_TYPE_CODE: &str = "type";
 
 /// 本端点读取的全部 biz_code（一次 IN 查询读齐）。
-pub const AUTH_GATE_CODES: [&str; 3] = [CLOSE_AUTH_CODE, IS_IDENTITY_CODE, AUTH_TYPE_CODE];
+pub const AUTH_GATE_CODES: [&str; 4] = [
+    CLOSE_AUTH_CODE,
+    IS_IDENTITY_CODE,
+    IS_LOGIN_CODE,
+    AUTH_TYPE_CODE,
+];
 
 fn parse_flag(rows: &[(String, String)], code: &str) -> i64 {
     rows.iter()
@@ -42,6 +53,7 @@ pub fn effective_auth_gate(rows: &[(String, String)]) -> Value {
     json!({
         "closeAuth": parse_flag(rows, CLOSE_AUTH_CODE),
         "isIdentity": parse_flag(rows, IS_IDENTITY_CODE),
+        "isLogin": parse_flag(rows, IS_LOGIN_CODE),
         "type": parse_flag(rows, AUTH_TYPE_CODE),
     })
 }
@@ -62,6 +74,7 @@ mod tests {
         let v = effective_auth_gate(&[]);
         assert_eq!(v["closeAuth"], json!(0));
         assert_eq!(v["isIdentity"], json!(0));
+        assert_eq!(v["isLogin"], json!(0));
         assert_eq!(v["type"], json!(0));
     }
 
@@ -70,13 +83,15 @@ mod tests {
         let v = effective_auth_gate(&rows(&[
             ("closeAuth", "1"),
             ("isIdentity", "1"),
+            ("isLogin", "1"),
             ("type", "1"),
             ("smsNote", "1"),
         ]));
         assert_eq!(v["closeAuth"], json!(1));
         assert_eq!(v["isIdentity"], json!(1));
+        assert_eq!(v["isLogin"], json!(1));
         assert_eq!(v["type"], json!(1));
-        // 只下发三项，其余认证设置字段（smsNote/tips）不外泄
+        // 只下发四项，其余认证设置字段（smsNote/tips）不外泄
         assert!(v.get("smsNote").is_none());
         assert!(v.get("tips").is_none());
     }

@@ -89,6 +89,7 @@ export interface ConfigData {
     companyDataType: number;
     companyDataTips: string;
     isIdentity: number;
+    isLogin: number;
     shopRegClosed: number;
     closeOrder: number;
     useCoupon: number;

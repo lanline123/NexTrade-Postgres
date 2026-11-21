@@ -1,8 +1,9 @@
 //! 前台 会员认证门控配置路由（system::auth_gate_client，1 条）。
 //!
 //! 本平台新增端点（非 Java 契约）：`GET /api/common/config/authGate`
-//! 返回后台「会员认证设置」中与前台相关的三项开关（`closeAuth` 认证
-//! 功能开关 / `isIdentity` 实名后看价 / `type` 认证类型），供 PC 前台
+//! 返回后台「会员认证设置」中与前台相关的四项开关（`closeAuth` 认证
+//! 功能开关 / `isIdentity` 实名后看价 / `isLogin` 登录后看价（我方
+//! 新增，2026-11-21 门控拆双开关）/ `type` 认证类型），供 PC/H5 前台
 //! 决定认证入口显隐与价格门控渲染口径。未配置时全 0。与 `config_client`
 //! 的 Java 契约文件分开，避免污染其契约测试（同 buyStyle 先例）。
 

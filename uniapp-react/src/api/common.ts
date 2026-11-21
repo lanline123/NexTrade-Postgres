@@ -86,13 +86,13 @@ export const initConfigSettings = (previewId?: number) => {
 };
 
 /**
- * @description 获取价格门控配置（isIdentity 开关）
- * initConfigSettings 响应不含 isIdentity 字段，门控开关须单独从此接口取，
- * 否则 config store 的 isIdentity 永不填充、全站价格门控文案不触发。
- * @returns 门控配置（含 isIdentity）
+ * @description 获取价格门控配置（isIdentity / isLogin 两开关）
+ * initConfigSettings 响应不含门控字段，门控开关须单独从此接口取，
+ * 否则 config store 的 isIdentity / isLogin 永不填充、全站价格门控文案不触发。
+ * @returns 门控配置（含 isIdentity 与 isLogin）
  */
 export const getAuthGateConfig = () => {
-    return request<{ code: number; message: string; data: { isIdentity?: number } }>({
+    return request<{ code: number; message: string; data: { isIdentity?: number; isLogin?: number } }>({
         url: "common/config/authGate",
         method: "get"
     });

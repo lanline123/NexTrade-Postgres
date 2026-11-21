@@ -87,7 +87,7 @@ use nextrade_infrastructure::db::repo::wholesale::wholesale_client::{NewCartLine
 use nextrade_infrastructure::db::Repositories;
 
 use crate::catalog::product::{ProductService, MSG_INQUIRY_NOT_PURCHASABLE};
-use crate::system::price_gate::{purchase_gate_error, resolve_price_access, PriceAccess};
+use crate::system::price_gate::{purchase_gate_error, resolve_purchase_access, PriceAccess};
 
 // ————————————————————— 业务码（Java `com.nextrade.common.constant.HttpStatus`） —————————————————————
 
@@ -895,9 +895,10 @@ impl WholesaleClientService {
             .await?
             .map_or(0, |w| w.grade_id);
 
-        // 购买门看价权（用户维度，整批只解析一次）：逐行与询价命中
-        // 组合裁决，见 add_one_item 内的 batch_line_gate_error。
-        let access = resolve_price_access(&self.repos, Some(user_id)).await?;
+        // 购买门看价权（用户维度，整批只解析一次）：走购买口径解析
+        // （只跟随认证开关 isIdentity，登录开关不拦购买），逐行与询价
+        // 命中组合裁决，见 add_one_item 内的 batch_line_gate_error。
+        let access = resolve_purchase_access(&self.repos, user_id).await?;
 
         let mut result = WholesaleCartBatchResultVO {
             success_count: 0,

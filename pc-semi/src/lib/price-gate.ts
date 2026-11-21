@@ -3,9 +3,11 @@
 /**
  * 价格门控前端态（询价线第 2 期，我方新增）。
  *
- * 后端谓词（services::system::price_gate）：isIdentity 开启时，仅
- * 已登录且 `is_company_auth = 1` 的会员能看真实价格；公开读接口在
- * 无看价权时把价格置空并在载荷上打 `priceVisible=false` +
+ * 后端谓词（services::system::price_gate）：价格查看门控为两个独立
+ * 开关——isIdentity（认证后可查）开启时，仅已登录且
+ * `is_company_auth = 1` 的会员能看真实价格；isLogin（登录后可查，
+ * 我方新增）单独开启时，任意已登录会员可见、匿名不可见。公开读接口
+ * 在无看价权时把价格置空并在载荷上打 `priceVisible=false` +
  * `priceGate=login|certification`。前端据此渲染门控文案：
  *
  *   正常价 / 询价（询价商品全员一致，不走本模块）
@@ -131,15 +133,17 @@ export function resolveLoggedInPriceAccess(): Promise<PriceAccessState> {
 }
 
 /**
- * 当前访客的价格门控态：门控关 → visible；未登录 → needLogin；
- * 已登录 → 子态解析（visible / needAuth / pending / rejected）。
+ * 当前访客的价格门控态：两开关都关 → visible；仅登录门开 → 未登录
+ * needLogin、已登录 visible（不查认证子态）；认证门开 → 未登录
+ * needLogin、已登录走子态解析（visible / needAuth / pending /
+ * rejected）。
  */
 export function usePriceAccess(): PriceAccessState {
   const gate = useAuthGate();
   const [state, setState] = useState<PriceAccessState>('visible');
   useEffect(() => {
     if (gate.isIdentity !== 1) {
-      setState('visible');
+      setState(gate.isLogin === 1 && !hasAccessToken() ? 'needLogin' : 'visible');
       return undefined;
     }
     if (!hasAccessToken()) {
@@ -153,6 +157,6 @@ export function usePriceAccess(): PriceAccessState {
     return () => {
       alive = false;
     };
-  }, [gate.isIdentity]);
+  }, [gate.isIdentity, gate.isLogin]);
   return state;
 }

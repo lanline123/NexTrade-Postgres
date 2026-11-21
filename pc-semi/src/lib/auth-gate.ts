@@ -4,7 +4,9 @@
  * 认证门控配置（GET /api/common/config/authGate）。
  *
  * 后台「会员认证设置」的公众下发口：closeAuth（认证总开关）/ isIdentity
- * （实名后才能查看价格）/ type（1 仅企业 / 0 个人+企业）。
+ * （实名后才能查看价格）/ isLogin（登录后才能查看价格，我方新增，
+ * 2026-11-21 与 isIdentity 拆为两个独立开关）/ type（1 仅企业 /
+ * 0 个人+企业）。
  * 接口未上线或取数失败时一律回落全关（closeAuth=0），前台按「未开启认证」
  * 渲染——认证入口隐藏、价格不门控，与现行行为一致。
  *
@@ -24,11 +26,13 @@ export interface AuthGateConfig {
   closeAuth: number;
   /** 是否实名后才能查看价格：1 是 / 0 否 */
   isIdentity: number;
+  /** 是否登录后才能查看价格：1 是 / 0 否（只管查看，购买拦截只跟随 isIdentity） */
+  isLogin: number;
   /** 可申请的认证类型：1 仅企业 / 0 个人+企业 */
   type: number;
 }
 
-export const AUTH_GATE_FALLBACK: AuthGateConfig = { closeAuth: 0, isIdentity: 0, type: 0 };
+export const AUTH_GATE_FALLBACK: AuthGateConfig = { closeAuth: 0, isIdentity: 0, isLogin: 0, type: 0 };
 
 let cached: AuthGateConfig | null = null;
 let cachedAt = 0;
@@ -50,6 +54,7 @@ export function fetchAuthGate(): Promise<AuthGateConfig> {
         cached = {
           closeAuth: Number(data?.closeAuth ?? 0) === 1 ? 1 : 0,
           isIdentity: Number(data?.isIdentity ?? 0) === 1 ? 1 : 0,
+          isLogin: Number(data?.isLogin ?? 0) === 1 ? 1 : 0,
           type: Number(data?.type ?? 0),
         };
         cachedAt = Date.now();

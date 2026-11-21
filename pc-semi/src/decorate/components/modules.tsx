@@ -901,7 +901,7 @@ function useDecorateProductList(
   const identityRefreshDoneRef = useRef(false);
   useEffect(() => {
     if (initial === undefined || identityRefreshDoneRef.current) return undefined;
-    if (authGate.isIdentity !== 1 || !hasAccessToken()) return undefined;
+    if ((authGate.isIdentity !== 1 && authGate.isLogin !== 1) || !hasAccessToken()) return undefined;
     const query = buildDecorateProductListQuery(config, columns, shopId);
     if (query === null || query !== seededQueryRef.current) return undefined;
     identityRefreshDoneRef.current = true;
@@ -920,7 +920,7 @@ function useDecorateProductList(
     return () => {
       cancelled = true;
     };
-  }, [authGate.isIdentity, JSON.stringify(config), columns, Number(shopId) > 0 ? String(shopId) : '']);
+  }, [authGate.isIdentity, authGate.isLogin, JSON.stringify(config), columns, Number(shopId) > 0 ? String(shopId) : '']);
 
   return { products, loading };
 }
@@ -1698,7 +1698,7 @@ function HomeHero({ module, initialData }: ModuleProps) {
   });
   const heroPriceIdsKey = heroPriceIds.join(',');
   useEffect(() => {
-    if (authGate.isIdentity !== 1 || !hasAccessToken()) return undefined;
+    if ((authGate.isIdentity !== 1 && authGate.isLogin !== 1) || !hasAccessToken()) return undefined;
     const missing = heroPriceIds.filter((id) => !priceFetchedIdsRef.current.has(id));
     if (!missing.length) return undefined;
     // 先记已拉，避免分组卡位商品陆续到达时对同一 id 重复发请求；失败保持现状渲染
@@ -1728,7 +1728,7 @@ function HomeHero({ module, initialData }: ModuleProps) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authGate.isIdentity, heroPriceIdsKey]);
+  }, [authGate.isIdentity, authGate.isLogin, heroPriceIdsKey]);
 
   /* 旧版依赖 commonStore.shopRegClosed / shopName：注册入口开关与未登录欢迎语（/api/common/config/base） */
   const [shopRegClosed, setShopRegClosed] = useState<number>(0);

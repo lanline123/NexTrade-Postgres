@@ -354,9 +354,10 @@ impl ConfigClientService {
         Ok(super::font_settings::effective_font_settings(stored))
     }
 
-    /// 价格门控判定（第 2 期）：按 `isIdentity` 配置与当前访客的登录/认证
-    /// 状态解析看价权，供公众价格接口脱敏与购买拦截共用（见
-    /// `system::price_gate`）。
+    /// 价格门控判定（第 2 期；2026-11-21 拆双开关）：按 `isLogin` /
+    /// `isIdentity` 两开关与当前访客的登录/认证状态解析看价权，供公众
+    /// 价格接口脱敏（购买拦截走 `system::price_gate` 的购买口径，
+    /// 只跟随 `isIdentity`）。
     pub async fn price_access(
         &self,
         user_id: Option<i32>,
@@ -365,7 +366,7 @@ impl ConfigClientService {
     }
 
     /// 会员认证门控配置（后台「会员认证设置」的 closeAuth / isIdentity /
-    /// type 三项只读下发；未配置时全 0，见 `system::auth_gate`）。
+    /// isLogin / type 四项只读下发；未配置时全 0，见 `system::auth_gate`）。
     pub async fn auth_gate(&self) -> Result<serde_json::Value> {
         let rows = self
             .repos
