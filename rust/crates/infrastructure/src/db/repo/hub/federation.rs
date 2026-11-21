@@ -9,6 +9,7 @@
 //!
 //! SQL 一律运行时 `sqlx::query` / `query_as`，`$n` 占位。
 
+use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 use sqlx::{PgPool, Postgres, QueryBuilder};
 
@@ -19,9 +20,10 @@ use nextrade_core::models::hub::federation::{
     HubCredentialListQuery, HubLink, HubLinkListQuery, HubMemberConflict,
     HubMemberConflictListQuery, HubMemberLink, HubMemberListQuery, HubMemberMap, HubOrderSummary,
     HubOrderSummaryListQuery, HubPairingCode, HubPriceOverride, HubProductMap, HubSsoListQuery,
-    HubSsoRequest, HubSsoState, HubStockHold, HubXorder, HubXorderItem, HubXorderListQuery,
-    HubXorderRoute, HubXorderRouteListQuery, HubXorderSub, LocalMemberRow, LocalOrderRow,
-    OrderReportItem,
+    HubSsoRequest, HubSsoState, HubStockHold, HubWalletAccount, HubWalletAccountListQuery,
+    HubWalletLine, HubWalletLineListQuery, HubWalletLocalState, HubWalletMirror,
+    HubWalletMirrorListQuery, HubXorder, HubXorderItem, HubXorderListQuery, HubXorderRoute,
+    HubXorderRouteListQuery, HubXorderSub, LocalMemberRow, LocalOrderRow, OrderReportItem,
 };
 use nextrade_core::{Error, Result};
 
@@ -3190,6 +3192,542 @@ fn push_order_filters(qb: &mut QueryBuilder<'_, Postgres>, q: &HubOrderSummaryLi
     }
 }
 
+/// 中央账本记账结果（仓储事务回执）。
+#[derive(Debug, Clone)]
+pub struct WalletPostOutcome {
+    pub line_id: i32,
+    pub currency: String,
+    /// 实际落行金额（带符号）。
+    pub amount: Decimal,
+    pub balance_after: Decimal,
+    pub frozen_after: Decimal,
+    /// 幂等命中既有行（未重复记账）。
+    pub duplicated: bool,
+}
+
+impl HubFederationRepository {
+    // ———————————————————— 三期④：中央账本（迁移 045） ————————————————————
+
+    /// 中央账本记账（单事务串行化）：幂等命中直接回原行；否则锁账户行
+    /// （不存在先建）→ 按 bizType 校验并推导金额 → 写行 → 更新账户。
+    /// 红线：余额/积分永不扣成负数；冻结类原行不可直接冲正；差错只冲正。
+    /// `amount` 为正数幅值（confirm/release/reverse 由被引用行推导，忽略入参）。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn apply_wallet_post(
+        &self,
+        link_id: i32,
+        gid: &str,
+        currency: &str,
+        biz_type: &str,
+        amount: Decimal,
+        biz_sn: &str,
+        ref_biz_sn: &str,
+        remark: &str,
+        now: i32,
+    ) -> Result<WalletPostOutcome> {
+        let mut tx = self.pool.begin().await.map_err(map_err)?;
+        // 幂等：同 (link_id, biz_sn) 已有行 → 回原行结果，不重复记账。
+        let existing = sqlx::query_as::<_, HubWalletLine>(
+            "SELECT * FROM hub_wallet_line WHERE link_id = $1 AND biz_sn = $2",
+        )
+        .bind(link_id)
+        .bind(biz_sn)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        if let Some(line) = existing {
+            return Ok(WalletPostOutcome {
+                line_id: line.id,
+                currency: line.currency.clone(),
+                amount: line.amount,
+                balance_after: line.balance_after,
+                frozen_after: line.frozen_after,
+                duplicated: true,
+            });
+        }
+        sqlx::query(
+            "INSERT INTO hub_wallet_account (global_member_id, add_time, update_time) \
+             VALUES ($1, $2, $2) ON CONFLICT (global_member_id) DO NOTHING",
+        )
+        .bind(gid)
+        .bind(now)
+        .execute(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        let account = sqlx::query_as::<_, HubWalletAccount>(
+            "SELECT * FROM hub_wallet_account WHERE global_member_id = $1 FOR UPDATE",
+        )
+        .bind(gid)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        if account.status != 1 {
+            return Err(Error::Forbidden("联邦账户已冻结停用".into()));
+        }
+        let mut points = account.points_balance;
+        let mut money = account.money_balance;
+        let mut frozen = account.frozen_money;
+        let mut signed = Decimal::ZERO;
+        let mut line_currency = currency.to_string();
+        let mut ref_line_id = 0;
+        let is_points = currency == "points";
+        match biz_type {
+            "points_grant" | "points_spend" | "merge_in" if is_points => {
+                let amt = amount
+                    .to_i64()
+                    .filter(|_| amount.fract() == Decimal::ZERO && amount > Decimal::ZERO)
+                    .ok_or_else(|| Error::Validation("积分金额必须为正整数".into()))?;
+                if biz_type == "points_spend" {
+                    if points < amt {
+                        return Err(Error::biz(400, "联邦积分不足"));
+                    }
+                    points -= amt;
+                    signed = -amount;
+                } else {
+                    points += amt;
+                    signed = amount;
+                }
+            }
+            "money_credit" | "money_debit" | "merge_in" if !is_points => {
+                if amount <= Decimal::ZERO {
+                    return Err(Error::Validation("金额必须为正数".into()));
+                }
+                if biz_type == "money_debit" {
+                    if money < amount {
+                        return Err(Error::biz(400, "联邦账户余额不足"));
+                    }
+                    money -= amount;
+                    signed = -amount;
+                } else {
+                    money += amount;
+                    signed = amount;
+                }
+            }
+            "money_freeze" => {
+                if amount <= Decimal::ZERO {
+                    return Err(Error::Validation("金额必须为正数".into()));
+                }
+                if money < amount {
+                    return Err(Error::biz(400, "联邦账户余额不足，无法冻结"));
+                }
+                money -= amount;
+                frozen += amount;
+                signed = -amount;
+            }
+            "money_confirm" | "money_release" => {
+                let freeze = sqlx::query_as::<_, HubWalletLine>(
+                    "SELECT * FROM hub_wallet_line WHERE global_member_id = $1 AND biz_type = 'money_freeze' AND biz_sn = $2 AND status = 1",
+                )
+                .bind(gid)
+                .bind(ref_biz_sn)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(map_err)?
+                .ok_or_else(|| Error::NotFound("冻结单不存在或已处理".into()))?;
+                let settled: (i64,) = sqlx::query_as(
+                    "SELECT COUNT(*) FROM hub_wallet_line WHERE global_member_id = $1 AND ref_biz_sn = $2 AND biz_type IN ('money_confirm', 'money_release') AND status = 1",
+                )
+                .bind(gid)
+                .bind(ref_biz_sn)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(map_err)?;
+                if settled.0 > 0 {
+                    return Err(Error::Validation("冻结单已确认或已释放".into()));
+                }
+                let amt = -freeze.amount;
+                if frozen < amt {
+                    return Err(Error::biz(400, "冻结余额异常，无法处理"));
+                }
+                frozen -= amt;
+                ref_line_id = freeze.id;
+                if biz_type == "money_release" {
+                    money += amt;
+                    signed = amt;
+                } else {
+                    // confirm：金额离开冻结（对外义务确认），行金额记冻结变动。
+                    signed = -amt;
+                }
+            }
+            "reverse" => {
+                // link_id=0 为中枢管理动作：跨连接定位原行；成员冲正仅限本连接行。
+                let orig = sqlx::query_as::<_, HubWalletLine>(
+                    "SELECT * FROM hub_wallet_line WHERE biz_sn = $2 AND global_member_id = $3 AND ($1 = 0 OR link_id = $1)",
+                )
+                .bind(link_id)
+                .bind(ref_biz_sn)
+                .bind(gid)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(map_err)?
+                .ok_or_else(|| Error::NotFound("被冲正的账本行不存在".into()))?;
+                if orig.status != 1 {
+                    return Err(Error::Validation("原行已被冲正".into()));
+                }
+                if matches!(
+                    orig.biz_type.as_str(),
+                    "money_freeze" | "money_confirm" | "money_release" | "reverse"
+                ) {
+                    return Err(Error::Validation(
+                        "冻结类原行不可直接冲正，请先释放冻结".into(),
+                    ));
+                }
+                line_currency = orig.currency.clone();
+                if orig.currency == "points" {
+                    points -= orig.amount.to_i64().unwrap_or(0);
+                    if points < 0 {
+                        return Err(Error::biz(400, "冲正后积分将为负数，已拒绝"));
+                    }
+                } else {
+                    money -= orig.amount;
+                    if money < Decimal::ZERO {
+                        return Err(Error::biz(400, "冲正后余额将为负数，已拒绝"));
+                    }
+                }
+                signed = -orig.amount;
+                ref_line_id = orig.id;
+                sqlx::query("UPDATE hub_wallet_line SET status = 2 WHERE id = $1")
+                    .bind(orig.id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(map_err)?;
+            }
+            _ => {
+                return Err(Error::Validation("联邦记账参数不合法".into()));
+            }
+        }
+        let balance_after = if line_currency == "points" {
+            Decimal::from(points)
+        } else {
+            money
+        };
+        let line_id: i32 = sqlx::query_scalar(
+            "INSERT INTO hub_wallet_line (global_member_id, link_id, currency, biz_type, amount, balance_after, frozen_after, biz_sn, ref_biz_sn, ref_line_id, remark, add_time) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id",
+        )
+        .bind(gid)
+        .bind(link_id)
+        .bind(&line_currency)
+        .bind(biz_type)
+        .bind(signed)
+        .bind(balance_after)
+        .bind(frozen)
+        .bind(biz_sn)
+        .bind(ref_biz_sn)
+        .bind(ref_line_id)
+        .bind(remark)
+        .bind(now)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        sqlx::query(
+            "UPDATE hub_wallet_account SET points_balance = $2, money_balance = $3, frozen_money = $4, version = version + 1, update_time = $5 WHERE global_member_id = $1",
+        )
+        .bind(gid)
+        .bind(points)
+        .bind(money)
+        .bind(frozen)
+        .bind(now)
+        .execute(&mut *tx)
+        .await
+        .map_err(map_err)?;
+        tx.commit().await.map_err(map_err)?;
+        Ok(WalletPostOutcome {
+            line_id,
+            currency: line_currency,
+            amount: signed,
+            balance_after,
+            frozen_after: frozen,
+            duplicated: false,
+        })
+    }
+
+    pub async fn find_wallet_account(&self, gid: &str) -> Result<Option<HubWalletAccount>> {
+        sqlx::query_as::<_, HubWalletAccount>(
+            "SELECT * FROM hub_wallet_account WHERE global_member_id = $1",
+        )
+        .bind(gid)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    pub async fn list_wallet_accounts(
+        &self,
+        q: &HubWalletAccountListQuery,
+    ) -> Result<(Vec<HubWalletAccount>, i64)> {
+        let page = q.page.unwrap_or(1).max(1);
+        let size = q.page_size.unwrap_or(20).clamp(1, 100);
+        let offset = ((page - 1) * size) as i64;
+        let total: (i64,) = wallet_account_count_query(q)
+            .build_query_as()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+        let rows = wallet_account_page_query(q, size as i64, offset)
+            .build_query_as::<HubWalletAccount>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((rows, total.0.max(0)))
+    }
+
+    pub async fn list_wallet_lines(
+        &self,
+        q: &HubWalletLineListQuery,
+    ) -> Result<(Vec<HubWalletLine>, i64)> {
+        let page = q.page.unwrap_or(1).max(1);
+        let size = q.page_size.unwrap_or(20).clamp(1, 100);
+        let offset = ((page - 1) * size) as i64;
+        let total: (i64,) = wallet_line_count_query(q)
+            .build_query_as()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+        let rows = wallet_line_page_query(q, size as i64, offset)
+            .build_query_as::<HubWalletLine>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((rows, total.0.max(0)))
+    }
+
+    /// 过期未处理冻结行（自动释放扫描；已确认/已释放由记账机拒绝重复处理）。
+    pub async fn list_expired_freezes(&self, before: i32) -> Result<Vec<HubWalletLine>> {
+        sqlx::query_as::<_, HubWalletLine>(
+            "SELECT * FROM hub_wallet_line WHERE biz_type = 'money_freeze' AND status = 1 AND add_time <= $1 ORDER BY id ASC LIMIT 200",
+        )
+        .bind(before)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 某连接的全部会员映射（并账遍历用）。
+    pub async fn list_member_maps(&self, link_id: i32) -> Result<Vec<HubMemberMap>> {
+        sqlx::query_as::<_, HubMemberMap>(
+            "SELECT * FROM hub_member_map WHERE link_id = $1 ORDER BY id ASC",
+        )
+        .bind(link_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    // ———————————————————— 成员侧：镜像与并账状态 ————————————————————
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_wallet_mirror(
+        &self,
+        link_id: i32,
+        local_user_id: i32,
+        gid: &str,
+        biz_sn: &str,
+        currency: &str,
+        biz_type: &str,
+        amount: Decimal,
+        balance_after: Decimal,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO hub_wallet_mirror (link_id, local_user_id, global_member_id, biz_sn, currency, biz_type, amount, balance_after, add_time) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (link_id, biz_sn) DO NOTHING",
+        )
+        .bind(link_id)
+        .bind(local_user_id)
+        .bind(gid)
+        .bind(biz_sn)
+        .bind(currency)
+        .bind(biz_type)
+        .bind(amount)
+        .bind(balance_after)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+
+    pub async fn list_wallet_mirrors(
+        &self,
+        q: &HubWalletMirrorListQuery,
+    ) -> Result<(Vec<HubWalletMirror>, i64)> {
+        let page = q.page.unwrap_or(1).max(1);
+        let size = q.page_size.unwrap_or(20).clamp(1, 100);
+        let offset = ((page - 1) * size) as i64;
+        let total: (i64,) = wallet_mirror_count_query(q)
+            .build_query_as()
+            .fetch_one(&self.pool)
+            .await
+            .map_err(map_err)?;
+        let rows = wallet_mirror_page_query(q, size as i64, offset)
+            .build_query_as::<HubWalletMirror>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_err)?;
+        Ok((rows, total.0.max(0)))
+    }
+
+    pub async fn find_wallet_local_state(
+        &self,
+        local_user_id: i32,
+    ) -> Result<Option<HubWalletLocalState>> {
+        sqlx::query_as::<_, HubWalletLocalState>(
+            "SELECT * FROM hub_wallet_local_state WHERE local_user_id = $1",
+        )
+        .bind(local_user_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn upsert_wallet_local_state(
+        &self,
+        local_user_id: i32,
+        link_id: i32,
+        gid: &str,
+        points_merged: i64,
+        money_merged: Decimal,
+        now: i32,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO hub_wallet_local_state (local_user_id, link_id, global_member_id, merged, points_merged, money_merged, add_time, update_time) \
+             VALUES ($1, $2, $3, 1, $4, $5, $6, $6) \
+             ON CONFLICT (local_user_id) DO UPDATE SET link_id = EXCLUDED.link_id, global_member_id = EXCLUDED.global_member_id, merged = 1, points_merged = EXCLUDED.points_merged, money_merged = EXCLUDED.money_merged, update_time = EXCLUDED.update_time",
+        )
+        .bind(local_user_id)
+        .bind(link_id)
+        .bind(gid)
+        .bind(points_merged)
+        .bind(money_merged)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(())
+    }
+}
+
+fn wallet_account_count_query(
+    q: &HubWalletAccountListQuery,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_wallet_account WHERE 1=1");
+    push_wallet_account_filters(&mut qb, q);
+    qb
+}
+
+fn wallet_account_page_query(
+    q: &HubWalletAccountListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_wallet_account WHERE 1=1");
+    push_wallet_account_filters(&mut qb, q);
+    qb.push(" ORDER BY update_time DESC, global_member_id ASC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
+fn push_wallet_account_filters(
+    qb: &mut QueryBuilder<'static, Postgres>,
+    q: &HubWalletAccountListQuery,
+) {
+    if let Some(kw) = q.keyword.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+        qb.push(" AND global_member_id ILIKE ");
+        qb.push_bind(format!("%{kw}%"));
+    }
+}
+
+fn wallet_line_count_query(q: &HubWalletLineListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_wallet_line WHERE 1=1");
+    push_wallet_line_filters(&mut qb, q);
+    qb
+}
+
+fn wallet_line_page_query(
+    q: &HubWalletLineListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_wallet_line WHERE 1=1");
+    push_wallet_line_filters(&mut qb, q);
+    qb.push(" ORDER BY id DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
+fn push_wallet_line_filters(
+    qb: &mut QueryBuilder<'static, Postgres>,
+    q: &HubWalletLineListQuery,
+) {
+    if let Some(g) = q
+        .global_member_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
+        qb.push(" AND global_member_id = ");
+        qb.push_bind(g.to_string());
+    }
+    if let Some(l) = q.link_id.filter(|v| *v > 0) {
+        qb.push(" AND link_id = ");
+        qb.push_bind(l);
+    }
+    if let Some(b) = q.biz_type.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+        qb.push(" AND biz_type = ");
+        qb.push_bind(b.to_string());
+    }
+    if let Some(c) = q.currency.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+        qb.push(" AND currency = ");
+        qb.push_bind(c.to_string());
+    }
+}
+
+fn wallet_mirror_count_query(q: &HubWalletMirrorListQuery) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT COUNT(*) FROM hub_wallet_mirror WHERE 1=1");
+    push_wallet_mirror_filters(&mut qb, q);
+    qb
+}
+
+fn wallet_mirror_page_query(
+    q: &HubWalletMirrorListQuery,
+    size: i64,
+    offset: i64,
+) -> QueryBuilder<'static, Postgres> {
+    let mut qb: QueryBuilder<'static, Postgres> =
+        QueryBuilder::new("SELECT * FROM hub_wallet_mirror WHERE 1=1");
+    push_wallet_mirror_filters(&mut qb, q);
+    qb.push(" ORDER BY id DESC LIMIT ");
+    qb.push_bind(size);
+    qb.push(" OFFSET ");
+    qb.push_bind(offset);
+    qb
+}
+
+fn push_wallet_mirror_filters(
+    qb: &mut QueryBuilder<'static, Postgres>,
+    q: &HubWalletMirrorListQuery,
+) {
+    if let Some(u) = q.local_user_id.filter(|v| *v > 0) {
+        qb.push(" AND local_user_id = ");
+        qb.push_bind(u);
+    }
+    if let Some(l) = q.link_id.filter(|v| *v > 0) {
+        qb.push(" AND link_id = ");
+        qb.push_bind(l);
+    }
+}
+
 fn map_err(e: sqlx::Error) -> Error {
     match e {
         sqlx::Error::RowNotFound => Error::NotFound("记录不存在".into()),
@@ -3479,5 +4017,31 @@ mod list_sql_tests {
         let q = HubSsoListQuery::default();
         assert_placeholders(sso_count_query(&q).sql(), 0);
         assert_placeholders(sso_page_query(&q, 20, 0).sql(), 2);
+    }
+
+    #[test]
+    fn wallet_list_filters() {
+        let q = HubWalletLineListQuery {
+            global_member_id: Some("gm_x".into()),
+            link_id: Some(3),
+            biz_type: Some("money_freeze".into()),
+            currency: Some("money".into()),
+            ..Default::default()
+        };
+        assert_placeholders(wallet_line_count_query(&q).sql(), 4);
+        assert_placeholders(wallet_line_page_query(&q, 20, 0).sql(), 6);
+        let q = HubWalletAccountListQuery {
+            keyword: Some("gm_".into()),
+            ..Default::default()
+        };
+        assert_placeholders(wallet_account_count_query(&q).sql(), 1);
+        assert_placeholders(wallet_account_page_query(&q, 20, 0).sql(), 3);
+        let q = HubWalletMirrorListQuery {
+            local_user_id: Some(7),
+            link_id: Some(3),
+            ..Default::default()
+        };
+        assert_placeholders(wallet_mirror_count_query(&q).sql(), 2);
+        assert_placeholders(wallet_mirror_page_query(&q, 20, 0).sql(), 4);
     }
 }

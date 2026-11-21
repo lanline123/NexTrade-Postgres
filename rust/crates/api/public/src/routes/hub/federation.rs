@@ -26,6 +26,8 @@
 //! | `POST` | `/hub/v1/orders/release` | order.place + HMAC 签名 | 跨店下单·释放预占（三期③） |
 //! | `POST` | `/hub/v1/orders/refund` | order.place + HMAC 签名 | 跨店下单·退款关单确认（三期③） |
 //! | `POST` | `/hub/v1/orders/subStatus` | order.report + HMAC 签名 | 跨店下单·子单状态回传（三期③） |
+//! | `POST` | `/hub/v1/wallet/post` | wallet.post + HMAC 签名 | 中央账本·上行记账（三期④，迁移 045） |
+//! | `GET`  | `/hub/v1/wallet/balance?globalMemberId=` | wallet.post | 中央账本·余额查询（三期④） |
 //!
 //! 每次带钥调用落 `hub_call_log`（凭证/端点/状态/条数/耗时）。
 
@@ -48,10 +50,11 @@ use nextrade_core::models::hub::federation::{
     MemberAnchorVO, MemberQueryVO, MemberSyncDTO, MemberSyncResultVO, OrderReportDTO,
     OrderReportResultVO, PairActivateVO, PairClaimDTO, PairClaimVO, PairStatusDTO, PairStatusVO,
     SsoAuthRequestDTO, SsoAuthRequestVO, SsoExchangeDTO, SsoExchangeVO, UpdateEndpointDTO,
-    XorderReserveDTO, XorderReserveVO, XorderRouteDTO, XorderRouteVO, XorderSubSnDTO,
-    XorderSubStatusDTO, MSG_HUB_SIGNATURE_INVALID, MSG_HUB_UNAUTHORIZED, SCOPE_CONFIG_PULL,
-    SCOPE_MEMBER_AUTH, SCOPE_MEMBER_READ, SCOPE_MEMBER_SYNC, SCOPE_META_READ, SCOPE_ORDER_PLACE,
-    SCOPE_ORDER_REPORT, SCOPE_PRODUCT_READ, SCOPE_STATS_REPORT,
+    WalletBalanceVO, WalletPostDTO, WalletPostVO, XorderReserveDTO, XorderReserveVO,
+    XorderRouteDTO, XorderRouteVO, XorderSubSnDTO, XorderSubStatusDTO,
+    MSG_HUB_SIGNATURE_INVALID, MSG_HUB_UNAUTHORIZED, SCOPE_CONFIG_PULL, SCOPE_MEMBER_AUTH,
+    SCOPE_MEMBER_READ, SCOPE_MEMBER_SYNC, SCOPE_META_READ, SCOPE_ORDER_PLACE, SCOPE_ORDER_REPORT,
+    SCOPE_PRODUCT_READ, SCOPE_STATS_REPORT, SCOPE_WALLET_POST,
 };
 use nextrade_core::types::PageResult;
 use nextrade_core::Error;
@@ -60,7 +63,7 @@ use nextrade_security::web::{ok, ApiResult, AppError};
 use super::super::super::PublicState;
 
 /// 本域路由（去掉 `/api` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 22] = [
+const ROUTE_TABLE: [(&str, &str, &str); 24] = [
     ("POST", "/hub/v1/pair/claim", "HubApi.pairClaim"),
     ("POST", "/hub/v1/pair/status", "HubApi.pairStatus"),
     ("POST", "/hub/v1/pair/activate", "HubApi.pairActivate"),
@@ -83,6 +86,8 @@ const ROUTE_TABLE: [(&str, &str, &str); 22] = [
     ("POST", "/hub/v1/orders/release", "HubApi.ordersRelease"),
     ("POST", "/hub/v1/orders/refund", "HubApi.ordersRefund"),
     ("POST", "/hub/v1/orders/subStatus", "HubApi.ordersSubStatus"),
+    ("POST", "/hub/v1/wallet/post", "HubApi.walletPost"),
+    ("GET", "/hub/v1/wallet/balance", "HubApi.walletBalance"),
 ];
 
 /// 联邦面路由（自带凭证鉴权）。
@@ -111,6 +116,8 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/hub/v1/orders/release", post(orders_release))
         .route("/hub/v1/orders/refund", post(orders_refund))
         .route("/hub/v1/orders/subStatus", post(orders_sub_status))
+        .route("/hub/v1/wallet/post", post(wallet_post))
+        .route("/hub/v1/wallet/balance", get(wallet_balance))
 }
 
 /// 本域已实现路由（覆盖率统计）。
@@ -751,6 +758,66 @@ async fn orders_sub_status(
         .record_call(&cred, "/api/hub/v1/orders/subStatus", "order.report", 200, 1, &client_ip(&headers), started)
         .await;
     ok("状态已更新")
+}
+
+/// 三期④：中央账本上行记账（wallet.post + 签名，成员 → 中枢）。
+async fn wallet_post(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> ApiResult<WalletPostVO> {
+    let started = Instant::now();
+    let cred = auth_cred(&state, &headers, SCOPE_WALLET_POST).await?;
+    let (ts, sig) = signature_parts(&headers)?;
+    let text = String::from_utf8(body.to_vec())
+        .map_err(|_| AppError(Error::Validation("请求体不是合法 UTF-8".into())))?;
+    state
+        .hub
+        .federation
+        .verify_push_signature(&cred, ts, &sig, &text)
+        .map_err(AppError)?;
+    let dto: WalletPostDTO = serde_json::from_str(&text)
+        .map_err(|_| AppError(Error::Validation("请求体不是合法的记账 JSON".into())))?;
+    let vo = state
+        .hub
+        .federation
+        .receive_wallet_post(&cred, &dto)
+        .await
+        .map_err(AppError)?;
+    state
+        .hub
+        .federation
+        .record_call(&cred, "/api/hub/v1/wallet/post", "wallet.post", 200, 1, &client_ip(&headers), started)
+        .await;
+    ok(vo)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WalletBalanceParams {
+    global_member_id: Option<String>,
+}
+
+/// 三期④：中央账本余额查询（wallet.post）。
+async fn wallet_balance(
+    State(state): State<PublicState>,
+    headers: HeaderMap,
+    Query(q): Query<WalletBalanceParams>,
+) -> ApiResult<WalletBalanceVO> {
+    let started = Instant::now();
+    let cred = auth_cred(&state, &headers, SCOPE_WALLET_POST).await?;
+    let vo = state
+        .hub
+        .federation
+        .receive_wallet_balance(q.global_member_id.as_deref().unwrap_or(""))
+        .await
+        .map_err(AppError)?;
+    state
+        .hub
+        .federation
+        .record_call(&cred, "/api/hub/v1/wallet/balance", "wallet.post", 200, 1, &client_ip(&headers), started)
+        .await;
+    ok(vo)
 }
 
 #[cfg(test)]

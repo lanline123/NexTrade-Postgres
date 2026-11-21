@@ -3951,6 +3951,328 @@ impl FederationService {
         Ok(json!({ "synced": true, "status": mapped }))
     }
 
+    // ———————————————————— 三期④：中央账本（迁移 045；DESIGN.md §4） ————————————————————
+
+    /// 联邦面（中枢）：成员上行记账。记账机在仓储单事务内（锁账户行校验后
+    /// 写行，balance_after 中枢生成）；本地永不直改联邦资产数字。
+    pub async fn receive_wallet_post(
+        &self,
+        cred: &HubCredential,
+        dto: &WalletPostDTO,
+    ) -> Result<WalletPostVO> {
+        let gid = dto.global_member_id.trim();
+        let biz_sn = dto.biz_sn.trim();
+        if gid.is_empty() || biz_sn.is_empty() || biz_sn.len() > 64 {
+            return Err(Error::Validation(MSG_WALLET_BIZ_INVALID.into()));
+        }
+        if !wallet_biz_currency_valid(&dto.biz_type, &dto.currency) {
+            return Err(Error::Validation(MSG_WALLET_BIZ_INVALID.into()));
+        }
+        let out = self
+            .repo()
+            .apply_wallet_post(
+                cred.link_id,
+                gid,
+                &dto.currency,
+                &dto.biz_type,
+                dto.amount,
+                biz_sn,
+                dto.ref_biz_sn.trim(),
+                dto.remark.trim(),
+                self.now(),
+            )
+            .await?;
+        Ok(WalletPostVO {
+            line_id: out.line_id,
+            global_member_id: gid.to_string(),
+            currency: out.currency,
+            biz_type: dto.biz_type.clone(),
+            amount: out.amount,
+            balance_after: out.balance_after,
+            frozen_after: out.frozen_after,
+            duplicated: out.duplicated,
+        })
+    }
+
+    /// 联邦面（中枢）：余额查询（无账户回零值）。
+    pub async fn receive_wallet_balance(
+        &self,
+        gid: &str,
+    ) -> Result<WalletBalanceVO> {
+        let gid = gid.trim();
+        if gid.is_empty() {
+            return Err(Error::Validation(MSG_WALLET_BIZ_INVALID.into()));
+        }
+        match self.repo().find_wallet_account(gid).await? {
+            Some(a) => Ok(WalletBalanceVO::from(&a)),
+            None => Ok(WalletBalanceVO {
+                global_member_id: gid.to_string(),
+                status: 1,
+                ..Default::default()
+            }),
+        }
+    }
+
+    /// 管理端（中枢）：手工记账（发放/入账/冲正；bizSn 后台生成 admin- 前缀，
+    /// link_id=0 表示中枢管理动作）。冻结类动作走成员上行或页面释放入口。
+    pub async fn admin_wallet_post(&self, dto: &WalletAdminPostDTO) -> Result<WalletPostVO> {
+        self.gate_module(MODULE_MEMBER, MSG_MEMBER_MODULE_OFF).await?;
+        let gid = dto.global_member_id.trim();
+        if gid.is_empty() || !wallet_biz_currency_valid(&dto.biz_type, &dto.currency) {
+            return Err(Error::Validation(MSG_WALLET_BIZ_INVALID.into()));
+        }
+        if !matches!(
+            dto.biz_type.as_str(),
+            BIZ_POINTS_GRANT | BIZ_MONEY_CREDIT | BIZ_REVERSE
+        ) {
+            return Err(Error::Validation(
+                "管理端手工记账仅支持积分发放、余额入账与冲正".into(),
+            ));
+        }
+        let biz_sn = format!(
+            "admin-{}-{}",
+            utils::now_seconds(),
+            &utils::random_hex(6)
+        );
+        let out = self
+            .repo()
+            .apply_wallet_post(
+                0,
+                gid,
+                &dto.currency,
+                &dto.biz_type,
+                dto.amount,
+                &biz_sn,
+                dto.ref_biz_sn.trim(),
+                if dto.remark.trim().is_empty() {
+                    "中枢管理端手工记账"
+                } else {
+                    dto.remark.trim()
+                },
+                self.now(),
+            )
+            .await?;
+        Ok(WalletPostVO {
+            line_id: out.line_id,
+            global_member_id: gid.to_string(),
+            currency: out.currency,
+            biz_type: dto.biz_type.clone(),
+            amount: out.amount,
+            balance_after: out.balance_after,
+            frozen_after: out.frozen_after,
+            duplicated: out.duplicated,
+        })
+    }
+
+    /// 管理端（中枢）：账户列表。
+    pub async fn list_wallet_accounts_admin(
+        &self,
+        q: &HubWalletAccountListQuery,
+    ) -> Result<PageResult<WalletBalanceVO>> {
+        self.gate_module(MODULE_MEMBER, MSG_MEMBER_MODULE_OFF).await?;
+        let (rows, total) = self.repo().list_wallet_accounts(q).await?;
+        let list = rows.iter().map(WalletBalanceVO::from).collect();
+        let page = PageQuery {
+            page: q.page.unwrap_or(1),
+            page_size: q.page_size.unwrap_or(20),
+        };
+        Ok(PageResult::new(total.max(0) as u64, list, &page))
+    }
+
+    /// 管理端（中枢）：账本行列表。
+    pub async fn list_wallet_lines_admin(
+        &self,
+        q: &HubWalletLineListQuery,
+    ) -> Result<PageResult<HubWalletLineVO>> {
+        self.gate_module(MODULE_MEMBER, MSG_MEMBER_MODULE_OFF).await?;
+        let (rows, total) = self.repo().list_wallet_lines(q).await?;
+        let list = rows.iter().map(HubWalletLineVO::from).collect();
+        let page = PageQuery {
+            page: q.page.unwrap_or(1),
+            page_size: q.page_size.unwrap_or(20),
+        };
+        Ok(PageResult::new(total.max(0) as u64, list, &page))
+    }
+
+    /// 管理端（中枢）：释放过期冻结（>30 分钟未确认/释放；页面按钮触发，
+    /// 本批不设调度器）。已确认/已释放的行由记账机拒绝重复处理并计跳过。
+    pub async fn release_expired_freezes(&self) -> Result<Value> {
+        self.gate_module(MODULE_MEMBER, MSG_MEMBER_MODULE_OFF).await?;
+        let before = self.now() - WALLET_FREEZE_TTL_SECONDS as i32;
+        let rows = self.repo().list_expired_freezes(before).await?;
+        let mut released = 0;
+        let mut skipped = 0;
+        for line in &rows {
+            let biz_sn = format!("expire-release-{}", line.id);
+            match self
+                .repo()
+                .apply_wallet_post(
+                    line.link_id,
+                    &line.global_member_id,
+                    WALLET_MONEY,
+                    BIZ_MONEY_RELEASE,
+                    Decimal::ZERO,
+                    &biz_sn,
+                    &line.biz_sn,
+                    "冻结超时自动释放",
+                    self.now(),
+                )
+                .await
+            {
+                Ok(_) => released += 1,
+                Err(_) => skipped += 1,
+            }
+        }
+        Ok(json!({ "scanned": rows.len(), "released": released, "skipped": skipped }))
+    }
+
+    /// 成员侧：向中枢记账并落本地镜像（中枢回执为准）。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn wallet_post_to_hub(
+        &self,
+        link_id: i32,
+        local_user_id: i32,
+        gid: &str,
+        currency: &str,
+        biz_type: &str,
+        amount: Decimal,
+        biz_sn: &str,
+        ref_biz_sn: &str,
+        remark: &str,
+    ) -> Result<WalletPostVO> {
+        let link = self.load_link(link_id).await?;
+        let cred = self.load_credential(link.up_credential_id).await?;
+        let secret = self.decrypt_secret(&cred.secret_enc)?;
+        let data = hub_post_json_signed(
+            &link.peer_base_url,
+            "/api/hub/v1/wallet/post",
+            &cred.access_key,
+            &secret,
+            &json!({
+                "bizSn": biz_sn,
+                "bizType": biz_type,
+                "globalMemberId": gid,
+                "currency": currency,
+                "amount": amount,
+                "refBizSn": ref_biz_sn,
+                "remark": remark,
+            }),
+        )
+        .await?;
+        let vo: WalletPostVO = serde_json::from_value(data)
+            .map_err(|e| Error::Internal(format!("中枢记账回执解析失败: {e}")))?;
+        self.repo()
+            .insert_wallet_mirror(
+                link_id,
+                local_user_id,
+                gid,
+                biz_sn,
+                &vo.currency,
+                &vo.biz_type,
+                vo.amount,
+                vo.balance_after,
+                self.now(),
+            )
+            .await?;
+        Ok(vo)
+    }
+
+    /// 管理端（成员）：并账——把已映射会员的本地积分/余额一次性上行中枢
+    /// （merge_in，bizSn 天然幂等），落并账状态；已并账会员跳过（一次性动作）。
+    /// 本地列不清零：清零是资金动作，运营按本页快照核对后手工处理。
+    pub async fn merge_wallet(&self, link_id: i32) -> Result<Value> {
+        self.gate_module(MODULE_MEMBER, MSG_MEMBER_MODULE_OFF).await?;
+        let link = self.load_link(link_id).await?;
+        if link.up_credential_id <= 0 {
+            return Err(Error::Validation("该连接没有上行凭证，无法并账".into()));
+        }
+        let maps = self.repo().list_member_maps(link_id).await?;
+        let mut merged_count = 0;
+        let mut skipped = 0;
+        let mut total_points: i64 = 0;
+        let mut total_money = Decimal::ZERO;
+        for m in &maps {
+            if m.local_user_id <= 0 || m.global_member_id.is_empty() {
+                skipped += 1;
+                continue;
+            }
+            if let Some(st) = self.repo().find_wallet_local_state(m.local_user_id).await? {
+                if st.merged == 1 {
+                    skipped += 1;
+                    continue;
+                }
+            }
+            let Some(user) = self.repos.member.user.find_by_id(m.local_user_id).await? else {
+                skipped += 1;
+                continue;
+            };
+            let points = i64::from(user.points.max(0));
+            let money = user.available_balance();
+            if points > 0 {
+                self.wallet_post_to_hub(
+                    link_id,
+                    m.local_user_id,
+                    &m.global_member_id,
+                    WALLET_POINTS,
+                    BIZ_MERGE_IN,
+                    Decimal::from(points),
+                    &wallet_merge_biz_sn(link_id, m.local_user_id, WALLET_POINTS),
+                    "",
+                    "存量并账：本地积分并入中枢账本",
+                )
+                .await?;
+            }
+            if money > Decimal::ZERO {
+                self.wallet_post_to_hub(
+                    link_id,
+                    m.local_user_id,
+                    &m.global_member_id,
+                    WALLET_MONEY,
+                    BIZ_MERGE_IN,
+                    money,
+                    &wallet_merge_biz_sn(link_id, m.local_user_id, WALLET_MONEY),
+                    "",
+                    "存量并账：本地余额并入中枢账本",
+                )
+                .await?;
+            }
+            self.repo()
+                .upsert_wallet_local_state(
+                    m.local_user_id,
+                    link_id,
+                    &m.global_member_id,
+                    points,
+                    money,
+                    self.now(),
+                )
+                .await?;
+            merged_count += 1;
+            total_points += points;
+            total_money += money;
+        }
+        Ok(json!({
+            "merged": merged_count,
+            "skipped": skipped,
+            "pointsMerged": total_points,
+            "moneyMerged": total_money,
+        }))
+    }
+
+    /// 管理端（成员）：账本镜像列表。
+    pub async fn list_wallet_mirrors_admin(
+        &self,
+        q: &HubWalletMirrorListQuery,
+    ) -> Result<PageResult<HubWalletMirrorVO>> {
+        self.gate_module(MODULE_MEMBER, MSG_MEMBER_MODULE_OFF).await?;
+        let (rows, total) = self.repo().list_wallet_mirrors(q).await?;
+        let list = rows.iter().map(HubWalletMirrorVO::from).collect();
+        let page = PageQuery {
+            page: q.page.unwrap_or(1),
+            page_size: q.page_size.unwrap_or(20),
+        };
+        Ok(PageResult::new(total.max(0) as u64, list, &page))
+    }
+
     // ———————————————————— 三期①：登录互认（迁移 042；DESIGN.md §1） ————————————————————
     //
     // 授权码模式：成员登记请求 → 中枢会员本人同意 → 一次性码（5 分钟）→
@@ -4430,7 +4752,7 @@ fn up_scopes_for_modules(modules: i64) -> i64 {
         scopes |= SCOPE_ORDER_REPORT;
     }
     if modules & MODULE_MEMBER != 0 {
-        scopes |= SCOPE_MEMBER_SYNC | SCOPE_MEMBER_AUTH;
+        scopes |= SCOPE_MEMBER_SYNC | SCOPE_MEMBER_AUTH | SCOPE_WALLET_POST;
     }
     scopes
 }
@@ -4921,6 +5243,19 @@ mod tests {
             body.contains("upsert_order_summary("),
             "订单上报应走幂等 upsert"
         );
+    }
+
+    /// 三期④：上行 scope 派生——会员模块批复必须带 wallet.post（账本上行钥），
+    /// 未批会员模块时不得派生（防越权记账）。
+    #[test]
+    fn up_scopes_include_wallet_post_with_member_module() {
+        let src = include_str!("federation.rs");
+        let body = fn_body(src, "fn up_scopes_for_modules");
+        assert!(body.contains("SCOPE_WALLET_POST"), "会员模块派生缺 wallet.post");
+        let member = up_scopes_for_modules(MODULE_MEMBER);
+        assert_ne!(member & SCOPE_WALLET_POST, 0);
+        let product_only = up_scopes_for_modules(MODULE_PRODUCT);
+        assert_eq!(product_only & SCOPE_WALLET_POST, 0);
     }
 
     /// 三期②配置包签名：同钥同串稳定、任一字段篡改即变（成员验签的根基）。

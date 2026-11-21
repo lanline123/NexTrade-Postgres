@@ -2364,6 +2364,291 @@ pub fn xsub_from_local_order(order_status: i32, shipping_status: i32) -> i32 {
     XSUB_ROUTED
 }
 
+// ———————————————————— 三期④：中央账本（迁移 045） ————————————————————
+//
+// 设计：~/workspace/federation-phase3/DESIGN.md §4（总设计 §6.5）。
+// 中枢唯一记账：成员以 wallet.post 上行记账（bizSn 幂等），中枢同事务
+// 锁账户行校验后写行（balance_after 由中枢生成）。只记账不划拨真实资金。
+
+/// 币种：积分。
+pub const WALLET_POINTS: &str = "points";
+/// 币种：余额。
+pub const WALLET_MONEY: &str = "money";
+
+/// 业务类型枚举（写死，扩展须同步服务层记账机）。
+pub const BIZ_POINTS_GRANT: &str = "points_grant";
+pub const BIZ_POINTS_SPEND: &str = "points_spend";
+pub const BIZ_MONEY_CREDIT: &str = "money_credit";
+pub const BIZ_MONEY_DEBIT: &str = "money_debit";
+pub const BIZ_MONEY_FREEZE: &str = "money_freeze";
+pub const BIZ_MONEY_CONFIRM: &str = "money_confirm";
+pub const BIZ_MONEY_RELEASE: &str = "money_release";
+pub const BIZ_REVERSE: &str = "reverse";
+pub const BIZ_MERGE_IN: &str = "merge_in";
+
+/// 冻结自动释放阈值（秒）：30 分钟未确认/释放由管理动作释放。
+pub const WALLET_FREEZE_TTL_SECONDS: i64 = 30 * 60;
+
+pub const MSG_WALLET_INSUFFICIENT: &str = "联邦账户余额不足";
+pub const MSG_WALLET_BIZ_INVALID: &str = "联邦记账参数不合法";
+
+/// `hub_wallet_account` 行（中枢侧联邦账户）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubWalletAccount {
+    pub global_member_id: String,
+    pub points_balance: i64,
+    pub money_balance: Decimal,
+    pub frozen_money: Decimal,
+    pub version: i32,
+    pub status: i16,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// `hub_wallet_line` 行（中枢侧账本行）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubWalletLine {
+    pub id: i32,
+    pub global_member_id: String,
+    pub link_id: i32,
+    pub currency: String,
+    pub biz_type: String,
+    pub amount: Decimal,
+    pub balance_after: Decimal,
+    pub frozen_after: Decimal,
+    pub biz_sn: String,
+    pub ref_biz_sn: String,
+    pub ref_line_id: i32,
+    pub status: i16,
+    pub remark: String,
+    pub add_time: i32,
+}
+
+/// `hub_wallet_mirror` 行（成员侧镜像）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubWalletMirror {
+    pub id: i32,
+    pub link_id: i32,
+    pub local_user_id: i32,
+    pub global_member_id: String,
+    pub biz_sn: String,
+    pub currency: String,
+    pub biz_type: String,
+    pub amount: Decimal,
+    pub balance_after: Decimal,
+    pub add_time: i32,
+}
+
+/// `hub_wallet_local_state` 行（成员侧并账状态）。
+#[derive(Debug, Clone, Default, FromRow, Serialize, Deserialize)]
+#[sqlx(rename_all = "snake_case")]
+pub struct HubWalletLocalState {
+    pub local_user_id: i32,
+    pub link_id: i32,
+    pub global_member_id: String,
+    pub merged: i16,
+    pub points_merged: i64,
+    pub money_merged: Decimal,
+    pub add_time: i32,
+    pub update_time: i32,
+}
+
+/// `POST /api/hub/v1/wallet/post` 入参（成员 → 中枢）。
+/// amount 为正数幅值，方向由 bizType 决定；money_confirm / money_release /
+/// reverse 的金额由被引用行推导，amount 忽略。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct WalletPostDTO {
+    pub biz_sn: String,
+    pub biz_type: String,
+    pub global_member_id: String,
+    pub currency: String,
+    pub amount: Decimal,
+    pub ref_biz_sn: String,
+    pub remark: String,
+}
+
+/// `POST /api/hub/v1/wallet/post` 响应（balance_after 一律中枢生成）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WalletPostVO {
+    pub line_id: i32,
+    pub global_member_id: String,
+    pub currency: String,
+    pub biz_type: String,
+    /// 实际落行金额（带符号）。
+    pub amount: Decimal,
+    pub balance_after: Decimal,
+    pub frozen_after: Decimal,
+    /// 幂等重发命中既有行（未重记）。
+    pub duplicated: bool,
+}
+
+/// `GET /api/hub/v1/wallet/balance` 响应。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WalletBalanceVO {
+    pub global_member_id: String,
+    pub points_balance: i64,
+    pub money_balance: Decimal,
+    pub frozen_money: Decimal,
+    pub version: i32,
+    pub status: i32,
+}
+
+impl From<&HubWalletAccount> for WalletBalanceVO {
+    fn from(r: &HubWalletAccount) -> Self {
+        Self {
+            global_member_id: r.global_member_id.clone(),
+            points_balance: r.points_balance,
+            money_balance: r.money_balance,
+            frozen_money: r.frozen_money,
+            version: r.version,
+            status: i32::from(r.status),
+        }
+    }
+}
+
+/// 管理端：账本行 VO（= 行原样驼峰）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubWalletLineVO {
+    pub id: i32,
+    pub global_member_id: String,
+    pub link_id: i32,
+    pub currency: String,
+    pub biz_type: String,
+    pub amount: Decimal,
+    pub balance_after: Decimal,
+    pub frozen_after: Decimal,
+    pub biz_sn: String,
+    pub ref_biz_sn: String,
+    pub status: i32,
+    pub remark: String,
+    pub add_time: i32,
+}
+
+impl From<&HubWalletLine> for HubWalletLineVO {
+    fn from(r: &HubWalletLine) -> Self {
+        Self {
+            id: r.id,
+            global_member_id: r.global_member_id.clone(),
+            link_id: r.link_id,
+            currency: r.currency.clone(),
+            biz_type: r.biz_type.clone(),
+            amount: r.amount,
+            balance_after: r.balance_after,
+            frozen_after: r.frozen_after,
+            biz_sn: r.biz_sn.clone(),
+            ref_biz_sn: r.ref_biz_sn.clone(),
+            status: i32::from(r.status),
+            remark: r.remark.clone(),
+            add_time: r.add_time,
+        }
+    }
+}
+
+/// 管理端：账户列表查询。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HubWalletAccountListQuery {
+    pub page: Option<u64>,
+    #[serde(alias = "size")]
+    pub page_size: Option<u64>,
+    pub keyword: Option<String>,
+}
+
+/// 管理端：账本行列表查询。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HubWalletLineListQuery {
+    pub page: Option<u64>,
+    #[serde(alias = "size")]
+    pub page_size: Option<u64>,
+    pub global_member_id: Option<String>,
+    pub link_id: Option<i32>,
+    pub biz_type: Option<String>,
+    pub currency: Option<String>,
+}
+
+/// 管理端（中枢）：手工记账入参（bizSn 后台生成 admin- 前缀）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct WalletAdminPostDTO {
+    pub global_member_id: String,
+    pub biz_type: String,
+    pub currency: String,
+    pub amount: Decimal,
+    pub ref_biz_sn: String,
+    pub remark: String,
+}
+
+/// 管理端（成员）：镜像列表查询。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HubWalletMirrorListQuery {
+    pub page: Option<u64>,
+    #[serde(alias = "size")]
+    pub page_size: Option<u64>,
+    pub local_user_id: Option<i32>,
+    pub link_id: Option<i32>,
+}
+
+/// 管理端（成员）：镜像 VO。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HubWalletMirrorVO {
+    pub id: i32,
+    pub link_id: i32,
+    pub local_user_id: i32,
+    pub global_member_id: String,
+    pub biz_sn: String,
+    pub currency: String,
+    pub biz_type: String,
+    pub amount: Decimal,
+    pub balance_after: Decimal,
+    pub add_time: i32,
+}
+
+impl From<&HubWalletMirror> for HubWalletMirrorVO {
+    fn from(r: &HubWalletMirror) -> Self {
+        Self {
+            id: r.id,
+            link_id: r.link_id,
+            local_user_id: r.local_user_id,
+            global_member_id: r.global_member_id.clone(),
+            biz_sn: r.biz_sn.clone(),
+            currency: r.currency.clone(),
+            biz_type: r.biz_type.clone(),
+            amount: r.amount,
+            balance_after: r.balance_after,
+            add_time: r.add_time,
+        }
+    }
+}
+
+/// 纯逻辑：bizType 与币种的合法组合（记账机前置校验）。
+#[must_use]
+pub fn wallet_biz_currency_valid(biz_type: &str, currency: &str) -> bool {
+    match biz_type {
+        BIZ_POINTS_GRANT | BIZ_POINTS_SPEND => currency == WALLET_POINTS,
+        BIZ_MONEY_CREDIT | BIZ_MONEY_DEBIT | BIZ_MONEY_FREEZE | BIZ_MONEY_CONFIRM
+        | BIZ_MONEY_RELEASE => currency == WALLET_MONEY,
+        BIZ_MERGE_IN => currency == WALLET_POINTS || currency == WALLET_MONEY,
+        BIZ_REVERSE => currency == WALLET_POINTS || currency == WALLET_MONEY,
+        _ => false,
+    }
+}
+
+/// 纯逻辑：并账业务单号（天然幂等：一人一连接一币种只一行）。
+#[must_use]
+pub fn wallet_merge_biz_sn(link_id: i32, local_user_id: i32, currency: &str) -> String {
+    format!("merge-{link_id}-{local_user_id}-{currency}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2567,6 +2852,19 @@ mod member_order_tests {
         ));
         assert!(!sso_return_url_allowed("", "https://shop.example.com"));
         assert!(!sso_return_url_allowed("https://shop.example.com/cb", ""));
+    }
+
+    #[test]
+    fn wallet_biz_currency_matrix() {
+        assert!(wallet_biz_currency_valid("points_grant", "points"));
+        assert!(!wallet_biz_currency_valid("points_grant", "money"));
+        assert!(wallet_biz_currency_valid("money_freeze", "money"));
+        assert!(!wallet_biz_currency_valid("money_freeze", "points"));
+        assert!(wallet_biz_currency_valid("merge_in", "points"));
+        assert!(wallet_biz_currency_valid("merge_in", "money"));
+        assert!(wallet_biz_currency_valid("reverse", "money"));
+        assert!(!wallet_biz_currency_valid("unknown_biz", "money"));
+        assert_eq!(wallet_merge_biz_sn(3, 42, "points"), "merge-3-42-points");
     }
 
     #[test]

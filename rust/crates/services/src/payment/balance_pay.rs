@@ -140,6 +140,22 @@ impl BalancePayService {
         order_id: i32,
         request_amount: Option<Decimal>,
     ) -> Result<BalancePayResult> {
+        // 0. 联邦并账守卫（万象互联三期④）：已并入中枢账本的会员，本地余额
+        // 不再用于支付（联邦资产以中枢账本为准），防双重记账与资金口径分裂。
+        if let Some(state) = self
+            .repos
+            .hub
+            .federation
+            .find_wallet_local_state(user_id)
+            .await?
+        {
+            if state.merged == 1 {
+                return Err(Error::biz(
+                    400,
+                    "该账户已并入平台账本，本地余额支付已停用",
+                ));
+            }
+        }
         // 1. 订单校验
         let order = self
             .repos.trade.order

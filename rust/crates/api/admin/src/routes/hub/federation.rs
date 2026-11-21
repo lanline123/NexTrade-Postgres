@@ -49,6 +49,12 @@
 //! | `POST` | `/hub/xorder/routeRetry` | 跨店路由重试（三期③，中枢侧） |
 //! | `GET`  | `/hub/xorder/routes` | 本机路由单列表（三期③，成员侧） |
 //! | `POST` | `/hub/xorder/syncRouteStatus` | 路由单状态同步（三期③，成员侧） |
+//! | `GET`  | `/hub/wallet/accounts` | 中央账本账户列表（三期④，迁移 045，会员模块闸） |
+//! | `GET`  | `/hub/wallet/lines` | 中央账本行列表（三期④） |
+//! | `POST` | `/hub/wallet/postLine` | 中央账本手工记账（三期④，中枢侧） |
+//! | `POST` | `/hub/wallet/releaseExpired` | 释放过期冻结（三期④，中枢侧） |
+//! | `GET`  | `/hub/wallet/mirror` | 本机账本镜像列表（三期④，成员侧） |
+//! | `POST` | `/hub/myLinks/mergeWallet` | 存量并账（三期④，成员侧） |
 
 use axum::{
     extract::{Query, State},
@@ -67,8 +73,10 @@ use nextrade_core::models::hub::federation::{
     ConfigDecideDTO, ConfigPublishDTO, HubConfigAckListQuery, HubConfigAckVO,
     HubConfigApplyListQuery, HubConfigApplyVO, HubConfigListQuery, HubConfigPackageVO,
     HubPairInitiateDTO, HubPairingCodeVO, HubPairingCreateDTO, HubPriceOverrideSaveDTO,
-    HubSsoListQuery, HubSsoRequestVO, HubXorderListQuery, HubXorderRouteListQuery,
-    HubXorderRouteVO, HubXorderVO,
+    HubSsoListQuery, HubSsoRequestVO, HubWalletAccountListQuery, HubWalletLineListQuery,
+    HubWalletLineVO, HubWalletMirrorListQuery, HubWalletMirrorVO, HubXorderListQuery,
+    HubXorderRouteListQuery, HubXorderRouteVO, HubXorderVO, WalletAdminPostDTO,
+    WalletBalanceVO, WalletPostVO,
 };
 use nextrade_core::types::PageResult;
 use nextrade_security::web::{ok, ApiResult};
@@ -76,7 +84,7 @@ use nextrade_security::web::{ok, ApiResult};
 use crate::AdminState;
 
 /// 本域路由（去掉 `/adminapi` 前缀）。
-const ROUTE_TABLE: [(&str, &str, &str); 43] = [
+const ROUTE_TABLE: [(&str, &str, &str); 49] = [
     ("GET", "/hub/overview", "HubController.overview"),
     ("GET", "/hub/credentials/list", "HubController.credentialList"),
     ("GET", "/hub/credentials/detail", "HubController.credentialDetail"),
@@ -120,6 +128,12 @@ const ROUTE_TABLE: [(&str, &str, &str); 43] = [
     ("POST", "/hub/xorder/routeRetry", "HubController.xorderRouteRetry"),
     ("GET", "/hub/xorder/routes", "HubController.xorderRoutes"),
     ("POST", "/hub/xorder/syncRouteStatus", "HubController.xorderSyncRouteStatus"),
+    ("GET", "/hub/wallet/accounts", "HubController.walletAccounts"),
+    ("GET", "/hub/wallet/lines", "HubController.walletLines"),
+    ("POST", "/hub/wallet/postLine", "HubController.walletPostLine"),
+    ("POST", "/hub/wallet/releaseExpired", "HubController.walletReleaseExpired"),
+    ("GET", "/hub/wallet/mirror", "HubController.walletMirror"),
+    ("POST", "/hub/myLinks/mergeWallet", "HubController.myLinkMergeWallet"),
 ];
 
 pub fn routes(state: &AdminState) -> Router<AdminState> {
@@ -166,6 +180,12 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/hub/xorder/routeRetry", post(xorder_route_retry))
         .route("/hub/xorder/routes", get(xorder_routes))
         .route("/hub/xorder/syncRouteStatus", post(xorder_sync_route_status))
+        .route("/hub/wallet/accounts", get(wallet_accounts))
+        .route("/hub/wallet/lines", get(wallet_lines))
+        .route("/hub/wallet/postLine", post(wallet_post_line))
+        .route("/hub/wallet/releaseExpired", post(wallet_release_expired))
+        .route("/hub/wallet/mirror", get(wallet_mirror))
+        .route("/hub/myLinks/mergeWallet", post(my_link_merge_wallet))
         .route("/hub/myLinks/syncMembers", post(my_link_sync_members))
         .route("/hub/myLinks/reportOrders", post(my_link_report_orders))
 }
@@ -531,6 +551,51 @@ async fn xorder_sync_route_status(
     Json(dto): Json<HubIdDTO>,
 ) -> ApiResult<Value> {
     ok(state.hub.federation.sync_route_status(dto.id).await?)
+}
+
+/// 三期④：中央账本账户列表（中枢）。
+async fn wallet_accounts(
+    State(state): State<AdminState>,
+    Query(q): Query<HubWalletAccountListQuery>,
+) -> ApiResult<PageResult<WalletBalanceVO>> {
+    ok(state.hub.federation.list_wallet_accounts_admin(&q).await?)
+}
+
+/// 三期④：中央账本行列表（中枢）。
+async fn wallet_lines(
+    State(state): State<AdminState>,
+    Query(q): Query<HubWalletLineListQuery>,
+) -> ApiResult<PageResult<HubWalletLineVO>> {
+    ok(state.hub.federation.list_wallet_lines_admin(&q).await?)
+}
+
+/// 三期④：中央账本手工记账（中枢：积分发放/余额入账/冲正）。
+async fn wallet_post_line(
+    State(state): State<AdminState>,
+    Json(dto): Json<WalletAdminPostDTO>,
+) -> ApiResult<WalletPostVO> {
+    ok(state.hub.federation.admin_wallet_post(&dto).await?)
+}
+
+/// 三期④：释放过期冻结（中枢）。
+async fn wallet_release_expired(State(state): State<AdminState>) -> ApiResult<Value> {
+    ok(state.hub.federation.release_expired_freezes().await?)
+}
+
+/// 三期④：本机账本镜像列表（成员）。
+async fn wallet_mirror(
+    State(state): State<AdminState>,
+    Query(q): Query<HubWalletMirrorListQuery>,
+) -> ApiResult<PageResult<HubWalletMirrorVO>> {
+    ok(state.hub.federation.list_wallet_mirrors_admin(&q).await?)
+}
+
+/// 三期④：存量并账（成员，按连接把已映射会员本地积分/余额并入中枢账本）。
+async fn my_link_merge_wallet(
+    State(state): State<AdminState>,
+    Json(dto): Json<HubIdDTO>,
+) -> ApiResult<Value> {
+    ok(state.hub.federation.merge_wallet(dto.id).await?)
 }
 
 async fn my_link_sync_members(
