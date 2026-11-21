@@ -41,7 +41,7 @@
 
 use std::collections::HashMap;
 
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use nextrade_core::entities::{
     Product, ProductInventoryLog, ProductSku, StoreProduct, StoreProductSku,
     ProductStockAdjustRecord, ProductStockAllocateOperationRecord, ProductStockAllocateRecord,
@@ -136,10 +136,20 @@ impl ProductStockRepository {
 
     /// 按商品 ID 查询（Java `productService.getById`）。
     pub async fn find_product(&self, product_id: i32) -> Result<Option<Product>> {
+        let mut conn = self.pool.acquire().await.map_err(map_err)?;
+        self.find_product_on(&mut conn, product_id).await
+    }
+
+    /// 同 [`Self::find_product`]，在调用方连接上执行（事务编排用，下同）。
+    pub async fn find_product_on(
+        &self,
+        conn: &mut PgConnection,
+        product_id: i32,
+    ) -> Result<Option<Product>> {
         let sql = format!("SELECT {PRODUCT_COLUMNS} FROM product WHERE product_id = $1 LIMIT 1");
         sqlx::query_as::<_, Product>(&sql)
             .bind(product_id)
-            .fetch_optional(&self.pool)
+            .fetch_optional(&mut *conn)
             .await
             .map_err(map_err)
     }
@@ -178,10 +188,20 @@ impl ProductStockRepository {
 
     /// 按 SKU ID 查询（Java `productSkuService.getById`）。
     pub async fn find_sku(&self, sku_id: i32) -> Result<Option<ProductSku>> {
+        let mut conn = self.pool.acquire().await.map_err(map_err)?;
+        self.find_sku_on(&mut conn, sku_id).await
+    }
+
+    /// 同 [`Self::find_sku`]，在调用方连接上执行（事务编排用）。
+    pub async fn find_sku_on(
+        &self,
+        conn: &mut PgConnection,
+        sku_id: i32,
+    ) -> Result<Option<ProductSku>> {
         let sql = format!("SELECT {SKU_COLUMNS} FROM product_sku WHERE sku_id = $1 LIMIT 1");
         sqlx::query_as::<_, ProductSku>(&sql)
             .bind(sku_id)
-            .fetch_optional(&self.pool)
+            .fetch_optional(&mut *conn)
             .await
             .map_err(map_err)
     }
@@ -368,6 +388,16 @@ impl ProductStockRepository {
 
     /// 写入库存日志（Java `productInventoryLogService.save` / \"insert\"）。
     pub async fn insert_inventory_log(&self, log: &ProductInventoryLog) -> Result<()> {
+        let mut conn = self.pool.acquire().await.map_err(map_err)?;
+        self.insert_inventory_log_on(&mut conn, log).await
+    }
+
+    /// 同 [`Self::insert_inventory_log`]，在调用方连接上执行（事务编排用）。
+    pub async fn insert_inventory_log_on(
+        &self,
+        conn: &mut PgConnection,
+        log: &ProductInventoryLog,
+    ) -> Result<()> {
         sqlx::query(
             "INSERT INTO product_inventory_log \
                (product_id, spec_id, number, add_time, old_number, type, change_number, \"desc\", shop_id) \
@@ -382,7 +412,7 @@ impl ProductStockRepository {
         .bind(log.change_number)
         .bind(&log.desc)
         .bind(log.shop_id)
-        .execute(&self.pool)
+        .execute(&mut *conn)
         .await
         .map_err(map_err)?;
         Ok(())
@@ -462,6 +492,16 @@ impl ProductStockRepository {
 
     /// 写入出入库记录，返回自增主键。
     pub async fn insert_stock_record(&self, r: &ProductStockRecord) -> Result<i32> {
+        let mut conn = self.pool.acquire().await.map_err(map_err)?;
+        self.insert_stock_record_on(&mut conn, r).await
+    }
+
+    /// 同 [`Self::insert_stock_record`]，在调用方连接上执行（事务编排用）。
+    pub async fn insert_stock_record_on(
+        &self,
+        conn: &mut PgConnection,
+        r: &ProductStockRecord,
+    ) -> Result<i32> {
         let res: i32 = sqlx::query_scalar(
             "INSERT INTO product_stock_record \
                (stock_code, in_or_out, \"type\", add_time, add_by, \"comment\", shop_id) \
@@ -474,7 +514,7 @@ impl ProductStockRepository {
         .bind(&r.add_by)
         .bind(&r.comment)
         .bind(r.shop_id)
-        .fetch_one(&self.pool)
+        .fetch_one(&mut *conn)
         .await
         .map_err(map_err)?;
         Ok(res)
@@ -483,6 +523,17 @@ impl ProductStockRepository {
     /// 批量写入出入库明细（Java \"saveBatch\"）。
     pub async fn insert_stock_record_details(
         &self,
+        details: &[ProductStockRecordDetail],
+    ) -> Result<bool> {
+        let mut conn = self.pool.acquire().await.map_err(map_err)?;
+        self.insert_stock_record_details_on(&mut conn, details)
+            .await
+    }
+
+    /// 同 [`Self::insert_stock_record_details`]，在调用方连接上执行（事务编排用）。
+    pub async fn insert_stock_record_details_on(
+        &self,
+        conn: &mut PgConnection,
         details: &[ProductStockRecordDetail],
     ) -> Result<bool> {
         if details.is_empty() {
@@ -497,7 +548,7 @@ impl ProductStockRepository {
             .bind(d.product_id)
             .bind(d.sku_id)
             .bind(d.quantity)
-            .execute(&self.pool)
+            .execute(&mut *conn)
             .await
             .map_err(map_err)?;
         }
@@ -508,11 +559,23 @@ impl ProductStockRepository {
 
     /// 商品库存增加（Java `productService.incStock` 的 UPDATE 部分）。
     pub async fn inc_product_stock(&self, product_id: i32, quantity: i32) -> Result<u64> {
+        let mut conn = self.pool.acquire().await.map_err(map_err)?;
+        self.inc_product_stock_on(&mut conn, product_id, quantity)
+            .await
+    }
+
+    /// 同 [`Self::inc_product_stock`]，在调用方连接上执行（事务编排用）。
+    pub async fn inc_product_stock_on(
+        &self,
+        conn: &mut PgConnection,
+        product_id: i32,
+        quantity: i32,
+    ) -> Result<u64> {
         let res =
             sqlx::query("UPDATE product SET product_stock = product_stock + $1 WHERE product_id = $2")
                 .bind(quantity)
                 .bind(product_id)
-                .execute(&self.pool)
+                .execute(&mut *conn)
                 .await
                 .map_err(map_err)?;
         Ok(res.rows_affected())
@@ -521,6 +584,18 @@ impl ProductStockRepository {
     /// 商品库存扣减：**原子条件更新**（`WHERE product_stock >= ?`），
     /// 返回受影响行数（0 = 库存不足）。
     pub async fn dec_product_stock(&self, product_id: i32, quantity: i32) -> Result<u64> {
+        let mut conn = self.pool.acquire().await.map_err(map_err)?;
+        self.dec_product_stock_on(&mut conn, product_id, quantity)
+            .await
+    }
+
+    /// 同 [`Self::dec_product_stock`]，在调用方连接上执行（事务编排用）。
+    pub async fn dec_product_stock_on(
+        &self,
+        conn: &mut PgConnection,
+        product_id: i32,
+        quantity: i32,
+    ) -> Result<u64> {
         let res = sqlx::query(
             "UPDATE product SET product_stock = product_stock - $1 \
               WHERE product_id = $2 AND product_stock >= $3",
@@ -528,7 +603,7 @@ impl ProductStockRepository {
         .bind(quantity)
         .bind(product_id)
         .bind(quantity)
-        .execute(&self.pool)
+        .execute(&mut *conn)
         .await
         .map_err(map_err)?;
         Ok(res.rows_affected())
@@ -536,10 +611,21 @@ impl ProductStockRepository {
 
     /// SKU 库存增加（Java `productSkuService.incStock`）。
     pub async fn inc_sku_stock(&self, sku_id: i32, quantity: i32) -> Result<u64> {
+        let mut conn = self.pool.acquire().await.map_err(map_err)?;
+        self.inc_sku_stock_on(&mut conn, sku_id, quantity).await
+    }
+
+    /// 同 [`Self::inc_sku_stock`]，在调用方连接上执行（事务编排用）。
+    pub async fn inc_sku_stock_on(
+        &self,
+        conn: &mut PgConnection,
+        sku_id: i32,
+        quantity: i32,
+    ) -> Result<u64> {
         let res = sqlx::query("UPDATE product_sku SET sku_stock = sku_stock + $1 WHERE sku_id = $2")
             .bind(quantity)
             .bind(sku_id)
-            .execute(&self.pool)
+            .execute(&mut *conn)
             .await
             .map_err(map_err)?;
         Ok(res.rows_affected())
@@ -547,6 +633,17 @@ impl ProductStockRepository {
 
     /// SKU 库存扣减：**原子条件更新**（`WHERE sku_stock >= ?`）。
     pub async fn dec_sku_stock(&self, sku_id: i32, quantity: i32) -> Result<u64> {
+        let mut conn = self.pool.acquire().await.map_err(map_err)?;
+        self.dec_sku_stock_on(&mut conn, sku_id, quantity).await
+    }
+
+    /// 同 [`Self::dec_sku_stock`]，在调用方连接上执行（事务编排用）。
+    pub async fn dec_sku_stock_on(
+        &self,
+        conn: &mut PgConnection,
+        sku_id: i32,
+        quantity: i32,
+    ) -> Result<u64> {
         let res = sqlx::query(
             "UPDATE product_sku SET sku_stock = sku_stock - $1 \
               WHERE sku_id = $2 AND sku_stock >= $3",
@@ -554,7 +651,7 @@ impl ProductStockRepository {
         .bind(quantity)
         .bind(sku_id)
         .bind(quantity)
-        .execute(&self.pool)
+        .execute(&mut *conn)
         .await
         .map_err(map_err)?;
         Ok(res.rows_affected())
@@ -569,6 +666,18 @@ impl ProductStockRepository {
         product_id: i32,
         shop_id: i32,
     ) -> Result<Option<StoreProduct>> {
+        let mut conn = self.pool.acquire().await.map_err(map_err)?;
+        self.find_store_product_on(&mut conn, product_id, shop_id)
+            .await
+    }
+
+    /// 同 [`Self::find_store_product`]，在调用方连接上执行（事务编排用）。
+    pub async fn find_store_product_on(
+        &self,
+        conn: &mut PgConnection,
+        product_id: i32,
+        shop_id: i32,
+    ) -> Result<Option<StoreProduct>> {
         let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {STORE_PRODUCT_COLUMNS} FROM store_product \
               WHERE product_id = ? AND shop_id = ? AND is_delete = 0 LIMIT 1"
@@ -576,7 +685,7 @@ impl ProductStockRepository {
         sqlx::query_as::<_, StoreProduct>(&sql)
             .bind(product_id)
             .bind(shop_id)
-            .fetch_optional(&self.pool)
+            .fetch_optional(&mut *conn)
             .await
             .map_err(map_err)
     }
@@ -587,6 +696,18 @@ impl ProductStockRepository {
         store_product_id: i64,
         product_sku_id: i32,
     ) -> Result<Option<StoreProductSku>> {
+        let mut conn = self.pool.acquire().await.map_err(map_err)?;
+        self.find_store_product_sku_on(&mut conn, store_product_id, product_sku_id)
+            .await
+    }
+
+    /// 同 [`Self::find_store_product_sku`]，在调用方连接上执行（事务编排用）。
+    pub async fn find_store_product_sku_on(
+        &self,
+        conn: &mut PgConnection,
+        store_product_id: i64,
+        product_sku_id: i32,
+    ) -> Result<Option<StoreProductSku>> {
         let sql = crate::db::to_pg_placeholders(&format!(
             "SELECT {STORE_SKU_COLUMNS} FROM store_product_sku \
               WHERE store_product_id = ? AND product_sku_id = ? LIMIT 1"
@@ -594,7 +715,7 @@ impl ProductStockRepository {
         sqlx::query_as::<_, StoreProductSku>(&sql)
             .bind(store_product_id)
             .bind(product_sku_id)
-            .fetch_optional(&self.pool)
+            .fetch_optional(&mut *conn)
             .await
             .map_err(map_err)
     }
@@ -616,13 +737,25 @@ impl ProductStockRepository {
         store_product_id: i64,
         quantity: i32,
     ) -> Result<u64> {
+        let mut conn = self.pool.acquire().await.map_err(map_err)?;
+        self.inc_store_product_stock_on(&mut conn, store_product_id, quantity)
+            .await
+    }
+
+    /// 同 [`Self::inc_store_product_stock`]，在调用方连接上执行（事务编排用）。
+    pub async fn inc_store_product_stock_on(
+        &self,
+        conn: &mut PgConnection,
+        store_product_id: i64,
+        quantity: i32,
+    ) -> Result<u64> {
         let res = sqlx::query(
             "UPDATE store_product SET product_stock = product_stock + $1 \
               WHERE store_product_id = $2 AND is_delete = 0",
         )
         .bind(quantity)
         .bind(store_product_id)
-        .execute(&self.pool)
+        .execute(&mut *conn)
         .await
         .map_err(map_err)?;
         Ok(res.rows_affected())
@@ -634,6 +767,18 @@ impl ProductStockRepository {
         store_product_id: i64,
         quantity: i32,
     ) -> Result<u64> {
+        let mut conn = self.pool.acquire().await.map_err(map_err)?;
+        self.dec_store_product_stock_on(&mut conn, store_product_id, quantity)
+            .await
+    }
+
+    /// 同 [`Self::dec_store_product_stock`]，在调用方连接上执行（事务编排用）。
+    pub async fn dec_store_product_stock_on(
+        &self,
+        conn: &mut PgConnection,
+        store_product_id: i64,
+        quantity: i32,
+    ) -> Result<u64> {
         let res = sqlx::query(
             "UPDATE store_product SET product_stock = product_stock - $1 \
               WHERE store_product_id = $2 AND is_delete = 0 AND product_stock >= $3",
@@ -641,7 +786,7 @@ impl ProductStockRepository {
         .bind(quantity)
         .bind(store_product_id)
         .bind(quantity)
-        .execute(&self.pool)
+        .execute(&mut *conn)
         .await
         .map_err(map_err)?;
         Ok(res.rows_affected())
@@ -653,13 +798,25 @@ impl ProductStockRepository {
         store_product_sku_id: i64,
         quantity: i32,
     ) -> Result<u64> {
+        let mut conn = self.pool.acquire().await.map_err(map_err)?;
+        self.inc_store_sku_stock_on(&mut conn, store_product_sku_id, quantity)
+            .await
+    }
+
+    /// 同 [`Self::inc_store_sku_stock`]，在调用方连接上执行（事务编排用）。
+    pub async fn inc_store_sku_stock_on(
+        &self,
+        conn: &mut PgConnection,
+        store_product_sku_id: i64,
+        quantity: i32,
+    ) -> Result<u64> {
         let res = sqlx::query(
             "UPDATE store_product_sku SET sku_stock = sku_stock + $1 \
               WHERE store_product_sku_id = $2",
         )
         .bind(quantity)
         .bind(store_product_sku_id)
-        .execute(&self.pool)
+        .execute(&mut *conn)
         .await
         .map_err(map_err)?;
         Ok(res.rows_affected())
@@ -671,6 +828,18 @@ impl ProductStockRepository {
         store_product_sku_id: i64,
         quantity: i32,
     ) -> Result<u64> {
+        let mut conn = self.pool.acquire().await.map_err(map_err)?;
+        self.dec_store_sku_stock_on(&mut conn, store_product_sku_id, quantity)
+            .await
+    }
+
+    /// 同 [`Self::dec_store_sku_stock`]，在调用方连接上执行（事务编排用）。
+    pub async fn dec_store_sku_stock_on(
+        &self,
+        conn: &mut PgConnection,
+        store_product_sku_id: i64,
+        quantity: i32,
+    ) -> Result<u64> {
         let res = sqlx::query(
             "UPDATE store_product_sku SET sku_stock = sku_stock - $1 \
               WHERE store_product_sku_id = $2 AND sku_stock >= $3",
@@ -678,7 +847,7 @@ impl ProductStockRepository {
         .bind(quantity)
         .bind(store_product_sku_id)
         .bind(quantity)
-        .execute(&self.pool)
+        .execute(&mut *conn)
         .await
         .map_err(map_err)?;
         Ok(res.rows_affected())

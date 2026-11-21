@@ -305,20 +305,59 @@ impl ProductStockService {
     /// 事务语义：逐行增减库存 → 写 `product_stock_record`（`in_or_out = 1`）
     /// → 回填并写明细。任一步失败即整体报错（Java 为 `@Transactional`）。
     pub async fn stock_in(&self, dto: &StockInDTO, op: &StockOperator) -> Result<i32> {
-        self.stock_change(dto, op, record_type::IN, "入库增加库存")
+        let mut conn = self
+            .repo()
+            .pool_clone()
+            .acquire()
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+        self.stock_change(&mut conn, dto, op, record_type::IN, "入库增加库存")
             .await
     }
 
     /// `POST /stockOut`：商品出库
     /// （Java `ProductStockRecordServiceImpl#productStockOut`）。
     pub async fn stock_out(&self, dto: &StockInDTO, op: &StockOperator) -> Result<i32> {
-        self.stock_change(dto, op, record_type::OUT, "出库扣减库存")
+        let mut conn = self
+            .repo()
+            .pool_clone()
+            .acquire()
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+        self.stock_change(&mut conn, dto, op, record_type::OUT, "出库扣减库存")
+            .await
+    }
+
+    /// 在调用方事务连接上执行入库：库存增减、出入库记录与库存日志全部
+    /// 落在调用方事务内，与调用方单据同提交/同回滚（采购收货链用，
+    /// 消除「库存已动、单据未落」的非原子窗口）。
+    pub async fn stock_in_tx(
+        &self,
+        conn: &mut sqlx::PgConnection,
+        dto: &StockInDTO,
+        op: &StockOperator,
+    ) -> Result<i32> {
+        self.stock_change(conn, dto, op, record_type::IN, "入库增加库存")
+            .await
+    }
+
+    /// 在调用方事务连接上执行出库，语义同 [`Self::stock_in_tx`]（采购退货链用）。
+    pub async fn stock_out_tx(
+        &self,
+        conn: &mut sqlx::PgConnection,
+        dto: &StockInDTO,
+        op: &StockOperator,
+    ) -> Result<i32> {
+        self.stock_change(conn, dto, op, record_type::OUT, "出库扣减库存")
             .await
     }
 
     /// 出入库公共实现（Java `productStockInForShop` / `productStockOutForShop`）。
+    /// 全部读写走入参连接：连接来自连接池时与历史行为一致（逐语句提交），
+    /// 来自调用方事务时与调用方单据同事务。
     async fn stock_change(
         &self,
+        conn: &mut sqlx::PgConnection,
         dto: &StockInDTO,
         op: &StockOperator,
         in_or_out: i32,
@@ -337,14 +376,14 @@ impl ProductStockService {
             }
             let product = self
                 .repo()
-                .find_product(product_id)
+                .find_product_on(&mut *conn, product_id)
                 .await?
                 .ok_or_else(|| Error::biz_msg("商品不存在或不属于目标组织"))?;
             if in_or_out == record_type::IN {
-                self.increase_stock_for_shop(&product, op.shop_id, detail, desc)
+                self.increase_stock_for_shop(&mut *conn, &product, op.shop_id, detail, desc)
                     .await?;
             } else {
-                self.decrease_stock_for_shop(&product, op.shop_id, detail, desc)
+                self.decrease_stock_for_shop(&mut *conn, &product, op.shop_id, detail, desc)
                     .await?;
             }
         }
@@ -365,7 +404,7 @@ impl ProductStockService {
             comment: dto.comment.clone(),
             shop_id: Some(op.shop_id),
         };
-        let record_id = self.repo().insert_stock_record(&record).await?;
+        let record_id = self.repo().insert_stock_record_on(&mut *conn, &record).await?;
         if record_id <= 0 {
             return Err(Error::biz_msg("库存记录创建失败"));
         }
@@ -381,7 +420,11 @@ impl ProductStockService {
                 quantity: d.quantity,
             })
             .collect();
-        if !self.repo().insert_stock_record_details(&details).await? {
+        if !self
+            .repo()
+            .insert_stock_record_details_on(&mut *conn, &details)
+            .await?
+        {
             return Err(Error::biz_msg("库存记录明细创建失败"));
         }
         // Java 随后调用 `stockWarningService.evaluate(...)` 重算库存预警：
@@ -398,19 +441,27 @@ impl ProductStockService {
     /// 入库落点（Java `increaseStockForShop`）。
     async fn increase_stock_for_shop(
         &self,
+        conn: &mut sqlx::PgConnection,
         product: &Product,
         shop_id: i32,
         detail: &StockRecordDetailItem,
         desc: &str,
     ) -> Result<()> {
         let quantity = detail.quantity.unwrap_or(0);
-        let sku = self.require_product_sku(product, detail.sku_id).await?;
-        let store_product = self.resolve_assigned_store_product(product, shop_id).await?;
+        let sku = self
+            .require_product_sku(&mut *conn, product, detail.sku_id)
+            .await?;
+        let store_product = self
+            .resolve_assigned_store_product(&mut *conn, product, shop_id)
+            .await?;
 
         let Some(sp) = store_product else {
             if let Some(sku) = &sku {
-                self.repo().inc_sku_stock(sku.sku_id, quantity).await?;
+                self.repo()
+                    .inc_sku_stock_on(&mut *conn, sku.sku_id, quantity)
+                    .await?;
                 self.write_inventory_log(
+                    &mut *conn,
                     product.product_id,
                     Some(sku.sku_id),
                     sku.sku_stock.unwrap_or(0),
@@ -422,9 +473,10 @@ impl ProductStockService {
                 .await?;
             }
             self.repo()
-                .inc_product_stock(product.product_id, quantity)
+                .inc_product_stock_on(&mut *conn, product.product_id, quantity)
                 .await?;
             self.write_inventory_log(
+                &mut *conn,
                 product.product_id,
                 None,
                 product.product_stock,
@@ -442,7 +494,7 @@ impl ProductStockService {
             None => None,
             Some(sku) => Some(
                 self.repo()
-                    .find_store_product_sku(sp.store_product_id, sku.sku_id)
+                    .find_store_product_sku_on(&mut *conn, sp.store_product_id, sku.sku_id)
                     .await?
                     .ok_or_else(|| Error::biz_msg("平台分配商品规格不存在或已失效"))?,
             ),
@@ -450,7 +502,7 @@ impl ProductStockService {
         if let Some(store_sku) = &store_sku {
             let affected = self
                 .repo()
-                .inc_store_sku_stock(store_sku.store_product_sku_id, quantity)
+                .inc_store_sku_stock_on(&mut *conn, store_sku.store_product_sku_id, quantity)
                 .await?;
             if affected == 0 {
                 return Err(Error::biz_msg("门店商品规格已失效"));
@@ -458,7 +510,7 @@ impl ProductStockService {
         }
         let affected = self
             .repo()
-            .inc_store_product_stock(sp.store_product_id, quantity)
+            .inc_store_product_stock_on(&mut *conn, sp.store_product_id, quantity)
             .await?;
         if affected == 0 {
             return Err(Error::biz_msg("平台分配商品已失效"));
@@ -469,6 +521,7 @@ impl ProductStockService {
             .or(sp.product_stock)
             .unwrap_or(0);
         self.write_inventory_log(
+            &mut *conn,
             product.product_id,
             store_sku.as_ref().map(|s| s.product_sku_id as i32),
             old_stock,
@@ -483,18 +536,26 @@ impl ProductStockService {
     /// 出库落点（Java `decreaseStockForShop`）。
     async fn decrease_stock_for_shop(
         &self,
+        conn: &mut sqlx::PgConnection,
         product: &Product,
         shop_id: i32,
         detail: &StockRecordDetailItem,
         desc: &str,
     ) -> Result<()> {
         let quantity = detail.quantity.unwrap_or(0);
-        let sku = self.require_product_sku(product, detail.sku_id).await?;
-        let store_product = self.resolve_assigned_store_product(product, shop_id).await?;
+        let sku = self
+            .require_product_sku(&mut *conn, product, detail.sku_id)
+            .await?;
+        let store_product = self
+            .resolve_assigned_store_product(&mut *conn, product, shop_id)
+            .await?;
 
         let Some(sp) = store_product else {
             if let Some(sku) = &sku {
-                let affected = self.repo().dec_sku_stock(sku.sku_id, quantity).await?;
+                let affected = self
+                    .repo()
+                    .dec_sku_stock_on(&mut *conn, sku.sku_id, quantity)
+                    .await?;
                 if affected == 0 {
                     return Err(Error::biz_msg(format!(
                         "{}库存不足",
@@ -502,6 +563,7 @@ impl ProductStockService {
                     )));
                 }
                 self.write_inventory_log(
+                    &mut *conn,
                     product.product_id,
                     Some(sku.sku_id),
                     sku.sku_stock.unwrap_or(0),
@@ -514,7 +576,7 @@ impl ProductStockService {
             }
             let affected = self
                 .repo()
-                .dec_product_stock(product.product_id, quantity)
+                .dec_product_stock_on(&mut *conn, product.product_id, quantity)
                 .await?;
             if affected == 0 {
                 return Err(Error::biz_msg(format!(
@@ -523,6 +585,7 @@ impl ProductStockService {
                 )));
             }
             self.write_inventory_log(
+                &mut *conn,
                 product.product_id,
                 None,
                 product.product_stock,
@@ -539,7 +602,7 @@ impl ProductStockService {
             None => None,
             Some(sku) => Some(
                 self.repo()
-                    .find_store_product_sku(sp.store_product_id, sku.sku_id)
+                    .find_store_product_sku_on(&mut *conn, sp.store_product_id, sku.sku_id)
                     .await?
                     .ok_or_else(|| Error::biz_msg("平台分配商品规格不存在或已失效"))?,
             ),
@@ -547,7 +610,7 @@ impl ProductStockService {
         if let Some(store_sku) = &store_sku {
             let affected = self
                 .repo()
-                .dec_store_sku_stock(store_sku.store_product_sku_id, quantity)
+                .dec_store_sku_stock_on(&mut *conn, store_sku.store_product_sku_id, quantity)
                 .await?;
             if affected == 0 {
                 return Err(Error::biz_msg("门店商品规格库存不足"));
@@ -555,7 +618,7 @@ impl ProductStockService {
         }
         let affected = self
             .repo()
-            .dec_store_product_stock(sp.store_product_id, quantity)
+            .dec_store_product_stock_on(&mut *conn, sp.store_product_id, quantity)
             .await?;
         if affected == 0 {
             return Err(Error::biz_msg("门店商品库存不足或分配已失效"));
@@ -566,6 +629,7 @@ impl ProductStockService {
             .or(sp.product_stock)
             .unwrap_or(0);
         self.write_inventory_log(
+            &mut *conn,
             product.product_id,
             store_sku.as_ref().map(|s| s.product_sku_id as i32),
             old_stock,
@@ -580,6 +644,7 @@ impl ProductStockService {
     /// 校验并取 SKU（Java `requireProductSku`：不存在或不属于该商品即报错）。
     async fn require_product_sku(
         &self,
+        conn: &mut sqlx::PgConnection,
         product: &Product,
         sku_id: Option<i32>,
     ) -> Result<Option<ProductSku>> {
@@ -588,7 +653,7 @@ impl ProductStockService {
         };
         let sku = self
             .repo()
-            .find_sku(sku_id)
+            .find_sku_on(&mut *conn, sku_id)
             .await?
             .ok_or_else(|| Error::biz_msg("商品规格不存在或不属于目标商品"))?;
         if sku.product_id != product.product_id {
@@ -605,6 +670,7 @@ impl ProductStockService {
     /// - 其余（门店商品被其他组织操作等）→「商品不存在或不属于目标组织」。
     async fn resolve_assigned_store_product(
         &self,
+        conn: &mut sqlx::PgConnection,
         product: &Product,
         shop_id: i32,
     ) -> Result<Option<StoreProduct>> {
@@ -615,7 +681,7 @@ impl ProductStockService {
             return Err(Error::biz_msg("商品不存在或不属于目标组织"));
         }
         self.repo()
-            .find_store_product(product.product_id, shop_id)
+            .find_store_product_on(&mut *conn, product.product_id, shop_id)
             .await?
             .map(Some)
             .ok_or_else(|| Error::biz_msg("平台商品未分配给目标组织或分配已失效"))
@@ -625,6 +691,7 @@ impl ProductStockService {
     #[allow(clippy::too_many_arguments)]
     async fn write_inventory_log(
         &self,
+        conn: &mut sqlx::PgConnection,
         product_id: i32,
         spec_id: Option<i32>,
         old_number: i32,
@@ -649,7 +716,7 @@ impl ProductStockService {
             desc: Some(desc.to_string()),
             shop_id,
         };
-        self.repo().insert_inventory_log(&log).await
+        self.repo().insert_inventory_log_on(&mut *conn, &log).await
     }
 
     /// 解析调拨组织名称（平台名称取 `config.shopName`，否则按门店标题精确匹配）。
@@ -1112,11 +1179,21 @@ impl ProductStockService {
             sku.as_ref().map(|s| s.sku_stock.unwrap_or(0)),
         );
 
+        // 库存日志写入连接（write_inventory_log 已改连接入参；本路径无
+        // 调用方事务，取一条池连接执行，与历史逐语句提交行为一致）。
+        let mut conn = self
+            .repo()
+            .pool_clone()
+            .acquire()
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+
         // 按 SKU 落点调整
         if let (Some(sku), Some(delta)) = (&sku, effect.sku_delta) {
             if delta >= 0 {
                 self.repo().inc_sku_stock(sku.sku_id, delta).await?;
                 self.write_inventory_log(
+                    &mut conn,
                     product_id,
                     Some(sku.sku_id),
                     change_before,
@@ -1136,6 +1213,7 @@ impl ProductStockService {
                     )));
                 }
                 self.write_inventory_log(
+                    &mut conn,
                     product_id,
                     Some(sku.sku_id),
                     change_before,
@@ -1153,6 +1231,7 @@ impl ProductStockService {
             if delta >= 0 {
                 self.repo().inc_product_stock(product_id, delta).await?;
                 self.write_inventory_log(
+                    &mut conn,
                     product_id,
                     None,
                     product.product_stock,
@@ -1172,6 +1251,7 @@ impl ProductStockService {
                     )));
                 }
                 self.write_inventory_log(
+                    &mut conn,
                     product_id,
                     None,
                     product.product_stock,

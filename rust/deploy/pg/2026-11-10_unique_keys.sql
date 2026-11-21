@@ -93,7 +93,11 @@ CREATE UNIQUE INDEX idx_profit_sharing_retur_uk_out_return_no ON public.profit_s
 DROP INDEX IF EXISTS idx_purchase_order_uk_purchase_order_sn;
 CREATE UNIQUE INDEX idx_purchase_order_uk_purchase_order_sn ON public.purchase_order USING btree (order_sn);
 DROP INDEX IF EXISTS idx_purchase_order_item_uk_purchase_order_item_sk;
-CREATE UNIQUE INDEX idx_purchase_order_item_uk_purchase_order_item_sk ON public.purchase_order_item USING btree (order_id, vendor_product_sku_id);
+-- partial（仅未删行唯一）：草稿改明细走软删+重插，全量唯一会拦截同
+-- (order_id, sku) 的新行；与迁移 037 的索引形态保持一致，新装环境
+-- 直接建成 partial，已装环境由迁移 037 完成切换。
+DROP INDEX IF EXISTS idx_purchase_order_item_uk_active;
+CREATE UNIQUE INDEX idx_purchase_order_item_uk_active ON public.purchase_order_item USING btree (order_id, vendor_product_sku_id) WHERE is_del = 0;
 DROP INDEX IF EXISTS idx_purchase_receipt_uk_purchase_receipt_sn;
 CREATE UNIQUE INDEX idx_purchase_receipt_uk_purchase_receipt_sn ON public.purchase_receipt USING btree (receipt_sn);
 DROP INDEX IF EXISTS idx_purchase_receipt_ite_uk_purchase_receipt_item_;

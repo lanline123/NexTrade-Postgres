@@ -206,6 +206,27 @@ fn page_of(q: &Pg) -> (u64, u64, i64) {
     (page, size, ((page - 1) * size) as i64)
 }
 
+/// 列表过滤列按表分派（模式实证，00-pure.sql + PG 对齐脚本）：各表列名
+/// 并不一致 —— `vendor_product` 的状态列是 `product_state`、无 `status`
+/// 与 `category_name`；采购单据四表有 `status` 但无 `category_name`。
+/// 历史实现对一切非 vendor 表硬编码 `status` / `category_name`，带
+/// status 或 keyword 的列表请求会拼出不存在的列直接 500（选品弹窗恒
+/// 传 status=1、退货/对账列表带 keyword 搜索即触发）。现按表白名单
+/// 返回 (状态列, 关键词列集合)，列名均为表内实证存在的列；关键词列
+/// 与前端各列表搜索框文案对齐（单号/名称类）。
+fn list_filter_columns(table: &str) -> (&'static str, &'static [&'static str]) {
+    match table {
+        "vendor" => ("status", &["vendor_name"]),
+        "purchase_supplier_category" => ("status", &["category_name"]),
+        "vendor_product" => ("product_state", &["product_name", "product_sn"]),
+        "purchase_order" => ("status", &["order_sn", "vendor_name"]),
+        "purchase_receipt" => ("status", &["receipt_sn"]),
+        "purchase_return" => ("status", &["return_sn"]),
+        "purchase_reconciliation" => ("status", &["reconciliation_sn"]),
+        _ => ("status", &[]),
+    }
+}
+
 async fn list_table(
     state: &AdminState,
     table: &str,
@@ -213,6 +234,7 @@ async fn list_table(
     supplier_only: bool,
 ) -> Result<Value, AppError> {
     let (page, size, offset) = page_of(q);
+    let (status_col, keyword_cols) = list_filter_columns(table);
     let mut cq: QueryBuilder<'_, Postgres> =
         QueryBuilder::new(format!("SELECT COUNT(*) FROM {table} WHERE 1=1"));
     let mut rq: QueryBuilder<'_, Postgres> =
@@ -230,8 +252,8 @@ async fn list_table(
         rq.push(" AND shop_id = ").push_bind(shop_id);
     }
     if let Some(status) = q.status {
-        cq.push(" AND status = ").push_bind(status);
-        rq.push(" AND status = ").push_bind(status);
+        cq.push(format!(" AND {status_col} = ")).push_bind(status);
+        rq.push(format!(" AND {status_col} = ")).push_bind(status);
     }
     if let Some(kw) = q
         .keyword
@@ -239,14 +261,19 @@ async fn list_table(
         .map(str::trim)
         .filter(|s| !s.is_empty())
     {
-        let like = format!("%{kw}%");
-        let col = if table == "vendor" {
-            "vendor_name"
-        } else {
-            "category_name"
-        };
-        cq.push(format!(" AND {col} ILIKE ")).push_bind(like.clone());
-        rq.push(format!(" AND {col} ILIKE ")).push_bind(like);
+        if !keyword_cols.is_empty() {
+            let like = format!("%{kw}%");
+            for qb in [&mut cq, &mut rq] {
+                qb.push(" AND (");
+                for (i, col) in keyword_cols.iter().enumerate() {
+                    if i > 0 {
+                        qb.push(" OR ");
+                    }
+                    qb.push(format!("{col} ILIKE ")).push_bind(like.clone());
+                }
+                qb.push(")");
+            }
+        }
     }
     rq.push(" ORDER BY ")
         .push(if table == "vendor" { "vendor_id" } else { "id" })
@@ -1176,13 +1203,14 @@ struct VendorSnapshot {
     vendor_code: String,
     vendor_contact: String,
     shop_id: i32,
+    status: i32,
 }
 
 async fn load_vendor_snapshot(
     state: &AdminState,
     vendor_id: i32,
 ) -> Result<VendorSnapshot, AppError> {
-    let vendor = sqlx::query("SELECT vendor_name, vendor_code, contact_mobile, shop_id FROM vendor WHERE vendor_id=$1 AND source_type=2 LIMIT 1")
+    let vendor = sqlx::query("SELECT vendor_name, vendor_code, contact_mobile, shop_id, status FROM vendor WHERE vendor_id=$1 AND source_type=2 LIMIT 1")
         .bind(vendor_id)
         .fetch_optional(&state.repos.pool).await.map_err(db)?
         .ok_or_else(|| AppError(Error::biz(400, "供应商不存在")))?;
@@ -1191,7 +1219,18 @@ async fn load_vendor_snapshot(
         vendor_code: vendor.try_get("vendor_code").unwrap_or_default(),
         vendor_contact: vendor.try_get("contact_mobile").unwrap_or_default(),
         shop_id: vendor.try_get("shop_id").unwrap_or(0),
+        status: vendor.try_get("status").unwrap_or(0),
     })
+}
+
+/// 建单启用校验：历史实现只校验供应商存在，停用供应商经 API/旧页面
+/// 数据仍可建单（save_supplier_product 有 status=1 校验、建单侧漏了）。
+/// 正式建单/草稿转正/草稿提交三处共用；草稿暂存不拦（放宽校验口径）。
+fn ensure_vendor_enabled(snapshot: &VendorSnapshot) -> Result<(), AppError> {
+    if snapshot.status != 1 {
+        return Err(AppError(Error::biz(400, "供应商不存在或已停用")));
+    }
+    Ok(())
 }
 
 /// 明细逐行落库（create / update 共用；行规格必须可解析，口径与历史 create 一致）。
@@ -1252,6 +1291,11 @@ async fn order_create(State(state): State<AdminState>, Json(body): Json<Value>) 
     } else {
         return Err(AppError(Error::biz(400, "请选择供应商")));
     };
+    if !draft {
+        if let Some(s) = &snapshot {
+            ensure_vendor_enabled(s)?;
+        }
+    }
     let items = if draft {
         draft_items(&inputs)
     } else {
@@ -1274,7 +1318,7 @@ async fn order_create(State(state): State<AdminState>, Json(body): Json<Value>) 
         ),
     };
     let now = nextrade_common::utils::now_seconds() as i64;
-    let order_sn = format!("PO{}{:04}", now, rand_suffix());
+    let order_sn = unique_doc_sn(&state, "purchase_order", "order_sn", "PO", now).await?;
     let mut tx = state.repos.pool.begin().await.map_err(db)?;
     let order_id: i64 = sqlx::query_scalar(
         "INSERT INTO purchase_order(order_sn,type,shop_id,vendor_id,vendor_name,vendor_code,vendor_contact,status,expected_delivery_date,shipping_method,logistics_id,logistics_name,tracking_no,remark,product_amount,ordered_quantity,received_quantity,version,create_time,update_time) VALUES($1,1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,0,0,0,0,$14,$15) RETURNING id",
@@ -1352,6 +1396,11 @@ async fn order_update(State(state): State<AdminState>, Json(body): Json<Value>) 
     } else {
         None
     };
+    if !target_draft {
+        if let Some(s) = &snapshot {
+            ensure_vendor_enabled(s)?;
+        }
+    }
     let (vendor_name, vendor_code, vendor_contact, shop_id) = if vendor_id <= 0 {
         (
             String::new(),
@@ -1466,6 +1515,7 @@ async fn order_submit(State(state): State<AdminState>, Json(body): Json<Value>) 
         return Err(AppError(Error::biz(400, "请选择供应商")));
     }
     let snapshot = load_vendor_snapshot(&state, vendor_id).await?;
+    ensure_vendor_enabled(&snapshot)?;
     let stored = sqlx::query(
         "SELECT vendor_product_sku_id, quantity FROM purchase_order_item WHERE order_id=$1 AND is_del=0",
     )
@@ -1525,6 +1575,21 @@ async fn order_delete(State(state): State<AdminState>, Json(body): Json<Value>) 
 }
 async fn order_finish(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
     let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    // 未命中不再静默成功（与 return_confirm 同口径）：单据不存在或状态
+    // 不在可结束集合时明确报错，避免 UI 显示成功但状态未流转。
+    let row = sqlx::query("SELECT status FROM purchase_order WHERE id=$1 AND is_del=0 LIMIT 1")
+        .bind(id)
+        .fetch_optional(&state.repos.pool)
+        .await
+        .map_err(db)?
+        .ok_or_else(|| AppError(Error::biz(400, "采购订单不存在")))?;
+    let status: i32 = row.try_get("status").unwrap_or(-1);
+    if !matches!(status, 1 | 2 | 5) {
+        return Err(AppError(Error::biz(
+            400,
+            "只有待入库、部分入库或已发货的采购单可以结束",
+        )));
+    }
     let now = nextrade_common::utils::now_seconds() as i64;
     // status=5（已发货）同样可完结：语义与从待入库完结一致（放弃剩余收货），
     // 否则已发货未收货的单除收货外无任何出口（自动结束循环亦覆盖 5，见 scheduler）。
@@ -1603,6 +1668,38 @@ fn rand_suffix() -> u32 {
         .map(|d| d.subsec_nanos())
         .unwrap_or(0))
         % 10000
+}
+
+/// 单据号生成（防同秒碰撞）：单号 = 前缀 + 秒级时间戳 + 4 位随机后缀，
+/// 同秒同后缀概率约 1/10000，而四类单号列均有唯一索引，撞号即整单
+/// 创建失败且历史实现无重试。现生成前先查存量占用，撞号换后缀重试
+/// （最多 10 次），仍冲突则叠加一段后缀兜底；唯一索引仍是最终防线。
+/// table / column 只接受本模块内部字面量，不拼入参。
+async fn unique_doc_sn(
+    state: &AdminState,
+    table: &str,
+    column: &str,
+    prefix: &str,
+    now: i64,
+) -> Result<String, AppError> {
+    for _ in 0..10 {
+        let sn = format!("{prefix}{now}{:04}", rand_suffix());
+        let (n,): (i64,) = sqlx::query_as(&format!(
+            "SELECT COUNT(*) FROM {table} WHERE {column} = $1"
+        ))
+        .bind(&sn)
+        .fetch_one(&state.repos.pool)
+        .await
+        .map_err(db)?;
+        if n == 0 {
+            return Ok(sn);
+        }
+    }
+    Ok(format!(
+        "{prefix}{now}{:04}{:04}",
+        rand_suffix(),
+        rand_suffix()
+    ))
 }
 
 // ————————————————— receipt / reconciliation / return —————————————————
@@ -1718,12 +1815,26 @@ async fn receipt_save(
         }
         inputs = mapped;
     }
-    let order = sqlx::query("SELECT * FROM purchase_order WHERE id=$1 AND is_del=0 LIMIT 1")
-        .bind(order_id)
-        .fetch_optional(&state.repos.pool)
-        .await
-        .map_err(db)?
-        .ok_or_else(|| AppError(Error::biz(400, "采购订单不存在")))?;
+    let now = nextrade_common::utils::now_seconds() as i64;
+    let receipt_sn = unique_doc_sn(&state, "purchase_receipt", "receipt_sn", "PR", now).await?;
+
+    // —— 单据事务（库存与单据同事务）：先锁采购单行，再校验与落库 ——
+    // 历史结构：库存委托服务在单据事务之前逐行落库（自动提交），可收量
+    // 预检在事务外走连接池无锁 —— ① 多行入库第 N 行落点报错时前 N-1 行
+    // 库存已增、无入库单、无出入库记录，重试再入则前行重复计入；
+    // ② 并发双发同一订单时双双通过预检，received_quantity 可超
+    // ordered（超收关闭时亦然）、库存双记。现：订单行 FOR UPDATE 把
+    // 同单收货串行化，校验在锁内按已提交状态复核；库存动作走
+    // stock_in_tx 落在同一事务，任一步失败整体回滚、不留半成品。
+    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    let order = sqlx::query(
+        "SELECT * FROM purchase_order WHERE id=$1 AND is_del=0 LIMIT 1 FOR UPDATE",
+    )
+    .bind(order_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(db)?
+    .ok_or_else(|| AppError(Error::biz(400, "采购订单不存在")))?;
     let status: i32 = order.try_get("status").unwrap_or(0);
     // 隔离守卫（草稿功能红线）：草稿（status=0）不是正式采购单，绝不可被入库引用。
     if status == 0 {
@@ -1735,11 +1846,9 @@ async fn receipt_save(
     }
     let shop_id: i32 = order.try_get("shop_id").unwrap_or(0);
     let vendor_id: i32 = order.try_get("vendor_id").unwrap_or(0);
-    let now = nextrade_common::utils::now_seconds() as i64;
-    let receipt_sn = format!("PR{}{:04}", now, rand_suffix());
     let allow_over = load_allow_over_receive(&state, shop_id).await?;
 
-    // —— 校验前置（无写入）：逐行核对明细归属与可收数量，收齐落库快照 ——
+    // —— 校验（锁内、无写入）：逐行核对明细归属与可收数量，收齐落库快照 ——
     let mut lines: Vec<ReceiptLine> = Vec::new();
     let mut total_qty = 0i64;
     let mut total_amount = rust_decimal::Decimal::ZERO;
@@ -1757,7 +1866,7 @@ async fn receipt_save(
         )
         .bind(order_item_id)
         .bind(order_id)
-        .fetch_optional(&state.repos.pool)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(db)?
         .ok_or_else(|| AppError(Error::biz(400, "入库商品不属于采购订单")))?;
@@ -1796,12 +1905,14 @@ async fn receipt_save(
     // purchase_receipt.stock_record_id 恒写 0。现按订单组织由库存服务统一
     // 裁决落点（组织自有商品直落商品库存；平台商品落门店分配库存、未分配
     // 明确报错），生成的出入库记录 id 回填 stock_record_id。
-    // 顺序口径：上方校验已全部前置通过；库存服务本身为逐行落库（与平台
-    // 自有出入库同口径、非单事务），其后再开单据事务落入库单与订单进度。
+    // 事务口径：走 stock_in_tx 落在本函数已开启的单据事务内（订单行锁
+    // 已持有），库存增减/出入库记录/库存日志与入库单、订单进度同提交
+    // 同回滚；落点在中途报错时整个收货回滚，不再留无单据的库存增量。
     let stock_record_id = state
         .catalog
         .product_stock
-        .stock_in(
+        .stock_in_tx(
+            &mut *tx,
             &StockInDTO {
                 r#type: Some(stock_record_type::PURCHASE_IN),
                 comment: Some(format!("采购入库 {receipt_sn}")),
@@ -1821,8 +1932,7 @@ async fn receipt_save(
         )
         .await?;
 
-    // —— 单据事务：入库单 + 明细 + 订单已收量/状态推进 ——
-    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    // —— 单据落库（同事务）：入库单 + 明细 + 订单已收量/状态推进 ——
     let receipt_id: i64 = sqlx::query_scalar(
         "INSERT INTO purchase_receipt(receipt_sn,order_id,shop_id,vendor_id,business_date,status,total_quantity,total_amount,stock_record_id,remark,confirm_time,version,create_time,update_time) VALUES($1,$2,$3,$4,$5,2,$6,$7,$8,$9,$10,0,$11,$12) RETURNING id",
     )
@@ -2150,7 +2260,7 @@ async fn save_reconciliation(state: &AdminState, body: Value, is_update: bool) -
             .execute(&mut *tx).await.map_err(db)?;
         existing_id
     } else {
-        let sn = format!("PC{}{:04}", now, rand_suffix());
+        let sn = unique_doc_sn(state, "purchase_reconciliation", "reconciliation_sn", "PC", now).await?;
         let snapshot = serde_json::json!({
             "vendorId": vendor_id,
             "vendorName": vendor.try_get::<String,_>("vendor_name").unwrap_or_default(),
@@ -2174,11 +2284,14 @@ async fn save_reconciliation(state: &AdminState, body: Value, is_update: bool) -
             .and_then(Value::as_i64)
             .unwrap_or(0) as i32;
         let source_id = source.get("sourceId").and_then(Value::as_i64).unwrap_or(0);
+        // 来源行加 FOR UPDATE 锁：占用校验在锁内执行，并发以同一来源
+        // 建两张对账单时后到事务阻塞至先行提交，随后占用校验命中拒绝，
+        // 不再双占同一来源（与 receipt/return 的行锁口径一致）。
         let row = if source_type == 1 {
-            sqlx::query("SELECT id, receipt_sn, business_date, total_amount FROM purchase_receipt WHERE id=$1 AND vendor_id=$2 AND status=2 AND is_del=0 LIMIT 1")
+            sqlx::query("SELECT id, receipt_sn, business_date, total_amount FROM purchase_receipt WHERE id=$1 AND vendor_id=$2 AND status=2 AND is_del=0 LIMIT 1 FOR UPDATE")
                 .bind(source_id).bind(vendor_id).fetch_optional(&mut *tx).await.map_err(db)?
         } else if source_type == 2 {
-            sqlx::query("SELECT id, return_sn AS receipt_sn, business_date, total_amount FROM purchase_return WHERE id=$1 AND vendor_id=$2 AND status=2 AND is_del=0 LIMIT 1")
+            sqlx::query("SELECT id, return_sn AS receipt_sn, business_date, total_amount FROM purchase_return WHERE id=$1 AND vendor_id=$2 AND status=2 AND is_del=0 LIMIT 1 FOR UPDATE")
                 .bind(source_id).bind(vendor_id).fetch_optional(&mut *tx).await.map_err(db)?
         } else {
             None
@@ -2239,11 +2352,33 @@ async fn save_reconciliation(state: &AdminState, body: Value, is_update: bool) -
     tx.commit().await.map_err(db)?;
     ok(reconciliation_id)
 }
+/// 对账状态流转前置校验（与 return_confirm 同口径）：单据必须存在，
+/// 否则明确报错。历史实现（approve/reject/resubmit/void、order_finish）
+/// 只跑条件 UPDATE、未命中行也返回成功，UI 显示操作成功但状态实际
+/// 未流转，验收与审计易误判；现统一先查状态再做条件流转。
+async fn load_reconciliation_status(state: &AdminState, id: i64) -> Result<i32, AppError> {
+    let row = sqlx::query(
+        "SELECT status FROM purchase_reconciliation WHERE id=$1 AND is_del=0 LIMIT 1",
+    )
+    .bind(id)
+    .fetch_optional(&state.repos.pool)
+    .await
+    .map_err(db)?
+    .ok_or_else(|| AppError(Error::biz(400, "采购对账单不存在")))?;
+    Ok(row.try_get("status").unwrap_or(-1))
+}
+
 async fn reconciliation_approve(
     State(state): State<AdminState>,
     Json(body): Json<Value>,
 ) -> ApiResult<()> {
     let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    if load_reconciliation_status(&state, id).await? != 1 {
+        return Err(AppError(Error::biz(
+            400,
+            "只有待审核的采购对账单可以审核通过",
+        )));
+    }
     sqlx::query("UPDATE purchase_reconciliation SET status=2, review_remark=$1, review_time=$2, update_time=$3 WHERE id=$4 AND status=1")
         .bind(body.get("remark").and_then(Value::as_str).unwrap_or(""))
         .bind(nextrade_common::utils::now_seconds() as i64)
@@ -2264,6 +2399,12 @@ async fn reconciliation_reject(
     if remark.is_empty() {
         return Err(AppError(Error::biz(400, "请填写驳回原因")));
     }
+    if load_reconciliation_status(&state, id).await? != 1 {
+        return Err(AppError(Error::biz(
+            400,
+            "只有待审核的采购对账单可以驳回",
+        )));
+    }
     let now = nextrade_common::utils::now_seconds() as i64;
     sqlx::query("UPDATE purchase_reconciliation SET status=3, review_remark=$1, review_time=$2, update_time=$3 WHERE id=$4 AND status=1")
         .bind(remark).bind(now).bind(now).bind(id).execute(&state.repos.pool).await.map_err(db)?;
@@ -2274,6 +2415,12 @@ async fn reconciliation_resubmit(
     Json(body): Json<Value>,
 ) -> ApiResult<()> {
     let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    if load_reconciliation_status(&state, id).await? != 3 {
+        return Err(AppError(Error::biz(
+            400,
+            "只有已驳回的采购对账单可以重新提交",
+        )));
+    }
     sqlx::query("UPDATE purchase_reconciliation SET status=1, review_remark=NULL, review_time=NULL, update_time=$1 WHERE id=$2 AND status=3")
         .bind(nextrade_common::utils::now_seconds() as i64).bind(id)
         .execute(&state.repos.pool).await.map_err(db)?;
@@ -2284,6 +2431,12 @@ async fn reconciliation_void(
     Json(body): Json<Value>,
 ) -> ApiResult<()> {
     let id = body.get("id").and_then(Value::as_i64).unwrap_or(0);
+    if load_reconciliation_status(&state, id).await? != 3 {
+        return Err(AppError(Error::biz(
+            400,
+            "只有已驳回的采购对账单可以作废",
+        )));
+    }
     let now = nextrade_common::utils::now_seconds() as i64;
     // 作废须同事务释放来源占用（与 save_reconciliation 的占用回写成对），
     // 否则作废单据的来源永久不可再对账；状态未命中（非已驳回）时不释放。
@@ -2343,16 +2496,6 @@ async fn return_save(
     if receipt_id <= 0 {
         return Err(AppError(Error::biz(400, "采购入库单不能为空")));
     }
-    let receipt =
-        sqlx::query("SELECT * FROM purchase_receipt WHERE id=$1 AND is_del=0 AND status=2 LIMIT 1")
-            .bind(receipt_id)
-            .fetch_optional(&state.repos.pool)
-            .await
-            .map_err(db)?
-            .ok_or_else(|| AppError(Error::biz(400, "采购入库单不存在或未确认")))?;
-    let shop_id: i32 = receipt.try_get("shop_id").unwrap_or(0);
-    let vendor_id: i32 = receipt.try_get("vendor_id").unwrap_or(0);
-    let order_id: i64 = receipt.try_get("order_id").unwrap_or(0);
     let inputs = body
         .get("items")
         .and_then(Value::as_array)
@@ -2362,9 +2505,30 @@ async fn return_save(
         return Err(AppError(Error::biz(400, "请选择退货商品")));
     }
     let now = nextrade_common::utils::now_seconds() as i64;
-    let return_sn = format!("PT{}{:04}", now, rand_suffix());
+    let return_sn = unique_doc_sn(&state, "purchase_return", "return_sn", "PT", now).await?;
 
-    // —— 校验前置（无写入）——
+    // —— 单据事务（库存与单据同事务）：先锁入库单行，再校验与落库 ——
+    // 与 receipt_save 同口径：历史结构下可退量预检在事务外无锁、库存
+    // 扣减先于单据落库自动提交，并发双发可双扣库存/超量退货，部分
+    // 失败留无单据的库存扣减。现入库单行 FOR UPDATE 串行化同单退货，
+    // 校验在锁内复核，库存走 stock_out_tx 与单据同事务。
+    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    let receipt = sqlx::query(
+        "SELECT * FROM purchase_receipt WHERE id=$1 AND is_del=0 LIMIT 1 FOR UPDATE",
+    )
+    .bind(receipt_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(db)?
+    .ok_or_else(|| AppError(Error::biz(400, "采购入库单不存在或未确认")))?;
+    if receipt.try_get::<i32, _>("status").unwrap_or(0) != 2 {
+        return Err(AppError(Error::biz(400, "采购入库单不存在或未确认")));
+    }
+    let shop_id: i32 = receipt.try_get("shop_id").unwrap_or(0);
+    let vendor_id: i32 = receipt.try_get("vendor_id").unwrap_or(0);
+    let order_id: i64 = receipt.try_get("order_id").unwrap_or(0);
+
+    // —— 校验（锁内、无写入）——
     let mut lines: Vec<ReturnLine> = Vec::new();
     let mut total_qty = 0i64;
     let mut total_amount = rust_decimal::Decimal::ZERO;
@@ -2382,7 +2546,7 @@ async fn return_save(
         )
         .bind(item_id)
         .bind(receipt_id)
-        .fetch_optional(&state.repos.pool)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(db)?
         .ok_or_else(|| AppError(Error::biz(400, "退货明细不属于入库单")))?;
@@ -2436,10 +2600,13 @@ async fn return_save(
     // 此前本链直接扣 product 平台库存（SKU 侧 GREATEST 静默钳 0）：门店库存
     // 不动、库存不足被掩盖、无出入库记录。现与入库同口径由库存服务按组织
     // 落点裁决（不足明确报错），记录 id 回填 purchase_return.stock_record_id。
+    // 事务口径：走 stock_out_tx 落在本函数已开启的单据事务内（入库单行
+    // 锁已持有），与退货单、入库行已退量同提交同回滚。
     let stock_record_id = state
         .catalog
         .product_stock
-        .stock_out(
+        .stock_out_tx(
+            &mut *tx,
             &StockInDTO {
                 r#type: Some(stock_record_type::PURCHASE_RETURN_OUT),
                 comment: Some(format!("采购退货 {return_sn}")),
@@ -2459,8 +2626,7 @@ async fn return_save(
         )
         .await?;
 
-    // —— 单据事务：退货单 + 明细 + 入库行已退量 ——
-    let mut tx = state.repos.pool.begin().await.map_err(db)?;
+    // —— 单据落库（同事务）：退货单 + 明细 + 入库行已退量 ——
     let return_id: i64 = sqlx::query_scalar(
         "INSERT INTO purchase_return(return_sn,order_id,receipt_id,shop_id,vendor_id,business_date,status,total_quantity,total_amount,stock_record_id,reason,remark,confirm_time,version,create_time,update_time) VALUES($1,$2,$3,$4,$5,$6,2,$7,$8,$9,$10,$11,$12,0,$13,$14) RETURNING id",
     )
@@ -2555,19 +2721,63 @@ async fn return_delete(State(state): State<AdminState>, Json(body): Json<Value>)
 }
 
 // ————————————————— setting —————————————————
-async fn setting_detail(State(state): State<AdminState>) -> ApiResult<Value> {
-    let row = sqlx::query("SELECT * FROM purchase_setting WHERE is_del=0 ORDER BY id DESC LIMIT 1")
+async fn setting_detail(
+    State(state): State<AdminState>,
+    Query(q): Query<Pg>,
+) -> ApiResult<Value> {
+    // 按组织解析（组织行优先、平台行兜底，与 load_allow_over_receive /
+    // 调度器自动结束同一口径）：历史实现不读入参、无 shop 过滤取全表
+    // 最新一行，多组织保存过设置后设置页会串显他组织的值。生效行来自
+    // 平台兜底时回 inherited=true（前端设置页契约），并补驼峰别名键。
+    let shop_id = q.shop_id.unwrap_or(0);
+    for sid in [shop_id, 0] {
+        let row = sqlx::query(
+            "SELECT * FROM purchase_setting WHERE shop_id=$1 AND is_del=0 ORDER BY id DESC LIMIT 1",
+        )
+        .bind(sid)
         .fetch_optional(&state.repos.pool)
         .await
         .map_err(db)?;
-    ok(row.as_ref().map(row_to_json).unwrap_or(Value::Null))
+        if let Some(row) = row {
+            let mut v = row_to_json(&row);
+            if let Some(obj) = v.as_object_mut() {
+                let auto_days = obj
+                    .get("auto_finish_days")
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                let over = obj
+                    .get("allow_over_receive")
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                obj.insert("autoFinishDays".into(), auto_days);
+                obj.insert("allowOverReceive".into(), over);
+                obj.insert("inherited".into(), json!(sid != shop_id));
+            }
+            return ok(v);
+        }
+    }
+    ok(Value::Null)
 }
 async fn setting_save(State(state): State<AdminState>, Json(body): Json<Value>) -> ApiResult<()> {
     let now = nextrade_common::utils::now_seconds() as i64;
+    // 字段口径：显式传 null = 清空为「继承」（两列可空、NULL 即继承，
+    // 与 load_allow_over_receive / 调度器解析一致；前端继承态正是发
+    // null）；字段缺省沿用历史默认 0。历史实现对 null 一律落 0，
+    // 「继承」会被静默写成「组织级关闭/0 天」，与解析口径脱节。
+    let auto_days: Option<i32> = match body.get("autoFinishDays") {
+        Some(Value::Null) => None,
+        Some(v) => Some(v.as_i64().unwrap_or(0) as i32),
+        None => Some(0),
+    };
+    let allow_over: Option<i32> = match body.get("allowOverReceive") {
+        Some(Value::Null) => None,
+        Some(v) => Some(v.as_i64().unwrap_or(0) as i32),
+        None => Some(0),
+    };
     sqlx::query("INSERT INTO purchase_setting(shop_id,auto_finish_days,allow_over_receive,create_time,update_time) VALUES($1,$2,$3,$4,$5) ON CONFLICT (shop_id) DO UPDATE SET auto_finish_days=EXCLUDED.auto_finish_days,allow_over_receive=EXCLUDED.allow_over_receive,update_time=EXCLUDED.update_time")
         .bind(body.get("shopId").and_then(Value::as_i64).unwrap_or(0) as i32)
-        .bind(body.get("autoFinishDays").and_then(Value::as_i64).unwrap_or(0) as i32)
-        .bind(body.get("allowOverReceive").and_then(Value::as_i64).unwrap_or(0) as i32)
+        .bind(auto_days)
+        .bind(allow_over)
         .bind(now).bind(now)
         .execute(&state.repos.pool).await.map_err(db)?;
     ok(())
@@ -2765,5 +2975,77 @@ mod purchase_draft_tests {
             "supplierProduct/selection\", get(product",
             "_selection))"
         )));
+    }
+
+    // ——— 供应商/采购链缺陷批（D4/D6/D7/D9/D10）口径测试 ———
+
+    #[test]
+    fn list_filter_columns_match_real_schema() {
+        // 模式实证（00-pure.sql）：vendor_product 无 status/category_name
+        // 列，状态列为 product_state；采购单据四表无 category_name。
+        // 映射里出现的每一列都必须在对应表内真实存在，否则列表 500。
+        let known: &[(&str, &[&str])] = &[
+            ("vendor", &["status", "vendor_name"]),
+            (
+                "purchase_supplier_category",
+                &["status", "category_name"],
+            ),
+            (
+                "vendor_product",
+                &["product_state", "product_name", "product_sn"],
+            ),
+            ("purchase_order", &["status", "order_sn", "vendor_name"]),
+            ("purchase_receipt", &["status", "receipt_sn"]),
+            ("purchase_return", &["status", "return_sn"]),
+            ("purchase_reconciliation", &["status", "reconciliation_sn"]),
+        ];
+        for (table, cols) in known {
+            let (status_col, kw_cols) = list_filter_columns(table);
+            assert!(
+                cols.contains(&status_col),
+                "{table} 状态列 {status_col} 不在实证列集内"
+            );
+            for c in kw_cols {
+                assert!(cols.contains(c), "{table} 关键词列 {c} 不在实证列集内");
+            }
+        }
+        // 回归针：vendor_product 的状态过滤必须落到 product_state
+        assert_eq!(list_filter_columns("vendor_product").0, "product_state");
+        // 回归针：除分类表外，任何表都不许再把 category_name 当关键词列
+        for (table, _) in known {
+            if *table != "purchase_supplier_category" {
+                assert!(
+                    !list_filter_columns(table).1.contains(&"category_name"),
+                    "{table} 不应映射 category_name"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn vendor_chain_fix_invariants_hold_in_source() {
+        // 本批守卫不变量（源码级断言，同既有手法；针串 concat! 拼装
+        // 避免断言行自身字面量让 contains 恒真）。
+        let src = include_str!("supply_chain.rs");
+        // D6) 收货/退货的库存动作走事务变体、且父单行锁在位
+        assert!(src.contains(concat!("stock_in", "_tx")));
+        assert!(src.contains(concat!("stock_out", "_tx")));
+        assert!(src.contains(concat!(
+            "FROM purchase_order WHERE id=$1 AND is_del=0 LIMIT 1 FOR",
+            " UPDATE"
+        )));
+        assert!(src.contains(concat!(
+            "FROM purchase_receipt WHERE id=$1 AND is_del=0 LIMIT 1 FOR",
+            " UPDATE"
+        )));
+        // D7) 对账状态流转先查状态（未命中明确报错）
+        assert!(src.contains(concat!("load_reconciliation", "_status")));
+        assert!(src.contains(concat!("只有待审核的采购对账单", "可以审核通过")));
+        // D9) 建单供应商启用校验在位
+        assert!(src.contains(concat!("ensure_vendor", "_enabled")));
+        // D10) 四类单号都经防撞号生成（针串拆段避免断言行自匹配）
+        assert!(src.contains(concat!("unique_doc", "_sn")));
+        assert_eq!(src.matches(concat!("unique_doc", "_sn(&state")).count(), 3);
+        assert_eq!(src.matches(concat!("unique_doc", "_sn(state")).count(), 1);
     }
 }
