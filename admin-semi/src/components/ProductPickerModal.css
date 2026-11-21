@@ -1,14 +1,22 @@
 /* 商品选择器弹窗 —— 2026-11-15 自 pages/decorate-editor.css 迁出，与 components/ProductPickerModal.tsx 同行
  * 2026-11-21 现代化改版：左侧类目栏 + 右侧商品区布局，扁平直角（用户偏好），
- * 选中态 = 主题色边框 + 主题色角标勾选，与 ProductPickGrid 的直角口径一致。 */
+ * 选中态 = 主题色边框 + 主题色角标勾选，与 ProductPickGrid 的直角口径一致。
+ * 2026-11-21 续改（放大加密）：弹窗宽 min(1360px, 94vw)（TSX 侧）；本容器定高
+ * clamp(340px, 86vh − 172px, 680px)——172px 为 Semi 弹窗头/脚 + body 内边距约量，
+ * 使弹窗总高约 86vh；工具条/分页固定，类目栏与商品网格随高伸展、各自内部滚动。 */
+.dec-prod-picker {
+  display: flex;
+  flex-direction: column;
+  height: clamp(340px, calc(86vh - 172px), 680px);
+}
 .dec-prod-picker__count { font-size: 12px; color: var(--semi-color-text-2); margin-left: auto; }
 
-.dec-prod-picker__layout { display: flex; gap: 0; border: 1px solid #eaecf0; }
+.dec-prod-picker__layout { display: flex; gap: 0; border: 1px solid #eaecf0; flex: 1 1 auto; min-height: 0; }
 
 /* 左侧类目栏 */
 .dec-prod-picker__cats {
   flex: 0 0 216px;
-  max-height: 566px;
+  min-height: 0;
   overflow-y: auto;
   border-right: 1px solid #eaecf0;
   background: #fbfcfe;
@@ -50,14 +58,15 @@
 }
 
 /* 右侧商品区 */
-.dec-prod-picker__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.dec-prod-picker__main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .dec-prod-picker__body {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
-  gap: 10px;
-  height: 520px;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
-  padding: 12px;
+  padding: 10px;
   align-content: start;
 }
 .dec-prod-picker__loading,
@@ -83,32 +92,33 @@
   background: #eef2f6;
 }
 .dec-prod-picker__pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.dec-prod-picker__pic-empty { display: grid; place-items: center; width: 100%; height: 100%; color: #b6bec9; font-size: 12px; }
+.dec-prod-picker__pic-empty { display: grid; place-items: center; width: 100%; height: 100%; color: #b6bec9; font-size: 11px; }
 .dec-prod-picker__check {
   position: absolute;
   right: 0;
   top: 0;
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   background: var(--semi-color-primary);
   color: #fff;
 }
-.dec-prod-picker__meta { padding: 6px 8px 8px; min-width: 0; }
+.dec-prod-picker__meta { padding: 5px 6px 6px; min-width: 0; }
 .dec-prod-picker__name {
   font-size: 12px;
   color: #2a3145;
-  line-height: 17px;
-  height: 34px;
+  line-height: 15px;
+  height: 30px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.dec-prod-picker__price { margin-top: 3px; font-size: 12.5px; font-weight: 600; color: var(--semi-color-danger); }
+.dec-prod-picker__price { margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--semi-color-danger); }
 .dec-prod-picker__pager {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;

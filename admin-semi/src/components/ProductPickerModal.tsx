@@ -12,6 +12,9 @@
  * 2026-11-21 现代化改版（用户在 10023 页提出）：弹窗加宽至 1120、新增左侧类目栏、
  * 每页 20 → 40、卡片改扁平直角 + 主题色选中态。对外 API（props / ProductRow /
  * onOk 回传顺序语义）逐字不变，全部调用点零改动。
+ * 2026-11-21 续改（用户在 10106 页提出）：弹窗再放大——宽 min(1360px, 94vw)、
+ * 高随视口（约 86vh 口径，网格区伸展内部滚动）、卡片收紧一档（网格列距 128 → 104）、
+ * 每页 40 → 60，只动尺寸/密度，功能语义逐字不变。
  * 类目取数：GET /product/category/getAllCategory（现行类目树接口，节点
  * categoryId / categoryName / children）；商品按类目筛选走后端真参数 categoryId
  * （AdminProductListQuery.category_id，服务层展开全部子孙类目、仓储层 IN 过滤，
@@ -27,8 +30,9 @@ import './ProductPickerModal.css';
 
 const { Text } = Typography;
 
-/** 每页商品数（2026-11-21 改版由 20 提升至 40，卡片更紧凑多列展示） */
-const PAGE_SIZE = 40;
+/** 每页商品数（2026-11-21 改版 20 → 40；同日续改随弹窗放大与卡片收紧提升至 60，
+ * 后端 list 仓储层 size 上限 clamp 200、管理链直通，60 在限内） */
+const PAGE_SIZE = 60;
 
 export interface ProductRow {
   productId: number;
@@ -167,7 +171,7 @@ export default function ProductPickerModal({
     <Modal
       title={t('选择商品')}
       visible={visible}
-      width={1120}
+      width="min(1360px, 94vw)"
       onOk={() =>
         onOk(
           picked,
