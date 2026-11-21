@@ -4,31 +4,37 @@
     overflow: hidden;
 }
 
-/* 轮播定高（2026-11-18，与首焦轮播 banner 同口径）：
-   容器高度由 useSwiperHeight 按首图比例锁定（class image-ad-con--fixedh 仅轮播模式添加），
-   幻灯与图片填满定高区，不再随图片自然高度跳变、指示点不再被挤出 */
-.image-ad-con--fixedh .nut-swiper {
+/* 轮播定高（2026-11-21 与原版对齐改版）：容器高度由 Preview.tsx 按原版几何测得后内联写入
+   （单图 = 最高幻灯自然高、分组 = 最高组行高，无封顶），此处只负责让 NutUI 幻灯链填满定高区。
+   类名用 image-ad2-con--fixedh 自包含：imageAd（图片广告1）的 Preview.css 有一份同名
+   .image-ad-con--fixedh 规则（首图定高 + cover 口径），两模块类名不分家会互相覆盖，故本模块改名隔离。
+   单图模式图片按原版自然高显示（宽 100%、高 auto、不裁剪，矮图在幻灯内顶部对齐、下方留白，
+   与原版 Swiper.js 行为一致）；分组模式原版 module.less 对 .swiper-main 内图片是
+   height:100% 填满链，此处保留填满（无 object-fit，等同原版 <img> 双向拉伸）。 */
+.image-ad2-con--fixedh .nut-swiper {
     height: 100%;
 }
-.image-ad-con--fixedh .nut-swiper-item {
+.image-ad2-con--fixedh .nut-swiper-item {
     height: 100%;
 }
-.image-ad-con--fixedh .swiper-main {
+.image-ad2-con--fixedh .swiper-main {
     height: 100%;
 }
-.image-ad-con--fixedh .image-ad-item {
+.image-ad2-con--fixedh .image-ad-item {
     height: 100%;
 }
-.image-ad-con--fixedh .item-content {
+.image-ad2-con--fixedh .item-content {
     height: 100%;
     box-sizing: border-box;
 }
-.image-ad-con--fixedh .item-img-a {
+.image-ad2-con--fixedh .item-img-a {
     height: 100%;
 }
-.image-ad-con--fixedh .item-img {
+.image-ad2-con--fixedh .item-img {
     width: 100%;
-    height: 100%;
-    object-fit: cover;
+    height: auto;
     display: block;
+}
+.image-ad2-con--fixedh.image-ad2-con--grouped .item-img {
+    height: 100%;
 }

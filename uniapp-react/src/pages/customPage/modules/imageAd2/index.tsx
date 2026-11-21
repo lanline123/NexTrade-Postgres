@@ -68,31 +68,29 @@ export default function ImageAd2({ module }: Props) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [columns, module.picList]);
 
-    // 对应旧 onMounted：轮播形态先测比例再按列数测高度
+    const firstPicUrl = module.picList?.[0]?.picUrl;
+    const picType = module.picType;
+    // 对应旧 onMounted：轮播形态先测比例再按列数测高度。
+    // 旧编辑器 Preview（Swiper.js）为全响应式：数据一变高度即按首图比例重排；
+    // React 版此前只在挂载测一次，编辑器真实渲染里数据是原地变（不重挂载）——
+    // 切到轮播模板/换首图/改每行个数后高度永远停在兜底 300px、图片被拉伸填满
+    // （2026-11-21 用户实测）。故改为随 picType/首图/列数变化重测；店面数据静态、
+    // 依赖不变，行为与旧 onMounted 一致。resize 监听随依赖重注册，保证回调读到
+    // 最新值（对应旧版回调在触发时读 props），清理对应 uni.offWindowResize。
     useEffect(() => {
-        (async () => {
-            if (module.picType == 2 && module.picList?.[0]?.picUrl) {
-                await getImgratio(module.picList[0].picUrl);
+        const measure = async () => {
+            if (picType == 2 && firstPicUrl) {
+                await getImgratio(firstPicUrl);
                 await getHeght(".image-ad-con", rootRef, columns);
             }
-        })();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const windowResizeCallback = async () => {
-        if (module.picType == 2 && module.picList?.[0]?.picUrl) {
-            await getImgratio(module.picList[0].picUrl);
-            await getHeght(".image-ad-con", rootRef, columns);
-        }
-    };
-    // uni.onWindowResize → Taro.onWindowResize；onUnmounted 清理
-    useEffect(() => {
-        Taro.onWindowResize(windowResizeCallback);
+        };
+        void measure();
+        Taro.onWindowResize(measure);
         return () => {
-            Taro.offWindowResize(windowResizeCallback);
+            Taro.offWindowResize(measure);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [picType, firstPicUrl, columns]);
 
     if (!module.picList?.length) {
         return null;
@@ -100,6 +98,7 @@ export default function ImageAd2({ module }: Props) {
 
     return (
         <View
+            ref={rootRef as any}
             className={`module-ad-con decorate-image-ad2 module-image_ad  ad-pic_type__${module.picType} ad-pic_page_type__${module.picPageType} ad-radio_style__${module.picRadioStyle} `}
             style={frameFormat.boxPadding + frameFormat.boxPaddingTop + frameFormat.boxPaddingBottom + frameFormat.backgroundColor}
         >

@@ -4,12 +4,11 @@
  * 结构/类名与 Vue 版逐一致（module-ad-con / module-ad-warp / image-ad-warp / image-ad-con / image-ad-item），
  * 样式由移植的全局 module.css 提供；轮播使用 NutUI Swiper，showIndicator 控制指示器显隐。
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Swiper, SwiperItem } from "@nutui/nutui-react";
 import "./Preview.css";
 import CommonTitle from "../../../shared/CommonTitle";
 import { cssText, imageFormat } from "../../../shared/format";
-import { useSwiperHeight } from "../../../shared/useSwiperHeight";
 import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
 import { imageAd2Defaults } from "./index";
 
@@ -27,17 +26,40 @@ export default function ImageAd2Preview({ data }: { data: Record<string, any> })
     const swiperPageColor = module.swiperPageColor || "#333";
     const columns = module.swiperPreView || 1;
 
-    // 轮播定高：与首焦轮播 banner 同病同口径（不定高时按图片自然高度跳变），按首图比例锁定；
-    // 分组模式按单元格宽度算高（列数 = swiperPreView，间隔 = imgPadding）
+    // 轮播定高（2026-11-21 与原版对齐改版）：原版编辑器 Preview 用 Swiper.js，容器高度由
+    // 内容决定——单图模式 = 最高一张幻灯的自然高（img 宽 100%、高 auto、不裁剪），
+    // 分组模式 = 最高一组的行高。此前我方借 banner 口径按首图比例定高 + object-fit:cover
+    // 裁剪、且 useSwiperHeight 有 375px 上限封顶，高图/混比例图与原版明显不符。
+    // 现按原版几何测高：离屏测全部图片的高宽比，单图取 max、分组取每组 max 再取 max；
+    // 未测得的图片先按高宽比 0.5（原 fallbackRatio 2 的倒数）估算，测得后自动修正。
     const singleMode = !(module.swiperPreView && module.swiperPreView != 1);
-    const { wrapRef: swiperWrapRef, height: swiperHeight } = useSwiperHeight(
-        module.picList?.[0]?.picUrl ? imageFormat(module.picList[0].picUrl) : undefined,
-        {
-            columns: singleMode ? 1 : columns,
-            gap: singleMode ? 0 : module.imgPadding || 0,
-            fallbackRatio: 2
+    const swiperWrapRef = useRef<HTMLDivElement | null>(null);
+    const [wrapWidth, setWrapWidth] = useState(0);
+    const [hwRatios, setHwRatios] = useState<Record<string, number>>({});
+    // 编辑器画布宽度固定，渲染后测一次容器实际宽度（与 useSwiperHeight 同测法）
+    useEffect(() => {
+        if (swiperWrapRef.current) {
+            const w = swiperWrapRef.current.clientWidth;
+            if (w > 0) setWrapWidth((prev) => (prev === w ? prev : w));
         }
-    );
+    });
+    useEffect(() => {
+        let alive = true;
+        (module.picList || []).forEach((p: any) => {
+            const url = p?.picUrl ? imageFormat(p.picUrl) : "";
+            if (!url) return;
+            const im = new Image();
+            im.onload = () => {
+                if (alive && im.naturalWidth > 0 && im.naturalHeight > 0) {
+                    setHwRatios((cur) => (cur[url] != null ? cur : { ...cur, [url]: im.naturalHeight / im.naturalWidth }));
+                }
+            };
+            im.src = url;
+        });
+        return () => {
+            alive = false;
+        };
+    }, [module.picList]);
 
     // NutUI 分页指示器：与 uniapp 端小圆点一致（active 高亮 swiperPageColor）；
     // Vue 版 showIndicator == 1 才显示 pagination
@@ -61,6 +83,26 @@ export default function ImageAd2Preview({ data }: { data: Record<string, any> })
         }
         return list;
     }, [module.picList, module.swiperPreView]);
+
+    // 容器高度（原版几何）：图片实际宽 = 容器宽 − item-content 左右 padding（imgPadding×2），
+    // 高 = 图宽 × 高宽比 + 上下 padding；单图取全部图片 max、分组取每组 max 的 max。
+    const FALLBACK_HW = 0.5;
+    const hwOf = (p: any) => {
+        const url = p?.picUrl ? imageFormat(p.picUrl) : "";
+        return (url && hwRatios[url]) || FALLBACK_HW;
+    };
+    const imgPad = module.imgPadding || 0;
+    let swiperHeight: number | undefined;
+    if (wrapWidth > 0 && (module.picList || []).length > 0) {
+        if (singleMode) {
+            const imgW = Math.max(0, wrapWidth - imgPad * 2);
+            swiperHeight = Math.round(imgW * Math.max(...(module.picList as any[]).map(hwOf)) + imgPad * 2);
+        } else if (swiperList.length > 0) {
+            const cellW = (wrapWidth - (columns - 1) * imgPad) / columns;
+            const imgW = Math.max(0, cellW - imgPad * 2);
+            swiperHeight = Math.round(Math.max(...swiperList.map((g) => imgW * Math.max(...g.map(hwOf)) + imgPad * 2)));
+        }
+    }
 
     return (
         <div
@@ -91,7 +133,7 @@ export default function ImageAd2Preview({ data }: { data: Record<string, any> })
                         <div className="image-ad-warp" style={cssText(frameFormat.innerPadding)}>
                             <div
                                 ref={swiperWrapRef}
-                                className="image-ad-con image-ad-con--fixedh"
+                                className={"image-ad-con image-ad2-con--fixedh" + (singleMode ? "" : " image-ad2-con--grouped")}
                                 style={swiperHeight ? { height: swiperHeight } : undefined}
                             >
                                 {module.swiperPreView && module.swiperPreView == 1 ? (
