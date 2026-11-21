@@ -49,7 +49,7 @@ export function useSwiperHeight(
     const cellWidth = width > 0 ? (width - (columns - 1) * gap) / columns : 0;
     const height =
         cellWidth > 0 && ratio > 0
-            ? Math.max(opts?.min ?? 40, Math.min(opts?.max ?? 375, Math.round(cellWidth / ratio)))
+            ? Math.max(opts?.min ?? 40, Math.min(opts?.max ?? 390, Math.round(cellWidth / ratio)))
             : undefined;
     return { wrapRef, height };
 }

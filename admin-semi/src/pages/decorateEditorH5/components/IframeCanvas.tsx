@@ -50,13 +50,16 @@ import {
 const DRAG_THRESHOLD = 6;
 
 /**
- * 画布高地板 = 一屏（375×667 逻辑屏）：手机窗恒不低于一屏，内容超一屏才
+ * 画布高地板 = 一屏（390×844 逻辑屏）：手机窗恒不低于一屏，内容超一屏才
  * 随内容长高。与嵌入页自身 .decorate-preview{min-height:100vh} 的口径一致
  * （嵌入页回传的 totalHeight 只量分发器内容高、不含这层地板，故地板在父侧
  * 兜）。2026-11-21 前地板是 120：空页靠 totalHeight=0 走假值分支停在 667，
  * 加第一个模块后 totalHeight 转正即塌到 max(内容高,120)（页面 10106 实测）。
+ * 2026-11-21 晚续：画布尺寸按现代主流机型改版 375×667 → 390×844（用户拍板，
+ * 原版有·我方改口径），画布宽同步见 editor.less / decorate.css 的画布窗、
+ * iframe 包裹层与覆盖层宽度。
  */
-const CANVAS_MIN_HEIGHT = 667;
+const CANVAS_MIN_HEIGHT = 844;
 
 export default function IframeCanvas({
     preview = false,

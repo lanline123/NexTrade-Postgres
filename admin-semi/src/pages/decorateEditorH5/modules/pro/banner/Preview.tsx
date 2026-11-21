@@ -43,7 +43,7 @@ export default function BannerPreview({ data }: { data: Record<string, any> }) {
     // 比例 750/360 兜底；图片以 cover 填满定高区，不再随图变形。
     const [imgRatio, setImgRatio] = useState(750 / 360);
     const boxPadding = Number(module.moduleStyle?.boxPadding ?? 10) || 0;
-    const swiperHeight = Math.min(375, Math.max(80, Math.round((375 - boxPadding * 2) / imgRatio)));
+    const swiperHeight = Math.min(390, Math.max(80, Math.round((390 - boxPadding * 2) / imgRatio)));
 
     const commonStyle = formatCommonStyle(module.moduleStyle ?? {});
     const bannerContent = module.bannerContent || {};

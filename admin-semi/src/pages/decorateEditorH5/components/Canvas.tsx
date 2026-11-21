@@ -2,7 +2,7 @@
  * 手机画布（移植自 view/admin editor/components/CanvasViewport.vue + ModuleRenderer.vue）
  *
  * 壳层对齐原版（editor/Index.vue + src/css/decorate.less）：
- * - 画布窗 .decorate-page-window：375px、margin 50px auto、阴影 0 0 14px rgba(0,0,0,.1)、无圆角
+ * - 画布窗 .decorate-page-window：390px（2026-11-21 由 375 改版，现代主流机型尺寸）、margin 50px auto、阴影 0 0 14px rgba(0,0,0,.1)、无圆角
  * - 选中/悬停描边由 .module-ad-con:before 承担（2px solid #155bd4 / 1px dashed，见 decorate.css）
  * - 模块名标签 .module-label：画布左侧外 −100px 白底 chip（带右箭头）
  * - 操作条 .module-operate：右侧外 −40px 38px 白底竖排，上移/下移/显隐/复制/删除（fixed 隐藏后三项），hover 出 .opt-tip
