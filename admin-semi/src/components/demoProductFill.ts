@@ -29,6 +29,14 @@
 * 不另写第二套取数/洗牌逻辑；Preview 侧纯显示层（usePreviewDemoProducts
 * 或直接调用取池函数），无来源/无结果时异步取池随机展示，池空/失败
 * 显示诚实空态，不落盘、不改任何数据契约。
+*
+* 三期（PC 拼团收口，2026-11-21 用户拍板同法收口）：PC 拼团三份
+* Preview（decoratePc/modules/pc-home-groupon、decoratePc/modules/
+* pcGroupon、decoratePc/previews/PcGrouponPreview）未选活动时的写死
+* mock 商品清单同改走本池：仅列表为空时经 usePreviewDemoProducts
+* 异步取池补足展示，拼团字段映射与 H5 拼团定案一致（主价取真实拼团
+* 价字段、无则真实售价，划线价即真实售价），池空/失败不补、列表为
+* 空，纯显示层不落盘。
 */
 import { useEffect, useState } from "react";
 import { apiGet } from "../api";

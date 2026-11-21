@@ -2,13 +2,18 @@
  * PC 首页拼团模块预览（迁移自旧版 `pcHome/pc-home-groupon/Preview.vue` 及 `_shared/groupon`）。
  *
  * 取数：`/promotion/groupon/item/list`（活动 ID 来自 `data.grouponActivityItem`）；
- * 未选活动时回退旧版 mock 商品（不伪造真实活动数据）。
+ * 未选活动或接口列表为空时以在售商品池随机真实商品补足展示（共享
+ * demoProductFill 的 usePreviewDemoProducts，纯显示层不落盘；补足口径与
+ * H5 拼团 Preview 定案一致——仅列表为空时补、非空不混，池空/取数失败时
+ * 不补、列表为空；补足条目以真实商品记录映射拼团展示字段：主价取该商品
+ * 真实拼团价字段，无则取其真实售价，划线价即其真实售价，不编造商品与价格）。
  * 倒计时由 React effect（1s 心跳）驱动，标题右侧与商品卡内同时走秒。
  *
  * props 统一为 `{ data }`，渲染前与旧版 `pcHomeGrouponDefaults` 深合并。
  */
 import { useEffect, useRef, useState } from 'react';
 import { apiGet } from '../../../api';
+import { usePreviewDemoProducts } from '../../../components/demoProductFill';
 import ModuleTitlePreview from './shared/ModuleTitlePreview';
 import { PcBuyButtonVisual, resolvePcBuyBtn, usePcGlobalBuyStyle, type PcResolvedBuyBtn } from './shared/PcBuyButton';
 import './pcGroupon.css';
@@ -146,16 +151,6 @@ function parseCountdownParts(remainingMs: number) {
 
 const formatNumTwo = (n: number) => String(n).padStart(2, '0');
 
-/** 无活动时的 mock 商品（与原版 mockProducts 逐字段一致）。 */
-const GROUPON_MOCK_PRODUCTS: PreviewProduct[] = [
-  { productId: 1, productName: '拼团商品示例一号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=1', minGroupPrice: '99.00', productPrice: '199.00', minGroupNum: '2' },
-  { productId: 2, productName: '拼团商品示例二号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=2', minGroupPrice: '128.00', productPrice: '256.00', minGroupNum: '3' },
-  { productId: 3, productName: '拼团商品示例三号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=3', minGroupPrice: '68.00', productPrice: '168.00', minGroupNum: '2' },
-  { productId: 4, productName: '拼团商品示例四号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=4', minGroupPrice: '188.00', productPrice: '388.00', minGroupNum: '5' },
-  { productId: 5, productName: '拼团商品示例五号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=5', minGroupPrice: '58.00', productPrice: '118.00', minGroupNum: '2' },
-  { productId: 6, productName: '拼团商品示例六号', picThumb: 'https://dummyimage.com/200x200/f5f5f5/999&text=6', minGroupPrice: '88.00', productPrice: '168.00', minGroupNum: '3' },
-];
-
 const EMPTY_IMG =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f5f5f5' width='100' height='100'/%3E%3C/svg%3E";
 
@@ -290,14 +285,16 @@ export default function PcGrouponPreview({ data }: { data: Record<string, any> }
 
   const activityEndTs = dateStringToTimestamp(activity?.endTime || '');
 
-  // 无活动时按 style 取 mock（原版 displayProducts 口径：2→4 个，4→6 个，其余全部）
+  // 无活动/无数据时按 style 取在售池真实商品补足（条数沿原版 displayProducts
+  // 口径：2→4 个，4→6 个，其余 6 个；仅列表为空时补、非空不混，映射口径见文件头）
+  const fallback = usePreviewDemoProducts(fetched.length === 0, style === 2 ? 4 : 6);
   const baseRows: PreviewProduct[] = fetched.length
     ? fetched
-    : style === 2
-      ? GROUPON_MOCK_PRODUCTS.slice(0, 4)
-      : style === 4
-        ? GROUPON_MOCK_PRODUCTS.slice(0, 6)
-        : GROUPON_MOCK_PRODUCTS;
+    : fallback.map((p) => ({
+        ...p,
+        picLarge: p.picLarge || p.picUrl || p.picThumb || '',
+        minGroupPrice: p.minGroupPrice ?? p.minGrouponPrice ?? p.grouponPrice ?? p.productPrice,
+      }));
   const rows = baseRows.map((r) => ({ ...r, startTime: activity?.startTime || '', endTime: activity?.endTime || '' }));
 
   // 卡片倒计时文案（进行中→距结束，未开始→距开始，已结束→空）

@@ -1393,3 +1393,9 @@
 ### 修复
 
 - **装修编辑器 - compat Preview 内部兜底演示清单真实化【我方新增机制之收口】**（用户 2026-11-21 拍板「一并改掉」，承接同日演示商品真实化主包 55895bc 的 B-3 留决项）：7 个编辑器 Preview 内部写死的兜底演示商品清单（H5 productA1 6 条 / productSlide 4 条 / limitedSpecial 4 条 / newcomerCombo 4 条 / groupon 4 条、PC 商品分组两份 Preview 各 6 条）全部删除，改走共享填充器 demoProductFill 的在售池——demoProductFill 抽出并导出共用取池函数 fetchOnSaleProductPool（填充器改调它、行为逐字不变，不另写第二套取数/洗牌）+ 新增纯显示层 hook usePreviewDemoProducts；各 Preview 无来源/无结果时异步取池随机取与原兜底清单相同数量的真实商品渲染，池空/取数失败走各自既有空态（诚实空态），绝不回退写死假商品。纯显示层改造：不改任何 defaults、不改保存形状、不落盘，已选商品的模块显示逐字不变。拼团补足条目以真实商品记录映射拼团展示字段（主价取该商品真实拼团价字段、无则取其真实售价，划线价即其真实售价，不编造商品与价格）；PC 商品分组的内置分组结构（组标题/标题图为演示文案与图片、非商品）保留、商品列表改由在售池填充。横扫定案：全部 Preview 文件 productId: 0 字面量清零；不在本批者逐项注明——PC 拼团三份无活动 mock 属活动模块走活动配置口径、移动搜索结果与分类中心 V2 为整页静态 mock（非来源兜底）、PC 通栏图/价对为频道卡展示对且无商品身份（卡位走 SN 快照机制）、秒杀三份 Preview 无写死清单、商品分组演示项来自模块数据脚手架（归数据层填充器域）、新人二重礼演示券非商品。验收与逐文件口径见 ~/workspace/preview-demo-fill/REPORT.md（工作区报告）。
+
+## 0.0.2 续 · 2026-11-21 批次（PC 拼团 Preview 无活动 mock 清单真实化收口，未部署——随下一 admin 合并版上线）
+
+### 修复
+
+- **装修编辑器 - PC 拼团三份 Preview 无活动 mock 商品清单真实化【原版有·我方改口径】**（用户 2026-11-21 拍板「PC 拼团三处也同法收口」，承接同日 Preview 兜底收口批次的边界 1）：PC 拼团三份 Preview（decoratePc/modules/pc-home-groupon、decoratePc/modules/pcGroupon、decoratePc/previews/PcGrouponPreview）未选活动时写死的 mock 商品清单（「拼团商品示例一号…六号」+ dummyimage 占位图、含编造拼团价/原价）全部删除，改走共享填充器 demoProductFill 的在售池（经 usePreviewDemoProducts 异步取池，复用共用取池 fetchOnSaleProductPool，不另写第二套取数/洗牌）：仅活动商品列表为空时补足展示（非空不混，与 H5 拼团 Preview 定案逐项同构），条数沿各文件原口径（新版两份 style 2→4 个、4→6 个、其余 6 个；旧版 pcGroupon 按列数、横滑 6 个）；补足条目以真实商品记录映射拼团展示字段——主价取该商品真实拼团价字段（minGroupPrice/minGrouponPrice/grouponPrice），无则取其真实售价，划线价即其真实售价，不编造商品与价格；池空/取数失败时不补、商品区为空（标题/框体照常）。纯显示层：不改 defaults、不改保存形状、不落盘，已选活动且有商品时显示逐字不变。横扫实证：改后三份文件 mock 字面量清零，全仓 133 个 Preview 文件写死商品清单（productName 字面量 / dummyimage）清零、无同性质漏网（秒杀三份仍走活动配置无写死清单；移动搜索结果/分类中心 V2 整页静态 mock 与 PC 通栏 SN 快照机制性质不同、维持原登记口径）。报告 ~/workspace/preview-demo-fill/REPORT2.md（工作区报告）。
