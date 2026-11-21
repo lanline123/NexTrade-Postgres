@@ -58,6 +58,7 @@ const tl = (key: string, params?: Record<string, string | number>) =>
   i18nInstance.t(key, params) as string;
 import DecorateLoading from './components/DecorateLoading';
 import ProductPickGrid, { mergePickedItems, type ProductPickItem } from '../components/ProductPickGrid';
+import TemplateImportModal from '../components/TemplateImportModal';
 import ProductPickerModal from '../components/ProductPickerModal';
 import BuyBtnStylePicker, { BUY_BTN_STYLE_OPTIONS_UNIFIED } from '../components/BuyBtnStylePicker';
 import { fillDemoProducts } from '../components/demoProductFill';
@@ -152,6 +153,27 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const [panelTab, setPanelTab] = useState<'module' | 'page' | 'pcHeader'>('module');
   const dirtyRef = useRef(false);
+  /** 「从模板导入」弹窗（模板平台 tpl.recy.cc，我方新增）：导入成功后跳到新页继续编辑 */
+  const [tplImportVisible, setTplImportVisible] = useState(false);
+  const handleTplImported = (info: { decorateId: number }) => {
+    setTplImportVisible(false);
+    const from = new URLSearchParams(window.location.search).get('from');
+    const target = `${window.location.origin}/?page=pcDecorateEditor&id=${info.decorateId}${from ? `&from=${from}` : ''}`;
+    if (dirtyRef.current) {
+      Modal.confirm({
+        title: t('当前页面有未保存的修改'),
+        content: t('模板已导入为新页面，前往编辑新页面将丢失当前未保存的修改，确定前往吗？'),
+        okText: t('前往新页面'),
+        cancelText: t('留在当前页'),
+        onOk: () => {
+          dirtyRef.current = false;
+          window.location.href = target;
+        },
+      });
+      return;
+    }
+    window.location.href = target;
+  };
   const decorateIdRef = useRef(decorateId);
   /** 语言子页会话（原版有 · 2026-11-21 补齐）：URL 带 parentId+localeId 时编辑
    * 顶层页的语言子记录；decorateId=0 表示子页尚未建行，保存按 parentId+localeId
@@ -657,6 +679,9 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
           children={localeChildren}
         />
         <div style={{ flex: 1 }} />
+        <Button theme="light" onClick={() => setTplImportVisible(true)}>
+          {t('从模板导入')}
+        </Button>
         <Button theme="light" loading={saving === 'draft'} onClick={() => handleSave('draft')}>
           {t('保存草稿')}
         </Button>
@@ -854,6 +879,12 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
           </div>
         </div>
 
+      <TemplateImportModal
+        visible={tplImportVisible}
+        platform="pc"
+        onClose={() => setTplImportVisible(false)}
+        onImported={handleTplImported}
+      />
     </EditorShell>
   );
 }

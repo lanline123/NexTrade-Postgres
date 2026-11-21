@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Dropdown, Modal, Spin, Toast } from "@douyinfe/semi-ui";
 import { IconChevronDown, IconExit, IconRedo, IconUndo } from "@douyinfe/semi-icons";
 import { apiGet, apiPost } from "../../api";
+import TemplateImportModal, { type TemplateImportedInfo } from "../../components/TemplateImportModal";
 import { editorStore, useEditorState } from "./store/editorStore";
 import ModuleToolbar from "./components/ModuleToolbar";
 import Canvas from "./components/Canvas";
@@ -74,6 +75,8 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
     const [editingTitle, setEditingTitle] = useState(false);
     /** 预览态：隐藏编辑外壳（模块库/设置面板/画布操作件），只看画布 */
     const [preview, setPreview] = useState(false);
+    /** 「从模板导入」弹窗（模板平台 tpl.recy.cc，我方新增）：导入成功后跳到新页继续编辑 */
+    const [tplImportVisible, setTplImportVisible] = useState(false);
     /** 「从其他页面复制」抽屉开关 */
     const [copyVisible, setCopyVisible] = useState(false);
     /** 新建页模板库弹窗（原版有·我方补齐）：新建模式自动弹出一次，选空白/关闭
@@ -415,6 +418,31 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [onExit]);
 
+    /** 模板导入成功：跳到新页面的编辑器继续编辑；当前页有未保存修改时先确认 */
+    const handleTplImported = useCallback(
+        (info: TemplateImportedInfo) => {
+            setTplImportVisible(false);
+            const target = `${window.location.origin}/?page=h5DecorateEditor&id=${info.decorateId}&pageType=${info.pageType}`;
+            const go = () => {
+                exitConfirmedRef.current = true;
+                window.location.href = target;
+            };
+            if (editorStore.getState().isDirty) {
+                Modal.confirm({
+                    title: t("当前页面有未保存的修改"),
+                    content: t("模板已导入为新页面，前往编辑新页面将丢失当前未保存的修改，确定前往吗？"),
+                    okText: t("前往新页面"),
+                    cancelText: t("留在当前页"),
+                    onOk: go
+                });
+                return;
+            }
+            go();
+        },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        []
+    );
+
     // 刷新/关闭页签拦截：仅脏时触发浏览器原生提示
     useEffect(() => {
         const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -532,6 +560,9 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
                             <button type="button" className="dec-topbar-btn" onClick={() => setPreview((v) => !v)}>
                                 {preview ? t('退出预览') : t('预览')}
                             </button>
+                            <button type="button" className="dec-topbar-btn" onClick={() => setTplImportVisible(true)}>
+                                {t('从模板导入')}
+                            </button>
                             <button type="button" className="dec-topbar-btn" disabled={saving} onClick={onSavetoDraft}>
                                 {t('存至草稿')}
                             </button>
@@ -597,6 +628,12 @@ export default function H5DecorateEditor({ decorateId: idProp, pageType: pageTyp
             </EditorShell>
             <CopyPageDrawer visible={copyVisible} decorateType={decorateType} onClose={() => setCopyVisible(false)} />
             <TemplateLibraryModal visible={tplVisible} pageType={pageType} onClose={() => setTplVisible(false)} />
+            <TemplateImportModal
+                visible={tplImportVisible}
+                platform="mobile"
+                onClose={() => setTplImportVisible(false)}
+                onImported={handleTplImported}
+            />
         </div>
     );
 }

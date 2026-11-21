@@ -920,11 +920,13 @@ async fn share_generate(
         .await?)
 }
 
-/// `GET /adminapi/decorate/decorateShare/import?url=`：分享链接导入。
+/// `GET /adminapi/decorate/decorateShare/import?url=`：分享链接导入，
+/// 返回导入生成的新页面 id（导入落库补齐后由 bool 改 id，旧调用方忽略
+/// 返回值不受影响；编辑器「从模板导入」据此跳转新页继续编辑）。
 async fn share_import(
     State(state): State<AdminState>,
     Query(q): Query<UrlQuery>,
-) -> ApiResult<bool> {
+) -> ApiResult<i32> {
     let url = q.url.unwrap_or_default();
     ok(state.content.decorate.decorate_share_import(&url).await?)
 }

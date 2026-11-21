@@ -27,6 +27,7 @@ import { useI18n } from '../i18n';
 import ListPage from '../framework/ListPage';
 import { IconInfoCircle } from '@douyinfe/semi-icons';
 import OptionSelectModal from '../components/OptionSelectModal';
+import TemplateImportModal from '../components/TemplateImportModal';
 import { LinkField, type LinkValue } from '../components/LinkPicker';
 import { scheduleMobileEmbedPrefetch } from '../components/decorate/prefetchMobileEmbed';
 import ImageUploader from '../components/ImageUploader';
@@ -615,6 +616,8 @@ export function MobileDecoratePageList({
   const [listKey, setListKey] = useState(0);
   const [switchRow, setSwitchRow] = useState<any>(null);
   const refresh = () => setListKey((key) => key + 1);
+  /** 「从模板导入」弹窗（模板平台 tpl.recy.cc，我方新增）：导入后新开编辑器编辑新页 */
+  const [tplImportVisible, setTplImportVisible] = useState(false);
 
   const columns: ColumnConfig<any>[] = [
     { title: 'ID', dataIndex: 'decorateId', width: 70 },
@@ -734,6 +737,13 @@ export function MobileDecoratePageList({
             </Button>
           </Popconfirm>
         )}
+        // 从模板导入【我方新增】：与「新建页面」同区位；店铺签 hideCreate 时同口径隐藏
+        // （导入落页的店铺归属由创建链按租户解析，店铺签新建禁用理由同样适用）
+        toolbarExtra={hideCreate ? undefined : (
+          <Button size="small" onClick={() => setTplImportVisible(true)}>
+            {t('从模板导入')}
+          </Button>
+        )}
         rowActions={(row: any) => (
           <Space>
             <Button
@@ -818,6 +828,22 @@ export function MobileDecoratePageList({
               ],
             },
           ],
+        }}
+      />
+      <TemplateImportModal
+        visible={tplImportVisible}
+        platform="mobile"
+        onClose={() => setTplImportVisible(false)}
+        onImported={(info) => {
+          setTplImportVisible(false);
+          refresh();
+          // 与行内「装修」按钮同口径拼编辑器地址并新开窗口
+          const targetPage = editPage || 'h5DecorateEditor';
+          const idKey = (targetPage === 'pcDecorateEditor' || targetPage === 'mobileDecorateEditor') ? 'id' : 'decorateId';
+          window.open(
+            `${window.location.origin}/?page=${targetPage}&${idKey}=${info.decorateId}&pageType=${info.pageType}${returnPage ? `&from=${returnPage}` : ''}`,
+            '_blank',
+          );
         }}
       />
       {switchRow && pageType !== undefined && (

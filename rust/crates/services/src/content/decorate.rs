@@ -1086,18 +1086,129 @@ impl DecorateService {
         self.generate_share(decorate_id).await
     }
 
-    /// 分享导入（管理端）：校验 url 中携带的 sn/token 是否有效。
+    /// 分享导入（管理端）：把分享链接指向的装修页导入为本站新页面，
+    /// 返回新页面 id（供编辑器导入后直接跳转继续编辑）。
     ///
-    /// TODO(域实现者)：Java `importUrl` 会抓取远程装修接口并落库（`HttpUtil.get`），
-    /// 本服务无 HTTP 客户端，这里实现为校验分享有效性，导入落库待后续补充。
-    pub async fn decorate_share_import(&self, url: &str) -> Result<bool> {
+    /// 对应 Java `DecorateShareServiceImpl#importUrl`：抓取分享链接数据并落库。
+    /// 【原版有·我方补齐】此前移植只做到校验分享有效性、导入落库为存根
+    /// （TODO 在案），本批补齐落库，两条取数路径：
+    /// 1. 本站分享（sn/token 命中本站分享记录）：直接读本站页面详情，
+    ///    不绕行 HTTP（分享链接在编辑器/列表页生成时即为本站相对路径，
+    ///    远程抓取无从拼本站基址）；
+    /// 2. 跨站分享（本站无此记录）：按 Java 原口径 HTTP GET 该链接
+    ///    （对方站点前台 `/api/home/share/import` 返回的 DecorateVO 信封），
+    ///    解包后落库。仅放行 http/https 绝对地址，防 SSRF 误用。
+    /// 落库统一走既有 `create` 创建链：标题/类型/用途取源页，内容同时写
+    /// `data` 与 `draft_data`（两编辑器打开即见内容），`status = 0` 未发布、
+    /// `is_home = 0` 不抢首页、店铺归属由创建链按当前租户解析——导入页恒为
+    /// 未发布草稿，绝不自动发布。
+    pub async fn decorate_share_import(&self, url: &str) -> Result<i32> {
         let (sn, token) = Self::parse_share_url(url)
             .ok_or_else(|| Error::biz_msg("分享链接缺少 sn 或 token"))?;
-        self.repos.content.decorate
+        // 路径一：本站分享记录命中 → 本地取详情
+        let vo = if let Some(share) = self
+            .repos
+            .content
+            .decorate
             .find_valid_share(&sn, &token, now_seconds() as i32)
             .await?
-            .ok_or_else(|| Error::biz_msg("分享链接不存在或已失效!"))?;
-        Ok(true)
+        {
+            let vo = self.detail(Some(share.decorate_id), None, None, None).await?;
+            if vo.decorate_id == 0 {
+                return Err(Error::biz_msg("未查询到对应的装修信息!"));
+            }
+            vo
+        } else {
+            // 路径二：跨站分享 → 抓取远程链接（Java importUrl 原口径）
+            Self::fetch_remote_share_vo(url).await?
+        };
+        // 源页无任何页面内容（已发布与草稿皆空）视为无可导入数据
+        let has_content = [&vo.data, &vo.draft_data]
+            .iter()
+            .any(|v| v.as_ref().is_some_and(|x| !x.is_null()));
+        if !has_content {
+            return Err(Error::biz_msg("未查询到对应的装修信息!"));
+        }
+        self.create(&Self::share_import_dto(&vo)).await
+    }
+
+    /// 远程抓取分享链接并解包为装修页 VO：响应可为我方信封
+    /// `{ code, data: DecorateVO }`（code 0/200 均认）或裸 VO JSON。
+    async fn fetch_remote_share_vo(url: &str) -> Result<DecorateVO> {
+        if !(url.starts_with("http://") || url.starts_with("https://")) {
+            return Err(Error::biz_msg("分享链接不存在或已失效!"));
+        }
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .map_err(|e| Error::Internal(format!("初始化导入客户端失败: {e}")))?;
+        let resp = client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| Error::biz_msg(format!("分享链接请求失败: {e}")))?;
+        if !resp.status().is_success() {
+            return Err(Error::biz_msg(format!(
+                "分享链接请求失败: HTTP {}",
+                resp.status()
+            )));
+        }
+        let body: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| Error::biz_msg(format!("分享链接响应解析失败: {e}")))?;
+        let payload = match body.get("data") {
+            Some(data) if body.get("code").is_some() => {
+                let code = body.get("code").and_then(serde_json::Value::as_i64);
+                if !matches!(code, Some(0) | Some(200)) {
+                    let msg = body
+                        .get("msg")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("分享链接不存在或已失效!");
+                    return Err(Error::biz_msg(msg.to_string()));
+                }
+                data.clone()
+            }
+            _ => body,
+        };
+        serde_json::from_value::<DecorateVO>(payload)
+            .map_err(|e| Error::biz_msg(format!("分享数据格式异常: {e}")))
+    }
+
+    /// 分享导入的落库 DTO 组装（纯函数，供单测）：
+    /// 内容取源页已发布数据、缺失回退草稿数据，两者皆空即无可导入内容；
+    /// 标题缺失回退「导入模板」；类型只认 1/2/3、越界回退 1（移动端）；
+    /// 恒未发布（status=0）、非首页、平台/店铺归属交给创建链按租户解析。
+    fn share_import_dto(vo: &DecorateVO) -> DecorateCreateDTO {
+        let content = vo
+            .data
+            .clone()
+            .filter(|v| !v.is_null())
+            .or_else(|| vo.draft_data.clone().filter(|v| !v.is_null()));
+        let content_str = content.map(|v| v.to_string());
+        let title = vo
+            .decorate_title
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or("导入模板")
+            .to_string();
+        DecorateCreateDTO {
+            decorate_title: Some(title),
+            data: content_str.clone(),
+            draft_data: content_str,
+            decorate_type: Some(match vo.decorate_type {
+                Some(t @ (1 | 2 | 3)) => t,
+                _ => 1,
+            }),
+            page_type: vo.page_type,
+            is_home: Some(0),
+            shop_id: None,
+            status: Some(0),
+            sort_order: None,
+            parent_id: Some(0),
+            locale_id: Some(0),
+        }
     }
 
     // ————————————————————— 装修组件（管理端） —————————————————————
@@ -2114,6 +2225,41 @@ mod tests {
         assert!(!is_home_page(&row));
         row.is_home = None;
         assert!(!is_home_page(&row));
+    }
+
+    #[test]
+    fn share_import_dto_prefers_published_data_and_forces_draft_status() {
+        // 分享导入落库口径【原版有·我方补齐】：内容优先已发布 data，
+        // data/draft 双写、恒未发布非首页、标题/类型取源页
+        let mut vo = DecorateVO::default();
+        vo.decorate_title = Some("  源页标题 ".into());
+        vo.data = Some(serde_json::json!({ "pageModule": {}, "moduleList": [1] }));
+        vo.draft_data = Some(serde_json::json!({ "pageModule": {}, "moduleList": [2] }));
+        vo.decorate_type = Some(2);
+        vo.page_type = Some(3);
+        let dto = DecorateService::share_import_dto(&vo);
+        assert_eq!(dto.decorate_title.as_deref(), Some("源页标题"));
+        assert_eq!(dto.data, dto.draft_data);
+        assert!(dto.data.as_deref().unwrap().contains("\"moduleList\":[1]"));
+        assert_eq!(dto.decorate_type, Some(2));
+        assert_eq!(dto.page_type, Some(3));
+        assert_eq!(dto.status, Some(0));
+        assert_eq!(dto.is_home, Some(0));
+        assert_eq!(dto.shop_id, None);
+    }
+
+    #[test]
+    fn share_import_dto_falls_back_to_draft_and_defaults() {
+        // 已发布为空回退草稿；标题空白回退「导入模板」；类型越界回退 1
+        let mut vo = DecorateVO::default();
+        vo.decorate_title = Some("   ".into());
+        vo.draft_data = Some(serde_json::json!({ "moduleList": [] }));
+        vo.decorate_type = Some(9);
+        let dto = DecorateService::share_import_dto(&vo);
+        assert_eq!(dto.decorate_title.as_deref(), Some("导入模板"));
+        assert!(dto.data.as_deref().unwrap().contains("\"moduleList\":[]"));
+        assert_eq!(dto.decorate_type, Some(1));
+        assert_eq!(dto.status, Some(0));
     }
 
     #[test]

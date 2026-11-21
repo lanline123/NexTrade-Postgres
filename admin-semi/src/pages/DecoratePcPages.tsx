@@ -47,6 +47,7 @@ import {
 import { apiGet, apiPost, isDemo } from '../api';
 import { useI18n } from '../i18n';
 import OptionSelectModal from '../components/OptionSelectModal';
+import TemplateImportModal from '../components/TemplateImportModal';
 import FloorIcon from '../components/FloorIcon';
 import {
   iconParkNameOf,
@@ -128,6 +129,8 @@ export function PcDecorateHome() {
   const [importVisible, setImportVisible] = useState(false);
   const [importLink, setImportLink] = useState('');
   const [importSaving, setImportSaving] = useState(false);
+  /** 「从模板导入」弹窗（模板平台 tpl.recy.cc，我方新增）：导入后新开编辑器编辑新页 */
+  const [tplImportVisible, setTplImportVisible] = useState(false);
 
   // 推广弹窗
   const [promoteRow, setPromoteRow] = useState<DecorateRow | null>(null);
@@ -479,6 +482,7 @@ export function PcDecorateHome() {
               {t('添加页面')}
             </Button>
             <Button onClick={() => setImportVisible(true)}>{t('导入装修模板')}</Button>
+            <Button onClick={() => setTplImportVisible(true)}>{t('从模板导入')}</Button>
             <Popconfirm title={t('您确认要批量删除所选数据吗？')} onConfirm={handleBatchDelete}>
               <Button disabled={selectedKeys.length === 0}>{t('批量删除')}</Button>
             </Popconfirm>
@@ -619,6 +623,21 @@ export function PcDecorateHome() {
           onChange={(v) => setImportLink(v)}
         />
       </Modal>
+
+      {/* 从模板导入弹窗（模板平台 tpl.recy.cc，我方新增）：导入落库后刷新列表并新开编辑器 */}
+      <TemplateImportModal
+        visible={tplImportVisible}
+        platform="pc"
+        onClose={() => setTplImportVisible(false)}
+        onImported={(info) => {
+          setTplImportVisible(false);
+          loadList();
+          window.open(
+            `${window.location.origin}/?page=pcDecorateEditor&id=${info.decorateId}`,
+            '_blank',
+          );
+        }}
+      />
 
       {/* 推广弹窗（原版 Advertise 900px，展示 C 端路径） */}
       <Modal
