@@ -1425,3 +1425,9 @@
 ### 登记
 
 - **平台联邦设置读端点口径登记（观察项 ③，不新增端点）**：验收脚本探 `/setting/config/getFederationSettings` 得 404，核查定案——该串只是路由表中的 OpenAPI 处理器名（`FederationConfigController.getFederationSettings`），从不是路径；管理端设置页的实际读路径为 `GET /setting/config/federationSettings`（FederationSettings.tsx 与 federation.ts 均走此路径，后端路由已注册并合并入 system 路由、保存后重开读取正常）。页面不依赖 getFederationSettings 路径，无功能缺口，故不新增别名端点；后续脚本/验收一律以 `federationSettings` 为读路径。
+
+## 0.0.2 续 · 2026-11-21 批次（admin 首屏闪上一页修复，未部署——随下一 admin 合并版上线）
+
+### 修复
+
+- **Admin - 整页直达 ?page= 页面时首屏闪现上一个页面【我方重构壳之体验缺陷修复】**（用户 2026-11-21 实测 `https://admin.recy.cc/?page=baseProductManage`：先闪一下其他页面内容、再显示商品设置页）：先证应用内初始化无误——`initialPage()` 在首帧渲染前同步解析 URL `?page=` 参数且优先级最高（源码与现网构建产物入口 chunk 逐字实证一致），全仓无「上次页面」持久化键、无「先默认页/持久化页渲染、再被 URL 纠正」的路径；页面懒加载未就绪时渲染的是中性「加载中…」占位，登录成功回跳亦直达 URL 目标页（onSuccess 仅置 authed，page 状态自挂载即为目标页）。闪现真因在整页导航的文档切换时序：新文档 `#root` 为空、`<head>` 内 4 个 at.alicdn.com 远程 iconfont 样式表是渲染阻塞资源（外加 383KB 入口 CSS），新文档在 React 挂载（约 897KB 入口 JS + 143KB vendor 执行、i18n 语言包、目标页 chunk 与配置接口）就绪前没有任何可绘制内容，浏览器持续保留上一个文档的画面，直到目标页就绪才整页跳变——观感即「先显示其他页面」。修复只动 `admin-semi/index.html` 两处：① 4 个 iconfont 样式改 preload 异步加载（onload 切换 rel，URL 一字未动、仍留在 index.html 守 @import 历史坑）——这批字体只服务装修预览/IcoPicker 等懒加载面，主框架导航/顶栏图标均为 Semi 组件、首帧不依赖它，字体改为从文档开始并行下载、一般在进入装修页前已就绪；② `#root` 内置内联中性启动壳（品牌 N 标 + 「加载中…」，视觉与既有 i18n 启动屏 `.i18n-loading` 对齐、关键样式内联），React createRoot 首次渲染自动替换——新文档拿到 HTML 即可先绘中性壳，上一个文档画面不再长时间占屏。导航行为零变化（initialPage/changePage/登录/无 ?page= 默认 dashboard 口径均未动）。同族口径：全部 ?page= 整页直达与 F5 刷新共用同一启动链，一并受益；应用内页间切换走 changePage + Suspense 中性占位、本就不保留旧页，不在此列。定性：admin-semi 为我方重构壳、其 index.html 启动装配为我方实现，原版 Java 后台系服务端渲染、无此问题形态。验收：CI build-admin 绿后随下一 admin 合并版上线，部署后冷开直达 ?page=baseProductManage 首帧即中性壳/目标页、无其他业务页闪现，带既有会话同测、F5 同测；报告 ~/workspace/admin-firstpaint/REPORT.md（工作区报告）。

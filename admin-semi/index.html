@@ -11,17 +11,68 @@
       lyecs-defined-iconfont（自定义图标库，菜单图标字段）、iconfont-pc / iconfont-h5
       （PC/H5 装修预览）。分类抽屉楼层图标已于 2026-11-15 全面切换 IconPark（内嵌 SVG），
       原 iconfont-tig 字体链接随之删除。
+      2026-11-21 改异步加载（preload + onload 切换 rel）：这批字体只服务装修预览、
+      IcoPicker 等懒加载面，主框架（导航/顶栏）图标均为 Semi 组件、首帧不依赖它；
+      若保持 rel="stylesheet" 渲染阻塞，整页直达 ?page=xxx 时新文档在跨域 CSS
+      返回前无法首绘，浏览器会长时间保留上一个文档画面（用户实测「先闪其他页面」）。
+      异步后字体仍从文档开始就并行下载，一般在用户进入装修页前已就绪；
+      链接仍留在 index.html（上方 @import 历史坑不变），URL 一字未动。
     -->
-    <link rel="stylesheet" href="https://at.alicdn.com/t/c/font_400590_7he137t8862.css" />
+    <link rel="preload" as="style" href="https://at.alicdn.com/t/c/font_400590_7he137t8862.css" onload="this.onload=null;this.rel='stylesheet'" />
     <!-- 生产（admin.recy.cc）后台「图标设置 → 自定义ico图标库」当前配置值：
          菜单图标字段（IcoPicker）的 lyecs-defined-iconfont 图标在这个项目里。
          若后台更换了 icoDefinedCss 配置，此处需同步更换。 -->
-    <link rel="stylesheet" href="https://at.alicdn.com/t/c/font_4761676_q6djhlipj9l.css" />
-    <link rel="stylesheet" href="https://at.alicdn.com/t/c/font_4389188_6kr776u0szi.css" />
-    <link rel="stylesheet" href="https://at.alicdn.com/t/c/font_3378474_nv3pk6rxn7f.css" />
+    <link rel="preload" as="style" href="https://at.alicdn.com/t/c/font_4761676_q6djhlipj9l.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <link rel="preload" as="style" href="https://at.alicdn.com/t/c/font_4389188_6kr776u0szi.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <link rel="preload" as="style" href="https://at.alicdn.com/t/c/font_3378474_nv3pk6rxn7f.css" onload="this.onload=null;this.rel='stylesheet'" />
+    <!--
+      首屏启动壳（2026-11-21）：整页进入（直达 ?page=xxx / F5）时，React 挂载前
+      #root 里先放这块静态中性壳，新文档拿到 HTML + 本地入口 CSS 即可绘制它，
+      不再出现「上一个文档画面长时间停留 → 目标页整页跳入」的观感。视觉与
+      i18n 的 .i18n-loading 启动屏对齐（同底色/同品牌标），两段过渡不跳色。
+      React createRoot 首次渲染会自动替换掉它；壳里不放任何业务内容。
+    -->
+    <style>
+      .boot-shell {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #f6fbfa;
+      }
+      .boot-shell__inner {
+        display: grid;
+        place-items: center;
+        gap: 12px;
+        color: #0f766e;
+      }
+      .boot-shell__mark {
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        border-radius: 13px;
+        background: linear-gradient(135deg, #0f766e, #14b8a6);
+        color: #fff;
+        font-family: Georgia, serif;
+        font-size: 22px;
+        font-weight: 700;
+      }
+      .boot-shell__text {
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-shell" aria-hidden="true">
+        <div class="boot-shell__inner">
+          <span class="boot-shell__mark">N</span>
+          <span class="boot-shell__text">加载中…</span>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
