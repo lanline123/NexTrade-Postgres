@@ -724,6 +724,30 @@ export default function SearchResult() {
     const listStyle = Number(decorateConfig.listStyle ?? 1);
 
     /**
+     * 视图切换（网格/列表，论坛帖 397946 批发选品列表形态）：
+     * 用户偏好优先于装修 listStyle 默认；偏好存本地（searchViewMode），
+     * 未设置时完全跟随后台配置，行为与此前一致。网格 = 双列瀑布流，
+     * 列表 = 单列列表（与 listStyle=2 同一款 SearchProductList 渲染）。
+     */
+    const [viewMode, setViewMode] = useState<"grid" | "list" | null>(() => {
+        try {
+            const saved = Taro.getStorageSync("searchViewMode");
+            return saved === "list" || saved === "grid" ? saved : null;
+        } catch {
+            return null;
+        }
+    });
+    const effectiveListStyle = viewMode === "list" ? 2 : viewMode === "grid" ? 1 : listStyle;
+    const changeViewMode = (next: "grid" | "list") => {
+        setViewMode(next);
+        try {
+            Taro.setStorageSync("searchViewMode", next);
+        } catch {
+            // 存储不可用时仅本次会话内生效
+        }
+    };
+
+    /**
      * 透传给通用瀑布流的装修字段。
      * masonry 被首页/门店/分类等 8 个页面共用，未配置装修时这里全给 undefined，
      * 组件内的 CSS fallback 保证那些页面视觉不变。
@@ -996,9 +1020,27 @@ export default function SearchResult() {
                 {!isStoreStyle && (
                     <>
                         {!isLoading && total > 0 && (
+                            <View className="view-switch-row">
+                                <View className="view-switch">
+                                    <View
+                                        className={`view-switch__item${effectiveListStyle !== 2 ? " view-switch__item--active" : ""}`}
+                                        onClick={() => changeViewMode("grid")}
+                                    >
+                                        <Text>{t("网格")}</Text>
+                                    </View>
+                                    <View
+                                        className={`view-switch__item${effectiveListStyle === 2 ? " view-switch__item--active" : ""}`}
+                                        onClick={() => changeViewMode("list")}
+                                    >
+                                        <Text>{t("列表")}</Text>
+                                    </View>
+                                </View>
+                            </View>
+                        )}
+                        {!isLoading && total > 0 && (
                             <View className="goods-container" style={goodsContainerStyle as any}>
-                                {/* 单列（listStyle=2）走搜索页专用列表组件，双列沿用通用瀑布流 */}
-                                {listStyle === 2 ? (
+                                {/* 单列（effectiveListStyle=2）走搜索页专用列表组件，双列沿用通用瀑布流 */}
+                                {effectiveListStyle === 2 ? (
                                     <SearchProductList productList={productList} promotionList={promotionList} config={decorateConfig} />
                                 ) : (
                                     /* TODO(B2)：等高均衡分列可后补；当前按奇偶分列（自旧 masonry.vue 简化） */

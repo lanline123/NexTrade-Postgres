@@ -48,6 +48,8 @@ interface ProductGridProps {
   gridClassName?: string;
   /** 旧版 SearchProductCard.vue 的 fixed-name-two-lines：搜索页固定两行名称。 */
   fixedNameTwoLines?: boolean;
+  /** 视图形态：grid 网格（默认）/ list 单列横排列表（论坛帖 397946 列表形态）。 */
+  layout?: 'grid' | 'list';
 }
 
 export default function ProductGrid({
@@ -57,6 +59,7 @@ export default function ProductGrid({
   buyBtn,
   gridClassName,
   fixedNameTwoLines = false,
+  layout = 'grid',
 }: ProductGridProps) {
     const { t } = useTranslation();
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -73,9 +76,15 @@ export default function ProductGrid({
 
   return (
     <div
-      className={`product-card-grid${gridClassName ? ` ${gridClassName}` : ''}`}
+      className={`product-card-grid${layout === 'list' ? ' product-card-grid--list' : ''}${gridClassName ? ` ${gridClassName}` : ''}`}
       ref={gridRef}
-      style={{ '--you-like-columns': columns } as React.CSSProperties}
+      style={
+        {
+          '--you-like-columns': columns,
+          /* 列表形态单列：内联压过 .goods-list-c .wrap 的 --search-grid-columns 列数规则 */
+          ...(layout === 'list' ? { gridTemplateColumns: 'minmax(0, 1fr)' } : {}),
+        } as React.CSSProperties
+      }
     >
       {products.map((product) => (
         <ProductCard

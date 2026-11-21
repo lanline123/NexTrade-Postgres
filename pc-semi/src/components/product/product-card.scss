@@ -293,6 +293,46 @@
   }
 }
 
+/* ---------------- 列表形态（搜索页视图切换 ?view=list，论坛帖 397946） ----------------
+ * 单列横排：缩略图左置定宽、信息区横向铺满。卡片 DOM 与网格态共用同一套，
+ * 仅靠容器修饰类改排布；售罄 / 询价 / 价格门控 / 活动标签等状态规则逐字复用网格态。
+ * 容器列数由 ProductGrid 内联 gridTemplateColumns 压定（压过 .goods-list-c .wrap
+ * 的 --search-grid-columns 规则），本段只管行内排布与间距。
+ */
+.product-card-grid--list {
+  gap: 12px;
+
+  .product-card-container {
+    display: flex;
+    width: 100%;
+    padding-bottom: 0;
+
+    .top-wrap {
+      flex-shrink: 0;
+
+      .pro_pic {
+        width: 168px;
+        height: 168px;
+      }
+    }
+
+    .center-wrap {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      margin-top: 0;
+      padding: 12px 16px;
+
+      /* 网格态的拼团 tag 占位在横排里只留白，列表形态收起 */
+      .price-slot {
+        display: none;
+      }
+    }
+  }
+}
+
 /* ---------------- 区块标题 ----------------
  * 原版 ProdSwiper.vue 的 .com-pc-title：24px/700、高 46px、36px 居中下划线。
  * 购物车 / 会员中心 / 商品详情 / 搜索结果四个推荐位统一使用。

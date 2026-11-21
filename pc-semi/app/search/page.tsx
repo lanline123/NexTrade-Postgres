@@ -479,6 +479,11 @@ export default async function SearchPage(props: PageProps) {
   const filterStylePreview = Number(readParam(searchParams?.filterStyle));
   /** ?ui=new|old 版式预览（buildQuery 也要保留它，故先于 buildQuery 定义） */
   const uiParam = readParam(searchParams?.ui);
+  /** 视图形态（网格/列表，论坛帖 397946 批发选品列表形态）：?view=list 为列表，
+      其余（含缺省）为网格。与 ?ui 同性质——纯页面渲染参数，不透传后端查询；
+      buildQuery 全程保留 list 态（网格为默认形态，不带参），故先于 buildQuery 定义。 */
+  const viewParam = readParam(searchParams?.view);
+  const viewMode: 'grid' | 'list' = viewParam === 'list' ? 'list' : 'grid';
   if (filterStylePreview === 1 || filterStylePreview === 2) searchConfig.filterStyle = filterStylePreview;
 
   const [esAttrResult, productResult] = await Promise.all([
@@ -532,6 +537,8 @@ export default async function SearchPage(props: PageProps) {
     if (filterStylePreview === 1 || filterStylePreview === 2) params.set('filterStyle', String(filterStylePreview));
     // ?ui=new|old 版式预览参数同样全程保持
     if (uiParam) params.set('ui', uiParam);
+    // 列表视图偏好同样全程保持（排序/筛选/分页链接不丢视图）
+    if (viewMode === 'list') params.set('view', 'list');
     if (tab === 'shop') params.set('tab', 'shop');
     if (shopSortKey === 'shopStar') params.set('shopSort', 'shopStar');
     // 已选属性（名称::值）在筛选/排序/分页之间保留
@@ -682,6 +689,7 @@ export default async function SearchPage(props: PageProps) {
     showShopTag: searchConfig.showShopTag,
     showPriceRange: searchConfig.showPriceRange,
     buyBtn: searchBuyBtn,
+    viewMode,
     filterTemplate: searchConfig.filterTemplate,
     buildQuery,
     toggleAttr,
@@ -706,6 +714,7 @@ export default async function SearchPage(props: PageProps) {
               buyBtn={searchBuyBtn}
               gridClassName="wrap mp-search-card"
               fixedNameTwoLines
+              layout={viewMode}
             />
           </div>
         </div>
@@ -842,6 +851,9 @@ export default async function SearchPage(props: PageProps) {
               {tab === 'goods' ? (
                 <>
                   <SearchSortBar
+                    viewMode={viewMode}
+                    viewGridHref={`${listPath}${buildQuery({ view: undefined }, 1)}`}
+                    viewListHref={`${listPath}${buildQuery({ view: 'list' }, 1)}`}
                     defaultHref={sortDefaultHref}
                     defaultActive={sortKey === 'default'}
                     saleHref={sortSaleHref}

@@ -53,6 +53,8 @@ export interface SearchLayoutContext {
   showPriceRange: boolean;
   /** 搜索装修购买按钮原始配置（透传 ProductGrid 归一化渲染） */
   buyBtn?: ProductGridBuyBtnConfig | null;
+  /** 视图形态（网格/列表，?view=list，论坛帖 397946）：缺省网格；切换链接经 buildQuery 生成 */
+  viewMode?: 'grid' | 'list';
   filterTemplate: number;
   buildQuery: (overrides: Record<string, string | string[] | undefined>, basePage?: number) => string;
   toggleAttr: (name: string, value: string) => string;
@@ -141,6 +143,14 @@ function SortBar({ ctx, extra }: { ctx: SearchLayoutContext; extra?: React.React
           </Link>
         ))}
       </div>
+      <div className="view-switch">
+        <Link href={`${ctx.listPath}${ctx.buildQuery({ view: undefined }, 1)}`} className={`view-switch__item${ctx.viewMode !== 'list' ? ' active' : ''}`}>
+          网格
+        </Link>
+        <Link href={`${ctx.listPath}${ctx.buildQuery({ view: 'list' }, 1)}`} className={`view-switch__item${ctx.viewMode === 'list' ? ' active' : ''}`}>
+          列表
+        </Link>
+      </div>
       {extra ?? <span className="pc-list-filter-tip">共 {ctx.total} 件商品</span>}
     </div>
   );
@@ -160,6 +170,7 @@ function PriceForm({ ctx, className = '' }: { ctx: SearchLayoutContext; classNam
       {ctx.serializeSelectedAttrs(ctx.selectedAttrs).map((item) => (
         <input key={item} type="hidden" name="attr" value={item} />
       ))}
+      {ctx.viewMode === 'list' ? <input type="hidden" name="view" value="list" /> : null}
       <input type="text" name="min" placeholder={`${currencySymbol()} ${t('¥最低价').replace(/^[¥￥]\s*/, '')}`} defaultValue={ctx.min} className={bare ? '' : 'pc-search-price-input'} />
       <span> - </span>
       <input type="text" name="max" placeholder={`${currencySymbol()} ${t('¥最高价').replace(/^[¥￥]\s*/, '')}`} defaultValue={ctx.max} className={bare ? '' : 'pc-search-price-input'} />
@@ -172,7 +183,7 @@ function Results({ ctx }: { ctx: SearchLayoutContext }) {
     const t = getServerT();
   return (
     <>
-      <ProductGrid products={ctx.records} showSales={ctx.showSales} showShopTag={ctx.showShopTag} buyBtn={ctx.buyBtn} />
+      <ProductGrid products={ctx.records} showSales={ctx.showSales} showShopTag={ctx.showShopTag} buyBtn={ctx.buyBtn} layout={ctx.viewMode === 'list' ? 'list' : 'grid'} />
       {!ctx.records.length ? <div className="pc-list-empty">{t('没有找到符合条件的商品')}</div> : null}
       {ctx.pages > 1 ? (
         <nav className="pc-pagination">

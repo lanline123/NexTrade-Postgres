@@ -2183,3 +2183,32 @@
       }
   }
 }
+
+/* ---------- 视图切换（网格/列表，论坛帖 397946） ----------
+ * 现代版 SearchSortBar 与经典版 SearchLayoutVariants.SortBar 共用同一组类名；
+ * 分段控件形态与排序项同口径：13px 文字、选中态主题色浅底 + 主题色字。
+ */
+.view-switch {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 12px;
+    border: 1px solid var(--ui-border, #e4e7ec);
+    border-radius: 6px;
+    overflow: hidden;
+    flex-shrink: 0;
+
+    .view-switch__item {
+        padding: 5px 14px;
+        color: #475467;
+        font-size: 13px;
+        line-height: 20px;
+        text-decoration: none;
+        background: #fff;
+
+        &.active {
+            background: var(--pc-primary-soft, #eef5ff);
+            color: var(--main-bg, var(--general, var(--pc-primary, #1456f0)));
+            font-weight: 600;
+        }
+    }
+}

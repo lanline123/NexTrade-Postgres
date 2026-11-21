@@ -58,6 +58,10 @@ interface SearchSortBarProps {
   brandActive: boolean;
   /** 旧版 sort-filter-right 里的「筛选」触发器与面板 */
   filterPanel?: React.ReactNode;
+  /** 视图切换（网格/列表，论坛帖 397946）：三者齐备时在排序栏右侧渲染切换组 */
+  viewMode?: 'grid' | 'list';
+  viewGridHref?: string;
+  viewListHref?: string;
 }
 
 export default function SearchSortBar({
@@ -79,6 +83,9 @@ export default function SearchSortBar({
   brandOptions,
   brandActive,
   filterPanel,
+  viewMode,
+  viewGridHref,
+  viewListHref,
 }: SearchSortBarProps) {
   const { t } = useTranslation();
   const [priceOpen, setPriceOpen] = useState(false);
@@ -214,7 +221,19 @@ export default function SearchSortBar({
         </div>
       </div>
 
-      <div className="sort-filter-right">{filterPanel}</div>
+      <div className="sort-filter-right">
+        {viewMode && viewGridHref && viewListHref ? (
+          <div className="view-switch">
+            <Link href={viewGridHref} className={`view-switch__item${viewMode === 'grid' ? ' active' : ''}`}>
+              {t('网格')}
+            </Link>
+            <Link href={viewListHref} className={`view-switch__item${viewMode === 'list' ? ' active' : ''}`}>
+              {t('列表')}
+            </Link>
+          </div>
+        ) : null}
+        {filterPanel}
+      </div>
       </div>
     </div>
   );

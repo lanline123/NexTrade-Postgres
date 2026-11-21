@@ -63,6 +63,30 @@
     background-color: rgba(0, 0, 0, 0.5);
     z-index: 100;
 }
+/* 视图切换（网格/列表）：右对齐分段控件，选中态走主题色（与空态按钮同口径） */
+.mobile-search-results .view-switch-row {
+    display: flex;
+    justify-content: flex-end;
+    padding: 16rpx 24rpx 0;
+}
+.mobile-search-results .view-switch {
+    display: flex;
+    border: 2rpx solid var(--search-theme, var(--general));
+    border-radius: 8rpx;
+    overflow: hidden;
+    background-color: #fff;
+
+    .view-switch__item {
+        padding: 6rpx 22rpx;
+        font-size: 24rpx;
+        line-height: 34rpx;
+        color: var(--search-theme, var(--general));
+    }
+    .view-switch__item--active {
+        background-color: var(--search-theme, var(--general));
+        color: #fff;
+    }
+}
 .mobile-search-results .goods-container {
     /* padding/margin/圆角由后台装修下发（goodsContainerStyle），这里只保留兜底 */
     padding: 20rpx;
