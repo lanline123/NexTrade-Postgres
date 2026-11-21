@@ -124,16 +124,20 @@ const SOURCE_OPTIONS = [
 ];
 
 /**
- * 自适应每页条数（用户口径 2026-11-21）：每页条数 = 网格区实测列数 × 行数，
- * 不再提供手动档位。下列常量与 material-center.css 严格对应，改一处必须同改另一处：
- * - MC_TILE_W：砖宽（.mc-grid 固定砖宽），原 minmax(160px, 1fr) 下限 160 → 128（缩小以同屏显示更多）
- * - MC_TILE_H：整砖外高 = 缩略图 128（aspect-ratio 1）+ 信息区 59（.mc-card-info 定高，
+ * 每页条数（用户口径 2026-11-21 二次调整）：每页条数 = 网格区实测列数 × 固定 3 行，
+ * 不再提供手动档位。砖宽由 128 恢复 160（图片回原大小）；行数不再按高度量测、写死 3 行，
+ * 网格区高度不足以容纳 3 行时在网格区内滚动（唯一滚动层口径不变）。
+ * 下列常量与 material-center.css 严格对应，改一处必须同改另一处：
+ * - MC_TILE_W：砖宽（.mc-grid 固定砖宽）160
+ * - MC_TILE_H：整砖外高 = 缩略图 160（aspect-ratio 1）+ 信息区 59（.mc-card-info 定高，
  *   含上下 padding 16 + 名称行 20 + 间距 4 + 元信息 18 + 下边框 1）+ 操作区 36
- *   （.mc-card-actions 定高，含上下 padding 8 + small 按钮 28）+ 卡片上下边框 2 = 225
+ *   （.mc-card-actions 定高，含上下 padding 8 + small 按钮 28）+ 卡片上下边框 2 = 257
+ * - MC_ROWS：每页固定行数 3
  * - MC_GAP：.mc-grid 的 gap
  */
-const MC_TILE_W = 128;
-const MC_TILE_H = 225;
+const MC_TILE_W = 160;
+const MC_TILE_H = 257;
+const MC_ROWS = 3;
 const MC_GAP = 12;
 
 const itemId = (item: MaterialItem, tab: MaterialTab) =>
@@ -345,7 +349,7 @@ export default function MaterialCenter() {
     source: '',
   });
   const [page, setPage] = useState(1);
-  // pageSize 由网格区实测尺寸自适应计算（见下方量测 effect）；30 仅为量测完成前的占位值，
+  // pageSize = 网格区实测列数 × 固定 3 行（见下方量测 effect）；30 仅为量测完成前的占位值，
   // 列表取数被 gridReady 门控，不会以占位值发请求。
   const [pageSize, setPageSize] = useState(30);
   const [gridCols, setGridCols] = useState(0);
@@ -469,9 +473,9 @@ export default function MaterialCenter() {
 
   const reload = () => setReloadKey((key) => key + 1);
 
-  // ——— 网格区量测 → 自适应每页条数 ———
-  // 列数/行数按网格滚动区（.mc-dropzone）的实测尺寸计算；ResizeObserver 驱动，
-  // 计算值不变时 setState 同值短路（React bail out），不会引发重复取数。
+  // ——— 网格区量测 → 每页条数（实测列数 × 固定 3 行）———
+  // 列数按网格滚动区（.mc-dropzone）的实测宽度计算；行数固定 3 行（MC_ROWS），不再量测高度。
+  // ResizeObserver 驱动，计算值不变时 setState 同值短路（React bail out），不会引发重复取数。
   // .mc-dropzone 设了 scrollbar-gutter: stable，滚动条出现/消失不改变 clientWidth，
   // 量测口径恒定，不会来回震荡。
   useEffect(() => {
@@ -479,12 +483,10 @@ export default function MaterialCenter() {
     if (!el) return;
     const measure = () => {
       const width = el.clientWidth;
-      const height = el.clientHeight;
-      if (width <= 0 || height <= 0) return;
+      if (width <= 0) return;
       const cols = Math.max(1, Math.floor((width + MC_GAP) / (MC_TILE_W + MC_GAP)));
-      const rows = Math.max(1, Math.floor((height + MC_GAP) / (MC_TILE_H + MC_GAP)));
       setGridCols((current) => (current === cols ? current : cols));
-      setPageSize((current) => (current === cols * rows ? current : cols * rows));
+      setPageSize((current) => (current === cols * MC_ROWS ? current : cols * MC_ROWS));
       setGridReady(true);
     };
     measure();

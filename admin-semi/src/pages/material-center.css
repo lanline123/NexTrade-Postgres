@@ -234,7 +234,7 @@
 }
 
 /*
- * 网格滚动区：内容区内唯一滚动层，也是自适应每页条数的量测对象（gridBoxRef）。
+ * 网格滚动区：内容区内唯一滚动层，也是每页列数的量测对象（gridBoxRef）。
  * scrollbar-gutter: stable 恒预留滚动条槽位，滚动条显隐不改变 clientWidth，
  * 保证量测列数与渲染列数恒一致、不震荡。
  */
@@ -254,14 +254,14 @@
 }
 
 /*
- * 素材网格：砖宽固定 128px（原 minmax(160px, 1fr) 下限 160，缩小以同屏显示更多）。
+ * 素材网格：砖宽固定 160px（2026-11-21 用户口径：由 128 恢复原大小，每页固定显示 3 行）。
  * 实际列数由 JS 按量测宽度算出并以内联 gridTemplateColumns 覆盖本规则
  * （保证渲染列数与每页条数口径严格一致）；本规则是量测完成前的兜底。
- * 整砖外尺寸 128 × 225，与 MaterialCenter.tsx 的 MC_TILE_W / MC_TILE_H 对应。
+ * 整砖外尺寸 160 × 257，与 MaterialCenter.tsx 的 MC_TILE_W / MC_TILE_H 对应。
  */
 .mc-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, 128px);
+  grid-template-columns: repeat(auto-fill, 160px);
   gap: 12px;
   list-style: none;
   padding: 0;
@@ -330,7 +330,7 @@
 
 /*
  * 信息区定高 59px（border-box，含下边框）：padding 8+8 + 名称行 20 + 间距 4 +
- * 元信息 18 + 边框 1。定高是整砖外高（MC_TILE_H=225）口径的一部分，不要随意改。
+ * 元信息 18 + 边框 1。定高是整砖外高（MC_TILE_H=257）口径的一部分，不要随意改。
  */
 .mc-card-info {
   height: 59px;
