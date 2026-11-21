@@ -3,12 +3,16 @@
  *
  * 类名与 Vue 版逐一致（ad-style__2 / item-image-bg / lyecs-buyBtn），
  * 样式由移植的全局 module.css + 本模块 Preview.css（原版 scoped）提供；商品列表按来源实时拉取。
+ * 来源无结果（新建未选品等）时以随机真实在售商品兜底展示（共享
+ * demoProductFill 的 usePreviewDemoProducts，纯显示层不落盘；四期补齐，
+ * 与创建填充定案个数同源）。
  */
 import { useMemo } from "react";
 import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
 import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
 import { product2Defaults } from "./index";
+import { usePreviewDemoProducts, demoTargetCount } from "../../../../../components/demoProductFill";
 import "./Preview.css";
 
 import { useI18n } from '../../../../../i18n';
@@ -21,7 +25,10 @@ export default function Product2Preview({ data }: { data: Record<string, any> })
         return merged;
     }, [data]);
 
-    const productList = useDecorateProductList(module.products);
+    const fetched = useDecorateProductList(module.products);
+    // 来源无结果时随机真实商品兜底展示（纯显示层，不落盘）
+    const demoFallback = usePreviewDemoProducts(fetched.length === 0, demoTargetCount("product2"));
+    const productList = fetched.length ? fetched : demoFallback;
     const frameFormat = formatFrame(module.frame ?? {});
     const boxMargin = cssText(
         `margin-left:${module.boxPadding ?? 10}px;margin-right:${module.boxPadding ?? 10}px;` +

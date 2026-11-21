@@ -17,7 +17,7 @@ import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
 import { useCouponInfoMap } from "../../../shared/useCouponInfoMap";
 import { mergeDefaultModule } from "../../../contract/sharedDefaults";
-import { usePreviewDemoProducts } from "../../../../../components/demoProductFill";
+import { usePreviewDemoProducts, demoTargetCount } from "../../../../../components/demoProductFill";
 import { newcomerComboDefaults } from "./index";
 import "./Preview.css";
 
@@ -53,7 +53,7 @@ export default function NewcomerComboPreview({ data }: { data: Record<string, an
     }, [data]);
 
     const fetched = useDecorateProductList(module.products);
-    const demoFallback = usePreviewDemoProducts(fetched.length === 0, 4);
+    const demoFallback = usePreviewDemoProducts(fetched.length === 0, demoTargetCount("newcomerCombo"));
     const productList = fetched.length > 0 ? fetched : demoFallback;
 
     const coupons: Array<Record<string, any>> = Array.isArray(module.coupons) ? module.coupons : [];

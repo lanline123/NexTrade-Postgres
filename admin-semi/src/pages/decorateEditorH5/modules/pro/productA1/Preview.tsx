@@ -13,7 +13,7 @@ import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
 import { mergeDefaultModule, cloneDeep } from "../../../contract/sharedDefaults";
 import BuyButton from "../../../shared/BuyButton";
-import { usePreviewDemoProducts } from "../../../../../components/demoProductFill";
+import { usePreviewDemoProducts, demoTargetCount } from "../../../../../components/demoProductFill";
 import { productA1Defaults } from "./index";
 import "./Preview.css";
 
@@ -28,7 +28,7 @@ export default function ProductA1Preview({ data }: { data: Record<string, any> }
     }, [data]);
 
     const fetched = useDecorateProductList(module.products);
-    const demoFallback = usePreviewDemoProducts(fetched.length === 0, 6);
+    const demoFallback = usePreviewDemoProducts(fetched.length === 0, demoTargetCount("productA1"));
     const productList = fetched.length > 0 ? fetched : demoFallback;
 
     const allFormat = {

@@ -12,7 +12,7 @@ import { useMemo } from "react";
 import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
 import { mergeDefaultModule } from "../../../contract/sharedDefaults";
-import { usePreviewDemoProducts } from "../../../../../components/demoProductFill";
+import { usePreviewDemoProducts, demoTargetCount } from "../../../../../components/demoProductFill";
 import { limitedSpecialDefaults } from "./index";
 import "./Preview.css";
 
@@ -47,7 +47,7 @@ export default function LimitedSpecialPreview({ data }: { data: Record<string, a
     }, [data]);
 
     const fetched = useDecorateProductList(module.products);
-    const demoFallback = usePreviewDemoProducts(fetched.length === 0, 4);
+    const demoFallback = usePreviewDemoProducts(fetched.length === 0, demoTargetCount("limitedSpecial"));
     const productList = fetched.length > 0 ? fetched : demoFallback;
 
     const f = module.frame ?? {};

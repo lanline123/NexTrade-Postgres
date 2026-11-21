@@ -14,7 +14,7 @@ import { useMemo } from "react";
 import { mergeDefaultModule, cloneDeep, defaultProductSlide } from "../../../contract/sharedDefaults";
 import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
-import { usePreviewDemoProducts } from "../../../../../components/demoProductFill";
+import { usePreviewDemoProducts, demoTargetCount } from "../../../../../components/demoProductFill";
 
 interface Props {
     data: Record<string, any>;
@@ -57,7 +57,7 @@ function cardStyleBg(cardStyle: string): string {
 export default function ProductSlidePreview({ data }: Props) {
     const m = useMemo(() => { const merged = JSON.parse(JSON.stringify(data ?? {})); mergeDefaultModule(merged, cloneDeep(defaultProductSlide)); return merged; }, [data]);
     const fetched = useDecorateProductList(m.products);
-    const demoFallback = usePreviewDemoProducts(fetched.length === 0, 4);
+    const demoFallback = usePreviewDemoProducts(fetched.length === 0, demoTargetCount("productSlide"));
     const list = fetched.length > 0 ? fetched : demoFallback;
 
     const f = m.frame ?? {};

@@ -87,7 +87,7 @@ export default function TemplateLibraryModal({ visible, pageType, onClose }: Pro
     const onUseTemplate = async (tpl: BuiltinTemplate) => {
         const data = buildTemplateData(tpl);
         for (const m of data.moduleList ?? []) {
-            await fillDemoProducts((m.module ?? {}) as Record<string, any>);
+            await fillDemoProducts((m.module ?? {}) as Record<string, any>, m.type);
         }
         editorStore.applyTemplate(data);
         Toast.success(t("已套用模板，可继续编辑后保存"));

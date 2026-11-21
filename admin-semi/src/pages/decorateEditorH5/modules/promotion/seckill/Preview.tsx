@@ -8,6 +8,9 @@
  * 本实现同路径同口径（后端按 Java 口径：进行中、无库存过滤、价格升序、一商品一行，含 orgProductPrice）。
  * 每卡图上 .cap-seckill-goods__tag（style 1 显示「秒杀」+ 倒计时 DD天 HH:mm:ss 白字 12px/700，
  * 类名按 style 映射 big/small flex-end/list flex-end）；购买按钮为旧数字 buyBtnStyle 语义（同 product 模块）。
+ * 无进行中秒杀活动时以随机真实在售商品兜底展示 4 件（共享 demoProductFill，
+ * 纯显示层不落盘；四期与拼团兜底同口径补齐——活动类模块无创建填充，个数仅
+ * Preview 层定案；卡片倒计时结束时刻用展示用动态值 demoEndTimeString 承接）。
  */
 import { useEffect, useMemo, useState } from "react";
 import { apiGet } from "../../../../../api";
@@ -15,6 +18,7 @@ import CommonTitle from "../../../shared/CommonTitle";
 import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
 import { seckillDefaults } from "./index";
+import { usePreviewDemoProducts, demoEndTimeString } from "../../../../../components/demoProductFill";
 import "./Preview.css";
 
 function LegacyBuyButton({ style }: { style: number }) {
@@ -100,6 +104,12 @@ export default function SeckillPreview({ data }: { data: Record<string, any> }) 
     const goodsPadding = cssText(`padding: ${module.goodsPadding ?? 5}px;`);
     const style = Number(module.style ?? 1);
 
+    // 无进行中活动时随机真实商品兜底（纯显示层，不落盘）
+    const demoFallback = usePreviewDemoProducts(list.length === 0, 4);
+    const displayList = list.length
+        ? list
+        : demoFallback.map((p) => ({ ...p, seckkillData: { seckillEndTime: demoEndTimeString() } }));
+
     return (
         <div
             className={
@@ -138,7 +148,7 @@ export default function SeckillPreview({ data }: { data: Record<string, any> }) 
                 <CommonTitle data={module.title ?? {}} />
                 <div className="goods-ad-warp">
                     <div className="goods-ad-con">
-                        {list.map((item: any, idx: number) => (
+                        {displayList.map((item: any, idx: number) => (
                             <div className="goods-ad-item" key={item.id ?? item.productId ?? idx}>
                                 <div className="item-content" style={goodsPadding}>
                                     <div className="item-con">

@@ -12,6 +12,9 @@
  * 卡片：item-photo-bg 垫图背景色 imageBackgroundColor、优惠 tips 红 chip（getDiscount 逐字复刻，
  * orgProductPrice 缺失时回退 marketPrice/现价→0，见摘要）、style 10 横滑（一行 3 个、item-content 仅左内边距、
  * 价格 16px #1a1a1a + 划线原价）。
+ * 无进行中秒杀活动时以随机真实在售商品兜底展示 4 件（共享 demoProductFill，
+ * 纯显示层不落盘；四期与拼团兜底同口径补齐——活动类模块无创建填充，个数仅
+ * Preview 层定案；标题区倒计时结束时刻用展示用动态值 demoEndTimeString 承接）。
  */
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { apiGet } from "../../../../../api";
@@ -19,6 +22,7 @@ import H5Countdown from "../../../shared/H5Countdown";
 import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { formatTitle, mergeDefaultModule } from "../../../contract/sharedDefaults";
 import { seckill2Defaults } from "./index";
+import { usePreviewDemoProducts, demoEndTimeString } from "../../../../../components/demoProductFill";
 import "./Preview.css";
 
 /** 折扣百分比（逐字复刻原版 getDiscount） */
@@ -60,7 +64,12 @@ export default function Seckill2Preview({ data }: { data: Record<string, any> })
     const isSlide = style === 10;
     const title = module.title ?? {};
     const titleFormat = formatTitle(title);
-    const endTime = list[0] ? dateStringToTimestamp(list[0].seckkillData?.seckillEndTime) : 0;
+    // 无进行中活动时随机真实商品兜底（纯显示层，不落盘）
+    const demoFallback = usePreviewDemoProducts(list.length === 0, 4);
+    const displayList = list.length
+        ? list
+        : demoFallback.map((p) => ({ ...p, seckkillData: { seckillEndTime: demoEndTimeString() } }));
+    const endTime = displayList[0] ? dateStringToTimestamp(displayList[0].seckkillData?.seckillEndTime) : 0;
 
     const contentStyle: CSSProperties = {
         backgroundColor: module.backgroundColor || undefined,
@@ -144,7 +153,7 @@ export default function Seckill2Preview({ data }: { data: Record<string, any> })
                         className="goods-ad-con"
                         style={isSlide ? { display: "flex", overflow: "hidden", overflowX: "auto", flexWrap: "nowrap" } : undefined}
                     >
-                        {list.map((item: any, idx: number) => {
+                        {displayList.map((item: any, idx: number) => {
                             const orgPrice = Number(item.orgProductPrice ?? item.marketPrice ?? item.productPrice);
                             return (
                                 <div className="goods-ad-item" key={item.id ?? item.productId ?? idx} style={isSlide ? { width: `${100 / 3}%`, flexShrink: 0, flexGrow: 0 } : undefined}>

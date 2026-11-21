@@ -27,6 +27,7 @@
  *     「预览布局」，前台代码已按此对齐）。
  */
 import { useEffect, useRef, useState } from 'react';
+import { usePreviewDemoProducts, demoEndTimeString } from '../../../../components/demoProductFill';
 import { apiGet } from '../../../../api';
 import { useI18n } from '../../../../i18n';
 import ModuleTitlePreview from '../../previews/shared/ModuleTitlePreview';
@@ -193,6 +194,13 @@ export default function PcSeckillLegacyPreview({ data }: { data: Record<string, 
   const frame = (config.frame || {}) as Record<string, any>;
   const title = (config.title || {}) as Record<string, any>;
   const rows = useSeckillPreview();
+  // 无进行中活动时随机真实商品兜底展示（共享 demoProductFill，纯显示层不落盘；
+  // 四期与 PC 拼团兜底同口径补齐；个数 6 = 本模块骨架屏既有槽位数；倒计时
+  // 结束时刻用展示用动态值 demoEndTimeString 承接）
+  const demoFallback = usePreviewDemoProducts(rows.length === 0, 6);
+  const displayRows = rows.length
+    ? rows
+    : demoFallback.map((p) => ({ ...p, seckkillData: { seckillEndTime: demoEndTimeString() } }));
   const now = useNowTick();
   const listRef = useRef<HTMLDivElement | null>(null);
   const goodsGap = Number(raw.goodsGap ?? raw.goodsPadding) || 10;
@@ -206,7 +214,7 @@ export default function PcSeckillLegacyPreview({ data }: { data: Record<string, 
   const innerPadding = Number(frame.leftAndRightPadding) || 0;
   const showName = raw.showName !== 0 && raw.showName !== false;
   const showPrice = raw.showPrice !== 0 && raw.showPrice !== false;
-  const first = rows[0];
+  const first = displayRows[0];
   const countdownTargetTs = dateStringToTimestamp(first?.seckkillData?.seckillEndTime || '');
 
   return (
@@ -235,9 +243,9 @@ export default function PcSeckillLegacyPreview({ data }: { data: Record<string, 
       </div>
 
       <div className="pc-seckill__list-wrap">
-        {rows.length > 0 ? (
+        {displayRows.length > 0 ? (
           <div className="pc-seckill__list" ref={listRef} style={{ padding: `0 ${innerPadding}px` }}>
-            {rows.slice(0, 15).map((product, index) => {
+            {displayRows.slice(0, 15).map((product, index) => {
               const current = Number(product.seckillPrice ?? product.productPrice ?? 0);
               const original = Number(product.productPrice ?? product.marketPrice ?? 0);
               const discount = original > 0 && current < original ? Math.floor(((original - current) / original) * 100 * 10) / 10 : 0;
@@ -290,7 +298,7 @@ export default function PcSeckillLegacyPreview({ data }: { data: Record<string, 
             ))}
           </div>
         )}
-        {rows.length > 0 && (
+        {displayRows.length > 0 && (
           <>
             <SwitchArrow dir="prev" left={innerPadding} onClick={() => scrollByStep(-1)} />
             <SwitchArrow dir="next" right={innerPadding} onClick={() => scrollByStep(1)} />

@@ -37,6 +37,16 @@
 * 异步取池补足展示，拼团字段映射与 H5 拼团定案一致（主价取真实拼团
 * 价字段、无则真实售价，划线价即真实售价），池空/失败不补、列表为
 * 空，纯显示层不落盘。
+*
+* 四期（个数推广，2026-11-21 用户指令）：以新人二重礼为样板，把
+* 「默认带随机真实商品」按模块版式定最佳个数推广到整个编辑器——见
+* 下方 DEMO_FILL_TARGETS 定案表。fillDemoProducts 增可选 moduleType
+* 参数：快照型先按演示条目形状克隆补足到每组目标数再逐位替换；来源型
+* （productSelectType=1 指定商品且 productIds 为空）把随机在售商品 id
+* 写入 productIds 使模块创建瞬间即带真实商品（画布真实渲染/真实取数
+* 画布与店面同源受益）。仍严守红线：只作用于新建/套用模板/恢复默认
+* 时刻，绝不触碰用户已选商品与存量页面数据；池不足按池量缩减、取数
+* 失败宁缺勿造；同模块内快照位与来源 id 共用一池、不重复抽同一商品。
 */
 import { useEffect, useState } from "react";
 import { apiGet } from "../api";
@@ -91,14 +101,108 @@ return [];
 }
 }
 
+/* ------------------------------------------------------------------ */
+/* 四期定案：逐模块最佳演示个数（用户口径，按版式定）                    */
+/* list   = 快照型：每个演示数组的目标条数（分组模块即每组条数）         */
+/* source = 来源型：创建时写入 productIds 的随机在售商品数              */
+/* 固定卡位类（营销通栏恒 2 卡位、PC 主推大图恒 2 槽位）不消费商品      */
+/* 列表，不在此表、个数不动。依据逐行注释，详见本轮报告总表。            */
+/* ------------------------------------------------------------------ */
+export interface DemoFillTarget {
+list?: number;
+source?: number;
+}
+
+export const DEMO_FILL_TARGETS: Record<string, DemoFillTarget> = {
+/* H5 快照型（个数 = 原版 defaults 条数 = 画布完整形态，本轮登记定案） */
+customProduct: { list: 4 }, // 个性商品：海报 + 2×2 网格；设置选品上限即 4，不可超
+comboSuggestions: { list: 4 }, // 组合推荐：每组横排每屏 2 件 × 2 屏
+countdown: { list: 4 }, // 倒计时：横滑行一屏 + 滑出感
+groupSliding: { list: 5 }, // 分组滑动：原版每组 5 件
+specialOffer: { list: 4 }, // 特价：2×2 完整形态
+productGrouping: { list: 6 }, // 商品分组：每组横排每屏 2 件 × 3 屏
+mixedProductDisplay: { list: 4 }, // 商品混排：每组每屏 2 件 × 2 屏
+productCarousel: { list: 4 }, // 商品轮播：一圈轮播 + 切换余量
+/* H5 来源型（现状默认 0 件，本轮起创建即带） */
+product: { source: 6 }, // 商品：样式1 单列 6 行 / 样式2 两列 3 行 / 样式3 三列 2 行
+product2: { source: 6 }, // 商品2（跨境版）：两列 3 行
+productA1: { source: 6 }, // 商品A1：原版演示列表即 6 件（与二期 Preview 兜底同数）
+productSlide: { source: 4 }, // 商品滑动：42% 宽横滑，一屏 2 件 + 滑出第二屏
+limitedSpecial: { source: 4 }, // 限时特惠：30% 宽横滑，3 件露头 + 第 4 件滑出
+newcomerCombo: { source: 4 }, // 新人二重礼（用户点名样板）：28% 宽横滑，同上口径
+/* PC 快照型 */
+"pc-product-group": { list: 6 }, // PC 商品分组：每组 6 件（与二期 Preview 兜底同数）
+/* PC 来源型 */
+"pc-product": { source: 8 }, // PC 商品：默认样式1 四列 × 2 行
+"pc-recommend-product": { source: 10 }, // PC 推荐商品：5 列 × 默认 2 行（defaultRows）
+pcCatProductSimple: { source: 8 }, // 分类商品-简：其 productNumber 即 8
+};
+
+/** Preview 兜底取数：与创建填充共用同一张定案表，避免两处口径漂移。 */
+export function demoTargetCount(moduleType: string): number {
+const t = DEMO_FILL_TARGETS[moduleType];
+return t?.source ?? t?.list ?? 0;
+}
+
+/** 活动类 Preview 演示倒计时的展示用结束时刻（仅预览渲染、永不落数据）。 */
+export function demoEndTimeString(hours = 24): string {
+const d = new Date(Date.now() + hours * 3600 * 1000);
+const p = (n: number) => String(n).padStart(2, "0");
+return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/** 快照补足：按数组把演示条目克隆（深拷贝该组首条形状）补到每组目标数。 */
+function padDemoSlots(root: any, perList: number): void {
+const slots: Array<{ arr: any[]; index: number}> = [];
+collectDemoSlots(root, slots);
+const byArr = new Map<any[], Array<{ arr: any[]; index: number}>>();
+slots.forEach((s) => {
+const group = byArr.get(s.arr) || [];
+group.push(s);
+byArr.set(s.arr, group);
+});
+byArr.forEach((group, arr) => {
+if (group.length >= perList) return;
+const shape = arr[group[0].index];
+for (let n = group.length; n < perList; n++) {
+arr.push(JSON.parse(JSON.stringify(shape)));
+}
+});
+}
+
+/** 来源配置收集：指定商品（productSelectType=1）且 productIds 尚无真实 id 的配置对象。 */
+function collectSourceConfigs(root: any, out: Array<Record<string, any>>): void {
+if (Array.isArray(root)) {
+root.forEach((item) => collectSourceConfigs(item, out));
+return;
+}
+if (root && typeof root === "object") {
+const ids = (root as any).productIds;
+if (
+Number((root as any).productSelectType) === 1 &&
+Array.isArray(ids) &&
+!ids.some((id: any) => Number(id) > 0)
+) {
+out.push(root);
+}
+Object.values(root).forEach((v) => collectSourceConfigs(v, out));
+}
+}
+
 /**
 * 就地填充模块数据中的演示商品（mutates data 并返回同一对象）。
-* 无演示条目时零请求、原样返回。
+* 无演示条目且无待填来源配置时零请求、原样返回。
+* moduleType 传入时按 DEMO_FILL_TARGETS 定案个数补足/写入（四期）。
 */
-export async function fillDemoProducts<T extends Record<string, any>>(data: T): Promise<T> {
+export async function fillDemoProducts<T extends Record<string, any>>(data: T, moduleType?: string): Promise<T> {
+const target = moduleType ? DEMO_FILL_TARGETS[moduleType] : undefined;
+// 快照型先补足到每组目标数，补出的克隆位随即一并被真实商品逐位替换
+if (target?.list) padDemoSlots(data, target.list);
 const slots: Array<{ arr: any[]; index: number}> = [];
 collectDemoSlots(data, slots);
-if (!slots.length) return data;
+const sourceConfigs: Array<Record<string, any>> = [];
+if (target?.source) collectSourceConfigs(data, sourceConfigs);
+if (!slots.length && !sourceConfigs.length) return data;
 const pool = await fetchOnSaleProductPool();
 // 先替换（下标不变），余位按数组分组从后往前移除，避免下标漂移
 const removals = new Map<any[], number[]>();
@@ -116,6 +220,17 @@ removals.forEach((indexes, arr) => {
 indexes
 .sort((a, b) => b - a)
 .forEach((index) => arr.splice(index, 1));
+});
+// 来源配置：从池中快照未消费部分顺序取 id 写入（同模块共用一池、不重复）；
+// 池已空则保持空 productIds——宁缺勿造，用户在设置中选品后即有商品。
+let cursor = slots.length;
+sourceConfigs.forEach((cfg) => {
+const ids: Array<string | number> = [];
+while (ids.length < (target?.source ?? 0) && cursor < pool.length) {
+ids.push(pool[cursor].productId);
+cursor += 1;
+}
+if (ids.length) cfg.productIds = ids;
 });
 return data;
 }

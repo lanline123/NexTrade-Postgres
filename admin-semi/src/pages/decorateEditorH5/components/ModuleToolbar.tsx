@@ -127,7 +127,7 @@ export default function ModuleToolbar({ pageType, isShop }: { pageType: number; 
         }
         const instance = createModuleInstance(def.type, def.url);
         if (!instance) return;
-        await fillDemoProducts(instance.module as Record<string, any>);
+        await fillDemoProducts(instance.module as Record<string, any>, def.type);
         const result: any = editorStore.addModule(instance, index);
         if (result !== true && result && typeof result === "object" && "ok" in result && result.ok === false) {
             Toast.warning(t(String(result.reason || '')));

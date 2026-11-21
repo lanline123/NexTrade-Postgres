@@ -505,7 +505,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
     };
     // 演示商品真实化（用户口径 2026-11-21，与 H5 编辑器同机制）：入库前把
     // defaults 里的演示商品换成商城在售商品随机抽样，失败/无在售则移除演示位
-    await fillDemoProducts(item.module as Record<string, any>);
+    await fillDemoProducts(item.module as Record<string, any>, def.type);
     setModuleList((prev) => [...prev, item]);
     setActiveIndex(moduleList.length);
     setPanelTab('module');
@@ -528,7 +528,7 @@ export default function PcDecorateEditor({ decorateId, onExit }: PcDecorateEdito
       module: def.defaults(),
     };
     // 演示商品真实化（用户口径 2026-11-21）：同 addModule
-    await fillDemoProducts(item.module as Record<string, any>);
+    await fillDemoProducts(item.module as Record<string, any>, def.type);
     setModuleList((prev) => [...prev.slice(0, index), item, ...prev.slice(index)]);
     setActiveIndex(index);
     setPanelTab('module');
@@ -3260,7 +3260,7 @@ function ModuleSettingsPanel({
   const resetModuleToDefaults = async () => {
     // 重置同新建：演示商品先真实化（用户口径 2026-11-21），不把编造商品带回页面
     const fresh = JSON.parse(JSON.stringify(def.defaults()));
-    await fillDemoProducts(fresh as Record<string, any>);
+    await fillDemoProducts(fresh as Record<string, any>, def.type);
     onChange(fresh);
   };
   const CONTENT_TITLES: Record<string, string> = {

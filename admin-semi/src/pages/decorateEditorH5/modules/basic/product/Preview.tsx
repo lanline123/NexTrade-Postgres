@@ -4,6 +4,9 @@
  * 类名与 Vue 版逐一致（module-goods_ad / goods-ad-warp / goods-ad-item），
  * 样式由移植的全局 module.css 提供；商品列表按来源实时拉取。
  * 样式 7（轮播滑动）按每页 3 个切片轮播，指示器颜色可配。
+ * 来源无结果（新建未选品等）时以随机真实在售商品兜底展示（共享
+ * demoProductFill 的 usePreviewDemoProducts，纯显示层不落盘；四期补齐，
+ * 与创建填充定案个数同源）。
  */
 import { useMemo, useState } from "react";
 import { Swiper, SwiperItem } from "@nutui/nutui-react";
@@ -12,6 +15,7 @@ import { cssText, productImage, priceFormat } from "../../../shared/format";
 import { useDecorateProductList } from "../../../shared/useDecorateProductList";
 import { mergeDefaultModule, formatFrame } from "../../../contract/sharedDefaults";
 import { productDefaults } from "./index";
+import { usePreviewDemoProducts, demoTargetCount } from "../../../../../components/demoProductFill";
 
 import { useI18n } from '../../../../../i18n';
 import "./Preview.css";
@@ -54,7 +58,10 @@ export default function ProductPreview({ data }: { data: Record<string, any> }) 
         return merged;
     }, [data]);
 
-    const productList = useDecorateProductList(module.products);
+    const fetched = useDecorateProductList(module.products);
+    // 来源无结果时随机真实商品兜底展示（纯显示层，不落盘）
+    const demoFallback = usePreviewDemoProducts(fetched.length === 0, demoTargetCount("product"));
+    const productList = fetched.length ? fetched : demoFallback;
     const frameFormat = formatFrame(module.frame ?? {});
     // 与 Vue 版 allFormat 一致：模块级样式串（backgroundColor 为空时不输出，避免覆盖 frame 背景）
     const allFormat = {
