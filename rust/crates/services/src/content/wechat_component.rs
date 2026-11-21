@@ -558,6 +558,524 @@ pub async fn component_code2session(
     parse_wechat_response(&body)
 }
 
+// ---------------------------------------------------------------------------
+// 小程序代码管理（代提审 / 代发布；第三方平台「代商家管理小程序」官方口径）
+//
+// 全部接口属权限集 18（小程序开发管理），以 `authorizer_access_token`
+// 代授权方调用（模板库管理除外，用 `component_access_token`）。本节只做
+// 协议层：入参组装、响应解析；状态落库与阶段推导在
+// [`crate::merchant::shop_mini_program_release`]。微信 errcode 非 0 时
+// `parse_wechat_response` 直接转业务错误——失败如实上抛，绝不假成功。
+// ---------------------------------------------------------------------------
+
+async fn get_json(url: &str) -> Result<Value> {
+    let resp = reqwest::Client::new()
+        .get(url)
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|e| Error::Internal(format!("微信开放平台接口请求失败: {e}")))?;
+    let status = resp.status();
+    let raw = resp
+        .text()
+        .await
+        .map_err(|e| Error::Internal(format!("微信开放平台响应读取失败: {e}")))?;
+    if !status.is_success() {
+        return Err(Error::Internal(format!(
+            "微信开放平台接口 HTTP {status}: {raw}"
+        )));
+    }
+    parse_wechat_response(&raw)
+}
+
+fn str_field(value: &Value, key: &str) -> String {
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn i64_field(value: &Value, key: &str) -> i64 {
+    value.get(key).and_then(Value::as_i64).unwrap_or(0)
+}
+
+/// 提审类目（`GET /wxa/get_category` 的 `category_list` 一项）：商家小程序
+/// 已申请通过的类目，提审 `item_list` 的类目字段必须取自此列表。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AuditCategory {
+    pub first_class: String,
+    pub second_class: String,
+    pub first_id: i64,
+    pub second_id: i64,
+}
+
+/// 解析 `category_list`（纯函数，便于测试）。
+#[must_use]
+pub fn parse_category_list(value: &Value) -> Vec<AuditCategory> {
+    let Some(list) = value.get("category_list").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    list.iter()
+        .map(|item| AuditCategory {
+            first_class: str_field(item, "first_class"),
+            second_class: str_field(item, "second_class"),
+            first_id: i64_field(item, "first_id"),
+            second_id: i64_field(item, "second_id"),
+        })
+        .collect()
+}
+
+/// 提审项（`submit_audit` 的 `item_list` 一项；官方要求 1–5 项）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AuditItemInput {
+    /// 页面路径（须取自 `get_page` 的已提交代码页面列表）。
+    pub address: String,
+    /// 类目贴标签（页面所属服务类目对应的标签，如「电商」）。
+    pub tag: String,
+    pub first_class: String,
+    pub second_class: String,
+    pub first_id: i64,
+    pub second_id: i64,
+    /// 页面标题（在微信侧展示的页面名称）。
+    pub title: String,
+}
+
+impl AuditItemInput {
+    /// 转微信请求体的一项（字段名与官方一致，蛇形）。
+    #[must_use]
+    pub fn to_wechat_json(&self) -> Value {
+        serde_json::json!({
+            "address": self.address,
+            "tag": self.tag,
+            "first_class": self.first_class,
+            "second_class": self.second_class,
+            "first_id": self.first_id,
+            "second_id": self.second_id,
+            "title": self.title,
+        })
+    }
+}
+
+/// 审核状态归一化结果（`get_auditstatus` / `get_latest_auditstatus` 共用）。
+/// `status` 为微信口径：0 审核成功 / 1 审核被拒绝 / 2 审核中 / 3 已撤回 /
+/// 4 审核延后。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AuditStatusInfo {
+    pub audit_id: i64,
+    pub status: i64,
+    pub reason: String,
+    /// 拒绝时的截图 media_id 列表（竖线分隔；新版字段名 `screenshot`，
+    /// 旧版为 `ScreenShot`，两者兼容读取）。
+    pub screenshot: String,
+    pub user_version: String,
+    pub user_desc: String,
+    pub submit_audit_time: i64,
+}
+
+/// 解析审核状态响应（纯函数，便于测试）。
+#[must_use]
+pub fn parse_audit_status(value: &Value) -> AuditStatusInfo {
+    let screenshot = {
+        let lower = str_field(value, "screenshot");
+        if lower.is_empty() {
+            str_field(value, "ScreenShot")
+        } else {
+            lower
+        }
+    };
+    AuditStatusInfo {
+        audit_id: i64_field(value, "auditid"),
+        status: i64_field(value, "status"),
+        reason: str_field(value, "reason"),
+        screenshot,
+        user_version: str_field(value, "user_version"),
+        user_desc: str_field(value, "user_desc"),
+        submit_audit_time: i64_field(value, "submit_audit_time"),
+    }
+}
+
+/// 可回退历史版本（`revertcoderelease?action=get_history_version` 一项；
+/// 微信最多保存最近发布或回退的 5 个版本）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HistoryVersion {
+    pub app_version: i64,
+    pub user_version: String,
+    pub user_desc: String,
+    pub commit_time: i64,
+}
+
+/// 解析 `version_list`（纯函数，便于测试）。
+#[must_use]
+pub fn parse_history_versions(value: &Value) -> Vec<HistoryVersion> {
+    let Some(list) = value.get("version_list").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    list.iter()
+        .map(|item| HistoryVersion {
+            app_version: i64_field(item, "app_version"),
+            user_version: str_field(item, "user_version"),
+            user_desc: str_field(item, "user_desc"),
+            commit_time: i64_field(item, "commit_time"),
+        })
+        .collect()
+}
+
+/// 解析 `page_list`（纯函数，便于测试）。
+#[must_use]
+pub fn parse_page_list(value: &Value) -> Vec<String> {
+    value
+        .get("page_list")
+        .and_then(Value::as_array)
+        .map(|list| {
+            list.iter()
+                .filter_map(|p| p.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// 代码模板草稿（模板库草稿箱一项；草稿来自第三方平台的开发小程序）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TemplateDraft {
+    pub draft_id: i64,
+    pub user_version: String,
+    pub user_desc: String,
+    pub source_miniprogram_appid: String,
+    pub source_miniprogram: String,
+    pub create_time: i64,
+}
+
+/// 代码模板（模板库一项；`template_id` 是代提交代码的入参）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CodeTemplate {
+    pub template_id: i64,
+    pub user_version: String,
+    pub user_desc: String,
+    pub source_miniprogram_appid: String,
+    pub source_miniprogram: String,
+    pub create_time: i64,
+}
+
+fn parse_template_row(item: &Value) -> (String, String, String, String, i64) {
+    (
+        str_field(item, "user_version"),
+        str_field(item, "user_desc"),
+        str_field(item, "source_miniprogram_appid"),
+        str_field(item, "source_miniprogram"),
+        i64_field(item, "create_time"),
+    )
+}
+
+/// 解析 `draft_list`（纯函数，便于测试）。
+#[must_use]
+pub fn parse_draft_list(value: &Value) -> Vec<TemplateDraft> {
+    let Some(list) = value.get("draft_list").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    list.iter()
+        .map(|item| {
+            let (user_version, user_desc, appid, name, create_time) = parse_template_row(item);
+            TemplateDraft {
+                draft_id: i64_field(item, "draft_id"),
+                user_version,
+                user_desc,
+                source_miniprogram_appid: appid,
+                source_miniprogram: name,
+                create_time,
+            }
+        })
+        .collect()
+}
+
+/// 解析 `template_list`（纯函数，便于测试）。
+#[must_use]
+pub fn parse_template_list(value: &Value) -> Vec<CodeTemplate> {
+    let Some(list) = value.get("template_list").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    list.iter()
+        .map(|item| {
+            let (user_version, user_desc, appid, name, create_time) = parse_template_row(item);
+            CodeTemplate {
+                template_id: i64_field(item, "template_id"),
+                user_version,
+                user_desc,
+                source_miniprogram_appid: appid,
+                source_miniprogram: name,
+                create_time,
+            }
+        })
+        .collect()
+}
+
+/// 代提交代码（`POST /wxa/commit`，权限集 18）：以模板 + 按店 `ext_json`
+/// 为授权小程序上传代码并生成体验版。上传后需等微信代码检测任务结束
+/// 方可提审（过早提审微信回 61039，错误如实上抛）。
+///
+/// # Errors
+/// 网络错误 / 微信 errcode（如 61007 未授权该权限集）。
+pub async fn code_commit(
+    authorizer_access_token: &str,
+    template_id: i64,
+    ext_json: &str,
+    user_version: &str,
+    user_desc: &str,
+) -> Result<()> {
+    let url = format!(
+        "{API_BASE}/wxa/commit?access_token={}",
+        urlencode(authorizer_access_token)
+    );
+    post_json(
+        &url,
+        &serde_json::json!({
+            "template_id": template_id,
+            "ext_json": ext_json,
+            "user_version": user_version,
+            "user_desc": user_desc,
+        }),
+    )
+    .await?;
+    Ok(())
+}
+
+/// 获取已提交代码的页面列表（`GET /wxa/get_page`），提审项页面取自此列表。
+///
+/// # Errors
+/// 网络错误 / 微信 errcode（86001 = 不存在已提交的代码）。
+pub async fn code_get_page(authorizer_access_token: &str) -> Result<Vec<String>> {
+    let url = format!(
+        "{API_BASE}/wxa/get_page?access_token={}",
+        urlencode(authorizer_access_token)
+    );
+    let value = get_json(&url).await?;
+    Ok(parse_page_list(&value))
+}
+
+/// 获取授权小程序已申请通过的类目（`GET /wxa/get_category`），提审项
+/// 类目必须取自此列表。
+///
+/// # Errors
+/// 网络错误 / 微信 errcode。
+pub async fn code_get_category(authorizer_access_token: &str) -> Result<Vec<AuditCategory>> {
+    let url = format!(
+        "{API_BASE}/wxa/get_category?access_token={}",
+        urlencode(authorizer_access_token)
+    );
+    let value = get_json(&url).await?;
+    Ok(parse_category_list(&value))
+}
+
+/// 提交审核（`POST /wxa/submit_audit`）：返回微信审核单 id（`auditid`）。
+/// `feedback_info`（审核反馈说明）与 `version_desc`（版本描述）为空时
+/// 不下发该字段。
+///
+/// # Errors
+/// 网络错误 / 微信 errcode（61039 = 代码检测未结束、85012 等）。
+pub async fn code_submit_audit(
+    authorizer_access_token: &str,
+    items: &[AuditItemInput],
+    feedback_info: Option<&str>,
+    version_desc: Option<&str>,
+) -> Result<i64> {
+    let url = format!(
+        "{API_BASE}/wxa/submit_audit?access_token={}",
+        urlencode(authorizer_access_token)
+    );
+    let mut body = serde_json::json!({
+        "item_list": items.iter().map(AuditItemInput::to_wechat_json).collect::<Vec<_>>(),
+    });
+    if let Some(info) = feedback_info.map(str::trim).filter(|s| !s.is_empty()) {
+        body["feedback_info"] = Value::String(info.to_string());
+    }
+    if let Some(desc) = version_desc.map(str::trim).filter(|s| !s.is_empty()) {
+        body["version_desc"] = Value::String(desc.to_string());
+    }
+    let value = post_json(&url, &body).await?;
+    let audit_id = i64_field(&value, "auditid");
+    if audit_id <= 0 {
+        return Err(Error::Internal("微信 submit_audit 响应缺少 auditid".into()));
+    }
+    Ok(audit_id)
+}
+
+/// 查询指定审核单状态（`POST /wxa/get_auditstatus`）。
+///
+/// # Errors
+/// 网络错误 / 微信 errcode（85012 = 无效的审核 id）。
+pub async fn code_get_audit_status(
+    authorizer_access_token: &str,
+    audit_id: i64,
+) -> Result<AuditStatusInfo> {
+    let url = format!(
+        "{API_BASE}/wxa/get_auditstatus?access_token={}",
+        urlencode(authorizer_access_token)
+    );
+    let value = post_json(&url, &serde_json::json!({ "auditid": audit_id })).await?;
+    let mut info = parse_audit_status(&value);
+    if info.audit_id <= 0 {
+        info.audit_id = audit_id;
+    }
+    Ok(info)
+}
+
+/// 查询最新一次提审的审核状态（`GET /wxa/get_latest_auditstatus`）。
+///
+/// # Errors
+/// 网络错误 / 微信 errcode（86001 = 不存在已提交的代码/审核单）。
+pub async fn code_get_latest_audit_status(
+    authorizer_access_token: &str,
+) -> Result<AuditStatusInfo> {
+    let url = format!(
+        "{API_BASE}/wxa/get_latest_auditstatus?access_token={}",
+        urlencode(authorizer_access_token)
+    );
+    let value = get_json(&url).await?;
+    Ok(parse_audit_status(&value))
+}
+
+/// 发布已通过审核的版本（`POST /wxa/release`，请求体为空对象）。
+///
+/// # Errors
+/// 网络错误 / 微信 errcode（85051 = 没有可发布的审核通过版本等）。
+pub async fn code_release(authorizer_access_token: &str) -> Result<()> {
+    let url = format!(
+        "{API_BASE}/wxa/release?access_token={}",
+        urlencode(authorizer_access_token)
+    );
+    post_json(&url, &serde_json::json!({})).await?;
+    Ok(())
+}
+
+/// 撤回当前审核单（`GET /wxa/undocodeaudit`；每个版本周期撤回次数有限，
+/// 微信侧超限会回错误码，如实上抛）。
+///
+/// # Errors
+/// 网络错误 / 微信 errcode。
+pub async fn code_undo_audit(authorizer_access_token: &str) -> Result<()> {
+    let url = format!(
+        "{API_BASE}/wxa/undocodeaudit?access_token={}",
+        urlencode(authorizer_access_token)
+    );
+    get_json(&url).await?;
+    Ok(())
+}
+
+/// 查询可回退的历史版本（`GET /wxa/revertcoderelease?action=
+/// get_history_version`）。
+///
+/// # Errors
+/// 网络错误 / 微信 errcode。
+pub async fn code_history_versions(
+    authorizer_access_token: &str,
+) -> Result<Vec<HistoryVersion>> {
+    let url = format!(
+        "{API_BASE}/wxa/revertcoderelease?action=get_history_version&access_token={}",
+        urlencode(authorizer_access_token)
+    );
+    let value = get_json(&url).await?;
+    Ok(parse_history_versions(&value))
+}
+
+/// 线上版本回退（`GET /wxa/revertcoderelease`）：`app_version` 为 None 时
+/// 回退到上一个版本；回退过的版本不能再次回退（微信 87012 如实上抛）。
+///
+/// # Errors
+/// 网络错误 / 微信 errcode（87011 灰度中 / 87012 不可回退）。
+pub async fn code_revert(
+    authorizer_access_token: &str,
+    app_version: Option<i64>,
+) -> Result<()> {
+    let mut url = format!(
+        "{API_BASE}/wxa/revertcoderelease?access_token={}",
+        urlencode(authorizer_access_token)
+    );
+    if let Some(v) = app_version {
+        url.push_str(&format!("&app_version={v}"));
+    }
+    get_json(&url).await?;
+    Ok(())
+}
+
+/// 模板库草稿箱列表（`GET /wxa/gettemplatedraftlist`，component 令牌）。
+/// 草稿由第三方平台的开发小程序在开发者工具上传产生。
+///
+/// # Errors
+/// 未配置 / 网络错误 / 微信 errcode。
+pub async fn template_draft_list(repos: &Repositories) -> Result<Vec<TemplateDraft>> {
+    let token = component_access_token(repos).await?;
+    let url = format!(
+        "{API_BASE}/wxa/gettemplatedraftlist?access_token={}",
+        urlencode(&token)
+    );
+    let value = get_json(&url).await?;
+    Ok(parse_draft_list(&value))
+}
+
+/// 草稿加入模板库（`POST /wxa/addtotemplate`，component 令牌）：
+/// `template_type` 0 = 普通模板 / 1 = 标准模板。
+///
+/// # Errors
+/// 未配置 / 网络错误 / 微信 errcode。
+pub async fn template_add_to_library(
+    repos: &Repositories,
+    draft_id: i64,
+    template_type: i64,
+) -> Result<()> {
+    let token = component_access_token(repos).await?;
+    let url = format!(
+        "{API_BASE}/wxa/addtotemplate?access_token={}",
+        urlencode(&token)
+    );
+    post_json(
+        &url,
+        &serde_json::json!({ "draft_id": draft_id, "template_type": template_type }),
+    )
+    .await?;
+    Ok(())
+}
+
+/// 模板库列表（`GET /wxa/gettemplatelist`，component 令牌）：
+/// `template_type` 为 None 时查全部类型。
+///
+/// # Errors
+/// 未配置 / 网络错误 / 微信 errcode。
+pub async fn template_list(
+    repos: &Repositories,
+    template_type: Option<i64>,
+) -> Result<Vec<CodeTemplate>> {
+    let token = component_access_token(repos).await?;
+    let mut url = format!(
+        "{API_BASE}/wxa/gettemplatelist?access_token={}",
+        urlencode(&token)
+    );
+    if let Some(t) = template_type {
+        url.push_str(&format!("&template_type={t}"));
+    }
+    let value = get_json(&url).await?;
+    Ok(parse_template_list(&value))
+}
+
+/// 删除模板（`POST /wxa/deletetemplate`，component 令牌）。
+///
+/// # Errors
+/// 未配置 / 网络错误 / 微信 errcode。
+pub async fn template_delete(repos: &Repositories, template_id: i64) -> Result<()> {
+    let token = component_access_token(repos).await?;
+    let url = format!(
+        "{API_BASE}/wxa/deletetemplate?access_token={}",
+        urlencode(&token)
+    );
+    post_json(&url, &serde_json::json!({ "template_id": template_id })).await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -595,5 +1113,90 @@ mod tests {
         ]);
         assert_eq!(parse_func_ids(Some(&value)), vec![1, 17]);
         assert!(parse_func_ids(None).is_empty());
+    }
+
+    #[test]
+    fn parse_audit_status_reads_official_fields_and_screenshot_alias() {
+        let value = serde_json::json!({
+            "errcode": 0,
+            "auditid": 1234567,
+            "status": 1,
+            "reason": "帐号信息不合规范",
+            "ScreenShot": "xx|yy",
+            "user_version": "1.2.0",
+            "user_desc": "修复",
+            "submit_audit_time": 1700000000_i64,
+        });
+        let info = parse_audit_status(&value);
+        assert_eq!(info.audit_id, 1234567);
+        assert_eq!(info.status, 1);
+        assert_eq!(info.reason, "帐号信息不合规范");
+        assert_eq!(info.screenshot, "xx|yy");
+        assert_eq!(info.user_version, "1.2.0");
+        let lower = serde_json::json!({"status": 2, "screenshot": "zz"});
+        assert_eq!(parse_audit_status(&lower).screenshot, "zz");
+    }
+
+    #[test]
+    fn parse_category_page_and_history_lists() {
+        let cats = parse_category_list(&serde_json::json!({
+            "category_list": [
+                {"first_class": "电商平台", "second_class": "百货", "first_id": 1, "second_id": 2}
+            ]
+        }));
+        assert_eq!(cats.len(), 1);
+        assert_eq!(cats[0].first_id, 1);
+        assert_eq!(cats[0].second_class, "百货");
+        let pages = parse_page_list(&serde_json::json!({
+            "page_list": ["pages/index/index", "pages/shop/home"]
+        }));
+        assert_eq!(pages.len(), 2);
+        let history = parse_history_versions(&serde_json::json!({
+            "version_list": [
+                {"app_version": 3, "user_version": "1.1.0", "user_desc": "d", "commit_time": 42}
+            ]
+        }));
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].app_version, 3);
+        assert!(parse_history_versions(&serde_json::json!({})).is_empty());
+    }
+
+    #[test]
+    fn parse_draft_and_template_lists() {
+        let drafts = parse_draft_list(&serde_json::json!({
+            "draft_list": [
+                {"draft_id": 9, "user_version": "0.9", "user_desc": "草稿",
+                 "source_miniprogram_appid": "wxdev", "source_miniprogram": "开发小程序",
+                 "create_time": 7}
+            ]
+        }));
+        assert_eq!(drafts.len(), 1);
+        assert_eq!(drafts[0].draft_id, 9);
+        let templates = parse_template_list(&serde_json::json!({
+            "template_list": [
+                {"template_id": 1234567890123_i64, "user_version": "1.0", "user_desc": "正式",
+                 "source_miniprogram_appid": "wxdev", "source_miniprogram": "开发小程序",
+                 "create_time": 8}
+            ]
+        }));
+        assert_eq!(templates.len(), 1);
+        assert_eq!(templates[0].template_id, 1234567890123_i64);
+    }
+
+    #[test]
+    fn audit_item_to_wechat_json_uses_snake_case() {
+        let item = AuditItemInput {
+            address: "pages/index/index".into(),
+            tag: "电商".into(),
+            first_class: "电商平台".into(),
+            second_class: "百货".into(),
+            first_id: 1,
+            second_id: 2,
+            title: "首页".into(),
+        };
+        let json = item.to_wechat_json();
+        assert_eq!(json["first_id"], 1);
+        assert_eq!(json["address"], "pages/index/index");
+        assert!(json.get("firstId").is_none());
     }
 }
