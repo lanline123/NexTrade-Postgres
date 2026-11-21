@@ -154,6 +154,13 @@ pub struct SalesmanMaterial {
     pub category_id: Option<i32>,
     pub share_num: Option<i32>,
     pub product_id: Option<i32>,
+    /// 媒体类型：1 图文 2 视频（我方新增，迁移 017；本实体由 schema_parser
+    /// 生成时该列尚不存在，此三列按迁移同批手工补齐，形态与生成结果一致）
+    pub media_type: i32,
+    /// 视频地址（media_type = 2 时有效，素材中心视频库 URL）
+    pub video_url: Option<String>,
+    /// 视频封面图地址（media_type = 2 时有效）
+    pub video_cover: Option<String>,
 }
 
 impl SalesmanMaterial {

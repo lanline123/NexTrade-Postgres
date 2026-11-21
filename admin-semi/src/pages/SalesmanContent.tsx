@@ -23,6 +23,7 @@ import { apiGet, apiPost } from '../api';
 import { useI18n } from '../i18n';
 import RichTextEditor from '../components/RichTextEditor';
 import ImageUploader from '../components/ImageUploader';
+import ProductVideoField from '../components/ProductVideoField';
 import ProductPicker from '../components/ProductPicker';
 import './salesman.css';
 
@@ -509,6 +510,8 @@ export function SalesmanMaterialCategory() {
    3. 素材管理 (SalesmanMaterial / materialManage / material)
    旧页: salesman/material/List.vue + Info.vue + src/selectCategory.vue
    接口: /salesman/material/list|detail|create|update|updateField|del
+   我方新增: 素材类型(图文/视频,mediaType)+视频(素材中心视频库选择器
+   ProductVideoField)+视频封面;列表支持按类型筛选、视频行带封面缩略。
 =================================================================== */
 interface MaterialRow {
   id: number;
@@ -518,6 +521,10 @@ interface MaterialRow {
   categoryId?: number;
   productId?: number;
   pics?: any;
+  /** 媒体类型（我方新增）：1 图文 / 2 视频 */
+  mediaType?: number;
+  videoUrl?: string;
+  videoCover?: string;
   category?: { categoryName?: string } | null;
   product?: { productName?: string } | null;
 }
@@ -537,7 +544,10 @@ export function SalesmanMaterial() {
     content: string;
     productId: number[];
     isTop: number;
-  }>({ pics: [], categoryId: undefined, content: '', productId: [], isTop: 0 });
+    mediaType: number;
+    videoUrl: string;
+    videoCover: string;
+  }>({ pics: [], categoryId: undefined, content: '', productId: [], isTop: 0, mediaType: 1, videoUrl: '', videoCover: '' });
 
   const loadCategories = async () => {
     try {
@@ -559,7 +569,7 @@ export function SalesmanMaterial() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm({ pics: [], categoryId: undefined, content: '', productId: [], isTop: 0 });
+    setForm({ pics: [], categoryId: undefined, content: '', productId: [], isTop: 0, mediaType: 1, videoUrl: '', videoCover: '' });
     setFormVisible(true);
   };
 
@@ -578,6 +588,9 @@ export function SalesmanMaterial() {
         content: res?.content || '',
         productId: res?.productId ? [Number(res.productId)] : [],
         isTop: Number(res?.isTop ?? 0),
+        mediaType: Number(res?.mediaType ?? row.mediaType ?? 1) === 2 ? 2 : 1,
+        videoUrl: res?.videoUrl || '',
+        videoCover: res?.videoCover || '',
       });
     } catch (error) {
       Toast.error({ content: error instanceof Error ? error.message : t('加载素材详情失败') });
@@ -588,7 +601,12 @@ export function SalesmanMaterial() {
   };
 
   const submit = async () => {
-    if (!form.pics.length) {
+    if (form.mediaType === 2) {
+      if (!form.videoUrl) {
+        Toast.error({ content: t('请选择视频!') });
+        return;
+      }
+    } else if (!form.pics.length) {
       Toast.error({ content: t('素材图片不能为空!') });
       return;
     }
@@ -607,11 +625,14 @@ export function SalesmanMaterial() {
     setSaving(true);
     try {
       const payload = {
-        pics: form.pics,
+        pics: form.mediaType === 2 ? [] : form.pics,
         categoryId: form.categoryId,
         content: form.content,
         productId: form.productId.join(','),
         isTop: form.isTop,
+        mediaType: form.mediaType,
+        videoUrl: form.mediaType === 2 ? form.videoUrl : '',
+        videoCover: form.mediaType === 2 ? form.videoCover : '',
       };
       if (editingId) {
         await apiPost('/salesman/material/update', { id: editingId, ...payload });
@@ -655,6 +676,10 @@ export function SalesmanMaterial() {
       render: (_: unknown, row: MaterialRow) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {Number(row.isTop) !== 0 && <Tag color="blue">{t('置顶')}</Tag>}
+          {Number(row.mediaType) === 2 && <Tag color="violet">{t('视频')}</Tag>}
+          {Number(row.mediaType) === 2 && row.videoCover ? (
+            <Image src={row.videoCover} width={40} height={40} style={{ objectFit: 'cover', borderRadius: 4 }} />
+          ) : null}
           <span>{row.content || '--'}</span>
         </div>
       ),
@@ -684,6 +709,15 @@ export function SalesmanMaterial() {
             label: '素材分类',
             type: 'select',
             options: categoryOptions,
+          },
+          {
+            field: 'mediaType',
+            label: '素材类型',
+            type: 'select',
+            options: [
+              { label: t('图文'), value: 1 },
+              { label: t('视频'), value: 2 },
+            ],
           },
         ]}
         toolbarExtra={
@@ -735,11 +769,47 @@ export function SalesmanMaterial() {
       >
         <Spin spinning={formLoading}>
           <div className="salesman-form-row">
-            <div className="row-label is-required">{t('素材图片')}</div>
+            <div className="row-label is-required">{t('素材类型')}</div>
             <div className="row-body">
-              <ImageUploader value={form.pics} onChange={(next) => setForm({ ...form, pics: next })} />
+              <RadioGroup
+                value={form.mediaType}
+                onChange={(e) => setForm({ ...form, mediaType: Number(e.target.value) })}
+              >
+                <Radio value={1}>{t('图文')}</Radio>
+                <Radio value={2}>{t('视频')}</Radio>
+              </RadioGroup>
             </div>
           </div>
+          {form.mediaType === 2 ? (
+            <>
+              <div className="salesman-form-row">
+                <div className="row-label is-required">{t('素材视频')}</div>
+                <div className="row-body">
+                  <ProductVideoField value={form.videoUrl} onChange={(url) => setForm({ ...form, videoUrl: url })} />
+                  <div style={{ color: '#999', fontSize: 12, marginTop: 6 }}>
+                    {t('从素材中心视频库选择（上传口径与素材中心一致）')}
+                  </div>
+                </div>
+              </div>
+              <div className="salesman-form-row">
+                <div className="row-label">{t('视频封面')}</div>
+                <div className="row-body">
+                  <ImageUploader
+                    single
+                    value={form.videoCover ? [form.videoCover] : []}
+                    onChange={(next) => setForm({ ...form, videoCover: next[0] || '' })}
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="salesman-form-row">
+              <div className="row-label is-required">{t('素材图片')}</div>
+              <div className="row-body">
+                <ImageUploader value={form.pics} onChange={(next) => setForm({ ...form, pics: next })} />
+              </div>
+            </div>
+          )}
           <div className="salesman-form-row">
             <div className="row-label is-required">{t('素材分类')}</div>
             <div className="row-body">

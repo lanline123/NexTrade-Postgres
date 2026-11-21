@@ -385,6 +385,12 @@ export interface MaterialListFilterResult {
     shareNum: number;
     product: AnyObject;
     productId: number;
+    /** 媒体类型（我方新增）：1 图文 / 2 视频 */
+    mediaType?: number;
+    /** 视频地址（mediaType=2 时有效） */
+    videoUrl?: string;
+    /** 视频封面图地址（mediaType=2 时有效） */
+    videoCover?: string;
 }
 
 export interface MaterialListPic {

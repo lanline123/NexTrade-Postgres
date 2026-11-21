@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { RichText, ScrollView, Text, View } from "@tarojs/components";
+import { RichText, ScrollView, Text, Video, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 
 import Empty from "./src/Empty";
@@ -14,7 +14,7 @@ import { useSaveTopBoxHeight } from "@/hooks";
 import useList from "@/hooks/useList";
 import { useConfigStore } from "@/store/config";
 import type { MaterialCategoryItem, MaterialListFilterResult } from "@/types/salesman/salesman";
-import { copy, getDownloadFileInfo, saveImageToAlbum, staticResource } from "@/utils";
+import { copy, getDownloadFileInfo, saveImageToAlbum, saveVideoToAlbum, staticResource } from "@/utils";
 import { imageFormat, pickPic } from "@/utils/format";
 import { t } from "@/utils/i18n";
 import { navigateBack } from "@/utils/navigation";
@@ -29,6 +29,7 @@ import "./material.scss";
  * - 展示分销推广素材（图片、文案）
  * - 分类筛选和搜索素材
  * - 一键保存素材到相册
+ * - 我方新增：视频素材（mediaType=2）内嵌播放（封面 poster）+ 长按保存视频到相册
  */
 export default function SalesmanMaterial() {
     usePageGuards();
@@ -69,6 +70,7 @@ export default function SalesmanMaterial() {
     const [showSaveCard, setShowSaveCard] = useState(false);
     const [showChoosePoster, setShowChoosePoster] = useState(false);
     const [currentPics, setCurrentPics] = useState<any[]>([]);
+    const [currentVideo, setCurrentVideo] = useState<{ url: string; cover: string }>({ url: "", cover: "" });
     const [currentData, setCurrentData] = useState<any>({});
     const [qrcodePath, setQrcodePath] = useState("");
 
@@ -160,6 +162,40 @@ export default function SalesmanMaterial() {
         // #endif
     };
 
+    // 视频素材保存到相册（我方新增；与图片 handleSave 同口径，H5 端不落相册）
+    const handleSaveVideo = (src: string) => {
+        // #ifndef H5
+        if (process.env.TARO_ENV === "h5") return;
+        const srcFormat = imageFormat(src);
+        Taro.showModal({
+            title: t("提示"),
+            content: t("确定要保存视频吗？"),
+            confirmText: t("确定"),
+            cancelText: t("取消"),
+            success: async (res) => {
+                if (!res.confirm) return;
+                const result = await getDownloadFileInfo(srcFormat);
+                if (result.statusCode === 200) {
+                    saveVideoToAlbum(result.tempFilePath)
+                        .then(() => {
+                            Taro.showToast({
+                                title: t("保存成功"),
+                                icon: "none"
+                            });
+                        })
+                        .catch((err) => {
+                            Taro.showToast({
+                                title: t("保存失败"),
+                                icon: "none"
+                            });
+                            console.error(err);
+                        });
+                }
+            }
+        });
+        // #endif
+    };
+
     const getLink = async (data: any) => {
         const userInfo = Taro.getStorageSync("userInfo") || {};
         const link = data.productId
@@ -182,7 +218,12 @@ export default function SalesmanMaterial() {
             case "friend":
                 copy(data.content, () => {
                     setShowSaveCard(true);
-                    setCurrentPics(data.pics);
+                    setCurrentPics(data.mediaType === 2 ? [] : data.pics);
+                    setCurrentVideo(
+                        data.mediaType === 2 && data.videoUrl
+                            ? { url: data.videoUrl, cover: data.videoCover || "" }
+                            : { url: "", cover: "" }
+                    );
                 });
                 break;
         }
@@ -269,7 +310,20 @@ export default function SalesmanMaterial() {
                                 <View className="material-item-right">
                                     <View className="item-name">{t("分销小助手")}</View>
                                     <View className="item-content">{item.content ? <RichText nodes={item.content} /> : null}</View>
-                                    {item.pics ? (
+                                    {item.mediaType === 2 && item.videoUrl ? (
+                                        <View className="item-video" onLongPress={() => handleSaveVideo(item.videoUrl || "")}>
+                                            <Video
+                                                id={`material-video-${item.id}`}
+                                                className="item-video-player"
+                                                src={imageFormat(item.videoUrl)}
+                                                poster={item.videoCover ? imageFormat(item.videoCover) : undefined}
+                                                controls
+                                                showCenterPlayBtn
+                                                objectFit="contain"
+                                            />
+                                        </View>
+                                    ) : null}
+                                    {item.mediaType !== 2 && item.pics ? (
                                         <View className="item-images">
                                             {item.pics.map((img: any, index: number) => (
                                                 <View key={img.picId} className="image-box" onClick={() => swiperImagePreview(index, item.pics)}>
@@ -286,7 +340,9 @@ export default function SalesmanMaterial() {
                                             ))}
                                         </View>
                                     ) : null}
-                                    <View className="item-tip">{t("长按图片保存到相册")}</View>
+                                    <View className="item-tip">
+                                        {item.mediaType === 2 ? t("长按视频保存到相册") : t("长按图片保存到相册")}
+                                    </View>
                                     {item.product ? (
                                         <View className="item-product">
                                             <View className="item-product-text">{t("商品：")}</View>
@@ -336,7 +392,13 @@ export default function SalesmanMaterial() {
                 </View>
             </View>
             {!isLoading && total === 0 ? <Empty styles={{ width: "320rpx", height: "320rpx" }} /> : null}
-            <MaterialSaveCard modelValue={showSaveCard} currentPics={currentPics} onChange={setShowSaveCard} />
+            <MaterialSaveCard
+                modelValue={showSaveCard}
+                currentPics={currentPics}
+                videoUrl={currentVideo.url}
+                videoCover={currentVideo.cover}
+                onChange={setShowSaveCard}
+            />
             {showChoosePoster ? (
                 <MaterialChoosePoster
                     modelValue={showChoosePoster}

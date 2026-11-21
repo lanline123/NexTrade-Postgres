@@ -171,6 +171,17 @@ page {
                         }
                     }
 
+                    .item-video {
+                        padding-top: 20rpx;
+
+                        .item-video-player {
+                            width: 100%;
+                            height: 400rpx;
+                            border-radius: 8rpx;
+                            background: #000;
+                        }
+                    }
+
                     .item-tip {
                         color: #969799;
                         font-size: 22rpx;

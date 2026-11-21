@@ -627,6 +627,64 @@ export const saveImageToApp = (filePath: string) => {
     });
 };
 
+/**
+ * 保存视频到相册（我方新增，供分销视频素材等场景复用）。
+ * 与 saveImageToAlbum 同口径：小程序端走授权 + saveVideoToPhotosAlbum；
+ * H5 端无相册概念直接 reject，由调用方提示改走下载/长按保存。
+ */
+export const saveVideoToAlbum = (filePath: string) => {
+    if (TARO_ENV === "h5" || TARO_ENV === "rn") {
+        return Promise.reject(new Error("H5 端不支持保存到相册"));
+    }
+    return new Promise((resolve, reject) => {
+        Taro.getSetting({
+            success(res) {
+                if (!res.authSetting["scope.writePhotosAlbum"]) {
+                    Taro.authorize({
+                        scope: "scope.writePhotosAlbum",
+                        success() {
+                            Taro.saveVideoToPhotosAlbum({
+                                filePath,
+                                success: (r) => resolve(r),
+                                fail: (err) => reject(err)
+                            }).catch(() => {});
+                        },
+                        fail() {
+                            Taro.showModal({
+                                title: t("需要权限"),
+                                content: t("需要您授权保存视频到相册"),
+                                showCancel: false,
+                                confirmText: t("去设置"),
+                                success(modalRes) {
+                                    if (modalRes.confirm) {
+                                        Taro.openSetting({
+                                            success(settingRes) {
+                                                if (settingRes.authSetting["scope.writePhotosAlbum"]) {
+                                                    Taro.saveVideoToPhotosAlbum({
+                                                        filePath,
+                                                        success: (r) => resolve(r),
+                                                        fail: (err) => reject(err)
+                                                    }).catch(() => {});
+                                                }
+                                            }
+                                        }).catch(() => {});
+                                    }
+                                }
+                            }).catch(() => {});
+                        }
+                    }).catch(() => {});
+                } else {
+                    Taro.saveVideoToPhotosAlbum({
+                        filePath,
+                        success: (r) => resolve(r),
+                        fail: (err) => reject(err)
+                    }).catch(() => {});
+                }
+            }
+        }).catch(() => {});
+    });
+};
+
 export const moneyFormat = (money: string): string => {
     return isNaN(parseFloat(money)) ? money : parseFloat(money).toFixed(2);
 };

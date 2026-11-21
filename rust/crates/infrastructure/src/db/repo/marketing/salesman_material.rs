@@ -1,7 +1,7 @@
 //! 分销素材仓储（marketing::salesman_material）。
 //!
-//! 主表 `salesman_material`（10 列，`python tools/schema_parser.py --table
-//! salesman_material`）；只读关联：
+//! 主表 `salesman_material`（13 列，`python tools/schema_parser.py --table
+//! salesman_material` + 迁移 017 的 media_type/video_url/video_cover）；只读关联：
 //! - `salesman_material_category`（`category_id` / `category_name` /
 //!   `add_time` / `shop_id` / `sort_order`）
 //! - `product`（返回 `product_id` / `product_name` / `product_price` 精简对象）
@@ -16,8 +16,8 @@ use nextrade_core::entities::{SalesmanMaterial, SalesmanMaterialCategory};
 use nextrade_core::models::marketing::salesman_material::MSG_MATERIAL_NOT_FOUND;
 use nextrade_core::{Error, Result};
 
-/// `salesman_material` 固定 SELECT 列（10 列）。
-pub const MATERIAL_COLUMNS: &str = "id, add_time, is_top, content, is_available, shop_id, pics, category_id, share_num, product_id";
+/// `salesman_material` 固定 SELECT 列（13 列；末三列为我方新增媒体字段，迁移 017）。
+pub const MATERIAL_COLUMNS: &str = "id, add_time, is_top, content, is_available, shop_id, pics, category_id, share_num, product_id, media_type, video_url, video_cover";
 /// `salesman_material_category` 固定 SELECT 列（5 列）。
 pub const CATEGORY_COLUMNS: &str = "category_id, category_name, add_time, shop_id, sort_order";
 
@@ -55,6 +55,7 @@ impl SalesmanMaterialRepository {
         &self,
         shop_id: Option<i32>,
         category_id: Option<i32>,
+        media_type: Option<i32>,
         only_available: bool,
         sort_field: Option<&str>,
         sort_order: Option<&str>,
@@ -67,6 +68,9 @@ impl SalesmanMaterialRepository {
         }
         if category_id.is_some() {
             where_parts.push("category_id = ?".into());
+        }
+        if media_type.is_some() {
+            where_parts.push("media_type = ?".into());
         }
         if only_available {
             where_parts.push("is_available = 1".into());
@@ -90,6 +94,9 @@ impl SalesmanMaterialRepository {
         if let Some(v) = category_id {
             cq = cq.bind(v);
         }
+        if let Some(v) = media_type {
+            cq = cq.bind(v);
+        }
         let total: (i64,) = cq.fetch_one(&self.pool).await.map_err(map_err)?;
 
         let list_sql = crate::db::to_pg_placeholders(&format!(
@@ -100,6 +107,9 @@ impl SalesmanMaterialRepository {
             lq = lq.bind(shop_id);
         }
         if let Some(v) = category_id {
+            lq = lq.bind(v);
+        }
+        if let Some(v) = media_type {
             lq = lq.bind(v);
         }
         let rows = lq
@@ -124,7 +134,7 @@ impl SalesmanMaterialRepository {
     /// 新增，返回主键。
     pub async fn insert(&self, m: &SalesmanMaterial) -> Result<i32> {
         let res: i32 = sqlx::query_scalar(
-            "INSERT INTO salesman_material (add_time, is_top, content, is_available, shop_id, pics, category_id, share_num, product_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id",
+            "INSERT INTO salesman_material (add_time, is_top, content, is_available, shop_id, pics, category_id, share_num, product_id, media_type, video_url, video_cover) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id",
         )
         .bind(m.add_time)
         .bind(m.is_top)
@@ -135,16 +145,19 @@ impl SalesmanMaterialRepository {
         .bind(m.category_id)
         .bind(m.share_num)
         .bind(m.product_id)
+        .bind(m.media_type)
+        .bind(&m.video_url)
+        .bind(&m.video_cover)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
         Ok(res)
     }
 
-    /// 整行更新（`id` 之外 9 列）。
+    /// 整行更新（`id` 之外 12 列）。
     pub async fn update(&self, m: &SalesmanMaterial) -> Result<bool> {
         let res = sqlx::query(
-            "UPDATE salesman_material SET add_time = $1, is_top = $2, content = $3, is_available = $4, shop_id = $5, pics = $6, category_id = $7, share_num = $8, product_id = $9 WHERE id = $10",
+            "UPDATE salesman_material SET add_time = $1, is_top = $2, content = $3, is_available = $4, shop_id = $5, pics = $6, category_id = $7, share_num = $8, product_id = $9, media_type = $10, video_url = $11, video_cover = $12 WHERE id = $13",
         )
         .bind(m.add_time)
         .bind(m.is_top)
@@ -155,6 +168,9 @@ impl SalesmanMaterialRepository {
         .bind(m.category_id)
         .bind(m.share_num)
         .bind(m.product_id)
+        .bind(m.media_type)
+        .bind(&m.video_url)
+        .bind(&m.video_cover)
         .bind(m.id)
         .execute(&self.pool)
         .await
@@ -268,7 +284,8 @@ mod tests {
 
     #[test]
     fn columns_cover_entity() {
-        assert_eq!(MATERIAL_COLUMNS.split(", ").count(), 10);
+        assert_eq!(MATERIAL_COLUMNS.split(", ").count(), 13);
+        assert!(MATERIAL_COLUMNS.ends_with("media_type, video_url, video_cover"));
         assert_eq!(CATEGORY_COLUMNS.split(", ").count(), 5);
         assert!(!MATERIAL_COLUMNS.contains('*'));
     }

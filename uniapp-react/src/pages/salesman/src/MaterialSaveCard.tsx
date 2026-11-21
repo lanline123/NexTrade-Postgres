@@ -1,10 +1,10 @@
-import { ScrollView, View } from "@tarojs/components";
+import { ScrollView, Video, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { Popup } from "@nutui/nutui-react-taro";
 
 import FixedPlaceholder from "@/components/tig/tig-fixed-placeholder/FixedPlaceholder";
 import TigImage from "@/components/tig/tig-image/TigImage";
-import { getDownloadFileInfo, isUrl, saveImageToAlbum, staticResource } from "@/utils";
+import { getDownloadFileInfo, isUrl, saveImageToAlbum, saveVideoToAlbum, staticResource } from "@/utils";
 import { imageFormat } from "@/utils/format";
 import { t } from "@/utils/i18n";
 
@@ -14,6 +14,10 @@ interface Props {
     /** 对应旧 v-model */
     modelValue?: boolean;
     currentPics?: any[];
+    /** 视频素材（我方新增）：视频地址，非空时卡片头部渲染视频 */
+    videoUrl?: string;
+    /** 视频素材（我方新增）：视频封面 */
+    videoCover?: string;
     /** 对应旧 update:modelValue */
     onChange?: (value: boolean) => void;
 }
@@ -23,7 +27,43 @@ interface Props {
  * - 展示素材详情并提供保存功能
  * - 支持图片和视频素材
  */
-export default function MaterialSaveCard({ modelValue = false, currentPics = [], onChange }: Props) {
+export default function MaterialSaveCard({ modelValue = false, currentPics = [], videoUrl = "", videoCover = "", onChange }: Props) {
+    // 视频保存到相册（我方新增；与图片同口径：下载后存相册，H5 端不落相册）
+    const handleSaveVideo = (src: string) => {
+        // #ifndef H5
+        if (process.env.TARO_ENV === "h5") return;
+        const srcFormat = imageFormat(src);
+        Taro.showModal({
+            title: t("提示"),
+            content: t("确定要保存视频吗？"),
+            confirmText: t("确定"),
+            cancelText: t("取消"),
+            success: async (res) => {
+                if (!res.confirm) return;
+                if (isUrl(srcFormat)) {
+                    const result = await getDownloadFileInfo(srcFormat);
+                    if (result.statusCode === 200) {
+                        saveVideoToAlbum(result.tempFilePath)
+                            .then(() => {
+                                Taro.showToast({
+                                    title: t("保存成功"),
+                                    icon: "none"
+                                });
+                            })
+                            .catch((err) => {
+                                Taro.showToast({
+                                    title: t("保存失败"),
+                                    icon: "none"
+                                });
+                                console.error(err);
+                            });
+                    }
+                }
+            }
+        });
+        // #endif
+    };
+
     const handleSave = (src: string) => {
         // #ifndef H5
         if (process.env.TARO_ENV === "h5") return;
@@ -74,6 +114,19 @@ export default function MaterialSaveCard({ modelValue = false, currentPics = [],
             >
                 <ScrollView className="list-box" scrollX>
                     <View className="list-content">
+                        {videoUrl ? (
+                            <View className="list-item" onLongPress={() => handleSaveVideo(videoUrl)}>
+                                <Video
+                                    className="list-item-video"
+                                    src={imageFormat(videoUrl)}
+                                    poster={videoCover ? imageFormat(videoCover) : undefined}
+                                    controls
+                                    showCenterPlayBtn
+                                    objectFit="contain"
+                                    style={{ width: "320rpx", height: "320rpx", background: "#000" }}
+                                />
+                            </View>
+                        ) : null}
                         {(currentPics || []).map((item: any) => (
                             <View key={item.picId} className="list-item" onLongPress={() => handleSave(item.picUrl)}>
                                 <TigImage src={item.picUrl} />

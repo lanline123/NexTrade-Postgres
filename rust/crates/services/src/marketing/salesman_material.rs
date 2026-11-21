@@ -16,6 +16,9 @@
 //! - public `list`：`is_available=1` + 分类过滤（差异 4）。
 //! - public `detail`：与 admin 相同的 VO 组装（Java 复用 `detail`）。
 //! - public `category`：全部分类（Java `getAllCategory`，按 `sort_order ASC`）。
+//! - 媒体类型（我方新增，迁移 017）：`media_type` 1 图文 / 2 视频，
+//!   create/update 经 `validate_material_media` 校验（视频必填合法地址，
+//!   扩展名口径与素材中心视频库一致）；list/api_page 支持 `mediaType` 过滤。
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -23,10 +26,11 @@ use std::sync::Arc;
 use serde_json::Value;
 use nextrade_core::entities::SalesmanMaterial;
 use nextrade_core::models::marketing::salesman_material::{
-    format_time, normalize_field, BatchDTO, OperateDTO, SalesmanMaterialApiQuery,
-    SalesmanMaterialEditDTO, SalesmanMaterialListQuery, SalesmanMaterialProductVO,
-    SalesmanMaterialSaveDTO, SalesmanMaterialVO, UpdateFieldDTO, DEFAULT_PAGE_SIZE,
-    MAX_PAGE_SIZE, MSG_ID_REQUIRED, MSG_INVALID_FIELD_VALUE, MSG_MATERIAL_NOT_FOUND,
+    format_time, normalize_field, resolve_media_type, validate_material_media, BatchDTO,
+    OperateDTO, SalesmanMaterialApiQuery, SalesmanMaterialEditDTO, SalesmanMaterialListQuery,
+    SalesmanMaterialProductVO, SalesmanMaterialSaveDTO, SalesmanMaterialVO, UpdateFieldDTO,
+    DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MEDIA_TYPE_VIDEO, MSG_ID_REQUIRED,
+    MSG_INVALID_FIELD_VALUE, MSG_MATERIAL_NOT_FOUND,
 };
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};
@@ -69,6 +73,7 @@ impl SalesmanMaterialService {
             .paginate(
                 TenantScope::current_list_filter(),
                 q.category_id,
+                q.media_type,
                 only_available,
                 q.sort_field.as_deref(),
                 q.sort_order.as_deref(),
@@ -98,6 +103,7 @@ impl SalesmanMaterialService {
             .paginate(
                 Some(q.shop_id.unwrap_or(0)),
                 q.category_id,
+                q.media_type,
                 true,
                 q.sort_field.as_deref(),
                 q.sort_order.as_deref(),
@@ -127,6 +133,9 @@ impl SalesmanMaterialService {
     /// # Errors
     /// 序列化失败 → `Internal`；数据库错误 → `Database`。
     pub async fn create(&self, dto: &SalesmanMaterialSaveDTO) -> Result<i32> {
+        // 媒体校验（我方新增）：视频素材必须带合法视频地址（素材中心视频库口径）
+        let media_type = validate_material_media(dto.media_type, dto.video_url.as_deref())
+            .map_err(|msg| Error::Validation(msg.into()))?;
         let pics = dto
             .pics
             .as_ref()
@@ -143,6 +152,9 @@ impl SalesmanMaterialService {
             category_id: dto.category_id,
             share_num: Some(0),
             product_id: dto.product_id,
+            media_type,
+            video_url: dto.video_url.clone(),
+            video_cover: dto.video_cover.clone(),
         };
         self.repo().insert(&entity).await
     }
@@ -186,6 +198,23 @@ impl SalesmanMaterialService {
         }
         if let Some(v) = dto.product_id {
             entity.product_id = Some(v);
+        }
+        // 媒体字段（我方新增）：合并后再校验——切到视频或改视频地址时，
+        // 以合并后的 (media_type, video_url) 为准，图文素材不校验视频地址。
+        if let Some(v) = &dto.video_url {
+            entity.video_url = Some(v.clone());
+        }
+        if let Some(v) = &dto.video_cover {
+            entity.video_cover = Some(v.clone());
+        }
+        if dto.media_type.is_some() || dto.video_url.is_some() {
+            let target = dto
+                .media_type
+                .map(|raw| resolve_media_type(Some(raw)))
+                .unwrap_or_else(|| resolve_media_type(Some(entity.media_type)));
+            let media_type = validate_material_media(target, entity.video_url.as_deref())
+                .map_err(|msg| Error::Validation(msg.into()))?;
+            entity.media_type = media_type;
         }
         self.repo().update(&entity).await?;
         Ok(())
@@ -318,6 +347,9 @@ fn build_vo(
         category_id: m.category_id,
         share_num: m.share_num,
         product_id: m.product_id,
+        media_type: m.media_type,
+        video_url: m.video_url.clone(),
+        video_cover: m.video_cover.clone(),
         pics_json: m.pics.clone(),
         pics: m
             .pics
@@ -353,7 +385,27 @@ mod tests {
             category_id: Some(2),
             share_num: Some(3),
             product_id: Some(9),
+            media_type: 1,
+            video_url: None,
+            video_cover: None,
         }
+    }
+
+    #[test]
+    fn build_vo_carries_video_fields() {
+        let mut m = sample();
+        m.media_type = MEDIA_TYPE_VIDEO;
+        m.pics = None;
+        m.video_url = Some("https://cdn.x.com/v.mp4".into());
+        m.video_cover = Some("https://cdn.x.com/c.jpg".into());
+        let vo = build_vo(&m, &HashMap::new(), &HashMap::new());
+        assert_eq!(vo.media_type, MEDIA_TYPE_VIDEO);
+        assert_eq!(vo.video_url.as_deref(), Some("https://cdn.x.com/v.mp4"));
+        assert_eq!(vo.video_cover.as_deref(), Some("https://cdn.x.com/c.jpg"));
+        // 存量图文行：media_type 透传 1、视频字段为空
+        let vo = build_vo(&sample(), &HashMap::new(), &HashMap::new());
+        assert_eq!(vo.media_type, 1);
+        assert!(vo.video_url.is_none());
     }
 
     #[test]

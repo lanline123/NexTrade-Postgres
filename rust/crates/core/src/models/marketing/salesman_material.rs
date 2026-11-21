@@ -9,8 +9,9 @@
 //!   `SalesmanMaterialApiPageQuery` / `SalesmanMaterialSaveParam` /
 //!   `SalesmanMaterialEditParam` / `SalesmanMaterialVO`
 //!
-//! 表：`salesman_material`（10 列：`id` / `add_time` / `is_top` / `content` /
-//! `is_available` / `shop_id` / `pics` / `category_id` / `share_num` / `product_id`）；
+//! 表：`salesman_material`（13 列：`id` / `add_time` / `is_top` / `content` /
+//! `is_available` / `shop_id` / `pics` / `category_id` / `share_num` / `product_id` /
+//! `media_type` / `video_url` / `video_cover`）；
 //! 关联只读 `salesman_material_category`、`product`。
 //!
 //! # 端点（10）
@@ -29,6 +30,10 @@
 //!    optional auth 未接分销员上下文，固定 `shop_id=0` 且 `is_available=1`。
 //! 5. Java 保存入参含 `isShow/sortOrder/status/salesmanMaterialPic` 等历史字段
 //!    （素材表无对应列，BeanUtils 直接丢弃）；本实现 DTO 只保留实存列。
+//! 6. `media_type` / `video_url` / `video_cover` 为**我方新增**（迁移 017；
+//!    论坛 B 类帖 867768，原版素材只有图文形态）：1 = 图文（存量默认），
+//!    2 = 视频。视频文件走现有素材中心视频库上传链（本地上传 mp4、
+//!    外链 mp4/flv/webm/avi、大小上限走上传配置），素材只存 URL 与封面。
 //!
 //! # 金额：`product.product_price` 为 `Decimal`（仅 VO 精简对象内出现）。
 
@@ -44,6 +49,67 @@ pub const MSG_MATERIAL_NOT_FOUND: &str = "素材不存在";
 /// 分页默认值（Java `BasePage`）。
 pub const DEFAULT_PAGE_SIZE: u64 = 15;
 pub const MAX_PAGE_SIZE: u64 = 100;
+
+/// 媒体类型：图文（我方新增，迁移 017；存量与缺省均为此值）。
+pub const MEDIA_TYPE_IMAGE: i32 = 1;
+/// 媒体类型：视频（我方新增，迁移 017）。
+pub const MEDIA_TYPE_VIDEO: i32 = 2;
+pub const MSG_INVALID_MEDIA_TYPE: &str = "媒体类型有误";
+pub const MSG_VIDEO_URL_REQUIRED: &str = "视频素材必须选择视频";
+pub const MSG_VIDEO_URL_INVALID: &str = "视频地址格式不支持（仅 mp4/flv/webm/avi）";
+/// 素材视频地址允许的扩展名（与素材中心视频库外链口径一致：
+/// `gallery_video_info::ALLOWED_VIDEO_EXTENSIONS`）。
+pub const ALLOWED_MATERIAL_VIDEO_EXTENSIONS: [&str; 4] = ["mp4", "flv", "webm", "avi"];
+
+/// 媒体类型归一：缺省 → 图文；合法值原样；其余 → `None`（非法）。
+#[must_use]
+pub fn resolve_media_type(raw: Option<i32>) -> Option<i32> {
+    match raw {
+        None | Some(MEDIA_TYPE_IMAGE) => Some(MEDIA_TYPE_IMAGE),
+        Some(MEDIA_TYPE_VIDEO) => Some(MEDIA_TYPE_VIDEO),
+        Some(_) => None,
+    }
+}
+
+/// 取 URL 路径的扩展名（小写，去查询串/锚点）；无扩展名 → `None`。
+#[must_use]
+pub fn url_extension(url: &str) -> Option<String> {
+    let path = url.split(['?', '#']).next().unwrap_or("");
+    let name = path.rsplit('/').next().unwrap_or("");
+    let ext = name.rsplit('.').next().unwrap_or("");
+    if ext.is_empty() || ext.len() == name.len() {
+        return None;
+    }
+    Some(ext.to_ascii_lowercase())
+}
+
+/// 素材视频地址是否合法（扩展名在素材中心视频库外链白名单内）。
+#[must_use]
+pub fn is_allowed_material_video_url(url: &str) -> bool {
+    url_extension(url).is_some_and(|ext| ALLOWED_MATERIAL_VIDEO_EXTENSIONS.contains(&ext.as_str()))
+}
+
+/// 保存前媒体校验（纯逻辑，服务层 create/update 共用）：
+/// 返回归一后的 `media_type`；视频素材必须带合法视频地址。
+///
+/// # Errors
+/// 媒体类型非法 / 视频地址缺失或格式不支持 → 对应业务文案。
+pub fn validate_material_media(
+    media_type: Option<i32>,
+    video_url: Option<&str>,
+) -> Result<i32, &'static str> {
+    let media_type = resolve_media_type(media_type).ok_or(MSG_INVALID_MEDIA_TYPE)?;
+    if media_type == MEDIA_TYPE_VIDEO {
+        let url = video_url.map(str::trim).filter(|u| !u.is_empty());
+        let Some(url) = url else {
+            return Err(MSG_VIDEO_URL_REQUIRED);
+        };
+        if !is_allowed_material_video_url(url) {
+            return Err(MSG_VIDEO_URL_INVALID);
+        }
+    }
+    Ok(media_type)
+}
 
 /// 素材 VO 内嵌商品精简对象（见差异 2）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -67,6 +133,12 @@ pub struct SalesmanMaterialVO {
     pub category_id: Option<i32>,
     pub share_num: Option<i32>,
     pub product_id: Option<i32>,
+    /// 媒体类型（我方新增）：1 图文 / 2 视频
+    pub media_type: i32,
+    /// 视频地址（media_type = 2 时有效）
+    pub video_url: Option<String>,
+    /// 视频封面图地址（media_type = 2 时有效）
+    pub video_cover: Option<String>,
     /// `pics` 列原始 JSON 文本（Java `picsJson`）
     pub pics_json: Option<String>,
     /// 解析后的图片数组（Java `List<Pic>`）
@@ -81,6 +153,8 @@ pub struct SalesmanMaterialVO {
 pub struct SalesmanMaterialListQuery {
     pub is_show: Option<i32>,
     pub category_id: Option<i32>,
+    /// 媒体类型过滤（我方新增）：1 图文 / 2 视频，缺省不过滤
+    pub media_type: Option<i32>,
     pub start_time: Option<String>,
     pub end_time: Option<String>,
     /// 内部标记：`user` 时仅返回上架素材（Java `from`）
@@ -97,6 +171,8 @@ pub struct SalesmanMaterialListQuery {
 #[serde(rename_all = "camelCase", default)]
 pub struct SalesmanMaterialApiQuery {
     pub category_id: Option<i32>,
+    /// 媒体类型过滤（我方新增）：1 图文 / 2 视频，缺省不过滤
+    pub media_type: Option<i32>,
     pub from: Option<String>,
     pub shop_id: Option<i32>,
     pub page: Option<u64>,
@@ -115,6 +191,12 @@ pub struct SalesmanMaterialSaveDTO {
     pub pics: Option<Value>,
     pub category_id: Option<i32>,
     pub product_id: Option<i32>,
+    /// 媒体类型（我方新增）：1 图文 / 2 视频，缺省图文
+    pub media_type: Option<i32>,
+    /// 视频地址（media_type = 2 必填，素材中心视频库 URL）
+    pub video_url: Option<String>,
+    /// 视频封面图地址（media_type = 2 可选）
+    pub video_cover: Option<String>,
 }
 
 /// 编辑素材（Java `SalesmanMaterialEditParam` 实存列子集）。
@@ -131,6 +213,12 @@ pub struct SalesmanMaterialEditDTO {
     pub category_id: Option<i32>,
     pub share_num: Option<i32>,
     pub product_id: Option<i32>,
+    /// 媒体类型（我方新增）：1 图文 / 2 视频
+    pub media_type: Option<i32>,
+    /// 视频地址（media_type = 2 必填，素材中心视频库 URL）
+    pub video_url: Option<String>,
+    /// 视频封面图地址（media_type = 2 可选）
+    pub video_cover: Option<String>,
 }
 
 /// 单 ID / 字段 / 批量通用入参。
@@ -247,6 +335,62 @@ mod tests {
         assert_eq!(json["product"]["productId"], 9);
         assert_eq!(json["product"]["productPrice"], "1.50");
         assert!(json["pics"].is_array());
+    }
+
+    #[test]
+    fn media_type_resolution_and_video_validation() {
+        // 缺省 = 图文（存量口径）；非法值拒绝
+        assert_eq!(resolve_media_type(None), Some(MEDIA_TYPE_IMAGE));
+        assert_eq!(resolve_media_type(Some(1)), Some(MEDIA_TYPE_IMAGE));
+        assert_eq!(resolve_media_type(Some(2)), Some(MEDIA_TYPE_VIDEO));
+        assert_eq!(resolve_media_type(Some(3)), None);
+        // 图文素材不要求视频地址
+        assert_eq!(validate_material_media(None, None), Ok(MEDIA_TYPE_IMAGE));
+        assert_eq!(validate_material_media(Some(1), None), Ok(MEDIA_TYPE_IMAGE));
+        // 视频素材必须带地址且扩展名在白名单内（与素材中心视频库外链口径一致）
+        assert_eq!(
+            validate_material_media(Some(2), None),
+            Err(MSG_VIDEO_URL_REQUIRED)
+        );
+        assert_eq!(
+            validate_material_media(Some(2), Some("  ")),
+            Err(MSG_VIDEO_URL_REQUIRED)
+        );
+        assert_eq!(
+            validate_material_media(Some(2), Some("https://cdn.x.com/a.MP4?token=1")),
+            Ok(MEDIA_TYPE_VIDEO)
+        );
+        assert_eq!(
+            validate_material_media(Some(2), Some("https://cdn.x.com/a.webm")),
+            Ok(MEDIA_TYPE_VIDEO)
+        );
+        assert_eq!(
+            validate_material_media(Some(2), Some("https://cdn.x.com/a.mov")),
+            Err(MSG_VIDEO_URL_INVALID)
+        );
+        assert_eq!(
+            validate_material_media(Some(2), Some("https://cdn.x.com/noext")),
+            Err(MSG_VIDEO_URL_INVALID)
+        );
+        assert_eq!(
+            validate_material_media(Some(9), Some("https://cdn.x.com/a.mp4")),
+            Err(MSG_INVALID_MEDIA_TYPE)
+        );
+    }
+
+    #[test]
+    fn vo_serializes_media_fields() {
+        let vo = SalesmanMaterialVO {
+            id: 7,
+            media_type: MEDIA_TYPE_VIDEO,
+            video_url: Some("https://cdn.x.com/v.mp4".into()),
+            video_cover: Some("https://cdn.x.com/c.jpg".into()),
+            ..Default::default()
+        };
+        let json = serde_json::to_value(&vo).unwrap();
+        assert_eq!(json["mediaType"], 2);
+        assert_eq!(json["videoUrl"], "https://cdn.x.com/v.mp4");
+        assert_eq!(json["videoCover"], "https://cdn.x.com/c.jpg");
     }
 
     #[test]
