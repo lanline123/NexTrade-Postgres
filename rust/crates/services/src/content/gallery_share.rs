@@ -116,7 +116,7 @@ impl GalleryShareService {
                     item_thumb: info
                         .video_cover
                         .clone()
-                        .unwrap_or_else(|| info.video_first_frame.clone()),
+                        .unwrap_or_else(|| info.video_first_frame.clone().unwrap_or_default()),
                     status: STATUS_PENDING,
                     submit_admin_id: admin_id,
                     submit_time: now,

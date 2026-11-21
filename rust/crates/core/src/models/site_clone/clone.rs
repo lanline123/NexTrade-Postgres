@@ -297,7 +297,7 @@ pub struct CloneJobListQuery {
 }
 
 /// 导入来源入参：口令整段粘贴，或 origin+keyId+secret 三栏手动填。
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CloneSourceDTO {
     pub token: Option<String>,
@@ -314,7 +314,7 @@ pub struct ClonePreviewDTO {
 }
 
 /// 导入执行入参。
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CloneExecuteDTO {
     pub source: CloneSourceDTO,

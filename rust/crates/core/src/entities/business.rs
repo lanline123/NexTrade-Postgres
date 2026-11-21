@@ -71,6 +71,12 @@ impl Product {
         self.product_status == 1 && self.is_delete == 0
     }
 
+    /// 线上是否可见（销售渠道可见性，我方新增，论坛帖 507800）：
+    /// `sale_channel = 2`（仅 POS 线下）线上不可见；0 全渠道 / 1 仅线上可见。
+    pub fn visible_online(&self) -> bool {
+        self.sale_channel != 2
+    }
+
     /// 是否包邮。
     pub fn is_free_shipping(&self) -> bool {
         self.free_shipping == 1

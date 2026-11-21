@@ -117,6 +117,7 @@ impl O2oConfigService {
         now: i32,
     ) -> Result<()> {
         let existing = self.repo().find_local_delivery(shop_id).await?;
+        let existing_is_none = existing.is_none();
         let base = existing.unwrap_or_default();
         let cfg = ShopLocalDeliveryConfig {
             shop_local_delivery_config_id: base.shop_local_delivery_config_id,
@@ -157,7 +158,7 @@ impl O2oConfigService {
             },
             cutoff_minutes: {
                 let v = p.cutoff_minutes.unwrap_or(base.cutoff_minutes);
-                if existing.is_none() && p.cutoff_minutes.is_none() {
+                if existing_is_none && p.cutoff_minutes.is_none() {
                     30
                 } else {
                     v.max(0)

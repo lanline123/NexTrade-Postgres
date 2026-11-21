@@ -149,7 +149,7 @@ return Err(Error::biz_msg(MSG_SOURCE_NOT_FULL_REDUCTION));
 }
 };
 
-let now = now_seconds();
+let now = now_seconds() as i32;
 let mut tx = repo.begin().await?;
 let batch = MarketingDistribution {
 source_kind: kind,
@@ -394,7 +394,7 @@ return Ok(());
 if item.status!= ITEM_STATUS_CREATED {
 return Ok(());
 }
-let now = now_seconds();
+let now = now_seconds() as i32;
 let alive = match item.source_kind {
 SOURCE_KIND_COUPON => repo.coupon_copy_alive(item.copy_id).await?,
 _ => repo.full_reduction_copy_alive(item.copy_id).await?,
@@ -463,7 +463,7 @@ items
 )
 .unwrap_or(0);
 batch.status = derive_batch_status(&items);
-batch.update_time = now_seconds();
+batch.update_time = now_seconds() as i32;
 self.repo().update_batch_in_tx(tx, batch).await?;
 Ok(())
 }

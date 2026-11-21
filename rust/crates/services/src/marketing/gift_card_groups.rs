@@ -32,7 +32,8 @@ use nextrade_core::models::marketing::gift_card_groups::{
     MSG_GROUP_STATUS_INVALID, MSG_PRODUCTS_REQUIRED,
 };
 use nextrade_core::models::marketing::gift_card::{
-    card_type_name, group_type_name, validity_type_name, GROUP_TYPE_EXCHANGE, VALIDITY_FIXED,
+    card_type_name, group_type_name, validity_type_name, GROUP_TYPE_EXCHANGE, GROUP_TYPE_TOP_UP,
+    VALIDITY_FIXED,
 };
 use nextrade_core::types::{PageQuery, PageResult};
 use nextrade_core::{Error, Result};

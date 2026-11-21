@@ -435,7 +435,7 @@ impl PosCashierService {
             product_id: i.product_id,
             sku_id: i.sku_id,
             product_name: i.product_name.unwrap_or_default(),
-            pic_thumb: i.pic_thumb.unwrap_or_default(),
+            pic_thumb: i.pic_thumb.clone().unwrap_or_default(),
             price: i.price,
             origin_price: i.origin_price,
             quantity: i.quantity,

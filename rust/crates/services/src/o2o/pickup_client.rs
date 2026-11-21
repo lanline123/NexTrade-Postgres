@@ -184,7 +184,7 @@ impl PickupClientService {
         };
         let (total, rows) = shop_repo.paginate_stores(&filter, location, &page).await?;
         if rows.is_empty() {
-            return Ok((total, Vec::new()));
+            return Ok((total as i64, Vec::new()));
         }
         let shop_ids: Vec<i32> = rows.iter().map(|r| r.shop_id).collect();
         // 展示距离以 GpsDistanceUtil 口径覆盖（与 storeList 一致）
@@ -225,7 +225,7 @@ impl PickupClientService {
                 products,
             ));
         }
-        Ok((total, records))
+        Ok((total as i64, records))
     }
 
     /// 到店预约库存日历（未来 days 天）。

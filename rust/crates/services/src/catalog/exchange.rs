@@ -161,8 +161,8 @@ impl ExchangeService {
             .system
             .config_client
             .find_config_values(&[
-                KEY_INTEGRAL_COUPON_SCALE.to_string(),
-                KEY_INTEGRAL_SCALE.to_string(),
+                KEY_INTEGRAL_COUPON_SCALE,
+                KEY_INTEGRAL_SCALE,
             ])
             .await?;
         let map: HashMap<String, String> = values
