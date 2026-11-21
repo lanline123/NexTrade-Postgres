@@ -205,12 +205,15 @@ export function StaffManagement({ staffType }: { staffType: 'deliveryman' | 'ser
       dataIndex: 'status',
       width: 110,
       render: (val: number, r) => (
-        <Switch
-          checked={val === 1}
-          onChange={(checked) => handleStatusChange(r, checked)}
-          checkedText={t('启用')}
-          uncheckedText={t('禁用')}
-        />
+        <div className="framework-switch-control">
+          <Switch
+            checked={val === 1}
+            onChange={(checked) => handleStatusChange(r, checked)}
+          />
+          <span className={val === 1 ? 'framework-switch-on' : 'framework-switch-off'}>
+            {val === 1 ? t('启用') : t('禁用')}
+          </span>
+        </div>
       ),
     },
     {
