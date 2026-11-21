@@ -34,6 +34,12 @@ export interface List {
     picName: string;
     picTitle: string;
     picLink?: PicLink;
+    /** 入口类型（我方新增）：'qrcode' = 扫码入口，缺省 = 链接跳转 */
+    entryType?: string;
+    /** 二维码类型（我方新增）：'wecom' 企业微信 / 'official' 公众号 */
+    qrType?: string;
+    /** 二维码图片 URL（我方新增） */
+    qrImage?: string;
 }
 
 export interface PicLink {

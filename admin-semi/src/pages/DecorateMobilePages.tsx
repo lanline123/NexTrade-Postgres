@@ -1132,6 +1132,12 @@ type NavItem = {
   picActiveUrl?: string;
   picActiveThumb?: string;
   picLink?: any;
+  /** 入口类型（我方新增）：'qrcode' = 扫码入口，缺省/'link' = 链接跳转 */
+  entryType?: string;
+  /** 二维码类型（我方新增）：'wecom' 企业微信 / 'official' 公众号 */
+  qrType?: string;
+  /** 二维码图片 URL（我方新增） */
+  qrImage?: string;
 };
 
 type NavModule = {
@@ -1167,6 +1173,8 @@ function MobileNavEditor({ id, onBack }: { id: number; onBack: () => void }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activePreview, setActivePreview] = useState(0);
+  // 预览框内扫码入口弹层（我方新增）：点击预览中的扫码项时展示，模拟前台弹窗
+  const [qrPreview, setQrPreview] = useState<number | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -1195,6 +1203,11 @@ function MobileNavEditor({ id, onBack }: { id: number; onBack: () => void }) {
   const save = async () => {
     if (!module.navName.trim()) {
       Toast.error(t('请填写导航名称'));
+      return;
+    }
+    // 扫码入口（我方新增）：未上传二维码图的扫码项不允许发布
+    if (module.navList.some((item) => item.entryType === 'qrcode' && !item.qrImage)) {
+      Toast.error(t('扫码入口须上传二维码图'));
       return;
     }
     setSaving(true);
@@ -1281,9 +1294,11 @@ function MobileNavEditor({ id, onBack }: { id: number; onBack: () => void }) {
               {module.navList.map((item, index) => {
                 const active = index === activePreview;
                 const src = active ? item.picActiveUrl || item.picUrl : item.picUrl;
+                const isQr = item.entryType === 'qrcode';
                 return (
-                  <div key={index} onClick={() => setActivePreview(index)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 52, cursor: 'pointer', padding: '2px 0' }}>
+                  <div key={index} onClick={() => { if (isQr) { setQrPreview(index); } else { setActivePreview(index); } }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 52, cursor: 'pointer', padding: '2px 0', position: 'relative' }}>
                     {src ? <img src={src} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} /> : <span style={{ width: 24, height: 24, borderRadius: 7, background: active ? '#fdecec' : '#eef1f5', display: 'inline-block' }} />}
+                    {isQr ? <span style={{ position: 'absolute', top: 0, right: 6, width: 8, height: 8, borderRadius: '50%', background: '#792dff' }} /> : null}
                     <span style={{ fontSize: 11, color: active ? selectedColor : unselectedColor, fontWeight: active ? 600 : 400 }}>{item.picTitle || t('菜单')}</span>
                   </div>
                 );
@@ -1292,6 +1307,16 @@ function MobileNavEditor({ id, onBack }: { id: number; onBack: () => void }) {
             <div style={{ background: bg, display: 'flex', justifyContent: 'center', padding: '5px 0 7px', flexShrink: 0 }}>
               <span style={{ width: 110, height: 4, borderRadius: 2, background: 'rgba(16,16,20,0.25)' }} />
             </div>
+            {qrPreview !== null && module.navList[qrPreview] ? (
+              <div onClick={() => setQrPreview(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}>
+                <div style={{ background: '#fff', borderRadius: 14, padding: '18px 18px 14px', width: 210, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: '#1f2329' }}>{module.navList[qrPreview].picTitle || t('扫码')}</span>
+                  <span style={{ fontSize: 11, color: '#792dff', background: '#f3efff', borderRadius: 8, padding: '2px 8px' }}>{module.navList[qrPreview].qrType === 'official' ? t('微信公众号') : t('企业微信')}</span>
+                  {module.navList[qrPreview].qrImage ? <img src={module.navList[qrPreview].qrImage} alt="" style={{ width: 150, height: 150, objectFit: 'contain' }} /> : <span style={{ width: 150, height: 150, background: '#f2f4f8', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#969799', fontSize: 12 }}>{t('未上传二维码图')}</span>}
+                  <span style={{ fontSize: 11, color: '#969799' }}>{t('长按识别二维码')}</span>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
         <div style={{ textAlign: 'center', color: '#969799', fontSize: 12, marginTop: 10 }}>{t('点击预览中的菜单可切换选中态')}</div>
@@ -1334,9 +1359,41 @@ function MobileNavEditor({ id, onBack }: { id: number; onBack: () => void }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#155bd4', color: '#fff', fontSize: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{index + 1}</span>
                   <Input value={item.picTitle || ''} placeholder={t('菜单名称')} onChange={(v: string) => updateItem(index, { picTitle: v })} style={{ width: 150 }} />
-                  <Input value={typeof item.picLink === 'string' ? item.picLink : item.picLink?.link || ''} placeholder={t('跳转链接')} onChange={(v: string) => updateItem(index, { picLink: { link: v, title: item.picTitle || '' } })} style={{ width: 200 }} />
                   <Button type="danger" theme="borderless" size="small" style={{ marginLeft: 'auto' }} disabled={module.navList.length <= 1} onClick={() => removeItem(index)}>{t('删除')}</Button>
                 </div>
+                {/* 入口类型（我方新增）：链接跳转 / 扫码入口（企微·公众号二维码） */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+                  <span style={{ color: '#969799', fontSize: 13 }}>{t('入口类型')}</span>
+                  <RadioGroup value={item.entryType === 'qrcode' ? 'qrcode' : 'link'} onChange={(e) => updateItem(index, { entryType: e.target.value === 'qrcode' ? 'qrcode' : 'link', qrType: item.qrType || 'wecom' })}>
+                    <Radio value="link">{t('链接跳转')}</Radio>
+                    <Radio value="qrcode">{t('扫码入口')}</Radio>
+                  </RadioGroup>
+                </div>
+                {item.entryType === 'qrcode' ? (
+                  <div style={{ display: 'flex', gap: 28, marginTop: 10, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ color: '#969799', fontSize: 12, marginBottom: 5 }}>{t('二维码类型')}</div>
+                      <RadioGroup value={item.qrType === 'official' ? 'official' : 'wecom'} onChange={(e) => updateItem(index, { qrType: e.target.value === 'official' ? 'official' : 'wecom' })}>
+                        <Radio value="wecom">{t('企业微信')}</Radio>
+                        <Radio value="official">{t('公众号')}</Radio>
+                      </RadioGroup>
+                    </div>
+                    <div>
+                      <div style={{ color: '#969799', fontSize: 12, marginBottom: 5 }}>{t('二维码图')}</div>
+                      <ImageUploader
+                        value={item.qrImage ? [item.qrImage] : []}
+                        single
+                        onChange={(urls) => updateItem(index, { qrImage: urls[0] || '' })}
+                      />
+                    </div>
+                    <div style={{ fontSize: 12, color: '#969799', alignSelf: 'center', maxWidth: 280, lineHeight: 1.6 }}>{t('用户点击底部导航此项时弹出二维码大图，长按即可识别')}</div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+                    <span style={{ color: '#969799', fontSize: 13 }}>{t('跳转链接')}</span>
+                    <Input value={typeof item.picLink === 'string' ? item.picLink : item.picLink?.link || ''} placeholder={t('跳转链接')} onChange={(v: string) => updateItem(index, { picLink: { link: v, title: item.picTitle || '' } })} style={{ width: 260 }} />
+                  </div>
+                )}
                 <div className="mobile-nav-compact" style={{ display: 'flex', gap: 28, marginTop: 10 }}>
                   <div>
                     <div style={{ color: '#969799', fontSize: 12, marginBottom: 5 }}>{t('未选中图标')}</div>

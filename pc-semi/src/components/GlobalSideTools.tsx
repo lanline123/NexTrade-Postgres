@@ -35,6 +35,9 @@ import GuideChatPanel from './GuideChatPanel';
  *
  * 数据：
  * - sidebarNav：GET /api/common/pc/getNav（type=4 侧边导航，后台「导航装修」配置）
+ * - 扫码入口（我方新增）：sidebarNav 项 entryType='qrcode' 时渲染为按钮，
+ *   点击展开 gst__qr-panel 展示 qrImage 大图（标题 + 企微/公众号类型 + 扫一扫提示），
+ *   与 H5 端 QrEntryPopup 同字段同结构；后台在「导航装修 → 侧边导航」抽屉里配置。
  * - 客服配置：GET /api/home/home/getCustomerServiceConfig
  * - 购物车数量：GET /api/cart/cart/list → data.total.totalCount（有 token 才请求）
  */
@@ -46,6 +49,12 @@ interface SideNavItem {
   isShow?: number;
   isBlank?: number;
   link?: { link?: string } | null;
+  /** 入口类型（我方新增）：'qrcode' = 扫码入口，点击弹二维码大图，不跳转 */
+  entryType?: string;
+  /** 二维码类型（我方新增）：'wecom' 企业微信 / 'official' 公众号 */
+  qrType?: string;
+  /** 二维码图片 URL（我方新增） */
+  qrImage?: string;
 }
 
 interface CustomerServiceConfig {
@@ -99,6 +108,8 @@ export default function GlobalSideTools() {
   // 商品详情页「扫一扫」：点击展开二维码弹层（对齐旧版 ElevatorProduct）
   const [qrOpen, setQrOpen] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
+  // 扫码入口（我方新增）：当前展开的侧边导航扫码项（企微/公众号二维码）
+  const [qrEntry, setQrEntry] = useState<SideNavItem | null>(null);
 
   const isHome = pathname === '/';
   const isItem = isUnder(pathname, '/item');
@@ -114,10 +125,11 @@ export default function GlobalSideTools() {
       .catch(() => undefined);
   }, [qrOpen, qrDataUrl]);
 
-  // 路由切换时收起二维码弹层并清空缓存（新商品要重新生成）
+  // 路由切换时收起二维码弹层并清空缓存（新商品要重新生成）；扫码入口弹层一并收起
   useEffect(() => {
     setQrOpen(false);
     setQrDataUrl('');
+    setQrEntry(null);
   }, [pathname]);
 
   useEffect(() => {
@@ -186,10 +198,41 @@ export default function GlobalSideTools() {
   };
 
   const renderNavItem = (item: SideNavItem, index: number) => {
-    const href = navHref(item);
-    if (!href) return null;
     // 图标：标题映射到 icon-park；未匹配的标题回退首字符（配置的 iconfont 类名不再使用）
     const NavIcon = NAV_ITEM_ICONS[item.title || ''];
+    const iconNode = NavIcon ? (
+      <NavIcon size={22} />
+    ) : (
+      <span className="gst__item-char">{(item.title || '').slice(0, 1)}</span>
+    );
+    // 扫码入口（我方新增）：点击展开二维码弹层（与 H5 QrEntryPopup 同字段同结构），不跳转
+    if (item.entryType === 'qrcode' && item.qrImage) {
+      const open = qrEntry === item;
+      return (
+        <div key={item.id ?? index} className="gst__qr-anchor">
+          {open ? (
+            <div className="gst__qr-panel">
+              <div className="gst__qr-title">{item.title}</div>
+              <img className="gst__qr-img" src={item.qrImage} alt={item.title || 'QR'} />
+              <div className="gst__qr-text">
+                {item.qrType === 'official' ? t('微信公众号') : t('企业微信')} · {t('微信扫一扫')}
+              </div>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            className={`gst__item${open ? ' is-active' : ''}`}
+            onClick={() => setQrEntry(open ? null : item)}
+            aria-label={item.title}
+          >
+            {iconNode}
+            <span className="gst__tip">{item.title}</span>
+          </button>
+        </div>
+      );
+    }
+    const href = navHref(item);
+    if (!href) return null;
     if (isExternalUrl(href)) {
       return (
         <a
@@ -199,7 +242,7 @@ export default function GlobalSideTools() {
           target={Number(item.isBlank) === 1 ? '_blank' : '_self'}
           rel="noopener noreferrer"
         >
-          {NavIcon ? <NavIcon size={22} /> : <span className="gst__item-char">{(item.title || '').slice(0, 1)}</span>}
+          {iconNode}
           <span className="gst__tip">{item.title}</span>
         </a>
       );
@@ -211,7 +254,7 @@ export default function GlobalSideTools() {
         href={href}
         target={Number(item.isBlank) === 1 ? '_blank' : '_self'}
       >
-        {NavIcon ? <NavIcon size={22} /> : <span className="gst__item-char">{(item.title || '').slice(0, 1)}</span>}
+        {iconNode}
         <span className="gst__tip">{item.title}</span>
       </Link>
     );

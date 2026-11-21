@@ -151,6 +151,43 @@ pub fn normalize_link(nav_type: Option<i32>, link: Option<&serde_json::Value>) -
     serde_json::to_string(value).map_err(|e| Error::Validation(e.to_string()))
 }
 
+/// 扫码入口的入口类型值（我方新增，论坛 B 类缓做项 #25「底部 UI 企业微信/公众号二维码入口」）。
+pub const ENTRY_TYPE_QRCODE: &str = "qrcode";
+/// 二维码类型：企业微信（我方新增）。
+pub const QR_TYPE_WECOM: &str = "wecom";
+/// 二维码类型：公众号（我方新增）。
+pub const QR_TYPE_OFFICIAL: &str = "official";
+/// 扫码入口未上传二维码图时的校验文案（我方新增）。
+pub const QR_IMAGE_REQUIRED: &str = "扫码入口须上传二维码图";
+
+/// 归一化入口类型（我方新增）：仅 `qrcode` 保留，其余（含缺省）→ 空串（普通链接）。
+#[must_use]
+pub fn normalize_entry_type(raw: Option<&str>) -> String {
+    if raw == Some(ENTRY_TYPE_QRCODE) {
+        ENTRY_TYPE_QRCODE.to_string()
+    } else {
+        String::new()
+    }
+}
+
+/// 归一化二维码类型（我方新增）：仅 `official` 保留，其余（含缺省）→ `wecom`。
+#[must_use]
+pub fn normalize_qr_type(raw: Option<&str>) -> String {
+    if raw == Some(QR_TYPE_OFFICIAL) {
+        QR_TYPE_OFFICIAL.to_string()
+    } else {
+        QR_TYPE_WECOM.to_string()
+    }
+}
+
+/// 校验扫码入口完整性（我方新增）：`entry_type = qrcode` 时二维码图必填。
+pub fn validate_qr_entry(entry_type: &str, qr_image: &str) -> Result<()> {
+    if entry_type == ENTRY_TYPE_QRCODE && qr_image.trim().is_empty() {
+        return Err(Error::Validation(QR_IMAGE_REQUIRED.to_string()));
+    }
+    Ok(())
+}
+
 /// `selectLink` 的静态清单，对应 Java `PcNavigationServiceImpl#selectLink`。
 ///
 /// `is_merchant` 为真时在「积分商城」之后追加「店铺列表」一项
@@ -225,6 +262,9 @@ pub fn build_parent_tree(rows: &[PcNavigation]) -> Vec<PcNavigationTreeVO> {
         is_blank: n.is_blank,
         link: parse_link_any(&n.link),
         icon: n.icon.clone(),
+        entry_type: n.entry_type.clone(),
+        qr_type: n.qr_type.clone(),
+        qr_image: n.qr_image.clone(),
         children: Vec::new(),
     };
 
@@ -337,6 +377,11 @@ impl PcNavigationService {
     pub async fn create(&self, dto: &PcNavigationCreateDTO) -> Result<bool> {
         let title = validate_create_title(dto.title.as_deref())?;
         let link = normalize_link(dto.r#type, dto.link.as_ref())?;
+        // 扫码入口（我方新增）：归一化 + 完整性校验
+        let entry_type = normalize_entry_type(dto.entry_type.as_deref());
+        let qr_type = normalize_qr_type(dto.qr_type.as_deref());
+        let qr_image = dto.qr_image.clone().unwrap_or_default();
+        validate_qr_entry(&entry_type, &qr_image)?;
         let nav = PcNavigation {
             // 自增主键，插入时忽略
             id: 0,
@@ -351,6 +396,9 @@ impl PcNavigationService {
             r#type: dto.r#type.unwrap_or(0),
             parent_id: dto.parent_id.unwrap_or(0),
             icon: dto.icon.clone().unwrap_or_default(),
+            entry_type,
+            qr_type,
+            qr_image,
         };
         let id = self.repos.content.pc_navigation.insert(&nav).await?;
         tracing::info!(
@@ -369,6 +417,22 @@ impl PcNavigationService {
             .id
             .ok_or_else(|| Error::Validation(ID_CANNOT_IS_NULL.to_string()))?;
         let link = normalize_link(dto.r#type, dto.link.as_ref())?;
+        // 扫码入口（我方新增）：补丁语义下传了才归一化；本次显式传
+        // entry_type=qrcode 且 qr_image 显式为空时拦截（管理端抽屉恒全量
+        // 回传三字段；合并后完整性另由 decorate 服务路径的全量更新兜底）。
+        let entry_type = dto
+            .entry_type
+            .as_ref()
+            .map(|_| normalize_entry_type(dto.entry_type.as_deref()));
+        let qr_type = dto
+            .qr_type
+            .as_ref()
+            .map(|_| normalize_qr_type(dto.qr_type.as_deref()));
+        if entry_type.as_deref() == Some(ENTRY_TYPE_QRCODE) {
+            if let Some(img) = dto.qr_image.as_deref() {
+                validate_qr_entry(ENTRY_TYPE_QRCODE, img)?;
+            }
+        }
         let patch = PcNavigationPatch {
             id,
             // Java `BeanUtils.copyProperties` 只复制类型兼容的属性；`link` 为
@@ -381,6 +445,9 @@ impl PcNavigationService {
             r#type: dto.r#type,
             parent_id: dto.parent_id,
             icon: dto.icon.clone(),
+            entry_type,
+            qr_type,
+            qr_image: dto.qr_image.clone(),
         };
         self.repos.content.pc_navigation.update(&patch).await
     }
@@ -461,7 +528,28 @@ mod tests {
             r#type: 2,
             parent_id,
             icon: String::new(),
+            entry_type: String::new(),
+            qr_type: String::new(),
+            qr_image: String::new(),
         }
+    }
+
+    #[test]
+    fn qr_entry_normalization_and_validation() {
+        // 入口类型：仅 qrcode 保留，其余（含缺省/未知值）归普通链接
+        assert_eq!(normalize_entry_type(Some("qrcode")), "qrcode");
+        assert_eq!(normalize_entry_type(Some("link")), "");
+        assert_eq!(normalize_entry_type(Some("QRCODE")), "");
+        assert_eq!(normalize_entry_type(None), "");
+        // 二维码类型：仅 official 保留，其余归 wecom
+        assert_eq!(normalize_qr_type(Some("official")), "official");
+        assert_eq!(normalize_qr_type(Some("wecom")), "wecom");
+        assert_eq!(normalize_qr_type(None), "wecom");
+        // 完整性：扫码入口必须有二维码图；普通链接不校验
+        assert!(validate_qr_entry("qrcode", "https://example.com/q.png").is_ok());
+        let err = validate_qr_entry("qrcode", "  ").unwrap_err();
+        assert!(err.to_string().contains(QR_IMAGE_REQUIRED));
+        assert!(validate_qr_entry("", "").is_ok());
     }
 
     #[test]

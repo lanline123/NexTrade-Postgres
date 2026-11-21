@@ -566,6 +566,11 @@ impl DecorateService {
             .map(str::trim)
             .filter(|t| !t.is_empty())
             .ok_or_else(|| Error::Validation("导航标题不能为空".into()))?;
+        // 扫码入口（我方新增）：归一化 + 完整性校验
+        let entry_type = crate::content::pc_navigation::normalize_entry_type(dto.entry_type.as_deref());
+        let qr_type = crate::content::pc_navigation::normalize_qr_type(dto.qr_type.as_deref());
+        let qr_image = dto.qr_image.clone().unwrap_or_default();
+        crate::content::pc_navigation::validate_qr_entry(&entry_type, &qr_image)?;
         let n = nextrade_core::entities::PcNavigation {
             id: 0,
             title: title.to_string(),
@@ -582,6 +587,9 @@ impl DecorateService {
             r#type: dto.r#type.unwrap_or(1),
             parent_id: dto.parent_id.unwrap_or(0),
             icon: dto.icon.clone().unwrap_or_default(),
+            entry_type,
+            qr_type,
+            qr_image,
         };
         self.repos.content.decorate.insert_navigation(&n).await
     }
@@ -624,6 +632,17 @@ impl DecorateService {
         if dto.icon.is_some() {
             n.icon = dto.icon.clone().unwrap_or(n.icon);
         }
+        // 扫码入口（我方新增）：逐字段覆盖后按合并结果校验完整性
+        if dto.entry_type.is_some() {
+            n.entry_type = crate::content::pc_navigation::normalize_entry_type(dto.entry_type.as_deref());
+        }
+        if dto.qr_type.is_some() {
+            n.qr_type = crate::content::pc_navigation::normalize_qr_type(dto.qr_type.as_deref());
+        }
+        if dto.qr_image.is_some() {
+            n.qr_image = dto.qr_image.clone().unwrap_or(n.qr_image);
+        }
+        crate::content::pc_navigation::validate_qr_entry(&n.entry_type, &n.qr_image)?;
         self.repos.content.decorate.update_navigation(&n).await.map(|_| true)
     }
 

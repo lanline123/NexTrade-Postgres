@@ -58,9 +58,38 @@ describe("底部导航高度与数据回落（Zustand 版）", () => {
         });
         await useTabbarStore.getState().getTabbarList();
         const state = useTabbarStore.getState();
+        // 存量数据无扫码字段 → 归一为普通链接（我方新增字段缺省口径）
         expect(state.tabbarListDefault).toEqual([
-            { link: "/pages/index/index", image: "a.png", activeImage: "b.png", text: "首页" }
+            { link: "/pages/index/index", image: "a.png", activeImage: "b.png", text: "首页", entryType: "link", qrType: "wecom", qrImage: "" }
         ]);
         expect(state.tabbarEnableAnimation).toBe(true);
+    });
+
+    it("扫码入口项透传 entryType/qrType/qrImage（我方新增）", async () => {
+        (getMobileNav as any).mockResolvedValue({
+            navList: [
+                { picLink: "/pages/index/index", picThumb: "a.png", picActiveThumb: "b.png", picTitle: "首页" },
+                {
+                    picLink: { link: "" },
+                    picThumb: "qr.png",
+                    picActiveThumb: "qr.png",
+                    picTitle: "联系我们",
+                    entryType: "qrcode",
+                    qrType: "official",
+                    qrImage: "https://example.com/gzh.png"
+                }
+            ]
+        });
+        await useTabbarStore.getState().getTabbarList();
+        const list = useTabbarStore.getState().tabbarListDefault;
+        expect(list[1]).toEqual({
+            link: { link: "" },
+            image: "qr.png",
+            activeImage: "qr.png",
+            text: "联系我们",
+            entryType: "qrcode",
+            qrType: "official",
+            qrImage: "https://example.com/gzh.png"
+        });
     });
 });

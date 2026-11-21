@@ -23,6 +23,12 @@ export interface TabbarItem {
     image: string;
     activeImage: string;
     text: string;
+    /** 入口类型（我方新增）：'qrcode' = 扫码入口（点击弹二维码），其余 = 链接跳转 */
+    entryType: string;
+    /** 二维码类型（我方新增）：'wecom' 企业微信 / 'official' 公众号 */
+    qrType: string;
+    /** 二维码图片 URL（我方新增） */
+    qrImage: string;
 }
 
 export interface TabbarState {
@@ -91,7 +97,12 @@ export const useTabbarStore = create<TabbarState>((set) => ({
                         link: item.picLink,
                         image: item.picThumb,
                         activeImage: item.picActiveThumb,
-                        text: item.picTitle
+                        text: item.picTitle,
+                        // 扫码入口（我方新增）：存量数据无此三字段时归一为普通链接，
+                        // 行为与改造前逐字一致
+                        entryType: item.entryType === "qrcode" ? "qrcode" : "link",
+                        qrType: item.qrType === "official" ? "official" : "wecom",
+                        qrImage: item.qrImage || ""
                     };
                 })
             });
@@ -109,25 +120,37 @@ export const useTabbarStore = create<TabbarState>((set) => ({
                         link: "/pages/index/index",
                         image: ico1,
                         activeImage: ico1h,
-                        text: t("首页")
+                        text: t("首页"),
+                        entryType: "link",
+                        qrType: "wecom",
+                        qrImage: ""
                     },
                     {
                         link: "/pages/productCate/index",
                         image: ico2,
                         activeImage: ico2h,
-                        text: t("分类")
+                        text: t("分类"),
+                        entryType: "link",
+                        qrType: "wecom",
+                        qrImage: ""
                     },
                     {
                         link: "/pages/cart/index",
                         image: ico3,
                         activeImage: ico3h,
-                        text: t("购物车")
+                        text: t("购物车"),
+                        entryType: "link",
+                        qrType: "wecom",
+                        qrImage: ""
                     },
                     {
                         link: "/pages/member/index",
                         image: ico4,
                         activeImage: ico4h,
-                        text: t("我的")
+                        text: t("我的"),
+                        entryType: "link",
+                        qrType: "wecom",
+                        qrImage: ""
                     }
                 ]
             });

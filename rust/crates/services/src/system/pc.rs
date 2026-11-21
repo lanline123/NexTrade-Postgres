@@ -326,6 +326,10 @@ fn nav_node(
         is_blank: row.is_blank,
         link: parse_nav_link(&row.link),
         icon: row.icon.clone(),
+        // 扫码入口（我方新增）：透传三字段，空串在序列化时省略
+        entry_type: row.entry_type.clone(),
+        qr_type: row.qr_type.clone(),
+        qr_image: row.qr_image.clone(),
         children,
     })
 }
@@ -417,6 +421,9 @@ mod tests {
             r#type: nav_type,
             parent_id,
             icon: String::new(),
+            entry_type: String::new(),
+            qr_type: String::new(),
+            qr_image: String::new(),
         }
     }
 

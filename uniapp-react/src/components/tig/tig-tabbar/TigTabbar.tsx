@@ -1,11 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { View, Image, Text } from "@tarojs/components";
 
-import { useTabbarStore, useTabbarDerived } from "@/store/tabbar";
+import { useTabbarStore, useTabbarDerived, type TabbarItem } from "@/store/tabbar";
 import { useCartStore } from "@/store/cart";
 import { redirect } from "@/utils";
 import { urlFormat, imageFormat } from "@/utils/format";
 import { t } from "@/utils/i18n";
+import QrEntryPopup from "@/components/QrEntryPopup";
 
 import "./TigTabbar.scss";
 
@@ -21,6 +22,8 @@ export default function TigTabbar({ backgroundColor = "#fff", color = "#000", ac
     const cartCount = useCartStore((s) => s.cartCount);
     const fetchCartCount = useCartStore((s) => s.fetchCartCount);
     const currRoute = useTabbarStore((s) => s.currRoute);
+    // 扫码入口（我方新增）：点击弹二维码大图，不走跳转
+    const [qrItem, setQrItem] = useState<TabbarItem | null>(null);
 
     useEffect(() => {
         void fetchCartCount();
@@ -39,6 +42,11 @@ export default function TigTabbar({ backgroundColor = "#fff", color = "#000", ac
     };
 
     const handleTabbar = (item: any, index: number) => {
+        // 扫码入口（我方新增）优先于当前页判断：任何页面点它都弹二维码
+        if (item.entryType === "qrcode") {
+            setQrItem(item as TabbarItem);
+            return;
+        }
         if (currentActiveValue === index) return;
 
         if (item.link) {
@@ -74,6 +82,13 @@ export default function TigTabbar({ backgroundColor = "#fff", color = "#000", ac
                 </View>
             </View>
             <View className="tig-tabbar__placeholder" />
+            <QrEntryPopup
+                visible={qrItem !== null}
+                title={qrItem?.text}
+                qrType={qrItem?.qrType}
+                qrImage={qrItem?.qrImage}
+                onClose={() => setQrItem(null)}
+            />
         </View>
     );
 }

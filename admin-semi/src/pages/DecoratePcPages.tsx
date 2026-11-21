@@ -49,6 +49,7 @@ import { useI18n } from '../i18n';
 import OptionSelectModal from '../components/OptionSelectModal';
 import TemplateImportModal from '../components/TemplateImportModal';
 import FloorIcon from '../components/FloorIcon';
+import ImageUploader from '../components/ImageUploader';
 import {
   iconParkNameOf,
   loadIconParkCatalog,
@@ -746,6 +747,12 @@ interface PcNavRecord {
   sortOrder: number;
   icon?: string;
   link?: any;
+  /** 入口类型（我方新增）：'qrcode' = 扫码入口（仅侧边导航用），缺省 = 普通链接 */
+  entryType?: string;
+  /** 二维码类型（我方新增）：'wecom' 企业微信 / 'official' 公众号 */
+  qrType?: string;
+  /** 二维码图片 URL（我方新增） */
+  qrImage?: string;
   hasChildren?: number;
   children?: PcNavRecord[];
 }
@@ -777,6 +784,10 @@ export function PcNavigation() {
     sortOrder: 50,
     isShow: 1,
     isBlank: 0,
+    // 扫码入口（我方新增，仅侧边导航 type=4 使用）
+    entryType: 'link',
+    qrType: 'wecom',
+    qrImage: '',
   });
 
   const typeName = t(
@@ -910,6 +921,9 @@ export function PcNavigation() {
       sortOrder: 50,
       isShow: 1,
       isBlank: 0,
+      entryType: 'link',
+      qrType: 'wecom',
+      qrImage: '',
     });
     setDrawerVisible(true);
   };
@@ -930,6 +944,9 @@ export function PcNavigation() {
       sortOrder: row.sortOrder ?? 50,
       isShow: row.isShow ?? 1,
       isBlank: row.isBlank ?? 0,
+      entryType: row.entryType === 'qrcode' ? 'qrcode' : 'link',
+      qrType: row.qrType === 'official' ? 'official' : 'wecom',
+      qrImage: row.qrImage || '',
     });
     setDrawerVisible(true);
   };
@@ -937,6 +954,11 @@ export function PcNavigation() {
   const handleDrawerSubmit = async () => {
     if (!formState.title.trim()) {
       Toast.warning(t('名称不能为空!'));
+      return;
+    }
+    // 扫码入口（我方新增，仅侧边导航）：未上传二维码图不允许提交
+    if (activeKey === 4 && formState.entryType === 'qrcode' && !formState.qrImage) {
+      Toast.warning(t('扫码入口须上传二维码图'));
       return;
     }
     setSubmitting(true);
@@ -950,6 +972,11 @@ export function PcNavigation() {
         isShow: formState.isShow,
         isBlank: formState.isBlank,
       };
+      if (activeKey === 4) {
+        payload.entryType = formState.entryType === 'qrcode' ? 'qrcode' : '';
+        payload.qrType = formState.qrType === 'official' ? 'official' : 'wecom';
+        payload.qrImage = formState.qrImage || '';
+      }
       if (activeKey === 2) {
         payload.parentId = formState.parentId;
       }
@@ -975,7 +1002,12 @@ export function PcNavigation() {
       dataIndex: 'title',
       width: 220,
       render: (text: string, row: PcNavRecord) => (
-        <span style={{ fontWeight: row.parentId === 0 ? 600 : 400 }}>{text}</span>
+        <span style={{ fontWeight: row.parentId === 0 ? 600 : 400 }}>
+          {text}
+          {row.entryType === 'qrcode' ? (
+            <Tag color="violet" style={{ marginLeft: 6 }}>{t('扫码')}</Tag>
+          ) : null}
+        </span>
       ),
     },
     {
@@ -1172,14 +1204,55 @@ export function PcNavigation() {
             />
           </div>
 
-          <div>
-            <div style={{ marginBottom: 6, fontWeight: 500 }}>{t('链接地址：')}</div>
-            <Input
-              value={formState.linkUrl}
-              onChange={(v) => setFormState({ ...formState, linkUrl: v })}
-              placeholder={t('例如: /product/list 或 http://...')}
-            />
-          </div>
+          {activeKey === 4 && (
+            <div>
+              <div style={{ marginBottom: 6, fontWeight: 500 }}>{t('入口类型：')}</div>
+              <RadioGroup
+                value={formState.entryType}
+                onChange={(e) => setFormState({ ...formState, entryType: String(e.target.value) })}
+              >
+                <Radio value="link">{t('链接跳转')}</Radio>
+                <Radio value="qrcode">{t('扫码入口')}</Radio>
+              </RadioGroup>
+              <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+                {t('扫码入口展示在 PC 前台右侧悬浮工具栏，点击弹出二维码大图')}
+              </div>
+            </div>
+          )}
+
+          {activeKey === 4 && formState.entryType === 'qrcode' ? (
+            <>
+              <div>
+                <div style={{ marginBottom: 6, fontWeight: 500 }}>{t('二维码类型：')}</div>
+                <RadioGroup
+                  value={formState.qrType}
+                  onChange={(e) => setFormState({ ...formState, qrType: String(e.target.value) })}
+                >
+                  <Radio value="wecom">{t('企业微信')}</Radio>
+                  <Radio value="official">{t('公众号')}</Radio>
+                </RadioGroup>
+              </div>
+              <div>
+                <div style={{ marginBottom: 6, fontWeight: 500 }}>
+                  <span style={{ color: '#f53f3f' }}>* </span>{t('二维码图：')}
+                </div>
+                <ImageUploader
+                  value={formState.qrImage ? [formState.qrImage] : []}
+                  single
+                  onChange={(urls) => setFormState({ ...formState, qrImage: urls[0] || '' })}
+                />
+              </div>
+            </>
+          ) : (
+            <div>
+              <div style={{ marginBottom: 6, fontWeight: 500 }}>{t('链接地址：')}</div>
+              <Input
+                value={formState.linkUrl}
+                onChange={(v) => setFormState({ ...formState, linkUrl: v })}
+                placeholder={t('例如: /product/list 或 http://...')}
+              />
+            </div>
+          )}
 
           <div>
             <div style={{ marginBottom: 6, fontWeight: 500 }}>{t('ICO编码：')}</div>

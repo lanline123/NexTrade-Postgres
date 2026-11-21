@@ -144,6 +144,12 @@ pub struct PcNavigationCreateDTO {
     pub r#type: Option<i32>,
     pub parent_id: Option<i32>,
     pub icon: Option<String>,
+    /// 入口类型（我方新增）：`qrcode` = 扫码入口，其余/缺省 = 普通链接
+    pub entry_type: Option<String>,
+    /// 二维码类型（我方新增）：`wecom` 企业微信 / `official` 公众号
+    pub qr_type: Option<String>,
+    /// 二维码图片 URL（我方新增）
+    pub qr_image: Option<String>,
 }
 
 /// 更新参数，对应 Java `PcNavigationUpdateDTO`。
@@ -160,6 +166,12 @@ pub struct PcNavigationUpdateDTO {
     pub r#type: Option<i32>,
     pub parent_id: Option<i32>,
     pub icon: Option<String>,
+    /// 入口类型（我方新增）：`qrcode` = 扫码入口，普通链接为空串
+    pub entry_type: Option<String>,
+    /// 二维码类型（我方新增）：`wecom` 企业微信 / `official` 公众号
+    pub qr_type: Option<String>,
+    /// 二维码图片 URL（我方新增）
+    pub qr_image: Option<String>,
 }
 
 /// 导航列表 / 详情 VO，对应 Java `PcNavigationVO`。
@@ -177,6 +189,12 @@ pub struct PcNavigationVO {
     pub type_name: String,
     pub parent_id: i32,
     pub icon: String,
+    /// 入口类型（我方新增）：`qrcode` = 扫码入口，普通链接为空串
+    pub entry_type: String,
+    /// 二维码类型（我方新增）：`wecom` 企业微信 / `official` 公众号
+    pub qr_type: String,
+    /// 二维码图片 URL（我方新增）
+    pub qr_image: String,
     /// 是否有子导航。
     ///
     /// Java：`list` 恒显式置 0（仅 `type == 2` 时回填真实计数）；
@@ -197,6 +215,9 @@ impl From<&PcNavigation> for PcNavigationVO {
             type_name: pc_navigation_type_name(Some(n.r#type)),
             parent_id: n.parent_id,
             icon: n.icon.clone(),
+            entry_type: n.entry_type.clone(),
+            qr_type: n.qr_type.clone(),
+            qr_image: n.qr_image.clone(),
             has_children: None,
         }
     }
@@ -219,6 +240,12 @@ pub struct PcNavigationTreeVO {
     /// 原始链接 JSON（对象 / 数组 / `null`）
     pub link: serde_json::Value,
     pub icon: String,
+    /// 入口类型（我方新增）：`qrcode` = 扫码入口，普通链接为空串
+    pub entry_type: String,
+    /// 二维码类型（我方新增）：`wecom` 企业微信 / `official` 公众号
+    pub qr_type: String,
+    /// 二维码图片 URL（我方新增）
+    pub qr_image: String,
     pub children: Vec<PcNavigationTreeVO>,
 }
 
@@ -250,6 +277,12 @@ pub struct PcNavigationPatch {
     pub r#type: Option<i32>,
     pub parent_id: Option<i32>,
     pub icon: Option<String>,
+    /// 入口类型（我方新增，已归一化；`None` = 不更新）
+    pub entry_type: Option<String>,
+    /// 二维码类型（我方新增，已归一化；`None` = 不更新）
+    pub qr_type: Option<String>,
+    /// 二维码图片 URL（我方新增；`None` = 不更新）
+    pub qr_image: Option<String>,
 }
 
 #[cfg(test)]
@@ -353,6 +386,30 @@ mod tests {
             serde_json::json!({"path": "base"})
         );
         assert_eq!(parse_link_any("not-json"), serde_json::Value::Null);
+    }
+
+    #[test]
+    fn vo_carries_qr_entry_fields() {
+        // 我方新增：扫码入口三字段随 VO 输出（camelCase），普通链接为空串
+        let entity = PcNavigation {
+            id: 7,
+            title: "企业微信".into(),
+            is_show: 1,
+            sort_order: 50,
+            is_blank: 0,
+            link: "[]".into(),
+            r#type: 4,
+            parent_id: 0,
+            icon: String::new(),
+            entry_type: "qrcode".into(),
+            qr_type: "wecom".into(),
+            qr_image: "https://example.com/qr.png".into(),
+        };
+        let vo = PcNavigationVO::from(&entity);
+        let json = serde_json::to_value(&vo).unwrap();
+        assert_eq!(json["entryType"], "qrcode");
+        assert_eq!(json["qrType"], "wecom");
+        assert_eq!(json["qrImage"], "https://example.com/qr.png");
     }
 
     #[test]

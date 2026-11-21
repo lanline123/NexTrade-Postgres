@@ -709,7 +709,7 @@ impl DecorateRepository {
     pub async fn insert_navigation(&self, n: &PcNavigation) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
             "INSERT INTO pc_navigation (title, is_show, sort_order, is_blank, link, \"type\", \
-             parent_id, icon) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id",
+             parent_id, icon, entry_type, qr_type, qr_image) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id",
         )
         .bind(&n.title)
         .bind(n.is_show)
@@ -719,6 +719,9 @@ impl DecorateRepository {
         .bind(n.r#type)
         .bind(n.parent_id)
         .bind(&n.icon)
+        .bind(&n.entry_type)
+        .bind(&n.qr_type)
+        .bind(&n.qr_image)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
@@ -729,7 +732,7 @@ impl DecorateRepository {
     pub async fn update_navigation(&self, n: &PcNavigation) -> Result<()> {
         sqlx::query(
             "UPDATE pc_navigation SET title=$1, is_show=$2, sort_order=$3, is_blank=$4, link=$5, \
-             \"type\"=$6, parent_id=$7, icon=$8 WHERE id=$9",
+             \"type\"=$6, parent_id=$7, icon=$8, entry_type=$9, qr_type=$10, qr_image=$11 WHERE id=$12",
         )
         .bind(&n.title)
         .bind(n.is_show)
@@ -739,6 +742,9 @@ impl DecorateRepository {
         .bind(n.r#type)
         .bind(n.parent_id)
         .bind(&n.icon)
+        .bind(&n.entry_type)
+        .bind(&n.qr_type)
+        .bind(&n.qr_image)
         .bind(n.id)
         .execute(&self.pool)
         .await

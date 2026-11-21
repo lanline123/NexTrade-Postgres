@@ -2,9 +2,10 @@
 //!
 //! 列名严格对齐权威 schema
 //! （`python tools/schema_parser.py --table pc_navigation`，权威源
-//! `java/database/pure.sql`），共 9 列且全部 `NOT NULL`：
+//! `java/database/pure.sql`），原 9 列且全部 `NOT NULL`：
 //! `id` / `title` / `is_show` / `sort_order` / `is_blank` / `link` /
-//! `type` / `parent_id` / `icon`。
+//! `type` / `parent_id` / `icon`；另有我方新增 3 列（迁移 023，扫码入口）：
+//! `entry_type` / `qr_type` / `qr_image`，同为 `NOT NULL` 带默认值。
 //!
 //! 约定：
 //! - 一律使用**运行时** `sqlx::query_as` / `sqlx::query`，**不使用** `query!` 宏
@@ -22,11 +23,11 @@ use nextrade_core::models::content::pc_navigation::PcNavigationPatch;
 use nextrade_core::types::PageQuery;
 use nextrade_core::{Error, Result};
 
-/// `pc_navigation` 全部 9 列（顺序与 [`PcNavigation`] 实体字段一致）。
+/// `pc_navigation` 全部 12 列（顺序与 [`PcNavigation`] 实体字段一致）。
 ///
 /// 服务层 `NAV_COLUMNS.split(',')` 单测保证它与实体字段一一对应。
 pub const NAV_COLUMNS: &str =
-    "id, title, is_show, sort_order, is_blank, link, \"type\", parent_id, icon";
+    "id, title, is_show, sort_order, is_blank, link, \"type\", parent_id, icon, entry_type, qr_type, qr_image";
 
 /// `updateField` 允许更新的列（`CheckFieldConstants.PC_NAVIGATION_FIELDS` 的有效子集）。
 ///
@@ -177,7 +178,7 @@ impl PcNavigationRepository {
     /// MyBatis-Plus NOT_NULL 策略（`null` 不入列）与「显式写入默认值」等价。
     pub async fn insert(&self, n: &PcNavigation) -> Result<i32> {
         let r: i32 = sqlx::query_scalar(
-            "INSERT INTO pc_navigation (title, is_show, sort_order, is_blank, link, \"type\", parent_id, icon) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+            "INSERT INTO pc_navigation (title, is_show, sort_order, is_blank, link, \"type\", parent_id, icon, entry_type, qr_type, qr_image) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id",
         )
         .bind(&n.title)
         .bind(n.is_show)
@@ -187,6 +188,9 @@ impl PcNavigationRepository {
         .bind(n.r#type)
         .bind(n.parent_id)
         .bind(&n.icon)
+        .bind(&n.entry_type)
+        .bind(&n.qr_type)
+        .bind(&n.qr_image)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
@@ -201,7 +205,7 @@ impl PcNavigationRepository {
     /// `link` 恒写入（Java `getLink` 在未传 `link` 时写入 `"[]"`）。
     pub async fn update(&self, patch: &PcNavigationPatch) -> Result<bool> {
         let r = sqlx::query(
-            "UPDATE pc_navigation SET title = COALESCE($1, title), is_show = COALESCE($2, is_show), sort_order = COALESCE($3, sort_order), is_blank = COALESCE($4, is_blank), link = $5, \"type\" = COALESCE($6, \"type\"), parent_id = COALESCE($7, parent_id), icon = COALESCE($8, icon) WHERE id = $9",
+            "UPDATE pc_navigation SET title = COALESCE($1, title), is_show = COALESCE($2, is_show), sort_order = COALESCE($3, sort_order), is_blank = COALESCE($4, is_blank), link = $5, \"type\" = COALESCE($6, \"type\"), parent_id = COALESCE($7, parent_id), icon = COALESCE($8, icon), entry_type = COALESCE($9, entry_type), qr_type = COALESCE($10, qr_type), qr_image = COALESCE($11, qr_image) WHERE id = $12",
         )
         .bind(patch.title.as_deref())
         .bind(patch.is_show)
@@ -211,6 +215,9 @@ impl PcNavigationRepository {
         .bind(patch.r#type)
         .bind(patch.parent_id)
         .bind(patch.icon.as_deref())
+        .bind(patch.entry_type.as_deref())
+        .bind(patch.qr_type.as_deref())
+        .bind(patch.qr_image.as_deref())
         .bind(patch.id)
         .execute(&self.pool)
         .await
@@ -299,12 +306,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn nav_columns_cover_all_nine_columns_in_entity_order() {
+    fn nav_columns_cover_all_twelve_columns_in_entity_order() {
         assert_eq!(
             NAV_COLUMNS,
-            "id, title, is_show, sort_order, is_blank, link, \"type\", parent_id, icon"
+            "id, title, is_show, sort_order, is_blank, link, \"type\", parent_id, icon, entry_type, qr_type, qr_image"
         );
-        assert_eq!(NAV_COLUMNS.split(',').count(), 9);
+        assert_eq!(NAV_COLUMNS.split(',').count(), 12);
     }
 
     #[test]

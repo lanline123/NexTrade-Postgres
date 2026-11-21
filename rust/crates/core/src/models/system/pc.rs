@@ -78,6 +78,16 @@ pub struct NavTreeNode {
     pub link: serde_json::Value,
     /// 图标
     pub icon: String,
+    /// 入口类型（我方新增）：`qrcode` = 扫码入口；普通链接为空串且**省略该键**，
+    /// 保证存量导航的出参逐字不变
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    pub entry_type: String,
+    /// 二维码类型（我方新增）：`wecom` 企业微信 / `official` 公众号；空串省略
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    pub qr_type: String,
+    /// 二维码图片 URL（我方新增）；空串省略
+    #[serde(skip_serializing_if = "String::is_empty", default)]
+    pub qr_image: String,
     /// 子节点；无子节点时省略该键（对应 hutool 未挂子节点）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub children: Option<Vec<NavTreeNode>>,
@@ -411,6 +421,9 @@ mod tests {
             is_blank: 0,
             link: json!({"path": "index"}),
             icon: "icon-home".into(),
+            entry_type: String::new(),
+            qr_type: String::new(),
+            qr_image: String::new(),
             children: None,
         };
         let value = serde_json::to_value(node.clone()).unwrap();
@@ -420,6 +433,22 @@ mod tests {
         assert_eq!(value["isShow"], json!(1));
         assert_eq!(value["isBlank"], json!(0));
         assert!(value.get("children").is_none());
+        // 我方新增：普通链接的扫码三字段为空串 → 出参省略，存量 payload 逐字不变
+        assert!(value.get("entryType").is_none());
+        assert!(value.get("qrType").is_none());
+        assert!(value.get("qrImage").is_none());
+
+        // 扫码入口节点 → 三字段齐全输出
+        let qr_node = NavTreeNode {
+            entry_type: "qrcode".into(),
+            qr_type: "official".into(),
+            qr_image: "https://example.com/gzh.png".into(),
+            ..node.clone()
+        };
+        let value = serde_json::to_value(qr_node).unwrap();
+        assert_eq!(value["entryType"], json!("qrcode"));
+        assert_eq!(value["qrType"], json!("official"));
+        assert_eq!(value["qrImage"], json!("https://example.com/gzh.png"));
 
         let vo = NavVO {
             main_nav: vec![node],

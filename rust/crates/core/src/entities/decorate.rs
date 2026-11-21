@@ -183,6 +183,12 @@ pub struct PcNavigation {
     pub parent_id: i32,
     /// 图标 [NOT NULL]
     pub icon: String,
+    /// 入口类型（我方新增，迁移 023）：''=普通链接 / 'qrcode'=扫码入口 [NOT NULL]
+    pub entry_type: String,
+    /// 二维码类型（我方新增）：'wecom'=企业微信 / 'official'=公众号 [NOT NULL]
+    pub qr_type: String,
+    /// 二维码图片 URL（我方新增） [NOT NULL]
+    pub qr_image: String,
 }
 
 impl PcNavigation {

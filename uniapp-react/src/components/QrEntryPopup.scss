@@ -1,0 +1,69 @@
+.qr-entry-popup {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    background-color: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &__card {
+        position: relative;
+        width: 480rpx;
+        background-color: #ffffff;
+        border-radius: 24rpx;
+        padding: 40rpx 36rpx 32rpx;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    &__title {
+        font-size: 30rpx;
+        font-weight: 600;
+        color: #1f2329;
+        line-height: 1.3;
+    }
+
+    &__type {
+        margin-top: 12rpx;
+        font-size: 22rpx;
+        color: #792dff;
+        background-color: #f3efff;
+        border-radius: 16rpx;
+        padding: 4rpx 16rpx;
+    }
+
+    &__img {
+        margin-top: 28rpx;
+        width: 340rpx;
+        height: 340rpx;
+
+        &--empty {
+            background-color: #f2f4f8;
+        }
+    }
+
+    &__hint {
+        margin-top: 24rpx;
+        font-size: 24rpx;
+        color: #969799;
+    }
+
+    &__close {
+        position: absolute;
+        top: 12rpx;
+        right: 12rpx;
+        width: 48rpx;
+        height: 48rpx;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    &__close-icon {
+        font-size: 36rpx;
+        line-height: 1;
+        color: #969799;
+    }
+}
