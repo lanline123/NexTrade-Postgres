@@ -231,6 +231,23 @@ impl OrderService {
                 ));
             }
         }
+        // 渠道可见性整单复检（我方新增，论坛帖 507800）：线上单含「仅 POS
+        // 线下」商品、POS 单含「仅线上」商品即整单拒绝。列表/搜索/详情/
+        // 加购已按渠道隐藏或拦截，此为下单接口兜底（防历史购物车行与
+        // 直调接口绕过前台口径）。
+        for line in &lines {
+            if let Some(p) = products.get(&line.product_id) {
+                if crate::catalog::product::channel_blocks_order(pos_mode, p.sale_channel) {
+                    return Err(Error::biz(
+                        1001,
+                        format!(
+                            "商品「{}」不在当前渠道销售，请移除后再提交",
+                            p.product_name
+                        ),
+                    ));
+                }
+            }
+        }
         let skus = super::cart::load_cart_skus(&self.repos, &lines).await?;
         let mut store_amounts: std::collections::BTreeMap<i32, Decimal> =
             std::collections::BTreeMap::new();

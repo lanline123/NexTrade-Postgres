@@ -1027,6 +1027,12 @@ impl ProductManageService {
             return Err(Error::biz(400, ERR_NOT_EXIST));
         }
 
+        // 渠道可见性（我方新增，论坛帖 507800）：「仅 POS 线下」商品
+        // 在线上详情按不存在处理（与下架同口径）。
+        if !product.visible_online() {
+            return Err(Error::biz(400, ERR_NOT_EXIST));
+        }
+
         let product_id = product.product_id;
         // v5.8.61 商品禁售：搜索/列表/详情使用同一套读时判定。
         let sale_state = self
@@ -1994,6 +2000,11 @@ fn apply_dto_to_product(product: &mut Product, dto: ProductSaveDTO, is_create: b
     if let Some(v) = dto.min_buy_count {
         product.min_buy_count = v.max(0);
     }
+    // 销售渠道（我方新增，论坛帖 507800）：仅接受 0 全渠道 / 1 仅线上 /
+    // 2 仅 POS 线下，非法值归 0（全渠道，不误伤存量）
+    if let Some(v) = dto.sale_channel {
+        product.sale_channel = if matches!(v, 0 | 1 | 2) { v } else { 0 };
+    }
     set_some!(product_care, dto.product_care);
     set_opt!(is_support_return, dto.is_support_return);
     set_opt!(is_support_cod, dto.is_support_cod);
@@ -2308,6 +2319,7 @@ fn to_list_item(
         attributes_tpl_id: p.attributes_tpl_id,
         limit_number: p.limit_number,
         min_buy_count: p.min_buy_count,
+        sale_channel: p.sale_channel,
         delivery_mode: p.delivery_mode,
         group_type: None,
         is_cycle_product: None,
@@ -2398,6 +2410,7 @@ fn to_admin_detail(
         virtual_sales: p.virtual_sales,
         limit_number: p.limit_number,
         min_buy_count: p.min_buy_count,
+        sale_channel: p.sale_channel,
         product_care: p.product_care.clone(),
         product_related: parse_id_json_lossy(p.product_related.as_deref().unwrap_or("")),
         is_support_return: p.is_support_return,
@@ -2697,6 +2710,7 @@ fn to_client_info(p: &Product, inquiry: &InquirySummary) -> ClientProductInfoVO 
         virtual_sales: p.virtual_sales,
         limit_number: p.limit_number,
         min_buy_count: p.min_buy_count,
+        sale_channel: p.sale_channel,
         product_weight: p.product_weight,
         product_volume: p.product_volume,
         product_unit: p.product_unit.clone(),

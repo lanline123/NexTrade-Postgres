@@ -40,8 +40,10 @@ impl ProductSearchRepository {
         if tokens.is_empty() {
             return Ok(Vec::new());
         }
+        // 渠道可见性（我方新增，论坛帖 507800）：搜索联想是线上口径，
+        // 排除「仅 POS 线下」（sale_channel = 2）。
         let mut qb = QueryBuilder::<Postgres>::new(
-            "SELECT product_id, product_name, keywords FROM product WHERE is_delete = 0",
+            "SELECT product_id, product_name, keywords FROM product WHERE is_delete = 0 AND sale_channel <> 2",
         );
         for token in tokens {
             qb.push(" AND product_name ILIKE ");

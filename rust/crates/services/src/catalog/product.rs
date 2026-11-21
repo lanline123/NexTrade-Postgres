@@ -125,6 +125,11 @@ impl ProductService {
             if !p.is_on_sale() {
                 return Err(Error::NotFound("商品已下架".into()));
             }
+            // 渠道可见性（我方新增，论坛帖 507800）：「仅 POS 线下」商品
+            // 在线上详情按不存在处理（与下架同口径）。
+            if !p.visible_online() {
+                return Err(Error::NotFound("商品不存在".into()));
+            }
             // 询价派生态按启用 SKU 推导（本仓储 find_skus 不过滤启用态，手动过滤）
             let skus: Vec<nextrade_core::entities::ProductSku> = self
                 .repos
@@ -197,6 +202,17 @@ impl ProductService {
         // 本校验为加购/结算/下单共用，只藏前端按钮挡不住直接调接口。
         if self.is_inquiry_target(product_id, sku_id).await? {
             return Err(Error::biz(400, MSG_INQUIRY_NOT_PURCHASABLE.to_string()));
+        }
+        // 渠道可见性（我方新增，论坛帖 507800）：「仅 POS 线下」商品在线上
+        // 不可购买；本校验为线上加购/结算/下单共用，POS 收银不经此路
+        // （POS 侧口径在下单创建的整单复检中按 pos_mode 对称拦截）。
+        if let Some(p) = self.repos.catalog.product.find_by_id(product_id).await? {
+            if !p.visible_online() {
+                return Err(Error::biz(
+                    400,
+                    "该商品仅供线下门店销售，无法在线购买".to_string(),
+                ));
+            }
         }
         if !self
             .repos.catalog.product
@@ -302,6 +318,18 @@ fn to_vo(p: Product) -> ProductVO {
         store_product_stock: None,
     }
 }
+/// 渠道拦截纯判定（我方新增，论坛帖 507800，供单测）：下单创建的整单
+/// 复检用——线上单拦截「仅 POS 线下」（`sale_channel = 2`），POS 单
+/// 拦截「仅线上」（`sale_channel = 1`），全渠道（0）两面放行。
+#[must_use]
+pub fn channel_blocks_order(pos_mode: bool, sale_channel: i32) -> bool {
+    if pos_mode {
+        sale_channel == 1
+    } else {
+        sale_channel == 2
+    }
+}
+
 /// 起售量纯校验：`min_buy_count` 0/1 = 不限，>= 2 时合计数量不足即报错
 /// （文案含商品名与起售件数）。加购（合并同商品行后）与下单创建共用。
 pub fn ensure_min_buy_count(product_name: &str, min_buy_count: i32, total_quantity: i32) -> Result<()> {
@@ -312,6 +340,27 @@ pub fn ensure_min_buy_count(product_name: &str, min_buy_count: i32, total_quanti
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod channel_tests {
+    use super::channel_blocks_order;
+
+    #[test]
+    fn channel_matrix() {
+        // 全渠道：两面放行
+        assert!(!channel_blocks_order(false, 0));
+        assert!(!channel_blocks_order(true, 0));
+        // 仅线上：线上放行、POS 拦截
+        assert!(!channel_blocks_order(false, 1));
+        assert!(channel_blocks_order(true, 1));
+        // 仅 POS 线下：线上拦截、POS 放行
+        assert!(channel_blocks_order(false, 2));
+        assert!(!channel_blocks_order(true, 2));
+        // 未知值：两面放行（存量/异常值不误伤）
+        assert!(!channel_blocks_order(false, 9));
+        assert!(!channel_blocks_order(true, 9));
+    }
 }
 
 #[cfg(test)]

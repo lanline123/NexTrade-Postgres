@@ -57,6 +57,7 @@ const emptyValues: Record<string, any> = {
   isInquiry: 0,
   limitNumber: 0,
   minBuyCount: 0,
+  saleChannel: 0,
   shippingTplId: undefined,
   freeShipping: true,
   isLogistics: true,
@@ -292,6 +293,7 @@ export default function ProductFormDrawer({
           isInquiry: Number(detail.isInquiry || 0) === 1,
           limitNumber: Number(detail.limitNumber || 0),
           minBuyCount: Number(detail.minBuyCount || 0),
+          saleChannel: Number(detail.saleChannel || 0),
           shippingTplId: detail.shippingTplId || undefined,
           freeShipping: Number(detail.freeShipping || 0) === 1,
           isLogistics: Number(detail.isLogistics ?? 1) === 1,
@@ -547,6 +549,16 @@ export default function ProductFormDrawer({
                 options: [
                   { label: t('现货销售'), value: 0 },
                   { label: t('预售模式'), value: 1 },
+                ],
+              },
+              {
+                field: 'saleChannel',
+                label: t('销售渠道'),
+                type: 'radio',
+                options: [
+                  { label: t('全渠道'), value: 0 },
+                  { label: t('仅线上'), value: 1 },
+                  { label: t('仅 POS 线下'), value: 2 },
                 ],
               },
               {

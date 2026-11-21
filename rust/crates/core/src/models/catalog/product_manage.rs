@@ -518,6 +518,8 @@ pub struct ProductListItemVO {
     pub limit_number: i32,
     /// 商品起售量（件）：0/1 不限，>=2 生效
     pub min_buy_count: i32,
+    /// 销售渠道可见性（我方新增，论坛帖 507800）：0 全渠道 1 仅线上 2 仅 POS 线下
+    pub sale_channel: i32,
     pub delivery_mode: i32,
     /// 未迁移：礼品卡组类型
     pub group_type: Option<i32>,
@@ -620,6 +622,8 @@ pub struct AdminProductDetailVO {
     pub limit_number: i32,
     /// 商品起售量（件）：0/1 不限，>=2 生效
     pub min_buy_count: i32,
+    /// 销售渠道可见性（我方新增，论坛帖 507800）：0 全渠道 1 仅线上 2 仅 POS 线下
+    pub sale_channel: i32,
     pub product_care: Option<String>,
     pub product_related: Vec<i32>,
     pub is_support_return: i32,
@@ -773,6 +777,8 @@ pub struct ProductSaveDTO {
     pub limit_number: Option<i32>,
     /// 商品起售量（件）：0/1 不限，>=2 生效
     pub min_buy_count: Option<i32>,
+    /// 销售渠道可见性（我方新增，论坛帖 507800）：0 全渠道 1 仅线上 2 仅 POS 线下
+    pub sale_channel: Option<i32>,
     pub product_care: Option<String>,
     pub is_support_return: Option<i32>,
     pub is_support_cod: Option<i32>,
@@ -1005,6 +1011,8 @@ pub struct ClientProductInfoVO {
     pub limit_number: i32,
     /// 商品起售量（件）：0/1 不限，>=2 生效
     pub min_buy_count: i32,
+    /// 销售渠道可见性（我方新增，论坛帖 507800）：0 全渠道 1 仅线上 2 仅 POS 线下
+    pub sale_channel: i32,
     pub product_weight: Decimal,
     /// 单件商品体积 m³（v5.8.61）
     pub product_volume: Option<Decimal>,

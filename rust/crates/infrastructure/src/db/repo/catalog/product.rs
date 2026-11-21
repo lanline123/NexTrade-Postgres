@@ -81,6 +81,12 @@ impl ProductRepository {
             ""
         };
 
+        // —— 销售渠道可见性（我方新增，论坛帖 507800）——
+        // 本分页是线上口径（PC/H5 列表/搜索/装修数据源）：排除「仅 POS
+        // 线下」（sale_channel = 2）。常量子句无占位符，count/list 两段
+        // SQL 直接复用；存量默认 0 不受影响。
+        let channel_clause = " AND sale_channel <> 2";
+
         // 分类筛选：服务层展开后的 category_ids 优先（包含子分类）；
         // 没有展开时保持原来的精确 category_id 语义。
         let category_ids: Vec<i32> = if q.category_ids.is_empty() {
@@ -103,7 +109,7 @@ impl ProductRepository {
                AND (? IS NULL OR shop_id = ?)
                AND (? IS NULL OR product_status = ?)
                AND (? IS NULL OR product_price >= ?)
-               AND (? IS NULL OR product_price <= ?){sale_clause}{intro_clause}{id_clause}{gift_clause}"
+               AND (? IS NULL OR product_price <= ?){sale_clause}{intro_clause}{id_clause}{gift_clause}{channel_clause}"
         ));
         let mut total_q = sqlx::query_as::<_, (i64,)>(&total_sql)
             .bind(&keyword).bind(&keyword).bind(&keyword);
@@ -162,7 +168,7 @@ impl ProductRepository {
                AND (? IS NULL OR shop_id = ?)
                AND (? IS NULL OR product_status = ?)
                AND (? IS NULL OR product_price >= ?)
-               AND (? IS NULL OR product_price <= ?){sale_clause}{intro_clause}{id_clause}{gift_clause}
+               AND (? IS NULL OR product_price <= ?){sale_clause}{intro_clause}{id_clause}{gift_clause}{channel_clause}
              ORDER BY {order_by} {dir}, product_id DESC
              LIMIT ? OFFSET ?"
         ));

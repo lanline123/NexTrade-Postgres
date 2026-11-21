@@ -460,6 +460,10 @@ pub struct Product {
     /// 批发/零售/O2O 共用同一字段；2026-11-21 迁移 011 加列）
     #[sqlx(default)]
     pub min_buy_count: i32,
+    /// 商品销售渠道可见性（我方新增，论坛帖 507800）：0 全渠道
+    /// 1 仅线上 2 仅 POS 线下（2026-11-21 迁移 018 加列，默认 0 存量零变化）
+    #[sqlx(default)]
+    pub sale_channel: i32,
 }
 
 impl Product {
@@ -473,6 +477,23 @@ impl Product {
     #[must_use]
     pub fn is_virtual_product(&self) -> bool {
         matches!(self.product_type, Some(2 | 3 | 4 | 7 | 8))
+    }
+
+    /// 销售渠道：线上商城（PC/H5）可见（我方新增，论坛帖 507800）。
+    ///
+    /// `sale_channel`：0 全渠道 / 1 仅线上 / 2 仅 POS 线下；
+    /// 线上可见 = 非「仅 POS 线下」，存量默认 0 两面都可见。
+    #[must_use]
+    pub fn visible_online(&self) -> bool {
+        self.sale_channel != 2
+    }
+
+    /// 销售渠道：POS 收银可见（我方新增，论坛帖 507800）。
+    ///
+    /// POS 可见 = 非「仅线上」。
+    #[must_use]
+    pub fn visible_pos(&self) -> bool {
+        self.sale_channel != 1
     }
 }
 

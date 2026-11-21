@@ -774,6 +774,9 @@ impl PosCashierRepository {
     // ————————————————————— 商品 / 会员 / 地址 / 订单 —————————————————————
 
     /// 收银商品搜索（上架 + 关键词 + 可选类目）。
+    ///
+    /// 渠道可见性（我方新增，论坛帖 507800）：POS 口径排除「仅线上」
+    /// （`sale_channel = 1`），全渠道与「仅 POS 线下」均可见。
     pub async fn products(
         &self,
         keyword: Option<&str>,
@@ -783,7 +786,7 @@ impl PosCashierRepository {
     ) -> Result<(i64, Vec<serde_json::Value>)> {
         let kw = format!("%{}%", keyword.unwrap_or_default().trim());
         let (total,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM product WHERE product_status = 1 AND product_name ILIKE $1 \
+            "SELECT COUNT(*) FROM product WHERE product_status = 1 AND sale_channel <> 1 AND product_name ILIKE $1 \
              AND ($2 IS NULL OR category_id = $3)",
         )
         .bind(&kw)
@@ -796,7 +799,7 @@ impl PosCashierRepository {
             "SELECT json_build_object('productId', product_id, 'productName', product_name, \
              'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price, \
              'productStock', product_stock, 'productSn', product_sn, 'categoryId', category_id) \
-             FROM product WHERE product_status = 1 AND product_name ILIKE $1 \
+             FROM product WHERE product_status = 1 AND sale_channel <> 1 AND product_name ILIKE $1 \
              AND ($2 IS NULL OR category_id = $3) ORDER BY product_id DESC LIMIT $4 OFFSET $5",
         )
         .bind(&kw)
@@ -813,7 +816,7 @@ impl PosCashierRepository {
 
     pub async fn product_one(&self, product_id: i64) -> Result<Option<serde_json::Value>> {
         let row: Option<(serde_json::Value,)> = sqlx::query_as::<_, (serde_json::Value,)>(
-            "SELECT json_build_object('productId', product_id, 'productName', product_name,              'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price,              'productStock', product_stock, 'productSn', product_sn, 'productStatus',              product_status) FROM product WHERE product_id = $1",
+            "SELECT json_build_object('productId', product_id, 'productName', product_name,              'picThumb', pic_thumb, 'productPrice', product_price, 'marketPrice', market_price,              'productStock', product_stock, 'productSn', product_sn, 'productStatus',              product_status) FROM product WHERE product_id = $1 AND sale_channel <> 1",
         )
         .bind(product_id)
         .fetch_optional(&self.pool)
