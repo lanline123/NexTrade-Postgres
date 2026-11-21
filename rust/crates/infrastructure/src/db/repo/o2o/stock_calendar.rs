@@ -246,6 +246,83 @@ impl StockCalendarRepository {
         Ok(())
     }
 
+    /// 按 ID 查单个时间段配置（下单校验时段归属用）。
+    pub async fn find_time_by_id(
+        &self,
+        time_id: i32,
+    ) -> Result<Option<ProductReservationTime>> {
+        sqlx::query_as::<_, ProductReservationTime>(
+            "SELECT product_reservation_time_id, product_id, start_time, end_time, add_time FROM product_reservation_time WHERE product_reservation_time_id = $1 LIMIT 1",
+        )
+        .bind(time_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 事务内占用时段名额（预约下单）：余量充足才自增 `used_stock`，
+    /// 无库存行或余量不足返回 `false`（不超卖铁律，见 services
+    /// `trade::reservation` 双口径规则）。返回 `true` = 占用成功。
+    pub async fn inc_used_stock_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        shop_id: i32,
+        product_id: i32,
+        sku_id: i32,
+        stock_date: &str,
+        time_id: i32,
+        quantity: i32,
+    ) -> Result<bool> {
+        let affected = sqlx::query(
+            "UPDATE product_reservation_stock SET used_stock = used_stock + $1 \
+             WHERE shop_id = $2 AND product_id = $3 AND sku_id = $4 AND stock_date = $5 \
+               AND product_reservation_time_id = $6 AND total_stock - used_stock >= $1",
+        )
+        .bind(quantity)
+        .bind(shop_id)
+        .bind(product_id)
+        .bind(sku_id)
+        .bind(stock_date)
+        .bind(time_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(map_err)?
+        .rows_affected();
+        Ok(affected > 0)
+    }
+
+    /// 释放时段名额（取消订单回补）：`used_stock` 回减、不减为负。
+    /// 返回实际更新行数。
+    pub async fn dec_used_stock(
+        &self,
+        shop_id: i32,
+        product_id: i32,
+        sku_id: i32,
+        stock_date: &str,
+        time_id: i32,
+        quantity: i32,
+    ) -> Result<u64> {
+        if quantity <= 0 {
+            return Ok(0);
+        }
+        let affected = sqlx::query(
+            "UPDATE product_reservation_stock SET used_stock = GREATEST(used_stock - $1, 0) \
+             WHERE shop_id = $2 AND product_id = $3 AND sku_id = $4 AND stock_date = $5 \
+               AND product_reservation_time_id = $6",
+        )
+        .bind(quantity)
+        .bind(shop_id)
+        .bind(product_id)
+        .bind(sku_id)
+        .bind(stock_date)
+        .bind(time_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_err)?
+        .rows_affected();
+        Ok(affected)
+    }
+
     // ————————————————————— 附属信息 —————————————————————
 
     /// 商品基础信息（列表 / 时间段接口用）。

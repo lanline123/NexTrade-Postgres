@@ -182,6 +182,36 @@ impl PayRepository {
         Ok(result)
     }
 
+    /// 事务内写预约行（预约下单接线，我方新增）：与订单同事务落
+    /// `order_reservations`，避免「订单在、预约丢」。返回新行 ID。
+    ///
+    /// # Errors
+    /// 数据库错误。
+    pub async fn insert_reservation_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        r: &OrderReservations,
+    ) -> Result<i32> {
+        let result: i32 = sqlx::query_scalar(
+            "INSERT INTO order_reservations
+             (order_id, product_reservation_time_id, sku_id, reservation_date,
+              start_time, end_time, time_slot_description, add_time)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING order_reservations_id",
+        )
+        .bind(r.order_id)
+        .bind(r.product_reservation_time_id)
+        .bind(r.sku_id)
+        .bind(&r.reservation_date)
+        .bind(&r.start_time)
+        .bind(&r.end_time)
+        .bind(&r.time_slot_description)
+        .bind(r.add_time)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(map_err)?;
+        Ok(result)
+    }
+
     /// 定金支付完成：更新预售状态为「待付尾款」并记录尾款开始时间。
     ///
     /// # Errors

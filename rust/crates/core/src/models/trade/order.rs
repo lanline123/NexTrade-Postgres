@@ -99,6 +99,15 @@ pub struct OrderCreateDTO {
     /// order_delivery_slot。缺省 = 未选择。
     #[serde(default)]
     pub delivery_time_slot: Option<super::delivery_slot::DeliverySlotSelection>,
+    /// 预约时段 ID（预约商品结算提交，`product_reservation_time` 主键）。
+    /// 与 `reservation_date` **成对出现**才触发预约接线（占用时段名额 +
+    /// 写 `order_reservations`）；只有时段无日期是周期购/次卡预约的既有
+    /// 传参形态，不在本接线范围。口径见 services `trade::reservation`。
+    #[serde(default)]
+    pub product_reservation_time_id: Option<i32>,
+    /// 预约日期 `yyyy-MM-dd`（预约商品结算提交，与时段 ID 成对）。
+    #[serde(default)]
+    pub reservation_date: Option<String>,
 }
 
 /// 兼容前端三种 `useBalance` 入参：数字（余额抵扣金额）、布尔、字符串数字。
@@ -147,6 +156,8 @@ impl Default for OrderCreateDTO {
             is_gift_order: None,
             gift_message: None,
             delivery_time_slot: None,
+            product_reservation_time_id: None,
+            reservation_date: None,
         }
     }
 }

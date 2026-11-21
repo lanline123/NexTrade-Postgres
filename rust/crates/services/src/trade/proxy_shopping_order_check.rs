@@ -1203,6 +1203,9 @@ impl ProxyShoppingOrderCheckService {
             is_gift_order: None,
             gift_message: None,
             delivery_time_slot: None,
+            // 预约接线字段补齐（论坛帖 497863+377834）：代客下单不支持预约商品（预约商品须买家自选时段），补 None 保持字面构造完整。
+            product_reservation_time_id: None,
+            reservation_date: None,
         };
 
         let product_svc = crate::catalog::product::ProductService::new(self.repos.clone(), None);

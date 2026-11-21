@@ -1347,13 +1347,36 @@ impl OrderAdminService {
 
         // 当后台售后审核关闭（afterSalesReview != "1"），自动审核、退款、回滚库存并取消订单
         if aftersale_review != "1" {
+            // 预约订单（我方新增）：预约行未扣商品库存，取消时释放
+            // 时段名额代替回补（口径见 trade::reservation 模块头注）。
+            let has_reservation = self
+                .repos
+                .payment
+                .pay
+                .find_reservation_by_order_id(order_id)
+                .await
+                .ok()
+                .flatten()
+                .is_some();
             for it in &items {
+                if has_reservation
+                    && nextrade_core::models::marketing::groupon_promotion_item::is_reservation_product(
+                        Some(it.product_type),
+                    )
+                {
+                    continue;
+                }
                 let _ = self
                     .repos
                     .trade
                     .order_admin
                     .restore_stock(it.product_id, it.sku_id, it.quantity)
                     .await;
+            }
+            if has_reservation {
+                let _ =
+                    crate::trade::reservation::release_for_order(&self.repos, order_id, &items)
+                        .await;
             }
 
             let _ = self
@@ -1777,7 +1800,7 @@ impl OrderAdminService {
     /// 已补：未付款/兑换订单返还抵扣积分、余额原路返还并写余额日志、
     /// 释放订单/父单优惠券占用、写店铺与供应商后台取消消息、
     /// 回补秒杀库存/扣回秒杀销量、返还礼品卡组可用库存、
-    /// 拼团记录置已取消并恢复明细可售数量。
+    /// 拼团记录置已取消并恢复明细可售数量、预约订单释放时段名额。
     /// 仍未迁移：预售尾款校验。
     pub async fn cancel_order(
         &self,
@@ -1811,12 +1834,29 @@ impl OrderAdminService {
             return Err(Error::biz_msg("订单状态错误"));
         }
         let items = self.repos.trade.order_admin.find_items(id).await?;
+        // 预约订单（我方新增）：预约行建单时未扣商品库存（名额由时段
+        // 容量承载），取消时不回补商品库存、改在下方释放时段名额。
+        let has_reservation = self
+            .repos
+            .payment
+            .pay
+            .find_reservation_by_order_id(id)
+            .await
+            .ok()
+            .flatten()
+            .is_some();
         for it in &items {
-            self.repos
-                .trade
-                .order_admin
-                .restore_stock(it.product_id, it.sku_id, it.quantity)
-                .await?;
+            let is_reservation_line = has_reservation
+                && nextrade_core::models::marketing::groupon_promotion_item::is_reservation_product(
+                    Some(it.product_type),
+                );
+            if !is_reservation_line {
+                self.repos
+                    .trade
+                    .order_admin
+                    .restore_stock(it.product_id, it.sku_id, it.quantity)
+                    .await?;
+            }
             // 秒杀订单取消：回补秒杀库存并扣回秒杀销量。
             if it.is_seckill == Some(1) {
                 let seckill = crate::marketing::seckill::SeckillService::new(self.repos.clone());
@@ -1877,6 +1917,14 @@ impl OrderAdminService {
                             .await;
                     }
                 }
+            }
+        }
+        // 预约订单取消：释放时段名额（尽力而为，失败仅告警）。
+        if has_reservation {
+            if let Err(e) =
+                crate::trade::reservation::release_for_order(&self.repos, id, &items).await
+            {
+                tracing::warn!("订单 {id} 后台取消后释放预约名额失败: {e}");
             }
         }
         let remark = description
@@ -3425,12 +3473,33 @@ impl OrderAdminService {
         }
         if target == OrderStatus::Cancelled {
             let items = self.repos.trade.order_admin.find_items(id).await?;
+            // 预约订单（我方新增）：预约行未扣商品库存，改释放时段名额。
+            let has_reservation = self
+                .repos
+                .payment
+                .pay
+                .find_reservation_by_order_id(id)
+                .await
+                .ok()
+                .flatten()
+                .is_some();
             for it in &items {
+                if has_reservation
+                    && nextrade_core::models::marketing::groupon_promotion_item::is_reservation_product(
+                        Some(it.product_type),
+                    )
+                {
+                    continue;
+                }
                 self.repos
                     .trade
                     .order_admin
                     .restore_stock(it.product_id, it.sku_id, it.quantity)
                     .await?;
+            }
+            if has_reservation {
+                let _ =
+                    crate::trade::reservation::release_for_order(&self.repos, id, &items).await;
             }
         } else if target == OrderStatus::Confirmed {
             patch = patch

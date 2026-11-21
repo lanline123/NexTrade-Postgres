@@ -1044,6 +1044,9 @@ impl PosCashierService {
             is_gift_order: None,
             gift_message: None,
             delivery_time_slot: None,
+            // 预约接线字段补齐（论坛帖 497863+377834）：POS 单恒不走预约接线（OrderService::create 的 pos_mode 豁免），补 None 保持字面构造完整。
+            product_reservation_time_id: None,
+            reservation_date: None,
         };
 
         let order_service = crate::trade::order::OrderService::from_repos(self.repos.clone());

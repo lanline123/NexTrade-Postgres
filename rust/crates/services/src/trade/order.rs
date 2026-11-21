@@ -879,17 +879,31 @@ impl OrderService {
         } else {
             None
         };
+        // 预约接线（我方新增，论坛帖 497863+377834）：结算提交了预约
+        // 选择（时段+日期成对）且单内含预约商品时生成预约计划——活动
+        // 价照常作用于预约单（上方价格解析不分商品类型），时段名额在
+        // 下单事务内守卫占用、与活动库存同事务校验（不超卖铁律），
+        // 细则见 crate::trade::reservation 模块头注。POS 不走预约接线。
+        let reservation_plan = if pos_mode {
+            None
+        } else {
+            crate::trade::reservation::build_plan(&self.repos, dto, &items).await?
+        };
 
         let order = Order {
             is_presale: if presale_row.is_some() { 1 } else { 0 },
             presale_type: presale_row.as_ref().map(|_| 2),
-            // 订单类型：礼品卡兑换 12（原版 orderType=12）> 拼团 2 > 普通 0
+            // 订单类型：礼品卡兑换 12（原版 orderType=12）> 拼团 2 >
+            // 预约 9/10 > 普通 0（拼团预约单保拼团型，预约信息落
+            // order_reservations 行、与订单类型解耦）
             order_type: if gift_exchange_card_id.is_some() {
                 Some(12)
-            } else if groupon_lines.is_empty() {
-                Some(0)
-            } else {
+            } else if !groupon_lines.is_empty() {
                 Some(2)
+            } else if let Some(plan) = &reservation_plan {
+                Some(plan.order_type)
+            } else {
+                Some(0)
             },
             order_sn: order_sn.clone(),
             user_id,
@@ -981,6 +995,12 @@ impl OrderService {
                     }
                     continue;
                 }
+                // 预约行（预约接线命中时）：可售量由时段容量承载、
+                // 不扣商品库存（与购物车对预约商品跳过商品库存校验的
+                // 既有口径一致）；名额占用在订单落库后同事务执行。
+                if reservation_plan.as_ref().is_some_and(|p| p.matches(item)) {
+                    continue;
+                }
                 // 无 SKU 商品（sku_id 缺省）必须按 product_stock 扣减：
                 // 传 Some(0) 会 UPDATE product_sku WHERE sku_id=0 → 0 行 → 误报库存不足。
                 let sku = lines.get(idx).and_then(|l| l.sku_id);
@@ -1009,6 +1029,26 @@ impl OrderService {
                     .repos.trade.order
                     .insert_order_in_tx(&mut tx, &order, &items)
                     .await;
+            }
+
+            // 预约名额占用 + 预约行落库（与订单同事务）：时段余量不足
+            // 或预约行写入失败 → 整体回滚（商品/活动库存扣减、拼团
+            // 记录与订单同事务），活动不得突破时段容量（不超卖铁律）。
+            if result.is_ok() {
+                if let (Some(plan), Some(order_id)) =
+                    (&reservation_plan, result.as_ref().ok().copied())
+                {
+                    if let Err(e) = crate::trade::reservation::reserve_in_tx(
+                        &self.repos,
+                        &mut tx,
+                        plan,
+                        order_id,
+                    )
+                    .await
+                    {
+                        result = Err(e);
+                    }
+                }
             }
 
             // 拼团记录（与订单同事务；开团/参团状态机）
@@ -2107,11 +2147,36 @@ impl OrderService {
 
         // 回滚库存
         let items = self.repos.trade.order.find_items(order_id).await?;
-        for item in items {
+        // 预约订单（我方新增）：预约行建单时未扣商品库存（名额由时段
+        // 容量承载），取消时不回补商品库存、改释放时段名额。
+        let has_reservation = self
+            .repos
+            .payment
+            .pay
+            .find_reservation_by_order_id(order_id)
+            .await
+            .ok()
+            .flatten()
+            .is_some();
+        for item in &items {
             let pid = item.product_id;
             let qty = item.quantity;
+            if has_reservation
+                && nextrade_core::models::marketing::groupon_promotion_item::is_reservation_product(
+                    Some(item.product_type),
+                )
+            {
+                continue;
+            }
             if let Err(e) = self.product.restore_stock(pid, Some(item.sku_id), qty).await {
                 tracing::error!("取消订单回滚库存失败 order={order_id} product={pid}: {e}");
+            }
+        }
+        if has_reservation {
+            if let Err(e) =
+                crate::trade::reservation::release_for_order(&self.repos, order_id, &items).await
+            {
+                tracing::warn!("订单 {order_id} 取消后释放预约名额失败: {e}");
             }
         }
         // 礼品卡返还（尽力而为）：按 usage_log type=1 扣减记录原额返还
