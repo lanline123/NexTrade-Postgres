@@ -1,7 +1,8 @@
 //! 管理端抽奖活动路由（marketing::lottery_activity）。
 //!
 //! 原 Java `com.nextrade.adminapi.controller.promotion.LotteryActivityController`
-//! （`@RequestMapping("/adminapi/promotion/lotteryActivity")`，8 端点）。
+//! （`@RequestMapping("/adminapi/promotion/lotteryActivity")`，8 端点）；
+//! `shareRewardLogs` 为我方新增（分享得次数流水，帖 717751）。
 //! 权限矩阵未迁移（只校验登录态）。
 use axum::{
     extract::Query,
@@ -12,16 +13,16 @@ use axum::{
 use serde::Deserialize;
 use nextrade_core::models::marketing::lottery_activity::{
     LotteryActivityIdParam, LotteryActivityListQuery, LotteryActivityListVO, LotteryActivityParam,
-    LotteryActivityVO, LotteryUserManageQuery, LotteryUserManageVO, LotteryUserRecordQuery,
-    LotteryUserRecordVO,
+    LotteryActivityVO, LotteryShareRewardLogQuery, LotteryShareRewardLogVO, LotteryUserManageQuery,
+    LotteryUserManageVO, LotteryUserRecordQuery, LotteryUserRecordVO,
 };
 use nextrade_core::types::PageResult;
 use nextrade_security::web::{ok, ApiResult};
 
 use crate::AdminState;
 
-/// 本域 8 条路由（去 `/adminapi` 前缀的路径 + 原 Java handler）。
-const ROUTE_TABLE: [(&str, &str, &str); 8] = [
+/// 本域 9 条路由（去 `/adminapi` 前缀的路径 + 原 Java handler；末条为我方新增）。
+const ROUTE_TABLE: [(&str, &str, &str); 9] = [
     (
         "GET",
         "/promotion/lotteryActivity/list",
@@ -62,6 +63,11 @@ const ROUTE_TABLE: [(&str, &str, &str); 8] = [
         "/promotion/lotteryActivity/userRecord",
         "LotteryActivityController.userRecord",
     ),
+    (
+        "GET",
+        "/promotion/lotteryActivity/shareRewardLogs",
+        "LotteryActivityController.shareRewardLogs(Nextrade)",
+    ),
 ];
 
 /// 抽奖活动管理路由（挂载于 `/adminapi` 下，外层统一套 `require_auth`）。
@@ -76,6 +82,7 @@ pub fn routes(state: &AdminState) -> Router<AdminState> {
         .route("/promotion/lotteryActivity/end", post(end))
         .route("/promotion/lotteryActivity/userManage", get(user_manage))
         .route("/promotion/lotteryActivity/userRecord", get(user_record))
+        .route("/promotion/lotteryActivity/shareRewardLogs", get(share_reward_logs))
 }
 
 /// 本模块已实现路由（覆盖率统计，完整契约路径）。
@@ -158,6 +165,18 @@ async fn user_record(
     ok(state.marketing.lottery_activity.user_record(&q).await?)
 }
 
+/// 分享奖励流水（我方新增：分享得次数入账可查）。
+async fn share_reward_logs(
+    State(state): State<AdminState>,
+    Query(q): Query<LotteryShareRewardLogQuery>,
+) -> ApiResult<PageResult<LotteryShareRewardLogVO>> {
+    ok(state
+        .marketing
+        .lottery_activity
+        .share_reward_logs(&q)
+        .await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,7 +184,8 @@ mod tests {
     #[test]
     fn implemented_routes_match_java_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 8);
+        // Java 契约 8 条 + 我方新增 shareRewardLogs 1 条
+        assert_eq!(docs.len(), 9);
         let expected = [
             ("GET", "/adminapi/promotion/lotteryActivity/list"),
             ("GET", "/adminapi/promotion/lotteryActivity/detail"),
@@ -175,6 +195,7 @@ mod tests {
             ("POST", "/adminapi/promotion/lotteryActivity/end"),
             ("GET", "/adminapi/promotion/lotteryActivity/userManage"),
             ("GET", "/adminapi/promotion/lotteryActivity/userRecord"),
+            ("GET", "/adminapi/promotion/lotteryActivity/shareRewardLogs"),
         ];
         for (method, path) in expected {
             assert!(
@@ -192,7 +213,7 @@ mod tests {
 
     #[test]
     fn route_table_paths_stay_relative() {
-        assert_eq!(ROUTE_TABLE.len(), 8);
+        assert_eq!(ROUTE_TABLE.len(), 9);
         for (_, path, _) in ROUTE_TABLE.iter() {
             assert!(!path.contains("/adminapi"), "{path}");
             assert!(path.starts_with("/promotion/lotteryActivity/"), "{path}");

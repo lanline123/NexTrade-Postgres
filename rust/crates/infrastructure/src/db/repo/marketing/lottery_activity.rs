@@ -1,7 +1,8 @@
 //! 抽奖活动域仓储（marketing::lottery_activity）。
 //!
 //! 表（均来自 `java/database/pure.sql`，实体由 schema 生成）：
-//! - `lottery_activity`（18 列）
+//! - `lottery_activity`（22 列；末 4 列为分享得次数，我方新增迁移 019）
+//! - `lottery_share_reward_log`（分享奖励流水，我方新增迁移 019）
 //! - `lottery_prize`（10 列）
 //! - `lottery_record`（13 列）
 //! - `lottery_user_stat`（10 列）
@@ -18,8 +19,8 @@ use nextrade_core::models::marketing::lottery_activity::{
 };
 use nextrade_core::{Error, Result};
 
-/// `lottery_activity` 列清单（18 列，顺序与实体一致）。
-pub const ACTIVITY_COLUMNS: [&str; 18] = [
+/// `lottery_activity` 列清单（22 列，顺序与实体一致；末 4 列为分享得次数，我方新增迁移 019）。
+pub const ACTIVITY_COLUMNS: [&str; 22] = [
     "activity_id",
     "activity_name",
     "start_time",
@@ -38,6 +39,10 @@ pub const ACTIVITY_COLUMNS: [&str; 18] = [
     "create_time",
     "update_time",
     "cost_type",
+    "share_reward_enabled",
+    "share_reward_count",
+    "share_reward_daily_limit",
+    "share_reward_total_limit",
 ];
 
 /// `lottery_prize` 列清单（10 列）。
@@ -91,6 +96,17 @@ pub struct UserBrief {
     pub username: String,
     pub avatar: Option<String>,
     pub from_tag: Option<i32>,
+}
+
+/// 分享奖励流水行（我方新增，表 `lottery_share_reward_log`，迁移 019）。
+#[derive(Debug, Clone, Default, sqlx::FromRow)]
+pub struct ShareRewardLogRow {
+    pub log_id: i32,
+    pub user_id: i32,
+    pub reward_count: i32,
+    pub channel: String,
+    pub share_date: String,
+    pub create_time: i32,
 }
 
 /// 抽奖活动域仓储。
@@ -158,7 +174,7 @@ impl LotteryActivityRepository {
 
     pub async fn insert(&self, a: &LotteryActivity) -> Result<i32> {
         let res: i32 = sqlx::query_scalar(
-            "INSERT INTO lottery_activity (activity_name, start_time, end_time, cost_points, daily_limit, total_limit, win_limit, decorate_config, grid_config, no_win_name, no_win_image, no_win_tips, shop_id, is_delete, create_time, update_time, cost_type) VALUES ($1,  $2,  $3,  $4,  $5,  $6,  $7, $8, $9,  $10,  $11,  $12,  $13,  $14,  $15,  $16,  $17) RETURNING activity_id",
+            "INSERT INTO lottery_activity (activity_name, start_time, end_time, cost_points, daily_limit, total_limit, win_limit, decorate_config, grid_config, no_win_name, no_win_image, no_win_tips, shop_id, is_delete, create_time, update_time, cost_type, share_reward_enabled, share_reward_count, share_reward_daily_limit, share_reward_total_limit) VALUES ($1,  $2,  $3,  $4,  $5,  $6,  $7, $8, $9,  $10,  $11,  $12,  $13,  $14,  $15,  $16,  $17, $18, $19, $20, $21) RETURNING activity_id",
         )
         .bind(&a.activity_name)
         .bind(a.start_time)
@@ -177,6 +193,10 @@ impl LotteryActivityRepository {
         .bind(a.create_time)
         .bind(a.update_time)
         .bind(a.cost_type)
+        .bind(a.share_reward_enabled)
+        .bind(a.share_reward_count)
+        .bind(a.share_reward_daily_limit)
+        .bind(a.share_reward_total_limit)
         .fetch_one(&self.pool)
         .await
         .map_err(map_err)?;
@@ -185,7 +205,7 @@ impl LotteryActivityRepository {
 
     pub async fn update(&self, a: &LotteryActivity) -> Result<u64> {
         let res = sqlx::query(
-            "UPDATE lottery_activity SET activity_name = $1, start_time = $2, end_time = $3, cost_points = $4, daily_limit = $5, total_limit = $6, win_limit = $7, decorate_config = $8, grid_config = $9, no_win_name = $10, no_win_image = $11, no_win_tips = $12, update_time = $13, cost_type = $14 WHERE activity_id = $15",
+            "UPDATE lottery_activity SET activity_name = $1, start_time = $2, end_time = $3, cost_points = $4, daily_limit = $5, total_limit = $6, win_limit = $7, decorate_config = $8, grid_config = $9, no_win_name = $10, no_win_image = $11, no_win_tips = $12, update_time = $13, cost_type = $14, share_reward_enabled = $15, share_reward_count = $16, share_reward_daily_limit = $17, share_reward_total_limit = $18 WHERE activity_id = $19",
         )
         .bind(&a.activity_name)
         .bind(a.start_time)
@@ -201,6 +221,10 @@ impl LotteryActivityRepository {
         .bind(&a.no_win_tips)
         .bind(a.update_time)
         .bind(a.cost_type)
+        .bind(a.share_reward_enabled)
+        .bind(a.share_reward_count)
+        .bind(a.share_reward_daily_limit)
+        .bind(a.share_reward_total_limit)
         .bind(a.activity_id)
         .execute(&self.pool)
         .await
@@ -483,6 +507,38 @@ impl LotteryActivityRepository {
             .collect())
     }
 
+    /// 分享奖励流水分页（我方新增：入账可查，按入账时间倒序，可按用户过滤）。
+    pub async fn share_reward_logs_paginate(
+        &self,
+        activity_id: i32,
+        user_id: Option<i32>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<(i64, Vec<ShareRewardLogRow>)> {
+        let mut cq: QueryBuilder<'_, Postgres> =
+            QueryBuilder::new("SELECT COUNT(*) FROM lottery_share_reward_log WHERE activity_id = ");
+        cq.push_bind(activity_id);
+        if let Some(uid) = user_id {
+            cq.push(" AND user_id = ");
+            cq.push_bind(uid);
+        }
+        let total: (i64,) = cq.build_query_as().fetch_one(&self.pool).await.map_err(map_err)?;
+
+        let mut rq: QueryBuilder<'_, Postgres> = QueryBuilder::new(
+            "SELECT log_id, user_id, reward_count, channel, share_date, create_time FROM lottery_share_reward_log WHERE activity_id = ",
+        );
+        rq.push_bind(activity_id);
+        if let Some(uid) = user_id {
+            rq.push(" AND user_id = ");
+            rq.push_bind(uid);
+        }
+        rq.push(" ORDER BY create_time DESC, log_id DESC");
+        rq.push(format!(" LIMIT {limit} OFFSET {offset}"));
+        let rows: Vec<ShareRewardLogRow> =
+            rq.build_query_as().fetch_all(&self.pool).await.map_err(map_err)?;
+        Ok((total.0, rows))
+    }
+
     /// 单个用户简要信息。
     pub async fn user_brief(&self, user_id: i32) -> Result<Option<UserBrief>> {
         let row: Option<(String, Option<String>, Option<i32>)> =
@@ -582,7 +638,7 @@ mod tests {
 
     #[test]
     fn column_lists_match_entities() {
-        assert_eq!(ACTIVITY_COLUMNS.len(), 18);
+        assert_eq!(ACTIVITY_COLUMNS.len(), 22);
         assert_eq!(PRIZE_COLUMNS.len(), 10);
         assert_eq!(RECORD_COLUMNS.len(), 13);
         assert_eq!(USER_STAT_COLUMNS.len(), 10);

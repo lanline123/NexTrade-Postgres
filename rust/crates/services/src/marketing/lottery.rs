@@ -23,16 +23,20 @@ use rust_decimal::Decimal;
 use nextrade_common::utils::{now_millis, now_seconds};
 use nextrade_core::entities::promotion::{LotteryActivity, LotteryPrize, LotteryRecord};
 use nextrade_core::models::marketing::lottery::{
-    format_time, mask_nickname, parse_grid, record_status_text, GridPosition, GridPositionVO,
-    LotteryActivityInfoVO, LotteryConfirmReceiveParam, LotteryRecordQuery, LotteryRecordVO,
-    LotteryResultVO, LotteryWinnerVO, LotteryWinnersQuery, COST_TYPE_POINTS, MSG_ACTIVITY_NOT_EXISTS,
-    MSG_ALREADY_RECEIVED, MSG_ENDED, MSG_NOT_LOGGED_IN, MSG_NOT_STARTED, MSG_ONLY_PRODUCT_RECEIVE,
-    MSG_POINTS_NOT_ENOUGH, MSG_RECORD_NOT_EXISTS, MSG_TODAY_LIMIT, MSG_TOTAL_LIMIT,
-    MSG_WIN_LIMIT, NO_WIN_NAME, PRIZE_TYPE_PRODUCT,
+    effective_limit, format_time, mask_nickname, normalize_share_channel,
+    normalize_share_reward_count, parse_grid, record_status_text, share_events_remaining,
+    valid_share_event_id, GridPosition, GridPositionVO, LotteryActivityInfoVO,
+    LotteryConfirmReceiveParam, LotteryRecordQuery, LotteryRecordVO, LotteryResultVO,
+    LotteryShareRewardParam, LotteryShareRewardVO, LotteryWinnerVO, LotteryWinnersQuery,
+    COST_TYPE_POINTS, MSG_ACTIVITY_NOT_EXISTS, MSG_ALREADY_RECEIVED, MSG_ENDED, MSG_NOT_LOGGED_IN,
+    MSG_NOT_STARTED, MSG_ONLY_PRODUCT_RECEIVE, MSG_POINTS_NOT_ENOUGH, MSG_RECORD_NOT_EXISTS,
+    MSG_SHARE_DAILY_LIMIT, MSG_SHARE_EVENT_REQUIRED, MSG_SHARE_REWARD_DISABLED,
+    MSG_SHARE_TOO_FREQUENT, MSG_SHARE_TOTAL_LIMIT, MSG_TODAY_LIMIT, MSG_TOTAL_LIMIT, MSG_WIN_LIMIT,
+    NO_WIN_NAME, PRIZE_TYPE_PRODUCT, SHARE_REWARD_MIN_INTERVAL_SECS,
 };
 use nextrade_core::types::PageResult;
 use nextrade_core::{Error, Result};
-use nextrade_infrastructure::db::repo::marketing::lottery::LotteryRepository;
+use nextrade_infrastructure::db::repo::marketing::lottery::{LotteryRepository, ShareRewardStats};
 use nextrade_infrastructure::db::Repositories;
 
 /// 抽奖域服务。
@@ -48,6 +52,33 @@ impl LotteryService {
 
     fn repo(&self) -> &LotteryRepository {
         &self.repos.marketing.lottery
+    }
+
+    /// 分享奖励汇总（我方新增）：活动未开启分享得次数时回零值汇总，不查流水表。
+    async fn share_stats_if_enabled(
+        &self,
+        activity: &LotteryActivity,
+        user_id: i32,
+        today: &str,
+    ) -> Result<ShareRewardStats> {
+        if activity.share_reward_enabled != 1 {
+            return Ok(ShareRewardStats::default());
+        }
+        self.repo()
+            .share_reward_stats(activity.activity_id, user_id, today)
+            .await
+    }
+
+    /// 含分享奖励加成的有效（每日, 总）抽奖上限（我方新增）。
+    fn effective_limits(
+        &self,
+        activity: &LotteryActivity,
+        stats: &ShareRewardStats,
+    ) -> (i32, i32) {
+        (
+            effective_limit(activity.daily_limit, clamp_i32(stats.today_chances)),
+            effective_limit(activity.total_limit, clamp_i32(stats.total_chances)),
+        )
     }
 
     /// 当前进行中的活动信息（Java `getOngoingActivityInfo`）。
@@ -68,6 +99,12 @@ impl LotteryService {
             .as_ref()
             .map(|s| (s.today_count, s.total_count, s.win_count))
             .unwrap_or((0, 0, 0));
+        // 分享得次数（我方新增）：奖励以流水汇总为事实源，叠加到基础上限
+        let today = today_string(now);
+        let share_stats = self
+            .share_stats_if_enabled(&activity, user_id, &today)
+            .await?;
+        let (eff_daily_limit, eff_total_limit) = self.effective_limits(&activity, &share_stats);
         let need_points = activity.cost_type != 0;
         let available_draw_count = if need_points {
             let cost = activity.cost_points.max(1);
@@ -92,10 +129,21 @@ impl LotteryService {
             prize_entry_image: None,
             grid_config,
             user_points: user.points,
-            today_remaining: remaining(activity.daily_limit, today_count),
-            total_remaining: remaining(activity.total_limit, total_count),
+            today_remaining: remaining(eff_daily_limit, today_count),
+            total_remaining: remaining(eff_total_limit, total_count),
             win_remaining: remaining(activity.win_limit, win_count),
             available_draw_count,
+            share_reward_enabled: activity.share_reward_enabled,
+            share_reward_count: normalize_share_reward_count(activity.share_reward_count),
+            share_today_earned_count: clamp_i32(share_stats.today_chances),
+            share_today_reward_remaining: if activity.share_reward_enabled == 1 {
+                share_events_remaining(
+                    activity.share_reward_daily_limit,
+                    clamp_i32(share_stats.today_events),
+                )
+            } else {
+                0
+            },
         })
     }
 
@@ -115,10 +163,15 @@ impl LotteryService {
             .as_ref()
             .map(|s| (s.today_count, s.total_count, s.win_count))
             .unwrap_or((0, 0, 0));
-        if activity.daily_limit > 0 && today_count >= activity.daily_limit {
+        // 分享得次数（我方新增）：已入账的分享奖励叠加到基础上限后再判限
+        let share_stats = self
+            .share_stats_if_enabled(&activity, user_id, &today_string(now_i64))
+            .await?;
+        let (eff_daily_limit, eff_total_limit) = self.effective_limits(&activity, &share_stats);
+        if eff_daily_limit > 0 && today_count >= eff_daily_limit {
             return Err(Error::biz(500, MSG_TODAY_LIMIT));
         }
-        if activity.total_limit > 0 && total_count >= activity.total_limit {
+        if eff_total_limit > 0 && total_count >= eff_total_limit {
             return Err(Error::biz(500, MSG_TOTAL_LIMIT));
         }
         if activity.win_limit > 0 && win_count >= activity.win_limit {
@@ -214,9 +267,140 @@ impl LotteryService {
             prize_value: prize.as_ref().map(|p| p.prize_value.clone()),
             prize_image: prize.as_ref().map(|p| p.prize_image.clone()),
             position,
-            today_remaining: remaining(activity.daily_limit, updated.today_count),
-            total_remaining: remaining(activity.total_limit, updated.total_count),
+            today_remaining: remaining(eff_daily_limit, updated.today_count),
+            total_remaining: remaining(eff_total_limit, updated.total_count),
             record_id,
+        })
+    }
+
+    /// 分享得次数上报（我方新增，帖 717751）。
+    ///
+    /// 有效分享判定：客户端在分享动作完成点上报（小程序分享面板选定目标 /
+    /// H5 复制链接成功 / 系统分享完成）；服务端不核验第三方平台真实送达，
+    /// 防刷靠四重口径——① 事件 `event_id` 唯一键幂等（重复上报/并发重放不重复
+    /// 发放）；② 每日可获奖励分享次数上限；③ 活动期可获奖励分享次数上限；
+    /// ④ 两次入账最小间隔 `SHARE_REWARD_MIN_INTERVAL_SECS` 秒。
+    /// 入账只写流水表，奖励次数由 info/draw 按流水汇总叠加基础上限，不改用户统计表。
+    pub async fn share_reward(
+        &self,
+        user_id: Option<i32>,
+        param: &LotteryShareRewardParam,
+    ) -> Result<LotteryShareRewardVO> {
+        let user_id = require_user(user_id)?;
+        let event_id = valid_share_event_id(param.event_id.as_deref())
+            .ok_or_else(|| Error::biz(500, MSG_SHARE_EVENT_REQUIRED))?;
+        let channel = normalize_share_channel(param.channel.as_deref());
+        let now_i64 = now_seconds();
+        let now = i32::try_from(now_i64).unwrap_or_default();
+        let activity = match param.activity_id {
+            Some(id) => self
+                .repo()
+                .find_activity(id)
+                .await?
+                .ok_or_else(|| Error::biz(500, MSG_ACTIVITY_NOT_EXISTS))?,
+            None => self
+                .repo()
+                .find_ongoing(now_i64)
+                .await?
+                .ok_or_else(|| Error::biz(500, MSG_ACTIVITY_NOT_EXISTS))?,
+        };
+        validate_activity(&activity, now_i64)?;
+        if activity.share_reward_enabled != 1 {
+            return Err(Error::biz(500, MSG_SHARE_REWARD_DISABLED));
+        }
+        let today = today_string(now_i64);
+        // 幂等重放：该事件已入账 → 回当前状态，不重复发放
+        if self
+            .repo()
+            .find_share_reward_by_event(activity.activity_id, user_id, &event_id)
+            .await?
+            .is_some()
+        {
+            return self
+                .share_reward_vo(&activity, user_id, &today, false, true, 0)
+                .await;
+        }
+        let stats = self
+            .repo()
+            .share_reward_stats(activity.activity_id, user_id, &today)
+            .await?;
+        if activity.share_reward_daily_limit > 0
+            && stats.today_events >= i64::from(activity.share_reward_daily_limit)
+        {
+            return Err(Error::biz(500, MSG_SHARE_DAILY_LIMIT));
+        }
+        if activity.share_reward_total_limit > 0
+            && stats.total_events >= i64::from(activity.share_reward_total_limit)
+        {
+            return Err(Error::biz(500, MSG_SHARE_TOTAL_LIMIT));
+        }
+        if stats.last_create_time > 0
+            && now_i64 - i64::from(stats.last_create_time) < SHARE_REWARD_MIN_INTERVAL_SECS
+        {
+            return Err(Error::biz(500, MSG_SHARE_TOO_FREQUENT));
+        }
+        let reward_count = normalize_share_reward_count(activity.share_reward_count);
+        let mut tx = self.repo().begin().await?;
+        let inserted = self
+            .repo()
+            .insert_share_reward_in_tx(
+                &mut tx,
+                activity.activity_id,
+                user_id,
+                &event_id,
+                &channel,
+                reward_count,
+                &today,
+                now,
+            )
+            .await?;
+        tx.commit()
+            .await
+            .map_err(|e| Error::Database(e.to_string()))?;
+        match inserted {
+            Some(_) => {
+                self.share_reward_vo(&activity, user_id, &today, true, false, reward_count)
+                    .await
+            }
+            // 并发下同一事件被另一请求抢先入账：按幂等重放处理
+            None => {
+                self.share_reward_vo(&activity, user_id, &today, false, true, 0)
+                    .await
+            }
+        }
+    }
+
+    /// 组装分享奖励结果 VO（我方新增）：重查统计与流水汇总，剩余次数含奖励加成。
+    async fn share_reward_vo(
+        &self,
+        activity: &LotteryActivity,
+        user_id: i32,
+        today: &str,
+        granted: bool,
+        already_rewarded: bool,
+        reward_count: i32,
+    ) -> Result<LotteryShareRewardVO> {
+        let stat = self.repo().find_stat(activity.activity_id, user_id).await?;
+        let (today_count, total_count) = stat
+            .as_ref()
+            .map(|s| (s.today_count, s.total_count))
+            .unwrap_or((0, 0));
+        let stats = self
+            .repo()
+            .share_reward_stats(activity.activity_id, user_id, today)
+            .await?;
+        let (eff_daily_limit, eff_total_limit) = self.effective_limits(activity, &stats);
+        Ok(LotteryShareRewardVO {
+            granted,
+            already_rewarded,
+            reward_count,
+            today_remaining: remaining(eff_daily_limit, today_count),
+            total_remaining: remaining(eff_total_limit, total_count),
+            share_today_earned_count: clamp_i32(stats.today_chances),
+            share_today_reward_remaining: share_events_remaining(
+                activity.share_reward_daily_limit,
+                clamp_i32(stats.today_events),
+            ),
         })
     }
 
@@ -316,6 +500,11 @@ pub fn validate_activity(activity: &LotteryActivity, now: i64) -> Result<()> {
         return Err(Error::biz(500, MSG_ENDED));
     }
     Ok(())
+}
+
+/// i64 汇总值收敛到 i32（我方新增：分享奖励流水汇总用）。
+fn clamp_i32(value: i64) -> i32 {
+    i32::try_from(value).unwrap_or(i32::MAX)
 }
 
 /// 剩余次数（0 表示不限制 ⇒ -1）。

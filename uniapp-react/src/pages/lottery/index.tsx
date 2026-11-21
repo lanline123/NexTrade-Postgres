@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Image, RichText, ScrollView, Text, View } from "@tarojs/components";
-import Taro, { useUnload } from "@tarojs/taro";
+import { Button, Image, RichText, ScrollView, Text, View } from "@tarojs/components";
+import Taro, { useShareAppMessage, useUnload } from "@tarojs/taro";
 import { Popup } from "@nutui/nutui-react-taro";
 
 import TigLayout from "@/components/tig/tig-layout/TigLayout";
@@ -11,14 +11,15 @@ import LoadingBox from "@/components/loading-box";
 import Buy from "@/components/product/buy";
 import { staticResource, redirect } from "@/utils";
 import { imageFormat } from "@/utils/format";
-import { getLotteryInfo, drawLottery, getMyRecords, getWinners } from "@/api/lottery/lottery";
+import { getLotteryInfo, drawLottery, getMyRecords, getWinners, shareRewardLottery } from "@/api/lottery/lottery";
 import type {
     LotteryInfo,
     DrawResult,
     PrizeRecord,
     GridCell,
     GridPosition,
-    LotteryWinner
+    LotteryWinner,
+    ShareRewardResult
 } from "@/types/lottery/lottery";
 import { t } from "@/utils/i18n";
 
@@ -511,6 +512,83 @@ export default function LotteryIndex() {
         void fetchRecords();
     };
 
+    // ==================== 分享得次数（我方新增） ====================
+
+    /** 是否微信小程序端（小程序用 openType=share 按钮 + useShareAppMessage 认定分享动作） */
+    const isWeapp = process.env.TARO_ENV === "weapp";
+
+    /** 分享奖励入账请求中标记（防连点重复上报） */
+    const shareClaimingRef = useRef(false);
+
+    /** 分享事件标识（幂等键）：同一事件重复上报服务端不重复发放 */
+    const genShareEventId = () =>
+        `lt${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+
+    /**
+     * 分享奖励入账：仅在分享动作完成点调用（小程序选定分享目标 / 系统分享完成 / 复制链接成功）。
+     * 有效性与防刷（每日/活动期上限、最小间隔、事件幂等）由服务端判定，前端只负责上报与展示。
+     */
+    const claimShareReward = async (channel: string) => {
+        const info = lotteryInfoRef.current;
+        if (!info || info.activityId <= 0 || info.shareRewardEnabled !== 1) return;
+        if (shareClaimingRef.current) return;
+        shareClaimingRef.current = true;
+        try {
+            const res = (await shareRewardLottery({
+                eventId: genShareEventId(),
+                channel
+            })) as unknown as ShareRewardResult;
+            const latest = lotteryInfoRef.current;
+            if (latest) {
+                updateLotteryInfo({
+                    ...latest,
+                    todayRemaining: res.todayRemaining,
+                    totalRemaining: res.totalRemaining,
+                    shareTodayEarnedCount: res.shareTodayEarnedCount,
+                    shareTodayRewardRemaining: res.shareTodayRewardRemaining
+                });
+            }
+            if (res.granted) {
+                showTip(`${t("分享成功")}\n${t("获得 {count} 次抽奖机会", { count: res.rewardCount })}`);
+            }
+        } catch (error: any) {
+            Taro.showToast({ title: error.message || t("分享奖励领取失败"), icon: "none" });
+        } finally {
+            shareClaimingRef.current = false;
+        }
+    };
+
+    /** H5 端分享动作：优先系统分享（完成才上报），否则复制链接（成功才上报） */
+    const handleH5Share = async () => {
+        const url = typeof window !== "undefined" ? window.location.href : "";
+        const nav = typeof navigator !== "undefined" ? (navigator as any) : undefined;
+        if (nav?.share) {
+            try {
+                await nav.share({ title: lotteryInfoRef.current?.activityName || t("抽奖大转盘"), url });
+                void claimShareReward("web_share");
+            } catch {
+                // 用户取消系统分享：不上报
+            }
+            return;
+        }
+        try {
+            await Taro.setClipboardData({ data: url });
+            Taro.showToast({ title: t("链接已复制，去分享给好友吧"), icon: "none" });
+            void claimShareReward("h5_copy");
+        } catch {
+            Taro.showToast({ title: t("复制链接失败"), icon: "none" });
+        }
+    };
+
+    // 小程序：分享面板选定目标即触发本钩子，视为一次有效分享动作并入账
+    useShareAppMessage(() => {
+        void claimShareReward("weapp");
+        return {
+            title: lotteryInfoRef.current?.activityName || t("抽奖大转盘"),
+            path: "/pages/lottery/index"
+        };
+    });
+
     // ==================== 操作处理 ====================
 
     /** 解析奖品值 JSON（旧模板内联 JSON.parse，抽取为安全版本避免脏数据抛错中断渲染） */
@@ -689,6 +767,27 @@ export default function LotteryIndex() {
                                 {t("您还有")} <Text className="remaining-times-num">{remainingTimes}</Text> {t("次抽奖机会")}
                             </>
                         )}
+                    </View>
+                )}
+
+                {/* 分享得次数（我方新增）：活动开启分享奖励时展示 */}
+                {lotteryInfo && lotteryInfo.shareRewardEnabled === 1 && lotteryInfo.activityId > 0 && (
+                    <View className="share-reward">
+                        {isWeapp ? (
+                            <Button className="share-reward-btn" openType="share">
+                                {t("分享给好友")} · {t("得 {count} 次机会", { count: lotteryInfo.shareRewardCount ?? 1 })}
+                            </Button>
+                        ) : (
+                            <View className="share-reward-btn" onClick={() => void handleH5Share()}>
+                                {t("分享给好友")} · {t("得 {count} 次机会", { count: lotteryInfo.shareRewardCount ?? 1 })}
+                            </View>
+                        )}
+                        <Text className="share-reward-sub">
+                            {t("今日已得 {count} 次", { count: lotteryInfo.shareTodayEarnedCount ?? 0 })}
+                            {lotteryInfo.shareTodayRewardRemaining !== undefined && lotteryInfo.shareTodayRewardRemaining >= 0
+                                ? ` · ${t("今日还可分享 {count} 次", { count: lotteryInfo.shareTodayRewardRemaining })}`
+                                : ""}
+                        </Text>
                     </View>
                 )}
 

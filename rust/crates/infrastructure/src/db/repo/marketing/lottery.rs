@@ -10,7 +10,7 @@ use nextrade_core::entities::promotion::{
 use nextrade_core::models::marketing::lottery::{LotteryRecordQuery, PRIZE_TYPE_PRODUCT};
 use nextrade_core::{Error, Result};
 
-const ACTIVITY_SELECT: &str = "SELECT activity_id, activity_name, start_time, end_time, cost_points, daily_limit, total_limit, win_limit, decorate_config::text AS decorate_config, grid_config::text AS grid_config, no_win_name, no_win_image, no_win_tips, shop_id, is_delete, create_time, update_time, cost_type FROM lottery_activity";
+const ACTIVITY_SELECT: &str = "SELECT activity_id, activity_name, start_time, end_time, cost_points, daily_limit, total_limit, win_limit, decorate_config::text AS decorate_config, grid_config::text AS grid_config, no_win_name, no_win_image, no_win_tips, shop_id, is_delete, create_time, update_time, cost_type, share_reward_enabled, share_reward_count, share_reward_daily_limit, share_reward_total_limit FROM lottery_activity";
 const PRIZE_SELECT: &str = "SELECT prize_id, activity_id, prize_name, prize_type, prize_value, prize_image, prize_stock, prize_stock_used, create_time, update_time FROM lottery_prize";
 const RECORD_SELECT: &str = "SELECT record_id, activity_id, user_id, prize_id, prize_name, prize_type, prize_value, prize_image, cost_points, is_win, status, receive_time, create_time FROM lottery_record";
 
@@ -36,6 +36,29 @@ pub struct RecordWithActivity {
     pub status: i32,
     pub create_time: i32,
     pub receive_time: Option<i32>,
+}
+
+/// 分享奖励流水行（我方新增，表 `lottery_share_reward_log`，迁移 019）。
+#[derive(Debug, Clone, Default, FromRow)]
+pub struct ShareRewardLogRow {
+    pub log_id: i32,
+    pub activity_id: i32,
+    pub user_id: i32,
+    pub event_id: String,
+    pub channel: String,
+    pub reward_count: i32,
+    pub share_date: String,
+    pub create_time: i32,
+}
+
+/// 分享奖励汇总（我方新增）：今日/累计的获奖分享次数与入账次数 + 最近入账时间。
+#[derive(Debug, Clone, Default, FromRow)]
+pub struct ShareRewardStats {
+    pub today_events: i64,
+    pub today_chances: i64,
+    pub total_events: i64,
+    pub total_chances: i64,
+    pub last_create_time: i32,
 }
 
 /// 中奖名单行。
@@ -323,6 +346,75 @@ impl LotteryRepository {
     #[must_use]
     pub fn product_prize_type() -> i32 {
         PRIZE_TYPE_PRODUCT
+    }
+
+    // ————————————————— 分享得次数（我方新增） —————————————————
+
+    /// 按事件标识查分享奖励流水（幂等判定）。
+    pub async fn find_share_reward_by_event(
+        &self,
+        activity_id: i32,
+        user_id: i32,
+        event_id: &str,
+    ) -> Result<Option<ShareRewardLogRow>> {
+        sqlx::query_as::<_, ShareRewardLogRow>(
+            "SELECT log_id, activity_id, user_id, event_id, channel, reward_count, share_date, create_time FROM lottery_share_reward_log WHERE activity_id = $1 AND user_id = $2 AND event_id = $3 LIMIT 1",
+        )
+        .bind(activity_id)
+        .bind(user_id)
+        .bind(event_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_err)
+    }
+
+    /// 分享奖励汇总（今日按 share_date 切分，与 user_stat.today_date 同口径）。
+    pub async fn share_reward_stats(
+        &self,
+        activity_id: i32,
+        user_id: i32,
+        today: &str,
+    ) -> Result<ShareRewardStats> {
+        let row = sqlx::query_as::<_, ShareRewardStats>(
+            "SELECT COUNT(*) FILTER (WHERE share_date = $3) AS today_events, COALESCE(SUM(reward_count) FILTER (WHERE share_date = $3), 0) AS today_chances, COUNT(*) AS total_events, COALESCE(SUM(reward_count), 0) AS total_chances, COALESCE(MAX(create_time), 0) AS last_create_time FROM lottery_share_reward_log WHERE activity_id = $1 AND user_id = $2",
+        )
+        .bind(activity_id)
+        .bind(user_id)
+        .bind(today)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_err)?;
+        Ok(row)
+    }
+
+    /// 事务内写入分享奖励流水（事件唯一键冲突时不重复入账）。
+    ///
+    /// 返回 `Some(log_id)` 表示新入账，`None` 表示该事件已入账（并发重放）。
+    pub async fn insert_share_reward_in_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, Postgres>,
+        activity_id: i32,
+        user_id: i32,
+        event_id: &str,
+        channel: &str,
+        reward_count: i32,
+        share_date: &str,
+        now: i32,
+    ) -> Result<Option<i32>> {
+        let res: Option<i32> = sqlx::query_scalar(
+            "INSERT INTO lottery_share_reward_log (activity_id, user_id, event_id, channel, reward_count, share_date, create_time) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (activity_id, user_id, event_id) DO NOTHING RETURNING log_id",
+        )
+        .bind(activity_id)
+        .bind(user_id)
+        .bind(event_id)
+        .bind(channel)
+        .bind(reward_count)
+        .bind(share_date)
+        .bind(now)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(map_err)?;
+        Ok(res)
     }
 }
 

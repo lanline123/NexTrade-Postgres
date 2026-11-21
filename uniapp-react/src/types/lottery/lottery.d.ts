@@ -64,6 +64,40 @@ export interface LotteryInfo {
     totalRemaining: number;
     /** 可中奖剩余次数 */
     winRemaining: number;
+    /** 分享得次数开关（我方新增）：0 关闭 / 1 开启 */
+    shareRewardEnabled?: number;
+    /** 每次有效分享奖励的抽奖次数（我方新增） */
+    shareRewardCount?: number;
+    /** 今日已通过分享入账的奖励次数合计（我方新增） */
+    shareTodayEarnedCount?: number;
+    /** 今日还可获奖励的分享次数（我方新增）：-1 表示不限制 */
+    shareTodayRewardRemaining?: number;
+}
+
+/** 分享得次数上报参数（我方新增） */
+export interface ShareRewardParams {
+    /** 分享事件标识（客户端生成，幂等键） */
+    eventId: string;
+    /** 分享渠道：weapp / h5_copy / web_share */
+    channel: string;
+}
+
+/** 分享得次数结果（我方新增） */
+export interface ShareRewardResult {
+    /** 本次是否新入账 */
+    granted: boolean;
+    /** 该事件此前已入账（幂等重放） */
+    alreadyRewarded: boolean;
+    /** 本次入账的奖励次数 */
+    rewardCount: number;
+    /** 今日剩余次数（含奖励加成） */
+    todayRemaining: number;
+    /** 总剩余次数（含奖励加成） */
+    totalRemaining: number;
+    /** 今日已通过分享入账的奖励次数合计 */
+    shareTodayEarnedCount: number;
+    /** 今日还可获奖励的分享次数：-1 表示不限制 */
+    shareTodayRewardRemaining: number;
 }
 
 /** 获取抽奖活动信息响应 */

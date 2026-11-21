@@ -5,7 +5,9 @@ import type {
     PrizeRecordPageResponse,
     GetRecordsParams,
     ConfirmReceiveParams,
-    LotteryWinnersResponse
+    LotteryWinnersResponse,
+    ShareRewardParams,
+    ShareRewardResult
 } from "@/types/lottery/lottery";
 
 /**
@@ -51,6 +53,19 @@ export const getMyRecords = (params: GetRecordsParams) => {
 export const confirmReceive = (data: ConfirmReceiveParams) => {
     return request({
         url: "promotion/lottery/confirmReceive",
+        method: "post",
+        data
+    });
+};
+
+/**
+ * 分享得次数上报（我方新增）：分享动作完成点调用，服务端按防刷口径入账
+ * @param data 分享事件标识 + 渠道
+ * @returns 入账结果与最新剩余次数
+ */
+export const shareRewardLottery = (data: ShareRewardParams) => {
+    return request<ShareRewardResult>({
+        url: "promotion/lottery/shareReward",
         method: "post",
         data
     });

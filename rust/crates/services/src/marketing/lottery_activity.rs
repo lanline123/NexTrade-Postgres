@@ -3,6 +3,9 @@
 //! 对应原 Java `LotteryActivityServiceImpl`
 //! （`java/nextrade-service/.../promotion/impl/LotteryActivityServiceImpl.java`，8 个 admin 端点）。
 //!
+//! 我方新增（帖 717751）：分享得次数的活动配置字段（迁移 019 四列）随 create/update/detail
+//! 透传；`share_reward_logs` 为新增第 9 个端点（分享奖励流水分页，含租户隔离校验）。
+//!
 //! # 未迁移 / 偏差（如实标注）
 //!
 //! - **装修配置 / 奖品入口图**：Java `DecorateConfig` / `prizeEntryImage` 是强类型
@@ -27,14 +30,14 @@ use nextrade_common::utils::now_seconds;
 use nextrade_core::entities::{LotteryActivity, LotteryPrize};
 use nextrade_core::models::marketing::lottery_activity::{
     activity_status, format_datetime, parse_datetime, prize_display_name, prize_status_text,
-    status_text, GridPositionParam, GridPositionVO, LotteryActivityIdParam, LotteryActivityListQuery,
-    LotteryActivityListVO, LotteryActivityParam, LotteryActivityVO, LotteryPrizeItemParam,
-    LotteryPrizeVO, LotteryUserManageQuery, LotteryUserManageVO, LotteryUserRecordQuery,
-    LotteryUserRecordVO, MSG_ACTIVITY_ALREADY_ENDED, MSG_ACTIVITY_ID_REQUIRED,
-    MSG_ACTIVITY_NOT_EXISTS, MSG_ACTIVITY_NOT_STARTED, MSG_ACTIVITY_RUNNING_CANNOT_DELETE,
-    MSG_GRID_DUPLICATE, MSG_GRID_NEED_PRIZE, MSG_GRID_SIZE, MSG_PRIZE_PROBABILITY_MAX,
-    MSG_PRIZE_PROBABILITY_POSITIVE, MSG_TIME_CONFLICT,
-    MSG_TOTAL_PROBABILITY, PROMOTION_TYPE_LOTTERY,
+    share_channel_text, status_text, GridPositionParam, GridPositionVO, LotteryActivityIdParam,
+    LotteryActivityListQuery, LotteryActivityListVO, LotteryActivityParam, LotteryActivityVO,
+    LotteryPrizeItemParam, LotteryPrizeVO, LotteryShareRewardLogQuery, LotteryShareRewardLogVO,
+    LotteryUserManageQuery, LotteryUserManageVO, LotteryUserRecordQuery, LotteryUserRecordVO,
+    MSG_ACTIVITY_ALREADY_ENDED, MSG_ACTIVITY_ID_REQUIRED, MSG_ACTIVITY_NOT_EXISTS,
+    MSG_ACTIVITY_NOT_STARTED, MSG_ACTIVITY_RUNNING_CANNOT_DELETE, MSG_GRID_DUPLICATE,
+    MSG_GRID_NEED_PRIZE, MSG_GRID_SIZE, MSG_PRIZE_PROBABILITY_MAX, MSG_PRIZE_PROBABILITY_POSITIVE,
+    MSG_TIME_CONFLICT, MSG_TOTAL_PROBABILITY, PROMOTION_TYPE_LOTTERY,
 };
 use nextrade_core::types::PageQuery;
 use nextrade_core::{Error, Result};
@@ -124,6 +127,10 @@ impl LotteryActivityService {
             daily_limit: a.daily_limit,
             total_limit: a.total_limit,
             win_limit: a.win_limit,
+            share_reward_enabled: a.share_reward_enabled,
+            share_reward_count: a.share_reward_count,
+            share_reward_daily_limit: a.share_reward_daily_limit,
+            share_reward_total_limit: a.share_reward_total_limit,
             status,
             status_text: status_text(status).to_string(),
             decorate_config: a
@@ -178,6 +185,10 @@ impl LotteryActivityService {
             create_time: now,
             update_time: now,
             cost_type: normalize_cost_type(param),
+            share_reward_enabled: normalize_share_reward_enabled(param),
+            share_reward_count: param.share_reward_count.unwrap_or(1).max(0),
+            share_reward_daily_limit: param.share_reward_daily_limit.unwrap_or(0).max(0),
+            share_reward_total_limit: param.share_reward_total_limit.unwrap_or(0).max(0),
         };
         let activity_id = self.repo().insert(&activity).await?;
         activity.activity_id = activity_id;
@@ -219,6 +230,10 @@ impl LotteryActivityService {
         activity.no_win_image = param.no_win_image.clone().unwrap_or_default();
         activity.no_win_tips = param.no_win_tips.clone().unwrap_or_default();
         activity.cost_type = normalize_cost_type(param);
+        activity.share_reward_enabled = normalize_share_reward_enabled(param);
+        activity.share_reward_count = param.share_reward_count.unwrap_or(1).max(0);
+        activity.share_reward_daily_limit = param.share_reward_daily_limit.unwrap_or(0).max(0);
+        activity.share_reward_total_limit = param.share_reward_total_limit.unwrap_or(0).max(0);
         activity.update_time = now_seconds_i32();
         self.repo().update(&activity).await?;
         self.sync_promotion(&activity).await?;
@@ -376,6 +391,55 @@ impl LotteryActivityService {
                     &r.prize_name,
                 ),
                 status_text: prize_status_text(r.is_win, Some(r.prize_type), r.status),
+            })
+            .collect();
+        Ok(nextrade_core::types::PageResult::new(
+            u64::try_from(total).unwrap_or(0),
+            list,
+            &page,
+        ))
+    }
+
+    /// 分享奖励流水（我方新增：分享得次数入账可查）。
+    pub async fn share_reward_logs(
+        &self,
+        q: &LotteryShareRewardLogQuery,
+    ) -> Result<nextrade_core::types::PageResult<LotteryShareRewardLogVO>> {
+        let activity_id = q
+            .activity_id
+            .ok_or_else(|| Error::biz(500, "活动ID不能为空"))?;
+        // 复用活动可见性校验（含店铺租户隔离），避免越权查他店流水
+        self.find_activity(activity_id).await?;
+        let (limit, offset) = q.limit_offset();
+        let page = to_page_query(q.page, q.size);
+        let (total, rows) = self
+            .repo()
+            .share_reward_logs_paginate(activity_id, q.user_id, limit, offset)
+            .await?;
+        let user_ids: Vec<i32> = rows.iter().map(|r| r.user_id).collect();
+        let briefs: HashMap<i32, UserBrief> = self
+            .repo()
+            .user_briefs(&user_ids)
+            .await?
+            .into_iter()
+            .collect();
+        let list: Vec<LotteryShareRewardLogVO> = rows
+            .iter()
+            .map(|r| {
+                let user = briefs.get(&r.user_id);
+                LotteryShareRewardLogVO {
+                    log_id: r.log_id,
+                    user_id: r.user_id,
+                    user_name: user
+                        .map(|u| u.username.clone())
+                        .unwrap_or_else(|| "未知用户".to_string()),
+                    avatar: user.and_then(|u| u.avatar.clone()),
+                    reward_count: r.reward_count,
+                    channel: r.channel.clone(),
+                    channel_text: share_channel_text(&r.channel).to_string(),
+                    share_date: r.share_date.clone(),
+                    create_time: format_datetime(r.create_time),
+                }
             })
             .collect();
         Ok(nextrade_core::types::PageResult::new(
@@ -579,6 +643,15 @@ fn normalize_cost_type(param: &LotteryActivityParam) -> i32 {
     }
 }
 
+/// 分享得次数开关归一化（我方新增）：仅 1 为开启，其余（含缺省）为关闭。
+fn normalize_share_reward_enabled(param: &LotteryActivityParam) -> i32 {
+    if param.share_reward_enabled.unwrap_or(0) == 1 {
+        1
+    } else {
+        0
+    }
+}
+
 fn prize_to_vo(p: &LotteryPrize) -> LotteryPrizeVO {
     LotteryPrizeVO {
         prize_id: p.prize_id,
@@ -671,6 +744,18 @@ mod tests {
         assert_eq!(vo.remain_stock, 0);
         assert_eq!(vo.prize_type_text, "积分");
         assert_eq!(vo.create_time, "2023-11-15 06:13:20");
+    }
+
+    #[test]
+    fn share_reward_enabled_normalization() {
+        let mut p = LotteryActivityParam::default();
+        assert_eq!(normalize_share_reward_enabled(&p), 0);
+        p.share_reward_enabled = Some(1);
+        assert_eq!(normalize_share_reward_enabled(&p), 1);
+        p.share_reward_enabled = Some(2);
+        assert_eq!(normalize_share_reward_enabled(&p), 0);
+        p.share_reward_enabled = Some(0);
+        assert_eq!(normalize_share_reward_enabled(&p), 0);
     }
 
     #[test]

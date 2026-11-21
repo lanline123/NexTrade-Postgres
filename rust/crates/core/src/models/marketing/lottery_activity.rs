@@ -72,6 +72,10 @@ pub const MSG_NO_WIN_NAME_REQUIRED: &str = "未中奖名称不能为空";
 pub const MSG_NO_WIN_IMAGE_REQUIRED: &str = "未中奖图片不能为空";
 /// 未中奖图片 URL 格式不正确
 pub const MSG_NO_WIN_IMAGE_URL: &str = "未中奖图片URL格式不正确";
+/// 分享奖励次数必须大于 0（我方新增：分享得次数）
+pub const MSG_SHARE_REWARD_COUNT_INVALID: &str = "分享奖励次数必须大于0";
+/// 分享奖励上限不能小于 0（我方新增：分享得次数）
+pub const MSG_SHARE_REWARD_LIMIT_INVALID: &str = "分享奖励上限不能小于0";
 /// 奖品列表不能为空
 pub const MSG_PRIZE_LIST_REQUIRED: &str = "奖品列表不能为空";
 /// 奖品数量不能超过 7 个
@@ -167,6 +171,14 @@ pub struct LotteryActivityParam {
     pub daily_limit: Option<i32>,
     pub total_limit: Option<i32>,
     pub win_limit: Option<i32>,
+    /// 分享得次数开关（我方新增）：0 关闭 / 1 开启
+    pub share_reward_enabled: Option<i32>,
+    /// 每次有效分享奖励的抽奖次数（我方新增）
+    pub share_reward_count: Option<i32>,
+    /// 每人每日可获奖励的分享次数，0 = 不限制（我方新增）
+    pub share_reward_daily_limit: Option<i32>,
+    /// 每人活动期可获奖励的分享次数，0 = 不限制（我方新增）
+    pub share_reward_total_limit: Option<i32>,
     /// 装修配置（原样 JSON 透传）
     pub decorate_config: Option<serde_json::Value>,
     pub prize_list: Option<Vec<LotteryPrizeItemParam>>,
@@ -191,6 +203,17 @@ impl LotteryActivityParam {
         }
         if cost_type == 1 && self.cost_points.unwrap_or(0) <= 0 {
             return Err(MSG_COST_POINTS_INVALID.to_string());
+        }
+        // 分享得次数（我方新增）：开启时每次奖励次数必须大于 0，上限不能为负
+        if self.share_reward_enabled.unwrap_or(0) == 1
+            && self.share_reward_count.unwrap_or(0) <= 0
+        {
+            return Err(MSG_SHARE_REWARD_COUNT_INVALID.to_string());
+        }
+        if self.share_reward_daily_limit.unwrap_or(0) < 0
+            || self.share_reward_total_limit.unwrap_or(0) < 0
+        {
+            return Err(MSG_SHARE_REWARD_LIMIT_INVALID.to_string());
         }
         validate_grid_shape(self.grid_config.as_deref())?;
         if self
@@ -361,6 +384,14 @@ pub struct LotteryActivityVO {
     pub daily_limit: i32,
     pub total_limit: i32,
     pub win_limit: i32,
+    /// 分享得次数开关（我方新增）：0 关闭 / 1 开启
+    pub share_reward_enabled: i32,
+    /// 每次有效分享奖励的抽奖次数（我方新增）
+    pub share_reward_count: i32,
+    /// 每人每日可获奖励的分享次数，0 = 不限制（我方新增）
+    pub share_reward_daily_limit: i32,
+    /// 每人活动期可获奖励的分享次数，0 = 不限制（我方新增）
+    pub share_reward_total_limit: i32,
     pub status: i32,
     pub status_text: String,
     pub decorate_config: Option<serde_json::Value>,
@@ -456,6 +487,61 @@ pub struct LotteryUserRecordVO {
     pub create_time: Option<String>,
     pub prize_name: String,
     pub status_text: String,
+}
+
+/// 分享奖励流水查询（我方新增：分享得次数入账可查）。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct LotteryShareRewardLogQuery {
+    pub page: Option<i64>,
+    pub size: Option<i64>,
+    pub activity_id: Option<i32>,
+    pub user_id: Option<i32>,
+}
+
+impl LotteryShareRewardLogQuery {
+    #[must_use]
+    pub fn limit_offset(&self) -> (i64, i64) {
+        let page = self.page.unwrap_or(1).max(1);
+        let size = match self.size {
+            None => 15,
+            Some(v) if v > 100 => 100,
+            Some(v) if v < 1 => 1,
+            Some(v) => v,
+        };
+        (size, (page - 1) * size)
+    }
+}
+
+/// 分享奖励流水 VO（我方新增）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LotteryShareRewardLogVO {
+    pub log_id: i32,
+    pub user_id: i32,
+    pub user_name: String,
+    pub avatar: Option<String>,
+    /// 本次入账的奖励抽奖次数
+    pub reward_count: i32,
+    /// 分享渠道原文（客户端上报）
+    pub channel: String,
+    /// 分享渠道展示名
+    pub channel_text: String,
+    /// 分享日期 yyyy-MM-dd
+    pub share_date: String,
+    /// 入账时间（格式化）
+    pub create_time: String,
+}
+
+/// 分享渠道展示名（我方新增；未知渠道回落「其他」）。
+#[must_use]
+pub fn share_channel_text(channel: &str) -> &'static str {
+    match channel {
+        "weapp" => "小程序分享",
+        "h5_copy" => "复制链接",
+        "web_share" => "系统分享",
+        _ => "其他",
+    }
 }
 
 /// 奖品展示名（Java `getPrizeDisplayName`）。
@@ -605,6 +691,36 @@ mod tests {
             p.validate_basic(100, 200).unwrap_err(),
             "未中奖名称不能为空"
         );
+    }
+
+    #[test]
+    fn share_reward_validation_and_channel_text() {
+        // cost_type=0 绕开积分校验，使校验推进到分享奖励分支
+        let mut p = LotteryActivityParam::default();
+        p.cost_type = Some(0);
+        p.share_reward_enabled = Some(1);
+        p.share_reward_count = Some(0);
+        assert_eq!(
+            p.validate_basic(100, 200).unwrap_err(),
+            "分享奖励次数必须大于0"
+        );
+        p.share_reward_count = Some(2);
+        p.share_reward_daily_limit = Some(-1);
+        assert_eq!(
+            p.validate_basic(100, 200).unwrap_err(),
+            "分享奖励上限不能小于0"
+        );
+        p.share_reward_daily_limit = Some(3);
+        p.share_reward_total_limit = Some(-5);
+        assert_eq!(
+            p.validate_basic(100, 200).unwrap_err(),
+            "分享奖励上限不能小于0"
+        );
+        assert_eq!(share_channel_text("weapp"), "小程序分享");
+        assert_eq!(share_channel_text("h5_copy"), "复制链接");
+        assert_eq!(share_channel_text("web_share"), "系统分享");
+        assert_eq!(share_channel_text("whatever"), "其他");
+        assert_eq!(share_channel_text(""), "其他");
     }
 
     #[test]

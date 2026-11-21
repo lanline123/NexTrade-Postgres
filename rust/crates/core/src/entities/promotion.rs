@@ -913,6 +913,14 @@ pub struct LotteryActivity {
     pub update_time: i32,
     /// 抽奖参与条件:0-无限制(免费),1-消耗积分 [NOT NULL]
     pub cost_type: i32,
+    /// 分享得次数开关:0-关闭,1-开启 [NOT NULL]（我方新增，迁移 019）
+    pub share_reward_enabled: i32,
+    /// 每次有效分享奖励的抽奖次数 [NOT NULL]（我方新增，迁移 019）
+    pub share_reward_count: i32,
+    /// 每人每日可获奖励的分享次数(0表示不限制) [NOT NULL]（我方新增，迁移 019）
+    pub share_reward_daily_limit: i32,
+    /// 每人活动期可获奖励的分享次数(0表示不限制) [NOT NULL]（我方新增，迁移 019）
+    pub share_reward_total_limit: i32,
 }
 
 impl LotteryActivity {

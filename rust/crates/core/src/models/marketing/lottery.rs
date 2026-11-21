@@ -19,6 +19,78 @@ pub const MSG_ONLY_PRODUCT_RECEIVE: &str = "只有商品奖品需要确认领取
 pub const MSG_POINTS_DEC_FAILED: &str = "积分减少失败";
 pub const NO_WIN_NAME: &str = "未中奖";
 
+/// 分享得次数未开启（我方新增）。
+pub const MSG_SHARE_REWARD_DISABLED: &str = "该活动未开启分享得次数";
+/// 分享事件标识缺失（我方新增）。
+pub const MSG_SHARE_EVENT_REQUIRED: &str = "分享事件标识不能为空";
+/// 今日分享奖励已达上限（我方新增）。
+pub const MSG_SHARE_DAILY_LIMIT: &str = "今日分享奖励已达上限";
+/// 活动期分享奖励已达上限（我方新增）。
+pub const MSG_SHARE_TOTAL_LIMIT: &str = "分享奖励已达活动上限";
+/// 两次分享奖励间隔过短（我方新增）。
+pub const MSG_SHARE_TOO_FREQUENT: &str = "分享操作太频繁，请稍后再试";
+
+/// 两次分享奖励的最小间隔（秒，我方新增防刷口径）：
+/// 同一用户同一活动两次入账至少间隔 60 秒，挡住连续点分享面板刷次数。
+pub const SHARE_REWARD_MIN_INTERVAL_SECS: i64 = 60;
+
+/// 分享渠道：微信小程序分享面板（我方新增）。
+pub const SHARE_CHANNEL_WEAPP: &str = "weapp";
+/// 分享渠道：H5 复制链接（我方新增）。
+pub const SHARE_CHANNEL_H5_COPY: &str = "h5_copy";
+/// 分享渠道：系统分享（navigator.share，我方新增）。
+pub const SHARE_CHANNEL_WEB_SHARE: &str = "web_share";
+
+/// 每次分享奖励次数归一化（我方新增）：配置缺失/非正数时回落 1。
+#[must_use]
+pub fn normalize_share_reward_count(raw: i32) -> i32 {
+    if raw > 0 {
+        raw
+    } else {
+        1
+    }
+}
+
+/// 含分享奖励加成的有效上限（我方新增）：基础上限为 0（不限制）时奖励不改变不限制语义。
+#[must_use]
+pub fn effective_limit(limit: i32, bonus: i32) -> i32 {
+    if limit > 0 {
+        limit + bonus.max(0)
+    } else {
+        0
+    }
+}
+
+/// 还可获奖励的分享次数（我方新增）：上限为 0（不限制）时返回 -1，与 `remaining` 同口径。
+#[must_use]
+pub fn share_events_remaining(limit: i32, used_events: i32) -> i32 {
+    if limit > 0 {
+        (limit - used_events).max(0)
+    } else {
+        -1
+    }
+}
+
+/// 分享事件标识校验（我方新增）：非空且不超过 64 字符（与流水表 event_id 列宽一致）。
+#[must_use]
+pub fn valid_share_event_id(raw: Option<&str>) -> Option<String> {
+    let id = raw.map(str::trim).filter(|s| !s.is_empty())?;
+    if id.chars().count() > 64 {
+        return None;
+    }
+    Some(id.to_string())
+}
+
+/// 分享渠道归一化（我方新增）：去空白、截断 32 字符（与流水表 channel 列宽一致），空回落空串。
+#[must_use]
+pub fn normalize_share_channel(raw: Option<&str>) -> String {
+    raw.map(str::trim)
+        .unwrap_or_default()
+        .chars()
+        .take(32)
+        .collect()
+}
+
 /// 奖品类型：积分。
 pub const PRIZE_TYPE_POINTS: i32 = 1;
 /// 奖品类型：商品。
@@ -153,6 +225,14 @@ pub struct LotteryActivityInfoVO {
     pub total_remaining: i32,
     pub win_remaining: i32,
     pub available_draw_count: i32,
+    /// 分享得次数开关（我方新增）：0 关闭 / 1 开启
+    pub share_reward_enabled: i32,
+    /// 每次有效分享奖励的抽奖次数（我方新增，已归一化）
+    pub share_reward_count: i32,
+    /// 今日已通过分享入账的奖励次数合计（我方新增）
+    pub share_today_earned_count: i32,
+    /// 今日还可获奖励的分享次数（我方新增）：-1 表示不限制
+    pub share_today_reward_remaining: i32,
 }
 
 /// 九宫格 VO（Java `GridPositionVO`）。
@@ -182,6 +262,42 @@ pub struct LotteryResultVO {
     pub today_remaining: i32,
     pub total_remaining: i32,
     pub record_id: i32,
+}
+
+/// 分享得次数上报入参（我方新增）。
+///
+/// 有效分享判定口径：客户端在分享动作完成点上报（小程序分享面板选定目标 /
+/// H5 复制链接成功 / 系统分享完成），服务端不核验第三方平台真实送达，
+/// 以事件幂等 + 每日/活动期上限 + 最小间隔三重限额防刷（见服务层）。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct LotteryShareRewardParam {
+    /// 活动 ID（可空：空则取当前进行中的活动，与 info/draw 同口径）
+    pub activity_id: Option<i32>,
+    /// 客户端生成的分享事件标识（幂等键，同一事件重复上报不重复发放）
+    pub event_id: Option<String>,
+    /// 分享渠道：weapp / h5_copy / web_share
+    pub channel: Option<String>,
+}
+
+/// 分享得次数结果 VO（我方新增）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LotteryShareRewardVO {
+    /// 本次是否新入账
+    pub granted: bool,
+    /// 该事件此前已入账（幂等重放，未重复发放）
+    pub already_rewarded: bool,
+    /// 本次入账的奖励次数（重放时为 0）
+    pub reward_count: i32,
+    /// 今日剩余抽奖次数（含奖励加成，-1 不限制）
+    pub today_remaining: i32,
+    /// 总剩余抽奖次数（含奖励加成，-1 不限制）
+    pub total_remaining: i32,
+    /// 今日已通过分享入账的奖励次数合计
+    pub share_today_earned_count: i32,
+    /// 今日还可获奖励的分享次数：-1 表示不限制
+    pub share_today_reward_remaining: i32,
 }
 
 /// 中奖记录 VO（Java `LotteryRecordVO`）。
@@ -240,6 +356,28 @@ mod tests {
         assert_eq!(record_status_text(0), "未领取");
         assert_eq!(record_status_text(2), "已过期");
         assert_eq!(record_status_text(9), "未知");
+    }
+
+    #[test]
+    fn share_reward_helpers() {
+        assert_eq!(normalize_share_reward_count(3), 3);
+        assert_eq!(normalize_share_reward_count(0), 1);
+        assert_eq!(normalize_share_reward_count(-2), 1);
+        // 基础不限制（0）时奖励不改变不限制语义；有限时叠加奖励
+        assert_eq!(effective_limit(0, 5), 0);
+        assert_eq!(effective_limit(10, 5), 15);
+        assert_eq!(effective_limit(10, -3), 10);
+        assert_eq!(share_events_remaining(0, 9), -1);
+        assert_eq!(share_events_remaining(3, 1), 2);
+        assert_eq!(share_events_remaining(3, 5), 0);
+        assert_eq!(valid_share_event_id(Some(" evt-1 ")).as_deref(), Some("evt-1"));
+        assert_eq!(valid_share_event_id(Some("  ")), None);
+        assert_eq!(valid_share_event_id(None), None);
+        assert_eq!(valid_share_event_id(Some(&"x".repeat(65))), None);
+        assert_eq!(normalize_share_channel(Some(" weapp ")), "weapp");
+        assert_eq!(normalize_share_channel(None), "");
+        assert_eq!(normalize_share_channel(Some(&"c".repeat(40))).chars().count(), 32);
+        assert_eq!(SHARE_REWARD_MIN_INTERVAL_SECS, 60);
     }
 
     #[test]

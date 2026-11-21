@@ -26,6 +26,8 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
  * - 三步表单（创建活动 → 奖项设置 → 页面装修）+ 右侧九宫格预览（旧 Info.vue）；
  * - 奖品 ≤7（积分/商品/优惠券），未中奖配置，8 位置转盘 + 概率（第 8 格固定谢谢参与）；
  * - 用户管理 / 中奖记录（userManage / userRecord）；
+ * - 分享得次数（我方新增，帖 717751）：第一步表单配置开关/奖励次数/每日与活动期上限，
+ *   列表「分享记录」查看入账流水（shareRewardLogs）。
  * 契约：rust lottery_activity.rs（LotteryActivityParam / LotteryActivityVO，文案逐字校验在后端）。
  */
 
@@ -70,6 +72,10 @@ interface LotteryForm {
   totalLimit: number | undefined;
   isConsumePoints: number; // 对应后端 costType
   costPoints: number | undefined;
+  shareRewardEnabled: number; // 分享得次数开关（我方新增）：0 关闭 / 1 开启
+  shareRewardCount: number | undefined; // 每次有效分享奖励的抽奖次数
+  shareRewardDailyLimit: number | undefined; // 每日可获奖励分享次数，空 = 不限制
+  shareRewardTotalLimit: number | undefined; // 活动期可获奖励分享次数，空 = 不限制
   prizeList: PrizeItem[];
   gridConfig: GridRow[];
   noWinName: string;
@@ -93,6 +99,10 @@ const initialForm = (): LotteryForm => ({
   totalLimit: undefined,
   isConsumePoints: 1,
   costPoints: undefined,
+  shareRewardEnabled: 0,
+  shareRewardCount: 1,
+  shareRewardDailyLimit: undefined,
+  shareRewardTotalLimit: undefined,
   prizeList: [],
   gridConfig: Array.from({ length: 8 }, (_, i) => ({ position: i + 1, prizeKey: '', probability: 12.5 })),
   noWinName: '谢谢参与',
@@ -300,6 +310,10 @@ function LotteryEditModal({
             totalLimit: Number(vo.totalLimit) > 0 ? Number(vo.totalLimit) : undefined,
             isConsumePoints: Number(vo.costType) === 1 ? 1 : 0,
             costPoints: Number(vo.costPoints) > 0 ? Number(vo.costPoints) : undefined,
+            shareRewardEnabled: Number(vo.shareRewardEnabled) === 1 ? 1 : 0,
+            shareRewardCount: Number(vo.shareRewardCount) > 0 ? Number(vo.shareRewardCount) : 1,
+            shareRewardDailyLimit: Number(vo.shareRewardDailyLimit) > 0 ? Number(vo.shareRewardDailyLimit) : undefined,
+            shareRewardTotalLimit: Number(vo.shareRewardTotalLimit) > 0 ? Number(vo.shareRewardTotalLimit) : undefined,
             prizeList: prizes,
             gridConfig: grid,
             noWinName: vo.noWinName || '谢谢参与',
@@ -341,6 +355,7 @@ function LotteryEditModal({
         if (Number(form.dailyLimit) > Number(form.totalLimit)) return t('每日最大抽奖次数不能大于活动最大抽奖次数');
       }
       if (form.isConsumePoints === 1 && (!form.costPoints || form.costPoints <= 0)) return t('每次抽奖消耗积分必须大于0');
+      if (form.shareRewardEnabled === 1 && (!form.shareRewardCount || form.shareRewardCount <= 0)) return t('分享奖励次数必须大于0');
     }
     if (current === 1) {
       if (!form.prizeList.length) return t('奖品列表不能为空');
@@ -387,6 +402,10 @@ function LotteryEditModal({
         dailyLimit: form.drawLimitType === 1 ? Number(form.dailyLimit) : 0,
         totalLimit: form.drawLimitType === 1 ? Number(form.totalLimit) : 0,
         winLimit: form.winLimitType === 1 ? Number(form.winLimit) : 0,
+        shareRewardEnabled: form.shareRewardEnabled,
+        shareRewardCount: form.shareRewardEnabled === 1 ? Number(form.shareRewardCount) : Number(form.shareRewardCount ?? 1),
+        shareRewardDailyLimit: Number(form.shareRewardDailyLimit ?? 0),
+        shareRewardTotalLimit: Number(form.shareRewardTotalLimit ?? 0),
         prizeList: form.prizeList.map((p, index) => ({
           prizeId: p.prizeId,
           tempIndex: p.prizeId ? undefined : index,
@@ -516,6 +535,29 @@ function LotteryEditModal({
                     </Space>
                   </Radio>
                 </RadioGroup>
+              </div>
+              <div style={{ display: 'grid', gap: 4 }}>
+                <span>{t('分享得次数')}</span>
+                <RadioGroup value={form.shareRewardEnabled} onChange={(e) => setForm({ ...form, shareRewardEnabled: Number(e.target.value), shareRewardCount: Number(e.target.value) === 1 && !form.shareRewardCount ? 1 : form.shareRewardCount })}>
+                  <Radio value={0}>{t('关闭')}</Radio>
+                  <Radio value={1}>{t('开启')}</Radio>
+                </RadioGroup>
+                {form.shareRewardEnabled === 1 && (
+                  <>
+                    <Space>
+                      <span>{t('每次有效分享奖励')}</span>
+                      <InputNumber style={{ width: 90 }} min={1} value={form.shareRewardCount} onChange={(v) => setForm({ ...form, shareRewardCount: numOrNull(v) })} />
+                      <span>{t('次抽奖机会')}</span>
+                      <span>{t('每人每日可奖励分享')}</span>
+                      <InputNumber style={{ width: 90 }} min={0} value={form.shareRewardDailyLimit} onChange={(v) => setForm({ ...form, shareRewardDailyLimit: numOrNull(v) })} placeholder={t('不限')} />
+                      <span>{t('次')}</span>
+                      <span>{t('活动期可奖励分享')}</span>
+                      <InputNumber style={{ width: 90 }} min={0} value={form.shareRewardTotalLimit} onChange={(v) => setForm({ ...form, shareRewardTotalLimit: numOrNull(v) })} placeholder={t('不限')} />
+                      <span>{t('次')}</span>
+                    </Space>
+                    <span style={{ fontSize: 12, color: 'var(--semi-color-text-2)' }}>{t('用户在抽奖页完成分享动作后入账，奖励次数叠加在基础次数上限之上；同一分享事件不重复发放，两次奖励至少间隔60秒，入账流水可在活动列表「分享记录」查看')}</span>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -863,6 +905,7 @@ export default function Lottery() {
   const [keyword, setKeyword] = useState('');
   const [edit, setEdit] = useState<{ open: boolean; id: number }>({ open: false, id: 0 });
   const [userTarget, setUserTarget] = useState<any>(null);
+  const [shareTarget, setShareTarget] = useState<any>(null);
 
   const load = (targetPage = page) => {
     setLoading(true);
@@ -920,11 +963,12 @@ export default function Lottery() {
         { title: t('创建时间'), dataIndex: 'createTime', width: 170 },
         {
           title: t('操作'),
-          width: 250,
+          width: 340,
           render: (_: any, row: any) => (
             <Space>
               <Button theme="borderless" type="primary" onClick={() => setEdit({ open: true, id: row.activityId })}>{t('编辑')}</Button>
               <Button theme="borderless" onClick={() => setUserTarget(row)}>{t('用户管理')}</Button>
+              <Button theme="borderless" onClick={() => setShareTarget(row)}>{t('分享记录')}</Button>
               {row.status !== 2 && (
                 <Popconfirm title={t('确认结束该活动？')} onConfirm={() => endActivity(row)}>
                   <Button theme="borderless" type="warning">{t('结束')}</Button>
@@ -965,6 +1009,61 @@ export default function Lottery() {
         onSaved={() => load()}
       />
       <UserManageModal visible={!!userTarget} activity={userTarget} onClose={() => setUserTarget(null)} />
+      <ShareLogModal visible={!!shareTarget} activity={shareTarget} onClose={() => setShareTarget(null)} />
     </div>
+  );
+}
+
+/* --------------------------------- 分享奖励记录（我方新增） --------------------------------- */
+
+function ShareLogModal({ visible, activity, onClose }: { visible: boolean; activity: any; onClose: () => void }) {
+  const { t } = useI18n();
+  const [rows, setRows] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+
+  const load = (targetPage = page) => {
+    if (!activity) return;
+    setLoading(true);
+    apiGet<{ records: any[]; total: number }>('/promotion/lotteryActivity/shareRewardLogs', {
+      activityId: activity.activityId,
+      page: targetPage,
+      size: 10,
+    })
+      .then((res) => {
+        setRows(res.records || []);
+        setTotal(res.total || 0);
+      })
+      .catch((e) => Toast.error({ content: e.message }))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (visible && activity) {
+      setPage(1);
+      load(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, activity]);
+
+  return (
+    <Modal title={`${t('分享奖励记录')} — ${activity?.activityName ?? ''}`} visible={visible} onCancel={onClose} footer={null} width={720}>
+      <Table
+        loading={loading}
+        dataSource={rows}
+        rowKey="logId"
+        empty={<Empty description={t('暂无数据')} />}
+        pagination={{ currentPage: page, pageSize: 10, total, onPageChange: (p) => { setPage(p); load(p); } }}
+        columns={[
+          { title: 'ID', dataIndex: 'logId', width: 70 },
+          { title: t('用户名'), dataIndex: 'userName' },
+          { title: t('奖励次数'), dataIndex: 'rewardCount', width: 90 },
+          { title: t('分享渠道'), dataIndex: 'channelText', width: 110 },
+          { title: t('分享日期'), dataIndex: 'shareDate', width: 110 },
+          { title: t('入账时间'), dataIndex: 'createTime', width: 170 },
+        ] as ColumnProps<any>[]}
+      />
+    </Modal>
   );
 }

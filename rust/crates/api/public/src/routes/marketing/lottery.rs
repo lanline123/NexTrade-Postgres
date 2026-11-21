@@ -1,5 +1,6 @@
 //! 商城前台抽奖路由（marketing::lottery）。
-//! Java `LotteryController`：`/api/promotion/lottery/*`（5 端点，auth=optional）。
+//! Java `LotteryController`：`/api/promotion/lottery/*`（5 端点，auth=optional）；
+//! `shareReward` 为我方新增（分享得次数，帖 717751）。
 
 use axum::{
     extract::{Query, Request, State},
@@ -11,7 +12,8 @@ use axum::{
 };
 use nextrade_core::models::marketing::lottery::{
     LotteryActivityInfoVO, LotteryConfirmReceiveParam, LotteryRecordQuery, LotteryRecordVO,
-    LotteryResultVO, LotteryWinnerVO, LotteryWinnersQuery,
+    LotteryResultVO, LotteryShareRewardParam, LotteryShareRewardVO, LotteryWinnerVO,
+    LotteryWinnersQuery,
 };
 use nextrade_core::types::PageResult;
 use nextrade_core::Error;
@@ -20,12 +22,14 @@ use nextrade_security::JwtService;
 
 use crate::PublicState;
 
-const ROUTE_TABLE: [(&str, &str, &str); 5] = [
+const ROUTE_TABLE: [(&str, &str, &str); 6] = [
     ("GET", "/promotion/lottery/info", "LotteryController.info"),
     ("POST", "/promotion/lottery/draw", "LotteryController.draw"),
     ("GET", "/promotion/lottery/myRecords", "LotteryController.myRecords"),
     ("POST", "/promotion/lottery/confirmReceive", "LotteryController.confirmReceive"),
     ("GET", "/promotion/lottery/winners", "LotteryController.winners"),
+    // 我方新增（分享得次数）：handler 名以 Nextrade 标记区分于 Java 契约
+    ("POST", "/promotion/lottery/shareReward", "LotteryController.shareReward(Nextrade)"),
 ];
 
 /// 可选登录态结果。
@@ -40,6 +44,7 @@ pub fn routes(state: &PublicState) -> Router<PublicState> {
         .route("/promotion/lottery/myRecords", get(my_records))
         .route("/promotion/lottery/confirmReceive", post(confirm_receive))
         .route("/promotion/lottery/winners", get(winners))
+        .route("/promotion/lottery/shareReward", post(share_reward))
         .layer(middleware::from_fn_with_state(state.jwt.clone(), optional_auth))
 }
 
@@ -123,6 +128,19 @@ async fn winners(
     ok(state.marketing.lottery.winners(&q).await?)
 }
 
+/// 分享得次数上报（我方新增）：分享动作完成点调用，入账后回最新剩余次数。
+async fn share_reward(
+    State(state): State<PublicState>,
+    Extension(user): Extension<OptionalUser>,
+    Json(param): Json<LotteryShareRewardParam>,
+) -> ApiResult<LotteryShareRewardVO> {
+    ok(state
+        .marketing
+        .lottery
+        .share_reward(user_id(&user), &param)
+        .await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -130,13 +148,15 @@ mod tests {
     #[test]
     fn implemented_routes_match_java_contract() {
         let docs = implemented_routes();
-        assert_eq!(docs.len(), 5);
+        // Java 契约 5 条 + 我方新增 shareReward 1 条
+        assert_eq!(docs.len(), 6);
         for (m, p) in [
             ("GET", "/api/promotion/lottery/info"),
             ("POST", "/api/promotion/lottery/draw"),
             ("GET", "/api/promotion/lottery/myRecords"),
             ("POST", "/api/promotion/lottery/confirmReceive"),
             ("GET", "/api/promotion/lottery/winners"),
+            ("POST", "/api/promotion/lottery/shareReward"),
         ] {
             assert!(docs.iter().any(|d| d.method == m && d.path == p), "{m} {p}");
         }
@@ -144,6 +164,6 @@ mod tests {
 
     #[test]
     fn route_table_matches_registrations() {
-        assert_eq!(ROUTE_TABLE.len(), 5);
+        assert_eq!(ROUTE_TABLE.len(), 6);
     }
 }
